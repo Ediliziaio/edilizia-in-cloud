@@ -322,8 +322,12 @@ export default function CruscottoAziendale() {
       {!isDataEmpty && (
         <SectionErrorBoundary sectionName="Executive Summary">
           <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm print:border-slate-200">
-            <div className="grid gap-0 xl:grid-cols-[minmax(340px,0.58fr)_minmax(540px,1fr)]">
-              <div className="bg-[#173b67] p-5 text-white sm:p-6">
+            <div className="grid gap-0 xl:grid-cols-[minmax(280px,0.4fr)_minmax(560px,1fr)]">
+              {/* Il pannello si allunga per stare al passo col grafico accanto.
+                  Con quattro riquadri lo riempivano; rimastine due, meta' blu
+                  restava vuota. Ora la colonna e' piu' stretta e i due riquadri
+                  si distribuiscono sull'altezza invece di ammucchiarsi in alto. */}
+              <div className="flex flex-col bg-[#173b67] p-5 text-white sm:p-6">
                 {/* Il richiamo urgente che stava qui — "Incassi da sbloccare,
                     279k € scaduti" — diceva la stessa cosa del primo punto di
                     "Da guardare oggi", poche righe piu' su, che pero' ne mostra
@@ -333,7 +337,7 @@ export default function CruscottoAziendale() {
                   Numeri del periodo
                 </p>
 
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <div className="mt-4 grid flex-1 content-center gap-3 sm:grid-cols-2 xl:grid-cols-1">
                   {executiveKpis.map((item) => {
                     const Icon = item.icon;
                     const clickable = !!item.drilldown;

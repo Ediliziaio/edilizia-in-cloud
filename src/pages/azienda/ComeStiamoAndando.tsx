@@ -18,24 +18,11 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useCruscottoData } from "@/hooks/useCruscottoData";
 import { formatCurrency } from "@/lib/formatters";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Button } from "@/components/ui/button";
-import {
-  AlertTriangle, ArrowRight, Banknote, HardHat, Clock, TrendingDown,
-  CheckCircle2, Settings2, Info,
-} from "lucide-react";
-import {
-  margineCantieriAperti,
-  andamentoIncassi,
-  ordinaAttenzioni,
-  eInRitardo,
-  type CantiereMargine,
-  type VoceAttenzione,
-} from "@/lib/comeStiamoAndando";
+import { AlertTriangle, ArrowRight, Banknote, HardHat, Clock, TrendingDown, CheckCircle2, Info } from "lucide-react";
+import { margineCantieriAperti, andamentoIncassi, ordinaAttenzioni, eInRitardo } from "@/lib/comeStiamoAndando";
 
 /** Un numero grosso con la sua riga di contesto. Il contesto non è decorazione. */
 function Numero({
@@ -47,23 +34,31 @@ function Numero({
   contesto: React.ReactNode;
   tono?: "neutro" | "buono" | "attenzione" | "male";
 }) {
-  const colore = {
-    neutro: "text-foreground",
-    buono: "text-emerald-600",
-    attenzione: "text-amber-600",
-    male: "text-destructive",
+  // Quattro scatole bianche identiche non si leggono a colpo d'occhio: bisogna
+  // arrivare al numero per capire se e' una buona o una cattiva notizia. Il
+  // colore sta sull'icona e sul filo di bordo a sinistra, cosi' lo stato si
+  // vede prima di leggere, e il numero resta la cosa piu' grande della scheda.
+  const stile = {
+    neutro: { valore: "text-slate-900", chip: "bg-slate-100 text-slate-500", filo: "bg-slate-200" },
+    buono: { valore: "text-emerald-700", chip: "bg-emerald-50 text-emerald-600", filo: "bg-emerald-400" },
+    attenzione: { valore: "text-amber-700", chip: "bg-amber-50 text-amber-600", filo: "bg-amber-400" },
+    male: { valore: "text-red-700", chip: "bg-red-50 text-red-600", filo: "bg-red-400" },
   }[tono];
   return (
-    <Card>
-      <CardContent className="space-y-1 px-3 py-3 md:px-4">
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <Icona className="h-3.5 w-3.5 shrink-0" />
-          <span className="truncate">{etichetta}</span>
-        </div>
-        <p className={`text-xl font-bold leading-none tabular-nums md:text-2xl ${colore}`}>{valore}</p>
-        <div className="text-[11px] leading-4 text-muted-foreground">{contesto}</div>
-      </CardContent>
-    </Card>
+    <div className="relative flex min-w-0 gap-2.5 overflow-hidden rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm">
+      <span className={`absolute inset-y-0 left-0 w-1 ${stile.filo}`} aria-hidden />
+      <span className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${stile.chip}`}>
+        <Icona className="h-3.5 w-3.5" />
+      </span>
+      <div className="min-w-0 flex-1">
+        {/* L'etichetta va a capo invece di troncarsi: a 375px "Scaduto da
+            incassare" diventava "SCADUTO DA IN...", che non dice cosa sia.
+            Le schede stanno in una griglia, quindi si allineano comunque. */}
+        <p className="text-[11px] font-medium uppercase leading-3.5 tracking-wide text-slate-500">{etichetta}</p>
+        <p className={`mt-1 text-lg font-bold leading-none tabular-nums sm:text-xl md:text-[26px] ${stile.valore}`}>{valore}</p>
+        <div className="mt-1 text-[11px] leading-4 text-slate-500">{contesto}</div>
+      </div>
+    </div>
   );
 }
 
@@ -283,60 +278,55 @@ export default function ComeStiamoAndando({ comeSezione = false }: { comeSezione
         </Alert>
       )}
 
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Da guardare oggi</CardTitle>
-          <CardDescription>
-            Un solo elenco, in ordine di quanto costa non farlo.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          {caricando ? (
-            <Skeleton className="h-20" />
-          ) : attenzioni.length === 0 ? (
-            <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
-              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-              Niente che richieda attenzione: nessuno scaduto, nessun cantiere oltre la data.
-            </div>
-          ) : (
-            attenzioni.map((v) => (
-              <Link
-                key={v.id}
-                to={v.url}
-                className="flex items-start gap-3 rounded-lg border p-3 transition-colors hover:bg-muted/50"
-              >
-                <Badge
-                  variant={v.gravita === "urgente" ? "destructive" : "secondary"}
-                  className="mt-0.5 shrink-0 text-[10px]"
-                >
-                  {v.gravita === "urgente" ? "Urgente" : v.gravita === "attenzione" ? "Attenzione" : "Info"}
-                </Badge>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium leading-snug">{v.titolo}</p>
-                  <p className="text-xs leading-4 text-muted-foreground">{v.dettaglio}</p>
-                </div>
-                <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-muted-foreground" />
-              </Link>
-            ))
-          )}
-        </CardContent>
-      </Card>
+      {/* Prima: intestazione su tre righe, poi quattro righe alte con la
+          freccia buttata all'estremo destro, lontana dal testo a cui si
+          riferisce. Mezzo schermo per quattro voci. Ora titolo e spiegazione
+          stanno sulla stessa riga, le voci sono righe di un elenco separate da
+          un filo, e la gravita' si legge dal colore del bordo sinistro invece
+          che da un'etichetta ripetuta quattro volte. */}
+      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 border-b border-slate-100 px-4 py-2.5">
+          <h2 className="text-sm font-semibold text-slate-900">Da guardare oggi</h2>
+          <p className="text-xs text-slate-500">in ordine di quanto costa non farlo</p>
+        </div>
 
-      {!caricando && companyTargets?.monthly_revenue_target == null && (
-        <Alert>
-          <Settings2 className="h-4 w-4" />
-          <AlertTitle>Manca la previsione di incasso</AlertTitle>
-          <AlertDescription className="space-y-2">
-            <p className="text-xs">
-              Senza un obiettivo mensile, "incassato" è solo un numero: non si può
-              dire se è tanto o poco, né se si è avanti o indietro col mese.
-            </p>
-            <Button asChild size="sm" variant="outline">
-              <Link to="/azienda/impostazioni/margini">Imposta l'obiettivo</Link>
-            </Button>
-          </AlertDescription>
-        </Alert>
-      )}
+        {caricando ? (
+          <div className="p-3"><Skeleton className="h-20" /></div>
+        ) : attenzioni.length === 0 ? (
+          <div className="flex items-center gap-2 px-4 py-4 text-sm text-slate-600">
+            <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
+            Niente che richieda attenzione: nessuno scaduto, nessun cantiere oltre la data.
+          </div>
+        ) : (
+          <ul className="divide-y divide-slate-100">
+            {attenzioni.map((v) => (
+              <li key={v.id}>
+                <Link
+                  to={v.url}
+                  className="group flex items-center gap-3 border-l-[3px] px-4 py-2.5 transition-colors hover:bg-slate-50"
+                  style={{
+                    borderLeftColor:
+                      v.gravita === "urgente" ? "rgb(239 68 68)"
+                      : v.gravita === "attenzione" ? "rgb(245 158 11)"
+                      : "rgb(148 163 184)",
+                  }}
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium leading-snug text-slate-900">{v.titolo}</p>
+                    <p className="truncate text-xs leading-4 text-slate-500">{v.dettaglio}</p>
+                  </div>
+                  <ArrowRight className="h-4 w-4 shrink-0 text-slate-300 transition-colors group-hover:text-slate-600" />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {/* Qui stava un riquadro intero — titolo, spiegazione e un bottone — per
+          dire una cosa che il primo dei quattro numeri gia' dice, con lo stesso
+          collegamento: "Nessuna previsione impostata". Una riga di schermo per
+          ripetere un invito rende meno probabile che venga accolto, non piu'. */}
     </div>
   );
 }
