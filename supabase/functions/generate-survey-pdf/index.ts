@@ -229,7 +229,15 @@ ${areas.map((area) => {
       const elType = (schema.element_types as Array<any> ?? []).find((t) => t.key === el.element_type);
       const elMedia = refreshedMedia.filter((m) => m.element_id === el.id && m.type === "photo");
       const values = (el.values as Record<string, unknown>) ?? {};
-      const fieldsToShow = elType?.sections?.flatMap((s: { fields: Array<Record<string, unknown>> }) => s.fields ?? []) ?? [];
+      // Prima si scartano i campi senza valore, POI si prendono i primi 8:
+      // tagliando per primo, un elemento con i primi 8 campi vuoti (facile ora
+      // che le sezioni dei complementi compaiono solo se servono) finiva nel
+      // PDF senza nemmeno un dato.
+      const fieldsToShow = (elType?.sections?.flatMap((s: { fields: Array<Record<string, unknown>> }) => s.fields ?? []) ?? [])
+        .filter((f: Record<string, unknown>) => {
+          const v = values[f.key as string];
+          return v != null && v !== "" && !(Array.isArray(v) && v.length === 0);
+        });
       return `<div class="element">
         <div class="header-row">
           <span class="badge">#${idx + 1}</span>
@@ -241,7 +249,6 @@ ${areas.map((area) => {
             const k = f.key as string;
             const label = f.label as string;
             const val = values[k];
-            if (val == null || val === "") return "";
             const vStr = Array.isArray(val) ? val.join(", ") :
                          typeof val === "object" ? JSON.stringify(val) : String(val);
             return `<span class="field"><span class="key">${escapeHtml(label)}:</span> <span class="val">${escapeHtml(vStr)}</span></span>`;

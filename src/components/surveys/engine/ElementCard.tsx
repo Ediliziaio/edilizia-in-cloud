@@ -4,6 +4,7 @@
 import { useMemo } from "react";
 import type { ElementTypeDefinition, SurveyElementRow, SurveyMediaRow } from "@/types/surveys";
 import { SectionRenderer } from "./SectionRenderer";
+import { isVisible } from "./evalConditions";
 import { PhotoChecklist } from "./PhotoChecklist";
 import { FreePhotoUpload } from "./FreePhotoUpload";
 import { AudioRecorder } from "./AudioRecorder";
@@ -35,15 +36,21 @@ export function ElementCard({
   const elementMedia = media.filter((m) => m.element_id === element.id);
   const audioMedia = elementMedia.find((m) => m.type === "audio") ?? null;
 
+  // Obbligatori solo fra ciò che è DAVVERO a schermo: una sezione nascosta da
+  // `show_if` (p.es. "Tapparella" su una finestra senza tapparella) non deve
+  // pretendere i suoi campi. Contandoli tutti, un infisso semplice risultava
+  // incompleto per 12 campi che l'operatore non poteva nemmeno vedere.
   const requiredFields = useMemo(() => {
+    const valori = element.values ?? {};
     const out: string[] = [];
     elementType.sections.forEach((s) => {
+      if (!isVisible(s.show_if, valori)) return;
       s.fields.forEach((f) => {
-        if (f.required) out.push(f.key);
+        if (f.required && isVisible(f.show_if, valori)) out.push(f.key);
       });
     });
     return out;
-  }, [elementType]);
+  }, [elementType, element.values]);
 
   const missingFields = useMemo(() => {
     return requiredFields.filter((k) => {

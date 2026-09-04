@@ -36,7 +36,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   ArrowLeft, ClipboardList, Plus, Save, FileSignature, FileText, Sparkles,
-  Loader2, MapPin, Calendar, UserPlus, AlertCircle,
+  Loader2, MapPin, Calendar, UserPlus, AlertCircle, CheckCircle2,
 } from "lucide-react";
 import { SurveyAssignDialog } from "@/components/sopralluoghi/SurveyAssignDialog";
 import { format } from "date-fns";
@@ -44,6 +44,7 @@ import { it } from "date-fns/locale";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { SectionRenderer } from "@/components/surveys/engine/SectionRenderer";
+import { isVisible } from "@/components/surveys/engine/evalConditions";
 import { AreaCard } from "@/components/surveys/engine/AreaCard";
 import { AudioRecorder } from "@/components/surveys/engine/AudioRecorder";
 import { PhotoChecklist } from "@/components/surveys/engine/PhotoChecklist";
@@ -336,10 +337,13 @@ export default function SopralluogoEditor() {
     let totalRequired = 0;
     let totalCompleted = 0;
 
-    // Header required
+    // Header required — solo i campi effettivamente a schermo: un obbligatorio
+    // nascosto da `show_if` non è dovuto, e contandolo la percentuale non
+    // arrivava mai al 100% senza che si capisse cosa mancava.
     detail.template.schema.header_schema?.forEach((s) => {
+      if (!isVisible(s.show_if, headerData)) return;
       s.fields.forEach((f) => {
-        if (f.required) {
+        if (f.required && isVisible(f.show_if, headerData)) {
           totalRequired++;
           const v = headerData[f.key];
           if (v != null && v !== "") totalCompleted++;
@@ -351,11 +355,13 @@ export default function SopralluogoEditor() {
     detail.elements.forEach((el) => {
       const type = detail.template.schema.element_types?.find((t) => t.key === el.element_type);
       if (!type) return;
+      const valori = el.values ?? {};
       type.sections.forEach((s) => {
+        if (!isVisible(s.show_if, valori)) return;
         s.fields.forEach((f) => {
-          if (f.required) {
+          if (f.required && isVisible(f.show_if, valori)) {
             totalRequired++;
-            const v = el.values?.[f.key];
+            const v = valori[f.key];
             if (v != null && v !== "") totalCompleted++;
           }
         });
@@ -416,6 +422,16 @@ export default function SopralluogoEditor() {
 
   const { survey, template, areas, elements, media } = detail;
   const statusCfg = STATUS_LABEL[survey.status] ?? STATUS_LABEL.draft;
+
+  // La mossa ovvia, in chiaro. Prima l'unico modo di avviare un sopralluogo
+  // era aprire una tendina di 8 stati in gergo interno ("Revisionato",
+  // "Convertito") e indovinare "In corso": nessuno dei sopralluoghi creati è
+  // mai stato avviato. La tendina resta per i casi fuori percorso.
+  const prossimoPasso: { stato: string; etichetta: string } | null =
+    survey.status === "draft"       ? { stato: "in_progress", etichetta: "Inizia sopralluogo" }
+  : survey.status === "in_progress" ? { stato: "completed",   etichetta: "Ho finito" }
+  : survey.status === "completed"   ? { stato: "reviewed",    etichetta: "Segna come revisionato" }
+  : null;
   // Media a livello sopralluogo (né area né elemento): foto generali + audio generale.
   const generalMedia = media.filter((m) => !m.area_id && !m.element_id);
 
@@ -450,6 +466,19 @@ export default function SopralluogoEditor() {
             <UserPlus className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Assegna</span>
           </Button>
+          {prossimoPasso && (
+            <Button
+              size="sm"
+              className="h-8 gap-1.5"
+              disabled={updateStatusMut.isPending}
+              onClick={() => updateStatusMut.mutate(prossimoPasso.stato)}
+            >
+              {updateStatusMut.isPending
+                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                : <CheckCircle2 className="h-3.5 w-3.5" />}
+              {prossimoPasso.etichetta}
+            </Button>
+          )}
           <Select value={survey.status} onValueChange={(v) => updateStatusMut.mutate(v)}>
             <SelectTrigger className="w-32 h-8 text-xs">
               <SelectValue />
