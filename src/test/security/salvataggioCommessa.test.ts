@@ -119,9 +119,11 @@ describe("la giacenza la muove il database, non il browser", () => {
 });
 
 describe("chi può chiamarla", () => {
+  // La firma ha guadagnato un settimo argomento (p_versione) nella migrazione
+  // successiva: qui si controlla il permesso, non il numero di argomenti.
   it("non è aperta a tutti", () => {
-    expect(sql).toMatch(/revoke all on function public\.commessa_salva\(uuid, jsonb, jsonb, jsonb, jsonb, jsonb\) from public/);
-    expect(sql).toMatch(/grant execute on function public\.commessa_salva\(uuid, jsonb, jsonb, jsonb, jsonb, jsonb\) to authenticated/);
+    expect(sql).toMatch(/revoke all on function public\.commessa_salva\([^)]*\) from public/);
+    expect(sql).toMatch(/grant execute on function public\.commessa_salva\([^)]*\) to authenticated/);
   });
 
   it("anon non compare fra chi la può eseguire", () => {
