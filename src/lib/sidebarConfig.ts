@@ -88,11 +88,12 @@ export const macroAreas: MacroArea[] = [
     items: [
       { title: "Attività", url: "/azienda/attivita", icon: CheckSquare },
       { title: "Email", url: "/azienda/email", icon: Mail, featureKey: "email_client", isBeta: true },
-      // Una sola voce per il "come stiamo andando": e' la sezione di apertura
-      // del Cruscotto Aziendale, non una pagina accanto. Quando erano due,
-      // incassato, margine e da incassare comparivano in entrambe.
-      { title: "Come stiamo andando", url: "/azienda/cruscotto/aziendale", icon: Gauge, permissionKey: "canViewCruscotto" },
-      { title: "Cruscotto", url: "/azienda/cruscotto", icon: LayoutGrid, permissionKey: "canViewCruscotto" },
+      // Una sola voce. Prima erano due — "Come stiamo andando" e "Cruscotto" —
+      // e siccome /azienda/cruscotto/aziendale sta sotto /azienda/cruscotto,
+      // risultavano attive entrambe insieme. Porta alla pagina che contiene
+      // tutto; le dashboard personalizzate si raggiungono dal selettore in
+      // cima a quella pagina, e da li' si torna indietro.
+      { title: "Cruscotto", url: "/azienda/cruscotto/aziendale", icon: Gauge, permissionKey: "canViewCruscotto" },
       { title: "Chat Team", url: "/azienda/chat", icon: MessagesSquare }, // no gate — accessible to all authenticated users
       { title: "Silvio AI", url: "/azienda/silvio-ai", icon: Sparkles, isBeta: true }, // nuova interfaccia multi-conversazione
     ],

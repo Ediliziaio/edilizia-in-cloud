@@ -31,13 +31,10 @@ import { SedeIncidenzaTable } from "@/components/sedi/SedeIncidenzaTable";
 import { SedeIncidenceChart } from "@/components/sedi/SedeIncidenceChart";
 import { useSediAnalytics } from "@/hooks/useSediAnalytics";
 import { useSedeFilter } from "@/store/sedeFilterStore";
-import { SemaforoBar } from "@/components/cruscotto/SemaforoBar";
-import { SaluteAziendale } from "@/components/cruscotto/SaluteAziendale";
-import { AzioniUrgenti } from "@/components/cruscotto/AzioniUrgenti";
 import { IndicatoriGuida } from "@/components/cruscotto/IndicatoriGuida";
 import { DashboardSelectorBar } from "@/components/dashboard/DashboardSelectorBar";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
-import { AlertCircle, AlertTriangle, ArrowUpRight, Download, Euro, LayoutDashboard, RefreshCw, ShieldCheck, TrendingUp, Wallet } from "lucide-react";
+import { AlertCircle, ArrowUpRight, Download, Euro, LayoutDashboard, RefreshCw, Wallet } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -64,6 +61,20 @@ import {
 import { TrendTooltip, type TrendTooltipSeries } from "@/components/charts/TrendTooltip";
 
 type ExecutiveTone = "green" | "orange" | "red" | "blue";
+
+/**
+ * Gli avvisi che la sezione "Da guardare oggi", in cima alla pagina, mostra
+ * gia' — con gli stessi numeri e le stesse azioni. Il pannello piu' in basso
+ * li salta e tiene i suoi, che sono di natura diversa (commerciali e
+ * amministrativi) e altrove non compaiono.
+ */
+const AVVISI_GIA_IN_CIMA = [
+  "overdue-payments",
+  "overdue-receivables",
+  "late-orders",
+  "suppliers-due",
+  "negative-cashflow",
+] as const;
 
 function eur(value: number) {
   return formatCurrencyCompact(safeNumber(value));
@@ -226,28 +237,13 @@ export default function CruscottoAziendale() {
       tone: finance.cashFlowNet >= 0 ? "green" as ExecutiveTone : "red" as ExecutiveTone,
       drilldown: null as DrilldownType,
     },
-    {
-      label: "Da incassare",
-      value: eur(finance.pendingRevenue),
-      hint: operations.overdueAmount > 0 ? `${eur(operations.overdueAmount)} scaduti` : "nessuno scaduto operativo",
-      icon: AlertTriangle,
-      tone: operations.overdueAmount > 0 ? "red" as ExecutiveTone : "orange" as ExecutiveTone,
-      drilldown: "late-orders" as DrilldownType,
-    },
-    {
-      // "Margine medio" da solo si leggeva accanto a "Margine cantieri aperti"
-      // dei riquadri in cima, e i due numeri non coincidono: questo e' il
-      // margine fatturato nel mese, quello e' il margine dei cantieri ancora
-      // aperti. Due misure diverse con lo stesso nome fanno dubitare di
-      // entrambe, quindi qui il nome dice di cosa si sta parlando.
-      label: "Margine del mese",
-      value: pct(finance.marginThisMonth),
-      hint: `sul fatturato · mese precedente ${pct(finance.marginPrevMonth)}`,
-      icon: TrendingUp,
-      tone: finance.marginThisMonth >= 15 ? "green" as ExecutiveTone : finance.marginThisMonth >= 0 ? "orange" as ExecutiveTone : "red" as ExecutiveTone,
-      drilldown: "margin" as DrilldownType,
-    },
-  ], [finance, operations.overdueAmount]);
+    // "Da incassare" e "Margine del mese" stavano qui e ripetevano, con parole
+    // diverse, due dei quattro riquadri in cima: lo scaduto era lo stesso
+    // numero, e due percentuali chiamate entrambe margine — una sui cantieri
+    // aperti, una sul fatturato — facevano dubitare di tutte e due. Qui
+    // restano i due numeri che dipendono davvero dal periodo scelto e che
+    // sopra non compaiono: quanto si e' venduto e come si chiude il mese.
+  ], [finance]);
 
   const { sediSelezionate, periodo } = useSedeFilter();
   const { data: sediData } = useSediAnalytics({ da: periodo.da, a: periodo.a });
@@ -592,31 +588,16 @@ export default function CruscottoAziendale() {
             </TabsList>
 
             <TabsContent value="sintesi" className="mt-4 space-y-4">
-              {/* Qui sopra stavano il semaforo e "Salute aziendale": dicevano
-                  margine, ritardi e scaduti, cioe' gli stessi tre numeri dei
-                  riquadri in cima alla pagina, con un punteggio in piu'. Tre
-                  letture della stessa cosa nella stessa schermata non aiutano
-                  a decidere: insegnano a non fidarsi di nessuna delle tre.
-                  Restano le azioni urgenti, che elencano cose che i riquadri
-                  non dicono (fatture da inviare allo SdI, proforma aperti). */}
-              <div className="grid grid-cols-1 gap-4">
-                <div>
-                  <SectionErrorBoundary sectionName="Azioni Urgenti">
-                    <AzioniUrgenti
-                      overduePayments={operations.overduePayments}
-                      overdueAmount={operations.overdueAmount}
-                      lateOrders={operations.lateOrders}
-                      cashFlowNet={finance.cashFlowNet}
-                      staleLeads={marketing?.alerts?.stale_leads}
-                      fattureBozza={billingKPI?.fatture_in_bozza}
-                      proformaAperti={billingKPI?.proforma_aperti}
-                      fattureScadute={billingKPI?.fatture_scadute_count}
-                      fattureScaduteAmount={billingKPI?.scaduto}
-                      suppliersDueAmount={todayData?.suppliersDueAmount}
-                    />
-                  </SectionErrorBoundary>
-                </div>
-              </div>
+              {/* Su questa scheda si impilavano quattro riquadri che rispondevano
+                  tutti alla stessa domanda dei quattro in cima alla pagina. Il
+                  semaforo e "Salute aziendale" ripetevano margine, ritardi e
+                  scaduti. "Da fare oggi" stava accanto a "Da guardare oggi" —
+                  due nomi quasi uguali — e ogni sua voce era un doppione o una
+                  contraddizione: le stesse 30 rate scadute, 5 ordini in ritardo
+                  contro i 33 cantieri dichiarati sopra, e un cash flow che
+                  ripeteva il saldo previsto. Restano "I numeri che comandano",
+                  che misurano cose diverse (giorni di copertura, acconti su
+                  saldi), e le aree di approfondimento. */}
 
               <SectionErrorBoundary sectionName="I numeri che comandano">
                 <IndicatoriGuida />
@@ -633,7 +614,13 @@ export default function CruscottoAziendale() {
               )}
 
               <SectionErrorBoundary sectionName="Alert Panel">
+                {/* Restano solo gli avvisi che "Da guardare oggi" non da': lead
+                    fermi, appuntamenti mancati, opportunita' ferme, fatture da
+                    emettere. Scaduti, ordini in ritardo, fornitori e cash flow
+                    sono gia' scritti in cima con gli stessi numeri: ripeterli a
+                    meta' pagina li faceva sembrare due problemi distinti. */}
                 <AlertPanel
+                  escludi={AVVISI_GIA_IN_CIMA}
                   marketingAlerts={marketing?.alerts}
                   operations={operations}
                   finance={finance}
