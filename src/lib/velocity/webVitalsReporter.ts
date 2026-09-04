@@ -86,17 +86,12 @@ function flush() {
     context: getContext(),
   });
 
-  // 1) sendBeacon — preferito perché non blocca pagehide
-  try {
-    if (typeof navigator.sendBeacon === "function") {
-      const blob = new Blob([payload], { type: "application/json" });
-      const ok = navigator.sendBeacon(endpoint, blob);
-      if (ok) return;
-    }
-  } catch {
-    // fallthrough a fetch
-  }
-
+  // Niente sendBeacon: la funzione richiede la chiave (risponde 401 senza) e il
+  // beacon non puo' aggiungere header. In piu' parte sempre in modalita'
+  // credentials "include", che con la nostra CORS (senza Allow-Credentials)
+  // faceva fallire il preflight. Il beacon rispondeva comunque "accodato", il
+  // codice usciva soddisfatto e le metriche non arrivavano MAI. Resta la fetch
+  // con keepalive, che sopravvive alla chiusura della pagina come il beacon.
   // 2) fetch keepalive (best-effort)
   try {
     void fetch(endpoint, {
