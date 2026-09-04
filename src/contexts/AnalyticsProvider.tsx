@@ -11,6 +11,7 @@
  *
  * Zero impatto se PostHog non è configurato (le chiamate sono guard-protected).
  */
+import { tracciaPagina } from "@/lib/analytics/siteTracker";
 import { useEffect, type ReactNode } from "react";
 import { useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -28,6 +29,16 @@ interface AnalyticsConfig {
   apiKey: string;
   host: string;
   enabled: boolean;
+}
+
+/** Aree applicative: non sono navigazione di marketing. */
+const AREE_APP = [
+  "/azienda", "/admin", "/campo", "/tecnico", "/clienti", "/commercialista",
+  "/partner", "/referral", "/produttore", "/portale", "/appuntamento", "/prenota",
+];
+
+function percorsoDaNonTracciare(pathname: string): boolean {
+  return AREE_APP.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
 
 export function AnalyticsProvider({ children }: { children: ReactNode }) {
@@ -95,6 +106,17 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
     if (!config) return;
     trackPageview(location.pathname + location.search);
   }, [config, location.pathname, location.search]);
+
+  // 5. Percorso sul sito pubblico — indipendente da PostHog, che oggi è
+  // spento (posthog_api_key vuota) e quindi non traccia nulla. Qui i dati
+  // restano in casa e servono a rispondere alla domanda pratica: chi ha
+  // mandato una richiesta, da dove era entrato e cosa aveva guardato prima.
+  // Si escludono le aree applicative: lì il percorso non è marketing e
+  // riempirebbe la tabella di rumore.
+  useEffect(() => {
+    if (percorsoDaNonTracciare(location.pathname)) return;
+    tracciaPagina(location.pathname + location.search);
+  }, [location.pathname, location.search]);
 
   return <>{children}</>;
 }

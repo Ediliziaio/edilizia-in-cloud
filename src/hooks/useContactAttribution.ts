@@ -36,9 +36,31 @@ export function useContactAttribution(contactId: string | undefined, companyId: 
     gcTime: 15 * 60 * 1000,
   });
 
+  // Le pagine viste, in ordine, per tutte le sessioni della persona: è la
+  // risposta a "cosa aveva guardato prima di scrivere?".
+  const idSessioni = (sessions ?? []).map((s) => s.session_id).filter(Boolean) as string[];
+
+  const { data: pageviews, isLoading: loadingPageviews } = useQuery({
+    queryKey: ["contact-attribution-pageviews", contactId, idSessioni.join(",")],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("attribution_pageviews")
+        .select("id, session_id, path, title, viewed_at")
+        .in("session_id", idSessioni)
+        .order("viewed_at", { ascending: true })
+        .limit(300);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: idSessioni.length > 0,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
+  });
+
   return {
     attribution,
     sessions: sessions || [],
-    isLoading: loadingAttribution || loadingSessions,
+    pageviews: pageviews || [],
+    isLoading: loadingAttribution || loadingSessions || loadingPageviews,
   };
 }

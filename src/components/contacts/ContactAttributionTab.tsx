@@ -1,7 +1,7 @@
 import { useContactAttribution } from "@/hooks/useContactAttribution";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Globe, MousePointerClick, Clock, Hash, Monitor, Smartphone, Tablet, ExternalLink, Search } from "lucide-react";
+import { Globe, MousePointerClick, Clock, Hash, Monitor, Smartphone, Tablet, ExternalLink, Search, Route } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 
@@ -96,7 +96,7 @@ interface Props {
 }
 
 export function ContactAttributionTab({ contactId, companyId }: Props) {
-  const { attribution, sessions, isLoading } = useContactAttribution(contactId, companyId);
+  const { attribution, sessions, pageviews, isLoading } = useContactAttribution(contactId, companyId);
 
   if (isLoading) {
     return <div className="space-y-2 px-1"><Skeleton className="h-16 w-full" /><Skeleton className="h-16 w-full" /></div>;
@@ -178,6 +178,37 @@ export function ContactAttributionTab({ contactId, companyId }: Props) {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Percorso sul sito: le pagine viste in ordine, raggruppate per visita.
+          È la domanda pratica di chi guarda una richiesta arrivata: da dove è
+          entrato e cosa ha guardato prima di scrivere. */}
+      {pageviews.length > 0 && (
+        <div className="space-y-1">
+          <p className="text-[10px] font-semibold text-muted-foreground flex items-center gap-1">
+            <Route className="h-3 w-3" /> Pagine visitate ({pageviews.length})
+          </p>
+          <div className="border rounded divide-y max-h-64 overflow-y-auto">
+            {pageviews.map((p, i) => {
+              const nuovaVisita = i === 0 || pageviews[i - 1].session_id !== p.session_id;
+              return (
+                <div key={p.id} className="px-2 py-1 text-[10px]">
+                  {nuovaVisita && (
+                    <p className="text-[9px] uppercase tracking-wide text-muted-foreground pb-0.5">
+                      Visita del {format(new Date(p.viewed_at), "dd/MM/yy", { locale: it })}
+                    </p>
+                  )}
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground tabular-nums shrink-0">
+                      {format(new Date(p.viewed_at), "HH:mm", { locale: it })}
+                    </span>
+                    <span className="truncate" title={p.title ?? p.path}>{p.path}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
     </div>

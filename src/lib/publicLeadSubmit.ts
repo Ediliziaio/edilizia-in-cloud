@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { trackPixel } from "@/lib/meta/fbcTracker";
+import { sessionId } from "@/lib/analytics/siteTracker";
 
 export type PublicLeadPayload = {
   nome: string;
@@ -15,6 +16,8 @@ export type PublicLeadPayload = {
   context_label?: string | null;
   /** Codice referral del partner (catturato da ReferralLanding in localStorage). */
   referral_code?: string | null;
+  /** Sessione di navigazione: collega la richiesta al percorso sul sito. */
+  session_id?: string | null;
 };
 
 export async function submitPublicLeadToCrm(payload: PublicLeadPayload) {
@@ -28,9 +31,21 @@ export async function submitPublicLeadToCrm(payload: PublicLeadPayload) {
     marketing_consent: Boolean(payload.marketing_consent),
     tags: Array.from(new Set((payload.tags ?? []).map((tag) => String(tag).trim()).filter(Boolean))),
     render_slug: payload.render_slug?.trim() || null,
-    page_path: payload.page_path?.trim() || null,
+    // La pagina di provenienza la mandava solo 1 form su 4, e la funzione la
+    // scrive già nell'attività e nella mail di avviso: la si riempie qui, una
+    // volta per tutte, così vale anche per i form che verranno.
+    page_path:
+      payload.page_path?.trim() ||
+      (typeof window !== "undefined"
+        ? window.location.pathname + window.location.search
+        : null) ||
+      null,
     context_label: payload.context_label?.trim() || null,
     referral_code: payload.referral_code?.trim() || null,
+    session_id:
+      payload.session_id?.trim() ||
+      (typeof window !== "undefined" ? sessionId() : null) ||
+      null,
   };
 
   const { data, error } = await supabase.functions.invoke("public-lead-submit", {

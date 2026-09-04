@@ -68,6 +68,7 @@ Deno.serve(async (req) => {
     const renderSlug = cleanText(body.render_slug, 80).toLowerCase().replace(/[^a-z0-9-]/g, "");
     const pagePath = cleanText(body.page_path, 180);
     const contextLabel = cleanText(body.context_label, 180);
+    const sessionId = cleanText(body.session_id, 64);
     // Codice referral del partner (catturato da ReferralLanding → localStorage).
     // Normalizzato come gli altri codici referral: maiuscolo, solo alfanumerico/-/_.
     const referralCode = cleanText(body.referral_code, 40).toUpperCase().replace(/[^A-Z0-9_-]/g, "");
@@ -274,6 +275,20 @@ Deno.serve(async (req) => {
       console.warn("[public-lead-submit] form_submitted event skipped:", e);
     }
 
+    // Lega la visita alla persona: senza questo il percorso resta anonimo e
+    // non si può rispondere a "cosa aveva guardato prima di scrivere?".
+    if (sessionId) {
+      try {
+        await supabase
+          .from("attribution_sessions")
+          .update({ contact_id: contactId, converted_at: new Date().toISOString() })
+          .eq("session_id", sessionId)
+          .is("contact_id", null);
+      } catch (e) {
+        console.warn("[public-lead-submit] sessione non collegata:", e);
+      }
+    }
+
     await supabase.from("marketing_contact_activities").insert({
       company_id: PLATFORM_ADMIN_COMPANY_ID,
       contact_id: contactId,
@@ -288,6 +303,7 @@ Deno.serve(async (req) => {
         render_slug: renderSlug || null,
         page_path: pagePath || null,
         context_label: contextLabel || null,
+        session_id: sessionId || null,
         referral_code: referralCode || null,
         referrer_id: referrerInfo?.id ?? null,
         referrer_name: referrerInfo?.name ?? null,

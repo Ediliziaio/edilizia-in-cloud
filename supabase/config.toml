@@ -302,6 +302,10 @@ verify_jwt = false
 [functions.public-lead-submit]
 verify_jwt = false
 
+# Tracciamento sessioni e pagine del sito pubblico: visitatori anonimi.
+[functions.site-track]
+verify_jwt = false
+
 # Form builder pubblico: embed su siti esterni, senza sessione utente EiC.
 [functions.form-render]
 verify_jwt = false
