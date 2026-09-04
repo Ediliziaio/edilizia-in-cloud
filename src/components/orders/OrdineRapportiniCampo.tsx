@@ -4,6 +4,8 @@
  * Usato nel tab "Campo" di OrderDetail.tsx.
  */
 import { useState } from "react";
+import { ImgRiservata } from "@/components/common/ImgRiservata";
+import { linkFileRiservato } from "@/lib/storage/fileRiservati";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -181,7 +183,7 @@ export function OrdineRapportiniCampo({ orderId }: Props) {
     mutationFn: async (rapportino: any) => {
       // Se il PDF esiste già, apri direttamente
       if (rapportino.pdf_url) {
-        window.open(rapportino.pdf_url, "_blank");
+        window.open((await linkFileRiservato(rapportino.pdf_url)) ?? rapportino.pdf_url, "_blank");
         return;
       }
       // Altrimenti genera
@@ -190,7 +192,7 @@ export function OrdineRapportiniCampo({ orderId }: Props) {
       });
       if (error) throw error;
       if (!data?.pdf_url) throw new Error("PDF non disponibile");
-      window.open(data.pdf_url, "_blank");
+      window.open((await linkFileRiservato(data.pdf_url)) ?? data.pdf_url, "_blank");
       qc.invalidateQueries({ queryKey: ["order-campo-rapportini", orderId] });
     },
     onError: () => toast.error("Errore generazione PDF"),
@@ -283,10 +285,10 @@ export function OrdineRapportiniCampo({ orderId }: Props) {
                       {r.foto_urls?.length > 0 && (
                         <div className="flex gap-2 flex-wrap">
                           {r.foto_urls.map((url: string, i: number) => (
-                            <img width={80} height={80} loading="lazy"
+                            <ImgRiservata width={80} height={80} loading="lazy"
                               key={i} src={url} alt={`Foto ${i + 1}`}
                               className="w-20 h-20 object-cover rounded-lg cursor-pointer border hover:opacity-80 transition-opacity"
-                              onClick={() => setFotoModal(url)}
+                              onClick={() => { void linkFileRiservato(url).then((u) => setFotoModal(u)); }}
                             />
                           ))}
                         </div>
@@ -299,7 +301,7 @@ export function OrdineRapportiniCampo({ orderId }: Props) {
                             <p className="text-xs text-muted-foreground mb-1">
                               Firma cliente{r.firma_cliente_nome ? `: ${r.firma_cliente_nome}` : ""}
                             </p>
-                            <img loading="lazy"
+                            <ImgRiservata loading="lazy"
                               src={r.firma_cliente_url} alt="Firma cliente"
                               className="h-16 border rounded cursor-pointer bg-white"
                               onClick={() => setFirmaModal({ url: r.firma_cliente_url, title: "Firma cliente" })}
@@ -309,7 +311,7 @@ export function OrdineRapportiniCampo({ orderId }: Props) {
                         {r.firma_operaio_url && (
                           <div>
                             <p className="text-xs text-muted-foreground mb-1">Firma operaio</p>
-                            <img loading="lazy"
+                            <ImgRiservata loading="lazy"
                               src={r.firma_operaio_url} alt="Firma operaio"
                               className="h-16 border rounded cursor-pointer bg-white"
                               onClick={() => setFirmaModal({ url: r.firma_operaio_url, title: "Firma operaio" })}
@@ -409,7 +411,7 @@ export function OrdineRapportiniCampo({ orderId }: Props) {
       {/* Modal foto fullscreen */}
       <Dialog open={!!fotoModal} onOpenChange={() => setFotoModal(null)}>
         <DialogContent className="max-w-2xl">
-          {fotoModal && <img loading="lazy" src={fotoModal} alt="Foto" className="w-full rounded-lg" />}
+          {fotoModal && <ImgRiservata loading="lazy" src={fotoModal} alt="Foto" className="w-full rounded-lg" />}
         </DialogContent>
       </Dialog>
 
@@ -420,7 +422,7 @@ export function OrdineRapportiniCampo({ orderId }: Props) {
             <DialogTitle>{firmaModal?.title ?? "Firma"}</DialogTitle>
           </DialogHeader>
           {firmaModal && (
-            <img loading="lazy" src={firmaModal.url} alt={firmaModal.title} className="w-full bg-white rounded-lg" />
+            <ImgRiservata loading="lazy" src={firmaModal.url} alt={firmaModal.title} className="w-full bg-white rounded-lg" />
           )}
         </DialogContent>
       </Dialog>

@@ -17,6 +17,8 @@
  * sia l'operaio sia il subappaltatore → nessun gate applicativo necessario.
  */
 import { useMemo, useState } from "react";
+import { ImgRiservata } from "@/components/common/ImgRiservata";
+import { linkFileRiservato } from "@/lib/storage/fileRiservati";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   CheckCircle2, Circle, Camera, Loader2, RefreshCcw, MapPin,
@@ -29,7 +31,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
-const PHOTO_BUCKET = "campo-rapportini"; // bucket pubblico: getPublicUrl è valido
+// Le foto restano indirizzate come prima nel database; in lettura passano da
+// un link a scadenza (linkFileRiservato), cosi' funzionano anche quando il
+// contenitore non e' piu' aperto a chiunque.
+const PHOTO_BUCKET = "campo-rapportini";
 const MAX_PHOTO_MB = 10;
 
 interface Fase {
@@ -329,8 +334,17 @@ export default function CampoAvanzamento() {
                           <div className="mt-2 flex flex-wrap gap-1.5">
                             {foto.map((url) => (
                               <div key={url} className="relative">
-                                <a href={url} target="_blank" rel="noreferrer">
-                                  <img
+                                <a
+                                  href={url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  onClick={(e) => {
+                                    // Il link a scadenza si chiede al momento del clic.
+                                    e.preventDefault();
+                                    void linkFileRiservato(url).then((u) => window.open(u ?? url, "_blank", "noopener"));
+                                  }}
+                                >
+                                  <ImgRiservata
                                     src={url}
                                     alt="Foto avanzamento fase"
                                     loading="lazy"

@@ -3,6 +3,8 @@
  * Verifica accesso tramite order_campo_assignments — sicurezza obbligatoria.
  */
 import { useEffect, useState } from "react";
+import { ImgRiservata } from "@/components/common/ImgRiservata";
+import { linkFileRiservato } from "@/lib/storage/fileRiservati";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
@@ -548,7 +550,8 @@ export default function CampoLavoroDetail() {
 
   const apriPdfRapportino = async (r: CampoRapportinoRow) => {
     if (r.pdf_url) {
-      window.open(r.pdf_url, "_blank", "noopener");
+      // Link a scadenza: il contenitore dei rapportini non e' aperto a chiunque.
+      window.open((await linkFileRiservato(r.pdf_url)) ?? r.pdf_url, "_blank", "noopener");
       return;
     }
     // Rapportini vecchi (o generazione fallita): genera al volo e apri
@@ -560,7 +563,7 @@ export default function CampoLavoroDetail() {
       if (error) throw error;
       const url = (data as { pdf_url?: string } | null)?.pdf_url;
       if (!url) throw new Error("PDF non disponibile, riprova tra qualche istante");
-      window.open(url, "_blank", "noopener");
+      window.open((await linkFileRiservato(url)) ?? url, "_blank", "noopener");
       queryClient.invalidateQueries({ queryKey: ["campo-rapportini-ordine", orderId] });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Non riesco a generare il PDF");
@@ -1039,7 +1042,7 @@ export default function CampoLavoroDetail() {
                   {r.foto_urls?.length > 0 && (
                     <div className="flex gap-1 mt-2">
                       {r.foto_urls.slice(0, 3).map((url: string, i: number) => (
-                        <img width={48} height={48} loading="lazy"
+                        <ImgRiservata width={48} height={48} loading="lazy"
                           key={i}
                           src={url}
                           className="w-12 h-12 rounded-lg object-cover"
