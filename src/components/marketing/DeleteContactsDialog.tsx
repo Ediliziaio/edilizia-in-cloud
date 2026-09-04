@@ -34,20 +34,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AlertTriangle, Loader2, Trash2, Unlink } from "lucide-react";
+import {
+  richiestaConferma,
+  confermaValida as testoCombacia,
+  totaleCollegamenti,
+  type CollegamentiContatti,
+} from "@/lib/marketing/confermaEliminazione";
 
 /** Conteggi dei record collegati ai contatti selezionati. */
-export interface ContactLinks {
-  opportunities: number;
-  appointments: number;
-  quotes: number;
-  tasks: number;
-}
-
-const PAROLA_CONFERMA = "CONFERMA";
-
-function totaleCollegamenti(l: ContactLinks): number {
-  return l.opportunities + l.appointments + l.quotes + l.tasks;
-}
+export type ContactLinks = CollegamentiContatti;
 
 interface Props {
   open: boolean;
@@ -79,8 +74,12 @@ export function DeleteContactsDialog({
   const [testo, setTesto] = useState("");
 
   const totale = links ? totaleCollegamenti(links) : 0;
-  const serveConferma = totale > 0;
-  const confermaValida = !serveConferma || testo.trim().toUpperCase() === PAROLA_CONFERMA;
+  // Non decide più solo la presenza di collegamenti: anche la quantità.
+  // Un'anagrafica fredda importata in blocco non ha collegamenti, e prima
+  // cancellarne cinquemila chiedeva un clic solo.
+  const richiesta = richiestaConferma(count, links);
+  const serveConferma = richiesta.serve;
+  const confermaValida = testoCombacia(testo, richiesta);
   const soggetto = count === 1 ? (nome ? `"${nome}"` : "il contatto") : `${count} contatti`;
 
   const daEliminare: string[] = [];
@@ -104,9 +103,11 @@ export function DeleteContactsDialog({
             Eliminare {soggetto}?
           </DialogTitle>
           <DialogDescription>
-            {serveConferma
-              ? "Ci sono record collegati. Leggi cosa succede a ciascuno prima di procedere: l'operazione non è reversibile."
-              : "L'operazione non è reversibile."}
+            {richiesta.motivo === "quantita"
+              ? "Stai eliminando un blocco di anagrafiche. Non c'è cestino: una volta fatto non si torna indietro."
+              : richiesta.motivo === "collegamenti"
+                ? "Ci sono record collegati. Leggi cosa succede a ciascuno prima di procedere: l'operazione non è reversibile."
+                : "L'operazione non è reversibile."}
           </DialogDescription>
         </DialogHeader>
 
@@ -144,22 +145,47 @@ export function DeleteContactsDialog({
               </div>
             )}
 
-            {!serveConferma && (
+            {totale === 0 && richiesta.motivo !== "quantita" && (
               <p className="rounded-lg bg-gray-50 p-3 text-sm text-gray-600">
                 Nessun record collegato: si elimina solo l&apos;anagrafica.
               </p>
             )}
 
+            {richiesta.motivo === "quantita" && (
+              <div className="flex gap-3 rounded-lg border border-red-200 bg-red-50 p-3">
+                <Trash2 className="mt-0.5 h-4 w-4 shrink-0 text-red-600" aria-hidden="true" />
+                <div className="text-sm leading-relaxed text-red-900">
+                  <p className="font-semibold">
+                    {count.toLocaleString("it-IT")} anagrafiche verranno eliminate.
+                  </p>
+                  <p className="mt-1">
+                    {totale > 0
+                      ? "Oltre a quanto elencato qui sopra."
+                      : "Nessuna di queste ha opportunità, preventivi o appuntamenti collegati — è la forma tipica di un'anagrafica importata, e resta comunque una perdita definitiva."}
+                  </p>
+                </div>
+              </div>
+            )}
+
             {serveConferma && (
               <div className="pt-1">
                 <Label htmlFor="conferma-eliminazione" className="text-sm font-medium">
-                  Per procedere scrivi <span className="font-bold">{PAROLA_CONFERMA}</span>
+                  {richiesta.motivo === "quantita" ? (
+                    <>
+                      Per procedere scrivi quante ne stai eliminando:{" "}
+                      <span className="font-bold">{richiesta.parola}</span>
+                    </>
+                  ) : (
+                    <>
+                      Per procedere scrivi <span className="font-bold">{richiesta.parola}</span>
+                    </>
+                  )}
                 </Label>
                 <Input
                   id="conferma-eliminazione"
                   value={testo}
                   onChange={(e) => setTesto(e.target.value)}
-                  placeholder={PAROLA_CONFERMA}
+                  placeholder={richiesta.parola}
                   autoComplete="off"
                   autoFocus
                   disabled={loading}
