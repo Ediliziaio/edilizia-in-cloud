@@ -292,7 +292,7 @@ export function EditorTopBar({
                   Stampa
                 </DropdownMenuItem>
               )}
-              {!isBozza && !["proforma", "preventivo", "ddt"].includes(state.tipo) && (
+              {!isMobile && !isBozza && !["proforma", "preventivo", "ddt"].includes(state.tipo) && (
                 <>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem>
@@ -466,7 +466,8 @@ export function EditorTopBar({
             <Button variant="outline" size="sm" className="h-8 text-xs bg-white border-amber-300 hover:bg-amber-50" onClick={onPreview}>
               <FileText className="h-3.5 w-3.5 mr-1" /> Visualizza XML
             </Button>
-            {onDownloadPDF && (
+            {/* «Visualizza XML» qui sopra resta: leggere non è scaricare. */}
+            {!isMobile && onDownloadPDF && (
               <Button variant="outline" size="sm" className="h-8 text-xs bg-white border-amber-300 hover:bg-amber-50" onClick={onDownloadPDF}>
                 <Download className="h-3.5 w-3.5 mr-1" /> Esporta XML
               </Button>

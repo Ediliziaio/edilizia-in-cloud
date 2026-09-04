@@ -1806,15 +1806,18 @@ export default function MarketingContacts() {
                 <DropdownMenuItem onClick={() => setImportOpen(true)} disabled={!canEditContacts}>
                   <Upload className="mr-2 h-4 w-4" /> Importa
                 </DropdownMenuItem>
-                {/* Niente export su telefono. */}
+                {/* Niente export su telefono: vale per tutti i formati, non
+                    solo per il CSV che avevo protetto per primo. */}
                 {!isMobile && (
-                  <DropdownMenuItem onClick={() => doExport("csv")} disabled={exporting}>
-                    <Download className="mr-2 h-4 w-4" /> Esporta CSV
-                  </DropdownMenuItem>
+                  <>
+                    <DropdownMenuItem onClick={() => doExport("csv")} disabled={exporting}>
+                      <Download className="mr-2 h-4 w-4" /> Esporta CSV
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => doExport("xlsx")} disabled={exporting}>
+                      <Download className="mr-2 h-4 w-4" /> Esporta XLSX
+                    </DropdownMenuItem>
+                  </>
                 )}
-                <DropdownMenuItem onClick={() => doExport("xlsx")} disabled={exporting}>
-                  <Download className="mr-2 h-4 w-4" /> Esporta XLSX
-                </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setFieldsSheetOpen(true)}>
                   <Settings2 className="mr-2 h-4 w-4" /> Gestisci campi
                 </DropdownMenuItem>

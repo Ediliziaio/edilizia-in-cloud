@@ -800,56 +800,59 @@ function CustomersListInner() {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-          {/* Export */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" aria-label="Esporta clienti">
-                <Download className="h-4 w-4 sm:mr-1.5" />
-                <span className="hidden sm:inline">Esporta</span>
-                <ChevronDown className="h-3.5 w-3.5 ml-1" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel className="text-[11px]">Pagina corrente</DropdownMenuLabel>
-              <DropdownMenuItem onClick={() => handleExport("csv", "page")}>
-                <FileText className="h-4 w-4 mr-2" /> CSV
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleExport("xlsx", "page")}>
-                <FileSpreadsheet className="h-4 w-4 mr-2" /> Excel
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleExport("pdf", "page")}>
-                <FileText className="h-4 w-4 mr-2" /> PDF
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuLabel className="text-[11px]">Tutti i filtrati</DropdownMenuLabel>
-              <DropdownMenuItem onClick={() => handleExport("csv", "all")}>
-                <FileText className="h-4 w-4 mr-2" /> CSV
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleExport("xlsx", "all")}>
-                <FileSpreadsheet className="h-4 w-4 mr-2" /> Excel
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleExport("pdf", "all")}>
-                <FileText className="h-4 w-4 mr-2" /> PDF
-              </DropdownMenuItem>
-              {selectedIds.size > 0 && (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuLabel className="text-[11px]">
-                    Solo {selectedIds.size} selezionati
-                  </DropdownMenuLabel>
-                  <DropdownMenuItem onClick={() => handleExport("csv", "selected")}>
-                    <FileText className="h-4 w-4 mr-2" /> CSV
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleExport("xlsx", "selected")}>
-                    <FileSpreadsheet className="h-4 w-4 mr-2" /> Excel
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleExport("pdf", "selected")}>
-                    <FileText className="h-4 w-4 mr-2" /> PDF
-                  </DropdownMenuItem>
-                </>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {/* Niente export su telefono: sei voci di scarico in un
+              menu solo, e nessuna era protetta. */}
+          {!isMobile && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" aria-label="Esporta clienti">
+                  <Download className="h-4 w-4 sm:mr-1.5" />
+                  <span className="hidden sm:inline">Esporta</span>
+                  <ChevronDown className="h-3.5 w-3.5 ml-1" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel className="text-[11px]">Pagina corrente</DropdownMenuLabel>
+                <DropdownMenuItem onClick={() => handleExport("csv", "page")}>
+                  <FileText className="h-4 w-4 mr-2" /> CSV
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExport("xlsx", "page")}>
+                  <FileSpreadsheet className="h-4 w-4 mr-2" /> Excel
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExport("pdf", "page")}>
+                  <FileText className="h-4 w-4 mr-2" /> PDF
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-[11px]">Tutti i filtrati</DropdownMenuLabel>
+                <DropdownMenuItem onClick={() => handleExport("csv", "all")}>
+                  <FileText className="h-4 w-4 mr-2" /> CSV
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExport("xlsx", "all")}>
+                  <FileSpreadsheet className="h-4 w-4 mr-2" /> Excel
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExport("pdf", "all")}>
+                  <FileText className="h-4 w-4 mr-2" /> PDF
+                </DropdownMenuItem>
+                {selectedIds.size > 0 && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuLabel className="text-[11px]">
+                      Solo {selectedIds.size} selezionati
+                    </DropdownMenuLabel>
+                    <DropdownMenuItem onClick={() => handleExport("csv", "selected")}>
+                      <FileText className="h-4 w-4 mr-2" /> CSV
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleExport("xlsx", "selected")}>
+                      <FileSpreadsheet className="h-4 w-4 mr-2" /> Excel
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleExport("pdf", "selected")}>
+                      <FileText className="h-4 w-4 mr-2" /> PDF
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
 
           {/* Import */}
           <Button variant="outline" size="sm" onClick={() => setImportOpen(true)} aria-label="Importa clienti con AI">

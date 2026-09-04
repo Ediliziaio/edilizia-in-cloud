@@ -911,15 +911,18 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                {/* Niente export su telefono. */}
+                {/* Niente export su telefono: tutti i formati, non solo il
+                    CSV che avevo protetto per primo. */}
                 {!isMobile && (
-                  <DropdownMenuItem onClick={() => exportReconciliations("csv")}>
-                    <FileText className="h-4 w-4 mr-2" /> Esporta CSV
-                  </DropdownMenuItem>
+                  <>
+                    <DropdownMenuItem onClick={() => exportReconciliations("csv")}>
+                      <FileText className="h-4 w-4 mr-2" /> Esporta CSV
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => exportReconciliations("xlsx")}>
+                      <FileSpreadsheet className="h-4 w-4 mr-2" /> Esporta Excel
+                    </DropdownMenuItem>
+                  </>
                 )}
-                <DropdownMenuItem onClick={() => exportReconciliations("xlsx")}>
-                  <FileSpreadsheet className="h-4 w-4 mr-2" /> Esporta Excel
-                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </CardHeader>

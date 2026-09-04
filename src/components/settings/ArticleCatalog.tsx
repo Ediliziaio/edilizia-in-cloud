@@ -100,6 +100,7 @@ function CsvImportDialog({
   open: boolean; onClose: () => void; companyId: string;
   categorie: Categoria[]; onDone: () => void;
 }) {
+  const isMobile = useIsMobile();
   const [rows, setRows] = useState<Record<string, string>[]>([]);
   const [totalRows, setTotalRows] = useState(0);
   const [fileName, setFileName] = useState("");
@@ -205,9 +206,12 @@ function CsvImportDialog({
       <DialogContent className="max-w-xl">
         <DialogHeader><DialogTitle>Importa CSV Listino</DialogTitle></DialogHeader>
         <div className="space-y-4">
+          {/* Un CSV da compilare non si riempie da telefono. */}
+          {!isMobile && (
           <Button variant="outline" size="sm" onClick={downloadTemplate}>
             <Download className="h-4 w-4 mr-2" />Scarica template CSV
           </Button>
+          )}
           <div>
             <Label>Modalità prezzo default</Label>
             <Select value={modalitaDefault} onValueChange={(v) => setModalitaDefault(v as Modalita)}>
