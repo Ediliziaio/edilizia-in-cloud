@@ -370,6 +370,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user: null,
       profile: null,
       role: null,
+      userRoles: [],
       company: null,
       isLoading: false,
     });
@@ -632,6 +633,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             user: null,
             profile: null,
             role: null,
+            userRoles: [],
             company: null,
             isLoading: false,
           });
@@ -647,6 +649,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           user: null,
           profile: null,
           role: null,
+          userRoles: [],
           company: null,
           isLoading: false,
         });
@@ -670,6 +673,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user: null,
         profile: null,
         role: null,
+        userRoles: [],
         company: null,
         isLoading: false,
       });
@@ -758,6 +762,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             user: null,
             profile: null,
             role: null,
+            userRoles: [],
             company: null,
             isLoading: false,
           }
@@ -846,6 +851,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 user: null,
                 profile: null,
                 role: null,
+                userRoles: [],
                 company: null,
                 isLoading: false,
               });
@@ -867,6 +873,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 user: null,
                 profile: null,
                 role: null,
+                userRoles: [],
                 company: null,
                 isLoading: false,
               });
@@ -1029,6 +1036,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             user: null,
             profile: null,
             role: null,
+            userRoles: [],
             company: null,
             isLoading: false,
           });
@@ -1757,11 +1765,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Chi ha una sola area non se ne accorge: ruoliDellArea gli ridà i suoi.
   const { pathname } = useLocation();
   const areaCorrente = areaDaPercorso(pathname);
-  const areeDisponibili = useMemo(() => calcolaAree(state.userRoles), [state.userRoles]);
-  const puoCambiareArea = useMemo(() => haEntrambeLeAree(state.userRoles), [state.userRoles]);
+  // `state.userRoles` DEVE essere un array, ma useState sostituisce l'intero
+  // oggetto: basta un setState che non lo ripassa e diventa undefined. Qui si
+  // legge in ogni render, quindi una lettura non protetta schianta l'app intera
+  // (successo il 03/09: sessione scaduta → reset senza userRoles → schermata
+  // "Errore critico" per chiunque).
+  const ruoliUtente = useMemo(() => state.userRoles ?? [], [state.userRoles]);
+  const areeDisponibili = useMemo(() => calcolaAree(ruoliUtente), [ruoliUtente]);
+  const puoCambiareArea = useMemo(() => haEntrambeLeAree(ruoliUtente), [ruoliUtente]);
   const ruoloArea = useMemo(
-    () => (state.userRoles.length > 0 ? ruoloEffettivoPerArea(state.userRoles, areaCorrente) : state.role),
-    [state.userRoles, areaCorrente, state.role],
+    () => (ruoliUtente.length > 0 ? ruoloEffettivoPerArea(ruoliUtente, areaCorrente) : state.role),
+    [ruoliUtente, areaCorrente, state.role],
   );
 
   const contextValue = useMemo(
