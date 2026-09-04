@@ -45,6 +45,10 @@ async function defaultProcessor(item: SyncItem): Promise<void> {
         path: string;
         blob: Blob;
         contentType: string;
+        /** Riga da scrivere in `foto_cantiere` dopo l'upload. Senza questa la
+         *  foto finirebbe nello storage ma non comparirebbe in nessuna
+         *  galleria: i metadati (GPS, ora, commessa) vivono nella tabella. */
+        riga?: Record<string, unknown>;
       };
       const { error } = await supabase.storage
         .from(payload.bucket)
@@ -52,7 +56,19 @@ async function defaultProcessor(item: SyncItem): Promise<void> {
           contentType: payload.contentType,
           upsert: false,
         });
-      if (error) throw new Error(error.message);
+      // 23505/"already exists": il file è già salito in un tentativo
+      // precedente andato in timeout. Non è un errore: si prosegue con la
+      // riga, altrimenti la foto resta orfana per sempre.
+      const giaPresente = error?.message?.toLowerCase().includes("already exists") ?? false;
+      if (error && !giaPresente) throw new Error(error.message);
+
+      if (payload.riga) {
+        const { error: rigaErr } = await supabase
+          .from("foto_cantiere")
+          // @ts-expect-error — types generati non ancora aggiornati post-migration
+          .insert({ ...payload.riga, storage_path: payload.path });
+        if (rigaErr) throw new Error(rigaErr.message);
+      }
       return;
     }
     case "timbratura": {

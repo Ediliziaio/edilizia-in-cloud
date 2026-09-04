@@ -11,6 +11,7 @@ import { CAMPO_ROLES } from "@/types/auth";
 
 const CampoLayout         = lazy(() => import("@/components/layouts/CampoLayout"));
 const CampoHome           = lazy(() => import("@/pages/campo/CampoHome"));
+const CampoFotoCantiere   = lazy(() => import("@/pages/campo/CampoFotoCantiere"));
 const CampoCalendario     = lazy(() => import("@/pages/campo/CampoCalendario"));
 const CampoRapportino     = lazy(() => import("@/pages/campo/CampoRapportino"));
 const CampoTimbratura     = lazy(() => import("@/pages/campo/CampoTimbratura"));
@@ -49,6 +50,7 @@ export default function CampoRoutesContainer() {
         <Route path="lavoro/:orderId/*">
           <Route index element={<CampoLavoroDetail />} />
           <Route path="rapportino" element={<CampoRapportino />} />
+          <Route path="foto" element={<CampoFotoCantiere />} />
           {/* La route "rapportino/:rapportinoId" NON è una modifica: il
               componente ignorava l'id e CREAVA un secondo rapportino. Redirect
               al form nuovo finché una vera modifica non esiste. */}
