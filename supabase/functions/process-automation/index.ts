@@ -3006,6 +3006,32 @@ async function executeSendEmail(supabase: any, cfg: Record<string, any>, entityI
     let html = cfg.email_body || cfg.html || "<p>No content</p>";
     let subject = cfg.email_subject || cfg.subject || "Messaggio";
 
+    // ── TEST A/B ───────────────────────────────────────────────────────────
+    // Si attiva da solo quando esiste una variante B: un oggetto alternativo
+    // (`oggetto_b`) e/o un corpo alternativo (`corpo_b`). Si spegne con
+    // `ab_attivo: false`.
+    //
+    // La scelta è DETERMINISTICA su (contatto + nodo), non casuale, per due
+    // motivi concreti: se l'invio viene ritentato la persona riceve la stessa
+    // variante invece di due email diverse, e ogni email della sequenza fa il
+    // suo test indipendente invece di trascinarsi la scelta della prima.
+    const oggettoB = cfg.oggetto_b ?? cfg.email_subject_b ?? null;
+    const corpoB = cfg.corpo_b ?? cfg.email_body_b ?? null;
+    let variante: "A" | "B" | null = null;
+    if (cfg.ab_attivo !== false && (oggettoB || corpoB)) {
+      // Seme = contatto + oggetto A (quello di partenza, prima di sostituirlo):
+      // identifica l'email dentro la sequenza senza dipendere dall'id del nodo,
+      // che a questo punto del motore non è disponibile.
+      const seme = `${contact.id}:${cfg.email_subject ?? cfg.oggetto ?? cfg.subject ?? ""}`;
+      let h = 0;
+      for (let i = 0; i < seme.length; i++) h = ((h << 5) - h + seme.charCodeAt(i)) | 0;
+      variante = Math.abs(h) % 2 === 0 ? "A" : "B";
+      if (variante === "B") {
+        if (oggettoB) subject = String(oggettoB);
+        if (corpoB) html = String(corpoB);
+      }
+    }
+
     // Personalizzazione completa: {{contatto.X}} (picker IT), {{contact.X}} (EN),
     // nomi nudi e CAMPI PERSONALIZZATI. Anche l'oggetto viene personalizzato.
     html = await resolveContactText(supabase, html, contact, companyId);
@@ -3118,7 +3144,9 @@ async function executeSendEmail(supabase: any, cfg: Record<string, any>, entityI
       error_message: result.ok ? undefined : JSON.stringify(result.body),
       cost_eur: 0,
       charged_eur: 0,
-      metadata: { contact_id: contact.id, automation: true },
+      // La variante finisce nel registro: senza, un test A/B produce due
+      // email diverse e nessun modo di sapere quale ha reso di piu'.
+      metadata: { contact_id: contact.id, automation: true, ...(variante ? { ab_variant: variante } : {}) },
     });
 
     // Fire-and-forget auto-topup check after marketing send

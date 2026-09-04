@@ -1,6 +1,7 @@
 import { forwardRef } from "react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { VariablePicker } from "./VariablePicker";
 import { EvidenzaObbligatoria, campoVuoto } from "./EvidenzaObbligatoria";
@@ -85,6 +86,42 @@ export const EmailConfigPanel = forwardRef<HTMLDivElement, EmailConfigPanelProps
         />
       </div>
       </EvidenzaObbligatoria>
+
+      {/* Test A/B sull'oggetto: la leva che rende di più a parità di lavoro.
+          Metà dei destinatari riceve l'oggetto A, metà il B, e il registro
+          segna quale ha ricevuto chi. La scelta è stabile: se l'invio viene
+          ritentato la stessa persona riceve la stessa versione. */}
+      <div className="space-y-1.5 rounded-md border p-2.5">
+        <div className="flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <Label className="text-xs">Prova un secondo oggetto</Label>
+            <p className="text-[11px] text-muted-foreground">
+              Metà dei contatti riceve questo al posto del primo.
+            </p>
+          </div>
+          <Switch
+            checked={!!config.oggetto_b && config.ab_attivo !== false}
+            onCheckedChange={(v) => onChange("ab_attivo", v)}
+            aria-label="Prova un secondo oggetto"
+            disabled={!config.oggetto_b}
+          />
+        </div>
+        <div className="flex items-center justify-between">
+          <Label className="text-[11px] text-muted-foreground">Oggetto B</Label>
+          <VariablePicker onInsert={v => onChange("oggetto_b", (config.oggetto_b || "") + v)} />
+        </div>
+        <Input
+          value={config.oggetto_b || ""}
+          onChange={e => onChange("oggetto_b", e.target.value)}
+          placeholder="Lo stesso messaggio, detto in un altro modo"
+          className="h-8 text-xs"
+        />
+        {config.oggetto_b && config.ab_attivo === false && (
+          <p className="text-[11px] text-amber-600 dark:text-amber-500">
+            Secondo oggetto scritto ma spento: parte solo il primo.
+          </p>
+        )}
+      </div>
 
       {/* Body — editor visuale (niente HTML a mano) */}
       <div className="space-y-1.5">
