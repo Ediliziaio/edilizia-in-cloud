@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { LinkedTasks } from "@/components/tasks/LinkedTasks";
 
+import { ConfermaQuantita, useConfermaQuantita } from "@/components/shared/ConfermaQuantita";
 interface CostsDialogsProps {
   // Delete confirm
   deleteConfirmId: string | null;
@@ -69,6 +70,7 @@ export function CostsDialogs({
   taskCostId,
   onTaskDialogChange,
 }: CostsDialogsProps) {
+  const conferma = useConfermaQuantita(selectedCount, bulkDeleteConfirm);
   return (
     <>
       {/* Delete Confirm */}
@@ -110,9 +112,20 @@ export function CostsDialogs({
             <AlertDialogTitle>Eliminare {selectedCount} costi selezionati?</AlertDialogTitle>
             <AlertDialogDescription>Questa azione non può essere annullata.</AlertDialogDescription>
           </AlertDialogHeader>
+          {/* Sono dati che entrano nei margini: cancellarne un blocco per
+              sbaglio sposta i conti di ogni commessa collegata. */}
+          <ConfermaQuantita stato={conferma} cosa="costi" />
           <AlertDialogFooter>
             <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction onClick={onBulkDeleteConfirm}>Elimina selezionati</AlertDialogAction>
+            <AlertDialogAction
+              onClick={(e) => {
+                if (!conferma.valida) { e.preventDefault(); return; }
+                onBulkDeleteConfirm();
+              }}
+              disabled={!conferma.valida}
+            >
+              Elimina selezionati
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

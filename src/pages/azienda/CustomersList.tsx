@@ -74,6 +74,7 @@ import { useColumnVisibility } from "./CustomersList/hooks/useColumnVisibility";
 
 
 import { useIsMobile } from "@/hooks/use-mobile";
+import { ConfermaQuantita, useConfermaQuantita } from "@/components/shared/ConfermaQuantita";
 /* ─── KPI Card ──────────────────────────────────────────────────── */
 /* ─── Main ──────────────────────────────────────────────────────── */
 function CustomersListInner() {
@@ -103,6 +104,7 @@ function CustomersListInner() {
   // Bulk selection
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const confermaBulk = useConfermaQuantita(selectedIds.size, bulkDeleteOpen);
   const [bulkAssignOpen, setBulkAssignOpen] = useState(false);
   const [bulkAssignValue, setBulkAssignValue] = useState<string>("none");
 
@@ -1890,12 +1892,18 @@ function CustomersListInner() {
               saranno saltati. Questa azione non può essere annullata.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {/* Sopra la soglia si scrive il numero: «seleziona tutti» più
+              «Elimina» erano due clic. */}
+          <ConfermaQuantita stato={confermaBulk} cosa="clienti" disabled={bulkDeleteMutation.isPending} />
           <AlertDialogFooter>
             <AlertDialogCancel>Annulla</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => bulkDeleteMutation.mutate(Array.from(selectedIds))}
-              disabled={bulkDeleteMutation.isPending}
+              onClick={(e) => {
+                if (!confermaBulk.valida) { e.preventDefault(); return; }
+                bulkDeleteMutation.mutate(Array.from(selectedIds));
+              }}
+              disabled={bulkDeleteMutation.isPending || !confermaBulk.valida}
             >
               Elimina
             </AlertDialogAction>

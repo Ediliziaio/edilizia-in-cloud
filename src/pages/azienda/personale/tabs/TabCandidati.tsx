@@ -43,6 +43,7 @@ import {
   ShieldCheck, Upload, UserRoundSearch, Users, XCircle, CheckCircle2, Archive,
 } from "lucide-react";
 
+import { ConfermaQuantita, useConfermaQuantita } from "@/components/shared/ConfermaQuantita";
 const RUOLI_SUGGERITI = [
   "Muratore", "Manovale", "Capocantiere", "Posatore serramenti", "Carpentiere",
   "Elettricista", "Idraulico", "Imbianchino", "Geometra", "Impiegato/a ufficio",
@@ -327,6 +328,7 @@ function PuliziaPrivacyDialog({ open, onOpenChange, candidati }: { open: boolean
     }),
     [candidati, soglia],
   );
+  const confermaBulk = useConfermaQuantita(daEliminare.length, confermaAperta);
 
   const elimina = async () => {
     if (eliminando || daEliminare.length === 0) return;
@@ -401,9 +403,17 @@ function PuliziaPrivacyDialog({ open, onOpenChange, candidati }: { open: boolean
                 Spariscono schede, colloqui e curriculum. Non si torna indietro: è il punto della pulizia privacy.
               </AlertDialogDescription>
             </AlertDialogHeader>
+            <ConfermaQuantita stato={confermaBulk} cosa="candidati" disabled={eliminando} />
             <AlertDialogFooter>
               <AlertDialogCancel>Annulla</AlertDialogCancel>
-              <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={elimina} disabled={eliminando}>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={(e) => {
+                  if (!confermaBulk.valida) { e.preventDefault(); return; }
+                  elimina();
+                }}
+                disabled={eliminando || !confermaBulk.valida}
+              >
                 {eliminando ? "Eliminazione…" : "Elimina tutto"}
               </AlertDialogAction>
             </AlertDialogFooter>
