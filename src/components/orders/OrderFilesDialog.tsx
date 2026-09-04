@@ -26,6 +26,7 @@ import {
   type PreviewableFile,
 } from "./filePreviewUtils";
 
+import { useIsMobile } from "@/hooks/use-mobile";
 interface FileDoc { id: string; file_name: string; file_url: string; file_type?: string | null; file_size?: number | null }
 interface FiscalDoc { id: string; numero: string; tipo?: string | null; stato?: string | null; totale_da_pagare?: number | null }
 interface ItemWithFiles { id: string; name?: string | null; attachments?: FileDoc[] | null }
@@ -75,6 +76,7 @@ function SectionTitle({ icon: Icon, children, count }: { icon: typeof FileText; 
 export function OrderFilesDialog({
   open, onOpenChange, fatture, documenti, items, onOpenDocumento, formatDocType, onDownloadFattura, onDownloadOrderPdf, pdfBusy,
 }: Props) {
+  const isMobile = useIsMobile();
   const navigate = useNavigate();
   /** File aperto in anteprima dentro al popup (null = si vede la griglia). */
   const [preview, setPreview] = useState<FileDoc | null>(null);
@@ -154,13 +156,16 @@ export function OrderFilesDialog({
 
         <div className="space-y-5">
           {/* PDF riepilogo commessa — sempre disponibile, anche a commessa vuota */}
-          <section className="space-y-2">
-            <SectionTitle icon={FileText}>Riepilogo commessa</SectionTitle>
-            <Button variant="outline" size="sm" className="w-full justify-start gap-2" onClick={onDownloadOrderPdf} disabled={pdfBusy}>
-              {pdfBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4 text-blue-600" />}
-              Scarica PDF riepilogo (articoli, costi, SAL, diario…)
-            </Button>
-          </section>
+          {/* Il riepilogo è un PDF da scrivania: su telefono non compare. */}
+          {!isMobile && (
+            <section className="space-y-2">
+              <SectionTitle icon={FileText}>Riepilogo commessa</SectionTitle>
+              <Button variant="outline" size="sm" className="w-full justify-start gap-2" onClick={onDownloadOrderPdf} disabled={pdfBusy}>
+                {pdfBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4 text-blue-600" />}
+                Scarica PDF riepilogo (articoli, costi, SAL, diario…)
+              </Button>
+            </section>
+          )}
 
           {/* Fatture / documenti fiscali — righe, non riquadri: qui contano numero e importo */}
           {fatture.length > 0 && (
@@ -175,9 +180,13 @@ export function OrderFilesDialog({
                     </button>
                     <div className="flex items-center gap-2 shrink-0">
                       {f.totale_da_pagare != null && <span className="text-xs text-muted-foreground whitespace-nowrap">{fmtEur(f.totale_da_pagare)}</span>}
-                      <Button type="button" variant="ghost" size="icon" className="h-7 w-7" aria-label={`Scarica ${f.numero}`} onClick={() => onDownloadFattura(f)}>
-                        <Download className="h-4 w-4" />
-                      </Button>
+                      {/* La fattura resta raggiungibile: si tocca la riga e si
+                          apre la sua pagina. Sparisce solo lo scarico. */}
+                      {!isMobile && (
+                        <Button type="button" variant="ghost" size="icon" className="h-7 w-7" aria-label={`Scarica ${f.numero}`} onClick={() => onDownloadFattura(f)}>
+                          <Download className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   </li>
                 ))}

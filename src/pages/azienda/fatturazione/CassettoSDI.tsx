@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { OperationalKpiCard } from "@/components/orders/OperationalKpiCard";
 import { puoReinviare, isInvioInCorso } from "@/lib/fatturazione/sdiCassetto";
 
+import { useIsMobile } from "@/hooks/use-mobile";
 const SDI_QUERY_TIMEOUT_MS = 12_000;
 
 /** Indenta XML grezzo per visualizzazione leggibile */
@@ -63,6 +64,7 @@ type CassettoSDIProps = {
 };
 
 export default function CassettoSDI({ embedded = false }: CassettoSDIProps = {}) {
+  const isMobile = useIsMobile();
   void embedded;
   const companyId = useEffectiveCompanyId();
   const currentYear = new Date().getFullYear();
@@ -318,16 +320,20 @@ export default function CassettoSDI({ embedded = false }: CassettoSDIProps = {})
                               >
                                 <Eye className="h-3.5 w-3.5" />
                               </Button>
-                              <Button
-                                variant="ghost" size="icon" className="h-9 w-9 md:h-7 md:w-7"
-                                title="Scarica XML" aria-label="Scarica XML"
-                                onClick={() => handleDownloadXml(doc.sdi_file_xml_url)}
-                              >
-                                <Download className="h-3.5 w-3.5" />
-                              </Button>
+                              {/* «Visualizza XML» qui sopra resta: si può leggere
+                                  il documento anche da telefono, solo non scaricarlo. */}
+                              {!isMobile && (
+                                <Button
+                                  variant="ghost" size="icon" className="h-9 w-9 md:h-7 md:w-7"
+                                  title="Scarica XML" aria-label="Scarica XML"
+                                  onClick={() => handleDownloadXml(doc.sdi_file_xml_url)}
+                                >
+                                  <Download className="h-3.5 w-3.5" />
+                                </Button>
+                              )}
                             </>
                           )}
-                          {doc.sdi_ricevuta_url && (
+                          {!isMobile && doc.sdi_ricevuta_url && (
                             <Button variant="ghost" size="icon" className="h-9 w-9 md:h-7 md:w-7" title="Scarica ricevuta" aria-label="Scarica ricevuta" onClick={() => handleDownloadXml(doc.sdi_ricevuta_url)}>
                               <FileText className="h-3.5 w-3.5" />
                             </Button>
@@ -382,6 +388,8 @@ export default function CassettoSDI({ embedded = false }: CassettoSDIProps = {})
               {xmlPreviewContent?.xml || ""}
             </pre>
           </ScrollArea>
+          {/* La lettura dell'XML resta, lo scarico no. */}
+          {!isMobile && (
           <div className="flex justify-end pt-2">
             <Button
               variant="outline"
@@ -400,6 +408,7 @@ export default function CassettoSDI({ embedded = false }: CassettoSDIProps = {})
               <Download className="h-3.5 w-3.5 mr-1" /> Scarica XML
             </Button>
           </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

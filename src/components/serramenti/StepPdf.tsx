@@ -21,6 +21,7 @@ import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
+import { useIsMobile } from "@/hooks/use-mobile";
 interface Props {
   progettoId: string;
   detail: SrProgettoDetail;
@@ -33,6 +34,7 @@ interface ChecklistItem {
 }
 
 export function StepPdf({ progettoId, detail }: Props) {
+  const isMobile = useIsMobile();
   const p = detail.progetto;
   const generaPdfMut = useGeneraPdf(progettoId);
   const convertiMut = useConvertiInOrdine(progettoId);
@@ -219,25 +221,29 @@ export function StepPdf({ progettoId, detail }: Props) {
         )}
 
         <div className="flex flex-col sm:flex-row gap-2 mb-3">
-          <Button
-            onClick={handleDownloadNative}
-            disabled={!ready || isGeneratingPdf}
-            className="flex-1 bg-orange-500 hover:bg-orange-600 gap-2"
-            size="lg"
-          >
-            {isGeneratingPdf ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Download className="h-4 w-4" />
-            )}
-            Scarica PDF (A4)
-          </Button>
+          {/* Niente scarico su telefono: resta l'anteprima, che con flex-1
+              prende tutta la riga invece di lasciarla mezza vuota. */}
+          {!isMobile && (
+            <Button
+              onClick={handleDownloadNative}
+              disabled={!ready || isGeneratingPdf}
+              className="flex-1 bg-orange-500 hover:bg-orange-600 gap-2"
+              size="lg"
+            >
+              {isGeneratingPdf ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4" />
+              )}
+              Scarica PDF (A4)
+            </Button>
+          )}
           <Button
             onClick={handlePreviewNative}
             disabled={!ready || isGeneratingPdf}
             variant="outline"
             size="lg"
-            className="gap-2"
+            className="flex-1 gap-2 sm:flex-none"
           >
             <Eye className="h-4 w-4" /> Anteprima PDF
           </Button>

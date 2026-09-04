@@ -83,6 +83,7 @@ import { preloadImage } from "@/lib/render/preloadImage";
 import { compressRenderPhoto } from "@/lib/render/compressRenderPhoto";
 import { RenderProcessingCard } from "@/components/render/RenderProcessingCard";
 
+import { useIsMobile } from "@/hooks/use-mobile";
 // v8.6.23 — Polling come SAFETY NET dietro al canale Realtime.
 // La Realtime subscription riceve l'evento UPDATE row push istantaneo dal DB
 // (latenza <500ms). Il polling è il paracadute se il websocket cade
@@ -2405,6 +2406,7 @@ function StepRender({
   onCreateQuote: () => void;
   downloading?: boolean;
 }) {
+  const isMobile = useIsMobile();
 
   return (
     <div className="space-y-4">
@@ -2607,19 +2609,21 @@ function StepRender({
 
           <div className="grid gap-2 sm:grid-cols-2">
             {/* v8.6.33 — Loading state download per feedback su mobile/rete lenta */}
-            <Button onClick={onDownload} className="gap-2" disabled={downloading}>
-              {downloading ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Scaricamento…
-                </>
-              ) : (
-                <>
-                  <Download className="h-4 w-4" />
-                  Scarica render
-                </>
-              )}
-            </Button>
+            {!isMobile && (
+              <Button onClick={onDownload} className="gap-2" disabled={downloading}>
+                {downloading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Scaricamento…
+                  </>
+                ) : (
+                  <>
+                    <Download className="h-4 w-4" />
+                    Scarica render
+                  </>
+                )}
+              </Button>
+            )}
             <Button variant="outline" onClick={onReset} className="gap-2">
               <RefreshCw className="h-4 w-4" />
               Nuovo render
