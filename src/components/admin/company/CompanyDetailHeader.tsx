@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -50,6 +52,28 @@ export function CompanyDetailHeader({
   // Delete confirmation state
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
+
+  // Peso reale del clic (F5-03).
+  // La conferma chiedeva di digitare il nome, ma non diceva quanto si stava
+  // cancellando: con 702 vincoli a cascata su companies, "elimina" può
+  // significare tre righe o quattordicimila. Si interroga solo a dialogo
+  // aperto, perché è un conteggio che tocca molte tabelle.
+  const { data: impatto, isLoading: impattoInCorso } = useQuery({
+    queryKey: ["impatto-cancellazione", company.id],
+    enabled: showDeleteDialog,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("admin_impatto_cancellazione" as never, {
+        p_company_id: company.id,
+      } as never);
+      if (error) throw error;
+      return data as unknown as {
+        record_totali: number;
+        tabelle_coinvolte: number;
+        dettaglio: Array<{ tabella: string; record: number; comportamento: string }> | null;
+      };
+    },
+  });
   const canConfirmDelete = deleteConfirmText.trim().toLowerCase() === company.name.trim().toLowerCase();
 
   // Suspend confirmation state
@@ -266,6 +290,26 @@ export function CompanyDetailHeader({
                 Prima della cancellazione viene salvato un export completo
                 (anagrafica, team, commesse, preventivi, fatture, clienti).
               </span>
+              {impattoInCorso && (
+                <span className="block text-sm text-muted-foreground">
+                  Calcolo di quanti dati verranno coinvolti…
+                </span>
+              )}
+              {impatto && impatto.record_totali > 0 && (
+                <span className="block rounded-md border border-destructive/30 bg-destructive/5 p-2.5">
+                  <span className="block text-sm font-medium text-destructive">
+                    {impatto.record_totali.toLocaleString("it-IT")} record in{" "}
+                    {impatto.tabelle_coinvolte} tabelle
+                  </span>
+                  <span className="mt-1 block text-xs text-muted-foreground">
+                    {(impatto.dettaglio ?? []).slice(0, 5).map((r) => (
+                      <span key={r.tabella} className="mr-2 inline-block">
+                        {r.tabella}: <strong>{r.record.toLocaleString("it-IT")}</strong>
+                      </span>
+                    ))}
+                  </span>
+                </span>
+              )}
               <span className="block text-sm">
                 Per confermare, digita il nome dell'azienda: <strong>{company.name}</strong>
               </span>

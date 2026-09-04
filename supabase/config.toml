@@ -811,3 +811,7 @@ verify_jwt = false
 # può procedere — e registra ogni esito in login_attempts.
 [functions.check-login-security]
 verify_jwt = false
+
+# company-backup gira dal cron con x-cron-secret, non da un utente autenticato.
+[functions.company-backup]
+verify_jwt = false

@@ -271,6 +271,8 @@ export default function PlatformHealthPage() {
             </CardContent>
           </Card>
 
+          <ErroriRecenti />
+
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
@@ -320,5 +322,95 @@ export default function PlatformHealthPage() {
         </>
       )}
     </div>
+  );
+}
+
+interface RigaErrore {
+  origine: string;
+  id: string;
+  avvenuto_il: string;
+  componente: string | null;
+  messaggio: string | null;
+  codice: number | null;
+  azienda_nome: string | null;
+  gravita: string;
+}
+
+/**
+ * Registro errori (F3-04).
+ *
+ * Gli errori esistevano, ma in Sentry e nei log Supabase: fuori dal prodotto.
+ * Dalla segnalazione di un cliente non c'era modo di arrivare all'errore
+ * corrispondente senza uscire dalla piattaforma.
+ */
+function ErroriRecenti() {
+  const { data, isLoading } = useQuery({
+    queryKey: ["admin-errori-recenti"],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("admin_errori_recenti" as never, {
+        p_ore: 48,
+        p_limit: 60,
+      } as never);
+      if (error) throw error;
+      return (data ?? []) as unknown as RigaErrore[];
+    },
+    staleTime: 60_000,
+  });
+
+  const righe = data ?? [];
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <AlertTriangle className="h-4 w-4 text-amber-500" />
+          Errori nelle ultime 48 ore
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="p-0 overflow-x-auto">
+        {isLoading && <div className="p-4"><Skeleton className="h-16 w-full" /></div>}
+        {!isLoading && righe.length === 0 && (
+          <p className="text-sm text-muted-foreground px-6 pb-6">
+            Nessun errore registrato. Man mano che la misurazione si estende alle
+            altre funzioni, questa lista diventerà più rappresentativa.
+          </p>
+        )}
+        {righe.length > 0 && (
+          <Table className="min-w-[640px]">
+            <TableHeader>
+              <TableRow>
+                <TableHead>Quando</TableHead>
+                <TableHead>Origine</TableHead>
+                <TableHead>Componente</TableHead>
+                <TableHead>Messaggio</TableHead>
+                <TableHead>Azienda</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {righe.map((e) => (
+                <TableRow key={`${e.origine}-${e.id}`}>
+                  <TableCell className="text-xs whitespace-nowrap">
+                    {formatDistanceToNow(new Date(e.avvenuto_il), { addSuffix: true, locale: it })}
+                  </TableCell>
+                  <TableCell>
+                    <Badge
+                      variant={e.gravita === "grave" ? "destructive" : "outline"}
+                      className="text-[10px]"
+                    >
+                      {e.origine}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="font-mono text-xs">{e.componente ?? "—"}</TableCell>
+                  <TableCell className="text-xs max-w-md truncate" title={e.messaggio ?? ""}>
+                    {e.messaggio ?? "—"}
+                  </TableCell>
+                  <TableCell className="text-xs">{e.azienda_nome ?? "—"}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
   );
 }
