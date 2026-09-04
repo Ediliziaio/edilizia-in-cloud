@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
+import { documentoDaConservare } from "@/lib/fatturazione/conservazione";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { useDocumentiFiscali, useDeleteDocumento, useUpdateDocumento } from "@/hooks/useDocumentiFiscali";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
@@ -709,7 +710,8 @@ function DocumentiFiscaliListInner() {
         <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 flex items-start gap-2 text-sm">
           <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
           <div className="text-amber-800 dark:text-amber-300">
-            I documenti nel cestino vengono eliminati definitivamente dopo <strong>14 giorni</strong>. Puoi ripristinarli prima della scadenza.
+            Bozze e documenti non fiscali vengono eliminati definitivamente dopo <strong>14 giorni</strong>; puoi ripristinarli prima della scadenza.
+            Fatture, note di credito e DDT restano invece archiviati anche dopo: la conservazione è obbligatoria per legge.
           </div>
         </div>
       )}
@@ -886,6 +888,15 @@ function DocumentiFiscaliListInner() {
                         <TableCell>
                           {(() => {
                             if (!doc.deleted_at) return <span className="text-xs text-muted-foreground">—</span>;
+                            // Fatture, note e DDT non vengono mai cancellati:
+                            // mostrare un conto alla rovescia sarebbe una promessa falsa.
+                            if (documentoDaConservare(doc.tipo, doc.stato)) {
+                              return (
+                                <span className="inline-flex items-center gap-1 text-xs text-muted-foreground" title="Conservazione obbligatoria: resta archiviato anche dopo i 14 giorni">
+                                  <ShieldCheck className="h-3 w-3" /> Conservato per legge
+                                </span>
+                              );
+                            }
                             const deletedDate = new Date(doc.deleted_at);
                             const expiryDate = new Date(deletedDate.getTime() + 14 * 86400000);
                             const daysLeft = Math.max(0, Math.ceil((expiryDate.getTime() - Date.now()) / 86400000));
