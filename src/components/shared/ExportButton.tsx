@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { exportToCSV, exportToXLSX, type CsvColumn } from "@/lib/csvExport";
 import { toast } from "sonner";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface ExportButtonProps {
   /** I dati da esportare come array di record */
@@ -41,6 +42,7 @@ export function ExportButton({
   className,
 }: ExportButtonProps) {
   const [isExporting, setIsExporting] = useState(false);
+  const isMobile = useIsMobile();
 
   const handleExport = async (format: "csv" | "xlsx") => {
     try {
@@ -68,6 +70,11 @@ export function ExportButton({
       setIsExporting(false);
     }
   };
+
+  // Su telefono nessun export: la regola vale per il pulsante, non per la
+  // pagina che lo contiene, quindi si spegne qui una volta sola invece che in
+  // ognuno dei posti che lo montano.
+  if (isMobile) return null;
 
   return (
     <DropdownMenu>

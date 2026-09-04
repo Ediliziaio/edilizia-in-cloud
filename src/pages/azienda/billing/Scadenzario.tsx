@@ -20,6 +20,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import FattureDaRegistrareCard from "@/components/scadenzario/FattureDaRegistrareCard";
 import { startOfMonth, endOfMonth, addDays, format } from "date-fns";
 
+import { useIsMobile } from "@/hooks/use-mobile";
 const DATE_PRESETS = [
   { label: "Questo mese", value: "questo_mese" },
   { label: "Prossimi 30gg", value: "30gg" },
@@ -42,6 +43,7 @@ function getDateRange(preset: string): { from: string; to: string } | null {
 }
 
 export default function Scadenzario() {
+  const isMobile = useIsMobile();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
   const [tab, setTab] = useState("tutte");
@@ -273,9 +275,12 @@ export default function Scadenzario() {
                 <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-primary border-2 border-background" />
               )}
             </Button>
-            <Button variant="outline" size="icon" onClick={handleExport} disabled={exporting} title="Esporta CSV" aria-label="Esporta CSV">
-              {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-            </Button>
+            {/* Niente export su telefono: icon-only non lo rende un'altra cosa. */}
+            {!isMobile && (
+              <Button variant="outline" size="icon" onClick={handleExport} disabled={exporting} title="Esporta CSV" aria-label="Esporta CSV">
+                {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              </Button>
+            )}
           </div>
         </div>
 

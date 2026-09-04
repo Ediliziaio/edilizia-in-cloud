@@ -34,6 +34,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Copy, Download, ExternalLink, Check, FileText } from "lucide-react";
 import { toast } from "sonner";
 
+import { useIsMobile } from "@/hooks/use-mobile";
 export interface WarrantyExportItem {
   serial_number: string;
   articolo?: string | null;
@@ -76,6 +77,7 @@ export function WarrantyExportDialog({
   supplierName,
   supplierPortalUrl,
 }: WarrantyExportDialogProps) {
+  const isMobile = useIsMobile();
   const [copied, setCopied] = useState<"text" | "csv" | "json" | null>(null);
 
   const today = new Date().toISOString().slice(0, 10);
@@ -181,10 +183,14 @@ export function WarrantyExportDialog({
                   )}
                   Copia
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => download("text")}>
-                  <Download className="h-3.5 w-3.5 mr-1" />
-                  Scarica .txt
-                </Button>
+                {/* Niente download su telefono: «Copia» resta,
+                    quella non scarica niente. */}
+                {!isMobile && (
+                  <Button size="sm" variant="outline" onClick={() => download("text")}>
+                    <Download className="h-3.5 w-3.5 mr-1" />
+                    Scarica .txt
+                  </Button>
+                )}
               </div>
             </TabsContent>
 
@@ -209,10 +215,14 @@ export function WarrantyExportDialog({
                   )}
                   Copia
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => download("csv")}>
-                  <Download className="h-3.5 w-3.5 mr-1" />
-                  Scarica .csv
-                </Button>
+                {/* Niente download su telefono: «Copia» resta,
+                    quella non scarica niente. */}
+                {!isMobile && (
+                  <Button size="sm" variant="outline" onClick={() => download("csv")}>
+                    <Download className="h-3.5 w-3.5 mr-1" />
+                    Scarica .csv
+                  </Button>
+                )}
               </div>
             </TabsContent>
 
@@ -236,10 +246,14 @@ export function WarrantyExportDialog({
                   )}
                   Copia
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => download("json")}>
-                  <Download className="h-3.5 w-3.5 mr-1" />
-                  Scarica .json
-                </Button>
+                {/* Niente download su telefono: «Copia» resta,
+                    quella non scarica niente. */}
+                {!isMobile && (
+                  <Button size="sm" variant="outline" onClick={() => download("json")}>
+                    <Download className="h-3.5 w-3.5 mr-1" />
+                    Scarica .json
+                  </Button>
+                )}
               </div>
             </TabsContent>
           </Tabs>
