@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Download, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface Props {
   /** Async function che esegue l'export e ritorna quando il download è partito */
@@ -23,6 +24,7 @@ export function ExportButton({
 }: Props) {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
+  const isMobile = useIsMobile();
 
   const handle = async () => {
     setLoading(true);
@@ -39,6 +41,9 @@ export function ExportButton({
       setLoading(false);
     }
   };
+
+  // Niente export su telefono: spento qui, non in ogni tab che lo monta.
+  if (isMobile) return null;
 
   return (
     <Button onClick={handle} disabled={loading} size={size} variant={variant}>

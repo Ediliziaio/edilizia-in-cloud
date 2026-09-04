@@ -23,6 +23,7 @@ import { toast } from "sonner";
 import { REGIMI_FISCALI, METODI_PAGAMENTO_SDI } from "@/types/fatturazione";
 import { SDISetupWizard } from "@/components/sdi-wizard/SDISetupWizard";
 
+import { useIsMobile } from "@/hooks/use-mobile";
 // ─── Aliquote IVA predefinite italiane ────────────────────────
 const NATURE_IVA = {
   N1: "Escluse ex art.15",
@@ -80,6 +81,7 @@ const DEFAULT_ALIQUOTE: AliquotaIva[] = [
 ];
 
 export default function ImpostazioniFatturazione() {
+  const isMobile = useIsMobile();
   const { data: azienda, isLoading } = useAnagraficaAzienda();
   const { effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
@@ -233,7 +235,11 @@ export default function ImpostazioniFatturazione() {
           <TabsTrigger value="aliquote" className="gap-1.5 text-xs"><Percent className="h-3.5 w-3.5" />Aliquote IVA</TabsTrigger>
           <TabsTrigger value="numeratori" className="gap-1.5 text-xs"><FileText className="h-3.5 w-3.5" />Numeratori</TabsTrigger>
           <TabsTrigger value="avanzate" className="gap-1.5 text-xs"><Settings2 className="h-3.5 w-3.5" />Avanzate</TabsTrigger>
-          <TabsTrigger value="export-contabile" className="gap-1.5 text-xs"><Download className="h-3.5 w-3.5" />Export</TabsTrigger>
+          {/* Niente export su telefono: qui si tirano fuori i documenti
+              fiscali per il commercialista, è lavoro da scrivania. */}
+          {!isMobile && (
+            <TabsTrigger value="export-contabile" className="gap-1.5 text-xs"><Download className="h-3.5 w-3.5" />Export</TabsTrigger>
+          )}
         </TabsList>
 
         {/* ═══════════════════════════════════════════════════════ */}
@@ -991,7 +997,6 @@ export default function ImpostazioniFatturazione() {
             { tipo: "Fattura", prefix: "prefisso_fattura", numero: "ultimo_numero_fattura", default: "FT", icon: "📄" },
             { tipo: "Nota di Credito", prefix: "prefisso_nc", numero: "ultimo_numero_nc", default: "NC", icon: "📋" },
             { tipo: "DDT", prefix: "prefisso_ddt", numero: "ultimo_numero_ddt", default: "DDT", icon: "🚚" },
-            { tipo: "Preventivo", prefix: "prefisso_preventivo", numero: "ultimo_numero_preventivo", default: "PRV", icon: "📝" },
           ].map((item) => (
             <Card key={item.tipo}>
               <CardContent className="pt-6">
@@ -1118,6 +1123,14 @@ export default function ImpostazioniFatturazione() {
         {/* ═══════════════════════════════════════════════════════ */}
         {/* M8 — Export Contabile */}
         <TabsContent value="export-contabile" className="space-y-4 mt-4">
+          {isMobile ? (
+            <Card>
+              <CardContent className="py-6 text-sm text-muted-foreground">
+                L'export contabile si fa da computer: apri questa pagina da lì
+                per scaricare i documenti fiscali del periodo.
+              </CardContent>
+            </Card>
+          ) : (
           <Card>
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
@@ -1274,6 +1287,7 @@ export default function ImpostazioniFatturazione() {
               </p>
             </CardContent>
           </Card>
+          )}
         </TabsContent>
 
       </Tabs>

@@ -30,6 +30,7 @@ import { INCENTIVI_PISCINE, calcDetraibile, superaMassimale } from "@/lib/preven
 import type { PisComputoVoce, PisProgetto } from "@/types/piscine";
 import type { PisFormPatch } from "./types";
 import { FinanziamentoQuoteToggle } from "@/components/moduli/FinanziamentoQuoteToggle";
+import { ScontoGlobaleField } from "@/components/preventivi/ScontoGlobaleField";
 import { usePisTemplatePdf } from "@/hooks/usePiscineProgetto";
 
 interface Props {
@@ -163,11 +164,12 @@ export default function StepEconomia({ form, onChange, computo }: Props) {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <PctField
+              <ScontoGlobaleField
                 id="pis-sconto"
-                label="Sconto globale"
                 value={form.sconto_pct ?? 0}
                 onCommit={(v) => onChange("sconto_pct", v)}
+                imponibileLordo={lordoCapitoli}
+                tipoLavoro="piscine"
               />
               <PctField
                 id="pis-iva"

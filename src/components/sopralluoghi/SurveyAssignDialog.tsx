@@ -1,6 +1,13 @@
 /**
  * SurveyAssignDialog — assegna utenti (subappaltatori, operai, tecnici)
- * a un sopralluogo. Crea anche una notifica all'utente assegnato.
+ * a un sopralluogo. Crea anche una notifica all'utente assegnato, ma solo se
+ * quell'utente non ha spento "Task assegnato" fra le sue preferenze: prima la
+ * notifica partiva comunque, e la preferenza in Mio profilo non contava nulla.
+ *
+ * La lettura sta qui perché qui sta anche l'inserimento della notifica (la
+ * policy di `user_notification_preferences` è per azienda, quindi il collega
+ * la legge). Se un giorno l'inserimento si sposta su trigger o edge function,
+ * il controllo va spostato con lui.
  */
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -62,24 +69,37 @@ export function SurveyAssignDialog({ surveyId, open, onOpenChange }: SurveyAssig
       if (!selectedUserId) throw new Error("Seleziona un utente");
       await assignUser(surveyId, selectedUserId, selectedRole);
 
-      // Crea notifica per l'utente assegnato
       const member = members.find((m) => m.id === selectedUserId);
       const memberName = member ? [member.first_name, member.last_name].filter(Boolean).join(" ") || member.email : "utente";
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase as any).from("notifications").insert({
-        user_id: selectedUserId,
-        type: "generic",
-        title: "Nuovo sopralluogo assegnato",
-        body: `Sei stato assegnato come ${ROLE_LABEL[selectedRole].label} a un sopralluogo.`,
-        action_url: `/azienda/sopralluoghi/${surveyId}`,
-        entity_type: "survey",
-        entity_id: surveyId,
-      });
 
-      return { memberName };
+      // La preferenza dell'assegnatario decide: `task_assigned_in_app`.
+      // Riga assente = utente che non ha mai toccato le preferenze → default true.
+      const { data: pref } = await supabase
+        .from("user_notification_preferences")
+        .select("task_assigned_in_app")
+        .eq("user_id", selectedUserId)
+        .maybeSingle();
+      const vuoleNotifica = pref?.task_assigned_in_app ?? true;
+
+      if (vuoleNotifica) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (supabase as any).from("notifications").insert({
+          user_id: selectedUserId,
+          type: "generic",
+          title: "Nuovo sopralluogo assegnato",
+          body: `Sei stato assegnato come ${ROLE_LABEL[selectedRole].label} a un sopralluogo.`,
+          action_url: `/azienda/sopralluoghi/${surveyId}`,
+          entity_type: "survey",
+          entity_id: surveyId,
+        });
+      }
+
+      return { memberName, notificato: vuoleNotifica };
     },
-    onSuccess: ({ memberName }) => {
-      toast.success(`${memberName} assegnato come ${ROLE_LABEL[selectedRole].label}`);
+    onSuccess: ({ memberName, notificato }) => {
+      toast.success(`${memberName} assegnato come ${ROLE_LABEL[selectedRole].label}`, {
+        description: notificato ? undefined : "Non è stata inviata la notifica: ha spento gli avvisi di assegnazione.",
+      });
       setSelectedUserId("");
       qc.invalidateQueries({ queryKey: ["survey-assignees", surveyId] });
     },

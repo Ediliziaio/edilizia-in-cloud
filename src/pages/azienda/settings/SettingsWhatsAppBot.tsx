@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -6,7 +6,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Bot, Copy, CheckCircle2, AlertCircle, Send, Users, Settings2, ArrowUpRight, AlertTriangle } from "lucide-react";
@@ -20,8 +19,6 @@ export default function SettingsWhatsAppBot() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [testNumber, setTestNumber] = useState("");
-  const [welcomeMsg, setWelcomeMsg] = useState<string | null>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { data: config, isLoading, isError: isConfigError } = useQuery({
     queryKey: ["wa-bot-config", companyId],
@@ -103,7 +100,7 @@ export default function SettingsWhatsAppBot() {
           company_id: companyId,
           to: testNumber.replace(/[^0-9]/g, ""),
           type: "text",
-          text: config?.welcome_message || "Ciao! Test dal Bot WhatsApp di Edilizia in Cloud.",
+          text: "Ciao! Test dal Bot WhatsApp di Edilizia in Cloud.",
         },
         headers: { Authorization: `Bearer ${session.data.session?.access_token}` },
       });
@@ -267,71 +264,6 @@ export default function SettingsWhatsAppBot() {
               onCheckedChange={(v) => updateConfig.mutate({ ai_auto_process: v })}
             />
           </div>
-          <div className="flex items-center justify-between">
-            <Label htmlFor="auto-cantiere">Auto-assegnazione cantiere</Label>
-            <Switch
-              id="auto-cantiere"
-              checked={config.auto_assign_cantiere ?? true}
-              onCheckedChange={(v) => updateConfig.mutate({ auto_assign_cantiere: v })}
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Notifications */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Notifiche al Titolare</CardTitle>
-          <CardDescription>Ricevi notifiche quando un operaio invia dati via WhatsApp.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
-            <Label>Rapportini ricevuti</Label>
-            <Switch
-              checked={config.notify_titolare_on_rapportino ?? true}
-              onCheckedChange={(v) => updateConfig.mutate({ notify_titolare_on_rapportino: v })}
-            />
-          </div>
-          <div className="flex items-center justify-between">
-            <Label>DDT registrati</Label>
-            <Switch
-              checked={config.notify_titolare_on_ddt ?? true}
-              onCheckedChange={(v) => updateConfig.mutate({ notify_titolare_on_ddt: v })}
-            />
-          </div>
-          <div className="flex items-center justify-between">
-            <Label>Segnalazioni cantiere</Label>
-            <Switch
-              checked={config.notify_titolare_on_segnalazione ?? true}
-              onCheckedChange={(v) => updateConfig.mutate({ notify_titolare_on_segnalazione: v })}
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Welcome message */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Messaggio di Benvenuto</CardTitle>
-          <CardDescription>
-            Inviato quando un operaio scrive per la prima volta al bot.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <Textarea
-            value={welcomeMsg ?? config.welcome_message ?? ""}
-            onChange={(e) => {
-              const val = e.target.value;
-              setWelcomeMsg(val);
-              if (debounceRef.current) clearTimeout(debounceRef.current);
-              debounceRef.current = setTimeout(() => {
-                updateConfig.mutate({ welcome_message: val });
-                setWelcomeMsg(null);
-              }, 800);
-            }}
-            rows={3}
-            placeholder="Ciao! Sono l'assistente di cantiere..."
-          />
         </CardContent>
       </Card>
 

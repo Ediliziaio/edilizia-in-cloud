@@ -38,6 +38,7 @@ import {
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { InlineField } from "@/components/marketing/contacts/InlineField";
+import { validatePartitaIva, validateCodiceFiscale } from "@/lib/italianFiscalValidation";
 import { queryKeys } from "@/lib/queryKeys";
 import { geocodeBestEffort } from "@/lib/geo/geocodeBestEffort";
 
@@ -283,6 +284,10 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved }: Custom
                     <InlineField
                       label="Codice fiscale"
                       value={customer.fiscal_code || ""}
+                      validate={(v) => {
+                        const esito = validateCodiceFiscale(v);
+                        return esito.ok ? null : (esito.hint ?? "Codice fiscale non valido");
+                      }}
                       onSave={(v) => updateField.mutate({ field: "fiscal_code", value: v ? v.toUpperCase() : null })}
                     />
                   )}
@@ -290,6 +295,10 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved }: Custom
                     <InlineField
                       label="Partita IVA"
                       value={customer.vat_number || ""}
+                      validate={(v) => {
+                        const esito = validatePartitaIva(v);
+                        return esito.ok ? null : (esito.hint ?? "Partita IVA non valida");
+                      }}
                       onSave={(v) => updateField.mutate({
                         field: "vat_number",
                         value: v ? v.toUpperCase().replace(/^IT/, "") : null,

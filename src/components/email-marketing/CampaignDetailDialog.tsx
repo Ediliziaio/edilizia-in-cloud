@@ -31,6 +31,7 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { toast } from "sonner";
 
+import { useIsMobile } from "@/hooks/use-mobile";
 interface RecipientRow {
   log_id: string;
   email: string;
@@ -68,6 +69,7 @@ interface CampaignDetailDialogProps {
 }
 
 export function CampaignDetailDialog({ campaignId, campaignName, onClose }: CampaignDetailDialogProps) {
+  const isMobile = useIsMobile();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const [statusFilter, setStatusFilter] = useState("all");
@@ -232,10 +234,13 @@ export function CampaignDetailDialog({ campaignId, campaignName, onClose }: Camp
               <SelectItem value="failed">Fallite</SelectItem>
             </SelectContent>
           </Select>
-          <Button variant="outline" size="sm" className="gap-1.5" onClick={handleExportCsv} disabled={exporting || totalRows === 0}>
-            {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-            Esporta CSV
-          </Button>
+          {/* Niente export su telefono. */}
+          {!isMobile && (
+            <Button variant="outline" size="sm" className="gap-1.5" onClick={handleExportCsv} disabled={exporting || totalRows === 0}>
+              {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              Esporta CSV
+            </Button>
+          )}
         </div>
 
         {/* Tabella destinatari */}

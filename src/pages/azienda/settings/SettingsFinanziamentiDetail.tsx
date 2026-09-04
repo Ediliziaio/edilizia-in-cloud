@@ -74,7 +74,9 @@ import { toast } from "sonner";
 import { CalcolatoreOutput } from "./_finanziamenti/CalcolatoreOutput";
 import { SimulatoreMultiDurata } from "./_finanziamenti/SimulatoreMultiDurata";
 
+import { useIsMobile } from "@/hooks/use-mobile";
 export default function SettingsFinanziamentiDetail() {
+  const isMobile = useIsMobile();
   const { id } = useParams<{ id: string }>();
   const { role } = useAuth();
   const permissions = usePermissions();
@@ -615,7 +617,7 @@ export default function SettingsFinanziamentiDetail() {
                   Nessun allegato caricato per questa tabella.
                 </p>
               )}
-              {tabella.pdf_url && (
+              {!isMobile && tabella.pdf_url && (
                 <Button
                   variant="outline"
                   onClick={() =>
@@ -632,7 +634,7 @@ export default function SettingsFinanziamentiDetail() {
                   )}
                 </Button>
               )}
-              {tabella.csv_url && (
+              {!isMobile && tabella.csv_url && (
                 <Button
                   variant="outline"
                   onClick={() =>

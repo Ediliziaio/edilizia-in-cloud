@@ -82,6 +82,7 @@ const SETTINGS_INDEX: SettingsIndexEntry[] = [
 
   // ── Sicurezza ──
   { group: "Sicurezza", title: "Sicurezza & Privacy", url: "/azienda/impostazioni/sicurezza-privacy", keywords: ["privacy", "gdpr", "log", "registro attivita", "dashboard sicurezza", "sicurezza"] },
+  { group: "Sicurezza", title: "Esporta i dati", url: "/azienda/impostazioni/esporta-dati", keywords: ["esporta", "export", "backup", "csv", "zip", "portabilita", "migrazione", "commercialista"] },
   { group: "Sicurezza", title: "Integrazioni", url: "/azienda/impostazioni/integrazioni", keywords: ["integrazione", "api esterna", "stripe", "gocardless", "google"] },
   { group: "Sicurezza", title: "API Platform", url: "/azienda/impostazioni/api", keywords: ["api", "chiavi api", "token", "developer"] },
   { group: "Sicurezza", title: "Webhook", url: "/azienda/impostazioni/webhook", keywords: ["webhook", "eventi", "callback"] },

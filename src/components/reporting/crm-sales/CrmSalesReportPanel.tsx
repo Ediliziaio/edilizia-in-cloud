@@ -67,6 +67,7 @@ import {
 import { CartesianGrid, Line, LineChart as RLineChart, ResponsiveContainer, Tooltip as RechartsTooltip, XAxis, YAxis } from "recharts";
 import { cn } from "@/lib/utils";
 
+import { useIsMobile } from "@/hooks/use-mobile";
 type PriorityTone = "critical" | "warning" | "good" | "info";
 
 type PriorityAction = {
@@ -82,6 +83,7 @@ export function CrmSalesReportPanel({
 }: {
   daysBack?: number;
 }) {
+  const isMobile = useIsMobile();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const navigate = useNavigate();
@@ -227,10 +229,13 @@ export function CrmSalesReportPanel({
             </div>
           )}
         </div>
-        <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={handleExport} disabled={loading}>
-          <Download className="h-4 w-4" />
-          Esporta CSV
-        </Button>
+        {/* Niente export su telefono. */}
+        {!isMobile && (
+          <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={handleExport} disabled={loading}>
+            <Download className="h-4 w-4" />
+            Esporta CSV
+          </Button>
+        )}
       </div>
 
       <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">

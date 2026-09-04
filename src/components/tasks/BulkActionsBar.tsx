@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
@@ -8,6 +9,7 @@ import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryKeys";
 import { type TaskStatusDefinition, buildTaskStatusUpdate } from "@/lib/taskStatuses";
+import { ConfermaQuantita, useConfermaQuantita } from "@/components/shared/ConfermaQuantita";
 
 interface BulkActionsBarProps {
   selectedIds: Set<string>;
@@ -23,6 +25,8 @@ export function BulkActionsBar({ selectedIds, onClear, statusOptions = [], tasks
   const { data: staff = [] } = useCompanyStaffUsers(companyId);
   const queryClient = useQueryClient();
   const count = selectedIds.size;
+  const [dialogoAperto, setDialogoAperto] = useState(false);
+  const conferma = useConfermaQuantita(count, dialogoAperto);
 
   /** Riporta ogni attività al suo stato di prima (raggruppando per stato: poche query). */
   const ripristinaStati = async (prima: Array<{ id: string; status: string | null; completed_at: string | null }>) => {
@@ -165,7 +169,7 @@ export function BulkActionsBar({ selectedIds, onClear, statusOptions = [], tasks
         </SelectContent>
       </Select>
 
-      <AlertDialog>
+      <AlertDialog open={dialogoAperto} onOpenChange={setDialogoAperto}>
         <AlertDialogTrigger asChild>
           <Button variant="outline" size="sm" className="text-destructive hover:text-destructive">
             <Trash2 className="h-4 w-4 mr-1.5" />
@@ -177,9 +181,17 @@ export function BulkActionsBar({ selectedIds, onClear, statusOptions = [], tasks
             <AlertDialogTitle>Eliminare {count} attività?</AlertDialogTitle>
             <AlertDialogDescription>Questa azione non può essere annullata.</AlertDialogDescription>
           </AlertDialogHeader>
+          <ConfermaQuantita stato={conferma} cosa="attività" />
           <AlertDialogFooter>
             <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction onClick={handleBulkDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+            <AlertDialogAction
+              onClick={(e) => {
+                if (!conferma.valida) { e.preventDefault(); return; }
+                handleBulkDelete();
+              }}
+              disabled={!conferma.valida}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
               Elimina
             </AlertDialogAction>
           </AlertDialogFooter>

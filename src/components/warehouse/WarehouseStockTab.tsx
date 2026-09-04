@@ -7,7 +7,7 @@ import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { useWarehouses } from "@/hooks/useWarehouses";
 import { toast } from "sonner";
-import { Plus, Pencil, ArrowUpCircle, ArrowDownCircle, Search, AlertTriangle, History, CheckSquare, Filter, MoveRight, X, GripVertical, ClipboardCheck, ChevronLeft, ChevronRight, ScanLine, Package, ChevronDown, MoreVertical, Truck, MapPin, Barcode } from "lucide-react";
+import { Plus, Pencil, ArrowUpCircle, ArrowDownCircle, Search, AlertTriangle, History, CheckSquare, Filter, MoveRight, X, GripVertical, ClipboardCheck, ChevronLeft, ChevronRight, ScanLine, Package, ChevronDown, MoreVertical, Truck, MapPin, Barcode, Trash2, Loader2 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -41,6 +41,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { useWarehouseSections } from "@/hooks/useWarehouseSections";
 import InventoryAuditDialog from "./InventoryAuditDialog";
 import type { StockItem } from "@/types/warehouse";
+import { valutaEliminazione } from "@/lib/magazzino/eliminazioneArticolo";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 // Scanner QR: lazy per non gonfiare il bundle iniziale (@zxing/library ~500KB).
 const BatchBarcodeScanner = lazy(() =>
@@ -136,6 +141,66 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
       return data as StockItem[];
     },
     enabled: !!companyId,
+  });
+
+  // ── Eliminazione articolo ──────────────────────────────────────────────
+  // Non esisteva: un articolo censito per sbaglio restava in elenco per sempre.
+  // Si elimina solo un articolo davvero vuoto e mai movimentato; in tutti gli
+  // altri casi si dice il perché invece di far arrivare l'errore del vincolo.
+  const [daEliminare, setDaEliminare] = useState<StockItem | null>(null);
+  const [verificaEliminazione, setVerificaEliminazione] = useState<
+    { eliminabile: boolean; motivo: string } | null
+  >(null);
+  const [verificaInCorso, setVerificaInCorso] = useState(false);
+
+  const chiediEliminazione = useCallback(async (item: StockItem) => {
+    setDaEliminare(item);
+    setVerificaEliminazione(null);
+    setVerificaInCorso(true);
+    try {
+      const [mov, unita, lotti] = await Promise.all([
+        supabase.from("warehouse_movements").select("id", { count: "exact", head: true }).eq("stock_item_id", item.id),
+        supabase.from("stock_units").select("id", { count: "exact", head: true }).eq("stock_item_id", item.id),
+        supabase.from("stock_lotti").select("id", { count: "exact", head: true }).eq("stock_item_id", item.id),
+      ]);
+      setVerificaEliminazione(
+        valutaEliminazione({
+          quantity: Number(item.quantity ?? 0),
+          quantity_reserved: Number(item.quantity_reserved ?? 0),
+          movimenti: mov.count ?? 0,
+          seriali: unita.count ?? 0,
+          lotti: lotti.count ?? 0,
+        }),
+      );
+    } catch (err) {
+      logger.error("Verifica eliminazione articolo fallita:", err);
+      // Non si indovina: se il controllo non è andato a buon fine non si
+      // elimina, perché non sappiamo cosa ci sia attaccato.
+      setVerificaEliminazione({
+        eliminabile: false,
+        motivo: "Non sono riuscito a controllare cosa è collegato a questo articolo. Riprova.",
+      });
+    } finally {
+      setVerificaInCorso(false);
+    }
+  }, []);
+
+  const eliminaArticolo = useMutation({
+    mutationFn: async (item: StockItem) => {
+      const { error } = await supabase
+        .from("warehouse_stock")
+        .delete()
+        .eq("id", item.id)
+        .eq("company_id", companyId!);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Articolo eliminato");
+      queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.stock(companyId) });
+      setDaEliminare(null);
+      setVerificaEliminazione(null);
+    },
+    onError: (err: Error) => toast.error("Eliminazione non riuscita", { description: err.message }),
   });
 
   // Fetch suppliers
@@ -882,6 +947,7 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
                         supplierName={getSupplierName(item.supplier_id)}
                         onToggleSelect={() => toggleSelect(item.id)}
                         onEdit={() => { setEditingItem(item); setDialogOpen(true); }}
+                        onDelete={() => chiediEliminazione(item)}
                         onCarico={() => setMovementDialog({ open: true, type: "carico", item })}
                         onScarico={() => setMovementDialog({ open: true, type: "scarico", item })}
                         onHistory={() => setHistoryItem(item)}
@@ -908,6 +974,7 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
                   supplierName={getSupplierName(item.supplier_id)}
                   onToggleSelect={() => toggleSelect(item.id)}
                   onEdit={() => { setEditingItem(item); setDialogOpen(true); }}
+                  onDelete={() => chiediEliminazione(item)}
                   onCarico={() => setMovementDialog({ open: true, type: "carico", item })}
                   onScarico={() => setMovementDialog({ open: true, type: "scarico", item })}
                   onHistory={() => setHistoryItem(item)}
@@ -997,6 +1064,56 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
           onOpenChange={(v) => { if (!v) setHistoryItem(null); }}
           item={historyItem}
         />
+
+        {/* Eliminazione articolo: si controlla PRIMA cosa c'è attaccato, e se
+            non si può si dice il motivo — invece di far arrivare l'errore del
+            vincolo, o peggio di cancellare i seriali per cascata. */}
+        <AlertDialog
+          open={!!daEliminare}
+          onOpenChange={(v) => { if (!v) { setDaEliminare(null); setVerificaEliminazione(null); } }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                {verificaEliminazione && !verificaEliminazione.eliminabile
+                  ? "Questo articolo non si può eliminare"
+                  : "Eliminare l'articolo?"}
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                {verificaInCorso ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Controllo cosa è collegato a "{daEliminare?.name}"...
+                  </span>
+                ) : verificaEliminazione?.eliminabile ? (
+                  <>
+                    "{daEliminare?.name}" non ha giacenza né movimenti registrati:
+                    si può eliminare. L'operazione non si annulla.
+                  </>
+                ) : (
+                  verificaEliminazione?.motivo
+                )}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>
+                {verificaEliminazione && !verificaEliminazione.eliminabile ? "Ho capito" : "Annulla"}
+              </AlertDialogCancel>
+              {verificaEliminazione?.eliminabile && (
+                <AlertDialogAction
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  disabled={eliminaArticolo.isPending}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    if (daEliminare) eliminaArticolo.mutate(daEliminare);
+                  }}
+                >
+                  {eliminaArticolo.isPending ? "Eliminazione..." : "Elimina"}
+                </AlertDialogAction>
+              )}
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
         <Dialog open={!!taskItem} onOpenChange={(v) => { if (!v) setTaskItem(null); }}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
@@ -1108,12 +1225,13 @@ interface DraggableStockRowProps {
   onTask: () => void;
   onAudit: () => void;
   onSerials: () => void;
+  onDelete: () => void;
   readOnly?: boolean;
 }
 
 const DraggableStockRow = memo(function DraggableStockRow({
   item, isLow, section, isSelected, hasSections, supplierName,
-  onToggleSelect, onEdit, onCarico, onScarico, onHistory, onTask, onAudit, onSerials,
+  onToggleSelect, onEdit, onCarico, onScarico, onHistory, onTask, onAudit, onSerials, onDelete,
   readOnly = false,
 }: DraggableStockRowProps) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
@@ -1207,6 +1325,9 @@ const DraggableStockRow = memo(function DraggableStockRow({
               <Button variant="ghost" size="icon" title="Modifica" onClick={onEdit}>
                 <Pencil className="h-4 w-4" />
               </Button>
+              <Button variant="ghost" size="icon" title="Elimina" onClick={onDelete}>
+                <Trash2 className="h-4 w-4 text-destructive" />
+              </Button>
             </>
           )}
         </div>
@@ -1235,12 +1356,13 @@ interface StockItemMobileCardProps {
   onTask: () => void;
   onAudit: () => void;
   onSerials: () => void;
+  onDelete: () => void;
   readOnly?: boolean;
 }
 
 const StockItemMobileCard = memo(function StockItemMobileCard({
   item, isLow, section, isSelected, supplierName,
-  onToggleSelect, onEdit, onCarico, onScarico, onHistory, onTask, onAudit, onSerials,
+  onToggleSelect, onEdit, onCarico, onScarico, onHistory, onTask, onAudit, onSerials, onDelete,
   readOnly = false,
 }: StockItemMobileCardProps) {
   return (
@@ -1328,10 +1450,17 @@ const StockItemMobileCard = memo(function StockItemMobileCard({
                 </DropdownMenuItem>
               )}
               {!readOnly && (
-                <DropdownMenuItem onClick={onTask}>
-                  <CheckSquare className="h-4 w-4 mr-2 text-primary" />
-                  Task
-                </DropdownMenuItem>
+                <>
+                  <DropdownMenuItem onClick={onTask}>
+                    <CheckSquare className="h-4 w-4 mr-2 text-primary" />
+                    Task
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={onDelete} className="text-destructive focus:text-destructive">
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Elimina
+                  </DropdownMenuItem>
+                </>
               )}
             </DropdownMenuContent>
           </DropdownMenu>

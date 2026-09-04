@@ -36,6 +36,7 @@ import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatters";
 import { calcRigaImporto } from "@/lib/ristrutturazione/calcoli";
 import type { RstComputoVoce } from "@/types/ristrutturazione";
+import type { ConfrontoVoce } from "@/lib/prezzario/confronto";
 import VoceRow from "./VoceRow";
 import AddVocePicker from "./AddVocePicker";
 import { pickedToComputoVoce, type PickedVoce } from "./types";
@@ -58,13 +59,15 @@ interface Props {
   progettoId: string;
   companyId: string;
   showMargine: boolean;
+  /** Confronto col prezzario regionale, per voce. Assente = nessun confronto. */
+  confronti?: Map<string, ConfrontoVoce>;
   onChange: (voci: RstComputoVoce[]) => void;
   onRename: (nome: string) => void;
   onDeleteCapitolo: () => void;
 }
 
 export default function CapitoloSection({
-  nome, voci, accentIndex, progettoId, companyId, showMargine,
+  nome, voci, accentIndex, progettoId, companyId, showMargine, confronti,
   onChange, onRename, onDeleteCapitolo,
 }: Props) {
   const [open, setOpen] = useState(true);
@@ -231,6 +234,7 @@ export default function CapitoloSection({
                         onDelete={() => deleteVoce(v.id)}
                         onDuplicate={() => duplicateVoce(v.id)}
                         showMargine={showMargine}
+                        confronto={confronti?.get(v.id)}
                       />
                     ))}
                   </div>

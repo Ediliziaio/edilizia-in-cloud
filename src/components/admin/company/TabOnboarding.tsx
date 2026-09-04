@@ -185,7 +185,7 @@ export function TabOnboarding({ companyId }: TabOnboardingProps) {
                 Nessun task onboarding per questa azienda
               </p>
               <p className="text-xs text-muted-foreground mt-1">
-                I task vengono creati automaticamente alla registrazione oppure puoi aggiungerli manualmente
+                I task si aggiungono a mano: nessuno viene creato in automatico alla registrazione
               </p>
               <Button variant="outline" size="sm" className="mt-3" onClick={() => setNuovoOpen(true)}>
                 <Plus className="h-4 w-4 mr-1" /> Aggiungi il primo task

@@ -51,6 +51,7 @@ import AnagraficheList from "./AnagraficheList";
 import RegistroIncassi from "./RegistroIncassi";
 import CassettoSDI from "./CassettoSDI";
 
+import { useIsMobile } from "@/hooks/use-mobile";
 const PER_PAGE = 25;
 
 type BillingHubTab = "fatture" | "rubrica" | "incassi" | "sdi" | "fiscalita";
@@ -265,6 +266,7 @@ function DocumentiFiscaliHub() {
 
 // ─── Inner Component ──────────────────────────────────────
 function DocumentiFiscaliListInner() {
+  const isMobile = useIsMobile();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedTipo = searchParams.get("tipo");
@@ -757,10 +759,13 @@ function DocumentiFiscaliListInner() {
         <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-muted/50 px-4 py-2.5">
           <span className="text-sm font-medium">{selectedIds.size} selezionat{selectedIds.size === 1 ? "o" : "i"}</span>
 
-          <Button variant="outline" size="sm" onClick={handleBulkExport}>
-            <FileSpreadsheet className="h-4 w-4 mr-1.5" />
-            Esporta XLS
-          </Button>
+          {/* Niente export su telefono. */}
+          {!isMobile && (
+            <Button variant="outline" size="sm" onClick={handleBulkExport}>
+              <FileSpreadsheet className="h-4 w-4 mr-1.5" />
+              Esporta XLS
+            </Button>
+          )}
 
           {!isTrash && (
             <Button variant="outline" size="sm" onClick={() => setBulkPayOpen(true)}>
@@ -1042,9 +1047,12 @@ function DocumentiFiscaliListInner() {
                                   <Copy className="h-4 w-4 mr-2" /> Duplica
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem onClick={() => handleAction("pdf", doc)}>
-                                  <Download className="h-4 w-4 mr-2" /> Scarica PDF
-                                </DropdownMenuItem>
+                                {/* Niente export su telefono. */}
+                                {!isMobile && (
+                                  <DropdownMenuItem onClick={() => handleAction("pdf", doc)}>
+                                    <Download className="h-4 w-4 mr-2" /> Scarica PDF
+                                  </DropdownMenuItem>
+                                )}
                                 {doc.tipo === "ddt" && (
                                   <DropdownMenuItem
                                     onClick={() => handleAction("save_pdf", doc)}
@@ -1053,7 +1061,8 @@ function DocumentiFiscaliListInner() {
                                     <FileText className="h-4 w-4 mr-2" /> Salva PDF su documento
                                   </DropdownMenuItem>
                                 )}
-                                {!["ddt", "proforma", "preventivo"].includes(doc.tipo) && (
+                                {/* Niente export su telefono. */}
+                                {!isMobile && !["ddt", "proforma", "preventivo"].includes(doc.tipo) && (
                                   <DropdownMenuItem onClick={() => handleAction("xml", doc)}>
                                     <FileText className="h-4 w-4 mr-2" /> Scarica XML
                                   </DropdownMenuItem>

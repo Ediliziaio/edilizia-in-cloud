@@ -48,6 +48,7 @@ import { useRichiediFirma } from "@/hooks/useRichiediFirma";
 import type { SendSignatureParams } from "@/hooks/useSignatureActions";
 import { toast } from "sonner";
 
+import { useIsMobile } from "@/hooks/use-mobile";
 const STATI_LABEL = {
   bozza: { label: "Bozza", variant: "default" as const },
   configurato: { label: "Configurato", variant: "navy" as const },
@@ -57,6 +58,7 @@ const STATI_LABEL = {
 };
 
 export default function FotovoltaicoDettaglio() {
+  const isMobile = useIsMobile();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const permissions = usePermissions();
@@ -735,18 +737,22 @@ export default function FotovoltaicoDettaglio() {
                       )}
                       Apri preventivo (anteprima)
                     </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => handleScaricaPdf(progetto.pdf_vendita_url, "vendita-print")}
-                      disabled={scaricando === "vendita-print"}
-                    >
-                      {scaricando === "vendita-print" ? (
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      ) : (
-                        <Download className="h-4 w-4 mr-2" />
-                      )}
-                      Scarica PDF
-                    </Button>
+                    {/* Solo questo scarica davvero: `handleScarica` apre in una
+                        scheda, e aprire non è scaricare — quindi resta. */}
+                    {!isMobile && (
+                      <Button
+                        variant="outline"
+                        onClick={() => handleScaricaPdf(progetto.pdf_vendita_url, "vendita-print")}
+                        disabled={scaricando === "vendita-print"}
+                      >
+                        {scaricando === "vendita-print" ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <Download className="h-4 w-4 mr-2" />
+                        )}
+                        Scarica PDF
+                      </Button>
+                    )}
                   </div>
                 </>
               )}

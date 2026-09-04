@@ -22,6 +22,9 @@ import { formatCurrency } from "@/lib/formatters";
 import { calcTotaliComputo, type ComputoRigaInput } from "@/lib/ristrutturazione/calcoli";
 import type { RstComputoVoce } from "@/types/ristrutturazione";
 import CapitoloSection from "./CapitoloSection";
+import { usePrezzoDiZona } from "@/hooks/usePrezzoDiZona";
+import { useCodiciPrezzarioListino } from "@/hooks/useCodiciPrezzarioListino";
+import { PrezzoDiZonaRiepilogo } from "@/components/prezzario/PrezzoDiZonaRiepilogo";
 import AddVocePicker from "./AddVocePicker";
 import { pickedToComputoVoce, type PickedVoce } from "./types";
 
@@ -48,6 +51,28 @@ export default function ComputoEditor({
   value, onChange, progettoId, companyId, scontoPct = 0, ivaPct = 22,
 }: Props) {
   const [showMargine, setShowMargine] = useState(false);
+  // ── Prezzo di zona ────────────────────────────────────────────────────────
+  // I 363.000 prezzi regionali servivano solo a copiare voci nel listino.
+  // Qui diventano il metro accanto al prezzo che si sta proponendo.
+  const codiciPerListino = useCodiciPrezzarioListino(
+    value.map((v) => v.listino_voce_id ?? null),
+  );
+  const vociDaConfrontare = useMemo(
+    () => value.map((v) => ({
+      id: v.id,
+      descrizione: v.descrizione,
+      unita_misura: v.unita_misura,
+      prezzo_unitario: v.prezzo_unitario,
+      quantita: v.quantita,
+      codicePrezzario: v.listino_voce_id ? codiciPerListino[v.listino_voce_id] ?? null : null,
+    })),
+    [value, codiciPerListino],
+  );
+  const prezzoDiZona = usePrezzoDiZona(vociDaConfrontare);
+  const confrontiPerVoce = useMemo(
+    () => new Map(prezzoDiZona.confronti.map((c) => [c.voceId, c])),
+    [prezzoDiZona.confronti],
+  );
   const [globalPickerOpen, setGlobalPickerOpen] = useState(false);
   // Capitoli creati ma ancora senza voci (solo nomi, ordine d'inserimento).
   const [emptyCapitoli, setEmptyCapitoli] = useState<string[]>([]);
@@ -241,6 +266,7 @@ export default function ComputoEditor({
                 progettoId={progettoId}
                 companyId={companyId}
                 showMargine={showMargine}
+                confronti={confrontiPerVoce}
                 onChange={(next) => replaceCapitoloVoci(cap.nome, next)}
                 onRename={(newName) => renameCapitolo(cap.nome, newName)}
                 onDeleteCapitolo={() => deleteCapitolo(cap.nome)}
@@ -325,6 +351,20 @@ export default function ComputoEditor({
               <span>Voci totali</span>
               <Badge variant="outline" className="tabular-nums">{nVoci}</Badge>
             </div>
+
+            {/* Prezzo di zona: il verdetto sull'intero preventivo. */}
+            {nVoci > 0 && (
+              <div className="border-t pt-2.5">
+                <PrezzoDiZonaRiepilogo
+                  riepilogo={prezzoDiZona.riepilogo}
+                  fonteLabel={prezzoDiZona.fonteLabel}
+                  regione={prezzoDiZona.regione}
+                  isLoading={prezzoDiZona.isLoading}
+                  indisponibile={prezzoDiZona.indisponibile}
+                  compatto
+                />
+              </div>
+            )}
           </div>
         </div>
       </aside>

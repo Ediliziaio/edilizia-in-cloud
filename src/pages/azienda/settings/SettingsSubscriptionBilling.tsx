@@ -39,6 +39,7 @@ import { it } from "date-fns/locale";
 import { BillingDetailsCard } from "@/components/billing/BillingDetailsCard";
 import { PlanChangeDialog, CancelPlanDialog } from "@/components/billing/PlanChangeDialog";
 
+import { useIsMobile } from "@/hooks/use-mobile";
 // Lazy-load contenuto Portafoglio (la pagina Crediti & Saldo ha già tutta la logica)
 const SettingsCrediti = lazy(() => import("@/pages/azienda/settings/SettingsCredits"));
 
@@ -396,6 +397,7 @@ function TabAbbonamenti() {
    TAB 2 — PAGAMENTI
 ═══════════════════════════════════════════════════════════════════════════ */
 function TabPagamenti() {
+  const isMobile = useIsMobile();
   const { data: billing } = useBillingInfo();
   const { data: invoices, isLoading: invoicesLoading } = useInvoices();
   const { data: billingDetails } = useBillingDetails();
@@ -649,7 +651,8 @@ function TabPagamenti() {
                       </p>
                     </div>
                     <div className="flex flex-col items-end gap-1 shrink-0">
-                      {inv.invoicePdf && (
+                      {/* Niente export su telefono. */}
+                      {!isMobile && inv.invoicePdf && (
                         <Button
                           variant="ghost" size="icon" aria-label="Scarica PDF fattura" className="h-8 w-8"
                           onClick={() => window.open(inv.invoicePdf!, "_blank")}
@@ -715,13 +718,16 @@ function TabPagamenti() {
                             {inv.invoicePdf && (
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <Button
-                                    variant="ghost" size="icon" className="h-9 w-9 md:h-7 md:w-7"
-                                    onClick={() => window.open(inv.invoicePdf!, "_blank")}
-                                    aria-label="Scarica PDF"
-                                  >
-                                    <Download className="h-3.5 w-3.5" />
-                                  </Button>
+                                  {/* Niente export su telefono. */}
+                                  {!isMobile && (
+                                    <Button
+                                      variant="ghost" size="icon" className="h-9 w-9 md:h-7 md:w-7"
+                                      onClick={() => window.open(inv.invoicePdf!, "_blank")}
+                                      aria-label="Scarica PDF"
+                                    >
+                                      <Download className="h-3.5 w-3.5" />
+                                    </Button>
+                                  )}
                                 </TooltipTrigger>
                                 <TooltipContent>Scarica PDF</TooltipContent>
                               </Tooltip>

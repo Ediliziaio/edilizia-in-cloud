@@ -76,7 +76,7 @@ const TESTI_DI_SISTEMA: Record<TipoLegale, { titolo: string; aiuto: string; test
 export default function SettingsCondizioniFirma() {
   const permissions = usePermissions();
   const puoModificare = permissions.isAdmin || permissions.canViewSettingsPricing;
-  const { vessatorie, testiLegali, contrattuali, isLoading, error, salva, elimina } = useQuoteClauses();
+  const { vessatorie, testiLegali, isLoading, error, salva, elimina } = useQuoteClauses();
 
   const [bozza, setBozza] = useState<Record<string, Partial<QuoteClause>>>({});
   const patch = useCallback((id: string, campi: Partial<QuoteClause>) => {
@@ -388,24 +388,6 @@ export default function SettingsCondizioniFirma() {
           ))}
         </CardContent>
       </Card>
-
-      {contrattuali.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Altre clausole del contratto</CardTitle>
-            <CardDescription>
-              Blocchi di testo che usi nei documenti ma che non richiedono approvazione separata.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-wrap gap-2">
-            {contrattuali.map((c) => (
-              <Badge key={c.id} variant="secondary" className="font-normal">
-                {c.title}
-              </Badge>
-            ))}
-          </CardContent>
-        </Card>
-      )}
 
       <p className="flex items-start gap-2 text-xs text-muted-foreground">
         <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />

@@ -38,6 +38,7 @@ import {
 import type { PisProgetto, PisComputoVoce, PisProgettoMedia } from "@/types/piscine";
 import { InviaFirmaCard } from "@/components/moduli/InviaFirmaCard";
 
+import { useIsMobile } from "@/hooks/use-mobile";
 interface Props {
   progetto: PisProgetto;
   computo: PisComputoVoce[];
@@ -54,6 +55,7 @@ const TEMPLATE_SETTINGS_HREF =
   "/azienda/impostazioni/template-preventivi?tab=moduli-vendita&modulo=piscine";
 
 export default function StepPdf({ progetto, computo, media }: Props) {
+  const isMobile = useIsMobile();
   const companyId = useEffectiveCompanyId();
   const { data: template } = usePisTemplatePdf();
   const { downloadPDF, previewPDF, isGenerating } = usePiscinePDF();
@@ -392,15 +394,20 @@ export default function StepPdf({ progetto, computo, media }: Props) {
           )}
 
           <div className="flex flex-col gap-2 sm:flex-row">
-            <Button
-              onClick={handleDownload}
-              disabled={computoVuoto || isGenerating}
-              size="lg"
-              className="flex-1 gap-2 bg-orange-500 hover:bg-orange-600"
-            >
-              {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-              Scarica PDF
-            </Button>
+            {/* Niente scarico su telefono. Il passo non diventa un vicolo
+                cieco: restano «Anteprima PDF» e l'invio per la firma, che
+                sono il modo in cui il preventivo arriva al cliente. */}
+            {!isMobile && (
+              <Button
+                onClick={handleDownload}
+                disabled={computoVuoto || isGenerating}
+                size="lg"
+                className="flex-1 gap-2 bg-orange-500 hover:bg-orange-600"
+              >
+                {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                Scarica PDF
+              </Button>
+            )}
             <Button
               onClick={handlePreview}
               disabled={computoVuoto || isGenerating}

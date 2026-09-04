@@ -48,6 +48,7 @@ const toPct = (raw: string): number => {
 // l'Ecobonus 65% era rimasto alle aliquote pre-riforma).
 import { INCENTIVI_TETTI as INCENTIVI_PRESET } from "@/lib/preventivi/incentivi";
 import { FinanziamentoQuoteToggle } from "@/components/moduli/FinanziamentoQuoteToggle";
+import { ScontoGlobaleField } from "@/components/preventivi/ScontoGlobaleField";
 import { useTetTemplatePdf } from "@/hooks/useTettiProgetto";
 
 export default function StepEconomia({ form, onChange, computo }: Props) {
@@ -164,11 +165,12 @@ export default function StepEconomia({ form, onChange, computo }: Props) {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <PctField
+              <ScontoGlobaleField
                 id="tet-sconto"
-                label="Sconto globale"
                 value={form.sconto_pct ?? 0}
                 onCommit={(v) => onChange("sconto_pct", v)}
+                imponibileLordo={lordoCapitoli}
+                tipoLavoro="tetti"
               />
               <PctField
                 id="tet-iva"

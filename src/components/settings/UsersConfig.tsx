@@ -45,6 +45,7 @@ import { syncLegacyMarketingFlags, syncLegacySettingsFlags } from "@/components/
 import { usePermissions } from "@/hooks/usePermissions";
 import { withClientTimeout } from "@/lib/query-timeout";
 
+import { useIsMobile } from "@/hooks/use-mobile";
 type EffectiveRole = "company_admin" | "company_staff" | "salesperson" | "call_center" | "employee" | "subcontractor";
 type StatusFilter = "all" | "online" | "blocked" | "locked" | "never" | "inactive";
 
@@ -352,6 +353,7 @@ function DeleteUserDialog({
 
 // ─── Main Component ───────────────────────────────────────────────────
 export function UsersConfig() {
+  const isMobile = useIsMobile();
   const { user, effectiveCompany, profile, role } = useAuth();
   const permissions = usePermissions();
   const canManageUsers = permissions.isAdmin || permissions.canEditSettingsPeople;
@@ -1341,9 +1343,12 @@ export function UsersConfig() {
                   Nuovo Utente
                 </Button>
               )}
-              <Button variant="outline" size="sm" onClick={handleExportCSV} title="Esporta CSV">
-                <Download className="h-4 w-4" />
-              </Button>
+              {/* Niente export su telefono. */}
+              {!isMobile && (
+                <Button variant="outline" size="sm" onClick={handleExportCSV} title="Esporta CSV">
+                  <Download className="h-4 w-4" />
+                </Button>
+              )}
               {canManageUsers && (
                 <div className="relative">
                   <input type="file" accept=".csv"

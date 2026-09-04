@@ -24,7 +24,6 @@ type PreventivoImpostazioni = Pick<
 >;
 
 type SettingsFormState = {
-  addonAttivo: boolean;
   firmaPreventivi: boolean;
   testoRecessoB2c: string;
 };
@@ -38,7 +37,6 @@ export default function SettingsFirmaElettronica() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
-  const [addonAttivo, setAddonAttivo] = useState(false);
   const [firmaPreventivi, setFirmaPreventivi] = useState(true);
   const [testoRecessoB2c, setTestoRecessoB2c] = useState(DEFAULT_RECESSO_B2C);
   const [savedState, setSavedState] = useState<SettingsFormState | null>(null);
@@ -72,15 +70,13 @@ export default function SettingsFirmaElettronica() {
   });
 
   const currentState = useMemo<SettingsFormState>(() => ({
-    addonAttivo,
     firmaPreventivi,
     testoRecessoB2c,
-  }), [addonAttivo, firmaPreventivi, testoRecessoB2c]);
+  }), [firmaPreventivi, testoRecessoB2c]);
 
   const isDirty = useMemo(() => {
     if (!savedState) return false;
     return (
-      savedState.addonAttivo !== currentState.addonAttivo ||
       savedState.firmaPreventivi !== currentState.firmaPreventivi ||
       savedState.testoRecessoB2c !== currentState.testoRecessoB2c
     );
@@ -91,11 +87,9 @@ export default function SettingsFirmaElettronica() {
   useEffect(() => {
     if (isLoadingFea || isLoadingPreventivi) return;
     const nextState: SettingsFormState = {
-      addonAttivo: feaConfig?.addon_attivo ?? false,
       firmaPreventivi: preventivoSettings?.firma_digitale_abilitata ?? true,
       testoRecessoB2c: feaConfig?.testo_recesso_b2c || DEFAULT_RECESSO_B2C,
     };
-    setAddonAttivo(nextState.addonAttivo);
     setFirmaPreventivi(nextState.firmaPreventivi);
     setTestoRecessoB2c(nextState.testoRecessoB2c);
     setSavedState(nextState);
@@ -112,7 +106,6 @@ export default function SettingsFirmaElettronica() {
           .upsert(
             {
               company_id: companyId,
-              addon_attivo: snapshot.addonAttivo,
               testo_recesso_b2c: snapshot.testoRecessoB2c,
               updated_at: new Date().toISOString(),
             },
@@ -134,7 +127,6 @@ export default function SettingsFirmaElettronica() {
       return snapshot;
     },
     onSuccess: (snapshot) => {
-      setAddonAttivo(snapshot.addonAttivo);
       setFirmaPreventivi(snapshot.firmaPreventivi);
       setTestoRecessoB2c(snapshot.testoRecessoB2c);
       setSavedState(snapshot);
@@ -182,9 +174,6 @@ export default function SettingsFirmaElettronica() {
                 </div>
               </div>
             </div>
-            <Badge variant={addonAttivo ? "default" : "outline"} className={addonAttivo ? "bg-emerald-600" : ""}>
-              {addonAttivo ? "FEA OTP attiva" : "FEA OTP non attiva"}
-            </Badge>
             {isDirty && (
               <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">
                 Modifiche non salvate
@@ -276,24 +265,9 @@ export default function SettingsFirmaElettronica() {
               <ShieldCheck className="h-4 w-4 text-emerald-600" />
               Metodo firma
             </CardTitle>
-            <CardDescription>Abilita la firma avanzata con verifica OTP.</CardDescription>
+            <CardDescription>Dove proporre la firma al cliente.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-center justify-between gap-4 rounded-lg border p-4">
-              <div className="space-y-1">
-                <Label htmlFor="fea-addon">FEA con OTP via SMS + email</Label>
-                <p className="text-sm text-muted-foreground">
-                  Da usare per documenti con valore legale pieno: preventivi, contratti, SAL e collaudi.
-                </p>
-              </div>
-              <Switch
-                id="fea-addon"
-                checked={addonAttivo}
-                disabled={isLoading}
-                onCheckedChange={setAddonAttivo}
-              />
-            </div>
-
             <div className="flex items-center justify-between gap-4 rounded-lg border p-4">
               <div className="space-y-1">
                 <Label htmlFor="firma-preventivi">Firma elettronica sui preventivi</Label>

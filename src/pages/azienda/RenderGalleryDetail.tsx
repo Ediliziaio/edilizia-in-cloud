@@ -21,6 +21,7 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { toast } from "sonner";
 
+import { useIsMobile } from "@/hooks/use-mobile";
 const STATUS_CONFIG = {
   pending:    { label: "In coda",        variant: "secondary",   icon: Clock },
   processing: { label: "In elaborazione", variant: "default",    icon: Zap },
@@ -103,6 +104,7 @@ function specDisplayItems(spec: WindowTechnicalSpecification) {
 }
 
 export default function RenderGalleryDetail() {
+  const isMobile = useIsMobile();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
@@ -320,10 +322,12 @@ export default function RenderGalleryDetail() {
                   { label: "Finitura", value: firstSpec?.finish.name },
                 ]}
               />
-              <Button size="sm" onClick={handleDownload}>
-                <Download className="h-4 w-4 mr-2" />
-                Scarica render
-              </Button>
+              {!isMobile && (
+                <Button size="sm" onClick={handleDownload}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Scarica render
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -340,10 +344,12 @@ export default function RenderGalleryDetail() {
                 title="Render AI Infissi"
                 filename={`render_infissi_${id}.pdf`}
               />
-              <Button size="sm" onClick={handleDownload}>
-                <Download className="h-4 w-4 mr-2" />
-                Scarica render
-              </Button>
+              {!isMobile && (
+                <Button size="sm" onClick={handleDownload}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Scarica render
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>

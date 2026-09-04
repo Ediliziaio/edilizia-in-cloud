@@ -27,6 +27,7 @@ import type { EditorState } from "./useEditorState";
 import type { TipoDocumento, StatoDocumento } from "@/types/fatturazione";
 import type { Company } from "@/types/auth";
 
+import { useIsMobile } from "@/hooks/use-mobile";
 const TIPO_LABELS: Record<string, string> = {
   fattura: "Fattura",
   fattura_pa: "Fattura PA",
@@ -114,6 +115,7 @@ export function EditorTopBar({
   onPreview, onBack, onInviaSDI, onDownloadPDF, onSendEmail, onDuplicate, onConvertToFattura,
   isInviaSDILoading, isConvertLoading, isEmitting,
 }: Props) {
+  const isMobile = useIsMobile();
   const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
   const tipo = state.tipo as TipoDocumento;
@@ -271,10 +273,13 @@ export function EditorTopBar({
                 <Copy className="h-3.5 w-3.5 mr-2" />
                 Duplica
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={onDownloadPDF}>
-                <Download className="h-3.5 w-3.5 mr-2" />
-                Scarica PDF
-              </DropdownMenuItem>
+              {/* Niente export su telefono. */}
+              {!isMobile && (
+                <DropdownMenuItem onClick={onDownloadPDF}>
+                  <Download className="h-3.5 w-3.5 mr-2" />
+                  Scarica PDF
+                </DropdownMenuItem>
+              )}
               {onSendEmail && (
                 <DropdownMenuItem onClick={onSendEmail}>
                   <Mail className="h-3.5 w-3.5 mr-2" />
@@ -287,7 +292,7 @@ export function EditorTopBar({
                   Stampa
                 </DropdownMenuItem>
               )}
-              {!isBozza && !["proforma", "preventivo", "ddt"].includes(state.tipo) && (
+              {!isMobile && !isBozza && !["proforma", "preventivo", "ddt"].includes(state.tipo) && (
                 <>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem>
@@ -461,7 +466,8 @@ export function EditorTopBar({
             <Button variant="outline" size="sm" className="h-8 text-xs bg-white border-amber-300 hover:bg-amber-50" onClick={onPreview}>
               <FileText className="h-3.5 w-3.5 mr-1" /> Visualizza XML
             </Button>
-            {onDownloadPDF && (
+            {/* «Visualizza XML» qui sopra resta: leggere non è scaricare. */}
+            {!isMobile && onDownloadPDF && (
               <Button variant="outline" size="sm" className="h-8 text-xs bg-white border-amber-300 hover:bg-amber-50" onClick={onDownloadPDF}>
                 <Download className="h-3.5 w-3.5 mr-1" /> Esporta XML
               </Button>

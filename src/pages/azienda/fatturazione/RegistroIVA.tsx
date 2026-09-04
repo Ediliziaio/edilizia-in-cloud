@@ -16,6 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Download, TrendingUp, TrendingDown, Scale } from "lucide-react";
 import { toast } from "sonner";
 
+import { useIsMobile } from "@/hooks/use-mobile";
 const MESI = [
   "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
   "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre",
@@ -76,6 +77,7 @@ function exportCSV(rows: any[], filename: string) {
 }
 
 export default function RegistroIVA() {
+  const isMobile = useIsMobile();
   const companyId = useEffectiveCompanyId();
   const currentYear = new Date().getFullYear();
   const currentMonth = new Date().getMonth() + 1;
@@ -342,21 +344,24 @@ export default function RegistroIVA() {
             <TabsTrigger value="acquisti">Registro Acquisti ({righeAcquisti.length})</TabsTrigger>
           </TabsList>
           <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                const tab = document.querySelector<HTMLButtonElement>('[data-state="active"][role="tab"]');
-                const isAcquisti = tab?.textContent?.includes("Acquisti");
-                exportCSV(
-                  isAcquisti ? righeAcquisti : righeVendite,
-                  `registro-iva-${isAcquisti ? "acquisti" : "vendite"}-${periodoLabel.replace(/ /g, "_")}.csv`
-                );
-                toast.success("CSV esportato");
-              }}
-            >
-              <Download className="h-3.5 w-3.5 mr-1" /> Esporta CSV
-            </Button>
+            {/* Niente export su telefono. */}
+            {!isMobile && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const tab = document.querySelector<HTMLButtonElement>('[data-state="active"][role="tab"]');
+                  const isAcquisti = tab?.textContent?.includes("Acquisti");
+                  exportCSV(
+                    isAcquisti ? righeAcquisti : righeVendite,
+                    `registro-iva-${isAcquisti ? "acquisti" : "vendite"}-${periodoLabel.replace(/ /g, "_")}.csv`
+                  );
+                  toast.success("CSV esportato");
+                }}
+              >
+                <Download className="h-3.5 w-3.5 mr-1" /> Esporta CSV
+              </Button>
+            )}
           </div>
         </div>
 

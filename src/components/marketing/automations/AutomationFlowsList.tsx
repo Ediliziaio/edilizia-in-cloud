@@ -32,6 +32,7 @@ import {
 import { Fragment, useEffect, useState, useMemo, type ReactNode } from "react";
 import type { AutomationFlow } from "@/types/automationBuilder";
 
+import { ConfermaQuantita, useConfermaQuantita } from "@/components/shared/ConfermaQuantita";
 type AutomationNodeRow = {
   flow_id?: string;
   node_type: string;
@@ -148,6 +149,7 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
   const [deleteFolderId, setDeleteFolderId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const confermaBulk = useConfermaQuantita(selectedIds.size, bulkDeleteOpen);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
@@ -987,9 +989,18 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
             <AlertDialogTitle>Elimina {selectedIds.size} automazion{selectedIds.size === 1 ? "e" : "i"}</AlertDialogTitle>
             <AlertDialogDescription>Questa azione è irreversibile.</AlertDialogDescription>
           </AlertDialogHeader>
+          <ConfermaQuantita stato={confermaBulk} cosa="automazioni" />
           <AlertDialogFooter>
             <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction onClick={() => bulkDeleteMutation.mutate(Array.from(selectedIds))}>Elimina</AlertDialogAction>
+            <AlertDialogAction
+              disabled={!confermaBulk.valida}
+              onClick={(e) => {
+                if (!confermaBulk.valida) { e.preventDefault(); return; }
+                bulkDeleteMutation.mutate(Array.from(selectedIds));
+              }}
+            >
+              Elimina
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

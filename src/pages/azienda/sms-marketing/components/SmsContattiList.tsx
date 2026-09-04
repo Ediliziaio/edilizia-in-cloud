@@ -32,9 +32,11 @@ import { useSmsContatti } from "@/hooks/useSmsContatti";
 import { SmsContattoForm } from "./SmsContattoForm";
 import type { SmsContatto } from "@/types/sms-marketing";
 
+import { useIsMobile } from "@/hooks/use-mobile";
 type OptOutFiltro = "tutti" | "attivi" | "opt_out";
 
 export function SmsContattiList() {
+  const isMobile = useIsMobile();
   const [search, setSearch] = useState("");
   const [optOutFiltro, setOptOutFiltro] = useState<OptOutFiltro>("tutti");
   const [editContatto, setEditContatto] = useState<SmsContatto | null>(null);
@@ -92,10 +94,13 @@ export function SmsContattiList() {
             <SelectItem value="opt_out">Opt-out</SelectItem>
           </SelectContent>
         </Select>
-        <Button variant="outline" size="sm" onClick={handleExportCsv} disabled={contatti.length === 0}>
-          <Download className="h-4 w-4 mr-1" />
-          Esporta CSV
-        </Button>
+        {/* Niente export su telefono. */}
+        {!isMobile && (
+          <Button variant="outline" size="sm" onClick={handleExportCsv} disabled={contatti.length === 0}>
+            <Download className="h-4 w-4 mr-1" />
+            Esporta CSV
+          </Button>
+        )}
         <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
           <SheetTrigger asChild>
             <Button size="sm" onClick={() => setEditContatto(null)}>

@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -129,7 +130,22 @@ export default function SettingsPrivacy() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const getConsentValue = (type: string) => consents.find(c => c.consent_type === type)?.granted ?? false;
+  const isMobile = useIsMobile();
+  const consensoDi = (type: string) => consents.find((c) => c.consent_type === type);
+  const getConsentValue = (type: string) => consensoDi(type)?.granted ?? false;
+
+  /**
+   * Da quando vale la scelta. È l'informazione che conta davvero oggi: il
+   * consenso è un atto registrato e datato, e la data è la prova.
+   */
+  const dataConsenso = (type: string): string | null => {
+    const c = consensoDi(type);
+    const quando = c?.granted ? c.granted_at : c?.revoked_at;
+    if (!quando) return null;
+    const d = new Date(quando);
+    if (Number.isNaN(d.getTime())) return null;
+    return d.toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric" });
+  };
 
   const hasPendingDeletion = requests.some(r => r.request_type === "deletion" && ["pending", "processing"].includes(r.status));
 
@@ -152,14 +168,25 @@ export default function SettingsPrivacy() {
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">Gestione consensi</CardTitle>
-              <CardDescription>Controlla come vengono utilizzati i tuoi dati. Puoi modificare i tuoi consensi in qualsiasi momento.</CardDescription>
+              <CardDescription>
+                Ogni scelta viene registrata con la data e resta nel registro
+                accessi: è la prova di cosa hai acconsentito e da quando.
+                Oggi però nessun invio la controlla da solo — se revochi un
+                consenso e vuoi che abbia effetto subito, scrivilo
+                all'assistenza.
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {CONSENT_TYPES.map((ct) => (
                 <div key={ct.key} className="flex items-center justify-between p-4 border rounded-lg">
-                  <div className="flex-1">
+                  <div className="min-w-0 flex-1">
                     <p className="font-medium">{ct.label}</p>
                     <p className="text-sm text-muted-foreground">{ct.desc}</p>
+                    {dataConsenso(ct.key) && (
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        {getConsentValue(ct.key) ? "Concesso il" : "Revocato il"} {dataConsenso(ct.key)}
+                      </p>
+                    )}
                   </div>
                   <Switch
                     checked={getConsentValue(ct.key)}
@@ -186,11 +213,22 @@ export default function SettingsPrivacy() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <Button onClick={() => requestExport.mutate()} disabled={requestExport.isPending} className="w-full gap-2">
-                  <Download className="h-4 w-4" />
-                  {requestExport.isPending ? "Preparazione export..." : "Scarica i miei dati"}
-                </Button>
-                <p className="text-xs text-muted-foreground mt-2">Il link di download sarà valido per 24 ore.</p>
+                {/* Su telefono non si scarica: il diritto però resta dichiarato,
+                    con dove esercitarlo. Nasconderlo e basta lo farebbe sparire. */}
+                {isMobile ? (
+                  <p className="text-sm text-muted-foreground">
+                    Il download si fa da computer: apri questa pagina da lì e
+                    trovi il pulsante per scaricare la copia dei tuoi dati.
+                  </p>
+                ) : (
+                  <>
+                    <Button onClick={() => requestExport.mutate()} disabled={requestExport.isPending} className="w-full gap-2">
+                      <Download className="h-4 w-4" />
+                      {requestExport.isPending ? "Preparazione export..." : "Scarica i miei dati"}
+                    </Button>
+                    <p className="text-xs text-muted-foreground mt-2">Il link di download sarà valido per 24 ore.</p>
+                  </>
+                )}
               </CardContent>
             </Card>
 
@@ -262,6 +300,36 @@ export default function SettingsPrivacy() {
               <CardDescription>Tutte le richieste GDPR inviate</CardDescription>
             </CardHeader>
             <CardContent className="p-0">
+              {/* Su telefono la tabella a 4 colonne diventava illeggibile e
+                  portava un pulsante di download: qui l'elenco è a schede e il
+                  download resta al computer. */}
+              {isMobile ? (
+                <div className="divide-y">
+                  {requests.length === 0 ? (
+                    <p className="py-8 text-center text-sm text-muted-foreground">Nessuna richiesta</p>
+                  ) : requests.map((req) => {
+                    const status = STATUS_MAP[req.status] || STATUS_MAP.pending;
+                    const StatusIcon = status.icon;
+                    const pronto = req.request_type === "export" && req.status === "completed" && !!req.download_url;
+                    return (
+                      <div key={req.id} className="flex items-center justify-between gap-2 px-4 py-3">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium">
+                            {req.request_type === "export" ? "📦 Export" : req.request_type === "deletion" ? "🗑️ Cancellazione" : "✏️ Rettifica"}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {format(new Date(req.created_at), "d MMM yyyy · HH:mm", { locale: it })}
+                            {pronto && " · pronto da scaricare al computer"}
+                          </p>
+                        </div>
+                        <Badge variant={status.variant} className="shrink-0 gap-1 text-[10px]">
+                          <StatusIcon className="h-3 w-3" /> {status.label}
+                        </Badge>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -304,6 +372,7 @@ export default function SettingsPrivacy() {
                   })}
                 </TableBody>
               </Table>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

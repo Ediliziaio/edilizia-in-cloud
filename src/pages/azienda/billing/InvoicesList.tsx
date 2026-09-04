@@ -18,6 +18,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency } from "@/lib/formatters";
 import BillingReports from "./BillingReports";
 
+import { useIsMobile } from "@/hooks/use-mobile";
 /**
  * Freschezza dell'ultima sincronizzazione: tempo relativo leggibile
  * ("12 min fa", "3 h fa", "2 gg fa") + flag `stale` se il dato ha più di 24h,
@@ -119,6 +120,7 @@ const PROVIDER_LABELS: Record<string, string> = {
 };
 
 export default function InvoicesList() {
+  const isMobile = useIsMobile();
   const { effectiveCompany } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -886,7 +888,8 @@ export default function InvoicesList() {
                                   <DropdownMenuItem onClick={() => navigate(`/azienda/fatturazione/${inv.id}`)}>
                                     <Eye className="h-4 w-4 mr-2" /> Visualizza
                                   </DropdownMenuItem>
-                                  {inv.pdf_url && (
+                                  {/* Niente export su telefono. */}
+                                  {!isMobile && inv.pdf_url && (
                                     <DropdownMenuItem onClick={() => window.open(inv.pdf_url!, "_blank", "noopener")}>
                                       <Download className="h-4 w-4 mr-2" /> Scarica PDF
                                     </DropdownMenuItem>

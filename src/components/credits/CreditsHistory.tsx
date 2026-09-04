@@ -34,6 +34,7 @@ import { it } from "date-fns/locale";
 import { Clock, Download, FilterX } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+import { useIsMobile } from "@/hooks/use-mobile";
 interface CreditLogEntry {
   id: string;
   type: string;
@@ -69,6 +70,7 @@ const TYPE_VARIANTS: Record<string, "default" | "destructive" | "secondary"> = {
 };
 
 export function CreditsHistory() {
+  const isMobile = useIsMobile();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const [wallet, setWallet] = useState<WalletFilter>("email");
@@ -216,15 +218,18 @@ export function CreditsHistory() {
                 <strong>{filtered.length}</strong> movimenti · Speso {formatEur(totals.spent)} · Ricaricato {formatEur(totals.recharged)}
               </p>
             )}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleExportCsv}
-              disabled={filtered.length === 0}
-            >
-              <Download className="mr-1 h-3.5 w-3.5" />
-              CSV
-            </Button>
+            {/* Niente export su telefono. */}
+            {!isMobile && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleExportCsv}
+                disabled={filtered.length === 0}
+              >
+                <Download className="mr-1 h-3.5 w-3.5" />
+                CSV
+              </Button>
+            )}
           </div>
         </div>
 

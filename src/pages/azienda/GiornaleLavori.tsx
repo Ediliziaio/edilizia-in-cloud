@@ -18,7 +18,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Slider } from "@/components/ui/slider";
-import { NotebookPen, Plus, MapPin, Camera, Loader2, Sun, Cloud, CloudRain, Snowflake, Wind, Download, X } from "lucide-react";
+import { NotebookPen, Plus, MapPin, Camera, Loader2, Sun, Cloud, CloudRain, Snowflake, Wind, Download, X, Trash2 } from "lucide-react";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { format } from "date-fns";
 import { GiornaleCard } from "@/components/orders/GiornaleCard";
 import { EntityCustomFieldsSection } from "@/components/shared/EntityCustomFieldsSection";
@@ -37,11 +42,31 @@ interface FotoPreview {
   preview: string;
 }
 
+/** Quel che serve per riaprire un report salvato: `giornale_lavori` ha più
+ *  colonne, qui bastano quelle che il modulo ricompila. */
+interface RigaGiornale {
+  id: string;
+  order_id?: string | null;
+  data_lavori?: string | null;
+  condizioni_meteo?: string | null;
+  lavorazioni_eseguite?: string | null;
+  materiali_utilizzati?: string | null;
+  personale_presente?: number | string | null;
+  note?: string | null;
+  avanzamento_percentuale?: number | string | null;
+  temperatura?: number | string | null;
+  firmato_da?: string | null;
+  visibile_cliente?: boolean | null;
+}
+
 export default function GiornaleLavori() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const permissions = usePermissions();
   const canEditGiornale = permissions.isAdmin || permissions.canEditGiornaleLavori;
+  const isMobile = useIsMobile();
+  /** Il rapportino che si sta per cancellare, in attesa di conferma. */
+  const [daCancellare, setDaCancellare] = useState<any | null>(null);
   const queryClient = useQueryClient();
   const { isScopriPlan } = useSubscriptionLimits();
   const [searchParams] = useSearchParams();
@@ -144,6 +169,39 @@ export default function GiornaleLavori() {
     setSheetOpen(true);
   };
 
+  /**
+   * Apre un report già salvato per correggerlo. Finora `GiornaleCard` accettava
+   * un `onClick` che nessuno le passava: un rapportino sbagliato — ore, meteo,
+   * lavorazioni — restava sbagliato per sempre, e l'unico rimedio era scriverne
+   * un altro il giorno dopo con la correzione nelle note.
+   *
+   * La firma NON si ricarica nel canvas: è la firma del capocantiere di quel
+   * giorno. Se non si rifirma resta quella; se si rifirma, si sovrascrive.
+   */
+  const openEdit = (entry: RigaGiornale) => {
+    if (!canEditGiornale) return;
+    setFormData({
+      data_lavori: entry.data_lavori ?? format(new Date(), "yyyy-MM-dd"),
+      condizioni_meteo: entry.condizioni_meteo ?? "soleggiato",
+      lavorazioni_eseguite: entry.lavorazioni_eseguite ?? "",
+      materiali_utilizzati: entry.materiali_utilizzati ?? "",
+      personale_presente: Number(entry.personale_presente ?? 1),
+      note: entry.note ?? "",
+      avanzamento_percentuale: Number(entry.avanzamento_percentuale ?? 0),
+      temperatura: entry.temperatura != null ? String(entry.temperatura) : "",
+      firmato_da: entry.firmato_da ?? "",
+    });
+    setFotoPreview((prev) => {
+      prev.forEach((f) => URL.revokeObjectURL(f.preview));
+      return [];
+    });
+    setHasFirma(false);
+    setVisibileCliente(entry.visibile_cliente !== false);
+    if (entry.order_id) setSelectedOrderId(entry.order_id);
+    setEditingEntry(entry);
+    setSheetOpen(true);
+  };
+
   // Canvas drawing for firma — with HiDPI scaling so coordinates match on Retina/mobile screens
   const getCanvasPos = (
     e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>,
@@ -231,27 +289,56 @@ export default function GiornaleLavori() {
       const session = await supabase.auth.getSession();
       const userId = session.data.session?.user?.id;
 
-      // Insert giornale entry
-      const { data: entry, error: entryError } = await supabase
-        .from("giornale_lavori")
-        .insert({
-          company_id: companyId,
-          order_id: selectedOrderId,
-          ...formData,
-          personale_presente: Number(formData.personale_presente),
-          avanzamento_percentuale: Number(formData.avanzamento_percentuale),
-          latitude: lat,
-          longitude: lng,
-          firma_capocantiere: firmaBase64,
-          firmato_da: formData.firmato_da || null,
-          firmato_il: hasFirma ? new Date().toISOString() : null,
-          visibile_cliente: visibileCliente,
-          created_by: userId,
-        })
-        .select()
-        .single();
+      const campi = {
+        order_id: selectedOrderId,
+        ...formData,
+        personale_presente: Number(formData.personale_presente),
+        avanzamento_percentuale: Number(formData.avanzamento_percentuale),
+        visibile_cliente: visibileCliente,
+        firmato_da: formData.firmato_da || null,
+      };
 
-      if (entryError) throw new Error(entryError.message);
+      // Correzione di un report esistente: si aggiorna, non se ne crea un altro.
+      // Firma e posizione si riscrivono SOLO se in questa sessione si è
+      // rifirmato / si ha davvero un GPS: altrimenti una correzione fatta in
+      // ufficio cancellerebbe la firma e le coordinate prese in cantiere.
+      let entry: { id: string };
+      if (editingEntry?.id) {
+        const patch: Record<string, unknown> = { ...campi };
+        if (firmaBase64) {
+          patch.firma_capocantiere = firmaBase64;
+          patch.firmato_il = new Date().toISOString();
+        }
+        if (lat != null && lng != null) {
+          patch.latitude = lat;
+          patch.longitude = lng;
+        }
+        const { data, error } = await supabase
+          .from("giornale_lavori")
+          .update(patch)
+          .eq("id", editingEntry.id)
+          .eq("company_id", companyId!)
+          .select()
+          .single();
+        if (error) throw new Error(error.message);
+        entry = data;
+      } else {
+        const { data, error } = await supabase
+          .from("giornale_lavori")
+          .insert({
+            company_id: companyId,
+            ...campi,
+            latitude: lat,
+            longitude: lng,
+            firma_capocantiere: firmaBase64,
+            firmato_il: hasFirma ? new Date().toISOString() : null,
+            created_by: userId,
+          })
+          .select()
+          .single();
+        if (error) throw new Error(error.message);
+        entry = data;
+      }
 
       // Upload photos
       for (const foto of fotoPreview) {
@@ -279,12 +366,63 @@ export default function GiornaleLavori() {
       return entry;
     },
     onSuccess: (entry) => {
-      toast.success("Report giornaliero salvato!");
+      toast.success(editingEntry?.id ? "Report corretto" : "Report giornaliero salvato!");
       queryClient.invalidateQueries({ queryKey: ["giornale-lavori", companyId, selectedOrderId] });
       // Keep sheet open to allow filling in custom fields for the newly saved entry
       setEditingEntry(entry);
     },
     onError: (err: Error) => toast.error(err.message),
+  });
+
+  /**
+   * Cancella un rapportino sbagliato.
+   *
+   * Finora un report si poteva scrivere e — da poco — correggere, ma non
+   * disfare: un rapportino inserito sull'ordine sbagliato, o doppio, restava
+   * nel diario ufficiale del cantiere per sempre.
+   *
+   * Le foto non si cancellano da sole: `giornale_foto` sparirebbe anche in
+   * CASCADE, ma i file nel bucket resterebbero lì a occupare spazio senza
+   * nessuna riga che li nomini. Qui si tolgono prima i file, poi le righe,
+   * poi il rapportino — e se i file non si cancellano si va avanti lo stesso:
+   * meglio un file orfano che un rapportino sbagliato che non si può togliere.
+   */
+  const eliminaEntry = useMutation({
+    mutationFn: async (entry: { id: string }) => {
+      if (!canEditGiornale) throw new Error("Permesso di modifica del Giornale non attivo");
+      if (!companyId) throw new Error("Azienda non disponibile");
+
+      const { data: foto } = await supabase
+        .from("giornale_foto")
+        .select("id, storage_path")
+        .eq("giornale_id", entry.id);
+
+      const percorsi = (foto ?? [])
+        .map((f: { storage_path: string | null }) => f.storage_path)
+        .filter((p): p is string => !!p);
+      if (percorsi.length > 0) {
+        await supabase.storage.from("giornale-foto").remove(percorsi);
+      }
+      await supabase.from("giornale_foto").delete().eq("giornale_id", entry.id);
+
+      const { error } = await supabase
+        .from("giornale_lavori")
+        .delete()
+        .eq("id", entry.id)
+        .eq("company_id", companyId);
+      if (error) throw new Error(error.message);
+      return percorsi.length;
+    },
+    onSuccess: (nFoto) => {
+      toast.success("Rapportino eliminato", {
+        description: nFoto > 0 ? `Rimosse anche ${nFoto} foto.` : undefined,
+      });
+      setDaCancellare(null);
+      setSheetOpen(false);
+      resetForm();
+      queryClient.invalidateQueries({ queryKey: ["giornale-lavori", companyId, selectedOrderId] });
+    },
+    onError: (err: Error) => toast.error("Impossibile eliminare", { description: err.message }),
   });
 
   const handleExportPdf = async () => {
@@ -324,14 +462,18 @@ export default function GiornaleLavori() {
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <Button variant="outline" size="sm" className="border-slate-200 bg-white/80 hover:bg-white" onClick={handleExportPdf} disabled={isExporting}>
-              {isExporting ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Download className="h-4 w-4" />
-              )}
-              <span className="hidden sm:inline ml-1">{isExporting ? "Generazione..." : "Esporta PDF"}</span>
-            </Button>
+            {/* Su telefono niente export: qui era icon-only, ma un pulsante che
+                scarica un PDF resta un download anche senza etichetta. */}
+            {!isMobile && (
+              <Button variant="outline" size="sm" className="border-slate-200 bg-white/80 hover:bg-white" onClick={handleExportPdf} disabled={isExporting}>
+                {isExporting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="h-4 w-4" />
+                )}
+                <span className="ml-1">{isExporting ? "Generazione..." : "Esporta PDF"}</span>
+              </Button>
+            )}
             {canEditGiornale && (
               <Button size="sm" className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-200 hover:from-orange-600 hover:to-amber-600" onClick={openNew}>
                 <Plus className="h-4 w-4" />
@@ -405,6 +547,7 @@ export default function GiornaleLavori() {
             <GiornaleCard
               key={entry.id}
               entry={entry}
+              onClick={canEditGiornale ? () => openEdit(entry) : undefined}
             />
           ))}
         </div>
@@ -416,7 +559,7 @@ export default function GiornaleLavori() {
           <SheetHeader className="pb-4">
             <SheetTitle className="flex items-center gap-2">
               <NotebookPen className="h-5 w-5" />
-              {editingEntry?.id ? "Report salvato — campi personalizzati" : "Report Giornaliero"}
+              {editingEntry?.id ? "Correggi il report" : "Report Giornaliero"}
             </SheetTitle>
           </SheetHeader>
 
@@ -676,17 +819,10 @@ export default function GiornaleLavori() {
               </p>
             )}
 
-            {/* Save button / Close button */}
-            {editingEntry?.id ? (
-              <Button
-                className="w-full"
-                size="lg"
-                variant="outline"
-                onClick={() => { setSheetOpen(false); resetForm(); }}
-              >
-                Chiudi
-              </Button>
-            ) : (
+            {/* Salvataggio. Su un report già salvato il pulsante c'era solo
+                "Chiudi": si potevano compilare i campi personalizzati ma non
+                correggere niente di quello che era stato scritto. */}
+            <div className="space-y-2">
               <Button
                 className="w-full"
                 size="lg"
@@ -695,11 +831,38 @@ export default function GiornaleLavori() {
               >
                 {saveEntry.isPending ? (
                   <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Salvataggio in corso...</>
+                ) : editingEntry?.id ? (
+                  "Salva correzioni"
                 ) : (
                   "Salva report giornaliero"
                 )}
               </Button>
-            )}
+              {editingEntry?.id && (
+                /* Chiudi riempie la riga, Elimina è l'azione secondaria e
+                   sta stretta: su 375 px la riga resta piena e la scelta
+                   pericolosa non è quella grande. */
+                <div className="flex gap-2">
+                  <Button
+                    className="flex-1"
+                    size="lg"
+                    variant="outline"
+                    onClick={() => { setSheetOpen(false); resetForm(); }}
+                  >
+                    Chiudi
+                  </Button>
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    className="shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                    onClick={() => setDaCancellare(editingEntry)}
+                    aria-label="Elimina questo rapportino"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    <span className="ml-1.5 hidden sm:inline">Elimina</span>
+                  </Button>
+                </div>
+              )}
+            </div>
           </div>
         </SheetContent>
       </Sheet>
@@ -725,6 +888,34 @@ export default function GiornaleLavori() {
       >
         <Plus className="h-7 w-7" aria-hidden="true" />
       </button>
+
+      <AlertDialog open={!!daCancellare} onOpenChange={(o) => { if (!o) setDaCancellare(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminare questo rapportino?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {daCancellare?.data_lavori
+                ? `Il report del ${format(new Date(daCancellare.data_lavori), "dd/MM/yyyy")} `
+                : "Il report "}
+              sparisce dal diario del cantiere
+              {(daCancellare?.giornale_foto?.length ?? 0) > 0
+                ? `, insieme alle sue ${daCancellare.giornale_foto.length} foto`
+                : ""}
+              . Non si può annullare.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={(e) => { e.preventDefault(); if (daCancellare) eliminaEntry.mutate(daCancellare); }}
+              disabled={eliminaEntry.isPending}
+            >
+              {eliminaEntry.isPending ? "Elimino..." : "Elimina"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

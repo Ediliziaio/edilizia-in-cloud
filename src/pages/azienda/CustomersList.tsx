@@ -73,9 +73,12 @@ import { getCustomerAnomalies, getWorstSeverity } from "./CustomersList/anomalie
 import { useColumnVisibility } from "./CustomersList/hooks/useColumnVisibility";
 
 
+import { useIsMobile } from "@/hooks/use-mobile";
+import { ConfermaQuantita, useConfermaQuantita } from "@/components/shared/ConfermaQuantita";
 /* ─── KPI Card ──────────────────────────────────────────────────── */
 /* ─── Main ──────────────────────────────────────────────────────── */
 function CustomersListInner() {
+  const isMobile = useIsMobile();
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [filterSalesperson, setFilterSalesperson] = useState<string>("all");
@@ -101,6 +104,7 @@ function CustomersListInner() {
   // Bulk selection
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const confermaBulk = useConfermaQuantita(selectedIds.size, bulkDeleteOpen);
   const [bulkAssignOpen, setBulkAssignOpen] = useState(false);
   const [bulkAssignValue, setBulkAssignValue] = useState<string>("none");
 
@@ -796,56 +800,59 @@ function CustomersListInner() {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-          {/* Export */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" aria-label="Esporta clienti">
-                <Download className="h-4 w-4 sm:mr-1.5" />
-                <span className="hidden sm:inline">Esporta</span>
-                <ChevronDown className="h-3.5 w-3.5 ml-1" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel className="text-[11px]">Pagina corrente</DropdownMenuLabel>
-              <DropdownMenuItem onClick={() => handleExport("csv", "page")}>
-                <FileText className="h-4 w-4 mr-2" /> CSV
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleExport("xlsx", "page")}>
-                <FileSpreadsheet className="h-4 w-4 mr-2" /> Excel
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleExport("pdf", "page")}>
-                <FileText className="h-4 w-4 mr-2" /> PDF
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuLabel className="text-[11px]">Tutti i filtrati</DropdownMenuLabel>
-              <DropdownMenuItem onClick={() => handleExport("csv", "all")}>
-                <FileText className="h-4 w-4 mr-2" /> CSV
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleExport("xlsx", "all")}>
-                <FileSpreadsheet className="h-4 w-4 mr-2" /> Excel
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleExport("pdf", "all")}>
-                <FileText className="h-4 w-4 mr-2" /> PDF
-              </DropdownMenuItem>
-              {selectedIds.size > 0 && (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuLabel className="text-[11px]">
-                    Solo {selectedIds.size} selezionati
-                  </DropdownMenuLabel>
-                  <DropdownMenuItem onClick={() => handleExport("csv", "selected")}>
-                    <FileText className="h-4 w-4 mr-2" /> CSV
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleExport("xlsx", "selected")}>
-                    <FileSpreadsheet className="h-4 w-4 mr-2" /> Excel
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleExport("pdf", "selected")}>
-                    <FileText className="h-4 w-4 mr-2" /> PDF
-                  </DropdownMenuItem>
-                </>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {/* Niente export su telefono: sei voci di scarico in un
+              menu solo, e nessuna era protetta. */}
+          {!isMobile && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" aria-label="Esporta clienti">
+                  <Download className="h-4 w-4 sm:mr-1.5" />
+                  <span className="hidden sm:inline">Esporta</span>
+                  <ChevronDown className="h-3.5 w-3.5 ml-1" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel className="text-[11px]">Pagina corrente</DropdownMenuLabel>
+                <DropdownMenuItem onClick={() => handleExport("csv", "page")}>
+                  <FileText className="h-4 w-4 mr-2" /> CSV
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExport("xlsx", "page")}>
+                  <FileSpreadsheet className="h-4 w-4 mr-2" /> Excel
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExport("pdf", "page")}>
+                  <FileText className="h-4 w-4 mr-2" /> PDF
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-[11px]">Tutti i filtrati</DropdownMenuLabel>
+                <DropdownMenuItem onClick={() => handleExport("csv", "all")}>
+                  <FileText className="h-4 w-4 mr-2" /> CSV
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExport("xlsx", "all")}>
+                  <FileSpreadsheet className="h-4 w-4 mr-2" /> Excel
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExport("pdf", "all")}>
+                  <FileText className="h-4 w-4 mr-2" /> PDF
+                </DropdownMenuItem>
+                {selectedIds.size > 0 && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuLabel className="text-[11px]">
+                      Solo {selectedIds.size} selezionati
+                    </DropdownMenuLabel>
+                    <DropdownMenuItem onClick={() => handleExport("csv", "selected")}>
+                      <FileText className="h-4 w-4 mr-2" /> CSV
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleExport("xlsx", "selected")}>
+                      <FileSpreadsheet className="h-4 w-4 mr-2" /> Excel
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleExport("pdf", "selected")}>
+                      <FileText className="h-4 w-4 mr-2" /> PDF
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
 
           {/* Import */}
           <Button variant="outline" size="sm" onClick={() => setImportOpen(true)} aria-label="Importa clienti con AI">
@@ -1240,10 +1247,13 @@ function CustomersListInner() {
                   Assegna venditore
                 </Button>
               )}
-              <Button size="sm" variant="outline" onClick={() => handleExport("xlsx", "selected")}>
-                <Download className="h-4 w-4 mr-1.5" />
-                Esporta Excel
-              </Button>
+              {/* Niente export su telefono. */}
+              {!isMobile && (
+                <Button size="sm" variant="outline" onClick={() => handleExport("xlsx", "selected")}>
+                  <Download className="h-4 w-4 mr-1.5" />
+                  Esporta Excel
+                </Button>
+              )}
               {canEditCustomers && (
                 <Button size="sm" variant="destructive" onClick={() => setBulkDeleteOpen(true)}>
                   <Trash2 className="h-4 w-4 mr-1.5" />
@@ -1885,12 +1895,18 @@ function CustomersListInner() {
               saranno saltati. Questa azione non può essere annullata.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {/* Sopra la soglia si scrive il numero: «seleziona tutti» più
+              «Elimina» erano due clic. */}
+          <ConfermaQuantita stato={confermaBulk} cosa="clienti" disabled={bulkDeleteMutation.isPending} />
           <AlertDialogFooter>
             <AlertDialogCancel>Annulla</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => bulkDeleteMutation.mutate(Array.from(selectedIds))}
-              disabled={bulkDeleteMutation.isPending}
+              onClick={(e) => {
+                if (!confermaBulk.valida) { e.preventDefault(); return; }
+                bulkDeleteMutation.mutate(Array.from(selectedIds));
+              }}
+              disabled={bulkDeleteMutation.isPending || !confermaBulk.valida}
             >
               Elimina
             </AlertDialogAction>

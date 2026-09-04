@@ -32,6 +32,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Card, CardContent } from "@/components/ui/card";
 
+import { useIsMobile } from "@/hooks/use-mobile";
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Modalita = "pz" | "mq" | "misura_libera" | "griglia";
 type UM = "ml" | "h" | "mc" | "kg" | "corpo";
@@ -99,6 +100,7 @@ function CsvImportDialog({
   open: boolean; onClose: () => void; companyId: string;
   categorie: Categoria[]; onDone: () => void;
 }) {
+  const isMobile = useIsMobile();
   const [rows, setRows] = useState<Record<string, string>[]>([]);
   const [totalRows, setTotalRows] = useState(0);
   const [fileName, setFileName] = useState("");
@@ -204,9 +206,12 @@ function CsvImportDialog({
       <DialogContent className="max-w-xl">
         <DialogHeader><DialogTitle>Importa CSV Listino</DialogTitle></DialogHeader>
         <div className="space-y-4">
+          {/* Un CSV da compilare non si riempie da telefono. */}
+          {!isMobile && (
           <Button variant="outline" size="sm" onClick={downloadTemplate}>
             <Download className="h-4 w-4 mr-2" />Scarica template CSV
           </Button>
+          )}
           <div>
             <Label>Modalità prezzo default</Label>
             <Select value={modalitaDefault} onValueChange={(v) => setModalitaDefault(v as Modalita)}>
@@ -847,6 +852,7 @@ function ArticleDialog({
 
 // ─── Main Component ────────────────────────────────────────────────────────────
 export function ArticleCatalog() {
+  const isMobile = useIsMobile();
   const { effectiveCompany, role } = useAuth() as any;
   const isAdmin = role === "company_admin" || role === "super_admin";
   const companyId = effectiveCompany?.id as string | undefined;
@@ -1091,9 +1097,12 @@ export function ArticleCatalog() {
         <Button variant="outline" size="sm" onClick={() => setCsvOpen(true)}>
           <Upload className="h-4 w-4 mr-2" />Importa CSV
         </Button>
-        <Button variant="outline" size="sm" onClick={exportExcel}>
-          <Download className="h-4 w-4 mr-2" />Esporta Excel
-        </Button>
+        {/* Niente export su telefono. */}
+        {!isMobile && (
+          <Button variant="outline" size="sm" onClick={exportExcel}>
+            <Download className="h-4 w-4 mr-2" />Esporta Excel
+          </Button>
+        )}
         <Button size="sm" onClick={openNew}>
           <Plus className="h-4 w-4 mr-2" />Nuovo
         </Button>

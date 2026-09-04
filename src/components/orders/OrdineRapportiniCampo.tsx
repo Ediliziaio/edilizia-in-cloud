@@ -26,6 +26,7 @@ import { Textarea } from "@/components/ui/textarea";
 import type { RapportinoStato } from "@/types/rapportino";
 import { SourceBadge } from "@/components/whatsapp/SourceBadge";
 
+import { useIsMobile } from "@/hooks/use-mobile";
 interface Props { orderId: string; }
 
 const fmtSafeDate = (value: string | null | undefined, pattern: string) => {
@@ -54,6 +55,7 @@ function StatoBadge({ stato }: { stato: RapportinoStato }) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function OrdineRapportiniCampo({ orderId }: Props) {
+  const isMobile = useIsMobile();
   const qc = useQueryClient();
   const { role } = useAuth();
   const canApprove = role === "company_admin" || role === "company_staff" || role === "super_admin";
@@ -323,19 +325,22 @@ export function OrdineRapportiniCampo({ orderId }: Props) {
                       {/* Azioni admin */}
                       <div className="flex flex-wrap gap-2">
                         {/* PDF download */}
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => pdfMutation.mutate(r)}
-                          disabled={pdfMutation.isPending}
-                        >
-                          {pdfMutation.isPending ? (
-                            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                          ) : (
-                            <FileDown className="h-3 w-3 mr-1" />
-                          )}
-                          {r.pdf_url ? "Scarica PDF" : "Genera PDF"}
-                        </Button>
+                        {/* Niente export su telefono. */}
+                        {!isMobile && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => pdfMutation.mutate(r)}
+                            disabled={pdfMutation.isPending}
+                          >
+                            {pdfMutation.isPending ? (
+                              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                            ) : (
+                              <FileDown className="h-3 w-3 mr-1" />
+                            )}
+                            {r.pdf_url ? "Scarica PDF" : "Genera PDF"}
+                          </Button>
+                        )}
 
                         {canApprove && stato === "inviato" && (
                           <>

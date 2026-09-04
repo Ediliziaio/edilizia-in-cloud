@@ -44,6 +44,7 @@ import {
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 
+import { useIsMobile } from "@/hooks/use-mobile";
 type Period = "oggi" | "settimana" | "mese" | "anno" | "all";
 
 interface KPI {
@@ -234,6 +235,7 @@ function calcDelta(current: number, previous: number): { pct: number; sign: "up"
 }
 
 export function AdminAiMarginsOverview() {
+  const isMobile = useIsMobile();
   const [period, setPeriod] = useState<Period>("mese");
 
   const { data, isLoading, error, refetch, isFetching } = useQuery({
@@ -518,25 +520,28 @@ export function AdminAiMarginsOverview() {
             <TabsTrigger value="company" className="text-xs">Aziende</TabsTrigger>
             <TabsTrigger value="task" className="text-xs">Task</TabsTrigger>
           </TabsList>
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-8 text-xs gap-1.5 hidden sm:inline-flex"
-            onClick={() => {
-              const today = new Date().toISOString().slice(0, 10);
-              const allRows = [
-                ...((data.by_provider ?? []).map((r) => ({ tipo: "provider", chiave: r.provider, ...r }))),
-                ...((data.by_model ?? []).map((r) => ({ tipo: "modello", chiave: r.model_used, ...r }))),
-                ...((data.by_company ?? []).map((r) => ({ tipo: "azienda", chiave: r.company_name, ...r }))),
-                ...((data.by_task ?? []).map((r) => ({ tipo: "task", chiave: r.display_label, ...r }))),
-              ];
-              downloadCsv(`ai-economics-${period}-${today}.csv`, allRows);
-            }}
-            disabled={!data.kpi.n_calls}
-          >
-            <Download className="h-3.5 w-3.5" />
-            Esporta CSV
-          </Button>
+          {/* Niente export su telefono. */}
+          {!isMobile && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 text-xs gap-1.5 hidden sm:inline-flex"
+              onClick={() => {
+                const today = new Date().toISOString().slice(0, 10);
+                const allRows = [
+                  ...((data.by_provider ?? []).map((r) => ({ tipo: "provider", chiave: r.provider, ...r }))),
+                  ...((data.by_model ?? []).map((r) => ({ tipo: "modello", chiave: r.model_used, ...r }))),
+                  ...((data.by_company ?? []).map((r) => ({ tipo: "azienda", chiave: r.company_name, ...r }))),
+                  ...((data.by_task ?? []).map((r) => ({ tipo: "task", chiave: r.display_label, ...r }))),
+                ];
+                downloadCsv(`ai-economics-${period}-${today}.csv`, allRows);
+              }}
+              disabled={!data.kpi.n_calls}
+            >
+              <Download className="h-3.5 w-3.5" />
+              Esporta CSV
+            </Button>
+          )}
         </div>
 
         <TabsContent value="provider" className="mt-3">

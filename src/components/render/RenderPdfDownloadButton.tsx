@@ -9,6 +9,7 @@ import {
   type RenderPdfMetadataItem,
 } from "@/lib/render/renderPdf";
 
+import { useIsMobile } from "@/hooks/use-mobile";
 interface RenderPdfDownloadButtonProps {
   beforeUrl?: string | null;
   afterUrl?: string | null;
@@ -32,6 +33,7 @@ export function RenderPdfDownloadButton({
   variant = "outline",
   className,
 }: RenderPdfDownloadButtonProps) {
+  const isMobile = useIsMobile();
   const [loading, setLoading] = useState(false);
   const { effectiveCompany } = useAuth();
   const { branding } = useBranding();
@@ -61,6 +63,9 @@ export function RenderPdfDownloadButton({
       setLoading(false);
     }
   };
+
+  // Niente scarico su telefono: il render resta visibile, non scaricabile.
+  if (isMobile) return null;
 
   return (
     <Button

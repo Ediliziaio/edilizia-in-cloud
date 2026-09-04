@@ -579,7 +579,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         company,
         // Servono interi: chi ha ufficio + cantiere sceglie il cappello in
         // base all'area, e `role` da solo perderebbe l'altro.
-        roles: userRoles,
+        //
+        // Si chiama `userRoles` come nello stato, non `roles`: quando i due
+        // nomi erano diversi, uno `setState({ ...userData })` sembrava
+        // corretto e lasciava `userRoles` a undefined.
+        userRoles,
       };
     } catch (error) {
       // Distinguiamo timeout (AbortError) dalle altre failure per triage:
@@ -593,7 +597,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         timeoutMs: AUTH_CRITICAL_FETCH_TIMEOUT_MS,
       });
       logger.error("Error in fetchUserData:", error);
-      return { profile: null, role: null, company: null, roles: [] };
+      return { profile: null, role: null, company: null, userRoles: [] };
     } finally {
       clearTimeout(timeoutId);
     }
@@ -639,9 +643,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           });
           return;
         }
+        // Mappatura esplicita, NON `...userData`: fetchUserData restituisce la
+        // lista dei ruoli come `roles`, mentre lo stato la chiama `userRoles`.
+        // Lo spread quindi non la popolava e `state.userRoles` restava
+        // undefined — stesso guasto dei percorsi da disconnesso, ma su un
+        // utente AUTENTICATO: l'app non si rifiuta di aprirsi, esplode più
+        // tardi, al rinnovo del token, mentre la si sta usando.
         setState({
           user,
-          ...userData,
+          profile: userData.profile,
+          role: userData.role,
+          userRoles: userData.userRoles,
+          company: userData.company,
           isLoading: false,
         });
       } else {
@@ -819,7 +832,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // ── Background (or blocking) re-validation ──
           // Always re-fetch to keep data fresh. If the cache was used above this
           // runs silently; if not, it blocks until fetchUserData completes.
-          let userData: { profile: Profile | null; role: AppRole | null; company: Company | null; roles: AppRole[] };
+          let userData: { profile: Profile | null; role: AppRole | null; company: Company | null; userRoles: AppRole[] };
           // Memory-leak fix: il setTimeout precedente NON veniva cancellato se
           // fetchUserData vinceva il race → timer pendente fino al firing.
           // Su rapid login/logout cycle, accumulava handle. Ora cleanup esplicito.
@@ -892,14 +905,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
           // Persist to cache so the NEXT page refresh is also instant.
           if (userData.role !== null) {
-            writeProfileCache(session.user.id, userData.profile, userData.role, userData.company, userData.roles);
+            writeProfileCache(session.user.id, userData.profile, userData.role, userData.company, userData.userRoles);
           }
 
           setState({
             user: session.user,
             profile: userData.profile,
             role: userData.role,
-            userRoles: userData.roles,
+            userRoles: userData.userRoles,
             company: userData.company,
             isLoading: false,
           });
@@ -959,7 +972,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
 
             const myGen = ++authGenRef.current;
-            let userData: { profile: Profile | null; role: AppRole | null; company: Company | null; roles: AppRole[] };
+            let userData: { profile: Profile | null; role: AppRole | null; company: Company | null; userRoles: AppRole[] };
             // Memory-leak fix: cancella il timer se fetchUserData vince il race
             // (stesso pattern del ramo SIGNED_IN, riga ~705).
             let tokenRefreshRaceTimerId: ReturnType<typeof setTimeout> | undefined;
@@ -983,6 +996,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                       user: null,
                       profile: null,
                       role: null,
+                      userRoles: [],
                       company: null,
                       isLoading: false,
                     }
@@ -1000,6 +1014,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                   user: null,
                   profile: null,
                   role: null,
+                  userRoles: [],
                   company: null,
                   isLoading: false,
                 });
@@ -1007,12 +1022,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               return;
             }
             resolvedRoleRef.current = userData.role;
-            writeProfileCache(session.user.id, userData.profile, userData.role, userData.company, userData.roles);
+            writeProfileCache(session.user.id, userData.profile, userData.role, userData.company, userData.userRoles);
             setState({
               user: session.user,
               profile: userData.profile,
               role: userData.role,
-              userRoles: userData.roles,
+              userRoles: userData.userRoles,
               company: userData.company,
               isLoading: false,
             });

@@ -44,6 +44,7 @@ import {
 } from "@/lib/marketingContacts";
 import { getAddedTags, getRemovedTags, normalizeTagList } from "@/lib/marketingTags";
 
+import { useIsMobile } from "@/hooks/use-mobile";
 // Map filter field keys to actual DB columns
 const FIELD_TO_COLUMN: Record<string, string> = {
   name: "first_name", // special handling
@@ -537,6 +538,7 @@ function BulkEnrichButton({ selectedIds, onDone }: { selectedIds: Set<string>; o
 }
 
 export default function MarketingContacts() {
+  const isMobile = useIsMobile();
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
   const permissions = usePermissions();
@@ -1779,9 +1781,12 @@ export default function MarketingContacts() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => doExport("csv")}>
-                  <Download className="h-4 w-4 mr-2" /> Esporta CSV
-                </DropdownMenuItem>
+                {/* Niente export su telefono. */}
+                {!isMobile && (
+                  <DropdownMenuItem onClick={() => doExport("csv")}>
+                    <Download className="h-4 w-4 mr-2" /> Esporta CSV
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem onClick={() => doExport("xlsx")}>
                   <Download className="h-4 w-4 mr-2" /> Esporta XLSX
                 </DropdownMenuItem>
@@ -1801,12 +1806,18 @@ export default function MarketingContacts() {
                 <DropdownMenuItem onClick={() => setImportOpen(true)} disabled={!canEditContacts}>
                   <Upload className="mr-2 h-4 w-4" /> Importa
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => doExport("csv")} disabled={exporting}>
-                  <Download className="mr-2 h-4 w-4" /> Esporta CSV
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => doExport("xlsx")} disabled={exporting}>
-                  <Download className="mr-2 h-4 w-4" /> Esporta XLSX
-                </DropdownMenuItem>
+                {/* Niente export su telefono: vale per tutti i formati, non
+                    solo per il CSV che avevo protetto per primo. */}
+                {!isMobile && (
+                  <>
+                    <DropdownMenuItem onClick={() => doExport("csv")} disabled={exporting}>
+                      <Download className="mr-2 h-4 w-4" /> Esporta CSV
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => doExport("xlsx")} disabled={exporting}>
+                      <Download className="mr-2 h-4 w-4" /> Esporta XLSX
+                    </DropdownMenuItem>
+                  </>
+                )}
                 <DropdownMenuItem onClick={() => setFieldsSheetOpen(true)}>
                   <Settings2 className="mr-2 h-4 w-4" /> Gestisci campi
                 </DropdownMenuItem>

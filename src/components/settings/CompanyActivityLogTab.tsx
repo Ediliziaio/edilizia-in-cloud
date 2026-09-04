@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
@@ -99,16 +99,42 @@ export default function CompanyActivityLogTab() {
     staleTime: 30_000,
   });
 
+  /**
+   * Chi ha fatto l'azione.
+   *
+   * Tre sorgenti, in ordine: `actor_name` che il registratore nuovo risolve già
+   * lui, il profilo cercato per `user_id`, e infine nulla. Il "nulla" NON si
+   * chiama "Sistema": scriverlo farebbe credere che l'abbia fatto la
+   * piattaforma, mentre spesso è una persona di cui non abbiamo registrato
+   * l'identità. Un registro che attribuisce a "Sistema" azioni umane non
+   * risponde alla domanda per cui esiste — chi ha fatto cosa.
+   */
+  const nomeAttore = useCallback((log: {
+    actor_name?: string | null;
+    actor_user_id?: string | null;
+    user_id?: string | null;
+  }): { testo: string; attribuito: boolean } => {
+    const risolto = (log.actor_name || "").trim();
+    if (risolto) return { testo: risolto, attribuito: true };
+    const daProfilo = (data?.profiles[log.user_id ?? ""] || "").trim();
+    if (daProfilo && daProfilo !== "null null") return { testo: daProfilo, attribuito: true };
+    // Niente scorciatoie: `source_function` dice quale funzione SQL ha scritto
+    // la riga, non che l'abbia fatto un'automazione — sui salvataggi fatti a
+    // mano è valorizzata lo stesso. Chiamarla "Automazione" sarebbe un'altra
+    // attribuzione inventata, come "Sistema".
+    return { testo: "Non attribuito", attribuito: false };
+  }, [data]);
+
   const filteredLogs = useMemo(() => {
     if (!data?.logs || !searchQuery.trim()) return data?.logs || [];
     const q = searchQuery.toLowerCase();
     return data.logs.filter((log: any) => {
-      const userName = (data.profiles[log.user_id] || "").toLowerCase();
+      const userName = nomeAttore(log).testo.toLowerCase();
       const details = log.details as Record<string, any> | null;
       const detailStr = (details?.name || details?.description || details?.order_code || log.target_id || "").toLowerCase();
       return userName.includes(q) || detailStr.includes(q);
     });
-  }, [data, searchQuery]);
+  }, [data, searchQuery, nomeAttore]);
 
   const totalPages = Math.ceil((data?.total || 0) / PAGE_SIZE);
 
@@ -187,7 +213,14 @@ export default function CompanyActivityLogTab() {
                         {format(new Date(log.created_at), "dd/MM/yyyy HH:mm", { locale: it })}
                       </TableCell>
                       <TableCell className="text-sm">
-                        {data!.profiles[log.user_id] || "Sistema"}
+                        {(() => {
+                          const a = nomeAttore(log);
+                          return a.attribuito ? a.testo : (
+                            <span className="text-muted-foreground italic" title="Questa azione è stata registrata senza l'identità di chi l'ha fatta.">
+                              {a.testo}
+                            </span>
+                          );
+                        })()}
                       </TableCell>
                       <TableCell>
                         <Badge variant={actionColors[log.action] || "outline"}>

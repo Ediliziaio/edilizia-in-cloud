@@ -21,6 +21,7 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { toast } from "sonner";
 
+import { useIsMobile } from "@/hooks/use-mobile";
 const STATUS_CONFIG = {
   pending:      { label: "In coda",         variant: "secondary",   icon: Clock },
   analyzing:    { label: "Analisi",         variant: "default",     icon: Wand2 },
@@ -31,6 +32,7 @@ const STATUS_CONFIG = {
 } as const;
 
 export default function RenderBagnoGalleryDetail() {
+  const isMobile = useIsMobile();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
@@ -250,10 +252,12 @@ export default function RenderBagnoGalleryDetail() {
                 <Wand2 className="h-4 w-4 mr-2" />
                 Modifica
               </Button>
-              <Button size="sm" onClick={handleDownload}>
-                <Download className="h-4 w-4 mr-2" />
-                Scarica render
-              </Button>
+              {!isMobile && (
+                <Button size="sm" onClick={handleDownload}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Scarica render
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -270,10 +274,12 @@ export default function RenderBagnoGalleryDetail() {
                 title="Render AI Bagno"
                 filename={`render_bagno_${id}.pdf`}
               />
-              <Button size="sm" onClick={handleDownload}>
-                <Download className="h-4 w-4 mr-2" />
-                Scarica render
-              </Button>
+              {!isMobile && (
+                <Button size="sm" onClick={handleDownload}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Scarica render
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>

@@ -67,6 +67,7 @@ import {
 } from "@/hooks/useWeatherForecast";
 import { TASK_CATEGORY_OPTIONS as CATEGORY_OPTIONS } from "@/lib/taskCategories";
 
+import { ConfermaQuantita, useConfermaQuantita } from "@/components/shared/ConfermaQuantita";
 // Lazy load delle sotto-pagine
 const TimbraturePersonali = lazy(() => import("@/pages/azienda/TimbraturePersonali"));
 const FeriePersonali = lazy(() => import("@/pages/azienda/FeriePersonali"));
@@ -1053,6 +1054,7 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [taskToDelete, setTaskToDelete] = useState<string | null>(null);
   const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
+  const confermaBulk = useConfermaQuantita(selectedIds.size, bulkConfirmOpen);
   const [compact, setCompact] = useState(false);
   // Modalità selezione multipla: di default la card mostra SOLO il cerchio
   // "completa"; il checkbox di selezione compare unicamente in questa modalità,
@@ -1915,11 +1917,14 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
               Stai per eliminare {selectedIds.size} {selectedIds.size === 1 ? "attività" : "attività"}. L'azione è irreversibile.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <ConfermaQuantita stato={confermaBulk} cosa="attività" />
           <AlertDialogFooter>
             <AlertDialogCancel>Annulla</AlertDialogCancel>
             <AlertDialogAction
               className="bg-red-600 hover:bg-red-700 text-white"
-              onClick={() => {
+              disabled={!confermaBulk.valida}
+              onClick={(e) => {
+                if (!confermaBulk.valida) { e.preventDefault(); return; }
                 bulkDelete.mutate([...selectedIds]);
                 setBulkConfirmOpen(false);
               }}

@@ -30,6 +30,7 @@ import {
 import type { MatchSuggestion, ReconSeverity } from "@/lib/finance/reconciliationAnalysis";
 import { escapeCSV, neutralizeXlsxCell } from "@/lib/csvExport";
 
+import { useIsMobile } from "@/hooks/use-mobile";
 interface Props {
   companyId: string;
   refreshKey?: number;
@@ -42,6 +43,7 @@ const RECON_SEVERITY_CLS: Record<ReconSeverity, string> = {
 };
 
 export default function BankReconciliation({ companyId, refreshKey = 0 }: Props) {
+  const isMobile = useIsMobile();
   const { user } = useAuth();
   const [transactions, setTransactions] = useState<any[]>([]);
   const [invoices, setInvoices] = useState<any[]>([]);
@@ -909,12 +911,18 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => exportReconciliations("csv")}>
-                  <FileText className="h-4 w-4 mr-2" /> Esporta CSV
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => exportReconciliations("xlsx")}>
-                  <FileSpreadsheet className="h-4 w-4 mr-2" /> Esporta Excel
-                </DropdownMenuItem>
+                {/* Niente export su telefono: tutti i formati, non solo il
+                    CSV che avevo protetto per primo. */}
+                {!isMobile && (
+                  <>
+                    <DropdownMenuItem onClick={() => exportReconciliations("csv")}>
+                      <FileText className="h-4 w-4 mr-2" /> Esporta CSV
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => exportReconciliations("xlsx")}>
+                      <FileSpreadsheet className="h-4 w-4 mr-2" /> Esporta Excel
+                    </DropdownMenuItem>
+                  </>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           </CardHeader>

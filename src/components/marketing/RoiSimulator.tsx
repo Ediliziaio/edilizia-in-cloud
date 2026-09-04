@@ -81,6 +81,7 @@ import {
   BarChart3,
 } from "lucide-react";
 
+import { useIsMobile } from "@/hooks/use-mobile";
 const SAVINGS_GREEN = "hsl(var(--success))";
 const COST_AMBER = "hsl(38 92% 50%)";
 
@@ -225,6 +226,7 @@ export function RoiSimulator({
   onSendEmail,
   plans = [],
 }: RoiSimulatorProps) {
+  const isMobile = useIsMobile();
   // Stato non-controllato (fallback) se il parent non passa value/onChange.
   // default-merge: tollera scenari salvati legacy/parziali (campi nuovi mancanti).
   const [internalInputs, setInternalInputs] = useState<RoiInputs>(
@@ -760,15 +762,18 @@ export function RoiSimulator({
             <Tooltip>
               <TooltipTrigger asChild>
                 <span>
-                  <Button
-                    variant="outline"
-                    className="gap-2"
-                    disabled={!onExportPdf}
-                    onClick={() => onExportPdf?.({ inputs, results, clientName, referente })}
-                  >
-                    <FileDown className="h-4 w-4" />
-                    Esporta PDF
-                  </Button>
+                  {/* Niente export su telefono. */}
+                  {!isMobile && (
+                    <Button
+                      variant="outline"
+                      className="gap-2"
+                      disabled={!onExportPdf}
+                      onClick={() => onExportPdf?.({ inputs, results, clientName, referente })}
+                    >
+                      <FileDown className="h-4 w-4" />
+                      Esporta PDF
+                    </Button>
+                  )}
                 </span>
               </TooltipTrigger>
               {!onExportPdf && <TooltipContent>In arrivo: report PDF per il cliente</TooltipContent>}

@@ -8,27 +8,44 @@ import {
 import { ComuneAutocomplete } from "@/components/shared/ComuneAutocomplete";
 import type { Comune } from "@/lib/comuni/useComuni";
 
-export function InlineField({ label, value, onSave, type = "text", options, disabled = false, comuneMode, onSelectComune }: {
+export function InlineField({ label, value, onSave, type = "text", options, disabled = false, comuneMode, onSelectComune, validate }: {
   label: string; value: string; onSave: (v: string) => void; type?: string; options?: string[]; disabled?: boolean;
   /** Se impostato, in modifica usa l'autocomplete comuni (per Città / CAP). */
   comuneMode?: "comune" | "cap";
   /** Selezione di un comune dall'autocomplete: il padre riempie tutti i campi indirizzo. */
   onSelectComune?: (c: Comune) => void;
+  /**
+   * Controllo di forma sul valore digitato: restituisce il messaggio d'errore
+   * oppure null se va bene. Se fallisce il campo NON si salva e resta aperto
+   * col messaggio sotto: meglio dirlo subito che accettare una P.IVA sbagliata
+   * e ritrovarsela in fattura.
+   */
+  validate?: (v: string) => string | null;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value || "");
+  const [errore, setErrore] = useState<string | null>(null);
 
-  useEffect(() => { setDraft(value || ""); }, [value]);
+  useEffect(() => { setDraft(value || ""); setErrore(null); }, [value]);
 
   const [saved, setSaved] = useState(false);
 
   const commit = () => {
-    setEditing(false);
-    if (draft !== (value || "")) {
-      onSave(draft);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 1500);
+    if (draft === (value || "")) {
+      setEditing(false);
+      setErrore(null);
+      return;
     }
+    const problema = validate ? validate(draft) : null;
+    if (problema) {
+      setErrore(problema);
+      return; // resta in modifica: il valore non è ancora salvato
+    }
+    setEditing(false);
+    setErrore(null);
+    onSave(draft);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 1500);
   };
 
   if (comuneMode) {
@@ -85,15 +102,22 @@ export function InlineField({ label, value, onSave, type = "text", options, disa
     <div className="grid grid-cols-[120px_1fr] items-center gap-1 py-0.5">
       <Label className="text-xs text-muted-foreground truncate">{label}</Label>
       {editing ? (
-        <Input
-          autoFocus
-          type={type}
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onBlur={commit}
-          onKeyDown={(e) => e.key === "Enter" && commit()}
-          className="h-7 text-xs px-1"
-        />
+        <div className="space-y-0.5">
+          <Input
+            autoFocus
+            type={type}
+            value={draft}
+            onChange={(e) => { setDraft(e.target.value); if (errore) setErrore(null); }}
+            onBlur={commit}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") commit();
+              if (e.key === "Escape") { setDraft(value || ""); setErrore(null); setEditing(false); }
+            }}
+            aria-invalid={!!errore}
+            className={`h-7 text-xs px-1 ${errore ? "border-destructive focus-visible:ring-destructive" : ""}`}
+          />
+          {errore && <p className="text-[11px] leading-4 text-destructive">{errore}</p>}
+        </div>
       ) : (
         <div className="flex items-center gap-1">
           <p

@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { OrderProgressTracker } from "@/components/orders/OrderProgressTracker";
+import { FotoCantiereCliente } from "@/components/cliente/FotoCantiereCliente";
+import { VariantiDaApprovare } from "@/components/cliente/VariantiDaApprovare";
 import { CustomerFinancialSummary } from "@/components/orders/CustomerFinancialSummary";
 import { TimelineCantiere } from "@/components/orders/TimelineCantiere";
 import { CustomerOrderAttachments } from "@/components/orders/OrderAttachments";
@@ -221,6 +223,13 @@ export default function CustomerOrderDetail() {
           )}
         </CardContent>
       </Card>
+
+      {/* Varianti in attesa: stanno subito sotto lo stato perché sono la cosa
+          che blocca l'avanzamento del cantiere. */}
+      <VariantiDaApprovare orderId={order.id} />
+
+      {/* Foto per fase, dai rapportini che l'impresa ha marcato visibili. */}
+      <FotoCantiereCliente orderId={order.id} />
 
       {/* Key Dates */}
       {(order.warehouse_arrival_date || order.work_start_date || order.work_end_date || order.expected_date) && (

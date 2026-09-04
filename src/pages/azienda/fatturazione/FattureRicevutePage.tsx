@@ -66,6 +66,7 @@ import {
   type FileScartato,
 } from "@/lib/fatturazione/bulkXmlImport";
 
+import { useIsMobile } from "@/hooks/use-mobile";
 // ─── Types ────────────────────────────────────────────────────
 
 interface FatturaRicevuta {
@@ -116,6 +117,7 @@ function StatoBadge({ stato }: { stato: string }) {
 // ─── Component ────────────────────────────────────────────────
 
 export default function FattureRicevutePage() {
+  const isMobile = useIsMobile();
   const companyId = useEffectiveCompanyId();
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -749,7 +751,8 @@ export default function FattureRicevutePage() {
                       >
                         <Eye className="h-4 w-4" />
                       </Button>
-                      {f.xml_url && (
+                      {/* Niente export su telefono. */}
+                      {!isMobile && f.xml_url && (
                         <Button
                           variant="ghost"
                           size="icon"

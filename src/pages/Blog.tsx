@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import { prioritaCaricamento } from "@/lib/immagini/prioritaCaricamento";
 import { Link, useSearchParams } from "react-router-dom";
 import { Clock, Search, ArrowRight } from "lucide-react";
 import LandingNavbar from "@/components/landing/LandingNavbar";
@@ -58,7 +59,7 @@ function PostCard({ post, featured = false }: PostCardProps) {
             src={post.coverImage}
             alt={post.title}
             loading="eager"
-            fetchPriority="high"
+            {...prioritaCaricamento("high")}
             sizes="(max-width: 768px) 100vw, 600px"
             className="w-full h-72 md:h-full object-cover group-hover:scale-105 transition-transform duration-500"
           />

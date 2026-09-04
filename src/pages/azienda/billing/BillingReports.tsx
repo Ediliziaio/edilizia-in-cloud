@@ -10,10 +10,12 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
 import { escapeCsvCell } from "@/lib/csvExport";
 
+import { useIsMobile } from "@/hooks/use-mobile";
 const MONTHS_IT = ["Gen", "Feb", "Mar", "Apr", "Mag", "Giu", "Lug", "Ago", "Set", "Ott", "Nov", "Dic"];
 const PIE_COLORS = ["hsl(var(--primary))", "hsl(var(--chart-2))", "hsl(var(--chart-3))", "hsl(var(--chart-4))"];
 
 export default function BillingReports({ embedded = false }: { embedded?: boolean }) {
+  const isMobile = useIsMobile();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const currentYear = new Date().getFullYear();
@@ -148,9 +150,12 @@ export default function BillingReports({ embedded = false }: { embedded?: boolea
                 ))}
               </SelectContent>
             </Select>
-            <Button variant="outline" onClick={exportCsv} disabled={invoices.length === 0}>
-              <Download className="h-4 w-4 mr-2" /> Esporta CSV
-            </Button>
+            {/* Niente export su telefono. */}
+            {!isMobile && (
+              <Button variant="outline" onClick={exportCsv} disabled={invoices.length === 0}>
+                <Download className="h-4 w-4 mr-2" /> Esporta CSV
+              </Button>
+            )}
           </div>
         </div>
       )}
@@ -164,9 +169,11 @@ export default function BillingReports({ embedded = false }: { embedded?: boolea
               ))}
             </SelectContent>
           </Select>
-          <Button variant="outline" onClick={exportCsv} disabled={invoices.length === 0}>
-            <Download className="h-4 w-4 mr-2" /> Esporta CSV
-          </Button>
+          {!isMobile && (
+            <Button variant="outline" onClick={exportCsv} disabled={invoices.length === 0}>
+              <Download className="h-4 w-4 mr-2" /> Esporta CSV
+            </Button>
+          )}
         </div>
       )}
 

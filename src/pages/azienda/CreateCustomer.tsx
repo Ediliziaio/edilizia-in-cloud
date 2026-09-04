@@ -29,6 +29,9 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { useAppaltatoreModuleEnabled } from "@/hooks/useAppaltatoreModule";
+import { validatePartitaIva, validateCodiceFiscale } from "@/lib/italianFiscalValidation";
+import { useClientiSimili } from "@/hooks/useClientiSimili";
+import { descriviMotivi, nomeCliente } from "@/lib/clienti/duplicati";
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
@@ -94,6 +97,7 @@ export default function CreateCustomer() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [fiscalCode, setFiscalCode] = useState("");
+  const [vatNumber, setVatNumber] = useState("");
   const [custAddresses, setCustAddresses] = useState<CustomerAddresses>(makeEmptyCustomerAddresses());
   const [notes, setNotes] = useState("");
   const [customerDocuments, setCustomerDocuments] = useState<Partial<Record<CustomerDocumentType, File>>>({});
@@ -103,6 +107,9 @@ export default function CreateCustomer() {
   const [sendWelcomeEmail, setSendWelcomeEmail] = useState(true);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Duplicati: si avvisa e si chiede conferma, non si blocca. Le omonimie
+  // esistono e due aziende possono davvero condividere un centralino.
+  const [duplicatiAccettati, setDuplicatiAccettati] = useState(false);
 
   const selectedDocumentCount = Object.values(customerDocuments).filter(Boolean).length;
   const missingDocumentLabels = CUSTOMER_DOCUMENTS
@@ -188,6 +195,37 @@ export default function CreateCustomer() {
     return null;
   }, [email]);
 
+  // `italianFiscalValidation` esisteva già e non era importata da nessuna parte:
+  // una P.IVA con checksum sbagliato entrava in anagrafica e usciva in fattura.
+  const vatError = useMemo(() => {
+    if (!vatNumber.trim()) return null;
+    const esito = validatePartitaIva(vatNumber);
+    return esito.ok ? null : (esito.hint ?? "Partita IVA non valida");
+  }, [vatNumber]);
+
+  const fiscalCodeError = useMemo(() => {
+    if (!fiscalCode.trim()) return null;
+    const esito = validateCodiceFiscale(fiscalCode);
+    return esito.ok ? null : (esito.hint ?? "Codice fiscale non valido");
+  }, [fiscalCode]);
+
+  // Con il portale disattivato il server genera un'email tecnica unica: il
+  // vincolo di unicità non impedisce più nulla e lo stesso cliente può entrare
+  // dieci volte. Qui lo si riconosce prima di salvarlo.
+  const { simili } = useClientiSimili({
+    companyId: effectiveCompany?.id,
+    vatNumber,
+    fiscalCode,
+    phone,
+  });
+
+  // Se cambiano i dati su cui si è riconosciuto il duplicato, la conferma già
+  // data non vale più: altrimenti basterebbe confermare una volta e poi
+  // riscrivere la P.IVA per far passare qualsiasi cosa.
+  const firmaSimili = simili.map((x) => x.cliente.id).join("|");
+  const [firmaConfermata, setFirmaConfermata] = useState("");
+  const confermaValida = duplicatiAccettati && firmaConfermata === firmaSimili;
+
   const shouldRequireEmail = companyPortalEnabled && createPortalAccount;
 
   const canSubmit =
@@ -195,6 +233,8 @@ export default function CreateCustomer() {
     (!shouldRequireEmail || email.trim().length > 0) &&
     !emailError &&
     !phoneError &&
+    !vatError &&
+    !fiscalCodeError &&
     !!effectiveCompany?.id &&
     !isSubmitting;
 
@@ -229,6 +269,25 @@ export default function CreateCustomer() {
       toast({ title: "Telefono non valido", description: phoneError, variant: "destructive" });
       return;
     }
+    if (vatError) {
+      toast({ title: "Partita IVA non valida", description: vatError, variant: "destructive" });
+      return;
+    }
+    if (fiscalCodeError) {
+      toast({ title: "Codice fiscale non valido", description: fiscalCodeError, variant: "destructive" });
+      return;
+    }
+    if (simili.length > 0 && !confermaValida) {
+      // Non si blocca: si chiede di guardare l'avviso e riconfermare.
+      setDuplicatiAccettati(true);
+      setFirmaConfermata(firmaSimili);
+      toast({
+        title: simili.length === 1 ? "Sembra un cliente già in anagrafica" : "Sembrano clienti già in anagrafica",
+        description: "Controlla l'avviso qui sopra. Premi di nuovo \"Crea cliente\" per inserirlo comunque.",
+        variant: "destructive",
+      });
+      return;
+    }
     if (!effectiveCompany?.id) {
       toast({ title: "Errore", description: "Azienda non trovata.", variant: "destructive" });
       return;
@@ -252,6 +311,7 @@ export default function CreateCustomer() {
           phone: cleanPhone,
           company_id: effectiveCompany.id,
           fiscal_code: fiscalCode.trim() || null,
+          vat_number: vatNumber.trim().toUpperCase().replace(/^IT/, "") || null,
           // Indirizzo fatturazione (via/città/CAP/provincia + coordinate)
           ...billingToProfileFields(custAddresses.billing),
           // Indirizzo cantiere (site_*)
@@ -509,18 +569,39 @@ export default function CreateCustomer() {
                   {phoneError && <p className="text-xs text-destructive">{phoneError}</p>}
                 </div>
 
+                {isBusiness && (
+                  <div className="space-y-2">
+                    <Label htmlFor="vatNumber" className="flex items-center gap-1.5">
+                      <CreditCard className="h-3.5 w-3.5" />
+                      Partita IVA
+                    </Label>
+                    <Input
+                      id="vatNumber"
+                      value={vatNumber}
+                      onChange={(e) => setVatNumber(e.target.value.toUpperCase())}
+                      placeholder="01234567890"
+                      maxLength={13}
+                      inputMode="numeric"
+                      aria-invalid={!!vatError}
+                    />
+                    {vatError && <p className="text-xs text-destructive">{vatError}</p>}
+                  </div>
+                )}
+
                 <div className="space-y-2">
                   <Label htmlFor="fiscalCode" className="flex items-center gap-1.5">
                     <CreditCard className="h-3.5 w-3.5" />
-                    {isBusiness ? "Partita IVA / Codice Fiscale" : "Codice Fiscale"}
+                    Codice Fiscale
                   </Label>
                   <Input
                     id="fiscalCode"
                     value={fiscalCode}
                     onChange={(e) => setFiscalCode(e.target.value.toUpperCase())}
-                    placeholder={isBusiness ? "IT01234567890" : "RSSMRA80A01H501U"}
+                    placeholder={isBusiness ? "01234567890" : "RSSMRA80A01H501U"}
                     maxLength={16}
+                    aria-invalid={!!fiscalCodeError}
                   />
+                  {fiscalCodeError && <p className="text-xs text-destructive">{fiscalCodeError}</p>}
                 </div>
               </CardContent>
             </Card>
@@ -682,9 +763,15 @@ export default function CreateCustomer() {
                     <span className="font-medium text-right truncate">{phone.trim()}</span>
                   </div>
                 )}
+                {isBusiness && vatNumber.trim() && (
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="text-muted-foreground shrink-0">P.IVA</span>
+                    <span className="font-medium text-right truncate font-mono text-[11px]">{vatNumber.trim()}</span>
+                  </div>
+                )}
                 {fiscalCode.trim() && (
                   <div className="flex items-start justify-between gap-3">
-                    <span className="text-muted-foreground shrink-0">{isBusiness ? "P.IVA/CF" : "CF"}</span>
+                    <span className="text-muted-foreground shrink-0">CF</span>
                     <span className="font-medium text-right truncate font-mono text-[11px]">{fiscalCode.trim()}</span>
                   </div>
                 )}
@@ -780,6 +867,38 @@ export default function CreateCustomer() {
                 )}
               </CardContent>
             </Card>
+
+            {/* Possibili duplicati: avviso, non blocco */}
+            {simili.length > 0 && (
+              <Alert variant="destructive" className="border-amber-300 bg-amber-50 text-amber-900 [&>svg]:text-amber-600">
+                <FileWarning className="h-4 w-4" />
+                <AlertDescription className="space-y-2">
+                  <p className="text-sm font-medium">
+                    {simili.length === 1
+                      ? "In anagrafica c'è già un cliente che sembra questo."
+                      : `In anagrafica ci sono già ${simili.length} clienti che sembrano questo.`}
+                  </p>
+                  <ul className="space-y-1">
+                    {simili.slice(0, 4).map(({ cliente, motivi }) => (
+                      <li key={cliente.id} className="text-xs leading-5">
+                        <a
+                          href={`/azienda/clienti/${cliente.id}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="font-medium underline underline-offset-2"
+                        >
+                          {nomeCliente(cliente)}
+                        </a>
+                        <span className="text-amber-800"> — {descriviMotivi(motivi)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="text-xs">
+                    Se è davvero un altro cliente, premi "Crea cliente" una seconda volta.
+                  </p>
+                </AlertDescription>
+              </Alert>
+            )}
 
             {/* Actions */}
             <Card>

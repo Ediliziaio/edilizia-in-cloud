@@ -6,6 +6,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/formatters";
+import { esitoUpdateConGuardia, isConflittoModifica } from "@/lib/concorrenza";
 import { queryKeys } from "@/lib/queryKeys";
 import { useQuoteTemplates } from "@/hooks/useQuoteTemplates";
 import { useGovernanceThresholds } from "@/hooks/useGovernanceThresholds";
@@ -45,6 +46,7 @@ import { type QuotePaymentPhase, recalcPhaseAmounts } from "@/lib/preventivi/pay
 // Refactor 2026-05-10: ProductSearchDialog estratto in file separato (-316 righe)
 import { ProductSearchDialog } from "@/components/marketing/preventivi/ProductSearchDialog";
 import { QuoteDiscountControl } from "@/components/preventivi/QuoteDiscountControl";
+import { SceltaRenderDialog, type RenderScelto } from "@/components/preventivi/SceltaRenderDialog";
 // mp-preventivi-v2: slider sconto limitato integrato nello step 1 per preventivi esistenti
 import { isPreventivatoreUnifiedOn } from "@/lib/featureFlags";
 import type { ConfiguredItem } from "@/types/catalogItem";
@@ -418,6 +420,28 @@ export default function QuoteBuilder() {
   // "Anteprima render AI".
   const [renderUrl, setRenderUrl] = useState<string | null>(null);
   const [renderSessionId, setRenderSessionId] = useState<string | null>(null);
+  // Foto di partenza del render scelto: serve al confronto prima/dopo, che è
+  // la cosa che convince il cliente più del render da solo.
+  const [renderOriginalUrl, setRenderOriginalUrl] = useState<string | null>(null);
+  const [sceltaRenderOpen, setSceltaRenderOpen] = useState(false);
+
+  // Riaprendo un preventivo salvato si conosce la sessione del render ma non la
+  // foto di partenza: si recupera, così il confronto prima/dopo c'è anche qui e
+  // non solo appena scelto.
+  const { data: fotoPartenza } = useQuery({
+    queryKey: ["render-foto-partenza", renderSessionId],
+    enabled: !!renderSessionId && !renderOriginalUrl,
+    staleTime: 60 * 60 * 1000,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("render_sessions")
+        .select("original_photo_url")
+        .eq("id", renderSessionId!)
+        .maybeSingle();
+      return (data?.original_photo_url as string | null) ?? null;
+    },
+  });
+  const fotoPrima = renderOriginalUrl ?? fotoPartenza ?? null;
   const [pdfPrezziRiga, setPdfPrezziRiga] = useState(true);
   const [pdfSoloTotale, setPdfSoloTotale] = useState(false);
   const [pdfSconti, setPdfSconti] = useState(false);
@@ -653,9 +677,21 @@ export default function QuoteBuilder() {
     setBonusLines,
   });
 
+  /**
+   * La versione del preventivo che questa pagina ha davanti.
+   *
+   * Serve a non sovrascrivere il lavoro di un collega: due venditori sullo
+   * stesso preventivo è la norma, non un caso limite. Si fissa al primo
+   * caricamento e si aggiorna a ogni salvataggio riuscito.
+   */
+  const versioneCaricataRef = useRef<string | null>(null);
+
   // Preventivi V2 — hydrate salesperson + approval status (fuori dal hook legacy)
   useEffect(() => {
     if (!existingQuote) return;
+    if (versioneCaricataRef.current === null) {
+      versioneCaricataRef.current = (existingQuote as { updated_at?: string | null }).updated_at ?? null;
+    }
     const q = existingQuote as unknown as {
       salesperson_id: string | null;
       approval_status: "not_required" | "pending" | "approved" | "rejected" | "counter_proposed" | null;
@@ -780,6 +816,31 @@ export default function QuoteBuilder() {
     }
   }, [existingAttachments]);
 
+  // ── Cliente passato dalla scheda cliente (?customer_id) ───────────────────
+  // "Nuovo preventivo" dalla scheda cliente passava l'identificativo del cliente
+  // e questa pagina leggeva solo `contact_id`: si arrivava al preventivo vuoto e
+  // si ridigitava il cliente da cui si era appena usciti.
+  // Un cliente d'anagrafica può avere un contatto marketing collegato
+  // (`profiles.marketing_contact_id`) oppure no: nel primo caso selezioniamo
+  // quello, nel secondo compiliamo i campi cliente coi suoi dati.
+  const customerIdDaUrl = searchParams.get("customer_id");
+  const { data: clienteDaUrl } = useQuery({
+    queryKey: ["quote-prefill-customer", customerIdDaUrl, companyId],
+    enabled: !isEdit && !!customerIdDaUrl && !!companyId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select(
+          "id, first_name, last_name, email, phone, business_name, address, city, province, postal_code, fiscal_code, vat_number, marketing_contact_id"
+        )
+        .eq("id", customerIdDaUrl!)
+        .eq("company_id", companyId!)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+
   // Auto-select contact from URL param
   useEffect(() => {
     if (!isEdit && contacts.length > 0 && !contactId) {
@@ -824,6 +885,35 @@ export default function QuoteBuilder() {
       }
     }
   };
+
+  const clienteDaUrlApplicatoRef = useRef(false);
+  useEffect(() => {
+    if (isEdit || !clienteDaUrl || clienteDaUrlApplicatoRef.current) return;
+    if (contactId) return; // scelta già fatta: non la sovrascriviamo
+    const collegato = clienteDaUrl.marketing_contact_id;
+    if (collegato && contacts.some((c) => c.id === collegato)) {
+      clienteDaUrlApplicatoRef.current = true;
+      handleContactSelect(collegato);
+      return;
+    }
+    // Nessun contatto collegato: i dati del cliente riempiono comunque il preventivo.
+    clienteDaUrlApplicatoRef.current = true;
+    const nome = `${clienteDaUrl.first_name || ""} ${clienteDaUrl.last_name || ""}`.trim();
+    if (nome) setClientName(nome);
+    if (clienteDaUrl.email) setClientEmail(clienteDaUrl.email);
+    if (clienteDaUrl.phone) setClientPhone(clienteDaUrl.phone);
+    if (clienteDaUrl.business_name) setClientCompany(clienteDaUrl.business_name);
+    if (clienteDaUrl.fiscal_code) setClientFiscalCode(clienteDaUrl.fiscal_code);
+    if (clienteDaUrl.vat_number) setClientVatNumber(clienteDaUrl.vat_number);
+    const indirizzo = [clienteDaUrl.address, clienteDaUrl.postal_code, clienteDaUrl.city, clienteDaUrl.province]
+      .filter(Boolean)
+      .join(", ");
+    if (indirizzo) setClientAddress(indirizzo);
+    // `handleContactSelect` è dichiarata più sotto nel corpo: l'effect gira dopo
+    // il render, quindi al momento della chiamata esiste.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clienteDaUrl, contacts, contactId, isEdit]);
+
 
   // Items management
   const addItem = (type: string = "product") => {
@@ -1706,13 +1796,26 @@ export default function QuoteBuilder() {
       };
 
       if (isEdit) {
-        await salvaRigheAtomiche(id!);
-        const { error } = await supabase
+        // L'ordine conta: la testata si aggiorna PRIMA delle righe.
+        // `salvaRigheAtomiche` cancella e riscrive tutte le righe, quindi
+        // farlo per primo distruggeva il lavoro del collega anche quando poi
+        // ci si accorgeva del conflitto. Se la guardia scatta qui, le sue
+        // righe sono ancora al loro posto.
+        const { data: righeTestata, error } = await supabase
           .from("quotes")
           .update(quoteData)
           .eq("id", id!)
-          .eq("company_id", companyId);
+          .eq("company_id", companyId)
+          // Se un collega ha salvato mentre questa pagina era aperta,
+          // `updated_at` non combacia più e la UPDATE tocca zero righe.
+          .eq("updated_at", versioneCaricataRef.current ?? "")
+          .select("updated_at");
         if (error) throw error;
+        versioneCaricataRef.current = esitoUpdateConGuardia(
+          righeTestata as Array<{ updated_at?: string | null }> | null,
+          "preventivo",
+        );
+        await salvaRigheAtomiche(id!);
       } else {
         const { data: numData } = await supabase.rpc("generate_quote_number", {
           p_company_id: companyId,
@@ -1791,6 +1894,16 @@ export default function QuoteBuilder() {
         navigate(`/azienda/marketing/preventivi/${quoteId}`);
       }
     } catch (err: unknown) {
+      if (isConflittoModifica(err)) {
+        // Non è un guasto: è una persona che ha salvato prima di te. Quello
+        // che hai scritto resta sullo schermo, così non va perso.
+        toast.error("Qualcun altro ha salvato questo preventivo", {
+          description: err.message,
+          duration: 10000,
+          action: { label: "Ricarica", onClick: () => window.location.reload() },
+        });
+        return;
+      }
       const errMsg = err instanceof Error ? err.message : "Errore salvataggio";
       toast.error(errMsg);
     } finally {
@@ -3123,28 +3236,53 @@ export default function QuoteBuilder() {
             </CardContent>
           </Card>
 
-          {renderUrl && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Sparkles className="h-4 w-4 text-primary" />
-                  Render AI allegato
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-start gap-4">
-                  <img
-                    src={renderUrl}
-                    alt="Anteprima render AI allegato al preventivo"
-                    loading="lazy"
-                    className="w-40 h-28 object-cover rounded-lg border shrink-0"
-                  />
-                  <div className="flex-1 min-w-0 space-y-2">
-                    <p className="text-sm text-muted-foreground">
-                      Il PDF del preventivo includerà una pagina finale
-                      "Anteprima render AI" con questa immagine e il
-                      disclaimer di legge.
-                    </p>
+          {/* Render nella proposta: prima ci si arrivava SOLO dal wizard render,
+              con l'immagine passata nell'indirizzo. Chi apriva un preventivo
+              normale non aveva modo di attaccarci un render già fatto. */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-primary" />
+                Render nella proposta
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {renderUrl ? (
+                <div className="space-y-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {fotoPrima && (
+                      <>
+                        <figure className="space-y-1">
+                          <img
+                            src={fotoPrima}
+                            alt="Come è adesso"
+                            loading="lazy"
+                            className="h-28 w-40 rounded-lg border object-cover"
+                          />
+                          <figcaption className="text-center text-[11px] text-muted-foreground">Adesso</figcaption>
+                        </figure>
+                        <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      </>
+                    )}
+                    <figure className="space-y-1">
+                      <img
+                        src={renderUrl}
+                        alt="Anteprima render AI allegato al preventivo"
+                        loading="lazy"
+                        className="h-28 w-40 rounded-lg border object-cover"
+                      />
+                      <figcaption className="text-center text-[11px] text-muted-foreground">Dopo il lavoro</figcaption>
+                    </figure>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Il PDF del preventivo includerà una pagina finale "Anteprima
+                    render AI" con questa immagine e il disclaimer di legge.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" variant="outline" size="sm" onClick={() => setSceltaRenderOpen(true)}>
+                      <Sparkles className="mr-1 h-4 w-4" />
+                      Cambia render
+                    </Button>
                     <Button
                       type="button"
                       variant="outline"
@@ -3152,16 +3290,39 @@ export default function QuoteBuilder() {
                       onClick={() => {
                         setRenderUrl(null);
                         setRenderSessionId(null);
+                        setRenderOriginalUrl(null);
                       }}
                     >
-                      <Trash2 className="h-4 w-4 mr-1" />
+                      <Trash2 className="mr-1 h-4 w-4" />
                       Rimuovi dal preventivo
                     </Button>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
-          )}
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground">
+                    Un render di come verrà il lavoro, accanto ai numeri. Puoi
+                    sceglierne uno fra quelli già fatti, di qualunque verticale.
+                  </p>
+                  <Button type="button" variant="outline" size="sm" onClick={() => setSceltaRenderOpen(true)}>
+                    <Sparkles className="mr-1 h-4 w-4" />
+                    Scegli un render
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <SceltaRenderDialog
+            open={sceltaRenderOpen}
+            onOpenChange={setSceltaRenderOpen}
+            contactId={contactId}
+            onScegli={(r: RenderScelto) => {
+              setRenderUrl(r.url);
+              setRenderSessionId(r.sessionId);
+              setRenderOriginalUrl(r.originalUrl);
+            }}
+          />
         </div>
       )}
 

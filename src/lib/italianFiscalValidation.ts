@@ -14,7 +14,14 @@ export interface FieldValidation {
 // 11 cifre, controllo Luhn dispari/pari (algoritmo MEF).
 export function validatePartitaIva(raw: string | null | undefined): FieldValidation {
   if (!raw) return { ok: true }; // Optional field
-  const cleaned = raw.replace(/\s/g, "").replace(/^IT/i, "");
+  const senzaSpazi = raw.replace(/\s/g, "").toUpperCase();
+  // Partita IVA estera (DE…, FR…, SM…): il checksum italiano non la riguarda e
+  // qui non abbiamo modo di verificarla offline. Bloccarla vorrebbe dire
+  // impedire di censire un cliente estero, che è peggio del non verificarla.
+  if (/^[A-Z]{2}/.test(senzaSpazi) && !senzaSpazi.startsWith("IT")) {
+    return { ok: true };
+  }
+  const cleaned = senzaSpazi.replace(/^IT/, "");
   if (!/^\d{11}$/.test(cleaned)) {
     return { ok: false, hint: "P.IVA: 11 cifre numeriche (es. 12345678901)" };
   }
@@ -35,7 +42,40 @@ export function validatePartitaIva(raw: string | null | undefined): FieldValidat
 }
 
 // ─── CODICE FISCALE ──────────────────────────────────────────────────────────
-// Persona fisica: 16 caratteri alfanumerici. Società: stesso formato della P.IVA.
+// Persona fisica: 16 caratteri con carattere di controllo (DM 23/12/1976).
+// Società: stesso formato della P.IVA.
+
+/** Nelle posizioni numeriche l'omocodia sostituisce le cifre con queste lettere. */
+const OMOCODIA = "LMNPQRSTUV";
+/** Cifra o lettera di omocodia: le due cose sono intercambiabili nel CF. */
+const CIFRA_CF = `[0-9${OMOCODIA}]`;
+const FORMATO_CF = new RegExp(
+  `^[A-Z]{6}${CIFRA_CF}{2}[A-EHLMPRST]${CIFRA_CF}{2}[A-Z]${CIFRA_CF}{3}[A-Z]$`,
+);
+
+/** Valore di ogni carattere nelle posizioni DISPARI (1ª, 3ª, …), 1-based. */
+const VALORI_DISPARI: Record<string, number> = {
+  "0": 1, "1": 0, "2": 5, "3": 7, "4": 9, "5": 13, "6": 15, "7": 17, "8": 19, "9": 21,
+  A: 1, B: 0, C: 5, D: 7, E: 9, F: 13, G: 15, H: 17, I: 19, J: 21, K: 2, L: 4, M: 18,
+  N: 20, O: 11, P: 3, Q: 6, R: 8, S: 12, T: 14, U: 16, V: 10, W: 22, X: 25, Y: 24, Z: 23,
+};
+
+/** Valore nelle posizioni PARI: cifra com'è, lettera come indice alfabetico. */
+function valorePari(c: string): number {
+  return c >= "0" && c <= "9" ? c.charCodeAt(0) - 48 : c.charCodeAt(0) - 65;
+}
+
+/** Carattere di controllo atteso per i primi 15 caratteri. */
+export function carattereControlloCF(primi15: string): string {
+  let somma = 0;
+  for (let i = 0; i < 15; i++) {
+    const c = primi15[i];
+    // i è 0-based: i pari sono le posizioni DISPARI in numerazione umana.
+    somma += i % 2 === 0 ? VALORI_DISPARI[c] : valorePari(c);
+  }
+  return String.fromCharCode(65 + (somma % 26));
+}
+
 export function validateCodiceFiscale(raw: string | null | undefined): FieldValidation {
   if (!raw) return { ok: true };
   const cleaned = raw.replace(/\s/g, "").toUpperCase();
@@ -43,9 +83,13 @@ export function validateCodiceFiscale(raw: string | null | undefined): FieldVali
   if (/^\d{11}$/.test(cleaned)) {
     return validatePartitaIva(cleaned);
   }
-  // Persona fisica: 16 char alphanumerici, secondo schema standard
-  if (!/^[A-Z]{6}\d{2}[A-EHLMPRST]\d{2}[A-Z]\d{3}[A-Z]$/.test(cleaned)) {
+  if (!FORMATO_CF.test(cleaned)) {
     return { ok: false, hint: "CF: 16 caratteri (persona) o 11 cifre (società)" };
+  }
+  // Il 16° carattere è calcolato dai primi 15: un CF inventato passa il formato
+  // ma quasi mai il controllo. Prima si fermava al formato e bastava.
+  if (cleaned[15] !== carattereControlloCF(cleaned.slice(0, 15))) {
+    return { ok: false, hint: "CF non valido (carattere di controllo errato)" };
   }
   return { ok: true };
 }

@@ -136,6 +136,8 @@ const SettingsUserDetail = lazy(() => import("@/pages/azienda/settings/SettingsU
 const SettingsSedi = lazy(() => import("@/pages/azienda/settings/SettingsSedi"));
 const SettingsPeople = lazy(() => import("@/pages/azienda/settings/SettingsPeople"));
 const SettingsSecurityHub = lazy(() => import("@/pages/azienda/settings/SettingsSecurityHub"));
+const SettingsEsportaDati = lazy(() => import("@/pages/azienda/settings/SettingsEsportaDati"));
+const ComeStiamoAndando = lazy(() => import("@/pages/azienda/ComeStiamoAndando"));
 const SettingsTags = lazy(() => import("@/pages/azienda/settings/SettingsTags"));
 const SettingsCustomFields = lazy(() => import("@/pages/azienda/settings/SettingsCustomFields"));
 const SettingsMarketingCalendars = lazy(() => import("@/pages/azienda/settings/SettingsMarketingCalendars"));
@@ -253,8 +255,6 @@ const AgentiAIPage = lazy(() => import("@/pages/azienda/AgentiAIPage"));
 const AgentDetailPage = lazy(() => import("@/pages/azienda/AgentDetailPage"));
 const Centralino = lazy(() => import("@/pages/azienda/Centralino"));
 const RenderCategoryHub = lazy(() => import("@/pages/azienda/RenderCategoryHub"));
-const RenderPlanimetrieHub = lazy(() => import("@/pages/azienda/RenderPlanimetrieHub"));
-const RenderPlanimetrieNew = lazy(() => import("@/pages/azienda/RenderPlanimetrieNew"));
 const RenderHub = lazy(() => import("@/pages/azienda/RenderHub"));
 const RenderNew = lazy(() => import("@/pages/azienda/RenderNewV2"));
 const RenderGallery = lazy(() => import("@/pages/azienda/RenderGallery"));
@@ -396,7 +396,6 @@ const BroadcastDetailPage = lazy(() => import("@/pages/azienda/whatsapp/Broadcas
 const WANumberDetailPage = lazy(() => import("@/pages/azienda/whatsapp/WANumberDetailPage"));
 // MP-CLN 2026-05-25: SMS unificato. /sms-marketing redirige a /sms?tab=...
 const SmsPage = lazy(() => import("@/pages/azienda/sms/index"));
-const OnboardingPage = lazy(() => import("@/pages/azienda/OnboardingPage"));
 const OnboardingVertical = lazy(() => import("@/pages/azienda/onboarding/OnboardingVertical"));
 const ReportisticaPage = lazy(() => import("@/pages/azienda/ReportisticaPage"));
 const SalesOSDashboard = lazy(() => import("@/pages/azienda/marketing/SalesOSDashboard"));
@@ -534,7 +533,6 @@ export default function CompanyRoutesContainer() {
         }
       >
         <Route index element={<AziendaIndex />} />
-        <Route path="onboarding" element={<OnboardingPage />} />
         <Route path="onboarding/vertical" element={<ErrorBoundary title="Errore nel caricamento onboarding settore"><OnboardingVertical /></ErrorBoundary>} />
         <Route path="cruscotto" element={withCompanyPermission("canViewCruscotto", <CruscottoDashboardPage />)} />
         <Route path="cruscotto/gestisci" element={withCompanyPermission("canViewCruscotto", <CruscottoHub />)} />
@@ -668,6 +666,7 @@ export default function CompanyRoutesContainer() {
         <Route path="formazione" element={withCompanyPermission("canViewFormazione", <FormazioneDipendente />)} />
         <Route path="personale/timbratura" element={withCompanyPermission("canViewPersone", <FeatureRoute featureKey="hr_personale"><TimbraturaKiosk /></FeatureRoute>)} />
         {/* Tesoreria — gated: tesoreria (core, default abilitato su tutti i piani) */}
+        <Route path="come-stiamo-andando" element={withCompanyPermission("canViewCosts", <ErrorBoundary title="Errore nel pannello Come stiamo andando"><ComeStiamoAndando /></ErrorBoundary>)} />
         <Route path="tesoreria" element={withCompanyPermission("canViewTesoreria", <FeatureRoute featureKey="tesoreria"><Tesoreria /></FeatureRoute>)} />
         {/* Fatturazione esterna — doppio guard: feature-level + billing mode */}
         <Route path="fatturazione" element={withCompanyPermission("canViewBilling", <FeatureRoute featureKey="fatturazione"><BillingModeGuard requiredMode="external"><InvoicesList /></BillingModeGuard></FeatureRoute>)} />
@@ -733,9 +732,6 @@ export default function CompanyRoutesContainer() {
 
         {/* Render AI Routes — gated: render_ai */}
         <Route path="render" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderCategoryHub /></FeatureRoute>)} />
-        {/* Render Planimetrie AI */}
-        <Route path="render/planimetrie" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderPlanimetrieHub /></FeatureRoute>)} />
-        <Route path="render/planimetrie/new" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderPlanimetrieNew /></FeatureRoute>)} />
         {/* Render Infissi */}
         <Route path="render/infissi" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderHub /></FeatureRoute>)} />
         <Route path="render/infissi/new" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderNew /></FeatureRoute>)} />
@@ -1187,6 +1183,7 @@ export default function CompanyRoutesContainer() {
           <Route path="team" element={<Navigate to="/azienda/impostazioni/persone?tab=team" replace />} />
           {/* IMP4: Sicurezza & Privacy — privacy, dashboard e registro; password/2FA in Mio Profilo */}
           <Route path="sicurezza-privacy" element={withCompanyPermission("canViewSettingsSecurity", <SettingsSecurityHub />)} />
+          <Route path="esporta-dati" element={withCompanyPermission("canViewSettingsSecurity", <SettingsEsportaDati />)} />
           {/* Redirect delle route precedenti → nuova destinazione corretta */}
           <Route path="sicurezza" element={<Navigate to="/azienda/impostazioni/mio-profilo?tab=sicurezza" replace />} />
           <Route path="security-dashboard" element={<Navigate to="/azienda/impostazioni/sicurezza-privacy?tab=dashboard" replace />} />

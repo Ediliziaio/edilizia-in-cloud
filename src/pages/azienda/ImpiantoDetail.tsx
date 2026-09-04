@@ -15,7 +15,11 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, AlertCircle, Plus, Loader2, Wrench } from "lucide-react";
+import { ArrowLeft, AlertCircle, Plus, Loader2, Wrench, Pencil, Archive, ArchiveRestore } from "lucide-react";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { format, differenceInDays } from "date-fns";
 import { it } from "date-fns/locale";
 import { toast } from "sonner";
@@ -30,6 +34,20 @@ export default function ImpiantoDetail() {
   const [selectedPianoId, setSelectedPianoId] = useState<string | null>(null);
   const [esecuzioneForm, setEsecuzioneForm] = useState({ data: new Date().toLocaleDateString("en-CA"), esito: "ok", note: "" });
   const [nuovoInterventoOpen, setNuovoInterventoOpen] = useState(false);
+  // ── Correggere e disfare (ondata 4) ────────────────────────────────────
+  // La scheda impianto era di sola lettura: una matricola sbagliata o un
+  // impianto smantellato restavano lì com'erano, per sempre.
+  const [modificaOpen, setModificaOpen] = useState(false);
+  const [archiviaOpen, setArchiviaOpen] = useState(false);
+  const [formImpianto, setFormImpianto] = useState({
+    tipo_impianto: "", marca: "", modello: "", matricola: "",
+    data_installazione: "", garanzia_scadenza: "", note_tecniche: "",
+  });
+  const [modificaContrattoOpen, setModificaContrattoOpen] = useState(false);
+  const [formContratto, setFormContratto] = useState({
+    nome_contratto: "", importo_canone: "", data_inizio: "", data_scadenza: "",
+    stato: "attivo", rinnovo_automatico: false, note: "",
+  });
 
   const { data: impianto, isLoading, isError: impiantoError } = useQuery({
     queryKey: ["impianto", id],
@@ -137,6 +155,115 @@ export default function ImpiantoDetail() {
     onError: (e: Error) => toast.error(e.message || "Errore nella registrazione"),
   });
 
+  /** Riempie il modulo di modifica coi dati attuali e lo apre. */
+  const apriModificaImpianto = () => {
+    if (!impianto) return;
+    setFormImpianto({
+      tipo_impianto: impianto.tipo_impianto ?? "",
+      marca: impianto.marca ?? "",
+      modello: impianto.modello ?? "",
+      matricola: impianto.matricola ?? "",
+      data_installazione: impianto.data_installazione ?? "",
+      garanzia_scadenza: impianto.garanzia_scadenza ?? "",
+      note_tecniche: impianto.note_tecniche ?? "",
+    });
+    setModificaOpen(true);
+  };
+
+  const salvaImpianto = useMutation({
+    mutationFn: async () => {
+      if (!formImpianto.tipo_impianto.trim()) throw new Error("Il tipo di impianto è obbligatorio");
+      const { error } = await supabase
+        .from("impianti_cliente")
+        .update({
+          tipo_impianto: formImpianto.tipo_impianto.trim(),
+          marca: formImpianto.marca.trim() || null,
+          modello: formImpianto.modello.trim() || null,
+          matricola: formImpianto.matricola.trim() || null,
+          data_installazione: formImpianto.data_installazione || null,
+          garanzia_scadenza: formImpianto.garanzia_scadenza || null,
+          note_tecniche: formImpianto.note_tecniche.trim() || null,
+        })
+        .eq("id", id!)
+        .eq("company_id", effectiveCompany!.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Impianto aggiornato");
+      queryClient.invalidateQueries({ queryKey: ["impianto", id] });
+      setModificaOpen(false);
+    },
+    onError: (e: Error) => toast.error(e.message || "Salvataggio non riuscito"),
+  });
+
+  /**
+   * Archivia invece di cancellare: `impianti_cliente.attivo` esiste già e
+   * l'elenco manutenzione filtra su di lui. Così un impianto smantellato esce
+   * dalle liste ma non si porta dietro nel nulla contratti, piani e interventi
+   * che lo citano — e si può rimettere.
+   */
+  const cambiaArchiviazione = useMutation({
+    mutationFn: async (attivo: boolean) => {
+      const { error } = await supabase
+        .from("impianti_cliente")
+        .update({ attivo })
+        .eq("id", id!)
+        .eq("company_id", effectiveCompany!.id);
+      if (error) throw error;
+      return attivo;
+    },
+    onSuccess: (attivo) => {
+      toast.success(attivo ? "Impianto ripristinato" : "Impianto archiviato");
+      queryClient.invalidateQueries({ queryKey: ["impianto", id] });
+      setArchiviaOpen(false);
+    },
+    onError: (e: Error) => toast.error(e.message || "Operazione non riuscita"),
+  });
+
+  const apriModificaContratto = () => {
+    if (!contratto) return;
+    setFormContratto({
+      nome_contratto: contratto.nome_contratto ?? "",
+      importo_canone: contratto.importo_canone != null ? String(contratto.importo_canone) : "",
+      data_inizio: contratto.data_inizio ?? "",
+      data_scadenza: contratto.data_scadenza ?? "",
+      stato: contratto.stato ?? "attivo",
+      rinnovo_automatico: contratto.rinnovo_automatico === true,
+      note: contratto.note ?? "",
+    });
+    setModificaContrattoOpen(true);
+  };
+
+  const salvaContratto = useMutation({
+    mutationFn: async () => {
+      if (!contratto?.id) throw new Error("Contratto non disponibile");
+      if (!formContratto.nome_contratto.trim()) throw new Error("Il nome del contratto è obbligatorio");
+      if (!formContratto.data_inizio) throw new Error("La data di inizio è obbligatoria");
+      const canone = Number(formContratto.importo_canone.replace(",", "."));
+      if (!Number.isFinite(canone) || canone < 0) throw new Error("Il canone non è un importo valido");
+      const { error } = await supabase
+        .from("contratti_manutenzione")
+        .update({
+          nome_contratto: formContratto.nome_contratto.trim(),
+          importo_canone: canone,
+          data_inizio: formContratto.data_inizio,
+          data_scadenza: formContratto.data_scadenza || null,
+          stato: formContratto.stato,
+          rinnovo_automatico: formContratto.rinnovo_automatico,
+          note: formContratto.note.trim() || null,
+        })
+        .eq("id", contratto.id)
+        .eq("company_id", effectiveCompany!.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Contratto aggiornato");
+      queryClient.invalidateQueries({ queryKey: ["contratto-impianto", id] });
+      setModificaContrattoOpen(false);
+    },
+    onError: (e: Error) => toast.error(e.message || "Salvataggio non riuscito"),
+  });
+
   if (isLoading) return (
     <div className="p-6 space-y-4">
       <Skeleton className="h-8 w-48" />
@@ -166,15 +293,40 @@ export default function ImpiantoDetail() {
 
   return (
     <div className="p-6 space-y-6 max-w-4xl">
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <Button variant="ghost" size="sm" onClick={() => navigate("/azienda/manutenzione")} className="-ml-2">
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <div>
+        <div className="min-w-0 flex-1">
           <h1 className="text-xl font-bold capitalize">{impianto.tipo_impianto?.replace("_", " ")} {impianto.marca && `— ${impianto.marca}`}</h1>
           <p className="text-sm text-gray-500">{[(impianto.customer as any)?.first_name, (impianto.customer as any)?.last_name].filter(Boolean).join(" ") || ""}</p>
         </div>
+        {/* Barra azioni: secondaria icon-only, CTA che riempie su mobile. */}
+        <div className="flex w-full items-center gap-2 sm:w-auto">
+          <Button
+            variant="outline"
+            size="icon"
+            className="shrink-0"
+            title={impianto.attivo === false ? "Ripristina impianto" : "Archivia impianto"}
+            onClick={() => setArchiviaOpen(true)}
+          >
+            {impianto.attivo === false ? <ArchiveRestore className="h-4 w-4" /> : <Archive className="h-4 w-4" />}
+          </Button>
+          <Button className="flex-1 sm:flex-none gap-2" onClick={apriModificaImpianto}>
+            <Pencil className="h-4 w-4" /> Modifica
+          </Button>
+        </div>
       </div>
+
+      {impianto.attivo === false && (
+        <Alert>
+          <Archive className="h-4 w-4" />
+          <AlertDescription>
+            Questo impianto è archiviato: non compare più nell'elenco manutenzione.
+            Contratti, piani e interventi restano collegati e si possono ancora consultare.
+          </AlertDescription>
+        </Alert>
+      )}
 
       <Tabs defaultValue="scheda">
         <TabsList>
@@ -329,10 +481,154 @@ export default function ImpiantoDetail() {
               </div>
               {contratto.rinnovo_automatico && <Badge className="text-xs bg-blue-100 text-blue-800">Rinnovo automatico</Badge>}
               {contratto.note && <p className="text-gray-600 bg-gray-50 p-2 rounded">{contratto.note}</p>}
+              {/* Il contratto era di sola lettura: un canone sbagliato o una
+                  disdetta non si potevano registrare da nessuna parte. */}
+              <Button variant="outline" size="sm" className="w-full gap-2 sm:w-auto" onClick={apriModificaContratto}>
+                <Pencil className="h-4 w-4" /> Modifica contratto
+              </Button>
             </div>
           )}
         </TabsContent>
       </Tabs>
+
+      {/* Modifica impianto */}
+      <Dialog open={modificaOpen} onOpenChange={setModificaOpen}>
+        <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Modifica impianto</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="imp-tipo">Tipo impianto *</Label>
+              <Input
+                id="imp-tipo"
+                value={formImpianto.tipo_impianto}
+                onChange={(e) => setFormImpianto((f) => ({ ...f, tipo_impianto: e.target.value }))}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="imp-marca">Marca</Label>
+                <Input id="imp-marca" value={formImpianto.marca} onChange={(e) => setFormImpianto((f) => ({ ...f, marca: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="imp-modello">Modello</Label>
+                <Input id="imp-modello" value={formImpianto.modello} onChange={(e) => setFormImpianto((f) => ({ ...f, modello: e.target.value }))} />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="imp-matricola">Matricola</Label>
+              <Input id="imp-matricola" value={formImpianto.matricola} onChange={(e) => setFormImpianto((f) => ({ ...f, matricola: e.target.value }))} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="imp-installazione">Data installazione</Label>
+                <Input id="imp-installazione" type="date" value={formImpianto.data_installazione} onChange={(e) => setFormImpianto((f) => ({ ...f, data_installazione: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="imp-garanzia">Scadenza garanzia</Label>
+                <Input id="imp-garanzia" type="date" value={formImpianto.garanzia_scadenza} onChange={(e) => setFormImpianto((f) => ({ ...f, garanzia_scadenza: e.target.value }))} />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="imp-note">Note tecniche</Label>
+              <Textarea id="imp-note" rows={3} value={formImpianto.note_tecniche} onChange={(e) => setFormImpianto((f) => ({ ...f, note_tecniche: e.target.value }))} />
+            </div>
+          </div>
+          <DialogFooter className="flex-col gap-2 sm:flex-row">
+            <Button variant="outline" className="w-full sm:w-auto" onClick={() => setModificaOpen(false)}>Annulla</Button>
+            <Button className="w-full sm:w-auto" onClick={() => salvaImpianto.mutate()} disabled={salvaImpianto.isPending}>
+              {salvaImpianto.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Salvataggio...</> : "Salva"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modifica contratto */}
+      <Dialog open={modificaContrattoOpen} onOpenChange={setModificaContrattoOpen}>
+        <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Modifica contratto</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="ctr-nome">Nome contratto *</Label>
+              <Input id="ctr-nome" value={formContratto.nome_contratto} onChange={(e) => setFormContratto((f) => ({ ...f, nome_contratto: e.target.value }))} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="ctr-canone">Canone (€)</Label>
+                <Input id="ctr-canone" inputMode="decimal" value={formContratto.importo_canone} onChange={(e) => setFormContratto((f) => ({ ...f, importo_canone: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="ctr-stato">Stato</Label>
+                <Select value={formContratto.stato} onValueChange={(v) => setFormContratto((f) => ({ ...f, stato: v }))}>
+                  <SelectTrigger id="ctr-stato"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="attivo">Attivo</SelectItem>
+                    <SelectItem value="sospeso">Sospeso</SelectItem>
+                    <SelectItem value="cessato">Cessato</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="ctr-inizio">Data inizio *</Label>
+                <Input id="ctr-inizio" type="date" value={formContratto.data_inizio} onChange={(e) => setFormContratto((f) => ({ ...f, data_inizio: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="ctr-scadenza">Data scadenza</Label>
+                <Input id="ctr-scadenza" type="date" value={formContratto.data_scadenza} onChange={(e) => setFormContratto((f) => ({ ...f, data_scadenza: e.target.value }))} />
+              </div>
+            </div>
+            <label className="flex items-center gap-2 rounded-lg border p-3 text-sm">
+              <input
+                type="checkbox"
+                className="h-4 w-4 rounded border-border"
+                checked={formContratto.rinnovo_automatico}
+                onChange={(e) => setFormContratto((f) => ({ ...f, rinnovo_automatico: e.target.checked }))}
+              />
+              Rinnovo automatico
+            </label>
+            <div className="space-y-1.5">
+              <Label htmlFor="ctr-note">Note</Label>
+              <Textarea id="ctr-note" rows={3} value={formContratto.note} onChange={(e) => setFormContratto((f) => ({ ...f, note: e.target.value }))} />
+            </div>
+          </div>
+          <DialogFooter className="flex-col gap-2 sm:flex-row">
+            <Button variant="outline" className="w-full sm:w-auto" onClick={() => setModificaContrattoOpen(false)}>Annulla</Button>
+            <Button className="w-full sm:w-auto" onClick={() => salvaContratto.mutate()} disabled={salvaContratto.isPending}>
+              {salvaContratto.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Salvataggio...</> : "Salva"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Archivia / ripristina impianto */}
+      <AlertDialog open={archiviaOpen} onOpenChange={setArchiviaOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {impianto.attivo === false ? "Ripristinare l'impianto?" : "Archiviare l'impianto?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {impianto.attivo === false
+                ? "Tornerà nell'elenco manutenzione insieme agli impianti attivi."
+                : "Esce dall'elenco manutenzione. Contratti, piani e interventi restano collegati e consultabili, e si può ripristinare quando vuoi: per questo non si cancella."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={cambiaArchiviazione.isPending}
+              onClick={(e) => { e.preventDefault(); cambiaArchiviazione.mutate(impianto.attivo === false); }}
+            >
+              {impianto.attivo === false ? "Ripristina" : "Archivia"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Dialog nuovo intervento */}
       <NuovoInterventoDialog

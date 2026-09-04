@@ -43,6 +43,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
+import { useIsMobile } from "@/hooks/use-mobile";
 interface CostCategory {
   id: string;
   company_id: string;
@@ -72,6 +73,7 @@ const COLOR_PRESETS = [
 const DEFAULT_COLOR = "#6366f1";
 
 export default function SettingsCostCategories() {
+  const isMobile = useIsMobile();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
@@ -406,15 +408,18 @@ export default function SettingsCostCategories() {
           <Download className="h-4 w-4 mr-1.5" />
           {importMutation.isPending ? "Importo…" : "Importa dai costi"}
         </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={exportCategories}
-          disabled={categories.length === 0 && historicalMissingCategories.length === 0}
-        >
-          <FileDown className="h-4 w-4 mr-1.5" />
-          Esporta CSV
-        </Button>
+        {/* Niente export su telefono. */}
+        {!isMobile && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={exportCategories}
+            disabled={categories.length === 0 && historicalMissingCategories.length === 0}
+          >
+            <FileDown className="h-4 w-4 mr-1.5" />
+            Esporta CSV
+          </Button>
+        )}
       </div>
 
       {(categoriesIsError || usageIsError) && (

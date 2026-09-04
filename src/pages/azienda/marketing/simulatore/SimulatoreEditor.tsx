@@ -43,9 +43,11 @@ import { exportSimulazioneXlsx } from "@/lib/simulatore/exportSimulazione";
 import { DEFAULT_SCENARI } from "@/lib/simulatore/tipi";
 import type { SimulazioneDoc, VoceSim, FaseSim, ScenariConfig } from "@/lib/simulatore/tipi";
 
+import { useIsMobile } from "@/hooks/use-mobile";
 const AUTOSAVE_DELAY = 500;
 
 export default function SimulatoreEditor() {
+  const isMobile = useIsMobile();
   const { id = null } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { data: row, isLoading, isError } = useSimulazione(id);
@@ -289,36 +291,39 @@ export default function SimulatoreEditor() {
               </>
             ) : null}
           </span>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="gap-2" disabled={exporting}>
-                {exporting ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <FileDown className="h-4 w-4" />
-                )}
-                Esporta
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => void handleExportExcel()}>
-                <FileSpreadsheet className="mr-2 h-4 w-4" />
-                Esporta Excel
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => void handleExportPdf()}>
-                <FileText className="mr-2 h-4 w-4" />
-                Esporta PDF
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={() => void handleSalvaTemplate()}
-                disabled={duplicate.isPending}
-              >
-                <FileStack className="mr-2 h-4 w-4" />
-                Salva come template
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {/* Niente export su telefono. */}
+          {!isMobile && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="gap-2" disabled={exporting}>
+                  {exporting ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <FileDown className="h-4 w-4" />
+                  )}
+                  Esporta
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => void handleExportExcel()}>
+                  <FileSpreadsheet className="mr-2 h-4 w-4" />
+                  Esporta Excel
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => void handleExportPdf()}>
+                  <FileText className="mr-2 h-4 w-4" />
+                  Esporta PDF
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={() => void handleSalvaTemplate()}
+                  disabled={duplicate.isPending}
+                >
+                  <FileStack className="mr-2 h-4 w-4" />
+                  Salva come template
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
           <Button onClick={() => setTrasformaOpen(true)} className="gap-2">
             <Wand2 className="h-4 w-4" />
             Trasforma

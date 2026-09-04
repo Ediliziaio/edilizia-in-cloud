@@ -10,29 +10,10 @@ export function usePhoneNumbers(companyId: string | null) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("virtual_phone_numbers")
-        .select("*, assigned_profile:profiles!virtual_phone_numbers_assigned_to_fkey(id, first_name, last_name, email)")
+        .select("*")
         .eq("company_id", companyId!)
         .eq("is_active", true)
         .order("purchased_at", { ascending: false });
-
-      if (error) throw error;
-      return data;
-    },
-    staleTime: 5 * 60 * 1000,
-    gcTime: 15 * 60 * 1000,
-  });
-}
-
-export function useCompanyProfiles(companyId: string | null) {
-  return useQuery({
-    queryKey: ["company-profiles-for-phone", companyId],
-    enabled: !!companyId,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id, first_name, last_name, email")
-        .eq("company_id", companyId!)
-        .order("first_name");
 
       if (error) throw error;
       return data;
@@ -156,23 +137,3 @@ export function useReleaseNumber(companyId: string | null) {
   });
 }
 
-export function useAssignNumber() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (params: { id: string; assigned_to: string | null }) => {
-      const { error } = await supabase
-        .from("virtual_phone_numbers")
-        .update({ assigned_to: params.assigned_to, updated_at: new Date().toISOString() })
-        .eq("id", params.id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      toast.success("Assegnazione aggiornata");
-      queryClient.invalidateQueries({ queryKey: ["virtual-phone-numbers"] });
-    },
-    onError: (err: any) => {
-      toast.error("Errore assegnazione: " + (err.message || "Errore sconosciuto"));
-    },
-  });
-}

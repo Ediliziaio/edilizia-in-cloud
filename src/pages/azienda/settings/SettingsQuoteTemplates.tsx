@@ -63,6 +63,7 @@ import {
   type QuoteTemplatesTopTab,
 } from "@/lib/settingsQuoteTemplatesRoute";
 
+import { useIsMobile } from "@/hooks/use-mobile";
 // MP-IMP-001 Fase 3: LAYOUTS / FONTS / DESIGN_PRESETS / TEMPLATE_ASSET_BUCKET /
 // ALLOWED_LOGO_TYPES → ./SettingsQuoteTemplates/constants.ts
 // getLogoPublicUrl / kindColor* / cnTab / quoteTemplateKind / getReferencingOffers
@@ -405,6 +406,7 @@ function TemplateCard({ tmpl, kindMeta, logoSrcFor, effectiveCompanyName, templa
 }
 
 export default function SettingsQuoteTemplates() {
+  const isMobile = useIsMobile();
   const { role, effectiveCompany } = useAuth();
   const permissions = usePermissions();
   // 13/7/2026: la pagina rispetta il permesso Impostazioni dedicato (prima solo ruolo admin,
@@ -1929,54 +1931,57 @@ export default function SettingsQuoteTemplates() {
                     </Button>
                   </div>
                 )}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full"
-                  disabled={downloadingPdf}
-                  onClick={async () => {
-                    setDownloadingPdf(true);
-                    try {
-                      const { data, error } = await supabase.functions.invoke("generate-quote-pdf", {
-                        body: {
-                          preview_mode: true,
-                          template_data: form,
-                          company_name: effectiveCompany?.name,
-                          preview_signature: true,
-                        },
-                      });
-                      if (error) {
-                        let errBody: { error?: string; message?: string } | null = null;
-                        try {
-                          const ctx = (error as { context?: unknown }).context;
-                          if (ctx instanceof Response) errBody = await ctx.json() as { error?: string; message?: string };
-                        } catch {
-                          errBody = null;
+                {/* Niente export su telefono. */}
+                {!isMobile && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    disabled={downloadingPdf}
+                    onClick={async () => {
+                      setDownloadingPdf(true);
+                      try {
+                        const { data, error } = await supabase.functions.invoke("generate-quote-pdf", {
+                          body: {
+                            preview_mode: true,
+                            template_data: form,
+                            company_name: effectiveCompany?.name,
+                            preview_signature: true,
+                          },
+                        });
+                        if (error) {
+                          let errBody: { error?: string; message?: string } | null = null;
+                          try {
+                            const ctx = (error as { context?: unknown }).context;
+                            if (ctx instanceof Response) errBody = await ctx.json() as { error?: string; message?: string };
+                          } catch {
+                            errBody = null;
+                          }
+                          throw new Error(errBody?.error ?? errBody?.message ?? error.message ?? "Errore");
                         }
-                        throw new Error(errBody?.error ?? errBody?.message ?? error.message ?? "Errore");
+                        if (!data?.pdf_base64) throw new Error("Nessun PDF ricevuto");
+                        const binary = atob(data.pdf_base64);
+                        const bytes = new Uint8Array(binary.length);
+                        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+                        const blob = new Blob([bytes], { type: "application/pdf" });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = url;
+                        a.download = `anteprima-${(form.name || "template").replace(/\s+/g, "-").toLowerCase()}.pdf`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                        toast.success("PDF scaricato");
+                      } catch (err: unknown) {
+                        toast.error(err instanceof Error ? err.message : "Errore generazione PDF");
+                      } finally {
+                        setDownloadingPdf(false);
                       }
-                      if (!data?.pdf_base64) throw new Error("Nessun PDF ricevuto");
-                      const binary = atob(data.pdf_base64);
-                      const bytes = new Uint8Array(binary.length);
-                      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-                      const blob = new Blob([bytes], { type: "application/pdf" });
-                      const url = URL.createObjectURL(blob);
-                      const a = document.createElement("a");
-                      a.href = url;
-                      a.download = `anteprima-${(form.name || "template").replace(/\s+/g, "-").toLowerCase()}.pdf`;
-                      a.click();
-                      URL.revokeObjectURL(url);
-                      toast.success("PDF scaricato");
-                    } catch (err: unknown) {
-                      toast.error(err instanceof Error ? err.message : "Errore generazione PDF");
-                    } finally {
-                      setDownloadingPdf(false);
-                    }
-                  }}
-                >
-                  {downloadingPdf ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
-                  Scarica PDF Anteprima
-                </Button>
+                    }}
+                  >
+                    {downloadingPdf ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
+                    Scarica PDF Anteprima
+                  </Button>
+                )}
               </CardContent>
             </Card>
           </div>

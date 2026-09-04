@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { prioritaCaricamento } from "@/lib/immagini/prioritaCaricamento";
 import { Link, useParams, Navigate } from "react-router-dom";
 import { ArrowRight, ArrowLeft, Clock } from "lucide-react";
 import LandingNavbar from "@/components/landing/LandingNavbar";
@@ -230,7 +231,7 @@ export default function BlogCategory() {
                     src={featured.coverImage}
                     alt={featured.title}
                     loading="eager"
-                    fetchPriority="high"
+                    {...prioritaCaricamento("high")}
                     sizes="(max-width: 768px) 100vw, 600px"
                     className="w-full h-56 md:h-full object-cover group-hover:scale-105 transition-transform duration-500"
                   />

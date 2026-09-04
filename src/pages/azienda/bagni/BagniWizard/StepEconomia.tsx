@@ -30,6 +30,7 @@ import { INCENTIVI_BAGNI, calcDetraibile, superaMassimale } from "@/lib/preventi
 import type { BgnComputoVoce, BgnProgetto } from "@/types/bagni";
 import type { BgnFormPatch } from "./types";
 import { FinanziamentoQuoteToggle } from "@/components/moduli/FinanziamentoQuoteToggle";
+import { ScontoGlobaleField } from "@/components/preventivi/ScontoGlobaleField";
 import { useBgnTemplatePdf } from "@/hooks/useBagniProgetto";
 
 interface Props {
@@ -163,11 +164,12 @@ export default function StepEconomia({ form, onChange, computo }: Props) {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <PctField
+              <ScontoGlobaleField
                 id="bgn-sconto"
-                label="Sconto globale"
                 value={form.sconto_pct ?? 0}
                 onCommit={(v) => onChange("sconto_pct", v)}
+                imponibileLordo={lordoCapitoli}
+                tipoLavoro="bagni"
               />
               <PctField
                 id="bgn-iva"

@@ -29,6 +29,7 @@ import {
 } from "@/modules/render/lib/edgeFunctionClient";
 import { createRenderOriginalSignedUrl, uploadRenderOriginal } from "@/lib/render/renderStorage";
 
+import { useIsMobile } from "@/hooks/use-mobile";
 // ── Types ────────────────────────────────────────────────────────────────────
 type Step = 1 | 2 | 3 | 4;
 
@@ -44,6 +45,7 @@ const MAX_POLL_SEC = 180;
 
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function RenderPavimentoNew() {
+  const isMobile = useIsMobile();
   const navigate = useNavigate();
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -633,10 +635,12 @@ export default function RenderPavimentoNew() {
               <Share2 className="h-4 w-4" />
               WhatsApp
             </Button>
-            <Button className="flex-1 gap-2 bg-amber-600 hover:bg-amber-700" onClick={downloadResult}>
-              <Download className="h-4 w-4" />
-              Scarica render
-            </Button>
+            {!isMobile && (
+              <Button className="flex-1 gap-2 bg-amber-600 hover:bg-amber-700" onClick={downloadResult}>
+                <Download className="h-4 w-4" />
+                Scarica render
+              </Button>
+            )}
           </div>
 
           <RenderResultRefinementPanel

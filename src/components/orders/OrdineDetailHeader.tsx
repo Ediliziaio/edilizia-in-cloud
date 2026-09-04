@@ -12,6 +12,7 @@ import {
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 
+import { useIsMobile } from "@/hooks/use-mobile";
 interface OrdineDetailHeaderProps {
   ordineId: string;
   orderCode: string;
@@ -51,6 +52,7 @@ export function OrdineDetailHeader({
   canEdit = true,
   canDelete = true,
 }: OrdineDetailHeaderProps) {
+  const isMobile = useIsMobile();
   const isAppaltatoreLavoro = orderType === "appaltatore_lavoro";
   const navigate = useNavigate();
   return (
@@ -131,7 +133,9 @@ export function OrdineDetailHeader({
                 <BookOpen className="h-4 w-4 mr-2 text-orange-600" />
                 Diario Commessa
               </DropdownMenuItem>
-              {onDownloadPDF && (
+              {/* Niente export su telefono. */}
+              {/* Niente export su telefono. */}
+              {!isMobile && !isMobile && onDownloadPDF && (
                 <DropdownMenuItem onClick={onDownloadPDF} disabled={isGeneratingPDF}>
                   {isGeneratingPDF ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <FileDown className="h-4 w-4 mr-2" />}
                   Scarica PDF
