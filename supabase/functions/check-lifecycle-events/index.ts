@@ -179,12 +179,17 @@ Deno.serve(async (req) => {
         orderCountMap.set(r.company_id, Number(r.total_orders || 0));
       });
 
-      // Get last audit_log for inactive_7d check
+      // Aziende con attività reale negli ultimi 7 giorni (per inactive_7d).
+      // Prima si leggeva `audit_log`, tabella che NON esiste: la query falliva
+      // in silenzio, l'insieme restava vuoto e OGNI azienda attiva da più di 7
+      // giorni veniva marcata inattiva, anche se usata quotidianamente.
+      // La sorgente giusta è `user_sessions.last_active_at`, la stessa che
+      // alimenta l'"ultimo accesso" nella lista aziende.
       const sevenDaysAgo = new Date(now.getTime() - 7 * 86400000).toISOString();
       const { data: recentActivity } = await supabase
-        .from("audit_log")
-        .select("company_id, created_at")
-        .gte("created_at", sevenDaysAgo)
+        .from("user_sessions")
+        .select("company_id, last_active_at")
+        .gte("last_active_at", sevenDaysAgo)
         .not("company_id", "is", null);
       const activeCompanyIds = new Set((recentActivity || []).map((r: any) => r.company_id));
 

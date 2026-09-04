@@ -106,13 +106,27 @@ export function AdminStatCards({ stats, mrrStats, previousStats }: Props) {
       grad: "from-orange-500 to-amber-400",
     },
     {
-      title: "MRR Attuale",
+      // MRR = incassato reale da Stripe. Prima questa scheda mostrava la somma
+      // dei piani assegnati, che includeva il valore regalato: 4.360 € contro
+      // 243 € realmente incassati. Il regalato ora ha una scheda sua.
+      title: "MRR incassato",
       value: formatCurrency(mrrStats.mrr),
       delta: null,
       icon: Euro,
-      description: `${mrrStats.activeCount} aziende attive · churn mese ${mrrStats.churnRate}%`,
+      description: mrrStats.mrrContrattualizzato
+        ? `${formatCurrency(mrrStats.mrrContrattualizzato)} a contratto · churn mese ${mrrStats.churnRate}%`
+        : `${mrrStats.activeCount} aziende attive · churn mese ${mrrStats.churnRate}%`,
       href: "/admin/aziende?revenue=paying",
       grad: "from-emerald-500 to-teal-400",
+    },
+    {
+      title: "Valore regalato",
+      value: formatCurrency(mrrStats.mrrRegalato ?? 0),
+      delta: null,
+      icon: Gift,
+      description: "Piani concessi gratuitamente, al mese",
+      href: "/admin/aziende?noPayment=1",
+      grad: "from-rose-500 to-pink-400",
     },
     {
       title: "Wholesale/mese",
@@ -128,7 +142,9 @@ export function AdminStatCards({ stats, mrrStats, previousStats }: Props) {
       value: mrrStats.trialExpiringSoon,
       delta: null,
       icon: Hourglass,
-      description: `${mrrStats.trialCount} trial totali · da convertire`,
+      description: mrrStats.trialScadutiNonGestiti
+        ? `${mrrStats.trialScadutiNonGestiti} già scaduti da chiudere · ${mrrStats.trialCount} totali`
+        : `${mrrStats.trialCount} trial totali · da convertire`,
       href: "/admin/aziende?status=trial",
       grad: mrrStats.trialExpiringSoon > 0 ? "from-amber-500 to-orange-400" : "from-sky-500 to-blue-400",
     },

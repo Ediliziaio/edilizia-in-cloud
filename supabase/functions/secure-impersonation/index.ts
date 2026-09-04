@@ -64,20 +64,29 @@ Deno.serve(async (req) => {
         }
 
         // ── Rate limit: max 10 impersonations per hour per admin ──
+        // Il conteggio DEVE stare su admin_audit_log, che è append-only:
+        // contarlo su active_impersonations era inefficace, perché poche righe
+        // più sotto questa stessa funzione cancella le impersonation precedenti
+        // dell'admin prima di inserire la nuova — il contatore non superava mai 1.
         const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
         const { count: recentCount } = await supabaseAdmin
-          .from("active_impersonations")
+          .from("admin_audit_log")
           .select("id", { count: "exact", head: true })
-          .eq("admin_user_id", user.id)
+          .eq("user_id", user.id)
+          .eq("action", "impersonation_start")
           .gte("created_at", oneHourAgo);
 
         if ((recentCount ?? 0) >= 10) {
-          // Log rate limit event to audit_log
-          await supabaseAdmin.from("audit_log").insert({
+          // Il superamento va a registro: prima finiva su `audit_log`, tabella
+          // inesistente, con .catch(() => {}) che ne nascondeva il fallimento.
+          await supabaseAdmin.from("admin_audit_log").insert({
             user_id: user.id,
             action: "impersonation_rate_limited",
-            metadata: { company_id: companyId, count: recentCount },
-          }).catch(() => {});
+            target_type: "company",
+            target_id: companyId,
+            details: { company_id: companyId, count: recentCount, ip_address: clientIp },
+            ip_address: clientIp,
+          });
           return new Response(
             JSON.stringify({ error: "Rate limit: massimo 10 impersonazioni per ora" }),
             { status: 429, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }

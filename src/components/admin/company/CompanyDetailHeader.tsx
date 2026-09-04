@@ -257,7 +257,14 @@ export function CompanyDetailHeader({
             <AlertDialogTitle className="text-destructive">Elimina {company.name}?</AlertDialogTitle>
             <AlertDialogDescription className="space-y-3">
               <span className="block">
-                Questa azione è <strong>irreversibile</strong>. Tutti i dati dell'azienda (ordini, clienti, team, documenti) verranno eliminati permanentemente.
+                L'azienda sparisce subito dall'operatività e i suoi utenti non
+                possono più accedere. I dati restano conservati e{" "}
+                <strong>ripristinabili per 30 giorni</strong>; dopo quel termine
+                vengono eliminati definitivamente.
+              </span>
+              <span className="block text-sm">
+                Prima della cancellazione viene salvato un export completo
+                (anagrafica, team, commesse, preventivi, fatture, clienti).
               </span>
               <span className="block text-sm">
                 Per confermare, digita il nome dell'azienda: <strong>{company.name}</strong>
@@ -282,7 +289,7 @@ export function CompanyDetailHeader({
               }}
             >
               <Trash2 className="h-4 w-4 mr-2" />
-              Elimina Definitivamente
+              Cancella azienda
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

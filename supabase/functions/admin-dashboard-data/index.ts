@@ -95,19 +95,17 @@ Deno.serve(async (req) => {
         .order("created_at", { ascending: false })
         .limit(5),
 
-      // Daily Active Companies (last 24h)
+      // Daily / Weekly Active Companies.
+      // Prima leggevano `audit_log`, tabella inesistente: l'errore veniva
+      // assorbito dalla Promise.all e i due contatori restavano a 0 per sempre
+      // (engagement sempre 0%). La sorgente reale dell'attività è
+      // `user_sessions.last_active_at`.
       supabaseAdmin
-        .from("audit_log")
-        .select("company_id", { count: "estimated", head: true })
-        .gte("created_at", new Date(Date.now() - 86400000).toISOString())
-        .not("company_id", "is", null),
+        .rpc("get_active_companies_count", { p_hours: 24 }),
 
       // Weekly Active Companies (last 7 days)
       supabaseAdmin
-        .from("audit_log")
-        .select("company_id", { count: "estimated", head: true })
-        .gte("created_at", new Date(Date.now() - 7 * 86400000).toISOString())
-        .not("company_id", "is", null),
+        .rpc("get_active_companies_count", { p_hours: 168 }),
     ]);
 
     const summary = (summaryRes.data as any) || {};
@@ -132,7 +130,9 @@ Deno.serve(async (req) => {
       })),
     ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 10);
 
-    // Compute churn rate from subscription logs (companies that went to suspended/expired in last 30d)
+    // Churn: uscite reali del mese (passaggi di stato registrati), rapportate
+    // alla base attiva. La vista non inventa più il numero quando non ci sono
+    // eventi di stato.
     const churnRate = summary.total_companies > 0
       ? Math.round((summary.churned_companies_30d / Math.max(summary.active_companies, 1)) * 100 * 10) / 10
       : 0;
@@ -148,18 +148,28 @@ Deno.serve(async (req) => {
         totalOrders: 0, // Kept for backward compat - not in materialized view for perf
         totalCustomers: summary.total_users || 0,
         openSupportConversations: summary.open_support_tickets || 0,
-        dac: dacRes.count || 0,
-        wac: wacRes.count || 0,
+        dac: Number(dacRes.data ?? 0),
+        wac: Number(wacRes.data ?? 0),
         engagementRate: summary.active_companies > 0
-          ? Math.round(((dacRes.count || 0) / summary.active_companies) * 100)
+          ? Math.round((Number(dacRes.data ?? 0) / summary.active_companies) * 100)
           : 0,
       },
       mrrStats: {
-        mrr: summary.mrr_eur || 0,
-        arr: summary.arr_eur || 0,
+        // mrr = incassato reale da Stripe (mrr_snapshots), non la somma dei
+        // piani assegnati. I due numeri che prima erano confusi in uno solo
+        // ora viaggiano separati e la dashboard li mostra affiancati.
+        mrr: Number(summary.mrr_eur ?? 0),
+        arr: Number(summary.arr_eur ?? 0),
+        mrrContrattualizzato: Number(summary.mrr_contrattualizzato_eur ?? 0),
+        mrrRegalato: Number(summary.mrr_regalato_eur ?? 0),
+        mrrSnapshotDate: summary.mrr_snapshot_date ?? null,
         trialCount: summary.trial_companies || 0,
         trialExpiringSoon: trialExpiringSoon.length,
+        trialScadutiNonGestiti: summary.trial_scaduti_non_gestiti || 0,
         churnRate,
+        trialConversionRate: summary.trial_conversion_rate === null
+          ? null
+          : Number(summary.trial_conversion_rate),
         activeCount: summary.active_companies || 0,
         expiredCount: summary.expired_companies || 0,
       },

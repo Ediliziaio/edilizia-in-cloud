@@ -345,7 +345,10 @@ export default function CompaniesList() {
       let q = supabase
         .from("companies")
         .select("id, status, trial_ends_at, payment_method, stripe_customer_id, stripe_subscription_status, is_platform_admin_company, subscription_plan_id, subscription_plans:subscription_plan_id(price_monthly, price_yearly), company_billing_overrides(service, custom_plan_price_eur, override_expires_at, is_enabled)")
-        .eq("is_platform_admin_company", false);
+        .eq("is_platform_admin_company", false)
+        // Le aziende cancellate restano nel database per 30 giorni ma non
+        // devono comparire nell'operatività né nei conteggi.
+        .is("deleted_at", null);
       if (permissions.allowed_company_ids?.length) {
         q = q.in("id", permissions.allowed_company_ids);
       }
@@ -565,7 +568,9 @@ export default function CompaniesList() {
           "id, name, email, status, sector, logo_url, payment_method, trial_ends_at, created_at, stripe_customer_id, stripe_subscription_status, is_platform_admin_company, subscription_plan_id, subscription_plans:subscription_plan_id(id, name, price_monthly, price_yearly, max_orders, max_users), company_billing_overrides(service, custom_plan_price_eur, override_expires_at, is_enabled)",
           { count: "exact" }
         )
-        .eq("is_platform_admin_company", false);
+        .eq("is_platform_admin_company", false)
+        // Cancellate = invisibili qui, ma ancora ripristinabili per 30 giorni.
+        .is("deleted_at", null);
 
       // Server-side text search. `.or()` is comma-separated in PostgREST:
       // sanitize pasted commas/percent signs so search cannot break the filter.

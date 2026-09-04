@@ -27,10 +27,22 @@ export interface AdminDashboardStats {
 }
 
 export interface AdminMrrStats {
+  /** Incassato reale: somma degli abbonamenti attivi letti da Stripe. */
   mrr: number;
+  arr?: number;
+  /** Somma dei piani assegnati alle aziende attive: non tutte pagano. */
+  mrrContrattualizzato?: number;
+  /** Valore concesso gratuitamente. Prima finiva sommato dentro `mrr`. */
+  mrrRegalato?: number;
+  /** Giorno dello snapshot Stripe da cui viene `mrr`. */
+  mrrSnapshotDate?: string | null;
   trialCount: number;
   trialExpiringSoon: number;
+  /** Trial già scaduti che nessuno ha ancora chiuso. */
+  trialScadutiNonGestiti?: number;
   churnRate: number;
+  /** null quando nessun trial si è ancora concluso: nessun numero è meglio di uno inventato. */
+  trialConversionRate?: number | null;
   activeCount: number;
   expiredCount: number;
 }

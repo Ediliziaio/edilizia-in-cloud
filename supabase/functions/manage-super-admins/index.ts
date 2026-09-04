@@ -310,18 +310,23 @@ Deno.serve(async (req) => {
     }
 
     // === DELETE COMPANY ===
+    // Cancellazione REVERSIBILE. Prima qui c'era una DELETE diretta su
+    // companies: con 702 vincoli ON DELETE CASCADE appesi, un clic distruggeva
+    // definitivamente ordini, preventivi, documenti e fatture del cliente,
+    // senza backup e senza possibilità di ripristino.
+    // Ora: export completo su storage → cancellazione logica → 30 giorni di
+    // finestra di ripristino → purge definitivo dal job notturno.
     if (action === "delete-company") {
-      const { companyId } = body;
+      const { companyId, reason } = body;
       if (!companyId) {
         return new Response(JSON.stringify({ error: "companyId obbligatorio" }), {
           status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
         });
       }
 
-      // Get company info before deletion for audit
       const { data: company } = await supabaseAdmin
         .from("companies")
-        .select("name, email")
+        .select("*")
         .eq("id", companyId)
         .maybeSingle();
 
@@ -330,20 +335,109 @@ Deno.serve(async (req) => {
           status: 404, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
         });
       }
+      if (company.deleted_at) {
+        return new Response(
+          JSON.stringify({ error: `Azienda già cancellata il ${String(company.deleted_at).slice(0, 10)}` }),
+          { status: 409, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } },
+        );
+      }
 
-      const { error: deleteError } = await supabaseAdmin
-        .from("companies")
-        .delete()
-        .eq("id", companyId);
+      // 1. Export prima di toccare qualsiasi cosa. Se l'export fallisce la
+      //    cancellazione non parte: meglio non cancellare che cancellare al buio.
+      let exportPath: string | null = null;
+      try {
+        const [profiles, orders, quotes, invoices, customers] = await Promise.all([
+          supabaseAdmin.from("profiles").select("*").eq("company_id", companyId),
+          supabaseAdmin.from("orders").select("*").eq("company_id", companyId),
+          supabaseAdmin.from("quotes").select("*").eq("company_id", companyId),
+          supabaseAdmin.from("invoices").select("*").eq("company_id", companyId),
+          supabaseAdmin.from("customers").select("*").eq("company_id", companyId),
+        ]);
 
-      if (deleteError) throw new Error(deleteError.message);
+        const dump = {
+          exported_at: new Date().toISOString(),
+          exported_by: callerId,
+          reason: reason ?? null,
+          company,
+          profiles: profiles.data ?? [],
+          orders: orders.data ?? [],
+          quotes: quotes.data ?? [],
+          invoices: invoices.data ?? [],
+          customers: customers.data ?? [],
+        };
 
-      await logAudit(supabaseAdmin, callerId, "delete_company", "company", companyId, {
+        exportPath = `${companyId}/${new Date().toISOString().slice(0, 10)}-pre-delete.json`;
+        const { error: upErr } = await supabaseAdmin.storage
+          .from("company-exports")
+          .upload(exportPath, new Blob([JSON.stringify(dump, null, 2)], { type: "application/json" }), {
+            upsert: true,
+            contentType: "application/json",
+          });
+        if (upErr) throw new Error(upErr.message);
+      } catch (e) {
+        console.error("[delete-company] export fallito:", e);
+        return new Response(
+          JSON.stringify({
+            error: "Export pre-cancellazione fallito: l'azienda NON è stata toccata. " +
+                   ((e as Error)?.message ?? ""),
+          }),
+          { status: 500, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } },
+        );
+      }
+
+      // 2. Cancellazione logica: nasconde l'azienda e blocca i suoi utenti.
+      const { data: soft, error: softErr } = await supabaseAdmin.rpc("soft_delete_company", {
+        p_company_id: companyId,
+        p_actor_id: callerId,
+        p_reason: reason ?? null,
+        p_export_path: exportPath,
+      });
+      if (softErr) throw new Error(softErr.message);
+      if ((soft as Record<string, unknown>)?.error) {
+        return new Response(JSON.stringify({ error: (soft as Record<string, unknown>).error }), {
+          status: 409, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+        });
+      }
+
+      await logAudit(supabaseAdmin, callerId, "soft_delete_company", "company", companyId, {
         company_name: company.name,
         company_email: company.email,
+        reason: reason ?? null,
+        export_path: exportPath,
+        recuperabile_fino_al: (soft as Record<string, unknown>)?.recuperabile_fino_al ?? null,
       });
 
-      return new Response(JSON.stringify({ success: true }), {
+      return new Response(JSON.stringify({ success: true, ...(soft as object) }), {
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+      });
+    }
+
+    // === RESTORE COMPANY ===
+    // Riporta in vita un'azienda cancellata entro i 30 giorni.
+    if (action === "restore-company") {
+      const { companyId } = body;
+      if (!companyId) {
+        return new Response(JSON.stringify({ error: "companyId obbligatorio" }), {
+          status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+        });
+      }
+
+      const { data: res, error: resErr } = await supabaseAdmin.rpc("restore_company", {
+        p_company_id: companyId,
+        p_actor_id: callerId,
+      });
+      if (resErr) throw new Error(resErr.message);
+      if ((res as Record<string, unknown>)?.error) {
+        return new Response(JSON.stringify({ error: (res as Record<string, unknown>).error }), {
+          status: 409, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+        });
+      }
+
+      await logAudit(supabaseAdmin, callerId, "restore_company", "company", companyId, {
+        company_name: (res as Record<string, unknown>)?.company_name ?? null,
+      });
+
+      return new Response(JSON.stringify({ success: true, ...(res as object) }), {
         headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
