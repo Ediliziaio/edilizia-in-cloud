@@ -396,6 +396,11 @@ function WebhookFormDialog({
                 {allSelected ? "Deseleziona tutti" : "Seleziona tutti"}
               </Button>
             </div>
+            <p className="text-xs text-muted-foreground">
+              La scelta viene salvata, ma oggi nessuno di questi eventi fa
+              partire una chiamata: l'unica che parte è quella del pulsante
+              «Test» qui sopra.
+            </p>
             {Object.entries(WEBHOOK_EVENTS).map(([group, events]) => {
               const groupSelected = events.filter((e) => selectedEvents.includes(e)).length;
               const allGroupSelected = groupSelected === events.length;
@@ -732,7 +737,7 @@ export default function SettingsWebhooks() {
           <div>
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Webhook</h1>
             <p className="text-sm text-muted-foreground">
-              Ricevi notifiche eventi CRM su endpoint esterni
+              Endpoint esterni a cui mandare gli eventi del CRM
               {webhooks.length > 0 && (
                 <> · <span className="font-medium text-foreground">{activeCount}</span> attivi / {webhooks.length} totali</>
               )}
@@ -753,8 +758,25 @@ export default function SettingsWebhooks() {
         </Alert>
       )}
 
+      {/* La verità su cosa parte davvero. `send-webhook` è invocata da due soli
+          posti: il pulsante «Prova» qui sotto e il rinvio manuale di una
+          consegna. Nessun evento del prodotto — ordine creato, opportunità
+          vinta, pagamento ricevuto — la chiama. Chi costruisse un'integrazione
+          sugli eventi sottoscritti resterebbe in attesa per sempre, e lo
+          scoprirebbe solo dopo averla scritta. */}
+      <Alert>
+        <AlertTriangle className="h-4 w-4" />
+        <AlertDescription>
+          <span className="font-medium">Gli eventi non partono ancora da soli.</span>{" "}
+          Qui l'endpoint si configura, si firma e si prova col pulsante «Test»
+          — e quella chiamata arriva davvero. Ma nessun evento del gestionale (ordine creato, opportunità
+          vinta, pagamento ricevuto…) chiama ancora il tuo indirizzo: se stai
+          costruendo un'integrazione, sappilo prima di scriverla.
+        </AlertDescription>
+      </Alert>
+
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <WebhookStatCard label="Attivi" value={activeCount} description="endpoint in consegna" icon={WebhookIcon} tone="success" />
+        <WebhookStatCard label="Attivi" value={activeCount} description="endpoint configurati" icon={WebhookIcon} tone="success" />
         <WebhookStatCard label="Firmati" value={signedCount} description="con HMAC configurato" icon={ShieldCheck} />
         <WebhookStatCard label="Eventi" value={totalEvents} description="sottoscrizioni totali" icon={Zap} />
         <WebhookStatCard label="Con errori" value={failingCount} description="fallimenti consecutivi" icon={AlertTriangle} tone={failingCount > 0 ? "warning" : "default"} />
@@ -772,8 +794,10 @@ export default function SettingsWebhooks() {
             </div>
             <h3 className="text-lg font-semibold">Nessun webhook configurato</h3>
             <p className="text-muted-foreground text-sm mb-4 text-center max-w-md">
-              I webhook ti permettono di ricevere notifiche in tempo reale quando
-              accadono eventi nel tuo CRM — creazione contatti, opportunità chiuse, ecc.
+              Un webhook è l'indirizzo a cui il gestionale manderà gli eventi:
+              contatti creati, opportunità chiuse, pagamenti. Configurarlo e
+              provarlo funziona già; l'invio automatico degli eventi non è
+              ancora collegato.
             </p>
             <Button onClick={openCreate} disabled={!canManageWebhooks}><Plus className="h-4 w-4 mr-2" />Crea il primo webhook</Button>
           </CardContent>
