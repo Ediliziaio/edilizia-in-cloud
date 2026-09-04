@@ -4,6 +4,7 @@ import { emitPlatformEvent, PLATFORM_EVENTS } from "../_shared/platformAutomatio
 import { renderEmailTemplate } from "../_shared/renderTemplate.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
+import { conMetriche } from "../_shared/withMetrics.ts";
 
 interface OrderStatusTemplate {
   name: string;
@@ -90,7 +91,7 @@ function getOrderStatusTemplate(sector: CompanySector): OrderStatusTemplate[] {
   }
 }
 
-Deno.serve(async (req) => {
+Deno.serve(conMetriche("create-company", async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: getCorsHeaders(req) });
   }
@@ -379,6 +380,6 @@ Deno.serve(async (req) => {
 
     return errorResponse((error as Error).message);
   }
-});
+}));
 
 // redeploy 2026-06-25: propaga _shared email/branding (.it→.com + builder 58 email) — trigger CI HEAD~1 diff

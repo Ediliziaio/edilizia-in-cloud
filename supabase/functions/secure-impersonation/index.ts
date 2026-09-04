@@ -1,8 +1,9 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { isSuperAdminEmailAllowed } from "../_shared/auth.ts";
+import { conMetriche } from "../_shared/withMetrics.ts";
 
-Deno.serve(async (req) => {
+Deno.serve(conMetriche("secure-impersonation", async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: getCorsHeaders(req) });
   }
@@ -233,4 +234,4 @@ Deno.serve(async (req) => {
       status: 500, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
     });
   }
-});
+}));

@@ -3,6 +3,7 @@ import { auditHeaders } from "../_shared/auditContext.ts";
 
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { isSuperAdminEmailAllowed } from "../_shared/auth.ts";
+import { conMetriche } from "../_shared/withMetrics.ts";
 
 type SupabaseAdminClient = any;
 
@@ -216,7 +217,7 @@ async function reassignOrUnlinkRecords(
   return affected;
 }
 
-Deno.serve(async (req) => {
+Deno.serve(conMetriche("delete-company-user", async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: getCorsHeaders(req) });
   }
@@ -429,4 +430,4 @@ Deno.serve(async (req) => {
     const message = error instanceof Error ? error.message : "Errore interno";
     return jsonResponse(req, { error: message }, 500);
   }
-});
+}));

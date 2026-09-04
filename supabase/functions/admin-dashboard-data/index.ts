@@ -10,8 +10,9 @@
 
 import { getCorsHeaders, secureHeaders, errorResponse } from "../_shared/headers.ts";
 import { requireAuth } from "../_shared/auth.ts";
+import { conMetriche } from "../_shared/withMetrics.ts";
 
-Deno.serve(async (req) => {
+Deno.serve(conMetriche("admin-dashboard-data", async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: getCorsHeaders(req) });
   }
@@ -194,4 +195,4 @@ Deno.serve(async (req) => {
     const corsH = getCorsHeaders(req);
     return errorResponse((err as Error).message, 500, corsH);
   }
-});
+}));

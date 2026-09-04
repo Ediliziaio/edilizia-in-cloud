@@ -1,6 +1,7 @@
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { conMetriche } from "../_shared/withMetrics.ts";
 
-Deno.serve(async (req) => {
+Deno.serve(conMetriche("check-login-security", async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: getCorsHeaders(req) });
   }
@@ -224,4 +225,4 @@ Deno.serve(async (req) => {
       { status: 500, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
     );
   }
-});
+}));

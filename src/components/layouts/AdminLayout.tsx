@@ -27,6 +27,7 @@ import {
   BarChart3,
   Users,
   Activity,
+  AlertTriangle,
   FileText,
   Target,
   CalendarDays,
@@ -146,6 +147,9 @@ const allNavItems: AdminNavItem[] = [
   //   link dal catalogo Prodotti & Servizi; ora voce di menu sotto Fatturato.
   { title: "Clienti Servizi", url: "/admin/marketing/clienti-servizio", icon: Users, permission: "can_manage_marketing", subcategory: "sa_revenue" },
   // Fatturazione Elettronica — chi usa la FE, volumi, costi e wallet openapi.
+  // Insoluti: le quattro domande del recupero crediti (chi, quanto, da quando,
+  // cosa succede). Prima rispondeva solo una query SQL scritta a mano.
+  { title: "Insoluti", url: "/admin/insoluti", icon: AlertTriangle, permission: "billing_read", subcategory: "sa_revenue" },
   { title: "Fatturazione Elettronica", url: "/admin/fatturazione-elettronica", icon: Receipt, permission: "billing_read", subcategory: "sa_revenue" },
   // ─── AI MANAGEMENT — Hub unico (Operate · Monitor · Config · Memoria
   //     in tab in alto). 4 voci → 1. Coerenza con Fatturato/CS/Operazioni. ──

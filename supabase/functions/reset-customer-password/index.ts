@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { generateSecurePassword } from "../_shared/securePassword.ts";
 import { getCorsHeaders, secureHeaders, jsonResponse } from "../_shared/headers.ts";
+import { conMetriche } from "../_shared/withMetrics.ts";
 
 // Esegue un task in background DOPO la risposta: un invio email lento/bloccato non
 // deve far terminare la funzione per wall-clock prima del return (causa di
@@ -17,7 +18,7 @@ function runInBackground(p: Promise<unknown>): void {
   }
 }
 
-Deno.serve(async (req) => {
+Deno.serve(conMetriche("reset-customer-password", async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: getCorsHeaders(req) });
   }
@@ -180,4 +181,4 @@ Deno.serve(async (req) => {
       { headers: secureHeaders, status: 400 }
     );
   }
-});
+}));

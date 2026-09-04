@@ -6,6 +6,7 @@ import { emitPlatformEvent, PLATFORM_EVENTS } from "../_shared/platformAutomatio
 import { sendPlatformCapiEvent } from "../_shared/capiPlatform.ts";
 import { sendSystemEmail, getCompanyAdminContact, formatEur, formatDateIt } from "../_shared/systemEmail.ts";
 import { notificaInterna } from "../_shared/notificaInterna.ts";
+import { conMetriche } from "../_shared/withMetrics.ts";
 
 const APP_BASE = "https://app.ediliziaincloud.com";
 
@@ -1038,7 +1039,7 @@ async function handleReferralAttribution(
 
 // ─── Main Handler ──────────────────────────────────────────
 
-Deno.serve(async (req) => {
+Deno.serve(conMetriche("stripe-webhook", async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -1259,4 +1260,4 @@ Deno.serve(async (req) => {
       headers: secureHeaders,
     });
   }
-});
+}));

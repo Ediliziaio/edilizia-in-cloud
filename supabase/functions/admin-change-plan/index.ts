@@ -4,11 +4,12 @@ import { requireAuth, requireRole } from "../_shared/auth.ts";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import { emitPlatformEvent, PLATFORM_EVENTS } from "../_shared/platformAutomation.ts";
 import { sendSystemEmail, getCompanyAdminContact, formatEur, formatDateIt } from "../_shared/systemEmail.ts";
+import { conMetriche } from "../_shared/withMetrics.ts";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const APP_BASE = "https://app.ediliziaincloud.com";
 
-Deno.serve(async (req) => {
+Deno.serve(conMetriche("admin-change-plan", async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: getCorsHeaders(req) });
   }
@@ -252,4 +253,4 @@ Deno.serve(async (req) => {
     console.error("[admin-change-plan] Error:", err);
     return errorResponse("Errore interno", 500, corsH);
   }
-});
+}));

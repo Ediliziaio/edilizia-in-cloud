@@ -20,6 +20,7 @@ import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import { createOrGetStripeCustomer } from "../_shared/stripeHelpers.ts";
 import { renderEmailTemplate } from "../_shared/renderTemplate.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
+import { conMetriche } from "../_shared/withMetrics.ts";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -45,7 +46,7 @@ function json(req: Request, body: unknown, status = 200) {
   });
 }
 
-Deno.serve(async (req) => {
+Deno.serve(conMetriche("public-checkout", async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: getCorsHeaders(req) });
   }
@@ -331,4 +332,4 @@ Deno.serve(async (req) => {
     console.error("[public-checkout] fatal:", (e as Error).message);
     return json(req, { error: "Errore interno. Riprova tra poco." }, 500);
   }
-});
+}));

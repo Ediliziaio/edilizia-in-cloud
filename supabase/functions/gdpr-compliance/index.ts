@@ -1,7 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
+import { conMetriche } from "../_shared/withMetrics.ts";
 
-Deno.serve(async (req) => {
+Deno.serve(conMetriche("gdpr-compliance", async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: getCorsHeaders(req) });
   }
@@ -385,4 +386,4 @@ Deno.serve(async (req) => {
     console.error("gdpr-compliance error:", e);
     return errorResponse(e.message || "Errore interno", 500);
   }
-});
+}));

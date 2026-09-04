@@ -4,8 +4,9 @@ import { getCorsHeaders } from "../_shared/headers.ts";
 import { getCompanyBillingConfig } from "../_shared/billingConfig.ts";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import { createOrGetStripeCustomer } from "../_shared/stripeHelpers.ts";
+import { conMetriche } from "../_shared/withMetrics.ts";
 
-Deno.serve(async (req) => {
+Deno.serve(conMetriche("create-checkout-session", async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: getCorsHeaders(req) });
   }
@@ -794,4 +795,4 @@ Deno.serve(async (req) => {
       headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
     });
   }
-});
+}));

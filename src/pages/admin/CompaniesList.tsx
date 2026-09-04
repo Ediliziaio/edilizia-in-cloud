@@ -640,16 +640,54 @@ export default function CompaniesList() {
         query = query.order(serverSortColumn, { ascending });
       }
 
-      // Le colonne calcolate client-side (mrr/ordini/utenti/ultimo accesso/…)
-      // non sono ordinabili dal server: per non mentire (prima si ordinava
-      // SOLO la pagina corrente, spacciandola per top globale) scarichiamo
-      // l'intero set filtrato e ordiniamo/paginiamo client-side. Il costo è
-      // paragonabile alla query summary già eseguita a ogni load.
+      // Colonne calcolate (MRR, utenti, clienti, ordini, ultimo accesso, piano).
+      //
+      // Prima si scaricavano fino a 5.000 righe e si ordinava lato client:
+      // oltre quella soglia la classifica era sbagliata e nulla lo segnalava —
+      // il difetto di scala più insidioso, perché non rallenta, mente.
+      //
+      // Ora l'ordinamento avviene sul database (mv_company_metrics, aggiornata
+      // ogni 15 minuti) e torna solo la pagina richiesta: 50 id invece di 5.000
+      // righe, corretti a qualunque numero di aziende.
       if (isClientSort) {
-        query = query.limit(5000);
-      } else {
-        query = query.range(from, to);
+        const { data: ordinati, error: errOrd } = await supabase.rpc(
+          "admin_order_companies" as never,
+          {
+            p_sort: sortKey,
+            p_desc: sortDir === "desc",
+            p_search: sanitizeOrSearchTerm(debouncedSearch) || null,
+            p_status: statusFilter !== "all" ? statusFilter : null,
+            p_plan_id: planFilter !== "all" ? planFilter : null,
+            p_allowed_ids: permissions.allowed_company_ids ?? null,
+            p_limit: SERVER_PAGE_SIZE,
+            p_offset: from,
+          } as never,
+        );
+        if (errOrd) throw errOrd;
+
+        const righe = (ordinati ?? []) as unknown as Array<{
+          company_id: string; posizione: number; totale: number;
+        }>;
+        if (righe.length === 0) return { data: [], totalCount: righe[0]?.totale ?? 0 };
+
+        const idsPagina = righe.map((r) => r.company_id);
+        const { data: complete, error: errComp } = await query.in("id", idsPagina);
+        if (errComp) throw errComp;
+
+        // PostgREST non garantisce l'ordine di `.in()`: lo ristabiliamo noi
+        // seguendo la sequenza decisa dal database.
+        const perId = new Map((complete ?? []).map((c) => [c.id, c]));
+        const ordinate = idsPagina
+          .map((id) => perId.get(id))
+          .filter(Boolean) as NonNullable<ReturnType<typeof perId.get>>[];
+
+        return {
+          data: applyPlanPriceOverride(ordinate),
+          totalCount: Number(righe[0]?.totale ?? 0),
+        };
       }
+
+      query = query.range(from, to);
 
       const { data, error, count } = await query;
       if (error) throw error;
@@ -762,39 +800,14 @@ export default function CompaniesList() {
     return companies;
   }, [companies]);
 
-  // Client-side sort for sort keys that require cross-query data (mrr, orders, users, lastAccess).
-  // Con isClientSort la query ha scaricato TUTTO il set filtrato: qui si
-  // ordina l'intero dataset e si estrae la finestra della pagina corrente.
-  const pagedCompanies = useMemo(() => {
-    if (!isClientSort) {
-      // Already sorted server-side
-      return filteredCompanies;
-    }
-    const dir = sortDir === "asc" ? 1 : -1;
-    const sorted = [...filteredCompanies].sort((a, b) => {
-      const planA = a.subscription_plans as { id: string; name: string; price_monthly: number } | null;
-      const planB = b.subscription_plans as { id: string; name: string; price_monthly: number } | null;
-      switch (sortKey) {
-        case "plan": return dir * (planA?.name || "").localeCompare(planB?.name || "");
-        case "mrr":
-          return dir * (
-            (isRevenueEligibleCompany(a) ? getCompanyMonthlyRevenue(a) : 0) -
-            (isRevenueEligibleCompany(b) ? getCompanyMonthlyRevenue(b) : 0)
-          );
-        case "orders": return dir * ((orderStats[a.id]?.count || 0) - (orderStats[b.id]?.count || 0));
-        case "users": return dir * ((userCounts[a.id] || 0) - (userCounts[b.id] || 0));
-        case "customers": return dir * ((customerCounts[a.id] || 0) - (customerCounts[b.id] || 0));
-        case "lastAccess": {
-          const la = lastAccessData[a.id] ? new Date(lastAccessData[a.id]!).getTime() : 0;
-          const lb = lastAccessData[b.id] ? new Date(lastAccessData[b.id]!).getTime() : 0;
-          return dir * (la - lb);
-        }
-        default: return 0;
-      }
-    });
-    const from = (currentPage - 1) * SERVER_PAGE_SIZE;
-    return sorted.slice(from, from + SERVER_PAGE_SIZE);
-  }, [filteredCompanies, isClientSort, sortKey, sortDir, orderStats, userCounts, customerCounts, lastAccessData, currentPage]);
+  // L'ordinamento avviene ora interamente sul database, anche per le colonne
+  // calcolate (MRR, utenti, clienti, ordini, ultimo accesso, piano): la query
+  // restituisce già la pagina corretta, ordinata sull'intero insieme.
+  //
+  // Prima qui si riordinava e si affettava un blocco di 5.000 righe scaricate
+  // dal server. Rifarlo ora romperebbe l'ordine deciso dal database e
+  // taglierebbe una pagina già tagliata.
+  const pagedCompanies = filteredCompanies;
 
   // ID della PAGINA visibile (dopo sort/paginazione client): tags e note
   // vengono caricate solo per queste righe.
