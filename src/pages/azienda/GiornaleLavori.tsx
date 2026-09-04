@@ -18,7 +18,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Slider } from "@/components/ui/slider";
-import { NotebookPen, Plus, MapPin, Camera, Loader2, Sun, Cloud, CloudRain, Snowflake, Wind, Download, X } from "lucide-react";
+import { NotebookPen, Plus, MapPin, Camera, Loader2, Sun, Cloud, CloudRain, Snowflake, Wind, Download, X, Trash2 } from "lucide-react";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { format } from "date-fns";
 import { GiornaleCard } from "@/components/orders/GiornaleCard";
 import { EntityCustomFieldsSection } from "@/components/shared/EntityCustomFieldsSection";
@@ -59,6 +64,9 @@ export default function GiornaleLavori() {
   const companyId = effectiveCompany?.id;
   const permissions = usePermissions();
   const canEditGiornale = permissions.isAdmin || permissions.canEditGiornaleLavori;
+  const isMobile = useIsMobile();
+  /** Il rapportino che si sta per cancellare, in attesa di conferma. */
+  const [daCancellare, setDaCancellare] = useState<any | null>(null);
   const queryClient = useQueryClient();
   const { isScopriPlan } = useSubscriptionLimits();
   const [searchParams] = useSearchParams();
@@ -366,6 +374,57 @@ export default function GiornaleLavori() {
     onError: (err: Error) => toast.error(err.message),
   });
 
+  /**
+   * Cancella un rapportino sbagliato.
+   *
+   * Finora un report si poteva scrivere e — da poco — correggere, ma non
+   * disfare: un rapportino inserito sull'ordine sbagliato, o doppio, restava
+   * nel diario ufficiale del cantiere per sempre.
+   *
+   * Le foto non si cancellano da sole: `giornale_foto` sparirebbe anche in
+   * CASCADE, ma i file nel bucket resterebbero lì a occupare spazio senza
+   * nessuna riga che li nomini. Qui si tolgono prima i file, poi le righe,
+   * poi il rapportino — e se i file non si cancellano si va avanti lo stesso:
+   * meglio un file orfano che un rapportino sbagliato che non si può togliere.
+   */
+  const eliminaEntry = useMutation({
+    mutationFn: async (entry: { id: string }) => {
+      if (!canEditGiornale) throw new Error("Permesso di modifica del Giornale non attivo");
+      if (!companyId) throw new Error("Azienda non disponibile");
+
+      const { data: foto } = await supabase
+        .from("giornale_foto")
+        .select("id, storage_path")
+        .eq("giornale_id", entry.id);
+
+      const percorsi = (foto ?? [])
+        .map((f: { storage_path: string | null }) => f.storage_path)
+        .filter((p): p is string => !!p);
+      if (percorsi.length > 0) {
+        await supabase.storage.from("giornale-foto").remove(percorsi);
+      }
+      await supabase.from("giornale_foto").delete().eq("giornale_id", entry.id);
+
+      const { error } = await supabase
+        .from("giornale_lavori")
+        .delete()
+        .eq("id", entry.id)
+        .eq("company_id", companyId);
+      if (error) throw new Error(error.message);
+      return percorsi.length;
+    },
+    onSuccess: (nFoto) => {
+      toast.success("Rapportino eliminato", {
+        description: nFoto > 0 ? `Rimosse anche ${nFoto} foto.` : undefined,
+      });
+      setDaCancellare(null);
+      setSheetOpen(false);
+      resetForm();
+      queryClient.invalidateQueries({ queryKey: ["giornale-lavori", companyId, selectedOrderId] });
+    },
+    onError: (err: Error) => toast.error("Impossibile eliminare", { description: err.message }),
+  });
+
   const handleExportPdf = async () => {
     if (!companyId) return;
     setIsExporting(true);
@@ -403,14 +462,18 @@ export default function GiornaleLavori() {
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <Button variant="outline" size="sm" className="border-slate-200 bg-white/80 hover:bg-white" onClick={handleExportPdf} disabled={isExporting}>
-              {isExporting ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Download className="h-4 w-4" />
-              )}
-              <span className="hidden sm:inline ml-1">{isExporting ? "Generazione..." : "Esporta PDF"}</span>
-            </Button>
+            {/* Su telefono niente export: qui era icon-only, ma un pulsante che
+                scarica un PDF resta un download anche senza etichetta. */}
+            {!isMobile && (
+              <Button variant="outline" size="sm" className="border-slate-200 bg-white/80 hover:bg-white" onClick={handleExportPdf} disabled={isExporting}>
+                {isExporting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="h-4 w-4" />
+                )}
+                <span className="ml-1">{isExporting ? "Generazione..." : "Esporta PDF"}</span>
+              </Button>
+            )}
             {canEditGiornale && (
               <Button size="sm" className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-200 hover:from-orange-600 hover:to-amber-600" onClick={openNew}>
                 <Plus className="h-4 w-4" />
@@ -775,14 +838,29 @@ export default function GiornaleLavori() {
                 )}
               </Button>
               {editingEntry?.id && (
-                <Button
-                  className="w-full"
-                  size="lg"
-                  variant="outline"
-                  onClick={() => { setSheetOpen(false); resetForm(); }}
-                >
-                  Chiudi
-                </Button>
+                /* Chiudi riempie la riga, Elimina è l'azione secondaria e
+                   sta stretta: su 375 px la riga resta piena e la scelta
+                   pericolosa non è quella grande. */
+                <div className="flex gap-2">
+                  <Button
+                    className="flex-1"
+                    size="lg"
+                    variant="outline"
+                    onClick={() => { setSheetOpen(false); resetForm(); }}
+                  >
+                    Chiudi
+                  </Button>
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    className="shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                    onClick={() => setDaCancellare(editingEntry)}
+                    aria-label="Elimina questo rapportino"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    <span className="ml-1.5 hidden sm:inline">Elimina</span>
+                  </Button>
+                </div>
               )}
             </div>
           </div>
@@ -810,6 +888,34 @@ export default function GiornaleLavori() {
       >
         <Plus className="h-7 w-7" aria-hidden="true" />
       </button>
+
+      <AlertDialog open={!!daCancellare} onOpenChange={(o) => { if (!o) setDaCancellare(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminare questo rapportino?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {daCancellare?.data_lavori
+                ? `Il report del ${format(new Date(daCancellare.data_lavori), "dd/MM/yyyy")} `
+                : "Il report "}
+              sparisce dal diario del cantiere
+              {(daCancellare?.giornale_foto?.length ?? 0) > 0
+                ? `, insieme alle sue ${daCancellare.giornale_foto.length} foto`
+                : ""}
+              . Non si può annullare.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={(e) => { e.preventDefault(); if (daCancellare) eliminaEntry.mutate(daCancellare); }}
+              disabled={eliminaEntry.isPending}
+            >
+              {eliminaEntry.isPending ? "Elimino..." : "Elimina"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
