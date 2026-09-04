@@ -26,6 +26,7 @@ import {
   Bot,
   BarChart3,
   Users,
+  Activity,
   FileText,
   Target,
   CalendarDays,
@@ -132,6 +133,10 @@ const allNavItems: AdminNavItem[] = [
   // ─── FATTURATO (sa_revenue) — lista clienti + revenue + piani uniti ───
   // Aziende è l'item primario perché è la lista dei clienti/paganti
   { title: "Aziende", url: "/admin/aziende", icon: Building, permission: "can_manage_companies", subcategory: "sa_revenue" },
+  // Utenti: voce mancante fino alla Fase 2 del piano di risalita. Senza di
+  // essa il SuperAdmin non poteva cercare una persona su tutta la piattaforma,
+  // vederne sessioni e dispositivi, bloccarla o resettarne la password.
+  { title: "Utenti", url: "/admin/utenti", icon: Users, permission: "can_manage_companies", subcategory: "sa_revenue" },
   // ⚡ Hub Fatturato — 5 tab in alto sostituiscono 5 voci sidebar separate
   // (Revenue · Piani · Fatture · Promo · Dunning). Pulisce visualmente la
   // navigazione mantenendo l'accesso a tutti i sotto-strumenti con 1 click.
@@ -162,6 +167,9 @@ const allNavItems: AdminNavItem[] = [
   // Manodopera (costo orario) — tariffe orarie edili ufficiali, curate dal super-admin.
   { title: "Manodopera (costo orario)", url: "/admin/manodopera-tariffe", icon: HardHat, permission: "can_manage_companies", subcategory: "sa_listini" },
   { title: "Annunci", url: "/admin/annunci", icon: Megaphone, permission: "can_view_platform_stats", subcategory: "sa_prodotto" },
+  // Salute piattaforma: job falliti, errori ed elementi che richiedono
+  // attenzione. Prima un guasto si scopriva quando chiamava il cliente.
+  { title: "Salute piattaforma", url: "/admin/salute", icon: Activity, permission: "can_view_platform_stats", subcategory: "sa_operazioni" },
   // ⚠️ "Operazioni" rimosso dalla sidebar principale: è materia di
   //    amministrazione di sistema (sync, alert, import, GDPR, audit) e
   //    duplicava parzialmente "Registro Attività" già presente in

@@ -14,6 +14,8 @@ const CompaniesList = lazy(() => import("@/pages/admin/CompaniesList"));
 const CreateCompany = lazy(() => import("@/pages/admin/CreateCompany"));
 const CompanyDetail = lazy(() => import("@/pages/admin/CompanyDetail"));
 const AuditUnifiedPage = lazy(() => import("@/pages/admin/AuditUnifiedPage"));
+const UsersList = lazy(() => import("@/pages/admin/UsersList"));
+const PlatformHealthPage = lazy(() => import("@/pages/admin/PlatformHealthPage"));
 // AdminSettingsProfile rimosso: sostituito da AdminMioProfilo (tab Profilo/
 // Sicurezza/Calendari/Email/Notifiche). Vecchia route /admin/impostazioni/
 // profilo redirige a /mio-profilo per back-compat.
@@ -215,6 +217,12 @@ export default function AdminRoutesContainer() {
         <Route index element={<RequireAdminPermission permission="can_view_platform_stats"><AdminDashboard /></RequireAdminPermission>} />
         <Route path="menu" element={<RequireAdminPermission permission="can_view_platform_stats"><AdminMobileMenu /></RequireAdminPermission>} />
         <Route path="aziende" element={<RequireSuperAdmin><CompaniesList /></RequireSuperAdmin>} />
+        {/* Gestione utenti globale: prima non esisteva, le persone erano
+            raggiungibili solo passando dall'azienda di appartenenza. */}
+        <Route path="utenti" element={<RequireSuperAdmin><UsersList /></RequireSuperAdmin>} />
+        {/* Salute piattaforma: job, errori e latenza. Prima un guasto si
+            scopriva quando chiamava il cliente. */}
+        <Route path="salute" element={<RequireAdminPermission permission="can_view_platform_stats"><PlatformHealthPage /></RequireAdminPermission>} />
         <Route path="aziende/nuova" element={<RequireSuperAdmin><CreateCompany /></RequireSuperAdmin>} />
         <Route path="aziende/:id" element={<RequireSuperAdmin><CompanyDetail /></RequireSuperAdmin>} />
         {/* /admin/ticket → redirect verso tab "assistenza" dentro hub CS (più sotto) */}
