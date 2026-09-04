@@ -32,6 +32,7 @@ import {
   CloudUpload, Shrink, Eraser, Check, AlertTriangle,
 } from "lucide-react";
 
+import { useIsMobile } from "@/hooks/use-mobile";
 const MAX_IMAGES = 60;
 const MAX_PDF_MB = 80;
 
@@ -174,6 +175,7 @@ interface Props {
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export function PdfToolkitDialog({ open, onOpenChange }: Props) {
+  const isMobile = useIsMobile();
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id ?? null;
 
@@ -779,10 +781,13 @@ export function PdfToolkitDialog({ open, onOpenChange }: Props) {
                       {imgBusy === "drive" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CloudUpload className="h-4 w-4" />}
                       Salva in Drive
                     </Button>
-                    <Button onClick={() => void handleImagesAction("download")} disabled={imgBusy !== null} className="gap-2 bg-orange-500 hover:bg-orange-600">
-                      {imgBusy === "download" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                      Scarica PDF ({images.length})
-                    </Button>
+                    {/* Niente scarico su telefono: «Salva in Drive» resta. */}
+                    {!isMobile && (
+                      <Button onClick={() => void handleImagesAction("download")} disabled={imgBusy !== null} className="gap-2 bg-orange-500 hover:bg-orange-600">
+                        {imgBusy === "download" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                        Scarica PDF ({images.length})
+                      </Button>
+                    )}
                   </div>
                 </div>
               </>
@@ -976,10 +981,13 @@ export function PdfToolkitDialog({ open, onOpenChange }: Props) {
                           {expBusy === "drive" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CloudUpload className="h-4 w-4" />}
                           Salva in Drive
                         </Button>
-                        <Button onClick={() => void handleExportAction("download")} disabled={expBusy !== null} className="gap-2 bg-orange-500 hover:bg-orange-600">
-                          {expBusy === "download" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                          Esporta PDF
-                        </Button>
+                        {/* Niente scarico su telefono: «Salva in Drive» resta. */}
+                        {!isMobile && (
+                          <Button onClick={() => void handleExportAction("download")} disabled={expBusy !== null} className="gap-2 bg-orange-500 hover:bg-orange-600">
+                            {expBusy === "download" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                            Esporta PDF
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </>

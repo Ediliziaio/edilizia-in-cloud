@@ -17,6 +17,7 @@ import { useShipmentDDTPDF } from "@/hooks/useShipmentDDTPDF";
 import { useBillingMode } from "@/contexts/BillingModeContext";
 import { formatCurrency } from "@/lib/formatters";
 
+import { useIsMobile } from "@/hooks/use-mobile";
 interface Props {
   /** id magazzino selezionato in UI; null = tutti i magazzini visibili via RLS. */
   warehouseFilter: string | null;
@@ -71,6 +72,7 @@ function fmtDate(d: string | null | undefined) {
  *              dal flusso "Spedisci a cantiere" alla generazione del DDT.
  */
 export function WarehouseDDTTab({ warehouseFilter, onRegisterArrival }: Props) {
+  const isMobile = useIsMobile();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const navigate = useNavigate();
@@ -292,20 +294,23 @@ export function WarehouseDDTTab({ warehouseFilter, onRegisterArrival }: Props) {
                       <TableCell className="text-right">{formatCurrency(d.totale_documento)}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => generateDDT(d.id)}
-                            disabled={isGenerating}
-                            aria-label={`Scarica PDF del DDT ${d.numero}`}
-                          >
-                            {isGenerating ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin sm:mr-1.5" />
-                            ) : (
-                              <Download className="h-3.5 w-3.5 sm:mr-1.5" />
-                            )}
-                            <span className="hidden sm:inline">Scarica DDT</span>
-                          </Button>
+                          {/* Niente export su telefono. */}
+                          {!isMobile && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => generateDDT(d.id)}
+                              disabled={isGenerating}
+                              aria-label={`Scarica PDF del DDT ${d.numero}`}
+                            >
+                              {isGenerating ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin sm:mr-1.5" />
+                              ) : (
+                                <Download className="h-3.5 w-3.5 sm:mr-1.5" />
+                              )}
+                              <span className="hidden sm:inline">Scarica DDT</span>
+                            </Button>
+                          )}
                           {isNative && (
                             <Button
                               variant="ghost"

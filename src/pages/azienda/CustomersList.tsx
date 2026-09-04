@@ -73,9 +73,11 @@ import { getCustomerAnomalies, getWorstSeverity } from "./CustomersList/anomalie
 import { useColumnVisibility } from "./CustomersList/hooks/useColumnVisibility";
 
 
+import { useIsMobile } from "@/hooks/use-mobile";
 /* ─── KPI Card ──────────────────────────────────────────────────── */
 /* ─── Main ──────────────────────────────────────────────────────── */
 function CustomersListInner() {
+  const isMobile = useIsMobile();
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [filterSalesperson, setFilterSalesperson] = useState<string>("all");
@@ -1240,10 +1242,13 @@ function CustomersListInner() {
                   Assegna venditore
                 </Button>
               )}
-              <Button size="sm" variant="outline" onClick={() => handleExport("xlsx", "selected")}>
-                <Download className="h-4 w-4 mr-1.5" />
-                Esporta Excel
-              </Button>
+              {/* Niente export su telefono. */}
+              {!isMobile && (
+                <Button size="sm" variant="outline" onClick={() => handleExport("xlsx", "selected")}>
+                  <Download className="h-4 w-4 mr-1.5" />
+                  Esporta Excel
+                </Button>
+              )}
               {canEditCustomers && (
                 <Button size="sm" variant="destructive" onClick={() => setBulkDeleteOpen(true)}>
                   <Trash2 className="h-4 w-4 mr-1.5" />

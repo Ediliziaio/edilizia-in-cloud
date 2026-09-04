@@ -19,6 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ArrowLeft, Download, Mail, Loader2, RefreshCw, ExternalLink, Link2, Briefcase } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 
+import { useIsMobile } from "@/hooks/use-mobile";
 const STATUS_CONFIG: Record<string, { label: string; color: string; emoji: string }> = {
   draft:     { label: "Bozza",       color: "bg-muted text-muted-foreground",       emoji: "📝" },
   issued:    { label: "Emessa",      color: "bg-blue-100 text-blue-800",            emoji: "📤" },
@@ -37,6 +38,7 @@ const PROVIDER_LABELS: Record<string, string> = {
 };
 
 export default function InvoiceDetail() {
+  const isMobile = useIsMobile();
   const { id } = useParams();
   const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
@@ -228,9 +230,12 @@ export default function InvoiceDetail() {
         </h1>
         <Badge variant="secondary" className={cfg.color}>{cfg.emoji} {cfg.label}</Badge>
         <div className="flex items-center gap-2 ml-auto">
-          <Button variant="outline" size="sm" onClick={downloadPdf}>
-            <Download className="h-4 w-4 mr-2" /> Scarica PDF
-          </Button>
+          {/* Niente export su telefono. */}
+          {!isMobile && (
+            <Button variant="outline" size="sm" onClick={downloadPdf}>
+              <Download className="h-4 w-4 mr-2" /> Scarica PDF
+            </Button>
+          )}
           <Dialog open={emailOpen} onOpenChange={setEmailOpen}>
             <DialogTrigger asChild>
               <Button variant="outline" size="sm">

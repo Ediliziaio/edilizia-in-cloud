@@ -87,6 +87,7 @@ import { CreaNotaCreditoDialog } from "@/components/orders/CreaNotaCreditoDialog
 import { downloadNativePDF } from "@/lib/fatturazione/generatePDF";
 import { calculateCollectedNetFromInstallments, calculateCollectedGrossFromInstallments } from "@/lib/commissions";
 
+import { useIsMobile } from "@/hooks/use-mobile";
 // ── Giornale Tab Content ─────────────────────────────────────────
 
 // ── Order Alert logic ────────────────────────────────────────────
@@ -285,6 +286,7 @@ interface LinkedFiscalDocument {
 // ── Inner Component ───────────────────────────────────────────────
 
 function OrderDetailInner() {
+  const isMobile = useIsMobile();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user, effectiveCompany } = useAuth();
@@ -1677,16 +1679,19 @@ function OrderDetailInner() {
                             <span className="text-muted-foreground whitespace-nowrap">
                               {formatCurrency(f.totale_da_pagare)}
                             </span>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                              aria-label={`Scarica ${f.numero}`}
-                              onClick={() => handleDownloadFiscalDocument(f)}
-                            >
-                              <Download className="h-4 w-4" />
-                            </Button>
+                            {/* Niente export su telefono. */}
+                            {!isMobile && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                aria-label={`Scarica ${f.numero}`}
+                                onClick={() => handleDownloadFiscalDocument(f)}
+                              >
+                                <Download className="h-4 w-4" />
+                              </Button>
+                            )}
                           </div>
                         </div>
                       ))}

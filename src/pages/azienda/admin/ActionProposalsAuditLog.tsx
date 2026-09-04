@@ -26,6 +26,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
+import { useIsMobile } from "@/hooks/use-mobile";
 const EVENT_TYPES = [
   "all",
   "created",
@@ -52,6 +53,7 @@ interface AuditRow {
 }
 
 export default function ActionProposalsAuditLog() {
+  const isMobile = useIsMobile();
   const companyId = useEffectiveCompanyId();
   const [eventType, setEventType] = useState<string>("all");
   const [searchProposal, setSearchProposal] = useState("");
@@ -197,9 +199,12 @@ export default function ActionProposalsAuditLog() {
                 </Badge>
               ))}
             </span>
-            <Button size="sm" variant="outline" onClick={exportCSV} disabled={rows.length === 0}>
-              <Download className="h-4 w-4 mr-2" /> Esporta CSV
-            </Button>
+            {/* Niente export su telefono. */}
+            {!isMobile && (
+              <Button size="sm" variant="outline" onClick={exportCSV} disabled={rows.length === 0}>
+                <Download className="h-4 w-4 mr-2" /> Esporta CSV
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>

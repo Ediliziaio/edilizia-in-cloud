@@ -32,6 +32,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Card, CardContent } from "@/components/ui/card";
 
+import { useIsMobile } from "@/hooks/use-mobile";
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Modalita = "pz" | "mq" | "misura_libera" | "griglia";
 type UM = "ml" | "h" | "mc" | "kg" | "corpo";
@@ -847,6 +848,7 @@ function ArticleDialog({
 
 // ─── Main Component ────────────────────────────────────────────────────────────
 export function ArticleCatalog() {
+  const isMobile = useIsMobile();
   const { effectiveCompany, role } = useAuth() as any;
   const isAdmin = role === "company_admin" || role === "super_admin";
   const companyId = effectiveCompany?.id as string | undefined;
@@ -1091,9 +1093,12 @@ export function ArticleCatalog() {
         <Button variant="outline" size="sm" onClick={() => setCsvOpen(true)}>
           <Upload className="h-4 w-4 mr-2" />Importa CSV
         </Button>
-        <Button variant="outline" size="sm" onClick={exportExcel}>
-          <Download className="h-4 w-4 mr-2" />Esporta Excel
-        </Button>
+        {/* Niente export su telefono. */}
+        {!isMobile && (
+          <Button variant="outline" size="sm" onClick={exportExcel}>
+            <Download className="h-4 w-4 mr-2" />Esporta Excel
+          </Button>
+        )}
         <Button size="sm" onClick={openNew}>
           <Plus className="h-4 w-4 mr-2" />Nuovo
         </Button>

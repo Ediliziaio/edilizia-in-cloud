@@ -12,6 +12,7 @@ import { esportaPercorsoExcel } from '@/lib/gps/exportExcel';
 import { esportaPercorsoPdf } from '@/lib/gps/exportPdf';
 import type { GpsPositionExport } from '@/lib/gps/exportExcel';
 
+import { useIsMobile } from "@/hooks/use-mobile";
 interface Props {
   posizioni: GpsPositionExport[];
   nomeTecnico: string;
@@ -19,6 +20,7 @@ interface Props {
 }
 
 export function ExportPercorsiButton({ posizioni, nomeTecnico, data }: Props) {
+  const isMobile = useIsMobile();
   const [isExporting, setIsExporting] = useState(false);
 
   const nomeFile = `percorso_${nomeTecnico.replace(/\s+/g, '_')}_${data}`;
@@ -50,6 +52,9 @@ export function ExportPercorsiButton({ posizioni, nomeTecnico, data }: Props) {
       setIsExporting(false);
     }
   };
+
+  // Niente export su telefono: è un pulsante che esiste solo per esportare.
+  if (isMobile) return null;
 
   return (
     <DropdownMenu>

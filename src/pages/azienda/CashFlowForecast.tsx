@@ -19,7 +19,9 @@ import { SilvioCashflowForecast } from "@/components/silvio/SilvioCashflowForeca
 import { TrediciSettimaneTab } from "@/components/forecast/TrediciSettimaneTab";
 
 
+import { useIsMobile } from "@/hooks/use-mobile";
 export default function CashFlowForecast() {
+  const isMobile = useIsMobile();
   const navigate = useNavigate();
 
   const {
@@ -217,10 +219,13 @@ export default function CashFlowForecast() {
             <BookOpen className="h-4 w-4" />
             <span className="hidden sm:inline">Prima Nota</span>
           </Button>
-          <Button variant="outline" size="sm" onClick={exportCSV} className="gap-1">
-            <Download className="h-4 w-4" />
-            <span className="hidden sm:inline">Esporta CSV</span>
-          </Button>
+          {/* Niente export su telefono. */}
+          {!isMobile && (
+            <Button variant="outline" size="sm" onClick={exportCSV} className="gap-1">
+              <Download className="h-4 w-4" />
+              <span className="hidden sm:inline">Esporta CSV</span>
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={() => window.print()} className="gap-1 hidden sm:flex">
             <Printer className="h-4 w-4" />
             <span className="hidden sm:inline">Stampa PDF</span>

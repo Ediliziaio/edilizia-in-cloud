@@ -38,6 +38,7 @@ import { applyMarkup, applyScontiFornitore } from "@/lib/priceMarkup";
 import { formatCurrency } from "@/lib/formatters";
 import type { MarkupTipo } from "@/types/articleFamily";
 
+import { useIsMobile } from "@/hooks/use-mobile";
 interface Cell {
   prezzo_vendita: number;
   prezzo_acquisto: number;
@@ -101,6 +102,7 @@ export function FamilyGridEditor({
   markupValore = 0,
   onEnsureFamilySaved,
 }: Props) {
+  const isMobile = useIsMobile();
   const companyId = useEffectiveCompanyId();
   const qc = useQueryClient();
 
@@ -686,17 +688,20 @@ export function FamilyGridEditor({
               Importa AI
             </Button>
             {/* #12 — Export CSV */}
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handleExportCSV}
-              disabled={cells.size === 0}
-              title="Esporta CSV"
-            >
-              <Download className="h-4 w-4 mr-2" aria-hidden="true" />
-              Esporta CSV
-            </Button>
+            {/* Niente export su telefono. */}
+            {!isMobile && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleExportCSV}
+                disabled={cells.size === 0}
+                title="Esporta CSV"
+              >
+                <Download className="h-4 w-4 mr-2" aria-hidden="true" />
+                Esporta CSV
+              </Button>
+            )}
             {/* #12 — Import CSV */}
             <label className="inline-flex">
               <input

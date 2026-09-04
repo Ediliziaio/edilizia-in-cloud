@@ -24,6 +24,7 @@ import { toast } from "sonner";
 import type { SrTemplatePdfRow } from "@/types/serramenti";
 import { buildMockPdfData } from "@/lib/serramenti/mockPdfData";
 
+import { useIsMobile } from "@/hooks/use-mobile";
 interface Props {
   /** Template corrente in edit (anche con modifiche non salvate). */
   template: Partial<SrTemplatePdfRow> | null;
@@ -65,6 +66,7 @@ export function SerramentiLivePreviewPanel({
   activeSection,
   debounceMs = 800,
 }: Props) {
+  const isMobile = useIsMobile();
   const [status, setStatus] = useState<Status>("idle");
   const [pageCount, setPageCount] = useState(0);
   const [errorMsg, setErrorMsg] = useState("");
@@ -296,9 +298,12 @@ export function SerramentiLivePreviewPanel({
             <Button size="icon" variant="ghost" onClick={handleOpenInTab} disabled={status !== "ready"} title="Apri in nuova scheda" className="h-7 w-7">
               <ExternalLink className="h-3.5 w-3.5" />
             </Button>
-            <Button size="icon" variant="ghost" onClick={handleDownload} disabled={status !== "ready"} title="Scarica PDF" className="h-7 w-7">
-              <Download className="h-3.5 w-3.5" />
-            </Button>
+            {/* Niente export su telefono. */}
+            {!isMobile && (
+              <Button size="icon" variant="ghost" onClick={handleDownload} disabled={status !== "ready"} title="Scarica PDF" className="h-7 w-7">
+                <Download className="h-3.5 w-3.5" />
+              </Button>
+            )}
           </div>
         </div>
         {/* Barra di avanzamento durante il refresh */}
