@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { auditHeaders } from "../_shared/auditContext.ts";
 
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { isSuperAdminEmailAllowed } from "../_shared/auth.ts";
@@ -246,7 +247,12 @@ Deno.serve(async (req) => {
       ? company_id.trim()
       : null;
 
-    const adminClient: SupabaseAdminClient = createClient(supabaseUrl, supabaseServiceKey);
+    // Il client admin porta con sé l'identità di chi sta cancellando: senza
+    // questo il trigger di audit registra la rimozione dell'utente senza
+    // sapere chi l'ha ordinata (con la chiave di servizio auth.uid() è nullo).
+    const adminClient: SupabaseAdminClient = createClient(supabaseUrl, supabaseServiceKey, {
+      global: { headers: auditHeaders(req, caller.id, caller.email ?? null) },
+    });
 
     const { data: callerProfile } = await adminClient
       .from("profiles")

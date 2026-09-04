@@ -141,6 +141,26 @@ Deno.serve(async (req) => {
     // malevole, screen recording. Ora la password è solo nell'email che il
     // sistema invia direttamente al cliente. Il company_admin riceve solo
     // conferma che l'email è stata inviata. Non più embedded nel response.
+    // Il reset di una password è un'azione amministrativa sensibile: prima non
+    // lasciava alcuna traccia. Ora finisce nel registro attività con operatore,
+    // bersaglio e indirizzo. Best-effort: l'audit non deve far fallire il reset.
+    try {
+      await supabaseAdmin.from("admin_audit_log").insert({
+        user_id: caller.id,
+        action: "reset_password",
+        target_type: "user",
+        target_id: targetUserId,
+        details: {
+          target_email: targetProfile.email,
+          caller_role: callerRole.role,
+          ip_address: req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
+        },
+        ip_address: req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
+      });
+    } catch (auditErr) {
+      console.warn("[reset-customer-password] audit non registrato:", (auditErr as Error)?.message);
+    }
+
     return jsonResponse({
       success: true,
       message: "Password reset successfully. The customer will receive the new password via email.",

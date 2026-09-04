@@ -2,6 +2,7 @@ import { checkRateLimit, rateLimitResponse } from "../_shared/rateLimit.ts";
 import { recordMetric } from "../_shared/healthMetrics.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { requireAuth, requireRole } from "../_shared/auth.ts";
+import { createAuditedAdminClient } from "../_shared/auditContext.ts";
 
 async function logAudit(
   supabaseAdmin: any,
@@ -31,8 +32,14 @@ Deno.serve(async (req) => {
 
   try {
     // S2-04: auth standardizzata via helper condivisi
-    const { userId: callerId, supabaseAdmin } = await requireAuth(req, corsH);
-    await requireRole(supabaseAdmin, callerId, ["super_admin"], corsH);
+    const { userId: callerId, supabaseAdmin: authClient } = await requireAuth(req, corsH);
+    await requireRole(authClient, callerId, ["super_admin"], corsH);
+
+    // Client che porta con sé l'identità dell'operatore: senza questo il
+    // trigger di audit non sa CHI ha compiuto l'operazione, perché con la
+    // chiave di servizio auth.uid() è nullo. Su 1.016 righe di audit
+    // storiche, l'attore risultava presente in meno del 10% dei casi.
+    const supabaseAdmin = createAuditedAdminClient(req, callerId);
 
     // Rate limit: max 30 calls per 5 minutes for admin operations
     const rl = await checkRateLimit({

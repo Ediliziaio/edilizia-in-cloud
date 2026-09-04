@@ -13,6 +13,7 @@ const AdminDashboard = lazy(() => import("@/pages/admin/AdminDashboard"));
 const CompaniesList = lazy(() => import("@/pages/admin/CompaniesList"));
 const CreateCompany = lazy(() => import("@/pages/admin/CreateCompany"));
 const CompanyDetail = lazy(() => import("@/pages/admin/CompanyDetail"));
+const AuditUnifiedPage = lazy(() => import("@/pages/admin/AuditUnifiedPage"));
 // AdminSettingsProfile rimosso: sostituito da AdminMioProfilo (tab Profilo/
 // Sicurezza/Calendari/Email/Notifiche). Vecchia route /admin/impostazioni/
 // profilo redirige a /mio-profilo per back-compat.
@@ -224,7 +225,10 @@ export default function AdminRoutesContainer() {
         <Route path="impostazioni/prodotti-servizi" element={<RequireSuperAdmin><AdminSettingsProductLines /></RequireSuperAdmin>} />
         <Route path="impostazioni/notifiche" element={<RequireAdminPermission permission="can_view_platform_stats"><AdminSettingsNotifications /></RequireAdminPermission>} />
         <Route path="impostazioni/super-admin" element={<RequireSuperAdmin><AdminSettingsSuperAdmins /></RequireSuperAdmin>} />
-        <Route path="impostazioni/audit" element={<RequireSuperAdmin><AdminSettingsAuditLog /></RequireSuperAdmin>} />
+        <Route path="impostazioni/audit" element={<RequireSuperAdmin><AuditUnifiedPage /></RequireSuperAdmin>} />
+        {/* Il vecchio registro (solo admin_audit_log) resta raggiungibile finché
+            il nuovo non è collaudato su tutte le sorgenti. */}
+        <Route path="impostazioni/audit-legacy" element={<RequireSuperAdmin><AdminSettingsAuditLog /></RequireSuperAdmin>} />
         <Route path="changelog" element={<RequireSuperAdmin><AdminChangelog /></RequireSuperAdmin>} />
         <Route path="impostazioni/email" element={<RequireSuperAdmin><AdminSettingsEmail /></RequireSuperAdmin>} />
         <Route path="impostazioni/preferenze-email" element={<RequireSuperAdmin><AdminSettingsEmailPreferences /></RequireSuperAdmin>} />
