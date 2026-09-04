@@ -10,6 +10,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMe
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
+import { logger } from "@/utils/logger";
 import { formatCurrency } from "@/lib/formatters";
 import { useAuth, getCachedTokens } from "@/contexts/AuthContext";
 import { queryKeys } from "@/lib/queryKeys";
@@ -663,12 +664,30 @@ export default function CompaniesList() {
             p_offset: from,
           } as never,
         );
-        if (errOrd) throw errOrd;
+        // Se la migrazione che crea admin_order_companies non è ancora stata
+        // applicata, non si rompe la lista: si torna al comportamento
+        // precedente (meno corretto oltre le 5.000 aziende, ma funzionante).
+        // Così il codice può essere rilasciato prima della migrazione.
+        if (errOrd) {
+          logger.warn(
+            "[CompaniesList] admin_order_companies non disponibile, ordinamento client-side di ripiego",
+            errOrd,
+          );
+          const { data: ripiego, error: errRip, count: countRip } = await query.limit(5000);
+          if (errRip) throw errRip;
+          return {
+            data: applyPlanPriceOverride(ripiego ?? []),
+            totalCount: countRip ?? 0,
+            ordinatoDalServer: false,
+          };
+        }
 
         const righe = (ordinati ?? []) as unknown as Array<{
           company_id: string; posizione: number; totale: number;
         }>;
-        if (righe.length === 0) return { data: [], totalCount: righe[0]?.totale ?? 0 };
+        if (righe.length === 0) {
+          return { data: [], totalCount: 0, ordinatoDalServer: true };
+        }
 
         const idsPagina = righe.map((r) => r.company_id);
         const { data: complete, error: errComp } = await query.in("id", idsPagina);
@@ -684,6 +703,7 @@ export default function CompaniesList() {
         return {
           data: applyPlanPriceOverride(ordinate),
           totalCount: Number(righe[0]?.totale ?? 0),
+          ordinatoDalServer: true,
         };
       }
 
@@ -693,7 +713,11 @@ export default function CompaniesList() {
       if (error) throw error;
       // Prezzo custom al posto del listino dove c'è un override attivo:
       // MRR di riga/CSV/pipeline riflettono il prezzo reale del deal.
-      return { data: applyPlanPriceOverride(data ?? []), totalCount: count ?? 0 };
+      return {
+        data: applyPlanPriceOverride(data ?? []),
+        totalCount: count ?? 0,
+        ordinatoDalServer: true,
+      };
     },
     staleTime: 5 * 60 * 1000,
     placeholderData: (prev) => prev,
@@ -800,14 +824,45 @@ export default function CompaniesList() {
     return companies;
   }, [companies]);
 
-  // L'ordinamento avviene ora interamente sul database, anche per le colonne
-  // calcolate (MRR, utenti, clienti, ordini, ultimo accesso, piano): la query
-  // restituisce già la pagina corretta, ordinata sull'intero insieme.
+  // L'ordinamento avviene ora sul database anche per le colonne calcolate
+  // (MRR, utenti, clienti, ordini, ultimo accesso, piano): la query restituisce
+  // già la pagina corretta, ordinata sull'intero insieme, e qui non va toccata.
   //
-  // Prima qui si riordinava e si affettava un blocco di 5.000 righe scaricate
-  // dal server. Rifarlo ora romperebbe l'ordine deciso dal database e
-  // taglierebbe una pagina già tagliata.
-  const pagedCompanies = filteredCompanies;
+  // Resta un solo caso in cui bisogna ordinare e affettare qui: quando la
+  // funzione admin_order_companies non è ancora stata applicata al database e
+  // la query è ricaduta sul vecchio comportamento. In quel caso `data` contiene
+  // fino a 5.000 righe grezze.
+  const ordinatoDalServer = pagedResult?.ordinatoDalServer !== false;
+
+  const pagedCompanies = useMemo(() => {
+    if (ordinatoDalServer) return filteredCompanies;
+
+    const dir = sortDir === "asc" ? 1 : -1;
+    const sorted = [...filteredCompanies].sort((a, b) => {
+      const planA = a.subscription_plans as { name: string } | null;
+      const planB = b.subscription_plans as { name: string } | null;
+      switch (sortKey) {
+        case "plan": return dir * (planA?.name || "").localeCompare(planB?.name || "");
+        case "mrr":
+          return dir * (
+            (isRevenueEligibleCompany(a) ? getCompanyMonthlyRevenue(a) : 0) -
+            (isRevenueEligibleCompany(b) ? getCompanyMonthlyRevenue(b) : 0)
+          );
+        case "orders": return dir * ((orderStats[a.id]?.count || 0) - (orderStats[b.id]?.count || 0));
+        case "users": return dir * ((userCounts[a.id] || 0) - (userCounts[b.id] || 0));
+        case "customers": return dir * ((customerCounts[a.id] || 0) - (customerCounts[b.id] || 0));
+        case "lastAccess": {
+          const la = lastAccessData[a.id] ? new Date(lastAccessData[a.id]!).getTime() : 0;
+          const lb = lastAccessData[b.id] ? new Date(lastAccessData[b.id]!).getTime() : 0;
+          return dir * (la - lb);
+        }
+        default: return 0;
+      }
+    });
+    const from = (currentPage - 1) * SERVER_PAGE_SIZE;
+    return sorted.slice(from, from + SERVER_PAGE_SIZE);
+  }, [ordinatoDalServer, filteredCompanies, sortKey, sortDir, orderStats,
+      userCounts, customerCounts, lastAccessData, currentPage]);
 
   // ID della PAGINA visibile (dopo sort/paginazione client): tags e note
   // vengono caricate solo per queste righe.

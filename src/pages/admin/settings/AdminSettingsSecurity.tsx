@@ -97,7 +97,14 @@ export default function AdminSettingsSecurity() {
 
       {error && (
         <Alert variant="destructive">
-          <AlertDescription>{(error as Error).message}</AlertDescription>
+          <ShieldAlert className="h-4 w-4" />
+          <AlertDescription>
+            {/* La funzione arriva con una migrazione: finché non è applicata,
+                è più utile dire cosa manca che mostrare un errore tecnico. */}
+            {String((error as Error).message).includes("admin_security_overview")
+              ? "Il cruscotto sicurezza richiede la migrazione 20280904101300_sicurezza_piattaforma.sql, non ancora applicata al database."
+              : (error as Error).message}
+          </AlertDescription>
         </Alert>
       )}
 
