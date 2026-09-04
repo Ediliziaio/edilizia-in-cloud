@@ -1,136 +1,43 @@
-/**
- * MP-HR-02 — HR Genera Cedolini Mese (cron mensile 1° del mese)
- *
- * Per ogni company:
- *   1. Lista dipendenti attivi
- *   2. Per ciascuno: calcola ore mese precedente (ordinarie/straord/festive)
- *      tramite RPC calcola_ore_mese_dipendente
- *   3. Genera cedolino draft via RPC genera_cedolino_dipendente
- *   4. Cedolini draft restano in stato "to_review" per controllo HR
- *
- * Defensive: mancanza modulo HR → ritorno 0 senza errori.
- */
-import "https://deno.land/x/xhr@0.1.0/mod.ts";
-import { cronSecretValido } from "../_shared/cronAuth.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.43.4";
+// Questa funzione non esiste più: è stata svuotata, non spostata.
+//
+// Cosa faceva, per chi la ritrova nei log:
+//   • leggeva `.from("hr_dipendenti")` — una tabella che nel database non
+//     c'è mai stata. Il client Supabase non solleva: mette l'errore in
+//     `error` e lascia `data` a null. Il codice faceva `if (!dipendenti)
+//     continue`, quindi saltava ogni azienda in silenzio.
+//   • chiamava `silvio_tool_calcola_ore_mese_dipendente(p_company_id,
+//     p_dipendente_id, p_periodo)` e `silvio_tool_genera_cedolino_dipendente`
+//     con la stessa forma: le firme vere hanno cinque e sei parametri, con
+//     nomi diversi. Anche fosse arrivata fin lì, avrebbe fallito.
+//   • rispondeva comunque 200 con `{cedolini_creati: 0}` e nessun errore.
+//     Nei log risultava riuscita. È il difetto peggiore dei tre.
+//
+// Nessuno la chiamava: nessun cron, nessuna riga in src/, nessun riferimento
+// in config.toml. In produzione hr_cedolini aveva zero righe su 2.039
+// timbrature registrate.
+//
+// Il lavoro che prometteva di fare adesso c'è davvero, sul database:
+//   public.cedolino_ore_periodo(employee_id, anno, mese)  → le ore dalle timbrature
+//   public.cedolino_calcola(employee_id, anno, mese)      → il conto CCNL
+//   public.cedolino_genera(employee_id, anno, mese)       → scrive in hr_cedolini
+//
+// La copia deployata resta finché qualcuno non la elimina dal pannello
+// Supabase: da qui non si può cancellare, si può solo sostituire. Nel
+// frattempo risponde 410 invece di fingere di aver lavorato.
 
-Deno.serve(async (req) => {
-  if (req.method !== "POST" && req.method !== "GET") {
-    return new Response("Method not allowed", { status: 405 });
-  }
-
-  // Apre un client service_role e lavora su tutte le aziende. Non aveva
-  // nessun controllo, e il gateway non ne chiede (verify_jwt spento): era
-  // raggiungibile da chiunque, senza credenziali. Nessun chiamante nel
-  // frontend e nessun cron: le uniche invocazioni legittime sono interne.
-  {
-    const chiave = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    const bearer = (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "");
-    if (!cronSecretValido(req) && !(chiave && bearer === chiave)) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401, headers: { "Content-Type": "application/json" },
-      });
-    }
-  }
-
-  const supabase = createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-  );
-
-  const t0 = Date.now();
-  const summary = {
-    companies_processed: 0,
-    cedolini_creati: 0,
-    cedolini_skipped: 0,
-    duration_ms: 0,
-    errors: [] as string[],
-  };
-
-  // Determina mese precedente (YYYY-MM)
-  const now = new Date();
-  const yearPrev = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
-  const monthPrev = now.getMonth() === 0 ? 12 : now.getMonth();
-  const periodo = `${yearPrev}-${String(monthPrev).padStart(2, "0")}`;
-
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: companies } = await (supabase as any)
-      .from("companies")
-      .select("id");
-
-    if (!companies || companies.length === 0) {
-      summary.duration_ms = Date.now() - t0;
-      return jsonOk(summary);
-    }
-
-    summary.companies_processed = companies.length;
-
-    for (const c of companies) {
-      try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { data: dipendenti } = await (supabase as any)
-          .from("hr_dipendenti")
-          .select("id, nome, cognome")
-          .eq("company_id", c.id)
-          .eq("attivo", true);
-
-        if (!dipendenti || dipendenti.length === 0) continue;
-
-        for (const d of dipendenti) {
-          try {
-            // 1. Calcola ore mese
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const { data: ore } = await (supabase as any).rpc(
-              "silvio_tool_calcola_ore_mese_dipendente",
-              {
-                p_company_id: c.id,
-                p_dipendente_id: d.id,
-                p_periodo: periodo,
-              },
-            );
-
-            if (!ore) {
-              summary.cedolini_skipped += 1;
-              continue;
-            }
-
-            // 2. Genera cedolino
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const { data: cedolino } = await (supabase as any).rpc(
-              "silvio_tool_genera_cedolino_dipendente",
-              {
-                p_company_id: c.id,
-                p_dipendente_id: d.id,
-                p_periodo: periodo,
-                p_ore_breakdown: ore,
-              },
-            );
-
-            if (cedolino) summary.cedolini_creati += 1;
-            else summary.cedolini_skipped += 1;
-          } catch (e) {
-            summary.errors.push(`dip ${d.id}: ${(e as Error).message}`);
-            summary.cedolini_skipped += 1;
-          }
-        }
-      } catch (e) {
-        summary.errors.push(`company ${c.id}: ${(e as Error).message}`);
-      }
-    }
-
-    summary.duration_ms = Date.now() - t0;
-    return jsonOk(summary);
-  } catch (e) {
-    summary.duration_ms = Date.now() - t0;
-    summary.errors.push(`fatal: ${(e as Error).message}`);
-    return jsonOk(summary, 500);
-  }
-});
-
-function jsonOk(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { "Content-Type": "application/json" },
-  });
-}
+Deno.serve(() =>
+  new Response(
+    JSON.stringify({
+      error: "hr-genera-cedolini-mese è stata rimossa",
+      motivo:
+        "interrogava una tabella inesistente (hr_dipendenti) e chiamava due RPC con firme sbagliate, " +
+        "restituendo comunque 200 con zero cedolini",
+      usare_invece: [
+        "public.cedolino_ore_periodo(p_employee_id, p_anno, p_mese)",
+        "public.cedolino_calcola(p_employee_id, p_anno, p_mese)",
+        "public.cedolino_genera(p_employee_id, p_anno, p_mese, p_rigenera)",
+      ],
+    }),
+    { status: 410, headers: { "Content-Type": "application/json" } },
+  )
+);

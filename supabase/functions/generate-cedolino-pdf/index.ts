@@ -1,5 +1,4 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { verifyCompanyAccess } from "../_shared/companyAuth.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 
 const MESI = [
@@ -7,48 +6,22 @@ const MESI = [
   "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre",
 ];
 
-/**
- * Calcola contributi CCNL Edilizia Industria — Aliquote 2024
- */
-function calcolaContributiCCNLEdilizia(lordo: number) {
-  // INPS
-  const INPS_DIP = 0.0919;    // 9.19% — quota IVS dipendente
-  const INPS_DAT = 0.2870;    // 28.70% — quota IVS datore
-  // INAIL (media settore edile)
-  const INAIL_DAT = 0.0380;   // 3.80%
-  // Cassa Edile
-  const CE_DIP = 0.0040;      // 0.40% Cassa Edile dipendente
-  const CE_DAT = 0.0165;      // 1.65% Cassa Edile datore
-  // Previdenza complementare Cometa
-  const COMETA_DAT = 0.0020;  // 0.20%
-
-  const contribDipendente = lordo * (INPS_DIP + CE_DIP);
-  const contribDatore = lordo * (INPS_DAT + INAIL_DAT + CE_DAT + COMETA_DAT);
-  const cassaEdileDip = lordo * CE_DIP;
-  const cassaEdileDat = lordo * CE_DAT;
-
-  // Calcolo IRPEF — scaglioni 2024 (annualizzato ÷ 12 × 12 = lordo annuo ≈ lordo mensile × 12)
-  const imponibile = lordo - contribDipendente;
-  const imponibileAnnuo = imponibile * 12;
-
-  let irpefAnnua = 0;
-  if (imponibileAnnuo <= 15000) irpefAnnua = imponibileAnnuo * 0.23;
-  else if (imponibileAnnuo <= 28000) irpefAnnua = 3450 + (imponibileAnnuo - 15000) * 0.25;
-  else if (imponibileAnnuo <= 50000) irpefAnnua = 6700 + (imponibileAnnuo - 28000) * 0.35;
-  else irpefAnnua = 14400 + (imponibileAnnuo - 50000) * 0.43;
-
-  // Detrazione lavoro dipendente (art. 13 TUIR 2024) su base annua
-  let detrazioneAnnua = 0;
-  if (imponibileAnnuo <= 15000) detrazioneAnnua = 1955;
-  else if (imponibileAnnuo <= 28000) detrazioneAnnua = 1910;
-  else if (imponibileAnnuo <= 50000) detrazioneAnnua = 1910 * ((50000 - imponibileAnnuo) / 22000);
-
-  const irpefNetta = Math.max(0, (irpefAnnua - detrazioneAnnua) / 12);
-  const netto = lordo - contribDipendente - irpefNetta;
-  const costoAzienda = lordo + contribDatore;
-
-  return { contribDipendente, contribDatore, cassaEdileDip, cassaEdileDat, irpefNetta, netto, costoAzienda };
-}
+// Il calcolo CCNL non è più qui.
+//
+// Fino a oggi questo file conteneva una seconda copia delle aliquote e degli
+// scaglioni IRPEF, usata per «riempire i vuoti» quando la riga in tabella non
+// aveva importi: `cedolino.lordo ?? 0`. Con una riga vuota stampava un cedolino
+// di zeri, contributi compresi, con l'aria di un documento vero.
+//
+// Due errori che quella copia si portava dietro, e che il calcolo sul server
+// non ha:
+//   • quattro scaglioni IRPEF (15k/28k/50k) etichettati «2024»: è lo schema
+//     fino al 2023. Dal 2024 i primi due sono accorpati al 23% fino a 28.000.
+//   • nella detrazione art. 13 TUIR fra 15.000 e 28.000 mancava il termine
+//     + 1.190 × (28.000 − reddito) / 13.000.
+//
+// Ora i numeri arrivano da public.cedolino_per_stampa, che legge la riga se ha
+// importi e altrimenti li ricalcola dalle timbrature — e se non può, lo dice.
 
 function fmtEur(n: number | null | undefined): string {
   if (n === null || n === undefined) return "€ 0,00";
@@ -64,16 +37,16 @@ function buildHtml(cedolino: any, azienda: any): string {
     .filter(Boolean)
     .join(", ");
 
-  const lordo = cedolino.lordo ?? 0;
-  // Usa CCNL Edilizia se i contributi non sono già calcolati nel DB
-  const ccnl = calcolaContributiCCNLEdilizia(lordo);
-  const contribDip = cedolino.contributi_dipendente ?? ccnl.contribDipendente;
-  const contribDatore = cedolino.contributi_datore ?? ccnl.contribDatore;
-  const irpef = cedolino.ritenute_irpef ?? ccnl.irpefNetta;
-  const netto = cedolino.netto ?? ccnl.netto;
-  const costoAzienda = lordo + contribDatore;
-  const cassaEdileDip = ccnl.cassaEdileDip;
-  const cassaEdileDat = ccnl.cassaEdileDat;
+  // Tutti i numeri vengono dal server: qui non si calcola nulla.
+  const num = (v: unknown) => Number(v ?? 0);
+  const lordo = num(cedolino.lordo);
+  const contribDip = num(cedolino.contributi_dipendente);
+  const contribDatore = num(cedolino.contributi_datore);
+  const irpef = num(cedolino.ritenute_irpef);
+  const netto = num(cedolino.netto);
+  const costoAzienda = num(cedolino.costo_azienda);
+  const cassaEdileDip = num(cedolino.cassa_edile_dipendente);
+  const cassaEdileDat = num(cedolino.cassa_edile_datore);
 
   const statoLabel: Record<string, string> = { bozza: "Bozza", emesso: "Emesso", pagato: "Pagato" };
   const statoColor: Record<string, string> = { bozza: "#9ca3af", emesso: "#3b82f6", pagato: "#22c55e" };
@@ -269,8 +242,6 @@ Deno.serve(async (req) => {
         headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
-    const userId = user.id;
-
     const { cedolino_id, company_id } = await req.json();
     if (!cedolino_id || !company_id) {
       return new Response(JSON.stringify({ error: "cedolino_id e company_id obbligatori" }), {
@@ -279,60 +250,38 @@ Deno.serve(async (req) => {
       });
     }
 
-    try {
-      await verifyCompanyAccess(supabase, userId, company_id);
-    } catch {
-      return new Response(JSON.stringify({ error: "Non autorizzato" }), {
-        status: 403,
-        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
-      });
+    // I numeri e il controllo di accesso stanno nella stessa chiamata: la RPC
+    // gira con il JWT dell'utente, così vale il suo permesso e non quello del
+    // service role. Un cedolino è un dato personale: un collega della stessa
+    // azienda non deve poterlo leggere, e cedolino_per_stampa lo verifica.
+    const supabaseUtente = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { Authorization: authHeader } } },
+    );
+
+    const { data: cedolino, error: cedErr } = await supabaseUtente
+      .rpc("cedolino_per_stampa", { p_cedolino_id: cedolino_id });
+
+    if (cedErr) {
+      const negato = cedErr.code === "42501" || /accesso negato/i.test(cedErr.message ?? "");
+      return new Response(
+        JSON.stringify({ error: negato ? "Non autorizzato: questo cedolino non è tuo" : cedErr.message }),
+        { status: negato ? 403 : 500,
+          headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } },
+      );
     }
 
-    // Fetch cedolino (usa service role per bypassare RLS — la verifica autorizzazione è manuale sotto)
-    const { data: cedolino, error: cedErr } = await supabase
-      .from("cedolini")
-      .select("*")
-      .eq("id", cedolino_id)
-      .eq("company_id", company_id)
-      .single();
-
-    if (cedErr || !cedolino) {
-      return new Response(JSON.stringify({ error: "Cedolino non trovato" }), {
-        status: 404,
-        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
-      });
-    }
-
-    // ── Verifica autorizzazione: il cedolino deve essere del richiedente o l'utente deve essere admin ──
-    const { data: userProfile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", userId)
-      .single();
-
-    const userRole = userProfile?.role ?? "";
-    const isAdmin = ["company_admin", "super_admin"].includes(userRole);
-
-    // Controlla se employee_id corrisponde direttamente a userId (struttura moderna)
-    const isOwnerDirect = cedolino.employee_id === userId;
-
-    // Fallback: controlla se employee_id corrisponde a un record employees collegato all'utente
-    let isOwnerViaEmployee = false;
-    if (!isOwnerDirect && !isAdmin) {
-      const { data: empRecord } = await supabase
-        .from("employees")
-        .select("id")
-        .eq("user_id", userId)
-        .eq("id", cedolino.employee_id)
-        .maybeSingle();
-      isOwnerViaEmployee = !!empRecord;
-    }
-
-    if (!isAdmin && !isOwnerDirect && !isOwnerViaEmployee) {
-      return new Response(JSON.stringify({ error: "Non autorizzato: questo cedolino non appartiene al tuo account" }), {
-        status: 403,
-        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
-      });
+    // Non stampabile non vuol dire zero: vuol dire che manca qualcosa, e si dice cosa.
+    if (!cedolino || cedolino.stampabile !== true) {
+      return new Response(
+        JSON.stringify({
+          error: cedolino?.motivo ?? "Cedolino non trovato",
+          stampabile: false,
+        }),
+        { status: cedolino?.motivo === "cedolino non trovato" ? 404 : 422,
+          headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } },
+      );
     }
 
     // Fetch azienda info
@@ -344,7 +293,7 @@ Deno.serve(async (req) => {
 
     const meseLabel = MESI[(cedolino.mese ?? 1) - 1] ?? String(cedolino.mese);
     const html = buildHtml(cedolino, azienda);
-    const filename = `cedolino_${cedolino.employee_name.replace(/\s+/g, "_")}_${meseLabel}_${cedolino.anno}.html`;
+    const filename = `cedolino_${String(cedolino.employee_name ?? "dipendente").replace(/\s+/g, "_")}_${meseLabel}_${cedolino.anno}.html`;
 
     return new Response(JSON.stringify({ html, filename }), {
       headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },

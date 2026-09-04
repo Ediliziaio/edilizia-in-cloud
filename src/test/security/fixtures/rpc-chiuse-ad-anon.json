@@ -1,0 +1,6743 @@
+[
+{
+"fn": "_cg_assert_enabled",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "_dashboard_parse_period",
+"body": {
+"p_filters": null
+}
+},
+{
+"fn": "_dashboard_validate_layout",
+"body": {
+"p_layout": null
+}
+},
+{
+"fn": "_looks_like_email",
+"body": {
+"s": null
+}
+},
+{
+"fn": "_looks_like_fiscal_code",
+"body": {
+"s": null
+}
+},
+{
+"fn": "_looks_like_phone",
+"body": {
+"s": null
+}
+},
+{
+"fn": "_rls_test_count",
+"body": {
+"p_table": null,
+"p_user_id": null
+}
+},
+{
+"fn": "accountant_accessible_company_ids",
+"body": {}
+},
+{
+"fn": "activity_category_for_event",
+"body": {
+"p_event_type": null,
+"p_target_table": null
+}
+},
+{
+"fn": "add_email_credits_with_log",
+"body": {
+"p_type": null,
+"p_amount": null,
+"p_metadata": null,
+"p_company_id": null,
+"p_description": null
+}
+},
+{
+"fn": "add_order_commission_ledger_entry",
+"body": {
+"p_source": null,
+"p_metadata": null,
+"p_entry_type": null,
+"p_description": null,
+"p_amount_delta": null,
+"p_effective_date": null,
+"p_order_salesperson_id": null
+}
+},
+{
+"fn": "add_user_to_order_channel",
+"body": {
+"p_user_id": null,
+"p_order_id": null,
+"p_company_id": null
+}
+},
+{
+"fn": "add_whatsapp_credits_with_log",
+"body": {
+"p_type": null,
+"p_amount": null,
+"p_metadata": null,
+"p_company_id": null,
+"p_description": null
+}
+},
+{
+"fn": "addebita_sms_wallet",
+"body": {
+"p_tipo": null,
+"p_importo": null,
+"p_company_id": null,
+"p_descrizione": null,
+"p_riferimento_id": null
+}
+},
+{
+"fn": "adjust_credits_atomic",
+"body": {
+"p_amount": null,
+"p_reason": null,
+"p_service": null,
+"p_company_id": null,
+"p_adjusted_by": null
+}
+},
+{
+"fn": "adjust_render_credits_atomic",
+"body": {
+"p_delta": null,
+"p_reason": null,
+"p_company_id": null,
+"p_adjusted_by": null
+}
+},
+{
+"fn": "admin_ai_cost_health",
+"body": {
+"p_days": null
+}
+},
+{
+"fn": "admin_support_last_message_by_company",
+"body": {}
+},
+{
+"fn": "aedix_brain_compute_snapshot",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "aedix_brain_find_outliers",
+"body": {
+"p_top_n": null,
+"p_metric": null,
+"p_vertical": null,
+"p_direction": null
+}
+},
+{
+"fn": "aedix_brain_query_market",
+"body": {
+"p_region_code": null,
+"p_vertical_key": null,
+"p_province_code": null
+}
+},
+{
+"fn": "aedix_brain_query_market_metrics",
+"body": {
+"p_region": null,
+"p_province": null,
+"p_vertical": null,
+"p_revenue_band": null,
+"p_employee_band": null
+}
+},
+{
+"fn": "agency_companies_overview",
+"body": {}
+},
+{
+"fn": "aggancia_email_a_rdo",
+"body": {
+"p_email_id": null
+}
+},
+{
+"fn": "aggiorna_stati_documenti_operai",
+"body": {}
+},
+{
+"fn": "aggrega_metriche_email_giorno",
+"body": {
+"p_giorno": null
+}
+},
+{
+"fn": "ai_ab_test_increment",
+"body": {
+"p_test_id": null,
+"p_csat_score": null,
+"p_is_variant": null,
+"p_was_rejected": null
+}
+},
+{
+"fn": "ai_assert_company_access",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "ai_assert_company_admin_access",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "ai_default_action_policy",
+"body": {
+"p_action_type": null
+}
+},
+{
+"fn": "ai_get_prompt_variant",
+"body": {
+"p_user_id": null,
+"p_company_id": null,
+"p_session_id": null,
+"p_persona_key": null
+}
+},
+{
+"fn": "ai_persona_sessions_bulk_archive",
+"body": {
+"p_archived": null,
+"p_session_ids": null
+}
+},
+{
+"fn": "ai_persona_sessions_stats",
+"body": {
+"p_period_days": null,
+"p_persona_key": null,
+"p_include_archived": null
+}
+},
+{
+"fn": "ai_test_lab_kpi",
+"body": {
+"p_to": null,
+"p_from": null,
+"p_company_id": null
+}
+},
+{
+"fn": "ai_top_persona_pain_points",
+"body": {
+"p_limit": null,
+"p_min_rate": null,
+"p_min_rejections": null
+}
+},
+{
+"fn": "apply_bank_categorization_rules",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "apply_inventory_audit_adjustment",
+"body": {
+"p_audit_id": null,
+"p_company_id": null
+}
+},
+{
+"fn": "apply_referral_commission_policy",
+"body": {
+"p_has_fraud": null,
+"p_error_rate": null,
+"p_base_amount": null,
+"p_volume_deals": null,
+"p_months_active": null,
+"p_quality_score": null
+}
+},
+{
+"fn": "approve_leave_request",
+"body": {
+"p_approved": null,
+"p_request_id": null,
+"p_rejection_note": null
+}
+},
+{
+"fn": "area_macro_from_region",
+"body": {
+"p_region": null
+}
+},
+{
+"fn": "assert_company_access",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "assign_round_robin",
+"body": {
+"p_team_id": null
+}
+},
+{
+"fn": "attach_attribution_to_contact",
+"body": {
+"p_company_id": null,
+"p_contact_id": null,
+"p_session_id": null
+}
+},
+{
+"fn": "auto_expire_trials",
+"body": {}
+},
+{
+"fn": "auto_topup_next_attempt",
+"body": {
+"p_failure_count": null
+}
+},
+{
+"fn": "automation_assign_next",
+"body": {
+"p_n": null,
+"p_flow_id": null,
+"p_node_id": null
+}
+},
+{
+"fn": "bank_account_recompute_manual_balance",
+"body": {
+"p_account": null
+}
+},
+{
+"fn": "batch_carico_from_scans",
+"body": {
+"p_notes": null,
+"p_scans": null,
+"p_supplier_id": null,
+"p_warehouse_id": null,
+"p_ddt_ricezione_id": null
+}
+},
+{
+"fn": "billing_auto_sync_all",
+"body": {}
+},
+{
+"fn": "bonifica_annulla",
+"body": {
+"p_azione_id": null
+}
+},
+{
+"fn": "bonifica_archivia_categoria",
+"body": {
+"p_categoria": null
+}
+},
+{
+"fn": "bonifica_overview",
+"body": {}
+},
+{
+"fn": "brain_age_facts",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "brain_get_facts",
+"body": {
+"p_company_id": null,
+"p_min_confidence": null
+}
+},
+{
+"fn": "brain_record_fact",
+"body": {
+"p_notes": null,
+"p_source": null,
+"p_fact_key": null,
+"p_company_id": null,
+"p_confidence": null,
+"p_fact_value": null,
+"p_source_user_id": null
+}
+},
+{
+"fn": "brain_record_hits",
+"body": {
+"p_chunk_ids": null
+}
+},
+{
+"fn": "brain_soft_delete_kb_chunks",
+"body": {
+"p_active_source_paths": null
+}
+},
+{
+"fn": "brain_stats",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "brain_touch_facts",
+"body": {
+"p_fact_keys": null,
+"p_company_id": null
+}
+},
+{
+"fn": "brain_upsert_document",
+"body": {
+"p_scope": null,
+"p_title": null,
+"p_content": null,
+"p_category": null,
+"p_metadata": null,
+"p_embedding": null,
+"p_source_id": null,
+"p_company_id": null,
+"p_source_type": null,
+"p_content_hash": null,
+"p_visibility_roles": null
+}
+},
+{
+"fn": "brain_upsert_kb_chunk",
+"body": {
+"p_title": null,
+"p_content": null,
+"p_category": null,
+"p_metadata": null,
+"p_embedding": null,
+"p_source_hash": null,
+"p_source_path": null
+}
+},
+{
+"fn": "bulk_assign_salesperson",
+"body": {
+"p_company_id": null,
+"p_customer_ids": null,
+"p_salesperson_id": null
+}
+},
+{
+"fn": "bulk_scheduler_due_flows",
+"body": {}
+},
+{
+"fn": "bulk_scheduler_mark_executed",
+"body": {
+"p_flow_id": null,
+"p_next_run_at": null
+}
+},
+{
+"fn": "bulk_scheduler_resolve_targets",
+"body": {
+"p_company_id": null,
+"p_target_type": null,
+"p_target_value": null
+}
+},
+{
+"fn": "bulk_tag_opportunities",
+"body": {
+"p_ids": null,
+"p_mode": null,
+"p_tags": null
+}
+},
+{
+"fn": "bump_email_regola_match",
+"body": {
+"p_regola_id": null
+}
+},
+{
+"fn": "bump_persona_memory_hit",
+"body": {
+"p_memory_id": null
+}
+},
+{
+"fn": "calculate_monthly_commissions",
+"body": {
+"p_year": null,
+"p_month": null
+}
+},
+{
+"fn": "calculate_order_salesperson_commission",
+"body": {
+"p_order_id": null,
+"p_salesperson_id": null,
+"p_commission_type": null,
+"p_commission_value": null
+}
+},
+{
+"fn": "calculate_sublevel_commissions",
+"body": {
+"p_year": null,
+"p_month": null
+}
+},
+{
+"fn": "can_access_order_attachment_object",
+"body": {
+"p_name": null
+}
+},
+{
+"fn": "can_access_render_storage_object",
+"body": {
+"p_name": null
+}
+},
+{
+"fn": "can_user_use_persona",
+"body": {
+"p_user_id": null,
+"p_persona_key": null
+}
+},
+{
+"fn": "canarino_vitali",
+"body": {}
+},
+{
+"fn": "cg_get_aging",
+"body": {
+"p_direction": null,
+"p_company_id": null
+}
+},
+{
+"fn": "cg_get_aging_safe",
+"body": {
+"p_direction": null
+}
+},
+{
+"fn": "cg_get_bep",
+"body": {
+"p_anno": null,
+"p_company_id": null
+}
+},
+{
+"fn": "cg_get_bep_safe",
+"body": {
+"p_anno": null,
+"p_company_id": null
+}
+},
+{
+"fn": "cg_get_budget_consuntivo_forecast",
+"body": {
+"p_anno": null,
+"p_company_id": null
+}
+},
+{
+"fn": "cg_get_budget_consuntivo_forecast_safe",
+"body": {
+"p_anno": null
+}
+},
+{
+"fn": "cg_get_cash_flow_prospettico",
+"body": {
+"p_anno": null,
+"p_mese_a": null,
+"p_mese_da": null,
+"p_company_id": null
+}
+},
+{
+"fn": "cg_get_cash_flow_prospettico_safe",
+"body": {
+"p_anno": null,
+"p_mese_a": null,
+"p_mese_da": null
+}
+},
+{
+"fn": "cg_get_ce_mensile",
+"body": {
+"p_anno": null,
+"p_company_id": null
+}
+},
+{
+"fn": "cg_get_ce_mensile_dettaglio",
+"body": {
+"p_anno": null,
+"p_company_id": null
+}
+},
+{
+"fn": "cg_get_ce_safe",
+"body": {
+"p_anno": null,
+"p_mese_a": null,
+"p_mese_da": null,
+"p_modalita": null,
+"p_company_id": null
+}
+},
+{
+"fn": "cg_get_conto_economico_riclassificato",
+"body": {
+"p_anno": null,
+"p_mese_a": null,
+"p_mese_da": null,
+"p_modalita": null,
+"p_company_id": null
+}
+},
+{
+"fn": "cg_get_dettaglio_voce_mese",
+"body": {
+"p_anno": null,
+"p_mese": null,
+"p_codice": null,
+"p_company_id": null
+}
+},
+{
+"fn": "cg_get_dettaglio_voce_mese_safe",
+"body": {
+"p_anno": null,
+"p_mese": null,
+"p_codice": null
+}
+},
+{
+"fn": "cg_get_health_check",
+"body": {
+"p_anno": null,
+"p_company_id": null
+}
+},
+{
+"fn": "cg_get_health_check_safe",
+"body": {
+"p_anno": null
+}
+},
+{
+"fn": "cg_get_imposte_dettaglio",
+"body": {
+"p_anno": null,
+"p_company_id": null
+}
+},
+{
+"fn": "cg_get_imposte_dettaglio_safe",
+"body": {
+"p_anno": null
+}
+},
+{
+"fn": "cg_get_indici_avanzati",
+"body": {
+"p_anno": null,
+"p_company_id": null
+}
+},
+{
+"fn": "cg_get_indici_avanzati_safe",
+"body": {
+"p_anno": null
+}
+},
+{
+"fn": "cg_get_marginalita_commesse",
+"body": {
+"p_anno": null,
+"p_company_id": null,
+"p_status_filter": null
+}
+},
+{
+"fn": "cg_get_marginalita_commesse_safe",
+"body": {
+"p_anno": null,
+"p_status_filter": null
+}
+},
+{
+"fn": "cg_get_pfn",
+"body": {
+"p_anno": null,
+"p_company_id": null
+}
+},
+{
+"fn": "cg_get_pfn_safe",
+"body": {
+"p_anno": null
+}
+},
+{
+"fn": "cg_get_rating",
+"body": {
+"p_anno": null,
+"p_company_id": null
+}
+},
+{
+"fn": "cg_get_rating_safe",
+"body": {
+"p_anno": null,
+"p_company_id": null
+}
+},
+{
+"fn": "cg_get_riconciliazione",
+"body": {
+"p_anno": null,
+"p_company_id": null
+}
+},
+{
+"fn": "cg_get_riconciliazione_safe",
+"body": {
+"p_anno": null
+}
+},
+{
+"fn": "cg_get_sp_safe",
+"body": {
+"p_anno": null,
+"p_company_id": null,
+"p_data_riferimento": null
+}
+},
+{
+"fn": "cg_get_stato_patrimoniale_riclassificato",
+"body": {
+"p_anno": null,
+"p_company_id": null,
+"p_data_riferimento": null
+}
+},
+{
+"fn": "cg_simula_piano_industriale",
+"body": {
+"p_company_id": null,
+"p_anno_partenza": null,
+"p_assumption_id": null
+}
+},
+{
+"fn": "cg_simula_piano_safe",
+"body": {
+"p_company_id": null,
+"p_anno_partenza": null,
+"p_assumption_id": null
+}
+},
+{
+"fn": "cg_simulazione_what_if",
+"body": {
+"p_orizzonte": null,
+"p_company_id": null,
+"p_assumption_id": null,
+"p_override_margine_pct": null,
+"p_override_crescita_pct": null,
+"p_override_investimento": null
+}
+},
+{
+"fn": "change_order_status",
+"body": {
+"p_order_id": null,
+"p_changed_by": null,
+"p_new_status_id": null
+}
+},
+{
+"fn": "charge_ai_call",
+"body": {
+"p_status": null,
+"p_user_id": null,
+"p_metadata": null,
+"p_task_key": null,
+"p_tier_key": null,
+"p_tokens_in": null,
+"p_company_id": null,
+"p_model_used": null,
+"p_tokens_out": null,
+"p_duration_ms": null,
+"p_persona_key": null,
+"p_used_primary": null,
+"p_cost_real_usd": null,
+"p_error_message": null,
+"p_fx_usd_to_eur": null,
+"p_fallback_index": null,
+"p_idempotency_key": null
+}
+},
+{
+"fn": "check_accountant_signup_rate_limit",
+"body": {
+"p_ip_address": null,
+"p_max_attempts": null,
+"p_window_minutes": null
+}
+},
+{
+"fn": "check_ai_credits_available",
+"body": {
+"p_task_kind": null,
+"p_company_id": null,
+"p_model_hint": null,
+"p_est_cost_usd": null
+}
+},
+{
+"fn": "check_ai_router_rate_limit",
+"body": {
+"p_caller_id": null,
+"p_max_calls": null,
+"p_function_name": null,
+"p_window_seconds": null
+}
+},
+{
+"fn": "check_and_update_login_attempt",
+"body": {
+"p_success": null,
+"p_user_id": null,
+"p_ip_address": null
+}
+},
+{
+"fn": "check_company_budget",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "check_company_budget_v2",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "check_email_domain_rate_limit",
+"body": {
+"p_action": null,
+"p_company_id": null
+}
+},
+{
+"fn": "check_overdue_and_upcoming_scadenze",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "check_overdue_scadenze",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "check_plan_limit",
+"body": {
+"p_increment": null,
+"p_company_id": null,
+"p_resource_type": null
+}
+},
+{
+"fn": "check_referral_fraud",
+"body": {
+"p_company_id": null,
+"p_ip_address": null,
+"p_referrer_id": null
+}
+},
+{
+"fn": "check_referral_signup_rate_limit",
+"body": {
+"p_ip_address": null,
+"p_max_attempts": null,
+"p_window_minutes": null
+}
+},
+{
+"fn": "chiudi_passi_su_evento",
+"body": {
+"_evento": null,
+"_order_id": null,
+"_ticket_id": null
+}
+},
+{
+"fn": "claim_documento_per_invio",
+"body": {
+"p_documento_id": null
+}
+},
+{
+"fn": "claim_render_bagno_session",
+"body": {
+"_session_id": null,
+"_stale_seconds": null
+}
+},
+{
+"fn": "claim_render_session",
+"body": {
+"_session_id": null,
+"_stale_seconds": null,
+"_allow_completed": null
+}
+},
+{
+"fn": "claim_render_vertical_session",
+"body": {
+"_table": null,
+"_session_id": null,
+"_stale_seconds": null
+}
+},
+{
+"fn": "cleanup_cestino_article_families",
+"body": {}
+},
+{
+"fn": "cleanup_cestino_documenti",
+"body": {}
+},
+{
+"fn": "cleanup_inactive_linked_blocks",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "cleanup_meta_rate_limit",
+"body": {}
+},
+{
+"fn": "cleanup_notifiche_cooldown",
+"body": {}
+},
+{
+"fn": "cleanup_old_accountant_signup_attempts",
+"body": {}
+},
+{
+"fn": "cleanup_old_referral_signup_attempts",
+"body": {}
+},
+{
+"fn": "cleanup_rate_limits",
+"body": {}
+},
+{
+"fn": "clone_survey_template",
+"body": {
+"p_new_name": null,
+"p_source_id": null
+}
+},
+{
+"fn": "clone_template_to_company",
+"body": {
+"p_name": null,
+"p_scope": null,
+"p_template_id": null
+}
+},
+{
+"fn": "collega_anagrafica_cliente",
+"body": {
+"_contact_id": null,
+"_profile_id": null
+}
+},
+{
+"fn": "company_has_google_calendar_connection",
+"body": {}
+},
+{
+"fn": "complete_onboarding_step",
+"body": {
+"p_step_key": null,
+"p_company_id": null
+}
+},
+{
+"fn": "complete_workflow_run",
+"body": {
+"p_output": null,
+"p_run_id": null,
+"p_status": null,
+"p_cost_usd": null,
+"p_tokens_input": null,
+"p_error_message": null,
+"p_tokens_output": null
+}
+},
+{
+"fn": "compute_client_margin_history",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "compute_max_discount",
+"body": {
+"p_user_id": null,
+"p_quote_id": null
+}
+},
+{
+"fn": "compute_quote_commission",
+"body": {
+"p_quote_id": null
+}
+},
+{
+"fn": "consume_ai_credits",
+"body": {
+"p_amount": null,
+"p_agent_id": null,
+"p_company_id": null,
+"p_descrizione": null,
+"p_conversation_id": null
+}
+},
+{
+"fn": "consume_credits",
+"body": {
+"p_amount": null,
+"p_metadata": null,
+"p_company_id": null,
+"p_credit_type": null,
+"p_description": null
+}
+},
+{
+"fn": "consume_email_otp",
+"body": {
+"p_code": null,
+"p_email": null
+}
+},
+{
+"fn": "contabilizza_fattura_ricevuta",
+"body": {
+"p_fattura_id": null
+}
+},
+{
+"fn": "conversazione_timeline",
+"body": {
+"p_entita_id": null,
+"p_entita_tipo": null
+}
+},
+{
+"fn": "conversazioni_cerca",
+"body": {
+"p_query": null,
+"p_company_id": null
+}
+},
+{
+"fn": "conversazioni_lista",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "conversazioni_puo_accedere",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "costo_orario_dipendente",
+"body": {
+"p_employee_id": null
+}
+},
+{
+"fn": "count_listino_usages_for_tipo_impianto",
+"body": {
+"p_tipo_impianto_id": null
+}
+},
+{
+"fn": "count_listino_usages_for_tipo_intervento",
+"body": {
+"p_tipo_intervento_id": null
+}
+},
+{
+"fn": "crea_notifiche_rate_in_arrivo",
+"body": {}
+},
+{
+"fn": "crea_notifiche_uscite_in_arrivo",
+"body": {}
+},
+{
+"fn": "create_ddt_from_uscita",
+"body": {
+"p_ddt_extra": null,
+"p_uscita_id": null
+}
+},
+{
+"fn": "create_default_chat_channels",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "create_notification",
+"body": {
+"p_body": null,
+"p_type": null,
+"p_title": null,
+"p_user_id": null,
+"p_entity_id": null,
+"p_action_url": null,
+"p_company_id": null,
+"p_entity_type": null
+}
+},
+{
+"fn": "create_oda_from_order",
+"body": {
+"p_item_ids": null,
+"p_order_id": null,
+"p_company_id": null,
+"p_supplier_id": null
+}
+},
+{
+"fn": "create_order_atomic",
+"body": {
+"p_items": null,
+"p_user_id": null,
+"p_order_data": null,
+"p_salesperson": null,
+"p_installments": null
+}
+},
+{
+"fn": "create_persona_session",
+"body": {
+"p_title": null,
+"p_user_id": null,
+"p_company_id": null,
+"p_persona_key": null
+}
+},
+{
+"fn": "create_proactive_proposal",
+"body": {
+"p_payload": null,
+"p_summary": null,
+"p_user_id": null,
+"p_ttl_days": null,
+"p_company_id": null,
+"p_risk_level": null,
+"p_action_type": null,
+"p_persona_key": null,
+"p_signal_type": null,
+"p_signal_metadata": null,
+"p_signal_entity_id": null
+}
+},
+{
+"fn": "create_shipment_atomic",
+"body": {
+"p_scans": null,
+"p_order_id": null,
+"p_ddt_extra": null,
+"p_warehouse_id": null
+}
+},
+{
+"fn": "create_task_due_notifications",
+"body": {}
+},
+{
+"fn": "create_warehouse_transfer_atomic",
+"body": {
+"p_items": null,
+"p_notes": null,
+"p_company_id": null,
+"p_transfer_date": null,
+"p_to_warehouse_id": null,
+"p_from_warehouse_id": null
+}
+},
+{
+"fn": "crm_cold_db_health",
+"body": {
+"p_company": null
+}
+},
+{
+"fn": "crm_flag_undeliverable_emails",
+"body": {
+"p_company": null
+}
+},
+{
+"fn": "crm_map_cells",
+"body": {
+"p_prec": null,
+"p_company": null,
+"p_max_lat": null,
+"p_max_lng": null,
+"p_min_lat": null,
+"p_min_lng": null
+}
+},
+{
+"fn": "crm_map_points_bbox",
+"body": {
+"p_limit": null,
+"p_company": null,
+"p_max_lat": null,
+"p_max_lng": null,
+"p_min_lat": null,
+"p_min_lng": null
+}
+},
+{
+"fn": "crm_map_region_stats",
+"body": {
+"p_company": null
+}
+},
+{
+"fn": "crm_next_unverified_domains",
+"body": {
+"p_limit": null,
+"p_company": null
+}
+},
+{
+"fn": "crm_recompute_cold_icp",
+"body": {
+"p_company": null
+}
+},
+{
+"fn": "crm_refresh_cold_lists",
+"body": {
+"p_company": null
+}
+},
+{
+"fn": "cron_health_check",
+"body": {}
+},
+{
+"fn": "cruscotto_trend_12m",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "data_network_etl_run",
+"body": {}
+},
+{
+"fn": "data_network_set_consent",
+"body": {
+"p_company_id": null,
+"p_consent_status": null,
+"p_exclude_metrics": null,
+"p_metrics_categories": null
+}
+},
+{
+"fn": "ddt_find_purchase_order_candidates",
+"body": {
+"p_ddt_date": null,
+"p_company_id": null,
+"p_supplier_id": null,
+"p_ddt_total_eur": null
+}
+},
+{
+"fn": "ddt_find_supplier_candidates",
+"body": {
+"p_name": null,
+"p_company_id": null,
+"p_vat_number": null
+}
+},
+{
+"fn": "decay_marketing_lead_scores",
+"body": {}
+},
+{
+"fn": "decide_quote_approval",
+"body": {
+"p_note": null,
+"p_decision": null,
+"p_approval_id": null,
+"p_sconto_autorizzato_pct": null
+}
+},
+{
+"fn": "decrement_scorta",
+"body": {
+"p_id": null,
+"p_qty": null
+}
+},
+{
+"fn": "deduct_ai_credits",
+"body": {
+"p_cost": null,
+"p_company_id": null
+}
+},
+{
+"fn": "deduct_ai_credits_with_markup",
+"body": {
+"p_metadata": null,
+"p_task_kind": null,
+"p_company_id": null,
+"p_model_used": null,
+"p_cost_usd_real": null,
+"p_tokens_prompt": null,
+"p_wa_message_id": null,
+"p_tokens_completion": null
+}
+},
+{
+"fn": "deduct_email_credits",
+"body": {
+"p_cost": null,
+"p_company_id": null
+}
+},
+{
+"fn": "deduct_email_credits_with_log",
+"body": {
+"p_cost": null,
+"p_metadata": null,
+"p_company_id": null,
+"p_campaign_id": null,
+"p_description": null
+}
+},
+{
+"fn": "deduct_render_credit",
+"body": {
+"_company_id": null
+}
+},
+{
+"fn": "deduct_render_credit_v2",
+"body": {
+"_company_id": null
+}
+},
+{
+"fn": "deduct_render_credit_v3",
+"body": {
+"_user_id": null,
+"_company_id": null,
+"_session_id": null,
+"_reason_meta": null
+}
+},
+{
+"fn": "deduct_whatsapp_credits_with_log",
+"body": {
+"p_cost": null,
+"p_metadata": null,
+"p_company_id": null,
+"p_campaign_id": null,
+"p_description": null
+}
+},
+{
+"fn": "delete_dashboard",
+"body": {
+"p_dashboard_id": null
+}
+},
+{
+"fn": "delete_order_cascading",
+"body": {
+"p_order_id": null,
+"p_company_id": null
+}
+},
+{
+"fn": "demo_scenario_applica",
+"body": {
+"p_fino_a": null,
+"p_company_id": null
+}
+},
+{
+"fn": "demo_scenario_applica_estensioni",
+"body": {
+"p_data": null,
+"p_tipo": null,
+"p_admin": null,
+"p_payload": null,
+"p_evento_id": null,
+"p_company_id": null
+}
+},
+{
+"fn": "diag_list_policies",
+"body": {
+"p_table": null
+}
+},
+{
+"fn": "diag_list_unpinned_definers",
+"body": {}
+},
+{
+"fn": "dimensione_from_revenue_range",
+"body": {
+"p_range": null
+}
+},
+{
+"fn": "do_recalculate_quote_totals",
+"body": {
+"p_quote_id": null
+}
+},
+{
+"fn": "email_ai_cascade_stats",
+"body": {
+"p_days": null
+}
+},
+{
+"fn": "email_connessione_avvisata",
+"body": {
+"p_connection_id": null
+}
+},
+{
+"fn": "email_connessioni_da_avvisare",
+"body": {
+"p_min_ore": null
+}
+},
+{
+"fn": "email_folder_counts",
+"body": {
+"p_account_ids": null
+}
+},
+{
+"fn": "email_imap_get_credentials",
+"body": {
+"p_connection_id": null
+}
+},
+{
+"fn": "email_imap_record_test",
+"body": {
+"p_ok": null,
+"p_error": null,
+"p_connection_id": null
+}
+},
+{
+"fn": "email_imap_upsert_connection",
+"body": {
+"p_password": null,
+"p_imap_host": null,
+"p_imap_port": null,
+"p_smtp_host": null,
+"p_smtp_port": null,
+"p_existing_id": null,
+"p_imap_secure": null,
+"p_smtp_secure": null,
+"p_email_address": null,
+"p_imap_username": null,
+"p_provider_label": null
+}
+},
+{
+"fn": "email_inbox_toggle_flag",
+"body": {
+"p_flag": null,
+"p_value": null,
+"p_email_id": null
+}
+},
+{
+"fn": "email_learning_dashboard",
+"body": {
+"p_days": null
+}
+},
+{
+"fn": "email_list_threads",
+"body": {
+"p_to": null,
+"p_from": null,
+"p_after": null,
+"p_limit": null,
+"p_before": null,
+"p_folder": null,
+"p_offset": null,
+"p_subject": null,
+"p_category": null,
+"p_has_star": null,
+"p_is_unread": null,
+"p_account_id": null,
+"p_search_text": null,
+"p_has_attachment": null
+}
+},
+{
+"fn": "email_mark_thread_read",
+"body": {
+"p_thread_id": null
+}
+},
+{
+"fn": "email_oauth_decrypt_token",
+"body": {
+"p_enc": null
+}
+},
+{
+"fn": "email_oauth_encrypt_token",
+"body": {
+"p_token": null
+}
+},
+{
+"fn": "email_oauth_get_decrypted_tokens",
+"body": {
+"p_connection_id": null
+}
+},
+{
+"fn": "email_oauth_list_due_for_poll",
+"body": {
+"p_limit": null
+}
+},
+{
+"fn": "email_oauth_mark_sync",
+"body": {
+"p_error": null,
+"p_success": null,
+"p_connection_id": null,
+"p_emails_fetched": null,
+"p_provider_metadata": null
+}
+},
+{
+"fn": "email_oauth_upsert_connection",
+"body": {
+"p_scopes": null,
+"p_user_id": null,
+"p_provider": null,
+"p_company_id": null,
+"p_expires_at": null,
+"p_access_token": null,
+"p_email_address": null,
+"p_refresh_token": null
+}
+},
+{
+"fn": "email_scadenza_conferma",
+"body": {
+"p_bozza_id": null
+}
+},
+{
+"fn": "email_search_recipients",
+"body": {
+"p_limit": null,
+"p_query": null,
+"p_company_id": null
+}
+},
+{
+"fn": "email_seed_user_folders",
+"body": {
+"p_user_id": null,
+"p_company_id": null
+}
+},
+{
+"fn": "email_semantic_search",
+"body": {
+"p_limit": null,
+"p_query_embedding": null
+}
+},
+{
+"fn": "email_structured_search",
+"body": {
+"p_a": null,
+"p_da": null,
+"p_limit": null,
+"p_categoria": null,
+"p_entita_nome": null
+}
+},
+{
+"fn": "email_thread_increment",
+"body": {
+"p_attach": null,
+"p_preview": null,
+"p_starred": null,
+"p_thread_id": null,
+"p_received_at": null,
+"p_unread_delta": null,
+"p_new_participants": null
+}
+},
+{
+"fn": "email_track_activity",
+"body": {
+"p_action": null,
+"p_thread_id": null,
+"p_company_id": null,
+"p_message_ids": null,
+"p_email_address": null,
+"p_oauth_connection_id": null
+}
+},
+{
+"fn": "enqueue_customer_workflow",
+"body": {
+"p_company_id": null,
+"p_triggered_by": null,
+"p_workflow_key": null,
+"p_trigger_payload": null
+}
+},
+{
+"fn": "enqueue_google_ads_offline_conversion_event",
+"body": {
+"p_entity_id": null,
+"p_company_id": null,
+"p_event_kind": null,
+"p_entity_type": null
+}
+},
+{
+"fn": "enqueue_meta_crm_conversion_event",
+"body": {
+"p_entity_id": null,
+"p_company_id": null,
+"p_event_kind": null,
+"p_entity_type": null
+}
+},
+{
+"fn": "enroll_entities_in_flow",
+"body": {
+"p_flow_id": null,
+"p_entity_ids": null,
+"p_entity_type": null
+}
+},
+{
+"fn": "ensure_monthly_free_ai_credits",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "ensure_referral_link",
+"body": {
+"p_base_url": null,
+"p_referrer_id": null
+}
+},
+{
+"fn": "ensure_sales_os_access",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "ensure_user_silvio_admin_channel",
+"body": {
+"p_user_id": null
+}
+},
+{
+"fn": "ensure_user_silvio_channel",
+"body": {
+"p_user_id": null
+}
+},
+{
+"fn": "execute_automation",
+"body": {
+"p_order_id": null,
+"p_company_id": null,
+"p_trigger_type": null
+}
+},
+{
+"fn": "expire_old_action_proposals",
+"body": {}
+},
+{
+"fn": "fe_operations_stats",
+"body": {}
+},
+{
+"fn": "fea_expire_stale_requests",
+"body": {}
+},
+{
+"fn": "fn_suggest_markup",
+"body": {
+"p_min_calls": null,
+"p_model_pattern": null,
+"p_target_margin_pct": null
+}
+},
+{
+"fn": "fulfillment_status_holds_reserve",
+"body": {
+"p_status": null
+}
+},
+{
+"fn": "fv_genera_numero_progetto",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "fv_sync_listino_macro",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "fv_sync_one_family",
+"body": {
+"p_family_id": null
+}
+},
+{
+"fn": "genera_numero_documento_native",
+"body": {
+"p_anno": null,
+"p_tipo": null,
+"p_company_id": null
+}
+},
+{
+"fn": "generate_invoice_number",
+"body": {
+"p_year": null,
+"p_company_id": null
+}
+},
+{
+"fn": "generate_monthly_payouts",
+"body": {
+"p_year": null,
+"p_month": null
+}
+},
+{
+"fn": "generate_oda_number",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "generate_quote_number",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "generate_referral_code_secure",
+"body": {}
+},
+{
+"fn": "generate_rfq_number",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "get_active_companies",
+"body": {
+"p_since": null
+}
+},
+{
+"fn": "get_agent_chat_stats",
+"body": {
+"p_agent_id": null
+}
+},
+{
+"fn": "get_ai_action_permission",
+"body": {
+"p_company_id": null,
+"p_action_type": null
+}
+},
+{
+"fn": "get_ai_analytics",
+"body": {
+"p_giorni": null,
+"p_company_id": null
+}
+},
+{
+"fn": "get_ai_company_stats",
+"body": {
+"p_giorni": null,
+"p_company_id": null
+}
+},
+{
+"fn": "get_ai_economics_dashboard",
+"body": {
+"p_period": null,
+"p_company_id": null
+}
+},
+{
+"fn": "get_ai_pricing",
+"body": {
+"p_tier_key": null,
+"p_company_id": null
+}
+},
+{
+"fn": "get_ai_router_config",
+"body": {
+"p_task_key": null
+}
+},
+{
+"fn": "get_attribution_report",
+"body": {
+"p_date_to": null,
+"p_group_by": null,
+"p_date_from": null,
+"p_company_id": null,
+"p_filter_source": null
+}
+},
+{
+"fn": "get_automation_counts",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "get_automation_log_recent",
+"body": {
+"p_limit": null,
+"p_company_id": null
+}
+},
+{
+"fn": "get_blocked_orders",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "get_callcenter_fonte_lead_performance",
+"body": {
+"p_data_fine": null,
+"p_company_id": null,
+"p_data_inizio": null
+}
+},
+{
+"fn": "get_callcenter_kpi_per_operatore",
+"body": {
+"p_data_fine": null,
+"p_company_id": null,
+"p_data_inizio": null,
+"p_operatore_id": null
+}
+},
+{
+"fn": "get_callcenter_lead_handling",
+"body": {
+"p_data_fine": null,
+"p_company_id": null,
+"p_data_inizio": null,
+"p_operatore_id": null
+}
+},
+{
+"fn": "get_callcenter_speed_to_lead_distribuzione",
+"body": {
+"p_data_fine": null,
+"p_company_id": null,
+"p_data_inizio": null,
+"p_operatore_id": null
+}
+},
+{
+"fn": "get_callcenter_trend_giornaliero",
+"body": {
+"p_data_fine": null,
+"p_company_id": null,
+"p_data_inizio": null,
+"p_operatore_id": null
+}
+},
+{
+"fn": "get_cantieri_margine_basso",
+"body": {
+"p_company_id": null,
+"p_soglia_percent": null
+}
+},
+{
+"fn": "get_cardinal_principles",
+"body": {
+"p_company_id": null,
+"p_persona_key": null
+}
+},
+{
+"fn": "get_cash_flow_by_month",
+"body": {
+"p_months": null,
+"p_company_id": null
+}
+},
+{
+"fn": "get_cash_flow_forecast",
+"body": {
+"p_days": null,
+"p_company_id": null
+}
+},
+{
+"fn": "get_cashflow_summary",
+"body": {
+"p_company_id": null,
+"p_months_ahead": null
+}
+},
+{
+"fn": "get_chatbot_config",
+"body": {
+"p_widget_token": null
+}
+},
+{
+"fn": "get_company_customer_count",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "get_company_customers",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "get_company_email_quota",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "get_company_email_usage_breakdown",
+"body": {
+"p_months": null,
+"p_company_id": null
+}
+},
+{
+"fn": "get_company_health_data",
+"body": {}
+},
+{
+"fn": "get_company_last_access",
+"body": {}
+},
+{
+"fn": "get_company_order_stats",
+"body": {}
+},
+{
+"fn": "get_company_user_counts",
+"body": {}
+},
+{
+"fn": "get_company_user_counts_v2",
+"body": {}
+},
+{
+"fn": "get_contact_tracking",
+"body": {
+"p_contact_id": null
+}
+},
+{
+"fn": "get_credits_usage_breakdown",
+"body": {
+"p_to": null,
+"p_from": null,
+"p_company_id": null
+}
+},
+{
+"fn": "get_cruscotto_invoice_stats",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "get_cruscotto_stats",
+"body": {
+"p_date_to": null,
+"p_date_from": null,
+"p_company_id": null
+}
+},
+{
+"fn": "get_customer_context",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "get_customer_stats",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "get_customers_paginated",
+"body": {
+"p_limit": null,
+"p_offset": null,
+"p_search": null,
+"p_date_to": null,
+"p_sort_dir": null,
+"p_date_from": null,
+"p_has_phone": null,
+"p_company_id": null,
+"p_has_orders": null,
+"p_sort_field": null,
+"p_portal_state": null,
+"p_salesperson_id": null,
+"p_has_fiscal_code": null,
+"p_has_site_address": null,
+"p_salesperson_none": null
+}
+},
+{
+"fn": "get_dashboard",
+"body": {
+"p_dashboard_id": null
+}
+},
+{
+"fn": "get_dashboard_kpis",
+"body": {
+"p_date_to": null,
+"p_date_from": null,
+"p_status_id": null,
+"p_company_id": null
+}
+},
+{
+"fn": "get_documenti_counts",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "get_documenti_monthly_timeline",
+"body": {
+"p_tipos": null,
+"p_company_id": null
+}
+},
+{
+"fn": "get_email_campaign_recipients",
+"body": {
+"p_limit": null,
+"p_offset": null,
+"p_search": null,
+"p_status": null,
+"p_company_id": null,
+"p_campaign_id": null
+}
+},
+{
+"fn": "get_email_stats_by_campaign",
+"body": {
+"p_date_to": null,
+"p_date_from": null,
+"p_company_id": null,
+"p_campaign_id": null
+}
+},
+{
+"fn": "get_email_stats_by_date",
+"body": {
+"p_date_to": null,
+"p_date_from": null,
+"p_company_id": null,
+"p_campaign_id": null
+}
+},
+{
+"fn": "get_email_stats_summary",
+"body": {
+"p_date_to": null,
+"p_date_from": null,
+"p_company_id": null,
+"p_campaign_id": null
+}
+},
+{
+"fn": "get_expenses_by_category",
+"body": {
+"p_months": null,
+"p_company_id": null
+}
+},
+{
+"fn": "get_extra_services_economics",
+"body": {
+"_to": null,
+"_from": null
+}
+},
+{
+"fn": "get_feature_usage_stats",
+"body": {}
+},
+{
+"fn": "get_full_rls_audit",
+"body": {}
+},
+{
+"fn": "get_industry_benchmark",
+"body": {
+"p_company_id": null,
+"p_metric_key": null
+}
+},
+{
+"fn": "get_internal_chat_profiles",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "get_internal_chat_sidebar_state",
+"body": {
+"p_user_id": null,
+"p_company_id": null
+}
+},
+{
+"fn": "get_leave_summary",
+"body": {
+"p_year": null,
+"p_company_id": null
+}
+},
+{
+"fn": "get_link_policy",
+"body": {
+"p_doc_type": null
+}
+},
+{
+"fn": "get_low_stock_alerts",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "get_marketing_dashboard_stats",
+"body": {
+"p_date_to": null,
+"p_sources": null,
+"p_date_from": null,
+"p_company_id": null,
+"p_pipeline_id": null,
+"p_assigned_user_ids": null
+}
+},
+{
+"fn": "get_metric",
+"body": {
+"p_filters": null,
+"p_breakdown": null,
+"p_metric_id": null,
+"p_aggregation": null
+}
+},
+{
+"fn": "get_mrr_movements_monthly",
+"body": {
+"p_months": null
+}
+},
+{
+"fn": "get_my_cruscotto_dashboard",
+"body": {}
+},
+{
+"fn": "get_my_primary_warehouse",
+"body": {}
+},
+{
+"fn": "get_my_referral_fraud_count",
+"body": {}
+},
+{
+"fn": "get_order_materials_history",
+"body": {
+"p_order_id": null,
+"p_company_id": null
+}
+},
+{
+"fn": "get_persona_memory",
+"body": {
+"p_limit": null,
+"p_persona_key": null
+}
+},
+{
+"fn": "get_plan_company_counts",
+"body": {}
+},
+{
+"fn": "get_platform_consumption_summary",
+"body": {
+"p_since": null
+}
+},
+{
+"fn": "get_platform_email_stats",
+"body": {
+"p_date_to": null,
+"p_date_from": null
+}
+},
+{
+"fn": "get_prezzo_intervento",
+"body": {
+"p_cliente_id": null,
+"p_company_id": null,
+"p_tipo_impianto_id": null,
+"p_tipo_intervento_id": null
+}
+},
+{
+"fn": "get_prima_nota_saldo",
+"body": {
+"p_to_date": null,
+"p_from_date": null,
+"p_company_id": null
+}
+},
+{
+"fn": "get_referral_commission_policy",
+"body": {}
+},
+{
+"fn": "get_render_economics_by_company",
+"body": {
+"_to": null,
+"_from": null
+}
+},
+{
+"fn": "get_render_economics_detail",
+"body": {
+"_to": null,
+"_from": null,
+"_company_id": null
+}
+},
+{
+"fn": "get_render_economics_global",
+"body": {
+"_to": null,
+"_from": null
+}
+},
+{
+"fn": "get_sales_forecast",
+"body": {
+"p_company_id": null,
+"p_months_ahead": null
+}
+},
+{
+"fn": "get_sales_velocity",
+"body": {
+"p_days_back": null,
+"p_company_id": null
+}
+},
+{
+"fn": "get_scadenzario",
+"body": {
+"p_to_date": null,
+"p_from_date": null,
+"p_company_id": null
+}
+},
+{
+"fn": "get_scadenzario_summary",
+"body": {
+"p_date_to": null,
+"p_date_from": null,
+"p_company_id": null
+}
+},
+{
+"fn": "get_stalled_opportunities",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "get_tables_without_rls",
+"body": {}
+},
+{
+"fn": "get_top_companies_by_email",
+"body": {
+"p_limit": null
+}
+},
+{
+"fn": "get_total_orders_value",
+"body": {}
+},
+{
+"fn": "get_treasury_summary",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "get_vendor_funnel_stages",
+"body": {
+"p_agent_id": null,
+"p_data_fine": null,
+"p_company_id": null,
+"p_data_inizio": null
+}
+},
+{
+"fn": "get_vendor_kpi_per_agent",
+"body": {
+"p_agent_id": null,
+"p_data_fine": null,
+"p_company_id": null,
+"p_data_inizio": null
+}
+},
+{
+"fn": "get_vendor_trend_mensile",
+"body": {
+"p_anno": null,
+"p_agent_id": null,
+"p_company_id": null
+}
+},
+{
+"fn": "get_vertical_persona_addendum",
+"body": {
+"p_company_id": null,
+"p_persona_key": null
+}
+},
+{
+"fn": "get_voice_consuntivo",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "get_weighted_pipeline",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "get_whatsapp_metrics",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "grant_admin_portal_course_to_companies",
+"body": {
+"p_notes": null,
+"p_source_course_id": null,
+"p_target_company_ids": null
+}
+},
+{
+"fn": "grant_render_credits_for_active_subs",
+"body": {}
+},
+{
+"fn": "grant_render_credits_for_subscription",
+"body": {
+"p_subscription_id": null
+}
+},
+{
+"fn": "guess_vertical_from_name",
+"body": {
+"p_nome": null
+}
+},
+{
+"fn": "has_cost_permission",
+"body": {
+"p_perm": null,
+"p_user": null
+}
+},
+{
+"fn": "hash_otp_code",
+"body": {
+"p_code": null
+}
+},
+{
+"fn": "hr_documento_stato",
+"body": {
+"p_alert": null,
+"p_scadenza": null
+}
+},
+{
+"fn": "hr_persona_kpi_auto",
+"body": {
+"p_periodo": null,
+"p_profilo_id": null
+}
+},
+{
+"fn": "hr_profilo_da_user",
+"body": {
+"p_user_id": null,
+"p_company_id": null
+}
+},
+{
+"fn": "hr_talent_issue_public_link",
+"body": {
+"p_expires_at": null,
+"p_candidate_id": null
+}
+},
+{
+"fn": "hr_talent_token_hash",
+"body": {
+"p_token": null
+}
+},
+{
+"fn": "hr_update_richiesta_stato",
+"body": {
+"p_stato": null,
+"p_richiesta_id": null,
+"p_note_risposta": null
+}
+},
+{
+"fn": "import_article_family_template",
+"body": {
+"p_company_id": null,
+"p_template_id": null,
+"p_nome_override": null,
+"p_macrocategoria_id": null
+}
+},
+{
+"fn": "increment_agent_stats",
+"body": {
+"p_chat": null,
+"p_costo": null,
+"p_minuti": null,
+"p_agent_id": null,
+"p_chiamate": null,
+"p_chiamate_completate": null
+}
+},
+{
+"fn": "increment_branch_stats",
+"body": {
+"p_branch_id": null,
+"p_duration_seconds": null,
+"p_appointment_created": null
+}
+},
+{
+"fn": "increment_budget_spend",
+"body": {
+"p_eur": null,
+"p_company_id": null
+}
+},
+{
+"fn": "increment_order_total",
+"body": {
+"p_delta": null,
+"p_order_id": null
+}
+},
+{
+"fn": "increment_referral_link_clicks",
+"body": {
+"p_referrer_id": null,
+"p_referral_code": null
+}
+},
+{
+"fn": "increment_referrer_clicks",
+"body": {
+"p_referrer_id": null
+}
+},
+{
+"fn": "incrementa_progressivo_sdi",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "insert_goods_receipt_atomic",
+"body": {
+"p_notes": null,
+"p_ddt_number": null,
+"p_supplier_id": null,
+"p_warehouse_id": null,
+"p_ddt_photo_url": null,
+"p_order_item_id": null,
+"p_quality_notes": null,
+"p_ddt_ricezione_id": null,
+"p_quantity_received": null,
+"p_quality_check_status": null
+}
+},
+{
+"fn": "is_assigned_to_warehouse",
+"body": {
+"p_warehouse_id": null
+}
+},
+{
+"fn": "is_cg_enabled",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "is_marketing_contact_google_attributed",
+"body": {
+"p_contact_id": null
+}
+},
+{
+"fn": "is_marketing_contact_meta_attributed",
+"body": {
+"p_contact_id": null
+}
+},
+{
+"fn": "is_mio_rivenditore",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "is_referrer_payout_compliant",
+"body": {
+"p_payout_method": null,
+"p_payout_details": null,
+"p_has_accepted_terms": null
+}
+},
+{
+"fn": "is_scopri_plan",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "is_suppressed",
+"body": {
+"p_email": null,
+"p_company_id": null
+}
+},
+{
+"fn": "is_warehouse_referente",
+"body": {
+"p_user_id": null,
+"p_warehouse_id": null
+}
+},
+{
+"fn": "kb_external_source_apply_change",
+"body": {
+"p_new_hash": null,
+"p_new_title": null,
+"p_source_id": null,
+"p_new_content": null,
+"p_new_metadata": null
+}
+},
+{
+"fn": "kb_external_source_mark_error",
+"body": {
+"p_error": null,
+"p_source_id": null
+}
+},
+{
+"fn": "kb_external_source_mark_unchanged",
+"body": {
+"p_source_id": null
+}
+},
+{
+"fn": "kb_external_sources_due",
+"body": {
+"p_limit": null
+}
+},
+{
+"fn": "kb_run_qa_tests",
+"body": {
+"p_qa_pair_id": null
+}
+},
+{
+"fn": "kb_test_query",
+"body": {
+"p_query": null,
+"p_top_k": null,
+"p_company_id": null,
+"p_category_path": null,
+"p_min_similarity": null,
+"p_include_expired": null,
+"p_query_embedding": null
+}
+},
+{
+"fn": "kb_test_query_multilang",
+"body": {
+"p_query": null,
+"p_top_k": null,
+"p_language": null,
+"p_company_id": null,
+"p_category_path": null,
+"p_min_similarity": null,
+"p_include_expired": null,
+"p_query_embedding": null,
+"p_cross_lang_fallback": null
+}
+},
+{
+"fn": "kb_track_retrieval",
+"body": {
+"p_doc_id": null,
+"p_similarity": null
+}
+},
+{
+"fn": "lead_scraper_bump_usage",
+"body": {
+"p_n": null,
+"p_provider": null
+}
+},
+{
+"fn": "lead_scraper_claim_job",
+"body": {
+"p_worker": null
+}
+},
+{
+"fn": "lead_scraper_track_bump",
+"body": {
+"p_id": null,
+"p_kind": null
+}
+},
+{
+"fn": "list_company_accountant_invites",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "list_company_members",
+"body": {}
+},
+{
+"fn": "list_company_role_dashboards",
+"body": {}
+},
+{
+"fn": "list_dashboard_templates",
+"body": {
+"p_role": null
+}
+},
+{
+"fn": "list_dashboards",
+"body": {}
+},
+{
+"fn": "list_dirty_entities_for_embed",
+"body": {
+"p_limit": null
+}
+},
+{
+"fn": "list_survey_templates_with_settings",
+"body": {}
+},
+{
+"fn": "literacy_set_completion",
+"body": {
+"p_score": null,
+"p_user_id": null,
+"p_course_id": null,
+"p_recert_months": null,
+"p_certificate_url": null
+}
+},
+{
+"fn": "log_accountant_signup_attempt",
+"body": {
+"p_email": null,
+"p_success": null,
+"p_ip_address": null,
+"p_user_agent": null,
+"p_error_reason": null
+}
+},
+{
+"fn": "log_activity",
+"body": {
+"p_changes": null,
+"p_category": null,
+"p_metadata": null,
+"p_trace_id": null,
+"p_target_id": null,
+"p_company_id": null,
+"p_event_type": null,
+"p_importance": null,
+"p_description": null,
+"p_target_label": null,
+"p_target_table": null,
+"p_actor_user_id": null,
+"p_after_snapshot": null,
+"p_before_snapshot": null,
+"p_source_function": null
+}
+},
+{
+"fn": "log_audit_event",
+"body": {
+"p_ip": null,
+"p_notes": null,
+"p_row_pk": null,
+"p_operation": null,
+"p_company_id": null,
+"p_table_name": null,
+"p_user_agent": null
+}
+},
+{
+"fn": "log_email_accesso",
+"body": {
+"p_via": null,
+"p_email_id": null,
+"p_thread_id": null
+}
+},
+{
+"fn": "log_kb_citation",
+"body": {
+"p_doc_ids": null,
+"p_company_id": null,
+"p_session_id": null,
+"p_user_query": null,
+"p_persona_key": null,
+"p_override_ids": null,
+"p_used_in_response": null,
+"p_similarity_scores": null
+}
+},
+{
+"fn": "log_rbac_violation",
+"body": {
+"p_reason": null,
+"p_user_id": null,
+"p_client_ip": null,
+"p_user_role": null,
+"p_company_id": null,
+"p_user_agent": null,
+"p_attempted_message": null,
+"p_attempted_persona": null
+}
+},
+{
+"fn": "log_referral_event",
+"body": {
+"p_user_id": null,
+"p_click_id": null,
+"p_company_id": null,
+"p_event_type": null,
+"p_ip_address": null,
+"p_user_agent": null,
+"p_referrer_id": null,
+"p_event_payload": null,
+"p_referral_code": null
+}
+},
+{
+"fn": "log_referral_signup_attempt",
+"body": {
+"p_email": null,
+"p_success": null,
+"p_ip_address": null,
+"p_user_agent": null,
+"p_error_reason": null
+}
+},
+{
+"fn": "lookup_user_by_email",
+"body": {
+"p_email": null
+}
+},
+{
+"fn": "mark_all_notifications_read",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "mark_entity_embedded",
+"body": {
+"p_id": null,
+"p_embedding": null
+}
+},
+{
+"fn": "mark_entity_for_embed",
+"body": {
+"p_content": null,
+"p_metadata": null,
+"p_entity_id": null,
+"p_company_id": null,
+"p_entity_type": null
+}
+},
+{
+"fn": "mark_scadenza_paid",
+"body": {
+"p_notes": null,
+"p_amount": null,
+"p_scadenza_id": null,
+"p_payment_date": null,
+"p_account_label": null,
+"p_payment_method": null
+}
+},
+{
+"fn": "marketing_trend_12m",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "mask_pii_email",
+"body": {
+"input": null
+}
+},
+{
+"fn": "mask_pii_phone",
+"body": {
+"input": null
+}
+},
+{
+"fn": "match_articles",
+"body": {
+"p_company_id": null,
+"p_match_count": null,
+"p_match_threshold": null,
+"p_query_embedding": null
+}
+},
+{
+"fn": "match_brain",
+"body": {
+"p_company_id": null,
+"p_match_count": null,
+"p_source_types": null,
+"p_min_similarity": null,
+"p_query_embedding": null,
+"p_include_universal": null,
+"p_universal_categories": null
+}
+},
+{
+"fn": "match_brain_universal",
+"body": {
+"p_kb_areas": null,
+"p_match_count": null,
+"p_min_similarity": null,
+"p_query_embedding": null
+}
+},
+{
+"fn": "match_brain_vertical_universal",
+"body": {
+"p_match_count": null,
+"p_vertical_keys": null,
+"p_match_threshold": null,
+"p_query_embedding": null
+}
+},
+{
+"fn": "match_families_semantic",
+"body": {
+"p_vertical": null,
+"p_company_id": null,
+"p_match_count": null,
+"p_match_threshold": null,
+"p_query_embedding": null
+}
+},
+{
+"fn": "match_scan_to_oda",
+"body": {
+"p_supplier_id": null,
+"p_stock_item_id": null
+}
+},
+{
+"fn": "match_tariffe_semantic",
+"body": {
+"p_vertical": null,
+"p_company_id": null,
+"p_match_count": null,
+"p_match_threshold": null,
+"p_query_embedding": null
+}
+},
+{
+"fn": "maybe_auto_recharge",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "next_contratto_numero",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "normalized_order_balance_amount",
+"body": {
+"p_total": null,
+"p_balance": null,
+"p_deposit": null,
+"p_deposit_2": null,
+"p_financing": null
+}
+},
+{
+"fn": "normalized_order_collected_amount",
+"body": {
+"p_total": null,
+"p_balance": null,
+"p_deposit": null,
+"p_deposit_2": null,
+"p_financing": null,
+"p_balance_paid": null,
+"p_deposit_paid": null,
+"p_deposit_2_paid": null,
+"p_financing_paid": null
+}
+},
+{
+"fn": "normalized_order_due_amount",
+"body": {
+"p_total": null,
+"p_balance": null,
+"p_deposit": null,
+"p_deposit_2": null,
+"p_financing": null,
+"p_balance_paid": null,
+"p_deposit_paid": null,
+"p_deposit_2_paid": null,
+"p_financing_paid": null
+}
+},
+{
+"fn": "normalizza_stato_preventivo",
+"body": {
+"p_stato": null
+}
+},
+{
+"fn": "openwa_campagna_ab",
+"body": {
+"p_campagna_id": null
+}
+},
+{
+"fn": "openwa_campagna_anteprima",
+"body": {
+"p_tags": null,
+"p_citta": null,
+"p_limite": null,
+"p_source": null,
+"p_provincia": null,
+"p_giorni_riposo": null
+}
+},
+{
+"fn": "openwa_campagna_candidati",
+"body": {
+"p_tags": null,
+"p_citta": null,
+"p_limite": null,
+"p_source": null,
+"p_provincia": null,
+"p_giorni_riposo": null
+}
+},
+{
+"fn": "openwa_campagna_carica_lista",
+"body": {
+"p_tags": null,
+"p_citta": null,
+"p_limite": null,
+"p_source": null,
+"p_provincia": null,
+"p_campagna_id": null,
+"p_giorni_riposo": null
+}
+},
+{
+"fn": "openwa_campagna_conta_invio",
+"body": {
+"p_campagna_id": null
+}
+},
+{
+"fn": "openwa_campagna_prossimi",
+"body": {
+"p_limit": null
+}
+},
+{
+"fn": "openwa_campagna_riprova_falliti",
+"body": {
+"p_campagna_id": null
+}
+},
+{
+"fn": "openwa_campagna_risposte",
+"body": {
+"p_campagna_id": null
+}
+},
+{
+"fn": "openwa_campagna_scala_invio",
+"body": {
+"p_campagna_id": null
+}
+},
+{
+"fn": "openwa_campagna_segna_risposta",
+"body": {
+"p_contact_id": null
+}
+},
+{
+"fn": "openwa_campagne_completa_finite",
+"body": {}
+},
+{
+"fn": "openwa_campagne_riepilogo",
+"body": {}
+},
+{
+"fn": "openwa_cerca_messaggi",
+"body": {
+"p_limit": null,
+"p_query": null
+}
+},
+{
+"fn": "openwa_contesto_chat",
+"body": {
+"p_chat_id": null
+}
+},
+{
+"fn": "openwa_non_letti",
+"body": {}
+},
+{
+"fn": "openwa_numeri_bannati_da_avvisare",
+"body": {}
+},
+{
+"fn": "openwa_numero_ban_avvisato",
+"body": {
+"p_numero_id": null
+}
+},
+{
+"fn": "openwa_template_usato",
+"body": {
+"p_id": null
+}
+},
+{
+"fn": "openwa_threads_lista",
+"body": {
+"p_limit": null,
+"p_stato": null,
+"p_offset": null,
+"p_assegnato": null,
+"p_solo_non_letti": null
+}
+},
+{
+"fn": "ops_canarino_raccogli",
+"body": {}
+},
+{
+"fn": "order_schedule_health",
+"body": {
+"p_order_id": null
+}
+},
+{
+"fn": "outreach_acquire_brand_lock",
+"body": {
+"p_brand_id": null,
+"p_durata_gg": null,
+"p_prospect_company_id": null
+}
+},
+{
+"fn": "outreach_calc_company_key",
+"body": {
+"p_p_iva": null,
+"p_rag_soc": null,
+"p_provincia": null,
+"p_email_domain": null
+}
+},
+{
+"fn": "outreach_ensure_prospect",
+"body": {
+"p_contact_id": null
+}
+},
+{
+"fn": "outreach_lock_maintenance",
+"body": {}
+},
+{
+"fn": "outreach_mailbox_secret",
+"body": {
+"p_ref": null
+}
+},
+{
+"fn": "outreach_mailbox_set_secret",
+"body": {
+"p_name": null,
+"p_secret": null
+}
+},
+{
+"fn": "outreach_marca_in_sequenza",
+"body": {
+"p_brand_id": null,
+"p_contact_ids": null
+}
+},
+{
+"fn": "outreach_mx_group_of",
+"body": {
+"p_host": null
+}
+},
+{
+"fn": "outreach_mx_try_consume",
+"body": {
+"p_max_ora": null,
+"p_mx_group": null,
+"p_sender_key": null
+}
+},
+{
+"fn": "outreach_norm_rag_soc",
+"body": {
+"p_nome": null
+}
+},
+{
+"fn": "outreach_prenota_invio",
+"body": {
+"p_cap": null,
+"p_today": null,
+"p_sender_id": null
+}
+},
+{
+"fn": "outreach_register_open",
+"body": {
+"p_queue_id": null
+}
+},
+{
+"fn": "outreach_release_brand_lock",
+"body": {
+"p_esito": null,
+"p_brand_id": null,
+"p_cooldown_gg": null,
+"p_prospect_company_id": null
+}
+},
+{
+"fn": "outreach_rilascia_invio",
+"body": {
+"p_today": null,
+"p_sender_id": null
+}
+},
+{
+"fn": "outreach_runs_pulisci",
+"body": {}
+},
+{
+"fn": "outreach_stats_by_sender",
+"body": {
+"p_company": null
+}
+},
+{
+"fn": "outreach_stats_by_sequence",
+"body": {
+"p_company": null
+}
+},
+{
+"fn": "outreach_stats_daily",
+"body": {
+"p_tz": null,
+"p_days": null,
+"p_company": null
+}
+},
+{
+"fn": "outreach_stats_funnel",
+"body": {
+"p_company": null
+}
+},
+{
+"fn": "outreach_stats_queue_status",
+"body": {
+"p_company": null
+}
+},
+{
+"fn": "outreach_tag_counts",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "partner_sign_referral_contract",
+"body": {
+"p_ip_address": null,
+"p_user_agent": null,
+"p_signed_name": null,
+"p_contract_version": null
+}
+},
+{
+"fn": "partner_submit_referral_payout_details",
+"body": {
+"p_bank": null,
+"p_iban": null,
+"p_name": null,
+"p_phone": null,
+"p_fiscal_code": null,
+"p_partner_type": null,
+"p_payout_method": null,
+"p_account_holder": null
+}
+},
+{
+"fn": "pick_silvio_admin_persona",
+"body": {
+"p_query": null
+}
+},
+{
+"fn": "populate_broadcast_recipients",
+"body": {
+"p_broadcast_id": null,
+"p_segment_filter": null,
+"p_variable_mapping": null
+}
+},
+{
+"fn": "precheck_ai_credit",
+"body": {
+"p_tier_key": null,
+"p_tokens_in": null,
+"p_company_id": null,
+"p_tokens_out": null,
+"p_estimated_cost_eur": null
+}
+},
+{
+"fn": "profile_display_name",
+"body": {
+"p_profile": null
+}
+},
+{
+"fn": "prossimo_numero_commessa",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "prune_ai_response_cache",
+"body": {}
+},
+{
+"fn": "pseudo_company_id",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "purchase_extra_render_credit",
+"body": {
+"p_credits": null,
+"p_company_id": null,
+"p_stripe_payment_intent": null
+}
+},
+{
+"fn": "purge_cestino_preventivi",
+"body": {}
+},
+{
+"fn": "recalculate_invoice_totals",
+"body": {
+"p_invoice_id": null
+}
+},
+{
+"fn": "recall_persona_memory",
+"body": {
+"p_limit": null,
+"p_user_id": null,
+"p_company_id": null,
+"p_persona_key": null
+}
+},
+{
+"fn": "receive_from_oda_via_scans",
+"body": {
+"p_scans": null,
+"p_oda_id": null,
+"p_ddt_number": null,
+"p_warehouse_id": null,
+"p_ddt_ricezione_id": null
+}
+},
+{
+"fn": "reclassify_email_manuale",
+"body": {
+"p_email_id": null,
+"p_categoria": null,
+"p_entita_id": null,
+"p_entita_tipo": null
+}
+},
+{
+"fn": "recompute_opportunity_value",
+"body": {
+"p_opp": null
+}
+},
+{
+"fn": "recompute_order_progress",
+"body": {
+"p_order_id": null
+}
+},
+{
+"fn": "record_persona_memory",
+"body": {
+"p_source": null,
+"p_content": null,
+"p_user_id": null,
+"p_company_id": null,
+"p_confidence": null,
+"p_memory_type": null,
+"p_persona_key": null
+}
+},
+{
+"fn": "record_persona_message",
+"body": {
+"p_role": null,
+"p_content": null,
+"p_metadata": null,
+"p_ledger_id": null,
+"p_tokens_in": null,
+"p_model_used": null,
+"p_session_id": null,
+"p_tokens_out": null,
+"p_tool_calls": null,
+"p_tool_call_id": null,
+"p_cost_billed_eur": null
+}
+},
+{
+"fn": "record_referral_conversion",
+"body": {
+"p_status": null,
+"p_revenue": null,
+"p_user_id": null,
+"p_click_id": null,
+"p_company_id": null,
+"p_referral_code": null
+}
+},
+{
+"fn": "refresh_mv_cg_storico_24m",
+"body": {}
+},
+{
+"fn": "refresh_order_salespeople_commissions",
+"body": {
+"p_order_id": null
+}
+},
+{
+"fn": "refund_email_credit_on_bounce",
+"body": {
+"p_reason": null,
+"p_provider_message_id": null
+}
+},
+{
+"fn": "refund_render_credit_all",
+"body": {
+"_company_id": null,
+"_session_id": null,
+"_reason_meta": null
+}
+},
+{
+"fn": "refund_render_credit_v1",
+"body": {
+"_user_id": null,
+"_company_id": null,
+"_session_id": null,
+"_reason_meta": null
+}
+},
+{
+"fn": "register_warehouse_uscita",
+"body": {
+"p_note": null,
+"p_scans": null,
+"p_vettore": null,
+"p_destinatario": null,
+"p_warehouse_id": null
+}
+},
+{
+"fn": "registra_correzione_email",
+"body": {
+"p_evento": null,
+"p_email_id": null,
+"p_categoria": null,
+"p_entita_id": null,
+"p_entita_tipo": null
+}
+},
+{
+"fn": "registra_incasso_atomico",
+"body": {
+"p_note": null,
+"p_metodo": null,
+"p_importo": null,
+"p_company_id": null,
+"p_riferimento": null,
+"p_documento_id": null,
+"p_data_movimento": null
+}
+},
+{
+"fn": "release_render_bagno_session",
+"body": {
+"_session_id": null
+}
+},
+{
+"fn": "release_render_session",
+"body": {
+"_session_id": null
+}
+},
+{
+"fn": "release_render_vertical_session",
+"body": {
+"_table": null,
+"_session_id": null
+}
+},
+{
+"fn": "release_token_refresh_lock",
+"body": {
+"p_integration_id": null
+}
+},
+{
+"fn": "request_quote_approval",
+"body": {
+"p_note": null,
+"p_quote_id": null,
+"p_sconto_richiesto_pct": null
+}
+},
+{
+"fn": "reset_ai_monthly_counters",
+"body": {}
+},
+{
+"fn": "reset_daily_budget_if_needed",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "resolve_company_feature",
+"body": {
+"p_company_id": null,
+"p_feature_key": null
+}
+},
+{
+"fn": "resolve_company_features",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "resolve_dashboard",
+"body": {
+"p_dashboard_id": null,
+"p_override_filters": null
+}
+},
+{
+"fn": "restore_email_template_from_history",
+"body": {
+"p_history_id": null
+}
+},
+{
+"fn": "restore_record",
+"body": {
+"p_id": null,
+"p_table": null
+}
+},
+{
+"fn": "revoke_admin_portal_course_from_companies",
+"body": {
+"p_source_course_id": null,
+"p_target_company_ids": null
+}
+},
+{
+"fn": "ricalcola_ricezione_oda",
+"body": {
+"p_po_id": null
+}
+},
+{
+"fn": "riepilogo_piattaforma",
+"body": {
+"p_a": null,
+"p_da": null
+}
+},
+{
+"fn": "rilascia_numero_documento",
+"body": {
+"p_documento_id": null
+}
+},
+{
+"fn": "rpc_anon_applica_superficie",
+"body": {}
+},
+{
+"fn": "rpc_anon_superficie_attesa",
+"body": {}
+},
+{
+"fn": "sa_aggregate_all_problems",
+"body": {}
+},
+{
+"fn": "sa_aggregate_company_problems",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "sa_alert_type_to_area",
+"body": {
+"p_alert_type": null
+}
+},
+{
+"fn": "sa_companies_with_recent_silvio_msgs",
+"body": {
+"p_hours": null,
+"p_limit": null
+}
+},
+{
+"fn": "sa_compute_company_intel",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "sa_domain_aliases",
+"body": {
+"p_tool_domain": null
+}
+},
+{
+"fn": "sa_get_company_dossier",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "sa_get_company_intel",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "sa_get_pipeline_per_pacchetto",
+"body": {}
+},
+{
+"fn": "sa_get_problem_radar",
+"body": {
+"p_area": null,
+"p_limite": null,
+"p_severita_min": null
+}
+},
+{
+"fn": "sa_get_trend_aggregato",
+"body": {
+"p_giorni": null
+}
+},
+{
+"fn": "sa_get_upsell_radar",
+"body": {
+"p_limite": null,
+"p_servizio": null
+}
+},
+{
+"fn": "sa_intel_area_to_servizio",
+"body": {
+"p_area": null
+}
+},
+{
+"fn": "sa_recent_silvio_user_messages",
+"body": {
+"p_hours": null,
+"p_limit": null,
+"p_company_id": null
+}
+},
+{
+"fn": "sa_signalarea_to_problemarea",
+"body": {
+"p_area": null
+}
+},
+{
+"fn": "sanitize_customer_profile",
+"body": {
+"p_customer_id": null
+}
+},
+{
+"fn": "save_dashboard",
+"body": {
+"p_icon": null,
+"p_name": null,
+"p_note": null,
+"p_scope": null,
+"p_layout": null,
+"p_description": null,
+"p_dashboard_id": null
+}
+},
+{
+"fn": "save_internal_automation_nodes",
+"body": {
+"p_nodes": null,
+"p_flow_id": null,
+"p_company_id": null,
+"p_connections": null
+}
+},
+{
+"fn": "save_order_statuses",
+"body": {
+"p_statuses": null,
+"p_company_id": null
+}
+},
+{
+"fn": "save_quote_items_atomic",
+"body": {
+"p_items": null,
+"p_quote_id": null,
+"p_company_id": null
+}
+},
+{
+"fn": "scan_customers_issues",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "scraped_companies_upsert",
+"body": {
+"p_rows": null
+}
+},
+{
+"fn": "search_cantieri_by_trigram",
+"body": {
+"p_limit": null,
+"p_query": null,
+"p_company_id": null
+}
+},
+{
+"fn": "search_company_activity",
+"body": {
+"p_to": null,
+"p_from": null,
+"p_limit": null,
+"p_categories": null,
+"p_company_id": null,
+"p_query_text": null,
+"p_event_types": null,
+"p_target_table": null,
+"p_actor_user_id": null,
+"p_min_importance": null
+}
+},
+{
+"fn": "search_entities_semantic",
+"body": {
+"p_top_k": null,
+"p_company_id": null,
+"p_entity_types": null,
+"p_min_similarity": null,
+"p_query_embedding": null
+}
+},
+{
+"fn": "search_silvio_knowledge",
+"body": {
+"p_top_k": null,
+"p_kb_sections": null,
+"p_persona_key": null,
+"p_min_similarity": null,
+"p_query_embedding": null
+}
+},
+{
+"fn": "search_silvio_knowledge_v2",
+"body": {
+"p_top_k": null,
+"p_company_id": null,
+"p_kb_sections": null,
+"p_persona_key": null,
+"p_min_similarity": null,
+"p_query_embedding": null
+}
+},
+{
+"fn": "seed_default_auto_topup",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "seed_macro_fields_from_vertical",
+"body": {
+"p_macro_id": null,
+"p_vertical": null
+}
+},
+{
+"fn": "seed_tipi_documento_operaio",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "sequenza_approva_attiva",
+"body": {
+"p_attiva": null,
+"p_sequenza_id": null
+}
+},
+{
+"fn": "sequenza_enroll",
+"body": {
+"p_ancora_at": null,
+"p_entita_id": null,
+"p_thread_id": null,
+"p_variabili": null,
+"p_entita_tipo": null,
+"p_sequenza_id": null,
+"p_destinatario": null,
+"p_destinatario_nome": null,
+"p_oauth_connection_id": null
+}
+},
+{
+"fn": "sequenza_esecuzione_stato",
+"body": {
+"p_stato": null,
+"p_esecuzione_id": null
+}
+},
+{
+"fn": "sequenza_invio_conferma",
+"body": {
+"p_azione": null,
+"p_invio_id": null
+}
+},
+{
+"fn": "set_active_company",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "set_ai_action_permission",
+"body": {
+"p_mode": null,
+"p_notes": null,
+"p_company_id": null,
+"p_risk_level": null,
+"p_action_type": null,
+"p_allowed_roles": null,
+"p_max_daily_executions": null,
+"p_requires_company_admin": null
+}
+},
+{
+"fn": "set_company_role_dashboard",
+"body": {
+"p_role": null,
+"p_dashboard_id": null
+}
+},
+{
+"fn": "set_dashboard_user_access",
+"body": {
+"p_user_id": null,
+"p_dashboard_id": null
+}
+},
+{
+"fn": "set_default_dashboard",
+"body": {
+"p_dashboard_id": null
+}
+},
+{
+"fn": "set_default_warehouse",
+"body": {
+"p_warehouse_id": null
+}
+},
+{
+"fn": "silvio_action_queue_claim",
+"body": {
+"p_max": null
+}
+},
+{
+"fn": "silvio_admin_alert_upsert",
+"body": {
+"p_title": null,
+"p_related": null,
+"p_category": null,
+"p_severity": null,
+"p_dedup_key": null,
+"p_suggested": null,
+"p_expires_at": null,
+"p_description": null
+}
+},
+{
+"fn": "silvio_admin_alerts_runner",
+"body": {}
+},
+{
+"fn": "silvio_admin_resolve_approval",
+"body": {
+"p_status": null,
+"p_approval_id": null,
+"p_resolution_note": null,
+"p_modified_payload": null
+}
+},
+{
+"fn": "silvio_admin_serie_grafico",
+"body": {
+"p_mesi": null,
+"p_metric": null
+}
+},
+{
+"fn": "silvio_admin_update_queue_action",
+"body": {
+"p_action_id": null,
+"p_operation": null
+}
+},
+{
+"fn": "silvio_agent_resolve_mission",
+"body": {
+"p_note": null,
+"p_mission_id": null,
+"p_resolution": null
+}
+},
+{
+"fn": "silvio_ai_capabilities_index",
+"body": {}
+},
+{
+"fn": "silvio_ai_customer_display_name",
+"body": {
+"p_email": null,
+"p_last_name": null,
+"p_first_name": null,
+"p_client_name": null,
+"p_client_company": null
+}
+},
+{
+"fn": "silvio_ai_usage_stats",
+"body": {
+"p_days_back": null,
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_alerts_stats",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_ambiti_utente",
+"body": {}
+},
+{
+"fn": "silvio_ambito_consentito",
+"body": {
+"p_ambito": null
+}
+},
+{
+"fn": "silvio_azione_override_set",
+"body": {
+"p_attiva": null,
+"p_chiave": null,
+"p_autorizzazione": null
+}
+},
+{
+"fn": "silvio_brief_promote_alert",
+"body": {
+"p_user_id": null,
+"p_alert_id": null,
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_budget_consuma",
+"body": {
+"p_company": null,
+"p_token_in": null,
+"p_token_out": null
+}
+},
+{
+"fn": "silvio_canale_avvia_verifica",
+"body": {
+"p_identificativo": null
+}
+},
+{
+"fn": "silvio_canale_risolvi_utente",
+"body": {
+"p_canale": null,
+"p_identificativo": null
+}
+},
+{
+"fn": "silvio_cashflow_forecast_90d",
+"body": {
+"p_weeks": null,
+"p_company_id": null,
+"p_apply_delay": null
+}
+},
+{
+"fn": "silvio_catalogo",
+"body": {}
+},
+{
+"fn": "silvio_cleanup_old_alerts",
+"body": {}
+},
+{
+"fn": "silvio_cleanup_old_uploads",
+"body": {}
+},
+{
+"fn": "silvio_cluster_tickets",
+"body": {
+"p_period": null,
+"p_min_cluster": null
+}
+},
+{
+"fn": "silvio_coda_risolvi",
+"body": {
+"p_id": null,
+"p_note": null,
+"p_azione": null,
+"p_parametri_modificati": null
+}
+},
+{
+"fn": "silvio_commesse_visibili",
+"body": {
+"p_user_id": null,
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_compliance_status_export",
+"body": {}
+},
+{
+"fn": "silvio_compute_customer_ltv",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_crea_bozza_campagna_ads",
+"body": {
+"p_area": null,
+"p_copy": null,
+"p_note": null,
+"p_target": null,
+"p_concept": null,
+"p_platform": null,
+"p_obiettivo": null,
+"p_company_id": null,
+"p_durata_giorni": null,
+"p_budget_giornaliero": null
+}
+},
+{
+"fn": "silvio_crea_cartella",
+"body": {
+"p_nome": null,
+"p_colore": null
+}
+},
+{
+"fn": "silvio_crea_conversazione",
+"body": {
+"p_titolo": null
+}
+},
+{
+"fn": "silvio_create_alert",
+"body": {
+"p_title": null,
+"p_message": null,
+"p_severity": null,
+"p_cta_label": null,
+"p_dedup_key": null,
+"p_source_id": null,
+"p_alert_type": null,
+"p_company_id": null,
+"p_cta_action": null,
+"p_expires_at": null,
+"p_cta_payload": null,
+"p_source_meta": null,
+"p_source_type": null,
+"p_target_user_id": null
+}
+},
+{
+"fn": "silvio_create_alert_with_decision_log",
+"body": {
+"p_title": null,
+"p_message": null,
+"p_options": null,
+"p_metadata": null,
+"p_severity": null,
+"p_source_id": null,
+"p_alert_type": null,
+"p_company_id": null,
+"p_is_critical": null,
+"p_persona_key": null,
+"p_recommended": null,
+"p_source_type": null,
+"p_kpis_to_track": null
+}
+},
+{
+"fn": "silvio_create_invoice_draft",
+"body": {
+"p_notes": null,
+"p_amount": null,
+"p_user_id": null,
+"p_order_id": null,
+"p_rata_type": null,
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_create_quote_draft",
+"body": {
+"p_items": null,
+"p_title": null,
+"p_user_id": null,
+"p_company_id": null,
+"p_client_name": null,
+"p_description": null,
+"p_tipo_lavoro": null,
+"p_client_email": null,
+"p_client_phone": null,
+"p_validity_days": null,
+"p_client_address": null,
+"p_internal_notes": null,
+"p_default_vat_rate": null,
+"p_indirizzo_lavori": null
+}
+},
+{
+"fn": "silvio_create_task",
+"body": {
+"p_notes": null,
+"p_title": null,
+"p_due_date": null,
+"p_related_to": null,
+"p_related_type": null
+}
+},
+{
+"fn": "silvio_decision_log_audit_export",
+"body": {
+"p_to": null,
+"p_from": null,
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_decision_log_check_outcomes_cron",
+"body": {}
+},
+{
+"fn": "silvio_decision_log_decide",
+"body": {
+"p_decision_id": null,
+"p_user_rationale": null,
+"p_chosen_option_id": null,
+"p_executed_action_id": null,
+"p_user_modifications": null
+}
+},
+{
+"fn": "silvio_decision_log_decide_by_action",
+"body": {
+"p_executed": null,
+"p_user_rationale": null,
+"p_chosen_option_id": null,
+"p_execution_result": null,
+"p_action_proposal_id": null,
+"p_user_modifications": null
+}
+},
+{
+"fn": "silvio_decision_log_expire_old",
+"body": {}
+},
+{
+"fn": "silvio_decision_log_propose",
+"body": {
+"p_tags": null,
+"p_options": null,
+"p_ai_model": null,
+"p_ai_tokens": null,
+"p_diagnosis": null,
+"p_situation": null,
+"p_company_id": null,
+"p_confidence": null,
+"p_ai_cost_eur": null,
+"p_is_critical": null,
+"p_persona_key": null,
+"p_playbook_id": null,
+"p_recommended": null,
+"p_trigger_type": null,
+"p_kpis_to_track": null,
+"p_diagnosis_data": null,
+"p_trigger_metadata": null,
+"p_trigger_source_id": null,
+"p_trigger_source_type": null
+}
+},
+{
+"fn": "silvio_decision_log_record_outcome",
+"body": {
+"p_period": null,
+"p_lessons": null,
+"p_evaluation": null,
+"p_decision_id": null,
+"p_outcome_data": null
+}
+},
+{
+"fn": "silvio_detect_alerts",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_detect_alerts_all_companies",
+"body": {}
+},
+{
+"fn": "silvio_detect_cashflow_alerts",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_detect_frodi_anomalie",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_dismiss_alert",
+"body": {
+"p_alert_id": null
+}
+},
+{
+"fn": "silvio_draft_followup_email",
+"body": {
+"p_tone": null,
+"p_lead_id": null,
+"p_context_hint": null
+}
+},
+{
+"fn": "silvio_draft_ticket_reply",
+"body": {
+"p_tone": null,
+"p_ticket_id": null
+}
+},
+{
+"fn": "silvio_elimina_cartella",
+"body": {
+"p_id": null
+}
+},
+{
+"fn": "silvio_elimina_conversazione",
+"body": {
+"p_channel_id": null
+}
+},
+{
+"fn": "silvio_email_dispatch_fatture",
+"body": {
+"p_limit": null,
+"p_cron_secret": null
+}
+},
+{
+"fn": "silvio_email_dispatch_opportunita",
+"body": {
+"p_limit": null,
+"p_cron_secret": null
+}
+},
+{
+"fn": "silvio_employees_workload",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_executive_report",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_expire_alerts",
+"body": {}
+},
+{
+"fn": "silvio_fattura_categorie_summary",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_fatture_anomalie_detect",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_foto_cantiere_summary",
+"body": {
+"p_order_id": null,
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_get_ai_costs_summary",
+"body": {
+"p_period": null
+}
+},
+{
+"fn": "silvio_get_briefing_alerts",
+"body": {
+"p_limit": null,
+"p_user_id": null,
+"p_company_id": null,
+"p_min_severity": null
+}
+},
+{
+"fn": "silvio_get_chat_for_extraction",
+"body": {
+"p_user_id": null,
+"p_channel_id": null,
+"p_lookback_hours": null
+}
+},
+{
+"fn": "silvio_get_customer_history",
+"body": {
+"p_days": null,
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_get_lead_detail",
+"body": {
+"p_lead_id": null
+}
+},
+{
+"fn": "silvio_get_memory_context",
+"body": {
+"p_user_id": null,
+"p_company_id": null,
+"p_max_summaries": null
+}
+},
+{
+"fn": "silvio_get_mrr_breakdown",
+"body": {
+"p_period": null
+}
+},
+{
+"fn": "silvio_get_quote_for_review",
+"body": {
+"p_quote_id": null
+}
+},
+{
+"fn": "silvio_get_revenue_forecast",
+"body": {
+"p_months_ahead": null
+}
+},
+{
+"fn": "silvio_get_system_classification",
+"body": {
+"p_system_id": null
+}
+},
+{
+"fn": "silvio_get_top_customers_by_revenue",
+"body": {
+"p_limit": null
+}
+},
+{
+"fn": "silvio_get_unpaid_customers",
+"body": {
+"p_limit": null
+}
+},
+{
+"fn": "silvio_invoke_edge",
+"body": {
+"p_body": null,
+"p_function_name": null
+}
+},
+{
+"fn": "silvio_kb_track_citation",
+"body": {
+"p_doc_ids": null
+}
+},
+{
+"fn": "silvio_list_leads",
+"body": {
+"p_limit": null,
+"p_status": null,
+"p_score_min": null,
+"p_days_since_contact": null
+}
+},
+{
+"fn": "silvio_list_tickets",
+"body": {
+"p_limit": null,
+"p_status": null,
+"p_priority": null
+}
+},
+{
+"fn": "silvio_lista_bozze_campagne_ads",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_lista_cartelle",
+"body": {}
+},
+{
+"fn": "silvio_lista_conversazioni",
+"body": {}
+},
+{
+"fn": "silvio_mark_memory_extracted",
+"body": {
+"p_user_id": null,
+"p_company_id": null,
+"p_facts_added": null
+}
+},
+{
+"fn": "silvio_match_decision_rule",
+"body": {
+"p_dominio": null,
+"p_payload": null,
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_ops_health",
+"body": {
+"p_user_id": null,
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_outbound_enqueue",
+"body": {
+"p_corpo": null,
+"p_scopo": null,
+"p_canale": null,
+"p_dest_id": null,
+"p_user_id": null,
+"p_dest_tipo": null,
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_outbound_resolve_recipient",
+"body": {
+"p_dest_id": null,
+"p_dest_tipo": null,
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_payment_delay_pattern",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_pin_conversazione",
+"body": {
+"p_pinned": null,
+"p_channel_id": null
+}
+},
+{
+"fn": "silvio_playbook_list_active",
+"body": {}
+},
+{
+"fn": "silvio_playbook_match",
+"body": {
+"p_alert_type": null,
+"p_trigger_type": null,
+"p_trigger_source_type": null
+}
+},
+{
+"fn": "silvio_playbook_performance",
+"body": {
+"p_days_back": null,
+"p_playbook_id": null
+}
+},
+{
+"fn": "silvio_pricing_history",
+"body": {
+"p_item_name": null,
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_promote_alert_to_proposal",
+"body": {
+"p_alert_id": null
+}
+},
+{
+"fn": "silvio_promote_due_reminders",
+"body": {}
+},
+{
+"fn": "silvio_puo_eseguire",
+"body": {
+"p_chiave": null
+}
+},
+{
+"fn": "silvio_rate_response",
+"body": {
+"p_rating": null,
+"p_message_id": null
+}
+},
+{
+"fn": "silvio_record_memory_summary",
+"body": {
+"p_topics": null,
+"p_summary": null,
+"p_user_id": null,
+"p_embedding": null,
+"p_key_facts": null,
+"p_channel_id": null,
+"p_company_id": null,
+"p_period_end": null,
+"p_session_id": null,
+"p_period_start": null,
+"p_messages_count": null
+}
+},
+{
+"fn": "silvio_rinomina_cartella",
+"body": {
+"p_id": null,
+"p_nome": null
+}
+},
+{
+"fn": "silvio_rinomina_conversazione",
+"body": {
+"p_titolo": null,
+"p_channel_id": null
+}
+},
+{
+"fn": "silvio_self_improvement_aggregate",
+"body": {
+"p_days": null
+}
+},
+{
+"fn": "silvio_self_improvement_promote",
+"body": {}
+},
+{
+"fn": "silvio_sposta_conversazione",
+"body": {
+"p_folder_id": null,
+"p_channel_id": null
+}
+},
+{
+"fn": "silvio_team_availability",
+"body": {
+"p_data_fine": null,
+"p_company_id": null,
+"p_data_inizio": null
+}
+},
+{
+"fn": "silvio_tool_aggiorna_giornale_evento",
+"body": {
+"p_data": null,
+"p_user_id": null,
+"p_company_id": null,
+"p_cantiere_id": null,
+"p_evento_type": null,
+"p_evento_descrizione": null
+}
+},
+{
+"fn": "silvio_tool_aggiorna_preventivo_da_foto_results",
+"body": {
+"p_run_id": null,
+"p_status": null,
+"p_quote_id": null,
+"p_company_id": null,
+"p_computo_draft": null,
+"p_vision_results": null,
+"p_computo_total_eur": null,
+"p_vision_cost_billed_eur": null
+}
+},
+{
+"fn": "silvio_tool_aggiorna_skill_da_rapportini",
+"body": {
+"p_company_id": null,
+"p_period_end": null,
+"p_employee_id": null,
+"p_period_start": null
+}
+},
+{
+"fn": "silvio_tool_aggiorna_step_onboarding",
+"body": {
+"p_status": null,
+"p_user_id": null,
+"p_step_key": null,
+"p_ai_content": null,
+"p_company_id": null,
+"p_employee_id": null,
+"p_document_path": null,
+"p_error_message": null,
+"p_external_reference": null
+}
+},
+{
+"fn": "silvio_tool_analizza_cause_ritardo",
+"body": {
+"p_company_id": null,
+"p_cantiere_id": null
+}
+},
+{
+"fn": "silvio_tool_analizza_competenze_operaio",
+"body": {
+"p_company_id": null,
+"p_employee_id": null
+}
+},
+{
+"fn": "silvio_tool_analizza_proposal_engagement",
+"body": {
+"p_company_id": null,
+"p_proposal_id": null
+}
+},
+{
+"fn": "silvio_tool_analizza_qualita_foto",
+"body": {
+"p_foto_id": null,
+"p_user_id": null,
+"p_ai_model": null,
+"p_company_id": null,
+"p_order_score": null,
+"p_safety_score": null,
+"p_ai_confidence": null,
+"p_quality_score": null,
+"p_safety_issues": null,
+"p_quality_issues": null,
+"p_recommendations": null,
+"p_detected_elements": null,
+"p_ai_cost_billed_eur": null,
+"p_vertical_specific_checks": null
+}
+},
+{
+"fn": "silvio_tool_analizza_squadra_storia",
+"body": {
+"p_company_id": null,
+"p_employee_ids": null
+}
+},
+{
+"fn": "silvio_tool_analizza_storico_pricing_cliente",
+"body": {
+"p_user_id": null,
+"p_company_id": null,
+"p_customer_id": null
+}
+},
+{
+"fn": "silvio_tool_anomalie_aperte",
+"body": {
+"p_user_id": null,
+"p_company_id": null,
+"p_severity_min": null
+}
+},
+{
+"fn": "silvio_tool_apply_capture_review",
+"body": {
+"p_run_id": null,
+"p_company_id": null,
+"p_corrections": null
+}
+},
+{
+"fn": "silvio_tool_apply_complaint_analysis",
+"body": {
+"p_analysis": null,
+"p_company_id": null,
+"p_complaint_id": null
+}
+},
+{
+"fn": "silvio_tool_apply_computo_review",
+"body": {
+"p_items": null,
+"p_config": null,
+"p_company_id": null,
+"p_computo_id": null
+}
+},
+{
+"fn": "silvio_tool_apply_visit_debrief_analysis",
+"body": {
+"p_analysis": null,
+"p_company_id": null,
+"p_debrief_id": null
+}
+},
+{
+"fn": "silvio_tool_approva_giornale",
+"body": {
+"p_user_id": null,
+"p_company_id": null,
+"p_giornale_id": null,
+"p_observations": null
+}
+},
+{
+"fn": "silvio_tool_approva_sal",
+"body": {
+"p_sal_id": null,
+"p_user_id": null,
+"p_company_id": null,
+"p_observations": null,
+"p_force_proceed_with_warnings": null
+}
+},
+{
+"fn": "silvio_tool_approve_proposal_with_edits",
+"body": {
+"p_company_id": null,
+"p_proposal_id": null,
+"p_edit_reasoning": null,
+"p_user_edited_payload": null
+}
+},
+{
+"fn": "silvio_tool_archivia_documento_subappaltatore",
+"body": {
+"p_tipo": null,
+"p_esito": null,
+"p_user_id": null,
+"p_scadenza": null,
+"p_company_id": null,
+"p_storage_path": null,
+"p_data_emissione": null,
+"p_ai_extracted_data": null,
+"p_numero_protocollo": null,
+"p_subappaltatore_id": null
+}
+},
+{
+"fn": "silvio_tool_archivia_durc_manuale",
+"body": {
+"p_esito": null,
+"p_user_id": null,
+"p_target_id": null,
+"p_company_id": null,
+"p_target_type": null,
+"p_data_scadenza": null,
+"p_data_emissione": null,
+"p_enti_irregolari": null,
+"p_pdf_storage_path": null,
+"p_numero_protocollo": null,
+"p_target_partita_iva": null,
+"p_irregularity_details": null,
+"p_target_denominazione": null
+}
+},
+{
+"fn": "silvio_tool_avanza_fatt_zero_touch",
+"body": {
+"p_run_id": null,
+"p_user_id": null,
+"p_metadata": null,
+"p_company_id": null,
+"p_new_status": null
+}
+},
+{
+"fn": "silvio_tool_avvia_onboarding",
+"body": {
+"p_ccnl": null,
+"p_livello": null,
+"p_ral_eur": null,
+"p_user_id": null,
+"p_qualifica": null,
+"p_company_id": null,
+"p_employee_id": null,
+"p_ore_settimana": null,
+"p_data_assunzione": null
+}
+},
+{
+"fn": "silvio_tool_batch_approve_proposals",
+"body": {
+"p_company_id": null,
+"p_proposal_ids": null
+}
+},
+{
+"fn": "silvio_tool_blocca_operaio_da_cantiere",
+"body": {
+"p_reason": null,
+"p_company_id": null,
+"p_employee_id": null
+}
+},
+{
+"fn": "silvio_tool_blocca_slot_calendario",
+"body": {
+"p_fine": null,
+"p_inizio": null,
+"p_motivo": null,
+"p_user_id": null,
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_tool_bonus_commessa",
+"body": {
+"p_order_id": null,
+"p_company_id": null,
+"p_order_code": null
+}
+},
+{
+"fn": "silvio_tool_calcola_costo_ritardo",
+"body": {
+"p_company_id": null,
+"p_delay_days": null,
+"p_cantiere_id": null
+}
+},
+{
+"fn": "silvio_tool_calcola_ore_mese_dipendente",
+"body": {
+"p_year": null,
+"p_month": null,
+"p_user_id": null,
+"p_company_id": null,
+"p_employee_id": null
+}
+},
+{
+"fn": "silvio_tool_candidati_hr",
+"body": {
+"p_limit": null,
+"p_ruolo": null,
+"p_stato": null,
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_tool_cashflow_status",
+"body": {
+"p_days_back": null,
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_tool_cerca_email",
+"body": {
+"p_limit": null,
+"p_query": null,
+"p_user_id": null,
+"p_mittente": null,
+"p_days_back": null,
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_tool_checklist_documenti_pratica",
+"body": {
+"p_company_id": null,
+"p_pratica_id": null
+}
+},
+{
+"fn": "silvio_tool_chiedi_riassunto_settimana",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_tool_chiudi_lead_first_touch",
+"body": {
+"p_run_id": null,
+"p_outcome": null,
+"p_company_id": null,
+"p_appointment_at": null,
+"p_passed_to_user_id": null
+}
+},
+{
+"fn": "silvio_tool_company_kpi",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_tool_compone_sal_da_rapportini",
+"body": {
+"p_user_id": null,
+"p_order_id": null,
+"p_company_id": null,
+"p_period_end": null,
+"p_period_start": null,
+"p_force_regenerate": null
+}
+},
+{
+"fn": "silvio_tool_componi_e_invia_messaggio",
+"body": {
+"p_corpo": null,
+"p_scopo": null,
+"p_canale": null,
+"p_dest_id": null,
+"p_oggetto": null,
+"p_user_id": null,
+"p_dest_tipo": null,
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_tool_compute_prompt_feedback",
+"body": {
+"p_days_back": null,
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_tool_convoca_formazione_operaio",
+"body": {
+"p_canale": null,
+"p_user_id": null,
+"p_company_id": null,
+"p_formazione": null,
+"p_dipendente_id": null
+}
+},
+{
+"fn": "silvio_tool_crea_lead_first_touch",
+"body": {
+"p_user_id": null,
+"p_company_id": null,
+"p_raw_payload": null,
+"p_contact_name": null,
+"p_contact_email": null,
+"p_contact_phone": null,
+"p_source_channel": null,
+"p_contact_address": null,
+"p_source_campaign": null,
+"p_vertical_interest": null,
+"p_source_landing_url": null
+}
+},
+{
+"fn": "silvio_tool_crea_preventivo_da_foto",
+"body": {
+"p_source": null,
+"p_urgenza": null,
+"p_user_id": null,
+"p_lead_name": null,
+"p_company_id": null,
+"p_lead_email": null,
+"p_lead_phone": null,
+"p_customer_id": null,
+"p_description": null,
+"p_budget_hint_eur": null,
+"p_cantiere_address": null,
+"p_image_storage_paths": null,
+"p_sketch_storage_paths": null
+}
+},
+{
+"fn": "silvio_tool_crea_promemoria",
+"body": {
+"p_note": null,
+"p_title": null,
+"p_user_id": null,
+"p_cta_label": null,
+"p_remind_on": null,
+"p_source_id": null,
+"p_company_id": null,
+"p_cta_action": null,
+"p_cta_payload": null,
+"p_source_type": null
+}
+},
+{
+"fn": "silvio_tool_crea_proposta_ordine_fornitore",
+"body": {
+"p_items": null,
+"p_user_id": null,
+"p_company_id": null,
+"p_supplier_id": null,
+"p_for_cantiere_id": null,
+"p_proposal_reason": null,
+"p_total_amount_eur": null,
+"p_optimal_send_date": null,
+"p_expected_delivery_date": null
+}
+},
+{
+"fn": "silvio_tool_crea_winback_draft",
+"body": {
+"p_channel": null,
+"p_user_id": null,
+"p_ai_message": null,
+"p_company_id": null,
+"p_ai_analysis": null,
+"p_customer_id": null,
+"p_dormancy_days": null,
+"p_dormancy_score": null,
+"p_ai_offer_summary": null,
+"p_customer_ltv_eur": null,
+"p_offered_products": null,
+"p_ai_cost_billed_eur": null,
+"p_customer_orders_count": null
+}
+},
+{
+"fn": "silvio_tool_create_capture_run",
+"body": {
+"p_audio_path": null,
+"p_company_id": null,
+"p_description": null,
+"p_image_paths": null,
+"p_capture_mode": null,
+"p_vertical_key": null
+}
+},
+{
+"fn": "silvio_tool_create_complaint",
+"body": {
+"p_source": null,
+"p_raw_text": null,
+"p_company_id": null,
+"p_contact_id": null,
+"p_customer_name": null,
+"p_customer_email": null,
+"p_customer_phone": null,
+"p_related_order_id": null,
+"p_related_quote_id": null
+}
+},
+{
+"fn": "silvio_tool_create_visit_debrief",
+"body": {
+"p_order_id": null,
+"p_quote_id": null,
+"p_audio_path": null,
+"p_company_id": null,
+"p_contact_id": null,
+"p_free_notes": null,
+"p_image_paths": null,
+"p_visit_location": null
+}
+},
+{
+"fn": "silvio_tool_detect_duplicate_payments",
+"body": {
+"p_user_id": null,
+"p_days_back": null,
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_tool_durc_status_self",
+"body": {
+"p_user_id": null,
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_tool_enqueue_creativita",
+"body": {
+"p_tipo": null,
+"p_brief": null,
+"p_formato": null,
+"p_user_id": null,
+"p_company_id": null,
+"p_commessa_id": null
+}
+},
+{
+"fn": "silvio_tool_fatture_da_registrare",
+"body": {
+"p_limit": null,
+"p_user_id": null,
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_tool_fatture_restanti",
+"body": {
+"p_limit": null,
+"p_user_id": null,
+"p_company_id": null,
+"p_only_unpaid": null
+}
+},
+{
+"fn": "silvio_tool_flag_anomalia",
+"body": {
+"p_amount": null,
+"p_user_id": null,
+"p_severity": null,
+"p_company_id": null,
+"p_anomaly_type": null,
+"p_ai_confidence": null,
+"p_ai_description": null,
+"p_transaction_id": null,
+"p_ai_recommendation": null,
+"p_counterparty_name": null
+}
+},
+{
+"fn": "silvio_tool_flusso_commessa",
+"body": {
+"p_order_id": null,
+"p_company_id": null,
+"p_order_code": null
+}
+},
+{
+"fn": "silvio_tool_formazioni_in_scadenza",
+"body": {
+"p_company_id": null,
+"p_days_ahead": null
+}
+},
+{
+"fn": "silvio_tool_fotovoltaico_overview",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_tool_genera_cedolino_dipendente",
+"body": {
+"p_year": null,
+"p_month": null,
+"p_user_id": null,
+"p_company_id": null,
+"p_employee_id": null,
+"p_force_regenerate": null
+}
+},
+{
+"fn": "silvio_tool_genera_cu_anno",
+"body": {
+"p_year": null,
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_tool_genera_documento_router",
+"body": {
+"p_tipo": null,
+"p_user_id": null,
+"p_company_id": null,
+"p_pratica_id": null,
+"p_commessa_id": null
+}
+},
+{
+"fn": "silvio_tool_genera_duvri_cantiere",
+"body": {
+"p_company_id": null,
+"p_cantiere_id": null
+}
+},
+{
+"fn": "silvio_tool_genera_f24_mese",
+"body": {
+"p_year": null,
+"p_month": null,
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_tool_genera_giornale",
+"body": {
+"p_data": null,
+"p_user_id": null,
+"p_company_id": null,
+"p_cantiere_id": null,
+"p_force_regenerate": null
+}
+},
+{
+"fn": "silvio_tool_genera_lipe_trimestrale",
+"body": {
+"p_year": null,
+"p_quarter": null,
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_tool_genera_modulo_consegna_dpi",
+"body": {
+"p_dpi_items": null,
+"p_company_id": null,
+"p_employee_id": null
+}
+},
+{
+"fn": "silvio_tool_genera_piano_recovery_cantiere",
+"body": {
+"p_company_id": null,
+"p_cantiere_id": null,
+"p_target_date": null
+}
+},
+{
+"fn": "silvio_tool_genera_pos_cantiere",
+"body": {
+"p_company_id": null,
+"p_cantiere_id": null,
+"p_force_regenerate": null
+}
+},
+{
+"fn": "silvio_tool_genera_proposal_commerciale",
+"body": {
+"p_quote_id": null,
+"p_company_id": null,
+"p_target_audience": null,
+"p_force_regenerate": null
+}
+},
+{
+"fn": "silvio_tool_genera_relazione_tecnica",
+"body": {
+"p_company_id": null,
+"p_pratica_id": null,
+"p_template_type": null
+}
+},
+{
+"fn": "silvio_tool_genera_report_cfo_settimanale",
+"body": {
+"p_company_id": null,
+"p_week_start": null,
+"p_force_regenerate": null
+}
+},
+{
+"fn": "silvio_tool_genera_reportino_committente",
+"body": {
+"p_user_id": null,
+"p_company_id": null,
+"p_week_start": null,
+"p_cantiere_id": null,
+"p_trigger_source": null,
+"p_force_regenerate": null,
+"p_triggered_by_persona": null
+}
+},
+{
+"fn": "silvio_tool_get_capture_run",
+"body": {
+"p_run_id": null,
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_tool_get_cashflow_forecast_scenarios",
+"body": {
+"p_user_id": null,
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_tool_get_dynamic_pricing_factors",
+"body": {
+"p_company_id": null,
+"p_material_keys": null,
+"p_product_category": null
+}
+},
+{
+"fn": "silvio_tool_get_pipeline_forecast",
+"body": {
+"p_company_id": null,
+"p_horizon_days": null
+}
+},
+{
+"fn": "silvio_tool_get_proposal_audit_log",
+"body": {
+"p_company_id": null,
+"p_proposal_id": null
+}
+},
+{
+"fn": "silvio_tool_guida_a",
+"body": {
+"p_entita_id": null,
+"p_company_id": null,
+"p_operazione": null,
+"p_precompila": null
+}
+},
+{
+"fn": "silvio_tool_identifica_conflitti_allocazione",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_tool_identifica_quotes_da_followup",
+"body": {
+"p_company_id": null,
+"p_priority_threshold": null
+}
+},
+{
+"fn": "silvio_tool_identifica_tipo_pratica",
+"body": {
+"p_company_id": null,
+"p_ubicazione": null,
+"p_tipologia_intervento": null
+}
+},
+{
+"fn": "silvio_tool_identify_dormant_customers",
+"body": {
+"p_top_n": null,
+"p_user_id": null,
+"p_company_id": null,
+"p_threshold_days": null
+}
+},
+{
+"fn": "silvio_tool_invia_cedolino",
+"body": {
+"p_canale": null,
+"p_user_id": null,
+"p_company_id": null,
+"p_cedolino_id": null,
+"p_dipendente_id": null
+}
+},
+{
+"fn": "silvio_tool_invia_followup_preventivo",
+"body": {
+"p_canale": null,
+"p_user_id": null,
+"p_quote_id": null,
+"p_cliente_id": null,
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_tool_invia_lipe_ade",
+"body": {
+"p_report_id": null,
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_tool_invia_ordine_fornitore",
+"body": {
+"p_canale": null,
+"p_user_id": null,
+"p_quantita": null,
+"p_company_id": null,
+"p_articolo_id": null,
+"p_fornitore_id": null
+}
+},
+{
+"fn": "silvio_tool_invia_proposal_cliente",
+"body": {
+"p_message": null,
+"p_channels": null,
+"p_company_id": null,
+"p_proposal_id": null
+}
+},
+{
+"fn": "silvio_tool_invia_report_cfo",
+"body": {
+"p_channels": null,
+"p_report_id": null,
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_tool_invia_sollecito_pagamento",
+"body": {
+"p_tono": null,
+"p_canale": null,
+"p_user_id": null,
+"p_cliente_id": null,
+"p_company_id": null,
+"p_fattura_id": null
+}
+},
+{
+"fn": "silvio_tool_lancia_winback",
+"body": {
+"p_canale": null,
+"p_offerta": null,
+"p_user_id": null,
+"p_cliente_id": null,
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_tool_lavori_pose_periodo",
+"body": {
+"p_days": null,
+"p_user_id": null,
+"p_company_id": null,
+"p_start_date": null,
+"p_include_materials": null
+}
+},
+{
+"fn": "silvio_tool_lista_cantieri_a_rischio",
+"body": {
+"p_company_id": null,
+"p_risk_level_min": null
+}
+},
+{
+"fn": "silvio_tool_lista_cantieri_per_briefing",
+"body": {
+"p_company_id": null,
+"p_briefing_date": null
+}
+},
+{
+"fn": "silvio_tool_lista_cedolini_da_revisionare",
+"body": {
+"p_year": null,
+"p_month": null,
+"p_user_id": null,
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_tool_lista_dipendenti_oggi",
+"body": {
+"p_user_id": null,
+"p_company_id": null,
+"p_only_active": null
+}
+},
+{
+"fn": "silvio_tool_lista_documenti_in_scadenza",
+"body": {
+"p_user_id": null,
+"p_company_id": null,
+"p_days_ahead": null
+}
+},
+{
+"fn": "silvio_tool_lista_email_thread",
+"body": {
+"p_limit": null,
+"p_user_id": null,
+"p_days_back": null,
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_tool_lista_fatt_zero_touch_runs",
+"body": {
+"p_limit": null,
+"p_user_id": null,
+"p_company_id": null,
+"p_status_filter": null
+}
+},
+{
+"fn": "silvio_tool_lista_foto_critical_recenti",
+"body": {
+"p_user_id": null,
+"p_days_back": null,
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_tool_lista_lead_first_touch",
+"body": {
+"p_user_id": null,
+"p_days_back": null,
+"p_company_id": null,
+"p_outcome_filter": null
+}
+},
+{
+"fn": "silvio_tool_lista_onboarding_in_corso",
+"body": {
+"p_user_id": null,
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_tool_lista_preventivi_da_foto_draft",
+"body": {
+"p_user_id": null,
+"p_company_id": null,
+"p_status_filter": null
+}
+},
+{
+"fn": "silvio_tool_lista_proposte_ordini_pending",
+"body": {
+"p_user_id": null,
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_tool_lista_reclami_aperti",
+"body": {
+"p_company_id": null,
+"p_urgency_min": null
+}
+},
+{
+"fn": "silvio_tool_lista_sal_in_attesa",
+"body": {
+"p_user_id": null,
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_tool_lista_scadenze",
+"body": {
+"p_user_id": null,
+"p_company_id": null,
+"p_days_ahead": null,
+"p_only_unpaid": null
+}
+},
+{
+"fn": "silvio_tool_lista_scadenze_durc",
+"body": {
+"p_giorni": null,
+"p_user_id": null,
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_tool_lista_stockout_imminenti",
+"body": {
+"p_user_id": null,
+"p_company_id": null,
+"p_days_ahead": null
+}
+},
+{
+"fn": "silvio_tool_lista_storico_prezzi_griglia",
+"body": {
+"p_limit": null,
+"p_family_id": null,
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_tool_lista_subappaltatori_compliance",
+"body": {
+"p_user_id": null,
+"p_company_id": null,
+"p_only_non_compliant": null
+}
+},
+{
+"fn": "silvio_tool_lista_transazioni",
+"body": {
+"p_limit": null,
+"p_user_id": null,
+"p_days_back": null,
+"p_company_id": null,
+"p_only_unmatched": null
+}
+},
+{
+"fn": "silvio_tool_lista_violazioni_attive",
+"body": {
+"p_company_id": null,
+"p_hours_back": null
+}
+},
+{
+"fn": "silvio_tool_lista_visite_a_rischio",
+"body": {
+"p_days_back": null,
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_tool_lista_winback_campaigns",
+"body": {
+"p_user_id": null,
+"p_company_id": null,
+"p_status_filter": null
+}
+},
+{
+"fn": "silvio_tool_log_briefing_sent",
+"body": {
+"p_channel": null,
+"p_user_id": null,
+"p_ai_message": null,
+"p_company_id": null,
+"p_cantiere_id": null,
+"p_weather_data": null,
+"p_briefing_date": null,
+"p_safety_alerts": null,
+"p_ai_cost_billed_eur": null,
+"p_capomastro_user_id": null,
+"p_external_message_id": null
+}
+},
+{
+"fn": "silvio_tool_log_first_touch_sent",
+"body": {
+"p_run_id": null,
+"p_channel": null,
+"p_message": null,
+"p_company_id": null,
+"p_latency_ms": null,
+"p_ai_cost_eur": null,
+"p_qualification_score": null
+}
+},
+{
+"fn": "silvio_tool_lookup_contact_live",
+"body": {
+"p_email": null,
+"p_phone": null,
+"p_name_hint": null,
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_tool_manutenzione_overview",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_tool_match_product_alias",
+"body": {
+"p_alias_text": null,
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_tool_monitoraggio_pratica_status",
+"body": {
+"p_company_id": null,
+"p_pratica_id": null
+}
+},
+{
+"fn": "silvio_tool_monthly_performance",
+"body": {
+"p_year": null,
+"p_month": null,
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_tool_operai_non_conformi_sicurezza",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_tool_opt_out_winback",
+"body": {
+"p_reason": null,
+"p_user_id": null,
+"p_customer_id": null
+}
+},
+{
+"fn": "silvio_tool_optimize_route_nearest_neighbor",
+"body": {
+"p_company_id": null,
+"p_end_location_id": null,
+"p_default_stop_min": null,
+"p_start_location_id": null,
+"p_stop_location_ids": null
+}
+},
+{
+"fn": "silvio_tool_orders_summary",
+"body": {
+"p_limit": null,
+"p_status": null,
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_tool_ottimizza_allocazioni_settimana",
+"body": {
+"p_scenario": null,
+"p_company_id": null,
+"p_start_date": null
+}
+},
+{
+"fn": "silvio_tool_overdue_payments",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_tool_pianifica_cantiere",
+"body": {
+"p_end_date": null,
+"p_resources": null,
+"p_company_id": null,
+"p_start_date": null,
+"p_cantiere_id": null
+}
+},
+{
+"fn": "silvio_tool_pianifica_dunning_step",
+"body": {
+"p_step_n": null,
+"p_ai_tone": null,
+"p_channel": null,
+"p_user_id": null,
+"p_ai_message": null,
+"p_company_id": null,
+"p_invoice_id": null,
+"p_scheduled_at": null
+}
+},
+{
+"fn": "silvio_tool_posta_da_lavorare",
+"body": {
+"p_limit": null,
+"p_user_id": null,
+"p_days_back": null,
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_tool_predici_consumo_materiali",
+"body": {
+"p_user_id": null,
+"p_order_id": null,
+"p_company_id": null,
+"p_horizon_days": null
+}
+},
+{
+"fn": "silvio_tool_predici_data_fine_cantiere",
+"body": {
+"p_company_id": null,
+"p_cantiere_id": null
+}
+},
+{
+"fn": "silvio_tool_prenota_formazione_operaio",
+"body": {
+"p_company_id": null,
+"p_employee_id": null,
+"p_ente_erogante": null,
+"p_formation_type": null,
+"p_data_completamento": null
+}
+},
+{
+"fn": "silvio_tool_prepara_invio_sue",
+"body": {
+"p_company_id": null,
+"p_pratica_id": null
+}
+},
+{
+"fn": "silvio_tool_prevedi_impatto_ritardo",
+"body": {
+"p_company_id": null,
+"p_delay_days": null,
+"p_cantiere_id": null
+}
+},
+{
+"fn": "silvio_tool_propose_action",
+"body": {
+"p_payload": null,
+"p_summary": null,
+"p_user_id": null,
+"p_company_id": null,
+"p_risk_level": null,
+"p_session_id": null,
+"p_action_type": null,
+"p_persona_key": null
+}
+},
+{
+"fn": "silvio_tool_quadro_incassi",
+"body": {
+"p_mesi": null,
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_tool_qualify_public_lead",
+"body": {
+"p_session_id": null
+}
+},
+{
+"fn": "silvio_tool_quotes_summary",
+"body": {
+"p_status": null,
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_tool_rate_commessa",
+"body": {
+"p_order_id": null,
+"p_company_id": null,
+"p_order_code": null
+}
+},
+{
+"fn": "silvio_tool_received_invoices",
+"body": {
+"p_status": null,
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_tool_record_competitor_signal",
+"body": {
+"p_zone": null,
+"p_source": null,
+"p_company_id": null,
+"p_description": null,
+"p_signal_type": null,
+"p_signal_value": null,
+"p_competitor_name": null,
+"p_product_category": null
+}
+},
+{
+"fn": "silvio_tool_register_camera_device",
+"body": {
+"p_company_id": null,
+"p_alert_email": null,
+"p_alert_phone": null,
+"p_cantiere_id": null,
+"p_device_name": null,
+"p_device_type": null
+}
+},
+{
+"fn": "silvio_tool_register_product_alias",
+"body": {
+"p_family_id": null,
+"p_alias_text": null,
+"p_company_id": null,
+"p_confidence": null,
+"p_tariffa_id": null,
+"p_learned_from": null,
+"p_article_template_id": null
+}
+},
+{
+"fn": "silvio_tool_registra_assenza",
+"body": {
+"p_note": null,
+"p_user_id": null,
+"p_data_fine": null,
+"p_company_id": null,
+"p_ore_giorno": null,
+"p_data_inizio": null,
+"p_employee_id": null,
+"p_tipo_assenza": null,
+"p_giustificativo_path": null
+}
+},
+{
+"fn": "silvio_tool_reject_proposal",
+"body": {
+"p_reason": null,
+"p_company_id": null,
+"p_proposal_id": null
+}
+},
+{
+"fn": "silvio_tool_resolve_complaint",
+"body": {
+"p_company_id": null,
+"p_action_taken": null,
+"p_complaint_id": null,
+"p_resolution_notes": null,
+"p_customer_satisfied": null
+}
+},
+{
+"fn": "silvio_tool_revenue_forecast",
+"body": {
+"p_company_id": null,
+"p_days_ahead": null
+}
+},
+{
+"fn": "silvio_tool_revenue_needed_next_month",
+"body": {
+"p_company_id": null,
+"p_margin_pct": null,
+"p_target_month": null
+}
+},
+{
+"fn": "silvio_tool_richiedi_rinnovo_documento",
+"body": {
+"p_doc_id": null,
+"p_user_id": null,
+"p_deadline": null,
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_tool_richieste_preventivo",
+"body": {
+"p_limit": null,
+"p_user_id": null,
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_tool_rispondi_a_email",
+"body": {
+"p_corpo": null,
+"p_doc_id": null,
+"p_user_id": null,
+"p_thread_id": null,
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_tool_salva_regola_decisionale",
+"body": {
+"p_azione": null,
+"p_dominio": null,
+"p_origine": null,
+"p_user_id": null,
+"p_company_id": null,
+"p_condizione": null
+}
+},
+{
+"fn": "silvio_tool_save_cashflow_snapshot",
+"body": {
+"p_scenario": null,
+"p_company_id": null,
+"p_ai_confidence": null,
+"p_daily_balances": null,
+"p_risk_days_list": null,
+"p_first_risk_date": null,
+"p_max_balance_eur": null,
+"p_min_balance_eur": null,
+"p_risk_days_count": null,
+"p_min_balance_date": null,
+"p_ai_cost_billed_eur": null,
+"p_ai_recommendations": null,
+"p_starting_balance_eur": null
+}
+},
+{
+"fn": "silvio_tool_save_route_plan",
+"body": {
+"p_stops": null,
+"p_strategy": null,
+"p_plan_date": null,
+"p_company_id": null,
+"p_employee_id": null,
+"p_end_location_id": null,
+"p_start_location_id": null,
+"p_total_distance_km": null,
+"p_total_duration_min": null
+}
+},
+{
+"fn": "silvio_tool_sdi_overview",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_tool_search_orders",
+"body": {
+"p_query": null,
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_tool_serie_grafico",
+"body": {
+"p_mesi": null,
+"p_metric": null,
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_tool_simula_intervento_cashflow",
+"body": {
+"p_amount": null,
+"p_user_id": null,
+"p_company_id": null,
+"p_description": null,
+"p_target_date": null,
+"p_intervention_type": null
+}
+},
+{
+"fn": "silvio_tool_simula_scenario",
+"body": {
+"p_ipotesi": null,
+"p_orizzonte": null,
+"p_variabili": null,
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_tool_simula_what_if_pricing",
+"body": {
+"p_user_id": null,
+"p_quote_id": null,
+"p_company_id": null,
+"p_margin_change_pct": null
+}
+},
+{
+"fn": "silvio_tool_sposta_allocazione",
+"body": {
+"p_reason": null,
+"p_new_end": null,
+"p_new_start": null,
+"p_company_id": null,
+"p_allocation_id": null
+}
+},
+{
+"fn": "silvio_tool_stato_sicurezza_operaio",
+"body": {
+"p_company_id": null,
+"p_employee_id": null
+}
+},
+{
+"fn": "silvio_tool_stima_probabilita_close_quote",
+"body": {
+"p_quote_id": null,
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_tool_storico_pagamenti",
+"body": {
+"p_user_id": null,
+"p_company_id": null,
+"p_customer_id": null
+}
+},
+{
+"fn": "silvio_tool_storico_pricing_voce",
+"body": {
+"p_user_id": null,
+"p_company_id": null,
+"p_months_back": null,
+"p_voce_descrizione": null
+}
+},
+{
+"fn": "silvio_tool_subappaltatori_summary",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_tool_suggerisci_azione_per_quote",
+"body": {
+"p_quote_id": null,
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_tool_suggerisci_prezzo_voce",
+"body": {
+"p_qty": null,
+"p_user_id": null,
+"p_quote_id": null,
+"p_company_id": null,
+"p_customer_id": null,
+"p_ai_reasoning": null,
+"p_unita_misura": null,
+"p_ai_confidence": null,
+"p_cost_real_eur": null,
+"p_voce_descrizione": null,
+"p_ai_cost_billed_eur": null
+}
+},
+{
+"fn": "silvio_tool_suggerisci_squadra_cantiere",
+"body": {
+"p_team_size": null,
+"p_company_id": null,
+"p_cantiere_id": null,
+"p_lavorazione": null
+}
+},
+{
+"fn": "silvio_tool_suppliers_summary",
+"body": {
+"p_search": null,
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_tool_team_summary",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_tool_top_ai_issues",
+"body": {
+"p_top_n": null,
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_tool_top_customers",
+"body": {
+"p_limit": null,
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_tool_top_performer_lavorazione",
+"body": {
+"p_top_n": null,
+"p_skill_key": null,
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_tool_trend_qualita_cantiere",
+"body": {
+"p_user_id": null,
+"p_company_id": null,
+"p_cantiere_id": null,
+"p_period_days": null
+}
+},
+{
+"fn": "silvio_tool_trova_case_studies_simili",
+"body": {
+"p_quote_id": null,
+"p_company_id": null,
+"p_similarity_threshold": null
+}
+},
+{
+"fn": "silvio_tool_trova_slot_liberi",
+"body": {
+"p_user_id": null,
+"p_company_id": null,
+"p_orario_fine": null,
+"p_durata_minuti": null,
+"p_giorni_avanti": null,
+"p_orario_inizio": null
+}
+},
+{
+"fn": "silvio_tool_uffici_aziendali",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_tool_undo_executed_action",
+"body": {
+"p_reason": null,
+"p_company_id": null,
+"p_proposal_id": null
+}
+},
+{
+"fn": "silvio_tool_valida_dpi_operai_cantiere",
+"body": {
+"p_company_id": null,
+"p_cantiere_id": null
+}
+},
+{
+"fn": "silvio_tool_verifica_anagrafica_fattura",
+"body": {
+"p_user_id": null,
+"p_company_id": null,
+"p_customer_id": null
+}
+},
+{
+"fn": "silvio_tool_verifica_completezza_pratica",
+"body": {
+"p_company_id": null,
+"p_pratica_id": null
+}
+},
+{
+"fn": "silvio_tool_verifica_completion_onboarding",
+"body": {
+"p_user_id": null,
+"p_company_id": null,
+"p_employee_id": null
+}
+},
+{
+"fn": "silvio_tool_verifica_durc",
+"body": {
+"p_user_id": null,
+"p_target_id": null,
+"p_company_id": null,
+"p_target_type": null
+}
+},
+{
+"fn": "silvio_tool_verifica_formazioni_operai",
+"body": {
+"p_company_id": null,
+"p_cantiere_id": null
+}
+},
+{
+"fn": "silvio_tool_verifica_quadrature_contabili",
+"body": {
+"p_company_id": null,
+"p_period_end": null,
+"p_period_start": null
+}
+},
+{
+"fn": "silvio_tool_warehouse_status",
+"body": {
+"p_search": null,
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_top_at_risk_customers",
+"body": {
+"p_limit": null,
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_top_value_customers",
+"body": {
+"p_limit": null,
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_undo",
+"body": {
+"p_audit_id": null
+}
+},
+{
+"fn": "silvio_universal_search",
+"body": {
+"p_limit": null,
+"p_query": null,
+"p_company_id": null
+}
+},
+{
+"fn": "silvio_update_experiment_status",
+"body": {
+"p_status": null,
+"p_experiment_id": null,
+"p_result_summary": null
+}
+},
+{
+"fn": "silvio_users_for_morning_brief",
+"body": {
+"p_lookback_days": null
+}
+},
+{
+"fn": "silvio_users_needing_memory_extract",
+"body": {
+"p_min_messages": null,
+"p_lookback_hours": null
+}
+},
+{
+"fn": "silvio_workflow_advance",
+"body": {
+"p_run_id": null
+}
+},
+{
+"fn": "silvio_workflow_start",
+"body": {
+"p_context": null,
+"p_contact_id": null,
+"p_workflow_id": null,
+"p_contact_type": null
+}
+},
+{
+"fn": "sms_admin_overview",
+"body": {}
+},
+{
+"fn": "soft_delete_record",
+"body": {
+"p_id": null,
+"p_table": null
+}
+},
+{
+"fn": "spend_from_pool",
+"body": {
+"p_amount": null,
+"p_service": null,
+"p_metadata": null,
+"p_company_id": null,
+"p_description": null
+}
+},
+{
+"fn": "sr_cantieri_referenza_vicini",
+"body": {
+"p_lat": null,
+"p_lng": null,
+"p_limit": null,
+"p_raggio_km": null
+}
+},
+{
+"fn": "sr_cleanup_expired_public_tokens",
+"body": {}
+},
+{
+"fn": "sr_converti_in_ordine",
+"body": {
+"p_importo_eur": null,
+"p_progetto_id": null,
+"p_anticipo_eur": null
+}
+},
+{
+"fn": "sr_create_progetto_da_sopralluogo",
+"body": {
+"p_cliente_id": null,
+"p_sopralluogo_id": null
+}
+},
+{
+"fn": "sr_progetti_audit_recent",
+"body": {
+"p_limit": null,
+"p_progetto_id": null
+}
+},
+{
+"fn": "staff_update_own_password_flag",
+"body": {
+"_must_change": null
+}
+},
+{
+"fn": "storna_incasso_atomico",
+"body": {
+"p_company_id": null,
+"p_movimento_id": null
+}
+},
+{
+"fn": "superadmin_can_access_company",
+"body": {
+"_user_id": null,
+"_company_id": null
+}
+},
+{
+"fn": "surveys_assigned_to_me",
+"body": {}
+},
+{
+"fn": "sweep_stuck_render_sessions",
+"body": {}
+},
+{
+"fn": "system_emails_invite_reminder_candidates",
+"body": {
+"p_max_hours": null,
+"p_min_hours": null
+}
+},
+{
+"fn": "system_emails_purchase_confirmed_candidates",
+"body": {
+"p_hours": null
+}
+},
+{
+"fn": "system_emails_setup_incomplete_candidates",
+"body": {
+"p_max_hours": null,
+"p_min_hours": null
+}
+},
+{
+"fn": "take_pre_migration_snapshot",
+"body": {
+"p_table": null,
+"p_sample_size": null,
+"p_migration_label": null
+}
+},
+{
+"fn": "telegram_generate_verification_code",
+"body": {}
+},
+{
+"fn": "toggle_survey_template",
+"body": {
+"p_enabled": null,
+"p_template_id": null
+}
+},
+{
+"fn": "topup_pool",
+"body": {
+"p_type": null,
+"p_amount": null,
+"p_metadata": null,
+"p_company_id": null
+}
+},
+{
+"fn": "topup_service_credits",
+"body": {
+"p_amount": null,
+"p_service": null,
+"p_company_id": null
+}
+},
+{
+"fn": "trigger_form_automations",
+"body": {
+"p_submission_id": null
+}
+},
+{
+"fn": "try_acquire_token_refresh_lock",
+"body": {
+"p_integration_id": null
+}
+},
+{
+"fn": "unset_company_role_dashboard",
+"body": {
+"p_role": null
+}
+},
+{
+"fn": "unset_dashboard_user_access",
+"body": {
+"p_user_id": null,
+"p_dashboard_id": null
+}
+},
+{
+"fn": "update_dashboard_scope",
+"body": {
+"p_scope": null,
+"p_dashboard_id": null
+}
+},
+{
+"fn": "update_interaction_sentiment",
+"body": {
+"p_sentiment": null,
+"p_confidence": null,
+"p_interaction_id": null
+}
+},
+{
+"fn": "update_kb_sync_status",
+"body": {
+"p_error": null,
+"p_doc_id": null,
+"p_status": null,
+"p_el_doc_id": null
+}
+},
+{
+"fn": "update_referrer_stats",
+"body": {
+"p_referrer_id": null
+}
+},
+{
+"fn": "update_referrer_tier",
+"body": {
+"p_referrer_id": null
+}
+},
+{
+"fn": "update_sms_wallet_dopo_invio",
+"body": {
+"p_company_id": null,
+"p_costo_reale": null,
+"p_riservato_da_liberare": null
+}
+},
+{
+"fn": "upsert_mittente_noto",
+"body": {
+"p_email": null,
+"p_fonte": null,
+"p_categoria": null,
+"p_entita_id": null,
+"p_entita_tipo": null
+}
+},
+{
+"fn": "upsert_portal_course",
+"body": {
+"p_course": null,
+"p_company_id": null
+}
+},
+{
+"fn": "user_can_access_company",
+"body": {
+"p_company_id": null
+}
+},
+{
+"fn": "verifica_firma_intervento",
+"body": {
+"p_rapportino_id": null
+}
+},
+{
+"fn": "warehouse_scan_lookup",
+"body": {
+"p_code": null,
+"p_supplier_id": null
+}
+},
+{
+"fn": "warmup_postgres_pool",
+"body": {}
+},
+{
+"fn": "wh_get_lotti_in_scadenza",
+"body": {
+"p_company_id": null,
+"p_days_ahead": null
+}
+},
+{
+"fn": "wh_get_valorizzazione",
+"body": {
+"p_method": null,
+"p_company_id": null,
+"p_warehouse_id": null
+}
+}
+]

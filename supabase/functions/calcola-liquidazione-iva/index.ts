@@ -1,6 +1,16 @@
 /**
  * calcola-liquidazione-iva
- * Calcola IVA a debito e credito per il periodo richiesto.
+ *
+ * Prima questa funzione non leggeva le fatture: cercava in `prima_nota` i conti
+ * il cui *nome somiglia* alla parola IVA, sommava alla cieca dare e avere, e se
+ * la query falliva registrava un warning nei log restituendo comunque
+ * `{iva_vendite:0, iva_acquisti:0, saldo:0}` — presentato come una liquidazione
+ * valida. Su un trimestre con 1.890,00 € realmente a debito rispondeva 0,00 €.
+ *
+ * Ora il calcolo sta nel database (public.liquidazione_iva_periodo) e legge le
+ * stesse fonti del Registro IVA: documenti_fiscali e fatture_ricevute. Qui resta
+ * solo il trasporto. Quando il periodo non contiene documenti la funzione lo
+ * dichiara con un 422 e un motivo leggibile, invece di rispondere zero.
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
@@ -9,14 +19,14 @@ import {
   errorResponse,
   jsonResponse,
 } from "../_shared/headers.ts";
-import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
+import { requireAuth } from "../_shared/auth.ts";
 
 interface LiquidazioneParams {
   company_id: string;
   periodo: "mensile" | "trimestrale";
   anno: number;
-  mese?: number;        // 1-12, for mensile
-  trimestre?: number;   // 1-4, for trimestrale
+  mese?: number;
+  trimestre?: number;
 }
 
 Deno.serve(async (req) => {
@@ -26,94 +36,83 @@ Deno.serve(async (req) => {
 
   const corsH = getCorsHeaders(req);
   try {
-    // Auth: valida il JWT utente (prima si controllava solo la presenza header).
-    let userId: string;
     try {
-      const auth = await requireAuth(req, corsH);
-      userId = auth.userId;
+      await requireAuth(req, corsH);
     } catch (authErr) {
       if (authErr instanceof Response) return authErr;
-      return errorResponse("Unauthorized", 401);
+      return errorResponse("Unauthorized", 401, corsH);
     }
-
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, serviceRoleKey);
 
     const params = await req.json() as LiquidazioneParams;
     const { company_id, periodo, anno, mese, trimestre } = params;
 
     if (!company_id || !periodo || !anno) {
-      return errorResponse("company_id, periodo e anno sono obbligatori", 400);
+      return errorResponse("company_id, periodo e anno sono obbligatori", 400, corsH);
     }
 
-    // Tenant check: l'utente deve appartenere alla company richiesta. Prima si
-    // leggevano i dati IVA di QUALSIASI azienda passando il company_id nel body.
-    try {
-      await requireCompanyAccess(supabase, userId, company_id, corsH);
-    } catch (accessErr) {
-      if (accessErr instanceof Response) return accessErr;
-      return errorResponse("Forbidden", 403);
+    // Client con il JWT dell'utente, non col service role: così il controllo di
+    // accesso resta uno solo, dentro la RPC, e vale per qualunque chiamante.
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { Authorization: req.headers.get("Authorization")! } } },
+    );
+
+    const { data, error } = await supabase.rpc("liquidazione_iva_periodo", {
+      p_company_id: company_id,
+      p_periodo: periodo,
+      p_anno: anno,
+      p_mese: mese ?? null,
+      p_trimestre: trimestre ?? null,
+    });
+
+    if (error) {
+      // 42501 = accesso negato, 22023 = parametri fuori range.
+      const stato = error.code === "42501" ? 403 : error.code === "22023" ? 400 : 500;
+      return errorResponse(error.message, stato, corsH);
     }
 
-    // Calcola date inizio/fine del periodo
-    let dataInizio: string;
-    let dataFine: string;
-    let periodoLabel: string;
+    const r = data as Record<string, unknown>;
 
-    if (periodo === "mensile") {
-      if (!mese || mese < 1 || mese > 12) return errorResponse("mese non valido", 400);
-      const meseStr = mese.toString().padStart(2, "0");
-      const giorniFine = new Date(anno, mese, 0).getDate();
-      dataInizio = `${anno}-${meseStr}-01`;
-      dataFine = `${anno}-${meseStr}-${giorniFine}`;
-      const nomiMesi = ["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"];
-      periodoLabel = `${nomiMesi[mese - 1]} ${anno}`;
-    } else {
-      if (!trimestre || trimestre < 1 || trimestre > 4) return errorResponse("trimestre non valido", 400);
-      const meseInizio = (trimestre - 1) * 3 + 1;
-      const meseFine = trimestre * 3;
-      const meseIStr = meseInizio.toString().padStart(2, "0");
-      const meseFStr = meseFine.toString().padStart(2, "0");
-      const giorniFine = new Date(anno, meseFine, 0).getDate();
-      dataInizio = `${anno}-${meseIStr}-01`;
-      dataFine = `${anno}-${meseFStr}-${giorniFine}`;
-      periodoLabel = `${trimestre}° Trimestre ${anno}`;
+    // Il punto dell'intervento: senza dati non si risponde con uno zero che
+    // sembra una liquidazione. Chi chiama riceve un rifiuto motivato.
+    if (r?.calcolabile === false) {
+      // corsH esplicito: senza, secureHeaders fissa l'Origin al dominio .com e
+      // il browser scarta la risposta su .it e sui domini white-label — cioè
+      // proprio il rifiuto motivato non arriverebbe a chi deve leggerlo.
+      return jsonResponse(
+        { error: r.motivo, calcolabile: false, dettaglio: r },
+        422,
+        corsH,
+      );
     }
 
-    // Cerca nella tabella prima_nota voci IVA (conto inizia con "IVA" o "2610" ecc.)
-    // IVA a debito: importo_dare > 0 su conti IVA vendite
-    // IVA a credito: importo_avere > 0 su conti IVA acquisti
-    // Usiamo una query semplificata che somma dare/avere sui conti IVA
-    const { data: righeIVA, error: ivaErr } = await supabase
-      .from("prima_nota")
-      .select("conto, importo_dare, importo_avere, data")
-      .eq("company_id", company_id)
-      .gte("data", dataInizio)
-      .lte("data", dataFine)
-      .or("conto.ilike.%IVA%,conto.ilike.%2610%,conto.ilike.%2620%,conto.ilike.%2630%");
-
-    if (ivaErr) {
-      // Se la tabella non esiste, ritorna dati zero
-      console.warn("prima_nota query error:", ivaErr.message);
-    }
-
-    const righe = righeIVA ?? [];
-    const ivaVendite = righe.reduce((s, r) => s + Number(r.importo_dare ?? 0), 0);
-    const ivaAcquisti = righe.reduce((s, r) => s + Number(r.importo_avere ?? 0), 0);
-    const saldo = ivaVendite - ivaAcquisti;
+    const saldo = Number(r.saldo ?? 0);
 
     return jsonResponse({
-      iva_vendite: ivaVendite,
-      iva_acquisti: ivaAcquisti,
+      // Forma storica, per non rompere chi già la legge.
+      iva_vendite: Number(r.iva_vendite ?? 0),
+      iva_acquisti: Number(r.iva_acquisti ?? 0),
       saldo: Math.abs(saldo),
       credito: saldo < 0,
       dovuto: saldo > 0,
-      periodo_label: periodoLabel,
-    });
+      periodo_label: (r.periodo as Record<string, unknown>)?.etichetta ?? "",
+      // Quello che prima non c'era: il segno vero, da dove escono i numeri, e
+      // quali ipotesi sono state fatte per arrivarci.
+      calcolabile: true,
+      saldo_firmato: saldo,
+      imponibile_vendite: Number(r.imponibile_vendite ?? 0),
+      imponibile_acquisti: Number(r.imponibile_acquisti ?? 0),
+      documenti: r.documenti,
+      dettaglio_aliquote: r.dettaglio_aliquote,
+      escluso: r.escluso,
+      esigibilita_differita: Number(r.esigibilita_differita ?? 0),
+      ipotesi: r.ipotesi,
+      periodo: r.periodo,
+    }, 200, corsH);
   } catch (error: unknown) {
     console.error("calcola-liquidazione-iva error:", error);
     const message = error instanceof Error ? error.message : "Unknown error";
-    return errorResponse(message, 500);
+    return errorResponse(message, 500, corsH);
   }
 });
