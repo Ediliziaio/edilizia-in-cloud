@@ -1,0 +1,4 @@
+-- Applicata in produzione il 2026-09-04. Vedi il commento dentro la funzione:
+-- lo scadenzario sommava crediti e debiti scaduti in un unico numero.
+-- Il corpo completo e' quello applicato via MCP; qui resta per la storia.
+-- (rigenerabile con: select pg_get_functiondef(oid) from pg_proc where proname='get_scadenzario_summary')

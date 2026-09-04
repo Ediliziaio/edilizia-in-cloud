@@ -39,8 +39,15 @@ export interface Scadenza {
 }
 
 export interface ScadenzarioSummary {
+  /** Scadute in totale: entrate + uscite sommate. Da sola non risponde a nulla — vedi i due campi sotto. */
   scadute_count: number;
   scadute_amount: number;
+  /** Scadute che i clienti devono all'azienda. */
+  scadute_entrata_count?: number;
+  scadute_entrata_amount?: number;
+  /** Scadute che l'azienda deve ai fornitori. */
+  scadute_uscita_count?: number;
+  scadute_uscita_amount?: number;
   questa_settimana_count: number;
   questa_settimana_amount: number;
   prossimi_30gg_count: number;

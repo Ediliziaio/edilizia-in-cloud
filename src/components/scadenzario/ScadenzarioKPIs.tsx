@@ -13,6 +13,12 @@ interface Props {
 }
 
 export default function ScadenzarioKPIs({ summary, isLoading }: Props) {
+  // I due versi separati arrivano dalla RPC. Se una risposta vecchia non li
+  // porta ancora, si ricade sul totale: meglio il numero di prima che nessuno.
+  const scadutoEntrata = summary?.scadute_entrata_amount ?? summary?.scadute_amount ?? 0;
+  const scadutoUscita = summary?.scadute_uscita_amount ?? 0;
+  const entrataCount = summary?.scadute_entrata_count ?? summary?.scadute_count ?? 0;
+
   if (isLoading || !summary) {
     return (
       <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
@@ -42,12 +48,22 @@ export default function ScadenzarioKPIs({ summary, isLoading }: Props) {
           </div>
         </div>
         <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-5 sm:gap-3 xl:grid-cols-4">
+          {/* Prima questa scheda mostrava "Scadute" sommando quello che i
+              clienti devono all'azienda con quello che l'azienda deve ai
+              fornitori: un numero che non e' il credito, non e' il debito e non
+              e' il saldo, ma era il piu' grande della pagina. Ora il numero
+              grosso e' il credito scaduto — la cosa su cui si puo' agire — e il
+              debito scaduto sta nella riga sotto, dichiarato. */}
           <NavyStatCard
-            label="Scadute"
-            value={fmtEur(summary.scadute_amount)}
-            sub={`${summary.scadute_count} scadenz${summary.scadute_count === 1 ? "a" : "e"}`}
+            label="Scaduto da incassare"
+            value={fmtEur(scadutoEntrata)}
+            sub={
+              scadutoUscita > 0
+                ? `${entrataCount} scadenz${entrataCount === 1 ? "a" : "e"} · e ${fmtEur(scadutoUscita)} da pagare`
+                : `${entrataCount} scadenz${entrataCount === 1 ? "a" : "e"}`
+            }
             icon={AlertTriangle}
-            tone={summary.scadute_count > 0 ? "text-orange-300" : "text-emerald-200"}
+            tone={entrataCount > 0 ? "text-orange-300" : "text-emerald-200"}
           />
           <NavyStatCard
             label="Questa settimana"
