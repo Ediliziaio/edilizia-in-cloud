@@ -6,6 +6,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/formatters";
+import { esitoUpdateConGuardia, isConflittoModifica } from "@/lib/concorrenza";
 import { queryKeys } from "@/lib/queryKeys";
 import { useQuoteTemplates } from "@/hooks/useQuoteTemplates";
 import { useGovernanceThresholds } from "@/hooks/useGovernanceThresholds";
@@ -676,9 +677,21 @@ export default function QuoteBuilder() {
     setBonusLines,
   });
 
+  /**
+   * La versione del preventivo che questa pagina ha davanti.
+   *
+   * Serve a non sovrascrivere il lavoro di un collega: due venditori sullo
+   * stesso preventivo è la norma, non un caso limite. Si fissa al primo
+   * caricamento e si aggiorna a ogni salvataggio riuscito.
+   */
+  const versioneCaricataRef = useRef<string | null>(null);
+
   // Preventivi V2 — hydrate salesperson + approval status (fuori dal hook legacy)
   useEffect(() => {
     if (!existingQuote) return;
+    if (versioneCaricataRef.current === null) {
+      versioneCaricataRef.current = (existingQuote as { updated_at?: string | null }).updated_at ?? null;
+    }
     const q = existingQuote as unknown as {
       salesperson_id: string | null;
       approval_status: "not_required" | "pending" | "approved" | "rejected" | "counter_proposed" | null;
@@ -1783,13 +1796,26 @@ export default function QuoteBuilder() {
       };
 
       if (isEdit) {
-        await salvaRigheAtomiche(id!);
-        const { error } = await supabase
+        // L'ordine conta: la testata si aggiorna PRIMA delle righe.
+        // `salvaRigheAtomiche` cancella e riscrive tutte le righe, quindi
+        // farlo per primo distruggeva il lavoro del collega anche quando poi
+        // ci si accorgeva del conflitto. Se la guardia scatta qui, le sue
+        // righe sono ancora al loro posto.
+        const { data: righeTestata, error } = await supabase
           .from("quotes")
           .update(quoteData)
           .eq("id", id!)
-          .eq("company_id", companyId);
+          .eq("company_id", companyId)
+          // Se un collega ha salvato mentre questa pagina era aperta,
+          // `updated_at` non combacia più e la UPDATE tocca zero righe.
+          .eq("updated_at", versioneCaricataRef.current ?? "")
+          .select("updated_at");
         if (error) throw error;
+        versioneCaricataRef.current = esitoUpdateConGuardia(
+          righeTestata as Array<{ updated_at?: string | null }> | null,
+          "preventivo",
+        );
+        await salvaRigheAtomiche(id!);
       } else {
         const { data: numData } = await supabase.rpc("generate_quote_number", {
           p_company_id: companyId,
@@ -1868,6 +1894,16 @@ export default function QuoteBuilder() {
         navigate(`/azienda/marketing/preventivi/${quoteId}`);
       }
     } catch (err: unknown) {
+      if (isConflittoModifica(err)) {
+        // Non è un guasto: è una persona che ha salvato prima di te. Quello
+        // che hai scritto resta sullo schermo, così non va perso.
+        toast.error("Qualcun altro ha salvato questo preventivo", {
+          description: err.message,
+          duration: 10000,
+          action: { label: "Ricarica", onClick: () => window.location.reload() },
+        });
+        return;
+      }
       const errMsg = err instanceof Error ? err.message : "Errore salvataggio";
       toast.error(errMsg);
     } finally {
