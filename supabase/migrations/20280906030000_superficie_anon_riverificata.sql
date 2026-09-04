@@ -1,0 +1,39 @@
+-- ════════════════════════════════════════════════════════════════════════════
+-- Riverifica dell'ondata 0.1, e una misura sbagliata mia
+-- ════════════════════════════════════════════════════════════════════════════
+--
+-- Chiudendo il piano ho ricontato le funzioni eseguibili da `anon` e ne ho
+-- trovate **533**, contro le 57 che avevo lasciato nell'ondata 0.1. Sembrava
+-- che la superficie fosse ricresciuta di dieci volte.
+--
+-- Non era così, ed era la mia conta a essere sbagliata: contavo TUTTE le
+-- funzioni, comprese le 319 funzioni di trigger. Una funzione di trigger non
+-- si può chiamare — l'ho verificato con `set role anon`, e Postgres risponde
+-- «trigger functions can only be called as triggers». Non sono una superficie:
+-- sono rumore nel conteggio.
+--
+-- La misura giusta — funzioni CHIAMABILI, non di estensione, eseguibili da
+-- anon — dà **62**, contro le 64 che `rpc_anon_superficie_attesa()` dice
+-- debbano restare aperte (firme a token, portale cliente, recensioni
+-- pubbliche, e le funzioni che servono a policy e vincoli per far leggere le
+-- tabelle). L'ondata 0.1 regge.
+--
+-- Una deriva vera però c'era, piccola: sei funzioni scritte da me dopo lo
+-- 0.1 avevano ricevuto `anon` dai privilegi predefiniti di Supabase, che
+-- concedono esplicitamente `anon=X` a ogni funzione nuova. Le ha chiuse
+-- `rpc_anon_applica_superficie()`, che è lì apposta:
+--     documento_fiscale_e_immutabile, chiamante_anonimo,
+--     documento_fiscale_campi_modificabili, sconto_max_azienda,
+--     num_da_json, distanza_metri
+--
+-- È la stessa causa già annotata nell'ondata 5.5: i privilegi predefiniti
+-- fanno nascere ogni funzione aperta a `anon` e `authenticated`, e un REVOKE
+-- da PUBLIC non la chiude. Serve rieseguire questa riparazione ogni tanto.
+--
+-- Da sapere per chi la rieseguirà: 149 grant ad `anon` sono stati concessi da
+-- `supabase_admin`, e `postgres` non può revocare ciò che non ha concesso —
+-- il REVOKE passa in silenzio senza fare niente. Sono tutte funzioni di
+-- trigger, quindi non cambia nulla in pratica, ma se un giorno una funzione
+-- chiamabile finisse in quel gruppo, la riparazione non basterebbe e non lo
+-- direbbe.
+SELECT public.rpc_anon_applica_superficie();
