@@ -87,6 +87,30 @@ function AppleIcon({ className }: { className?: string }) {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
+/**
+ * Le preferenze che qualcuno legge davvero, oggi.
+ *
+ * La tabella `user_notification_preferences` ha 60 colonne e questa schermata
+ * ne esponeva 21: ma cercando chi le rilegge, i lettori sono due soli —
+ * l'invio email di riepilogo attività (`task-riepilogo-email`, che guarda
+ * `task_assigned_email`, `task_due_soon_email`, `task_overdue_email`) e
+ * l'assegnazione di un sopralluogo (che guarda `task_assigned_in_app`).
+ * Tutte le altre si salvavano e non le consultava nessuno: diciotto
+ * interruttori che si spostavano senza cambiare niente.
+ *
+ * Un interruttore inerte non è neutro: insegna a non fidarsi anche di quelli
+ * che funzionano. Qui restano visibili — così si vede cosa arriverà — ma
+ * spenti e dichiarati tali, invece di fingere di comandare qualcosa.
+ * Quando chi manda le notifiche comincerà a leggerne un'altra, basta
+ * aggiungere la sua chiave qui sotto.
+ */
+const PREFERENZE_ONORATE: ReadonlySet<string> = new Set([
+  "email_new_task",      // task_assigned_email    → task-riepilogo-email
+  "push_new_task",       // task_assigned_in_app   → SurveyAssignDialog
+  "email_task_due",      // task_due_soon_email    → task-riepilogo-email
+  "email_task_overdue",  // task_overdue_email     → task-riepilogo-email
+]);
+
 export default function MioProfilo() {
   const { user, role, refreshAuth, effectiveCompany, profile: authProfile } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -439,6 +463,7 @@ export default function MioProfilo() {
     | "email_new_message" | "push_new_message"
     | "email_new_task" | "push_new_task"
     | "email_task_due" | "push_task_due"
+    | "email_task_overdue" | "push_task_overdue"
     | "email_new_appointment" | "push_new_appointment"
     | "email_appointment_reminder" | "push_appointment_reminder"
     | "email_new_lead" | "push_new_lead"
@@ -455,6 +480,8 @@ export default function MioProfilo() {
     push_new_task: "task_assigned_in_app",
     email_task_due: "task_due_soon_email",
     push_task_due: "task_due_soon_in_app",
+    email_task_overdue: "task_overdue_email",
+    push_task_overdue: "task_overdue_in_app",
     email_new_appointment: "appointment_new_email",
     push_new_appointment: "appointment_new_in_app",
     email_appointment_reminder: "appointment_reminder_email",
@@ -481,6 +508,8 @@ export default function MioProfilo() {
       push_new_task: src.task_assigned_in_app,
       email_task_due: src.task_due_soon_email,
       push_task_due: src.task_due_soon_in_app,
+      email_task_overdue: src.task_overdue_email,
+      push_task_overdue: src.task_overdue_in_app,
       email_new_appointment: src.appointment_new_email,
       push_new_appointment: src.appointment_new_in_app,
       email_appointment_reminder: src.appointment_reminder_email,
@@ -504,17 +533,9 @@ export default function MioProfilo() {
     }
     const current = dbPrefs ?? DEFAULT_NOTIF_PREFS;
     const next: NotifPrefs = { ...current };
-    const eventKeys: Array<keyof NotifPrefs> = [
-      "order_new_email", "order_new_in_app",
-      "order_status_changed_email", "order_status_changed_in_app",
-      "message_whatsapp_email", "message_whatsapp_in_app",
-      "message_email_received_email", "message_email_received_in_app",
-      "task_assigned_email", "task_assigned_in_app",
-      "task_due_soon_email", "task_due_soon_in_app",
-      "appointment_new_email", "appointment_new_in_app",
-      "appointment_reminder_email", "appointment_reminder_in_app",
-      "lead_new_email", "lead_new_in_app",
-    ];
+    // Solo le preferenze che qualcuno rilegge: accendere in blocco anche le
+    // altre darebbe l'impressione di aver attivato notifiche che non partono.
+    const eventKeys = [...PREFERENZE_ONORATE].map((k) => formToDbKey[k as FormPrefKey]);
     const suffix = channel === "email" ? "_email" : "_in_app";
     for (const k of eventKeys) {
       if (k.endsWith(suffix)) next[k] = enabled;
@@ -529,25 +550,15 @@ export default function MioProfilo() {
   };
 
   // Contatori per il riepilogo header
+  // Il riepilogo conta solo le notifiche che partono davvero: un "9 email"
+  // che comprende sette eventi mai inviati sarebbe un numero falso.
   const notifCounts = useMemo(() => {
-    const p = notifPrefs;
     let email = 0, push = 0;
-    const all = [
-      ["email_new_order", "push_new_order"],
-      ["email_order_update", "push_order_update"],
-      ["email_new_message", "push_new_message"],
-      ["email_email_received", "push_email_received"],
-      ["email_new_task", "push_new_task"],
-      ["email_task_due", "push_task_due"],
-      ["email_new_appointment", "push_new_appointment"],
-      ["email_appointment_reminder", "push_appointment_reminder"],
-      ["email_new_lead", "push_new_lead"],
-    ] as const;
-    for (const [e, q] of all) {
-      if (p[e as keyof typeof p]) email++;
-      if (p[q as keyof typeof p]) push++;
+    for (const k of PREFERENZE_ONORATE) {
+      if (!notifPrefs[k as FormPrefKey]) continue;
+      if (k.startsWith("email_")) email++; else push++;
     }
-    return { email, push };
+    return { email, push, totaleEmail: 3, totalePush: 1 };
   }, [notifPrefs]);
 
   /** Toggle con persistenza ottimistica: aggiorna subito UI, fa upsert,
@@ -1155,38 +1166,47 @@ export default function MioProfilo() {
                     <Bell className="h-4 w-4" /> Preferenze notifiche
                   </CardTitle>
                   <CardDescription>
-                    Decidi quali eventi ti notifichiamo e su quale canale (email o push browser/app).
+                    Oggi partono davvero solo gli avvisi sulle attività. Gli altri
+                    eventi sono in elenco ma spenti: li vedi qui perché arriveranno,
+                    non perché siano già attivi.
                   </CardDescription>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   <Badge variant="secondary" className="gap-1 text-xs">
-                    <Mail className="h-3 w-3" /> {notifCounts.email} email
+                    <Mail className="h-3 w-3" /> {notifCounts.email} di {notifCounts.totaleEmail} email
                   </Badge>
                   <Badge variant="secondary" className="gap-1 text-xs">
-                    <BellRing className="h-3 w-3" /> {notifCounts.push} push
+                    <BellRing className="h-3 w-3" /> {notifCounts.push} di {notifCounts.totalePush} push
                   </Badge>
                 </div>
               </div>
             </CardHeader>
             <CardContent className="pt-0">
-              <div className="flex flex-wrap gap-2">
+              {/* Su mobile i tre pulsanti riempiono la riga (due in griglia + uno
+                  a tutta larghezza): allineati a sinistra lasciavano metà riga
+                  vuota. Su schermo grande tornano in fila. */}
+              <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
                 <Button
                   size="sm"
                   variant="outline"
                   onClick={() => bulkSetChannel("in_app", true)}
                   disabled={savePrefs.isPending}
-                  className="h-8 gap-1.5 text-xs"
+                  className="h-8 w-full gap-1.5 text-xs sm:w-auto"
                 >
-                  <BellRing className="h-3 w-3" /> Attiva tutto Push
+                  <BellRing className="h-3 w-3 shrink-0" />
+                  <span className="truncate sm:hidden">Attiva push</span>
+                  <span className="hidden sm:inline">Attiva i push disponibili</span>
                 </Button>
                 <Button
                   size="sm"
                   variant="outline"
                   onClick={() => bulkSetChannel("email", true)}
                   disabled={savePrefs.isPending}
-                  className="h-8 gap-1.5 text-xs"
+                  className="h-8 w-full gap-1.5 text-xs sm:w-auto"
                 >
-                  <MailCheck className="h-3 w-3" /> Attiva tutto Email
+                  <MailCheck className="h-3 w-3 shrink-0" />
+                  <span className="truncate sm:hidden">Attiva email</span>
+                  <span className="hidden sm:inline">Attiva le email disponibili</span>
                 </Button>
                 <Button
                   size="sm"
@@ -1196,7 +1216,7 @@ export default function MioProfilo() {
                     await bulkSetChannel("email", false);
                   }}
                   disabled={savePrefs.isPending}
-                  className="h-8 gap-1.5 text-xs text-muted-foreground"
+                  className="col-span-2 h-8 w-full gap-1.5 text-xs text-muted-foreground sm:col-span-1 sm:w-auto"
                 >
                   <BellOff className="h-3 w-3" /> Disattiva tutto
                 </Button>
@@ -1224,6 +1244,8 @@ export default function MioProfilo() {
                 pushChecked={notifPrefs.push_new_order}
                 onEmailToggle={() => toggleNotif("email_new_order")}
                 onPushToggle={() => toggleNotif("push_new_order")}
+                emailAttiva={false}
+                pushAttiva={false}
               />
               <NotifMatrixRow
                 icon={RefreshCw}
@@ -1233,6 +1255,8 @@ export default function MioProfilo() {
                 pushChecked={notifPrefs.push_order_update}
                 onEmailToggle={() => toggleNotif("email_order_update")}
                 onPushToggle={() => toggleNotif("push_order_update")}
+                emailAttiva={false}
+                pushAttiva={false}
               />
 
               {/* Categoria: Comunicazione */}
@@ -1245,6 +1269,8 @@ export default function MioProfilo() {
                 pushChecked={notifPrefs.push_new_message}
                 onEmailToggle={() => toggleNotif("email_new_message")}
                 onPushToggle={() => toggleNotif("push_new_message")}
+                emailAttiva={false}
+                pushAttiva={false}
               />
               <NotifMatrixRow
                 icon={Inbox}
@@ -1254,6 +1280,8 @@ export default function MioProfilo() {
                 pushChecked={notifPrefs.push_email_received}
                 onEmailToggle={() => toggleNotif("email_email_received")}
                 onPushToggle={() => toggleNotif("push_email_received")}
+                emailAttiva={false}
+                pushAttiva={false}
               />
 
               {/* Categoria: Calendario & attività */}
@@ -1266,6 +1294,8 @@ export default function MioProfilo() {
                 pushChecked={notifPrefs.push_new_appointment}
                 onEmailToggle={() => toggleNotif("email_new_appointment")}
                 onPushToggle={() => toggleNotif("push_new_appointment")}
+                emailAttiva={false}
+                pushAttiva={false}
               />
               <NotifMatrixRow
                 icon={AlarmClock}
@@ -1275,6 +1305,8 @@ export default function MioProfilo() {
                 pushChecked={notifPrefs.push_appointment_reminder}
                 onEmailToggle={() => toggleNotif("email_appointment_reminder")}
                 onPushToggle={() => toggleNotif("push_appointment_reminder")}
+                emailAttiva={false}
+                pushAttiva={false}
               />
               <NotifMatrixRow
                 icon={FileText}
@@ -1293,6 +1325,20 @@ export default function MioProfilo() {
                 pushChecked={notifPrefs.push_task_due}
                 onEmailToggle={() => toggleNotif("email_task_due")}
                 onPushToggle={() => toggleNotif("push_task_due")}
+                pushAttiva={false}
+              />
+              {/* Questa email parte davvero (task-riepilogo-email la manda con
+                  default acceso) ma non era esposta da nessuna parte: si
+                  ricevevano avvisi che non si potevano spegnere. */}
+              <NotifMatrixRow
+                icon={AlarmClock}
+                label="Attività in ritardo"
+                desc="Riepilogo delle attività con la scadenza già passata"
+                emailChecked={notifPrefs.email_task_overdue}
+                pushChecked={notifPrefs.push_task_overdue}
+                onEmailToggle={() => toggleNotif("email_task_overdue")}
+                onPushToggle={() => toggleNotif("push_task_overdue")}
+                pushAttiva={false}
               />
 
               {/* Categoria: Lead & vendita */}
@@ -1305,6 +1351,8 @@ export default function MioProfilo() {
                 pushChecked={notifPrefs.push_new_lead}
                 onEmailToggle={() => toggleNotif("email_new_lead")}
                 onPushToggle={() => toggleNotif("push_new_lead")}
+                emailAttiva={false}
+                pushAttiva={false}
                 isLast
               />
             </CardContent>
@@ -1327,6 +1375,7 @@ export default function MioProfilo() {
                 desc="Riepilogo della giornata, inviato ogni sera"
                 checked={notifPrefs.email_daily_report}
                 onChange={() => toggleNotif("email_daily_report")}
+                attiva={false}
               />
               <NotifRow
                 icon={FileText}
@@ -1334,6 +1383,7 @@ export default function MioProfilo() {
                 desc="Riepilogo della settimana, inviato il lunedì mattina"
                 checked={notifPrefs.email_weekly_report}
                 onChange={() => toggleNotif("email_weekly_report")}
+                attiva={false}
               />
               <NotifRow
                 icon={FileText}
@@ -1341,6 +1391,7 @@ export default function MioProfilo() {
                 desc="Riepilogo del mese, inviato il 1° del mese"
                 checked={notifPrefs.email_monthly_report}
                 onChange={() => toggleNotif("email_monthly_report")}
+                attiva={false}
               />
             </CardContent>
           </Card>
@@ -1367,20 +1418,35 @@ function NotifGroupHeader({ icon: Icon, label }: { icon: React.ElementType; labe
 
 // ── Notification row component (per Email periodiche, single-channel) ──
 function NotifRow({
-  icon: Icon, label, desc, checked, onChange,
+  icon: Icon, label, desc, checked, onChange, attiva = true,
 }: {
-  icon: React.ElementType; label: string; desc: string; checked: boolean; onChange: () => void;
+  icon: React.ElementType; label: string; desc: string; checked: boolean;
+  onChange: () => void;
+  /** false = nessuno manda questa email: switch spento e bloccato. */
+  attiva?: boolean;
 }) {
   return (
     <div className="flex items-center justify-between py-3 px-1 hover:bg-muted/30 rounded-lg transition-colors">
       <div className="flex items-center gap-3">
-        <Icon className="h-4 w-4 text-muted-foreground shrink-0" />
-        <div>
-          <p className="text-sm font-medium">{label}</p>
-          <p className="text-xs text-muted-foreground">{desc}</p>
+        <Icon className={`h-4 w-4 shrink-0 ${attiva ? "text-muted-foreground" : "text-muted-foreground/50"}`} />
+        <div className="min-w-0">
+          <p className={`text-sm font-medium ${attiva ? "" : "text-muted-foreground"}`}>{label}</p>
+          <p className="text-xs text-muted-foreground">
+            {!attiva && (
+              <span className="mr-1 whitespace-nowrap rounded bg-muted px-1.5 py-px text-[10px] font-medium">
+                non ancora
+              </span>
+            )}
+            {desc}
+          </p>
         </div>
       </div>
-      <Switch checked={checked} onCheckedChange={onChange} />
+      <Switch
+        checked={attiva && checked}
+        onCheckedChange={onChange}
+        disabled={!attiva}
+        aria-label={attiva ? label : `${label} (non ancora disponibile)`}
+      />
     </div>
   );
 }
@@ -1390,6 +1456,7 @@ function NotifRow({
 // alla vecchia struttura 3 card con eventi duplicati.
 function NotifMatrixRow({
   icon: Icon, label, desc, emailChecked, pushChecked, onEmailToggle, onPushToggle, isLast,
+  emailAttiva = true, pushAttiva = true,
 }: {
   icon: React.ElementType;
   label: string;
@@ -1399,21 +1466,46 @@ function NotifMatrixRow({
   onEmailToggle: () => void;
   onPushToggle: () => void;
   isLast?: boolean;
+  /** false = nessuno legge questa preferenza: lo switch si mostra spento e bloccato. */
+  emailAttiva?: boolean;
+  pushAttiva?: boolean;
 }) {
+  const inerte = !emailAttiva && !pushAttiva;
   return (
-    <div className={`grid grid-cols-[1fr_72px_72px] gap-2 px-4 py-3 ${!isLast ? "border-b" : ""} items-center hover:bg-muted/30 transition-colors`}>
+    <div className={`grid grid-cols-[1fr_52px_52px] items-center gap-2 px-3 py-3 sm:grid-cols-[1fr_72px_72px] sm:px-4 ${!isLast ? "border-b" : ""} hover:bg-muted/30 transition-colors`}>
       <div className="flex items-center gap-3 min-w-0">
-        <Icon className="h-4 w-4 text-muted-foreground shrink-0" />
+        <Icon className={`h-4 w-4 shrink-0 ${inerte ? "text-muted-foreground/50" : "text-muted-foreground"}`} />
         <div className="min-w-0">
-          <p className="text-sm font-medium truncate">{label}</p>
-          <p className="text-xs text-muted-foreground line-clamp-2">{desc}</p>
+          <p className={`truncate text-sm font-medium ${inerte ? "text-muted-foreground" : ""}`}>{label}</p>
+          {/* Il marcatore sta nella riga della descrizione, non accanto al nome:
+              su schermo stretto accanto al nome lo riduceva a una lettera.
+              La descrizione dell'evento resta anche quando la riga è spenta:
+              serve a capire cosa arriverà, non solo che non arriva. */}
+          <p className="text-xs text-muted-foreground line-clamp-2">
+            {inerte && (
+              <span className="mr-1 whitespace-nowrap rounded bg-muted px-1.5 py-px text-[10px] font-medium">
+                non ancora
+              </span>
+            )}
+            {desc}
+          </p>
         </div>
       </div>
       <div className="flex justify-center">
-        <Switch checked={emailChecked} onCheckedChange={onEmailToggle} aria-label={`Email: ${label}`} />
+        <Switch
+          checked={emailAttiva && emailChecked}
+          onCheckedChange={onEmailToggle}
+          disabled={!emailAttiva}
+          aria-label={`Email: ${label}${emailAttiva ? "" : " (non ancora disponibile)"}`}
+        />
       </div>
       <div className="flex justify-center">
-        <Switch checked={pushChecked} onCheckedChange={onPushToggle} aria-label={`Push: ${label}`} />
+        <Switch
+          checked={pushAttiva && pushChecked}
+          onCheckedChange={onPushToggle}
+          disabled={!pushAttiva}
+          aria-label={`Push: ${label}${pushAttiva ? "" : " (non ancora disponibile)"}`}
+        />
       </div>
     </div>
   );
