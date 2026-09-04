@@ -1,0 +1,44 @@
+-- La voce 1.1 del piano non si puo' fare come e' scritta, e questo e' il motivo.
+--
+-- Il briefing dice: le policy scritte come
+--   company_id IN ( SELECT unnest(aziende_con_permesso('...')) )
+-- impediscono l'uso dell'indice, quindi riscrivile come `= ANY(funzione())`.
+-- Misurata sulla condizione da sola, la raccomandazione e' giusta:
+--
+--   IN ( SELECT unnest(f()) ) ......... 31,9 ms
+--   = ANY(f()) ........................  4,6 ms
+--
+-- L'ho applicata a 10 policy su 6 tabelle del CRM. Su produzione la lettura di
+-- marketing_contacts e' passata da circa due secondi a **oltre centodieci**,
+-- con la funzione chiamata riga per riga: 90.382 chiamate a una funzione
+-- SECURITY DEFINER che a sua volta interroga altre tabelle. Ho ripristinato
+-- tutte e dieci le policy da zz_policy_backup entro pochi minuti e verificato
+-- che le righe viste tornassero identiche (834, 132, 241, 132, 0, 0 per lo
+-- staff di prova) e i tempi rientrassero.
+--
+-- Il motivo per cui la misura isolata inganna: una policy non vive da sola.
+-- Postgres somma in OR le condizioni di tutte le policy permissive che valgono
+-- per quella lettura, e su marketing_contacts sono quattro. Dentro un OR
+-- l'indice non si puo' usare comunque, la condizione diventa un filtro, e a
+-- quel punto conta solo quante volte viene valutata la funzione. Misurato
+-- ricostruendo la stessa struttura a mano:
+--
+--   OR + IN ( SELECT unnest(f()) ) ........... 325,7 ms   <- la forma in uso
+--   OR + = ANY(f()) .......................... 890,1 ms
+--   OR + = ANY( (SELECT f())::uuid[] ) ....... 860,9 ms
+--
+-- `IN ( SELECT ... )` diventa un SubPlan con hash: la funzione viene eseguita
+-- una volta sola e ogni riga fa una ricerca nella tabella hash. `= ANY(array)`
+-- rivaluta la funzione a ogni riga. Nella pila di policy reale, quindi, la
+-- forma che il piano voleva togliere e' quella che protegge; e nemmeno
+-- racchiuderla in un sottoselect la salva.
+--
+-- Le policy restano come sono. Il guadagno vero su quelle letture non sta nella
+-- forma della condizione ma nel numero di policy sommate in OR: e' il punto 1.2
+-- del piano, e su quelle tabelle e' ancora da fare.
+--
+-- Qui si tolgono le due funzioni che avevo scritto per la riscrittura, cosi'
+-- nessuno le trova e le riusa credendo che siano un miglioramento.
+
+drop function if exists public.policy_riscrivi_any(regclass);
+drop function if exists public.espressione_any(text);
