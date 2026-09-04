@@ -175,20 +175,48 @@ export function QuickLoginPopover() {
   const { data: users = [] } = useQuery({
     queryKey: [...queryKeys.adminQuickLogin.search(debouncedSearch), roleFilter],
     queryFn: async () => {
-      // Filtro "area" server-side: se è scelto un ruolo prendo prima gli user_id
-      // di quel ruolo. Senza questo, i primi 50 profili (per nome) sono dominati
-      // dai Clienti e non raggiungi mai Produttori/Commercialisti/Venditori.
-      let roleUserIds: string[] | null = null;
-      if (roleFilter !== "all") {
-        const { data: roleRows, error: roleErr } = await supabase
-          .from("user_roles")
-          .select("user_id")
-          .eq("role", roleFilter)
-          .limit(300);
-        if (roleErr) throw roleErr;
-        roleUserIds = (roleRows ?? []).map((r) => r.user_id);
-        if (roleUserIds.length === 0) return [];
+      // Ricerca server-side completa (F4-03).
+      // Prima, con un ruolo selezionato, si prendevano i primi 300 user_id di
+      // quel ruolo e si filtravano i profili fra quelli: chi stava oltre i
+      // primi 300 non era raggiungibile nemmeno cercandolo per nome. Con 943
+      // utenti il problema era già reale sui Clienti.
+      // Ora la ricerca passa dalla stessa funzione della sezione Utenti, che
+      // filtra ruolo e testo sull'intero insieme.
+      if (debouncedSearch || roleFilter !== "all") {
+        const { data: trovati, error: errRpc } = await supabase.rpc(
+          "admin_search_users" as never,
+          {
+            p_search: debouncedSearch || null,
+            p_role: roleFilter === "all" ? null : roleFilter,
+            p_limit: 50,
+            p_offset: 0,
+          } as never,
+        );
+        if (errRpc) throw errRpc;
+        type RigaRpc = {
+          id: string; email: string | null; nome: string | null;
+          azienda_nome: string | null; ruoli: string[] | null;
+        };
+        // Un utente con più ruoli compare una volta per ruolo, come prima:
+        // il popover raggruppa per ruolo e ogni gruppo deve poterlo mostrare.
+        const risultati: UserWithRole[] = [];
+        for (const u of (trovati ?? []) as unknown as RigaRpc[]) {
+          const [nome, ...resto] = (u.nome ?? "").split(" ");
+          for (const ruolo of (u.ruoli ?? []) as AppRole[]) {
+            risultati.push({
+              id: u.id,
+              first_name: nome || "",
+              last_name: resto.join(" ") || "",
+              email: u.email ?? "",
+              role: ruolo,
+              company_name: u.azienda_nome,
+            });
+          }
+        }
+        return risultati;
       }
+
+      let roleUserIds: string[] | null = null;
 
       // Build profiles query with server-side filtering + limit
       let profilesQuery = supabase
