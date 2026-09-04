@@ -6,9 +6,28 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // This function can be called without auth (pre-login check)
-    // or with auth for admin IP allowlist management
-    const { email, ip_address, user_agent } = await req.json();
+    // Chiamabile senza auth (controllo pre-login) o autenticata per la
+    // gestione dell'allowlist IP.
+    //
+    // `action`:
+    //   check          (default) → decide se il tentativo può procedere
+    //   record_failure           → credenziali errate: incrementa il contatore
+    //   record_success           → accesso riuscito: azzera contatore e blocco
+    //
+    // Senza record_failure il contatore restava a zero per sempre e il blocco
+    // anti-forza-bruta non poteva scattare: la funzione leggeva un valore che
+    // nessuno scriveva mai.
+    const body = await req.json();
+    const { email, user_agent } = body;
+    const action: string = body.action ?? "check";
+
+    // L'IP lo prendiamo dagli header della richiesta: quello inviato dal
+    // client sarebbe falsificabile, e comunque il browser non lo conosce.
+    const ip_address =
+      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      req.headers.get("cf-connecting-ip") ||
+      body.ip_address ||
+      null;
 
     if (!email) {
       return new Response(
@@ -30,11 +49,49 @@ Deno.serve(async (req) => {
       .eq("email", email)
       .maybeSingle();
 
+    // ── Registrazione dell'esito di un tentativo ──────────────────────────
+    if (action === "record_failure" || action === "record_success") {
+      if (!profile) {
+        // Email sconosciuta: registriamo il tentativo ma non riveliamo nulla.
+        await supabaseAdmin.from("login_attempts").insert([{
+          email, ip_address, user_agent: user_agent || null,
+          success: false, failure_reason: "unknown_email",
+        }]);
+        return new Response(JSON.stringify({ ok: true }), {
+          status: 200, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+        });
+      }
+
+      if (action === "record_success") {
+        await supabaseAdmin
+          .from("profiles")
+          .update({ failed_login_count: 0, locked_until: null } as any)
+          .eq("id", profile.id);
+        await supabaseAdmin.from("login_attempts").insert([{
+          email, user_id: profile.id, ip_address, user_agent: user_agent || null,
+          success: true,
+        }]);
+      } else {
+        await supabaseAdmin
+          .from("profiles")
+          .update({ failed_login_count: (profile.failed_login_count || 0) + 1 } as any)
+          .eq("id", profile.id);
+        await supabaseAdmin.from("login_attempts").insert([{
+          email, user_id: profile.id, ip_address, user_agent: user_agent || null,
+          success: false, failure_reason: "invalid_credentials",
+        }]);
+      }
+
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+      });
+    }
+
     if (!profile) {
       // Log failed attempt for unknown email
       await supabaseAdmin.from("login_attempts").insert([{
         email,
-        ip_address: ip_address || null,
+        ip_address,
         user_agent: user_agent || null,
         success: false,
         failure_reason: "unknown_email",
@@ -51,7 +108,7 @@ Deno.serve(async (req) => {
       await supabaseAdmin.from("login_attempts").insert([{
         email,
         user_id: profile.id,
-        ip_address: ip_address || null,
+        ip_address,
         user_agent: user_agent || null,
         success: false,
         failure_reason: "account_locked",
@@ -87,7 +144,7 @@ Deno.serve(async (req) => {
           await supabaseAdmin.from("login_attempts").insert([{
             email,
             user_id: profile.id,
-            ip_address: ip_address || null,
+            ip_address,
             user_agent: user_agent || null,
             success: false,
             failure_reason: "ip_not_allowed",
@@ -124,7 +181,7 @@ Deno.serve(async (req) => {
         await supabaseAdmin.from("login_attempts").insert([{
           email,
           user_id: profile.id,
-          ip_address: ip_address || null,
+          ip_address,
           user_agent: user_agent || null,
           success: false,
           failure_reason: "account_auto_locked",

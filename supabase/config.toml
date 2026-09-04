@@ -804,3 +804,10 @@ verify_jwt = false
 # Chiamata da pg_cron con x-cron-secret (verificato nel codice).
 [functions.task-riepilogo-email]
 verify_jwt = false
+
+# check-login-security va interrogata PRIMA del login (blocco account per
+# tentativi falliti e allowlist IP per azienda): a quel punto l'utente non ha
+# ancora un JWT. La funzione non espone dati — risponde solo se il tentativo
+# può procedere — e registra ogni esito in login_attempts.
+[functions.check-login-security]
+verify_jwt = false

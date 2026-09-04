@@ -1194,6 +1194,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [fetchUserData, refreshAuth, recoverInvalidAuthSession]);
 
+  // Sicurezza del login: blocco account dopo N tentativi falliti e allowlist
+  // IP per azienda. La edge function esisteva già completa ma NON era invocata
+  // da nessun punto dell'app: `login_attempts` era vuota e il blocco non è mai
+  // scattato — una protezione dichiarata nelle impostazioni e mai applicata.
+  //
+  // Principio: un guasto della funzione non deve chiudere fuori tutti. Solo un
+  // `allowed: false` esplicito blocca il tentativo; qualsiasi errore tecnico
+  // lascia proseguire il login normale.
+  const checkLoginSecurity = useCallback(async (email: string) => {
+    try {
+      const { data, error } = await supabase.functions.invoke("check-login-security", {
+        body: { action: "check", email, user_agent: navigator.userAgent },
+      });
+      if (error) return null;
+      return data as { allowed: boolean; reason?: string; locked_until?: string } | null;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const recordLoginOutcome = useCallback((email: string, success: boolean) => {
+    // Fire-and-forget: l'esito non deve rallentare né bloccare il login.
+    supabase.functions
+      .invoke("check-login-security", {
+        body: {
+          action: success ? "record_success" : "record_failure",
+          email,
+          user_agent: navigator.userAgent,
+        },
+      })
+      .catch(() => {});
+  }, []);
+
   const signIn = useCallback(async (email: string, password: string) => {
     // Velocity — race su 25s (coerente con SUPABASE_REST_TIMEOUT_MS).
     // signInWithPassword fa un POST a /auth/v1/token, ma su Supabase free
@@ -1206,6 +1239,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // un messaggio appropriato invece di accusare l'utente.
     let signInTimerId: ReturnType<typeof setTimeout> | undefined;
     try {
+      // Blocco account / allowlist IP prima ancora di provare la password.
+      const security = await checkLoginSecurity(email);
+      if (security && security.allowed === false) {
+        if (security.reason === "account_locked") {
+          const fino = security.locked_until
+            ? new Date(security.locked_until).toLocaleString("it-IT", {
+                day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
+              })
+            : null;
+          return {
+            error: new Error(
+              fino
+                ? `Account bloccato per troppi tentativi falliti. Riprova dopo le ${fino} o contatta l'assistenza.`
+                : "Account bloccato per troppi tentativi falliti. Contatta l'assistenza.",
+            ),
+          };
+        }
+        if (security.reason === "ip_not_allowed") {
+          return {
+            error: new Error(
+              "Accesso non consentito da questa rete. La tua azienda ha limitato l'accesso a indirizzi IP specifici.",
+            ),
+          };
+        }
+        // unknown_email: non lo riveliamo, prosegue e fallirà sulle credenziali.
+      }
+
       const signInPromise = supabase.auth.signInWithPassword({ email, password });
       (signInPromise as unknown as Promise<unknown>).catch(() => {});
       // Memory-leak fix: cancella il timer di timeout quando signIn termina
@@ -1222,12 +1282,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }, 25_000);
         }),
       ]);
+      // L'esito alimenta il contatore dei tentativi falliti: senza questo il
+      // blocco anti-forza-bruta non potrebbe mai scattare.
+      recordLoginOutcome(email, !error);
       return { error: error as Error | null };
     } catch (err) {
       if (signInTimerId) clearTimeout(signInTimerId);
+      // Un timeout non è un tentativo fallito: non deve avvicinare al blocco.
       return { error: err as Error };
     }
-  }, []);
+  }, [checkLoginSecurity, recordLoginOutcome]);
 
   const signOut = useCallback(async () => {
     await endSession();
