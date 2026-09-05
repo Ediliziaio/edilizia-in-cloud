@@ -43583,6 +43583,8 @@ export type Database = {
           filters: Json | null
           id: string
           name: string
+          regola: Json | null
+          regola_aggiornata_il: string | null
           updated_at: string
         }
         Insert: {
@@ -43592,6 +43594,8 @@ export type Database = {
           filters?: Json | null
           id?: string
           name: string
+          regola?: Json | null
+          regola_aggiornata_il?: string | null
           updated_at?: string
         }
         Update: {
@@ -43601,6 +43605,8 @@ export type Database = {
           filters?: Json | null
           id?: string
           name?: string
+          regola?: Json | null
+          regola_aggiornata_il?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -90439,6 +90445,14 @@ export type Database = {
       resolve_dashboard: {
         Args: { p_dashboard_id: string; p_override_filters?: Json }
         Returns: Json
+      }
+      risincronizza_liste_azienda: {
+        Args: { p_azienda: string }
+        Returns: {
+          aggiunti: number
+          lista: string
+          rimossi: number
+        }[]
       }
       restore_email_template_from_history: {
         Args: { p_history_id: string }

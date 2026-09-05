@@ -2,10 +2,11 @@ import { useState, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
-import { Plus, MoreHorizontal, Pencil, Trash2, Users, List, ArrowLeft, Search, UserPlus, UserMinus, X } from "lucide-react";
+import { Plus, MoreHorizontal, Pencil, Trash2, Users, List, ArrowLeft, Search, UserPlus, UserMinus, X, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { sanitizeContactSearchTerm } from "@/lib/marketingContacts";
+import { useDebounce } from "@/hooks/useDebounce";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -21,6 +22,47 @@ import { CreateListDialog } from "./CreateListDialog";
 import type { ContactFilters } from "./ContactFiltersSheet";
 import { countActiveContactFilters } from "./ContactFiltersSheet";
 
+/** Quanti iscritti mostrare per pagina nel dettaglio di una lista. */
+const MEMBRI_PER_PAGINA = 50;
+
+/**
+ * La regola di una lista automatica. Il vocabolario e' chiuso e combacia con
+ * quello che il database sa leggere in `contatto_corrisponde_regola`.
+ */
+export type RegolaLista =
+  | { tipo: "tag"; tag: string }
+  | { tipo: "fonte"; valori: string[] }
+  | { tipo: "fatturato_minimo"; euro: number }
+  | { tipo: "email_contattabile" }
+  | { tipo: "solo_telefono" }
+  | { tipo: "senza_contatti"; con_piva?: boolean; con_sito?: boolean }
+  | { tipo: "campo_personalizzato"; campo: string; valori: string[] };
+
+/** La regola detta a parole, per chi guarda la lista e vuole sapere chi ci finisce. */
+function descriviRegola(r: RegolaLista | null): string {
+  if (!r) return "";
+  switch (r.tipo) {
+    case "tag":
+      return `Ci entra chi ha il tag "${r.tag}"`;
+    case "fonte":
+      return `Ci entra chi arriva da ${r.valori.join(" o ")}`;
+    case "fatturato_minimo":
+      return `Ci entra chi fattura almeno ${new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(r.euro)}`;
+    case "email_contattabile":
+      return "Ci entra chi ha un'email e non si e' disiscritto";
+    case "solo_telefono":
+      return "Ci entra chi ha un numero di telefono ma non un'email";
+    case "senza_contatti":
+      if (r.con_sito) return "Ci entra chi non ha ne' email ne' telefono, ma ha il sito";
+      if (r.con_piva) return "Ci entra chi ha la partita IVA ma ne' email ne' telefono";
+      return "Ci entra chi non ha ne' email ne' telefono";
+    case "campo_personalizzato":
+      return `Ci entra chi ha "${r.campo}" fra: ${r.valori.join(", ")}`;
+    default:
+      return "Regola non riconosciuta";
+  }
+}
+
 interface ContactList {
   id: string;
   name: string;
@@ -29,6 +71,9 @@ interface ContactList {
   member_count: number;
   /** Presente = lista DINAMICA: la lista e' i filtri, non i membri. */
   filters: ContactFilters | null;
+  /** Presente = lista AUTOMATICA: gli iscritti li decide la regola, non le mani. */
+  regola: RegolaLista | null;
+  regola_aggiornata_il: string | null;
 }
 
 interface ListMember {
@@ -86,7 +131,7 @@ export function ContactListsView({ onApplyDynamic }: { onApplyDynamic?: (filters
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingList, setEditingList] = useState<ContactList | null>(null);
-  const [selectedList, setSelectedList] = useState<{ id: string; name: string; description: string | null } | null>(null);
+  const [selectedList, setSelectedList] = useState<{ id: string; name: string; description: string | null; regola: RegolaLista | null } | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<ContactList | null>(null);
   const [memberSearch, setMemberSearch] = useState("");
   const [selectedMemberIds, setSelectedMemberIds] = useState<Set<string>>(new Set());
@@ -98,25 +143,27 @@ export function ContactListsView({ onApplyDynamic }: { onApplyDynamic?: (filters
       if (!companyId) return [];
       const { data, error } = await supabase
         .from("marketing_contact_lists")
-        .select("id, name, description, created_at, filters")
+        .select("id, name, description, created_at, filters, regola, regola_aggiornata_il")
         .eq("company_id", companyId)
         .order("created_at", { ascending: false });
       if (error) throw error;
       if (!data || data.length === 0) return [];
 
-      const listIds = (data || []).map(l => l.id);
-      if (listIds.length === 0) return [];
-
-      const { data: counts, error: countError } = await supabase
-        .from("marketing_contact_list_members")
-        .select("list_id")
-        .in("list_id", listIds);
-      if (countError) throw countError;
-
+      // Il conteggio si chiede al database, una lista alla volta. Scaricare le
+      // iscrizioni per contarle qui non funziona: PostgREST ne restituisce al
+      // massimo 1000, e con liste da decine di migliaia di contatti finivano
+      // tutte nella prima e le altre risultavano vuote.
       const countMap: Record<string, number> = {};
-      (counts || []).forEach(c => {
-        countMap[c.list_id] = (countMap[c.list_id] || 0) + 1;
-      });
+      await Promise.all(
+        (data || []).map(async (l) => {
+          const { count, error: countError } = await supabase
+            .from("marketing_contact_list_members")
+            .select("contact_id", { count: "exact", head: true })
+            .eq("list_id", l.id);
+          if (countError) throw countError;
+          countMap[l.id] = count ?? 0;
+        }),
+      );
 
       return ((data || []) as any[]).map(l => ({ ...l, member_count: countMap[l.id] || 0 })) as ContactList[];
     },
@@ -196,6 +243,26 @@ export function ContactListsView({ onApplyDynamic }: { onApplyDynamic?: (filters
     onError: () => toast.error("Errore nella rimozione"),
   });
 
+  // I trigger tengono tutto allineato riga per riga e di notte passa il
+  // controllo generale. Questo bottone serve quando non si vuole aspettare:
+  // p.es. dopo un import fatto con i trigger spenti.
+  const riallinea = useMutation({
+    mutationFn: async () => {
+      if (!companyId) throw new Error("Azienda non selezionata");
+      const { data, error } = await supabase.rpc("risincronizza_liste_azienda", { p_azienda: companyId });
+      if (error) throw new Error(error.message);
+      const righe = (data ?? []) as Array<{ lista: string; aggiunti: number; rimossi: number }>;
+      return righe.reduce((somma, r) => somma + (r.aggiunti ?? 0) + (r.rimossi ?? 0), 0);
+    },
+    onSuccess: (mosse) => {
+      toast.success(mosse === 0 ? "Le liste erano già in pari" : `${mosse} contatti spostati fra le liste`);
+      invalidate();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const listeAutomatiche = lists.filter((l) => l.regola).length;
+
   const handleToggleMember = useCallback((id: string) => {
     setSelectedMemberIds(prev => {
       const next = new Set(prev);
@@ -211,6 +278,7 @@ export function ContactListsView({ onApplyDynamic }: { onApplyDynamic?: (filters
         listId={selectedList.id}
         listName={selectedList.name}
         listDescription={selectedList.description}
+        regola={selectedList.regola}
         companyId={companyId}
         memberSearch={memberSearch}
         setMemberSearch={setMemberSearch}
@@ -230,13 +298,22 @@ export function ContactListsView({ onApplyDynamic }: { onApplyDynamic?: (filters
   // Lists grid view
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">
           {lists.length} {lists.length === 1 ? "lista" : "liste"}
+          {listeAutomatiche > 0 && `, di cui ${listeAutomatiche} che si aggiornano da sole`}
         </p>
-        <Button size="sm" onClick={() => { setEditingList(null); setDialogOpen(true); }}>
-          <Plus className="h-4 w-4 mr-1" /> Nuova Lista
-        </Button>
+        <div className="flex items-center gap-2">
+          {listeAutomatiche > 0 && (
+            <Button size="sm" variant="outline" disabled={riallinea.isPending} onClick={() => riallinea.mutate()}>
+              <RefreshCw className={`h-4 w-4 mr-1 ${riallinea.isPending ? "animate-spin" : ""}`} />
+              {riallinea.isPending ? "Sto aggiornando…" : "Aggiorna adesso"}
+            </Button>
+          )}
+          <Button size="sm" onClick={() => { setEditingList(null); setDialogOpen(true); }}>
+            <Plus className="h-4 w-4 mr-1" /> Nuova Lista
+          </Button>
+        </div>
       </div>
 
       {isLoading ? (
@@ -258,7 +335,7 @@ export function ContactListsView({ onApplyDynamic }: { onApplyDynamic?: (filters
               onClick={() =>
                 list.filters
                   ? onApplyDynamic?.(list.filters)
-                  : setSelectedList({ id: list.id, name: list.name, description: list.description })
+                  : setSelectedList({ id: list.id, name: list.name, description: list.description, regola: list.regola })
               }
             >
               <CardContent className="p-4">
@@ -268,15 +345,25 @@ export function ContactListsView({ onApplyDynamic }: { onApplyDynamic?: (filters
                     {list.description && (
                       <p className="text-sm text-muted-foreground line-clamp-2 mt-1">{list.description}</p>
                     )}
-                    <div className="flex items-center gap-3 mt-3 text-xs text-muted-foreground">
+                    {list.regola && (
+                      <p className="mt-2 flex items-start gap-1.5 text-xs text-muted-foreground">
+                        <RefreshCw className="mt-0.5 h-3 w-3 shrink-0" />
+                        <span className="line-clamp-2">{descriviRegola(list.regola)}</span>
+                      </p>
+                    )}
+                    <div className="flex flex-wrap items-center gap-2 mt-3 text-xs text-muted-foreground">
                       {list.filters ? (
                         <Badge variant="outline" className="h-5 text-[10px] gap-1 border-primary/40 text-primary">
                           <Search className="h-3 w-3" /> Dinamica · {countActiveContactFilters(list.filters)} {countActiveContactFilters(list.filters) === 1 ? "filtro" : "filtri"}
                         </Badge>
                       ) : (
                         <span className="flex items-center gap-1">
-                          <Users className="h-3.5 w-3.5" /> {list.member_count} contatti
+                          <Users className="h-3.5 w-3.5 shrink-0" />
+                          <span className="tabular-nums">{list.member_count.toLocaleString("it-IT")}</span> contatti
                         </span>
+                      )}
+                      {list.regola && (
+                        <Badge variant="secondary" className="h-5 text-[10px]">Si aggiorna da sola</Badge>
                       )}
                       <span>{format(new Date(list.created_at), "dd MMM yyyy", { locale: it })}</span>
                     </div>
@@ -343,6 +430,7 @@ interface ListDetailViewProps {
   listId: string;
   listName: string;
   listDescription: string | null;
+  regola: RegolaLista | null;
   companyId: string | undefined;
   memberSearch: string;
   setMemberSearch: (s: string) => void;
@@ -354,23 +442,54 @@ interface ListDetailViewProps {
 }
 
 function ListDetailView({
-  listId, listName, listDescription, companyId,
+  listId, listName, listDescription, regola, companyId,
   memberSearch, setMemberSearch, selectedMemberIds,
   onToggleMember, onToggleAll, onBack, onRemoveMembers,
 }: ListDetailViewProps) {
   const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [pagina, setPagina] = useState(0);
   const queryClient = useQueryClient();
+  const ricerca = useDebounce(memberSearch.trim(), 300);
 
-  const { data: members = [], isLoading } = useQuery({
-    queryKey: ["list-members", companyId, listId],
+  // Tornando a cercare si riparte dalla prima pagina, altrimenti si resta su
+  // una pagina che il nuovo filtro non ha.
+  const chiaveRicerca = `${listId}|${ricerca}`;
+  const [ultimaChiave, setUltimaChiave] = useState(chiaveRicerca);
+  if (ultimaChiave !== chiaveRicerca) {
+    setUltimaChiave(chiaveRicerca);
+    setPagina(0);
+  }
+
+  // Ricerca e pagine le fa il database: una lista da 25.000 contatti non entra
+  // nel browser, e PostgREST si ferma comunque a 1000 righe per volta.
+  const { data: risultato, isLoading } = useQuery({
+    queryKey: ["list-members", companyId, listId, ricerca, pagina],
     queryFn: async () => {
       await assertListBelongsToCompany(listId, companyId);
-      const { data, error } = await supabase
+      let query = supabase
         .from("marketing_contact_list_members")
-        .select("id, contact_id, added_at, marketing_contacts(id, first_name, last_name, phone, email, company_name, tags)")
+        .select(
+          "id, contact_id, added_at, marketing_contacts!inner(id, first_name, last_name, phone, email, company_name, tags)",
+          { count: "exact" },
+        )
         .eq("list_id", listId);
+
+      const termine = sanitizeContactSearchTerm(ricerca);
+      if (termine) {
+        const s = `%${termine}%`;
+        query = query.or(
+          `first_name.ilike.${s},last_name.ilike.${s},email.ilike.${s},phone.ilike.${s},company_name.ilike.${s}`,
+          { referencedTable: "marketing_contacts" },
+        );
+      }
+
+      const da = pagina * MEMBRI_PER_PAGINA;
+      const { data, error, count } = await query
+        .order("added_at", { ascending: false })
+        .range(da, da + MEMBRI_PER_PAGINA - 1);
       if (error) throw error;
-      return ((data || []) as ListMemberRow[]).flatMap((row) => {
+
+      const righe = ((data || []) as ListMemberRow[]).flatMap((row) => {
         const contact = Array.isArray(row.marketing_contacts)
           ? row.marketing_contacts[0]
           : row.marketing_contacts;
@@ -382,22 +501,15 @@ function ListDetailView({
           contact,
         }];
       });
+      return { righe, totale: count ?? 0 };
     },
     enabled: !!companyId && !!listId,
+    placeholderData: (precedente) => precedente,
   });
 
-  const filtered = members.filter(m => {
-    if (!memberSearch.trim()) return true;
-    const s = memberSearch.toLowerCase();
-    const c = m.contact;
-    return (
-      c.first_name?.toLowerCase().includes(s) ||
-      c.last_name?.toLowerCase().includes(s) ||
-      c.email?.toLowerCase().includes(s) ||
-      c.phone?.toLowerCase().includes(s) ||
-      c.company_name?.toLowerCase().includes(s)
-    );
-  });
+  const filtered = risultato?.righe ?? [];
+  const totale = risultato?.totale ?? 0;
+  const ultimaPagina = Math.max(0, Math.ceil(totale / MEMBRI_PER_PAGINA) - 1);
 
   const allSelected = filtered.length > 0 && filtered.every(m => selectedMemberIds.has(m.contact_id));
 
@@ -412,11 +524,26 @@ function ListDetailView({
           <h2 className="text-lg font-semibold truncate">{listName}</h2>
           {listDescription && <p className="text-sm text-muted-foreground">{listDescription}</p>}
         </div>
-        <Badge variant="secondary">{members.length} contatti</Badge>
-        <Button size="sm" onClick={() => setAddDialogOpen(true)}>
-          <UserPlus className="h-4 w-4 mr-1" /> Aggiungi contatti
-        </Button>
+        <Badge variant="secondary">{totale.toLocaleString("it-IT")} contatti</Badge>
+        {!regola && (
+          <Button size="sm" onClick={() => setAddDialogOpen(true)}>
+            <UserPlus className="h-4 w-4 mr-1" /> Aggiungi contatti
+          </Button>
+        )}
       </div>
+
+      {regola && (
+        <div className="flex items-start gap-2 rounded-lg border bg-muted/40 px-4 py-3 text-sm">
+          <RefreshCw className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+          <div className="min-w-0">
+            <p className="font-medium">Questa lista si aggiorna da sola</p>
+            <p className="text-muted-foreground">
+              {descriviRegola(regola)}. I contatti entrano ed escono appena cambiano, quindi qui non si
+              aggiunge e non si toglie nessuno a mano: al primo aggiornamento tornerebbe come prima.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Search */}
       <div className="relative max-w-sm">
@@ -430,7 +557,7 @@ function ListDetailView({
       </div>
 
       {/* Bulk actions */}
-      {selectedMemberIds.size > 0 && (
+      {selectedMemberIds.size > 0 && !regola && (
         <div className="flex items-center gap-3 bg-muted/50 rounded-lg px-4 py-2 text-sm">
           <span className="font-medium">{selectedMemberIds.size} selezionati</span>
           <Button size="sm" variant="outline" onClick={() => onRemoveMembers(Array.from(selectedMemberIds))}>
@@ -445,7 +572,7 @@ function ListDetailView({
           <TableHeader>
             <TableRow>
               <TableHead className="w-[40px]">
-                <Checkbox checked={allSelected} onCheckedChange={() => onToggleAll(filtered)} />
+                {!regola && <Checkbox checked={allSelected} onCheckedChange={() => onToggleAll(filtered)} />}
               </TableHead>
               <TableHead>Nome del Contatto</TableHead>
               <TableHead>Telefono</TableHead>
@@ -463,7 +590,7 @@ function ListDetailView({
             ) : filtered.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
-                  {memberSearch ? "Nessun risultato" : "Nessun contatto in questa lista"}
+                  {ricerca ? "Nessun risultato" : "Nessun contatto in questa lista"}
                 </TableCell>
               </TableRow>
             ) : (
@@ -473,7 +600,9 @@ function ListDetailView({
                 return (
                   <TableRow key={m.id} className="group">
                     <TableCell>
-                      <Checkbox checked={selectedMemberIds.has(m.contact_id)} onCheckedChange={() => onToggleMember(m.contact_id)} />
+                      {!regola && (
+                        <Checkbox checked={selectedMemberIds.has(m.contact_id)} onCheckedChange={() => onToggleMember(m.contact_id)} />
+                      )}
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2.5">
@@ -494,15 +623,17 @@ function ListDetailView({
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-7 w-7 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive"
-                        onClick={() => onRemoveMembers([m.contact_id])}
-                        title="Rimuovi dalla lista"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </Button>
+                      {!regola && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive"
+                          onClick={() => onRemoveMembers([m.contact_id])}
+                          title="Rimuovi dalla lista"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
                     </TableCell>
                   </TableRow>
                 );
@@ -511,6 +642,24 @@ function ListDetailView({
           </TableBody>
         </Table>
       </div>
+
+      {totale > MEMBRI_PER_PAGINA && (
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-muted-foreground">
+            Da {(pagina * MEMBRI_PER_PAGINA + 1).toLocaleString("it-IT")} a{" "}
+            {Math.min((pagina + 1) * MEMBRI_PER_PAGINA, totale).toLocaleString("it-IT")} di{" "}
+            {totale.toLocaleString("it-IT")}
+          </span>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" disabled={pagina === 0} onClick={() => setPagina(p => Math.max(0, p - 1))}>
+              Precedenti
+            </Button>
+            <Button variant="outline" size="sm" disabled={pagina >= ultimaPagina} onClick={() => setPagina(p => p + 1)}>
+              Successivi
+            </Button>
+          </div>
+        </div>
+      )}
 
       <AddContactsToListDialog
         open={addDialogOpen}
@@ -548,21 +697,6 @@ function AddContactsToListDialog({ open, onOpenChange, listId, companyId, onDone
     onOpenChange(nextOpen);
   };
 
-  // Fetch existing member IDs
-  const { data: existingIds = [] } = useQuery({
-    queryKey: ["list-member-ids", companyId, listId],
-    queryFn: async () => {
-      await assertListBelongsToCompany(listId, companyId);
-      const { data, error } = await supabase
-        .from("marketing_contact_list_members")
-        .select("contact_id")
-        .eq("list_id", listId);
-      if (error) throw error;
-      return (data || []).map(d => d.contact_id);
-    },
-    enabled: open,
-  });
-
   // Search contacts
   const { data: contacts = [] } = useQuery({
     queryKey: queryKeys.listMembers.searchContacts(companyId, search),
@@ -586,6 +720,26 @@ function AddContactsToListDialog({ open, onOpenChange, listId, companyId, onDone
       return data || [];
     },
     enabled: open && !!companyId,
+  });
+
+  // "Già nella lista" si chiede solo per i contatti che si vedono adesso.
+  // Chiedere tutti gli iscritti non funzionava: oltre i 1000 la risposta si
+  // tronca e su una lista grande i contatti già dentro sembravano aggiungibili.
+  const visibleIds = contacts.map(c => c.id);
+  const { data: existingIds = [] } = useQuery({
+    queryKey: ["list-member-ids", listId, visibleIds.join(",")],
+    queryFn: async () => {
+      await assertListBelongsToCompany(listId, companyId);
+      if (visibleIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from("marketing_contact_list_members")
+        .select("contact_id")
+        .eq("list_id", listId)
+        .in("contact_id", visibleIds);
+      if (error) throw error;
+      return (data || []).map(d => d.contact_id);
+    },
+    enabled: open && visibleIds.length > 0,
   });
 
   const existingSet = new Set(existingIds);
