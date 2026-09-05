@@ -12,16 +12,20 @@
  * le macro-aree reali di sidebarConfig e la voce attiva, header con
  * breadcrumb, titolo con fascia Venduto/Incassato/Da incassare, ricerca e
  * filtri (compreso «Margine basso», che nell'app esiste davvero), tabella
- * con badge di stato colorati come gli stati ordine di default. Dati finti
- * ma verosimili, tenant «Demo Azienda 2».
+ * con badge di stato colorati come gli stati ordine di default. Sotto, due
+ * grafici come nella dashboard: venduto e incassato per mese, cassa prevista
+ * a 90 giorni. Clienti quasi tutti privati: è il lavoro tipico dell'impresa
+ * da 3 a 15 persone a cui il sito parla. Dati finti ma verosimili.
  *
- * Animazione: solo CSS (src/index.css, .eic-mock-fill / .eic-mock-pulse):
- * le barre del margine si riempiono all'ingresso e la commessa in corso ha
- * un puntino che pulsa. Niente slideshow fra schermate — distrae e rende
- * instabile l'LCP. Con prefers-reduced-motion l'animazione è spenta.
+ * Grafici: SVG statico, una scala per grafico, griglia recessiva, due serie
+ * con legenda e colori fissi (blu = venduto, verde = incassato: coppia
+ * validata, ΔE 28 in deuteranopia). Sono parte di un'immagine decorativa,
+ * non un grafico interattivo: niente tooltip.
  *
- * Markup puro, senza stato né dipendenze dall'app: identico fra prerender e
- * client. Decorativo: aria-hidden, con un'etichetta sul contenitore.
+ * Animazione: solo CSS (src/index.css, .eic-mock-fill / -fill-y / -pulse):
+ * barre del margine e delle vendite si riempiono all'ingresso, la commessa in
+ * posa ha un puntino che pulsa. Niente slideshow. Con prefers-reduced-motion
+ * è tutto fermo. Markup puro, senza stato: identico fra prerender e client.
  */
 import {
   ClipboardCheck, Mail, TrendingUp, MessagesSquare, Sparkles, HardHat, Package,
@@ -32,6 +36,7 @@ import logo from "@/assets/edilizia-in-cloud-logo-small.webp";
 
 /* Palette del gestionale (src/index.css): primario blu, sfondi chiari. */
 const BLU = "#1A73E8";
+const VERDE = "#16A34A";
 const BLU_CHIARO = "#EEF3FB";
 const INCHIOSTRO = "#1F2A3D";
 const GRIGIO = "#5B6778";
@@ -66,16 +71,36 @@ const MENU: Array<{ area: string; voci: Array<{ label: string; Icon: typeof Mail
 /* Colori degli stati ordine di default dell'app (Posa #DB2777, Completato #16A34A…). */
 const COMMESSE = [
   { codice: "VR-2026-014", cliente: "Rossi Marco", descrizione: "Ristrutturazione villa — Bergamo", stato: "Posa", colore: "#DB2777", imponibile: "86.500", incassato: "52.000", margine: 24, inCorso: true },
-  { codice: "CM-2026-031", cliente: "Manzoni Costruzioni", descrizione: "Capannone via Manzoni", stato: "In lavorazione", colore: "#2563EB", imponibile: "148.000", incassato: "74.000", margine: 19 },
-  { codice: "CV-2026-022", cliente: "Condominio Verdi", descrizione: "Cappotto termico 6 piani", stato: "Completato", colore: "#16A34A", imponibile: "63.200", incassato: "63.200", margine: 27 },
+  { codice: "CP-2026-027", cliente: "Ferrari Giulia", descrizione: "Cappotto villetta — Curno", stato: "In lavorazione", colore: "#2563EB", imponibile: "38.600", incassato: "19.300", margine: 19 },
+  { codice: "MZ-2026-009", cliente: "Famiglia Mazzoleni", descrizione: "Rifacimento tetto — Alzano", stato: "In lavorazione", colore: "#2563EB", imponibile: "41.700", incassato: "20.000", margine: 25 },
   { codice: "PR-2026-088", cliente: "Bianchi Laura", descrizione: "Bagno e impianti — Seriate", stato: "Confermato", colore: "#D97706", imponibile: "18.900", incassato: "5.600", margine: 31 },
-  { codice: "SR-2026-041", cliente: "Serramenti Nord", descrizione: "Sostituzione 14 infissi", stato: "Preventivo", colore: "#64748B", imponibile: "24.300", incassato: "—", margine: 22 },
-  { codice: "MZ-2026-009", cliente: "Mazzoleni S.r.l.", descrizione: "Rifacimento tetto — Alzano", stato: "In lavorazione", colore: "#2563EB", imponibile: "41.700", incassato: "20.000", margine: 25 },
-  { codice: "TR-2026-017", cliente: "Trevi Immobiliare", descrizione: "Facciata condominio — 5 piani", stato: "Posa", colore: "#DB2777", imponibile: "97.300", incassato: "48.600", margine: 21 },
-  { codice: "BG-2026-052", cliente: "Famiglia Carrara", descrizione: "Bagno e cucina — Nembro", stato: "Confermato", colore: "#D97706", imponibile: "22.400", incassato: "6.700", margine: 28 },
+  { codice: "BG-2026-052", cliente: "Famiglia Carrara", descrizione: "Bagno e cucina — Nembro", stato: "Completato", colore: "#16A34A", imponibile: "22.400", incassato: "22.400", margine: 28 },
+  { codice: "SR-2026-041", cliente: "Colombo Andrea", descrizione: "Sostituzione 14 infissi", stato: "Preventivo", colore: "#64748B", imponibile: "24.300", incassato: "—", margine: 22 },
 ];
 
+/* Venduto e incassato per mese, in migliaia di euro. Una scala sola: 0–100k. */
+const MESI = [
+  { m: "Apr", venduto: 58, incassato: 41 },
+  { m: "Mag", venduto: 74, incassato: 60 },
+  { m: "Giu", venduto: 66, incassato: 55 },
+  { m: "Lug", venduto: 81, incassato: 63 },
+  { m: "Ago", venduto: 52, incassato: 49 },
+  { m: "Set", venduto: 90, incassato: 68 },
+];
+
+/* Cassa prevista: oggi, 30, 60, 90 giorni (migliaia di euro). */
+const CASSA = [38.2, 52.9, 47.5, 61.2];
+
+/* Geometria dei grafici: viewBox 300×112, area di disegno x 34..294, y 8..90. */
+const X0 = 34, X1 = 294, Y0 = 8, Y1 = 90;
+const yScala = (v: number, max: number) => Y1 - ((Y1 - Y0) * v) / max;
+
 export default function PlatformMockup() {
+  const larghezzaGruppo = (X1 - X0) / MESI.length;
+  const larghezzaBarra = 11;
+  const passoCassa = (X1 - X0) / (CASSA.length - 1);
+  const puntiCassa = CASSA.map((v, i) => `${X0 + i * passoCassa},${yScala(v, 80)}`);
+
   return (
     <div className="gsap-dashboard relative mx-auto mb-8 mt-10 max-w-5xl">
       {/* Alone dietro alla finestra, come prima */}
@@ -83,7 +108,7 @@ export default function PlatformMockup() {
 
       <div
         role="img"
-        aria-label="La pagina Commesse di Edilizia in Cloud: ogni cantiere con stato, venduto, incassato e margine"
+        aria-label="La pagina Commesse di Edilizia in Cloud: ogni cantiere con stato, venduto, incassato e margine, e sotto i grafici di venduto, incassato e cassa prevista"
         className="relative overflow-hidden rounded-2xl border border-white/20 shadow-2xl shadow-black/40"
         style={{ transform: "perspective(1200px) rotateX(4deg)" }}
       >
@@ -191,10 +216,10 @@ export default function PlatformMockup() {
                       const basso = c.margine < 20;
                       return (
                         <tr key={c.codice} className="border-t" style={{ borderColor: BORDO, background: basso ? "#FFFBEB" : undefined }}>
-                          <td className="px-2.5 py-[7px] font-mono text-[9.5px] font-semibold" style={{ color: BLU }}>{c.codice}</td>
-                          <td className="px-2 py-[7px] font-medium">{c.cliente}</td>
-                          <td className="hidden max-w-[150px] truncate px-2 py-[7px] md:table-cell" style={{ color: GRIGIO }}>{c.descrizione}</td>
-                          <td className="px-2 py-[7px]">
+                          <td className="px-2.5 py-[6px] font-mono text-[9.5px] font-semibold" style={{ color: BLU }}>{c.codice}</td>
+                          <td className="px-2 py-[6px] font-medium">{c.cliente}</td>
+                          <td className="hidden max-w-[150px] truncate px-2 py-[6px] md:table-cell" style={{ color: GRIGIO }}>{c.descrizione}</td>
+                          <td className="px-2 py-[6px]">
                             <span
                               className="inline-flex items-center gap-1 rounded-full border px-1.5 py-[1px] text-[8.5px] font-semibold"
                               style={{ borderColor: c.colore, color: c.colore }}
@@ -203,15 +228,15 @@ export default function PlatformMockup() {
                               {c.stato}
                             </span>
                           </td>
-                          <td className="px-2 py-[7px] text-right tabular-nums">€ {c.imponibile}</td>
-                          <td className="hidden px-2 py-[7px] text-right tabular-nums md:table-cell" style={{ color: c.incassato === "—" ? GRIGIO : undefined }}>{c.incassato === "—" ? "—" : `€ ${c.incassato}`}</td>
-                          <td className="px-2.5 py-[7px]">
+                          <td className="px-2 py-[6px] text-right tabular-nums">€ {c.imponibile}</td>
+                          <td className="hidden px-2 py-[6px] text-right tabular-nums md:table-cell" style={{ color: c.incassato === "—" ? GRIGIO : undefined }}>{c.incassato === "—" ? "—" : `€ ${c.incassato}`}</td>
+                          <td className="px-2.5 py-[6px]">
                             <div className="flex items-center gap-1.5">
                               <span className="w-7 text-right font-semibold tabular-nums" style={{ color: basso ? "#B45309" : "#0F7A4D" }}>{c.margine}%</span>
                               <span className="h-1.5 w-12 overflow-hidden rounded-full" style={{ background: "#E9EDF3" }}>
                                 <span
                                   className="eic-mock-fill block h-full rounded-full"
-                                  style={{ width: `${Math.min(100, c.margine * 3)}%`, background: basso ? "#F59E0B" : "#16A34A", animationDelay: `${0.35 + i * 0.12}s` }}
+                                  style={{ width: `${Math.min(100, c.margine * 3)}%`, background: basso ? "#F59E0B" : VERDE, animationDelay: `${0.35 + i * 0.1}s` }}
                                 />
                               </span>
                             </div>
@@ -222,8 +247,70 @@ export default function PlatformMockup() {
                   </tbody>
                 </table>
                 <div className="flex items-center justify-between border-t px-2.5 py-1.5 text-[9px]" style={{ borderColor: BORDO, color: GRIGIO }}>
-                  <span>1–8 di 12 commesse</span>
+                  <span>1–6 di 12 commesse</span>
                   <span className="flex items-center gap-1"><AlertCircle size={10} className="text-amber-600" /> 1 commessa sotto il margine minimo (20%)</span>
+                </div>
+              </div>
+
+              {/* ── Grafici (come in «Come stiamo andando») ── */}
+              <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2">
+                {/* Venduto e incassato per mese: due serie, una scala, legenda */}
+                <div className="rounded-lg border bg-white p-2.5" style={{ borderColor: BORDO }}>
+                  <div className="mb-1 flex items-center justify-between">
+                    <p className="text-[10px] font-semibold">Venduto e incassato — ultimi 6 mesi</p>
+                    <span className="flex items-center gap-2 text-[8.5px]" style={{ color: GRIGIO }}>
+                      <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-sm" style={{ background: BLU }} />Venduto</span>
+                      <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-sm" style={{ background: VERDE }} />Incassato</span>
+                    </span>
+                  </div>
+                  <svg viewBox="0 0 300 112" className="block h-auto w-full" style={{ fontFamily: "inherit" }}>
+                    {[0, 25, 50, 75, 100].map((v) => (
+                      <g key={v}>
+                        <line x1={X0} x2={X1} y1={yScala(v, 100)} y2={yScala(v, 100)} stroke={BORDO} strokeWidth="1" />
+                        <text x={X0 - 4} y={yScala(v, 100) + 3} textAnchor="end" fontSize="8" fill={GRIGIO}>{v === 0 ? "0" : `${v}k`}</text>
+                      </g>
+                    ))}
+                    {MESI.map((d, i) => {
+                      const cx = X0 + i * larghezzaGruppo + larghezzaGruppo / 2;
+                      const yV = yScala(d.venduto, 100);
+                      const yI = yScala(d.incassato, 100);
+                      return (
+                        <g key={d.m}>
+                          <rect className="eic-mock-fill-y" x={cx - larghezzaBarra - 1} y={yV} width={larghezzaBarra} height={Y1 - yV} rx="1.5" fill={BLU} style={{ animationDelay: `${0.5 + i * 0.08}s` }} />
+                          <rect className="eic-mock-fill-y" x={cx + 1} y={yI} width={larghezzaBarra} height={Y1 - yI} rx="1.5" fill={VERDE} style={{ animationDelay: `${0.56 + i * 0.08}s` }} />
+                          <text x={cx} y={Y1 + 12} textAnchor="middle" fontSize="8.5" fill={GRIGIO}>{d.m}</text>
+                        </g>
+                      );
+                    })}
+                    <text x={X0 + 5 * larghezzaGruppo + larghezzaGruppo / 2} y={yScala(90, 100) - 4} textAnchor="middle" fontSize="8.5" fontWeight="600" fill={INCHIOSTRO}>€ 90k</text>
+                  </svg>
+                </div>
+
+                {/* Cassa prevista a 90 giorni: una serie, linea + area, valore finale in chiaro */}
+                <div className="rounded-lg border bg-white p-2.5" style={{ borderColor: BORDO }}>
+                  <div className="mb-1 flex items-center justify-between">
+                    <p className="text-[10px] font-semibold">Cassa prevista a 90 giorni</p>
+                    <span className="text-[9px] font-semibold tabular-nums" style={{ color: "#0F7A4D" }}>+ € 23.000</span>
+                  </div>
+                  <svg viewBox="0 0 300 112" className="block h-auto w-full" style={{ fontFamily: "inherit" }}>
+                    {[0, 20, 40, 60, 80].map((v) => (
+                      <g key={v}>
+                        <line x1={X0} x2={X1} y1={yScala(v, 80)} y2={yScala(v, 80)} stroke={BORDO} strokeWidth="1" />
+                        <text x={X0 - 4} y={yScala(v, 80) + 3} textAnchor="end" fontSize="8" fill={GRIGIO}>{v === 0 ? "0" : `${v}k`}</text>
+                      </g>
+                    ))}
+                    <polygon points={`${X0},${Y1} ${puntiCassa.join(" ")} ${X1},${Y1}`} fill={BLU} fillOpacity="0.12" />
+                    <polyline points={puntiCassa.join(" ")} fill="none" stroke={BLU} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+                    {CASSA.map((v, i) => (
+                      <g key={i}>
+                        <circle cx={X0 + i * passoCassa} cy={yScala(v, 80)} r="4" fill="#fff" stroke={BLU} strokeWidth="2" />
+                        <text x={X0 + i * passoCassa} y={Y1 + 12} textAnchor={i === 0 ? "start" : i === CASSA.length - 1 ? "end" : "middle"} fontSize="8.5" fill={GRIGIO}>
+                          {i === 0 ? "oggi" : `${i * 30} gg`}
+                        </text>
+                      </g>
+                    ))}
+                    <text x={X1 - 2} y={yScala(CASSA[3], 80) - 8} textAnchor="end" fontSize="8.5" fontWeight="600" fill={INCHIOSTRO}>€ 61.200</text>
+                  </svg>
                 </div>
               </div>
             </div>
@@ -231,10 +318,12 @@ export default function PlatformMockup() {
         </div>
       </div>
 
-      {/* ── Telefono: la home dell'area cantiere (CampoHome), stessa app ── */}
+      {/* ── Telefono: la home dell'area cantiere (CampoHome), stessa app.
+          In basso a sinistra, sopra la parte vuota della barra laterale: a
+          destra copriva il valore finale del grafico della cassa. ── */}
       <div
         aria-hidden="true"
-        className="absolute -bottom-14 -right-16 hidden w-[156px] rotate-[6deg] overflow-hidden rounded-[22px] border-[5px] border-[#1F2A3D] bg-white shadow-2xl shadow-black/50 lg:block"
+        className="absolute -bottom-12 -left-14 hidden w-[156px] -rotate-[6deg] overflow-hidden rounded-[22px] border-[5px] border-[#1F2A3D] bg-white shadow-2xl shadow-black/50 lg:block"
         style={{ fontSize: 9.5, color: INCHIOSTRO }}
       >
         <div className="px-3 pb-3 pt-4" style={{ background: FONDO }}>

@@ -837,6 +837,10 @@ html .react-flow .react-flow__edges svg {
 @keyframes eic-mock-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .45; transform: scale(.7); } }
 .eic-mock-fill { transform-origin: left center; animation: eic-mock-fill 1.1s cubic-bezier(.22,1,.36,1) both; }
 .eic-mock-pulse { animation: eic-mock-pulse 1.6s ease-in-out infinite; }
+/* Barre verticali dei grafici SVG: crescono dalla base (transform-box serve
+   perché su un <rect> l'origine è quella dell'intero SVG, non del rettangolo). */
+@keyframes eic-mock-fill-y { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+.eic-mock-fill-y { transform-box: fill-box; transform-origin: 50% 100%; animation: eic-mock-fill-y 1.1s cubic-bezier(.22,1,.36,1) both; }
 @media (prefers-reduced-motion: reduce) {
-  .eic-mock-fill, .eic-mock-pulse { animation: none; }
+  .eic-mock-fill, .eic-mock-pulse, .eic-mock-fill-y { animation: none; }
 }
