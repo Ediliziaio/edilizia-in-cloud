@@ -31,6 +31,7 @@ import { DashboardHeader } from "@/components/admin/dashboard/DashboardHeader";
 import { DashboardSkeleton } from "@/components/admin/dashboard/DashboardSkeleton";
 import { DashboardExport } from "@/components/admin/dashboard/DashboardExport";
 import { AdminPulseBar } from "@/components/admin/dashboard/AdminPulseBar";
+import { BriefingOperativo } from "@/components/admin/dashboard/BriefingOperativo";
 import { AdminGrowthAnalytics } from "@/components/admin/dashboard/AdminGrowthAnalytics";
 import {
   useDashboardLayout,
@@ -278,6 +279,11 @@ export default function AdminDashboard() {
         </DashboardHeader>
         <AdminPulseBar />
       </div>
+
+      {/* Le poche cose che meritano attenzione oggi, prima di ogni grafico:
+          un job rotto o un cliente pagante che scivola contano più di
+          qualunque KPI storico. */}
+      <BriefingOperativo />
 
       {/* Widget Grid — drag disabled on mobile */}
       {isMobile ? (
