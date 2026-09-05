@@ -4,11 +4,10 @@ import { useEffect, useRef, useState } from "react";
 // al LCP (testo "Aumenta margini..."). L'effetto è eseguito dopo il primo
 // paint senza bloccare il TBT iniziale.
 import {
-  Hammer, HardHat, Ruler, Warehouse, Wrench, Building2, Blocks, ConeIcon,
-  LayoutDashboard, ShoppingBag, Package, Calendar, Users, Settings,
-  TrendingUp, Euro, AlertCircle, CheckCircle2, Star,
+  Hammer, HardHat, Ruler, Warehouse, Wrench, Building2, Blocks, ConeIcon, Star,
   Shield, Zap,
 } from "lucide-react";
+import PlatformMockup from "@/components/landing/PlatformMockup";
 
 const floatingIcons = [
   { Icon: HardHat, top: "10%", left: "5%", size: 48, delay: "0s", anim: "animate-float" },
@@ -21,28 +20,8 @@ const floatingIcons = [
   { Icon: ConeIcon, top: "50%", right: "5%", size: 34, delay: "0.8s", anim: "animate-float-slow" },
 ] as const;
 
-const statsData = [
-  { label: "Margine protetto", value: "+€ 18.400", icon: TrendingUp, color: "#F97415", bg: "rgba(249,116,21,0.15)" },
-  { label: "Incassi da seguire", value: "€ 88.500", icon: AlertCircle, color: "#f59e0b", bg: "rgba(245,158,11,0.15)" },
-  { label: "Fatture pronte", value: "7 bozze", icon: Euro, color: "#3b82f6", bg: "rgba(59,130,246,0.15)" },
-  { label: "Azioni oggi", value: "12 task", icon: CheckCircle2, color: "#22c55e", bg: "rgba(34,197,94,0.15)" },
-];
 
-const aiActionsData = [
-  { action: "Sollecita incasso", target: "Rossi Mario", detail: "€ 18.900 scaduti", status: "Oggi", statusColor: "#f59e0b" },
-  { action: "Genera rapportino", target: "Cantiere Via Roma", detail: "foto + nota vocale", status: "Pronto", statusColor: "#22c55e" },
-  { action: "Prepara fattura", target: "SAL bagno Milano", detail: "bozza da € 12.400", status: "Bozza", statusColor: "#3b82f6" },
-  { action: "Avvisa squadra", target: "Posa serramenti", detail: "materiale mancante", status: "Urgente", statusColor: "#ef4444" },
-];
 
-const chartBars = [
-  { month: "Set", h: 38, value: "52k" },
-  { month: "Ott", h: 58, value: "71k" },
-  { month: "Nov", h: 45, value: "64k" },
-  { month: "Dic", h: 72, value: "91k" },
-  { month: "Gen", h: 64, value: "83k" },
-  { month: "Feb", h: 86, value: "112k" },
-];
 
 const typingWords = ["i tuoi margini", "la tua cassa", "i tuoi cantieri", "il tuo marketing"];
 
@@ -51,290 +30,6 @@ const microBadges = [
   { Icon: Zap, label: "Setup in 48h" },
   { Icon: Star, label: "4.9/5 stelle" },
 ];
-
-const dashboardAreas = [
-  {
-    id: "regia",
-    label: "Regia Silvio",
-    Icon: Building2,
-    eyebrow: "Centro di comando",
-    title: "Silvio ha trovato 3 priorità",
-    summaryTitle: "Silvio consiglia: proteggi il margine prima di accettare nuovi lavori.",
-    summaryText: "2 commesse sotto target, 1 incasso scaduto, 4 rapportini da chiudere.",
-    nextMove: "Invia solleciti e prepara fatture",
-    chartTitle: "Margine previsto",
-    chartBadge: "+18%",
-    stats: statsData,
-    actions: aiActionsData,
-  },
-  {
-    id: "margini",
-    label: "Margini",
-    Icon: LayoutDashboard,
-    eyebrow: "Controllo gestione",
-    title: "Silvio controlla utili e costi nascosti",
-    summaryTitle: "Commessa Via Roma: margine sceso al 14%, sotto la soglia minima.",
-    summaryText: "Ore extra, materiale non previsto e sconto commerciale stanno consumando utile.",
-    nextMove: "Apri analisi margine e blocca extra costo",
-    chartTitle: "Margine commesse",
-    chartBadge: "-6%",
-    stats: [
-      { label: "Sotto target", value: "2 lavori", icon: AlertCircle, color: "#ef4444", bg: "rgba(239,68,68,0.15)" },
-      { label: "Costi extra", value: "€ 9.800", icon: Euro, color: "#f59e0b", bg: "rgba(245,158,11,0.15)" },
-      { label: "Utile stimato", value: "€ 42.600", icon: TrendingUp, color: "#22c55e", bg: "rgba(34,197,94,0.15)" },
-      { label: "Azioni margine", value: "5 task", icon: CheckCircle2, color: "#3b82f6", bg: "rgba(59,130,246,0.15)" },
-    ],
-    actions: [
-      { action: "Blocca extra costo", target: "Via Roma", detail: "posa oltre budget", status: "Urge", statusColor: "#ef4444" },
-      { action: "Ricalcola margine", target: "Bagno Milano", detail: "SAL aggiornato", status: "Oggi", statusColor: "#f59e0b" },
-      { action: "Avvisa titolare", target: "Scala condominio", detail: "utile sotto soglia", status: "Pronto", statusColor: "#22c55e" },
-      { action: "Controlla listino", target: "Fornitore Nord", detail: "aumento materiali", status: "Check", statusColor: "#3b82f6" },
-    ],
-  },
-  {
-    id: "vendite",
-    label: "Vendite",
-    Icon: ShoppingBag,
-    eyebrow: "Pipeline commerciale",
-    title: "Silvio spinge i preventivi caldi",
-    summaryTitle: "3 offerte possono chiudere questa settimana se richiami nel momento giusto.",
-    summaryText: "Silvio prepara follow-up WhatsApp, promemoria e proposta con valore chiaro.",
-    nextMove: "Richiama clienti caldi e invia follow-up",
-    chartTitle: "Preventivi caldi",
-    chartBadge: "+12%",
-    stats: [
-      { label: "Preventivi caldi", value: "9", icon: ShoppingBag, color: "#F97415", bg: "rgba(249,116,21,0.15)" },
-      { label: "Da richiamare", value: "6 clienti", icon: Users, color: "#3b82f6", bg: "rgba(59,130,246,0.15)" },
-      { label: "Valore pipeline", value: "€ 184k", icon: Euro, color: "#22c55e", bg: "rgba(34,197,94,0.15)" },
-      { label: "Follow-up pronti", value: "11", icon: CheckCircle2, color: "#f59e0b", bg: "rgba(245,158,11,0.15)" },
-    ],
-    actions: [
-      { action: "Invia WhatsApp", target: "Laura Gialli", detail: "preventivo fermo da 5g", status: "Oggi", statusColor: "#f59e0b" },
-      { action: "Prepara proposta", target: "Mario Bianchi", detail: "valore e garanzia", status: "Pronta", statusColor: "#22c55e" },
-      { action: "Aggiorna forecast", target: "Pipeline maggio", detail: "probabilità chiusura", status: "Live", statusColor: "#3b82f6" },
-      { action: "Render di supporto", target: "Infissi villa", detail: "prima/dopo", status: "AI", statusColor: "#8b5cf6" },
-    ],
-  },
-  {
-    id: "magazzino",
-    label: "Magazzino",
-    Icon: Package,
-    eyebrow: "Materiali e DDT",
-    title: "Silvio vede cosa manca prima della posa",
-    summaryTitle: "Posa di venerdì: tapparelle non ancora arrivate e DDT da collegare.",
-    summaryText: "Controlla ordini, lotti, DDT, uscite cantiere e avvisa ufficio o squadra.",
-    nextMove: "Registra arrivo merce e prepara uscita",
-    chartTitle: "Materiali pronti",
-    chartBadge: "74%",
-    stats: [
-      { label: "In arrivo", value: "26 art.", icon: Package, color: "#3b82f6", bg: "rgba(59,130,246,0.15)" },
-      { label: "Mancanti", value: "4 art.", icon: AlertCircle, color: "#ef4444", bg: "rgba(239,68,68,0.15)" },
-      { label: "DDT da collegare", value: "3", icon: CheckCircle2, color: "#f59e0b", bg: "rgba(245,158,11,0.15)" },
-      { label: "Uscite pronte", value: "2", icon: Warehouse, color: "#22c55e", bg: "rgba(34,197,94,0.15)" },
-    ],
-    actions: [
-      { action: "Collega DDT", target: "Aluplast", detail: "3 bancali ricevuti", status: "Ora", statusColor: "#f59e0b" },
-      { action: "Ordina materiale", target: "Tapparelle", detail: "posa venerdì", status: "Urge", statusColor: "#ef4444" },
-      { action: "Genera DDT uscita", target: "Cantiere Neri", detail: "merce caricata", status: "Pronto", statusColor: "#22c55e" },
-      { action: "Foto merce", target: "Bancale infissi", detail: "prova carico", status: "OK", statusColor: "#3b82f6" },
-    ],
-  },
-  {
-    id: "campo",
-    label: "Campo",
-    Icon: Calendar,
-    eyebrow: "Campo e rapportini",
-    title: "Silvio trasforma foto e note in lavoro chiaro",
-    summaryTitle: "La squadra ha caricato 3 foto e una nota vocale: rapportino pronto.",
-    summaryText: "Aggiorna diario lavori, ricorda attività aperte e manda promemoria ai collaboratori.",
-    nextMove: "Genera rapportino e avvisa ufficio",
-    chartTitle: "Attività completate",
-    chartBadge: "82%",
-    stats: [
-      { label: "Foto lette", value: "18", icon: CheckCircle2, color: "#22c55e", bg: "rgba(34,197,94,0.15)" },
-      { label: "Rapportini", value: "5", icon: LayoutDashboard, color: "#F97415", bg: "rgba(249,116,21,0.15)" },
-      { label: "Squadre", value: "3", icon: Users, color: "#3b82f6", bg: "rgba(59,130,246,0.15)" },
-      { label: "Ritardi", value: "1", icon: AlertCircle, color: "#f59e0b", bg: "rgba(245,158,11,0.15)" },
-    ],
-    actions: [
-      { action: "Crea rapportino", target: "Via Manzoni", detail: "foto + vocale", status: "Pronto", statusColor: "#22c55e" },
-      { action: "Ricorda squadra", target: "Marco operaio", detail: "chiudere attività", status: "Oggi", statusColor: "#f59e0b" },
-      { action: "Aggiorna diario", target: "Cantiere piscina", detail: "avanzamento 68%", status: "Live", statusColor: "#3b82f6" },
-      { action: "Avvisa cliente", target: "Ferretti", detail: "riepilogo lavori", status: "Bozza", statusColor: "#8b5cf6" },
-    ],
-  },
-  {
-    id: "ai",
-    label: "AI e automazioni",
-    Icon: Settings,
-    eyebrow: "Silvio per tutti i reparti",
-    title: "Una regia AI per vendite, cassa, campo e ufficio",
-    summaryTitle: "Silvio coordina persone, documenti, clienti, fatture, solleciti e promemoria.",
-    summaryText: "Non una chat isolata: ogni risposta nasce da dati reali della tua azienda.",
-    nextMove: "Attiva automazioni su reparti critici",
-    chartTitle: "Automazioni attive",
-    chartBadge: "19 AI",
-    stats: [
-      { label: "Persone AI", value: "19", icon: Zap, color: "#F97415", bg: "rgba(249,116,21,0.15)" },
-      { label: "Reparti coperti", value: "7", icon: LayoutDashboard, color: "#3b82f6", bg: "rgba(59,130,246,0.15)" },
-      { label: "Azioni create", value: "42", icon: CheckCircle2, color: "#22c55e", bg: "rgba(34,197,94,0.15)" },
-      { label: "Alert critici", value: "3", icon: AlertCircle, color: "#ef4444", bg: "rgba(239,68,68,0.15)" },
-    ],
-    actions: [
-      { action: "CFO AI", target: "Cassa", detail: "incassi e pagamenti", status: "Live", statusColor: "#22c55e" },
-      { action: "PM Cantiere AI", target: "Lavori", detail: "ritardi e squadre", status: "Live", statusColor: "#3b82f6" },
-      { action: "Sales AI", target: "Preventivi", detail: "follow-up e offerte", status: "Live", statusColor: "#F97415" },
-      { action: "Admin AI", target: "Fatture/DDT", detail: "bozze e controlli", status: "Live", statusColor: "#8b5cf6" },
-    ],
-  },
-];
-
-function DashboardMockup() {
-  const [activeArea, setActiveArea] = useState(dashboardAreas[0]);
-
-  return (
-    <div
-      className="gsap-dashboard relative mx-auto mb-8 mt-10 max-w-5xl"
-    >
-      {/* Glow effect behind mockup */}
-      <div className="absolute -inset-8 bg-[#F97415]/15 rounded-full blur-[80px] animate-pulse-glow pointer-events-none" />
-      <div
-        className="relative overflow-hidden rounded-2xl border border-white/15 shadow-2xl shadow-black/40"
-        style={{ transform: "perspective(1200px) rotateX(4deg)" }}
-      >
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_8%,rgba(249,116,21,.22),transparent_26%),radial-gradient(circle_at_86%_72%,rgba(34,197,94,.14),transparent_26%)]" />
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#F97415] to-transparent" />
-        <div className="relative flex bg-[#0b0f17]/95">
-          {/* Sidebar */}
-          <div className="w-14 md:w-16 bg-[#0a1222] border-r border-white/5 flex flex-col items-center py-3 gap-1 shrink-0">
-            <div className="w-7 h-7 rounded-lg bg-[#F97415] flex items-center justify-center mb-3">
-              <Building2 size={14} className="text-white" />
-            </div>
-            {dashboardAreas.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                aria-label={`Apri schermata ${item.label}`}
-                title={item.label}
-                onClick={() => setActiveArea(item)}
-                className={`group relative flex h-11 w-11 md:h-9 md:w-9 items-center justify-center rounded-lg transition ${
-                  activeArea.id === item.id ? "bg-[#F97415]/25 text-[#F97415]" : "text-white/60 hover:bg-white/5 hover:text-white/90"
-                }`}
-              >
-                <item.Icon size={16} />
-                {activeArea.id === item.id && <span className="absolute -right-0.5 h-1.5 w-1.5 rounded-full bg-[#F97415] shadow-[0_0_10px_rgba(249,116,21,.9)]" />}
-              </button>
-            ))}
-          </div>
-
-          {/* Main content */}
-          <div className="flex-1 p-3 md:p-4 min-w-0">
-            {/* Header bar */}
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <div>
-                <p className="text-[9px] font-black uppercase tracking-[0.14em] text-[#F97415] md:text-[10px]">{activeArea.eyebrow}</p>
-                <p className="text-sm font-black text-white md:text-base">{activeArea.title}</p>
-              </div>
-              <div className="hidden items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-emerald-200 sm:flex">
-                <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,.85)]" />
-                Live azienda
-              </div>
-            </div>
-
-            {/* Silvio summary */}
-            <div className="mb-3 grid gap-2 md:grid-cols-[1.15fr_0.85fr]">
-              <div className="gsap-card rounded-xl border border-[#F97415]/25 bg-[#F97415]/10 p-3 text-left">
-                <div className="flex items-start gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#F97415] text-white shadow-lg shadow-orange-900/30">
-                    <Zap size={17} />
-                  </div>
-                  <div>
-                    <p className="text-xs font-black text-white md:text-sm">{activeArea.summaryTitle}</p>
-                    <p className="mt-1 text-[10px] leading-4 text-white/70 md:text-[11px]">
-                      {activeArea.summaryText}
-                    </p>
-                  </div>
-                </div>
-              </div>
-              <div className="hidden rounded-xl border border-white/10 bg-white/[0.04] p-3 text-left md:block">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-white/45">Prossima mossa</p>
-                <p className="mt-1 text-sm font-black text-white">{activeArea.nextMove}</p>
-                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10">
-                  <div className="h-full w-[72%] rounded-full bg-gradient-to-r from-[#F97415] to-emerald-400" />
-                </div>
-              </div>
-            </div>
-
-            {/* Stat cards */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
-              {activeArea.stats.map((stat, i) => (
-                <div key={i} className="gsap-card rounded-lg border border-white/5 bg-white/[0.04] p-2 transition hover:border-[#F97415]/30 hover:bg-white/[0.07] md:p-2.5">
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <div className="w-5 h-5 rounded flex items-center justify-center" style={{ backgroundColor: stat.bg }}>
-                      <stat.icon size={10} style={{ color: stat.color }} />
-                    </div>
-                    <span className="text-white/70 text-[8px] md:text-[9px]">{stat.label}</span>
-                  </div>
-                  <p className="text-white text-xs md:text-sm font-bold">{stat.value}</p>
-                </div>
-              ))}
-            </div>
-
-            {/* Chart + Table row */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 min-w-0">
-              {/* Bar chart */}
-              <div className="rounded-lg border border-white/5 bg-white/[0.04] p-2.5">
-                <div className="mb-2 flex items-center justify-between gap-2">
-                  <p className="text-[9px] font-medium text-white/70">{activeArea.chartTitle}</p>
-                  <span className="rounded-full bg-emerald-400/10 px-2 py-0.5 text-[7px] font-black text-emerald-300">{activeArea.chartBadge}</span>
-                </div>
-                <div className="flex items-end gap-1.5 h-16">
-                  {chartBars.map((bar, i) => (
-                    <div key={i} className="gsap-card flex-1 flex flex-col items-center gap-1">
-                      <span className="text-[7px] font-bold text-white/45">{bar.value}</span>
-                      <div
-                        className="w-full rounded-sm"
-                        style={{
-                          height: `${bar.h}%`,
-                          background: `linear-gradient(to top, #F97415, #F9741599)`,
-                        }}
-                      />
-                      <span className="text-white/65 text-[7px]">{bar.month}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* AI actions table */}
-              <div className="rounded-lg border border-white/5 bg-white/[0.04] p-2.5">
-                <p className="mb-2 text-[9px] font-medium text-white/70">Azioni consigliate</p>
-                <div className="space-y-1.5">
-                  {activeArea.actions.map((item, i) => (
-                    <div key={i} className="gsap-card flex items-center justify-between gap-2 rounded-md bg-black/10 px-1.5 py-1 text-[8px] md:text-[9px]">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#F97415]" />
-                        <div className="min-w-0">
-                          <p className="truncate font-bold text-white/80">{item.action}</p>
-                          <p className="truncate text-white/45">{item.target} · {item.detail}</p>
-                        </div>
-                      </div>
-                      <span
-                        className="shrink-0 rounded-full px-1.5 py-0.5 text-[7px] font-black"
-                        style={{ backgroundColor: `${item.statusColor}20`, color: item.statusColor }}
-                      >
-                        {item.status}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 export default function HeroSection() {
   const sectionRef = useRef<HTMLElement>(null);
@@ -581,8 +276,8 @@ export default function HeroSection() {
           ))}
         </div>
 
-        {/* 3. Dashboard Mockup */}
-        <DashboardMockup />
+        {/* 3. La piattaforma vera, riprodotta: vedi PlatformMockup */}
+        <PlatformMockup />
 
       </div>
 
