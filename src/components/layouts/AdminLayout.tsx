@@ -27,6 +27,7 @@ import {
   BarChart3,
   Users,
   Activity,
+  Plug,
   AlertTriangle,
   FileText,
   Target,
@@ -174,6 +175,10 @@ const allNavItems: AdminNavItem[] = [
   // Salute piattaforma: job falliti, errori ed elementi che richiedono
   // attenzione. Prima un guasto si scopriva quando chiamava il cliente.
   { title: "Salute piattaforma", url: "/admin/salute", icon: Activity, permission: "can_view_platform_stats", subcategory: "sa_operazioni" },
+  // Connessioni: integrazioni, chiavi API e webhook. Prima nessuna schermata
+  // diceva quale integrazione avesse smesso di funzionare, né quali chiavi
+  // fossero vive ma inutilizzate.
+  { title: "Connessioni", url: "/admin/connessioni", icon: Plug, permission: "can_view_platform_stats", subcategory: "sa_operazioni" },
   // ⚠️ "Operazioni" rimosso dalla sidebar principale: è materia di
   //    amministrazione di sistema (sync, alert, import, GDPR, audit) e
   //    duplicava parzialmente "Registro Attività" già presente in

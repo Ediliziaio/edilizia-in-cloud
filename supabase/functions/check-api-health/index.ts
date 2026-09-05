@@ -1,5 +1,6 @@
 import { getCorsHeaders } from "../_shared/headers.ts";
-import { requireAuth, requireRole } from "../_shared/auth.ts";
+import { requireAuth, requireRole, isInternalRequest } from "../_shared/auth.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 interface IntegrationResult {
   name: string;
@@ -178,8 +179,26 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { userId, supabaseAdmin: admin } = await requireAuth(req, getCorsHeaders(req));
-    await requireRole(admin, userId, ["super_admin"], getCorsHeaders(req));
+    // Due chiamanti legittimi, un solo controllo di salute.
+    //
+    // Prima questa funzione accettava soltanto un JWT di super_admin: era
+    // quindi impossibile pianificarla, e infatti nessun cron la chiamava.
+    // Risultato: integration_health_log si popolava solo quando qualcuno
+    // apriva la pagina a mano — il monitoraggio delle integrazioni esisteva
+    // ma non girava. Ora accetta anche il segreto interno usato dagli altri
+    // job pianificati.
+    let admin;
+    if (isInternalRequest(req)) {
+      admin = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+        { auth: { autoRefreshToken: false, persistSession: false } },
+      );
+    } else {
+      const auth = await requireAuth(req, getCorsHeaders(req));
+      await requireRole(auth.supabaseAdmin, auth.userId, ["super_admin"], getCorsHeaders(req));
+      admin = auth.supabaseAdmin;
+    }
     const isSuperAdmin = true;
 
     // Read platform_settings keys
