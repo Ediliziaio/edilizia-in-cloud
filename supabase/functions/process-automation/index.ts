@@ -125,7 +125,7 @@ async function handleTrigger(supabase: any, body: any) {
   // Find published flows for this company that have a trigger node matching this event
   const { data: flows, error: flowErr } = await supabase
     .from("automation_flows")
-    .select("id, version, config_json")
+    .select("id, version, config_json, allow_reentry")
     .eq("company_id", company_id)
     .eq("status", "published");
 
@@ -394,7 +394,11 @@ async function handleTrigger(supabase: any, body: any) {
 
     // Check re-enrollment settings (from flow config or trigger config)
     const flowSettings = flow.config_json?.settings || {};
-    const allowReEnrollment = flowSettings.enable_reenrollment === true || matchingTrigger.config_json?.allow_re_enrollment === true;
+    // `allow_reentry` è la casella che l'interfaccia mostra nelle impostazioni
+    // del flusso: era salvata e mai letta, quindi spostarla non cambiava nulla.
+    const allowReEnrollment = flow.allow_reentry === true
+      || flowSettings.enable_reenrollment === true
+      || matchingTrigger.config_json?.allow_re_enrollment === true;
 
     // Use in-memory lookup instead of per-flow query.
     // Blocca se QUALSIASI iscrizione esistente è in uno stato bloccante.
@@ -530,8 +534,65 @@ async function processQueue(supabase: any) {
 
   let processed = 0;
 
+  // "Ferma se risponde": impostazione del flusso che l'interfaccia salvava da
+  // sempre e che NESSUNO leggeva. Su una sequenza da 45 email significa che chi
+  // risponde "smettete di scrivermi" le riceve tutte lo stesso — il modo più
+  // veloce per farsi segnalare come spam e bruciare il dominio.
+  //
+  // Una risposta = una email in arrivo da quell'indirizzo dopo l'iscrizione.
+  // Le impostazioni dei flussi si leggono una volta sola per esecuzione.
+  const impostazioniFlusso = new Map<string, { stopOnReply: boolean }>();
+  async function fermaSeHaRisposto(item: any): Promise<boolean> {
+    if (!item.flow_id || !item.enrollment_id || !item.entity_id) return false;
+    try {
+      if (!impostazioniFlusso.has(item.flow_id)) {
+        const { data: f } = await supabase.from("automation_flows")
+          .select("stop_on_reply").eq("id", item.flow_id).maybeSingle();
+        impostazioniFlusso.set(item.flow_id, { stopOnReply: f?.stop_on_reply === true });
+      }
+      if (!impostazioniFlusso.get(item.flow_id)!.stopOnReply) return false;
+
+      const { data: iscr } = await supabase.from("automation_enrollments")
+        .select("created_at, status").eq("id", item.enrollment_id).maybeSingle();
+      if (!iscr || iscr.status !== "active") return false;
+
+      const { data: contatto } = await supabase.from("marketing_contacts")
+        .select("email").eq("id", item.entity_id).maybeSingle();
+      const indirizzo = String(contatto?.email ?? "").trim().toLowerCase();
+      if (!indirizzo) return false;
+
+      const { data: risposta } = await supabase.from("email_inbox")
+        .select("id").eq("company_id", item.company_id)
+        .ilike("from_email", indirizzo)
+        .gt("received_at", iscr.created_at)
+        .limit(1).maybeSingle();
+      if (!risposta) return false;
+
+      // Ha risposto: si chiude l'iscrizione e si annulla tutta la coda residua,
+      // non solo il passo corrente.
+      await supabase.from("automation_enrollments")
+        .update({ status: "stopped", updated_at: new Date().toISOString() })
+        .eq("id", item.enrollment_id);
+      await supabase.from("automation_queue")
+        .update({ status: "cancelled", last_error: "fermata: il contatto ha risposto", updated_at: new Date().toISOString() })
+        .eq("enrollment_id", item.enrollment_id).eq("status", "pending");
+      console.log(`[process-automation] iscrizione ${item.enrollment_id} fermata: il contatto ha risposto`);
+      return true;
+    } catch (e) {
+      // Fail-open: un controllo che non riesce non deve bloccare la sequenza.
+      console.warn("[process-automation] controllo risposta fallito:", (e as Error).message);
+      return false;
+    }
+  }
+
   for (const item of items) {
     try {
+      if (await fermaSeHaRisposto(item)) {
+        await supabase.from("automation_queue")
+          .update({ status: "cancelled", updated_at: now }).eq("id", item.id);
+        continue;
+      }
+
       // Mark as processing
       await supabase
         .from("automation_queue")
