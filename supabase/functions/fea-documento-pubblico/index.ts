@@ -2,6 +2,13 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { getBrandingForCompany } from "../_shared/getBranding.ts";
 
+function mascheraEmail(email: string | null | undefined): string | null {
+  if (!email || !email.includes("@")) return null;
+  const [u, d] = email.split("@");
+  const testa = u.length <= 2 ? u[0] ?? "" : u.slice(0, 2);
+  return `${testa}${"*".repeat(Math.max(2, Math.min(6, u.length - testa.length)))}@${d}`;
+}
+
 Deno.serve(async (req: Request) => {
   const corsH = getCorsHeaders(req);
 
@@ -40,7 +47,7 @@ Deno.serve(async (req: Request) => {
     const variantiToken = Array.from(new Set([tokenPulito, tokenPulito.replace(/-/g, "")]));
     const { data: sigReq, error: fetchErr } = await supabaseAdmin
       .from("signature_requests")
-      .select("id, status, tipo_documento, tipo_firmatario, signer_name, signer_email, expires_at, sessione_id, order_id, quote_id, fv_progetto_id, company_id, signed_at")
+      .select("id, status, tipo_documento, tipo_firmatario, signer_name, signer_email, expires_at, otp_scadenza, sessione_id, order_id, quote_id, fv_progetto_id, company_id, signed_at")
       .in("token", variantiToken)
       .order("created_at", { ascending: false })
       .limit(1)
@@ -91,7 +98,7 @@ Deno.serve(async (req: Request) => {
     // Nome azienda
     const { data: company } = await supabaseAdmin
       .from("companies")
-      .select("name")
+      .select("name, phone, email")
       .eq("id", sigReq.company_id)
       .single();
 
@@ -101,6 +108,8 @@ Deno.serve(async (req: Request) => {
     // Carica dettagli documento in base al tipo
     let documento_titolo = "Documento";
     let pdf_url: string | null = null;
+    let titolo: string | null = null;
+    let importo_totale: number | null = null;
 
     const tipo = sigReq.tipo_documento ?? "order";
 
@@ -117,11 +126,13 @@ Deno.serve(async (req: Request) => {
     } else if (tipo === "quote" && sigReq.quote_id) {
       const { data: quote } = await supabaseAdmin
         .from("quotes")
-        .select("title, quote_number, pdf_storage_path")
+        .select("title, quote_number, pdf_storage_path, total")
         .eq("id", sigReq.quote_id)
         .single();
       if (quote) {
         documento_titolo = `Preventivo ${quote.quote_number}`;
+        titolo = quote.title ?? null;
+        importo_totale = quote.total != null ? Number(quote.total) : null;
         // Il PDF congelato all'invio: senza, il cliente firmava senza vedere il documento.
         if (quote.pdf_storage_path) {
           const { data: firmato } = await supabaseAdmin.storage
@@ -198,6 +209,17 @@ Deno.serve(async (req: Request) => {
       signed_at: sigReq.signed_at ?? null,
       b2c_testo_recesso,
       b2c_clausole,
+      // Dettagli che il cliente vuole vedere prima di firmare
+      titolo,
+      importo_totale,
+      azienda_telefono: company?.phone ?? null,
+      azienda_email: company?.email ?? null,
+      // Email a cui arriva il codice, mascherata (m***o@esempio.it)
+      signer_email_mascherata: mascheraEmail(sigReq.signer_email),
+      // Se un OTP è ancora valido, la pagina salta l'invio e mostra subito i 6 campi
+      otp_valido_fino: sigReq.otp_scadenza && new Date(sigReq.otp_scadenza) > new Date(Date.now() + 30_000)
+        ? sigReq.otp_scadenza
+        : null,
     };
 
     return new Response(

@@ -2692,7 +2692,7 @@ export default function QuoteBuilder() {
                                 {!isSconto && !isSubtotale && !isNota && (() => {
                                   const img = resolveItemImage(item);
                                   return (
-                                    <div className="h-12 w-12 shrink-0 overflow-hidden rounded-md bg-muted border">
+                                    <div className={`h-12 w-12 shrink-0 overflow-hidden rounded-md bg-muted border ${img ? "" : "hidden sm:block"}`}>
                                       {img ? (
                                         <img
                                           src={img}
@@ -2709,8 +2709,11 @@ export default function QuoteBuilder() {
                                   );
                                 })()}
                                 <div className="flex-1">
+                              {/* Riga in due righe fino a 1280 px: nome sopra, numeri sotto. Con la sidebar
+                                  aperta (tablet 768, laptop 1024) la riga larga 306-350 px lasciava 18 px
+                                  a Sc% e IVA%. Su una riga sola solo da xl in su. */}
                               <div className="grid grid-cols-12 gap-2 items-end">
-                                <div className="col-span-12 sm:col-span-4">
+                                <div className="col-span-12 xl:col-span-4">
                                   <Label className="text-xs">
                                     Nome{" "}
                                     {isSconto && (
@@ -2728,7 +2731,7 @@ export default function QuoteBuilder() {
                                     className={isSconto ? "text-red-600" : ""}
                                   />
                                 </div>
-                                <div className="col-span-4 sm:col-span-2">
+                                <div className="col-span-6 md:col-span-3 xl:col-span-2">
                                   <Label className="text-xs">Quantità</Label>
                                   <Input
                                     type="number"
@@ -2744,7 +2747,7 @@ export default function QuoteBuilder() {
                                     }
                                   />
                                 </div>
-                                <div className="col-span-4 sm:col-span-2">
+                                <div className="col-span-6 md:col-span-3 xl:col-span-2">
                                   <Label className="text-xs">€/unit</Label>
                                   <Input
                                     type="number"
@@ -2761,7 +2764,7 @@ export default function QuoteBuilder() {
                                     className={isSconto ? "text-red-600" : ""}
                                   />
                                 </div>
-                                <div className="col-span-4 sm:col-span-1">
+                                <div className="col-span-4 md:col-span-2 xl:col-span-1">
                                   <Label className="text-xs">Sc%</Label>
                                   <Input
                                     type="number"
@@ -2777,7 +2780,7 @@ export default function QuoteBuilder() {
                                     }
                                   />
                                 </div>
-                                <div className="col-span-4 sm:col-span-1">
+                                <div className="col-span-4 md:col-span-2 xl:col-span-1">
                                   <Label className="text-xs">IVA%</Label>
                                   <Input
                                     type="number"
@@ -2791,7 +2794,7 @@ export default function QuoteBuilder() {
                                     }
                                   />
                                 </div>
-                                <div className="col-span-6 sm:col-span-2 flex items-end justify-end gap-1">
+                                <div className="col-span-4 md:col-span-2 xl:col-span-2 flex items-end justify-end gap-1">
                                   <p
                                     className={`font-medium text-sm py-2 ${
                                       isSconto ? "text-red-600" : ""
@@ -3846,8 +3849,8 @@ export default function QuoteBuilder() {
                       </SelectContent>
                     </Select>
                   </div>
-                  {/* Layout quick-select */}
-                  <div className="grid grid-cols-4 gap-2">
+                  {/* Layout quick-select — su telefono 2 per riga: a 4 le anteprime erano francobolli */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {(
                       ["classic", "modern", "minimal", "bold"] as QuoteTemplateLayout[]
                     ).map((layout) => (
@@ -3870,9 +3873,10 @@ export default function QuoteBuilder() {
                       </button>
                     ))}
                   </div>
-                  {/* Mini preview */}
+                  {/* Mini preview — da tablet in su: su telefono è una miniatura illeggibile
+                      e c'è già «Anteprima PDF» nella barra in basso */}
                   {effectiveTemplate && (
-                    <div className="flex justify-center">
+                    <div className="hidden sm:flex justify-center">
                       <QuoteTemplatePreview
                         template={effectiveTemplate}
                         companyName={effectiveCompany?.name}

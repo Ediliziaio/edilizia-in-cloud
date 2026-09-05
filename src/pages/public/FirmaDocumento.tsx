@@ -35,6 +35,12 @@ async function messaggioErroreEdge(error: unknown, fallback: string): Promise<st
   return fallback;
 }
 
+/** Secondi che mancano alla scadenza di un OTP (0 se assente o passata). */
+function secondiRestanti(iso?: string | null): number {
+  if (!iso) return 0;
+  return Math.max(0, Math.floor((new Date(iso).getTime() - Date.now()) / 1000));
+}
+
 export default function FirmaDocumento() {
   const { token } = useParams<{ token: string }>();
   const [step, setStep] = useState<Step>('loading');
@@ -64,6 +70,14 @@ export default function FirmaDocumento() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
+  // Titolo della scheda: il cliente apre il link dal telefono e deve capire
+  // subito cos'è, non leggere lo slogan del sito.
+  useEffect(() => {
+    const prima = document.title;
+    if (sessione) document.title = `Firma ${sessione.documento_titolo} · ${sessione.azienda_nome}`;
+    return () => { document.title = prima; };
+  }, [sessione]);
+
   // Countdown OTP — usa ref per evitare stale closure su timer ID
   const otpTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   useEffect(() => {
@@ -91,7 +105,7 @@ export default function FirmaDocumento() {
     );
   }, []);
 
-  const caricaSessione = async () => {
+  async function caricaSessione() {
     try {
       const { data, error } = await supabase.functions.invoke('fea-documento-pubblico', {
         body: { token },
@@ -112,7 +126,7 @@ export default function FirmaDocumento() {
       setStep('errore');
       setErroreMsg(err instanceof Error ? err.message : 'Errore nel caricamento del documento');
     }
-  };
+  }
 
   const inviaOtp = async () => {
     setInvioOtpInCorso(true);
@@ -143,6 +157,32 @@ export default function FirmaDocumento() {
     if (newDigits.every(d => d !== '') && newDigits.join('').length === 6) {
       verificaOtp(newDigits.join(''));
     }
+  };
+
+  const continuaVersoOtp = async () => {
+    // L'OTP parte già insieme all'offerta: se è ancora valido si va dritti ai 6
+    // campi (niente terza email). Altrimenti se ne genera uno nuovo.
+    const restanti = secondiRestanti(sessione?.otp_valido_fino);
+    if (restanti > 30) {
+      setOtpTimer(Math.min(600, restanti));
+      setOtpDigits(['', '', '', '', '', '']);
+      setOtpError('');
+      setStep('otp');
+      setTimeout(() => inputRefs.current[0]?.focus(), 100);
+      return;
+    }
+    await inviaOtp();
+  };
+
+  const handleOtpPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    const cifre = (e.clipboardData.getData('text') || '').replace(/\D/g, '').slice(0, 6);
+    if (cifre.length < 2) return; // una cifra sola: comportamento normale
+    e.preventDefault();
+    const nuove = ['', '', '', '', '', ''];
+    cifre.split('').forEach((c, i) => { nuove[i] = c; });
+    setOtpDigits(nuove);
+    setTimeout(() => inputRefs.current[Math.min(cifre.length, 5)]?.focus(), 0);
+    if (cifre.length === 6) verificaOtp(cifre);
   };
 
   const handleOtpKeyDown = (index: number, e: React.KeyboardEvent) => {
@@ -281,9 +321,16 @@ export default function FirmaDocumento() {
         <div className="bg-slate-50 rounded-xl p-4 space-y-3">
           <div className="flex items-start gap-3">
             <FileText className="h-5 w-5 text-orange-500 shrink-0 mt-0.5" />
-            <div>
+            <div className="min-w-0">
               <p className="text-xs text-slate-500">Documento</p>
               <p className="font-semibold text-slate-800">{sessione.documento_titolo}</p>
+              {sessione.titolo && <p className="text-sm text-slate-600 break-words">{sessione.titolo}</p>}
+              {sessione.importo_totale != null && (
+                <p className="text-lg font-bold text-slate-900 mt-1 tabular-nums">
+                  {new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(sessione.importo_totale)}
+                  <span className="text-xs font-normal text-slate-500"> IVA inclusa</span>
+                </p>
+              )}
             </div>
           </div>
           <div className="flex items-start gap-3">
@@ -329,13 +376,13 @@ export default function FirmaDocumento() {
         </div>
         <Button
           className="w-full h-12 text-base bg-orange-500 hover:bg-orange-600 text-white font-bold"
-          onClick={inviaOtp}
+          onClick={continuaVersoOtp}
           disabled={invioOtpInCorso}
         >
-          {invioOtpInCorso ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Invio in corso...</> : 'Invia codice OTP via email'}
+          {invioOtpInCorso ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Invio in corso...</> : 'Continua con il codice'}
         </Button>
-        <p className="text-slate-400 text-xs text-center">
-          Riceverai un codice a 6 cifre su {sessione.signer_name ? `${sessione.signer_name} — ` : ''}email
+        <p className="text-slate-500 text-xs text-center">
+          Il codice a 6 cifre arriva via email{sessione.signer_email_mascherata ? ` a ${sessione.signer_email_mascherata}` : ''}. Due passaggi, un minuto.
         </p>
       </div>
     </Wrapper>
@@ -348,18 +395,27 @@ export default function FirmaDocumento() {
           <h2 className="text-xl font-bold text-slate-800">Inserisci il codice OTP</h2>
           <p className="text-slate-500 text-sm mt-1">Controlla la tua email e inserisci il codice a 6 cifre</p>
         </div>
-        <div className="flex gap-2 justify-center">
+        {sessione.signer_email_mascherata && (
+          <p className="text-slate-500 text-sm -mt-3">Inviato a <span className="font-medium text-slate-700">{sessione.signer_email_mascherata}</span></p>
+        )}
+        {/* 6 campi da 40 px + 5 spazi = 270 px: entrano in un iPhone SE (prima 48 px sforavano la card).
+            autoComplete one-time-code: iOS e Android propongono il codice arrivato. */}
+        <div className="flex gap-1.5 sm:gap-2 justify-center">
           {otpDigits.map((digit, i) => (
             <input
               key={i}
               ref={el => { inputRefs.current[i] = el; }}
               type="text"
               inputMode="numeric"
+              pattern="[0-9]*"
+              autoComplete={i === 0 ? 'one-time-code' : 'off'}
               maxLength={1}
+              aria-label={`Cifra ${i + 1} di 6`}
               value={digit}
               onChange={e => handleOtpInput(i, e.target.value)}
               onKeyDown={e => handleOtpKeyDown(i, e)}
-              className="w-12 h-14 text-center text-2xl font-bold border-2 rounded-xl focus:border-orange-500 outline-none transition-colors"
+              onPaste={handleOtpPaste}
+              className="w-10 h-12 sm:w-12 sm:h-14 text-center text-2xl font-bold border-2 rounded-xl focus:border-orange-500 outline-none transition-colors"
               autoFocus={i === 0}
             />
           ))}
@@ -650,11 +706,22 @@ export default function FirmaDocumento() {
         </p>
         {sessione?.pdf_url && (
           <a href={sessione.pdf_url} target="_blank" rel="noopener noreferrer">
-            <Button variant="outline" className="gap-2">
+            <Button variant="outline" className="gap-2 h-11">
               <FileText className="h-4 w-4" />
               Scarica il documento
             </Button>
           </a>
+        )}
+        {(sessione?.azienda_telefono || sessione?.azienda_email) && (
+          <div className="w-full mt-2 pt-4 border-t border-slate-100 text-sm text-slate-600 space-y-1">
+            <p className="text-xs text-slate-500">Per qualsiasi domanda, {sessione?.azienda_nome}:</p>
+            {sessione?.azienda_telefono && (
+              <a href={`tel:${sessione.azienda_telefono.replace(/\s+/g, '')}`} className="block font-medium text-blue-700 underline">{sessione.azienda_telefono}</a>
+            )}
+            {sessione?.azienda_email && (
+              <a href={`mailto:${sessione.azienda_email}`} className="block font-medium text-blue-700 underline break-all">{sessione.azienda_email}</a>
+            )}
+          </div>
         )}
       </div>
     </Wrapper>

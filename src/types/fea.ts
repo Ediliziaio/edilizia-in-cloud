@@ -185,4 +185,14 @@ export interface FEASessionePubblica {
   signed_at?: string | null;
   b2c_testo_recesso: string | null;
   b2c_clausole: FEAClausolaVessatoria[] | null;
+  /** Titolo dell'offerta (es. «Sostituzione serramenti villa»), se preventivo. */
+  titolo?: string | null;
+  /** Totale del documento, IVA inclusa, se preventivo. */
+  importo_totale?: number | null;
+  azienda_telefono?: string | null;
+  azienda_email?: string | null;
+  /** Email del firmatario mascherata: dove arriva il codice. */
+  signer_email_mascherata?: string | null;
+  /** Se c'è già un OTP valido (inviato con l'offerta), la pagina non ne manda un altro. */
+  otp_valido_fino?: string | null;
 }

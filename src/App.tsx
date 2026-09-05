@@ -503,10 +503,16 @@ function GARouteTracker() {
   return null;
 }
 
+// Pagine che un CLIENTE dell'azienda apre dal link ricevuto (firma, accettazione
+// preventivo): lì la bolla «Scrivici su WhatsApp» del sito EiC è fuori posto —
+// il cliente parlerebbe con noi credendo di parlare con la sua impresa.
+const CUSTOMER_FACING_PREFIXES = /^\/(firma|firma-fea|firma-odv|preventivo|accetta-preventivo|prenota)(\/|$)/;
+
 function PublicSiteChatWidgetGate() {
   const { pathname } = useLocation();
   if (isNative) return null;
   if (PRIVATE_APP_PREFIXES.test(pathname || "/")) return null;
+  if (CUSTOMER_FACING_PREFIXES.test(pathname || "/")) return null;
   return <WhatsAppFab />;
 }
 
