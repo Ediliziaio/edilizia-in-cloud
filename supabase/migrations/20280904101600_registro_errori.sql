@@ -6,9 +6,13 @@
 -- piattaforma e cercare a mano.
 --
 -- Le sorgenti ci sono già, sparse: system_health_metrics (edge function),
--- cron_http_failures (chiamate pianificate), order_errors (commesse),
--- wa_routing_errors (messaggistica), sdi_log (fatturazione elettronica).
+-- cron_http_failures (chiamate pianificate), order_errors (commesse).
 -- Questa vista le mette in fila con lo stesso vocabolario.
+--
+-- NB sui nomi delle colonne: cron_http_failures usa `rilevato_at` (non
+-- created_at) e order_errors descrive il guasto in `description` (non
+-- error_message). Verificati sullo schema reale: la prima stesura li aveva
+-- assunti e la migrazione è fallita all'applicazione.
 
 CREATE OR REPLACE VIEW public.v_errori_piattaforma
 WITH (security_invoker = true)
@@ -31,7 +35,7 @@ UNION ALL
 SELECT
   'cron'::text,
   f.id::text,
-  f.created_at,
+  f.rilevato_at,
   'chiamata pianificata',
   left(COALESCE(f.contenuto, ''), 300),
   f.status_code,
@@ -47,7 +51,7 @@ SELECT
   e.id::text,
   e.created_at,
   COALESCE(e.error_type, 'ordine'),
-  left(COALESCE(e.error_message, ''), 300),
+  left(COALESCE(e.description, e.detailed_cause, ''), 300),
   NULL,
   e.company_id,
   'avviso',
