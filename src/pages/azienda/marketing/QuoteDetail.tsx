@@ -28,8 +28,12 @@ import {
 } from "@/components/ui/table";
 import {
   ArrowLeft, Pencil, Send, FileDown, Loader2, User, FileText, FileCheck,
-  MessageCircle, Copy, HardHat, Package, StickyNote, MoreHorizontal, GitBranch,
+  MessageCircle, Copy, HardHat, Package, StickyNote, MoreHorizontal, GitBranch, Trash2,
 } from "lucide-react";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   QuotePageHeader,
   QuoteCard,
@@ -119,6 +123,36 @@ export default function QuoteDetail() {
       toast.error("Invio non riuscito", { description: e instanceof Error ? e.message : String(e) });
     } finally {
       setInviandoPdf(false);
+    }
+  };
+
+  // Cestino dal dettaglio: prima si poteva eliminare solo dalla selezione
+  // multipla in lista. Soft delete (30 giorni), come la toolbar.
+  const [confermaCestino, setConfermaCestino] = useState(false);
+  const [cestinando, setCestinando] = useState(false);
+  const spostaNelCestino = async () => {
+    if (!id || !companyId || cestinando) return;
+    setCestinando(true);
+    try {
+      const { data, error } = await supabase
+        .from("quotes")
+        .update({ deleted_at: new Date().toISOString() })
+        .eq("id", id)
+        .eq("company_id", companyId)
+        .is("deleted_at", null)
+        .select("id");
+      if (error) throw error;
+      if (!data?.length) throw new Error("Preventivo già nel cestino o permessi insufficienti.");
+      queryClient.invalidateQueries({ queryKey: queryKeys.quotes.all });
+      toast.success("Preventivo spostato nel cestino", { description: "Recuperabile dal Cestino per 30 giorni." });
+      navigate("/azienda/marketing/preventivi");
+    } catch (e) {
+      toast.error("Non sono riuscito a spostarlo nel cestino", {
+        description: e instanceof Error ? e.message : String(e),
+      });
+    } finally {
+      setCestinando(false);
+      setConfermaCestino(false);
     }
   };
 
@@ -301,8 +335,32 @@ export default function QuoteDetail() {
                     ? `Invia PDF a ${quote.client_email}`
                     : "Invia PDF (manca l'email del cliente)"}
                 </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="text-destructive focus:text-destructive"
+                  disabled={cestinando}
+                  onClick={() => setConfermaCestino(true)}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" /> Sposta nel cestino
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+            <AlertDialog open={confermaCestino} onOpenChange={setConfermaCestino}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Sposta nel cestino {quote.quote_number}?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Il preventivo sparisce dalla lista e resta recuperabile dal Cestino per 30 giorni.
+                    {quote.status !== "bozza" ? " Il cliente non viene avvisato." : ""}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Annulla</AlertDialogCancel>
+                  <AlertDialogAction onClick={spostaNelCestino} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                    {cestinando ? "Sposto…" : "Sposta nel cestino"}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
 
             {quote.status === "bozza" && (
               <Button

@@ -29,8 +29,12 @@ interface ProductPickerProps {
 function formatPriceHint(item: CatalogItem): string {
   const mod = item.modalita_prezzo;
   if (mod === "mq") return `${formatCurrency(item.prezzo_base_vendita)}/mq`;
-  if (mod === "griglia" || mod === "misura_libera")
+  if (mod === "griglia" || mod === "misura_libera") {
+    // Le famiglie a griglia hanno spesso prezzo base 0: «da 0,00 €» confonde,
+    // il prezzo lo dà il configuratore in base alle misure.
+    if (!item.prezzo_base_vendita || Number(item.prezzo_base_vendita) <= 0) return "prezzo a misura";
     return `da ${formatCurrency(item.prezzo_base_vendita)}`;
+  }
   return `${formatCurrency(item.prezzo_base_vendita)}/${item.unit_of_measure || "pz"}`;
 }
 

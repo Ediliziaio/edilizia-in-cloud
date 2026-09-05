@@ -241,17 +241,62 @@ function SortableItem({
 // MP-MKT-001: ContactOption + ListinoCategoria estratti in ./QuoteBuilder/types.ts
 import type { ContactOption } from "./QuoteBuilder/types";
 
+const CONTACT_SELECT =
+  "id, first_name, last_name, email, phone, company_name, address, city, province, postal_code, country, fiscal_code, vat_number";
+
 function ContactCombobox({
   contacts,
+  companyId,
   value,
   onChange,
 }: {
   contacts: ContactOption[];
+  companyId: string | null | undefined;
   value: string | null;
   onChange: (id: string) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const selected = contacts.find((c) => c.id === value);
+  const [ricerca, setRicerca] = useState("");
+  const [ricercaDebounced, setRicercaDebounced] = useState("");
+  useEffect(() => {
+    const t = window.setTimeout(() => setRicercaDebounced(ricerca.trim()), 250);
+    return () => window.clearTimeout(t);
+  }, [ricerca]);
+
+  // Prima caricava TUTTI i contatti dell'azienda e li filtrava «fuzzy» nel
+  // browser: scrivendo «Nicola» uscivano anche Silvia e Sara, e su un CRM
+  // grande la lista pesava. Ora cerca sul server per nome, azienda, email.
+  const { data: risultati = [], isFetching: cercando } = useQuery({
+    queryKey: ["marketing-contacts-cerca", companyId, ricercaDebounced],
+    enabled: !!companyId && ricercaDebounced.length >= 2,
+    queryFn: async () => {
+      const t = ricercaDebounced.replace(/[%,()]/g, " ").trim();
+      const { data, error } = await supabase
+        .from("marketing_contacts")
+        .select(CONTACT_SELECT)
+        .eq("company_id", companyId!)
+        .is("deleted_at", null)
+        .or(`first_name.ilike.%${t}%,last_name.ilike.%${t}%,company_name.ilike.%${t}%,email.ilike.%${t}%`)
+        .order("last_name")
+        .limit(30);
+      if (error) throw error;
+      return (data ?? []) as ContactOption[];
+    },
+  });
+
+  // Il contatto scelto potrebbe non essere nella lista corta (es. in modifica):
+  // lo si carica a parte per mostrarne il nome.
+  const inLista = [...contacts, ...risultati].find((c) => c.id === value);
+  const { data: scelto } = useQuery({
+    queryKey: ["marketing-contact-scelto", value],
+    enabled: !!value && !inLista,
+    queryFn: async () => {
+      const { data } = await supabase.from("marketing_contacts").select(CONTACT_SELECT).eq("id", value!).maybeSingle();
+      return (data as ContactOption | null) ?? null;
+    },
+  });
+  const selected = inLista ?? scelto ?? undefined;
+  const lista = ricercaDebounced.length >= 2 ? risultati : contacts;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -269,15 +314,17 @@ function ContactCombobox({
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-full p-0" align="start">
-        <Command>
-          <CommandInput placeholder="Cerca per nome, azienda, email..." />
+        <Command shouldFilter={false}>
+          <CommandInput placeholder="Cerca per nome, azienda, email..." value={ricerca} onValueChange={setRicerca} />
           <CommandList>
-            <CommandEmpty>Nessun contatto trovato</CommandEmpty>
+            <CommandEmpty>
+              {cercando ? "Cerco…" : ricercaDebounced.length >= 2 ? "Nessun contatto trovato" : "Scrivi almeno due lettere per cercare"}
+            </CommandEmpty>
             <CommandGroup>
-              {contacts.map((c) => (
+              {lista.map((c) => (
                 <CommandItem
                   key={c.id}
-                  value={`${c.first_name} ${c.last_name} ${c.company_name || ""} ${c.email || ""}`}
+                  value={c.id}
                   onSelect={() => { onChange(c.id); setOpen(false); }}
                 >
                   <Check className={`mr-2 h-4 w-4 ${value === c.id ? "opacity-100" : "opacity-0"}`} />
@@ -571,11 +618,13 @@ export default function QuoteBuilder() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("marketing_contacts")
-        .select(
-          "id, first_name, last_name, email, phone, company_name, address, city, province, postal_code, country, fiscal_code, vat_number"
-        )
+        .select(CONTACT_SELECT)
         .eq("company_id", companyId!)
-        .order("last_name");
+        .is("deleted_at", null)
+        // Lista d'apertura: i contatti toccati di recente. Il resto si trova
+        // scrivendo nel campo (ricerca sul server).
+        .order("last_activity_at", { ascending: false, nullsFirst: false })
+        .limit(40);
       if (error) throw error;
       return data;
     },
@@ -842,11 +891,13 @@ export default function QuoteBuilder() {
   });
 
   // Auto-select contact from URL param
+  const contattoDaUrlApplicatoRef = useRef(false);
   useEffect(() => {
-    if (!isEdit && contacts.length > 0 && !contactId) {
+    if (!isEdit && companyId && !contactId && !contattoDaUrlApplicatoRef.current) {
       const urlContactId = searchParams.get("contact_id");
       if (urlContactId) {
-        handleContactSelect(urlContactId);
+        contattoDaUrlApplicatoRef.current = true;
+        void handleContactSelect(urlContactId);
       }
     }
     // Intenzionale: pre-compila contatto da `?contact_id=...` SOLO al primo render con
@@ -854,7 +905,7 @@ export default function QuoteBuilder() {
     // includere `contactId` ri-triggererebbe ad ogni selezione, e `handleContactSelect`
     // è definita dopo l'effect (hoisting function → stabile per render).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [contacts, isEdit, searchParams]);
+  }, [companyId, isEdit, searchParams]);
 
   // Ponte render→preventivo: solo alla creazione (in edit si idrata dal DB).
   useEffect(() => {
@@ -869,9 +920,18 @@ export default function QuoteBuilder() {
   }, []);
 
   // Contact selection
-  const handleContactSelect = (cId: string) => {
+  const handleContactSelect = async (cId: string) => {
     setContactId(cId);
-    const c = contacts.find((x) => x.id === cId);
+    let c: ContactOption | undefined = contacts.find((x) => x.id === cId);
+    if (!c && companyId) {
+      const { data } = await supabase
+        .from("marketing_contacts")
+        .select(CONTACT_SELECT)
+        .eq("id", cId)
+        .eq("company_id", companyId)
+        .maybeSingle();
+      c = (data as ContactOption | null) ?? undefined;
+    }
     if (c) {
       setClientName(`${c.first_name || ""} ${c.last_name || ""}`.trim());
       setClientEmail(c.email || "");
@@ -891,9 +951,9 @@ export default function QuoteBuilder() {
     if (isEdit || !clienteDaUrl || clienteDaUrlApplicatoRef.current) return;
     if (contactId) return; // scelta già fatta: non la sovrascriviamo
     const collegato = clienteDaUrl.marketing_contact_id;
-    if (collegato && contacts.some((c) => c.id === collegato)) {
+    if (collegato) {
       clienteDaUrlApplicatoRef.current = true;
-      handleContactSelect(collegato);
+      void handleContactSelect(collegato);
       return;
     }
     // Nessun contatto collegato: i dati del cliente riempiono comunque il preventivo.
@@ -916,6 +976,22 @@ export default function QuoteBuilder() {
 
 
   // Items management
+  // IVA per le righe nuove: quella più usata nelle righe già presenti (un
+  // preventivo al 10% non deve nascere con una riga al 22% in mezzo); 22 solo
+  // se il preventivo è ancora vuoto.
+  const ivaPredefinita = (): number => {
+    const conteggio = new Map<number, number>();
+    for (const it of items) {
+      if (["nota", "subtotale", "sconto"].includes(String(it.item_category))) continue;
+      const iva = Number(it.vat_rate);
+      if (!Number.isFinite(iva)) continue;
+      conteggio.set(iva, (conteggio.get(iva) ?? 0) + 1);
+    }
+    let scelta = 22, max = 0;
+    for (const [iva, n] of conteggio) if (n > max) { max = n; scelta = iva; }
+    return scelta;
+  };
+
   const addItem = (type: string = "product") => {
     setItems([
       ...items,
@@ -926,7 +1002,7 @@ export default function QuoteBuilder() {
         quantity: 1,
         unit_price: 0,
         discount_percent: 0,
-        vat_rate: 22,
+        vat_rate: ivaPredefinita(),
         unit_of_measure: "pz",
         sort_order: items.length,
         // P03 defaults
@@ -949,7 +1025,7 @@ export default function QuoteBuilder() {
         quantity: 1,
         unit_price: 0,
         discount_percent: 0,
-        vat_rate: 22,
+        vat_rate: ivaPredefinita(),
         unit_of_measure: "pz",
         sort_order: prev.length,
         prezzo_acquisto: 0,
@@ -2038,7 +2114,7 @@ export default function QuoteBuilder() {
             <div className="rounded-lg border bg-muted/30 p-3">
               <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Seleziona contatto esistente</Label>
               <div className="mt-1.5">
-                <ContactCombobox
+                <ContactCombobox companyId={companyId}
                   contacts={contacts}
                   value={contactId}
                   onChange={handleContactSelect}

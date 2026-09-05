@@ -45,6 +45,7 @@ interface PreventivoImpostazioni {
   pdf_mostra_immagini?: boolean;
   pdf_includi_schede_tecniche?: boolean;
   firma_digitale_abilitata?: boolean;
+  numero_prefisso?: string | null;
 }
 
 // DB columns for listino_categorie:
@@ -253,6 +254,8 @@ function MarginiPdfTab({
   const [pdfImmagini, setPdfImmagini] = useState(false);
   const [pdfSchedeTecniche, setPdfSchedeTecniche] = useState(false);
   const [firmaAbilitata, setFirmaAbilitata] = useState(false);
+  // Numerazione: prefisso del numero preventivo (OFF-2026-001 → es. PRV-2026-001).
+  const [numeroPrefisso, setNumeroPrefisso] = useState("OFF");
   const [dirty, setDirty] = useState(false);
 
   // Populate from DB
@@ -272,6 +275,7 @@ function MarginiPdfTab({
     setPdfImmagini(!!imp.pdf_mostra_immagini);
     setPdfSchedeTecniche(!!imp.pdf_includi_schede_tecniche);
     setFirmaAbilitata(!!imp.firma_digitale_abilitata);
+    setNumeroPrefisso(imp.numero_prefisso || "OFF");
   }, [imp]);
 
   const saveMutation = useMutation({
@@ -294,13 +298,13 @@ function MarginiPdfTab({
     overheadPct, margineMin, margineTarget, soglia,
     aggPosa, chiediPiano, chiediSmaltimento, chiediTrasporto,
     pdfPrezziRiga, pdfSoloTotale, pdfSconti, pdfImmagini,
-    pdfSchedeTecniche, firmaAbilitata,
+    pdfSchedeTecniche, firmaAbilitata, numeroPrefisso,
   });
   stateRef.current = {
     overheadPct, margineMin, margineTarget, soglia,
     aggPosa, chiediPiano, chiediSmaltimento, chiediTrasporto,
     pdfPrezziRiga, pdfSoloTotale, pdfSconti, pdfImmagini,
-    pdfSchedeTecniche, firmaAbilitata,
+    pdfSchedeTecniche, firmaAbilitata, numeroPrefisso,
   };
 
   const buildPayload = useCallback((): Partial<PreventivoImpostazioni> => {
@@ -320,6 +324,7 @@ function MarginiPdfTab({
       pdf_mostra_immagini: s.pdfImmagini,
       pdf_includi_schede_tecniche: s.pdfSchedeTecniche,
       firma_digitale_abilitata: s.firmaAbilitata,
+      numero_prefisso: (s.numeroPrefisso.trim().toUpperCase().replace(/[^A-Z0-9]/g, "") || "OFF").slice(0, 8),
     };
   }, []);
 
@@ -434,6 +439,34 @@ function MarginiPdfTab({
               <span className="text-sm">{label}</span>
             </div>
           ))}
+        </CardContent>
+      </Card>
+
+      {/* Numerazione */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Numerazione preventivi</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <div className="flex items-center gap-3">
+            <Input
+              value={numeroPrefisso}
+              maxLength={8}
+              className="w-32 font-mono uppercase"
+              aria-label="Prefisso del numero preventivo"
+              onChange={(e) => {
+                setNumeroPrefisso(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""));
+                triggerAutoSave();
+              }}
+            />
+            <span className="text-sm text-muted-foreground font-mono">
+              {(numeroPrefisso || "OFF")}-{new Date().getFullYear()}-001
+            </span>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Solo lettere e numeri, fino a 8 caratteri. La numerazione riparte da 001 ogni anno e non
+            riusa mai un numero, nemmeno se un preventivo finisce nel cestino.
+          </p>
         </CardContent>
       </Card>
 

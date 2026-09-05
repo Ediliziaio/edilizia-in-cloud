@@ -122,17 +122,17 @@ export function UnifiedBulkToolbar({ selectedRows, companyId, onClear, onDone }:
       <AlertDialog open={confirm} onOpenChange={setConfirm}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Elimina {count} {count === 1 ? "preventivo" : "preventivi"}</AlertDialogTitle>
+            <AlertDialogTitle>Sposta nel cestino {count} {count === 1 ? "preventivo" : "preventivi"}</AlertDialogTitle>
             <AlertDialogDescription>
-              Vengono eliminati preventivi di tipi diversi (classico, moduli…) dalle rispettive
-              tabelle. L'azione è <strong>irreversibile</strong> e rimuove anche i dati collegati.
-              Procedere?
+              {count === 1 ? "Il preventivo sparisce" : "I preventivi spariscono"} dalla lista e
+              {count === 1 ? " resta recuperabile" : " restano recuperabili"} dal Cestino per 30 giorni.
+              Dopo, l'eliminazione è definitiva.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Annulla</AlertDialogCancel>
             <AlertDialogAction onClick={runDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Elimina definitivamente
+              Sposta nel cestino
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
