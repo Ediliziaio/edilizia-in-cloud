@@ -926,7 +926,7 @@ function CustomersListInner() {
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
+          <div className="hidden sm:grid sm:grid-cols-4 sm:gap-3">
             <NavyStatCard
               label="Totale clienti"
               value={stats?.total ?? 0}

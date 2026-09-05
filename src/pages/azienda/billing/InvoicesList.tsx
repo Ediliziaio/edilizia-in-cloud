@@ -424,7 +424,7 @@ export default function InvoicesList() {
   return (
     <div className="space-y-6">
       {/* No provider banner */}
-      {!isLoading && !integration && (
+      {!isLoading && !integration && !isMobile && (
         <Card className="border-primary/30 bg-primary/5">
           <CardContent className="pt-4 pb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="flex items-center gap-3">
@@ -562,8 +562,8 @@ export default function InvoicesList() {
                     Vedi tutte →
                   </button>
                 </div>
-                {/* Aging: barra proporzionale 0-30 / 31-60 / 60+ giorni */}
-                <div>
+                {/* Aging: barra proporzionale 0-30 / 31-60 / 60+ giorni — da scrivania */}
+                {!isMobile && <div>
                   <div className="flex h-2 w-full overflow-hidden rounded-full bg-muted">
                     {[
                       { v: recupero.buckets.b30, c: "bg-amber-400" },
@@ -578,9 +578,9 @@ export default function InvoicesList() {
                     <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-orange-500" />31-60 gg <span className="font-semibold tabular-nums">{fmtEur(recupero.buckets.b60)}</span></span>
                     <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-rose-600" />oltre 60 gg <span className="font-semibold tabular-nums">{fmtEur(recupero.buckets.b60p)}</span></span>
                   </div>
-                </div>
+                </div>}
                 {/* Top debitori — click filtra la lista su quel cliente */}
-                {recupero.topDebitori.length > 0 && (
+                {!isMobile && recupero.topDebitori.length > 0 && (
                   <div className="space-y-1 pt-1">
                     <p className="text-xs font-medium text-muted-foreground">Chi ti deve di più</p>
                     {recupero.topDebitori.map((d) => (

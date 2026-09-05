@@ -23,7 +23,7 @@ import { useNotifications } from "@/hooks/useNotifications";
 import { getSmartCruscottoPath } from "@/lib/dashboardRouting";
 import { isDemoCompanyId } from "@/lib/constants/demoCompany";
 import { canAccessMediaLibrary } from "@/lib/mediaLibrary";
-import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface MobileAppGridProps {
@@ -47,6 +47,18 @@ const MOBILE_HIDDEN_URLS = new Set<string>([
   "/azienda/whatsapp",
   "/azienda/agenti-ai",
   "/azienda/sms",
+  // 2026-09-05: strumenti da scrivania (analisi, previsionale, contabilità,
+  // authoring corsi, simulatore e report commerciali) fuori dal menu mobile.
+  // «Il meno c'è, meglio è»: sul telefono resta quello che serve in cantiere
+  // e in giro. La sidebar desktop non cambia.
+  "/azienda/controllo-gestione",
+  "/azienda/analisi-acquisti",
+  "/azienda/previsionale",
+  "/azienda/prima-nota",
+  "/azienda/corsi",
+  "/azienda/marketing/simulatore",
+  "/azienda/marketing/sales-os",
+  "/azienda/marketing/reportistica",
 ]);
 
 /**
@@ -394,6 +406,7 @@ export function MobileAppGrid({ open, onOpenChange }: MobileAppGridProps) {
         side="bottom"
         className="h-[92dvh] rounded-t-3xl p-0 overflow-hidden [&>button]:hidden"
       >
+        <SheetTitle className="sr-only">Menu app</SheetTitle>
         <div className="flex flex-col h-full">
           {/* Header */}
           <div className="flex items-center justify-between px-4 sm:px-5 pt-4 sm:pt-5 pb-2.5">

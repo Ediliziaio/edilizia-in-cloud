@@ -2479,6 +2479,8 @@ function OrdersListInner() {
 
 export default function OrdersList() {
   const [searchParams, setSearchParams] = useSearchParams();
+  // Tab da scrivania (offerte, anomalie, marginalità, provvigioni) fuori dal telefono.
+  const isMobile = useIsMobile();
   const requestedTab = searchParams.get("tab") || "ordini";
   const permissions = usePermissions();
   const { isFeatureEnabled } = useFeatureFlags();
@@ -2496,12 +2498,12 @@ export default function OrdersList() {
     { id: "ordini", label: "Commesse", icon: ClipboardList, show: true },
     { id: "sopralluoghi", label: "Sopralluoghi", icon: MapIcon, show: surveysEnabled },
     // Prima degli ordini perche' e' il passo prima: si chiede il prezzo, poi si ordina.
-    { id: "offerte", label: "Richieste d'offerta", icon: FileQuestion, show: permissions.canViewOrders },
+    { id: "offerte", label: "Richieste d'offerta", icon: FileQuestion, show: permissions.canViewOrders && !isMobile },
     { id: "acquisto", label: "Ordini d'Acquisto", icon: ShoppingCart, show: permissions.canViewOrders },
     { id: "ddt", label: "DDT", icon: FileCheck, show: permissions.canViewOrders },
-    { id: "anomalie", label: "Anomalie", icon: AlertTriangle, show: permissions.canViewCosts },
-    { id: "marginalita", label: "Marginalità", icon: PieChart, show: permissions.canViewCosts },
-    { id: "provvigioni", label: "Provvigioni", icon: Euro, show: permissions.canViewCosts },
+    { id: "anomalie", label: "Anomalie", icon: AlertTriangle, show: permissions.canViewCosts && !isMobile },
+    { id: "marginalita", label: "Marginalità", icon: PieChart, show: permissions.canViewCosts && !isMobile },
+    { id: "provvigioni", label: "Provvigioni", icon: Euro, show: permissions.canViewCosts && !isMobile },
   ].filter((t) => t.show);
   const activeTab = tabs.some((tab) => tab.id === requestedTab) ? requestedTab : "ordini";
 

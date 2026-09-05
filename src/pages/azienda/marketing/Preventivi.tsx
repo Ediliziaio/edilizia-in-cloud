@@ -21,6 +21,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { supabase } from "@/integrations/supabase/client";
@@ -151,9 +152,12 @@ export default function Preventivi() {
   }, [searchParams]);
 
   // ─── Tab navigation config ───────────────────────────────────────────────
+  // Moduli Vendita e Analisi AI sono lavoro da scrivania: su mobile restano
+  // Lista e (per chi approva) Approvazioni sconto.
+  const isMobile = useIsMobile();
   const hubTabs: HubTab[] = [
     { key: "lista", label: "Lista Preventivi", icon: <FileSignature className="h-4 w-4" /> },
-    { key: "moduli", label: "Moduli Vendita", icon: <ShoppingBag className="h-4 w-4" /> },
+    ...(isMobile ? [] : [{ key: "moduli", label: "Moduli Vendita", icon: <ShoppingBag className="h-4 w-4" /> }]),
     ...(canSeeApprovazioni
       ? [
           {
@@ -168,7 +172,7 @@ export default function Preventivi() {
           },
         ]
       : []),
-    ...(canSeeAnalisi
+    ...(canSeeAnalisi && !isMobile
       ? [
           {
             key: "analisi",

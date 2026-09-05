@@ -899,8 +899,9 @@ export function UnifiedPreventiviList() {
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      {/* ─── KPI Hero 4 cards ─── */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
+      {/* ─── KPI Hero 4 cards — solo desktop: su mobile i conteggi sono già nei tab
+          di stato qui sotto, e quattro card di numeri piccoli occupano mezzo schermo. ─── */}
+      <div className="hidden md:grid md:grid-cols-4 gap-2 sm:gap-3">
         <KpiCard label="Bozze" value={kpi.bozzeCount} hint="da completare" icon={<FileText className="h-4 w-4" />} tone="slate" />
         <KpiCard label="In corso" value={kpi.inCorsoCount} hint={kpi.pipeline > 0 ? `${formatCurrency(kpi.pipeline)} in pipeline` : "nessuna pipeline"} icon={<TrendingUp className="h-4 w-4" />} tone="blue" />
         <KpiCard label="Vinte" value={kpi.vintaCount} hint={kpi.tassoConv !== null ? `${kpi.tassoConv}% conversion rate` : "—"} icon={<FileCheck2 className="h-4 w-4" />} tone="emerald" />

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate, useParams, useSearchParams, Link } from "react-router-dom";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -506,6 +507,11 @@ export default function QuoteBuilder() {
   // Template
   const { templates, defaultTemplate } = useQuoteTemplates();
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
+  // Mobile: lo step Cliente aveva 18 campi in colonna. Pagamento e dettagli lavoro
+  // restano disponibili, ma chiusi finché non servono.
+  const isMobile = useIsMobile();
+  const [pagamentoAperto, setPagamentoAperto] = useState(false);
+  const [dettagliLavoroAperti, setDettagliLavoroAperti] = useState(false);
 
   useEffect(() => {
     if (defaultTemplate && !selectedTemplateId && !isEdit) {
@@ -2198,13 +2204,27 @@ export default function QuoteBuilder() {
 
             {/* Blocco 3b: Modalità e fasi di pagamento (firmate dal cliente, riportate in commessa) */}
             <div className="border-t pt-4">
-              <QuotePaymentTermsCard
-                total={total}
-                method={paymentMethod}
-                phases={paymentPhases}
-                onMethodChange={setPaymentMethod}
-                onPhasesChange={setPaymentPhases}
-              />
+              {isMobile && !pagamentoAperto ? (
+                <button
+                  type="button"
+                  onClick={() => setPagamentoAperto(true)}
+                  className="flex w-full items-center justify-between rounded-lg border border-dashed px-3 py-3 text-left text-sm"
+                >
+                  <span>
+                    <span className="font-medium">Modalità e fasi di pagamento</span>
+                    <span className="block text-xs text-muted-foreground">{paymentMethod || paymentPhases.length ? "Impostate: tocca per vedere" : "Piano standard (30/70): tocca per cambiare"}</span>
+                  </span>
+                  <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                </button>
+              ) : (
+                <QuotePaymentTermsCard
+                  total={total}
+                  method={paymentMethod}
+                  phases={paymentPhases}
+                  onMethodChange={setPaymentMethod}
+                  onPhasesChange={setPaymentPhases}
+                />
+              )}
             </div>
 
             {/* Blocco 3c: ripartizione tra bonus edilizi (opt-in azienda). Si decide
@@ -2229,6 +2249,19 @@ export default function QuoteBuilder() {
               <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Dettagli lavoro e assegnazione
               </h4>
+            {isMobile && !dettagliLavoroAperti ? (
+              <button
+                type="button"
+                onClick={() => setDettagliLavoroAperti(true)}
+                className="flex w-full items-center justify-between rounded-lg border border-dashed px-3 py-3 text-left text-sm"
+              >
+                <span>
+                  <span className="font-medium">Tipo di lavoro, commerciale, sede, indirizzo</span>
+                  <span className="block text-xs text-muted-foreground">{tipoLavoro || salespersonId || sedeId || indirizzoLavori ? "Compilati: tocca per vedere" : "Facoltativi: tocca per compilare"}</span>
+                </span>
+                <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+              </button>
+            ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="md:col-span-2">
                 <Label>Tipo di lavoro</Label>
@@ -2328,6 +2361,7 @@ export default function QuoteBuilder() {
                 </div>
               )}
             </div>
+            )}
             </div>
           </div>
         </QuoteCard>

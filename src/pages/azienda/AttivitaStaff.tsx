@@ -1553,13 +1553,15 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
             <div className="flex items-center gap-1.5 shrink-0">
               <button
                 onClick={() => window.dispatchEvent(new CustomEvent("silvio:open-chat", { detail: { draft: `Cosa conta ora? Ho ${stats.overdue > 0 ? `${stats.overdue} attività scadute` : "alcune attività aperte"} — dimmi cosa prioritizzare oggi.` } }))}
-                className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-md border text-xs font-medium bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100 transition-colors dark:bg-orange-950/20 dark:text-orange-300 dark:border-orange-900/40"
+                className="hidden sm:inline-flex items-center gap-1.5 h-8 px-2.5 rounded-md border text-xs font-medium bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100 transition-colors dark:bg-orange-950/20 dark:text-orange-300 dark:border-orange-900/40"
                 title="Chiedi a Silvio come prioritizzare"
               >
                 <Sparkles className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">Silvio</span>
               </button>
-              <Button size="sm" className="h-8 gap-1.5" onClick={() => openCreate()}>
+              {/* Su mobile il «+» in alto doppiava la riga «Aggiungi attività…» qui sotto:
+                  un solo modo per aggiungere. Silvio ha già il bottone centrale in basso. */}
+              <Button size="sm" className="hidden sm:inline-flex h-8 gap-1.5" onClick={() => openCreate()}>
                 <Plus className="h-3.5 w-3.5" /><span className="hidden sm:inline">Nuova</span>
               </Button>
             </div>
@@ -1587,7 +1589,7 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
                 })),
               ].map(f => (
                 <button key={f.key} onClick={() => setFilterAssignee(f.key)}
-                  className={`tap-compact inline-flex shrink-0 items-center gap-1 h-7 px-3 rounded-full text-xs font-medium whitespace-nowrap transition-colors active:scale-95 ${filterAssignee === f.key ? "bg-violet-600 text-white shadow-sm" : "bg-muted/60 text-muted-foreground hover:bg-muted"}`}>
+                  className={`tap-compact inline-flex shrink-0 items-center gap-1 h-8 md:h-7 px-3 rounded-full text-xs font-medium whitespace-nowrap transition-colors active:scale-95 ${filterAssignee === f.key ? "bg-violet-600 text-white shadow-sm" : "bg-muted/60 text-muted-foreground hover:bg-muted"}`}>
                   {f.label}
                 </button>
               ))}
@@ -1604,7 +1606,7 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
               { key: "completate", label: "Completate", count: stats.completed },
             ] as const).map(f => (
               <button key={f.key} onClick={() => { setFilter(f.key); setSelectedIds(new Set()); }}
-                className={`tap-compact inline-flex shrink-0 items-center gap-1 h-7 px-3 rounded-full text-xs font-medium whitespace-nowrap transition-colors active:scale-95 ${filter === f.key ? "bg-primary text-primary-foreground shadow-sm" : "bg-muted/60 text-muted-foreground hover:bg-muted"}`}>
+                className={`tap-compact inline-flex shrink-0 items-center gap-1 h-8 md:h-7 px-3 rounded-full text-xs font-medium whitespace-nowrap transition-colors active:scale-95 ${filter === f.key ? "bg-primary text-primary-foreground shadow-sm" : "bg-muted/60 text-muted-foreground hover:bg-muted"}`}>
                 {f.label}
                 {f.count != null && f.count > 0 && <span className={`text-[10px] ${filter === f.key ? "opacity-80" : ""}`}>({f.count})</span>}
               </button>
@@ -1633,7 +1635,7 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
               <TooltipProvider delayDuration={200}>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button variant={compact ? "default" : "outline"} size="sm" className="h-9 w-9 p-0 shrink-0" onClick={() => setCompact(!compact)} aria-label="Cambia vista compatta">
+                    <Button variant={compact ? "default" : "outline"} size="sm" className="hidden sm:inline-flex h-9 w-9 p-0 shrink-0" onClick={() => setCompact(!compact)} aria-label="Cambia vista compatta">
                       <svg className="h-3.5 w-3.5" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="2" width="14" height="2" rx="0.5" /><rect x="1" y="7" width="14" height="2" rx="0.5" /><rect x="1" y="12" width="14" height="2" rx="0.5" /></svg>
                     </Button>
                   </TooltipTrigger>
@@ -1648,7 +1650,7 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
                     <Button
                       variant={selectionMode ? "default" : "outline"}
                       size="sm"
-                      className="h-9 w-9 p-0 shrink-0"
+                      className="hidden sm:inline-flex h-9 w-9 p-0 shrink-0"
                       onClick={() => setSelectionMode(v => { if (v) setSelectedIds(new Set()); return !v; })}
                       aria-label="Seleziona più attività"
                       aria-pressed={selectionMode}
