@@ -17,7 +17,7 @@ interface Integration {
 
 const INTEGRATIONS: Integration[] = [
   // Fatturazione
-  { name: "Sistema di Interscambio (SDI)", category: "Fatturazione Elettronica", description: "Trasmissione diretta delle fatture elettroniche al SDI dell'Agenzia delle Entrate. Firma digitale, ricevute di consegna e conservazione sostitutiva a norma di legge per 10 anni.", logo: "🏛️", status: "nativa" },
+  { name: "Sistema di Interscambio (SDI)", category: "Fatturazione Elettronica", description: "Fatture elettroniche inviate direttamente al SDI dell'Agenzia delle Entrate: firma digitale, ricevute di consegna e conservazione a norma per 10 anni.", logo: "🏛️", status: "nativa" },
   { name: "Fattura PA", category: "Fatturazione Elettronica", description: "Emissione e invio di fatture verso la Pubblica Amministrazione tramite NSO. Gestione codice destinatario, CIG/CUP e firma digitale.", logo: "📄", status: "nativa" },
   // Bancario
   { name: "Bonifici SEPA", category: "Banca & Pagamenti", description: "Generazione file SEPA XML per pagamenti fornitori e subappaltatori. Esportazione distinta bonifici per la banca in formato standard CBI.", logo: "🏦", status: "nativa" },

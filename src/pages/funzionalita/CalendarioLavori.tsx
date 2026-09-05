@@ -36,7 +36,7 @@ const config: FunzionalitaPageConfig = {
     title:
       "Calendario Lavori Edilizia",
     description:
-      "Calendario condiviso per imprese edili: gantt visuale multi-cantiere, allocazione squadre, conflict detection automatica e integrazione meteo per pianificare i lavori.",
+      "Calendario condiviso per imprese edili: gantt multi-cantiere, squadre allocate, conflitti rilevati da soli e meteo integrato per pianificare i lavori.",
     keywords:
       "calendario lavori edilizia, gantt cantieri, pianificazione cantieri, software pianificazione edile, calendario squadre cantieri, gestione cantieri multipli, conflict detection edilizia, calendario condiviso impresa edile",
     ogImage: "https://www.ediliziaincloud.com/og/og-default.png",

@@ -34,7 +34,7 @@ const config: FunzionalitaPageConfig = {
     title:
       "Cedolini Paga Edilizia",
     description:
-      "Software cedolini paga per imprese edili: CCNL Edilizia industria e artigianato preconfigurato, calcolo automatico cassa edile, ferie, ROL, banca ore e F24 dei contributi.",
+      "Cedolini paga per imprese edili: CCNL Edilizia preconfigurato, cassa edile calcolata in automatico, ferie, ROL, banca ore e F24 dei contributi.",
     keywords:
       "cedolini paga edilizia, software paghe imprese edili, CCNL edilizia industria, CCNL edilizia artigianato, cassa edile automatica, F24 edilizia, UNILAV edilizia, UNIEMENS edilizia, paghe operai cantiere",
     ogImage: "https://www.ediliziaincloud.com/og/og-default.png",

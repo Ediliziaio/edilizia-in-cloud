@@ -326,7 +326,7 @@ const webAppLd = {
   operatingSystem: "Web browser (desktop e mobile)",
   url: PAGE_URL,
   description:
-    "Calcolatore gratuito del margine di commessa per imprese edili: inserisci importo contratto, materiali, ore di manodopera, subappalti, noli, costi generali e imprevisti e ottieni margine in euro, margine percentuale e punto di pareggio.",
+    "Calcolatore gratuito del margine di commessa: contratto, materiali, ore, subappalti, noli e costi generali → margine in euro, in % e punto di pareggio.",
   browserRequirements: "Richiede JavaScript. Nessuna registrazione.",
   isAccessibleForFree: true,
   inLanguage: "it-IT",
@@ -444,7 +444,7 @@ export default function CalcolatoreMargineCommessa() {
   useSEO({
     title: "Calcolatore Margine di Commessa (gratis)",
     description:
-      "Calcolatore gratuito del margine di commessa per imprese edili: inserisci contratto, materiali, ore, subappalti e costi generali e scopri margine in €, in % e break-even.",
+      "Calcolatore gratuito del margine di commessa per imprese edili: contratto, materiali, ore, subappalti e costi generali → margine in €, in % e break-even.",
     canonical: `${PAGE_PATH}/`,
     keywords:
       "calcolatore margine di commessa, calcolo margine cantiere, margine commessa edilizia, redditività cantiere, break even cantiere, costi commessa edile, marginalità impresa edile, calcolo utile cantiere",

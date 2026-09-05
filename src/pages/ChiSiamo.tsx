@@ -179,7 +179,7 @@ const faqs = [
 export default function ChiSiamo() {
   useSEO({
     title: "Chi Siamo | Edilizia in Cloud, software nato in cantiere",
-    description: "Edilizia in Cloud è il gestionale cloud con AI per imprese edili italiane, sviluppato da un team italiano con sede a Milano. Nato dentro un'impresa edile reale e validato sul campo prima di arrivare sul mercato.",
+    description: "Edilizia in Cloud è il gestionale cloud con AI per imprese edili, nato dentro un'impresa edile vera e provato in cantiere prima di arrivare sul mercato.",
     canonical: "/chi-siamo",
     keywords: "chi siamo edilizia in cloud, domus group srl, gestionale edilizia italiano, software edilizia made in italy, software edilizia cantiere, gestionale costruito da imprenditori edili",
   });

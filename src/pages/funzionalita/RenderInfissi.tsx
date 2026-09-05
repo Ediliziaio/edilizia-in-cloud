@@ -978,7 +978,7 @@ export default function RenderInfissi() {
           image: `${SITE_URL}/og/render-infissi-og.jpg`,
           inLanguage: "it-IT",
           description:
-            "Modulo AI per serramentisti che genera render prima/dopo di nuovi infissi, persiane, tapparelle, porte blindate e pergole sulla foto reale del cliente, pronti per WhatsApp.",
+            "Render AI per serramentisti: prima/dopo di infissi, persiane, tapparelle, porte blindate e pergole sulla foto del cliente, pronto per WhatsApp.",
           provider: {
             "@type": "Organization",
             name: "Edilizia in Cloud",

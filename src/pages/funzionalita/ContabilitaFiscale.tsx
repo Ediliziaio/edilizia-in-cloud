@@ -36,7 +36,7 @@ const config: FunzionalitaPageConfig = {
     title:
       "Contabilità Fiscale Edilizia",
     description:
-      "Contabilità ordinaria e semplificata per imprese edili: piano dei conti edilizia preconfigurato, ammortamenti automatici, bilancio CEE ed esportazione XBRL al commercialista.",
+      "Contabilità ordinaria e semplificata per imprese edili: piano dei conti edilizia pronto, ammortamenti automatici, bilancio CEE ed export XBRL.",
     keywords:
       "contabilità edilizia, software contabilità imprese edili, piano dei conti edilizia, bilancio CEE edilizia, XBRL edilizia, ammortamenti cantieri, contabilità ordinaria edilizia, contabilità semplificata edilizia",
     ogImage: "https://www.ediliziaincloud.com/og/og-default.png",

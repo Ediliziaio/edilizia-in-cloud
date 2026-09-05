@@ -121,7 +121,7 @@ export default function Novita() {
   useSEO({
     title: "Novità e aggiornamenti del prodotto",
     description:
-      "Tutte le novità di Edilizia in Cloud, mese per mese: nuove funzionalità AI, commesse, dashboard, mobile e preventivi. Gli aggiornamenti sono inclusi in ogni piano, senza costi extra.",
+      "Novità di Edilizia in Cloud mese per mese: funzioni AI, commesse, dashboard, mobile e preventivi. Aggiornamenti inclusi nel piano, senza costi extra.",
     canonical: "/novita",
     keywords:
       "novità edilizia in cloud, changelog gestionale edilizia, aggiornamenti software edilizia, nuove funzionalità gestionale",

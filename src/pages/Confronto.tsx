@@ -245,7 +245,7 @@ export default function Confronto() {
 
   useSEO({
     title: "Confronto Software Gestionale Edilizia 2026",
-    description: "Edilizia in Cloud a confronto con Primus ACCA, TeamSystem, Edilnet, Buildertrend, Pillar, PlanRadar, Dylog ed Excel: funzioni, prezzi e fiscale italiano a confronto.",
+    description: "Edilizia in Cloud a confronto con PriMus, TeamSystem, Edilnet, Buildertrend, PlanRadar, Dylog ed Excel: funzioni, fiscale italiano e uso in cantiere.",
     canonical: "/confronto",
     keywords: "confronto software gestionale edilizia, edilizia in cloud vs primus, edilizia in cloud vs teamsystem, edilizia in cloud vs pillar, edilizia in cloud vs planradar, alternativa ERP edilizia, miglior gestionale imprese edili 2026",
   });

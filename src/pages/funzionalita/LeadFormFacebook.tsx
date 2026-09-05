@@ -32,7 +32,7 @@ const config: FunzionalitaPageConfig = {
     title:
       "Lead Form Facebook Edilizia",
     description:
-      "Integrazione Lead Ads Facebook e Instagram per imprese edili: sync automatica al CRM, qualificazione AI dei lead, distribuzione ai commerciali e tracking delle conversioni.",
+      "Lead Ads di Facebook e Instagram per imprese edili: sincronizzati nel CRM, qualificati dall'AI, assegnati ai commerciali, conversioni tracciate.",
     keywords:
       "lead form facebook edilizia, lead ads facebook imprese edili, sync CRM lead facebook, qualificazione AI lead edilizia, lead facebook ristrutturazione, lead instagram fotovoltaico, distribuzione lead commerciali, conversione lead edilizia, lead generation imprese costruzione, lead facebook automazione",
     ogImage: "https://www.ediliziaincloud.com/og/og-default.png",

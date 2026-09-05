@@ -35,7 +35,7 @@ const config: FunzionalitaPageConfig = {
     title:
       "Quote Builder AI: Generatore Preventivi Edilizia",
     description:
-      "Generatore preventivi AI per imprese edili: riconoscimento foto cantiere, suggerimento computo metrico e prezzari regionali DEI integrati. Preventivo pronto in 5 minuti.",
+      "Preventivi AI per imprese edili: riconosce le foto del cantiere, suggerisce il computo metrico, usa i prezzari DEI. Preventivo pronto in 5 minuti.",
     keywords:
       "quote builder AI edilizia, generatore preventivi AI, software preventivi edilizia AI, AI computo metrico, preventivo automatico edilizia, prezzari regionali edilizia software, AI riconoscimento foto cantiere, software preventivo veloce, AI ristrutturazione preventivo, computo metrico automatico AI",
     ogImage: "https://www.ediliziaincloud.com/og/og-default.png",

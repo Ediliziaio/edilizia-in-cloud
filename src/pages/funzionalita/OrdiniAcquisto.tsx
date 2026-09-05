@@ -35,7 +35,7 @@ const config: FunzionalitaPageConfig = {
     title:
       "Ordini Acquisto Edilizia",
     description:
-      "Ordini fornitori di cantiere con PO digitali firmati elettronicamente, riconciliazione automatica DDT e fatture, listini fornitori centralizzati e tracking consegne.",
+      "Ordini fornitori di cantiere con PO firmati elettronicamente, riconciliazione automatica di DDT e fatture, listini centralizzati e consegne tracciate.",
     keywords:
       "ordini acquisto edilizia, PO digitali cantiere, gestione fornitori impresa edile, riconciliazione DDT fatture edilizia, listini fornitori edilizia, tracking arrivi cantiere, ordini fornitore cantiere, software acquisti edilizia",
     ogImage: "https://www.ediliziaincloud.com/og/og-default.png",

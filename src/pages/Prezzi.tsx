@@ -208,7 +208,7 @@ export default function Prezzi() {
 
   useSEO({
     title: "Piani Edilizia in Cloud — Prova gratis 31 giorni",
-    description: "Scopri i piani di Edilizia in Cloud: Scopri (gratis), Gestionale, Professionista e Impresa AI. Prenota una demo gratuita e ricevi un preventivo su misura. 31 giorni di prova.",
+    description: "Piani di Edilizia in Cloud: Scopri (gratis), Gestionale, Professionista e Impresa AI. Prova gratis 31 giorni o chiedi un preventivo su misura.",
     canonical: "/prezzi",
     keywords: "software gestionale edilizia, gestionale cantieri, demo edilizia in cloud, piani gestionale professionista impresa ai, prova gratuita software edilizia",
   });
@@ -317,8 +317,8 @@ export default function Prezzi() {
         </div>
 
         <h1 className="text-4xl md:text-6xl font-extrabold text-white leading-tight mb-5 max-w-3xl mx-auto">
-          L'investimento che si{" "}
-          <span className="text-[#F97415]">ripaga da solo.</span>
+          Prezzi del gestionale per imprese edili:{" "}
+          <span className="text-[#F97415]">un investimento che si ripaga da solo.</span>
         </h1>
         <p className="text-white/70 text-lg md:text-xl max-w-2xl mx-auto mb-10">
           Ogni piano include il Consulente del Controllo dedicato. Setup e migrazione dati gratis. Disdici quando vuoi.
