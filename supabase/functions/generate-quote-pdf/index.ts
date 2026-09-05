@@ -134,6 +134,10 @@ Deno.serve(async (req) => {
     let attachmentRows: any[] = [];
     let branding: any = null;
     let pdfImp: any = {};
+    // Attributi di famiglia: axis_selections salva gli ID dei valori scelti
+    // (UUID). Nel PDF vanno i nomi — "Colore: Bianco" — non gli identificativi.
+    const nomiAssi = new Map<string, string>();        // "<family_id>:<codice>" → nome asse
+    const etichetteValori = new Map<string, string>(); // id valore → label
     // Opzioni PDF scelte sul singolo preventivo (step «Documenti e PDF»).
     // Erano esposte in interfaccia e ignorate qui: l'utente spuntava «mostra
     // misure» e il PDF usciva identico. Default = attivo, come nella UI.
@@ -283,6 +287,23 @@ Deno.serve(async (req) => {
       branding = brandingData;
       const prefetchedContact = (contactRes as { data: Record<string, unknown> | null }).data ?? null;
       attachmentRows = attRes.data ?? [];
+
+      const famiglieConAssi = [...new Set(
+        items.filter((i: any) => i.family_id && i.axis_selections).map((i: any) => String(i.family_id)),
+      )];
+      if (famiglieConAssi.length) {
+        const idValori = [...new Set(
+          items.flatMap((i: any) => Object.values((i.axis_selections ?? {}) as Record<string, unknown>).map(String)),
+        )].filter((x) => /^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(x));
+        const [assiRes, valoriRes] = await Promise.all([
+          supabaseAdmin.from("article_family_axes").select("family_id, nome, codice").in("family_id", famiglieConAssi),
+          idValori.length
+            ? supabaseAdmin.from("article_family_axis_values").select("id, label, valore").in("id", idValori)
+            : Promise.resolve({ data: [] as any[] }),
+        ]);
+        for (const a of (assiRes.data ?? []) as any[]) nomiAssi.set(`${a.family_id}:${a.codice}`, a.nome);
+        for (const vv of (valoriRes.data ?? []) as any[]) etichetteValori.set(vv.id, vv.label || vv.valore);
+      }
 
       // ── Composizione blocchi linkati + merge tag substitution ────────────
       // Se l'offerta ha blocchi linkati (cover/condizioni/legali), i loro
@@ -1077,7 +1098,9 @@ Deno.serve(async (req) => {
           if (opzione("pdf_mostra_misure") && !isNota && !isSubtotale) {
             const mx = (item as any).misura_x, my = (item as any).misura_y;
             if (mx != null || my != null) {
-              dettagli.push(`L ${mx != null ? Number(mx).toLocaleString("it-IT") : "—"} × H ${my != null ? Number(my).toLocaleString("it-IT") : "—"} cm`);
+              // Le misure viaggiano in millimetri (configuratori e riga del builder).
+              const fmtMm = (n: unknown) => n == null ? "—" : Number(n).toLocaleString("it-IT", { maximumFractionDigits: 1, useGrouping: false });
+              dettagli.push(`L ${fmtMm(mx)} × H ${fmtMm(my)} mm`);
             }
           }
           if (opzione("pdf_mostra_attributi") && !isNota && !isSubtotale) {
@@ -1085,15 +1108,23 @@ Deno.serve(async (req) => {
             if (ax && typeof ax === "object" && !Array.isArray(ax)) {
               const coppie = Object.entries(ax as Record<string, unknown>)
                 .filter(([, val]) => val != null && String(val).trim() !== "")
-                .map(([k, val]) => `${k.replace(/_/g, " ")}: ${String(val)}`);
+                .map(([k, val]) => {
+                  const nome = nomiAssi.get(`${(item as any).family_id}:${k}`)
+                    ?? (k.charAt(0).toUpperCase() + k.slice(1).replace(/_/g, " "));
+                  const grezzo = String(val);
+                  return `${nome}: ${etichetteValori.get(grezzo) ?? grezzo}`;
+                });
               if (coppie.length) dettagli.push(coppie.join(" · "));
             }
           }
+          // Misure + attributi possono superare una riga: si va a capo (max 2 righe)
+          // invece di tagliare a metà «Tipo apertura: Wasistas classi».
           const rigaDettagli = dettagli.join("  ·  ");
+          const righeDettagli = rigaDettagli ? wrapText(rigaDettagli, 95).slice(0, 2) : [];
           const immagineRiga = opzione("pdf_mostra_immagini", false) && !isNota && !isSubtotale
             ? await immagineProdotto(String((item as any).image_url ?? ""))
             : null;
-          const rowH = (hasDesc ? 29 : 18) + rowExtra + (rigaDettagli ? 11 : 0) + (immagineRiga ? 30 : 0);
+          const rowH = (hasDesc ? 29 : 18) + rowExtra + righeDettagli.length * 11 + (immagineRiga ? 30 : 0);
 
           // Bordo completo di riga (template "tutti i bordi"), sotto il testo
           if (bordiTabella === "all") {
@@ -1154,8 +1185,8 @@ Deno.serve(async (req) => {
             page.drawText(item.description.substring(0, 85), { x: descX, y, size: sz(7), font, color: grayC });
             y -= 11;
           }
-          if (rigaDettagli) {
-            page.drawText(rigaDettagli.substring(0, 95), { x: descX, y, size: sz(7), font: fontItalic, color: grayC });
+          for (const rd of righeDettagli) {
+            page.drawText(rd, { x: descX, y, size: sz(7), font: fontItalic, color: grayC });
             y -= 11;
           }
           if (immagineRiga) {
