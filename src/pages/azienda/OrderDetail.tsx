@@ -77,6 +77,7 @@ import { getOrderPlaybook, PLAYBOOK_LABELS, applyPlaybookToOrder } from "@/lib/o
 import { PlaybookEditorDialog } from "@/components/orders/PlaybookEditorDialog";
 
 import { OrdineRapportiniCampo } from "@/components/orders/OrdineRapportiniCampo";
+import { OrdineFotoCantiere } from "@/components/campo/OrdineFotoCantiere";
 import { WhatsAppActivityFeed } from "@/components/whatsapp/WhatsAppActivityFeed";
 import { CreaFatturaDialog } from "@/components/orders/CreaFatturaDialog";
 import { CreaDDTDialog } from "@/components/orders/CreaDDTDialog";
@@ -1818,6 +1819,7 @@ function OrderDetailInner() {
 
             {/* Tab Campo: rapportini + whatsapp */}
             <TabsContent value="campo" className="space-y-4 mt-4">
+              <OrdineFotoCantiere orderId={id!} />
               <OrdineRapportiniCampo orderId={id!} />
               <WhatsAppActivityFeed cantiereId={id!} />
             </TabsContent>

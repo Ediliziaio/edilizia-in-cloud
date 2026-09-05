@@ -15,7 +15,7 @@ import {
   Send, Download, FileCheck,
 	  ClipboardSignature, ShieldCheck, Package, Wrench,
 	  Camera, BookOpenCheck, MessageSquare, Navigation,
-	  Mic, LogIn, LogOut,
+	  Mic, LogIn, LogOut, ClipboardList,
 	} from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { toast } from "sonner";
@@ -833,8 +833,11 @@ export default function CampoLavoroDetail() {
           </button>
         )}
 
-        <div className="mt-2 grid grid-cols-2 gap-1.5 md:mt-3 md:gap-2">
-          <QuickAction icon={Camera} label="Foto e rapportino" onClick={() => navigate(rapportinoManualeUrl)} />
+        <div className="mt-2 grid grid-cols-3 gap-1.5 md:mt-3 md:gap-2">
+          {/* Le foto hanno casa loro: si scattano durante il lavoro, non la
+              sera dentro al rapportino (dove la galleria è irraggiungibile). */}
+          <QuickAction icon={Camera} label="Foto" onClick={() => navigate(`/campo/lavoro/${orderId}/foto`)} />
+          <QuickAction icon={ClipboardList} label="Rapportino" onClick={() => navigate(rapportinoManualeUrl)} />
           <QuickAction icon={AlertCircle} label="Ticket" onClick={() => navigate(`/campo/ticket/nuovo/${orderId}`)} />
         </div>
 

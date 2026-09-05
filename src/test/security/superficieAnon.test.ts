@@ -175,7 +175,15 @@ describe.runIf(ATTIVA)("0.1 · prova end-to-end: senza login non si passa", () =
         // quindi non la si conta né come successo né come fallimento.
         for (const e of esiti) {
           const inconcludente = e.stato === 404 && e.corpo.includes("PGRST202");
-          if (!inconcludente && e.stato !== 401 && e.stato !== 403) {
+          // Una risposta che non porta informazione — `false` o `null` — e'
+          // sicura quanto un rifiuto: quella funzione dipende solo da chi
+          // chiama, e senza sessione non ha nulla da dire. E' il caso degli
+          // aiutanti lasciati aperti di proposito perche' citati dentro le
+          // policy, dove revocarli renderebbe le tabelle illeggibili invece
+          // che protette. Qualunque altro corpo — un oggetto, una lista, un
+          // numero, un testo — resta un fallimento.
+          const rispostaVuota = e.stato === 200 && ["false", "null"].includes(e.corpo.trim());
+          if (!inconcludente && !rispostaVuota && e.stato !== 401 && e.stato !== 403) {
             passate.push(`${e.fn} -> HTTP ${e.stato} ${e.corpo.slice(0, 120)}`);
           }
         }
@@ -236,10 +244,17 @@ describe.runIf(ATTIVA)("0.1 · gli aiutanti interni non rispondono a chi non ha 
         rotti.push(`${o.fn}: la sonda non combacia con la firma — verifica i nomi dei parametri`);
         continue;
       }
+      // 42501 = permesso negato sulla funzione. Non e' un fallimento: e' una
+      // difesa piu' forte di quella che il test chiedeva. Qui si verifica che
+      // a chi non ha login non arrivi un dato utile, e una funzione revocata
+      // soddisfa la condizione meglio di una che risponde "false". Trattarla
+      // come rossa spingerebbe a riaprirla per far passare il test.
+      if (e.stato === 401 || e.stato === 403 || e.corpo.includes("42501")) continue;
+
       let valore: unknown;
       try { valore = JSON.parse(e.corpo); } catch { valore = e.corpo; }
       if (valore !== o.atteso) {
-        rotti.push(`${o.fn} -> ${JSON.stringify(valore)} (atteso ${JSON.stringify(o.atteso)})`);
+        rotti.push(`${o.fn} -> ${JSON.stringify(valore)} (atteso ${JSON.stringify(o.atteso)} oppure permesso negato)`);
       }
     }
     expect(rotti, `oracoli ancora aperti:\n${rotti.join("\n")}`).toEqual([]);

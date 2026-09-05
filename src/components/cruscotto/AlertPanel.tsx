@@ -24,6 +24,13 @@ interface Props {
   todayData: TodayData | null;
   billingKPI?: DashboardBillingKPI | null;
   isLoading?: boolean;
+  /**
+   * Avvisi da non mostrare, per id. Serve dove il pannello convive con una
+   * sezione che dice gia' le stesse cose: ripetere "30 pagamenti scaduti" a
+   * meta' pagina dopo averlo scritto in cima non aggiunge un'informazione,
+   * toglie credibilita' a entrambe le righe.
+   */
+  escludi?: readonly string[];
 }
 
 function fmtEur(n: number) {
@@ -79,13 +86,16 @@ function buildAlerts(ma: AlertsData | undefined, ops: OperationsData, fin: Finan
   );
 }
 
-export function AlertPanel({ marketingAlerts, operations, finance, todayData, billingKPI, isLoading }: Props) {
+export function AlertPanel({ marketingAlerts, operations, finance, todayData, billingKPI, isLoading, escludi }: Props) {
   const navigate = useNavigate();
   const [showAll, setShowAll] = useState(false);
 
   const alerts = useMemo(
-    () => buildAlerts(marketingAlerts, operations, finance, todayData, billingKPI),
-    [marketingAlerts, operations, finance, todayData, billingKPI]
+    () => {
+      const tutti = buildAlerts(marketingAlerts, operations, finance, todayData, billingKPI);
+      return escludi?.length ? tutti.filter((a) => !escludi.includes(a.id)) : tutti;
+    },
+    [marketingAlerts, operations, finance, todayData, billingKPI, escludi]
   );
 
   if (isLoading) return (

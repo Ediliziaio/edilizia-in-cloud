@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCruscottoData } from "@/hooks/useCruscottoData";
+import ComeStiamoAndando from "@/pages/azienda/ComeStiamoAndando";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { CruscottoFilters } from "@/components/cruscotto/CruscottoFilters";
@@ -30,13 +31,10 @@ import { SedeIncidenzaTable } from "@/components/sedi/SedeIncidenzaTable";
 import { SedeIncidenceChart } from "@/components/sedi/SedeIncidenceChart";
 import { useSediAnalytics } from "@/hooks/useSediAnalytics";
 import { useSedeFilter } from "@/store/sedeFilterStore";
-import { SemaforoBar } from "@/components/cruscotto/SemaforoBar";
-import { SaluteAziendale } from "@/components/cruscotto/SaluteAziendale";
-import { AzioniUrgenti } from "@/components/cruscotto/AzioniUrgenti";
 import { IndicatoriGuida } from "@/components/cruscotto/IndicatoriGuida";
 import { DashboardSelectorBar } from "@/components/dashboard/DashboardSelectorBar";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
-import { AlertCircle, AlertTriangle, ArrowUpRight, Download, Euro, LayoutDashboard, RefreshCw, ShieldCheck, TrendingUp, Wallet } from "lucide-react";
+import { AlertCircle, ArrowUpRight, Download, Euro, LayoutDashboard, RefreshCw, Wallet } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -63,6 +61,20 @@ import {
 import { TrendTooltip, type TrendTooltipSeries } from "@/components/charts/TrendTooltip";
 
 type ExecutiveTone = "green" | "orange" | "red" | "blue";
+
+/**
+ * Gli avvisi che la sezione "Da guardare oggi", in cima alla pagina, mostra
+ * gia' — con gli stessi numeri e le stesse azioni. Il pannello piu' in basso
+ * li salta e tiene i suoi, che sono di natura diversa (commerciali e
+ * amministrativi) e altrove non compaiono.
+ */
+const AVVISI_GIA_IN_CIMA = [
+  "overdue-payments",
+  "overdue-receivables",
+  "late-orders",
+  "suppliers-due",
+  "negative-cashflow",
+] as const;
 
 function eur(value: number) {
   return formatCurrencyCompact(safeNumber(value));
@@ -199,62 +211,9 @@ export default function CruscottoAziendale() {
   const hasCosts = finance.supplierDebt > 0 || finance.thisMonthOutflow > 0;
   const isDataEmpty = !hasOrders && !hasLeads && !hasCosts;
 
-  const executiveState = useMemo(() => {
-    const overdueAmount = Math.max(
-      safeNumber(operations.overdueAmount),
-      safeNumber(todayData?.overdueAmount),
-      safeNumber(billingKPI?.scaduto),
-    );
-    const overdueCount = Math.max(
-      safeNumber(operations.overduePayments),
-      safeNumber(todayData?.overdueCount),
-      safeNumber(billingKPI?.fatture_scadute_count),
-    );
-
-    if (overdueAmount > 0 || overdueCount > 0) {
-      return {
-        tone: "red" as ExecutiveTone,
-        title: "Incassi da sbloccare",
-        detail: `${eur(overdueAmount)} scaduti o in ritardo. Prima azione: sollecita clienti e aggiorna gli incassi.`,
-        route: "/azienda/documenti/incassi",
-        cta: "Apri incassi",
-      };
-    }
-    if (finance.cashFlowNet < 0) {
-      return {
-        tone: "orange" as ExecutiveTone,
-        title: "Cassa da proteggere",
-        detail: `${eur(finance.cashFlowNet)} di saldo mese. Prima azione: rinvia uscite non urgenti o accelera incassi.`,
-        route: "/azienda/previsionale",
-        cta: "Vedi previsionale",
-      };
-    }
-    if (operations.lateOrders > 0) {
-      return {
-        tone: "orange" as ExecutiveTone,
-        title: "Commesse in ritardo",
-        detail: `${operations.lateOrders} commesse oltre data prevista. Prima azione: aggiorna pianificazione e cliente.`,
-        route: "/azienda/ordini",
-        cta: "Apri commesse",
-      };
-    }
-    if (finance.marginThisMonth < 10 && finance.revenueThisMonth > 0) {
-      return {
-        tone: "orange" as ExecutiveTone,
-        title: "Margine sotto target",
-        detail: `Margine medio ${pct(finance.marginThisMonth)}. Prima azione: controlla anomalie, acquisti e costi non assegnati.`,
-        route: "/azienda/ordini?tab=marginalita",
-        cta: "Vedi marginalità",
-      };
-    }
-    return {
-      tone: "green" as ExecutiveTone,
-      title: "Azienda sotto controllo",
-      detail: "Nessuna urgenza critica: monitora cassa, margine e avanzamento commesse.",
-      route: "/azienda/ordini",
-      cta: "Vedi commesse",
-    };
-  }, [billingKPI, finance.cashFlowNet, finance.marginThisMonth, finance.revenueThisMonth, operations.lateOrders, operations.overdueAmount, operations.overduePayments, todayData]);
+  // Il riepilogo direzionale a una voce sola e' stato rimosso con il blocco che
+  // lo mostrava: ripeteva il primo punto di "Da guardare oggi", che ora apre la
+  // pagina e ne elenca quattro in ordine di quanto costa non farli.
 
   // P4 — i KPI sono ora cliccabili e aprono il `DrilldownDrawer` quando
   // hanno un `drilldown` definito (prima il drawer era montato ma mai aperto).
@@ -278,23 +237,13 @@ export default function CruscottoAziendale() {
       tone: finance.cashFlowNet >= 0 ? "green" as ExecutiveTone : "red" as ExecutiveTone,
       drilldown: null as DrilldownType,
     },
-    {
-      label: "Da incassare",
-      value: eur(finance.pendingRevenue),
-      hint: operations.overdueAmount > 0 ? `${eur(operations.overdueAmount)} scaduti` : "nessuno scaduto operativo",
-      icon: AlertTriangle,
-      tone: operations.overdueAmount > 0 ? "red" as ExecutiveTone : "orange" as ExecutiveTone,
-      drilldown: "late-orders" as DrilldownType,
-    },
-    {
-      label: "Margine medio",
-      value: pct(finance.marginThisMonth),
-      hint: `mese precedente ${pct(finance.marginPrevMonth)}`,
-      icon: TrendingUp,
-      tone: finance.marginThisMonth >= 15 ? "green" as ExecutiveTone : finance.marginThisMonth >= 0 ? "orange" as ExecutiveTone : "red" as ExecutiveTone,
-      drilldown: "margin" as DrilldownType,
-    },
-  ], [finance, operations.overdueAmount]);
+    // "Da incassare" e "Margine del mese" stavano qui e ripetevano, con parole
+    // diverse, due dei quattro riquadri in cima: lo scaduto era lo stesso
+    // numero, e due percentuali chiamate entrambe margine — una sui cantieri
+    // aperti, una sul fatturato — facevano dubitare di tutte e due. Qui
+    // restano i due numeri che dipendono davvero dal periodo scelto e che
+    // sopra non compaiono: quanto si e' venduto e come si chiude il mese.
+  ], [finance]);
 
   const { sediSelezionate, periodo } = useSedeFilter();
   const { data: sediData } = useSediAnalytics({ da: periodo.da, a: periodo.a });
@@ -336,6 +285,13 @@ export default function CruscottoAziendale() {
         className="print:mb-4"
       />
 
+      {/* La risposta alla prima domanda apre il cruscotto invece di vivere in
+          una pagina accanto: i suoi riquadri (incassato, margine, da incassare)
+          erano gli stessi che si leggono piu' sotto, e due schermate che dicono
+          la stessa cosa insegnano a non fidarsi di nessuna delle due. Qui sopra
+          cosa guardare oggi, sotto l'approfondimento per periodo. */}
+      <ComeStiamoAndando comeSezione />
+
       {/* Error banner */}
       {error && (
         <Alert variant="destructive">
@@ -366,32 +322,22 @@ export default function CruscottoAziendale() {
       {!isDataEmpty && (
         <SectionErrorBoundary sectionName="Executive Summary">
           <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm print:border-slate-200">
-            <div className="grid gap-0 xl:grid-cols-[minmax(340px,0.58fr)_minmax(540px,1fr)]">
-              <div className="bg-[#173b67] p-5 text-white sm:p-6">
-                <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                  <div className="flex min-w-0 gap-3">
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)]">
-                      {executiveState.tone === "green" ? <ShieldCheck className="h-5 w-5" /> : <AlertTriangle className="h-5 w-5" />}
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-orange-100">Quadro direzionale</p>
-                      <h2 className="mt-1 text-xl font-semibold text-white">{executiveState.title}</h2>
-                      <p className="mt-1 max-w-2xl text-sm leading-6 text-blue-50/85">{executiveState.detail}</p>
-                    </div>
-                  </div>
-                  <Button
-                    asChild
-                    size="sm"
-                    className="w-fit shrink-0 bg-white text-orange-600 shadow-sm hover:bg-orange-50"
-                  >
-                    <Link to={executiveState.route}>
-                      {executiveState.cta}
-                      <ArrowUpRight className="ml-1.5 h-3.5 w-3.5" />
-                    </Link>
-                  </Button>
-                </div>
+            <div className="grid gap-0 xl:grid-cols-[minmax(280px,0.4fr)_minmax(560px,1fr)]">
+              {/* Il pannello si allunga per stare al passo col grafico accanto.
+                  Con quattro riquadri lo riempivano; rimastine due, meta' blu
+                  restava vuota. Ora la colonna e' piu' stretta e i due riquadri
+                  si distribuiscono sull'altezza invece di ammucchiarsi in alto. */}
+              <div className="flex flex-col bg-[#173b67] p-5 text-white sm:p-6">
+                {/* Il richiamo urgente che stava qui — "Incassi da sbloccare,
+                    279k € scaduti" — diceva la stessa cosa del primo punto di
+                    "Da guardare oggi", poche righe piu' su, che pero' ne mostra
+                    quattro in ordine di quanto costa non farli. Restano i numeri
+                    per periodo, che rispondono a una domanda diversa. */}
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-orange-100">
+                  Numeri del periodo
+                </p>
 
-                <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                <div className="mt-4 grid flex-1 content-center gap-3 sm:grid-cols-2 xl:grid-cols-1">
                   {executiveKpis.map((item) => {
                     const Icon = item.icon;
                     const clickable = !!item.drilldown;
@@ -646,58 +592,16 @@ export default function CruscottoAziendale() {
             </TabsList>
 
             <TabsContent value="sintesi" className="mt-4 space-y-4">
-              <SectionErrorBoundary sectionName="Semaforo">
-                <SemaforoBar
-                  cashFlowNet={finance.cashFlowNet}
-                  thisMonthIncome={finance.thisMonthIncome}
-                  thisMonthOutflow={finance.thisMonthOutflow}
-                  activeOrders={operations.activeOrders}
-                  lateOrders={operations.lateOrders}
-                  pendingRevenue={finance.pendingRevenue}
-                  overdueAmount={operations.overdueAmount}
-                  overduePayments={operations.overduePayments}
-                  revenueThisMonth={finance.revenueThisMonth}
-                  revenuePrevMonth={finance.revenuePrevMonth}
-                />
-              </SectionErrorBoundary>
-
-              <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
-                <div className="lg:col-span-2">
-                  <SectionErrorBoundary sectionName="Salute Aziendale">
-                    <SaluteAziendale
-                      revenueThisMonth={finance.revenueThisMonth}
-                      revenuePrevMonth={finance.revenuePrevMonth}
-                      marginThisMonth={finance.marginThisMonth}
-                      cashFlowNet={finance.cashFlowNet}
-                      thisMonthIncome={finance.thisMonthIncome}
-                      thisMonthOutflow={finance.thisMonthOutflow}
-                      activeOrders={operations.activeOrders}
-                      lateOrders={operations.lateOrders}
-                      overduePayments={operations.overduePayments}
-                      overdueAmount={operations.overdueAmount}
-                      pendingRevenue={finance.pendingRevenue}
-                      supplierDebt={finance.supplierDebt}
-                      isLoading={isLoading}
-                    />
-                  </SectionErrorBoundary>
-                </div>
-                <div className="lg:col-span-3">
-                  <SectionErrorBoundary sectionName="Azioni Urgenti">
-                    <AzioniUrgenti
-                      overduePayments={operations.overduePayments}
-                      overdueAmount={operations.overdueAmount}
-                      lateOrders={operations.lateOrders}
-                      cashFlowNet={finance.cashFlowNet}
-                      staleLeads={marketing?.alerts?.stale_leads}
-                      fattureBozza={billingKPI?.fatture_in_bozza}
-                      proformaAperti={billingKPI?.proforma_aperti}
-                      fattureScadute={billingKPI?.fatture_scadute_count}
-                      fattureScaduteAmount={billingKPI?.scaduto}
-                      suppliersDueAmount={todayData?.suppliersDueAmount}
-                    />
-                  </SectionErrorBoundary>
-                </div>
-              </div>
+              {/* Su questa scheda si impilavano quattro riquadri che rispondevano
+                  tutti alla stessa domanda dei quattro in cima alla pagina. Il
+                  semaforo e "Salute aziendale" ripetevano margine, ritardi e
+                  scaduti. "Da fare oggi" stava accanto a "Da guardare oggi" —
+                  due nomi quasi uguali — e ogni sua voce era un doppione o una
+                  contraddizione: le stesse 30 rate scadute, 5 ordini in ritardo
+                  contro i 33 cantieri dichiarati sopra, e un cash flow che
+                  ripeteva il saldo previsto. Restano "I numeri che comandano",
+                  che misurano cose diverse (giorni di copertura, acconti su
+                  saldi), e le aree di approfondimento. */}
 
               <SectionErrorBoundary sectionName="I numeri che comandano">
                 <IndicatoriGuida />
@@ -714,7 +618,13 @@ export default function CruscottoAziendale() {
               )}
 
               <SectionErrorBoundary sectionName="Alert Panel">
+                {/* Restano solo gli avvisi che "Da guardare oggi" non da': lead
+                    fermi, appuntamenti mancati, opportunita' ferme, fatture da
+                    emettere. Scaduti, ordini in ritardo, fornitori e cash flow
+                    sono gia' scritti in cima con gli stessi numeri: ripeterli a
+                    meta' pagina li faceva sembrare due problemi distinti. */}
                 <AlertPanel
+                  escludi={AVVISI_GIA_IN_CIMA}
                   marketingAlerts={marketing?.alerts}
                   operations={operations}
                   finance={finance}
