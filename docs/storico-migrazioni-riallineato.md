@@ -86,3 +86,31 @@ applicano via MCP, ogni nuova migrazione continuerà a registrarsi con un
 timestamp diverso dal nome del file e lo scarto ricomincerà ad accumularsi. La
 soluzione stabile è nominare il file con lo stesso timestamp che MCP userà, o
 riportare `supabase db push` in funzione.
+
+## Il secondo strato: 39 versioni usate da due file diversi
+
+Riallineati i due elenchi, il controllo è passato oltre il primo errore e ne ha
+mostrato un altro, fino a quel momento coperto:
+
+```
+ERROR: duplicate key value violates unique constraint "schema_migrations_pkey"
+Key (version)=(20280224000000) already exists.
+```
+
+Il repository conteneva **39 versioni assegnate a due o tre file diversi** —
+`20280224000000_canarino_vitali.sql` e
+`20280224000000_precheck_messaggi_italiani.sql`, e così via fino a
+`20280905100000`, usata da tre file. Sessioni parallele che sceglievano lo stesso
+numero senza vedersi. La chiave di `schema_migrations` è la versione: due file
+con lo stesso numero non possono coesistere, e il push si ferma sul secondo.
+
+I 45 file in eccesso sono stati rinumerati al secondo libero immediatamente
+successivo (`20280224000001`, `20280901180002`, …), così restano adiacenti
+all'originale e l'ordine di applicazione non cambia. Il file che conserva il
+numero originale è quello il cui nome corrisponde alla registrazione già
+presente in produzione: nessuna riga esistente è stata toccata. Le 45 nuove
+versioni sono state registrate come applicate, perché il loro SQL è in
+produzione da tempo.
+
+Ora file e registrazioni sono 4.360 da entrambe le parti, stessa impronta
+`c6850df703dd7a3410eaf3f06aebb9db`, e nessuna versione compare due volte.
