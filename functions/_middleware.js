@@ -1366,7 +1366,7 @@ const ROUTES = {
   "/prezzi": {
     title: "Prezzi Edilizia in Cloud | Piani e Prova Gratis",
     description:
-      "Prezzi di Edilizia in Cloud: piano Gestionale 127€/mese, Professionista 247€/mese, Impresa AI 547€/mese. Utenti illimitati, zero costi di attivazione, zero vincoli. Prova gratis 31 giorni.",
+      "I piani di Edilizia in Cloud: Gestionale, Professionista e Impresa AI. Utenti illimitati, zero costi di attivazione, zero vincoli. Prova gratis 31 giorni.",
     h1: "Prezzi di Edilizia in Cloud: quanto costa il gestionale per imprese edili",
     intro:
       "Edilizia in Cloud propone 3 piani pensati per imprese edili di ogni dimensione, in base al fatturato e non al numero di utenti. Piano Gestionale da 127€/mese per imprese fino a 500K € di fatturato, piano Professionista da 247€/mese per imprese da 500K a 2M € con CRM e controllo di gestione completo, piano Impresa AI da 547€/mese per imprese oltre 2M € o multi-cantiere con agenti AI inclusi. Utenti illimitati in tutti i piani, nessun costo di attivazione, nessun vincolo contrattuale, disdici quando vuoi. Prova gratuita 31 giorni con supporto italiano dedicato. Tutti i piani includono fatturazione elettronica SDI, gestione cantieri con marginalità per commessa e app mobile per gli operai.",
@@ -2091,7 +2091,7 @@ const ROUTES = {
   "/per/imprese-edili": {
     title: "Gestionale per Imprese di Costruzione | Più Margini, Più Controllo, Zero Caos",
     description:
-      "Il gestionale con AI per imprese di costruzione: margine reale per commessa in tempo reale, SAL automatici, subappaltatori, forecast di cassa a 90 giorni e computi metrici.",
+      "Il gestionale con AI per imprese di costruzione: margine reale per commessa, SAL automatici, subappaltatori, cassa a 90 giorni e computi metrici.",
     h1: "Aumenta i margini e controlla ogni cantiere della tua impresa di costruzione",
     intro:
       "Edilizia in Cloud governa tutta l'impresa di costruzione: margine reale di ogni commessa aggiornato in tempo reale, SAL automatici, gestione subappaltatori con ritenute, forecast di cassa a 90 giorni e fatturazione elettronica.",
@@ -2105,7 +2105,7 @@ const ROUTES = {
   "/per/impiantisti": {
     title: "Gestionale per Impiantisti | Più Margini, Più Controllo, Zero Caos",
     description:
-      "Il gestionale con AI per impiantisti: margine reale per intervento, fatturazione lo stesso giorno, magazzino furgone sempre giusto e tecnici in campo coordinati senza telefonate.",
+      "Il gestionale con AI per impiantisti: margine per intervento, fattura in giornata, magazzino furgone sempre giusto e tecnici coordinati senza telefonate.",
     h1: "Aumenta i margini e controlla interventi, tecnici e magazzino",
     intro:
       "Edilizia in Cloud governa tutta l'impresa impiantistica: margine reale per intervento con ore di trasferta e collaudo sempre fatturate, fatturazione automatica post-intervento, magazzino ricambi per furgone e contratti di manutenzione ricorrente.",
@@ -2147,7 +2147,7 @@ const ROUTES = {
   "/per/serramentisti": {
     title: "Software per Serramentisti | Più Margini, Più Controllo, Zero Caos",
     description:
-      "Il gestionale completo per serramentisti e installatori di infissi: margine reale per commessa, cassa a 90 giorni, ordini e pose senza errori, squadre organizzate — e preventivi su misura in 60 secondi.",
+      "Il gestionale per serramentisti e installatori di infissi: margine per commessa, cassa a 90 giorni, pose senza errori e preventivi in 60 secondi.",
     h1: "Aumenta i margini e controlla la tua azienda di serramenti",
     intro:
       "Edilizia in Cloud è il gestionale completo per serramentisti — non solo un preventivatore: margine reale per commessa e per linea di prodotto (PVC, alluminio, portoni), scadenzario incassi e pagamenti con cassa a 90 giorni, ordini fornitori generati dal preventivo, planning installazioni, verbale di consegna firmato e configuratore preventivi con listini fornitore che genera un preventivo in 60 secondi.",
@@ -2582,12 +2582,12 @@ const CITY_CONFIGS = {
   // BUG FIX: queste città erano nel sitemap + componente React ma NON nel
   // middleware → bot Google riceveva 404. Ora coerente.
   como: { city: "Como", region: "Lombardia", description: "Software gestionale per imprese edili a Como. Ville di lusso sul lago, restauro storico in centro UNESCO e cantieri lariani con Edilizia in Cloud." },
-  lecco: { city: "Lecco", region: "Lombardia", description: "Software gestionale per imprese edili a Lecco. Cantieri in pendenza in Valassina, ristrutturazioni vincolate nei nuclei antichi e logistica lago con Edilizia in Cloud." },
-  monza: { city: "Monza", region: "Lombardia", description: "Software gestionale per imprese edili a Monza e Brianza. Capannoni industriali con tempistiche rigide, residenziale di pregio per clienti milanesi e SAL settimanali con Edilizia in Cloud." },
+  lecco: { city: "Lecco", region: "Lombardia", description: "Gestionale per imprese edili a Lecco: cantieri in pendenza in Valsassina, ristrutturazioni nei nuclei antichi e logistica lago, con Edilizia in Cloud." },
+  monza: { city: "Monza", region: "Lombardia", description: "Software gestionale per imprese edili a Monza e Brianza: capannoni con tempi rigidi, residenziale di pregio e SAL settimanali, con Edilizia in Cloud." },
   varese: { city: "Varese", region: "Lombardia", description: "Software gestionale per imprese edili a Varese. Clienti italo-svizzeri esigenti, cantieri prealpini stagionali e gestione frontalieri con Edilizia in Cloud." },
-  treviso: { city: "Treviso", region: "Veneto", description: "Software gestionale per imprese edili a Treviso. Capannoni industriali nei distretti vinicoli, ristrutturazioni di rustici sotto vincolo e burocrazia veneta con Edilizia in Cloud." },
-  latina: { city: "Latina", region: "Lazio", description: "Software gestionale per imprese edili a Latina. Cantieri stagionali sulla costa pontina, capannoni agricoli dell'Agro Pontino e riqualificazione case popolari con Edilizia in Cloud." },
-  pisa: { city: "Pisa", region: "Toscana", description: "Software gestionale per imprese edili a Pisa. Restauro vincolato del centro storico UNESCO, edilizia universitaria estiva e manutenzione case versiliesi con Edilizia in Cloud." },
+  treviso: { city: "Treviso", region: "Veneto", description: "Software gestionale per imprese edili a Treviso: capannoni nei distretti del vino, rustici sotto vincolo e burocrazia veneta, con Edilizia in Cloud." },
+  latina: { city: "Latina", region: "Lazio", description: "Gestionale per imprese edili a Latina: cantieri stagionali sulla costa, capannoni dell'Agro Pontino e case popolari, con Edilizia in Cloud." },
+  pisa: { city: "Pisa", region: "Toscana", description: "Gestionale per imprese edili a Pisa: restauro vincolato nel centro UNESCO, edilizia universitaria e manutenzioni in Versilia, con Edilizia in Cloud." },
 };
 
 // Blog category meta
@@ -3210,6 +3210,35 @@ export async function onRequest({ request, next, env, waitUntil }) {
   // → menu, animations, chat, all interactivity works as expected.
   // Bots get the lightweight SEO HTML below.
   if (!isBot(ua)) {
+    // La home prerenderizzata (dist/_home/index.html) esisteva da mesi e non
+    // è mai stata servita a nessun visitatore: "/" riceveva lo shell SPA da
+    // 28 KB, senza un solo titolo, e la prima riga di testo compariva solo a
+    // fine hydration — Lighthouse mobile 49/100, LCP 5,5 s. Ora il browser
+    // riceve l'HTML completo e React (hydrateRoot in src/main.tsx) monta
+    // sopra ai nodi già dipinti. Guard: si usa SOLO un vero prerender
+    // (meta x-prerendered), mai una risposta di fallback.
+    if (url.pathname === "/") {
+      try {
+        const homeUrl = new URL("/_home/index.html", url).toString();
+        const home = await env.ASSETS.fetch(new Request(homeUrl, { headers: { accept: "text/html" } }));
+        if (home.ok) {
+          const corpo = await home.text();
+          if (corpo.includes('name="x-prerendered"')) {
+            return new Response(corpo, {
+              status: 200,
+              headers: {
+                "content-type": "text/html; charset=utf-8",
+                "cache-control": "public, max-age=0, must-revalidate",
+                "x-eic-home": "prerender",
+              },
+            });
+          }
+        }
+      } catch (e) {
+        // Qualunque problema → shell come prima. Mai una home bianca.
+        console.warn("[middleware] home prerender non servita:", e && e.message);
+      }
+    }
     return next();
   }
 

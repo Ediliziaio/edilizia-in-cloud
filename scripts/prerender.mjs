@@ -42,6 +42,9 @@ const BASE_URL = `http://127.0.0.1:${PORT}`;
 // Convenzione: ordinare alfabeticamente per facilitare diff in PR.
 const STATIC_ROUTES = [
   "/",
+  // /login NON si prerenderizza: provato il 05/09, il markup catturato a
+  // 1280 px sul telefono dava CLS 0,91. Resta il primo candidato per la
+  // prossima iterazione (prerender doppio mobile/desktop per UA).
   "/avviso-legale",
   "/blog",
   "/casi-studio",
@@ -204,6 +207,7 @@ function loadBlogSlugs() {
     "src/data/blogPostsConfrontoMercato.ts",
     "src/data/blogPostsConfrontoDiretti.ts",
     "src/data/blogPostsPillarGestione.ts",
+    "src/data/blogPostsCantierePmi.ts",
   ];
   const slugs = new Set();
   for (const rel of files) {
@@ -313,7 +317,11 @@ async function main() {
   const categorySlugs = loadBlogCategorySlugs();
   const blogRoutes = blogSlugs.map((s) => `/blog/${s}`);
   const categoryRoutes = categorySlugs.map((s) => `/blog/categoria/${s}`);
-  const allRoutes = [...new Set([...STATIC_ROUTES, ...blogRoutes, ...categoryRoutes])];
+  // PRERENDER_ONLY="/prezzi,/funzionalita" → prerender solo quelle rotte.
+  // Serve a misurare una modifica in minuti invece che nei 15 di tutto il sito.
+  const soloRotte = (process.env.PRERENDER_ONLY || "").split(",").map((r) => r.trim()).filter(Boolean);
+  const allRoutes = [...new Set([...STATIC_ROUTES, ...blogRoutes, ...categoryRoutes])]
+    .filter((r) => soloRotte.length === 0 || soloRotte.includes(r));
 
   console.log(`▶ Prerender ${allRoutes.length} rotte (${STATIC_ROUTES.length} statiche + ${blogRoutes.length} blog + ${categoryRoutes.length} categorie)`);
 
@@ -383,6 +391,14 @@ async function main() {
           });
 
         // Settle per JsonLd inject + ultimi useEffect
+        // La home (e ogni pagina lunga) carica le sezioni sotto la piega in
+        // lazy: con 242 rotte in parallelo lo snapshot arrivava PRIMA di quei
+        // chunk e la home usciva da 77 KB senza footer (contro 292 KB in un
+        // run isolato) → servita così, il resto arriva dopo e sposta tutto
+        // (CLS 0,20). Il <footer> è l'ultimo elemento di ogni pagina pubblica:
+        // finché non c'è, la pagina non è finita. Chi non ce l'ha (404, login)
+        // aspetta al massimo 8 s e prosegue.
+        await page.waitForSelector("footer", { timeout: 8_000 }).catch(() => {});
         await page.waitForTimeout(150);
 
         let html = await page.content();
@@ -424,6 +440,46 @@ async function main() {
         });
         // 2. Strip vendor-flow CSS (xyflow, 15KB, not used on marketing)
         html = html.replace(/<link\s+rel="stylesheet"[^>]*href="[^"]*vendor-flow[^"]*\.css"[^>]*>/g, "");
+
+        // ── 3. CSS non bloccante ────────────────────────────────────────────
+        // page.content() fotografa il DOM a caricamento AVVENUTO: l'onload del
+        // preload ha già trasformato rel="preload" in rel="stylesheet", i chunk
+        // caricati a runtime hanno iniettato i loro <link rel="stylesheet">, e
+        // Beasties aveva già annidato due <noscript> uno dentro l'altro. Servito
+        // così, ogni pagina partiva con ~64 KB di CSS bloccante (Lighthouse
+        // mobile: 1,1 s su /prezzi/). Si lavora SOLO sul <head>: via ogni link ai
+        // fogli di build e ogni <noscript> (lì avvolgono solo quei fallback —
+        // l'iframe GTM sta nel <body>), poi un preload asincrono per foglio e UN
+        // fallback per chi ha JS spento.
+        {
+          const fine = html.indexOf("</head>");
+          if (fine !== -1) {
+            let head = html.slice(0, fine);
+            const cssHrefs = [];
+            head = head.replace(/<link\b[^>]*>/g, (tag) => {
+              const h = tag.match(/\bhref="([^"]+\.css)"/);
+              if (!h || !h[1].includes("/assets-cb3/")) return tag;
+              if (!cssHrefs.includes(h[1])) cssHrefs.push(h[1]);
+              return "";
+            });
+            head = head.replace(/<\/?noscript>/g, "");
+            if (cssHrefs.length) {
+              const preload = cssHrefs
+                .map((h) => `<link rel="preload" as="style" crossorigin href="${h}" onload="this.onload=null,this.rel='stylesheet'">`)
+                .join("");
+              const fallback = `<noscript>${cssHrefs.map((h) => `<link rel="stylesheet" crossorigin href="${h}">`).join("")}</noscript>`;
+              // Subito dopo il <title>: lo scanner del browser li vede presto,
+              // prima dei blocchi inline di GA/GTM che seguono nel <head>.
+              const dopoTitle = head.indexOf("</title>");
+              head = dopoTitle !== -1
+                ? head.slice(0, dopoTitle + 8) + preload + head.slice(dopoTitle + 8)
+                : head + preload;
+              html = head + fallback + html.slice(fine);
+            } else {
+              html = head + html.slice(fine);
+            }
+          }
+        }
 
         // ROOT CAUSE FIX: route "/" non deve più sovrascrivere dist/index.html
         // (lo SHELL Vite che funziona da SPA fallback per /* in _redirects).

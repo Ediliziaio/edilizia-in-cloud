@@ -1,4 +1,4 @@
-import { createRoot } from "react-dom/client";
+import { createRoot, hydrateRoot } from "react-dom/client";
 import { installInvalidAuthSessionRecovery } from "./lib/authInvalidSessionRecovery";
 import App from "./App.tsx";
 import "./index.css";
@@ -135,7 +135,31 @@ if (isNative && typeof window !== "undefined") {
   });
 }
 
-createRoot(document.getElementById("root")!).render(<App />);
+const rootEl = document.getElementById("root")!;
+
+// Le pagine del sito arrivano già prerenderizzate (scripts/prerender.mjs).
+// createRoot CANCELLAVA quel DOM e lo ricreava da zero: il titolo, già
+// dipinto, spariva per rinascere a fine montaggio, e l'LCP diventava
+// l'hydration (6,5 s su /prezzi/ in Lighthouse mobile). hydrateRoot riusa i
+// nodi esistenti: il primo paint del prerender È il contenuto finale.
+// Se il markup non combacia, React 18 lo segnala e rifà il render lato
+// client — niente si rompe, si perde solo il guadagno su quella pagina.
+// Il meta x-prerendered lo scrive solo il prerender: lo shell SPA (che ha
+// dentro lo spinner iniziale) continua a passare da createRoot.
+const prerenderizzata =
+  rootEl.childElementCount > 0 && !!document.querySelector('meta[name="x-prerendered"]');
+
+if (prerenderizzata) {
+  hydrateRoot(rootEl, <App />, {
+    onRecoverableError: (err) => {
+      // Visibile in console e a Sentry: un mismatch ricorrente su una rotta
+      // va sistemato alla fonte, non ignorato.
+      console.warn("[hydration] markup prerender ≠ client:", err);
+    },
+  });
+} else {
+  createRoot(rootEl).render(<App />);
+}
 
 // Velocity RUM — Web Vitals reporter (no-op in dev).
 // Avviato DOPO il mount in modo da non sottrarre millisecondi al first paint.
