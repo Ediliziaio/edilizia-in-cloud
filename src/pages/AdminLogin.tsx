@@ -8,12 +8,13 @@ import { Label } from "@/components/ui/label";
 import { Loader2, Lock, Shield, Eye, EyeOff, AlertCircle, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { TwoFactorVerify } from "@/components/auth/TwoFactorVerify";
+import { EmailOTPLogin } from "@/components/auth/EmailOTPLogin";
 import { SSOButtons } from "@/components/auth/SSOButtons";
 import { ADMIN_PLATFORM_ROLES, type AppRole } from "@/types/auth";
 import { isSuperAdminEmailAllowed } from "@/config/superAdmin";
 import { useSEO } from "@/hooks/useSEO";
 
-type ViewMode = "login" | "2fa" | "forgot-password";
+type ViewMode = "login" | "2fa" | "forgot-password" | "email-otp";
 
 export default function AdminLogin() {
   const { user, role, isLoading, signIn } = useAuth();
@@ -133,6 +134,17 @@ export default function AdminLogin() {
           setIsSubmitting(false);
           return;
         }
+
+        // Secondo fattore anche da qui.
+        //
+        // Il login normale (LoginForm) impone da sempre la verifica via codice
+        // email dopo la password. Questa pagina no: chi entrava dall'ingresso
+        // amministrativo, con il TOTP non configurato, arrivava alla dashboard
+        // con la sola password — proprio l'accesso che apre tutte le aziende.
+        // Ora fa lo stesso percorso degli altri.
+        setView("email-otp");
+        setIsSubmitting(false);
+        return;
       }
     } catch {
       setFormError("Si è verificato un errore. Riprova.");
@@ -221,6 +233,26 @@ export default function AdminLogin() {
               </button>
             </form>
           )}
+        </div>
+      </div>
+    );
+  }
+
+  // Secondo fattore via codice email: stessa verifica del login normale.
+  if (view === "email-otp") {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#0a0a0a] p-4">
+        <div className="animate-in fade-in-0 slide-in-from-bottom-4 duration-500 w-full max-w-md bg-white/[0.04] backdrop-blur-xl border border-white/10 rounded-2xl p-8">
+          <EmailOTPLogin
+            email={email}
+            onCancel={async () => {
+              await supabase.auth.signOut();
+              setView("login");
+            }}
+            onVerified={() => {
+              window.location.href = "/admin";
+            }}
+          />
         </div>
       </div>
     );
