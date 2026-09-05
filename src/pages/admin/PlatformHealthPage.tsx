@@ -45,10 +45,24 @@ interface Salute {
     trial_scaduti_da_gestire: number;
     insoluti_aperti: number;
     aziende_cancellate_in_attesa: number;
+    disponibilita_24h_pct: number | null;
+    segreti_cron_in_chiaro: number;
   };
   job_falliti: JobRiga[];
   job: JobRiga[];
   funzioni: FunzioneRiga[];
+  battito?: {
+    stato: {
+      ultimo_esito: string | null;
+      ultimo_controllo: string | null;
+      ultima_durata_ms: number | null;
+      falliti_di_fila: number;
+      controlli_24h: number;
+      falliti_24h: number;
+      disponibilita_24h_pct: number | null;
+    } | null;
+    interruzioni: Array<{ inizio: string; fine: string; controlli_falliti: number }>;
+  };
   calcolato_il: string;
 }
 
@@ -93,6 +107,8 @@ export default function PlatformHealthPage() {
   });
 
   const r = data?.riepilogo;
+  const battito = data?.battito?.stato ?? null;
+  const interruzioni = data?.battito?.interruzioni ?? [];
   const jobFalliti = data?.job_falliti ?? [];
   const funzioni = data?.funzioni ?? [];
 
@@ -164,6 +180,28 @@ export default function PlatformHealthPage() {
               dettaglio="ripristinabili entro 30 giorni"
             />
             <Tessera
+              etichetta="Raggiungibilità 24h"
+              valore={r.disponibilita_24h_pct === null ? "—" : `${r.disponibilita_24h_pct}%`}
+              dettaglio={
+                battito?.ultimo_esito === "fallito"
+                  ? `non risponde da ${battito.falliti_di_fila} controlli`
+                  : `sonda esterna ogni 2 minuti · ${battito?.controlli_24h ?? 0} controlli`
+              }
+              tono={
+                battito?.ultimo_esito === "fallito"
+                  ? "critico"
+                  : (r.disponibilita_24h_pct ?? 100) < 100
+                    ? "attenzione"
+                    : "buono"
+              }
+            />
+            <Tessera
+              etichetta="Segreti cron in chiaro"
+              valore={r.segreti_cron_in_chiaro}
+              dettaglio="devono stare nel Vault, non nel comando"
+              tono={r.segreti_cron_in_chiaro > 0 ? "critico" : "buono"}
+            />
+            <Tessera
               etichetta="Copertura misurazione"
               valore={`${Math.round((r.funzioni_strumentate / Math.max(r.funzioni_totali_stimate, 1)) * 100)}%`}
               dettaglio="funzioni che registrano metriche"
@@ -175,6 +213,45 @@ export default function PlatformHealthPage() {
               dettaglio="si aggiorna ogni 2 minuti"
             />
           </div>
+
+          {interruzioni.length > 0 && (
+            <Card className="border-destructive/40">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Activity className="h-4 w-4 text-destructive" />
+                  Quando la piattaforma non ha risposto (48 ore)
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0 overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="border-b bg-muted/40">
+                    <tr className="text-left">
+                      <th className="p-2 font-medium">Inizio</th>
+                      <th className="p-2 font-medium">Fine</th>
+                      <th className="p-2 font-medium text-right">Durata</th>
+                      <th className="p-2 font-medium text-right">Falliti</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {interruzioni.map((i) => {
+                      const minuti = Math.max(
+                        1,
+                        Math.round((new Date(i.fine).getTime() - new Date(i.inizio).getTime()) / 60000),
+                      );
+                      return (
+                        <tr key={i.inizio} className="border-b last:border-0">
+                          <td className="p-2 whitespace-nowrap">{format(new Date(i.inizio), "d MMM HH:mm")}</td>
+                          <td className="p-2 whitespace-nowrap">{format(new Date(i.fine), "d MMM HH:mm")}</td>
+                          <td className="p-2 text-right whitespace-nowrap">{minuti} min</td>
+                          <td className="p-2 text-right">{i.controlli_falliti}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </CardContent>
+            </Card>
+          )}
 
           <Card>
             <CardHeader className="pb-3">
