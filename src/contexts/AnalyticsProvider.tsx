@@ -37,7 +37,18 @@ const AREE_APP = [
   "/partner", "/referral", "/produttore", "/portale", "/appuntamento", "/prenota",
 ];
 
+/**
+ * Pagine di servizio: sono la porta dell'app, non il sito. Le calpesta ogni
+ * cliente già attivo che entra al mattino, e nell'attribuzione varrebbero come
+ * "pagine viste dal visitatore" falsando ogni conteggio.
+ */
+const PAGINE_SERVIZIO = [
+  "/login", "/registrati", "/signup", "/reset-password", "/cambia-password",
+  "/recupera-password", "/auth", "/logout", "/seleziona-azienda", "/2fa",
+];
+
 function percorsoDaNonTracciare(pathname: string): boolean {
+  if (PAGINE_SERVIZIO.some((p) => pathname === p || pathname.startsWith(`${p}/`))) return true;
   return AREE_APP.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
 
@@ -115,8 +126,18 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
   // riempirebbe la tabella di rumore.
   useEffect(() => {
     if (percorsoDaNonTracciare(location.pathname)) return;
-    tracciaPagina(location.pathname + location.search);
-  }, [location.pathname, location.search]);
+    // Si traccia il percorso SENZA query string: i parametri del simulatore
+    // prezzi (billing, fatturato_medio, ore_settimana…) cambiano a ogni tocco
+    // dello slider e ognuno risulterebbe una pagina diversa — un solo
+    // visitatore genererebbe decine di righe e "/prezzi" sparirebbe dalle
+    // classifiche, spezzata in mille varianti. Per lo stesso motivo l'effetto
+    // non dipende più da location.search.
+    //
+    // Il titolo si legge un attimo dopo: al momento del cambio rotta il
+    // <title> è ancora quello della pagina precedente.
+    const t = window.setTimeout(() => tracciaPagina(location.pathname), 350);
+    return () => window.clearTimeout(t);
+  }, [location.pathname]);
 
   return <>{children}</>;
 }

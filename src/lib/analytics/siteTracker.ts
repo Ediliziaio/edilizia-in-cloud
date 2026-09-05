@@ -107,6 +107,17 @@ function provenienza(): Provenienza {
   return dato;
 }
 
+/**
+ * Il sito serve le pagine con lo slash finale ("/prezzi/") ma la navigazione
+ * interna di React Router usa "/prezzi": senza normalizzare, la stessa pagina
+ * comparirebbe come due voci diverse in ogni classifica.
+ */
+function normalizza(percorso: string): string {
+  const senzaQuery = percorso.split("?")[0].split("#")[0];
+  if (senzaQuery.length > 1 && senzaQuery.endsWith("/")) return senzaQuery.slice(0, -1);
+  return senzaQuery || "/";
+}
+
 /** Il tracciamento non deve mai rallentare né rompere la navigazione. */
 export function tracciaPagina(percorso: string, titolo?: string): void {
   if (typeof window === "undefined") return;
@@ -114,7 +125,7 @@ export function tracciaPagina(percorso: string, titolo?: string): void {
   const corpo = {
     session_id: sessionId(),
     visitor_id: visitorId(),
-    path: percorso,
+    path: normalizza(percorso),
     title: titolo ?? document.title,
     ...provenienza(),
   };
