@@ -62,22 +62,26 @@ BEGIN
 END;
 $function$;
 
--- Demo Azienda 2: i contatti duplicati (stessa email) confluiscono nel più vecchio;
--- i riferimenti nelle altre tabelle vengono spostati, le copie finiscono nel cestino.
+-- Demo Azienda 2: i contatti duplicati (stessa email) confluiscono nel più vecchio.
+-- ATTENZIONE (incidente 05/09/2026): la prima versione girava su TUTTE le 56 tabelle
+-- con FK verso marketing_contacts dentro un'unica transazione, e ha bloccato il
+-- database (istanza da 1 GB) per ~10 minuti. Questa versione tocca solo le tabelle
+-- che contano davvero per la demo, una alla volta, con lock_timeout: se qualcuno
+-- tiene un lock si salta e si va avanti. Le copie restano nel cestino.
 DO $$
 DECLARE
-  fk record;
+  t record;
   v_demo uuid := 'd2000000-0000-4000-a000-000000000002';
-  v_ha_righe boolean;
+  tabelle text[][] := ARRAY[
+    ['quotes','contact_id'], ['marketing_opportunities','contact_id'], ['marketing_contact_activities','contact_id'],
+    ['marketing_contact_notes','contact_id'], ['marketing_contact_field_values','contact_id'], ['marketing_contact_list_members','contact_id'],
+    ['tasks','contact_id'], ['scadenze','contact_id'], ['form_submissions','contact_id'], ['contact_attributions','contact_id'],
+    ['attribution_sessions','contact_id'], ['documento_sessioni','contact_id'], ['fv_progetti','cliente_id'], ['render_sessions','contact_id'],
+    ['commercial_visit_debriefs','visited_contact_id'], ['customer_complaints','contact_id'], ['support_tickets','contact_id'],
+    ['simulazioni','contact_id'], ['listini_cliente','contact_id'], ['crm_roi_simulations','contact_id'], ['contact_messages','contact_id']];
+  i int;
 BEGIN
-  -- Spostare i riferimenti non deve svegliare i trigger applicativi (es. su
-  -- appointments parte un evento Google Ads che pretende un utente loggato).
-  BEGIN
-    PERFORM set_config('session_replication_role', 'replica', true);
-  EXCEPTION WHEN OTHERS THEN
-    NULL;
-  END;
-
+  SET LOCAL lock_timeout = '3s';
   CREATE TEMP TABLE tmp_contatti_doppi ON COMMIT DROP AS
     SELECT keep.id AS keep_id, dup.id AS dup_id
     FROM (
@@ -89,29 +93,17 @@ BEGIN
     JOIN public.marketing_contacts dup
       ON dup.company_id = v_demo AND dup.deleted_at IS NULL AND lower(dup.email) = keep.e AND dup.id <> keep.id;
 
-  FOR fk IN
-    SELECT tc.table_name, kcu.column_name
-    FROM information_schema.table_constraints tc
-    JOIN information_schema.key_column_usage kcu ON kcu.constraint_name = tc.constraint_name AND kcu.table_schema = tc.table_schema
-    JOIN information_schema.constraint_column_usage ccu ON ccu.constraint_name = tc.constraint_name AND ccu.table_schema = tc.table_schema
-    WHERE tc.constraint_type = 'FOREIGN KEY' AND tc.table_schema = 'public'
-      AND ccu.table_name = 'marketing_contacts' AND ccu.column_name = 'id'
-  LOOP
-    EXECUTE format('SELECT EXISTS (SELECT 1 FROM public.%I t JOIN tmp_contatti_doppi m ON t.%I = m.dup_id)', fk.table_name, fk.column_name)
-      INTO v_ha_righe;
-    IF v_ha_righe THEN
-      BEGIN
-        EXECUTE format('UPDATE public.%I t SET %I = m.keep_id FROM tmp_contatti_doppi m WHERE t.%I = m.dup_id', fk.table_name, fk.column_name, fk.column_name);
-      EXCEPTION WHEN OTHERS THEN
-        -- es. iscrizione alla stessa lista già presente sul contatto tenuto, o un
-        -- trigger che rifiuta: la copia resta com'è, il resto va avanti
-        RAISE NOTICE 'dedupe contatti demo: % . % saltata (%)', fk.table_name, fk.column_name, SQLERRM;
-      END;
-    END IF;
+  FOR i IN 1 .. array_length(tabelle, 1) LOOP
+    BEGIN
+      EXECUTE format('UPDATE public.%I x SET %I = m.keep_id FROM tmp_contatti_doppi m WHERE x.%I = m.dup_id',
+                     tabelle[i][1], tabelle[i][2], tabelle[i][2]);
+    EXCEPTION WHEN OTHERS THEN
+      RAISE NOTICE 'dedupe contatti demo: %.% saltata (%)', tabelle[i][1], tabelle[i][2], SQLERRM;
+    END;
   END LOOP;
 
   UPDATE public.marketing_contacts c SET deleted_at = now()
-  FROM tmp_contatti_doppi m WHERE c.id = m.dup_id;
+  FROM tmp_contatti_doppi m WHERE c.id = m.dup_id AND c.deleted_at IS NULL;
 END $$;
 
 -- Reseed demo: non crea più copie dello stesso contatto.
