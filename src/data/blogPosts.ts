@@ -41,6 +41,7 @@ import { blogPostsNormativa } from "./blogPostsNormativa";
 import { blogPostsConfrontoMercato } from "./blogPostsConfrontoMercato";
 import { blogPostsConfrontoDiretti } from "./blogPostsConfrontoDiretti";
 import { blogPostsPillarGestione } from "./blogPostsPillarGestione";
+import { blogPostsCantierePmi } from "./blogPostsCantierePmi";
 
 export { FLO_AVATAR };
 
@@ -50,6 +51,7 @@ export const blogPosts: BlogPost[] = [
   ...blogPostsConfrontoMercato,
   ...blogPostsConfrontoDiretti,
   ...blogPostsPillarGestione,
+  ...blogPostsCantierePmi,
   {
     id: "1",
     slug: "ridurre-costi-cantieri-edili",
@@ -5554,71 +5556,96 @@ export const blogPosts: BlogPost[] = [
     id: "58",
     slug: "miglior-gestionale-edilizia-guida-scelta",
     faqs: [
-      { q: "Qual è il miglior gestionale per un'impresa edile?", a: "Quello che risolve il tuo problema principale e che la squadra usa davvero: per una PMI edile italiana significa cloud, verticale sul cantiere, con fatturazione SDI integrata, margini di commessa in tempo reale e app mobile per ore e rapportini. La prova sul campo vale più di ogni comparativa." },
-      { q: "Meglio un gestionale cloud o un software desktop?", a: "Il cloud non richiede server né installazioni, si aggiorna da solo, si usa da cantiere via smartphone e i dati sono sempre allineati. Il desktop ha senso solo se lavori sempre dallo stesso ufficio e senza squadre esterne — in edilizia è ormai un caso raro." },
-      { q: "Come faccio a capire se un gestionale fa per me prima di pagarlo?", a: "Usa il periodo di prova con dati veri: carica una commessa reale, fai timbrare la squadra per una settimana, emetti una fattura di prova. Se in 2 settimane la squadra lo usa senza lamentarsi e tu vedi i numeri del cantiere, è quello giusto." },
+      { q: "Qual è il miglior gestionale per un'impresa edile nel 2026?", a: "Dipende da chi sei. Per una PMI che esegue i lavori — da 3 a 50 persone — il migliore è un gestionale cloud verticale che la squadra usa dal telefono e che mostra il margine per commessa mentre il cantiere è aperto. Per uno studio tecnico è un software di computo. Per un'impresa strutturata con lavori pubblici è un sistema di project management. La classifica qui sopra li mette in fila per tipo di impresa." },
+      { q: "Meglio un gestionale cloud o un software desktop?", a: "Il cloud non richiede server né installazioni, si aggiorna da solo, si usa da cantiere via smartphone e i dati sono sempre allineati fra ufficio e squadra. Il desktop ha senso se lavori sempre dallo stesso ufficio e senza squadre esterne: in edilizia è ormai un caso raro." },
+      { q: "Perché in questa classifica non ci sono i prezzi?", a: "Perché cambiano, dipendono da utenti e moduli, e un numero letto oggi è sbagliato domani. Il consiglio che vale sempre: fatti dare per iscritto il costo totale del primo anno — canone, setup, formazione, moduli, utenti — e confronta quello." },
+      { q: "Come faccio a capire se un gestionale fa per me prima di pagarlo?", a: "Usa il periodo di prova con dati veri: carica una commessa reale, fai timbrare la squadra per una settimana, emetti una fattura dal SAL. Se in due settimane la squadra lo usa senza lamentarsi e tu vedi i numeri del cantiere, è quello giusto. Una demo guidata di trenta minuti non ti dice niente di tutto questo." },
     ],
-    title: "Miglior Gestionale per l'Edilizia 2026: Guida alla Scelta",
+    title: "Migliori Gestionali per Imprese Edili 2026: Classifica",
     excerpt:
-      "Cloud o desktop? Verticale o ERP? I 7 criteri che contano per scegliere il gestionale della tua impresa edile, con prezzi reali ed errori da evitare.",
+      "La classifica 2026 per tipo di impresa: cloud verticali, ERP, software tecnici e app di cantiere in una tabella, con criteri dichiarati e senza prezzi che scadono.",
     category: "Digitalizzazione",
-    tags: ["gestionale edilizia", "software edilizia", "confronto software", "digitalizzazione"],
+    tags: ["gestionale edilizia", "migliori gestionali", "software edilizia", "confronto software", "digitalizzazione"],
     publishedAt: "2026-06-11",
-    updatedAt: "2026-07-10",
-    readTime: 9,
+    updatedAt: "2026-09-05",
+    readTime: 12,
     author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage:
       "/blog/covers/miglior-gestionale-edilizia-guida-scelta.jpg",
     content: [
       {
         type: "intro",
-        body: "Il miglior gestionale per un'impresa edile non è il più famoso né il più costoso: è quello che il capocantiere usa davvero dal telefono e che dice al titolare, in tempo reale, se una commessa sta guadagnando o perdendo. In questa guida confrontiamo le categorie di software disponibili in Italia nel 2026 — ERP generalisti, software tecnici desktop, gestionali cloud verticali — con criteri misurabili e range di prezzo reali.",
+        body: "Il miglior gestionale per un'impresa edile non è il più famoso né il più completo: è quello che il capocantiere usa davvero dal telefono e che dice al titolare, ogni settimana, se una commessa sta guadagnando o perdendo. Le classifiche che trovi in giro mettono in fila dieci nomi con le stelline. Questa fa una cosa diversa: divide i software per il tipo di impresa a cui servono, dichiara i criteri, e non riporta prezzi — perché un numero letto oggi è sbagliato domani. Aggiornata a settembre 2026.",
       },
       {
         type: "section",
-        heading: "Le tre famiglie di software per l'edilizia",
-        body: "Gli ERP generalisti (TeamSystem, Zucchetti) coprono contabilità e processi di qualsiasi settore: potentissimi per gruppi strutturati con un ufficio IT, ma richiedono mesi di implementazione, consulenti e canoni che partono spesso da 200-500€/mese più setup. I software tecnici desktop (Primus di ACCA, STR Vision) eccellono su computi metrici e contabilità lavori: restano lo standard per studi tecnici e progettisti, meno per la gestione quotidiana dell'impresa che esegue. I gestionali cloud verticali per l'edilizia, come Edilizia in Cloud, nascono invece per il flusso completo dell'impresa: preventivo, cantiere, SAL, fattura elettronica, operai e margini in un'unica piattaforma accessibile da smartphone.",
+        heading: "Come abbiamo valutato",
+        body: "Sette criteri, gli stessi che separano una scelta azzeccata da un abbonamento abbandonato dopo tre mesi. Uso dal telefono in cantiere: se un rapportino con foto non si fa in due minuti, il software resterà vuoto. Margine per commessa in tempo reale: preventivo contro costi reali mentre il cantiere è aperto, non sei mesi dopo. Fatturazione elettronica e adempimenti italiani: SDI, reverse charge, Cassa Edile, DURC, ritenute, congruità — un software nato altrove qui si ferma. Tempo di avvio: settimane, non mesi. Costo totale trasparente: canone tutto incluso contro canone base più moduli, utenti e assistenza. AI operativa: preventivi dal computo, render per il cliente, risposte sui dati aziendali. Dati tuoi: esportabili, in formato standard, quando vuoi.",
       },
       {
-        type: "section",
-        heading: "I 7 criteri che contano davvero",
-        body: "Dopo centinaia di migrazioni da Excel e da altri software, questi sono i criteri che separano una scelta azzeccata da un abbonamento abbandonato dopo tre mesi.",
-      },
-      {
-        type: "list",
-        items: [
-          "1. Usabilità in cantiere: se il capocantiere non riesce a compilare un rapportino dal telefono in 2 minuti, il software resterà inutilizzato.",
-          "2. Marginalità per commessa in tempo reale: il preventivo confrontato con i costi reali (materiali, manodopera, subappalti) mentre il cantiere è aperto, non sei mesi dopo.",
-          "3. Fatturazione elettronica SDI nativa: fatture B2B e PA, reverse charge edilizia, note di credito e conservazione decennale senza moduli aggiuntivi.",
-          "4. Adempimenti edili italiani: giornale lavori, subappalti con ritenute, DURC, Cassa Edile, congruità manodopera. Un software internazionale qui si ferma.",
-          "5. Tempo di avvio: settimane, non mesi. Chiedi sempre quanto dura l'onboarding e chi importa i tuoi dati storici.",
-          "6. Costo totale trasparente: canone tutto incluso vs canone base + moduli + utenti extra + assistenza a pagamento.",
-          "7. AI operativa: nel 2026 un gestionale moderno scrive preventivi dal computo, prepara render per il cliente e risponde alle domande sui dati aziendali.",
+        type: "table",
+        heading: "La classifica 2026 in una tabella",
+        headers: ["Software", "Per chi è fatto", "Dove è forte", "Dove si ferma", "Cantiere dal telefono", "SDI e adempimenti IT"],
+        rows: [
+          ["Edilizia in Cloud", "PMI edili, serramentisti, impiantisti da 3 a 50 persone", "Flusso completo preventivo → cantiere → SAL → fattura; app operai; AI su preventivi e render; utenti illimitati", "Non è un software di progettazione né un ERP multi-società", "Sì, nativo", "Sì, nativi"],
+          ["TeamSystem Construction (CPM)", "Imprese strutturate, società di ingegneria, lavori pubblici", "Project management di commesse complesse, integrazione con la contabilità della stessa suite", "Più moduli separati, avvio lungo, pensato per l'ufficio", "App dedicata", "Sì, via suite"],
+          ["ACCA PriMus", "Studi tecnici, progettisti, computisti", "Computo metrico e contabilità lavori, prezzari, capitolati", "Non gestisce l'impresa che esegue: operai, fatture, cassa", "No", "Moduli a parte"],
+          ["STR Vision CPM", "Imprese medio-grandi con ufficio tecnico", "Contabilità di cantiere e controllo commesse", "Curva di apprendimento lunga, serve chi lo alimenta in ufficio", "Parziale", "Via integrazioni"],
+          ["Blumatica", "Studi tecnici e sicurezza cantiere", "POS, PSC, computi, adempimenti sicurezza", "È un software tecnico, non un gestionale d'impresa", "No", "No"],
+          ["PlanRadar", "Direzione lavori, difetti, documentazione", "Ticket e foto sul disegno, collaborazione fra soggetti", "Niente fatturazione, niente margini, niente adempimenti italiani", "Sì", "No"],
+          ["myAEDES", "Capocantieri e coordinatori sicurezza", "Rapportini, giornale lavori, checklist; si parte gratis", "Si ferma alla documentazione del cantiere", "Sì", "No"],
+          ["Excel + WhatsApp", "Chi parte da zero", "Costo zero, lo sanno usare tutti", "Nessun margine per commessa, dati sparsi, ricopiature ogni sera", "—", "—"],
         ],
       },
       {
         type: "section",
-        heading: "Quanto costano le alternative nel 2026",
-        body: "Gli ERP generalisti partono da 200-500€/mese a cui vanno aggiunti setup, formazione e spesso canoni per modulo. I software desktop prevedono licenze una tantum di centinaia o migliaia di euro più aggiornamenti annuali. I gestionali cloud verticali vanno dai 50€ ai 550€/mese in base alla dimensione dell'impresa: Edilizia in Cloud, ad esempio, ha un piano gratuito per sempre con cui partire e quota i piani superiori su misura in una consulenza gratuita, sempre con utenti illimitati, tutte le funzionalità incluse e nessun costo di attivazione.",
+        heading: "Il migliore per una PMI edile da 3 a 50 persone",
+        body: "È l'impresa che esegue i lavori, dove il titolare fa il preventivo la sera e il cantiere di giorno, e dove il gestionale lo alimenta chi sta sul ponteggio, dal telefono. Qui vince il gestionale cloud verticale, e nel 2026 [Edilizia in Cloud](/per/imprese-edili) è quello costruito esattamente per questo caso: preventivo, cantiere con rapportini, foto e firma, SAL, fattura elettronica, operai e margine per commessa in una piattaforma sola, con utenti illimitati perché in una PMI lo devono usare tutti o non lo usa nessuno. Onestà: non è un software di progettazione — chi fa computi per conto terzi continuerà a usare PriMus — e non è un ERP multi-società. Per chi vuole approfondire il caso della piccola impresa, [qui c'è cosa serve davvero da 3 a 15 persone](/blog/gestionale-cantiere-piccola-impresa-edile).",
       },
       {
         type: "section",
-        heading: "Quando NON scegliere un gestionale verticale cloud",
-        body: "Onestà prima di tutto: se la tua attività principale è la progettazione e il computo metrico estimativo per conto terzi, un software tecnico come Primus resta la scelta giusta. Se sei un general contractor da decine di milioni con un ufficio IT interno e processi contabili complessi multi-società, un ERP enterprise può avere senso. Per la PMI edile italiana che esegue i lavori — da 1 a 50 dipendenti — il gestionale verticale cloud è quasi sempre la scelta con il miglior rapporto valore/costo.",
+        heading: "Il migliore per studi tecnici e progettisti",
+        body: "Se il tuo lavoro è progettare, computare e dirigere lavori per conto terzi, il gestionale d'impresa non è il tuo strumento principale: lo sono i software di computo metrico e contabilità lavori. PriMus di ACCA resta lo standard in Italia per computi, capitolati e prezzari; Blumatica copre bene la sicurezza (POS, PSC) e i computi. Sono ottimi nel loro campo e non pretendono di gestire operai, fatture e cassa: chi ha entrambe le anime — studio tecnico e impresa che esegue — di solito affianca un software di computo a un gestionale d'impresa che importa il computo come budget di commessa.",
+      },
+      {
+        type: "section",
+        heading: "Il migliore per imprese strutturate e lavori pubblici",
+        body: "Con decine di commesse aperte, un ufficio tecnico, un ufficio gare e la contabilità di commessa da riconciliare con quella generale, servono sistemi di project management pensati per quella complessità: TeamSystem Construction e STR Vision sono i riferimenti. Hanno il pregio di coprire tutto e il rovescio della medaglia che si porta dietro quel «tutto»: moduli separati, avvio di mesi, consulenti, e un'organizzazione in ufficio che li alimenta. Per un'impresa da cinque milioni in su con quella organizzazione hanno senso pieno. Per una PMI sono il classico software del cugino grande: completo, e vuoto dopo sei mesi.",
+      },
+      {
+        type: "section",
+        heading: "Il migliore per chi vuole solo documentare il cantiere",
+        body: "Non tutti hanno bisogno di un gestionale. Se il problema è tenere rapportini, giornale lavori, checklist e foto in ordine — e la fatturazione la fa già qualcun altro — le app di documentazione sono la scelta giusta e spesso si parte gratis: myAEDES per rapportini e sicurezza, PlanRadar per difetti e collaborazione sul disegno. Il limite è chiaro e dichiarato: si fermano al cantiere. Il giorno in cui vuoi sapere se la commessa sta guadagnando, i dati vanno ricopiati altrove. Ne abbiamo scritto in [dove arrivano davvero le app gratuite per il cantiere](/blog/app-gestione-cantieri-gratis).",
+      },
+      {
+        type: "list",
+        heading: "I 5 errori che vediamo più spesso",
+        items: [
+          "Scegliere il software dell'impresa più grande: completo in demo, vuoto dopo sei mesi perché nessuno in cantiere lo usa.",
+          "Comprare la demo invece della prova: trenta minuti guidati non dicono se la squadra lo userà. Una settimana con i tuoi dati sì.",
+          "Ignorare gli adempimenti italiani: Cassa Edile, DURC, ritenute, congruità. Un software internazionale li scopre dopo la firma.",
+          "Sommare i moduli dopo: il costo totale del primo anno va per iscritto prima, con utenti, setup e assistenza.",
+          "Non chiedere dei propri dati: se non puoi esportarli in formato standard quando vuoi, non sono tuoi.",
+        ],
+      },
+      {
+        type: "callout",
+        variant: "info",
+        body: "Perché non trovi prezzi in questa classifica: cambiano, dipendono da utenti e moduli, e un numero pubblicato oggi è sbagliato domani. Chiedi a ogni fornitore il costo totale del primo anno per iscritto e confronta quello — è l'unico confronto che regge.",
       },
       {
         type: "quote",
-        quote: "Abbiamo provato un ERP famoso: dopo sei mesi lo usava solo l'amministrazione. Con un gestionale nato per l'edilizia, in una settimana anche i capisquadra caricavano ore e foto dal cantiere.",
+        quote: "Abbiamo provato un software famoso: dopo sei mesi lo usava solo l'amministrazione. Con un gestionale nato per l'edilizia, in una settimana anche i capisquadra caricavano ore e foto dal cantiere.",
         author: "Titolare impresa edile, 18 dipendenti, Lombardia",
       },
       {
         type: "section",
-        heading: "La checklist prima di firmare",
-        body: "Chiedi sempre una prova gratuita completa (non una demo guidata di 30 minuti), verifica che l'esportazione dei dati sia libera e in formato standard, fatti dire il prezzo totale del primo anno per iscritto e misura quanto ci mette il fornitore a rispondere a un ticket. Questi quattro test eliminano da soli l'80% delle delusioni.",
+        heading: "La prova che vale più di ogni classifica",
+        body: "Chiedi una prova gratuita completa con i tuoi dati, non una demo. Carica una commessa vera. Fai timbrare la squadra e compilare un rapportino con foto per una settimana. Emetti una fattura dal SAL. Verifica che i dati si esportino. Fatti dare per iscritto il costo totale del primo anno. Cinque test, due settimane: eliminano da soli l'ottanta per cento delle delusioni, e ti dicono di ogni software in classifica quello che nessuna classifica può dirti — se nella tua impresa lo userete davvero.",
       },
       {
         type: "cta",
-        body: "Vuoi vedere come funziona un gestionale nato per le imprese edili italiane? Prova Edilizia in Cloud gratis per 31 giorni: setup incluso, migrazione dati assistita e nessun vincolo.",
+        body: "Vuoi fare la prova con un gestionale nato per le imprese edili italiane? Edilizia in Cloud è gratis per 31 giorni, senza carta di credito: setup incluso, migrazione dei dati assistita, nessun vincolo.",
       },
     ],
   },
