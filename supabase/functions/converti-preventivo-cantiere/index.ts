@@ -76,6 +76,19 @@ Deno.serve(async (req) => {
       created_by:     userId,
     };
 
+    // Il cliente va COLLEGATO, non solo copiato come testo: senza customer_id la
+    // commessa non compare nel portale del cliente né nel suo storico, e il
+    // nome in chiaro non basta a nessuna ricerca. Il contatto CRM sa a quale
+    // profilo cliente corrisponde (marketing_contacts.customer_profile_id).
+    if (quote.contact_id) {
+      const { data: contatto } = await supabaseAdmin
+        .from("marketing_contacts")
+        .select("customer_profile_id")
+        .eq("id", quote.contact_id)
+        .maybeSingle();
+      if (contatto?.customer_profile_id) orderData.customer_id = contatto.customer_profile_id;
+    }
+
     // Campi opzionali presenti solo se la colonna esiste.
     // Usiamo Record<string, unknown> invece di `any` per safety —
     // `in` guard già garantisce presenza della chiave.
@@ -138,8 +151,12 @@ Deno.serve(async (req) => {
     if (qiErr) {
       console.error("Errore lettura righe preventivo:", qiErr);
     } else if (quoteItems && quoteItems.length > 0) {
+      // Le righe OPZIONALI sono proposte che il cliente non ha scelto: il PDF le
+      // mostra a parte e le tiene fuori dal totale. Portarle nella commessa
+      // faceva sì che la somma delle righe superasse il totale accettato.
       const rows = (quoteItems as Array<Record<string, unknown>>)
         .filter((r) => !SKIP_CATEGORIES.has(String(r.item_category ?? "")))
+        .filter((r) => r.is_optional !== true)
         .map((r, idx) => {
           const suMisura = !!r.family_id;
           const mx = r.misura_x as number | null | undefined;

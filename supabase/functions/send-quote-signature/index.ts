@@ -45,6 +45,24 @@ Deno.serve(async (req) => {
     }
 
     // Determine recipient
+    // Lo sconto era controllato solo nel browser (QuoteDiscountControl): qui
+    // nessuno guardava approval_status, e un preventivo oltre il limite del
+    // ruolo partiva lo stesso. La regola è la stessa RPC che usa l'interfaccia.
+    const scontoPct = Number(quote.discount_percent ?? 0);
+    if (scontoPct > 0 && quote.approval_status !== "approved") {
+      const { data: limiti } = await supabaseAdmin.rpc("compute_max_discount", {
+        p_quote_id: quote_id,
+        p_user_id: userId,
+      });
+      const maxPct = Number((limiti as { max_sconto_pct?: number } | null)?.max_sconto_pct ?? 100);
+      if (scontoPct > maxPct + 1e-9) {
+        return errorResponse(
+          `Sconto del ${scontoPct}% oltre il limite consentito (${maxPct}%): serve l'approvazione prima di inviare il preventivo.`,
+          403,
+        );
+      }
+    }
+
     const finalEmail = recipient_email || quote.client_email;
     const finalName = recipient_name || quote.client_name || "Cliente";
 

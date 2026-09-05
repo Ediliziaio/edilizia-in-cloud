@@ -134,6 +134,13 @@ Deno.serve(async (req) => {
     let attachmentRows: any[] = [];
     let branding: any = null;
     let pdfImp: any = {};
+    // Opzioni PDF scelte sul singolo preventivo (step «Documenti e PDF»).
+    // Erano esposte in interfaccia e ignorate qui: l'utente spuntava «mostra
+    // misure» e il PDF usciva identico. Default = attivo, come nella UI.
+    const opzione = (chiave: string, predefinito = true): boolean => {
+      const v = quote?.[chiave];
+      return v == null ? predefinito : v !== false;
+    };
 
     if (isPreview) {
       // Use sample data – no DB lookups needed
@@ -305,6 +312,28 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Miniature prodotto per riga (opzione «mostra immagini»): scaricate una
+    // volta per URL, con timeout breve; qualunque errore = nessuna immagine,
+    // mai un PDF che non esce.
+    const cacheImmagini = new Map<string, any>();
+    async function immagineProdotto(url: string): Promise<any> {
+      if (!url || !/^https?:\/\//i.test(url)) return null;
+      if (cacheImmagini.has(url)) return cacheImmagini.get(url);
+      let img: any = null;
+      try {
+        const resp = await fetch(url, { signal: AbortSignal.timeout(5_000) });
+        if (resp.ok) {
+          const bytes = new Uint8Array(await resp.arrayBuffer());
+          if (bytes.length > 0 && bytes.length < 4_000_000) {
+            img = bytes[0] === 0x89 && bytes[1] === 0x50 ? await pdfDoc.embedPng(bytes)
+              : bytes[0] === 0xff && bytes[1] === 0xd8 ? await pdfDoc.embedJpg(bytes) : null;
+          }
+        }
+      } catch { /* niente immagine */ }
+      cacheImmagini.set(url, img);
+      return img;
+    }
+
     // ─── Build PDF ───
     const pdfDoc = await PDFDocument.create();
     // Difesa strutturale WinAnsi: ogni pagina creata (incluse quelle dei salti
@@ -402,6 +431,11 @@ Deno.serve(async (req) => {
       pg.drawText(s, { x: xRight - textW(s, size, f), y: yy, size, font: f, color });
 
     // Helper: draw footer + page number on a page
+    // «Copia cliente / archivio / commerciale»: dicitura in piè di pagina.
+    const copiaDest = String(quote?.pdf_copia_destinatario ?? "").trim().toLowerCase();
+    const etichettaCopia = copiaDest && copiaDest !== "nessuna" && copiaDest !== "none"
+      ? "Copia " + copiaDest.charAt(0).toUpperCase() + copiaDest.slice(1)
+      : "";
     function drawPageExtras(page: any, pageNum: number, totalPages: number) {
       if (classicPremium) {
         // Banda footer brand: nome azienda a sinistra, pagina a destra.
@@ -414,7 +448,11 @@ Deno.serve(async (req) => {
         if (t.show_page_numbers) {
           drawRight(page, `${pageNum} / ${totalPages}`, pageWidth - margin, 8, 7.5, font, headerTextC);
         }
+        if (etichettaCopia) drawRight(page, etichettaCopia, pageWidth - margin - (t.show_page_numbers ? 48 : 0), 8, 7, fontItalic, headerTextC);
         return;
+      }
+      if (etichettaCopia) {
+        page.drawText(etichettaCopia, { x: pageWidth / 2 - 30, y: 25, size: 7.5, font: fontItalic, color: grayC });
       }
       if (t.footer_text) {
         page.drawText(t.footer_text, {
@@ -431,8 +469,10 @@ Deno.serve(async (req) => {
 
     // Helper: draw watermark
     function drawWatermark(page: any) {
-      if (t.show_watermark && t.watermark_text) {
-        page.drawText(t.watermark_text, {
+      const wmPreventivo = String(quote?.pdf_watermark_text ?? "").trim();
+      const wm = wmPreventivo || ((t.show_watermark && t.watermark_text) ? String(t.watermark_text) : "");
+      if (wm) {
+        page.drawText(wm.slice(0, 40), {
           x: pageWidth / 2 - 100,
           y: pageHeight / 2,
           size: 48,
@@ -1031,7 +1071,29 @@ Deno.serve(async (req) => {
             item.description !== item.name &&
             !String(item.name).toLowerCase().includes(String(item.description).toLowerCase().trim())
           );
-          const rowH = (hasDesc ? 29 : 18) + rowExtra;
+          // Misure (L×H) e attributi (colore, apertura…) sotto la descrizione,
+          // e miniatura del prodotto: le tre opzioni che nessuno leggeva.
+          const dettagli: string[] = [];
+          if (opzione("pdf_mostra_misure") && !isNota && !isSubtotale) {
+            const mx = (item as any).misura_x, my = (item as any).misura_y;
+            if (mx != null || my != null) {
+              dettagli.push(`L ${mx != null ? Number(mx).toLocaleString("it-IT") : "—"} × H ${my != null ? Number(my).toLocaleString("it-IT") : "—"} cm`);
+            }
+          }
+          if (opzione("pdf_mostra_attributi") && !isNota && !isSubtotale) {
+            const ax = (item as any).axis_selections;
+            if (ax && typeof ax === "object" && !Array.isArray(ax)) {
+              const coppie = Object.entries(ax as Record<string, unknown>)
+                .filter(([, val]) => val != null && String(val).trim() !== "")
+                .map(([k, val]) => `${k.replace(/_/g, " ")}: ${String(val)}`);
+              if (coppie.length) dettagli.push(coppie.join(" · "));
+            }
+          }
+          const rigaDettagli = dettagli.join("  ·  ");
+          const immagineRiga = opzione("pdf_mostra_immagini", false) && !isNota && !isSubtotale
+            ? await immagineProdotto(String((item as any).image_url ?? ""))
+            : null;
+          const rowH = (hasDesc ? 29 : 18) + rowExtra + (rigaDettagli ? 11 : 0) + (immagineRiga ? 30 : 0);
 
           // Bordo completo di riga (template "tutti i bordi"), sotto il testo
           if (bordiTabella === "all") {
@@ -1091,6 +1153,17 @@ Deno.serve(async (req) => {
           if (hasDesc) {
             page.drawText(item.description.substring(0, 85), { x: descX, y, size: sz(7), font, color: grayC });
             y -= 11;
+          }
+          if (rigaDettagli) {
+            page.drawText(rigaDettagli.substring(0, 95), { x: descX, y, size: sz(7), font: fontItalic, color: grayC });
+            y -= 11;
+          }
+          if (immagineRiga) {
+            const lato = 26;
+            const rap = immagineRiga.width / immagineRiga.height;
+            const w = rap >= 1 ? lato : lato * rap, h = rap >= 1 ? lato / rap : lato;
+            page.drawImage(immagineRiga, { x: descX, y: y - h + 4, width: w, height: h });
+            y -= 30;
           }
           y -= 6 + rowExtra;
           // Filetto orizzontale tra le righe (template "orizzontali" o "tutti")
@@ -1334,7 +1407,7 @@ Deno.serve(async (req) => {
           `Il presente preventivo ha validità di ${quote.validity_days ?? t.validity_days ?? 30} giorni dalla data indicata. Eventuali variazioni saranno concordate per iscritto.`;
         if (t.show_payment_terms && payTxt) infoCols.push({ label: "CONDIZIONI DI PAGAMENTO", text: payTxt });
         if (t.show_delivery_terms && delTxt) infoCols.push({ label: "TEMPI DI ESECUZIONE", text: delTxt });
-        if (t.show_notes) infoCols.push({ label: "NOTE", text: noteTxt });
+        if (t.show_notes && opzione("pdf_mostra_note_cliente")) infoCols.push({ label: "NOTE", text: noteTxt });
         // Coordinate bancarie del template: prima si salvavano e non uscivano mai.
         const bancaTxt = normalizeTemplateText(t.bank_details);
         if (bancaTxt) infoCols.push({ label: "COORDINATE BANCARIE", text: bancaTxt });
@@ -1394,8 +1467,8 @@ Deno.serve(async (req) => {
     // pagine separate). Il vecchio campo legal_terms_text, se ancora presente,
     // viene stampato di seguito nella stessa sezione.
     const condizioniETermini = [
-      t.show_contractual_terms ? normalizeTemplateText(t.contractual_terms_text) : "",
-      t.show_legal_terms ? normalizeTemplateText(t.legal_terms_text) : "",
+      t.show_contractual_terms && opzione("pdf_mostra_condizioni") ? normalizeTemplateText(t.contractual_terms_text) : "",
+      t.show_legal_terms && opzione("pdf_mostra_condizioni") ? normalizeTemplateText(t.legal_terms_text) : "",
     ].filter(Boolean).join("\n\n");
     if (condizioniETermini) {
       await drawRichTextBlock("CONDIZIONI CONTRATTUALI E TERMINI LEGALI", condizioniETermini, { fontFamily: t.composed_terms?.font_family ?? null });
@@ -1404,7 +1477,7 @@ Deno.serve(async (req) => {
     // ─── Notes page ───
     // Nel classic le note brevi sono già nella colonna NOTE: pagina dedicata
     // solo se il testo è lungo.
-    if (t.show_notes && quote.notes && (!classicPremium || String(quote.notes).length > 320)) {
+    if (t.show_notes && opzione("pdf_mostra_note_cliente") && quote.notes && (!classicPremium || String(quote.notes).length > 320)) {
       // Riga per riga con guardia di pagina (stesso pattern di drawRichTextBlock):
       // il drawText monolitico faceva finire il testo lungo sotto la banda footer.
       const notesTitle = "NOTE E CONDIZIONI";
@@ -1486,7 +1559,7 @@ Deno.serve(async (req) => {
     }
 
     // ─── Merge attached PDFs (skip in preview mode) ───
-    if (!isPreview) {
+    if (!isPreview && opzione("pdf_includi_schede_tecniche")) {
       for (const att of attachmentRows) {
         const filePath = att.quote_pdf_materials?.storage_path;
         if (!filePath) continue;
@@ -1522,6 +1595,25 @@ Deno.serve(async (req) => {
       }
       const base64 = btoa(binary);
       return jsonResponse({ success: true, pdf_base64: base64 }, 200, corsH);
+    }
+
+    // ─── Documento già firmato: non si sovrascrive ───
+    // Il cliente ha firmato (OTP) proprio QUEL file, e documento_hash è la sua
+    // impronta: rigenerare con upsert sullo stesso percorso cancellerebbe la
+    // prova. Restituiamo il PDF firmato così com'è.
+    if (quote.signed_at && quote.pdf_storage_path) {
+      const { data: giaFirmato } = await supabaseAdmin.storage
+        .from("quote-pdfs")
+        .createSignedUrl(quote.pdf_storage_path, 3600);
+      if (giaFirmato?.signedUrl) {
+        return jsonResponse({
+          success: true,
+          pdf_path: quote.pdf_storage_path,
+          signed_url: giaFirmato.signedUrl,
+          gia_firmato: true,
+          message: "Preventivo già firmato dal cliente: il PDF firmato non viene rigenerato.",
+        }, 200, corsH);
+      }
     }
 
     // ─── Save to storage ───

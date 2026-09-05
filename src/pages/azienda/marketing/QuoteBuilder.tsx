@@ -1817,10 +1817,14 @@ export default function QuoteBuilder() {
         );
         await salvaRigheAtomiche(id!);
       } else {
-        const { data: numData } = await supabase.rpc("generate_quote_number", {
+        const { data: numData, error: numErr } = await supabase.rpc("generate_quote_number", {
           p_company_id: companyId,
         });
-        quoteData.quote_number = numData || `OFF-${new Date().getFullYear()}-001`;
+        // Il numero lo dà solo il database (contatore sotto lock + indice univoco).
+        // Prima, se la RPC falliva, qui nasceva un «OFF-<anno>-001» a prescindere:
+        // un doppione garantito. Meglio fermarsi e dirlo.
+        if (numErr || !numData) throw new Error(numErr?.message || "Impossibile assegnare il numero al preventivo: riprova.");
+        quoteData.quote_number = numData;
         const { data, error } = await supabase
           .from("quotes")
           .insert(quoteData)

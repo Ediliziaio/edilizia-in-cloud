@@ -70,7 +70,8 @@ export default function QuoteDetail() {
         a.remove();
         URL.revokeObjectURL(blobUrl);
       }
-      toast.success("PDF scaricato nei Download");
+      // Preventivo già firmato: l'edge restituisce il PDF firmato senza rigenerarlo.
+      toast.success(data?.gia_firmato ? "PDF firmato scaricato (non rigenerato: è il documento firmato dal cliente)" : "PDF scaricato nei Download");
       queryClient.invalidateQueries({ queryKey: queryKeys.quotes.detail(id) });
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "errore";
