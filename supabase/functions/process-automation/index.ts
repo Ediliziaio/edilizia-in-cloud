@@ -2634,6 +2634,52 @@ Istruzione: ${aiPrompt}`;
 // ────────────────────────────────────────────────────
 // QUEUE NEXT NODES
 // ────────────────────────────────────────────────────
+/**
+ * Finestra oraria del flusso: sposta un invio dentro l'orario consentito.
+ *
+ * `time_window_active` + `time_window_from/to` erano tre colonne che
+ * l'interfaccia salvava e che il motore non leggeva mai: una sequenza
+ * impostata "dalle 9 alle 18" mandava lo stesso alle tre di notte. Su email
+ * commerciali un orario sbagliato non e' solo maleducazione — abbassa aperture
+ * e alza le segnalazioni di spam.
+ *
+ * Se l'orario calcolato cade prima dell'apertura, si sposta all'apertura dello
+ * stesso giorno; se cade dopo la chiusura, all'apertura del giorno dopo. Non si
+ * anticipa mai un invio: al massimo si ritarda.
+ */
+function minutiDelGiorno(at: Date, tz: string): number {
+  try {
+    const p = new Intl.DateTimeFormat("en-US", {
+      timeZone: tz, hour12: false, hour: "2-digit", minute: "2-digit",
+    }).formatToParts(at);
+    const g = (t: string) => parseInt(p.find((x) => x.type === t)?.value ?? "0", 10);
+    return (g("hour") % 24) * 60 + g("minute");
+  } catch {
+    return at.getUTCHours() * 60 + at.getUTCMinutes();
+  }
+}
+
+function orarioInMinuti(v: unknown, difetto: number): number {
+  const m = /^(\d{1,2}):(\d{2})/.exec(String(v ?? ""));
+  if (!m) return difetto;
+  return (parseInt(m[1], 10) % 24) * 60 + parseInt(m[2], 10);
+}
+
+function dentroLaFinestra(quando: Date, flusso: Record<string, any> | null): Date {
+  if (!flusso || flusso.time_window_active !== true) return quando;
+  const tz = String(flusso.timezone || "Europe/Rome");
+  const apre = orarioInMinuti(flusso.time_window_from, 9 * 60);
+  const chiude = orarioInMinuti(flusso.time_window_to, 18 * 60);
+  // Finestra incoerente (chiusura <= apertura): si ignora invece di bloccare
+  // la sequenza per sempre.
+  if (chiude <= apre) return quando;
+
+  const ora = minutiDelGiorno(quando, tz);
+  if (ora >= apre && ora < chiude) return quando;
+  const avanti = ora < apre ? apre - ora : (24 * 60 - ora) + apre;
+  return new Date(quando.getTime() + avanti * 60_000);
+}
+
 async function queueNextNodes(supabase: any, queueItem: any, node: AutomationNode, result: any) {
   // In test mode le iscrizioni si chiudono come 'canceled': 'completed'
   // bloccherebbe il futuro arruolamento REALE del contatto (blockedStatuses).
@@ -2816,10 +2862,19 @@ async function queueNextNodes(supabase: any, queueItem: any, node: AutomationNod
     return;
   }
 
+  // Impostazioni del flusso: servono per la finestra oraria. Una sola lettura
+  // per accodamento, non una per collegamento.
+  const { data: flussoImp } = await supabase
+    .from("automation_flows")
+    .select("time_window_active, time_window_from, time_window_to, timezone")
+    .eq("id", queueItem.flow_id)
+    .maybeSingle();
+
   for (const conn of nextConns) {
-    const executeAt = result.isDelay
-      ? new Date(Date.now() + (result.delayMs || 0)).toISOString()
-      : new Date().toISOString();
+    const grezzo = result.isDelay
+      ? new Date(Date.now() + (result.delayMs || 0))
+      : new Date();
+    const executeAt = dentroLaFinestra(grezzo, flussoImp).toISOString();
 
     await supabase.from("automation_queue").insert({
       enrollment_id: queueItem.enrollment_id,
