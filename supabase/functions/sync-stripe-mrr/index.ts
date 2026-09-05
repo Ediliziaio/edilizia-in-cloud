@@ -187,8 +187,6 @@ Deno.serve(async (req: Request) => {
 
     // Fetch subscriptions da Stripe
     const subscriptions = await fetchStripeSubscriptions(stripeKey);
-    const mrrStripe = subscriptions.reduce((s, sub) => s + calcMrrCents(sub), 0);
-    const aziendeAttivaStripe = subscriptions.length;
 
     // Calcola MRR interno pagante: accessi demo/regalati restano utilizzabili,
     // ma non devono entrare in MRR, ARR o riconciliazione revenue.
@@ -199,6 +197,23 @@ Deno.serve(async (req: Request) => {
       .eq("is_platform_admin_company", false);
 
     const attive = (companies ?? []) as InternalCompany[];
+
+    // L'account Stripe e' CONDIVISO con gli altri prodotti AEDIX. Una
+    // sottoscrizione che non risale a nessuna azienda non e' fatturato di
+    // Edilizia in Cloud, ed e' il motivo per cui il cruscotto ha letto 243,13
+    // il 4 settembre e 127 il giorno dopo: quattro abbonamenti di un altro
+    // prodotto si erano chiusi, e finche' erano dentro gonfiavano un numero
+    // che non era mai stato nostro. Restano contati, ma a parte.
+    const perCustomer = new Map<string, InternalCompany>();
+    for (const c of attive) {
+      if (c.stripe_customer_id) perCustomer.set(c.stripe_customer_id, c);
+    }
+    const subNostre = subscriptions.filter((sub) => perCustomer.has(sub.customer));
+    const subAltrui = subscriptions.filter((sub) => !perCustomer.has(sub.customer));
+
+    const mrrStripe = subNostre.reduce((s, sub) => s + calcMrrCents(sub), 0);
+    const aziendeAttivaStripe = subNostre.length;
+    const mrrAltriProdotti = subAltrui.reduce((s, sub) => s + calcMrrCents(sub), 0);
 
     const paidCompanies = attive.filter(countsAsPaidRevenue);
     const mrrInterno = paidCompanies.reduce((s, c) => s + companyMrrCents(c), 0);
@@ -212,23 +227,16 @@ Deno.serve(async (req: Request) => {
 
     // Breakdown per piano (Stripe metadata.plan_name)
     const breakdownPerPiano: Record<string, number> = {};
-    subscriptions.forEach((sub) => {
+    subNostre.forEach((sub) => {
       const planName = sub.metadata?.plan_name ?? "sconosciuto";
       breakdownPerPiano[planName] = (breakdownPerPiano[planName] ?? 0) + calcMrrCents(sub);
     });
 
     // Riconciliazione per azienda: dov'e' che Stripe e noi diciamo cose diverse.
     // Questo campo e' sempre stato scritto vuoto, ed e' il motivo per cui il
-    // divario Stripe/interno non era spiegabile da nessuna parte.
-    //
-    // L'account Stripe e' CONDIVISO con gli altri prodotti AEDIX: le
-    // sottoscrizioni che non risalgono a nessuna azienda non sono un errore
-    // nostro, sono di un altro prodotto, e vanno etichettate come tali invece
-    // di finire in un elenco di anomalie da inseguire.
-    const perCustomer = new Map<string, InternalCompany>();
-    for (const c of attive) {
-      if (c.stripe_customer_id) perCustomer.set(c.stripe_customer_id, c);
-    }
+    // divario Stripe/interno non era spiegabile da nessuna parte. Le
+    // sottoscrizioni di altri prodotti restano elencate qui: non sono
+    // un'anomalia da inseguire, ma vanno viste.
     const dettaglioDiscrepanze: Array<{
       company_id: string; nome: string; mrr_stripe: number; mrr_interno: number; motivo: string;
     }> = [];
@@ -280,6 +288,8 @@ Deno.serve(async (req: Request) => {
         calcolo_affidabile: true,
         mrr_regalato_cents: mrrRegalato,
         aziende_regalate: regalate.length,
+        mrr_altri_prodotti_cents: mrrAltriProdotti,
+        sottoscrizioni_altri_prodotti: subAltrui.length,
         breakdown_per_piano: breakdownPerPiano,
         dettaglio_discrepanze: dettaglioDiscrepanze,
       },
@@ -292,6 +302,7 @@ Deno.serve(async (req: Request) => {
       JSON.stringify({
         ok: true,
         mrr_stripe: mrrStripe,
+        mrr_altri_prodotti: mrrAltriProdotti,
         mrr_interno: mrrInterno,
         mrr_regalato: mrrRegalato,
         aziende_regalate: regalate.length,
