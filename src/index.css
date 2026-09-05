@@ -828,3 +828,15 @@ html .react-flow .react-flow__edges svg {
   body.chat-mobile-conv-open [data-app-header] { display: none !important; }
   body.chat-mobile-conv-open nav[aria-label="Navigazione principale"] { display: none !important; }
 }
+
+/* ── Hero della home: animazione della replica della piattaforma (PlatformMockup) ──
+   Solo CSS, niente stato React: il markup resta identico fra prerender e client.
+   Le barre del margine si riempiono all'ingresso, la commessa in corso ha un
+   puntino che pulsa. Chi ha chiesto meno movimento non vede nulla di tutto ciò. */
+@keyframes eic-mock-fill { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes eic-mock-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .45; transform: scale(.7); } }
+.eic-mock-fill { transform-origin: left center; animation: eic-mock-fill 1.1s cubic-bezier(.22,1,.36,1) both; }
+.eic-mock-pulse { animation: eic-mock-pulse 1.6s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .eic-mock-fill, .eic-mock-pulse { animation: none; }
+}

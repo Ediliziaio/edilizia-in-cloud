@@ -3,24 +3,30 @@
  *
  * Prima qui c'era un «centro di comando» disegnato a mano: tema scuro,
  * «Silvio ha trovato 3 priorità», numeri inventati. L'app è un'altra cosa —
- * chiara, con la barra laterale, e all'ingresso mostra la pagina Attività.
- * Chi si iscriveva trovava un prodotto diverso da quello promesso.
+ * chiara, con la barra laterale — e la pagina che vende è quella delle
+ * Commesse: ogni cantiere con il suo stato, quanto è stato venduto e
+ * incassato, e il margine. È quella che si mostra qui.
  *
- * Questa è una ricostruzione fedele di /azienda/attivita fatta con la stessa
- * struttura e gli stessi colori del gestionale (CompanyLayout + AttivitaStaff):
- * barra laterale con le macro-aree reali di sidebarConfig, header con
- * breadcrumb, saluto, tab Dashboard/Regia, lista attività con priorità e
- * stato, timbratura sede, commesse con margine. Dati finti ma verosimili.
+ * Ricostruzione fedele di /azienda/commesse con struttura e colori del
+ * gestionale (CompanyLayout + OrdersList + OrdersTable): barra laterale con
+ * le macro-aree reali di sidebarConfig e la voce attiva, header con
+ * breadcrumb, titolo con fascia Venduto/Incassato/Da incassare, ricerca e
+ * filtri (compreso «Margine basso», che nell'app esiste davvero), tabella
+ * con badge di stato colorati come gli stati ordine di default. Dati finti
+ * ma verosimili, tenant «Demo Azienda 2».
  *
- * È markup puro, senza stato né dipendenze dall'app: non porta nel sito la
- * logica (auth, query) e non cambia fra prerender e client, quindi
- * l'hydration lo trova identico. È decorativo: aria-hidden, con un'etichetta
- * sul contenitore per chi usa lo screen reader.
+ * Animazione: solo CSS (src/index.css, .eic-mock-fill / .eic-mock-pulse):
+ * le barre del margine si riempiono all'ingresso e la commessa in corso ha
+ * un puntino che pulsa. Niente slideshow fra schermate — distrae e rende
+ * instabile l'LCP. Con prefers-reduced-motion l'animazione è spenta.
+ *
+ * Markup puro, senza stato né dipendenze dall'app: identico fra prerender e
+ * client. Decorativo: aria-hidden, con un'etichetta sul contenitore.
  */
 import {
   ClipboardCheck, Mail, TrendingUp, MessagesSquare, Sparkles, HardHat, Package,
   Users, Receipt, Landmark, Wallet, Megaphone, Bot, Search, Bell, ChevronRight,
-  Clock, PanelLeft, Camera, ClipboardList, AlertCircle, CalendarDays, MapPin,
+  PanelLeft, Camera, ClipboardList, AlertCircle, CalendarDays, Plus, SlidersHorizontal,
 } from "lucide-react";
 import logo from "@/assets/edilizia-in-cloud-logo-small.webp";
 
@@ -34,14 +40,14 @@ const FONDO = "#F5F7FA";
 
 const MENU: Array<{ area: string; voci: Array<{ label: string; Icon: typeof Mail; attiva?: boolean }> }> = [
   { area: "Cruscotto", voci: [
-    { label: "Attività", Icon: ClipboardCheck, attiva: true },
+    { label: "Attività", Icon: ClipboardCheck },
     { label: "Email", Icon: Mail },
     { label: "Come stiamo andando", Icon: TrendingUp },
     { label: "Chat Team", Icon: MessagesSquare },
     { label: "Silvio AI", Icon: Sparkles },
   ] },
   { area: "Cantieri & Lavori", voci: [
-    { label: "Commesse", Icon: HardHat },
+    { label: "Commesse", Icon: HardHat, attiva: true },
     { label: "Magazzino", Icon: Package },
     { label: "Clienti", Icon: Users },
     { label: "Calendario", Icon: CalendarDays },
@@ -57,25 +63,17 @@ const MENU: Array<{ area: string; voci: Array<{ label: string; Icon: typeof Mail
   ] },
 ];
 
-const ATTIVITA = [
-  { titolo: "Inviare SAL 2 — Villa Rossi", commessa: "VR-2026-014", priorita: "Urgente", stato: "Da fare", quando: "oggi" },
-  { titolo: "DURC subappaltatore Elettra in scadenza", commessa: "CM-2026-031", priorita: "Alta", stato: "Da fare", quando: "12 set" },
-  { titolo: "Approvare rapportino di ieri — squadra Nord", commessa: "VR-2026-014", priorita: "Normale", stato: "In corso", quando: "oggi" },
-  { titolo: "Preventivo ristrutturazione bagno — Bianchi", commessa: "PR-2026-088", priorita: "Alta", stato: "In corso", quando: "8 set" },
-  { titolo: "Ordine blocchi per il cantiere di via Manzoni", commessa: "CM-2026-031", priorita: "Normale", stato: "Da fare", quando: "9 set" },
-];
-
+/* Colori degli stati ordine di default dell'app (Posa #DB2777, Completato #16A34A…). */
 const COMMESSE = [
-  { nome: "Villa Rossi — ristrutturazione", avanzamento: 68, margine: 24 },
-  { nome: "Capannone via Manzoni", avanzamento: 35, margine: 19 },
-  { nome: "Condominio Verdi — cappotto", avanzamento: 92, margine: 27 },
+  { codice: "VR-2026-014", cliente: "Rossi Marco", descrizione: "Ristrutturazione villa — Bergamo", stato: "Posa", colore: "#DB2777", imponibile: "86.500", incassato: "52.000", margine: 24, inCorso: true },
+  { codice: "CM-2026-031", cliente: "Manzoni Costruzioni", descrizione: "Capannone via Manzoni", stato: "In lavorazione", colore: "#2563EB", imponibile: "148.000", incassato: "74.000", margine: 19 },
+  { codice: "CV-2026-022", cliente: "Condominio Verdi", descrizione: "Cappotto termico 6 piani", stato: "Completato", colore: "#16A34A", imponibile: "63.200", incassato: "63.200", margine: 27 },
+  { codice: "PR-2026-088", cliente: "Bianchi Laura", descrizione: "Bagno e impianti — Seriate", stato: "Confermato", colore: "#D97706", imponibile: "18.900", incassato: "5.600", margine: 31 },
+  { codice: "SR-2026-041", cliente: "Serramenti Nord", descrizione: "Sostituzione 14 infissi", stato: "Preventivo", colore: "#64748B", imponibile: "24.300", incassato: "—", margine: 22 },
+  { codice: "MZ-2026-009", cliente: "Mazzoleni S.r.l.", descrizione: "Rifacimento tetto — Alzano", stato: "In lavorazione", colore: "#2563EB", imponibile: "41.700", incassato: "20.000", margine: 25 },
+  { codice: "TR-2026-017", cliente: "Trevi Immobiliare", descrizione: "Facciata condominio — 5 piani", stato: "Posa", colore: "#DB2777", imponibile: "97.300", incassato: "48.600", margine: 21 },
+  { codice: "BG-2026-052", cliente: "Famiglia Carrara", descrizione: "Bagno e cucina — Nembro", stato: "Confermato", colore: "#D97706", imponibile: "22.400", incassato: "6.700", margine: 28 },
 ];
-
-const PRIORITA: Record<string, string> = {
-  Urgente: "bg-red-50 text-red-700 border-red-200",
-  Alta: "bg-orange-50 text-orange-700 border-orange-200",
-  Normale: "bg-blue-50 text-blue-700 border-blue-200",
-};
 
 export default function PlatformMockup() {
   return (
@@ -85,7 +83,7 @@ export default function PlatformMockup() {
 
       <div
         role="img"
-        aria-label="La dashboard di Edilizia in Cloud: pagina Attività con le priorità del giorno, la timbratura in sede e le commesse in corso con il margine"
+        aria-label="La pagina Commesse di Edilizia in Cloud: ogni cantiere con stato, venduto, incassato e margine"
         className="relative overflow-hidden rounded-2xl border border-white/20 shadow-2xl shadow-black/40"
         style={{ transform: "perspective(1200px) rotateX(4deg)" }}
       >
@@ -125,9 +123,9 @@ export default function PlatformMockup() {
             <div className="flex h-10 items-center gap-2 border-b bg-white px-3" style={{ borderColor: BORDO }}>
               <PanelLeft size={13} style={{ color: GRIGIO }} />
               <div className="flex items-center gap-1 text-[10px]" style={{ color: GRIGIO }}>
-                <span>Cruscotto</span>
+                <span>Cantieri &amp; Lavori</span>
                 <ChevronRight size={10} />
-                <span className="font-medium" style={{ color: INCHIOSTRO }}>Attività</span>
+                <span className="font-medium" style={{ color: INCHIOSTRO }}>Commesse</span>
               </div>
               <div className="flex-1" />
               <Search size={13} style={{ color: GRIGIO }} />
@@ -139,82 +137,93 @@ export default function PlatformMockup() {
             </div>
 
             <div className="space-y-2.5 p-3">
-              {/* Saluto + tab (AttivitaStaff) */}
+              {/* Titolo + fascia riepilogo (OrdersList: commesse · Venduto · Incassato · Da incassare) */}
               <div className="flex flex-wrap items-end justify-between gap-2">
                 <div>
-                  <p className="text-[9.5px] capitalize" style={{ color: GRIGIO }}>venerdì 5 settembre</p>
-                  <p className="text-[15px] font-bold leading-tight">Buongiorno, Marco</p>
+                  <p className="text-[15px] font-bold leading-tight">Commesse</p>
+                  <p className="flex flex-wrap items-center gap-x-3 text-[9.5px]" style={{ color: GRIGIO }}>
+                    <span><b style={{ color: INCHIOSTRO }}>12</b> commesse</span>
+                    <span>Venduto <b className="tabular-nums" style={{ color: INCHIOSTRO }}>€ 412.800</b></span>
+                    <span>Incassato <b className="tabular-nums text-emerald-700">€ 268.400</b></span>
+                    <span>Da incassare <b className="tabular-nums text-amber-700">€ 144.400</b></span>
+                  </p>
                 </div>
-                <div className="grid grid-cols-2 rounded-md p-[3px] text-[10px]" style={{ background: "#E9EDF3" }}>
-                  <span className="flex items-center gap-1 rounded-sm bg-white px-3 py-1 font-medium shadow-sm"><ClipboardCheck size={11} /> Dashboard</span>
-                  <span className="flex items-center gap-1 px-3 py-1" style={{ color: GRIGIO }}><Users size={11} /> Regia</span>
-                </div>
+                <span className="flex items-center gap-1 rounded-md px-2.5 py-1 text-[10px] font-semibold text-white" style={{ background: BLU }}>
+                  <Plus size={11} /> Nuova commessa
+                </span>
               </div>
 
-              {/* KPI */}
-              <div className="grid grid-cols-4 gap-2">
-                {[
-                  { l: "Commesse attive", v: "12" },
-                  { l: "Scadenze 7 giorni", v: "5" },
-                  { l: "Da fare oggi", v: "8" },
-                  { l: "Margine medio", v: "23%" },
-                ].map((k) => (
-                  <div key={k.l} className="rounded-lg border bg-white px-2.5 py-2" style={{ borderColor: BORDO }}>
-                    <p className="text-[9px]" style={{ color: GRIGIO }}>{k.l}</p>
-                    <p className="text-[15px] font-bold tabular-nums">{k.v}</p>
-                  </div>
+              {/* Ricerca + filtri */}
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="flex min-w-[150px] flex-1 items-center gap-1.5 rounded-md border bg-white px-2 py-1 text-[9.5px]" style={{ borderColor: BORDO, color: GRIGIO }}>
+                  <Search size={10} /> Cerca commessa, cliente…
+                </span>
+                {["Tutte", "In corso", "Margine basso"].map((f, i) => (
+                  <span
+                    key={f}
+                    className="rounded-full border px-2 py-[3px] text-[9px] font-medium"
+                    style={i === 0 ? { background: BLU, borderColor: BLU, color: "#fff" } : { borderColor: BORDO, background: "#fff", color: INCHIOSTRO }}
+                  >
+                    {f}
+                  </span>
                 ))}
+                <span className="flex items-center gap-1 rounded-md border bg-white px-2 py-[3px] text-[9px]" style={{ borderColor: BORDO, color: GRIGIO }}>
+                  <SlidersHorizontal size={10} /> Colonne
+                </span>
               </div>
 
-              <div className="grid grid-cols-1 gap-2.5 md:grid-cols-[1.6fr_1fr]">
-                {/* Card Attività */}
-                <div className="rounded-lg border bg-white" style={{ borderColor: BORDO }}>
-                  <div className="flex items-center justify-between border-b px-3 py-2" style={{ borderColor: BORDO }}>
-                    <p className="flex items-center gap-1.5 text-[11px] font-semibold"><ClipboardCheck size={12} /> Attività</p>
-                    <span className="rounded-full px-2 py-[2px] text-[9px] font-medium" style={{ background: BLU_CHIARO, color: BLU }}>5 aperte</span>
-                  </div>
-                  <ul>
-                    {ATTIVITA.map((a) => (
-                      <li key={a.titolo} className="flex items-center gap-2 border-b px-3 py-[6px] last:border-b-0" style={{ borderColor: BORDO }}>
-                        <span className="h-3 w-3 shrink-0 rounded-full border-[1.5px]" style={{ borderColor: a.stato === "In corso" ? BLU : "#B8C1CE" }} />
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-[10.5px] font-medium">{a.titolo}</p>
-                          <p className="text-[9px]" style={{ color: GRIGIO }}>{a.commessa} · {a.stato} · {a.quando}</p>
-                        </div>
-                        <span className={`shrink-0 rounded-full border px-1.5 py-[1px] text-[8.5px] font-semibold ${PRIORITA[a.priorita]}`}>{a.priorita}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-
-                {/* Colonna destra: Timbratura + Commesse */}
-                <div className="space-y-2.5">
-                  <div className="rounded-lg border bg-white p-3" style={{ borderColor: BORDO }}>
-                    <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold"><Clock size={12} /> Timbratura Sede</p>
-                    <div className="flex items-center gap-1.5 text-[10px]">
-                      <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                      <span>Entrata <b>07:58</b></span>
-                      <span className="flex items-center gap-0.5" style={{ color: GRIGIO }}><MapPin size={9} /> Sede Bergamo</span>
-                    </div>
-                    <span className="mt-2 inline-block rounded-md px-2.5 py-1 text-[9.5px] font-semibold text-white" style={{ background: BLU }}>Timbra uscita</span>
-                  </div>
-
-                  <div className="rounded-lg border bg-white p-3" style={{ borderColor: BORDO }}>
-                    <p className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold"><HardHat size={12} /> Commesse in corso</p>
-                    <div className="space-y-2">
-                      {COMMESSE.map((c) => (
-                        <div key={c.nome}>
-                          <div className="flex items-center justify-between gap-2 text-[9.5px]">
-                            <span className="truncate font-medium">{c.nome}</span>
-                            <span className="shrink-0 tabular-nums" style={{ color: c.margine >= 22 ? "#0F7A4D" : "#B7791F" }}>margine {c.margine}%</span>
-                          </div>
-                          <div className="mt-1 h-1.5 w-full rounded-full" style={{ background: "#E9EDF3" }}>
-                            <div className="h-1.5 rounded-full" style={{ width: `${c.avanzamento}%`, background: BLU }} />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+              {/* Tabella (OrdersTable): Codice · Cliente · Descrizione · Stato · Imponibile · Incassato · Margine */}
+              <div className="overflow-hidden rounded-lg border bg-white" style={{ borderColor: BORDO }}>
+                <table className="w-full border-collapse text-[10px]">
+                  <thead>
+                    <tr className="text-left text-[8.5px] uppercase tracking-wide" style={{ color: GRIGIO, background: "#FAFBFC" }}>
+                      <th className="px-2.5 py-1.5 font-semibold">Codice</th>
+                      <th className="px-2 py-1.5 font-semibold">Cliente</th>
+                      <th className="hidden px-2 py-1.5 font-semibold md:table-cell">Descrizione</th>
+                      <th className="px-2 py-1.5 font-semibold">Stato</th>
+                      <th className="px-2 py-1.5 text-right font-semibold">Imponibile</th>
+                      <th className="hidden px-2 py-1.5 text-right font-semibold md:table-cell">Incassato</th>
+                      <th className="px-2.5 py-1.5 font-semibold">Margine</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {COMMESSE.map((c, i) => {
+                      const basso = c.margine < 20;
+                      return (
+                        <tr key={c.codice} className="border-t" style={{ borderColor: BORDO, background: basso ? "#FFFBEB" : undefined }}>
+                          <td className="px-2.5 py-[7px] font-mono text-[9.5px] font-semibold" style={{ color: BLU }}>{c.codice}</td>
+                          <td className="px-2 py-[7px] font-medium">{c.cliente}</td>
+                          <td className="hidden max-w-[150px] truncate px-2 py-[7px] md:table-cell" style={{ color: GRIGIO }}>{c.descrizione}</td>
+                          <td className="px-2 py-[7px]">
+                            <span
+                              className="inline-flex items-center gap-1 rounded-full border px-1.5 py-[1px] text-[8.5px] font-semibold"
+                              style={{ borderColor: c.colore, color: c.colore }}
+                            >
+                              {c.inCorso && <span className="eic-mock-pulse h-1.5 w-1.5 rounded-full" style={{ background: c.colore }} />}
+                              {c.stato}
+                            </span>
+                          </td>
+                          <td className="px-2 py-[7px] text-right tabular-nums">€ {c.imponibile}</td>
+                          <td className="hidden px-2 py-[7px] text-right tabular-nums md:table-cell" style={{ color: c.incassato === "—" ? GRIGIO : undefined }}>{c.incassato === "—" ? "—" : `€ ${c.incassato}`}</td>
+                          <td className="px-2.5 py-[7px]">
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-7 text-right font-semibold tabular-nums" style={{ color: basso ? "#B45309" : "#0F7A4D" }}>{c.margine}%</span>
+                              <span className="h-1.5 w-12 overflow-hidden rounded-full" style={{ background: "#E9EDF3" }}>
+                                <span
+                                  className="eic-mock-fill block h-full rounded-full"
+                                  style={{ width: `${Math.min(100, c.margine * 3)}%`, background: basso ? "#F59E0B" : "#16A34A", animationDelay: `${0.35 + i * 0.12}s` }}
+                                />
+                              </span>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                <div className="flex items-center justify-between border-t px-2.5 py-1.5 text-[9px]" style={{ borderColor: BORDO, color: GRIGIO }}>
+                  <span>1–8 di 12 commesse</span>
+                  <span className="flex items-center gap-1"><AlertCircle size={10} className="text-amber-600" /> 1 commessa sotto il margine minimo (20%)</span>
                 </div>
               </div>
             </div>
@@ -225,7 +234,7 @@ export default function PlatformMockup() {
       {/* ── Telefono: la home dell'area cantiere (CampoHome), stessa app ── */}
       <div
         aria-hidden="true"
-        className="absolute -bottom-10 -right-14 hidden w-[156px] rotate-[5deg] overflow-hidden rounded-[22px] border-[5px] border-[#1F2A3D] bg-white shadow-2xl shadow-black/50 lg:block"
+        className="absolute -bottom-14 -right-16 hidden w-[156px] rotate-[6deg] overflow-hidden rounded-[22px] border-[5px] border-[#1F2A3D] bg-white shadow-2xl shadow-black/50 lg:block"
         style={{ fontSize: 9.5, color: INCHIOSTRO }}
       >
         <div className="px-3 pb-3 pt-4" style={{ background: FONDO }}>
