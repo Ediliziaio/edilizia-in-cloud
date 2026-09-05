@@ -30,7 +30,7 @@
 import {
   ClipboardCheck, Mail, TrendingUp, MessagesSquare, Sparkles, HardHat, Package,
   Users, Receipt, Landmark, Wallet, Megaphone, Bot, Search, Bell, ChevronRight,
-  PanelLeft, Camera, ClipboardList, AlertCircle, CalendarDays, Plus, SlidersHorizontal,
+  PanelLeft, AlertCircle, CalendarDays, Plus, SlidersHorizontal,
 } from "lucide-react";
 import logo from "@/assets/edilizia-in-cloud-logo-small.webp";
 
@@ -318,39 +318,56 @@ export default function PlatformMockup() {
         </div>
       </div>
 
-      {/* ── Telefono: la home dell'area cantiere (CampoHome), stessa app.
-          In basso a sinistra, sopra la parte vuota della barra laterale: a
-          destra copriva il valore finale del grafico della cassa. ── */}
+      {/* ── Telefono: l'azienda in tasca. Non la home dell'operaio ma i numeri
+          del titolare (dashboard mobile): cassa di oggi, da incassare, commesse
+          attive, margine medio, le commesse in corso e l'avviso sul margine —
+          gli stessi dati della tabella accanto. In basso a sinistra, sopra la
+          parte vuota della barra laterale, per non coprire tabella e grafici. ── */}
       <div
         aria-hidden="true"
         className="absolute -bottom-12 -left-14 hidden w-[156px] -rotate-[6deg] overflow-hidden rounded-[22px] border-[5px] border-[#1F2A3D] bg-white shadow-2xl shadow-black/50 lg:block"
         style={{ fontSize: 9.5, color: INCHIOSTRO }}
       >
-        <div className="px-3 pb-3 pt-4" style={{ background: FONDO }}>
-          <p className="text-[8.5px]" style={{ color: GRIGIO }}>Villa Rossi · oggi</p>
-          <p className="text-[12px] font-bold leading-tight">Ciao, Luca</p>
-          <div className="mt-2 rounded-lg border bg-white p-2" style={{ borderColor: BORDO }}>
-            <p className="text-[8px] font-semibold uppercase tracking-wide" style={{ color: BLU }}>Task consigliata</p>
-            <p className="mt-0.5 text-[9.5px] font-medium leading-snug">Rapportino di oggi con le foto del massetto</p>
-            <span className="mt-1.5 inline-block rounded-md px-2 py-[3px] text-[8.5px] font-semibold text-white" style={{ background: BLU }}>Compila · 2 min</span>
+        <div className="px-2.5 pb-3 pt-3.5" style={{ background: FONDO }}>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[8px]" style={{ color: GRIGIO }}>Demo Azienda 2 · oggi</p>
+              <p className="text-[11.5px] font-bold leading-tight">Buongiorno, Marco</p>
+            </div>
+            <span className="relative"><Bell size={11} style={{ color: GRIGIO }} /><span className="absolute -right-1 -top-1 h-1.5 w-1.5 rounded-full bg-red-500" /></span>
           </div>
-          <p className="mb-1 mt-2 text-[8px] font-semibold uppercase tracking-wide" style={{ color: GRIGIO }}>Azioni rapide</p>
-          <div className="grid grid-cols-3 gap-1">
+
+          <div className="mt-2 grid grid-cols-2 gap-1">
             {[
-              { l: "Foto", Icon: Camera },
-              { l: "Rapportino", Icon: ClipboardList },
-              { l: "Ticket", Icon: AlertCircle },
-            ].map((q) => (
-              <div key={q.l} className="flex flex-col items-center gap-1 rounded-lg border bg-white py-1.5 text-[8px] font-medium" style={{ borderColor: BORDO }}>
-                <q.Icon size={12} style={{ color: BLU }} />
-                {q.l}
+              { l: "Cassa oggi", v: "€ 38.200", c: INCHIOSTRO },
+              { l: "Da incassare", v: "€ 144.400", c: "#B45309" },
+              { l: "Commesse attive", v: "12", c: INCHIOSTRO },
+              { l: "Margine medio", v: "24%", c: "#0F7A4D" },
+            ].map((k) => (
+              <div key={k.l} className="rounded-lg border bg-white px-1.5 py-1" style={{ borderColor: BORDO }}>
+                <p className="text-[7px] leading-tight" style={{ color: GRIGIO }}>{k.l}</p>
+                <p className="text-[10px] font-bold leading-tight tabular-nums" style={{ color: k.c }}>{k.v}</p>
               </div>
             ))}
           </div>
-          <div className="mt-2 grid grid-cols-3 gap-1">
-            {["#C9D6E8", "#B7C7DD", "#D6DFEC"].map((c) => (
-              <div key={c} className="aspect-square rounded-md" style={{ background: `linear-gradient(135deg, ${c}, #EEF3FB)` }} />
+
+          <p className="mb-1 mt-2 text-[7.5px] font-semibold uppercase tracking-wide" style={{ color: GRIGIO }}>Commesse in corso</p>
+          <div className="space-y-1">
+            {[
+              { n: "Villa Rossi", s: "Posa", c: "#DB2777", m: 24 },
+              { n: "Cappotto Ferrari", s: "In lavorazione", c: "#2563EB", m: 19 },
+              { n: "Tetto Mazzoleni", s: "In lavorazione", c: "#2563EB", m: 25 },
+            ].map((r) => (
+              <div key={r.n} className="flex items-center gap-1.5 rounded-lg border bg-white px-1.5 py-1" style={{ borderColor: BORDO }}>
+                <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: r.c }} />
+                <span className="min-w-0 flex-1 truncate text-[8.5px] font-medium">{r.n}</span>
+                <span className="text-[8.5px] font-semibold tabular-nums" style={{ color: r.m < 20 ? "#B45309" : "#0F7A4D" }}>{r.m}%</span>
+              </div>
             ))}
+          </div>
+
+          <div className="mt-2 flex items-center gap-1 rounded-lg border px-1.5 py-1 text-[7.5px] font-medium" style={{ borderColor: "#FDE68A", background: "#FFFBEB", color: "#92400E" }}>
+            <AlertCircle size={9} className="shrink-0" /> Cappotto Ferrari sotto il margine minimo
           </div>
         </div>
       </div>
