@@ -694,7 +694,7 @@ async function executeNode(supabase: any, node: AutomationNode, queueItem: any) 
 
   switch (node.node_type) {
     case "delay":
-      return executeDelay(cfg);
+      return await executeDelay(cfg, supabase, entityId, companyId);
 
     case "condition":
       return await executeCondition(supabase, cfg, entityId, companyId);
@@ -728,7 +728,56 @@ function romeNowParts(at: Date): { minutesOfDay: number; weekday: number } {
   return { minutesOfDay: h * 60 + m, weekday: wd < 0 ? at.getUTCDay() : wd };
 }
 
-function executeDelay(cfg: Record<string, any>) {
+async function executeDelay(
+  cfg: Record<string, any>,
+  supabase?: any,
+  entityId?: string,
+  companyId?: string,
+) {
+  // ── Attesa ANCORATA all'appuntamento ────────────────────────────────────
+  // "24 ore prima della chiamata" non era esprimibile: le attese erano tutte
+  // relative al passo precedente, quindi un promemoria finiva a caso rispetto
+  // alla data vera. Con `delay_tipo: "prima_appuntamento"` + `delay_ore` si
+  // aspetta fino a N ore prima dell'appuntamento del contatto.
+  //
+  // Se l'appuntamento non c'e' o e' gia' passato di quella soglia, si va
+  // avanti subito invece di bloccare l'iscrizione per sempre: un promemoria in
+  // ritardo e' inutile, uno che blocca la sequenza e' dannoso.
+  if (cfg.delay_tipo === "prima_appuntamento" && supabase && entityId && companyId) {
+    const ore = Math.max(0, parseFloat(cfg.delay_ore ?? cfg.ore ?? "24") || 24);
+    try {
+      const oggi = new Date().toISOString().slice(0, 10);
+      const { data: app } = await supabase
+        .from("appointments")
+        .select("appointment_date, appointment_time")
+        .eq("contact_id", entityId).eq("company_id", companyId)
+        .gte("appointment_date", oggi)
+        .not("status", "in", '("cancelled","canceled","annullato")')
+        .order("appointment_date", { ascending: true })
+        .limit(1).maybeSingle();
+      if (app?.appointment_date) {
+        const quando = new Date(`${app.appointment_date}T${String(app.appointment_time ?? "09:00").slice(0, 5)}:00`);
+        const bersaglio = quando.getTime() - ore * 3_600_000;
+        const attesa = Math.max(0, bersaglio - Date.now());
+        return {
+          success: true,
+          output: { delay_ms: attesa, execute_at: new Date(Date.now() + attesa).toISOString(), ancorata_a: "appuntamento" },
+          isDelay: true,
+          delayMs: attesa,
+        };
+      }
+    } catch (e) {
+      console.warn("[process-automation] attesa prima_appuntamento non calcolata:", (e as Error).message);
+    }
+    // Nessun appuntamento futuro: si prosegue subito.
+    return {
+      success: true,
+      output: { delay_ms: 0, execute_at: new Date().toISOString(), ancorata_a: "appuntamento_assente" },
+      isDelay: true,
+      delayMs: 0,
+    };
+  }
+
   // Schema del BUILDER (DelayConfigPanel): delay_tipo 'attendi'|'fino_a',
   // delay_durata + delay_unita (minuti|ore|giorni|settimane), delay_orario
   // 'HH:MM', delay_giorni_settimana [0..6] (0=Dom). PRIMA il motore leggeva
@@ -2235,7 +2284,7 @@ Istruzione: ${aiPrompt}`;
       // dal catalogo sbagliato): prima cadeva nel default "Not implemented"
       // e l'attesa non avveniva mai (il flusso proseguiva subito). Delega la
       // semantica al delay: queueNextNodes gestisce result.isDelay.
-      return executeDelay(ncfg);
+      return await executeDelay(ncfg, supabase, entityId, companyId);
 
     case "sync_google":
       return await executeSyncGoogle(supabase, ncfg, entityId, companyId);
@@ -3329,6 +3378,62 @@ async function executeSendWhatsApp(supabase: any, cfg: Record<string, any>, enti
  * Fail-safe: non lancia mai; le variabili sconosciute diventano stringa vuota
  * (coerente con il resolver rv() di piattaforma).
  */
+/**
+ * Variabili dell'APPUNTAMENTO per le email delle automazioni.
+ *
+ * I flussi di pre-appuntamento e no-show parlano di giorno, ora e telefono:
+ * senza questi, righe come "Confermato: {{giorno}} alle {{ora}}" arrivavano al
+ * cliente stampate letteralmente. Il contatto da solo non basta, e il payload
+ * del trigger non arriva fino al nodo email.
+ *
+ * Si legge l'appuntamento VERO al momento dell'invio, non una fotografia presa
+ * al trigger: fra il trigger e l'email possono passare giorni, e se il cliente
+ * sposta l'orario deve arrivargli quello nuovo. Si preferisce il prossimo
+ * appuntamento futuro; se non ce n'è, l'ultimo passato (è il caso del no-show).
+ *
+ * Sconosciute o mancanti restano stringa vuota, mai il segnaposto grezzo.
+ */
+const MESI_IT = ["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno",
+  "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre"];
+const GIORNI_IT = ["domenica", "lunedì", "martedì", "mercoledì", "giovedì", "venerdì", "sabato"];
+
+async function variabiliAppuntamento(
+  supabase: any,
+  contactId: string,
+  companyId: string,
+): Promise<Record<string, string>> {
+  const vuoto = { giorno: "", data: "", ora: "", ora_fine: "", titolo: "", luogo: "", link_riprogramma: "" };
+  if (!contactId) return vuoto;
+
+  const oggi = new Date().toISOString().slice(0, 10);
+  const base = () => supabase.from("appointments")
+    .select("id, title, appointment_date, appointment_time, appointment_end_time, meeting_url, status")
+    .eq("contact_id", contactId).eq("company_id", companyId)
+    .not("status", "in", '("cancelled","canceled","annullato")');
+
+  let { data: app } = await base()
+    .gte("appointment_date", oggi).order("appointment_date", { ascending: true }).limit(1).maybeSingle();
+  if (!app) {
+    const r = await base().order("appointment_date", { ascending: false }).limit(1).maybeSingle();
+    app = r.data;
+  }
+  if (!app?.appointment_date) return vuoto;
+
+  const [aa, mm, gg] = String(app.appointment_date).split("-").map(Number);
+  const d = new Date(aa, mm - 1, gg);
+  const ora = String(app.appointment_time ?? "").slice(0, 5);
+
+  return {
+    giorno: GIORNI_IT[d.getDay()] ?? "",
+    data: `${gg} ${MESI_IT[mm - 1] ?? ""}`,
+    ora,
+    ora_fine: String(app.appointment_end_time ?? "").slice(0, 5),
+    titolo: app.title ?? "",
+    luogo: app.meeting_url ?? "",
+    link_riprogramma: app.meeting_url ?? "",
+  };
+}
+
 async function resolveContactText(
   supabase: any,
   text: string,
@@ -3372,15 +3477,48 @@ async function resolveContactText(
     company_name: contact?.company_name ?? "",
     contact_company: contact?.company_name ?? "",
     source: contact?.source ?? "",
+    // Alias italiani mancanti: i testi scritti da chi fa marketing usano la
+    // parola italiana, e senza questi righe come "{{provincia}}" uscivano
+    // stampate così com'erano dentro l'email.
+    nome: contact?.first_name ?? "",
+    cognome: contact?.last_name ?? "",
+    provincia: contact?.province ?? "",
+    citta: contact?.city ?? "",
+    telefono: contact?.phone ?? "",
+    azienda: contact?.company_name ?? "",
   };
+
+  // Appuntamento: si legge solo se il testo lo nomina davvero, per non fare
+  // una query in più su ogni email che non ne ha bisogno.
+  if (/\{\{\s*(appuntamento\.|giorno|data|ora|ora_fine|titolo|luogo|link_riprogramma)/.test(out)) {
+    try {
+      const app = await variabiliAppuntamento(supabase, contactId, companyId);
+      for (const [k, v] of Object.entries(app)) {
+        map[k] = v;
+        map[`appuntamento.${k}`] = v;
+      }
+    } catch { /* fail-open: un appuntamento mancante non blocca l'invio */ }
+  }
   // {{contatto.X}} / {{contact.X}} → valore mappato (sconosciuto → "").
   out = out.replace(/\{\{\s*(?:contatto|contact)\.(\w+)\s*\}\}/g, (_m, k: string) =>
     Object.prototype.hasOwnProperty.call(map, k) ? map[k] : "");
-  // Nomi nudi noti (non tocca {{unsubscribe_url}} o altri token speciali).
-  out = out.replace(
-    /\{\{\s*(first_name|last_name|full_name|name|email|phone|city|province|company_name|contact_company)\s*\}\}/g,
-    (_m, k: string) => map[k] ?? "",
-  );
+  // Nomi nudi: l'elenco si costruisce dalle chiavi DISPONIBILI invece di essere
+  // scritto a mano. Prima era una lista fissa di dieci nomi inglesi, quindi ogni
+  // alias nuovo (provincia, giorno, ora...) restava stampato nel testo anche se
+  // il valore c'era. Le chiavi con il punto restano fuori: le gestisce la regola
+  // sopra. I token speciali come {{unsubscribe_url}}, non essendo nella mappa,
+  // non vengono toccati.
+  const nudi = Object.keys(map).filter((k) => !k.includes("."));
+  if (nudi.length) {
+    const alternanza = nudi
+      .sort((a, b) => b.length - a.length) // i più lunghi prima: "first_name" non finisce spezzato
+      .map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+      .join("|");
+    out = out.replace(
+      new RegExp(`\\{\\{\\s*(${alternanza})\\s*\\}\\}`, "g"),
+      (_m, k: string) => map[k] ?? "",
+    );
+  }
   return out;
 }
 
