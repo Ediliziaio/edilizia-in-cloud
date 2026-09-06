@@ -16,14 +16,43 @@ export interface SEOOptions {
 
 const DEFAULT_TITLE = "Edilizia in Cloud — Software Gestionale per Imprese Edili";
 const DEFAULT_DESC  = "Il software gestionale n°1 per imprese edili italiane. Gestisci cantieri, margini, HR, marketing e fatturazione in un'unica piattaforma. Prova gratuita 31 giorni.";
-// v8.6.48 — DEFAULT_IMAGE punta a un file locale garantito esistente in
-// public/og/og-default.png. Prima puntava a un URL R2 lovable.app che
-// dipende da un bucket esterno (rischio link rot). Inoltre, le 52 pagine
-// /funzionalita/* dichiarano ogImage specifico (es. /og/calendario-lavori-og.jpg)
-// che NON esiste in public/og/ → 404 di massa su anteprime social.
-// Con questo default, FunzionalitaPageTemplate fa fallback corretto.
-const DEFAULT_IMAGE = "https://www.ediliziaincloud.com/og/og-default.png";
 export const SITE_URL = "https://www.ediliziaincloud.com";
+
+// Immagini di anteprima (og:image) per sezione del sito. Fino al 06/09/2026
+// tutte le pagine tranne i post del blog condividevano og-default.png, che era
+// la copia dell'anteprima della landing AI (titolo tagliato, logo mancante).
+// Ora ogni sezione ha la sua; i file sono generati a 1200×630 e vivono in
+// public/og/. Chi passa `ogImage` esplicito vince; il vecchio og-default.png
+// viene trattato come "non specificato", così le ~30 pagine funzionalità che
+// lo dichiaravano a mano ricevono l'immagine della loro sezione senza toccarle.
+const OG = {
+  default: `${SITE_URL}/og/eic-default.png`,
+  funzionalita: `${SITE_URL}/og/eic-funzionalita.png`,
+  render: `${SITE_URL}/og/eic-render.png`,
+  prezzi: `${SITE_URL}/og/eic-prezzi.png`,
+  perTipo: `${SITE_URL}/og/eic-per-tipo.png`,
+  confronto: `${SITE_URL}/og/eic-confronto.png`,
+  citta: `${SITE_URL}/og/eic-citta.png`,
+  blog: `${SITE_URL}/og/eic-blog.png`,
+  demo: `${SITE_URL}/og/eic-demo.png`,
+  ai: `${SITE_URL}/og/landing-ai-imprenditore-edile.png`,
+} as const;
+const LEGACY_DEFAULT_IMAGE = `${SITE_URL}/og/og-default.png`;
+
+/** L'anteprima social giusta per un percorso del sito (stessa mappa in functions/_middleware.js). */
+export function ogImageForPath(pathname: string): string {
+  const p = pathname.replace(/\/+$/, "") || "/";
+  if (p.startsWith("/funzionalita/render-")) return OG.render;
+  if (p === "/funzionalita" || p.startsWith("/funzionalita/")) return OG.funzionalita;
+  if (p === "/prezzi") return OG.prezzi;
+  if (p.startsWith("/per/")) return OG.perTipo;
+  if (p === "/confronto" || p.startsWith("/confronto/")) return OG.confronto;
+  if (/^\/software-gestionale-edilizia(-[a-z-]+)?$/.test(p)) return OG.citta;
+  if (p === "/blog" || p.startsWith("/blog/")) return OG.blog;
+  if (p === "/demo" || p === "/pianifica-migrazione") return OG.demo;
+  if (p === "/ai-edilizia" || p.startsWith("/landing/ai-")) return OG.ai;
+  return OG.default;
+}
 
 // Elemento Wikidata del prodotto "Edilizia in Cloud" (Q140698655).
 // Va dichiarato come sameAs sui nodi SoftwareApplication/Product/Brand — NON
@@ -96,7 +125,7 @@ export function useSEO(options: SEOOptions) {
   const entriesRef = useRef<MetaEntry[]>([]);
 
   const {
-    title, description, canonical, ogImage = DEFAULT_IMAGE,
+    title, description, canonical, ogImage,
     noindex = false, type = "website", publishedTime, modifiedTime,
     keywords, section, tags,
   } = options;
@@ -114,6 +143,10 @@ export function useSEO(options: SEOOptions) {
     document.title = fullTitle;
 
     const canonicalUrl = normalizeCanonicalUrl(canonical);
+    const resolvedOgImage =
+      ogImage && ogImage !== LEGACY_DEFAULT_IMAGE
+        ? ogImage
+        : ogImageForPath(new URL(canonicalUrl).pathname);
 
     const set = (attr: "name" | "property", key: string, value: string) => {
       entriesRef.current.push(upsertMeta(attr, key, value));
@@ -139,7 +172,7 @@ export function useSEO(options: SEOOptions) {
     set("property", "og:title",       fullTitle);
     set("property", "og:description", description);
     set("property", "og:url",         canonicalUrl);
-    set("property", "og:image",       ogImage);
+    set("property", "og:image",       resolvedOgImage);
     set("property", "og:image:width",  "1200");
     set("property", "og:image:height", "630");
     set("property", "og:image:alt",    fullTitle);
@@ -161,7 +194,7 @@ export function useSEO(options: SEOOptions) {
     set("name", "twitter:creator",     "@EdiliziaInCloud");
     set("name", "twitter:title",       fullTitle);
     set("name", "twitter:description", description);
-    set("name", "twitter:image",       ogImage);
+    set("name", "twitter:image",       resolvedOgImage);
     set("name", "twitter:image:alt",   fullTitle);
 
     // Canonical link

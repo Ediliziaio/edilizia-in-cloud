@@ -395,7 +395,7 @@ const ROUTES = {
           reviewCount: "127",
           bestRating: "5",
         },
-        screenshot: "https://www.ediliziaincloud.com/og/og-default.png",
+        screenshot: "https://www.ediliziaincloud.com/og/eic-default.png",
       },
       {
         "@context": "https://schema.org",
@@ -2624,7 +2624,38 @@ const BLOG_CATEGORIES = {
 
 // ─── HTML builder ────────────────────────────────────────────────────────────
 
-function buildHtml({ title, description, canonical, h1, intro, links = [], jsonLd = null, extra = "", ogType = "website", ogImage = "https://www.ediliziaincloud.com/og/og-default.png" }) {
+// Anteprime social per sezione (stessa mappa di src/hooks/useSEO.ts, che
+// serve i browser e il prerender; qui servono i bot). File in public/og/.
+const OG_IMAGES = {
+  default: "https://www.ediliziaincloud.com/og/eic-default.png",
+  funzionalita: "https://www.ediliziaincloud.com/og/eic-funzionalita.png",
+  render: "https://www.ediliziaincloud.com/og/eic-render.png",
+  prezzi: "https://www.ediliziaincloud.com/og/eic-prezzi.png",
+  perTipo: "https://www.ediliziaincloud.com/og/eic-per-tipo.png",
+  confronto: "https://www.ediliziaincloud.com/og/eic-confronto.png",
+  citta: "https://www.ediliziaincloud.com/og/eic-citta.png",
+  blog: "https://www.ediliziaincloud.com/og/eic-blog.png",
+  demo: "https://www.ediliziaincloud.com/og/eic-demo.png",
+  ai: "https://www.ediliziaincloud.com/og/landing-ai-imprenditore-edile.png",
+};
+function ogImageFor(pathname) {
+  const p = (pathname || "/").replace(/\/+$/, "") || "/";
+  if (p.startsWith("/funzionalita/render-")) return OG_IMAGES.render;
+  if (p === "/funzionalita" || p.startsWith("/funzionalita/")) return OG_IMAGES.funzionalita;
+  if (p === "/prezzi") return OG_IMAGES.prezzi;
+  if (p.startsWith("/per/")) return OG_IMAGES.perTipo;
+  if (p === "/confronto" || p.startsWith("/confronto/")) return OG_IMAGES.confronto;
+  if (/^\/software-gestionale-edilizia(-[a-z-]+)?$/.test(p)) return OG_IMAGES.citta;
+  if (p === "/blog" || p.startsWith("/blog/")) return OG_IMAGES.blog;
+  if (p === "/demo" || p === "/pianifica-migrazione") return OG_IMAGES.demo;
+  if (p === "/ai-edilizia" || p.startsWith("/landing/ai-")) return OG_IMAGES.ai;
+  return OG_IMAGES.default;
+}
+
+function buildHtml({ title, description, canonical, h1, intro, links = [], jsonLd = null, extra = "", ogType = "website", ogImage = null }) {
+  let ogPath = "/";
+  try { ogPath = new URL(canonical).pathname; } catch { /* canonical sempre assoluto; per sicurezza resta "/" */ }
+  const ogImageUrl = ogImage || ogImageFor(ogPath);
   const jsonLdScript = jsonLd
     ? Array.isArray(jsonLd)
       ? jsonLd.map(j => `<script type="application/ld+json">${JSON.stringify(j)}</script>`).join("\n  ")
@@ -2668,10 +2699,13 @@ function buildHtml({ title, description, canonical, h1, intro, links = [], jsonL
   <meta property="og:url" content="${escAttr(canonical)}"/>
   <meta property="og:type" content="${escAttr(ogType)}"/>
   <meta property="og:site_name" content="Edilizia in Cloud"/>
-  <meta property="og:image" content="${escAttr(ogImage)}"/>
+  <meta property="og:image" content="${escAttr(ogImageUrl)}"/>
+  <meta property="og:image:width" content="1200"/>
+  <meta property="og:image:height" content="630"/>
   <meta name="twitter:card" content="summary_large_image"/>
   <meta name="twitter:title" content="${escAttr(title)}"/>
   <meta name="twitter:description" content="${escAttr(description)}"/>
+  <meta name="twitter:image" content="${escAttr(ogImageUrl)}"/>
   ${jsonLdScript}
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://www.ediliziaincloud.com/"}${breadcrumb ? `,${ buildBreadcrumbItems(canonical) }` : ""}]}</script>
   <link rel="alternate" type="text/plain" title="LLMs.txt" href="/llms.txt"/>
@@ -2992,7 +3026,7 @@ function resolveRoute(pathname) {
       datePublished: meta.publishedAt || "",
       author: { "@type": "Person", name: "Florin Andriciuc" },
       publisher: { "@type": "Organization", name: "Edilizia in Cloud", url: "https://www.ediliziaincloud.com/" },
-      image: meta.coverImage || "https://www.ediliziaincloud.com/og/og-default.png",
+      image: meta.coverImage || OG_IMAGES.blog,
       keywords: meta.tags ? meta.tags.join(", ") : "",
       inLanguage: "it",
     } : null;
@@ -3019,7 +3053,7 @@ function resolveRoute(pathname) {
       ],
       jsonLd: articleJsonLd,
       ogType: "article",
-      ogImage: meta.coverImage || "https://www.ediliziaincloud.com/og/og-default.png",
+      ogImage: meta.coverImage || OG_IMAGES.blog,
     };
   }
 
