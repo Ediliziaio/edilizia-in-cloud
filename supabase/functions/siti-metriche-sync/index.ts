@@ -106,7 +106,12 @@ function diagnosiAmbiente(): Array<Record<string, unknown>> {
       json_valido: valido,
       ha_client_email: typeof o.client_email === "string",
       ha_private_key: typeof o.private_key === "string",
-      inizia_con: valore.slice(0, 14).replace(/\s+/g, " "),
+      // Solo la forma, non il contenuto. La prima versione riportava i primi
+      // quattordici caratteri «per capire di che si tratta» e ha stampato
+      // pezzi di chiavi che non c'entravano nulla: la forma basta a
+      // distinguere un JSON da una chiave PEM da una stringa qualsiasi.
+      pare_json: valore.trimStart().startsWith("{"),
+      pare_chiave_pem: valore.trimStart().startsWith("-----BEGIN"),
     });
   }
   return esito;
