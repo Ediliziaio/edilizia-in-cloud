@@ -25,6 +25,7 @@ import {
   Sparkles,
   Bot,
   BarChart3,
+  Globe,
   Users,
   Activity,
   Plug,
@@ -183,6 +184,10 @@ const allNavItems: AdminNavItem[] = [
   // esce. Dati di prima parte — nessun campionamento, nessun consenso da
   // aspettare — e il crawler del prerender resta fuori dal conteggio.
   { title: "Traffico sito", url: "/admin/sito", icon: BarChart3, permission: "can_view_platform_stats", subcategory: "sa_growth" },
+  // Siti e Google: impressioni, clic e posizione da Search Console, visite da
+  // GA4, per tutti i siti della rete. Search Console conta più di Analytics
+  // quando il problema è che le pagine non vengono indicizzate.
+  { title: "Siti e Google", url: "/admin/siti", icon: Globe, permission: "can_view_platform_stats", subcategory: "sa_growth" },
   // ⚠️ "Operazioni" rimosso dalla sidebar principale: è materia di
   //    amministrazione di sistema (sync, alert, import, GDPR, audit) e
   //    duplicava parzialmente "Registro Attività" già presente in

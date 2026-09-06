@@ -306,6 +306,13 @@ verify_jwt = false
 [functions.site-track]
 verify_jwt = false
 
+# siti-metriche-sync riceve due tipi di chiamata: il cron con x-cron-secret e il
+# super admin dalla pagina con il proprio JWT. Con verify_jwt attivo la prima
+# verrebbe respinta prima ancora di entrare nella funzione, quindi il controllo
+# lo fa la funzione stessa — che accetta soltanto uno dei due.
+[functions.siti-metriche-sync]
+verify_jwt = false
+
 # Form builder pubblico: embed su siti esterni, senza sessione utente EiC.
 [functions.form-render]
 verify_jwt = false
