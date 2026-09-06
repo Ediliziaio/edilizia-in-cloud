@@ -44,6 +44,13 @@ const CATEGORIE_VALIDE = [
   "marketing_pubblicita",
   "formazione",
   "viaggi_trasferte",
+  // Aggiunte 2026-09-06: sulle 224 fatture fornitore di renova solution queste
+  // tre voci finivano tutte in "altro" (26.804 EUR, l'11% della spesa), che nel
+  // controllo di gestione e' un cassetto cieco. L'affitto e le provvigioni in
+  // particolare sono costi ricorrenti che vanno letti da soli.
+  "affitti",             // canoni di locazione e subaffitto di immobili
+  "provvigioni",         // compensi di agenti e procacciatori sul venduto
+  "servizi_generali",    // pulizie, vigilanza, smaltimento, servizi di sede
   "altro",
 ];
 
