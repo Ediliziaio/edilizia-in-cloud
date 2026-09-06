@@ -23,8 +23,7 @@ const config: PerTipoConfig = {
   ),
   heroSubtitle:
     "Il 78% delle imprese edili scopre le perdite solo a cantiere chiuso. Con Edilizia in Cloud è il sistema a governare tutta l'azienda: margine reale di ogni commessa mentre lavori (+8,4% recuperato nei primi 90 giorni), SAL aggiornati, forecast di cassa a 90 giorni e ore di ogni squadra in tempo reale — ogni settimana, non solo a fine lavori.",
-  heroImage:
-    "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1400&q=80",
+  heroImage: "/hero/stock/cantiere-1541888946425-1400.webp",
 
   socialProof: [
     { initials: "CF", name: "Costruzioni Ferretti", city: "Bologna", months: 14, gradient: "from-[#F97415] to-[#e8650e]" },
@@ -231,7 +230,7 @@ const config: PerTipoConfig = {
       { label: "Ore settimana su reportistica", before: "14h", after: "2h" },
       { label: "Commesse monitorate in tempo reale", before: "0", after: "7" },
     ],
-    image: "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=800&q=80",
+    image: "/hero/stock/cantiere-1504307651254-768.webp",
   },
 
   faq: [

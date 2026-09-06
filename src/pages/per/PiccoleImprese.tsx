@@ -21,7 +21,7 @@ const config: PerTipoConfig = {
   ),
   heroSubtitle:
     "Sei in 3-4 persone. Il cantiere lo gestisci tu. Le fatture le fai tu. I preventivi li scrivi a mano. La domenica sera finisci con Excel e la pila di scontrini davanti. Con Edilizia in Cloud la burocrazia si fa in 30 minuti al giorno — e tu torni a essere un imprenditore, non un impiegato.",
-  heroImage: "https://images.unsplash.com/photo-1562259929-b4e1fd3aef09?auto=format&fit=crop&w=1400&q=80",
+  heroImage: "/hero/stock/cantiere-1504307651254-1400.webp",
 
   // Social proof
   socialProof: [

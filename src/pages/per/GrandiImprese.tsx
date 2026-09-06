@@ -23,8 +23,7 @@ const config: PerTipoConfig = {
   ),
   heroSubtitle:
     "Hai 3 società operative, 18-30 cantieri attivi e un CdA che alle 9 del lunedì vuole sapere quanto sta perdendo il cantiere di Lecce. Oggi i dati arrivano da SAP, da 4 Excel diversi, da PEC e da WhatsApp del direttore tecnico. Edilizia in Cloud consolida tutto il gruppo in un'unica dashboard direzionale CFO/CEO real-time, si integra con SAP/Microsoft Dynamics via API e impone la governance progetti che il Codice Appalti pretende.",
-  heroImage:
-    "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=1400&q=80",
+  heroImage: "/hero/stock/cantiere-1600585154526-1400.webp",
 
   // Social proof
   socialProof: [

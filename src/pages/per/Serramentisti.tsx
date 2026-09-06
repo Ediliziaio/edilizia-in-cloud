@@ -21,7 +21,7 @@ const config: PerTipoConfig = {
   ),
   heroSubtitle:
     "Non è solo un preventivatore: è il sistema che governa tutta l'azienda. Il margine reale di ogni commessa lo vedi mentre lavori (+12% medio sulle commesse monitorate), la cassa la conosci a 90 giorni, ordini e pose filano senza errori — e sì, il preventivo esce in 60 secondi. Con l'AI che ti avvisa prima che un problema diventi un costo.",
-  heroImage: "https://images.unsplash.com/photo-1600585154526-990dced4db0d?auto=format&fit=crop&w=1400&q=80",
+  heroImage: "/hero/stock/cantiere-1581578731548-1400.webp",
 
   // Social proof
   socialProof: [
@@ -259,7 +259,7 @@ const config: PerTipoConfig = {
       { label: "Tempo per preventivo infissi", before: "2-3 ore", after: "60 secondi" },
       { label: "Errori negli ordini di produzione", before: "3-4 al mese", after: "0" },
     ],
-    image: "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=800&q=80",
+    image: "/hero/stock/cantiere-1581578731548-768.webp",
   },
 
   // FAQ

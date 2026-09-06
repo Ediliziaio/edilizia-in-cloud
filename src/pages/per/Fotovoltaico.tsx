@@ -20,7 +20,7 @@ const config: PerTipoConfig = {
   ),
   heroSubtitle: "Non è solo un software per le pratiche GSE: è il sistema che governa tutta l'azienda. Il margine reale per kWp lo vedi mentre lavori (+12% medio per impianto), la cassa la conosci a 90 giorni, le squadre sono coordinate senza WhatsApp — e sì, le pratiche GSE escono con template automatici. Con l'AI che ti avvisa prima che un problema diventi una perdita.",
 
-  heroImage: "https://images.unsplash.com/photo-1509391366360-2e959784a276?auto=format&fit=crop&w=1400&q=80",
+  heroImage: "/hero/stock/cantiere-1509391366360-1400.webp",
 
   socialProof: [
     { initials: "SE", name: "SolarEnergy Sud Srl", city: "Bari", months: 16, gradient: "from-[#F97415] to-[#c85e0a]" },

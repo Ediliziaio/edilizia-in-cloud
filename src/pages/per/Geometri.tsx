@@ -21,7 +21,7 @@ const config: PerTipoConfig = {
   ),
   heroSubtitle:
     "Il computo rifatto tre volte, l'impresa che non manda gli avanzamenti, il committente che chiama te. Edilizia in Cloud è il gestionale per il geometra che segue più cantieri: preventivi e computi pronti in minuti, SAL e avanzamenti tracciati, documenti di commessa archiviati e condivisi con le imprese, margini reali visibili mentre i lavori vanno avanti. Tutto in un unico posto, anche dal telefono in cantiere.",
-  heroImage: "https://images.unsplash.com/photo-1503387762-592deb58ef4e?auto=format&fit=crop&w=1400&q=80",
+  heroImage: "/hero/stock/cantiere-1503387762-1400.webp",
 
   // Social proof
   socialProof: [
@@ -254,7 +254,7 @@ const config: PerTipoConfig = {
       { label: "SAL contestati dalle imprese", before: "1 su 3", after: "quasi zero" },
       { label: "Varianti fatturate", before: "quelle ricordate", after: "tutte" },
     ],
-    image: "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=800&q=80",
+    image: "/hero/stock/cantiere-1503387762-768.webp",
   },
 
   // FAQ

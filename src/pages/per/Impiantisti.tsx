@@ -20,8 +20,7 @@ const config: PerTipoConfig = {
   ),
   heroSubtitle:
     "Non è solo un'app per i tecnici: è il sistema che governa tutta l'azienda. Il margine reale di ogni intervento lo vedi mentre lavori — ore di trasferta e collaudo comprese (+12% medio) — la fattura parte il giorno stesso (incassi 3 settimane prima), il magazzino furgone è sempre giusto. Con l'AI che ti avvisa prima che un'ora non fatturata diventi margine perso.",
-  heroImage:
-    "https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=1400&q=80",
+  heroImage: "/hero/stock/cantiere-1562259929-1400.webp",
 
   socialProof: [
     { initials: "TT", name: "TernoTecnica SRL", city: "Verona", months: 11, gradient: "from-[#111111] to-[#243566]" },
@@ -228,7 +227,7 @@ const config: PerTipoConfig = {
       { label: "Telefonate tecnici → ufficio", before: "~18/giorno", after: "~3/giorno" },
       { label: "Ore burocrazia settimanali", before: "14h", after: "5h" },
     ],
-    image: "https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=800&q=80",
+    image: "/hero/stock/cantiere-1562259929-768.webp",
   },
 
   faq: [

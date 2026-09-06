@@ -20,7 +20,7 @@ const config: PerTipoConfig = {
   ),
   heroSubtitle:
     "Hai 30+ clienti edili e ognuno ti manda i documenti come gli pare: WhatsApp, email, foto sgranate, PDF a fine mese. Cassa edile, DURC, F24 specifici dell'edilizia ti rubano ore di lavoro per ogni cliente. Con Edilizia in Cloud gestisci tutti i tuoi clienti edili da un'unica piattaforma multi-azienda: accesso ruolo-based commercialista, sync automatico cassetto fiscale SDI, F24 cassa edile pre-compilato. In white-label, con il tuo brand.",
-  heroImage: "https://images.unsplash.com/photo-1554224155-6726b3ff858f?auto=format&fit=crop&w=1400&q=80",
+  heroImage: "/hero/stock/cantiere-1581094288338-1400.webp",
 
   // Social proof
   socialProof: [

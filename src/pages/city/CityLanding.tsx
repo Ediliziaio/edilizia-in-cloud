@@ -52,8 +52,7 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
     heroTitle: "Gestionale Edilizia per Imprese di Milano",
     heroSubtitle:
       "Il software gestionale per imprese edili milanesi: controllo cantieri in tempo reale, margini per commessa, fatturazione elettronica e gestione squadre. Oltre 40 imprese edili lombarde già lo usano.",
-    heroImage:
-      "https://images.unsplash.com/photo-1513581166391-887a96ddeafd?auto=format&fit=crop&w=1400&q=80",
+    heroImage: "/hero/stock/cantiere-1504307651254-1400.webp",
     localStats: [
       { value: "40+", label: "Imprese edili milanesi attive" },
       { value: "€ 8.2M", label: "Fatturato gestito al mese in Lombardia" },
@@ -126,8 +125,7 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
     heroTitle: "Gestionale Edilizia per Imprese di Roma",
     heroSubtitle:
       "Software per imprese edili romane: gestione cantieri, margini in tempo reale, SAL e fatturazione elettronica. Già usato da oltre 30 imprese edili nel Lazio.",
-    heroImage:
-      "https://images.unsplash.com/photo-1555992336-03a23c7b20ee?auto=format&fit=crop&w=1400&q=80",
+    heroImage: "/hero/stock/cantiere-1541888946425-1400.webp",
     localStats: [
       { value: "30+", label: "Imprese edili laziali attive" },
       { value: "€ 5.1M", label: "Fatturato gestito al mese nel Lazio" },
@@ -200,8 +198,7 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
     heroTitle: "Gestionale Edilizia per Imprese di Torino",
     heroSubtitle:
       "Software gestionale per imprese edili torinesi e piemontesi: controllo margini, gestione cantieri e fatturazione elettronica. Già scelto da imprese edili in tutto il Piemonte.",
-    heroImage:
-      "https://images.unsplash.com/photo-1565514020179-026b92b84bb6?auto=format&fit=crop&w=1400&q=80",
+    heroImage: "/hero/stock/cantiere-1621905251189-1400.webp",
     localStats: [
       { value: "20+", label: "Imprese edili piemontesi attive" },
       { value: "€ 2.8M", label: "Fatturato gestito al mese in Piemonte" },
@@ -274,8 +271,7 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
     heroTitle: "Gestionale Edilizia per Imprese di Napoli",
     heroSubtitle:
       "Software gestionale per imprese edili napoletane e campane: gestione cantieri, margini reali, SAL e fatturazione elettronica. Già usato da imprese edili in tutta la Campania.",
-    heroImage:
-      "https://images.unsplash.com/photo-1533676802871-eca1ae998cd5?auto=format&fit=crop&w=1400&q=80",
+    heroImage: "/hero/stock/cantiere-1504328345606-1400.webp",
     localStats: [
       { value: "25+", label: "Imprese edili campane attive" },
       { value: "€ 3.4M", label: "Fatturato gestito al mese in Campania" },
@@ -348,8 +344,7 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
     heroTitle: "Gestionale Edilizia per Imprese di Bologna",
     heroSubtitle:
       "Software gestionale per imprese edili bolognesi e dell'Emilia-Romagna: controllo cantieri, margini in tempo reale e fatturazione elettronica integrata.",
-    heroImage:
-      "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?auto=format&fit=crop&w=1400&q=80",
+    heroImage: "/hero/stock/cantiere-1562259929-1400.webp",
     localStats: [
       { value: "18+", label: "Imprese edili emiliane attive" },
       { value: "€ 2.6M", label: "Fatturato gestito al mese in Emilia-Romagna" },
@@ -422,8 +417,7 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
     heroTitle: "Gestionale Edilizia per Imprese di Firenze",
     heroSubtitle:
       "Software gestionale per imprese edili fiorentine e toscane: gestione cantieri storici, SAL, fatturazione elettronica e controllo margini in tempo reale.",
-    heroImage:
-      "https://images.unsplash.com/photo-1541343672885-9be56236302a?auto=format&fit=crop&w=1400&q=80",
+    heroImage: "/hero/stock/cantiere-1581094288338-1400.webp",
     localStats: [
       { value: "15+", label: "Imprese edili toscane attive" },
       { value: "€ 2.1M", label: "Fatturato gestito al mese in Toscana" },
@@ -496,8 +490,7 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
     heroTitle: "Gestionale Edilizia per Imprese di Genova",
     heroSubtitle:
       "Software gestionale per imprese edili genovesi e liguri: gestione cantieri, controllo margini e fatturazione elettronica. Perfetto per le sfide del territorio ligure.",
-    heroImage:
-      "https://images.unsplash.com/photo-1554629947-334ff61d85dc?auto=format&fit=crop&w=1400&q=80",
+    heroImage: "/hero/stock/cantiere-1558618666-1400.webp",
     localStats: [
       { value: "12+", label: "Imprese edili liguri attive" },
       { value: "€ 1.8M", label: "Fatturato gestito al mese in Liguria" },
@@ -570,8 +563,7 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
     heroTitle: "Gestionale Edilizia per Imprese di Bari",
     heroSubtitle:
       "Software gestionale per imprese edili baresi e pugliesi: gestione cantieri, SAL, fatturazione elettronica e controllo margini. Scelto da imprese edili in tutta la Puglia.",
-    heroImage:
-      "https://images.unsplash.com/photo-1567401893414-76b7b1e5a7a5?auto=format&fit=crop&w=1400&q=80",
+    heroImage: "/hero/stock/cantiere-1504917595217-1400.webp",
     localStats: [
       { value: "12+", label: "Imprese edili pugliesi attive" },
       { value: "€ 1.5M", label: "Fatturato gestito al mese in Puglia" },
@@ -644,8 +636,7 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
     heroTitle: "Gestionale Edilizia per Imprese di Verona",
     heroSubtitle:
       "Software gestionale per imprese edili veronesi e venete: gestione cantieri, margini in tempo reale, fatturazione elettronica e app mobile per il cantiere.",
-    heroImage:
-      "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?auto=format&fit=crop&w=1400&q=80",
+    heroImage: "/hero/stock/cantiere-1503387762-1400.webp",
     localStats: [
       { value: "14+", label: "Imprese edili venete attive" },
       { value: "€ 2.0M", label: "Fatturato gestito al mese in Veneto" },
@@ -718,8 +709,7 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
     heroTitle: "Gestionale Edilizia per Imprese di Brescia",
     heroSubtitle:
       "Software gestionale per imprese edili bresciane e lombarde: gestione cantieri, preventivi, fatturazione elettronica e controllo margini in tempo reale.",
-    heroImage:
-      "https://images.unsplash.com/photo-1486325212027-8081e485255e?auto=format&fit=crop&w=1400&q=80",
+    heroImage: "/hero/stock/cantiere-1581578731548-1400.webp",
     localStats: [
       { value: "16+", label: "Imprese edili bresciane attive" },
       { value: "€ 2.3M", label: "Fatturato gestito al mese in provincia di Brescia" },
@@ -792,8 +782,7 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
     heroTitle: "Gestionale Edilizia per Imprese di Palermo",
     heroSubtitle:
       "Software gestionale per imprese edili palermitane e siciliane: controllo cantieri, SAL, fatturazione elettronica e gestione squadre in un'unica piattaforma cloud.",
-    heroImage:
-      "https://images.unsplash.com/photo-1612595434655-c758e8ea9b79?auto=format&fit=crop&w=1400&q=80",
+    heroImage: "/hero/stock/cantiere-1600585154526-1400.webp",
     localStats: [
       { value: "10+", label: "Imprese edili siciliane attive" },
       { value: "€ 1.2M", label: "Fatturato gestito al mese in Sicilia" },
@@ -866,8 +855,7 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
     heroTitle: "Gestionale Edilizia per Imprese di Catania",
     heroSubtitle:
       "Software gestionale per imprese edili catanesi: gestione cantieri, preventivi, fatturazione elettronica e controllo margini in tempo reale. Il polo economico della Sicilia orientale merita strumenti all'altezza.",
-    heroImage:
-      "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?auto=format&fit=crop&w=1400&q=80",
+    heroImage: "/hero/stock/cantiere-1504307651254-1400.webp",
     localStats: [
       { value: "12+", label: "Imprese edili catanesi attive" },
       { value: "€ 1.5M", label: "Fatturato gestito al mese in provincia di Catania" },
@@ -940,8 +928,7 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
     heroTitle: "Gestionale Edilizia per Imprese di Venezia",
     heroSubtitle:
       "Software gestionale per imprese edili veneziane: gestione cantieri lagunari, preventivi per restauro e conservazione, fatturazione elettronica e controllo margini. L'edilizia veneziana ha bisogno di strumenti su misura.",
-    heroImage:
-      "https://images.unsplash.com/photo-1523906834658-6e24ef2386f9?auto=format&fit=crop&w=1400&q=80",
+    heroImage: "/hero/stock/cantiere-1541888946425-1400.webp",
     localStats: [
       { value: "14+", label: "Imprese edili veneziane attive" },
       { value: "€ 1.8M", label: "Fatturato gestito al mese in provincia di Venezia" },
@@ -1014,8 +1001,7 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
     heroTitle: "Gestionale Edilizia per Imprese di Padova",
     heroSubtitle:
       "Software gestionale per imprese edili padovane: gestione cantieri, preventivi professionali, fatturazione elettronica e controllo margini. Il Veneto produttivo merita un gestionale all'altezza.",
-    heroImage:
-      "https://images.unsplash.com/photo-1567604458536-1fcb6a4f9c91?auto=format&fit=crop&w=1400&q=80",
+    heroImage: "/hero/stock/cantiere-1621905251189-1400.webp",
     localStats: [
       { value: "18+", label: "Imprese edili padovane attive" },
       { value: "€ 2.1M", label: "Fatturato gestito al mese in provincia di Padova" },
@@ -1088,8 +1074,7 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
     heroTitle: "Gestionale Edilizia per Imprese di Bergamo",
     heroSubtitle:
       "Software gestionale per imprese edili bergamasche: controllo cantieri, preventivi professionali, fatturazione elettronica e margini in tempo reale. La forza produttiva bergamasca merita strumenti digitali all'altezza.",
-    heroImage:
-      "https://images.unsplash.com/photo-1486325212027-8081e485255e?auto=format&fit=crop&w=1400&q=80",
+    heroImage: "/hero/stock/cantiere-1504328345606-1400.webp",
     localStats: [
       { value: "22+", label: "Imprese edili bergamasche attive" },
       { value: "€ 3.1M", label: "Fatturato gestito al mese in provincia di Bergamo" },
@@ -1162,8 +1147,7 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
     heroTitle: "Gestionale Edilizia per Imprese di Modena",
     heroSubtitle:
       "Software gestionale per imprese edili modenesi: gestione cantieri, preventivi, fatturazione elettronica e controllo margini. L'Emilia produttiva merita un gestionale che funziona come le sue imprese.",
-    heroImage:
-      "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&w=1400&q=80",
+    heroImage: "/hero/stock/cantiere-1562259929-1400.webp",
     localStats: [
       { value: "18+", label: "Imprese edili modenesi attive" },
       { value: "€ 2.4M", label: "Fatturato gestito al mese in provincia di Modena" },
@@ -1236,8 +1220,7 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
     heroTitle: "Gestionale Edilizia per Imprese di Reggio Emilia",
     heroSubtitle:
       "Software gestionale per imprese edili reggiane: controllo cantieri, preventivi professionali e fatturazione. Nel cuore dell'Emilia produttiva, scegli il gestionale usato dalle migliori imprese edili locali.",
-    heroImage:
-      "https://images.unsplash.com/photo-1486325212027-8081e485255e?auto=format&fit=crop&w=1400&q=80",
+    heroImage: "/hero/stock/cantiere-1581094288338-1400.webp",
     localStats: [
       { value: "15+", label: "Imprese edili reggiane attive" },
       { value: "€ 2.0M", label: "Fatturato gestito al mese in provincia di Reggio Emilia" },
@@ -1286,8 +1269,7 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
     heroTitle: "Gestionale Edilizia per Imprese di Parma",
     heroSubtitle:
       "Software gestionale per imprese edili parmensi: cantieri, preventivi, fatturazione elettronica e margini. La capitale del Food Valley merita imprese edili competitive e digitalmente attrezzate.",
-    heroImage:
-      "https://images.unsplash.com/photo-1486325212027-8081e485255e?auto=format&fit=crop&w=1400&q=80",
+    heroImage: "/hero/stock/cantiere-1558618666-1400.webp",
     localStats: [
       { value: "14+", label: "Imprese edili parmensi attive" },
       { value: "€ 1.8M", label: "Fatturato gestito al mese in provincia di Parma" },
@@ -1360,8 +1342,7 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
     heroTitle: "Gestionale Edilizia per Imprese di Salerno",
     heroSubtitle:
       "Software gestionale per imprese edili salernitane: gestione cantieri, SAL, fatturazione elettronica e controllo margini. Il Sud Italia cresce: le imprese edili di Salerno meritano strumenti digitali efficaci.",
-    heroImage:
-      "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?auto=format&fit=crop&w=1400&q=80",
+    heroImage: "/hero/stock/cantiere-1504917595217-1400.webp",
     localStats: [
       { value: "13+", label: "Imprese edili salernitane attive" },
       { value: "€ 1.6M", label: "Fatturato gestito al mese in provincia di Salerno" },
@@ -1434,8 +1415,7 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
     heroTitle: "Gestionale Edilizia per Imprese di Trieste",
     heroSubtitle:
       "Software gestionale per imprese edili triestine: gestione cantieri, preventivi, fatturazione e controllo margini. Il crocevia tra Italia, Slovenia e Austria merita strumenti gestionali all'avanguardia.",
-    heroImage:
-      "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?auto=format&fit=crop&w=1400&q=80",
+    heroImage: "/hero/stock/cantiere-1503387762-1400.webp",
     localStats: [
       { value: "11+", label: "Imprese edili triestine attive" },
       { value: "€ 1.4M", label: "Fatturato gestito al mese in provincia di Trieste" },
@@ -1508,8 +1488,7 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
     heroTitle: "Gestionale Edilizia per Imprese di Cagliari",
     heroSubtitle:
       "Software gestionale per imprese edili cagliaritane: gestione cantieri, SAL, preventivi e fatturazione. La Sardegna cresce: le imprese edili di Cagliari e dell'isola meritano strumenti digitali al passo con i tempi.",
-    heroImage:
-      "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?auto=format&fit=crop&w=1400&q=80",
+    heroImage: "/hero/stock/cantiere-1581578731548-1400.webp",
     localStats: [
       { value: "10+", label: "Imprese edili sarde attive" },
       { value: "€ 1.3M", label: "Fatturato gestito al mese in Sardegna" },
@@ -1582,8 +1561,7 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
     heroTitle: "Gestionale Edilizia per Imprese di Perugia",
     heroSubtitle:
       "Software gestionale per imprese edili perugine e umbre: gestione cantieri, preventivi, SAL e fatturazione. Il cuore verde d'Italia merita imprese edili moderne e digitalmente competitive.",
-    heroImage:
-      "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?auto=format&fit=crop&w=1400&q=80",
+    heroImage: "/hero/stock/cantiere-1600585154526-1400.webp",
     localStats: [
       { value: "12+", label: "Imprese edili umbre attive" },
       { value: "€ 1.5M", label: "Fatturato gestito al mese in Umbria" },
@@ -1656,8 +1634,7 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
     heroTitle: "Gestionale Edilizia per Imprese di Ancona",
     heroSubtitle:
       "Software gestionale per imprese edili marchigiane: cantieri, preventivi, fatturazione elettronica e controllo margini. Le Marche crescono: le imprese edili di Ancona e della regione meritano strumenti all'altezza.",
-    heroImage:
-      "https://images.unsplash.com/photo-1486325212027-8081e485255e?auto=format&fit=crop&w=1400&q=80",
+    heroImage: "/hero/stock/cantiere-1504307651254-1400.webp",
     localStats: [
       { value: "11+", label: "Imprese edili marchigiane attive" },
       { value: "€ 1.4M", label: "Fatturato gestito al mese nelle Marche" },
@@ -1729,8 +1706,7 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
     heroTitle: "Gestionale Edilizia per Imprese di Udine",
     heroSubtitle:
       "Il software gestionale per imprese edili friulane: cantieri, margini, fatturazione elettronica e gestione squadre. Il Friuli ha una tradizione costruttiva d'eccellenza — noi la supportiamo con tecnologia.",
-    heroImage:
-      "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1400&q=80",
+    heroImage: "/hero/stock/cantiere-1541888946425-1400.webp",
     localStats: [
       { value: "12+", label: "Imprese edili friulane attive" },
       { value: "€ 1.8M", label: "Fatturato gestito al mese in FVG" },
@@ -1802,8 +1778,7 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
     heroTitle: "Gestionale Edilizia per Imprese di Messina",
     heroSubtitle:
       "Il software gestionale per imprese edili messinesi: gestione cantieri, preventivi, fatturazione elettronica e squadre. Il mercato edilizio dello Stretto richiede organizzazione — noi te la diamo.",
-    heroImage:
-      "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1400&q=80",
+    heroImage: "/hero/stock/cantiere-1621905251189-1400.webp",
     localStats: [
       { value: "10+", label: "Imprese edili messinesi attive" },
       { value: "€ 1.4M", label: "Fatturato gestito al mese in area" },
@@ -1875,8 +1850,7 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
     heroTitle: "Gestionale Edilizia per Imprese di Livorno",
     heroSubtitle:
       "Il software gestionale per imprese edili livornesi: controllo cantieri, margini in tempo reale, fatturazione elettronica. Dalla costa agli appalti portuali, Edilizia in Cloud ti supporta.",
-    heroImage:
-      "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1400&q=80",
+    heroImage: "/hero/stock/cantiere-1504328345606-1400.webp",
     localStats: [
       { value: "9+", label: "Imprese edili livornesi attive" },
       { value: "€ 1.2M", label: "Fatturato gestito al mese in area" },
@@ -1948,8 +1922,7 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
     heroTitle: "Gestionale Edilizia per Imprese di Prato",
     heroSubtitle:
       "Il software gestionale per imprese edili pratesi: cantieri, margini reali, fatturazione elettronica e gestione squadre. Il distretto tessile pratese ha bisogno di capannoni e logistica — noi gestiamo i cantieri.",
-    heroImage:
-      "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1400&q=80",
+    heroImage: "/hero/stock/cantiere-1562259929-1400.webp",
     localStats: [
       { value: "11+", label: "Imprese edili pratesi attive" },
       { value: "€ 1.5M", label: "Fatturato gestito al mese in area" },
@@ -2021,8 +1994,7 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
     heroTitle: "Gestionale Edilizia per Imprese di Vicenza",
     heroSubtitle:
       "Il software gestionale per imprese edili vicentine: controllo cantieri, margini per commessa, fatturazione elettronica. Il Veneto industriale ha bisogno di un gestionale all'altezza — questo è Edilizia in Cloud.",
-    heroImage:
-      "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1400&q=80",
+    heroImage: "/hero/stock/cantiere-1581094288338-1400.webp",
     localStats: [
       { value: "13+", label: "Imprese edili vicentine attive" },
       { value: "€ 1.9M", label: "Fatturato gestito al mese in area" },
@@ -2093,7 +2065,7 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
     lon: 15.6474,
     heroTitle: "Gestionale Edilizia per Imprese di Reggio Calabria",
     heroSubtitle: "Il software gestionale per imprese edili reggine: gestione cantieri, SAL, fatturazione elettronica e squadre. La Calabria sta crescendo — noi ti aiutiamo a crescere con lei.",
-    heroImage: "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1400&q=80",
+    heroImage: "/hero/stock/cantiere-1558618666-1400.webp",
     localStats: [
       { value: "8+", label: "Imprese edili reggine attive" },
       { value: "€ 1.1M", label: "Fatturato gestito al mese in area" },
@@ -2127,7 +2099,7 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
     lon: 15.5444,
     heroTitle: "Gestionale Edilizia per Imprese di Foggia",
     heroSubtitle: "Il software gestionale per imprese edili foggiane: cantieri, margini, fatturazione elettronica e gestione squadre. La Capitanata ha un mercato edile in crescita — sii pronto a gestirlo.",
-    heroImage: "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1400&q=80",
+    heroImage: "/hero/stock/cantiere-1504917595217-1400.webp",
     localStats: [
       { value: "9+", label: "Imprese edili foggiane attive" },
       { value: "€ 1.2M", label: "Fatturato gestito al mese in area" },
@@ -2185,7 +2157,7 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
     lon: 14.2138,
     heroTitle: "Gestionale Edilizia per Imprese di Pescara",
     heroSubtitle: "Il software gestionale per imprese edili pescaresi: controllo cantieri, margini reali, fatturazione elettronica. L'Abruzzo cresce — Edilizia in Cloud cresce con te.",
-    heroImage: "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1400&q=80",
+    heroImage: "/hero/stock/cantiere-1503387762-1400.webp",
     localStats: [
       { value: "11+", label: "Imprese edili pescaresi attive" },
       { value: "€ 1.5M", label: "Fatturato gestito al mese in area" },
@@ -2243,7 +2215,7 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
     lon: 17.2470,
     heroTitle: "Gestionale Edilizia per Imprese di Taranto",
     heroSubtitle: "Il software gestionale per imprese edili tarantine: cantieri, SAL, fatturazione elettronica. Taranto si trasforma — le imprese edili che lavorano sulla riqualificazione urbana hanno bisogno di strumenti all'altezza.",
-    heroImage: "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1400&q=80",
+    heroImage: "/hero/stock/cantiere-1581578731548-1400.webp",
     localStats: [
       { value: "10+", label: "Imprese edili tarantine attive" },
       { value: "€ 1.3M", label: "Fatturato gestito al mese in area" },
@@ -2301,7 +2273,7 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
     lon: 16.2540,
     heroTitle: "Gestionale Edilizia per Imprese di Cosenza",
     heroSubtitle: "Il software gestionale per imprese edili cosentine: controllo cantieri, margini, fatturazione elettronica. La Calabria del nord cresce — Edilizia in Cloud ti dà gli strumenti per farlo bene.",
-    heroImage: "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1400&q=80",
+    heroImage: "/hero/stock/cantiere-1600585154526-1400.webp",
     localStats: [
       { value: "8+", label: "Imprese edili cosentine attive" },
       { value: "€ 1.0M", label: "Fatturato gestito al mese in area" },
@@ -2359,7 +2331,7 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
     lon: 11.1217,
     heroTitle: "Gestionale Edilizia per Imprese di Trento",
     heroSubtitle: "Il software gestionale per imprese edili trentine: controllo cantieri, margini, fatturazione elettronica. Il Trentino ha standard costruttivi elevati — Edilizia in Cloud è all'altezza.",
-    heroImage: "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=1400&q=80",
+    heroImage: "/hero/stock/cantiere-1504307651254-1400.webp",
     localStats: [
       { value: "14+", label: "Imprese edili trentine attive" },
       { value: "€ 2.1M", label: "Fatturato gestito al mese in area" },
@@ -2417,7 +2389,7 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
     lon: 11.3548,
     heroTitle: "Gestionale Edilizia per Imprese di Bolzano",
     heroSubtitle: "Il software gestionale per imprese edili altoatesine: cantieri, margini, fatturazione elettronica. L'Alto Adige ha i migliori standard costruttivi d'Italia — noi ti aiutiamo a gestirli.",
-    heroImage: "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=1400&q=80",
+    heroImage: "/hero/stock/cantiere-1541888946425-1400.webp",
     localStats: [
       { value: "16+", label: "Imprese edili altoatesine attive" },
       { value: "€ 2.4M", label: "Fatturato gestito al mese in area" },
@@ -2475,7 +2447,7 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
     lon: 11.6198,
     heroTitle: "Gestionale Edilizia per Imprese di Ferrara",
     heroSubtitle: "Il software gestionale per imprese edili ferraresi: controllo cantieri, margini reali, fatturazione elettronica. Ferrara patrimonio UNESCO — le sue imprese edili meritano strumenti di eccellenza.",
-    heroImage: "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1400&q=80",
+    heroImage: "/hero/stock/cantiere-1621905251189-1400.webp",
     localStats: [
       { value: "10+", label: "Imprese edili ferraresi attive" },
       { value: "€ 1.4M", label: "Fatturato gestito al mese in area" },
@@ -2535,7 +2507,7 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
     lon: 9.0852,
     heroTitle: "Gestionale Edilizia per Imprese di Como",
     heroSubtitle: "Software gestionale per imprese edili comasche e del lago: ville di lusso, restauro storico e cantieri residenziali. Controllo margini, SAL automatici e app cantiere offline.",
-    heroImage: "https://images.unsplash.com/photo-1513581166391-887a96ddeafd?auto=format&fit=crop&w=1400&q=80",
+    heroImage: "/hero/stock/cantiere-1504328345606-1400.webp",
     localStats: [
       { value: "18+", label: "Imprese edili comasche attive" },
       { value: "€ 3.4M", label: "Fatturato mensile gestito sul lago" },
@@ -2594,7 +2566,7 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
     lon: 9.3973,
     heroTitle: "Gestionale Edilizia per Imprese di Lecco",
     heroSubtitle: "Il software gestionale per imprese edili lecchesi e della Valassina: cantieri di montagna, ville lago, ristrutturazioni. Gestione cantieri in tempo reale, controllo margini e app mobile.",
-    heroImage: "https://images.unsplash.com/photo-1513581166391-887a96ddeafd?auto=format&fit=crop&w=1400&q=80",
+    heroImage: "/hero/stock/cantiere-1562259929-1400.webp",
     localStats: [
       { value: "14+", label: "Imprese edili lecchesi attive" },
       { value: "€ 2.1M", label: "Fatturato gestito mensile" },
@@ -2653,7 +2625,7 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
     lon: 9.2744,
     heroTitle: "Gestionale Edilizia per Imprese di Monza e Brianza",
     heroSubtitle: "Software gestionale per imprese edili brianzole: hinterland milanese, capannoni industriali, residenziali di pregio. Margini reali, SAL settimanali e fatturazione elettronica integrata.",
-    heroImage: "https://images.unsplash.com/photo-1513581166391-887a96ddeafd?auto=format&fit=crop&w=1400&q=80",
+    heroImage: "/hero/stock/cantiere-1581094288338-1400.webp",
     localStats: [
       { value: "32+", label: "Imprese edili brianzole attive" },
       { value: "€ 6.8M", label: "Fatturato mensile gestito" },
@@ -2712,7 +2684,7 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
     lon: 8.8252,
     heroTitle: "Gestionale Edilizia per Imprese di Varese",
     heroSubtitle: "Software gestionale per imprese edili varesine: residenziale, industriale e cantieri di confine con la Svizzera. Controllo margini, app cantiere offline e gestione documentale.",
-    heroImage: "https://images.unsplash.com/photo-1513581166391-887a96ddeafd?auto=format&fit=crop&w=1400&q=80",
+    heroImage: "/hero/stock/cantiere-1558618666-1400.webp",
     localStats: [
       { value: "21+", label: "Imprese edili varesine attive" },
       { value: "€ 4.3M", label: "Fatturato mensile gestito" },
@@ -2771,7 +2743,7 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
     lon: 12.2431,
     heroTitle: "Gestionale Edilizia per Imprese di Treviso",
     heroSubtitle: "Software gestionale per imprese edili trevigiane: residenziale, capannoni e zone industriali. Controllo margini, SAL puntuali e fatturazione elettronica integrata per la Marca trevigiana.",
-    heroImage: "https://images.unsplash.com/photo-1513581166391-887a96ddeafd?auto=format&fit=crop&w=1400&q=80",
+    heroImage: "/hero/stock/cantiere-1504917595217-1400.webp",
     localStats: [
       { value: "26+", label: "Imprese edili trevigiane attive" },
       { value: "€ 5.1M", label: "Fatturato mensile gestito" },
@@ -2830,7 +2802,7 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
     lon: 12.9036,
     heroTitle: "Gestionale Edilizia per Imprese di Latina",
     heroSubtitle: "Software gestionale per imprese edili pontine: residenziale, agricolo, costiero. Controllo margini, gestione SAL e app cantiere mobile pensata per l'edilizia laziale.",
-    heroImage: "https://images.unsplash.com/photo-1513581166391-887a96ddeafd?auto=format&fit=crop&w=1400&q=80",
+    heroImage: "/hero/stock/cantiere-1503387762-1400.webp",
     localStats: [
       { value: "19+", label: "Imprese edili pontine attive" },
       { value: "€ 3.2M", label: "Fatturato mensile gestito" },
@@ -2889,7 +2861,7 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
     lon: 10.4017,
     heroTitle: "Gestionale Edilizia per Imprese di Pisa",
     heroSubtitle: "Software gestionale per imprese edili pisane: restauro storico, residenziale, edilizia universitaria e costiero versiliese. Controllo margini, fatturazione elettronica e app cantiere mobile.",
-    heroImage: "https://images.unsplash.com/photo-1513581166391-887a96ddeafd?auto=format&fit=crop&w=1400&q=80",
+    heroImage: "/hero/stock/cantiere-1581578731548-1400.webp",
     localStats: [
       { value: "17+", label: "Imprese edili pisane attive" },
       { value: "€ 2.8M", label: "Fatturato mensile gestito" },
@@ -3048,6 +3020,8 @@ export default function CityLanding() {
         <div className="absolute inset-0">
           <img
             src={config.heroImage}
+            srcSet={`${config.heroImage.replace("-1400.webp", "-768.webp")} 768w, ${config.heroImage} 1400w`}
+            sizes="100vw"
             alt={`Cantiere edile a ${config.name}`}
             width={1400}
             height={700}

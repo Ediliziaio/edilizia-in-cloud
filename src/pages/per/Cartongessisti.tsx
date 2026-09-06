@@ -21,7 +21,7 @@ const config: PerTipoConfig = {
   ),
   heroSubtitle:
     "Tre squadre su tre cantieri e i mq posati segnati su tre blocchetti diversi. Edilizia in Cloud è il gestionale per cartongessisti: fai il preventivo al metro quadro in pochi minuti — pareti, contropareti, controsoffitti con i tuoi prezzi — segui le squadre sparse su più cantieri con timbrature GPS e rapportini con foto, e tieni acconti e SAL brevi sotto controllo fino all'ultima fattura elettronica.",
-  heroImage: "https://images.unsplash.com/photo-1504328345606-18bbc8c9d7d1?auto=format&fit=crop&w=1400&q=80",
+  heroImage: "/hero/stock/cantiere-1621905251189-1400.webp",
 
   // Social proof
   socialProof: [
@@ -254,7 +254,7 @@ const config: PerTipoConfig = {
       { label: "SAL fatturati in ritardo", before: "1 su 3", after: "nessuno" },
       { label: "Cantieri gestiti in parallelo", before: "3, con affanno", after: "5" },
     ],
-    image: "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&w=800&q=80",
+    image: "/hero/stock/cantiere-1621905251189-768.webp",
   },
 
   // FAQ

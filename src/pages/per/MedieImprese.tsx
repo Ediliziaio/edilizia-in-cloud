@@ -23,7 +23,7 @@ const config: PerTipoConfig = {
   ),
   heroSubtitle:
     "A 30 dipendenti e 8 cantieri attivi succede sempre la stessa cosa: il responsabile cantiere lavora con i suoi Excel, il CFO riceve i dati con due settimane di ritardo, l'HR insegue le presenze su WhatsApp e i margini reali nessuno li conosce davvero. Edilizia in Cloud è la prima piattaforma pensata per medie imprese edili: ruoli e deleghe chiari, dati consolidati in tempo reale, zero ERP enterprise da 200.000 euro l'anno.",
-  heroImage: "https://images.unsplash.com/photo-1581094288338-2314dddb7ece?auto=format&fit=crop&w=1400&q=80",
+  heroImage: "/hero/stock/cantiere-1541888946425-1400.webp",
 
   // Social proof
   socialProof: [

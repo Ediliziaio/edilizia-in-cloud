@@ -20,7 +20,7 @@ const config: PerTipoConfig = {
   ),
   heroSubtitle: "Non è solo un software per varianti e bonus: è il sistema che governa tutta l'azienda. Il margine reale di ogni cantiere lo vedi mentre lavori (+18% medio sulle commesse monitorate), la cassa la conosci a 90 giorni, varianti e SAL filano senza contestazioni — e sì, la documentazione bonus esce con checklist sempre aggiornate. Con l'AI che ti avvisa prima che una variante non tracciata diventi una perdita.",
 
-  heroImage: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?auto=format&fit=crop&w=1400&q=80",
+  heroImage: "/hero/stock/cantiere-1621905251189-1400.webp",
 
   socialProof: [
     { initials: "RM", name: "Ristrutturazioni Marchetti", city: "Bologna", months: 14, gradient: "from-[#0d8f79] to-[#0a6b5a]" },

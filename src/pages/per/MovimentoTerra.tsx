@@ -21,7 +21,7 @@ const config: PerTipoConfig = {
   ),
   heroSubtitle:
     "L'escavatore ha lavorato tutto il mese, ma su quali cantieri — e a che costo? Edilizia in Cloud è il software per le imprese di movimento terra: le ore macchina di ogni mezzo si registrano dal telefono con i rapportini di giornata, gasolio, manutenzioni e noli si caricano come costi sulla commessa giusta, e il margine di ogni cantiere si vede mentre scavi — non a fine anno. Con DDT e fattura elettronica compresi.",
-  heroImage: "https://images.unsplash.com/photo-1506784365847-bbad939e9335?auto=format&fit=crop&w=1400&q=80",
+  heroImage: "/hero/stock/cantiere-1541888946425-1400.webp",
 
   // Social proof
   socialProof: [
@@ -254,7 +254,7 @@ const config: PerTipoConfig = {
       { label: "Giorni di nolo fatturati", before: "quelli ricordati", after: "tutti" },
       { label: "Margine medio per cantiere", before: "un'ipotesi", after: "+11% e misurato" },
     ],
-    image: "https://images.unsplash.com/photo-1581094794329-c8112a89af12?auto=format&fit=crop&w=800&q=80",
+    image: "/hero/stock/cantiere-1541888946425-768.webp",
   },
 
   // FAQ

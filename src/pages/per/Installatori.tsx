@@ -21,7 +21,7 @@ const config: PerTipoConfig = {
   ),
   heroSubtitle:
     "L'intervento è finito da ore, ma il rapportino e la fattura sono ancora da fare. Edilizia in Cloud è il gestionale per installatori che fanno tanti interventi brevi: il rapportino con le foto si compila dal telefono in due minuti, il materiale usato si scala dal magazzino del furgone, e la fattura elettronica parte subito dopo l'intervento — non tre settimane dopo. Meno carta, meno giri a vuoto, incassi più veloci.",
-  heroImage: "https://images.unsplash.com/photo-1621905251189-08b45d6a269e?auto=format&fit=crop&w=1400&q=80",
+  heroImage: "/hero/stock/cantiere-1581578731548-1400.webp",
 
   // Social proof
   socialProof: [
@@ -254,7 +254,7 @@ const config: PerTipoConfig = {
       { label: "Viaggi a vuoto per pezzi mancanti", before: "3-4 a settimana", after: "quasi zero" },
       { label: "Interventi al giorno", before: "12", after: "15, stessi tecnici" },
     ],
-    image: "https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=800&q=80",
+    image: "/hero/stock/cantiere-1581578731548-768.webp",
   },
 
   // FAQ

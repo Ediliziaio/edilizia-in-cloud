@@ -21,7 +21,7 @@ const config: PerTipoConfig = {
   ),
   heroSubtitle:
     "In officina la produzione corre, in cantiere la posa aspetta — e nessuno sa a che punto siamo. Edilizia in Cloud è il software per carpenterie metalliche: ogni commessa tiene insieme produzione in officina e posa in cantiere, con distinte materiali collegate, DDT per le spedizioni, avanzamento documentato con foto e ore di officina e di posa separate. Il margine reale lo vedi mentre la commessa avanza — non quando l'acciaio è già montato e pagato.",
-  heroImage: "https://images.unsplash.com/photo-1565043666747-69f6646db940?auto=format&fit=crop&w=1400&q=80",
+  heroImage: "/hero/stock/cantiere-1504328345606-1400.webp",
 
   // Social proof
   socialProof: [
@@ -254,7 +254,7 @@ const config: PerTipoConfig = {
       { label: "DDT collegati alla commessa", before: "a mano, sparsi", after: "tutti, dal gestionale" },
       { label: "Margine medio per commessa", before: "scoperto a fine", after: "+10%, visibile sempre" },
     ],
-    image: "https://images.unsplash.com/photo-1504917595217-d4dc5ebe6122?auto=format&fit=crop&w=800&q=80",
+    image: "/hero/stock/cantiere-1504328345606-768.webp",
   },
 
   // FAQ

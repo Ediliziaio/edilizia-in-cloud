@@ -21,7 +21,7 @@ const config: PerTipoConfig = {
   ),
   heroSubtitle:
     "Di giorno posi, la sera fai i conti: così il margine non lo vedi mai. Edilizia in Cloud è il gestionale per la piccola impresa di muratura: fai il preventivo in pochi minuti invece che la sera al tavolo, registri le ore della squadra con le timbrature GPS dal telefono, vedi il margine di ogni cantiere mentre lavori e mandi le fatture elettroniche da solo, senza aspettare il commercialista ogni volta.",
-  heroImage: "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1400&q=80",
+  heroImage: "/hero/stock/cantiere-1504307651254-1400.webp",
 
   // Social proof
   socialProof: [
@@ -254,7 +254,7 @@ const config: PerTipoConfig = {
       { label: "Giorni per emettere fattura", before: "15-20", after: "il giorno stesso" },
       { label: "Lavori extra fatturati", before: "quasi nessuno", after: "tutti, con foto" },
     ],
-    image: "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&w=800&q=80",
+    image: "/hero/stock/cantiere-1541888946425-768.webp",
   },
 
   // FAQ
