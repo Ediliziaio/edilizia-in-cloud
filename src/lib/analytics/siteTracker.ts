@@ -11,7 +11,11 @@
  *   giorni resta riconoscibile e le sue sessioni si sommano.
  * - `session_id` vive in sessionStorage: una visita, dal primo click alla
  *   chiusura della scheda.
+ * - ogni vista ha un `client_id` proprio, che serve al beacon di uscita per
+ *   scrivere il tempo di permanenza sulla riga giusta.
  */
+const ENDPOINT = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/site-track`;
+
 const CHIAVE_VISITATORE = "eic_visitor_id";
 const CHIAVE_SESSIONE = "eic_session_id";
 
@@ -118,30 +122,115 @@ function normalizza(percorso: string): string {
   return senzaQuery || "/";
 }
 
+/**
+ * Il prerender del build apre tutte le pagine del sito a ogni deploy. Senza
+ * questo controllo le conta come visite: 243 pagine in novanta secondi, per
+ * sette deploy in un giorno, hanno prodotto il 96% delle righe raccolte nelle
+ * prime trenta ore. `navigator.webdriver` è true in Puppeteer e in ogni
+ * browser pilotato da un automatismo.
+ *
+ * Lo stesso controllo esiste anche lato server sull'user agent, perché una
+ * scheda aperta su un bundle vecchio continuerebbe a mandare dati comunque.
+ */
+function automatismo(): boolean {
+  try {
+    return navigator.webdriver === true;
+  } catch {
+    return false;
+  }
+}
+
+/** La vista aperta adesso: serve a chiuderla quando se ne apre un'altra. */
+let vistaAperta: { clientId: string; iniziata: number } | null = null;
+let ascoltatoriPronti = false;
+
+/**
+ * Quanto è rimasto su questa pagina.
+ *
+ * Si manda con `sendBeacon`, l'unico modo perché parta davvero mentre la
+ * scheda si chiude: una fetch normale viene annullata. Sotto il secondo non
+ * si manda niente — non è una lettura, è un rimbalzo, e lo si vede già dal
+ * fatto che la pagina è l'ultima della sessione.
+ *
+ * Se il visitatore torna sulla scheda, il tempo successivo non viene contato:
+ * la misura è il tempo di attenzione, non quello a schermo aperto.
+ */
+function chiudiVista(): void {
+  const vista = vistaAperta;
+  vistaAperta = null;
+  if (!vista) return;
+
+  const durata = Date.now() - vista.iniziata;
+  if (durata < 1000) return;
+
+  const corpo = JSON.stringify({
+    tipo: "uscita",
+    client_id: vista.clientId,
+    durata_ms: durata,
+  });
+
+  try {
+    if (typeof navigator.sendBeacon === "function") {
+      navigator.sendBeacon(ENDPOINT, new Blob([corpo], { type: "application/json" }));
+      return;
+    }
+  } catch {
+    /* si ripiega sulla fetch */
+  }
+
+  void fetch(ENDPOINT, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: corpo,
+    keepalive: true,
+  }).catch(() => {
+    /* il tempo di quella pagina resta ignoto: non è un errore da mostrare */
+  });
+}
+
+function preparaAscoltatori(): void {
+  if (ascoltatoriPronti) return;
+  ascoltatoriPronti = true;
+  // `pagehide` copre la chiusura e la navigazione via, `visibilitychange`
+  // copre il passaggio a un'altra scheda: su mobile spesso arriva solo il
+  // secondo, e senza di lui non si chiuderebbe mai niente.
+  window.addEventListener("pagehide", chiudiVista);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") chiudiVista();
+  });
+}
+
 /** Il tracciamento non deve mai rallentare né rompere la navigazione. */
 export function tracciaPagina(percorso: string, titolo?: string): void {
   if (typeof window === "undefined") return;
+  if (automatismo()) return;
+
+  // La pagina precedente si chiude qui: dentro una SPA il cambio rotta è
+  // l'unico momento in cui si sa che quella vista è finita.
+  chiudiVista();
+  preparaAscoltatori();
+
+  const clientId = id();
+  vistaAperta = { clientId, iniziata: Date.now() };
 
   const corpo = {
     session_id: sessionId(),
     visitor_id: visitorId(),
+    client_id: clientId,
     path: normalizza(percorso),
     title: titolo ?? document.title,
     ...provenienza(),
   };
 
-  void fetch(
-    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/site-track`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? "",
-      },
-      body: JSON.stringify(corpo),
-      keepalive: true,
+  void fetch(ENDPOINT, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? "",
     },
-  ).catch(() => {
+    body: JSON.stringify(corpo),
+    keepalive: true,
+  }).catch(() => {
     /* offline o funzione giù: si perde la pagina, non la visita dell'utente */
   });
 }

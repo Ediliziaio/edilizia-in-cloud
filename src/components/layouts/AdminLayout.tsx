@@ -179,6 +179,10 @@ const allNavItems: AdminNavItem[] = [
   // diceva quale integrazione avesse smesso di funzionare, né quali chiavi
   // fossero vive ma inutilizzate.
   { title: "Connessioni", url: "/admin/connessioni", icon: Plug, permission: "can_view_platform_stats", subcategory: "sa_operazioni" },
+  // Traffico del sito: quali pagine vengono viste, quanto ci si ferma e dove si
+  // esce. Dati di prima parte — nessun campionamento, nessun consenso da
+  // aspettare — e il crawler del prerender resta fuori dal conteggio.
+  { title: "Traffico sito", url: "/admin/sito", icon: BarChart3, permission: "can_view_platform_stats", subcategory: "sa_growth" },
   // ⚠️ "Operazioni" rimosso dalla sidebar principale: è materia di
   //    amministrazione di sistema (sync, alert, import, GDPR, audit) e
   //    duplicava parzialmente "Registro Attività" già presente in

@@ -9,6 +9,10 @@
  * la provenienza (referrer, utm, gclid/fbclid): quella si scrive una volta e
  * non si tocca più, altrimenti l'ultima pagina vista sovrascriverebbe la fonte
  * vera del visitatore.
+ *
+ * Riceve anche un secondo tipo di chiamata, il beacon di uscita: quando la
+ * scheda viene nascosta o chiusa, il browser manda quanto tempo è rimasto su
+ * quella pagina. È l'unico modo per distinguere chi legge da chi rimbalza.
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -30,11 +34,62 @@ function dispositivo(ua: string): string {
   return "desktop";
 }
 
+/**
+ * Chi non è una persona.
+ *
+ * Il caso che ha reso necessario questo filtro non era un bot esterno: era il
+ * nostro. Il prerender del build visita tutte e 243 le pagine a ogni deploy, e
+ * per trenta ore ha prodotto il 96% delle "visite" registrate — sette deploy,
+ * 1.557 pagine finte contro 64 vere. Un sito da poche centinaia di visite
+ * organiche al mese risultava avere il traffico di un portale.
+ *
+ * Il controllo sta qui e non solo nel client perché un browser aperto su una
+ * versione vecchia del bundle continuerebbe a mandare quello che vuole.
+ */
+const NON_UMANI =
+  /bot|crawl|spider|slurp|headless|puppeteer|playwright|lighthouse|prerender|phantom|selenium|scrapy|python-requests|curl\/|wget|axios|node-fetch|go-http|java\/|okhttp|facebookexternalhit|bingpreview|semrush|ahrefs|dataforseo|screaming|petalbot|yandex|gptbot|claudebot|ccbot/i;
+
+function nonUmano(ua: string): boolean {
+  // Nessun user agent: nessun browser vero omette questo header.
+  if (!ua.trim()) return true;
+  return NON_UMANI.test(ua);
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
     const body = await req.json();
+    const userAgentGrezzo = req.headers.get("user-agent") ?? "";
+    if (nonUmano(userAgentGrezzo)) {
+      // Si risponde ok: a un crawler non serve sapere di essere stato escluso,
+      // e un errore lo farebbe solo riprovare.
+      return new Response(JSON.stringify({ ok: true, ignorato: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+    // Beacon di uscita: porta solo quanto tempo è durata una vista già
+    // registrata. Aggiorna la riga indicata dal client e nessun'altra, e solo
+    // se il tempo non è già stato scritto: così un beacon ripetuto — succede,
+    // fra visibilitychange e pagehide — non raddoppia niente.
+    const clientIdUscita = pulisci(body.client_id, 64);
+    const durata = Number(body.durata_ms);
+    if (body.tipo === "uscita" && clientIdUscita && Number.isFinite(durata) && durata > 0) {
+      const db = createClient(supabaseUrl, serviceKey);
+      await db
+        .from("attribution_pageviews")
+        .update({ durata_ms: Math.min(Math.round(durata), 6 * 60 * 60 * 1000) })
+        .eq("client_id", clientIdUscita)
+        .is("durata_ms", null);
+      return new Response(JSON.stringify({ ok: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const sessionId = pulisci(body.session_id, 64);
     const path = pulisci(body.path, 500);
     if (!sessionId || !path) {
@@ -43,13 +98,10 @@ Deno.serve(async (req) => {
       });
     }
 
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-    );
+    const supabase = createClient(supabaseUrl, serviceKey);
 
     const visitorId = pulisci(body.visitor_id, 64) || null;
-    const userAgent = req.headers.get("user-agent") ?? "";
+    const userAgent = userAgentGrezzo;
 
     // Sessione: si crea alla prima pagina con la provenienza di quel momento.
     // Se esiste già la si lascia stare — la fonte è quella d'ingresso.
@@ -99,6 +151,7 @@ Deno.serve(async (req) => {
       path,
       title: pulisci(body.title, 300) || null,
       referrer: pulisci(body.referrer, 1000) || null,
+      client_id: pulisci(body.client_id, 64) || null,
     });
 
     return new Response(JSON.stringify({ ok: true }), {

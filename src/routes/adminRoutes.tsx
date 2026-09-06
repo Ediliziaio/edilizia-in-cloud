@@ -16,6 +16,7 @@ const CompanyDetail = lazy(() => import("@/pages/admin/CompanyDetail"));
 const AuditUnifiedPage = lazy(() => import("@/pages/admin/AuditUnifiedPage"));
 const UsersList = lazy(() => import("@/pages/admin/UsersList"));
 const PlatformHealthPage = lazy(() => import("@/pages/admin/PlatformHealthPage"));
+const SiteTrafficPage = lazy(() => import("@/pages/admin/SiteTrafficPage"));
 const InsolutiPage = lazy(() => import("@/pages/admin/InsolutiPage"));
 const ConnessioniPage = lazy(() => import("@/pages/admin/ConnessioniPage"));
 // AdminSettingsProfile rimosso: sostituito da AdminMioProfilo (tab Profilo/
@@ -225,6 +226,7 @@ export default function AdminRoutesContainer() {
         {/* Salute piattaforma: job, errori e latenza. Prima un guasto si
             scopriva quando chiamava il cliente. */}
         <Route path="salute" element={<RequireAdminPermission permission="can_view_platform_stats"><PlatformHealthPage /></RequireAdminPermission>} />
+        <Route path="sito" element={<RequireAdminPermission permission="can_view_platform_stats"><SiteTrafficPage /></RequireAdminPermission>} />
         {/* Insoluti: chi non paga, quanto e da quando. Prima serviva una query SQL a mano. */}
         <Route path="insoluti" element={<RequireAdminPermission permission="billing_read"><InsolutiPage /></RequireAdminPermission>} />
         {/* Connessioni: integrazioni, chiavi API e webhook. Prima nessuna
