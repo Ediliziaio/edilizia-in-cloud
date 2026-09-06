@@ -18,7 +18,6 @@ import {
   HeadphonesIcon,
   Activity,
   FileText,
-  ShieldCheck,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { formatCurrency, formatRelativeTime } from "@/lib/formatters";
@@ -200,13 +199,8 @@ export default function CustomerOrders() {
         icon: FileText,
       };
     }
-    return {
-      title: "Area cliente aggiornata",
-      description: "Qui trovi ordini, pagamenti, interventi e documenti condivisi.",
-      href: "/cliente/documenti",
-      label: "Apri documenti",
-      icon: ShieldCheck,
-    };
+    // Niente da segnalare: nessun banner riempitivo.
+    return null;
   }, [activeOrdersCount, dueSoonCount, nextAppointment, openTicketsCount]);
 
   // ── Activity feed: last 5 status changes ──────────────────
@@ -269,7 +263,7 @@ export default function CustomerOrders() {
   // Greeting based on time of day
   const hour = new Date().getHours();
   const greeting = hour < 13 ? "Buongiorno" : hour < 18 ? "Buon pomeriggio" : "Buonasera";
-  const NextActionIcon = nextAction.icon;
+  const NextActionIcon = nextAction?.icon ?? FileText;
 
   return (
     <div className="space-y-5">
@@ -294,7 +288,7 @@ export default function CustomerOrders() {
             <ShoppingCart className="h-4 w-4 md:h-5 md:w-5 text-primary" />
           </div>
           <div className="min-w-0">
-            <p className="text-[10px] md:text-sm text-muted-foreground leading-tight">Ordini attivi</p>
+            <p className="text-xs md:text-sm text-muted-foreground leading-tight">Ordini attivi</p>
             <p className="text-lg md:text-xl font-bold leading-tight">{activeOrdersCount}</p>
           </div>
         </div>
@@ -304,7 +298,7 @@ export default function CustomerOrders() {
             <CreditCard className="h-4 w-4 md:h-5 md:w-5 text-orange-500" />
           </div>
           <div className="min-w-0">
-            <p className="text-[10px] md:text-sm text-muted-foreground leading-tight">In scadenza</p>
+            <p className="text-xs md:text-sm text-muted-foreground leading-tight">In scadenza</p>
             <p className="text-lg md:text-xl font-bold leading-tight">{dueSoonCount}</p>
           </div>
         </div>
@@ -314,7 +308,7 @@ export default function CustomerOrders() {
             <CalendarDays className="h-4 w-4 md:h-5 md:w-5 text-blue-500" />
           </div>
           <div className="min-w-0">
-            <p className="text-[10px] md:text-sm text-muted-foreground leading-tight">Appuntamento</p>
+            <p className="text-xs md:text-sm text-muted-foreground leading-tight">Consegna prevista</p>
             <p className="text-lg md:text-xl font-bold leading-tight">
               {nextAppointment
                 ? format(new Date(nextAppointment), "d MMM", { locale: it })
@@ -328,12 +322,13 @@ export default function CustomerOrders() {
             <HeadphonesIcon className="h-4 w-4 md:h-5 md:w-5 text-violet-500" />
           </div>
           <div className="min-w-0">
-            <p className="text-[10px] md:text-sm text-muted-foreground leading-tight">Ticket aperti</p>
+            <p className="text-xs md:text-sm text-muted-foreground leading-tight">Ticket aperti</p>
             <p className="text-lg md:text-xl font-bold leading-tight">{openTicketsCount}</p>
           </div>
         </Link>
       </div>
 
+      {nextAction && (
       <Link
         to={nextAction.href}
         className="flex items-center justify-between gap-3 bg-background border border-border/60 rounded-2xl p-4 hover:shadow-md transition-all active:scale-[0.98]"
@@ -355,6 +350,7 @@ export default function CustomerOrders() {
         </div>
         <ChevronRight className="h-5 w-5 text-muted-foreground/50 shrink-0 sm:hidden" />
       </Link>
+      )}
 
       {/* FEATURE 3 — Activity Feed */}
       {activityFeed.length > 0 && (

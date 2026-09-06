@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Link, Outlet } from "react-router-dom";
+import { Link, Outlet, useLocation } from "react-router-dom";
 import { Eye, LogOut, PenTool } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useBrandSettings } from "@/hooks/useBrandSettings";
@@ -38,12 +38,25 @@ import {
 const navItems = [
   { title: "I Miei Ordini", url: "/cliente", icon: ClipboardList, end: true },
   { title: "Documenti", url: "/cliente/documenti", icon: FileText },
-  { title: "Firma Documenti", url: "/cliente/firma", icon: PenTool },
-  { title: "Stato Pagamenti", url: "/cliente/rate", icon: CreditCard },
+  { title: "Firma", url: "/cliente/firma", icon: PenTool },
+  { title: "Pagamenti", url: "/cliente/rate", icon: CreditCard },
   { title: "Appuntamenti", url: "/cliente/appuntamenti", icon: CalendarDays },
   { title: "Assistenza", url: "/cliente/assistenza", icon: HeadphonesIcon },
-  { title: "Il Mio Profilo", url: "/cliente/profilo", icon: User },
+  { title: "Profilo", url: "/cliente/profilo", icon: User },
 ];
+
+// Titolo della scheda del browser per pagina: prima restava quello della pagina precedente.
+const CUSTOMER_PAGE_TITLES: Record<string, string> = {
+  "/cliente": "I miei ordini",
+  "/cliente/documenti": "Documenti",
+  "/cliente/firma": "Firma documenti",
+  "/cliente/rate": "Pagamenti",
+  "/cliente/appuntamenti": "Appuntamenti",
+  "/cliente/assistenza": "Assistenza",
+  "/cliente/assistenza/nuovo": "Nuovo ticket",
+  "/cliente/profilo": "Profilo",
+  "/cliente/menu": "Menu",
+};
 
 export function CustomerLayout() {
   const { signOut, company, profile } = useAuth();
@@ -51,6 +64,20 @@ export function CustomerLayout() {
   useCustomCSS();
   const unreadCount = useCustomerUnreadCount();
   const previewSession = usePreviewToken();
+  const location = useLocation();
+
+  useEffect(() => {
+    const path = location.pathname;
+    const titolo = path.startsWith("/cliente/ordini/")
+      ? "Dettaglio ordine"
+      : path.startsWith("/cliente/assistenza/") && path !== "/cliente/assistenza/nuovo"
+        ? "Ticket"
+        : CUSTOMER_PAGE_TITLES[path] ?? "Area cliente";
+    const marchio = effectiveBrand.isWhiteLabel && effectiveBrand.platformName
+      ? effectiveBrand.platformName
+      : company?.name ?? "Area cliente";
+    document.title = `${titolo} · ${marchio}`;
+  }, [location.pathname, effectiveBrand.isWhiteLabel, effectiveBrand.platformName, company?.name]);
 
   const initials = (profile?.first_name?.[0] ?? "") + (profile?.last_name?.[0] ?? "");
 
@@ -186,11 +213,14 @@ export function CustomerLayout() {
 
           {/* Page Content */}
           <main className="flex-1 p-4 md:p-6 pb-24 md:pb-6">
-            <PreviewSessionContext.Provider value={previewSession}>
-              <ErrorBoundary title="Errore nel caricamento della pagina">
-                <Outlet />
-              </ErrorBoundary>
-            </PreviewSessionContext.Provider>
+            {/* Larghezza di lettura: a 1366 px le card arrivavano a 1.078 px. */}
+            <div className="mx-auto w-full max-w-5xl">
+              <PreviewSessionContext.Provider value={previewSession}>
+                <ErrorBoundary title="Errore nel caricamento della pagina">
+                  <Outlet />
+                </ErrorBoundary>
+              </PreviewSessionContext.Provider>
+            </div>
           </main>
         </div>
 

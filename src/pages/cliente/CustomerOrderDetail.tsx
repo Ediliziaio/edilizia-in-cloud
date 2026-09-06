@@ -13,7 +13,7 @@ import { CustomerFinancialSummary } from "@/components/orders/CustomerFinancialS
 import { TimelineCantiere } from "@/components/orders/TimelineCantiere";
 import { CustomerOrderAttachments } from "@/components/orders/OrderAttachments";
 import { VariantiCard } from "@/components/orders/VariantiCard";
-import { ArrowLeft, MessageSquare, FileText, AlertCircle, CalendarDays, Truck, Wrench, CheckCircle2, Clock, CreditCard, ShieldCheck } from "lucide-react";
+import { ArrowLeft, MessageSquare, FileText, AlertCircle, CalendarDays, Truck, Wrench, CheckCircle2, Clock, CreditCard } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/formatters";
 import { type Installment, buildInstallmentsFromLegacy } from "@/lib/orderUtils";
 
@@ -29,7 +29,7 @@ export default function CustomerOrderDetail() {
       const { data, error } = await supabase
         .from("orders")
         .select(`
-          id, description, total_amount, deposit_amount, deposit_2_amount,
+          id, order_code, description, total_amount, deposit_amount, deposit_2_amount,
           financing_amount, payment_type, balance_amount, vat_rate,
           expected_date, created_at, current_status_id, company_id,
           warehouse_arrival_date, work_start_date, work_end_date,
@@ -154,6 +154,14 @@ export default function CustomerOrderDetail() {
       return new Date(a.expected_date).getTime() - new Date(b.expected_date).getTime();
     })[0];
 
+  // «Prossimo pagamento» con una data già passata va detto chiaramente.
+  const pagamentoScaduto = (() => {
+    const d = nextUnpaidInstallment?.expected_date;
+    if (!d) return false;
+    const oggi = new Date(); oggi.setHours(0, 0, 0, 0);
+    return new Date(d) < oggi;
+  })();
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -165,7 +173,7 @@ export default function CustomerOrderDetail() {
           <ArrowLeft className="h-5 w-5" />
         </button>
         <div className="flex-1 min-w-0">
-          <h1 className="text-xl md:text-2xl font-bold truncate">Ordine #{order.id.slice(0, 8).toUpperCase()}</h1>
+          <h1 className="text-xl md:text-2xl font-bold truncate">{order.order_code ? `Ordine ${order.order_code}` : `Ordine #${order.id.slice(0, 8).toUpperCase()}`}</h1>
           <p className="text-xs md:text-sm text-muted-foreground">Creato il {formatDate(order.created_at)}</p>
         </div>
       </div>
@@ -179,7 +187,7 @@ export default function CustomerOrderDetail() {
         Richiedi Assistenza
       </Link>
 
-      <div className="grid gap-3 md:grid-cols-2">
+      <div className="grid gap-3">
         <Link
           to="/cliente/rate"
           className="flex items-start gap-3 rounded-2xl border border-border/60 bg-background p-4 hover:shadow-md transition-all"
@@ -188,8 +196,8 @@ export default function CustomerOrderDetail() {
             <CreditCard className="h-5 w-5 text-primary" />
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-semibold">
-              {nextUnpaidInstallment ? "Prossimo pagamento" : "Pagamenti completati"}
+            <p className={pagamentoScaduto ? "text-sm font-semibold text-destructive" : "text-sm font-semibold"}>
+              {nextUnpaidInstallment ? (pagamentoScaduto ? "Pagamento scaduto" : "Prossimo pagamento") : "Pagamenti completati"}
             </p>
             <p className="text-sm text-muted-foreground mt-0.5">
               {nextUnpaidInstallment
@@ -198,17 +206,6 @@ export default function CustomerOrderDetail() {
             </p>
           </div>
         </Link>
-        <div className="flex items-start gap-3 rounded-2xl border border-emerald-100 bg-emerald-50 p-4">
-          <div className="w-10 h-10 rounded-xl bg-white/80 flex items-center justify-center shrink-0">
-            <ShieldCheck className="h-5 w-5 text-emerald-600" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-emerald-900">Dati protetti</p>
-            <p className="text-sm text-emerald-800/80 mt-0.5">
-              Vedi solo documenti, pagamenti e aggiornamenti collegati al tuo ordine.
-            </p>
-          </div>
-        </div>
       </div>
 
       {/* Progress Tracker */}

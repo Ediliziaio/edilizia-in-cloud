@@ -166,9 +166,9 @@ export default function CustomerFirma() {
                       <p>Da firmare entro il {format(new Date(r.expires_at), "d MMMM yyyy", { locale: it })}</p>
                     )}
                   </div>
-                  {/* La firma avviene sulla pagina ufficiale, con consenso e OTP */}
+                  {/* La firma avviene sulla pagina FEA, con consenso e codice OTP */}
                   <Button asChild className="w-full gap-2">
-                    <a href={`/firma/${r.token}`}>
+                    <a href={`/firma-fea/${r.token}`}>
                       <FileSignature className="h-4 w-4" />
                       Vai alla firma
                       <ArrowRight className="h-4 w-4" />

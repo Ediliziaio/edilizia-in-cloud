@@ -52,9 +52,11 @@ export default function CustomerDocuments() {
       if (!companyId) return [];
       const { data, error } = await supabase
         .from("invoices")
-        .select("id, invoice_number, document_type, status, issue_date, total, pdf_url, order_id, orders(order_code)")
+        // Le fatture del cliente sono collegate alla commessa (orders.customer_id):
+        // `client_id` è vuoto in tutte le fatture, filtrarci sopra mostrava sempre 0.
+        .select("id, invoice_number, document_type, status, issue_date, total, pdf_url, order_id, orders!inner(order_code, customer_id)")
         .eq("company_id", companyId)
-        .eq("client_id", user!.id)
+        .eq("orders.customer_id", user!.id)
         .order("issue_date", { ascending: false })
         .limit(100);
       if (error) throw error;

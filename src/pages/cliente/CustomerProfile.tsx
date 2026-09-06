@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, type FormEvent } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { User, Save, Loader2 } from "lucide-react";
+import { User, Save, Loader2, KeyRound } from "lucide-react";
 
 export default function CustomerProfile() {
   const { user, profile, refreshAuth } = useAuth();
@@ -178,6 +178,64 @@ export default function CustomerProfile() {
           )}
         </Button>
       </form>
+
+      <CambioPassword />
     </div>
+  );
+}
+
+/**
+ * Cambio password dal profilo: prima non esisteva e la mail di benvenuto
+ * conteneva la password in chiaro (ora contiene il link «imposta la password»).
+ */
+function CambioPassword() {
+  const { toast } = useToast();
+  const [nuova, setNuova] = useState("");
+  const [conferma, setConferma] = useState("");
+  const [salvataggio, setSalvataggio] = useState(false);
+
+  const salva = async (e: FormEvent) => {
+    e.preventDefault();
+    if (nuova.length < 8) {
+      toast({ title: "Password troppo corta", description: "Usa almeno 8 caratteri.", variant: "destructive" });
+      return;
+    }
+    if (nuova !== conferma) {
+      toast({ title: "Le password non coincidono", variant: "destructive" });
+      return;
+    }
+    setSalvataggio(true);
+    const { error } = await supabase.auth.updateUser({ password: nuova });
+    setSalvataggio(false);
+    if (error) {
+      toast({ title: "Password non aggiornata", description: error.message, variant: "destructive" });
+      return;
+    }
+    setNuova("");
+    setConferma("");
+    toast({ title: "Password aggiornata" });
+  };
+
+  return (
+    <form onSubmit={salva} className="space-y-3 mt-5">
+      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">Sicurezza</p>
+      <div className="bg-background border border-border/60 rounded-2xl p-4 space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="nuova-password">Nuova password</Label>
+          <Input id="nuova-password" type="password" autoComplete="new-password" value={nuova} onChange={(e) => setNuova(e.target.value)} minLength={8} className="rounded-xl h-11" />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="conferma-password">Conferma password</Label>
+          <Input id="conferma-password" type="password" autoComplete="new-password" value={conferma} onChange={(e) => setConferma(e.target.value)} minLength={8} className="rounded-xl h-11" />
+        </div>
+        <Button type="submit" variant="outline" disabled={salvataggio || !nuova} className="w-full rounded-2xl h-11">
+          {salvataggio ? (
+            <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Aggiornamento...</>
+          ) : (
+            <><KeyRound className="mr-2 h-4 w-4" />Cambia password</>
+          )}
+        </Button>
+      </div>
+    </form>
   );
 }

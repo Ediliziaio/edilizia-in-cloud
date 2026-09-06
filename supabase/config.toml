@@ -836,3 +836,6 @@ verify_jwt = false
 # geocodifica-cantieri: cron (x-cron-secret), riempie orders.work_lat/lng per geofence e meteo.
 [functions.geocodifica-cantieri]
 verify_jwt = false
+
+[functions.cliente-notifica]
+verify_jwt = false

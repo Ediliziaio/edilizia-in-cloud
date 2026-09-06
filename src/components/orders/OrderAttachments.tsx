@@ -459,6 +459,11 @@ export function OrderAttachments({ orderId, editable = true }: OrderAttachmentsP
           </p>
         ) : (
           <>
+            {editable && visibleAttachments.length === 0 && (
+              <p className="text-xs text-muted-foreground rounded-md border border-dashed border-border px-3 py-2">
+                Il cliente non vede ancora nessun file: attiva «Visibile al cliente» sui documenti da mostrare nella sua area. Riceverà un'email.
+              </p>
+            )}
             {visibleAttachments.length > 0 && (
               <div>
                 <h4 className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-2">

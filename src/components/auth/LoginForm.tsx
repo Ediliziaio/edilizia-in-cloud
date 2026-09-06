@@ -470,7 +470,7 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
             <div className="animate-in fade-in-0 duration-300 space-y-5 sm:space-y-6">
               <div className="text-center space-y-1">
                 <h2 className="text-xl sm:text-2xl font-bold text-foreground">Accedi al gestionale</h2>
-                <p className="text-muted-foreground text-sm">Inserisci le tue credenziali per accedere</p>
+                <p className="text-muted-foreground text-sm">Imprese, collaboratori e clienti: inserisci le tue credenziali per accedere</p>
               </div>
 
               <form onSubmit={handleLogin} className="space-y-4 sm:space-y-5">

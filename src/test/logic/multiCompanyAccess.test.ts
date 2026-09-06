@@ -162,4 +162,19 @@ describe("multi-company access resolution", () => {
     expect(merged.map((item) => item.company_id)).toEqual(["company-a", "company-b"]);
     expect(merged[0].access_role).toBe("company_admin");
   });
+
+  it("un cliente con l'azienda nel profilo resta cliente: il finto accesso staff non lo manda nell'area azienda", () => {
+    const profileCompany = access("company-a", "company_staff", "Azienda A").company!;
+    const merged = mergeProfileCompanyAccess({
+      accesses: [],
+      profileCompany,
+      userId: "cliente-1",
+      globalRole: "customer",
+    });
+
+    expect(merged).toHaveLength(1);
+    expect(
+      resolveRouteAccessRole({ globalRole: "customer", accesses: merged, selectedCompanyId: "company-a" }),
+    ).toBe("customer");
+  });
 });

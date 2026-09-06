@@ -53,7 +53,6 @@ import { customerRoutes, employeeRoutes, salespersonRoutes, partnerRoutes, produ
 // 🛠️ 2026-05-22: tecnicoRoutes/campoRoutes ora caricati via lazy containers
 // (TecnicoRoutesContainer/CampoRoutesContainer sopra) → rimossi gli import diretti
 // che non erano più usati (lint error: 'tecnicoRoutes'/'campoRoutes' defined but never used).
-import { portaleClienteRoutes } from "@/routes/portaleClienteRoutes";
 import { userErrorMessage, isTransientTimeoutError } from "@/lib/userErrorMessage";
 import { ConfirmProvider } from "@/components/ui/confirm-dialog";
 
@@ -832,8 +831,6 @@ const App = () => (
                   </Suspense>
                 }
               />
-              {/* Portale Cliente — magic link, no auth required */}
-              {portaleClienteRoutes()}
 
               {/* Catch-all — also handles city landing pages (React Router v7 does not match mid-segment params) */}
               <Route path="*" element={<CityOrNotFound />} />

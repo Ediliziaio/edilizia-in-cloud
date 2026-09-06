@@ -1,4 +1,5 @@
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
+import { getBrandingForCompany } from "../_shared/getBranding.ts";
 import { requireAuth, requireRole } from "../_shared/auth.ts";
 import { generateSecurePassword } from "../_shared/securePassword.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
@@ -206,6 +207,11 @@ Deno.serve(async (req) => {
     // Send welcome email via unified pipeline — solo se portale attivo e non esplicitamente disabilitato
     if (shouldSendWelcomeEmail) {
       try {
+        // Niente password in chiaro nell'email e niente token one-shot (scadrebbe
+        // dal momento dell'invio): il link apre il login con «Password dimenticata»
+        // già precompilato, e il cliente si fa mandare il link di impostazione.
+        const branding = await getBrandingForCompany(supabaseAdmin, company_id as string);
+        const linkImpostaPassword = `${branding.siteUrl}/login?reset=1&email=${encodeURIComponent(trimmedEmail)}`;
         await sendEmailUnified({
           companyId:    company_id as string,
           stream:       "transactional",
@@ -214,12 +220,10 @@ Deno.serve(async (req) => {
           html: `<html><body>
               <p>Ciao ${isBusiness ? businessName : safeFirstName},</p>
               <p>Il tuo account è stato creato su <strong>${companyRow.name || "la piattaforma"}</strong>.</p>
-              <p>Ecco le tue credenziali di accesso:</p>
-              <ul>
-                <li><strong>Email:</strong> ${trimmedEmail}</li>
-                <li><strong>Password:</strong> ${password}</li>
-              </ul>
-              <p>Ti consigliamo di cambiare la password al primo accesso.</p>
+              <p>Il tuo nome utente è <strong>${trimmedEmail}</strong>.</p>
+              <p>Per scegliere la tua password apri questo link: riceverai subito un'email con il collegamento per impostarla.</p>
+              <p><a href="${linkImpostaPassword}">Imposta la password</a></p>
+              <p style="color:#6b7280;font-size:13px">Se il pulsante non funziona copia questo indirizzo nel browser:<br>${linkImpostaPassword}</p>
             </body></html>`,
           templateName: "customer_welcome",
           skipCredits:  false,

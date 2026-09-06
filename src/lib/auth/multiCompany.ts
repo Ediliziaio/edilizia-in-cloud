@@ -22,7 +22,7 @@ const COMPANY_ACCESS_ROLES = new Set<AppRole>([
 // ruolo di accesso aziendale, nemmeno se il profilo ha una company_id (che
 // altrimenti genererebbe un finto accesso 'company_staff' via
 // mergeProfileCompanyAccess, sloggandoli dal loro portale).
-const PORTAL_ONLY_ROLES = new Set<AppRole>(["produttore_admin"]);
+const PORTAL_ONLY_ROLES = new Set<AppRole>(["produttore_admin", "customer"]);
 
 export function normalizeCompanyAccessRole(role: unknown): AppRole | null {
   return typeof role === "string" && COMPANY_ACCESS_ROLES.has(role as AppRole)
