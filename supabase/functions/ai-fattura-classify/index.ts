@@ -177,6 +177,19 @@ async function classifyOne(
     })
     .eq("id", fattura.id);
 
+  // Il costo nasce quando si contabilizza la fattura, e in quel momento prende
+  // `categoria_ai` — ma se la fattura viene classificata DOPO (com'e' normale
+  // per uno storico importato in blocco) il costo resta con la categoria di
+  // ripiego e il controllo di gestione non vede nulla di quanto appena capito.
+  // Qui si allinea: la classificazione arriva fino al costo, non si ferma alla
+  // fattura.
+  if (fattura.company_cost_id) {
+    await supabase
+      .from("company_costs")
+      .update({ category: cat, updated_at: new Date().toISOString() })
+      .eq("id", fattura.company_cost_id);
+  }
+
   return {
     result: {
       fattura_id: fattura.id,
@@ -249,7 +262,7 @@ Deno.serve(async (req: Request) => {
     // Fetch fatture
     const { data: fatture, error: fetchErr } = await supabaseAdmin
       .from("fatture_ricevute")
-      .select("id, cedente_ragione_sociale, cedente_piva, numero_fattura, data_fattura, imponibile_totale, totale_documento, tipo_documento, righe, note")
+      .select("id, cedente_ragione_sociale, cedente_piva, numero_fattura, data_fattura, imponibile_totale, totale_documento, tipo_documento, righe, note, company_cost_id")
       .eq("company_id", company_id)
       .in("id", ids);
     if (fetchErr) return errorResponse(`Fetch error: ${fetchErr.message}`, 500, cors);

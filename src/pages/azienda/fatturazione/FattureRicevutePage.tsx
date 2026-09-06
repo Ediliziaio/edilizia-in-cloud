@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import { queryKeys } from "@/lib/queryKeys";
 import { formatCurrency, formatDateShort } from "@/lib/formatters";
 import { CollegaOrdineFatturaDialog } from "@/components/fatturazione/CollegaOrdineFatturaDialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -53,6 +54,7 @@ import {
   X,
   AlertTriangle,
   Euro,
+  Sparkles,
 } from "lucide-react";
 import { NavyStatCard } from "@/components/costi/KpiCard";
 import { toast } from "sonner";
@@ -95,6 +97,11 @@ interface FatturaRicevuta {
   created_at: string;
   /** Ordine d'acquisto collegato: dal trigger automatico o a mano da qui. */
   purchase_order_id: string | null;
+  /** Categoria di spesa proposta dall'AI (null = mai classificata). */
+  categoria_ai: string | null;
+  sottocategoria_ai: string | null;
+  /** 0-1: quanto l'AI e' sicura della categoria. */
+  categoria_confidenza: number | null;
 }
 
 // ─── Stato Badge ──────────────────────────────────────────────
@@ -114,6 +121,14 @@ function StatoBadge({ stato }: { stato: string }) {
   return <Badge variant={config.variant}>{config.label}</Badge>;
 }
 
+/** "materiali_edili" → "Materiali edili". Niente mappa fissa: le categorie
+ *  vivono nella edge di classificazione e qui non devono essere ricopiate,
+ *  altrimenti ogni categoria nuova arriva senza nome. */
+function etichettaCategoria(c: string): string {
+  const t = c.replace(/_/g, " ");
+  return t.charAt(0).toUpperCase() + t.slice(1);
+}
+
 // ─── Component ────────────────────────────────────────────────
 
 export default function FattureRicevutePage() {
@@ -129,6 +144,8 @@ export default function FattureRicevutePage() {
   const [collegaFattura, setCollegaFattura] = useState<FatturaRicevuta | null>(null);
   const [progress, setProgress] = useState<{ fatte: number; totale: number } | null>(null);
   const [report, setReport] = useState<{ esiti: EsitoImport[]; scartati: FileScartato[] } | null>(null);
+  const [confermaClassifica, setConfermaClassifica] = useState(false);
+  const [classProgress, setClassProgress] = useState<{ fatte: number; totale: number } | null>(null);
 
   const { data: partitaIvaAzienda } = useQuery({
     queryKey: ["azienda-partita-iva", companyId],
@@ -158,7 +175,7 @@ export default function FattureRicevutePage() {
       const { data, error } = await supabase
         .from("fatture_ricevute" as never)
         .select(
-          "id, company_id, sdi_id_trasmissione, cedente_piva, cedente_cf, cedente_ragione_sociale, cedente_paese, tipo_documento, numero_fattura, data_fattura, imponibile_totale, iva_totale, totale_documento, xml_url, stato, note, created_at, purchase_order_id, company_cost_id, aggancio_oda_manuale" as never,
+          "id, company_id, sdi_id_trasmissione, cedente_piva, cedente_cf, cedente_ragione_sociale, cedente_paese, tipo_documento, numero_fattura, data_fattura, imponibile_totale, iva_totale, totale_documento, xml_url, stato, note, created_at, purchase_order_id, company_cost_id, aggancio_oda_manuale, categoria_ai, sottocategoria_ai, categoria_confidenza" as never,
         )
         .eq("company_id", companyId!)
         .order("data_fattura", { ascending: false });
@@ -221,7 +238,8 @@ export default function FattureRicevutePage() {
     // Fatture importate senza importi (es. cassetto SDI Aruba): il totale le
     // conta come 0 → lo dichiariamo, così il KPI non sembra falsato.
     const senzaImporto = fatture.filter((f) => f.totale_documento == null).length;
-    return { totale, nonLette, contabilizzate, importoTotale, senzaImporto };
+    const daClassificare = fatture.filter((f) => !f.categoria_ai).length;
+    return { totale, nonLette, contabilizzate, importoTotale, senzaImporto, daClassificare };
   }, [fatture]);
 
   // ─── Filters ────────────────────────────────────────────
@@ -300,7 +318,11 @@ export default function FattureRicevutePage() {
     },
     onSuccess: (esito, _id) => {
       queryClient.invalidateQueries({ queryKey: ["fatture-ricevute"] });
-      queryClient.invalidateQueries({ queryKey: ["company-costs"] });
+      // NB: la chiave e' quella del registro condiviso — ["company-costs"]
+      // scritta a mano non corrisponde a nessuna query e la pagina Costi
+      // restava ferma sui dati vecchi.
+      queryClient.invalidateQueries({ queryKey: queryKeys.costs.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.companyCosts(companyId) });
       queryClient.invalidateQueries({ queryKey: ["oda-contabilita"] });
       const dettaglio = esito.esito === "costo_aggiornato"
         ? `Il costo dell'ordine collegato è stato corretto con l'importo della fattura (${formatCurrency(esito.imponibile)} imponibile).`
@@ -312,6 +334,67 @@ export default function FattureRicevutePage() {
       setContabilizzaFattura(null);
     },
     onError: (e) => toast.error("Contabilizzazione non riuscita", { description: e.message }),
+  });
+
+  // Classificazione AI delle fatture non ancora categorizzate. La edge ne
+  // prende al massimo 50 per chiamata, quindi qui si cicla finche' ne restano:
+  // su uno storico appena importato sono centinaia e un solo giro lascerebbe
+  // il lavoro a meta' senza dirlo.
+  const classificaMutation = useMutation({
+    mutationFn: async () => {
+      const daFare = fatture.filter((f) => !f.categoria_ai).length;
+      setClassProgress({ fatte: 0, totale: daFare });
+      let fatte = 0;
+      let falliteTot = 0;
+      // Tetto di giri: se per qualche motivo la edge smette di consumare la
+      // coda, si esce invece di girare all'infinito a spese dell'azienda.
+      for (let giro = 0; giro < 40; giro++) {
+        const { data, error } = await supabase.functions.invoke("ai-fattura-classify", {
+          body: { company_id: companyId, classify_unclassified: true, limit: 25 },
+        });
+        if (error) {
+          // error.message da solo dice "non-2xx": il motivo vero (crediti AI
+          // esauriti, carta mancante) sta nel corpo della risposta.
+          let motivo = error.message;
+          try {
+            const body = await (error as { context?: Response }).context?.json?.();
+            if (body?.error) motivo = String(body.error);
+          } catch { /* il corpo non era JSON: resta il messaggio generico */ }
+          throw new Error(motivo);
+        }
+        const esito = data as { classified?: { error?: string }[] } | null;
+        const lotto = esito?.classified ?? [];
+        if (lotto.length === 0) break;
+        const riuscite = lotto.filter((r) => !r.error).length;
+        falliteTot += lotto.length - riuscite;
+        fatte += riuscite;
+        setClassProgress({ fatte, totale: Math.max(daFare, fatte) });
+        // La edge ripesca chi ha `categoria_ai` NULL: le fatture fallite
+        // tornerebbero nel lotto successivo all'infinito. Se un giro intero non
+        // ne salva nemmeno una, il problema non e' la singola fattura — si
+        // esce, invece di ripagare lo stesso errore venticinque volte.
+        if (riuscite === 0) break;
+      }
+      return { fatte, fallite: falliteTot };
+    },
+    onSuccess: ({ fatte, fallite }) => {
+      queryClient.invalidateQueries({ queryKey: ["fatture-ricevute"] });
+      // NB: la chiave e' quella del registro condiviso — ["company-costs"]
+      // scritta a mano non corrisponde a nessuna query e la pagina Costi
+      // restava ferma sui dati vecchi.
+      queryClient.invalidateQueries({ queryKey: queryKeys.costs.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.companyCosts(companyId) });
+      toast.success(
+        fatte === 0 ? "Nessuna fattura da classificare" : `${fatte} fatture classificate`,
+        {
+          description: fallite > 0
+            ? `${fallite} non sono riuscite: restano senza categoria, puoi rilanciare.`
+            : "La categoria è arrivata anche sui costi già contabilizzati.",
+        },
+      );
+    },
+    onError: (e) => toast.error("Classificazione non riuscita", { description: e.message }),
+    onSettled: () => setClassProgress(null),
   });
 
   // Collega/scollega l'ordine d'acquisto. Lo scollegamento e' reversibile in
@@ -478,6 +561,23 @@ export default function FattureRicevutePage() {
             className="hidden"
             onChange={handleFileUpload}
           />
+          {kpi.daClassificare > 0 && (
+            <Button
+              variant="outline"
+              onClick={() => setConfermaClassifica(true)}
+              disabled={classProgress !== null}
+              title="Assegna a ogni fattura la categoria di spesa, e la porta anche sul costo"
+            >
+              {classProgress !== null ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <Sparkles className="h-4 w-4 mr-2" />
+              )}
+              {classProgress !== null
+                ? `Classificazione ${classProgress.fatte} di ${classProgress.totale}…`
+                : `Classifica con l'AI (${kpi.daClassificare})`}
+            </Button>
+          )}
           <Button
             variant="outline"
             onClick={() => fileInputRef.current?.click()}
@@ -673,6 +773,19 @@ export default function FattureRicevutePage() {
                       <div className="text-xs text-muted-foreground">
                         {f.cedente_piva ? `P.IVA ${f.cedente_piva}` : f.cedente_cf}
                       </div>
+                      {f.categoria_ai && (
+                        <Badge
+                          variant="outline"
+                          className="mt-1 text-[10px] font-normal"
+                          title={
+                            f.sottocategoria_ai
+                              ? `${f.sottocategoria_ai}${f.categoria_confidenza != null ? ` · sicurezza ${Math.round(f.categoria_confidenza * 100)}%` : ""}`
+                              : undefined
+                          }
+                        >
+                          {etichettaCategoria(f.categoria_ai)}
+                        </Badge>
+                      )}
                     </div>
                   </TableCell>
                   <TableCell>
@@ -851,6 +964,42 @@ export default function FattureRicevutePage() {
             >
               <CheckCircle2 className="h-4 w-4 mr-1" />
               Contabilizza
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Conferma classificazione AI: è uno strumento a consumo, quante fatture
+          si stanno per pagare va detto PRIMA, non scoperto dopo sul borsellino. */}
+      <AlertDialog open={confermaClassifica} onOpenChange={setConfermaClassifica}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Classificare {kpi.daClassificare} fatture con l&apos;AI?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                <p>
+                  A ogni fattura viene assegnata una categoria di spesa (materiali, subappalti,
+                  affitti, provvigioni…) leggendo fornitore e righe. Dove la fattura è già
+                  contabilizzata, la categoria arriva anche sul costo.
+                </p>
+                <p>
+                  È uno strumento a consumo: scala crediti AI dal borsellino dell&apos;azienda, una
+                  volta per fattura. Rilanciarlo dopo non ripaga quelle già fatte.
+                </p>
+                <p className="text-muted-foreground">
+                  La categoria resta modificabile a mano: è una proposta, non l&apos;ultima parola.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={classificaMutation.isPending}
+              onClick={() => classificaMutation.mutate()}
+            >
+              <Sparkles className="h-4 w-4 mr-1" />
+              Classifica
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
