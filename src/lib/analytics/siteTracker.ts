@@ -171,7 +171,16 @@ function chiudiVista(): void {
 
   try {
     if (typeof navigator.sendBeacon === "function") {
-      navigator.sendBeacon(ENDPOINT, new Blob([corpo], { type: "application/json" }));
+      // Il tipo è "text/plain" e non "application/json" per un motivo preciso:
+      // application/json non è fra i content-type ammessi senza preflight, e
+      // un beacon mandato mentre la pagina si chiude non fa in tempo a
+      // completare una richiesta OPTIONS — viene semplicemente perso. Provato:
+      // con application/json nessuna durata arrivava, pur rispondendo la
+      // funzione 200 quando la si chiamava direttamente.
+      //
+      // Il corpo resta JSON: `Request.json()` lo interpreta comunque, il
+      // content-type non lo vincola.
+      navigator.sendBeacon(ENDPOINT, new Blob([corpo], { type: "text/plain;charset=UTF-8" }));
       return;
     }
   } catch {
@@ -180,7 +189,7 @@ function chiudiVista(): void {
 
   void fetch(ENDPOINT, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "text/plain;charset=UTF-8" },
     body: corpo,
     keepalive: true,
   }).catch(() => {
