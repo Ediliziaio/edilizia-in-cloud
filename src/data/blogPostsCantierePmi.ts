@@ -34,7 +34,7 @@ export const blogPostsCantierePmi: BlogPost[] = [
     publishedAt: "2026-09-05",
     readTime: 8,
     author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
-    coverImage: "/blog/covers/digitalizzare-impresa-edile.jpg",
+    coverImage: "/blog/covers/rapportino-di-cantiere-app-e-modello.jpg",
     content: [
       {
         type: "intro",
@@ -132,7 +132,7 @@ export const blogPostsCantierePmi: BlogPost[] = [
     publishedAt: "2026-09-05",
     readTime: 9,
     author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
-    coverImage: "/blog/covers/digitalizzazione-impresa-edile-passo-passo.jpg",
+    coverImage: "/blog/covers/gestionale-cantiere-piccola-impresa-edile.jpg",
     content: [
       {
         type: "intro",
