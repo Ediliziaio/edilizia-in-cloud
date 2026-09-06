@@ -1,3 +1,4 @@
+import type { ReactElement } from "react";
 import { useSEO } from "@/hooks/useSEO";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { Link } from "react-router-dom";
@@ -101,7 +102,7 @@ export interface PerTipoConfig {
   seoCanonical: string;
   // Hero
   badge: string;
-  heroTitle: JSX.Element;
+  heroTitle: ReactElement;
   heroSubtitle: string;
   heroImage: string;
   // Social proof strip
@@ -132,7 +133,7 @@ export interface PerTipoConfig {
   // FAQ
   faq: FaqItem[];
   // CTA
-  ctaTitle: JSX.Element;
+  ctaTitle: ReactElement;
   ctaSubtitle: string;
   // Vertical features — required on all pages
   verticalFeatures: VerticalFeature[];

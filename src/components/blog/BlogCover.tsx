@@ -15,6 +15,8 @@
  * diretto del contenitore, quindi i wrapper `relative overflow-hidden` e le
  * classi `group-hover:scale-105` continuano a funzionare come prima.
  */
+import { prioritaCaricamento } from "@/lib/immagini/prioritaCaricamento";
+
 type BlogCoverProps = {
   /** Path della copertina come sta nei dati: "/blog/covers/slug.jpg". */
   src: string;

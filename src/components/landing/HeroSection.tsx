@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import PlatformMockup from "@/components/landing/PlatformMockup";
 
-const floatingIcons = [
+const floatingIcons: Array<{ Icon: typeof HardHat; top: string; left?: string; right?: string; size: number; delay: string; anim: string }> = [
   { Icon: HardHat, top: "10%", left: "5%", size: 48, delay: "0s", anim: "animate-float" },
   { Icon: Hammer, top: "20%", right: "8%", size: 40, delay: "1s", anim: "animate-float-slow" },
   { Icon: Ruler, top: "60%", left: "10%", size: 36, delay: "2s", anim: "animate-float" },
@@ -18,7 +18,7 @@ const floatingIcons = [
   { Icon: Building2, top: "15%", left: "80%", size: 52, delay: "1.5s", anim: "animate-float-slow" },
   { Icon: Blocks, top: "80%", left: "25%", size: 38, delay: "2.5s", anim: "animate-float" },
   { Icon: ConeIcon, top: "50%", right: "5%", size: 34, delay: "0.8s", anim: "animate-float-slow" },
-] as const;
+];
 
 
 
