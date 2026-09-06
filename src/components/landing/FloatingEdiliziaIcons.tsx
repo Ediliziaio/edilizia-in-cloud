@@ -41,7 +41,7 @@ const LAYOUTS: IconItem[][] = [
     { icon: "chiave",    top: "65%",  right: "7%",  size: 24, delay: "3.2s", op: 0.14, rot: 15, slow: true },
     { icon: "gru",       bottom:"5%", left: "40%",  size: 26, delay: "2s",   op: 0.12, rot: 0 },
   ],
-  // 2 — VideoSection
+  // 2 — libero (era VideoSection, componente mai montato e rimosso il 06/09/2026)
   [
     { icon: "mattone",   top: "10%",  left: "4%",   size: 26, delay: "1s",   op: 0.16, rot: 0 },
     { icon: "metro",     top: "70%",  left: "7%",   size: 24, delay: "2.8s", op: 0.14, rot: -8, slow: true },

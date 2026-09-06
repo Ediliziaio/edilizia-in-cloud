@@ -12,10 +12,6 @@ import { join } from "node:path";
 const TARGETS = [
   // Landing — below-the-fold illustrations (lazy loaded, q65 OK)
   { src: "public/landing/pain-points-edilizia.png", width: 1200, quality: 65 },
-  { src: "public/landing/scenario-with-control.png", width: 1200, quality: 65 },
-  { src: "public/landing/scenario-without-control.png", width: 1200, quality: 65 },
-  { src: "public/landing/solution-dashboard-control.png", width: 1200, quality: 65 },
-  { src: "public/landing/target-users-edilizia.png", width: 1200, quality: 65 },
   // Render infissi — demo prima/dopo (visible in AI module showcase)
   { src: "public/images/render-infissi/demo-dopo.png", width: 1200, quality: 70 },
   { src: "public/images/render-infissi/demo-latest-dopo.jpg", width: 1200, quality: 75 },
