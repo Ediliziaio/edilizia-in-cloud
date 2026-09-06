@@ -333,7 +333,7 @@ function RoiCalculator({
     new Intl.NumberFormat("it-IT", {
       style: "currency",
       currency: "EUR",
-      maximumFractionDigits: 0, useGrouping: "always" }).format(n);
+      maximumFractionDigits: 0, useGrouping: true }).format(n);
 
   return (
     <div className="rounded-2xl border border-orange-200 bg-white p-6 shadow-lg sm:p-8">
@@ -550,9 +550,16 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
   });
 
   const pageUrl = `${SITE_URL}/funzionalita/${config.slug}/`;
-  const videoSrc = config.videoSrc || `/videos/${config.slug}-demo.mp4`;
-  const videoPoster = config.videoPoster || `/videos/${config.slug}-poster.jpg`;
-  const videoUploadDate = "2026-04-27";
+  // Il video demo esiste solo se la config lo dichiara. Prima il template
+  // inventava `/videos/<slug>-demo.mp4` e `/videos/<slug>-poster.jpg`: file
+  // mai esistiti, per cui il player riceveva lo shell HTML del sito, il poster
+  // un 404 e lo schema VideoObject prometteva a Google un video che non c'era.
+  // Senza video: niente sezione, niente schema, e il bottone del hero porta
+  // al meccanismo in 3 passi.
+  const video =
+    config.videoSrc && config.videoPoster
+      ? { src: config.videoSrc, poster: config.videoPoster, uploadDate: config.videoUploadDate || "2026-04-27" }
+      : null;
 
   // ROI calc defaults — tuned per vertical
   const roiDefaults = useMemo(() => {
@@ -597,7 +604,7 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
             "@type": "Organization",
             name: "Edilizia in Cloud",
             url: SITE_URL,
-            logo: `${SITE_URL}/logo.png`,
+            logo: `${SITE_URL}/icons/icon-512.png`,
           },
           audience: {
             "@type": "Audience",
@@ -622,25 +629,27 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
           },
         }}
       />
-      <JsonLd
-        id={`jsonld-video-${config.slug}`}
-        data={{
-          "@context": "https://schema.org",
-          "@type": "VideoObject",
-          name: `Demo ${config.productName} · Trasforma una foto in una vendita`,
-          description: `Video demo di ${config.productName}: in 60 secondi carichi la foto del cliente, scegli finiture, generi il prima/dopo e lo invii direttamente su WhatsApp.`,
-          thumbnailUrl: [`${SITE_URL}${videoPoster}`],
-          uploadDate: videoUploadDate,
-          contentUrl: `${SITE_URL}${videoSrc}`,
-          embedUrl: `${pageUrl}#video-demo`,
-          duration: "PT1M",
-          publisher: {
-            "@type": "Organization",
-            name: "Edilizia in Cloud",
-            logo: { "@type": "ImageObject", url: `${SITE_URL}/logo.png`, width: 600, height: 60 },
-          },
-        }}
-      />
+      {video && (
+        <JsonLd
+          id={`jsonld-video-${config.slug}`}
+          data={{
+            "@context": "https://schema.org",
+            "@type": "VideoObject",
+            name: `Demo ${config.productName} · Trasforma una foto in una vendita`,
+            description: `Video demo di ${config.productName}: in 60 secondi carichi la foto del cliente, scegli finiture, generi il prima/dopo e lo invii direttamente su WhatsApp.`,
+            thumbnailUrl: [`${SITE_URL}${video.poster}`],
+            uploadDate: video.uploadDate,
+            contentUrl: `${SITE_URL}${video.src}`,
+            embedUrl: `${pageUrl}#video-demo`,
+            duration: "PT1M",
+            publisher: {
+              "@type": "Organization",
+              name: "Edilizia in Cloud",
+              logo: { "@type": "ImageObject", url: `${SITE_URL}/icons/icon-512.png`, width: 512, height: 512 },
+            },
+          }}
+        />
+      )}
       <JsonLd
         id={`jsonld-howto-${config.slug}`}
         data={{
@@ -779,11 +788,11 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
                 <ArrowRight className="h-5 w-5" />
               </button>
               <a
-                href="#video-demo"
+                href={video ? "#video-demo" : "#meccanismo"}
                 className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-white/25 bg-white/10 px-7 py-4 text-base font-bold text-white transition hover:bg-white/15 sm:w-auto"
               >
                 <Play className="h-4 w-4 fill-white" />
-                {config.heroSecondaryCta || "Guarda il video demo"}
+                {config.heroSecondaryCta || (video ? "Guarda il video demo" : "Vedi come funziona")}
               </a>
             </div>
 
@@ -901,7 +910,8 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
           </div>
         </section>
 
-        {/* VIDEO DEMO */}
+        {/* VIDEO DEMO — solo quando il file esiste davvero (config.videoSrc + videoPoster) */}
+        {video && (
         <section id="video-demo" aria-labelledby="video-title" className="bg-white px-6 py-20">
           <div className="mx-auto max-w-5xl">
             <div className="mx-auto max-w-3xl text-center">
@@ -918,7 +928,7 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
               <p className="mt-4 text-lg leading-8 text-slate-600">{config.videoSubheadline}</p>
             </div>
             <div className="mt-10">
-              <VideoDemo src={videoSrc} poster={videoPoster} vertical={config.vertical} />
+              <VideoDemo src={video.src} poster={video.poster} vertical={config.vertical} />
             </div>
             <p className="mt-4 text-center text-xs leading-6 text-slate-500">
               {config.videoDisclaimer ||
@@ -926,6 +936,7 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
             </p>
           </div>
         </section>
+        )}
 
         {/* FAMIGLIA RENDER */}
         <section

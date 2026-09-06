@@ -98,8 +98,10 @@ export interface RenderPageConfig {
   videoH2: string;
   videoSubheadline: string;
   videoDisclaimer?: string;
+  /** Video demo: la sezione, il bottone del hero e lo schema VideoObject compaiono solo se src E poster sono dichiarati (file reali in public/). */
   videoSrc?: string;
   videoPoster?: string;
+  videoUploadDate?: string; // ISO, es. "2026-09-06"
 
   // Famiglia render — 5 cards
   familyH2: string;
