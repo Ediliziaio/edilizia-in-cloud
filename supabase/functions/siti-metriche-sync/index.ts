@@ -36,6 +36,46 @@ interface ServiceAccount {
   project_id?: string;
 }
 
+/** Un JSON è di un service account se ha di che firmare e con che identità. */
+function comeServiceAccount(testo: string | undefined | null): ServiceAccount | null {
+  if (!testo || testo.length < 100) return null;
+  try {
+    const o = JSON.parse(testo);
+    if (typeof o?.client_email === "string" && typeof o?.private_key === "string") {
+      return o as ServiceAccount;
+    }
+  } catch {
+    /* non è JSON: non è quello che cerchiamo */
+  }
+  return null;
+}
+
+/**
+ * La chiave può stare in due posti che si chiamano quasi allo stesso modo.
+ *
+ * Il Vault (`vault.secrets`) è dentro il database. I "Secrets" delle Edge
+ * Functions sono variabili d'ambiente, un altro archivio. Chi carica la chiave
+ * la mette dove capita, e passare mezz'ora a capire perché "l'ho caricata" e
+ * "non la trovo" sono entrambe vere non serve a nessuno: si guarda in tutti e
+ * due, e si dice dove è stata trovata.
+ *
+ * Delle variabili d'ambiente si riportano solo i NOMI di quelle che contengono
+ * davvero un service account — mai il contenuto, e mai l'elenco completo.
+ */
+function chiaveDaAmbiente(): { sa: ServiceAccount; nome: string } | null {
+  let ambiente: Record<string, string>;
+  try {
+    ambiente = Deno.env.toObject();
+  } catch {
+    return null;
+  }
+  for (const [nome, valore] of Object.entries(ambiente)) {
+    const sa = comeServiceAccount(valore);
+    if (sa) return { sa, nome };
+  }
+  return null;
+}
+
 // ── Autenticazione Google ────────────────────────────────────────────────────
 
 function base64url(dati: Uint8Array): string {
@@ -255,29 +295,42 @@ Deno.serve(async (req) => {
 
     const { data: chiaveGrezza, error: erroreChiave } = await db.rpc("google_service_account");
     if (erroreChiave) throw new Error(`Vault non raggiungibile: ${erroreChiave.message}`);
-    if (!chiaveGrezza) {
+
+    let sa: ServiceAccount | null = comeServiceAccount(chiaveGrezza ? String(chiaveGrezza) : null);
+    let provenienza = "Vault (google_service_account)";
+
+    if (!sa) {
+      if (chiaveGrezza) {
+        throw new Error(
+          "Nel Vault c'è 'google_service_account' ma non è il JSON di un service account: " +
+          "deve contenere client_email e private_key, incollato per intero.",
+        );
+      }
+      const daAmbiente = chiaveDaAmbiente();
+      if (daAmbiente) {
+        sa = daAmbiente.sa;
+        provenienza = `variabile d'ambiente ${daAmbiente.nome}`;
+      }
+    }
+
+    if (!sa) {
       return new Response(JSON.stringify({
         ok: false,
         configurato: false,
-        messaggio: "Manca il service account: caricare il JSON nel Vault come 'google_service_account'.",
+        messaggio:
+          "Service account non trovato. Cercato nel Vault come 'google_service_account' e fra i " +
+          "Secrets delle Edge Function: in nessuno dei due c'è un JSON con client_email e private_key. " +
+          "Attenzione che il Vault (Database → Vault) e i Secrets delle Edge Function sono due archivi diversi.",
       }), { headers: { ...CORS, "Content-Type": "application/json" } });
-    }
-
-    let sa: ServiceAccount;
-    try {
-      sa = JSON.parse(String(chiaveGrezza));
-    } catch {
-      throw new Error("Il segreto 'google_service_account' non è un JSON valido");
-    }
-    if (!sa.client_email || !sa.private_key) {
-      throw new Error("Il JSON del service account non contiene client_email e private_key");
     }
 
     const token = await tokenGoogle(sa);
 
     if (azione === "scopri") {
       const trovato = await scopri(token);
-      return new Response(JSON.stringify({ ok: true, account: sa.client_email, ...trovato }), {
+      return new Response(JSON.stringify({
+        ok: true, account: sa.client_email, chiave_da: provenienza, ...trovato,
+      }), {
         headers: { ...CORS, "Content-Type": "application/json" },
       });
     }
