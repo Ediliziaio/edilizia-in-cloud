@@ -29,18 +29,28 @@ const MEMBRI_PER_PAGINA = 50;
  * La regola di una lista automatica. Il vocabolario e' chiuso e combacia con
  * quello che il database sa leggere in `contatto_corrisponde_regola`.
  */
-export type RegolaLista =
+type EsclusioneRegola = { escludi_tag?: string[] };
+
+export type RegolaLista = EsclusioneRegola & (
   | { tipo: "tag"; tag: string }
   | { tipo: "fonte"; valori: string[] }
   | { tipo: "fatturato_minimo"; euro: number }
   | { tipo: "email_contattabile" }
   | { tipo: "solo_telefono" }
   | { tipo: "senza_contatti"; con_piva?: boolean; con_sito?: boolean }
-  | { tipo: "campo_personalizzato"; campo: string; valori: string[] };
+  | { tipo: "campo_personalizzato"; campo: string; valori: string[] }
+);
 
 /** La regola detta a parole, per chi guarda la lista e vuole sapere chi ci finisce. */
 function descriviRegola(r: RegolaLista | null): string {
   if (!r) return "";
+  const esclusi = r.escludi_tag?.length
+    ? `, tranne chi ha ${r.escludi_tag.map((t) => `"${t}"`).join(" o ")}`
+    : "";
+  return descriviCondizione(r) + esclusi;
+}
+
+function descriviCondizione(r: RegolaLista): string {
   switch (r.tipo) {
     case "tag":
       return `Ci entra chi ha il tag "${r.tag}"`;
