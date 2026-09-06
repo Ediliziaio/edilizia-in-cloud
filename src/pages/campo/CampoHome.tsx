@@ -106,7 +106,7 @@ export default function CampoHome() {
         {/* Company badge mobile */}
         <div className="shrink-0 rounded-xl bg-primary/10 px-3 py-1.5 md:hidden">
           <p className="text-[10px] text-primary font-semibold">
-            {isOperaio ? "Operaio" : "Sub"}
+            {isOperaio ? (isCapocantiere ? "Capocantiere" : "Operaio") : "Sub"}
           </p>
         </div>
         </div>
@@ -121,7 +121,7 @@ export default function CampoHome() {
       {/* Grid principale — 1 col mobile, 2 col desktop.
           Priorità mobile: prima le cose da FARE (rapportini, cantieri),
           poi l'assistente AI e il resto. */}
-      <div className="grid grid-cols-1 gap-3 md:gap-6 lg:grid-cols-2">
+      <div className="hidden md:grid grid-cols-1 gap-3 md:gap-6 lg:grid-cols-2">
         {/* Cantieri assegnati */}
         <div className="space-y-3 md:space-y-6">
           {/* 🆕 GAP 5b: prompt rapportini di OGGI non ancora compilati (priorità alta) */}
@@ -597,7 +597,7 @@ function AssistenteCampoOperaio() {
           </button>
         )}
 
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <div className="hidden md:grid md:grid-cols-4 gap-2">
           {focusOrder && (
             <Button
               type="button"
@@ -1104,8 +1104,9 @@ function MiniCalendarioCampo() {
 
   const today = startOfDay(new Date());
 
+  // Sul telefono il mese intero era la card più alta della home: c'è già «Lavori» in basso.
   return (
-    <Card>
+    <Card className="hidden lg:block">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2 text-base">
@@ -1322,24 +1323,25 @@ function MieAttivitaCampo() {
 function AccesaoRapido({ isOperaio, isSubappaltatore }: { isOperaio: boolean; isSubappaltatore: boolean }) {
   const navigate = useNavigate();
 
+  // Telefono: le prime 4 a vista (il resto è nel menu App); da tablet in su tutte.
   const items = [
     ...(isOperaio ? [
       { icon: ShieldCheck, label: "Sicurezza", url: "/campo/sicurezza", color: "text-emerald-600 bg-emerald-50" },
       { icon: Mic, label: "Rapportino vocale", url: "/campo/rapportino-vocale", color: "text-violet-600 bg-violet-50" },
-      { icon: QrCode, label: "Tesserino", url: "/campo/tesserino", color: "text-blue-600 bg-blue-50" },
       { icon: CalendarDaysIcon, label: "Ferie", url: "/campo/ferie", color: "text-orange-600 bg-orange-50" },
+      { icon: Ticket, label: "Ticket", url: "/campo/ticket/nuovo", color: "text-amber-600 bg-amber-50" },
+      { icon: QrCode, label: "Tesserino", url: "/campo/tesserino", color: "text-blue-600 bg-blue-50" },
       { icon: Clock, label: "Presenze", url: "/campo/presenze", color: "text-teal-600 bg-teal-50" },
       { icon: Receipt, label: "Cedolini", url: "/campo/cedolini", color: "text-pink-600 bg-pink-50" },
       { icon: FileText, label: "Documenti", url: "/campo/documenti", color: "text-slate-600 bg-slate-50" },
-      { icon: Ticket, label: "Ticket", url: "/campo/ticket/nuovo", color: "text-amber-600 bg-amber-50" },
     ] : []),
     ...(isSubappaltatore ? [
       { icon: ShieldCheck, label: "Sicurezza", url: "/campo/sicurezza", color: "text-emerald-600 bg-emerald-50" },
       { icon: Mic, label: "Rapportino vocale", url: "/campo/rapportino-vocale", color: "text-violet-600 bg-violet-50" },
       { icon: ClipboardCheck, label: "Avanzamento", url: "/campo/avanzamento", color: "text-teal-600 bg-teal-50" },
+      { icon: Ticket, label: "Ticket", url: "/campo/ticket/nuovo", color: "text-amber-600 bg-amber-50" },
       { icon: FileText, label: "Documenti", url: "/campo/documenti", color: "text-blue-600 bg-blue-50" },
       { icon: MessageSquare, label: "Chat", url: "/campo/chat", color: "text-indigo-600 bg-indigo-50" },
-      { icon: Ticket, label: "Ticket", url: "/campo/ticket/nuovo", color: "text-amber-600 bg-amber-50" },
     ] : []),
   ];
 
@@ -1347,13 +1349,13 @@ function AccesaoRapido({ isOperaio, isSubappaltatore }: { isOperaio: boolean; is
     <div className="rounded-2xl border bg-background p-3 shadow-sm md:border-0 md:bg-transparent md:p-0 md:shadow-none">
       <p className="mb-3 text-sm font-semibold text-foreground">Azioni rapide</p>
       <div className="grid grid-cols-4 gap-1.5 md:gap-3">
-        {items.map((item) => {
+        {items.map((item, idx) => {
           const [textColor, bgColor] = item.color.split(" ");
           return (
             <button
               key={item.url + item.label}
               onClick={() => navigate(item.url)}
-              className="flex min-h-[76px] flex-col items-center justify-center gap-1.5 rounded-2xl px-1 py-2 transition-all active:scale-95 hover:bg-muted/60"
+              className={`${idx >= 4 ? "hidden md:flex" : "flex"} min-h-[76px] flex-col items-center justify-center gap-1.5 rounded-2xl px-1 py-2 transition-all active:scale-95 hover:bg-muted/60`}
             >
               <div className={`flex h-11 w-11 items-center justify-center rounded-2xl md:h-14 md:w-14 ${bgColor}`}>
                 <item.icon className={`h-5 w-5 md:h-7 md:w-7 ${textColor}`} />

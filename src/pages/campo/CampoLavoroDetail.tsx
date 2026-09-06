@@ -1321,6 +1321,7 @@ function CampoCloseDayCard({
         <CloseDayStep ok={checklistDone} icon={ShieldCheck} label="Sicurezza" detail={checklistDone ? "Ok" : "Da fare"} onClick={onChecklist} />
         <CloseDayStep ok={evidenceOk} icon={Camera} label="Evidenze" detail={evidenceOk ? `${fotoCount} foto · ${materialiCount} mat.` : "Consigliate"} optional onClick={onRapportino} />
         <CloseDayStep ok={rapportinoDone} icon={FileText} label="Rapportino" detail={rapportinoDone ? `${oreRapportino ?? 0} h` : "Manca"} onClick={onRapportino} />
+        {isOperaio && (
         <CloseDayStep
           ok={giornataCompleta}
           icon={LogOut}
@@ -1329,6 +1330,7 @@ function CampoCloseDayCard({
           optional={!isOperaio}
           onClick={isOperaio ? onTimbratura : undefined}
         />
+        )}
       </div>
 
       {/* Solo se dichiarato davvero (>0): con le fasi la % la calcola il sistema

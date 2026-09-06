@@ -230,7 +230,10 @@ export default defineConfig(() => ({
       // se mai servirà di nuovo. Ad oggi non porta valore commisurato al
       // rischio di ricreare lo stesso bug.
       // ─────────────────────────────────────────────────────────────
-      selfDestroying: true,
+      // 2026-09-06: SW riacceso, ma con regole minime e sicure (vedi runtimeCaching):
+      // niente precache di index.html, niente cache delle API. Serve all'area campo
+      // (shell offline) e alle Web Push, che senza SW non possono esistere.
+      selfDestroying: false,
       workbox: {
         // sw-push-handler.js: gestione eventi push Web Push API (MP5)
         // Incluso via importScripts nel SW generato da Vite PWA.
@@ -260,41 +263,31 @@ export default defineConfig(() => ({
         clientsClaim: true,
         runtimeCaching: [
           {
-            // Critical list endpoints: stale-while-revalidate for fast mobile loads
-            urlPattern: /^https:\/\/.*\.supabase\.co\/rest\/v1\/(cantieri|clienti|giornale_lavori|orders|marketing_contacts|marketing_opportunities|marketing_pipelines|internal_chat_channels|appointments|profiles|staff_permissions|notifications)/i,
-            handler: "StaleWhileRevalidate",
-            options: {
-              cacheName: "supabase-critical",
-              expiration: { maxEntries: 100, maxAgeSeconds: 120 },
-            },
-          },
-          {
-            // RPC endpoints (dashboard KPIs, etc): stale-while-revalidate
-            urlPattern: /^https:\/\/.*\.supabase\.co\/rest\/v1\/rpc\//i,
-            handler: "StaleWhileRevalidate",
-            options: {
-              cacheName: "supabase-rpc",
-              expiration: { maxEntries: 30, maxAgeSeconds: 180 },
-            },
-          },
-          {
-            // Catch-all per /rest/v1/* e /storage/v1/* (data + file API).
-            // ⚠️  CRITICO: NON intercettiamo /auth/v1/* (login/signup/refresh/logout)
-            // né /functions/v1/* (edge functions). Su iOS Safari un NetworkFirst
-            // senza networkTimeoutSeconds applicato a /auth/v1/token POST può
-            // pendere indefinitamente, lasciando l'UI bloccata su "Accesso in
-            // corso..." dopo un login con credenziali valide. Lasciamo che le
-            // richieste auth e functions passino direttamente alla rete del
-            // browser, così il client Supabase può applicare i suoi timeouts.
-            // networkTimeoutSeconds=10 forza fallback al cache se la rete pende.
-            urlPattern: /^https:\/\/.*\.supabase\.co\/(rest\/v1|storage\/v1)\//i,
+            // Shell dell'area campo: rete prima (HTML sempre fresco quando c'è
+            // linea), cache SOLO se la rete non risponde in 4 s. Fuori da /campo
+            // nessuna regola: il sito e l'app ufficio vanno sempre in rete.
+            urlPattern: ({ request, url }) => request.mode === "navigate" && url.pathname.startsWith("/campo"),
             handler: "NetworkFirst",
             options: {
-              cacheName: "supabase-api",
-              expiration: { maxEntries: 100, maxAgeSeconds: 300 },
-              networkTimeoutSeconds: 10,
+              cacheName: "campo-shell-v1",
+              networkTimeoutSeconds: 4,
+              expiration: { maxEntries: 30, maxAgeSeconds: 7 * 24 * 3600 },
             },
           },
+          {
+            // Chunk e CSS della build: nome con hash = immutabili, cache sicura.
+            // Un chunk mai caricato non c'è: offline funziona per le pagine già viste.
+            urlPattern: ({ url }) => url.origin === self.location.origin && /^\/assets-[a-z0-9]+\//.test(url.pathname),
+            handler: "CacheFirst",
+            options: {
+              cacheName: "eic-assets-v1",
+              expiration: { maxEntries: 400, maxAgeSeconds: 30 * 24 * 3600 },
+              cacheableResponse: { statuses: [200] },
+            },
+          },
+          // NESSUNA regola su /auth, /rest, /functions, /storage di Supabase: la
+          // cache delle API (StaleWhileRevalidate/NetworkFirst) era la causa dei
+          // dati vecchi e del login appeso su iOS. Restano sempre in rete.
         ],
       },
     })]),

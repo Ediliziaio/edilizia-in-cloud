@@ -677,7 +677,7 @@ export default function CampoRapportino() {
   ];
 
   return (
-    <div className="flex flex-col bg-background">
+    <div className="mx-auto w-full max-w-3xl flex flex-col bg-background">
       {/* Header */}
       <div className="flex items-center gap-3 border-b border-border bg-background px-3 py-3 shadow-sm md:px-4">
         <button

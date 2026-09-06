@@ -104,7 +104,7 @@ export default function CampoTicketNuovo() {
   // Niente h-full + scroll interno: il <main> della shell è l'unico scroller
   // mobile. Gli sticky compensano il padding del main (-top-3 / -bottom-28).
   return (
-    <div className="flex flex-col">
+    <div className="mx-auto w-full max-w-3xl flex flex-col">
       {/* Header */}
       <div className="sticky -top-3 z-10 bg-muted border-b border-border px-4 py-3 flex items-center gap-3 md:top-14">
         <button

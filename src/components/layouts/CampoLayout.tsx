@@ -3,7 +3,9 @@
  * Usa la stessa UX white-sidebar dell'app principale.
  * Su mobile la sidebar diventa un sheet laterale.
  */
+import { useEffect } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { isNative } from "@/lib/mobile";
 import {
   Home,
   Calendar,
@@ -64,6 +66,16 @@ type CampoNavItem = {
 };
 
 export default function CampoLayout() {
+  // Service worker dell'area campo: shell di /campo e chunk già visti in cache,
+  // così con una tacca di segnale l'app almeno si apre (timbratura, bozze). Le
+  // Web Push hanno bisogno di un SW attivo: senza, le iscrizioni non nascono.
+  // Solo in produzione e solo sul web (l'app nativa non ne ha bisogno).
+  useEffect(() => {
+    if (!import.meta.env.PROD || isNative || !("serviceWorker" in navigator)) return;
+    navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch((e) => {
+      console.warn("[campo] service worker non registrato:", e instanceof Error ? e.message : e);
+    });
+  }, []);
   const { profile, signOut, company, effectiveCompany } = useAuth();
   const { isOperaio } = useIsCampo();
   const activeCompany = effectiveCompany ?? company;
