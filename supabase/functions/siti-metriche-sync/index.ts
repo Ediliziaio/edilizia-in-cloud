@@ -76,6 +76,42 @@ function chiaveDaAmbiente(): { sa: ServiceAccount; nome: string } | null {
   return null;
 }
 
+/**
+ * Quando la chiave non si trova, «non c'è» e «c'è ma è rotta» richiedono due
+ * rimedi diversi e vanno distinte. Qui si guardano le variabili col nome che
+ * suona giusto e si dice cosa non va del loro contenuto: se è JSON valido, se
+ * ha i due campi che servono, quanto è lunga.
+ *
+ * Escono soltanto nomi e caratteristiche. Mai un valore: una diagnosi che
+ * stampa il segreto che sta cercando è peggio del problema che risolve.
+ */
+function diagnosiAmbiente(): Array<Record<string, unknown>> {
+  let ambiente: Record<string, string>;
+  try {
+    ambiente = Deno.env.toObject();
+  } catch {
+    return [{ errore: "variabili d'ambiente non leggibili" }];
+  }
+  const sospette = /GOOGLE|SERVICE|ACCOUNT|CREDENTIAL|GA4|ANALYTICS|SEARCH|CONSOLE|GSC/i;
+  const esito: Array<Record<string, unknown>> = [];
+  for (const [nome, valore] of Object.entries(ambiente)) {
+    if (!sospette.test(nome)) continue;
+    let json: unknown = null;
+    let valido = false;
+    try { json = JSON.parse(valore); valido = true; } catch { /* non JSON */ }
+    const o = (json ?? {}) as Record<string, unknown>;
+    esito.push({
+      nome,
+      caratteri: valore.length,
+      json_valido: valido,
+      ha_client_email: typeof o.client_email === "string",
+      ha_private_key: typeof o.private_key === "string",
+      inizia_con: valore.slice(0, 14).replace(/\s+/g, " "),
+    });
+  }
+  return esito;
+}
+
 // ── Autenticazione Google ────────────────────────────────────────────────────
 
 function base64url(dati: Uint8Array): string {
@@ -321,6 +357,8 @@ Deno.serve(async (req) => {
           "Service account non trovato. Cercato nel Vault come 'google_service_account' e fra i " +
           "Secrets delle Edge Function: in nessuno dei due c'è un JSON con client_email e private_key. " +
           "Attenzione che il Vault (Database → Vault) e i Secrets delle Edge Function sono due archivi diversi.",
+        vault_ha_la_voce: !!chiaveGrezza,
+        variabili_candidate: diagnosiAmbiente(),
       }), { headers: { ...CORS, "Content-Type": "application/json" } });
     }
 
