@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, User, Shield, Clock, Calendar, Bell, Wifi, FileText, Lock, HardHat, ShieldOff } from "lucide-react";
+import { ArrowLeft, User, Shield, Clock, Calendar, Bell, Wifi, FileText, Lock, HardHat, ShieldOff, ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -58,6 +58,9 @@ interface UserDetail {
   role: CompanyUserRole | undefined;
   access_company_id: string | null;
   is_multi_company_access: boolean;
+  /** Chi comanda in questa azienda: il suo ruolo di admin non si tocca. */
+  titolare_user_id: string | null;
+  e_il_titolare: boolean;
   /** Ruoli aggiuntivi commerciali (salesperson/call_center quando il primary è altro) */
   additionalRoles: ("salesperson" | "call_center")[];
   permissions: StaffPermissions | null;
@@ -178,6 +181,15 @@ export default function SettingsUserDetail() {
       if (effectiveRole !== "salesperson" && roleSet.has("salesperson")) additionalRoles.push("salesperson");
       if (effectiveRole !== "call_center" && roleSet.has("call_center")) additionalRoles.push("call_center");
 
+      // Chi comanda in questa azienda: il suo ruolo non si tocca, e i ruoli
+      // degli altri amministratori li cambia solo lui. Il controllo vero sta
+      // nel database (trigger proteggi_titolare_azienda); qui serve per non
+      // far arrivare l'utente contro un errore grezzo.
+      const { data: azienda } = accessCompanyId
+        ? await supabase.from("companies").select("titolare_user_id").eq("id", accessCompanyId).maybeSingle()
+        : { data: null };
+      const titolareId = (azienda as { titolare_user_id?: string | null } | null)?.titolare_user_id ?? null;
+
       let permissions: StaffPermissions | null = null;
       // Load staff_permissions for any non-admin role (staff, salesperson, call_center all use it)
       if (effectiveRole && effectiveRole !== "company_admin") {
@@ -194,9 +206,15 @@ export default function SettingsUserDetail() {
 
       return {
         ...profile,
+        // `last_login_ip` in tabella è di tipo inet: i tipi generati lo danno
+        // `unknown` e l'interfaccia qui lo vuole stringa. Lo si restringe una
+        // volta sola, sul confine, invece di trascinarsi l'errore.
+        last_login_ip: (profile.last_login_ip ?? null) as string | null,
         role: effectiveRole,
         access_company_id: accessCompanyId,
         is_multi_company_access: isMultiCompanyAccess,
+        titolare_user_id: titolareId,
+        e_il_titolare: !!titolareId && titolareId === userId,
         additionalRoles,
         permissions,
       };
@@ -355,6 +373,25 @@ export default function SettingsUserDetail() {
 
       const companyId = userData?.access_company_id ?? userData?.company_id;
       if (!companyId) throw new Error("company_id mancante nel profilo utente");
+
+      // GUARD 0: il titolare dell'azienda non si declassa, e i ruoli degli altri
+      // amministratori li cambia solo lui. Stessa regola del trigger sul
+      // database: qui l'utente riceve la frase giusta invece di un errore SQL.
+      if (userData?.e_il_titolare && currentRole === "company_admin" && newRole !== "company_admin") {
+        throw new Error(
+          "Questo è il titolare dell'azienda: il suo ruolo di Amministratore non si può togliere. Indica prima un altro titolare.",
+        );
+      }
+      if (
+        currentRole === "company_admin" &&
+        newRole !== "company_admin" &&
+        userData?.titolare_user_id &&
+        userData.titolare_user_id !== currentUser?.id
+      ) {
+        throw new Error(
+          "Il ruolo di un Amministratore lo può cambiare solo il titolare dell'azienda.",
+        );
+      }
 
       // GUARD 1: self-edit — non permettere di revocare il proprio ruolo admin
       if (userId === currentUser?.id && currentRole === "company_admin" && newRole !== "company_admin") {
@@ -573,6 +610,11 @@ export default function SettingsUserDetail() {
         <div>
           <div className="flex items-center gap-2">
             <h2 className="text-lg font-semibold">{userData.first_name} {userData.last_name}</h2>
+            {userData.e_il_titolare && (
+              <Badge variant="secondary" className="gap-1 text-xs">
+                <ShieldCheck className="h-3 w-3" /> Titolare
+              </Badge>
+            )}
             {userData.is_blocked && (
               <Badge variant="destructive" className="gap-1 text-xs">
                 <ShieldOff className="h-3 w-3" /> Bloccato
@@ -582,6 +624,19 @@ export default function SettingsUserDetail() {
           <p className="text-sm text-muted-foreground">{userData.email}</p>
         </div>
       </div>
+
+      {userData.e_il_titolare && (
+        <div className="flex items-start gap-3 rounded-lg border bg-muted/40 p-3 text-sm">
+          <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+          <div>
+            <p className="font-medium">È il titolare dell'azienda</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Il suo ruolo di Amministratore non si può togliere, nemmeno da un altro amministratore: serve
+              prima indicare un altro titolare. Ed è l'unico che può cambiare il ruolo agli altri amministratori.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Area Campo banner */}
       {(userData.role === "employee" || userData.role === "subcontractor") && (

@@ -17250,6 +17250,7 @@ export type Database = {
           stripe_subscription_status: string | null
           subscription_plan_id: string | null
           tesoreria_enabled: boolean | null
+          titolare_user_id: string | null
           ticket_playbook_auto_apply: boolean
           trial_ends_at: string | null
           trial_extensions_count: number
@@ -17411,6 +17412,7 @@ export type Database = {
           stripe_subscription_status?: string | null
           subscription_plan_id?: string | null
           tesoreria_enabled?: boolean | null
+          titolare_user_id?: string | null
           ticket_playbook_auto_apply?: boolean
           trial_ends_at?: string | null
           trial_extensions_count?: number
@@ -17572,6 +17574,7 @@ export type Database = {
           stripe_subscription_status?: string | null
           subscription_plan_id?: string | null
           tesoreria_enabled?: boolean | null
+          titolare_user_id?: string | null
           ticket_playbook_auto_apply?: boolean
           trial_ends_at?: string | null
           trial_extensions_count?: number
