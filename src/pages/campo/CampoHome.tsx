@@ -15,7 +15,7 @@ import {
   CalendarDays, Receipt, ClipboardCheck,
   ClipboardList,
   Ticket, CalendarDays as CalendarDaysIcon,
-  Sparkles, Navigation, Send, FilePenLine,
+  Sparkles, Navigation, Send, FilePenLine, Users
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -27,6 +27,8 @@ import { useCampoRapportiniDaCompilare } from "@/hooks/useCampoRapportiniDaCompi
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { PushConsentBanner } from "@/components/hr/PushConsentBanner";
+import { isNative } from "@/lib/mobile";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -84,11 +86,36 @@ interface CampoAiTask {
 }
 
 export default function CampoHome() {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const { isOperaio, isSubappaltatore } = useIsCampo();
+  // Chi è capocantiere di almeno un cantiere lo legge nel saluto, non solo dentro la card.
+  const { data: isCapocantiere = false } = useQuery({
+    queryKey: ["campo-e-capocantiere", user?.id],
+    enabled: !!user?.id && isOperaio,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("order_campo_assignments")
+        .select("id")
+        .eq("user_id", user!.id)
+        .eq("is_capocantiere", true)
+        .limit(1);
+      return (data?.length ?? 0) > 0;
+    },
+  });
 
   const ora = new Date().getHours();
   const saluto = ora < 12 ? "Buongiorno" : ora < 18 ? "Buon pomeriggio" : "Buonasera";
+  // Banner push: se lo chiude, torna dopo 14 giorni.
+  const [pushBannerNascosto, setPushBannerNascosto] = useState<boolean>(() => {
+    try {
+      const fino = Number(localStorage.getItem("campo-push-banner-fino") ?? 0);
+      return fino > Date.now();
+    } catch { return false; }
+  });
+  const nascondiPushBanner = () => {
+    try { localStorage.setItem("campo-push-banner-fino", String(Date.now() + 14 * 86400_000)); } catch { /* privato */ }
+    setPushBannerNascosto(true);
+  };
 
   return (
     <div className="mx-auto max-w-4xl space-y-3 md:space-y-6">
@@ -112,6 +139,12 @@ export default function CampoHome() {
         </div>
       </div>
 
+      {/* Consenso alle notifiche: senza, gli avvisi (rapportino approvato, cantiere
+          assegnato, promemoria) restano solo nella campanella. Solo web in produzione:
+          il service worker c'è solo lì, l'app nativa ha le sue push. */}
+      {import.meta.env.PROD && !isNative && !pushBannerNascosto && (
+        <PushConsentBanner onDismiss={nascondiPushBanner} />
+      )}
       {/* Timbratura — sempre in cima su mobile */}
       {isOperaio && <TimbraturaCampo />}
 
@@ -121,7 +154,7 @@ export default function CampoHome() {
       {/* Grid principale — 1 col mobile, 2 col desktop.
           Priorità mobile: prima le cose da FARE (rapportini, cantieri),
           poi l'assistente AI e il resto. */}
-      <div className="hidden md:grid grid-cols-1 gap-3 md:gap-6 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 md:gap-6 lg:grid-cols-2">
         {/* Cantieri assegnati */}
         <div className="space-y-3 md:space-y-6">
           {/* 🆕 GAP 5b: prompt rapportini di OGGI non ancora compilati (priorità alta) */}
@@ -648,7 +681,7 @@ function AssistenteCampoOperaio() {
           )}
         </div>
 
-        <div className="flex flex-wrap gap-1.5">
+        <div className="hidden md:flex flex-wrap gap-1.5">
           {["Ore", "Diario", "Avanzamento", "Foto"].map((item) => (
             <span key={item} className="rounded-full bg-background/80 px-2 py-1 text-[10px] font-semibold text-muted-foreground">
               aggiorna {item}
@@ -794,6 +827,17 @@ function CantieriAssegnati() {
                     {a.order?.percentuale_avanzamento ?? 0}%
                   </span>
                 </div>
+                {a.is_capocantiere && (
+                  <span
+                    role="link"
+                    tabIndex={0}
+                    onClick={(e) => { e.stopPropagation(); navigate(`/campo/squadra/${a.order?.id}`); }}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); navigate(`/campo/squadra/${a.order?.id}`); } }}
+                    className="mt-2 inline-flex h-9 items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/5 px-3 text-xs font-semibold text-primary"
+                  >
+                    <Users className="h-3.5 w-3.5" /> Squadra di oggi
+                  </span>
+                )}
               </button>
             ))}
           </div>

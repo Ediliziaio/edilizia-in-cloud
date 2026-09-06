@@ -12,6 +12,26 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 
+// Access token FCM HTTP v1 dal service account (JWT RS256 → oauth2). Niente
+// dipendenze: WebCrypto basta.
+async function tokenFcm(sa: { client_email: string; private_key: string; token_uri?: string }): Promise<string> {
+  const b64 = (obj: unknown) => btoa(JSON.stringify(obj)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  const now = Math.floor(Date.now() / 1000);
+  const header = b64({ alg: "RS256", typ: "JWT" });
+  const claims = b64({ iss: sa.client_email, scope: "https://www.googleapis.com/auth/firebase.messaging", aud: sa.token_uri ?? "https://oauth2.googleapis.com/token", iat: now, exp: now + 3600 });
+  const pem = sa.private_key.replace(/-----[A-Z ]+-----/g, "").replace(/\s+/g, "");
+  const der = Uint8Array.from(atob(pem), (c) => c.charCodeAt(0));
+  const key = await crypto.subtle.importKey("pkcs8", der, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["sign"]);
+  const sig = new Uint8Array(await crypto.subtle.sign("RSASSA-PKCS1-v1_5", key, new TextEncoder().encode(`${header}.${claims}`)));
+  const sigB64 = btoa(String.fromCharCode(...sig)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  const res = await fetch(sa.token_uri ?? "https://oauth2.googleapis.com/token", {
+    method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion: `${header}.${claims}.${sigB64}` }),
+  });
+  if (!res.ok) throw new Error(`oauth2 ${res.status}`);
+  return (await res.json()).access_token as string;
+}
+
 Deno.serve(async (req: Request) => {
   const corsH = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsH });
@@ -61,7 +81,41 @@ Deno.serve(async (req: Request) => {
         console.warn("[push-notifica] invio fallito:", e instanceof Error ? e.message : e);
       }
     }
-    return json(200, { ok: true, destinatari: utenti.length, iscrizioni: iscrizioni?.length ?? 0, inviate, scadute });
+    // ── App nativa (Capacitor): token FCM in push_tokens. Serve il service account
+    //    Firebase nel secret FCM_SERVICE_ACCOUNT_JSON; senza, si conta e basta.
+    let native = { token: 0, inviate: 0, scadute: 0, configurato: false };
+    const { data: tokens } = await admin.from("push_tokens").select("id, token, platform").in("user_id", utenti.slice(0, 200));
+    native.token = tokens?.length ?? 0;
+    const saJson = Deno.env.get("FCM_SERVICE_ACCOUNT_JSON");
+    if (native.token > 0 && saJson) {
+      native.configurato = true;
+      try {
+        const accessToken = await tokenFcm(JSON.parse(saJson));
+        const projectId = JSON.parse(saJson).project_id;
+        for (const t of tokens as Array<{ id: string; token: string; platform: string }>) {
+          const res = await fetch(`https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ message: {
+              token: t.token,
+              notification: { title, body: String(body.body ?? "") },
+              data: { url: String(body.url ?? "/campo"), tag: String(body.tag ?? "campo") },
+              android: { priority: "high", notification: { channel_id: "campo" } },
+              apns: { payload: { aps: { sound: "default" } } },
+            } }),
+          });
+          if (res.ok) native.inviate++;
+          else {
+            const txt = await res.text();
+            if (res.status === 404 || /UNREGISTERED|NOT_FOUND/.test(txt)) { await admin.from("push_tokens").delete().eq("id", t.id); native.scadute++; }
+            else console.warn("[push-notifica] FCM", res.status, txt.slice(0, 160));
+          }
+        }
+      } catch (e) {
+        console.warn("[push-notifica] FCM non disponibile:", e instanceof Error ? e.message : e);
+      }
+    }
+    return json(200, { ok: true, destinatari: utenti.length, iscrizioni: iscrizioni?.length ?? 0, inviate, scadute, native });
   } catch (e) {
     console.error("[push-notifica]", e);
     return json(500, { error: "Errore interno" });

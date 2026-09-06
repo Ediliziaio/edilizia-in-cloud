@@ -9,7 +9,7 @@
  *
  * Nessun campo del giornaliero è obbligatorio (firma inclusa).
  */
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
@@ -24,6 +24,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useIsCampo } from "@/hooks/useIsCampo";
 import { useGPS } from "@/hooks/useGPS";
 import { FirmaPad } from "@/components/campo/FirmaPad";
+import { useWeatherForecast } from "@/hooks/useWeatherForecast";
 
 const TOTAL_STEPS = 2;
 
@@ -259,6 +260,70 @@ export default function CampoRapportino() {
       return (data?.[0] as { id: string; created_at: string } | undefined) ?? null;
     },
   });
+
+  // ── Precompilazione: ore dalle timbrature di oggi, meteo dalle previsioni ──
+  // Chi arriva dal promemoria delle 18:30 trova già ore e meteo compilati: resta
+  // da scrivere cosa ha fatto. Si applica UNA volta e solo se i campi sono ancora
+  // ai valori di partenza (8 h, meteo vuoto): non sovrascrive quello che l'operaio
+  // ha già toccato.
+  const { data: timbratureOggi = [] } = useQuery({
+    queryKey: ["campo-timbrature-oggi-rapportino", user?.id, format(new Date(), "yyyy-MM-dd")],
+    enabled: !!user?.id,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const inizio = new Date(); inizio.setHours(0, 0, 0, 0);
+      const { data } = await supabase
+        .from("campo_timbrature")
+        .select("tipo, timestamp_evento, order_id")
+        .eq("user_id", user!.id)
+        .gte("timestamp_evento", inizio.toISOString())
+        .order("timestamp_evento", { ascending: true });
+      return (data ?? []) as Array<{ tipo: string; timestamp_evento: string; order_id: string | null }>;
+    },
+  });
+  const { data: coordCantiere } = useQuery({
+    queryKey: ["campo-cantiere-coord", orderId],
+    enabled: !!orderId,
+    staleTime: 3600_000,
+    queryFn: async () => {
+      const { data } = await supabase.from("orders").select("work_lat, work_lng").eq("id", orderId!).maybeSingle();
+      return data?.work_lat != null && data?.work_lng != null ? { lat: Number(data.work_lat), lng: Number(data.work_lng) } : null;
+    },
+  });
+  const { data: meteoMap } = useWeatherForecast(coordCantiere?.lat ?? 45.4654, coordCantiere?.lng ?? 9.1859, 1);
+  const precompilatoRef = useRef(false);
+  useEffect(() => {
+    if (precompilatoRef.current || rapportinoGiaOggi) return;
+    let fatto = false;
+    // I setter partono al tick successivo: l'effetto non deve fare setState sincrono
+    // (regola del compilatore React), e qui un frame di ritardo non cambia nulla.
+    const applica = (fn: () => void) => { void Promise.resolve().then(fn); };
+    // Ore: coppie entrata→uscita di oggi (un'entrata aperta conta fino ad adesso), arrotondate al mezzo.
+    if (timbratureOggi.length > 0 && oreLavorate === 8) {
+      let secondi = 0; let apertura: number | null = null;
+      for (const t of timbratureOggi) {
+        const ts = new Date(t.timestamp_evento).getTime();
+        if (t.tipo === "entrata") apertura = ts;
+        else if (t.tipo === "uscita" && apertura != null) { secondi += (ts - apertura) / 1000; apertura = null; }
+      }
+      if (apertura != null) secondi += (Date.now() - apertura) / 1000;
+      const ore = Math.round((secondi / 3600) * 2) / 2;
+      if (ore >= 0.5 && ore <= 14) { applica(() => setOreLavorate(ore)); fatto = true; }
+    }
+    // Meteo: codice WMO di oggi sul cantiere → le cinque opzioni del rapportino.
+    if (meteoMap && coordCantiere && !meteo) {
+      const oggi = meteoMap.get(format(new Date(), "yyyy-MM-dd"));
+      if (oggi) {
+        const c = oggi.code;
+        // Valori identici a METEO_OPTIONS (soleggiato/nuvoloso/pioggia/neve/vento).
+        const scelta = c <= 1 ? "soleggiato" : c <= 48 ? "nuvoloso" : (c >= 71 && c <= 77) || c === 85 || c === 86 ? "neve" : c >= 51 ? "pioggia" : "nuvoloso";
+        applica(() => setMeteo(scelta)); fatto = true;
+      }
+    }
+    if (fatto) precompilatoRef.current = true;
+    // Le funzioni di stato sono stabili; le dipendenze sono i dati che arrivano.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timbratureOggi, meteoMap, coordCantiere, rapportinoGiaOggi]);
 
   // Solo le fasi non completate sono dichiarabili
   const fasiDichiarabili = fasiCommessa.filter(f => f.status !== "completata");
