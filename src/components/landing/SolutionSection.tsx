@@ -1,9 +1,7 @@
 import { useScrollAnimation } from "@/hooks/useScrollAnimation";
-import { Target, TrendingUp, Shield, PieChart, BarChart3, ArrowUpRight } from "lucide-react";
+import { Target, TrendingUp, Shield } from "lucide-react";
 import FloatingEdiliziaIcons from "./FloatingEdiliziaIcons";
-
-// Pre-calculated bar heights to avoid Math.random() in render
-const BAR_HEIGHTS = [32, 48, 25, 55, 38, 42, 28, 52, 35, 45, 30, 58, 40, 22, 50, 36, 46, 33];
+import CruscottoMockup from "./CruscottoMockup";
 
 const questions = [
   { icon: Target, q: "Qual è il margine REALE di ogni commessa, oggi?", desc: "Non il preventivato. Il margine vero, con i costi reali aggiornati al minuto — inclusa manodopera, materiali e overhead." },
@@ -11,6 +9,14 @@ const questions = [
   { icon: Shield, q: "Dove sto perdendo soldi senza saperlo?", desc: "Identifica le commesse in perdita, i fornitori troppo cari, le ore di manodopera non imputate. Prima che sia troppo tardi." },
 ];
 
+/**
+ * «Come funziona»: è qui che porta il bottone del hero. Le tre domande e,
+ * sotto, la schermata dell'app che le risponde («Come stiamo andando»),
+ * riprodotta in CruscottoMockup. Fino al 06/09/2026 la sezione mostrava
+ * un'illustrazione generata e un finto browser scuro «dashboard.ediliziaincloud.com»
+ * con numeri arancioni e rettangoli vuoti: un'app che non esiste, incoerente
+ * con il hero che dal 05/09 mostra la piattaforma vera.
+ */
 export default function SolutionSection() {
   const { ref, isVisible } = useScrollAnimation();
 
@@ -37,86 +43,44 @@ export default function SolutionSection() {
           Smetti di indovinare. <span className="text-[#F97415]">Inizia a sapere.</span>
         </h2>
         <p
-          className={`text-white/50 text-center mb-16 text-lg max-w-2xl mx-auto transition-all duration-700 delay-150 ${
+          className={`text-white/50 text-center mb-14 text-lg max-w-2xl mx-auto transition-all duration-700 delay-150 ${
             isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
           }`}
         >
           Edilizia in Cloud risponde alle 3 domande che ogni imprenditore edile dovrebbe poter vedere in tempo reale — da qualsiasi dispositivo, in qualsiasi momento.
         </p>
 
-        <div className="grid md:grid-cols-[1fr_320px] gap-8 mb-16">
-          <div className="grid md:grid-cols-3 gap-6">
-            {questions.map((q, i) => (
-              <div
-                key={i}
-                className={`p-8 rounded-2xl bg-white/[0.05] border border-white/[0.1] hover:border-[#F97415]/40 hover:bg-white/[0.08] transition-all duration-500 group ${
-                  isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
-                }`}
-                style={{ transitionDelay: isVisible ? `${300 + i * 120}ms` : "0ms" }}
-              >
-                <div className="w-12 h-12 rounded-xl bg-[#F97415]/20 flex items-center justify-center mb-5 group-hover:scale-110 transition-transform">
-                  <q.icon className="w-6 h-6 text-[#F97415]" />
-                </div>
-                <h3 className="text-white font-bold text-lg mb-3">{q.q}</h3>
-                <p className="text-white/50 text-sm leading-relaxed">{q.desc}</p>
+        <div className="grid md:grid-cols-3 gap-6 mb-12">
+          {questions.map((q, i) => (
+            <div
+              key={i}
+              className={`p-8 rounded-2xl bg-white/[0.05] border border-white/[0.1] hover:border-[#F97415]/40 hover:bg-white/[0.08] transition-all duration-500 group ${
+                isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
+              }`}
+              style={{ transitionDelay: isVisible ? `${300 + i * 120}ms` : "0ms" }}
+            >
+              <div className="w-12 h-12 rounded-xl bg-[#F97415]/20 flex items-center justify-center mb-5 group-hover:scale-110 transition-transform">
+                <q.icon className="w-6 h-6 text-[#F97415]" />
               </div>
-            ))}
-          </div>
-
-          <div className="hidden md:flex items-center">
-            <picture>
-              <source srcSet="/landing/solution-dashboard-control.avif" type="image/avif" />
-              <source srcSet="/landing/solution-dashboard-control.webp" type="image/webp" />
-              <img
-                src="/landing/solution-dashboard-control.webp"
-                alt="Imprenditore edile che controlla margini, cassa e perdite su dashboard"
-                width={1024}
-                height={1536}
-                loading="lazy"
-                decoding="async"
-                className="w-full rounded-3xl border border-white/10 object-cover shadow-2xl shadow-black/30"
-              />
-            </picture>
-          </div>
+              <h3 className="text-white font-bold text-lg mb-3">{q.q}</h3>
+              <p className="text-white/50 text-sm leading-relaxed">{q.desc}</p>
+            </div>
+          ))}
         </div>
 
-        {/* Dashboard mockup */}
+        {/* La schermata che risponde alle tre domande: «Come stiamo andando», la prima che il titolare apre la mattina */}
         <div
-          className={`relative rounded-2xl border border-white/10 bg-white/[0.03] p-6 md:p-8 overflow-hidden transition-all duration-700 delay-700 ${
+          className={`relative mx-auto max-w-5xl transition-all duration-700 delay-700 ${
             isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
           }`}
         >
-          <div className="flex items-center gap-2 mb-6">
-            <div className="w-3 h-3 rounded-full bg-red-400/60" />
-            <div className="w-3 h-3 rounded-full bg-yellow-400/60" />
-            <div className="w-3 h-3 rounded-full bg-green-400/60" />
-            <span className="ml-3 text-white/30 text-xs">dashboard.ediliziaincloud.com</span>
+          <div className="pointer-events-none absolute -inset-6 rounded-full bg-[#F97415]/10 blur-[70px]" />
+          <div className="relative">
+            <CruscottoMockup />
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4 mb-6">
-            {[
-              { label: "Margine Medio", value: "24.5%", icon: PieChart, color: "text-[#F97415]" },
-              { label: "Cassa Disponibile", value: "€ 128.450", icon: BarChart3, color: "text-[#F97415]" },
-              { label: "Commesse Attive", value: "12", icon: ArrowUpRight, color: "text-[#F97415]" },
-            ].map((stat, i) => (
-              <div key={i} className="bg-white/[0.04] rounded-xl p-4 border border-white/[0.08]">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-white/40 text-xs">{stat.label}</span>
-                  <stat.icon className={`w-4 h-4 ${stat.color}`} />
-                </div>
-                <p className={`font-bold text-xl ${stat.color}`}>{stat.value}</p>
-              </div>
-            ))}
-          </div>
-          <div className="hidden sm:grid grid-cols-6 gap-2 overflow-hidden">
-            {BAR_HEIGHTS.map((h, i) => (
-              <div
-                key={i}
-                className="rounded bg-white/[0.04] border border-white/[0.06]"
-                style={{ height: `${h}px` }}
-              />
-            ))}
-          </div>
-          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/[0.02] to-transparent animate-shimmer" style={{ backgroundSize: "200% 100%" }} />
+          <p className="mt-4 text-center text-xs text-white/40">
+            «Come stiamo andando»: la schermata che il titolare apre la mattina. Dati dimostrativi.
+          </p>
         </div>
 
         <p
