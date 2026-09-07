@@ -12,6 +12,10 @@
     "skipLibCheck": true,
     "strictNullChecks": false
   },
+  // ATTENZIONE: con "files" vuoto e i soli "references", `tsc --noEmit` qui
+  // NON controlla niente — senza --build TypeScript non segue i rimandi e
+  // compila zero file in meno di un secondo. Per il controllo vero usare
+  // `npm run typecheck` (tsconfig.app.json) o `npm run typecheck:ci`.
   "files": [],
   "references": [
     {

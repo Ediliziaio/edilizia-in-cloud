@@ -88,7 +88,7 @@ export function useWidgetLayoutPersistence(
         }
         setIsLoading(false);
       })
-      .catch((err) => {
+      .catch((err: any) => {
         // La Promise può rejectare (errore di rete/fetch) senza passare dal ramo
         // {error}: senza questo catch isLoading resterebbe true per sempre →
         // spinner infinito sulla dashboard. Fail-safe verso lo stato "caricato".

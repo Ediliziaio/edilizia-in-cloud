@@ -6,6 +6,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { Mic, Square, Play, Pause, RotateCcw, Check, Loader2 } from "lucide-react";
+import type { JSX } from "react";
 
 const MAX_DURATION_SEC = 120;
 const BITRATE_BPS = 128_000;

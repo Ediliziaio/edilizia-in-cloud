@@ -127,7 +127,7 @@ export function StepBom({ progettoId, detail }: Props) {
   const { data: macrosAll = [] } = useListinoMacrocategorie();
   const macroIdToNome = useMemo(() => {
     const m = new Map<string, string>();
-    macrosAll.forEach((mc) => m.set(mc.id, mc.nome));
+    macrosAll.forEach((mc: any) => m.set(mc.id, mc.nome));
     return m;
   }, [macrosAll]);
 
@@ -1350,7 +1350,7 @@ function MacroOverrideSelect({
   onChange: (next: string | null) => void;
 }) {
   const { data: macros = [] } = useListinoMacrocategorie();
-  const macrosAttive = macros.filter((m) => m.attivo);
+  const macrosAttive = macros.filter((m: any) => m.attivo);
   return (
     <div className="col-span-12">
       <div className="rounded-md border border-dashed border-slate-200 bg-muted/20 p-2.5">
@@ -1380,7 +1380,7 @@ function MacroOverrideSelect({
             <SelectItem value="__none__" className="text-xs italic text-muted-foreground">
               Nessuna macrocategoria
             </SelectItem>
-            {macrosAttive.map((m) => (
+            {macrosAttive.map((m: any) => (
               <SelectItem key={m.id} value={m.id} className="text-xs">
                 {m.nome}
                 {m.mostra_pagina_dedicata_pdf && (

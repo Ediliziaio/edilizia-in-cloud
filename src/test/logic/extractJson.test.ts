@@ -42,7 +42,6 @@ describe("extractJsonFromLLM (P2-4)", () => {
   });
 
   it("lancia su null", () => {
-    // @ts-expect-error: testiamo intentionally input invalido
     expect(() => extractJsonFromLLM(null)).toThrow();
   });
 });

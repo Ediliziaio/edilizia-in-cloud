@@ -58,7 +58,6 @@ async function pdfToImageFiles(
   onProgress?: (current: number, total: number) => void,
 ): Promise<{ files: File[]; totalPages: number }> {
   const pdfjsLib = await import("pdfjs-dist");
-  // @ts-expect-error vite-resolved url import
   const workerUrl = (await import("pdfjs-dist/build/pdf.worker.min.mjs?url")).default;
   pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
 

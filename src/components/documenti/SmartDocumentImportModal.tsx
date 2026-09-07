@@ -58,6 +58,7 @@ import {
   requiresDocTypeConfirmation,
   type SmartValidationWarning,
 } from "@/lib/documenti/smartDocumentImport";
+import type { JSX } from "react";
 
 // Sostituiamo i tip di AIProcessingStage iniettando un wrapper minimale.
 // (Per non duplicare tutto il file riusiamo lo stesso componente — i tip

@@ -27,6 +27,7 @@ import { cn } from "@/lib/utils";
 import { ImapCustomDialog } from "./ImapCustomDialog";
 import { EmailSignatureEditor } from "./EmailSignatureEditor";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import type { JSX } from "react";
 
 // Brand SVG icons per Gmail / Outlook / IMAP (no extra deps)
 function GmailIcon({ className }: { className?: string }) {

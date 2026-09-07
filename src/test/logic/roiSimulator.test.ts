@@ -250,7 +250,6 @@ describe("computeRoi — clamp difensivi (mai NaN/Infinity/negativi)", () => {
   });
 
   it("tollera input completamente vuoto (campi mancanti) senza NaN", () => {
-    // @ts-expect-error: simuliamo una simulazione salvata legacy/parziale
     const r = computeRoi({});
     for (const v of [
       r.valoreTempo,

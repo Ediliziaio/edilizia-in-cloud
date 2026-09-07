@@ -240,7 +240,7 @@ export function useClonaProgetto() {
 
       // 3) Copia le voci del computo nel nuovo progetto (importi già calcolati a monte).
       if (voci && voci.length > 0) {
-        const rows = voci.map((v, idx) => ({
+        const rows = voci.map((v: any, idx: any) => ({
           progetto_id: nuovo.id,
           company_id: companyId,
           capitolo_nome: v.capitolo_nome,

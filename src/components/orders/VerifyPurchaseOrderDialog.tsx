@@ -20,6 +20,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { VerificationResultCard, type VerificationData } from "./VerificationResultCard";
+import type { JSX } from "react";
 
 // ── Types ─────────────────────────────────────────────────────────────────
 

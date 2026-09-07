@@ -574,7 +574,7 @@ export default function CreateCompany() {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="none">Trial standard (14 giorni)</SelectItem>
-                          {plans.map((p) => (
+                          {plans.map((p: any) => (
                             <SelectItem key={p.id} value={p.id}>
                               {p.name}
                               {p.slug === "scopri"

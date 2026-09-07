@@ -2240,7 +2240,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                 {(r.intent_signals?.length ?? 0) > 0 && (
                   <div>
                     <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1">Segnali dal sito</p>
-                    <div className="flex flex-wrap gap-1">{r.intent_signals!.map((s) => <Badge key={s} variant="secondary" className="text-[10px]">{s}</Badge>)}</div>
+                    <div className="flex flex-wrap gap-1">{r.intent_signals!.map((s: any) => <Badge key={s} variant="secondary" className="text-[10px]">{s}</Badge>)}</div>
                   </div>
                 )}
                 {!r.vies && !r.firmografici && (r.emails?.length ?? 0) === 0 && (r.phones?.length ?? 0) === 0 && !r.facebook_url && !r.instagram_url && !r.linkedin_url && (

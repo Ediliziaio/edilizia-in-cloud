@@ -77,7 +77,7 @@ export function useGpsContinuo(): GpsContinuoState & GpsContinuoActions {
           setState((s) => ({ ...s, hasConsent: true }));
         }
       })
-      .catch((err) => {
+      .catch((err: any) => {
         if (!cancelled) {
           console.warn("[useGpsContinuo] consent check failed:", err);
         }

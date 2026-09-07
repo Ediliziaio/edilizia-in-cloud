@@ -10,6 +10,8 @@
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "typecheck": "NODE_OPTIONS=--max-old-space-size=12288 tsc --noEmit -p tsconfig.app.json",
+    "typecheck:ci": "node scripts/typecheck-ratchet.mjs",
+    "typecheck:baseline": "node scripts/typecheck-ratchet.mjs --update",
     "seo:audit": "node scripts/seo-audit.mjs",
     "prerender": "node scripts/prerender.mjs",
     "prerender:verify": "node scripts/prerender-verify.mjs",

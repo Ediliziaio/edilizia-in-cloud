@@ -102,7 +102,6 @@ export function SerramentiLivePreviewPanel({
         import("pdfjs-dist"),
       ]);
       const workerSrc = (await import(
-        // @ts-expect-error - vite handles ?url import
         "pdfjs-dist/build/pdf.worker.min.mjs?url"
       )).default as string;
       pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;

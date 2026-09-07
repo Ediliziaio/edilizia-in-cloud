@@ -97,7 +97,6 @@ export function SerramentiTemplatePreviewDialog({
       // pdfjs richiede un worker URL. Usiamo quello bundled con la libreria.
       // Senza questo si vede errore "GlobalWorkerOptions.workerSrc undefined".
       const workerSrc = (await import(
-        // @ts-expect-error - vite handles ?url import
         "pdfjs-dist/build/pdf.worker.min.mjs?url"
       )).default as string;
       pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;

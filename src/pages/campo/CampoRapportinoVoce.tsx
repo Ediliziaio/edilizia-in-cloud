@@ -14,6 +14,7 @@ import {
   type RapportinoVocaleDraft,
 } from "@/hooks/campo/useRapportinoVocale";
 import { supabase } from "@/integrations/supabase/client";
+import type { JSX } from "react";
 
 export default function CampoRapportinoVoce(): JSX.Element {
   const navigate = useNavigate();

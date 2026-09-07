@@ -70,7 +70,6 @@ async function reencodeToPng(file: File): Promise<Uint8Array> {
 /** pdfjs con worker Vite configurato (una sola volta). */
 async function getPdfjs() {
   const pdfjsLib = await import("pdfjs-dist");
-  // @ts-expect-error vite-resolved url import
   const workerUrl = (await import("pdfjs-dist/build/pdf.worker.min.mjs?url")).default;
   pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
   return pdfjsLib;

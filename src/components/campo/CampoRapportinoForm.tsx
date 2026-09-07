@@ -21,6 +21,7 @@ import type {
   RapportinoVocaleDraft,
   MaterialeUsato,
 } from "@/hooks/campo/useRapportinoVocale";
+import type { JSX } from "react";
 
 interface CampoRapportinoFormProps {
   draft: RapportinoVocaleDraft;

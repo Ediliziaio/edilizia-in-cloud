@@ -4030,7 +4030,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
         const { data: people } = await ctx.supabase
           .from("profiles").select("id, first_name, last_name")
           .eq("company_id", ctx.companyId).limit(300);
-        const ids = (people ?? []).map((p) => p.id);
+        const ids = (people ?? []).map((p: any) => p.id);
         const customerIds = new Set<string>();
         if (ids.length > 0) {
           const { data: roles } = await ctx.supabase
@@ -4040,11 +4040,11 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
         const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
         const q = norm(assegnaA);
         const matches = (people ?? []).filter(
-          (p) => !customerIds.has(p.id) && norm(`${p.first_name ?? ""} ${p.last_name ?? ""}`).includes(q),
+          (p: any) => !customerIds.has(p.id) && norm(`${p.first_name ?? ""} ${p.last_name ?? ""}`).includes(q),
         );
         if (matches.length === 0) return { error: `Nessun membro del team trovato con nome simile a "${assegnaA}".` };
         if (matches.length > 1) {
-          return { error: `Più persone corrispondono a "${assegnaA}": ${matches.slice(0, 5).map((p) => `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim()).join(", ")}. Specifica meglio.` };
+          return { error: `Più persone corrispondono a "${assegnaA}": ${matches.slice(0, 5).map((p: any) => `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim()).join(", ")}. Specifica meglio.` };
         }
         assignedTo = matches[0].id;
         assignedName = `${matches[0].first_name ?? ""} ${matches[0].last_name ?? ""}`.trim();
@@ -4138,7 +4138,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
         .eq("company_id", ctx.companyId).ilike("order_code", `%${codice}%`)
         .limit(2);
       if (!ord || ord.length === 0) return { error: `Nessuna commessa trovata con codice simile a "${codice}".` };
-      if (ord.length > 1) return { error: `Più commesse corrispondono a "${codice}": ${ord.map((o) => o.order_code).join(", ")}. Specifica il codice esatto.` };
+      if (ord.length > 1) return { error: `Più commesse corrispondono a "${codice}": ${ord.map((o: any) => o.order_code).join(", ")}. Specifica il codice esatto.` };
       const order = ord[0];
 
       const { data: rate } = await ctx.supabase
@@ -4146,21 +4146,21 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
         .select("id, position, label, type, amount, is_paid, paid_date")
         .eq("order_id", order.id)
         .order("position", { ascending: true });
-      const aperte = (rate ?? []).filter((r) => !r.is_paid);
+      const aperte = (rate ?? []).filter((r: any) => !r.is_paid);
 
       // Selezione rata: per numero esplicito, oppure per importo combaciante.
       let rata: (typeof aperte)[number] | null = null;
       const rataNumero = args?.rata_numero == null ? null : Math.round(Number(args.rata_numero));
       if (rataNumero != null) {
-        const found = (rate ?? []).find((r) => r.position === rataNumero) ?? (rate ?? [])[rataNumero - 1];
+        const found = (rate ?? []).find((r: any) => r.position === rataNumero) ?? (rate ?? [])[rataNumero - 1];
         if (!found) return { error: `La commessa ${order.order_code} non ha una rata n. ${rataNumero}. Rate presenti: ${(rate ?? []).length}.` };
         if (found.is_paid) return { error: `La rata n. ${rataNumero} (${found.label || found.type}) risulta GIÀ pagata il ${found.paid_date ?? "?"}. Nessuna modifica.` };
         rata = found;
       } else if (importoArg != null) {
-        const match = aperte.filter((r) => Math.abs(Number(r.amount) - importoArg) <= 0.01);
+        const match = aperte.filter((r: any) => Math.abs(Number(r.amount) - importoArg) <= 0.01);
         if (match.length === 1) rata = match[0];
         else if (match.length > 1) {
-          return { error: `Più rate da pagare hanno importo ${importoArg.toFixed(2)}€ sulla ${order.order_code}: ${match.map((r) => `n.${r.position} ${r.label || r.type}`).join(", ")}. Indica rata_numero.` };
+          return { error: `Più rate da pagare hanno importo ${importoArg.toFixed(2)}€ sulla ${order.order_code}: ${match.map((r: any) => `n.${r.position} ${r.label || r.type}`).join(", ")}. Indica rata_numero.` };
         }
       } else if (aperte.length === 1) {
         rata = aperte[0];
@@ -4168,7 +4168,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
 
       if (!rata && !args?.registra_comunque) {
         const lista = aperte.length
-          ? aperte.map((r) => `n.${r.position} ${r.label || r.type}: ${Number(r.amount).toFixed(2)}€`).join(" · ")
+          ? aperte.map((r: any) => `n.${r.position} ${r.label || r.type}: ${Number(r.amount).toFixed(2)}€`).join(" · ")
           : "(nessuna: piano rate vuoto o tutto pagato — se il piano non è mai stato aperto nella pagina commessa, apri prima la sezione Pagamenti)";
         return {
           error: `Nessuna rata combacia${importoArg != null ? ` con ${importoArg.toFixed(2)}€` : ""} sulla ${order.order_code}. Rate da pagare: ${lista}. Indica rata_numero, oppure registra_comunque=true per un incasso libero.`,
@@ -4228,8 +4228,8 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       }
 
       const residuo = aperte
-        .filter((r) => !rata || r.id !== rata.id)
-        .reduce((s, r) => s + Number(r.amount || 0), 0);
+        .filter((r: any) => !rata || r.id !== rata.id)
+        .reduce((s: any, r: any) => s + Number(r.amount || 0), 0);
       const avviso = rata && importoArg != null && Math.abs(Number(rata.amount) - importoArg) > 0.01
         ? `ATTENZIONE: importo registrato ${importo.toFixed(2)}€ ≠ importo rata ${Number(rata.amount).toFixed(2)}€.`
         : null;
@@ -4306,10 +4306,10 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       if (!forn || forn.length === 0) {
         const { data: tutti } = await ctx.supabase
           .from("suppliers").select("name").eq("company_id", ctx.companyId).limit(10);
-        return { error: `Nessun fornitore trovato con nome simile a "${fornitoreNome}". Fornitori in anagrafica: ${(tutti ?? []).map((s) => s.name).join(", ") || "(nessuno — crealo prima in Fornitori)"}.` };
+        return { error: `Nessun fornitore trovato con nome simile a "${fornitoreNome}". Fornitori in anagrafica: ${(tutti ?? []).map((s: any) => s.name).join(", ") || "(nessuno — crealo prima in Fornitori)"}.` };
       }
       if (forn.length > 1) {
-        return { error: `Più fornitori corrispondono a "${fornitoreNome}": ${forn.map((s) => s.name).join(", ")}. Specifica meglio.` };
+        return { error: `Più fornitori corrispondono a "${fornitoreNome}": ${forn.map((s: any) => s.name).join(", ")}. Specifica meglio.` };
       }
       const fornitore = forn[0];
 
@@ -4323,7 +4323,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
           .eq("company_id", ctx.companyId).ilike("order_code", `%${commessaCodice}%`)
           .limit(2);
         if (!ords || ords.length === 0) return { error: `Nessuna commessa trovata con codice simile a "${commessaCodice}".` };
-        if (ords.length > 1) return { error: `Più commesse corrispondono a "${commessaCodice}": ${ords.map((o) => o.order_code).join(", ")}. Specifica il codice esatto.` };
+        if (ords.length > 1) return { error: `Più commesse corrispondono a "${commessaCodice}": ${ords.map((o: any) => o.order_code).join(", ")}. Specifica il codice esatto.` };
         orderId = ords[0].id;
         orderCode = ords[0].order_code ?? null;
       }
@@ -4337,7 +4337,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
         iva: Number.isFinite(Number(v?.iva)) ? Math.min(Math.max(Number(v?.iva), 0), 22) : 22,
         idx: i,
       }));
-      if (righe.some((r) => !r.descrizione)) return { error: "Ogni riga deve avere una descrizione." };
+      if (righe.some((r: any) => !r.descrizione)) return { error: "Ogni riga deve avere una descrizione." };
 
       // ODA in bozza: oda_number auto (trigger), totali ricalcolati dalle righe (trigger).
       const { data: po, error: poErr } = await ctx.supabase
@@ -4356,7 +4356,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
 
       const { error: itemsErr } = await ctx.supabase
         .from("purchase_order_items")
-        .insert(righe.map((r) => ({
+        .insert(righe.map((r: any) => ({
           company_id: ctx.companyId,
           purchase_order_id: po.id,
           description: r.descrizione,
@@ -4376,7 +4376,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
         .from("purchase_orders").select("oda_number, total")
         .eq("id", po.id).single();
 
-      const senzaPrezzo = righe.filter((r) => r.prezzo === 0).length;
+      const senzaPrezzo = righe.filter((r: any) => r.prezzo === 0).length;
       return {
         oda_id: po.id,
         oda_number: fresh?.oda_number ?? "(assegnato)",
@@ -4448,7 +4448,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
         .eq("company_id", ctx.companyId).ilike("order_code", `%${codice}%`)
         .limit(2);
       if (!ords || ords.length === 0) return { error: `Nessuna commessa trovata con codice simile a "${codice}".` };
-      if (ords.length > 1) return { error: `Più commesse corrispondono a "${codice}": ${ords.map((o) => o.order_code).join(", ")}. Specifica il codice esatto.` };
+      if (ords.length > 1) return { error: `Più commesse corrispondono a "${codice}": ${ords.map((o: any) => o.order_code).join(", ")}. Specifica il codice esatto.` };
       const order = ords[0];
 
       // Per chi: l'utente della chat, oppure un membro del team per nome.
@@ -4459,7 +4459,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
         const { data: people } = await ctx.supabase
           .from("profiles").select("id, first_name, last_name")
           .eq("company_id", ctx.companyId).limit(300);
-        const ids = (people ?? []).map((p) => p.id);
+        const ids = (people ?? []).map((p: any) => p.id);
         const customerIds = new Set<string>();
         if (ids.length > 0) {
           const { data: roles } = await ctx.supabase
@@ -4469,11 +4469,11 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
         const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
         const q = norm(perUtente);
         const matches = (people ?? []).filter(
-          (p) => !customerIds.has(p.id) && norm(`${p.first_name ?? ""} ${p.last_name ?? ""}`).includes(q),
+          (p: any) => !customerIds.has(p.id) && norm(`${p.first_name ?? ""} ${p.last_name ?? ""}`).includes(q),
         );
         if (matches.length === 0) return { error: `Nessun membro del team trovato con nome simile a "${perUtente}".` };
         if (matches.length > 1) {
-          return { error: `Più persone corrispondono a "${perUtente}": ${matches.slice(0, 5).map((p) => `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim()).join(", ")}. Specifica meglio.` };
+          return { error: `Più persone corrispondono a "${perUtente}": ${matches.slice(0, 5).map((p: any) => `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim()).join(", ")}. Specifica meglio.` };
         }
         userId = matches[0].id;
         perNome = `${matches[0].first_name ?? ""} ${matches[0].last_name ?? ""}`.trim();
@@ -4558,7 +4558,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
         .select("id, order_code, description, total_amount, customer_id, current_status_id")
         .eq("company_id", ctx.companyId).ilike("order_code", `%${codice}%`).limit(2);
       if (!ords || ords.length === 0) return { error: `Nessuna commessa trovata con codice simile a "${codice}".` };
-      if (ords.length > 1) return { error: `Più commesse corrispondono a "${codice}": ${ords.map((o) => o.order_code).join(", ")}. Specifica il codice esatto.` };
+      if (ords.length > 1) return { error: `Più commesse corrispondono a "${codice}": ${ords.map((o: any) => o.order_code).join(", ")}. Specifica il codice esatto.` };
       const order = ords[0];
       const valore = Number(order.total_amount) || 0;
 
@@ -4585,8 +4585,8 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
 
       // ── Ricavi ──
       const righeRate = rate.data ?? [];
-      const incassatoRate = r2(somma(righeRate.filter((x) => x.is_paid), "amount"));
-      const daIncassareRate = r2(somma(righeRate.filter((x) => !x.is_paid), "amount"));
+      const incassatoRate = r2(somma(righeRate.filter((x: any) => x.is_paid), "amount"));
+      const daIncassareRate = r2(somma(righeRate.filter((x: any) => !x.is_paid), "amount"));
       const incassiPrimaNota = r2(somma(pnEntrate.data, "amount"));
       // NB: gli incassi possono essere registrati SIA come rata pagata SIA come
       // entrata di Prima Nota collegata (lo fa registra_pagamento_commessa):
@@ -4612,17 +4612,17 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
           .select("nome, costo_interno, costo_default, unita")
           .eq("company_id", ctx.companyId).eq("tipo", "manodopera")
           .limit(20);
-        const conCosto = (tariffe ?? []).map((t) => Number(t.costo_interno ?? t.costo_default) || 0).filter((n) => n > 0);
-        if (conCosto.length > 0) costoOrario = r2(conCosto.reduce((a, b) => a + b, 0) / conCosto.length);
+        const conCosto = (tariffe ?? []).map((t: any) => Number(t.costo_interno ?? t.costo_default) || 0).filter((n: any) => n > 0);
+        if (conCosto.length > 0) costoOrario = r2(conCosto.reduce((a: any, b: any) => a + b, 0) / conCosto.length);
         else avvisi.push("Ore presenti ma NON valorizzate: manca la tariffa oraria interna (Impostazioni → Tariffe). Il costo manodopera non entra nel margine.");
       }
       const costoManodopera = costoOrario != null ? r2(oreTot * costoOrario) : null;
 
-      const righeOda = (oda.data ?? []).filter((x) => x.status !== "annullato");
+      const righeOda = (oda.data ?? []).filter((x: any) => x.status !== "annullato");
       const costoOda = r2(somma(righeOda, "total"));
       const odaNonTracciato = fonteVuota(righeOda.length, "Ordini a fornitori", "nessun ODA collegato alla commessa");
 
-      const righeScad = (scadenzeF.data ?? []).filter((x) => x.status !== "annullata");
+      const righeScad = (scadenzeF.data ?? []).filter((x: any) => x.status !== "annullata");
       const costoFornitori = r2(somma(righeScad, "amount"));
       const scadNonTracciate = fonteVuota(righeScad.length, "Fatture/scadenze fornitori", "nessuna scadenza collegata alla commessa");
 
@@ -4746,15 +4746,15 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
         return { error: "Nessun modello di rilievo disponibile: creane uno da Sopralluoghi → Modelli." };
       }
       const tq = norm(tipoQ);
-      let match = templates.filter((t) => norm(t.name ?? "").includes(tq) || norm(t.category ?? "").includes(tq));
+      let match = templates.filter((t: any) => norm(t.name ?? "").includes(tq) || norm(t.category ?? "").includes(tq));
       if (match.length === 0) {
-        return { error: `Nessun modello di rilievo per "${tipoQ}". Disponibili: ${templates.map((t) => t.name).join(", ")}.` };
+        return { error: `Nessun modello di rilievo per "${tipoQ}". Disponibili: ${templates.map((t: any) => t.name).join(", ")}.` };
       }
       if (match.length > 1) {
         // Preferisci il modello dell'azienda a quello di sistema con lo stesso nome.
-        const propri = match.filter((t) => t.company_id === ctx.companyId);
+        const propri = match.filter((t: any) => t.company_id === ctx.companyId);
         if (propri.length === 1) match = propri;
-        else return { error: `Più modelli corrispondono a "${tipoQ}": ${match.map((t) => t.name).join(", ")}. Specifica meglio.` };
+        else return { error: `Più modelli corrispondono a "${tipoQ}": ${match.map((t: any) => t.name).join(", ")}. Specifica meglio.` };
       }
       const template = match[0];
 
@@ -4772,7 +4772,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       const { data: people } = await ctx.supabase
         .from("profiles").select("id, first_name, last_name")
         .eq("company_id", ctx.companyId).limit(3000);
-      const ids = (people ?? []).map((p) => p.id);
+      const ids = (people ?? []).map((p: any) => p.id);
       const customerIds = new Set<string>();
       if (ids.length > 0) {
         const { data: roles } = await ctx.supabase
@@ -4781,7 +4781,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       }
       const cerca = (nome: string, soloClienti: boolean) => {
         const q = norm(nome);
-        return (people ?? []).filter((p) =>
+        return (people ?? []).filter((p: any) =>
           (soloClienti ? customerIds.has(p.id) : !customerIds.has(p.id)) &&
           norm(`${p.first_name ?? ""} ${p.last_name ?? ""}`).includes(q));
       };
@@ -4792,7 +4792,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       if (clienteNome) {
         const cm = cerca(clienteNome, true);
         if (cm.length === 0) return { error: `Nessun CLIENTE trovato con nome simile a "${clienteNome}". Se è nuovo, crealo prima con crea_cliente.` };
-        if (cm.length > 1) return { error: `Più clienti corrispondono a "${clienteNome}": ${cm.slice(0, 5).map((p) => `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim()).join(", ")}. Specifica meglio.` };
+        if (cm.length > 1) return { error: `Più clienti corrispondono a "${clienteNome}": ${cm.slice(0, 5).map((p: any) => `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim()).join(", ")}. Specifica meglio.` };
         clientId = cm[0].id;
         clienteLabel = `${cm[0].first_name ?? ""} ${cm[0].last_name ?? ""}`.trim();
       }
@@ -4803,7 +4803,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       if (tecnico) {
         const tm = cerca(tecnico, false);
         if (tm.length === 0) return { error: `Nessun tecnico trovato con nome simile a "${tecnico}".` };
-        if (tm.length > 1) return { error: `Più persone corrispondono a "${tecnico}": ${tm.slice(0, 5).map((p) => `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim()).join(", ")}. Specifica meglio.` };
+        if (tm.length > 1) return { error: `Più persone corrispondono a "${tecnico}": ${tm.slice(0, 5).map((p: any) => `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim()).join(", ")}. Specifica meglio.` };
         technicianId = tm[0].id;
         tecnicoLabel = `${tm[0].first_name ?? ""} ${tm[0].last_name ?? ""}`.trim();
       }
@@ -4816,7 +4816,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
           .from("orders").select("id, order_code")
           .eq("company_id", ctx.companyId).ilike("order_code", `%${commessaCodice}%`).limit(2);
         if (!ords || ords.length === 0) return { error: `Nessuna commessa trovata con codice simile a "${commessaCodice}".` };
-        if (ords.length > 1) return { error: `Più commesse corrispondono a "${commessaCodice}": ${ords.map((o) => o.order_code).join(", ")}. Specifica il codice esatto.` };
+        if (ords.length > 1) return { error: `Più commesse corrispondono a "${commessaCodice}": ${ords.map((o: any) => o.order_code).join(", ")}. Specifica il codice esatto.` };
         orderId = ords[0].id;
         orderCode = ords[0].order_code ?? null;
       }
@@ -4902,7 +4902,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       const { data: people } = await ctx.supabase
         .from("profiles").select("id, first_name, last_name")
         .eq("company_id", ctx.companyId).limit(3000);
-      const ids = (people ?? []).map((p) => p.id);
+      const ids = (people ?? []).map((p: any) => p.id);
       const customerIds = new Set<string>();
       if (ids.length > 0) {
         const { data: roles } = await ctx.supabase
@@ -4910,10 +4910,10 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
         for (const r of roles ?? []) customerIds.add(r.user_id);
       }
       const q = norm(clienteNome);
-      const matches = (people ?? []).filter((p) => customerIds.has(p.id) && norm(`${p.first_name ?? ""} ${p.last_name ?? ""}`).includes(q));
+      const matches = (people ?? []).filter((p: any) => customerIds.has(p.id) && norm(`${p.first_name ?? ""} ${p.last_name ?? ""}`).includes(q));
       if (matches.length === 0) return { error: `Nessun CLIENTE trovato con nome simile a "${clienteNome}". Se è nuovo, crealo prima con crea_cliente.` };
       if (matches.length > 1) {
-        return { error: `Più clienti corrispondono a "${clienteNome}": ${matches.slice(0, 5).map((p) => `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim()).join(", ")}. Specifica meglio.` };
+        return { error: `Più clienti corrispondono a "${clienteNome}": ${matches.slice(0, 5).map((p: any) => `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim()).join(", ")}. Specifica meglio.` };
       }
       const cliente = matches[0];
       const clienteLabel = `${cliente.first_name ?? ""} ${cliente.last_name ?? ""}`.trim();
@@ -4927,7 +4927,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
           .from("orders").select("id, order_code")
           .eq("company_id", ctx.companyId).ilike("order_code", `%${commessaCodice}%`).limit(2);
         if (!ords || ords.length === 0) return { error: `Nessuna commessa trovata con codice simile a "${commessaCodice}".` };
-        if (ords.length > 1) return { error: `Più commesse corrispondono a "${commessaCodice}": ${ords.map((o) => o.order_code).join(", ")}. Specifica il codice esatto.` };
+        if (ords.length > 1) return { error: `Più commesse corrispondono a "${commessaCodice}": ${ords.map((o: any) => o.order_code).join(", ")}. Specifica il codice esatto.` };
         orderId = ords[0].id;
         orderCode = ords[0].order_code ?? null;
       }
@@ -5028,7 +5028,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       const { data: people } = await ctx.supabase
         .from("profiles").select("id, first_name, last_name")
         .eq("company_id", ctx.companyId).limit(3000);
-      const ids = (people ?? []).map((p) => p.id);
+      const ids = (people ?? []).map((p: any) => p.id);
       const customerIds = new Set<string>();
       if (ids.length > 0) {
         const { data: roles } = await ctx.supabase
@@ -5036,10 +5036,10 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
         for (const r of roles ?? []) customerIds.add(r.user_id);
       }
       const q = norm(clienteNome);
-      const matches = (people ?? []).filter((p) => customerIds.has(p.id) && norm(`${p.first_name ?? ""} ${p.last_name ?? ""}`).includes(q));
+      const matches = (people ?? []).filter((p: any) => customerIds.has(p.id) && norm(`${p.first_name ?? ""} ${p.last_name ?? ""}`).includes(q));
       if (matches.length === 0) return { error: `Nessun CLIENTE trovato con nome simile a "${clienteNome}".` };
       if (matches.length > 1) {
-        return { error: `Più clienti corrispondono a "${clienteNome}": ${matches.slice(0, 5).map((p) => `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim()).join(", ")}. Specifica meglio.` };
+        return { error: `Più clienti corrispondono a "${clienteNome}": ${matches.slice(0, 5).map((p: any) => `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim()).join(", ")}. Specifica meglio.` };
       }
       const cliente = matches[0];
 
@@ -5056,10 +5056,10 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       let impianto = impianti[0];
       if (impianti.length > 1 || impQ) {
         const im = impQ
-          ? impianti.filter((i) => norm(`${i.tipo_impianto ?? ""} ${i.marca ?? ""} ${i.modello ?? ""} ${i.matricola ?? ""}`).includes(impQ))
+          ? impianti.filter((i: any) => norm(`${i.tipo_impianto ?? ""} ${i.marca ?? ""} ${i.modello ?? ""} ${i.matricola ?? ""}`).includes(impQ))
           : [];
         if (im.length !== 1) {
-          return { error: `Indica quale impianto: ${impianti.map((i) => `${i.tipo_impianto}${i.marca ? ` ${i.marca}` : ""}${i.matricola ? ` [${i.matricola}]` : ""}`).join(" · ")}.` };
+          return { error: `Indica quale impianto: ${impianti.map((i: any) => `${i.tipo_impianto}${i.marca ? ` ${i.marca}` : ""}${i.matricola ? ` [${i.matricola}]` : ""}`).join(" · ")}.` };
         }
         impianto = im[0];
       }
@@ -5141,7 +5141,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
         .from("subappaltatori").select("id, ragione_sociale, piva, is_active")
         .eq("company_id", ctx.companyId).limit(2000);
       const dup = (esistenti ?? []).find(
-        (s) => norm(s.ragione_sociale ?? "") === norm(ragione) || (piva && (s.piva ?? "").replace(/\s/g, "") === piva),
+        (s: any) => norm(s.ragione_sociale ?? "") === norm(ragione) || (piva && (s.piva ?? "").replace(/\s/g, "") === piva),
       );
       if (dup) {
         return { error: `"${dup.ragione_sociale}" è GIÀ in anagrafica subappaltatori${dup.is_active === false ? " (disattivato)" : ""}. Non ne creo un doppione.` };
@@ -5234,7 +5234,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
           .from("orders").select("id, order_code")
           .eq("company_id", ctx.companyId).ilike("order_code", `%${commessaCodice}%`).limit(2);
         if (!ords || ords.length === 0) return { error: `Nessuna commessa trovata con codice simile a "${commessaCodice}".` };
-        if (ords.length > 1) return { error: `Più commesse corrispondono a "${commessaCodice}": ${ords.map((o) => o.order_code).join(", ")}. Specifica il codice esatto.` };
+        if (ords.length > 1) return { error: `Più commesse corrispondono a "${commessaCodice}": ${ords.map((o: any) => o.order_code).join(", ")}. Specifica il codice esatto.` };
         orderId = ords[0].id;
         orderCode = ords[0].order_code ?? null;
       }
@@ -5248,9 +5248,9 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
           .from("profiles").select("id, first_name, last_name")
           .eq("company_id", ctx.companyId).limit(500);
         const q = norm(persona);
-        const pm = (people ?? []).filter((p) => norm(`${p.first_name ?? ""} ${p.last_name ?? ""}`).includes(q));
+        const pm = (people ?? []).filter((p: any) => norm(`${p.first_name ?? ""} ${p.last_name ?? ""}`).includes(q));
         if (pm.length === 0) return { error: `Nessuna persona trovata con nome simile a "${persona}".` };
-        if (pm.length > 1) return { error: `Più persone corrispondono a "${persona}": ${pm.slice(0, 5).map((p) => `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim()).join(", ")}. Specifica meglio.` };
+        if (pm.length > 1) return { error: `Più persone corrispondono a "${persona}": ${pm.slice(0, 5).map((p: any) => `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim()).join(", ")}. Specifica meglio.` };
         userIdFiltro = pm[0].id;
         personaNome = `${pm[0].first_name ?? ""} ${pm[0].last_name ?? ""}`.trim();
       }
@@ -5274,9 +5274,9 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
         return { esito: "nessun rapportino da approvare", perimetro, nota: "In questo periodo non ci sono rapportini in attesa (stato 'inviato')." };
       }
 
-      const ore = lista.reduce((s, r) => s + (Number(r.ore_lavorate) || 0), 0);
-      const straord = lista.reduce((s, r) => s + (Number(r.ore_straordinario) || 0), 0);
-      const persone = new Set(lista.map((r) => r.user_id)).size;
+      const ore = lista.reduce((s: any, r: any) => s + (Number(r.ore_lavorate) || 0), 0);
+      const straord = lista.reduce((s: any, r: any) => s + (Number(r.ore_straordinario) || 0), 0);
+      const persone = new Set(lista.map((r: any) => r.user_id)).size;
       const riepilogo = {
         rapportini: lista.length,
         persone,
@@ -5294,7 +5294,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       const { error: updErr } = await ctx.supabase
         .from("campo_rapportini")
         .update({ stato: nuovoStato })
-        .in("id", lista.map((r) => r.id))
+        .in("id", lista.map((r: any) => r.id))
         .eq("company_id", ctx.companyId)
         .eq("stato", "inviato"); // rileggo lo stato: se nel frattempo cambia, non lo sovrascrivo
       if (updErr) return { error: `Aggiornamento rapportini fallito: ${updErr.message}` };
@@ -5345,7 +5345,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
         .eq("company_id", ctx.companyId).ilike("order_code", `%${codice}%`)
         .limit(2);
       if (!ords || ords.length === 0) return { error: `Nessuna commessa trovata con codice simile a "${codice}".` };
-      if (ords.length > 1) return { error: `Più commesse corrispondono a "${codice}": ${ords.map((o) => o.order_code).join(", ")}. Specifica il codice esatto.` };
+      if (ords.length > 1) return { error: `Più commesse corrispondono a "${codice}": ${ords.map((o: any) => o.order_code).join(", ")}. Specifica il codice esatto.` };
       const order = ords[0];
 
       const { data: stati } = await ctx.supabase
@@ -5354,18 +5354,18 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
         .order("position", { ascending: true });
       const norm = (s: string) => s.toLowerCase().trim();
       const q = norm(statoNome);
-      const match = (stati ?? []).filter((s) => norm(s.name ?? "").includes(q));
+      const match = (stati ?? []).filter((s: any) => norm(s.name ?? "").includes(q));
       if (match.length === 0) {
-        return { error: `Nessuno stato si chiama "${statoNome}". Stati disponibili: ${(stati ?? []).map((s) => s.name).join(", ") || "(nessuno)"}.` };
+        return { error: `Nessuno stato si chiama "${statoNome}". Stati disponibili: ${(stati ?? []).map((s: any) => s.name).join(", ") || "(nessuno)"}.` };
       }
       if (match.length > 1) {
-        return { error: `Più stati corrispondono a "${statoNome}": ${match.map((s) => s.name).join(", ")}. Specifica meglio.` };
+        return { error: `Più stati corrispondono a "${statoNome}": ${match.map((s: any) => s.name).join(", ")}. Specifica meglio.` };
       }
       const target = match[0];
       if (order.current_status_id === target.id) {
         return { error: `La commessa ${order.order_code} è GIÀ nello stato "${target.name}". Nessuna modifica.` };
       }
-      const statoPrima = (stati ?? []).find((s) => s.id === order.current_status_id)?.name ?? "(nessuno)";
+      const statoPrima = (stati ?? []).find((s: any) => s.id === order.current_status_id)?.name ?? "(nessuno)";
 
       // Stessa RPC dell'app: aggiorna orders.current_status_id + order_status_history.
       const { error } = await ctx.supabase.rpc("change_order_status", {
@@ -5429,7 +5429,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
         const { data: people } = await ctx.supabase
           .from("profiles").select("id, first_name, last_name")
           .eq("company_id", ctx.companyId).limit(300);
-        const ids = (people ?? []).map((p) => p.id);
+        const ids = (people ?? []).map((p: any) => p.id);
         const customerIds = new Set<string>();
         if (ids.length > 0) {
           const { data: roles } = await ctx.supabase
@@ -5439,11 +5439,11 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
         const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
         const q = norm(assegnaA);
         const matches = (people ?? []).filter(
-          (p) => !customerIds.has(p.id) && norm(`${p.first_name ?? ""} ${p.last_name ?? ""}`).includes(q),
+          (p: any) => !customerIds.has(p.id) && norm(`${p.first_name ?? ""} ${p.last_name ?? ""}`).includes(q),
         );
         if (matches.length === 0) return { error: `Nessun membro del team trovato con nome simile a "${assegnaA}".` };
         if (matches.length > 1) {
-          return { error: `Più persone corrispondono a "${assegnaA}": ${matches.slice(0, 5).map((p) => `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim()).join(", ")}. Specifica meglio.` };
+          return { error: `Più persone corrispondono a "${assegnaA}": ${matches.slice(0, 5).map((p: any) => `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim()).join(", ")}. Specifica meglio.` };
         }
         assignedTo = matches[0].id;
         assignedName = `${matches[0].first_name ?? ""} ${matches[0].last_name ?? ""}`.trim();
@@ -5459,7 +5459,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
           .eq("company_id", ctx.companyId).ilike("order_code", `%${commessaCodice}%`)
           .limit(2);
         if (!ords || ords.length === 0) return { error: `Nessuna commessa trovata con codice simile a "${commessaCodice}".` };
-        if (ords.length > 1) return { error: `Più commesse corrispondono a "${commessaCodice}": ${ords.map((o) => o.order_code).join(", ")}. Specifica il codice esatto.` };
+        if (ords.length > 1) return { error: `Più commesse corrispondono a "${commessaCodice}": ${ords.map((o: any) => o.order_code).join(", ")}. Specifica il codice esatto.` };
         orderId = ords[0].id;
         orderCode = ords[0].order_code ?? null;
       }
@@ -5548,9 +5548,9 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       let pipeline = pipelines[0];
       const pipelineNome = String(args?.pipeline_nome ?? "").trim();
       if (pipelineNome) {
-        const pm = pipelines.filter((p) => normP(p.name ?? "").includes(normP(pipelineNome)));
-        if (pm.length === 0) return { error: `Nessuna pipeline si chiama "${pipelineNome}". Disponibili: ${pipelines.map((p) => p.name).join(", ")}.` };
-        if (pm.length > 1) return { error: `Più pipeline corrispondono a "${pipelineNome}": ${pm.map((p) => p.name).join(", ")}. Specifica meglio.` };
+        const pm = pipelines.filter((p: any) => normP(p.name ?? "").includes(normP(pipelineNome)));
+        if (pm.length === 0) return { error: `Nessuna pipeline si chiama "${pipelineNome}". Disponibili: ${pipelines.map((p: any) => p.name).join(", ")}.` };
+        if (pm.length > 1) return { error: `Più pipeline corrispondono a "${pipelineNome}": ${pm.map((p: any) => p.name).join(", ")}. Specifica meglio.` };
         pipeline = pm[0];
       }
       const stages = ((pipeline.marketing_pipeline_stages ?? []) as Array<{ id: string; name: string; position: number }>)
@@ -5575,7 +5575,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
         .select("id, first_name, last_name, email, phone")
         .eq("company_id", ctx.companyId)
         .limit(3000);
-      const matches = (contatti ?? []).filter((c) =>
+      const matches = (contatti ?? []).filter((c: any) =>
         normC(`${c.first_name ?? ""} ${c.last_name ?? ""}`).includes(q) ||
         (emailArg && (c.email ?? "").toLowerCase() === emailArg));
       let contactId: string | null = null;
@@ -5585,13 +5585,13 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
         contactId = matches[0].id;
         contactLabel = `${matches[0].first_name ?? ""} ${matches[0].last_name ?? ""}`.trim();
       } else if (matches.length > 1) {
-        return { error: `Più contatti corrispondono a "${contattoNome}": ${matches.slice(0, 6).map((c) => `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() + (c.email ? ` <${c.email}>` : "")).join(", ")}. Specifica meglio (o passa l'email).` };
+        return { error: `Più contatti corrispondono a "${contattoNome}": ${matches.slice(0, 6).map((c: any) => `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() + (c.email ? ` <${c.email}>` : "")).join(", ")}. Specifica meglio (o passa l'email).` };
       } else {
         if (!emailArg && !telArg) {
           return { error: `Nessun contatto CRM trovato con nome simile a "${contattoNome}". Per crearlo al volo ripeti indicando anche telefono o email.` };
         }
         // Dedup su email/telefono prima di creare.
-        const dup = (contatti ?? []).find((c) =>
+        const dup = (contatti ?? []).find((c: any) =>
           (emailArg && (c.email ?? "").toLowerCase() === emailArg) ||
           (telArg && (c.phone ?? "").replace(/\s/g, "") === telArg.replace(/\s/g, "")));
         if (dup) {
@@ -5622,7 +5622,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
         const { data: people } = await ctx.supabase
           .from("profiles").select("id, first_name, last_name")
           .eq("company_id", ctx.companyId).limit(300);
-        const ids = (people ?? []).map((p) => p.id);
+        const ids = (people ?? []).map((p: any) => p.id);
         const customerIds = new Set<string>();
         if (ids.length > 0) {
           const { data: roles } = await ctx.supabase
@@ -5630,10 +5630,10 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
           for (const r of roles ?? []) customerIds.add(r.user_id);
         }
         const pm = (people ?? []).filter(
-          (p) => !customerIds.has(p.id) && normC(`${p.first_name ?? ""} ${p.last_name ?? ""}`).includes(normC(assegnaA)),
+          (p: any) => !customerIds.has(p.id) && normC(`${p.first_name ?? ""} ${p.last_name ?? ""}`).includes(normC(assegnaA)),
         );
         if (pm.length === 0) return { error: `Nessun membro del team trovato con nome simile a "${assegnaA}".` };
-        if (pm.length > 1) return { error: `Più persone corrispondono a "${assegnaA}": ${pm.slice(0, 5).map((p) => `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim()).join(", ")}. Specifica meglio.` };
+        if (pm.length > 1) return { error: `Più persone corrispondono a "${assegnaA}": ${pm.slice(0, 5).map((p: any) => `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim()).join(", ")}. Specifica meglio.` };
         assignedTo = pm[0].id;
         assignedName = `${pm[0].first_name ?? ""} ${pm[0].last_name ?? ""}`.trim();
       }
@@ -5727,7 +5727,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
         .eq("company_id", ctx.companyId).ilike("name", `%${fornitoreNome}%`)
         .limit(6);
       if (!forn || forn.length === 0) return { error: `Nessun fornitore trovato con nome simile a "${fornitoreNome}".` };
-      if (forn.length > 1) return { error: `Più fornitori corrispondono a "${fornitoreNome}": ${forn.map((s) => s.name).join(", ")}. Specifica meglio.` };
+      if (forn.length > 1) return { error: `Più fornitori corrispondono a "${fornitoreNome}": ${forn.map((s: any) => s.name).join(", ")}. Specifica meglio.` };
       const fornitore = forn[0];
 
       // Scadenze aperte del fornitore.
@@ -5739,13 +5739,13 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
         .order("due_date", { ascending: true });
       if (scadData) query = query.eq("due_date", scadData);
       const { data: aperte } = await query.limit(30);
-      const conResiduo = (aperte ?? []).map((s) => ({ ...s, residuo: Math.round((Number(s.amount) - Number(s.paid_amount || 0)) * 100) / 100 }));
-      const match = conResiduo.filter((s) => Math.abs(s.residuo - importo) <= 0.01);
+      const conResiduo = (aperte ?? []).map((s: any) => ({ ...s, residuo: Math.round((Number(s.amount) - Number(s.paid_amount || 0)) * 100) / 100 }));
+      const match = conResiduo.filter((s: any) => Math.abs(s.residuo - importo) <= 0.01);
 
       let scadenza: (typeof conResiduo)[number] | null = null;
       if (match.length === 1) scadenza = match[0];
       else if (match.length > 1) {
-        return { error: `Più scadenze aperte di ${fornitore.name} hanno residuo ${importo.toFixed(2)}€: ${match.map((s) => `${s.description} (scad. ${s.due_date})`).join(" · ")}. Indica scadenza_data.` };
+        return { error: `Più scadenze aperte di ${fornitore.name} hanno residuo ${importo.toFixed(2)}€: ${match.map((s: any) => `${s.description} (scad. ${s.due_date})`).join(" · ")}. Indica scadenza_data.` };
       } else if (scadData && conResiduo.length === 1) {
         // Data indicata esplicitamente: pagamento (anche parziale) su quella scadenza.
         scadenza = conResiduo[0];
@@ -5756,7 +5756,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
 
       if (!scadenza && !args?.registra_comunque) {
         const lista = conResiduo.length
-          ? conResiduo.map((s) => `${s.description}: residuo ${s.residuo.toFixed(2)}€ (scad. ${s.due_date})`).join(" · ")
+          ? conResiduo.map((s: any) => `${s.description}: residuo ${s.residuo.toFixed(2)}€ (scad. ${s.due_date})`).join(" · ")
           : "(nessuna scadenza aperta per questo fornitore)";
         return { error: `Nessuna scadenza combacia con ${importo.toFixed(2)}€ per ${fornitore.name}. Aperte: ${lista}. Indica scadenza_data per un pagamento (anche parziale), oppure registra_comunque=true per un'uscita libera.` };
       }
@@ -5862,7 +5862,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
         .eq("company_id", ctx.companyId).ilike("order_code", `%${codice}%`)
         .limit(2);
       if (!ords || ords.length === 0) return { error: `Nessuna commessa trovata con codice simile a "${codice}".` };
-      if (ords.length > 1) return { error: `Più commesse corrispondono a "${codice}": ${ords.map((o) => o.order_code).join(", ")}. Specifica il codice esatto.` };
+      if (ords.length > 1) return { error: `Più commesse corrispondono a "${codice}": ${ords.map((o: any) => o.order_code).join(", ")}. Specifica il codice esatto.` };
       const order = ords[0];
 
       const { data: prof } = await ctx.supabase
@@ -5957,7 +5957,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
         const { data: people } = await ctx.supabase
           .from("profiles").select("id, first_name, last_name")
           .eq("company_id", ctx.companyId).limit(3000);
-        const ids = (people ?? []).map((p) => p.id);
+        const ids = (people ?? []).map((p: any) => p.id);
         const customerIds = new Set<string>();
         if (ids.length > 0) {
           const { data: roles } = await ctx.supabase
@@ -5966,11 +5966,11 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
         }
         const q = norm(clienteNome);
         const matches = (people ?? []).filter(
-          (p) => customerIds.has(p.id) && norm(`${p.first_name ?? ""} ${p.last_name ?? ""}`).includes(q),
+          (p: any) => customerIds.has(p.id) && norm(`${p.first_name ?? ""} ${p.last_name ?? ""}`).includes(q),
         );
         if (matches.length === 0) return { error: `Nessun CLIENTE trovato con nome simile a "${clienteNome}". Se è nuovo, crealo prima con crea_cliente.` };
         if (matches.length > 1) {
-          return { error: `Più clienti corrispondono a "${clienteNome}": ${matches.slice(0, 5).map((p) => `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim()).join(", ")}. Specifica meglio.` };
+          return { error: `Più clienti corrispondono a "${clienteNome}": ${matches.slice(0, 5).map((p: any) => `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim()).join(", ")}. Specifica meglio.` };
         }
         customerId = matches[0].id;
         customerLabel = `${matches[0].first_name ?? ""} ${matches[0].last_name ?? ""}`.trim();
@@ -5985,7 +5985,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
           .from("orders").select("id, order_code")
           .eq("company_id", ctx.companyId).ilike("order_code", `%${commessaCodice}%`).limit(2);
         if (!ords || ords.length === 0) return { error: `Nessuna commessa trovata con codice simile a "${commessaCodice}".` };
-        if (ords.length > 1) return { error: `Più commesse corrispondono a "${commessaCodice}": ${ords.map((o) => o.order_code).join(", ")}. Specifica il codice esatto.` };
+        if (ords.length > 1) return { error: `Più commesse corrispondono a "${commessaCodice}": ${ords.map((o: any) => o.order_code).join(", ")}. Specifica il codice esatto.` };
         orderId = ords[0].id;
         orderCode = ords[0].order_code ?? null;
       }
@@ -5998,7 +5998,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
         const { data: people } = await ctx.supabase
           .from("profiles").select("id, first_name, last_name")
           .eq("company_id", ctx.companyId).limit(300);
-        const ids = (people ?? []).map((p) => p.id);
+        const ids = (people ?? []).map((p: any) => p.id);
         const customerIds = new Set<string>();
         if (ids.length > 0) {
           const { data: roles } = await ctx.supabase
@@ -6006,10 +6006,10 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
           for (const r of roles ?? []) customerIds.add(r.user_id);
         }
         const pm = (people ?? []).filter(
-          (p) => !customerIds.has(p.id) && norm(`${p.first_name ?? ""} ${p.last_name ?? ""}`).includes(norm(assegnaA)),
+          (p: any) => !customerIds.has(p.id) && norm(`${p.first_name ?? ""} ${p.last_name ?? ""}`).includes(norm(assegnaA)),
         );
         if (pm.length === 0) return { error: `Nessun tecnico trovato con nome simile a "${assegnaA}".` };
-        if (pm.length > 1) return { error: `Più persone corrispondono a "${assegnaA}": ${pm.slice(0, 5).map((p) => `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim()).join(", ")}. Specifica meglio.` };
+        if (pm.length > 1) return { error: `Più persone corrispondono a "${assegnaA}": ${pm.slice(0, 5).map((p: any) => `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim()).join(", ")}. Specifica meglio.` };
         assignedTo = pm[0].id;
         assignedName = `${pm[0].first_name ?? ""} ${pm[0].last_name ?? ""}`.trim();
       }
@@ -6123,10 +6123,10 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       // Con più corrispondenze, un match ESATTO sul nome vince sulle parziali
       // (es. "Cemento" quando a magazzino ci sono "Cemento" e "Cemento bianco");
       // se resta ambiguo si elencano invece di indovinare.
-      const esatti = trovati.filter((a) => normA(a.name ?? "") === qArt);
+      const esatti = trovati.filter((a: any) => normA(a.name ?? "") === qArt);
       const art = trovati.length === 1 ? trovati[0] : (esatti.length === 1 ? esatti[0] : null);
       if (!art) {
-        return { error: `Più articoli corrispondono a "${articoloQ}": ${trovati.slice(0, 8).map((a) => `${a.name}${a.internal_code ? ` [${a.internal_code}]` : ""}`).join(", ")}. Specifica meglio.` };
+        return { error: `Più articoli corrispondono a "${articoloQ}": ${trovati.slice(0, 8).map((a: any) => `${a.name}${a.internal_code ? ` [${a.internal_code}]` : ""}`).join(", ")}. Specifica meglio.` };
       }
       const giacenza = Number(art.quantity) || 0;
 
@@ -6239,17 +6239,17 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
         .select("id, name, value, status, stage_id, pipeline_id, contact_id, marketing_contacts(first_name, last_name)")
         .eq("company_id", ctx.companyId)
         .limit(2000);
-      const candidate = (opps ?? []).filter((o) => {
+      const candidate = (opps ?? []).filter((o: any) => {
         const c = o.marketing_contacts as { first_name?: string; last_name?: string } | null;
         return norm(o.name ?? "").includes(q) ||
           norm(`${c?.first_name ?? ""} ${c?.last_name ?? ""}`).includes(q);
       });
       // Se il nome combacia con più opportunità, preferisci quelle ancora aperte.
-      const aperte = candidate.filter((o) => o.status === "open");
+      const aperte = candidate.filter((o: any) => o.status === "open");
       const pool = aperte.length > 0 && candidate.length > 1 ? aperte : candidate;
       if (pool.length === 0) return { error: `Nessuna opportunità trovata con nome simile a "${nomeQ}".` };
       if (pool.length > 1) {
-        return { error: `Più opportunità corrispondono a "${nomeQ}": ${pool.slice(0, 6).map((o) => `${o.name} (${o.status})`).join(", ")}. Specifica meglio.` };
+        return { error: `Più opportunità corrispondono a "${nomeQ}": ${pool.slice(0, 6).map((o: any) => `${o.name} (${o.status})`).join(", ")}. Specifica meglio.` };
       }
       const opp = pool[0];
 
@@ -6258,16 +6258,16 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
         .select("id, name, position, auto_status")
         .eq("pipeline_id", opp.pipeline_id)
         .order("position", { ascending: true });
-      const fasePrima = (stages ?? []).find((s) => s.id === opp.stage_id)?.name ?? "(nessuna)";
+      const fasePrima = (stages ?? []).find((s: any) => s.id === opp.stage_id)?.name ?? "(nessuna)";
 
       const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
       let faseDopo: string | null = null;
       let statusDopo: string | null = null;
 
       if (faseArg) {
-        const sm = (stages ?? []).filter((s) => norm(s.name ?? "").includes(norm(faseArg)));
-        if (sm.length === 0) return { error: `Nessuna fase si chiama "${faseArg}" in questa pipeline. Fasi: ${(stages ?? []).map((s) => s.name).join(", ")}.` };
-        if (sm.length > 1) return { error: `Più fasi corrispondono a "${faseArg}": ${sm.map((s) => s.name).join(", ")}. Specifica meglio.` };
+        const sm = (stages ?? []).filter((s: any) => norm(s.name ?? "").includes(norm(faseArg)));
+        if (sm.length === 0) return { error: `Nessuna fase si chiama "${faseArg}" in questa pipeline. Fasi: ${(stages ?? []).map((s: any) => s.name).join(", ")}.` };
+        if (sm.length > 1) return { error: `Più fasi corrispondono a "${faseArg}": ${sm.map((s: any) => s.name).join(", ")}. Specifica meglio.` };
         update.stage_id = sm[0].id;
         faseDopo = sm[0].name;
         // Come useUpdateOpportunityStage: la fase può forzare lo stato.
@@ -6291,7 +6291,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
         // Allinea anche la colonna del kanban, se esiste una fase per quello stato:
         // altrimenti la card resterebbe in una colonna incoerente col suo esito.
         if (!faseArg) {
-          const stageEsito = (stages ?? []).find((s) => s.auto_status === nuovoStatus);
+          const stageEsito = (stages ?? []).find((s: any) => s.auto_status === nuovoStatus);
           if (stageEsito) {
             update.stage_id = stageEsito.id;
             faseDopo = stageEsito.name;
@@ -6366,17 +6366,17 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
         .order("created_at", { ascending: false })
         .limit(2000);
       const qn = norm(q);
-      const candidate = (quotes ?? []).filter((qt) => {
+      const candidate = (quotes ?? []).filter((qt: any) => {
         const c = qt.marketing_contacts as { first_name?: string; last_name?: string } | null;
         return norm(qt.quote_number ?? "").includes(qn) ||
           norm(`${c?.first_name ?? ""} ${c?.last_name ?? ""}`).includes(qn);
       });
       // Nome cliente ambiguo → preferisci i preventivi ancora "vivi".
-      const vivi = candidate.filter((qt) => !["accettata", "rifiutata", "scaduta", "convertita", "annullata"].includes(qt.status ?? ""));
+      const vivi = candidate.filter((qt: any) => !["accettata", "rifiutata", "scaduta", "convertita", "annullata"].includes(qt.status ?? ""));
       const pool = vivi.length > 0 && candidate.length > 1 ? vivi : candidate;
       if (pool.length === 0) return { error: `Nessun preventivo trovato per "${q}".` };
       if (pool.length > 1) {
-        return { error: `Più preventivi corrispondono a "${q}": ${pool.slice(0, 6).map((qt) => `${qt.quote_number} (${qt.status}, ${Number(qt.total ?? 0).toFixed(2)}€)`).join(" · ")}. Indica il numero esatto.` };
+        return { error: `Più preventivi corrispondono a "${q}": ${pool.slice(0, 6).map((qt: any) => `${qt.quote_number} (${qt.status}, ${Number(qt.total ?? 0).toFixed(2)}€)`).join(" · ")}. Indica il numero esatto.` };
       }
       const quote = pool[0];
       if (quote.status === nuovoStato) {
@@ -6448,10 +6448,10 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
         .limit(10);
       if (!tasks || tasks.length === 0) return { error: `Nessuna attività trovata con titolo simile a "${titoloQ}".` };
       // Titolo ambiguo → preferisci quelle ancora aperte (il gesto è "segna fatto").
-      const aperte = tasks.filter((t) => t.status !== "completata");
+      const aperte = tasks.filter((t: any) => t.status !== "completata");
       const pool = stato !== "completata" ? tasks : (aperte.length > 0 ? aperte : tasks);
       if (pool.length > 1) {
-        return { error: `Più attività corrispondono a "${titoloQ}": ${pool.slice(0, 6).map((t) => `"${t.title}" (${t.status}${t.due_date ? `, scad. ${t.due_date}` : ""})`).join(" · ")}. Specifica meglio il titolo.` };
+        return { error: `Più attività corrispondono a "${titoloQ}": ${pool.slice(0, 6).map((t: any) => `"${t.title}" (${t.status}${t.due_date ? `, scad. ${t.due_date}` : ""})`).join(" · ")}. Specifica meglio il titolo.` };
       }
       const task = pool[0];
       if (task.status === stato) {
@@ -6524,17 +6524,17 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
         .order("created_at", { ascending: false })
         .limit(500);
       const qn = norm(q);
-      const candidate = (tickets ?? []).filter((t) => {
+      const candidate = (tickets ?? []).filter((t: any) => {
         const c = t.profiles as { first_name?: string; last_name?: string } | null;
         return norm(t.subject ?? "").includes(qn) ||
           norm(`${c?.first_name ?? ""} ${c?.last_name ?? ""}`).includes(qn);
       });
       // Nome cliente ambiguo → preferisci i ticket ancora da chiudere.
-      const aperti = candidate.filter((t) => t.status !== "risolto");
+      const aperti = candidate.filter((t: any) => t.status !== "risolto");
       const pool = nuovoStato === "risolto" && aperti.length > 0 && candidate.length > 1 ? aperti : candidate;
       if (pool.length === 0) return { error: `Nessun ticket trovato per "${q}".` };
       if (pool.length > 1) {
-        return { error: `Più ticket corrispondono a "${q}": ${pool.slice(0, 6).map((t) => `"${t.subject}" (${t.status})`).join(" · ")}. Specifica meglio.` };
+        return { error: `Più ticket corrispondono a "${q}": ${pool.slice(0, 6).map((t: any) => `"${t.subject}" (${t.status})`).join(" · ")}. Specifica meglio.` };
       }
       const ticket = pool[0];
       const nota = String(args?.nota ?? "").trim().slice(0, 2000);
@@ -6550,7 +6550,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
         const { data: people } = await ctx.supabase
           .from("profiles").select("id, first_name, last_name")
           .eq("company_id", ctx.companyId).limit(300);
-        const ids = (people ?? []).map((p) => p.id);
+        const ids = (people ?? []).map((p: any) => p.id);
         const customerIds = new Set<string>();
         if (ids.length > 0) {
           const { data: roles } = await ctx.supabase
@@ -6558,10 +6558,10 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
           for (const r of roles ?? []) customerIds.add(r.user_id);
         }
         const pm = (people ?? []).filter(
-          (p) => !customerIds.has(p.id) && norm(`${p.first_name ?? ""} ${p.last_name ?? ""}`).includes(norm(assegnaA)),
+          (p: any) => !customerIds.has(p.id) && norm(`${p.first_name ?? ""} ${p.last_name ?? ""}`).includes(norm(assegnaA)),
         );
         if (pm.length === 0) return { error: `Nessun tecnico trovato con nome simile a "${assegnaA}".` };
-        if (pm.length > 1) return { error: `Più persone corrispondono a "${assegnaA}": ${pm.slice(0, 5).map((p) => `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim()).join(", ")}. Specifica meglio.` };
+        if (pm.length > 1) return { error: `Più persone corrispondono a "${assegnaA}": ${pm.slice(0, 5).map((p: any) => `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim()).join(", ")}. Specifica meglio.` };
         update.assigned_to = pm[0].id;
         assignedName = `${pm[0].first_name ?? ""} ${pm[0].last_name ?? ""}`.trim();
       }
@@ -6646,12 +6646,12 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       const { data: esistenti } = await ctx.supabase
         .from("warehouse_stock").select("id, name, quantity, internal_code")
         .eq("company_id", ctx.companyId).limit(3000);
-      const dupNome = (esistenti ?? []).find((a) => norm(a.name ?? "") === norm(nome));
+      const dupNome = (esistenti ?? []).find((a: any) => norm(a.name ?? "") === norm(nome));
       if (dupNome) {
         return { error: `"${dupNome.name}" è GIÀ a magazzino (giacenza ${dupNome.quantity}). Per caricarne altri usa registra_movimento_magazzino.` };
       }
       if (codice) {
-        const dupCod = (esistenti ?? []).find((a) => (a.internal_code ?? "").toLowerCase() === codice.toLowerCase());
+        const dupCod = (esistenti ?? []).find((a: any) => (a.internal_code ?? "").toLowerCase() === codice.toLowerCase());
         if (dupCod) return { error: `Il codice interno "${codice}" è già usato dall'articolo "${dupCod.name}".` };
       }
 
@@ -6664,13 +6664,13 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       let warehouseName: string | null = null;
       const magNome = String(args?.magazzino_nome ?? "").trim();
       if (magNome) {
-        const mm = (magazzini ?? []).filter((w) => norm(w.name ?? "").includes(norm(magNome)));
-        if (mm.length === 0) return { error: `Nessun magazzino trovato con nome simile a "${magNome}". Disponibili: ${(magazzini ?? []).map((w) => w.name).join(", ") || "(nessuno)"}.` };
-        if (mm.length > 1) return { error: `Più magazzini corrispondono a "${magNome}": ${mm.map((w) => w.name).join(", ")}. Specifica meglio.` };
+        const mm = (magazzini ?? []).filter((w: any) => norm(w.name ?? "").includes(norm(magNome)));
+        if (mm.length === 0) return { error: `Nessun magazzino trovato con nome simile a "${magNome}". Disponibili: ${(magazzini ?? []).map((w: any) => w.name).join(", ") || "(nessuno)"}.` };
+        if (mm.length > 1) return { error: `Più magazzini corrispondono a "${magNome}": ${mm.map((w: any) => w.name).join(", ")}. Specifica meglio.` };
         warehouseId = mm[0].id;
         warehouseName = mm[0].name;
       } else {
-        const def = (magazzini ?? []).find((w) => w.is_default) ?? (magazzini ?? [])[0];
+        const def = (magazzini ?? []).find((w: any) => w.is_default) ?? (magazzini ?? [])[0];
         warehouseId = def?.id ?? null;
         warehouseName = def?.name ?? null;
       }
@@ -6684,7 +6684,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
           .from("suppliers").select("id, name")
           .eq("company_id", ctx.companyId).ilike("name", `%${fornNome}%`).limit(6);
         if (!forn || forn.length === 0) return { error: `Nessun fornitore trovato con nome simile a "${fornNome}".` };
-        if (forn.length > 1) return { error: `Più fornitori corrispondono a "${fornNome}": ${forn.map((s) => s.name).join(", ")}. Specifica meglio.` };
+        if (forn.length > 1) return { error: `Più fornitori corrispondono a "${fornNome}": ${forn.map((s: any) => s.name).join(", ")}. Specifica meglio.` };
         supplierId = forn[0].id;
         supplierName = forn[0].name;
       }
@@ -6776,7 +6776,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
         .from("orders").select("id, order_code")
         .eq("company_id", ctx.companyId).ilike("order_code", `%${codice}%`).limit(2);
       if (!ords || ords.length === 0) return { error: `Nessuna commessa trovata con codice simile a "${codice}".` };
-      if (ords.length > 1) return { error: `Più commesse corrispondono a "${codice}": ${ords.map((o) => o.order_code).join(", ")}. Specifica il codice esatto.` };
+      if (ords.length > 1) return { error: `Più commesse corrispondono a "${codice}": ${ords.map((o: any) => o.order_code).join(", ")}. Specifica il codice esatto.` };
       const order = ords[0];
 
       // 1) Scarica dal bucket della chat (path già validato da silvio-chat
@@ -8765,8 +8765,8 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       },
     },
     executor: (args, _ctx) => {
-      const richieste = Array.isArray(args?.aree) ? args.aree.map((a) => String(a)) : [];
-      const valide = richieste.filter((a) => a in AREE_CARICABILI);
+      const richieste = Array.isArray(args?.aree) ? args.aree.map((a: any) => String(a)) : [];
+      const valide = richieste.filter((a: any) => a in AREE_CARICABILI);
       if (valide.length === 0) {
         return Promise.resolve({
           error: `Area non riconosciuta. Aree disponibili: ${Object.keys(AREE_CARICABILI).join(", ")}.`,

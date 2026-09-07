@@ -14,6 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
 import { VerificationResultCard, type VerificationData, type Discrepancy } from "./VerificationResultCard";
+import type { JSX } from "react";
 
 // ── Types ─────────────────────────────────────────────────────────────────
 

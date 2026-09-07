@@ -486,7 +486,7 @@ export function useSellerPerformance(
       const targets = targetsResult.data;
 
       // Profili utenti — usa first_name + last_name (schema reale del progetto)
-      const sellerIds = [...new Set((opps ?? []).map((o) => o.assigned_to).filter(Boolean))];
+      const sellerIds = [...new Set((opps ?? []).map((o: any) => o.assigned_to).filter(Boolean))];
       let profiles: Array<{ id: string; first_name: string | null; last_name: string | null }> = [];
       if (sellerIds.length > 0) {
         const { data: profileData } = await supabase
@@ -498,7 +498,7 @@ export function useSellerPerformance(
 
       const sellerMap = new Map<string | null, SellerPerformance>();
 
-      (opps ?? []).forEach((opp) => {
+      (opps ?? []).forEach((opp: any) => {
         const key = opp.assigned_to ?? 'unassigned';
         const value = Number(opp.value ?? 0);
 
@@ -606,7 +606,7 @@ export function useConversionBySource(companyId: string | null, dateFrom: string
       if (error) throw error;
 
       const sourceMap = new Map<string, ConversionBySource & { contact_ids: Set<string> }>();
-      (data ?? []).forEach((opp) => {
+      (data ?? []).forEach((opp: any) => {
         const contactSource = Array.isArray(opp.marketing_contacts)
           ? opp.marketing_contacts[0]?.source
           : opp.marketing_contacts?.source;
@@ -961,7 +961,7 @@ export function useRecalculateAllLeadScores(companyId: string | null) {
       // Process in batches of 10 to avoid overwhelming the DB
       for (let i = 0; i < contacts.length; i += 10) {
         const batch = contacts.slice(i, i + 10);
-        await Promise.all(batch.map(async (contact) => {
+        await Promise.all(batch.map(async (contact: any) => {
           const [{ count: activitiesCount }, { count: recentCount }, { data: opps }] = await Promise.all([
             supabase.from('marketing_contact_activities').select('id', { count: 'exact', head: true }).eq('contact_id', contact.id).eq('company_id', companyId!),
             supabase.from('marketing_contact_activities').select('id', { count: 'exact', head: true }).eq('contact_id', contact.id).eq('company_id', companyId!).gte('created_at', fourteenDaysAgo),

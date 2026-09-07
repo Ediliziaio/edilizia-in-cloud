@@ -112,12 +112,12 @@ export function CreditsHistory() {
 
   const filtered = useMemo(() => {
     if (!rows) return [];
-    return type === "all" ? rows : rows.filter((r) => r.type === type);
+    return type === "all" ? rows : rows.filter((r: any) => r.type === type);
   }, [rows, type]);
 
   const totals = useMemo(() => {
     return filtered.reduce(
-      (acc, r) => {
+      (acc: any, r: any) => {
         if (r.type === "deduction") acc.spent += Math.abs(r.amount_eur);
         else acc.recharged += Math.abs(r.amount_eur);
         return acc;
@@ -129,7 +129,7 @@ export function CreditsHistory() {
   const handleExportCsv = () => {
     if (!filtered.length) return;
     const headers = ["Data", "Tipo", "Importo (EUR)", "Saldo Prima", "Saldo Dopo", "Descrizione"];
-    const csvRows = filtered.map((r) => [
+    const csvRows = filtered.map((r: any) => [
       format(new Date(r.created_at), "yyyy-MM-dd HH:mm:ss"),
       TYPE_LABELS[r.type] ?? r.type,
       r.type === "deduction" ? -Math.abs(r.amount_eur) : Math.abs(r.amount_eur),
@@ -138,7 +138,7 @@ export function CreditsHistory() {
       r.description ?? "",
     ]);
     const csv = [headers, ...csvRows]
-      .map((row) => row.map((c) => escapeCsvCell(c, ",")).join(","))
+      .map((row) => row.map((c: any) => escapeCsvCell(c, ",")).join(","))
       .join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
@@ -254,7 +254,7 @@ export function CreditsHistory() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtered.map((log) => (
+                {filtered.map((log: any) => (
                   <TableRow key={log.id}>
                     <TableCell className="font-mono text-xs">
                       {format(new Date(log.created_at), "dd/MM/yy HH:mm", { locale: it })}

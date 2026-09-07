@@ -9,6 +9,7 @@ import { WifiOff, CloudUpload, Check, Save } from "lucide-react";
 import { useNetworkStatus } from "@/hooks/campo/useNetworkStatus";
 import { useOfflineSync } from "@/hooks/campo/useOfflineSync";
 import { listDraftKeys } from "@/hooks/campo/useFormDraft";
+import type { JSX } from "react";
 
 export default function OfflineBanner(): JSX.Element | null {
   const online = useNetworkStatus();

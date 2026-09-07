@@ -131,7 +131,7 @@ export function SaasMetricsGrid() {
       <CacInputModal
         open={cacOpen}
         onOpenChange={setCacOpen}
-        onSubmit={(data) =>
+        onSubmit={(data: any) =>
           salvaInputCac.mutate(data, { onSuccess: () => setCacOpen(false) })
         }
         isLoading={salvaInputCac.isPending}

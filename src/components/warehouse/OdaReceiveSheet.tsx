@@ -142,7 +142,7 @@ export function OdaReceiveSheet({ open, onOpenChange, lockedOdaId }: OdaReceiveS
   // Default warehouse
   useEffect(() => {
     if (!warehouseId && warehouses.length > 0) {
-      const def = warehouses.find((w) => w.is_default) ?? warehouses[0];
+      const def = warehouses.find((w: any) => w.is_default) ?? warehouses[0];
       setWarehouseId(def.id);
     }
   }, [warehouses, warehouseId]);
@@ -357,7 +357,7 @@ export function OdaReceiveSheet({ open, onOpenChange, lockedOdaId }: OdaReceiveS
                     <SelectValue placeholder="Scegli un magazzino..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {warehouses.map((w) => (
+                    {warehouses.map((w: any) => (
                       <SelectItem key={w.id} value={w.id}>
                         <div className="flex items-center gap-2">
                           {w.name}

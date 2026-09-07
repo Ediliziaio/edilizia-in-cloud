@@ -1048,7 +1048,7 @@ export default function SettingsQuoteTemplates() {
                     label="🎨 Copertina"
                     value={form.linked_cover_id ?? null}
                     options={templatesByKind('copertina')}
-                    onChange={(id) => updateForm({ linked_cover_id: id })}
+                    onChange={(id: any) => updateForm({ linked_cover_id: id })}
                     onCreate={() => {
                       if (!handleCancel()) return;
                       setActiveKind('copertina');
@@ -1060,7 +1060,7 @@ export default function SettingsQuoteTemplates() {
                     value={form.linked_terms_id ?? form.linked_legal_id ?? null}
                     // I vecchi blocchi "legali" restano selezionabili qui: è lo stesso posto nel PDF.
                     options={[...templatesByKind('condizioni'), ...templatesByKind('legali')]}
-                    onChange={(id) => {
+                    onChange={(id: any) => {
                       // Il DB valida il tipo per colonna: un vecchio blocco "legali" va in linked_legal_id.
                       const eLegacyLegali = !!id && templatesByKind('legali').some((t) => t.id === id);
                       updateForm(eLegacyLegali ? { linked_legal_id: id, linked_terms_id: null } : { linked_terms_id: id, linked_legal_id: null });
@@ -1075,13 +1075,13 @@ export default function SettingsQuoteTemplates() {
                     label="🛒 Schede prodotto da includere"
                     values={form.linked_product_ids ?? []}
                     options={templatesByKind('prodotto')}
-                    onChange={(ids) => updateForm({ linked_product_ids: ids })}
+                    onChange={(ids: any) => updateForm({ linked_product_ids: ids })}
                   />
                   <MultiBlockSelector
                     label="✨ Sezioni libere"
                     values={form.linked_section_ids ?? []}
                     options={templatesByKind('sezione')}
-                    onChange={(ids) => updateForm({ linked_section_ids: ids })}
+                    onChange={(ids: any) => updateForm({ linked_section_ids: ids })}
                   />
                 </CardContent>
               </Card>

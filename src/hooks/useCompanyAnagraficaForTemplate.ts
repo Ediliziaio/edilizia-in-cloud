@@ -32,11 +32,23 @@ export function useCompanyAnagraficaForTemplate(): TemplateCompanyAnagrafica | n
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
-      const { data: c } = await supabase
-        .from("companies")
-        .select("name, business_name, legal_address, legal_city, legal_postal_code, legal_province, phone, email, vat_number, pec, numero_rea, capitale_sociale, anno_fondazione")
-        .eq("id", companyId!)
-        .maybeSingle();
+      // `capitale_sociale` NON e' su companies: sta su anagrafica_azienda.
+      // Chiederlo qui faceva fallire l'INTERA select — PostgREST rifiuta la
+      // query, non la singola colonna — quindi l'hook tornava sempre null e i
+      // segnaposto ereditati nei template erano vuoti per tutti. I tre
+      // `@ts-ignore` qui sotto tenevano nascosto l'errore al compilatore.
+      const [{ data: c }, { data: anag }] = await Promise.all([
+        supabase
+          .from("companies")
+          .select("name, business_name, legal_address, legal_city, legal_postal_code, legal_province, phone, email, vat_number, pec, numero_rea, anno_fondazione")
+          .eq("id", companyId!)
+          .maybeSingle(),
+        supabase
+          .from("anagrafica_azienda")
+          .select("capitale_sociale")
+          .eq("company_id", companyId!)
+          .maybeSingle(),
+      ]);
       if (!c) return null;
       const indirizzo = [
         c.legal_address,
@@ -49,13 +61,9 @@ export function useCompanyAnagraficaForTemplate(): TemplateCompanyAnagrafica | n
         telefono: (c.phone || "").trim() || null,
         email: (c.email || "").trim() || null,
         partita_iva: (c.vat_number || "").trim() || null,
-        // @ts-ignore — colonne aggiunte da migration 20270514020000/070000
         pec: (c.pec || "").trim() || null,
-        // @ts-ignore
         numero_rea: (c.numero_rea || "").trim() || null,
-        // @ts-ignore
-        capitale_sociale: (c.capitale_sociale || "").trim() || null,
-        // @ts-ignore
+        capitale_sociale: anag?.capitale_sociale != null ? String(anag.capitale_sociale) : null,
         anno_fondazione: c.anno_fondazione ?? null,
       };
     },

@@ -1401,7 +1401,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .select("id")
         .limit(1)
         .then(() => undefined)
-        .catch((err) => {
+        .catch((err: any) => {
           captureVelocityError("auth.keepalive", err, { source: "subscription_plans" });
         });
     };

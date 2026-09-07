@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { ChecklistItemDef } from "@/lib/campo/checklist-items";
+import type { JSX } from "react";
 
 const ICON_MAP: Record<string, LucideIcon> = {
   "hard-hat": HardHat,

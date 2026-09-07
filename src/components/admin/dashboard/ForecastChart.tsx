@@ -27,7 +27,7 @@ function CustomTooltip({ active, payload, label }: TooltipProps<number, string>)
   return (
     <div className="rounded-lg border bg-background shadow-lg p-3 text-sm">
       <p className="font-medium mb-1">Mese: {label}</p>
-      {payload.map((entry) => {
+      {payload.map((entry: any) => {
         if (entry.name === "confidenceLow" || entry.name === "confidenceHigh")
           return null;
         return (

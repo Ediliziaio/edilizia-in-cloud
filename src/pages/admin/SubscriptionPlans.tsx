@@ -249,7 +249,7 @@ export default function SubscriptionPlans() {
 
   const stats = useMemo(() => {
     if (!plans) return { totalPlans: 0, activePlans: 0, inactivePlans: 0, subscribedCompanies: 0, payingCompanies: 0, paidMrr: 0 };
-    const activePlans = plans.filter((p) => p.is_active).length;
+    const activePlans = plans.filter((p: any) => p.is_active).length;
     const inactivePlans = plans.length - activePlans;
     const counts = companyCounts || {};
     const usageRows = Object.values(planRevenue);
@@ -459,7 +459,7 @@ export default function SubscriptionPlans() {
   useEffect(() => {
     const editId = searchParams.get("edit");
     if (editId && plans?.length && !dialogOpen) {
-      const target = plans.find((p) => p.id === editId);
+      const target = plans.find((p: any) => p.id === editId);
       if (target) {
         openEdit(target);
         setSearchParams((prev) => {
@@ -643,7 +643,7 @@ export default function SubscriptionPlans() {
             </CardContent>
           </Card>
         )}
-        {plans?.map((plan) => {
+        {plans?.map((plan: any) => {
           const features = Array.isArray(plan.features) ? (plan.features as string[]) : [];
           const usage: PlanUsageStats = {
             ...emptyUsage,

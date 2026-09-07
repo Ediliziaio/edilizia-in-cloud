@@ -32,7 +32,6 @@ async function defaultProcessor(item: SyncItem): Promise<void> {
     }
     case "rapportino_vocale": {
       const { error } = await supabase
-        // @ts-expect-error — types generati non ancora aggiornati post-migration
         .from("rapportini_vocali")
         // @ts-expect-error — types generati non ancora aggiornati post-migration
         .insert(item.payload);
@@ -82,7 +81,6 @@ async function defaultProcessor(item: SyncItem): Promise<void> {
     default:
       // Generic: prova insert su target table
       if (!item.target) throw new Error("Nessun target specificato");
-      // @ts-expect-error — dynamic table name
       {
         const { error } = await supabase.from(item.target).insert(item.payload);
         if (error) throw new Error(error.message);

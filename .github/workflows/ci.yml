@@ -28,8 +28,12 @@ jobs:
       - name: Install deps
         run: bun install --frozen-lockfile
 
-      - name: tsc --noEmit
-        run: bunx tsc --noEmit
+      # NON "bunx tsc --noEmit": quel comando usa il tsconfig di radice, che e'
+      # un contenitore vuoto (files: [] + references). Senza --build TypeScript
+      # non segue i rimandi e compila ZERO file: il job era verde per
+      # costruzione e ha lasciato passare 1.542 errori di tipo.
+      - name: Controllo tipi (con cricchetto)
+        run: bun run typecheck:ci
 
   # ─────────────────────────────────────────────────────────────────────────
   # 2. Critical unit tests

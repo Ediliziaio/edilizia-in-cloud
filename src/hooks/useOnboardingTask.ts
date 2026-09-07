@@ -34,7 +34,14 @@ export function useOnboardingTask(companyId: string | undefined) {
     queryFn: async (): Promise<OnboardingTask[]> => {
       if (!companyId) return [];
       const { data, error } = await supabase
-        .from("onboarding_task")
+        // `as never`: la tabella onboarding_task NON esiste in produzione — la
+        // migration non e' mai stata applicata. Il cast e' l'unico modo di
+        // scrivere una query verso una tabella che i tipi (giustamente) non
+        // conoscono; l'errore vero arriva a runtime ed e' esposto da isError,
+        // quindi la tab mostra un guasto e non un elenco vuoto. Stesso schema
+        // di useComunicazioniAzienda. Da togliere il giorno in cui la tabella
+        // viene creata davvero.
+        .from("onboarding_task" as never)
         .select(
           "id, company_id, template_id, titolo, descrizione, stato, assegnato_a_nome, scadenza, completato_at, note, created_at"
         )
@@ -51,7 +58,7 @@ export function useOnboardingTask(companyId: string | undefined) {
       const update: Record<string, unknown> = { stato };
       if (stato === "completato") update.completato_at = new Date().toISOString();
       if (note !== undefined) update.note = note;
-      const { error } = await supabase.from("onboarding_task").update(update).eq("id", taskId);
+      const { error } = await supabase.from("onboarding_task" as never).update(update as never).eq("id", taskId);
       if (error) throw new Error(error.message);
     },
     onSuccess: () => {
@@ -64,13 +71,13 @@ export function useOnboardingTask(companyId: string | undefined) {
   const creaTask = useMutation({
     mutationFn: async (payload: { titolo: string; descrizione?: string; scadenza?: string; assegnato_a_nome?: string }) => {
       if (!companyId) throw new Error("companyId mancante");
-      const { error } = await supabase.from("onboarding_task").insert({
+      const { error } = await supabase.from("onboarding_task" as never).insert({
         company_id: companyId,
         titolo: payload.titolo,
         descrizione: payload.descrizione ?? null,
         scadenza: payload.scadenza ?? null,
         assegnato_a_nome: payload.assegnato_a_nome ?? null,
-      });
+      } as never);
       if (error) throw new Error(error.message);
     },
     onSuccess: () => {

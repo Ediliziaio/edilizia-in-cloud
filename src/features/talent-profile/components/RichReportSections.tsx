@@ -89,7 +89,7 @@ export function RichReportSections({ candidate, traits, syndromes, profileType, 
               <div>
                 <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Strategie chiave</p>
                 <ul className="space-y-1 text-sm text-slate-700">
-                  {profileExtended.strategie.slice(0, 4).map((s, i) => (
+                  {profileExtended.strategie.slice(0, 4).map((s: any, i: any) => (
                     <li key={i} className="flex gap-2">
                       <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-orange-500" />
                       <span>{s}</span>

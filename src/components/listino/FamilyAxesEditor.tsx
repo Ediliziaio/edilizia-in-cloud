@@ -562,20 +562,20 @@ export function FamilyAxesEditor({ family }: Props) {
   const duplicateValue = async (ax: FamilyAxis, v: AxisValue) => {
     try {
       const baseCodice = v.valore;
-      const existingCodici = new Set(ax.values.map((x) => x.valore));
+      const existingCodici = new Set(ax.values.map((x: any) => x.valore));
       let newCodice = `${baseCodice}_copia`;
       let i = 2;
       while (existingCodici.has(newCodice)) {
         newCodice = `${baseCodice}_copia${i}`;
         i++;
       }
-      const maxSort = Math.max(...ax.values.map((x) => x.sort_order), 0);
+      const maxSort = Math.max(...ax.values.map((x: any) => x.sort_order), 0);
       // M-T (audit): la copia perdeva codice SKU, prezzi assoluti di variante
       // e immagine — chi duplicava un modulo FV si ritrovava una variante a
       // prezzo base. Il codice viene suffissato per non duplicare lo SKU
       // (collegherebbe la stessa giacenza magazzino a due varianti).
       const existingSku = new Set(
-        ax.values.map((x) => x.codice).filter(Boolean) as string[],
+        ax.values.map((x: any) => x.codice).filter(Boolean) as string[],
       );
       let newSku = v.codice ? `${v.codice}_copia` : null;
       let s = 2;

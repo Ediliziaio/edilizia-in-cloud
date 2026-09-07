@@ -4,8 +4,11 @@
     "incremental": true,
     "isolatedModules": true,
     "jsx": "react-jsx",
+    // ES2022 e non ES2020: il codice usa gia' String.replaceAll (ES2021) e
+    // Array.at (ES2022) e in produzione funzionano — era la configurazione a
+    // essere indietro, non il codice.
     "lib": [
-      "ES2020",
+      "ES2022",
       "DOM",
       "DOM.Iterable"
     ],

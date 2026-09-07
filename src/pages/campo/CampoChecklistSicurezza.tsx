@@ -14,6 +14,7 @@ import {
 } from "@/hooks/campo/useChecklistSicurezza";
 import CampoChecklistItem from "@/components/campo/CampoChecklistItem";
 import { isChecklistCompleta } from "@/lib/campo/checklist-items";
+import type { JSX } from "react";
 
 export default function CampoChecklistSicurezza(): JSX.Element {
   const navigate = useNavigate();

@@ -155,7 +155,6 @@ export default function CreateLavoroAppaltatore() {
       const { data, error } = await supabase
         .from("profiles")
         .select("id, business_name, fiscal_code")
-        // @ts-expect-error customer_type type non ancora rigenerato dopo migration
         .eq("customer_type", "appaltatore")
         .eq("company_id", companyId)
         .order("business_name", { ascending: true });

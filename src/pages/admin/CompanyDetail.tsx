@@ -355,7 +355,7 @@ export default function CompanyDetail() {
           <FileText className="h-4 w-4 text-teal-700" />
           <AlertDescription className="text-teal-900">
             Gestita {accountantInfo.length > 1 ? "dagli studi" : "dallo studio"}{" "}
-            {accountantInfo.map((a, i) => (
+            {accountantInfo.map((a: any, i: any) => (
               <span key={a.firmId}>
                 {i > 0 ? ", " : ""}<strong>{a.firmName}</strong>{a.status !== "active" ? ` (${a.status})` : ""}
               </span>
@@ -583,7 +583,7 @@ export default function CompanyDetail() {
           <Select value={h.selectedPlanId} onValueChange={h.setSelectedPlanId}>
             <SelectTrigger><SelectValue placeholder="Seleziona piano" /></SelectTrigger>
             <SelectContent>
-              {h.plans?.map((plan) => (
+              {h.plans?.map((plan: any) => (
                 <SelectItem key={plan.id} value={plan.id}>{plan.name} — {formatCurrency(plan.price_monthly)}/mese</SelectItem>
               ))}
             </SelectContent>

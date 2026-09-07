@@ -993,7 +993,6 @@ export default function MioProfilo() {
                       <div className="flex items-center gap-2">
                         <EyeOffIcon className="h-3.5 w-3.5 text-muted-foreground" />
                         <span>Privacy eventi Google: <strong>
-                          {/* @ts-expect-error supabase types don't include event_privacy yet */}
                           {googleSettings.event_privacy === "busy_only" ? "Mostra solo \"Occupato\"" : "Titolo e dettagli visibili"}
                         </strong></span>
                       </div>

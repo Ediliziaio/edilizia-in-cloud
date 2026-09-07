@@ -17,6 +17,7 @@
  * Sicurezza: no innerHTML grezzo. Solo React nodes.
  */
 import React from "react";
+import type { JSX } from "react";
 
 export interface ChatMarkdownSource {
   id: string;          // "S1", "S2"
