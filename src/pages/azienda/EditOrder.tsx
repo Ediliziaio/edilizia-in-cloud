@@ -8,6 +8,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, CalendarIcon, Plus, Trash2, AlertTriangle, ClipboardList, HardHat, MapPin, Package, FileText } from "lucide-react";
 import { useOrderDraft } from "@/hooks/useOrderDraft";
 import { ConflittoModifica, isConflittoModifica } from "@/lib/concorrenza";
+import type { Json } from "@/integrations/supabase/types";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -589,7 +590,9 @@ function EditOrderInner() {
       // la funzione le ricava dalle rate e rifiuta chi prova a scriverle a
       // mano. Erano la fonte del disallineamento fra le rate e i totali che
       // il cruscotto legge da quelle colonne.
-      const campi: Record<string, unknown> = {
+      // `Json` e non `unknown`: la firma della RPC adesso e' tipizzata, e il
+      // compilatore controlla che qui non finisca qualcosa che non sa serializzare.
+      const campi: Record<string, Json> = {
         customer_id: args?.customerId || customerId,
         order_code: orderCode.trim() || null,
         description,
