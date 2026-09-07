@@ -42,7 +42,8 @@ vi.mock("@/integrations/supabase/client", () => ({
       select: () => ({
         eq: () => ({
           is: () => ({
-            single: async () => ({ data: fatturaFinta, error: null }),
+            single: async (): Promise<{ data: typeof fatturaFinta; error: null }> =>
+              ({ data: fatturaFinta, error: null }),
           }),
         }),
       }),

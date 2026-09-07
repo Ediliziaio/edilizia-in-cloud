@@ -259,11 +259,12 @@ export function TabCedolini() {
         throw new Error("Contributi dipendente e IRPEF non possono superare il lordo");
       }
 
-      // Aggancia il dipendente VERO quando il nome è riconoscibile: senza
-      // employee_id il cedolino non arrivava mai nell'area personale del
-      // dipendente (che filtra proprio su employee_id). E il netto si salva,
-      // non si ricalcola solo a schermo.
-      let employeeId: string | null = null;
+      // Il cedolino si aggancia al dipendente VERO, e senza di quello non si
+      // scrive. Prima il nome era testo libero e l'aggancio facoltativo: un
+      // cedolino senza employee_id non arrivava mai nell'area personale del
+      // dipendente (che filtra proprio su employee_id), cioè non serviva a
+      // nessuno. Ora l'archivio è uno solo, `hr_cedolini`, dove il legame è
+      // obbligatorio: il nome lo prende dall'anagrafica.
       const nomeCompleto = form.employee_name.trim().toLowerCase();
       const { data: profiliMatch } = await supabase
         .from("hr_profili")
@@ -273,12 +274,21 @@ export function TabCedolini() {
       const trovati = (profiliMatch || []).filter(
         (p) => `${p.nome ?? ""} ${p.cognome ?? ""}`.trim().toLowerCase() === nomeCompleto,
       );
-      if (trovati.length === 1) employeeId = trovati[0].employee_id;
+      if (trovati.length === 0) {
+        throw new Error(
+          `"${form.employee_name.trim()}" non corrisponde a nessun dipendente in anagrafica. `
+          + "Scrivi nome e cognome come sono registrati: il cedolino va agganciato a una persona, "
+          + "altrimenti non arriva nella sua area personale.",
+        );
+      }
+      if (trovati.length > 1) {
+        throw new Error(`Più dipendenti corrispondono a "${form.employee_name.trim()}": scrivi nome e cognome completi.`);
+      }
+      const employeeId = trovati[0].employee_id as string;
 
-      const { error } = await supabase.from("cedolini").insert({
+      const { error } = await supabase.from("hr_cedolini").insert({
         company_id: companyId,
         employee_id: employeeId,
-        employee_name: form.employee_name.trim(),
         mese: parseInt(form.mese),
         anno: parseInt(form.anno),
         lordo,
@@ -287,8 +297,9 @@ export function TabCedolini() {
         ritenute_irpef: ritenuteIrpef,
         netto: Math.round((lordo - contributiDipendente - ritenuteIrpef) * 100) / 100,
         stato: form.stato,
+        generation_method: "manual",
         note: form.note.trim() || null,
-      } as any);
+      } as never);
       if (error) throw new Error(error.message || error.details || error.hint || "Errore");
     },
     onSuccess: () => {
@@ -304,7 +315,7 @@ export function TabCedolini() {
     mutationFn: async ({ id, stato }: { id: string; stato: string }) => {
       if (!companyId) throw new Error("Azienda non disponibile");
       const { error } = await supabase
-        .from("cedolini")
+        .from("hr_cedolini")
         .update({ stato })
         .eq("id", id)
         .eq("company_id", companyId);
