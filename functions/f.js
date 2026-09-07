@@ -44,9 +44,21 @@ export async function onRequest(context) {
     (env && (env.SUPABASE_URL || env.VITE_SUPABASE_URL)) || DEFAULT_SUPABASE_URL
   ).replace(/\/+$/, "");
 
-  const renderUrl =
-    `${supabaseBase}/functions/v1/form-render` +
-    `?slug=${encodeURIComponent(slug)}&company_id=${encodeURIComponent(companyId)}`;
+  // Parametri di campagna: arrivano dalla pagina che ospita il form (lo snippet
+  // di embed li ricopia nell'URL dell'iframe) e vanno passati all'edge, perché
+  // il JS del form legge i propri query param e li allega alla submission.
+  // Senza questo passaggio ogni lead dal sito risulta senza campagna.
+  const MARKETING_PARAMS = [
+    "utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term",
+    "gclid", "wbraid", "gbraid", "fbclid", "ttclid", "msclkid", "li_fat_id",
+  ];
+  const renderParams = new URLSearchParams({ slug, company_id: companyId });
+  for (const key of MARKETING_PARAMS) {
+    const value = url.searchParams.get(key);
+    if (value) renderParams.set(key, value.slice(0, 300));
+  }
+
+  const renderUrl = `${supabaseBase}/functions/v1/form-render?${renderParams.toString()}`;
 
   let upstream;
   try {
@@ -75,7 +87,8 @@ export async function onRequest(context) {
     status: upstream.status,
     headers: {
       "content-type": "text/html; charset=utf-8",
-      "cache-control": "public, max-age=60",
+      // Privato: l'HTML porta dentro i parametri di campagna di QUESTA visita.
+      "cache-control": "private, max-age=60",
       "x-robots-tag": "noindex, nofollow",
     },
   });

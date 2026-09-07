@@ -271,8 +271,20 @@ export function buildLeadFormAutoResizeEmbedSnippet(publicUrl: string, options: 
 (function(){
   var mount=document.getElementById('${escapeInlineJs(mountId)}');
   if(!mount)return;
+  // Porta nel form i parametri di campagna della pagina che lo ospita
+  // (il proxy /f li inoltra all'edge): senza, ogni lead resta senza campagna.
+  var src='${escapeInlineJs(publicUrl)}';
+  try{
+    var here=new URLSearchParams(window.location.search);
+    var extra=[];
+    ['utm_source','utm_medium','utm_campaign','utm_content','utm_term','gclid','wbraid','gbraid','fbclid','ttclid','msclkid','li_fat_id'].forEach(function(k){
+      var v=here.get(k);
+      if(v)extra.push(encodeURIComponent(k)+'='+encodeURIComponent(v));
+    });
+    if(extra.length)src+=(src.indexOf('?')===-1?'?':'&')+extra.join('&');
+  }catch(e){}
   var iframe=document.createElement('iframe');
-  iframe.src='${escapeInlineJs(publicUrl)}';
+  iframe.src=src;
   iframe.title='${escapeInlineJs(title)}';
   iframe.loading='lazy';
   iframe.referrerPolicy='strict-origin-when-cross-origin';
