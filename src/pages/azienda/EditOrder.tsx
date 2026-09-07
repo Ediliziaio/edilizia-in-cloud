@@ -700,7 +700,15 @@ function EditOrderInner() {
         // 40001 è il conflitto di versione: lo diciamo con il messaggio che la
         // pagina sa già mostrare, non con l'errore grezzo di Postgres.
         if (error.code === "40001") throw new ConflittoModifica("commessa");
-        throw error;
+        // La funzione rifiuta con messaggi in italiano che servono a chi salva
+        // («campo non scrivibile da qui», «una delle voci non appartiene a
+        // questa commessa»). Vanno incartati in un Error: il gestore mostra il
+        // messaggio solo se lo è, e l'oggetto grezzo di PostgREST non lo è —
+        // finirebbero tutti dietro un generico «si è verificato un errore».
+        throw new Error(
+          (error.message ?? "Errore durante il salvataggio della commessa")
+            .replace(/^commessa_salva:\s*/, ""),
+        );
       }
       // La versione va riletta, non incrementata di uno: un solo salvataggio
       // ne consuma parecchie, perche' i trigger che riallineano i totali dalle

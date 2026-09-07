@@ -16,8 +16,8 @@
 //    IVA INCLUSA, entro il tetto per unità immobiliare.
 //
 // Modulo puro: nessun import da React/Supabase, così è testabile a secco.
-import { arrotondaCentesimi } from "@/lib/numberUtils";
 // ============================================================================
+import { arrotondaCentesimi } from "@/lib/numberUtils";
 import { DETRAZIONI_EDILIZIE, type DetrazionePreset } from "@/lib/fatturazione/detrazioniEdilizie";
 
 /**

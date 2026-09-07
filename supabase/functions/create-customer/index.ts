@@ -51,6 +51,15 @@ async function autorizzaCreazioneCliente(
 
   if (ruoli.includes("company_admin")) return { ok: true, ruolo: "company_admin" };
 
+  // Un permesso vale solo per chi ha un ruolo interno: una riga di
+  // staff_permissions finita per sbaglio su un utente-cliente non deve aprire
+  // niente. Oggi non ce ne sono — le 19 righe con questi permessi hanno tutte
+  // un ruolo interno — ma la regola qui non dipende da quel dato.
+  const RUOLI_INTERNI = ["company_staff", "company_admin", "super_admin", "salesperson"];
+  if (!ruoli.some((r) => RUOLI_INTERNI.includes(r))) {
+    return { ok: false, motivo: "Non autorizzato a creare clienti", stato: 403 };
+  }
+
   const { data: permessi } = await supabaseAdmin
     .from("staff_permissions")
     .select("can_edit_customers, can_edit_orders")
