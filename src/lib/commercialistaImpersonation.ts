@@ -12,7 +12,11 @@ export type CommercialistaImpersonationParams = {
   companyName: string;
   /** Dove tornare quando il commercialista esce dall'impersonation. Default: /commercialista */
   returnTo?: string;
-  /** Pagina di destinazione dentro /azienda. Default: /azienda/cruscotto (overview cliente). */
+  /** Pagina di destinazione dentro /azienda. Default: /azienda/controllo-gestione
+   * (overview finanziaria del cliente — la landing naturale per lo studio). NON
+   * /azienda/cruscotto: quello fa un redirect smart-default che scarta la query
+   * string, perdendo commercialistaMode/commercialistaCompany e riportando
+   * l'azienda su quella già selezionata. */
   targetUrl?: string;
 };
 
@@ -25,7 +29,7 @@ export function buildCommercialistaCompanyUrl({
   companyId,
   companyName,
   returnTo = "/commercialista/aziende",
-  targetUrl = "/azienda/cruscotto",
+  targetUrl = "/azienda/controllo-gestione",
 }: CommercialistaImpersonationParams): string {
   const params = new URLSearchParams({
     commercialistaMode: "1",

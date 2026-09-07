@@ -200,7 +200,15 @@ export function useAccountantCompanyAccess(companyId: string | undefined) {
 
 // ─── useAccountantNotifications ────────────────────────────────────────────
 
-export function useAccountantNotifications() {
+/**
+ * Realtime sulle notifiche: va montato UNA volta sola (AccountantLayout).
+ * Prima stava dentro useAccountantNotifications, chiamato anche da Dashboard
+ * e Inbox: supabase.channel(nome) restituisce il canale già esistente e il
+ * secondo .on() dopo subscribe() lanciava «cannot add postgres_changes
+ * callbacks … after subscribe()» → il cruscotto e la inbox andavano in
+ * errore critico per tutti.
+ */
+export function useAccountantNotificationsRealtime() {
   const { user } = useAuth();
   const userId = user?.id ?? null;
   const queryClient = useQueryClient();
@@ -229,6 +237,11 @@ export function useAccountantNotifications() {
       supabase.removeChannel(channel);
     };
   }, [userId, queryClient]);
+}
+
+export function useAccountantNotifications() {
+  const { user } = useAuth();
+  const userId = user?.id ?? null;
 
   return useQuery({
     queryKey: accountantKeys.notifications(userId),

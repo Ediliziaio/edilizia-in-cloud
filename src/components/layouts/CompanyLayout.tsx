@@ -92,7 +92,7 @@ import {
 } from "@/components/ui/sidebar";
 import { NavLink } from "@/components/NavLink";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { Suspense, useMemo, useState, useEffect, useCallback, memo } from "react";
+import { Suspense, useMemo, useState, useEffect, useRef, useCallback, memo } from "react";
 import { SupportChatSheet } from "@/components/layouts/SupportChatSheet";
 import { SupportChannelDialog } from "@/components/layouts/SupportChannelDialog";
 import { useUnreadSupportCount } from "@/hooks/useUnreadSupportCount";
@@ -1570,16 +1570,33 @@ export function CompanyLayout() {
   // in commercialistaMode, selectedMultiCompanyId diventa Y ≠ URL.X. Per evitare
   // loop di switch (URL forza X, switcher forza Y, ping-pong), aggiorniamo
   // l'URL alla nuova azienda invece di forzare lo switch indietro.
+  // Distingue i due eventi che rendono selected ≠ URL:
+  //  - l'URL è cambiato (click "Accedi" su una nuova azienda dal cruscotto
+  //    studio) → l'URL è autorevole, si switcha all'azienda dell'URL;
+  //  - l'URL è fermo ma selected è cambiato (switcher in alto) → si segue la
+  //    scelta, riscrivendo l'URL.
+  // Senza il ref, entrare in una seconda azienda dopo la prima veniva scambiato
+  // per "switch via switcher" e riportava sull'azienda vecchia.
+  const lastUrlCommercialistaCompany = useRef<string | null>(null);
   useEffect(() => {
     if (!isCommercialistaMode || !commercialistaCompanyId) return;
-    if (selectedMultiCompanyId === commercialistaCompanyId) return;
+    if (selectedMultiCompanyId === commercialistaCompanyId) {
+      lastUrlCommercialistaCompany.current = commercialistaCompanyId;
+      return;
+    }
     const hasAccessUrl = multiCompanyAccesses.some(
       (a) => a.company_id === commercialistaCompanyId,
     );
-    if (!hasAccessUrl) return; // azienda non ancora caricata in accessi (loading)
+    // Aspetta il caricamento degli accessi SENZA aggiornare il ref: altrimenti
+    // al giro con accessi vuoti segneremmo l'URL come "già visto" e il giro
+    // buono lo scambierebbe per uno switch via switcher.
+    if (!hasAccessUrl) return;
+    const urlChanged =
+      lastUrlCommercialistaCompany.current !== commercialistaCompanyId;
+    lastUrlCommercialistaCompany.current = commercialistaCompanyId;
 
-    // L'utente ha già selezionato un'altra azienda accountant via switcher?
-    if (selectedMultiCompanyId) {
+    // URL fermo + selected diverso = l'utente ha cambiato via switcher.
+    if (!urlChanged && selectedMultiCompanyId) {
       const userSwitched = multiCompanyAccesses.find(
         (a) =>
           a.company_id === selectedMultiCompanyId &&
@@ -1598,6 +1615,7 @@ export function CompanyLayout() {
       }
     }
 
+    // URL cambiato (o primo ingresso) → l'azienda dell'URL vince.
     switchMultiCompany(commercialistaCompanyId);
   }, [
     isCommercialistaMode,

@@ -457,16 +457,27 @@ function AziendaIndex() {
  */
 function CompanyAppGuard({ children }: { children: ReactNode }) {
   const { role, isImpersonating, multiCompanyAccesses, multiCompanyLoaded } = useAuth();
+  const location = useLocation();
   if (role === "super_admin" && !isImpersonating) {
     return <Navigate to="/admin" replace />;
   }
+  // Ingresso esplicito del commercialista in una specifica azienda cliente:
+  // arriva con ?commercialistaMode=1&commercialistaCompany=X (o ha ruolo
+  // accountant). NON è un "primo ingresso da scegliere": il selettore
+  // multi-azienda non deve intercettarlo, altrimenti perde azienda, modalità
+  // e destinazione e lo scarica su /azienda/attivita. L'azienda effettiva la
+  // allinea CompanyLayout (auto-switch su commercialistaCompany).
+  const isCommercialistaEntry =
+    role === "accountant" ||
+    new URLSearchParams(location.search).get("commercialistaMode") === "1";
   // Selettore d'ingresso multi-azienda (stile GHL): al primo ingresso nell'app,
   // un utente con accesso a più aziende sceglie in quale entrare (una sola volta
   // per sessione, flag COMPANY_CHOSEN_KEY). NON blocca chi ha una sola azienda,
-  // chi impersona, o chi ha già scelto. Il selettore vive fuori da /azienda/*
-  // quindi non si crea loop di redirect.
+  // chi impersona, il commercialista, o chi ha già scelto. Il selettore vive
+  // fuori da /azienda/* quindi non si crea loop di redirect.
   if (
     !isImpersonating &&
+    !isCommercialistaEntry &&
     multiCompanyLoaded &&
     (multiCompanyAccesses?.length ?? 0) > 1 &&
     !sessionStorage.getItem(COMPANY_CHOSEN_KEY)

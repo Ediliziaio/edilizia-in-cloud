@@ -10,8 +10,9 @@
  * Content: <Outlet /> per nested routes.
  */
 
-import { ReactNode, useMemo } from "react";
+import { ReactNode, useMemo, useState } from "react";
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
+import { Sheet, SheetContent, SheetTrigger, SheetClose } from "@/components/ui/sheet";
 import {
   Bell,
   Building2,
@@ -21,6 +22,7 @@ import {
   LogOut,
   Settings,
   Users,
+  Menu,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -30,6 +32,7 @@ import {
   useAccountantFirm,
   useAccountantCompanies,
   useAccountantNotifications,
+  useAccountantNotificationsRealtime,
 } from "@/hooks/accountant/useAccountantPortalData";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.webp";
 import { QuickLoginReturnBanner } from "@/components/admin/QuickLoginReturnBanner";
@@ -72,6 +75,7 @@ export default function AccountantLayout({ children }: { children?: ReactNode })
   const { user, signOut } = useAuth();
   const { data: firm, isLoading: isLoadingFirm } = useAccountantFirm();
   const { data: companies = [] } = useAccountantCompanies();
+  useAccountantNotificationsRealtime();
   const { data: notifications = [] } = useAccountantNotifications();
 
   const pendingInvites = useMemo(
@@ -83,6 +87,7 @@ export default function AccountantLayout({ children }: { children?: ReactNode })
     [notifications],
   );
   const inboxBadge = pendingInvites + unreadNotifications;
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Sidebar semplificata: rimosso "Aziende clienti" duplicato — la lista è
   // direttamente nel Cruscotto, da lì si entra nella piattaforma cliente.
@@ -189,23 +194,80 @@ export default function AccountantLayout({ children }: { children?: ReactNode })
       {/* Mobile top bar (sidebar sostituita da menu drawer in futuro) */}
       <div className="flex flex-1 flex-col">
         <header className="flex items-center justify-between border-b bg-white px-4 py-3 lg:hidden">
-          <Link to="/commercialista" className="flex items-center gap-2">
-            <img loading="lazy" src={ediliziaLogo} alt="" className="h-6 w-auto" />
-            <span className="text-sm font-semibold">{firm.name}</span>
-          </Link>
           <div className="flex items-center gap-2">
-            <Link
-              to="/commercialista/inbox"
-              className="relative rounded-lg p-2 hover:bg-slate-100"
-            >
-              <Bell className="h-5 w-5" />
-              {inboxBadge > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
-                  {inboxBadge > 9 ? "9+" : inboxBadge}
-                </span>
-              )}
+            <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+              <SheetTrigger asChild>
+                <button
+                  type="button"
+                  aria-label="Apri il menu dello studio"
+                  className="rounded-lg p-2 hover:bg-slate-100"
+                >
+                  <Menu className="h-5 w-5" />
+                </button>
+              </SheetTrigger>
+              <SheetContent side="left" className="w-72 border-0 bg-[#07111f] p-0 text-white">
+                <div className="flex h-14 items-center gap-2 border-b border-white/10 px-4">
+                  <img loading="lazy" src={ediliziaLogo} alt="" className="h-6 w-auto" />
+                  <span className="truncate text-sm font-semibold">{firm.name}</span>
+                </div>
+                <nav className="flex flex-col gap-1 p-3">
+                  {sidebarItems.map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <SheetClose asChild key={item.to}>
+                        <NavLink
+                          to={item.to}
+                          end={item.end}
+                          className={({ isActive }) =>
+                            cn(
+                              "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium",
+                              isActive
+                                ? "bg-white/10 text-white"
+                                : "text-white/70 hover:bg-white/10 hover:text-white",
+                            )
+                          }
+                        >
+                          <Icon className="h-4 w-4 shrink-0" />
+                          <span className="flex-1">{item.label}</span>
+                          {item.badge !== undefined && item.badge > 0 && (
+                            <Badge className="bg-red-500 text-white">
+                              {item.badge > 99 ? "99+" : item.badge}
+                            </Badge>
+                          )}
+                        </NavLink>
+                      </SheetClose>
+                    );
+                  })}
+                  <SheetClose asChild>
+                    <Button
+                      variant="ghost"
+                      onClick={async () => {
+                        await signOut();
+                      }}
+                      className="mt-2 w-full justify-start gap-2 text-white/70 hover:bg-white/10 hover:text-white"
+                    >
+                      <LogOut className="h-4 w-4" /> Esci
+                    </Button>
+                  </SheetClose>
+                </nav>
+              </SheetContent>
+            </Sheet>
+            <Link to="/commercialista" className="flex items-center gap-2">
+              <img loading="lazy" src={ediliziaLogo} alt="" className="h-6 w-auto" />
+              <span className="text-sm font-semibold">{firm.name}</span>
             </Link>
           </div>
+          <Link
+            to="/commercialista/inbox"
+            className="relative rounded-lg p-2 hover:bg-slate-100"
+          >
+            <Bell className="h-5 w-5" />
+            {inboxBadge > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+                {inboxBadge > 9 ? "9+" : inboxBadge}
+              </span>
+            )}
+          </Link>
         </header>
 
         {/* Ritorno a admin dopo "Accedi come utente" su un commercialista. */}
