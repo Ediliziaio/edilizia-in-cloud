@@ -376,3 +376,52 @@ describe("calcolaTotaliDocumento — regressione (nessun fix deve alterare i cas
     expect(t.totale_da_pagare).toBe(1220);
   });
 });
+
+describe("arrotondamento IVA sul mezzo centesimo", () => {
+  /**
+   * Il difetto: `Math.round(n * 100) / 100` sbaglia quando il prodotto cade sul
+   * mezzo centesimo, perché 5,75 × 22% in virgola mobile vale
+   * 1,2649999999999999 e non 1,265. Il numero finisce nell'XML che va allo SdI,
+   * dove il controllo verifica imposta = imponibile × aliquota.
+   */
+  const riga = (imponibile: number, aliquota: string): RigaDocumento[] => [
+    {
+      descrizione: "prova",
+      quantita: 1,
+      prezzo_unitario: imponibile,
+      aliquota_iva: aliquota,
+      imponibile: 0,
+      imposta: 0,
+      totale_riga: 0,
+    } as unknown as RigaDocumento,
+  ];
+
+  it.each([
+    [5.75, "22", 1.27],
+    [20.7, "5", 1.04],
+    [2.9, "5", 0.15],
+    [11.3, "5", 0.57],
+  ])("imponibile %s €, aliquota %s → imposta %s €", (imponibile, aliquota, atteso) => {
+    const t = calcolaTotaliDocumento(riga(imponibile, aliquota));
+    expect(t.iva_totale).toBe(atteso);
+  });
+
+  it("coincide con il calcolo in centesimi interi su ogni imponibile fino a 2.000 €", () => {
+    // Il riferimento è la regola fiscale: imposta = arrotonda(centesimi × aliquota / 100).
+    const inCentesimi = (imponibile: number, aliquota: number) =>
+      Math.round(Math.round(imponibile * 100) * aliquota / 100) / 100;
+
+    const divergenti: string[] = [];
+    for (const aliquota of [4, 5, 10, 22]) {
+      for (let centesimi = 1; centesimi <= 200_000; centesimi++) {
+        const imponibile = centesimi / 100;
+        const atteso = inCentesimi(imponibile, aliquota);
+        const ottenuto = calcolaTotaliDocumento(riga(imponibile, String(aliquota))).iva_totale;
+        if (Math.abs(ottenuto - atteso) > 1e-9) {
+          if (divergenti.length < 5) divergenti.push(`${imponibile}@${aliquota}%: ${ottenuto} invece di ${atteso}`);
+        }
+      }
+    }
+    expect(divergenti).toEqual([]);
+  });
+});

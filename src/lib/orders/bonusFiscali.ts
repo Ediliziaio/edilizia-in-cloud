@@ -16,6 +16,7 @@
 //    IVA INCLUSA, entro il tetto per unità immobiliare.
 //
 // Modulo puro: nessun import da React/Supabase, così è testabile a secco.
+import { arrotondaCentesimi } from "@/lib/numberUtils";
 // ============================================================================
 import { DETRAZIONI_EDILIZIE, type DetrazionePreset } from "@/lib/fatturazione/detrazioniEdilizie";
 
@@ -48,7 +49,8 @@ export function ritenutaSuLordo(lordo: number): number {
 /** Tolleranza in € entro cui la ripartizione si considera quadrata (arrotondamenti). */
 export const TOLLERANZA_QUADRATURA = 0.01;
 
-const round2 = (n: number): number => Math.round((n + Number.EPSILON) * 100) / 100;
+// Stessa regola della fatturazione: l'epsilon qui non bastava.
+const round2 = arrotondaCentesimi;
 
 const num = (v: unknown): number => {
   const n = typeof v === "string" ? Number(v.replace(",", ".")) : Number(v);

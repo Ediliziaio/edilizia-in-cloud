@@ -1,6 +1,7 @@
 // src/lib/fatturazione/calcoli.ts
 // Centralized calculation engine for native billing documents
 
+import { arrotondaCentesimi } from "@/lib/numberUtils";
 import type {
   RigaDocumento,
   RiepilogoIVA,
@@ -10,8 +11,21 @@ import type {
 
 // ─── Helpers ─────────────────────────────────────────────────
 
-function round2(n: number): number {
-  return Math.round(n * 100) / 100;
+const round2 = arrotondaCentesimi;
+
+/**
+ * L'imposta di una riga, calcolata in centesimi interi.
+ *
+ * È la regola fiscale: l'imposta si ottiene dall'imponibile espresso in
+ * centesimi, non da un prodotto in virgola mobile arrotondato dopo. Il
+ * risultato coincide con `round2` corretto, ma qui la regola è scritta invece
+ * che ottenuta — e il controllo dello SdI, che verifica imposta = imponibile ×
+ * aliquota, confronta esattamente questa.
+ */
+function impostaSuImponibile(imponibile: number, aliquota: number): number {
+  const centesimi = Math.round(imponibile * 100);
+  const segno = centesimi < 0 ? -1 : 1;
+  return (segno * Math.round(Math.abs(centesimi) * aliquota / 100)) / 100;
 }
 
 // ─── Single row calculation ──────────────────────────────────
@@ -23,7 +37,7 @@ export function calcolaRiga(r: RigaDocumento): RigaDocumento {
     : (r.sconto_valore ?? 0);
   const imponibile = round2(base - scontoVal);
   const aliquota = parseFloat(r.aliquota_iva) || 0;
-  const imposta = r.natura_iva ? 0 : round2(imponibile * (aliquota / 100));
+  const imposta = r.natura_iva ? 0 : impostaSuImponibile(imponibile, aliquota);
   return {
     ...r,
     imponibile,
@@ -83,7 +97,7 @@ export function calcolaRiepilogoIVA(
     const aliquota = parseFloat(r.aliquota) || 0;
     const discountedImposta = r.natura
       ? 0
-      : round2(discountedImponibile * (aliquota / 100));
+      : impostaSuImponibile(discountedImponibile, aliquota);
 
     // Split payment: EsigibilitaIVA = "S" per righe con IVA effettiva (non esente/natura)
     const esigibilita: "I" | "D" | "S" =
@@ -195,7 +209,7 @@ export function calcolaTotaliDocumento(
     );
     if (bucket) {
       bucket.imponibile = round2(bucket.imponibile + cassa_importo);
-      bucket.imposta = round2(bucket.imponibile * (cassaAliquotaIvaNum / 100));
+      bucket.imposta = impostaSuImponibile(bucket.imponibile, cassaAliquotaIvaNum);
     } else {
       riepilogo_iva.push({
         aliquota:
@@ -204,7 +218,7 @@ export function calcolaTotaliDocumento(
             : String(cassaAliquotaIvaNum),
         natura: undefined,
         imponibile: cassa_importo,
-        imposta: round2(cassa_importo * (cassaAliquotaIvaNum / 100)),
+        imposta: impostaSuImponibile(cassa_importo, cassaAliquotaIvaNum),
         esigibilita: options.splitPayment ? "S" : (options.esigibilitaDefault ?? "I"),
       });
     }
