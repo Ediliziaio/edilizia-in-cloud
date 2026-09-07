@@ -313,6 +313,11 @@ verify_jwt = false
 [functions.siti-metriche-sync]
 verify_jwt = false
 
+# company-restore: super admin dalla pagina (JWT) o cron con x-cron-secret; il
+# controllo lo fa la funzione, come per siti-metriche-sync.
+[functions.company-restore]
+verify_jwt = false
+
 # Form builder pubblico: embed su siti esterni, senza sessione utente EiC.
 [functions.form-render]
 verify_jwt = false

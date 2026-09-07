@@ -23,12 +23,34 @@ import { conMetriche } from "../_shared/withMetrics.ts";
 
 const BUCKET = "company-exports";
 
-// Entità incluse nell'export, ordinate per importanza nel ripristino: prima
-// l'anagrafica e le persone, poi il lavoro, poi il denaro.
-const TABELLE = [
+// L'elenco delle tabelle lo decide il catalogo (admin_tabelle_da_esportare):
+// tutto ciò che ha una company_id, meno telemetria e log. Le otto tabelle
+// scelte a mano il 4 settembre lasciavano fuori i listini, le famiglie di
+// articoli, le tariffe, i fornitori e i ticket — cioè il lavoro dell'azienda.
+// Se il catalogo non risponde si torna a quelle otto, dichiarandolo nel file.
+const TABELLE_DI_RISERVA = [
   "profiles", "customers", "orders", "quotes", "invoices",
   "subscription_invoices", "company_feature_overrides", "company_status_events",
 ] as const;
+
+// PostgREST restituisce al massimo 1.000 righe per chiamata. Il backup
+// precedente non se ne curava: una tabella da 13.963 righe finiva nel file
+// con le prime mille, senza alcun segno del taglio.
+const PAGINA = 1000;
+
+async function leggiTutte(
+  admin: ReturnType<typeof createClient>, tabella: string, companyId: string,
+): Promise<{ righe: unknown[]; errore?: string }> {
+  const righe: unknown[] = [];
+  for (let da = 0; ; da += PAGINA) {
+    const { data, error } = await admin
+      .from(tabella).select("*").eq("company_id", companyId).range(da, da + PAGINA - 1);
+    if (error) return { righe, errore: error.message };
+    righe.push(...(data ?? []));
+    if (!data || data.length < PAGINA) break;
+  }
+  return { righe };
+}
 
 Deno.serve(conMetriche("company-backup", async (req) => {
   const cors = getCorsHeaders(req);
@@ -58,24 +80,34 @@ Deno.serve(conMetriche("company-backup", async (req) => {
 
     const esiti: Array<{ azienda: string; percorso?: string; record?: number; errore?: string }> = [];
 
+    const { data: catalogo, error: errCatalogo } = await admin.rpc("admin_tabelle_da_esportare");
+    const tabelle: string[] = errCatalogo || !catalogo?.length
+      ? [...TABELLE_DI_RISERVA]
+      : (catalogo as Array<{ tabella: string }>).map((t) => t.tabella);
+
     for (const azienda of aziende ?? []) {
       try {
         const dump: Record<string, unknown> = {
           esportato_il: new Date().toISOString(),
+          tabelle_incluse: tabelle.length,
+          elenco_da_catalogo: !errCatalogo,
           azienda,
         };
         let record = 0;
 
-        for (const tabella of TABELLE) {
-          const { data, error } = await admin.from(tabella).select("*").eq("company_id", azienda.id);
+        for (const tabella of tabelle) {
+          const { righe, errore } = await leggiTutte(admin, tabella, azienda.id);
           // Una tabella che non si legge non deve far saltare l'intero export:
           // meglio un backup parziale, dichiarato, che nessun backup.
-          if (error) {
-            dump[`${tabella}__errore`] = error.message;
+          if (errore) {
+            dump[`${tabella}__errore`] = errore;
             continue;
           }
-          dump[tabella] = data ?? [];
-          record += (data ?? []).length;
+          // Le tabelle vuote non entrano: un file con trecento chiavi vuote è
+          // illeggibile e non dice niente in più.
+          if (righe.length === 0) continue;
+          dump[tabella] = righe;
+          record += righe.length;
         }
 
         const percorso = `${azienda.id}/${new Date().toISOString().slice(0, 10)}-backup.json`;
