@@ -7,7 +7,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, CalendarIcon, Plus, Trash2, AlertTriangle, ClipboardList, HardHat, MapPin, Package, FileText } from "lucide-react";
 import { useOrderDraft } from "@/hooks/useOrderDraft";
-import { esitoUpdateConGuardia, isConflittoModifica } from "@/lib/concorrenza";
+import { ConflittoModifica, isConflittoModifica } from "@/lib/concorrenza";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -55,14 +55,14 @@ import {
   mapDbItemToOrderItem,
   createDefaultInstallments,
   buildInstallmentsFromLegacy,
-  installmentsToLegacyColumns,
   prefillExpectedDates,
 } from "@/lib/orderUtils";
-import { calculateCollectedNetFromInstallments, calculateCommissionGross } from "@/lib/commissions";
 
 interface OrderData {
   /** Serve a capire se una bozza locale è più vecchia del record. */
   updated_at: string | null;
+  /** Contatore che il trigger versione_riga incrementa a ogni UPDATE. */
+  version: number | null;
   id: string;
   customer_id: string;
   order_code: string | null;
@@ -164,7 +164,6 @@ function EditOrderInner() {
     commission_value: number;
     compensation_mode?: string | null;
   } | null>(null);
-  const [existingSalespersonRecordId, setExistingSalespersonRecordId] = useState<string | null>(null);
 
   const [assignedTo, setAssignedTo] = useState("");
   // Magazzino di competenza: dove arriva la merce e quindi chi la gestisce.
@@ -241,7 +240,8 @@ function EditOrderInner() {
         .eq("company_id", effectiveCompany.id)
         .single();
       if (error) throw error;
-      return data as OrderData;
+      // `version` non è ancora nei tipi generati: il cast passa da unknown.
+      return data as unknown as OrderData;
     },
     enabled: !!id && !!user && !!effectiveCompany?.id,
   });
@@ -318,7 +318,6 @@ function EditOrderInner() {
         commission_value: existingSalesperson.commission_value,
         compensation_mode: existingSalesperson.salesperson?.compensation_mode || null,
       });
-      setExistingSalespersonRecordId(existingSalesperson.id);
     }
   }, [existingSalesperson]);
 
@@ -326,13 +325,13 @@ function EditOrderInner() {
   // il lavoro di un collega che ha salvato mentre questa pagina era aperta.
   // Si aggiorna quando il modulo si riempie dai dati del server e dopo ogni
   // salvataggio andato a buon fine.
-  const versioneCaricataRef = useRef<string | null>(null);
+  const versioneCaricataRef = useRef<number | null>(null);
 
   // Populate form when order data is loaded
   useEffect(() => {
     if (!order) return;
     if (versioneCaricataRef.current === null) {
-      versioneCaricataRef.current = order.updated_at ?? null;
+      versioneCaricataRef.current = order.version ?? null;
     }
 
     // Try to restore draft — solo se è più recente dell'ultima modifica del
@@ -579,52 +578,145 @@ function EditOrderInner() {
       const installmentsForSave = installments.map(i =>
         i.type === 'balance' ? { ...i, amount: balance } : i
       );
-      const legacy = installmentsToLegacyColumns(installmentsForSave);
 
-      const { data, error } = await supabase
-        .from("orders")
-        .update({
-          customer_id: args?.customerId || customerId,
-          order_code: orderCode.trim() || null,
-          description,
-          total_amount: total,
-          ...legacy,
-          payment_type: paymentType,
-          balance_amount: balance,
-          expected_date: expectedDate ? format(expectedDate, "yyyy-MM-dd") : null,
-          internal_notes: internalNotes || null,
-          vat_rate: vat,
-          warehouse_arrival_date: warehouseArrivalDate ? format(warehouseArrivalDate, "yyyy-MM-dd") : null,
-          work_start_date: workStartDate ? format(workStartDate, "yyyy-MM-dd") : null,
-          work_end_date: workEndDate ? format(workEndDate, "yyyy-MM-dd") : null,
-          financing_cost: parseDecimalIT(financingCost),
-          has_building_bonus: hasBuildingBonus,
-          destination_warehouse_id: destinationWarehouseId || null,
-          assigned_to: assignedTo || null,
-          // Modulo Appaltatori — persistiamo solo se l'ordine è già di tipo
-          // appaltatore_lavoro: per ordini cliente standard manteniamo i campi
-          // a NULL (no-op silenzioso anche se l'utente li avesse riempiti).
-          ...(orderTypeState === "appaltatore_lavoro"
-            ? {
-                work_address: workAddress.trim() || null,
-                work_description: workDescription.trim() || null,
-                materials_location: materialsLocation.trim() || null,
-              }
-            : {}),
-        } as never)
-        .eq("id", id!)
-        .eq("company_id", effectiveCompany.id)
+      // Un solo giro sul database invece di una ventina di scritture in fila.
+      // `commessa_salva` fa tutto dentro una transazione sola: testata, rate,
+      // righe bonus, voci, giacenza di magazzino con i movimenti relativi e
+      // venditore. Prima, se la rete cadeva a metà sequenza, la commessa
+      // restava salvata a metà: le rate cancellate e non reinserite, il
+      // magazzino scaricato per voci mai scritte.
+      //
+      // Le colonne piatte (deposit_amount, balance_amount, …) NON si passano:
+      // la funzione le ricava dalle rate e rifiuta chi prova a scriverle a
+      // mano. Erano la fonte del disallineamento fra le rate e i totali che
+      // il cruscotto legge da quelle colonne.
+      const campi: Record<string, unknown> = {
+        customer_id: args?.customerId || customerId,
+        order_code: orderCode.trim() || null,
+        description,
+        total_amount: total,
+        payment_type: paymentType,
+        expected_date: expectedDate ? format(expectedDate, "yyyy-MM-dd") : null,
+        internal_notes: internalNotes || null,
+        vat_rate: vat,
+        warehouse_arrival_date: warehouseArrivalDate ? format(warehouseArrivalDate, "yyyy-MM-dd") : null,
+        work_start_date: workStartDate ? format(workStartDate, "yyyy-MM-dd") : null,
+        work_end_date: workEndDate ? format(workEndDate, "yyyy-MM-dd") : null,
+        financing_cost: parseDecimalIT(financingCost),
+        has_building_bonus: hasBuildingBonus,
+        destination_warehouse_id: destinationWarehouseId || null,
+        assigned_to: assignedTo || null,
+      };
+      // Modulo Appaltatori — persistiamo solo se l'ordine è già di tipo
+      // appaltatore_lavoro: per ordini cliente standard manteniamo i campi
+      // a NULL (no-op silenzioso anche se l'utente li avesse riempiti).
+      if (orderTypeState === "appaltatore_lavoro") {
+        campi.work_address = workAddress.trim() || null;
+        campi.work_description = workDescription.trim() || null;
+        campi.materials_location = materialsLocation.trim() || null;
+      }
+
+      const rate = installmentsForSave.map((i, idx) => ({
+        position: i.position ?? idx,
+        label: i.label,
+        type: i.type,
+        amount: i.amount,
+        is_paid: i.is_paid,
+        paid_date: i.paid_date || null,
+        expected_date: i.expected_date || null,
+        // Evento del cantiere a cui la rata è agganciata: senza questi tre
+        // campi il delete+insert perderebbe la scelta a ogni salvataggio.
+        trigger_evento: i.trigger_evento || 'data_fissa',
+        trigger_status_id: i.trigger_status_id || null,
+        trigger_numero: i.trigger_numero ?? null,
+        giorni_preavviso: i.giorni_preavviso ?? 7,
+      }));
+
+      // Con la funzione bonus spenta la card non si vede: mandare un elenco,
+      // anche vuoto, cancellerebbe righe che l'utente non ha avuto modo di
+      // guardare. `null` dice alla funzione di non toccarle. Spegnere il bonus
+      // edilizio, invece, le azzera davvero: quella è una scelta esplicita.
+      const righeBonus = !bonusMultipliEnabled
+        ? null
+        : hasBuildingBonus ? serializeBonusLines(bonusLines) : [];
+
+      // Solo gli id che esistono davvero su questa commessa: la funzione
+      // rifiuta una voce il cui id non le appartiene, e nel modulo può esserci
+      // l'id di una riga che nel frattempo è stata cancellata altrove.
+      const idEsistenti = new Set(existingItems.map(i => i.id));
+      const voci = orderItems.map((item) => ({
+        id: item.id && idEsistenti.has(item.id) ? item.id : null,
+        name: item.name,
+        description: item.description || null,
+        quantity: item.quantity,
+        status: item.status,
+        supplier_id: item.supplier_id || null,
+        purchase_price: item.purchase_price || 0,
+        vat_rate: item.vat_rate ?? 22,
+        stock_item_id: item.stock_item_id || null,
+        standard_cost: item.standard_cost ?? 0,
+        article_template_id: item.article_template_id || null,
+        product_code: item.product_code || null,
+        categoria: item.categoria || null,
+        is_paid: item.is_paid || false,
+        paid_date: item.paid_date || null,
+        payment_method: item.payment_method || null,
+        deposit_amount: item.deposit_amount || 0,
+        deposit_paid: item.deposit_paid || false,
+        deposit_paid_date: item.deposit_paid_date || null,
+        deposit_expected_date: item.deposit_expected_date || null,
+        balance_amount: item.balance_amount || 0,
+        balance_paid: item.balance_paid || false,
+        balance_paid_date: item.balance_paid_date || null,
+        balance_expected_date: item.balance_expected_date || null,
+      }));
+
+      // La provvigione la calcola il server, con un trigger su
+      // order_salespeople: passarla da qui verrebbe comunque sovrascritta.
+      // Oggetto vuoto = nessun venditore, la funzione stacca quello esistente.
+      const venditore = salespersonId && salespersonData
+        ? {
+            salesperson_id: salespersonId,
+            commission_type: salespersonData.commission_type,
+            commission_value: salespersonData.commission_value,
+          }
+        : {};
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase as any).rpc("commessa_salva", {
+        p_commessa: id!,
+        p_campi: campi,
+        p_rate: rate,
+        p_bonus: righeBonus,
+        p_voci: voci,
+        p_venditore: venditore,
         // Guardia sulla modifica concorrente: se un collega ha salvato mentre
-        // questa pagina era aperta, `updated_at` non combacia più, la UPDATE
-        // tocca zero righe e non sovrascriviamo il suo lavoro.
-        .eq("updated_at", versioneCaricataRef.current ?? "")
-        .select("updated_at");
+        // questa pagina era aperta la versione non combacia, e la funzione si
+        // ferma invece di sovrascrivere il suo lavoro.
+        p_versione: versioneCaricataRef.current,
+      }) as { error: { code?: string; message?: string } | null };
 
-      if (error) throw error;
-      versioneCaricataRef.current = esitoUpdateConGuardia(
-        data as Array<{ updated_at?: string | null }> | null,
-        "ordine",
-      );
+      if (error) {
+        // 40001 è il conflitto di versione: lo diciamo con il messaggio che la
+        // pagina sa già mostrare, non con l'errore grezzo di Postgres.
+        if (error.code === "40001") throw new ConflittoModifica("commessa");
+        throw error;
+      }
+      // La versione va riletta, non incrementata di uno: un solo salvataggio
+      // ne consuma parecchie, perche' i trigger che riallineano i totali dalle
+      // rate e dalle voci aggiornano a loro volta la riga della commessa.
+      // Misurato su una commessa vera: da 1 a 8 con un salvataggio senza
+      // modifiche. Se la pagina resta aperta, il salvataggio successivo deve
+      // partire da questa, altrimenti si autoaccusa di conflitto.
+      {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: riletta } = await (supabase as any)
+          .from("orders")
+          .select("version")
+          .eq("id", id!)
+          .maybeSingle();
+        versioneCaricataRef.current = (riletta as { version?: number | null } | null)?.version ?? null;
+      }
 
       // Geocoding automatico cantiere (best-effort, in background):
       // aggiorna work_lat/lng senza bloccare né far fallire il salvataggio.
@@ -637,195 +729,6 @@ function EditOrderInner() {
             .eq("id", id!)
             .eq("company_id", effectiveCompany.id);
         }).catch(() => { /* geocoding best-effort: non bloccante */ });
-      }
-
-      // Upsert installments: delete old, insert new
-      {
-        const { error: delInstErr } = await supabase.from("order_installments").delete().eq("order_id", id!);
-        if (delInstErr) throw delInstErr;
-      }
-      if (installmentsForSave.length > 0) {
-        const instRows = installmentsForSave.map(i => ({
-          order_id: id!,
-          position: i.position,
-          label: i.label,
-          type: i.type,
-          amount: i.amount,
-          is_paid: i.is_paid,
-          paid_date: i.paid_date || null,
-          expected_date: i.expected_date || null,
-          // Evento del cantiere a cui la rata è agganciata: senza questi tre
-          // campi il delete+insert perderebbe la scelta a ogni salvataggio.
-          trigger_evento: i.trigger_evento || 'data_fissa',
-          trigger_status_id: i.trigger_status_id || null,
-          trigger_numero: i.trigger_numero ?? null,
-          giorni_preavviso: i.giorni_preavviso ?? 7,
-        }));
-        await supabase.from("order_installments").insert(instRows);
-      }
-
-      // Upsert righe bonus: stesso pattern delete+insert delle rate, ma SOLO se
-      // la funzione è accesa. Con la funzione spenta la card non si vede: una
-      // delete incondizionata cancellerebbe righe che l'utente non ha nemmeno
-      // avuto modo di guardare. Spegnere il bonus edilizio, invece, le azzera
-      // per davvero: è una scelta esplicita.
-      if (bonusMultipliEnabled) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { error: delBonusErr } = await (supabase as any)
-          .from("order_bonus_lines").delete().eq("order_id", id!);
-        if (delBonusErr) throw delBonusErr;
-      }
-      if (hasBuildingBonus && bonusMultipliEnabled && bonusLines.length > 0) {
-        const bonusRows = serializeBonusLines(bonusLines).map((r) => ({
-          ...r,
-          order_id: id!,
-          company_id: effectiveCompany.id,
-        }));
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { error: insBonusErr } = await (supabase as any)
-          .from("order_bonus_lines").insert(bonusRows);
-        if (insBonusErr) throw insBonusErr;
-      }
-
-      // Handle order items (same logic as before)
-      const previousStockItems = existingItems
-        .filter(i => i.stock_item_id)
-        .map(i => ({ stock_item_id: i.stock_item_id!, quantity: i.quantity }));
-      const newStockItems = orderItems
-        .filter(i => i.stock_item_id)
-        .map(i => ({ stock_item_id: i.stock_item_id!, quantity: i.quantity }));
-
-      const prevMap = new Map<string, number>();
-      for (const p of previousStockItems) {
-        prevMap.set(p.stock_item_id, (prevMap.get(p.stock_item_id) || 0) + p.quantity);
-      }
-      const newMap = new Map<string, number>();
-      for (const n of newStockItems) {
-        newMap.set(n.stock_item_id, (newMap.get(n.stock_item_id) || 0) + n.quantity);
-      }
-
-      const allStockIds = new Set([...prevMap.keys(), ...newMap.keys()]);
-      const deltas: { stock_item_id: string; delta: number }[] = [];
-      for (const sid of allStockIds) {
-        const prev = prevMap.get(sid) || 0;
-        const curr = newMap.get(sid) || 0;
-        if (curr !== prev) deltas.push({ stock_item_id: sid, delta: curr - prev });
-      }
-
-      const existingDbIds = new Set(existingItems.map(i => i.id));
-      const formIds = new Set(orderItems.filter(i => i.id).map(i => i.id!));
-      const removedIds = [...existingDbIds].filter(dbId => !formIds.has(dbId));
-      const itemsToUpdate = orderItems.filter(i => i.id && existingDbIds.has(i.id));
-      const itemsToInsert = orderItems.filter(i => !i.id || !existingDbIds.has(i.id));
-
-      for (const removedId of removedIds) {
-        const { error: delMovErr } = await supabase.from("warehouse_movements").delete().eq("order_item_id", removedId);
-        if (delMovErr) throw delMovErr;
-        const { error: delAttErr } = await supabase.from("order_item_attachments").delete().eq("order_item_id", removedId);
-        if (delAttErr) throw delAttErr;
-        const { error: delItemErr } = await supabase.from("order_items").delete().eq("id", removedId);
-        if (delItemErr) throw delItemErr;
-      }
-
-      for (let index = 0; index < orderItems.length; index++) {
-        const item = orderItems[index];
-        if (item.id && existingDbIds.has(item.id)) {
-          await supabase.from("order_items").update({
-            name: item.name, description: item.description || null,
-            quantity: item.quantity, status: item.status, position: index,
-            supplier_id: item.supplier_id || null, purchase_price: item.purchase_price || 0,
-            vat_rate: item.vat_rate ?? 22, stock_item_id: item.stock_item_id || null,
-            unit_price: 0, discount_percent: 0, standard_cost: item.standard_cost ?? 0,
-            article_template_id: item.article_template_id || null, product_code: item.product_code || null, categoria: item.categoria || null,
-            is_paid: item.is_paid || false, paid_date: item.paid_date || null,
-            payment_method: item.payment_method || null,
-            deposit_amount: item.deposit_amount || 0, deposit_paid: item.deposit_paid || false,
-            deposit_paid_date: item.deposit_paid_date || null,
-            balance_amount: item.balance_amount || 0, balance_paid: item.balance_paid || false,
-            balance_paid_date: item.balance_paid_date || null,
-            balance_expected_date: item.balance_expected_date || null,
-            deposit_expected_date: item.deposit_expected_date || null,
-          }).eq("id", item.id);
-        }
-      }
-
-      if (itemsToInsert.length > 0) {
-        const newItems = itemsToInsert.map((item, idx) => ({
-          order_id: id!, name: item.name, description: item.description || null,
-          quantity: item.quantity, status: item.status, position: itemsToUpdate.length + idx,
-          supplier_id: item.supplier_id || null, purchase_price: item.purchase_price || 0,
-          vat_rate: item.vat_rate ?? 22, stock_item_id: item.stock_item_id || null,
-          unit_price: 0, discount_percent: 0, standard_cost: item.standard_cost ?? 0,
-          article_template_id: item.article_template_id || null, product_code: item.product_code || null, categoria: item.categoria || null,
-          is_paid: item.is_paid || false, paid_date: item.paid_date || null,
-          payment_method: item.payment_method || null,
-          deposit_amount: item.deposit_amount || 0, deposit_paid: item.deposit_paid || false,
-          deposit_paid_date: item.deposit_paid_date || null,
-          balance_amount: item.balance_amount || 0, balance_paid: item.balance_paid || false,
-          balance_paid_date: item.balance_paid_date || null,
-          balance_expected_date: item.balance_expected_date || null,
-          deposit_expected_date: item.deposit_expected_date || null,
-        }));
-        await supabase.from("order_items").insert(newItems);
-      }
-
-      for (const { stock_item_id, delta } of deltas) {
-        const { data: currentStock } = await supabase
-          .from("warehouse_stock").select("quantity").eq("id", stock_item_id).single();
-        if (currentStock) {
-          const newQty = Math.max(0, currentStock.quantity - delta);
-          await supabase.from("warehouse_stock").update({ quantity: newQty }).eq("id", stock_item_id);
-          if (delta > 0) {
-            await supabase.from("warehouse_movements").insert({
-              stock_item_id, movement_type: "scarico", quantity: delta,
-              notes: `Scarico aggiuntivo per modifica commessa ${order?.order_code || id!.slice(0, 8)}`,
-              performed_by: user!.id,
-            });
-          } else {
-            await supabase.from("warehouse_movements").insert({
-              stock_item_id, movement_type: "carico", quantity: Math.abs(delta),
-              notes: `Ripristino automatico per modifica commessa ${order?.order_code || id!.slice(0, 8)}`,
-              performed_by: user!.id,
-            });
-          }
-        }
-      }
-
-      // Handle salesperson
-      if (salespersonId && salespersonData) {
-        const collectedNet = calculateCollectedNetFromInstallments({
-          installments: installmentsForSave,
-          totalAmount: total,
-          vatRate: vat,
-          financingCost: parseDecimalIT(financingCost),
-        });
-        const commissionAmount = calculateCommissionGross({
-          commissionType: salespersonData.commission_type,
-          commissionValue: salespersonData.commission_value,
-          compensationMode: salespersonData.compensation_mode,
-          totalAmount: total,
-          collectedAmount: collectedNet,
-        });
-
-        if (existingSalespersonRecordId) {
-          await supabase.from("order_salespeople").update({
-            salesperson_id: salespersonId,
-            commission_type: salespersonData.commission_type,
-            commission_value: salespersonData.commission_value,
-            commission_amount: commissionAmount,
-          }).eq("id", existingSalespersonRecordId);
-        } else {
-          await supabase.from("order_salespeople").insert({
-            order_id: id!,
-            salesperson_id: salespersonId,
-            commission_type: salespersonData.commission_type,
-            commission_value: salespersonData.commission_value,
-            commission_amount: commissionAmount,
-          });
-        }
-      } else if (existingSalespersonRecordId && !salespersonId) {
-        const { error: delSalesErr } = await supabase.from("order_salespeople").delete().eq("id", existingSalespersonRecordId);
-        if (delSalesErr) throw delSalesErr;
       }
     },
     onSuccess: () => {
