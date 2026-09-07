@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { TICKET_MOTIVI_GRATUITO } from "@/types/tickets";
+import { TICKET_MOTIVI_GRATUITO, TICKET_MERCE_STATI, type TicketMerceStato } from "@/types/tickets";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Loader2, Paperclip, X, Wrench } from "lucide-react";
 import {
@@ -50,6 +50,10 @@ export default function CreateCompanyTicket() {
   // Chi paga l'intervento: è la prima domanda che si fa l'ufficio quando arriva
   // una chiamata, e finora non c'era posto dove annotarla.
   const [aPagamento, setAPagamento] = useState(false);
+  // Merce: serve per questo intervento? e a che punto è.
+  const [serveMerce, setServeMerce] = useState(false);
+  const [merceStato, setMerceStato] = useState<TicketMerceStato>("da_ordinare");
+  const [merceMancante, setMerceMancante] = useState("");
   const [motivoGratuito, setMotivoGratuito] = useState<string>("garanzia");
   const [importoPreventivato, setImportoPreventivato] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -135,6 +139,11 @@ export default function CreateCompanyTicket() {
           assigned_to: tecnicoId || null,
           a_pagamento: aPagamento,
           motivo_gratuito: aPagamento ? null : motivoGratuito,
+          merce_stato: serveMerce ? merceStato : null,
+          merce_mancante:
+            serveMerce && merceStato === "arrivata_parziale" && merceMancante.trim()
+              ? merceMancante.trim()
+              : null,
           importo_preventivato: aPagamento && importoPreventivato ? Number(importoPreventivato) : null,
           ...(isIntervento && {
             indirizzo_intervento: indirizzoIntervento.trim() || null,
@@ -359,6 +368,53 @@ export default function CreateCompanyTicket() {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+            )}
+          </div>
+
+          {/* Merce — «bolla incompleta»: qui si segna se manca qualcosa */}
+          <div className="space-y-3 rounded-xl border border-border bg-muted/40 p-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <Label className="text-sm font-semibold">Serve della merce</Label>
+                <p className="text-xs text-muted-foreground">
+                  Accendilo se l&apos;intervento aspetta materiale: potrai filtrare i ticket per merce da arrivare.
+                </p>
+              </div>
+              <Switch checked={serveMerce} onCheckedChange={setServeMerce} />
+            </div>
+
+            {serveMerce && (
+              <div className="space-y-3">
+                <div className="space-y-2">
+                  <Label className="text-xs">A che punto è</Label>
+                  <Select value={merceStato} onValueChange={(v) => setMerceStato(v as TicketMerceStato)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TICKET_MERCE_STATI.map((m) => (
+                        <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {merceStato === "arrivata_parziale" && (
+                  <div className="space-y-2">
+                    <Label className="text-xs text-red-600">Che cosa manca *</Label>
+                    <Textarea
+                      value={merceMancante}
+                      onChange={(e) => setMerceMancante(e.target.value)}
+                      placeholder="Es. mancano 2 maniglie e la guarnizione inferiore"
+                      rows={2}
+                      className="border-red-200 focus-visible:ring-red-400"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Resta scritto sul ticket ed è evidenziato in rosso nella lista finché non arriva tutto.
+                    </p>
+                  </div>
+                )}
               </div>
             )}
           </div>

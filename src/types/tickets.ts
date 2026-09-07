@@ -64,6 +64,25 @@ export const TICKET_MOTIVI_GRATUITO = [
   { value: "contratto_manutenzione", label: "Compreso nel contratto di manutenzione" },
   { value: "rilavorazione", label: "Rilavorazione nostra" },
 ] as const;
+
+/**
+ * Ciclo della merce sul ticket (richiesta Ke Bei: «bolla incompleta»).
+ * NULL = per questo intervento non serve merce.
+ * `arrivata_parziale` è il caso da evidenziare in rosso: la merce è arrivata
+ * ma manca qualcosa, e va scritto che cosa.
+ */
+export type TicketMerceStato = "da_ordinare" | "ordinata" | "arrivata_parziale" | "arrivata";
+export const TICKET_MERCE_STATI: { value: TicketMerceStato; label: string; tono: "attesa" | "allarme" | "ok" }[] = [
+  { value: "da_ordinare", label: "Da ordinare", tono: "attesa" },
+  { value: "ordinata", label: "Ordinata, in arrivo", tono: "attesa" },
+  { value: "arrivata_parziale", label: "Arrivata incompleta", tono: "allarme" },
+  { value: "arrivata", label: "Arrivata tutta", tono: "ok" },
+];
+export const TICKET_MERCE_LABEL: Record<TicketMerceStato, string> =
+  Object.fromEntries(TICKET_MERCE_STATI.map((m) => [m.value, m.label])) as Record<TicketMerceStato, string>;
+/** Stati in cui la merce non è ancora (tutta) arrivata: filtro «merce da arrivare». */
+export const TICKET_MERCE_IN_ARRIVO: TicketMerceStato[] = ["da_ordinare", "ordinata", "arrivata_parziale"];
+
 export type TicketPriority = "bassa" | "normale" | "media" | "alta" | "urgente";
 export type TicketTipo = "supporto" | "intervento" | "emergenza";
 export type TicketFonte = "ufficio" | "campo" | "cliente" | "api";

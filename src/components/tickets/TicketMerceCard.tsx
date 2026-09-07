@@ -7,17 +7,20 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Package, Plus, Truck, Loader2, ExternalLink } from "lucide-react";
+import { Package, Plus, Truck, Loader2, ExternalLink, AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { TICKET_MERCE_STATI, type TicketMerceStato } from "@/types/tickets";
+import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
@@ -42,7 +45,31 @@ function dataIt(d: string | null) {
 
 export function TicketMerceCard({
   ticketId, orderId, companyId,
-}: { ticketId: string; orderId: string | null; companyId: string }) {
+  ticket,
+}: {
+  ticketId: string;
+  orderId: string | null;
+  companyId: string;
+  ticket?: { merce_stato?: string | null; merce_mancante?: string | null } | null;
+}) {
+  const merceStato = (ticket?.merce_stato ?? null) as TicketMerceStato | null;
+  const [mancante, setMancante] = useState(ticket?.merce_mancante ?? "");
+
+  // Stato della merce direttamente sul ticket: serve a chi NON usa gli ordini a
+  // fornitore (la maggior parte) e alimenta i filtri «merce da arrivare/arrivata».
+  const salvaStato = useMutation({
+    mutationFn: async (patch: { merce_stato: TicketMerceStato | null; merce_mancante?: string | null }) => {
+      const { error } = await supabase.from("tickets").update(patch as never).eq("id", ticketId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.adminTicket.detail(ticketId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.companyTickets.all });
+      toast.success("Merce aggiornata");
+    },
+    onError: (e) => toast.error("Non salvato", { description: (e as Error).message }),
+  });
+
   const qc = useQueryClient();
   const { user } = useAuth();
   const [aperto, setAperto] = useState(false);
@@ -124,11 +151,66 @@ export function TicketMerceCard({
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <Package className="h-4 w-4 text-muted-foreground" />
-            <h3 className="text-sm font-semibold">Merce da ordinare</h3>
+            <h3 className="text-sm font-semibold">Merce</h3>
           </div>
           <Button size="sm" variant="outline" onClick={() => setAperto(true)}>
             <Plus className="mr-1 h-3.5 w-3.5" /> Ordina
           </Button>
+        </div>
+
+        {/* Stato merce del ticket: vale anche senza ordini a fornitore. */}
+        <div className="space-y-2">
+          <Select
+            value={merceStato ?? "__nessuna__"}
+            onValueChange={(v) =>
+              salvaStato.mutate({
+                merce_stato: v === "__nessuna__" ? null : (v as TicketMerceStato),
+              })
+            }
+          >
+            <SelectTrigger className={merceStato === "arrivata_parziale" ? "border-red-300 text-red-700" : undefined}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__nessuna__">Non serve merce</SelectItem>
+              {TICKET_MERCE_STATI.map((m) => (
+                <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {merceStato === "arrivata_parziale" && (
+            <div className="space-y-2 rounded-lg border border-red-200 bg-red-50 p-3">
+              <div className="flex items-center gap-2 text-xs font-semibold text-red-800">
+                <AlertTriangle className="h-3.5 w-3.5" /> Bolla incompleta: cosa manca
+              </div>
+              <Textarea
+                value={mancante}
+                onChange={(e) => setMancante(e.target.value)}
+                onBlur={() => {
+                  if ((ticket?.merce_mancante ?? "") !== mancante) {
+                    salvaStato.mutate({ merce_stato: "arrivata_parziale", merce_mancante: mancante.trim() || null });
+                  }
+                }}
+                placeholder="Es. mancano 2 maniglie e la guarnizione inferiore"
+                rows={2}
+                className="border-red-200 bg-white focus-visible:ring-red-400"
+              />
+              {(ticket?.merce_mancante ?? "") !== mancante && (
+                <Button
+                  size="sm"
+                  className="w-full"
+                  disabled={salvaStato.isPending}
+                  onClick={() =>
+                    salvaStato.mutate({ merce_stato: "arrivata_parziale", merce_mancante: mancante.trim() || null })
+                  }
+                >
+                  {salvaStato.isPending ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
+                  Salva cosa manca
+                </Button>
+              )}
+            </div>
+          )}
         </div>
 
         {prossima && (

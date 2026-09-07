@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { TicketPagamentoCard } from "@/components/tickets/TicketPagamentoCard";
 import { TicketMerceCard } from "@/components/tickets/TicketMerceCard";
+import { TicketRichiamiCard } from "@/components/tickets/TicketRichiamiCard";
 import { TicketCostiCard } from "@/components/tickets/TicketCostiCard";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -99,6 +100,8 @@ export default function TicketDetail() {
           a_pagamento, motivo_gratuito, importo_preventivato, importo_finale,
           pagato, data_pagamento, metodo_pagamento, note_pagamento, merce_richiesta,
           ore_effettive, costo_orario_applicato, costo_trasferta, costo_materiale, scadenza_id,
+          richiami_count, ultimo_richiamo_at, note_richiami,
+          merce_stato, merce_mancante, merce_arrivata_at,
           updated_at, last_message_at,
           data_intervento_prevista, data_intervento_effettiva, indirizzo_intervento, durata_ore, note_tecnico,
           customer:profiles!tickets_customer_id_fkey(first_name, last_name, email, phone),
@@ -659,8 +662,11 @@ export default function TicketDetail() {
               ticketId={ticket.id}
               orderId={ticket.order_id ?? null}
               companyId={effectiveCompany.id}
+              ticket={ticket as never}
             />
           )}
+
+          <TicketRichiamiCard ticketId={ticket.id} ticket={ticket as never} />
 
           {/* Dettagli Intervento — sempre visibile se tipo è intervento/emergenza,
               altrimenti rimane collassato finché non si schedula */}

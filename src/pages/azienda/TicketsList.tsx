@@ -51,7 +51,8 @@ import {
   BriefcaseBusiness,
   Hourglass,
   LayoutList,
-  Columns3
+  Columns3,
+  PhoneCall,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ExportButton } from "@/components/shared/ExportButton";
@@ -179,6 +180,12 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
+  // Filtri chiesti da Ke Bei: merce (da arrivare / arrivata / incompleta) e
+  // assistenza a pagamento o gratuita.
+  const [merceFilter, setMerceFilter] = useState<"tutte" | "in_arrivo" | "incompleta" | "arrivata">("tutte");
+  const [pagamentoFilter, setPagamentoFilter] = useState<"tutti" | "pagamento" | "gratis">("tutti");
+  /** Solo chi ha sollecitato almeno 3 volte: i clienti che stanno aspettando troppo. */
+  const [soloRichiami, setSoloRichiami] = useState(false);
   const [fonteFilter, setFonteFilter] = useState<string>("tutti");
   const [scadenzaFilter, setScadenzaFilter] = useState<string>("tutte");
   const [assegnatoFilter, setAssegnatoFilter] = useState<string>("tutti");
@@ -211,6 +218,7 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
         .select(`
           id, subject, status, priority, fonte, tipo, created_at, updated_at, last_message_at,
           order_id, assigned_to, category,
+          a_pagamento, merce_stato, merce_mancante, richiami_count, ultimo_richiamo_at,
           data_intervento_prevista, data_intervento_effettiva, indirizzo_intervento,
           customer:profiles!tickets_customer_id_fkey(first_name, last_name, email),
           order:orders(description),
@@ -284,6 +292,20 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
       if (!f || f.livello === "ok") return false;
     }
     if (fonteFilter !== "tutti" && ticket.fonte !== fonteFilter) return false;
+
+    // Merce: «da arrivare» include ordinata e arrivata incompleta.
+    if (merceFilter !== "tutte") {
+      const ms = (ticket as { merce_stato?: string | null }).merce_stato ?? null;
+      if (merceFilter === "in_arrivo" && !(ms === "da_ordinare" || ms === "ordinata" || ms === "arrivata_parziale")) return false;
+      if (merceFilter === "incompleta" && ms !== "arrivata_parziale") return false;
+      if (merceFilter === "arrivata" && ms !== "arrivata") return false;
+    }
+    if (soloRichiami && ((ticket as { richiami_count?: number | null }).richiami_count ?? 0) < 3) return false;
+    if (pagamentoFilter !== "tutti") {
+      const pag = Boolean((ticket as { a_pagamento?: boolean | null }).a_pagamento);
+      if (pagamentoFilter === "pagamento" && !pag) return false;
+      if (pagamentoFilter === "gratis" && pag) return false;
+    }
     if (assegnatoFilter === "unassigned" && ticket.assigned_to) return false;
     if (assegnatoFilter !== "tutti" && assegnatoFilter !== "unassigned" && ticket.assigned_to !== assegnatoFilter) return false;
 
@@ -306,7 +328,7 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
       ticket.assignee?.last_name?.toLowerCase().includes(q) ||
       ticket.order?.description?.toLowerCase().includes(q)
     );
-  }), [tickets, fonteFilter, assegnatoFilter, scadenzaFilter, searchQuery, soloFerme]);
+  }), [tickets, fonteFilter, assegnatoFilter, scadenzaFilter, searchQuery, soloFerme, merceFilter, pagamentoFilter, soloRichiami]);
 
   const sortedTickets = useMemo(() => {
     const priorityRank: Record<string, number> = { urgente: 4, alta: 3, normale: 2, media: 2, bassa: 1 };
@@ -450,6 +472,18 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
   };
 
   // Metriche aggregate (basate su TUTTI i ticket azienda, non filtrati)
+  // Numeri per i filtri rapidi di merce e solleciti.
+  const metricheMerce = useMemo(() => {
+    let inArrivo = 0, incomplete = 0, solleciti = 0;
+    for (const t of tickets as { merce_stato?: string | null; richiami_count?: number | null }[]) {
+      const ms = t.merce_stato ?? null;
+      if (ms === "da_ordinare" || ms === "ordinata" || ms === "arrivata_parziale") inArrivo++;
+      if (ms === "arrivata_parziale") incomplete++;
+      if ((t.richiami_count ?? 0) >= 3) solleciti++;
+    }
+    return { inArrivo, incomplete, solleciti };
+  }, [tickets]);
+
   const metrics = useMemo(() => {
     const aperti = tickets.filter(t => t.status === "aperto" || t.status === "in_lavorazione").length;
     const urgenti = tickets.filter(t => (t.priority === "urgente" || t.priority === "alta") && !TICKET_STATI_CHIUSI.includes(t.status as never)).length;
@@ -664,6 +698,26 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
             onClick={() => setSoloFerme(v => !v)}
           />
           <NavyStatCard
+            label="Merce da arrivare"
+            value={metricheMerce.inArrivo}
+            sub={metricheMerce.incomplete > 0
+              ? `${metricheMerce.incomplete} bolla${metricheMerce.incomplete === 1 ? "" : "e"} incompleta`
+              : "nessuna incompleta"}
+            icon={Package}
+            tone={metricheMerce.incomplete > 0 ? "text-red-300" : "text-blue-100"}
+            active={merceFilter !== "tutte"}
+            onClick={() => setMerceFilter(merceFilter === "tutte" ? "in_arrivo" : merceFilter === "in_arrivo" ? "incompleta" : "tutte")}
+          />
+          <NavyStatCard
+            label="Richiamano"
+            value={metricheMerce.solleciti}
+            sub={metricheMerce.solleciti > 0 ? "3 o più solleciti" : "nessun insistente"}
+            icon={PhoneCall}
+            tone={metricheMerce.solleciti > 0 ? "text-amber-300" : "text-blue-100"}
+            active={soloRichiami}
+            onClick={() => setSoloRichiami((v) => !v)}
+          />
+          <NavyStatCard
             label="Da incassare"
             value={metrics.daIncassare > 0
               ? metrics.daIncassare.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 })
@@ -789,6 +843,23 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
               <SelectItem value="ufficio">Da ufficio</SelectItem>
               <SelectItem value="campo">📍 Da campo</SelectItem>
               <SelectItem value="cliente">Da cliente</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={pagamentoFilter} onValueChange={(v) => setPagamentoFilter(v as typeof pagamentoFilter)}>
+            <SelectTrigger className="flex-1 sm:w-[170px] sm:flex-none"><SelectValue placeholder="Pagamento" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="tutti">A pagamento e gratis</SelectItem>
+              <SelectItem value="pagamento">Solo a pagamento</SelectItem>
+              <SelectItem value="gratis">Solo gratuite</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={merceFilter} onValueChange={(v) => setMerceFilter(v as typeof merceFilter)}>
+            <SelectTrigger className="flex-1 sm:w-[190px] sm:flex-none"><SelectValue placeholder="Merce" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="tutte">Merce: tutte</SelectItem>
+              <SelectItem value="in_arrivo">Merce da arrivare</SelectItem>
+              <SelectItem value="incompleta">Bolla incompleta</SelectItem>
+              <SelectItem value="arrivata">Merce arrivata</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -999,6 +1070,44 @@ function ScadenzaCell({ iso }: { iso: string | null | undefined }) {
   );
 }
 
+/**
+ * Segnali che l'ufficio deve vedere senza aprire il ticket:
+ * la bolla incompleta (in rosso, con cosa manca) e i solleciti del cliente.
+ */
+function BadgeMerceRichiami({ ticket }: { ticket: Record<string, unknown> }) {
+  const merceStato = (ticket.merce_stato as string | null) ?? null;
+  const mancante = (ticket.merce_mancante as string | null) ?? null;
+  const richiami = (ticket.richiami_count as number | null) ?? 0;
+  if (merceStato !== "arrivata_parziale" && merceStato !== "ordinata" && merceStato !== "da_ordinare" && richiami === 0) {
+    return null;
+  }
+  return (
+    <div className="flex flex-wrap items-center gap-1">
+      {merceStato === "arrivata_parziale" && (
+        <Badge
+          className="bg-red-100 text-red-800 border border-red-200 text-[10px] px-1.5 py-0"
+          title={mancante ? `Manca: ${mancante}` : "Merce arrivata incompleta"}
+        >
+          Bolla incompleta
+        </Badge>
+      )}
+      {(merceStato === "ordinata" || merceStato === "da_ordinare") && (
+        <Badge className="bg-purple-100 text-purple-800 border border-purple-200 text-[10px] px-1.5 py-0">
+          Merce in arrivo
+        </Badge>
+      )}
+      {richiami > 0 && (
+        <Badge
+          className={`text-[10px] px-1.5 py-0 border ${richiami >= 3 ? "bg-amber-100 text-amber-900 border-amber-300" : "bg-muted text-muted-foreground border-transparent"}`}
+          title="Volte che il cliente ha sollecitato"
+        >
+          {richiami}× richiamo
+        </Badge>
+      )}
+    </div>
+  );
+}
+
 function MobileTicketRow({
   ticket,
   unreadCount,
@@ -1039,6 +1148,7 @@ function MobileTicketRow({
             })()}
             {scadenza && <ScadenzaCell iso={scadenza} />}
           </div>
+          <BadgeMerceRichiami ticket={ticket as unknown as Record<string, unknown>} />
         </div>
         <div className="flex flex-col items-end gap-1 shrink-0">
           <Badge
