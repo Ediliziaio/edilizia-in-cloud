@@ -1257,6 +1257,26 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
       { name: "Bologna", slug: "bologna" },
       { name: "Parma", slug: "parma" },
     ],
+    localContext: {
+      heading: "Edilizia a Reggio Emilia: cooperative, distretto ceramico e prezzario Emilia-Romagna",
+      body: "Reggio Emilia è la provincia delle cooperative di costruzione e delle imprese strutturate: consorzi, general contractor e subappaltatori che lavorano sui capannoni del distretto ceramico di Scandiano e Casalgrande, sulla logistica lungo l'A1, sul residenziale e sulla ricostruzione post-sisma 2012 nella Bassa. Qui il committente chiede SAL puntuali, contabilità di commessa trasparente e documenti di subappalto in ordine: DURC, congruità della manodopera e Cassa Edile di Reggio Emilia sono la routine. I prezzi delle opere pubbliche seguono l'elenco regionale dell'Emilia-Romagna.",
+      prezzarioLink: "https://territorio.regione.emilia-romagna.it/lavori-pubblici",
+      prezzarioLabel: "Prezzario opere pubbliche Regione Emilia-Romagna",
+    },
+    localFaqs: [
+      {
+        q: "Lavoro come subappaltatore per una cooperativa di costruzioni reggiana: come tengo in ordine DURC, congruità e SAL che mi chiedono ogni mese?",
+        a: "Ogni commessa ha la sua cartella documenti con le scadenze: DURC, POS, polizze e attestazione di congruità con avviso prima della scadenza. Il SAL lo prepari dalle lavorazioni registrate in cantiere, con le quantità già misurate, e lo mandi in PDF firmato al capocommessa senza rifare i conti a mano.",
+      },
+      {
+        q: "Posso importare l'elenco prezzi delle opere pubbliche dell'Emilia-Romagna nei preventivi?",
+        a: "Sì: le voci si importano da Excel o PDF con il codice ufficiale e restano nel tuo listino. Per i lavori privati sul distretto ceramico o sul residenziale crei voci tue con costo, margine e prezzo, e le riusi nei preventivi successivi.",
+      },
+      {
+        q: "Ho squadre tra Reggio, Scandiano e la Bassa: come vedo presenze e costi cantiere per cantiere?",
+        a: "Le timbrature con GPS finiscono sulla commessa giusta e diventano costo orario in tempo reale, Cassa Edile compresa. La sera vedi per ogni cantiere ore, materiali consegnati e margine residuo, senza telefonate ai capisquadra.",
+      },
+    ],
   },
 
   parma: {
@@ -2088,6 +2108,26 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
       { name: "Messina", slug: "messina" },
       { name: "Catania", slug: "catania" },
       { name: "Cosenza", slug: "cosenza" },
+    ],
+    localContext: {
+      heading: "Edilizia a Reggio Calabria: zona sismica 1, PNRR, Gioia Tauro e prezzario Regione Calabria",
+      body: "Reggio Calabria lavora in zona sismica 1: adeguamento e miglioramento sismico, consolidamenti e nuove costruzioni con una documentazione strutturale che committente e Regione vogliono completa. A questo si sommano i cantieri PNRR dei Comuni, il porto di Gioia Tauro con la sua logistica e la costa tirrenica e ionica con turistico e residenziale stagionali. Subappalti, DURC e congruità della manodopera sono il primo controllo delle stazioni appaltanti; il prezzario regionale della Calabria è la base di ogni computo pubblico.",
+      prezzarioLink: "https://www.regione.calabria.it/website/portaltemplates/view/view.cfm?13415",
+      prezzarioLabel: "Prezzario Regione Calabria (sito ufficiale)",
+    },
+    localFaqs: [
+      {
+        q: "Nei cantieri PNRR dei Comuni reggini mi chiedono congruità della manodopera e DURC di tutta la filiera: come li tengo sotto controllo?",
+        a: "Ogni subappaltatore ha la sua scheda con DURC, POS e polizze in scadenza e avviso automatico; la congruità la verifichi con le ore registrate in cantiere contro l'importo lavori, prima che lo faccia la stazione appaltante. Se un documento è scaduto, il pagamento viene segnalato.",
+      },
+      {
+        q: "Adeguamento sismico su edifici esistenti: come gestisco varianti e documentazione strutturale?",
+        a: "Ogni variante nasce dal cantiere con foto, quantità e firma del cliente e diventa una voce di SAL: nulla resta fuori fattura. I documenti strutturali e le certificazioni dei materiali stanno nella cartella della commessa, pronti per il collaudo.",
+      },
+      {
+        q: "Ho cantieri tra Reggio, la costa ionica e la Piana di Gioia Tauro: l'app funziona anche dove non c'è rete?",
+        a: "Sì. Il rapportino, le foto e la presenza si salvano sul telefono e partono da soli appena torna la connessione. In ufficio vedi per ogni cantiere ore, materiali e margine aggiornati, senza aspettare il venerdì.",
+      },
     ],
   },
   foggia: {
@@ -2952,7 +2992,17 @@ export default function CityLanding() {
   useSEO({
     // "per Imprese di Monza e Brianza" sfora i 60 caratteri e Google tronca: la
     // forma corta dice la stessa cosa e ci sta.
-    title: config ? `${config.heroTitle.replace("per Imprese di ", "a ")} | Edilizia in Cloud` : "Edilizia in Cloud",
+    // SEO 2026-09-07: fino a ieri Googlebot riceveva lo stub "Software Gestionale
+    // Edilizia <città> | Edilizia in Cloud"; passando al prerender il title
+    // perdeva "Software", cioè metà della keyword locale. Il suffisso si
+    // aggiunge solo se il totale resta entro i 60 caratteri.
+    title: config
+      ? (() => {
+          const base = `Software ${config.heroTitle.replace("per Imprese di ", "a ")}`;
+          const suffix = " | Edilizia in Cloud";
+          return base.length + suffix.length > 60 ? base : `${base}${suffix}`;
+        })()
+      : "Edilizia in Cloud",
     description: config?.heroSubtitle ?? "",
     canonical: config ? `/software-gestionale-edilizia-${config.slug}` : "/",
     keywords: config ? `gestionale edilizia ${config.name}, software impresa edile ${config.name}, software cantieri ${config.name}, gestione cantieri ${config.region}, ERP edilizia ${config.name}` : "",
