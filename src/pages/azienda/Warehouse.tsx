@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo, lazy, Suspense } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -92,6 +92,8 @@ import WarehouseLottiTab from "@/components/warehouse/WarehouseLottiTab";
 import { WarehouseDDTTab } from "@/components/warehouse/WarehouseDDTTab";
 import { WarehouseUsciteTab } from "@/components/warehouse/WarehouseUsciteTab";
 import WarehousePurchaseListTab from "@/components/warehouse/WarehousePurchaseListTab";
+import { ArrivoMerceEntryDialog } from "@/components/warehouse/ArrivoMerceEntryDialog";
+
 import { WarehouseValorizzazionePanel } from "@/components/warehouse/WarehouseValorizzazionePanel";
 import WarehouseMovementsTab from "@/components/warehouse/WarehouseMovementsTab";
 import { LowStockReorderDialog } from "@/components/warehouse/LowStockReorderDialog";
@@ -111,6 +113,11 @@ import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { UpgradeScopriWall } from "@/components/subscription/UpgradeScopriBanner";
 import { formatCurrency } from "@/lib/formatters";
 import { downloadFile, exportToCSV as exportCsvFile, type CsvColumn } from "@/lib/csvExport";
+
+// Aperto solo quando l'arrivo è legato a un ordine: fuori dal bundle del magazzino.
+const OdaArrivoMerceSheet = lazy(() =>
+  import("@/components/warehouse/OdaArrivoMerceSheet").then((m) => ({ default: m.OdaArrivoMerceSheet })),
+);
 
 const WAREHOUSE_ORDER_STATUSES: OrderItemStatus[] = [
   "da_ordinare",
@@ -259,6 +266,10 @@ export default function Warehouse() {
   const [filtersSheetOpen, setFiltersSheetOpen] = useState(false);
   const [serialsSheetOpen, setSerialsSheetOpen] = useState(false);
   const [stockActionRequest, setStockActionRequest] = useState<StockActionRequest>(null);
+  // «Registra arrivo merce» passa sempre dalla domanda «di quale ordine è?»:
+  // il carico libero resta, ma come seconda scelta dichiarata.
+  const [arrivoChooserOpen, setArrivoChooserOpen] = useState(false);
+  const [arrivoOdaId, setArrivoOdaId] = useState<string | null>(null);
   const [metricsDialogOpen, setMetricsDialogOpen] = useState(false);
   const [metricPreferences, setMetricPreferences] = useState<MetricPreferences>(DEFAULT_METRIC_PREFERENCES);
   const [metricPreferencesLoaded, setMetricPreferencesLoaded] = useState(false);
@@ -423,6 +434,8 @@ export default function Warehouse() {
   const activeWarehouse = warehouseFilter
     ? warehouses.find((warehouse) => warehouse.id === warehouseFilter) ?? null
     : null;
+
+  const apriArrivoMerce = () => setArrivoChooserOpen(true);
 
   const openStockAction = (type: "receive" | "ship") => {
     setViewMode("stock");
@@ -793,7 +806,7 @@ export default function Warehouse() {
           ) : (
             <div className="grid gap-2 sm:grid-cols-2 lg:flex lg:items-center">
               <Button
-                onClick={() => openStockAction("receive")}
+                onClick={apriArrivoMerce}
                 className="justify-start gap-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600"
               >
                 <ArrowDownToLine className="h-4 w-4" aria-hidden="true" />
@@ -1367,11 +1380,11 @@ export default function Warehouse() {
           suppliers={suppliers}
           warehouseFilter={warehouseFilter}
           onStatusChange={isCommercialistaMode ? readonlyWarehouseAction : handleStatusChange}
-          onRegisterArrival={isCommercialistaMode ? readonlyWarehouseAction : () => openStockAction("receive")}
+          onRegisterArrival={isCommercialistaMode ? readonlyWarehouseAction : apriArrivoMerce}
           readOnly={isCommercialistaMode}
         />
       ) : viewMode === "ddt" ? (
-        <WarehouseDDTTab warehouseFilter={warehouseFilter} onRegisterArrival={isCommercialistaMode ? undefined : () => openStockAction("receive")} />
+        <WarehouseDDTTab warehouseFilter={warehouseFilter} onRegisterArrival={isCommercialistaMode ? undefined : apriArrivoMerce} />
       ) : viewMode === "uscite" ? (
         <WarehouseUsciteTab warehouseFilter={warehouseFilter} />
       ) : viewMode === "lotti" ? (
@@ -1553,6 +1566,29 @@ export default function Warehouse() {
         onOpenChange={setSerialsSheetOpen}
         lotti={lotti}
       />
+
+      {/* Arrivo merce: prima l'ordine, poi il gesto. */}
+      {!isCommercialistaMode && (
+        <ArrivoMerceEntryDialog
+          open={arrivoChooserOpen}
+          onOpenChange={setArrivoChooserOpen}
+          companyId={effectiveCompany.id}
+          onSelectOda={setArrivoOdaId}
+          onCaricoLibero={() => openStockAction("receive")}
+        />
+      )}
+
+      {arrivoOdaId && (
+        <Suspense fallback={null}>
+          <OdaArrivoMerceSheet
+            open={!!arrivoOdaId}
+            onOpenChange={(v) => !v && setArrivoOdaId(null)}
+            odaId={arrivoOdaId}
+            companyId={effectiveCompany.id}
+            warehouseId={warehouseFilter ?? null}
+          />
+        </Suspense>
+      )}
 
       {/* Riordino sottoscorta → genera ODA raggruppati per fornitore */}
       <LowStockReorderDialog

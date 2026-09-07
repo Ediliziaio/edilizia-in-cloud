@@ -15,7 +15,7 @@
  */
 import { useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, PackageCheck, Camera, RotateCcw } from "lucide-react";
+import { Loader2, PackageCheck, Camera, RotateCcw, Warehouse } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
@@ -24,8 +24,22 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { userErrorMessage } from "@/lib/userErrorMessage";
 import { queryKeys } from "@/lib/queryKeys";
+
+interface ArticoloMagazzino {
+  id: string;
+  name: string | null;
+  internal_code: string | null;
+  barcode: string | null;
+}
 
 interface RigaOda {
   id: string;
@@ -60,6 +74,7 @@ export function OdaArrivoMerceSheet({
   const [dataBolla, setDataBolla] = useState(oggiIso());
   const [note, setNote] = useState("");
   const [analisiInCorso, setAnalisiInCorso] = useState(false);
+  const [magazzinoScelto, setMagazzinoScelto] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const { data: righe = [], isLoading } = useQuery({
@@ -76,6 +91,71 @@ export function OdaArrivoMerceSheet({
     },
   });
 
+  // Contesto dell'ordine. Serve a due cose: chi apre dal magazzino non ha visto
+  // l'intestazione e deve sapere di che ordine sta parlando; e dopo il
+  // salvataggio bisogna aggiornare la cache della commessa e del ticket, che la
+  // RPC tocca da sola.
+  const { data: testata } = useQuery({
+    queryKey: ["oda-arrivo-testata", odaId],
+    enabled: open && !!odaId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("purchase_orders")
+        .select(
+          "oda_number, order_id, ticket_id, " +
+            "supplier:suppliers!purchase_orders_supplier_id_fkey(name), " +
+            "commessa:orders!purchase_orders_order_id_fkey(order_code)",
+        )
+        .eq("id", odaId)
+        .maybeSingle();
+      if (error) throw error;
+      return (data ?? null) as unknown as {
+        oda_number: string | null;
+        order_id: string | null;
+        ticket_id: string | null;
+        supplier: { name: string | null } | null;
+        commessa: { order_code: string | null } | null;
+      } | null;
+    },
+  });
+
+  // Il carico di magazzino resta facoltativo (Ke Bei e altri non tengono il
+  // magazzino), ma quando gli articoli ci sono abbinarli è l'unico modo perché
+  // il movimento porti con sé la commessa invece di essere un carico anonimo.
+  const { data: magazzini = [] } = useQuery({
+    queryKey: ["oda-arrivo-magazzini", companyId],
+    enabled: open && !!companyId && !warehouseId,
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("warehouses")
+        .select("id, name, is_default")
+        .eq("company_id", companyId)
+        .eq("is_active", true)
+        .order("is_default", { ascending: false })
+        .order("name");
+      if (error) throw error;
+      return (data ?? []) as Array<{ id: string; name: string | null; is_default: boolean | null }>;
+    },
+  });
+
+  const magazzinoId = warehouseId ?? magazzinoScelto ?? magazzini[0]?.id ?? null;
+
+  const { data: articoli = [] } = useQuery({
+    queryKey: ["oda-arrivo-articoli", companyId],
+    enabled: open && !!companyId,
+    staleTime: 5 * 60_000,
+    queryFn: async (): Promise<ArticoloMagazzino[]> => {
+      const { data, error } = await supabase
+        .from("warehouse_stock")
+        .select("id, name, internal_code, barcode")
+        .eq("company_id", companyId)
+        .limit(2000);
+      if (error) throw error;
+      return (data ?? []) as ArticoloMagazzino[];
+    },
+  });
+
   const residuo = useMemo(() => {
     const m: Record<string, number> = {};
     for (const r of righe) m[r.id] = Math.max(Number(r.quantity ?? 0) - Number(r.quantity_received ?? 0), 0);
@@ -83,6 +163,35 @@ export function OdaArrivoMerceSheet({
   }, [righe]);
 
   const daRicevere = useMemo(() => righe.filter((r) => (residuo[r.id] ?? 0) > 0), [righe, residuo]);
+
+  // Abbinamento per codice (interno o barcode) e, in seconda battuta, per nome
+  // esatto: nessuna somiglianza approssimativa, un carico sull'articolo
+  // sbagliato è peggio di nessun carico.
+  const abbinamenti = useMemo(() => {
+    const perCodice = new Map<string, ArticoloMagazzino>();
+    const perNome = new Map<string, ArticoloMagazzino>();
+    for (const a of articoli) {
+      for (const codice of [a.internal_code, a.barcode]) {
+        const k = (codice ?? "").trim().toLowerCase();
+        if (k && !perCodice.has(k)) perCodice.set(k, a);
+      }
+      const n = (a.name ?? "").trim().toLowerCase();
+      if (n && !perNome.has(n)) perNome.set(n, a);
+    }
+    const out: Record<string, ArticoloMagazzino> = {};
+    for (const r of daRicevere) {
+      const sku = (r.sku ?? "").trim().toLowerCase();
+      const desc = (r.description ?? "").trim().toLowerCase();
+      const trovato = (sku ? perCodice.get(sku) : undefined) ?? (desc ? perNome.get(desc) : undefined);
+      if (trovato) out[r.id] = trovato;
+    }
+    return out;
+  }, [articoli, daRicevere]);
+
+  const righeAbbinate = useMemo(
+    () => daRicevere.filter((r) => abbinamenti[r.id]).length,
+    [daRicevere, abbinamenti],
+  );
 
   // Nessuna inizializzazione via effect: finché una riga non viene toccata il
   // campo mostra il residuo, che è il caso normale («è arrivato tutto»).
@@ -175,23 +284,34 @@ export function OdaArrivoMerceSheet({
   const registra = useMutation({
     mutationFn: async () => {
       const payload = daRicevere
-        .map((r) => ({ item_id: r.id, quantity: Number(quantita[r.id] ?? residuo[r.id] ?? 0) || 0 }))
+        .map((r) => ({
+          item_id: r.id,
+          quantity: Number(quantita[r.id] ?? residuo[r.id] ?? 0) || 0,
+          // Solo se c'è un magazzino e la riga è stata riconosciuta: la RPC
+          // carica la giacenza e attribuisce il movimento alla commessa.
+          stock_item_id: magazzinoId ? abbinamenti[r.id]?.id ?? null : null,
+        }))
         .filter((r) => r.quantity > 0);
       if (payload.length === 0) throw new Error("Non hai indicato nessuna quantità arrivata.");
-      const { data, error } = await supabase.rpc("oda_registra_arrivo", {
+      const { data, error } = await supabase.rpc("oda_registra_arrivo" as never, {
         p_oda_id: odaId,
         p_righe: payload,
         p_ddt_number: numeroBolla.trim() || null,
         p_ddt_data: dataBolla || null,
-        p_warehouse_id: warehouseId,
+        p_warehouse_id: magazzinoId,
         p_note: note.trim() || null,
       } as never);
       if (error) throw error;
-      return (Array.isArray(data) ? data[0] : data) as {
+      // La RPC restituisce una tabella a una riga. Il nome è castato (il tipo
+      // generato non conosce ancora questa funzione), quindi `data` arriva senza
+      // forma: si passa da `unknown` e si sceglie la riga a mano.
+      const grezzo: unknown = data;
+      const riga = Array.isArray(grezzo) ? grezzo[0] : grezzo;
+      return (riga ?? null) as {
         righe_registrate: number;
         quantita_totale: number;
         oda_completo: boolean;
-      };
+      } | null;
     },
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.detail(odaId) });
@@ -199,12 +319,26 @@ export function OdaArrivoMerceSheet({
       queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.items(odaId) });
       queryClient.invalidateQueries({ queryKey: ["oda-arrivo-righe", odaId] });
       queryClient.invalidateQueries({ queryKey: ["ddt-ricezione", odaId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.all });
+      if (testata?.order_id) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.orders.detail(testata.order_id) });
+      }
+      if (testata?.ticket_id) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.adminTicket.detail(testata.ticket_id) });
+        queryClient.invalidateQueries({ queryKey: queryKeys.companyTickets.all });
+      }
       toast.success(
         res?.oda_completo ? "Arrivo registrato: ordine completo" : "Arrivo registrato: ordine ancora parziale",
         {
-          description: res?.oda_completo
-            ? "Tutte le righe sono arrivate."
-            : "Il residuo resta in attesa sull'ordine.",
+          description: [
+            res?.oda_completo ? "Tutte le righe sono arrivate." : "Il residuo resta in attesa sull'ordine.",
+            testata?.ticket_id ? "Ticket di assistenza aggiornato." : null,
+            magazzinoId && righeAbbinate > 0
+              ? `${righeAbbinate} ${righeAbbinate === 1 ? "riga caricata" : "righe caricate"} in magazzino.`
+              : null,
+          ]
+            .filter(Boolean)
+            .join(" "),
         },
       );
       chiudi(false);
@@ -220,6 +354,14 @@ export function OdaArrivoMerceSheet({
             <PackageCheck className="h-5 w-5" /> Arrivata merce
           </SheetTitle>
           <SheetDescription>
+            {testata?.oda_number ? (
+              <span className="mb-1 block font-medium text-foreground">
+                {testata.oda_number}
+                {testata.supplier?.name && <> · {testata.supplier.name}</>}
+                {testata.commessa?.order_code && <> · commessa {testata.commessa.order_code}</>}
+                {testata.ticket_id && <> · assistenza</>}
+              </span>
+            ) : null}
             Le quantità sono già quelle che mancavano. Se è arrivato tutto conferma, altrimenti correggi solo
             la riga che non torna.
           </SheetDescription>
@@ -231,7 +373,9 @@ export function OdaArrivoMerceSheet({
           </div>
         ) : daRicevere.length === 0 ? (
           <p className="py-10 text-center text-sm text-muted-foreground">
-            Su questo ordine è già arrivato tutto.
+            {righe.length === 0
+              ? "Questo ordine non ha righe: aggiungile dall'ordine per poter registrare l'arrivo."
+              : "Su questo ordine è già arrivato tutto."}
           </p>
         ) : (
           <div className="mt-4 space-y-4">
@@ -298,6 +442,12 @@ export function OdaArrivoMerceSheet({
                         onChange={(e) => setQuantita((p) => ({ ...p, [r.id]: e.target.value }))}
                       />
                     </div>
+                    {magazzinoId && abbinamenti[r.id] && (
+                      <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+                        <Warehouse className="h-3 w-3" aria-hidden="true" />
+                        Carico su {abbinamenti[r.id].name || "articolo di magazzino"}
+                      </p>
+                    )}
                     {parziale && (
                       <p className="mt-2 text-xs font-medium text-red-700">
                         Ne mancano {res - val}: la riga resta aperta sull&apos;ordine.
@@ -307,6 +457,31 @@ export function OdaArrivoMerceSheet({
                 );
               })}
             </div>
+
+            {!warehouseId && magazzini.length > 1 && righeAbbinate > 0 && (
+              <div className="space-y-1">
+                <Label className="text-xs">Magazzino di destinazione</Label>
+                <Select value={magazzinoId ?? undefined} onValueChange={setMagazzinoScelto}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Scegli il magazzino" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {magazzini.map((m) => (
+                      <SelectItem key={m.id} value={m.id}>
+                        {m.name || "Magazzino"}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {magazzinoId && righeAbbinate === 0 && articoli.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                Nessuna riga corrisponde a un articolo di magazzino: l&apos;arrivo aggiorna l&apos;ordine, la
+                giacenza resta invariata.
+              </p>
+            )}
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
