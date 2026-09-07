@@ -96,7 +96,9 @@ Deno.serve(async (req) => {
     if (adminEmail) {
       const origin = Deno.env.get("SITE_URL") || "https://app.ediliziaincloud.com";
       const { data: inv, error: invErr } = await admin.auth.admin.inviteUserByEmail(adminEmail, {
-        redirectTo: `${origin}/cambia-password`,
+        // /reset-password e non /cambia-password: chi riceve l'invito non ha
+        // ancora una password, e /cambia-password gli chiederebbe quella attuale.
+        redirectTo: `${origin}/reset-password`,
         data: { company_id: companyId, full_name: name },
       });
       let adminUserId = inv?.user?.id ?? null;

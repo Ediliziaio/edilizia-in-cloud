@@ -131,7 +131,9 @@ Deno.serve(async (req) => {
       if (!targetUserId) {
         const origin = Deno.env.get("SITE_URL") || "https://app.ediliziaincloud.com";
         const { data: inv, error: invErr } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
-          redirectTo: `${origin}/cambia-password`,
+          // /reset-password e non /cambia-password: chi riceve l'invito non ha
+          // ancora una password, e /cambia-password gli chiederebbe quella attuale.
+          redirectTo: `${origin}/reset-password`,
           data: { company_id: companyId },
         });
         if (invErr || !inv?.user?.id) {

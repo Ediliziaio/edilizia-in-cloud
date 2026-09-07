@@ -79,7 +79,9 @@ Deno.serve(async (req) => {
     let adminUserId: string | null = null;
     const { data: invited, error: invErr } =
       await supabaseAdmin.auth.admin.inviteUserByEmail(emailNorm, {
-        redirectTo: `${origin}/cambia-password`,
+        // /reset-password e non /cambia-password: chi riceve l'invito non ha
+        // ancora una password, e /cambia-password gli chiederebbe quella attuale.
+        redirectTo: `${origin}/reset-password`,
         data: { company_id: produttoreId, full_name: nome },
       });
     if (invErr) {

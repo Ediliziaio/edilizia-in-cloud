@@ -31,7 +31,9 @@ Deno.serve(async (req) => {
     const { data: link, error } = await admin.auth.admin.generateLink({
       type: "recovery",
       email,
-      options: { redirectTo: `${origin}/cambia-password` },
+      // /reset-password e non /cambia-password: chi riceve l'invito non ha
+      // ancora una password, e /cambia-password gli chiederebbe quella attuale.
+      options: { redirectTo: `${origin}/reset-password` },
     });
     const actionLink = link?.properties?.action_link ?? null;
     if (error || !actionLink) {

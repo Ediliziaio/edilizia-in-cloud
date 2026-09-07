@@ -127,6 +127,10 @@ const Login = forwardRef<HTMLDivElement>(function Login(_props, _ref) {
         return <Navigate to="/azienda/attivita" replace />;
       case "referrer":
         return <Navigate to="/partner" replace />;
+      case "produttore_admin":
+        // Senza questo caso il produttore appena invitato, dopo aver impostato
+        // la password, finiva sul sito pubblico invece che nel suo portale.
+        return <Navigate to="/produttore" replace />;
       case "accountant":
         return <Navigate to="/commercialista" replace />;
       case "call_center":
