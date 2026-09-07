@@ -131,120 +131,108 @@ export function usePurchaseOrders() {
       const { error } = await supabase.from("purchase_orders").update(updates).eq("id", params.id);
       if (error) throw error;
 
-      // Quando l'ODA viene marcato come ricevuto, aggiorna automaticamente lo stock
+      // Quando l'ODA viene marcato come ricevuto, il carico lo fa il database.
+      //
+      // Qui prima si leggeva la giacenza nel browser, ci si sommava la quantità
+      // e si riscriveva un valore ASSOLUTO, poi si inseriva il movimento a
+      // parte. Due ricezioni in parallelo e una delle due spariva; e se la
+      // seconda scrittura falliva, giacenza e movimenti restavano divergenti.
+      // È il meccanismo che ha prodotto gli otto articoli fuori quadratura per
+      // 388 pezzi che si vedono ancora oggi in produzione.
+      //
+      // `oda_registra_arrivo` fa tutto in una transazione — quantità ricevute,
+      // carico, movimenti, avanzamento dell'ordine e stato della merce sul
+      // ticket collegato — ed è la stessa funzione che usa il foglio «arrivo
+      // merce». Un solo percorso di carico, che era il punto.
+      //
+      // Qui resta solo l'abbinamento riga → articolo (per codice interno,
+      // barcode, poi nome; se non esiste lo si crea), perché la funzione vuole
+      // già gli `stock_item_id` risolti.
       if (params.status === "ricevuto") {
-        // Carica i dettagli dell'ODA per avere magazzino e fornitore di arrivo.
         const { data: odaData } = await supabase
           .from("purchase_orders")
           .select("delivery_warehouse_id, supplier_id")
           .eq("id", params.id)
           .single();
 
-        // Carica tutti gli articoli dell'ODA
         const { data: items } = await supabase
           .from("purchase_order_items")
-          .select("id, description, sku, quantity, quantity_received, unit_price, vat_rate, article_template_id")
+          .select("id, description, sku, quantity, quantity_received, unit_price, vat_rate")
           .eq("purchase_order_id", params.id);
 
-        if (items && items.length > 0) {
-          const user = (await supabase.auth.getUser()).data.user;
-          const warehouseId = odaData?.delivery_warehouse_id ?? null;
+        const warehouseId = odaData?.delivery_warehouse_id ?? null;
+        const righe: Array<{ item_id: string; quantity: number; stock_item_id: string | null }> = [];
 
-          for (const item of items) {
-            // Carica SOLO il residuo non ancora ricevuto. Se una parte è già stata
-            // caricata via scan (quantity_received > 0 → stock già incrementato),
-            // ricaricare qui la quantità piena raddoppierebbe la giacenza.
-            const alreadyReceived = Number(item.quantity_received) || 0;
-            const qtyToLoad = Number(item.quantity) - alreadyReceived;
-            if (qtyToLoad <= 0) continue;
+        for (const item of items ?? []) {
+          // Solo il residuo: se una parte è già arrivata via scan, ricaricare
+          // la quantità piena raddoppierebbe la giacenza.
+          const qtyToLoad = Number(item.quantity) - (Number(item.quantity_received) || 0);
+          if (qtyToLoad <= 0) continue;
 
-            // Cerca articolo in warehouse_stock per SKU o nome; se non esiste, lo crea.
-            let stockItem: { id: string; quantity: number; warehouse_id: string | null } | null = null;
+          let stockItemId: string | null = null;
 
-            if (item.sku) {
-              // Lo SKU si confronta con codice interno o barcode, NON col nome:
-              // il vecchio ilike("name", sku) non trovava mai nulla e a ogni
-              // ricezione nasceva un articolo duplicato in inventario.
-              // Due eq separati invece di .or(): lo SKU e' testo libero e
-              // dentro la sintassi di .or() virgole/parentesi la romperebbero.
-              const { data: byCode } = await supabase
-                .from("warehouse_stock")
-                .select("id, quantity, warehouse_id")
-                .eq("company_id", companyId!)
-                .eq("internal_code", item.sku)
-                .limit(1)
-                .maybeSingle();
-              stockItem = byCode as typeof stockItem;
-              if (!stockItem) {
-                const { data: byBarcode } = await supabase
-                  .from("warehouse_stock")
-                  .select("id, quantity, warehouse_id")
-                  .eq("company_id", companyId!)
-                  .eq("barcode", item.sku)
-                  .limit(1)
-                  .maybeSingle();
-                stockItem = byBarcode as typeof stockItem;
-              }
+          if (item.sku) {
+            // Lo SKU si confronta con codice interno o barcode, NON col nome:
+            // il vecchio ilike("name", sku) non trovava mai nulla e a ogni
+            // ricezione nasceva un articolo duplicato in inventario.
+            // Due eq separati invece di .or(): lo SKU è testo libero e dentro
+            // la sintassi di .or() virgole e parentesi la romperebbero.
+            const { data: byCode } = await supabase
+              .from("warehouse_stock").select("id")
+              .eq("company_id", companyId!).eq("internal_code", item.sku)
+              .limit(1).maybeSingle();
+            stockItemId = byCode?.id ?? null;
+            if (!stockItemId) {
+              const { data: byBarcode } = await supabase
+                .from("warehouse_stock").select("id")
+                .eq("company_id", companyId!).eq("barcode", item.sku)
+                .limit(1).maybeSingle();
+              stockItemId = byBarcode?.id ?? null;
             }
-
-            if (!stockItem && item.description) {
-              const { data: found } = await supabase
-                .from("warehouse_stock")
-                .select("id, quantity, warehouse_id")
-                .eq("company_id", companyId!)
-                .ilike("name", item.description)
-                .maybeSingle();
-              stockItem = found as typeof stockItem;
-            }
-
-            if (stockItem) {
-              await supabase
-                .from("warehouse_stock")
-                .update({
-                  quantity: stockItem.quantity + qtyToLoad,
-                  ...(warehouseId && !stockItem.warehouse_id ? { warehouse_id: warehouseId } : {}),
-                } as any)
-                .eq("id", stockItem.id);
-            } else {
-              const { data: createdStock, error: createStockError } = await supabase
-                .from("warehouse_stock")
-                .insert({
-                  company_id: companyId!,
-                  warehouse_id: warehouseId,
-                  name: item.description,
-                  description: item.sku ? `SKU ${item.sku}` : null,
-                  quantity: qtyToLoad,
-                  unit_cost: Number(item.unit_price ?? 0),
-                  vat_rate: Number(item.vat_rate ?? 22),
-                  supplier_id: odaData?.supplier_id ?? null,
-                  min_stock_level: 0,
-                } as any)
-                .select("id, quantity, warehouse_id")
-                .single();
-              if (createStockError) throw createStockError;
-              stockItem = createdStock as typeof stockItem;
-            }
-
-            if (stockItem) {
-              await supabase.from("warehouse_movements").insert({
-                company_id: companyId!,
-                stock_item_id: stockItem.id,
-                movement_type: "carico",
-                quantity: qtyToLoad,
-                unit_cost: Number(item.unit_price ?? 0),
-                notes: "Ricezione ODA",
-                performed_by: user?.id,
-                warehouse_id: warehouseId,
-              } as any);
-            }
-
-            // Idempotenza: la riga è ora interamente ricevuta → un eventuale nuovo
-            // passaggio a "ricevuto" ricalcola residuo 0 e non ricarica lo stock.
-            await supabase
-              .from("purchase_order_items")
-              .update({ quantity_received: Number(item.quantity), received_date: new Date().toISOString().slice(0, 10) })
-              .eq("id", item.id);
           }
+
+          if (!stockItemId && item.description) {
+            const { data: byName } = await supabase
+              .from("warehouse_stock").select("id")
+              .eq("company_id", companyId!).ilike("name", item.description)
+              .maybeSingle();
+            stockItemId = byName?.id ?? null;
+          }
+
+          if (!stockItemId && item.description) {
+            const { data: creato, error: errCreazione } = await supabase
+              .from("warehouse_stock")
+              .insert({
+                company_id: companyId!,
+                warehouse_id: warehouseId,
+                name: item.description,
+                description: item.sku ? `SKU ${item.sku}` : null,
+                quantity: 0, // la quantità la mette la funzione, con il movimento
+                unit_cost: Number(item.unit_price ?? 0),
+                vat_rate: Number(item.vat_rate ?? 22),
+                supplier_id: odaData?.supplier_id ?? null,
+                min_stock_level: 0,
+              } as never)
+              .select("id")
+              .single();
+            if (errCreazione) throw errCreazione;
+            stockItemId = creato?.id ?? null;
+          }
+
+          righe.push({ item_id: item.id, quantity: qtyToLoad, stock_item_id: stockItemId });
+        }
+
+        if (righe.length > 0) {
+          const { error: errArrivo } = await supabase.rpc("oda_registra_arrivo", {
+            p_oda_id: params.id,
+            p_righe: righe as never,
+            p_ddt_number: null,
+            p_ddt_data: params.actual_delivery_date ?? null,
+            p_warehouse_id: warehouseId,
+            p_note: "Ordine segnato come ricevuto dalla scheda",
+            p_ddt_file_url: null,
+          });
+          if (errArrivo) throw errArrivo;
         }
       }
     },
