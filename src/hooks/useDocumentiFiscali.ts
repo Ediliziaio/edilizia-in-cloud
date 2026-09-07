@@ -317,11 +317,10 @@ export function useCreateDocumento() {
       // indietro. Provato su dati veri in transazione annullata: tentativo con
       // «parcella» -> contatore fermo a 37; fattura valida -> 38, documento
       // FT-2026-0038 scritto.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: creato, error: rpcError } = await (supabase as any).rpc(
-        "documento_crea",
-        { p_company_id: companyId, p_dati: input },
-      ) as { data: { id?: string } | null; error: { message?: string } | null };
+      const { data: creato, error: rpcError } = await supabase.rpc("documento_crea", {
+        p_company_id: companyId,
+        p_dati: input as never,
+      }) as { data: { id?: string } | null; error: { message?: string } | null };
 
       if (rpcError) throw new Error(rpcError.message ?? "Creazione documento non riuscita");
       if (!creato?.id) throw new Error("Il documento non e' stato creato");

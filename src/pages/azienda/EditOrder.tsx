@@ -240,7 +240,6 @@ function EditOrderInner() {
         .eq("company_id", effectiveCompany.id)
         .single();
       if (error) throw error;
-      // `version` non è ancora nei tipi generati: il cast passa da unknown.
       return data as unknown as OrderData;
     },
     enabled: !!id && !!user && !!effectiveCompany?.id,
@@ -682,8 +681,7 @@ function EditOrderInner() {
           }
         : {};
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error } = await (supabase as any).rpc("commessa_salva", {
+      const { error } = await supabase.rpc("commessa_salva", {
         p_commessa: id!,
         p_campi: campi,
         p_rate: rate,
@@ -694,7 +692,7 @@ function EditOrderInner() {
         // questa pagina era aperta la versione non combacia, e la funzione si
         // ferma invece di sovrascrivere il suo lavoro.
         p_versione: versioneCaricataRef.current,
-      }) as { error: { code?: string; message?: string } | null };
+      });
 
       if (error) {
         // 40001 è il conflitto di versione: lo diciamo con il messaggio che la
@@ -717,13 +715,12 @@ function EditOrderInner() {
       // modifiche. Se la pagina resta aperta, il salvataggio successivo deve
       // partire da questa, altrimenti si autoaccusa di conflitto.
       {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { data: riletta } = await (supabase as any)
+        const { data: riletta } = await supabase
           .from("orders")
           .select("version")
           .eq("id", id!)
           .maybeSingle();
-        versioneCaricataRef.current = (riletta as { version?: number | null } | null)?.version ?? null;
+        versioneCaricataRef.current = riletta?.version ?? null;
       }
 
       // Geocoding automatico cantiere (best-effort, in background):

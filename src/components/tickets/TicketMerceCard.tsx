@@ -54,6 +54,11 @@ export function TicketMerceCard({
 }) {
   const merceStato = (ticket?.merce_stato ?? null) as TicketMerceStato | null;
   const [mancante, setMancante] = useState(ticket?.merce_mancante ?? "");
+  // Dichiarato qui e non piu' in fondo: il `onSuccess` sotto invocava
+  // `queryClient`, un nome che nel file non esiste. Al primo salvataggio
+  // riuscito sarebbe partito un ReferenceError: niente toast e nessuna lista
+  // aggiornata, proprio nel ramo che va a buon fine.
+  const qc = useQueryClient();
 
   // Stato della merce direttamente sul ticket: serve a chi NON usa gli ordini a
   // fornitore (la maggior parte) e alimenta i filtri «merce da arrivare/arrivata».
@@ -63,14 +68,13 @@ export function TicketMerceCard({
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.adminTicket.detail(ticketId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.companyTickets.all });
+      qc.invalidateQueries({ queryKey: queryKeys.adminTicket.detail(ticketId) });
+      qc.invalidateQueries({ queryKey: queryKeys.companyTickets.all });
       toast.success("Merce aggiornata");
     },
     onError: (e) => toast.error("Non salvato", { description: (e as Error).message }),
   });
 
-  const qc = useQueryClient();
   const { user } = useAuth();
   const [aperto, setAperto] = useState(false);
   const [supplierId, setSupplierId] = useState("");
