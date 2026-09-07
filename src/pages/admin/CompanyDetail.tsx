@@ -23,6 +23,7 @@ import { PermissionsDialog } from "@/components/users/PermissionsDialog";
 import { SalespersonDialog } from "@/components/salespeople/SalespersonDialog";
 import { EmployeeDialog } from "@/components/employees/EmployeeDialog";
 import { CompanyDetailHeader } from "@/components/admin/company/CompanyDetailHeader";
+import { CompanyBackupCard } from "@/components/admin/company/CompanyBackupCard";
 import { CompanyDetailsTab } from "@/components/admin/company/CompanyDetailsTab";
 import { CompanyBillingTab } from "@/components/admin/company/CompanyBillingTab";
 import { CompanyTeamTab } from "@/components/admin/company/CompanyTeamTab";
@@ -540,8 +541,9 @@ export default function CompanyDetail() {
           {isTabMounted("note") && <CompanyNotes companyId={h.company.id} />}
         </TabsContent>
 
-        <TabsContent value="lifecycle">
+        <TabsContent value="lifecycle" className="space-y-4">
           {isTabMounted("lifecycle") && <TabLifecycle companyId={h.company.id} />}
+          {isTabMounted("lifecycle") && <CompanyBackupCard companyId={h.company.id} />}
         </TabsContent>
 
         <TabsContent value="comunicazioni">

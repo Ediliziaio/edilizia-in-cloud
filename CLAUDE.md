@@ -113,3 +113,21 @@ Regole: una funzione nuova nasce con `REVOKE ALL … FROM PUBLIC, anon` e un
 alcun `EXECUTE` (il privilegio non viene controllato allo scatto). Se una RPC
 deve essere pubblica, va inserita in `funzioni_pubbliche_di_proposito` nella
 stessa migrazione che la apre.
+
+## Backup e ripristino delle aziende
+
+Il job `company-backup-settimanale` (domenica 02:30 UTC) salva un JSON per
+azienda in `company-exports`. Il contenuto lo decide `admin_tabelle_da_esportare()`
+(ogni tabella con `company_id`, meno log e telemetria) e lo costruisce
+`admin_esporta_azienda(uuid)` dentro il database — non via PostgREST, che taglia
+a mille righe e su 628 tabelle costerebbe migliaia di chiamate.
+
+`admin_ripristina_backup(dump, modo)`:
+- `prova` — ricrea le tabelle in uno schema `ripristino_prova_*`, versa le righe,
+  conta, butta via lo schema. Nessun effetto su `public`. Si lancia dalla scheda
+  azienda → Lifecycle → Backup → «Prova ripristino», o via `company-restore`.
+- `reale` — solo per un'azienda già purgata, tutto o niente. `profiles` non si
+  ripristina: gli utenti vanno ricreati dall'auth.
+
+Un backup che non ha passato la prova non è un backup. Collaudato il 7 settembre
+2026 su Ke Bei Serramenti: 17.066 righe in 42 tabelle, tutte rientrate.
