@@ -30,6 +30,43 @@ export interface FiscoPrevisto {
 
 const TRIBUTI_IVA = new Set(["3918", "6001", "6099"]);
 
+export interface RispostaLiquidazione {
+  /** VALORE ASSOLUTO: l'edge lo dichiara così, insieme ai due flag. */
+  saldo?: number;
+  /** Lo stesso saldo col segno: positivo se si deve versare. */
+  saldo_firmato?: number;
+  credito?: boolean;
+  dovuto?: boolean;
+}
+
+/**
+ * Il saldo IVA col segno giusto.
+ *
+ * L'edge `calcola-liquidazione-iva` restituisce `saldo` in valore assoluto —
+ * lo scrive proprio così, `saldo: Math.abs(saldo)` — e mette il segno in due
+ * flag (`credito` / `dovuto`) più un `saldo_firmato`. Il piano di cassa leggeva
+ * solo `saldo`, quindi iscriveva fra le uscite anche un trimestre A CREDITO:
+ * un F24 da pagare che non esiste, su cui però si prendono decisioni.
+ *
+ * L'audit di settembre lo aveva visto su un trimestre da 7.189,87 € a credito.
+ * Oggi quel numero non l'ho ritrovato — nessuna azienda ha una liquidazione
+ * diversa da zero fra il 2024 e il 2026 — quindi il difetto qui è dimostrato
+ * dalla forma della risposta, non da quel caso.
+ *
+ * Il fallback sui flag serve a una risposta vecchia rimasta in cache, prima che
+ * `saldo_firmato` esistesse.
+ */
+export function saldoIvaFirmato(r: RispostaLiquidazione | null | undefined): number {
+  if (!r) return 0;
+  if (typeof r.saldo_firmato === "number" && Number.isFinite(r.saldo_firmato)) {
+    return r.saldo_firmato;
+  }
+  const assoluto = Math.abs(Number(r.saldo ?? 0));
+  if (r.dovuto === true) return assoluto;
+  if (r.credito === true) return -assoluto;
+  return assoluto; // senza flag l'unica lettura prudente è «da versare»
+}
+
 export function useFiscoPrevisto(companyId: string | null | undefined) {
   return useQuery({
     queryKey: ["fisco-previsto", companyId],
@@ -101,7 +138,7 @@ export function useFiscoPrevisto(companyId: string | null | undefined) {
             },
           });
           if (error || !data) continue; // stima non disponibile: meglio niente che un numero rotto
-          const saldo = Number((data as { saldo?: number }).saldo ?? 0);
+          const saldo = saldoIvaFirmato(data as RispostaLiquidazione);
           if (saldo > 0) {
             uscite.push({
               data: cand.versamento,
