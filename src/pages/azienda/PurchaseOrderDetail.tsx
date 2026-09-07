@@ -18,6 +18,7 @@ import {
   ArrowLeft, Loader2, Plus, Trash2, Send, CheckCircle2, Package,
   Truck, Save, XCircle, ExternalLink, FileCheck, ShieldCheck, Paperclip,
   AlertTriangle, ScanLine, ClipboardList, StickyNote, CalendarClock,
+  PackageCheck,
 } from "lucide-react";
 import {
   QuotePageHeader,
@@ -51,6 +52,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryKeys";
 
 // MP2 P1a: ricezione via scansione QR/barcode (lazy: trascina @zxing solo on-demand).
+const OdaArrivoMerceSheet = lazy(() =>
+  import("@/components/warehouse/OdaArrivoMerceSheet").then((m) => ({ default: m.OdaArrivoMerceSheet })),
+);
 const OdaReceiveSheet = lazy(() =>
   import("@/components/warehouse/OdaReceiveSheet").then((m) => ({ default: m.OdaReceiveSheet })),
 );
@@ -84,6 +88,7 @@ export default function PurchaseOrderDetail() {
   // M4 — DDT ricezione (nuovo wizard procedurale)
   const [ddtDialogOpen, setDdtDialogOpen] = useState(false);
   const [receiveScanOpen, setReceiveScanOpen] = useState(false);
+  const [arrivoOpen, setArrivoOpen] = useState(false);
 
   // Invio al fornitore: si usa il compositore email dell'app, lo stesso di
   // contatti/opportunita'/commesse, cosi' l'ordine parte dalla casella
@@ -247,6 +252,12 @@ export default function PurchaseOrderDetail() {
               >
                 <ShieldCheck className="h-3.5 w-3.5 mr-1" />
                 Verifica AI
+              </Button>
+            )}
+            {(["inviato", "confermato", "parziale"] as Array<typeof order.status>).includes(order.status) && (
+              <Button size="sm" onClick={() => setArrivoOpen(true)}>
+                <PackageCheck className="h-3.5 w-3.5 mr-1" />
+                Arrivata merce
               </Button>
             )}
             {(["inviato", "confermato", "parziale"] as Array<typeof order.status>).includes(order.status) && (
@@ -785,6 +796,19 @@ export default function PurchaseOrderDetail() {
         onOpenChange={setDdtDialogOpen}
         prefillPurchaseOrderId={odaId ?? null}
       />
+
+      {/* Arrivo merce con le quantità a mano: la strada principale, senza barcode. */}
+      <Suspense fallback={null}>
+        {arrivoOpen && (
+          <OdaArrivoMerceSheet
+            open={arrivoOpen}
+            onOpenChange={setArrivoOpen}
+            odaId={order.id}
+            companyId={effectiveCompany?.id ?? ""}
+            warehouseId={order.delivery_warehouse_id ?? null}
+          />
+        )}
+      </Suspense>
 
       {/* MP2 P1a — ricezione via scansione QR/barcode (skip step 1-2 grazie a lockedOdaId) */}
       <Suspense fallback={null}>
