@@ -23,7 +23,11 @@ import { cn } from "@/lib/utils";
 import { formatEur } from "@/modules/ai-agents/lib/creditCalculator";
 
 /** Wallet coperti dalla regola unica (render usa pacchetti, escluso). */
-const COVERED_WALLETS = ["email", "ai", "whatsapp"] as const;
+// Dal 07/09/2026 il credito e' UNO SOLO (company_credit_pool): basta una riga
+// di ricarica per azienda. Prima erano tre — una per borsellino — e con i saldi
+// a zero partivano tutte insieme: tre addebiti da 25 EUR nello stesso minuto.
+// La riga si chiama ancora "email" perche' e' quella che l'automatismo legge.
+const RIGA_UNICA = "email";
 
 const THRESHOLD_PRESETS = [5, 10, 20];
 const AMOUNT_PRESETS = [10, 25, 50, 100];
@@ -56,8 +60,10 @@ export function UnifiedAutoTopupCard({ onRecharge }: Props) {
         .from("company_auto_topup" as any)
         .select("wallet_type, enabled, threshold_eur, topup_amount_eur, stripe_payment_method_id, last_topup_at")
         .eq("company_id", companyId!)
-        .in("wallet_type", [...COVERED_WALLETS]);
-      return (data ?? []) as TopupRow[];
+        .eq("wallet_type", RIGA_UNICA);
+      // `as unknown` di mezzo: con due .eq() il client non riesce a
+      // inferire il tipo della riga e restituisce un SelectQueryError.
+      return (data ?? []) as unknown as TopupRow[];
     },
   });
 
@@ -67,7 +73,7 @@ export function UnifiedAutoTopupCard({ onRecharge }: Props) {
   const [dirty, setDirty] = useState(false);
 
   // Riga canonica: email (tutte vengono scritte identiche al salvataggio)
-  const canonical = rows?.find((r) => r.wallet_type === "email") ?? rows?.[0] ?? null;
+  const canonical = rows?.[0] ?? null;
   const hasCard = (rows ?? []).some((r) => r.stripe_payment_method_id);
   const lastTopup = (rows ?? [])
     .map((r) => r.last_topup_at)
@@ -101,13 +107,14 @@ export function UnifiedAutoTopupCard({ onRecharge }: Props) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .from("company_auto_topup" as any)
         .upsert(
-          COVERED_WALLETS.map((w) => ({ ...base, wallet_type: w })),
+          // Una riga sola: ricrearne tre farebbe tornare il triplo addebito.
+          [{ ...base, wallet_type: RIGA_UNICA }],
           { onConflict: "company_id,wallet_type" },
         );
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Ricarica automatica salvata per tutti i servizi");
+      toast.success("Ricarica automatica salvata");
       setDirty(false);
       queryClient.invalidateQueries({ queryKey: ["auto-topup-unified", companyId] });
     },

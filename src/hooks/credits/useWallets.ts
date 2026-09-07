@@ -1,8 +1,13 @@
 /**
- * useWallets — Hook centralizzato per i 4 wallet (Email/AI/WhatsApp/Render).
+ * useWallets — il portafoglio dell'azienda.
  *
- * Sostituisce 4 useQuery separati sparpagliati nei vari componenti con un
- * unico hook che ritorna { email, ai, whatsapp, render } come array tipizzato.
+ * Dal 07/09/2026 il credito in euro è UNO SOLO (`company_credit_pool`): email,
+ * AI e WhatsApp attingono tutti da lì, e nella pagina si vede un saldo solo.
+ * Prima erano tre borsellini separati e la ricarica automatica partiva tre
+ * volte insieme — 75 € quando ne bastavano 25.
+ *
+ * I render restano a parte: si comprano a pacchetti di crediti, non in euro,
+ * quindi qui compaiono come conteggio ("N render") accanto al saldo.
  *
  * Ogni wallet ha:
  *   - balance: saldo corrente (eur per i primi 3, count per render)
@@ -43,7 +48,7 @@ export interface Wallet {
 
 export interface WalletsResult {
   wallets: Wallet[];
-  totalBalanceEur: number;       // somma email+ai+wa (esclude render perché è count)
+  totalBalanceEur: number;       // il saldo del portafoglio (i render sono un conteggio, non euro)
   hasBlocked: boolean;
   isLoading: boolean;
   isError: boolean;
@@ -54,21 +59,28 @@ export function useWallets(): WalletsResult {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
-  const email = useQuery({
-    queryKey: ["wallets", "email", companyId],
+  // Il saldo in euro: uno solo, dal portafoglio.
+  const pool = useQuery({
+    queryKey: ["wallets", "pool", companyId],
     queryFn: async () => {
       if (!companyId) return null;
       const { data } = await supabase
-        .from("email_credits")
-        .select("balance_eur, total_spent_eur, total_recharged_eur, sends_blocked")
+        .from("company_credit_pool")
+        .select("balance_eur, total_spent_eur, total_recharged_eur, low_balance_blocked")
         .eq("company_id", companyId)
         .maybeSingle();
-      return data;
+      return data as {
+        balance_eur: number;
+        total_spent_eur: number;
+        total_recharged_eur: number;
+        low_balance_blocked: boolean;
+      } | null;
     },
     enabled: !!companyId,
     staleTime: 30_000,
   });
 
+  // Serve solo per sapere se le chiamate AI sono bloccate.
   const ai = useQuery({
     queryKey: ["wallets", "ai", companyId],
     queryFn: async () => {
@@ -109,26 +121,6 @@ export function useWallets(): WalletsResult {
     retry: false,
   });
 
-  const whatsapp = useQuery({
-    queryKey: ["wallets", "whatsapp", companyId],
-    queryFn: async () => {
-      if (!companyId) return null;
-      const { data } = await supabase
-        .from("whatsapp_credits")
-        .select("balance_eur, total_spent_eur, total_recharged_eur, sends_blocked")
-        .eq("company_id", companyId)
-        .maybeSingle();
-      return data as {
-        balance_eur: number;
-        total_spent_eur: number;
-        total_recharged_eur: number;
-        sends_blocked: boolean;
-      } | null;
-    },
-    enabled: !!companyId,
-    staleTime: 30_000,
-  });
-
   const render = useQuery({
     queryKey: ["wallets", "render", companyId],
     queryFn: async () => {
@@ -146,36 +138,18 @@ export function useWallets(): WalletsResult {
 
   const wallets: Wallet[] = [
     {
+      // Il tipo resta "email" perché è il prodotto con cui si ricarica su
+      // Stripe: i soldi finiscono comunque nel portafoglio unico.
       type: "email",
-      label: "Email Marketing",
-      balance: email.data?.balance_eur ?? 0,
-      spent: email.data?.total_spent_eur ?? 0,
-      recharged: email.data?.total_recharged_eur ?? 0,
-      blocked: email.data?.sends_blocked ?? false,
-      currency: "eur",
-      rechargeable: true,
-    },
-    {
-      type: "ai",
-      label: "Agenti AI",
-      balance: ai.data?.balance_eur ?? 0,
-      spent: ai.data?.total_spent_eur ?? 0,
-      recharged: ai.data?.total_recharged_eur ?? 0,
-      blocked: ai.data?.calls_blocked ?? false,
+      label: "Crediti",
+      balance: pool.data?.balance_eur ?? 0,
+      spent: pool.data?.total_spent_eur ?? 0,
+      recharged: pool.data?.total_recharged_eur ?? 0,
+      blocked: (pool.data?.balance_eur ?? 0) <= 0 || (ai.data?.calls_blocked ?? false),
       currency: "eur",
       rechargeable: true,
       freeBalance: aiFree.data?.free_balance_eur ?? 0,
       freeGranted: aiFree.data?.free_granted_eur ?? 0,
-    },
-    {
-      type: "whatsapp",
-      label: "WhatsApp",
-      balance: whatsapp.data?.balance_eur ?? 0,
-      spent: whatsapp.data?.total_spent_eur ?? 0,
-      recharged: whatsapp.data?.total_recharged_eur ?? 0,
-      blocked: whatsapp.data?.sends_blocked ?? false,
-      currency: "eur",
-      rechargeable: true,
     },
     {
       type: "render",
@@ -197,12 +171,11 @@ export function useWallets(): WalletsResult {
     wallets,
     totalBalanceEur,
     hasBlocked: wallets.some((w) => w.blocked),
-    isLoading: email.isLoading || ai.isLoading || whatsapp.isLoading || render.isLoading,
-    isError: email.isError || ai.isError || whatsapp.isError || render.isError,
+    isLoading: pool.isLoading || render.isLoading,
+    isError: pool.isError || render.isError,
     refetch: () => {
-      email.refetch();
+      pool.refetch();
       ai.refetch();
-      whatsapp.refetch();
       render.refetch();
     },
   };
