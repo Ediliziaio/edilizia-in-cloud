@@ -183,6 +183,42 @@ export async function requireRole(
 }
 
 /**
+ * L'utente può operare su questa azienda?
+ *
+ * Vale l'azienda scritta nel suo profilo, oppure un accesso multi-azienda
+ * ancora valido. Confrontare solo con il profilo — come facevano parecchie
+ * funzioni — nega l'accesso a chi è entrato in una seconda azienda dal
+ * selettore, che è esattamente ciò per cui l'accesso multi-azienda esiste.
+ *
+ * Lo stato e la scadenza si controllano qui: una riga revocata o scaduta non
+ * dà accesso. Prima bastava che la riga esistesse.
+ */
+export async function aziendaAccessibile(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabaseAdmin: any,
+  userId: string,
+  companyId: string,
+): Promise<boolean> {
+  if (!companyId) return false;
+
+  const { data: profile } = await supabaseAdmin
+    .from("profiles").select("company_id").eq("id", userId).maybeSingle();
+  if ((profile as { company_id?: string | null } | null)?.company_id === companyId) return true;
+
+  const { data: accesso } = await supabaseAdmin
+    .from("multi_company_access")
+    .select("expires_at")
+    .eq("user_id", userId)
+    .eq("company_id", companyId)
+    .eq("status", "active")
+    .maybeSingle();
+  if (!accesso) return false;
+
+  const scadenza = (accesso as { expires_at?: string | null }).expires_at;
+  return scadenza === null || scadenza === undefined || new Date(scadenza) > new Date();
+}
+
+/**
  * Verifies that the authenticated user can operate inside a company scope.
  *
  * Edge functions often need a service-role client for privileged RPCs. This
@@ -245,14 +281,9 @@ export async function requireCompanyAccess(
     return { companyId, profileCompanyId, roles, isSuperAdmin };
   }
 
-  const { data: multiCompanyAccess, error: accessError } = await supabaseAdmin
-    .from("multi_company_access")
-    .select("id")
-    .eq("user_id", userId)
-    .eq("company_id", companyId)
-    .maybeSingle();
+  const haAccesso = await aziendaAccessibile(supabaseAdmin, userId, companyId);
 
-  if (accessError || !multiCompanyAccess) {
+  if (!haAccesso) {
     throw new Response(
       JSON.stringify({ error: "Forbidden: tenant access denied" }),
       { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },

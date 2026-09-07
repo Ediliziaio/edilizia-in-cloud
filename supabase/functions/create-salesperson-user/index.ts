@@ -3,6 +3,7 @@ import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { buildStaffPermissionsRecord } from "../_shared/staffPermissionsDefaults.ts";
+import { aziendaAccessibile } from "../_shared/auth.ts";
 
 interface CreateSalespersonUserRequest {
   salesperson_id: string;
@@ -37,12 +38,6 @@ Deno.serve(async (req) => {
       .from("user_roles")
       .select("role")
       .eq("user_id", caller.id);
-    const { data: callerProfile } = await supabaseAdmin
-      .from("profiles")
-      .select("company_id")
-      .eq("id", caller.id)
-      .maybeSingle();
-
     const callerRoleSet = new Set((callerRoles ?? []).map((r) => r.role));
     const isSuperAdmin = callerRoleSet.has("super_admin");
     if (!isSuperAdmin && !callerRoleSet.has("company_admin")) {
@@ -67,7 +62,11 @@ Deno.serve(async (req) => {
     // ISOLAMENTO MULTI-TENANT: un company_admin può creare l'accesso venditore
     // SOLO per la propria azienda. Senza questo check, con un salesperson_id di
     // un'altra azienda si creava un utente-venditore in quell'azienda.
-    if (!isSuperAdmin && salesperson.company_id !== callerProfile?.company_id) {
+    // Il confronto era con l'azienda scritta nel profilo del chiamante: chi era
+    // entrato in una seconda azienda dal selettore si vedeva rifiutare la
+    // creazione, pur essendone amministratore. Stessa correzione fatta su
+    // create-employee-user e create-customer.
+    if (!isSuperAdmin && !(await aziendaAccessibile(supabaseAdmin, caller.id, salesperson.company_id))) {
       throw new Error("Permessi insufficienti");
     }
 

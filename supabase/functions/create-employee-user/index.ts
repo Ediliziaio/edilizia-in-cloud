@@ -3,6 +3,7 @@ import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { buildStaffPermissionsRecord } from "../_shared/staffPermissionsDefaults.ts";
+import { aziendaAccessibile } from "../_shared/auth.ts";
 
 interface CreateEmployeeUserRequest {
   employee_id: string;
@@ -37,12 +38,6 @@ Deno.serve(async (req) => {
       .from("user_roles")
       .select("role")
       .eq("user_id", caller.id);
-    const { data: callerProfile } = await supabaseAdmin
-      .from("profiles")
-      .select("company_id")
-      .eq("id", caller.id)
-      .maybeSingle();
-
     const callerRoleSet = new Set((callerRoles ?? []).map((r) => r.role));
     const isSuperAdmin = callerRoleSet.has("super_admin");
     if (!isSuperAdmin && !callerRoleSet.has("company_admin")) {
@@ -65,8 +60,11 @@ Deno.serve(async (req) => {
     if (employee.user_id) throw new Error("Il dipendente ha già un account utente");
 
     // ISOLAMENTO MULTI-TENANT: un company_admin può creare l'accesso dipendente
-    // SOLO per la propria azienda (prima bastava un employee_id altrui).
-    if (!isSuperAdmin && employee.company_id !== callerProfile?.company_id) {
+    // SOLO per un'azienda a cui ha accesso (prima bastava un employee_id altrui).
+    // Il confronto era con l'azienda scritta nel profilo: chi era entrato in una
+    // seconda azienda dal selettore si vedeva rifiutare la creazione, pur
+    // essendone amministratore a tutti gli effetti.
+    if (!isSuperAdmin && !(await aziendaAccessibile(supabaseAdmin, caller.id, employee.company_id))) {
       throw new Error("Permessi insufficienti");
     }
 

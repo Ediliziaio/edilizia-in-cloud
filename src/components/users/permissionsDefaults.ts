@@ -112,7 +112,7 @@ export const CRUSCOTTO_SECTIONS: PermissionSectionDef[] = [
 
 export const CANTIERI_SECTIONS: PermissionSectionDef[] = [
   { label: "Dashboard",              viewKey: "can_view_dashboard",          editKey: null, description: "Visualizza la dashboard principale" },
-  { label: "Ordini e Commesse",      viewKey: "can_view_orders",             editKey: "can_edit_orders", description: "Gestisci ordini e commesse" },
+  { label: "Ordini e Commesse",      viewKey: "can_view_orders",             editKey: "can_edit_orders", description: "Senza «Modifica» le commesse si vedono soltanto. Con «Modifica» si creano e si modificano — e si può registrare il cliente da intestare alla commessa" },
   { label: "Importi di vendita",     viewKey: "can_view_order_amounts",      editKey: null, description: "Vede importi e prezzi di vendita in commesse e preventivi" },
   { label: "Approva Ordini",         viewKey: "can_approve_orders",          editKey: null, description: "Può approvare ordini e commesse" },
   { label: "Elimina Ordini",         viewKey: "can_delete_orders",           editKey: null, description: "Può eliminare ordini e commesse" },

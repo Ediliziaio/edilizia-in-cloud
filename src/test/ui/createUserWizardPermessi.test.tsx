@@ -59,7 +59,7 @@ describe("CreateUserWizard — step Permessi (parità con la scheda utente)", ()
     expect(screen.getByRole("button", { name: /nessuno/i })).toBeInTheDocument();
 
     // Descrizioni dei moduli renderizzate (dal registro condiviso)
-    expect(screen.getByText("Gestisci ordini e commesse")).toBeInTheDocument();
+    expect(screen.getByText(/Con «Modifica» si creano e si modificano/)).toBeInTheDocument();
     expect(screen.getByText("Può eliminare ordini e commesse")).toBeInTheDocument();
   }, TIMEOUT_MATRICE_PERMESSI);
 

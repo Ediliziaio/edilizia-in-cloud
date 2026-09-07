@@ -1,6 +1,6 @@
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { getBrandingForCompany } from "../_shared/getBranding.ts";
-import { requireAuth, isSuperAdminEmailAllowed, resolveUserEmail } from "../_shared/auth.ts";
+import { requireAuth, isSuperAdminEmailAllowed, resolveUserEmail, aziendaAccessibile } from "../_shared/auth.ts";
 import { generateSecurePassword } from "../_shared/securePassword.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { sanitizeCustomerInput } from "../_shared/customerDataSanitizer.ts";
@@ -45,21 +45,7 @@ async function autorizzaCreazioneCliente(
 
   // Per tutti gli altri l'azienda dev'essere la propria, o una a cui hanno un
   // accesso multi-azienda ancora valido.
-  const { data: profilo } = await supabaseAdmin
-    .from("profiles").select("company_id").eq("id", userId).maybeSingle();
-  let appartiene = profilo?.company_id === companyId;
-  if (!appartiene) {
-    const { data: accesso } = await supabaseAdmin
-      .from("multi_company_access")
-      .select("expires_at")
-      .eq("user_id", userId)
-      .eq("company_id", companyId)
-      .eq("status", "active")
-      .maybeSingle();
-    appartiene = !!accesso
-      && (accesso.expires_at === null || new Date(accesso.expires_at) > new Date());
-  }
-  if (!appartiene) {
+  if (!(await aziendaAccessibile(supabaseAdmin, userId, companyId))) {
     return { ok: false, motivo: "Non autorizzato a creare clienti per questa azienda", stato: 403 };
   }
 

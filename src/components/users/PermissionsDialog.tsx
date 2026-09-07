@@ -192,17 +192,25 @@ function PermGroup({ label, icon: Icon, iconColor, sections, permissions, onTogg
       </div>
       <CollapsibleContent className="px-3 pt-2 pb-1 space-y-2">
         {sections.map(section => (
-          <div key={section.viewKey} className="flex items-center justify-between py-1">
-            <div className="flex items-center gap-2">
+          <div key={section.viewKey} className="flex items-start justify-between gap-3 py-1">
+            <div className="flex items-start gap-2 min-w-0">
               <Switch
                 id={section.viewKey}
                 checked={permissions[section.viewKey]}
                 onCheckedChange={(checked) => onToggle(section.viewKey, checked)}
               />
-              <Label htmlFor={section.viewKey} className="text-sm cursor-pointer">{section.label}</Label>
+              <div className="min-w-0">
+                <Label htmlFor={section.viewKey} className="text-sm cursor-pointer">{section.label}</Label>
+                {/* La riga di spiegazione c'è da sempre nei dati e la mostrava
+                    solo la creazione utente: qui, dove si modificano i permessi
+                    di chi lavora già, restavano due interruttori senza contesto. */}
+                {section.description && (
+                  <p className="text-xs text-muted-foreground mt-0.5 leading-snug">{section.description}</p>
+                )}
+              </div>
             </div>
             {section.editKey && permissions[section.viewKey] && (
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 shrink-0">
                 <Switch
                   id={section.editKey}
                   checked={permissions[section.editKey]}

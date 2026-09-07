@@ -80,7 +80,11 @@ export const PERMISSION_CATEGORIES: PermissionCategory[] = [
     icon: Hammer,
     modules: [
       { id: "dashboard",        label: "Dashboard",              description: "Visualizza la dashboard principale",       viewKey: "can_view_dashboard" },
-      { id: "orders",           label: "Ordini e Commesse",      description: "Gestisci ordini e commesse",               viewKey: "can_view_orders",               editKey: "can_edit_orders" },
+      // NB: questo elenco è un secondo esemplare di ALL_PERMISSION_SECTIONS in
+      // permissionsDefaults.ts (62 voci qui, 64 là: hanno già divergiuto). Una
+      // descrizione cambiata va cambiata in tutti e due i posti finché non si
+      // unificano.
+      { id: "orders",           label: "Ordini e Commesse",      description: "Senza «Modifica» le commesse si vedono soltanto. Con «Modifica» si creano e si modificano — e si può registrare il cliente da intestare alla commessa", viewKey: "can_view_orders",               editKey: "can_edit_orders" },
       { id: "order-amounts",    label: "Importi di vendita",     description: "Vede importi e prezzi di vendita in commesse e preventivi", viewKey: "can_view_order_amounts" },
       { id: "approve-orders",   label: "Approva Ordini",         description: "Può approvare ordini e commesse",          viewKey: "can_approve_orders" },
       { id: "delete-orders",    label: "Elimina Ordini",         description: "Può eliminare ordini e commesse",          viewKey: "can_delete_orders" },
