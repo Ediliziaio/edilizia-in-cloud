@@ -265,7 +265,17 @@ export function useCompanyDetail(id: string | undefined) {
   const { data: subscriptionLogs } = useQuery({
     queryKey: queryKeys.companyDetail.subscriptionLogs(id),
     queryFn: async () => {
-      const { data } = await supabase.from("subscription_logs").select("*, subscription_plans:plan_id(name)").eq("company_id", id!).order("created_at", { ascending: false }).limit(10);
+      // L'aggancio si indica col NOME DEL VINCOLO, non con la colonna:
+      // `subscription_logs` ha due chiavi esterne verso `subscription_plans`
+      // (`plan_id` e `previous_plan_id`), quindi la forma abbreviata e'
+      // ambigua e il client la risolve in `SelectQueryError`. A runtime
+      // funzionava lo stesso, ma il tipo del risultato era un errore.
+      const { data } = await supabase
+        .from("subscription_logs")
+        .select("*, subscription_plans!subscription_logs_plan_id_fkey(name)")
+        .eq("company_id", id!)
+        .order("created_at", { ascending: false })
+        .limit(10);
       return data || [];
     },
     enabled: !!id,

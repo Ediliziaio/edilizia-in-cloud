@@ -703,7 +703,7 @@ export function AgentsMissionTab() {
                 azione. Se le prove sono deboli andra in review.
               </p>
               <Button
-                onClick={() => launchMutation.mutate()}
+                onClick={() => launchMutation.mutate(undefined)}
                 disabled={!canLaunchMission}
                 className="min-h-11 bg-orange-600 hover:bg-orange-700 sm:min-w-[180px]"
               >

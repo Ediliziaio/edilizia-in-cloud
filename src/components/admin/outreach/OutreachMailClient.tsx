@@ -656,7 +656,7 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
                 <Button
                   size="sm" variant="outline" className="h-7 gap-1.5 rounded-lg border-border text-[11px] shadow-none"
                   disabled={markAllRead.isPending}
-                  onClick={() => markAllRead.mutate()}
+                  onClick={() => markAllRead.mutate(undefined)}
                   title="Segna come lette tutte le risposte non lette"
                 >
                   {markAllRead.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCheck className="h-3 w-3" />}
@@ -667,7 +667,7 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
                 <Button
                   size="sm" variant="outline" className="h-7 gap-1.5 rounded-lg border-border text-[11px] shadow-none"
                   disabled={archiveRead.isPending}
-                  onClick={() => archiveRead.mutate()}
+                  onClick={() => archiveRead.mutate(undefined)}
                   title="Archivia le conversazioni le cui risposte sono già state lette"
                 >
                   {archiveRead.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Archive className="h-3 w-3" />}
