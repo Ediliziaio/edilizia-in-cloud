@@ -3,6 +3,7 @@ import { getEncryptionKey, decrypt } from "../_shared/encryption.ts";
 import { cronSecretValido } from "../_shared/cronAuth.ts";
 import { getCorsHeaders, jsonResponse as json } from "../_shared/headers.ts";
 
+import { serveConMetriche } from "../_shared/withMetrics.ts";
 function getSupabaseAdmin() {
   return createClient(
     Deno.env.get("SUPABASE_URL")!,
@@ -557,7 +558,7 @@ async function cronFullSync(): Promise<Response> {
 }
 
 // ---- MAIN ----
-Deno.serve(async (req: Request) => {
+serveConMetriche("apple-calendar-sync", async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: getCorsHeaders(req) });
   }

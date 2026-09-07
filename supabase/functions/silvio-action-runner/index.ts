@@ -20,6 +20,7 @@
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+import { serveConMetriche } from "../_shared/withMetrics.ts";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
@@ -108,7 +109,7 @@ async function dispatch(action: ActionRow): Promise<{ ok: boolean; result?: unkn
   return { ok: false, error: `action_type sconosciuto: ${t}` };
 }
 
-Deno.serve(async (req) => {
+serveConMetriche("silvio-action-runner", async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
 
   // 2026-05-27 SECURITY FIX: prima auth-zero → chiunque poteva triggerare

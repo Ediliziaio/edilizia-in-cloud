@@ -33,6 +33,7 @@ import {
   type EmailInput,
 } from "../_shared/email-ai-cascade.ts";
 
+import { serveConMetriche } from "../_shared/withMetrics.ts";
 interface SingleBody {
   email_id: string;
 }
@@ -48,7 +49,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const CRON_SECRET = Deno.env.get("PROACTIVE_CRON_SECRET") || "";
 
-Deno.serve(async (req) => {
+serveConMetriche("email-ai-l1-classify", async (req) => {
   const corsHeaders = getCorsHeaders(req);
 
   if (req.method === "OPTIONS") {

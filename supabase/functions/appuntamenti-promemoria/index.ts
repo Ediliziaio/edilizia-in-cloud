@@ -19,12 +19,13 @@ import {
   urlGestione, blocchettoDettagli, bottoneGestione,
 } from "../_shared/appuntamentiPubblici.ts";
 
+import { serveConMetriche } from "../_shared/withMetrics.ts";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const CRON_SECRET = Deno.env.get("PROACTIVE_CRON_SECRET") || "";
 const APP_ORIGIN = "https://app.ediliziaincloud.com";
 
-Deno.serve(async (req) => {
+serveConMetriche("appuntamenti-promemoria", async (req) => {
   const cors = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
   const json = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { ...cors, "Content-Type": "application/json" } });

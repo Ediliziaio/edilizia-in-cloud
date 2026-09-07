@@ -19,6 +19,7 @@
  */
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+import { serveConMetriche } from "../_shared/withMetrics.ts";
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-cron-secret",
@@ -315,7 +316,7 @@ async function autorizzato(req: Request, db: SupabaseClient): Promise<boolean> {
     r.role === "super_admin" || String(r.role).startsWith("platform"));
 }
 
-Deno.serve(async (req) => {
+serveConMetriche("siti-metriche-sync", async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
 
   const db = createClient(

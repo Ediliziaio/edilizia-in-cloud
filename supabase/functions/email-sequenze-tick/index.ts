@@ -26,12 +26,13 @@ import {
   buildOptOutFooter, avanzaEsecuzione, normalizzaEmail, type SequenzaStep,
 } from "../_shared/sequenze-logic.ts";
 
+import { serveConMetriche } from "../_shared/withMetrics.ts";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const CRON_SECRET = Deno.env.get("PROACTIVE_CRON_SECRET") || "";
 const BATCH = 100;
 
-Deno.serve(async (req) => {
+serveConMetriche("email-sequenze-tick", async (req) => {
   const cors = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
 

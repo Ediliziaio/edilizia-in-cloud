@@ -513,6 +513,12 @@
 }
 },
 {
+"fn": "campo_squadra_oggi",
+"body": {
+"p_order_id": null
+}
+},
+{
 "fn": "can_access_order_attachment_object",
 "body": {
 "p_name": null
@@ -990,6 +996,18 @@
 "body": {
 "_contact_id": null,
 "_profile_id": null
+}
+},
+{
+"fn": "commessa_salva",
+"body": {
+"p_commessa": null,
+"p_campi": null,
+"p_rate": null,
+"p_bonus": null,
+"p_voci": null,
+"p_venditore": null,
+"p_versione": null
 }
 },
 {

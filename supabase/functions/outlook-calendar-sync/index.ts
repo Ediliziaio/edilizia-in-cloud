@@ -15,6 +15,7 @@ import { getEncryptionKey, encrypt, decrypt } from "../_shared/encryption.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { getMsOAuthCredentials } from "../_shared/msOAuth.ts";
 
+import { serveConMetriche } from "../_shared/withMetrics.ts";
 const TOKEN_URL = "https://login.microsoftonline.com/common/oauth2/v2.0/token";
 
 function admin() {
@@ -201,7 +202,7 @@ async function cronFullSync(): Promise<Response> {
   return new Response(JSON.stringify({ ok: true, ...esito }), { headers: { "Content-Type": "application/json" } });
 }
 
-Deno.serve(async (req) => {
+serveConMetriche("outlook-calendar-sync", async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: getCorsHeaders(req) });
   }

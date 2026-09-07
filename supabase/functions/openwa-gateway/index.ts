@@ -14,6 +14,7 @@ import {
   getOwaConfig, owaFetch, OWA_PATHS, sendOpenWaMessage, romeToday,
 } from "../_shared/openwaSend.ts";
 
+import { serveConMetriche } from "../_shared/withMetrics.ts";
 // URL pubblico del webhook (il gateway esterno lo chiama a ogni evento).
 function webhookUrl(): string {
   const base = (Deno.env.get("SUPABASE_URL") ?? "").replace(/\/+$/, "");
@@ -34,7 +35,7 @@ function nomeSessione(displayName: string): string {
   return slug ? `eic-${slug}` : `eic-${crypto.randomUUID().slice(0, 8)}`;
 }
 
-Deno.serve(async (req) => {
+serveConMetriche("openwa-gateway", async (req) => {
   const corsH = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { headers: corsH });
   const jsonH = { ...corsH, "Content-Type": "application/json" };

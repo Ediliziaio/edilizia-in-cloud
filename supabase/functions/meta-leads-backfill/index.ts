@@ -17,6 +17,7 @@
 // - Body opzionale: { company_id?: string, days?: number } per un backfill mirato.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+import { serveConMetriche } from "../_shared/withMetrics.ts";
 const apiVersion = Deno.env.get("META_API_VERSION") || "v21.0";
 
 const cors = {
@@ -183,7 +184,7 @@ async function backfillPage(
   return imported;
 }
 
-Deno.serve(async (req) => {
+serveConMetriche("meta-leads-backfill", async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
 
   const cronSecret = Deno.env.get("CRON_SECRET");

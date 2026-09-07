@@ -11,7 +11,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { publishSocialPost, type SocialPostRow } from "../_shared/socialPublishCore.ts";
 
-Deno.serve(async (req) => {
+import { serveConMetriche } from "../_shared/withMetrics.ts";
+serveConMetriche("social-publish-scheduler", async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204 });
 
   const INTERNAL_CRON_SECRET = Deno.env.get("INTERNAL_CRON_SECRET") ?? "";

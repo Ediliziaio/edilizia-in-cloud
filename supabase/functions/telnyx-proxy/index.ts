@@ -4,6 +4,7 @@ import { getCompanyBillingConfig } from "../_shared/billingConfig.ts";
 
 import { getCorsHeaders } from "../_shared/headers.ts";
 
+import { serveConMetriche } from "../_shared/withMetrics.ts";
 const TELNYX_BASE = "https://api.telnyx.com/v2";
 
 /** Confronto timing-safe per stringhe (prevenzione timing attack su secret) */
@@ -16,7 +17,7 @@ function timingSafeEqual(a: string, b: string): boolean {
   return diff === 0;
 }
 
-Deno.serve(async (req) => {
+serveConMetriche("telnyx-proxy", async (req) => {
   const corsHeaders = getCorsHeaders(req);
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });

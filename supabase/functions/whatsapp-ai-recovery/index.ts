@@ -12,6 +12,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+import { serveConMetriche } from "../_shared/withMetrics.ts";
 const MAX_ATTEMPTS = 5;
 const STUCK_THRESHOLD_MIN = 3;
 const BATCH_SIZE = 50;
@@ -21,7 +22,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-cron-secret",
 };
 
-Deno.serve(async (req: Request) => {
+serveConMetriche("whatsapp-ai-recovery", async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }

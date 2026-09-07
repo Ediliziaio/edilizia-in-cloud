@@ -4,7 +4,8 @@ import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { verifyCompanyAccess } from "../_shared/companyAuth.ts";
 
-Deno.serve(async (req) => {
+import { serveConMetriche } from "../_shared/withMetrics.ts";
+serveConMetriche("send-test-email", async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: getCorsHeaders(req) });
   }

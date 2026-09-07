@@ -32,6 +32,7 @@ import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { brandEmailBody } from "../_shared/brandEmailBody.ts";
 import { loadContactCustomFieldResolver, applyContactCustomFields } from "../_shared/contactCustomFields.ts";
 
+import { serveConMetriche } from "../_shared/withMetrics.ts";
 interface AutomationNode {
   id: string;
   flow_id: string;
@@ -49,7 +50,7 @@ interface AutomationConnection {
   label: string | null;
 }
 
-Deno.serve(async (req) => {
+serveConMetriche("process-automation", async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: getCorsHeaders(req) });
   }

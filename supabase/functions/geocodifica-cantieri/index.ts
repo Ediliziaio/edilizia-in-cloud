@@ -7,6 +7,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 
+import { serveConMetriche } from "../_shared/withMetrics.ts";
 const UA = "EdiliziaInCloud/1.0 (info@ediliziaincloud.it)";
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -21,7 +22,7 @@ async function nominatim(q: string): Promise<{ lat: number; lng: number } | null
   return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
 }
 
-Deno.serve(async (req: Request) => {
+serveConMetriche("geocodifica-cantieri", async (req: Request) => {
   const corsH = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsH });
   const json = (status: number, payload: unknown) =>

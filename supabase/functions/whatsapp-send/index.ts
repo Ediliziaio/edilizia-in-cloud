@@ -5,6 +5,7 @@ import { getCorsHeaders } from "../_shared/headers.ts";
 import { checkPaymentMethod, PAYMENT_METHOD_REQUIRED_MESSAGE } from "../_shared/requirePaymentMethod.ts";
 import { addebitaMessaggioWhatsApp, rimborsaMessaggioWhatsApp } from "../_shared/whatsappCredits.ts";
 
+import { serveConMetriche } from "../_shared/withMetrics.ts";
 type SendType = "text" | "interactive" | "template";
 type TemplateLanguageInput = string | { code?: string } | undefined;
 
@@ -68,7 +69,7 @@ function variablesToComponents(variables: Record<string, unknown> | undefined) {
   }];
 }
 
-Deno.serve(async (req) => {
+serveConMetriche("whatsapp-send", async (req) => {
   const corsHeaders = getCorsHeaders(req);
   const jsonHeaders = { ...corsHeaders, "Content-Type": "application/json" };
 

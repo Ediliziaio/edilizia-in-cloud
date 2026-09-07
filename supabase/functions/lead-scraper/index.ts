@@ -37,6 +37,7 @@ import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { extractJsonFromLLM } from "../_shared/extractJson.ts";
 import { getSuppressedEmailMap, normalizeEmailAddress } from "../_shared/emailSuppression.ts";
 
+import { serveConMetriche } from "../_shared/withMetrics.ts";
 const PLATFORM_ADMIN_COMPANY_ID = "00000000-0000-0000-0000-000000000001";
 const GMAPS = "https://maps.googleapis.com/maps/api/place";
 
@@ -1290,7 +1291,7 @@ async function qualifyLeads(
 }
 
 // ── Handler ───────────────────────────────────────────────────────────────────
-Deno.serve(async (req) => {
+serveConMetriche("lead-scraper", async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: getCorsHeaders(req) });
   const corsH = getCorsHeaders(req);
 

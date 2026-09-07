@@ -18,6 +18,7 @@ import {
   type TipoFirmatario,
 } from "../_shared/quoteLegal.ts";
 
+import { serveConMetriche } from "../_shared/withMetrics.ts";
 /**
  * Public endpoint (no auth) for viewing, signing, or refusing a quote.
  * Actions: "view", "requisiti", "sign", "refuse"
@@ -39,7 +40,7 @@ function escapeHtml(v: string): string {
     .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
-Deno.serve(async (req) => {
+serveConMetriche("quote-sign", async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: getCorsHeaders(req) });
   }

@@ -30,12 +30,13 @@ import { checkPaymentMethod } from "../_shared/requirePaymentMethod.ts";
 import { chargeDirectAiCall } from "../_shared/directAiLedger.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+import { serveConMetriche } from "../_shared/withMetrics.ts";
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY") || "";
 const OPENAI_IMAGE_MODEL = Deno.env.get("OPENAI_IMAGE_MODEL") || "gpt-image-1";
 const STORAGE_BUCKET = "ad-media";
 const MAX_JOBS_PER_RUN = 5;
 
-Deno.serve(async (req: Request) => {
+serveConMetriche("silvio-generation-worker", async (req: Request) => {
   const cors = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
 

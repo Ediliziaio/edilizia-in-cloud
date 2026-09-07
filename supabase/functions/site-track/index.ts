@@ -16,6 +16,7 @@
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+import { serveConMetriche } from "../_shared/withMetrics.ts";
 const PLATFORM_ADMIN_COMPANY_ID = "00000000-0000-0000-0000-000000000001";
 
 const corsHeaders = {
@@ -55,7 +56,7 @@ function nonUmano(ua: string): boolean {
   return NON_UMANI.test(ua);
 }
 
-Deno.serve(async (req) => {
+serveConMetriche("site-track", async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {

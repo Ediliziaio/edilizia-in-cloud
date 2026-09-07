@@ -3,6 +3,7 @@ import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { getBrandingForCompany } from "../_shared/getBranding.ts";
 
+import { serveConMetriche } from "../_shared/withMetrics.ts";
 /**
  * Item 18: Branded reset-password email.
  * Replaces the default Supabase reset email with a branded HTML email
@@ -11,7 +12,7 @@ import { getBrandingForCompany } from "../_shared/getBranding.ts";
  * Called by the LoginForm "password dimenticata" flow — no auth required
  * since the user is not logged in yet.
  */
-Deno.serve(async (req) => {
+serveConMetriche("reset-password-branded", async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: getCorsHeaders(req) });
   }

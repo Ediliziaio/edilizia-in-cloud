@@ -35,6 +35,7 @@ import { getCorsHeaders } from "../_shared/headers.ts";
 import { cronSecretValido } from "../_shared/cronAuth.ts";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 
+import { serveConMetriche } from "../_shared/withMetrics.ts";
 const GRACE_MINUTES = 10;       // sotto i 10 min la chiamata può essere davvero in corso
 const HARD_TIMEOUT_HOURS = 3;   // oltre: chiudi comunque, una telefonata non dura ore
 const MAX_PER_RUN = 20;         // le run sono frequenti: niente batch enormi
@@ -59,7 +60,7 @@ async function hmacHex(secret: string, body: string): Promise<string> {
   return Array.from(new Uint8Array(sig)).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-Deno.serve(async (req) => {
+serveConMetriche("ai-conversations-sweeper", async (req) => {
   const cors = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
 

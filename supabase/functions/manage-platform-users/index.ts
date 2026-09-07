@@ -6,6 +6,7 @@ import { recordMetric } from "../_shared/healthMetrics.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { getBrandingForCompany } from "../_shared/getBranding.ts";
 
+import { serveConMetriche } from "../_shared/withMetrics.ts";
 /**
  * Costruisce e invia l'email di benvenuto al nuovo utente piattaforma con
  * credenziali. Non blocca il flusso se l'email fallisce — l'utente è già
@@ -110,7 +111,7 @@ const PLATFORM_ROLES = [
 
 const ALL_TEAM_ROLES = ["super_admin", ...PLATFORM_ROLES];
 
-Deno.serve(async (req) => {
+serveConMetriche("manage-platform-users", async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: getCorsHeaders(req) });
   }

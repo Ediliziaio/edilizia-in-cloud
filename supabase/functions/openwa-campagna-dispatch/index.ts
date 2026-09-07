@@ -21,6 +21,7 @@ import { getCorsHeaders } from "../_shared/headers.ts";
 import { sendOpenWaMessage } from "../_shared/openwaSend.ts";
 import { aiRouterPrompt } from "../_shared/aiRouter.ts";
 
+import { serveConMetriche } from "../_shared/withMetrics.ts";
 const PLATFORM_COMPANY_ID = "00000000-0000-0000-0000-000000000001";
 
 interface CampagnaAi {
@@ -111,7 +112,7 @@ interface Maturo {
   tags_numeri: string[] | null;
 }
 
-Deno.serve(async (req) => {
+serveConMetriche("openwa-campagna-dispatch", async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: getCorsHeaders(req) });
   const corsH = { ...getCorsHeaders(req), "Content-Type": "application/json" };
 

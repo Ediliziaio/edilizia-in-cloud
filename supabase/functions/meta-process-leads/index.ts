@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders, jsonResponse, errorResponse, secureHeaders } from "../_shared/headers.ts";
 import { decrypt, getEncryptionKey } from "../_shared/encryption.ts";
 
+import { serveConMetriche } from "../_shared/withMetrics.ts";
 const MAX_RETRIES = 10;
 const BATCH_SIZE = 20;
 
@@ -59,7 +60,7 @@ async function verifyCronOrAuth(req: Request): Promise<void> {
   }
 }
 
-Deno.serve(async (req) => {
+serveConMetriche("meta-process-leads", async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: getCorsHeaders(req) });
   }

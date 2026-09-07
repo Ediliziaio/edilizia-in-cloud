@@ -3,12 +3,13 @@ import { createAdapter, ArubaAdapter, AcubeAdapter } from "../_shared/billingAda
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { resolveEffectiveCompanyId, canAccessCompany } from "../_shared/effectiveCompany.ts";
 
+import { serveConMetriche } from "../_shared/withMetrics.ts";
 const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 const FIC_CLIENT_ID     = Deno.env.get("FIC_CLIENT_ID") || "";
 const FIC_CLIENT_SECRET = Deno.env.get("FIC_CLIENT_SECRET") || "";
 const FIC_REDIRECT_URI  = Deno.env.get("FIC_REDIRECT_URI") || "";
 
-Deno.serve(async (req) => {
+serveConMetriche("billing-connect", async (req) => {
   const CORS = { ...getCorsHeaders(req), "Access-Control-Allow-Methods": "POST, GET, OPTIONS" };
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
 

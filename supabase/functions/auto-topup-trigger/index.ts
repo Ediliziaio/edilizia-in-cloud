@@ -23,6 +23,7 @@ import { fetchWithTimeout, isTimeoutError } from "../_shared/fetchWithTimeout.ts
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { resolveSender } from "../_shared/resolveSender.ts";
 
+import { serveConMetriche } from "../_shared/withMetrics.ts";
 // Stesso numero del bottone WhatsApp del sito pubblico (WhatsAppFab.tsx),
 // verificato su WhatsApp Business. wa.me vuole il formato internazionale
 // senza "+". Chi ha la carta rifiutata vuole parlare con qualcuno, non
@@ -119,7 +120,7 @@ async function creditWallet(
   return !error;
 }
 
-Deno.serve(async (req) => {
+serveConMetriche("auto-topup-trigger", async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: getCorsHeaders(req) });
   }

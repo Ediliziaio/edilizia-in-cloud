@@ -24,6 +24,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 // Cron expression → next fire date. cron-parser è la lib standard.
 import cronParser from "https://esm.sh/cron-parser@4.9.0";
 
+import { serveConMetriche } from "../_shared/withMetrics.ts";
 interface BulkTriggerConfig {
   type: "bulk_scheduler";
   cron: string;
@@ -56,7 +57,7 @@ interface TargetUser {
 const SILVIO_SENDER_ID = "00000000-0000-0000-0000-000000000002";
 const MAX_TARGETS_PER_RUN = 200;
 
-Deno.serve(async (req: Request) => {
+serveConMetriche("automation-bulk-scheduler-runner", async (req: Request) => {
   const cors = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
 

@@ -21,6 +21,7 @@ import { getCorsHeaders } from "../_shared/headers.ts";
 import { imapFetchUnreadSince, type ImapMessage } from "../_shared/imapSmtpClient.ts";
 import { getMsOAuthCredentials } from "../_shared/msOAuth.ts";
 
+import { serveConMetriche } from "../_shared/withMetrics.ts";
 interface ConnectionDue {
   id: string;
   provider: "gmail" | "outlook" | "imap";
@@ -832,7 +833,7 @@ async function resolveThreadsForUser(userId: string, batchSize: number): Promise
 // MAIN
 // ════════════════════════════════════════════════════════════════════════════
 
-Deno.serve(async (req) => {
+serveConMetriche("email-poll-inbox", async (req) => {
   const cors = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
   if (req.method !== "POST") {

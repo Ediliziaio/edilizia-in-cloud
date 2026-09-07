@@ -3,7 +3,8 @@ import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 
 import { getCorsHeaders } from "../_shared/headers.ts";
 
-Deno.serve(async (req) => {
+import { serveConMetriche } from "../_shared/withMetrics.ts";
+serveConMetriche("maps-proxy", async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: getCorsHeaders(req) });
   }

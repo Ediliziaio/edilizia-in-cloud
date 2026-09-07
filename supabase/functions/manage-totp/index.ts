@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 
+import { serveConMetriche } from "../_shared/withMetrics.ts";
 // Simple TOTP implementation without external deps
 function generateSecret(length = 20): string {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
@@ -83,7 +84,7 @@ async function hashCode(code: string): Promise<string> {
   return Array.from(new Uint8Array(hash), (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-Deno.serve(async (req) => {
+serveConMetriche("manage-totp", async (req) => {
   const corsHeaders = getCorsHeaders(req);
 
   if (req.method === "OPTIONS") {

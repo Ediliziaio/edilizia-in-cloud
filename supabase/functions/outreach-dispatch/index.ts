@@ -43,6 +43,7 @@ import { pauseBetweenSendsMs } from "../_shared/outreach-spread.ts";
 import { sendViaNativeSender, isNativeProvider, getOauthAccessToken } from "../_shared/outreachMailboxSend.ts";
 import { alertOutreach, logRun } from "../_shared/outreachAlert.ts";
 
+import { serveConMetriche } from "../_shared/withMetrics.ts";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const CRON_SECRET = Deno.env.get("PROACTIVE_CRON_SECRET") || "";
@@ -688,7 +689,7 @@ async function processCallQueue(
   }
 }
 
-Deno.serve(async (req) => {
+serveConMetriche("outreach-dispatch", async (req) => {
   const cors = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
 

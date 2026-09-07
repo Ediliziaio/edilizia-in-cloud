@@ -18,6 +18,7 @@ import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supa
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 
+import { serveConMetriche } from "../_shared/withMetrics.ts";
 const ELASTIC_DKIM_PUBLIC_KEY =
   "k=rsa;t=s;p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCbmGbQMzYeMvxwtNQoXN0waGYaciuKx8mtMh5czguT4EZlJXuCt6V+l56mmt3t68FEX5JJ0q4ijG71BGoFRkl87uJi7LrQt1ZZmZCvrEII0YO4mp8sDLXC8g1aUAoi8TJgxq2MJqCaMyj5kAm3Fdy2tzftPCV/lbdiJqmBnWKjtwIDAQAB";
 const ELASTIC_SPF_VALUE = "v=spf1 a mx include:_spf.elasticemail.com ~all";
@@ -741,7 +742,7 @@ async function actionGetStatus(admin: SupabaseClient, companyId: string) {
 // Entry point
 // ═══════════════════════════════════════════════════════════════════════════
 
-Deno.serve(async (req) => {
+serveConMetriche("manage-email-domain", async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: getCorsHeaders(req) });
   }

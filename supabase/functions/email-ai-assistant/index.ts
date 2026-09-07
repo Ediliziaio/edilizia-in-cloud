@@ -22,6 +22,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { fetchWithRetry } from "../_shared/fetchWithRetry.ts";
 import { chargeDirectAiCall } from "../_shared/directAiLedger.ts";
 
+import { serveConMetriche } from "../_shared/withMetrics.ts";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const OPENROUTER_KEY = Deno.env.get("OPENROUTER_API_KEY")!;
@@ -833,7 +834,7 @@ async function createOperationalProposals(
   return (data ?? []) as Array<{ id: string; action_type: string; summary: string }>;
 }
 
-Deno.serve(async (req) => {
+serveConMetriche("email-ai-assistant", async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
 
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {

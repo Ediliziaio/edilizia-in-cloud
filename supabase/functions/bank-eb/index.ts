@@ -14,6 +14,7 @@
 // ============================================================================
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+import { serveConMetriche } from "../_shared/withMetrics.ts";
 const EB = "https://api.enablebanking.com";
 const REDIRECT_BASE = "https://app.ediliziaincloud.com";
 const REDIRECT_URL = REDIRECT_BASE + "/azienda/impostazioni/integrazioni";
@@ -122,7 +123,7 @@ async function canManageBank(admin: any, userId: string, companyId: string): Pro
   return (perm as { can_view_tesoreria?: boolean } | null)?.can_view_tesoreria === true;
 }
 
-Deno.serve(async (req) => {
+serveConMetriche("bank-eb", async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;

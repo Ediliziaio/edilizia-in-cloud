@@ -2,6 +2,7 @@ import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.
 import { requireAuth, requireRole } from "../_shared/auth.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 
+import { serveConMetriche } from "../_shared/withMetrics.ts";
 /**
  * outreach-ai-email — il SUPER_ADMIN genera oggetto + corpo di una cold email
  * PERSONALIZZATA dai dati del lead (azienda, città, tag, note e segnali raccolti
@@ -70,7 +71,7 @@ function parseEmail(content: string): { subject: string; body: string } {
   return { subject: (lines[0] ?? "").replace(/^oggetto:\s*/i, "").slice(0, 120), body: lines.slice(1).join("\n").trim() || cleaned };
 }
 
-Deno.serve(async (req) => {
+serveConMetriche("outreach-ai-email", async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: getCorsHeaders(req) });
   const corsH = getCorsHeaders(req);
 

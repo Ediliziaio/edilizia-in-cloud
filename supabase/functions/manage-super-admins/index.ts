@@ -4,6 +4,7 @@ import { getCorsHeaders } from "../_shared/headers.ts";
 import { requireAuth, requireRole } from "../_shared/auth.ts";
 import { createAuditedAdminClient } from "../_shared/auditContext.ts";
 
+import { serveConMetriche } from "../_shared/withMetrics.ts";
 async function logAudit(
   supabaseAdmin: any,
   userId: string,
@@ -21,7 +22,7 @@ async function logAudit(
   });
 }
 
-Deno.serve(async (req) => {
+serveConMetriche("manage-super-admins", async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: getCorsHeaders(req) });
   }

@@ -19,6 +19,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 
+import { serveConMetriche } from "../_shared/withMetrics.ts";
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
@@ -45,7 +46,7 @@ function rigaHtml(item: Record<string, unknown>): string {
   return `<li style="margin:4px 0;font-family:sans-serif;font-size:13px;color:#374151;">${testo}</li>`;
 }
 
-Deno.serve(async (req) => {
+serveConMetriche("ops-canarino", async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: getCorsHeaders(req) });
   const corsH = getCorsHeaders(req);
 

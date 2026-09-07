@@ -29,6 +29,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.43.4";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { cronSecretValido } from "../_shared/cronAuth.ts";
 
+import { serveConMetriche } from "../_shared/withMetrics.ts";
 // Quanto indietro si guarda. Il valore che conta è il primo: un lead chiamato
 // entro pochi minuti converte molto più di uno chiamato domani, e l'ordinamento
 // dal più recente fa sì che i caldi passino sempre per primi.
@@ -46,7 +47,7 @@ const MAX_CALLS_PER_RUN = 5;
 // per tutte le aziende, senza che nulla lo segnalasse.
 const STATI_DA_LAVORARE = ["open", "new"];
 
-Deno.serve(async (req) => {
+serveConMetriche("ai-voice-outbound-leads", async (req) => {
   const cors = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
   if (req.method !== "POST") {

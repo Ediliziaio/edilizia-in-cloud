@@ -2,6 +2,7 @@ import { getCorsHeaders } from "../_shared/headers.ts";
 import { requireAuth, requireRole, isInternalRequest } from "../_shared/auth.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+import { serveConMetriche } from "../_shared/withMetrics.ts";
 interface IntegrationResult {
   name: string;
   status: "healthy" | "degraded" | "down" | "unconfigured";
@@ -173,7 +174,7 @@ async function probeEmailProvider(
   }
 }
 
-Deno.serve(async (req) => {
+serveConMetriche("check-api-health", async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: getCorsHeaders(req) });
   }
