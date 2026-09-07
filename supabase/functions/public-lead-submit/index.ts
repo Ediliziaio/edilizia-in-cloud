@@ -18,6 +18,45 @@ function escapeHtml(s: string): string {
   );
 }
 
+/**
+ * Nome leggibile del sito da cui arriva il lead, per l'oggetto dell'email admin.
+ * Così, a colpo d'occhio, si capisce se la richiesta viene da Edilizia in Cloud,
+ * Marketing Edile o un altro brand, senza aprire il messaggio.
+ * Origine: header Origin/Referer della richiesta (o body.site_origin se il sito
+ * lo passa). Se il dominio non è nella mappa, si usa il dominio stesso ripulito.
+ */
+const SITE_LABELS: Array<{ match: RegExp; label: string }> = [
+  { match: /marketingedile\./i, label: "Marketing Edile" },
+  { match: /(^|\.)edilizia\.io$/i, label: "Edilizia.io" },
+  { match: /ediliziaincloud\./i, label: "Edilizia in Cloud" },
+  { match: /clientiedili\./i, label: "Clienti Edili" },
+  { match: /venditaedile\./i, label: "Vendita Edile" },
+  { match: /numeriinedilizia\.|numeri-in-edilizia\./i, label: "Numeri in Edilizia" },
+  { match: /cantiereincloud\./i, label: "Cantiere in Cloud" },
+  { match: /praticarapida\./i, label: "Pratica Rapida" },
+  { match: /tutelai\./i, label: "TutelAI" },
+  { match: /aedix\./i, label: "AEDIX" },
+];
+
+function siteLabelFromOrigin(rawOrigin: string | null | undefined): string | null {
+  const raw = cleanText(rawOrigin ?? "", 200);
+  if (!raw) return null;
+  let host = raw;
+  try {
+    host = new URL(raw.includes("://") ? raw : `https://${raw}`).hostname;
+  } catch {
+    host = raw.replace(/^https?:\/\//i, "").split("/")[0];
+  }
+  host = host.replace(/^www\./i, "").replace(/^app\./i, "").toLowerCase();
+  if (!host) return null;
+  const known = SITE_LABELS.find((s) => s.match.test(host));
+  if (known) return known.label;
+  // Sconosciuto: usa il dominio così com'è (comunque un riferimento chiaro),
+  // ma scarta localhost e i domini interni di Supabase/Cloudflare.
+  if (/localhost|127\.0\.0\.1|supabase\.co|pages\.dev|workers\.dev$/i.test(host)) return null;
+  return host;
+}
+
 type LeadPayload = {
   nome?: string;
   email?: string;
@@ -31,6 +70,8 @@ type LeadPayload = {
   page_path?: string | null;
   context_label?: string | null;
   referral_code?: string | null;
+  /** Dominio del sito che ospita il form (opzionale: se assente si usa Origin/Referer). */
+  site_origin?: string | null;
 };
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -63,6 +104,11 @@ Deno.serve(async (req) => {
     const telefono = cleanText(body.telefono, 80);
     const azienda = cleanText(body.azienda, 180);
     const source = cleanText(body.source || "site_public_form", 80);
+    // Sito di provenienza per l'oggetto dell'email admin.
+    const siteLabel =
+      siteLabelFromOrigin(body.site_origin) ??
+      siteLabelFromOrigin(req.headers.get("origin")) ??
+      siteLabelFromOrigin(req.headers.get("referer"));
     const messaggio = cleanText(body.messaggio, 2000);
     const marketingConsent = Boolean(body.marketing_consent);
     const renderSlug = cleanText(body.render_slug, 80).toLowerCase().replace(/[^a-z0-9-]/g, "");
@@ -413,9 +459,12 @@ Deno.serve(async (req) => {
     // Email a flo.andriciuc@gmail.com per ogni nuova richiesta dal sito.
     // Fail-soft: se l'invio fallisce loggiamo ma NON facciamo fallire il submit.
     try {
+      // Prefisso col sito di provenienza (Edilizia in Cloud, Marketing Edile, …)
+      // così l'oggetto dice subito da dove arriva il lead.
+      const sitePrefix = siteLabel ? `[${siteLabel}] ` : "";
       const subjectLine = totalRequests > 1
-        ? `🔔 Lead ricorrente (${totalRequests}ª richiesta): ${nome}`
-        : `🔔 Nuovo lead sito: ${nome}`;
+        ? `🔔 ${sitePrefix}Lead ricorrente (${totalRequests}ª richiesta): ${nome}`
+        : `🔔 ${sitePrefix}Nuovo lead sito: ${nome}`;
       const ctxLabelEsc = contextLabel ? escapeHtml(contextLabel) : "";
       const html = `
         <div style="font-family:system-ui,-apple-system,sans-serif;color:#0f172a;max-width:560px;margin:auto">
@@ -424,6 +473,7 @@ Deno.serve(async (req) => {
             <tr><td style="padding:6px 0;color:#64748b">Nome</td><td style="padding:6px 0"><strong>${escapeHtml(nome)}</strong></td></tr>
             <tr><td style="padding:6px 0;color:#64748b">Email</td><td style="padding:6px 0"><a href="mailto:${escapeHtml(email)}">${escapeHtml(email)}</a></td></tr>
             <tr><td style="padding:6px 0;color:#64748b">Telefono</td><td style="padding:6px 0"><a href="tel:${escapeHtml(telefono)}">${escapeHtml(telefono)}</a></td></tr>
+            ${siteLabel ? `<tr><td style="padding:6px 0;color:#64748b">Sito</td><td style="padding:6px 0"><strong>${escapeHtml(siteLabel)}</strong></td></tr>` : ""}
             <tr><td style="padding:6px 0;color:#64748b">Azienda</td><td style="padding:6px 0">${escapeHtml(azienda)}</td></tr>
             ${contextLabel ? `<tr><td style="padding:6px 0;color:#64748b">Modulo</td><td style="padding:6px 0">${ctxLabelEsc}</td></tr>` : ""}
             ${pagePath ? `<tr><td style="padding:6px 0;color:#64748b">Pagina</td><td style="padding:6px 0">${escapeHtml(pagePath)}</td></tr>` : ""}
