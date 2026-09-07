@@ -94,3 +94,22 @@ I nomi in uso sono `cron_secret`, `proactive_cron_secret` e
 `silvio_internal_cron_secret`, uno per gruppo di edge function. Per ruotarne uno
 basta aggiornare il valore nel Vault e la variabile d'ambiente della funzione
 corrispondente: nessun job va toccato.
+
+## Funzioni esposte ad anon
+
+Una funzione `SECURITY DEFINER` eseguibile dal ruolo `anon` è chiamabile da
+chiunque conosca l'URL del progetto. Il 7 settembre 2026 ne risultavano 235;
+classificate, ne restano 43 con un motivo scritto. La classificazione vive nel
+database, non nella memoria di chi l'ha fatta:
+
+- `funzioni_pubbliche_di_proposito` — elenco delle RPC che DEVONO restare aperte
+  (firma OdV/SAL via token, form talent, recensioni, slot calendario, token del
+  portale, sonda del battito), con il motivo.
+- `v_funzioni_aperte_ad_anon` — cosa è aperto adesso e perché. Una riga con
+  motivo `NON CLASSIFICATA` è una funzione nuova rimasta aperta per sbaglio.
+
+Regole: una funzione nuova nasce con `REVOKE ALL … FROM PUBLIC, anon` e un
+`GRANT` esplicito a chi deve usarla. Le funzioni di trigger non hanno bisogno di
+alcun `EXECUTE` (il privilegio non viene controllato allo scatto). Se una RPC
+deve essere pubblica, va inserita in `funzioni_pubbliche_di_proposito` nella
+stessa migrazione che la apre.
