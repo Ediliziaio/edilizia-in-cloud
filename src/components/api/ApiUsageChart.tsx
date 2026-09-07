@@ -113,7 +113,7 @@ export function ApiUsageChart({ keys }: { keys: ApiKey[] }) {
                 <YAxis className="text-xs" />
                 <Tooltip
                   contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }}
-                  labelFormatter={(d) => new Date(d).toLocaleDateString("it-IT", { day: "2-digit", month: "long", year: "numeric" })}
+                  labelFormatter={(d: string | number) => new Date(d).toLocaleDateString("it-IT", { day: "2-digit", month: "long", year: "numeric" })}
                 />
                 <Bar dataKey="successful_requests" name="Riuscite" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="failed_requests" name="Fallite" fill="hsl(var(--destructive))" radius={[4, 4, 0, 0]} />

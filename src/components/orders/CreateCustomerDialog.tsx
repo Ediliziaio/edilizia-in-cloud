@@ -111,6 +111,14 @@ export function CreateCustomerDialog({
   const [fiscalCode, setFiscalCode] = useState(initialValues?.fiscalCode ?? "");
   const [vatNumber, setVatNumber] = useState(initialValues?.vatNumber ?? "");
   const [notes, setNotes] = useState("");
+  // Cliente azienda: il campo diceva «Nome completo / Ragione sociale» e il
+  // segnaposto suggeriva «Edilizia Rossi SRL», ma `is_business` e
+  // `business_name` non partivano mai. Quel cliente entrava in anagrafica come
+  // persona fisica, con nome «Edilizia» e cognome «Rossi SRL». L'edge function
+  // li gestisce da sempre — chiede la ragione sociale, rende nome e cognome
+  // facoltativi e ci mette dentro il referente: mancava solo chi glieli
+  // passasse.
+  const [isBusiness, setIsBusiness] = useState(false);
   const [customerDocuments, setCustomerDocuments] = useState<Partial<Record<CustomerDocumentType, File>>>({});
   const [createPortalAccount, setCreatePortalAccount] = useState(defaultCreatePortalAccount ?? companyPortalEnabled);
   const [sendWelcomeEmail, setSendWelcomeEmail] = useState(true);
@@ -199,6 +207,7 @@ export function CreateCustomerDialog({
     setCustAddresses(makeEmptyCustomerAddresses());
     setFiscalCode("");
     setNotes("");
+    setIsBusiness(false);
     setCustomerDocuments({});
     setCreatePortalAccount(defaultCreatePortalAccount ?? companyPortalEnabled);
     setSendWelcomeEmail(true);
@@ -214,7 +223,7 @@ export function CreateCustomerDialog({
     !showSuccessStep &&
     (firstName.trim() !== "" || lastName.trim() !== "" || email.trim() !== "" ||
      phone.trim() !== "" || hasAnyAddress(custAddresses.billing) || fiscalCode.trim() !== "" || vatNumber.trim() !== "" ||
-     hasAnyAddress(custAddresses.site) || notes.trim() !== "" || selectedDocumentCount > 0);
+     hasAnyAddress(custAddresses.site) || notes.trim() !== "" || selectedDocumentCount > 0 || isBusiness);
   const shouldRequireEmail = companyPortalEnabled && createPortalAccount;
 
   const handleClose = () => {
@@ -238,8 +247,12 @@ export function CreateCustomerDialog({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!firstName.trim() && !lastName.trim()) {
-      toast.error("Campo obbligatorio", { description: "Inserisci il nome completo o la ragione sociale del cliente." });
+    if (isBusiness && !fullName.trim()) {
+      toast.error("Campo obbligatorio", { description: "Inserisci la ragione sociale dell'azienda." });
+      return;
+    }
+    if (!isBusiness && !firstName.trim() && !lastName.trim()) {
+      toast.error("Campo obbligatorio", { description: "Inserisci il nome completo del cliente." });
       return;
     }
     const shouldCreatePortal = companyPortalEnabled && createPortalAccount;
@@ -269,6 +282,8 @@ export function CreateCustomerDialog({
       const siteFields = siteToProfileFields(custAddresses.site);
       const { data, error } = await supabase.functions.invoke("create-customer", {
         body: {
+          is_business: isBusiness,
+          business_name: isBusiness ? fullName.trim() : null,
           first_name: firstName.trim(),
           last_name: lastName.trim(),
           email: email.trim().toLowerCase() || null,
@@ -359,7 +374,9 @@ export function CreateCustomerDialog({
       // Se non è stato creato un account portale (solo anagrafica),
       // non serve mostrare lo step password — seleziona subito il cliente.
       if (!data.portal_account_created) {
-        const customerName = `${firstName.trim()} ${lastName.trim()}`;
+        const customerName = isBusiness
+          ? fullName.trim()
+          : `${firstName.trim()} ${lastName.trim()}`;
         onCustomerCreated(newCustomerId, customerName, optimisticCustomer);
         handleClose();
         toast.success("Cliente creato", {
@@ -391,7 +408,9 @@ export function CreateCustomerDialog({
   };
 
   const handleConfirm = () => {
-    const customerName = `${firstName.trim()} ${lastName.trim()}`;
+    const customerName = isBusiness
+      ? fullName.trim()
+      : `${firstName.trim()} ${lastName.trim()}`;
     onCustomerCreated(createdCustomerId, customerName, {
       id: createdCustomerId,
       first_name: firstName.trim(),
@@ -429,8 +448,23 @@ export function CreateCustomerDialog({
             </DialogHeader>
 
             <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="flex items-center justify-between rounded-lg border px-3 py-2">
+                <div>
+                  <Label htmlFor="dialog-isBusiness" className="cursor-pointer">Cliente azienda</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Ditta, società o partita IVA: si registra la ragione sociale, non un nome e cognome
+                  </p>
+                </div>
+                <Switch
+                  id="dialog-isBusiness"
+                  checked={isBusiness}
+                  onCheckedChange={setIsBusiness}
+                />
+              </div>
               <div className="space-y-2">
-                <Label htmlFor="dialog-fullName">Nome completo / Ragione sociale</Label>
+                <Label htmlFor="dialog-fullName">
+                  {isBusiness ? "Ragione sociale" : "Nome completo"}
+                </Label>
                 <Input
                   id="dialog-fullName"
                   value={fullName}
@@ -441,16 +475,18 @@ export function CreateCustomerDialog({
                     setFirstName(s.first);
                     setLastName(s.last);
                   }}
-                  placeholder="Es. Mario Rossi — oppure Edilizia Rossi SRL"
-                  autoComplete="name"
+                  placeholder={isBusiness ? "Es. Edilizia Rossi S.r.l." : "Es. Mario Rossi"}
+                  autoComplete={isBusiness ? "organization" : "name"}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Diviso in automatico in Nome/Cognome. Correggi sotto se serve (basta Nome o Cognome).
+                  {isBusiness
+                    ? "Nome e cognome qui sotto sono il referente, e si possono lasciare vuoti."
+                    : "Diviso in automatico in Nome/Cognome. Correggi sotto se serve (basta Nome o Cognome)."}
                 </p>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="dialog-firstName">Nome</Label>
+                  <Label htmlFor="dialog-firstName">{isBusiness ? "Nome referente" : "Nome"}</Label>
                   <Input
                     id="dialog-firstName"
                     value={firstName}
@@ -460,7 +496,7 @@ export function CreateCustomerDialog({
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="dialog-lastName">Cognome</Label>
+                  <Label htmlFor="dialog-lastName">{isBusiness ? "Cognome referente" : "Cognome"}</Label>
                   <Input
                     id="dialog-lastName"
                     value={lastName}

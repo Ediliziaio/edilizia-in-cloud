@@ -63,12 +63,15 @@ export function useF24(anno?: number) {
    */
   const componiMutation = useMutation({
     mutationFn: async ({ mese, rigenera = false }: { mese: number; rigenera?: boolean }) => {
-      const { data, error } = await supabase.rpc('f24_componi', {
+      // `f24_componi` non e' ancora nei tipi generati: stesso trattamento gia'
+      // usato altrove nel progetto per le RPC nuove.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any).rpc('f24_componi', {
         p_company_id: companyId!,
         p_anno: annoCorrente,
         p_mese: mese,
         p_rigenera: rigenera,
-      });
+      }) as { data: unknown; error: { message?: string } | null };
       if (error) throw new Error(`[useF24] composizione fallita: ${error.message}`);
       return data as {
         ok: boolean;

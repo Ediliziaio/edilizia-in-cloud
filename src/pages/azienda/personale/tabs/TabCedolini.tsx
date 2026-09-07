@@ -195,11 +195,13 @@ export function TabCedolini() {
         return;
       }
 
-      const { data: calcolo, error: calcErr } = await supabase.rpc("cedolino_calcola", {
+      // `cedolino_calcola` non e' ancora nei tipi generati.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: calcolo, error: calcErr } = await (supabase as any).rpc("cedolino_calcola", {
         p_employee_id: employeeId,
         p_anno: anno,
         p_mese: mese,
-      });
+      }) as { data: unknown; error: { message?: string } | null };
 
       const esito = calcolo as Record<string, unknown> | null;
       if (calcErr || !esito || esito.calcolabile !== true) {
