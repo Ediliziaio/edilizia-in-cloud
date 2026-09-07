@@ -2153,4 +2153,18 @@
     <priority>0.5</priority>
     <xhtml:link rel="alternate" hreflang="it-IT" href="https://www.ediliziaincloud.com/autore/florin-andriciuc/"/>
   </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/blog/gestionale-edilizia-per-geometra/</loc>
+    <lastmod>2026-09-07</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="it-IT" href="https://www.ediliziaincloud.com/blog/gestionale-edilizia-per-geometra/"/>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/blog/software-computo-metrico/</loc>
+    <lastmod>2026-09-07</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="it-IT" href="https://www.ediliziaincloud.com/blog/software-computo-metrico/"/>
+  </url>
 </urlset>

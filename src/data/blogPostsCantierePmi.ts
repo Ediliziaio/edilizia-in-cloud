@@ -334,4 +334,211 @@ export const blogPostsCantierePmi: BlogPost[] = [
       },
     ],
   },
+  {
+    id: "sept-2026-geometra",
+    slug: "gestionale-edilizia-per-geometra",
+    title: "Gestionale Edilizia per Geometra: Cosa Serve Davvero",
+    excerpt:
+      "Cosa deve fare un gestionale edilizia per geometra: dal computo al preventivo, cantiere, SAL e fatture senza ricopiare. Quando basta lo studio e quando no.",
+    category: "Digitalizzazione",
+    tags: ["gestionale edilizia per geometra", "software geometra", "direzione lavori", "computo metrico", "gestionale impresa edile"],
+    publishedAt: "2026-09-07",
+    readTime: 8,
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
+    coverImage: "/blog/covers/gestionale-edilizia-per-geometra.jpg",
+    content: [
+      {
+        type: "intro",
+        body: "Il geometra è la figura più «a cavallo» dell'edilizia italiana: fa il computo e la pratica, dirige i lavori, e sempre più spesso ha anche l'impresa che li esegue. Due mestieri in una persona, e di solito tre programmi che non si parlano: il software tecnico per computi e pratiche, un foglio Excel per i cantieri, il programma del commercialista per le fatture.\n\nUn gestionale edilizia per geometra serve a una cosa sola: far scendere il computo in cantiere e far risalire il cantiere nella fattura senza ricopiare niente. Vediamo cosa deve fare davvero, quando basta il software di studio e quando no, e come si prova senza cambiare abitudini in un giorno.",
+      },
+      {
+        type: "section",
+        heading: "Studio tecnico e impresa: due lavori che si parlano poco",
+        body: "Il software di studio è nato per produrre documenti: computo metrico estimativo, elenco prezzi, capitolato, contabilità lavori a norma, pratica edilizia. Fa bene quel lavoro e per gli appalti pubblici è insostituibile.\n\nMa il documento finisce dove inizia il cantiere. Il computo dice quanti metri quadri di intonaco ci sono; non dice quante ore ci ha messo la squadra, quanti sacchi sono arrivati con il DDT, quanto margine resta dopo il subappaltatore degli impianti. E la fattura all'impresa, con il suo reverse charge, non ha niente a che vedere con la parcella dello studio.\n\nIl geometra che vive in mezzo — dirige i lavori per un committente, oppure esegue con la sua impresa quello che ha computato — si trova a ricopiare gli stessi numeri tre volte. È lì che nasce l'errore, ed è lì che un gestionale edile ha senso.",
+      },
+      {
+        type: "list",
+        heading: "Cosa deve fare un gestionale edilizia per un geometra: 7 requisiti",
+        items: [
+          "Importare il computo, non rifarlo: le voci del computo (da Excel o dal software tecnico) diventano righe del preventivo al cliente con il tuo margine, senza ricopiare",
+          "Trasformare il preventivo in commessa: budget per fase, cronoprogramma, squadre e subappaltatori assegnati, il tutto dallo stesso documento",
+          "Direzione lavori dal telefono: giornale dei lavori, libretto delle misure, foto datate, ordini di servizio e SAL prodotti dalle misure registrate in cantiere",
+          "Documenti e scadenze per cantiere: notifica preliminare, POS, DURC dei subappaltatori, polizze, con avviso prima della scadenza",
+          "Fatturazione elettronica dell'impresa separata dalla parcella: SDI diretto, reverse charge e split payment gestiti, fattura collegata alla commessa",
+          "Più cantieri insieme, con i costi al cantiere giusto: ore, materiali e subappalti imputati alla commessa il giorno stesso, margine per cantiere leggibile la sera",
+          "Un'app che regge in cantiere: rapportino, presenze e foto anche senza rete, con sincronizzazione dopo",
+        ],
+      },
+      {
+        type: "section",
+        heading: "Il computo nasce nello studio, il margine nasce in cantiere",
+        body: "Questa è la frase da tenere a mente quando valuti un software. Il computo metrico è un documento tecnico: quantità e prezzi di riferimento, spesso da prezzario regionale. Il margine è un fatto economico: quanto hai speso davvero per fare quelle quantità.\n\nTra i due ci sono le ore della squadra, i prezzi reali dei tuoi fornitori, i subappalti, gli imprevisti. Un gestionale edile per geometra vale se collega i due mondi: parte dal computo, applica i tuoi costi reali, e mentre il cantiere è aperto ti dice se la voce «intonaco» sta costando più di quanto avevi previsto. A consuntivo lo sai già; il valore è saperlo alla seconda settimana.",
+      },
+      {
+        type: "table",
+        heading: "Quando basta il software di studio e quando serve il gestionale",
+        headers: ["Attività", "Software tecnico di studio", "Gestionale d'impresa"],
+        rows: [
+          ["Computo metrico e capitolato a norma", "Sì, è il suo mestiere", "Importa e riusa, non sostituisce il tecnico"],
+          ["Pratiche edilizie (CILA, SCIA, permessi)", "Sì", "Solo scadenze e archivio documenti"],
+          ["Preventivo al cliente con margine", "Parziale: prezzi di riferimento, non i tuoi costi", "Sì, dal computo con costi reali e margine"],
+          ["Cantiere: rapportini, presenze, DDT, foto", "No", "Sì, dal telefono"],
+          ["Giornale dei lavori, libretto delle misure, SAL", "Contabilità lavori a norma", "Sì, dalle misure registrate in cantiere, con SAL e fattura collegati"],
+          ["Subappaltatori: contratti, DURC, pagamenti", "No", "Sì, con avvisi sulle scadenze"],
+          ["Fatturazione elettronica e regimi IVA edili", "No", "Sì, nativa"],
+          ["Margine per cantiere in tempo reale", "No", "Sì"],
+        ],
+      },
+      {
+        type: "section",
+        heading: "Direzione lavori con il gestionale: giornale, misure, SAL",
+        body: "Per chi dirige i lavori la parte più utile del gestionale è la catena giornale dei lavori → libretto delle misure → SAL. Ogni giorno in cantiere si registra cosa è stato fatto, con quali persone e mezzi, e le misure delle lavorazioni eseguite. Lo stato di avanzamento nasce da quelle misure, non da una stima a fine mese, e la fattura dell'impresa nasce dal SAL.\n\nIl vantaggio non è solo il tempo risparmiato. È che quando il committente contesta una quantità, hai la misura del giorno con la foto; quando il subappaltatore chiede il pagamento, hai il suo avanzamento reale; quando la direzione lavori esterna chiede il giornale, è già scritto. Le guide sul giornale dei lavori e sul libretto delle misure spiegano cosa devono contenere.",
+      },
+      {
+        type: "section",
+        heading: "Fatturazione: parcella e fatture d'impresa non si confondono",
+        body: "Il geometra con l'impresa emette due tipi di documento che non hanno niente in comune: la parcella dello studio, con cassa previdenziale e ritenuta, e la fattura elettronica dell'impresa, con il reverse charge quando lavora in subappalto e lo split payment quando lavora per la pubblica amministrazione.\n\nIl gestionale d'impresa serve al secondo tipo: fatture collegate alla commessa e al SAL, inviate a SDI senza passare da un altro programma, con la scadenza che entra nello scadenzario e l'incasso che aggiorna il margine. La parcella dello studio resta nel suo mondo; mescolare i due è il modo più rapido per confondere il commercialista e sbagliare l'IVA.",
+      },
+      {
+        type: "section",
+        heading: "Quanto costa e come si prova senza stravolgere lo studio",
+        body: "Il modo giusto di provare un gestionale edile, per un geometra, è partire da un cantiere solo: importa il computo di una commessa reale, trasformalo in preventivo con i tuoi costi, apri il cantiere e fai registrare al capocantiere rapportini e presenze per due settimane. Alla fine confronti il margine che vedi con quello che immaginavi. Se la differenza ti sorprende, il software ha già fatto il suo lavoro.\n\nEdilizia in Cloud si prova per 31 giorni con setup e migrazione dati inclusi, senza carta di credito; il piano Scopri è gratuito per sempre fino a tre commesse attive, e i piani superiori si definiscono in una consulenza gratuita. Il confronto con gli altri software del mercato, prezzi pubblici compresi, è nell'articolo sui [migliori software gestionali per l'edilizia](/blog/migliori-software-gestionali-edilizia-confronto/).",
+      },
+      {
+        type: "callout",
+        variant: "info",
+        heading: "Come funziona in Edilizia in Cloud",
+        body: "Il computo si importa da Excel o dal software tecnico e diventa preventivo con i tuoi costi e il tuo margine; il preventivo firmato diventa commessa con fasi e budget; in cantiere si registrano rapportini, presenze, misure e DDT dal telefono; SAL e fatture elettroniche nascono da lì, con reverse charge e split payment gestiti. Il margine di ogni cantiere si legge la sera stessa.",
+      },
+      {
+        type: "cta",
+        heading: "Prova il gestionale con un cantiere vero",
+        body: "Importa un computo, apri la commessa e fai registrare due settimane di cantiere alla squadra. 31 giorni gratis, setup incluso, nessun vincolo: se il margine che vedi non ti dice niente di nuovo, non paghi nulla.",
+      },
+    ],
+    faqs: [
+      {
+        q: "Un geometra ha bisogno di un gestionale o basta il software di computo?",
+        a: "Dipende da cosa fa dopo il computo. Se lo studio produce solo documenti tecnici e pratiche, il software di computo basta. Se il geometra dirige i lavori con SAL e misure da tenere, o ha un'impresa che esegue, serve un gestionale: il computo resta nel software tecnico, ma preventivo con margine, cantiere, subappalti e fatture elettroniche vivono nel gestionale, senza ricopiare.",
+      },
+      {
+        q: "Posso importare il computo fatto con il software tecnico nel gestionale?",
+        a: "Sì, da Excel o dai formati di esportazione del software tecnico: le voci diventano righe del preventivo con quantità e prezzi, a cui applichi i tuoi costi reali e il margine. Il computo a norma continua a vivere nel software tecnico; nel gestionale entra la copia che serve a fare il prezzo e a seguire il cantiere.",
+      },
+      {
+        q: "Il gestionale fa anche la contabilità lavori per gli appalti pubblici?",
+        a: "Produce SAL e stati di avanzamento dalle misure registrate in cantiere, con il libretto delle misure e il giornale dei lavori. Per gli appalti pubblici con contabilità regolamentata nei formati richiesti dalla stazione appaltante, il documento ufficiale resta di norma nel software tecnico; il gestionale serve a sapere in tempo reale dove sta il cantiere e a fatturare senza doppi inserimenti.",
+      },
+      {
+        q: "La parcella dello studio si fa dal gestionale d'impresa?",
+        a: "No, e non conviene: parcella con cassa previdenziale e ritenuta e fattura elettronica dell'impresa hanno regole diverse. Il gestionale d'impresa fattura i lavori (con reverse charge e split payment dove servono); la parcella resta nello strumento dello studio o del commercialista.",
+      },
+      {
+        q: "Quanto tempo serve a un geometra per partire con Edilizia in Cloud?",
+        a: "Il setup si fa insieme in 48 ore: listino, anagrafiche, un computo importato e un cantiere aperto. Le prime due settimane di rapportini e presenze bastano per leggere il primo margine reale; la prova dura 31 giorni proprio per arrivare a quel confronto con calma.",
+      },
+    ],
+  },
+  {
+    id: "sept-2026-computo-software",
+    slug: "software-computo-metrico",
+    title: "Software Computo Metrico: Quale Scegliere nel 2026",
+    excerpt:
+      "Software tecnico, Excel o gestionale con computo integrato? Cosa deve fare un software per computo metrico, quanto costa e quando diventa preventivo.",
+    category: "Digitalizzazione",
+    tags: ["software computo metrico", "computo metrico estimativo", "prezzario", "preventivo edile", "gestionale edilizia"],
+    publishedAt: "2026-09-07",
+    readTime: 8,
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
+    coverImage: "/blog/covers/software-computo-metrico.jpg",
+    content: [
+      {
+        type: "intro",
+        body: "«Software computo metrico» è una ricerca che fanno tre persone diverse: il tecnico che deve consegnare un computo a norma per un appalto, il titolare che vuole smettere di fare i preventivi su Excel, e il geometra che sta in mezzo. Le risposte giuste sono tre, e il primo errore è comprare il software di uno per fare il lavoro dell'altro.\n\nQui mettiamo in fila cosa deve fare davvero un software per computo metrico, le tre famiglie di prodotti che esistono sul mercato italiano — con quello che dichiarano e quanto costano quando il prezzo è pubblico — e le cinque domande per scegliere senza pentirsene.",
+      },
+      {
+        type: "list",
+        heading: "Cosa deve fare un software per computo metrico: 8 requisiti",
+        items: [
+          "Prezzari regionali importabili con il codice ufficiale, e voci tue con costo, margine e prezzo",
+          "Misure con formule e disegno delle quantità (lunghezze, superfici, volumi), non numeri battuti a mano",
+          "Struttura per capitoli e categorie di lavoro, così il computo si legge e si confronta",
+          "Analisi prezzi: da cosa è composta ogni voce (manodopera, materiali, noli), altrimenti il margine è un'ipotesi",
+          "Revisione prezzi e varianti senza rifare il documento da capo",
+          "Esportazione in Excel e PDF e nei formati che il committente chiede",
+          "Passaggio al preventivo per il cliente con i tuoi costi reali, e da lì alla commessa",
+          "Contabilità lavori collegata: SAL e stati di avanzamento che partono dalle stesse voci del computo",
+        ],
+      },
+      {
+        type: "table",
+        heading: "Le tre famiglie di software per il computo metrico (settembre 2026)",
+        headers: ["Famiglia", "Per chi", "Cosa fa bene", "Dove si ferma", "Costo dichiarato"],
+        rows: [
+          ["Software tecnico di computo e contabilità lavori (PriMus di ACCA e simili)", "Studi tecnici, imprese di appalti pubblici", "Computo a norma, prezzari, analisi prezzi, contabilità lavori nei formati che le stazioni appaltanti conoscono", "Non amministra l'impresa: niente preventivo con margine reale, cantiere, DDT, fatture elettroniche", "PriMus: listino a richiesta, versione gratuita per 30 giorni"],
+          ["Excel e strumenti gratuiti online", "Chi parte da zero, piccoli lavori", "Costa nulla, tutti lo sanno usare", "Nessun prezzario integrato, formule che si rompono, versioni del file che si moltiplicano, zero collegamento con cantiere e fatture", "Gratis"],
+          ["Gestionale edile con computo e preventivo integrati", "Imprese edili da 1 a 50 dipendenti", "Computo o preventivo con costi reali → commessa → cantiere → SAL → fattura, un solo inserimento", "Non produce la contabilità lavori regolamentata degli appalti pubblici: per quella si affianca il software tecnico", "Edilizia in Cloud: piano Scopri gratis, piani superiori su preventivo, prova 31 giorni; altri su preventivo"],
+        ],
+      },
+      {
+        type: "section",
+        heading: "Quando serve un software tecnico come PriMus (e quando no)",
+        body: "Se partecipi ad appalti pubblici, il computo, l'elenco prezzi e la contabilità lavori devono arrivare alla stazione appaltante nel formato che si aspetta, con le regole del codice dei contratti: lì il software tecnico è lo standard di fatto, la direzione lavori lo usa e i file girano tra le parti senza conversioni. Lo stesso vale per chi lavora con studi di progettazione che consegnano computi da rispettare alla voce.\n\nSe invece fai lavori privati — ristrutturazioni, serramenti, impianti, coperture — il computo a norma non lo chiede nessuno. Il cliente vuole un preventivo chiaro e tu vuoi sapere quanto ci guadagni: un software di computo tecnico ti dà quantità e prezzi di riferimento, ma non i tuoi costi, non il cantiere, non la fattura. Il [confronto diretto con PriMus](/confronto/vs-primus) spiega dove finisce uno e dove comincia l'altro.",
+      },
+      {
+        type: "section",
+        heading: "Excel e strumenti gratuiti: fin dove arrivano",
+        body: "Per i primi lavori Excel va benissimo: una colonna di voci, quantità, prezzo unitario, totale. Il problema non è il primo computo, è il ventesimo. Le formule si rompono quando qualcuno inserisce una riga, i prezzi restano quelli dell'anno scorso, il file «preventivo_definitivo_v3_finale» vive in tre versioni su tre computer, e nulla di quello che c'è dentro arriva in cantiere o in fattura.\n\nGli strumenti gratuiti online risolvono un pezzo — spesso il prezzario o il calcolo — e si fermano al PDF. Nella guida al [computo metrico gratis](/blog/computo-metrico-gratis/) trovi cosa funziona davvero e i punti in cui ogni strumento gratuito si rompe.",
+      },
+      {
+        type: "section",
+        heading: "Il computo dentro il gestionale: dal computo al margine",
+        body: "La terza famiglia ragiona al contrario: parte dal cantiere. Il computo — importato dal software tecnico o costruito con il listino dell'impresa — diventa preventivo con i tuoi costi reali di manodopera, materiali e subappalti, quindi con il margine che ti aspetti. Il preventivo firmato diventa commessa con budget per fase; in cantiere si registrano ore, DDT e misure; il SAL e la fattura nascono dalle stesse voci.\n\nIl vantaggio non è «avere tutto in un posto», è che ogni numero viene inserito una volta sola, e che il margine per voce si legge mentre il cantiere è aperto: se l'intonaco sta costando più del computo lo sai alla seconda settimana. Come funziona la parte di computo e preventivo in Edilizia in Cloud è descritto nella pagina del [computo metrico](/funzionalita/computo-metrico/); la guida pratica su come si costruisce un computo, voce per voce, è nel [computo metrico estimativo](/blog/computo-metrico-estimativo-guida/).",
+      },
+      {
+        type: "list",
+        heading: "Come scegliere: le 5 domande da fare prima di comprare",
+        items: [
+          "Chi deve leggere il computo? Se è una stazione appaltante, serve il software tecnico; se è un cliente privato, serve un preventivo con margine",
+          "Da dove arrivano i prezzi? Prezzario regionale importabile con codice, listino dell'impresa, o entrambi: e con che frequenza si aggiornano",
+          "Cosa succede dopo il computo? Se resta un PDF, il software si ferma lì; se deve diventare commessa e fattura, vuoi un solo inserimento",
+          "Chi lo usa? Un tecnico in ufficio o anche il capocantiere dal telefono: la seconda risposta cambia la scelta",
+          "Quanto costa il primo anno, con tutte le persone dentro? Licenza per postazione, moduli separati o utenti illimitati fanno differenze grandi appena la squadra cresce",
+        ],
+      },
+      {
+        type: "callout",
+        variant: "info",
+        heading: "Come funziona in Edilizia in Cloud",
+        body: "Il computo si importa da Excel o dal software tecnico oppure si costruisce dal listino con i prezzari regionali; ogni voce ha costo, margine e prezzo. Con una foto o una descrizione l'assistente AI propone le voci dal tuo catalogo. Il preventivo firmato diventa commessa, il cantiere registra ore e materiali, e il margine per voce si legge mentre i lavori sono aperti.",
+      },
+      {
+        type: "cta",
+        heading: "Prova il computo che arriva fino alla fattura",
+        body: "Carica un computo vero, trasformalo in preventivo con i tuoi costi e aprilo come commessa. 31 giorni gratis, setup incluso, nessun vincolo: alla fine confronti il margine che vedi con quello che immaginavi.",
+      },
+    ],
+    faqs: [
+      {
+        q: "Qual è il miglior software per computo metrico?",
+        a: "Dipende da chi legge il computo. Per appalti pubblici e contabilità lavori a norma il riferimento in Italia è un software tecnico come PriMus di ACCA (listino a richiesta, 30 giorni gratis). Per un'impresa che fa lavori privati e vuole sapere quanto guadagna, serve un gestionale con computo e preventivo integrati, dove il computo diventa commessa e fattura senza ricopiare: Edilizia in Cloud parte da un piano gratuito. Excel resta la scelta per i primissimi lavori, finché il ventesimo file non si rompe.",
+      },
+      {
+        q: "Un software di computo metrico include i prezzari regionali?",
+        a: "I software tecnici li includono o li collegano con il codice ufficiale; i gestionali seri li importano da Excel o PDF con il codice e li affiancano al listino dell'impresa. Per i lavori privati il prezzario è un riferimento, non un prezzo: conta il costo reale di manodopera e fornitori, che solo il gestionale conosce.",
+      },
+      {
+        q: "Posso fare il computo metrico con Excel?",
+        a: "Sì per i primi lavori, con una tabella di voci, quantità e prezzi. Diventa un problema quando i computi si moltiplicano: formule che si rompono, prezzi vecchi, versioni del file su più computer e nessun collegamento con cantiere e fatture. Quando ricopi lo stesso computo in un preventivo e poi in una fattura, è il momento di cambiare.",
+      },
+      {
+        q: "Il gestionale sostituisce PriMus per gli appalti pubblici?",
+        a: "No. Per la contabilità lavori regolamentata nei formati che le stazioni appaltanti chiedono, il software tecnico resta lo standard. Il gestionale lo affianca: importa il computo, lo trasforma in preventivo e commessa, segue il cantiere e fattura. Le due cose convivono, ognuna nel suo mestiere.",
+      },
+      {
+        q: "Quanto costa un software per computo metrico?",
+        a: "A settembre 2026: Excel è gratis; PriMus di ACCA ha un listino a richiesta con 30 giorni di prova gratuita; Edilizia in Cloud ha un piano Scopri gratuito per sempre (fino a tre commesse attive) e piani superiori su preventivo dopo 31 giorni di prova. Il criterio giusto non è il prezzo del primo mese ma il costo del primo anno con tutte le persone dentro e il tempo che risparmi non ricopiando i numeri.",
+      },
+    ],
+  },
 ];

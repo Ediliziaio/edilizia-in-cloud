@@ -445,9 +445,9 @@ const config: FunzionalitaPageConfig = {
   applicationSubCategory: "Construction Estimating Software",
 
   relatedBlogSlugs: [
+    "software-computo-metrico",
     "computo-metrico-estimativo-guida",
     "computo-metrico-gratis",
-    "prezzario-regionale-edilizia",
   ],
 };
 

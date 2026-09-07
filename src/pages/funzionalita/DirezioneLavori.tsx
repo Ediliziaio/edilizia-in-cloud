@@ -444,9 +444,9 @@ const config: FunzionalitaPageConfig = {
   applicationSubCategory: "Construction Scheduling Software",
 
   relatedBlogSlugs: [
+    "gestionale-edilizia-per-geometra",
     "giornale-dei-lavori-cantiere",
     "libretto-delle-misure",
-    "sal-cantiere-come-funziona",
   ],
 };
 
