@@ -1,0 +1,17 @@
+-- Applicata in produzione il 7 settembre 2026 via MCP.
+-- Sostituita subito dopo da 20280907100700, che riempie le colonne di servizio:
+-- questa versione falliva sull'insert perche' `jsonb_populate_record` lascia
+-- `id` a NULL e un NULL esplicito non fa scattare il default della colonna.
+-- Il file resta per non lasciare buchi nella storia delle migrazioni.
+--
+-- Il problema che risolve: il numero progressivo veniva generato con una
+-- chiamata a se' stante e il documento inserito con la successiva.
+-- `genera_numero_documento_native` NON calcola un massimo: incrementa e SCRIVE
+-- un contatore su `anagrafica_azienda`, gia' committato quando arriva l'insert.
+-- Se l'insert falliva, il numero era consumato per sempre.
+--
+-- Il menu offre sedici tipi di documento e il vincolo sulla tabella ne ammette
+-- nove: parcella, acconti, reverse charge e integrazioni finiscono nel ramo di
+-- riserva della funzione, che consuma il contatore DELLE FATTURE, e poi si
+-- schiantano sul CHECK. Ogni tentativo bruciava un numero di fattura vero.
+select 'sostituita da 20280907100700' as nota;
