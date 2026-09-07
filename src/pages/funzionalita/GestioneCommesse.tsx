@@ -443,7 +443,11 @@ const config: FunzionalitaPageConfig = {
 
   applicationSubCategory: "Construction Job Costing Software",
 
-  relatedBlogSlugs: ["come-fare-preventivo-edilizia", "alternativa-excel-cantieri"],
+  relatedBlogSlugs: [
+    "gestire-piu-cantieri-contemporaneamente",
+    "contabilita-di-cantiere-guida",
+    "analisi-margini-imprese-edili",
+  ],
 };
 
 export default function GestioneCommesse() {

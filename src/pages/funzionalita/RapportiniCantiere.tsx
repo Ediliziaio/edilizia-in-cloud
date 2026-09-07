@@ -443,7 +443,11 @@ const config: FunzionalitaPageConfig = {
 
   applicationSubCategory: "Construction Daily Report Software",
 
-  relatedBlogSlugs: ["come-fare-preventivo-edilizia", "alternativa-excel-cantieri"],
+  relatedBlogSlugs: [
+    "rapportino-di-cantiere-app-e-modello",
+    "giornale-dei-lavori-cantiere",
+    "gestione-operai-cantiere-presenze-ore",
+  ],
 };
 
 export default function RapportiniCantiere() {

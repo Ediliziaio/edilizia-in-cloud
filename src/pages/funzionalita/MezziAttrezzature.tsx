@@ -442,7 +442,11 @@ const config: FunzionalitaPageConfig = {
 
   applicationSubCategory: "Construction Equipment Management Software",
 
-  relatedBlogSlugs: ["come-fare-preventivo-edilizia", "alternativa-excel-cantieri"],
+  relatedBlogSlugs: [
+    "ridurre-costi-cantieri-edili",
+    "contabilita-di-cantiere-guida",
+    "come-organizzare-cantiere-edile",
+  ],
 };
 
 export default function MezziAttrezzature() {

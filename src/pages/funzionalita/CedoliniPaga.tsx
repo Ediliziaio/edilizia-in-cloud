@@ -433,7 +433,11 @@ const config: FunzionalitaPageConfig = {
 
   applicationSubCategory: "Construction Payroll Software",
 
-  relatedBlogSlugs: ["come-fare-preventivo-edilizia", "alternativa-excel-cantieri"],
+  relatedBlogSlugs: [
+    "ccnl-edilizia-guida",
+    "cassa-edile-come-funziona",
+    "hr-edilizia-presenze-buste-paga",
+  ],
 };
 
 export default function CedoliniPaga() {

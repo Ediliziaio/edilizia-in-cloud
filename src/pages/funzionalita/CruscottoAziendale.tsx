@@ -451,7 +451,11 @@ const config: FunzionalitaPageConfig = {
 
   applicationSubCategory: "Construction Business Intelligence Software",
 
-  relatedBlogSlugs: ["come-fare-preventivo-edilizia", "alternativa-excel-cantieri"],
+  relatedBlogSlugs: [
+    "chi-gestisce-i-numeri-impresa-edile",
+    "segnali-crisi-impresa-edile",
+    "analisi-margini-imprese-edili",
+  ],
 };
 
 export default function CruscottoAziendale() {

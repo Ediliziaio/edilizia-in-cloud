@@ -452,7 +452,11 @@ const config: FunzionalitaPageConfig = {
 
   applicationSubCategory: "Construction Photo Documentation Software",
 
-  relatedBlogSlugs: ["come-fare-preventivo-edilizia", "alternativa-excel-cantieri"],
+  relatedBlogSlugs: [
+    "rapportino-di-cantiere-app-e-modello",
+    "report-avanzamento-cantiere-guida",
+    "giornale-dei-lavori-cantiere",
+  ],
 };
 
 export default function FotoCantiere() {

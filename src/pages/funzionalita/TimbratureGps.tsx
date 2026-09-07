@@ -438,7 +438,11 @@ const config: FunzionalitaPageConfig = {
 
   applicationSubCategory: "Construction Time Tracking GPS Software",
 
-  relatedBlogSlugs: ["come-fare-preventivo-edilizia", "alternativa-excel-cantieri"],
+  relatedBlogSlugs: [
+    "gestione-operai-cantiere-presenze-ore",
+    "registro-presenze-cantiere-obbligatorio",
+    "durc-congruita-manodopera-soglie",
+  ],
 };
 
 export default function TimbratureGps() {

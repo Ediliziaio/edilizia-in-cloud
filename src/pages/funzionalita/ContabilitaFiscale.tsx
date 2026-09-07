@@ -435,7 +435,11 @@ const config: FunzionalitaPageConfig = {
 
   applicationSubCategory: "Construction Accounting Software",
 
-  relatedBlogSlugs: ["come-fare-preventivo-edilizia", "alternativa-excel-cantieri"],
+  relatedBlogSlugs: [
+    "reverse-charge-edilizia",
+    "split-payment-lavori-pubblici",
+    "chi-gestisce-i-numeri-impresa-edile",
+  ],
 };
 
 export default function ContabilitaFiscale() {

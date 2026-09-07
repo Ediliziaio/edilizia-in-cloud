@@ -474,9 +474,9 @@ const config: FunzionalitaPageConfig = {
   applicationSubCategory: "Construction Subcontractor Management Software",
 
   relatedBlogSlugs: [
-    "sal-cantiere-come-funziona",
-    "ccnl-edilizia-guida",
-    "controllo-costi-cantiere-guida",
+    "gestione-subappaltatori-impresa-edile",
+    "contratto-subappalto-edile-fac-simile",
+    "durc-congruita-manodopera-soglie",
   ],
 };
 

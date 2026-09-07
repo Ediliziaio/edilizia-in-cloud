@@ -438,7 +438,11 @@ const config: FunzionalitaPageConfig = {
 
   applicationSubCategory: "Construction Treasury Management Software",
 
-  relatedBlogSlugs: ["come-fare-preventivo-edilizia", "alternativa-excel-cantieri"],
+  relatedBlogSlugs: [
+    "gestione-liquidita-impresa-edile",
+    "cassa-impresa-edile-non-torna",
+    "segnali-crisi-impresa-edile",
+  ],
 };
 
 export default function Tesoreria() {

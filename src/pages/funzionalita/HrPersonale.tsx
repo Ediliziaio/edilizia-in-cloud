@@ -478,9 +478,9 @@ const config: FunzionalitaPageConfig = {
   applicationSubCategory: "Construction Workforce Management Software",
 
   relatedBlogSlugs: [
+    "hr-edilizia-presenze-buste-paga",
     "ccnl-edilizia-guida",
-    "sicurezza-cantieri-dlgs-81",
-    "alternativa-excel-cantieri",
+    "trovare-operai-edili-qualificati",
   ],
 };
 

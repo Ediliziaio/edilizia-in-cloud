@@ -484,9 +484,9 @@ const config: FunzionalitaPageConfig = {
   applicationSubCategory: "Electronic Invoicing Software",
 
   relatedBlogSlugs: [
-    "superbonus-imprese-edili-2026",
-    "subappalto-edilizia-guida",
-    "analisi-margini-imprese-edili",
+    "sistema-fatturazione-aziende-edili",
+    "reverse-charge-edilizia",
+    "split-payment-lavori-pubblici",
   ],
 };
 

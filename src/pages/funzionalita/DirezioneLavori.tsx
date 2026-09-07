@@ -443,7 +443,11 @@ const config: FunzionalitaPageConfig = {
 
   applicationSubCategory: "Construction Scheduling Software",
 
-  relatedBlogSlugs: ["come-fare-preventivo-edilizia", "alternativa-excel-cantieri"],
+  relatedBlogSlugs: [
+    "giornale-dei-lavori-cantiere",
+    "libretto-delle-misure",
+    "sal-cantiere-come-funziona",
+  ],
 };
 
 export default function DirezioneLavori() {

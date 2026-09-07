@@ -478,9 +478,9 @@ const config: FunzionalitaPageConfig = {
   applicationSubCategory: "Construction Site Management Software",
 
   relatedBlogSlugs: [
+    "gestione-cantieri-digitale",
+    "come-organizzare-cantiere-edile",
     "sal-cantiere-come-funziona",
-    "sicurezza-cantieri-dlgs-81",
-    "giornale-dei-lavori-cantiere",
   ],
 };
 

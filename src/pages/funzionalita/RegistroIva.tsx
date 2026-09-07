@@ -431,7 +431,11 @@ const config: FunzionalitaPageConfig = {
 
   applicationSubCategory: "Construction VAT Register Software",
 
-  relatedBlogSlugs: ["come-fare-preventivo-edilizia", "alternativa-excel-cantieri"],
+  relatedBlogSlugs: [
+    "reverse-charge-edilizia",
+    "split-payment-lavori-pubblici",
+    "nota-di-credito-edilizia-quando-come",
+  ],
 };
 
 export default function RegistroIva() {

@@ -45,6 +45,7 @@ const STATIC_ROUTES = [
   // /login NON si prerenderizza: provato il 05/09, il markup catturato a
   // 1280 px sul telefono dava CLS 0,91. Resta il primo candidato per la
   // prossima iterazione (prerender doppio mobile/desktop per UA).
+  "/autore/florin-andriciuc",
   "/avviso-legale",
   "/blog",
   "/casi-studio",

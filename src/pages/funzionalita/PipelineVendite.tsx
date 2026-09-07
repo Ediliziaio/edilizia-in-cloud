@@ -441,7 +441,11 @@ const config: FunzionalitaPageConfig = {
 
   applicationSubCategory: "Construction Sales Pipeline Software",
 
-  relatedBlogSlugs: ["come-fare-preventivo-edilizia", "alternativa-excel-cantieri"],
+  relatedBlogSlugs: [
+    "preventivi-edili-non-si-chiudono",
+    "aumentare-vendite-impresa-edile",
+    "crm-edilizia-gestire-lead-preventivi-follow-up",
+  ],
 };
 
 export default function PipelineVendite() {

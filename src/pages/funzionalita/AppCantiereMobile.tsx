@@ -481,7 +481,11 @@ const config: FunzionalitaPageConfig = {
 
   applicationSubCategory: "Construction Mobile App Software",
 
-  relatedBlogSlugs: ["come-fare-preventivo-edilizia", "alternativa-excel-cantieri"],
+  relatedBlogSlugs: [
+    "rapportino-di-cantiere-app-e-modello",
+    "app-gestione-cantieri-gratis",
+    "gestione-cantieri-digitale",
+  ],
 };
 
 export default function AppCantiereMobile() {

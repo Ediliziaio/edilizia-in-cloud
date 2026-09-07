@@ -444,7 +444,11 @@ const config: FunzionalitaPageConfig = {
 
   applicationSubCategory: "Construction Estimating Software",
 
-  relatedBlogSlugs: ["come-fare-preventivo-edilizia", "alternativa-excel-cantieri"],
+  relatedBlogSlugs: [
+    "computo-metrico-estimativo-guida",
+    "computo-metrico-gratis",
+    "prezzario-regionale-edilizia",
+  ],
 };
 
 export default function ComputoMetrico() {

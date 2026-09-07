@@ -440,7 +440,11 @@ const config: FunzionalitaPageConfig = {
 
   applicationSubCategory: "Construction SMS Marketing Software",
 
-  relatedBlogSlugs: ["come-fare-preventivo-edilizia", "alternativa-excel-cantieri"],
+  relatedBlogSlugs: [
+    "passaparola-impresa-edile-non-basta",
+    "marketing-digitale-imprese-edili",
+    "richieste-preventivo-ristrutturazione-online",
+  ],
 };
 
 export default function SmsMarketing() {

@@ -437,7 +437,11 @@ const config: FunzionalitaPageConfig = {
 
   applicationSubCategory: "Construction Accounts Receivable Software",
 
-  relatedBlogSlugs: ["come-fare-preventivo-edilizia", "alternativa-excel-cantieri"],
+  relatedBlogSlugs: [
+    "recupero-crediti-impresa-edile-fatture-scadute",
+    "gestione-liquidita-impresa-edile",
+    "burocrazia-impresa-edile-scadenze-documenti",
+  ],
 };
 
 export default function Scadenzario() {

@@ -478,7 +478,11 @@ const config: FunzionalitaPageConfig = {
 
   applicationSubCategory: "Construction Lead Generation Software",
 
-  relatedBlogSlugs: ["come-fare-preventivo-edilizia", "alternativa-excel-cantieri"],
+  relatedBlogSlugs: [
+    "richieste-preventivo-ristrutturazione-online",
+    "lead-serramenti-come-generare-richieste-qualificate",
+    "google-ads-impresa-edile-errori-budget",
+  ],
 };
 
 export default function LeadFormFacebook() {

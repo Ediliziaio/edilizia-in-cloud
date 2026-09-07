@@ -436,7 +436,11 @@ const config: FunzionalitaPageConfig = {
 
   applicationSubCategory: "Construction Bookkeeping Software",
 
-  relatedBlogSlugs: ["come-fare-preventivo-edilizia", "alternativa-excel-cantieri"],
+  relatedBlogSlugs: [
+    "cassa-impresa-edile-non-torna",
+    "contabilita-di-cantiere-guida",
+    "chi-gestisce-i-numeri-impresa-edile",
+  ],
 };
 
 export default function PrimaNota() {

@@ -433,7 +433,11 @@ const config: FunzionalitaPageConfig = {
 
   applicationSubCategory: "Construction HR Leave Management Software",
 
-  relatedBlogSlugs: ["come-fare-preventivo-edilizia", "alternativa-excel-cantieri"],
+  relatedBlogSlugs: [
+    "hr-edilizia-presenze-buste-paga",
+    "ccnl-edilizia-guida",
+    "gestione-operai-cantiere-presenze-ore",
+  ],
 };
 
 export default function FeriePermessi() {

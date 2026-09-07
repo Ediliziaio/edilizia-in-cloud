@@ -481,7 +481,11 @@ const config: FunzionalitaPageConfig = {
 
   applicationSubCategory: "Construction Quote AI Software",
 
-  relatedBlogSlugs: ["come-fare-preventivo-edilizia", "alternativa-excel-cantieri"],
+  relatedBlogSlugs: [
+    "come-fare-preventivo-edilizia",
+    "preventivo-rifacimento-tetto-come-farlo",
+    "intelligenza-artificiale-edilizia-2026",
+  ],
 };
 
 export default function QuoteBuilderAi() {

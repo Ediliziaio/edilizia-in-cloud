@@ -454,7 +454,11 @@ const config: FunzionalitaPageConfig = {
 
   applicationSubCategory: "Construction CRM Software",
 
-  relatedBlogSlugs: ["come-fare-preventivo-edilizia", "alternativa-excel-cantieri"],
+  relatedBlogSlugs: [
+    "crm-edilizia-gestire-lead-preventivi-follow-up",
+    "preventivi-edili-non-si-chiudono",
+    "acquisire-clienti-impresa-edile",
+  ],
 };
 
 export default function CrmEdilizia() {

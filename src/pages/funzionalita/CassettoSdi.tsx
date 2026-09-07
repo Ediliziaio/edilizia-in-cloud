@@ -442,7 +442,11 @@ const config: FunzionalitaPageConfig = {
 
   applicationSubCategory: "Construction Tax Drawer Software",
 
-  relatedBlogSlugs: ["come-fare-preventivo-edilizia", "alternativa-excel-cantieri"],
+  relatedBlogSlugs: [
+    "sistema-fatturazione-aziende-edili",
+    "reverse-charge-edilizia",
+    "nota-di-credito-edilizia-quando-come",
+  ],
 };
 
 export default function CassettoSdi() {

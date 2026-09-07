@@ -444,7 +444,11 @@ const config: FunzionalitaPageConfig = {
 
   applicationSubCategory: "Construction Digital Preservation Software",
 
-  relatedBlogSlugs: ["come-fare-preventivo-edilizia", "alternativa-excel-cantieri"],
+  relatedBlogSlugs: [
+    "sistema-fatturazione-aziende-edili",
+    "documentazione-obbligatoria-cantiere-2025",
+    "burocrazia-impresa-edile-scadenze-documenti",
+  ],
 };
 
 export default function ConservaDigitale() {

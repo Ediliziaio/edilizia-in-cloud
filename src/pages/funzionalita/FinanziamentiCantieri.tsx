@@ -480,7 +480,11 @@ const config: FunzionalitaPageConfig = {
 
   applicationSubCategory: "Construction Financing Software",
 
-  relatedBlogSlugs: ["come-fare-preventivo-edilizia", "alternativa-excel-cantieri"],
+  relatedBlogSlugs: [
+    "gestione-liquidita-impresa-edile",
+    "cassa-impresa-edile-non-torna",
+    "incentivi-digitalizzazione-edilizia-2026",
+  ],
 };
 
 export default function FinanziamentiCantieri() {

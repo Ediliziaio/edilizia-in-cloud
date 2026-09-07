@@ -481,7 +481,11 @@ const config: FunzionalitaPageConfig = {
 
   applicationSubCategory: "Solar Construction Management Software",
 
-  relatedBlogSlugs: ["come-fare-preventivo-edilizia", "alternativa-excel-cantieri"],
+  relatedBlogSlugs: [
+    "come-trovare-clienti-fotovoltaico",
+    "preventivi-edilizia-guida",
+    "superbonus-imprese-edili-2026",
+  ],
 };
 
 export default function Fotovoltaico() {

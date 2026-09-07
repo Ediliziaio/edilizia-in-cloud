@@ -443,7 +443,11 @@ const config: FunzionalitaPageConfig = {
 
   applicationSubCategory: "Construction Progress Billing Software",
 
-  relatedBlogSlugs: ["come-fare-preventivo-edilizia", "alternativa-excel-cantieri"],
+  relatedBlogSlugs: [
+    "contabilita-di-cantiere-guida",
+    "sal-cantiere-come-funziona",
+    "libretto-delle-misure",
+  ],
 };
 
 export default function ContabilitaLavori() {

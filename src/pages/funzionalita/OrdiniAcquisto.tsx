@@ -442,7 +442,11 @@ const config: FunzionalitaPageConfig = {
 
   applicationSubCategory: "Construction Purchase Order Software",
 
-  relatedBlogSlugs: ["come-fare-preventivo-edilizia", "alternativa-excel-cantieri"],
+  relatedBlogSlugs: [
+    "ddt-cantiere-digitale",
+    "ridurre-costi-cantieri-edili",
+    "prezzario-regionale-edilizia",
+  ],
 };
 
 export default function OrdiniAcquisto() {

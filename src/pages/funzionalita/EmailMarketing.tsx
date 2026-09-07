@@ -451,7 +451,11 @@ const config: FunzionalitaPageConfig = {
 
   applicationSubCategory: "Construction Email Marketing Software",
 
-  relatedBlogSlugs: ["come-fare-preventivo-edilizia", "alternativa-excel-cantieri"],
+  relatedBlogSlugs: [
+    "marketing-digitale-imprese-edili",
+    "come-trovare-clienti-impresa-edile-marketing",
+    "passaparola-impresa-edile-non-basta",
+  ],
 };
 
 export default function EmailMarketing() {

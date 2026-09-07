@@ -433,7 +433,11 @@ const config: FunzionalitaPageConfig = {
 
   applicationSubCategory: "Construction Team Communication Software",
 
-  relatedBlogSlugs: ["come-fare-preventivo-edilizia", "alternativa-excel-cantieri"],
+  relatedBlogSlugs: [
+    "gestire-piu-cantieri-contemporaneamente",
+    "delegare-impresa-edile-senza-perdere-controllo",
+    "excel-whatsapp-carta-gestione-impresa-edile",
+  ],
 };
 
 export default function ChatInterna() {

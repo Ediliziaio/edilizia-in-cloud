@@ -475,9 +475,9 @@ const config: FunzionalitaPageConfig = {
   applicationSubCategory: "Construction Cost Control Software",
 
   relatedBlogSlugs: [
-    "controllo-costi-cantiere-guida",
-    "alternativa-excel-cantieri",
-    "sal-cantiere-come-funziona",
+    "analisi-margini-imprese-edili",
+    "ai-analisi-margini-cantiere",
+    "ridurre-costi-cantieri-edili",
   ],
 };
 

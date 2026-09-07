@@ -329,8 +329,8 @@ export default function BlogPost() {
       "@id": "https://www.ediliziaincloud.com/#author-flo",
       name: post.author.name,
       jobTitle: post.author.role,
-      url: "https://www.ediliziaincloud.com/chi-siamo",
-      sameAs: ["https://www.linkedin.com/company/edilizia-in-cloud"],
+      url: "https://www.ediliziaincloud.com/autore/florin-andriciuc/",
+      sameAs: ["https://www.linkedin.com/in/florinandriciuc/", "https://www.linkedin.com/company/edilizia-in-cloud"],
       worksFor: { "@id": "https://www.ediliziaincloud.com/#organization" },
     },
     publisher: { "@id": "https://www.ediliziaincloud.com/#organization" },
@@ -779,8 +779,14 @@ export default function BlogPost() {
                 </div>
               )}
               <div>
-                <p className="font-bold text-[#111111]">{post.author.name}</p>
-                <p className="text-sm text-gray-500 mb-2">{post.author.role}</p>
+                <p className="font-bold text-[#111111]">
+                  <Link to="/autore/florin-andriciuc/" className="hover:text-[#F97415] transition-colors">{post.author.name}</Link>
+                </p>
+                <p className="text-sm text-gray-500 mb-2">
+                  {post.author.role}
+                  {" · "}
+                  <a href="https://www.linkedin.com/in/florinandriciuc/" rel="me noopener" target="_blank" className="hover:text-[#F97415]">LinkedIn</a>
+                </p>
                 <p className="text-sm text-gray-600 leading-relaxed">
                   Esperto di gestione aziendale per imprese edili italiane. Fondatore di Edilizia in Cloud, la piattaforma gestionale dedicata al settore delle costruzioni.
                 </p>

@@ -437,7 +437,11 @@ const config: FunzionalitaPageConfig = {
 
   applicationSubCategory: "Construction Cash Flow Management Software",
 
-  relatedBlogSlugs: ["controllo-costi-cantiere-guida", "alternativa-excel-cantieri", "sal-cantiere-come-funziona"],
+  relatedBlogSlugs: [
+    "cassa-impresa-edile-non-torna",
+    "gestione-liquidita-impresa-edile",
+    "contabilita-di-cantiere-guida",
+  ],
 };
 
 export default function CassaCantiere() {

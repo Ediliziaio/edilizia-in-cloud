@@ -455,7 +455,11 @@ const config: FunzionalitaPageConfig = {
 
   applicationSubCategory: "Construction Site Safety Management Software",
 
-  relatedBlogSlugs: ["come-fare-preventivo-edilizia", "alternativa-excel-cantieri"],
+  relatedBlogSlugs: [
+    "sicurezza-cantieri-dlgs-81",
+    "pos-piano-operativo-sicurezza-fac-simile",
+    "patente-a-crediti-edilizia-guida",
+  ],
 };
 
 export default function SicurezzaCantiere() {

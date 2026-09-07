@@ -1747,6 +1747,31 @@ const ROUTES = {
     ],
   },
 
+  "/autore/florin-andriciuc": {
+    title: "Florin Andriciuc, fondatore di Edilizia in Cloud",
+    description: "Chi scrive le guide di Edilizia in Cloud: Florin Andriciuc, imprenditore edile e CEO di AEDIX. Tutti gli articoli, dal margine di commessa alla fatturazione.",
+    h1: "Florin Andriciuc",
+    intro: "Imprenditore edile, fondatore di Edilizia in Cloud e CEO di AEDIX. Scrive guide pratiche per titolari di imprese edili italiane su margini di commessa, preventivi, cantiere, fatturazione e normativa: casi reali tradotti in procedure applicabili domani mattina.",
+    links: [
+      { href: "/blog", label: "Tutte le guide" },
+      { href: "/chi-siamo", label: "Chi siamo" },
+      ...BLOG_ALL_POST_LINKS.slice(0, 12),
+    ],
+    jsonLd: {
+      "@context": "https://schema.org",
+      "@type": "ProfilePage",
+      url: "https://www.ediliziaincloud.com/autore/florin-andriciuc/",
+      mainEntity: {
+        "@type": "Person",
+        "@id": "https://www.ediliziaincloud.com/#author-flo",
+        name: "Florin Andriciuc",
+        jobTitle: "Fondatore",
+        url: "https://www.ediliziaincloud.com/autore/florin-andriciuc/",
+        sameAs: ["https://www.linkedin.com/in/florinandriciuc/", "https://www.linkedin.com/company/edilizia-in-cloud"],
+      },
+    },
+  },
+
   "/chi-siamo": {
     title: "Chi Siamo | Edilizia in Cloud, software nato in cantiere",
     description:
@@ -2898,7 +2923,7 @@ function resolveRoute(pathname) {
       url: canonicalUrl(pathname),
       datePublished: meta.publishedAt || "",
       dateModified: meta.updatedAt || meta.publishedAt || "",
-      author: { "@type": "Person", name: "Florin Andriciuc" },
+      author: { "@type": "Person", "@id": "https://www.ediliziaincloud.com/#author-flo", name: "Florin Andriciuc", url: "https://www.ediliziaincloud.com/autore/florin-andriciuc/", sameAs: ["https://www.linkedin.com/in/florinandriciuc/", "https://www.linkedin.com/company/edilizia-in-cloud"] },
       publisher: { "@type": "Organization", name: "Edilizia in Cloud", url: "https://www.ediliziaincloud.com/" },
       image: meta.coverImage || OG_IMAGES.blog,
       keywords: meta.tags ? meta.tags.join(", ") : "",

@@ -210,4 +210,128 @@ export const blogPostsCantierePmi: BlogPost[] = [
       },
     ],
   },
+  {
+    id: "sept-2026-ddt",
+    slug: "ddt-cantiere-digitale",
+    title: "DDT di Cantiere: Cos'è, Quando Serve e Come Farlo Digitale",
+    excerpt:
+      "Cos'è il DDT in edilizia, quando è obbligatorio, cosa deve contenere e come gestirlo dal telefono: dal fornitore al cantiere fino al margine di commessa.",
+    category: "Gestione Cantieri",
+    tags: ["DDT cantiere", "documento di trasporto", "materiali cantiere", "magazzino cantiere", "margine di commessa"],
+    publishedAt: "2026-09-07",
+    readTime: 9,
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
+    coverImage: "/blog/covers/ddt-cantiere-digitale.jpg",
+    content: [
+      {
+        type: "intro",
+        body: "Il DDT è il documento più maltrattato del cantiere. Arriva con il camion del fornitore, lo firma chi c'è, finisce in tasca, sul cruscotto del furgone o sotto un sacco di cemento. Poi, a fine mese, arriva la fattura e nessuno sa più se quel materiale era tutto, se era quello ordinato e su quale cantiere è finito.\n\nEppure il documento di trasporto è il punto in cui il costo dei materiali — spesso metà del costo di un lavoro — entra o non entra nel margine della commessa. In questa guida vediamo cos'è, quando è obbligatorio, cosa deve contenere e come gestirlo in digitale senza aggiungere lavoro a chi sta in cantiere.",
+      },
+      {
+        type: "section",
+        heading: "Cos'è il DDT (documento di trasporto)",
+        body: "Il DDT è il documento che accompagna la merce quando viaggia: dal fornitore al cantiere, dal tuo magazzino al cantiere, da un cantiere all'altro. È stato introdotto dal DPR 472/1996 al posto della vecchia bolla di accompagnamento, e da allora è il documento che prova cosa è partito, quando, da chi e verso dove.\n\nNon è una fattura e non ha bisogno del prezzo: serve a identificare la merce e il motivo del trasporto. La fattura arriva dopo, e se è «differita» — cioè emessa a fine mese per tutte le consegne del periodo — si regge proprio sui DDT.\n\nIn cantiere il DDT ha due direzioni. In entrata: il fornitore consegna sabbia, laterizi, serramenti, e il DDT è la tua unica prova di quanto è arrivato davvero. In uscita: sposti materiale dal tuo deposito al cantiere o restituisci merce, e il DDT giustifica il trasporto se ti fermano su strada e tiene in ordine il magazzino.",
+      },
+      {
+        type: "section",
+        heading: "Quando il DDT è obbligatorio",
+        body: "Il DDT è obbligatorio ogni volta che la fattura non viaggia con la merce. Nella pratica edile succede quasi sempre: i fornitori fatturano a fine mese — la fatturazione differita, entro il 15 del mese successivo alla consegna, come prevede l'articolo 21 del DPR 633/1972 — e ogni consegna va coperta da un DDT.\n\nServe anche quando il trasporto non è una vendita: trasferimenti tra il tuo magazzino e il cantiere, merce data in conto lavorazione (per esempio il ferro da sagomare), resi al fornitore, noleggio di attrezzature, materiale del cliente che passa da te. In tutti questi casi il DDT dice perché quella merce sta viaggiando, e ti evita che un controllo la consideri una vendita senza fattura.\n\nNon serve, invece, se la fattura è immediata e accompagna la merce (la fattura accompagnatoria, che contiene gli stessi dati del DDT) o per il trasporto di beni propri che non sono merce, come gli attrezzi della squadra sul furgone.",
+      },
+      {
+        type: "list",
+        heading: "Cosa deve contenere un DDT: i campi obbligatori",
+        items: [
+          "Data di emissione e numero progressivo",
+          "Dati di chi spedisce (cedente) e di chi riceve (cessionario): ragione sociale, indirizzo, partita IVA",
+          "Descrizione della merce: natura, qualità e quantità (per esempio «laterizi forati 8x25x25, 12 bancali, 4.800 pezzi»)",
+          "Causale del trasporto: vendita, conto lavorazione, trasferimento, reso, noleggio, comodato",
+          "Chi effettua il trasporto: mittente, destinatario o vettore, con i dati del vettore se è un terzo",
+          "Data e ora di inizio del trasporto, se diverse dalla data di emissione",
+          "Luogo di destinazione, quando è diverso dalla sede del destinatario: nel nostro caso, l'indirizzo del cantiere",
+          "Firma di chi riceve, con le eventuali riserve («merce non controllata», «2 bancali danneggiati»)",
+        ],
+      },
+      {
+        type: "section",
+        heading: "DDT in entrata: il momento in cui perdi soldi senza accorgertene",
+        body: "Quando il camion arriva, in cantiere ci sono tre domande da fare in trenta secondi. È tutto? È quello che ho ordinato? È per questo cantiere?\n\nSe nessuno le fa, la fattura di fine mese passa così com'è. Il fornitore ha consegnato 10 bancali invece di 12 e nessuno ha scritto la riserva sul DDT; il prezzo in fattura è diverso da quello dell'ordine e nessuno confronta; il materiale era per via Roma ma è stato scaricato a via Verdi, e il margine di due cantieri è sbagliato in direzioni opposte.\n\nIl DDT è l'unico documento che può bloccare questi errori, ma solo se viene letto quando conta: al momento della consegna e al momento della fattura. Un DDT firmato «con riserva» e fotografato vale in una contestazione; un DDT nel cruscotto del furgone non vale niente.",
+      },
+      {
+        type: "section",
+        heading: "DDT in uscita: il magazzino che non torna",
+        body: "Se hai un deposito, ogni materiale che parte per un cantiere dovrebbe uscire con un DDT di trasferimento. Non perché lo chieda il fisco per forza — è merce tua che resta tua — ma perché è l'unico modo per sapere cosa c'è ancora in magazzino e cosa è già costo di un cantiere.\n\nSenza DDT interni succede la cosa classica: il magazzino sulla carta è pieno, quello vero è vuoto, e il costo dei materiali finisce spalmato a fine anno su tutte le commesse insieme. Il cantiere che ha consumato di più sembra in utile, quello che ha consumato poco sembra in perdita, e le decisioni le prendi sui numeri sbagliati.\n\nUn DDT di trasferimento con causale, quantità e cantiere di destinazione mette il costo dove deve stare, il giorno in cui la merce parte.",
+      },
+      {
+        type: "section",
+        heading: "Il DDT e il margine di commessa",
+        body: "Nei lavori edili i materiali pesano tra il 40 e il 60 per cento del costo, a seconda della lavorazione. Vuol dire che se i DDT non entrano nella commessa il giorno della consegna, il margine che leggi è finto fino all'arrivo delle fatture — e spesso anche dopo, perché la fattura di fine mese copre più cantieri e va spezzata a mano.\n\nCollegare il DDT alla commessa risolve il problema alla radice: la quantità consegnata diventa costo previsto sul cantiere subito, la fattura poi lo conferma o lo corregge. Il titolare vede stasera che il cantiere di via Roma ha consumato più laterizi del computo, non a marzo.",
+      },
+      {
+        type: "section",
+        heading: "DDT digitale: come funziona davvero",
+        body: "Fare il DDT «in digitale» non vuol dire scannerizzare un foglio e metterlo in una cartella. Vuol dire tre cose.\n\nPrima: il DDT del fornitore si fotografa dal telefono nel momento della consegna, con la firma e le riserve, e la foto è già agganciata al cantiere e all'ordine. Se il gestionale legge il documento in automatico — numero, data, fornitore, righe — non c'è nulla da ricopiare.\n\nSeconda: il DDT in uscita si emette dal telefono o dall'ufficio con numerazione progressiva, causale e destinazione, e scarica il magazzino da solo. Il PDF parte al destinatario e resta nell'archivio della commessa.\n\nTerza: quando arriva la fattura, il gestionale la confronta con i DDT del periodo: quantità, prezzi, cantiere. Le differenze saltano fuori prima di pagare, non dopo.\n\nLa conservazione? Il DDT è un documento contabile: va tenuto per dieci anni (articolo 2220 del codice civile). In digitale è più facile che in un faldone, a patto che il file sia integro, ordinato e ritrovabile per numero, data e fornitore.",
+      },
+      {
+        type: "list",
+        heading: "Gli errori più comuni con i DDT in cantiere",
+        items: [
+          "Firmare senza contare: senza riserva scritta, la quantità in fattura è quella che vale",
+          "DDT senza cantiere di destinazione: il costo finisce sull'impresa, non sulla commessa",
+          "Fattura pagata senza confronto con i DDT: differenze di prezzo e quantità passano tutte",
+          "Materiale spostato tra cantieri senza documento: il margine di due commesse sbagliato in direzioni opposte",
+          "DDT cartacei persi prima di arrivare in ufficio: a fine mese si ricostruisce a memoria",
+          "Numerazione in uscita non progressiva o doppia: il primo controllo la trova subito",
+        ],
+      },
+      {
+        type: "table",
+        heading: "DDT, fattura accompagnatoria, bolla e ordine: le differenze",
+        headers: ["Documento", "Cosa fa", "Quando si usa", "Prezzo"],
+        rows: [
+          ["DDT (documento di trasporto)", "Accompagna la merce e giustifica il trasporto", "Fatturazione differita, trasferimenti, conto lavorazione, resi, noleggi", "Non obbligatorio"],
+          ["Fattura accompagnatoria", "Fattura e documento di trasporto in uno", "Vendita con fattura immediata che viaggia con la merce", "Sì"],
+          ["Bolla di accompagnamento", "Il vecchio documento di trasporto", "Non esiste più: sostituita dal DDT nel 1996 (DPR 472/1996)", "—"],
+          ["Ordine di acquisto", "Impegna il fornitore su quantità e prezzi prima della consegna", "Prima di ogni fornitura importante: è il metro con cui leggi DDT e fattura", "Sì"],
+        ],
+      },
+      {
+        type: "callout",
+        variant: "info",
+        heading: "Come funziona in Edilizia in Cloud",
+        body: "Il capocantiere fotografa il DDT del fornitore dal telefono; la lettura automatica estrae numero, data, righe e quantità e li aggancia all'ordine e alla commessa. Il DDT in uscita si emette in due tocchi con numerazione progressiva e scarica il magazzino di cantiere. Quando arriva la fattura elettronica, il confronto con i DDT segnala le differenze di quantità e prezzo prima del pagamento, e tutto resta nell'archivio della commessa per dieci anni.",
+      },
+      {
+        type: "section",
+        heading: "Da dove partire domani mattina",
+        body: "Non serve cambiare tutto insieme. Tre passi, in ordine.\n\nUno: chi riceve la merce conta e scrive la riserva sul DDT, sempre. È una regola, non un software.\n\nDue: ogni DDT viene fotografato il giorno stesso e associato al cantiere, anche solo con il nome del cantiere nel titolo della foto se non hai ancora un gestionale.\n\nTre: nessuna fattura di materiali viene pagata senza il confronto con i DDT del mese. Il primo mese troverai differenze. Il secondo, il fornitore lo saprà.",
+      },
+      {
+        type: "cta",
+        heading: "Prova la gestione dei DDT dal telefono",
+        body: "In Edilizia in Cloud i DDT si fotografano in cantiere, si leggono da soli e finiscono sulla commessa giusta. Hai 31 giorni di prova gratuita con setup incluso: carica i DDT di un cantiere vero e guarda quanto cambia il margine.",
+      },
+    ],
+    faqs: [
+      {
+        q: "Il DDT è obbligatorio se trasporto il materiale con il mio furgone dal magazzino al cantiere?",
+        a: "Se la merce è tua e resta tua non c'è una vendita, ma il DDT con causale «trasferimento» è comunque la strada giusta: giustifica il trasporto in caso di controllo su strada e scarica il magazzino sul cantiere di destinazione. Senza, il costo dei materiali non arriva mai alla commessa che li ha consumati.",
+      },
+      {
+        q: "Nel DDT devo indicare il prezzo?",
+        a: "No. Il DDT identifica la merce (natura, qualità, quantità), le parti e la causale del trasporto; il prezzo sta nella fattura. Molte imprese preferiscono non mostrarlo in cantiere, dove il documento passa per molte mani.",
+      },
+      {
+        q: "Per quanto tempo vanno conservati i DDT?",
+        a: "Dieci anni, come le altre scritture contabili (articolo 2220 del codice civile). La conservazione digitale è valida se i file sono integri, ordinati e ritrovabili; una foto ben fatta del DDT firmato, archiviata con numero, data e fornitore, è meglio di un faldone che nessuno apre.",
+      },
+      {
+        q: "Che differenza c'è tra DDT e fattura accompagnatoria?",
+        a: "La fattura accompagnatoria è una fattura immediata che viaggia con la merce e contiene anche i dati del trasporto: in quel caso il DDT non serve. Il DDT si usa quando la fattura arriva dopo, in genere a fine mese con la fatturazione differita, oppure quando il trasporto non è una vendita.",
+      },
+      {
+        q: "Posso emettere il DDT dal telefono in cantiere?",
+        a: "Sì. Un gestionale con app di cantiere emette il DDT in uscita con numerazione progressiva, causale, destinazione e firma, e produce il PDF da inviare. Per i DDT in entrata basta la foto: la lettura automatica estrae i dati e li aggancia a ordine e commessa.",
+      },
+    ],
+  },
 ];

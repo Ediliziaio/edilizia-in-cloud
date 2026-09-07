@@ -477,8 +477,8 @@ const config: FunzionalitaPageConfig = {
 
   relatedBlogSlugs: [
     "come-fare-preventivo-edilizia",
+    "modello-preventivo-edile",
     "computo-metrico-estimativo-guida",
-    "alternativa-excel-cantieri",
   ],
 };
 

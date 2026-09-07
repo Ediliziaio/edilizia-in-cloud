@@ -479,7 +479,11 @@ const config: FunzionalitaPageConfig = {
 
   applicationSubCategory: "Construction Retention Management Software",
 
-  relatedBlogSlugs: ["come-fare-preventivo-edilizia", "alternativa-excel-cantieri"],
+  relatedBlogSlugs: [
+    "ritenuta-di-garanzia-appalti-come-funziona",
+    "sal-cantiere-come-funziona",
+    "split-payment-lavori-pubblici",
+  ],
 };
 
 export default function RitenuteGaranzia() {

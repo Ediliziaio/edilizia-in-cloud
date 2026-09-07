@@ -141,6 +141,7 @@ const NotFound = lazy(() => import("@/pages/NotFound"));
 const Demo = lazy(() => import("@/pages/Demo"));
 const Funzionalita = lazy(() => import("@/pages/Funzionalita"));
 const ChiSiamo = lazy(() => import("@/pages/ChiSiamo"));
+const AutoreFlorin = lazy(() => import("@/pages/AutoreFlorin"));
 const Prezzi = lazy(() => import("@/pages/Prezzi"));
 const OffertaCheckout = lazy(() => import("@/pages/OffertaCheckout"));
 const OffertaGrazie = lazy(() => import("@/pages/OffertaGrazie"));
@@ -586,6 +587,7 @@ const App = () => (
               <Route path="/demo" element={<Demo />} />
               <Route path="/funzionalita" element={<Funzionalita />} />
               <Route path="/chi-siamo" element={<ChiSiamo />} />
+              <Route path="/autore/florin-andriciuc" element={<AutoreFlorin />} />
               {/* App Store 3.1.1: la pagina prezzi pubblica (con piani+acquisto) non
                   deve essere raggiungibile nell'app mobile. Redirect alla home. */}
               <Route path="/prezzi" element={isMobileAppRuntime ? <Navigate to="/" replace /> : <Prezzi />} />

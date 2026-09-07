@@ -439,7 +439,11 @@ const config: FunzionalitaPageConfig = {
 
   applicationSubCategory: "Construction AI Agents Software",
 
-  relatedBlogSlugs: ["alternativa-excel-cantieri", "come-fare-preventivo-edilizia"],
+  relatedBlogSlugs: [
+    "intelligenza-artificiale-edilizia-2026",
+    "come-scegliere-gestionale-ai-impresa-edile",
+    "ai-analisi-margini-cantiere",
+  ],
 };
 
 export default function AgentiAi() {

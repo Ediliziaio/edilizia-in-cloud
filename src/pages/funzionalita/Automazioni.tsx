@@ -454,7 +454,11 @@ const config: FunzionalitaPageConfig = {
 
   applicationSubCategory: "Construction Workflow Automation Software",
 
-  relatedBlogSlugs: ["come-fare-preventivo-edilizia", "alternativa-excel-cantieri"],
+  relatedBlogSlugs: [
+    "delegare-impresa-edile-senza-perdere-controllo",
+    "digitalizzare-impresa-edile",
+    "excel-whatsapp-carta-gestione-impresa-edile",
+  ],
 };
 
 export default function Automazioni() {

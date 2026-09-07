@@ -443,7 +443,11 @@ const config: FunzionalitaPageConfig = {
 
   applicationSubCategory: "Construction Inventory Management Software",
 
-  relatedBlogSlugs: ["come-fare-preventivo-edilizia", "alternativa-excel-cantieri"],
+  relatedBlogSlugs: [
+    "ddt-cantiere-digitale",
+    "ridurre-costi-cantieri-edili",
+    "contabilita-di-cantiere-guida",
+  ],
 };
 
 export default function MagazzinoCantiere() {

@@ -435,7 +435,11 @@ const config: FunzionalitaPageConfig = {
 
   applicationSubCategory: "Construction Helpdesk Software",
 
-  relatedBlogSlugs: ["come-fare-preventivo-edilizia", "alternativa-excel-cantieri"],
+  relatedBlogSlugs: [
+    "gestionale-edilizia-opinioni",
+    "delegare-impresa-edile-senza-perdere-controllo",
+    "digitalizzare-impresa-edile",
+  ],
 };
 
 export default function TicketAssistenza() {

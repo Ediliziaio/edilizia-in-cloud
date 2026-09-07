@@ -451,7 +451,11 @@ const config: FunzionalitaPageConfig = {
 
   applicationSubCategory: "Construction Daily Site Diary Software",
 
-  relatedBlogSlugs: ["come-fare-preventivo-edilizia", "alternativa-excel-cantieri"],
+  relatedBlogSlugs: [
+    "giornale-dei-lavori-cantiere",
+    "libretto-delle-misure",
+    "rapportino-di-cantiere-app-e-modello",
+  ],
 };
 
 export default function GiornaleLavori() {

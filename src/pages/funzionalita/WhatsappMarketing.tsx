@@ -454,7 +454,11 @@ const config: FunzionalitaPageConfig = {
 
   applicationSubCategory: "Construction WhatsApp Marketing Software",
 
-  relatedBlogSlugs: ["come-fare-preventivo-edilizia", "alternativa-excel-cantieri"],
+  relatedBlogSlugs: [
+    "passaparola-impresa-edile-non-basta",
+    "come-trovare-clienti-impresa-edile-marketing",
+    "richieste-preventivo-ristrutturazione-online",
+  ],
 };
 
 export default function WhatsappMarketing() {

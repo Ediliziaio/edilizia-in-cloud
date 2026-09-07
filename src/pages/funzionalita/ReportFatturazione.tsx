@@ -433,7 +433,11 @@ const config: FunzionalitaPageConfig = {
 
   applicationSubCategory: "Construction Billing Reporting Software",
 
-  relatedBlogSlugs: ["come-fare-preventivo-edilizia", "alternativa-excel-cantieri"],
+  relatedBlogSlugs: [
+    "sistema-fatturazione-aziende-edili",
+    "recupero-crediti-impresa-edile-fatture-scadute",
+    "analisi-margini-imprese-edili",
+  ],
 };
 
 export default function ReportFatturazione() {

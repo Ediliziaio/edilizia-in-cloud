@@ -435,7 +435,11 @@ const config: FunzionalitaPageConfig = {
 
   applicationSubCategory: "Construction Scheduling Software",
 
-  relatedBlogSlugs: ["come-fare-preventivo-edilizia", "alternativa-excel-cantieri"],
+  relatedBlogSlugs: [
+    "gestire-piu-cantieri-contemporaneamente",
+    "come-organizzare-cantiere-edile",
+    "report-avanzamento-cantiere-guida",
+  ],
 };
 
 export default function CalendarioLavori() {

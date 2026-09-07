@@ -479,7 +479,11 @@ const config: FunzionalitaPageConfig = {
 
   applicationSubCategory: "Construction Delivery Note Software",
 
-  relatedBlogSlugs: ["come-fare-preventivo-edilizia", "alternativa-excel-cantieri"],
+  relatedBlogSlugs: [
+    "ddt-cantiere-digitale",
+    "ridurre-costi-cantieri-edili",
+    "contabilita-di-cantiere-guida",
+  ],
 };
 
 export default function DdtDigitali() {

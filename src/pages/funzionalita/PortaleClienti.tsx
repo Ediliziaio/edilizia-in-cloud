@@ -384,7 +384,11 @@ const config: FunzionalitaPageConfig = {
 
   applicationSubCategory: "Construction Customer Portal Software",
 
-  relatedBlogSlugs: ["come-fare-preventivo-edilizia", "alternativa-excel-cantieri"],
+  relatedBlogSlugs: [
+    "report-avanzamento-cantiere-guida",
+    "richieste-preventivo-ristrutturazione-online",
+    "preventivi-edili-non-si-chiudono",
+  ],
 };
 
 export default function PortaleClienti() {

@@ -478,7 +478,11 @@ const config: FunzionalitaPageConfig = {
 
   applicationSubCategory: "Facility Maintenance Software",
 
-  relatedBlogSlugs: ["come-fare-preventivo-edilizia", "alternativa-excel-cantieri"],
+  relatedBlogSlugs: [
+    "gestire-piu-cantieri-contemporaneamente",
+    "recupero-crediti-impresa-edile-fatture-scadute",
+    "come-trovare-clienti-fotovoltaico",
+  ],
 };
 
 export default function ManutenzioneImpianti() {

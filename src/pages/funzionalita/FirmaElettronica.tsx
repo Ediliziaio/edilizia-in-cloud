@@ -475,7 +475,11 @@ const config: FunzionalitaPageConfig = {
 
   applicationSubCategory: "Construction Electronic Signature Software",
 
-  relatedBlogSlugs: ["come-fare-preventivo-edilizia", "alternativa-excel-cantieri"],
+  relatedBlogSlugs: [
+    "modello-preventivo-edile",
+    "preventivi-edili-non-si-chiudono",
+    "contratto-subappalto-edile-fac-simile",
+  ],
 };
 
 export default function FirmaElettronica() {
