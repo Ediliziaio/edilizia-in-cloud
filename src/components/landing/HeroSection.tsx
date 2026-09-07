@@ -219,8 +219,12 @@ export default function HeroSection() {
             <span className="block text-white text-[clamp(2.15rem,5.1vw,5.25rem)]">
               Aumenta margini, utili e guadagni.
             </span>
+            {/* SEO 2026-09-07: l'H1 della home non conteneva mai la keyword
+                ("gestionale edilizia"): chi la cercava trovava una pagina che
+                non lo diceva nel titolo principale. La prima riga resta (è il
+                testo LCP), la seconda dice cosa siamo. */}
             <span className="mt-2 block text-[#F97415] text-[clamp(1.95rem,4.45vw,4.6rem)] md:mt-3">
-              Controlla la tua azienda con l'AI per l'edilizia.
+              Il gestionale edilizia con AI che tiene tutto sotto controllo.
             </span>
           </h1>
 

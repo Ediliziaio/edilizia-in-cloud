@@ -1,4 +1,5 @@
 import { BLOG_BODIES } from "./_blog-bodies.js";
+import { BLOG_POST_META, BLOG_POST_CATEGORY } from "./_blog-meta.js";
 
 /**
  * Cloudflare Pages Middleware — Bot Detection & Static Pre-render
@@ -128,144 +129,14 @@ const LEGACY_REDIRECTS = {
 // Fix GSC 2026-06: l'indice /blog linkava solo 3 articoli su 54 → il resto
 // erano pagine orfane senza link interni ("Scansionata ma non indicizzata").
 // Ora l'indice linka TUTTI i post e le pagine categoria linkano i propri.
-const BLOG_POST_META = {
-      "sal-cantiere-come-funziona": { title: "SAL Cantiere: Cos'è, Come Funziona e Come Gestirlo | Blog Edilizia in Cloud", description: "Guida completa allo Stato di Avanzamento dei Lavori: come calcolare il SAL, emettere i certificati di pagamento e gestire la contabilità di cantiere.", publishedAt: "2025-11-28", coverImage: "https://images.unsplash.com/photo-1503387762-592deb58ef4e?auto=format&fit=crop&w=1600&q=80" },
-      "durc-edilizia-guida-completa": { title: "DURC in Edilizia: Guida Completa 2026 | Blog Edilizia in Cloud", description: "Cos'è il DURC, come richiederlo, validità 120 giorni, DURC online e cosa fare se l'impresa risulta irregolare.", publishedAt: "2025-12-08", coverImage: "https://images.unsplash.com/photo-1450101499163-c8848c66ca85?auto=format&fit=crop&w=1600&q=80" },
-      "giornale-dei-lavori-cantiere": { title: "Il Giornale dei Lavori in Cantiere: Guida Pratica | Blog Edilizia in Cloud", description: "Come compilare il giornale dei lavori, chi lo tiene, valore legale e come digitalizzarlo con un software gestionale.", publishedAt: "2025-12-18", coverImage: "https://images.unsplash.com/photo-1581094794329-c8112a89af12?auto=format&fit=crop&w=1600&q=80" },
-      "subappalto-edilizia-guida": { title: "Subappalto in Edilizia: Regole, Limiti e Come Gestirlo nel 2026 | Blog Edilizia in Cloud", description: "Tutto sul subappalto edile: limiti percentuali, autorizzazioni, obblighi DURC e responsabilità solidale.", publishedAt: "2025-12-28", coverImage: "https://images.unsplash.com/photo-1521791136064-7986c2920216?auto=format&fit=crop&w=1600&q=80" },
-      "acquisire-clienti-impresa-edile": { title: "Come Acquisire Clienti per un'Impresa Edile nel 2026 | Blog Edilizia in Cloud", description: "7 strategie efficaci per trovare nuovi clienti come impresa edile: referral, preventivi professionali, presenza online e molto altro.", publishedAt: "2026-01-06", coverImage: "https://images.unsplash.com/photo-1556761175-b413da4baf72?auto=format&fit=crop&w=1600&q=80" },
-      "gestione-operai-cantiere-presenze-ore": { title: "Gestione Operai in Cantiere: Presenze e Ore Lavorate | Blog Edilizia in Cloud", description: "Come gestire le presenze degli operai in cantiere, tracciare le ore lavorate per commessa e semplificare le buste paga.", publishedAt: "2026-01-09", coverImage: "https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=1600&q=80" },
-      "sito-web-impresa-edile-guida": { title: "Come Creare un Sito Web per un'Impresa Edile: Guida Completa | Blog Edilizia in Cloud", description: "Guida passo passo per costruire un sito web professionale per la tua impresa edile: struttura, SEO locale e contenuti che convertono.", publishedAt: "2026-01-12", coverImage: "https://images.unsplash.com/photo-1432888622747-4eb9a8efeb07?auto=format&fit=crop&w=1600&q=80" },
-      "digitalizzazione-impresa-edile-passo-passo": { title: "Digitalizzazione dell'Impresa Edile: Guida Passo Passo | Blog Edilizia in Cloud", description: "Come digitalizzare la tua impresa edile in modo graduale: da carta e Excel a un gestionale cloud completo.", publishedAt: "2026-01-15", coverImage: "https://images.unsplash.com/photo-1519389950473-47ba0277781c?auto=format&fit=crop&w=1600&q=80" },
-      "computo-metrico-estimativo-guida": { title: "Computo Metrico Estimativo: Cos'è, Come Si Fa e Template Gratis | Blog Edilizia in Cloud", description: "Guida completa al computo metrico estimativo: struttura, prezzari regionali, errori comuni e software per compilarlo in modo professionale.", publishedAt: "2026-01-18", coverImage: "https://images.unsplash.com/photo-1581094288338-2314dddb7ece?auto=format&fit=crop&w=1600&q=80" },
-      "bim-edilizia-guida-pratica": { title: "BIM in Edilizia: Cos'è, Obblighi e Come Iniziare nel 2026 | Blog Edilizia in Cloud", description: "Guida pratica al BIM per imprese edili italiane: obblighi DM 560, soglie per appalti pubblici e come iniziare senza stravolgere l'organizzazione.", publishedAt: "2026-01-21", coverImage: "https://images.unsplash.com/photo-1503387762-592deb58ef4e?auto=format&fit=crop&w=1600&q=80" },
-      "cassa-edile-come-funziona": { title: "Cassa Edile: Come Funziona, Contributi e Obblighi per le Imprese | Blog Edilizia in Cloud", description: "Guida completa alla Cassa Edile: iscrizione obbligatoria, contributi mensili, prestazioni ai lavoratori e come gestirla senza errori di DURC.", publishedAt: "2026-01-24", coverImage: "https://images.unsplash.com/photo-1450101499163-c8848c66ca85?auto=format&fit=crop&w=1600&q=80" },
-      "appalti-pubblici-edilizia-guida": { title: "Come Partecipare agli Appalti Pubblici in Edilizia: Guida 2026 | Blog Edilizia in Cloud", description: "Guida pratica agli appalti pubblici per imprese edili: requisiti SOA, DURC, portali gare, ribasso d'asta e fondi PNRR.", publishedAt: "2026-01-27", coverImage: "https://images.unsplash.com/photo-1524178232363-1fb2b075b655?auto=format&fit=crop&w=1600&q=80" },
-      "sicurezza-cantieri-dlgs-81": { title: "Sicurezza Cantieri: D.Lgs 81/2008 Spiegato alle Imprese Edili | Blog Edilizia in Cloud", description: "Guida pratica al D.Lgs 81/2008: obblighi del titolare, DVR, POS, PSC, formazione obbligatoria e sanzioni. Come gestirla senza perdere ore.", publishedAt: "2026-01-30", coverImage: "https://images.unsplash.com/photo-1621905252507-b35492cc74b4?auto=format&fit=crop&w=1600&q=80" },
-      "ccnl-edilizia-guida": { title: "CCNL Edilizia Industria 2024-2026: Guida Pratica per le Imprese | Blog Edilizia in Cloud", description: "Tutto sul CCNL Edilizia Industria: livelli retributivi, Cassa Edile, costo reale di un operaio, ferie e come calcolare il costo orario effettivo.", publishedAt: "2026-02-02", coverImage: "https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=1600&q=80" },
-      "attestazione-soa-imprese-edili": { title: "Attestazione SOA per Imprese Edili: Come Ottenerla e Mantenerla | Blog Edilizia in Cloud", description: "Guida completa alla SOA: categorie OG/OS, requisiti di fatturato e personale, costi, rinnovi e verifica triennale per partecipare agli appalti pubblici.", publishedAt: "2026-02-05", coverImage: "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=1600&q=80" },
-      "superbonus-imprese-edili-2026": { title: "Superbonus 2025-2026: Cosa Resta per le Imprese Edili e Come Gestirlo | Blog Edilizia in Cloud", description: "Guida aggiornata ai bonus edilizi 2025-2026 per le imprese: aliquote, cessione del credito, SAL obbligatori e documentazione. Come acquisire lavori con i bonus.", publishedAt: "2026-02-08", coverImage: "https://images.unsplash.com/photo-1582268611958-ebfd161ef9cf?auto=format&fit=crop&w=1600&q=80" },
-      "gestione-liquidita-impresa-edile": { title: "Gestione della Liquidità per Imprese Edili: Come Evitare la Crisi di Cassa | Blog Edilizia in Cloud", description: "Guida completa alla liquidità per imprese edili: ciclo finanziario del cantiere, previsione flussi di cassa a 90 giorni, SAL e strumenti pratici per non trovarsi mai senza cassa.", publishedAt: "2026-02-11", coverImage: "https://images.unsplash.com/photo-1554224155-6726b3ff858f?auto=format&fit=crop&w=1600&q=80" },
-      "pnrr-edilizia-imprese-2026": { title: "PNRR per Imprese Edili 2025-2026: Bandi, Requisiti e Come Partecipare | Blog Edilizia in Cloud", description: "Guida completa al PNRR per le imprese edili: bandi disponibili, requisiti SOA, rendicontazione digitale, SAL asseverati e come organizzarsi per non perdere i pagamenti pubblici.", publishedAt: "2026-02-14", coverImage: "https://images.unsplash.com/photo-1524178232363-1fb2b075b655?auto=format&fit=crop&w=1600&q=80" },
-      "come-scegliere-software-gestionale-edilizia": { title: "Come Scegliere il Software Gestionale per la Tua Impresa Edile: Guida 2026 | Blog Edilizia in Cloud", description: "Guida pratica alla scelta del software gestionale per imprese edili: funzionalità indispensabili, 10 domande ai vendor, costi reali e errori da evitare.", publishedAt: "2026-02-17", coverImage: "https://images.unsplash.com/photo-1519389950473-47ba0277781c?auto=format&fit=crop&w=1600&q=80" },
-      "gestione-subappaltatori-impresa-edile": { title: "Gestione Subappaltatori: Contratti, DURC, Pagamenti e Come Mantenere il Controllo | Blog Edilizia in Cloud", description: "Guida completa alla gestione dei subappaltatori: contratti obbligatori, DURC, responsabilità solidale, limiti subappalto appalti pubblici e software di gestione.", publishedAt: "2026-02-20", coverImage: "https://images.unsplash.com/photo-1562259929-b4e1fd3aef09?auto=format&fit=crop&w=1600&q=80" },
-      "ridurre-costi-cantieri-edili": { title: "Come Ridurre i Costi Nei Cantieri Edili del 20% con il Digitale | Blog Edilizia in Cloud", description: "Scopri le 7 strategie pratiche che permettono alle imprese edili italiane di ridurre i costi operativi del 20-35% attraverso la digitalizzazione dei processi.", publishedAt: "2025-07-31", coverImage: "https://images.unsplash.com/photo-1503387762-592deb58ef4e?auto=format&fit=crop&w=1600&q=80" },
-      "gestione-cantieri-digitale": { title: "Gestione Cantieri 2026: Dalla Carta al Cloud — Guida Completa | Blog Edilizia in Cloud", description: "La guida definitiva per trasformare la gestione dei cantieri edili dalla carta al cloud. Dall'avanzamento lavori alle commesse, tutto ciò che devi sapere.", publishedAt: "2025-08-10", coverImage: "https://images.unsplash.com/photo-1581094794329-c8112a89af12?auto=format&fit=crop&w=1600&q=80" },
-      "preventivi-edilizia-guida": { title: "Preventivi Vincenti in Edilizia: Come Strutturare un'Offerta che Converte | Blog Edilizia in Cloud", description: "I preventivi perduti costano alle imprese edili milioni di euro ogni anno. Scopri come strutturare preventivi professionali che convincono il cliente.", publishedAt: "2025-08-20", coverImage: "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=1600&q=80" },
-      "hr-edilizia-presenze-buste-paga": { title: "HR in Edilizia: Gestione Presenze, Buste Paga e Conformità CCNL | Blog Edilizia in Cloud", description: "La gestione del personale nelle imprese edili è tra le più complesse d'Italia. Scopri come semplificare presenze, buste paga e rispettare il CCNL Edilizia.", publishedAt: "2025-08-30", coverImage: "https://images.unsplash.com/photo-1521791136064-7986c2920216?auto=format&fit=crop&w=1600&q=80" },
-      "analisi-margini-imprese-edili": { title: "Analisi dei Margini per Imprese Edili: La Guida Definitiva 2026 | Blog Edilizia in Cloud", description: "Il 68% delle imprese edili lavora senza conoscere i propri margini reali per commessa. Scopri come calcolare, monitorare e migliorare la redditività.", publishedAt: "2025-09-09", coverImage: "https://images.unsplash.com/photo-1543286386-713bdd548da4?auto=format&fit=crop&w=1600&q=80" },
-      "marketing-digitale-imprese-edili": { title: "Marketing Digitale per Imprese Edili: Trovare Nuovi Clienti Online nel 2026 | Blog Edilizia in Cloud", description: "Il passaparola non basta più. Scopri le strategie di marketing digitale specifiche per le imprese edili italiane: dal Google My Business alle campagne social.", publishedAt: "2025-09-19", coverImage: "https://images.unsplash.com/photo-1432888622747-4eb9a8efeb07?auto=format&fit=crop&w=1600&q=80" },
-      "software-gestionale-vs-excel": { title: "Software Gestionale vs Excel: Il Vero Costo Nascosto per la Tua Impresa Edile | Blog Edilizia in Cloud", description: "Molte imprese edili usano Excel convinte di risparmiare. Calcoliamo il vero costo nascosto: tempo perso, errori, opportunità mancate e rischio fiscale.", publishedAt: "2025-09-29", coverImage: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=1600&q=80" },
-      "digitalizzare-impresa-edile": { title: "Come Digitalizzare la Tua Impresa Edile in 30 Giorni | Blog Edilizia in Cloud", description: "Una roadmap concreta e testata per trasformare la tua impresa edile dal cartaceo al digitale in soli 30 giorni. Settimana per settimana, cosa fare.", publishedAt: "2025-10-09", coverImage: "https://images.unsplash.com/photo-1519389950473-47ba0277781c?auto=format&fit=crop&w=1600&q=80" },
-      "come-organizzare-cantiere-edile": { title: "Come Organizzare un Cantiere Edile: Guida Pratica per Titolari | Blog Edilizia in Cloud", description: "Hai cantieri aperti ma non sai dove sono i materiali, chi ha fatto cosa ieri, e quanto hai speso. Scopri il metodo in 5 fasi per organizzare ogni cantiere.", publishedAt: "2025-10-19", coverImage: "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1600&q=80" },
-            "documentazione-obbligatoria-cantiere-2025": { title: "Documentazione Obbligatoria Cantiere 2026: Lista Completa | Blog Edilizia in Cloud", description: "Lista aggiornata di tutti i documenti obbligatori per il cantiere nel 2026. POS, DURC, notifica preliminare, DDT e certificazioni finali.", publishedAt: "2025-10-29", coverImage: "https://images.unsplash.com/photo-1450101499163-c8848c66ca85?auto=format&fit=crop&w=1600&q=80" },
-            "come-fare-preventivo-edilizia": { title: "Come Fare un Preventivo Edilizia Professionale (Senza Perdere Margine) | Blog Edilizia in Cloud", description: "Come fare un preventivo edilizia che vince i lavori e protegge i tuoi margini. Metodo pratico in 5 passi per imprese edili.", publishedAt: "2025-11-08", coverImage: "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&w=1600&q=80" },
-            "alternativa-excel-cantieri": { title: "Alternativa a Excel per Cantieri: Perché le Imprese Edili Lo Stanno Abbandonando | Blog Edilizia in Cloud", description: "Stai usando Excel per gestire i cantieri? Ti costa molto più di quanto pensi. Confronto diretto: Excel vs gestionale di cantiere nel 2026.", publishedAt: "2025-11-18", coverImage: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=1600&q=80" },
-            "cassa-impresa-edile-non-torna": { title: "Ho Fatturato ma Non Ho Soldi: Perché la Cassa dell'Impresa Edile Non Torna | Blog Edilizia in Cloud", description: "Hai cantieri aperti e fatture emesse, ma il conto corrente resta sotto pressione? Ecco perché ricavi e liquidità non sono la stessa cosa e come riprendere il controllo.", publishedAt: "2026-02-23", coverImage: "https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&w=1600&q=80", tags: ["cassa impresa edile", "liquidità edilizia", "cash flow cantiere", "SAL cantiere", "margini cantiere"] },
-            "trovare-operai-edili-qualificati": { title: "Come Trovare Operai Edili Qualificati e Capire Chi Rende Davvero in Cantiere | Blog Edilizia in Cloud", description: "La manodopera manca, ma il problema non è solo assumere: è misurare produttività, presenze, formazione, costi reali e affidabilità di ogni operaio.", publishedAt: "2026-02-26", coverImage: "https://images.unsplash.com/photo-1521791136064-7986c2920216?auto=format&fit=crop&w=1200&q=80", tags: ["trovare operai edili", "gestione operai", "presenze cantiere", "produttività operai", "costo operaio edile"] },
-            "passaparola-impresa-edile-non-basta": { title: "Il Passaparola Non Basta Più: Come Creare un Flusso Clienti per l'Impresa Edile | Blog Edilizia in Cloud", description: "Se aspetti che i clienti arrivino solo da conoscenze e raccomandazioni, non hai un sistema commerciale. Ecco come rendere prevedibili contatti, preventivi e follow-up.", publishedAt: "2026-03-01", coverImage: "https://images.unsplash.com/photo-1552664730-d307ca884978?auto=format&fit=crop&w=1200&q=80", tags: ["clienti impresa edile", "marketing edilizia", "passaparola impresa edile", "lead edilizia", "preventivi edilizia"] },
-            "gestire-piu-cantieri-contemporaneamente": { title: "Come Gestire Più Cantieri Contemporaneamente Senza Perdere il Controllo | Blog Edilizia in Cloud", description: "Tre cantieri aperti, materiali in ritardo, squadre da coordinare e clienti che chiamano: il caos nasce quando tutto vive nella testa del titolare.", publishedAt: "2026-03-04", coverImage: "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1200&q=80", tags: ["gestire più cantieri", "organizzazione cantieri", "avanzamento lavori", "diario cantiere", "pianificazione cantiere"] },
-            "burocrazia-impresa-edile-scadenze-documenti": { title: "Burocrazia Edile: Come Non Dimenticare DURC, POS, Polizze e Documenti di Cantiere | Blog Edilizia in Cloud", description: "La burocrazia non fa rumore finché blocca un cantiere. Scopri quali scadenze controllare e come trasformarle in un processo automatico.", publishedAt: "2026-03-07", coverImage: "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=1200&q=80", tags: ["burocrazia edilizia", "documenti cantiere", "DURC scadenza", "POS cantiere", "scadenze impresa edile"] },
-            "delegare-impresa-edile-senza-perdere-controllo": { title: "Come Delegare in un'Impresa Edile Senza Perdere il Controllo dei Cantieri | Blog Edilizia in Cloud", description: "Se ogni decisione passa da te, non hai un'azienda: hai un lavoro molto pesante. La delega funziona solo con procedure, ruoli e numeri visibili.", publishedAt: "2026-03-10", coverImage: "https://images.unsplash.com/photo-1507209696998-3c532be9b2b5?auto=format&fit=crop&w=1200&q=80", tags: ["delegare impresa edile", "organizzare azienda edile", "procedure cantiere", "titolare impresa edile", "gestione team edile"] },
-            "preventivi-edili-non-si-chiudono": { title: "Perché i Preventivi Edili Non Si Chiudono: 7 Errori che Fanno Perdere Lavori | Blog Edilizia in Cloud", description: "Fai sopralluoghi, calcoli, invii preventivi e poi il cliente sparisce? Il problema spesso non è il prezzo, ma processo, valore e follow-up.", publishedAt: "2026-03-13", coverImage: "https://images.unsplash.com/photo-1581094794329-c8112a89af12?auto=format&fit=crop&w=1200&q=80", tags: ["preventivi edili", "chiudere preventivi", "preventivo impresa edile", "follow up preventivo", "vendita edilizia"] },
-            "segnali-crisi-impresa-edile": { title: "Segnali di Crisi in un'Impresa Edile: Come Accorgertene 90 Giorni Prima | Blog Edilizia in Cloud", description: "La crisi non arriva all'improvviso: lascia segnali su margini, cassa, clienti, costi fissi e crediti scaduti. Il punto è vederli in tempo.", publishedAt: "2026-03-16", coverImage: "https://images.unsplash.com/photo-1543286386-713bdd548da4?auto=format&fit=crop&w=1200&q=80", tags: ["crisi impresa edile", "segnali crisi aziendale", "margini edilizia", "crediti scaduti edilizia", "salute aziendale"] },
-            "come-trovare-clienti-impresa-edile-marketing": { title: "Come Trovare Clienti per un'Impresa Edile con il Marketing: Metodo Pratico | Blog Edilizia in Cloud", description: "Vuoi più clienti per lavori edili, ristrutturazioni o manutenzioni? Ecco un sistema concreto per generare richieste, gestire contatti e chiudere preventivi.", publishedAt: "2026-03-19", coverImage: "https://images.unsplash.com/photo-1556761175-b413da4baf72?auto=format&fit=crop&w=1200&q=80", tags: ["come trovare clienti impresa edile", "marketing impresa edile", "clienti edilizia", "lead edilizia", "acquisire clienti edilizia"] },
-            "aumentare-vendite-impresa-edile": { title: "Come Aumentare le Vendite di un'Impresa Edile Senza Abbassare i Prezzi | Blog Edilizia in Cloud", description: "Più vendite non significa fare più sconti. Scopri come aumentare il tasso di chiusura con preventivi migliori, follow-up e controllo del margine.", publishedAt: "2026-03-22", coverImage: "https://images.unsplash.com/photo-1553729459-efe14ef6055d?auto=format&fit=crop&w=1200&q=80", tags: ["aumentare vendite impresa edile", "vendere lavori edili", "chiudere preventivi edilizia", "commerciale edilizia", "margine preventivi"] },
-            "lead-serramenti-come-generare-richieste-qualificate": { title: "Lead Serramenti: Come Generare Richieste Qualificate per Infissi, Porte e Finestre | Blog Edilizia in Cloud", description: "Chi vende serramenti ha bisogno di lead con misure, zona, budget e urgenza. Ecco come evitare contatti inutili e trasformare richieste online in preventivi seri.", publishedAt: "2026-03-25", coverImage: "https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&fit=crop&w=1200&q=80", tags: ["lead serramenti", "clienti serramenti", "marketing serramenti", "preventivi infissi", "vendere serramenti"] },
-            "richieste-preventivo-ristrutturazione-online": { title: "Richieste di Preventivo Ristrutturazione: Come Trasformare i Contatti Online in Cantieri | Blog Edilizia in Cloud", description: "Le richieste online per ristrutturazioni sono preziose solo se vengono qualificate, seguite e trasformate in sopralluoghi con un processo chiaro.", publishedAt: "2026-03-28", coverImage: "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1200&q=80", tags: ["richieste preventivo ristrutturazione", "lead ristrutturazioni", "clienti ristrutturazione", "preventivo ristrutturazione", "marketing ristrutturazioni"] },
-            "google-ads-impresa-edile-errori-budget": { title: "Google Ads per Imprese Edili: Errori da Evitare e Budget da Controllare | Blog Edilizia in Cloud", description: "Google Ads può portare clienti edili, ma solo se campagne, landing page e CRM lavorano insieme. Ecco cosa controllare prima di bruciare budget.", publishedAt: "2026-03-31", coverImage: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=1200&q=80", tags: ["Google Ads impresa edile", "pubblicità edilizia", "campagne Google edilizia", "lead edilizia Google Ads", "budget marketing edilizia"] },
-            "crm-edilizia-gestire-lead-preventivi-follow-up": { title: "CRM per Edilizia: Come Gestire Lead, Preventivi e Follow-up Senza Perdere Clienti | Blog Edilizia in Cloud", description: "Un CRM per edilizia serve a non perdere contatti, sopralluoghi e preventivi. Ecco il flusso che ogni impresa edile dovrebbe avere.", publishedAt: "2026-04-03", coverImage: "https://images.unsplash.com/photo-1551434678-e076c223a692?auto=format&fit=crop&w=1200&q=80", tags: ["CRM edilizia", "gestione lead edilizia", "follow up preventivi", "pipeline commerciale edilizia", "clienti impresa edile"] },
-            "come-trovare-clienti-serramentisti": { title: "Come Trovare Clienti per Serramentisti: SEO, Lead e Preventivi che Si Chiudono | Blog Edilizia in Cloud", description: "Una guida pratica per aziende di serramenti che vogliono più richieste qualificate, meno preventivi persi e una pipeline commerciale misurabile.", publishedAt: "2026-04-06", coverImage: "https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&fit=crop&w=1200&q=80", tags: ["come trovare clienti serramentisti", "marketing serramentisti", "clienti serramenti", "lead infissi", "vendere serramenti"] },
-            "come-trovare-clienti-rifacimento-tetti": { title: "Come Trovare Clienti per Aziende di Rifacimento Tetti e Coperture | Blog Edilizia in Cloud", description: "Strategia SEO e commerciale per imprese che fanno tetti, coperture, lattoneria, isolamento e impermeabilizzazioni.", publishedAt: "2026-04-09", coverImage: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=80", tags: ["clienti rifacimento tetti", "marketing coperture", "lead tetti", "preventivo rifacimento tetto", "impresa tetti"] },
-            "come-trovare-clienti-fotovoltaico": { title: "Come Trovare Clienti per Aziende Fotovoltaiche: Lead, SEO e Vendita Consultiva | Blog Edilizia in Cloud", description: "Per installatori fotovoltaici: come generare richieste qualificate, spiegare il ritorno economico e trasformare lead in contratti firmati.", publishedAt: "2026-04-12", coverImage: "https://images.unsplash.com/photo-1509391366360-2e959784a276?auto=format&fit=crop&w=1200&q=80", tags: ["clienti fotovoltaico", "lead fotovoltaico", "marketing fotovoltaico", "vendere impianti fotovoltaici", "installatori fotovoltaico"] },
-            "sistema-fatturazione-aziende-edili": { title: "Sistema di Fatturazione per Aziende Edili: SAL, Acconti, Varianti e Margini | Blog Edilizia in Cloud", description: "Come scegliere e organizzare un sistema di fatturazione per imprese edili, serramentisti, installatori e aziende di ristrutturazione.", publishedAt: "2026-04-15", coverImage: "https://images.unsplash.com/photo-1554224154-26032fced8bd?auto=format&fit=crop&w=1200&q=80", tags: ["sistema fatturazione aziende edili", "fatturazione edilizia", "SAL fatture", "fattura elettronica edilizia", "gestionale fatture edilizia"] },
-            "fattura-corretta-serramentisti": { title: "Fattura Corretta per Serramentisti: Posa, Materiali, Acconti e IVA | Blog Edilizia in Cloud", description: "Guida pratica per serramentisti: come organizzare fatture, acconti, saldo, posa in opera, varianti e documentazione senza perdere margine.", publishedAt: "2026-04-18", coverImage: "https://images.unsplash.com/photo-1521737711867-e3b97375f902?auto=format&fit=crop&w=1600&q=80", tags: ["fattura corretta serramentisti", "fatturazione serramenti", "fattura infissi", "IVA serramenti", "acconto serramenti"] },
-            "preventivo-rifacimento-tetto-come-farlo": { title: "Preventivo Rifacimento Tetto: Come Farlo Bene e Non Perdere Margine | Blog Edilizia in Cloud", description: "Cosa deve contenere un preventivo per rifacimento tetto: sopralluogo, materiali, sicurezza, ponteggi, varianti e SAL.", publishedAt: "2026-04-21", coverImage: "https://images.unsplash.com/photo-1568605114967-8130f3a36994?auto=format&fit=crop&w=1600&q=80", tags: ["preventivo rifacimento tetto", "costo rifacimento tetto", "preventivo tetto", "azienda coperture", "margine tetti"] },
-            "seo-locale-impresa-edile": { title: "SEO Locale per Imprese Edili: Come Farsi Trovare nella Propria Zona | Blog Edilizia in Cloud", description: "Guida SEO locale per imprese edili, serramentisti, tetti, impiantisti e ristrutturatori che lavorano su province e città specifiche.", publishedAt: "2026-04-24", coverImage: "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=1200&q=80", tags: ["SEO locale impresa edile", "farsi trovare su Google edilizia", "marketing locale edilizia", "Google Business edilizia", "clienti edili zona"] },
-            "recupero-crediti-impresa-edile-fatture-scadute": { title: "Recupero Crediti per Imprese Edili: Come Gestire Fatture Scadute e Clienti Lenti | Blog Edilizia in Cloud", description: "Come prevenire e gestire fatture scadute in edilizia: scadenziario, solleciti, SAL, condizioni di pagamento e controllo cassa.", publishedAt: "2026-04-27", coverImage: "https://images.unsplash.com/photo-1565514020179-026b92b84bb6?auto=format&fit=crop&w=1600&q=80", tags: ["recupero crediti impresa edile", "fatture scadute edilizia", "solleciti pagamento edilizia", "crediti clienti edilizia", "cassa impresa edile"] },
-  "intelligenza-artificiale-edilizia-2026": { title: "Intelligenza Artificiale in Edilizia 2026: 8 Use Case Reali | Blog Edilizia in Cloud", description: "AI in edilizia non è futuro: è già qui. 8 use case reali con dati e ROI. Come le imprese edili italiane usano l'AI per margini, cantieri, preventivi.", publishedAt: "2026-05-22", coverImage: "https://images.unsplash.com/photo-1677442d019cecf8328cd4fab61a67a96f4a7e0d?auto=format&fit=crop&w=1600&q=80" },
-  "ai-analisi-margini-cantiere": { title: "AI per Margini di Cantiere: Smetti di Perdere Soldi | Blog Edilizia in Cloud", description: "L'80% delle imprese edili scopre i margini reali a cantiere chiuso. L'AI li calcola in tempo reale. Caso studio: -18.400€ salvati in 8 settimane.", publishedAt: "2026-05-22", coverImage: "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=1600&q=80" },
-  "come-scegliere-gestionale-ai-impresa-edile": { title: "Gestionale AI per Edilizia: 7 Criteri per Sceglierlo Bene | Blog Edilizia in Cloud", description: "Scegliere il gestionale AI sbagliato per la tua impresa edile costa 10.000€/anno. 7 criteri tecnici, 5 errori da evitare, domande chiave al vendor.", publishedAt: "2026-05-22", coverImage: "https://images.unsplash.com/photo-1552664730-d307ca884978?auto=format&fit=crop&w=1600&q=80" },
-  "miglior-gestionale-edilizia-guida-scelta": { title: "Miglior gestionale per l'edilizia nel 2026: la guida completa alla scelta | Blog Edilizia in Cloud", description: "Cloud o desktop? Verticale o ERP generalista? I 7 criteri che contano davvero per scegliere il gestionale della tua impresa edile, con i range di prezzo reali e gli errori da evitare.", publishedAt: "2026-06-11", coverImage: "https://images.unsplash.com/photo-1581094794329-c8112a89af12?auto=format&fit=crop&w=1600&q=80" },
-  "quanto-costa-gestionale-impresa-edile": { title: "Quanto costa un gestionale per impresa edile? Prezzi reali 2026 | Blog Edilizia in Cloud", description: "Dai 200-500€/mese degli ERP alle licenze una tantum dei software desktop, fino ai gestionali cloud verticali: tutti i range di prezzo 2026, i costi nascosti e come calcolare il ritorno reale.", publishedAt: "2026-06-11", coverImage: "https://images.unsplash.com/photo-1554224155-6726b3ff858f?auto=format&fit=crop&w=1600&q=80" },
-  "patente-a-crediti-edilizia-guida": { title: "Patente a crediti in edilizia: come funziona, punteggi e sanzioni | Blog Edilizia in Cloud", description: "Obbligatoria dal 1° ottobre 2024 per chi opera nei cantieri: come si ottiene la patente a crediti, come si perdono e si recuperano i punti, chi è esonerato e cosa rischia chi lavora sotto soglia.", publishedAt: "2026-06-11", coverImage: "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&w=1600&q=80" },
-  "durc-congruita-manodopera-soglie": { title: "DURC di congruità: soglie di manodopera e come evitare lo scarto | Blog Edilizia in Cloud", description: "Per i lavori pubblici e i privati sopra 70.000€ l'incidenza della manodopera deve rispettare le soglie del DM 143/2021. Come funziona la verifica CNCE, le percentuali per categoria e come monitorarle in corso d'opera.", publishedAt: "2026-06-11", coverImage: "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1600&q=80" },
-      "cila-scia-permesso-di-costruire-differenze": { title: "CILA, SCIA o Permesso di Costruire: le Differenze | Blog Edilizia in Cloud", description: "Quale titolo abilitativo serve per il tuo cantiere? Differenze tra CILA, SCIA e permesso di costruire: quando si usano, costi, tempi e sanzioni.", publishedAt: "2026-07-10", coverImage: "https://images.unsplash.com/photo-1503387762-592deb58ef4e?auto=format&fit=crop&w=1600&q=80" },
-      "contabilita-di-cantiere-guida": { title: "Contabilità di Cantiere: la Guida Completa 2026 | Blog Edilizia in Cloud", description: "Come funziona la contabilità di cantiere: libretto misure, SAL, contabilità industriale per commessa e strumenti per controllare i costi in tempo reale.", publishedAt: "2026-07-10", coverImage: "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=1600&q=80" },
-      "ritenuta-di-garanzia-appalti-come-funziona": { title: "Ritenuta di Garanzia negli Appalti: Come Funziona | Blog Edilizia in Cloud", description: "Ritenute di garanzia negli appalti pubblici e privati: percentuali, quando si applicano, come si svincolano e come tracciarle per non perdere soldi.", publishedAt: "2026-07-10", coverImage: "https://images.unsplash.com/photo-1450101499163-c8848c66ca85?auto=format&fit=crop&w=1600&q=80" },
-      "report-avanzamento-cantiere-guida": { title: "Report Avanzamento Cantiere: Cosa Deve Contenere | Blog Edilizia in Cloud", description: "Come fare un report di avanzamento cantiere utile: i dati da includere, la frequenza giusta e come produrlo in automatico dai rapportini di campo.", publishedAt: "2026-07-10", coverImage: "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1600&q=80" },
-      "nota-di-credito-edilizia-quando-come": { title: "Nota di Credito in Edilizia: Quando e Come Emetterla | Blog Edilizia in Cloud", description: "Nota di credito nei lavori edili: quando emetterla, come funziona con SAL, acconti e reverse charge, tempi per il recupero IVA ed errori da evitare.", publishedAt: "2026-07-10", coverImage: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=1600&q=80" },
-};
-
-// slug → categoria (pagine /blog/categoria/* + related links nei post)
-const BLOG_POST_CATEGORY = {
-  "ridurre-costi-cantieri-edili": "gestione-cantieri",
-  "gestione-cantieri-digitale": "gestione-cantieri",
-  "preventivi-edilizia-guida": "commerciale-edilizia",
-  "hr-edilizia-presenze-buste-paga": "hr-personale",
-  "analisi-margini-imprese-edili": "finanza-edilizia",
-  "marketing-digitale-imprese-edili": "marketing-edilizia",
-  "software-gestionale-vs-excel": "digitalizzazione-edilizia",
-  "digitalizzare-impresa-edile": "digitalizzazione-edilizia",
-  "come-organizzare-cantiere-edile": "gestione-cantieri",
-  "documentazione-obbligatoria-cantiere-2025": "normativa-edilizia",
-  "come-fare-preventivo-edilizia": "commerciale-edilizia",
-  "alternativa-excel-cantieri": "gestione-cantieri",
-  "sal-cantiere-come-funziona": "gestione-cantieri",
-  "durc-edilizia-guida-completa": "gestione-cantieri",
-  "giornale-dei-lavori-cantiere": "gestione-cantieri",
-  "subappalto-edilizia-guida": "finanza-edilizia",
-  "acquisire-clienti-impresa-edile": "commerciale-edilizia",
-  "gestione-operai-cantiere-presenze-ore": "hr-personale",
-  "sito-web-impresa-edile-guida": "marketing-edilizia",
-  "digitalizzazione-impresa-edile-passo-passo": "digitalizzazione-edilizia",
-  "computo-metrico-estimativo-guida": "gestione-cantieri",
-  "bim-edilizia-guida-pratica": "digitalizzazione-edilizia",
-  "cassa-edile-come-funziona": "hr-personale",
-  "appalti-pubblici-edilizia-guida": "commerciale-edilizia",
-  "sicurezza-cantieri-dlgs-81": "normativa-edilizia",
-  "ccnl-edilizia-guida": "hr-personale",
-  "attestazione-soa-imprese-edili": "normativa-edilizia",
-  "superbonus-imprese-edili-2026": "normativa-edilizia",
-  "gestione-liquidita-impresa-edile": "finanza-edilizia",
-  "pnrr-edilizia-imprese-2026": "normativa-edilizia",
-  "come-scegliere-software-gestionale-edilizia": "digitalizzazione-edilizia",
-  "gestione-subappaltatori-impresa-edile": "gestione-cantieri",
-  "cassa-impresa-edile-non-torna": "finanza-edilizia",
-  "trovare-operai-edili-qualificati": "hr-personale",
-  "passaparola-impresa-edile-non-basta": "marketing-edilizia",
-  "gestire-piu-cantieri-contemporaneamente": "gestione-cantieri",
-  "burocrazia-impresa-edile-scadenze-documenti": "normativa-edilizia",
-  "delegare-impresa-edile-senza-perdere-controllo": "digitalizzazione-edilizia",
-  "preventivi-edili-non-si-chiudono": "commerciale-edilizia",
-  "segnali-crisi-impresa-edile": "finanza-edilizia",
-  "come-trovare-clienti-impresa-edile-marketing": "marketing-edilizia",
-  "aumentare-vendite-impresa-edile": "commerciale-edilizia",
-  "lead-serramenti-come-generare-richieste-qualificate": "marketing-edilizia",
-  "richieste-preventivo-ristrutturazione-online": "marketing-edilizia",
-  "google-ads-impresa-edile-errori-budget": "marketing-edilizia",
-  "crm-edilizia-gestire-lead-preventivi-follow-up": "commerciale-edilizia",
-  "come-trovare-clienti-serramentisti": "marketing-edilizia",
-  "come-trovare-clienti-rifacimento-tetti": "marketing-edilizia",
-  "come-trovare-clienti-fotovoltaico": "marketing-edilizia",
-  "sistema-fatturazione-aziende-edili": "finanza-edilizia",
-  "fattura-corretta-serramentisti": "finanza-edilizia",
-  "preventivo-rifacimento-tetto-come-farlo": "commerciale-edilizia",
-  "seo-locale-impresa-edile": "marketing-edilizia",
-  "recupero-crediti-impresa-edile-fatture-scadute": "finanza-edilizia",
-  "intelligenza-artificiale-edilizia-2026": "digitalizzazione-edilizia",
-  "ai-analisi-margini-cantiere": "digitalizzazione-edilizia",
-  "come-scegliere-gestionale-ai-impresa-edile": "digitalizzazione-edilizia",
-  "miglior-gestionale-edilizia-guida-scelta": "digitalizzazione-edilizia",
-  "quanto-costa-gestionale-impresa-edile": "finanza-edilizia",
-  "patente-a-crediti-edilizia-guida": "normativa-edilizia",
-  "durc-congruita-manodopera-soglie": "normativa-edilizia",
-  "cila-scia-permesso-di-costruire-differenze": "normativa-edilizia",
-  "contabilita-di-cantiere-guida": "finanza-edilizia",
-  "ritenuta-di-garanzia-appalti-come-funziona": "finanza-edilizia",
-  "report-avanzamento-cantiere-guida": "gestione-cantieri",
-  "nota-di-credito-edilizia-quando-come": "finanza-edilizia",
-};
+//
+// 2026-09-07: BLOG_POST_META e BLOG_POST_CATEGORY non si scrivono più a mano
+// qui dentro. Erano fermi a 66 post su 90: i 24 dei file batch (Normativa,
+// TemplateGratis, ConfrontoDiretti, ...) esistevano come pagine ma nessuna
+// pagina vista da Googlebot li linkava. Ora arrivano da ./_blog-meta.js,
+// generato da scripts/generate-blog-bodies.mjs a partire da
+// src/data/blogPosts.ts: un post nuovo entra da solo in archivio, categoria
+// e correlati.
 
 // Tutti i post ordinati per data di pubblicazione (desc), come link interni.
 const BLOG_ALL_POST_LINKS = Object.keys(BLOG_POST_META)
@@ -3024,6 +2895,7 @@ function resolveRoute(pathname) {
       description: meta.description || "",
       url: canonicalUrl(pathname),
       datePublished: meta.publishedAt || "",
+      dateModified: meta.updatedAt || meta.publishedAt || "",
       author: { "@type": "Person", name: "Florin Andriciuc" },
       publisher: { "@type": "Organization", name: "Edilizia in Cloud", url: "https://www.ediliziaincloud.com/" },
       image: meta.coverImage || OG_IMAGES.blog,
@@ -3081,6 +2953,22 @@ function isPrivateSubdomain(hostname) {
 
 function isPublicNoindexPath(pathname) {
   return PUBLIC_NOINDEX_PATTERNS.some((pattern) => pattern.test(pathname));
+}
+
+// La home prerenderizzata (dist/_home/index.html): la stessa per utenti e bot.
+// Torna il corpo solo se è un vero prerender (meta x-prerendered), mai la
+// shell SPA; qualunque errore → null, e chi chiama ripiega su ciò che aveva.
+async function homePrerender(env, url) {
+  try {
+    const homeUrl = new URL("/_home/index.html", url).toString();
+    const home = await env.ASSETS.fetch(new Request(homeUrl, { headers: { accept: "text/html" } }));
+    if (!home || !home.ok) return null;
+    const corpo = await home.text();
+    return corpo.includes('name="x-prerendered"') ? corpo : null;
+  } catch (e) {
+    console.warn("[middleware] home prerender non servita:", e && e.message);
+    return null;
+  }
 }
 
 export async function onRequest({ request, next, env, waitUntil }) {
@@ -3252,26 +3140,18 @@ export async function onRequest({ request, next, env, waitUntil }) {
     // sopra ai nodi già dipinti. Guard: si usa SOLO un vero prerender
     // (meta x-prerendered), mai una risposta di fallback.
     if (url.pathname === "/") {
-      try {
-        const homeUrl = new URL("/_home/index.html", url).toString();
-        const home = await env.ASSETS.fetch(new Request(homeUrl, { headers: { accept: "text/html" } }));
-        if (home.ok) {
-          const corpo = await home.text();
-          if (corpo.includes('name="x-prerendered"')) {
-            return new Response(corpo, {
-              status: 200,
-              headers: {
-                "content-type": "text/html; charset=utf-8",
-                "cache-control": "public, max-age=0, must-revalidate",
-                "x-eic-home": "prerender",
-              },
-            });
-          }
-        }
-      } catch (e) {
-        // Qualunque problema → shell come prima. Mai una home bianca.
-        console.warn("[middleware] home prerender non servita:", e && e.message);
+      const corpo = await homePrerender(env, url);
+      if (corpo) {
+        return new Response(corpo, {
+          status: 200,
+          headers: {
+            "content-type": "text/html; charset=utf-8",
+            "cache-control": "public, max-age=0, must-revalidate",
+            "x-eic-home": "prerender",
+          },
+        });
       }
+      // Qualunque problema → shell come prima. Mai una home bianca.
     }
     return next();
   }
@@ -3285,27 +3165,47 @@ export async function onRequest({ request, next, env, waitUntil }) {
   // 147 (prerender: 3.683 + FAQPage). I motori AI citano i passaggi: il
   // sintetico thin rendeva incitabili proprio le pagine delle query
   // commerciali ("alternativa a Primus", "software per serramentisti").
-  // → Ora il prerender-first vale per TUTTE le route pubbliche TRANNE:
-  //   • "/"            — sintetico curato superiore (answer block, 4 schema,
-  //                      FAQ 5Q; il prerender home non è mai stato servito)
-  //   • "/funzionalita" (hub esatto) — il sintetico ha FAQPage 7Q che il
-  //                      prerender non ha; le sotto-pagine invece switchano
-  //   • città (/software-gestionale-edilizia-<city>) — sintetico con
-  //                      LocalBusiness+FAQ locali; NON esiste prerender
-  //                      (il guard fallirebbe comunque: doppia sicurezza)
-  // Guard anti-shell invariato: si usa la risposta SOLO se è un vero
-  // prerender (canonical presente + contenuto con H2) — mai la shell SPA.
-  const keepSynthetic =
-    pathname === "/" ||
-    pathname === "/funzionalita" ||
-    /^\/software-gestionale-edilizia-[^/]+$/.test(pathname);
+  // → Il prerender-first vale per TUTTE le route pubbliche TRANNE
+  //   "/funzionalita" (hub esatto): il sintetico ha 1.600 parole, 57 link alle
+  //   sotto-pagine e una FAQPage da 7 domande che la pagina React non ha.
+  //
+  // 2026-09-07 — home e città passano anch'esse al prerender. Fino a oggi
+  // Googlebot riceveva per "/" uno stub da 1.190 parole con 9 link in uscita
+  // (il browser: 3.178 parole, 36 città + 16 funzionalità + per-tipo +
+  // confronti) e per le 43 città uno stub da 400 parole senza link al pillar,
+  // giustificato da un commento "NON esiste prerender" ormai falso
+  // (scripts/prerender.mjs le genera tutte). La pagina più forte del dominio
+  // non passava autorità a nessuno, e Google vedeva un sito diverso da quello
+  // degli utenti. Ora bot e browser ricevono lo stesso HTML; lo stub resta
+  // solo come rete di sicurezza se il prerender manca.
+  if (pathname === "/") {
+    const corpo = await homePrerender(env, url);
+    if (corpo) {
+      return new Response(corpo, {
+        status: 200,
+        headers: {
+          "Content-Type": "text/html; charset=utf-8",
+          "Cache-Control": "public, max-age=3600, s-maxage=86400",
+          "X-Robots-Tag": "index, follow",
+          "x-eic-home": "prerender",
+          Vary: "User-Agent",
+        },
+      });
+    }
+  }
+  // Guard anti-shell: si usa la risposta SOLO se è un vero prerender — il
+  // marcatore x-prerendered scritto da prerender.mjs, oppure canonical + H2
+  // per gli HTML statici più vecchi — mai la shell SPA.
+  const keepSynthetic = pathname === "/" || pathname === "/funzionalita";
   if (!keepSynthetic) {
     try {
       const assetUrl = new URL(`${pathname}/index.html`, url.origin);
       const assetResp = await env.ASSETS.fetch(new Request(assetUrl, { headers: { accept: "text/html" } }));
       if (assetResp && assetResp.ok) {
         const body = await assetResp.text();
-        const isRealPrerender = body.includes('rel="canonical"') && body.includes("<h2");
+        const isRealPrerender =
+          body.includes('name="x-prerendered"') ||
+          (body.includes('rel="canonical"') && body.includes("<h2"));
         if (isRealPrerender) {
           return new Response(body, {
             status: 200,

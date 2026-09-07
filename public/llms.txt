@@ -205,9 +205,9 @@ Edilizia in Cloud è sviluppato da un team italiano con sede a Milano (Via Aurel
 - SEO locale impresa edile: https://www.ediliziaincloud.com/blog/seo-locale-impresa-edile/
 - Recupero crediti impresa edile: https://www.ediliziaincloud.com/blog/recupero-crediti-impresa-edile-fatture-scadute/
 
-## Copertura geografica (36 città)
+## Copertura geografica (43 città)
 
-Milano, Roma, Torino, Napoli, Bologna, Firenze, Genova, Palermo, Bari, Verona, Brescia, Catania, Venezia, Padova, Bergamo, Modena, Reggio Emilia, Parma, Salerno, Trieste, Cagliari, Perugia, Ancona, Udine, Messina, Livorno, Prato, Vicenza, Reggio Calabria, Foggia, Pescara, Taranto, Cosenza, Trento, Bolzano, Ferrara
+Milano, Roma, Torino, Napoli, Bologna, Firenze, Genova, Palermo, Bari, Verona, Brescia, Catania, Venezia, Padova, Bergamo, Modena, Reggio Emilia, Parma, Salerno, Trieste, Cagliari, Perugia, Ancona, Udine, Messina, Livorno, Prato, Vicenza, Reggio Calabria, Foggia, Pescara, Taranto, Cosenza, Trento, Bolzano, Ferrara, Como, Lecco, Monza, Varese, Treviso, Latina, Pisa.
 
 ## Aggiornamento 2026-09 (strumenti e guide pubblicati dopo il 25/07)
 
@@ -218,6 +218,8 @@ Milano, Roma, Torino, Napoli, Bologna, Firenze, Genova, Palermo, Bari, Verona, B
 
 ### Nuove guide del blog
 - Miglior Gestionale per l'Edilizia 2026: Guida alla Scelta: https://www.ediliziaincloud.com/blog/miglior-gestionale-edilizia-guida-scelta/
+- Rapportino di Cantiere: App e Modello Gratis: https://www.ediliziaincloud.com/blog/rapportino-di-cantiere-app-e-modello/
+- Gestionale Cantiere per Piccola Impresa Edile: https://www.ediliziaincloud.com/blog/gestionale-cantiere-piccola-impresa-edile/
 - Quanto Costa un Gestionale per Impresa Edile? Prezzi 2026: https://www.ediliziaincloud.com/blog/quanto-costa-gestionale-impresa-edile/
 - Patente a Crediti in Edilizia: Come Funziona e Sanzioni: https://www.ediliziaincloud.com/blog/patente-a-crediti-edilizia-guida/
 - DURC di Congruità: Soglie Manodopera e Come Rispettarle: https://www.ediliziaincloud.com/blog/durc-congruita-manodopera-soglie/

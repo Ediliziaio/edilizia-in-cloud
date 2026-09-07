@@ -2912,6 +2912,21 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
   },
 };
 
+// Link contestuali dal territorio al prodotto: ogni pagina città manda alle
+// funzionalità che le imprese cercano davvero ("software gestione cantieri",
+// "software preventivi edilizia"...) e alla pagina pillar. Prima le 43 pagine
+// linkavano solo /funzionalita/ e /demo/: l'autorità locale moriva lì.
+const CITY_FEATURE_LINKS: Array<{ href: string; label: string }> = [
+  { href: "/funzionalita/gestione-cantieri/", label: "Gestione cantieri" },
+  { href: "/funzionalita/preventivi-edilizia/", label: "Preventivi e computi" },
+  { href: "/funzionalita/fatturazione-elettronica/", label: "Fatturazione elettronica" },
+  { href: "/funzionalita/margini-cantiere/", label: "Margini per commessa" },
+  { href: "/funzionalita/timbrature-gps/", label: "Presenze e timbrature GPS" },
+  { href: "/funzionalita/gestione-subappalti/", label: "Subappalti e DURC" },
+  { href: "/funzionalita/app-cantiere-mobile/", label: "App cantiere" },
+  { href: "/funzionalita/crm-edilizia/", label: "CRM e follow-up preventivi" },
+];
+
 const FEATURES = [
   "Controllo margini reali su ogni commessa in tempo reale",
   "SAL automatici e fatturazione elettronica integrata",
@@ -3243,6 +3258,36 @@ export default function CityLanding() {
           <p className="text-white/25 text-xs">
             Serviamo imprese edili in tutta Italia — {config.name}, {config.region} e oltre.
           </p>
+        </div>
+      </section>
+
+      {/* Funzionalità più usate + pagina pillar */}
+      <section className="py-12 bg-white border-t border-gray-100">
+        <div className="max-w-5xl mx-auto px-6 text-center">
+          <h2 className="text-xl md:text-2xl font-extrabold text-[#111111] mb-2">
+            Le funzionalità più usate dalle imprese edili di {config.name}
+          </h2>
+          <p className="text-sm text-gray-500 mb-6 max-w-2xl mx-auto">
+            Cantieri, preventivi, fatture e presenze in un unico gestionale, usato ogni giorno
+            dalle imprese di {config.name} e provincia.
+          </p>
+          <div className="flex flex-wrap justify-center gap-3 mb-6">
+            {CITY_FEATURE_LINKS.map((f) => (
+              <Link
+                key={f.href}
+                to={f.href}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white border border-gray-200 text-gray-700 font-semibold text-sm hover:border-[#F97415]/40 hover:text-[#F97415] transition-all"
+              >
+                <CheckCircle2 size={13} className="text-[#F97415]" /> {f.label}
+              </Link>
+            ))}
+          </div>
+          <Link
+            to="/software-gestionale-edilizia/"
+            className="inline-flex items-center gap-2 text-[#F97415] font-semibold hover:gap-3 transition-all"
+          >
+            Scopri il software gestionale edilizia per tutta Italia <ArrowRight size={16} />
+          </Link>
         </div>
       </section>
 

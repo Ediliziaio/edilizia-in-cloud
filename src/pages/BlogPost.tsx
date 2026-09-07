@@ -11,6 +11,48 @@ import { linkifyNormative } from "@/lib/blog/normativeLinks";
 import { linkifyInternal } from "@/lib/blog/internalLinks";
 import { BlogCover } from "@/components/blog/BlogCover";
 
+// Strumenti collegati: ogni articolo manda ai tre moduli della sua categoria.
+// L'auto-link (linkifyInternal) scatta solo su 13 frasi esatte e una volta per
+// pagina: su 90 articoli produceva 9 link verso le pagine prodotto. Questo
+// blocco è deterministico e finisce anche nel prerender servito ai bot.
+const STRUMENTI_PER_CATEGORIA: Record<string, Array<{ href: string; label: string; desc: string }>> = {
+  "Gestione Cantieri": [
+    { href: "/funzionalita/gestione-cantieri/", label: "Gestione cantieri", desc: "Avanzamento lavori, SAL e varianti per ogni commessa." },
+    { href: "/funzionalita/giornale-lavori/", label: "Giornale dei lavori", desc: "Compilato dal telefono, con foto e firma." },
+    { href: "/funzionalita/app-cantiere-mobile/", label: "App cantiere", desc: "Funziona anche senza rete, sincronizza dopo." },
+  ],
+  Finanza: [
+    { href: "/funzionalita/margini-cantiere/", label: "Margini per commessa", desc: "Preventivo contro consuntivo, in tempo reale." },
+    { href: "/funzionalita/tesoreria/", label: "Tesoreria", desc: "La cassa dei prossimi 90 giorni, cantiere per cantiere." },
+    { href: "/funzionalita/fatturazione-elettronica/", label: "Fatturazione elettronica", desc: "SDI, reverse charge e note di credito senza errori." },
+  ],
+  "HR & Personale": [
+    { href: "/funzionalita/timbrature-gps/", label: "Timbrature GPS", desc: "Presenze per cantiere, senza fogli da ricopiare." },
+    { href: "/funzionalita/hr-personale/", label: "HR e Cassa Edile", desc: "CCNL, ferie, permessi e MUT pronti." },
+    { href: "/funzionalita/cedolini-paga/", label: "Cedolini paga", desc: "Ore, straordinari e trasferte già in busta." },
+  ],
+  Marketing: [
+    { href: "/funzionalita/crm-edilizia/", label: "CRM per imprese edili", desc: "Ogni richiesta seguita fino al preventivo." },
+    { href: "/funzionalita/whatsapp-marketing/", label: "WhatsApp marketing", desc: "Promemoria e follow-up dove il cliente risponde." },
+    { href: "/funzionalita/lead-form-facebook/", label: "Lead da Facebook e Instagram", desc: "Le richieste entrano da sole nel CRM." },
+  ],
+  Commerciale: [
+    { href: "/funzionalita/preventivi-edilizia/", label: "Preventivi e computi", desc: "Voci da prezzario, margine visibile, PDF in 5 minuti." },
+    { href: "/funzionalita/pipeline-vendite/", label: "Pipeline vendite", desc: "Sai sempre quali preventivi stanno per chiudersi." },
+    { href: "/funzionalita/firma-elettronica/", label: "Firma elettronica", desc: "Il cliente firma dal telefono, il lavoro parte." },
+  ],
+  Digitalizzazione: [
+    { href: "/funzionalita/agenti-ai/", label: "Silvio, l'assistente AI", desc: "Legge i numeri dell'azienda e ti dice dove guardare." },
+    { href: "/funzionalita/cruscotto-aziendale/", label: "Cruscotto aziendale", desc: "Cantieri, cassa e margini in una schermata." },
+    { href: "/funzionalita/automazioni/", label: "Automazioni", desc: "Solleciti, promemoria e passaggi di stato da soli." },
+  ],
+  Normativa: [
+    { href: "/funzionalita/gestione-subappalti/", label: "Subappalti e DURC", desc: "Scadenze DURC, POS e polizze controllate in automatico." },
+    { href: "/funzionalita/sicurezza-cantiere/", label: "Sicurezza cantiere", desc: "Documenti obbligatori sempre a portata di mano." },
+    { href: "/funzionalita/ritenute-garanzia/", label: "Ritenute di garanzia", desc: "Trattenute e svincoli tracciati per ogni appalto." },
+  ],
+};
+
 /**
  * Domini del nostro stesso gruppo: i link verso questi NON prendono nofollow.
  * Mettere in nofollow una proprieta' nostra significa spendere un link e non
@@ -745,9 +787,26 @@ export default function BlogPost() {
               </div>
             </div>
 
-            {/* Garanzie inline article */}
-            <div className="mt-12 pt-8 border-t border-gray-200">
-            </div>
+            {/* Strumenti collegati */}
+            {STRUMENTI_PER_CATEGORIA[post.category] && (
+              <section className="mt-12 pt-8 border-t border-gray-200" aria-labelledby="strumenti-collegati">
+                <h2 id="strumenti-collegati" className="text-xl font-bold text-[#111111] mb-4">
+                  Strumenti collegati in Edilizia in Cloud
+                </h2>
+                <div className="grid sm:grid-cols-3 gap-4">
+                  {STRUMENTI_PER_CATEGORIA[post.category].map((s) => (
+                    <Link
+                      key={s.href}
+                      to={s.href}
+                      className="block rounded-2xl border border-gray-200 p-4 hover:border-[#F97415]/50 transition-colors"
+                    >
+                      <span className="block font-semibold text-[#111111] text-sm mb-1">{s.label}</span>
+                      <span className="block text-xs text-gray-500 leading-relaxed">{s.desc}</span>
+                    </Link>
+                  ))}
+                </div>
+              </section>
+            )}
           </article>
 
           {/* Sidebar */}
