@@ -541,4 +541,115 @@ export const blogPostsCantierePmi: BlogPost[] = [
       },
     ],
   },
+  {
+    id: "oct-2026-squadre",
+    slug: "gestione-squadre-cantiere",
+    title: "Gestione Squadre di Cantiere: Chi Va Dove, Ogni Mattina",
+    excerpt:
+      "Come pianificare le squadre di cantiere: chi va dove ogni mattina, il piano settimanale, subappaltatori sullo stesso piano, presenze e numeri da guardare.",
+    category: "Gestione Cantieri",
+    tags: ["gestione squadre cantiere", "pianificazione squadre", "capocantiere", "più cantieri", "presenze cantiere"],
+    publishedAt: "2026-09-07",
+    readTime: 8,
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
+    coverImage: "/blog/covers/gestione-squadre-cantiere.jpg",
+    content: [
+      {
+        type: "intro",
+        body: "Alle sette e mezza il telefono squilla: «Oggi dove andiamo?». Se la risposta la dai tu, ogni mattina, a ogni caposquadra, la gestione delle squadre di cantiere non esiste: esisti tu, e quando non rispondi il furgone resta fermo.\n\nGestire le squadre non è gestire le persone — quelle le conosci — ma decidere, prima, chi va dove, con che mezzo, per fare cosa, e far sì che tutti lo sappiano senza chiamarti. Questa guida dà il metodo: le regole di assegnazione, il piano settimanale che si fa in venti minuti, come mettere i subappaltatori sullo stesso piano delle squadre interne, come far diventare il piano presenze e costi, e i numeri da guardare ogni settimana.",
+      },
+      {
+        type: "section",
+        heading: "Il problema non sono gli operai, è la lavagna",
+        body: "In quasi tutte le imprese da 5 a 20 persone il piano delle squadre esiste in una testa sola. Quando i cantieri sono due funziona; al terzo si inceppa: la squadra giusta arriva nel cantiere sbagliato, il materiale è in un posto e gli uomini in un altro, l'elettricista subappaltatore si presenta il giorno in cui le tracce non sono pronte.\n\nIl costo non è solo il ritardo. È l'ora di spostamento non fatturabile, la giornata di un operaio parcheggiato su un lavoro che non era il suo, il capocantiere che passa la mattina al telefono invece che sul ponteggio. La soluzione non è un capocantiere migliore: è una lavagna — di legno, di lavagna vera o digitale — che tutti vedono e che si aggiorna una volta al giorno.",
+      },
+      {
+        type: "list",
+        heading: "Le 5 regole della pianificazione squadre",
+        items: [
+          "Ogni persona ha un'assegnazione scritta entro le 17 del giorno prima: cantiere, orario, mezzo, con chi, per fare cosa",
+          "Una persona, un cantiere al giorno: gli spostamenti a metà giornata sono la prima fonte di ore perse e di costi imputati male",
+          "Il caposquadra decide sul posto, il titolare decide il piano: la delega scritta evita le dieci telefonate al giorno",
+          "Ogni cantiere ha un buffer: chi copre un'assenza, chi entra se una fase finisce prima",
+          "Il piano è visibile a tutti, non solo a chi lo fa: capisquadra, ufficio, subappaltatori con la loro parte",
+        ],
+      },
+      {
+        type: "section",
+        heading: "Il piano settimanale: venti minuti il venerdì",
+        body: "Il piano delle squadre si fa una volta a settimana, non ogni mattina. Il venerdì, in venti minuti con i capisquadra: cosa è chiuso, cosa parte lunedì, quali fasi hanno bisogno di quante persone, quali materiali devono essere già arrivati perché quelle persone lavorino.\n\nDa lì esce una griglia semplice: giorni in colonna, cantieri in riga, nomi nelle celle. Le assenze già note (ferie, visite, corsi) entrano subito; le fasi con dipendenze da terzi — l'impiantista, il posatore — hanno un giorno di margine. Il lunedì mattina nessuno chiama: sa già dove va. Le variazioni della settimana si scrivono sulla stessa griglia, non sulla chat.\n\nLa griglia parla con il cronoprogramma: se il piano dice che le tracce degli impianti finiscono mercoledì, l'elettricista si prenota per giovedì, non «appena siete pronti». Il metodo per costruire il cronoprogramma è nella guida su [come organizzare un cantiere edile](/blog/come-organizzare-cantiere-edile/).",
+      },
+      {
+        type: "table",
+        heading: "I sintomi del caos squadre, la causa e il rimedio",
+        headers: ["Sintomo", "Causa vera", "Rimedio"],
+        rows: [
+          ["Telefonate alle 7:30 per sapere dove andare", "Il piano vive in una testa sola", "Assegnazioni scritte entro le 17 del giorno prima, visibili a tutti"],
+          ["Squadra ferma ad aspettare il materiale", "Piano squadre e piano ordini non si parlano", "La griglia settimanale include «cosa deve essere arrivato»"],
+          ["Subappaltatore in cantiere nel giorno sbagliato", "Prenotato «appena siete pronti»", "Data fissata sul cronoprogramma con un giorno di margine"],
+          ["Ore imputate al cantiere sbagliato", "Spostamenti a metà giornata e presenze ricostruite il lunedì", "Una persona un cantiere al giorno, timbratura sul posto"],
+          ["Straordinari a sorpresa a fine mese", "Nessuno conta le ore per cantiere durante la settimana", "Ore per cantiere contro ore previste, ogni venerdì"],
+          ["Il capocantiere passa la mattina al telefono", "Nessuna delega scritta", "Cosa decide lui, cosa passa dal titolare: una riga in baracca"],
+        ],
+      },
+      {
+        type: "section",
+        heading: "Squadre interne e subappaltatori sullo stesso piano",
+        body: "Il subappaltatore non è «fuori» dal piano: occupa spazio, tempo e dipendenze come una squadra tua. Nella griglia va scritto come le altre righe — impiantista, giovedì e venerdì, cantiere di via Roma, dopo le tracce — e va avvisato con le stesse regole: entro il giorno prima, per iscritto.\n\nLa differenza sta nei controlli: prima che entri, documenti e tesserini; mentre lavora, le ore contano per la congruità della manodopera del cantiere; quando finisce, il verbale di consegna. Tutto il ciclo è nella guida alla [gestione dei subappaltatori](/blog/gestione-subappaltatori-impresa-edile/).",
+      },
+      {
+        type: "section",
+        heading: "Dal piano alle presenze: la stessa lista",
+        body: "Il piano delle squadre e le presenze sono lo stesso dato letto due volte: prima come intenzione, poi come fatto. Se il capocantiere timbra dal telefono con il GPS sul cantiere dove il piano lo ha mandato, la presenza finisce sulla commessa giusta senza che nessuno la ricopi, e il costo orario arriva sul margine il giorno stesso.\n\nQuando le due liste divergono — pianificato su via Roma, timbrato su via Verdi — hai l'informazione più utile della settimana: o il piano era sbagliato, o qualcuno ha deciso da solo. Come far funzionare presenze, ore e paghe per cantiere è nella guida alla [gestione degli operai in cantiere](/blog/gestione-operai-cantiere-presenze-ore/).",
+      },
+      {
+        type: "section",
+        heading: "Comunicare il piano: la chat non basta",
+        body: "WhatsApp è dove il piano muore: il messaggio delle 17 finisce sotto quaranta foto e tre vocali, e la modifica del martedì la legge solo chi era nel gruppo giusto. Il piano ha bisogno di un posto suo, sempre uguale: la griglia in baracca per chi passa in sede, e sul telefono la stessa griglia per chi parte da casa.\n\nLa regola pratica: la chat serve per parlare, il piano serve per sapere. Se una decisione presa in chat cambia il piano, va riportata sulla griglia da chi l'ha presa, quel giorno. Altrimenti il venerdì successivo si ricomincia da capo.",
+      },
+      {
+        type: "list",
+        heading: "I 4 numeri da guardare ogni venerdì",
+        items: [
+          "Ore per cantiere contro ore previste dal budget: la differenza è margine che sta andando via",
+          "Ore di spostamento e attesa: se superano il 5% delle ore totali, il piano ha troppi cambi di cantiere",
+          "Straordinari per squadra: concentrati su una squadra vogliono dire una fase sottodimensionata, non operai lenti",
+          "Assenze non pianificate: se ogni settimana ne spunta una che nessuno aveva scritto, il buffer non esiste",
+        ],
+      },
+      {
+        type: "callout",
+        variant: "info",
+        heading: "Come funziona in Edilizia in Cloud",
+        body: "Il calendario dei lavori mostra squadre, subappaltatori e mezzi per cantiere e per giorno; ogni persona vede la sua assegnazione sul telefono la sera prima. Le timbrature con GPS finiscono sulla commessa pianificata e diventano costo orario in tempo reale; se qualcuno timbra su un cantiere diverso dal piano, lo vedi il giorno stesso. La chat interna resta per parlare: il piano ha il suo posto.",
+      },
+      {
+        type: "cta",
+        heading: "Prova a pianificare una settimana vera",
+        body: "Carica squadre e cantieri aperti, fai il piano del venerdì e lascia timbrare la squadra per una settimana: il lunedì successivo confronta piano e presenze. 31 giorni gratis, setup incluso, nessun vincolo.",
+      },
+    ],
+    faqs: [
+      {
+        q: "Come si organizza il lavoro delle squadre su più cantieri?",
+        a: "Con un piano settimanale scritto — giorni in colonna, cantieri in riga, nomi nelle celle — fatto il venerdì con i capisquadra e aggiornato sulla stessa griglia quando qualcosa cambia. Regole: una persona un cantiere al giorno, assegnazioni entro le 17 del giorno prima, un buffer per le assenze, subappaltatori scritti come le squadre interne.",
+      },
+      {
+        q: "Chi deve fare il piano delle squadre: il titolare o il capocantiere?",
+        a: "Il titolare decide il piano della settimana con i capisquadra; il caposquadra decide sul posto durante la giornata, con una delega scritta su cosa può decidere da solo. Se il piano lo fa il titolare ogni mattina al telefono, non è un piano: è un collo di bottiglia.",
+      },
+      {
+        q: "Quante persone servono per fase?",
+        a: "Le dà il budget di commessa: ore previste per fase divise per i giorni disponibili. Se il risultato è una squadra più grande di quella che hai, o allunghi la fase nel cronoprogramma o chiami un subappaltatore, ma lo decidi il venerdì prima, non il lunedì mattina.",
+      },
+      {
+        q: "Come faccio a sapere se il piano viene rispettato?",
+        a: "Confrontando piano e presenze: se le timbrature con GPS arrivano sul cantiere dove le persone erano state mandate, il piano regge. Le differenze — pianificato in un posto, timbrato in un altro — sono i punti da discutere il venerdì. In più, ore per cantiere contro ore previste e ore di spostamento sopra il 5% dicono se il piano è troppo frammentato.",
+      },
+      {
+        q: "Serve un software per gestire le squadre?",
+        a: "Fino a due cantieri e cinque persone basta una lavagna in baracca e una foto la sera. Da tre cantieri in su, con subappaltatori e mezzi da coordinare, un calendario dei lavori sul telefono di tutti — collegato alle presenze e ai costi di commessa — toglie le telefonate del mattino e mette le ore sul cantiere giusto.",
+      },
+    ],
+  },
 ];

@@ -434,7 +434,7 @@ const config: FunzionalitaPageConfig = {
   applicationSubCategory: "Construction Team Communication Software",
 
   relatedBlogSlugs: [
-    "gestire-piu-cantieri-contemporaneamente",
+    "gestione-squadre-cantiere",
     "delegare-impresa-edile-senza-perdere-controllo",
     "excel-whatsapp-carta-gestione-impresa-edile",
   ],

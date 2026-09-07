@@ -436,9 +436,9 @@ const config: FunzionalitaPageConfig = {
   applicationSubCategory: "Construction Scheduling Software",
 
   relatedBlogSlugs: [
+    "gestione-squadre-cantiere",
     "gestire-piu-cantieri-contemporaneamente",
     "come-organizzare-cantiere-edile",
-    "report-avanzamento-cantiere-guida",
   ],
 };
 
