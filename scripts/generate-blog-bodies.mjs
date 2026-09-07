@@ -61,6 +61,19 @@ function renderPost(post) {
         if (block.items?.length)
           parts.push(`<ul>${block.items.map((i) => `<li>${esc(i)}</li>`).join("")}</ul>`);
         break;
+      case "table":
+        if (block.heading) parts.push(`<h2>${esc(block.heading)}</h2>`);
+        if (block.headers?.length && block.rows?.length)
+          parts.push(
+            `<table><thead><tr>${block.headers.map((h) => `<th>${esc(h)}</th>`).join("")}</tr></thead><tbody>${block.rows
+              .map((r) => `<tr>${r.map((c) => `<td>${esc(c)}</td>`).join("")}</tr>`)
+              .join("")}</tbody></table>`,
+          );
+        break;
+      case "callout":
+        if (block.heading) parts.push(`<h2>${esc(block.heading)}</h2>`);
+        if (block.body) parts.push(`<p>${esc(cap(block.body))}</p>`);
+        break;
       // quote e cta esclusi dal sintetico: rumore per i motori, zero segnale.
       default:
         break;

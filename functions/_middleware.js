@@ -2728,10 +2728,10 @@ function resolveRoute(pathname) {
   // City hub: /software-gestionale-edilizia (senza città specifica)
   if (pathname === "/software-gestionale-edilizia") {
     return {
-      title: "Software Gestionale Edilizia — Cantieri, Preventivi e Margini | Edilizia in Cloud",
-      description: seoDescription("Software gestionale per imprese edili italiane: cantieri, preventivi, fatturazione, magazzino, personale, CRM e margini in un'unica piattaforma cloud."),
+      title: "Software Gestionale Edilizia Cloud: Guida e Confronto 2026",
+      description: seoDescription("Cos'è un software gestionale edilizia cloud, cosa deve fare per un'impresa edile, quanto costa rispetto a uno installato e come sceglierlo. Guida 2026."),
       canonical: canonicalUrl("/software-gestionale-edilizia"),
-      h1: "Software gestionale edilizia per imprese edili italiane",
+      h1: "Software gestionale edilizia cloud per imprese edili italiane",
       intro: "Edilizia in Cloud unisce cantieri, preventivi, fatturazione, magazzino, personale, CRM e controllo margini in una piattaforma cloud mobile-first. La pagina include anche la copertura nelle principali città italiane per supporto e onboarding locale.",
       links: [
         { href: "/funzionalita/gestione-cantieri", label: "Gestione Cantieri" },
@@ -2746,6 +2746,8 @@ function resolveRoute(pathname) {
         { href: "/software-gestionale-edilizia-torino", label: "Torino" },
         { href: "/software-gestionale-edilizia-bologna", label: "Bologna" },
         { href: "/software-gestionale-edilizia-firenze", label: "Firenze" },
+        { href: "/blog/migliori-software-gestionali-edilizia-confronto", label: "I migliori software gestionali per l'edilizia: confronto" },
+        { href: "/confronto/vs-primus", label: "Confronto con PriMus" },
         { href: "/demo", label: "Richiedi Demo" },
       ],
       jsonLd: null,
