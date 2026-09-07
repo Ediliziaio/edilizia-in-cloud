@@ -301,31 +301,35 @@ export function useCreateDocumento() {
         if (anaError) throw new Error("Impossibile creare il profilo di fatturazione: " + anaError.message);
       }
 
-      // Generate progressive number via RPC
-      const { data: numero, error: rpcError } = await supabase.rpc(
-        "genera_numero_documento_native" as never,
-        {
-          p_company_id: companyId,
-          p_tipo: input.tipo,
-          p_anno: new Date().getFullYear(),
-        } as never
-      );
+      // Numero e documento nascono nella stessa transazione.
+      //
+      // Prima erano due chiamate: `genera_numero_documento_native` e poi
+      // l'insert. Quella funzione non calcola un massimo, INCREMENTA E SCRIVE
+      // un contatore, e la scrittura era gia' committata quando arrivava
+      // l'insert: se l'insert falliva, il numero era consumato per sempre.
+      // Non un caso di scuola — il menu offre sedici tipi di documento e il
+      // vincolo sulla tabella ne ammette nove, quindi parcella, acconti e
+      // reverse charge bruciavano un numero di FATTURA a ogni tentativo,
+      // perche' il ramo di riserva della funzione usa quel contatore.
+      //
+      // `documento_crea` rifiuta i tipi non gestiti PRIMA di toccare il
+      // contatore, e se l'inserimento fallisce anche l'incremento torna
+      // indietro. Provato su dati veri in transazione annullata: tentativo con
+      // «parcella» -> contatore fermo a 37; fattura valida -> 38, documento
+      // FT-2026-0038 scritto.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: creato, error: rpcError } = await (supabase as any).rpc(
+        "documento_crea",
+        { p_company_id: companyId, p_dati: input },
+      ) as { data: { id?: string } | null; error: { message?: string } | null };
 
-      if (rpcError) throw rpcError;
-
-      const progressivo = parseInt((numero as string).split("-").pop() ?? "1", 10);
+      if (rpcError) throw new Error(rpcError.message ?? "Creazione documento non riuscita");
+      if (!creato?.id) throw new Error("Il documento non e' stato creato");
 
       const { data, error } = await supabase
         .from("documenti_fiscali" as never)
-        .insert({
-          company_id: companyId,
-          numero: numero as string,
-          numero_progressivo: progressivo,
-          anno: new Date().getFullYear(),
-          stato: "bozza",
-          ...input,
-        } as never)
         .select()
+        .eq("id", creato.id)
         .single();
 
       if (error) throw error;
