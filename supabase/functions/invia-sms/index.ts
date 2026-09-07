@@ -211,25 +211,46 @@ Deno.serve(async (req: Request) => {
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+    const partiSms = calcolaPartiSms(campagna.messaggio);
+
     // Pre-check crediti SMS PRIMA di erogare: questo percorso (Brevo) non
     // consultava MAI sms_wallet — campagne inviabili gratis e senza limite.
-    // Guard minimale: wallet presente e con saldo positivo; a fine invio il
-    // costo effettivo viene scalato (floor 0).
+    //
+    // Il primo rimedio controllava solo che il saldo fosse maggiore di zero,
+    // e lo dichiarava «guard minimale». Non basta: con un centesimo in cassa
+    // partiva una campagna a tutti i contatti, e a fine invio il costo si
+    // scalava con `Math.max(0, ...)`. Il pavimento a zero non e' una
+    // protezione, e' la piattaforma che paga la differenza in silenzio.
+    //
+    // Il credito deve coprire la campagna INTERA prima di cominciare: un
+    // messaggio lungo vale piu' parti, e ogni parte e' un credito.
     const { data: smsWallet } = await supabase
       .from("sms_wallet")
-      .select("crediti, totale_speso")
+      .select("crediti, crediti_riservati, totale_speso")
       .eq("company_id", company_id)
       .maybeSingle();
-    const creditiDisponibili = Number(smsWallet?.crediti ?? 0);
-    if (creditiDisponibili <= 0) {
+    const creditiDisponibili =
+      Number(smsWallet?.crediti ?? 0) - Number(smsWallet?.crediti_riservati ?? 0);
+    const creditiNecessari = partiSms * destinatari.length;
+    if (creditiDisponibili < creditiNecessari) {
       await supabase
         .from("sms_campaigns")
         .update({ stato: statoPrecedente })
         .eq("id", campagna_id);
+      const mancanti = Math.ceil(creditiNecessari - creditiDisponibili);
       return new Response(
         JSON.stringify({
           error: "insufficient_credits",
-          message: "Crediti SMS esauriti. Ricarica il wallet dal modulo SMS Marketing per inviare la campagna.",
+          message: creditiDisponibili <= 0
+            ? "Crediti SMS esauriti. Ricarica il wallet dal modulo SMS Marketing per inviare la campagna."
+            : `Crediti insufficienti per l'intera campagna: servono ${creditiNecessari} crediti `
+              + `(${destinatari.length} destinatari × ${partiSms} ${partiSms === 1 ? "parte" : "parti"}) `
+              + `e ce ne sono ${creditiDisponibili}. Ricaricane almeno ${mancanti}, `
+              + "oppure accorcia il messaggio o riduci i destinatari.",
+          crediti_necessari: creditiNecessari,
+          crediti_disponibili: creditiDisponibili,
+          destinatari: destinatari.length,
+          parti_sms: partiSms,
         }),
         { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
@@ -238,7 +259,6 @@ Deno.serve(async (req: Request) => {
     let inviati = 0;
     let errori = 0;
     let costoTotale = 0;
-    const partiSms = calcolaPartiSms(campagna.messaggio);
 
     // Aggiorna totale destinatari
     await supabase
