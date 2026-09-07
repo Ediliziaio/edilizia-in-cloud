@@ -1,12 +1,87 @@
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { getBrandingForCompany } from "../_shared/getBranding.ts";
-import { requireAuth, requireRole } from "../_shared/auth.ts";
+import { requireAuth, isSuperAdminEmailAllowed, resolveUserEmail } from "../_shared/auth.ts";
 import { generateSecurePassword } from "../_shared/securePassword.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { sanitizeCustomerInput } from "../_shared/customerDataSanitizer.ts";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const INTERNAL_NO_EMAIL_DOMAIN = "no-email.ediliziaincloud.local";
+
+/**
+ * Chi può creare un cliente per questa azienda.
+ *
+ * Prima serviva il ruolo `company_admin` e l'azienda veniva confrontata con
+ * quella scritta nel profilo del chiamante. Due conseguenze, entrambe reali:
+ *
+ *  - Il dipendente che crea le commesse trovava il bottone «+» accanto al menu
+ *    del cliente — la pagina di creazione commessa è protetta da
+ *    `can_edit_orders`, non dal ruolo — riempiva il modulo e si prendeva un
+ *    403. In produzione erano quindici persone, dieci delle quali con
+ *    `can_edit_customers` esplicitamente acceso.
+ *  - L'amministratore entrato in una seconda azienda con l'accesso
+ *    multi-azienda prendeva lo stesso 403, perché il suo profilo continua a
+ *    puntare all'azienda di partenza.
+ *
+ * I permessi si leggono sulla riga di QUESTA azienda: `staff_permissions` è
+ * unica per (utente, azienda) e un utente può averne due.
+ */
+async function autorizzaCreazioneCliente(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabaseAdmin: any,
+  userId: string,
+  companyId: string,
+): Promise<{ ok: true; ruolo: string } | { ok: false; motivo: string; stato: number }> {
+  const { data: righeRuoli } = await supabaseAdmin
+    .from("user_roles").select("role").eq("user_id", userId);
+  const ruoli: string[] = (righeRuoli ?? []).map((r: { role: string }) => r.role);
+
+  // Il ruolo super_admin vale solo se l'email è in allowlist: stessa
+  // difesa-in-profondità di requireRole.
+  if (ruoli.includes("super_admin")) {
+    const email = await resolveUserEmail(supabaseAdmin, userId);
+    if (isSuperAdminEmailAllowed(email)) return { ok: true, ruolo: "super_admin" };
+  }
+
+  // Per tutti gli altri l'azienda dev'essere la propria, o una a cui hanno un
+  // accesso multi-azienda ancora valido.
+  const { data: profilo } = await supabaseAdmin
+    .from("profiles").select("company_id").eq("id", userId).maybeSingle();
+  let appartiene = profilo?.company_id === companyId;
+  if (!appartiene) {
+    const { data: accesso } = await supabaseAdmin
+      .from("multi_company_access")
+      .select("expires_at")
+      .eq("user_id", userId)
+      .eq("company_id", companyId)
+      .eq("status", "active")
+      .maybeSingle();
+    appartiene = !!accesso
+      && (accesso.expires_at === null || new Date(accesso.expires_at) > new Date());
+  }
+  if (!appartiene) {
+    return { ok: false, motivo: "Non autorizzato a creare clienti per questa azienda", stato: 403 };
+  }
+
+  if (ruoli.includes("company_admin")) return { ok: true, ruolo: "company_admin" };
+
+  const { data: permessi } = await supabaseAdmin
+    .from("staff_permissions")
+    .select("can_edit_customers, can_edit_orders")
+    .eq("user_id", userId)
+    .eq("company_id", companyId)
+    .maybeSingle();
+  if (permessi?.can_edit_customers === true || permessi?.can_edit_orders === true) {
+    return { ok: true, ruolo: "company_staff" };
+  }
+
+  return {
+    ok: false,
+    motivo: "Non hai il permesso di creare clienti. Chiedi a un amministratore "
+      + "dell'azienda di attivarti «modifica clienti» o «modifica commesse».",
+    stato: 403,
+  };
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -17,7 +92,6 @@ Deno.serve(async (req) => {
   try {
     // --- Authentication & Authorization ---
     const { userId, supabaseAdmin } = await requireAuth(req, corsH);
-    const callerRole = await requireRole(supabaseAdmin, userId, ["super_admin", "company_admin"], corsH);
 
     const body = await req.json();
     const {
@@ -38,6 +112,13 @@ Deno.serve(async (req) => {
 
     if (!company_id) {
       return errorResponse("Missing company_id");
+    }
+
+    // Autorizzazione prima di ogni altra cosa: chi non può, non arriva
+    // nemmeno a sapere se l'azienda esiste.
+    const permesso = await autorizzaCreazioneCliente(supabaseAdmin, userId, company_id as string);
+    if (!permesso.ok) {
+      return errorResponse(permesso.motivo, permesso.stato);
     }
 
     const cleanTxt = (v: unknown, max: number) => {
@@ -91,7 +172,8 @@ Deno.serve(async (req) => {
     const safeFirstName = trimmedFirstName || (isBusiness ? "" : "—");
     const safeLastName = trimmedLastName || (isBusiness ? (businessName ?? "—") : "—");
 
-    // --- Company Scope Check + lettura setting portal ---
+    // --- Azienda esistente + lettura setting portale ---
+    // (il controllo di accesso è già stato fatto sopra, prima di tutto il resto)
     const { data: companyRow } = await supabaseAdmin
       .from("companies")
       .select("id, name, customer_portal_enabled")
@@ -100,18 +182,6 @@ Deno.serve(async (req) => {
 
     if (!companyRow) {
       return errorResponse("Azienda non trovata", 404);
-    }
-
-    if (callerRole === "company_admin") {
-      const { data: callerProfile } = await supabaseAdmin
-        .from("profiles")
-        .select("company_id")
-        .eq("id", userId)
-        .single();
-
-      if (callerProfile?.company_id !== company_id) {
-        return errorResponse("Non autorizzato a creare utenti per questa azienda", 403);
-      }
     }
 
     // Determina se creare il portal account:
