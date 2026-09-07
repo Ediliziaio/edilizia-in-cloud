@@ -195,11 +195,11 @@ export function TabCedolini() {
         return;
       }
 
-      const { data: calcolo, error: calcErr } = await supabase.rpc("cedolino_calcola", {
+      const { data: calcolo, error: calcErr } = await supabase.rpc("cedolino_calcola" as never, {
         p_employee_id: employeeId,
         p_anno: anno,
         p_mese: mese,
-      });
+      } as never);
 
       const esito = calcolo as Record<string, unknown> | null;
       if (calcErr || !esito || esito.calcolabile !== true) {

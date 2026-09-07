@@ -48,7 +48,7 @@ export function TicketRichiamiCard({
 
   const segna = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.rpc("ticket_segna_richiamo", {
+      const { error } = await supabase.rpc("ticket_segna_richiamo" as never, {
         p_ticket_id: ticketId,
         p_nota: nota.trim() || null,
       } as never);
