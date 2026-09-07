@@ -747,7 +747,13 @@ function CreateOrderInner() {
           }
         : null;
 
-      // Installments payload for the new table
+      // Installments payload for the new table.
+      // Gli ultimi quattro campi mancavano: la pagina di creazione mostra il
+      // selettore dell'evento di cantiere (per questo riceve `statiCommessa`),
+      // ma la rata arrivava al database come "data fissa" senza stato agganciato.
+      // La scelta si perdeva in silenzio, e ricompariva solo se qualcuno
+      // riapriva la commessa e la risalvava. `create_order_atomic` questi campi
+      // li legge da sempre.
       const installmentsPayload = installmentsForSave.map(i => ({
         position: i.position,
         label: i.label,
@@ -756,6 +762,10 @@ function CreateOrderInner() {
         is_paid: i.is_paid,
         paid_date: i.paid_date || null,
         expected_date: i.expected_date || null,
+        trigger_evento: i.trigger_evento || 'data_fissa',
+        trigger_status_id: i.trigger_status_id || null,
+        trigger_numero: i.trigger_numero ?? null,
+        giorni_preavviso: i.giorni_preavviso ?? 7,
       }));
 
       const createOrderAtomic = supabase.rpc.bind(supabase) as unknown as (
