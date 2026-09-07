@@ -22,16 +22,32 @@ export async function creaNotaCredito(
   if (error) throw new Error("Impossibile caricare la fattura originale");
   const fattura = data as unknown as DocumentoFiscale;
 
+  // Gli importi restano POSITIVI. Il segno di una nota di credito non sta
+  // negli importi: sta nel tipo di documento, ed è già scritto una volta sola
+  // in `documento_segno()`, che per 'nota_credito' vale -1. Scriverli negativi
+  // significa applicare il segno due volte, e il database lo fa davvero:
+  //
+  //   • `documento_stornato()` somma le note di credito per sottrarle dal
+  //     residuo. Con importi negativi sottraeva un negativo: su una fattura da
+  //     1.220 € stornata per intero il residuo diventava 2.440 € invece di
+  //     zero, e il ramo che marca la fattura come stornata non scattava mai
+  //     perché −1.220 non è mai maggiore di 1.220.
+  //   • `silvio_tool_quadro_incassi` moltiplica l'incassato per
+  //     `documento_segno(tipo)`: una nota di credito negativa finiva per
+  //     AUMENTARE gli incassi invece di ridurli.
+  //
+  // È anche la forma giusta per lo SdI: nel TD04 gli importi si indicano
+  // positivi, è il tipo documento a dire che è un accredito.
   const righe: RigaDocumento[] =
     modalita === "totale"
       ? fattura.righe.map((r, i) => ({
           ...r,
           id: crypto.randomUUID(),
           numero_linea: i + 1,
-          quantita: Math.abs(r.quantita) * -1,
-          imponibile: Math.abs(r.imponibile) * -1,
-          imposta: Math.abs(r.imposta) * -1,
-          totale_riga: Math.abs(r.totale_riga) * -1,
+          quantita: Math.abs(r.quantita),
+          imponibile: Math.abs(r.imponibile),
+          imposta: Math.abs(r.imposta),
+          totale_riga: Math.abs(r.totale_riga),
         }))
       : [];
 
