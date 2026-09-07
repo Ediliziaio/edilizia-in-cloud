@@ -1,0 +1,12 @@
+-- Applicata in produzione il 7 settembre 2026, e ANNULLATA subito dopo dalla
+-- migrazione 20280907100300. Il file resta perche' la modifica e' passata dal
+-- database e la storia deve corrispondere.
+--
+-- Diagnosi sbagliata: `commessa_salva` sembrava non scrivere le rate perche' il
+-- suo corpo non nomina mai `order_installments`. Le scrive: delega a
+-- `order_rate_sostituisci`, che cancella e reinserisce l'elenco completo.
+-- Il blocco aggiunto qui scriveva le stesse righe poche istruzioni prima, e
+-- venivano subito sostituite: lavoro doppio e nessun effetto utile.
+--
+-- Contenuto non ripetuto: la migrazione seguente ripristina lo stato originale.
+select 'annullata da 20280907100300' as nota;
