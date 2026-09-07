@@ -26,6 +26,8 @@ export default function ContabilitaFiscale() {
     marcaPagato,
     totaleAPagare,
     scadentiProssimi30gg,
+    componi,
+    isComponendo,
   } = useF24(anno);
 
   const { calcola, isCalcolando, risultato, reset } = useLiquidazioneIVA();
@@ -75,6 +77,8 @@ export default function ContabilitaFiscale() {
             onMarcaPagato={marcaPagato}
             totaleAPagare={totaleAPagare}
             scadentiProssimi30gg={scadentiProssimi30gg}
+            onComponi={componi}
+            isComponendo={isComponendo}
           />
         </TabsContent>
 

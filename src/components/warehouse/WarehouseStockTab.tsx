@@ -408,26 +408,28 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
       costPaidDate?: string;
       costCategory?: string;
     }) => {
-      const { error: movError } = await supabase.from("warehouse_movements").insert({
-        stock_item_id: stockItemId,
-        movement_type: type,
-        quantity,
-        notes: notes || null,
-        performed_by: user!.id,
-        warehouse_id: resolveWarehouseId(stockItems.find((i) => i.id === stockItemId)),
+      // Prima qui si leggeva la giacenza dalla cache di React Query, si faceva
+      // la sottrazione in JavaScript e si riscriveva il valore assoluto. Due
+      // magazzinieri che scaricavano insieme leggevano lo stesso numero di
+      // partenza e scrivevano lo stesso risultato: una delle due uscite spariva
+      // dalla giacenza pur restando nello storico, senza un errore a schermo.
+      // E il `Math.max(0, …)` trasformava ogni sconfinamento in uno zero muto.
+      //
+      // La funzione sul database blocca la riga, rifiuta lo scarico che non ha
+      // copertura dicendo quanto c'è davvero, aggiorna sommando invece di
+      // riscrivere, e registra il movimento nella stessa transazione.
+      const { error: movError } = await supabase.rpc("warehouse_movimento_rapido", {
+        p_stock_item_id: stockItemId,
+        p_tipo: type,
+        p_quantita: quantity,
+        p_note: notes || null,
       });
       if (movError) throw movError;
 
+      // Serve solo il nome, per la guardia sul doppio costo qui sotto: la
+      // quantità non la calcoliamo più noi.
       const currentItem = stockItems.find((i) => i.id === stockItemId);
       if (!currentItem) throw new Error("Articolo non trovato");
-      const newQty = type === "carico" ? currentItem.quantity + quantity : currentItem.quantity - quantity;
-
-      const { error: updError } = await supabase
-        .from("warehouse_stock")
-        .update({ quantity: Math.max(0, newQty) })
-        .eq("id", stockItemId)
-        .eq("company_id", companyId!);
-      if (updError) throw updError;
 
       if (registerCost && type === "carico") {
         // Guardia anti doppio costo (2026-08-06). Se questa merce sta arrivando

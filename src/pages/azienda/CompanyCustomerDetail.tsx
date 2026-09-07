@@ -218,23 +218,45 @@ export default function CompanyCustomerDetail() {
     queryKey: ["customer-preventivi", id, effectiveCompany?.id, customer?.marketing_contact_id, customerEmailForLinks],
     queryFn: async () => {
       try {
-        let query = supabase
-          .from("quotes")
-          .select("id, quote_number, title, total, status, created_at")
-          .eq("company_id", effectiveCompany!.id)
-          .order("created_at", { ascending: false });
-
+        // Prima si leggeva solo `quotes`, e i preventivi fatti con i verticali
+        // (fotovoltaico, serramenti, ristrutturazione…) vivono in tabelle loro:
+        // la scheda diceva "nessun preventivo" mentre ce n'erano. La vista
+        // v_preventivi_unificati li mette tutti in fila con lo stesso contatto.
         if (customer?.marketing_contact_id) {
-          query = query.eq("contact_id", customer.marketing_contact_id);
-        } else if (customerEmailForLinks) {
-          query = query.eq("client_email", customerEmailForLinks);
-        } else {
-          return [];
+          const { data, error } = await supabase
+            .from("v_preventivi_unificati")
+            .select("id, tipo, numero, totale, stato_unificato, data, created_at")
+            .eq("company_id", effectiveCompany!.id)
+            .eq("contact_id", customer.marketing_contact_id)
+            .order("created_at", { ascending: false });
+          if (error) throw error;
+          return (data ?? []).map((r): PreventivoRow => ({
+            id: r.id as string,
+            quote_number: (r.numero as string | null) ?? null,
+            // Il tipo diventa il sottotitolo: senza, due preventivi di verticali
+            // diversi si leggono uguali.
+            title: (r.tipo as string | null) ?? null,
+            total: r.totale == null ? null : Number(r.totale),
+            status: (r.stato_unificato as string | null) ?? null,
+            created_at: (r.data as string | null) ?? (r.created_at as string),
+          }));
         }
 
-        const { data, error } = await query;
-        if (error) throw error;
-        return (data ?? []) as PreventivoRow[];
+        // Cliente senza contatto CRM: resta il ripiego sull'email, che la vista
+        // non espone. Copre i preventivi classici, gli unici che possano avere
+        // un'email senza un contatto collegato.
+        if (customerEmailForLinks) {
+          const { data, error } = await supabase
+            .from("quotes")
+            .select("id, quote_number, title, total, status, created_at")
+            .eq("company_id", effectiveCompany!.id)
+            .eq("client_email", customerEmailForLinks)
+            .order("created_at", { ascending: false });
+          if (error) throw error;
+          return (data ?? []) as PreventivoRow[];
+        }
+
+        return [];
       } catch {
         throw new Error("Impossibile caricare i preventivi collegati al cliente.");
       }

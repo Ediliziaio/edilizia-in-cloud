@@ -144,7 +144,7 @@ export function TabCedolini() {
       const nomeCercato = form.employee_name.trim().toLowerCase();
       const { data: profili, error: profErr } = await supabase
         .from("hr_profili")
-        .select("id, nome, cognome")
+        .select("id, nome, cognome, employee_id")
         .eq("company_id", companyId!)
         .eq("attivo", true);
       if (profErr) { toast.error("Errore nel recupero dei profili"); return; }
@@ -178,21 +178,66 @@ export function TabCedolini() {
       const totalOre = data.reduce((sum: number, p: any) => sum + (Number(p.ore_lavorate) || 0), 0);
       const oreStraordinario = data.reduce((sum: number, p: any) => sum + (Number(p.ore_straordinario) || 0), 0);
 
-      // 2026-05-27 (UX audit fix): prima il calcolo veniva mostrato solo nel
-      // toast e il valore veniva perso (l'utente doveva ricopiare a mano).
-      // Ora persistiamo le ore nel campo `note` del form così restano
-      // visibili e modificabili. Il `lordo` non lo calcoliamo (richiede
-      // tariffa oraria CCNL non disponibile qui) — l'utente lo inserisce
-      // a mano partendo dal dato visibile.
       const oreLine = `Ore lavorate ${MESI[mese - 1]} ${anno}: ${totalOre.toFixed(1)} h (di cui ${oreStraordinario.toFixed(1)} h straordinario)`;
+
+      // Fino a qui si recuperavano le ore e si scriveva "inserisci il lordo a
+      // mano": il motore CCNL esisteva sul database e non lo chiamava nessuno.
+      // Ora lo si chiama. Restituisce lordo, contributi e ritenute, ma anche
+      // gli avvisi (timbrature spaiate, dipendente non attivo) e le ipotesi su
+      // cui ha calcolato: vanno nelle note, perché un cedolino che non dice su
+      // cosa è stato calcolato non è verificabile da nessuno.
+      const employeeId = match[0].employee_id;
+      if (!employeeId) {
+        setForm((f) => ({ ...f, note: f.note ? `${f.note}\n${oreLine}` : oreLine }));
+        toast.warning(`Recuperate ${totalOre.toFixed(1)} ore, ma il lordo non si può calcolare`, {
+          description: `${form.employee_name} non è collegato a un'anagrafica dipendente: inseriscilo a mano.`,
+        });
+        return;
+      }
+
+      const { data: calcolo, error: calcErr } = await supabase.rpc("cedolino_calcola", {
+        p_employee_id: employeeId,
+        p_anno: anno,
+        p_mese: mese,
+      });
+
+      const esito = calcolo as Record<string, unknown> | null;
+      if (calcErr || !esito || esito.calcolabile !== true) {
+        const motivo = (esito?.motivo as string | undefined) ?? calcErr?.message;
+        setForm((f) => ({ ...f, note: f.note ? `${f.note}\n${oreLine}` : oreLine }));
+        toast.warning(`Recuperate ${totalOre.toFixed(1)} ore, ma il lordo non si può calcolare`, {
+          description: motivo ? `${motivo}. Inseriscilo a mano.` : "Inserisci il lordo a mano.",
+        });
+        return;
+      }
+
+      const avvisi = (esito.avvisi as Array<{ testo?: string }> | undefined) ?? [];
+      const ipotesi = (esito.ipotesi as string[] | undefined) ?? [];
+      const righeNote = [
+        oreLine,
+        `Lordo calcolato: ${Number(esito.lordo ?? 0).toLocaleString("it-IT", { minimumFractionDigits: 2 })} € — netto ${Number(esito.netto ?? 0).toLocaleString("it-IT", { minimumFractionDigits: 2 })} €`,
+        ...avvisi.map((a) => `⚠ ${a.testo ?? ""}`).filter((r) => r.length > 2),
+        ...(ipotesi.length ? ["Calcolato assumendo:", ...ipotesi.map((i) => `· ${i}`)] : []),
+        esito.da_rivedere_da_un_consulente === true
+          ? "Da far verificare al consulente del lavoro prima dell'emissione."
+          : "",
+      ].filter(Boolean);
+
       setForm((f) => ({
         ...f,
-        note: f.note ? `${f.note}\n${oreLine}` : oreLine,
+        lordo: String(esito.lordo ?? ""),
+        contributi_dipendente: String(esito.contributi_dipendente ?? ""),
+        contributi_datore: String(esito.contributi_datore ?? ""),
+        note: [f.note, ...righeNote].filter(Boolean).join("\n"),
       }));
 
       toast.success(
-        `Recuperate ${totalOre.toFixed(1)} ore — aggiunte nelle note del cedolino`,
-        { description: `Straordinario: ${oreStraordinario.toFixed(1)} h. Inserisci il lordo a mano.` }
+        `Cedolino calcolato: lordo ${Number(esito.lordo ?? 0).toLocaleString("it-IT", { minimumFractionDigits: 2 })} €`,
+        {
+          description: avvisi.length
+            ? `${avvisi.length} ${avvisi.length === 1 ? "avviso" : "avvisi"} nelle note — controlla prima di salvare.`
+            : "Ipotesi e ore nelle note. Da far verificare al consulente.",
+        },
       );
     } finally {
       setIsFetchingOre(false);

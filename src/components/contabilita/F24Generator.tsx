@@ -25,6 +25,15 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { AlertTriangle, Plus, X, Save } from 'lucide-react';
 
+interface EsitoComposizione {
+  voci: Array<{ tributo_code?: string; importo?: number }>;
+  voci_mancanti: Array<{ voce: string; motivo: string }>;
+  non_incluso: string[];
+  totale_da_versare: number;
+  invio_telematico: string;
+  da_rivedere_da_un_commercialista: boolean;
+}
+
 interface Props {
   entries: F24Entry[];
   isLoading: boolean;
@@ -33,6 +42,9 @@ interface Props {
   onMarcaPagato: (id: string) => void;
   totaleAPagare: number;
   scadentiProssimi30gg: F24Entry[];
+  /** Compone l'F24 del mese da IVA liquidata e ritenute dei cedolini. */
+  onComponi?: (p: { mese: number; rigenera?: boolean }) => Promise<EsitoComposizione>;
+  isComponendo?: boolean;
 }
 
 const MESI = [
@@ -74,9 +86,25 @@ export function F24Generator({
   onMarcaPagato,
   totaleAPagare,
   scadentiProssimi30gg,
+  onComponi,
+  isComponendo,
 }: Props) {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<FormState>(defaultForm);
+  const [meseDaComporre, setMeseDaComporre] = useState(String(new Date().getMonth() + 1));
+  const [esito, setEsito] = useState<EsitoComposizione | null>(null);
+
+  const handleComponi = async () => {
+    if (!onComponi) return;
+    setEsito(null);
+    try {
+      setEsito(await onComponi({ mese: parseInt(meseDaComporre) }));
+    } catch {
+      // L'errore è già segnalato dalla mutation; qui basta non lasciare
+      // un esito vecchio a schermo, che sarebbe peggio di nessun esito.
+      setEsito(null);
+    }
+  };
 
   const handleSalva = async () => {
     if (!form.tributo_code || !form.importo) return;
@@ -122,6 +150,70 @@ export function F24Generator({
       )}
 
       {/* New F24 button / inline form */}
+      {/* Compone l'F24 dai dati che il gestionale ha già — IVA liquidata e
+          ritenute dei cedolini — invece di farlo digitare. Accanto resta il
+          modulo manuale, perché quello che il sistema non sa calcolare va
+          comunque messo, e la funzione dice esattamente cos'è. */}
+      {onComponi && !showForm && (
+        <div className="flex flex-wrap items-end gap-2 rounded-lg border bg-muted/30 p-3">
+          <div className="space-y-1">
+            <Label className="text-xs">Componi dai dati del mese</Label>
+            <Select value={meseDaComporre} onValueChange={setMeseDaComporre}>
+              <SelectTrigger className="h-9 w-[150px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {MESI.map((m, i) => <SelectItem key={m} value={String(i + 1)}>{m}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <Button onClick={handleComponi} disabled={isComponendo}>
+            {isComponendo ? 'Compongo…' : 'Componi F24'}
+          </Button>
+        </div>
+      )}
+
+      {esito && (
+        <Alert className="border-slate-300">
+          <AlertDescription className="space-y-2 text-sm">
+            <p className="font-medium text-foreground">
+              {esito.voci.length === 0
+                ? 'Nessuna voce da versare per questo mese.'
+                : `${esito.voci.length} ${esito.voci.length === 1 ? 'voce composta' : 'voci composte'} — totale ${formatCurrency(esito.totale_da_versare)}`}
+            </p>
+
+            {esito.voci_mancanti.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Non calcolate</p>
+                <ul className="mt-1 space-y-0.5">
+                  {esito.voci_mancanti.map((v) => (
+                    <li key={v.voce} className="text-xs text-muted-foreground">
+                      <span className="font-medium text-foreground">{v.voce}</span> — {v.motivo}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {esito.non_incluso.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Restano fuori per scelta</p>
+                <ul className="mt-1 space-y-0.5">
+                  {esito.non_incluso.map((n) => (
+                    <li key={n} className="text-xs text-muted-foreground">· {n}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <p className="text-xs text-muted-foreground">{esito.invio_telematico}</p>
+            {esito.da_rivedere_da_un_commercialista && (
+              <p className="text-xs font-medium text-amber-700">
+                Da far verificare al commercialista prima del versamento.
+              </p>
+            )}
+          </AlertDescription>
+        </Alert>
+      )}
+
       {!showForm ? (
         <Button variant="outline" onClick={() => setShowForm(true)}>
           <Plus className="h-4 w-4 mr-2" />

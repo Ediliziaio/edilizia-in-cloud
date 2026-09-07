@@ -50,6 +50,42 @@ export function useF24(anno?: number) {
     },
   });
 
+  /**
+   * Compone l'F24 del mese dai dati veri — IVA liquidata e ritenute dei
+   * cedolini — invece di farlo digitare a mano.
+   *
+   * La funzione sul database esisteva dal 5 settembre e non la chiamava
+   * nessuno: la pagina restava un registro manuale. Restituisce anche le voci
+   * che NON ha potuto calcolare con il motivo di ciascuna, e l'elenco di cosa
+   * resta fuori per scelta (contributi INPS, addizionali, ritenute d'acconto).
+   * Quelle informazioni vanno mostrate: un F24 composto a metà senza dire quale
+   * metà manca è più pericoloso di un foglio bianco.
+   */
+  const componiMutation = useMutation({
+    mutationFn: async ({ mese, rigenera = false }: { mese: number; rigenera?: boolean }) => {
+      const { data, error } = await supabase.rpc('f24_componi', {
+        p_company_id: companyId!,
+        p_anno: annoCorrente,
+        p_mese: mese,
+        p_rigenera: rigenera,
+      });
+      if (error) throw new Error(`[useF24] composizione fallita: ${error.message}`);
+      return data as {
+        ok: boolean;
+        voci: Array<{ tributo_code?: string; importo?: number }>;
+        voci_mancanti: Array<{ voce: string; motivo: string }>;
+        non_incluso: string[];
+        totale_da_versare: number;
+        scadenza: string | null;
+        invio_telematico: string;
+        da_rivedere_da_un_commercialista: boolean;
+      };
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['f24', 'list', companyId, annoCorrente] });
+    },
+  });
+
   const salvaMutation = useMutation({
     mutationFn: async (payload: Partial<F24Entry> & { tributo_code: string; importo: number }) => {
       const record = {
@@ -105,6 +141,8 @@ export function useF24(anno?: number) {
     isLoading: f24Query.isLoading,
     salva: salvaMutation.mutateAsync,
     isSalvando: salvaMutation.isPending,
+    componi: componiMutation.mutateAsync,
+    isComponendo: componiMutation.isPending,
     marcaPagato: marcaPagatoMutation.mutate,
     scadentiProssimi30gg,
     totaleAPagare: entries.filter(e => e.stato === 'da_pagare').reduce((s, e) => s + Number(e.importo), 0),
