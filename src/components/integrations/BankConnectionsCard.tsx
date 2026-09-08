@@ -63,6 +63,12 @@ interface BankConnectionsCardProps {
   onChanged?: () => void;
 }
 
+/** Giorni al termine del consenso PSD2 (90 gg): sotto i 7 la card lo dice e offre «Ricollega». */
+function giorniAllaScadenza(c: { expires_at: string | null }): number {
+  if (!c.expires_at) return Infinity;
+  return Math.ceil((new Date(c.expires_at).getTime() - Date.now()) / 864e5);
+}
+
 export default function BankConnectionsCard({
   redirectPath = "/azienda/impostazioni/integrazioni",
   onChanged,
@@ -256,7 +262,7 @@ export default function BankConnectionsCard({
                         Sincronizza
                       </Button>
                     )}
-                    {(c.status === "expired" || c.status === "error") && (
+                    {(c.status === "expired" || c.status === "error" || giorniAllaScadenza(c) <= 7) && (
                       <Button size="sm" variant="outline" onClick={openConnect}>
                         <RefreshCw className="h-3.5 w-3.5 mr-1" /> Ricollega
                       </Button>
@@ -270,6 +276,13 @@ export default function BankConnectionsCard({
                   <p className="flex items-start gap-1.5 text-[11px] text-rose-600">
                     <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
                     {c.error_message}
+                  </p>
+                )}
+                {c.status === "linked" && c.expires_at && giorniAllaScadenza(c) <= 7 && (
+                  <p className="flex items-start gap-1.5 text-[11px] text-amber-700">
+                    <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
+                    Il consenso scade il {new Date(c.expires_at).toLocaleDateString("it-IT")}
+                    {giorniAllaScadenza(c) <= 0 ? " (oggi)" : ` (fra ${giorniAllaScadenza(c)} giorni)`}: ricollega il conto prima, così i movimenti non si fermano.
                   </p>
                 )}
                 {accs.length > 0 && (

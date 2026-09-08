@@ -88,14 +88,24 @@ Deno.serve(async (req) => {
 
   const dateFrom = new Date(Date.now() - 90 * 864e5).toISOString().slice(0, 10);
   let imported = 0, expired = 0, accountsDone = 0; const txErrors: any[] = [];
+  // Un log per connessione per notte (bank_sync_logs): prima il cron non
+  // scriveva niente e una notte storta si vedeva solo nel log di pg_cron.
+  const startedAt = new Date().toISOString();
+  const perConnessione = new Map<string, { company_id: string; accounts: number; imported: number; expired: boolean; error: string | null }>();
+  const logDi = (acc: { company_id: string; connection_id: string }) => {
+    let l = perConnessione.get(acc.connection_id);
+    if (!l) { l = { company_id: acc.company_id, accounts: 0, imported: 0, expired: false, error: null }; perConnessione.set(acc.connection_id, l); }
+    return l;
+  };
   for (const acc of (rows ?? []) as Array<{ id: string; external_account_id: string; company_id: string; connection_id: string }>) {
     try {
       const { status, data } = await eb(`/accounts/${acc.external_account_id}/transactions?date_from=${dateFrom}`);
       if (status === 401 || status === 403) {
         await admin.from("bank_connections").update({ status: "expired", error_message: "Consenso scaduto o revocato. Ricollega il conto." }).eq("id", acc.connection_id);
+        logDi(acc).expired = true;
         expired++; continue;
       }
-      if (status !== 200) continue;
+      if (status !== 200) { logDi(acc).error = `La banca ha risposto ${status}`; continue; }
       const txs = data.transactions || [];
       if (txs.length) {
         // Contatore, non scarto: due bonifici identici lo stesso giorno sono
@@ -117,6 +127,7 @@ Deno.serve(async (req) => {
           }
           imported += ok;
         } else imported += rows.length;
+        logDi(acc).imported += txErr ? 0 : rows.length;
       }
       // Nome amichevole (Qonto: campo `details`) → display_name + chiave per il saldo giusto.
       let friendly: string | null = null;
@@ -139,12 +150,88 @@ Deno.serve(async (req) => {
         }
       } catch { /* saldo best-effort */ }
       await admin.from("bank_connections").update({ last_sync_at: new Date().toISOString() }).eq("id", acc.connection_id);
+      logDi(acc).accounts++;
       accountsDone++;
     } catch (e) {
+      logDi(acc).error = e instanceof Error ? e.message : String(e);
       console.error("[bank-eb-cron] account", acc.external_account_id, e instanceof Error ? e.message : String(e));
     }
   }
   console.log(`[bank-eb-cron] done accounts=${accountsDone} imported=${imported} expired=${expired}`);
+  if (perConnessione.size > 0) {
+    const completedAt = new Date().toISOString();
+    const righe = [...perConnessione].map(([connection_id, l]) => ({
+      company_id: l.company_id,
+      connection_id,
+      sync_type: "nightly",
+      status: l.expired ? "expired" : l.error ? "failed" : "completed",
+      accounts_synced: l.accounts,
+      transactions_fetched: l.imported,
+      error_message: l.expired ? "Consenso scaduto o revocato" : l.error,
+      started_at: startedAt,
+      completed_at: completedAt,
+    }));
+    const { error: logErr } = await admin.from("bank_sync_logs").insert(righe);
+    if (logErr) console.error("[bank-eb-cron] bank_sync_logs:", logErr.message);
+  }
+
+  // ── Consenso in scadenza / scaduto: avviso incorporato, non opzionale ──────
+  // PSD2 = 90 giorni. Il cliente lo scopriva quando i movimenti si fermavano.
+  // Avviso agli admin a 7 giorni dalla scadenza (e di nuovo a ~2), e quando è
+  // già scaduto. Dedup sulle notifiche stesse: niente tabella nuova.
+  let avvisiScadenza = 0;
+  try {
+    const fra7 = new Date(Date.now() + 7 * 864e5).toISOString();
+    const { data: conns } = await admin
+      .from("bank_connections")
+      .select("id, company_id, institution_name, status, expires_at")
+      .or(`and(status.eq.linked,expires_at.lte.${fra7}),status.eq.expired`)
+      .limit(500);
+    const adminsDi = new Map<string, string[]>();
+    for (const c of (conns ?? []) as Array<{ id: string; company_id: string; institution_name: string | null; status: string; expires_at: string | null }>) {
+      const scaduto = c.status === "expired";
+      const giorni = c.expires_at ? Math.max(0, Math.ceil((new Date(c.expires_at).getTime() - Date.now()) / 864e5)) : 0;
+      // Dedup: in scadenza → ogni 5 giorni (7 e ~2); scaduto → ogni 7 giorni.
+      const finestraMs = (scaduto ? 7 : 5) * 864e5;
+      const { data: recenti } = await admin
+        .from("notifications")
+        .select("id")
+        .eq("entity_type", "bank_connection")
+        .eq("entity_id", c.id)
+        .gte("created_at", new Date(Date.now() - finestraMs).toISOString())
+        .limit(1);
+      if (recenti && recenti.length > 0) continue;
+      if (!adminsDi.has(c.company_id)) {
+        const { data: profili } = await admin.from("profiles").select("id").eq("company_id", c.company_id).limit(200);
+        const ids = (profili ?? []).map((p: any) => p.id);
+        const { data: ruoli } = ids.length
+          ? await admin.from("user_roles").select("user_id").eq("role", "company_admin").in("user_id", ids).limit(20)
+          : { data: [] as any[] };
+        adminsDi.set(c.company_id, (ruoli ?? []).map((r: any) => r.user_id));
+      }
+      const destinatari = adminsDi.get(c.company_id) ?? [];
+      if (destinatari.length === 0) continue;
+      const banca = c.institution_name || "La banca";
+      const quando = c.expires_at ? new Date(c.expires_at).toLocaleDateString("it-IT") : "";
+      const righe = destinatari.map((uid) => ({
+        company_id: c.company_id,
+        user_id: uid,
+        type: "bank_alert",
+        title: scaduto ? `${banca}: collegamento scaduto` : `${banca}: il consenso scade fra ${giorni} giorni`,
+        body: scaduto
+          ? "I movimenti non arrivano più. Ricollega il conto da Tesoreria → Connessioni."
+          : `Scade il ${quando}. Ricollega il conto prima, così i movimenti non si fermano (Tesoreria → Connessioni).`,
+        entity_type: "bank_connection",
+        entity_id: c.id,
+        action_url: "/azienda/tesoreria?tab=connessioni",
+      }));
+      const { error: nErr } = await admin.from("notifications").insert(righe);
+      if (nErr) console.error("[bank-eb-cron] avviso scadenza:", nErr.message); else avvisiScadenza++;
+    }
+  } catch (e) {
+    console.error("[bank-eb-cron] scadenze:", e instanceof Error ? e.message : String(e));
+  }
+  if (avvisiScadenza > 0) console.log(`[bank-eb-cron] avvisi di scadenza: ${avvisiScadenza}`);
 
   // ── Motore bank_alert_rules ────────────────────────────────────────────────
   // La UI per configurare gli avvisi esiste da mesi; il motore che li fa
@@ -228,7 +315,7 @@ Deno.serve(async (req) => {
             .from("bank_connections")
             .select("id, institution_name, expires_at")
             .eq("company_id", cId)
-            .eq("status", "active")
+            .eq("status", "linked") // 'active' non esiste: la regola non scattava mai
             .not("expires_at", "is", null)
             .lte("expires_at", limitDate)
             .limit(10);
@@ -289,5 +376,5 @@ Deno.serve(async (req) => {
   }
   if (alertsFired > 0) console.log(`[bank-eb-cron] alert scattati: ${alertsFired}`);
 
-  return new Response(JSON.stringify({ ok: true, accounts: accountsDone, imported, expired, alertsFired, txErrors: txErrors.slice(0, 8) }), { headers: { "Content-Type": "application/json" } });
+  return new Response(JSON.stringify({ ok: true, accounts: accountsDone, imported, expired, alertsFired, avvisiScadenza, txErrors: txErrors.slice(0, 8) }), { headers: { "Content-Type": "application/json" } });
 });
