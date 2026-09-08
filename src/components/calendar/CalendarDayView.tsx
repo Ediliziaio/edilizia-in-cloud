@@ -370,14 +370,13 @@ export function CalendarDayView({
               key={slot.label}
               className={cn(
                 "flex group",
-                "border-t",
-                slot.isHourStart ? "border-border" : slot.minutes === 30 ? "border-border/40" : "border-transparent",
+                slot.isHourStart && "border-t border-border/50",
                 nowHere && "bg-primary/10"
               )}
             >
               {/* Time label — solo a inizio ora */}
               <div className={cn(
-                "w-14 flex-shrink-0 px-2 text-xs text-muted-foreground text-right border-r bg-muted/20 flex items-start justify-end",
+                "w-14 flex-shrink-0 px-2 text-xs text-muted-foreground text-right border-r border-border/50 bg-muted/20 flex items-start justify-end",
                 slot.isHourStart ? "py-1.5 font-medium" : "py-0"
               )}>
                 {slot.isHourStart ? `${String(slot.hour).padStart(2, "0")}:00` : ""}

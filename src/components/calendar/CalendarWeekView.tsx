@@ -446,7 +446,7 @@ export function CalendarWeekView({
           {TIME_SLOTS.map((slot) => (
             <Fragment key={`slot-${slot.label}`}>
               <div className={cn(
-                "border-r text-[10px] text-muted-foreground text-right pr-1 h-4",
+                "border-r border-border/50 text-[10px] text-muted-foreground text-right pr-1 h-4",
                 slot.isHourStart && "pt-0.5"
               )}>
                 {slot.isHourStart ? `${String(slot.hour).padStart(2, "0")}:00` : ""}
@@ -476,9 +476,9 @@ export function CalendarWeekView({
                       type="button"
                       aria-label={`Crea appuntamento ${format(day, "dd/MM/yyyy")} alle ${slot.label}`}
                       className={cn(
-                        "group block w-full border-r px-1 text-left transition-colors hover:bg-blue-50/70 focus:outline-none focus:ring-1 focus:ring-blue-400",
-                        "h-4 border-t",
-                        slot.isHourStart ? "border-border" : slot.minutes === 30 ? "border-border/40" : "border-transparent",
+                        "group block w-full border-r border-border/50 px-1 text-left transition-colors hover:bg-blue-50/70 focus:outline-none focus:ring-1 focus:ring-blue-400",
+                        "h-4",
+                        slot.isHourStart && "border-t border-border/50",
                         day.getDay() === 0 && "bg-muted/20"
                       )}
                       onClick={() => {
