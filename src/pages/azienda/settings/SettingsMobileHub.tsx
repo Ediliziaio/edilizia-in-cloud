@@ -62,6 +62,7 @@ const SECTIONS: Section[] = [
     label: "Cantieri & Costi",
     items: [
       { to: "/azienda/impostazioni/stati-ordine",    label: "Stati ordine",     icon: ListOrdered, iconColor: "text-blue-600" },
+      { to: "/azienda/impostazioni/calendari-lavori", label: "Calendari lavori", icon: HardHat,   iconColor: "text-orange-600" },
       { to: "/azienda/impostazioni/categorie-costi", label: "Categorie costi",  icon: FolderOpen,  iconColor: "text-emerald-600" },
       { to: "/azienda/impostazioni/fornitori",       label: "Fornitori",        icon: Truck,       iconColor: "text-amber-600" },
     ],
@@ -82,7 +83,6 @@ const SECTIONS: Section[] = [
     label: "Marketing e integrazioni",
     items: [
       { to: "/azienda/impostazioni/calendari",     label: "Calendari marketing", icon: Calendar, iconColor: "text-blue-600" },
-      { to: "/azienda/impostazioni/calendari-lavori", label: "Calendari lavori", icon: HardHat, iconColor: "text-orange-600" },
       { to: "/azienda/impostazioni/lead-forms",    label: "Lead Facebook",       icon: Mail,     iconColor: "text-cyan-600" },
       { to: "/azienda/impostazioni/integrazioni",  label: "Integrazioni",        icon: Plug,     iconColor: "text-violet-600" },
     ],

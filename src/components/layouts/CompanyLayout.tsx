@@ -799,6 +799,7 @@ function buildSettingsGroups(isAdmin: boolean, permissions: Permissions): Settin
       label: "Cantieri & Costi",
       items: [
         { to: "/azienda/impostazioni/stati-ordine",        label: "Stati ordine",        icon: <ListOrdered className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsOrders },
+        { to: "/azienda/impostazioni/calendari-lavori",   label: "Calendari lavori",    icon: <HardHat className="h-4 w-4" />,     visible: isAdmin || permissions.canViewSettingsOrders },
         { to: "/azienda/impostazioni/categorie-costi",     label: "Categorie costi",     icon: <FolderOpen className="h-4 w-4" />, visible: isAdmin || permissions.canViewCosts },
         { to: "/azienda/impostazioni/fornitori",           label: "Fornitori",           icon: <Truck className="h-4 w-4" />,       visible: isAdmin || permissions.canViewSettingsSuppliers },
         { to: "/azienda/impostazioni/qr-codici",           label: "QR & Codici",         icon: <QrCode className="h-4 w-4" />,      visible: isAdmin || permissions.canViewSettingsOrders },
@@ -837,7 +838,6 @@ function buildSettingsGroups(isAdmin: boolean, permissions: Permissions): Settin
       label: "Marketing",
       items: [
         { to: "/azienda/impostazioni/calendari",  label: "Calendari marketing", icon: <CalendarDays className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsCustomization },
-        { to: "/azienda/impostazioni/calendari-lavori", label: "Calendari lavori", icon: <HardHat className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsCustomization },
         { to: "/azienda/impostazioni/lead-forms", label: "Lead Facebook",       icon: <FormInput className="h-4 w-4" />,    visible: isAdmin || permissions.canViewSettingsIntegrations },
       ],
     },

@@ -74,7 +74,7 @@ const SETTINGS_INDEX: SettingsIndexEntry[] = [
   { group: "Marketing", title: "Sequenze (Pipeline)", url: "/azienda/impostazioni/sequenze", keywords: ["pipeline", "sequenza", "fase opportunita", "stage"] },
   { group: "Marketing", title: "Form & UTM", url: "/azienda/impostazioni/form-builder", keywords: ["form", "utm", "lead form", "acquisizione"] },
   { group: "Marketing", title: "Calendari marketing", url: "/azienda/impostazioni/calendari", keywords: ["calendario", "google calendar", "appuntamenti"] },
-  { group: "Marketing", title: "Calendari lavori", url: "/azienda/impostazioni/calendari-lavori", keywords: ["squadre", "posa", "google calendar", "calendario lavori"] },
+  { group: "Ordini", title: "Calendari lavori", url: "/azienda/impostazioni/calendari-lavori", keywords: ["squadre", "posa", "google calendar", "calendario lavori", "cantieri"] },
   { group: "Marketing", title: "Lead Facebook", url: "/azienda/impostazioni/lead-forms", keywords: ["meta", "facebook", "instagram", "lead ads"] },
 
   // ── People ──
