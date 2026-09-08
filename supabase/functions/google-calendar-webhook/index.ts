@@ -10,6 +10,80 @@ function getAdmin() {
   );
 }
 
+/**
+ * Un canale per calendario (calendari lavori, 08/09/2026). Il canale storico
+ * per-connessione resta per il calendario marketing; qui ogni calendario di
+ * squadra (o Posa aziendale) ha il suo, in google_calendar_watches.
+ */
+async function tokenValido(admin: ReturnType<typeof getAdmin>, conn: any): Promise<string | null> {
+  const encKey = getEncryptionKey();
+  const scaduto = conn.token_expires_at && new Date(conn.token_expires_at) < new Date(Date.now() + 120_000);
+  if (!scaduto) return await decrypt(conn.access_token_encrypted, encKey);
+  if (!conn.refresh_token_encrypted) return null;
+  const clientId = await getPlatformSetting("google_calendar_client_id", "GOOGLE_CALENDAR_CLIENT_ID");
+  const clientSecret = await getPlatformSetting("google_calendar_client_secret", "GOOGLE_CALENDAR_CLIENT_SECRET");
+  const refreshToken = await decrypt(conn.refresh_token_encrypted, encKey);
+  const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ client_id: clientId, client_secret: clientSecret, refresh_token: refreshToken, grant_type: "refresh_token" }),
+  });
+  if (!tokenRes.ok) return null;
+  const tokens = await tokenRes.json();
+  await admin.from("google_calendar_connections").update({
+    access_token_encrypted: await encrypt(tokens.access_token, encKey),
+    token_expires_at: tokens.expires_in ? new Date(Date.now() + tokens.expires_in * 1000).toISOString() : conn.token_expires_at,
+  }).eq("id", conn.id);
+  return tokens.access_token as string;
+}
+
+async function avviaWatchCalendario(admin: ReturnType<typeof getAdmin>, conn: any, calendarId: string): Promise<{ ok: boolean; error?: string }> {
+  const token = await tokenValido(admin, conn);
+  if (!token) return { ok: false, error: "Token Google non valido" };
+  const { data: vecchio } = await admin
+    .from("google_calendar_watches")
+    .select("id, channel_id, resource_id")
+    .eq("connection_id", conn.id)
+    .eq("calendar_id", calendarId)
+    .maybeSingle();
+  if (vecchio?.channel_id && vecchio.resource_id) {
+    await fetch("https://www.googleapis.com/calendar/v3/channels/stop", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ id: vecchio.channel_id, resourceId: vecchio.resource_id }),
+    }).catch(() => {});
+  }
+  const channelId = crypto.randomUUID();
+  const channelToken = crypto.randomUUID() + "-" + crypto.randomUUID();
+  const expiration = Date.now() + 7 * 24 * 60 * 60 * 1000;
+  const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/watch`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      id: channelId,
+      type: "web_hook",
+      address: `${Deno.env.get("SUPABASE_URL")}/functions/v1/google-calendar-webhook`,
+      token: channelToken,
+      expiration: String(expiration),
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    console.error("[google-calendar-webhook] watch calendario fallito:", calendarId, err);
+    return { ok: false, error: `Google ${res.status}` };
+  }
+  const data = await res.json();
+  await admin.from("google_calendar_watches").upsert({
+    connection_id: conn.id,
+    calendar_id: calendarId,
+    channel_id: channelId,
+    resource_id: data.resourceId ?? null,
+    channel_token: channelToken,
+    expiry_at: new Date(expiration).toISOString(),
+  }, { onConflict: "connection_id,calendar_id" });
+  return { ok: true };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -31,6 +105,27 @@ Deno.serve(async (req) => {
     }
 
     console.log(`[google-calendar-webhook] Push received: channel=${channelId}, state=${resourceState}`);
+
+    // Canale di un calendario di squadra / Posa → rilettura di QUEL calendario.
+    const { data: watch } = await admin
+      .from("google_calendar_watches")
+      .select("id, connection_id, calendar_id, channel_token, last_notified_at")
+      .eq("channel_id", channelId)
+      .maybeSingle();
+    if (watch) {
+      if (watch.channel_token !== channelToken) return new Response("Invalid channel token", { status: 403 });
+      if (watch.last_notified_at && Date.now() - new Date(watch.last_notified_at).getTime() < 10_000) {
+        return json({ ok: true, debounced: true });
+      }
+      await admin.from("google_calendar_watches").update({ last_notified_at: new Date().toISOString() }).eq("id", watch.id);
+      const secret = Deno.env.get("INTERNAL_CRON_SECRET") ?? "";
+      await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/google-calendar-sync`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-cron-secret": secret },
+        body: JSON.stringify({ action: "pull-calendar", connectionId: watch.connection_id, calendarId: watch.calendar_id }),
+      }).catch((e) => console.error("[google-calendar-webhook] pull-calendar failed", e));
+      return json({ ok: true, calendar: watch.calendar_id });
+    }
 
     // Find the connection by webhook_channel_id
     const { data: conn } = await admin
@@ -121,6 +216,36 @@ Deno.serve(async (req) => {
   }
 
   // ── Register watch ──
+  if (action === "register_calendar_watch") {
+    const body = await req.json();
+    const { connectionId, calendarId } = body;
+    if (!connectionId || !calendarId) return json({ error: "connectionId e calendarId richiesti" }, 400);
+    const internalSecret = Deno.env.get("INTERNAL_CRON_SECRET");
+    const isInternal = !!internalSecret && req.headers.get("x-cron-secret") === internalSecret;
+    const { data: conn } = await admin
+      .from("google_calendar_connections")
+      .select("*")
+      .eq("id", connectionId)
+      .eq("status", "connected")
+      .maybeSingle();
+    if (!conn) return json({ error: "Connessione Google non trovata" }, 404);
+    if (!isInternal) {
+      const token = (req.headers.get("authorization") || "").replace("Bearer ", "");
+      const { data: { user } } = await admin.auth.getUser(token);
+      if (!user) return json({ error: "Unauthorized" }, 401);
+      if (user.id !== conn.user_id) {
+        const { data: ruoli } = await admin
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", user.id)
+          .in("role", ["company_admin", "super_admin"]);
+        if (!ruoli || ruoli.length === 0) return json({ error: "Solo un amministratore" }, 403);
+      }
+    }
+    const esito = await avviaWatchCalendario(admin, conn, calendarId);
+    return json(esito, esito.ok ? 200 : 502);
+  }
+
   if (action === "register_watch") {
     const authHeader = req.headers.get("authorization") || "";
     const token = authHeader.replace("Bearer ", "");
@@ -287,6 +412,20 @@ Deno.serve(async (req) => {
   // ── Renew watches (called by cron) ──
   if (action === "renew_watches") {
     const cutoff = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // expiring within 24h
+
+    // Canali per calendario (squadre / Posa): stessa scadenza, stessa cadenza.
+    let rinnovatiCalendari = 0;
+    const { data: watchScadenti } = await admin
+      .from("google_calendar_watches")
+      .select("id, connection_id, calendar_id")
+      .lt("expiry_at", cutoff);
+    for (const w of watchScadenti ?? []) {
+      const { data: c } = await admin.from("google_calendar_connections").select("*").eq("id", w.connection_id).eq("status", "connected").maybeSingle();
+      if (!c) continue;
+      const esito = await avviaWatchCalendario(admin, c, w.calendar_id);
+      if (esito.ok) rinnovatiCalendari++;
+    }
+    console.log(`[google-calendar-webhook] canali calendario rinnovati: ${rinnovatiCalendari}`);
 
     const { data: expiring } = await admin
       .from("google_calendar_connections")
