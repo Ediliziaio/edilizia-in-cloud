@@ -293,7 +293,7 @@ async function handleDisconnect(req: Request, userId: string, companyId: string)
   // Try to revoke token first
   const { data: conn } = await admin
     .from("google_calendar_connections")
-    .select("access_token_encrypted")
+    .select("id, access_token_encrypted")
     .eq("company_id", companyId)
     .eq("user_id", userId)
     .single();
@@ -311,6 +311,27 @@ async function handleDisconnect(req: Request, userId: string, companyId: string)
   // Delete all related data
   await admin.from("google_calendar_busy_slots").delete().eq("company_id", companyId).eq("user_id", userId);
   await admin.from("google_calendar_event_map").delete().eq("company_id", companyId).eq("user_id", userId);
+
+  // 2026-09-08: tutto quello che puntava a questa connessione e restava
+  // appeso nel vuoto. Le squadre continuavano a risultare collegate a un
+  // calendario irraggiungibile (la sincronizzazione delle pose falliva in
+  // silenzio a ogni giro) e i canali di notifica restavano a nome di una
+  // connessione cancellata.
+  if (conn?.id) {
+    await admin.from("google_calendar_watches").delete().eq("connection_id", conn.id);
+    await admin
+      .from("external_teams")
+      .update({ google_connection_id: null, google_calendar_id: null, google_sync_enabled: false })
+      .eq("company_id", companyId)
+      .eq("google_connection_id", conn.id);
+    await admin
+      .from("marketing_calendars")
+      .update({ external_provider: null, external_connection_id: null, external_calendar_id: null, external_calendar_name: null })
+      .eq("company_id", companyId)
+      .eq("external_connection_id", conn.id);
+    await admin.from("google_calendar_order_events").delete().eq("google_connection_id", conn.id);
+  }
+
   await admin.from("google_calendar_settings").delete().eq("company_id", companyId).eq("user_id", userId);
   await admin.from("google_calendar_connections").delete().eq("company_id", companyId).eq("user_id", userId);
 

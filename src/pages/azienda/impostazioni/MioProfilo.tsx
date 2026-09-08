@@ -33,6 +33,9 @@ import { Switch } from "@/components/ui/switch";
 import { EmailOAuthConnectionsCard } from "@/components/integrations/EmailOAuthConnectionsCard";
 import { TwoFactorSetup } from "@/components/auth/TwoFactorSetup";
 import { CompanySecuritySettings } from "@/components/settings/CompanySecuritySettings";
+import { useUserCalendarPrefs } from "@/hooks/useUserCalendarPrefs";
+import { useCalendariDiCasella } from "@/hooks/useCalendariEsterni";
+import { direzioneDaModo, etichettaDirezione, type DirezioneSync } from "@/lib/calendar/direzioneSync";
 // v8.6.39 H1 — hook persistenza preferenze notifiche (tabella user_notification_preferences)
 import {
   useUserNotifPrefs,
@@ -285,6 +288,26 @@ export default function MioProfilo() {
     },
   });
 
+  // Direzione della sincronizzazione: comanda la riga di preferenze utente,
+  // il vecchio sync_mode vale solo per chi non ne ha ancora una.
+  const { data: calPrefs } = useUserCalendarPrefs(user?.id);
+  // `calPrefs` torna i valori di default anche quando la riga non esiste: senza
+  // guardare l'id si direbbe "Bidirezionale" a chi non ha mai scelto niente.
+  const direzioneCalendario: DirezioneSync = calPrefs?.id
+    ? (calPrefs.sync_direction as DirezioneSync)
+    : direzioneDaModo((googleSettings as { sync_mode?: string } | null | undefined)?.sync_mode);
+
+  // Il nome vero del calendario scelto: la scheda mostrava l'id grezzo
+  // ("primary"), che non dice a nessuno dove finiscono gli appuntamenti.
+  const casellaGoogle = googleConn?.id && googleConn.status === "connected"
+    ? { provider: "google" as const, connectionId: googleConn.id, email: googleConn.google_account_email ?? "Account Google", status: googleConn.status }
+    : null;
+  const { data: calendariGoogle = [] } = useCalendariDiCasella(casellaGoogle);
+  const idCalendarioScelto = (googleSettings as { primary_calendar_id?: string | null } | null | undefined)?.primary_calendar_id;
+  const nomeCalendarioScelto =
+    calendariGoogle.find((c) => c.id === idCalendarioScelto)?.nome ||
+    (!idCalendarioScelto || idCalendarioScelto === "primary" ? "Principale" : idCalendarioScelto);
+
   const [connectingGoogle, setConnectingGoogle] = useState(false);
   const connectGoogle = async () => {
     if (!companyId || !user?.id) return;
@@ -362,18 +385,33 @@ export default function MioProfilo() {
   // 2026-05-26: dialog preferenze sync (bidirezionale + privacy busy_only)
   const [syncPrefsOpen, setSyncPrefsOpen] = useState(false);
   const updateGoogleSettings = useMutation({
+    // La direzione vive nelle preferenze utente (e' quella che legge la sync);
+    // su google_calendar_settings resta il riflesso a due valori, che le schede
+    // continuano a mostrare. Prima si salvava solo il riflesso, e la direzione
+    // scelta nella scheda utente non contava nulla.
     mutationFn: async (updates: Record<string, unknown>) => {
       if (!effectiveCompany?.id || !user?.id) throw new Error("Missing context");
+      const { sync_direction: direzione, ...settings } = updates as { sync_direction?: DirezioneSync };
       const { error } = await (supabase as unknown as { from: (t: string) => { update: (p: unknown) => { eq: (k: string, v: string) => { eq: (k: string, v: string) => Promise<{ error: { message: string } | null }> } } } })
         .from("google_calendar_settings")
-        .update(updates)
+        .update(settings)
         .eq("company_id", effectiveCompany.id)
         .eq("user_id", user.id);
       if (error) throw new Error(error.message);
+      if (direzione) {
+        const { error: prefErr } = await supabase
+          .from("user_calendar_preferences")
+          .upsert(
+            { user_id: user.id, company_id: effectiveCompany.id, sync_direction: direzione, updated_at: new Date().toISOString() } as never,
+            { onConflict: "user_id" },
+          );
+        if (prefErr) throw new Error(prefErr.message);
+      }
     },
     onSuccess: () => {
       toast.success("Preferenze calendario aggiornate");
       queryClient.invalidateQueries({ queryKey: ["google-calendar-settings"] });
+      queryClient.invalidateQueries({ queryKey: ["user-calendar-prefs", user?.id] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -960,11 +998,11 @@ export default function MioProfilo() {
                       <p className="text-muted-foreground text-xs font-medium uppercase tracking-wide">Impostazioni sync</p>
                       <div className="flex items-center gap-2">
                         <CalendarDays className="h-3.5 w-3.5 text-muted-foreground" />
-                        <span>Calendario: <strong>{googleSettings.primary_calendar_id ?? "Principale"}</strong></span>
+                        <span>Calendario: <strong>{nomeCalendarioScelto}</strong></span>
                       </div>
                       <div className="flex items-center gap-2">
                         <RefreshCw className="h-3.5 w-3.5 text-muted-foreground" />
-                        <span>Modalità: <strong>{googleSettings.sync_mode === "two_way" ? "Bidirezionale (EiC ↔ Google)" : "Solo lettura (Google → EiC)"}</strong></span>
+                        <span>Modalità: <strong>{etichettaDirezione(direzioneCalendario)}</strong></span>
                       </div>
                       <div className="flex items-center gap-2">
                         <EyeOffIcon className="h-3.5 w-3.5 text-muted-foreground" />
@@ -1025,6 +1063,7 @@ export default function MioProfilo() {
             open={syncPrefsOpen}
             onOpenChange={setSyncPrefsOpen}
             syncMode={googleSettings?.sync_mode || "one_way"}
+            direzione={direzioneCalendario}
             importGoogleEvents={Boolean((googleSettings as { import_google_events_to_crm?: boolean } | null | undefined)?.import_google_events_to_crm)}
             createContactsFromGuests={Boolean((googleSettings as { create_contacts_from_guests?: boolean } | null | undefined)?.create_contacts_from_guests)}
             eventPrivacy={(googleSettings as { event_privacy?: "full" | "busy_only" } | null | undefined)?.event_privacy === "busy_only" ? "busy_only" : "full"}

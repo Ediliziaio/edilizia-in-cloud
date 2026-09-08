@@ -427,12 +427,14 @@ Deno.serve(async (req) => {
     }
     console.log(`[google-calendar-webhook] canali calendario rinnovati: ${rinnovatiCalendari}`);
 
+    // Anche le connessioni SENZA canale: la registrazione dopo l'OAuth e'
+    // "non critica" e se fallisce li' non ci riprovava piu' nessuno — quella
+    // connessione restava per sempre senza avvisi da Google.
     const { data: expiring } = await admin
       .from("google_calendar_connections")
       .select("id, user_id, company_id, access_token_encrypted, refresh_token_encrypted, webhook_channel_id, webhook_resource_id")
       .eq("status", "connected")
-      .not("webhook_channel_id", "is", null)
-      .lt("webhook_expiry_at", cutoff);
+      .or(`webhook_channel_id.is.null,webhook_expiry_at.lt.${cutoff}`);
 
     let renewed = 0;
 

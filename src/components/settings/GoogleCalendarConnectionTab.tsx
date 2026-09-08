@@ -20,6 +20,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Plus, Trash2, CheckCircle2, AlertTriangle, Settings2, CalendarDays, RefreshCw } from "lucide-react";
 import GoogleCalendarSyncPrefsDialog from "./GoogleCalendarSyncPrefsDialog";
+import { useUserCalendarPrefs } from "@/hooks/useUserCalendarPrefs";
+import type { DirezioneSync } from "@/lib/calendar/direzioneSync";
 
 type GoogleCalendar = {
   id: string;
@@ -51,6 +53,7 @@ export default function GoogleCalendarConnectionTab() {
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
   const userId = user?.id;
+  const { data: prefsUtente } = useUserCalendarPrefs(userId);
   const queryClient = useQueryClient();
   const [syncPrefsOpen, setSyncPrefsOpen] = useState(false);
   const [editingPrimary, setEditingPrimary] = useState(false);
@@ -265,18 +268,31 @@ export default function GoogleCalendarConnectionTab() {
 
   // Update settings
   const updateSettings = useMutation({
+    // sync_direction non appartiene a questa tabella: e' la preferenza utente
+    // che la sincronizzazione legge davvero.
     mutationFn: async (updates: Record<string, unknown>) => {
       if (!companyId || !userId) throw new Error("Missing context");
+      const { sync_direction: direzione, ...settings } = updates as { sync_direction?: DirezioneSync };
       const { error } = await supabase
         .from("google_calendar_settings")
-        .update(updates)
+        .update(settings)
         .eq("company_id", companyId)
         .eq("user_id", userId);
       if (error) throw error;
+      if (direzione) {
+        const { error: prefErr } = await supabase
+          .from("user_calendar_preferences")
+          .upsert(
+            { user_id: userId, company_id: companyId, sync_direction: direzione, updated_at: new Date().toISOString() } as never,
+            { onConflict: "user_id" },
+          );
+        if (prefErr) throw prefErr;
+      }
     },
     onSuccess: () => {
       toast.success("Impostazioni salvate");
       queryClient.invalidateQueries({ queryKey: ["google-calendar-settings"] });
+      queryClient.invalidateQueries({ queryKey: ["user-calendar-prefs", userId] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -571,6 +587,7 @@ export default function GoogleCalendarConnectionTab() {
         open={syncPrefsOpen}
         onOpenChange={setSyncPrefsOpen}
         syncMode={settings?.sync_mode || "one_way"}
+        direzione={prefsUtente?.id ? (prefsUtente.sync_direction as DirezioneSync) : undefined}
         importGoogleEvents={settings?.import_google_events_to_crm || false}
         createContactsFromGuests={settings?.create_contacts_from_guests || false}
         eventPrivacy={(settings?.event_privacy === "busy_only" ? "busy_only" : "full") as "full" | "busy_only"}

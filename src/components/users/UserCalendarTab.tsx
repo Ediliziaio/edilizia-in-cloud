@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -10,19 +10,14 @@ import {
   useDisconnectGoogleCalendar,
 } from "@/hooks/useUserCalendarPrefs";
 import type { UserCalendarPrefs } from "@/hooks/useUserCalendarPrefs";
+import { DIREZIONI_SYNC, type DirezioneSync } from "@/lib/calendar/direzioneSync";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -43,42 +38,18 @@ import {
   ArrowRight,
   ArrowLeft,
   ExternalLink,
-  Clock,
   RefreshCw,
   Apple,
 } from "lucide-react";
 import { formatRelativeTime } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 
-const BUFFER_OPTIONS = [
-  { value: "0", label: "Nessun buffer" },
-  { value: "5", label: "5 minuti" },
-  { value: "10", label: "10 minuti" },
-  { value: "15", label: "15 minuti" },
-  { value: "30", label: "30 minuti" },
-  { value: "60", label: "1 ora" },
-];
 
-const SYNC_DIRECTION_OPTIONS = [
-  {
-    value: "both" as const,
-    label: "Bidirezionale",
-    description: "Gli appuntamenti vengono sincronizzati in entrambe le direzioni",
-    icon: ArrowRightLeft,
-  },
-  {
-    value: "to_google" as const,
-    label: "Solo → Google",
-    description: "Gli appuntamenti del CRM vengono esportati su Google Calendar",
-    icon: ArrowRight,
-  },
-  {
-    value: "from_google" as const,
-    label: "Solo ← Google",
-    description: "Gli eventi di Google Calendar vengono importati come indisponibilità",
-    icon: ArrowLeft,
-  },
-];
+const ICONA_DIREZIONE: Record<DirezioneSync, typeof ArrowRightLeft> = {
+  both: ArrowRightLeft,
+  to_google: ArrowRight,
+  from_google: ArrowLeft,
+};
 
 export function UserCalendarTab() {
   const { userId } = useParams<{ userId: string }>();
@@ -93,7 +64,11 @@ export function UserCalendarTab() {
   const disconnectMutation = useDisconnectGoogleCalendar(userId, companyId);
   const [syncing, setSyncing] = useState(false);
 
-  const [prefs, setPrefs] = useState<UserCalendarPrefs>({
+  // Le modifiche non ancora salvate stanno da sole: prima un useEffect
+  // ricopiava le preferenze appena arrivavano dal server e cancellava quello
+  // che l'utente aveva appena toccato (oltre a far storcere il naso al lint).
+  const [modifiche, setModifiche] = useState<Partial<UserCalendarPrefs>>({});
+  const prefs: UserCalendarPrefs = {
     sync_enabled: true,
     sync_direction: "both",
     default_calendar_id: null,
@@ -101,11 +76,14 @@ export function UserCalendarTab() {
     buffer_before_min: 0,
     buffer_after_min: 0,
     block_busy_slots: true,
-  });
-
-  useEffect(() => {
-    if (prefsData) setPrefs(prefsData);
-  }, [prefsData]);
+    ...(prefsData ?? {}),
+    ...modifiche,
+  };
+  const setPrefs = (aggiorna: (p: UserCalendarPrefs) => UserCalendarPrefs) =>
+    setModifiche((m) => {
+      const base: UserCalendarPrefs = { ...prefs, ...m };
+      return { ...m, ...aggiorna(base) };
+    });
 
   const isOwnProfile = userId === authUser?.id;
   const isConnected = gcalConn?.status === "connected";
@@ -160,6 +138,7 @@ export function UserCalendarTab() {
   const handleSave = async () => {
     try {
       await saveMutation.mutateAsync(prefs);
+      setModifiche({});
       toast({
         title: "Preferenze salvate",
         description: "Le impostazioni del calendario sono state aggiornate.",
@@ -357,8 +336,8 @@ export function UserCalendarTab() {
               </div>
             </CardHeader>
             <CardContent className="space-y-2">
-              {SYNC_DIRECTION_OPTIONS.map((opt) => {
-                const Icon = opt.icon;
+              {DIREZIONI_SYNC.map((opt) => {
+                const Icon = ICONA_DIREZIONE[opt.value];
                 const selected = prefs.sync_direction === opt.value;
                 return (
                   <button
@@ -377,7 +356,7 @@ export function UserCalendarTab() {
                       </div>
                       <div>
                         <p className="text-sm font-medium">{opt.label}</p>
-                        <p className="text-xs text-muted-foreground">{opt.description}</p>
+                        <p className="text-xs text-muted-foreground">{opt.descrizione}</p>
                       </div>
                     </div>
                   </button>
@@ -386,58 +365,10 @@ export function UserCalendarTab() {
             </CardContent>
           </Card>
 
-          {/* Buffer Times */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <Clock className="h-4 w-4 text-muted-foreground" />
-                <CardTitle className="text-base">Buffer Appuntamenti</CardTitle>
-              </div>
-              <CardDescription>
-                Tempo di pausa automatica prima e dopo ogni appuntamento.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Prima dell'appuntamento</Label>
-                  <Select
-                    value={String(prefs.buffer_before_min)}
-                    onValueChange={(v) => setPrefs((p) => ({ ...p, buffer_before_min: Number(v) }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {BUFFER_OPTIONS.map((o) => (
-                        <SelectItem key={o.value} value={o.value}>
-                          {o.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Dopo l'appuntamento</Label>
-                  <Select
-                    value={String(prefs.buffer_after_min)}
-                    onValueChange={(v) => setPrefs((p) => ({ ...p, buffer_after_min: Number(v) }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {BUFFER_OPTIONS.map((o) => (
-                        <SelectItem key={o.value} value={o.value}>
-                          {o.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          {/* I margini fra un appuntamento e l'altro NON stanno qui: sono una
+              regola del calendario di prenotazione (Impostazioni → Calendari →
+              Regole di agenda). Questa scheda li faceva scegliere e poi non li
+              leggeva nessuno. */}
 
           {/* Block Busy Slots */}
           <Card>

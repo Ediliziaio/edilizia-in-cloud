@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { modoDaDirezione } from "@/lib/calendar/direzioneSync";
 
 export interface UserCalendarPrefs {
   id?: string;
@@ -73,9 +74,18 @@ export function useSaveUserCalendarPrefs(userId: string | undefined, companyId: 
           { onConflict: "user_id" }
         );
       if (error) throw error;
+      // La scheda del collegamento (Mio profilo → Preferenze sync) mostra la
+      // stessa scelta letta da google_calendar_settings: se non la si aggiorna
+      // qui, le due pagine si contraddicono davanti allo stesso utente.
+      await supabase
+        .from("google_calendar_settings")
+        .update({ sync_mode: modoDaDirezione(prefs.sync_direction) } as never)
+        .eq("company_id", companyId)
+        .eq("user_id", userId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["user-calendar-prefs", userId] });
+      queryClient.invalidateQueries({ queryKey: ["google-calendar-settings"] });
     },
     onError: (error: any) => {
       toast.error("Errore", { description: error.message || "Operazione non riuscita. Riprova." });

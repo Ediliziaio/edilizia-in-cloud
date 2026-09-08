@@ -1,15 +1,19 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { CalendarDays, ArrowRight, Ban, EyeOff } from "lucide-react";
+import { EyeOff, Lock } from "lucide-react";
+import { DIREZIONI_SYNC, direzioneDaModo, modoDaDirezione, type DirezioneSync } from "@/lib/calendar/direzioneSync";
+import { cn } from "@/lib/utils";
 
 interface SyncPrefsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   syncMode: string;
+  /** Direzione salvata nelle preferenze utente: se manca si deduce da syncMode. */
+  direzione?: DirezioneSync | null;
   importGoogleEvents: boolean;
   createContactsFromGuests: boolean;
   /** 2026-05-26: privacy events Google → mostra solo "Occupato" */
@@ -19,6 +23,7 @@ interface SyncPrefsDialogProps {
   allowGoogleToImport: boolean;
   onSave: (prefs: {
     sync_mode: string;
+    sync_direction: DirezioneSync;
     import_google_events_to_crm: boolean;
     create_contacts_from_guests: boolean;
     event_privacy: "full" | "busy_only";
@@ -26,10 +31,25 @@ interface SyncPrefsDialogProps {
   isSaving: boolean;
 }
 
-export default function GoogleCalendarSyncPrefsDialog({
-  open,
+export default function GoogleCalendarSyncPrefsDialog(props: SyncPrefsDialogProps) {
+  return (
+    <Dialog open={props.open} onOpenChange={props.onOpenChange}>
+      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Preferenze di sincronizzazione</DialogTitle>
+        </DialogHeader>
+        {/* Il contenuto nasce all'apertura: cosi' parte dai valori salvati
+            senza un effetto che ricopia i prop nello stato a ogni render. */}
+        {props.open && <ContenutoPreferenze {...props} />}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ContenutoPreferenze({
   onOpenChange,
   syncMode,
+  direzione,
   importGoogleEvents,
   createContactsFromGuests,
   eventPrivacy,
@@ -39,146 +59,102 @@ export default function GoogleCalendarSyncPrefsDialog({
   onSave,
   isSaving,
 }: SyncPrefsDialogProps) {
-  const [mode, setMode] = useState(syncMode);
+  const [scelta, setScelta] = useState<DirezioneSync>(direzione || direzioneDaModo(syncMode));
   const [importEvents, setImportEvents] = useState(importGoogleEvents);
   const [createContacts, setCreateContacts] = useState(createContactsFromGuests);
   const [busyOnly, setBusyOnly] = useState(eventPrivacy === "busy_only");
 
-  useEffect(() => {
-    setMode(syncMode);
-    setImportEvents(importGoogleEvents);
-    setCreateContacts(createContactsFromGuests);
-    setBusyOnly(eventPrivacy === "busy_only");
-  }, [syncMode, importGoogleEvents, createContactsFromGuests, eventPrivacy, open]);
+  // La piattaforma può chiudere il ritorno Google → EiC: in quel caso restano
+  // solo le direzioni che scrivono su Google.
+  const importaDaGoogle = scelta === "both" || scelta === "from_google";
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Preferenze di sincronizzazione</DialogTitle>
-        </DialogHeader>
+    <>
+        <div className="space-y-4 py-2">
+          <p className="text-sm text-muted-foreground">
+            In che verso devono muoversi gli appuntamenti fra il gestionale e il tuo Google Calendar.
+          </p>
 
-        <div className="space-y-6 py-4">
-          {/* Illustration */}
-          <div className="flex items-center justify-center gap-3 py-4 px-6 rounded-lg bg-muted/50">
-            <div className="flex flex-col items-center gap-1">
-              <CalendarDays className="h-8 w-8 text-primary" />
-              <span className="text-xs text-muted-foreground">Google</span>
-            </div>
-            <ArrowRight className="h-5 w-5 text-muted-foreground" />
-            <div className="flex flex-col items-center gap-1">
-              <Ban className="h-8 w-8 text-destructive/60" />
-              <span className="text-xs text-muted-foreground">Slot bloccati</span>
-            </div>
+          <div className="space-y-2">
+            {DIREZIONI_SYNC.map((opt) => {
+              const bloccata = !allowTwoWay && opt.value !== "to_google";
+              const attiva = scelta === opt.value;
+              return (
+                <label
+                  key={opt.value}
+                  className={cn(
+                    "flex items-start gap-3 rounded-lg border-2 p-3 transition-colors",
+                    bloccata ? "cursor-not-allowed opacity-50" : "cursor-pointer",
+                    attiva ? "border-primary bg-primary/5" : "border-border",
+                  )}
+                  onClick={() => !bloccata && setScelta(opt.value)}
+                >
+                  <input
+                    type="radio"
+                    name="direzione_sync"
+                    checked={attiva}
+                    onChange={() => !bloccata && setScelta(opt.value)}
+                    disabled={bloccata}
+                    className="mt-1"
+                  />
+                  <div className="flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-medium">{opt.label}</span>
+                      {opt.value === "both" && !bloccata && (
+                        <Badge variant="secondary" className="text-xs">Consigliata</Badge>
+                      )}
+                      {bloccata && (
+                        <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                          <Lock className="h-3 w-3" /> disattivata dalla piattaforma
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-1 text-sm text-muted-foreground">{opt.descrizione}</p>
+                  </div>
+                </label>
+              );
+            })}
           </div>
 
-          {/* One-way option */}
-          <label
-            className={`flex items-start gap-3 p-4 rounded-lg border-2 cursor-pointer transition-colors ${
-              mode === "one_way" ? "border-primary bg-primary/5" : "border-border"
-            }`}
-            onClick={() => setMode("one_way")}
-          >
-            <input
-              type="radio"
-              name="sync_mode"
-              checked={mode === "one_way"}
-              onChange={() => setMode("one_way")}
-              className="mt-1"
-            />
-            <div className="flex-1">
-              <div className="flex items-center gap-2">
-                <span className="font-medium">Sincronizzazione predefinita</span>
-                <Badge variant="secondary" className="text-xs">Consigliato</Badge>
-              </div>
-              <p className="text-sm text-muted-foreground mt-1">
-                Gli eventi di Google Calendar vengono importati come slot occupati (busy) nel CRM.
-                Non vengono creati appuntamenti o contatti.
-              </p>
-            </div>
-          </label>
-
-          {/* Two-way option */}
-          <label
-            className={`flex items-start gap-3 p-4 rounded-lg border-2 transition-colors ${
-              !allowTwoWay ? "opacity-50 cursor-not-allowed" : "cursor-pointer"
-            } ${mode === "two_way" ? "border-primary bg-primary/5" : "border-border"}`}
-            onClick={() => allowTwoWay && setMode("two_way")}
-          >
-            <input
-              type="radio"
-              name="sync_mode"
-              checked={mode === "two_way"}
-              onChange={() => allowTwoWay && setMode("two_way")}
-              disabled={!allowTwoWay}
-              className="mt-1"
-            />
-            <div className="flex-1">
-              <span className="font-medium">Sincronizzazione bidirezionale</span>
-              {!allowTwoWay && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  Disabilitato dall'amministratore della piattaforma.
-                </p>
-              )}
-              <p className="text-sm text-muted-foreground mt-1">
-                Gli appuntamenti CRM vengono sincronizzati con Google Calendar e viceversa.
-                Le modifiche su entrambi i lati vengono allineate.
-              </p>
-            </div>
-          </label>
-
-          {/* Extra toggles for two-way */}
-          {mode === "two_way" && (
-            <div className="space-y-4 pl-4 border-l-2 border-primary/20">
+          {importaDaGoogle && (allowGoogleToImport || allowGuestContactCreate) && (
+            <div className="space-y-4 border-l-2 border-primary/20 pl-4">
               {allowGoogleToImport && (
                 <div className="flex items-center justify-between gap-4">
-                  <Label htmlFor="import-events" className="text-sm cursor-pointer">
-                    Importa eventi Google come appuntamenti CRM
-                    <p className="text-xs text-muted-foreground font-normal mt-0.5">
+                  <Label htmlFor="import-events" className="cursor-pointer text-sm">
+                    Importa eventi Google come appuntamenti
+                    <p className="mt-0.5 text-xs font-normal text-muted-foreground">
                       Solo eventi con prefisso [CRM] o crm_sync=true
                     </p>
                   </Label>
-                  <Switch
-                    id="import-events"
-                    checked={importEvents}
-                    onCheckedChange={setImportEvents}
-                  />
+                  <Switch id="import-events" checked={importEvents} onCheckedChange={setImportEvents} />
                 </div>
               )}
               {allowGuestContactCreate && (
                 <div className="flex items-center justify-between gap-4">
-                  <Label htmlFor="create-contacts" className="text-sm cursor-pointer">
+                  <Label htmlFor="create-contacts" className="cursor-pointer text-sm">
                     Crea contatti dagli invitati Google
                   </Label>
-                  <Switch
-                    id="create-contacts"
-                    checked={createContacts}
-                    onCheckedChange={setCreateContacts}
-                  />
+                  <Switch id="create-contacts" checked={createContacts} onCheckedChange={setCreateContacts} />
                 </div>
               )}
             </div>
           )}
 
-          {/* 2026-05-26: privacy events Google — sempre disponibile, anche
-              quando sync_mode è one_way (perché gli eventi Google possono
-              comunque essere mostrati nel calendario EiC come "busy slot"). */}
+          {/* 2026-05-26: privacy eventi Google — vale in ogni direzione, perché
+              gli impegni personali entrano comunque come fasce occupate. */}
           <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-3">
             <div className="flex items-start justify-between gap-3">
-              <Label htmlFor="busy-only" className="text-sm cursor-pointer flex-1">
+              <Label htmlFor="busy-only" className="flex-1 cursor-pointer text-sm">
                 <span className="inline-flex items-center gap-1.5 font-semibold">
                   <EyeOff className="h-3.5 w-3.5 text-amber-700" />
-                  Mostra eventi Google come "Occupato"
+                  Mostra gli eventi Google come "Occupato"
                 </span>
-                <p className="text-xs text-muted-foreground font-normal mt-1">
-                  Quando attivo, gli appuntamenti privati del tuo Google Calendar (es. "Dentista", "Cena con Marco") appariranno nel gestionale solo come <strong>"Occupato"</strong> senza titolo o dettagli. I tuoi colleghi vedono che sei impegnato ma non cosa stai facendo.
+                <p className="mt-1 text-xs font-normal text-muted-foreground">
+                  I tuoi appuntamenti personali ("Dentista", "Cena con Marco") appaiono nel gestionale
+                  solo come <strong>"Occupato"</strong>: i colleghi vedono che sei impegnato, non cosa fai.
                 </p>
               </Label>
-              <Switch
-                id="busy-only"
-                checked={busyOnly}
-                onCheckedChange={setBusyOnly}
-              />
+              <Switch id="busy-only" checked={busyOnly} onCheckedChange={setBusyOnly} />
             </div>
           </div>
         </div>
@@ -190,9 +166,10 @@ export default function GoogleCalendarSyncPrefsDialog({
           <Button
             onClick={() =>
               onSave({
-                sync_mode: mode,
-                import_google_events_to_crm: mode === "two_way" ? importEvents : false,
-                create_contacts_from_guests: mode === "two_way" ? createContacts : false,
+                sync_mode: modoDaDirezione(scelta),
+                sync_direction: scelta,
+                import_google_events_to_crm: importaDaGoogle ? importEvents : false,
+                create_contacts_from_guests: importaDaGoogle ? createContacts : false,
                 event_privacy: busyOnly ? "busy_only" : "full",
               })
             }
@@ -201,7 +178,6 @@ export default function GoogleCalendarSyncPrefsDialog({
             {isSaving ? "Salvataggio..." : "Salva"}
           </Button>
         </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    </>
   );
 }

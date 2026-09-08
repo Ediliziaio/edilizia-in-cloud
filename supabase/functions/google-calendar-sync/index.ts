@@ -74,10 +74,22 @@ async function getValidAccessToken(
 
   if (!tokenRes.ok) {
     const errorBody = await tokenRes.text().catch(() => "unknown");
+    // 2026-09-08: non tutti i rifiuti di Google sono definitivi. `invalid_grant`
+    // (consenso revocato, refresh token morto) chiude davvero la connessione;
+    // un 5xx o un "internal_failure" e' un intoppo loro di qualche minuto.
+    // Prima si marcava `token_expired` in ogni caso, e siccome OGNI query di
+    // questa funzione filtra `status = connected`, nessun cron riprovava mai
+    // piu': due connessioni in produzione erano ferme da giugno e da agosto per
+    // un singolo errore temporaneo.
+    const permanente = /invalid_grant|invalid_client|unauthorized_client|invalid_request/i.test(errorBody);
     await admin
       .from("google_calendar_connections")
-      .update({ status: "token_expired", last_error: `Refresh token failed: ${errorBody.substring(0, 200)}` })
+      .update({
+        status: permanente ? "token_expired" : conn.status,
+        last_error: `Refresh token failed: ${errorBody.substring(0, 200)}`,
+      })
       .eq("id", conn.id);
+    if (permanente) await avvisaConnessioneScaduta(admin, conn);
     return null;
   }
 
@@ -100,6 +112,69 @@ async function getValidAccessToken(
     .eq("id", conn.id);
 
   return newAccessToken;
+}
+
+// Il calendario che smette di sincronizzare non si vede: gli appuntamenti
+// semplicemente non arrivano piu'. L'unico segnale era una riga rossa dentro le
+// impostazioni, che nessuno apre. Ora il titolare della connessione riceve un
+// avviso in campanella, una volta a settimana finche' non ricollega.
+async function avvisaConnessioneScaduta(
+  admin: ReturnType<typeof getSupabaseAdmin>,
+  conn: { id: string; user_id: string; company_id: string; google_account_email?: string | null },
+) {
+  try {
+    const { data: recenti } = await admin
+      .from("notifications")
+      .select("id")
+      .eq("entity_type", "google_calendar_connection")
+      .eq("entity_id", conn.id)
+      .gte("created_at", new Date(Date.now() - 7 * 864e5).toISOString())
+      .limit(1);
+    if (recenti && recenti.length > 0) return;
+    await admin.from("notifications").insert({
+      company_id: conn.company_id,
+      user_id: conn.user_id,
+      type: "calendar_alert",
+      title: "Google Calendar si e' scollegato",
+      body: `${conn.google_account_email || "Il tuo account Google"} non autorizza piu' Edilizia in Cloud: gli appuntamenti non finiscono piu' sul tuo calendario. Ricollegalo da Impostazioni → Mio profilo → Calendari.`,
+      entity_type: "google_calendar_connection",
+      entity_id: conn.id,
+      action_url: "/azienda/impostazioni/mio-profilo",
+    });
+  } catch (e) {
+    console.error("[google-calendar-sync] avviso connessione scaduta:", e instanceof Error ? e.message : String(e));
+  }
+}
+
+type DirezioneSync = "both" | "to_google" | "from_google";
+
+// Le due schede che parlano di sincronizzazione (Mio profilo → Preferenze sync e
+// Utenti → Calendari) scrivevano in due tabelle diverse, e per meta' delle voci
+// non le leggeva nessuno: si sceglieva "Solo → Google" e il sistema continuava a
+// fare quello che voleva. Ora la direzione ha un solo posto dove viene decisa.
+async function preferenzeSync(
+  admin: ReturnType<typeof getSupabaseAdmin>,
+  userId: string,
+  companyId: string,
+): Promise<{ attiva: boolean; direzione: DirezioneSync }> {
+  const [prefRes, settings] = await Promise.all([
+    admin
+      .from("user_calendar_preferences")
+      .select("sync_enabled, sync_direction")
+      .eq("user_id", userId)
+      .maybeSingle(),
+    getSettings(admin, userId, companyId),
+  ]);
+  const pref = prefRes.data as { sync_enabled?: boolean | null; sync_direction?: string | null } | null;
+  if (pref) {
+    return {
+      attiva: pref.sync_enabled !== false,
+      direzione: (pref.sync_direction as DirezioneSync) || "both",
+    };
+  }
+  // Senza preferenze utente vale la scheda del collegamento: "one_way" li' ha
+  // sempre significato "EiC scrive su Google, Google non entra in EiC".
+  return { attiva: true, direzione: settings?.sync_mode === "two_way" ? "both" : "to_google" };
 }
 
 async function getConnection(admin: ReturnType<typeof getSupabaseAdmin>, userId: string, companyId: string) {
@@ -337,6 +412,11 @@ async function pushEvent(userId: string, companyId: string, appointmentId: strin
     }, 404);
   }
 
+  const prefPush = await preferenzeSync(admin, effectiveUserId, companyId);
+  if (!prefPush.attiva || prefPush.direzione === "from_google") {
+    return json({ skipped: true, motivo: prefPush.attiva ? "solo Google → EiC" : "sincronizzazione in pausa" });
+  }
+
   const accessToken = await getValidAccessToken(admin, conn);
   if (!accessToken) return json({ error: "Token expired" }, 401);
 
@@ -428,6 +508,11 @@ async function updateEvent(userId: string, companyId: string, appointmentId: str
 
   const conn = await getConnection(admin, effectiveUserId, companyId);
   if (!conn) return json({ error: "Not connected" }, 404);
+
+  const prefUpd = await preferenzeSync(admin, effectiveUserId, companyId);
+  if (!prefUpd.attiva || prefUpd.direzione === "from_google") {
+    return json({ skipped: true, motivo: prefUpd.attiva ? "solo Google → EiC" : "sincronizzazione in pausa" });
+  }
 
   const accessToken = await getValidAccessToken(admin, conn);
   if (!accessToken) return json({ error: "Token expired" }, 401);
@@ -578,7 +663,11 @@ async function reconcilePrimary(userId: string, companyId: string): Promise<{ cr
   }
 
   const settings = await getSettings(admin, userId, companyId);
-  if (!settings?.primary_calendar_id || settings.sync_mode !== "two_way") {
+  if (!settings?.primary_calendar_id) return { created: 0, updated: 0, removed: 0 };
+  // Gli eventi di Google entrano in EiC solo se l'utente lo ha chiesto:
+  // bidirezionale, oppure "solo Google → EiC".
+  const prefRec = await preferenzeSync(admin, userId, companyId);
+  if (!prefRec.attiva || prefRec.direzione === "to_google") {
     return { created: 0, updated: 0, removed: 0 };
   }
 
@@ -1338,6 +1427,47 @@ function parseGoogleEventToCrmFields(gEvent: any): {
   return { title, date, time, endTime, description, location, meetingProvider, meetingUrl, meetingStatus };
 }
 
+// Gli appuntamenti nati mentre il collegamento era rotto non arrivavano mai su
+// Google: il push falliva sul momento e non ci riprovava piu' nessuno, cosi' chi
+// ricollegava il calendario si ritrovava i giorni successivi vuoti. Qui ogni
+// giro recupera i primi arretrati, pochi per volta.
+async function recuperaAppuntamentiSenzaEvento(
+  admin: ReturnType<typeof getSupabaseAdmin>,
+  userId: string,
+  companyId: string,
+): Promise<number> {
+  const oggi = new Date().toISOString().slice(0, 10);
+  const { data: futuri } = await admin
+    .from("appointments")
+    .select("id")
+    .eq("company_id", companyId)
+    .eq("assigned_to", userId)
+    .gte("appointment_date", oggi)
+    .neq("status", "cancelled")
+    .order("appointment_date")
+    .limit(50);
+  const ids = (futuri ?? []).map((a: { id: string }) => a.id);
+  if (ids.length === 0) return 0;
+
+  const { data: mappati } = await admin
+    .from("google_calendar_event_map")
+    .select("appointment_id")
+    .eq("user_id", userId)
+    .in("appointment_id", ids);
+  const gia = new Set((mappati ?? []).map((m: { appointment_id: string }) => m.appointment_id));
+
+  let spinti = 0;
+  for (const id of ids.filter((x) => !gia.has(x)).slice(0, 10)) {
+    try {
+      const res = await pushEvent(userId, companyId, id);
+      if (res.status === 200) spinti++;
+    } catch (e) {
+      console.error("recuperaAppuntamentiSenzaEvento:", e instanceof Error ? e.message : String(e));
+    }
+  }
+  return spinti;
+}
+
 // ---- CRON FULL SYNC (all connected users) ----
 async function cronFullSync(): Promise<Response> {
   const admin = getSupabaseAdmin();
@@ -1386,17 +1516,29 @@ async function cronFullSync(): Promise<Response> {
     let synced = 0;
     let failed = 0;
 
+    let inPausa = 0;
     for (const conn of connections!) {
       try {
+        const pref = await preferenzeSync(admin, conn.user_id, conn.company_id);
+        if (!pref.attiva) {
+          // "Sincronizzazione attiva" spenta nella scheda dell'utente: fino a
+          // oggi quell'interruttore non fermava proprio niente.
+          inPausa++;
+          continue;
+        }
         console.log(`cronFullSync: syncing user=${conn.user_id} company=${conn.company_id}`);
         const pullRes = await pullBusySlots(conn.user_id, conn.company_id);
         const pullData = await pullRes.json();
         const reconcileResult = await reconcilePrimary(conn.user_id, conn.company_id);
+        const recuperati = pref.direzione === "from_google"
+          ? 0
+          : await recuperaAppuntamentiSenzaEvento(admin, conn.user_id, conn.company_id);
         results.push({
           userId: conn.user_id,
           companyId: conn.company_id,
           pull: pullData,
           reconcile: reconcileResult,
+          recuperati,
           status: "ok",
         });
         synced++;
@@ -1439,8 +1581,16 @@ async function cronFullSync(): Promise<Response> {
       }).eq("id", logId);
     }
 
-    console.log(`cronFullSync: completed. Synced ${synced}, failed ${failed}.`);
-    return json({ synced, failed, total, results });
+    // Il registro delle sincronizzazioni tiene un mese: ogni riga porta dentro
+    // il risultato completo in JSON e in un mese sono gia' 2 MB su un database
+    // che ne ha 1000 in tutto.
+    await admin
+      .from("google_calendar_sync_log")
+      .delete()
+      .lt("started_at", new Date(Date.now() - 30 * 864e5).toISOString());
+
+    console.log(`cronFullSync: completed. Synced ${synced}, failed ${failed}, in pausa ${inPausa}.`);
+    return json({ synced, failed, inPausa, total, results });
   } catch (globalErr: any) {
     console.error("cronFullSync: global error", globalErr);
     if (logId) {
@@ -1562,6 +1712,6 @@ serveConMetriche("google-calendar-sync", async (req) => {
     }
   } catch (e) {
     console.error("google-calendar-sync error:", e);
-    return json({ error: e.message || "Internal error" }, 500);
+    return json({ error: e instanceof Error ? e.message : "Internal error" }, 500);
   }
 });

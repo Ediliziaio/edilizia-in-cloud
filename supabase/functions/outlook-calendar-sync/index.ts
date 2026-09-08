@@ -57,7 +57,21 @@ async function getFreshAccessToken(connectionId: string): Promise<string> {
     }),
     signal: AbortSignal.timeout(15000),
   });
-  if (!res.ok) throw new Error(`refresh failed: ${await res.text()}`);
+  if (!res.ok) {
+    // Come per Google: `invalid_grant` significa consenso revocato (la
+    // connessione e' finita), tutto il resto e' un intoppo passeggero e non
+    // deve marcare la connessione, altrimenti nessun cron riprova piu'.
+    const corpo = await res.text().catch(() => "unknown");
+    const permanente = /invalid_grant|invalid_client|unauthorized_client/i.test(corpo);
+    await db
+      .from("outlook_calendar_connections")
+      .update({
+        last_error: `Refresh token failed: ${corpo.substring(0, 200)}`,
+        ...(permanente ? { status: "token_expired" } : {}),
+      })
+      .eq("id", connectionId);
+    throw new Error(`refresh failed: ${corpo}`);
+  }
   const tokens = await res.json() as { access_token: string; refresh_token?: string; expires_in: number };
 
   await db.from("outlook_calendar_connections").update({
