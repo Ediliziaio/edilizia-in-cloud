@@ -102,42 +102,16 @@ export default function PublicBooking() {
     end.setHours(23, 59, 59, 999);
     return { startIso: start.toISOString(), endIso: end.toISOString() };
   }, [selectedDate]);
-  const { data: googleBusySlots = [], isFetching: googleBusyFetching } = useQuery({
-    queryKey: ["public-gcal-busy", calendar?.id, dateStr, selectedDayRange?.startIso, selectedDayRange?.endIso],
-    queryFn: async () => {
-      if (!calendar?.id || !selectedDayRange) return [];
-      // Get the calendar owner
-      const { data: cal } = await supabase
-        .from("marketing_calendars")
-        .select("owner_id, company_id")
-        .eq("id", calendar.id)
-        .single();
-      if (!cal?.owner_id) return [];
-      // Check if the owner has block_busy_slots enabled
-      // Vista pubblica: user_calendar_preferences non e' leggibile da un
-      // visitatore anonimo, quindi il flag risultava sempre nullo e gli
-      // impegni del titolare non bloccavano MAI gli slot.
-      const { data: prefs } = await supabase
-        .from("public_calendar_owner_prefs")
-        .select("block_busy_slots")
-        .eq("user_id", cal.owner_id)
-        .maybeSingle();
-      if (prefs && prefs.block_busy_slots === false) return [];
-      const { data, error } = await supabase
-        .from("google_calendar_busy_slots")
-        .select("start_at, end_at")
-        .eq("user_id", cal.owner_id)
-        .lt("start_at", selectedDayRange.endIso)
-        .gt("end_at", selectedDayRange.startIso);
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!calendar?.id && !!selectedDayRange,
-  });
-
-  // Fetch Apple Calendar busy slots for the calendar owner
-  const { data: appleBusySlots = [], isFetching: appleBusyFetching } = useQuery({
-    queryKey: ["public-apple-busy", calendar?.id, dateStr, selectedDayRange?.startIso, selectedDayRange?.endIso],
+  // Fasce occupate del titolare, da UNA vista pubblica (08/09/2026).
+  //
+  // Prima erano tre query separate su google_/apple_/outlook_calendar_busy_slots:
+  // da visitatore anonimo le prime due davano 401 (anon non ha il GRANT) e la
+  // terza zero righe — cioè gli impegni del titolare non bloccavano MAI gli
+  // orari proposti, e un cliente poteva prenotare mentre eri in riunione.
+  // `public_calendar_busy_slots` espone solo inizio e fine, mai il titolo, e
+  // solo per chi ha un calendario pubblico attivo con il blocco fasce acceso.
+  const { data: busySlots = [], isFetching: busyFetching } = useQuery({
+    queryKey: ["public-busy-slots", calendar?.id, dateStr, selectedDayRange?.startIso, selectedDayRange?.endIso],
     queryFn: async () => {
       if (!calendar?.id || !selectedDayRange) return [];
       const { data: cal } = await supabase
@@ -146,79 +120,21 @@ export default function PublicBooking() {
         .eq("id", calendar.id)
         .single();
       if (!cal?.owner_id) return [];
-      // Vista pubblica: user_calendar_preferences non e' leggibile da un
-      // visitatore anonimo, quindi il flag risultava sempre nullo e gli
-      // impegni del titolare non bloccavano MAI gli slot.
-      const { data: prefs } = await supabase
-        .from("public_calendar_owner_prefs")
-        .select("block_busy_slots")
-        .eq("user_id", cal.owner_id)
-        .maybeSingle();
-      if (prefs && prefs.block_busy_slots === false) return [];
       const { data, error } = await supabase
-        .from("apple_calendar_busy_slots")
+        .from("public_calendar_busy_slots")
         .select("start_at, end_at")
         .eq("user_id", cal.owner_id)
         .lt("start_at", selectedDayRange.endIso)
         .gt("end_at", selectedDayRange.startIso);
       if (error) throw error;
-      return data || [];
+      return (data || []) as Array<{ start_at: string; end_at: string }>;
     },
     enabled: !!calendar?.id && !!selectedDayRange,
-  });
-
-  // Impegni Outlook del titolare (vista outlook_calendar_busy_slots): prima
-  // mancavano del tutto e chi usa il calendario Microsoft rischiava doppie
-  // prenotazioni.
-  const { data: outlookBusySlots = [], isFetching: outlookBusyFetching } = useQuery({
-    queryKey: ["public-outlook-busy", calendar?.id, dateStr, selectedDayRange?.startIso, selectedDayRange?.endIso],
-    queryFn: async () => {
-      if (!calendar?.id || !selectedDayRange) return [];
-      const { data: cal } = await supabase
-        .from("marketing_calendars")
-        .select("owner_id")
-        .eq("id", calendar.id)
-        .single();
-      if (!cal?.owner_id) return [];
-      const { data: prefs } = await supabase
-        .from("public_calendar_owner_prefs")
-        .select("block_busy_slots")
-        .eq("user_id", cal.owner_id)
-        .maybeSingle();
-      if (prefs && prefs.block_busy_slots === false) return [];
-      const { data, error } = await supabase
-        .from("outlook_calendar_busy_slots")
-        .select("start_at, end_at")
-        .eq("user_id", cal.owner_id)
-        .lt("start_at", selectedDayRange.endIso)
-        .gt("end_at", selectedDayRange.startIso);
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!calendar?.id && !!selectedDayRange,
-  });
-
-  // Fetch existing appointments for the selected date
-  const { data: existingAppointments = [], isFetching: existingAppointmentsFetching } = useQuery({
-    queryKey: queryKeys.publicBooking.appointments(calendar?.id, dateStr),
-    queryFn: async () => {
-      if (!calendar?.id || !dateStr) return [];
-      const { data, error } = await supabase
-        .from("public_appointment_slots")
-        .select("appointment_time, appointment_end_time")
-        .eq("company_id", calendar.company_id)
-        .eq("calendar_id", calendar.id)
-        .eq("appointment_date", dateStr)
-        .or("is_blocked_slot.is.null,is_blocked_slot.eq.false");
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!calendar?.id && !!dateStr,
   });
 
   // Check if a time slot overlaps with any busy slot (Google or Apple)
   const isSlotBusy = useCallback((slotTime: string, durationMinutes: number): boolean => {
-    const allBusySlots = [...googleBusySlots, ...appleBusySlots, ...outlookBusySlots];
+    const allBusySlots = busySlots;
     if (!selectedDate || allBusySlots.length === 0) return false;
     const slotStart = parse(slotTime, "HH:mm", selectedDate);
     const slotEnd = new Date(slotStart.getTime() + durationMinutes * 60000);
@@ -227,7 +143,7 @@ export default function PublicBooking() {
       const bEnd = new Date(busy.end_at);
       return slotStart < bEnd && slotEnd > bStart;
     });
-  }, [appleBusySlots, googleBusySlots, outlookBusySlots, selectedDate]);
+  }, [busySlots, selectedDate]);
 
   const parseAvailabilityTime = useCallback(
     (value: string) => parse(value.length === 5 ? value : value.slice(0, 5), "HH:mm", selectedDate || new Date()),
@@ -507,7 +423,7 @@ export default function PublicBooking() {
     );
   }
 
-  const slotsLoading = !!selectedDate && (existingAppointmentsFetching || googleBusyFetching || appleBusyFetching || outlookBusyFetching);
+  const slotsLoading = !!selectedDate && (existingAppointmentsFetching || busyFetching);
   const canSubmit = selectedDate && selectedSlot && form.first_name.trim() && hasContactMethod && emailIsValid && !slotsLoading;
   const selectedSummary = selectedDate && selectedSlot
     ? `${format(selectedDate, "EEEE d MMMM yyyy", { locale: it })} alle ${selectedSlot}${

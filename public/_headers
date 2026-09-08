@@ -45,6 +45,15 @@
 /f
   ! X-Frame-Options
 
+# Prenotazione pubblica: la pagina /prenota/<slug> viene incorporata via iframe
+# sui siti dei clienti (marketingedile.com, ediliziaincloud.com, i siti delle
+# aziende) — la pagina «grazie» dopo un form è il posto tipico. Come per /f
+# togliamo X-Frame-Options, che altrimenti fa bloccare il riquadro al browser
+# con ERR_BLOCKED_BY_RESPONSE. Nessun dato sensibile: è una pagina pubblica
+# senza login, e la CSP di /* non ha frame-ancestors.
+/prenota/*
+  ! X-Frame-Options
+
 # Security headers for all pages
 /*
   X-Frame-Options: SAMEORIGIN

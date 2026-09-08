@@ -374,7 +374,7 @@ export default function MarketingCalendarsConfig() {
         base_lat: data.base_lat ?? null,
         base_lng: data.base_lng ?? null,
         base_place_id: data.base_place_id || null,
-      }).select("id").single();
+      } as never).select("id").single();
       if (error) throw error;
 
       // Orari di partenza (lun-ven 9-18): un calendario appena creato ha gia' un
@@ -443,7 +443,7 @@ export default function MarketingCalendarsConfig() {
         base_lat: data.base_lat ?? null,
         base_lng: data.base_lng ?? null,
         base_place_id: data.base_place_id || null,
-      }).eq("id", id).eq("company_id", effectiveCompanyId!);
+      } as never).eq("id", id).eq("company_id", effectiveCompanyId!);
       if (error) throw error;
     },
     onSuccess: () => {
