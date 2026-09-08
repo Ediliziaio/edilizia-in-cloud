@@ -20907,6 +20907,88 @@ export type Database = {
           },
         ]
       }
+      company_calendar_links: {
+        Row: {
+          company_id: string
+          created_at: string
+          enabled: boolean
+          google_calendar_id: string | null
+          google_connection_id: string | null
+          id: string
+          kind: string
+          last_error: string | null
+          last_sync_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          enabled?: boolean
+          google_calendar_id?: string | null
+          google_connection_id?: string | null
+          id?: string
+          kind: string
+          last_error?: string | null
+          last_sync_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          enabled?: boolean
+          google_calendar_id?: string | null
+          google_connection_id?: string | null
+          id?: string
+          kind?: string
+          last_error?: string | null
+          last_sync_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_calendar_links_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "company_calendar_links_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_calendar_links_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "company_calendar_links_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mv_company_metrics"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "company_calendar_links_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "v_insoluti"
+            referencedColumns: ["azienda_id"]
+          },
+          {
+            foreignKeyName: "company_calendar_links_google_connection_id_fkey"
+            columns: ["google_connection_id"]
+            isOneToOne: false
+            referencedRelation: "google_calendar_connections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       company_costs: {
         Row: {
           allocations: Json | null
@@ -34856,11 +34938,19 @@ export type Database = {
           contact_name: string | null
           created_at: string
           email: string | null
+          google_calendar_id: string | null
+          google_connection_id: string | null
+          google_last_error: string | null
+          google_last_sync_at: string | null
+          google_sync_enabled: boolean
           id: string
           is_active: boolean
+          kind: string
+          leader_user_id: string | null
           name: string
           notes: string | null
           phone: string | null
+          subappaltatore_id: string | null
           vat_rate: number | null
         }
         Insert: {
@@ -34869,11 +34959,19 @@ export type Database = {
           contact_name?: string | null
           created_at?: string
           email?: string | null
+          google_calendar_id?: string | null
+          google_connection_id?: string | null
+          google_last_error?: string | null
+          google_last_sync_at?: string | null
+          google_sync_enabled?: boolean
           id?: string
           is_active?: boolean
+          kind?: string
+          leader_user_id?: string | null
           name: string
           notes?: string | null
           phone?: string | null
+          subappaltatore_id?: string | null
           vat_rate?: number | null
         }
         Update: {
@@ -34882,11 +34980,19 @@ export type Database = {
           contact_name?: string | null
           created_at?: string
           email?: string | null
+          google_calendar_id?: string | null
+          google_connection_id?: string | null
+          google_last_error?: string | null
+          google_last_sync_at?: string | null
+          google_sync_enabled?: boolean
           id?: string
           is_active?: boolean
+          kind?: string
+          leader_user_id?: string | null
           name?: string
           notes?: string | null
           phone?: string | null
+          subappaltatore_id?: string | null
           vat_rate?: number | null
         }
         Relationships: [
@@ -34924,6 +35030,27 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_insoluti"
             referencedColumns: ["azienda_id"]
+          },
+          {
+            foreignKeyName: "external_teams_google_connection_id_fkey"
+            columns: ["google_connection_id"]
+            isOneToOne: false
+            referencedRelation: "google_calendar_connections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "external_teams_subappaltatore_id_fkey"
+            columns: ["subappaltatore_id"]
+            isOneToOne: false
+            referencedRelation: "subappaltatore_compliance_status"
+            referencedColumns: ["subappaltatore_id"]
+          },
+          {
+            foreignKeyName: "external_teams_subappaltatore_id_fkey"
+            columns: ["subappaltatore_id"]
+            isOneToOne: false
+            referencedRelation: "subappaltatori"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -35625,6 +35752,41 @@ export type Database = {
           user_agent?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "fea_audit_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "fea_audit_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fea_audit_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "fea_audit_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mv_company_metrics"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "fea_audit_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "v_insoluti"
+            referencedColumns: ["azienda_id"]
+          },
           {
             foreignKeyName: "fea_audit_log_request_id_fkey"
             columns: ["request_id"]
@@ -92028,7 +92190,7 @@ export type Database = {
       }
       warehouse_movements: {
         Row: {
-          company_id: string | null
+          company_id: string
           created_at: string
           id: string
           lot_number: string | null
@@ -92044,7 +92206,7 @@ export type Database = {
           warehouse_id: string | null
         }
         Insert: {
-          company_id?: string | null
+          company_id: string
           created_at?: string
           id?: string
           lot_number?: string | null
@@ -92060,7 +92222,7 @@ export type Database = {
           warehouse_id?: string | null
         }
         Update: {
-          company_id?: string | null
+          company_id?: string
           created_at?: string
           id?: string
           lot_number?: string | null
