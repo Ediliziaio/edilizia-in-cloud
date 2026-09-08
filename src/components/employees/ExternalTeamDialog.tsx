@@ -41,6 +41,11 @@ const teamSchema = z.object({
   notes: z.string().optional(),
   is_active: z.boolean(),
   vat_rate: z.number(),
+  // Squadra unica (08/09/2026): tipo, accesso all'app cantiere, capocantiere, colore.
+  kind: z.enum(["interna", "esterna"]).default("esterna"),
+  subappaltatore_id: z.string().nullable().optional(),
+  leader_user_id: z.string().nullable().optional(),
+  color: z.string().nullable().optional(),
 });
 
 export type ExternalTeamFormData = z.infer<typeof teamSchema>;
@@ -57,9 +62,17 @@ interface ExternalTeamDialogProps {
     notes: string | null;
     is_active: boolean;
     vat_rate: number;
+    kind?: "interna" | "esterna";
+    subappaltatore_id?: string | null;
+    leader_user_id?: string | null;
+    color?: string | null;
   } | null;
   onSave: (data: ExternalTeamFormData) => void;
   isSaving: boolean;
+  /** Ditte con login (per «Accesso all'app cantiere»). Se assente, il campo non compare. */
+  subappaltatori?: Array<{ id: string; ragione_sociale: string; user_email: string | null }>;
+  /** Utenti dell'azienda (per il capocantiere delle squadre interne). */
+  utenti?: Array<{ id: string; nome: string }>;
 }
 
 export function ExternalTeamDialog({
@@ -68,6 +81,8 @@ export function ExternalTeamDialog({
   team,
   onSave,
   isSaving,
+  subappaltatori,
+  utenti,
 }: ExternalTeamDialogProps) {
   const form = useForm<ExternalTeamFormData>({
     resolver: zodResolver(teamSchema),
@@ -79,6 +94,10 @@ export function ExternalTeamDialog({
       notes: "",
       is_active: true,
       vat_rate: 22,
+      kind: "esterna",
+      subappaltatore_id: null,
+      leader_user_id: null,
+      color: null,
     },
   });
 
@@ -92,6 +111,10 @@ export function ExternalTeamDialog({
         notes: team.notes || "",
         is_active: team.is_active,
         vat_rate: team.vat_rate ?? 22,
+        kind: team.kind ?? "esterna",
+        subappaltatore_id: team.subappaltatore_id ?? null,
+        leader_user_id: team.leader_user_id ?? null,
+        color: team.color ?? null,
       });
     } else {
       form.reset({
@@ -102,9 +125,15 @@ export function ExternalTeamDialog({
         notes: "",
         is_active: true,
         vat_rate: 22,
+        kind: "esterna",
+        subappaltatore_id: null,
+        leader_user_id: null,
+        color: null,
       });
     }
   }, [team, form]);
+
+  const kind = form.watch("kind");
 
   const handleSubmit = (data: ExternalTeamFormData) => {
     onSave(data);
@@ -115,12 +144,12 @@ export function ExternalTeamDialog({
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>
-            {team ? "Modifica Squadra Esterna" : "Nuova Squadra Esterna"}
+            {team ? "Modifica squadra" : "Nuova squadra"}
           </DialogTitle>
           <DialogDescription>
             {team
-              ? "Modifica i dati della squadra esterna"
-              : "Inserisci i dati della nuova squadra esterna"}
+              ? "Modifica i dati della squadra"
+              : "Una squadra di posa: interna o esterna, con il suo colore nel calendario"}
           </DialogDescription>
         </DialogHeader>
 
@@ -139,6 +168,107 @@ export function ExternalTeamDialog({
                 </FormItem>
               )}
             />
+
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="kind"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Tipo</FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="esterna">Esterna (ditta)</SelectItem>
+                        <SelectItem value="interna">Interna (dipendenti)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="color"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Colore nel calendario</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="color"
+                        className="h-10 w-full p-1"
+                        value={field.value ?? "#3b82f6"}
+                        onChange={(e) => field.onChange(e.target.value)}
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            {kind === "esterna" && subappaltatori && (
+              <FormField
+                control={form.control}
+                name="subappaltatore_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Accesso all&apos;app cantiere</FormLabel>
+                    <Select
+                      value={field.value ?? "__nessuno__"}
+                      onValueChange={(v) => field.onChange(v === "__nessuno__" ? null : v)}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Nessun accesso" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="__nessuno__">Nessun accesso</SelectItem>
+                        {subappaltatori.map((sub) => (
+                          <SelectItem key={sub.id} value={sub.id}>
+                            {sub.ragione_sociale}
+                            {sub.user_email ? ` · ${sub.user_email}` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>Con un accesso, la squadra vede le sue pose in /campo.</FormDescription>
+                  </FormItem>
+                )}
+              />
+            )}
+
+            {kind === "interna" && utenti && (
+              <FormField
+                control={form.control}
+                name="leader_user_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Capocantiere</FormLabel>
+                    <Select
+                      value={field.value ?? "__nessuno__"}
+                      onValueChange={(v) => field.onChange(v === "__nessuno__" ? null : v)}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Nessuno" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="__nessuno__">Nessuno</SelectItem>
+                        {utenti.map((u) => (
+                          <SelectItem key={u.id} value={u.id}>{u.nome}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </FormItem>
+                )}
+              />
+            )}
 
             <FormField
               control={form.control}
