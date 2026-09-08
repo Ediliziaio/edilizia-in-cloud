@@ -12,6 +12,31 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       _audit_pre_migration_snapshots: {
@@ -15510,7 +15535,7 @@ export type Database = {
           stato: string
           ticket_aperto_id: string | null
           updated_at: string | null
-          user_id: string
+          user_id: string | null
         }
         Insert: {
           approvato?: boolean | null
@@ -15549,7 +15574,7 @@ export type Database = {
           stato?: string
           ticket_aperto_id?: string | null
           updated_at?: string | null
-          user_id: string
+          user_id?: string | null
         }
         Update: {
           approvato?: boolean | null
@@ -15588,7 +15613,7 @@ export type Database = {
           stato?: string
           ticket_aperto_id?: string | null
           updated_at?: string | null
-          user_id?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -15684,7 +15709,7 @@ export type Database = {
           order_id: string | null
           timestamp_evento: string | null
           tipo: string
-          user_id: string
+          user_id: string | null
         }
         Insert: {
           company_id: string
@@ -15699,7 +15724,7 @@ export type Database = {
           order_id?: string | null
           timestamp_evento?: string | null
           tipo: string
-          user_id: string
+          user_id?: string | null
         }
         Update: {
           company_id?: string
@@ -15714,7 +15739,7 @@ export type Database = {
           order_id?: string | null
           timestamp_evento?: string | null
           tipo?: string
-          user_id?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -26518,7 +26543,7 @@ export type Database = {
       dashboard_versions: {
         Row: {
           created_at: string
-          created_by: string
+          created_by: string | null
           dashboard_id: string
           id: string
           is_current: boolean
@@ -26528,7 +26553,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
-          created_by: string
+          created_by?: string | null
           dashboard_id: string
           id?: string
           is_current?: boolean
@@ -26538,7 +26563,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
-          created_by?: string
+          created_by?: string | null
           dashboard_id?: string
           id?: string
           is_current?: boolean
@@ -34219,7 +34244,7 @@ export type Database = {
           ai_payload: Json | null
           ai_suggested: boolean
           attached_at: string
-          attached_by: string
+          attached_by: string | null
           company_id: string
           deleted_at: string | null
           deleted_by: string | null
@@ -34241,7 +34266,7 @@ export type Database = {
           ai_payload?: Json | null
           ai_suggested?: boolean
           attached_at?: string
-          attached_by: string
+          attached_by?: string | null
           company_id: string
           deleted_at?: string | null
           deleted_by?: string | null
@@ -34263,7 +34288,7 @@ export type Database = {
           ai_payload?: Json | null
           ai_suggested?: boolean
           attached_at?: string
-          attached_by?: string
+          attached_by?: string | null
           company_id?: string
           deleted_at?: string | null
           deleted_by?: string | null
@@ -36513,7 +36538,7 @@ export type Database = {
           tags: string[] | null
           taken_at: string
           thumbnail_path: string | null
-          uploaded_by: string
+          uploaded_by: string | null
           visibile_cliente: boolean
         }
         Insert: {
@@ -36539,7 +36564,7 @@ export type Database = {
           tags?: string[] | null
           taken_at: string
           thumbnail_path?: string | null
-          uploaded_by: string
+          uploaded_by?: string | null
           visibile_cliente?: boolean
         }
         Update: {
@@ -36565,7 +36590,7 @@ export type Database = {
           tags?: string[] | null
           taken_at?: string
           thumbnail_path?: string | null
-          uploaded_by?: string
+          uploaded_by?: string | null
           visibile_cliente?: boolean
         }
         Relationships: [
@@ -39297,7 +39322,7 @@ export type Database = {
           quality_notes: string | null
           quantity_received: number
           receipt_date: string | null
-          received_by: string
+          received_by: string | null
           supplier_id: string | null
           updated_at: string | null
           warehouse_id: string
@@ -39315,7 +39340,7 @@ export type Database = {
           quality_notes?: string | null
           quantity_received: number
           receipt_date?: string | null
-          received_by: string
+          received_by?: string | null
           supplier_id?: string | null
           updated_at?: string | null
           warehouse_id: string
@@ -39333,7 +39358,7 @@ export type Database = {
           quality_notes?: string | null
           quantity_received?: number
           receipt_date?: string | null
-          received_by?: string
+          received_by?: string | null
           supplier_id?: string | null
           updated_at?: string | null
           warehouse_id?: string
@@ -44284,7 +44309,7 @@ export type Database = {
           created_at: string | null
           id: string
           installation_location: string | null
-          installer_id: string
+          installer_id: string | null
           notes: string | null
           order_item_id: string
           photo_after_url: string
@@ -44300,7 +44325,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           installation_location?: string | null
-          installer_id: string
+          installer_id?: string | null
           notes?: string | null
           order_item_id: string
           photo_after_url: string
@@ -44316,7 +44341,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           installation_location?: string | null
-          installer_id?: string
+          installer_id?: string | null
           notes?: string | null
           order_item_id?: string
           photo_after_url?: string
@@ -49753,7 +49778,7 @@ export type Database = {
           contact_id: string
           content: string
           created_at: string
-          created_by: string
+          created_by: string | null
           id: string
           opportunity_id: string | null
         }
@@ -49762,7 +49787,7 @@ export type Database = {
           contact_id: string
           content: string
           created_at?: string
-          created_by: string
+          created_by?: string | null
           id?: string
           opportunity_id?: string | null
         }
@@ -49771,7 +49796,7 @@ export type Database = {
           contact_id?: string
           content?: string
           created_at?: string
-          created_by?: string
+          created_by?: string | null
           id?: string
           opportunity_id?: string | null
         }
@@ -55907,7 +55932,7 @@ export type Database = {
           company_id: string
           created_at: string | null
           document_ref: string | null
-          event_by: string
+          event_by: string | null
           event_date: string | null
           event_type: string
           id: string
@@ -55920,7 +55945,7 @@ export type Database = {
           company_id: string
           created_at?: string | null
           document_ref?: string | null
-          event_by: string
+          event_by?: string | null
           event_date?: string | null
           event_type: string
           id?: string
@@ -55933,7 +55958,7 @@ export type Database = {
           company_id?: string
           created_at?: string | null
           document_ref?: string | null
-          event_by?: string
+          event_by?: string | null
           event_date?: string | null
           event_type?: string
           id?: string
@@ -75056,7 +75081,7 @@ export type Database = {
           shipment_ddt_number: string
           shipment_ddt_photo_url: string | null
           status: string | null
-          transporter_id: string
+          transporter_id: string | null
           updated_at: string | null
         }
         Insert: {
@@ -75073,7 +75098,7 @@ export type Database = {
           shipment_ddt_number: string
           shipment_ddt_photo_url?: string | null
           status?: string | null
-          transporter_id: string
+          transporter_id?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -75090,7 +75115,7 @@ export type Database = {
           shipment_ddt_number?: string
           shipment_ddt_photo_url?: string | null
           status?: string | null
-          transporter_id?: string
+          transporter_id?: string | null
           updated_at?: string | null
         }
         Relationships: [
@@ -98924,6 +98949,10 @@ export type Database = {
         Args: { p_flow_id: string; p_n: number; p_node_id: string }
         Returns: number
       }
+      azienda_ancora_esiste: {
+        Args: { p_company_id: string }
+        Returns: boolean
+      }
       aziende_con_permesso: { Args: { _permission: string }; Returns: string[] }
       bank_account_recompute_manual_balance: {
         Args: { p_account: string }
@@ -102509,6 +102538,30 @@ export type Database = {
         Args: { p_tabella: unknown }
         Returns: number
       }
+      pool_consuma: {
+        Args: {
+          p_company_id: string
+          p_cost: number
+          p_description?: string
+          p_metadata?: Json
+          p_service: string
+        }
+        Returns: Json
+      }
+      pool_ricarica: {
+        Args: {
+          p_amount: number
+          p_company_id: string
+          p_description?: string
+          p_metadata?: Json
+          p_service: string
+        }
+        Returns: Json
+      }
+      pool_rispecchia: {
+        Args: { p_company_id: string; p_saldo: number }
+        Returns: undefined
+      }
       populate_broadcast_recipients: {
         Args: {
           p_broadcast_id: string
@@ -106046,6 +106099,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       app_role: [
