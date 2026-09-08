@@ -5,6 +5,9 @@ export interface CalendarOrder {
   expected_date: string | null;
   work_start_date: string | null;
   work_end_date: string | null;
+  /** Orari dei lavori (HH:MM:SS); null = tutto il giorno. */
+  work_start_time?: string | null;
+  work_end_time?: string | null;
   warehouse_arrival_date: string | null;
   created_at: string;
   customer_id: string;

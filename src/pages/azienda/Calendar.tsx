@@ -247,6 +247,8 @@ function CalendarInner() {
             expected_date,
             work_start_date,
             work_end_date,
+            work_start_time,
+            work_end_time,
             warehouse_arrival_date,
             created_at,
             customer_id,

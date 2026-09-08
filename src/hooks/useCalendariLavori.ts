@@ -41,6 +41,26 @@ function invalidaSquadreOvunque(qc: ReturnType<typeof useQueryClient>, companyId
   qc.invalidateQueries({ queryKey: ["external-teams-list"] });
 }
 
+/**
+ * Un canale webhook per il calendario appena collegato: così quando la squadra
+ * sposta una posa su Google, EiC lo sa subito. Best effort: se fallisce, il
+ * cron delle 6 ore ci riprova e quello dei 15 minuti rilegge comunque.
+ */
+async function registraCanaleCalendario(connectionId: string | null, calendarId: string | null) {
+  if (!connectionId || !calendarId) return;
+  try {
+    const { data: sess } = await supabase.auth.getSession();
+    const token = sess.session?.access_token;
+    const res = await supabase.functions.invoke("google-calendar-webhook?action=register_calendar_watch", {
+      body: { connectionId, calendarId },
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    });
+    if (res.error) console.warn("[calendari-lavori] canale non registrato", res.error.message);
+  } catch (e) {
+    console.warn("[calendari-lavori] canale non registrato", e);
+  }
+}
+
 export function useSquadre() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -239,6 +259,7 @@ export function useCollegaCalendarioSquadra() {
     onSuccess: (_r, p) => {
       invalidaSquadreOvunque(qc, companyId);
       toast.success(p.google_calendar_id ? "Calendario collegato" : "Calendario scollegato");
+      void registraCanaleCalendario(p.google_connection_id, p.google_calendar_id);
     },
     onError: (e) => {
       const giaPreso = /ux_external_teams_google_calendar|duplicate/i.test(String((e as Error)?.message));
@@ -280,6 +301,7 @@ export function useSalvaCalendarLink() {
     onSuccess: (_r, p) => {
       qc.invalidateQueries({ queryKey: calendariLavoriKeys.links(companyId) });
       toast.success(p.google_calendar_id ? "Calendario collegato" : "Calendario scollegato");
+      void registraCanaleCalendario(p.google_connection_id, p.google_calendar_id);
     },
     onError: (e) => toast.error("Collegamento non salvato", { description: userErrorMessage(e) }),
   });
