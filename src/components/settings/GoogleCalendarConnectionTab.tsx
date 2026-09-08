@@ -412,10 +412,12 @@ export default function GoogleCalendarConnectionTab() {
       {/* Calendar configuration */}
       <Card>
         <CardHeader>
-          <CardTitle>Quali calendari Google usare</CardTitle>
+          <CardTitle>Impostazioni generali dell'account</CardTitle>
           <CardDescription>
-            Scegli dove finiscono gli appuntamenti che crei nel CRM e quali calendari Google
-            vuoi vedere come "occupati" nel calendario marketing.
+            Il calendario di ogni singolo calendario marketing si sceglie dentro il calendario stesso
+            (Calendari marketing → apri il calendario → <strong>Calendario esterno</strong>).
+            Qui imposti il ripiego per chi non ha scelto, e quali calendari vuoi vedere come
+            &quot;occupati&quot;.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
@@ -428,10 +430,10 @@ export default function GoogleCalendarConnectionTab() {
             <div className="mb-2 flex items-start justify-between gap-3">
               <div className="flex-1">
                 <p className="text-sm font-semibold">
-                  📤 Calendario di destinazione (dove finiscono i tuoi appuntamenti CRM)
+                  📤 Calendario di ripiego
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Quando crei un appuntamento nel CRM, viene aggiunto a questo calendario Google.
+                  Usato solo dagli appuntamenti dei calendari che non hanno scelto un calendario esterno proprio.
                 </p>
               </div>
               <Button

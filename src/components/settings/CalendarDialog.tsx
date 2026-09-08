@@ -27,6 +27,7 @@ import AddressAutocomplete, { type AddressData } from "@/components/shared/Addre
 import AddressMapPreview from "@/components/shared/AddressMapPreview";
 import { buildBookingUrl, normalizeBookingSlug } from "@/lib/bookingLinks";
 import { CALENDAR_COLOR_PRESETS } from "@/lib/marketingCalendarConstants";
+import { CalendarioEsternoPicker, type SceltaCalendarioEsterno } from "./CalendarioEsternoPicker";
 import { cn } from "@/lib/utils";
 
 export interface CalendarFormData {
@@ -55,6 +56,11 @@ export interface CalendarFormData {
   max_per_day: number | null;
   reminder_24h: boolean;
   reminder_1h: boolean;
+  /** Dove finiscono su Google/Outlook/Apple gli appuntamenti di QUESTO calendario. */
+  external_provider: "google" | "outlook" | "apple" | null;
+  external_connection_id: string | null;
+  external_calendar_id: string | null;
+  external_calendar_name: string | null;
 }
 
 interface CalendarDialogProps {
@@ -125,6 +131,10 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
     max_per_day: null,
     reminder_24h: true,
     reminder_1h: true,
+    external_provider: null,
+    external_connection_id: null,
+    external_calendar_id: null,
+    external_calendar_name: null,
     max_daily_km: null,
     base_address_line: "",
     base_address_city: "",
@@ -198,6 +208,10 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
         max_per_day: initialData.max_per_day ?? null,
         reminder_24h: initialData.reminder_24h !== false,
         reminder_1h: initialData.reminder_1h !== false,
+        external_provider: initialData.external_provider ?? null,
+        external_connection_id: initialData.external_connection_id ?? null,
+        external_calendar_id: initialData.external_calendar_id ?? null,
+        external_calendar_name: initialData.external_calendar_name ?? null,
         max_daily_km: initialData.max_daily_km ?? null,
         base_address_line: initialData.base_address_line || "",
         base_address_city: initialData.base_address_city || "",
@@ -419,9 +433,34 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
                 </div>
               </section>
 
+              {/* 08/09/2026: l'associazione al calendario esterno sta QUI, dentro
+                  il calendario che stai configurando. Prima era in un'altra
+                  pagina, valeva per tutti i calendari dello stesso responsabile
+                  e mostrava l'id grezzo del calendario Google. */}
               <section className="rounded-lg border bg-background p-4">
                 <div className="mb-4 flex items-start gap-3">
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">3</div>
+                  <div>
+                    <h3 className="text-sm font-semibold">Calendario esterno</h3>
+                    <p className="text-xs text-muted-foreground">
+                      In quale calendario di Google, Outlook o Apple finiscono gli appuntamenti di questo calendario.
+                    </p>
+                  </div>
+                </div>
+                <CalendarioEsternoPicker
+                  value={{
+                    external_provider: form.external_provider,
+                    external_connection_id: form.external_connection_id,
+                    external_calendar_id: form.external_calendar_id,
+                    external_calendar_name: form.external_calendar_name,
+                  }}
+                  onChange={(next: SceltaCalendarioEsterno) => setForm(f => ({ ...f, ...next }))}
+                />
+              </section>
+
+              <section className="rounded-lg border bg-background p-4">
+                <div className="mb-4 flex items-start gap-3">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">4</div>
                   <div>
                     <h3 className="text-sm font-semibold">Regole operative</h3>
                     <p className="text-xs text-muted-foreground">Durata e limiti usati dal calendario marketing.</p>

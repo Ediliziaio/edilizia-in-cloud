@@ -47,6 +47,10 @@ type MarketingCalendar = {
   owner_id: string | null;
   description: string | null;
   color: string | null;
+  external_provider?: "google" | "outlook" | "apple" | null;
+  external_connection_id?: string | null;
+  external_calendar_id?: string | null;
+  external_calendar_name?: string | null;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -351,6 +355,11 @@ export default function MarketingCalendarsConfig() {
         max_per_day: data.max_per_day == null ? null : Math.max(1, Number(data.max_per_day)),
         reminder_24h: data.reminder_24h !== false,
         reminder_1h: data.reminder_1h !== false,
+        // Il calendario esterno scelto nel passo 3 del dialog.
+        external_provider: data.external_provider ?? null,
+        external_connection_id: data.external_connection_id ?? null,
+        external_calendar_id: data.external_calendar_id ?? null,
+        external_calendar_name: data.external_calendar_name ?? null,
         max_daily_km: maxDailyKm,
         calendar_type: calendarType,
         default_meeting_provider: meetingProvider,
@@ -419,6 +428,11 @@ export default function MarketingCalendarsConfig() {
         max_per_day: data.max_per_day == null ? null : Math.max(1, Number(data.max_per_day)),
         reminder_24h: data.reminder_24h !== false,
         reminder_1h: data.reminder_1h !== false,
+        // Il calendario esterno scelto nel passo 3 del dialog.
+        external_provider: data.external_provider ?? null,
+        external_connection_id: data.external_connection_id ?? null,
+        external_calendar_id: data.external_calendar_id ?? null,
+        external_calendar_name: data.external_calendar_name ?? null,
         max_daily_km: maxDailyKm,
         base_address_line: data.base_address_line || null,
         base_address_city: data.base_address_city || null,

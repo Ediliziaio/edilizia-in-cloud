@@ -269,6 +269,31 @@ async function pullBusySlots(userId: string, companyId: string): Promise<Respons
  * Esempio: admin crea appointment per il calendar di Mario (venditore) →
  * l'evento appare nel Google Calendar di Mario, non dell'admin.
  */
+/**
+ * Dove va scritto l'evento di questo appuntamento (08/09/2026).
+ *
+ * Prima la destinazione era una sola per utente: due calendari marketing con lo
+ * stesso responsabile finivano per forza nello stesso calendario Google. Ora la
+ * scelta sta sul calendario marketing (external_connection_id + calendar_id) e
+ * `primary_calendar_id` resta solo come ripiego per chi non ha scelto niente.
+ */
+async function resolveCalendarioDestinazione(
+  admin: ReturnType<typeof getSupabaseAdmin>,
+  apt: { calendar_id?: string | null },
+  fallback: string | null,
+): Promise<string | null> {
+  if (!apt.calendar_id) return fallback;
+  const { data: cal } = await admin
+    .from("marketing_calendars")
+    .select("external_provider, external_calendar_id")
+    .eq("id", apt.calendar_id)
+    .maybeSingle();
+  const scelto = cal as { external_provider?: string | null; external_calendar_id?: string | null } | null;
+  // Google soltanto: Outlook e Apple hanno le loro edge.
+  if (scelto?.external_provider === "google" && scelto.external_calendar_id) return scelto.external_calendar_id;
+  return fallback;
+}
+
 async function resolveEffectiveUserId(
   admin: ReturnType<typeof getSupabaseAdmin>,
   apt: { calendar_id?: string | null; assigned_to?: string | null },
@@ -316,7 +341,8 @@ async function pushEvent(userId: string, companyId: string, appointmentId: strin
   if (!accessToken) return json({ error: "Token expired" }, 401);
 
   const settings = await getSettings(admin, effectiveUserId, companyId);
-  if (!settings?.primary_calendar_id) return json({ error: "No primary calendar configured" }, 400);
+  const calendarioDestinazione = await resolveCalendarioDestinazione(admin, apt, settings?.primary_calendar_id ?? null);
+  if (!calendarioDestinazione) return json({ error: "No primary calendar configured" }, 400);
 
   const { data: existing } = await admin
     .from("google_calendar_event_map")
@@ -330,7 +356,7 @@ async function pushEvent(userId: string, companyId: string, appointmentId: strin
   const googleEvent = buildGoogleEvent(apt, { createMeet: meetRequested && !apt.meeting_url });
 
   const res = await fetch(
-    buildGoogleEventUrl(settings.primary_calendar_id, undefined, meetRequested),
+    buildGoogleEventUrl(calendarioDestinazione, undefined, meetRequested),
     {
       method: "POST",
       headers: {
@@ -365,7 +391,7 @@ async function pushEvent(userId: string, companyId: string, appointmentId: strin
     user_id: effectiveUserId,
     appointment_id: appointmentId,
     google_event_id: created.id,
-    google_calendar_id: settings.primary_calendar_id,
+    google_calendar_id: calendarioDestinazione,
     etag: created.etag || null,
     source: "crm",
     last_synced_at: new Date().toISOString(),
