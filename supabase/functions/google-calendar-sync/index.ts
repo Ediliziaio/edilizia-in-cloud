@@ -909,7 +909,7 @@ async function syncOrderToGoogle(orderId: string): Promise<{ created: number; up
   const admin = getSupabaseAdmin();
   const { data: order } = await admin
     .from("orders")
-    .select("id, company_id, order_code, client_name, description, indirizzo_lavori, work_start_date, work_end_date, work_start_time, work_end_time")
+    .select("id, company_id, order_code, client_name, client_phone, description, work_description, tipo_lavoro, indirizzo_lavori, work_address, client_address, work_start_date, work_end_date, work_start_time, work_end_time")
     .eq("id", orderId)
     .maybeSingle();
   if (!order) return { created: 0, updated: 0, removed: 0 };

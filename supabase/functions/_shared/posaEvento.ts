@@ -11,8 +11,15 @@ export interface CommessaPerEvento {
   company_id: string;
   order_code: string | null;
   client_name: string | null;
+  client_phone?: string | null;
   description: string | null;
+  /** Descrizione del lavoro da fare (campo a parte, compilato di rado). */
+  work_description?: string | null;
+  tipo_lavoro?: string | null;
+  /** Indirizzo del cantiere: `indirizzo_lavori`, poi `work_address`, poi quello del cliente. */
   indirizzo_lavori: string | null;
+  work_address?: string | null;
+  client_address?: string | null;
   work_start_date: string | null;
   work_end_date: string | null;
   work_start_time: string | null;
@@ -29,6 +36,31 @@ export interface EventoGoogle {
 }
 
 const APP_URL = "https://app.ediliziaincloud.com";
+
+/** L'indirizzo del cantiere, con i ripieghi: in 575 commesse solo 96 hanno `indirizzo_lavori`, 557 quello del cliente. */
+export function indirizzoCantiere(o: Pick<CommessaPerEvento, "indirizzo_lavori" | "work_address" | "client_address">): string | null {
+  for (const v of [o.indirizzo_lavori, o.work_address, o.client_address]) {
+    const t = (v ?? "").trim();
+    if (t) return t;
+  }
+  return null;
+}
+
+/**
+ * Il testo che la squadra legge sul telefono: chi, dove, cosa, come chiamarlo.
+ * Il link alla commessa in fondo, per chi ha l'app.
+ */
+export function descrizioneEvento(o: CommessaPerEvento): string {
+  const righe: string[] = [];
+  if (o.client_name?.trim()) righe.push(`Cliente: ${o.client_name.trim()}`);
+  const ind = indirizzoCantiere(o);
+  if (ind) righe.push(`Indirizzo: ${ind}`);
+  const lavoro = [o.tipo_lavoro?.trim(), o.description?.trim(), o.work_description?.trim()].filter((v, i, a) => v && a.indexOf(v) === i);
+  if (lavoro.length) righe.push(`Lavoro: ${lavoro.join(" — ")}`);
+  if (o.client_phone?.trim()) righe.push(`Telefono: ${o.client_phone.trim()}`);
+  righe.push("", `${APP_URL}/azienda/ordini/${o.id}`);
+  return righe.join("\n");
+}
 
 function normalizzaOra(t: string): string {
   const [h = "00", m = "00", s = "00"] = t.split(":");
@@ -51,12 +83,14 @@ export function costruisciEventoPosa(o: CommessaPerEvento): EventoGoogle {
   if (!o.work_start_date) throw new Error("Commessa senza data di inizio lavori");
   const fine = o.work_end_date && o.work_end_date >= o.work_start_date ? o.work_end_date : o.work_start_date;
   const conOrari = !!o.work_start_time && !!o.work_end_time;
-  const summary = ["Posa", o.order_code, o.client_name].filter(Boolean).join(" · ");
-  const description = [o.description || "", "", `${APP_URL}/azienda/ordini/${o.id}`].join("\n");
+  // Titolo: prima il cliente (è quello che la squadra cerca), poi il codice.
+  const summary = ["Posa", o.client_name?.trim() || null, o.order_code].filter(Boolean).join(" · ");
+  const description = descrizioneEvento(o);
+  const location = indirizzoCantiere(o);
   return {
     summary,
     description,
-    ...(o.indirizzo_lavori ? { location: o.indirizzo_lavori } : {}),
+    ...(location ? { location } : {}),
     start: conOrari
       ? { dateTime: `${o.work_start_date}T${normalizzaOra(o.work_start_time!)}`, timeZone: "Europe/Rome" }
       : { date: o.work_start_date },
