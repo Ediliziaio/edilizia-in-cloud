@@ -333,23 +333,17 @@ async function handleDisconnect(req: Request, userId: string, companyId: string)
   });
 }
 
-async function handleRefresh(req: Request, userId: string, companyId: string): Promise<Response> {
+/**
+ * Rinnova l'access token di UNA connessione e lo restituisce in chiaro.
+ * Usata sia dal refresh esplicito sia da list-calendars quando l'admin chiede
+ * i calendari di una connessione che non è la sua.
+ */
+async function refreshConnectionTokens(
+  conn: { id: string; refresh_token_encrypted: string | null; token_expires_at: string | null },
+): Promise<{ ok: true; accessToken: string } | { ok: false; status: number; error: string }> {
   const admin = getSupabaseAdmin();
   const encKey = getEncryptionKey();
-
-  const { data: conn } = await admin
-    .from("google_calendar_connections")
-    .select("*")
-    .eq("company_id", companyId)
-    .eq("user_id", userId)
-    .single();
-
-  if (!conn?.refresh_token_encrypted) {
-    return new Response(JSON.stringify({ error: "No refresh token" }), {
-      status: 400,
-      headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
-    });
-  }
+  if (!conn.refresh_token_encrypted) return { ok: false, status: 400, error: "No refresh token" };
 
   const clientId = await getPlatformSetting("google_calendar_client_id", "GOOGLE_CALENDAR_CLIENT_ID");
   const clientSecret = await getPlatformSetting("google_calendar_client_secret", "GOOGLE_CALENDAR_CLIENT_SECRET");
@@ -372,18 +366,14 @@ async function handleRefresh(req: Request, userId: string, companyId: string): P
       .from("google_calendar_connections")
       .update({ status: "token_expired", last_error: "Refresh token failed" })
       .eq("id", conn.id);
-    return new Response(JSON.stringify({ error: "Refresh failed" }), {
-      status: 401,
-      headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
-    });
+    return { ok: false, status: 401, error: "Refresh failed" };
   }
 
   const tokens = await tokenRes.json();
-  const newAccessTokenEncrypted = await encrypt(tokens.access_token, encKey);
   await admin
     .from("google_calendar_connections")
     .update({
-      access_token_encrypted: newAccessTokenEncrypted,
+      access_token_encrypted: await encrypt(tokens.access_token, encKey),
       token_expires_at: tokens.expires_in
         ? new Date(Date.now() + tokens.expires_in * 1000).toISOString()
         : conn.token_expires_at,
@@ -391,45 +381,73 @@ async function handleRefresh(req: Request, userId: string, companyId: string): P
       last_error: null,
     })
     .eq("id", conn.id);
+  return { ok: true, accessToken: tokens.access_token };
+}
 
+async function handleRefresh(req: Request, userId: string, companyId: string): Promise<Response> {
+  const admin = getSupabaseAdmin();
+  const { data: conn } = await admin
+    .from("google_calendar_connections")
+    .select("id, refresh_token_encrypted, token_expires_at")
+    .eq("company_id", companyId)
+    .eq("user_id", userId)
+    .single();
+  if (!conn) {
+    return new Response(JSON.stringify({ error: "No refresh token" }), {
+      status: 400,
+      headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+    });
+  }
+  const r = await refreshConnectionTokens(conn);
+  if (!r.ok) {
+    return new Response(JSON.stringify({ error: r.error }), {
+      status: r.status,
+      headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+    });
+  }
   return new Response(JSON.stringify({ success: true }), {
     headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
   });
 }
 
-async function handleListCalendars(req: Request, userId: string, companyId: string): Promise<Response> {
+async function handleListCalendars(
+  req: Request,
+  userId: string,
+  companyId: string,
+  connectionId?: string | null,
+): Promise<Response> {
   const admin = getSupabaseAdmin();
   const encKey = getEncryptionKey();
-
-  const { data: conn } = await admin
-    .from("google_calendar_connections")
-    .select("*")
-    .eq("company_id", companyId)
-    .eq("user_id", userId)
-    .single();
-
-  if (!conn) {
-    return new Response(JSON.stringify({ error: "Not connected" }), {
-      status: 404,
+  const respond = (body: unknown, status = 200) =>
+    new Response(JSON.stringify(body), {
+      status,
       headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
     });
+
+  // Di norma: la connessione di chi chiede. Con connectionId: una connessione
+  // dell'azienda scelta dall'admin (pagina Calendari lavori). Il controllo di
+  // ruolo sta QUI e non nella RLS, perché la funzione usa la service key.
+  let query = admin.from("google_calendar_connections").select("*").eq("company_id", companyId);
+  query = connectionId ? query.eq("id", connectionId) : query.eq("user_id", userId);
+  const { data: conn } = await query.maybeSingle();
+  if (!conn) return respond({ error: "Not connected" }, 404);
+
+  if (connectionId && conn.user_id !== userId) {
+    const { data: ruoli } = await admin
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId)
+      .in("role", ["company_admin", "super_admin"]);
+    if (!ruoli || ruoli.length === 0) {
+      return respond({ error: "Solo un amministratore può leggere i calendari di un altro account" }, 403);
+    }
   }
 
-  // Check if token needs refresh
   let accessToken = await decrypt(conn.access_token_encrypted, encKey);
   if (conn.token_expires_at && new Date(conn.token_expires_at) < new Date()) {
-    const refreshRes = await handleRefresh(req, userId, companyId);
-    if (!refreshRes.ok) {
-      return refreshRes;
-    }
-    // Re-fetch updated token
-    const { data: updated } = await admin
-      .from("google_calendar_connections")
-      .select("access_token_encrypted")
-      .eq("company_id", companyId)
-      .eq("user_id", userId)
-      .single();
-    if (updated) accessToken = await decrypt(updated.access_token_encrypted, encKey);
+    const r = await refreshConnectionTokens(conn);
+    if (!r.ok) return respond({ error: r.error }, r.status);
+    accessToken = r.accessToken;
   }
 
   const calRes = await fetch(
@@ -556,7 +574,7 @@ Deno.serve(async (req) => {
       case "refresh":
         return handleRefresh(req, userId, companyId);
       case "list-calendars":
-        return handleListCalendars(req, userId, companyId);
+        return handleListCalendars(req, userId, companyId, body.connectionId ?? null);
       default:
         return new Response(JSON.stringify({ error: `Unknown action: ${action}` }), {
           status: 400,
