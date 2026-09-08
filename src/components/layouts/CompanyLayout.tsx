@@ -68,8 +68,7 @@ import {
   Settings as SettingsIcon,
   PanelLeft,
   PanelLeftClose,
-  ImagePlus,
-} from "lucide-react";
+  ImagePlus, HardHat } from "lucide-react";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.webp";
 import ediliziaLogoSmall from "@/assets/edilizia-in-cloud-logo-small.webp";
 import { Button } from "@/components/ui/button";
@@ -838,6 +837,7 @@ function buildSettingsGroups(isAdmin: boolean, permissions: Permissions): Settin
       label: "Marketing",
       items: [
         { to: "/azienda/impostazioni/calendari",  label: "Calendari marketing", icon: <CalendarDays className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsCustomization },
+        { to: "/azienda/impostazioni/calendari-lavori", label: "Calendari lavori", icon: <HardHat className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsCustomization },
         { to: "/azienda/impostazioni/lead-forms", label: "Lead Facebook",       icon: <FormInput className="h-4 w-4" />,    visible: isAdmin || permissions.canViewSettingsIntegrations },
       ],
     },

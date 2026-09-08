@@ -260,7 +260,27 @@ export default function CampoCalendario() {
           .eq("stato", "attivo");
         if (contractsError) throw contractsError;
 
-        return assignmentsToCantieri(contracts as AssignmentRow[] | null);
+        // La squadra con un accesso vede anche le pose assegnate alla SUA
+        // squadra sulla commessa (order_external_teams), non solo quelle con
+        // un contratto di subappalto: è la strada di chi non usa Google.
+        const { data: squadre } = await supabase
+          .from("external_teams")
+          .select("id")
+          .eq("subappaltatore_id" as never, subcontractor.id as never);
+        const squadraIds = ((squadre ?? []) as Array<{ id: string }>).map((sq) => sq.id);
+        let daSquadra: AssignmentRow[] = [];
+        if (squadraIds.length > 0) {
+          const { data: assegnate, error: assegnateError } = await supabase
+            .from("order_external_teams")
+            .select(`
+              id, order_id,
+              order:orders(id, order_code, description, status, indirizzo_lavori, percentuale_avanzamento, work_start_date, work_end_date)
+            `)
+            .in("external_team_id", squadraIds);
+          if (assegnateError) throw assegnateError;
+          daSquadra = (assegnate ?? []) as unknown as AssignmentRow[];
+        }
+        return assignmentsToCantieri([...((contracts ?? []) as unknown as AssignmentRow[]), ...daSquadra]);
       }
 
       // Le assegnazioni operaio vivono in DUE tabelle (order_employees dalla

@@ -1,6 +1,6 @@
 /**
- * Tab unificato Subappaltatori:
- *  – Squadre esterne (external_teams) con CRUD
+ * Tab Subappaltatori:
+ *  – rimando alle Squadre (Impostazioni → Calendari lavori, dal 08/09/2026)
  *  – Account app cantiere subappaltatori (subappaltatori table) con collegamento account
  */
 import { useState } from "react";
@@ -8,9 +8,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { queryKeys } from "@/lib/queryKeys";
 import {
-  Plus, Pencil, Trash2, Phone, Mail, FileText, Building2,
+  Building2, ArrowRight,
   Link2, Link2Off, Loader2, HardHat,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -18,45 +17,17 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from "@/components/ui/table";
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+
+
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
-import { ExternalTeamDialog, ExternalTeamFormData } from "@/components/employees/ExternalTeamDialog";
-import { ExternalTeamAttachments } from "@/components/employees/ExternalTeamAttachments";
-import type { ExternalTeam } from "@/types/employees";
+import { Link } from "react-router-dom";
 
 export function SubappaltatoriTab() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
-
-  const [teamDialogOpen, setTeamDialogOpen] = useState(false);
-  const [editingTeam, setEditingTeam] = useState<ExternalTeam | null>(null);
-  const [attachmentsTeam, setAttachmentsTeam] = useState<ExternalTeam | null>(null);
-
-  // ── Squadre esterne ─────────────────────────────────────────────────
-  const { data: externalTeams = [], isLoading: loadingTeams } = useQuery({
-    queryKey: queryKeys.externalTeams.list(companyId),
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("external_teams")
-        .select("*")
-        .eq("company_id", companyId!)
-        .order("name");
-      if (error) throw error;
-      return data as ExternalTeam[];
-    },
-    enabled: !!companyId,
-    staleTime: 5 * 60 * 1000,
-  });
 
   // ── Subappaltatori campo ────────────────────────────────────────────
   const { data: subCampo = [], isLoading: loadingSub } = useQuery({
@@ -70,47 +41,6 @@ export function SubappaltatoriTab() {
       return data ?? [];
     },
     enabled: !!companyId,
-  });
-
-  // ── Mutations ───────────────────────────────────────────────────────
-  const saveTeamMutation = useMutation({
-    mutationFn: async (data: ExternalTeamFormData & { id?: string }) => {
-      if (data.id) {
-        const { error } = await supabase.from("external_teams").update({
-          name: data.name, contact_name: data.contact_name || null,
-          phone: data.phone || null, email: data.email || null,
-          notes: data.notes || null, is_active: data.is_active, vat_rate: data.vat_rate,
-        }).eq("id", data.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from("external_teams").insert({
-          company_id: companyId!,
-          name: data.name, contact_name: data.contact_name || null,
-          phone: data.phone || null, email: data.email || null,
-          notes: data.notes || null, is_active: data.is_active, vat_rate: data.vat_rate,
-        });
-        if (error) throw error;
-      }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.externalTeams.all });
-      toast.success(editingTeam ? "Squadra aggiornata" : "Squadra creata");
-      setTeamDialogOpen(false);
-      setEditingTeam(null);
-    },
-    onError: () => toast.error("Errore durante il salvataggio"),
-  });
-
-  const deleteTeamMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("external_teams").delete().eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.externalTeams.all });
-      toast.success("Squadra eliminata");
-    },
-    onError: () => toast.error("Impossibile eliminare. Potrebbe essere assegnata a ordini."),
   });
 
   // ── Campo access ────────────────────────────────────────────────────
@@ -154,123 +84,30 @@ export function SubappaltatoriTab() {
     onError: () => toast.error("Errore revoca accesso"),
   });
 
-  const activeTeams = externalTeams.filter((t) => t.is_active);
-  const inactiveTeams = externalTeams.filter((t) => !t.is_active);
 
   return (
     <div className="space-y-6">
-      {/* ── Squadre Esterne ──────────────────────────────────────────── */}
+      {/* ── Squadre: vivono in Calendari lavori ─────────────────────── */}
+      {/* 08/09/2026: il CRUD delle squadre è passato in Impostazioni →
+          Calendari lavori, dove la squadra ha anche tipo, colore, accesso e
+          calendario Google. Qui resta il rimando, così c'è un posto solo. */}
       <Card>
         <CardHeader>
-          {/* v8.6.73 — flex-wrap: prima il titolo "Squadre Esterne" veniva
-              spezzato su 2 righe perché il bottone affiancato lo schiacciava
-              su 375px. */}
-          <div className="flex items-start justify-between gap-2 flex-wrap">
-            <div className="min-w-0">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Building2 className="h-5 w-5 shrink-0" />
-                Squadre Esterne
-              </CardTitle>
-              <CardDescription>
-                {activeTeams.length} attive, {inactiveTeams.length} inattive
-              </CardDescription>
-            </div>
-            <Button size="sm" onClick={() => { setEditingTeam(null); setTeamDialogOpen(true); }} className="shrink-0">
-              <Plus className="h-4 w-4 mr-2" />
-              <span className="whitespace-nowrap">Nuova Squadra</span>
-            </Button>
-          </div>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Building2 className="h-5 w-5 shrink-0" />
+            Squadre di posa
+          </CardTitle>
+          <CardDescription>
+            Le squadre — interne o esterne, con il loro colore e il loro calendario Google — si gestiscono in un
+            posto solo.
+          </CardDescription>
         </CardHeader>
-        <CardContent className="p-0">
-          {loadingTeams ? (
-            <div className="p-6 space-y-3">
-              {[...Array(3)].map((_, i) => (
-                <div key={i} className="flex items-center gap-4">
-                  <Skeleton className="h-5 w-[140px]" />
-                  <Skeleton className="h-5 w-[120px]" />
-                  <Skeleton className="h-5 w-[60px]" />
-                </div>
-              ))}
-            </div>
-          ) : externalTeams.length === 0 ? (
-            <div className="p-8 text-center text-muted-foreground">
-              Nessuna squadra esterna. Aggiungi la prima per iniziare.
-            </div>
-          ) : (
-            /* v8.6.73 — overflow-x-auto su mobile evita che le colonne fisse
-                rompano il layout; gli utenti possono scrollare horizontalmente
-                la table senza tagliare il bordo della card. */
-            <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nome Ditta</TableHead>
-                  <TableHead>Referente</TableHead>
-                  <TableHead>Contatti</TableHead>
-                  <TableHead>Note</TableHead>
-                  <TableHead>Stato</TableHead>
-                  <TableHead className="text-right">Azioni</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {externalTeams.map((team) => (
-                  <TableRow key={team.id}>
-                    <TableCell className="font-medium">{team.name}</TableCell>
-                    <TableCell>{team.contact_name || "—"}</TableCell>
-                    <TableCell>
-                      <div className="flex flex-col gap-1 text-sm text-muted-foreground">
-                        {team.email && (
-                          <span className="flex items-center gap-1"><Mail className="h-3 w-3" />{team.email}</span>
-                        )}
-                        {team.phone && (
-                          <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{team.phone}</span>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell className="max-w-[200px] truncate">{team.notes || "—"}</TableCell>
-                    <TableCell>
-                      <Badge variant={team.is_active ? "default" : "secondary"}>
-                        {team.is_active ? "Attiva" : "Inattiva"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex gap-1 justify-end">
-                        <Button variant="ghost" size="icon" onClick={() => setAttachmentsTeam(team)} title="Documenti">
-                          <FileText className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" onClick={() => { setEditingTeam(team); setTeamDialogOpen(true); }} title="Modifica">
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button variant="ghost" size="icon" title="Elimina">
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Eliminare la squadra?</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Azione irreversibile. Se assegnata a ordini, impostala come "Inattiva".
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Annulla</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => deleteTeamMutation.mutate(team.id)}
-                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                                Elimina
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-            </div>
-          )}
+        <CardContent>
+          <Button asChild variant="outline" className="gap-2">
+            <Link to="/azienda/impostazioni/calendari-lavori?tab=squadre">
+              Vai a Calendari lavori → Squadre <ArrowRight className="h-4 w-4" />
+            </Link>
+          </Button>
         </CardContent>
       </Card>
 
@@ -342,22 +179,6 @@ export function SubappaltatoriTab() {
       </Card>
 
       {/* ── Dialogs ──────────────────────────────────────────────────── */}
-      <ExternalTeamDialog
-        open={teamDialogOpen}
-        onOpenChange={(open) => { setTeamDialogOpen(open); if (!open) setEditingTeam(null); }}
-        team={editingTeam}
-        onSave={(data) => saveTeamMutation.mutate({ ...data, id: editingTeam?.id })}
-        isSaving={saveTeamMutation.isPending}
-      />
-
-      {attachmentsTeam && (
-        <ExternalTeamAttachments
-          team={attachmentsTeam}
-          open={!!attachmentsTeam}
-          onOpenChange={(open) => { if (!open) setAttachmentsTeam(null); }}
-        />
-      )}
-
       <Dialog open={!!collegaDialogId} onOpenChange={() => { setCollegaDialogId(null); setCollegaEmail(""); }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
