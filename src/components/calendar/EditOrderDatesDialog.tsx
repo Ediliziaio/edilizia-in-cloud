@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { logger } from "@/utils/logger";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Calendar } from "@/components/ui/calendar";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -123,11 +124,18 @@ export function EditOrderDatesDialog({
   const [workEndDate, setWorkEndDate] = useState<Date | undefined>();
   const [expectedDate, setExpectedDate] = useState<Date | undefined>();
   const [warehouseArrivalDate, setWarehouseArrivalDate] = useState<Date | undefined>();
+  // Orari dei lavori ("HH:mm" o vuoto = tutto il giorno): con gli orari la
+  // posa sul calendario Google della squadra ha un'ora, e due mezze giornate
+  // della stessa squadra non si pestano.
+  const [workStartTime, setWorkStartTime] = useState("");
+  const [workEndTime, setWorkEndTime] = useState("");
 
   useEffect(() => {
     if (open && order) {
       setWorkStartDate(order.work_start_date ? parseISO(order.work_start_date) : undefined);
       setWorkEndDate(order.work_end_date ? parseISO(order.work_end_date) : undefined);
+      setWorkStartTime(order.work_start_time?.slice(0, 5) ?? "");
+      setWorkEndTime(order.work_end_time?.slice(0, 5) ?? "");
       setExpectedDate(order.expected_date ? parseISO(order.expected_date) : undefined);
       setWarehouseArrivalDate(order.warehouse_arrival_date ? parseISO(order.warehouse_arrival_date) : undefined);
     }
@@ -396,10 +404,17 @@ export function EditOrderDatesDialog({
           work_end_date: workEndDate ? format(workEndDate, "yyyy-MM-dd") : null,
           expected_date: expectedDate ? format(expectedDate, "yyyy-MM-dd") : null,
           warehouse_arrival_date: warehouseArrivalDate ? format(warehouseArrivalDate, "yyyy-MM-dd") : null,
-        })
+          work_start_time: workStartTime || null,
+          work_end_time: workEndTime || null,
+        } as never)
         .eq("id", order.id);
       if (error) throw error;
       toast.success("Date aggiornate");
+      // La posa raggiunge subito i calendari Google delle squadre. Best effort:
+      // il trigger sulla commessa ha già accodato, il cron ci riprova comunque.
+      void supabase.functions.invoke("google-calendar-sync", {
+        body: { action: "push-order", companyId, orderId: order.id },
+      });
       queryClient.invalidateQueries({ queryKey: queryKeys.calendarOrders.all });
       onSave?.();
       onOpenChange(false);
@@ -618,6 +633,24 @@ export function EditOrderDatesDialog({
           <div className="grid grid-cols-2 gap-3">
             <DateField label="Inizio Lavori" value={workStartDate} onChange={setWorkStartDate} />
             <DateField label="Fine Lavori" value={workEndDate} onChange={setWorkEndDate} />
+            <div className="col-span-2 grid grid-cols-[1fr_1fr_auto] items-end gap-2">
+              <div className="grid gap-1.5">
+                <Label className="text-xs font-medium text-muted-foreground">Dalle</Label>
+                <Input type="time" className="h-9" value={workStartTime} onChange={(e) => setWorkStartTime(e.target.value)} />
+              </div>
+              <div className="grid gap-1.5">
+                <Label className="text-xs font-medium text-muted-foreground">Alle</Label>
+                <Input type="time" className="h-9" value={workEndTime} onChange={(e) => setWorkEndTime(e.target.value)} />
+              </div>
+              <div className="flex gap-1">
+                <Button type="button" size="sm" variant="outline" className="h-9 px-2 text-xs" onClick={() => { setWorkStartTime("08:00"); setWorkEndTime("12:00"); }}>
+                  Mattina
+                </Button>
+                <Button type="button" size="sm" variant="outline" className="h-9 px-2 text-xs" onClick={() => { setWorkStartTime("13:00"); setWorkEndTime("17:00"); }}>
+                  Pomeriggio
+                </Button>
+              </div>
+            </div>
             <DateField label="Data Posa Prevista" value={expectedDate} onChange={setExpectedDate} />
             <DateField label="Arrivo Merce" value={warehouseArrivalDate} onChange={setWarehouseArrivalDate} />
           </div>
