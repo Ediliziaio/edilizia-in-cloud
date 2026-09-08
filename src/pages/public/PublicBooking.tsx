@@ -121,14 +121,15 @@ export default function PublicBooking() {
         .eq("id", calendar.id)
         .single();
       if (!cal?.owner_id) return [];
+      // La vista non e' nei tipi generati (as never, come le altre del repo).
       const { data, error } = await supabase
-        .from("public_calendar_busy_slots")
+        .from("public_calendar_busy_slots" as never)
         .select("start_at, end_at")
         .eq("user_id", cal.owner_id)
         .lt("start_at", selectedDayRange.endIso)
         .gt("end_at", selectedDayRange.startIso);
       if (error) throw error;
-      return (data || []) as Array<{ start_at: string; end_at: string }>;
+      return (data ?? []) as unknown as Array<{ start_at: string; end_at: string }>;
     },
     enabled: !!calendar?.id && !!selectedDayRange,
   });
