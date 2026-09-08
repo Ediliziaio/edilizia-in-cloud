@@ -46,10 +46,16 @@ const Login = forwardRef<HTMLDivElement>(function Login(_props, _ref) {
       if (["company_staff", "salesperson", "call_center"].includes(role || "") && user) {
         setCheckingPassword(true);
         try {
+          // Chi ha accesso a piu' aziende ha una riga staff_permissions per
+          // azienda: `.maybeSingle()` da solo dava PGRST116 «multiple rows» e
+          // il flag veniva perso in silenzio. Si prende la piu' recente, come
+          // gia' fa RoleBasedRedirect.
           const { data, error } = await supabase
             .from("staff_permissions")
-            .select("must_change_password")
+            .select("must_change_password, updated_at")
             .eq("user_id", user.id)
+            .order("updated_at", { ascending: false, nullsFirst: false })
+            .limit(1)
             .maybeSingle();
           
           if (error) {

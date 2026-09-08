@@ -14,6 +14,7 @@ import { computeEffectiveRole } from "@/lib/roleHierarchy";
 import { useLocation } from "react-router-dom";
 import { areaDaPercorso, ruoloEffettivoPerArea, areeDisponibili as calcolaAree, haEntrambeLeAree } from "@/lib/auth/aree";
 import type { AppArea } from "@/lib/auth/aree";
+import { userErrorMessage } from "@/lib/userErrorMessage";
 
 /**
  * Velocity Protocol — V1/V2
@@ -1784,22 +1785,53 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     setViewAsRoleState(null);
     setViewAsUserId(null);
+    const precedenteId = selectedMultiCompanyId ?? null;
+    const precedenteAzienda: Company | null =
+      multiCompanyAccesses.find(a => a.company_id === precedenteId)?.company ?? null;
     setMultiCompanyState(prev => {
       return { ...prev, selectedId: companyId, selectedCompany: found?.company || null };
     });
     // Propaga la selezione al DB PRIMA di ripulire la cache: get_effective_company_id()
     // (usata nelle RLS) deve già puntare alla nuova azienda quando le query rifetchano,
     // altrimenti l'utente vedrebbe i dati dell'azienda precedente / schermate vuote.
+    //
+    // `supabase.rpc()` NON solleva: gli errori tornano in `error`. Con il solo
+    // try/catch un fallimento passava inosservato e si finiva nel caso peggiore
+    // per un gestionale multi-azienda — schermata e logo della nuova azienda,
+    // dati della precedente, perché le policy leggono ancora la vecchia
+    // selezione. Se la scrittura non riesce si torna indietro e si dice perché.
+    let erroreCambio: unknown = null;
     try {
-      await supabase.rpc("set_active_company", { p_company_id: companyId });
+      const { error } = await supabase.rpc("set_active_company", { p_company_id: companyId });
+      if (error) erroreCambio = error;
     } catch (e) {
-      console.error("[multi-company] set_active_company fallita", e);
+      erroreCambio = e;
     }
+
+    if (erroreCambio) {
+      console.error("[multi-company] set_active_company fallita", erroreCambio);
+      if (precedenteId) sessionStorage.setItem(MULTI_COMPANY_KEY, precedenteId);
+      else sessionStorage.removeItem(MULTI_COMPANY_KEY);
+      setMultiCompanyState(prev => ({
+        ...prev,
+        selectedId: precedenteId,
+        selectedCompany: precedenteAzienda,
+      }));
+      toast.error("Cambio azienda non riuscito", {
+        description: userErrorMessage(erroreCambio),
+      });
+      return;
+    }
+
     queryClient.clear();
     toast.success("Azienda cambiata", {
       description: found.company?.name ?? "Il contesto aziendale è stato aggiornato.",
     });
-  }, [multiCompanyAccesses, queryClient, selectedMultiCompanyId, state.user?.id]);
+  // `state.user` e non `state.user?.id`: con la proprietà il React Compiler
+  // non riusciva a conservare la memoizzazione e saltava l'ottimizzazione di
+  // TUTTO l'AuthContext ("Compilation Skipped"). L'oggetto cambia solo sugli
+  // eventi auth, quindi il callback si ricrea con la stessa frequenza di prima.
+  }, [multiCompanyAccesses, queryClient, selectedMultiCompanyId, state.user]);
 
   // isImpersonating is true as soon as impersonatedCompanyId is set (not waiting for impersonatedCompany
   // to be fetched). This prevents the route guard from redirecting the superadmin to /admin
@@ -1826,12 +1858,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (multiCompanyAccesses.length === 0) return; // solo utenti realmente multi-azienda
     activeCompanySyncedRef.current = true;
     (async () => {
+      // Anche qui `supabase.rpc()` non solleva: senza guardare `error` un
+      // fallimento restava muto e le policy continuavano a rispondere per
+      // l'azienda del profilo mentre a schermo c'era l'altra.
+      let erroreSync: unknown = null;
       try {
-        await supabase.rpc("set_active_company", { p_company_id: selectedMultiCompanyId ?? null });
-        queryClient.invalidateQueries();
+        const { error } = await supabase.rpc("set_active_company", { p_company_id: selectedMultiCompanyId ?? null });
+        if (error) erroreSync = error;
       } catch (e) {
-        console.error("[multi-company] sync selezione attiva fallita", e);
+        erroreSync = e;
       }
+
+      if (erroreSync) {
+        console.error("[multi-company] sync selezione attiva fallita", erroreSync);
+        // Si riprova al prossimo giro invece di restare disallineati per sempre.
+        activeCompanySyncedRef.current = false;
+        toast.error("Azienda attiva non allineata", {
+          description: "Ricarica la pagina: i dati potrebbero essere quelli dell'altra azienda.",
+        });
+        return;
+      }
+      queryClient.invalidateQueries();
     })();
   }, [state.user?.id, isImpersonating, multiCompanyAccesses.length, selectedMultiCompanyId, queryClient]);
 
