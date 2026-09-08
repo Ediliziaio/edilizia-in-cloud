@@ -626,8 +626,25 @@ function CalendarInner() {
   }, [orderLocations, companyLoc, calendarWeatherMulti, osrmDistances]);
 
   // Fetch Google Calendar busy slots
+  // Squadre con un calendario Google collegato (Calendari lavori): i loro
+  // impegni entrano nel layer «occupato» col colore della squadra, anche se
+  // chi guarda non ha collegato il PROPRIO Google.
+  const { data: squadreGoogle = [] } = useQuery({
+    queryKey: ["calendari-lavori", "squadre-google", effectiveCompany?.id],
+    enabled: !!effectiveCompany?.id,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("external_teams")
+        .select("id, name, color, google_calendar_id")
+        .eq("company_id", effectiveCompany!.id)
+        .not("google_calendar_id", "is", null);
+      if (error) throw error;
+      return (data ?? []) as Array<{ id: string; name: string; color: string | null; google_calendar_id: string | null }>;
+    },
+  });
   const { data: googleBusySlots = [] } = useQuery({
-    queryKey: ["gcal-busy-slots", effectiveCompany?.id, permissions.onlyAssigned, user?.id],
+    queryKey: ["gcal-busy-slots", effectiveCompany?.id, permissions.onlyAssigned, user?.id, squadreGoogle.length > 0],
     queryFn: async () => {
       if (!effectiveCompany?.id) return [];
       let q = supabase
@@ -640,7 +657,7 @@ function CalendarInner() {
       if (error) throw error;
       return (data || []) as GoogleBusySlot[];
     },
-    enabled: !!effectiveCompany?.id && isGoogleConnected && showGoogleBusy,
+    enabled: !!effectiveCompany?.id && (isGoogleConnected || squadreGoogle.length > 0) && showGoogleBusy,
     staleTime: 2 * 60 * 1000,
   });
 
@@ -693,8 +710,18 @@ function CalendarInner() {
   // memo, l'array veniva ricreato ad ogni render → reference inequality →
   // sub-components ri-render anche se i dati non cambiavano.
   const busySlots = useMemo(
-    () => [...googleBusySlots, ...appleBusySlots, ...outlookBusySlots],
-    [googleBusySlots, appleBusySlots, outlookBusySlots],
+    () => {
+      const perCalendario = new Map(squadreGoogle.map(t => [t.google_calendar_id, t]));
+      return [
+        ...googleBusySlots.map(s => {
+          const t = s.google_calendar_id ? perCalendario.get(s.google_calendar_id) : undefined;
+          return t ? { ...s, team_name: t.name, team_color: t.color } : s;
+        }),
+        ...appleBusySlots,
+        ...outlookBusySlots,
+      ];
+    },
+    [googleBusySlots, appleBusySlots, outlookBusySlots, squadreGoogle],
   );
 
   // Fetch synced appointment IDs for badge display

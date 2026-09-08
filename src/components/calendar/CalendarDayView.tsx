@@ -331,7 +331,9 @@ export function CalendarDayView({
               ? `🏖 ${lr.employee?.first_name ?? ""} ${lr.employee?.last_name ?? ""}`
               : o
                 ? (o.order_code || o.description?.slice(0, 30) || "Ordine")
-                : evt.busySlot?.summary || "Occupato";
+                : evt.busySlot?.team_name
+                  ? `${evt.busySlot.team_name} · ${evt.busySlot.summary || "impegno"}`
+                  : evt.busySlot?.summary || "Occupato";
             const Icon = IconMap[evt.type];
             return (
               <div
@@ -425,8 +427,12 @@ export function CalendarDayView({
                   );
                 })}
                 {slotBusy.map((s, idx) => (
-                  <div key={idx} className="text-[11px] bg-muted px-2 py-0.5 rounded truncate text-muted-foreground">
-                    {s.summary || "Occupato"}
+                  <div
+                    key={idx}
+                    className="text-[11px] bg-muted px-2 py-0.5 rounded truncate text-muted-foreground border-l-2"
+                    style={s.team_color ? { borderLeftColor: s.team_color } : undefined}
+                  >
+                    {s.team_name ? `${s.team_name} · ` : ""}{s.summary || "Occupato"}
                   </div>
                 ))}
                 </div>

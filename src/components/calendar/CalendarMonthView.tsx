@@ -211,7 +211,12 @@ export function CalendarMonthView({
   /** Riga d'agenda leggibile da un CalendarEvent (etichetta + azione). */
   const describeEvent = (event: CalendarEvent): { label: string; color: string; onClick?: () => void } => {
     if (event.type === "google_busy" && event.busySlot) {
-      return { label: event.busySlot.summary || "Occupato (Google)", color: event.color };
+      return {
+        label: event.busySlot.team_name
+          ? `${event.busySlot.team_name} · ${event.busySlot.summary || "impegno"}`
+          : event.busySlot.summary || "Occupato (Google)",
+        color: event.busySlot.team_color || event.color,
+      };
     }
     if (event.type === "leave" && event.leave) {
       return { label: `Ferie/permesso · ${event.leave.employee_name ?? ""}`.trim(), color: event.color };
@@ -415,9 +420,12 @@ export function CalendarMonthView({
                       return (
                         <Tooltip key={`busy-${event.busySlot.id}-${eventIdx}`}>
                           <TooltipTrigger asChild>
-                            <div className="w-full flex items-center gap-1 text-xs px-1.5 py-0.5 rounded border border-dashed border-muted-foreground/40 bg-muted/60 text-muted-foreground truncate cursor-default">
+                            <div
+                              className="w-full flex items-center gap-1 text-xs px-1.5 py-0.5 rounded border border-dashed border-muted-foreground/40 bg-muted/60 text-muted-foreground truncate cursor-default"
+                              style={event.busySlot.team_color ? { borderLeftWidth: 3, borderLeftStyle: "solid", borderLeftColor: event.busySlot.team_color } : undefined}
+                            >
                               <CalendarClock className="h-3 w-3 flex-shrink-0 opacity-60" />
-                              <span className="truncate">{event.busySlot.summary || "Occupato"}</span>
+                              <span className="truncate">{event.busySlot.team_name ? `${event.busySlot.team_name} · ` : ""}{event.busySlot.summary || "Occupato"}</span>
                             </div>
                           </TooltipTrigger>
                           <TooltipContent side="right" className="max-w-xs">

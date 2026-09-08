@@ -67,6 +67,9 @@ export interface GoogleBusySlot {
   user_id: string;
   google_calendar_id: string | null;
   provider?: "google" | "apple" | "outlook";
+  /** Se il calendario è di una squadra di posa: il suo nome e colore (arricchiti dal Calendar). */
+  team_name?: string | null;
+  team_color?: string | null;
 }
 
 export interface ApprovedLeave {

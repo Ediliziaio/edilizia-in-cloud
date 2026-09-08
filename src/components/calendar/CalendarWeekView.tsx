@@ -277,7 +277,9 @@ export function CalendarWeekView({
       ? `🏖 ${lr.employee?.first_name ?? ""} ${lr.employee?.last_name ?? ""}`
       : o
         ? (o.order_code || o.description?.slice(0, 20) || "Ordine")
-        : evt.busySlot?.summary || "Occupato";
+        : evt.busySlot?.team_name
+          ? `${evt.busySlot.team_name} · ${evt.busySlot.summary || "impegno"}`
+          : evt.busySlot?.summary || "Occupato";
     // Handle intervento and manutenzione types
     if (evt.type === "intervento" && evt.intervento) {
       return (
@@ -310,7 +312,7 @@ export function CalendarWeekView({
     const content = (
       <div
         className="text-[10px] leading-tight px-1.5 py-0.5 rounded truncate flex items-center gap-1 cursor-pointer border-l-2 text-foreground"
-        style={getCalendarEventStyle((evt.type === "lavoro" && o ? orderColorFn?.(o) : undefined) ?? colorMap[evt.type] ?? eventColors.appuntamento)}
+        style={getCalendarEventStyle((evt.type === "lavoro" && o ? orderColorFn?.(o) : undefined) ?? (evt.type === "google_busy" ? evt.busySlot?.team_color ?? undefined : undefined) ?? colorMap[evt.type] ?? eventColors.appuntamento)}
         onClick={() => o && setEditingOrder(o)}
       >
         {Icon && <Icon className="h-3 w-3 shrink-0" />}
@@ -482,9 +484,13 @@ export function CalendarWeekView({
                       {dayLavori.map(o => (
                         <div
                           key={`lav-${o.id}-${slot.label}`}
-                          className="text-[10px] leading-tight px-1.5 py-0.5 rounded truncate flex items-center gap-1 border-l-2 text-foreground"
+                          role="button"
+                          tabIndex={0}
+                          className="text-[10px] leading-tight px-1.5 py-0.5 rounded truncate flex items-center gap-1 border-l-2 text-foreground cursor-pointer"
                           style={getCalendarEventStyle(orderColorFn?.(o) ?? eventColors.lavoro)}
                           title={`${o.order_code || o.description} · ${o.work_start_time!.slice(0, 5)}–${(o.work_end_time ?? "").slice(0, 5)}`}
+                          onClick={(e) => { e.stopPropagation(); setEditingOrder(o); }}
+                          onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); setEditingOrder(o); } }}
                         >
                           <Wrench className="h-3 w-3 shrink-0" />
                           <span className="truncate">
@@ -493,8 +499,12 @@ export function CalendarWeekView({
                         </div>
                       ))}
                       {hourBusy.map((s, idx) => (
-                        <div key={`busy-${idx}`} className="text-[10px] bg-muted px-1 rounded truncate text-muted-foreground">
-                          {s.summary || "Occupato"}
+                        <div
+                          key={`busy-${idx}`}
+                          className="text-[10px] bg-muted px-1 rounded truncate text-muted-foreground border-l-2"
+                          style={s.team_color ? { borderLeftColor: s.team_color } : undefined}
+                        >
+                          {s.team_name ? `${s.team_name} · ` : ""}{s.summary || "Occupato"}
                         </div>
                       ))}
                       </div>
