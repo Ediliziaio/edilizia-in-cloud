@@ -309,10 +309,17 @@ export function CalendarWeekView({
     const dateStr = o?.expected_date || o?.work_start_date || o?.warehouse_arrival_date || "";
     const dragId = o ? `order-${o.id}-${evt.type}-${dateStr}` : `busy-${idx}`;
 
+    // Colore: la commessa per i lavori, la squadra per gli impegni Google del
+    // suo calendario, altrimenti quello del tipo di evento.
+    const coloreEvento =
+      (evt.type === "lavoro" && o ? orderColorFn?.(o) : undefined) ||
+      (evt.type === "google_busy" ? evt.busySlot?.team_color : undefined) ||
+      colorMap[evt.type] ||
+      eventColors.appuntamento;
     const content = (
       <div
         className="text-[10px] leading-tight px-1.5 py-0.5 rounded truncate flex items-center gap-1 cursor-pointer border-l-2 text-foreground"
-        style={getCalendarEventStyle((evt.type === "lavoro" && o ? orderColorFn?.(o) : undefined) ?? (evt.type === "google_busy" ? evt.busySlot?.team_color ?? undefined : undefined) ?? colorMap[evt.type] ?? eventColors.appuntamento)}
+        style={getCalendarEventStyle(coloreEvento)}
         onClick={() => o && setEditingOrder(o)}
       >
         {Icon && <Icon className="h-3 w-3 shrink-0" />}
@@ -487,7 +494,7 @@ export function CalendarWeekView({
                           role="button"
                           tabIndex={0}
                           className="text-[10px] leading-tight px-1.5 py-0.5 rounded truncate flex items-center gap-1 border-l-2 text-foreground cursor-pointer"
-                          style={getCalendarEventStyle(orderColorFn?.(o) ?? eventColors.lavoro)}
+                          style={getCalendarEventStyle(orderColorFn?.(o) || eventColors.lavoro)}
                           title={`${o.order_code || o.description} · ${o.work_start_time!.slice(0, 5)}–${(o.work_end_time ?? "").slice(0, 5)}`}
                           onClick={(e) => { e.stopPropagation(); setEditingOrder(o); }}
                           onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); setEditingOrder(o); } }}

@@ -42,7 +42,10 @@ const teamSchema = z.object({
   is_active: z.boolean(),
   vat_rate: z.number(),
   // Squadra unica (08/09/2026): tipo, accesso all'app cantiere, capocantiere, colore.
-  kind: z.enum(["interna", "esterna"]).default("esterna"),
+  // Senza `.default`: con il default zod il tipo in ingresso (kind facoltativo)
+  // diverge da quello in uscita e react-hook-form rifiuta il resolver. Il
+  // valore iniziale lo danno defaultValues/reset.
+  kind: z.enum(["interna", "esterna"]),
   subappaltatore_id: z.string().nullable().optional(),
   leader_user_id: z.string().nullable().optional(),
   color: z.string().nullable().optional(),

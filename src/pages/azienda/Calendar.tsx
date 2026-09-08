@@ -274,7 +274,8 @@ function CalendarInner() {
         // leggono come order.customer.last_name → crash "reading 'last_name'"
         // (incidente prod 06-18). Normalizziamo alla fonte: un solo punto
         // protegge tutte le viste (Month/Gantt/Heatmap/Day/DraggableOrderBar).
-        return ((data || []) as CalendarOrder[]).map((o) => ({
+        // `as unknown`: i tipi generati non conoscono ancora work_start_time/work_end_time.
+        return ((data || []) as unknown as CalendarOrder[]).map((o) => ({
           ...o,
           customer: o.customer ?? { first_name: "", last_name: "Cliente non associato" },
         }));
