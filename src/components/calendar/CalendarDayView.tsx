@@ -370,7 +370,8 @@ export function CalendarDayView({
               key={slot.label}
               className={cn(
                 "flex group",
-                slot.isHourStart ? "border-t" : "border-t border-dashed border-border/40",
+                "border-t",
+                slot.isHourStart ? "border-border" : slot.minutes === 30 ? "border-border/40" : "border-transparent",
                 nowHere && "bg-primary/10"
               )}
             >

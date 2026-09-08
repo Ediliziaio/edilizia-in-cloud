@@ -477,7 +477,8 @@ export function CalendarWeekView({
                       aria-label={`Crea appuntamento ${format(day, "dd/MM/yyyy")} alle ${slot.label}`}
                       className={cn(
                         "group block w-full border-r px-1 text-left transition-colors hover:bg-blue-50/70 focus:outline-none focus:ring-1 focus:ring-blue-400",
-                        slot.isHourStart ? "border-t h-4" : "border-t border-dashed h-4",
+                        "h-4 border-t",
+                        slot.isHourStart ? "border-border" : slot.minutes === 30 ? "border-border/40" : "border-transparent",
                         day.getDay() === 0 && "bg-muted/20"
                       )}
                       onClick={() => {
