@@ -34,6 +34,41 @@ interface BillingFields {
   legal_province: string;
 }
 
+/**
+ * Chi lavora su piu' aziende non deve restare in trappola.
+ *
+ * Il guard sostituisce TUTTA l'app, sidebar compresa: se l'azienda attiva e'
+ * bloccata, il selettore aziende non e' piu' raggiungibile e l'unico bottone
+ * e' «Esci». Ma la scelta dell'azienda vive anche in `active_company_selection`
+ * lato database, quindi al rientro si ricade sulla stessa schermata: uscire non
+ * serve a niente. Successo l'8 settembre 2026 a pratiche@greenenergygroup.it,
+ * passata su Energia Piu' (abbonamento scaduto il 23 agosto) e rimasta fuori
+ * anche da Green Energy, che era regolare.
+ */
+function AltreAziende() {
+  const { multiCompanyAccesses, selectedMultiCompanyId, switchMultiCompany } = useAuth();
+  const altre = multiCompanyAccesses.filter((a) => a.company_id !== selectedMultiCompanyId);
+  if (altre.length === 0) return null;
+
+  return (
+    <div className="mt-2 flex w-full flex-col gap-1.5 border-t pt-3">
+      <p className="text-xs text-muted-foreground">Hai accesso anche a:</p>
+      {altre.map((a) => (
+        <Button
+          key={a.company_id}
+          variant="secondary"
+          size="sm"
+          className="w-full"
+          onClick={() => switchMultiCompany(a.company_id)}
+        >
+          <Building2 className="mr-2 h-4 w-4" />
+          Passa a {a.company?.name ?? "un'altra azienda"}
+        </Button>
+      ))}
+    </div>
+  );
+}
+
 function StepBadge({ done, n }: { done: boolean; n: number }) {
   return done ? (
     <CheckCircle2 className="h-6 w-6 shrink-0 text-emerald-600" />
@@ -232,6 +267,7 @@ export function BillingActivationGuard({ children }: { children: ReactNode }) {
             <Button variant="outline" size="sm" onClick={() => signOut()} className="mt-1">
               <LogOut className="mr-2 h-4 w-4" /> Esci
             </Button>
+            <AltreAziende />
           </CardContent>
         </Card>
       </div>
@@ -269,6 +305,7 @@ export function BillingActivationGuard({ children }: { children: ReactNode }) {
               <Button variant="outline" size="sm" onClick={() => signOut()} className="mt-1">
                 <LogOut className="mr-2 h-4 w-4" /> Esci
               </Button>
+              <AltreAziende />
             </CardContent>
           </Card>
         ) : (
@@ -315,6 +352,7 @@ export function BillingActivationGuard({ children }: { children: ReactNode }) {
                 <LogOut className="mr-2 h-4 w-4" /> Esci
               </Button>
             </div>
+            <AltreAziende />
           </>
         )}
       </div>
