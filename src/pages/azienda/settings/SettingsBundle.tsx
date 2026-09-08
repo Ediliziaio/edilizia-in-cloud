@@ -184,7 +184,7 @@ export default function SettingsBundle() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("article_templates")
-        .select("id, name, unit_of_measure, unit_price, prezzo_vendita")
+        .select("id, name, unit_of_measure, unit_price, prezzo_vendita, immagine_url")
         .eq("company_id", companyId!)
         .order("name")
         .limit(500);
@@ -195,6 +195,7 @@ export default function SettingsBundle() {
         unit_of_measure: string | null;
         unit_price: number | null;
         prezzo_vendita: number | null;
+        immagine_url: string | null;
       }>;
     },
     staleTime: 5 * 60 * 1000,
@@ -897,7 +898,7 @@ interface VoceRowProps {
   index: number;
   voce: DraftVoce;
   families: ReturnType<typeof useFamilies>["families"];
-  articoli: Array<{ id: string; name: string; unit_of_measure: string | null }>;
+  articoli: Array<{ id: string; name: string; unit_of_measure: string | null; immagine_url?: string | null }>;
   tariffe: Array<{ id: string; nome: string; unita: string | null }>;
   onUpdate: (patch: Partial<DraftVoce>) => void;
   onRemove: () => void;
@@ -907,6 +908,16 @@ interface VoceRowProps {
 
 function VoceRow({ index, voce, families, articoli, tariffe, onUpdate, onRemove, uploadingImage, onUploadImage }: VoceRowProps) {
   const selectedFamily = families.find((f) => f.id === voce.family_id) ?? null;
+  // La foto caricata sulla riga e' un'eccezione: se manca si usa quella del
+  // prodotto di listino collegato, cosi' la si carica una volta sola nel
+  // listino e la mostrano tutti i kit che contengono quel prodotto.
+  const fotoDalListino: string | null =
+    voce.type === "family"
+      ? (selectedFamily?.immagine_url ?? null)
+      : voce.type === "product"
+        ? (articoli.find((a) => a.id === voce.prodotto_id)?.immagine_url ?? null)
+        : null;
+  const fotoMostrata = voce.immagine_url ?? fotoDalListino;
   const imgInputRef = useRef<HTMLInputElement | null>(null);
 
   return (
@@ -1060,9 +1071,9 @@ function VoceRow({ index, voce, families, articoli, tariffe, onUpdate, onRemove,
 
         {/* Foto prodotto della voce (mostrata nella pagina kit del preventivo) */}
         <div className="col-span-12 flex items-center gap-3 border-t pt-3">
-          {voce.immagine_url ? (
+          {fotoMostrata ? (
             <img
-              src={voce.immagine_url}
+              src={fotoMostrata}
               alt="Foto prodotto"
               className="h-12 w-16 rounded object-cover border border-slate-200"
             />
@@ -1087,7 +1098,13 @@ function VoceRow({ index, voce, families, articoli, tariffe, onUpdate, onRemove,
             disabled={uploadingImage}
             onClick={() => imgInputRef.current?.click()}
           >
-            {uploadingImage ? "Caricamento…" : voce.immagine_url ? "Cambia foto" : "Carica foto prodotto"}
+            {uploadingImage
+              ? "Caricamento…"
+              : voce.immagine_url
+                ? "Cambia foto"
+                : fotoDalListino
+                  ? "Usa un'altra foto"
+                  : "Carica foto prodotto"}
           </Button>
           {voce.immagine_url && (
             <Button
@@ -1100,7 +1117,13 @@ function VoceRow({ index, voce, families, articoli, tariffe, onUpdate, onRemove,
               Rimuovi
             </Button>
           )}
-          <span className="ml-auto text-[11px] text-muted-foreground">Compare nel preventivo kit</span>
+          <span className="ml-auto text-[11px] text-muted-foreground">
+            {voce.immagine_url
+              ? "Foto di questa riga — compare nel preventivo kit"
+              : fotoDalListino
+                ? "Foto presa dal listino — compare nel preventivo kit"
+                : "Compare nel preventivo kit"}
+          </span>
         </div>
       </div>
     </div>

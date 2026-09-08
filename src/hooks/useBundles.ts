@@ -36,6 +36,7 @@ export interface BundleVoce {
     prezzo_vendita?: number;
     prezzo_acquisto_netto?: number;
     unit_of_measure?: string | null;
+    immagine_url?: string | null;
   } | null;
   tariffe_aziendali?: {
     nome: string;
@@ -45,6 +46,7 @@ export interface BundleVoce {
   article_families?: {
     nome: string;
     modalita_prezzo_base: string;
+    immagine_url?: string | null;
   } | null;
 }
 
@@ -101,9 +103,9 @@ export function useBundlesList(filters?: { vertical?: string; tipoLavoro?: Bundl
           `*,
            voci:bundle_voci(
              *,
-             article_templates(name, unit_price, prezzo_vendita, prezzo_acquisto_netto, unit_of_measure),
+             article_templates(name, unit_price, prezzo_vendita, prezzo_acquisto_netto, unit_of_measure, immagine_url),
              tariffe_aziendali(nome, prezzo_vendita, unita),
-             article_families(nome, modalita_prezzo_base)
+             article_families(nome, modalita_prezzo_base, immagine_url)
            )`,
         )
         .eq("company_id", companyId!)
@@ -139,9 +141,9 @@ export function useBundle(bundleId: string | null | undefined) {
           `*,
            voci:bundle_voci(
              *,
-             article_templates(name, unit_price, prezzo_vendita, prezzo_acquisto_netto, unit_of_measure),
+             article_templates(name, unit_price, prezzo_vendita, prezzo_acquisto_netto, unit_of_measure, immagine_url),
              tariffe_aziendali(nome, prezzo_vendita, unita),
-             article_families(nome, modalita_prezzo_base)
+             article_families(nome, modalita_prezzo_base, immagine_url)
            )`,
         )
         .eq("id", bundleId!)

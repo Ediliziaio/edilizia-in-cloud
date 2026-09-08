@@ -255,7 +255,21 @@ Deno.serve(async (req: Request) => {
       .slice(0, 3);
 
     type BundleRow = { nome: string; descrizione: string | null; fv_kwp: number | null; fv_accumulo_kwh: number | null; cover_image_url: string | null };
-    type BundleVoceRow = { bundle_id: string; prodotto_id: string | null; quantita: number; immagine_url?: string | null; article_templates?: { name?: string } | null; tariffe_aziendali?: { nome?: string } | null; article_families?: { nome?: string } | null };
+    type BundleVoceRow = { bundle_id: string; prodotto_id: string | null; quantita: number; immagine_url?: string | null; article_templates?: { name?: string; immagine_url?: string | null } | null; tariffe_aziendali?: { nome?: string } | null; article_families?: { nome?: string; immagine_url?: string | null } | null };
+
+    // La foto della riga di un kit e' un'ECCEZIONE, non la regola: se non c'e'
+    // si prende quella del prodotto di listino a cui la riga e' collegata.
+    // Cosi' basta caricare la foto una volta sola nel listino e tutti i kit
+    // che usano quel prodotto la mostrano.
+    const fotoDellaVoce = (v: BundleVoceRow): string => {
+      const propria = typeof v.immagine_url === "string" ? v.immagine_url : "";
+      if (propria) return propria;
+      const daFamiglia = v.article_families?.immagine_url;
+      if (typeof daFamiglia === "string" && daFamiglia) return daFamiglia;
+      const daProdotto = v.article_templates?.immagine_url;
+      if (typeof daProdotto === "string" && daProdotto) return daProdotto;
+      return "";
+    };
 
     let bundleData: BundleRow | null = null;
     let bundleVoci: BundleVoceRow[] = [];
@@ -268,7 +282,7 @@ Deno.serve(async (req: Request) => {
           .maybeSingle(),
         supabaseAdmin
           .from("bundle_voci")
-          .select("bundle_id, prodotto_id, quantita, immagine_url, article_templates(name), tariffe_aziendali(nome), article_families(nome)")
+          .select("bundle_id, prodotto_id, quantita, immagine_url, article_templates(name, immagine_url), tariffe_aziendali(nome), article_families(nome, immagine_url)")
           .eq("bundle_id", prog.kit_bundle_id)
           .order("sort_order"),
       ]);
@@ -319,7 +333,7 @@ Deno.serve(async (req: Request) => {
     const bundleVociImgB64 = new Map<string, string>();
     await Promise.all(
       bundleVoci.map(async (v) => {
-        const u = typeof v.immagine_url === "string" ? v.immagine_url : "";
+        const u = fotoDellaVoce(v);
         if (u) {
           const b64 = await urlToB64(u);
           if (b64) bundleVociImgB64.set(u, b64);
@@ -566,7 +580,7 @@ Deno.serve(async (req: Request) => {
         fv_accumulo_kwh: bundleData.fv_accumulo_kwh,
         cover_b64: bundleCoverB64 ?? null,
         voci: bundleVoci.map((v) => {
-          const u = typeof v.immagine_url === "string" ? v.immagine_url : "";
+          const u = fotoDellaVoce(v);
           return {
             descrizione: (v.article_templates as Record<string,string> | null)?.name
               ?? (v.article_families as Record<string,string> | null)?.nome
