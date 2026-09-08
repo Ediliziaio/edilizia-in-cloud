@@ -1269,7 +1269,7 @@ export default function MarketingContacts() {
    * farlo. Adesso i conteggi alimentano il dialog di conferma.
    */
   const contaCollegamenti = async (ids: string[]): Promise<ContactLinks> => {
-    const [opp, app, quo, tsk] = await Promise.all([
+    const [opp, app, quo, tsk, fv] = await Promise.all([
       supabase
         .from("marketing_opportunities")
         .select("id", { count: "exact", head: true })
@@ -1290,9 +1290,16 @@ export default function MarketingContacts() {
         .select("id", { count: "exact", head: true })
         .eq("company_id", companyId!)
         .in("contact_id", ids),
+      // Il preventivo fotovoltaico usa un nome italiano per la colonna
+      // (cliente_id), motivo per cui era sfuggito a ogni conteggio.
+      supabase
+        .from("fv_progetti")
+        .select("id", { count: "exact", head: true })
+        .eq("company_id", companyId!)
+        .in("cliente_id", ids),
     ]);
 
-    const err = [opp, app, quo, tsk].find((r) => r.error)?.error;
+    const err = [opp, app, quo, tsk, fv].find((r) => r.error)?.error;
     if (err) throw err;
 
     return {
@@ -1300,6 +1307,7 @@ export default function MarketingContacts() {
       appointments: app.count || 0,
       quotes: quo.count || 0,
       tasks: tsk.count || 0,
+      progettiFv: fv.count || 0,
     };
   };
 

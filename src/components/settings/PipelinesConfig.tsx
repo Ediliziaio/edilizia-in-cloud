@@ -113,7 +113,14 @@ function getErrorMessage(error: unknown) {
 
 class PipelineInUseError extends Error {
   constructor(public readonly count: number) {
-    super(`Questa sequenza ha ${count} opportunita collegate. Spostale o archiviale prima di eliminarla.`);
+    // Il conteggio non filtra per stato: un'opportunita' archiviata resta
+    // collegata alla sequenza. Il messaggio diceva "spostale o archiviale" e
+    // mandava in un vicolo cieco chi provava ad archiviare.
+    super(
+      count === 1
+        ? "Questa sequenza ha 1 opportunità collegata. Spostala in un'altra sequenza o eliminala: archiviarla non basta, resta collegata."
+        : `Questa sequenza ha ${count} opportunità collegate. Spostale in un'altra sequenza o eliminale: archiviarle non basta, restano collegate.`
+    );
     this.name = "PipelineInUseError";
   }
 }
@@ -522,7 +529,7 @@ export function PipelinesConfig() {
           <AlertDialogHeader>
             <AlertDialogTitle>Eliminare questa sequenza?</AlertDialogTitle>
             <AlertDialogDescription>
-              L'eliminazione e' consentita solo se non ci sono opportunita collegate. Le fasi verranno rimosse insieme alla sequenza.
+              L'eliminazione è consentita solo se non ci sono opportunità collegate, nemmeno archiviate. Le fasi verranno rimosse insieme alla sequenza.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

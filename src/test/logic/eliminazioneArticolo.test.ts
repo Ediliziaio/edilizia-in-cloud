@@ -44,6 +44,16 @@ describe("valutaEliminazione", () => {
     expect(valutaEliminazione({ ...vuoto, lotti: 2 }).eliminabile).toBe(false);
   });
 
+  it("con righe di trasferimento tra magazzini non si elimina (RESTRICT senza cascata)", () => {
+    const e = valutaEliminazione({ ...vuoto, trasferimenti: 3 });
+    expect(e.eliminabile).toBe(false);
+    expect(e.motivo).toContain("trasferimento");
+  });
+
+  it("il campo trasferimenti è facoltativo: chi non lo conta non cambia esito", () => {
+    expect(valutaEliminazione({ ...vuoto }).eliminabile).toBe(true);
+  });
+
   it("la giacenza viene prima di tutto nel messaggio: è il motivo più concreto", () => {
     const e = valutaEliminazione({ quantity: 4, quantity_reserved: 2, movimenti: 9, seriali: 1, lotti: 1 });
     expect(e.motivo).toContain("4 pezzi a magazzino");

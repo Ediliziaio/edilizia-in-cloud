@@ -178,6 +178,35 @@ async function validateReassignTarget(
   }
 }
 
+/**
+ * Rapportini e timbrature hanno user_id NOT NULL per scelta (migrazione
+ * 20280911110000): sono ore lavorate e restano con la persona. Chi le ha va
+ * DISATTIVATO, non eliminato. Senza questo controllo il database rispondeva
+ * con il vincolo grezzo ("violates foreign key constraint
+ * campo_rapportini_user_id_fkey") e l'amministratore non capiva cosa fare.
+ */
+async function motivoOreRegistrate(adminClient: SupabaseAdminClient, userId: string): Promise<string | null> {
+  const [rap, tim] = await Promise.all([
+    adminClient.from("campo_rapportini").select("id", { count: "exact", head: true }).eq("user_id", userId),
+    adminClient.from("campo_timbrature").select("id", { count: "exact", head: true }).eq("user_id", userId),
+  ]);
+  const rapportini: number = rap.count ?? 0;
+  const timbrature: number = tim.count ?? 0;
+  if (rapportini === 0 && timbrature === 0) return null;
+  const parti: string[] = [];
+  if (rapportini > 0) parti.push(`${rapportini} rapportin${rapportini === 1 ? "o" : "i"}`);
+  if (timbrature > 0) parti.push(`${timbrature} timbratur${timbrature === 1 ? "a" : "e"}`);
+  return `Non si può eliminare l'utente: ha ${parti.join(" e ")} a suo nome. Sono ore lavorate e restano con la persona: disattivalo invece di eliminarlo.`;
+}
+
+/** Un vincolo del database non va rimandato all'amministratore com'e'. */
+function messaggioErroreCancellazione(error: { code?: string; message?: string } | null, cosa: string): string {
+  if (error?.code === "23503") {
+    return `Non si può eliminare ${cosa}: ci sono ancora dati collegati a questa persona che devono restare. Disattivala invece di eliminarla.`;
+  }
+  return `Errore eliminazione ${cosa}: ${error?.message ?? "sconosciuto"}`;
+}
+
 async function reassignOrUnlinkRecords(
   adminClient: SupabaseAdminClient,
   userId: string,
@@ -340,6 +369,13 @@ Deno.serve(conMetriche("delete-company-user", async (req) => {
 
     const secondaryAccessOnly = targetProfile.company_id !== targetCompanyId;
 
+    // Solo quando l'account sparisce davvero: revocare un accesso secondario
+    // non tocca rapportini e timbrature.
+    if (!secondaryAccessOnly) {
+      const bloccoOre = await motivoOreRegistrate(adminClient, userId);
+      if (bloccoOre) return jsonResponse(req, { error: bloccoOre }, 409);
+    }
+
     const affected = await reassignOrUnlinkRecords(adminClient, userId, targetCompanyId, reassignToUserId);
 
     await adminClient.from("user_audit_log").insert({
@@ -415,13 +451,13 @@ Deno.serve(conMetriche("delete-company-user", async (req) => {
       .eq("company_id", targetCompanyId);
     if (profileDeleteError) {
       console.error("Error deleting profile:", profileDeleteError);
-      return jsonResponse(req, { error: "Errore eliminazione profilo: " + profileDeleteError.message }, 500);
+      return jsonResponse(req, { error: messaggioErroreCancellazione(profileDeleteError, "il profilo") }, 500);
     }
 
     const { error: deleteAuthError } = await adminClient.auth.admin.deleteUser(userId);
     if (deleteAuthError) {
       console.error("Error deleting auth user:", deleteAuthError);
-      return jsonResponse(req, { error: "Errore eliminazione account: " + deleteAuthError.message }, 500);
+      return jsonResponse(req, { error: messaggioErroreCancellazione(deleteAuthError as { code?: string; message?: string }, "l'account") }, 500);
     }
 
     return jsonResponse(req, { success: true, affected });

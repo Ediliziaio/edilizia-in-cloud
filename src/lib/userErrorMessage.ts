@@ -119,6 +119,15 @@ export function userErrorMessage(error: unknown, fallback = "Operazione non rius
   if (code === "23514" || msg.includes("check constraint")) {
     return "Alcuni dati non sono validi. Controlla i valori inseriti.";
   }
+  if (code === "22001" || msg.includes("value too long")) {
+    return "Un testo è troppo lungo per il campo. Accorcialo e riprova.";
+  }
+  if (code === "22P02" || msg.includes("invalid input syntax")) {
+    return "Alcuni dati non sono nel formato giusto. Controlla i valori inseriti.";
+  }
+  if (code === "40P01" || msg.includes("deadlock detected")) {
+    return "Il sistema era occupato. Riprova tra qualche istante.";
+  }
 
   // ── Server ──────────────────────────────────────────────────────────────
   if ((status !== null && status >= 500) || msg.includes("internal server error")) {
@@ -131,4 +140,80 @@ export function userErrorMessage(error: unknown, fallback = "Operazione non rius
   }
 
   return fallback;
+}
+
+/**
+ * Il testo tecnico completo di un errore: messaggio + dettagli, cosi' com'e'.
+ *
+ * Serve a chi deve RICONOSCERE un errore ("does not exist", "permission
+ * denied", "duplicate"), non a mostrarlo. Dopo traduciErrorePostgrest il
+ * `message` e' in italiano e l'originale inglese sta in `details`: chi guarda
+ * solo `message` non riconosce piu' niente.
+ */
+export function testoTecnico(error: unknown): string {
+  if (!error) return "";
+  if (typeof error === "string") return error;
+  const e = error as ErrorLike;
+  const pezzi = [e.message, e.details, e.error?.message].filter(
+    (x): x is string => typeof x === "string" && x.length > 0,
+  );
+  return pezzi.length > 0 ? pezzi.join(" ") : String(error);
+}
+
+/**
+ * I messaggi che Postgres e PostgREST scrivono in inglese, per la macchina.
+ * Solo questi vengono tradotti: un RAISE EXCEPTION scritto in italiano da un
+ * trigger ("Non si può togliere il ruolo al titolare…") non combacia con
+ * nessuno di questi e passa intatto, anche se porta un codice come 42501.
+ */
+export const MESSAGGI_POSTGRES_GREZZI: readonly RegExp[] = [
+  /^(update|insert) or (delete|update) on table/i,
+  /^duplicate key value/i,
+  /^null value in column/i,
+  /^new row (for relation|violates)/i,
+  /^permission denied/i,
+  /^value too long for type/i,
+  /^invalid input (syntax|value)/i,
+  /^canceling statement due to/i,
+  /^deadlock detected/i,
+  /violates (foreign key|check|not-null|unique|row-level security)/i,
+  /^jwt\b|^invalid (jwt|token)/i,
+];
+
+export function sembraErrorePostgresGrezzo(message: string): boolean {
+  return MESSAGGI_POSTGRES_GREZZI.some((re) => re.test(message));
+}
+
+/**
+ * Traduce il corpo di un errore PostgREST PRIMA che arrivi al resto dell'app.
+ *
+ * Il 7 settembre 2026 un titolare si e' visto arrivare a schermo
+ * «update or delete on table "marketing_opportunities" violates foreign key
+ * constraint "fv_progetti_opportunita_crm_id_fkey"». Il gestore globale delle
+ * mutation traduce gia' (vedi App.tsx), ma in giro per l'app ci sono
+ * seicento `toast.error(e.message)` locali che mostrano il testo com'e'.
+ * Invece di rincorrerli uno per uno, il client Supabase passa da qui: il
+ * `message` diventa la frase italiana, il testo originale finisce in
+ * `details` (per i log e per chi deve riconoscerlo: vedi testoTecnico), il
+ * `code` resta com'e'.
+ *
+ * Restituisce null quando non c'e' niente da tradurre: messaggio gia' umano,
+ * oppure un errore che nessun pattern riconosce.
+ */
+export function traduciErrorePostgrest(body: unknown): Record<string, unknown> | null {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return null;
+  const b = body as { message?: unknown; code?: unknown; details?: unknown };
+  if (typeof b.message !== "string" || b.message.length === 0) return null;
+  if (!sembraErrorePostgresGrezzo(b.message)) return null;
+  const umano = userErrorMessage(
+    { message: b.message, code: typeof b.code === "string" ? b.code : undefined },
+    "",
+  );
+  if (!umano || umano === b.message) return null;
+  const dettagliOriginali = typeof b.details === "string" && b.details ? b.details : null;
+  return {
+    ...b,
+    message: umano,
+    details: dettagliOriginali ? `${b.message} · ${dettagliOriginali}` : b.message,
+  };
 }

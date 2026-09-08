@@ -4,6 +4,7 @@ import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { getBrandingForCompany } from "../_shared/getBranding.ts";
 import { buildStaffPermissionsRecord } from "../_shared/staffPermissionsDefaults.ts";
+import { messaggioErroreAuth } from "../_shared/authErrorMessage.ts";
 
 // Esegue un task in background DOPO la risposta, senza bloccarla. Evita che un
 // invio email lento/bloccato faccia terminare la funzione per wall-clock PRIMA
@@ -159,7 +160,7 @@ Deno.serve(async (req) => {
       const alreadyExists = msg.includes("already") || msg.includes("exists") || msg.includes("registered");
       if (!alreadyExists) {
         console.error("Error creating user:", createError);
-        return errorResponse(createError.message || "Errore durante la creazione dell'utente", 500);
+        return errorResponse(messaggioErroreAuth(createError, "Errore durante la creazione dell'utente"), 500);
       }
       // RECUPERO ORFANO: l'email è "occupata". Se l'auth user esiste ma NON ha
       // un profilo collegato, è il residuo di una creazione fallita a metà →

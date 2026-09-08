@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { messaggioErroreAuth } from "../_shared/authErrorMessage.ts";
 
 type Body = {
   name: string;
@@ -58,7 +59,7 @@ Deno.serve(async (req) => {
     const authHeader = req.headers.get("Authorization");
 
     if (!authHeader?.startsWith("Bearer ")) {
-      return json(req, { error: "Unauthorized" }, 401);
+      return json(req, { error: "Non autorizzato" }, 401);
     }
 
     const callerClient = createClient(supabaseUrl, anonKey, {
@@ -66,7 +67,7 @@ Deno.serve(async (req) => {
     });
     const { data: callerData, error: callerError } = await callerClient.auth.getUser();
     if (callerError || !callerData.user?.id) {
-      return json(req, { error: "Unauthorized" }, 401);
+      return json(req, { error: "Non autorizzato" }, 401);
     }
 
     const admin = createClient(supabaseUrl, serviceRoleKey, {
@@ -81,14 +82,14 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (!callerRole || !isSuperAdminEmailAllowed(callerData.user.email)) {
-      return json(req, { error: "Forbidden: only super admins can create referral partners" }, 403);
+      return json(req, { error: "Solo il super admin può creare partner referral" }, 403);
     }
 
     let body: Body;
     try {
       body = (await req.json()) as Body;
     } catch {
-      return json(req, { error: "Invalid JSON body" }, 400);
+      return json(req, { error: "Richiesta non valida" }, 400);
     }
     const name = String(body.name || "").trim();
     const email = normalizeEmail(String(body.email || ""));
@@ -100,12 +101,12 @@ Deno.serve(async (req) => {
     const notes = body.notes?.trim() || null;
     const isActive = body.is_active !== false;
 
-    if (name.length < 2) return json(req, { error: "Name is required" }, 400);
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json(req, { error: "Valid email is required" }, 400);
-    if (!["percentage", "fixed"].includes(commissionType)) return json(req, { error: "Invalid commission type" }, 400);
-    if (!Number.isFinite(commissionValue) || commissionValue < 0) return json(req, { error: "Invalid commission value" }, 400);
+    if (name.length < 2) return json(req, { error: "Il nome è obbligatorio" }, 400);
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json(req, { error: "Serve un indirizzo email valido" }, 400);
+    if (!["percentage", "fixed"].includes(commissionType)) return json(req, { error: "Tipo di commissione non valido" }, 400);
+    if (!Number.isFinite(commissionValue) || commissionValue < 0) return json(req, { error: "Valore della commissione non valido" }, 400);
     if (commissionType === "percentage" && commissionValue > 100) {
-      return json(req, { error: "Percentage commission cannot exceed 100%" }, 400);
+      return json(req, { error: "La commissione in percentuale non può superare il 100%" }, 400);
     }
 
     const { data: duplicateReferrer } = await admin
@@ -113,7 +114,7 @@ Deno.serve(async (req) => {
       .select("id")
       .eq("email", email)
       .maybeSingle();
-    if (duplicateReferrer) return json(req, { error: "A referral partner with this email already exists" }, 409);
+    if (duplicateReferrer) return json(req, { error: "Esiste già un partner referral con questa email" }, 409);
 
     let userId: string | null = null;
     const { data: existingProfile } = await admin
@@ -135,7 +136,7 @@ Deno.serve(async (req) => {
       });
 
       if (inviteError || !inviteData.user?.id) {
-        throw new Error(inviteError?.message || "Unable to invite referral partner");
+        throw new Error(messaggioErroreAuth(inviteError, "Non sono riuscito a invitare il partner. Riprova."));
       }
 
       userId = inviteData.user.id;
@@ -232,6 +233,6 @@ Deno.serve(async (req) => {
       account_generated: true,
     });
   } catch (error) {
-    return json(req, { error: (error as Error).message || "Internal error" }, 500);
+    return json(req, { error: (error as Error).message || "Errore interno" }, 500);
   }
 });

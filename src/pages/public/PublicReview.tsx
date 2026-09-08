@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
+import { testoTecnico } from "@/lib/userErrorMessage";
 
 type PublicReviewStatus = "pubblicata" | "critica";
 
@@ -23,12 +24,9 @@ function isUuid(value: string | null | undefined) {
   return Boolean(value && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value));
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 function isSchemaFallbackError(error: unknown) {
-  const message = String(isRecord(error) && "message" in error ? error.message : error).toLowerCase();
+  const message = testoTecnico(error).toLowerCase();
   return (
     message.includes("does not exist") ||
     message.includes("schema cache") ||

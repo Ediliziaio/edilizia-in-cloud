@@ -24,10 +24,17 @@ export interface CollegamentiContatti {
   appointments: number;
   quotes: number;
   tasks: number;
+  /**
+   * Preventivi fotovoltaici intestati al contatto. Opzionale: chi non li
+   * conta non deve cambiare nulla. Restano in piedi da soli — dal 2026-09-07
+   * il vincolo e' ON DELETE SET NULL e il nome del cliente viene conservato
+   * come copia dentro il preventivo (migrazione 20280911100007).
+   */
+  progettiFv?: number;
 }
 
 export function totaleCollegamenti(l: CollegamentiContatti): number {
-  return l.opportunities + l.appointments + l.quotes + l.tasks;
+  return l.opportunities + l.appointments + l.quotes + l.tasks + (l.progettiFv ?? 0);
 }
 
 export interface RichiestaConferma {

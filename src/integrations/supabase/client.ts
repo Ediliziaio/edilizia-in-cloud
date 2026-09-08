@@ -2,6 +2,7 @@
 // v2
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
+import { traduciErrorePostgrest } from "@/lib/userErrorMessage";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
@@ -64,9 +65,47 @@ function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit) {
   });
 }
 
+function urlDi(input: RequestInfo | URL): string {
+  return typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+}
+
+/**
+ * Gli errori del database arrivano all'utente in italiano, da un punto solo.
+ *
+ * PostgREST risponde ai vincoli violati con il messaggio inglese di Postgres
+ * ("update or delete on table … violates foreign key constraint …") e in giro
+ * per l'app ci sono centinaia di `toast.error(e.message)` che lo mostrano
+ * tale e quale. Qui il corpo dell'errore viene riscritto prima che
+ * supabase-js lo legga: `message` in italiano, originale in `details`,
+ * `code` intatto. Solo per le chiamate REST/RPC e solo per i messaggi che
+ * sono davvero di Postgres (vedi traduciErrorePostgrest); auth, storage ed
+ * edge function non vengono toccati.
+ */
+async function fetchTraducendoGliErrori(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const res = await fetchWithTimeout(input, init);
+  if (res.ok) return res;
+  if (!urlDi(input).includes("/rest/v1/")) return res;
+  if (!(res.headers.get("content-type") ?? "").includes("application/json")) return res;
+
+  let corpo: unknown;
+  try {
+    corpo = await res.clone().json();
+  } catch {
+    return res;
+  }
+  const tradotto = traduciErrorePostgrest(corpo);
+  if (!tradotto) return res;
+
+  // Il corpo cambia lunghezza: via gli header che descrivevano quello vecchio.
+  const headers = new Headers(res.headers);
+  headers.delete("content-length");
+  headers.delete("content-encoding");
+  return new Response(JSON.stringify(tradotto), { status: res.status, statusText: res.statusText, headers });
+}
+
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   global: {
-    fetch: fetchWithTimeout,
+    fetch: fetchTraducendoGliErrori,
   },
   auth: {
     storage: localStorage,

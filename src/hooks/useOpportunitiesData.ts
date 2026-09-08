@@ -2,6 +2,7 @@ import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tansta
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { userErrorMessage } from "@/lib/userErrorMessage";
 import { queryKeys } from "@/lib/queryKeys";
 import { useEffect, useMemo } from "react";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -59,36 +60,118 @@ function validateOpportunityPayload(data: Record<string, any>) {
   }
 }
 
-async function countOpportunityLinks(opportunityId: string, companyId: string) {
-  const linkedTables = [
-    "marketing_contact_notes",
-    "marketing_documents",
-    "marketing_opportunity_notes",
-    "quotes",
-    "render_bagno_sessions",
-    "render_facciata_sessions",
-    "render_pavimento_sessions",
-    "render_pergole_sessions",
-    "render_persiane_sessions",
-    "render_piscine_sessions",
-    "render_sessions",
-    "render_stanza_sessions",
-    "render_technical_sessions",
-    "render_tetto_sessions",
-    "tasks",
-  ];
+/**
+ * Tabelle che rendono un'opportunita' da ARCHIVIARE invece che da eliminare:
+ * contengono lavoro che vive dentro il filo dell'opportunita' e che una
+ * cancellazione scollegherebbe in silenzio (il vincolo e' ON DELETE SET NULL,
+ * quindi la delete riesce e il collegamento sparisce senza dare errore).
+ *
+ * L'elenco era scritto a mano e ne aveva perse cinque - commesse,
+ * appuntamenti, passaggi di chiamata, simulazioni ROI, clienti servizi: una
+ * commessa nata da un'opportunita' restava orfana senza che nessuno lo sapesse.
+ */
+const OPPORTUNITY_LINK_TABLES = [
+  "aedix_service_clients",
+  "appointments",
+  "crm_roi_simulations",
+  "marketing_contact_notes",
+  "marketing_documents",
+  "marketing_opportunity_notes",
+  "orders",
+  "passaggi_chiamata",
+  "quotes",
+  "render_bagno_sessions",
+  "render_facciata_sessions",
+  "render_pavimento_sessions",
+  "render_pergole_sessions",
+  "render_persiane_sessions",
+  "render_piscine_sessions",
+  "render_sessions",
+  "render_stanza_sessions",
+  "render_technical_sessions",
+  "render_tetto_sessions",
+  "tasks",
+] as const;
 
-  const counts = await Promise.all(linkedTables.map(async (table) => {
-    const { count, error } = await supabase
-      .from(table as any)
-      .select("id", { count: "exact", head: true })
-      .eq("company_id", companyId)
-      .eq("opportunity_id", opportunityId);
-    if (error) throw error;
-    return count || 0;
-  }));
+interface OpportunityLinks {
+  /** Opportunita' con lavoro collegato: si archiviano, non si eliminano. */
+  daArchiviare: Set<string>;
+  /** Preventivi fotovoltaici collegati: si eliminano lo stesso, ma va detto. */
+  progettiFv: number;
+}
 
-  return counts.reduce((sum, count) => sum + count, 0);
+/**
+ * Conta i collegamenti di PIU' opportunita' in una volta sola.
+ *
+ * Prima si contava un'opportunita' alla volta, quindici richieste ciascuna:
+ * su una selezione da cento partivano millecinquecento chiamate insieme. Ora
+ * e' una query per tabella, qualunque sia il numero di opportunita'.
+ */
+/**
+ * Quanti id per richiesta. Il filtro `in` finisce nell'URL: con cinquecento
+ * uuid in una volta sola l'indirizzo supera i limiti del server e la richiesta
+ * torna 414. A cento la lunghezza resta ampiamente sotto.
+ */
+const LINK_CHUNK = 100;
+
+function aBlocchi<T>(elementi: readonly T[], dimensione: number): T[][] {
+  const blocchi: T[][] = [];
+  for (let i = 0; i < elementi.length; i += dimensione) blocchi.push(elementi.slice(i, i + dimensione));
+  return blocchi;
+}
+
+async function countOpportunityLinks(ids: string[], companyId: string): Promise<OpportunityLinks> {
+  const daArchiviare = new Set<string>();
+  if (ids.length === 0) return { daArchiviare, progettiFv: 0 };
+
+  const blocchi = aBlocchi(ids, LINK_CHUNK);
+
+  await Promise.all(
+    OPPORTUNITY_LINK_TABLES.flatMap((table) =>
+      blocchi.map(async (blocco) => {
+        const { data, error, count } = await supabase
+          .from(table as any)
+          .select("opportunity_id", { count: "exact" })
+          .eq("company_id", companyId)
+          .in("opportunity_id", blocco);
+        if (error) throw error;
+        // Risposta troncata: non so QUALI id siano collegati, quindi archivio
+        // tutto il blocco. In dubbio si sceglie l'opzione che non perde dati.
+        if (count !== null && (data?.length ?? 0) < count) {
+          blocco.forEach((id) => daArchiviare.add(id));
+          return;
+        }
+        (data || []).forEach((row: any) => {
+          if (row?.opportunity_id) daArchiviare.add(row.opportunity_id);
+        });
+      })
+    )
+  );
+
+  // Il preventivo fotovoltaico NON impedisce di eliminare: vive nella sua area
+  // e sta in piedi da solo (il vincolo e' ON DELETE SET NULL, migrazione
+  // 20280911100007). Lo conto solo per dirlo, invece di scollegarlo di nascosto.
+  const conteggiFv = await Promise.all(
+    blocchi.map(async (blocco) => {
+      const { count, error } = await supabase
+        .from("fv_progetti")
+        .select("id", { count: "exact", head: true })
+        .eq("company_id", companyId)
+        .in("opportunita_crm_id", blocco);
+      if (error) throw error;
+      return count || 0;
+    })
+  );
+
+  return { daArchiviare, progettiFv: conteggiFv.reduce((a, b) => a + b, 0) };
+}
+
+/** "1 preventivo fotovoltaico resta..." / "3 preventivi fotovoltaici restano..." */
+function notaProgettiFv(quanti: number): string | undefined {
+  if (quanti < 1) return undefined;
+  return quanti === 1
+    ? "1 preventivo fotovoltaico resta nell'area Fotovoltaico, senza piu' il collegamento all'opportunita'."
+    : `${quanti} preventivi fotovoltaici restano nell'area Fotovoltaico, senza piu' il collegamento all'opportunita'.`;
 }
 
 export async function enrichPage(data: any[], companyId: string) {
@@ -419,15 +502,15 @@ export function useDeleteOpportunity() {
     mutationFn: async (id: string) => {
       if (!companyId) throw new Error("Azienda non selezionata");
       if (!canEditOpportunities(permissions)) throw new Error("Non hai i permessi per eliminare opportunità");
-      const linkedRecords = await countOpportunityLinks(id, companyId);
-      if (linkedRecords > 0) {
+      const { daArchiviare, progettiFv } = await countOpportunityLinks([id], companyId);
+      if (daArchiviare.has(id)) {
         const { error } = await supabase
           .from("marketing_opportunities")
           .update({ status: "abandoned", updated_at: new Date().toISOString() })
           .eq("id", id)
           .eq("company_id", companyId);
         if (error) throw error;
-        return { archived: true };
+        return { archived: true, progettiFv };
       }
 
       const { error } = await supabase
@@ -436,15 +519,21 @@ export function useDeleteOpportunity() {
         .eq("id", id)
         .eq("company_id", companyId);
       if (error) throw error;
-      return { archived: false };
+      return { archived: false, progettiFv };
     },
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.opportunities.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.marketingContacts.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.marketing.all });
-      toast.success(result?.archived ? "Opportunità archiviata: aveva dati collegati" : "Opportunità eliminata");
+      queryClient.invalidateQueries({ queryKey: ["fv_progetti"] });
+      toast.success(result?.archived ? "Opportunità archiviata: aveva dati collegati" : "Opportunità eliminata", {
+        description: notaProgettiFv(result?.progettiFv || 0),
+      });
     },
-    onError: (e: any) => toast.error(e.message),
+    // Un vincolo del database non va mostrato com'e': l'utente si e' visto
+    // arrivare a schermo "violates foreign key constraint fv_progetti_...".
+    // Il fallback tiene i messaggi scritti qui sopra, gia' in italiano.
+    onError: (e: any) => toast.error(userErrorMessage(e, e?.message)),
   });
 }
 
@@ -698,12 +787,9 @@ export function useBulkDeleteOpportunities() {
       if (!companyId) throw new Error("Azienda non selezionata");
       if (!canEditOpportunities(permissions)) throw new Error("Non hai i permessi per eliminare opportunità");
       if (ids.length === 0) return;
-      const linkedCounts = await Promise.all(ids.map(async (id) => ({
-        id,
-        links: await countOpportunityLinks(id, companyId),
-      })));
-      const archiveIds = linkedCounts.filter((item) => item.links > 0).map((item) => item.id);
-      const deleteIds = linkedCounts.filter((item) => item.links === 0).map((item) => item.id);
+      const { daArchiviare, progettiFv } = await countOpportunityLinks(ids, companyId);
+      const archiveIds = ids.filter((id) => daArchiviare.has(id));
+      const deleteIds = ids.filter((id) => !daArchiviare.has(id));
 
       if (archiveIds.length > 0) {
         const { error } = await supabase
@@ -723,18 +809,20 @@ export function useBulkDeleteOpportunities() {
         if (error) throw error;
       }
 
-      return { archived: archiveIds.length, deleted: deleteIds.length };
+      return { archived: archiveIds.length, deleted: deleteIds.length, progettiFv };
     },
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.opportunities.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.marketingContacts.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.marketing.all });
+      queryClient.invalidateQueries({ queryKey: ["fv_progetti"] });
       const archived = result?.archived || 0;
       const deleted = result?.deleted || 0;
-      if (archived && deleted) toast.success(`${deleted} eliminate, ${archived} archiviate perché avevano dati collegati`);
-      else if (archived) toast.success(`${archived} opportunità archiviate perché avevano dati collegati`);
-      else toast.success("Opportunità eliminate");
+      const nota = notaProgettiFv(result?.progettiFv || 0);
+      if (archived && deleted) toast.success(`${deleted} eliminate, ${archived} archiviate perché avevano dati collegati`, { description: nota });
+      else if (archived) toast.success(`${archived} opportunità archiviate perché avevano dati collegati`, { description: nota });
+      else toast.success("Opportunità eliminate", { description: nota });
     },
-    onError: (e: any) => toast.error(e.message),
+    onError: (e: any) => toast.error(userErrorMessage(e, e?.message)),
   });
 }

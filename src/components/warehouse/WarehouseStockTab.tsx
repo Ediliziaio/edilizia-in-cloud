@@ -158,10 +158,11 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
     setVerificaEliminazione(null);
     setVerificaInCorso(true);
     try {
-      const [mov, unita, lotti] = await Promise.all([
+      const [mov, unita, lotti, trasf] = await Promise.all([
         supabase.from("warehouse_movements").select("id", { count: "exact", head: true }).eq("stock_item_id", item.id),
         supabase.from("stock_units").select("id", { count: "exact", head: true }).eq("stock_item_id", item.id),
         supabase.from("stock_lotti").select("id", { count: "exact", head: true }).eq("stock_item_id", item.id),
+        supabase.from("warehouse_transfer_items").select("id", { count: "exact", head: true }).eq("stock_item_id", item.id),
       ]);
       setVerificaEliminazione(
         valutaEliminazione({
@@ -170,6 +171,7 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
           movimenti: mov.count ?? 0,
           seriali: unita.count ?? 0,
           lotti: lotti.count ?? 0,
+          trasferimenti: trasf.count ?? 0,
         }),
       );
     } catch (err) {

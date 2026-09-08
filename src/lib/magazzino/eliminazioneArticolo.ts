@@ -25,6 +25,11 @@ export interface StatoArticolo {
   seriali: number;
   /** Lotti collegati. */
   lotti: number;
+  /**
+   * Righe di trasferimento tra magazzini (warehouse_transfer_items, RESTRICT
+   * senza cascata). Facoltativo: chi non le conta non cambia comportamento.
+   */
+  trasferimenti?: number;
 }
 
 export interface EsitoEliminazione {
@@ -62,6 +67,12 @@ export function valutaEliminazione(stato: StatoArticolo): EsitoEliminazione {
     return {
       eliminabile: false,
       motivo: `Ci sono ${stato.lotti} lotti collegati a questo articolo.`,
+    };
+  }
+  if ((stato.trasferimenti ?? 0) > 0) {
+    return {
+      eliminabile: false,
+      motivo: `L'articolo compare in ${stato.trasferimenti} righe di trasferimento tra magazzini: eliminarlo cancellerebbe quello storico.`,
     };
   }
   return { eliminabile: true, motivo: "" };

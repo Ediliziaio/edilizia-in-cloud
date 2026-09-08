@@ -69,8 +69,25 @@ export function useListinoData(companyId: string | undefined) {
     },
   });
 
+  // Le voci di listino puntano al tipo SENZA scollegarsi (RESTRICT, di
+  // proposito): il database rifiuterebbe la cancellazione. Meglio dirlo prima,
+  // col numero, che mostrare il vincolo violato.
+  const vociCheUsano = async (colonna: "tipo_impianto_id" | "tipo_intervento_id", id: string) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { count, error } = await (supabase.from("listino_prezzi") as any)
+      .select("id", { count: "exact", head: true })
+      .eq("company_id", companyId)
+      .eq(colonna, id);
+    if (error) throw error;
+    return (count as number | null) ?? 0;
+  };
+  const messaggioInUso = (cosa: string, n: number) =>
+    `${cosa} è usato in ${n} voc${n === 1 ? "e" : "i"} di listino: elimina prima quelle voci o cambia loro tipo.`;
+
   const deleteImpiantoMutation = useMutation({
     mutationFn: async (id: string) => {
+      const n = await vociCheUsano("tipo_impianto_id", id);
+      if (n > 0) throw new Error(messaggioInUso("Questo tipo di impianto", n));
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error } = await (supabase.from("tipi_impianto") as any)
         .delete().eq("id", id).eq("company_id", companyId);
@@ -86,6 +103,8 @@ export function useListinoData(companyId: string | undefined) {
 
   const deleteInterventoMutation = useMutation({
     mutationFn: async (id: string) => {
+      const n = await vociCheUsano("tipo_intervento_id", id);
+      if (n > 0) throw new Error(messaggioInUso("Questo tipo di intervento", n));
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error } = await (supabase.from("tipi_intervento") as any)
         .delete().eq("id", id).eq("company_id", companyId);

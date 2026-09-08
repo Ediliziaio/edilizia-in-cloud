@@ -4,6 +4,7 @@ import { requireAuth, isSuperAdminEmailAllowed, resolveUserEmail, aziendaAccessi
 import { generateSecurePassword } from "../_shared/securePassword.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { sanitizeCustomerInput } from "../_shared/customerDataSanitizer.ts";
+import { messaggioErroreAuth } from "../_shared/authErrorMessage.ts";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const INTERNAL_NO_EMAIL_DOMAIN = "no-email.ediliziaincloud.local";
@@ -218,7 +219,7 @@ Deno.serve(async (req) => {
                             (authError as { code?: string }).code === "email_exists";
       const errorMessage = isEmailExists
         ? "Esiste già un utente con questo indirizzo email. Usa un'email diversa."
-        : authError.message;
+        : messaggioErroreAuth(authError);
       return errorResponse(errorMessage);
     }
 

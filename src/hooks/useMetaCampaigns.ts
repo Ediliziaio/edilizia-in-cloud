@@ -12,6 +12,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { testoTecnico } from "@/lib/userErrorMessage";
 import type {
   MetaCampaignRow,
   MetaCampaignStatus,
@@ -87,7 +88,7 @@ export function useMetaCampaigns(companyId: string | undefined) {
           .order("updated_at", { ascending: false });
         if (error) {
           // Tabella non esiste = migration non applicata → fallback graceful
-          const msg = String(error.message ?? error);
+          const msg = testoTecnico(error);
           if (
             msg.includes("does not exist") ||
             msg.includes("schema cache") ||
@@ -179,7 +180,7 @@ export function useMetaCampaigns(companyId: string | undefined) {
         // Se errore tabella, fallback storage
         throw error;
       } catch (err) {
-        const msg = String((err as Error).message ?? err);
+        const msg = testoTecnico(err);
         if (
           msg.includes("does not exist") ||
           msg.includes("schema cache") ||
@@ -251,7 +252,7 @@ export function useMetaCampaigns(companyId: string | undefined) {
         if (!error && data) return data as MetaCampaignRow;
         throw error;
       } catch (err) {
-        const msg = String((err as Error).message ?? err);
+        const msg = testoTecnico(err);
         if (
           msg.includes("does not exist") ||
           msg.includes("schema cache") ||
@@ -308,7 +309,7 @@ export function useMetaCampaigns(companyId: string | undefined) {
         if (!error && data) return data as MetaCampaignRow;
         throw error;
       } catch (err) {
-        const msg = String((err as Error).message ?? err);
+        const msg = testoTecnico(err);
         if (
           msg.includes("does not exist") ||
           msg.includes("schema cache") ||
@@ -356,7 +357,7 @@ export function useMetaCampaigns(companyId: string | undefined) {
         if (!error) return;
         throw error;
       } catch (err) {
-        const msg = String((err as Error).message ?? err);
+        const msg = testoTecnico(err);
         if (
           msg.includes("does not exist") ||
           msg.includes("schema cache") ||

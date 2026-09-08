@@ -45,6 +45,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import type { Integration } from "@/types/integrations";
+import { testoTecnico } from "@/lib/userErrorMessage";
 
 type ReputationTab = "dashboard" | "richieste" | "recensioni" | "automazioni" | "integrazioni";
 type ReviewSource = "Google" | "Facebook" | "Sito" | "Manuale";
@@ -417,7 +418,7 @@ function normalizeEventTone(value: string): ReputationEvent["tone"] {
 }
 
 function isSchemaFallbackError(error: unknown) {
-  const message = String(isRecord(error) && "message" in error ? error.message : error).toLowerCase();
+  const message = testoTecnico(error).toLowerCase();
   return (
     message.includes("does not exist") ||
     message.includes("schema cache") ||

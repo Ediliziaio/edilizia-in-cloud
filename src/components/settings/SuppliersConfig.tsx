@@ -30,6 +30,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
+import { testoTecnico } from "@/lib/userErrorMessage";
 
 interface Supplier {
   id: string;
@@ -563,7 +564,7 @@ export function SuppliersConfig() {
       setDeletingSupplier(null);
     },
     onError: (error: Error) => {
-      if (error.message.includes("foreign key") || error.message.includes("violates")) {
+      if ((error as { code?: string }).code === "23503" || testoTecnico(error).includes("foreign key") || testoTecnico(error).includes("violates")) {
         toast.error("Impossibile eliminare", {
           description: "Il fornitore è associato a dati operativi e non può essere eliminato.",
         });

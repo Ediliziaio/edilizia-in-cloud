@@ -4,6 +4,7 @@ import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { buildStaffPermissionsRecord } from "../_shared/staffPermissionsDefaults.ts";
 import { aziendaAccessibile } from "../_shared/auth.ts";
+import { messaggioErroreAuth } from "../_shared/authErrorMessage.ts";
 
 interface CreateEmployeeUserRequest {
   employee_id: string;
@@ -81,7 +82,7 @@ Deno.serve(async (req) => {
     });
 
     if (createError || !newUser.user) {
-      throw new Error(createError?.message || "Errore nella creazione utente");
+      throw new Error(messaggioErroreAuth(createError, "Errore nella creazione utente"));
     }
 
     const { error: profileError } = await supabaseAdmin.from("profiles").insert({

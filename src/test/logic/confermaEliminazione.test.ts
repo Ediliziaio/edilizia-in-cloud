@@ -98,8 +98,12 @@ describe("confermaValida", () => {
 });
 
 describe("totaleCollegamenti", () => {
-  it("somma i quattro tipi", () => {
+  it("somma i tipi collegati", () => {
     expect(totaleCollegamenti({ opportunities: 1, appointments: 2, quotes: 3, tasks: 4 })).toBe(10);
+    // I preventivi fotovoltaici sono opzionali ma, se ci sono, contano.
+    expect(
+      totaleCollegamenti({ opportunities: 1, appointments: 2, quotes: 3, tasks: 4, progettiFv: 5 })
+    ).toBe(15);
     expect(totaleCollegamenti(senzaCollegamenti)).toBe(0);
   });
 });

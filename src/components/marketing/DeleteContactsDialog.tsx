@@ -92,6 +92,10 @@ export function DeleteContactsDialog({
     if (links.quotes > 0)
       daScollegare.push(`${links.quotes} preventiv${links.quotes === 1 ? "o" : "i"}`);
     if (links.tasks > 0) daScollegare.push(`${links.tasks} task`);
+    if ((links.progettiFv ?? 0) > 0)
+      daScollegare.push(
+        `${links.progettiFv} preventiv${links.progettiFv === 1 ? "o" : "i"} fotovoltaic${links.progettiFv === 1 ? "o" : "i"}`
+      );
   }
 
   return (
@@ -139,7 +143,8 @@ export function DeleteContactsDialog({
                   <p className="font-semibold">Verranno scollegati: {daScollegare.join(", ")}</p>
                   <p className="mt-1">
                     Restano nello storico con tutti i loro dati, perdono solo il riferimento a
-                    questo contatto.
+                    questo contatto. Sui preventivi fotovoltaici nome, telefono e mail del
+                    cliente restano scritti dentro il preventivo.
                   </p>
                 </div>
               </div>

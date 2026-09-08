@@ -574,10 +574,21 @@ export async function createBlankTemplate(opts: {
 }
 
 export async function deleteTemplate(templateId: string): Promise<void> {
+  // surveys.template_id e' NOT NULL e senza cascata: un rilievo non puo'
+  // restare senza il suo modello, quindi il database rifiuta. Contare prima e
+  // dirlo col numero, invece di un "fallita" senza motivo.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { count, error: errConteggio } = await (supabase as any)
+    .from("surveys").select("id", { count: "exact", head: true }).eq("template_id", templateId);
+  if (errConteggio) throw new Error("Non sono riuscito a controllare i rilievi collegati al template. Riprova.");
+  const n = (count as number | null) ?? 0;
+  if (n > 0) {
+    throw new Error(`Il template è usato da ${n} riliev${n === 1 ? "o" : "i"}: finché esistono non si può eliminare.`);
+  }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error } = await (supabase as any)
     .from("survey_templates").delete().eq("id", templateId);
-  if (error) throw new Error("Eliminazione template fallita");
+  if (error) throw new Error(`Eliminazione template fallita: ${error.message}`);
 }
 
 export async function listAssignees(surveyId: string) {

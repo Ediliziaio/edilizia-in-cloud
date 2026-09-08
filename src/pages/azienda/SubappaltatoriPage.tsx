@@ -339,11 +339,23 @@ export default function SubappaltatoriPage() {
   });
 
   const bulkDeleteMutation = useMutation({
-    // Elimina solo la SCHEDA (subappaltatori_sicurezza): rimuove la riga dalla
-    // lista senza toccare l'anagrafica né i documenti collegati (no cascade).
+    // Elimina la SCHEDA (subappaltatori_sicurezza). L'anagrafica non viene
+    // toccata, ma contratti_subappalto e documenti_subappaltatore sono ON
+    // DELETE CASCADE: il commento di prima ("no cascade") era falso, e 26
+    // contratti sarebbero spariti in silenzio. I contratti bloccano; i
+    // documenti della scheda vengono eliminati con lei, e il dialog lo dice.
     mutationFn: async () => {
       const schedaIds = Array.from(selected);
       if (schedaIds.length === 0) return 0;
+      const { count: contratti, error: errContratti } = await (supabase as any)
+        .from('contratti_subappalto').select('id', { count: 'exact', head: true }).in('subappaltatore_id', schedaIds);
+      if (errContratti) throw new Error(errContratti.message || 'Errore');
+      const nContratti = (contratti as number | null) ?? 0;
+      if (nContratti > 0) {
+        throw new Error(
+          `${nContratti === 1 ? 'C\'è 1 contratto di subappalto collegato' : `Ci sono ${nContratti} contratti di subappalto collegati`}: eliminarlo cancellerebbe anche i contratti. Chiudili o eliminali prima.`
+        );
+      }
       const { error } = await (supabase as any)
         .from('subappaltatori_sicurezza').delete().in('id', schedaIds);
       if (error) throw new Error(error.message || 'Errore');
@@ -869,8 +881,10 @@ export default function SubappaltatoriPage() {
             <DialogTitle>Eliminare {selected.size} subappaltatori?</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            Verranno rimossi dalla lista subappaltatori. L'anagrafica e i documenti
-            collegati restano salvati. L'azione non è annullabile.
+            Verranno rimossi dalla lista subappaltatori. L'anagrafica resta salvata;
+            i documenti caricati sulla scheda vengono eliminati con lei. Se ci sono
+            contratti di subappalto collegati la cancellazione si ferma.
+            L'azione non è annullabile.
           </p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setConfermaEliminaBulk(false)}>Annulla</Button>

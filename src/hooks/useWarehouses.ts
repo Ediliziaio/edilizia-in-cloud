@@ -161,9 +161,32 @@ export function useWarehouses(onlyActive = true) {
     onError: (err: Error) => toast.error("Errore: " + err.message),
   });
 
-  // DELETE (hard delete) — rimuove il magazzino quando non è protetto da vincoli DB.
+  // DELETE (hard delete). Il commento di prima diceva "quando non è protetto
+  // da vincoli DB": ma i vincoli sul magazzino sono quasi tutti ON DELETE SET
+  // NULL, cioè il database NON protegge niente — lascia articoli, movimenti e
+  // lotti senza magazzino, in silenzio (101 articoli e 124 movimenti il giorno
+  // dell'audit). Per questo si conta prima e si dice cosa c'è dentro.
   const deleteMutation = useMutation({
     mutationFn: async (warehouseId: string) => {
+      const [stock, movimenti, lotti, daQui, aQui] = await Promise.all([
+        supabase.from("warehouse_stock").select("id", { count: "exact", head: true }).eq("warehouse_id", warehouseId),
+        supabase.from("warehouse_movements").select("id", { count: "exact", head: true }).eq("warehouse_id", warehouseId),
+        supabase.from("stock_lotti").select("id", { count: "exact", head: true }).eq("warehouse_id", warehouseId),
+        supabase.from("warehouse_transfers").select("id", { count: "exact", head: true }).eq("from_warehouse_id", warehouseId),
+        supabase.from("warehouse_transfers").select("id", { count: "exact", head: true }).eq("to_warehouse_id", warehouseId),
+      ]);
+      const errore = [stock, movimenti, lotti, daQui, aQui].find((r) => r.error)?.error;
+      if (errore) throw errore;
+      const n = (r: { count: number | null }) => r.count ?? 0;
+      const parti: string[] = [];
+      if (n(stock) > 0) parti.push(`${n(stock)} articol${n(stock) === 1 ? "o" : "i"}`);
+      if (n(movimenti) > 0) parti.push(`${n(movimenti)} moviment${n(movimenti) === 1 ? "o" : "i"}`);
+      if (n(lotti) > 0) parti.push(`${n(lotti)} lott${n(lotti) === 1 ? "o" : "i"}`);
+      const trasferimenti = n(daQui) + n(aQui);
+      if (trasferimenti > 0) parti.push(`${trasferimenti} trasferiment${trasferimenti === 1 ? "o" : "i"}`);
+      if (parti.length > 0) {
+        throw new Error(`Il magazzino ha ${parti.join(", ")} collegati: spostali o svuotalo prima di eliminarlo.`);
+      }
       const { error } = await supabase
         .from("warehouses")
         .delete()
