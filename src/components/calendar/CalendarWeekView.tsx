@@ -142,7 +142,8 @@ export function CalendarWeekView({
     }
     if (!hiddenEventTypes.has("lavoro")) {
       orders.forEach(o => {
-        if (o.work_start_date) {
+        // Con un orario la posa sta nella griglia delle ore (timedOrdersByDate).
+        if (o.work_start_date && !o.work_start_time) {
           const start = new Date(o.work_start_date);
           const end = o.work_end_date ? new Date(o.work_end_date) : start;
           const cur = new Date(start);
@@ -191,6 +192,26 @@ export function CalendarWeekView({
   }, [orders, busySlots, approvedLeaves, hiddenEventTypes, interventi, manutenzioni]);
 
   // Group timed appointments per day
+  // Lavori con orario (08/09/2026): un blocco all'ora di inizio, per ogni
+  // giorno del periodo. Due mezze giornate della stessa squadra si vedono
+  // una sotto l'altra invece di fondersi in una riga tutto-il-giorno.
+  const timedOrdersByDate = useMemo(() => {
+    const map = new Map<string, CalendarOrder[]>();
+    if (hiddenEventTypes.has("lavoro")) return map;
+    orders.forEach(o => {
+      if (!o.work_start_date || !o.work_start_time) return;
+      const start = new Date(o.work_start_date);
+      const end = o.work_end_date ? new Date(o.work_end_date) : start;
+      const cur = new Date(start);
+      while (cur <= end) {
+        const dateStr = format(cur, "yyyy-MM-dd");
+        if (!map.has(dateStr)) map.set(dateStr, []);
+        map.get(dateStr)!.push(o);
+        cur.setDate(cur.getDate() + 1);
+      }
+    });
+    return map;
+  }, [orders, hiddenEventTypes]);
   const timedByDate = useMemo(() => {
     if (hiddenEventTypes.has("appuntamento")) return new Map<string, CalendarAppointment[]>();
     const map = new Map<string, CalendarAppointment[]>();
@@ -427,6 +448,9 @@ export function CalendarWeekView({
                   if (!apt.appointment_time) return false;
                   return floorToSlot(apt.appointment_time) === slot.label;
                 });
+                const dayLavori = (timedOrdersByDate.get(dateStr) || []).filter(
+                  o => floorToSlot(o.work_start_time!.slice(0, 5)) === slot.label,
+                );
 
                 // Google busy non-allday
                 const hourBusy = !hiddenEventTypes.has("google_busy")
@@ -455,6 +479,19 @@ export function CalendarWeekView({
                     >
                       <div className="space-y-0.5 overflow-visible">
                       {dayApts.map(apt => renderTimedAppointment(apt))}
+                      {dayLavori.map(o => (
+                        <div
+                          key={`lav-${o.id}-${slot.label}`}
+                          className="text-[10px] leading-tight px-1.5 py-0.5 rounded truncate flex items-center gap-1 border-l-2 text-foreground"
+                          style={getCalendarEventStyle(orderColorFn?.(o) ?? eventColors.lavoro)}
+                          title={`${o.order_code || o.description} · ${o.work_start_time!.slice(0, 5)}–${(o.work_end_time ?? "").slice(0, 5)}`}
+                        >
+                          <Wrench className="h-3 w-3 shrink-0" />
+                          <span className="truncate">
+                            {o.work_start_time!.slice(0, 5)}–{(o.work_end_time ?? "").slice(0, 5)} · {o.order_code || o.description?.slice(0, 16) || "Lavori"}
+                          </span>
+                        </div>
+                      ))}
                       {hourBusy.map((s, idx) => (
                         <div key={`busy-${idx}`} className="text-[10px] bg-muted px-1 rounded truncate text-muted-foreground">
                           {s.summary || "Occupato"}
