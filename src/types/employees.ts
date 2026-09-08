@@ -25,4 +25,13 @@ export interface ExternalTeam {
   notes: string | null;
   is_active: boolean;
   vat_rate: number;
+  color?: string | null;
+  kind?: "interna" | "esterna";
+  subappaltatore_id?: string | null;
+  leader_user_id?: string | null;
+  google_connection_id?: string | null;
+  google_calendar_id?: string | null;
+  google_sync_enabled?: boolean;
+  google_last_sync_at?: string | null;
+  google_last_error?: string | null;
 }
