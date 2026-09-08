@@ -97,7 +97,7 @@ export function ExternalTeamDialog({
       kind: "esterna",
       subappaltatore_id: null,
       leader_user_id: null,
-      color: null,
+      color: "#3b82f6",
     },
   });
 
@@ -128,7 +128,7 @@ export function ExternalTeamDialog({
         kind: "esterna",
         subappaltatore_id: null,
         leader_user_id: null,
-        color: null,
+        color: "#3b82f6",
       });
     }
   }, [team, form]);
