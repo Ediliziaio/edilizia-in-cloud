@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ArrowLeft, CalendarDays, CheckCircle2, Clock, ExternalLink, Loader2, Mail, Phone, ShieldCheck, User, Video } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 const PUBLIC_BOOKING_TIMEOUT_MS = 8_000;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -130,6 +131,25 @@ export default function PublicBooking() {
       return (data || []) as Array<{ start_at: string; end_at: string }>;
     },
     enabled: !!calendar?.id && !!selectedDayRange,
+  });
+
+  // Appuntamenti gia' fissati sul giorno scelto: la vista pubblica espone solo
+  // inizio e fine, mai il nome di chi ha prenotato.
+  const { data: existingAppointments = [], isFetching: existingAppointmentsFetching } = useQuery({
+    queryKey: queryKeys.publicBooking.appointments(calendar?.id, dateStr),
+    queryFn: async () => {
+      if (!calendar?.id || !dateStr) return [];
+      const { data, error } = await supabase
+        .from("public_appointment_slots")
+        .select("appointment_time, appointment_end_time")
+        .eq("company_id", calendar.company_id)
+        .eq("calendar_id", calendar.id)
+        .eq("appointment_date", dateStr)
+        .or("is_blocked_slot.is.null,is_blocked_slot.eq.false");
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!calendar?.id && !!dateStr,
   });
 
   // Check if a time slot overlaps with any busy slot (Google or Apple)
@@ -324,9 +344,9 @@ export default function PublicBooking() {
 
   if (calLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="flex min-h-screen items-center justify-center bg-muted/30 px-4">
         <div className="text-center">
-          <Loader2 className="mx-auto h-8 w-8 animate-spin text-muted-foreground" />
+          <Loader2 className="mx-auto h-7 w-7 animate-spin text-muted-foreground" />
           <p className="mt-3 text-sm text-muted-foreground">Carico il calendario...</p>
         </div>
       </div>
@@ -335,14 +355,14 @@ export default function PublicBooking() {
 
   if (calError) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background px-4">
-        <div className="max-w-md text-center space-y-3">
-          <CalendarDays className="h-12 w-12 mx-auto text-muted-foreground" />
-          <h1 className="text-xl font-semibold">Calendario momentaneamente non disponibile</h1>
-          <p className="text-sm text-muted-foreground">
+      <div className="flex min-h-screen items-center justify-center bg-muted/30 px-4">
+        <div className="w-full max-w-sm rounded-2xl border bg-background p-6 text-center shadow-sm">
+          <CalendarDays className="mx-auto h-10 w-10 text-muted-foreground" />
+          <h1 className="mt-3 text-lg font-semibold">Calendario non raggiungibile</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
             {calLoadError instanceof Error ? calLoadError.message : "Non riesco a caricare il link di prenotazione."}
           </p>
-          <Button onClick={() => refetchCalendar()} disabled={calFetching}>
+          <Button className="mt-5 h-11 w-full" onClick={() => refetchCalendar()} disabled={calFetching}>
             {calFetching ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
             Riprova
           </Button>
@@ -353,19 +373,22 @@ export default function PublicBooking() {
 
   if (!calendar) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center space-y-2">
-          <CalendarDays className="h-12 w-12 mx-auto text-muted-foreground" />
-          <h1 className="text-xl font-semibold">Calendario non trovato</h1>
-          <p className="text-muted-foreground">Il link di prenotazione non è valido o il calendario non è attivo.</p>
+      <div className="flex min-h-screen items-center justify-center bg-muted/30 px-4">
+        <div className="w-full max-w-sm rounded-2xl border bg-background p-6 text-center shadow-sm">
+          <CalendarDays className="mx-auto h-10 w-10 text-muted-foreground" />
+          <h1 className="mt-3 text-lg font-semibold">Calendario non trovato</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Il link di prenotazione non è valido o il calendario non è più attivo.
+          </p>
         </div>
       </div>
     );
   }
 
+  const durata = calendar.duration_minutes || 30;
   const selectedStart = selectedDate && selectedSlot ? parse(selectedSlot, "HH:mm", selectedDate) : null;
   const selectedEnd = selectedStart
-    ? new Date(selectedStart.getTime() + (calendar.duration_minutes || 30) * 60000)
+    ? new Date(selectedStart.getTime() + durata * 60000)
     : null;
   const calendarDateRange = selectedStart && selectedEnd
     ? `${format(selectedStart, "yyyyMMdd'T'HHmmss")}/${format(selectedEnd, "yyyyMMdd'T'HHmmss")}`
@@ -380,44 +403,59 @@ export default function PublicBooking() {
 
   if (booked) {
     return (
-      <div className="min-h-screen bg-muted/30 px-4 py-8">
-        <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-xl items-center justify-center">
-          <div className="w-full rounded-xl border bg-background p-8 text-center shadow-sm">
-            <CheckCircle2 className="h-16 w-16 mx-auto text-emerald-500" />
-            <h1 className="mt-4 text-2xl font-bold">Prenotazione confermata</h1>
-            <p className="mt-2 text-muted-foreground">
-            Il tuo appuntamento è stato fissato per il{" "}
-            <strong>{selectedDate && format(selectedDate, "d MMMM yyyy", { locale: it })}</strong> alle{" "}
-            <strong>{selectedSlot}</strong>.
-          </p>
-            <p className="mt-4 text-sm text-muted-foreground">Riceverai conferma dall'azienda se sono necessarie altre informazioni.</p>
-            {usesGoogleMeet && (
-              <div className="mt-4 rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
-                <Video className="mr-2 inline h-4 w-4" />
-                Videocall Google Meet: il link verrà creato dall'azienda e aggiunto all'evento calendario.
-              </div>
-            )}
-            {(addToGoogleUrl || addToOutlookUrl) && (
-              <div className="mt-6 grid gap-2 sm:grid-cols-2">
-                {addToGoogleUrl && (
-                  <Button variant="outline" asChild>
-                    <a href={addToGoogleUrl} target="_blank" rel="noopener noreferrer">
-                      <ExternalLink className="mr-2 h-4 w-4" />
-                      Google Calendar
-                    </a>
-                  </Button>
-                )}
-                {addToOutlookUrl && (
-                  <Button variant="outline" asChild>
-                    <a href={addToOutlookUrl} target="_blank" rel="noopener noreferrer">
-                      <ExternalLink className="mr-2 h-4 w-4" />
-                      Outlook
-                    </a>
-                  </Button>
-                )}
-              </div>
-            )}
+      <div className="flex min-h-screen items-center justify-center bg-muted/30 px-4 py-8">
+        <div className="w-full max-w-md rounded-2xl border bg-background p-6 text-center shadow-sm sm:p-8">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+            <CheckCircle2 className="h-8 w-8" />
           </div>
+          <h1 className="mt-4 text-xl font-semibold tracking-tight sm:text-2xl">Prenotazione confermata</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{calendar.name}</p>
+
+          <div className="mt-5 rounded-xl border bg-muted/30 p-4 text-left">
+            <p className="text-sm font-medium first-letter:uppercase">
+              {selectedDate && format(selectedDate, "EEEE d MMMM yyyy", { locale: it })}
+            </p>
+            <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+              <Clock className="h-4 w-4 shrink-0" />
+              <span className="tabular-nums">{selectedSlot}</span>
+              <span>· {durata} minuti</span>
+              {fusoDiverso && selectedDate && selectedSlot && (
+                <span>· le {oraLocale(selectedDate, selectedSlot)} da te</span>
+              )}
+            </p>
+          </div>
+
+          {usesGoogleMeet && (
+            <div className="mt-3 flex items-start gap-2 rounded-xl border border-sky-200 bg-sky-50 p-3 text-left text-xs text-sky-900">
+              <Video className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>Il link Google Meet viene creato dall'azienda e aggiunto all'evento in calendario.</span>
+            </div>
+          )}
+
+          {(addToGoogleUrl || addToOutlookUrl) && (
+            <div className="mt-5 grid gap-2 sm:grid-cols-2">
+              {addToGoogleUrl && (
+                <Button variant="outline" className="h-11" asChild>
+                  <a href={addToGoogleUrl} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink className="mr-2 h-4 w-4" />
+                    Google Calendar
+                  </a>
+                </Button>
+              )}
+              {addToOutlookUrl && (
+                <Button variant="outline" className="h-11" asChild>
+                  <a href={addToOutlookUrl} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink className="mr-2 h-4 w-4" />
+                    Outlook
+                  </a>
+                </Button>
+              )}
+            </div>
+          )}
+
+          <p className="mt-4 text-xs text-muted-foreground">
+            Riceverai conferma dall'azienda se servono altre informazioni.
+          </p>
         </div>
       </div>
     );
@@ -425,6 +463,9 @@ export default function PublicBooking() {
 
   const slotsLoading = !!selectedDate && (existingAppointmentsFetching || busyFetching);
   const canSubmit = selectedDate && selectedSlot && form.first_name.trim() && hasContactMethod && emailIsValid && !slotsLoading;
+  // Due passi veri: prima quando, poi chi sei. Su telefono il secondo passo
+  // prende tutto lo schermo — il calendario resta solo da tablet in su.
+  const passo = selectedSlot ? 2 : 1;
   const selectedSummary = selectedDate && selectedSlot
     ? `${format(selectedDate, "EEEE d MMMM yyyy", { locale: it })} alle ${selectedSlot}${
         fusoDiverso ? ` (le ${oraLocale(selectedDate, selectedSlot)} da te)` : ""
@@ -432,67 +473,50 @@ export default function PublicBooking() {
     : null;
 
   return (
-    <div className="min-h-screen bg-muted/30 px-4 py-6 sm:py-10">
-      <div className="mx-auto max-w-5xl overflow-hidden rounded-xl border bg-background shadow-sm">
-        <div className="grid min-h-[680px] lg:grid-cols-[340px_1fr]">
-          <aside className="border-b bg-muted/20 p-6 lg:border-b-0 lg:border-r">
-            <div className="space-y-6">
+    <div className="min-h-screen bg-muted/30 sm:px-4 sm:py-10">
+      <div className="mx-auto min-h-screen max-w-5xl overflow-hidden bg-background sm:min-h-0 sm:rounded-2xl sm:border sm:shadow-sm">
+        <div className="lg:grid lg:min-h-[640px] lg:grid-cols-[300px_1fr]">
+          <aside className="border-b bg-muted/20 px-4 py-5 sm:px-6 lg:border-b-0 lg:border-r lg:p-6">
+            <div className="space-y-4 lg:sticky lg:top-6 lg:space-y-6">
               <div>
-                <CalendarDays className="h-10 w-10 text-primary" />
-                <h1 className="mt-4 text-2xl font-bold tracking-tight">{calendar.name}</h1>
-                {calendar.description && <p className="mt-2 text-sm text-muted-foreground">{calendar.description}</p>}
-              </div>
-
-              <div className="space-y-3 text-sm">
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <Clock className="h-4 w-4" />
-                  <span>{calendar.duration_minutes || 30} minuti</span>
+                <div className="mb-4 hidden h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary lg:flex">
+                  <CalendarDays className="h-5 w-5" />
                 </div>
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <CalendarDays className="h-4 w-4" />
-                  <span>
-                    Orari in fuso Europe/Rome
-                    {fusoDiverso && <> · tu sei su {fusoVisitatore}</>}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <ShieldCheck className="h-4 w-4" />
-                  <span>Conferma immediata in calendario</span>
-                </div>
-                {usesGoogleMeet && (
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <Video className="h-4 w-4" />
-                    <span>Videocall Google Meet</span>
-                  </div>
+                <h1 className="text-lg font-semibold tracking-tight sm:text-xl lg:text-2xl lg:font-bold">
+                  {calendar.name}
+                </h1>
+                {calendar.description && (
+                  <p className="mt-1.5 line-clamp-2 text-sm text-muted-foreground lg:line-clamp-none">
+                    {calendar.description}
+                  </p>
                 )}
               </div>
 
-              <div className="rounded-lg border bg-background p-3 text-sm">
-                <p className="font-medium">Percorso prenotazione</p>
-                <div className="mt-3 space-y-2">
-                  {[
-                    { label: "Scegli data", ok: !!selectedDate },
-                    { label: "Scegli orario", ok: !!selectedSlot },
-                    { label: "Lascia i dati", ok: !!selectedSlot && !!form.first_name.trim() },
-                  ].map((step, index) => (
-                    <div key={step.label} className="flex items-center gap-2 text-xs">
-                      {step.ok ? (
-                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                      ) : (
-                        <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full border text-[10px] text-muted-foreground">
-                          {index + 1}
-                        </span>
-                      )}
-                      <span className={step.ok ? "text-foreground" : "text-muted-foreground"}>{step.label}</span>
-                    </div>
-                  ))}
-                </div>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground lg:flex-col lg:items-start lg:gap-3 lg:text-sm">
+                <span className="inline-flex items-center gap-1.5">
+                  <Clock className="h-3.5 w-3.5 shrink-0 lg:h-4 lg:w-4" />
+                  {durata} minuti
+                </span>
+                {usesGoogleMeet && (
+                  <span className="inline-flex items-center gap-1.5">
+                    <Video className="h-3.5 w-3.5 shrink-0 lg:h-4 lg:w-4" />
+                    Google Meet
+                  </span>
+                )}
+                <span className="inline-flex items-center gap-1.5">
+                  <CalendarDays className="h-3.5 w-3.5 shrink-0 lg:h-4 lg:w-4" />
+                  {fusoDiverso ? <>Orari italiani · tu su {fusoVisitatore}</> : <>Orari italiani</>}
+                </span>
+                <span className="hidden items-center gap-1.5 lg:inline-flex">
+                  <ShieldCheck className="h-4 w-4 shrink-0" />
+                  Conferma immediata
+                </span>
               </div>
 
               {selectedSummary && (
-                <div className="rounded-lg border bg-background p-3 text-sm">
-                  <p className="font-medium">Hai scelto</p>
-                  <p className="mt-1 text-muted-foreground">{selectedSummary}</p>
+                <div className="hidden rounded-xl border bg-background p-3 text-sm lg:block">
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Hai scelto</p>
+                  <p className="mt-1.5 font-medium leading-snug first-letter:uppercase">{selectedSummary}</p>
                   <Button
                     variant="ghost"
                     size="sm"
@@ -507,162 +531,255 @@ export default function PublicBooking() {
             </div>
           </aside>
 
-          <main className="grid gap-6 p-5 md:grid-cols-[minmax(280px,360px)_1fr] md:p-6">
-          {/* Date picker */}
-          <div className="space-y-2">
-            <Label className="text-base font-semibold">Scegli una data</Label>
-            <Calendar
-              mode="single"
-              selected={selectedDate}
-              onSelect={(d) => { setSelectedDate(d); setSelectedSlot(null); }}
-              disabled={isDateDisabled}
-              locale={it}
-              className="rounded-md border"
-            />
-            {availabilityLoading && (
-              <p className="flex items-center gap-2 rounded-lg border bg-muted/20 p-3 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Carico disponibilità e regole del calendario...
-              </p>
-            )}
-            {availabilityError && (
-              <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-                {availabilityLoadError instanceof Error
-                  ? availabilityLoadError.message
-                  : "Non riesco a caricare la disponibilità del calendario."}
+          <main className="p-4 sm:p-6">
+            <div className="lg:hidden">
+              <div className="flex items-baseline justify-between gap-3">
+                <p className="text-sm font-medium">{passo === 1 ? "Scegli data e ora" : "Lascia i tuoi dati"}</p>
+                <p className="shrink-0 text-xs tabular-nums text-muted-foreground">Passo {passo} di 2</p>
               </div>
-            )}
-            {!availabilityLoading && !availabilityError && availability.length === 0 && (
-              <div className="rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">
-                Questo calendario non ha ancora giorni/orari pubblicati.
+              <div className="mt-2 flex gap-1.5" aria-hidden>
+                <span className="h-1 flex-1 rounded-full bg-primary" />
+                <span className={cn("h-1 flex-1 rounded-full", passo === 2 ? "bg-primary" : "bg-border")} />
               </div>
-            )}
-          </div>
+            </div>
 
-          {/* Time slots */}
-          <div className="space-y-3">
-            {!selectedDate ? (
-              <div className="flex min-h-[260px] items-center justify-center rounded-lg border border-dashed bg-muted/20 p-6 text-center">
-                <div className="max-w-xs">
-                  <CalendarDays className="mx-auto h-10 w-10 text-muted-foreground" />
-                  <p className="mt-3 font-medium">Seleziona una data</p>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Vedrai subito gli orari disponibili e potrai confermare in pochi passaggi.
+            <div className="mt-5 grid gap-5 md:grid-cols-[minmax(0,320px)_minmax(0,1fr)] md:gap-6 lg:mt-0">
+              {/* Passo 1 — la data */}
+              <div className={cn("space-y-3", selectedSlot && "hidden md:block")}>
+                <p className="hidden text-sm font-medium md:block">Scegli una data</p>
+                <Calendar
+                  mode="single"
+                  selected={selectedDate}
+                  onSelect={(d) => { setSelectedDate(d); setSelectedSlot(null); }}
+                  disabled={isDateDisabled}
+                  locale={it}
+                  className="w-full rounded-xl border p-2 sm:p-3"
+                  classNames={{
+                    month: "w-full space-y-4",
+                    month_grid: "w-full border-collapse",
+                    weekdays: "flex justify-between",
+                    week: "mt-1.5 flex w-full justify-between",
+                    // Celle piu' grandi (dito, non mouse) e giorno scelto pieno,
+                    // con il numero in bianco: e' l'unico punto della pagina in
+                    // cui si capisce dove sei.
+                    day: "relative h-10 w-10 rounded-lg p-0 text-center text-sm focus-within:relative focus-within:z-20",
+                    selected: "rounded-lg bg-primary [&>button]:text-primary-foreground [&>button:hover]:bg-primary/90 [&>button:hover]:text-primary-foreground",
+                  }}
+                />
+                {!selectedDate && !availabilityLoading && availability.length > 0 && (
+                  <p className="text-center text-xs text-muted-foreground md:hidden">
+                    Tocca un giorno per vedere gli orari liberi.
                   </p>
-                </div>
+                )}
+                {availabilityLoading && (
+                  <p className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Carico i giorni disponibili...
+                  </p>
+                )}
+                {availabilityError && (
+                  <p className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+                    {availabilityLoadError instanceof Error
+                      ? availabilityLoadError.message
+                      : "Non riesco a caricare la disponibilità del calendario."}
+                  </p>
+                )}
+                {!availabilityLoading && !availabilityError && availability.length === 0 && (
+                  <p className="rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">
+                    Questo calendario non ha ancora giorni e orari pubblicati.
+                  </p>
+                )}
               </div>
-            ) : (
-              <>
-                <Label className="text-base font-semibold">
-                  Orari disponibili — {format(selectedDate, "d MMMM", { locale: it })}
-                </Label>
-                {slotsLoading ? (
-                  <div className="flex items-center gap-2 rounded-lg border bg-muted/20 p-4 text-sm text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Controllo appuntamenti già fissati e calendari collegati...
+
+              {/* Passo 1b — gli orari · Passo 2 — i dati */}
+              {/* Finche' non c'e' una data, su telefono qui non va niente: il
+                  riquadro "scegli un giorno" sarebbe solo altro da scorrere. */}
+              <div className={cn("space-y-3", !selectedDate && "hidden md:block")}>
+                {!selectedDate ? (
+                  <div className="flex min-h-[280px] items-center justify-center rounded-xl border border-dashed bg-muted/20 p-6 text-center">
+                    <div className="max-w-[15rem]">
+                      <CalendarDays className="mx-auto h-8 w-8 text-muted-foreground" />
+                      <p className="mt-3 text-sm font-medium">Scegli un giorno</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Gli orari liberi compaiono qui.
+                      </p>
+                    </div>
                   </div>
-                ) : slots.length === 0 ? (
-                  <div className="rounded-lg border bg-muted/30 p-4 text-sm text-muted-foreground">
-                    Nessuno slot disponibile per questa data.
-                  </div>
+                ) : !selectedSlot ? (
+                  <>
+                    <div className="flex items-baseline justify-between gap-3">
+                      <p className="text-sm font-medium first-letter:uppercase">
+                        {format(selectedDate, "EEEE d MMMM", { locale: it })}
+                      </p>
+                      {!slotsLoading && slots.length > 0 && (
+                        <span className="shrink-0 text-xs text-muted-foreground">
+                          {slots.length} {slots.length === 1 ? "orario libero" : "orari liberi"}
+                        </span>
+                      )}
+                    </div>
+
+                    {slotsLoading ? (
+                      <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-3">
+                        {Array.from({ length: 6 }).map((_, i) => (
+                          <div key={i} className="h-12 animate-pulse rounded-lg bg-muted" />
+                        ))}
+                      </div>
+                    ) : slots.length === 0 ? (
+                      <div className="rounded-xl border bg-muted/30 p-4 text-sm text-muted-foreground">
+                        Nessun orario libero in questa data. Prova con un altro giorno.
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-3">
+                        {slots.map((slot) => (
+                          <button
+                            key={slot}
+                            type="button"
+                            onClick={() => setSelectedSlot(slot)}
+                            className="flex h-12 flex-col items-center justify-center rounded-lg border bg-background text-sm font-medium tabular-nums transition-colors hover:border-primary hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                          >
+                            {slot}
+                            {fusoDiverso && (
+                              <span className="text-[10px] font-normal text-muted-foreground">
+                                {oraLocale(selectedDate, slot)} da te
+                              </span>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </>
                 ) : (
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3">
-                    {slots.map((slot) => (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between gap-3 rounded-xl border bg-muted/30 p-3 md:hidden">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium first-letter:uppercase">
+                          {format(selectedDate, "EEEE d MMMM", { locale: it })} · {selectedSlot}
+                        </p>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {durata} minuti
+                          {fusoDiverso ? ` · le ${oraLocale(selectedDate, selectedSlot)} da te` : ""}
+                        </p>
+                      </div>
                       <Button
-                        key={slot}
-                        variant={selectedSlot === slot ? "default" : "outline"}
-                        className="h-10 text-sm"
-                        onClick={() => setSelectedSlot(slot)}
+                        variant="ghost"
+                        size="sm"
+                        className="h-9 shrink-0 gap-1 px-2 text-primary"
+                        onClick={() => setSelectedSlot(null)}
                       >
-                        <Clock className="h-3.5 w-3.5 mr-1" />
-                        {slot}
-                        {fusoDiverso && selectedDate && (
-                          <span className="ml-1 text-[11px] opacity-70">({oraLocale(selectedDate, slot)})</span>
-                        )}
+                        <ArrowLeft className="h-4 w-4" />
+                        Cambia
                       </Button>
-                    ))}
+                    </div>
+
+                    <p className="hidden text-sm font-medium md:block">I tuoi dati</p>
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="pb-nome" className="inline-flex items-center gap-1.5 text-xs font-medium">
+                          <User className="h-3.5 w-3.5" /> Nome *
+                        </Label>
+                        <Input
+                          id="pb-nome"
+                          autoComplete="given-name"
+                          value={form.first_name}
+                          onChange={(e) => setForm(f => ({ ...f, first_name: e.target.value }))}
+                          placeholder="Mario"
+                          className="h-11 md:h-10"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="pb-cognome" className="text-xs font-medium">Cognome</Label>
+                        <Input
+                          id="pb-cognome"
+                          autoComplete="family-name"
+                          value={form.last_name}
+                          onChange={(e) => setForm(f => ({ ...f, last_name: e.target.value }))}
+                          placeholder="Rossi"
+                          className="h-11 md:h-10"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="pb-email" className="inline-flex items-center gap-1.5 text-xs font-medium">
+                          <Mail className="h-3.5 w-3.5" /> Email
+                        </Label>
+                        <Input
+                          id="pb-email"
+                          type="email"
+                          inputMode="email"
+                          autoComplete="email"
+                          value={form.email}
+                          onChange={(e) => setForm(f => ({ ...f, email: e.target.value }))}
+                          placeholder="mario@email.com"
+                          aria-invalid={!emailIsValid}
+                          className={cn("h-11 md:h-10", !emailIsValid && "border-destructive focus-visible:ring-destructive")}
+                        />
+                        {!emailIsValid && <p className="text-xs text-destructive">Email non valida.</p>}
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="pb-telefono" className="inline-flex items-center gap-1.5 text-xs font-medium">
+                          <Phone className="h-3.5 w-3.5" /> Telefono
+                        </Label>
+                        <Input
+                          id="pb-telefono"
+                          type="tel"
+                          inputMode="tel"
+                          autoComplete="tel"
+                          value={form.phone}
+                          onChange={(e) => setForm(f => ({ ...f, phone: e.target.value }))}
+                          placeholder="+39 333 1234567"
+                          className="h-11 md:h-10"
+                        />
+                      </div>
+                    </div>
+
+                    {/* L'avviso arriva quando serve — all'apertura del modulo
+                        sarebbe un rimprovero a chi non ha ancora scritto nulla. */}
+                    {!hasContactMethod && !!form.first_name.trim() && (
+                      <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+                        Lascia almeno email o telefono: servono all'azienda per confermarti l'appuntamento.
+                      </p>
+                    )}
+
+                    <div className="space-y-1.5">
+                      <Label htmlFor="pb-note" className="text-xs font-medium">Note (facoltative)</Label>
+                      <Textarea
+                        id="pb-note"
+                        value={form.notes}
+                        onChange={(e) => setForm(f => ({ ...f, notes: e.target.value }))}
+                        placeholder="Di cosa vuoi parlare?"
+                        className="resize-none text-sm"
+                        rows={3}
+                      />
+                    </div>
+
+                    {/* Su telefono il tasto resta incollato in basso: con la
+                        tastiera aperta sulle note sparirebbe sotto. Dentro un
+                        iframe no — li' il riquadro cresce con il contenuto e una
+                        barra fissa coprirebbe il modulo. */}
+                    <div
+                      className={cn(
+                        "md:static md:z-auto md:border-0 md:bg-transparent md:px-0 md:pb-0 md:pt-0 md:backdrop-blur-none",
+                        !dentroIframe &&
+                          "fixed inset-x-0 bottom-0 z-20 border-t bg-background/95 px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur supports-[backdrop-filter]:bg-background/80",
+                      )}
+                    >
+                      <Button
+                        className="h-12 w-full text-base md:h-10 md:text-sm"
+                        disabled={!canSubmit || bookMutation.isPending}
+                        onClick={() => bookMutation.mutate()}
+                      >
+                        {bookMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                        Conferma prenotazione
+                      </Button>
+                    </div>
+                    {!dentroIframe && <div className="h-16 md:hidden" aria-hidden />}
                   </div>
                 )}
-              </>
-            )}
-
-            {selectedDate && !selectedSlot && slots.length > 0 && (
-              <p className="rounded-lg border bg-muted/20 p-3 text-sm text-muted-foreground">
-                Scegli un orario per aprire il modulo dati e completare la prenotazione.
-              </p>
-            )}
-
-            {selectedSlot && (
-              <div className="space-y-3 rounded-lg border bg-muted/20 p-4">
-                <Label className="text-base font-semibold">I tuoi dati</Label>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <Label className="text-xs inline-flex items-center gap-1"><User className="h-3 w-3" /> Nome *</Label>
-                    <Input
-                      value={form.first_name}
-                      onChange={(e) => setForm(f => ({ ...f, first_name: e.target.value }))}
-                      placeholder="Mario"
-                      className="h-8 text-sm"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Cognome</Label>
-                    <Input
-                      value={form.last_name}
-                      onChange={(e) => setForm(f => ({ ...f, last_name: e.target.value }))}
-                      placeholder="Rossi"
-                      className="h-8 text-sm"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <Label className="text-xs inline-flex items-center gap-1"><Mail className="h-3 w-3" /> Email</Label>
-                  <Input
-                    type="email"
-                    value={form.email}
-                    onChange={(e) => setForm(f => ({ ...f, email: e.target.value }))}
-                    placeholder="mario@email.com"
-                    className={`h-8 text-sm ${!emailIsValid ? "border-destructive focus-visible:ring-destructive" : ""}`}
-                  />
-                  {!emailIsValid && (
-                    <p className="mt-1 text-xs text-destructive">Email non valida.</p>
-                  )}
-                </div>
-                <div>
-                  <Label className="text-xs inline-flex items-center gap-1"><Phone className="h-3 w-3" /> Telefono</Label>
-                  <Input
-                    value={form.phone}
-                    onChange={(e) => setForm(f => ({ ...f, phone: e.target.value }))}
-                    placeholder="+39 333 1234567"
-                    className="h-8 text-sm"
-                  />
-                </div>
-                {!hasContactMethod && (
-                  <p className="rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
-                    Inserisci almeno email o telefono per permettere all'azienda di confermare l'appuntamento.
-                  </p>
-                )}
-                <div>
-                  <Label className="text-xs">Note</Label>
-                  <Textarea
-                    value={form.notes}
-                    onChange={(e) => setForm(f => ({ ...f, notes: e.target.value }))}
-                    placeholder="Informazioni aggiuntive..."
-                    className="text-sm resize-none"
-                    rows={2}
-                  />
-                </div>
-                <Button
-                  className="w-full"
-                  disabled={!canSubmit || bookMutation.isPending}
-                  onClick={() => bookMutation.mutate()}
-                >
-                  {bookMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                  Conferma prenotazione
-                </Button>
               </div>
-            )}
-          </div>
+            </div>
           </main>
         </div>
       </div>
