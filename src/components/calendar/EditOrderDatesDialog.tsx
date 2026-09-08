@@ -46,6 +46,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { weatherCodeToEmoji, weatherCodeToLabel, type LocationWeatherDay } from "@/hooks/useWeatherForecast";
 import type { CalendarOrder } from "@/types/calendar";
+import { DisponibilitaSquadra } from "@/components/calendar/DisponibilitaSquadra";
 import { Link } from "react-router-dom";
 
 /* ── Types ──────────────────────────────────────────────── */
@@ -759,6 +760,25 @@ export function EditOrderDatesDialog({
             </div>
           ) : (
             <p className="text-xs text-muted-foreground">Nessun subappaltatore</p>
+          )}
+          {/* Disponibilità: per ogni squadra, nelle date scelte nel form (non
+              in quelle salvate), è libera o è già altrove? Avvisa, non blocca. */}
+          {order.order_external_teams && order.order_external_teams.length > 0 && (
+            <div className="space-y-1">
+              {order.order_external_teams.map(oet => (
+                <DisponibilitaSquadra
+                  key={`disp-${oet.external_team.id}`}
+                  team={oet.external_team}
+                  orderId={order.id}
+                  date={{
+                    work_start_date: workStartDate ? format(workStartDate, "yyyy-MM-dd") : null,
+                    work_end_date: workEndDate ? format(workEndDate, "yyyy-MM-dd") : null,
+                    work_start_time: workStartTime || null,
+                    work_end_time: workEndTime || null,
+                  }}
+                />
+              ))}
+            </div>
           )}
           {availableTeams.length > 0 && (
             <Select onValueChange={(id) => addTeam.mutate(id)}>
