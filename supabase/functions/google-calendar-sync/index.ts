@@ -1,3 +1,4 @@
+import { costruisciEventoPosa, leggiDateDaEventoGoogle, stesseDate } from "../_shared/posaEvento.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import { getEncryptionKey, encrypt, decrypt } from "../_shared/encryption.ts";
@@ -145,6 +146,14 @@ async function pullBusySlots(userId: string, companyId: string): Promise<Respons
   (settings?.conflict_calendar_ids || []).forEach((id: string) => {
     if (id) calendarIdSet.add(id);
   });
+  // Calendari di squadra collegati su questa connessione: i loro impegni
+  // (ferie, altri lavori) servono alla disponibilità delle squadre.
+  const { data: calSquadre } = await admin
+    .from("external_teams")
+    .select("google_calendar_id")
+    .eq("google_connection_id", conn.id)
+    .eq("google_sync_enabled", true);
+  (calSquadre ?? []).forEach((t: any) => t.google_calendar_id && calendarIdSet.add(t.google_calendar_id));
   const calendarIds = Array.from(calendarIdSet);
   if (calendarIds.length === 0) {
     return json({ pulled: 0, message: "No calendars configured (né primary né conflict)" });
@@ -183,6 +192,8 @@ async function pullBusySlots(userId: string, companyId: string): Promise<Respons
 
       for (const event of events) {
         if (event.status === "cancelled") continue;
+        // Le pose le mettiamo noi: non sono «occupato» ma lavoro pianificato.
+        if (event.extendedProperties?.private?.eic_kind === "posa") continue;
 
         const isAllDay = !!event.start?.date;
         const startAt = isAllDay ? event.start.date + "T00:00:00Z" : event.start?.dateTime;
@@ -840,6 +851,280 @@ async function fullSync(userId: string, companyId: string): Promise<Response> {
   });
 }
 
+// ---- POSE (calendari lavori) ----
+// Vedi docs/superpowers/specs/2026-09-08-calendari-lavori-squadre-design.md.
+
+async function getConnectionById(admin: ReturnType<typeof getSupabaseAdmin>, id: string) {
+  const { data } = await admin
+    .from("google_calendar_connections")
+    .select("*")
+    .eq("id", id)
+    .eq("status", "connected")
+    .maybeSingle();
+  return data;
+}
+
+/** Svuota la coda (di un'azienda o di tutte): ogni commessa una volta sola, 3 tentativi. */
+async function processOrderQueue(companyId: string | null): Promise<{ processed: number; failed: number }> {
+  const admin = getSupabaseAdmin();
+  let q = admin
+    .from("google_calendar_sync_queue")
+    .select("id, company_id, entity_id, attempts")
+    .is("processed_at", null)
+    .lt("attempts", 3)
+    .order("created_at")
+    .limit(100);
+  if (companyId) q = q.eq("company_id", companyId);
+  const { data: righe } = await q;
+  const perCommessa = new Map<string, { ids: number[]; attempts: number }>();
+  for (const r of righe ?? []) {
+    const acc = perCommessa.get(r.entity_id) ?? { ids: [], attempts: 0 };
+    acc.ids.push(r.id);
+    acc.attempts = Math.max(acc.attempts, r.attempts ?? 0);
+    perCommessa.set(r.entity_id, acc);
+  }
+  let processed = 0, failed = 0;
+  for (const [orderId, acc] of perCommessa) {
+    try {
+      await syncOrderToGoogle(orderId);
+      await admin.from("google_calendar_sync_queue").update({ processed_at: new Date().toISOString() }).in("id", acc.ids);
+      processed++;
+    } catch (e) {
+      failed++;
+      await admin
+        .from("google_calendar_sync_queue")
+        .update({ attempts: acc.attempts + 1, last_error: String((e as Error).message).slice(0, 300) })
+        .in("id", acc.ids);
+    }
+  }
+  return { processed, failed };
+}
+
+interface Bersaglio { external_team_id: string | null; google_connection_id: string; google_calendar_id: string }
+
+const GCAL = "https://www.googleapis.com/calendar/v3/calendars";
+
+/** La commessa raggiunge tutti i suoi calendari: squadre assegnate + Posa aziendale. */
+async function syncOrderToGoogle(orderId: string): Promise<{ created: number; updated: number; removed: number }> {
+  const admin = getSupabaseAdmin();
+  const { data: order } = await admin
+    .from("orders")
+    .select("id, company_id, order_code, client_name, description, indirizzo_lavori, work_start_date, work_end_date, work_start_time, work_end_time")
+    .eq("id", orderId)
+    .maybeSingle();
+  if (!order) return { created: 0, updated: 0, removed: 0 };
+
+  const { data: squadre } = await admin
+    .from("order_external_teams")
+    .select("external_team:external_teams(id, google_connection_id, google_calendar_id, google_sync_enabled)")
+    .eq("order_id", orderId);
+  const { data: link } = await admin
+    .from("company_calendar_links")
+    .select("google_connection_id, google_calendar_id, enabled")
+    .eq("company_id", order.company_id)
+    .eq("kind", "posa")
+    .maybeSingle();
+
+  const bersagli: Bersaglio[] = [];
+  for (const r of (squadre ?? []) as any[]) {
+    const t = r.external_team;
+    if (t?.google_sync_enabled && t.google_connection_id && t.google_calendar_id) {
+      bersagli.push({ external_team_id: t.id, google_connection_id: t.google_connection_id, google_calendar_id: t.google_calendar_id });
+    }
+  }
+  if (link?.enabled && link.google_connection_id && link.google_calendar_id) {
+    if (!bersagli.some((b) => b.google_calendar_id === link.google_calendar_id)) {
+      bersagli.push({ external_team_id: null, google_connection_id: link.google_connection_id, google_calendar_id: link.google_calendar_id });
+    }
+  }
+  // Senza data di inizio non c'è evento: si toglie quello che c'era.
+  const bersagliAttivi = order.work_start_date ? bersagli : [];
+
+  const { data: mappe } = await admin.from("google_calendar_order_events").select("*").eq("order_id", orderId);
+  let created = 0, updated = 0, removed = 0;
+
+  // 1) via gli eventi dei calendari non più bersaglio
+  for (const m of mappe ?? []) {
+    if (bersagliAttivi.some((b) => b.google_calendar_id === m.google_calendar_id)) continue;
+    const conn = await getConnectionById(admin, m.google_connection_id);
+    const token = conn ? await getValidAccessToken(admin, conn) : null;
+    if (token) {
+      await fetch(`${GCAL}/${encodeURIComponent(m.google_calendar_id)}/events/${encodeURIComponent(m.google_event_id)}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(15000),
+      }).catch(() => {});
+    }
+    await admin.from("google_calendar_order_events").delete().eq("id", m.id);
+    removed++;
+  }
+
+  // 2) crea o aggiorna sui bersagli
+  if (bersagliAttivi.length === 0) return { created, updated, removed };
+  const evento = costruisciEventoPosa(order as any);
+  for (const b of bersagliAttivi) {
+    const conn = await getConnectionById(admin, b.google_connection_id);
+    const token = conn ? await getValidAccessToken(admin, conn) : null;
+    if (!token) {
+      await segnaErrorePosa(admin, order.company_id, b, "Account Google non collegato o scaduto");
+      continue;
+    }
+    const esistente = (mappe ?? []).find((m) => m.google_calendar_id === b.google_calendar_id);
+    const base = `${GCAL}/${encodeURIComponent(b.google_calendar_id)}/events`;
+    const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+    let res = await fetch(esistente ? `${base}/${encodeURIComponent(esistente.google_event_id)}` : base, {
+      method: esistente ? "PATCH" : "POST",
+      headers,
+      body: JSON.stringify(evento),
+      signal: AbortSignal.timeout(15000),
+    });
+    let mappaId: string | null = esistente?.id ?? null;
+    if (esistente && (res.status === 404 || res.status === 410)) {
+      // Evento sparito su Google (cancellato a mano): si ricrea.
+      await admin.from("google_calendar_order_events").delete().eq("id", esistente.id);
+      mappaId = null;
+      res = await fetch(base, { method: "POST", headers, body: JSON.stringify(evento), signal: AbortSignal.timeout(15000) });
+    }
+    if (!res.ok) {
+      await segnaErrorePosa(admin, order.company_id, b, `Google ${res.status}: ${(await res.text()).slice(0, 120)}`);
+      continue;
+    }
+    await salvaMappaPosa(admin, order, b, await res.json(), mappaId);
+    if (mappaId) updated++; else created++;
+    // Loop prevention: il webhook ignora l'eco di Google nei 15s successivi.
+    await admin
+      .from("google_calendar_connections")
+      .update({ last_sync_source: "crm", last_sync_at: new Date().toISOString() })
+      .eq("id", conn!.id);
+  }
+  return { created, updated, removed };
+}
+
+async function salvaMappaPosa(admin: ReturnType<typeof getSupabaseAdmin>, order: any, b: Bersaglio, g: any, mappaId: string | null) {
+  const adesso = new Date().toISOString();
+  const riga = {
+    company_id: order.company_id,
+    order_id: order.id,
+    external_team_id: b.external_team_id,
+    google_connection_id: b.google_connection_id,
+    google_calendar_id: b.google_calendar_id,
+    google_event_id: g.id,
+    etag: g.etag ?? null,
+    last_updated_by: "eic",
+    last_synced_at: adesso,
+    last_error: null,
+    updated_at: adesso,
+  };
+  if (mappaId) await admin.from("google_calendar_order_events").update(riga).eq("id", mappaId);
+  else await admin.from("google_calendar_order_events").insert(riga);
+  if (b.external_team_id) {
+    await admin.from("external_teams").update({ google_last_sync_at: adesso, google_last_error: null }).eq("id", b.external_team_id);
+  } else {
+    await admin.from("company_calendar_links").update({ last_sync_at: adesso, last_error: null }).eq("company_id", order.company_id).eq("kind", "posa");
+  }
+}
+
+async function segnaErrorePosa(admin: ReturnType<typeof getSupabaseAdmin>, companyId: string, b: Bersaglio, msg: string) {
+  if (b.external_team_id) await admin.from("external_teams").update({ google_last_error: msg }).eq("id", b.external_team_id);
+  else await admin.from("company_calendar_links").update({ last_error: msg }).eq("company_id", companyId).eq("kind", "posa");
+}
+
+/** Legge un calendario di squadra (o Posa) e riporta in EiC gli eventi di commessa cambiati. */
+async function pullCalendarOrders(connectionId: string, calendarId: string): Promise<{ changed: number; cancelled: number }> {
+  const admin = getSupabaseAdmin();
+  const conn = await getConnectionById(admin, connectionId);
+  const token = conn ? await getValidAccessToken(admin, conn) : null;
+  if (!token) return { changed: 0, cancelled: 0 };
+  const params = new URLSearchParams({
+    updatedMin: new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString(),
+    singleEvents: "true",
+    showDeleted: "true",
+    maxResults: "250",
+    privateExtendedProperty: "eic_kind=posa",
+  });
+  const res = await fetch(`${GCAL}/${encodeURIComponent(calendarId)}/events?${params}`, {
+    headers: { Authorization: `Bearer ${token}` },
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!res.ok) return { changed: 0, cancelled: 0 };
+  const eventi = ((await res.json()).items ?? []) as any[];
+  let changed = 0, cancelled = 0;
+  for (const ev of eventi) {
+    const { data: m } = await admin
+      .from("google_calendar_order_events")
+      .select("*")
+      .eq("google_calendar_id", calendarId)
+      .eq("google_event_id", ev.id)
+      .maybeSingle();
+    if (!m) continue;
+    if (ev.status === "cancelled") {
+      // La squadra ha cancellato la posa dal suo calendario: si toglie la squadra
+      // dalla commessa, le date restano. Sul calendario Posa aziendale si ricrea.
+      await admin.from("google_calendar_order_events").delete().eq("id", m.id);
+      if (m.external_team_id) {
+        await admin.from("order_external_teams").delete().eq("order_id", m.order_id).eq("external_team_id", m.external_team_id);
+        await avvisaCommessa(admin, m.order_id, m.external_team_id, "ha tolto la posa dal suo calendario", "La squadra è stata tolta dalla commessa; le date restano.");
+      } else {
+        await admin.from("google_calendar_sync_queue").insert({ company_id: m.company_id, entity_type: "order", entity_id: m.order_id, reason: "ricrea" });
+      }
+      cancelled++;
+      continue;
+    }
+    if (m.etag === ev.etag) continue;
+    const nuove = leggiDateDaEventoGoogle(ev);
+    if (!nuove) continue;
+    const { data: order } = await admin
+      .from("orders")
+      .select("id, company_id, work_start_date, work_end_date, work_start_time, work_end_time")
+      .eq("id", m.order_id)
+      .maybeSingle();
+    if (!order) continue;
+    await admin
+      .from("google_calendar_order_events")
+      .update({ etag: ev.etag ?? null, last_updated_by: "google", last_synced_at: new Date().toISOString() })
+      .eq("id", m.id);
+    const attuali = {
+      work_start_date: order.work_start_date ?? "",
+      work_end_date: order.work_end_date ?? "",
+      work_start_time: order.work_start_time,
+      work_end_time: order.work_end_time,
+    };
+    if (stesseDate(attuali, nuove)) continue; // solo l'eco di un nostro push
+    // Vince l'ultimo che ha toccato: qui è Google. Il trigger sulla commessa
+    // riaccoda e riallinea gli altri calendari (Posa aziendale, altre squadre).
+    await admin.from("orders").update({ ...nuove, updated_at: new Date().toISOString() }).eq("id", order.id);
+    const ora = (t: string | null) => (t ? " " + t.slice(0, 5) : "");
+    await avvisaCommessa(
+      admin, order.id, m.external_team_id, "ha spostato la posa",
+      `${nuove.work_start_date}${ora(nuove.work_start_time)} → ${nuove.work_end_date}${ora(nuove.work_end_time)}`,
+    );
+    changed++;
+  }
+  return { changed, cancelled };
+}
+
+async function avvisaCommessa(admin: ReturnType<typeof getSupabaseAdmin>, orderId: string, teamId: string | null, cosa: string, dettaglio: string) {
+  const { data: o } = await admin.from("orders").select("company_id, order_code, assigned_to, created_by").eq("id", orderId).maybeSingle();
+  if (!o) return;
+  const dest = o.assigned_to ?? o.created_by;
+  if (!dest) return;
+  let chi = "Il calendario Posa";
+  if (teamId) {
+    const { data: t } = await admin.from("external_teams").select("name").eq("id", teamId).maybeSingle();
+    chi = t?.name ? `Squadra ${t.name}` : "Una squadra";
+  }
+  await admin.rpc("create_notification", {
+    p_company_id: o.company_id,
+    p_user_id: dest,
+    p_type: "order",
+    p_title: `${chi} ${cosa}: ${o.order_code ?? "commessa"}`,
+    p_body: dettaglio,
+    p_entity_type: "order",
+    p_entity_id: orderId,
+    p_action_url: `/azienda/ordini/${orderId}`,
+  });
+}
+
 // ---- HELPERS ----
 function buildGoogleEventUrl(calendarId: string, eventId?: string, withConference = false): string {
   const base = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events${eventId ? `/${encodeURIComponent(eventId)}` : ""}`;
@@ -1101,6 +1386,21 @@ async function cronFullSync(): Promise<Response> {
       }
     }
 
+    // Pose: coda in uscita e rilettura dei calendari di squadra (rete di
+    // sicurezza per i webhook persi; il grosso passa dai canali).
+    let coda: { processed: number; failed: number } = { processed: 0, failed: 0 };
+    let calendariRiletti = 0;
+    try {
+      coda = await processOrderQueue(null);
+      const { data: watches } = await admin.from("google_calendar_watches").select("connection_id, calendar_id");
+      for (const w of watches ?? []) {
+        await pullCalendarOrders(w.connection_id, w.calendar_id).catch((e) => console.error("cron pull-calendar", e));
+        calendariRiletti++;
+      }
+    } catch (e) {
+      console.error("cronFullSync: pose", e);
+    }
+    results.push({ pose: { coda, calendariRiletti } });
     // Update audit log
     if (logId) {
       await admin.from("google_calendar_sync_log").update({
@@ -1135,6 +1435,20 @@ serveConMetriche("google-calendar-sync", async (req) => {
   }
 
   try {
+    // Chiamate interne (trigger/cron via pg_net): x-cron-secret, come
+    // cliente-notifica. Niente JWT: il segreto sta nel vault e nell'env.
+    const internalSecret = Deno.env.get("INTERNAL_CRON_SECRET");
+    const isInternal = !!internalSecret && req.headers.get("x-cron-secret") === internalSecret;
+    if (isInternal) {
+      const interno = await req.json();
+      if (interno.action === "process-order-queue") return json(await processOrderQueue(interno.companyId ?? null));
+      if (interno.action === "pull-calendar") {
+        if (!interno.connectionId || !interno.calendarId) return json({ error: "connectionId e calendarId richiesti" }, 400);
+        return json(await pullCalendarOrders(interno.connectionId, interno.calendarId));
+      }
+      return json({ error: `Unknown internal action: ${interno.action}` }, 400);
+    }
+
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
       return json({ error: "Unauthorized" }, 401);
@@ -1205,6 +1519,14 @@ serveConMetriche("google-calendar-sync", async (req) => {
         return deleteEvent(userId, companyId, appointmentId, googleEventId, googleCalendarId);
       case "full-sync":
         return fullSync(userId, companyId);
+      case "push-order":
+        if (!body.orderId) return json({ error: "orderId required" }, 400);
+        return json(await syncOrderToGoogle(body.orderId));
+      case "process-order-queue":
+        return json(await processOrderQueue(companyId));
+      case "pull-calendar":
+        if (!body.connectionId || !body.calendarId) return json({ error: "connectionId e calendarId richiesti" }, 400);
+        return json(await pullCalendarOrders(body.connectionId, body.calendarId));
       case "reconcile": {
         const result = await reconcilePrimary(userId, companyId);
         return json({ success: true, reconcile: result });
