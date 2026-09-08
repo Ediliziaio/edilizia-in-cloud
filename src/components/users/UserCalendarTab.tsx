@@ -272,20 +272,31 @@ export function UserCalendarTab() {
         </CardContent>
       </Card>
 
-      {/* Outlook — Coming Soon */}
-      <Card className="opacity-60">
+      {/* Outlook — disponibile, si collega dal profilo o dalle impostazioni calendari */}
+      <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
-              <CardTitle className="text-base">Microsoft Outlook</CardTitle>
-            </div>
-            <Badge variant="secondary" className="text-xs">In arrivo</Badge>
+            <Calendar className="h-5 w-5" />
+            <CardTitle className="text-base">Microsoft Outlook</CardTitle>
           </div>
           <CardDescription>
-            La sincronizzazione con Outlook Calendar sarà disponibile prossimamente.
+            La sincronizzazione con Outlook (Microsoft 365) è attiva, in sola lettura: gli
+            impegni Outlook compaiono come occupati nel calendario. Si collega con l'account
+            Microsoft da Impostazioni → Calendari.
           </CardDescription>
         </CardHeader>
+        {isOwnProfile && (
+          <CardContent className="pt-0">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate("/azienda/impostazioni/calendari")}
+            >
+              <ExternalLink className="h-4 w-4 mr-1.5" />
+              Apri impostazioni calendari
+            </Button>
+          </CardContent>
+        )}
       </Card>
 
       {/* Apple Calendar — disponibile, si collega dalle impostazioni calendari */}

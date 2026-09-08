@@ -36,7 +36,7 @@ interface BusySlot {
   is_all_day: boolean;
   user_id: string;
   google_calendar_id?: string | null;
-  provider?: "google" | "apple";
+  provider?: "google" | "apple" | "outlook";
 }
 
 interface Props {
@@ -413,6 +413,8 @@ export default function MarketingCalendarMonthView({
                           ? slot.end_at ? `${fmt(slot.start_at)}–${fmt(slot.end_at)}` : fmt(slot.start_at)
                           : null;
                         const isApple = slot.provider === "apple";
+                        const isOutlook = slot.provider === "outlook";
+                        const providerLabel = isApple ? "Apple Calendar" : isOutlook ? "Outlook Calendar" : "Google Calendar";
                         return (
                           <button
                             type="button"
@@ -422,16 +424,18 @@ export default function MarketingCalendarMonthView({
                               "flex w-full cursor-pointer items-center gap-1 truncate rounded border-l-2 border-dashed px-1.5 py-1 text-left text-[11px] leading-tight transition-colors",
                               isApple
                                 ? "border-zinc-500/60 bg-zinc-100/80 text-zinc-700 italic hover:bg-zinc-200/80"
-                                : "border-blue-500/60 bg-blue-50 text-blue-800 italic hover:bg-blue-100"
+                                : isOutlook
+                                  ? "border-indigo-500/60 bg-indigo-50 text-indigo-800 italic hover:bg-indigo-100"
+                                  : "border-blue-500/60 bg-blue-50 text-blue-800 italic hover:bg-blue-100"
                             )}
-                            title={`${slot.summary || "Occupato"}${range ? ` · ${range}` : ""} (da ${isApple ? "Apple Calendar" : "Google Calendar"})`}
+                            title={`${slot.summary || "Occupato"}${range ? ` · ${range}` : ""} (da ${providerLabel})`}
                           >
                             <CalendarIcon
                               className={cn(
                                 "h-3 w-3 shrink-0",
-                                isApple ? "text-zinc-600" : "text-blue-600"
+                                isApple ? "text-zinc-600" : isOutlook ? "text-indigo-600" : "text-blue-600"
                               )}
-                              aria-label={isApple ? "Apple Calendar" : "Google Calendar"}
+                              aria-label={providerLabel}
                             />
                             {range && <span className="font-medium shrink-0">{range}</span>}
                             <span className="truncate">{slot.summary || "Occupato"}</span>

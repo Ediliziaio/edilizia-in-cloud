@@ -60,6 +60,16 @@ type AppleCalRow = {
   updated_at: string | null;
   profile?: ProfileLite | null;
 };
+type OutlookCalRow = {
+  id: string;
+  user_id: string;
+  microsoft_account_email: string | null;
+  status: string;
+  last_sync_at: string | null;
+  last_error: string | null;
+  updated_at: string | null;
+  profile?: ProfileLite | null;
+};
 
 /**
  * Profili degli utenti collegati con una seconda query `.in()`.
@@ -180,14 +190,33 @@ export default function CompanyCalendarsOverview() {
     enabled: isAdmin && !!companyId,
   });
 
+  const { data: outlookRows = [], isLoading: oLoading } = useQuery<OutlookCalRow[]>({
+    queryKey: ["company-outlook-calendars", companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const { data, error } = await supabase
+        .from("outlook_calendar_connections")
+        .select("id, user_id, microsoft_account_email, status, last_sync_at, last_error, updated_at")
+        .eq("company_id", companyId)
+        .order("status", { ascending: true })
+        .order("last_sync_at", { ascending: false });
+      if (error) throw error;
+      const righe = (data || []) as OutlookCalRow[];
+      const profili = await caricaProfili(righe.map((r) => r.user_id));
+      return righe.map((r) => ({ ...r, profile: profili.get(r.user_id) ?? null }));
+    },
+    enabled: isAdmin && !!companyId,
+  });
+
   if (!isAdmin) {
     return <NonAdminPlaceholder />;
   }
 
-  const isLoading = gLoading || aLoading;
+  const isLoading = gLoading || aLoading || oLoading;
   const googleConnected = googleRows.filter((r) => r.status === "connected").length;
   const appleConnected = appleRows.filter((r) => r.status === "connected").length;
-  const hasAny = googleRows.length > 0 || appleRows.length > 0;
+  const outlookConnected = outlookRows.filter((r) => r.status === "connected").length;
+  const hasAny = googleRows.length > 0 || appleRows.length > 0 || outlookRows.length > 0;
 
   return (
     <Card>
@@ -198,7 +227,7 @@ export default function CompanyCalendarsOverview() {
             <CardTitle className="text-base">Calendari aziendali</CardTitle>
           </div>
           <CardDescription className="text-xs">
-            Panoramica di tutti i Google Calendar e Apple Calendar collegati dagli
+            Panoramica di tutti i Google Calendar, Outlook e Apple Calendar collegati dagli
             utenti della tua azienda. Per gestire i tuoi calendari personali vai a{" "}
             <button
               type="button"
@@ -227,7 +256,7 @@ export default function CompanyCalendarsOverview() {
         {!isLoading && !hasAny && (
           <div className="text-center py-6 text-sm text-muted-foreground">
             Nessun utente dell'azienda ha ancora collegato un calendario. Invita gli
-            utenti a connettere il proprio Google / Apple Calendar dal loro profilo.
+            utenti a connettere il proprio Google / Outlook / Apple Calendar dal loro profilo.
           </div>
         )}
 
@@ -276,6 +305,32 @@ export default function CompanyCalendarsOverview() {
                       key={row.id}
                       userName={formatUserName(row.profile, row.user_id)}
                       accountEmail={row.apple_id_email}
+                      status={row.status}
+                      lastSyncAt={row.last_sync_at}
+                      lastError={row.last_error}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
+
+            {/* Outlook */}
+            <section className="space-y-2">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold">Microsoft Outlook</h3>
+                <span className="text-xs text-muted-foreground">
+                  {outlookConnected}/{outlookRows.length} attivo
+                </span>
+              </div>
+              {outlookRows.length === 0 ? (
+                <p className="text-xs text-muted-foreground">Nessuna connessione Outlook.</p>
+              ) : (
+                <div className="border rounded-md divide-y">
+                  {outlookRows.map((row) => (
+                    <CalendarRow
+                      key={row.id}
+                      userName={formatUserName(row.profile, row.user_id)}
+                      accountEmail={row.microsoft_account_email}
                       status={row.status}
                       lastSyncAt={row.last_sync_at}
                       lastError={row.last_error}

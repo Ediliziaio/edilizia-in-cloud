@@ -8,6 +8,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useGoogleCalendarSync } from "@/hooks/useGoogleCalendarSync";
 import { useAppleCalendarSync } from "@/hooks/useAppleCalendarSync";
+import { useOutlookCalendarSync } from "@/hooks/useOutlookCalendarSync";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { useCalendarWeather, type CalendarLocation } from "@/hooks/useWeatherForecast";
 import { CalendarMonthView } from "@/components/calendar/CalendarMonthView";
@@ -88,6 +89,7 @@ function CalendarInner() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { isGoogleConnected, pullBusySlots } = useGoogleCalendarSync();
   const { isAppleConnected } = useAppleCalendarSync();
+  const { isOutlookConnected } = useOutlookCalendarSync();
   const [view, setViewState] = useState<CalendarViewType>(() => normalizeCalendarView(searchParams.get("view"), isMobile));
   const [currentDate, setCurrentDate] = useState(new Date());
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -662,13 +664,35 @@ function CalendarInner() {
     staleTime: 2 * 60 * 1000,
   });
 
+  // Fetch Outlook Calendar busy slots (sola lettura: Microsoft → EiC)
+  const { data: outlookBusySlots = [] } = useQuery({
+    queryKey: ["outlook-busy-slots", effectiveCompany?.id, permissions.onlyAssigned, user?.id],
+    queryFn: async () => {
+      if (!effectiveCompany?.id) return [];
+      let q = supabase
+        .from("outlook_calendar_busy_slots")
+        .select("id, start_at, end_at, summary, is_all_day, user_id, outlook_event_id")
+        .eq("company_id", effectiveCompany.id);
+      if (permissions.onlyAssigned && user?.id) q = q.eq("user_id", user.id);
+      const { data, error } = await q;
+      if (error) throw error;
+      return (data || []).map((s: { id: string; start_at: string; end_at: string; summary: string | null; is_all_day: boolean; user_id: string; outlook_event_id: string | null }) => ({
+        ...s,
+        google_calendar_id: s.outlook_event_id,
+        provider: "outlook",
+      })) as GoogleBusySlot[];
+    },
+    enabled: !!effectiveCompany?.id && isOutlookConnected && showGoogleBusy,
+    staleTime: 2 * 60 * 1000,
+  });
+
   // 2026-05-26 (audit fix P2): memoizzato per evitare re-render cascata su
   // CalendarDayView/WeekView/MonthView ad ogni cambio filtri/toggle. Senza
   // memo, l'array veniva ricreato ad ogni render → reference inequality →
   // sub-components ri-render anche se i dati non cambiavano.
   const busySlots = useMemo(
-    () => [...googleBusySlots, ...appleBusySlots],
-    [googleBusySlots, appleBusySlots],
+    () => [...googleBusySlots, ...appleBusySlots, ...outlookBusySlots],
+    [googleBusySlots, appleBusySlots, outlookBusySlots],
   );
 
   // Fetch synced appointment IDs for badge display
@@ -1208,6 +1232,12 @@ function CalendarInner() {
             <Badge variant="outline" className="gap-1 text-gray-600 border-gray-300 hidden sm:flex">
               <CheckCircle2 className="h-3 w-3" />
               <span className="text-xs">Apple Sync</span>
+            </Badge>
+          )}
+          {isOutlookConnected && (
+            <Badge variant="outline" className="gap-1 text-indigo-700 border-indigo-300 hidden sm:flex">
+              <CheckCircle2 className="h-3 w-3" />
+              <span className="text-xs">Outlook Sync</span>
             </Badge>
           )}
 

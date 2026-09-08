@@ -63,7 +63,7 @@ export interface GoogleBusySlot {
   is_all_day: boolean;
   user_id: string;
   google_calendar_id: string | null;
-  provider?: "google" | "apple";
+  provider?: "google" | "apple" | "outlook";
 }
 
 export interface ApprovedLeave {

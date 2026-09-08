@@ -182,6 +182,28 @@ export default function SettingsIntegrations() {
     enabled: !!companyId && !!userId,
   });
 
+  // ── Query: Outlook Calendar (per stale token check) ──────────────────────
+  const { data: outlookCalConnection } = useQuery({
+    queryKey: ["outlook-calendar-connection-summary", companyId, userId],
+    queryFn: async () => {
+      if (!companyId || !userId) return null;
+      const { data } = await supabase
+        .from("outlook_calendar_connections")
+        .select("id, status, microsoft_account_email, updated_at")
+        .eq("company_id", companyId)
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (!data) return null;
+      // L'eta' del token si calcola qui, nel caricamento: nel render il
+      // compilatore React segnala Date.now() come impuro.
+      const giorniDalRinnovo = data.updated_at
+        ? Math.floor((Date.now() - new Date(data.updated_at).getTime()) / 86400000)
+        : null;
+      return { ...data, giorniDalRinnovo };
+    },
+    enabled: !!companyId && !!userId,
+  });
+
   // ── Query: Email OAuth (personale) ────────────────────────────────────────
   const { data: emailConnections = [] } = useQuery({
     queryKey: ["email-oauth-connections-summary", companyId, userId],
@@ -282,8 +304,15 @@ export default function SettingsIntegrations() {
       );
       if (ageDays > TOKEN_STALE_DAYS) warnings.push(`Apple Calendar (${ageDays}gg)`);
     }
+    if (
+      outlookCalConnection?.status === "connected" &&
+      outlookCalConnection.giorniDalRinnovo !== null &&
+      outlookCalConnection.giorniDalRinnovo > TOKEN_STALE_DAYS
+    ) {
+      warnings.push(`Outlook Calendar (${outlookCalConnection.giorniDalRinnovo}gg)`);
+    }
     return warnings;
-  }, [gcalConnection, appleCalConnection]);
+  }, [gcalConnection, appleCalConnection, outlookCalConnection]);
 
   // ── Popup + wizard registry ───────────────────────────────────────────────
   const externalWizardRegistry = useMemo(

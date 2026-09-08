@@ -266,6 +266,7 @@ export default function MarketingCalendarDayView({
                       dettaglio dell'evento esterno. */}
                   {slotBusy.map((busy, bi) => {
                     const isApple = busy.provider === "apple";
+                    const isOutlook = busy.provider === "outlook";
                     const startHM = busy.start_at.slice(11, 16);
                     const endHM = busy.end_at.slice(11, 16);
                     // L'etichetta va mostrata solo nella cella in cui l'evento INIZIA,
@@ -273,24 +274,26 @@ export default function MarketingCalendarDayView({
                     const sMin = timeToMin(startHM);
                     const cellMin = timeToMin(slotTime);
                     const isStartCell = sMin >= cellMin && sMin < cellMin + slotDurationMinutes;
-                    const label = busy.summary || (isApple ? "Occupato (Apple)" : "Occupato (Google)");
+                    const label = busy.summary || (isApple ? "Occupato (Apple)" : isOutlook ? "Occupato (Outlook)" : "Occupato (Google)");
                     return (
                       <button
                         type="button"
                         key={`busy-${busy.id}-${bi}`}
                         onClick={(e) => { e.stopPropagation(); onClickBusySlot?.(busy); }}
-                        title={`${busy.summary || "Occupato"} · ${startHM}–${endHM} (${isApple ? "Apple" : "Google"} Calendar)`}
+                        title={`${busy.summary || "Occupato"} · ${startHM}–${endHM} (${isApple ? "Apple" : isOutlook ? "Outlook" : "Google"} Calendar)`}
                         className={cn(
                           "absolute inset-0 z-0 flex flex-col items-start overflow-hidden border-l-2 px-1 py-0.5 text-left transition-colors",
                           isApple
                             ? "border-zinc-400/70 bg-zinc-100/70 hover:bg-zinc-200/80 dark:bg-zinc-800/30"
-                            : "border-blue-500/70 bg-blue-100/70 hover:bg-blue-200/80 dark:bg-blue-900/30"
+                            : isOutlook
+                              ? "border-indigo-500/70 bg-indigo-100/70 hover:bg-indigo-200/80 dark:bg-indigo-900/30"
+                              : "border-blue-500/70 bg-blue-100/70 hover:bg-blue-200/80 dark:bg-blue-900/30"
                         )}
                       >
                         {isStartCell && (
                           <span className={cn(
                             "flex max-w-full items-center gap-1 text-[10px] font-medium leading-tight",
-                            isApple ? "text-zinc-700 dark:text-zinc-300" : "text-blue-800 dark:text-blue-200"
+                            isApple ? "text-zinc-700 dark:text-zinc-300" : isOutlook ? "text-indigo-800 dark:text-indigo-200" : "text-blue-800 dark:text-blue-200"
                           )}>
                             <CalendarIcon className="h-2.5 w-2.5 shrink-0" />
                             <span className="truncate">{startHM}–{endHM} · {label}</span>

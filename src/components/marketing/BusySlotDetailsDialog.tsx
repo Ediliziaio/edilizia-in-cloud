@@ -19,7 +19,7 @@ export interface BusySlotDetail {
   end_at: string;
   summary: string | null;
   is_all_day: boolean;
-  provider?: "google" | "apple";
+  provider?: "google" | "apple" | "outlook";
   ownerName?: string | null;
 }
 
@@ -33,7 +33,8 @@ export default function BusySlotDetailsDialog({ slot, open, onOpenChange }: Busy
   if (!slot) return null;
 
   const isApple = slot.provider === "apple";
-  const sourceLabel = isApple ? "Apple Calendar" : "Google Calendar";
+  const isOutlook = slot.provider === "outlook";
+  const sourceLabel = isApple ? "Apple Calendar" : isOutlook ? "Outlook Calendar" : "Google Calendar";
   const start = parseISO(slot.start_at);
   const end = parseISO(slot.end_at);
   const dateLabel = format(start, "EEEE d MMMM yyyy", { locale: it });
@@ -47,7 +48,7 @@ export default function BusySlotDetailsDialog({ slot, open, onOpenChange }: Busy
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-left">
-            <CalendarIcon className={cn("h-4 w-4 shrink-0", isApple ? "text-zinc-600" : "text-blue-600")} />
+            <CalendarIcon className={cn("h-4 w-4 shrink-0", isApple ? "text-zinc-600" : isOutlook ? "text-indigo-600" : "text-blue-600")} />
             <span className="truncate">{hasTitle ? slot.summary : "Occupato"}</span>
           </DialogTitle>
         </DialogHeader>
@@ -69,6 +70,7 @@ export default function BusySlotDetailsDialog({ slot, open, onOpenChange }: Busy
           <div className={cn(
             "flex items-center gap-2 rounded-md px-3 py-2 text-xs",
             isApple ? "bg-zinc-100/80 text-zinc-700 dark:bg-zinc-800/40 dark:text-zinc-300"
+              : isOutlook ? "bg-indigo-50 text-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-200"
               : "bg-blue-50 text-blue-800 dark:bg-blue-950/40 dark:text-blue-200"
           )}>
             <CalendarIcon className="h-3.5 w-3.5 shrink-0" />

@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useGoogleCalendarSync } from "@/hooks/useGoogleCalendarSync";
 import { useAppleCalendarSync } from "@/hooks/useAppleCalendarSync";
+import { useOutlookCalendarSync } from "@/hooks/useOutlookCalendarSync";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { ApiHealthBanner } from "@/components/marketing/ApiHealthBanner";
 import { toast } from "sonner";
@@ -75,8 +76,10 @@ export default function MarketingCalendar() {
   const permissions = usePermissions();
   const googleSync = useGoogleCalendarSync();
   const appleSync = useAppleCalendarSync();
+  const outlookSync = useOutlookCalendarSync();
   const { isGoogleConnected } = googleSync;
   const { isAppleConnected } = appleSync;
+  const { isOutlookConnected } = outlookSync;
   const calendarSettingsPath = isAdminContext
     ? "/admin/impostazioni/calendari"
     : "/azienda/impostazioni/calendari";
@@ -128,7 +131,34 @@ export default function MarketingCalendar() {
     staleTime: 2 * 60 * 1000,
   });
 
-  const busySlots = useMemo(() => [...googleBusySlots, ...appleBusySlots], [googleBusySlots, appleBusySlots]);
+  // Outlook (Microsoft 365): la sync scrive in outlook_calendar_busy_slots, ma
+  // fino al 2026-09-08 li leggeva solo la prenotazione pubblica — nel
+  // calendario interno gli impegni Outlook non comparivano.
+  const { data: outlookBusySlots = [], error: outlookBusyError, refetch: refetchOutlookBusySlots } = useQuery({
+    queryKey: ["outlook-busy-slots", companyId, permissions.onlyAssigned, user?.id],
+    queryFn: async () => {
+      if (!companyId) return [];
+      let q = supabase
+        .from("outlook_calendar_busy_slots")
+        .select("id, start_at, end_at, summary, is_all_day, user_id, outlook_event_id")
+        .eq("company_id", companyId);
+      if (permissions.onlyAssigned && user?.id) q = q.eq("user_id", user.id);
+      const { data, error } = await q;
+      if (error) throw error;
+      return (data || []).map((s: { id: string; start_at: string; end_at: string; summary: string | null; is_all_day: boolean; user_id: string; outlook_event_id: string | null }) => ({
+        ...s,
+        google_calendar_id: s.outlook_event_id,
+        provider: "outlook" as const,
+      }));
+    },
+    enabled: !!companyId && isOutlookConnected,
+    staleTime: 2 * 60 * 1000,
+  });
+
+  const busySlots = useMemo(
+    () => [...googleBusySlots, ...appleBusySlots, ...outlookBusySlots],
+    [googleBusySlots, appleBusySlots, outlookBusySlots],
+  );
 
   const [activeTab, setActiveTab] = useState<TabKey>("calendar");
   // 2026-05-27: ripristinato lo switcher Day/Week/Month dopo bug in cui mancava
@@ -208,7 +238,7 @@ export default function MarketingCalendar() {
   // Click su un evento esterno (busy slot Google/Apple): apre il dettaglio,
   // risolvendo il nome del proprietario del calendario per mostrarlo nella dialog.
   const handleClickBusySlot = useCallback(
-    (slot: { id: string; start_at: string; end_at: string; summary: string | null; is_all_day: boolean; provider?: "google" | "apple"; user_id?: string }) => {
+    (slot: { id: string; start_at: string; end_at: string; summary: string | null; is_all_day: boolean; provider?: "google" | "apple" | "outlook"; user_id?: string }) => {
       const owner = rawStaffUsers.find((u) => u.id === slot.user_id);
       const ownerName = owner ? `${owner.first_name ?? ""} ${owner.last_name ?? ""}`.trim() : null;
       setBusySlotDetail({
@@ -273,6 +303,20 @@ export default function MarketingCalendar() {
         },
         () => {
           void queryClient.invalidateQueries({ queryKey: ["apple-busy-slots", companyId] });
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          // outlook_calendar_busy_slots e' una VISTA su questa tabella: si
+          // ascolta la tabella (migrazione 20280911110002) e si rilegge la vista.
+          table: "outlook_calendar_events",
+          filter: `company_id=eq.${companyId}`,
+        },
+        () => {
+          void queryClient.invalidateQueries({ queryKey: ["outlook-busy-slots", companyId] });
         },
       )
       .on(
@@ -456,7 +500,7 @@ export default function MarketingCalendar() {
     return busySlots.filter((s: any) => s.user_id && selectedUserIds.includes(s.user_id));
   }, [busySlots, selectedUserIds, users.length]);
 
-  const calendarLoadError = calendarsError || appointmentsError || contactsError || googleBusyError || appleBusyError;
+  const calendarLoadError = calendarsError || appointmentsError || contactsError || googleBusyError || appleBusyError || outlookBusyError;
   const calendarLoadErrorMessage =
     calendarLoadError instanceof Error
       ? calendarLoadError.message
@@ -993,10 +1037,10 @@ export default function MarketingCalendar() {
   // ritorna false ma hasGoogleConnection è true (caso primary_calendar_id
   // NULL → la sync function ora ha default 'primary' lato edge).
   const handleSyncExternalCalendars = useCallback(async () => {
-    const hasAny = googleSync.hasGoogleConnection || appleSync.hasAppleConnection;
+    const hasAny = googleSync.hasGoogleConnection || appleSync.hasAppleConnection || outlookSync.hasOutlookConnection;
     if (!hasAny) {
       toast("Nessun calendario esterno collegato", {
-        description: "Collega Google Calendar o Apple Calendar dalle impostazioni del tuo profilo.",
+        description: "Collega Google Calendar, Outlook o Apple Calendar dalle impostazioni del tuo profilo.",
         action: {
           label: "Apri impostazioni",
           onClick: () => {
@@ -1012,6 +1056,7 @@ export default function MarketingCalendar() {
       const tasks: Promise<unknown>[] = [];
       if (googleSync.hasGoogleConnection) tasks.push(googleSync.pullBusySlots());
       if (appleSync.hasAppleConnection) tasks.push(appleSync.pullBusySlots());
+      if (outlookSync.hasOutlookConnection) tasks.push(outlookSync.pullBusySlots());
 
       const results = await Promise.allSettled(tasks);
       const failed = results.filter((r) => r.status === "rejected").length;
@@ -1019,6 +1064,7 @@ export default function MarketingCalendar() {
       await Promise.allSettled([
         refetchGoogleBusySlots(),
         refetchAppleBusySlots(),
+        refetchOutlookBusySlots(),
         refetchAppointments(),
       ]);
 
@@ -1042,9 +1088,11 @@ export default function MarketingCalendar() {
     appleSync,
     calendarSettingsPath,
     googleSync,
+    outlookSync,
     refetchAppleBusySlots,
     refetchAppointments,
     refetchGoogleBusySlots,
+    refetchOutlookBusySlots,
   ]);
 
   const tabs = [
@@ -1118,7 +1166,13 @@ export default function MarketingCalendar() {
                   Apple sync
                 </Badge>
               )}
-              {!isGoogleConnected && !isAppleConnected && (
+              {isOutlookConnected && (
+                <Badge variant="outline" className="h-5 gap-1 border-indigo-200 bg-indigo-50 px-1.5 text-[10px] text-indigo-700">
+                  <CheckCircle2 className="h-3 w-3" />
+                  Outlook sync
+                </Badge>
+              )}
+              {!isGoogleConnected && !isAppleConnected && !isOutlookConnected && (
                 <Badge variant="outline" className="h-5 gap-1 px-1.5 text-[10px] text-muted-foreground">
                   Sync esterna non collegata
                 </Badge>
@@ -1287,6 +1341,7 @@ export default function MarketingCalendar() {
               void refetchAppointments();
               void refetchGoogleBusySlots();
               void refetchAppleBusySlots();
+              void refetchOutlookBusySlots();
             }}
           >
             Riprova
