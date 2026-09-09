@@ -2,12 +2,11 @@ import { useState } from "react";
 import { useSEO, SITE_URL } from "@/hooks/useSEO";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { HubSeoSchema } from "@/components/seo/HubSeoSchema";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import LandingNavbar from "@/components/landing/LandingNavbar";
 import LandingFooter from "@/components/landing/LandingFooter";
 import { submitPublicLeadToCrm, attachReferralToLead } from "@/lib/publicLeadSubmit";
 import { getRenderLeadContext } from "@/lib/renderLeadContext";
-import { CalendarioInPagina } from "@/components/marketing/CalendarioInPagina";
 
 const DEMO_FAQS = [
   {
@@ -74,6 +73,7 @@ export default function Demo() {
     marketingConsent: false,
   });
   const [errors, setErrors] = useState<FormErrors>({});
+  const navigate = useNavigate();
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -187,7 +187,10 @@ export default function Demo() {
         // Solo tag tipologici stabili. Slug specifico già in metadata (render_slug).
         tags: renderContext ? ["richiesta-render"] : [],
       });
+      // La conferma vive su /demo/grazie: una pagina con un indirizzo suo, che
+      // si misura come conversione e dove si sceglie subito la data.
       setSubmitted(true);
+      navigate("/demo/grazie", { replace: true });
       // Aggancio referral (best-effort, non blocca la UX): l'edge function
       // referral-attach-lead annota il contatto-lead appena creato col partner.
       if (referralCode) {
@@ -361,17 +364,12 @@ export default function Demo() {
                   </svg>
                 </div>
                 <h2 className="text-2xl font-bold text-[#111111] mb-3">
-                  Richiesta ricevuta. Vuoi fissare tu la data?
+                  Richiesta ricevuta.
                 </h2>
                 <p className="text-[#111111]/60 text-sm leading-relaxed mb-8">
-                  Scegli qui sotto il giorno e l'ora che ti comodi: la demo è confermata subito.
-                  Altrimenti ti chiamiamo noi entro 24 ore lavorative.
+                  Ti portiamo alla pagina dove scegli giorno e ora della demo.
+                  Se non succede, <Link to="/demo/grazie" className="underline">aprila da qui</Link>.
                 </p>
-
-                {/* Aspettare la telefonata costa appuntamenti: chi ha appena
-                    lasciato i dati e' il momento in cui e' piu' disponibile a
-                    scegliere una data. */}
-                <CalendarioInPagina slug="demo-edilizia-in-cloud" className="mb-8 text-left" />
 
                 <div className="flex flex-col sm:flex-row gap-3 justify-center items-stretch sm:items-center">
                   <Link

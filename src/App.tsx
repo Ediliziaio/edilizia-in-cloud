@@ -145,6 +145,7 @@ const AutoreFlorin = lazy(() => import("@/pages/AutoreFlorin"));
 const Prezzi = lazy(() => import("@/pages/Prezzi"));
 const OffertaCheckout = lazy(() => import("@/pages/OffertaCheckout"));
 const OffertaGrazie = lazy(() => import("@/pages/OffertaGrazie"));
+const DemoGrazie = lazy(() => import("@/pages/DemoGrazie"));
 const Confronto = lazy(() => import("@/pages/Confronto"));
 // Strumenti pubblici (calcolatori gratuiti) — hub + 4 pagine.
 const Strumenti = lazy(() => import("@/pages/Strumenti"));
@@ -585,6 +586,7 @@ const App = () => (
               <Route path="/home" element={<Navigate to="/" replace />} />
               <Route path="/register" element={<Navigate to="/demo/" replace />} />
               <Route path="/demo" element={<Demo />} />
+              <Route path="/demo/grazie" element={<DemoGrazie />} />
               <Route path="/funzionalita" element={<Funzionalita />} />
               <Route path="/chi-siamo" element={<ChiSiamo />} />
               <Route path="/autore/florin-andriciuc" element={<AutoreFlorin />} />

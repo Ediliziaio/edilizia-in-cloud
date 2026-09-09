@@ -195,14 +195,20 @@ export default function PublicBooking() {
   const dentroIframe = typeof window !== "undefined" && window.parent !== window;
   useEffect(() => {
     if (!dentroIframe) return;
+    // L'altezza da mandare e' quella del CONTENUTO, non del body: il body si
+    // estende fino al fondo del riquadro, quindi misurandolo si misura il
+    // riquadro stesso — il sito lo allargava, il body cresceva con lui e i due
+    // si rincorrevano fino al tetto (2000px di vuoto sotto il calendario).
+    const contenuto = document.getElementById("root") ?? document.body;
     const invia = () => {
       try {
-        window.parent.postMessage({ source: "eic-prenota", event: "altezza", height: document.body.scrollHeight }, "*");
+        const h = Math.ceil(contenuto.getBoundingClientRect().height);
+        if (h > 0) window.parent.postMessage({ source: "eic-prenota", event: "altezza", height: h }, "*");
       } catch { /* origine diversa: nessun problema */ }
     };
     invia();
     const osservatore = new ResizeObserver(invia);
-    osservatore.observe(document.body);
+    osservatore.observe(contenuto);
     return () => osservatore.disconnect();
   }, [dentroIframe]);
 
@@ -348,7 +354,7 @@ export default function PublicBooking() {
 
   if (calLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-muted/30 px-4">
+      <div className={cn("flex items-center justify-center bg-muted/30 px-4", dentroIframe ? "min-h-[360px]" : "min-h-screen")}>
         <div className="text-center">
           <Loader2 className="mx-auto h-7 w-7 animate-spin text-muted-foreground" />
           <p className="mt-3 text-sm text-muted-foreground">Carico il calendario...</p>
@@ -359,7 +365,7 @@ export default function PublicBooking() {
 
   if (calError) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-muted/30 px-4">
+      <div className={cn("flex items-center justify-center bg-muted/30 px-4", dentroIframe ? "min-h-[360px]" : "min-h-screen")}>
         <div className="w-full max-w-sm rounded-2xl border bg-background p-6 text-center shadow-sm">
           <CalendarDays className="mx-auto h-10 w-10 text-muted-foreground" />
           <h1 className="mt-3 text-lg font-semibold">Calendario non raggiungibile</h1>
@@ -377,7 +383,7 @@ export default function PublicBooking() {
 
   if (!calendar) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-muted/30 px-4">
+      <div className={cn("flex items-center justify-center bg-muted/30 px-4", dentroIframe ? "min-h-[360px]" : "min-h-screen")}>
         <div className="w-full max-w-sm rounded-2xl border bg-background p-6 text-center shadow-sm">
           <CalendarDays className="mx-auto h-10 w-10 text-muted-foreground" />
           <h1 className="mt-3 text-lg font-semibold">Calendario non trovato</h1>
@@ -407,7 +413,7 @@ export default function PublicBooking() {
 
   if (booked) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-muted/30 px-4 py-8">
+      <div className={cn("flex items-center justify-center bg-muted/30 px-4 py-8", dentroIframe ? "min-h-[420px]" : "min-h-screen")}>
         <div className="w-full max-w-md rounded-2xl border bg-background p-6 text-center shadow-sm sm:p-8">
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
             <CheckCircle2 className="h-8 w-8" />
@@ -477,9 +483,15 @@ export default function PublicBooking() {
     : null;
 
   return (
-    <div className="min-h-screen bg-muted/30 sm:px-4 sm:py-10">
-      <div className="mx-auto min-h-screen max-w-5xl overflow-hidden bg-background sm:min-h-0 sm:rounded-2xl sm:border sm:shadow-sm">
-        <div className="lg:grid lg:min-h-[640px] lg:grid-cols-[300px_1fr]">
+    // Dentro un iframe l'altezza la decide il contenuto: con min-h-screen la
+    // pagina e' alta quanto il riquadro, il riquadro si adatta all'altezza
+    // della pagina, e i due si rincorrono fino al tetto dei 2000px.
+    <div className={cn("bg-muted/30 sm:px-4", dentroIframe ? "py-0 sm:py-4" : "min-h-screen sm:py-10")}>
+      <div className={cn(
+        "mx-auto max-w-5xl overflow-hidden bg-background sm:rounded-2xl sm:border sm:shadow-sm",
+        !dentroIframe && "min-h-screen sm:min-h-0",
+      )}>
+        <div className={cn("lg:grid lg:grid-cols-[300px_1fr]", !dentroIframe && "lg:min-h-[640px]")}>
           <aside className="border-b bg-muted/20 px-4 py-5 sm:px-6 lg:border-b-0 lg:border-r lg:p-6">
             <div className="space-y-4 lg:sticky lg:top-6 lg:space-y-6">
               <div>
