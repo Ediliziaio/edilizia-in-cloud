@@ -17,6 +17,28 @@ import { cn } from "@/lib/utils";
 const PUBLIC_BOOKING_TIMEOUT_MS = 8_000;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/**
+ * La forma dei campi che la vista `public_booking_calendars` restituisce.
+ * Serve scritta a mano: la vista e' nata oggi e i tipi generati da Supabase
+ * (src/integrations/supabase/types.ts) non la conoscono — senza, il risultato
+ * della query e' `never` e ogni `calendar.qualcosa` diventa un errore.
+ */
+interface CalendarioPubblico {
+  id: string;
+  name: string;
+  description: string | null;
+  company_id: string;
+  duration_minutes: number | null;
+  booking_slug: string;
+  owner_id: string | null;
+  default_meeting_provider: string | null;
+  default_meeting_enabled: boolean | null;
+  buffer_before_min: number | null;
+  buffer_after_min: number | null;
+  min_notice_minutes: number | null;
+  max_per_day: number | null;
+}
+
 function withPublicBookingTimeout<T>(promise: PromiseLike<T>, label: string): Promise<T> {
   return new Promise((resolve, reject) => {
     const timeoutId = window.setTimeout(() => {
@@ -76,7 +98,7 @@ export default function PublicBooking() {
         "Calendario",
       );
       if (error) throw error;
-      return data;
+      return (data ?? null) as unknown as CalendarioPubblico | null;
     },
     enabled: !!slug,
     retry: false,

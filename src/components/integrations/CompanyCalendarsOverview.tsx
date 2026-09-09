@@ -168,7 +168,9 @@ export default function CompanyCalendarsOverview() {
         .eq("is_active", true)
         .not("external_connection_id", "is", null);
       const mappa = new Map<string, string[]>();
-      for (const c of (data ?? []) as Array<{ name: string; external_connection_id: string }>) {
+      // `as unknown` di mezzo: le colonne dell'aggancio sono piu' recenti dei
+      // tipi generati, che qui vedrebbero un errore di colonna inesistente.
+      for (const c of (data ?? []) as unknown as Array<{ name: string; external_connection_id: string }>) {
         mappa.set(c.external_connection_id, [...(mappa.get(c.external_connection_id) ?? []), c.name]);
       }
       return mappa;
