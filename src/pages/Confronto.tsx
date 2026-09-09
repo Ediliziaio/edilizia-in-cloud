@@ -325,8 +325,8 @@ export default function Confronto() {
         "offers": {
           "@type": "AggregateOffer",
           "priceCurrency": "EUR",
-          "lowPrice": "99",
-          "highPrice": "437",
+          "lowPrice": "127",
+          "highPrice": "547",
           "offerCount": "3",
         },
         "aggregateRating": {

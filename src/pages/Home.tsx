@@ -91,8 +91,8 @@ export default function Home() {
         "offers": {
           "@type": "AggregateOffer",
           "priceCurrency": "EUR",
-          "lowPrice": "99",
-          "highPrice": "437",
+          "lowPrice": "127",
+          "highPrice": "547",
           "offerCount": "3"
         },
         "aggregateRating": {
@@ -133,9 +133,9 @@ export default function Home() {
           {
             "@type": "Offer",
             "name": "Piano Gestionale",
-            "price": "99",
+            "price": "127",
             "priceCurrency": "EUR",
-            "validFrom": "2026-04-14",
+            "validFrom": "2026-04-13",
             "priceValidUntil": "2026-12-31",
             "availability": "https://schema.org/InStock",
             "url": "https://www.ediliziaincloud.com/prezzi/",
@@ -162,9 +162,9 @@ export default function Home() {
           {
             "@type": "Offer",
             "name": "Piano Professionista",
-            "price": "197",
+            "price": "247",
             "priceCurrency": "EUR",
-            "validFrom": "2026-04-14",
+            "validFrom": "2026-04-13",
             "priceValidUntil": "2026-12-31",
             "availability": "https://schema.org/InStock",
             "url": "https://www.ediliziaincloud.com/prezzi/",
@@ -191,9 +191,9 @@ export default function Home() {
           {
             "@type": "Offer",
             "name": "Piano Impresa AI",
-            "price": "437",
+            "price": "547",
             "priceCurrency": "EUR",
-            "validFrom": "2026-04-14",
+            "validFrom": "2026-04-13",
             "priceValidUntil": "2026-12-31",
             "availability": "https://schema.org/InStock",
             "url": "https://www.ediliziaincloud.com/prezzi/",

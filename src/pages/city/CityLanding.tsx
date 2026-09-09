@@ -3070,7 +3070,7 @@ export default function CityLanding() {
         "areaServed": { "@type": "City", "name": config.name },
         "offers": {
           "@type": "AggregateOffer",
-          "lowPrice": 79, "highPrice": 319, "priceCurrency": "EUR", "offerCount": 3,
+          "lowPrice": 127, "highPrice": 547, "priceCurrency": "EUR", "offerCount": 3,
         },
         "aggregateRating": {
           "@type": "AggregateRating",

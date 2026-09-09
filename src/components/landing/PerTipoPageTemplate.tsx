@@ -276,9 +276,9 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
           "@type": "OfferCatalog",
           "name": "Piani Edilizia in Cloud",
           "itemListElement": [
-            { "@type": "Offer", "name": "Gestionale", "price": 99, "priceCurrency": "EUR", "url": "https://www.ediliziaincloud.com/prezzi" },
-            { "@type": "Offer", "name": "Professionista", "price": 197, "priceCurrency": "EUR", "url": "https://www.ediliziaincloud.com/prezzi" },
-            { "@type": "Offer", "name": "Impresa AI", "price": 437, "priceCurrency": "EUR", "url": "https://www.ediliziaincloud.com/prezzi" }
+            { "@type": "Offer", "name": "Gestionale", "price": 127, "priceCurrency": "EUR", "url": "https://www.ediliziaincloud.com/prezzi" },
+            { "@type": "Offer", "name": "Professionista", "price": 247, "priceCurrency": "EUR", "url": "https://www.ediliziaincloud.com/prezzi" },
+            { "@type": "Offer", "name": "Impresa AI", "price": 547, "priceCurrency": "EUR", "url": "https://www.ediliziaincloud.com/prezzi" }
           ]
         }
       }} />

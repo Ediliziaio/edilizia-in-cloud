@@ -274,9 +274,11 @@ export default function CasiStudio() {
         "url": SITE_URL,
         "publisher": { "@id": `${SITE_URL}/#organization` },
         "offers": {
-          "@type": "Offer",
-          "price": "49",
+          "@type": "AggregateOffer",
           "priceCurrency": "EUR",
+          "lowPrice": "127",
+          "highPrice": "547",
+          "offerCount": "3",
           "availability": "https://schema.org/InStock",
           "url": `${SITE_URL}/prezzi`
         },
