@@ -9,16 +9,12 @@
  * - Success rate 7gg
  * - Errori ultime 24h (chiamata all'azione: clic → apri filtro errori)
  *
- * Design: 2 righe di card, cliccabili dove ha senso filtrare la lista.
+ * Design: una riga sola di numeri, cliccabili dove ha senso filtrare la lista.
  */
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import {
-  Zap, PlayCircle, Users, Activity, CheckCircle2, AlertTriangle,
-} from "lucide-react";
 
 interface Props {
   companyId: string;
@@ -29,13 +25,13 @@ interface Props {
 const MS_DAY = 86400 * 1000;
 
 export function AutomationOverviewStats({ companyId, onErrorClick, onActiveClick }: Props) {
-  const nowIso = new Date().toISOString();
-  const day1Iso = new Date(Date.now() - MS_DAY).toISOString();
-  const day7Iso = new Date(Date.now() - 7 * MS_DAY).toISOString();
-
   const { data, isLoading } = useQuery({
     queryKey: ["automation-overview-stats", companyId],
     queryFn: async () => {
+      // Le finestre temporali si calcolano QUI: leggere l'orologio durante il
+      // render e' impuro (e il lint di questo repo lo blocca).
+      const day1Iso = new Date(Date.now() - MS_DAY).toISOString();
+      const day7Iso = new Date(Date.now() - 7 * MS_DAY).toISOString();
       // Parallelizza tutte le count query — tutte head+count=exact per leggerezza.
       const [
         flowsTotal,
@@ -72,98 +68,59 @@ export function AutomationOverviewStats({ companyId, onErrorClick, onActiveClick
   });
 
   if (isLoading || !data) {
-    return (
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <Skeleton key={i} className="h-20 rounded-lg" />
-        ))}
-      </div>
-    );
+    return <Skeleton className="h-16 rounded-xl" />;
   }
 
   const successRate = data.runs7d > 0
     ? Math.round((data.runs7dSuccess / data.runs7d) * 100)
     : null;
 
-  return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-      <StatCard
-        icon={<Zap className="h-4 w-4" />}
-        label="Flussi totali"
-        value={data.flowsTotal}
-        accent="bg-primary/10 text-primary"
-      />
-      <StatCard
-        icon={<PlayCircle className="h-4 w-4" />}
-        label="Attivi (published)"
-        value={data.flowsActive}
-        accent="bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
-        onClick={onActiveClick}
-      />
-      <StatCard
-        icon={<Users className="h-4 w-4" />}
-        label="Iscrizioni attive"
-        value={data.enrollmentsActive}
-        accent="bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
-      />
-      <StatCard
-        icon={<Activity className="h-4 w-4" />}
-        label="Esecuzioni 24h"
-        value={data.runs24h}
-        subtitle={`${data.runs7d} negli ultimi 7gg`}
-        accent="bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300"
-      />
-      <StatCard
-        icon={<CheckCircle2 className="h-4 w-4" />}
-        label="Success rate 7gg"
-        value={successRate !== null ? `${successRate}%` : "—"}
-        subtitle={successRate === null ? "Nessuna esecuzione" : `${data.runs7dSuccess}/${data.runs7d} OK`}
-        accent="bg-teal-100 text-teal-700 dark:bg-teal-950 dark:text-teal-300"
-      />
-      <StatCard
-        icon={<AlertTriangle className="h-4 w-4" />}
-        label="Errori 24h"
-        value={data.errors24h}
-        accent={data.errors24h > 0
-          ? "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300"
-          : "bg-muted text-muted-foreground"}
-        onClick={data.errors24h > 0 ? onErrorClick : undefined}
-        active={data.errors24h > 0}
-      />
-    </div>
-  );
-}
+  const voci: Array<{ label: string; value: string | number; nota?: string; onClick?: () => void; allarme?: boolean }> = [
+    { label: "Flussi", value: data.flowsTotal },
+    { label: "Attivi", value: data.flowsActive, onClick: onActiveClick },
+    { label: "Iscrizioni", value: data.enrollmentsActive },
+    { label: "Esecuzioni 24h", value: data.runs24h, nota: data.runs7d > 0 ? `${data.runs7d} in 7gg` : undefined },
+    {
+      label: "Riuscite 7gg",
+      value: successRate !== null ? `${successRate}%` : "—",
+      nota: successRate !== null ? `${data.runs7dSuccess}/${data.runs7d}` : undefined,
+    },
+    {
+      label: "Errori 24h",
+      value: data.errors24h,
+      onClick: data.errors24h > 0 ? onErrorClick : undefined,
+      allarme: data.errors24h > 0,
+    },
+  ];
 
-function StatCard({
-  icon, label, value, subtitle, accent, onClick, active,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string | number;
-  subtitle?: string;
-  accent: string;
-  onClick?: () => void;
-  active?: boolean;
-}) {
+  // 09/09/2026 — Erano sei card colorate alte quanto mezzo schermo, con sei
+  // zeri dentro: gridavano senza dire niente. Ora sono una riga sola; l'unica
+  // che si colora è quella degli errori, e solo quando ce ne sono davvero.
   return (
-    <Card
-      className={cn(
-        "transition-all",
-        onClick && "cursor-pointer hover:shadow-md",
-        active && "ring-1 ring-rose-300"
-      )}
-      onClick={onClick}
-    >
-      <CardContent className="p-3 flex items-start gap-2.5">
-        <div className={cn("p-1.5 rounded-lg shrink-0", accent)}>{icon}</div>
-        <div className="min-w-0 flex-1">
-          <p className="text-[10px] text-muted-foreground uppercase tracking-wide truncate">{label}</p>
-          <p className="text-xl font-bold leading-tight mt-0.5">{value}</p>
-          {subtitle && (
-            <p className="text-[10px] text-muted-foreground mt-0.5 truncate">{subtitle}</p>
-          )}
-        </div>
-      </CardContent>
-    </Card>
+    <div className="grid grid-cols-3 divide-x divide-y rounded-xl border bg-card sm:grid-cols-6 sm:divide-y-0">
+      {voci.map((v) => {
+        const Elemento = v.onClick ? "button" : "div";
+        return (
+          <Elemento
+            key={v.label}
+            type={v.onClick ? "button" : undefined}
+            onClick={v.onClick}
+            className={cn(
+              "px-3 py-2.5 text-left",
+              v.onClick && "transition-colors hover:bg-muted/50",
+            )}
+          >
+            <p className="truncate text-[11px] text-muted-foreground">{v.label}</p>
+            <p className={cn(
+              "text-lg font-semibold leading-tight tabular-nums",
+              v.allarme && "text-destructive",
+            )}>
+              {v.value}
+            </p>
+            {v.nota && <p className="truncate text-[11px] text-muted-foreground">{v.nota}</p>}
+          </Elemento>
+        );
+      })}
+    </div>
   );
 }

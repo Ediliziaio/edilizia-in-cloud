@@ -11,9 +11,12 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CreateFolderDialog } from "@/components/email-marketing/CreateFolderDialog";
 import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Plus, Search, LayoutTemplate, FolderPlus, Sparkles,
   Users, Megaphone, ClipboardList, Coins, Package, HardHat,
-  Headphones, Warehouse, UserCog, CheckSquare, Bell, Settings, Zap, Workflow, ShieldCheck,
+  Headphones, Warehouse, UserCog, CheckSquare, Bell, Settings, Zap, MoreHorizontal,
 } from "lucide-react";
 import { AutomationFlowsList } from "@/components/marketing/automations/AutomationFlowsList";
 import { AutomationOverviewStats } from "@/components/marketing/automations/AutomationOverviewStats";
@@ -75,50 +78,46 @@ export default function AutomazioniUnified() {
   });
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/50 p-5 shadow-sm">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="space-y-3">
-            <div className="inline-flex items-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-3 py-1 text-xs font-semibold text-orange-700">
-              <Workflow className="h-3.5 w-3.5" />
-              Automazioni operative
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-slate-950">Flussi di lavoro</h1>
-              <p className="max-w-2xl text-sm text-slate-600">
-                Crea, organizza e controlla automazioni operative per CRM, cantieri, preventivi, notifiche e comunicazioni. Le sequenze pipeline restano nella sezione Marketing dedicata.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-              <span className="inline-flex items-center gap-1 rounded-full bg-card px-2.5 py-1 border">
-                <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
-                Pubblicazione con controlli anti errore
-              </span>
-              <span className="inline-flex items-center gap-1 rounded-full bg-card px-2.5 py-1 border">
-                <Sparkles className="h-3.5 w-3.5 text-orange-500" />
-                Template e assistente guidato
-              </span>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" className="border-slate-200 bg-white/80 hover:bg-white" onClick={() => setFolderDialogOpen(true)} disabled={!effectiveCompany?.id}>
-              <FolderPlus className="w-4 h-4 mr-1.5" />
-              Crea Cartella
-            </Button>
-            <Button variant="outline" className="border-orange-200 bg-white/80 text-orange-700 hover:bg-orange-50" onClick={() => setAiDialogOpen(true)} disabled={!effectiveCompany?.id}>
-              <Sparkles className="w-4 h-4 mr-1.5" />
-              Crea tramite AI
-            </Button>
-            <Button variant="outline" className="border-violet-200 bg-white/80 text-violet-700 hover:bg-violet-50" onClick={() => setBulkScheduleWizardOpen(true)} disabled={!effectiveCompany?.id}>
-              <CalendarClock className="w-4 h-4 mr-1.5" />
-              Messaggio programmato
-            </Button>
-            <Button className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-200 hover:from-orange-600 hover:to-amber-600" onClick={() => navigate(`${routePrefix}/automazioni/nuova`)}>
-              <Plus className="w-4 h-4 mr-1.5" />
-              Crea Flusso
-            </Button>
-          </div>
+    <div className="space-y-4">
+      {/* 09/09/2026 — L'intestazione occupava mezzo schermo: un badge, un
+          titolo grande, due righe di descrizione, due chip decorativi e
+          QUATTRO bottoni affiancati che andavano a capo. Chi apre questa
+          pagina vuole vedere i suoi flussi. Restano il titolo, una riga di
+          spiegazione e il tasto che serve davvero; le altre tre azioni stanno
+          in un menu, dove non rubano spazio e non vanno mai a capo. */}
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-xl font-semibold tracking-tight">Flussi di lavoro</h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            Automazioni per CRM, cantieri, preventivi e notifiche.
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <Button size="sm" onClick={() => navigate(`${routePrefix}/automazioni/nuova`)}>
+            <Plus className="mr-1.5 h-4 w-4" />
+            Crea flusso
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" variant="outline" className="px-2" aria-label="Altre azioni" disabled={!effectiveCompany?.id}>
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuItem onSelect={() => setAiDialogOpen(true)}>
+                <Sparkles className="mr-2 h-4 w-4" />
+                Crea con l'assistente
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setBulkScheduleWizardOpen(true)}>
+                <CalendarClock className="mr-2 h-4 w-4" />
+                Messaggio programmato
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setFolderDialogOpen(true)}>
+                <FolderPlus className="mr-2 h-4 w-4" />
+                Nuova cartella
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -132,13 +131,13 @@ export default function AutomazioniUnified() {
       )}
 
       {/* Filters row */}
-      <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:flex-row sm:items-center">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         {!vistaTemplates && (
-          <div className="relative w-full max-w-sm">
+          <div className="relative w-full max-w-xs">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
-              placeholder="Cerca flusso di lavoro..."
-              className="pl-9"
+              placeholder="Cerca flusso..."
+              className="h-9 pl-9"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -149,7 +148,7 @@ export default function AutomazioniUnified() {
           value={categoriaAttiva}
           onValueChange={(v) => setCategoriaAttiva(v as CategoriaFiltro)}
         >
-          <SelectTrigger className="w-[220px]">
+          <SelectTrigger className="h-9 w-full sm:w-[190px]">
             <SelectValue placeholder="Categoria" />
           </SelectTrigger>
           <SelectContent>
@@ -169,9 +168,9 @@ export default function AutomazioniUnified() {
         <button
           onClick={() => setVistaTemplates(!vistaTemplates)}
           className={`
-            flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm border transition-colors flex-shrink-0
+            flex h-9 items-center gap-1.5 px-3 rounded-lg text-sm border transition-colors flex-shrink-0
             ${vistaTemplates
-              ? "border-orange-200 bg-orange-50 text-orange-700"
+              ? "border-primary/30 bg-primary/10 text-primary"
               : "border-border text-muted-foreground hover:bg-muted"
             }
           `}
