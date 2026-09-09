@@ -41,3 +41,38 @@ describe("Header per l'embed della prenotazione pubblica", () => {
     expect(csp).not.toContain("frame-ancestors");
   });
 });
+
+/**
+ * La pagina di prenotazione legge una VISTA, non la tabella: sulla tabella le
+ * colonne dell'aggancio (external_*) rivelavano l'indirizzo dell'account
+ * collegato a chiunque avesse la chiave pubblica, e la policy «per slug» valeva
+ * solo per gli anonimi — chi era loggato leggeva «Calendario non trovato».
+ */
+describe("Il calendario pubblico si legge dalla vista, non dalla tabella", () => {
+  const pagina = readFileSync(resolve(process.cwd(), "src/pages/public/PublicBooking.tsx"), "utf8");
+  const migrazione = readFileSync(
+    resolve(process.cwd(), "supabase/migrations/20280913000001_calendari_prenotabili_vista_pubblica.sql"),
+    "utf8",
+  );
+  const chiusura = readFileSync(
+    resolve(process.cwd(), "supabase/migrations/20280913000002_marketing_calendars_niente_lettura_anon.sql"),
+    "utf8",
+  );
+
+  it("la pagina non tocca più marketing_calendars", () => {
+    expect(pagina).toContain('from("public_booking_calendars" as never)');
+    expect(pagina).not.toContain('from("marketing_calendars")');
+  });
+
+  it("la vista non espone le colonne dell'aggancio", () => {
+    const selezione = migrazione.slice(migrazione.indexOf("SELECT"), migrazione.indexOf("FROM public.marketing_calendars"));
+    for (const colonna of ["external_provider", "external_connection_id", "external_calendar_id", "external_calendar_name"]) {
+      expect(selezione).not.toContain(colonna);
+    }
+    expect(migrazione).toContain("GRANT SELECT ON public.public_booking_calendars TO anon, authenticated");
+  });
+
+  it("agli anonimi la tabella è chiusa", () => {
+    expect(chiusura).toContain("REVOKE SELECT ON public.marketing_calendars FROM anon");
+  });
+});

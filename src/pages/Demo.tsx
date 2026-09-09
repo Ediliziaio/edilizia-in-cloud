@@ -7,6 +7,7 @@ import LandingNavbar from "@/components/landing/LandingNavbar";
 import LandingFooter from "@/components/landing/LandingFooter";
 import { submitPublicLeadToCrm, attachReferralToLead } from "@/lib/publicLeadSubmit";
 import { getRenderLeadContext } from "@/lib/renderLeadContext";
+import { CalendarioInPagina } from "@/components/marketing/CalendarioInPagina";
 
 const DEMO_FAQS = [
   {
@@ -360,12 +361,18 @@ export default function Demo() {
                   </svg>
                 </div>
                 <h2 className="text-2xl font-bold text-[#111111] mb-3">
-                  Perfetto! Ti contatteremo entro 24 ore lavorative.
+                  Richiesta ricevuta. Vuoi fissare tu la data?
                 </h2>
                 <p className="text-[#111111]/60 text-sm leading-relaxed mb-8">
-                  Uno del nostro team ti contatterà presto per fissare la data della demo.
-                  Controlla la tua email per conferma.
+                  Scegli qui sotto il giorno e l'ora che ti comodi: la demo è confermata subito.
+                  Altrimenti ti chiamiamo noi entro 24 ore lavorative.
                 </p>
+
+                {/* Aspettare la telefonata costa appuntamenti: chi ha appena
+                    lasciato i dati e' il momento in cui e' piu' disponibile a
+                    scegliere una data. */}
+                <CalendarioInPagina slug="demo-edilizia-in-cloud" className="mb-8 text-left" />
+
                 <div className="flex flex-col sm:flex-row gap-3 justify-center items-stretch sm:items-center">
                   <Link
                     to="/"

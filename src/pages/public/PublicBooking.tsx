@@ -62,11 +62,16 @@ export default function PublicBooking() {
     queryFn: async () => {
       if (!slug) return null;
       const { data, error } = await withPublicBookingTimeout(
+        // Vista `public_booking_calendars`: solo i calendari con link attivo e
+        // solo i campi che questa pagina mostra. Sulla tabella la lettura
+        // anonima e' chiusa — ci finivano dentro anche le colonne
+        // dell'aggancio, cioe' l'indirizzo dell'account del titolare — e per
+        // chi era LOGGATO la policy pubblica non valeva affatto: apriva il
+        // link e leggeva "Calendario non trovato".
         supabase
-          .from("marketing_calendars")
-          .select("id, name, description, company_id, duration_minutes, booking_slug, owner_id, default_meeting_provider, default_meeting_enabled")
+          .from("public_booking_calendars" as never)
+          .select("id, name, description, company_id, duration_minutes, booking_slug, owner_id, default_meeting_provider, default_meeting_enabled, buffer_before_min, buffer_after_min, min_notice_minutes, max_per_day")
           .eq("booking_slug", slug)
-          .eq("is_active", true)
           .maybeSingle(),
         "Calendario",
       );
@@ -115,12 +120,10 @@ export default function PublicBooking() {
     queryKey: ["public-busy-slots", calendar?.id, dateStr, selectedDayRange?.startIso, selectedDayRange?.endIso],
     queryFn: async () => {
       if (!calendar?.id || !selectedDayRange) return [];
-      const { data: cal } = await supabase
-        .from("marketing_calendars")
-        .select("owner_id")
-        .eq("id", calendar.id)
-        .single();
-      if (!cal?.owner_id) return [];
+      // owner_id lo abbiamo gia' dalla vista: era una seconda query sulla
+      // tabella, che da anonimo ora non e' piu' leggibile.
+      if (!calendar.owner_id) return [];
+      const cal = { owner_id: calendar.owner_id };
       // La vista non e' nei tipi generati (as never, come le altre del repo).
       const { data, error } = await supabase
         .from("public_calendar_busy_slots" as never)
