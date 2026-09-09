@@ -131,3 +131,41 @@ export function bottoneGestione(url: string, etichetta = "Sposta o disdici"): st
       <a href="${url}" style="display:inline-block;padding:10px 16px;border-radius:8px;background:#0f172a;color:#fff;text-decoration:none;font-weight:600">${esc(etichetta)}</a>
     </p>`;
 }
+
+/**
+ * Porta un appuntamento nato o cambiato lato server (prenotazione pubblica,
+ * spostamento o disdetta dal link del cliente) sui calendari esterni del
+ * responsabile. Fino al 09/09/2026 non lo faceva nessuno: la pagina /prenota
+ * scriveva solo in EiC, e l'appuntamento non compariva mai su Google Calendar
+ * di chi lo doveva ricevere. Best effort: le edge rispondono 404 se non c'e'
+ * niente di collegato, e il giro dei 15 minuti recupera comunque i mancanti.
+ */
+export async function sincronizzaCalendariEsterni(args: {
+  azione: "push-event" | "update-event" | "delete-event";
+  appointmentId: string;
+  companyId: string;
+  userId: string | null;
+}): Promise<void> {
+  const base = Deno.env.get("SUPABASE_URL");
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!base || !serviceKey || !args.userId) return;
+  const body = JSON.stringify({ action: args.azione, appointmentId: args.appointmentId, companyId: args.companyId, userId: args.userId });
+  await Promise.allSettled(
+    ["google-calendar-sync", "apple-calendar-sync"].map(async (fn) => {
+      try {
+        const res = await fetch(`${base}/functions/v1/${fn}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` },
+          body,
+          signal: AbortSignal.timeout(12000),
+        });
+        // 404 = quel provider non e' collegato: normale, non e' un errore.
+        if (!res.ok && res.status !== 404 && res.status !== 409) {
+          console.warn(`[appuntamentiPubblici] ${fn} ${args.azione}: HTTP ${res.status} ${(await res.text()).slice(0, 200)}`);
+        }
+      } catch (e) {
+        console.warn(`[appuntamentiPubblici] ${fn} ${args.azione}:`, e instanceof Error ? e.message : String(e));
+      }
+    }),
+  );
+}

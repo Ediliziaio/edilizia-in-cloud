@@ -46,7 +46,7 @@ function invalidaSquadreOvunque(qc: ReturnType<typeof useQueryClient>, companyId
  * sposta una posa su Google, EiC lo sa subito. Best effort: se fallisce, il
  * cron delle 6 ore ci riprova e quello dei 15 minuti rilegge comunque.
  */
-async function registraCanaleCalendario(connectionId: string | null, calendarId: string | null) {
+export async function registraCanaleCalendario(connectionId: string | null, calendarId: string | null) {
   if (!connectionId || !calendarId) return;
   try {
     const { data: sess } = await supabase.auth.getSession();

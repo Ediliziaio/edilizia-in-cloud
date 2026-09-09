@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   PROVIDER_LABEL,
+  PROVIDER_SCRIVE_APPUNTAMENTI,
   useCalendariDiCasella,
   useCaselleCalendario,
   type ProviderCalendario,
@@ -87,6 +88,7 @@ export function CalendarioEsternoPicker({
                     <span className="rounded bg-muted px-1 text-[10px] font-medium uppercase">{PROVIDER_LABEL[c.provider]}</span>
                     {c.email}
                     {c.status !== "connected" && <span className="text-[10px] text-amber-700">· da ricollegare</span>}
+                    {!PROVIDER_SCRIVE_APPUNTAMENTI[c.provider] && <span className="text-[10px] text-muted-foreground">· solo lettura</span>}
                   </span>
                 </SelectItem>
               ))}
@@ -141,8 +143,11 @@ export function CalendarioEsternoPicker({
           <span className="flex min-w-0 items-center gap-2 text-xs">
             <CalendarDays className="h-3.5 w-3.5 shrink-0 text-primary" />
             <span className="truncate">
-              Gli appuntamenti finiscono in <strong>{value.external_calendar_name || "questo calendario"}</strong>
-              {casella && <> di {casella.email}</>}
+              {casella && !PROVIDER_SCRIVE_APPUNTAMENTI[casella.provider] ? (
+                <>Gli impegni di <strong>{value.external_calendar_name || "questo calendario"}</strong> bloccano gli orari; gli appuntamenti non vengono ancora scritti su {PROVIDER_LABEL[casella.provider]}.</>
+              ) : (
+                <>Gli appuntamenti finiscono in <strong>{value.external_calendar_name || "questo calendario"}</strong>{casella && <> di {casella.email}</>}</>
+              )}
             </span>
           </span>
           {!disabled && (

@@ -127,6 +127,67 @@ async function getConnectionWithCredentials(
   }
 }
 
+async function getCredentialsByConnectionId(
+  admin: ReturnType<typeof getSupabaseAdmin>,
+  connectionId: string,
+  companyId: string,
+): Promise<{ conn: any; appleId: string; appPassword: string } | null> {
+  const { data: conn } = await admin
+    .from("apple_calendar_connections")
+    .select("*")
+    .eq("id", connectionId)
+    .eq("company_id", companyId)
+    .eq("status", "connected")
+    .maybeSingle();
+  if (!conn) return null;
+  try {
+    const appPassword = await decrypt(conn.app_password_encrypted, getEncryptionKey());
+    return { conn, appleId: conn.apple_id_email, appPassword };
+  } catch {
+    return null;
+  }
+}
+
+// Dove va l'appuntamento e con l'account di chi. Il calendario di marketing
+// puo' essere agganciato a un calendario Apple preciso (passo 3): fino al
+// 09/09/2026 quella scelta si salvava e poi non la leggeva nessuno, l'evento
+// finiva sempre sul calendario principale del responsabile.
+async function risolviBersaglio(
+  admin: ReturnType<typeof getSupabaseAdmin>,
+  apt: { calendar_id?: string | null; assigned_to?: string | null },
+  fallbackUserId: string,
+  companyId: string,
+): Promise<{ ok: true; creds: { conn: any; appleId: string; appPassword: string }; userId: string; calendarUrl: string } | { ok: false; errore: string; status: number }> {
+  if (apt.calendar_id) {
+    const { data: cal } = await admin
+      .from("marketing_calendars")
+      .select("id, name, external_provider, external_connection_id, external_calendar_id")
+      .eq("id", apt.calendar_id)
+      .maybeSingle();
+    const c = cal as { name?: string; external_provider?: string | null; external_connection_id?: string | null; external_calendar_id?: string | null } | null;
+    if (c?.external_provider === "apple" && c.external_connection_id && c.external_calendar_id) {
+      const creds = await getCredentialsByConnectionId(admin, c.external_connection_id, companyId);
+      if (!creds) {
+        return { ok: false, status: 404, errore: `L'account Apple agganciato al calendario "${c.name ?? ""}" non e' disponibile: ricollegalo o scegline un altro.` };
+      }
+      return { ok: true, creds, userId: creds.conn.user_id, calendarUrl: c.external_calendar_id };
+    }
+  }
+  const userId = await resolveEffectiveUserId(admin, apt, fallbackUserId);
+  const creds = await getConnectionWithCredentials(admin, userId, companyId);
+  if (!creds) {
+    return { ok: false, status: 404, errore: userId !== fallbackUserId ? `Il responsabile (${userId}) non ha collegato Apple Calendar` : "Apple Calendar non connesso" };
+  }
+  const { data: settings } = await admin
+    .from("apple_calendar_settings")
+    .select("primary_calendar_url")
+    .eq("company_id", companyId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (!settings?.primary_calendar_url) return { ok: false, status: 400, errore: "Nessun calendario principale configurato" };
+  return { ok: true, creds, userId, calendarUrl: settings.primary_calendar_url };
+}
+
 // ---- OWNER EFFETTIVO ----
 // 2026-08-18: allineato al comportamento di google-calendar-sync. Chi fissa
 // l'appuntamento spesso NON e' chi lo esegue (il call center prenota per il
@@ -164,38 +225,21 @@ async function pushEvent(userId: string, companyId: string, appointmentId: strin
     .single();
   if (!apt) return json({ error: "Appuntamento non trovato" }, 404);
 
-  const effectiveUserId = await resolveEffectiveUserId(admin, apt, userId);
+  const esito = await risolviBersaglio(admin, apt, userId, companyId);
+  if (!esito.ok) return json({ error: esito.errore }, esito.status);
+  const { creds, userId: effectiveUserId, calendarUrl } = esito;
 
-  const creds = await getConnectionWithCredentials(admin, effectiveUserId, companyId);
-  if (!creds) {
-    return json({
-      error: effectiveUserId !== userId
-        ? `Il responsabile (${effectiveUserId}) non ha collegato Apple Calendar`
-        : "Apple Calendar non connesso",
-    }, 404);
-  }
-
-  const { data: settings } = await admin
-    .from("apple_calendar_settings")
-    .select("primary_calendar_url, primary_calendar_name")
-    .eq("company_id", companyId)
-    .eq("user_id", effectiveUserId)
-    .maybeSingle();
-
-  if (!settings?.primary_calendar_url) return json({ error: "Nessun calendario principale configurato" }, 400);
-
-  // Check existing mapping
+  // Un appuntamento ha UN evento, a prescindere da chi lo ha creato.
   const { data: existing } = await admin
     .from("apple_calendar_event_map")
     .select("id")
     .eq("appointment_id", appointmentId)
-    .eq("user_id", userId)
     .maybeSingle();
   if (existing) return json({ error: "Già sincronizzato", mappingId: existing.id }, 409);
 
   const uid = `apt-${apt.id}@ediliziacloud`;
   const icsData = buildICalendar(apt);
-  const eventUrl = settings.primary_calendar_url.replace(/\/$/, "") + `/${uid}.ics`;
+  const eventUrl = calendarUrl.replace(/\/$/, "") + `/${uid}.ics`;
 
   const res = await caldavRequest(
     eventUrl,
@@ -222,7 +266,7 @@ async function pushEvent(userId: string, companyId: string, appointmentId: strin
     appointment_id: appointmentId,
     caldav_event_url: eventUrl,
     caldav_uid: uid,
-    caldav_calendar_url: settings.primary_calendar_url,
+    caldav_calendar_url: calendarUrl,
     source: "crm",
     etag,
     last_synced_at: new Date().toISOString(),
@@ -236,26 +280,16 @@ async function pushEvent(userId: string, companyId: string, appointmentId: strin
 async function updateEvent(userId: string, companyId: string, appointmentId: string): Promise<Response> {
   const admin = getSupabaseAdmin();
 
-  // Stessa risoluzione owner del push: la mappatura e l'evento appartengono al
-  // responsabile dell'appuntamento, non a chi sta cliccando adesso.
-  const { data: aptOwner } = await admin
-    .from("appointments")
-    .select("calendar_id, assigned_to")
-    .eq("id", appointmentId)
-    .maybeSingle();
-  const effectiveUserId = aptOwner
-    ? await resolveEffectiveUserId(admin, aptOwner, userId)
-    : userId;
-
-  const creds = await getConnectionWithCredentials(admin, effectiveUserId, companyId);
-  if (!creds) return json({ error: "Apple Calendar non connesso" }, 404);
-
+  // L'evento sta sull'account che lo ha creato: lo dice la mappa, non chi
+  // sta cliccando adesso ne' il responsabile del calendario.
   const { data: mapping } = await admin
     .from("apple_calendar_event_map")
     .select("*")
     .eq("appointment_id", appointmentId)
-    .eq("user_id", effectiveUserId)
     .maybeSingle();
+  const effectiveUserId: string = mapping?.user_id ?? userId;
+  const creds = await getConnectionWithCredentials(admin, effectiveUserId, companyId);
+  if (!creds) return json({ error: "Apple Calendar non connesso" }, 404);
   if (!mapping) return json({ error: "Nessuna mappatura trovata, usa push-event" }, 404);
 
   const { data: apt } = await admin
@@ -301,26 +335,16 @@ async function updateEvent(userId: string, companyId: string, appointmentId: str
 async function deleteEvent(userId: string, companyId: string, appointmentId: string): Promise<Response> {
   const admin = getSupabaseAdmin();
 
-  // Stessa risoluzione owner del push: la mappatura e l'evento appartengono al
-  // responsabile dell'appuntamento, non a chi sta cliccando adesso.
-  const { data: aptOwner } = await admin
-    .from("appointments")
-    .select("calendar_id, assigned_to")
-    .eq("id", appointmentId)
-    .maybeSingle();
-  const effectiveUserId = aptOwner
-    ? await resolveEffectiveUserId(admin, aptOwner, userId)
-    : userId;
-
-  const creds = await getConnectionWithCredentials(admin, effectiveUserId, companyId);
-  if (!creds) return json({ error: "Apple Calendar non connesso" }, 404);
-
+  // L'evento sta sull'account che lo ha creato: lo dice la mappa, non chi
+  // sta cliccando adesso ne' il responsabile del calendario.
   const { data: mapping } = await admin
     .from("apple_calendar_event_map")
     .select("*")
     .eq("appointment_id", appointmentId)
-    .eq("user_id", effectiveUserId)
     .maybeSingle();
+  const effectiveUserId: string = mapping?.user_id ?? userId;
+  const creds = await getConnectionWithCredentials(admin, effectiveUserId, companyId);
+  if (!creds) return json({ error: "Apple Calendar non connesso" }, 404);
   if (!mapping) return json({ success: true, message: "Nessuna mappatura trovata" });
 
   try {
@@ -361,6 +385,17 @@ async function pullBusySlots(userId: string, companyId: string): Promise<Respons
     for (const u of settings.conflict_calendar_urls) {
       if (!calUrls.includes(u)) calUrls.push(u);
     }
+  }
+  // Calendari agganciati ai calendari di marketing su questa connessione: un
+  // impegno messo direttamente li' deve bloccare gli orari come gli altri.
+  const { data: agganciati } = await admin
+    .from("marketing_calendars")
+    .select("external_calendar_id")
+    .eq("external_connection_id", creds.conn.id)
+    .eq("external_provider", "apple")
+    .eq("is_active", true);
+  for (const a of (agganciati ?? []) as Array<{ external_calendar_id: string | null }>) {
+    if (a.external_calendar_id && !calUrls.includes(a.external_calendar_id)) calUrls.push(a.external_calendar_id);
   }
 
   if (calUrls.length === 0) {
@@ -564,6 +599,24 @@ serveConMetriche("apple-calendar-sync", async (req: Request) => {
   }
 
   try {
+    // Chiamate interne (trigger di cancellazione via pg_net): x-cron-secret,
+    // come google-calendar-sync. L'utente, se manca, e' il responsabile.
+    if (!req.headers.get("Authorization") && cronSecretValido(req)) {
+      const interno = await req.json();
+      if (!["push-event", "update-event", "delete-event"].includes(interno.action)) return json({ error: "Unknown internal action" }, 400);
+      if (!interno.appointmentId || !interno.companyId) return json({ error: "appointmentId e companyId richiesti" }, 400);
+      let uid: string | null = interno.userId ?? null;
+      if (!uid) {
+        const { data: a } = await getSupabaseAdmin().from("appointments").select("assigned_to, created_by").eq("id", interno.appointmentId).maybeSingle();
+        const riga = a as { assigned_to?: string | null; created_by?: string | null } | null;
+        uid = riga?.assigned_to ?? riga?.created_by ?? null;
+      }
+      if (!uid) return json({ error: "utente non determinabile" }, 400);
+      if (interno.action === "push-event") return pushEvent(uid, interno.companyId, interno.appointmentId);
+      if (interno.action === "update-event") return updateEvent(uid, interno.companyId, interno.appointmentId);
+      return deleteEvent(uid, interno.companyId, interno.appointmentId);
+    }
+
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
       return json({ error: "Unauthorized" }, 401);

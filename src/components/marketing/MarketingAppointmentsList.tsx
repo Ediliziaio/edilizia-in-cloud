@@ -80,12 +80,14 @@ export default function MarketingAppointmentsList({ appointments, onRefresh, onC
     const tasks: Promise<unknown>[] = [];
     const shouldDelete = status === "annullato";
 
-    if (googleSync.hasGoogleConnection) {
+    // Chi clicca puo' non avere Google: basta che ce l'abbia il responsabile
+    // del calendario o l'account agganciato — lo risolve la edge.
+    if (googleSync.hasGoogleConnection || googleSync.hasAnyCompanyGoogleConnection) {
       tasks.push((async () => {
         if (shouldDelete) return googleSync.deleteEvent(appointmentId);
         const mapping = await googleSync.checkMapping(appointmentId);
         if (mapping) return googleSync.updateEvent(appointmentId);
-        if (googleSync.isGoogleConnected) return googleSync.pushEvent(appointmentId);
+        if (googleSync.isGoogleConnected || googleSync.hasAnyCompanyGoogleConnection) return googleSync.pushEvent(appointmentId);
         return undefined;
       })());
     }

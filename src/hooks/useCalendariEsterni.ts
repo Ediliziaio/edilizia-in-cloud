@@ -18,6 +18,17 @@ export const PROVIDER_LABEL: Record<ProviderCalendario, string> = {
   apple: "Apple",
 };
 
+/**
+ * Chi scrive davvero gli appuntamenti sul calendario esterno. Outlook oggi
+ * viene solo letto (i suoi impegni bloccano gli orari): dirlo nella tendina e'
+ * meglio che far credere a chi configura che gli appuntamenti ci arrivino.
+ */
+export const PROVIDER_SCRIVE_APPUNTAMENTI: Record<ProviderCalendario, boolean> = {
+  google: true,
+  apple: true,
+  outlook: false,
+};
+
 export interface CasellaCalendario {
   provider: ProviderCalendario;
   connectionId: string;

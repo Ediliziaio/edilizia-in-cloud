@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { registraCanaleCalendario } from "@/hooks/useCalendariLavori";
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -394,7 +395,11 @@ export default function MarketingCalendarsConfig() {
         if (errFasce) console.warn("[calendari] orari di partenza non creati:", errFasce.message);
       }
     },
-    onSuccess: () => {
+    onSuccess: (_r, data) => {
+      // Un canale webhook sul calendario Google agganciato: cosi' uno
+      // spostamento fatto su Google arriva in EiC in pochi secondi, come per
+      // le pose. Best effort: il cron dei 15 minuti rilegge comunque.
+      if (data.external_provider === "google") void registraCanaleCalendario(data.external_connection_id ?? null, data.external_calendar_id ?? null);
       toast.success("Calendario creato", { description: "Orari di partenza: lunedì-venerdì 9-18. Cambiali dalla sezione Disponibilità." });
       queryClient.invalidateQueries({ queryKey: ["marketing-calendars"] });
       queryClient.invalidateQueries({ queryKey: ["marketing-calendars-con-orari"] });
@@ -446,7 +451,8 @@ export default function MarketingCalendarsConfig() {
       } as never).eq("id", id).eq("company_id", effectiveCompanyId!);
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_r, data) => {
+      if (data.external_provider === "google") void registraCanaleCalendario(data.external_connection_id ?? null, data.external_calendar_id ?? null);
       toast.success("Calendario aggiornato");
       queryClient.invalidateQueries({ queryKey: ["marketing-calendars"] });
       queryClient.invalidateQueries({ queryKey: ["marketing-calendars-con-orari"] });

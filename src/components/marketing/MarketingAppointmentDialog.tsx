@@ -497,11 +497,13 @@ export default function MarketingAppointmentDialog({
   const syncSavedAppointment = useCallback(async (appointmentId: string, mode: "create" | "update") => {
     const tasks: Promise<unknown>[] = [];
 
-    if (googleSync.hasGoogleConnection) {
+    // Chi clicca puo' non avere Google: basta che ce l'abbia il responsabile
+    // del calendario o l'account agganciato — lo risolve la edge.
+    if (googleSync.hasGoogleConnection || googleSync.hasAnyCompanyGoogleConnection) {
       tasks.push((async () => {
         const mapping = mode === "update" ? await googleSync.checkMapping(appointmentId) : null;
         if (mapping) return googleSync.updateEvent(appointmentId);
-        if (googleSync.isGoogleConnected) return googleSync.pushEvent(appointmentId);
+        if (googleSync.isGoogleConnected || googleSync.hasAnyCompanyGoogleConnection) return googleSync.pushEvent(appointmentId);
         return undefined;
       })());
     }
@@ -522,7 +524,7 @@ export default function MarketingAppointmentDialog({
 
   const syncDeletedAppointment = useCallback(async (appointmentId: string) => {
     const tasks: Promise<unknown>[] = [];
-    if (googleSync.hasGoogleConnection) tasks.push(googleSync.deleteEvent(appointmentId));
+    if (googleSync.hasGoogleConnection || googleSync.hasAnyCompanyGoogleConnection) tasks.push(googleSync.deleteEvent(appointmentId));
     if (appleSync.hasAppleConnection) tasks.push(appleSync.deleteEvent(appointmentId));
     if (tasks.length > 0) {
       await Promise.allSettled(tasks);

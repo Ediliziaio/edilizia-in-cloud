@@ -204,14 +204,32 @@ async function handleCallback(req: Request): Promise<Response> {
         .limit(1)
         .maybeSingle();
 
+      // Il calendario personale e' agganciato al calendario principale di
+      // questo account: cosi' il passo 3 del calendario dice dove finiscono gli
+      // appuntamenti invece di mostrare "nessun collegamento" mentre in realta'
+      // ci vanno lo stesso. Per Google l'id del calendario principale e' l'email.
+      const aggancio = conn && userInfo.email
+        ? { external_provider: "google", external_connection_id: conn.id, external_calendar_id: userInfo.email, external_calendar_name: "Principale" }
+        : {};
+
       // Se esiste ma è disattivato (utente aveva fatto disconnect) → riattiva
-      if (existingCal && !existingCal.is_active) {
+      if (existingCal) {
+        const { data: dettaglio } = await admin
+          .from("marketing_calendars")
+          .select("external_connection_id")
+          .eq("id", existingCal.id)
+          .maybeSingle();
+        const senzaAggancio = !(dettaglio as { external_connection_id?: string | null } | null)?.external_connection_id;
         await admin
           .from("marketing_calendars")
-          .update({ is_active: true, updated_at: new Date().toISOString() })
+          .update({
+            ...(existingCal.is_active ? {} : { is_active: true }),
+            ...(senzaAggancio ? aggancio : {}),
+            updated_at: new Date().toISOString(),
+          })
           .eq("id", existingCal.id);
-        console.log(`[google-calendar-auth] re-activated marketing_calendar ${existingCal.id} for user ${state.userId}`);
-      } else if (!existingCal) {
+        if (!existingCal.is_active) console.log(`[google-calendar-auth] re-activated marketing_calendar ${existingCal.id} for user ${state.userId}`);
+      } else {
         // Nome: priorità nome utente da userinfo Google, fallback profiles
         let displayName = `${userInfo.given_name ?? ""} ${userInfo.family_name ?? ""}`.trim();
         if (!displayName) {
@@ -239,6 +257,7 @@ async function handleCallback(req: Request): Promise<Response> {
             created_by: state.userId,
             is_active: true,
             duration_minutes: 30,
+            ...aggancio,
           });
         if (calErr) {
           console.warn("[google-calendar-auth] auto-create marketing_calendar failed:", calErr.message);

@@ -198,6 +198,41 @@ async function getSettings(admin: ReturnType<typeof getSupabaseAdmin>, userId: s
   return data;
 }
 
+// Per Google il calendario principale ha due nomi: la parola chiave "primary"
+// e l'email dell'account. Le mappe vecchie usano la prima, il passo 3 salva la
+// seconda: senza questo confronto lo stesso calendario verrebbe letto due
+// volte e ogni appuntamento avrebbe due mappe.
+function eIlPrincipale(id: string, primaryId: string | null | undefined, email: string | null | undefined): boolean {
+  if (!primaryId) return false;
+  const e = (email ?? "").toLowerCase();
+  const norm = (x: string) => (e && x.toLowerCase() === e ? "primary" : x);
+  return norm(id) === norm(primaryId);
+}
+
+/**
+ * I calendari Google scelti al passo 3 dei calendari di marketing, per questa
+ * connessione. Se uno di loro e' il principale, torna con il nome che usa
+ * settings.primary_calendar_id, cosi' coincide con le mappe esistenti.
+ */
+async function calendariAgganciati(
+  admin: ReturnType<typeof getSupabaseAdmin>,
+  conn: { id: string; google_account_email?: string | null },
+  primaryId: string | null | undefined,
+): Promise<Array<{ calendarId: string; marketingCalendarId: string }>> {
+  const { data } = await admin
+    .from("marketing_calendars")
+    .select("id, external_calendar_id")
+    .eq("external_connection_id", conn.id)
+    .eq("external_provider", "google")
+    .eq("is_active", true);
+  return ((data ?? []) as Array<{ id: string; external_calendar_id: string | null }>)
+    .filter((c) => !!c.external_calendar_id)
+    .map((c) => ({
+      calendarId: primaryId && eIlPrincipale(c.external_calendar_id as string, primaryId, conn.google_account_email) ? primaryId : (c.external_calendar_id as string),
+      marketingCalendarId: c.id,
+    }));
+}
+
 // ---- PULL BUSY SLOTS ----
 async function pullBusySlots(userId: string, companyId: string): Promise<Response> {
   const admin = getSupabaseAdmin();
@@ -229,6 +264,10 @@ async function pullBusySlots(userId: string, companyId: string): Promise<Respons
     .eq("google_connection_id", conn.id)
     .eq("google_sync_enabled", true);
   (calSquadre ?? []).forEach((t: any) => t.google_calendar_id && calendarIdSet.add(t.google_calendar_id));
+  // Calendari agganciati ai calendari di marketing su questa connessione: se
+  // il titolare fissa un impegno direttamente li', deve bloccare gli orari
+  // della prenotazione pubblica come gli altri.
+  (await calendariAgganciati(admin, conn, settings?.primary_calendar_id)).forEach((c) => calendarIdSet.add(c.calendarId));
   const calendarIds = Array.from(calendarIdSet);
   if (calendarIds.length === 0) {
     return json({ pulled: 0, message: "No calendars configured (né primary né conflict)" });
@@ -352,23 +391,6 @@ async function pullBusySlots(userId: string, companyId: string): Promise<Respons
  * scelta sta sul calendario marketing (external_connection_id + calendar_id) e
  * `primary_calendar_id` resta solo come ripiego per chi non ha scelto niente.
  */
-async function resolveCalendarioDestinazione(
-  admin: ReturnType<typeof getSupabaseAdmin>,
-  apt: { calendar_id?: string | null },
-  fallback: string | null,
-): Promise<string | null> {
-  if (!apt.calendar_id) return fallback;
-  const { data: cal } = await admin
-    .from("marketing_calendars")
-    .select("external_provider, external_calendar_id")
-    .eq("id", apt.calendar_id)
-    .maybeSingle();
-  const scelto = cal as { external_provider?: string | null; external_calendar_id?: string | null } | null;
-  // Google soltanto: Outlook e Apple hanno le loro edge.
-  if (scelto?.external_provider === "google" && scelto.external_calendar_id) return scelto.external_calendar_id;
-  return fallback;
-}
-
 async function resolveEffectiveUserId(
   admin: ReturnType<typeof getSupabaseAdmin>,
   apt: { calendar_id?: string | null; assigned_to?: string | null },
@@ -388,6 +410,64 @@ async function resolveEffectiveUserId(
   return fallbackUserId;
 }
 
+// Dove va l'appuntamento e con l'account di chi.
+//
+// Un calendario di marketing puo' essere agganciato a un calendario preciso di
+// un account preciso (Impostazioni → Calendari → passo 3). Fino al 09/09/2026
+// si prendeva il calendario scelto ma il token del RESPONSABILE del calendario:
+// se l'amministratore aveva scelto l'account di un collega, Google rispondeva
+// 404 e l'appuntamento non arrivava da nessuna parte. Qui l'account e' quello
+// dell'aggancio; il responsabile vale solo per chi non ha agganciato niente.
+interface BersaglioAppuntamento {
+  conn: any;
+  userId: string;
+  calendarId: string;
+  marketingCalendarId: string | null;
+}
+
+async function risolviBersaglio(
+  admin: ReturnType<typeof getSupabaseAdmin>,
+  apt: { calendar_id?: string | null; assigned_to?: string | null },
+  fallbackUserId: string,
+  companyId: string,
+): Promise<{ ok: true; bersaglio: BersaglioAppuntamento } | { ok: false; errore: string; status: number }> {
+  if (apt.calendar_id) {
+    const { data: cal } = await admin
+      .from("marketing_calendars")
+      .select("id, name, external_provider, external_connection_id, external_calendar_id")
+      .eq("id", apt.calendar_id)
+      .maybeSingle();
+    const c = cal as { id: string; name?: string; external_provider?: string | null; external_connection_id?: string | null; external_calendar_id?: string | null } | null;
+    if (c?.external_provider === "google" && c.external_connection_id && c.external_calendar_id) {
+      const conn = await getConnectionById(admin, c.external_connection_id);
+      if (!conn || conn.company_id !== companyId) {
+        return {
+          ok: false,
+          status: 404,
+          errore: `L'account Google agganciato al calendario "${c.name ?? ""}" non e' disponibile: ricollegalo, o scegline un altro dalle impostazioni del calendario.`,
+        };
+      }
+      const settingsAgg = await getSettings(admin, conn.user_id, companyId);
+      const calendarId = settingsAgg?.primary_calendar_id && eIlPrincipale(c.external_calendar_id, settingsAgg.primary_calendar_id, conn.google_account_email)
+        ? settingsAgg.primary_calendar_id
+        : c.external_calendar_id;
+      return { ok: true, bersaglio: { conn, userId: conn.user_id, calendarId, marketingCalendarId: c.id } };
+    }
+  }
+  const userId = await resolveEffectiveUserId(admin, apt, fallbackUserId);
+  const conn = await getConnection(admin, userId, companyId);
+  if (!conn) {
+    return {
+      ok: false,
+      status: 404,
+      errore: userId !== fallbackUserId ? `Responsabile (${userId}) non ha collegato Google Calendar` : "Not connected",
+    };
+  }
+  const settings = await getSettings(admin, userId, companyId);
+  if (!settings?.primary_calendar_id) return { ok: false, status: 400, errore: "No primary calendar configured" };
+  return { ok: true, bersaglio: { conn, userId, calendarId: settings.primary_calendar_id, marketingCalendarId: apt.calendar_id ?? null } };
+}
+
 // ---- PUSH EVENT ----
 async function pushEvent(userId: string, companyId: string, appointmentId: string): Promise<Response> {
   const admin = getSupabaseAdmin();
@@ -401,16 +481,9 @@ async function pushEvent(userId: string, companyId: string, appointmentId: strin
     .single();
   if (!apt) return json({ error: "Appointment not found" }, 404);
 
-  const effectiveUserId = await resolveEffectiveUserId(admin, apt, userId);
-
-  const conn = await getConnection(admin, effectiveUserId, companyId);
-  if (!conn) {
-    return json({
-      error: effectiveUserId !== userId
-        ? `Responsabile (${effectiveUserId}) non ha collegato Google Calendar`
-        : "Not connected",
-    }, 404);
-  }
+  const esito = await risolviBersaglio(admin, apt, userId, companyId);
+  if (!esito.ok) return json({ error: esito.errore }, esito.status);
+  const { conn, userId: effectiveUserId, calendarId: calendarioDestinazione } = esito.bersaglio;
 
   const prefPush = await preferenzeSync(admin, effectiveUserId, companyId);
   if (!prefPush.attiva || prefPush.direzione === "from_google") {
@@ -420,15 +493,11 @@ async function pushEvent(userId: string, companyId: string, appointmentId: strin
   const accessToken = await getValidAccessToken(admin, conn);
   if (!accessToken) return json({ error: "Token expired" }, 401);
 
-  const settings = await getSettings(admin, effectiveUserId, companyId);
-  const calendarioDestinazione = await resolveCalendarioDestinazione(admin, apt, settings?.primary_calendar_id ?? null);
-  if (!calendarioDestinazione) return json({ error: "No primary calendar configured" }, 400);
-
+  // Un appuntamento ha UN evento, a prescindere da quale account lo ha creato.
   const { data: existing } = await admin
     .from("google_calendar_event_map")
     .select("id")
     .eq("appointment_id", appointmentId)
-    .eq("user_id", effectiveUserId)
     .maybeSingle();
   if (existing) return json({ error: "Already synced", mappingId: existing.id }, 409);
 
@@ -496,15 +565,16 @@ async function pushEvent(userId: string, companyId: string, appointmentId: strin
 // ---- UPDATE EVENT ----
 async function updateEvent(userId: string, companyId: string, appointmentId: string): Promise<Response> {
   const admin = getSupabaseAdmin();
-  // 2026-05-27: resolve owner del calendar marketing per update/delete
-  const { data: aptForOwner } = await admin
-    .from("appointments")
-    .select("calendar_id, assigned_to")
-    .eq("id", appointmentId)
+  // L'evento sta sul calendario dell'account che lo ha creato: lo dice la
+  // mappa, non chi sta cliccando adesso ne' il responsabile del calendario
+  // (che dal 09/09/2026 puo' essere un altro).
+  const { data: mapping } = await admin
+    .from("google_calendar_event_map")
+    .select("*")
+    .eq("appointment_id", appointmentId)
     .maybeSingle();
-  const effectiveUserId = aptForOwner
-    ? await resolveEffectiveUserId(admin, aptForOwner, userId)
-    : userId;
+  if (!mapping) return json({ error: "No mapping found, use push-event" }, 404);
+  const effectiveUserId: string = mapping.user_id ?? userId;
 
   const conn = await getConnection(admin, effectiveUserId, companyId);
   if (!conn) return json({ error: "Not connected" }, 404);
@@ -516,14 +586,6 @@ async function updateEvent(userId: string, companyId: string, appointmentId: str
 
   const accessToken = await getValidAccessToken(admin, conn);
   if (!accessToken) return json({ error: "Token expired" }, 401);
-
-  const { data: mapping } = await admin
-    .from("google_calendar_event_map")
-    .select("*")
-    .eq("appointment_id", appointmentId)
-    .eq("user_id", effectiveUserId)
-    .maybeSingle();
-  if (!mapping) return json({ error: "No mapping found, use push-event" }, 404);
 
   const { data: apt } = await admin
     .from("appointments")
@@ -598,19 +660,19 @@ async function deleteEvent(
   hintCalendarId?: string,
 ): Promise<Response> {
   const admin = getSupabaseAdmin();
-  const conn = await getConnection(admin, userId, companyId);
-  if (!conn) return json({ error: "Not connected" }, 404);
-
-  const accessToken = await getValidAccessToken(admin, conn);
-  if (!accessToken) return json({ error: "Token expired" }, 401);
-
   // Prova prima il mapping, poi i parametri esplicit "hint" (trigger DB).
   const { data: mapping } = await admin
     .from("google_calendar_event_map")
     .select("*")
     .eq("appointment_id", appointmentId)
-    .eq("user_id", userId)
     .maybeSingle();
+  // Il token giusto e' quello dell'account che ha l'evento.
+  const effectiveUserId: string = mapping?.user_id ?? userId;
+  const conn = await getConnection(admin, effectiveUserId, companyId);
+  if (!conn) return json({ error: "Not connected" }, 404);
+
+  const accessToken = await getValidAccessToken(admin, conn);
+  if (!accessToken) return json({ error: "Token expired" }, 401);
 
   const googleEventId = mapping?.google_event_id ?? hintEventId;
   const googleCalendarId = mapping?.google_calendar_id ?? hintCalendarId;
@@ -645,41 +707,27 @@ async function deleteEvent(
     .from("google_calendar_busy_slots")
     .delete()
     .eq("company_id", companyId)
-    .eq("user_id", userId)
+    .eq("user_id", effectiveUserId)
     .eq("google_event_id", googleEventId);
 
   return json({ success: true });
 }
 
-// ---- RECONCILE PRIMARY (Two-Way Sync) ----
-async function reconcilePrimary(userId: string, companyId: string): Promise<{ created: number; updated: number; removed: number }> {
-  const admin = getSupabaseAdmin();
-
-  // Check platform policy
-  const allowTwoWay = await getPlatformSetting("google_calendar_allow_two_way");
-  if (allowTwoWay !== "true") {
-    console.log("Two-way sync disabled by platform policy");
-    return { created: 0, updated: 0, removed: 0 };
-  }
-
-  const settings = await getSettings(admin, userId, companyId);
-  if (!settings?.primary_calendar_id) return { created: 0, updated: 0, removed: 0 };
-  // Gli eventi di Google entrano in EiC solo se l'utente lo ha chiesto:
-  // bidirezionale, oppure "solo Google → EiC".
-  const prefRec = await preferenzeSync(admin, userId, companyId);
-  if (!prefRec.attiva || prefRec.direzione === "to_google") {
-    return { created: 0, updated: 0, removed: 0 };
-  }
-
-  const allowImport = (await getPlatformSetting("google_calendar_allow_google_to_crm_import")) === "true";
-
-  const conn = await getConnection(admin, userId, companyId);
-  if (!conn) return { created: 0, updated: 0, removed: 0 };
-
-  const accessToken = await getValidAccessToken(admin, conn);
-  if (!accessToken) return { created: 0, updated: 0, removed: 0 };
-
-  const calId = settings.primary_calendar_id;
+// Il ritorno da Google per UN calendario: eventi cambiati la' → appuntamenti
+// aggiornati qui, mappe perse ricucite, eventi nuovi importati se la politica
+// lo permette. Prima girava solo sul calendario principale: un appuntamento
+// spostato su Google dentro il calendario agganciato al passo 3 restava
+// fermo in EiC per sempre.
+async function reconcileCalendario(
+  admin: ReturnType<typeof getSupabaseAdmin>,
+  accessToken: string,
+  settings: any,
+  userId: string,
+  companyId: string,
+  calId: string,
+  marketingCalendarId: string | null,
+  allowImport: boolean,
+): Promise<{ created: number; updated: number; removed: number }> {
   const now = new Date();
   const timeMin = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
   const timeMax = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000).toISOString();
@@ -807,6 +855,9 @@ async function reconcilePrimary(userId: string, companyId: string): Promise<{ cr
           status: "confermato",
           is_completed: false,
           is_blocked_slot: false,
+          // Se il calendario Google e' agganciato a un calendario di marketing,
+          // l'evento importato nasce dentro quel calendario.
+          calendar_id: marketingCalendarId,
           meeting_provider: fields.meetingProvider,
           meeting_url: fields.meetingUrl,
           meeting_status: fields.meetingStatus,
@@ -841,6 +892,83 @@ async function reconcilePrimary(userId: string, companyId: string): Promise<{ cr
   }
 
   return { created, updated, removed };
+}
+
+// ---- RECONCILE PRIMARY (Two-Way Sync) ----
+async function reconcilePrimary(userId: string, companyId: string): Promise<{ created: number; updated: number; removed: number }> {
+  const admin = getSupabaseAdmin();
+
+  // Check platform policy
+  const allowTwoWay = await getPlatformSetting("google_calendar_allow_two_way");
+  if (allowTwoWay !== "true") {
+    console.log("Two-way sync disabled by platform policy");
+    return { created: 0, updated: 0, removed: 0 };
+  }
+
+  const settings = await getSettings(admin, userId, companyId);
+  if (!settings?.primary_calendar_id) return { created: 0, updated: 0, removed: 0 };
+  // Gli eventi di Google entrano in EiC solo se l'utente lo ha chiesto:
+  // bidirezionale, oppure "solo Google → EiC".
+  const prefRec = await preferenzeSync(admin, userId, companyId);
+  if (!prefRec.attiva || prefRec.direzione === "to_google") {
+    return { created: 0, updated: 0, removed: 0 };
+  }
+
+  const allowImport = (await getPlatformSetting("google_calendar_allow_google_to_crm_import")) === "true";
+
+  const conn = await getConnection(admin, userId, companyId);
+  if (!conn) return { created: 0, updated: 0, removed: 0 };
+
+  const accessToken = await getValidAccessToken(admin, conn);
+  if (!accessToken) return { created: 0, updated: 0, removed: 0 };
+
+  // Il principale piu' ogni calendario agganciato a un calendario di
+  // marketing su questa connessione.
+  const agganciati = await calendariAgganciati(admin, conn, settings.primary_calendar_id);
+  const daLeggere = new Map<string, string | null>();
+  daLeggere.set(settings.primary_calendar_id, null);
+  for (const a of agganciati) {
+    // Se il principale e' agganciato a un calendario di marketing, gli eventi
+    // importati da li' nascono dentro quel calendario.
+    daLeggere.set(a.calendarId, a.marketingCalendarId);
+  }
+
+  const totale = { created: 0, updated: 0, removed: 0 };
+  for (const [calId, marketingCalendarId] of daLeggere) {
+    try {
+      const r = await reconcileCalendario(admin, accessToken, settings, userId, companyId, calId, marketingCalendarId, allowImport);
+      totale.created += r.created;
+      totale.updated += r.updated;
+      totale.removed += r.removed;
+    } catch (e) {
+      console.error(`reconcilePrimary: calendario ${calId}`, e instanceof Error ? e.message : String(e));
+    }
+  }
+  return totale;
+}
+
+/**
+ * Ritorno da Google per un calendario preciso di una connessione precisa:
+ * lo chiama il canale webhook del calendario (stesso canale delle pose), cosi'
+ * uno spostamento fatto su Google arriva in EiC in pochi secondi invece che al
+ * prossimo giro dei 15 minuti.
+ */
+async function reconcilePerCalendario(connectionId: string, calendarId: string): Promise<{ created: number; updated: number; removed: number; skipped?: string }> {
+  const admin = getSupabaseAdmin();
+  const conn = await getConnectionById(admin, connectionId);
+  if (!conn) return { created: 0, updated: 0, removed: 0, skipped: "connessione non attiva" };
+  const settings = await getSettings(admin, conn.user_id, conn.company_id);
+  const ePrincipale = eIlPrincipale(calendarId, settings?.primary_calendar_id, conn.google_account_email);
+  const idLetto = ePrincipale ? (settings?.primary_calendar_id as string) : calendarId;
+  const agganciato = (await calendariAgganciati(admin, conn, settings?.primary_calendar_id)).find((c) => c.calendarId === idLetto);
+  if (!agganciato && !ePrincipale) return { created: 0, updated: 0, removed: 0, skipped: "calendario non agganciato" };
+  if ((await getPlatformSetting("google_calendar_allow_two_way")) !== "true") return { created: 0, updated: 0, removed: 0, skipped: "two-way spento" };
+  const pref = await preferenzeSync(admin, conn.user_id, conn.company_id);
+  if (!pref.attiva || pref.direzione === "to_google") return { created: 0, updated: 0, removed: 0, skipped: "direzione" };
+  const accessToken = await getValidAccessToken(admin, conn);
+  if (!accessToken) return { created: 0, updated: 0, removed: 0, skipped: "token" };
+  const allowImport = (await getPlatformSetting("google_calendar_allow_google_to_crm_import")) === "true";
+  return reconcileCalendario(admin, accessToken, settings, conn.user_id, conn.company_id, idLetto, agganciato?.marketingCalendarId ?? null, allowImport);
 }
 
 /**
@@ -1443,16 +1571,32 @@ async function recuperaAppuntamentiSenzaEvento(
     .eq("company_id", companyId)
     .eq("assigned_to", userId)
     .gte("appointment_date", oggi)
-    .neq("status", "cancelled")
+    .not("status", "in", '("cancelled","annullato")')
     .order("appointment_date")
     .limit(50);
   const ids = (futuri ?? []).map((a: { id: string }) => a.id);
+  // Anche gli appuntamenti dei calendari di marketing agganciati a QUESTA
+  // connessione: il responsabile puo' non avere Google, e allora nessun altro
+  // giro del cron li avrebbe mai presi.
+  const conn = await getConnection(admin, userId, companyId);
+  const agganciati = conn ? await calendariAgganciati(admin, conn, null) : [];
+  if (agganciati.length > 0) {
+    const { data: deiCalendari } = await admin
+      .from("appointments")
+      .select("id")
+      .eq("company_id", companyId)
+      .in("calendar_id", agganciati.map((a) => a.marketingCalendarId))
+      .gte("appointment_date", oggi)
+      .not("status", "in", '("cancelled","annullato")')
+      .order("appointment_date")
+      .limit(50);
+    for (const a of (deiCalendari ?? []) as Array<{ id: string }>) if (!ids.includes(a.id)) ids.push(a.id);
+  }
   if (ids.length === 0) return 0;
 
   const { data: mappati } = await admin
     .from("google_calendar_event_map")
     .select("appointment_id")
-    .eq("user_id", userId)
     .in("appointment_id", ids);
   const gia = new Set((mappati ?? []).map((m: { appointment_id: string }) => m.appointment_id));
 
@@ -1620,7 +1764,33 @@ serveConMetriche("google-calendar-sync", async (req) => {
       if (interno.action === "process-order-queue") return json(await processOrderQueue(interno.companyId ?? null));
       if (interno.action === "pull-calendar") {
         if (!interno.connectionId || !interno.calendarId) return json({ error: "connectionId e calendarId richiesti" }, 400);
-        return json(await pullCalendarOrders(interno.connectionId, interno.calendarId));
+        // Lo stesso canale serve alle pose (commesse) e agli appuntamenti dei
+        // calendari di marketing agganciati: si rileggono entrambi.
+        const pose = await pullCalendarOrders(interno.connectionId, interno.calendarId);
+        const appuntamenti = await reconcilePerCalendario(interno.connectionId, interno.calendarId).catch((e) => ({
+          created: 0, updated: 0, removed: 0, skipped: e instanceof Error ? e.message : String(e),
+        }));
+        return json({ ...pose, appuntamenti });
+      }
+      // Appuntamenti: dal trigger di cancellazione (che non ha una service key
+      // da usare) e dalle prenotazioni pubbliche. L'utente, se manca, e' il
+      // responsabile dell'appuntamento.
+      if (["push-event", "update-event", "delete-event"].includes(interno.action)) {
+        if (!interno.appointmentId || !interno.companyId) return json({ error: "appointmentId e companyId richiesti" }, 400);
+        let uid: string | null = interno.userId ?? null;
+        if (!uid) {
+          const { data: a } = await getSupabaseAdmin()
+            .from("appointments")
+            .select("assigned_to, created_by")
+            .eq("id", interno.appointmentId)
+            .maybeSingle();
+          uid = (a as { assigned_to?: string | null; created_by?: string | null } | null)?.assigned_to
+            ?? (a as { created_by?: string | null } | null)?.created_by ?? null;
+        }
+        if (!uid) return json({ error: "utente non determinabile" }, 400);
+        if (interno.action === "push-event") return pushEvent(uid, interno.companyId, interno.appointmentId);
+        if (interno.action === "update-event") return updateEvent(uid, interno.companyId, interno.appointmentId);
+        return deleteEvent(uid, interno.companyId, interno.appointmentId, interno.googleEventId, interno.googleCalendarId);
       }
       return json({ error: `Unknown internal action: ${interno.action}` }, 400);
     }

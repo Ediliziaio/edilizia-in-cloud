@@ -204,7 +204,21 @@ async function cronFullSync(): Promise<Response> {
   const esito = { connessioni: (conns ?? []).length, ok: 0, errori: 0, eventi: 0 };
   for (const conn of (conns ?? []) as ConnRow[]) {
     try {
-      esito.eventi += await syncConnection(db, conn, conn.primary_calendar_id!, {});
+      // Il principale, gli altri scelti nelle impostazioni e i calendari
+      // agganciati ai calendari di marketing (passo 3): fino al 09/09/2026 quella
+      // scelta si salvava e poi non la leggeva nessuno.
+      const { data: agganciati } = await db
+        .from("marketing_calendars")
+        .select("external_calendar_id")
+        .eq("external_connection_id", conn.id)
+        .eq("external_provider", "outlook")
+        .eq("is_active", true);
+      const calendari = new Set<string>([conn.primary_calendar_id!]);
+      for (const id of conn.synced_calendar_ids ?? []) if (id) calendari.add(id);
+      for (const a of (agganciati ?? []) as Array<{ external_calendar_id: string | null }>) if (a.external_calendar_id) calendari.add(a.external_calendar_id);
+      for (const calendarId of calendari) {
+        esito.eventi += await syncConnection(db, conn, calendarId, {});
+      }
       esito.ok++;
     } catch (e) {
       // L'errore e' gia' annotato su last_error dalla sync: qui si passa oltre,

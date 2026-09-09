@@ -229,6 +229,21 @@ Deno.serve(async (req) => {
       .eq("status", "connected")
       .maybeSingle();
     if (!conn) return json({ error: "Connessione Google non trovata" }, 404);
+    // Il principale ha gia' il canale della connessione: un secondo canale
+    // sullo stesso calendario farebbe partire ogni sincronizzazione due volte.
+    {
+      const { data: st } = await admin
+        .from("google_calendar_settings")
+        .select("primary_calendar_id")
+        .eq("connection_id", conn.id)
+        .maybeSingle();
+      const primary = (st as { primary_calendar_id?: string | null } | null)?.primary_calendar_id;
+      const email = String(conn.google_account_email ?? "").toLowerCase();
+      const norm = (x: string) => (email && x.toLowerCase() === email ? "primary" : x);
+      if (primary && norm(String(calendarId)) === norm(primary)) {
+        return json({ ok: true, skipped: "principale: il canale della connessione copre gia' questo calendario" });
+      }
+    }
     if (!isInternal) {
       const token = (req.headers.get("authorization") || "").replace("Bearer ", "");
       const { data: { user } } = await admin.auth.getUser(token);

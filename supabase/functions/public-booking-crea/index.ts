@@ -20,6 +20,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
+import { sincronizzaCalendariEsterni } from "../_shared/appuntamentiPubblici.ts";
 import { avvisaSuperAdmin } from "../_shared/avvisaSuperAdmin.ts";
 import {
   minutiDa as minuti, orarioDa as orario, dataEstesa, esc, creaIcs, allegatoIcs,
@@ -169,6 +170,12 @@ Deno.serve(async (req) => {
       booking_email: email || null,
     }).select("id").single();
     if (insErr) throw insErr;
+
+    // Sul Google/Apple Calendar del responsabile, subito: prima l'appuntamento
+    // restava solo in EiC e il commerciale non lo vedeva sul telefono.
+    if (creato?.id) {
+      await sincronizzaCalendariEsterni({ azione: "push-event", appointmentId: creato.id, companyId: cal.company_id, userId: cal.owner_id ?? null });
+    }
 
     const quandoTesto = `${dataEstesa(data)} alle ${ora}`;
     const esito = { appointment_id: creato?.id ?? null, email_cliente: false, avviso_titolare: false };

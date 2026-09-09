@@ -18,7 +18,7 @@ import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { avvisaSuperAdmin } from "../_shared/avvisaSuperAdmin.ts";
 import {
   minutiDa, orarioDa, dataEstesa, esc, creaIcs, allegatoIcs,
-  urlGestione, blocchettoDettagli, bottoneGestione,
+  urlGestione, blocchettoDettagli, bottoneGestione, sincronizzaCalendariEsterni,
 } from "../_shared/appuntamentiPubblici.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -81,6 +81,9 @@ Deno.serve(async (req) => {
         description: [app.title, motivo && `Disdetto dal cliente: ${motivo}`].filter(Boolean).join("\n"),
       }).eq("id", app.id);
       if (error) throw error;
+      // Via dal Google/Apple Calendar del responsabile: prima l'evento restava
+      // li', e il commerciale si presentava a un appuntamento disdetto.
+      await sincronizzaCalendariEsterni({ azione: "delete-event", appointmentId: app.id, companyId: app.company_id, userId: app.assigned_to ?? cal.owner_id ?? null });
 
       if (emailCliente) {
         try {
@@ -176,6 +179,9 @@ Deno.serve(async (req) => {
       reminder_1h_at: null,
     }).eq("id", app.id);
     if (updErr) throw updErr;
+    // Lo spostamento arriva anche sul calendario esterno (se l'evento non c'era
+    // ancora, update risponde 404 e il giro dei 15 minuti lo crea).
+    await sincronizzaCalendariEsterni({ azione: "update-event", appointmentId: app.id, companyId: app.company_id, userId: app.assigned_to ?? cal.owner_id ?? null });
 
     const quandoNuovo = `${dataEstesa(data)} alle ${ora}`;
     if (emailCliente) {
