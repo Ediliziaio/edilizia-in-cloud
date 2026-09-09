@@ -45,15 +45,6 @@
 /f
   ! X-Frame-Options
 
-# Prenotazione pubblica: la pagina /prenota/<slug> viene incorporata via iframe
-# sui siti dei clienti (marketingedile.com, ediliziaincloud.com, i siti delle
-# aziende) — la pagina «grazie» dopo un form è il posto tipico. Come per /f
-# togliamo X-Frame-Options, che altrimenti fa bloccare il riquadro al browser
-# con ERR_BLOCKED_BY_RESPONSE. Nessun dato sensibile: è una pagina pubblica
-# senza login, e la CSP di /* non ha frame-ancestors.
-/prenota/*
-  ! X-Frame-Options
-
 # Security headers for all pages
 /*
   X-Frame-Options: SAMEORIGIN
@@ -238,7 +229,19 @@
 /firma-fea/*
   X-Robots-Tag: noindex, nofollow
 
+# Prenotazione pubblica: la pagina /prenota/<slug> viene incorporata via iframe
+# sui siti dei clienti (marketingedile.com, ediliziaincloud.com, i siti delle
+# aziende) — la pagina «grazie» dopo un form è il posto tipico.
+#
+# 09/09/2026 — Questo blocco stava PRIMA di /*, e non serviva a niente: quando
+# più regole corrispondono, in Cloudflare Pages vince l'ultima, e /* rimetteva
+# X-Frame-Options: SAMEORIGIN. Il riquadro restava vuoto sui siti dei clienti
+# (ERR_BLOCKED_BY_RESPONSE) mentre l'header X-Robots-Tag qui sotto — che sta
+# dopo /* — arrivava regolarmente: era la prova che il posto era sbagliato.
+# Nessun dato sensibile: è una pagina pubblica senza login, e la CSP di /* non
+# ha frame-ancestors, quindi tolto X-Frame-Options il framing è permesso.
 /prenota/*
+  ! X-Frame-Options
   X-Robots-Tag: noindex, nofollow
 
 /feedback/*
