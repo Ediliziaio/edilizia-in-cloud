@@ -154,6 +154,27 @@ export default function CompanyCalendarsOverview() {
   const isAdmin = useIsCompanyAdmin();
   const companyId = (effectiveCompany as any)?.id;
 
+  // A cosa serve, in concreto, ogni account collegato: quali calendari del
+  // gestionale ci scrivono dentro. Senza questo l'elenco dice solo "Tizio ha
+  // collegato Gmail", che non aiuta a capire cosa succede agli appuntamenti.
+  const { data: calendariPerAccount = new Map<string, string[]>() } = useQuery({
+    queryKey: ["calendari-per-account", companyId],
+    enabled: isAdmin && !!companyId,
+    queryFn: async (): Promise<Map<string, string[]>> => {
+      const { data } = await supabase
+        .from("marketing_calendars")
+        .select("name, external_connection_id")
+        .eq("company_id", companyId)
+        .eq("is_active", true)
+        .not("external_connection_id", "is", null);
+      const mappa = new Map<string, string[]>();
+      for (const c of (data ?? []) as Array<{ name: string; external_connection_id: string }>) {
+        mappa.set(c.external_connection_id, [...(mappa.get(c.external_connection_id) ?? []), c.name]);
+      }
+      return mappa;
+    },
+  });
+
   const { data: googleRows = [], isLoading: gLoading } = useQuery<GoogleCalRow[]>({
     queryKey: ["company-google-calendars", companyId],
     queryFn: async () => {
@@ -224,11 +245,12 @@ export default function CompanyCalendarsOverview() {
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <CalendarIcon className="h-5 w-5 text-muted-foreground" />
-            <CardTitle className="text-base">Calendari aziendali</CardTitle>
+            <CardTitle className="text-base">Account collegati dal team</CardTitle>
           </div>
           <CardDescription className="text-xs">
-            Panoramica di tutti i Google Calendar, Outlook e Apple Calendar collegati dagli
-            utenti della tua azienda. Per gestire i tuoi calendari personali vai a{" "}
+            Ogni persona collega il proprio account dal suo profilo: qui vedi chi l'ha fatto,
+            con quale indirizzo e quali calendari del gestionale ci scrivono dentro. Il tuo lo
+            gestisci qui sopra, o da{" "}
             <button
               type="button"
               onClick={() => navigate("/azienda/impostazioni/mio-profilo")}
@@ -282,6 +304,7 @@ export default function CompanyCalendarsOverview() {
                       status={row.status}
                       lastSyncAt={row.last_sync_at}
                       lastError={row.last_error}
+                      calendariUsati={calendariPerAccount.get(row.id) ?? []}
                     />
                   ))}
                 </div>
@@ -308,6 +331,7 @@ export default function CompanyCalendarsOverview() {
                       status={row.status}
                       lastSyncAt={row.last_sync_at}
                       lastError={row.last_error}
+                      calendariUsati={calendariPerAccount.get(row.id) ?? []}
                     />
                   ))}
                 </div>
@@ -334,6 +358,7 @@ export default function CompanyCalendarsOverview() {
                       status={row.status}
                       lastSyncAt={row.last_sync_at}
                       lastError={row.last_error}
+                      calendariUsati={calendariPerAccount.get(row.id) ?? []}
                     />
                   ))}
                 </div>
@@ -352,12 +377,14 @@ function CalendarRow({
   status,
   lastSyncAt,
   lastError,
+  calendariUsati = [],
 }: {
   userName: string;
   accountEmail: string | null;
   status: string;
   lastSyncAt: string | null;
   lastError: string | null;
+  calendariUsati?: string[];
 }) {
   return (
     <div className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm">
@@ -369,6 +396,11 @@ function CalendarRow({
         <div className="text-xs text-muted-foreground truncate">
           {accountEmail ?? "—"}
         </div>
+        {calendariUsati.length > 0 && (
+          <div className="mt-0.5 truncate text-xs text-muted-foreground">
+            Ci scrivono: {calendariUsati.join(", ")}
+          </div>
+        )}
         {lastError && status !== "connected" && (
           <div className="text-xs text-destructive mt-0.5 truncate" title={lastError}>
             {lastError}

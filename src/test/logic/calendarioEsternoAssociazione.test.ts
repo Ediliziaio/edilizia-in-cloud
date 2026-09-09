@@ -87,9 +87,33 @@ describe("Prenotazioni pubbliche e cancellazioni arrivano sui calendari", () => 
   });
 });
 
+describe("Si capisce dove finiscono gli appuntamenti, e di chi e' l'account", () => {
+  const config = leggi("src/components/settings/MarketingCalendarsConfig.tsx");
+  const overview = leggi("src/components/integrations/CompanyCalendarsOverview.tsx");
+
+  it("l'elenco dei calendari mostra nome del calendario e indirizzo dell'account", () => {
+    expect(config).toContain("Calendario esterno</TableHead>");
+    expect(config).toContain("emailAccount(cal.external_connection_id)");
+  });
+
+  it("la pagina dei collegamenti distingue il proprio account da quelli del team", () => {
+    expect(config).toContain("Il tuo account");
+    expect(config).toContain("Tutta l'azienda");
+    expect(config).toContain("<CompanyCalendarsOverview />");
+  });
+
+  it("per ogni account collegato si vede a quali calendari serve", () => {
+    expect(overview).toContain("calendari-per-account");
+    expect(overview).toContain("Ci scrivono:");
+  });
+});
+
 describe("Il calendario personale nasce agganciato", () => {
   const auth = leggi("supabase/functions/google-calendar-auth/index.ts");
   it("al collegamento Google il calendario personale punta al principale dell'account", () => {
     expect(auth).toContain('external_provider: "google", external_connection_id: conn.id, external_calendar_id: userInfo.email');
+    // il nome lo chiede a Google: "Principale" sarebbe uguale per tutti
+    expect(auth).toContain("calendar/v3/calendars/primary");
+    expect(auth).toContain("if (cal.summary) nomePrincipale = cal.summary;");
   });
 });

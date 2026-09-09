@@ -208,8 +208,25 @@ async function handleCallback(req: Request): Promise<Response> {
       // questo account: cosi' il passo 3 del calendario dice dove finiscono gli
       // appuntamenti invece di mostrare "nessun collegamento" mentre in realta'
       // ci vanno lo stesso. Per Google l'id del calendario principale e' l'email.
+      //
+      // Il nome lo chiediamo a Google: scrivere "Principale" sarebbe la stessa
+      // parola per tutti, e nell'elenco dei calendari non distinguerebbe niente
+      // ("Appuntamenti Lavoro" dice molto di piu').
+      let nomePrincipale = "Principale";
+      try {
+        const r = await fetch("https://www.googleapis.com/calendar/v3/calendars/primary", {
+          headers: { Authorization: `Bearer ${tokens.access_token}` },
+          signal: AbortSignal.timeout(8000),
+        });
+        if (r.ok) {
+          const cal = await r.json() as { summary?: string };
+          if (cal.summary) nomePrincipale = cal.summary;
+        }
+      } catch (e) {
+        console.warn("[google-calendar-auth] nome del calendario principale non letto:", e instanceof Error ? e.message : String(e));
+      }
       const aggancio = conn && userInfo.email
-        ? { external_provider: "google", external_connection_id: conn.id, external_calendar_id: userInfo.email, external_calendar_name: "Principale" }
+        ? { external_provider: "google", external_connection_id: conn.id, external_calendar_id: userInfo.email, external_calendar_name: nomePrincipale }
         : {};
 
       // Se esiste ma è disattivato (utente aveva fatto disconnect) → riattiva
@@ -623,7 +640,7 @@ Deno.serve(async (req) => {
     }
   } catch (e) {
     console.error("google-calendar-auth error:", e);
-    return new Response(JSON.stringify({ error: e.message || "Internal error" }), {
+    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Internal error" }), {
       status: 500,
       headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
     });

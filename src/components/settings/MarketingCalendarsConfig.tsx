@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { registraCanaleCalendario } from "@/hooks/useCalendariLavori";
+import CompanyCalendarsOverview from "@/components/integrations/CompanyCalendarsOverview";
+import { PROVIDER_LABEL as PROVIDER_NOME, useCaselleCalendario } from "@/hooks/useCalendariEsterni";
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -247,6 +249,12 @@ export default function MarketingCalendarsConfig() {
       throw new Error("Durata appuntamento di default non valida.");
     }
   };
+
+  // Account calendario collegati in azienda: servono a scrivere di CHI e' il
+  // calendario in cui finiscono gli appuntamenti, non solo come si chiama.
+  const { data: caselleCalendario = [] } = useCaselleCalendario();
+  const emailAccount = (connectionId?: string | null) =>
+    connectionId ? caselleCalendario.find((c) => c.connectionId === connectionId)?.email ?? null : null;
 
   // ---- QUERIES ----
   const { data: calendars = [], isLoading: loadingCalendars, isError: calendarsError } = useQuery({
@@ -875,22 +883,33 @@ export default function MarketingCalendarsConfig() {
                         )}
                       </TableCell>
                       {/* Dove finiscono gli appuntamenti: prima si vedeva solo
-                          entrando nel calendario e scorrendo fino in fondo. */}
+                          entrando nel calendario e scorrendo fino in fondo. Il
+                          nome del calendario da solo non basta ("Principale" e'
+                          uguale per tutti): serve anche di CHI e' l'account. */}
                       <TableCell className="hidden xl:table-cell">
-                        <button
-                          type="button"
-                          className="inline-flex max-w-[200px] items-center gap-1 truncate text-sm hover:underline"
-                          onClick={() => { setEditingCalendar(cal); setDialogOpen(true); }}
-                        >
-                          {cal.external_calendar_id ? (
-                            <>
+                        {cal.external_calendar_id ? (
+                          <button
+                            type="button"
+                            className="block max-w-[220px] text-left hover:underline"
+                            onClick={() => { setEditingCalendar(cal); setDialogOpen(true); }}
+                          >
+                            <span className="flex items-center gap-1.5 text-sm">
                               <CalendarDays className="h-3.5 w-3.5 shrink-0 text-primary" />
                               <span className="truncate">{cal.external_calendar_name || "Collegato"}</span>
-                            </>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">Non collegato</span>
-                          )}
-                        </button>
+                            </span>
+                            <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                              {emailAccount(cal.external_connection_id) ?? PROVIDER_NOME[cal.external_provider ?? "google"]}
+                            </span>
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className="text-xs text-muted-foreground hover:underline"
+                            onClick={() => { setEditingCalendar(cal); setDialogOpen(true); }}
+                          >
+                            Non collegato
+                          </button>
+                        )}
                       </TableCell>
                       <TableCell className="hidden md:table-cell">{appointmentCountsByCalendar[cal.id] || 0}</TableCell>
                       <TableCell>
@@ -1210,10 +1229,34 @@ export default function MarketingCalendarsConfig() {
         </TabsContent>
 
         {/* TAB: COLLEGAMENTI */}
-        <TabsContent value="connections" className="space-y-6">
-          <GoogleCalendarConnectionTab />
-          <OutlookCalendarConnectionTab />
-          <AppleCalendarConnectionTab />
+        {/* 09/09/2026 — Erano quattro riquadri di fila senza gerarchia: i primi
+            tre sono il TUO account (valgono solo per te), il quarto e' la vista
+            di squadra. Chi apriva la pagina non capiva se stesse guardando le
+            proprie connessioni o quelle di tutti. */}
+        <TabsContent value="connections" className="space-y-8">
+          <section className="space-y-3">
+            <div>
+              <h3 className="text-sm font-semibold">Il tuo account</h3>
+              <p className="text-xs text-muted-foreground">
+                Vale solo per te: collega qui il calendario dove vuoi ricevere i tuoi appuntamenti.
+                Ogni persona del team collega il proprio dal suo profilo.
+              </p>
+            </div>
+            <GoogleCalendarConnectionTab />
+            <OutlookCalendarConnectionTab />
+            <AppleCalendarConnectionTab />
+          </section>
+
+          <section className="space-y-3">
+            <div>
+              <h3 className="text-sm font-semibold">Tutta l'azienda</h3>
+              <p className="text-xs text-muted-foreground">
+                Chi ha collegato un account, con quale indirizzo, quando ha sincronizzato
+                l'ultima volta e quali calendari del gestionale ci scrivono dentro.
+              </p>
+            </div>
+            <CompanyCalendarsOverview />
+          </section>
         </TabsContent>
       </Tabs>
 
