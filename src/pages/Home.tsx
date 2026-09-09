@@ -135,6 +135,7 @@ export default function Home() {
             "name": "Piano Gestionale",
             "price": "99",
             "priceCurrency": "EUR",
+            "validFrom": "2026-04-14",
             "priceValidUntil": "2026-12-31",
             "availability": "https://schema.org/InStock",
             "url": "https://www.ediliziaincloud.com/prezzi/",
@@ -154,6 +155,7 @@ export default function Home() {
               "applicableCountry": "IT",
               "returnPolicyCategory": "https://schema.org/MerchantReturnFiniteReturnWindow",
               "merchantReturnDays": 31,
+              "returnMethod": "https://schema.org/ReturnByMail",
               "returnFees": "https://schema.org/FreeReturn"
             }
           },
@@ -162,6 +164,7 @@ export default function Home() {
             "name": "Piano Professionista",
             "price": "197",
             "priceCurrency": "EUR",
+            "validFrom": "2026-04-14",
             "priceValidUntil": "2026-12-31",
             "availability": "https://schema.org/InStock",
             "url": "https://www.ediliziaincloud.com/prezzi/",
@@ -181,6 +184,7 @@ export default function Home() {
               "applicableCountry": "IT",
               "returnPolicyCategory": "https://schema.org/MerchantReturnFiniteReturnWindow",
               "merchantReturnDays": 31,
+              "returnMethod": "https://schema.org/ReturnByMail",
               "returnFees": "https://schema.org/FreeReturn"
             }
           },
@@ -189,6 +193,7 @@ export default function Home() {
             "name": "Piano Impresa AI",
             "price": "437",
             "priceCurrency": "EUR",
+            "validFrom": "2026-04-14",
             "priceValidUntil": "2026-12-31",
             "availability": "https://schema.org/InStock",
             "url": "https://www.ediliziaincloud.com/prezzi/",
@@ -208,6 +213,7 @@ export default function Home() {
               "applicableCountry": "IT",
               "returnPolicyCategory": "https://schema.org/MerchantReturnFiniteReturnWindow",
               "merchantReturnDays": 31,
+              "returnMethod": "https://schema.org/ReturnByMail",
               "returnFees": "https://schema.org/FreeReturn"
             }
           }
