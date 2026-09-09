@@ -753,7 +753,11 @@ export default function MarketingCalendarsConfig() {
         </TabsList>
 
         {/* TAB: CALENDARI */}
-        <TabsContent value="calendars" forceMount className="space-y-4">
+        {/* 09/09/2026 — I quattro pannelli erano montati a forza tutti insieme:
+            Radix li teneva visibili uno sotto l'altro, e cliccare "Collegamenti"
+            o "Disponibilita'" non cambiava niente — restava sempre in cima
+            l'elenco dei calendari, e il resto stava in fondo alla pagina. */}
+        <TabsContent value="calendars" className="space-y-4">
           <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
             <div className="flex gap-2 flex-wrap items-center">
               <div className="relative">
@@ -819,6 +823,7 @@ export default function MarketingCalendarsConfig() {
                     <TableHead>Durata</TableHead>
                     <TableHead>Tipo</TableHead>
                     <TableHead className="hidden lg:table-cell">Link booking</TableHead>
+                    <TableHead className="hidden xl:table-cell">Calendario esterno</TableHead>
                     <TableHead className="hidden md:table-cell">App.</TableHead>
                     <TableHead>Stato</TableHead>
                     <TableHead className="hidden md:table-cell">Aggiornato</TableHead>
@@ -869,6 +874,24 @@ export default function MarketingCalendarsConfig() {
                           <span className="text-xs text-amber-600">Da generare</span>
                         )}
                       </TableCell>
+                      {/* Dove finiscono gli appuntamenti: prima si vedeva solo
+                          entrando nel calendario e scorrendo fino in fondo. */}
+                      <TableCell className="hidden xl:table-cell">
+                        <button
+                          type="button"
+                          className="inline-flex max-w-[200px] items-center gap-1 truncate text-sm hover:underline"
+                          onClick={() => { setEditingCalendar(cal); setDialogOpen(true); }}
+                        >
+                          {cal.external_calendar_id ? (
+                            <>
+                              <CalendarDays className="h-3.5 w-3.5 shrink-0 text-primary" />
+                              <span className="truncate">{cal.external_calendar_name || "Collegato"}</span>
+                            </>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">Non collegato</span>
+                          )}
+                        </button>
+                      </TableCell>
                       <TableCell className="hidden md:table-cell">{appointmentCountsByCalendar[cal.id] || 0}</TableCell>
                       <TableCell>
                         <Switch checked={cal.is_active} disabled={!canManageCalendars || toggleActive.isPending} onCheckedChange={(v) => toggleActive.mutate({ id: cal.id, is_active: v })} />
@@ -906,7 +929,7 @@ export default function MarketingCalendarsConfig() {
         </TabsContent>
 
         {/* TAB: PREFERENZE */}
-        <TabsContent value="preferences" forceMount className="space-y-6">
+        <TabsContent value="preferences" className="space-y-6">
           <Card>
             <CardHeader>
               <CardTitle>Preferenze dell'app</CardTitle>
@@ -1043,7 +1066,7 @@ export default function MarketingCalendarsConfig() {
         </TabsContent>
 
         {/* TAB: DISPONIBILITÀ */}
-        <TabsContent value="availability" forceMount className="space-y-4">
+        <TabsContent value="availability" className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle>Disponibilità settimanale</CardTitle>
@@ -1187,7 +1210,7 @@ export default function MarketingCalendarsConfig() {
         </TabsContent>
 
         {/* TAB: COLLEGAMENTI */}
-        <TabsContent value="connections" forceMount className="space-y-6">
+        <TabsContent value="connections" className="space-y-6">
           <GoogleCalendarConnectionTab />
           <OutlookCalendarConnectionTab />
           <AppleCalendarConnectionTab />

@@ -12,6 +12,7 @@ import {
   AlertCircle,
   BriefcaseBusiness,
   CalendarClock,
+  CalendarDays,
   CheckCircle2,
   Clock3,
   Globe2,
@@ -186,6 +187,9 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
     { label: "Link prenotazione", ok: !!form.booking_slug.trim() },
     { label: "Durata appuntamento", ok: form.duration_minutes > 0 },
     { label: "Responsabile", ok: !!form.owner_id },
+    // Senza questa riga il calendario esterno era l'unica scelta del modulo
+    // che non compariva nel riepilogo: si sceglieva e non se ne aveva conferma.
+    { label: "Calendario esterno", ok: !!form.external_calendar_id },
     { label: "Sede base", ok: !!form.base_formatted_address || !!form.base_address_city },
   ];
   const completedChecks = readinessChecks.filter((check) => check.ok).length;
@@ -670,6 +674,14 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <Video className="h-3.5 w-3.5" />
                     <span>{form.default_meeting_provider === "google_meet" ? "Google Meet automatico" : "Nessun link video automatico"}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <CalendarDays className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate">
+                      {form.external_calendar_id
+                        ? `Appuntamenti in "${form.external_calendar_name || "calendario collegato"}"`
+                        : "Nessun calendario esterno collegato"}
+                    </span>
                   </div>
                 </div>
 

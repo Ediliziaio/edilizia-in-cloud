@@ -46,7 +46,11 @@ export function CalendarioEsternoPicker({
   // Nessun effect: finché l'utente non tocca la tendina vale la casella salvata
   // sul calendario, così aprendo un calendario già collegato si vede subito.
   const [sceltaUtente, setSceltaUtente] = useState<string | null>(null);
-  const connectionId = sceltaUtente ?? value.external_connection_id;
+  // `||` e non `??`: la tendina puo' restituire la stringa vuota (accade quando
+  // Radix la monta prima che gli account siano arrivati), e con `??` quella
+  // stringa vuota vinceva sul valore salvato — il calendario risultava "da
+  // collegare" anche quando era collegato da mesi.
+  const connectionId = sceltaUtente || value.external_connection_id || null;
   const setConnectionId = setSceltaUtente;
 
   const casella = useMemo(
@@ -54,6 +58,21 @@ export function CalendarioEsternoPicker({
     [caselle, connectionId],
   );
   const { data: calendari = [], isLoading: caricoCalendari, error } = useCalendariDiCasella(casella);
+
+  // Radix Select decide cosa scrivere sul pulsante quando lo monta: se le
+  // opzioni arrivano DOPO (qui sono due query), resta scritto "Scegli
+  // l'account" anche su un calendario gia' collegato — e sembra che
+  // l'associazione non si possa fare. Rimontando le tendine quando le opzioni
+  // cambiano, il valore salvato si vede.
+  const chiaveCaselle = `caselle-${caselle.length}-${connectionId ?? ""}`;
+  const chiaveCalendari = `calendari-${calendari.length}-${value.external_calendar_id ?? ""}`;
+
+  // Il calendario salvato puo' non essere nell'elenco (account scollegato o
+  // permessi cambiati): resta comunque selezionabile, altrimenti la tendina
+  // sembrerebbe vuota e si perderebbe il collegamento salvando.
+  const calendariVisibili = value.external_calendar_id && !calendari.some((c) => c.id === value.external_calendar_id)
+    ? [...calendari, { id: value.external_calendar_id, nome: value.external_calendar_name || "Calendario collegato", colore: null }]
+    : calendari;
 
   if (!caricoCaselle && caselle.length === 0) {
     return (
@@ -70,6 +89,7 @@ export function CalendarioEsternoPicker({
         <div className="space-y-1.5">
           <Label className="text-xs text-muted-foreground">Account</Label>
           <Select
+            key={chiaveCaselle}
             value={connectionId ?? ""}
             disabled={disabled || caricoCaselle}
             onValueChange={(v) => {
@@ -99,10 +119,11 @@ export function CalendarioEsternoPicker({
         <div className="space-y-1.5">
           <Label className="text-xs text-muted-foreground">Calendario</Label>
           <Select
+            key={chiaveCalendari}
             value={value.external_calendar_id ?? ""}
             disabled={disabled || !casella || caricoCalendari}
             onValueChange={(v) => {
-              const scelto = calendari.find((c) => c.id === v);
+              const scelto = calendariVisibili.find((c) => c.id === v);
               onChange({
                 external_provider: casella!.provider,
                 external_connection_id: casella!.connectionId,
@@ -121,7 +142,7 @@ export function CalendarioEsternoPicker({
               )}
             </SelectTrigger>
             <SelectContent>
-              {calendari.map((c) => (
+              {calendariVisibili.map((c) => (
                 <SelectItem key={c.id} value={c.id}>
                   <span className="flex items-center gap-2">
                     <span
