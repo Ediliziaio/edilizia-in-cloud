@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { istruzioniDns } from "./outreachDns";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -605,15 +606,27 @@ function DomainCard({ domain, caselle, forceOpen, onChange }: { domain: Domain; 
         </div>
       </div>
 
-      {open && showDns && (
-        <div className="space-y-2 border-t border-border bg-muted/40 p-4 text-xs">
-          <p className="text-muted-foreground">Inserisci questi record nel DNS del dominio, poi premi <strong className="font-medium text-foreground">Verifica DNS</strong> (legge lo stato reale da Elastic Email). I badge restano cliccabili come override manuale.</p>
-          <DnsRow type="TXT" host="@" value="v=spf1 a mx include:_spf.elasticemail.com ~all" />
-          <DnsRow type="TXT" host={`api._domainkey.${domain.domain}`} value="(valore DKIM dal pannello Elastic Email)" />
-          <DnsRow type="TXT" host={`_dmarc.${domain.domain}`} value="v=DMARC1; p=none; rua=mailto:dmarc@" />
-          <p className="text-[10px] text-muted-foreground">Il valore DKIM è generato da Elastic Email quando aggiungi il dominio nel loro pannello. Posso integrarlo via API se vuoi.</p>
-        </div>
-      )}
+      {open && showDns && (() => {
+        // Le istruzioni dipendono da CHI spedisce per questo dominio: prima
+        // erano scritte per Elastic Email e basta, e chi aveva caselle Register
+        // seguendole avrebbe rotto l'SPF (l'include di Register sparisce → ogni
+        // email esce con spf=softfail). Il provider si legge dagli host SMTP
+        // delle caselle del dominio.
+        const dns = istruzioniDns(domain.domain, caselle.map((c) => c.smtp_host ?? null), caselle.map((c) => c.provider));
+        return (
+          <div className="space-y-2 border-t border-border bg-muted/40 p-4 text-xs">
+            <p className="text-muted-foreground">
+              Caselle su <strong className="font-medium text-foreground">{dns.provider}</strong>. Inserisci questi record nel DNS del dominio
+              {dns.doveDns ? <> ({dns.doveDns})</> : null}, poi premi <strong className="font-medium text-foreground">Verifica DNS</strong>.
+            </p>
+            <DnsRow type="TXT" host="@" value={dns.spf} />
+            <DnsRow type={dns.dkimTipo} host={dns.dkimHost} value={dns.dkimValore} />
+            <DnsRow type="TXT" host={`_dmarc.${domain.domain}`} value={`v=DMARC1; p=none; rua=mailto:dmarc@${domain.domain}; adkim=r; aspf=r`} />
+            <p className="text-[10px] text-muted-foreground">{dns.notaDkim}</p>
+            <p className="text-[10px] text-muted-foreground">DMARC parte in osservazione (<code>p=none</code>): dopo due settimane di report puliti si passa a <code>p=quarantine</code>. La casella <code>dmarc@{domain.domain}</code> deve esistere, o i report rimbalzano.</p>
+          </div>
+        );
+      })()}
 
       {open && showAdd && (
         <div className="space-y-3 border-t border-border bg-muted/40 p-4">

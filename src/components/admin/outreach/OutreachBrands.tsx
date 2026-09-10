@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Trash2, Building2, AtSign, CornerUpLeft, PenLine, MapPin, Check, Clock } from "lucide-react";
+import { Plus, Trash2, Building2, AtSign, CornerUpLeft, PenLine, MapPin, Check, Clock, Link2 } from "lucide-react";
 import { isMissingTableError, MigrationGate } from "./_shared";
 import { FieldLabel } from "./deliverabilityUi";
 
@@ -22,6 +22,10 @@ interface Brand {
   id: string; name: string; from_name: string | null; reply_to: string | null; status: string;
   signature: string | null; footer_address: string | null;
   send_window?: Finestra | null;
+  /** Base dei link di tracciamento/disiscrizione sul dominio del brand (es. https://link.dominio.it/l). */
+  tracking_base_url?: string | null;
+  /** Tetto di PRIMI contatti al giorno per casella (i follow-up restano nel tetto totale). */
+  new_per_day?: number | null;
 }
 /** Finestra di invio del brand (stesso formato del setting globale). 0=Dom … 6=Sab. */
 interface Finestra { days: number[]; startHour: number; endHour: number; timeZone: string }
@@ -62,6 +66,8 @@ export function OutreachBrands({ companyId }: { companyId: string }) {
   const [signature, setSignature] = useState("");
   const [footerAddress, setFooterAddress] = useState("");
   const [finestra, setFinestra] = useState<Finestra | null>(null);
+  const [trackingBase, setTrackingBase] = useState("");
+  const [nuoviAlGiorno, setNuoviAlGiorno] = useState("");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any;
 
@@ -84,10 +90,24 @@ export function OutreachBrands({ companyId }: { companyId: string }) {
         from_name: fromName.trim() || null, reply_to: replyTo.trim() || null,
         signature: signature.trim() || null, footer_address: footerAddress.trim() || null,
         send_window: finestra,
+        tracking_base_url: trackingBase.trim() || null,
+        new_per_day: nuoviAlGiorno.trim() ? Number(nuoviAlGiorno) : null,
       });
       if (error) throw error;
     },
-    onSuccess: () => { toast.success("Brand creato"); setName(""); setFromName(""); setReplyTo(""); setSignature(""); setFooterAddress(""); setFinestra(null); setShow(false); invalidate(); },
+    onSuccess: () => { toast.success("Brand creato"); setName(""); setFromName(""); setReplyTo(""); setSignature(""); setFooterAddress(""); setFinestra(null); setTrackingBase(""); setNuoviAlGiorno(""); setShow(false); invalidate(); },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Errore"),
+  });
+
+  const salvaRitmo = useMutation({
+    mutationFn: async ({ id, trackingBase: tb, nuoviAlGiorno: n }: { id: string; trackingBase: string; nuoviAlGiorno: string }) => {
+      const base = tb.trim();
+      if (base && !/^https:\/\/[^\s/]+(\/[^\s]*)?$/.test(base)) throw new Error("La base dei link deve essere un indirizzo https:// (es. https://link.tuodominio.it/l)");
+      const nuovi = n.trim() ? Number(n) : null;
+      if (nuovi !== null && (!Number.isInteger(nuovi) || nuovi < 0)) throw new Error("«Nuovi al giorno» deve essere un numero intero");
+      const { error } = await db.from(T).update({ tracking_base_url: base || null, new_per_day: nuovi }).eq("id", id); if (error) throw error;
+    },
+    onSuccess: () => { toast.success("Ritmo e link del brand salvati"); invalidate(); },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Errore"),
   });
 
@@ -154,6 +174,12 @@ export function OutreachBrands({ companyId }: { companyId: string }) {
             <div className="space-y-1.5 sm:col-span-3"><FieldLabel>Indirizzo (footer)</FieldLabel>
               <Input value={footerAddress} onChange={(e) => setFooterAddress(e.target.value)} placeholder="Via Roma 1, 20100 Milano (MI)" className="h-9" />
               <p className="text-[11px] text-muted-foreground">Indirizzo postale nel footer (obbligo anti-spam).</p></div>
+            <div className="space-y-1.5 sm:col-span-2"><FieldLabel>Link su dominio del brand</FieldLabel>
+              <Input value={trackingBase} onChange={(e) => setTrackingBase(e.target.value)} placeholder="https://link.tuodominio.it/l" className="h-9 font-mono" />
+              <p className="text-[11px] text-muted-foreground">Base dei link di tracciamento e disiscrizione. Vuoto = dominio di piattaforma: un dominio estraneo al mittente in ogni email.</p></div>
+            <div className="space-y-1.5"><FieldLabel>Nuovi al giorno / casella</FieldLabel>
+              <Input value={nuoviAlGiorno} onChange={(e) => setNuoviAlGiorno(e.target.value)} placeholder="3" inputMode="numeric" className="h-9" />
+              <p className="text-[11px] text-muted-foreground">Solo primi contatti; i follow-up restano nel tetto totale.</p></div>
             <div className="space-y-1.5 sm:col-span-3"><FieldLabel>Orari di invio</FieldLabel>
               <FinestraEditor value={finestra} onChange={setFinestra} /></div>
           </div>
@@ -174,14 +200,17 @@ export function OutreachBrands({ companyId }: { companyId: string }) {
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-          {brands.map((b) => <BrandCard key={b.id} brand={b} onDelete={() => del.mutate(b.id)} deleting={del.isPending} onSalvaFinestra={(f) => salvaFinestra.mutate({ id: b.id, finestra: f })} />)}
+          {brands.map((b) => <BrandCard key={b.id} brand={b} onDelete={() => del.mutate(b.id)} deleting={del.isPending} onSalvaFinestra={(f) => salvaFinestra.mutate({ id: b.id, finestra: f })} onSalvaRitmo={(tb, n) => salvaRitmo.mutate({ id: b.id, trackingBase: tb, nuoviAlGiorno: n })} />)}
         </div>
       )}
     </section>
   );
 }
 
-function BrandCard({ brand, onDelete, deleting, onSalvaFinestra }: { brand: Brand; onDelete: () => void; deleting: boolean; onSalvaFinestra: (f: Finestra | null) => void }) {
+function BrandCard({ brand, onDelete, deleting, onSalvaFinestra, onSalvaRitmo }: { brand: Brand; onDelete: () => void; deleting: boolean; onSalvaFinestra: (f: Finestra | null) => void; onSalvaRitmo: (trackingBase: string, nuoviAlGiorno: string) => void }) {
+  const [editRitmo, setEditRitmo] = useState(false);
+  const [tb, setTb] = useState(brand.tracking_base_url ?? "");
+  const [nuovi, setNuovi] = useState(brand.new_per_day != null ? String(brand.new_per_day) : "");
   const [editOrari, setEditOrari] = useState(false);
   const [finestra, setFinestra] = useState<Finestra | null>(brand.send_window ?? null);
   return (
@@ -219,6 +248,22 @@ function BrandCard({ brand, onDelete, deleting, onSalvaFinestra }: { brand: Bran
           ) : (
             <button type="button" className="text-left hover:underline" onClick={() => setEditOrari(true)} title="Modifica gli orari di invio del brand">
               {descriviFinestra(brand.send_window)}
+            </button>
+          )}
+        </Row>
+        <Row icon={Link2} label="Ritmo e link">
+          {editRitmo ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <Input value={tb} onChange={(e) => setTb(e.target.value)} placeholder="https://link.tuodominio.it/l" className="h-7 w-[260px] font-mono text-xs" />
+              <Input value={nuovi} onChange={(e) => setNuovi(e.target.value)} placeholder="nuovi/giorno" inputMode="numeric" className="h-7 w-[110px] text-xs" />
+              <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => { setTb(brand.tracking_base_url ?? ""); setNuovi(brand.new_per_day != null ? String(brand.new_per_day) : ""); setEditRitmo(false); }}>Annulla</Button>
+              <Button size="sm" className="h-6 px-2 text-xs" onClick={() => { onSalvaRitmo(tb, nuovi); setEditRitmo(false); }}>Salva</Button>
+            </div>
+          ) : (
+            <button type="button" className="text-left hover:underline" onClick={() => setEditRitmo(true)} title="Tetto dei nuovi contatti al giorno per casella e dominio dei link">
+              {brand.new_per_day != null ? <span>{brand.new_per_day} nuovi/giorno per casella</span> : <span className="text-amber-700">nessun tetto sui nuovi: i follow-up sfondano il ritmo</span>}
+              {" · "}
+              {brand.tracking_base_url ? <span className="font-mono">{brand.tracking_base_url}</span> : <span className="text-amber-700">link su dominio di piattaforma</span>}
             </button>
           )}
         </Row>
