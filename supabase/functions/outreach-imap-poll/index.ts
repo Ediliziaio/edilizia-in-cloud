@@ -20,7 +20,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
-import { imapFetchUnreadSince, type ImapConfig } from "../_shared/imapSmtpClient.ts";
+import { imapFetchUnreadSince, imapCuraWarmup, type ImapConfig } from "../_shared/imapSmtpClient.ts";
 import { matchReplyToContact, type KnownContact } from "../_shared/outreach-reply-match.ts";
 import { handleInboundReply } from "../_shared/outreach-reply-handler.ts";
 import { parseBounce, type BounceInfo } from "../_shared/outreach-bounce.ts";
@@ -107,7 +107,11 @@ async function destinatariRecenti(admin: any, senderId: string, emails: string[]
 }
 
 /** Un messaggio arrivato nella casella: bounce, risposta di un prospect o rumore. */
-async function processa(admin: any, mb: Casella, msg: MsgIn): Promise<"bounce" | "risposta" | "ignorato"> {
+async function processa(admin: any, mb: Casella, msg: MsgIn, poolEmails?: Set<string>): Promise<"bounce" | "risposta" | "ignorato"> {
+  // Warm-up fra caselle del pool: non è una risposta di prospect e non deve
+  // toccare i contatori dei bounce.
+  const mittente = (msg.from.match(/[^\s<>"]+@[^\s<>"]+/) ?? [msg.from])[0].toLowerCase();
+  if (poolEmails?.has(mittente)) return "ignorato";
   const bounce = parseBounce({ from: msg.from, subject: msg.subject, text: msg.text, ignoreEmails: [mb.email] });
   if (bounce.isBounce) {
     // Contano SOLO gli indirizzi a cui questa casella ha davvero scritto negli
@@ -155,6 +159,14 @@ serveConMetriche("outreach-imap-poll", async (req) => {
   };
 
   try {
+    // Gli indirizzi del pool: un messaggio che arriva da uno di loro è warm-up,
+    // non una risposta di prospect né un bounce da contare.
+    const poolEmails = new Set<string>();
+    try {
+      const { data: pool } = await admin.from("outreach_sender_accounts").select("email");
+      for (const r of (pool ?? []) as Array<{ email: string | null }>) if (r.email) poolEmails.add(String(r.email).toLowerCase());
+    } catch { /* senza elenco si va avanti: il warm-up in ricezione salta */ }
+
     // A. Caselle SMTP con IMAP (attive O in warm-up), connessione sana.
     const { data: smtpBoxes, error: mErr } = await admin
       .from("outreach_sender_accounts")
@@ -182,12 +194,22 @@ serveConMetriche("outreach-imap-poll", async (req) => {
               messageId: m.messageId || null, from: m.from, subject: m.subject,
               text: m.text || (m.html ? htmlToPlainText(m.html) : ""),
               inReplyTo: m.inReplyTo, references: m.references ?? [], headers: m.headers ?? {},
-            }));
+            }, poolEmails));
           } catch (e) { esito.errors.push(`${mb.email}/${m.uid}: ${e instanceof Error ? e.message : String(e)}`); }
         }
         const upd: Record<string, unknown> = { last_imap_check_at: new Date().toISOString() };
         if (maxUid > 0) upd.last_imap_uid = String(maxUid);
         await admin.from("outreach_sender_accounts").update(upd).eq("id", mb.id);
+
+        // Il lato ricezione del warm-up: le email delle altre caselle del pool
+        // escono dallo spam e risultano lette. Best-effort, mai bloccante.
+        const altre = [...poolEmails].filter((e) => e !== String(mb.email).toLowerCase());
+        if (altre.length) {
+          try {
+            const w = await imapCuraWarmup(cfg, altre);
+            if (w.salvati || w.letti) console.log(`[outreach-imap-poll] warm-up ${mb.email}: ${w.salvati} tolte dallo spam, ${w.letti} segnate lette`);
+          } catch (e) { esito.errors.push(`${mb.email}: warm-up ricezione — ${e instanceof Error ? e.message : String(e)}`); }
+        }
       } catch (e) {
         esito.errors.push(`${mb.email}: IMAP fallito — ${e instanceof Error ? e.message : String(e)}`);
       }

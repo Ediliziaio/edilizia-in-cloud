@@ -981,3 +981,107 @@ function decodeRFC2047(s: string): string {
 
 /** @deprecated nome storico: la funzione non prende più solo i non letti. */
 export const imapFetchUnreadSince = imapScaricaNuovi;
+
+/**
+ * Il lato «ricezione» del warm-up.
+ *
+ * Il warm-up faceva metà del lavoro: le caselle del pool si scrivevano fra
+ * loro, ma dall'altra parte nessuno apriva quelle email né le tirava fuori
+ * dallo spam — e sono proprio questi due gesti che insegnano ai provider che
+ * quel mittente è gradito. Qui, per una casella del pool: (1) nella cartella
+ * Spam/Junk si cercano i messaggi arrivati dalle altre caselle del pool e si
+ * spostano in INBOX; (2) in INBOX quelli ancora non letti dal pool si segnano
+ * come letti. Niente cancellazioni, niente risposte (le risposte le fa già
+ * `outreach-warmup`).
+ */
+export async function imapCuraWarmup(
+  cfg: ImapConfig,
+  mittentiPool: string[],
+): Promise<{ salvati: number; letti: number; cartellaSpam: string | null }> {
+  const mittenti = [...new Set(mittentiPool.map((m) => m.trim().toLowerCase()).filter((m) => /^[^\s@]+@[^\s@]+$/.test(m)))];
+  const esito = { salvati: 0, letti: 0, cartellaSpam: null as string | null };
+  if (mittenti.length === 0) return esito;
+
+  const conn = cfg.secure
+    ? await Deno.connectTls({ hostname: cfg.host, port: cfg.port })
+    : await Deno.connect({ hostname: cfg.host, port: cfg.port });
+  const decoder = new TextDecoder("utf-8", { fatal: false });
+  const encoder = new TextEncoder();
+  const buf = new Uint8Array(16384);
+  let tag = 0;
+  const nextTag = () => `A${++tag}`;
+  const leggi = async (): Promise<number | null> => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const scadenza = new Promise<never>((_, rifiuta) => { timer = setTimeout(() => rifiuta(new Error("imap_timeout")), 30_000); });
+    try { return await Promise.race([conn.read(buf), scadenza]); } finally { if (timer !== undefined) clearTimeout(timer); }
+  };
+  const cmd = async (c: string): Promise<{ ok: boolean; testo: string }> => {
+    const t = nextTag();
+    await conn.write(encoder.encode(`${t} ${c}\r\n`));
+    let testo = "";
+    const conclusa = () => new RegExp(`(?:^|\\r\\n)${t} (OK|NO|BAD)\\b`).test(testo);
+    while (!conclusa()) {
+      const n = await leggi();
+      if (n === null) break;
+      testo += decoder.decode(buf.subarray(0, n as number), { stream: true });
+    }
+    return { ok: new RegExp(`(?:^|\\r\\n)${t} OK\\b`).test(testo), testo };
+  };
+  const uidsDa = (risposta: string): string[] =>
+    (risposta.split("\r\n").find((r) => r.startsWith("* SEARCH")) ?? "* SEARCH").replace("* SEARCH", "").trim().split(/\s+/).filter(Boolean);
+  const citata = (v: string) => `"${v.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+
+  try {
+    await leggi(); // saluto
+    const login = await cmd(`LOGIN ${citata(cfg.username)} ${citata(cfg.password)}`);
+    if (!login.ok) throw new Error("imap_login_rifiutato");
+
+    // 1) la cartella dello spam, per come la chiama il server (RFC 6154)
+    const lista = await cmd(`LIST "" "*"`);
+    const spam = lista.testo.split("\r\n")
+      .filter((r) => r.startsWith("* LIST") && /\\(Junk|Spam)\b/i.test(r))
+      .map((r) => (r.match(/"([^"]*)"\s*$/) ?? r.match(/\s(\S+)\s*$/))?.[1])
+      .find(Boolean) ?? null;
+    esito.cartellaSpam = spam;
+
+    if (spam) {
+      const sel = await cmd(`SELECT ${citata(spam)}`);
+      if (sel.ok) {
+        const trovati = new Set<string>();
+        for (const m of mittenti) {
+          const r = await cmd(`UID SEARCH FROM ${citata(m)}`);
+          if (r.ok) for (const u of uidsDa(r.testo)) trovati.add(u);
+        }
+        for (const uid of [...trovati].slice(0, 50)) {
+          // MOVE dove c'è; altrimenti COPY + \Deleted + EXPUNGE, che è la stessa cosa in tre mosse.
+          const mv = await cmd(`UID MOVE ${uid} INBOX`);
+          if (mv.ok) { esito.salvati++; continue; }
+          const cp = await cmd(`UID COPY ${uid} INBOX`);
+          if (!cp.ok) continue;
+          await cmd(`UID STORE ${uid} +FLAGS.SILENT (\\Deleted)`);
+          esito.salvati++;
+        }
+        if (esito.salvati > 0) await cmd(`EXPUNGE`);
+      }
+    }
+
+    // 2) in INBOX: le email del pool ancora non lette diventano lette
+    const inbox = await cmd(`SELECT INBOX`);
+    if (inbox.ok) {
+      const daLeggere = new Set<string>();
+      for (const m of mittenti) {
+        const r = await cmd(`UID SEARCH UNSEEN FROM ${citata(m)}`);
+        if (r.ok) for (const u of uidsDa(r.testo)) daLeggere.add(u);
+      }
+      const elenco = [...daLeggere].slice(0, 100);
+      if (elenco.length) {
+        const st = await cmd(`UID STORE ${elenco.join(",")} +FLAGS.SILENT (\\Seen)`);
+        if (st.ok) esito.letti = elenco.length;
+      }
+    }
+    await cmd(`LOGOUT`);
+  } finally {
+    try { conn.close(); } catch { /* ignore */ }
+  }
+  return esito;
+}
