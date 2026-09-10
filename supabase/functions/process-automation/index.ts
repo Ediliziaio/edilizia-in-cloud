@@ -1576,7 +1576,18 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
       };
       const messaggio = (await resolveNotifText(ncfg.messaggio || ncfg.testo)).trim();
       if (!messaggio) return { success: false, error: "Nessun messaggio configurato" };
-      const oggetto = (await resolveNotifText(ncfg.oggetto)).trim() || "Notifica automazione";
+      // Oggetto di ripiego: "Notifica automazione" non dice ne' cosa e' successo
+      // ne' a chi, e in casella e' indistinguibile da qualsiasi altra. Col nome
+      // del contatto si capisce al volo se aprirla adesso.
+      const nomeContattoNotifica = [notifContact?.first_name, notifContact?.last_name]
+        .filter((x) => typeof x === "string" && x.trim() !== "")
+        .map((x) => String(x).trim())
+        .join(" ")
+        .trim();
+      const oggetto = (await resolveNotifText(ncfg.oggetto)).trim()
+        || (nomeContattoNotifica
+          ? `Nuovo contatto da ricontattare: ${nomeContattoNotifica}`
+          : "Notifica automazione");
 
       const teamUserIds: string[] = (Array.isArray(ncfg.destinatari_utenti) ? ncfg.destinatari_utenti : [])
         .filter((x: unknown): x is string => typeof x === "string" && x.trim() !== "");
@@ -1624,8 +1635,24 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
           .select("name, business_name, legal_address, operational_address")
           .eq("id", companyId)
           .maybeSingle();
-        const mittenteNome = escapeNotif(companyRow?.business_name || companyRow?.name || "La tua azienda");
+        const nomeAzienda = (companyRow?.business_name || companyRow?.name || "La tua azienda").trim();
+        const mittenteNome = escapeNotif(nomeAzienda);
+        // "…di Best Infissi S.r.l.." — il punto della ragione sociale e quello
+        // della frase si sommavano. Togliamo il nostro se c'e' gia' il loro.
+        const mittenteNomeFrase = mittenteNome.replace(/\.$/, "");
         const indirizzoAzienda = escapeNotif(companyRow?.legal_address || companyRow?.operational_address || "");
+        // Il pulsante porta alla scheda di CHI ha fatto scattare il flusso, non
+        // a una lista: chi apre la mail dal telefono deve trovarsi davanti la
+        // persona da chiamare, non doverla cercare.
+        const linkScheda = notifContact?.id
+          ? `https://app.ediliziaincloud.com/azienda/marketing/contatti/${notifContact.id}`
+          : "https://app.ediliziaincloud.com/azienda/attivita";
+        const testoPulsante = notifContact?.id ? "Apri la scheda del contatto" : "Apri in Edilizia in Cloud";
+        // Anteprima in casella: senza, i client mostrano le prime parole del
+        // corpo o il nome dell'azienda, che non dicono nulla di utile.
+        const preheader = escapeNotif(
+          (messaggio.split("\n").find((l) => l.trim() !== "") ?? "").trim().slice(0, 140),
+        );
         const bodyLines = messaggio
           .split("\n")
           .map((l) => `<p style="margin:0 0 10px;line-height:1.55;color:#1f2937">${escapeNotif(l) || "&nbsp;"}</p>`)
@@ -1633,17 +1660,18 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
         const html = `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" lang="it"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><meta name="color-scheme" content="light"/></head>
 <body style="margin:0;padding:0;background:#f4f5f7;">
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;height:0;width:0;">${preheader}</div>
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f5f7;padding:24px 0;"><tr><td align="center">
     <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:600px;background:#ffffff;border-radius:10px;overflow:hidden;border:1px solid #e5e7eb;">
       <tr><td style="padding:20px 28px;border-bottom:1px solid #eef0f2;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:700;color:#111827;">${mittenteNome}</td></tr>
       <tr><td style="padding:28px 28px 8px;font-family:Arial,Helvetica,sans-serif;font-size:15px;">${bodyLines}</td></tr>
       <tr><td style="padding:8px 28px 28px;">
         <table role="presentation" cellpadding="0" cellspacing="0"><tr><td bgcolor="#111827" style="border-radius:8px;">
-          <a href="https://app.ediliziaincloud.com/azienda/attivita" style="display:inline-block;padding:12px 24px;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:8px;">Apri in Edilizia in Cloud</a>
+          <a href="${linkScheda}" style="display:inline-block;padding:12px 24px;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:8px;">${testoPulsante}</a>
         </td></tr></table>
       </td></tr>
       <tr><td style="padding:16px 28px 22px;border-top:1px solid #eef0f2;font-family:Arial,Helvetica,sans-serif;font-size:11px;line-height:1.5;color:#8a94a3;">
-        Notifica automatica del flusso di lavoro di ${mittenteNome}.${indirizzoAzienda ? `<br/>${indirizzoAzienda}` : ""}<br/>
+        Notifica automatica del flusso di lavoro di ${mittenteNomeFrase}.${indirizzoAzienda ? `<br/>${indirizzoAzienda}` : ""}<br/>
         Inviata tramite Edilizia in Cloud.
       </td></tr>
     </table>
@@ -1700,8 +1728,21 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
           //   1. mittente dell'azienda (dominio custom)   → il caso normale
           //   2. mittente marketing condiviso              → stesso provider e stessi crediti
           //   3. provider transazionale                    → ultima spiaggia, altro provider
+          // Chi riceve deve leggere PRIMA il nome dell'azienda, sempre — anche
+          // quando ripieghiamo su un indirizzo condiviso di piattaforma. Cambia
+          // solo il nome visualizzato: l'indirizzo resta uno da cui siamo
+          // autorizzati a spedire, ed e' esattamente il senso del "via".
+          // Senza questo, ogni ripiego arrivava firmato "Edilizia in Cloud" e
+          // il destinatario non capiva di quale azienda fosse il lead.
+          const conNomeAzienda = (mittente: string): string => {
+            const indirizzo = (mittente.match(/<([^>]+)>/)?.[1] ?? mittente).trim();
+            const nome = nomeAzienda.replace(/["\\<>,]/g, " ").replace(/\s+/g, " ").trim();
+            if (!nome || !indirizzo.includes("@")) return mittente;
+            return `"${nome} via Edilizia in Cloud" <${indirizzo}>`;
+          };
+
           let r = await sendViaProviderWithFailover("marketing", provider, {
-            from: notifSender?.from ?? provider.fromDefault,
+            from: notifSender?.from ?? conNomeAzienda(provider.fromDefault),
             replyTo: notifSender?.replyTo,
             to: recipients,
             subject: oggetto,
@@ -1725,7 +1766,7 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
               JSON.stringify((r as any).body ?? (r as any).error ?? ""),
             );
             r = await sendViaProviderWithFailover("marketing", provider, {
-              from: provider.fromDefault,
+              from: conNomeAzienda(provider.fromDefault),
               to: recipients,
               subject: oggetto,
               html,
@@ -1747,7 +1788,7 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
               if (providerTx.apiKey) {
                 console.warn("[internal_notification] provider marketing non consegna, ripiego sul transazionale");
                 r = await sendViaProviderWithFailover("transactional", providerTx, {
-                  from: providerTx.fromDefault,
+                  from: conNomeAzienda(providerTx.fromDefault),
                   to: recipients,
                   subject: oggetto,
                   html,

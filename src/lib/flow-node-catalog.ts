@@ -1594,7 +1594,7 @@ export const ACTION_CATALOG: ActionDefinition[] = [
       ]},
       { id: 'destinatari_utenti', label: 'Utenti del team', type: 'user_multi_select', required: false, helpText: 'Per email/SMS si usano i recapiti del profilo utente; per la notifica in-app la campanella.' },
       { id: 'destinatari_extra', label: 'Destinatari extra (separati da virgola)', type: 'text', required: false, placeholder: 'notifiche@azienda.it, +39333…', helpText: 'Indirizzi email per tipo Email, numeri per SMS. Si sommano agli utenti del team.' },
-      { id: 'oggetto', label: 'Oggetto (email)', type: 'text', required: false, supportsVariables: true, placeholder: 'Nuovo lead: {{contatto.full_name}}' },
+      { id: 'oggetto', label: 'Oggetto (email)', type: 'text', required: false, supportsVariables: true, placeholder: 'Nuovo lead {{contatto.source}}: {{contatto.full_name}} — {{contatto.city}}' },
       { id: 'messaggio', label: 'Messaggio', type: 'textarea', required: true, supportsVariables: true, placeholder: 'Nuovo lead da chiamare: {{contatto.full_name}} — {{contact.phone}} ({{contact.city}})' },
     ],
   },
