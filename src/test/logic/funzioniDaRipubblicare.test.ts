@@ -35,7 +35,7 @@ describe("Le funzioni da ripubblicare", () => {
     const daLibreria = funzioniDaRipubblicare(["supabase/functions/_shared/imapSmtpClient.ts"]);
     const daProvider = funzioniDaRipubblicare(["supabase/functions/_shared/emailProvider.ts"]);
     expect(daProvider.length).toBeGreaterThan(10);
-    for (const f of daProvider) expect(daLibreria).toContain(f);
+    for (const f of daProvider as string[]) expect(daLibreria).toContain(f);
   });
 
   it("una libreria di poche funzioni non ne trascina mezzo mondo", () => {
