@@ -216,7 +216,7 @@ export default function WhatsappLocalePanel() {
   const [polling, setPolling] = useState(false);
   // Lo stesso dialog serve anche a RICOLLEGARE un numero già in lista: cambia
   // solo il testo e il fatto che la sessione esiste già.
-  const [relink, setRelink] = useState<{ id: string; nome: string } | null>(null);
+  const [relink, setRelink] = useState<{ id: string; nome: string; sessionId: string } | null>(null);
   const [relinkLoading, setRelinkLoading] = useState(false);
   // Alternativa al QR: codice a 8 cifre da digitare sul telefono.
   const [pairingPhone, setPairingPhone] = useState("");
@@ -285,29 +285,40 @@ export default function WhatsappLocalePanel() {
   // Ricollega: la riga resta (tag, limiti, riscaldamento compresi), si riavvia
   // la sessione sul gateway e si mostra un QR nuovo. Se il gateway aveva perso
   // la sessione, l'edge ne crea una nuova e ci ridà il session_id aggiornato.
+  // Riavvio ripetibile: se il gateway non risponde al primo colpo il dialog
+  // deve poter riprovare. Prima l'unico bottone rimasto era "Genera QR", che
+  // chiama create_session e su un nome già esistente risponde 409 in eterno.
+  async function avviaRicollegamento(sid: string) {
+    setRelinkLoading(true);
+    try {
+      const r = await invokeGateway("restart_session", { session_id: sid });
+      const nuovoSid = String(r.session_id ?? sid);
+      setSessionId(nuovoSid);
+      if (r.ricreata) toast.message("Sessione ricreata sul gateway: inquadra il nuovo QR.");
+      const qrData = await invokeGateway("get_qr", { session_id: nuovoSid });
+      setQr(String(qrData.qr ?? ""));
+      setPolling(true);
+      queryClient.invalidateQueries({ queryKey: ["openwa", "numbers"] });
+    } catch (e) {
+      // Torniamo allo stato "nessun QR" così il footer mostra "Riprova".
+      setSessionId("");
+      setQr("");
+      setPolling(false);
+      toast.error((e as Error).message);
+    } finally {
+      setRelinkLoading(false);
+    }
+  }
+
   async function openRelinkDialog(n: OpenWaNumberRow) {
     setDisplayName(n.display_name ?? "");
     setSessionId(n.session_id);
     setQr("");
     setPairingPhone(n.numero ?? "");
     setPairingCode("");
-    setRelink({ id: n.id, nome: n.display_name || n.numero || n.session_id });
+    setRelink({ id: n.id, nome: n.display_name || n.numero || n.session_id, sessionId: n.session_id });
     setConnectOpen(true);
-    setRelinkLoading(true);
-    try {
-      const r = await invokeGateway("restart_session", { session_id: n.session_id });
-      const sid = String(r.session_id ?? n.session_id);
-      setSessionId(sid);
-      if (r.ricreata) toast.message("Sessione ricreata sul gateway: inquadra il nuovo QR.");
-      const qrData = await invokeGateway("get_qr", { session_id: sid });
-      setQr(String(qrData.qr ?? ""));
-      setPolling(true);
-      queryClient.invalidateQueries({ queryKey: ["openwa", "numbers"] });
-    } catch (e) {
-      toast.error((e as Error).message);
-    } finally {
-      setRelinkLoading(false);
-    }
+    await avviaRicollegamento(n.session_id);
   }
 
   async function chiediPairingCode() {
@@ -591,10 +602,17 @@ export default function WhatsappLocalePanel() {
 
           <DialogFooter>
             {!sessionId ? (
-              <Button onClick={() => startConnect.mutate()} disabled={startConnect.isPending || !displayName.trim()}>
-                <Link2 className="mr-2 h-4 w-4" />
-                {startConnect.isPending ? "Generazione…" : "Genera QR"}
-              </Button>
+              relink ? (
+                <Button onClick={() => { void avviaRicollegamento(relink.sessionId); }} disabled={relinkLoading}>
+                  <RefreshCw className={`mr-2 h-4 w-4 ${relinkLoading ? "animate-spin" : ""}`} />
+                  {relinkLoading ? "Riavvio…" : "Riprova a ricollegare"}
+                </Button>
+              ) : (
+                <Button onClick={() => startConnect.mutate()} disabled={startConnect.isPending || !displayName.trim()}>
+                  <Link2 className="mr-2 h-4 w-4" />
+                  {startConnect.isPending ? "Generazione…" : "Genera QR"}
+                </Button>
+              )
             ) : (
               <Button variant="outline" onClick={() => { setPolling(false); setConnectOpen(false); }}>
                 Chiudi

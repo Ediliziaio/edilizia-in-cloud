@@ -12,6 +12,7 @@ import { requireAuth, requireRole } from "../_shared/auth.ts";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import {
   getOwaConfig, owaFetch, OWA_PATHS, sendOpenWaMessage, romeToday,
+  type OwaConfig,
 } from "../_shared/openwaSend.ts";
 
 import { serveConMetriche } from "../_shared/withMetrics.ts";
@@ -33,6 +34,34 @@ function nomeSessione(displayName: string): string {
     .replace(/^-+|-+$/g, "")
     .slice(0, 40);
   return slug ? `eic-${slug}` : `eic-${crypto.randomUUID().slice(0, 8)}`;
+}
+
+/** Id della sessione che sul gateway ha questo NOME, se c'è.
+ *
+ *  Il gateway identifica le sessioni per id, ma le crea con un nome unico. Se
+ *  perde l'id che avevamo salvato (riavvio, volume ripulito) ma conserva la
+ *  sessione, `start` risponde 404 e `create` risponde 409 "Session with name
+ *  … already exists": due risposte in contraddizione che lasciavano il numero
+ *  irrecuperabile dalla UI. Qui lo ritroviamo per nome e ne adottiamo l'id. */
+async function idSessionePerNome(cfg: OwaConfig, name: string): Promise<string | null> {
+  const r = await owaFetch(cfg, "/api/sessions").catch(() => null);
+  if (!r?.ok) return null;
+  const payload = r.json as unknown;
+  const lista: unknown[] = Array.isArray(payload)
+    ? payload
+    : Array.isArray((payload as { data?: unknown[] } | null)?.data)
+      ? ((payload as { data: unknown[] }).data)
+      : [];
+  for (const voce of lista) {
+    const o = voce as { id?: string; sessionId?: string; name?: string; sessionName?: string };
+    if ((o?.name ?? o?.sessionName) === name) return o?.id ?? o?.sessionId ?? null;
+  }
+  return null;
+}
+
+/** Il gateway dice "esiste già" (per nome), non "id sconosciuto". */
+function eConflittoDiNome(r: { status: number; text?: string }): boolean {
+  return r.status === 409 || /already exists/i.test(r.text ?? "");
 }
 
 serveConMetriche("openwa-gateway", async (req) => {
@@ -73,10 +102,28 @@ serveConMetriche("openwa-gateway", async (req) => {
         method: "POST",
         body: JSON.stringify({ name }),
       });
+      let sessionId: string = created.ok ? (created.json?.id ?? created.json?.session?.id ?? "") : "";
       if (!created.ok) {
-        return new Response(JSON.stringify({ error: `Gateway: ${created.status} ${created.text}` }), { status: 502, headers: jsonH });
+        // "Esiste già" non è un errore da mostrare: la sessione sul gateway c'è,
+        // siamo noi ad averne perso l'id. Adottarla è l'unico modo di non
+        // bruciare quel nome per sempre (ricrearlo darà 409 in eterno).
+        const esistente = eConflittoDiNome(created) ? await idSessionePerNome(cfg, name) : null;
+        if (!esistente) {
+          return new Response(JSON.stringify({ error: `Gateway: ${created.status} ${created.text}` }), { status: 502, headers: jsonH });
+        }
+        const { data: giaInElenco } = await supabaseAdmin
+          .from("openwa_numbers")
+          .select("id, display_name")
+          .eq("session_id", esistente)
+          .is("deleted_at", null)
+          .maybeSingle();
+        if (giaInElenco) {
+          return new Response(JSON.stringify({
+            error: `Questo numero è già in elenco come "${giaInElenco.display_name ?? "senza nome"}": usa Ricollega, non Collega numero.`,
+          }), { status: 409, headers: jsonH });
+        }
+        sessionId = esistente;
       }
-      const sessionId: string = created.json?.id ?? created.json?.session?.id ?? "";
       if (!sessionId) {
         return new Response(JSON.stringify({ error: "Gateway: id sessione mancante nella risposta." }), { status: 502, headers: jsonH });
       }
@@ -125,16 +172,26 @@ serveConMetriche("openwa-gateway", async (req) => {
 
       let effectiveId = sessionId;
       let ricreata = false;
+      // Il nome va calcolato UNA volta: senza display_name `nomeSessione` ne
+      // genera uno casuale, e cercare col nome sbagliato non troverebbe nulla.
+      const nomeAtteso = nomeSessione(row.display_name ?? "");
       const started = await owaFetch(cfg, OWA_PATHS.startSession(sessionId), { method: "POST" }).catch(() => null);
       if (!started || started.status === 404) {
         const created = await owaFetch(cfg, OWA_PATHS.createSession(), {
           method: "POST",
-          body: JSON.stringify({ name: nomeSessione(row.display_name ?? "") }),
+          body: JSON.stringify({ name: nomeAtteso }),
         });
-        if (!created.ok) {
-          return new Response(JSON.stringify({ error: `Gateway: ${created.status} ${created.text}` }), { status: 502, headers: jsonH });
+        if (created.ok) {
+          effectiveId = created.json?.id ?? created.json?.session?.id ?? "";
+        } else {
+          // start dice 404 e create dice 409: il gateway ha perso l'id ma non
+          // la sessione. La ritroviamo per nome e ripartiamo da quella.
+          const esistente = eConflittoDiNome(created) ? await idSessionePerNome(cfg, nomeAtteso) : null;
+          if (!esistente) {
+            return new Response(JSON.stringify({ error: `Gateway: ${created.status} ${created.text}` }), { status: 502, headers: jsonH });
+          }
+          effectiveId = esistente;
         }
-        effectiveId = created.json?.id ?? created.json?.session?.id ?? "";
         if (!effectiveId) {
           return new Response(JSON.stringify({ error: "Gateway: id sessione mancante nella risposta." }), { status: 502, headers: jsonH });
         }
