@@ -421,7 +421,14 @@ serveConMetriche("email-send", async (req) => {
       const { data: prof } = await supabase
         .from("profiles").select("first_name, last_name").eq("id", outbox.user_id).maybeSingle();
       const nome = [prof?.first_name, prof?.last_name].filter(Boolean).join(" ").trim();
-      fromName = nome || null;
+      // Un nome che somiglia a un indirizzo («flo.andriciuc», qualcosa con la
+      // chiocciola) o che dice «Admin»/«noreply» non è un nome: nel From
+      // sembra un'identità travestita, e i filtri antiphishing lo pesano.
+      // Meglio nessun nome che uno così.
+      const sembraUnaPersona = nome.length >= 2
+        && !/[@.]/.test(nome.replace(/\.\s*$/, ""))
+        && !/\b(admin|administrator|noreply|no-reply|test|prova)\b/i.test(nome);
+      fromName = sembraUnaPersona ? nome : null;
     } catch { /* senza nome si va avanti lo stesso */ }
 
     // 5) Branch IMAP/SMTP custom: nessun OAuth, usa password decrypted

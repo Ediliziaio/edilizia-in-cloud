@@ -52,6 +52,13 @@ describe("Rispondere resta dentro la conversazione", () => {
     expect(invio).toContain("if (parent?.provider_thread_id) providerThreadId = parent.provider_thread_id as string;");
   });
 
+  it("un nome che somiglia a un indirizzo, o dice «Admin», non finisce nel From", () => {
+    // «"flo.andriciuc Admin" <info@…>» è il profilo del super admin: sembra
+    // un'identità travestita, e i filtri antiphishing lo pesano.
+    expect(invio).toContain("sembraUnaPersona");
+    expect(invio).toContain("fromName = sembraUnaPersona ? nome : null");
+  });
+
   it("la copia in «Inviate» porta con sé i riferimenti", () => {
     expect(invio).toContain("in_reply_to: filo?.inReplyTo ?? null");
     expect(invio).toContain("references_ids: filo?.references ?? []");
