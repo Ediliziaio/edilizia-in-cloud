@@ -288,10 +288,12 @@ export default function WhatsappLocalePanel() {
   // Riavvio ripetibile: se il gateway non risponde al primo colpo il dialog
   // deve poter riprovare. Prima l'unico bottone rimasto era "Genera QR", che
   // chiama create_session e su un nome già esistente risponde 409 in eterno.
-  async function avviaRicollegamento(sid: string) {
+  async function avviaRicollegamento(numeroId: string, sid: string) {
     setRelinkLoading(true);
     try {
-      const r = await invokeGateway("restart_session", { session_id: sid });
+      // Mandiamo ANCHE l'id della riga: è l'unica chiave stabile del numero.
+      // L'id di sessione è proprio quello che il gateway perde nei riavvii.
+      const r = await invokeGateway("restart_session", { numero_id: numeroId, session_id: sid });
       const nuovoSid = String(r.session_id ?? sid);
       setSessionId(nuovoSid);
       if (r.ricreata) toast.message("Sessione ricreata sul gateway: inquadra il nuovo QR.");
@@ -318,7 +320,7 @@ export default function WhatsappLocalePanel() {
     setPairingCode("");
     setRelink({ id: n.id, nome: n.display_name || n.numero || n.session_id, sessionId: n.session_id });
     setConnectOpen(true);
-    await avviaRicollegamento(n.session_id);
+    await avviaRicollegamento(n.id, n.session_id);
   }
 
   async function chiediPairingCode() {
@@ -496,11 +498,20 @@ export default function WhatsappLocalePanel() {
           </Button>
         </CardHeader>
         <CardContent className="space-y-3">
-          {!gatewayConfigured && (
+          {/* "Non configurato" e "non sono riuscito a leggere la configurazione"
+              sono due cose diverse: la prima chiede di compilare i campi, la
+              seconda no — la config c'è, è la lettura che è fallita. Dirlo
+              male manda a riscrivere una API key che era già a posto. */}
+          {settingsQuery.isError ? (
+            <p className="text-sm text-destructive">
+              Non riesco a leggere la configurazione del gateway
+              {settingsQuery.error instanceof Error ? `: ${settingsQuery.error.message}` : ""}. Ricarica la pagina.
+            </p>
+          ) : !gatewayConfigured && !settingsQuery.isLoading ? (
             <p className="text-sm text-amber-600">
               Configura e salva il gateway prima di collegare i numeri.
             </p>
-          )}
+          ) : null}
           {numbersQuery.isLoading ? (
             <Skeleton className="h-24 w-full" />
           ) : numbers.length === 0 ? (
@@ -603,7 +614,7 @@ export default function WhatsappLocalePanel() {
           <DialogFooter>
             {!sessionId ? (
               relink ? (
-                <Button onClick={() => { void avviaRicollegamento(relink.sessionId); }} disabled={relinkLoading}>
+                <Button onClick={() => { void avviaRicollegamento(relink.id, relink.sessionId); }} disabled={relinkLoading}>
                   <RefreshCw className={`mr-2 h-4 w-4 ${relinkLoading ? "animate-spin" : ""}`} />
                   {relinkLoading ? "Riavvio…" : "Riprova a ricollegare"}
                 </Button>

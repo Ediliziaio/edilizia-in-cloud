@@ -159,23 +159,37 @@ serveConMetriche("openwa-gateway", async (req) => {
     // Se la sessione non esiste più sul gateway (404) se ne crea una nuova con
     // lo stesso nome e si aggiorna session_id sulla riga.
     if (action === "restart_session") {
-      const sessionId: string = (body.session_id ?? "").trim();
-      if (!sessionId) return new Response(JSON.stringify({ error: "session_id richiesto" }), { status: 400, headers: jsonH });
+      // La chiave STABILE di un numero è la sua riga, non la sessione: l'id di
+      // sessione è proprio la cosa che il gateway perde. Accettiamo entrambi e
+      // preferiamo `numero_id` quando c'è, così un session_id vuoto o vecchio
+      // non impedisce più di ricollegare.
+      const sessionId: string = String(body.session_id ?? "").trim();
+      const numeroId: string = String(body.numero_id ?? "").trim();
+      if (!sessionId && !numeroId) {
+        return new Response(JSON.stringify({
+          error: `session_id richiesto (ricevuto: ${Object.keys(body).join(", ") || "niente"})`,
+        }), { status: 400, headers: jsonH });
+      }
 
-      const { data: row } = await supabaseAdmin
+      const q = supabaseAdmin
         .from("openwa_numbers")
-        .select("id, display_name")
-        .eq("session_id", sessionId)
-        .is("deleted_at", null)
-        .maybeSingle();
+        .select("id, display_name, session_id")
+        .is("deleted_at", null);
+      const { data: row } = numeroId
+        ? await q.eq("id", numeroId).maybeSingle()
+        : await q.eq("session_id", sessionId).maybeSingle();
       if (!row) return new Response(JSON.stringify({ error: "Numero non trovato" }), { status: 404, headers: jsonH });
 
-      let effectiveId = sessionId;
+      let effectiveId = String(row.session_id ?? sessionId ?? "").trim();
       let ricreata = false;
       // Il nome va calcolato UNA volta: senza display_name `nomeSessione` ne
       // genera uno casuale, e cercare col nome sbagliato non troverebbe nulla.
       const nomeAtteso = nomeSessione(row.display_name ?? "");
-      const started = await owaFetch(cfg, OWA_PATHS.startSession(sessionId), { method: "POST" }).catch(() => null);
+      // Senza un id di sessione non c'è niente da riavviare: si va dritti al
+      // recupero per nome (o alla creazione).
+      const started = effectiveId
+        ? await owaFetch(cfg, OWA_PATHS.startSession(effectiveId), { method: "POST" }).catch(() => null)
+        : null;
       if (!started || started.status === 404) {
         const created = await owaFetch(cfg, OWA_PATHS.createSession(), {
           method: "POST",
