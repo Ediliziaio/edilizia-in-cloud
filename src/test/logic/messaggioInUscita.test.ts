@@ -24,6 +24,19 @@ describe("Il messaggio in uscita somiglia a uno scritto da una persona", () => {
     messageId: "<x@ediliziaincloud.com>",
   });
 
+  it("le intestazioni sono nell'ordine di un client di posta, non di uno script", () => {
+    // L'unico elemento che, da solo, faceva la differenza fra inbox e spam
+    // negli invii differenziali del 10/09/2026: stesso server, stessa casella,
+    // stesso contenuto. «From, To, Subject, Date, Message-ID, MIME-Version,
+    // Content-Type» → spam; «MIME-Version, Date, From, To, Subject,
+    // Message-ID, Content-Type» → inbox. È l'impronta dei mailer da script.
+    const testa = rfc.slice(0, rfc.indexOf("\r\n\r\n")).split("\r\n").map((r) => r.split(":")[0]);
+    expect(testa[0]).toBe("MIME-Version");
+    expect(testa[1]).toBe("Date");
+    expect(testa.indexOf("Content-Type")).toBeGreaterThan(testa.indexOf("Message-ID"));
+    expect(testa.indexOf("MIME-Version")).toBeLessThan(testa.indexOf("From"));
+  });
+
   it("la data ha il fuso locale, non «GMT»", () => {
     expect(rfc).toMatch(/^Date: [A-Z][a-z]{2}, \d{2} [A-Z][a-z]{2} \d{4} \d{2}:\d{2}:\d{2} [+-]\d{4}$/m);
     expect(rfc).not.toMatch(/^Date: .* GMT$/m);

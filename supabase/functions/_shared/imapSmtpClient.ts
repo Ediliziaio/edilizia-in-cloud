@@ -388,13 +388,20 @@ export function buildRFC822(opts: {
   headers?: Record<string, string>;
 }): string {
   const fromHeader = opts.fromName ? `${escapeHeader(opts.fromName)} <${opts.from}>` : opts.from;
+  // L'ORDINE conta. Provato il 10/09/2026 con invii differenziali dallo
+  // stesso server alla stessa casella: il blocco «From, To, Subject, Date,
+  // Message-ID, MIME-Version, Content-Type» finisce in spam su Gmail, lo
+  // stesso identico messaggio con «MIME-Version, Date, From, To, Subject,
+  // Message-ID, Content-Type» arriva in inbox. È l'impronta dei mailer da
+  // script (PHP mail(), cron), e i filtri hanno regole apposta.
   const lines: string[] = [];
+  lines.push(`MIME-Version: 1.0`);
+  lines.push(`Date: ${dataRfc5322()}`);
   lines.push(`From: ${fromHeader}`);
   lines.push(`To: ${opts.to.join(", ")}`);
   if (opts.cc && opts.cc.length > 0) lines.push(`Cc: ${opts.cc.join(", ")}`);
   // Bcc NON va in headers (privacy)
   lines.push(`Subject: ${escapeHeader(opts.subject)}`);
-  lines.push(`Date: ${dataRfc5322()}`);
   lines.push(`Message-ID: ${opts.messageId}`);
   if (opts.inReplyTo) lines.push(`In-Reply-To: ${opts.inReplyTo}`);
   if (opts.references && opts.references.length > 0) lines.push(`References: ${opts.references.join(" ")}`);
@@ -403,7 +410,6 @@ export function buildRFC822(opts: {
       if (v != null && String(v).length) lines.push(`${escapeHeader(k)}: ${escapeHeader(String(v))}`);
     }
   }
-  lines.push(`MIME-Version: 1.0`);
 
   const hasHtml = !!opts.bodyHtml && opts.bodyHtml.trim().length > 0;
   const hasAttachments = !!opts.attachments && opts.attachments.length > 0;
@@ -419,7 +425,7 @@ export function buildRFC822(opts: {
   const altBoundary = `=_alt_${crypto.randomUUID().replace(/-/g, "")}`;
   if (hasHtml) {
     bodyPart =
-      `Content-Type: multipart/alternative; boundary="${altBoundary}"\r\n\r\n` +
+      `Content-Type: multipart/alternative;\r\n boundary="${altBoundary}"\r\n\r\n` +
       `--${altBoundary}\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: quoted-printable\r\n\r\n${quotedPrintable(testo)}\r\n\r\n` +
       `--${altBoundary}\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Transfer-Encoding: quoted-printable\r\n\r\n${quotedPrintable(html)}\r\n\r\n` +
       `--${altBoundary}--`;
@@ -433,7 +439,7 @@ export function buildRFC822(opts: {
 
   // Wrap body + attachments in multipart/mixed
   const mixedBoundary = `=_mix_${crypto.randomUUID().replace(/-/g, "")}`;
-  lines.push(`Content-Type: multipart/mixed; boundary="${mixedBoundary}"`);
+  lines.push(`Content-Type: multipart/mixed;\r\n boundary="${mixedBoundary}"`);
   let out = lines.join("\r\n") + "\r\n\r\n";
   out += `--${mixedBoundary}\r\n${bodyPart}\r\n\r\n`;
   for (const att of opts.attachments!) {
