@@ -188,7 +188,34 @@ export default function WhatsappLocalePanel() {
     },
   });
 
-  const numbers = numbersQuery.data ?? [];
+  // useMemo perché un effetto qui sotto ci dipende: senza, `numbers` sarebbe un
+  // array nuovo a ogni render e l'effetto girerebbe in continuazione.
+  const numbers = useMemo(() => numbersQuery.data ?? [], [numbersQuery.data]);
+
+  // Lo stato di un numero si aggiornava SOLO mentre il dialog del QR restava
+  // aperto: chi scansionava e chiudeva la finestra restava "In attesa QR" per
+  // sempre, col telefono collegato davvero e il numero inutilizzabile (niente
+  // "Prova", escluso dalle campagne). All'apertura della pagina ricontrolliamo
+  // una volta sola ogni numero che non risulta connesso.
+  const statiRicontrollati = useRef(new Set<string>());
+  useEffect(() => {
+    if (settingsQuery.isLoading) return;
+    const daControllare = numbers.filter(
+      (n) => n.stato !== "connected" && n.session_id && !statiRicontrollati.current.has(n.session_id),
+    );
+    if (daControllare.length === 0) return;
+    let annullato = false;
+    void (async () => {
+      for (const n of daControllare) {
+        statiRicontrollati.current.add(n.session_id);
+        // Se il gateway non risponde il numero resta com'è: lo dice già la
+        // riga di stato sotto il nome, non serve un altro avviso a schermo.
+        try { await invokeGateway("session_status", { session_id: n.session_id }); } catch { /* niente */ }
+      }
+      if (!annullato) queryClient.invalidateQueries({ queryKey: ["openwa", "numbers"] });
+    })();
+    return () => { annullato = true; };
+  }, [numbers, settingsQuery.isLoading, queryClient]);
   const gatewayConfigured = Boolean((baseUrl || "").trim()) && Boolean(apiKeyMasked || apiKey.trim());
 
   // NB: sta QUI, sotto gatewayConfigured, perché lo legge: dichiararlo più
