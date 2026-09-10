@@ -136,6 +136,10 @@ export default function ConnessioniPage() {
   const chiavi = data?.chiavi_api ?? [];
   const webhook = data?.webhook ?? [];
   const caselle = data?.caselle_email ?? [];
+  // Se il database non ha ancora la migrazione che le conta, la sezione
+  // semplicemente non compare invece di mostrare «NaN/undefined».
+  const casellePresenti = typeof r?.caselle_email_totali === "number";
+  const caselleFerme = r?.caselle_email_ferme ?? 0;
 
   return (
     <div className="p-3 md:p-6 space-y-4">
@@ -179,11 +183,11 @@ export default function ConnessioniPage() {
             </Alert>
           )}
 
-          {r.caselle_email_ferme > 0 && (
+          {caselleFerme > 0 && (
             <Alert>
               <Mail className="h-4 w-4" />
               <AlertDescription>
-                <strong>{r.caselle_email_ferme} caselle email collegate non funzionano più.</strong>{" "}
+                <strong>{caselleFerme} caselle email collegate non funzionano più.</strong>{" "}
                 Per quelle persone la posta non arriva in Edilizia in Cloud e non si può inviare dal
                 loro indirizzo. Chi le ha collegate riceve un avviso e le ricollega dal suo profilo.
               </AlertDescription>
@@ -197,12 +201,14 @@ export default function ConnessioniPage() {
               dettaglio="negli ultimi 7 giorni"
               tono={r.integrazioni_in_errore > 0 ? "attenzione" : "buono"}
             />
-            <Tessera
-              etichetta="Caselle email"
-              valore={`${r.caselle_email_totali - r.caselle_email_ferme}/${r.caselle_email_totali}`}
-              dettaglio={r.caselle_email_ferme > 0 ? `${r.caselle_email_ferme} da ricollegare` : "tutte collegate"}
-              tono={r.caselle_email_ferme > 0 ? "attenzione" : "buono"}
-            />
+            {casellePresenti && (
+              <Tessera
+                etichetta="Caselle email"
+                valore={`${r.caselle_email_totali - caselleFerme}/${r.caselle_email_totali}`}
+                dettaglio={caselleFerme > 0 ? `${caselleFerme} da ricollegare` : "tutte collegate"}
+                tono={caselleFerme > 0 ? "attenzione" : "buono"}
+              />
+            )}
             <Tessera
               etichetta="Chiavi API attive"
               valore={`${r.chiavi_attive}/${r.chiavi_totali}`}
