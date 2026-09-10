@@ -4,7 +4,12 @@
  */
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { authStorage, _perTest } from "@/integrations/supabase/authStorage";
+import {
+  authStorage,
+  cancellaSessioniSalvate,
+  sessioneSalvataPresente,
+  _perTest,
+} from "@/integrations/supabase/authStorage";
 
 /**
  * Qui il browser finto sta su `app.ediliziaincloud.com`: è l'unico modo di
@@ -54,6 +59,29 @@ describe("Sul dominio vero la sessione va nel cookie condiviso", () => {
     expect(authStorage.getItem(CHIAVE)).toBe(vecchia);
     // e da questo momento vale su tutti i sottodomini
     expect(document.cookie).toContain(`${CHIAVE}.0`);
+  });
+
+  it("una sessione rotta si butta via davvero, cookie compresi", () => {
+    // Se la pulizia toccasse solo la memoria locale, il cookie rimetterebbe in
+    // circolo la stessa sessione al ricaricamento dopo, all'infinito.
+    authStorage.setItem(CHIAVE, JSON.stringify({ access_token: "x".repeat(200) }));
+    expect(sessioneSalvataPresente()).toBe(true);
+
+    cancellaSessioniSalvate();
+
+    expect(sessioneSalvataPresente()).toBe(false);
+    expect(document.cookie).not.toContain(`${CHIAVE}.0`);
+    expect(localStorage.getItem(CHIAVE)).toBeNull();
+  });
+
+  it("chi arriva da un altro sottodominio risulta gia' dentro (niente landing di passaggio)", () => {
+    // Sessione nel solo cookie: e' il caso di chi ha fatto login su admin.* e
+    // apre app.* per la prima volta.
+    const sessione = JSON.stringify({ access_token: "y".repeat(300) });
+    _perTest.scriviSuCookie(CHIAVE, sessione, ".ediliziaincloud.com");
+    localStorage.clear();
+
+    expect(sessioneSalvataPresente()).toBe(true);
   });
 
   it("il logout cancella cookie e memoria locale", () => {

@@ -1,3 +1,5 @@
+import { cancellaSessioniSalvate } from "@/integrations/supabase/authStorage";
+
 function stringifyError(error: unknown): string {
   if (!error) return "";
   if (error instanceof Error) return `${error.name} ${error.message}`;
@@ -20,14 +22,9 @@ function isInvalidRefreshToken(error: unknown): boolean {
 
 function clearSupabaseAuthStorage() {
   try {
-    const keysToRemove: string[] = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key?.startsWith("sb-") && key.includes("auth-token")) {
-        keysToRemove.push(key);
-      }
-    }
-    keysToRemove.forEach((key) => localStorage.removeItem(key));
+    // Cookie compresi: dal 10/09/2026 la sessione sta li', e una pulizia a
+    // meta' la farebbe tornare identica al ricaricamento successivo.
+    cancellaSessioniSalvate();
   } catch {
     // Storage non disponibile: il listener evita comunque il rumore console.
   }

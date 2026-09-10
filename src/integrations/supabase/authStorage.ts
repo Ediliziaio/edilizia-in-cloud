@@ -161,4 +161,54 @@ export const authStorage = {
   },
 };
 
-export const _perTest = { dominioPerCookie, leggiDaCookie, scriviSuCookie, MAX_PER_COOKIE, MAX_PEZZI };
+/** I nomi dei cookie/chiavi che contengono una sessione Supabase. */
+function chiaviSessione(): string[] {
+  const chiavi = new Set<string>();
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k?.startsWith("sb-") && k.includes("auth-token")) chiavi.add(k);
+    }
+  } catch { /* storage negato */ }
+  if (typeof document !== "undefined") {
+    for (const pezzo of document.cookie.split("; ")) {
+      const nome = decodeURIComponent(pezzo.split("=")[0] ?? "");
+      if (nome.startsWith("sb-") && nome.includes("auth-token")) {
+        // "sb-xxx-auth-token.1" → "sb-xxx-auth-token"
+        chiavi.add(nome.replace(/\.\d+$/, ""));
+      }
+    }
+  }
+  return [...chiavi];
+}
+
+/**
+ * C'e' una sessione salvata da qualche parte?
+ *
+ * Serve a chi decide, prima ancora di parlare con Supabase, se mostrare la
+ * landing o portare l'utente nel gestionale. Da quando la sessione vive nel
+ * cookie di dominio, guardare solo la memoria locale non basta: chi arriva su
+ * app.* dopo aver fatto login su admin.* ha il cookie ma non la memoria, e si
+ * vedrebbe comparire la landing per un istante prima del rimbalzo.
+ */
+export function sessioneSalvataPresente(): boolean {
+  for (const chiave of chiaviSessione()) {
+    const valore = authStorage.getItem(chiave);
+    if (valore && valore.length > 50) return true;
+  }
+  return false;
+}
+
+/**
+ * Butta via ogni sessione salvata, cookie compresi.
+ *
+ * La usano le routine di recupero quando il token e' corrotto o non piu' valido
+ * ("Invalid Refresh Token"): se si pulisse la sola memoria locale, il cookie
+ * rimetterebbe in circolo la stessa sessione rotta al ricaricamento successivo,
+ * e non se ne uscirebbe piu'.
+ */
+export function cancellaSessioniSalvate(): void {
+  for (const chiave of chiaviSessione()) authStorage.removeItem(chiave);
+}
+
+export const _perTest = { dominioPerCookie, leggiDaCookie, scriviSuCookie, chiaviSessione, MAX_PER_COOKIE, MAX_PEZZI };

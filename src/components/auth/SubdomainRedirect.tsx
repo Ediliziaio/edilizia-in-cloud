@@ -49,6 +49,7 @@ import { RoleBasedRedirect } from "@/components/auth/RoleBasedRedirect";
 import { isMobileAppRuntime } from "@/lib/mobile/platform";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { lazyWithRetry } from "@/lib/lazyWithRetry";
+import { sessioneSalvataPresente } from "@/integrations/supabase/authStorage";
 
 // La home è il chunk più richiesto del sito: retry con cache-bust se un
 // deploy invalida gli asset (stessa protezione delle route in App.tsx).
@@ -176,17 +177,14 @@ const SESSION_ID_KEY = "user_session_id";
 function hasPersistedSupabaseSession(): boolean {
   if (typeof window === "undefined") return false;
   try {
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i);
-      if (k?.startsWith("sb-") && k.includes("auth-token")) {
-        const v = localStorage.getItem(k);
-        if (v && v.length > 50) return true;
-      }
-    }
+    // Guarda anche il cookie di dominio: chi ha fatto login su admin.* e apre
+    // app.* ha la sessione li' e non nella memoria locale — cercandola solo
+    // nella memoria vedrebbe comparire la landing prima del rimbalzo.
+    return sessioneSalvataPresente();
   } catch {
-    // localStorage bloccato (private mode, quota): assumiamo no session
+    // Storage bloccato (private mode, quota): assumiamo nessuna sessione
+    return false;
   }
-  return false;
 }
 
 function hasStoredAuthBootstrapHint(): boolean {

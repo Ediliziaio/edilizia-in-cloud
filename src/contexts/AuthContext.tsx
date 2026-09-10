@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { cancellaSessioniSalvate } from "@/integrations/supabase/authStorage";
 import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
 import type { AppRole, Profile, Company, AuthState, MultiCompanyAccess } from "@/types/auth";
 import { logger } from "@/utils/logger";
@@ -216,16 +217,12 @@ function clearStaleSupabaseAuthStorage() {
   clearProfileCache();
 
   try {
-    const keysToRemove: string[] = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key?.startsWith("sb-") && key.includes("auth-token")) {
-        keysToRemove.push(key);
-      }
-    }
-    keysToRemove.forEach((key) => localStorage.removeItem(key));
+    // Cookie compresi: la sessione non vive piu' solo nella memoria locale, e
+    // pulire meta' posto significa ritrovarsi la stessa sessione rotta al
+    // ricaricamento dopo.
+    cancellaSessioniSalvate();
   } catch {
-    // localStorage non disponibile o bloccato: lo stato React viene comunque pulito.
+    // Storage non disponibile o bloccato: lo stato React viene comunque pulito.
   }
 }
 
