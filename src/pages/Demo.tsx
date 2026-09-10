@@ -611,10 +611,10 @@ export default function Demo() {
                   <p className="text-center text-sm text-[#111111]/60 pt-1">
                     Preferisci parlare subito con una persona?{" "}
                     <a
-                      href="tel:+390287198520"
+                      href="tel:+393501780908"
                       className="font-bold text-[#F97415] hover:text-[#C94F06] whitespace-nowrap"
                     >
-                      Chiama 02 87198520
+                      Chiama 350 178 0908
                     </a>
                   </p>
 

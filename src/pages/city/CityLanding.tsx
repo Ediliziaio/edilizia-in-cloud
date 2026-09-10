@@ -3029,7 +3029,7 @@ export default function CityLanding() {
         "@id": `${pageUrl}/#localbusiness`,
         "name": "Edilizia in Cloud",
         "url": baseUrl,
-        "telephone": "+39-02-87198520",
+        "telephone": "+39-350-178-0908",
         "areaServed": [
           { "@type": "City", "name": config.name },
           { "@type": "AdministrativeArea", "name": config.region },
@@ -3299,10 +3299,10 @@ export default function CityLanding() {
               Richiedi Demo Gratuita <ArrowRight size={18} />
             </Link>
             <a
-              href="tel:+390287198520"
+              href="tel:+393501780908"
               className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl border border-white/20 text-white font-bold hover:border-white/40 hover:bg-white/5 transition-all"
             >
-              <Phone size={16} /> +39 02 87198520
+              <Phone size={16} /> +39 350 178 0908
             </a>
           </div>
           <p className="text-white/25 text-xs">

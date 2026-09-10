@@ -10,8 +10,8 @@
 import { trackPixel } from "@/lib/meta/fbcTracker";
 
 // Numero aziendale in formato internazionale senza "+" (richiesto da wa.me).
-const WHATSAPP_NUMBER = "390287198520";
-const PREFILLED_MESSAGE = "Ciao! Vorrei più informazioni su Edilizia in Cloud.";
+const WHATSAPP_NUMBER = "393501780908";
+const PREFILLED_MESSAGE = "Buongiorno, vorrei avere maggiori informazioni su Edilizia in Cloud";
 
 const WA_URL = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(PREFILLED_MESSAGE)}`;
 

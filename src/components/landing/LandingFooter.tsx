@@ -28,7 +28,7 @@ export default function LandingFooter() {
               Il primo software gestionale pensato da imprenditori edili, per imprenditori edili.
             </p>
             <ul className="space-y-2 text-sm text-[#111111]/60">
-              <li><a href="tel:+390287198520" className="hover:text-[#F97415] transition-colors">+39 02 87198520</a></li>
+              <li><a href="tel:+393501780908" className="hover:text-[#F97415] transition-colors">+39 350 178 0908</a></li>
               <li><a href="mailto:info@ediliziaincloud.com" className="hover:text-[#F97415] transition-colors">info@ediliziaincloud.com</a></li>
             </ul>
           </div>
@@ -128,7 +128,7 @@ export default function LandingFooter() {
           <div>
             <h4 className="text-[#111111] font-semibold mb-4 text-sm uppercase tracking-wider">Contatti</h4>
             <ul className="space-y-2 text-sm text-[#111111]/60">
-              <li><a href="tel:+390287198520" className="hover:text-[#F97415] transition-colors">+39 02 87198520</a></li>
+              <li><a href="tel:+393501780908" className="hover:text-[#F97415] transition-colors">+39 350 178 0908</a></li>
               <li><a href="mailto:info@ediliziaincloud.com" className="hover:text-[#F97415] transition-colors break-all">info@ediliziaincloud.com</a></li>
               <li className="break-all text-xs">PEC: domusgroupsrl@legalmail.it</li>
             </ul>

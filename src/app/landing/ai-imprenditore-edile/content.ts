@@ -4,7 +4,8 @@ export const cta = {
   // Numero verificato su WhatsApp Business, lo stesso del FAB del sito
   // (WhatsAppFab.tsx). Prima era il segnaposto "3902xxxxxxxx": il pulsante
   // WhatsApp di questa landing portava a un numero inesistente.
-  whatsappHref: "https://wa.me/390287198520",
+  whatsappHref:
+    "https://wa.me/393501780908?text=Buongiorno%2C%20vorrei%20avere%20maggiori%20informazioni%20su%20Edilizia%20in%20Cloud",
   primaryLabel: "Prenota Consulenza Gratuita 30 min",
 };
 
@@ -468,7 +469,7 @@ export const footer = {
   ],
   product: ["Funzionalità", "Prezzi", "Confronti competitor", "Casi studio", "Migrazione assistita", "Integrazioni"],
   resources: ["Blog", "Glossario edilizia", "Manuale AI riservato", "Newsletter settimanale", "Silvio (chat AI)"],
-  contacts: ["+39 02 87198520", "info@ediliziaincloud.com", "Via Aurelio Saffi 29, Milano", "WhatsApp diretto"],
+  contacts: ["+39 350 178 0908", "info@ediliziaincloud.com", "Via Aurelio Saffi 29, Milano", "WhatsApp diretto"],
   bottom: "© 2026 EdiliziaInCloud · ediliziaincloud.com · Privacy · Termini",
   social: "Instagram · Facebook · LinkedIn · YouTube",
 };

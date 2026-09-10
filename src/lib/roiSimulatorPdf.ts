@@ -41,7 +41,7 @@ const BRAND = {
   taxId: "P.IVA 13132010961",
   address: "Via Aurelio Saffi 29 — 20123 Milano",
   email: "info@ediliziaincloud.com",
-  phone: "+39 02 87198520",
+  phone: "+39 350 178 0908",
   // Palette (RGB) — coerente con exportOfferPdf.
   navy: [30, 58, 95] as const,
   navySoft: [45, 78, 120] as const,

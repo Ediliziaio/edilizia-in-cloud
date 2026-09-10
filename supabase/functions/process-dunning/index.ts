@@ -28,7 +28,7 @@ const APP_URL = Deno.env.get("APP_URL") || Deno.env.get("SITE_URL") || "https://
 // Stesso numero del bottone WhatsApp del sito pubblico (WhatsAppFab.tsx):
 // e' quello verificato su WhatsApp Business, l'unico che risponde davvero.
 // wa.me vuole il formato internazionale SENZA "+".
-const SUPPORT_WHATSAPP = "390287198520";
+const SUPPORT_WHATSAPP = "393501780908";
 const SUPPORT_PHONE = "+39 02 8719 8520";
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 2 * 60 * 60 * 1000; // 2 hours

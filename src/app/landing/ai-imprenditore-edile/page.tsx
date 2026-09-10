@@ -55,7 +55,7 @@ function JsonLd() {
       name: "EdiliziaInCloud",
       url: SITE_URL,
       email: "info@ediliziaincloud.com",
-      telephone: "+39 02 87198520",
+      telephone: "+39 350 178 0908",
     },
     {
       "@context": "https://schema.org",

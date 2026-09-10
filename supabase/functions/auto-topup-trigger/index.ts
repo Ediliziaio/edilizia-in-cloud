@@ -28,7 +28,7 @@ import { serveConMetriche } from "../_shared/withMetrics.ts";
 // verificato su WhatsApp Business. wa.me vuole il formato internazionale
 // senza "+". Chi ha la carta rifiutata vuole parlare con qualcuno, non
 // aprire un ticket.
-const SUPPORT_WHATSAPP = "390287198520";
+const SUPPORT_WHATSAPP = "393501780908";
 
 /**
  * Tipo del PaymentMethod salvato ("card", "link", "sepa_debit", …).

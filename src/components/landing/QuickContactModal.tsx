@@ -182,11 +182,11 @@ export default function QuickContactModal() {
                 Vuoi fare prima? Parliamo subito:
               </p>
               <a
-                href="tel:+390287198520"
+                href="tel:+393501780908"
                 className="inline-flex items-center justify-center gap-2 w-full py-2.5 rounded-lg bg-[#111111] text-white font-semibold text-sm hover:bg-[#F97415] transition-colors"
               >
                 <Phone className="w-4 h-4" />
-                Chiama ora: 02 87198520
+                Chiama ora: 350 178 0908
               </a>
               <p className="text-[#111111]/40 text-[10px] mt-2">
                 Lun–Ven 9:00–18:00 · rispondiamo in italiano

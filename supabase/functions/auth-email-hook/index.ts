@@ -33,7 +33,7 @@ const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
 });
 
 /** Numero WhatsApp dell'assistenza, come nelle altre email di sistema. */
-const SUPPORT_WHATSAPP = "390287198520";
+const SUPPORT_WHATSAPP = "393501780908";
 
 type AzioneEmail =
   | "signup"
