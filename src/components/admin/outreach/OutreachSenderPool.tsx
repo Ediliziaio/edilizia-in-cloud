@@ -335,8 +335,14 @@ function DomainCard({ domain, caselle, brandName, forceOpen, onChange }: { domai
       setSmtpHost("smtps.aruba.it"); setSmtpPort("465"); setSmtpSecure(true);
       setImapHost("imaps.aruba.it"); setImapPort("993");
     } else if (preset === "register") {
-      setSmtpHost("smtp.register.it"); setSmtpPort("465"); setSmtpSecure(true);
-      setImapHost("imap.register.it"); setImapPort("993");
+      // Stessi valori verificati del preset in Impostazioni → Caselle: i server
+      // storici sono morti (`imap.register.it` ha un certificato che non vale
+      // per quel nome, `out.register.it` non esiste piu' nel DNS). Le caselle
+      // Register di oggi stanno su SecureMail, e l'host che si chiama `pop.`
+      // sulla 993 parla IMAP. Qui erano rimasti i vecchi: chi sceglieva il
+      // preset trovava solo un test fallito.
+      setSmtpHost("authsmtp.securemail.pro"); setSmtpPort("465"); setSmtpSecure(true);
+      setImapHost("pop.securemail.pro"); setImapPort("993");
     } else if (preset === "libero") {
       setSmtpHost("smtp.libero.it"); setSmtpPort("465"); setSmtpSecure(true);
       setImapHost("imapmail.libero.it"); setImapPort("993");
