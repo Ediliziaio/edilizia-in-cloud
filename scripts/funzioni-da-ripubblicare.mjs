@@ -19,6 +19,7 @@
  */
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, normalize } from "node:path";
+import { pathToFileURL } from "node:url";
 
 const RADICE = "supabase/functions";
 
@@ -111,7 +112,11 @@ export function funzioniDaRipubblicare(fileCambiati) {
 }
 
 // Eseguito da riga di comando: argomenti o stdin, una funzione per riga.
-if (import.meta.url === `file://${process.argv[1]}`) {
+// pathToFileURL e non `file://${argv[1]}`: con uno spazio nel percorso —
+// "/Users/…/Edilizia in Cloud" — import.meta.url lo scrive %20 e il confronto
+// falliva, quindi da riga di comando lo script non stampava nulla. Su CI il
+// percorso non ha spazi e il baco non si vedeva.
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   const daArgomenti = process.argv.slice(2);
   const file = daArgomenti.length > 0
     ? daArgomenti

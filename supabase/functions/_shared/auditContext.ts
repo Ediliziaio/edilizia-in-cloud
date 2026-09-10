@@ -39,8 +39,16 @@ export function auditHeaders(
     "";
   if (ip) headers["x-actor-ip"] = ip;
 
+  // NON si chiama "user-agent": inoltrare tale e quale l'agente del browser su
+  // un client con chiave di SERVIZIO fa scattare la guardia di Supabase
+  // («Forbidden use of secret API key in browser»), che quella combinazione la
+  // legge come una chiave segreta finita nel client. Il 10 settembre 2026 ha
+  // svuotato in silenzio get-settings e stats di manage-super-admins: la
+  // pagina WhatsApp Locale non vedeva più né il gateway né i numeri, senza un
+  // solo errore a schermo. Il trigger di audit legge questo nome, con ripiego
+  // su "user-agent" per le richieste che dal browser arrivano davvero.
   const ua = req.headers.get("user-agent");
-  if (ua) headers["user-agent"] = ua.substring(0, 300);
+  if (ua) headers["x-actor-user-agent"] = ua.substring(0, 300);
 
   return headers;
 }
