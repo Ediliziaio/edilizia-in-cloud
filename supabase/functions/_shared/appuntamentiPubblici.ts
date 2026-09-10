@@ -23,6 +23,19 @@ export function dataEstesa(iso: string): string {
   const dt = new Date(Date.UTC(y, (m || 1) - 1, d || 1));
   return `${GIORNI[dt.getUTCDay()]} ${d} ${MESI[(m || 1) - 1]} ${y}`;
 }
+/**
+ * "gio 10 set alle 09:00" — la forma corta per l'oggetto dell'email, dove
+ * contano i primi quaranta caratteri: chi la riceve sul telefono deve capire
+ * chi e quando senza aprirla.
+ */
+export function dataBreve(iso: string, ora: string): string {
+  const [y, m, d] = String(iso).split("-").map(Number);
+  const dt = new Date(Date.UTC(y, (m || 1) - 1, d || 1));
+  const giorno = GIORNI[dt.getUTCDay()].slice(0, 3);
+  const mese = MESI[(m || 1) - 1].slice(0, 3);
+  return `${giorno} ${d} ${mese} alle ${ora}`;
+}
+
 export function esc(s: unknown): string {
   return String(s ?? "").replace(/[<>&"]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;" }[c] as string));
 }
@@ -124,6 +137,48 @@ export function blocchettoDettagli(quando: string, durataMin: number, servizio: 
       <tr><td style="padding:4px 12px 4px 0;color:#64748b">Durata</td><td style="padding:4px 0">${durataMin} minuti</td></tr>
       <tr><td style="padding:4px 12px 4px 0;color:#64748b">Argomento</td><td style="padding:4px 0">${esc(servizio)}</td></tr>
     </table>`;
+}
+
+/**
+ * I contatti di chi ha prenotato, cliccabili: dal telefono si chiama o si
+ * scrive senza copiare l'indirizzo a mano.
+ */
+export function blocchettoContatti(email: string | null, telefono: string | null): string {
+  const righe: string[] = [];
+  if (email) {
+    righe.push(`<tr><td style="padding:4px 12px 4px 0;color:#64748b">Email</td><td style="padding:4px 0"><a href="mailto:${esc(email)}" style="color:#0f172a">${esc(email)}</a></td></tr>`);
+  }
+  if (telefono) {
+    const numero = String(telefono).replace(/[^\d+]/g, "");
+    righe.push(`<tr><td style="padding:4px 12px 4px 0;color:#64748b">Telefono</td><td style="padding:4px 0"><a href="tel:${esc(numero)}" style="color:#0f172a">${esc(telefono)}</a></td></tr>`);
+  }
+  if (righe.length === 0) return "";
+  return `<table style="border-collapse:collapse;margin:0 0 16px;font-size:15px">${righe.join("")}</table>`;
+}
+
+/** Le note di chi ha prenotato, se ne ha lasciate. */
+export function blocchettoNote(note: string | null): string {
+  if (!note) return "";
+  return `<div style="margin:0 0 20px;padding:12px 14px;background:#f8fafc;border-left:3px solid #cbd5e1;border-radius:4px">
+      <p style="margin:0 0 4px;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#64748b">Note</p>
+      <p style="margin:0;font-size:15px;white-space:pre-wrap">${esc(note)}</p>
+    </div>`;
+}
+
+/**
+ * L'appuntamento è già arrivato sul calendario collegato del responsabile?
+ * Se sì, allegargli anche il file .ics gli farebbe comparire un doppione.
+ */
+export async function giaSuCalendarioEsterno(admin: any, appointmentId: string): Promise<boolean> {
+  try {
+    const [google, apple] = await Promise.all([
+      admin.from("google_calendar_event_map").select("id").eq("appointment_id", appointmentId).limit(1),
+      admin.from("apple_calendar_event_map").select("id").eq("appointment_id", appointmentId).limit(1),
+    ]);
+    return Boolean(google?.data?.length || apple?.data?.length);
+  } catch {
+    return false;
+  }
 }
 
 export function bottoneGestione(url: string, etichetta = "Sposta o disdici"): string {

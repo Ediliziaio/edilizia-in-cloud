@@ -23,8 +23,9 @@ import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { sincronizzaCalendariEsterni } from "../_shared/appuntamentiPubblici.ts";
 import { avvisaSuperAdmin } from "../_shared/avvisaSuperAdmin.ts";
 import {
-  minutiDa as minuti, orarioDa as orario, dataEstesa, esc, creaIcs, allegatoIcs,
-  nuovoToken, urlGestione, blocchettoDettagli, bottoneGestione,
+  minutiDa as minuti, orarioDa as orario, dataEstesa, dataBreve, esc, creaIcs, allegatoIcs,
+  nuovoToken, urlGestione, blocchettoDettagli, blocchettoContatti, blocchettoNote,
+  bottoneGestione, giaSuCalendarioEsterno,
 } from "../_shared/appuntamentiPubblici.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -219,10 +220,17 @@ Deno.serve(async (req) => {
     }
 
     // 8. avviso al titolare
+    //
+    // Era una riga sola di testo dentro un <p>: chi la riceveva sul telefono
+    // doveva rileggerla due volte per capire chi, quando e come richiamarlo.
+    // Adesso ha la stessa faccia della conferma al cliente — quando, durata,
+    // argomento, contatti su cui si tocca per chiamare o scrivere, note in
+    // evidenza — più il pulsante per aprire l'appuntamento nel gestionale.
     try {
       const contatti = [email && `email ${email}`, telefono && `tel ${telefono}`].filter(Boolean).join(" · ");
       const testoAvviso = `${titolo} ha prenotato "${cal.name}" per ${quandoTesto}${contatti ? ` (${contatti})` : ""}.${note ? ` Note: ${note.slice(0, 200)}` : ""}`;
-      if (cal.company_id === PLATFORM_COMPANY) {
+      const dellaPiattaforma = cal.company_id === PLATFORM_COMPANY;
+      if (dellaPiattaforma) {
         await avvisaSuperAdmin(admin, {
           tipo: "prenotazione_pubblica",
           titolo: `Nuovo appuntamento: ${cal.name}`,
@@ -235,15 +243,55 @@ Deno.serve(async (req) => {
       if (cal.owner_id) {
         const { data: prof } = await admin.from("profiles").select("email, first_name").eq("id", cal.owner_id).maybeSingle();
         if (prof?.email) {
+          // Il link va al gestionale, non al sito da cui arriva la prenotazione:
+          // con il calendario incorporato su un sito esterno, `origine` è il
+          // dominio del cliente e il pulsante non porterebbe da nessuna parte.
+          const linkAgenda = dellaPiattaforma
+            ? "https://admin.ediliziaincloud.com/admin/marketing/calendario"
+            : "https://app.ediliziaincloud.com/azienda/marketing/calendario";
+          const html = `
+            <div style="font-family:system-ui,-apple-system,Segoe UI,sans-serif;max-width:520px;color:#0f172a">
+              <p style="margin:0 0 2px;font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:#64748b">Nuova prenotazione</p>
+              <h1 style="margin:0 0 18px;font-size:21px;line-height:1.25;font-weight:700">${esc(titolo)}</h1>
+              ${blocchettoDettagli(quandoTesto, durata, cal.name)}
+              ${blocchettoContatti(email || null, telefono || null)}
+              ${blocchettoNote(note || null)}
+              ${bottoneGestione(linkAgenda, "Apri in Edilizia in Cloud")}
+            </div>`;
+          const testo = [
+            `${titolo} ha prenotato "${cal.name}".`,
+            "",
+            `Quando: ${quandoTesto}`,
+            `Durata: ${durata} minuti`,
+            email ? `Email: ${email}` : null,
+            telefono ? `Telefono: ${telefono}` : null,
+            note ? `Note: ${note.slice(0, 500)}` : null,
+            "",
+            linkAgenda,
+          ].filter((r) => r !== null).join("\n");
+
+          // Il file per il calendario solo a chi non ha un calendario
+          // collegato: agli altri l'appuntamento è già arrivato, e aprire
+          // l'allegato creerebbe un doppione.
+          const allegati = creato?.id && !(await giaSuCalendarioEsterno(admin, creato.id))
+            ? [allegatoIcs(creaIcs({
+                uid: `titolare-${creato.id}@ediliziaincloud.com`,
+                titolo: `${titolo} — ${cal.name}`,
+                descrizione: [contatti, note].filter(Boolean).join("\n") || null,
+                dataIso: data, ora, durataMin: durata,
+                partecipante: email || null,
+              }))]
+            : undefined;
+
           await sendEmailUnified({
             companyId: cal.company_id,
             stream: "transactional",
             to: prof.email,
-            subject: `Nuovo appuntamento — ${quandoTesto}`,
-            html: `<div style="font-family:system-ui,sans-serif"><p>${esc(testoAvviso)}</p></div>`,
-            text: testoAvviso,
+            subject: `Nuovo appuntamento: ${titolo} — ${dataBreve(data, ora)}`,
+            html, text: testo,
             templateName: "public_booking_avviso_titolare",
             replyTo: email || undefined,
+            attachments: allegati,
             adminClient: admin,
             metadata: { appointment_id: creato?.id, calendar_id: cal.id },
           });

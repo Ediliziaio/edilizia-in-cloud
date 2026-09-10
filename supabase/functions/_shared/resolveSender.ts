@@ -164,7 +164,15 @@ export async function resolveSender(
 
   // ── 5. Fallback subdomain EiC ────────────────────────────────────────────
   const fallbackEmail = `${senderPrefix}@${fallbackSubdomain}`;
-  const fallbackName = `${senderName}${fallbackFromSuffix}`;
+  // "EdiliziaInCloud via EdiliziaInCloud": il suffisso serve a dire da dove
+  // arriva l'email quando a scrivere è un'azienda cliente ("Ke Bei Serramenti
+  // via EdiliziaInCloud"). Quando il mittente è già la piattaforma, ripeterlo
+  // fa solo una brutta figura nella casella di chi riceve.
+  const soloLettere = (t: string) => t.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const piattaformaNelSuffisso = soloLettere(fallbackFromSuffix.replace(/^\s*via\s*/i, ""));
+  const fallbackName = soloLettere(senderName) === piattaformaNelSuffisso
+    ? senderName
+    : `${senderName}${fallbackFromSuffix}`;
   return {
     from: `${fallbackName} <${fallbackEmail}>`,
     fromEmail: fallbackEmail,
