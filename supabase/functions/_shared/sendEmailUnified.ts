@@ -263,6 +263,16 @@ export async function sendEmailUnified(args: UnifiedEmailArgs): Promise<UnifiedE
           metadata:      { insufficient_credits: true, ...args.metadata },
         });
       }
+      // Una riga nel log non la legge nessuno: dal lato azienda il preventivo
+      // risulta inviato e il cliente non riceve niente. Chi amministra
+      // l'azienda riceve un avviso (uno al giorno, non uno per email respinta).
+      await admin.rpc("avvisa_crediti_email_esauriti", {
+        p_company_id: args.companyId,
+        p_dettaglio: args.templateName ?? args.stream,
+      }).then(
+        () => {},
+        (e: unknown) => console.warn("[sendEmailUnified] avviso crediti fallito:", e),
+      );
       return {
         ok: false,
         status: 402,

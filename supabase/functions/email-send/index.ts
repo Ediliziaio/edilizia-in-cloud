@@ -541,6 +541,25 @@ serveConMetriche("email-send", async (req) => {
         last_error: errMsg.slice(0, 1000),
       })
       .eq("id", outbox.id);
+
+    // Un invio che fallisce per credenziali dice la stessa cosa che direbbe il
+    // polling: la casella non è più collegata. Prima restava «attiva» finché il
+    // poller non se ne accorgeva per conto suo, e chi aveva scritto l'email non
+    // capiva perché non fosse partita. Ora lo stato si aggiorna subito ed è la
+    // funzione del database a decidere se avvisare il proprietario.
+    if (/invalid_grant|invalid_client|unauthorized_client|invalid_token|refresh_token_missing|token_refresh_failed|authenticationfailed|authentication failed|authentication unsuccessful|invalid credentials|535 5\.7|534 5\.7/i.test(errMsg)) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any).rpc("email_oauth_mark_sync", {
+        p_connection_id: outbox.oauth_connection_id,
+        p_success: false,
+        p_emails_fetched: 0,
+        p_error: errMsg.slice(0, 500),
+        p_provider_metadata: null,
+      }).then(
+        () => {},
+        (err: unknown) => console.warn("[email-send] mark_sync fallito:", err),
+      );
+    }
     return jsonResponse({ ok: false, error: errMsg }, 500);
   }
 });

@@ -24,7 +24,7 @@ import {
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { ImapCustomDialog } from "./ImapCustomDialog";
+import { ImapCustomDialog, type CasellaDaRicollegare } from "./ImapCustomDialog";
 import { EmailSignatureEditor } from "./EmailSignatureEditor";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import type { JSX } from "react";
@@ -75,6 +75,15 @@ interface OAuthConnectionMeta {
   // 2026-05-27 — firma email personale (migration 20270527050000)
   signature_html?: string | null;
   signature_text?: string | null;
+  // Servono a rimettere in piedi una casella IMAP senza ricrearla da zero.
+  imap_host?: string | null;
+  imap_port?: number | null;
+  imap_secure?: boolean | null;
+  imap_username?: string | null;
+  smtp_host?: string | null;
+  smtp_port?: number | null;
+  smtp_secure?: boolean | null;
+  provider_label?: string | null;
 }
 
 interface DiagnosticResult {
@@ -104,6 +113,7 @@ export function EmailOAuthConnectionsCard() {
   const [connecting, setConnecting] = useState<"gmail" | "outlook" | null>(null);
   const [diagOpen, setDiagOpen] = useState(false);
   const [imapDialogOpen, setImapDialogOpen] = useState(false);
+  const [imapDaRicollegare, setImapDaRicollegare] = useState<CasellaDaRicollegare | null>(null);
 
   // 🆕 Diagnostica setup OAuth (mostra cosa manca SE non tutto è configurato)
   const { data: diag, refetch: refetchDiag } = useQuery({
@@ -127,7 +137,7 @@ export function EmailOAuthConnectionsCard() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const q = (supabase as any)
         .from("v_email_oauth_connections_meta")
-        .select("id, provider, email_address, status, last_synced_at, last_sync_error, consecutive_errors, emails_fetched_total, poll_interval_minutes, expires_at, created_at, user_id, signature_html, signature_text")
+        .select("id, provider, email_address, status, last_synced_at, last_sync_error, consecutive_errors, emails_fetched_total, poll_interval_minutes, expires_at, created_at, user_id, signature_html, signature_text, imap_host, imap_port, imap_secure, imap_username, smtp_host, smtp_port, smtp_secure, provider_label")
         .eq("company_id", effectiveCompany!.id)
         .eq("user_id", userId);
       let { data, error } = await q.order("created_at", { ascending: false });
@@ -532,10 +542,13 @@ export function EmailOAuthConnectionsCard() {
                         <span>·</span>
                         <span>polling ogni {c.poll_interval_minutes} min</span>
                       </div>
-                      {c.last_sync_error && (
-                        <p className="text-[10px] text-rose-700 dark:text-rose-400">
-                          Errore: {c.last_sync_error}
-                          {c.consecutive_errors >= 3 ? ` (${c.consecutive_errors} consecutivi)` : ""}
+                      {c.last_sync_error && c.status === "active" && (
+                        <p
+                          className="text-[10px] text-amber-700 dark:text-amber-500"
+                          title={c.last_sync_error}
+                        >
+                          Ultimo tentativo non riuscito, ci riproviamo da soli
+                          {c.consecutive_errors >= 3 ? ` (${c.consecutive_errors} di fila)` : ""}
                         </p>
                       )}
                     </div>
@@ -553,6 +566,55 @@ export function EmailOAuthConnectionsCard() {
                       <Trash2 className="h-4 w-4 text-rose-500" />
                     </Button>
                   </div>
+
+                  {/* Una casella che smette di funzionare non si vede: la posta
+                      semplicemente non arriva più. Due Gmail sono rimaste ferme
+                      da giugno a settembre senza che nessuno se ne accorgesse,
+                      e l'unico modo per rimetterle in piedi era cancellarle e
+                      rifarle. Qui c'è il motivo in italiano e il pulsante. */}
+                  {c.status !== "active" && (
+                    <div className="rounded-md border border-amber-300 bg-amber-50 p-2.5 dark:border-amber-700/60 dark:bg-amber-950/30">
+                      <p className="text-[11px] font-medium text-amber-900 dark:text-amber-200">
+                        {c.provider === "imap"
+                          ? "Il server rifiuta le credenziali: di solito è la password, cambiata o scaduta."
+                          : `${c.provider === "outlook" ? "Microsoft" : "Google"} non autorizza più Edilizia in Cloud a usare questa casella.`}
+                      </p>
+                      <p className="mt-0.5 text-[10px] text-amber-800/80 dark:text-amber-300/80">
+                        Finché resta così non arriva posta nuova e non si può inviare da questo indirizzo.
+                      </p>
+                      <Button
+                        size="sm"
+                        className="mt-2 h-7 gap-1.5 text-[11px]"
+                        disabled={connecting !== null}
+                        onClick={() => {
+                          if (c.provider === "imap") {
+                            setImapDaRicollegare({
+                              id: c.id,
+                              email_address: c.email_address,
+                              imap_host: c.imap_host,
+                              imap_port: c.imap_port,
+                              imap_secure: c.imap_secure,
+                              imap_username: c.imap_username,
+                              smtp_host: c.smtp_host,
+                              smtp_port: c.smtp_port,
+                              smtp_secure: c.smtp_secure,
+                              provider_label: c.provider_label,
+                            });
+                            setImapDialogOpen(true);
+                          } else {
+                            startOAuth.mutate(c.provider as "gmail" | "outlook");
+                          }
+                        }}
+                      >
+                        {connecting !== null && c.provider !== "imap" ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <RefreshCw className="h-3 w-3" />
+                        )}
+                        Ricollega {c.email_address}
+                      </Button>
+                    </div>
+                  )}
 
                   {/* 2026-05-27: collapsible firma email per ogni account */}
                   <Collapsible>
@@ -578,7 +640,14 @@ export function EmailOAuthConnectionsCard() {
           </div>
         )}
       </CardContent>
-      <ImapCustomDialog open={imapDialogOpen} onOpenChange={setImapDialogOpen} />
+      <ImapCustomDialog
+        open={imapDialogOpen}
+        onOpenChange={(v) => {
+          setImapDialogOpen(v);
+          if (!v) setImapDaRicollegare(null);
+        }}
+        daRicollegare={imapDaRicollegare}
+      />
     </Card>
   );
 }

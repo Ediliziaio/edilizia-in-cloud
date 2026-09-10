@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import { it } from "date-fns/locale";
-import { Plug, KeyRound, Webhook, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { Plug, KeyRound, Webhook, AlertTriangle, CheckCircle2, Mail } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -50,6 +50,20 @@ interface WebhookRiga {
   fallite_7g: number;
 }
 
+interface CasellaEmail {
+  id: string;
+  casella: string;
+  provider: string;
+  servizio: string | null;
+  azienda: string | null;
+  persona: string | null;
+  stato: string;
+  errori_di_fila: number | null;
+  ultimo_scambio: string | null;
+  ultimo_errore: string | null;
+  giorni_ferma: number | null;
+}
+
 interface Connessioni {
   riepilogo: {
     integrazioni_monitorate: number;
@@ -62,10 +76,13 @@ interface Connessioni {
     webhook_totali: number;
     webhook_in_pausa: number;
     chiamate_api_7g: number;
+    caselle_email_totali: number;
+    caselle_email_ferme: number;
   };
   integrazioni: Integrazione[];
   chiavi_api: ChiaveApi[];
   webhook: WebhookRiga[];
+  caselle_email?: CasellaEmail[];
   calcolato_il: string;
 }
 
@@ -118,6 +135,7 @@ export default function ConnessioniPage() {
   const integrazioni = data?.integrazioni ?? [];
   const chiavi = data?.chiavi_api ?? [];
   const webhook = data?.webhook ?? [];
+  const caselle = data?.caselle_email ?? [];
 
   return (
     <div className="p-3 md:p-6 space-y-4">
@@ -161,12 +179,29 @@ export default function ConnessioniPage() {
             </Alert>
           )}
 
+          {r.caselle_email_ferme > 0 && (
+            <Alert>
+              <Mail className="h-4 w-4" />
+              <AlertDescription>
+                <strong>{r.caselle_email_ferme} caselle email collegate non funzionano più.</strong>{" "}
+                Per quelle persone la posta non arriva in Edilizia in Cloud e non si può inviare dal
+                loro indirizzo. Chi le ha collegate riceve un avviso e le ricollega dal suo profilo.
+              </AlertDescription>
+            </Alert>
+          )}
+
           <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
             <Tessera
               etichetta="Integrazioni in errore"
               valore={`${r.integrazioni_in_errore}/${r.integrazioni_monitorate}`}
               dettaglio="negli ultimi 7 giorni"
               tono={r.integrazioni_in_errore > 0 ? "attenzione" : "buono"}
+            />
+            <Tessera
+              etichetta="Caselle email"
+              valore={`${r.caselle_email_totali - r.caselle_email_ferme}/${r.caselle_email_totali}`}
+              dettaglio={r.caselle_email_ferme > 0 ? `${r.caselle_email_ferme} da ricollegare` : "tutte collegate"}
+              tono={r.caselle_email_ferme > 0 ? "attenzione" : "buono"}
             />
             <Tessera
               etichetta="Chiavi API attive"
@@ -241,6 +276,68 @@ export default function ConnessioniPage() {
               </Table>
             </CardContent>
           </Card>
+
+          {caselle.length > 0 && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Mail className="h-4 w-4 text-violet-500" />
+                  Caselle email collegate
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0 overflow-x-auto">
+                <Table className="min-w-[680px]">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Casella</TableHead>
+                      <TableHead>Azienda</TableHead>
+                      <TableHead>Servizio</TableHead>
+                      <TableHead>Stato</TableHead>
+                      <TableHead>Ultimo scambio</TableHead>
+                      <TableHead>Motivo</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {caselle.map((c) => (
+                      <TableRow key={c.id}>
+                        <TableCell className="text-sm">
+                          <span className="font-medium">{c.casella}</span>
+                          {c.persona && (
+                            <span className="block text-[11px] text-muted-foreground">{c.persona}</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-xs">{c.azienda ?? "—"}</TableCell>
+                        <TableCell className="text-xs capitalize">
+                          {c.provider === "imap" ? (c.servizio ?? "IMAP") : c.provider}
+                        </TableCell>
+                        <TableCell>
+                          {c.giorni_ferma === null ? (
+                            <Badge className="text-[10px] gap-1 bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">
+                              <CheckCircle2 className="h-3 w-3" /> attiva
+                            </Badge>
+                          ) : (
+                            <Badge variant="destructive" className="text-[10px]">
+                              ferma da {c.giorni_ferma} {c.giorni_ferma === 1 ? "giorno" : "giorni"}
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-xs whitespace-nowrap text-muted-foreground">
+                          {quando(c.ultimo_scambio)}
+                        </TableCell>
+                        <TableCell className="text-xs max-w-[220px] truncate" title={c.ultimo_errore ?? ""}>
+                          {c.giorni_ferma === null
+                            ? "—"
+                            : c.provider === "imap"
+                              ? "Credenziali rifiutate dal server"
+                              : "Autorizzazione revocata o scaduta"}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
 
           <Card>
             <CardHeader className="pb-3">

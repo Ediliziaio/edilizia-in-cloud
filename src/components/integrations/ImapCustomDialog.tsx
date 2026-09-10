@@ -95,9 +95,29 @@ const PRESETS: Record<string, PresetConfig> = {
   },
 };
 
+/**
+ * La casella già collegata che si sta rimettendo in piedi: quando il provider
+ * rifiuta le credenziali (password cambiata, scaduta, revocata) si riapre
+ * questo form con dentro tutto tranne la password, che è l'unica cosa da
+ * rifare. Prima l'unica strada era cancellare la casella e ricrearla a mano.
+ */
+export interface CasellaDaRicollegare {
+  id: string;
+  email_address: string;
+  imap_host?: string | null;
+  imap_port?: number | null;
+  imap_secure?: boolean | null;
+  imap_username?: string | null;
+  smtp_host?: string | null;
+  smtp_port?: number | null;
+  smtp_secure?: boolean | null;
+  provider_label?: string | null;
+}
+
 interface ImapCustomDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  daRicollegare?: CasellaDaRicollegare | null;
 }
 
 /**
@@ -130,7 +150,7 @@ function umanizzaErroreImap(raw: string): { titolo: string; dettaglio: string } 
   return { titolo: "Test fallito", dettaglio: raw };
 }
 
-export function ImapCustomDialog({ open, onOpenChange }: ImapCustomDialogProps) {
+export function ImapCustomDialog({ open, onOpenChange, daRicollegare = null }: ImapCustomDialogProps) {
   const qc = useQueryClient();
   // L'azienda la porta il contesto, non il profilo: nel pannello di piattaforma
   // il super admin ha `profiles.company_id` a NULL e il salvataggio si fermava
@@ -153,6 +173,9 @@ export function ImapCustomDialog({ open, onOpenChange }: ImapCustomDialogProps) 
   // Apply preset al cambio
   useEffect(() => {
     if (preset === "custom") return;
+    // In «ricollega» valgono i dati della casella, non quelli del preset:
+    // sovrascriverli farebbe perdere le impostazioni di chi ha un server suo.
+    if (daRicollegare) return;
     const p = PRESETS[preset];
     if (!p) return;
     setImapHost(p.imap_host);
@@ -162,9 +185,10 @@ export function ImapCustomDialog({ open, onOpenChange }: ImapCustomDialogProps) 
     setSmtpPort(p.smtp_port);
     setSmtpSecure(p.smtp_secure);
     setTestStatus("idle");
-  }, [preset]);
+  }, [preset, daRicollegare]);
 
-  // Reset on open
+  // Alla chiusura si svuota; all'apertura in modalità «ricollega» si riempie
+  // con quello che sappiamo già, così resta da digitare solo la password.
   useEffect(() => {
     if (!open) {
       setPreset("custom");
@@ -179,8 +203,23 @@ export function ImapCustomDialog({ open, onOpenChange }: ImapCustomDialogProps) 
       setSmtpSecure(false);
       setTestStatus("idle");
       setTestError(null);
+      return;
     }
-  }, [open]);
+    if (daRicollegare) {
+      setPreset(daRicollegare.provider_label && PRESETS[daRicollegare.provider_label] ? daRicollegare.provider_label : "custom");
+      setEmailAddress(daRicollegare.email_address);
+      setImapUsername(daRicollegare.imap_username ?? daRicollegare.email_address);
+      setImapHost(daRicollegare.imap_host ?? "");
+      setImapPort(daRicollegare.imap_port ?? 993);
+      setImapSecure(daRicollegare.imap_secure ?? true);
+      setSmtpHost(daRicollegare.smtp_host ?? "");
+      setSmtpPort(daRicollegare.smtp_port ?? 587);
+      setSmtpSecure(daRicollegare.smtp_secure ?? false);
+      setPassword("");
+      setTestStatus("idle");
+      setTestError(null);
+    }
+  }, [open, daRicollegare]);
 
   const testMutation = useMutation({
     mutationFn: async () => {
@@ -245,14 +284,14 @@ export function ImapCustomDialog({ open, onOpenChange }: ImapCustomDialogProps) 
         p_smtp_secure: smtpSecure,
         p_password: password,
         p_provider_label: preset,
-        p_existing_id: null,
+        p_existing_id: daRicollegare?.id ?? null,
         p_company_id: effectiveCompany?.id ?? null,
       });
       if (error) throw new Error(error.message);
       return data as string;
     },
     onSuccess: () => {
-      toast.success("Account email salvato");
+      toast.success(daRicollegare ? "Casella ricollegata" : "Account email salvato");
       qc.invalidateQueries({ queryKey: ["email-oauth-connections"] });
       qc.invalidateQueries({ queryKey: ["email-client-connections"] });
       qc.invalidateQueries({ queryKey: ["my-email-connections"] });
@@ -271,11 +310,12 @@ export function ImapCustomDialog({ open, onOpenChange }: ImapCustomDialogProps) 
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Server className="h-4 w-4 text-violet-600" />
-            Aggiungi account IMAP/SMTP
+            {daRicollegare ? "Ricollega la casella" : "Aggiungi account IMAP/SMTP"}
           </DialogTitle>
           <DialogDescription>
-            Per provider non-OAuth (Aruba, Libero, iCloud, Yahoo, Register, custom).
-            La password viene cifrata e usata solo per polling email + invio SMTP.
+            {daRicollegare
+              ? "Il server ha rifiutato le credenziali: di solito è la password, cambiata o scaduta. I dati del server sono già qui, reinserisci solo la password."
+              : "Per provider non-OAuth (Aruba, Libero, iCloud, Yahoo, Register, custom). La password viene cifrata e usata solo per polling email + invio SMTP."}
           </DialogDescription>
         </DialogHeader>
 
