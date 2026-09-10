@@ -413,6 +413,17 @@ serveConMetriche("email-send", async (req) => {
     // Pre-download attachments (riusato in tutti i branch provider)
     const smtpAttachments = await downloadAttachments(supabase, outbox.attachments);
 
+    // «From: info@ediliziaincloud.com» senza nome è un altro tratto da script:
+    // un client di posta scrive «Florin Andriciuc <info@…>». Il nome è quello
+    // del profilo di chi invia.
+    let fromName: string | null = null;
+    try {
+      const { data: prof } = await supabase
+        .from("profiles").select("first_name, last_name").eq("id", outbox.user_id).maybeSingle();
+      const nome = [prof?.first_name, prof?.last_name].filter(Boolean).join(" ").trim();
+      fromName = nome || null;
+    } catch { /* senza nome si va avanti lo stesso */ }
+
     // 5) Branch IMAP/SMTP custom: nessun OAuth, usa password decrypted
     if (providerType === "imap") {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -433,6 +444,7 @@ serveConMetriche("email-send", async (req) => {
         },
         {
           from: c.email_address,
+          fromName,
           to: outbox.to_emails,
           cc: outbox.cc_emails,
           bcc: outbox.bcc_emails,
@@ -502,6 +514,7 @@ serveConMetriche("email-send", async (req) => {
     if (tokens.provider === "gmail") {
       const rfc = buildRFC822({
         from: tokens.email_address,
+        fromName,
         to: outbox.to_emails,
         cc: outbox.cc_emails,
         bcc: outbox.bcc_emails,

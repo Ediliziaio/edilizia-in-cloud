@@ -108,7 +108,9 @@ export async function smtpSend(cfg: SmtpConfig, msg: SmtpMessage): Promise<{ mes
   try {
     // Greeting
     await expect("220");
-    await send(`EHLO edilizia-in-cloud`);
+    // Il nome dell'EHLO finisce nell'intestazione Received che il destinatario
+    // legge: «edilizia-in-cloud» non è un host, e Gmail lo nota.
+    await send(`EHLO ${EHLO_HOST}`);
     let ehloResp = await readLine();
 
     // STARTTLS se port 587 e server lo supporta
@@ -117,7 +119,7 @@ export async function smtpSend(cfg: SmtpConfig, msg: SmtpMessage): Promise<{ mes
       await expect("220");
       // Upgrade a TLS
       conn = await Deno.startTls(conn as Deno.TcpConn, { hostname: host });
-      await send(`EHLO edilizia-in-cloud`);
+      await send(`EHLO ${EHLO_HOST}`);
       ehloResp = await readLine();
     }
 
@@ -147,7 +149,7 @@ export async function smtpSend(cfg: SmtpConfig, msg: SmtpMessage): Promise<{ mes
     await send("DATA");
     await expect("354");
 
-    const messageId = msg.messageId || `<${crypto.randomUUID()}@${host}>`;
+    const messageId = msg.messageId || `<${crypto.randomUUID()}@${dominioDi(msg.from)}>`;
     const rfc822 = buildRFC822({
       from: msg.from, fromName: msg.fromName,
       to: msg.to, cc: msg.cc, bcc: msg.bcc,
@@ -258,6 +260,118 @@ function escapeHeader(s: string): string {
   return `=?UTF-8?B?${btoa(bin)}?=`;
 }
 
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Il messaggio in uscita deve sembrare scritto da una persona, non da uno script
+//
+// 10/09/2026: la stessa email, dallo stesso server di Register, dalla webmail
+// arriva in inbox e da EiC finisce in spam. Confrontate byte per byte, le
+// differenze erano tutte nostre: Message-ID sul dominio del relay, Date in
+// GMT nel formato di `toUTCString()`, From senza nome, HTML nudo senza
+// <html><body> con dentro gli attributi di Google Sheets, codifica 8bit,
+// EHLO con un nome che non è un host. Nessuna da sola decide; tutte insieme
+// disegnano il ritratto di un mailer automatico.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** L'host con cui ci presentiamo ai server SMTP. */
+const EHLO_HOST = "app.ediliziaincloud.com";
+
+/** "Thu, 10 Sep 2026 13:09:54 +0200": la data come la scrive un client di posta. */
+export function dataRfc5322(d = new Date(), fuso = "Europe/Rome"): string {
+  const parti = new Intl.DateTimeFormat("en-US", {
+    timeZone: fuso, weekday: "short", day: "2-digit", month: "short", year: "numeric",
+    hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false, timeZoneName: "longOffset",
+  }).formatToParts(d);
+  const v = (t: string) => parti.find((x) => x.type === t)?.value ?? "";
+  // "GMT+02:00" → "+0200"
+  const off = (v("timeZoneName").replace("GMT", "") || "+00:00").replace(":", "");
+  const ora = v("hour") === "24" ? "00" : v("hour");
+  return `${v("weekday")}, ${v("day")} ${v("month")} ${v("year")} ${ora}:${v("minute")}:${v("second")} ${off || "+0000"}`;
+}
+
+/** Il dominio di chi scrive: il Message-ID va lì, non sul server che inoltra. */
+export function dominioDi(indirizzo: string): string {
+  const m = /@([A-Za-z0-9.-]+)/.exec(indirizzo);
+  return m ? m[1].toLowerCase() : "ediliziaincloud.com";
+}
+
+/**
+ * Quoted-printable (RFC 2045): righe sotto i 76 caratteri, solo ASCII.
+ * Tutti i client di posta lo usano per l'HTML; l'8bit è legale ma è un altro
+ * tratto da script.
+ */
+export function quotedPrintable(testo: string): string {
+  const byte = new TextEncoder().encode(testo.replace(/\r?\n/g, "\r\n"));
+  let out = ""; let riga = "";
+  const spingi = (pezzo: string) => {
+    if (riga.length + pezzo.length > 75) { out += riga + "=\r\n"; riga = ""; }
+    riga += pezzo;
+  };
+  for (let i = 0; i < byte.length; i++) {
+    const b = byte[i];
+    if (b === 13 && byte[i + 1] === 10) { // fine riga: spazio finale va protetto
+      if (riga.endsWith(" ") || riga.endsWith("\t")) riga = riga.slice(0, -1) + (riga.endsWith(" ") ? "=20" : "=09");
+      out += riga + "\r\n"; riga = ""; i++; continue;
+    }
+    if ((b >= 33 && b <= 126 && b !== 61) || b === 32 || b === 9) spingi(String.fromCharCode(b));
+    else spingi("=" + b.toString(16).toUpperCase().padStart(2, "0"));
+  }
+  return out + riga;
+}
+
+/**
+ * Toglie dall'HTML quello che un client di posta non scriverebbe mai: script,
+ * fogli di stile, attributi `data-*` (Google Sheets ne lascia a decine),
+ * `class`, `id`, gestori di eventi. Gli stili inline restano, perché sono
+ * l'unico modo che l'editor ha per il grassetto o un colore voluto — ma i
+ * colori "urlati" vengono da chi incolla, non da chi scrive, e Gmail li
+ * conta. Non è un sanitizer di sicurezza (l'HTML lo manda l'utente a sé
+ * stesso e ai suoi contatti): è una spazzola.
+ */
+export function ripulisciHtmlEmail(html: string): string {
+  let h = String(html ?? "");
+  h = h.replace(/<(script|style|iframe|object|embed|meta|link|head|title)\b[^>]*>[\s\S]*?<\/\1>/gi, "");
+  h = h.replace(/<(meta|link|base)\b[^>]*\/?>/gi, "");
+  h = h.replace(/<!--[\s\S]*?-->/g, "");
+  // attributi: via data-*, class, id, on*, dir="auto" (firma di un editor web)
+  h = h.replace(/<([a-zA-Z][\w:-]*)(\s[^>]*)?>/g, (_m, tag: string, attrs: string | undefined) => {
+    if (!attrs) return `<${tag}>`;
+    const puliti = attrs.replace(/\s+(data-[\w-]+|class|id|on\w+|contenteditable|spellcheck|dir|role|aria-[\w-]+)(\s*=\s*("[^"]*"|'[^']*'|[^\s>]+))?/gi, "");
+    return `<${tag}${puliti.trimEnd()}>`;
+  });
+  // Gli <span> con colori, font e allineamento non li scrive nessuno a mano:
+  // arrivano da un incolla (Google Sheets, Word, una pagina web). L'editor
+  // non ha nemmeno un pulsante per il colore. Restano solo grassetto,
+  // corsivo e sottolineato; il resto è rumore che i filtri contano.
+  h = h.replace(/<span([^>]*)\sstyle\s*=\s*("([^"]*)"|'([^']*)')/gi, (_m, prima: string, _q, a: string | undefined, b: string | undefined) => {
+    const stile = (a ?? b ?? "").split(";").map((x) => x.trim()).filter(Boolean)
+      .filter((x) => /^(font-weight|font-style|text-decoration)\s*:/i.test(x));
+    return stile.length ? `<span${prima} style="${stile.join("; ")}"` : `<span${prima}`;
+  });
+  // <span> senza attributi non serve a niente: via, così l'HTML somiglia a un testo
+  h = h.replace(/<span\s*>([\s\S]*?)<\/span>/gi, "$1");
+  return h.trim();
+}
+
+/** L'HTML incorniciato come lo manda un client di posta: documento intero, non frammento. */
+export function documentoHtmlEmail(frammento: string): string {
+  const corpo = ripulisciHtmlEmail(frammento);
+  // Un frammento senza blocchi (solo testo, o solo <span>) va messo in un paragrafo.
+  const inBlocchi = /^\s*<(p|div|table|ul|ol|h[1-6]|blockquote|pre)\b/i.test(corpo) ? corpo : `<p>${corpo}</p>`;
+  return `<!DOCTYPE html>\r\n<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"></head>\r\n`
+    + `<body style="font-family: Arial, Helvetica, sans-serif; font-size: 14px; line-height: 1.5; color: #222;">\r\n`
+    + `${inBlocchi}\r\n</body></html>`;
+}
+
+/** Testo semplice dall'HTML, per la parte text/plain quando manca. */
+export function testoDaHtml(html: string): string {
+  return ripulisciHtmlEmail(html)
+    .replace(/<br\s*\/?>/gi, "\n").replace(/<\/(p|div|h[1-6]|blockquote)>/gi, "\n\n").replace(/<\/(li|tr)>/gi, "\n")
+    .replace(/<li\b[^>]*>/gi, "- ").replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+    .replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
 export function buildRFC822(opts: {
   from: string;
   fromName?: string | null;
@@ -280,7 +394,7 @@ export function buildRFC822(opts: {
   if (opts.cc && opts.cc.length > 0) lines.push(`Cc: ${opts.cc.join(", ")}`);
   // Bcc NON va in headers (privacy)
   lines.push(`Subject: ${escapeHeader(opts.subject)}`);
-  lines.push(`Date: ${new Date().toUTCString()}`);
+  lines.push(`Date: ${dataRfc5322()}`);
   lines.push(`Message-ID: ${opts.messageId}`);
   if (opts.inReplyTo) lines.push(`In-Reply-To: ${opts.inReplyTo}`);
   if (opts.references && opts.references.length > 0) lines.push(`References: ${opts.references.join(" ")}`);
@@ -292,22 +406,25 @@ export function buildRFC822(opts: {
   lines.push(`MIME-Version: 1.0`);
 
   const hasHtml = !!opts.bodyHtml && opts.bodyHtml.trim().length > 0;
-  const hasText = !!opts.bodyText && opts.bodyText.trim().length > 0;
   const hasAttachments = !!opts.attachments && opts.attachments.length > 0;
+  // L'HTML esce sempre come documento intero e ripulito; la parte testo c'è
+  // sempre (se manca, si ricava dall'HTML): è quella che i filtri leggono
+  // per confrontarla con l'HTML, e un'email solo-HTML è un altro segnale.
+  const html = hasHtml ? documentoHtmlEmail(opts.bodyHtml as string) : "";
+  const testo = (opts.bodyText && opts.bodyText.trim().length > 0)
+    ? opts.bodyText
+    : (hasHtml ? testoDaHtml(opts.bodyHtml as string) : "");
 
-  // Costruisci il body part (text/plain o multipart/alternative)
   let bodyPart = "";
   const altBoundary = `=_alt_${crypto.randomUUID().replace(/-/g, "")}`;
-  if (hasHtml && hasText) {
+  if (hasHtml) {
     bodyPart =
       `Content-Type: multipart/alternative; boundary="${altBoundary}"\r\n\r\n` +
-      `--${altBoundary}\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n${opts.bodyText}\r\n\r\n` +
-      `--${altBoundary}\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n${opts.bodyHtml}\r\n\r\n` +
+      `--${altBoundary}\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: quoted-printable\r\n\r\n${quotedPrintable(testo)}\r\n\r\n` +
+      `--${altBoundary}\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Transfer-Encoding: quoted-printable\r\n\r\n${quotedPrintable(html)}\r\n\r\n` +
       `--${altBoundary}--`;
-  } else if (hasHtml) {
-    bodyPart = `Content-Type: text/html; charset=UTF-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n${opts.bodyHtml}`;
   } else {
-    bodyPart = `Content-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n${opts.bodyText ?? ""}`;
+    bodyPart = `Content-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: quoted-printable\r\n\r\n${quotedPrintable(testo)}`;
   }
 
   if (!hasAttachments) {
