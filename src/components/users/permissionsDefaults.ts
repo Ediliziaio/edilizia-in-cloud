@@ -274,7 +274,10 @@ export const ROLE_PRESETS: Record<StaffRoleType, Partial<StaffPermissions>> = {
     can_view_customers: true, can_edit_customers: true,
     can_view_users: true,
     can_view_marketing_contacts: true, can_edit_marketing_contacts: true,
-    can_view_marketing_opportunities: true,
+    // Il call center non guarda soltanto: qualifica il contatto e sposta
+    // l'opportunita' di fase (richiamare, appuntamento fissato, non in target).
+    // Senza la modifica il kanban e' di sola lettura e il lavoro si ferma li'.
+    can_view_marketing_opportunities: true, can_edit_marketing_opportunities: true,
     can_view_preventivi: true,
     can_view_sopralluoghi: true,
     can_view_marketing_activities: true,
