@@ -20,6 +20,12 @@ export const OPENWA_PLATFORM_COMPANY_ID = "00000000-0000-0000-0000-000000000001"
 export const OWA_PATHS = {
   createSession: () => `/api/sessions`,
   startSession: (id: string) => `/api/sessions/${encodeURIComponent(id)}/start`,
+  // Lette dal bundle della dashboard del gateway (non stanno nell'openapi):
+  // `stop` spegne il motore lasciando la sessione agganciata al numero (niente
+  // nuovo QR), `forceKill` lo ammazza, `logout` scollega il telefono.
+  stopSession: (id: string) => `/api/sessions/${encodeURIComponent(id)}/stop`,
+  forceKillSession: (id: string) => `/api/sessions/${encodeURIComponent(id)}/force-kill`,
+  logoutSession: (id: string) => `/api/sessions/${encodeURIComponent(id)}/logout`,
   getQr: (id: string) => `/api/sessions/${encodeURIComponent(id)}/qr`,
   pairingCode: (id: string) => `/api/sessions/${encodeURIComponent(id)}/pairing-code`,
   status: (id: string) => `/api/sessions/${encodeURIComponent(id)}`,

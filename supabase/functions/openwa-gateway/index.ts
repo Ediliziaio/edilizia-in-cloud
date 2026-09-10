@@ -187,9 +187,21 @@ serveConMetriche("openwa-gateway", async (req) => {
       const nomeAtteso = nomeSessione(row.display_name ?? "");
       // Senza un id di sessione non c'è niente da riavviare: si va dritti al
       // recupero per nome (o alla creazione).
-      const started = effectiveId
-        ? await owaFetch(cfg, OWA_PATHS.startSession(effectiveId), { method: "POST" }).catch(() => null)
+      // `start` risponde solo quando il motore ha finito di caricare WhatsApp
+      // Web: in prod sono passati piu' di 30 s. Con il timeout di default (20 s)
+      // un avvio lento sembrava un gateway morto.
+      let started = effectiveId
+        ? await owaFetch(cfg, OWA_PATHS.startSession(effectiveId), { method: "POST" }, 45000).catch(() => null)
         : null;
+      // Visto in prod il 10/09: un motore mezzo morto (legge, ma ogni invio da'
+      // 500) risponde a `start` con 400 "Session is already started" — e qui lo
+      // prendevamo per un successo, quindi «Ricollega» non riavviava niente.
+      // Un riavvio vero e' stop + start: il telefono resta agganciato, niente
+      // nuovo QR, e il motore riparte pulito.
+      if (started && started.status === 400 && /already started/i.test(started.text ?? "")) {
+        await owaFetch(cfg, OWA_PATHS.stopSession(effectiveId), { method: "POST" }, 30000).catch(() => null);
+        started = await owaFetch(cfg, OWA_PATHS.startSession(effectiveId), { method: "POST" }, 45000).catch(() => null);
+      }
       if (!started || started.status === 404) {
         const created = await owaFetch(cfg, OWA_PATHS.createSession(), {
           method: "POST",
