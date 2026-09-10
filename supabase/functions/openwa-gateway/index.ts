@@ -22,6 +22,36 @@ function webhookUrl(): string {
   return `${base}/functions/v1/openwa-webhook`;
 }
 
+/** Registra il webhook della sessione solo se non c'è già.
+ *
+ * Il gateway non deduplica per URL: ogni «Ricollega» ne aggiungeva uno in più
+ * e lo stesso evento arrivava N volte (Marketing Edile ne aveva due). Se
+ * l'elenco non si legge si registra comunque: meglio un doppione che una
+ * sessione muta. Best-effort, un errore qui non blocca il collegamento. */
+async function assicuraWebhook(cfg: OwaConfig, sessionId: string): Promise<void> {
+  const url = webhookUrl();
+  const esistenti = await owaFetch(cfg, OWA_PATHS.createWebhook(sessionId)).catch(() => null);
+  if (esistenti?.ok) {
+    const payload = esistenti.json as unknown;
+    const lista: unknown[] = Array.isArray(payload) ? payload
+      : Array.isArray((payload as { data?: unknown[] } | null)?.data) ? ((payload as { data: unknown[] }).data) : [];
+    const giaRegistrato = lista.some((voce) => {
+      const o = voce as { url?: string; active?: boolean };
+      return o?.url === url && o?.active !== false;
+    });
+    if (giaRegistrato) return;
+  }
+  const secret = (await getPlatformSetting("openwa_webhook_secret")).trim();
+  await owaFetch(cfg, OWA_PATHS.createWebhook(sessionId), {
+    method: "POST",
+    body: JSON.stringify({
+      url,
+      events: ["message.received", "session.status"],
+      ...(secret ? { secret } : {}),
+    }),
+  }).catch(() => null);
+}
+
 // Il gateway accetta come nome sessione SOLO lettere, numeri e trattini
 // (openapi: "alphanumeric and hyphens only"): un nome come "Account Giusy"
 // veniva rifiutato con 400 Bad Request. Il nome scritto dall'utente resta
@@ -131,16 +161,8 @@ serveConMetriche("openwa-gateway", async (req) => {
       // Avvia la sessione (necessario prima di QR / pairing-code).
       await owaFetch(cfg, OWA_PATHS.startSession(sessionId), { method: "POST" }).catch(() => null);
 
-      // Registra il webhook per questa sessione (best-effort; ripetibile).
-      const secret = (await getPlatformSetting("openwa_webhook_secret")).trim();
-      await owaFetch(cfg, OWA_PATHS.createWebhook(sessionId), {
-        method: "POST",
-        body: JSON.stringify({
-          url: webhookUrl(),
-          events: ["message.received", "session.status"],
-          ...(secret ? { secret } : {}),
-        }),
-      }).catch(() => null);
+      // Registra il webhook per questa sessione (best-effort; idempotente).
+      await assicuraWebhook(cfg, sessionId);
 
       const { data: inserted, error } = await supabaseAdmin
         .from("openwa_numbers")
@@ -225,16 +247,8 @@ serveConMetriche("openwa-gateway", async (req) => {
         ricreata = true;
       }
 
-      // Webhook: ripetibile, best-effort — sulla sessione nuova è obbligatorio.
-      const secret = (await getPlatformSetting("openwa_webhook_secret")).trim();
-      await owaFetch(cfg, OWA_PATHS.createWebhook(effectiveId), {
-        method: "POST",
-        body: JSON.stringify({
-          url: webhookUrl(),
-          events: ["message.received", "session.status"],
-          ...(secret ? { secret } : {}),
-        }),
-      }).catch(() => null);
+      // Webhook: idempotente, best-effort — sulla sessione nuova è obbligatorio.
+      await assicuraWebhook(cfg, effectiveId);
 
       const { error } = await supabaseAdmin
         .from("openwa_numbers")
