@@ -7,6 +7,7 @@
 import { useState, useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
@@ -131,6 +132,11 @@ function umanizzaErroreImap(raw: string): { titolo: string; dettaglio: string } 
 
 export function ImapCustomDialog({ open, onOpenChange }: ImapCustomDialogProps) {
   const qc = useQueryClient();
+  // L'azienda la porta il contesto, non il profilo: nel pannello di piattaforma
+  // il super admin ha `profiles.company_id` a NULL e il salvataggio si fermava
+  // con «Profilo senza azienda». È la stessa azienda che si passa a
+  // `email-oauth-start` per Gmail e Outlook.
+  const { effectiveCompany } = useAuth();
   const [preset, setPreset] = useState<string>("custom");
   const [emailAddress, setEmailAddress] = useState("");
   const [imapUsername, setImapUsername] = useState("");
@@ -240,6 +246,7 @@ export function ImapCustomDialog({ open, onOpenChange }: ImapCustomDialogProps) 
         p_password: password,
         p_provider_label: preset,
         p_existing_id: null,
+        p_company_id: effectiveCompany?.id ?? null,
       });
       if (error) throw new Error(error.message);
       return data as string;
