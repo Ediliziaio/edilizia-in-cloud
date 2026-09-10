@@ -97,7 +97,16 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
 
       # Detect which function slugs changed.
-      # Excludes _shared / _customer_os_shared (library dirs, not deployable).
+      #
+      # Le cartelle _shared / _customer_os_shared non sono funzioni, ma il loro
+      # codice finisce DENTRO il pacchetto di ognuna al momento della
+      # pubblicazione: se cambia una libreria e non si tocca anche un file
+      # della funzione, in produzione resta la versione vecchia. Costato mezza
+      # giornata il 10/09/2026 — la correzione al client IMAP stava tutta in
+      # _shared/imapSmtpClient.ts: email-poll-inbox l'ha presa (aveva anche un
+      # file suo modificato) ed email-send no, cosi' la posta si riceveva ma
+      # non si riusciva a inviarla. Ci pensa ora
+      # scripts/funzioni-da-ripubblicare.mjs, che risale la catena degli import.
       #
       # Si diffa l'INTERO range del push (github.event.before → HEAD), non
       # HEAD~1: con un push di piu' commit, HEAD~1 vede solo l'ultimo e le
@@ -143,13 +152,7 @@ jobs:
           echo "Diff range: ${BASE:-<nessuno>} → HEAD"
           if [ -n "$BASE" ]; then
             CHANGED=$(git diff --name-only "$BASE" HEAD -- supabase/functions/ \
-              | grep '^supabase/functions/' \
-              | grep -v '^supabase/functions/_' \
-              | awk -F/ '{print $3}' \
-              | sort -u \
-              | grep -v '^$' \
-              | tr '\n' ' ' \
-              | xargs)  # trim trailing space
+              | node scripts/funzioni-da-ripubblicare.mjs)
           else
             CHANGED=""
           fi
