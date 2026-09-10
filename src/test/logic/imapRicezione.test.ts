@@ -141,3 +141,20 @@ describe("Le risposte SMTP si leggono per intero", () => {
     expect(client).toContain('const conclusiva = (resp.trimEnd().split("\\r\\n").pop() ?? resp).trim()');
   });
 });
+
+describe("«Test connessione» vuol dire che funzionerà", () => {
+  const client = leggi("supabase/functions/_shared/imapSmtpClient.ts");
+  const prova = client.slice(client.indexOf("export async function imapTestConnection"));
+
+  it("non si ferma al login: apre la casella e cerca davvero", () => {
+    // Si fermava al login e diceva «riuscito» anche quando la posta non
+    // sarebbe mai arrivata: è successo, e il guasto stava un passo più in là.
+    expect(prova).toContain("SELECT INBOX");
+    expect(prova).toContain("UID SEARCH SINCE");
+    expect(prova).toContain("imap_ricerca_non_supportata");
+  });
+
+  it("usa lo stesso formato di data del polling", () => {
+    expect(prova).toContain('.slice(5, 16).replace(/ /g, "-")');
+  });
+});

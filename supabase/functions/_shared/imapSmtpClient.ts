@@ -73,7 +73,7 @@ export async function smtpSend(cfg: SmtpConfig, msg: SmtpMessage): Promise<{ mes
     let risposta = "";
     const completa = () => /(?:^|\r\n)\d{3} [^\r\n]*\r\n$/.test(risposta);
     while (!completa()) {
-      let timer: number | undefined;
+      let timer: ReturnType<typeof setTimeout> | undefined;
       const scadenza = new Promise<never>((_, rifiuta) => {
         timer = setTimeout(() => rifiuta(new Error("smtp_timeout")), 30_000);
       });
@@ -371,33 +371,64 @@ const AUTOREPLY_HEADER_NAMES = [
   "x-auto-response-suppress", "x-mailer", "from",
 ];
 
+/**
+ * Il «Test connessione» del riquadro di collegamento.
+ *
+ * Si fermava al login, e diceva «riuscito» anche quando la posta poi non
+ * sarebbe arrivata — è successo davvero: casella verde, inbox vuota, e il
+ * guasto era nella ricerca dei messaggi, un passo più in là. Adesso il test
+ * percorre la strada intera: entra, apre la INBOX e cerca davvero, cioè fa le
+ * stesse tre cose che farà il polling.
+ */
 export async function imapTestConnection(cfg: ImapConfig): Promise<boolean> {
   const conn = cfg.secure
     ? await Deno.connectTls({ hostname: cfg.host, port: cfg.port })
     : await Deno.connect({ hostname: cfg.host, port: cfg.port });
-  const decoder = new TextDecoder();
+  const decoder = new TextDecoder("utf-8", { fatal: false });
   const encoder = new TextEncoder();
   const buf = new Uint8Array(8192);
   let tag = 0;
   const nextTag = () => `A${++tag}`;
+  async function leggi(): Promise<number | null> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const scadenza = new Promise<never>((_, rifiuta) => {
+      timer = setTimeout(() => rifiuta(new Error("imap_timeout")), 20_000);
+    });
+    try {
+      return await Promise.race([conn.read(buf), scadenza]);
+    } finally {
+      if (timer !== undefined) clearTimeout(timer);
+    }
+  }
   async function send(cmd: string): Promise<string> {
     const t = nextTag();
     await conn.write(encoder.encode(`${t} ${cmd}\r\n`));
     let result = "";
-    while (true) {
-      const n = await conn.read(buf);
+    const conclusa = () => new RegExp(`(?:^|\\r\\n)${t} (OK|NO|BAD)\\b`).test(result);
+    while (!conclusa()) {
+      const n = await leggi();
       if (n === null) break;
-      result += decoder.decode(buf.subarray(0, n));
-      if (result.includes(`${t} OK`) || result.includes(`${t} NO`) || result.includes(`${t} BAD`)) break;
+      result += decoder.decode(buf.subarray(0, n as number), { stream: true });
     }
-    if (!result.includes(`${t} OK`)) throw new Error(`imap_${result.slice(0, 200)}`);
+    if (!new RegExp(`(?:^|\\r\\n)${t} OK\\b`).test(result)) {
+      throw new Error(`imap_${result.slice(0, 200)}`);
+    }
     return result;
   }
   try {
-    // Greeting
-    const n = await conn.read(buf);
+    // Saluto
+    const n = await leggi();
     if (n === null) throw new Error("imap_connection_closed");
-    await send(`LOGIN "${cfg.username}" "${cfg.password.replace(/"/g, '\\"')}"`);
+    const citata = (v: string) => `"${v.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+    await send(`LOGIN ${citata(cfg.username)} ${citata(cfg.password)}`);
+    await send(`SELECT INBOX`);
+    // La stessa ricerca del polling, sugli ultimi sette giorni: se il server
+    // non la accetta è meglio saperlo adesso che a caselle collegate.
+    const dal = new Date(Date.now() - 7 * 864e5).toUTCString().slice(5, 16).replace(/ /g, "-");
+    const ricerca = await send(`UID SEARCH SINCE ${dal}`);
+    if (!ricerca.split("\r\n").some((r) => r.startsWith("* SEARCH"))) {
+      throw new Error("imap_ricerca_non_supportata");
+    }
     await send(`LOGOUT`);
     try { conn.close(); } catch { /* ignore */ }
     return true;
@@ -451,7 +482,7 @@ export async function imapScaricaNuovi(
    * provate. Meglio una casella in errore che un giro perso per tutti.
    */
   async function leggiConScadenza(): Promise<number | null> {
-    let timer: number | undefined;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     const scadenza = new Promise<never>((_, rifiuta) => {
       timer = setTimeout(() => rifiuta(new Error("imap_timeout")), 30_000);
     });
@@ -741,7 +772,7 @@ export async function imapAppend(cfg: ImapConfig, rfc822: string): Promise<{ ok:
       new RegExp(`(?:^|\\r\\n)${t} (OK|NO|BAD)\\b`).test(result) ||
       /(?:^|\r\n)\+/.test(result);
     while (!conclusa()) {
-      let timer: number | undefined;
+      let timer: ReturnType<typeof setTimeout> | undefined;
       const scadenza = new Promise<never>((_, rifiuta) => {
         timer = setTimeout(() => rifiuta(new Error("imap_timeout")), 30_000);
       });
