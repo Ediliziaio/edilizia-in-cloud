@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Globe, Mailbox, Plus, Trash2, Flame, AlertTriangle, Copy, Pause, Play, RefreshCw, Plug, Check, ChevronRight, ChevronDown, MailPlus, Search, X, Pencil } from "lucide-react";
+import { Loader2, Globe, Mailbox, Plus, Trash2, Flame, AlertTriangle, Copy, Pause, Play, RefreshCw, Plug, Check, ChevronRight, ChevronDown, MailPlus, Search, X, Pencil, KeyRound } from "lucide-react";
 import { isMissingTableError, MigrationGate } from "./_shared";
 import {
   FieldLabel, HeatBar, HealthPill, ProviderBadge, StatusDot, senderTone, type Health,
@@ -65,6 +65,11 @@ interface Sender {
   smtp_host?: string | null; bounce_count?: number | null; complaint_count?: number | null;
   oauth_connection_id?: string | null; warmup_base?: number | null; warmup_step?: number | null;
   signature?: string | null;
+  // `secret_ref` e' il puntatore al Vault: se manca, la casella non ha una
+  // password e non spedira' mai — la card lo deve poter dire e risolvere.
+  secret_ref?: string | null;
+  smtp_port?: number | null; smtp_secure?: boolean | null; smtp_username?: string | null;
+  imap_host?: string | null; imap_port?: number | null; imap_secure?: boolean | null;
 }
 
 const BASE = 5;
@@ -730,6 +735,52 @@ function SenderAccountCard({ casella, onChange }: { casella: Sender; onChange: (
   }
   const [capDraft, setCapDraft] = useState(String(casella.daily_cap_target));
   const [savingCap, setSavingCap] = useState(false);
+  // Collegamento: password (va al Vault) + parametri del server (restano in
+  // tabella). Prima non c'era: una casella creata come "slot" non aveva alcun
+  // modo di ricevere la password, e restava inutilizzabile per sempre.
+  const [openConn, setOpenConn] = useState(false);
+  const [pwd, setPwd] = useState("");
+  const [smtpH, setSmtpH] = useState(casella.smtp_host ?? "");
+  const [smtpP, setSmtpP] = useState(String(casella.smtp_port ?? 465));
+  const [imapH, setImapH] = useState(casella.imap_host ?? "");
+  const [imapP, setImapP] = useState(String(casella.imap_port ?? 993));
+  const [savingConn, setSavingConn] = useState(false);
+  const collegata = Boolean(casella.secret_ref);
+
+  async function salvaCollegamento() {
+    const password = pwd.trim();
+    if (!collegata && !password) { toast.error("Inserisci la password della casella"); return; }
+    setSavingConn(true);
+    try {
+      const patch: Record<string, unknown> = {
+        smtp_host: smtpH.trim() || null,
+        smtp_port: Number(smtpP) || 465,
+        imap_host: imapH.trim() || null,
+        imap_port: Number(imapP) || 993,
+      };
+      const { error: upErr } = await db.from(T_SENDERS).update(patch).eq("id", casella.id);
+      if (upErr) throw new Error(upErr.message);
+
+      // La password non passa MAI dalla tabella: la prende l'edge e la mette
+      // nel Vault, sulla riga resta solo `secret_ref`.
+      if (password) {
+        const { data, error } = await supabase.functions.invoke("outreach-mailbox-connect", {
+          body: { sender_account_id: casella.id, password },
+        });
+        if (error || (data as { error?: string })?.error) {
+          throw new Error((data as { error?: string })?.error || (error as Error).message);
+        }
+      }
+      setPwd("");
+      setOpenConn(false);
+      toast.success(password ? "Casella collegata. Ora premi «Testa»." : "Parametri del server salvati");
+      onChange();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Collegamento non riuscito");
+    } finally {
+      setSavingConn(false);
+    }
+  }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any;
   const paused = casella.status === "paused" || casella.status === "disabled";
@@ -796,6 +847,18 @@ function SenderAccountCard({ casella, onChange }: { casella: Sender; onChange: (
           <StatusDot tone={tone} />
         </div>
         <div className="flex shrink-0 items-center gap-1">
+          {isSmtp && (
+            <Button
+              size="sm"
+              variant={collegata ? "ghost" : "default"}
+              className={collegata
+                ? "h-7 gap-1.5 px-2 text-xs text-muted-foreground hover:text-foreground"
+                : "h-7 gap-1.5 px-2 text-xs"}
+              onClick={() => setOpenConn((v) => !v)}
+            >
+              <KeyRound className="h-3.5 w-3.5" /> {collegata ? "Password e server" : "Collega"}
+            </Button>
+          )}
           {testabile && (
             <Button size="sm" variant="ghost" className="h-7 gap-1.5 px-2 text-xs text-muted-foreground hover:text-foreground" disabled={testing} onClick={testConnection}>
               {testing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plug className="h-3.5 w-3.5" />} Testa
@@ -807,6 +870,53 @@ function SenderAccountCard({ casella, onChange }: { casella: Sender; onChange: (
           <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive" onClick={del}><Trash2 className="h-3.5 w-3.5" /></Button>
         </div>
       </div>
+
+      {/* Password + parametri del server. Aperto di default su una casella mai
+          collegata sarebbe invadente con dodici caselle in lista: sta dietro al
+          pulsante, che pero' e' pieno finche' la password manca. */}
+      {openConn && isSmtp && (
+        <div className="mt-2 space-y-2 rounded-lg border border-border bg-muted/40 p-3">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <div className="col-span-2 space-y-1"><FieldLabel>Password casella</FieldLabel>
+              <Input type="password" value={pwd} onChange={(e) => setPwd(e.target.value)}
+                placeholder={collegata ? "••••••••  (lascia vuoto per non cambiarla)" : "••••••••"}
+                className="h-8 bg-card text-sm" autoComplete="new-password" />
+            </div>
+            <div className="space-y-1"><FieldLabel>Server SMTP</FieldLabel>
+              <Input value={smtpH} onChange={(e) => setSmtpH(e.target.value)} className="h-8 bg-card font-mono text-xs" />
+            </div>
+            <div className="space-y-1"><FieldLabel>Porta</FieldLabel>
+              <Input type="number" value={smtpP} onChange={(e) => setSmtpP(e.target.value)} className="h-8 bg-card text-sm" />
+            </div>
+            <div className="space-y-1 sm:col-span-2"><FieldLabel>Server IMAP</FieldLabel>
+              <Input value={imapH} onChange={(e) => setImapH(e.target.value)} className="h-8 bg-card font-mono text-xs" />
+            </div>
+            <div className="space-y-1"><FieldLabel>Porta</FieldLabel>
+              <Input type="number" value={imapP} onChange={(e) => setImapP(e.target.value)} className="h-8 bg-card text-sm" />
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="flex items-center gap-1 text-[11px] text-muted-foreground">
+              <ShieldHint /> La password finisce cifrata nel Vault, mai in chiaro nel database.
+            </p>
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => { setOpenConn(false); setPwd(""); }}>Annulla</Button>
+              <Button size="sm" className="h-7 px-3 text-xs" disabled={savingConn} onClick={salvaCollegamento}>
+                {savingConn ? "…" : collegata ? "Salva" : "Collega"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Una casella senza password non spedira' mai: dirlo qui evita il giro
+          «Riattiva» → errore → non si capisce cosa manca. */}
+      {isSmtp && !collegata && !openConn && (
+        <button type="button" onClick={() => setOpenConn(true)}
+          className="mt-2 flex w-full items-center gap-1.5 rounded-md bg-amber-500/10 px-2 py-1.5 text-left text-[11px] font-medium text-amber-700 ring-1 ring-inset ring-amber-500/25 hover:bg-amber-500/15">
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0" /> Manca la password: finché non la colleghi questa casella non spedisce.
+        </button>
+      )}
 
       {/* errore connessione (se presente) */}
       {casella.connection_status === "error" && casella.connection_error && (
