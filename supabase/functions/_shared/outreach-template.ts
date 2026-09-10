@@ -111,6 +111,39 @@ export function htmlToPlainText(html: string | null | undefined): string {
 }
 
 /** Variabili standard di un contatto marketing. */
+/** Parole che smascherano una ragione sociale travestita da nome di persona. */
+const FORME_SOCIETARIE =
+  /(\bs\.?\s?r\.?\s?l\b|\bs\.?\s?p\.?\s?a\b|\bs\.?\s?n\.?\s?c\b|\bs\.?\s?a\.?\s?s\b|\bsocieta|\bsocietà|\bimpresa\b|\bditta\b|\bcostruzion|\bedil|\bserrament|\binfiss|\bfalegnam|\bofficin|\bgroup\b|\b& ?c\b)/i;
+
+/** Caselle di posta usate come nome: «Buongiorno Info» brucia il contatto. */
+const NOMI_DI_CASELLA =
+  /^(info|amministrazione|commerciale|ufficio|contatti|contatto|direzione|segreteria|preventivi|acquisti|vendite|staff|mail|posta|admin|sales|office|noreply|no-reply)$/i;
+
+/**
+ * Il nome da usare nel saluto — vuoto quando NON è il nome di una persona.
+ *
+ * Nelle liste comprate il campo `first_name` contiene quasi sempre la ragione
+ * sociale: su 7.821 contatti dell'outreach ThermoDMR, 7.268 avevano nome uguale
+ * alla ragione sociale. Con `{{first_name}}` nel saluto sarebbe partito
+ * «Buongiorno OFFICINE TABARELLI S.R.L.,» al 93% della lista — e un saluto così
+ * dice al destinatario, in tre parole, che è un invio automatico.
+ *
+ * Chi resta senza nome riceve «Buongiorno,»: il motore toglie da solo la virgola
+ * orfana e lo spazio doppio (vedi la ripulitura in renderTemplate).
+ */
+export function nomeSaluto(c: { first_name?: string | null; company_name?: string | null }): string {
+  const n = (c.first_name ?? "").trim();
+  if (n.length < 2 || n.length > 20) return "";
+  if (/[0-9@._\-\/&]/.test(n)) return "";                       // codici, email, sigle
+  if (NOMI_DI_CASELLA.test(n)) return "";
+  if (FORME_SOCIETARIE.test(n)) return "";
+  if (n === n.toUpperCase() && n.length > 3) return "";          // TUTTO MAIUSCOLO = insegna
+  const azienda = (c.company_name ?? "").trim().toLowerCase();
+  if (azienda && n.toLowerCase() === azienda) return "";
+  if (n.split(/\s+/).length > 2) return "";                      // «Marangoni Scale Di Sergio»
+  return n;
+}
+
 export function contactToVars(c: {
   first_name?: string | null; last_name?: string | null;
   company_name?: string | null; email?: string | null; phone?: string | null;
@@ -121,5 +154,7 @@ export function contactToVars(c: {
     company_name: c.company_name ?? "",
     email: c.email ?? "",
     phone: c.phone ?? "",
+    // Da usare nei saluti al posto di first_name: vedi nomeSaluto().
+    nome: nomeSaluto(c),
   };
 }
