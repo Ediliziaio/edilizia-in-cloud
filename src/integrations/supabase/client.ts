@@ -3,6 +3,7 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 import { traduciErrorePostgrest } from "@/lib/userErrorMessage";
+import { authStorage } from "./authStorage";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
@@ -108,7 +109,10 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     fetch: fetchTraducendoGliErrori,
   },
   auth: {
-    storage: localStorage,
+    // La sessione sta in un cookie sul dominio comune, non nella memoria del
+    // singolo sito: app.* e admin.* sono due origini diverse, e chi faceva
+    // login sull'una la mattina dopo lo rifaceva sull'altra. Vedi authStorage.
+    storage: authStorage,
     persistSession: true,
     autoRefreshToken: true,
   }

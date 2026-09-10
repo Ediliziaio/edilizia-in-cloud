@@ -3,7 +3,6 @@ import { SoftphoneProvider } from "@/components/telephony/SoftphoneProvider";
 import { navigateToSubdomain } from "@/utils/subdomainNav";
 // Apple Guideline 3.1.1 — su iOS nativo nascondiamo voci che linkano a checkout Stripe
 import { isIOS as isIOSNativePlatform } from "@/lib/mobile/platform";
-import { supabase } from "@/integrations/supabase/client";
 import { SidebarSubcategory } from "@/components/layouts/SidebarSubcategory";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions, type Permissions } from "@/hooks/usePermissions";
@@ -186,18 +185,12 @@ const ImpersonationBanner = memo(function ImpersonationBanner() {
 
   const handleExit = async () => {
     await exitImpersonation();
-    // On production (real subdomains), clear the app.* session locally
-    // without invalidating the server-side token used by the admin panel.
-    // On localhost, admin and app share the same localStorage — never sign out
-    // or the admin would get kicked out too.
-    const hostname = window.location.hostname;
-    const isProductionSubdomain =
-      hostname !== "localhost" &&
-      hostname !== "127.0.0.1" &&
-      !hostname.includes("192.168.");
-    if (isProductionSubdomain) {
-      await supabase.auth.signOut({ scope: "local" });
-    }
+    // 10/09/2026 — qui c'era un logout "locale" su app.*, per non toccare la
+    // sessione del pannello admin. Con la sessione in un cookie di dominio
+    // (authStorage) la sessione e' UNA SOLA: quel logout butterebbe fuori anche
+    // l'admin. E finche' erano separate, era il motivo per cui il giorno dopo
+    // app.* chiedeva di nuovo l'accesso. Uscire da un'azienda e' un cambio di
+    // contesto, non un cambio di identita': la sessione resta.
     navigateToSubdomain("/admin/aziende", "admin", navigate);
   };
 
@@ -1165,16 +1158,8 @@ const CompanySidebar = memo(function CompanySidebar() {
   
   const handleLogoutOrExit = useCallback(async () => {
     if (isImpersonating) {
+      // Come sopra: si torna al pannello admin senza chiudere la sessione.
       await exitImpersonation();
-      // Same logic as ImpersonationBanner: only sign out on production subdomains.
-      const hostname = window.location.hostname;
-      const isProductionSubdomain =
-        hostname !== "localhost" &&
-        hostname !== "127.0.0.1" &&
-        !hostname.includes("192.168.");
-      if (isProductionSubdomain) {
-        await supabase.auth.signOut({ scope: "local" });
-      }
       navigateToSubdomain("/admin/aziende", "admin", navigate);
     } else {
       signOut();
