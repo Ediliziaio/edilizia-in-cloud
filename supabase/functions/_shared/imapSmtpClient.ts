@@ -378,16 +378,32 @@ export async function imapTestConnection(cfg: ImapConfig): Promise<boolean> {
   }
 }
 
-export async function imapFetchUnreadSince(
+/**
+ * Scarica i messaggi nuovi dalla INBOX.
+ *
+ * Due trappole, entrambe costate una casella che sembrava funzionare e non
+ * portava dentro niente (10/09/2026, info@ediliziaincloud.com su Register):
+ *
+ * 1. LA DATA. IMAP vuole `11-Aug-2026`, con i trattini. Con gli spazi il
+ *    server risponde `BAD Invalid search date parameter`, e chi legge la
+ *    risposta cercando la riga `* SEARCH` non la trova: zero messaggi, nessun
+ *    errore, «Sync completato: nessuna nuova email». Per mesi.
+ * 2. UNSEEN. Chi collega una casella la tiene aperta anche altrove (Spark,
+ *    la webmail, il telefono): appena legge un messaggio lì, quel messaggio
+ *    per EiC non esiste più. Per la posta personale servono TUTTI i messaggi
+ *    del periodo, con il cursore UID a evitare di rileggerli ogni giro.
+ */
+export async function imapScaricaNuovi(
   cfg: ImapConfig,
   sinceDate: Date,
   maxMessages = 20,
   /**
    * Cursore UID: se presente si leggono i messaggi con UID > sinceUid (letti o
-   * no), invece di "UNSEEN SINCE data" che rileggeva ogni volta gli stessi
-   * messaggi non aperti in webmail.
+   * no), invece di ripartire dalla data ogni volta.
    */
   sinceUid?: number | null,
+  /** Senza cursore: prendere anche i messaggi già letti altrove. */
+  includiLette = false,
 ): Promise<ImapMessage[]> {
   const conn = cfg.secure
     ? await Deno.connectTls({ hostname: cfg.host, port: cfg.port })
@@ -423,15 +439,26 @@ export async function imapFetchUnreadSince(
     await send(`LOGIN "${cfg.username}" "${cfg.password.replace(/"/g, '\\"')}"`);
     await send(`SELECT INBOX`);
 
-    // SEARCH UNSEEN SINCE date
-    const dateStr = sinceDate.toUTCString().slice(5, 16); // "DD MMM YYYY"
+    // La data va con i trattini: "11-Aug-2026". Con gli spazi è BAD.
+    const dateStr = sinceDate.toUTCString().slice(5, 16).replace(/ /g, "-");
     const conCursore = typeof sinceUid === "number" && sinceUid > 0;
-    const searchResp = await send(conCursore ? `UID SEARCH UID ${sinceUid! + 1}:*` : `UID SEARCH UNSEEN SINCE ${dateStr}`);
-    const searchLine = searchResp.split("\r\n").find((l) => l.startsWith("* SEARCH")) ?? "";
+    const ricerca = conCursore
+      ? `UID SEARCH UID ${sinceUid! + 1}:*`
+      : `UID SEARCH ${includiLette ? "" : "UNSEEN "}SINCE ${dateStr}`;
+    const searchResp = await send(ricerca);
+    const searchLine = searchResp.split("\r\n").find((l) => l.startsWith("* SEARCH")) ?? null;
+    if (searchLine === null) {
+      // Il server ha rifiutato la ricerca. Senza questo controllo la risposta
+      // «BAD» diventava silenziosamente «nessun messaggio nuovo».
+      const motivo = searchResp.split("\r\n").find((l) => / (NO|BAD) /.test(l)) ?? searchResp.slice(0, 120);
+      throw new Error(`imap_search_rifiutata: ${motivo.trim()}`);
+    }
     // "n:*" restituisce l'ultimo messaggio anche se il suo UID e' < n: filtro esplicito.
     const uids = searchLine.replace("* SEARCH", "").trim().split(/\s+/).filter(Boolean)
       .filter((u) => !conCursore || parseInt(u, 10) > (sinceUid as number))
-      .slice(0, maxMessages);
+      // I più recenti: su una casella con storico, i primi per UID sono i più
+      // vecchi e riempirebbero il tetto senza mai arrivare a oggi.
+      .slice(-maxMessages);
 
     const messages: ImapMessage[] = [];
     for (const uid of uids) {
@@ -673,3 +700,6 @@ function decodeRFC2047(s: string): string {
     }
   });
 }
+
+/** @deprecated nome storico: la funzione non prende più solo i non letti. */
+export const imapFetchUnreadSince = imapScaricaNuovi;

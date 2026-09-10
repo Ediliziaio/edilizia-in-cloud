@@ -56,13 +56,19 @@ const PRESETS: Record<string, PresetConfig> = {
   },
   register: {
     label: "Register.it",
-    imap_host: "imap.register.it",
+    // I server storici non funzionano più: `imap.register.it` presenta un
+    // certificato che non vale per quel nome e `out.register.it` non esiste
+    // più nel DNS — chi sceglieva questo preset trovava solo un test fallito.
+    // Le caselle Register di oggi stanno su SecureMail, dove l'host si chiama
+    // `pop.` ma sulla porta 993 risponde IMAP (verificato: `* OK [CAPABILITY
+    // IMAP4rev1 …]`). Non esiste un `imap.securemail.pro`.
+    imap_host: "pop.securemail.pro",
     imap_port: 993,
     imap_secure: true,
-    smtp_host: "out.register.it",
+    smtp_host: "authsmtp.securemail.pro",
     smtp_port: 465,
     smtp_secure: true,
-    hint: "Hosting email Register.it",
+    hint: "Caselle SecureMail di Register.it. Il nome «pop» inganna: sulla porta 993 quel server parla IMAP.",
   },
   icloud: {
     label: "iCloud / Apple Mail",

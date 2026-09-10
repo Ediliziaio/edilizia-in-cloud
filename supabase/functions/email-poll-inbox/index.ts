@@ -18,7 +18,7 @@ import { getCorsHeaders } from "../_shared/headers.ts";
 // 2026-06-15: il parser in _shared ora decodifica Content-Transfer-Encoding
 // (base64/quoted-printable) + charset → corpi email leggibili (accenti, HTML).
 // Questo import forza il redeploy della funzione per includere il parser aggiornato.
-import { imapFetchUnreadSince, type ImapMessage } from "../_shared/imapSmtpClient.ts";
+import { imapScaricaNuovi, type ImapMessage } from "../_shared/imapSmtpClient.ts";
 import { getMsOAuthCredentials } from "../_shared/msOAuth.ts";
 
 import { serveConMetriche } from "../_shared/withMetrics.ts";
@@ -931,6 +931,8 @@ serveConMetriche("email-poll-inbox", async (req) => {
 
       const sinceTs = computeSinceTimestamp(conn);
       let emails: NormalizedEmail[] = [];
+      let uidPiuAlto = 0;
+      let metaImap: Record<string, unknown> = {};
 
       if (conn.provider === "imap") {
         // Branch IMAP custom (Aruba/Libero/iCloud/...)
@@ -943,7 +945,18 @@ serveConMetriche("email-poll-inbox", async (req) => {
           continue;
         }
         const c = creds[0];
-        const imapMsgs: ImapMessage[] = await imapFetchUnreadSince(
+        // Da dove ripartire: l'UID dell'ultimo messaggio già portato dentro.
+        // Senza cursore si ripescherebbe ogni volta lo stesso periodo, e
+        // soprattutto si perderebbero i messaggi letti nel frattempo altrove
+        // (Spark, la webmail, il telefono).
+        const { data: statoImap } = await (supa as any)
+          .from("email_oauth_connections")
+          .select("provider_metadata")
+          .eq("id", conn.id)
+          .maybeSingle();
+        metaImap = (statoImap?.provider_metadata as Record<string, unknown> | null) ?? {};
+        const ultimoUid = Number(metaImap.last_imap_uid ?? 0);
+        const imapMsgs: ImapMessage[] = await imapScaricaNuovi(
           {
             host: c.imap_host,
             port: c.imap_port,
@@ -953,7 +966,13 @@ serveConMetriche("email-poll-inbox", async (req) => {
           },
           new Date(sinceTs),
           50,
+          Number.isFinite(ultimoUid) && ultimoUid > 0 ? ultimoUid : null,
+          true, // anche i messaggi già letti altrove: qui è un client di posta
         );
+        for (const m of imapMsgs) {
+          const n = parseInt(m.uid, 10);
+          if (Number.isFinite(n) && n > uidPiuAlto) uidPiuAlto = n;
+        }
         const imapAttRun = { n: 0 };
         emails = [];
         for (const m of imapMsgs) {
@@ -1092,7 +1111,9 @@ serveConMetriche("email-poll-inbox", async (req) => {
         p_success: true,
         p_emails_fetched: emails.length,
         p_error: null,
-        p_provider_metadata: null,
+        // Merge, non sostituzione: `provider_metadata` è di tutti, non solo
+        // del cursore IMAP.
+        p_provider_metadata: uidPiuAlto > 0 ? { ...metaImap, last_imap_uid: uidPiuAlto } : null,
       });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
