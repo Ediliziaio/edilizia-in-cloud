@@ -38,7 +38,7 @@ import { sendOnChannel, type OutreachWhatsAppTemplate } from "../_shared/outreac
 import { appendTrackingSig, outreachOpenPixelUrl } from "../_shared/emailTrackingSignature.ts";
 import { lintEmail, puoPartire } from "../_shared/outreach-linter.ts";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
-import { buildFollowupHeaders, type SentStep } from "../_shared/outreach-threading.ts";
+import { buildFollowupHeaders, citazionePrecedente, type SentStep } from "../_shared/outreach-threading.ts";
 import { pauseBetweenSendsMs } from "../_shared/outreach-spread.ts";
 import { sendViaNativeSender, isNativeProvider, getOauthAccessToken } from "../_shared/outreachMailboxSend.ts";
 import { alertOutreach, logRun } from "../_shared/outreachAlert.ts";
@@ -181,11 +181,12 @@ async function inviatiPrecedenti(supabase: any, enrId: string): Promise<SentStep
   try {
     const { data } = await supabase
       .from("outreach_send_queue")
-      .select("message_id,subject,provider_thread_id,sent_at,sender_account_id")
+      .select("message_id,subject,provider_thread_id,sent_at,sender_account_id,body")
       .eq("enrollment_id", enrId).eq("status", "sent").eq("channel", "email").eq("kind", "send")
       .order("sent_at", { ascending: true });
     return ((data ?? []) as any[]).map((r) => ({
       messageId: r.message_id ?? null, subject: r.subject ?? null, threadId: r.provider_thread_id ?? null, senderId: r.sender_account_id ?? null,
+      body: r.body ?? null, sentAt: r.sent_at ?? null,
     }));
   } catch { return []; }
 }
@@ -726,7 +727,7 @@ serveConMetriche("outreach-dispatch", async (req) => {
   // https://link.thermodmr.it/l) → impostazione di piattaforma → *.supabase.co.
   // L'ultimo è un dominio estraneo al mittente dentro ogni email, anche
   // nell'intestazione List-Unsubscribe: i filtri lo contano.
-  const brandById = new Map<string, { from_name: string | null; reply_to: string | null; signature: string | null; footer_address: string | null; send_window?: unknown; tracking_base_url?: string | null; new_per_day?: number | null }>();
+  const brandById = new Map<string, { from_name: string | null; reply_to: string | null; signature: string | null; footer_address: string | null; send_window?: unknown; tracking_base_url?: string | null; new_per_day?: number | null; stile_umano?: boolean | null }>();
   const trackingBasePiattaforma = String((await getPlatformSetting("outreach_tracking_base_url").catch(() => null)) || `${SUPABASE_URL}/functions/v1`).replace(/\/+$/, "");
   const trackingBasePerBrand = (brandId: string | null): string => {
     const b = brandId ? brandById.get(brandId) : undefined;
@@ -852,7 +853,7 @@ serveConMetriche("outreach-dispatch", async (req) => {
     const queueById = new Map(queue.map((q) => [q.id, q]));
 
     // identità per brand (from_name / reply_to override) + firma e indirizzo footer
-    const { data: brandsRaw } = await supabase.from("outreach_brands").select("id,from_name,reply_to,signature,footer_address,send_window,tracking_base_url,new_per_day");
+    const { data: brandsRaw } = await supabase.from("outreach_brands").select("id,from_name,reply_to,signature,footer_address,send_window,tracking_base_url,new_per_day,stile_umano");
     for (const b of brandsRaw || []) brandById.set(b.id, b);
 
     // vars dei contatti per la personalizzazione (variabili + spintax al send)
@@ -1159,20 +1160,43 @@ serveConMetriche("outreach-dispatch", async (req) => {
             { co: PLATFORM_COMPANY, rid: item.contact_id, type: "unsub" },
           );
         }
+        // «Stile umano» (default): l'email deve sembrare scritta da una persona dal
+        // suo client di posta. Niente link di disiscrizione tracciato — nessuno lo
+        // mette in un'email scritta a mano — ma una frase che invita a rispondere:
+        // la risposta la legge il poller, che classifica l'intento (not_interested
+        // ferma la sequenza, unsubscribe fa opt-out e blocklist). Niente pixel,
+        // niente List-Unsubscribe. E i follow-up citano il messaggio precedente.
+        const stileUmano = brand?.stile_umano !== false;
+        const ultimoPrecedente = precedenti.length ? precedenti[precedenti.length - 1] : null;
+        let citazione = { testo: "", html: "" };
+        if (stileUmano && ultimoPrecedente && thr.inReplyTo) {
+          const mittentePrecedente = senderById.get(String(ultimoPrecedente.senderId ?? "")) as { email?: string; display_name?: string | null } | undefined;
+          citazione = citazionePrecedente(
+            { ...ultimoPrecedente, fromEmail: mittentePrecedente?.email ?? sender.email, fromName: mittentePrecedente?.display_name ?? brand?.from_name ?? null },
+            htmlToPlainText,
+          );
+          html += citazione.html;
+        }
         const addr = brand?.footer_address ? `${brand.footer_address} · ` : "";
         // Base giuridica in una riga (B2B, indirizzi aziendali): trasparenza
         // GDPR art. 13/14 senza informativa a parte. Solo nelle sequenze cold.
         const gdpr = enr ? "Ti scrivo perché la tua impresa opera pubblicamente nel settore edile (legittimo interesse, art. 6.1.f GDPR). " : "";
-        const unsubHtml = item.contact_id ? `${gdpr}Non vuoi più ricevere queste email? <a href="${unsubscribeUrl}" style="color:#9ca3af">Disiscriviti</a>.` : "";
-        if (addr || unsubHtml) {
-          html += `<p style="font-size:11px;color:#9ca3af;margin-top:24px">${addr}${unsubHtml}</p>`;
-        }
-        // Part text/plain: dall'HTML assemblato (corpo + firma + footer), PRIMA del pixel.
-        const text = htmlToPlainText(html);
+        const unsubHtml = !item.contact_id
+          ? ""
+          : stileUmano
+            ? `${gdpr}Se preferisci non ricevere altre email, rispondimi anche solo «no» e non ti scrivo più.`
+            : `${gdpr}Non vuoi più ricevere queste email? <a href="${unsubscribeUrl}" style="color:#9ca3af">Disiscriviti</a>.`;
+        const footerHtml = (addr || unsubHtml) ? `<p style="font-size:11px;color:#9ca3af;margin-top:24px">${addr}${unsubHtml}</p>` : "";
+        html += footerHtml;
+        // Part text/plain: corpo + firma, poi la citazione con «> » davanti (come
+        // la scrive un client di posta), poi il footer. PRIMA del pixel.
+        const text = citazione.testo
+          ? htmlToPlainText(corpo) + citazione.testo + (footerHtml ? `\n\n${htmlToPlainText(footerHtml)}` : "")
+          : htmlToPlainText(html);
         const seqIdForItem = enr?.sequence_id ?? null;
         const trackOpens = seqIdForItem ? (trackOpensBySequence.get(seqIdForItem) ?? false) : false;
         const plainOnly = seqIdForItem ? (plainTextBySequence.get(seqIdForItem) ?? false) : false;
-        if (trackOpens && !plainOnly) {
+        if (trackOpens && !plainOnly && !stileUmano) {
           const pixelUrl = await outreachOpenPixelUrl(trackingBasePerBrand(item.brand_id ?? null), item.id);
           if (pixelUrl) {
             html += `<img src="${pixelUrl}" alt="" width="1" height="1" style="display:none;width:1px;height:1px;border:0;overflow:hidden" />`;
@@ -1218,7 +1242,7 @@ serveConMetriche("outreach-dispatch", async (req) => {
 
         // ── INVIO: caselle native (gmail/outlook/smtp) dal loro provider, il
         //    resto (Elastic Email ecc.) via sendEmailUnified come prima ──
-        const unsubHeaders = unsubscribeUrl
+        const unsubHeaders = unsubscribeUrl && !stileUmano
           ? { "List-Unsubscribe": `<${unsubscribeUrl}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" }
           : undefined;
         const meta = { outreach_queue_id: item.id, sender_account_id: sender.id, variant_index: variantIndex, unsubscribe_url: unsubscribeUrl, touch: thr.touch };

@@ -14,6 +14,53 @@ export interface SentStep {
   threadId?: string | null;
   /** Casella che ha spedito quel passo (il follow-up deve partire dalla stessa). */
   senderId?: string | null;
+  /** Il testo spedito (HTML o testo), per citarlo nel follow-up come fa chi risponde. */
+  body?: string | null;
+  sentAt?: string | null;
+  /** Chi lo ha spedito, per la riga «X ha scritto:». */
+  fromName?: string | null;
+  fromEmail?: string | null;
+}
+
+/**
+ * Il messaggio precedente citato sotto al follow-up, come lo fa un client di
+ * posta quando si preme «Rispondi»: una riga «Il giorno … ha scritto:» e il
+ * testo con «> » davanti. Un follow-up nudo, senza il messaggio a cui
+ * risponde, è una delle cose che distinguono un mailer da una persona — e
+ * al destinatario toglie il contesto.
+ */
+export function citazionePrecedente(
+  prev: SentStep | null | undefined,
+  testoDa: (htmlOTesto: string) => string,
+): { testo: string; html: string } {
+  const corpo = String(prev?.body ?? "").trim();
+  if (!prev || !corpo) return { testo: "", html: "" };
+  const pulito = testoDa(corpo).trim();
+  if (!pulito) return { testo: "", html: "" };
+  const quando = prev.sentAt ? dataItaliana(prev.sentAt) : null;
+  const chi = prev.fromName && prev.fromEmail
+    ? `${prev.fromName} <${prev.fromEmail}>`
+    : (prev.fromEmail ?? prev.fromName ?? "");
+  const intestazione = quando
+    ? `Il giorno ${quando}${chi ? `, ${chi}` : ""} ha scritto:`
+    : `${chi || "Io"} ha scritto:`;
+  const righe = pulito.split(/\r?\n/).map((r) => `> ${r}`.trimEnd());
+  const testo = `\n\n${intestazione}\n${righe.join("\n")}`;
+  const esc = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const html = `<br><br><div>${esc(intestazione)}</div>`
+    + `<blockquote style="margin:0 0 0 .8ex;border-left:1px solid #ccc;padding-left:1ex">${esc(pulito).replace(/\r?\n/g, "<br>")}</blockquote>`;
+  return { testo, html };
+}
+
+/** «gio 10 set 2026 alle ore 09:12» nel fuso di Roma, come lo scrive Gmail in italiano. */
+function dataItaliana(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const parti = new Intl.DateTimeFormat("it-IT", {
+    timeZone: "Europe/Rome", weekday: "short", day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit",
+  }).formatToParts(d);
+  const v = (t: string) => parti.find((x) => x.type === t)?.value ?? "";
+  return `${v("weekday")} ${v("day")} ${v("month")} ${v("year")} alle ore ${v("hour")}:${v("minute")}`;
 }
 
 export interface FollowupHeaders {
