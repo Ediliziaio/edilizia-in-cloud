@@ -82,6 +82,8 @@ export function OutreachSenderPool({ companyId }: { companyId: string }) {
   const [domainBrandId, setDomainBrandId] = useState("");
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<SenderFilter>("all");
+  // "" = tutti i brand. Con cinque brand la lista piatta non si legge.
+  const [brandFilter, setBrandFilter] = useState("");
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any;
@@ -165,7 +167,41 @@ export function OutreachSenderPool({ companyId }: { companyId: string }) {
   // ordina i domini per brand (così sono raggruppati visivamente)
   domains.sort((a, b) => (brandName.get(a.brand_id ?? "") ?? "~").localeCompare(brandName.get(b.brand_id ?? "") ?? "~") || a.domain.localeCompare(b.domain));
   // quando filtri, mostra solo i domini che hanno almeno una casella corrispondente
-  const visibleDomains = filtering ? domains.filter((d) => (sendersByDomain.get(d.id)?.length ?? 0) > 0) : domains;
+  const perBrand = brandFilter ? domains.filter((d) => (d.brand_id ?? "") === brandFilter) : domains;
+  const visibleDomains = filtering ? perBrand.filter((d) => (sendersByDomain.get(d.id)?.length ?? 0) > 0) : perBrand;
+
+  // La domanda vera davanti a questa pagina non è "quanti domini ho": è "questo
+  // brand è pronto a spedire?". La risposta sta nella somma delle sue caselle e
+  // nel DNS dei suoi domini — quindi il brand diventa il contenitore, non
+  // un'etichetta stampata su ogni riga.
+  const gruppiBrand: {
+    brandId: string; nome: string; domini: Domain[];
+    nCaselle: number; capacita: number; daCollegare: number; dnsCompleti: number;
+  }[] = [];
+  {
+    const mappa = new Map<string, Domain[]>();
+    for (const d of visibleDomains) {
+      const k = d.brand_id ?? "";
+      const arr = mappa.get(k) ?? [];
+      arr.push(d);
+      mappa.set(k, arr);
+    }
+    for (const [brandId, doms] of mappa) {
+      const caselle = doms.flatMap((d) => sendersByDomain.get(d.id) ?? []);
+      gruppiBrand.push({
+        brandId,
+        nome: brandId ? (brandName.get(brandId) ?? "Brand rimosso") : "Senza brand",
+        domini: doms,
+        nCaselle: caselle.length,
+        capacita: caselle.filter((c) => c.status !== "disabled").reduce((t, c) => t + effectiveCap(c), 0),
+        daCollegare: caselle.filter((c) => (c.connection_status ?? "untested") === "untested").length,
+        dnsCompleti: doms.filter((d) => d.spf_verified && d.dkim_verified && d.dmarc_verified).length,
+      });
+    }
+    // "Senza brand" per ultimo: è il residuo, non una categoria.
+    gruppiBrand.sort((a, b) =>
+      a.brandId === "" ? 1 : b.brandId === "" ? -1 : a.nome.localeCompare(b.nome));
+  }
 
   const empty = domains.length === 0 && senders.filter((s) => !s.sending_domain_id).length === 0;
   const noMatches = !empty && filtering && matchCount === 0;
@@ -225,6 +261,15 @@ export function OutreachSenderPool({ companyId }: { companyId: string }) {
               </button>
             ))}
           </div>
+          {(brands.data ?? []).length > 1 && (
+            <Select value={brandFilter || "all"} onValueChange={(v) => setBrandFilter(v === "all" ? "" : v)}>
+              <SelectTrigger className="h-8 w-[170px] bg-card text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tutti i brand</SelectItem>
+                {(brands.data ?? []).map((b) => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          )}
           {filtering && (
             <span className="text-[11px] text-muted-foreground">{matchCount} di {senders.length}</span>
           )}
@@ -262,9 +307,33 @@ export function OutreachSenderPool({ companyId }: { companyId: string }) {
           </Button>
         </div>
       ) : (
-        <div className="space-y-3">
-          {visibleDomains.map((d) => (
-            <DomainCard key={d.id} domain={d} caselle={sendersByDomain.get(d.id) ?? []} brandName={d.brand_id ? brandName.get(d.brand_id) : undefined} forceOpen={filtering} onChange={invalidate} />
+        <div className="space-y-5">
+          {gruppiBrand.map((g) => (
+            <div key={g.brandId || "senza-brand"} className="space-y-2">
+              <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 border-l-2 border-primary/40 pl-2.5">
+                <span className="text-sm font-semibold text-foreground">{g.nome}</span>
+                <span className="text-[11px] text-muted-foreground">
+                  {g.domini.length} domin{g.domini.length === 1 ? "io" : "i"} · {g.nCaselle} casell{g.nCaselle === 1 ? "a" : "e"} · {g.capacita}/giorno
+                </span>
+                {/* Una casella senza password non spedisce: e' il primo motivo
+                    per cui un brand "pieno di caselle" manda zero email. */}
+                {g.daCollegare > 0 && (
+                  <span className="rounded-md bg-amber-500/10 px-1.5 py-0.5 text-[11px] font-medium text-amber-600 ring-1 ring-inset ring-amber-500/30">
+                    {g.daCollegare} da collegare
+                  </span>
+                )}
+                {g.dnsCompleti < g.domini.length && (
+                  <span className="rounded-md bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground ring-1 ring-inset ring-border">
+                    DNS completo su {g.dnsCompleti} di {g.domini.length}
+                  </span>
+                )}
+              </div>
+              <div className="space-y-3">
+                {g.domini.map((d) => (
+                  <DomainCard key={d.id} domain={d} caselle={sendersByDomain.get(d.id) ?? []} forceOpen={filtering} onChange={invalidate} />
+                ))}
+              </div>
+            </div>
           ))}
 
           {noDomain.length > 0 && (
@@ -298,7 +367,7 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
 
 type CasellaKind = "ee" | "smtp" | "smtp_bulk" | "oauth";
 
-function DomainCard({ domain, caselle, brandName, forceOpen, onChange }: { domain: Domain; caselle: Sender[]; brandName?: string; forceOpen?: boolean; onChange: () => void }) {
+function DomainCard({ domain, caselle, forceOpen, onChange }: { domain: Domain; caselle: Sender[]; forceOpen?: boolean; onChange: () => void }) {
   const [showDns, setShowDns] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
@@ -503,7 +572,6 @@ function DomainCard({ domain, caselle, brandName, forceOpen, onChange }: { domai
             <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ring-inset ${domain.status === "active" ? "bg-emerald-50 text-emerald-700 ring-emerald-600/20" : "bg-muted text-muted-foreground ring-border"}`}>
               <span className={`h-1.5 w-1.5 rounded-full ${domain.status === "active" ? "bg-emerald-500" : "bg-muted-foreground/50"}`} /> {domain.status}
             </span>
-            {brandName && <span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground ring-1 ring-inset ring-border">{brandName}</span>}
           </div>
           <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
             <span className="inline-flex items-center gap-1"><Mailbox className="h-3 w-3" /> {caselle.length} {caselle.length === 1 ? "casella" : "caselle"}</span>
