@@ -19,7 +19,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
-import { assignSenders, dailyCapWithVariance, remainingToday, sentToday, type SenderState } from "../_shared/outreach-dispatch-logic.ts";
+import { assignSenders, dailyCapWithVariance, remainingToday, sentToday, type SenderState, statoPerPrimiContatti } from "../_shared/outreach-dispatch-logic.ts";
 import { renderTemplate, contactToVars, hashSeed, htmlToPlainText } from "../_shared/outreach-template.ts";
 import { isWithinSendWindow, parseSendWindow, type SendWindow } from "../_shared/outreach-schedule.ts";
 import { parseVariants, pickVariant } from "../_shared/outreach-abz.ts";
@@ -233,6 +233,7 @@ async function enqueuePlanned(
     body: kind === "send" ? (node.body ?? "") : "",
     status: "queued",
     scheduled_for: whenJ,
+    primo_contatto: false,
   });
   await supabase.from("outreach_enrollments")
     .update({ current_step: node.step_order, current_node_id: node.id, next_action_at: whenJ }).eq("id", enr.id);
@@ -721,7 +722,17 @@ serveConMetriche("outreach-dispatch", async (req) => {
   // Base dei link di tracking/disiscrizione: un dominio proprio (setting
   // outreach_tracking_base_url, es. https://link.tuodominio.it) invece di
   // *.supabase.co dentro ogni email da casella vera.
-  const trackingBase = String((await getPlatformSetting("outreach_tracking_base_url").catch(() => null)) || `${SUPABASE_URL}/functions/v1`).replace(/\/+$/, "");
+  // Ordine: dominio del brand (outreach_brands.tracking_base_url, es.
+  // https://link.thermodmr.it/l) → impostazione di piattaforma → *.supabase.co.
+  // L'ultimo è un dominio estraneo al mittente dentro ogni email, anche
+  // nell'intestazione List-Unsubscribe: i filtri lo contano.
+  const brandById = new Map<string, { from_name: string | null; reply_to: string | null; signature: string | null; footer_address: string | null; send_window?: unknown; tracking_base_url?: string | null; new_per_day?: number | null }>();
+  const trackingBasePiattaforma = String((await getPlatformSetting("outreach_tracking_base_url").catch(() => null)) || `${SUPABASE_URL}/functions/v1`).replace(/\/+$/, "");
+  const trackingBasePerBrand = (brandId: string | null): string => {
+    const b = brandId ? brandById.get(brandId) : undefined;
+    const proprio = String(b?.tracking_base_url ?? "").trim().replace(/\/+$/, "");
+    return /^https:\/\//i.test(proprio) ? proprio : trackingBasePiattaforma;
+  };
 
   try {
     // 0-ter. REAPER — righe rimaste 'sending' oltre REAP_STUCK_MS sono orfane
@@ -780,7 +791,7 @@ serveConMetriche("outreach-dispatch", async (req) => {
     {
       const sel = () => supabase
         .from("outreach_send_queue")
-        .select("id, to_email, subject, body, attempts, max_attempts, contact_id, enrollment_id, brand_id")
+        .select("id, to_email, subject, body, attempts, max_attempts, contact_id, enrollment_id, brand_id, primo_contatto")
         .eq("status", "queued").eq("channel", "email")
         .lte("scheduled_for", now.toISOString())
         .order("scheduled_for", { ascending: true })
@@ -841,8 +852,7 @@ serveConMetriche("outreach-dispatch", async (req) => {
     const queueById = new Map(queue.map((q) => [q.id, q]));
 
     // identità per brand (from_name / reply_to override) + firma e indirizzo footer
-    const { data: brandsRaw } = await supabase.from("outreach_brands").select("id,from_name,reply_to,signature,footer_address,send_window");
-    const brandById = new Map<string, { from_name: string | null; reply_to: string | null; signature: string | null; footer_address: string | null; send_window?: unknown }>();
+    const { data: brandsRaw } = await supabase.from("outreach_brands").select("id,from_name,reply_to,signature,footer_address,send_window,tracking_base_url,new_per_day");
     for (const b of brandsRaw || []) brandById.set(b.id, b);
 
     // vars dei contatti per la personalizzazione (variabili + spintax al send)
@@ -928,11 +938,26 @@ serveConMetriche("outreach-dispatch", async (req) => {
         }
       } catch { /* pre-migrazione grafo: nessuno sticky */ }
     }
+    // Primi contatti già spediti oggi, per casella: è il budget «nuovi al
+    // giorno» del brand (new_per_day), separato dal tetto totale.
+    const nuoviOggiPerCasella = new Map<string, number>();
+    try {
+      const { data: primiOggi } = await supabase
+        .from("outreach_send_queue").select("sender_account_id")
+        .eq("status", "sent").eq("primo_contatto", true)
+        .gte("sent_at", `${today}T00:00:00Z`);
+      for (const r of (primiOggi ?? []) as Array<{ sender_account_id: string | null }>) {
+        if (r.sender_account_id) nuoviOggiPerCasella.set(r.sender_account_id, (nuoviOggiPerCasella.get(r.sender_account_id) ?? 0) + 1);
+      }
+    } catch { /* senza conteggio vale il solo tetto totale */ }
+
     for (const [brand, ids] of itemsByBrand) {
       const brandSenders = sendersByBrand.get(brand) ?? [];
+      const nuoviAlGiorno = brandById.get(brand)?.new_per_day ?? null;
       if (brandSenders.length === 0) { result.deferred += ids.length; continue; } // nessuna casella per quel brand
       const brandIds = new Set(brandSenders.map((s) => s.id));
       const usati = new Map<string, number>();
+      const usatiPrimi = new Map<string, number>();
       const liberi: string[] = [];
       for (const qid of ids) {
         const q = queueById.get(qid);
@@ -948,12 +973,30 @@ serveConMetriche("outreach-dispatch", async (req) => {
       }
       // varianceKey=today: il tetto per-casella varia leggermente per casella+giorno
       // (sempre ≤ cap effettivo) → volume "umano", non un numero tondo fisso ogni giorno.
-      const brandSendersAdj = brandSenders.map((s) => usati.has(s.id)
+      const conUsati = (lista: SenderState[]) => lista.map((s) => usati.has(s.id)
         ? { ...s, daily_sent: sentToday(s, today) + (usati.get(s.id) ?? 0), daily_sent_date: today }
         : s);
-      const r = assignSenders(liberi, brandSendersAdj, today, today);
-      assignments.push(...r.assignments);
-      result.deferred += liberi.length - r.assignments.length;
+      // Prima i PRIMI contatti, col tetto dei nuovi (se il brand ne ha uno):
+      // così i follow-up non possono mai mangiarsi il budget degli sconosciuti,
+      // e viceversa i nuovi non sfondano il tetto totale.
+      const primi = liberi.filter((qid) => queueById.get(qid)?.primo_contatto === true);
+      const seguiti = liberi.filter((qid) => queueById.get(qid)?.primo_contatto !== true);
+      if (primi.length) {
+        const statiPrimi = conUsati(brandSenders).map((s) =>
+          statoPerPrimiContatti(s, nuoviAlGiorno, (nuoviOggiPerCasella.get(s.id) ?? 0) + (usatiPrimi.get(s.id) ?? 0), today));
+        const rp = assignSenders(primi, statiPrimi, today, today);
+        for (const a of rp.assignments) {
+          usati.set(a.senderId, (usati.get(a.senderId) ?? 0) + 1);
+          usatiPrimi.set(a.senderId, (usatiPrimi.get(a.senderId) ?? 0) + 1);
+        }
+        assignments.push(...rp.assignments);
+        result.deferred += primi.length - rp.assignments.length;
+      }
+      if (seguiti.length) {
+        const r = assignSenders(seguiti, conUsati(brandSenders), today, today);
+        assignments.push(...r.assignments);
+        result.deferred += seguiti.length - r.assignments.length;
+      }
     }
 
     // Cap per DOMINIO (outreach_sending_domains.daily_cap): prima era solo
@@ -1112,7 +1155,7 @@ serveConMetriche("outreach-dispatch", async (req) => {
         let unsubscribeUrl: string | undefined;
         if (item.contact_id) {
           unsubscribeUrl = await appendTrackingSig(
-            `${trackingBase}/email-tracking?type=unsub&rid=${item.contact_id}&co=${PLATFORM_COMPANY}`,
+            `${trackingBasePerBrand(item.brand_id ?? null)}/email-tracking?type=unsub&rid=${item.contact_id}&co=${PLATFORM_COMPANY}`,
             { co: PLATFORM_COMPANY, rid: item.contact_id, type: "unsub" },
           );
         }
@@ -1130,7 +1173,7 @@ serveConMetriche("outreach-dispatch", async (req) => {
         const trackOpens = seqIdForItem ? (trackOpensBySequence.get(seqIdForItem) ?? false) : false;
         const plainOnly = seqIdForItem ? (plainTextBySequence.get(seqIdForItem) ?? false) : false;
         if (trackOpens && !plainOnly) {
-          const pixelUrl = await outreachOpenPixelUrl(trackingBase, item.id);
+          const pixelUrl = await outreachOpenPixelUrl(trackingBasePerBrand(item.brand_id ?? null), item.id);
           if (pixelUrl) {
             html += `<img src="${pixelUrl}" alt="" width="1" height="1" style="display:none;width:1px;height:1px;border:0;overflow:hidden" />`;
           } else {
