@@ -96,6 +96,9 @@ Deno.serve(async (req) => {
       company_id: PLATFORM_COMPANY, contact_id: contactId, sender_account_id: sender.id,
       channel: "email", to_email: to, subject: renderedSubject, body: renderedHtml,
       status: "sent", sent_at: now.toISOString(),
+      // Un invio a mano a un contatto è comunque uno sconosciuto in più
+      // raggiunto oggi da questa casella: conta nel tetto dei nuovi.
+      primo_contatto: true,
     });
 
     return jsonResponse({ ok: true, from }, 200, corsH);

@@ -254,6 +254,8 @@ Deno.serve(async (req) => {
           body: first.body ?? "",
           status: "queued",
           scheduled_for: scheduleByContact.get(row.contact_id) ?? schedule,
+          // È il primo touch: conta nel tetto «nuovi al giorno» del brand.
+          primo_contatto: true,
         };
       });
       if (queueRows.length) {

@@ -190,3 +190,33 @@ export function assignSenders(
   }
   return { assignments, unassigned };
 }
+
+/**
+ * Tetto dei PRIMI contatti al giorno per casella, separato dai follow-up.
+ *
+ * Il tetto totale contava tutto insieme: con «5 nuovi al giorno» e sei
+ * follow-up, a regime una casella ne spedisce 30-35, non 5 — ed è il numero
+ * di sconosciuti raggiunti a decidere la reputazione, non le risposte a chi
+ * già ci conosce.
+ *
+ * Restituisce lo stato casella da passare ad `assignSenders` per i SOLI primi
+ * contatti: i posti disponibili diventano min(posti totali rimasti oggi,
+ * nuovi al giorno − nuovi già spediti oggi). I follow-up spediti oggi non
+ * consumano il budget dei nuovi, ma restano dentro il tetto totale.
+ */
+export function statoPerPrimiContatti(
+  s: SenderState,
+  nuoviAlGiorno: number | null | undefined,
+  nuoviSpeditiOggi: number,
+  today: string,
+): SenderState {
+  if (nuoviAlGiorno == null || !Number.isFinite(nuoviAlGiorno) || nuoviAlGiorno <= 0) return s;
+  const speditiOggi = s.daily_sent_date === today ? Math.max(0, s.daily_sent) : 0;
+  const postiTotali = Math.max(0, effectiveDailyCap(s) - speditiOggi);
+  const postiNuovi = Math.max(0, Math.floor(nuoviAlGiorno) - Math.max(0, nuoviSpeditiOggi));
+  const posti = Math.min(postiTotali, postiNuovi);
+  // `effectiveDailyCap` non supera mai `daily_cap_target`: fissandolo a
+  // «spediti oggi + posti» i rimanenti diventano esattamente `posti`, senza
+  // toccare la rampa del warm-up.
+  return { ...s, daily_cap_target: Math.min(s.daily_cap_target, speditiOggi + posti), daily_sent: speditiOggi, daily_sent_date: today };
+}
