@@ -1,5 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
+import { getBrandingForCompany } from "../_shared/getBranding.ts";
+import { emailCredenziali } from "../_shared/emailCredenziali.ts";
 
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { buildStaffPermissionsRecord } from "../_shared/staffPermissionsDefaults.ts";
@@ -168,28 +170,34 @@ Deno.serve(async (req) => {
     // solo una notifica che ora accede anche a questa azienda.
     try {
       const companyName = (salesperson as any).company?.name || "la piattaforma";
-      const html = isExistingUser
-        ? `<html><body>
-            <p>Ciao ${salesperson.first_name},</p>
-            <p>Il tuo account è stato abilitato ad accedere anche a <strong>${companyName}</strong> come venditore.</p>
-            <p>Accedi con le <strong>credenziali che usi già</strong> (${email}) e seleziona l'azienda dal menu in alto.</p>
-          </body></html>`
-        : `<html><body>
-            <p>Ciao ${salesperson.first_name},</p>
-            <p>È stato creato un account per te su <strong>${companyName}</strong>.</p>
-            <p>Ecco le tue credenziali di accesso:</p>
-            <ul>
-              <li><strong>Email:</strong> ${email}</li>
-              ${isManualPassword ? "" : `<li><strong>Password temporanea:</strong> ${finalPassword}</li>`}
-            </ul>
-            ${isManualPassword ? "<p>La password è stata impostata dall'amministratore.</p>" : "<p>Ti consigliamo di cambiare la password al primo accesso.</p>"}
-          </body></html>`;
+      const branding = await getBrandingForCompany(supabaseAdmin, salesperson.company_id);
+      const { html, text } = isExistingUser
+        ? emailCredenziali({
+            branding,
+            titolo: `Nuovo accesso: ${companyName}`,
+            saluto: salesperson.first_name,
+            intro: `Il tuo account è stato abilitato ad accedere anche a ${companyName} come venditore. Entra con le credenziali che usi già e scegli l'azienda dal menu in alto.`,
+            email,
+            ctaLabel: "Vai alla piattaforma",
+          })
+        : emailCredenziali({
+            branding,
+            titolo: `Il tuo account su ${companyName}`,
+            saluto: salesperson.first_name,
+            intro: `È stato creato un account per te su ${companyName}. Qui sotto trovi le credenziali per entrare.`,
+            email,
+            password: isManualPassword ? null : finalPassword,
+            avviso: isManualPassword
+              ? "La password è stata impostata dall'amministratore: chiedila a chi ti ha creato l'account."
+              : "Ti consigliamo di cambiare la password al primo accesso.",
+          });
       await sendEmailUnified({
         companyId:    salesperson.company_id,
         stream:       "transactional",
         to:           [email],
         subject:      isExistingUser ? `Nuovo accesso: ${companyName}` : `Il tuo account su ${companyName}`,
         html,
+        text,
         templateName: "salesperson_invite",
         skipCredits:  true,
         adminClient:  supabaseAdmin,

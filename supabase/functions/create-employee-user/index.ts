@@ -1,5 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
+import { getBrandingForCompany } from "../_shared/getBranding.ts";
+import { emailCredenziali } from "../_shared/emailCredenziali.ts";
 
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { buildStaffPermissionsRecord } from "../_shared/staffPermissionsDefaults.ts";
@@ -138,21 +140,26 @@ Deno.serve(async (req) => {
     // Send welcome email via unified pipeline
     try {
       const companyName = (employee as any).company?.name || "la piattaforma";
+      const branding = await getBrandingForCompany(supabaseAdmin, employee.company_id);
+      const { html, text } = emailCredenziali({
+        branding,
+        titolo: `Il tuo account su ${companyName}`,
+        saluto: employee.first_name,
+        intro: `È stato creato un account per te su ${companyName}. Qui sotto trovi le credenziali per entrare.`,
+        email,
+        password: isManualPassword ? null : finalPassword,
+        avviso: isManualPassword
+          ? "La password è stata impostata dall'amministratore: chiedila a chi ti ha creato l'account."
+          : "Ti consigliamo di cambiare la password al primo accesso.",
+      });
+
       await sendEmailUnified({
         companyId:    employee.company_id,
         stream:       "transactional",
         to:           [email],
         subject:      `Il tuo account su ${companyName}`,
-        html: `<html><body>
-            <p>Ciao ${employee.first_name},</p>
-            <p>È stato creato un account per te su <strong>${companyName}</strong>.</p>
-            <p>Ecco le tue credenziali di accesso:</p>
-            <ul>
-              <li><strong>Email:</strong> ${email}</li>
-              ${isManualPassword ? "" : `<li><strong>Password temporanea:</strong> ${finalPassword}</li>`}
-            </ul>
-            ${isManualPassword ? "<p>La password è stata impostata dall'amministratore.</p>" : "<p>Ti consigliamo di cambiare la password al primo accesso.</p>"}
-          </body></html>`,
+        html,
+        text,
         templateName: "employee_invite",
         skipCredits:  true,
         adminClient:  supabaseAdmin,

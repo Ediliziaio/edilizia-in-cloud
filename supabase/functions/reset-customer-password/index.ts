@@ -3,6 +3,8 @@ import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { generateSecurePassword } from "../_shared/securePassword.ts";
 import { getCorsHeaders, secureHeaders, jsonResponse } from "../_shared/headers.ts";
 import { conMetriche } from "../_shared/withMetrics.ts";
+import { getBrandingForCompany } from "../_shared/getBranding.ts";
+import { emailCredenziali } from "../_shared/emailCredenziali.ts";
 
 // Esegue un task in background DOPO la risposta: un invio email lento/bloccato non
 // deve far terminare la funzione per wall-clock prima del return (causa di
@@ -99,12 +101,18 @@ Deno.serve(conMetriche("reset-customer-password", async (req) => {
     if (targetProfile.email) {
       try {
         const subject = "Password reimpostata";
-        const html = `<html><body>
-              <p>Ciao ${targetProfile.first_name || ""},</p>
-              <p>La tua password è stata reimpostata dall'amministratore.</p>
-              <p>La tua nuova password temporanea è: <strong>${finalPassword}</strong></p>
-              <p>Ti consigliamo di cambiarla al primo accesso.</p>
-            </body></html>`;
+        const branding = await getBrandingForCompany(supabaseAdmin, targetProfile.company_id);
+        const { html, text } = emailCredenziali({
+          branding,
+          titolo: subject,
+          saluto: targetProfile.first_name || null,
+          intro: "La tua password è stata reimpostata dall'amministratore. Qui sotto trovi le credenziali aggiornate: quelle che avevi ricevuto prima non funzionano più.",
+          email: targetProfile.email,
+          password: finalPassword,
+          etichettaPassword: "Nuova password temporanea",
+          avviso: "Cambiala al primo accesso dal tuo profilo.",
+          chiusura: "Se non hai chiesto tu questo reset, avvisa subito l'amministratore della tua azienda.",
+        });
 
         let result = await sendEmailUnified({
           companyId:    targetProfile.company_id,
@@ -112,6 +120,7 @@ Deno.serve(conMetriche("reset-customer-password", async (req) => {
           to:           [targetProfile.email],
           subject,
           html,
+          text,
           templateName: "password_reset",
           skipCredits:  true,
           adminClient:  supabaseAdmin,
@@ -125,6 +134,7 @@ Deno.serve(conMetriche("reset-customer-password", async (req) => {
             to:           [targetProfile.email],
             subject,
             html,
+            text,
             templateName: "password_reset",
             skipCredits:  true,
             adminClient:  supabaseAdmin,

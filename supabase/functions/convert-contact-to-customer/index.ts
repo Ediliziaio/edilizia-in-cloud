@@ -1,4 +1,6 @@
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
+import { getBrandingForCompany } from "../_shared/getBranding.ts";
+import { emailCredenziali } from "../_shared/emailCredenziali.ts";
 import { requireAuth, requireRole } from "../_shared/auth.ts";
 import { generateSecurePassword } from "../_shared/securePassword.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
@@ -166,18 +168,25 @@ Deno.serve(async (req) => {
         .eq("id", company_id)
         .single();
 
+      const branding = await getBrandingForCompany(supabaseAdmin, company_id);
+      const { html, text } = emailCredenziali({
+        branding,
+        titolo: `Benvenuto su ${company?.name || "la piattaforma"}`,
+        saluto: trimFirst,
+        intro: "Il tuo account è stato attivato. Qui sotto trovi le credenziali per entrare.",
+        email: trimEmail,
+        password,
+        etichettaPassword: "Password",
+        avviso: "Cambia la password al primo accesso.",
+      });
+
       await sendEmailUnified({
         companyId:    company_id,
         stream:       "transactional",
         to:           [trimEmail],
         subject:      `Benvenuto su ${company?.name || "la piattaforma"}`,
-        html: `<html><body>
-            <p>Ciao ${trimFirst},</p>
-            <p>Il tuo account è stato attivato.</p>
-            <p><strong>Email:</strong> ${trimEmail}</p>
-            <p><strong>Password:</strong> ${password}</p>
-            <p>Cambia la password al primo accesso.</p>
-          </body></html>`,
+        html,
+        text,
         templateName: "contact_converted",
         skipCredits:  false,
         adminClient:  supabaseAdmin,
