@@ -195,27 +195,53 @@ export default function WhatsappLocalePanel() {
   // Lo stato di un numero si aggiornava SOLO mentre il dialog del QR restava
   // aperto: chi scansionava e chiudeva la finestra restava "In attesa QR" per
   // sempre, col telefono collegato davvero e il numero inutilizzabile (niente
-  // "Prova", escluso dalle campagne). All'apertura della pagina ricontrolliamo
-  // una volta sola ogni numero che non risulta connesso.
-  const statiRicontrollati = useRef(new Set<string>());
+  // "Prova", escluso dalle campagne).
+  //
+  // Ricontrollare UNA volta all'apertura non bastava: il 10/09/2026 "Flo 2"
+  // risultava collegato sul telefono e sul gateway (status ready) ma qui
+  // restava "In attesa QR", perché era diventato pronto DOPO il controllo di
+  // apertura e nessuno chiedeva più niente. Ora si richiede ogni 10 secondi
+  // finché tutti i numeri non risultano connessi, per non più di 5 minuti —
+  // il tempo di una scansione, non un battito perpetuo.
+  const chiaviDaControllare = useMemo(
+    () => numbers.filter((n) => n.stato !== "connected" && n.session_id)
+      .map((n) => n.session_id).sort().join(","),
+    [numbers],
+  );
   useEffect(() => {
-    if (settingsQuery.isLoading) return;
-    const daControllare = numbers.filter(
-      (n) => n.stato !== "connected" && n.session_id && !statiRicontrollati.current.has(n.session_id),
-    );
-    if (daControllare.length === 0) return;
+    if (settingsQuery.isLoading || !chiaviDaControllare) return;
+    const sessioni = chiaviDaControllare.split(",");
     let annullato = false;
-    void (async () => {
-      for (const n of daControllare) {
-        statiRicontrollati.current.add(n.session_id);
-        // Se il gateway non risponde il numero resta com'è: lo dice già la
-        // riga di stato sotto il nome, non serve un altro avviso a schermo.
-        try { await invokeGateway("session_status", { session_id: n.session_id }); } catch { /* niente */ }
+    let giriRimasti = 30;           // 30 × 10 s = 5 minuti
+    let inCorso = false;
+
+    const giro = async () => {
+      if (annullato || inCorso) return;
+      inCorso = true;
+      try {
+        for (const sid of sessioni) {
+          // Se il gateway non risponde il numero resta com'è: lo dice già la
+          // riga di stato sotto il nome, non serve un altro avviso a schermo.
+          try { await invokeGateway("session_status", { session_id: sid }); } catch { /* niente */ }
+        }
+        if (!annullato) {
+          queryClient.invalidateQueries({ queryKey: ["openwa", "numbers"] });
+          // Il contatore "N sessioni sul server" veniva letto una volta e
+          // restava lì: dopo aver collegato un numero diceva ancora zero.
+          queryClient.invalidateQueries({ queryKey: ["owa-stato-gateway"] });
+        }
+      } finally {
+        inCorso = false;
       }
-      if (!annullato) queryClient.invalidateQueries({ queryKey: ["openwa", "numbers"] });
-    })();
-    return () => { annullato = true; };
-  }, [numbers, settingsQuery.isLoading, queryClient]);
+    };
+
+    void giro();
+    const t = setInterval(() => {
+      if (giriRimasti-- <= 0) { clearInterval(t); return; }
+      void giro();
+    }, 10_000);
+    return () => { annullato = true; clearInterval(t); };
+  }, [chiaviDaControllare, settingsQuery.isLoading, queryClient]);
   const gatewayConfigured = Boolean((baseUrl || "").trim()) && Boolean(apiKeyMasked || apiKey.trim());
 
   // NB: sta QUI, sotto gatewayConfigured, perché lo legge: dichiararlo più
@@ -226,7 +252,7 @@ export default function WhatsappLocalePanel() {
   const statoGateway = useQuery({
     queryKey: ["owa-stato-gateway"],
     enabled: gatewayConfigured,
-    staleTime: 60_000,
+    staleTime: 15_000,
     retry: false,
     queryFn: async () => {
       const inizio = Date.now();
