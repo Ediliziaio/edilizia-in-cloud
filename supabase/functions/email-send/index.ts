@@ -150,6 +150,13 @@ async function sendViaOutlook(
     attachments?: SmtpAttachment[];
   },
 ): Promise<{ id: string }> {
+  // NOTA (10/09/2026): `payload.inReplyTo` qui non viene usato, e non è una
+  // dimenticanza — Microsoft Graph, su /sendMail, accetta solo header
+  // `internetMessageHeaders` che iniziano per `x-`: In-Reply-To e References
+  // vengono scartati. Per rispondere DENTRO la conversazione serve un'altra
+  // strada (`/messages/{id}/createReply`), che richiede l'id del messaggio
+  // originale su Outlook. Finché non è implementata, una risposta inviata da
+  // EiC arriva come messaggio a sé: parte, si legge, ma non si accoda.
   const contentType = payload.bodyHtml ? "HTML" : "Text";
   const content = payload.bodyHtml || payload.bodyText || "";
   // Microsoft Graph: fileAttachment con @odata.type
@@ -253,6 +260,12 @@ async function insertSentCopy(
   outbox: OutboxRow,
   fromEmail: string,
   providerMessageId: string,
+  /**
+   * I riferimenti alla conversazione. La copia in «Inviate» nasceva senza:
+   * una risposta risultava un messaggio a sé, e chi ricostruisce i fili
+   * (email-thread-resolver) non aveva niente da seguire.
+   */
+  filo?: { inReplyTo: string | null; references: string[]; providerThreadId: string | null },
 ): Promise<void> {
   const sentAt = new Date().toISOString();
   const messageId = providerMessageId
@@ -273,11 +286,11 @@ async function insertSentCopy(
     user_id: outbox.user_id,
     oauth_connection_id: outbox.oauth_connection_id,
     thread_id: outbox.thread_id,
-    in_reply_to: null,
-    references_ids: [],
+    in_reply_to: filo?.inReplyTo ?? null,
+    references_ids: filo?.references ?? [],
     message_id: messageId,
     provider_message_id: providerMessageId,
-    provider_thread_id: null,
+    provider_thread_id: filo?.providerThreadId ?? null,
     mailbox_folder: "sent",
     from_email: fromEmail,
     from_name: null,
@@ -379,18 +392,23 @@ serveConMetriche("email-send", async (req) => {
     // 4) Recupera info reply per threading
     let inReplyToHeader: string | null = null;
     let referencesHeader: string[] = [];
+    // Il filo della conversazione lato provider: per Gmail non basta l'header
+    // In-Reply-To, serve dire a quale thread appartiene la risposta — altrimenti
+    // in casella parte una conversazione nuova accanto a quella vera. Restava
+    // sempre null, quindi ogni risposta nasceva orfana.
+    let providerThreadId: string | null = null;
     if (outbox.in_reply_to_id) {
       const { data: parent } = await supabase
         .from("email_inbox")
-        .select("message_id, references_ids")
+        .select("message_id, references_ids, provider_thread_id")
         .eq("id", outbox.in_reply_to_id)
         .maybeSingle();
       if (parent?.message_id) {
         inReplyToHeader = parent.message_id;
         referencesHeader = [...(parent.references_ids ?? []), parent.message_id];
       }
+      if (parent?.provider_thread_id) providerThreadId = parent.provider_thread_id as string;
     }
-    const providerThreadId: string | null = null;
 
     // Pre-download attachments (riusato in tutti i branch provider)
     const smtpAttachments = await downloadAttachments(supabase, outbox.attachments);
@@ -434,7 +452,8 @@ serveConMetriche("email-send", async (req) => {
           provider_message_id: sent.messageId,
         })
         .eq("id", outbox.id);
-      await insertSentCopy(supabase, outbox, c.email_address, sent.messageId)
+      await insertSentCopy(supabase, outbox, c.email_address, sent.messageId,
+        { inReplyTo: inReplyToHeader, references: referencesHeader, providerThreadId })
         .catch((e) => console.warn("[email-send] sent copy failed:", e));
       // APPEND nei "Inviati" del server IMAP → l'email compare anche nella webmail
       // del provider (Aruba/Register/…). Best-effort: non blocca l'invio riuscito.
@@ -523,7 +542,8 @@ serveConMetriche("email-send", async (req) => {
       .eq("id", outbox.id);
 
     // 8) Copia locale in Inviati: il polling inbound non legge la cartella Sent.
-    await insertSentCopy(supabase, outbox, tokens.email_address, providerMessageId)
+    await insertSentCopy(supabase, outbox, tokens.email_address, providerMessageId,
+      { inReplyTo: inReplyToHeader, references: referencesHeader, providerThreadId })
       .catch((e) => console.warn("[email-send] sent copy failed:", e));
 
     return jsonResponse({

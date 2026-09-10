@@ -151,11 +151,46 @@ Deno.serve(async (req) => {
   const payloadB64 = base64UrlEncode(JSON.stringify(statePayload));
   const state = `${payloadB64}.${await signStatePayload(payloadB64)}`;
 
+  /**
+   * Un identificativo applicazione non è un segreto — viaggia nell'indirizzo
+   * della pagina di consenso, sotto gli occhi di chi collega la casella. Un
+   * SEGRETO messo lì per sbaglio finirebbe nello stesso posto: nella barra
+   * degli indirizzi, nella cronologia, nei log di mezzo mondo.
+   *
+   * Il 10/09/2026 è successo: in `MS_OAUTH_CLIENT_ID` c'era un valore con la
+   * forma di un client secret di Azure. Il collegamento a Outlook non poteva
+   * funzionare, e intanto il segreto usciva a ogni tentativo. Meglio fermarsi
+   * prima, con un messaggio che dice cosa è successo.
+   */
+  const identificativoSospetto = (valore: string, provider: "gmail" | "outlook"): string | null => {
+    const v = valore.trim();
+    if (provider === "outlook") {
+      const guid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+      if (!guid.test(v)) {
+        return "MS_OAUTH_CLIENT_ID non ha la forma di un ID applicazione Azure "
+          + "(deve essere un GUID, es. 11111111-2222-3333-4444-555555555555). "
+          + "Se ci fosse finito il client secret, va rigenerato su Azure prima di riusarlo.";
+      }
+      return null;
+    }
+    if (!v.endsWith(".apps.googleusercontent.com")) {
+      return "GOOGLE_OAUTH_CLIENT_ID non ha la forma di un ID applicazione Google "
+        + "(deve finire con .apps.googleusercontent.com).";
+    }
+    return null;
+  };
+
   let authUrl: string;
   if (body.provider === "gmail") {
     const clientId = Deno.env.get("GOOGLE_OAUTH_CLIENT_ID");
     if (!clientId) {
       return new Response(JSON.stringify({ error: "GOOGLE_OAUTH_CLIENT_ID not configured" }), {
+        status: 500, headers: { ...cors, "Content-Type": "application/json" },
+      });
+    }
+    const guasto = identificativoSospetto(clientId, "gmail");
+    if (guasto) {
+      return new Response(JSON.stringify({ error: guasto }), {
         status: 500, headers: { ...cors, "Content-Type": "application/json" },
       });
     }
@@ -173,6 +208,12 @@ Deno.serve(async (req) => {
     const { clientId } = await getMsOAuthCredentials();
     if (!clientId) {
       return new Response(JSON.stringify({ error: "Credenziali Microsoft non configurate (MS_OAUTH_CLIENT_ID)" }), {
+        status: 500, headers: { ...cors, "Content-Type": "application/json" },
+      });
+    }
+    const guasto = identificativoSospetto(clientId, "outlook");
+    if (guasto) {
+      return new Response(JSON.stringify({ error: guasto }), {
         status: 500, headers: { ...cors, "Content-Type": "application/json" },
       });
     }

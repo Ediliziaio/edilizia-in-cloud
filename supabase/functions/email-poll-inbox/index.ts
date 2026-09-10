@@ -582,7 +582,10 @@ async function pollOutlook(
   // Collect TUTTE le pagine
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const allMessages: any[] = [];
-  let nextUrl: string | null = `${GRAPH_API}/messages?${params.toString()}`;
+  // `/me/messages` pesca da TUTTE le cartelle: la posta inviata e quella nel
+  // cestino sarebbero finite fra le ricevute. La casella in arrivo è
+  // `mailFolders/inbox`, come per Gmail si guarda INBOX.
+  let nextUrl: string | null = `${GRAPH_API}/mailFolders/inbox/messages?${params.toString()}`;
   let safety = 0;
   while (nextUrl) {
     safety++;
