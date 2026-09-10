@@ -56,22 +56,51 @@ export async function smtpSend(cfg: SmtpConfig, msg: SmtpMessage): Promise<{ mes
     ? await Deno.connectTls({ hostname: host, port })
     : await Deno.connect({ hostname: host, port });
 
-  const decoder = new TextDecoder();
+  const decoder = new TextDecoder("utf-8", { fatal: false });
   const encoder = new TextEncoder();
   const buf = new Uint8Array(8192);
 
+  /**
+   * Una risposta SMTP completa, non il primo pacchetto che passa.
+   *
+   * `EHLO` risponde con più righe (`250-PIPELINING`, `250-SIZE`, … `250 OK`) e
+   * TCP non garantisce che arrivino insieme: leggendo una volta sola, il resto
+   * restava nel socket e veniva scambiato per la risposta del comando dopo —
+   * da lì in poi ogni controllo guardava la risposta sbagliata. Qui si legge
+   * finché non arriva la riga conclusiva (codice seguito da spazio).
+   */
   async function readLine(): Promise<string> {
-    const n = await conn.read(buf);
-    if (n === null) throw new Error("smtp_connection_closed");
-    return decoder.decode(buf.subarray(0, n));
+    let risposta = "";
+    const completa = () => /(?:^|\r\n)\d{3} [^\r\n]*\r\n$/.test(risposta);
+    while (!completa()) {
+      let timer: number | undefined;
+      const scadenza = new Promise<never>((_, rifiuta) => {
+        timer = setTimeout(() => rifiuta(new Error("smtp_timeout")), 30_000);
+      });
+      let n: number | null;
+      try {
+        n = await Promise.race([conn.read(buf), scadenza]);
+      } finally {
+        if (timer !== undefined) clearTimeout(timer);
+      }
+      if (n === null) {
+        if (risposta) break;
+        throw new Error("smtp_connection_closed");
+      }
+      risposta += decoder.decode(buf.subarray(0, n as number), { stream: true });
+    }
+    return risposta;
   }
   async function send(line: string): Promise<void> {
     await conn.write(encoder.encode(line + "\r\n"));
   }
   async function expect(prefix: string): Promise<string> {
     const resp = await readLine();
-    if (!resp.startsWith(prefix)) {
-      throw new Error(`smtp_unexpected: ${resp.slice(0, 200)}`);
+    // Il codice che conta è quello dell'ultima riga: le precedenti sono
+    // continuazioni (`250-…`) e possono avere lo stesso numero o meno.
+    const conclusiva = (resp.trimEnd().split("\r\n").pop() ?? resp).trim();
+    if (!conclusiva.startsWith(prefix)) {
+      throw new Error(`smtp_unexpected: ${conclusiva.slice(0, 200)}`);
     }
     return resp;
   }
@@ -108,7 +137,7 @@ export async function smtpSend(cfg: SmtpConfig, msg: SmtpMessage): Promise<{ mes
     for (const r of recipients) {
       await send(`RCPT TO:<${r}>`);
       const rcpt = await readLine();
-      if (!rcpt.startsWith("250")) {
+      if (!(rcpt.trimEnd().split("\r\n").pop() ?? rcpt).trim().startsWith("250")) {
         // Rifiuto DEL DESTINATARIO (utente inesistente, relay negato): taggato
         // per distinguerlo da un guasto della casella.
         throw new Error(`smtp_rcpt_rejected: ${rcpt.slice(0, 200)}`);
@@ -408,36 +437,66 @@ export async function imapScaricaNuovi(
   const conn = cfg.secure
     ? await Deno.connectTls({ hostname: cfg.host, port: cfg.port })
     : await Deno.connect({ hostname: cfg.host, port: cfg.port });
-  const decoder = new TextDecoder();
+  // `stream: true`: un accento a cavallo di due letture TCP, senza, diventa "\uFFFD".
+  const decoder = new TextDecoder("utf-8", { fatal: false });
   const encoder = new TextEncoder();
   let buffer = "";
   const readBuf = new Uint8Array(16384);
   let tag = 0;
   const nextTag = () => `A${++tag}`;
 
+  /**
+   * Una lettura che non torna mai teneva impegnata la funzione fino al taglio
+   * dell'ambiente, e le altre caselle di quel giro non venivano nemmeno
+   * provate. Meglio una casella in errore che un giro perso per tutti.
+   */
+  async function leggiConScadenza(): Promise<number | null> {
+    let timer: number | undefined;
+    const scadenza = new Promise<never>((_, rifiuta) => {
+      timer = setTimeout(() => rifiuta(new Error("imap_timeout")), 30_000);
+    });
+    try {
+      return await Promise.race([conn.read(readBuf), scadenza]);
+    } finally {
+      if (timer !== undefined) clearTimeout(timer);
+    }
+  }
+
   async function readUntil(condition: (s: string) => boolean): Promise<string> {
     while (!condition(buffer)) {
-      const n = await conn.read(readBuf);
+      const n = await leggiConScadenza();
       if (n === null) break;
-      buffer += decoder.decode(readBuf.subarray(0, n));
+      buffer += decoder.decode(readBuf.subarray(0, n as number), { stream: true });
     }
     const result = buffer;
     buffer = "";
     return result;
   }
 
+  /** Il tag conclusivo sta a inizio riga: dentro un messaggio può esserci di tutto. */
+  const conclusa = (t: string) => (s: string) =>
+    new RegExp(`(?:^|\\r\\n)${t} (OK|NO|BAD)\\b`).test(s);
+
   async function send(cmd: string): Promise<string> {
     const t = nextTag();
     await conn.write(encoder.encode(`${t} ${cmd}\r\n`));
-    return await readUntil((s) =>
-      s.includes(`${t} OK`) || s.includes(`${t} NO`) || s.includes(`${t} BAD`),
-    );
+    return await readUntil(conclusa(t));
   }
 
   try {
     await readUntil((s) => s.includes("OK") || s.includes("BYE"));
-    await send(`LOGIN "${cfg.username}" "${cfg.password.replace(/"/g, '\\"')}"`);
-    await send(`SELECT INBOX`);
+    // In una stringa fra virgolette IMAP vanno protetti sia \ sia ": senza il
+    // primo, una password che contiene una barra rovesciata falliva il login
+    // con un errore incomprensibile.
+    const citata = (v: string) => `"${v.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+    const rispostaLogin = await send(`LOGIN ${citata(cfg.username)} ${citata(cfg.password)}`);
+    if (/(?:^|\r\n)A\d+ (NO|BAD)\b/.test(rispostaLogin)) {
+      throw new Error(`imap_login_rifiutato: ${(rispostaLogin.match(/(?:^|\r\n)A\d+ (?:NO|BAD)[^\r\n]*/) ?? [""])[0].trim()}`);
+    }
+    const rispostaSelect = await send(`SELECT INBOX`);
+    if (/(?:^|\r\n)A\d+ (NO|BAD)\b/.test(rispostaSelect)) {
+      throw new Error(`imap_inbox_non_apribile: ${(rispostaSelect.match(/(?:^|\r\n)A\d+ (?:NO|BAD)[^\r\n]*/) ?? [""])[0].trim()}`);
+    }
 
     // La data va con i trattini: "11-Aug-2026". Con gli spazi è BAD.
     const dateStr = sinceDate.toUTCString().slice(5, 16).replace(/ /g, "-");
@@ -478,13 +537,20 @@ export async function imapScaricaNuovi(
   }
 }
 
-function parseImapMessage(uid: string, fetchResp: string): ImapMessage | null {
+export function parseImapMessage(uid: string, fetchResp: string): ImapMessage | null {
   // Estrae il blocco RFC822 tra parentesi graffe {N}\r\n...
   const sizeMatch = /\{(\d+)\}\r\n/.exec(fetchResp);
   if (!sizeMatch) return null;
   const start = sizeMatch.index + sizeMatch[0].length;
   const size = parseInt(sizeMatch[1], 10);
-  const raw = fetchResp.substring(start, start + size);
+  // `size` è in BYTE, mentre qui si tagliano CARATTERI: su un'email in 8bit
+  // con accenti — un italiano che scrive «però» da un client qualsiasi — i due
+  // numeri divergono e il messaggio arriverebbe monco, spesso senza l'ultima
+  // parte MIME. La fine vera è la chiusura del FETCH.
+  const chiusura = fetchResp.lastIndexOf("\r\n)\r\n");
+  const raw = chiusura > start
+    ? fetchResp.substring(start, chiusura)
+    : fetchResp.substring(start, start + size);
 
   // Header parser semplice
   const headerEnd = raw.indexOf("\r\n\r\n");
@@ -543,8 +609,8 @@ function parseImapMessage(uid: string, fetchResp: string): ImapMessage | null {
  * (HTML illeggibile, accenti italiani come "=C3=A8"). Fallback: testo as-is.
  */
 function decodeMimeBody(rawBody: string, partHeaders: string): string {
-  const cte = (/content-transfer-encoding:\s*([^\r\n;]+)/i.exec(partHeaders)?.[1] ?? "").trim().toLowerCase();
-  const charset = (/charset="?([^"\r\n;]+)"?/i.exec(partHeaders)?.[1] ?? "utf-8").trim();
+  const cte = valoreHeader(partHeaders, "content-transfer-encoding").toLowerCase();
+  const charset = (/charset="?([^"\r\n;]+)"?/i.exec(valoreHeader(partHeaders, "content-type"))?.[1] ?? "utf-8").trim();
   const toText = (bytes: Uint8Array): string => {
     for (const cs of [charset, "utf-8"]) {
       try { return new TextDecoder(cs, { fatal: false }).decode(bytes); } catch { /* prova il prossimo */ }
@@ -581,15 +647,36 @@ function decodeMimeBody(rawBody: string, partHeaders: string): string {
  * (decodificati) e acc.attachments (filename + mime + base64 grezzo). Gestisce
  * multipart annidato (mixed→alternative). Max 4 livelli, max 10 allegati.
  */
+/**
+ * Il valore di un header, righe di continuazione comprese.
+ *
+ * Cercare `content-type:` con una regex qualunque dentro il blocco header è
+ * una trappola: la firma DKIM elenca i campi firmati come
+ * `h=content-type:mime-version:subject:…`, e quella è la PRIMA occorrenza. Il
+ * messaggio veniva così letto come se il suo tipo fosse
+ * «mime-version:subject:…» invece di «multipart/alternative»: il corpo non
+ * veniva mai estratto e l'email arrivava senza testo. Vale per qualunque email
+ * firmata, cioè quasi tutte (10/09/2026, verificato su una email da Gmail).
+ *
+ * Serve anche il ripiegamento: un Content-Type può continuare sulla riga dopo,
+ * ed è lì che spesso finisce il `boundary`.
+ */
+export function valoreHeader(headers: string, nome: string): string {
+  const re = new RegExp(`^${nome}:[ \\t]*([^\\r\\n]*(?:\\r\\n[ \\t][^\\r\\n]*)*)`, "im");
+  const m = re.exec(headers);
+  return m ? m[1].replace(/\r\n[ \t]+/g, " ").trim() : "";
+}
+
 function walkMimePart(
   block: string,
   headers: string,
   acc: { text: string; html: string; attachments: ImapMessage["attachments"] },
   depth: number,
 ): void {
-  const ct = (/content-type:\s*([^;\r\n]+)/i.exec(headers)?.[1] ?? "text/plain").trim().toLowerCase();
+  const ctIntero = valoreHeader(headers, "content-type");
+  const ct = (ctIntero.split(";")[0] || "text/plain").trim().toLowerCase();
   if (ct.startsWith("multipart") && depth < 4) {
-    const boundary = /boundary="?([^";\r\n]+)"?/i.exec(headers)?.[1];
+    const boundary = /boundary="?([^";\r\n]+)"?/i.exec(ctIntero)?.[1];
     if (!boundary) return;
     for (const part of block.split(`--${boundary}`)) {
       const he = part.indexOf("\r\n\r\n");
@@ -598,13 +685,15 @@ function walkMimePart(
     }
     return;
   }
-  const hLower = headers.toLowerCase();
-  const fn = /(?:file)?name\*?=(?:"([^"\r\n]+)"|([^;\r\n]+))/i.exec(headers);
+  // Anche qui si leggono gli header giusti, non la prima cosa che somiglia.
+  const disposizione = valoreHeader(headers, "content-disposition");
+  const codifica = valoreHeader(headers, "content-transfer-encoding").toLowerCase();
+  const fn = /(?:file)?name\*?=(?:"([^"\r\n]+)"|([^;\r\n]+))/i.exec(`${ctIntero}; ${disposizione}`);
   const filename = fn ? (fn[1] ?? fn[2] ?? "").trim() : "";
-  const isAttachment = hLower.includes("content-disposition: attachment") ||
+  const isAttachment = disposizione.toLowerCase().startsWith("attachment") ||
     (!!filename && !ct.startsWith("text/"));
   if (isAttachment && filename) {
-    if (hLower.includes("base64") && acc.attachments.length < 10) {
+    if (codifica.includes("base64") && acc.attachments.length < 10) {
       acc.attachments.push({
         filename: decodeRFC2047(filename),
         mime: ct || "application/octet-stream",
@@ -632,18 +721,38 @@ export async function imapAppend(cfg: ImapConfig, rfc822: string): Promise<{ ok:
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) };
   }
-  const decoder = new TextDecoder();
+  const decoder = new TextDecoder("utf-8", { fatal: false });
   const encoder = new TextEncoder();
   const buf = new Uint8Array(8192);
   let tag = 0;
   const nextTag = () => `A${++tag}`;
+  /**
+   * Si ferma sul tag conclusivo O sulla richiesta di continuare (`+`).
+   *
+   * Dopo `APPEND … {N}` il server risponde «+ Ready» e poi ASPETTA il
+   * messaggio: cercando solo il tag, la lettura restava appesa mentre il
+   * server restava in attesa dei byte — un abbraccio mortale che teneva
+   * occupata la funzione fino al taglio dell'ambiente. La copia in «Inviati»
+   * non poteva riuscire, e ogni invio ci lasciava dentro un minuto buono.
+   */
   const readResp = async (t: string): Promise<string> => {
     let result = "";
-    while (true) {
-      const n = await conn.read(buf);
+    const conclusa = () =>
+      new RegExp(`(?:^|\\r\\n)${t} (OK|NO|BAD)\\b`).test(result) ||
+      /(?:^|\r\n)\+/.test(result);
+    while (!conclusa()) {
+      let timer: number | undefined;
+      const scadenza = new Promise<never>((_, rifiuta) => {
+        timer = setTimeout(() => rifiuta(new Error("imap_timeout")), 30_000);
+      });
+      let n: number | null;
+      try {
+        n = await Promise.race([conn.read(buf), scadenza]);
+      } finally {
+        if (timer !== undefined) clearTimeout(timer);
+      }
       if (n === null) break;
-      result += decoder.decode(buf.subarray(0, n));
-      if (result.includes(`${t} OK`) || result.includes(`${t} NO`) || result.includes(`${t} BAD`)) break;
+      result += decoder.decode(buf.subarray(0, n as number), { stream: true });
     }
     return result;
   };
@@ -658,14 +767,29 @@ export async function imapAppend(cfg: ImapConfig, rfc822: string): Promise<{ ok:
   const candidates = ["Sent", "INBOX.Sent", "Sent Items", "INBOX.Sent Items", "Posta inviata", "INBOX.Posta inviata"];
   try {
     await conn.read(buf); // greeting
-    const login = await cmd(`LOGIN "${cfg.username}" "${cfg.password.replace(/"/g, '\\"')}"`);
+    const proteggi = (v: string) => `"${v.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+    const login = await cmd(`LOGIN ${proteggi(cfg.username)} ${proteggi(cfg.password)}`);
     if (!login.includes("OK")) { try { conn.close(); } catch { /* */ } return { ok: false, error: "imap_login_failed" }; }
-    for (const folder of candidates) {
+    // Il nome della cartella «Inviati» cambia da provider a provider — Sent,
+    // INBOX.Sent, "Posta inviata" — ma il server sa dire qual è: la marca con
+    // \\Sent (RFC 6154). Prima si tirava a indovinare, e su una casella con un
+    // nome fuori elenco la copia non riusciva mai.
+    let cartelle = candidates;
+    try {
+      const lista = await cmd(`LIST "" "*"`);
+      const marcata = lista.split("\r\n")
+        .filter((r) => r.startsWith("* LIST") && /\\Sent\b/i.test(r))
+        .map((r) => (r.match(/"([^"]*)"\s*$/) ?? r.match(/\s(\S+)\s*$/))?.[1])
+        .find(Boolean);
+      if (marcata) cartelle = [marcata, ...candidates.filter((c) => c !== marcata)];
+    } catch { /* si continua con i nomi soliti */ }
+
+    for (const folder of cartelle) {
       const t = nextTag();
       // APPEND con literal: server risponde "+ " poi inviamo il messaggio.
       await conn.write(encoder.encode(`${t} APPEND "${folder}" (\\Seen) {${bytes.length}}\r\n`));
       const cont = await readResp(t).catch(() => "");
-      if (cont.includes("+")) {
+      if (/(?:^|\r\n)\+/.test(cont)) {
         await conn.write(bytes);
         await conn.write(encoder.encode("\r\n"));
         const fin = await readResp(t);
