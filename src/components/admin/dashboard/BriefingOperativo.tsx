@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import {
-  AlertTriangle, TrendingDown, CreditCard, Hourglass, Plug, Trash2, MoonStar,
+  AlertTriangle, TrendingDown, CreditCard, Hourglass, Plug, Trash2, MoonStar, Smartphone, MailWarning, MessageSquare,
   CheckCircle2, ChevronRight,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -31,6 +31,9 @@ const ICONE: Record<string, typeof AlertTriangle> = {
   integrazione: Plug,
   purge: Trash2,
   inattive: MoonStar,
+  whatsapp: Smartphone,
+  casella: MailWarning,
+  ticket: MessageSquare,
 };
 
 /** L'urgenza 1 è rossa, la 2 ambra, il resto neutro: il colore fa da ordine. */
@@ -90,9 +93,9 @@ export function BriefingOperativo() {
         <CardContent className="flex items-center gap-3 py-3">
           <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0" />
           <div>
-            <p className="text-sm font-medium">Niente che richieda attenzione stamattina</p>
+            <p className="text-sm font-medium">Niente da fare oggi</p>
             <p className="text-xs text-muted-foreground">
-              Nessun job in errore, nessun insoluto in scadenza, nessun cliente pagante a rischio.
+              Nessun guasto, nessun insoluto, nessun cliente che scivola, numeri e caselle collegati.
             </p>
           </div>
         </CardContent>
@@ -103,7 +106,7 @@ export function BriefingOperativo() {
   return (
     <div className="space-y-2">
       <div className="flex items-baseline justify-between">
-        <h2 className="text-sm font-semibold">Da guardare stamattina</h2>
+        <h2 className="text-sm font-semibold">Da fare oggi</h2>
         <span className="text-xs text-muted-foreground">
           {data.voci.length} {data.voci.length === 1 ? "cosa" : "cose"}
         </span>

@@ -838,6 +838,10 @@ verify_jwt = false
 [functions.company-backup]
 verify_jwt = false
 
+# Stesso caso: la purga notturna degli export GDPR arriva dal cron.
+[functions.purge-gdpr-exports]
+verify_jwt = false
+
 # push-notifica la chiama il database (trigger → pg_net) con x-cron-secret:
 # nessun JWT utente. Manda le Web Push agli operai (rapportino approvato,
 # assegnazione cantiere, promemoria, chat di cantiere).
