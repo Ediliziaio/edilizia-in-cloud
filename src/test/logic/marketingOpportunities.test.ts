@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   filterAndSortOpportunities,
+  filtriPerServer,
   normalizeOpportunityUrlState,
   resolveOpportunityPipelineId,
   sanitizeOpportunitySearchTerm,
@@ -110,5 +111,67 @@ describe("marketing opportunities helpers", () => {
         sortDir: "asc",
       }).map((opportunity) => opportunity.id),
     ).toEqual(["1"]);
+  });
+
+  it("«I miei deal» vale anche per chi segue l'opportunità come call center o follower", () => {
+    const opportunities = [
+      { id: "venditore", assigned_to: "u1", created_at: "2026-05-03" },
+      { id: "call-center", assigned_to: "u2", call_center_id: "u1", created_at: "2026-05-02" },
+      { id: "follower", follower_id: "u1", created_at: "2026-05-01" },
+      { id: "altro", assigned_to: "u2", created_at: "2026-05-04" },
+    ];
+    expect(
+      filterAndSortOpportunities({ opportunities, onlyMine: true, currentUserId: "u1" }).map((o) => o.id),
+    ).toEqual(["venditore", "call-center", "follower"]);
+  });
+});
+
+describe("filtri per il database (opportunita_filtrate)", () => {
+  it("senza filtri non manda niente: la chiave della cache resta la stessa", () => {
+    expect(filtriPerServer({})).toEqual({});
+    expect(filtriPerServer({
+      searchQuery: "   ",
+      filters: { statuses: [], assignedTo: "", source: "", valueMin: "", valueMax: "", dateFrom: "", dateTo: "", tags: [] },
+      onlyMine: false,
+    })).toEqual({});
+  });
+
+  it("traduce ogni filtro della pagina nel nome che usa il database", () => {
+    expect(filtriPerServer({
+      searchQuery: "  Rossi%, Monza ",
+      filters: {
+        statuses: ["won", "open"],
+        assignedTo: "v1",
+        followerId: "f1",
+        callCenterId: "c1",
+        source: " Facebook ",
+        valueMin: "1000",
+        valueMax: "abc",
+        dateFrom: "2026-01-01",
+        dateTo: "31/12/2026",
+        tags: ["  Da Richiamare ", "urgente", "urgente"],
+      },
+      onlyMine: true,
+      currentUserId: "u1",
+      visibiliA: "u1",
+      striscia: "stallo",
+    })).toEqual({
+      cerca: "rossi monza",
+      stati: ["open", "won"],
+      venditore: "v1",
+      follower: "f1",
+      call_center: "c1",
+      fonte: "facebook",
+      valore_min: "1000",
+      dal: "2026-01-01",
+      tag: ["da richiamare", "urgente"],
+      miei: "u1",
+      visibili_a: "u1",
+      striscia: "stallo",
+    });
+  });
+
+  it("«I miei deal» senza utente non filtra (non si vede una pagina vuota)", () => {
+    expect(filtriPerServer({ onlyMine: true, currentUserId: null })).toEqual({});
   });
 });

@@ -2,9 +2,11 @@ import { useState, useMemo, useRef, useEffect, memo } from "react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ArrowRight, Check, ChevronDown } from "lucide-react";
+import { ArrowRight, Check, ChevronDown, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
@@ -12,9 +14,11 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "
 import { OpportunityDetailDialog } from "./OpportunityDetailDialog";
 import { DealHealthBadge } from "./DealHealthBadge";
 import { cn } from "@/lib/utils";
+import { formatCount } from "@/lib/formatters";
 import { STATUS_MAP, hashColor, inferOpportunityStatusFromStage } from "@/types/opportunities";
 import type { OpportunityStage } from "@/types/opportunities";
-import { useUpdateOpportunityStage } from "@/hooks/useOpportunitiesData";
+import { useUpdateOpportunityStage, type RiepilogoOpportunita } from "@/hooks/useOpportunitiesData";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { toast } from "sonner";
 
 // Valore compatto per le mini-card di fase (mobile): 733200 → "733k", 1_250_000 → "1,3M".
@@ -26,23 +30,44 @@ function fmtCompactEuro(v: number): string {
 
 interface ListProps {
   stages: OpportunityStage[];
+  /** Le righe caricate finora (a pagine, dal database). */
   opportunities: any[];
+  /** Conteggi per fase e totale, dal database: tutte, non solo le caricate. */
+  riepilogo: RiepilogoOpportunita | null | undefined;
+  isLoading?: boolean;
+  hasMore?: boolean;
+  isLoadingMore?: boolean;
+  onLoadMore?: () => void;
+  /** Fase scelta nelle schede in alto su mobile: filtra sul database. */
+  mobileStageId: string | null;
+  onMobileStageChange: (stageId: string | null) => void;
   selectedIds: Set<string>;
   onSelect: (id: string, selected: boolean) => void;
   onSelectMany?: (ids: string[], selected: boolean) => void;
+  /** «Seleziona per fase»: tutte le opportunità della fase, anche non caricate. */
+  onSelectStage?: (stageId: string, selected: boolean) => void;
   canEdit?: boolean;
 }
 
 export const OpportunityListView = memo(function OpportunityListView({
   stages,
   opportunities,
+  riepilogo,
+  isLoading = false,
+  hasMore = false,
+  isLoadingMore = false,
+  onLoadMore,
+  mobileStageId,
+  onMobileStageChange,
   selectedIds,
   onSelect,
   onSelectMany,
+  onSelectStage,
   canEdit = true,
 }: ListProps) {
+  const isMobile = useIsMobile();
   const [selectedOpp, setSelectedOpp] = useState<any>(null);
-  const [mobileStageId, setMobileStageId] = useState<string | null>(null);
+  const setMobileStageId = onMobileStageChange;
   // Quick-move: opportunità per cui mostrare il selettore di fase (Sheet bottom)
   const [moveOpp, setMoveOpp] = useState<any>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -74,6 +99,8 @@ export const OpportunityListView = memo(function OpportunityListView({
     return m;
   }, [stages]);
 
+  // Su mobile la fase scelta filtra già sul database; qui resta come
+  // sicurezza per la scheda appena spostata in un'altra fase.
   const mobileOpportunities = useMemo(() => {
     if (!mobileStageId) return opportunities;
     return opportunities.filter((o: any) => o.stage_id === mobileStageId);
@@ -103,26 +130,17 @@ export const OpportunityListView = memo(function OpportunityListView({
     selectMany(opportunities.map((o: any) => o.id), !allSelected);
   };
 
-  // Conteggio opportunità per fase, per il menu "seleziona per fase".
-  const stageCounts = useMemo(() => {
-    const m: Record<string, number> = {};
-    opportunities.forEach((o: any) => { m[o.stage_id] = (m[o.stage_id] || 0) + 1; });
-    return m;
-  }, [opportunities]);
-
-  // Aggregato conteggio + valore € per fase, per la striscia pipeline mobile.
-  const { stageAgg, totalValue } = useMemo(() => {
+  // Conteggio e valore per fase dal database: il menu «seleziona per fase» e
+  // la striscia mobile contano tutte le opportunità, non le righe caricate.
+  const { stageAgg, totalValue, totaleTutte } = useMemo(() => {
     const agg: Record<string, { count: number; value: number }> = {};
     let tv = 0;
-    for (const o of opportunities) {
-      const v = Number(o.value || 0);
-      tv += v;
-      const a = agg[o.stage_id] || (agg[o.stage_id] = { count: 0, value: 0 });
-      a.count += 1;
-      a.value += v;
+    for (const [faseId, v] of Object.entries(riepilogo?.per_fase ?? {})) {
+      agg[faseId] = { count: v.n, value: v.valore };
+      tv += v.valore;
     }
-    return { stageAgg: agg, totalValue: tv };
-  }, [opportunities]);
+    return { stageAgg: agg, totalValue: tv, totaleTutte: riepilogo?.totale ?? opportunities.length };
+  }, [riepilogo, opportunities.length]);
 
   const virtualizer = useVirtualizer({
     count: opportunities.length,
@@ -131,10 +149,21 @@ export const OpportunityListView = memo(function OpportunityListView({
     overscan: 10,
   });
 
+  // Scorrendo verso il fondo arrivano le righe successive.
+  const righeVisibili = virtualizer.getVirtualItems();
+  const ultimaRiga = righeVisibili.length > 0 ? righeVisibili[righeVisibili.length - 1].index : -1;
+  useEffect(() => {
+    if (isMobile || ultimaRiga < 0) return;
+    if (ultimaRiga >= opportunities.length - 10 && hasMore && !isLoadingMore) onLoadMore?.();
+  }, [isMobile, ultimaRiga, opportunities.length, hasMore, isLoadingMore, onLoadMore]);
+
   return (
     <>
-      {/* ── MOBILE: card list con filtro per fase ── */}
-      <div className="sm:hidden flex flex-col gap-0">
+      {/* ── MOBILE: card list con filtro per fase ──
+          Solo su mobile (prima c'erano entrambe e una delle due nascosta dal
+          CSS: su desktop centinaia di schede invisibili nella pagina). */}
+      {isMobile && (
+      <div className="flex flex-col gap-0">
         {/* Striscia pipeline: una mini-card per fase (nome + n. deal + € in fase),
             così su mobile si vede la pipeline con le fasi di lavoro, allineata. */}
         <div className="flex gap-2 overflow-x-auto pb-2 pt-0.5 scrollbar-none">
@@ -153,7 +182,7 @@ export const OpportunityListView = memo(function OpportunityListView({
               <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
               <span className="truncate text-[11px] font-medium text-muted-foreground">Tutte</span>
             </span>
-            <span className="text-base font-bold leading-none text-foreground">{opportunities.length}</span>
+            <span className="text-base font-bold leading-none text-foreground tabular-nums">{formatCount(totaleTutte)}</span>
             <span className="truncate text-[10px] font-medium text-muted-foreground">€ {fmtCompactEuro(totalValue)}</span>
           </button>
           {stages.map((stage: any) => {
@@ -176,7 +205,7 @@ export const OpportunityListView = memo(function OpportunityListView({
                   <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: hashColor(stage.name) }} />
                   <span className="truncate text-[11px] font-medium text-muted-foreground">{stage.name}</span>
                 </span>
-                <span className="text-base font-bold leading-none text-foreground">{agg.count}</span>
+                <span className="text-base font-bold leading-none text-foreground tabular-nums">{formatCount(agg.count)}</span>
                 <span className="truncate text-[10px] font-medium text-muted-foreground">€ {fmtCompactEuro(agg.value)}</span>
               </button>
             );
@@ -184,7 +213,11 @@ export const OpportunityListView = memo(function OpportunityListView({
         </div>
 
         {/* Cards */}
-        {mobileOpportunities.length === 0 ? (
+        {isLoading && mobileOpportunities.length === 0 ? (
+          <div className="flex flex-col gap-2" aria-busy="true">
+            {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 w-full rounded-xl" />)}
+          </div>
+        ) : mobileOpportunities.length === 0 ? (
           <div className="text-center text-muted-foreground py-12 text-sm">
             Nessuna opportunità in questa fase
           </div>
@@ -280,9 +313,23 @@ export const OpportunityListView = memo(function OpportunityListView({
                 </div>
               );
             })}
+            {(hasMore || isLoadingMore) && (
+              <Button
+                type="button"
+                variant="outline"
+                className="h-11 w-full text-sm"
+                disabled={isLoadingMore}
+                onClick={() => onLoadMore?.()}
+              >
+                {isLoadingMore
+                  ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Carico altre…</>
+                  : <>Mostra altre · {formatCount(mobileOpportunities.length)} di {formatCount(mobileStageId ? (stageAgg[mobileStageId]?.count ?? 0) : totaleTutte)}</>}
+              </Button>
+            )}
           </div>
         )}
       </div>
+      )}
 
       {/* ── Quick-move Sheet (mobile + desktop) ── */}
       <Sheet open={moveOpp != null} onOpenChange={(v) => { if (!v) setMoveOpp(null); }}>
@@ -323,10 +370,11 @@ export const OpportunityListView = memo(function OpportunityListView({
       </Sheet>
 
       {/* ── DESKTOP: griglia con colonne fisse ── */}
-      <div className="hidden sm:block border rounded-lg overflow-x-auto">
-        <div className="w-max min-w-full">
+      {!isMobile && (
+      <div className="flex max-h-full flex-col overflow-x-auto rounded-lg border">
+        <div className="flex min-h-0 w-max min-w-full flex-1 flex-col">
           {/* Header — fuori dal container verticale, resta fisso */}
-          <div className="bg-muted/40 border-b flex items-center text-xs font-medium text-muted-foreground">
+          <div className="bg-muted/40 border-b flex shrink-0 items-center text-xs font-medium text-muted-foreground">
             <div className="w-[64px] shrink-0 px-3 py-3 flex items-center gap-0.5">
               <Checkbox
                 ref={selectAllRef}
@@ -349,16 +397,19 @@ export const OpportunityListView = memo(function OpportunityListView({
                     <DropdownMenuLabel className="text-xs">Seleziona per fase</DropdownMenuLabel>
                     <DropdownMenuSeparator />
                     {stages.map((s) => {
-                      const count = stageCounts[s.id] || 0;
+                      const count = stageAgg[s.id]?.count ?? 0;
                       return (
                         <DropdownMenuItem
                           key={s.id}
                           disabled={count === 0}
-                          onSelect={() => selectMany(opportunities.filter((o: any) => o.stage_id === s.id).map((o: any) => o.id), true)}
+                          // Tutte quelle della fase, anche le righe non ancora caricate.
+                          onSelect={() => onSelectStage
+                            ? onSelectStage(s.id, true)
+                            : selectMany(opportunities.filter((o: any) => o.stage_id === s.id).map((o: any) => o.id), true)}
                           className="flex items-center justify-between gap-2 text-xs"
                         >
                           <span className="truncate">{s.name}</span>
-                          <span className="text-muted-foreground shrink-0">{count}</span>
+                          <span className="text-muted-foreground shrink-0 tabular-nums">{formatCount(count)}</span>
                         </DropdownMenuItem>
                       );
                     })}
@@ -380,8 +431,12 @@ export const OpportunityListView = memo(function OpportunityListView({
           </div>
 
           {/* Body — scroll verticale indipendente */}
-          <div ref={scrollRef} className="overflow-y-auto overflow-x-hidden max-h-[calc(100vh-380px)]">
-          {opportunities.length === 0 ? (
+          <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+          {isLoading && opportunities.length === 0 ? (
+            <div className="space-y-1 p-2" aria-busy="true">
+              {Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-11 w-full rounded-md" />)}
+            </div>
+          ) : opportunities.length === 0 ? (
             <div className="text-center text-muted-foreground py-12 text-sm">
               Nessuna opportunità trovata
             </div>
@@ -539,9 +594,25 @@ export const OpportunityListView = memo(function OpportunityListView({
               })}
             </div>
           )}
+          {isLoadingMore && (
+            <div className="flex items-center justify-center gap-2 py-2 text-xs text-muted-foreground">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Carico altre…
+            </div>
+          )}
           </div>{/* close scrollRef */}
+          {opportunities.length > 0 && (
+            <div className="shrink-0 border-t bg-muted/20 px-3 py-1.5 text-[11px] text-muted-foreground tabular-nums">
+              {formatCount(opportunities.length)} di {formatCount(totaleTutte)}
+              {hasMore && !isLoadingMore && (
+                <button type="button" onClick={() => onLoadMore?.()} className="ml-2 underline-offset-2 hover:text-foreground hover:underline">
+                  mostra altre
+                </button>
+              )}
+            </div>
+          )}
         </div>{/* close minWidth */}
-      </div>{/* close border/overflow-x-auto */}
+      </div>
+      )}{/* close border/overflow-x-auto */}
 
       <OpportunityDetailDialog
         opportunity={selectedOpp}

@@ -59,6 +59,16 @@ export const queryKeys = {
     all: ["marketing-opportunities"] as const,
     list: (companyId: string | undefined, pipelineId: string | null) =>
       ["marketing-opportunities", "list", companyId, pipelineId] as const,
+    // Tutte sotto "marketing-opportunities": ogni invalidate di `all` le
+    // ricarica, come faceva la vecchia lista unica.
+    riepilogo: (companyId: string | undefined, pipelineId: string | null, filtri: object) =>
+      ["marketing-opportunities", "riepilogo", companyId, pipelineId, filtri] as const,
+    fase: (companyId: string | undefined, pipelineId: string | null, stageId: string, filtri: object, ordine: string) =>
+      ["marketing-opportunities", "fase", companyId, pipelineId, stageId, filtri, ordine] as const,
+    lista: (companyId: string | undefined, pipelineId: string | null, stageId: string | null, filtri: object, ordine: string) =>
+      ["marketing-opportunities", "lista", companyId, pipelineId, stageId, filtri, ordine] as const,
+    etichette: (companyId: string | undefined, pipelineId: string | null) =>
+      ["marketing-opportunities", "etichette", companyId, pipelineId] as const,
     detail: (opportunityId: string | undefined) =>
       ["marketing-opportunities", "detail", opportunityId] as const,
     byContact: (contactId: string | undefined) =>

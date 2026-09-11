@@ -1,15 +1,17 @@
 import { useMemo } from "react";
 import { AlertTriangle, CircleDot, Percent, Trophy, XCircle, Ban, Euro, TrendingUp, BellRing } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { formatCount } from "@/lib/formatters";
 import type { OpportunityStage } from "@/types/opportunities";
+import type { RiepilogoOpportunita } from "@/hooks/useOpportunitiesData";
 
 /** I due filtri azionabili della strip: si attivano/spengono col click. */
 export type FiltroStrip = "stallo" | "azioni_scadute" | null;
 
 interface Props {
-  opportunities: any[];
-  /** Fasi della pipeline attiva: servono per la soglia di stallo PER FASE. */
-  stages?: OpportunityStage[];
+  /** I numeri li calcola il database su TUTTE le opportunità filtrate: prima
+   *  la striscia contava solo quelle già scaricate (al massimo 1.500). */
+  riepilogo: RiepilogoOpportunita | null | undefined;
   filtroAttivo?: FiltroStrip;
   onFiltro?: (filtro: FiltroStrip) => void;
 }
@@ -51,37 +53,35 @@ export function costruisciSoglieStallo(stages?: OpportunityStage[]): Map<string,
   return m;
 }
 
-export function OpportunityStatsStrip({ opportunities, stages, filtroAttivo, onFiltro }: Props) {
-  const soglie = useMemo(() => costruisciSoglieStallo(stages), [stages]);
-
+export function OpportunityStatsStrip({ riepilogo, filtroAttivo, onFiltro }: Props) {
   const stats = useMemo(() => {
-    let open = 0, won = 0, lost = 0, abandoned = 0, pipelineValue = 0, weightedValue = 0, wonValue = 0, stale = 0, unscored = 0, azioniScadute = 0;
-    for (const o of opportunities) {
-      const v = Number(o.value || 0);
-      const probability = Math.max(0, Math.min(100, Number(o.probability ?? 50))) / 100;
-      switch (o.status) {
-        case "open":
-          open++;
-          pipelineValue += v;
-          weightedValue += v * probability;
-          if (o.probability == null) unscored++; // prob. non impostata → il ponderato assume 50%
-          if (opportunitaInStallo(o, soglie)) stale++;
-          if (azioneScaduta(o)) azioniScadute++;
-          break;
-        case "won": won++; wonValue += v; break;
-        case "lost": lost++; break;
-        case "abandoned": abandoned++; break;
-      }
-    }
+    const r = riepilogo;
+    const won = r?.vinte ?? 0;
+    const lost = r?.perse ?? 0;
     const closed = won + lost;
-    const winRate = closed > 0 ? Math.round((won / closed) * 100) : null;
-    return { open, won, lost, abandoned, pipeline_value: pipelineValue, weighted_value: weightedValue, won_value: wonValue, stale, unscored, winRate, azioni_scadute: azioniScadute };
-  }, [opportunities, soglie]);
+    return {
+      open: r?.aperte ?? 0,
+      won,
+      lost,
+      abandoned: r?.abbandonate ?? 0,
+      pipeline_value: r?.valore_pipeline ?? 0,
+      weighted_value: r?.valore_ponderato ?? 0,
+      won_value: r?.valore_vinto ?? 0,
+      stale: r?.in_stallo ?? 0,
+      // prob. non impostata → il ponderato assume 50%
+      unscored: r?.senza_stima ?? 0,
+      winRate: closed > 0 ? Math.round((won / closed) * 100) : null,
+      azioni_scadute: r?.azioni_scadute ?? 0,
+    };
+  }, [riepilogo]);
 
   const fmt = (v: number, isCurrency: boolean) =>
     // Senza centesimi: nella strip compatta "814.695,50 €" troncava a
-    // "814.695,...". I decimali qui non decidono niente.
-    isCurrency ? new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(v) : String(v);
+    // "814.695,...". I decimali qui non decidono niente. I conteggi col punto
+    // delle migliaia: «16.406», non «16406».
+    isCurrency
+      ? new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(v)
+      : formatCount(v);
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-9 gap-2">

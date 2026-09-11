@@ -41,7 +41,9 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
 
   const { attributes, listeners, setNodeRef, isDragging } = useSortable({
     id: opportunity.id,
-    data: { type: "opportunity", stageId: opportunity.stage_id },
+    // La scheda viaggia col trascinamento: ogni colonna carica le sue, e il
+    // kanban non ha più un elenco unico dove cercarla.
+    data: { type: "opportunity", stageId: opportunity.stage_id, opp: opportunity },
     disabled: isOverlay || !canEdit,
   });
 

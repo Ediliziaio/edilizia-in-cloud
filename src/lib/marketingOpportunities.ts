@@ -133,6 +133,70 @@ function normalizeSortDir(value: unknown): OpportunitySortDir {
     : "desc";
 }
 
+/**
+ * I filtri della pagina Opportunità nella forma che capiscono le funzioni del
+ * database (opportunita_filtrate, migrazione 20280914000013). Solo le chiavi
+ * con un valore: un filtro vuoto non viaggia, così la chiave della cache non
+ * cambia per un campo lasciato in bianco.
+ */
+export interface FiltriServerOpportunita {
+  cerca?: string;
+  stati?: string[];
+  venditore?: string;
+  follower?: string;
+  call_center?: string;
+  fonte?: string;
+  valore_min?: string;
+  valore_max?: string;
+  dal?: string;
+  al?: string;
+  tag?: string[];
+  /** «I miei deal»: venditore, call center o follower. */
+  miei?: string;
+  /** «Vede solo i propri» in «Vista come»: la sessione resta del super admin. */
+  visibili_a?: string;
+  striscia?: "stallo" | "azioni_scadute";
+}
+
+export function filtriPerServer({
+  searchQuery = "",
+  filters = {},
+  onlyMine = false,
+  currentUserId = null,
+  visibiliA = null,
+  striscia = null,
+}: {
+  searchQuery?: unknown;
+  filters?: OpportunityFiltersLike;
+  onlyMine?: boolean;
+  currentUserId?: string | null;
+  visibiliA?: string | null;
+  striscia?: "stallo" | "azioni_scadute" | null;
+}): FiltriServerOpportunita {
+  const out: FiltriServerOpportunita = {};
+  const cerca = sanitizeOpportunitySearchTerm(searchQuery).toLowerCase();
+  if (cerca) out.cerca = cerca;
+  const stati = Array.isArray(filters.statuses) ? filters.statuses.filter(Boolean) : [];
+  if (stati.length > 0) out.stati = [...stati].sort();
+  if (filters.assignedTo) out.venditore = filters.assignedTo;
+  if (filters.followerId) out.follower = filters.followerId;
+  if (filters.callCenterId) out.call_center = filters.callCenterId;
+  const fonte = sanitizeOpportunitySearchTerm(filters.source).toLowerCase();
+  if (fonte) out.fonte = fonte;
+  const valoreMin = normalizeNumericFilter(filters.valueMin);
+  if (valoreMin !== null) out.valore_min = String(valoreMin);
+  const valoreMax = normalizeNumericFilter(filters.valueMax);
+  if (valoreMax !== null) out.valore_max = String(valoreMax);
+  if (isDateOnly(filters.dateFrom)) out.dal = filters.dateFrom;
+  if (isDateOnly(filters.dateTo)) out.al = filters.dateTo;
+  const tag = normalizeTags(filters.tags);
+  if (tag.length > 0) out.tag = [...tag].sort();
+  if (onlyMine && currentUserId) out.miei = currentUserId;
+  if (visibiliA) out.visibili_a = visibiliA;
+  if (striscia) out.striscia = striscia;
+  return out;
+}
+
 export function filterAndSortOpportunities<TOpportunity extends Record<string, unknown>>({
   opportunities,
   searchQuery = "",
@@ -206,7 +270,11 @@ export function filterAndSortOpportunities<TOpportunity extends Record<string, u
     });
   }
   if (onlyMine && currentUserId) {
-    result = result.filter((opportunity) => opportunity.assigned_to === currentUserId);
+    // «Mie» = venditore, call center o follower, come sul database.
+    result = result.filter((opportunity) =>
+      opportunity.assigned_to === currentUserId
+      || opportunity.call_center_id === currentUserId
+      || opportunity.follower_id === currentUserId);
   }
 
   return [...result].sort((a, b) => {

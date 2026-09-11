@@ -23,6 +23,19 @@ export function formatCurrency(amount: number | string | null | undefined): stri
   }).format(Number.isFinite(n) ? n : 0);
 }
 
+// "always" è nello standard (Intl.NumberFormat v3) ma non nei tipi della lib
+// TypeScript del progetto: il cast sta qui, una volta sola.
+const CONTEGGIO_IT = new Intl.NumberFormat("it-IT", {
+  useGrouping: "always",
+} as unknown as Intl.NumberFormatOptions);
+
+/** Conteggi col punto delle migliaia anche a quattro cifre: «2.243», non
+ *  «2243» (stessa ragione di formatCurrency qui sopra). */
+export function formatCount(n: number | null | undefined): string {
+  const v = Number(n);
+  return CONTEGGIO_IT.format(Number.isFinite(v) ? v : 0);
+}
+
 /** Compact currency for chart axes: €1.2M, €45k, €800 */
 export function formatCurrencyCompact(v: number): string {
   // Simbolo DOPO il numero, come ovunque in italiano ("836k €", non "€836k"):

@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback, memo, forwardRef, useRef, useEffect } from "react";
+import { useMemo, useState, useCallback, memo, useRef, useEffect } from "react";
 import {
   DndContext, pointerWithin, rectIntersection, PointerSensor, TouchSensor, KeyboardSensor,
   useSensor, useSensors, DragEndEvent, DragStartEvent, DragOverlay,
@@ -9,33 +9,95 @@ import { useDroppable } from "@dnd-kit/core";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { OpportunityCard } from "./OpportunityCard";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ChevronLeft, ChevronRight, Loader2, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { formatCurrency } from "@/lib/formatters";
+import { formatCurrency, formatCount } from "@/lib/formatters";
 import { OpportunityDetailDialog } from "./OpportunityDetailDialog";
 import { LossReasonDialog } from "./LossReasonDialog";
-import { useUpdateOpportunityStage, useDeleteOpportunity } from "@/hooks/useOpportunitiesData";
+import {
+  useUpdateOpportunityStage, useDeleteOpportunity, useStageOpportunities,
+  type RiepilogoOpportunita,
+} from "@/hooks/useOpportunitiesData";
+import type { FiltriServerOpportunita } from "@/lib/marketingOpportunities";
 import type { OpportunityStage } from "@/types/opportunities";
 import { hashColor, inferOpportunityStatusFromStage } from "@/types/opportunities";
 import { useCardFieldPreferences } from "@/hooks/useCardFieldPreferences";
 
-const StageColumn = memo(forwardRef<HTMLDivElement, {
+/**
+ * true dal primo momento in cui l'elemento entra nel riquadro visibile (e poi
+ * resta true). Una colonna fuori schermo non chiede niente al database: con le
+ * 23 fasi del «Nuovo» di BeMade, all'apertura se ne caricano cinque o sei.
+ */
+function useVistaAlmenoUnaVolta(elemento: HTMLElement | null, radice: HTMLElement | null) {
+  // Senza IntersectionObserver (browser molto vecchi) si carica subito tutto.
+  const [vista, setVista] = useState(() => typeof IntersectionObserver === "undefined");
+  useEffect(() => {
+    if (vista || !elemento) return;
+    const osservatore = new IntersectionObserver(
+      (voci) => {
+        if (voci.some((v) => v.isIntersecting)) setVista(true);
+      },
+      // Mezza colonna di anticipo: quando arriva sullo schermo sta già caricando.
+      { root: radice, rootMargin: "0px 160px 0px 160px" },
+    );
+    osservatore.observe(elemento);
+    return () => osservatore.disconnect();
+  }, [elemento, radice, vista]);
+  return vista;
+}
+
+interface StageColumnProps {
   stage: OpportunityStage;
-  opportunities: any[];
+  pipelineId: string;
+  filtri: FiltriServerOpportunita;
+  sortField: string;
+  sortDir: string;
+  /** Quante opportunità ha la fase secondo il database (tutte, non solo le caricate). */
+  conteggio: number | undefined;
+  valoreFase: number | undefined;
+  /** Id della fase già chiesti al database per «seleziona tutta la colonna». */
+  idsFase?: string[];
+  radiceScorrimento: HTMLElement | null;
   onCardClick: (opp: any, tab?: string) => void;
   onDelete: (id: string) => void;
   selectedIds: Set<string>;
   onSelect: (id: string, selected: boolean) => void;
-  onSelectMany?: (ids: string[], selected: boolean) => void;
+  onSelectStage?: (stageId: string, selected: boolean) => void;
   canEdit?: boolean;
   onQuickAdd?: (stageId: string) => void;
   collapsed?: boolean;
   onToggleCollapse?: (stageId: string) => void;
-}>(function StageColumn({ stage, opportunities, onCardClick, onDelete, selectedIds, onSelect, onSelectMany, canEdit = true, onQuickAdd, collapsed = false, onToggleCollapse }, _ref) {
-  const { setNodeRef, isOver } = useDroppable({ id: stage.id });
+}
+
+const StageColumn = memo(function StageColumn({
+  stage, pipelineId, filtri, sortField, sortDir, conteggio, valoreFase, idsFase, radiceScorrimento,
+  onCardClick, onDelete, selectedIds, onSelect, onSelectStage, canEdit = true, onQuickAdd,
+  collapsed = false, onToggleCollapse,
+}: StageColumnProps) {
+  const { setNodeRef, isOver } = useDroppable({ id: stage.id, data: { stageId: stage.id } });
   const { layout } = useCardFieldPreferences();
-  const totalValue = opportunities.reduce((sum: number, o: any) => sum + Number(o.value || 0), 0);
-  const avgValue = opportunities.length > 0 ? totalValue / opportunities.length : 0;
+  const [radice, setRadice] = useState<HTMLDivElement | null>(null);
+  const vista = useVistaAlmenoUnaVolta(radice, radiceScorrimento);
+
+  const {
+    opportunita, isLoading, isError, refetch, hasNextPage, isFetchingNextPage, fetchNextPage,
+  } = useStageOpportunities({
+    pipelineId, stageId: stage.id, filtri, sortField, sortDir,
+    // Compressa o fuori schermo: il numero c'è già (dal riepilogo), le schede no.
+    enabled: vista && !collapsed,
+  });
+
+  // Durante uno spostamento una scheda può restare per un attimo nella cache
+  // della colonna di partenza: si mostra solo dove sta davvero.
+  const opportunities = useMemo(
+    () => opportunita.filter((o: any) => o.stage_id === stage.id),
+    [opportunita, stage.id],
+  );
+
+  const totale = conteggio ?? opportunities.length;
+  const totalValue = valoreFase ?? opportunities.reduce((sum: number, o: any) => sum + Number(o.value || 0), 0);
+  const avgValue = totale > 0 ? totalValue / totale : 0;
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -47,10 +109,21 @@ const StageColumn = memo(forwardRef<HTMLDivElement, {
     gap: 8,
   });
 
-  // Riepilogo selezione della fase (per checkbox select-all e header).
-  const stageOppIds = opportunities.map((o: any) => o.id);
-  const selectedInStage = stageOppIds.filter((id) => selectedIds.has(id)).length;
-  const allSelected = stageOppIds.length > 0 && selectedInStage === stageOppIds.length;
+  // Scorrendo verso il fondo arriva la pagina successiva, senza bottoni.
+  const voci = virtualizer.getVirtualItems();
+  const ultimaVisibile = voci.length > 0 ? voci[voci.length - 1].index : -1;
+  useEffect(() => {
+    if (ultimaVisibile < 0) return;
+    if (ultimaVisibile >= opportunities.length - 5 && hasNextPage && !isFetchingNextPage) {
+      fetchNextPage();
+    }
+  }, [ultimaVisibile, opportunities.length, hasNextPage, isFetchingNextPage, fetchNextPage]);
+
+  // Selezione della colonna: se gli id sono già stati chiesti al database
+  // valgono quelli (TUTTA la fase), altrimenti le schede caricate.
+  const idsNoti = idsFase ?? opportunities.map((o: any) => o.id);
+  const selectedInStage = idsNoti.reduce((n, id) => (selectedIds.has(id) ? n + 1 : n), 0);
+  const allSelected = totale > 0 && selectedInStage >= totale;
   const someSelected = selectedInStage > 0 && !allSelected;
 
   // Colonna collassata: barra verticale sottile stile GHL. Resta droppabile:
@@ -58,11 +131,11 @@ const StageColumn = memo(forwardRef<HTMLDivElement, {
   if (collapsed) {
     return (
       <div
-        ref={setNodeRef}
+        ref={(node) => { setNodeRef(node); setRadice(node); }}
         onClick={() => onToggleCollapse?.(stage.id)}
         title={`Espandi "${stage.name}"`}
         className={cn(
-          "flex flex-col items-center shrink-0 w-11 h-[calc(100svh-310px)] md:h-[calc(100vh-280px)] rounded-lg border bg-muted/40 hover:bg-muted/70 transition-colors cursor-pointer",
+          "flex flex-col items-center shrink-0 w-11 h-full rounded-lg border bg-muted/40 hover:bg-muted/70 transition-colors cursor-pointer",
           isOver && "bg-primary/10 border-primary border-dashed"
         )}
         style={{ borderTopWidth: 3, borderTopColor: hashColor(stage.name) }}
@@ -74,8 +147,8 @@ const StageColumn = memo(forwardRef<HTMLDivElement, {
         >
           <ChevronRight className="h-4 w-4" />
         </button>
-        <span className="mt-1 text-[10px] font-semibold bg-background rounded-full px-1.5 py-0.5 text-muted-foreground">
-          {opportunities.length}
+        <span className="mt-1 text-[10px] font-semibold tabular-nums bg-background rounded-full px-1.5 py-0.5 text-muted-foreground">
+          {formatCount(totale)}
         </span>
         <span className="mt-2 text-xs font-bold text-foreground" style={{ writingMode: "vertical-rl" }}>
           {stage.name}
@@ -87,15 +160,19 @@ const StageColumn = memo(forwardRef<HTMLDivElement, {
   // Colonne piu' strette (-10% circa): a parita' di larghezza schermo se ne
   // vedono di piu' senza dover scorrere in orizzontale.
   return (
-    <div className={cn("flex flex-col shrink-0 h-[calc(100svh-310px)] md:h-[calc(100vh-280px)]", layout === "mini" ? "min-w-[184px] md:min-w-[200px] max-w-[216px] md:max-w-[234px]" : "min-w-[216px] md:min-w-[252px] max-w-[244px] md:max-w-[270px]")}>
+    <div
+      ref={setRadice}
+      className={cn("flex flex-col shrink-0 h-full min-h-0", layout === "mini" ? "min-w-[184px] md:min-w-[200px] max-w-[216px] md:max-w-[234px]" : "min-w-[216px] md:min-w-[252px] max-w-[244px] md:max-w-[270px]")}
+    >
       <div className="px-3 py-2.5 border-b bg-muted/60 rounded-t-lg shrink-0" style={{ borderTopWidth: 3, borderTopColor: hashColor(stage.name) }}>
         <div className="flex items-center justify-between gap-1">
           <div className="flex items-center gap-1.5 min-w-0">
-            {canEdit && onSelectMany && opportunities.length > 0 && (
-              // Select-all della fase (stile GHL): checkbox nell'intestazione colonna.
+            {canEdit && onSelectStage && totale > 0 && (
+              // Select-all della fase (stile GHL): prende TUTTE le opportunità
+              // della colonna, anche quelle non ancora caricate.
               <Checkbox
                 checked={allSelected ? true : someSelected ? "indeterminate" : false}
-                onCheckedChange={(v) => onSelectMany(stageOppIds, v === true)}
+                onCheckedChange={(v) => onSelectStage(stage.id, v === true)}
                 aria-label={`Seleziona tutte le opportunità in ${stage.name}`}
                 className="h-3.5 w-3.5 shrink-0"
               />
@@ -103,17 +180,14 @@ const StageColumn = memo(forwardRef<HTMLDivElement, {
             <h3 className="text-sm font-bold text-foreground leading-snug truncate">{stage.name}</h3>
           </div>
           <div className="flex items-center gap-1 shrink-0">
-            {/* Conteggio della fase. Era 10px grigio su fondo grigio: c'era, ma
-                l'occhio non lo trovava. Ora prende il colore della fase — lo
-                stesso del bordo superiore — cosi' il numero si legge di colpo e
-                si capisce a quale colonna appartiene. tabular-nums perche' da
-                due cifre in su la pillola non balli. */}
+            {/* Conteggio della fase, dal database: tutte le opportunità della
+                colonna, anche quelle che non sono ancora state caricate. */}
             <span
               className="text-xs font-bold tabular-nums rounded-full px-2 py-0.5 text-white shadow-sm"
               style={{ backgroundColor: hashColor(stage.name) }}
-              title={`${opportunities.length} opportunità in "${stage.name}"`}
+              title={`${formatCount(totale)} opportunità in "${stage.name}"`}
             >
-              {opportunities.length}
+              {formatCount(totale)}
             </span>
             {canEdit && onQuickAdd && (
               // Quick-add con fase pre-selezionata (standard kanban CRM):
@@ -142,7 +216,7 @@ const StageColumn = memo(forwardRef<HTMLDivElement, {
         </div>
         {selectedInStage > 0 ? (
           <p className="text-[11px] font-medium text-primary mt-0.5">
-            {selectedInStage} selezionat{selectedInStage === 1 ? "a" : "e"} · {formatCurrency(totalValue)}
+            {formatCount(selectedInStage)} selezionat{selectedInStage === 1 ? "a" : "e"}
           </p>
         ) : (
           <p className="text-[11px] text-muted-foreground mt-0.5">
@@ -166,7 +240,7 @@ const StageColumn = memo(forwardRef<HTMLDivElement, {
       >
         <SortableContext items={opportunities.map((o: any) => o.id)} strategy={verticalListSortingStrategy}>
           <div style={{ height: virtualizer.getTotalSize(), position: "relative", width: "100%" }}>
-            {virtualizer.getVirtualItems().map((virtualRow) => {
+            {voci.map((virtualRow) => {
               const opp = opportunities[virtualRow.index];
               return (
                 <div
@@ -196,27 +270,71 @@ const StageColumn = memo(forwardRef<HTMLDivElement, {
             })}
           </div>
         </SortableContext>
-        {opportunities.length === 0 && (
+        {(isLoading || (!vista && totale > 0)) && opportunities.length === 0 && (
+          <div className="space-y-2" aria-busy="true" aria-label={`Caricamento ${stage.name}`}>
+            {Array.from({ length: Math.min(3, Math.max(1, totale)) }).map((_, i) => (
+              <Skeleton key={i} className={cn("w-full rounded-lg", layout === "mini" ? "h-11" : "h-28")} />
+            ))}
+          </div>
+        )}
+        {isError && opportunities.length === 0 && (
+          <div className="flex flex-col items-center gap-2 py-6 text-center">
+            <p className="text-xs text-muted-foreground">Schede non caricate.</p>
+            <button
+              type="button"
+              onClick={() => refetch()}
+              className="inline-flex items-center gap-1 rounded-md border bg-background px-2 py-1 text-xs hover:bg-muted"
+            >
+              <RefreshCw className="h-3 w-3" /> Riprova
+            </button>
+          </div>
+        )}
+        {!isLoading && !isError && vista && totale === 0 && opportunities.length === 0 && (
           <p className="text-xs text-muted-foreground text-center py-8">Nessuna opportunità</p>
+        )}
+        {opportunities.length > 0 && (hasNextPage || isFetchingNextPage) && (
+          <div className="flex items-center justify-center gap-2 py-2 text-[11px] text-muted-foreground">
+            {isFetchingNextPage ? (
+              <><Loader2 className="h-3 w-3 animate-spin" /> Carico altre…</>
+            ) : (
+              <button
+                type="button"
+                onClick={() => fetchNextPage()}
+                className="rounded-md px-2 py-1 hover:bg-muted hover:text-foreground"
+              >
+                Mostra altre · {formatCount(opportunities.length)} di {formatCount(totale)}
+              </button>
+            )}
+          </div>
         )}
       </div>
     </div>
   );
-}));
+});
 
 interface KanbanProps {
   stages: OpportunityStage[];
-  opportunities: any[];
+  pipelineId: string;
+  filtri: FiltriServerOpportunita;
+  sortField: string;
+  sortDir: string;
+  /** Conteggi di ogni fase, dal database. */
+  riepilogo: RiepilogoOpportunita | null | undefined;
+  /** Id per fase già chiesti al database (selezione di tutta la colonna). */
+  idsPerFase?: Record<string, string[]>;
   selectedIds: Set<string>;
   onSelect: (id: string, selected: boolean) => void;
-  onSelectMany?: (ids: string[], selected: boolean) => void;
+  onSelectStage?: (stageId: string, selected: boolean) => void;
   canEdit?: boolean;
   onQuickAdd?: (stageId: string) => void;
 }
 
 const COLLAPSED_STAGES_KEY = "opp-kanban-collapsed-stages";
 
-export function OpportunityKanbanView({ stages, opportunities, selectedIds, onSelect, onSelectMany, canEdit = true, onQuickAdd }: KanbanProps) {
+export function OpportunityKanbanView({
+  stages, pipelineId, filtri, sortField, sortDir, riepilogo, idsPerFase,
+  selectedIds, onSelect, onSelectStage, canEdit = true, onQuickAdd,
+}: KanbanProps) {
   const updateStage = useUpdateOpportunityStage();
   const deleteOpp = useDeleteOpportunity();
   const [selectedOpp, setSelectedOpp] = useState<any>(null);
@@ -269,20 +387,14 @@ export function OpportunityKanbanView({ stages, opportunities, selectedIds, onSe
     return rectIntersection(args);
   }, []);
 
-  const opportunitiesByStage = useMemo(() => {
-    const map: Record<string, any[]> = {};
-    stages.forEach((s) => { map[s.id] = []; });
-    opportunities.forEach((o: any) => {
-      if (map[o.stage_id]) map[o.stage_id].push(o);
-    });
-    return map;
-  }, [stages, opportunities]);
-
+  // Ogni colonna carica le sue schede: quella trascinata arriva con il
+  // trascinamento stesso (data.opp), e la fase di arrivo dalla colonna o
+  // dalla scheda sotto il puntatore (data.stageId).
   const handleDragStart = useCallback((event: DragStartEvent) => {
     if (!canEdit) return;
-    const opp = opportunities.find((o: any) => o.id === event.active.id);
+    const opp = event.active.data.current?.opp;
     if (opp) setActiveItem(opp);
-  }, [opportunities, canEdit]);
+  }, [canEdit]);
 
   const handleDragEnd = useCallback((event: DragEndEvent) => {
     setActiveItem(null);
@@ -290,12 +402,10 @@ export function OpportunityKanbanView({ stages, opportunities, selectedIds, onSe
     const { active, over } = event;
     if (!over) return;
 
-    const activeOpp = opportunities.find((o: any) => o.id === active.id);
+    const activeOpp = active.data.current?.opp;
     if (!activeOpp) return;
 
-    let targetStageId = over.id as string;
-    const overOpp = opportunities.find((o: any) => o.id === over.id);
-    if (overOpp) targetStageId = overOpp.stage_id;
+    const targetStageId = (over.data.current?.stageId as string | undefined) ?? (over.id as string);
 
     if (activeOpp.stage_id !== targetStageId && stages.some(s => s.id === targetStageId)) {
       const targetStage = stages.find(s => s.id === targetStageId);
@@ -311,17 +421,25 @@ export function OpportunityKanbanView({ stages, opportunities, selectedIds, onSe
         auto_status: nextStatus,
       });
     }
-  }, [opportunities, stages, updateStage, canEdit]);
+  }, [stages, updateStage, canEdit]);
 
   const handleDelete = useCallback((id: string) => {
     if (!canEdit) return;
     deleteOpp.mutate(id);
   }, [deleteOpp, canEdit]);
 
+  const handleCardClick = useCallback((opp: any, tab?: string) => {
+    setSelectedOpp(opp);
+    setInitialTab(tab);
+  }, []);
+
   // ── Frecce per navigare tra le fasi ──
   // Compaiono solo dal lato dove c'e' davvero altro da vedere: se le fasi ci
   // stanno tutte non appare niente, e la vista resta pulita.
   const contenitoreFasiRef = useRef<HTMLDivElement | null>(null);
+  // Anche come stato: le colonne lo usano come riquadro per capire se sono
+  // sullo schermo, e con il solo ref al primo giro sarebbe ancora vuoto.
+  const [contenitoreFasi, setContenitoreFasi] = useState<HTMLDivElement | null>(null);
   const [frecceVisibili, setFrecceVisibili] = useState({ sinistra: false, destra: false });
 
   const aggiornaFrecce = useCallback(() => {
@@ -389,7 +507,7 @@ export function OpportunityKanbanView({ stages, opportunities, selectedIds, onSe
           </button>
         )}
       <div
-        ref={contenitoreFasiRef}
+        ref={(node) => { contenitoreFasiRef.current = node; setContenitoreFasi(node); }}
         onScroll={aggiornaFrecce}
         className={cn(
         "w-full h-full overflow-x-auto overflow-y-hidden",
@@ -405,17 +523,24 @@ export function OpportunityKanbanView({ stages, opportunities, selectedIds, onSe
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
         >
-          <div className="flex gap-2 p-1 min-w-max">
+          <div className="flex h-full gap-2 p-1 min-w-max">
             {stages.map((stage) => (
               <StageColumn
                 key={stage.id}
                 stage={stage}
-                opportunities={opportunitiesByStage[stage.id] || []}
-                onCardClick={(opp, tab) => { setSelectedOpp(opp); setInitialTab(tab); }}
+                pipelineId={pipelineId}
+                filtri={filtri}
+                sortField={sortField}
+                sortDir={sortDir}
+                conteggio={riepilogo ? (riepilogo.per_fase[stage.id]?.n ?? 0) : undefined}
+                valoreFase={riepilogo ? (riepilogo.per_fase[stage.id]?.valore ?? 0) : undefined}
+                idsFase={idsPerFase?.[stage.id]}
+                radiceScorrimento={contenitoreFasi}
+                onCardClick={handleCardClick}
                 onDelete={handleDelete}
                 selectedIds={selectedIds}
                 onSelect={onSelect}
-                onSelectMany={onSelectMany}
+                onSelectStage={onSelectStage}
                 canEdit={canEdit}
                 onQuickAdd={onQuickAdd}
                 collapsed={collapsedStages.has(stage.id)}

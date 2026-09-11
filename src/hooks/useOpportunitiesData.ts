@@ -1,13 +1,14 @@
-import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { userErrorMessage } from "@/lib/userErrorMessage";
 import { queryKeys } from "@/lib/queryKeys";
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { withClientTimeout, retryListQuery } from "@/lib/query-timeout";
+import type { FiltriServerOpportunita } from "@/lib/marketingOpportunities";
 
 export function usePipelines() {
   const { effectiveCompany } = useAuth();
@@ -38,9 +39,6 @@ export function usePipelines() {
     gcTime: 30 * 60 * 1000,
   });
 }
-
-const PAGE_SIZE = 500;
-const MAX_AUTO_PAGES = typeof window !== "undefined" && window.innerWidth < 768 ? 1 : 3;
 
 function canEditOpportunities(permissions: ReturnType<typeof usePermissions>) {
   return permissions.canEditMarketingOpportunities || permissions.canEditMarketing;
@@ -272,76 +270,277 @@ export async function enrichPage(data: any[], companyId: string) {
   }));
 }
 
-export function useOpportunities(pipelineId: string | null) {
-  const { effectiveCompany, user, viewAsUserId } = useAuth();
-  const companyId = effectiveCompany?.id;
-  const permissions = usePermissions();
-  // In «Vista come» i permessi sono quelli dell'utente simulato ma la sessione
-  // resta del super admin: il filtro va fatto sull'utente SIMULATO, altrimenti
-  // si vedono le opportunità del super admin (cioè nessuna).
-  const idAgente = viewAsUserId ?? user?.id;
+/*
+ * Opportunità contate e caricate dal database (migrazione 20280914000013).
+ *
+ * Prima la pagina scaricava le opportunità 500 alla volta e si fermava a
+ * 1.500: con le 17.879 del «Nuovo» di BeMade le colonne ne mostravano una
+ * piccola parte e i numeri in alto erano calcolati solo su quelle. Ora:
+ *   · il riepilogo (striscia + conteggio di ogni colonna) viene dal database,
+ *     esatto su tutte;
+ *   · ogni colonna carica le sue schede a pagine, mentre la si scorre;
+ *   · filtri, ricerca e ordinamento li applica il database, sulle 17.879.
+ */
 
-  const infiniteQuery = useInfiniteQuery({
-    // Scope permessi nella key: con onlyAssigned la query filtra per persona,
-    // ma la cache era condivisa → "Visualizza come" serviva il dataset pieno.
-    queryKey: [...queryKeys.opportunities.list(companyId, pipelineId), permissions.onlyAssigned ? idAgente ?? "me" : "all"],
-    queryFn: async ({ pageParam = 0 }) => {
-      const from = pageParam * PAGE_SIZE;
-      const to = from + PAGE_SIZE - 1;
-      let query = supabase
-        .from("marketing_opportunities")
-        .select("*, marketing_contacts(id, first_name, last_name, email, phone, city, address, province, region, postal_code, source, company_name, tags, last_activity_at, created_at)")
-        .eq("company_id", companyId!)
-        .eq("pipeline_id", pipelineId!)
-        // Soft-delete (migration 20260506200000): la colonna esiste con indice
-        // partial ma nessuna query la filtrava — righe soft-deleted sarebbero
-        // riapparse nel kanban.
-        .is("deleted_at", null)
-        .order("created_at", { ascending: false })
-        .range(from, to);
-      // «Vede solo i propri»: venditore, call center o follower.
-      if (permissions.onlyAssigned && idAgente) {
-        query = query.or(filtroSoloMiei(idAgente));
-      }
-      const { data, error } = await withClientTimeout(query, "Caricamento opportunità", 15_000);
+/** Schede per pagina in una colonna: se ne vedono quattro o cinque alla volta. */
+export const SCHEDE_PER_PAGINA_FASE = 30;
+/** Righe per pagina nella vista lista. */
+export const RIGHE_PER_PAGINA_LISTA = 100;
+
+export interface RiepilogoOpportunita {
+  totale: number;
+  per_fase: Record<string, { n: number; valore: number }>;
+  aperte: number;
+  vinte: number;
+  perse: number;
+  abbandonate: number;
+  valore_pipeline: number;
+  valore_ponderato: number;
+  senza_stima: number;
+  valore_vinto: number;
+  in_stallo: number;
+  azioni_scadute: number;
+}
+
+function numero(valore: unknown): number {
+  const n = Number(valore);
+  return Number.isFinite(n) ? n : 0;
+}
+
+export function normalizzaRiepilogo(grezzo: any): RiepilogoOpportunita {
+  const perFase: RiepilogoOpportunita["per_fase"] = {};
+  for (const [faseId, v] of Object.entries(grezzo?.per_fase ?? {})) {
+    perFase[faseId] = { n: numero((v as any)?.n), valore: numero((v as any)?.valore) };
+  }
+  return {
+    totale: numero(grezzo?.totale),
+    per_fase: perFase,
+    aperte: numero(grezzo?.aperte),
+    vinte: numero(grezzo?.vinte),
+    perse: numero(grezzo?.perse),
+    abbandonate: numero(grezzo?.abbandonate),
+    valore_pipeline: numero(grezzo?.valore_pipeline),
+    valore_ponderato: numero(grezzo?.valore_ponderato),
+    senza_stima: numero(grezzo?.senza_stima),
+    valore_vinto: numero(grezzo?.valore_vinto),
+    in_stallo: numero(grezzo?.in_stallo),
+    azioni_scadute: numero(grezzo?.azioni_scadute),
+  };
+}
+
+/** Numeri della striscia e conteggio di ogni colonna, esatti su tutte le opportunità. */
+export function useOpportunitySummary(pipelineId: string | null, filtri: FiltriServerOpportunita) {
+  const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
+
+  return useQuery({
+    queryKey: queryKeys.opportunities.riepilogo(companyId, pipelineId, filtri),
+    queryFn: async () => {
+      const { data, error } = await withClientTimeout(
+        (supabase as any).rpc("opportunita_riepilogo", { p_pipeline: pipelineId, p_filtri: filtri }),
+        "Conteggio opportunità",
+        20_000,
+      ) as { data: unknown; error: unknown };
       if (error) throw error;
-      const enriched = await withClientTimeout(enrichPage(data, companyId!), "Arricchimento opportunità", 15_000);
-      return enriched;
-    },
-    initialPageParam: 0,
-    getNextPageParam: (lastPage, _allPages, lastPageParam) => {
-      return lastPage.length === PAGE_SIZE ? lastPageParam + 1 : undefined;
+      return normalizzaRiepilogo(data);
     },
     enabled: !!companyId && !!pipelineId,
+    // Mentre si scrive nella ricerca i numeri restano quelli di prima invece
+    // di tornare a zero; cambiando pipeline no, sarebbero di un'altra.
+    placeholderData: (precedente, queryPrecedente) =>
+      queryPrecedente?.queryKey[3] === pipelineId ? precedente : undefined,
     retry: retryListQuery,
-    staleTime: 2 * 60 * 1000,
+    staleTime: 30_000,
+    gcTime: 10 * 60 * 1000,
+  });
+}
+
+async function paginaOpportunita(args: {
+  pipelineId: string;
+  filtri: FiltriServerOpportunita;
+  stageId: string | null;
+  sortField: string;
+  sortDir: string;
+  da: number;
+  quante: number;
+}): Promise<any[]> {
+  const { data, error } = await withClientTimeout(
+    (supabase as any).rpc("opportunita_pagina", {
+      p_pipeline: args.pipelineId,
+      p_filtri: args.filtri,
+      p_fase: args.stageId,
+      p_ordine: args.sortField,
+      p_direzione: args.sortDir,
+      p_da: args.da,
+      p_quante: args.quante,
+    }),
+    "Caricamento opportunità",
+    20_000,
+  ) as { data: unknown; error: unknown };
+  if (error) throw error;
+  return Array.isArray(data) ? data : [];
+}
+
+/** Le pagine si caricano con un «salta N»: se nel frattempo una scheda cambia
+ *  colonna, la stessa può ricomparire nella pagina dopo. Si tiene la prima. */
+function senzaDoppioni(righe: any[]): any[] {
+  const viste = new Set<string>();
+  return righe.filter((r) => {
+    if (!r?.id || viste.has(r.id)) return false;
+    viste.add(r.id);
+    return true;
+  });
+}
+
+interface PagineOpportunitaArgs {
+  pipelineId: string | null;
+  stageId: string | null;
+  filtri: FiltriServerOpportunita;
+  sortField: string;
+  sortDir: string;
+  enabled?: boolean;
+}
+
+/** Le schede di UNA colonna del kanban, a pagine da SCHEDE_PER_PAGINA_FASE. */
+export function useStageOpportunities({ pipelineId, stageId, filtri, sortField, sortDir, enabled = true }: PagineOpportunitaArgs & { stageId: string }) {
+  const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
+
+  const query = useInfiniteQuery({
+    queryKey: queryKeys.opportunities.fase(companyId, pipelineId, stageId, filtri, `${sortField}:${sortDir}`),
+    queryFn: ({ pageParam }) => paginaOpportunita({
+      pipelineId: pipelineId!, filtri, stageId, sortField, sortDir, da: pageParam, quante: SCHEDE_PER_PAGINA_FASE,
+    }),
+    initialPageParam: 0,
+    getNextPageParam: (ultima, _tutte, ultimoDa) =>
+      ultima.length === SCHEDE_PER_PAGINA_FASE ? ultimoDa + SCHEDE_PER_PAGINA_FASE : undefined,
+    enabled: enabled && !!companyId && !!pipelineId,
+    placeholderData: keepPreviousData,
+    retry: retryListQuery,
+    staleTime: 60_000,
     gcTime: 10 * 60 * 1000,
   });
 
-  // Auto-fetch capped: mobile loads 1 extra page (1000 total), desktop loads 3 (1500 total)
-  useEffect(() => {
-    const pageCount = infiniteQuery.data?.pages.length ?? 0;
-    if (pageCount < MAX_AUTO_PAGES && infiniteQuery.hasNextPage && !infiniteQuery.isFetchingNextPage) {
-      infiniteQuery.fetchNextPage();
-    }
-  }, [infiniteQuery.hasNextPage, infiniteQuery.isFetchingNextPage, infiniteQuery.data?.pages.length]);
-
-  const opportunities = useMemo(
-    () => infiniteQuery.data?.pages.flat() ?? [],
-    [infiniteQuery.data?.pages]
-  );
-
-  return {
-    data: opportunities,
-    isLoading: infiniteQuery.isLoading,
-    error: infiniteQuery.error,
-    refetch: infiniteQuery.refetch,
-    isFetchingNextPage: infiniteQuery.isFetchingNextPage,
-    hasNextPage: infiniteQuery.hasNextPage,
-    fetchNextPage: infiniteQuery.fetchNextPage,
-    totalLoaded: opportunities.length,
-  };
+  const opportunita = useMemo(() => senzaDoppioni(query.data?.pages.flat() ?? []), [query.data?.pages]);
+  return { ...query, opportunita };
 }
+
+/** Le righe della vista lista (tutte le fasi, o una sola su mobile). */
+export function useOpportunityList({ pipelineId, stageId, filtri, sortField, sortDir, enabled = true }: PagineOpportunitaArgs) {
+  const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
+
+  const query = useInfiniteQuery({
+    queryKey: queryKeys.opportunities.lista(companyId, pipelineId, stageId, filtri, `${sortField}:${sortDir}`),
+    queryFn: ({ pageParam }) => paginaOpportunita({
+      pipelineId: pipelineId!, filtri, stageId, sortField, sortDir, da: pageParam, quante: RIGHE_PER_PAGINA_LISTA,
+    }),
+    initialPageParam: 0,
+    getNextPageParam: (ultima, _tutte, ultimoDa) =>
+      ultima.length === RIGHE_PER_PAGINA_LISTA ? ultimoDa + RIGHE_PER_PAGINA_LISTA : undefined,
+    enabled: enabled && !!companyId && !!pipelineId,
+    placeholderData: keepPreviousData,
+    retry: retryListQuery,
+    staleTime: 60_000,
+    gcTime: 10 * 60 * 1000,
+  });
+
+  const opportunita = useMemo(() => senzaDoppioni(query.data?.pages.flat() ?? []), [query.data?.pages]);
+  return { ...query, opportunita };
+}
+
+/** Gli id di tutte le opportunità filtrate (o di una colonna): «Seleziona tutti». */
+export async function idsOpportunita(pipelineId: string, filtri: FiltriServerOpportunita, stageId: string | null = null): Promise<string[]> {
+  const { data, error } = await withClientTimeout(
+    (supabase as any).rpc("opportunita_ids", { p_pipeline: pipelineId, p_filtri: filtri, p_fase: stageId }),
+    "Selezione opportunità",
+    20_000,
+  ) as { data: unknown; error: unknown };
+  if (error) throw error;
+  return Array.isArray(data) ? (data as string[]) : [];
+}
+
+/** Le etichette usate nella pipeline, per il pannello Filtri (solo quando serve). */
+export function useOpportunityTags(pipelineId: string | null, enabled: boolean) {
+  const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
+
+  return useQuery({
+    queryKey: queryKeys.opportunities.etichette(companyId, pipelineId),
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc("opportunita_etichette", { p_pipeline: pipelineId });
+      if (error) throw error;
+      return Array.isArray(data) ? (data as string[]) : [];
+    },
+    enabled: enabled && !!companyId && !!pipelineId,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+/**
+ * Sposta una scheda tra le colonne nella cache, prima che il database
+ * risponda: esce dalla pagina della colonna vecchia, entra in cima alla nuova,
+ * e i due conteggi del riepilogo si aggiornano. Le altre cache (lista,
+ * dettaglio, scheda contatto) cambiano solo la fase.
+ */
+function spostaSchedaNeiCache(
+  queryClient: ReturnType<typeof useQueryClient>,
+  id: string,
+  aggiornamento: Record<string, unknown>,
+) {
+  const tutte = queryClient.getQueriesData({ queryKey: queryKeys.opportunities.all });
+  let scheda: any = null;
+  for (const [, dati] of tutte) {
+    const righe: any[] = (dati as any)?.pages ? (dati as any).pages.flat() : Array.isArray(dati) ? dati : [];
+    scheda = righe.find((r) => r?.id === id) ?? null;
+    if (scheda) break;
+  }
+  const faseVecchia: string | undefined = scheda?.stage_id;
+  const faseNuova = aggiornamento.stage_id as string | undefined;
+  const aggiornata = scheda ? { ...scheda, ...aggiornamento } : null;
+  const valore = Number(scheda?.value || 0);
+
+  for (const [chiave, dati] of tutte) {
+    if (!dati) continue;
+    const tipo = chiave[1];
+
+    if (tipo === "fase" && (dati as any).pages) {
+      const faseDellaColonna = chiave[4];
+      const pagine: any[][] = (dati as any).pages.map((p: any[]) => p.filter((r) => r?.id !== id));
+      if (aggiornata && faseDellaColonna === faseNuova) {
+        pagine[0] = [aggiornata, ...(pagine[0] ?? [])];
+      }
+      queryClient.setQueryData(chiave, { ...(dati as any), pages: pagine });
+      continue;
+    }
+
+    if (tipo === "riepilogo") {
+      if (!scheda || !faseVecchia || !faseNuova || faseVecchia === faseNuova) continue;
+      const r = dati as RiepilogoOpportunita;
+      const perFase = { ...r.per_fase };
+      const da = perFase[faseVecchia] ?? { n: 0, valore: 0 };
+      const a = perFase[faseNuova] ?? { n: 0, valore: 0 };
+      perFase[faseVecchia] = { n: Math.max(0, da.n - 1), valore: da.valore - valore };
+      perFase[faseNuova] = { n: a.n + 1, valore: a.valore + valore };
+      queryClient.setQueryData(chiave, { ...r, per_fase: perFase });
+      continue;
+    }
+
+    if ((dati as any).pages && Array.isArray((dati as any).pages)) {
+      queryClient.setQueryData(chiave, {
+        ...(dati as any),
+        pages: (dati as any).pages.map((p: any[]) => p.map((r) => (r?.id === id ? { ...r, ...aggiornamento } : r))),
+      });
+    } else if (Array.isArray(dati)) {
+      queryClient.setQueryData(chiave, dati.map((r: any) => (r?.id === id ? { ...r, ...aggiornamento } : r)));
+    }
+  }
+}
+
+/** Un filtro `in` finisce nell'URL: oltre qualche centinaio di id la
+ *  richiesta viene rifiutata (414). Le modifiche in blocco vanno a blocchi. */
+const BLOCCO_MODIFICHE = 200;
+export const MASSIMO_ELIMINAZIONE = 1000;
 
 export function useCreateOpportunity() {
   const { effectiveCompany } = useAuth();
@@ -455,34 +654,14 @@ export function useUpdateOpportunityStage() {
       const previousData = queryClient.getQueriesData({ queryKey: queryKeys.opportunities.all });
       const now = new Date().toISOString();
 
-      queryClient.setQueriesData(
-        { queryKey: queryKeys.opportunities.all },
-        (old: any) => {
-          if (!old) return old;
-          // Handle infinite query data structure { pages, pageParams }
-          if (old.pages && Array.isArray(old.pages)) {
-            return {
-              ...old,
-              pages: old.pages.map((page: any[]) =>
-                page.map((o: any) =>
-                  o.id === id
-                    ? { ...o, stage_id, stage_changed_at: now, updated_at: now, ...(auto_status ? { status: auto_status } : {}) }
-                    : o
-                )
-              ),
-            };
-          }
-          // Fallback for flat array
-          if (Array.isArray(old)) {
-            return old.map((o: any) =>
-              o.id === id
-                ? { ...o, stage_id, stage_changed_at: now, updated_at: now, ...(auto_status ? { status: auto_status } : {}) }
-                : o
-            );
-          }
-          return old;
-        }
-      );
+      // La scheda passa subito nella colonna nuova (e i conteggi con lei):
+      // ogni colonna ha la sua cache, cambiare solo stage_id non bastava più.
+      spostaSchedaNeiCache(queryClient, id, {
+        stage_id,
+        stage_changed_at: now,
+        updated_at: now,
+        ...(auto_status ? { status: auto_status } : {}),
+      });
 
       return { previousData };
     },
@@ -750,13 +929,17 @@ export function useBulkUpdateOpportunities() {
       if (!canEditOpportunities(permissions)) throw new Error("Non hai i permessi per modificare opportunità");
       if (ids.length === 0) return;
       validateOpportunityPayload(data);
-      // Batch update: use .in() instead of N individual requests
-      const { error } = await supabase
-        .from("marketing_opportunities")
-        .update({ ...data, updated_at: new Date().toISOString() })
-        .eq("company_id", companyId)
-        .in("id", ids);
-      if (error) throw error;
+      // A blocchi: con «Seleziona tutti» gli id possono essere migliaia, e in
+      // un'unica richiesta l'indirizzo diventava troppo lungo.
+      const aggiornamento = { ...data, updated_at: new Date().toISOString() };
+      for (const blocco of aBlocchi(ids, BLOCCO_MODIFICHE)) {
+        const { error } = await supabase
+          .from("marketing_opportunities")
+          .update(aggiornamento)
+          .eq("company_id", companyId)
+          .in("id", blocco);
+        if (error) throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.opportunities.all });
@@ -806,25 +989,31 @@ export function useBulkDeleteOpportunities() {
       if (!companyId) throw new Error("Azienda non selezionata");
       if (!canEditOpportunities(permissions)) throw new Error("Non hai i permessi per eliminare opportunità");
       if (ids.length === 0) return;
+      // Prima di eliminare si controllano i collegamenti di ogni opportunità,
+      // una richiesta per tabella ogni cento id: con «Seleziona tutti» su una
+      // pipeline da diciottomila sarebbero migliaia di richieste insieme.
+      if (ids.length > MASSIMO_ELIMINAZIONE) {
+        throw new Error(`Si possono eliminare al massimo ${MASSIMO_ELIMINAZIONE.toLocaleString("it-IT")} opportunità alla volta: restringi la selezione con i filtri.`);
+      }
       const { daArchiviare, progettiFv } = await countOpportunityLinks(ids, companyId);
       const archiveIds = ids.filter((id) => daArchiviare.has(id));
       const deleteIds = ids.filter((id) => !daArchiviare.has(id));
 
-      if (archiveIds.length > 0) {
+      for (const blocco of aBlocchi(archiveIds, BLOCCO_MODIFICHE)) {
         const { error } = await supabase
           .from("marketing_opportunities")
           .update({ status: "abandoned", updated_at: new Date().toISOString() })
           .eq("company_id", companyId)
-          .in("id", archiveIds);
+          .in("id", blocco);
         if (error) throw error;
       }
 
-      if (deleteIds.length > 0) {
+      for (const blocco of aBlocchi(deleteIds, BLOCCO_MODIFICHE)) {
         const { error } = await supabase
           .from("marketing_opportunities")
           .delete()
           .eq("company_id", companyId)
-          .in("id", deleteIds);
+          .in("id", blocco);
         if (error) throw error;
       }
 

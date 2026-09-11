@@ -16,7 +16,10 @@ import { OpportunityListView } from "@/components/opportunities/OpportunityListV
 import { OpportunityDialog } from "@/components/opportunities/OpportunityDialog";
 import { OpportunityFiltersSheet, OpportunityFilters, EMPTY_FILTERS, countActiveFilters } from "@/components/opportunities/OpportunityFiltersSheet";
 import { BulkEditSheet } from "@/components/opportunities/BulkEditSheet";
-import { usePipelines, useOpportunities, useCompanyStaff, useBulkDeleteOpportunities, enrichPage } from "@/hooks/useOpportunitiesData";
+import {
+  usePipelines, useCompanyStaff, useBulkDeleteOpportunities, enrichPage, filtroSoloMiei,
+  useOpportunitySummary, useOpportunityList, useOpportunityTags, idsOpportunita, MASSIMO_ELIMINAZIONE,
+} from "@/hooks/useOpportunitiesData";
 import { OpportunityDetailDialog } from "@/components/opportunities/OpportunityDetailDialog";
 import { useOpportunityCustomFields } from "@/hooks/useOpportunityDetailData";
 import { ImportWizard } from "@/components/shared/ImportWizard";
@@ -24,6 +27,7 @@ import type { ImportField } from "@/components/shared/CSVImportDialog";
 import { exportToCSV } from "@/lib/csvExport";
 import {
   filterAndSortOpportunities,
+  filtriPerServer,
   normalizeOpportunityUrlState,
   resolveOpportunityPipelineId,
   sanitizeOpportunitySearchTerm,
@@ -36,8 +40,11 @@ import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { useIsAdminMarketing } from "@/hooks/useMarketingRoutePrefix";
 import { usePermissions } from "@/hooks/usePermissions";
-import { OpportunityStatsStrip, opportunitaInStallo, azioneScaduta, costruisciSoglieStallo, type FiltroStrip } from "@/components/opportunities/OpportunityStatsStrip";
+import { OpportunityStatsStrip, type FiltroStrip } from "@/components/opportunities/OpportunityStatsStrip";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/queryKeys";
+import { cn } from "@/lib/utils";
+import { formatCount } from "@/lib/formatters";
 import { CreateListDialog } from "@/components/marketing/CreateListDialog";
 import { cleanPhone } from "@/lib/contactUtils";
 import {
@@ -58,6 +65,19 @@ export default function MarketingOpportunities() {
   );
 }
 
+const NESSUN_ID_PER_FASE: Record<string, string[]> = {};
+
+const ORDINAMENTI = [
+  { field: "created_at" as const, dir: "desc" as const, label: "Più recenti" },
+  { field: "created_at" as const, dir: "asc" as const, label: "Meno recenti" },
+  { field: "updated_at" as const, dir: "desc" as const, label: "Modificate da poco" },
+  { field: "updated_at" as const, dir: "asc" as const, label: "Ferme da più tempo" },
+  { field: "value" as const, dir: "desc" as const, label: "Valore più alto" },
+  { field: "value" as const, dir: "asc" as const, label: "Valore più basso" },
+  { field: "name" as const, dir: "asc" as const, label: "Nome A-Z" },
+  { field: "name" as const, dir: "desc" as const, label: "Nome Z-A" },
+];
+
 const OPP_IMPORT_FIELDS: ImportField[] = [
   { key: "name", label: "Nome Opportunità", required: true },
   { key: "contact_first_name", label: "Contatto Nome", required: true },
@@ -73,9 +93,11 @@ const OPP_IMPORT_FIELDS: ImportField[] = [
 function MarketingOpportunitiesContent() {
   const navigate = useNavigate();
   const isAdminContext = useIsAdminMarketing();
-  const { effectiveCompany, user } = useAuth();
+  const { effectiveCompany, user, viewAsUserId } = useAuth();
   const companyId = effectiveCompany?.id;
-  const currentUserId = user?.id ?? null;
+  // In «Vista come» la sessione resta del super admin: «i miei» e «vede solo i
+  // propri» valgono per l'utente SIMULATO.
+  const currentUserId = viewAsUserId ?? user?.id ?? null;
   const permissions = usePermissions();
   const canEditOpportunities = permissions.canEditMarketingOpportunities || permissions.canEditMarketing;
   const { data: pipelines = [], isLoading: loadingPipelines, error: pipelinesError, refetch: refetchPipelines } = usePipelines();
@@ -256,10 +278,22 @@ function MarketingOpportunitiesContent() {
     });
   }, []);
 
-  const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
+  // Id per fase chiesti al database quando si spunta una colonna intera,
+  // insieme ai filtri con cui sono stati chiesti.
+  const [idsColonne, setIdsColonne] = useState<{ chiave: string; ids: Record<string, string[]> }>({ chiave: "", ids: {} });
+  const [selezionoTutti, setSelezionoTutti] = useState(false);
+
+  const clearSelection = useCallback(() => {
+    setSelectedIds(new Set());
+    setIdsColonne({ chiave: "", ids: {} });
+  }, []);
+
+  // Fase scelta nelle schede in alto della lista su mobile (filtra sul database).
+  const [mobileStageId, setMobileStageId] = useState<string | null>(null);
 
   useEffect(() => {
     setActiveListId(null);
+    setMobileStageId(null);
     clearSelection();
   }, [clearSelection, selectedPipelineId]);
 
@@ -300,7 +334,49 @@ function MarketingOpportunitiesContent() {
   // "In stallo" (ferme oltre la soglia della fase). Un click sul KPI.
   const [filtroStrip, setFiltroStrip] = useState<FiltroStrip>(null);
 
-  const { data: opportunities = [], isLoading: loadingOpps, error: opportunitiesError, refetch: refetchOpportunities, isFetchingNextPage, hasNextPage, fetchNextPage, totalLoaded } = useOpportunities(selectedPipelineId);
+  // Filtri, ricerca, «I miei deal» e striscia nella forma del database: li
+  // applica lui, su tutte le opportunità della pipeline.
+  const filtriServer = useMemo(() => filtriPerServer({
+    searchQuery: safeSearchQuery,
+    filters,
+    onlyMine,
+    currentUserId,
+    visibiliA: permissions.onlyAssigned ? currentUserId : null,
+    striscia: filtroStrip,
+  }), [safeSearchQuery, filters, onlyMine, currentUserId, permissions.onlyAssigned, filtroStrip]);
+
+  // Cambiati i filtri (o la pipeline), gli id di colonna chiesti prima non
+  // valgono più.
+  const chiaveIdsColonne = `${selectedPipelineId}|${JSON.stringify(filtriServer)}`;
+  const idsPerFase = idsColonne.chiave === chiaveIdsColonne ? idsColonne.ids : NESSUN_ID_PER_FASE;
+
+  const {
+    data: riepilogo,
+    error: riepilogoError,
+    isFetching: aggiornoRiepilogo,
+  } = useOpportunitySummary(selectedPipelineId, filtriServer);
+
+  const lista = useOpportunityList({
+    pipelineId: selectedPipelineId,
+    stageId: isMobile ? mobileStageId : null,
+    filtri: filtriServer,
+    sortField,
+    sortDir,
+    enabled: viewMode === "list",
+  });
+
+  const totaleFiltrate = riepilogo?.totale ?? 0;
+  // Nella lista su mobile, con una fase scelta in alto, «tutte» sono quelle
+  // della fase.
+  const faseLista = viewMode === "list" && isMobile ? mobileStageId : null;
+  const totaleSelezionabile = faseLista ? (riepilogo?.per_fase[faseLista]?.n ?? 0) : totaleFiltrate;
+
+  const { fetchNextPage: paginaSuccessivaLista } = lista;
+  const caricaAltreLista = useCallback(() => { paginaSuccessivaLista(); }, [paginaSuccessivaLista]);
+
+  const riprovaCaricamento = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: queryKeys.opportunities.all });
+  }, [queryClient]);
 
   // Fetch dedicato per il deep-link ?apri=: l'opportunità potrebbe non stare
   // nelle pagine già caricate della lista paginata, quindi niente find sull'array.
@@ -322,11 +398,9 @@ function MarketingOpportunitiesContent() {
     },
   });
 
-  const availableTags = useMemo(() => {
-    const tagSet = new Set<string>();
-    opportunities.forEach((o: any) => normalizeTagList(o.tags || []).forEach((tag) => tagSet.add(tag)));
-    return Array.from(tagSet).sort();
-  }, [opportunities]);
+  // Le etichette della pipeline servono solo al pannello Filtri: si chiedono
+  // quando lo si apre.
+  const { data: availableTags = [] } = useOpportunityTags(selectedPipelineId, filtersOpen);
 
   const applyOpportunityFiltersAndSort = useCallback((source: any[]) => {
     return filterAndSortOpportunities({
@@ -340,14 +414,38 @@ function MarketingOpportunitiesContent() {
     });
   }, [safeSearchQuery, filters, sortField, sortDir, onlyMine, currentUserId]);
 
-  const filteredOpportunities = useMemo(() => {
-    const base = applyOpportunityFiltersAndSort(opportunities);
-    if (!filtroStrip) return base;
-    const soglie = costruisciSoglieStallo(stages);
-    return base.filter((o: any) =>
-      filtroStrip === "stallo" ? opportunitaInStallo(o, soglie) : azioneScaduta(o),
-    );
-  }, [opportunities, applyOpportunityFiltersAndSort, filtroStrip, stages]);
+  /** «Seleziona tutti»: gli id di TUTTE le opportunità filtrate, dal database. */
+  const selezionaTutti = useCallback(async () => {
+    if (!selectedPipelineId) return;
+    setSelezionoTutti(true);
+    try {
+      const ids = await idsOpportunita(selectedPipelineId, filtriServer, faseLista);
+      setSelectedIds(new Set(ids));
+    } catch {
+      toast.error("Non sono riuscito a selezionarle tutte: riprova tra qualche secondo.");
+    } finally {
+      setSelezionoTutti(false);
+    }
+  }, [selectedPipelineId, filtriServer, faseLista]);
+
+  /** Spunta (o togli) un'intera colonna, anche le schede non ancora caricate. */
+  const selezionaFase = useCallback(async (stageId: string, sel: boolean) => {
+    if (!selectedPipelineId) return;
+    try {
+      // Per spuntare si chiede sempre la lista aggiornata; per togliere basta
+      // quella già avuta.
+      const ids = !sel && idsPerFase[stageId]
+        ? idsPerFase[stageId]
+        : await idsOpportunita(selectedPipelineId, filtriServer, stageId);
+      setIdsColonne((prec) => ({
+        chiave: chiaveIdsColonne,
+        ids: { ...(prec.chiave === chiaveIdsColonne ? prec.ids : {}), [stageId]: ids },
+      }));
+      handleSelectMany(ids, sel);
+    } catch {
+      toast.error("Non sono riuscito a selezionare la colonna: riprova tra qualche secondo.");
+    }
+  }, [selectedPipelineId, filtriServer, idsPerFase, chiaveIdsColonne, handleSelectMany]);
 
   const fetchAllOpportunitiesForExport = useCallback(async () => {
     if (!companyId || !selectedPipelineId) return [];
@@ -366,8 +464,9 @@ function MarketingOpportunitiesContent() {
         .order("created_at", { ascending: false })
         .range(from, from + pageSize - 1);
 
+      // «Vede solo i propri»: venditore, call center o follower (come la pagina).
       if (permissions.onlyAssigned && currentUserId) {
-        query = query.eq("assigned_to", currentUserId);
+        query = query.or(filtroSoloMiei(currentUserId));
       }
 
       const { data, error } = await query;
@@ -632,12 +731,20 @@ function MarketingOpportunitiesContent() {
   }
 
   return (
-    <div className="flex flex-col h-full gap-3 md:pb-0">
+    // Su desktop la pagina è alta quanto lo schermo (meno la barra in alto e i
+    // margini): le colonne riempiono lo spazio che resta e scorrono dentro di
+    // sé. Prima avevano un'altezza fissa calcolata a occhio e, con striscia e
+    // barre sopra, finivano sotto il bordo: si scorreva la pagina E la colonna.
+    <div className="flex flex-col h-full min-h-0 gap-3 md:h-[calc(100vh-104px)] md:pb-0">
       <div className="flex shrink-0 flex-nowrap items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/50 p-3 shadow-sm sm:flex-wrap sm:gap-3">
         <div className="flex min-w-0 items-center gap-2">
           <PipelineSelector pipelines={pipelines} value={selectedPipelineId} onChange={setSelectedPipelineId} />
-          <Badge className="h-6 shrink-0 bg-orange-100 px-2 text-xs text-orange-700 hover:bg-orange-100">
-            {filteredOpportunities.length}<span className="hidden sm:inline">&nbsp;opportunità</span>
+          {/* Il totale viene dal database: tutte le opportunità che passano i
+              filtri, non solo quelle caricate nelle colonne. */}
+          <Badge className="h-6 shrink-0 gap-1 bg-orange-100 px-2 text-xs tabular-nums text-orange-700 hover:bg-orange-100">
+            {riepilogo ? formatCount(totaleFiltrate) : <Loader2 className="h-3 w-3 animate-spin" />}
+            <span className="hidden sm:inline">opportunità</span>
+            {aggiornoRiepilogo && riepilogo && <Loader2 className="h-3 w-3 animate-spin opacity-60" aria-label="Aggiorno i conteggi" />}
           </Badge>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
@@ -704,184 +811,198 @@ function MarketingOpportunitiesContent() {
       </div>
       {/* KPI pipeline. Su mobile in vista Kanban li nascondiamo: le colonne mostrano
           già i totali per fase e così la pipeline resta la vista principale (più
-          spazio verticale). In vista lista restano visibili. */}
+          spazio verticale). In vista lista restano visibili. I numeri vengono
+          dal database e contano tutte le opportunità, non solo quelle caricate. */}
       {!(isMobile && viewMode === "kanban") && (
-        <div className="shrink-0"><OpportunityStatsStrip
-          opportunities={applyOpportunityFiltersAndSort(opportunities)}
-          stages={stages}
-          filtroAttivo={filtroStrip}
-          onFiltro={setFiltroStrip}
-        /></div>
-      )}
-      {isFetchingNextPage && (
-        <div className="flex items-center gap-2 px-1 shrink-0">
-          <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
-          <span className="text-xs text-muted-foreground">Caricamento opportunità… ({totalLoaded} caricate)</span>
+        <div className="shrink-0">
+          <OpportunityStatsStrip riepilogo={riepilogo} filtroAttivo={filtroStrip} onFiltro={setFiltroStrip} />
         </div>
       )}
-      {/* Dataset parziale: l'auto-fetch si ferma al cap (500 mobile / 1500
-          desktop) — prima KPI e conteggi giravano sul sottoinsieme SENZA
-          alcun avviso né modo di caricare il resto. */}
-      {!isFetchingNextPage && hasNextPage && (
-        <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-2 text-xs text-blue-900">
-          <span>
-            Caricate le prime <strong>{totalLoaded}</strong> opportunità: KPI e conteggi si riferiscono solo a queste.
-          </span>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="h-7 border-blue-300 bg-white text-blue-900 hover:bg-blue-100"
-            onClick={() => fetchNextPage()}
-          >
-            Carica altre
-          </Button>
-        </div>
-      )}
-      {opportunitiesError && (
+      {riepilogoError && (
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           <div className="flex items-center gap-2">
             <AlertTriangle className="h-4 w-4" />
             <span>Caricamento opportunità interrotto: puoi riprovare senza ricaricare tutta la pagina.</span>
           </div>
-          <Button type="button" size="sm" variant="outline" className="h-8 border-amber-200 bg-white text-amber-900 hover:bg-amber-100" onClick={() => refetchOpportunities()}>
+          <Button type="button" size="sm" variant="outline" className="h-8 border-amber-200 bg-white text-amber-900 hover:bg-amber-100" onClick={riprovaCaricamento}>
             <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
             Riprova
           </Button>
         </div>
       )}
 
-      <div className="flex shrink-0 items-center gap-1 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm scrollbar-none">
-        <Button
-          variant="ghost"
-          size="sm"
-          className={`h-9 sm:h-8 shrink-0 rounded-xl text-xs ${!activeListId ? "bg-orange-50 font-semibold text-orange-700" : "text-muted-foreground hover:bg-slate-50"}`}
-          onClick={() => { setActiveListId(null); setFilters(EMPTY_FILTERS); }}
-        >
-          Tutto
-        </Button>
-        {savedLists.map((list: any) => (
-          <div key={list.id} className="flex items-center group shrink-0">
-            <Button
-              variant="ghost"
-              size="sm"
-              className={`h-9 sm:h-8 shrink-0 rounded-xl text-xs ${activeListId === list.id ? "bg-orange-50 font-semibold text-orange-700" : "text-muted-foreground hover:bg-slate-50"}`}
-              onClick={() => {
-                setActiveListId(list.id);
-                if (list.filters && typeof list.filters === "object") {
-                  setFilters({ ...EMPTY_FILTERS, ...list.filters });
-                }
-              }}
-            >
-              {list.name}
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 sm:h-5 sm:w-5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive shrink-0"
-              onClick={(e) => {
-                e.stopPropagation();
-                // Conferma: un misclick sulla X cancellava definitivamente il
-                // segmento salvato (le opportunità hanno conferma, le liste no).
-                if (confirm(`Eliminare l'elenco salvato "${list.name}"?`)) {
-                  deleteListMutation.mutate(list.id);
-                }
-              }}
-              aria-label={`Elimina elenco ${list.name}`}
-            >
-              <X className="h-3 w-3" />
-            </Button>
-          </div>
-        ))}
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-9 sm:h-8 shrink-0 rounded-xl text-xs text-muted-foreground hover:bg-slate-50"
-          onClick={() => setCreateListOpen(true)}
-        >
-          + Elenco
-        </Button>
-      </div>
-
-      <div className="flex shrink-0 flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-2.5 sm:p-3 shadow-sm">
-        <div className="relative w-full">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-          <Input
-            placeholder="Cerca opportunità…"
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            className="h-10 sm:h-8 w-full pl-8 text-base sm:text-xs"
-            aria-label="Cerca opportunità, contatto, azienda, email o telefono"
-          />
-        </div>
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <Button
-              variant={onlyMine ? "default" : "outline"}
-              size="sm"
-              className={`h-10 sm:h-8 text-xs ${onlyMine ? "bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:from-orange-600 hover:to-amber-600" : ""}`}
-              onClick={() => setOnlyMine(!onlyMine)}
-              aria-label={onlyMine ? "Mostra tutti i deal" : "Mostra solo i miei deal"}
-            >
-              {onlyMine ? "I miei deal" : "Tutti i deal"}
-            </Button>
-            <Button variant="outline" size="sm" className="h-10 sm:h-8 text-xs relative" onClick={() => setFiltersOpen(true)} aria-label="Apri filtri">
-              <Filter className="h-3.5 w-3.5 sm:mr-1.5" />
-              <span className="hidden sm:inline">Filtri</span>
-              {activeFilterCount > 0 && (
-                <Badge className="ml-1 sm:ml-1.5 h-5 min-w-[20px] px-1 flex items-center justify-center text-[10px] bg-primary text-primary-foreground">
-                  {activeFilterCount}
-                </Badge>
-              )}
-            </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="h-10 sm:h-8 text-xs" aria-label="Ordina opportunità">
-                  <ArrowUpDown className="h-3.5 w-3.5 sm:mr-1.5" />
-                  <span className="hidden sm:inline">Ordina</span>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start">
-                {[
-                  { field: "name" as const, dir: "asc" as const, label: "Nome (A-Z)" },
-                  { field: "name" as const, dir: "desc" as const, label: "Nome (Z-A)" },
-                  { field: "value" as const, dir: "desc" as const, label: "Valore (alto-basso)" },
-                  { field: "value" as const, dir: "asc" as const, label: "Valore (basso-alto)" },
-                  { field: "created_at" as const, dir: "desc" as const, label: "Data creazione ↓" },
-                  { field: "created_at" as const, dir: "asc" as const, label: "Data creazione ↑" },
-                  { field: "updated_at" as const, dir: "desc" as const, label: "Ultima modifica ↓" },
-                  { field: "updated_at" as const, dir: "asc" as const, label: "Ultima modifica ↑" },
-                ].map((opt) => (
-                  <DropdownMenuItem
-                    key={`${opt.field}-${opt.dir}`}
-                    onClick={() => { setSortField(opt.field); setSortDir(opt.dir); }}
-                    className="flex items-center justify-between"
-                  >
-                    {opt.label}
-                    {sortField === opt.field && sortDir === opt.dir && <Check className="h-3.5 w-3.5 ml-2" />}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-          <Button variant="link" size="sm" className="hidden md:inline-flex h-8 text-xs px-1" onClick={() => setCardCustomizeOpen(true)}>
-            <Settings2 className="mr-1 h-3.5 w-3.5" /> Gestisci campi
+      {/* Una barra sola: a sinistra gli elenchi salvati, a destra ricerca,
+          «Tutti/Miei», filtri, ordinamento e campi. Prima erano due riquadri
+          uno sotto l'altro, e la ricerca da sola occupava una riga intera:
+          tutto spazio tolto alle colonne. Su mobile va su due righe. */}
+      <div className="flex shrink-0 flex-col gap-1.5 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm md:flex-row md:items-center md:gap-2">
+        <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto scrollbar-none" aria-label="Elenchi salvati">
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-pressed={!activeListId}
+            className={cn("h-8 shrink-0 rounded-xl px-3 text-xs", !activeListId ? "bg-orange-50 font-semibold text-orange-700 hover:bg-orange-50" : "text-muted-foreground hover:bg-slate-50")}
+            onClick={() => { setActiveListId(null); setFilters(EMPTY_FILTERS); }}
+          >
+            Tutto
           </Button>
-        </div>
-      </div>
-
-      {loadingOpps ? (
-        <div className="flex flex-1 gap-3 overflow-hidden px-1">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="flex w-72 shrink-0 flex-col gap-2">
-              <Skeleton className="h-8 w-full rounded-lg" />
-              <Skeleton className="h-28 w-full rounded-lg" />
-              <Skeleton className="h-28 w-full rounded-lg" />
-              <Skeleton className="h-28 w-full rounded-lg" />
+          {savedLists.map((list: any) => (
+            <div key={list.id} className="group flex shrink-0 items-center">
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-pressed={activeListId === list.id}
+                className={cn("h-8 shrink-0 rounded-xl px-3 text-xs", activeListId === list.id ? "bg-orange-50 font-semibold text-orange-700 hover:bg-orange-50" : "text-muted-foreground hover:bg-slate-50")}
+                onClick={() => {
+                  setActiveListId(list.id);
+                  if (list.filters && typeof list.filters === "object") {
+                    setFilters({ ...EMPTY_FILTERS, ...list.filters });
+                  }
+                }}
+              >
+                {list.name}
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 shrink-0 text-muted-foreground transition-opacity hover:text-destructive sm:h-5 sm:w-5 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  // Conferma: un misclick sulla X cancellava definitivamente il
+                  // segmento salvato (le opportunità hanno conferma, le liste no).
+                  if (confirm(`Eliminare l'elenco salvato "${list.name}"?`)) {
+                    deleteListMutation.mutate(list.id);
+                  }
+                }}
+                aria-label={`Elimina elenco ${list.name}`}
+              >
+                <X className="h-3 w-3" />
+              </Button>
             </div>
           ))}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 shrink-0 rounded-xl px-2.5 text-xs text-muted-foreground hover:bg-slate-50 hover:text-foreground"
+            onClick={() => setCreateListOpen(true)}
+          >
+            <Plus className="mr-1 h-3.5 w-3.5" /> Elenco
+          </Button>
         </div>
-      ) : stages.length === 0 ? (
+
+        <div className="flex shrink-0 items-center gap-1.5 md:border-l md:border-slate-100 md:pl-2">
+          <div className="relative min-w-0 flex-1 md:w-56 md:flex-none lg:w-72">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Cerca nome, telefono, email…"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              className="h-9 w-full rounded-xl border-slate-200 bg-slate-50/70 pl-8 pr-8 text-base transition-colors focus-visible:bg-white md:h-8 md:text-xs"
+              aria-label="Cerca opportunità, contatto, azienda, email o telefono"
+            />
+            {searchInput && (
+              <button
+                type="button"
+                onClick={() => setSearchInput("")}
+                aria-label="Cancella la ricerca"
+                className="absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:bg-slate-200/70 hover:text-foreground"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Tutti / Miei: due etichette corte invece di un bottone che cambia
+              nome — si vede subito quale dei due è acceso. «Miei» = venditore,
+              call center o follower. */}
+          <div className="flex h-9 shrink-0 items-center rounded-xl border border-slate-200 bg-slate-50/70 p-0.5 md:h-8" role="group" aria-label="Quali opportunità mostrare">
+            {([
+              { mie: false, etichetta: "Tutti", titolo: "Mostra tutte le opportunità" },
+              { mie: true, etichetta: "Miei", titolo: "Solo quelle che segui tu: venditore, call center o follower" },
+            ] as const).map(({ mie, etichetta, titolo }) => (
+              <button
+                key={etichetta}
+                type="button"
+                title={titolo}
+                aria-pressed={onlyMine === mie}
+                onClick={() => setOnlyMine(mie)}
+                className={cn(
+                  "h-full rounded-[10px] px-2.5 text-xs font-medium transition-colors",
+                  onlyMine === mie ? "bg-white text-orange-700 shadow-sm ring-1 ring-slate-200" : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {etichetta}
+              </button>
+            ))}
+          </div>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className={cn("relative h-9 shrink-0 rounded-xl px-2.5 text-xs md:h-8", activeFilterCount > 0 && "border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100")}
+                onClick={() => setFiltersOpen(true)}
+                aria-label={activeFilterCount > 0 ? `Filtri (${activeFilterCount} attivi)` : "Apri filtri"}
+              >
+                <Filter className="h-3.5 w-3.5 lg:mr-1.5" />
+                <span className="hidden lg:inline">Filtri</span>
+                {activeFilterCount > 0 && (
+                  <span className="ml-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-orange-500 px-1 text-[10px] font-semibold text-white">
+                    {activeFilterCount}
+                  </span>
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent className="lg:hidden">Filtri</TooltipContent>
+          </Tooltip>
+
+          <DropdownMenu>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-9 shrink-0 rounded-xl px-2.5 text-xs md:h-8" aria-label={`Ordina: ${ORDINAMENTI.find((o) => o.field === sortField && o.dir === sortDir)?.label ?? "Più recenti"}`}>
+                    <ArrowUpDown className="h-3.5 w-3.5 xl:mr-1.5" />
+                    <span className="hidden xl:inline">{ORDINAMENTI.find((o) => o.field === sortField && o.dir === sortDir)?.label ?? "Ordina"}</span>
+                  </Button>
+                </DropdownMenuTrigger>
+              </TooltipTrigger>
+              <TooltipContent className="xl:hidden">
+                Ordina: {ORDINAMENTI.find((o) => o.field === sortField && o.dir === sortDir)?.label ?? "Più recenti"}
+              </TooltipContent>
+            </Tooltip>
+            <DropdownMenuContent align="end" className="w-52">
+              {ORDINAMENTI.map((opt) => (
+                <DropdownMenuItem
+                  key={`${opt.field}-${opt.dir}`}
+                  onClick={() => { setSortField(opt.field); setSortDir(opt.dir); }}
+                  className="flex items-center justify-between text-xs"
+                >
+                  {opt.label}
+                  {sortField === opt.field && sortDir === opt.dir && <Check className="ml-2 h-3.5 w-3.5 text-orange-600" />}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="hidden h-8 w-8 shrink-0 rounded-xl text-muted-foreground hover:text-foreground md:inline-flex"
+                onClick={() => setCardCustomizeOpen(true)}
+                aria-label="Gestisci campi delle schede"
+              >
+                <Settings2 className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Gestisci campi</TooltipContent>
+          </Tooltip>
+        </div>
+      </div>
+
+      {stages.length === 0 ? (
         <div className="flex flex-col items-center justify-center flex-1 text-muted-foreground gap-2">
           <p className="text-sm">Questa pipeline non ha fasi configurate.</p>
           {!isAdminContext && <Button variant="outline" size="sm" onClick={() => navigate("/azienda/impostazioni/sequenze")}>Configura fasi</Button>}
@@ -890,12 +1011,13 @@ function MarketingOpportunitiesContent() {
         <>
            {selectedIds.size > 0 && canEditOpportunities && (
             <div className="flex items-center gap-2 sm:gap-3 flex-wrap px-3 sm:px-4 py-2 bg-primary/5 border rounded-lg shrink-0">
-              <Badge variant="secondary" className="text-xs font-semibold">
-                {selectedIds.size} selezionat{selectedIds.size === 1 ? "o" : "i"}
+              <Badge variant="secondary" className="text-xs font-semibold tabular-nums">
+                {formatCount(selectedIds.size)} selezionat{selectedIds.size === 1 ? "a" : "e"}
               </Badge>
-              {selectedIds.size < filteredOpportunities.length && (
-                <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => setSelectedIds(new Set(filteredOpportunities.map((o: any) => o.id)))}>
-                  Seleziona tutti ({filteredOpportunities.length})
+              {selectedIds.size < totaleSelezionabile && (
+                <Button variant="link" size="sm" className="h-auto gap-1 p-0 text-xs" disabled={selezionoTutti} onClick={selezionaTutti}>
+                  {selezionoTutti && <Loader2 className="h-3 w-3 animate-spin" />}
+                  Seleziona tutte le {formatCount(totaleSelezionabile)}
                 </Button>
               )}
               <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={clearSelection}>Deseleziona</Button>
@@ -903,16 +1025,56 @@ function MarketingOpportunitiesContent() {
                 <Button variant="outline" size="sm" className="h-9 sm:h-7 text-xs gap-1" onClick={() => setBulkEditOpen(true)} aria-label="Modifica selezionati">
                   <Pencil className="h-3 w-3" /> <span className="hidden sm:inline">Modifica</span>
                 </Button>
-                <Button variant="destructive" size="sm" className="h-9 sm:h-7 text-xs gap-1" onClick={() => setConfirmBulkDelete(true)} aria-label="Elimina selezionati">
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  className="h-9 sm:h-7 text-xs gap-1"
+                  disabled={selectedIds.size > MASSIMO_ELIMINAZIONE}
+                  title={selectedIds.size > MASSIMO_ELIMINAZIONE ? `Si possono eliminare al massimo ${formatCount(MASSIMO_ELIMINAZIONE)} opportunità alla volta` : undefined}
+                  onClick={() => setConfirmBulkDelete(true)}
+                  aria-label="Elimina selezionati"
+                >
                   <Trash2 className="h-3 w-3" /> <span className="hidden sm:inline">Elimina</span>
                 </Button>
               </div>
             </div>
           )}
           {viewMode === "list" ? (
-            <OpportunityListView stages={stages} opportunities={filteredOpportunities} selectedIds={selectedIds} onSelect={handleSelect} onSelectMany={handleSelectMany} canEdit={canEditOpportunities} />
+            <div className="flex-1 min-h-0 overflow-y-auto">
+            <OpportunityListView
+              stages={stages}
+              opportunities={lista.opportunita}
+              riepilogo={riepilogo}
+              isLoading={lista.isLoading}
+              hasMore={!!lista.hasNextPage}
+              isLoadingMore={lista.isFetchingNextPage}
+              onLoadMore={caricaAltreLista}
+              mobileStageId={mobileStageId}
+              onMobileStageChange={setMobileStageId}
+              selectedIds={selectedIds}
+              onSelect={handleSelect}
+              onSelectMany={handleSelectMany}
+              onSelectStage={selezionaFase}
+              canEdit={canEditOpportunities}
+            />
+            </div>
           ) : (
-            <div className="flex-1 min-h-0 overflow-auto"><OpportunityKanbanView stages={stages} opportunities={filteredOpportunities} selectedIds={selectedIds} onSelect={handleSelect} onSelectMany={handleSelectMany} canEdit={canEditOpportunities} onQuickAdd={(stageId) => { setQuickAddStageId(stageId); setDialogOpen(true); }} /></div>
+            <div className="flex-1 min-h-0">
+              <OpportunityKanbanView
+                stages={stages}
+                pipelineId={selectedPipelineId!}
+                filtri={filtriServer}
+                sortField={sortField}
+                sortDir={sortDir}
+                riepilogo={riepilogo}
+                idsPerFase={idsPerFase}
+                selectedIds={selectedIds}
+                onSelect={handleSelect}
+                onSelectStage={selezionaFase}
+                canEdit={canEditOpportunities}
+                onQuickAdd={(stageId) => { setQuickAddStageId(stageId); setDialogOpen(true); }}
+              />
+            </div>
           )}
         </>
       )}
