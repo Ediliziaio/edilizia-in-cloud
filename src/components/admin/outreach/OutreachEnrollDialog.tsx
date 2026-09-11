@@ -17,6 +17,19 @@ import { UserPlus, Loader2, Users } from "lucide-react";
  */
 
 const CAP = 5000;
+
+function motivoLock(motivo: string): string {
+  if (motivo === "brand_non_eleggibile") return "non assegnati a questo brand (brand ammessi dell'azienda)";
+  if (motivo === "lock_altro_brand") return "già in lavorazione con un altro brand";
+  if (motivo === "contatto_gia_in_sequenza_altro_brand") return "già in sequenza con un altro brand";
+  if (motivo === "brand_gia_utilizzato") return "già contattati da questo brand in passato";
+  if (motivo === "suppression_globale") return "azienda o dominio in blocklist";
+  if (motivo === "nessun_contatto_contattabile") return "senza contatti contattabili";
+  if (motivo.startsWith("cooldown_attivo")) return "in pausa di contatto";
+  if (motivo === "azienda_inesistente") return "azienda non riconosciuta";
+  return `bloccati dal lock (${motivo})`;
+}
+
 // Le caselle smaltiscono poche decine di primi contatti al giorno: si arruola
 // a ondate, e ogni chiamata deve stare nel tempo della edge function.
 const ONDATA_DEFAULT = 150;
@@ -138,7 +151,13 @@ export function OutreachEnrollDialog({ companyId, sequenceId, sequenceName, emai
       if (data?.skipped_pec) skips.push(`${data.skipped_pec} PEC`);
       if (data?.skipped_no_mx) skips.push(`${data.skipped_no_mx} domini senza posta`);
       if (data?.skipped_cooldown) skips.push(`${data.skipped_cooldown} in cooldown (non interessati)`);
-      if (data?.skipped_lock) skips.push(`${data.skipped_lock} già lavorati da un altro brand`);
+      if (data?.skipped_lock) {
+        // Il lock multi-brand rifiuta per motivi diversi: dirli tutti come
+        // «altro brand» faceva cercare il problema nel posto sbagliato.
+        const perMotivo = (data.lock_negato_per_motivo ?? {}) as Record<string, number>;
+        const voci = Object.entries(perMotivo).map(([motivo, n]) => `${n} ${motivoLock(motivo)}`);
+        skips.push(voci.length ? voci.join(", ") : `${data.skipped_lock} bloccati dal lock multi-brand`);
+      }
       const note: string[] = [];
       if (skips.length) note.push(`Saltati: ${skips.join(", ")}.`);
       if (data?.lista) {
