@@ -432,8 +432,8 @@ function Regole({ c, t, numeri, capacitaGiorno, onRiprova, riprovaInCorso }: {
         <Regola icona={Reply} titolo="Se risponde">
           {t?.stop_se_risponde !== false ? "Esce dal flusso: niente follow-up a chi ha già risposto." : "Continua a ricevere i follow-up."}
           {" "}{regoleAccese > 0
-            ? `${regoleAccese} ${regoleAccese === 1 ? "regola decide" : "regole decidono"} bacheca, etichette e risposte.`
-            : "Nessuna regola sulle risposte."}
+            ? `${regoleAccese} ${regoleAccese === 1 ? "regola accesa" : "regole accese"} in «Quando risponde».`
+            : "Nessuna regola in «Quando risponde»."}
         </Regola>
         <Regola icona={Sparkles} titolo="Personalizzazione AI">
           {t?.ai_personalizza ? (t.ai_istruzioni?.trim() ? <span className="line-clamp-3">{t.ai_istruzioni}</span> : "Attiva") : "Spenta: parte il testo così com'è."}
