@@ -10,6 +10,9 @@ import { it } from "date-fns/locale";
 interface Props {
   dailySeries: DailyPoint[];
   isLoading: boolean;
+  /** Come si chiamano le conversioni: "Lead" su Meta, "Conversioni" su Google. */
+  nomeConversioni?: string;
+  sottotitolo?: string;
 }
 
 type Vista = "spesa" | "traffico";
@@ -17,7 +20,7 @@ type Vista = "spesa" | "traffico";
 const eur = (v: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(v);
 const num = (v: number) => new Intl.NumberFormat("it-IT", { maximumFractionDigits: 0 }).format(v);
 
-const NOMI: Record<string, string> = {
+const NOMI_BASE: Record<string, string> = {
   spend: "Spesa",
   conversions: "Lead",
   cpl: "Costo per lead",
@@ -25,8 +28,11 @@ const NOMI: Record<string, string> = {
   clicks: "Clic sul link",
 };
 
-const TrendChart = ({ dailySeries, isLoading }: Props) => {
+const TrendChart = ({ dailySeries, isLoading, nomeConversioni, sottotitolo }: Props) => {
   const [vista, setVista] = useState<Vista>("spesa");
+  const NOMI = nomeConversioni
+    ? { ...NOMI_BASE, conversions: nomeConversioni, cpl: `Costo per ${nomeConversioni.toLowerCase().replace(/i$/, "e")}`, clicks: "Clic" }
+    : NOMI_BASE;
 
   if (isLoading) {
     return (
@@ -56,10 +62,10 @@ const TrendChart = ({ dailySeries, isLoading }: Props) => {
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <div>
           <h3 className="text-sm font-medium">Andamento giornaliero</h3>
-          <p className="text-xs text-muted-foreground">Tutto l'account, giorno per giorno</p>
+          <p className="text-xs text-muted-foreground">{sottotitolo ?? "Tutto l'account, giorno per giorno"}</p>
         </div>
         <ToggleGroup type="single" size="sm" value={vista} onValueChange={(v) => v && setVista(v as Vista)}>
-          <ToggleGroupItem value="spesa" className="text-xs px-2.5">Spesa e lead</ToggleGroupItem>
+          <ToggleGroupItem value="spesa" className="text-xs px-2.5">Spesa e {(nomeConversioni ?? "lead").toLowerCase()}</ToggleGroupItem>
           <ToggleGroupItem value="traffico" className="text-xs px-2.5">Impressioni e clic</ToggleGroupItem>
         </ToggleGroup>
       </div>

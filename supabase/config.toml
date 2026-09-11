@@ -325,6 +325,12 @@ verify_jwt = false
 [functions.form-submit]
 verify_jwt = false
 
+# Chiamata dal form incorporato nei siti dei clienti, da visitatori anonimi:
+# con il login obbligatorio ogni visita riceveva 401 e nessuna sessione
+# (pagina di arrivo, referrer, dispositivo, UTM) veniva mai registrata.
+[functions.attribution-capture]
+verify_jwt = false
+
 [functions.check-api-health]
 verify_jwt = false
 

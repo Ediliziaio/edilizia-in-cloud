@@ -173,7 +173,8 @@ export function buildLevelRows(reports: AccountReport[], level: ReportLevel, crm
         row.budget_da_campagna = !centesimi(e?.daily_budget) && !centesimi(e?.lifetime_budget) && !!(camp?.daily_budget || camp?.lifetime_budget);
       } else {
         const cr = e?.creative ?? {};
-        row.thumbnail_url = cr.thumbnail_url ?? cr.image_url ?? null;
+        // image_url è l'immagine intera (nitida); thumbnail_url è 64px e c'è anche per i video.
+        row.thumbnail_url = cr.image_url ?? cr.thumbnail_url ?? null;
         row.creative_title = cr.title ?? null;
         row.creative_body = cr.body ?? null;
         row.preview_link = e?.preview_shareable_link ?? null;

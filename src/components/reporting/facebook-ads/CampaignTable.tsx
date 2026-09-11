@@ -20,6 +20,7 @@ interface Props {
 const fmtNum = (n: number) => new Intl.NumberFormat("it-IT", { maximumFractionDigits: 0 }).format(n);
 const fmtCurrency = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 2, useGrouping: "always" }).format(n);
 const fmtPct = (n: number) => new Intl.NumberFormat("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n) + "%";
+const fmtDec = (n: number) => new Intl.NumberFormat("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
 const fmtX = (n: number) => new Intl.NumberFormat("it-IT", { maximumFractionDigits: 1 }).format(n) + "x";
 
 export interface ColonnaReport {
@@ -49,7 +50,7 @@ export const COLONNE: ColonnaReport[] = [
   { key: "spend", label: "Spesa", format: (r) => fmtCurrency(r.spend), align: "right" },
   { key: "impressions", label: "Impressioni", format: (r) => fmtNum(r.impressions), align: "right" },
   { key: "reach", label: "Copertura", aiuto: "Persone diverse raggiunte", format: (r) => fmtNum(r.reach), align: "right" },
-  { key: "frequency", label: "Frequenza", aiuto: "Quante volte in media la stessa persona ha visto l'annuncio. Sopra 3-4 il pubblico si stanca.", format: (r) => (r.frequency > 0 ? r.frequency.toFixed(2) : "—"), align: "right" },
+  { key: "frequency", label: "Frequenza", aiuto: "Quante volte in media la stessa persona ha visto l'annuncio. Sopra 3-4 il pubblico si stanca.", format: (r) => (r.frequency > 0 ? fmtDec(r.frequency) : "—"), align: "right" },
   { key: "link_clicks", label: "Clic sul link", format: (r) => fmtNum(r.link_clicks ?? 0), align: "right" },
   { key: "ctr", label: "CTR (link)", aiuto: "Clic sul link ogni 100 impressioni", format: (r) => (r.impressions > 0 ? fmtPct(r.ctr) : "—"), align: "right" },
   { key: "cpc", label: "CPC (link)", aiuto: "Costo per clic sul link", format: (r) => ((r.link_clicks ?? 0) > 0 ? fmtCurrency(r.cpc) : "—"), align: "right" },

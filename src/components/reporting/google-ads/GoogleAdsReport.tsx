@@ -1,688 +1,260 @@
-import { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { subDays } from "date-fns";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
-import { useGoogleAdsStats } from "@/hooks/useGoogleAdsStats";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  BarChart2,
-  TrendingUp,
-  MousePointerClick,
-  Eye,
-  Euro,
-  Target,
-  RefreshCw,
-  AlertCircle,
-  ChevronUp,
-  ChevronDown,
-  ChevronsUpDown,
-  Link2,
-  Info,
-} from "lucide-react";
+import type { ReactNode } from "react";
+import { endOfMonth, format, startOfMonth, subDays, subMonths } from "date-fns";
+import { it } from "date-fns/locale";
 import { useNavigate } from "react-router-dom";
+import { AlertTriangle, BarChart2, CalendarIcon, Info, Link2, RefreshCw } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import { Card } from "@/components/ui/card";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import {
-  formatCurrency,
-  formatPercent,
-  formatNumber,
-} from "@/lib/google-ads/formatters";
+import { useGoogleAdsReport } from "@/hooks/useGoogleAdsReport";
 import { AdsSalesReportPanel } from "@/components/reporting/ads-sales/AdsSalesReportPanel";
 import { AdsCallCenterReportPanel } from "@/components/reporting/ads-callcenter/AdsCallCenterReportPanel";
-import type { GoogleAdsCampaign } from "@/types/google-ads";
+import { DeltaPercentuale as Delta } from "@/components/reporting/shared/DeltaPercentuale";
+import TrendChart from "@/components/reporting/facebook-ads/TrendChart";
+import GoogleAdsTable from "./GoogleAdsTable";
 
-// ─── Preset di date ──────────────────────────────────────────────────────────
+const fmtNum = (n: number) => new Intl.NumberFormat("it-IT", { maximumFractionDigits: 0 }).format(n);
+const fmtDec = (n: number) => new Intl.NumberFormat("it-IT", { maximumFractionDigits: 2 }).format(n);
+const fmtEur = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 2 }).format(n);
+const fmtPct = (n: number) => new Intl.NumberFormat("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n) + "%";
 
-type DatePreset = "7" | "30" | "90";
-
-const DATE_PRESETS: { key: DatePreset; label: string }[] = [
-  { key: "7", label: "Ultimi 7 giorni" },
-  { key: "30", label: "Ultimi 30 giorni" },
-  { key: "90", label: "Ultimi 90 giorni" },
+const PRESET = [
+  { label: "7gg", range: () => ({ from: subDays(new Date(), 6), to: new Date() }) },
+  { label: "30gg", range: () => ({ from: subDays(new Date(), 29), to: new Date() }) },
+  { label: "90gg", range: () => ({ from: subDays(new Date(), 89), to: new Date() }) },
+  { label: "Questo mese", range: () => ({ from: startOfMonth(new Date()), to: new Date() }) },
+  { label: "Mese scorso", range: () => ({ from: startOfMonth(subMonths(new Date(), 1)), to: endOfMonth(subMonths(new Date(), 1)) }) },
 ];
 
-// ─── KPI Card ────────────────────────────────────────────────────────────────
-
-function KpiCard({
-  label,
-  value,
-  icon: Icon,
-  sub,
-  colorClass = "",
-  isLoading,
-}: {
-  label: string;
-  value: string;
-  icon: React.ElementType;
-  sub?: string;
-  colorClass?: string;
-  isLoading: boolean;
-}) {
-  if (isLoading) return <Skeleton className="h-28 rounded-xl" />;
+function Big({ label, value, delta, sotto, loading }: { label: string; value: string; delta?: ReactNode; sotto?: ReactNode; loading: boolean }) {
   return (
-    <Card>
-      <CardContent className="pt-5 pb-4">
-        <div className="flex items-start justify-between">
-          <div>
-            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
-              {label}
-            </p>
-            <p className={cn("text-2xl font-bold mt-1", colorClass)}>{value}</p>
-            {sub && (
-              <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>
-            )}
-          </div>
-          <div className="bg-primary/10 rounded-lg p-2">
-            <Icon className="h-5 w-5 text-primary" aria-hidden="true" />
-          </div>
+    <Card className="flex flex-col gap-1.5 p-4">
+      <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{label}</span>
+      {loading ? <Skeleton className="h-8 w-24" /> : (
+        <div className="flex items-baseline gap-2">
+          <span className="text-2xl font-semibold tabular-nums">{value}</span>
+          {delta}
         </div>
-      </CardContent>
+      )}
+      {!loading && sotto && <div className="text-xs text-muted-foreground">{sotto}</div>}
     </Card>
   );
 }
 
-// ─── Colonne ordinabili ───────────────────────────────────────────────────────
-
-type SortField = keyof Pick<
-  GoogleAdsCampaign,
-  | "campaign_name"
-  | "impressions"
-  | "clicks"
-  | "ctr"
-  | "spend"
-  | "conversions"
-  | "conversion_value"
-  | "cost_per_conversion"
-  | "roas"
-  | "search_impression_share"
-  | "cpc"
->;
-type SortDir = "asc" | "desc";
-
-function SortIcon({
-  field,
-  sortField,
-  sortDir,
-}: {
-  field: SortField;
-  sortField: SortField;
-  sortDir: SortDir;
-}) {
-  if (field !== sortField) return <ChevronsUpDown className="h-3 w-3 ml-1 opacity-40" />;
-  return sortDir === "asc" ? (
-    <ChevronUp className="h-3 w-3 ml-1" />
-  ) : (
-    <ChevronDown className="h-3 w-3 ml-1" />
-  );
-}
-
-function SortableTh({
-  field,
-  sortField,
-  sortDir,
-  onSort,
-  children,
-  className,
-}: {
-  field: SortField;
-  sortField: SortField;
-  sortDir: SortDir;
-  onSort: (f: SortField) => void;
-  children: React.ReactNode;
-  className?: string;
-}) {
+function Small({ label, value, delta, loading, aiuto }: { label: string; value: string; delta?: ReactNode; loading: boolean; aiuto?: string }) {
   return (
-    <TableHead
-      className={cn("cursor-pointer select-none", className)}
-      onClick={() => onSort(field)}
-    >
-      <span className="inline-flex items-center">
-        {children}
-        <SortIcon field={field} sortField={sortField} sortDir={sortDir} />
-      </span>
-    </TableHead>
+    <Card className="flex flex-col gap-1 p-3" title={aiuto}>
+      <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{label}</span>
+      {loading ? <Skeleton className="h-6 w-16" /> : (
+        <div className="flex items-baseline gap-1.5">
+          <span className="text-lg font-semibold tabular-nums">{value}</span>
+          {delta}
+        </div>
+      )}
+    </Card>
   );
 }
-
-function formatImpressionShare(value: number | null | undefined): string {
-  if (value === null || value === undefined) return "—";
-  const percentValue = value <= 1 ? value * 100 : value;
-  return formatPercent(percentValue);
-}
-
-// ─── Componente principale ────────────────────────────────────────────────────
 
 export default function GoogleAdsReport() {
-  const { effectiveCompany } = useAuth();
-  const companyId = effectiveCompany?.id;
   const navigate = useNavigate();
+  const report = useGoogleAdsReport();
+  const { kpis: k, kpisPrev: p } = report;
+  const giorni = Math.max(7, Math.round((report.dateRange.to.getTime() - report.dateRange.from.getTime()) / 86_400_000) + 1);
+  const loading = report.isLoading;
+  const crmLoading = loading || report.isLoadingCrm;
+  const quota = (v: number | null) => (v == null ? "N/D" : fmtPct(v * 100));
 
-  // Preset selezionato (default: 30 giorni)
-  const [preset, setPreset] = useState<DatePreset>("30");
-
-  // Sort tabella campagne
-  const [sortField, setSortField] = useState<SortField>("spend");
-  const [sortDir, setSortDir] = useState<SortDir>("desc");
-
-  // Hook dati Google Ads
-  const {
-    kpis,
-    campaigns,
-    isLoading: statsLoading,
-    error,
-    refetch,
-    setDateRange,
-  } = useGoogleAdsStats();
-
-  // Check integrazione Google Ads
-  const { data: integration, isLoading: integrationLoading } = useQuery({
-    queryKey: ["google-ads-integration", companyId],
-    queryFn: async () => {
-      if (!companyId) return null;
-      const { data } = await supabase
-        .from("integrations")
-        // "meta_data" non esiste su integrations: la query falliva, l'errore
-        // era ingoiato e il badge mostrava sempre "non connesso" anche a
-        // integrazione attiva. Non serviva: qui si leggono solo id e status.
-        .select("id, status")
-        .eq("company_id", companyId)
-        .eq("provider", "google_ads")
-        .maybeSingle();
-      return data;
-    },
-    enabled: !!companyId,
-  });
-
-  const isLoading = integrationLoading || statsLoading;
-
-  // Aggiorna dateRange in base al preset
-  function handlePreset(key: DatePreset) {
-    setPreset(key);
-    const days = parseInt(key, 10);
-    setDateRange({ from: subDays(new Date(), days - 1), to: new Date() });
-  }
-
-  // Sort handler
-  function handleSort(field: SortField) {
-    if (field === sortField) {
-      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    } else {
-      setSortField(field);
-      setSortDir("desc");
-    }
-  }
-
-  // Campagne ordinate
-  const sortedCampaigns = useMemo(() => {
-    return [...campaigns].sort((a, b) => {
-      const av = a[sortField];
-      const bv = b[sortField];
-      if (typeof av === "string" && typeof bv === "string") {
-        return sortDir === "asc"
-          ? av.localeCompare(bv, "it")
-          : bv.localeCompare(av, "it");
-      }
-      const an = av as number;
-      const bn = bv as number;
-      return sortDir === "asc" ? an - bn : bn - an;
-    });
-  }, [campaigns, sortField, sortDir]);
-
-  // Totali riga in fondo
-  const totals = useMemo(
-    () => {
-      const impressions = campaigns.reduce((s, c) => s + c.impressions, 0);
-      const clicks = campaigns.reduce((s, c) => s + c.clicks, 0);
-      const spend = campaigns.reduce((s, c) => s + c.spend, 0);
-      const conversions = campaigns.reduce((s, c) => s + c.conversions, 0);
-      const conversionValue = campaigns.reduce((s, c) => s + c.conversion_value, 0);
-      const shareWeight = campaigns.reduce(
-        (acc, c) => {
-          if (c.search_impression_share === null || c.search_impression_share === undefined) {
-            return acc;
-          }
-          const weight = c.impressions > 0 ? c.impressions : 1;
-          return {
-            value: acc.value + c.search_impression_share * weight,
-            weight: acc.weight + weight,
-          };
-        },
-        { value: 0, weight: 0 },
-      );
-
-      return {
-        impressions,
-        clicks,
-        spend,
-        conversions,
-        conversionValue,
-        ctr: impressions > 0 ? (clicks / impressions) * 100 : 0,
-        cpc: clicks > 0 ? spend / clicks : 0,
-        costPerConversion: conversions > 0 ? spend / conversions : 0,
-        roas: spend > 0 ? conversionValue / spend : 0,
-        searchImpressionShare:
-          shareWeight.weight > 0 ? shareWeight.value / shareWeight.weight : null,
-      };
-    },
-    [campaigns],
+  const pannelliCrm = (
+    <>
+      <section aria-label="Fatturato generato e Costo per vendita Google Ads">
+        <AdsSalesReportPanel provider="google" daysBack={giorni} compact />
+      </section>
+      <section aria-label="Lead ads e chiamate Google Ads">
+        <AdsCallCenterReportPanel provider="google" daysBack={giorni} compact />
+      </section>
+    </>
   );
 
-  // ── Stato: non connesso ──────────────────────────────────────────────────
-  if (!integrationLoading && !integration) {
+  // ── Non collegato ──────────────────────────────────────────────────────
+  if (!report.isLoadingConn && !report.isConnected) {
     return (
       <div className="space-y-4">
         <div className="flex items-center gap-3">
           <BarChart2 className="h-6 w-6 text-primary" aria-hidden="true" />
           <div>
             <h2 className="text-lg font-semibold">Report Google Ads</h2>
-            <p className="text-sm text-muted-foreground">
-              Monitora le performance delle tue campagne Google
-            </p>
+            <p className="text-sm text-muted-foreground">Campagne, gruppi di annunci, annunci, parole chiave e ricerche</p>
           </div>
         </div>
-
         <Alert className="border-blue-200 bg-blue-50">
           <Info className="h-4 w-4 text-blue-600" aria-hidden="true" />
-          <AlertDescription className="text-blue-800 text-sm">
-            Collega il tuo account Google Ads per visualizzare impressioni, click, costi,
-            conversioni, valore conversioni, ROAS e quota impressioni in tempo reale.
+          <AlertDescription className="text-sm text-blue-800">
+            Collega il tuo account Google Ads per vedere spesa, clic, conversioni, Valore conversioni, ROAS, Quota impr.
+            e, per ogni campagna e annuncio, quanti lead sono diventati trattative e contratti nel CRM.
           </AlertDescription>
         </Alert>
-
-        <AdsSalesReportPanel provider="google" daysBack={Number(preset)} compact />
-        <AdsCallCenterReportPanel provider="google" daysBack={Number(preset)} compact />
-
-        <div className="flex flex-col items-center justify-center py-16 text-center border rounded-xl bg-card">
-          <Link2 className="h-12 w-12 text-muted-foreground/40 mb-4" aria-hidden="true" />
+        {pannelliCrm}
+        <div className="flex flex-col items-center justify-center rounded-xl border bg-card py-16 text-center">
+          <Link2 className="mb-4 h-12 w-12 text-muted-foreground/40" aria-hidden="true" />
           <h3 className="text-lg font-semibold">Account Google Ads non collegato</h3>
-          <p className="text-sm text-muted-foreground mt-1 max-w-sm">
-            Per visualizzare i report di Google Ads, collega prima il tuo account dalla sezione
-            Integrazioni.
+          <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+            {report.connessione && !report.connessione.customer_id
+              ? "Il collegamento è avviato ma manca la scelta dell'account pubblicitario."
+              : "Collega l'account dalla sezione Integrazioni."}
           </p>
-          <Button
-            className="mt-4"
-            onClick={() => navigate("/azienda/impostazioni/integrazioni")}
-          >
-            Vai a Integrazioni
-          </Button>
+          <Button className="mt-4" onClick={() => navigate("/azienda/impostazioni/integrazioni")}>Vai a Integrazioni</Button>
         </div>
       </div>
     );
   }
 
-  // ── Stato: errore ────────────────────────────────────────────────────────
-  if (error) {
-    return (
-      <div className="space-y-4">
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" aria-hidden="true" />
-          <AlertDescription className="flex items-center justify-between gap-4">
-            <span>{error}</span>
-            <Button size="sm" variant="outline" onClick={refetch}>
-              <RefreshCw className="h-3.5 w-3.5 mr-1.5" aria-hidden="true" />
-              Riprova
-            </Button>
-          </AlertDescription>
-        </Alert>
-      </div>
-    );
-  }
+  const ambito = report.level === "campaign" || (!report.percorso.campaignId && !report.percorso.adGroupId)
+    ? "tutto l'account"
+    : report.percorso.adGroupId && report.level !== "ad_group"
+      ? `gruppo «${report.percorso.adGroupName}»`
+      : `campagna «${report.percorso.campaignName}»`;
 
-  // ── Render principale ────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-3">
-          <BarChart2 className="h-6 w-6 text-primary" aria-hidden="true" />
-          <div>
-            <h2 className="text-lg font-semibold">Report Google Ads</h2>
-            <p className="text-sm text-muted-foreground">
-              Performance campagne pubblicitarie Google
-            </p>
-          </div>
+      {/* Intestazione */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-xl font-semibold tracking-tight">Report Google Ads</h2>
+          <p className="text-xs text-muted-foreground">
+            {report.connessione?.customer_descriptive_name ? `Account: ${report.connessione.customer_descriptive_name}` : "Account Google Ads"}
+            {report.aggiornatoAlle && ` · dati Google delle ${format(new Date(report.aggiornatoAlle), "HH:mm")}`}
+          </p>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          {integration && (
-            <Badge
-              className={cn(
-                "text-xs",
-                integration.status === "active"
-                  ? "bg-green-100 text-green-800"
-                  : "bg-yellow-100 text-yellow-800"
-              )}
-            >
-              {integration.status === "active" ? "Connesso" : "In attesa"}
-            </Badge>
-          )}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1">
+            {PRESET.map((pr) => {
+              const r = pr.range();
+              const attivo = format(r.from, "yyyy-MM-dd") === format(report.dateRange.from, "yyyy-MM-dd") && format(r.to, "yyyy-MM-dd") === format(report.dateRange.to, "yyyy-MM-dd");
+              return (
+                <Button key={pr.label} size="sm" variant={attivo ? "default" : "ghost"} className="h-7 px-2 text-xs" onClick={() => report.setDateRange(r)}>
+                  {pr.label}
+                </Button>
+              );
+            })}
+          </div>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-2 text-xs">
+                <CalendarIcon className="h-3.5 w-3.5" />
+                {format(report.dateRange.from, "dd MMM", { locale: it })} – {format(report.dateRange.to, "dd MMM yyyy", { locale: it })}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="end">
+              <Calendar
+                mode="range"
+                selected={{ from: report.dateRange.from, to: report.dateRange.to }}
+                onSelect={(r) => r?.from && r?.to && report.setDateRange({ from: r.from, to: r.to })}
+                numberOfMonths={2}
+                locale={it}
+                className="pointer-events-auto p-3"
+              />
+            </PopoverContent>
+          </Popover>
           <Button
-            size="sm"
             variant="outline"
-            onClick={refetch}
-            disabled={isLoading}
+            size="sm"
+            className="gap-1.5 text-xs"
+            onClick={report.aggiorna}
+            disabled={report.isFetching}
             aria-label="Aggiorna dati"
+            title="Richiede a Google i dati più recenti (altrimenti restano validi 15 minuti)"
           >
-            <RefreshCw
-              className={cn("h-3.5 w-3.5 mr-1.5", isLoading && "animate-spin")}
-              aria-hidden="true"
-            />
+            <RefreshCw className={cn("h-3.5 w-3.5", report.isFetching && "animate-spin")} aria-hidden="true" />
             Aggiorna
           </Button>
         </div>
       </div>
 
-      {/* Filtro date range */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-xs text-muted-foreground font-medium">Periodo:</span>
-        {DATE_PRESETS.map((p) => (
-          <Button
-            key={p.key}
-            size="sm"
-            variant={preset === p.key ? "default" : "outline"}
-            className="text-xs h-7 px-3"
-            onClick={() => handlePreset(p.key)}
-          >
-            {p.label}
-          </Button>
-        ))}
-      </div>
-
-      {/* KPI card */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 2xl:grid-cols-9 gap-4">
-        <KpiCard
-          label="Spesa totale"
-          value={isLoading ? "—" : formatCurrency(kpis.totalSpend)}
-          icon={Euro}
-          colorClass="text-amber-600"
-          isLoading={isLoading}
-        />
-        <KpiCard
-          label="Impressioni"
-          value={isLoading ? "—" : formatNumber(kpis.totalImpressions)}
-          icon={Eye}
-          isLoading={isLoading}
-        />
-        <KpiCard
-          label="Click"
-          value={isLoading ? "—" : formatNumber(kpis.totalClicks)}
-          icon={MousePointerClick}
-          colorClass="text-primary"
-          isLoading={isLoading}
-        />
-        <KpiCard
-          label="CTR medio"
-          value={isLoading ? "—" : formatPercent(kpis.avgCTR)}
-          icon={BarChart2}
-          isLoading={isLoading}
-        />
-        <KpiCard
-          label="Conversioni"
-          value={isLoading ? "—" : formatNumber(kpis.totalConversions)}
-          icon={Target}
-          colorClass="text-green-600"
-          isLoading={isLoading}
-        />
-        <KpiCard
-          label="Valore conversioni"
-          value={isLoading ? "—" : formatCurrency(kpis.totalConversionValue)}
-          icon={Euro}
-          colorClass="text-green-700"
-          isLoading={isLoading}
-        />
-        <KpiCard
-          label="CPA medio"
-          value={isLoading ? "—" : formatCurrency(kpis.avgCPA)}
-          icon={Target}
-          isLoading={isLoading}
-        />
-        <KpiCard
-          label="ROAS"
-          value={isLoading ? "—" : `${kpis.roas.toFixed(2).replace(".", ",")}x`}
-          icon={TrendingUp}
-          colorClass="text-blue-700"
-          isLoading={isLoading}
-        />
-        <KpiCard
-          label="Quota impr."
-          value={isLoading ? "—" : formatImpressionShare(kpis.avgSearchImpressionShare)}
-          icon={Eye}
-          isLoading={isLoading}
-        />
-        <KpiCard
-          label="CPC medio"
-          value={isLoading ? "—" : formatCurrency(kpis.avgCPC)}
-          icon={TrendingUp}
-          isLoading={isLoading}
-        />
-      </div>
-
-      <section aria-label="Fatturato generato e Costo per vendita Google Ads">
-        <AdsSalesReportPanel provider="google" daysBack={Number(preset)} compact />
-      </section>
-
-      <section aria-label="Lead ads e chiamate Google Ads">
-        <AdsCallCenterReportPanel provider="google" daysBack={Number(preset)} compact />
-      </section>
-
-      {/* Tabella campagne */}
-      {isLoading ? (
-        <Skeleton className="h-48 rounded-xl" />
-      ) : campaigns.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-center">
-          <BarChart2 className="h-12 w-12 text-gray-300 mb-4" aria-hidden="true" />
-          <h3 className="text-lg font-medium text-gray-900">Nessun dato disponibile</h3>
-          <p className="text-sm text-gray-500 mt-1">
-            Non ci sono campagne nel periodo selezionato. Prova a modificare il periodo.
-          </p>
+      {report.errore && (
+        <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+          <div>
+            <p className="font-medium">Google Ads non ha restituito i dati</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">{report.errore}</p>
+          </div>
         </div>
-      ) : (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-semibold">
-              Performance per campagna
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <SortableTh
-                      field="campaign_name"
-                      sortField={sortField}
-                      sortDir={sortDir}
-                      onSort={handleSort}
-                    >
-                      Campagna
-                    </SortableTh>
-                    <SortableTh
-                      field="impressions"
-                      sortField={sortField}
-                      sortDir={sortDir}
-                      onSort={handleSort}
-                      className="text-right"
-                    >
-                      Impressioni
-                    </SortableTh>
-                    <SortableTh
-                      field="clicks"
-                      sortField={sortField}
-                      sortDir={sortDir}
-                      onSort={handleSort}
-                      className="text-right"
-                    >
-                      Click
-                    </SortableTh>
-                    <SortableTh
-                      field="ctr"
-                      sortField={sortField}
-                      sortDir={sortDir}
-                      onSort={handleSort}
-                      className="text-right"
-                    >
-                      CTR
-                    </SortableTh>
-                    <SortableTh
-                      field="spend"
-                      sortField={sortField}
-                      sortDir={sortDir}
-                      onSort={handleSort}
-                      className="text-right"
-                    >
-                      Spesa (€)
-                    </SortableTh>
-                    <SortableTh
-                      field="conversions"
-                      sortField={sortField}
-                      sortDir={sortDir}
-                      onSort={handleSort}
-                      className="text-right"
-                    >
-                      Conversioni
-                    </SortableTh>
-                    <SortableTh
-                      field="cost_per_conversion"
-                      sortField={sortField}
-                      sortDir={sortDir}
-                      onSort={handleSort}
-                      className="text-right"
-                    >
-                      Costo/conv.
-                    </SortableTh>
-                    <SortableTh
-                      field="conversion_value"
-                      sortField={sortField}
-                      sortDir={sortDir}
-                      onSort={handleSort}
-                      className="text-right"
-                    >
-                      Valore conv.
-                    </SortableTh>
-                    <SortableTh
-                      field="roas"
-                      sortField={sortField}
-                      sortDir={sortDir}
-                      onSort={handleSort}
-                      className="text-right"
-                    >
-                      ROAS
-                    </SortableTh>
-                    <SortableTh
-                      field="search_impression_share"
-                      sortField={sortField}
-                      sortDir={sortDir}
-                      onSort={handleSort}
-                      className="text-right"
-                    >
-                      Quota impr.
-                    </SortableTh>
-                    <SortableTh
-                      field="cpc"
-                      sortField={sortField}
-                      sortDir={sortDir}
-                      onSort={handleSort}
-                      className="text-right"
-                    >
-                      CPC
-                    </SortableTh>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {sortedCampaigns.map((c) => (
-                    <TableRow
-                      key={c.campaign_id ?? c.campaign_name}
-                      className="hover:bg-muted/30 transition-colors"
-                    >
-                      <TableCell
-                        className="font-medium max-w-[220px] truncate"
-                        title={c.campaign_name}
-                      >
-                        {c.campaign_name}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {formatNumber(c.impressions)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {formatNumber(c.clicks)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {formatPercent(c.ctr)}
-                      </TableCell>
-                      <TableCell className="text-right font-semibold">
-                        {formatCurrency(c.spend)}
-                      </TableCell>
-                      <TableCell className="text-right text-green-600 font-semibold">
-                        {formatNumber(c.conversions)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {formatCurrency(c.cost_per_conversion)}
-                      </TableCell>
-                      <TableCell className="text-right font-semibold">
-                        {formatCurrency(c.conversion_value)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {c.roas.toFixed(2).replace(".", ",")}x
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {formatImpressionShare(c.search_impression_share)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {formatCurrency(c.cpc)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  {/* Riga totali */}
-                  <TableRow className="border-t-2 bg-muted/20">
-                    <TableCell className="font-semibold">Totale</TableCell>
-                    <TableCell className="text-right font-semibold">
-                      {formatNumber(totals.impressions)}
-                    </TableCell>
-                    <TableCell className="text-right font-semibold">
-                      {formatNumber(totals.clicks)}
-                    </TableCell>
-                    <TableCell className="text-right font-semibold">
-                      {formatPercent(totals.ctr)}
-                    </TableCell>
-                    <TableCell className="text-right font-semibold">
-                      {formatCurrency(totals.spend)}
-                    </TableCell>
-                    <TableCell className="text-right font-semibold text-green-600">
-                      {formatNumber(totals.conversions)}
-                    </TableCell>
-                    <TableCell className="text-right font-semibold">
-                      {formatCurrency(totals.costPerConversion)}
-                    </TableCell>
-                    <TableCell className="text-right font-semibold">
-                      {formatCurrency(totals.conversionValue)}
-                    </TableCell>
-                    <TableCell className="text-right font-semibold">
-                      {totals.roas.toFixed(2).replace(".", ",")}x
-                    </TableCell>
-                    <TableCell className="text-right font-semibold">
-                      {formatImpressionShare(totals.searchImpressionShare)}
-                    </TableCell>
-                    <TableCell className="text-right font-semibold">
-                      {formatCurrency(totals.cpc)}
-                    </TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
       )}
+      {report.avvisi.length > 0 && (
+        <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs text-amber-800">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <div>
+            <p className="font-medium">Report parziale: Google non ha restituito alcuni dati</p>
+            {report.avvisi.map((a) => <p key={a}>{a}</p>)}
+          </div>
+        </div>
+      )}
+
+      {/* KPI */}
+      <div className="space-y-3">
+        <p className="text-xs text-muted-foreground">
+          Stai guardando: <span className="font-medium text-foreground">{ambito}</span>
+          {p ? " · le percentuali confrontano con il periodo precedente di pari durata" : ""}
+        </p>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <Big label="Spesa" value={fmtEur(k.spend)} delta={<Delta ora={k.spend} prima={p?.spend} meglio="neutro" />} sotto={<>CPC {k.clicks > 0 ? fmtEur(k.cpc) : "—"}</>} loading={loading} />
+          <Big
+            label="Conversioni Google"
+            value={fmtDec(k.conversions)}
+            delta={<Delta ora={k.conversions} prima={p?.conversions} meglio="su" />}
+            sotto={
+              <span className="inline-flex items-center gap-1.5">
+                Costo per conversione <span className="font-medium text-foreground">{k.conversions > 0 ? fmtEur(k.cpa) : "—"}</span>
+                <Delta ora={k.cpa} prima={p && p.conversions > 0 ? p.cpa : null} meglio="giu" />
+              </span>
+            }
+            loading={loading}
+          />
+          <Big
+            label="Lead nel CRM"
+            value={fmtNum(k.lead_crm)}
+            sotto={<>{k.lead_crm > 0 ? <>Costo per lead CRM <span className="font-medium text-foreground">{fmtEur(k.costo_lead_crm)}</span> · </> : null}{fmtNum(k.opportunita)} trattative</>}
+            loading={crmLoading}
+          />
+          <Big
+            label="Contratti"
+            value={fmtNum(k.vinte)}
+            sotto={k.vinte > 0 ? <>Costo per contratto <span className="font-medium text-foreground">{fmtEur(k.costo_vinta)}</span>{k.valore_vinto > 0 && <> · valore {fmtEur(k.valore_vinto)}</>}</> : "Nessun contratto ancora dai lead del periodo"}
+            loading={crmLoading}
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
+          <Small label="Impressioni" value={fmtNum(k.impressions)} delta={<Delta ora={k.impressions} prima={p?.impressions} meglio="neutro" />} loading={loading} />
+          <Small label="Clic" value={fmtNum(k.clicks)} delta={<Delta ora={k.clicks} prima={p?.clicks} meglio="su" />} loading={loading} />
+          <Small label="CTR" value={k.impressions > 0 ? fmtPct(k.ctr) : "N/D"} delta={<Delta ora={k.ctr} prima={p?.ctr} meglio="su" />} loading={loading} />
+          <Small label="Valore conversioni" value={k.conversion_value > 0 ? fmtEur(k.conversion_value) : "—"} loading={loading} />
+          <Small label="ROAS" value={k.conversion_value > 0 ? `${fmtDec(k.roas)}x` : "N/D"} aiuto="Valore conversioni registrato da Google diviso la spesa" loading={loading} />
+          <Small label="Quota impr." value={quota(k.search_is)} aiuto="Su quante ricerche idonee gli annunci sono comparsi (rete di ricerca)" loading={loading} />
+          <Small label="Persa: budget" value={quota(k.lost_budget_is)} aiuto="Ricerche perse perché il budget giornaliero finisce prima" loading={loading} />
+          <Small label="Persa: ranking" value={quota(k.lost_rank_is)} aiuto="Ricerche perse per offerta o qualità dell'annuncio troppo basse" loading={loading} />
+        </div>
+        {!loading && (k.lost_budget_is ?? 0) > 0.2 && (
+          <p className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            Il {quota(k.lost_budget_is)} delle ricerche in cui potevi comparire è perso per budget: le campagne si fermano
+            prima di fine giornata. Vedi la colonna «Persa: budget» per capire quali.
+          </p>
+        )}
+      </div>
+
+      <GoogleAdsTable report={report} />
+
+      <TrendChart
+        dailySeries={report.daily}
+        isLoading={loading}
+        nomeConversioni="Conversioni"
+        sottotitolo="Tutto l'account Google Ads, giorno per giorno"
+      />
+
+      {pannelliCrm}
     </div>
   );
 }
