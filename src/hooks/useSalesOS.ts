@@ -54,7 +54,8 @@ export interface SalesVelocity {
 }
 
 export interface ConversionBySource {
-  source: string;
+  source: string;               // la fonte scritta sull'opportunità: con questa si filtra la pagina Opportunità
+  label: string;                // come mostrarla: «Modulo: <nome>» al posto di «form_<id>»
   total_contacts: number;
   total_opportunities: number;
   won_opportunities: number;
@@ -270,6 +271,7 @@ export function useConversionBySource(
       return ((data ?? []) as any[])
         .map((row) => ({
           source: String(row.fonte ?? 'Sconosciuto'),
+          label: String(row.etichetta ?? row.fonte ?? 'Sconosciuto'),
           total_contacts: Number(row.contatti ?? 0),
           total_opportunities: Number(row.create_n ?? 0),
           won_opportunities: Number(row.vinte ?? 0),

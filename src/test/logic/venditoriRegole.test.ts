@@ -164,3 +164,24 @@ describe("controllo del CRM", () => {
     expect(sql).toContain("revoke all on function public.vendite_controllo_crm(uuid, date, date, uuid) from public, anon");
   });
 });
+
+describe("filtro per pipeline", () => {
+  it("il report passa la pipeline scelta a tutte le funzioni, e il clic la porta nelle opportunità", () => {
+    const hook = readFileSync(resolve(process.cwd(), "src/hooks/useVendorReport.ts"), "utf8");
+    expect(hook.match(/p_pipeline_id: pipelineId \?\? null/g)?.length).toBe(3); // KPI, andamento, fasi
+    expect(hook).toContain("p_pipeline: pipelineId ?? null"); // controllo del CRM
+    const report = readFileSync(
+      resolve(process.cwd(), "src/components/reporting/venditori/VenditoriPerformanceReport.tsx"),
+      "utf8",
+    );
+    expect(report).toContain('pipelineId: { key: "pipeline", defaultValue: "tutte" }');
+    expect(report).toContain("&pipeline=${pipelineId}");
+  });
+
+  it("nel grafico delle fonti i moduli hanno il nome, e il clic filtra con la fonte vera", () => {
+    const pagina = readFileSync(resolve(process.cwd(), "src/pages/azienda/marketing/SalesOSDashboard.tsx"), "utf8");
+    expect(pagina).toContain("goSource(origine)");
+    const sql = readFileSync(resolve(process.cwd(), "supabase/migrations/20280915410007_venditori_per_pipeline.sql"), "utf8");
+    expect(sql).toContain("'Modulo: ' || nullif(btrim(lf.name), '')");
+  });
+});

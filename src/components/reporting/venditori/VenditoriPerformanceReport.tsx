@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useURLFilters } from "@/hooks/useURLFilters";
+import { usePipelines } from "@/hooks/useOpportunitiesData";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -94,6 +95,7 @@ const VenditoriPerformanceReport = () => {
     customTo: { key: "a", defaultValue: "" },
     agentId: { key: "venditore", defaultValue: "tutti" },
     activeTab: { key: "vista", defaultValue: "overview" },
+    pipelineId: { key: "pipeline", defaultValue: "tutte" },
   });
   const periodKey = VENDOR_PERIODS.some((p) => p.value === filtri.periodKey) ? filtri.periodKey : "trimestre";
   const customFrom = /^\d{4}-\d{2}-\d{2}$/.test(filtri.customFrom) ? filtri.customFrom : "";
@@ -106,6 +108,16 @@ const VenditoriPerformanceReport = () => {
   const setAgentId = (v: string) => setParam("agentId", v);
   const setActiveTab = (v: string) => setParam("activeTab", v);
   const navigate = useNavigate();
+  // Con più pipeline (privati e aziende, fotovoltaico e serramenti…) i numeri
+  // messi insieme non dicono niente: si sceglie quale guardare.
+  // Quella dell'URL vale subito (niente numeri di tutte le pipeline mostrati e
+  // poi rifatti); scartata se non è un id o, arrivato l'elenco, non c'è.
+  const { data: pipelines = [], isSuccess: pipelineCaricate } = usePipelines();
+  const pipelineId = /^[0-9a-f-]{36}$/i.test(filtri.pipelineId)
+    && (!pipelineCaricate || pipelines.some((p: { id: string }) => p.id === filtri.pipelineId))
+    ? filtri.pipelineId
+    : undefined;
+  const setPipelineId = (v: string) => setParam("pipelineId", v);
 
   const { inizio, fine } = useMemo(
     () => resolveVendorRange(periodKey, customFrom, customTo),
@@ -115,13 +127,13 @@ const VenditoriPerformanceReport = () => {
   // Sempre la lista completa: il venditore si sceglie qui. Chiedendo alla
   // funzione un venditore solo, la tendina restava con lui solo e il radar
   // (che confronta con il team) non poteva comparire.
-  const { data: rawKpiList = [], isLoading, isError: erroreKpi, refetch: riprovaKpi } = useVendorKPI(inizio, fine);
+  const { data: rawKpiList = [], isLoading, isError: erroreKpi, refetch: riprovaKpi } = useVendorKPI(inizio, fine, undefined, true, pipelineId);
   const precedenteRange = useMemo(
     () => periodoPrecedente(inizio, fine, MESI_CONFRONTO[periodKey] ?? null),
     [inizio, fine, periodKey],
   );
   const { data: rawKpiPrecedente = [] } = useVendorKPI(
-    precedenteRange.inizio, precedenteRange.fine, undefined, activeTab === "overview",
+    precedenteRange.inizio, precedenteRange.fine, undefined, activeTab === "overview", pipelineId,
   );
   const etichettaPrecedente = `${format(precedenteRange.inizio, "d MMM yyyy", { locale: it })} – ${format(precedenteRange.fine, "d MMM yyyy", { locale: it })}`;
 
@@ -158,11 +170,12 @@ const VenditoriPerformanceReport = () => {
   const { data: trend = [], isError: erroreTrend, refetch: riprovaTrend } = useVendorTrend(
     fine.getFullYear(),
     effectiveAgentId,
-    needsTrend
+    needsTrend,
+    pipelineId,
   );
-  const { data: funnel = [], isError: erroreFunnel, refetch: riprovaFunnel } = useVendorFunnel(inizio, fine, effectiveAgentId);
+  const { data: funnel = [], isError: erroreFunnel, refetch: riprovaFunnel } = useVendorFunnel(inizio, fine, effectiveAgentId, pipelineId);
   const { data: integrationHealth = null, isLoading: isIntegrationLoading, isError: erroreIntegrazione, refetch: riprovaIntegrazione } =
-    useVendorIntegrationHealth(inizio, fine, effectiveAgentId);
+    useVendorIntegrationHealth(inizio, fine, effectiveAgentId, pipelineId);
   // Una lettura fallita non è «nessun dato»: prima le schede dicevano «Nessun
   // dato disponibile per il periodo» e la diagnosi «in controllo».
   const nonArrivati = [
@@ -216,9 +229,22 @@ const VenditoriPerformanceReport = () => {
               <ReportExportMenu
                 rows={exportRows}
                 columns={EXPORT_COLUMNS}
-                filenameBase={`report-venditori-${periodKey}`}
+                filenameBase={`report-venditori-${periodKey}${pipelineId ? "-pipeline" : ""}`}
                 disabled={isLoading}
               />
+              {pipelines.length > 1 && (
+                <Select value={pipelineId ?? "tutte"} onValueChange={setPipelineId}>
+                  <SelectTrigger className="w-[200px]" aria-label="Pipeline">
+                    <SelectValue placeholder="Pipeline" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="tutte">Tutte le pipeline</SelectItem>
+                    {pipelines.map((p: { id: string; name: string }) => (
+                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
               <Select value={agentId} onValueChange={setAgentId}>
                 <SelectTrigger className="w-[200px]">
                   <SelectValue placeholder="Seleziona agente" />
@@ -351,7 +377,9 @@ const VenditoriPerformanceReport = () => {
             <VenditoriRanking
               kpiList={kpiList}
               isLoading={isLoading}
-              onApriVenditore={(id) => navigate(`/azienda/marketing/opportunita?assigned_to=${id}`)}
+              onApriVenditore={(id) =>
+                navigate(`/azienda/marketing/opportunita?assigned_to=${id}${pipelineId ? `&pipeline=${pipelineId}` : ""}`)
+              }
             />
           )}
         </TabsContent>

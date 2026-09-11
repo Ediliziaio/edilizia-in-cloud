@@ -77,16 +77,17 @@ function fmtDate(d: Date) {
   return format(d, "yyyy-MM-dd");
 }
 
-export function useVendorKPI(inizio: Date, fine: Date, agentId?: string, enabled = true) {
+export function useVendorKPI(inizio: Date, fine: Date, agentId?: string, enabled = true, pipelineId?: string) {
   const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: ["vendor-kpi", companyId, fmtDate(inizio), fmtDate(fine), agentId],
+    queryKey: ["vendor-kpi", companyId, fmtDate(inizio), fmtDate(fine), agentId, pipelineId ?? "tutte"],
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_vendor_kpi_per_agent" as any, {
         p_company_id: companyId,
         p_data_inizio: fmtDate(inizio),
         p_data_fine: fmtDate(fine),
         p_agent_id: agentId ?? null,
+        p_pipeline_id: pipelineId ?? null,
       });
       if (error) throw error;
       // Senza profilo né email la funzione ripiega sull'id: è un utente
@@ -100,15 +101,16 @@ export function useVendorKPI(inizio: Date, fine: Date, agentId?: string, enabled
   });
 }
 
-export function useVendorTrend(anno?: number, agentId?: string, enabled = true) {
+export function useVendorTrend(anno?: number, agentId?: string, enabled = true, pipelineId?: string) {
   const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: ["vendor-trend", companyId, anno, agentId],
+    queryKey: ["vendor-trend", companyId, anno, agentId, pipelineId ?? "tutte"],
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_vendor_trend_mensile" as any, {
         p_company_id: companyId,
         p_anno: anno ?? new Date().getFullYear(),
         p_agent_id: agentId ?? null,
+        p_pipeline_id: pipelineId ?? null,
       });
       if (error) throw error;
       return (data ?? []) as VendorTrend[];
@@ -118,16 +120,17 @@ export function useVendorTrend(anno?: number, agentId?: string, enabled = true) 
   });
 }
 
-export function useVendorFunnel(inizio: Date, fine: Date, agentId?: string) {
+export function useVendorFunnel(inizio: Date, fine: Date, agentId?: string, pipelineId?: string) {
   const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: ["vendor-funnel", companyId, fmtDate(inizio), fmtDate(fine), agentId],
+    queryKey: ["vendor-funnel", companyId, fmtDate(inizio), fmtDate(fine), agentId, pipelineId ?? "tutte"],
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_vendor_funnel_stages" as any, {
         p_company_id: companyId,
         p_data_inizio: fmtDate(inizio),
         p_data_fine: fmtDate(fine),
         p_agent_id: agentId ?? null,
+        p_pipeline_id: pipelineId ?? null,
       });
       if (error) throw error;
       return (data ?? []) as FunnelStage[];
@@ -137,11 +140,11 @@ export function useVendorFunnel(inizio: Date, fine: Date, agentId?: string) {
   });
 }
 
-export function useVendorIntegrationHealth(inizio: Date, fine: Date, agentId?: string) {
+export function useVendorIntegrationHealth(inizio: Date, fine: Date, agentId?: string, pipelineId?: string) {
   const companyId = useEffectiveCompanyId();
 
   return useQuery({
-    queryKey: ["vendor-integration-health", companyId, fmtDate(inizio), fmtDate(fine), agentId],
+    queryKey: ["vendor-integration-health", companyId, fmtDate(inizio), fmtDate(fine), agentId, pipelineId ?? "tutte"],
     queryFn: async (): Promise<VendorIntegrationHealth> => {
       if (!companyId) return emptyVendorIntegrationHealth();
       // Contato nel database con le regole degli altri numeri
@@ -153,6 +156,7 @@ export function useVendorIntegrationHealth(inizio: Date, fine: Date, agentId?: s
         p_da: fmtDate(inizio),
         p_a: fmtDate(fine),
         p_venditore: agentId ?? null,
+        p_pipeline: pipelineId ?? null,
       });
       if (error) throw error;
       const r = (Array.isArray(data) ? data[0] : data) ?? {};

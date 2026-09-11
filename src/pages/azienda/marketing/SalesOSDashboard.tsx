@@ -991,9 +991,11 @@ function ConversionBySourceChart({ companyId, dateFrom, dateTo }: { companyId: s
       </div>
     );
 
+  // Sull'asse il nome leggibile (i moduli per nome, non «form_<id>»); il clic
+  // filtra con la fonte vera, che è quella scritta sulle opportunità.
   const chartData = sources.slice(0, 8).map((s) => ({
-    fonte:
-      s.source.length > 15 ? s.source.slice(0, 15) + "…" : s.source,
+    fonte: s.label.length > 15 ? s.label.slice(0, 15) + "…" : s.label,
+    origine: s.source,
     Opportunità: s.total_opportunities,
     "Chiuse vinte": s.won_opportunities,
     "Win rate %": parseFloat(s.win_rate.toFixed(1)),
@@ -1011,9 +1013,8 @@ function ConversionBySourceChart({ companyId, dateFrom, dateTo }: { companyId: s
         <BarChart
           data={chartData}
           onClick={(e: any) => {
-            const src = e?.activePayload?.[0]?.payload?.fonte;
-            const orig = sources.find((x) => (x.source.length > 15 ? x.source.slice(0, 15) + "…" : x.source) === src);
-            if (orig) goSource(orig.source);
+            const origine = e?.activePayload?.[0]?.payload?.origine;
+            if (origine) goSource(origine);
           }}
         >
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
@@ -1038,7 +1039,7 @@ function ConversionBySourceChart({ companyId, dateFrom, dateTo }: { companyId: s
             onClick={() => goSource(s.source)}
             className="text-center rounded-md p-2 hover:bg-muted/60 transition"
           >
-            <p className="text-xs text-muted-foreground truncate">{s.source}</p>
+            <p className="text-xs text-muted-foreground truncate" title={s.label}>{s.label}</p>
             <p className="text-sm font-semibold">
               {fmt(s.total_won_value)}
             </p>
