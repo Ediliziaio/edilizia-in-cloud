@@ -63,13 +63,17 @@ import { Calendar, MousePointerClick } from "lucide-react";
 
 // ─── Utilities ───────────────────────────────────────────────────────────────
 
-const fmt = (v: number) =>
-  new Intl.NumberFormat("it-IT", {
-    style: "currency",
-    currency: "EUR",
-    maximumFractionDigits: 0, useGrouping: "always" }).format(v);
+// Un valore che non si può calcolare (nessuna vendita chiusa nel periodo) si
+// mostra come «—», non come 0: uno zero sembra un risultato.
+const fmt = (v: number | null | undefined) =>
+  v == null || !Number.isFinite(v)
+    ? "—"
+    : new Intl.NumberFormat("it-IT", {
+        style: "currency",
+        currency: "EUR",
+        maximumFractionDigits: 0, useGrouping: "always" }).format(v);
 
-const pct = (v: number) => `${v.toFixed(1)}%`;
+const pct = (v: number | null | undefined) => (v == null || !Number.isFinite(v) ? "—" : `${v.toFixed(1)}%`);
 
 function severityLabel(daysStalled: number, threshold: number) {
   if (daysStalled >= threshold * 2) return { label: "Critica", variant: "destructive" as const };
@@ -312,6 +316,11 @@ function SalesVelocityCard({ companyId, daysBack, periodLabel }: { companyId: st
           {fmt(velocity.sales_velocity)}
           <span className="text-sm font-normal text-muted-foreground ml-1">/giorno</span>
         </div>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          {velocity.sales_velocity == null
+            ? "Serve almeno una vendita chiusa nel periodo per stimarla."
+            : "Valore della pipeline aperta × tasso di chiusura ÷ ciclo medio di vendita."}
+        </p>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-3 text-sm">
           <div>
             <p className="font-semibold">{velocity.open_opportunities}</p>
@@ -319,14 +328,14 @@ function SalesVelocityCard({ companyId, daysBack, periodLabel }: { companyId: st
           </div>
           <div>
             <p className="font-semibold">{pct(velocity.win_rate)}</p>
-            <span className="text-muted-foreground">Win rate</span>
+            <span className="text-muted-foreground">Tasso di chiusura</span>
           </div>
           <div>
             <p className="font-semibold">{fmt(velocity.avg_deal_size)}</p>
-            <span className="text-muted-foreground">Avg deal size</span>
+            <span className="text-muted-foreground">Ticket medio</span>
           </div>
           <div>
-            <p className="font-semibold">{velocity.avg_cycle_days}gg</p>
+            <p className="font-semibold">{velocity.avg_cycle_days == null ? "—" : `${velocity.avg_cycle_days} gg`}</p>
             <span className="text-muted-foreground">Ciclo medio</span>
           </div>
         </div>
@@ -382,7 +391,7 @@ function QuoteRevenueCard({
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium flex items-center gap-2">
             <Receipt className="h-4 w-4 text-primary" />
-            Ricavo firmato reale
+            Ricavo firmato (IVA esclusa)
             <span className="text-xs text-muted-foreground font-normal">({periodLabel.toLowerCase()})</span>
           </CardTitle>
         </CardHeader>
@@ -405,7 +414,7 @@ function QuoteRevenueCard({
       <CardHeader className="pb-2">
         <CardTitle className="text-sm font-medium flex items-center gap-2">
           <Receipt className="h-4 w-4 text-primary" />
-          Ricavo firmato reale
+          Ricavo firmato (IVA esclusa)
           <span className="text-xs text-muted-foreground font-normal">({periodLabel.toLowerCase()})</span>
         </CardTitle>
       </CardHeader>
@@ -1057,9 +1066,9 @@ function SellerComparisonTable({
 
 // ─── ConversionBySourceChart ──────────────────────────────────────────────────
 
-function ConversionBySourceChart({ companyId, dateFrom }: { companyId: string; dateFrom: string | null }) {
+function ConversionBySourceChart({ companyId, dateFrom, dateTo }: { companyId: string; dateFrom: string | null; dateTo: string }) {
   const navigate = useNavigate();
-  const { data: sources, isLoading, isError, error } = useConversionBySource(companyId, dateFrom);
+  const { data: sources, isLoading, isError, error } = useConversionBySource(companyId, dateFrom, dateTo);
 
   if (isLoading || isError) {
     return (
@@ -1487,7 +1496,7 @@ export default function SalesOSDashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <ConversionBySourceChart companyId={companyId} dateFrom={range.dateFrom} />
+              <ConversionBySourceChart companyId={companyId} dateFrom={range.dateFrom} dateTo={range.dateTo} />
             </CardContent>
           </Card>
         </TabsContent>

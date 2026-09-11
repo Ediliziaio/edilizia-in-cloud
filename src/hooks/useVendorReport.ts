@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
-import { startOfMonth, endOfMonth, startOfYear, endOfYear, subMonths, subDays } from "date-fns";
+import { startOfMonth, endOfMonth, startOfYear, endOfYear, subMonths, subDays, format } from "date-fns";
 import type { VendorIntegrationHealth } from "@/lib/reporting/vendorOperations";
 
 export type PeriodoVendor = "mese" | "mese_prec" | "trimestre" | "semestre" | "anno";
@@ -69,8 +69,10 @@ export interface FunnelStage {
   pct_del_totale: number;
 }
 
+// Giorno LOCALE: toISOString dà il giorno UTC, e l'inizio mese (mezzanotte
+// italiana) finiva nel giorno prima.
 function fmtDate(d: Date) {
-  return d.toISOString().slice(0, 10);
+  return format(d, "yyyy-MM-dd");
 }
 
 export function useVendorKPI(inizio: Date, fine: Date, agentId?: string) {

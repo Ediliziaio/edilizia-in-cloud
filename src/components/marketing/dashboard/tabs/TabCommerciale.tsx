@@ -49,13 +49,16 @@ import { formatCurrencyCompact } from "@/lib/formatters";
 
 /* ── Utilities ───────────────────────────────────────────── */
 
-const fmt = (v: number) =>
-  new Intl.NumberFormat("it-IT", {
-    style: "currency",
-    currency: "EUR",
-    maximumFractionDigits: 0, useGrouping: "always" }).format(v);
+// Un valore che non si può calcolare si mostra «—», non 0 (vedi SalesOSDashboard).
+const fmt = (v: number | null | undefined) =>
+  v == null || !Number.isFinite(v)
+    ? "—"
+    : new Intl.NumberFormat("it-IT", {
+        style: "currency",
+        currency: "EUR",
+        maximumFractionDigits: 0, useGrouping: "always" }).format(v);
 
-const pct = (v: number) => `${v.toFixed(1)}%`;
+const pct = (v: number | null | undefined) => (v == null || !Number.isFinite(v) ? "—" : `${v.toFixed(1)}%`);
 
 /* ── SalesVelocityCard ───────────────────────────────────── */
 
@@ -95,14 +98,14 @@ function SalesVelocityCard({ companyId }: { companyId: string }) {
           </div>
           <div>
             <p className="font-semibold">{pct(velocity.win_rate)}</p>
-            <span className="text-muted-foreground text-xs">Win rate</span>
+            <span className="text-muted-foreground text-xs">Tasso di chiusura</span>
           </div>
           <div>
             <p className="font-semibold">{fmt(velocity.avg_deal_size)}</p>
-            <span className="text-muted-foreground text-xs">Avg deal</span>
+            <span className="text-muted-foreground text-xs">Ticket medio</span>
           </div>
           <div>
-            <p className="font-semibold">{velocity.avg_cycle_days}gg</p>
+            <p className="font-semibold">{velocity.avg_cycle_days == null ? "—" : `${velocity.avg_cycle_days} gg`}</p>
             <span className="text-muted-foreground text-xs">Ciclo medio</span>
           </div>
         </div>

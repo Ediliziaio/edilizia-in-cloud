@@ -41,22 +41,23 @@ function resolveVendorRange(key: string, customFrom: string, customTo: string): 
   switch (key) {
     case "mese": return { inizio: startOfMonth(now), fine: endOfMonth(now) };
     case "mese_prec": { const m = subMonths(now, 1); return { inizio: startOfMonth(m), fine: endOfMonth(m) }; }
-    case "trimestre": return { inizio: startOfMonth(subMonths(now, 3)), fine: endOfMonth(now) };
-    case "semestre": return { inizio: startOfMonth(subMonths(now, 6)), fine: endOfMonth(now) };
+    // «Ultimo trimestre» = questo mese e i due prima (era startOf(mese − 3): 4 mesi).
+    case "trimestre": return { inizio: startOfMonth(subMonths(now, 2)), fine: endOfMonth(now) };
+    case "semestre": return { inizio: startOfMonth(subMonths(now, 5)), fine: endOfMonth(now) };
     case "anno": return { inizio: startOfYear(now), fine: endOfYear(now) };
     case "anno_prec": { const y = subYears(now, 1); return { inizio: startOfYear(y), fine: endOfYear(y) }; }
     case "custom": {
-      const f = customFrom ? startOfDay(new Date(customFrom)) : startOfMonth(subMonths(now, 3));
+      const f = customFrom ? startOfDay(new Date(customFrom)) : startOfMonth(subMonths(now, 2));
       const t = customTo ? endOfDay(new Date(customTo)) : now;
       return f.getTime() <= t.getTime() ? { inizio: f, fine: t } : { inizio: t, fine: f };
     }
-    default: return { inizio: startOfMonth(subMonths(now, 3)), fine: endOfMonth(now) };
+    default: return { inizio: startOfMonth(subMonths(now, 2)), fine: endOfMonth(now) };
   }
 }
 
 const EXPORT_COLUMNS = [
   { key: "nome_agente", label: "Agente" },
-  { key: "opp_totali", label: "Opportunità Totali" },
+  { key: "opp_totali", label: "Opportunità create nel periodo" },
   { key: "opp_vinte", label: "Vinte" },
   { key: "opp_perse", label: "Perse" },
   { key: "opp_aperte", label: "Aperte" },

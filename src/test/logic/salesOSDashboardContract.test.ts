@@ -42,9 +42,25 @@ describe("sales os dashboard contract", () => {
   });
 
   it("uses the contact lead source as fallback for source conversion analysis", () => {
-    expect(salesOSHook).toContain("marketing_contacts(source)");
-    expect(salesOSHook).toContain("contactSource");
+    // Dal 2026-09-11 il conto per fonte lo fa il database (vendite_per_fonte),
+    // con le regole di tutti i report: il ripiego sulla fonte del contatto sta lì.
+    const perFonte = readFileSync(
+      resolve(process.cwd(), "supabase/migrations/20280915410005_vendite_per_fonte.sql"),
+      "utf8",
+    );
+    expect(salesOSHook).toContain("rpc('vendite_per_fonte'");
+    expect(perFonte).toContain("coalesce(nullif(btrim(o.source), ''), nullif(btrim(c.source), ''), 'Sconosciuto')");
     expect(salesOSHook).not.toContain(".not('source', 'is', null)");
+  });
+
+  it("reads every number from the database, the same way for everyone", () => {
+    // Niente più ricalcoli nel browser per chi vede solo i propri lead: le
+    // funzioni rispettano la visibilità (SECURITY INVOKER) e danno a tutti gli
+    // stessi numeri con le stesse regole.
+    expect(salesOSHook).not.toContain("fetchAssignedWeightedPipeline");
+    expect(salesOSHook).not.toContain("fetchAssignedSalesForecast");
+    expect(salesOSHook).not.toContain("fetchAssignedSalesVelocity");
+    expect(salesOSHook).toContain("rpc('vendite_preventivi'");
   });
 
   it("uses weekly sales targets as a monthly fallback in Sales OS seller reporting", () => {
