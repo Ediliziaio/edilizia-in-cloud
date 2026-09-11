@@ -862,7 +862,8 @@ serveConMetriche("outreach-dispatch", async (req) => {
     if (contactIds.length) {
       const { data: cs } = await supabase
         .from("marketing_contacts")
-        .select("id,first_name,last_name,company_name,email,phone,optout_email").in("id", contactIds);
+        // province: alimenta la var `zona` ("in provincia di X"), vedi contactToVars.
+        .select("id,first_name,last_name,company_name,email,phone,optout_email,province").in("id", contactIds);
       for (const c of cs || []) contactById.set(c.id, c);
     }
 
@@ -1179,12 +1180,16 @@ serveConMetriche("outreach-dispatch", async (req) => {
         }
         const addr = brand?.footer_address ? `${brand.footer_address} · ` : "";
         // Base giuridica in una riga (B2B, indirizzi aziendali): trasparenza
-        // GDPR art. 13/14 senza informativa a parte. Solo nelle sequenze cold.
-        const gdpr = enr ? "Ti scrivo perché la tua impresa opera pubblicamente nel settore edile (legittimo interesse, art. 6.1.f GDPR). " : "";
+        // GDPR art. 13/14 senza informativa a parte. Solo nelle sequenze cold,
+        // e SOLO fuori dallo stile umano: chi scrive «stile umano» chiede già
+        // nel corpo di rispondere (schema fisso del brand, «poi firma e
+        // numero. Nient'altro» — nessuna riga extra dopo la firma), e
+        // aggiungerne un'altra automatica rompeva proprio quello schema.
+        const gdpr = enr && !stileUmano ? "Ti scrivo perché la tua impresa opera pubblicamente nel settore edile (legittimo interesse, art. 6.1.f GDPR). " : "";
         const unsubHtml = !item.contact_id
           ? ""
           : stileUmano
-            ? `${gdpr}Se preferisci non ricevere altre email, rispondimi anche solo «no» e non ti scrivo più.`
+            ? ""
             : `${gdpr}Non vuoi più ricevere queste email? <a href="${unsubscribeUrl}" style="color:#9ca3af">Disiscriviti</a>.`;
         const footerHtml = (addr || unsubHtml) ? `<p style="font-size:11px;color:#9ca3af;margin-top:24px">${addr}${unsubHtml}</p>` : "";
         html += footerHtml;

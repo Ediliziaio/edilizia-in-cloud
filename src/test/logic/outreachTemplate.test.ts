@@ -68,7 +68,15 @@ describe("contactToVars", () => {
     expect(contactToVars({ first_name: "Mario", last_name: null, company_name: "X", email: "m@x.it" }))
       // `nome` è il nome da usare nel saluto: vuoto quando non è di una persona
       // (vedi nomeSaluto). «Mario» con azienda «X» è un nome vero, quindi resta.
-      .toEqual({ first_name: "Mario", last_name: "", company_name: "X", email: "m@x.it", phone: "", nome: "Mario" });
+      // `zona` senza provincia in ingresso resta vuota (vedi zonaDaProvincia).
+      .toEqual({ first_name: "Mario", last_name: "", company_name: "X", email: "m@x.it", phone: "", nome: "Mario", zona: "" });
+  });
+
+  it("«zona» è «in provincia di X», sempre in coda a una frase", () => {
+    expect(contactToVars({ first_name: "Mario", company_name: "X", province: "to" }).zona)
+      .toBe("in provincia di Torino"); // sigla case-insensitive
+    expect(contactToVars({ first_name: "Mario", company_name: "X", province: "ZZ" }).zona)
+      .toBe(""); // sigla sconosciuta → niente, non un errore
   });
 });
 

@@ -29,10 +29,25 @@ describe("Stile umano nel dispatcher", () => {
     expect(d).toContain("if (trackOpens && !plainOnly && !stileUmano)");
   });
 
-  it("ci si disiscrive rispondendo, non cliccando", () => {
-    expect(d).toContain("rispondimi anche solo «no» e non ti scrivo più");
-    // e chi risponde «no» viene capito: il gestore delle risposte classifica
-    // l'intento e ferma/opt-out
+  it("niente riga automatica dopo la firma: lo schema del brand finisce lì", () => {
+    // La riga "rispondimi anche solo «no»…" (con la base giuridica GDPR
+    // davanti) la aggiungeva IL DISPATCHER, non il testo del brand — e per un
+    // brand con lo schema fisso "poi firma e numero. Nient'altro" (ThermoDMR,
+    // 11/09/2026) quella riga extra rompeva proprio lo schema. Il footer per
+    // lo stile umano è ora vuoto: l'invito a rispondere resta nel corpo
+    // scritto dal brand (dove ogni brand lo dice a modo suo, o non lo dice).
+    // La frase resta ancora per i brand NON a stile umano (link tracciato) —
+    // qui si verifica solo che lo stile umano non la usi più.
+    expect(d).not.toContain("rispondimi anche solo «no» e non ti scrivo più");
+    expect(d).toContain('const gdpr = enr && !stileUmano ?');
+    expect(d).toMatch(/stileUmano\s*\n\s*\?\s*""/);
+  });
+
+  it("chi risponde viene comunque capito: il gestore classifica l'intento e ferma/opt-out", () => {
+    // Il meccanismo di opt-out resta "rispondi per uscire", anche senza la
+    // riga automatica: ogni email del brand invita già a rispondere per un
+    // motivo concreto, e l'ultima di ogni sequenza offre esplicitamente
+    // l'opzione "toglimi dalla lista".
     const gestore = leggi("supabase/functions/_shared/outreach-reply-handler.ts");
     expect(gestore).toContain('intent === "not_interested"');
     expect(gestore).toContain('intent === "unsubscribe"');

@@ -47,7 +47,7 @@ Deno.serve(async (req) => {
     if (contactId) {
       const { data: contact } = await admin
         .from("marketing_contacts")
-        .select("first_name,last_name,company_name,email,phone")
+        .select("first_name,last_name,company_name,email,phone,province")
         .eq("id", contactId).maybeSingle();
       if (contact) vars = contactToVars(contact);
     }
