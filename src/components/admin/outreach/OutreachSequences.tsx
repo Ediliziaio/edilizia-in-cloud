@@ -12,8 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Loader2, Plus, Mail, ChevronRight, ChevronDown, AlertTriangle,
-  Sparkles, Eye, Copy, LayoutTemplate, Info, Network, Pencil, Check, X, Trash2, ListPlus,
-} from "lucide-react";
+  Sparkles, Eye, Copy, LayoutTemplate, Info, Network, Pencil, Check, X, Trash2, ListPlus, CheckCircle2 } from "lucide-react";
 import { isMissingTableError, MigrationGate } from "./_shared";
 import { OutreachEnrollDialog } from "./OutreachEnrollDialog";
 import { OutreachSequenceFlowBuilder } from "./OutreachSequenceFlowBuilder";
@@ -26,7 +25,7 @@ import {
 import { CH_ICON, CH_ACCENT, delayLabel, type TimelineStep } from "./sequenceShared";
 import { renderTemplate, contactToVars, hashSeed } from "../../../../supabase/functions/_shared/outreach-template";
 import { parseVariants } from "../../../../supabase/functions/_shared/outreach-abz";
-import { spamScore } from "../../../../supabase/functions/_shared/outreach-spam-score";
+import { lintEmail } from "../../../../supabase/functions/_shared/outreach-linter";
 
 const PREVIEW_SAMPLE = { first_name: "Mario", last_name: "Rossi", company_name: "Rossi Costruzioni", email: "mario@rossi.it" };
 
@@ -997,55 +996,49 @@ function StepEditor({
 }
 
 /**
- * Linter deliverability LIVE dello step: rischio spam (0-100) + segnali
- * azionabili, calcolati mentre scrivi. Riusa la stessa logica del dispatcher
- * (_shared/outreach-spam-score) così quello che vedi qui è quello che conta
- * al momento dell'invio. Meno rischio = più email arrivano in inbox.
+ * Linter dello step, LIVE mentre scrivi: le stesse regole che il dispatcher
+ * applica al momento dell'invio (_shared/outreach-linter). Prima qui c'era un
+ * «punteggio spam» diverso dal gate reale: una copy poteva sembrare ottima e
+ * finire «skipped» in coda con un motivo che nessuno vedeva.
  */
-function QualityMeter({ subject, body }: { subject: string; body: string }) {
-  const result = useMemo(() => {
+function QualityMeter({ subject, body, touch = 1 }: { subject: string; body: string; touch?: number }) {
+  const rilievi = useMemo(() => {
     // usa la prima variante (A/Z separati da ===) come rappresentativa
     const firstVariant = body.split(/^\s*===\s*$/m)[0] || body;
-    return spamScore(subject, firstVariant, firstVariant);
-  }, [subject, body]);
+    return lintEmail(subject.split("===")[0] ?? subject, firstVariant, { touch });
+  }, [subject, body, touch]);
 
   if (!body.trim()) return null;
+  const blocchi = rilievi.filter((r) => r.gravita === "blocco");
+  const avvisi = rilievi.filter((r) => r.gravita === "avviso");
 
-  const theme = result.level === "rischio"
-    ? { bar: "bg-rose-500", text: "text-rose-700", bg: "bg-rose-50", border: "border-rose-200", label: "Rischio spam alto", icon: AlertTriangle }
-    : result.level === "attenzione"
-      ? { bar: "bg-amber-500", text: "text-amber-700", bg: "bg-amber-50", border: "border-amber-200", label: "Da migliorare", icon: Info }
-      : { bar: "bg-emerald-500", text: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-200", label: "Ottimo per il cold", icon: Check };
-  const Icon = theme.icon;
-  const sevDot: Record<string, string> = { high: "bg-rose-500", med: "bg-amber-500", low: "bg-muted-foreground/50" };
-
+  if (rilievi.length === 0) {
+    return (
+      <div className="mt-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">
+        <span className="inline-flex items-center gap-1.5 font-medium"><CheckCircle2 className="h-3.5 w-3.5" /> Pronta a partire: nessun rilievo del linter.</span>
+      </div>
+    );
+  }
   return (
-    <div className={`rounded-lg border ${theme.border} ${theme.bg} p-2.5 space-y-1.5`}>
-      <div className="flex items-center gap-2">
-        <Icon className={`h-3.5 w-3.5 shrink-0 ${theme.text}`} />
-        <span className={`text-xs font-semibold ${theme.text}`}>{theme.label}</span>
-        <span className="ml-auto text-[10px] tabular-nums text-muted-foreground">rischio {result.score}/100</span>
-      </div>
-      <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/60">
-        <div className={`h-full rounded-full ${theme.bar} transition-all`} style={{ width: `${Math.max(4, result.score)}%` }} />
-      </div>
-      {result.signals.length > 0 ? (
-        <ul className="space-y-0.5 pt-0.5">
-          {result.signals.map((s, i) => (
-            <li key={i} className="flex items-start gap-1.5 text-[11px] text-foreground/80">
-              <span className={`mt-1 h-1.5 w-1.5 shrink-0 rounded-full ${sevDot[s.severity]}`} />
-              {s.label}
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="text-[11px] text-emerald-700">Personalizzato, breve, senza trigger anti-spam. Così arriva in inbox.</p>
-      )}
+    <div className={`mt-2 space-y-1.5 rounded-md border px-3 py-2 text-xs ${blocchi.length ? "border-rose-200 bg-rose-50 dark:border-rose-900 dark:bg-rose-950" : "border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950"}`}>
+      <p className={`inline-flex items-center gap-1.5 font-medium ${blocchi.length ? "text-rose-700 dark:text-rose-200" : "text-amber-700 dark:text-amber-200"}`}>
+        <AlertTriangle className="h-3.5 w-3.5" />
+        {blocchi.length
+          ? `${blocchi.length} ${blocchi.length === 1 ? "blocco" : "blocchi"}: così non parte`
+          : `${avvisi.length} ${avvisi.length === 1 ? "avviso" : "avvisi"}: parte, ma si può fare meglio`}
+      </p>
+      <ul className="space-y-1 text-foreground/80">
+        {rilievi.map((r, n) => (
+          <li key={n} className="flex gap-1.5">
+            <span className={`shrink-0 font-mono text-[10px] uppercase ${r.gravita === "blocco" ? "text-rose-600" : "text-amber-600"}`}>{r.regola}</span>
+            <span>{r.messaggio}{r.estratto ? <span className="text-muted-foreground"> — «{r.estratto}»</span> : null}</span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
 
-/** Input numerico con stepper +/- per il ritardo (giorni/ore). */
 function DelayStepper({ label, value, onChange, onBump, max }: {
   label: string; value: string; onChange: (v: string) => void; onBump: (dir: 1 | -1) => void; max: number;
 }) {

@@ -4,6 +4,7 @@ import { firstEmailStep, nonEmailStepCount, computeStepSchedule, type SeqStep } 
 import { effectiveDailyCap } from "../_shared/outreach-dispatch-logic.ts";
 import { spreadFirstTouch } from "../_shared/outreach-spread.ts";
 import { isPecEmail, isRoleEmail, domainOf, domainHasMx } from "../_shared/outreach-email-check.ts";
+import { classifyEmail } from "../_shared/email-quality.ts";
 
 /**
  * outreach-enroll — il SUPER_ADMIN iscrive contatti a una sequenza cold.
@@ -36,6 +37,8 @@ interface ContactRow {
   id: string;
   email: string | null;
   optout_email: boolean | null;
+  unsubscribed?: boolean | null;
+  opt_out?: boolean | null;
   province?: string | null;
   city?: string | null;
   ricontatta_dopo?: string | null;
@@ -111,7 +114,7 @@ Deno.serve(async (req) => {
     // decine di migliaia di contatti veniva iscritta solo per i primi 1000,
     // in silenzio. Paginiamo con .range() fino a MAX_CONTACTS e segnaliamo se
     // il tetto viene comunque raggiunto.
-    const COLS = "id,email,optout_email,province,city,ricontatta_dopo";
+    const COLS = "id,email,optout_email,unsubscribed,opt_out,province,city,ricontatta_dopo";
     const contacts: ContactRow[] = [];
     let truncated = false;
     const lista = { membri: 0, gia_iscritti: 0 };
@@ -185,7 +188,7 @@ Deno.serve(async (req) => {
       tempo_scaduto: false,
       enrolled: 0,
       skipped_no_email: 0,
-      skipped_optout: 0,
+      skipped_optout: 0, skipped_sintassi: 0, skipped_cliente: 0, skipped_stessa_azienda: 0,
       skipped_suppressed: 0,
       skipped_already: 0,
       skipped_role: 0,
@@ -209,11 +212,30 @@ Deno.serve(async (req) => {
     // si ferma appena l'ondata è piena.
     const norm = (e: string) => e.toLowerCase().trim();
     const nowMs = Date.now();
+    // Chi è già cliente (utente di un'azienda EiC, o stesso dominio aziendale)
+    // non riceve mai un cold: si legge il proprio gestionale che gli scrive
+    // come a uno sconosciuto.
+    const clientiEic = new Set<string>();
+    const dominiClientiEic = new Set<string>();
+    {
+      const { data: utenti } = await admin.from("profiles").select("email").not("company_id", "is", null).limit(5000);
+      for (const u of (utenti ?? []) as { email: string | null }[]) if (u.email) clientiEic.add(norm(u.email));
+      const { data: aziende } = await admin.from("companies").select("email").is("deleted_at", null).limit(2000);
+      for (const a of (aziende ?? []) as { email: string | null }[]) {
+        if (!a.email) continue;
+        const q = classifyEmail(a.email);
+        if (q.domain && !q.isFree) dominiClientiEic.add(q.domain);
+      }
+    }
     const puliti: ContactRow[] = [];
     for (const c of contacts) {
       if (already.has(c.id)) { stats.skipped_already++; continue; }
       if (!c.email) { stats.skipped_no_email++; continue; }
-      if (c.optout_email) { stats.skipped_optout++; continue; }
+      // Tre campi dicono «non scrivermi»: prima se ne leggeva uno.
+      if (c.optout_email || c.unsubscribed || c.opt_out) { stats.skipped_optout++; continue; }
+      const qualita = classifyEmail(c.email);
+      if (!qualita.syntaxValid || qualita.isDisposable) { stats.skipped_sintassi++; continue; }
+      if (clientiEic.has(norm(c.email)) || (qualita.domain && dominiClientiEic.has(qualita.domain))) { stats.skipped_cliente++; continue; }
       if (c.ricontatta_dopo && Date.parse(c.ricontatta_dopo) > nowMs) { stats.skipped_cooldown++; continue; }
       if (!includiPec && isPecEmail(c.email)) { stats.skipped_pec++; continue; }
       if (!includiRole && isRoleEmail(c.email)) { stats.skipped_role++; continue; }
@@ -268,13 +290,12 @@ Deno.serve(async (req) => {
     // azienda e vale per tutti i suoi contatti.
     const conLock: ContactRow[] = [];
     if (!seq.brand_id) {
-      // Sequenza senza brand: il lock non ha su cosa agire. Non si blocca
-      // (retrocompatibilita'), ma lo si dichiara nel risultato invece di
-      // lasciarlo passare in silenzio.
-      conLock.push(...eligible);
-      stats.lock_non_applicato = eligible.length;
+      // Senza brand il lock non ha su cosa agire e con lui saltano cooldown e
+      // soppressione per azienda: un cold senza brand non parte.
+      return errorResponse("La sequenza non ha un brand: assegnalo prima di iscrivere contatti (il lock multi-brand e i cooldown per azienda dipendono da quello).", 409, corsH);
     } else {
       const esitoPerAzienda = new Map<string, boolean>();
+      const aziendeInOndata = new Set<string>();
       for (const c of eligible) {
         // Margine per le insert che seguono: meglio un'ondata più corta che un
         // kill a metà con lock presi e nessuna iscrizione.
@@ -298,7 +319,16 @@ Deno.serve(async (req) => {
             stats.lock_negato_per_motivo[motivo] = (stats.lock_negato_per_motivo[motivo] ?? 0) + 1;
           }
         }
-        if (ok) conLock.push(c); else stats.skipped_lock++;
+        if (!ok) { stats.skipped_lock++; continue; }
+        // Un solo referente per azienda per ondata: due persone della stessa
+        // impresa nello stesso flusso sono un doppione che si vede.
+        if (aziendeInOndata.has(chiave)) { stats.skipped_stessa_azienda++; continue; }
+        const { count: giaInSequenza } = await admin.from("outreach_prospect_contacts")
+          .select("id", { count: "exact", head: true })
+          .eq("prospect_company_id", chiave).eq("stato", "in_sequence");
+        if ((giaInSequenza ?? 0) > 0) { stats.skipped_stessa_azienda++; continue; }
+        aziendeInOndata.add(chiave);
+        conLock.push(c);
       }
     }
     if (conLock.length === 0) {

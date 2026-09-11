@@ -22,7 +22,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { imapFetchUnreadSince, imapCuraWarmup, type ImapConfig } from "../_shared/imapSmtpClient.ts";
 import { matchReplyToContact, type KnownContact } from "../_shared/outreach-reply-match.ts";
-import { handleInboundReply } from "../_shared/outreach-reply-handler.ts";
+import { rilasciaLock, handleInboundReply } from "../_shared/outreach-reply-handler.ts";
 import { parseBounce, type BounceInfo } from "../_shared/outreach-bounce.ts";
 import { htmlToPlainText } from "../_shared/outreach-template.ts";
 import { shouldAutoPause } from "../_shared/outreach-dispatch-logic.ts";
@@ -79,6 +79,8 @@ async function applicaBounce(admin: any, mb: Casella, b: BounceInfo): Promise<vo
         .update({ status: "bounced", next_action_at: null, stop_reason: "hard_bounce" }).in("id", eids);
       await admin.from("outreach_send_queue")
         .update({ status: "cancelled", last_error: "hard bounce" }).in("enrollment_id", eids).eq("status", "queued");
+      // L'azienda esce dal lock con esito «bounce» (12 mesi di cooldown).
+      for (const cid of ids) await rilasciaLock(admin, cid, null, "bounce");
     } else {
       console.warn(`[outreach-imap-poll] ${mb.email}: bounce temporaneo per ${email} (${b.reason ?? "?"}), sequenza lasciata attiva`);
     }

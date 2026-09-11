@@ -29,7 +29,18 @@ async function cname(name: string): Promise<string | null> {
   } catch { return null; }
 }
 
-async function dkimSelector(domain: string): Promise<string | null> {
+async function selettorePubblicato(domain: string, sel: string): Promise<boolean> {
+  const name = `${sel}._domainkey.${domain}`;
+  const t = await txt(name);
+  if (t.some((v) => /v=DKIM1|p=/i.test(v))) return true;
+  return !!(await cname(name));
+}
+
+async function dkimSelector(domain: string, manuale?: string | null): Promise<string | null> {
+  // Register (e altri) generano un selettore univoco per dominio: se l'operatore
+  // lo ha scritto sul dominio, si prova quello per primo.
+  const m = (manuale ?? "").trim().toLowerCase().replace(/\._domainkey.*$/, "");
+  if (m && await selettorePubblicato(domain, m)) return m;
   for (const sel of DKIM_SELECTORS) {
     const name = `${sel}._domainkey.${domain}`;
     const t = await txt(name);
@@ -53,16 +64,20 @@ Deno.serve(async (req) => {
 
     const { data: row, error: rErr } = await admin
       .from("outreach_sending_domains")
-      .select("id,domain,status,spf_verified,dkim_verified,dmarc_verified,notes")
+      .select("id,domain,status,spf_verified,dkim_verified,dmarc_verified,notes,dkim_selector")
       .eq("id", domainId).maybeSingle();
     if (rErr) throw rErr;
     if (!row) return errorResponse("Dominio non trovato", 404, corsH);
     const domain = String(row.domain).toLowerCase().trim();
+    // Selettore scritto a mano (dal pannello): si salva e si usa per primo.
+    const selettoreManuale = typeof body?.dkim_selector === "string"
+      ? body.dkim_selector.trim().toLowerCase().replace(/\._domainkey.*$/, "") || null
+      : (row.dkim_selector ?? null);
 
     // 1. DNS reale
     const spfRec = (await txt(domain)).find((v) => /^v=spf1/i.test(v.trim())) ?? null;
     const dmarcRec = (await txt(`_dmarc.${domain}`)).find((v) => /^v=DMARC1/i.test(v.trim())) ?? null;
-    const selector = await dkimSelector(domain);
+    const selector = await dkimSelector(domain, selettoreManuale);
     let spf = !!spfRec;
     let dkim = !!selector;
     const dmarc = !!dmarcRec;
@@ -91,11 +106,12 @@ Deno.serve(async (req) => {
     const nowIso = new Date().toISOString();
     const dettagli = [
       spfRec ? `SPF: ${spfRec.slice(0, 80)}` : "SPF: assente",
-      selector ? `DKIM: selettore "${selector}"` : "DKIM: nessun selettore noto trovato",
+      selector ? `DKIM: selettore "${selector}"` : (selettoreManuale ? `DKIM: il selettore "${selettoreManuale}" non risulta pubblicato` : "DKIM: nessun selettore noto trovato (scrivi quello del provider sul dominio)"),
       dmarcRec ? `DMARC: ${dmarcRec.slice(0, 80)}` : "DMARC: assente (consigliato p=none con rua)",
     ].join(" · ");
     const { error: uErr } = await admin.from("outreach_sending_domains").update({
       spf_verified: spf, dkim_verified: dkim, dmarc_verified: dmarc, status, updated_at: nowIso,
+      dkim_selector: selector ?? selettoreManuale,
       notes: `Verifica ${nowIso.slice(0, 16).replace("T", " ")} (${fonti.join("+")}): ${dettagli}`,
     }).eq("id", row.id);
     if (uErr) throw uErr;

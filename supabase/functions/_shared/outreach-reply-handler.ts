@@ -25,6 +25,7 @@ import {
 } from "./outreach-intent.ts";
 import { snippetFrom } from "./outreach-inbound-logic.ts";
 import { isAutoReply, type InboundHeaders } from "./outreach-autoreply.ts";
+import { intentDaParoleChiave } from "./outreach-intent-parole.ts";
 
 const PLATFORM_COMPANY = "00000000-0000-0000-0000-000000000001";
 
@@ -100,6 +101,16 @@ export async function handleInboundReply(admin: any, r: InboundReply): Promise<v
   // 2. Classifica l'intento con l'AI (best-effort, non blocca)
   let intent: string | null = null;
   if (inserted?.id) intent = await classifyAndStoreIntent(admin, inserted.id, r.subject ?? "", snippet ?? "");
+  // Fallback a parole chiave: senza List-Unsubscribe l'unica via d'uscita è
+  // rispondere «no», e deve funzionare anche se l'AI è giù o non è sicura.
+  // «Cancellatemi» vince sempre; «non mi interessa» solo se l'AI non ha deciso.
+  const daParole = intentDaParoleChiave(r.subject ?? "", r.text ?? "");
+  if (daParole === "unsubscribe" || (daParole && (intent === null || intent === "other"))) {
+    intent = daParole;
+    if (inserted?.id) {
+      await admin.from("outreach_replies").update({ intent, intent_confidence: 0.6 }).eq("id", inserted.id);
+    }
+  }
 
   // 3. AUTO-PAUSA SU RISPOSTA: chi risponde non deve più ricevere follow-up cold.
   // Fermiamo TUTTE le iscrizioni ancora vive del contatto (non solo quella passata
@@ -151,6 +162,14 @@ export async function handleInboundReply(admin: any, r: InboundReply): Promise<v
     } catch { /* colonna assente pre-migrazione */ }
   }
 
+  // 4-quater. Il lock multi-brand sull'azienda si chiude con l'esito: opt-out
+  // = 10 anni e soppressione dell'azienda, no = 24 mesi, sì = 12 mesi. Prima
+  // outreach_release_brand_lock non la chiamava nessuno: i cooldown per
+  // azienda restavano sulla carta.
+  if (intent === "unsubscribe") await rilasciaLock(admin, r.contactId, r.enrollmentId, "opt_out");
+  else if (intent === "not_interested") await rilasciaLock(admin, r.contactId, r.enrollmentId, "risposta_negativa");
+  else if (intent === "interested") await rilasciaLock(admin, r.contactId, r.enrollmentId, "risposta_positiva");
+
   // 4. Se l'AI ha capito "unsubscribe", opt-out del contatto e blocklist.
   if (intent === "unsubscribe") {
     if (r.contactId) {
@@ -163,6 +182,32 @@ export async function handleInboundReply(admin: any, r: InboundReply): Promise<v
         { onConflict: "company_id,email_normalized,reason" },
       );
     }
+  }
+}
+
+/** Chiude il lock dell'azienda del contatto con l'esito della risposta (best effort). */
+export async function rilasciaLock(
+  admin: any, contactId: string | null, enrollmentId: string | null | undefined,
+  esito: "opt_out" | "risposta_negativa" | "risposta_positiva" | "bounce",
+): Promise<void> {
+  if (!contactId) return;
+  try {
+    const { data: pc } = await admin.from("outreach_prospect_contacts")
+      .select("prospect_company_id").eq("contact_id", contactId).maybeSingle();
+    if (!pc?.prospect_company_id) return;
+    let brandId: string | null = null;
+    if (enrollmentId) {
+      const { data: e } = await admin.from("outreach_enrollments").select("sequence_id").eq("id", enrollmentId).maybeSingle();
+      if (e?.sequence_id) {
+        const { data: sq } = await admin.from("outreach_sequences").select("brand_id").eq("id", e.sequence_id).maybeSingle();
+        brandId = sq?.brand_id ?? null;
+      }
+    }
+    await admin.rpc("outreach_release_brand_lock", {
+      p_prospect_company_id: pc.prospect_company_id, p_brand_id: brandId, p_esito: esito,
+    });
+  } catch (e) {
+    console.warn("[outreach-reply-handler] rilascio lock:", e instanceof Error ? e.message : e);
   }
 }
 

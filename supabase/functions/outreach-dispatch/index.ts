@@ -19,7 +19,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
-import { assignSenders, cadenzaCasella, dailyCapWithVariance, remainingToday, sentToday, type SenderState, statoPerPrimiContatti, unaAssegnazionePerCasella } from "../_shared/outreach-dispatch-logic.ts";
+import { assignSenders, cadenzaCasella, dailyCapWithVariance, remainingToday, sentToday, type Assignment, type SenderState, statoPerPrimiContatti, unaAssegnazionePerCasella } from "../_shared/outreach-dispatch-logic.ts";
+import { FRASE_USCITA_DEFAULT, haFraseUscita } from "../_shared/outreach-uscita.ts";
 import { renderTemplate, contactToVars, hashSeed, htmlToPlainText } from "../_shared/outreach-template.ts";
 import { DEFAULT_SEND_WINDOW, finestraEffettiva, isWithinSendWindow, minutoDelGiorno, parseSendWindow, type SendWindow } from "../_shared/outreach-schedule.ts";
 import { parseVariants, pickVariant } from "../_shared/outreach-abz.ts";
@@ -39,7 +40,6 @@ import { appendTrackingSig, outreachOpenPixelUrl } from "../_shared/emailTrackin
 import { lintEmail, puoPartire } from "../_shared/outreach-linter.ts";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import { buildFollowupHeaders, citazionePrecedente, type SentStep } from "../_shared/outreach-threading.ts";
-import { pauseBetweenSendsMs } from "../_shared/outreach-spread.ts";
 import { sendViaNativeSender, isNativeProvider, getOauthAccessToken } from "../_shared/outreachMailboxSend.ts";
 import { alertOutreach, logRun } from "../_shared/outreachAlert.ts";
 
@@ -122,6 +122,14 @@ const BATCH = 100;
 // puliti (le righe non ancora prese restano 'queued' per il tick successivo).
 // Sotto il limite 150s della edge function, con margine per l'update finale.
 const TICK_BUDGET_MS = 110_000;
+// Caselle servite in parallelo nello stesso tick (una assegnazione per casella).
+const CONCORRENZA_CASELLE = 8;
+
+async function inParallelo<T>(items: T[], limite: number, fn: (x: T) => Promise<void>): Promise<void> {
+  let i = 0;
+  const worker = async () => { while (i < items.length) { const x = items[i++]; await fn(x); } };
+  await Promise.all(Array.from({ length: Math.min(limite, items.length) }, worker));
+}
 // Righe rimaste 'sending' oltre questa età = orfane (tick precedente ucciso dal
 // timeout o crashato): il reaper le rimette in coda così non si perdono.
 const REAP_STUCK_MS = 15 * 60_000;
@@ -858,13 +866,37 @@ serveConMetriche("outreach-dispatch", async (req) => {
       }
       senders.push(s);
     }
+    // DOMINIO PRONTO: una casella spedisce solo da un dominio 'active' (SPF e
+    // DKIM verificati). Prima lo stato del dominio era decorativo: i domini
+    // «verifying», senza DKIM trovato, spedivano lo stesso.
+    {
+      const { data: domsStato } = await supabase.from("outreach_sending_domains").select("id,domain,status");
+      const statoDom = new Map<string, { domain: string; status: string }>();
+      for (const d of (domsStato ?? []) as any[]) statoDom.set(d.id, { domain: d.domain, status: d.status });
+      const fermati = new Map<string, string[]>();
+      for (let i = senders.length - 1; i >= 0; i--) {
+        const dom = senders[i].sending_domain_id ? statoDom.get(senders[i].sending_domain_id) : null;
+        if (dom && dom.status !== "active") {
+          fermati.set(dom.domain, [...(fermati.get(dom.domain) ?? []), senders[i].email]);
+          senders.splice(i, 1);
+        }
+      }
+      for (const [dom, caselle] of fermati) {
+        await alertOutreach(supabase, {
+          chiave: `dominio:${dom}`, tipo: "outreach_dominio_non_pronto", ogniOre: 24,
+          titolo: `Dominio ${dom} non pronto: ${caselle.length} caselle ferme`,
+          testo: "SPF o DKIM non verificati: le caselle di questo dominio non spediscono finché la verifica DNS non passa. Scrivi il selettore DKIM del provider sul dominio e premi «Verifica DNS».",
+          url: "/admin/marketing?tab=deliverability",
+        });
+      }
+    }
     if (senders.length === 0) { await logRun(supabase, "outreach-dispatch", now, { ...result, note: "nessuna casella attiva" }); return json({ ...result, note: "nessuna casella attiva" }, 200, cors); }
 
     const senderById = new Map(senders.map((s) => [s.id, s]));
     const queueById = new Map(queue.map((q) => [q.id, q]));
 
     // identità per brand (from_name / reply_to override) + firma e indirizzo footer
-    const { data: brandsRaw } = await supabase.from("outreach_brands").select("id,status,from_name,reply_to,signature,footer_address,send_window,tracking_base_url,new_per_day,stile_umano");
+    const { data: brandsRaw } = await supabase.from("outreach_brands").select("id,status,from_name,reply_to,signature,footer_address,send_window,tracking_base_url,new_per_day,stile_umano,frase_uscita");
     for (const b of brandsRaw || []) brandById.set(b.id, b);
 
     // vars dei contatti per la personalizzazione (variabili + spintax al send)
@@ -1081,15 +1113,24 @@ serveConMetriche("outreach-dispatch", async (req) => {
     // Il contatore giornaliero e' incrementato da outreach_prenota_invio PRIMA
     // dell'invio (atomico): niente piu' snapshot letto a inizio tick e riscritto.
 
-    for (const a of assignments) {
+    // Le caselle spediscono IN PARALLELO, sempre una per casella per tick: il
+    // giro sequenziale con una pausa bloccante di 8-25 s dopo ogni invio metteva
+    // un soffitto di ~400 email al giorno a TUTTO il pool, qualunque fosse il
+    // numero di caselle. Ogni invio parte con un ritardo casuale di qualche
+    // secondo, così le connessioni non si aprono tutte nello stesso istante.
+    let fermaTick = false;
+    const lavora = async (a: Assignment): Promise<void> => {
+      if (fermaTick) return;
+      await new Promise((r) => setTimeout(r, Math.floor(Math.random() * 12_000)));
+      if (fermaTick) return;
       // Time-budget: usciamo puliti prima del limite 150s della edge. Le righe
       // non ancora prese restano 'queued' per il tick successivo; nessuna resta
       // orfana in 'sending' (le prendiamo solo col CAS appena prima dell'invio).
-      if (Date.now() - startedAt > TICK_BUDGET_MS) { result.budgetHit = true; break; }
+      if (Date.now() - startedAt > TICK_BUDGET_MS) { result.budgetHit = true; fermaTick = true; return; }
       result.processed++;
       const item = queueById.get(a.queueId);
       const sender = senderById.get(a.senderId);
-      if (!item || !sender || !item.to_email) { result.skipped++; continue; }
+      if (!item || !sender || !item.to_email) { result.skipped++; return; }
 
       // GUARDIA BRAND → DOMINIO → CASELLA.
       // L'assegnazione raggruppa gia' per brand, ma una casella con brand
@@ -1106,23 +1147,23 @@ serveConMetriche("outreach-dispatch", async (req) => {
             .update({ status: "queued", last_error: `guardia brand: ${perche}` }).eq("id", item.id);
           console.error(`[outreach-dispatch] GUARDIA BRAND — invio bloccato: ${perche}`);
           result.deferred++;
-          continue;
+          return;
         }
       }
 
       // gating iscrizione: pausa → resta in coda; terminata → annulla; opt-out → ferma
       const enr = item.enrollment_id ? enrollmentById.get(item.enrollment_id) : null;
       if (enr) {
-        if (enr.status === "paused") { result.deferred++; continue; }
+        if (enr.status === "paused") { result.deferred++; return; }
         // "In pausa" sulla SEQUENZA: prima il dispatcher non la leggeva e
         // continuava a spedire; le righe restano in coda finche' si riprende.
         const st = statoSequenza.get(enr.sequence_id);
-        if (st === "paused" || st === "archived") { result.deferred++; continue; }
+        if (st === "paused" || st === "archived") { result.deferred++; return; }
         if (TERMINAL_ENROLLMENT.has(enr.status)) {
           await supabase.from("outreach_send_queue")
             .update({ status: "cancelled", last_error: `enrollment ${enr.status}` }).eq("id", item.id);
           result.skipped++;
-          continue;
+          return;
         }
       }
       const contactPre = item.contact_id ? contactById.get(item.contact_id) : null;
@@ -1132,13 +1173,13 @@ serveConMetriche("outreach-dispatch", async (req) => {
         if (enr) await supabase.from("outreach_enrollments")
           .update({ status: "opted_out", next_action_at: null, stop_reason: "optout_email" }).eq("id", enr.id);
         result.skipped++;
-        continue;
+        return;
       }
 
       // Finestra di invio del BRAND (se impostata): fuori orario la riga aspetta.
       {
         const bw = sender.brand_id ? brandById.get(sender.brand_id)?.send_window : null;
-        if (bw && !isWithinSendWindow(now, parseSendWindow(bw))) { result.deferred++; continue; }
+        if (bw && !isWithinSendWindow(now, parseSendWindow(bw))) { result.deferred++; return; }
       }
 
       // CLAIM ATOMICO (compare-and-swap): passiamo a 'sending' SOLO se la riga è
@@ -1148,7 +1189,7 @@ serveConMetriche("outreach-dispatch", async (req) => {
       // due tick concorrenti spedirebbero la STESSA email due volte.
       const { data: claimed } = await supabase.from("outreach_send_queue")
         .update({ status: "sending" }).eq("id", item.id).eq("status", "queued").select("id");
-      if (!claimed || claimed.length === 0) { result.skipped++; continue; }
+      if (!claimed || claimed.length === 0) { result.skipped++; return; }
       let capPrenotato = false;
       try {
         const brand = sender.brand_id ? brandById.get(sender.brand_id) : null;
@@ -1169,6 +1210,16 @@ serveConMetriche("outreach-dispatch", async (req) => {
         // compliance/deliverability del cold. Serve il contatto (rid) per la soppressione.
         // ── CORPO scritto dall'utente (+ firma brand), SENZA footer ──────────
         let corpo = renderTemplate(item.body || "", vars, { seed });
+        // «Stile umano» (default): l'email deve sembrare scritta da una persona
+        // dal suo client di posta. Niente List-Unsubscribe (Gmail lo mostra come
+        // «Annulla iscrizione», e dichiara l'invio massivo): la via d'uscita è
+        // una frase nel corpo che invita a rispondere «no», letta dal poller.
+        // Se chi scrive non l'ha messa, la mette il motore, prima della firma.
+        const stileUmano = brand?.stile_umano !== false;
+        if (stileUmano && enr && !haFraseUscita(htmlToPlainText(corpo))) {
+          const frase = (brand?.frase_uscita ?? "").trim() || FRASE_USCITA_DEFAULT;
+          corpo += `<br><br>${frase.replace(/&/g, "&amp;").replace(/</g, "&lt;")}`;
+        }
         const firma = sender.signature || brand?.signature;
         if (firma) corpo += `<br><br>${renderTemplate(firma, vars, { seed })}`;
         const testoCorpo = htmlToPlainText(corpo);
@@ -1195,7 +1246,7 @@ serveConMetriche("outreach-dispatch", async (req) => {
             .eq("id", item.id);
           console.error(`[outreach-dispatch] COPY BLOCCATA (${motivi}) — riga ${item.id}. Correggi il testo della sequenza.`);
           result.skipped++;
-          continue;
+          return;
         }
 
         // ── FOOTER compliance: indirizzo postale + disiscrizione firmata ──
@@ -1213,7 +1264,6 @@ serveConMetriche("outreach-dispatch", async (req) => {
         // la risposta la legge il poller, che classifica l'intento (not_interested
         // ferma la sequenza, unsubscribe fa opt-out e blocklist). Niente pixel,
         // niente List-Unsubscribe. E i follow-up citano il messaggio precedente.
-        const stileUmano = brand?.stile_umano !== false;
         const ultimoPrecedente = precedenti.length ? precedenti[precedenti.length - 1] : null;
         let citazione = { testo: "", html: "" };
         if (stileUmano && ultimoPrecedente && thr.inReplyTo) {
@@ -1268,7 +1318,7 @@ serveConMetriche("outreach-dispatch", async (req) => {
             .update({ status: "queued", last_error: `rimandato: cap giornaliero di ${sender.email} raggiunto` })
             .eq("id", item.id);
           result.deferred++;
-          continue;
+          return;
         }
 
         // THROTTLING PER SERVER DI DESTINAZIONE (non per dominio): max 4/ora
@@ -1287,7 +1337,7 @@ serveConMetriche("outreach-dispatch", async (req) => {
               .update({ status: "queued", last_error: `rimandato: quota oraria ${gruppo} esaurita per ${sender.email}` })
               .eq("id", item.id);
             result.deferred++;
-            continue;
+            return;
           }
         }
 
@@ -1347,7 +1397,7 @@ serveConMetriche("outreach-dispatch", async (req) => {
               testo: `${guastoAccount.slice(0, 160)} — il giro si e' fermato, la coda e' intatta. Apri Deliverability e usa "Testa" o ricollega la casella.`,
               url: "/admin/marketing?tab=deliverability",
             });
-            break;
+            fermaTick = true; return;
           }
           // Recapito rifiutato (soppresso, hard fail): non ritentare E fermare l'iscrizione.
           await supabase.from("outreach_send_queue")
@@ -1358,7 +1408,7 @@ serveConMetriche("outreach-dispatch", async (req) => {
               .update({ status: "stopped", next_action_at: null, stop_reason: "send_rejected" }).eq("id", enr.id);
           }
           result.skipped++;
-          continue;
+          return;
         }
         // Invio riuscito: se la casella era in errore, si riabilita da sola.
         if (sender.connection_status === "error") {
@@ -1376,8 +1426,6 @@ serveConMetriche("outreach-dispatch", async (req) => {
           })
           .eq("id", item.id);
         result.sent++;
-        // Cadenza umana: una pausa variabile tra un invio e l'altro (prima: nessuna).
-        await new Promise((r) => setTimeout(r, pauseBetweenSendsMs()));
         // avanza la cadenza: prossimo step email o completamento iscrizione
         if (enr) {
           try { await advanceEnrollment(supabase, enr, contactById.get(item.contact_id), now, item.brand_id ?? null); }
@@ -1408,7 +1456,8 @@ serveConMetriche("outreach-dispatch", async (req) => {
         }
         result.failed++;
       }
-    }
+    };
+    await inParallelo(assignments, CONCORRENZA_CASELLE, lavora);
 
     // I contatori giornalieri delle caselle sono già scritti per-invio nel loop
     // (sopravvivono al timeout del tick): niente flush finale da fare qui.

@@ -249,15 +249,31 @@ export async function smtpTestConnection(cfg: SmtpConfig): Promise<{ ok: boolean
 }
 
 function escapeHeader(s: string): string {
-  // RFC 2047 encoded-word per header con caratteri non-ASCII.
+  // RFC 2047 encoded-word per header con caratteri non-ASCII, spezzato in
+  // più parole codificate (max ~75 colonne l'una, RFC 2047 §2) e ripiegato:
+  // un oggetto lungo con accenti in un'unica parola da 200 colonne è un
+  // header malformato, e i filtri lo notano.
   // Il control char \x00 nella range è intenzionale (definisce
   // l'inizio del range ASCII completo 0x00-0x7F).
   // eslint-disable-next-line no-control-regex
   if (!/[^\x00-\x7F]/.test(s)) return s;
-  const utf8 = new TextEncoder().encode(s);
-  let bin = "";
-  for (const b of utf8) bin += String.fromCharCode(b);
-  return `=?UTF-8?B?${btoa(bin)}?=`;
+  const parole: string[] = [];
+  const chars = Array.from(s);
+  for (let i = 0; i < chars.length; i += 18) {
+    const utf8 = new TextEncoder().encode(chars.slice(i, i + 18).join(""));
+    let bin = "";
+    for (const b of utf8) bin += String.fromCharCode(b);
+    parole.push(`=?UTF-8?B?${btoa(bin)}?=`);
+  }
+  return parole.join("\r\n ");
+}
+
+/** Nome visualizzato del mittente: quotato se contiene caratteri speciali (RFC 5322). */
+function nomeMittente(nome: string): string {
+  // eslint-disable-next-line no-control-regex
+  if (/[^\x00-\x7F]/.test(nome)) return escapeHeader(nome);
+  if (/[()<>@,;:\\".\[\]]/.test(nome)) return `"${nome.replace(/(["\\])/g, "\\$1")}"`;
+  return nome;
 }
 
 
@@ -387,7 +403,7 @@ export function buildRFC822(opts: {
   attachments?: SmtpAttachment[];
   headers?: Record<string, string>;
 }): string {
-  const fromHeader = opts.fromName ? `${escapeHeader(opts.fromName)} <${opts.from}>` : opts.from;
+  const fromHeader = opts.fromName ? `${nomeMittente(opts.fromName)} <${opts.from}>` : opts.from;
   // L'ORDINE conta. Provato il 10/09/2026 con invii differenziali dallo
   // stesso server alla stessa casella: il blocco «From, To, Subject, Date,
   // Message-ID, MIME-Version, Content-Type» finisce in spam su Gmail, lo

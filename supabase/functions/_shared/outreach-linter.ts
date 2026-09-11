@@ -1,3 +1,4 @@
+import { haFraseUscita } from "./outreach-uscita.ts";
 /**
  * Linter pre-invio per il cold outreach italiano.
  *
@@ -148,6 +149,13 @@ export function lintEmail(subject: string, body: string, opz: OpzioniLint = {}):
   if (nonRisolti.length)
     r.push({ gravita: "avviso", regola: "segnaposto", estratto: nonRisolti[0],
       messaggio: `Segnaposto ancora da riempire (${nonRisolti.length}): verifica che abbiano un valore per ogni contatto.` });
+
+  // Via d'uscita: senza List-Unsubscribe (stile umano) l'unico modo di dire
+  // «basta» è una frase nel corpo. Se manca, il dispatcher la aggiunge da sé:
+  // qui è un avviso perché chi scrive sappia come si chiuderà il messaggio.
+  if (!haFraseUscita(body))
+    r.push({ gravita: "avviso", regola: "uscita",
+      messaggio: "Manca la via d'uscita («rispondi no e non ti scrivo più»): il motore la aggiunge in fondo, prima della firma." });
 
   // Tre frasi di lunghezza uguale = ritmo innaturale, tipico dei testi generati.
   const frasi = body.split(/[.!?]+/).map((f) => f.trim().split(/\s+/).filter(Boolean).length).filter((n) => n > 2);

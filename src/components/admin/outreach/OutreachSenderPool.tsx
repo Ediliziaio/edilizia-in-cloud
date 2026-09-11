@@ -58,6 +58,7 @@ function matchesFilter(s: Sender, query: string, filter: SenderFilter): boolean 
 interface Domain {
   id: string; company_id: string; domain: string; status: string;
   spf_verified: boolean; dkim_verified: boolean; dmarc_verified: boolean; daily_cap: number; brand_id: string | null;
+  dkim_selector?: string | null;
 }
 interface Sender {
   id: string; email: string; display_name: string | null; provider: string; status: string;
@@ -480,7 +481,7 @@ function DomainCard({ domain, caselle, forceOpen, onChange }: { domain: Domain; 
   async function verifyDns() {
     setVerifying(true);
     try {
-      const { data, error } = await supabase.functions.invoke("outreach-verify-dns", { body: { domain_id: domain.id } });
+      const { data, error } = await supabase.functions.invoke("outreach-verify-dns", { body: { domain_id: domain.id, dkim_selector: dkimSel.trim() || undefined } });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       if (data?.found === false) toast.info(data.message || "Dominio non ancora su Elastic Email");
@@ -554,6 +555,7 @@ function DomainCard({ domain, caselle, forceOpen, onChange }: { domain: Domain; 
     toast.success("Dominio rimosso"); onChange();
   }
 
+  const [dkimSel, setDkimSel] = useState(domain.dkim_selector ?? "");
   const dnsCount = [domain.spf_verified, domain.dkim_verified, domain.dmarc_verified].filter(Boolean).length;
   const dnsAllOk = dnsCount === 3;
 
@@ -591,6 +593,13 @@ function DomainCard({ domain, caselle, forceOpen, onChange }: { domain: Domain; 
             <FieldLabel className="mr-0.5">DNS</FieldLabel>
             <DnsBadge ok={domain.spf_verified} label="SPF" onClick={() => toggleDns("spf_verified", domain.spf_verified)} />
             <DnsBadge ok={domain.dkim_verified} label="DKIM" onClick={() => toggleDns("dkim_verified", domain.dkim_verified)} />
+            <input
+              value={dkimSel}
+              onChange={(e) => setDkimSel(e.target.value)}
+              placeholder="selettore DKIM"
+              title="Selettore DKIM del provider (Register ne genera uno univoco per dominio): la verifica DNS lo prova per primo"
+              className="h-6 w-28 rounded-md border border-border bg-background px-2 font-mono text-[10px] text-foreground placeholder:text-muted-foreground/70"
+            />
             <DnsBadge ok={domain.dmarc_verified} label="DMARC" onClick={() => toggleDns("dmarc_verified", domain.dmarc_verified)} />
             <button className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-2 py-0.5 text-[10px] font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-60" onClick={verifyDns} disabled={verifying}>
               {verifying ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />} Verifica DNS

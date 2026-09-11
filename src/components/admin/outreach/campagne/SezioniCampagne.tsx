@@ -14,6 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { CampagnaSelettore } from "./CampagnaSelettore";
 import { CampagnaPipeline } from "./CampagnaPipeline";
 import { CampagnaStatistiche } from "./CampagnaStatistiche";
+import { OutreachRecapito } from "../OutreachRecapito";
 import { useCampagneRitmo, stimaCampagna, type useCampagnaScelta } from "./useCampagneOutreach";
 
 type Scelta = ReturnType<typeof useCampagnaScelta>;
@@ -86,6 +87,8 @@ export function StatisticheCampagne({ companyId, sc, onVaiSequenze }: { companyI
     <div className="space-y-5">
       <CampagnaSelettore campagne={sc.campagne} scelta={campagna?.sequence_id ?? "tutte"} onCambia={sc.cambia} conTutte={sc.campagne.length > 1} />
       <CampagnaStatistiche companyId={companyId} campagna={campagna} campagne={sc.campagne} stime={stime} onScegli={(id) => sc.cambia(id)} />
+      {/* Il recapito è del pool, non della campagna: risposte e bounce per casella e per server di destinazione. */}
+      <OutreachRecapito companyId={companyId} />
     </div>
   );
 }
