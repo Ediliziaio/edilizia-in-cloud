@@ -731,11 +731,12 @@ function MarketingOpportunitiesContent() {
   }
 
   return (
-    // Su desktop la pagina è alta quanto lo schermo (meno la barra in alto e i
-    // margini): le colonne riempiono lo spazio che resta e scorrono dentro di
-    // sé. Prima avevano un'altezza fissa calcolata a occhio e, con striscia e
+    // Su desktop la pagina è alta quanto lo schermo, meno la barra in alto
+    // (56px), i margini del contenuto (2×24) e la riga «Powered by» sotto
+    // (33): le colonne riempiono lo spazio che resta e scorrono dentro di sé.
+    // Prima avevano un'altezza fissa calcolata a occhio e, con striscia e
     // barre sopra, finivano sotto il bordo: si scorreva la pagina E la colonna.
-    <div className="flex flex-col h-full min-h-0 gap-3 md:h-[calc(100vh-104px)] md:pb-0">
+    <div className="flex flex-col h-full min-h-0 gap-3 md:h-[calc(100vh-137px)] md:pb-0">
       <div className="flex shrink-0 flex-nowrap items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/50 p-3 shadow-sm sm:flex-wrap sm:gap-3">
         <div className="flex min-w-0 items-center gap-2">
           <PipelineSelector pipelines={pipelines} value={selectedPipelineId} onChange={setSelectedPipelineId} />

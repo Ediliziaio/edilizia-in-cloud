@@ -381,6 +381,70 @@ async function paginaOpportunita(args: {
   return Array.isArray(data) ? data : [];
 }
 
+/*
+ * Prima pagina delle colonne in UNA chiamata (opportunita_kanban, migrazione
+ * 20280914000014). All'apertura, e dopo ogni spostamento, le colonne visibili
+ * chiedono la prima pagina nello stesso istante: sei o sette chiamate insieme
+ * che sul database si mettevano in fila. Qui le richieste arrivate entro pochi
+ * millisecondi, con gli stessi filtri e lo stesso ordinamento, partono insieme
+ * e ognuna riceve la sua colonna.
+ */
+type AttesaColonna = { resolve: (righe: any[]) => void; reject: (errore: unknown) => void };
+const primePagineInAttesa = new Map<string, {
+  args: { pipelineId: string; filtri: FiltriServerOpportunita; sortField: string; sortDir: string };
+  colonne: Map<string, AttesaColonna[]>;
+}>();
+
+async function inviaPrimePagine(chiave: string) {
+  const gruppo = primePagineInAttesa.get(chiave);
+  primePagineInAttesa.delete(chiave);
+  if (!gruppo) return;
+  const fasi = [...gruppo.colonne.keys()];
+  try {
+    const { data, error } = await withClientTimeout(
+      (supabase as any).rpc("opportunita_kanban", {
+        p_pipeline: gruppo.args.pipelineId,
+        p_filtri: gruppo.args.filtri,
+        p_fasi: fasi,
+        p_ordine: gruppo.args.sortField,
+        p_direzione: gruppo.args.sortDir,
+        p_quante: SCHEDE_PER_PAGINA_FASE,
+      }),
+      "Caricamento opportunità",
+      20_000,
+    ) as { data: unknown; error: unknown };
+    if (error) throw error;
+    const perFase = (data && typeof data === "object" ? data : {}) as Record<string, any[]>;
+    for (const [fase, attese] of gruppo.colonne) {
+      const righe = Array.isArray(perFase[fase]) ? perFase[fase] : [];
+      attese.forEach((a) => a.resolve(righe));
+    }
+  } catch (errore) {
+    for (const attese of gruppo.colonne.values()) attese.forEach((a) => a.reject(errore));
+  }
+}
+
+function primaPaginaColonna(args: {
+  pipelineId: string;
+  filtri: FiltriServerOpportunita;
+  sortField: string;
+  sortDir: string;
+  stageId: string;
+}): Promise<any[]> {
+  const chiave = JSON.stringify([args.pipelineId, args.filtri, args.sortField, args.sortDir]);
+  let gruppo = primePagineInAttesa.get(chiave);
+  if (!gruppo) {
+    gruppo = { args, colonne: new Map() };
+    primePagineInAttesa.set(chiave, gruppo);
+    // 15 ms: abbastanza per raccogliere le colonne che si accendono insieme,
+    // troppo poco per accorgersene.
+    setTimeout(() => { void inviaPrimePagine(chiave); }, 15);
+  }
+  const attese = gruppo.colonne.get(args.stageId) ?? [];
+  gruppo.colonne.set(args.stageId, attese);
+  return new Promise((resolve, reject) => attese.push({ resolve, reject }));
+}
+
 /** Le pagine si caricano con un «salta N»: se nel frattempo una scheda cambia
  *  colonna, la stessa può ricomparire nella pagina dopo. Si tiene la prima. */
 function senzaDoppioni(righe: any[]): any[] {
@@ -408,9 +472,13 @@ export function useStageOpportunities({ pipelineId, stageId, filtri, sortField, 
 
   const query = useInfiniteQuery({
     queryKey: queryKeys.opportunities.fase(companyId, pipelineId, stageId, filtri, `${sortField}:${sortDir}`),
-    queryFn: ({ pageParam }) => paginaOpportunita({
-      pipelineId: pipelineId!, filtri, stageId, sortField, sortDir, da: pageParam, quante: SCHEDE_PER_PAGINA_FASE,
-    }),
+    // La prima pagina viaggia insieme a quelle delle altre colonne; le
+    // successive (scorrendo) una per volta.
+    queryFn: ({ pageParam }) => pageParam === 0
+      ? primaPaginaColonna({ pipelineId: pipelineId!, filtri, sortField, sortDir, stageId })
+      : paginaOpportunita({
+        pipelineId: pipelineId!, filtri, stageId, sortField, sortDir, da: pageParam, quante: SCHEDE_PER_PAGINA_FASE,
+      }),
     initialPageParam: 0,
     getNextPageParam: (ultima, _tutte, ultimoDa) =>
       ultima.length === SCHEDE_PER_PAGINA_FASE ? ultimoDa + SCHEDE_PER_PAGINA_FASE : undefined,
