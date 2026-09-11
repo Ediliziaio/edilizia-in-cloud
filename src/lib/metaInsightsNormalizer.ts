@@ -35,6 +35,32 @@ export interface NormalizedCampaignRow {
   cpl: number;
   cps: number;
   avg_revenue: number;
+  // Report per livello (metaAdsReportModel): tutti opzionali, così le righe
+  // prodotte dai percorsi vecchi restano valide.
+  /** id dell'entità al livello mostrato (campagna, gruppo o inserzione) */
+  id?: string;
+  name?: string;
+  link_clicks?: number;
+  budget_daily?: number | null;
+  budget_lifetime?: number | null;
+  /** il budget sta sulla campagna (CBO) e non sul gruppo */
+  budget_da_campagna?: boolean;
+  figli?: number;
+  quality_ranking?: string;
+  engagement_rate_ranking?: string;
+  conversion_rate_ranking?: string;
+  thumbnail_url?: string | null;
+  creative_title?: string | null;
+  creative_body?: string | null;
+  preview_link?: string | null;
+  lead_crm?: number;
+  opportunita?: number;
+  vinte?: number;
+  perse?: number;
+  valore_vinto?: number;
+  costo_lead_crm?: number;
+  costo_vinta?: number;
+  roas?: number;
 }
 
 export interface KPISummary {

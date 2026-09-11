@@ -4,20 +4,27 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { fetchWithTimeout } from "@/lib/utils/fetchWithTimeout";
+import { computeDailySeries, type DailyPoint, type NormalizedCampaignRow } from "@/lib/metaInsightsNormalizer";
 import {
-  normalizeInsights,
-  computeKPIs,
-  computeDailySeries,
-  type KPISummary,
-  type DailyPoint,
-} from "@/lib/metaInsightsNormalizer";
-import { format, subDays } from "date-fns";
+  buildCrmIndex,
+  buildLevelRows,
+  computeReportKpis,
+  filtraPerPercorso,
+  inPausa,
+  type AccountReport,
+  type AdsReportPayload,
+  type CrmIndex,
+  type DrillFilter,
+  type ReportLevel,
+} from "@/lib/metaAdsReportModel";
+import { differenceInCalendarDays, format, subDays } from "date-fns";
+
+export type { ReportLevel, DrillFilter } from "@/lib/metaAdsReportModel";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 export const ALL_META_ACCOUNTS = "__all_meta_accounts__";
 export const ALL_META_ACCOUNTS_LABEL = "Tutti gli account BM";
 
-export type ReportLevel = "campaign" | "adset" | "ad";
 export type SortDirection = "asc" | "desc";
 
 export interface DateRange {
@@ -50,12 +57,16 @@ const DEFAULT_FILTERS: ReportFilters = {
   onlyWithLeads: false,
 };
 
-const DEFAULT_COLUMNS = [
-  "campaign_name", "account_name", "status", "clicks", "spend", "revenue", "roi",
-  "cpc", "cpm", "ctr", "frequency", "leads", "cpl", "impressions",
+/** Colonne visibili di partenza: prima quanto si spende e cosa rende, poi i
+ *  numeri di consegna. Le metriche e-commerce (acquisti pixel) restano
+ *  disponibili ma spente: per chi vende infissi o impianti non dicono nulla. */
+export const DEFAULT_COLUMNS = [
+  "name", "account_name", "status", "budget", "spend", "impressions", "reach", "frequency",
+  "link_clicks", "ctr", "cpc", "cpm", "leads", "cpl", "lead_crm", "opportunita", "vinte",
+  "costo_vinta", "quality_ranking",
 ];
 
-const REQUIRED_VISIBLE_COLUMNS = ["campaign_name", "account_name", "cpm", "frequency"];
+const REQUIRED_VISIBLE_COLUMNS = ["name"];
 
 function withRequiredVisibleColumns(columns: string[]): string[] {
   const merged = new Set([...columns, ...REQUIRED_VISIBLE_COLUMNS]);
@@ -64,9 +75,13 @@ function withRequiredVisibleColumns(columns: string[]): string[] {
   return [...orderedDefaults, ...customColumns];
 }
 
+/** v2: le colonne sono cambiate (lead CRM, contratti, budget); le preferenze
+ *  salvate col vecchio elenco avrebbero nascosto proprio le novità. */
+const REPORT_KEY = "facebook_ads_v2";
+
 export function useMetaAdsReport() {
   const { effectiveCompany, user } = useAuth();
-  const companyId = (effectiveCompany as any)?.id;
+  const companyId = (effectiveCompany as { id?: string } | null)?.id;
   const userId = user?.id;
   const queryClient = useQueryClient();
 
@@ -76,7 +91,8 @@ export function useMetaAdsReport() {
     to: new Date(),
   });
   const [selectedAccountId, setSelectedAccountId] = useState<string>(ALL_META_ACCOUNTS);
-  const [level, setLevel] = useState<ReportLevel>("campaign");
+  const [level, setLevelState] = useState<ReportLevel>("campaign");
+  const [drill, setDrill] = useState<DrillFilter>({});
   const [filters, setFilters] = useState<ReportFilters>(DEFAULT_FILTERS);
   const [sortColumn, setSortColumn] = useState("spend");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
@@ -108,7 +124,7 @@ export function useMetaAdsReport() {
 
   // Helper: call proxy
   const callProxy = useCallback(
-    async (action: string, params: Record<string, any> = {}) => {
+    async (action: string, params: Record<string, unknown> = {}) => {
       if (!companyId || !integrationId) throw new Error("Non connesso a Meta");
       const { data: sessionData } = await supabase.auth.getSession();
       const token = sessionData?.session?.access_token;
@@ -116,7 +132,7 @@ export function useMetaAdsReport() {
         `${SUPABASE_URL}/functions/v1/meta-api-proxy`,
         {
           method: "POST",
-          timeoutMs: 30_000,
+          timeoutMs: 60_000,
           context: `meta-ads.${action}`,
           headers: {
             "Content-Type": "application/json",
@@ -151,13 +167,8 @@ export function useMetaAdsReport() {
     staleTime: 5 * 60 * 1000,
   });
 
-  // Default: tutto il Business Manager, così non si perdono sponsorizzate su account diversi.
-  useEffect(() => {
-    if (adAccounts.length > 0 && !selectedAccountId) {
-      setSelectedAccountId(ALL_META_ACCOUNTS);
-    }
-  }, [adAccounts, selectedAccountId]);
-
+  // Default (vedi useState): tutto il Business Manager, così non si perdono
+  // sponsorizzate su account diversi dell'azienda.
   const effectiveAdAccountIds = useMemo(() => {
     if (selectedAccountId === ALL_META_ACCOUNTS) return adAccounts.map((account) => account.id);
     return selectedAccountId ? [selectedAccountId] : [];
@@ -166,32 +177,40 @@ export function useMetaAdsReport() {
 
   const dateStart = format(dateRange.from, "yyyy-MM-dd");
   const dateEnd = format(dateRange.to, "yyyy-MM-dd");
+  // Periodo precedente di pari durata, per il confronto nei KPI.
+  const giorni = differenceInCalendarDays(dateRange.to, dateRange.from) + 1;
+  const prevEnd = format(subDays(dateRange.from, 1), "yyyy-MM-dd");
+  const prevStart = format(subDays(dateRange.from, giorni), "yyyy-MM-dd");
 
-  // Fetch campaign insights (aggregate)
+  // "Aggiorna" salta la cache di 15 minuti del proxy.
+  const forzaAggiornamento = useRef(false);
+
+  // Report completo: tre livelli, struttura, totali, andamento giornaliero.
   const {
-    data: rawInsights = [],
-    isLoading: isLoadingInsights,
-    error: insightsError,
+    data: reports = [],
+    isLoading: isLoadingReport,
+    isFetching: isFetchingReport,
+    error: reportError,
   } = useQuery({
-    queryKey: queryKeys.metaAds.insights(companyId, adAccountQueryKey, dateStart, dateEnd, level),
-    queryFn: async () => {
+    queryKey: ["meta-ads-report", companyId, adAccountQueryKey, dateStart, dateEnd],
+    queryFn: async (): Promise<AccountReport[]> => {
+      const refresh = forzaAggiornamento.current;
+      forzaAggiornamento.current = false;
       const results = await Promise.allSettled(
         effectiveAdAccountIds.map(async (accountId) => {
           const account = adAccounts.find((item) => item.id === accountId);
-          const result = await callProxy("get-campaign-insights", {
+          const payload = (await callProxy("get-ads-report", {
             ad_account_id: accountId,
             date_start: dateStart,
             date_end: dateEnd,
-            level,
-          });
-          return ((result.insights || []) as any[]).map((row) => ({
-            ...row,
-            account_id: accountId,
-            account_name: account?.name || accountId,
-          }));
+            prev_start: prevStart,
+            prev_end: prevEnd,
+            refresh,
+          })) as AdsReportPayload;
+          return { accountId, accountName: account?.name || accountId, payload };
         }),
       );
-      const fulfilled = results.flatMap((result) => (result.status === "fulfilled" ? result.value : []));
+      const fulfilled = results.flatMap((result) => (result.status === "fulfilled" ? [result.value] : []));
       if (fulfilled.length === 0) {
         const rejected = results.find((result) => result.status === "rejected");
         if (rejected?.status === "rejected") throw rejected.reason;
@@ -202,110 +221,95 @@ export function useMetaAdsReport() {
     staleTime: 5 * 60 * 1000,
   });
 
-  // Fetch daily series for trend charts
-  const { data: rawDailyInsights = [] } = useQuery({
-    queryKey: queryKeys.metaAds.insightsDaily(companyId, adAccountQueryKey, dateStart, dateEnd),
-    queryFn: async () => {
-      const results = await Promise.allSettled(
-        effectiveAdAccountIds.map(async (accountId) => {
-          const result = await callProxy("get-campaign-insights", {
-            ad_account_id: accountId,
-            date_start: dateStart,
-            date_end: dateEnd,
-            level: "account",
-            time_increment: "1",
-          });
-          return result.insights || [];
-        }),
-      );
-      const fulfilled = results.flatMap((result) => (result.status === "fulfilled" ? result.value : []));
-      if (fulfilled.length === 0) {
-        const rejected = results.find((result) => result.status === "rejected");
-        if (rejected?.status === "rejected") throw rejected.reason;
+  const aggiorna = useCallback(() => {
+    forzaAggiornamento.current = true;
+    queryClient.invalidateQueries({ queryKey: ["meta-ads-report", companyId] });
+    queryClient.invalidateQueries({ queryKey: ["meta-report-crm", companyId] });
+  }, [queryClient, companyId]);
+
+  // Esito nel CRM dei lead arrivati dai moduli Meta nel periodo: ogni
+  // contatto porta campagna, gruppo e inserzione di provenienza.
+  const { data: crmIndex = null, isLoading: isLoadingCrm } = useQuery({
+    queryKey: ["meta-report-crm", companyId, dateStart, dateEnd],
+    queryFn: async (): Promise<CrmIndex> => {
+      const contatti: Array<{ id: string; meta_campaign_id: string | null; meta_adset_id: string | null; meta_ad_id: string | null }> = [];
+      for (let da = 0; da < 20_000; da += 1000) {
+        const { data, error } = await supabase
+          .from("marketing_contacts")
+          .select("id, meta_campaign_id, meta_adset_id, meta_ad_id")
+          .eq("company_id", companyId!)
+          .not("meta_campaign_id", "is", null)
+          .is("deleted_at", null)
+          .gte("created_at", `${dateStart}T00:00:00`)
+          .lte("created_at", `${dateEnd}T23:59:59`)
+          .range(da, da + 999);
+        if (error) throw error;
+        contatti.push(...(data ?? []));
+        if ((data ?? []).length < 1000) break;
       }
-      return fulfilled;
+      const opportunita: Array<{ contact_id: string | null; status: string | null; value: number | null }> = [];
+      const ids = contatti.map((c) => c.id);
+      for (let i = 0; i < ids.length; i += 200) {
+        const { data, error } = await supabase
+          .from("marketing_opportunities")
+          .select("contact_id, status, value")
+          .in("contact_id", ids.slice(i, i + 200))
+          .is("deleted_at", null);
+        if (error) throw error;
+        opportunita.push(...(data ?? []));
+      }
+      return buildCrmIndex(contatti, opportunita);
     },
-    enabled: !!companyId && !!integrationId && effectiveAdAccountIds.length > 0,
-    staleTime: 5 * 60 * 1000,
+    enabled: !!companyId && !!integrationId,
+    staleTime: 2 * 60 * 1000,
   });
 
-  // Fetch campaign statuses
-  const { data: campaignStatusRows = [] } = useQuery({
-    queryKey: queryKeys.metaAds.campaignStatus(companyId, adAccountQueryKey),
-    queryFn: async () => {
-      const results = await Promise.allSettled(
-        effectiveAdAccountIds.map((accountId) =>
-          callProxy("get-campaign-status", {
-            ad_account_id: accountId,
-          }).then((result) => {
-            const account = adAccounts.find((item) => item.id === accountId);
-            return {
-              accountId,
-              accountName: account?.name || accountId,
-              campaigns: result.campaigns || [],
-            };
-          }),
-        ),
-      );
-      return results.flatMap((result) =>
-        result.status === "fulfilled"
-          ? ((result.value.campaigns || []) as Array<{ id: string; name?: string; status?: string; objective?: string }>).map((campaign) => ({
-              ...campaign,
-              account_id: result.value.accountId,
-              account_name: result.value.accountName,
-            }))
-          : [],
-      );
-    },
-    enabled: !!companyId && !!integrationId && effectiveAdAccountIds.length > 0,
-    staleTime: 10 * 60 * 1000,
-  });
+  // Livello + percorso (campagna → gruppo → inserzione)
+  const setLevel = useCallback((next: ReportLevel) => {
+    if (next === "campaign") setDrill({});
+    if (next === "adset") setDrill((d) => ({ campaignId: d.campaignId, campaignName: d.campaignName }));
+    setLevelState(next);
+  }, []);
+  const apriCampagna = useCallback((row: NormalizedCampaignRow) => {
+    setDrill({ campaignId: row.campaign_id, campaignName: row.campaign_name });
+    setLevelState("adset");
+  }, []);
+  const apriGruppo = useCallback((row: NormalizedCampaignRow) => {
+    setDrill({
+      campaignId: row.campaign_id,
+      campaignName: row.campaign_name,
+      adsetId: row.adset_id,
+      adsetName: row.adset_name,
+    });
+    setLevelState("ad");
+  }, []);
 
-  const campaignStatuses = useMemo(() => {
-    const map: Record<string, string> = {};
-    for (const campaign of campaignStatusRows) {
-      map[campaign.id] = campaign.status ?? "";
+  const righePerLivello = useMemo(() => {
+    const perLivello = {} as Record<ReportLevel, NormalizedCampaignRow[]>;
+    for (const l of ["campaign", "adset", "ad"] as ReportLevel[]) {
+      perLivello[l] = filtraPerPercorso(buildLevelRows(reports, l, crmIndex), l, drill);
     }
-    return map;
-  }, [campaignStatusRows]);
+    return perLivello;
+  }, [reports, crmIndex, drill]);
 
-  // Normalize data
-  const normalizedRows = useMemo(() => {
-    const rows = normalizeInsights(rawInsights, "lead", campaignStatuses as Record<string, string>);
-    if (level !== "campaign") return rows;
+  const normalizedRows = righePerLivello[level];
+  const conteggi = useMemo(
+    () => ({
+      campaign: righePerLivello.campaign.length,
+      adset: righePerLivello.adset.length,
+      ad: righePerLivello.ad.length,
+    }),
+    [righePerLivello],
+  );
 
-    const existingIds = new Set(rows.map((row) => row.campaign_id).filter(Boolean));
-    const emptyCampaignRows = campaignStatusRows
-      .filter((campaign) => campaign.id && !existingIds.has(campaign.id))
-      .map((campaign) => ({
-        campaign_id: campaign.id,
-        campaign_name: campaign.name || campaign.id,
-        account_id: campaign.account_id,
-        account_name: campaign.account_name,
-        objective: campaign.objective,
-        status: campaign.status,
-        impressions: 0,
-        reach: 0,
-        clicks: 0,
-        spend: 0,
-        ctr: 0,
-        cpc: 0,
-        cpm: 0,
-        frequency: 0,
-        conversions: 0,
-        revenue: 0,
-        leads: 0,
-        purchases: 0,
-        roi: 0,
-        cpl: 0,
-        cps: 0,
-        avg_revenue: 0,
-      }));
-    return [...rows, ...emptyCampaignRows];
-  }, [rawInsights, campaignStatuses, campaignStatusRows, level]);
-
-  const kpis: KPISummary = useMemo(() => computeKPIs(normalizedRows), [normalizedRows]);
-  const dailySeries: DailyPoint[] = useMemo(() => computeDailySeries(rawDailyInsights), [rawDailyInsights]);
+  const { attuale: kpis, precedente: kpisPrev } = useMemo(
+    () => computeReportKpis(reports, crmIndex, level === "campaign" ? {} : drill),
+    [reports, crmIndex, drill, level],
+  );
+  const dailySeries: DailyPoint[] = useMemo(
+    () => computeDailySeries(reports.flatMap((r) => r.payload.daily ?? [])),
+    [reports],
+  );
 
   // Filter + sort
   const filteredRows = useMemo(() => {
@@ -317,12 +321,12 @@ export function useMetaAdsReport() {
         (r) =>
           r.campaign_name?.toLowerCase().includes(q) ||
           r.adset_name?.toLowerCase().includes(q) ||
-          r.ad_name?.toLowerCase().includes(q)
+          r.ad_name?.toLowerCase().includes(q) ||
+          r.creative_title?.toLowerCase().includes(q)
       );
     }
-    if (filters.status !== "all") {
-      rows = rows.filter((r) => r.status === filters.status);
-    }
+    if (filters.status === "ACTIVE") rows = rows.filter((r) => r.status === "ACTIVE");
+    if (filters.status === "PAUSED") rows = rows.filter((r) => inPausa(r.status));
     if (filters.objective) {
       rows = rows.filter((r) => r.objective === filters.objective);
     }
@@ -333,19 +337,19 @@ export function useMetaAdsReport() {
       rows = rows.filter((r) => r.spend <= (filters.maxSpend || Infinity));
     }
     if (filters.onlyWithLeads) {
-      rows = rows.filter((r) => r.leads > 0);
+      rows = rows.filter((r) => r.leads > 0 || (r.lead_crm ?? 0) > 0);
     }
 
     // Sort
     rows.sort((a, b) => {
-      const aVal = (a as any)[sortColumn] ?? 0;
-      const bVal = (b as any)[sortColumn] ?? 0;
-      if (typeof aVal === "string") {
+      const aVal = (a as unknown as Record<string, unknown>)[sortColumn] ?? 0;
+      const bVal = (b as unknown as Record<string, unknown>)[sortColumn] ?? 0;
+      if (typeof aVal === "string" || typeof bVal === "string") {
         return sortDirection === "asc"
-          ? aVal.localeCompare(bVal)
-          : bVal.localeCompare(aVal);
+          ? String(aVal).localeCompare(String(bVal))
+          : String(bVal).localeCompare(String(aVal));
       }
-      return sortDirection === "asc" ? aVal - bVal : bVal - aVal;
+      return sortDirection === "asc" ? Number(aVal) - Number(bVal) : Number(bVal) - Number(aVal);
     });
 
     return rows;
@@ -371,8 +375,14 @@ export function useMetaAdsReport() {
   );
 
   const isConnected = !!integration;
-  const isLoading = isLoadingAccounts || isLoadingInsights;
-  const hasTokenError = insightsError?.message?.includes("token") || insightsError?.message?.includes("OAuthException");
+  const isLoading = isLoadingAccounts || isLoadingReport;
+  const erroreReport = reportError instanceof Error ? reportError.message : null;
+  const hasTokenError = !!erroreReport && (erroreReport.includes("token") || erroreReport.includes("OAuthException"));
+  const avvisi = useMemo(() => reports.flatMap((r) => r.payload.avvisi ?? []), [reports]);
+  const aggiornatoAlle = useMemo(() => {
+    const date = reports.map((r) => (r.payload as { fetched_at?: string }).fetched_at).filter(Boolean) as string[];
+    return date.length ? date.sort()[0] : null;
+  }, [reports]);
 
   // --- Persistence: load preferences on mount ---
   const prefsLoaded = useRef(false);
@@ -384,20 +394,20 @@ export function useMetaAdsReport() {
         .select("*")
         .eq("company_id", companyId)
         .eq("user_id", userId)
-        .eq("report_key", "facebook_ads")
+        .eq("report_key", REPORT_KEY)
         .maybeSingle();
       if (data) {
         if (data.visible_columns) setVisibleColumns(data.visible_columns as string[]);
         if (data.last_ad_account === ALL_META_ACCOUNTS) setSelectedAccountId(ALL_META_ACCOUNTS);
         if (data.last_date_range) {
-          const dr = data.last_date_range as any;
+          const dr = data.last_date_range as { from?: string; to?: string };
           if (dr.from && dr.to) setDateRange({ from: new Date(dr.from), to: new Date(dr.to) });
         }
         if (data.default_sort) setSortColumn(data.default_sort as string);
       }
       prefsLoaded.current = true;
     })();
-  }, [companyId, userId]);
+  }, [companyId, userId, setVisibleColumns]);
 
   // --- Persistence: save preferences (debounced) ---
   const saveTimerRef = useRef<ReturnType<typeof setTimeout>>();
@@ -409,11 +419,11 @@ export function useMetaAdsReport() {
         {
           company_id: companyId,
           user_id: userId,
-          report_key: "facebook_ads",
-          visible_columns: visibleColumns as any,
+          report_key: REPORT_KEY,
+          visible_columns: visibleColumns,
           default_sort: sortColumn,
           last_ad_account: selectedAccountId,
-          last_date_range: { from: dateRange.from.toISOString(), to: dateRange.to.toISOString() } as any,
+          last_date_range: { from: dateRange.from.toISOString(), to: dateRange.to.toISOString() },
         },
         { onConflict: "company_id,user_id,report_key" }
       );
@@ -421,12 +431,13 @@ export function useMetaAdsReport() {
     return () => clearTimeout(saveTimerRef.current);
   }, [visibleColumns, selectedAccountId, dateRange, sortColumn, companyId, userId]);
 
-  const companyName = (effectiveCompany as any)?.name || "";
+  const companyName = (effectiveCompany as { name?: string } | null)?.name || "";
 
   return {
     // Connection
     isConnected,
     hasTokenError,
+    erroreReport,
     // Accounts
     adAccounts,
     selectedAccountId,
@@ -435,15 +446,26 @@ export function useMetaAdsReport() {
     // Date
     dateRange,
     setDateRange,
-    // Level
+    // Level + percorso
     level,
     setLevel,
+    drill,
+    setDrill,
+    apriCampagna,
+    apriGruppo,
+    conteggi,
     // Data
     rows: filteredRows,
     allRows: normalizedRows,
     kpis,
+    kpisPrev,
     dailySeries,
     isLoading,
+    isLoadingCrm,
+    isFetching: isFetchingReport,
+    aggiorna,
+    aggiornatoAlle,
+    avvisi,
     // Filters
     filters,
     setFilters,

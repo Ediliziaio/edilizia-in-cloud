@@ -793,6 +793,119 @@ Deno.serve(async (req) => {
         break;
       }
 
+      case "get-ads-report": {
+        // Report completo di un account in UNA chiamata: insight a tre livelli
+        // (campagne, gruppi di inserzioni, inserzioni), totali dell'account nel
+        // periodo e in quello precedente, andamento giornaliero e la struttura
+        // con stato, budget e creatività. I tre livelli si chiedono a Meta
+        // separatamente perché copertura e frequenza non si sommano: la
+        // copertura di una campagna non è la somma di quella delle inserzioni.
+        const { ad_account_id: repAccId, date_start: ds, date_end: de, prev_start: ps, prev_end: pe } = body;
+        if (!repAccId || !ds || !de) {
+          return new Response(JSON.stringify({ error: "ad_account_id, date_start e date_end obbligatori" }), {
+            status: 400,
+            headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+          });
+        }
+        if (!(await accountiScelti()).has(normalizzaAct(repAccId))) return accountNonAutorizzato();
+
+        const cacheLevel = "report_v1";
+        const { data: repCached } = await adminClient
+          .from("meta_insights_cache")
+          .select("payload_json")
+          .eq("company_id", company_id)
+          .eq("ad_account_id", repAccId)
+          .eq("date_start", ds)
+          .eq("date_end", de)
+          .eq("level", cacheLevel)
+          .gte("expires_at", new Date().toISOString())
+          .maybeSingle();
+        if (repCached && !body.refresh) {
+          result = { ...(repCached.payload_json as Record<string, unknown>), from_cache: true };
+          break;
+        }
+
+        const G = `https://graph.facebook.com/${apiVersion}`;
+        const tokenQs = `access_token=${accessToken}`;
+        const leggiTutto = async (primo: string): Promise<any[]> => {
+          const righe: any[] = [];
+          let prossimo: string | null = primo;
+          let giri = 0;
+          while (prossimo && giri < 20) {
+            const res = await fetchWithRetry(prossimo);
+            const dati = await res.json();
+            if (dati.error) throw new Error(dati.error.message || JSON.stringify(dati.error));
+            righe.push(...(dati.data || []));
+            prossimo = dati.paging?.next || null;
+            giri++;
+          }
+          return righe;
+        };
+        const baseFields = "campaign_id,campaign_name,adset_id,adset_name,ad_id,ad_name,objective,impressions,reach,frequency,clicks,inline_link_clicks,spend,ctr,cpc,cpm,actions,action_values";
+        const range = (a: string, b: string) => `time_range={"since":"${a}","until":"${b}"}`;
+        const insights = (lvl: string, extra = "", a = ds, b = de) =>
+          leggiTutto(`${G}/${repAccId}/insights?level=${lvl}&fields=${baseFields}${extra}&${range(a, b)}&limit=500&${tokenQs}`);
+
+        // Le classifiche di qualità esistono solo a livello inserzione e su
+        // account piccoli Meta può rifiutarle: in quel caso si riprova senza.
+        const insightsAd = insights("ad", ",quality_ranking,engagement_rate_ranking,conversion_rate_ranking")
+          .catch(() => insights("ad"));
+
+        // Gli insight sono il cuore: se falliscono, fallisce il report. Il
+        // resto (confronto, andamento, stato, creatività) è contorno: se Meta
+        // ne rifiuta un pezzo, il report esce lo stesso e dice cosa manca.
+        const avvisi: string[] = [];
+        const contorno = (etichetta: string, p: Promise<any[]>) =>
+          p.catch((e: Error) => {
+            avvisi.push(`${etichetta}: ${e.message}`);
+            return [] as any[];
+          });
+
+        const [
+          adRows, adsetRows, campaignRows, accountNow, accountPrev, daily,
+          campaigns, adsets, ads,
+        ] = await Promise.all([
+          insightsAd,
+          insights("adset"),
+          insights("campaign"),
+          insights("account"),
+          ps && pe ? contorno("periodo precedente", insights("account", "", ps, pe)) : Promise.resolve([]),
+          contorno("andamento giornaliero", leggiTutto(`${G}/${repAccId}/insights?level=account&fields=impressions,reach,clicks,inline_link_clicks,spend,actions&${range(ds, de)}&time_increment=1&limit=500&${tokenQs}`)),
+          contorno("campagne", leggiTutto(`${G}/${repAccId}/campaigns?fields=id,name,status,effective_status,objective,daily_budget,lifetime_budget,start_time,stop_time&limit=500&${tokenQs}`)),
+          contorno("gruppi di inserzioni", leggiTutto(`${G}/${repAccId}/adsets?fields=id,name,campaign_id,status,effective_status,daily_budget,lifetime_budget,optimization_goal,start_time,end_time&limit=500&${tokenQs}`)),
+          contorno("inserzioni", leggiTutto(`${G}/${repAccId}/ads?fields=id,name,adset_id,campaign_id,status,effective_status,preview_shareable_link,creative{id,thumbnail_url,image_url,title,body,call_to_action_type}&limit=200&${tokenQs}`)),
+        ]);
+
+        const payload = {
+          ads_insights: adRows,
+          adsets_insights: adsetRows,
+          campaigns_insights: campaignRows,
+          account: accountNow[0] ?? null,
+          account_prev: accountPrev[0] ?? null,
+          daily,
+          campaigns,
+          adsets,
+          ads,
+          avvisi,
+          fetched_at: new Date().toISOString(),
+        };
+
+        // Un report incompleto non si mette in cache: al prossimo giro si riprova.
+        if (avvisi.length === 0) await adminClient.from("meta_insights_cache").upsert({
+          company_id,
+          ad_account_id: repAccId,
+          date_start: ds,
+          date_end: de,
+          level: cacheLevel,
+          payload_json: payload,
+          fetched_at: new Date().toISOString(),
+          expires_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+        }, { onConflict: "company_id,ad_account_id,date_start,date_end,level" });
+
+        result = { ...payload, from_cache: false };
+        break;
+      }
+
       case "send-test-lead": {
         // Inietta un lead simulato nella coda per testare il flusso end-to-end
         // senza bisogno di una campagna Meta attiva

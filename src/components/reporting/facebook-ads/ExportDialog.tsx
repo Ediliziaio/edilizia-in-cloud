@@ -4,7 +4,8 @@ import { escapeCsvCell, neutralizeCsvFormula } from "@/lib/csvExport";
 import { FileSpreadsheet, FileText } from "lucide-react";
 import { format } from "date-fns";
 import type { NormalizedCampaignRow } from "@/lib/metaInsightsNormalizer";
-import type { DateRange } from "@/hooks/useMetaAdsReport";
+import type { DateRange, ReportLevel } from "@/hooks/useMetaAdsReport";
+import { COLONNE } from "./CampaignTable";
 
 interface Props {
   open: boolean;
@@ -14,34 +15,22 @@ interface Props {
   dateRange: DateRange;
   accountId: string;
   companyName?: string;
+  level: ReportLevel;
 }
 
-const COLUMN_LABELS: Record<string, string> = {
-  campaign_name: "Campagna",
-  account_name: "Account BM",
-  status: "Stato",
-  clicks: "Clic",
-  spend: "Costo",
-  revenue: "Entrate",
-  roi: "ROI %",
-  cpc: "CPC",
-  cpm: "CPM",
-  ctr: "CTR",
-  frequency: "Frequenza",
-  purchases: "Vendite",
-  cps: "CPS",
-  leads: "Lead",
-  cpl: "CPL",
-  impressions: "Impressioni",
-  avg_revenue: "Entrate medie",
-};
-
-const ExportDialog = ({ open, onOpenChange, rows, visibleColumns, dateRange, accountId, companyName }: Props) => {
+const ExportDialog = ({ open, onOpenChange, rows, visibleColumns, dateRange, accountId, companyName, level }: Props) => {
+  // Numeri come numeri (il foglio li somma), testi con l'etichetta leggibile;
+  // la gerarchia campagna → gruppo → inserzione sempre per esteso.
   const buildData = () =>
     rows.map((r) => {
-      const obj: Record<string, any> = {};
-      for (const col of visibleColumns) {
-        obj[COLUMN_LABELS[col] || col] = (r as any)[col] ?? "";
+      const obj: Record<string, string | number> = { Campagna: r.campaign_name || "" };
+      if (level !== "campaign") obj["Gruppo di inserzioni"] = r.adset_name || "";
+      if (level === "ad") obj["Inserzione"] = r.ad_name || "";
+      for (const key of visibleColumns) {
+        const col = COLONNE.find((c) => c.key === key);
+        if (!col || key === "name" || (col.livelli && !col.livelli.includes(level))) continue;
+        const raw = (r as unknown as Record<string, unknown>)[key];
+        obj[col.label] = typeof raw === "number" ? Math.round(raw * 100) / 100 : col.format(r);
       }
       return obj;
     });

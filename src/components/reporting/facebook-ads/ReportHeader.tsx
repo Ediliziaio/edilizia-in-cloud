@@ -1,6 +1,6 @@
 import { format, subDays, startOfMonth, endOfMonth, subMonths, startOfDay } from "date-fns";
 import { it } from "date-fns/locale";
-import { CalendarIcon, Download, Settings2 } from "lucide-react";
+import { CalendarIcon, Download, RefreshCw, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -9,7 +9,6 @@ import { cn } from "@/lib/utils";
 import { useState, useMemo } from "react";
 import ColumnsDrawer from "./ColumnsDrawer";
 import ExportDialog from "./ExportDialog";
-import LevelToggle from "./LevelToggle";
 import { ALL_META_ACCOUNTS, ALL_META_ACCOUNTS_LABEL, type useMetaAdsReport } from "@/hooks/useMetaAdsReport";
 
 interface Props {
@@ -43,11 +42,12 @@ const ReportHeader = ({ report }: Props) => {
         <div>
           <h2 className="text-xl font-semibold tracking-tight">Report Meta / Facebook Ads</h2>
           <p className="text-xs text-muted-foreground">
-            Ambito:{" "}
-            {report.selectedAccountId === ALL_META_ACCOUNTS
-              ? ALL_META_ACCOUNTS_LABEL
-              : report.adAccounts.find((account) => account.id === report.selectedAccountId)?.name ||
-                report.selectedAccountId}
+            {report.adAccounts.length === 1
+              ? `Account: ${report.adAccounts[0].name || report.adAccounts[0].id}`
+              : report.selectedAccountId === ALL_META_ACCOUNTS
+                ? `Ambito: ${ALL_META_ACCOUNTS_LABEL}`
+                : `Ambito: ${report.adAccounts.find((account) => account.id === report.selectedAccountId)?.name || report.selectedAccountId}`}
+            {report.aggiornatoAlle && ` · dati Meta delle ${format(new Date(report.aggiornatoAlle), "HH:mm")}`}
           </p>
         </div>
 
@@ -93,7 +93,7 @@ const ReportHeader = ({ report }: Props) => {
           </Popover>
 
           {/* Ad Account */}
-          {report.adAccounts.length > 0 && (
+          {report.adAccounts.length > 1 && (
             <Select value={report.selectedAccountId} onValueChange={report.setSelectedAccountId}>
               <SelectTrigger className="w-[200px] h-8 text-xs">
                 <SelectValue placeholder="Seleziona account" />
@@ -109,7 +109,17 @@ const ReportHeader = ({ report }: Props) => {
             </Select>
           )}
 
-          <LevelToggle level={report.level} onChange={report.setLevel} />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={report.aggiorna}
+            disabled={report.isFetching}
+            className="gap-1.5 text-xs"
+            title="Richiede a Meta i dati più recenti (altrimenti restano validi 15 minuti)"
+          >
+            <RefreshCw className={cn("h-3.5 w-3.5", report.isFetching && "animate-spin")} />
+            Aggiorna
+          </Button>
 
           <Button variant="outline" size="sm" onClick={() => setShowColumns(true)} className="gap-1.5 text-xs">
             <Settings2 className="h-3.5 w-3.5" />
@@ -138,6 +148,7 @@ const ReportHeader = ({ report }: Props) => {
         dateRange={report.dateRange}
         accountId={report.selectedAccountId}
         companyName={report.companyName}
+        level={report.level}
       />
     </>
   );
