@@ -76,7 +76,7 @@ export default function CreateCustomer() {
 
   // Toggle portale a livello company (letto dal contesto)
   const companyPortalEnabled = (effectiveCompany as { customer_portal_enabled?: boolean } | null)
-    ?.customer_portal_enabled !== false;
+    ?.customer_portal_enabled === true;
 
   // ── Modulo Appaltatori (feature flag) ─────────────────────
   const appaltatoreEnabled = useAppaltatoreModuleEnabled();

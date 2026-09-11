@@ -89,7 +89,7 @@ export function CreateCustomerDialog({
   const queryClient = useQueryClient();
 
   const companyPortalEnabled = (effectiveCompany as { customer_portal_enabled?: boolean } | null)
-    ?.customer_portal_enabled !== false;
+    ?.customer_portal_enabled === true;
 
   // Init dai valori del contatto (es. preventivo). Il RE-mount via `key` lato
   // chiamante rifà l'init quando i dati async arrivano → niente effetto/ref.

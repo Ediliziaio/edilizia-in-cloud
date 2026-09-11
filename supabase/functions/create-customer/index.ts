@@ -181,9 +181,11 @@ Deno.serve(async (req) => {
     }
 
     // Determina se creare il portal account:
-    // - Se la company ha customer_portal_enabled = false → forza OFF (server-side guard).
-    // - Altrimenti rispetta la scelta del client (default true per retro-compat).
-    const companyPortalEnabled = companyRow.customer_portal_enabled !== false;
+    // - Il portale e' SPENTO di partenza per ogni azienda (20280915100000): si
+    //   crea l'account solo se l'azienda l'ha acceso esplicitamente. Un valore
+    //   mancante vale "spento", mai "acceso".
+    // - Se l'azienda l'ha acceso, rispetta la scelta del client per il singolo cliente.
+    const companyPortalEnabled = companyRow.customer_portal_enabled === true;
     const clientWantsPortal = create_portal_account !== false; // default true
     const shouldCreatePortal = companyPortalEnabled && clientWantsPortal;
     const shouldSendWelcomeEmail = shouldCreatePortal && send_welcome_email !== false;

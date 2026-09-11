@@ -28,7 +28,7 @@ export function CustomerPortalToggle() {
   const confirm = useConfirm();
 
   const initial = (effectiveCompany as { customer_portal_enabled?: boolean } | null)
-    ?.customer_portal_enabled !== false;
+    ?.customer_portal_enabled === true;
 
   const [enabled, setEnabled] = useState<boolean>(initial);
   const [isSaving, setIsSaving] = useState(false);

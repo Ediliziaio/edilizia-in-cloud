@@ -127,7 +127,7 @@ function CustomersListInner() {
   const canEditCustomers = customerPermissions.isAdmin || customerPermissions.canEditCustomers;
 
   const portalEnabled = (effectiveCompany as { customer_portal_enabled?: boolean } | null)
-    ?.customer_portal_enabled !== false;
+    ?.customer_portal_enabled === true;
 
   // ── Salespeople ────────────────────────────────────────
   const { data: salespeople = [] } = useQuery({
