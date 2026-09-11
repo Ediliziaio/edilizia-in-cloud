@@ -264,6 +264,8 @@ async function raccogliGa4(token: string, propertyId: string, da: string, a: str
     },
   );
 
+  // Il limite conta le righe giorno×pagina: con 2.000, quattordici giorni di
+  // un sito da 150 pagine arrivavano già tagliati.
   const pagine = await chiamaGoogle(
     `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`,
     token,
@@ -275,7 +277,7 @@ async function raccogliGa4(token: string, propertyId: string, da: string, a: str
         { name: "userEngagementDuration" },
       ],
       orderBys: [{ metric: { metricName: "screenPageViews" }, desc: true }],
-      limit: 2000,
+      limit: 25000,
     },
   );
 
@@ -293,10 +295,44 @@ async function raccogliGsc(token: string, siteUrl: string, da: string, a: string
     startDate: da, endDate: a, dimensions: ["date"], rowLimit: 400,
   });
   const pagine = await chiamaGoogle(base, token, {
-    startDate: da, endDate: a, dimensions: ["date", "page"], rowLimit: 2000,
+    startDate: da, endDate: a, dimensions: ["date", "page"], rowLimit: 25000,
   });
   return { totali, pagine };
 }
+
+// ── Salvataggio ──────────────────────────────────────────────────────────────
+
+/**
+ * Upsert a lotti, e l'errore torna indietro. Prima il risultato dell'upsert
+ * non veniva guardato: una colonna sbagliata avrebbe buttato via ogni riga
+ * lasciando il sito «sincronizzato, nessun errore».
+ */
+async function salva(
+  db: SupabaseClient, tabella: string, righe: Record<string, unknown>[], chiave: string,
+): Promise<string | null> {
+  for (let i = 0; i < righe.length; i += 1000) {
+    const { error } = await db.from(tabella)
+      .upsert(righe.slice(i, i + 1000), { onConflict: chiave });
+    if (error) return `salvataggio in ${tabella} non riuscito: ${error.message}`;
+  }
+  return null;
+}
+
+/**
+ * Stesso esito su tutti i siti attivi, per i guasti a monte (la chiave) che
+ * fermano tutti insieme. Senza questo, a chiave mancante i siti restavano a
+ * «mai» e sembrava che la raccolta non partisse proprio.
+ */
+async function segnaTuttiISiti(db: SupabaseClient, errore: string): Promise<void> {
+  const { error } = await db.from("siti_monitorati")
+    .update({ ultimo_sync: new Date().toISOString(), ultimo_errore: errore.slice(0, 1000) })
+    .eq("attivo", true);
+  if (error) console.error("[siti-metriche-sync] stato dei siti non aggiornato:", error.message);
+}
+
+const MANCA_LA_CHIAVE =
+  "Manca la chiave Google (service account): nessun dato scaricato. " +
+  "Le istruzioni sono in cima alla pagina.";
 
 // ── Autorizzazione della chiamata ────────────────────────────────────────────
 
@@ -356,6 +392,10 @@ serveConMetriche("siti-metriche-sync", async (req) => {
     }
 
     if (!sa) {
+      // Fino all'11/09/2026 questa uscita non lasciava traccia: la raccolta
+      // notturna rispondeva 200 in un decimo di secondo e nessuno sapeva che
+      // non scaricava niente. Ora ogni sito dice perché è fermo.
+      if (azione === "sincronizza") await segnaTuttiISiti(db, MANCA_LA_CHIAVE);
       return new Response(JSON.stringify({
         ok: false,
         configurato: false,
@@ -368,7 +408,17 @@ serveConMetriche("siti-metriche-sync", async (req) => {
       }), { headers: { ...CORS, "Content-Type": "application/json" } });
     }
 
-    const token = await tokenGoogle(sa);
+    let token: string;
+    try {
+      token = await tokenGoogle(sa);
+    } catch (e) {
+      // Chiave presente ma rifiutata (rotta, revocata, API non abilitate):
+      // fermi tutti, e ognuno lo deve dire.
+      if (azione === "sincronizza") {
+        await segnaTuttiISiti(db, `La chiave Google c'è ma è stata rifiutata: ${(e as Error).message}`);
+      }
+      throw e;
+    }
 
     if (azione === "scopri") {
       const trovato = await scopri(token);
@@ -408,12 +458,18 @@ serveConMetriche("siti-metriche-sync", async (req) => {
             });
           }
           for (const r of (pagine.rows as Array<Record<string, Array<{ value: string }>>>) ?? []) {
+            const viste = Number(r.metricValues[0].value) || 0;
+            // userEngagementDuration è la SOMMA dei secondi di tutti i
+            // visitatori: salvata così com'era, una pagina da 400 viste
+            // risultava «tempo medio 3 ore». Qui diventa il tempo per
+            // visualizzazione, che la funzione SQL ripesa sommando i giorni.
+            const secondiTotali = Number(r.metricValues[2].value) || 0;
             righePagine.push({
               sito_id: sito.id, giorno: dataGa4(r.dimensionValues[0].value), fonte: "ga4",
               percorso: r.dimensionValues[1].value.slice(0, 500),
-              visualizzazioni: Number(r.metricValues[0].value) || 0,
+              visualizzazioni: viste,
               utenti: Number(r.metricValues[1].value) || 0,
-              durata_media_s: Math.round((Number(r.metricValues[2].value) || 0) * 10) / 10,
+              durata_media_s: viste > 0 ? Math.round((secondiTotali / viste) * 10) / 10 : null,
             });
           }
         } catch (e) {
@@ -449,13 +505,12 @@ serveConMetriche("siti-metriche-sync", async (req) => {
         }
       }
 
-      if (righeMetriche.length) {
-        await db.from("siti_metriche_giornaliere")
-          .upsert(righeMetriche, { onConflict: "sito_id,giorno,fonte" });
-      }
-      if (righePagine.length) {
-        await db.from("siti_pagine_giornaliere")
-          .upsert(righePagine, { onConflict: "sito_id,giorno,fonte,percorso" });
+      const erroriSalvataggio = [
+        await salva(db, "siti_metriche_giornaliere", righeMetriche, "sito_id,giorno,fonte"),
+        await salva(db, "siti_pagine_giornaliere", righePagine, "sito_id,giorno,fonte,percorso"),
+      ].filter(Boolean);
+      if (erroriSalvataggio.length) {
+        errore = [errore, ...erroriSalvataggio].filter(Boolean).join(" · ");
       }
 
       await db.from("siti_monitorati")

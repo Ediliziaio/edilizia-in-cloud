@@ -55,7 +55,7 @@ vi.mock("@/integrations/supabase/client", () => ({
 describe("SiteTrafficPage", () => {
   let contenitore: HTMLDivElement;
 
-  beforeAll(() => {
+  beforeAll(async () => {
     // recharts misura il contenitore con ResizeObserver, che jsdom non ha.
     if (!("ResizeObserver" in globalThis)) {
       (globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver = class {
@@ -64,7 +64,10 @@ describe("SiteTrafficPage", () => {
         disconnect() {}
       };
     }
-  });
+    // Il primo import (recharts compreso) su una macchina carica supera i
+    // 5 secondi di un test: si fa qui, con il suo margine.
+    await import("@/pages/admin/SiteTrafficPage");
+  }, 60_000);
 
   afterEach(() => {
     contenitore?.remove();
@@ -83,8 +86,13 @@ describe("SiteTrafficPage", () => {
         </QueryClientProvider>,
       );
     });
-    // la query si risolve al giro successivo
-    await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    // Si aspetta che i dati siano sulla pagina, non un numero fisso di giri:
+    // con un giro solo il test passava a macchina scarica e falliva sotto carico.
+    const fine = Date.now() + 10_000;
+    while (!(contenitore.textContent ?? "").includes("Visitatori")) {
+      if (Date.now() > fine) throw new Error("la pagina non ha mostrato i dati");
+      await act(async () => { await new Promise((r) => setTimeout(r, 20)); });
+    }
     return contenitore.textContent ?? "";
   }
 

@@ -229,6 +229,8 @@ export default function AdminRoutesContainer() {
         <Route path="salute" element={<RequireAdminPermission permission="can_view_platform_stats"><PlatformHealthPage /></RequireAdminPermission>} />
         <Route path="sito" element={<RequireAdminPermission permission="can_view_platform_stats"><SiteTrafficPage /></RequireAdminPermission>} />
         <Route path="siti" element={<RequireAdminPermission permission="can_view_platform_stats"><SitiGooglePage /></RequireAdminPermission>} />
+        {/* La voce di menu si chiama «Siti e Google»: è l'indirizzo che viene naturale scrivere. */}
+        <Route path="siti-google" element={<Navigate to="/admin/siti" replace />} />
         {/* Insoluti: chi non paga, quanto e da quando. Prima serviva una query SQL a mano. */}
         <Route path="insoluti" element={<RequireAdminPermission permission="billing_read"><InsolutiPage /></RequireAdminPermission>} />
         {/* Connessioni: integrazioni, chiavi API e webhook. Prima nessuna
