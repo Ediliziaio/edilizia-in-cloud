@@ -96,6 +96,19 @@ Deno.serve(async (req) => {
     }
 
     const integrationIds = [...new Set((accounts ?? []).map((a) => a.integration_id).filter(Boolean))];
+    // Solo gli account che l'azienda ha scelto (meta_assets.selected). Con un
+    // token "agenzia" meta_ad_accounts si riempiva degli account di tutti i
+    // clienti e questo sync scriveva i loro insight dentro ogni azienda.
+    const { data: sceltiRows } = integrationIds.length
+      ? await admin
+          .from("meta_assets")
+          .select("integration_id, asset_id")
+          .in("integration_id", integrationIds)
+          .eq("asset_type", "ad_account")
+          .eq("selected", true)
+      : { data: [] as { integration_id: string; asset_id: string }[] };
+    const actNorm = (id: string) => (id.startsWith("act_") ? id : `act_${id}`);
+    const scelti = new Set((sceltiRows ?? []).map((r) => `${r.integration_id}|${actNorm(r.asset_id)}`));
     const [integrationsRes, credsRes] = await Promise.all([
       integrationIds.length
         ? admin.from("integrations").select("id, status").in("id", integrationIds).eq("status", "connected")
@@ -111,6 +124,7 @@ Deno.serve(async (req) => {
 
     companies = (accounts ?? [])
       .filter((a) => connected.has(a.integration_id) && tokenByIntegration.get(a.integration_id))
+      .filter((a) => scelti.has(`${a.integration_id}|${actNorm(a.ad_account_id)}`))
       .map((a) => ({
         company_id: a.company_id,
         integration_id: a.integration_id,

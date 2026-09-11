@@ -66,6 +66,18 @@ export function AdAccountPickerDialog({ open, onOpenChange, companyId, accounts 
         .eq("asset_type", "ad_account")
         .eq("asset_id", assetId);
       if (setErr) throw setErr;
+
+      // Scelto il proprio, gli account degli altri clienti dell'agenzia
+      // spariscono da questa azienda. Per cambiarlo: "Collega con Facebook"
+      // li reimporta, con la scelta attuale già spuntata.
+      const integrationId = accounts.find((a) => a.asset_id === assetId)?.integration_id;
+      if (integrationId) {
+        await supabase.functions
+          .invoke("meta-api-proxy", {
+            body: { action: "purge-unselected", company_id: companyId, integration_id: integrationId },
+          })
+          .catch(() => undefined); // best-effort: il proxy rifiuta comunque gli account non scelti
+      }
     },
     onSuccess: (_data, assetId) => {
       const name = accounts.find((a) => a.asset_id === assetId)?.asset_name ?? assetId;

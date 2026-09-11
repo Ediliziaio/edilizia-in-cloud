@@ -4,6 +4,9 @@ import { getCorsHeaders } from "../_shared/headers.ts";
 
 const apiVersion = Deno.env.get("META_API_VERSION") || "v21.0";
 
+/** Meta scrive gli account a volte come `act_123`, a volte come `123`. */
+const normalizzaAct = (id: string) => (String(id).startsWith("act_") ? String(id) : `act_${id}`);
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: getCorsHeaders(req) });
@@ -170,6 +173,27 @@ Deno.serve(async (req) => {
     const accessToken = await decrypt(creds.access_token_encrypted, encKey);
 
     let result: any;
+
+    // ISOLAMENTO MULTI-TENANT degli account pubblicitari. Il token è spesso
+    // quello di un utente Meta "agenzia": /me/adaccounts restituisce gli
+    // account di TUTTI i suoi clienti. Un'azienda vede e interroga solo gli
+    // account che ha scelto (meta_assets.selected) — l'id in arrivo dal
+    // browser non basta, altrimenti basta cambiarlo per leggere un altro cliente.
+    const accountiScelti = async (): Promise<Set<string>> => {
+      const { data } = await adminClient
+        .from("meta_assets")
+        .select("asset_id")
+        .eq("integration_id", integration_id)
+        .eq("company_id", company_id)
+        .eq("asset_type", "ad_account")
+        .eq("selected", true);
+      return new Set((data ?? []).map((r: { asset_id: string }) => normalizzaAct(r.asset_id)));
+    };
+    const accountNonAutorizzato = () =>
+      new Response(JSON.stringify({ error: "Account pubblicitario non collegato a questa azienda" }), {
+        status: 403,
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+      });
 
     switch (action) {
       case "get-assets": {
@@ -511,6 +535,40 @@ Deno.serve(async (req) => {
           .eq("company_id", company_id)
           .eq("asset_type", "page")
           .eq("selected", true);
+        // Stessa pulizia per gli account pubblicitari, ma solo quando l'azienda
+        // ne ha già scelto uno: se nessuno è scelto l'elenco serve ancora
+        // all'amministratore per indicare il proprio.
+        let removedAdAccounts = 0;
+        if ((await accountiScelti()).size > 0) {
+          const { data: altrui } = await adminClient
+            .from("meta_assets")
+            .delete()
+            .eq("integration_id", integration_id)
+            .eq("company_id", company_id)
+            .eq("asset_type", "ad_account")
+            .eq("selected", false)
+            .select("asset_id");
+          removedAdAccounts = altrui?.length ?? 0;
+          const scelti = [...(await accountiScelti())];
+          const varianti = scelti.flatMap((id) => [id, id.replace(/^act_/, "")]);
+          await adminClient
+            .from("meta_ad_accounts")
+            .delete()
+            .eq("company_id", company_id)
+            .eq("integration_id", integration_id)
+            .not("ad_account_id", "in", `(${varianti.join(",")})`);
+          if (removedAdAccounts > 0) {
+            await adminClient.from("integration_audit_log").insert({
+              company_id,
+              actor_user_id: authUser.id,
+              action: "assets_purged_unselected",
+              entity_type: "integration",
+              entity_id: integration_id,
+              metadata: { provider: "meta", removed_ad_accounts: removedAdAccounts },
+            });
+          }
+        }
+
         const remainingTokensMap: Record<string, string> = { ...((creds as any).meta_page_tokens || {}) };
         for (const id of removedIds) delete remainingTokensMap[id];
         let subscribed = 0;
@@ -559,7 +617,7 @@ Deno.serve(async (req) => {
           });
         }
 
-        result = { success: true, removed: removedIds.length, subscribed };
+        result = { success: true, removed: removedIds.length, removed_ad_accounts: removedAdAccounts, subscribed };
         break;
       }
 
@@ -612,9 +670,15 @@ Deno.serve(async (req) => {
           `https://graph.facebook.com/${apiVersion}/me/adaccounts?fields=id,name,account_status,currency&limit=100&access_token=${accessToken}`
         );
         const accountsData = await accountsRes.json();
-        const accounts = accountsData.data || [];
+        const visibili: Array<{ id: string; name?: string; account_status?: number; currency?: string }> =
+          accountsData.data || [];
 
-        // Upsert into meta_ad_accounts
+        // Solo gli account scelti da questa azienda. Prima si salvavano tutti
+        // quelli visibili al token: con un utente agenzia ogni cliente si
+        // ritrovava le campagne (e le spese) degli altri.
+        const scelti = await accountiScelti();
+        const accounts = visibili.filter((acc) => scelti.has(normalizzaAct(acc.id)));
+
         for (const acc of accounts) {
           await adminClient.from("meta_ad_accounts").upsert({
             company_id,
@@ -623,11 +687,22 @@ Deno.serve(async (req) => {
             ad_account_name: acc.name || acc.id,
             account_status: acc.account_status || 0,
             currency: acc.currency || "EUR",
+            selected: true,
             updated_at: new Date().toISOString(),
           }, { onConflict: "company_id,ad_account_id" });
         }
+        // Via le righe di account non (più) scelti: le leggono il sync degli
+        // insight, la creazione campagne e le automazioni.
+        const tenuti = accounts.map((acc) => acc.id);
+        let pulizia = adminClient
+          .from("meta_ad_accounts")
+          .delete()
+          .eq("company_id", company_id)
+          .eq("integration_id", integration_id);
+        if (tenuti.length > 0) pulizia = pulizia.not("ad_account_id", "in", `(${tenuti.join(",")})`);
+        await pulizia;
 
-        result = { accounts };
+        result = { accounts, needs_selection: scelti.size === 0 && visibili.length > 0 };
         break;
       }
 
@@ -639,6 +714,7 @@ Deno.serve(async (req) => {
             headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
           });
         }
+        if (!(await accountiScelti()).has(normalizzaAct(ad_account_id))) return accountNonAutorizzato();
 
         const lvl = insightLevel || "campaign";
         const increment = time_increment || "all_days";
@@ -706,6 +782,7 @@ Deno.serve(async (req) => {
             headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
           });
         }
+        if (!(await accountiScelti()).has(normalizzaAct(statusAccId))) return accountNonAutorizzato();
 
         const statusRes = await fetchWithRetry(
           `https://graph.facebook.com/${apiVersion}/${statusAccId}/campaigns?fields=id,name,status,objective&limit=500&access_token=${accessToken}`

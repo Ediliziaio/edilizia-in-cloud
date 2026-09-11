@@ -1043,7 +1043,9 @@ function useMetaConnection(companyId: string | undefined, enabled: boolean) {
     assets,
     isLoading: integrationLoading || assetsLoading,
     pages: assets.filter((asset) => asset.asset_type === "page"),
-    adAccounts: selectedAdAccounts.length > 0 ? selectedAdAccounts : adAccountAssets,
+    // Nessun ripiego su "tutti": sarebbero gli account degli altri clienti
+    // dell'agenzia. Senza una scelta la pagina chiede di configurarlo.
+    adAccounts: selectedAdAccounts,
     // Solo gli account esplicitamente selezionati: la QA di pubblicazione
     // esige che ce ne sia ESATTAMENTE uno, così non si pubblica mai
     // sull'account di un altro cliente (agenzia con più account).

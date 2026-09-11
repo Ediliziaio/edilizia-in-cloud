@@ -50,6 +50,23 @@ const FacebookAdsReport = () => {
     );
   }
 
+  // Collegato ma senza un account scelto: il proxy mostra solo gli account
+  // indicati dall'azienda, mai quelli degli altri clienti dello stesso utente Meta.
+  if (!report.isLoadingAccounts && report.adAccounts.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center border rounded-lg bg-card">
+        <Link2 className="h-12 w-12 text-muted-foreground/40 mb-4" />
+        <h3 className="text-lg font-semibold">Scegli l'account pubblicitario</h3>
+        <p className="text-sm text-muted-foreground mt-1 max-w-md">
+          Indica quale account pubblicitario appartiene a questa azienda: il report mostra solo quello.
+        </p>
+        <Button className="mt-4" onClick={() => navigate("/azienda/marketing/pubblicita")}>
+          Vai a Pubblicità
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <ReportHeader report={report} />
