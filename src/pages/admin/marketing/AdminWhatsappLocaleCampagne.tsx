@@ -228,7 +228,7 @@ export default function AdminWhatsappLocaleCampagne() {
       p_tags: tags.length ? tags : null,
       p_citta: fCitta.trim() || null,
       p_provincia: fProvincia.trim() || null,
-      p_source: null,
+      p_source: null as string | null,
       p_limite: fLimite.trim() ? Number(fLimite) : null,
     };
   }, [fTags, fCitta, fProvincia, fLimite]);
@@ -293,13 +293,14 @@ export default function AdminWhatsappLocaleCampagne() {
     onError: (e: Error) => toast.error("Salvataggio non riuscito", { description: e.message }),
   });
 
-  // Duplica: il gesto piu' frequente (stessa campagna, mese dopo). Copia solo
-  // il contenuto, MAI i destinatari o lo stato: la copia nasce vuota e in bozza.
+  // Duplica: il gesto piu' frequente (stessa campagna, mese dopo). Copia testi
+  // e regole (orari, ritmo, numeri, cosa fare quando rispondono), MAI i
+  // destinatari, lo stato o le date: la copia nasce vuota e in bozza.
   const duplica = useMutation({
     mutationFn: async (c: Riepilogo) => {
       const src = testiById[c.id];
       if (!src) throw new Error("Testo della campagna non disponibile");
-      const { error } = await supabase.from("openwa_campagne").insert({
+      const { data: copia, error } = await supabase.from("openwa_campagne").insert({
         nome: `${src.nome} (copia)`,
         messaggio: src.messaggio,
         followup_messaggio: src.followup_messaggio,
@@ -311,8 +312,28 @@ export default function AdminWhatsappLocaleCampagne() {
         messaggio_b: src.messaggio_b,
         ai_personalizza: src.ai_personalizza,
         ai_istruzioni: src.ai_istruzioni,
-      });
+        orario_da: src.orario_da,
+        orario_a: src.orario_a,
+        giorni_settimana: src.giorni_settimana,
+        max_al_giorno: src.max_al_giorno,
+        variabili: src.variabili,
+        stop_se_risponde: src.stop_se_risponde !== false,
+        tags_numeri: src.tags_numeri ?? [],
+      }).select("id").single();
       if (error) throw error;
+      // openwa_rules non ha ancora campagna_id nei tipi generati.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const regole = () => (supabase as any).from("openwa_rules");
+      const { data: suo, error: e2 } = await regole().select("*").eq("campagna_id", c.id);
+      if (e2) throw new Error(`Campagna copiata, ma non le regole sulle risposte: ${e2.message}`);
+      if (suo?.length) {
+        const righe = (suo as Array<Record<string, unknown>>).map((r) => {
+          const { id: _id, created_at: _creata, updated_at: _aggiornata, ...resto } = r;
+          return { ...resto, campagna_id: copia.id };
+        });
+        const { error: e3 } = await regole().insert(righe);
+        if (e3) throw new Error(`Campagna copiata, ma non le regole sulle risposte: ${e3.message}`);
+      }
     },
     onSuccess: () => {
       toast.success("Campagna duplicata", { description: "La copia è in bozza e senza destinatari." });

@@ -12,6 +12,7 @@ import { avvisaSuperAdmin } from "../_shared/avvisaSuperAdmin.ts";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import { romeToday, outsideQuietHours, sendOpenWaMessage } from "../_shared/openwaSend.ts";
 import { isLid, lidDaMessageId, risolviLid, registraLid, numeroDalPayload } from "../_shared/openwaLid.ts";
+import { applicaRegole, type MessaggioInArrivo } from "../_shared/openwa-regole-motore.ts";
 
 const PLATFORM_COMPANY_ID = "00000000-0000-0000-0000-000000000001";
 
@@ -87,11 +88,12 @@ async function uploadInboundMedia(admin: any, numberId: string | null, providerM
 }
 
 /** Notifica email best-effort (via send-transactional-v2, service-role). */
-async function notifyByEmail(to: string, phone: string, text: string) {
+async function notifyByEmail(to: string, phone: string, text: string, regola?: string | null) {
   const url = Deno.env.get("SUPABASE_URL");
   const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!url || !key) return;
   const safe = (text || "").replace(/[<>]/g, "");
+  const perche = regola ? ` (regola «${regola.replace(/[<>]/g, "")}»)` : "";
   await fetch(`${url}/functions/v1/send-transactional-v2`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
@@ -99,8 +101,8 @@ async function notifyByEmail(to: string, phone: string, text: string) {
       companyId: null,
       to,
       precomputedSubject: `WhatsApp Locale · nuovo messaggio da ${phone}`,
-      precomputedHtml: `<p>Nuovo messaggio WhatsApp Locale da <strong>${phone}</strong>:</p><blockquote>${safe}</blockquote>`,
-      precomputedText: `Nuovo messaggio WhatsApp Locale da ${phone}: ${safe}`,
+      precomputedHtml: `<p>Nuovo messaggio WhatsApp Locale da <strong>${phone}</strong>${perche}:</p><blockquote>${safe}</blockquote>`,
+      precomputedText: `Nuovo messaggio WhatsApp Locale da ${phone}${perche}: ${safe}`,
       skipCredits: true,
       metadata: { source: "openwa-rules" },
     }),
@@ -108,73 +110,21 @@ async function notifyByEmail(to: string, phone: string, text: string) {
 }
 
 /**
- * Motore REGOLE: valuta le regole abilitate (del numero + globali) per priorità
- * ed esegue le azioni (blocco, auto-risposta, tag/assegnazione, notifica).
+ * Motore REGOLE (auto-risposta, etichette, assegnazione, avviso, blocco e, per
+ * le campagne, ferma flusso / esito / non scrivergli più): la logica sta in
+ * _shared/openwa-regole-motore.ts, provata in vitest; qui solo le dipendenze.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function applyRules(admin: any, ctx: { numberId: string | null; chatId: string; phone: string; text: string; contactId: string | null }) {
-  const cleanText = (ctx.text || "").trim();
-  if (!cleanText) return;
-
-  const numFilter = ctx.numberId
-    ? `number_id.eq.${ctx.numberId},number_id.is.null`
-    : `number_id.is.null`;
-  const { data: rules } = await admin
-    .from("openwa_rules")
-    .select("*")
-    .eq("enabled", true)
-    .or(numFilter)
-    .order("priority", { ascending: true });
-  if (!rules?.length) return;
-
-  const norm = cleanText.toLowerCase();
-  const { count } = await admin.from("openwa_messages")
-    .select("id", { count: "exact", head: true })
-    .eq("wa_chat_id", ctx.chatId).eq("direction", "inbound");
-  const isFirst = (count ?? 0) <= 1;
-  let outside: boolean | null = null;
-
-  for (const r of rules) {
-    if (r.only_first_contact && !isFirst) continue;
-    if (r.only_outside_hours) {
-      if (outside === null) outside = await outsideQuietHours();
-      if (!outside) continue;
-    }
-    let matched = false;
-    if (r.match_type === "any") {
-      matched = true;
-    } else {
-      const kws = (r.match_keywords ?? []).map((k: string) => k.toLowerCase().trim()).filter(Boolean);
-      if (r.match_type === "contains") matched = kws.some((k: string) => norm.includes(k));
-      else if (r.match_type === "equals") matched = kws.some((k: string) => norm === k);
-      else if (r.match_type === "starts_with") matched = kws.some((k: string) => norm.startsWith(k));
-    }
-    if (!matched) continue;
-    if (r.block) return; // spam/ignora → stop, nessuna altra azione
-
-    // Senza numberId la risposta partirebbe da un numero DIVERSO da quello a cui
-    // la persona ha scritto (rotazione): per il destinatario e' uno sconosciuto.
-    if (r.reply_text && ctx.numberId) {
-      // sendOpenWaMessage applica già lo spintax e sceglie/riusa il numero.
-      await sendOpenWaMessage(admin, {
-        to: ctx.phone || ctx.chatId,
-        text: r.reply_text,
-        numberId: ctx.numberId,
-        contactId: ctx.contactId,
-        bypassQuietHours: true,
-      }).catch(() => null);
-    }
-    if (ctx.contactId && (r.add_tags?.length || r.assign_to)) {
-      const patch: Record<string, unknown> = {};
-      if (r.add_tags?.length) {
-        const { data: c } = await admin.from("marketing_contacts").select("tags").eq("id", ctx.contactId).maybeSingle();
-        patch.tags = Array.from(new Set([...(c?.tags ?? []), ...r.add_tags]));
-      }
-      if (r.assign_to) patch.assigned_to = r.assign_to;
-      await admin.from("marketing_contacts").update(patch).eq("id", ctx.contactId);
-    }
-    if (r.notify_email) await notifyByEmail(r.notify_email, ctx.phone, cleanText);
-  }
+async function applyRules(admin: any, ctx: MessaggioInArrivo) {
+  await applicaRegole({
+    admin,
+    platformCompanyId: PLATFORM_COMPANY_ID,
+    // sendOpenWaMessage applica variabili e spintax; la regola risponde anche
+    // fuori orario, perché risponde a chi ha appena scritto.
+    inviaRisposta: (p) => sendOpenWaMessage(admin, { ...p, bypassQuietHours: true }),
+    avvisaEmail: notifyByEmail,
+    fuoriOrario: outsideQuietHours,
+  }, ctx);
 }
 
 Deno.serve(async (req) => {

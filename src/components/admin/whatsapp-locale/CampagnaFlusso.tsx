@@ -22,6 +22,8 @@ import {
 } from "lucide-react";
 import { TimelineStartCap } from "@/components/admin/outreach/SequenceTimeline";
 import { CH_ACCENT } from "@/components/admin/outreach/sequenceShared";
+import { RegoleRisposta } from "./RegoleRisposta";
+import { useRegoleCampagna } from "./useRegoleCampagna";
 
 export interface CampagnaRiepilogo {
   id: string;
@@ -225,7 +227,10 @@ export function CampagnaFlusso({
 
       {aperta && (
         <div className="grid gap-4 border-t border-border bg-muted/20 p-4 lg:grid-cols-[minmax(0,1fr)_300px]">
-          <Flusso c={c} t={t} passi={passi} onModifica={modificabile ? onModifica : undefined} />
+          <div className="min-w-0 space-y-4">
+            <Flusso c={c} t={t} passi={passi} onModifica={modificabile ? onModifica : undefined} />
+            <RegoleRisposta campagnaId={c.id} stopSeRisponde={t?.stop_se_risponde !== false} />
+          </div>
           <Regole c={c} t={t} numeri={numeri} capacitaGiorno={capacitaGiorno} onRiprova={onRiprova} riprovaInCorso={inCorso.riprova} />
         </div>
       )}
@@ -304,8 +309,8 @@ function Flusso({ c, t, passi, onModifica }: { c: CampagnaRiepilogo; t?: Campagn
             <p className="text-xs font-medium text-foreground">Fine flusso</p>
             <p className="text-[11px] text-muted-foreground">
               {stopSeRisponde
-                ? "Chi risponde, in qualsiasi momento, esce dal flusso e finisce in Risposte. Chi non risponde esce dopo l'ultimo passo."
-                : "Continua anche con chi risponde: esce solo dopo l'ultimo passo."}
+                ? "Chi risponde, in qualsiasi momento, esce dal flusso: cosa succede dopo lo decidono le regole qui sotto. Chi non risponde esce dopo l'ultimo passo."
+                : "Chi risponde continua a ricevere i follow-up, salvo le regole qui sotto. Esce dopo l'ultimo passo."}
             </p>
           </div>
         </div>
@@ -395,6 +400,7 @@ function Regole({ c, t, numeri, capacitaGiorno, onRiprova, riprovaInCorso }: {
   ].filter(Boolean).join(" · ");
   const variabili = Object.entries(t?.variabili ?? {});
   const giorniAllaFine = c.stato === "in_corso" && c.da_inviare > 0 && capacitaGiorno > 0 ? Math.ceil(c.da_inviare / capacitaGiorno) : null;
+  const regoleAccese = (useRegoleCampagna(c.id).data ?? []).filter((r) => r.enabled).length;
 
   return (
     <div className="space-y-2">
@@ -425,6 +431,9 @@ function Regole({ c, t, numeri, capacitaGiorno, onRiprova, riprovaInCorso }: {
         </Regola>
         <Regola icona={Reply} titolo="Se risponde">
           {t?.stop_se_risponde !== false ? "Esce dal flusso: niente follow-up a chi ha già risposto." : "Continua a ricevere i follow-up."}
+          {" "}{regoleAccese > 0
+            ? `${regoleAccese} ${regoleAccese === 1 ? "regola decide" : "regole decidono"} bacheca, etichette e risposte.`
+            : "Nessuna regola sulle risposte."}
         </Regola>
         <Regola icona={Sparkles} titolo="Personalizzazione AI">
           {t?.ai_personalizza ? (t.ai_istruzioni?.trim() ? <span className="line-clamp-3">{t.ai_istruzioni}</span> : "Attiva") : "Spenta: parte il testo così com'è."}

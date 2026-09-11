@@ -66,10 +66,13 @@ export default function RulesManager({ numbers }: { numbers: NumberOpt[] }) {
   const rulesQuery = useQuery({
     queryKey: ["openwa", "rules"],
     queryFn: async () => {
+      // Solo le regole generali: quelle di una campagna si gestiscono dalla
+      // campagna (Marketing → WhatsApp Locale → Campagne → Quando risponde).
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
         .from("openwa_rules")
         .select("*")
+        .is("campagna_id", null)
         .order("priority", { ascending: true });
       if (error) throw error;
       return (data ?? []) as RuleRow[];
@@ -159,7 +162,8 @@ export default function RulesManager({ numbers }: { numbers: NumberOpt[] }) {
       <CardContent className="space-y-2">
         <p className="text-sm text-muted-foreground">
           Quando arriva un messaggio, le regole attive vengono applicate in ordine di priorità:
-          risposta automatica, tag/assegnazione, notifica o blocco.
+          risposta automatica, tag/assegnazione, notifica o blocco. Valgono per tutte le chat;
+          cosa fare quando risponde il destinatario di una campagna si decide dentro la campagna.
         </p>
         {rulesQuery.isLoading ? (
           <Skeleton className="h-20 w-full" />
@@ -268,6 +272,9 @@ function RuleEditorDialog({
             <div className="space-y-1.5">
               <Label>Parole chiave (separate da virgola)</Label>
               <Input placeholder="es. prezzo, preventivo, info" value={keywordsText} onChange={(e) => setKeywordsText(e.target.value)} />
+              <p className="text-[11px] text-muted-foreground">
+                Maiuscole, accenti e punteggiatura non contano. Una parola vale solo intera («no» non scatta dentro «buongiorno»).
+              </p>
             </div>
           )}
 
