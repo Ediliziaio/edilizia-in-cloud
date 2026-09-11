@@ -31,20 +31,40 @@ interface AnalyticsConfig {
   enabled: boolean;
 }
 
-/** Aree applicative: non sono navigazione di marketing. */
+/**
+ * Aree applicative: non sono navigazione di marketing.
+ *
+ * Tenere allineato con `public.sito_percorso_applicativo()` (migrazione
+ * 20280915300000): qui si evita la chiamata, lì si decide — la regola del
+ * database vale anche per le schede aperte su una versione vecchia del bundle.
+ * `/cliente` al singolare è l'area riservata dei clienti: per mesi qui c'era
+ * solo `/clienti`, e le sue pagine finivano fra le «più viste» del sito.
+ */
 const AREE_APP = [
-  "/azienda", "/admin", "/campo", "/tecnico", "/clienti", "/commercialista",
+  "/azienda", "/admin", "/campo", "/tecnico", "/clienti", "/cliente", "/commercialista",
   "/partner", "/referral", "/produttore", "/portale", "/appuntamento", "/prenota",
+  "/dipendente", "/venditore", "/dev", "/widget",
 ];
 
 /**
  * Pagine di servizio: sono la porta dell'app, non il sito. Le calpesta ogni
  * cliente già attivo che entra al mattino, e nell'attribuzione varrebbero come
  * "pagine viste dal visitatore" falsando ogni conteggio.
+ *
+ * Gli accessi con il trattino vanno elencati uno per uno: `/admin` esclude
+ * `/admin/…` ma non `/admin-login`, che non ha la barra.
  */
 const PAGINE_SERVIZIO = [
-  "/login", "/registrati", "/signup", "/reset-password", "/cambia-password",
+  // accessi, registrazione, password
+  "/login", "/registrati", "/signup", "/register", "/reset-password", "/cambia-password",
   "/recupera-password", "/auth", "/logout", "/seleziona-azienda", "/2fa",
+  "/admin-login", "/clienti-login", "/commercialista-login", "/lavori-login",
+  "/produttore-login", "/referral-login",
+  // pagine raggiunte da un link personale, non dal sito
+  "/firma", "/firma-fea", "/firma-odv", "/firma-sal", "/preventivo", "/accetta-preventivo",
+  "/stima", "/candidatura", "/talent-profile", "/qr", "/review", "/feedback",
+  // rientri da accessi esterni
+  "/oauth-done", "/meta-oauth-done",
 ];
 
 function percorsoDaNonTracciare(pathname: string): boolean {

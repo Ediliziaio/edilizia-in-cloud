@@ -56,6 +56,26 @@ function nonUmano(ua: string): boolean {
   return NON_UMANI.test(ua);
 }
 
+/**
+ * Da quale indirizzo arriva la visita.
+ *
+ * Sito, app delle aziende e pannello admin sono la stessa applicazione su
+ * indirizzi diversi, e lo sviluppo in locale usa gli stessi percorsi: senza
+ * l'indirizzo non si distinguono. Lo dichiara il browser nell'header Origin
+ * (sempre presente su una POST cross-origin); il Referer e' il ripiego.
+ * Decidere cosa scartare non tocca a questa funzione: lo fa il trigger
+ * `attribution_scarta_non_sito` all'ingresso, con la regola scritta una volta.
+ */
+function hostDiProvenienza(req: Request): string | null {
+  const origine = req.headers.get("origin") || req.headers.get("referer") || "";
+  if (!origine || origine === "null") return null;
+  try {
+    return new URL(origine).host.toLowerCase().slice(0, 255);
+  } catch {
+    return null;
+  }
+}
+
 serveConMetriche("site-track", async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -103,6 +123,7 @@ serveConMetriche("site-track", async (req) => {
 
     const visitorId = pulisci(body.visitor_id, 64) || null;
     const userAgent = userAgentGrezzo;
+    const host = hostDiProvenienza(req);
 
     // Sessione: si crea alla prima pagina con la provenienza di quel momento.
     // Se esiste già la si lascia stare — la fonte è quella d'ingresso.
@@ -132,6 +153,7 @@ serveConMetriche("site-track", async (req) => {
         li_fat_id: pulisci(body.li_fat_id, 300) || null,
         device_type: dispositivo(userAgent),
         user_agent: userAgent.slice(0, 500),
+        host,
         started_at: new Date().toISOString(),
         pages_viewed: 1,
       });
@@ -153,6 +175,7 @@ serveConMetriche("site-track", async (req) => {
       title: pulisci(body.title, 300) || null,
       referrer: pulisci(body.referrer, 1000) || null,
       client_id: pulisci(body.client_id, 64) || null,
+      host,
     });
 
     return new Response(JSON.stringify({ ok: true }), {
