@@ -55,6 +55,15 @@ export function provvigioneAScaglioni(base: number, scaglioni: Scaglione[]): num
   return Math.round(tot * 100) / 100;
 }
 
+/** Scaglione per scaglione: la fetta di venduto che ci cade e quanto rende. */
+export function fetteScaglioni(base: number, scaglioni: Scaglione[]): Array<{ scaglione: Scaglione; fetta: number; importo: number }> {
+  const b = Number.isFinite(base) ? Math.max(0, base) : 0;
+  return scaglioni.map((s) => {
+    const fetta = Math.max(0, Math.min(b, s.a ?? Infinity) - s.da);
+    return { scaglione: s, fetta, importo: Math.round(fetta * s.pct) / 100 };
+  });
+}
+
 /** Percentuale media effettiva sul venduto (0 se non c'è venduto). */
 export function aliquotaEffettiva(base: number, scaglioni: Scaglione[]): number {
   if (!base || base <= 0) return 0;
@@ -179,6 +188,16 @@ export interface ClienteMarketing {
   mese_dovuto: number | null;
   mese_incassato: number | null;
   mese_chiuso: boolean;
+  /** lead di ogni giorno degli ultimi 30, dal più vecchio a oggi */
+  lead_giorni: number[];
+  /** giorni passati dall'ultimo lead; null se non ne è mai arrivato uno */
+  giorni_senza_lead: number | null;
+  referente_nome: string | null;
+  referente_telefono: string | null;
+  referente_email: string | null;
+  promemoria_aperti: number;
+  promemoria_scaduti: number;
+  prossimo_promemoria: { id: string; titolo: string; scadenza: string | null; tipo: string | null } | null;
 }
 
 export interface LetturaMese {
@@ -197,8 +216,12 @@ export interface LetturaMese {
   avvisi: Avviso[];
 }
 
+export type TipoAvviso =
+  | "lead_fermi" | "meta_scaduto" | "meta_assente" | "senza_costi" | "senza_lead" | "lead_meta_mancanti"
+  | "mai_entrati" | "senza_fatture" | "promemoria";
+
 export interface Avviso {
-  tipo: "lead_fermi" | "meta_scaduto" | "meta_assente" | "senza_costi" | "senza_lead" | "lead_meta_mancanti" | "mai_entrati" | "senza_fatture";
+  tipo: TipoAvviso;
   testo: string;
   grave: boolean;
 }
@@ -226,7 +249,14 @@ export function leggiMese(c: ClienteMarketing, meseCorrente: boolean): LetturaMe
     if (c.meta_stato === "token_expired") avvisi.push({ tipo: "meta_scaduto", grave: true, testo: "Collegamento Meta scaduto: va ricollegato" });
     else if (!c.meta_stato) avvisi.push({ tipo: "meta_assente", grave: false, testo: "Meta non collegato: niente costi né lead dalle inserzioni" });
     else if (!c.meta_account_id) avvisi.push({ tipo: "meta_assente", grave: false, testo: "Nessun account pubblicitario scelto su Meta" });
-    if (meseCorrente && c.lead_mese === 0) avvisi.push({ tipo: "senza_lead", grave: true, testo: "Nessun lead questo mese" });
+    if (meseCorrente && c.giorni_senza_lead != null && c.giorni_senza_lead >= 3) {
+      avvisi.push({ tipo: "senza_lead", grave: c.giorni_senza_lead >= 5, testo: `Nessun lead da ${c.giorni_senza_lead} giorni` });
+    } else if (meseCorrente && c.lead_mese === 0) {
+      avvisi.push({ tipo: "senza_lead", grave: true, testo: "Nessun lead questo mese" });
+    }
+    if (c.promemoria_scaduti > 0) {
+      avvisi.push({ tipo: "promemoria", grave: false, testo: c.promemoria_scaduti === 1 ? "1 promemoria scaduto" : `${c.promemoria_scaduti} promemoria scaduti` });
+    }
     if (c.lead_mese > 0 && spesa === 0) avvisi.push({ tipo: "senza_costi", grave: false, testo: "Costi del mese non ancora caricati: CPL e CPA restano vuoti" });
     if (c.lead_meta_dichiarati > 0 && c.lead_meta < c.lead_meta_dichiarati * 0.8) {
       avvisi.push({ tipo: "lead_meta_mancanti", grave: true, testo: `Meta conta ${c.lead_meta_dichiarati} lead, nel CRM ne sono arrivati ${c.lead_meta}: controlla il collegamento dei moduli` });
@@ -250,6 +280,69 @@ export function leggiMese(c: ClienteMarketing, meseCorrente: boolean): LetturaMe
     roas: spesa > 0 ? Math.round((venduto / spesa) * 10) / 10 : null,
     avvisi,
   };
+}
+
+/** Cosa si può fare, con un clic, per ogni avviso. */
+export type AzioneOggi = "lead_fermi" | "ricollega_meta" | "inserzioni" | "moduli" | "costi" | "referente" | "fatture" | "promemoria" | "entra";
+
+export interface VoceOggi {
+  service_client_id: string;
+  company_id: string;
+  cliente: string;
+  tipo: TipoAvviso;
+  grave: boolean;
+  testo: string;
+  azione: AzioneOggi;
+}
+
+const AZIONE_PER_TIPO: Record<TipoAvviso, AzioneOggi> = {
+  lead_fermi: "lead_fermi",
+  meta_scaduto: "ricollega_meta",
+  meta_assente: "ricollega_meta",
+  senza_lead: "inserzioni",
+  senza_costi: "costi",
+  lead_meta_mancanti: "moduli",
+  mai_entrati: "referente",
+  senza_fatture: "fatture",
+  promemoria: "promemoria",
+};
+
+/**
+ * La lista del mattino: gli avvisi di tutti i clienti attivi, i gravi prima,
+ * poi per volume di lead (chi porta più lead pesa di più). «Nessun lead» senza
+ * un account Meta non porta alle inserzioni: si entra nell'azienda.
+ */
+export function cosaFareOggi(righe: ClienteMarketing[], meseCorrente: boolean): VoceOggi[] {
+  const voci: Array<VoceOggi & { peso: number }> = [];
+  for (const c of righe) {
+    if (c.stato !== "attivo") continue;
+    for (const a of leggiMese(c, meseCorrente).avvisi) {
+      let azione = AZIONE_PER_TIPO[a.tipo];
+      if (azione === "inserzioni" && !c.meta_account_id) azione = "entra";
+      if (azione === "referente" && !c.referente_telefono && !c.referente_email) azione = "entra";
+      voci.push({ service_client_id: c.service_client_id, company_id: c.company_id, cliente: c.cliente_nome, tipo: a.tipo, grave: a.grave, testo: a.testo, azione, peso: c.lead_mese });
+    }
+  }
+  return voci
+    .sort((x, y) => Number(y.grave) - Number(x.grave) || y.peso - x.peso || x.cliente.localeCompare(y.cliente))
+    .map(({ peso: _peso, ...v }) => v);
+}
+
+/** Link a Gestione inserzioni di Meta per l'account scelto (act_… o solo cifre). */
+export function linkGestioneInserzioni(accountId: string | null): string | null {
+  if (!accountId) return null;
+  const id = accountId.replace(/^act_/, "").trim();
+  return /^\d+$/.test(id) ? `https://adsmanager.facebook.com/adsmanager/manage/campaigns?act=${id}` : null;
+}
+
+/** Link WhatsApp al referente: solo cifre, prefisso italiano se manca. */
+export function linkWhatsapp(telefono: string | null): string | null {
+  if (!telefono) return null;
+  let cifre = telefono.replace(/[^\d+]/g, "");
+  if (cifre.startsWith("00")) cifre = `+${cifre.slice(2)}`;
+  if (!cifre.startsWith("+")) cifre = cifre.startsWith("39") && cifre.length >= 11 ? `+${cifre}` : `+39${cifre}`;
+  const solo = cifre.replace(/\D/g, "");
+  return solo.length >= 8 ? `https://wa.me/${solo}` : null;
 }
 
 /** Totali della console su tutti i clienti attivi. */

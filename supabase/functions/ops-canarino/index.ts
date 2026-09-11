@@ -18,6 +18,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { rapportoClientiMarketing } from "./clienti-marketing.ts";
 
 import { serveConMetriche } from "../_shared/withMetrics.ts";
 const supabase = createClient(
@@ -55,6 +56,55 @@ serveConMetriche("ops-canarino", async (req) => {
     return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: corsH });
   }
 
+  // Destinatari: i super-admin della piattaforma.
+  const destinatariSuperAdmin = async (): Promise<string[]> => {
+    const { data: admins } = await supabase
+      .from("user_roles").select("user_id").eq("role", "super_admin").limit(5);
+    const { data: profiles } = await supabase
+      .from("profiles").select("email").in("id", (admins ?? []).map((a: { user_id: string }) => a.user_id));
+    return (profiles ?? []).map((p: { email: string | null }) => p.email).filter(Boolean) as string[];
+  };
+
+  // Stessa funzione, secondo rapporto: alle 08:00 il cron clienti-marketing-mattino
+  // chiede il riepilogo dei clienti seguiti nel marketing (lead di ieri, fermi,
+  // spesa, CPL, cose da fare). Una funzione in più non si può pubblicare (tetto
+  // delle edge function), e il canarino ha già destinatari e mittente.
+  let modo = "";
+  try {
+    const corpo = await req.json();
+    modo = String(corpo?.modo ?? "");
+  } catch {
+    // corpo vuoto: rapporto di piattaforma
+  }
+  if (modo === "clienti-marketing") {
+    try {
+      const destinatari = await destinatariSuperAdmin();
+      if (!destinatari.length) {
+        return new Response(JSON.stringify({ ok: false, reason: "nessun super_admin con email" }), { headers: corsH });
+      }
+      const urlConsole = `${Deno.env.get("APP_URL") ?? "https://app.ediliziaincloud.com"}/admin/marketing/clienti-servizio`;
+      const r = await rapportoClientiMarketing(supabase, urlConsole);
+      const sendResult = await sendEmailUnified({
+        companyId: null,
+        stream: "transactional",
+        to: destinatari,
+        subject: r.subject,
+        html: r.html,
+        templateName: "clienti_marketing_mattino",
+        skipCredits: true,
+        adminClient: supabase,
+        metadata: { cose: r.cose, clienti: r.clienti },
+      });
+      if (!sendResult.ok) {
+        throw new Error(String((sendResult.body as { error?: unknown })?.error ?? `status ${sendResult.status}`));
+      }
+      return new Response(JSON.stringify({ ok: true, cose: r.cose, clienti: r.clienti, destinatari: destinatari.length }), { headers: corsH });
+    } catch (err) {
+      console.error("[ops-canarino clienti-marketing]", err);
+      return new Response(JSON.stringify({ ok: false, error: (err as Error).message }), { status: 500, headers: corsH });
+    }
+  }
+
   try {
     // I vitali li raccoglie il cron SQL delle 04:50 (ops-canarino-snapshot):
     // via PostgREST la RPC sfora gli 8s di statement_timeout per colpa dello
@@ -81,12 +131,7 @@ serveConMetriche("ops-canarino", async (req) => {
       .filter((s) => s.items.length > 0);
     const totale = problemi.reduce((n, s) => n + s.items.length, 0);
 
-    // Destinatari: i super-admin della piattaforma.
-    const { data: admins } = await supabase
-      .from("user_roles").select("user_id").eq("role", "super_admin").limit(5);
-    const { data: profiles } = await supabase
-      .from("profiles").select("email").in("id", (admins ?? []).map((a: { user_id: string }) => a.user_id));
-    const destinatari = (profiles ?? []).map((p: { email: string | null }) => p.email).filter(Boolean) as string[];
+    const destinatari = await destinatariSuperAdmin();
     if (!destinatari.length) {
       return new Response(JSON.stringify({ ok: false, reason: "nessun super_admin con email" }), { headers: corsH });
     }

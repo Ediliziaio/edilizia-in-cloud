@@ -8,6 +8,7 @@
  * stato di ogni relazione, con ricerca + filtri per servizio/stato.
  */
 import { useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -34,11 +35,13 @@ import { ServiceBillingsDialog } from "@/components/admin/settings/ServiceBillin
 import { ChiusuraMeseDialog } from "@/components/admin/settings/ChiusuraMeseDialog";
 import { ValoreClientiTable } from "@/components/admin/settings/ValoreClientiTable";
 import { ClientiMarketingPanel } from "@/components/admin/clienti-marketing/ClientiMarketingPanel";
+import { ReportClienteMarketing } from "@/components/admin/clienti-marketing/ReportClienteMarketing";
 import { ScaglioniEditor } from "@/components/admin/clienti-marketing/ScaglioniEditor";
 import { useClientiMarketing } from "@/components/admin/clienti-marketing/useClientiMarketing";
 import {
-  SCAGLIONI_STANDARD, meseChiave, normalizzaScaglioni, righeDaScaglioni, scaglioniDaRighe, totaliMese, variazione, type RigaScaglione,
+  SCAGLIONI_STANDARD, meseChiave, meseLeggibile, normalizzaScaglioni, righeDaScaglioni, scaglioniDaRighe, totaliMese, variazione, type RigaScaglione,
 } from "@/components/admin/clienti-marketing/provvigioni";
+import { Skeleton } from "@/components/ui/skeleton";
 import { PLATFORM_ADMIN_COMPANY_ID } from "@/lib/adminConstants";
 
 interface ProductLineLite { id: string; nome: string; colore: string | null; }
@@ -110,7 +113,10 @@ export default function AdminServiceClients() {
   const [oggi] = useState(() => new Date());
   const meseOggi = meseChiave(oggi);
   const [mese, setMese] = useState(meseOggi);
-  const riepilogo = useClientiMarketing(mese, vista === "marketing");
+  // ?report=<cliente-servizio>: il report del mese da stampare, al posto della console.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const reportId = searchParams.get("report");
+  const riepilogo = useClientiMarketing(mese, vista === "marketing" || !!reportId);
   const totali = useMemo(() => totaliMese(riepilogo.data ?? [], mese === meseOggi), [riepilogo.data, mese, meseOggi]);
   // Filtri lista
   const [search, setSearch] = useState("");
@@ -340,6 +346,24 @@ export default function AdminServiceClients() {
     { l: "Provvigioni stimate", v: eur(totali.provvigioni) },
   ];
 
+  if (reportId) {
+    const cliente = riepilogo.data?.find((r) => r.service_client_id === reportId);
+    return (
+      <div className="space-y-5">
+        {riepilogo.isLoading ? (
+          <Skeleton className="mx-auto h-[70vh] max-w-3xl rounded-xl" />
+        ) : !cliente ? (
+          <div className="flex flex-col items-center gap-3 rounded-xl border py-14 text-center">
+            <p className="text-sm text-muted-foreground">Cliente marketing non trovato.</p>
+            <Button variant="outline" size="sm" onClick={() => setSearchParams({})}>Torna alla console</Button>
+          </div>
+        ) : (
+          <ReportClienteMarketing c={cliente} mese={mese} meseLeggibile={meseLeggibile(mese)} meseOggi={meseOggi} oggi={oggi} onMese={setMese} onChiudi={() => setSearchParams({})} />
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-5">
       <BrandPageHeader
@@ -404,6 +428,7 @@ export default function AdminServiceClients() {
           refetch={() => void riepilogo.refetch()}
           onModifica={(id) => apriDaConsole(id, "modifica")}
           onIncassi={(id) => apriDaConsole(id, "incassi")}
+          onReport={(id) => setSearchParams({ report: id })}
           onVaiAiContratti={() => setVista("contratti")}
         />
       ) : vista === "clienti" ? <ValoreClientiTable /> : <>

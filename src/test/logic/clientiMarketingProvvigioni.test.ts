@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   SCAGLIONI_STANDARD, provvigioneAScaglioni, aliquotaEffettiva, scaglioneCorrente, alProssimoScaglione,
   normalizzaScaglioni, costoPer, variazione, meseChiave, meseLeggibile, fineMeseOOggi, leggiMese, totaliMese,
+  cosaFareOggi, fetteScaglioni, linkGestioneInserzioni, linkWhatsapp, spostaMese,
   type ClienteMarketing,
 } from "@/components/admin/clienti-marketing/provvigioni";
 
@@ -80,6 +81,9 @@ const riga = (p: Partial<ClienteMarketing> = {}): ClienteMarketing => ({
   meta_stato: "connected", meta_integration_id: "i", meta_account_id: "act_1", meta_account_nome: "Best Infissi", meta_pagine: "Best Infissi Srl",
   google_account: null, form_attivi: 0, utenti: 7, ultimo_accesso: "2026-09-10T08:00:00Z",
   mese_dovuto: null, mese_incassato: null, mese_chiuso: false,
+  lead_giorni: Array.from({ length: 30 }, (_, i) => (i === 28 ? 3 : 1)), giorni_senza_lead: 0,
+  referente_nome: "Mario Rossi", referente_telefono: "333 1234567", referente_email: null,
+  promemoria_aperti: 0, promemoria_scaduti: 0, prossimo_promemoria: null,
   ...p,
 });
 
@@ -115,6 +119,61 @@ describe("leggiMese", () => {
   it("«nessun lead» vale solo per il mese in corso", () => {
     expect(leggiMese(riga({ lead_mese: 0 }), false).avvisi.map((a) => a.tipo)).not.toContain("senza_lead");
     expect(leggiMese(riga({ lead_mese: 0 }), true).avvisi.map((a) => a.tipo)).toContain("senza_lead");
+  });
+  it("i giorni senza lead contano da 3, gravi da 5; i promemoria scaduti si fanno sentire", () => {
+    const tre = leggiMese(riga({ giorni_senza_lead: 3 }), true).avvisi.find((a) => a.tipo === "senza_lead");
+    expect(tre?.grave).toBe(false);
+    expect(tre?.testo).toBe("Nessun lead da 3 giorni");
+    expect(leggiMese(riga({ giorni_senza_lead: 6 }), true).avvisi.find((a) => a.tipo === "senza_lead")?.grave).toBe(true);
+    expect(leggiMese(riga({ giorni_senza_lead: 2 }), true).avvisi.map((a) => a.tipo)).not.toContain("senza_lead");
+    expect(leggiMese(riga({ promemoria_scaduti: 2 }), true).avvisi.find((a) => a.tipo === "promemoria")?.testo).toBe("2 promemoria scaduti");
+  });
+});
+
+describe("cosaFareOggi", () => {
+  it("mette i gravi in cima, poi chi porta più lead, e salta chi è in pausa", () => {
+    const voci = cosaFareOggi([
+      riga({ cliente_nome: "Piccolo", lead_mese: 5, lead_non_gestiti: 1, spesa_meta: 100, spesa_manuale: 0 }),
+      riga({ cliente_nome: "Grande", lead_mese: 400, lead_non_gestiti: 1, spesa_meta: 100, spesa_manuale: 0 }),
+      riga({ cliente_nome: "Fermo", stato: "pausa", lead_non_gestiti: 9 }),
+      riga({ cliente_nome: "Scaduto", meta_stato: "token_expired", lead_non_gestiti: 0 }),
+    ], true);
+    expect(voci.map((v) => v.cliente)).toEqual(["Scaduto", "Grande", "Piccolo"]);
+    expect(voci[0].azione).toBe("ricollega_meta");
+    expect(voci[1].azione).toBe("lead_fermi");
+  });
+  it("«nessun lead» porta alle inserzioni solo con un account Meta; senza recapiti si entra in azienda", () => {
+    const [conMeta] = cosaFareOggi([riga({ giorni_senza_lead: 7, lead_non_gestiti: 0 })], true);
+    expect(conMeta.tipo).toBe("senza_lead");
+    expect(conMeta.azione).toBe("inserzioni");
+    const [senzaMeta] = cosaFareOggi([riga({ giorni_senza_lead: 7, lead_non_gestiti: 0, meta_account_id: null, meta_stato: null })], true)
+      .filter((v) => v.tipo === "senza_lead");
+    expect(senzaMeta.azione).toBe("entra");
+    const [maiEntrati] = cosaFareOggi([riga({ ultimo_accesso: null, lead_non_gestiti: 0, referente_telefono: null })], true)
+      .filter((v) => v.tipo === "mai_entrati");
+    expect(maiEntrati.azione).toBe("entra");
+  });
+});
+
+describe("scorciatoie", () => {
+  it("Gestione inserzioni vuole l'id numerico dell'account", () => {
+    expect(linkGestioneInserzioni("act_1407493343149837")).toBe("https://adsmanager.facebook.com/adsmanager/manage/campaigns?act=1407493343149837");
+    expect(linkGestioneInserzioni("1407")).toContain("act=1407");
+    expect(linkGestioneInserzioni("boh")).toBeNull();
+    expect(linkGestioneInserzioni(null)).toBeNull();
+  });
+  it("WhatsApp: solo cifre, prefisso italiano quando manca", () => {
+    expect(linkWhatsapp("333 1234567")).toBe("https://wa.me/393331234567");
+    expect(linkWhatsapp("+39 02 1234567")).toBe("https://wa.me/39021234567");
+    expect(linkWhatsapp("0039 333 1234567")).toBe("https://wa.me/393331234567");
+    expect(linkWhatsapp("12")).toBeNull();
+    expect(linkWhatsapp(null)).toBeNull();
+  });
+  it("le fette degli scaglioni spiegano il compenso", () => {
+    const f = fetteScaglioni(75_000, SCAGLIONI_STANDARD);
+    expect(f.map((x) => x.fetta)).toEqual([50_000, 25_000, 0, 0, 0, 0]);
+    expect(f.map((x) => x.importo)).toEqual([1500, 625, 0, 0, 0, 0]);
+    expect(spostaMese("2026-01-01", -1)).toBe("2025-12-01");
   });
 });
 

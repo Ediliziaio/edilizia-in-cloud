@@ -1,21 +1,29 @@
 /**
  * La scheda di un cliente marketing nel mese scelto: cosa è collegato, quanti
- * lead sono arrivati e come sono stati seguiti, quanto è costato ogni lead,
- * appuntamento e vendita, il venduto su cui matura la provvigione e la
- * provvigione a scaglioni. Le azioni portano dentro l'azienda, ai costi del
- * mese, al registro incassi e alla scheda del contratto.
+ * lead sono arrivati (e la linea degli ultimi 30 giorni), come sono stati
+ * seguiti, quanto è costato ogni lead, appuntamento e vendita, il venduto su
+ * cui matura la provvigione e la provvigione a scaglioni. Le azioni portano
+ * dentro l'azienda, ai costi del mese, al registro incassi, al contratto, a un
+ * promemoria; il menù «⋯» alle scorciatoie (inserzioni, CRM, referente, report).
  */
 import type { ReactNode } from "react";
+import { Link } from "react-router-dom";
 import {
-  AlertTriangle, ArrowDownRight, ArrowUpRight, CalendarCheck, ClipboardList, Coins, FileText, Globe, Inbox, Loader2, LogIn,
-  Megaphone, Pencil, Percent, Receipt, Trophy, UserRoundCheck, Users, Wallet,
+  AlertTriangle, ArrowDownRight, ArrowUpRight, BellPlus, CalendarCheck, ClipboardList, Coins, ExternalLink, FileText, Globe, Inbox,
+  Loader2, LogIn, Mail, Megaphone, MessageCircle, MoreHorizontal, Pencil, Percent, Printer, Receipt, Trophy, UserRoundCheck, Users, Wallet,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { alProssimoScaglione, leggiMese, scaglioneCorrente, variazione, type ClienteMarketing } from "./provvigioni";
+import {
+  alProssimoScaglione, leggiMese, linkGestioneInserzioni, linkWhatsapp, scaglioneCorrente, variazione, type ClienteMarketing,
+} from "./provvigioni";
 import { dataBreve, eur, numero, ore } from "./formato";
+import { Sparkline } from "./Sparkline";
 
 const STATO: Record<string, { etichetta: string; classe: string }> = {
   attivo: { etichetta: "attivo", classe: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" },
@@ -30,10 +38,12 @@ interface Props {
   oggi: Date;
   entraInCorso: boolean;
   puoEntrare: boolean;
-  onEntra: () => void;
+  onEntra: (pagina?: string) => void;
   onCosti: () => void;
   onIncassi: () => void;
   onModifica: () => void;
+  onPromemoria: () => void;
+  onReport: () => void;
 }
 
 function Delta({ adesso, prima }: { adesso: number; prima: number }) {
@@ -73,7 +83,15 @@ function Chip({ stato, icona: Icona, children, titolo }: { stato: "ok" | "no" | 
   );
 }
 
-export function ClienteMarketingCard({ c, meseCorrente, meseLeggibile, oggi, entraInCorso, puoEntrare, onEntra, onCosti, onIncassi, onModifica }: Props) {
+/** «ieri 3 · 2 giorni senza lead»: la riga sotto la linea dei 30 giorni. */
+function testoUltimiGiorni(c: ClienteMarketing): string {
+  const ieri = c.lead_giorni.length >= 2 ? c.lead_giorni[c.lead_giorni.length - 2] : 0;
+  const g = c.giorni_senza_lead;
+  const ultimo = g == null ? "mai un lead" : g === 0 ? "ultimo oggi" : g === 1 ? "ultimo ieri" : `${numero(g)} giorni senza lead`;
+  return `ieri ${numero(ieri)} · ${ultimo}`;
+}
+
+export function ClienteMarketingCard({ c, meseCorrente, meseLeggibile, oggi, entraInCorso, puoEntrare, onEntra, onCosti, onIncassi, onModifica, onPromemoria, onReport }: Props) {
   const l = leggiMese(c, meseCorrente);
   const stato = STATO[c.stato] ?? { etichetta: c.stato, classe: "" };
   const spento = c.stato === "cessato";
@@ -97,6 +115,12 @@ export function ClienteMarketingCard({ c, meseCorrente, meseLeggibile, oggi, ent
       : c.meta_stato === "token_expired" ? { stato: "no", testo: "Meta scaduto" }
       : c.meta_stato ? { stato: "no", testo: `Meta ${c.meta_stato}` }
       : { stato: "neutro", testo: "Meta non collegato" };
+  const inserzioni = linkGestioneInserzioni(c.meta_account_id);
+  const whatsapp = linkWhatsapp(c.referente_telefono);
+  const oggiChiave = `${oggi.getFullYear()}-${String(oggi.getMonth() + 1).padStart(2, "0")}-${String(oggi.getDate()).padStart(2, "0")}`;
+  const prom = c.prossimo_promemoria;
+  const promScaduto = !!prom?.scadenza && prom.scadenza < oggiChiave;
+  const promOggi = !!prom?.scadenza && prom.scadenza === oggiChiave;
 
   return (
     <article className={cn("rounded-xl border bg-card shadow-sm", spento && "opacity-60")}>
@@ -114,7 +138,16 @@ export function ClienteMarketingCard({ c, meseCorrente, meseLeggibile, oggi, ent
             <div className="mt-0.5 text-xs text-muted-foreground">
               {c.servizio ?? "Marketing"}{c.data_inizio ? ` · dal ${dataBreve(c.data_inizio, false, oggi)}` : ""}{c.commerciale ? ` · comm. ${c.commerciale}` : ""}
               {c.pipeline_aperta > 0 && <> · {numero(c.pipeline_aperta)} opportunità aperte per {eur(c.valore_pipeline_aperta)}</>}
+              {c.referente_nome && c.referente_nome !== c.cliente_nome && <> · referente {c.referente_nome}</>}
             </div>
+            {prom && (
+              <Link to="/admin/attivita" className={cn("mt-1 inline-flex items-center gap-1 text-xs underline-offset-2 hover:underline",
+                promScaduto ? "text-rose-700 dark:text-rose-400" : promOggi ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground")}>
+                <BellPlus className="h-3 w-3" />
+                Promemoria: {prom.titolo}{prom.scadenza ? ` · ${promScaduto ? "scaduto il" : promOggi ? "oggi" : "entro il"} ${promOggi ? "" : dataBreve(prom.scadenza, false, oggi)}`.replace(/\s+$/, "") : ""}
+                {c.promemoria_aperti > 1 ? ` (+${numero(c.promemoria_aperti - 1)})` : ""}
+              </Link>
+            )}
             <div className="mt-2 flex flex-wrap gap-1.5">
               <Chip stato={meta.stato} icona={Megaphone} titolo={c.meta_pagine ? `Pagine: ${c.meta_pagine}` : undefined}>{meta.testo}</Chip>
               {c.meta_pagine && <Chip stato="neutro" icona={Megaphone} titolo={c.meta_pagine}>{c.meta_pagine.split(", ").length === 1 ? c.meta_pagine : `${c.meta_pagine.split(", ").length} pagine`}</Chip>}
@@ -128,18 +161,56 @@ export function ClienteMarketingCard({ c, meseCorrente, meseLeggibile, oggi, ent
           </div>
         </div>
         <div className="flex flex-wrap gap-1.5 lg:justify-end">
-          <Button size="sm" variant="outline" className="gap-1.5" onClick={onEntra} disabled={!puoEntrare || entraInCorso}>
+          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => onEntra()} disabled={!puoEntrare || entraInCorso}>
             {entraInCorso ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <LogIn className="h-3.5 w-3.5" />} Entra nell'azienda
           </Button>
           <Button size="sm" variant="ghost" className="gap-1.5" onClick={onCosti}><Receipt className="h-3.5 w-3.5" /> Costi del mese</Button>
           <Button size="sm" variant="ghost" className="gap-1.5" onClick={onIncassi}><Wallet className="h-3.5 w-3.5" /> Incassi</Button>
           <Button size="sm" variant="ghost" className="gap-1.5" onClick={onModifica} aria-label="Modifica contratto"><Pencil className="h-3.5 w-3.5" /> Contratto</Button>
+          <Button size="sm" variant="ghost" className="gap-1.5" onClick={onPromemoria}><BellPlus className="h-3.5 w-3.5" /> Promemoria</Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" variant="ghost" className="h-8 w-8 p-0" aria-label="Altre azioni"><MoreHorizontal className="h-4 w-4" /></Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-64">
+              <DropdownMenuLabel className="text-xs text-muted-foreground">Scorciatoie</DropdownMenuLabel>
+              {inserzioni && (
+                <DropdownMenuItem asChild>
+                  <a href={inserzioni} target="_blank" rel="noopener noreferrer" className="gap-2"><Megaphone className="h-4 w-4" /> Gestione inserzioni Meta <ExternalLink className="ml-auto h-3 w-3 opacity-60" /></a>
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem className="gap-2" disabled={!puoEntrare} onClick={() => onEntra("/azienda/marketing/opportunita")}><Inbox className="h-4 w-4" /> Lead nel CRM del cliente</DropdownMenuItem>
+              <DropdownMenuItem className="gap-2" disabled={!puoEntrare} onClick={() => onEntra("/azienda/marketing/pubblicita")}><Megaphone className="h-4 w-4" /> Pubblicità e collegamento Meta</DropdownMenuItem>
+              <DropdownMenuItem className="gap-2" disabled={!puoEntrare} onClick={() => onEntra("/azienda/marketing/facebook-forms")}><ClipboardList className="h-4 w-4" /> Moduli lead Facebook</DropdownMenuItem>
+              <DropdownMenuSeparator />
+              {whatsapp && (
+                <DropdownMenuItem asChild>
+                  <a href={whatsapp} target="_blank" rel="noopener noreferrer" className="gap-2"><MessageCircle className="h-4 w-4" /> WhatsApp a {c.referente_nome ?? "referente"} <ExternalLink className="ml-auto h-3 w-3 opacity-60" /></a>
+                </DropdownMenuItem>
+              )}
+              {c.referente_email && (
+                <DropdownMenuItem asChild>
+                  <a href={`mailto:${c.referente_email}`} className="gap-2"><Mail className="h-4 w-4" /> Email a {c.referente_nome ?? "referente"}</a>
+                </DropdownMenuItem>
+              )}
+              {!whatsapp && !c.referente_email && <DropdownMenuItem disabled className="gap-2"><MessageCircle className="h-4 w-4" /> Nessun recapito del referente</DropdownMenuItem>}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem className="gap-2" onClick={onReport}><Printer className="h-4 w-4" /> Report di {meseLeggibile} per il cliente</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </header>
 
       <div className="grid grid-cols-2 gap-2 px-4 pb-3 md:grid-cols-3 xl:grid-cols-6">
-        <Stat etichetta="Lead nuovi" icona={Inbox} valore={numero(c.lead_mese)} tono={meseCorrente && c.stato === "attivo" && c.lead_mese === 0 ? "attenzione" : undefined}
-          righe={[<Delta key="d" adesso={c.lead_mese} prima={c.lead_prec} />, canali || (c.lead_mese > 0 ? "fonte non riconosciuta" : "nessun lead nel mese"), c.lead_meta_dichiarati > 0 ? `Meta ne dichiara ${numero(c.lead_meta_dichiarati)}` : null]} />
+        <Stat etichetta="Lead nuovi" icona={Inbox} valore={numero(c.lead_mese)} tono={meseCorrente && c.stato === "attivo" && (c.lead_mese === 0 || (c.giorni_senza_lead ?? 0) >= 5) ? "attenzione" : undefined}
+          righe={[
+            <Delta key="d" adesso={c.lead_mese} prima={c.lead_prec} />,
+            canali || (c.lead_mese > 0 ? "fonte non riconosciuta" : "nessun lead nel mese"),
+            c.lead_giorni.length >= 2 ? (
+              <span key="s" className="inline-flex items-center gap-2"><Sparkline valori={c.lead_giorni} titolo="Lead al giorno negli ultimi 30 giorni" /> {testoUltimiGiorni(c)}</span>
+            ) : null,
+            c.lead_meta_dichiarati > 0 ? `Meta ne dichiara ${numero(c.lead_meta_dichiarati)}` : null,
+          ]} />
         <Stat etichetta="Seguiti" icona={UserRoundCheck} valore={<>{numero(c.lead_lavorati)}{c.lead_mese > 0 && c.lead_lavorati <= c.lead_mese && <span className="text-sm font-medium text-muted-foreground"> / {numero(c.lead_mese)}</span>}</>}
           tono={c.lead_non_gestiti >= 5 ? "attenzione" : undefined}
           righe={[c.ore_mediane_primo_contatto != null ? `primo contatto in ${ore(c.ore_mediane_primo_contatto)} (mediana)` : "nessuna azione registrata",

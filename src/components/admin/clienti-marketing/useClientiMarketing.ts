@@ -18,9 +18,9 @@ const NUMERICI: Array<keyof ClienteMarketing> = [
   "lead_mese", "lead_prec", "lead_meta", "lead_google", "lead_form", "lead_altri", "lead_lavorati", "lead_non_gestiti",
   "appuntamenti_mese", "appuntamenti_prec", "vinte_mese", "vinte_prec", "valore_vinto_mese", "valore_vinto_prec",
   "pipeline_aperta", "valore_pipeline_aperta", "spesa_meta", "lead_meta_dichiarati", "spesa_google", "spesa_manuale",
-  "form_attivi", "utenti",
+  "form_attivi", "utenti", "promemoria_aperti", "promemoria_scaduti",
 ];
-const NUMERICI_O_NULL: Array<keyof ClienteMarketing> = ["ore_mediane_primo_contatto", "fatturato_mese", "fatturato_prec", "mese_dovuto", "mese_incassato"];
+const NUMERICI_O_NULL: Array<keyof ClienteMarketing> = ["ore_mediane_primo_contatto", "fatturato_mese", "fatturato_prec", "mese_dovuto", "mese_incassato", "giorni_senza_lead"];
 
 export function useClientiMarketing(mese: string, enabled = true) {
   return useQuery({
@@ -35,6 +35,7 @@ export function useClientiMarketing(mese: string, enabled = true) {
         const out = { ...r } as Record<string, unknown>;
         for (const k of NUMERICI) out[k] = n(r[k]);
         for (const k of NUMERICI_O_NULL) out[k] = r[k] == null ? null : n(r[k]);
+        out.lead_giorni = Array.isArray(r.lead_giorni) ? (r.lead_giorni as unknown[]).map(n) : [];
         return out as unknown as ClienteMarketing;
       });
     },

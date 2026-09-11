@@ -31,8 +31,28 @@ interface SyncResult {
   companies_processed: number;
   campaigns_synced: number;
   insights_rows_written: number;
+  /** righe a livello account (spesa del mese) scritte per la console clienti marketing */
+  account_rows_written: number;
   errors: string[];
   duration_ms: number;
+}
+
+/**
+ * I periodi di cui chiedere la spesa dell'intero account: il mese in corso
+ * fino a oggi e, nei primi due giorni del mese, anche il mese appena chiuso
+ * per intero (l'ultimo sync della sera prima non copriva le ore finali).
+ * Date in ora di Roma: il mese è quello del cliente, non quello UTC.
+ */
+export function periodiSpesaAccount(adesso = new Date()): Array<{ since: string; until: string }> {
+  const oggi = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Rome", year: "numeric", month: "2-digit", day: "2-digit" }).format(adesso);
+  const [y, m, d] = oggi.split("-").map(Number);
+  const periodi = [{ since: `${oggi.slice(0, 7)}-01`, until: oggi }];
+  if (d <= 2) {
+    const primoPrec = new Date(Date.UTC(y, m - 2, 1));
+    const ultimoPrec = new Date(Date.UTC(y, m - 1, 0));
+    periodi.push({ since: primoPrec.toISOString().slice(0, 10), until: ultimoPrec.toISOString().slice(0, 10) });
+  }
+  return periodi;
 }
 
 Deno.serve(async (req) => {
@@ -137,10 +157,42 @@ Deno.serve(async (req) => {
     const errors: string[] = [];
     let campaignsSynced = 0;
     let insightsRows = 0;
+    let accountRows = 0;
 
     for (const c of companies) {
       try {
         const accessToken = await decrypt(c.token_encrypted, encKey);
+
+        // Spesa dell'intero account dal primo del mese a oggi: è la riga che la
+        // console clienti marketing legge (level=account, date_start = primo del
+        // mese), la stessa che scrive il pulsante «Aggiorna costi Meta» via
+        // meta-api-proxy. Così CPL e CPA sono aggiornati anche senza il pulsante.
+        for (const p of periodiSpesaAccount()) {
+          try {
+            const accUrl = `https://graph.facebook.com/${apiVersion}/${c.meta_act_id}/insights?fields=spend,impressions,clicks,reach,cpc,cpm,ctr,actions&level=account&time_range={"since":"${p.since}","until":"${p.until}"}&access_token=${accessToken}`;
+            const accRes = await fetch(accUrl);
+            if (!accRes.ok) { errors.push(`account_${c.meta_act_id}_insights_failed`); continue; }
+            const accJson = await accRes.json() as { data?: unknown[] };
+            const accRows = accJson.data ?? [];
+            // Nessuna riga = nessuna spesa nel periodo: non si scrive niente,
+            // come fa il proxy (la console lo dice come «nessuna spesa scaricata»).
+            if (!accRows.length) continue;
+            const { error: accErr } = await admin.from("meta_insights_cache").upsert({
+              company_id: c.company_id,
+              ad_account_id: c.meta_act_id,
+              date_start: p.since,
+              date_end: p.until,
+              level: "account",
+              payload_json: accRows,
+              fetched_at: new Date().toISOString(),
+              expires_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+            }, { onConflict: "company_id,ad_account_id,date_start,date_end,level" });
+            if (accErr) errors.push(`account_upsert:${String(accErr.message ?? "").substring(0, 100)}`);
+            else accountRows += 1;
+          } catch (e) {
+            errors.push(`account_${c.meta_act_id}_failed:${String(e).substring(0, 100)}`);
+          }
+        }
 
         // Lista campagne attive/recenti
         const { data: localCampaigns } = await admin
@@ -262,6 +314,7 @@ Deno.serve(async (req) => {
       companies_processed: companies.length,
       campaigns_synced: campaignsSynced,
       insights_rows_written: insightsRows,
+      account_rows_written: accountRows,
       errors,
       duration_ms: Date.now() - t0,
     };
