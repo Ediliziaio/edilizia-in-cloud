@@ -17,6 +17,9 @@ import { UserPlus, Loader2, Users } from "lucide-react";
  */
 
 const CAP = 5000;
+// Le caselle smaltiscono poche decine di primi contatti al giorno: si arruola
+// a ondate, e ogni chiamata deve stare nel tempo della edge function.
+const ONDATA_DEFAULT = 150;
 
 export function OutreachEnrollDialog({ companyId, sequenceId, sequenceName, emailStepCount, onEnrolled }: {
   companyId: string;
@@ -26,9 +29,11 @@ export function OutreachEnrollDialog({ companyId, sequenceId, sequenceName, emai
   onEnrolled?: () => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [mode, setMode] = useState<"all" | "tag" | "source">("all");
+  const [mode, setMode] = useState<"all" | "tag" | "source" | "lista">("lista");
   const [tag, setTag] = useState("");
   const [source, setSource] = useState("");
+  const [listId, setListId] = useState("");
+  const [quanti, setQuanti] = useState(String(ONDATA_DEFAULT));
   const [busy, setBusy] = useState(false);
   // Filtri ICP e qualita' degli indirizzi
   const [provincia, setProvincia] = useState("");
@@ -54,6 +59,33 @@ export function OutreachEnrollDialog({ companyId, sequenceId, sequenceName, emai
     },
   });
 
+  // liste automatiche (si popolano da sole con la loro regola)
+  const liste = useQuery({
+    queryKey: ["enroll-liste", companyId],
+    enabled: open,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("marketing_contact_lists").select("id,name").eq("company_id", companyId).order("name");
+      if (error) throw error;
+      return (data ?? []) as { id: string; name: string }[];
+    },
+  });
+
+  // membri della lista scelta e quanti sono già in questa sequenza
+  const statoLista = useQuery({
+    queryKey: ["enroll-lista-stato", listId, sequenceId],
+    enabled: open && mode === "lista" && !!listId,
+    queryFn: async () => {
+      const { count: membri, error } = await supabase
+        .from("marketing_contact_list_members").select("contact_id", { count: "exact", head: true }).eq("list_id", listId);
+      if (error) throw error;
+      const { count: iscritti } = await supabase
+        .from("outreach_enrollments").select("id", { count: "exact", head: true }).eq("sequence_id", sequenceId);
+      return { membri: membri ?? 0, iscrittiSequenza: iscritti ?? 0 };
+    },
+  });
+
   // conteggio contattabili per il target scelto (limite superiore: il backend
   // scarta poi opt-out/blocklist/già iscritti)
   const count = useQuery({
@@ -75,16 +107,19 @@ export function OutreachEnrollDialog({ companyId, sequenceId, sequenceName, emai
     },
   });
 
-  const canEnroll = emailStepCount > 0 &&
-    (mode === "all" || (mode === "tag" && !!tag) || (mode === "source" && !!source));
+  const quantiNum = Math.floor(Number(quanti));
+  const quantiValido = Number.isFinite(quantiNum) && quantiNum > 0 && quantiNum <= CAP;
+  const canEnroll = emailStepCount > 0 && quantiValido &&
+    (mode === "all" || (mode === "tag" && !!tag) || (mode === "source" && !!source) || (mode === "lista" && !!listId));
 
   async function enroll() {
     setBusy(true);
     try {
-      const payload: Record<string, unknown> = { sequence_id: sequenceId };
+      const payload: Record<string, unknown> = { sequence_id: sequenceId, quanti: quantiNum };
       if (mode === "all") payload.scope = "all";
       else if (mode === "tag") payload.tag = tag;
       else if (mode === "source") payload.source = source;
+      else if (mode === "lista") payload.list_id = listId;
       if (provincia.trim() || citta.trim()) payload.filtri = { provincia: provincia.trim() || undefined, citta: citta.trim() || undefined };
       payload.includi_role = includiRole;
       payload.includi_pec = includiPec;
@@ -103,9 +138,17 @@ export function OutreachEnrollDialog({ companyId, sequenceId, sequenceName, emai
       if (data?.skipped_pec) skips.push(`${data.skipped_pec} PEC`);
       if (data?.skipped_no_mx) skips.push(`${data.skipped_no_mx} domini senza posta`);
       if (data?.skipped_cooldown) skips.push(`${data.skipped_cooldown} in cooldown (non interessati)`);
+      if (data?.skipped_lock) skips.push(`${data.skipped_lock} già lavorati da un altro brand`);
+      const note: string[] = [];
+      if (skips.length) note.push(`Saltati: ${skips.join(", ")}.`);
+      if (data?.lista) {
+        const dentro = Number(data.lista.gia_iscritti ?? 0) + enrolled;
+        note.push(`Lista: ${dentro.toLocaleString("it-IT")} su ${Number(data.lista.membri ?? 0).toLocaleString("it-IT")} ora in sequenza.`);
+      }
+      if (data?.tempo_scaduto) note.push("Ondata chiusa prima per stare nei tempi: rilancia per continuare.");
       if (enrolled > 0) {
         toast.success(`${enrolled} contatti iscritti a "${sequenceName}"`, {
-          description: skips.length ? `Saltati: ${skips.join(", ")}.` : undefined,
+          description: note.length ? note.join(" ") : undefined,
         });
       } else {
         toast.info("Nessun nuovo iscritto", {
@@ -145,12 +188,26 @@ export function OutreachEnrollDialog({ companyId, sequenceId, sequenceName, emai
               <Select value={mode} onValueChange={(v) => setMode(v as typeof mode)}>
                 <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Tutti i contattabili</SelectItem>
-                  <SelectItem value="tag">Per lista (tag)</SelectItem>
+                  <SelectItem value="lista">Lista automatica</SelectItem>
+                  <SelectItem value="tag">Per tag</SelectItem>
                   <SelectItem value="source">Per sorgente</SelectItem>
+                  <SelectItem value="all">Tutti i contattabili</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+
+            {mode === "lista" && (
+              <div className="space-y-1">
+                <Label className="text-xs">Lista</Label>
+                <Select value={listId} onValueChange={setListId}>
+                  <SelectTrigger className="h-9"><SelectValue placeholder={liste.isLoading ? "Carico…" : "Scegli una lista"} /></SelectTrigger>
+                  <SelectContent>
+                    {(liste.data ?? []).map((l) => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
+                    {liste.data && liste.data.length === 0 && <SelectItem value="__none__" disabled>Nessuna lista</SelectItem>}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             {mode === "tag" && (
               <div className="space-y-1">
@@ -194,9 +251,33 @@ export function OutreachEnrollDialog({ companyId, sequenceId, sequenceName, emai
               <label className="flex items-center gap-2"><input type="checkbox" checked={includiPec} onChange={(e) => setIncludiPec(e.target.checked)} /> Includi PEC (sconsigliato)</label>
             </div>
 
+            <div className="space-y-1">
+              <Label className="text-xs">Quanti iscrivere adesso</Label>
+              <Input
+                type="number" min={1} max={CAP} value={quanti}
+                onChange={(e) => setQuanti(e.target.value)}
+                className="h-9 w-32"
+                aria-invalid={!quantiValido}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Meglio a ondate: ogni casella manda pochi primi contatti al giorno. Quando la coda si svuota, riapri e arruola i successivi — si riparte da chi non è ancora entrato.
+              </p>
+            </div>
+
             <div className="flex items-center gap-2 rounded-lg border bg-muted/20 p-2.5 text-sm">
               <Users className="h-4 w-4 shrink-0 text-muted-foreground" />
-              {count.isFetching ? (
+              {mode === "lista" ? (
+                !listId ? (
+                  <span className="text-muted-foreground">Scegli una lista per vedere quanti sono</span>
+                ) : statoLista.isFetching ? (
+                  <span className="text-muted-foreground">Conteggio…</span>
+                ) : statoLista.data ? (
+                  <span>
+                    <strong>{statoLista.data.membri.toLocaleString("it-IT")}</strong> nella lista
+                    {statoLista.data.iscrittiSequenza > 0 && <> · {statoLista.data.iscrittiSequenza.toLocaleString("it-IT")} già in questa sequenza</>}
+                  </span>
+                ) : null
+              ) : count.isFetching ? (
                 <span className="text-muted-foreground">Conteggio…</span>
               ) : count.data != null ? (
                 <span><strong>≈ {count.data.toLocaleString("it-IT")}</strong> contatti contattabili</span>

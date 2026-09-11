@@ -23,7 +23,7 @@ import { assignSenders, cadenzaCasella, dailyCapWithVariance, remainingToday, se
 import { renderTemplate, contactToVars, hashSeed, htmlToPlainText } from "../_shared/outreach-template.ts";
 import { DEFAULT_SEND_WINDOW, finestraEffettiva, isWithinSendWindow, minutoDelGiorno, parseSendWindow, type SendWindow } from "../_shared/outreach-schedule.ts";
 import { parseVariants, pickVariant } from "../_shared/outreach-abz.ts";
-import { nextEmailStep, computeStepSchedule, applyJitter, spostaFuoriWeekend, type SeqStep } from "../_shared/outreach-sequence.ts";
+import { nextEmailStep, computeStepSchedule, applyJitter, spostaFuoriWeekend, ritardoDalPrecedente, type SeqStep } from "../_shared/outreach-sequence.ts";
 import {
   isGraphSequence,
   entryNode,
@@ -317,7 +317,11 @@ async function advanceEnrollment(
     return;
   }
   if (await stopIfUncontactable(supabase, enr.id, contact)) return;
-  const when = computeStepSchedule(sentAt, next.delay_days, next.delay_hours);
+  // Ritardi lineari cumulativi dall'iscrizione: si aggiunge la differenza col
+  // passo appena spedito (vedi ritardoDalPrecedente).
+  const appenaSpedito = (nodes as unknown as SeqStep[]).find((s) => s.step_order === enr.current_step) ?? null;
+  const rit = ritardoDalPrecedente(appenaSpedito, next);
+  const when = computeStepSchedule(sentAt, rit.giorni, rit.ore);
   // Jitter umano: spalma il follow-up su 2..90 min al SECONDO così i passi successivi
   // non partono tutti allo stesso minuto del tick. La finestra di invio resta a valle.
   const whenJ = spostaFuoriWeekend(applyJitter(when, 90, Math.random(), { minMinutes: 2, stepSeconds: 1 })).toISOString();
@@ -727,7 +731,7 @@ serveConMetriche("outreach-dispatch", async (req) => {
   // https://link.thermodmr.it/l) → impostazione di piattaforma → *.supabase.co.
   // L'ultimo è un dominio estraneo al mittente dentro ogni email, anche
   // nell'intestazione List-Unsubscribe: i filtri lo contano.
-  const brandById = new Map<string, { from_name: string | null; reply_to: string | null; signature: string | null; footer_address: string | null; send_window?: unknown; tracking_base_url?: string | null; new_per_day?: number | null; stile_umano?: boolean | null }>();
+  const brandById = new Map<string, { status?: string | null; from_name: string | null; reply_to: string | null; signature: string | null; footer_address: string | null; send_window?: unknown; tracking_base_url?: string | null; new_per_day?: number | null; stile_umano?: boolean | null }>();
   const trackingBasePiattaforma = String((await getPlatformSetting("outreach_tracking_base_url").catch(() => null)) || `${SUPABASE_URL}/functions/v1`).replace(/\/+$/, "");
   const trackingBasePerBrand = (brandId: string | null): string => {
     const b = brandId ? brandById.get(brandId) : undefined;
@@ -860,7 +864,7 @@ serveConMetriche("outreach-dispatch", async (req) => {
     const queueById = new Map(queue.map((q) => [q.id, q]));
 
     // identità per brand (from_name / reply_to override) + firma e indirizzo footer
-    const { data: brandsRaw } = await supabase.from("outreach_brands").select("id,from_name,reply_to,signature,footer_address,send_window,tracking_base_url,new_per_day,stile_umano");
+    const { data: brandsRaw } = await supabase.from("outreach_brands").select("id,status,from_name,reply_to,signature,footer_address,send_window,tracking_base_url,new_per_day,stile_umano");
     for (const b of brandsRaw || []) brandById.set(b.id, b);
 
     // vars dei contatti per la personalizzazione (variabili + spintax al send)
@@ -964,6 +968,11 @@ serveConMetriche("outreach-dispatch", async (req) => {
       const brandSenders = sendersByBrand.get(brand) ?? [];
       const nuoviAlGiorno = brandById.get(brand)?.new_per_day ?? null;
       if (brandSenders.length === 0) { result.deferred += ids.length; continue; } // nessuna casella per quel brand
+      // Brand in pausa: nessun invio (le righe restano in coda). Prima lo stato
+      // del brand era solo un'etichetta: il pannello «Prontezza» diceva «non
+      // spedisce finché non è attivo», ma il dispatcher non lo leggeva.
+      const statoBrand = brandById.get(brand)?.status;
+      if (statoBrand === "paused" || statoBrand === "archived") { result.deferred += ids.length; continue; }
       const brandIds = new Set(brandSenders.map((s) => s.id));
       // CADENZA per casella: il tetto del giorno si spalma sulla finestra di
       // invio (vedi cadenzaCasella). Una casella non ancora "pronta" salta il

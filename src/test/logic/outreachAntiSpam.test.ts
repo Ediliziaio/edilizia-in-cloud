@@ -58,6 +58,18 @@ describe("Il tetto dei nuovi contatti è separato dai follow-up", () => {
     expect(dispatch).toContain("queue = [...seguiti, ...primi];");
   });
 
+  it("un brand in pausa non spedisce (lo stato del brand non è più solo un'etichetta)", () => {
+    expect(dispatch).toContain('.from("outreach_brands").select("id,status,');
+    expect(dispatch).toContain('if (statoBrand === "paused" || statoBrand === "archived") { result.deferred += ids.length; continue; }');
+  });
+
+  it("l'arruolamento lavora a ondate, anche da una lista automatica, e non salta la blocklist in silenzio", () => {
+    expect(enroll).toContain('.from("marketing_contact_list_members")');
+    expect(enroll).toContain("if (eligible.length >= quanti) break;");
+    expect(enroll).toContain("if (supErr) throw supErr;");
+    expect(enroll).toContain("BUDGET_VALUTAZIONE_MS");
+  });
+
   it("la cadenza per casella filtra le caselle prima dell'assegnazione", () => {
     expect(dispatch).toContain("cadenzaCasella({");
     expect(dispatch).toContain("if (!pronte.has(sid)) { result.deferred++; continue; }");

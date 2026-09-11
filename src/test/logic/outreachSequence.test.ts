@@ -5,6 +5,7 @@ import {
   nextEmailStep,
   nonEmailStepCount,
   computeStepSchedule,
+  ritardoDalPrecedente,
   type SeqStep,
 } from "../../../supabase/functions/_shared/outreach-sequence";
 
@@ -88,5 +89,28 @@ describe("computeStepSchedule", () => {
   });
   it("tronca i frazionari", () => {
     expect(computeStepSchedule(base, 1.9, 0).toISOString()).toBe("2026-06-16T09:00:00.000Z");
+  });
+});
+
+describe("ritardoDalPrecedente — i ritardi lineari sono cumulativi dall'iscrizione", () => {
+  const st = (d: number, h = 0) => ({ delay_days: d, delay_hours: h });
+
+  it("differenza tra i cumulativi, non il totale", () => {
+    expect(ritardoDalPrecedente(st(3), st(7))).toEqual({ giorni: 4, ore: 0 });
+  });
+  it("con le ore: 1g 20h → 3g 2h = 1g 6h", () => {
+    expect(ritardoDalPrecedente(st(1, 20), st(3, 2))).toEqual({ giorni: 1, ore: 6 });
+  });
+  it("senza precedente conta dall'inizio", () => {
+    expect(ritardoDalPrecedente(null, st(2, 5))).toEqual({ giorni: 2, ore: 5 });
+  });
+  it("mai negativo (step fuori ordine)", () => {
+    expect(ritardoDalPrecedente(st(10), st(4))).toEqual({ giorni: 0, ore: 0 });
+  });
+  it("la cadenza 0-3-7-12-17-22-28 dura 28 giorni, non 89", () => {
+    const cum = [0, 3, 7, 12, 17, 22, 28];
+    let giorno = 0;
+    for (let i = 1; i < cum.length; i++) giorno += ritardoDalPrecedente(st(cum[i - 1]), st(cum[i])).giorni;
+    expect(giorno).toBe(28);
   });
 });

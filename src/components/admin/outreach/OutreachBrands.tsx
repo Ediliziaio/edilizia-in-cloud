@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Trash2, Building2, AtSign, CornerUpLeft, PenLine, MapPin, Check, Clock, Link2 } from "lucide-react";
+import { Plus, Trash2, Building2, AtSign, CornerUpLeft, PenLine, MapPin, Check, Clock, Link2, Play, Pause } from "lucide-react";
 import { isMissingTableError, MigrationGate } from "./_shared";
 import { FieldLabel } from "./deliverabilityUi";
 
@@ -123,6 +123,20 @@ export function OutreachBrands({ companyId }: { companyId: string }) {
     onError: (e) => toast.error(e instanceof Error ? e.message : "Errore"),
   });
 
+  // In pausa il dispatcher non spedisce nulla per il brand: sequenze e caselle
+  // restano come sono, e riattivandolo si riparte da dove si era.
+  const cambiaStato = useMutation({
+    mutationFn: async ({ id, attivo }: { id: string; attivo: boolean }) => {
+      const { error } = await db.from(T).update({ status: attivo ? "active" : "paused" }).eq("id", id); if (error) throw error;
+    },
+    onSuccess: (_d, v) => {
+      toast.success(v.attivo ? "Brand attivo: il dispatcher può spedire" : "Brand in pausa: nessun invio finché non lo riattivi");
+      invalidate();
+      qc.invalidateQueries({ queryKey: ["outreach-readiness"] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Errore"),
+  });
+
   const del = useMutation({
     mutationFn: async (id: string) => { const { error } = await db.from(T).delete().eq("id", id); if (error) throw error; },
     onSuccess: () => { toast.success("Brand eliminato"); invalidate(); },
@@ -211,14 +225,14 @@ export function OutreachBrands({ companyId }: { companyId: string }) {
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-          {brands.map((b) => <BrandCard key={b.id} brand={b} onDelete={() => del.mutate(b.id)} deleting={del.isPending} onSalvaFinestra={(f) => salvaFinestra.mutate({ id: b.id, finestra: f })} onSalvaRitmo={(tb, n, su) => salvaRitmo.mutate({ id: b.id, trackingBase: tb, nuoviAlGiorno: n, stileUmano: su })} />)}
+          {brands.map((b) => <BrandCard key={b.id} brand={b} onDelete={() => del.mutate(b.id)} deleting={del.isPending} onSalvaFinestra={(f) => salvaFinestra.mutate({ id: b.id, finestra: f })} onSalvaRitmo={(tb, n, su) => salvaRitmo.mutate({ id: b.id, trackingBase: tb, nuoviAlGiorno: n, stileUmano: su })} onCambiaStato={(attivo) => cambiaStato.mutate({ id: b.id, attivo })} cambiandoStato={cambiaStato.isPending} />)}
         </div>
       )}
     </section>
   );
 }
 
-function BrandCard({ brand, onDelete, deleting, onSalvaFinestra, onSalvaRitmo }: { brand: Brand; onDelete: () => void; deleting: boolean; onSalvaFinestra: (f: Finestra | null) => void; onSalvaRitmo: (trackingBase: string, nuoviAlGiorno: string, stileUmano: boolean) => void }) {
+function BrandCard({ brand, onDelete, deleting, onSalvaFinestra, onSalvaRitmo, onCambiaStato, cambiandoStato }: { brand: Brand; onDelete: () => void; deleting: boolean; onSalvaFinestra: (f: Finestra | null) => void; onSalvaRitmo: (trackingBase: string, nuoviAlGiorno: string, stileUmano: boolean) => void; onCambiaStato: (attivo: boolean) => void; cambiandoStato: boolean }) {
   const [editRitmo, setEditRitmo] = useState(false);
   const [tb, setTb] = useState(brand.tracking_base_url ?? "");
   const [nuovi, setNuovi] = useState(brand.new_per_day != null ? String(brand.new_per_day) : "");
@@ -237,7 +251,18 @@ function BrandCard({ brand, onDelete, deleting, onSalvaFinestra, onSalvaRitmo }:
             </span>
           </div>
         </div>
-        <Button size="sm" variant="ghost" className="h-7 w-7 shrink-0 p-0 text-muted-foreground hover:text-destructive" disabled={deleting} onClick={onDelete}><Trash2 className="h-3.5 w-3.5" /></Button>
+        <div className="flex shrink-0 items-center gap-1">
+          {brand.status === "active" ? (
+            <Button size="sm" variant="ghost" className="h-7 gap-1 px-2 text-xs" disabled={cambiandoStato} onClick={() => onCambiaStato(false)}>
+              <Pause className="h-3.5 w-3.5" /> Pausa
+            </Button>
+          ) : (
+            <Button size="sm" variant="outline" className="h-7 gap-1 px-2 text-xs" disabled={cambiandoStato} onClick={() => onCambiaStato(true)}>
+              <Play className="h-3.5 w-3.5" /> Attiva
+            </Button>
+          )}
+          <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive" disabled={deleting} onClick={onDelete} aria-label="Elimina brand"><Trash2 className="h-3.5 w-3.5" /></Button>
+        </div>
       </div>
 
       <dl className="mt-3 space-y-2 border-t border-border pt-3 text-xs">

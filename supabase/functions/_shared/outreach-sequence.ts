@@ -59,6 +59,24 @@ export function spostaFuoriWeekend(d: Date, timeZone = "Europe/Rome"): Date {
   return salto ? new Date(d.getTime() + salto * 86_400_000) : d;
 }
 
+/**
+ * Ritardo tra due step di una sequenza LINEARE, da contare dall'invio reale
+ * del precedente. I delay_days/delay_hours degli step lineari sono CUMULATIVI
+ * dall'iscrizione — così li mostra e li salva l'editor («giorno 0, 3, 7…») e
+ * così sono scritti i modelli — quindi il passo successivo parte dopo la
+ * DIFFERENZA, non dopo il totale. Sommando il totale, una cadenza 0-3-7-12
+ * diventava 0-3-10-22. Mai negativo.
+ */
+export function ritardoDalPrecedente(
+  prev: Pick<SeqStep, "delay_days" | "delay_hours"> | null | undefined,
+  next: Pick<SeqStep, "delay_days" | "delay_hours">,
+): { giorni: number; ore: number } {
+  const ore = (s: Pick<SeqStep, "delay_days" | "delay_hours"> | null | undefined) =>
+    Math.max(0, Math.trunc(s?.delay_days ?? 0)) * 24 + Math.max(0, Math.trunc(s?.delay_hours ?? 0));
+  const diff = Math.max(0, ore(next) - ore(prev));
+  return { giorni: Math.floor(diff / 24), ore: diff % 24 };
+}
+
 export function computeStepSchedule(base: Date, delayDays?: number | null, delayHours?: number | null): Date {
   const d = Math.max(0, Math.trunc(delayDays ?? 0));
   const h = Math.max(0, Math.trunc(delayHours ?? 0));

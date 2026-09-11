@@ -13,13 +13,21 @@ import { isPecEmail, isRoleEmail, domainOf, domainHasMx } from "../_shared/outre
  * avanzare la cadenza step-by-step. Filtra a monte chi non va contattato:
  *   • niente email · opt-out email · in blocklist (email_suppressions) · già iscritto.
  *
- * Selettori (almeno uno): contact_ids[] | tag | source | scope:'all'.
+ * Selettori (almeno uno): contact_ids[] | tag | source | list_id | scope:'all'.
+ * `quanti` (facoltativo) = quanti iscriverne in questa chiamata: si arruola a
+ * ONDATE. Le caselle smaltiscono poche decine di primi contatti al giorno, e
+ * ogni contatto costa due RPC (prospect + lock) più un controllo MX: migliaia
+ * in una chiamata sola sforerebbero il limite di tempo della funzione.
  * La finestra d'invio (Lun-Ven, orari) la applica il dispatcher: qui le date di
  * schedulazione sono grezze.
  */
 
 const PLATFORM_COMPANY = "00000000-0000-0000-0000-000000000001";
 const MAX_CONTACTS = 5000;
+// Oltre questo tempo si smette di valutare/bloccare nuovi contatti e si iscrive
+// ciò che è già pronto: la funzione ha 150 s, e un kill a metà lascerebbe lock
+// multi-brand acquisiti senza iscrizione (aziende bloccate per 25 giorni a vuoto).
+const BUDGET_VALUTAZIONE_MS = 90_000;
 
 interface ContactRow {
   id: string;
@@ -35,6 +43,7 @@ Deno.serve(async (req) => {
   const corsH = getCorsHeaders(req);
 
   try {
+    const avviatoAlle = Date.now();
     const { userId, supabaseAdmin: admin } = await requireAuth(req, corsH);
     await requireRole(admin, userId, ["super_admin"], corsH);
 
@@ -56,8 +65,11 @@ Deno.serve(async (req) => {
     const includiRole = body?.includi_role === true;
     const includiPec = body?.includi_pec === true;
     const verificaMx = body?.verifica_mx !== false;
-    if (!contactIds.length && !tag && !source && !all && !provincia && !citta) {
-      return errorResponse("Specifica chi iscrivere: contact_ids, tag, source, filtri (provincia/citta) oppure scope:'all'.", 400, corsH);
+    const listId = typeof body?.list_id === "string" && body.list_id.trim() ? body.list_id.trim() : "";
+    const quantiRaw = Number(body?.quanti);
+    const quanti = Number.isFinite(quantiRaw) && quantiRaw > 0 ? Math.min(Math.floor(quantiRaw), MAX_CONTACTS) : MAX_CONTACTS;
+    if (!contactIds.length && !tag && !source && !all && !provincia && !citta && !listId) {
+      return errorResponse("Specifica chi iscrivere: contact_ids, tag, source, list_id, filtri (provincia/citta) oppure scope:'all'.", 400, corsH);
     }
 
     // 1. sequenza + step
@@ -76,37 +88,98 @@ Deno.serve(async (req) => {
     const first = firstEmailStep(steps);
     if (!first) return errorResponse("La sequenza non ha step email: aggiungi almeno uno step email prima di iscrivere.", 400, corsH);
 
-    // 2. contatti candidati (platform company).
+    // 2. iscrizioni già esistenti — lette PRIMA dei candidati e a pagine: la
+    // lettura unica si fermava a 1000 righe, e un'ondata successiva su una
+    // sequenza con più di 1000 iscritti avrebbe re-iscritto gli altri.
+    const PAGE = 1000;
+    const already = new Set<string>();
+    for (let from = 0; ; from += PAGE) {
+      const { data: righe, error: eErr } = await admin
+        .from("outreach_enrollments").select("contact_id").eq("sequence_id", sequenceId)
+        .order("contact_id", { ascending: true }).range(from, from + PAGE - 1);
+      if (eErr) throw eErr;
+      const r = (righe ?? []) as { contact_id: string }[];
+      for (const e of r) already.add(String(e.contact_id));
+      if (r.length < PAGE) break;
+    }
+
+    // 3. contatti candidati (platform company).
     // PostgREST tronca a max-rows (~1000) per singola risposta: una lista da
     // decine di migliaia di contatti veniva iscritta solo per i primi 1000,
     // in silenzio. Paginiamo con .range() fino a MAX_CONTACTS e segnaliamo se
     // il tetto viene comunque raggiunto.
-    const PAGE = 1000;
+    const COLS = "id,email,optout_email,province,city,ricontatta_dopo";
     const contacts: ContactRow[] = [];
     let truncated = false;
-    for (let from = 0; from < MAX_CONTACTS; from += PAGE) {
-      let q = admin
-        .from("marketing_contacts")
-        .select("id,email,optout_email,province,city,ricontatta_dopo")
-        .eq("company_id", PLATFORM_COMPANY)
-        .order("id", { ascending: true })
-        .range(from, Math.min(from + PAGE, MAX_CONTACTS) - 1);
-      if (contactIds.length) q = q.in("id", contactIds);
-      if (tag) q = q.contains("tags", [tag]);
-      if (source) q = q.eq("source", source);
-      if (provincia) q = q.ilike("province", provincia);
-      if (citta) q = q.ilike("city", citta);
-      const { data: pageRows, error: cErr } = await q;
-      if (cErr) throw cErr;
-      const rows = (pageRows ?? []) as ContactRow[];
-      contacts.push(...rows);
-      if (rows.length < PAGE) break;              // ultima pagina
-      if (from + PAGE >= MAX_CONTACTS) truncated = true; // raggiunto il tetto
+    const lista = { membri: 0, gia_iscritti: 0 };
+    if (listId) {
+      // Lista automatica: i membri li decide la sua regola. Si tolgono i già
+      // iscritti e si caricano i dettagli a blocchi (un .in() con migliaia di
+      // id non sta in un URL), nell'ordine della lista: l'ondata successiva
+      // riparte da chi non è ancora entrato.
+      const { data: l, error: lErr } = await admin.from("marketing_contact_lists")
+        .select("id").eq("id", listId).eq("company_id", PLATFORM_COMPANY).maybeSingle();
+      if (lErr) throw lErr;
+      if (!l) return errorResponse("Lista non trovata", 404, corsH);
+      const membri: string[] = [];
+      for (let from = 0; ; from += PAGE) {
+        const { data: righe, error: mErr } = await admin.from("marketing_contact_list_members")
+          .select("contact_id").eq("list_id", listId)
+          .order("contact_id", { ascending: true }).range(from, from + PAGE - 1);
+        if (mErr) throw mErr;
+        const r = (righe ?? []) as { contact_id: string }[];
+        membri.push(...r.map((x) => String(x.contact_id)));
+        if (r.length < PAGE) break;
+      }
+      lista.membri = membri.length;
+      const nuovi = membri.filter((id) => !already.has(id));
+      lista.gia_iscritti = membri.length - nuovi.length;
+      const daCaricare = nuovi.slice(0, MAX_CONTACTS);
+      truncated = nuovi.length > daCaricare.length;
+      const blocchi: string[][] = [];
+      for (let i = 0; i < daCaricare.length; i += 150) blocchi.push(daCaricare.slice(i, i + 150));
+      for (let i = 0; i < blocchi.length; i += 4) {
+        const esiti = await Promise.all(blocchi.slice(i, i + 4).map((ids) => {
+          let q = admin.from("marketing_contacts").select(COLS).eq("company_id", PLATFORM_COMPANY).in("id", ids);
+          if (provincia) q = q.ilike("province", provincia);
+          if (citta) q = q.ilike("city", citta);
+          return q;
+        }));
+        for (const { data: righe, error: cErr } of esiti) {
+          if (cErr) throw cErr;
+          contacts.push(...((righe ?? []) as ContactRow[]));
+        }
+      }
+      const ordine = new Map(daCaricare.map((id, i) => [id, i]));
+      contacts.sort((a, b) => (ordine.get(a.id) ?? 0) - (ordine.get(b.id) ?? 0));
+    } else {
+      for (let from = 0; from < MAX_CONTACTS; from += PAGE) {
+        let q = admin
+          .from("marketing_contacts")
+          .select(COLS)
+          .eq("company_id", PLATFORM_COMPANY)
+          .order("id", { ascending: true })
+          .range(from, Math.min(from + PAGE, MAX_CONTACTS) - 1);
+        if (contactIds.length) q = q.in("id", contactIds);
+        if (tag) q = q.contains("tags", [tag]);
+        if (source) q = q.eq("source", source);
+        if (provincia) q = q.ilike("province", provincia);
+        if (citta) q = q.ilike("city", citta);
+        const { data: pageRows, error: cErr } = await q;
+        if (cErr) throw cErr;
+        const rows = (pageRows ?? []) as ContactRow[];
+        contacts.push(...rows);
+        if (rows.length < PAGE) break;              // ultima pagina
+        if (from + PAGE >= MAX_CONTACTS) truncated = true; // raggiunto il tetto
+      }
     }
 
     const stats = {
       candidates: contacts.length,
       truncated, // true se la lista supera MAX_CONTACTS: iscritti solo i primi
+      ondata: quanti < MAX_CONTACTS ? quanti : null,
+      lista: listId ? lista : null,
+      tempo_scaduto: false,
       enrolled: 0,
       skipped_no_email: 0,
       skipped_optout: 0,
@@ -127,33 +200,41 @@ Deno.serve(async (req) => {
       return jsonResponse({ ...stats, note: "Nessun contatto corrisponde ai criteri." }, 200, corsH);
     }
 
-    // 3. blocklist + iscrizioni già esistenti
+    // 4. filtro, in due passate.
+    // Prima i controlli che non costano nulla (email, opt-out, cooldown, PEC,
+    // indirizzi generici) su tutti; poi blocklist e MX solo su chi resta, e ci
+    // si ferma appena l'ondata è piena.
     const norm = (e: string) => e.toLowerCase().trim();
-    const emails = contacts.map((c) => c.email).filter((e): e is string => !!e).map(norm);
-    const suppressed = new Set<string>();
-    if (emails.length) {
-      const { data: sup } = await admin
-        .from("email_suppressions").select("email_normalized")
-        .eq("company_id", PLATFORM_COMPANY).in("email_normalized", emails);
-      for (const s of sup ?? []) suppressed.add(String((s as { email_normalized: string }).email_normalized));
-    }
-    const { data: existing } = await admin
-      .from("outreach_enrollments").select("contact_id").eq("sequence_id", sequenceId);
-    const already = new Set((existing ?? []).map((e: { contact_id: string }) => String(e.contact_id)));
-
-    // 4. filtro
-    const eligible: ContactRow[] = [];
-    const mxCache = new Map<string, boolean>();
     const nowMs = Date.now();
+    const puliti: ContactRow[] = [];
     for (const c of contacts) {
       if (already.has(c.id)) { stats.skipped_already++; continue; }
       if (!c.email) { stats.skipped_no_email++; continue; }
       if (c.optout_email) { stats.skipped_optout++; continue; }
-      if (suppressed.has(norm(c.email))) { stats.skipped_suppressed++; continue; }
       if (c.ricontatta_dopo && Date.parse(c.ricontatta_dopo) > nowMs) { stats.skipped_cooldown++; continue; }
       if (!includiPec && isPecEmail(c.email)) { stats.skipped_pec++; continue; }
       if (!includiRole && isRoleEmail(c.email)) { stats.skipped_role++; continue; }
-      if (verificaMx && !(await domainHasMx(admin, domainOf(c.email), mxCache))) { stats.skipped_no_mx++; continue; }
+      puliti.push(c);
+    }
+    // Blocklist a blocchi e con l'errore controllato: con migliaia di indirizzi
+    // un solo .in() superava la lunghezza massima dell'URL, la risposta era un
+    // errore ignorato e la blocklist saltava in silenzio.
+    const suppressed = new Set<string>();
+    const emailPuliti = [...new Set(puliti.map((c) => norm(c.email as string)))];
+    for (let i = 0; i < emailPuliti.length; i += 200) {
+      const { data: sup, error: supErr } = await admin
+        .from("email_suppressions").select("email_normalized")
+        .eq("company_id", PLATFORM_COMPANY).in("email_normalized", emailPuliti.slice(i, i + 200));
+      if (supErr) throw supErr;
+      for (const s of sup ?? []) suppressed.add(String((s as { email_normalized: string }).email_normalized));
+    }
+    const eligible: ContactRow[] = [];
+    const mxCache = new Map<string, boolean>();
+    for (const c of puliti) {
+      if (eligible.length >= quanti) break;
+      if (Date.now() - avviatoAlle > BUDGET_VALUTAZIONE_MS) { stats.tempo_scaduto = true; break; }
+      if (suppressed.has(norm(c.email as string))) { stats.skipped_suppressed++; continue; }
+      if (verificaMx && !(await domainHasMx(admin, domainOf(c.email as string), mxCache))) { stats.skipped_no_mx++; continue; }
       eligible.push(c);
     }
     if (eligible.length === 0) {
@@ -181,6 +262,9 @@ Deno.serve(async (req) => {
     } else {
       const esitoPerAzienda = new Map<string, boolean>();
       for (const c of eligible) {
+        // Margine per le insert che seguono: meglio un'ondata più corta che un
+        // kill a metà con lock presi e nessuna iscrizione.
+        if (Date.now() - avviatoAlle > BUDGET_VALUTAZIONE_MS + 25_000) { stats.tempo_scaduto = true; break; }
         const { data: aziendaId } = await admin.rpc("outreach_ensure_prospect", { p_contact_id: c.id });
         if (!aziendaId) { stats.skipped_senza_azienda++; continue; }
         const chiave = String(aziendaId);
