@@ -1770,7 +1770,7 @@ export default function MarketingContacts() {
       {/* Intestazione in UNA riga: titolo, conteggio, schede e azioni. Prima
           erano due riquadri alti (intestazione + schede) e, con il riquadro
           «Qualità dei contatti», la tabella partiva a metà dello schermo. */}
-      <div className="flex items-center justify-between gap-2 sm:gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3">
         <div className="flex min-w-0 items-center gap-2.5">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-200">
             <ContactRound className="h-4 w-4" />
