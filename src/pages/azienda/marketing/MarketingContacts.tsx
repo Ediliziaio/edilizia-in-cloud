@@ -3,7 +3,7 @@ import { filtroSoloMiei } from "@/hooks/useOpportunitiesData";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useURLFilters } from "@/hooks/useURLFilters";
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
-import { Search, Upload, Plus, Download, Filter, ArrowUpDown, Settings2, ChevronDown, MoreHorizontal, Loader2, ChevronLeft, ChevronRight, ContactRound, AlertTriangle, CheckCircle2, ShieldCheck, MailWarning, UserRoundCheck, Sparkles, ExternalLink, Mail, Phone, Building2, CalendarClock, Copy, PanelRightOpen, Radar, BookmarkPlus } from "lucide-react";
+import { Search, Upload, Plus, Download, Filter, ArrowUpDown, Settings2, ChevronDown, MoreHorizontal, Loader2, ChevronLeft, ChevronRight, ContactRound, AlertTriangle, CheckCircle2, ShieldCheck, Sparkles, ExternalLink, Mail, Phone, Building2, CalendarClock, Copy, PanelRightOpen, Radar, BookmarkPlus } from "lucide-react";
 import { PLATFORM_ADMIN_COMPANY_ID } from "@/lib/adminConstants";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -1767,93 +1767,97 @@ export default function MarketingContacts() {
         </div>
       )}
 
-      {/* Header */}
-      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/50 p-3 shadow-sm sm:p-5">
-        <div className="flex items-center justify-between gap-2 sm:gap-4">
-          <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-200 sm:h-11 sm:w-11 sm:rounded-2xl">
-              <ContactRound className="h-4 w-4 sm:h-5 sm:w-5" />
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <h1 className="text-lg font-bold text-slate-950 sm:text-2xl">Contatti</h1>
-                {!isLoading && activeTab === "all" && (
-                  <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-100">{totalCount}</Badge>
-                )}
-              </div>
-              <p className="hidden text-sm text-slate-600 sm:block">Gestisci lead, clienti e liste commerciali.</p>
-            </div>
+      {/* Intestazione in UNA riga: titolo, conteggio, schede e azioni. Prima
+          erano due riquadri alti (intestazione + schede) e, con il riquadro
+          «Qualità dei contatti», la tabella partiva a metà dello schermo. */}
+      <div className="flex items-center justify-between gap-2 sm:gap-3">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-200">
+            <ContactRound className="h-4 w-4" />
           </div>
-          <div className="flex shrink-0 items-center gap-2">
-            {/* Desktop: Export + Import */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="hidden border-slate-200 bg-white/80 hover:bg-white sm:flex" disabled={exporting || isLoading}>
-                  <Download className="h-4 w-4 mr-2" />
-                  {exporting ? "Esportando..." : selectedIds.size > 0 ? `Esporta (${selectedIds.size})` : "Esporta"}
-                  <ChevronDown className="h-3 w-3 ml-1" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {/* Niente export su telefono. */}
-                {!isMobile && (
-                  <DropdownMenuItem onClick={() => doExport("csv")}>
-                    <Download className="h-4 w-4 mr-2" /> Esporta CSV
+          <h1 className="text-lg font-bold text-slate-950 sm:text-xl">Contatti</h1>
+          {!isLoading && activeTab === "all" && (
+            <Badge className="bg-orange-100 tabular-nums text-orange-700 hover:bg-orange-100">{totalCount.toLocaleString("it-IT")}</Badge>
+          )}
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as ContactsTab)} className="ml-2 hidden sm:block">
+            <TabsList className="h-8 gap-0.5 rounded-lg bg-slate-100 p-0.5">
+              <TabsTrigger value="all" className="h-7 rounded-md px-3 text-xs data-[state=active]:bg-white data-[state=active]:text-orange-700 data-[state=active]:shadow-sm">Tutti</TabsTrigger>
+              <TabsTrigger value="lists" className="h-7 gap-1.5 rounded-md px-3 text-xs data-[state=active]:bg-white data-[state=active]:text-orange-700 data-[state=active]:shadow-sm">
+                Liste
+                {listCount > 0 && <Badge variant="secondary" className="h-4 px-1.5 text-[10px]">{listCount}</Badge>}
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          {/* Desktop: Export + Import */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="hidden h-9 border-slate-200 bg-white hover:bg-slate-50 sm:flex" disabled={exporting || isLoading}>
+                <Download className="mr-2 h-4 w-4" />
+                {exporting ? "Esportando..." : selectedIds.size > 0 ? `Esporta (${selectedIds.size})` : "Esporta"}
+                <ChevronDown className="ml-1 h-3 w-3" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {/* Niente export su telefono. */}
+              {!isMobile && (
+                <DropdownMenuItem onClick={() => doExport("csv")}>
+                  <Download className="mr-2 h-4 w-4" /> Esporta CSV
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem onClick={() => doExport("xlsx")}>
+                <Download className="mr-2 h-4 w-4" /> Esporta XLSX
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button variant="outline" size="sm" className="hidden h-9 border-slate-200 bg-white hover:bg-slate-50 sm:flex" onClick={() => setImportOpen(true)} disabled={!canEditContacts}>
+            <Upload className="mr-2 h-4 w-4" /> Importa
+          </Button>
+          {/* Mobile: ... menu */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon" className="h-8 w-8 border-slate-200 bg-white/80 sm:hidden">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setImportOpen(true)} disabled={!canEditContacts}>
+                <Upload className="mr-2 h-4 w-4" /> Importa
+              </DropdownMenuItem>
+              {/* Niente export su telefono: vale per tutti i formati, non
+                  solo per il CSV che avevo protetto per primo. */}
+              {!isMobile && (
+                <>
+                  <DropdownMenuItem onClick={() => doExport("csv")} disabled={exporting}>
+                    <Download className="mr-2 h-4 w-4" /> Esporta CSV
                   </DropdownMenuItem>
-                )}
-                <DropdownMenuItem onClick={() => doExport("xlsx")}>
-                  <Download className="h-4 w-4 mr-2" /> Esporta XLSX
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <Button variant="outline" className="hidden border-slate-200 bg-white/80 hover:bg-white sm:flex" onClick={() => setImportOpen(true)} disabled={!canEditContacts}>
-              <Upload className="h-4 w-4 mr-2" /> Importa
-            </Button>
-            {/* Mobile: ... menu */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon" className="sm:hidden h-8 w-8 border-slate-200 bg-white/80">
-                  <MoreHorizontal className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => setImportOpen(true)} disabled={!canEditContacts}>
-                  <Upload className="mr-2 h-4 w-4" /> Importa
-                </DropdownMenuItem>
-                {/* Niente export su telefono: vale per tutti i formati, non
-                    solo per il CSV che avevo protetto per primo. */}
-                {!isMobile && (
-                  <>
-                    <DropdownMenuItem onClick={() => doExport("csv")} disabled={exporting}>
-                      <Download className="mr-2 h-4 w-4" /> Esporta CSV
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => doExport("xlsx")} disabled={exporting}>
-                      <Download className="mr-2 h-4 w-4" /> Esporta XLSX
-                    </DropdownMenuItem>
-                  </>
-                )}
-                <DropdownMenuItem onClick={() => setFieldsSheetOpen(true)}>
-                  <Settings2 className="mr-2 h-4 w-4" /> Gestisci campi
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            {/* Mobile: CTA compatta (richiesta utente: bottone più piccolo). */}
-            <Button className="h-8 shrink-0 px-2.5 text-xs sm:h-10 sm:px-4 sm:text-sm bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-200 hover:from-orange-600 hover:to-amber-600" onClick={() => { setEditingContact(null); setDialogOpen(true); }} disabled={!canEditContacts}>
-              <Plus className="h-4 w-4 sm:mr-1" />
-              <span className="hidden sm:inline">Aggiungi Contatto</span>
-              <span className="ml-1 sm:hidden">Aggiungi</span>
-            </Button>
-          </div>
+                  <DropdownMenuItem onClick={() => doExport("xlsx")} disabled={exporting}>
+                    <Download className="mr-2 h-4 w-4" /> Esporta XLSX
+                  </DropdownMenuItem>
+                </>
+              )}
+              <DropdownMenuItem onClick={() => setFieldsSheetOpen(true)}>
+                <Settings2 className="mr-2 h-4 w-4" /> Gestisci campi
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          {/* Mobile: CTA compatta (richiesta utente: bottone più piccolo). */}
+          <Button className="h-8 shrink-0 bg-gradient-to-r from-orange-500 to-amber-500 px-2.5 text-xs text-white shadow-sm shadow-orange-200 hover:from-orange-600 hover:to-amber-600 sm:h-9 sm:px-4 sm:text-sm" onClick={() => { setEditingContact(null); setDialogOpen(true); }} disabled={!canEditContacts}>
+            <Plus className="h-4 w-4 sm:mr-1" />
+            <span className="hidden sm:inline">Aggiungi contatto</span>
+            <span className="ml-1 sm:hidden">Aggiungi</span>
+          </Button>
         </div>
       </div>
 
-      {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as ContactsTab)}>
-        <TabsList className="h-auto gap-1 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
-          <TabsTrigger value="all" className="data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">Tutti</TabsTrigger>
-          <TabsTrigger value="lists" className="gap-1.5 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
+      {/* Schede su telefono: sotto il titolo, a tutta larghezza. */}
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as ContactsTab)} className="sm:hidden">
+        <TabsList className="grid h-9 w-full grid-cols-2 rounded-lg bg-slate-100 p-0.5">
+          <TabsTrigger value="all" className="h-8 rounded-md text-xs data-[state=active]:bg-white data-[state=active]:text-orange-700">Tutti</TabsTrigger>
+          <TabsTrigger value="lists" className="h-8 gap-1.5 rounded-md text-xs data-[state=active]:bg-white data-[state=active]:text-orange-700">
             Liste
-            {listCount > 0 && <Badge variant="secondary" className="text-xs h-5 px-1.5">{listCount}</Badge>}
+            {listCount > 0 && <Badge variant="secondary" className="h-4 px-1.5 text-[10px]">{listCount}</Badge>}
           </TabsTrigger>
         </TabsList>
       </Tabs>
@@ -1898,48 +1902,27 @@ export default function MarketingContacts() {
             })}
           </div>
 
-          {/* Quality cockpit — solo desktop: su mobile è sostituito dalla
-              mini dashboard qui sopra. */}
-          <div className="hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:block">
-            {/* v8.7 — header ripulito su feedback utente: via il badge "pagina corrente"
-                (gergo interno) e l'hint sull'anteprima laterale, che su mobile non esiste
-                nemmeno → resta solo su desktop, dove è vero. */}
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-              <div>
-                <div className="flex items-center gap-2">
-                  <ShieldCheck className="h-4 w-4 text-blue-600" />
-                  <p className="font-semibold text-slate-950">Qualità dei contatti</p>
-                </div>
-                <p className="mt-1 text-sm text-slate-500">
-                  Recapiti, consensi e duplicati sotto controllo prima di liste, export o automazioni.
-                </p>
-              </div>
-              <div className="hidden items-center gap-2 rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-600 lg:flex">
-                <PanelRightOpen className="h-3.5 w-3.5 text-slate-500" />
-                Clic sulla riga: anteprima laterale. Clic sul nome: scheda completa.
-              </div>
-            </div>
-
-            {/* Contattabilità globale: count esatti su TUTTO il database (non
-                sulla pagina corrente). Le chip sono cliccabili e filtrano la
-                lista: clic di nuovo sulla chip attiva → torna a "Tutti". */}
+          {/* UNA barra sopra la tabella: contattabilità (numeri esatti su tutto
+              il database, cliccabili: filtrano la lista, ri-clic = tutti),
+              ricerca e filtri, viste rapide. Prima erano il riquadro «Qualità
+              dei contatti» più la barra filtri; i quattro riquadri colorati
+              contavano solo la pagina corrente e ripetevano le viste rapide. */}
+          <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
             {reachStats && reachStats.total > 0 && (
-              <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50/70 p-3">
-                <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Contattabilità · intero database
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    <span className="font-semibold text-slate-900">{reachStats.total.toLocaleString("it-IT")}</span> contatti totali
-                  </p>
+              <div className="hidden flex-wrap items-center gap-x-4 gap-y-2 border-b border-slate-100 px-3 py-2 sm:flex">
+                <div className="flex items-center gap-2.5" title={`${reachStats.reachable.toLocaleString("it-IT")} contattabili su ${reachStats.total.toLocaleString("it-IT")} contatti in tutto il database`}>
+                  <ShieldCheck className="h-4 w-4 text-emerald-600" />
+                  <span className="text-xs text-slate-600">
+                    <span className="font-semibold tabular-nums text-slate-900">{reachStats.reachable.toLocaleString("it-IT")}</span> contattabili su {reachStats.total.toLocaleString("it-IT")}
+                  </span>
+                  <div className="h-1.5 w-24 overflow-hidden rounded-full bg-red-100" aria-hidden>
+                    <div
+                      className="h-full rounded-full bg-emerald-500 transition-all"
+                      style={{ width: `${reachStats.total > 0 ? Math.round((reachStats.reachable / reachStats.total) * 100) : 0}%` }}
+                    />
+                  </div>
                 </div>
-                <div className="mt-2 h-2 overflow-hidden rounded-full bg-red-100" title={`${reachStats.reachable.toLocaleString("it-IT")} contattabili su ${reachStats.total.toLocaleString("it-IT")}`}>
-                  <div
-                    className="h-full rounded-full bg-emerald-500 transition-all"
-                    style={{ width: `${reachStats.total > 0 ? Math.round((reachStats.reachable / reachStats.total) * 100) : 0}%` }}
-                  />
-                </div>
-                <div className="mt-3 flex flex-wrap gap-2">
+                <div className="flex flex-wrap items-center gap-1.5">
                   {([
                     { key: "contactable", label: "Contattabili", value: reachStats.reachable, Icon: CheckCircle2, activeCls: "border-emerald-300 bg-emerald-50 text-emerald-700", dotCls: "text-emerald-600" },
                     { key: "has_email", label: "Con email", value: reachStats.withEmail, Icon: Mail, activeCls: "border-sky-300 bg-sky-50 text-sky-700", dotCls: "text-sky-600" },
@@ -1953,8 +1936,9 @@ export default function MarketingContacts() {
                         key={key}
                         type="button"
                         title={active ? "Rimuovi filtro" : `Mostra solo: ${label.toLowerCase()}`}
+                        aria-pressed={active}
                         onClick={() => setQualityFilter(active ? "all" : key)}
-                        className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                        className={`inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium transition-colors ${
                           active ? activeCls : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
                         }`}
                       >
@@ -1966,109 +1950,80 @@ export default function MarketingContacts() {
                     );
                   })}
                 </div>
+                <span className="ml-auto hidden items-center gap-1.5 text-[11px] text-slate-500 xl:inline-flex">
+                  <PanelRightOpen className="h-3.5 w-3.5" /> Clic sulla riga: anteprima · sul nome: scheda completa
+                </span>
               </div>
             )}
 
-            {/* Card qualità (solo numeri, non cliccabili): vetrina → nascoste
-                su mobile. I filtri veri sono le chip sotto, che restano. */}
-            <div className="mt-4 hidden md:grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-4">
-              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold uppercase text-amber-700">Da sistemare</span>
-                  <AlertTriangle className="h-4 w-4 text-amber-600" />
-                </div>
-                <p className="mt-1 text-2xl font-bold text-amber-950">{qualityStats.totalIssues}</p>
-                <p className="text-xs text-amber-700">contatti con warning visibili</p>
+            <div className="flex flex-col gap-2 p-3">
+              {/* Mobile: full-width search */}
+              <div className="relative sm:hidden">
+                <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Cerca contatti..."
+                  className="h-9 w-full pl-8 text-base md:text-sm"
+                  value={searchInput}
+                  onChange={(e) => { setSearchInput(e.target.value); setPage(1); }}
+                />
               </div>
-              <div className="rounded-2xl border border-red-200 bg-red-50 p-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold uppercase text-red-700">No marketing</span>
-                  <MailWarning className="h-4 w-4 text-red-600" />
-                </div>
-                <p className="mt-1 text-2xl font-bold text-red-950">{qualityStats.optout}</p>
-                <p className="text-xs text-red-700">opt-out o unsubscribe</p>
-              </div>
-              <div className="rounded-2xl border border-blue-200 bg-blue-50 p-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold uppercase text-blue-700">Da ricontattare</span>
-                  <CalendarClock className="h-4 w-4 text-blue-600" />
-                </div>
-                <p className="mt-1 text-2xl font-bold text-blue-950">{qualityStats.stale}</p>
-                <p className="text-xs text-blue-700">attività vecchia o assente</p>
-              </div>
-              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold uppercase text-emerald-700">Duplicati</span>
-                  <UserRoundCheck className="h-4 w-4 text-emerald-600" />
-                </div>
-                <p className="mt-1 text-2xl font-bold text-emerald-950">{qualityStats.duplicates}</p>
-                <p className="text-xs text-emerald-700">match email/telefono nella pagina</p>
-              </div>
-            </div>
-
-            <div className="mt-4 flex flex-wrap gap-2">
-              {QUALITY_FILTERS.map((filter) => (
-                <button
-                  key={filter.value}
-                  type="button"
-                  className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
-                    qualityFilter === filter.value
-                      ? "border-orange-300 bg-orange-50 text-orange-700"
-                      : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                  }`}
-                  title={filter.description}
-                  onClick={() => setQualityFilter(filter.value)}
-                >
-                  {filter.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Filter bar */}
-          <div className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-            {/* Mobile: full-width search */}
-            <div className="relative sm:hidden">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-              <Input
-                placeholder="Cerca contatti..."
-                className="pl-8 h-9 w-full text-base md:text-sm"
-                value={searchInput}
-                onChange={(e) => { setSearchInput(e.target.value); setPage(1); }}
-              />
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={() => setFiltersSheetOpen(true)}>
-                  <Filter className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">Filtri avanzati</span>
-                  <span className="sm:hidden">Filtri</span>
-                  {activeFilterCount > 0 && (
-                    <Badge className="h-4 w-4 p-0 flex items-center justify-center text-[9px] rounded-full">
-                      {activeFilterCount}
-                    </Badge>
-                  )}
-                </Button>
-                {activeFilterCount > 0 && (
-                  <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={() => setSalvaListaOpen(true)}>
-                    <BookmarkPlus className="h-3.5 w-3.5" />
-                    <span className="hidden sm:inline">Salva lista</span>
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-2">
+                  {/* Desktop: la ricerca per prima, è il gesto più frequente. */}
+                  <div className="relative hidden sm:block">
+                    <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                    <Input placeholder="Cerca per nome, email, telefono…" inputMode="search" enterKeyHint="search" className="h-8 w-[260px] pl-8 text-xs lg:w-[320px]" value={searchInput} onChange={(e) => { setSearchInput(e.target.value); setPage(1); }} />
+                  </div>
+                  <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setFiltersSheetOpen(true)}>
+                    <Filter className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">Filtri avanzati</span>
+                    <span className="sm:hidden">Filtri</span>
+                    {activeFilterCount > 0 && (
+                      <Badge className="flex h-4 w-4 items-center justify-center rounded-full p-0 text-[9px]">
+                        {activeFilterCount}
+                      </Badge>
+                    )}
                   </Button>
-                )}
-                <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={() => { setSortDirection(sortDirection === "asc" ? "desc" : "asc"); setPage(1); }}>
-                  <ArrowUpDown className="h-3.5 w-3.5" />
-                  Ordina
-                </Button>
-              </div>
-              {/* Desktop: search + gestisci campi */}
-              <div className="hidden sm:flex items-center gap-2">
-                <div className="relative">
-                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                  <Input placeholder="Cerca contatti..." inputMode="search" enterKeyHint="search" className="pl-8 h-10 md:h-8 w-full md:w-[220px] text-base md:text-xs" value={searchInput} onChange={(e) => { setSearchInput(e.target.value); setPage(1); }} />
+                  {activeFilterCount > 0 && (
+                    <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setSalvaListaOpen(true)}>
+                      <BookmarkPlus className="h-3.5 w-3.5" />
+                      <span className="hidden sm:inline">Salva lista</span>
+                    </Button>
+                  )}
+                  <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => { setSortDirection(sortDirection === "asc" ? "desc" : "asc"); setPage(1); }}>
+                    <ArrowUpDown className="h-3.5 w-3.5" />
+                    Ordina
+                  </Button>
                 </div>
-                <Button variant="ghost" size="sm" className="gap-1.5 text-xs text-muted-foreground" onClick={() => setFieldsSheetOpen(true)}>
+                <Button variant="ghost" size="sm" className="hidden h-8 gap-1.5 text-xs text-muted-foreground sm:flex" onClick={() => setFieldsSheetOpen(true)}>
                   <Settings2 className="h-3.5 w-3.5" /> Gestisci campi
                 </Button>
+              </div>
+
+              {/* Viste rapide: filtrano l'intero database. */}
+              <div className="-mx-1 hidden items-center gap-1.5 overflow-x-auto px-1 sm:flex">
+                <span className="shrink-0 text-[11px] font-medium uppercase tracking-wide text-slate-400">Vista</span>
+                {QUALITY_FILTERS.map((filter) => (
+                  <button
+                    key={filter.value}
+                    type="button"
+                    aria-pressed={qualityFilter === filter.value}
+                    className={`h-7 shrink-0 rounded-full border px-2.5 text-xs font-medium transition-colors ${
+                      qualityFilter === filter.value
+                        ? "border-orange-300 bg-orange-50 text-orange-700"
+                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                    }`}
+                    title={filter.description}
+                    onClick={() => setQualityFilter(filter.value)}
+                  >
+                    {filter.label}
+                  </button>
+                ))}
+                {qualityStats.duplicates > 0 && (
+                  <span className="ml-auto inline-flex shrink-0 items-center gap-1 text-[11px] text-amber-700" title="Stessa email o stesso telefono di un altro contatto di questa pagina">
+                    <Copy className="h-3 w-3" /> {qualityStats.duplicates} possibili doppioni in questa pagina
+                  </span>
+                )}
               </div>
             </div>
           </div>
