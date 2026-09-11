@@ -10,7 +10,10 @@
 //  header X-API-Key. Config (base URL + api key) in platform_settings.
 
 import { getPlatformSetting } from "./getPlatformSetting.ts";
+import { fuoriFinestraInvio, parseOraMinuti } from "./openwaFinestraInvio.ts";
+import { applySpintax, applyVariabili } from "./openwaTemplate.ts";
 import { pickOpenWaNumber, weekKeyOf, type OpenWaNumberState } from "./openwaPickNumber.ts";
+import { nomeSaluto } from "./outreach-template.ts";
 import { lidDaMessageId, registraLid } from "./openwaLid.ts";
 
 // I contatti marketing della piattaforma vivono su questa company.
@@ -41,60 +44,14 @@ export const OWA_PATHS = {
     `/api/sessions/${encodeURIComponent(id)}/contacts/check/${encodeURIComponent(number)}`,
 };
 
-// ── Anti-ban helpers ────────────────────────────────────────────────────────
-
-/** Risolve lo spintax "{ciao|salve|buongiorno}" scegliendo un'opzione a caso.
- *  Variare il testo evita l'impronta "stesso messaggio in massa" = spam. */
-export function applySpintax(text: string): string {
-  // Piu' passate: {a|{b|c}} risolve prima l'interno, poi l'esterno. Una sola
-  // passata spediva "{a|c}" con le graffe.
-  let out = text ?? "";
-  for (let i = 0; i < 5; i++) {
-    const next = out.replace(/\{([^{}]+)\}/g, (whole, inner) => {
-      const opts = String(inner).split("|");
-      if (opts.length < 2) return whole; // non è spintax, lascia com'è
-      return opts[Math.floor(Math.random() * opts.length)].trim();
-    });
-    if (next === out) break;
-    out = next;
-  }
-  return out;
-}
-
-/**
- * Sostituisce le variabili {{nome}} coi dati del contatto.
- *
- * Il campo messaggio delle campagne suggerisce {{nome}}, ma NESSUNO lo
- * sostituiva: applySpintax gestisce solo {a|b}, e su {{nome}} si limitava a
- * mangiare una graffa. Ai destinatari arrivava "Ciao {nome}," — cioe' il
- * biglietto da visita dello spam mal fatto, e la via piu' rapida per farsi
- * segnalare (che e' esattamente cio' che tutto l'anti-ban cerca di evitare).
- *
- * Se una variabile non ha valore la frase deve restare pulita: si toglie il
- * segnaposto e si normalizzano spazi e punteggiatura rimasti orfani
- * ("Ciao ," → "Ciao").
- */
-export function applyVariabili(text: string, dati: Record<string, string | null | undefined>): string {
-  // {{chiave}} oppure {{chiave|testo di riserva}}: se il dato manca si usa la
-  // riserva (es. "{{nome|ciao}}" → "ciao"); senza riserva il segnaposto sparisce.
-  let out = (text ?? "").replace(/\{\{\s*([a-zA-Z_][\w.]*)\s*(?:\|([^{}]*))?\}\}/g, (_m, chiave, riserva) => {
-    const v = dati[String(chiave).toLowerCase()];
-    if (v && String(v).trim()) return String(v).trim();
-    return riserva != null ? String(riserva).trim() : "";
-  });
-  // Ripulisce cio' che resta dopo un segnaposto vuoto.
-  out = out
-    .replace(/[ \t]{2,}/g, " ")
-    .replace(/\s+([,.;:!?])/g, "$1")
-    .replace(/([,;:])\s*([,.;:!?])/g, "$2")
-    .replace(/^[ \t]*[,;:][ \t]*/gm, "");
-  return out;
-}
-
-/** Ora corrente (0-23) nel fuso Europe/Rome. */
-function romeHour(): number {
-  const h = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Rome", hour: "2-digit", hour12: false }).format(new Date());
-  return parseInt(h, 10) || 0;
+/** Minuti dalla mezzanotte, ora di Roma (per la precisione sui minuti: "7:30"). */
+function romeMinuti(): number {
+  const parti = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/Rome", hour: "2-digit", minute: "2-digit", hour12: false,
+  }).formatToParts(new Date());
+  const h = parseInt(parti.find((p) => p.type === "hour")?.value ?? "0", 10);
+  const mi = parseInt(parti.find((p) => p.type === "minute")?.value ?? "0", 10);
+  return (Number.isFinite(h) ? h : 0) * 60 + (Number.isFinite(mi) ? mi : 0);
 }
 
 /** Giorno della settimana a Roma: 1 = lunedì … 7 = domenica. */
@@ -107,24 +64,27 @@ function romeWeekday(): number {
 /**
  * True se ORA è fuori dalla finestra di invio "umana".
  *
- * Guarda l'ora E il giorno. Prima controllava solo l'ora: un messaggio
- * commerciale a freddo la domenica mattina è una segnalazione quasi garantita,
- * e nessun cap giornaliero ti protegge da quello. Il weekend si può
- * riaprire da platform_settings (openwa_invia_weekend = "true") per chi
- * scrive a un pubblico che il sabato lavora — nell'edilizia capita.
+ * Guarda l'ora (al minuto, non solo all'ora intera) E il giorno. Il weekend
+ * ha due leve indipendenti: `openwa_invia_weekend=true` apre tutto sabato e
+ * domenica (per chi scrive a un pubblico che il sabato lavora); in
+ * alternativa `openwa_sabato_fino` ("13:00") apre SOLO il sabato mattina,
+ * lasciando la domenica sempre chiusa — è la combinazione che il canale a
+ * freddo vuole di norma. La logica del calcolo è in openwaFinestraInvio.ts,
+ * pura e testata: qui si leggono solo le impostazioni.
  */
 export async function outsideQuietHours(): Promise<boolean> {
-  const start = parseInt((await getPlatformSetting("openwa_quiet_start")) || "8", 10);
-  const end = parseInt((await getPlatformSetting("openwa_quiet_end")) || "21", 10);
-  const h = romeHour();
-  const s = Number.isFinite(start) ? start : 8;
-  const e = Number.isFinite(end) ? end : 21;
-  if (h < s || h >= e) return true;
-
+  const startMinuti = parseOraMinuti(await getPlatformSetting("openwa_quiet_start"), 8 * 60);
+  const endMinuti = parseOraMinuti(await getPlatformSetting("openwa_quiet_end"), 21 * 60);
   const weekendAperto = ((await getPlatformSetting("openwa_invia_weekend")) || "false").toLowerCase() === "true";
-  if (!weekendAperto && romeWeekday() >= 6) return true;
+  const sabatoFinoRaw = (await getPlatformSetting("openwa_sabato_fino")).trim();
+  const sabatoFinoMinuti = sabatoFinoRaw ? parseOraMinuti(sabatoFinoRaw, -1) : null;
 
-  return false;
+  return fuoriFinestraInvio({
+    minutiOra: romeMinuti(),
+    weekday: romeWeekday(),
+    startMinuti, endMinuti, weekendAperto,
+    sabatoFinoMinuti: sabatoFinoMinuti != null && sabatoFinoMinuti >= 0 ? sabatoFinoMinuti : null,
+  });
 }
 
 /** Ritardo "umano" proporzionale alla lunghezza del testo, con jitter. Cap ~4.5s. */
@@ -323,9 +283,15 @@ export async function sendOpenWaMessage(admin: Admin, params: SendParams): Promi
   const extra: Record<string, string | null | undefined> = {};
   for (const [k, v] of Object.entries(params.variabili ?? {})) extra[String(k).toLowerCase()] = v == null ? null : String(v);
   const nomeCompleto = [datiContatto.first_name, datiContatto.last_name].filter(Boolean).join(" ") || null;
+  // {{nome}} nel saluto: MAI il campo grezzo. Sulle liste importate first_name
+  // e' quasi sempre l'insegna ("OFFICINE TABARELLI S.R.L."), non un nome di
+  // persona — lo stesso difetto gia' chiuso sull'email cold (nomeSaluto in
+  // outreach-template.ts, riusata qui). "Ciao OFFICINE TABARELLI S.R.L.," e'
+  // il biglietto da visita dello spam mal fatto su un canale che si blocca
+  // con un dito.
   let text = applySpintax(applyVariabili(rawText, {
     ...extra,
-    nome: datiContatto.first_name,
+    nome: nomeSaluto({ first_name: datiContatto.first_name, company_name: datiContatto.company_name }),
     cognome: datiContatto.last_name,
     nome_completo: nomeCompleto,
     azienda: datiContatto.company_name,
