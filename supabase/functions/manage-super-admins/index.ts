@@ -27,8 +27,6 @@ serveConMetriche("manage-super-admins", async (req) => {
     return new Response(null, { headers: getCorsHeaders(req) });
   }
 
-  const startTime = Date.now();
-  let statusCode = 200;
   const corsH = getCorsHeaders(req);
 
   try {
@@ -50,7 +48,6 @@ serveConMetriche("manage-super-admins", async (req) => {
       windowSeconds: 300,
     });
     if (!rl.allowed) {
-      statusCode = 429;
       await recordMetric({
         metricType: "rate_limit_hit",
         functionName: "manage-super-admins",
@@ -575,19 +572,10 @@ serveConMetriche("manage-super-admins", async (req) => {
     });
   } catch (error) {
     if (error instanceof Response) {
-      statusCode = error.status;
       return error;
     }
-    statusCode = 500;
     return new Response(JSON.stringify({ error: (error as Error).message }), {
       status: 500, headers: { ...corsH, "Content-Type": "application/json" },
-    });
-  } finally {
-    await recordMetric({
-      metricType: "edge_function_call",
-      functionName: "manage-super-admins",
-      statusCode,
-      latencyMs: Date.now() - startTime,
     });
   }
 });

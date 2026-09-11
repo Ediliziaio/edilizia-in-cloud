@@ -33,6 +33,9 @@ export function conMetriche(nomeFunzione: string, gestore: Gestore): Gestore {
   return async (req: Request): Promise<Response> => {
     // Il preflight non è lavoro: misurarlo abbasserebbe artificialmente le medie.
     if (req.method === "OPTIONS") return await gestore(req);
+    // Nemmeno il warmup del frontend (?warmup=1): sveglia il runtime senza
+    // credenziali, e il 401 che riceve non è un guasto da mettere in Salute.
+    if (new URL(req.url).searchParams.get("warmup") === "1") return await gestore(req);
 
     const inizio = Date.now();
     let statusCode = 200;

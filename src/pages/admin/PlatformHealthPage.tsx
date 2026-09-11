@@ -22,6 +22,8 @@ interface JobRiga {
   ultima: string | null;
   ultimo_errore?: string | null;
   errore?: string | null;
+  ultimo_esito?: string | null;
+  guasto?: boolean;
 }
 
 interface FunzioneRiga {
@@ -38,6 +40,7 @@ interface Salute {
     job_totali: number;
     job_attivi: number;
     job_con_errori: number;
+    job_singhiozzi: number;
     funzioni_strumentate: number;
     funzioni_totali_stimate: number;
     errori_edge_24h: number;
@@ -110,6 +113,10 @@ export default function PlatformHealthPage() {
   const battito = data?.battito?.stato ?? null;
   const interruzioni = data?.battito?.interruzioni ?? [];
   const jobFalliti = data?.job_falliti ?? [];
+  // Un giro fallito su mille con i successivi a posto è un singhiozzo, non un
+  // guasto: lo si elenca a parte, senza allarme.
+  const guasti = jobFalliti.filter((j) => j.guasto !== false);
+  const singhiozzi = jobFalliti.filter((j) => j.guasto === false);
   const funzioni = data?.funzioni ?? [];
 
   return (
@@ -146,9 +153,9 @@ export default function PlatformHealthPage() {
         <>
           <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
             <Tessera
-              etichetta="Job con errori"
+              etichetta="Job guasti"
               valore={r.job_con_errori}
-              dettaglio={`${r.job_attivi} job attivi su ${r.job_totali}`}
+              dettaglio={`${r.job_singhiozzi ?? 0} con singhiozzi isolati · ${r.job_attivi} attivi su ${r.job_totali}`}
               tono={r.job_con_errori > 0 ? "critico" : "buono"}
             />
             <Tessera
@@ -256,14 +263,14 @@ export default function PlatformHealthPage() {
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
-                {jobFalliti.length > 0
+                {guasti.length > 0
                   ? <AlertTriangle className="h-4 w-4 text-destructive" />
                   : <CheckCircle2 className="h-4 w-4 text-emerald-600" />}
-                Job in errore nelle ultime 48 ore
+                Job guasti nelle ultime 48 ore
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0 overflow-x-auto">
-              {jobFalliti.length === 0 ? (
+              {guasti.length === 0 ? (
                 <p className="text-sm text-muted-foreground px-6 pb-6">
                   Nessun job sta fallendo. Se qualcosa si rompe, comparirà qui.
                 </p>
@@ -279,7 +286,7 @@ export default function PlatformHealthPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {jobFalliti.map((j) => (
+                    {guasti.map((j) => (
                       <TableRow key={j.job}>
                         <TableCell className="font-mono text-xs font-medium">{j.job}</TableCell>
                         <TableCell className="text-right tabular-nums text-destructive font-semibold">
@@ -298,6 +305,12 @@ export default function PlatformHealthPage() {
                     ))}
                   </TableBody>
                 </Table>
+              )}
+              {singhiozzi.length > 0 && (
+                <p className="text-xs text-muted-foreground px-6 pb-5">
+                  Singhiozzi isolati (ultimo giro andato a buon fine, niente da fare):{" "}
+                  {singhiozzi.map((j) => `${j.job} (${j.falliti}/${j.esecuzioni})`).join(", ")}
+                </p>
               )}
             </CardContent>
           </Card>
@@ -380,8 +393,10 @@ export default function PlatformHealthPage() {
                       <TableCell>
                         {!j.attivo ? (
                           <Badge variant="outline" className="text-[10px]">disattivo</Badge>
-                        ) : j.falliti > 0 ? (
+                        ) : j.falliti > 0 && j.ultimo_esito !== "succeeded" ? (
                           <Badge variant="destructive" className="text-[10px]">{j.falliti} errori</Badge>
+                        ) : j.falliti > 0 ? (
+                          <Badge variant="outline" className="text-[10px]">{j.falliti} su {j.esecuzioni}, ultimo ok</Badge>
                         ) : j.esecuzioni === 0 ? (
                           <Badge variant="outline" className="text-[10px]">nessuna esecuzione</Badge>
                         ) : (
