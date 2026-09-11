@@ -48,6 +48,7 @@ export function OutreachEnrollDialog({ companyId, sequenceId, sequenceName, emai
   const [listId, setListId] = useState("");
   const [quanti, setQuanti] = useState(String(ONDATA_DEFAULT));
   const [busy, setBusy] = useState(false);
+  const [avanzamento, setAvanzamento] = useState(0);
   // Filtri ICP e qualita' degli indirizzi
   const [provincia, setProvincia] = useState("");
   const [citta, setCitta] = useState("");
@@ -127,21 +128,46 @@ export function OutreachEnrollDialog({ companyId, sequenceId, sequenceName, emai
 
   async function enroll() {
     setBusy(true);
+    setAvanzamento(0);
     try {
-      const payload: Record<string, unknown> = { sequence_id: sequenceId, quanti: quantiNum };
-      if (mode === "all") payload.scope = "all";
-      else if (mode === "tag") payload.tag = tag;
-      else if (mode === "source") payload.source = source;
-      else if (mode === "lista") payload.list_id = listId;
-      if (provincia.trim() || citta.trim()) payload.filtri = { provincia: provincia.trim() || undefined, citta: citta.trim() || undefined };
-      payload.includi_role = includiRole;
-      payload.includi_pec = includiPec;
-      payload.verifica_mx = verificaMx;
-      const { data, error } = await supabase.functions.invoke("outreach-enroll", { body: payload });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      const base: Record<string, unknown> = { sequence_id: sequenceId };
+      if (mode === "all") base.scope = "all";
+      else if (mode === "tag") base.tag = tag;
+      else if (mode === "source") base.source = source;
+      else if (mode === "lista") base.list_id = listId;
+      if (provincia.trim() || citta.trim()) base.filtri = { provincia: provincia.trim() || undefined, citta: citta.trim() || undefined };
+      base.includi_role = includiRole;
+      base.includi_pec = includiPec;
+      base.verifica_mx = verificaMx;
 
-      const enrolled = Number(data?.enrolled ?? 0);
+      // Ogni chiamata lavora meno di 40 s (oltre, la connessione cade anche se
+      // il lavoro riesce): si ripete finché la funzione dice che c'è altro da
+      // fare, fino a «Quanti». Chi scarta per lock o MX si somma giro per
+      // giro; i controlli sull'intera lista (generici, PEC…) valgono dall'ultimo.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let data: any = null;
+      let enrolled = 0;
+      let lockNegati = 0;
+      let senzaMx = 0;
+      let inBlocklist = 0;
+      const perMotivoTot: Record<string, number> = {};
+      for (let giro = 0; giro < 60; giro++) {
+        const { data: d, error } = await supabase.functions.invoke("outreach-enroll", { body: { ...base, quanti: quantiNum - enrolled } });
+        if (error) throw error;
+        if (d?.error) throw new Error(d.error);
+        data = d;
+        const nuovi = Number(d?.enrolled ?? 0);
+        enrolled += nuovi;
+        lockNegati += Number(d?.skipped_lock ?? 0);
+        senzaMx += Number(d?.skipped_no_mx ?? 0);
+        inBlocklist += Number(d?.skipped_suppressed ?? 0);
+        for (const [m, n] of Object.entries((d?.lock_negato_per_motivo ?? {}) as Record<string, number>)) perMotivoTot[m] = (perMotivoTot[m] ?? 0) + n;
+        setAvanzamento(enrolled);
+        if (!d?.tempo_scaduto || enrolled >= quantiNum) break;
+        if (nuovi === 0 && Number(d?.skipped_lock ?? 0) === 0 && Number(d?.skipped_no_mx ?? 0) === 0) break; // giro a vuoto: stop
+      }
+      data = { ...data, skipped_lock: lockNegati, skipped_no_mx: senzaMx, skipped_suppressed: inBlocklist, lock_negato_per_motivo: perMotivoTot };
+
       const skips: string[] = [];
       if (data?.skipped_already) skips.push(`${data.skipped_already} già iscritti`);
       if (data?.skipped_optout) skips.push(`${data.skipped_optout} opt-out`);
@@ -164,7 +190,7 @@ export function OutreachEnrollDialog({ companyId, sequenceId, sequenceName, emai
         const dentro = Number(data.lista.gia_iscritti ?? 0) + enrolled;
         note.push(`Lista: ${dentro.toLocaleString("it-IT")} su ${Number(data.lista.membri ?? 0).toLocaleString("it-IT")} ora in sequenza.`);
       }
-      if (data?.tempo_scaduto) note.push("Ondata chiusa prima per stare nei tempi: rilancia per continuare.");
+      if (data?.tempo_scaduto && enrolled < quantiNum) note.push("Non ho finito entro il numero massimo di giri: rilancia per continuare da dove sono arrivato.");
       if (enrolled > 0) {
         toast.success(`${enrolled} contatti iscritti a "${sequenceName}"`, {
           description: note.length ? note.join(" ") : undefined,
@@ -314,7 +340,8 @@ export function OutreachEnrollDialog({ companyId, sequenceId, sequenceName, emai
         <DialogFooter>
           <Button variant="ghost" onClick={() => setOpen(false)}>Annulla</Button>
           <Button onClick={enroll} disabled={busy || !canEnroll} className="gap-2">
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />} Iscrivi
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
+            {busy && avanzamento > 0 ? `Iscritti ${avanzamento.toLocaleString("it-IT")}…` : "Iscrivi"}
           </Button>
         </DialogFooter>
       </DialogContent>

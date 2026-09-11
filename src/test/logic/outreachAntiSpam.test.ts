@@ -65,7 +65,7 @@ describe("Il tetto dei nuovi contatti è separato dai follow-up", () => {
 
   it("l'arruolamento lavora a ondate, anche da una lista automatica, e non salta la blocklist in silenzio", () => {
     expect(enroll).toContain('.from("marketing_contact_list_members")');
-    expect(enroll).toContain("if (eligible.length >= quanti) break;");
+    expect(enroll).toContain("for (let i = 0; i < puliti.length && eligible.length < quanti; i += GRUPPO_MX)");
     expect(enroll).toContain("if (supErr) throw supErr;");
     expect(enroll).toContain("BUDGET_VALUTAZIONE_MS");
   });

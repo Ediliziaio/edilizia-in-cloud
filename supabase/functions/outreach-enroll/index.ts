@@ -27,10 +27,10 @@ const MAX_CONTACTS = 5000;
 // Oltre questo tempo si smette di valutare/bloccare nuovi contatti e si iscrive
 // ciò che è già pronto: un kill a metà lascerebbe lock multi-brand acquisiti
 // senza iscrizione (aziende bloccate per 25 giorni a vuoto). Margini stretti:
-// a ~130 s il lavoro finiva ma il browser aveva già chiuso la connessione
-// («Failed to send a request»), e chi arruolava vedeva un errore su
-// un'ondata riuscita.
-const BUDGET_VALUTAZIONE_MS = 55_000;
+// oltre ~60 s la connessione col browser cade («Failed to send a request»)
+// anche se il lavoro finisce, e chi arruolava vedeva un errore su un'ondata
+// riuscita. Un giro sta sotto i 40 s; il dialog ripete i giri da solo.
+const BUDGET_VALUTAZIONE_MS = 20_000;
 
 interface ContactRow {
   id: string;
@@ -233,12 +233,23 @@ Deno.serve(async (req) => {
     }
     const eligible: ContactRow[] = [];
     const mxCache = new Map<string, boolean>();
-    for (const c of puliti) {
-      if (eligible.length >= quanti) break;
+    // MX a gruppi in parallelo: un dominio nuovo costa una query DNS, e in
+    // sequenza bastavano un paio di centinaia di domini mai visti per finire
+    // il tempo del giro.
+    const GRUPPO_MX = 10;
+    for (let i = 0; i < puliti.length && eligible.length < quanti; i += GRUPPO_MX) {
       if (Date.now() - avviatoAlle > BUDGET_VALUTAZIONE_MS) { stats.tempo_scaduto = true; break; }
-      if (suppressed.has(norm(c.email as string))) { stats.skipped_suppressed++; continue; }
-      if (verificaMx && !(await domainHasMx(admin, domainOf(c.email as string), mxCache))) { stats.skipped_no_mx++; continue; }
-      eligible.push(c);
+      const gruppo = puliti.slice(i, i + GRUPPO_MX).filter((c) => {
+        if (suppressed.has(norm(c.email as string))) { stats.skipped_suppressed++; return false; }
+        return true;
+      });
+      const conMx = verificaMx
+        ? await Promise.all(gruppo.map((c) => domainHasMx(admin, domainOf(c.email as string), mxCache)))
+        : gruppo.map(() => true);
+      gruppo.forEach((c, k) => {
+        if (!conMx[k]) { stats.skipped_no_mx++; return; }
+        if (eligible.length < quanti) eligible.push(c);
+      });
     }
     if (eligible.length === 0) {
       return jsonResponse({ ...stats, note: "Nessun contatto idoneo (già iscritti / opt-out / in blocklist / senza email)." }, 200, corsH);
@@ -267,7 +278,7 @@ Deno.serve(async (req) => {
       for (const c of eligible) {
         // Margine per le insert che seguono: meglio un'ondata più corta che un
         // kill a metà con lock presi e nessuna iscrizione.
-        if (Date.now() - avviatoAlle > BUDGET_VALUTAZIONE_MS + 25_000) { stats.tempo_scaduto = true; break; }
+        if (Date.now() - avviatoAlle > BUDGET_VALUTAZIONE_MS + 15_000) { stats.tempo_scaduto = true; break; }
         const { data: aziendaId } = await admin.rpc("outreach_ensure_prospect", { p_contact_id: c.id });
         if (!aziendaId) { stats.skipped_senza_azienda++; continue; }
         const chiave = String(aziendaId);
