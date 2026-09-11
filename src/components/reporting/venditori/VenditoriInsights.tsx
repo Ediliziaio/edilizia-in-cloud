@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { AlertTriangle, CheckCircle, TrendingDown, Lightbulb, Info } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 import type { VendorKPI, VendorTrend } from "@/hooks/useVendorReport";
+import { SOGLIE_VENDITORI as SOGLIE, tassoTesto } from "@/lib/reporting/venditoriRegole";
 
 interface Insight {
   type: "success" | "warning" | "danger" | "info" | "tip";
@@ -22,24 +23,32 @@ function generateInsights(kpi: VendorKPI | null, trend: VendorTrend[], _kpiList:
   if (!kpi) return [];
   const insights: Insight[] = [];
 
-  // Tasso chiusura
-  if ((kpi.tasso_chiusura ?? 0) >= 45) {
-    insights.push({ type: "success", priority: 5, title: "🏆 Tasso di chiusura eccellente", message: `${kpi.tasso_chiusura}% di win rate — tra i top performer (benchmark: 25–45%).` });
-  } else if ((kpi.tasso_chiusura ?? 0) < 20 && kpi.opp_totali > 3) {
-    insights.push({ type: "danger", priority: 1, title: "⚠️ Tasso di chiusura critico", message: `Solo il ${kpi.tasso_chiusura}% delle opportunità viene chiusa. Benchmark minimo: 20%. Valutare qualificazione lead e processo di vendita.` });
-  } else if ((kpi.tasso_chiusura ?? 0) < 30 && kpi.opp_totali > 3) {
-    insights.push({ type: "warning", priority: 2, title: "Tasso di chiusura da migliorare", message: `${kpi.tasso_chiusura}% — sotto la media (30%). Possibili cause: lead poco qualificati, proposta non adeguata, follow-up insufficiente.` });
+  // Tasso chiusura: vinte ÷ (vinte + perse). Serve qualche chiusura per dirne
+  // qualcosa (prima contava le opportunità create, anche se nessuna era chiusa,
+  // e un tasso non calcolabile diventava «Solo il null%»).
+  const chiuse = kpi.opp_vinte + kpi.opp_perse;
+  const chiusura = kpi.tasso_chiusura;
+  if (chiusura != null && chiuse >= 4) {
+    if (chiusura >= 45) {
+      insights.push({ type: "success", priority: 5, title: "🏆 Tasso di chiusura eccellente", message: `${tassoTesto(chiusura)} di win rate su ${chiuse} chiuse — tra i top performer (benchmark: 25–45%).` });
+    } else if (chiusura < SOGLIE.tasso_chiusura.critico) {
+      insights.push({ type: "danger", priority: 1, title: "⚠️ Tasso di chiusura critico", message: `Vinte ${kpi.opp_vinte} su ${chiuse} chiuse (${tassoTesto(chiusura)}). Benchmark minimo: ${SOGLIE.tasso_chiusura.critico}%. Valutare qualificazione lead e processo di vendita.` });
+    } else if (chiusura < SOGLIE.tasso_chiusura.buono) {
+      insights.push({ type: "warning", priority: 2, title: "Tasso di chiusura da migliorare", message: `${tassoTesto(chiusura)} — sotto il ${SOGLIE.tasso_chiusura.buono}% che il report considera buono. Possibili cause: lead poco qualificati, proposta non adeguata, follow-up insufficiente.` });
+    }
   }
 
-  // Show-up rate
-  if ((kpi.tasso_show_up ?? 0) < 50 && kpi.appuntamenti_fissati > 5) {
-    insights.push({ type: "danger", priority: 1, title: "Show-Up Rate preoccupante", message: `Solo il ${kpi.tasso_show_up}% degli appuntamenti viene onorato. Azioni: reminder automatici, conferma giorno prima, qualificazione migliore.` });
-  } else if ((kpi.tasso_show_up ?? 0) >= 80) {
-    insights.push({ type: "success", priority: 5, title: "Ottimo Show-Up Rate", message: `${kpi.tasso_show_up}% degli appuntamenti effettuato — ottimo indicatore di qualità dei lead.` });
+  // Show-up rate: effettuati ÷ (effettuati + no-show)
+  const conEsito = kpi.appuntamenti_effettuati + kpi.appuntamenti_no_show;
+  const showUp = kpi.tasso_show_up;
+  if (showUp != null && showUp < SOGLIE.tasso_show_up.critico && conEsito > 5) {
+    insights.push({ type: "danger", priority: 1, title: "Show-Up Rate preoccupante", message: `Solo il ${tassoTesto(showUp)} degli appuntamenti con un esito è stato fatto (${kpi.appuntamenti_no_show} no-show). Azioni: reminder automatici, conferma giorno prima, qualificazione migliore.` });
+  } else if (showUp != null && showUp >= 80 && conEsito > 5) {
+    insights.push({ type: "success", priority: 5, title: "Ottimo Show-Up Rate", message: `${tassoTesto(showUp)} degli appuntamenti effettuato — ottimo indicatore di qualità dei lead.` });
   }
 
   // Ciclo vendita
-  if (kpi.avg_giorni_chiusura > 60 && kpi.opp_vinte > 2) {
+  if (kpi.avg_giorni_chiusura >= SOGLIE.avg_giorni_chiusura.critico && kpi.opp_vinte > 2) {
     insights.push({ type: "warning", priority: 3, title: "Ciclo di vendita lungo", message: `Media di ${kpi.avg_giorni_chiusura} giorni per chiudere. Considerare urgenza artificiale, scadenza offerta, follow-up più frequente.` });
   }
 
@@ -47,9 +56,9 @@ function generateInsights(kpi: VendorKPI | null, trend: VendorTrend[], _kpiList:
   if (kpi.pipeline_valore > 0 && kpi.fatturato_generato > 0) {
     const coverage = Math.round(kpi.pipeline_valore / kpi.fatturato_generato * 10) / 10;
     if (coverage < 2) {
-      insights.push({ type: "warning", priority: 2, title: "Pipeline Coverage bassa", message: `La pipeline vale ${coverage}× il fatturato realizzato. Per garantire il target futuro serve almeno 3×.` });
+      insights.push({ type: "warning", priority: 2, title: "Pipeline Coverage bassa", message: `La pipeline vale ${coverage.toLocaleString("it-IT")}× il fatturato realizzato. Per garantire il target futuro serve almeno 3×.` });
     } else if (coverage >= 4) {
-      insights.push({ type: "success", priority: 5, title: "Pipeline abbondante", message: `Pipeline ${coverage}× il fatturato realizzato — buona cushion per i prossimi mesi.` });
+      insights.push({ type: "success", priority: 5, title: "Pipeline abbondante", message: `Pipeline ${coverage.toLocaleString("it-IT")}× il fatturato realizzato — buon margine per i prossimi mesi.` });
     }
   }
 
@@ -70,14 +79,15 @@ function generateInsights(kpi: VendorKPI | null, trend: VendorTrend[], _kpiList:
     }
   }
 
-  // Nessuna opp
-  if (kpi.opp_totali === 0) {
+  // Nessuna opp: né create, né chiuse, né aperte
+  if (kpi.opp_totali === 0 && chiuse === 0 && kpi.opp_aperte === 0) {
     insights.push({ type: "info", priority: 5, title: "Nessuna opportunità nel periodo", message: "Non ci sono opportunità registrate. Verificare che le opportunità abbiano l'agente assegnato." });
   }
 
   // Show-up ok ma chiusure scarse
-  if ((kpi.tasso_app_to_close ?? 0) < 15 && (kpi.tasso_show_up ?? 0) > 60) {
-    insights.push({ type: "tip", priority: 3, title: "💡 Show-up ok, chiusure scarse", message: `Gli appuntamenti vengono effettuati (${kpi.tasso_show_up}%) ma pochi si convertono (${kpi.tasso_app_to_close}%). Il problema è nella fase di presentazione/proposta.` });
+  const appClose = kpi.tasso_app_to_close;
+  if (appClose != null && showUp != null && appClose < SOGLIE.tasso_app_to_close.critico && showUp >= SOGLIE.tasso_show_up.critico && kpi.appuntamenti_effettuati >= 3) {
+    insights.push({ type: "tip", priority: 3, title: "💡 Show-up ok, chiusure scarse", message: `Gli appuntamenti vengono effettuati (${tassoTesto(showUp)}) ma pochi si convertono (${tassoTesto(appClose)}). Il problema è nella fase di presentazione/proposta.` });
   }
 
   return insights.sort((a, b) => a.priority - b.priority);

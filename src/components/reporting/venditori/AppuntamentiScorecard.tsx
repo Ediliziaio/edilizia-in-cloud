@@ -1,8 +1,9 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Calendar, CheckCircle, XCircle, ArrowRight } from "lucide-react";
+import { Calendar, CheckCircle, XCircle, ArrowRight, HelpCircle } from "lucide-react";
 import type { VendorKPI } from "@/hooks/useVendorReport";
+import { semaforoVenditori, tassoTesto } from "@/lib/reporting/venditoriRegole";
 import type { LucideIcon } from "lucide-react";
 
 interface Props { kpi: VendorKPI | null; isLoading: boolean; }
@@ -21,15 +22,28 @@ export function AppuntamentiScorecard({ kpi, isLoading }: Props) {
     );
   }
 
-  const showUp = kpi?.tasso_show_up ?? 0;
-  const showUpColor = showUp >= 70 ? "text-green-600 dark:text-green-400" : showUp >= 50 ? "text-amber-600 dark:text-amber-400" : "text-red-600 dark:text-red-400";
+  // Show-up = effettuati ÷ (effettuati + no-show): conta solo chi ha un esito.
+  // Senza esiti non è 0% rosso, è «—».
+  const showUp = kpi?.tasso_show_up ?? null;
+  const semaforo = semaforoVenditori("tasso_show_up", showUp);
+  const showUpColor = semaforo === "buono"
+    ? "text-green-600 dark:text-green-400"
+    : semaforo === "medio"
+      ? "text-amber-600 dark:text-amber-400"
+      : semaforo === "critico"
+        ? "text-red-600 dark:text-red-400"
+        : "text-muted-foreground";
+  const fissati = kpi?.appuntamenti_fissati ?? 0;
+  const effettuati = kpi?.appuntamenti_effettuati ?? 0;
+  const noShow = kpi?.appuntamenti_no_show ?? 0;
 
   const rows: { label: string; value: string | number; icon: LucideIcon; color: string }[] = [
-    { label: "Appuntamenti Fissati", value: kpi?.appuntamenti_fissati ?? 0, icon: Calendar, color: "text-blue-600" },
-    { label: "Effettuati (Show-up)", value: kpi?.appuntamenti_effettuati ?? 0, icon: CheckCircle, color: "text-green-600" },
-    { label: "No-Show", value: kpi?.appuntamenti_no_show ?? 0, icon: XCircle, color: "text-red-500" },
-    { label: "App → Opportunità", value: `${kpi?.tasso_app_to_opp ?? 0}%`, icon: ArrowRight, color: "text-indigo-600" },
-    { label: "App → Chiusura", value: `${kpi?.tasso_app_to_close ?? 0}%`, icon: ArrowRight, color: "text-green-700" },
+    { label: "Appuntamenti Fissati", value: fissati, icon: Calendar, color: "text-blue-600" },
+    { label: "Effettuati (Show-up)", value: effettuati, icon: CheckCircle, color: "text-green-600" },
+    { label: "No-Show", value: noShow, icon: XCircle, color: "text-red-500" },
+    { label: "Futuri o senza esito", value: Math.max(0, fissati - effettuati - noShow), icon: HelpCircle, color: "text-muted-foreground" },
+    { label: "App → Opportunità", value: tassoTesto(kpi?.tasso_app_to_opp), icon: ArrowRight, color: "text-indigo-600" },
+    { label: "App → Chiusura", value: tassoTesto(kpi?.tasso_app_to_close), icon: ArrowRight, color: "text-green-700" },
   ];
 
   return (
@@ -45,9 +59,9 @@ export function AppuntamentiScorecard({ kpi, isLoading }: Props) {
         <div className="space-y-2">
           <div className="flex items-baseline justify-between">
             <span className="text-sm text-muted-foreground">Show-Up Rate</span>
-            <span className={`text-2xl font-bold ${showUpColor}`}>{showUp}%</span>
+            <span className={`text-2xl font-bold ${showUpColor}`}>{tassoTesto(showUp)}</span>
           </div>
-          <Progress value={showUp} className="h-2" />
+          <Progress value={showUp ?? 0} className="h-2" />
         </div>
 
         <div className="space-y-2 pt-2 border-t">

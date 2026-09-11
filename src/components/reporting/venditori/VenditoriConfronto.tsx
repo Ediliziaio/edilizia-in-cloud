@@ -4,45 +4,50 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { GitCompareArrows } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 import type { VendorKPI } from "@/hooks/useVendorReport";
+import { giorniTesto, tassoTesto } from "@/lib/reporting/venditoriRegole";
 
 interface CompareField {
   key: keyof VendorKPI;
   label: string;
   format: (v: number) => string;
   lowerIsBetter?: boolean;
+  /** Quando il numero esiste: un tasso non calcolabile o un ciclo senza vendite non «perde» contro nessuno. */
+  disponibile?: (k: VendorKPI) => boolean;
 }
+
+const tassoDisponibile = (key: keyof VendorKPI) => (k: VendorKPI) => k[key] != null;
 
 const FIELDS: CompareField[] = [
   { key: "fatturato_generato", label: "Fatturato Generato", format: (v) => formatCurrency(v) },
-  { key: "tasso_chiusura", label: "Tasso Chiusura", format: (v) => `${v ?? 0}%` },
-  { key: "tasso_show_up", label: "Show-Up Rate", format: (v) => `${v ?? 0}%` },
-  { key: "importo_medio_chiusura", label: "Deal Size Medio", format: (v) => formatCurrency(v) },
+  { key: "tasso_chiusura", label: "Tasso Chiusura", format: tassoTesto, disponibile: tassoDisponibile("tasso_chiusura") },
+  { key: "tasso_show_up", label: "Show-Up Rate", format: tassoTesto, disponibile: tassoDisponibile("tasso_show_up") },
+  { key: "importo_medio_chiusura", label: "Deal Size Medio", format: (v) => formatCurrency(v), disponibile: (k) => k.opp_vinte > 0 },
   { key: "opp_vinte", label: "Opportunità Vinte", format: (v) => String(v) },
-  { key: "tasso_app_to_close", label: "App → Chiusura", format: (v) => `${v ?? 0}%` },
-  { key: "avg_giorni_chiusura", label: "Ciclo Vendita", format: (v) => `${v}gg`, lowerIsBetter: true },
+  { key: "tasso_app_to_close", label: "App → Chiusura", format: tassoTesto, disponibile: tassoDisponibile("tasso_app_to_close") },
+  { key: "avg_giorni_chiusura", label: "Ciclo Vendita", format: (v) => giorniTesto(v, true), lowerIsBetter: true, disponibile: (k) => k.opp_vinte > 0 },
   { key: "pipeline_valore", label: "Pipeline", format: (v) => formatCurrency(v) },
   { key: "nuovi_contatti", label: "Nuovi Contatti", format: (v) => String(v) },
 ];
 
 const CompareRow = memo(function CompareRow({ field, a, b }: { field: CompareField; a: VendorKPI; b: VendorKPI }) {
-  const valA = Number(a[field.key]) || 0;
-  const valB = Number(b[field.key]) || 0;
+  const okA = field.disponibile ? field.disponibile(a) : true;
+  const okB = field.disponibile ? field.disponibile(b) : true;
+  const valA = okA ? Number(a[field.key]) || 0 : 0;
+  const valB = okB ? Number(b[field.key]) || 0 : 0;
   const max = Math.max(valA, valB, 1);
   const pctA = (valA / max) * 100;
   const pctB = (valB / max) * 100;
 
-  const aWins = field.lowerIsBetter
-    ? valA < valB && valA > 0
-    : valA > valB;
-  const bWins = field.lowerIsBetter
-    ? valB < valA && valB > 0
-    : valB > valA;
+  // si vince solo tra due numeri veri
+  const entrambi = okA && okB;
+  const aWins = entrambi && (field.lowerIsBetter ? valA < valB : valA > valB);
+  const bWins = entrambi && (field.lowerIsBetter ? valB < valA : valB > valA);
 
   return (
     <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 py-2.5 border-b border-border last:border-0">
       <div className="flex items-center gap-2">
         <span className={`text-sm font-semibold min-w-[80px] text-right ${aWins ? "text-primary" : "text-muted-foreground"}`}>
-          {field.format(valA)}
+          {okA ? field.format(valA) : "—"}
         </span>
         <div className="flex-1 flex justify-end">
           <div className="h-5 rounded-sm relative overflow-hidden w-full bg-muted/30">
@@ -68,7 +73,7 @@ const CompareRow = memo(function CompareRow({ field, a, b }: { field: CompareFie
           </div>
         </div>
         <span className={`text-sm font-semibold min-w-[80px] ${bWins ? "text-accent-foreground" : "text-muted-foreground"}`}>
-          {field.format(valB)}
+          {okB ? field.format(valB) : "—"}
         </span>
       </div>
     </div>

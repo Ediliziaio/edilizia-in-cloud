@@ -1,4 +1,5 @@
 import type { VendorKPI } from "@/hooks/useVendorReport";
+import { SOGLIE_VENDITORI as SOGLIE } from "@/lib/reporting/venditoriRegole";
 
 export type VendorDiagnosisSeverity = "good" | "info" | "warning" | "critical";
 
@@ -45,7 +46,13 @@ export function buildVendorOperationalDiagnosis(
 ): VendorOperationalDiagnosis {
   const health = integration ?? EMPTY_INTEGRATION;
 
-  if (!kpi || kpi.opp_totali <= 0) {
+  // «Nessuna attività» vuol dire niente di niente: opp_totali conta solo le
+  // opportunità CREATE nel periodo, e chi ha chiuso contratti nati prima o ha
+  // solo appuntamenti non è un venditore senza dati.
+  const attivita = kpi
+    ? kpi.opp_totali + kpi.opp_vinte + kpi.opp_perse + kpi.opp_aperte + kpi.appuntamenti_fissati
+    : 0;
+  if (!kpi || attivita <= 0) {
     const integrationIssues = countIntegrationIssues(health);
     return {
       openOpportunities: 0,
@@ -133,19 +140,22 @@ function buildActions(
     });
   }
 
-  if ((kpi.tasso_show_up ?? 0) < 60 && kpi.appuntamenti_fissati >= 5) {
+  // Show-up senza esiti = non calcolabile: gli appuntamenti da esitare li
+  // segnala già «close-appointment-outcomes», non sono no-show.
+  const conEsito = kpi.appuntamenti_effettuati + kpi.appuntamenti_no_show;
+  if (kpi.tasso_show_up != null && kpi.tasso_show_up < SOGLIE.tasso_show_up.buono && conEsito >= 5) {
     actions.push({
       key: "reduce-no-show",
-      severity: (kpi.tasso_show_up ?? 0) < 45 ? "critical" : "warning",
+      severity: kpi.tasso_show_up < SOGLIE.tasso_show_up.critico ? "critical" : "warning",
       title: "Riduci no-show appuntamenti",
       detail: `Show-up al ${formatPct(kpi.tasso_show_up)} con ${formatNumber(kpi.appuntamenti_no_show)} no-show: servono conferma e reminder prima della visita.`,
     });
   }
 
-  if ((kpi.tasso_app_to_close ?? 0) < 15 && kpi.appuntamenti_effettuati >= 3) {
+  if (kpi.tasso_app_to_close != null && kpi.tasso_app_to_close < SOGLIE.tasso_app_to_close.buono && kpi.appuntamenti_effettuati >= 3) {
     actions.push({
       key: "improve-sales-conversion",
-      severity: "critical",
+      severity: kpi.tasso_app_to_close < SOGLIE.tasso_app_to_close.critico ? "critical" : "warning",
       title: "Migliora conversione appuntamento-vendita",
       detail: `Solo il ${formatPct(kpi.tasso_app_to_close)} degli appuntamenti effettuati diventa vendita: rivedi diagnosi, offerta e follow-up preventivo.`,
     });
@@ -160,7 +170,7 @@ function buildActions(
     });
   }
 
-  if (kpi.avg_giorni_chiusura > 60 && kpi.opp_vinte >= 2) {
+  if (kpi.avg_giorni_chiusura >= SOGLIE.avg_giorni_chiusura.critico && kpi.opp_vinte >= 2) {
     actions.push({
       key: "shorten-sales-cycle",
       severity: "warning",
@@ -208,25 +218,25 @@ function buildPrimaryRisk(
   if (integrationIssues > 0) return `${formatNumber(integrationIssues)} record CRM/calendario non sono collegati correttamente.`;
   if (health.staleOpenOpportunities > 0) return `${formatNumber(health.staleOpenOpportunities)} opportunità aperte sono senza prossimo step.`;
   if (health.pastUncompletedAppointments > 0) return `${formatNumber(health.pastUncompletedAppointments)} appuntamenti passati non hanno ancora un esito.`;
-  if ((kpi.tasso_app_to_close ?? 0) < 15 && kpi.appuntamenti_effettuati > 0) return "Gli appuntamenti vengono fatti, ma convertono poco in vendite.";
+  if (kpi.tasso_app_to_close != null && kpi.tasso_app_to_close < SOGLIE.tasso_app_to_close.critico && kpi.appuntamenti_effettuati > 0) return "Gli appuntamenti vengono fatti, ma convertono poco in vendite.";
   if (pipelineCoverage > 0 && pipelineCoverage < 3) return `Pipeline coverage ${formatNumber(pipelineCoverage)}x: forecast commerciale fragile.`;
   return "Nessun rischio operativo urgente rilevato.";
 }
 
 function computeHealthScore(kpi: VendorKPI, health: VendorIntegrationHealth, pipelineCoverage: number) {
-  const closeScore = scoreAgainstTarget(kpi.tasso_chiusura ?? 0, 35);
-  const showUpScore = scoreAgainstTarget(kpi.tasso_show_up ?? 0, 75);
-  const appCloseScore = scoreAgainstTarget(kpi.tasso_app_to_close ?? 0, 25);
-  const pipelineScore = scoreAgainstTarget(pipelineCoverage, 3);
-  const integrationScore = scoreIntegration(health);
-
-  return Math.round(
-    closeScore * 0.22 +
-      showUpScore * 0.18 +
-      appCloseScore * 0.22 +
-      pipelineScore * 0.18 +
-      integrationScore * 0.2,
-  );
+  // Un tasso non calcolabile (niente chiuso, nessun appuntamento con esito)
+  // esce dal conto e il suo peso si ridistribuisce: prima valeva 0 e bastava
+  // un mese senza appuntamenti per finire «Critico».
+  const parti: { valore: number | null; peso: number }[] = [
+    { valore: kpi.tasso_chiusura == null ? null : scoreAgainstTarget(kpi.tasso_chiusura, SOGLIE.tasso_chiusura.buono), peso: 0.22 },
+    { valore: kpi.tasso_show_up == null ? null : scoreAgainstTarget(kpi.tasso_show_up, SOGLIE.tasso_show_up.buono), peso: 0.18 },
+    { valore: kpi.tasso_app_to_close == null ? null : scoreAgainstTarget(kpi.tasso_app_to_close, SOGLIE.tasso_app_to_close.buono), peso: 0.22 },
+    { valore: scoreAgainstTarget(pipelineCoverage, 3), peso: 0.18 },
+    { valore: scoreIntegration(health), peso: 0.2 },
+  ];
+  const presenti = parti.filter((p): p is { valore: number; peso: number } => p.valore != null);
+  const pesi = presenti.reduce((a, p) => a + p.peso, 0);
+  return pesi > 0 ? Math.round(presenti.reduce((a, p) => a + p.valore * p.peso, 0) / pesi) : 0;
 }
 
 function computePipelineCoverage(kpi: VendorKPI) {

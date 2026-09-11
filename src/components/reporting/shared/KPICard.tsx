@@ -19,9 +19,11 @@ interface KPICardProps {
   colorKey: ColorKey;
   benchmark?: string;
   isLoading?: boolean;
+  /** Confronto con il periodo precedente: «buona» colora di verde, «cattiva» di rosso, null neutro. */
+  variazione?: { testo: string; buona: boolean | null } | null;
 }
 
-export function KPICard({ title, value, subtitle, icon: Icon, colorKey, benchmark, isLoading }: KPICardProps) {
+export function KPICard({ title, value, subtitle, icon: Icon, colorKey, benchmark, isLoading, variazione }: KPICardProps) {
   const s = colorStyles[colorKey];
   if (isLoading) {
     return (
@@ -45,6 +47,13 @@ export function KPICard({ title, value, subtitle, icon: Icon, colorKey, benchmar
         </div>
         <p className={`text-2xl font-bold ${s.val}`}>{value}</p>
         {subtitle && <p className="text-xs text-muted-foreground mt-1">{subtitle}</p>}
+        {variazione && (
+          <p className={`text-xs mt-1 font-medium ${
+            variazione.buona === null ? "text-muted-foreground" : variazione.buona ? "text-green-700 dark:text-green-400" : "text-red-700 dark:text-red-400"
+          }`}>
+            {variazione.testo}
+          </p>
+        )}
         {benchmark && (
           <p className="text-[11px] text-muted-foreground/70 mt-2 italic">Benchmark: {benchmark}</p>
         )}

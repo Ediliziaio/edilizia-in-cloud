@@ -1,15 +1,17 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import {
   useWeightedPipeline,
   useSalesForecast,
   useStalledOpportunities,
   useSalesVelocity,
-  useSellerPerformance,
   useConversionBySource,
   useTopLeads,
   useQuoteRevenue,
+  salesOSKeys,
 } from "@/hooks/useSalesOS";
+import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -73,7 +75,10 @@ const fmt = (v: number | null | undefined) =>
         currency: "EUR",
         maximumFractionDigits: 0, useGrouping: "always" }).format(v);
 
-const pct = (v: number | null | undefined) => (v == null || !Number.isFinite(v) ? "—" : `${v.toFixed(1)}%`);
+const pct = (v: number | null | undefined) =>
+  v == null || !Number.isFinite(v)
+    ? "—"
+    : `${v.toLocaleString("it-IT", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
 
 function severityLabel(daysStalled: number, threshold: number) {
   if (daysStalled >= threshold * 2) return { label: "Critica", variant: "destructive" as const };
@@ -219,7 +224,7 @@ function buildSalesOSCommandActions({
     action: "Lavora pipeline",
     target: "pipeline",
     tone: "text-primary",
-    badge: "90 giorni",
+    badge: "3 mesi",
   });
 
   return actions;
@@ -335,7 +340,7 @@ function SalesVelocityCard({ companyId, daysBack, periodLabel }: { companyId: st
             <span className="text-muted-foreground">Ticket medio</span>
           </div>
           <div>
-            <p className="font-semibold">{velocity.avg_cycle_days == null ? "—" : `${velocity.avg_cycle_days} gg`}</p>
+            <p className="font-semibold">{velocity.avg_cycle_days == null ? "—" : `${velocity.avg_cycle_days.toLocaleString("it-IT")} gg`}</p>
             <span className="text-muted-foreground">Ciclo medio</span>
           </div>
         </div>
@@ -425,7 +430,7 @@ function QuoteRevenueCard({
         </p>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-3 text-sm">
           <button
-            onClick={() => navigate(`/azienda/marketing/preventivi?status=inviata`)}
+            onClick={() => navigate(`/azienda/marketing/preventivi?stato=in_corso`)}
             className="text-left rounded-md hover:bg-muted/50 p-1 -m-1 transition"
           >
             <p className="font-semibold flex items-center gap-1">
@@ -480,11 +485,23 @@ function SalesFocusPanel({
   onOpenConfig: () => void;
 }) {
   const navigate = useNavigate();
-  const { data: velocity } = useSalesVelocity(companyId, daysBack);
-  const { data: stalled, isLoading: stalledLoading } = useStalledOpportunities(companyId);
-  const { data: leads, isLoading: leadsLoading } = useTopLeads(companyId, 1);
-  const { data: forecast } = useSalesForecast(companyId, 3);
-  const { data: quoteRevenue } = useQuoteRevenue(companyId, dateFrom, dateTo);
+  const queryClient = useQueryClient();
+  const { data: velocity, isError: erroreVelocity } = useSalesVelocity(companyId, daysBack);
+  const { data: stalled, isLoading: stalledLoading, isError: erroreFerme } = useStalledOpportunities(companyId);
+  const { data: leads, isLoading: leadsLoading, isError: erroreLead } = useTopLeads(companyId, 1);
+  const { data: forecast, isError: erroreForecast } = useSalesForecast(companyId, 3);
+  const { data: quoteRevenue, isError: errorePreventivi } = useQuoteRevenue(companyId, dateFrom, dateTo);
+  // Un numero che non è arrivato non è uno zero: prima una lettura fallita
+  // delle opportunità ferme diceva «Follow-up sotto controllo — OK».
+  const nonArrivati: Partial<Record<SalesOSCommandAction["key"], boolean>> = {
+    stalled: erroreFerme,
+    lead: erroreLead,
+    "lead-scoring": erroreLead,
+    forecast: erroreForecast,
+    "revenue-gap": errorePreventivi,
+    "signed-revenue": errorePreventivi,
+  };
+  const qualcosaNonArrivato = erroreVelocity || erroreFerme || erroreLead || erroreForecast || errorePreventivi;
 
   const criticalStalled = (stalled ?? []).filter((opp) => opp.days_stalled >= opp.stalled_threshold * 2);
   const nextLead = leads?.[0];
@@ -510,26 +527,27 @@ function SalesFocusPanel({
     activeQuotesCount,
   });
 
+  const NON_ARRIVATO = "Dati non arrivati";
   const metrics = [
     {
       label: "Velocity stimata",
-      value: velocity ? `${fmt(velocity.sales_velocity)}/giorno` : "...",
-      detail: `${velocity?.open_opportunities ?? 0} opportunità aperte`,
+      value: velocity ? `${fmt(velocity.sales_velocity)}/giorno` : erroreVelocity ? "—" : "...",
+      detail: erroreVelocity ? NON_ARRIVATO : `${velocity?.open_opportunities ?? 0} opportunità aperte`,
     },
     {
       label: "Ricavo firmato",
-      value: quoteRevenue ? fmt(actualRevenue) : "...",
-      detail: `${quoteRevenue?.signed_quotes_count ?? 0} preventivi firmati`,
+      value: quoteRevenue ? fmt(actualRevenue) : errorePreventivi ? "—" : "...",
+      detail: errorePreventivi ? NON_ARRIVATO : `${quoteRevenue?.signed_quotes_count ?? 0} preventivi firmati`,
     },
     {
       label: "Forecast pesato",
-      value: fmt(weightedForecast),
-      detail: "prossimi 3 mesi",
+      value: forecast ? fmt(weightedForecast) : erroreForecast ? "—" : "...",
+      detail: erroreForecast ? NON_ARRIVATO : "questo mese e i due successivi",
     },
     {
       label: "Preventivi aperti",
-      value: quoteRevenue ? fmt(activeQuotesValue) : "...",
-      detail: `${activeQuotesCount} inviati da chiudere`,
+      value: quoteRevenue ? fmt(activeQuotesValue) : errorePreventivi ? "—" : "...",
+      detail: errorePreventivi ? NON_ARRIVATO : `${activeQuotesCount} inviati da chiudere`,
     },
   ];
 
@@ -547,7 +565,7 @@ function SalesFocusPanel({
       return;
     }
     if (target === "quotes") {
-      navigate("/azienda/marketing/preventivi?status=inviata");
+      navigate("/azienda/marketing/preventivi?stato=in_corso");
       return;
     }
     navigate("/azienda/marketing/opportunita?status=open");
@@ -596,6 +614,19 @@ function SalesFocusPanel({
                 </div>
               ))}
             </div>
+            {qualcosaNonArrivato && (
+              <div className="mt-3 flex items-center justify-between gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                <span>Alcuni numeri non sono arrivati: quelli con «—» non sono zeri.</span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 shrink-0"
+                  onClick={() => queryClient.invalidateQueries({ queryKey: salesOSKeys.all })}
+                >
+                  Riprova
+                </Button>
+              </div>
+            )}
             <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
               {revenueGap
                 ? "La pipeline si muove, ma nel periodo non risultano firme: priorità a preventivi, follow-up e motivi di perdita."
@@ -612,7 +643,10 @@ function SalesFocusPanel({
               <Badge variant="outline">{commandActions.length} azioni</Badge>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
-              {commandActions.map((item) => {
+              {commandActions.map((voce) => {
+                const item = nonArrivati[voce.key]
+                  ? { ...voce, icon: AlertTriangle, value: "—", detail: "Dati non arrivati: riprova tra poco.", tone: "text-red-600", badge: "Errore" }
+                  : voce;
                 const Icon = item.icon;
                 const displayValue =
                   (item.key === "stalled" && stalledLoading) || (item.key === "lead-scoring" && leadsLoading)
@@ -861,7 +895,7 @@ function StalledOpportunitiesPanel({ companyId }: { companyId: string }) {
             <TableRow
               key={s.opportunity_id}
               className="cursor-pointer hover:bg-muted/50"
-              onClick={() => navigate(`/azienda/marketing/opportunita?opportunity_id=${s.opportunity_id}`)}
+              onClick={() => navigate(`/azienda/marketing/opportunita?apri=${s.opportunity_id}`)}
             >
               <TableCell>
                 <p className="font-medium text-sm">{s.opportunity_name}</p>
@@ -904,163 +938,32 @@ function StalledOpportunitiesPanel({ companyId }: { companyId: string }) {
   );
 }
 
-// ─── SellerComparisonTable ────────────────────────────────────────────────────
+// ─── RimandoClassificaVenditori ───────────────────────────────────────────────
+// Qui c'era un confronto venditori calcolato nel browser con regole sue (la
+// terza versione dello stesso numero). La classifica vive in un posto solo,
+// Reportistica → Venditori, sulle funzioni del database.
 
-function SellerComparisonTable({
-  companyId,
-  dateFrom,
-  dateTo,
-}: {
-  companyId: string;
-  dateFrom: string;
-  dateTo: string;
-}) {
+function RimandoClassificaVenditori() {
   const navigate = useNavigate();
-  const { data: sellers, isLoading, isError, error } = useSellerPerformance(
-    companyId,
-    dateFrom,
-    dateTo
-  );
-
-  const handleExport = () => {
-    if (!sellers?.length) return;
-    exportToCSV(
-      sellers.map((s) => ({
-        venditore: s.display_name,
-        vinte: String(s.won_count),
-        aperte: String(s.open_count),
-        perse: String(s.lost_count),
-        win_rate: s.win_rate.toFixed(1),
-        valore_vinto: String(Math.round(s.won_value)),
-        valore_aperto: String(Math.round(s.open_value)),
-        target: String(Math.round(s.target_amount)),
-        target_raggiunto: s.target_achievement.toFixed(1),
-      })),
-      [
-        { key: "venditore", label: "Venditore" },
-        { key: "vinte", label: "Vinte" },
-        { key: "aperte", label: "Aperte" },
-        { key: "perse", label: "Perse" },
-        { key: "win_rate", label: "Win rate %" },
-        { key: "valore_vinto", label: "Valore vinto (€)" },
-        { key: "valore_aperto", label: "Valore aperto (€)" },
-        { key: "target", label: "Target (€)" },
-        { key: "target_raggiunto", label: "Target raggiunto %" },
-      ],
-      `venditori-${dateFrom}_${dateTo}.csv`
-    );
-  };
-
-  if (isLoading || isError) {
-    return (
-      <WidgetState
-        loading={isLoading}
-        error={isError ? error : null}
-        loadingText="Analisi team vendite..."
-        height={160}
-      />
-    );
-  }
-
-  if (!sellers || sellers.length === 0)
-    return (
-      <div className="text-center py-8">
-        <p className="text-sm text-muted-foreground">Nessun dato venditori per il periodo selezionato.</p>
-      </div>
-    );
-
-  const missingTargets = sellers.filter((s) => s.assigned_to && s.target_amount <= 0).length;
-
+  const permissions = usePermissions();
+  if (!permissions.canViewMarketingReports) return null;
   return (
-    <>
-    <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/20 p-3">
-      <div>
-        <p className="text-sm font-semibold">
-          {missingTargets > 0 ? "Target mancanti" : "Target commerciali aggiornati"}
-        </p>
-        <p className="text-xs text-muted-foreground">
-          {missingTargets > 0
-            ? `${missingTargets} venditori non hanno un target mese: il confronto performance resta parziale.`
-            : "Ogni venditore con opportunità nel periodo ha un obiettivo confrontabile."}
-        </p>
-      </div>
-      <div className="flex items-center gap-2">
-        <Button
-          size="sm"
-          variant={missingTargets > 0 ? "default" : "outline"}
-          className="h-8 gap-1.5 text-xs"
-          onClick={() => navigate("/azienda/marketing")}
-        >
-          <Target className="h-3.5 w-3.5" />
-          Imposta target
+    <Card>
+      <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-start gap-3">
+          <Users className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+          <div>
+            <p className="text-sm font-medium">Classifica venditori</p>
+            <p className="text-xs text-muted-foreground">
+              Fatturato, tasso di chiusura, appuntamenti e andamento di ogni venditore: sono in Reportistica → Venditori.
+            </p>
+          </div>
+        </div>
+        <Button size="sm" variant="outline" className="gap-1 shrink-0" onClick={() => navigate("/azienda/marketing/reportistica?tab=venditori")}>
+          Apri la classifica <ArrowRight className="h-3.5 w-3.5" />
         </Button>
-        <ExportCsvButton onClick={handleExport} />
-      </div>
-    </div>
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Venditore</TableHead>
-          <TableHead className="text-right">Vinte</TableHead>
-          <TableHead className="text-right">Aperte</TableHead>
-          <TableHead className="text-right">Win rate</TableHead>
-          <TableHead className="text-right">Valore vinto</TableHead>
-          <TableHead>Target mese</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {sellers.map((s) => (
-          <TableRow
-            key={s.assigned_to ?? "unassigned"}
-            className={s.assigned_to ? "cursor-pointer hover:bg-muted/50" : ""}
-            onClick={() =>
-              s.assigned_to &&
-              navigate(`/azienda/marketing/opportunita?assigned_to=${s.assigned_to}`)
-            }
-          >
-            <TableCell className="font-medium">
-              {s.display_name}
-            </TableCell>
-            <TableCell className="text-right">
-              <Badge variant={s.won_count > 0 ? "default" : "secondary"}>
-                {s.won_count}
-              </Badge>
-            </TableCell>
-            <TableCell className="text-right">{s.open_count}</TableCell>
-            <TableCell className="text-right">
-              {pct(s.win_rate)}
-            </TableCell>
-            <TableCell className="text-right">
-              {fmt(s.won_value)}
-            </TableCell>
-            <TableCell>
-              {s.target_amount > 0 ? (
-                <div className="space-y-1">
-                  <div className="flex justify-between text-xs">
-                    <span>
-                      {fmt(s.won_value)} / {fmt(s.target_amount)}
-                    </span>
-                    <span
-                      className={
-                        s.target_achievement >= 100
-                          ? "text-green-600 font-bold"
-                          : ""
-                      }
-                    >
-                      {pct(s.target_achievement)}
-                    </span>
-                  </div>
-                  <Progress value={Math.min(s.target_achievement, 100)} className="h-2" />
-                </div>
-              ) : (
-                <span className="text-xs text-muted-foreground">No target</span>
-              )}
-            </TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
-    </>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -1289,7 +1192,17 @@ export default function SalesOSDashboard() {
   const [activeTab, setActiveTab] = useState<SalesOSTab>(
     () => (isSalesOSTab(queryTab) ? queryTab : "pipeline"),
   );
-  const [period, setPeriod] = useState<SalesOSPeriod>("30d");
+  // Il periodo sta nell'URL come la scheda: ricaricando non torna a «30 giorni».
+  const queryPeriodo = searchParams.get("periodo");
+  const period: SalesOSPeriod = PERIOD_OPTIONS.some((o) => o.value === queryPeriodo)
+    ? (queryPeriodo as SalesOSPeriod)
+    : "30d";
+  const setPeriod = (value: SalesOSPeriod) => {
+    const nextParams = new URLSearchParams(searchParams);
+    if (value === "30d") nextParams.delete("periodo");
+    else nextParams.set("periodo", value);
+    setSearchParams(nextParams, { replace: true });
+  };
   const [topLeadsLimit, setTopLeadsLimit] = useState(10);
 
   const range = useMemo(() => getPeriodRange(period), [period]);
@@ -1386,8 +1299,8 @@ export default function SalesOSDashboard() {
             Ferme
           </TabsTrigger>
           <TabsTrigger value="team" className="flex shrink-0 items-center gap-1.5 whitespace-nowrap data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
-            <Users className="h-3.5 w-3.5" />
-            Team
+            <Flame className="h-3.5 w-3.5" />
+            Lead
           </TabsTrigger>
           <TabsTrigger value="analisi" className="flex shrink-0 items-center gap-1.5 whitespace-nowrap data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
             <Zap className="h-3.5 w-3.5" />
@@ -1420,8 +1333,11 @@ export default function SalesOSDashboard() {
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium flex items-center gap-2">
                   <TrendingUp className="h-4 w-4 text-green-500" />
-                  Forecast Prossimi 3 Mesi
+                  Forecast: questo mese e i due successivi
                 </CardTitle>
+                <p className="text-xs text-muted-foreground">
+                  Le trattative aperte con la data di chiusura già passata contano nel mese in corso.
+                </p>
               </CardHeader>
               <CardContent>
                 <SalesForecastChart companyId={companyId} />
@@ -1445,19 +1361,9 @@ export default function SalesOSDashboard() {
           </Card>
         </TabsContent>
 
-        {/* TAB: Team / Venditori */}
+        {/* TAB: Lead (il valore resta «team» per i link salvati) */}
         <TabsContent value="team" className="space-y-4 mt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm font-medium flex items-center gap-2">
-                <Users className="h-4 w-4 text-primary" />
-                Confronto Venditori — Mese Corrente
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <SellerComparisonTable companyId={companyId} dateFrom={range.dateFrom} dateTo={range.dateTo} />
-            </CardContent>
-          </Card>
+          <RimandoClassificaVenditori />
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0">
               <CardTitle className="text-sm font-medium flex items-center gap-2">

@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
-import { startOfMonth, endOfMonth, startOfYear, endOfYear, subMonths, subDays, format } from "date-fns";
+import { startOfMonth, endOfMonth, startOfYear, endOfYear, subMonths, format } from "date-fns";
 import type { VendorIntegrationHealth } from "@/lib/reporting/vendorOperations";
 
 export type PeriodoVendor = "mese" | "mese_prec" | "trimestre" | "semestre" | "anno";
@@ -13,10 +13,12 @@ export function usePeriodoDate(periodo: PeriodoVendor) {
       return { inizio: startOfMonth(now), fine: endOfMonth(now) };
     case "mese_prec":
       return { inizio: startOfMonth(subMonths(now, 1)), fine: endOfMonth(subMonths(now, 1)) };
+    // «Ultimi 3 mesi» = questo mese e i due prima: con subMonths(now, 3) erano
+    // quattro (e sette per il semestre), come nel report Venditori fino al 2026-09-11.
     case "trimestre":
-      return { inizio: startOfMonth(subMonths(now, 3)), fine: endOfMonth(now) };
+      return { inizio: startOfMonth(subMonths(now, 2)), fine: endOfMonth(now) };
     case "semestre":
-      return { inizio: startOfMonth(subMonths(now, 6)), fine: endOfMonth(now) };
+      return { inizio: startOfMonth(subMonths(now, 5)), fine: endOfMonth(now) };
     case "anno":
       return { inizio: startOfYear(now), fine: endOfYear(now) };
   }
@@ -75,7 +77,7 @@ function fmtDate(d: Date) {
   return format(d, "yyyy-MM-dd");
 }
 
-export function useVendorKPI(inizio: Date, fine: Date, agentId?: string) {
+export function useVendorKPI(inizio: Date, fine: Date, agentId?: string, enabled = true) {
   const companyId = useEffectiveCompanyId();
   return useQuery({
     queryKey: ["vendor-kpi", companyId, fmtDate(inizio), fmtDate(fine), agentId],
@@ -87,9 +89,13 @@ export function useVendorKPI(inizio: Date, fine: Date, agentId?: string) {
         p_agent_id: agentId ?? null,
       });
       if (error) throw error;
-      return (data ?? []) as VendorKPI[];
+      // Senza profilo né email la funzione ripiega sull'id: è un utente
+      // cancellato con ancora opportunità assegnate, non un nome da mostrare.
+      return ((data ?? []) as VendorKPI[]).map((k) =>
+        k.nome_agente === k.agent_id ? { ...k, nome_agente: "Utente eliminato" } : k,
+      );
     },
-    enabled: !!companyId,
+    enabled: !!companyId && enabled,
     staleTime: 3 * 60_000,
   });
 }
@@ -138,67 +144,25 @@ export function useVendorIntegrationHealth(inizio: Date, fine: Date, agentId?: s
     queryKey: ["vendor-integration-health", companyId, fmtDate(inizio), fmtDate(fine), agentId],
     queryFn: async (): Promise<VendorIntegrationHealth> => {
       if (!companyId) return emptyVendorIntegrationHealth();
-
-      const startIso = inizio.toISOString();
-      const endIso = fine.toISOString();
-      const startDate = fmtDate(inizio);
-      const endDate = fmtDate(fine);
-      const todayDate = fmtDate(new Date());
-      const staleBefore = subDays(new Date(), 14).toISOString();
-
-      const [contactsRes, opportunitiesRes, appointmentsRes] = await Promise.all([
-        supabase
-          .from("marketing_contacts")
-          .select("id, assigned_to, created_at, deleted_at")
-          .eq("company_id", companyId)
-          .gte("created_at", startIso)
-          .lte("created_at", endIso)
-          .is("deleted_at", null),
-        supabase
-          .from("marketing_opportunities")
-          .select("id, assigned_to, status, created_at, updated_at, next_action, next_action_date, deleted_at")
-          .eq("company_id", companyId)
-          .lte("created_at", endIso)
-          .is("deleted_at", null),
-        supabase
-          .from("appointments")
-          .select("id, assigned_to, contact_id, status, is_completed, appointment_date, is_blocked_slot")
-          .eq("company_id", companyId)
-          .gte("appointment_date", startDate)
-          .lte("appointment_date", endDate),
-      ]);
-
-      if (contactsRes.error) throw contactsRes.error;
-      if (opportunitiesRes.error) throw opportunitiesRes.error;
-      if (appointmentsRes.error) throw appointmentsRes.error;
-
-      const contacts = contactsRes.data ?? [];
-      const opportunities = opportunitiesRes.data ?? [];
-      const appointments = appointmentsRes.data ?? [];
-      const activeAppointments = appointments.filter(
-        (appointment) => !appointment.is_blocked_slot && !isCancelledStatus(appointment.status),
-      );
-      const relevantAppointments = activeAppointments.filter((appointment) => matchesAgent(appointment.assigned_to, agentId));
-      const periodOpportunities = opportunities.filter(
-        (opportunity) => opportunity.created_at >= startIso && opportunity.created_at <= endIso,
-      );
-      const openOpportunities = opportunities.filter(
-        (opportunity) => isOpenStatus(opportunity.status) && matchesAgent(opportunity.assigned_to, agentId),
-      );
-
+      // Contato nel database con le regole degli altri numeri
+      // (vendite_controllo_crm, 20280915410006): nel browser le letture si
+      // fermavano a mille righe e gli appuntamenti «senza esito» erano quelli
+      // senza la spunta is_completed, cioè quasi tutti.
+      const { data, error } = await (supabase as any).rpc("vendite_controllo_crm", {
+        p_company: companyId,
+        p_da: fmtDate(inizio),
+        p_a: fmtDate(fine),
+        p_venditore: agentId ?? null,
+      });
+      if (error) throw error;
+      const r = (Array.isArray(data) ? data[0] : data) ?? {};
       return {
-        unassignedContacts: agentId ? 0 : contacts.filter((contact) => !contact.assigned_to).length,
-        unassignedOpportunities: agentId ? 0 : periodOpportunities.filter((opportunity) => !opportunity.assigned_to).length,
-        unassignedAppointments: agentId ? 0 : activeAppointments.filter((appointment) => !appointment.assigned_to).length,
-        appointmentsWithoutContact: relevantAppointments.filter((appointment) => !appointment.contact_id).length,
-        pastUncompletedAppointments: relevantAppointments.filter(
-          (appointment) => !appointment.is_completed && appointment.appointment_date < todayDate,
-        ).length,
-        staleOpenOpportunities: openOpportunities.filter(
-          (opportunity) =>
-            !hasNextStep(opportunity.next_action, opportunity.next_action_date, todayDate) ||
-            (opportunity.updated_at && opportunity.updated_at < staleBefore),
-        ).length,
+        unassignedContacts: Number(r.contatti_senza_venditore ?? 0),
+        unassignedOpportunities: Number(r.opportunita_senza_venditore ?? 0),
+        unassignedAppointments: Number(r.appuntamenti_senza_venditore ?? 0),
+        appointmentsWithoutContact: Number(r.appuntamenti_senza_contatto ?? 0),
+        pastUncompletedAppointments: Number(r.appuntamenti_senza_esito ?? 0),
+        staleOpenOpportunities: Number(r.opportunita_senza_prossimo_passo ?? 0),
       };
     },
     enabled: !!companyId,
@@ -217,30 +181,3 @@ function emptyVendorIntegrationHealth(): VendorIntegrationHealth {
   };
 }
 
-function matchesAgent(assignedTo: string | null | undefined, agentId?: string) {
-  return !agentId || assignedTo === agentId;
-}
-
-function isOpenStatus(status: string | null | undefined) {
-  const value = normalizeLookup(status);
-  return !["won", "closed won", "vinto", "lost", "closed lost", "perso", "cancelled", "canceled", "annullato"].includes(value);
-}
-
-function isCancelledStatus(status: string | null | undefined) {
-  const value = normalizeLookup(status);
-  return ["cancelled", "canceled", "annullato"].includes(value);
-}
-
-function hasNextStep(nextAction: string | null | undefined, nextActionDate: string | null | undefined, todayDate: string) {
-  const hasAction = typeof nextAction === "string" && nextAction.trim().length > 0;
-  const hasFutureDate = typeof nextActionDate === "string" && nextActionDate >= todayDate;
-  return hasAction || hasFutureDate;
-}
-
-function normalizeLookup(value: unknown) {
-  return String(value ?? "")
-    .trim()
-    .toLowerCase()
-    .replace(/[_-]+/g, " ")
-    .replace(/\s+/g, " ");
-}

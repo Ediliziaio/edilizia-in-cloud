@@ -1,16 +1,20 @@
-import { useState, useMemo } from "react";
+import { useMemo } from "react";
+import { useURLFilters } from "@/hooks/useURLFilters";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
 import { Users, BarChart3, TrendingUp, GitCompareArrows } from "lucide-react";
 import {
   useVendorKPI,
   useVendorTrend,
   useVendorFunnel,
   useVendorIntegrationHealth,
-  type VendorKPI,
 } from "@/hooks/useVendorReport";
-import { startOfMonth, endOfMonth, startOfYear, endOfYear, subMonths, subYears, startOfDay, endOfDay } from "date-fns";
+import { startOfMonth, endOfMonth, startOfYear, endOfYear, subMonths, subYears, startOfDay, endOfDay, format, parseISO } from "date-fns";
+import { it } from "date-fns/locale";
+import { aggregateTeamKPI, periodoPrecedente } from "@/lib/reporting/venditoriRegole";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { KPISection } from "./KPISection";
@@ -47,8 +51,9 @@ function resolveVendorRange(key: string, customFrom: string, customTo: string): 
     case "anno": return { inizio: startOfYear(now), fine: endOfYear(now) };
     case "anno_prec": { const y = subYears(now, 1); return { inizio: startOfYear(y), fine: endOfYear(y) }; }
     case "custom": {
-      const f = customFrom ? startOfDay(new Date(customFrom)) : startOfMonth(subMonths(now, 2));
-      const t = customTo ? endOfDay(new Date(customTo)) : now;
+      // parseISO legge «2026-08-10» come giorno locale; new Date() lo leggeva in UTC
+      const f = customFrom ? startOfDay(parseISO(customFrom)) : startOfMonth(subMonths(now, 2));
+      const t = customTo ? endOfDay(parseISO(customTo)) : now;
       return f.getTime() <= t.getTime() ? { inizio: f, fine: t } : { inizio: t, fine: f };
     }
     default: return { inizio: startOfMonth(subMonths(now, 2)), fine: endOfMonth(now) };
@@ -73,62 +78,52 @@ const EXPORT_COLUMNS = [
   { key: "nuovi_contatti", label: "Nuovi Contatti" },
 ];
 
-function aggregateTeamKPI(list: VendorKPI[]): VendorKPI | null {
-  if (!list.length) return null;
-  const sum = (f: keyof VendorKPI) => list.reduce((a, k) => a + (Number(k[f]) || 0), 0);
-  const vinte = sum("opp_vinte");
-  const chiuse = vinte + sum("opp_perse");
-  const aptFissati = sum("appuntamenti_fissati");
-  const aptEff = sum("appuntamenti_effettuati");
-  const oppTotali = sum("opp_totali");
-  const minVals = list.map(k => k.min_giorni_chiusura).filter(v => v > 0);
-  const maxVals = list.map(k => k.max_giorni_chiusura).filter(v => v > 0);
-  // Ciclo medio: media SOLO sugli agenti con vendite (>0), altrimenti gli agenti
-  // senza vendite (0gg) la trascinano sotto il minimo → "media < min" incoerente.
-  const cicloVals = list.map(k => Number(k.avg_giorni_chiusura) || 0).filter(v => v > 0);
-  const cicloPerseVals = list.map(k => Number(k.avg_giorni_chiusura_perse) || 0).filter(v => v > 0);
+const VISTE = ["overview", "ranking", "trend", "confronto"];
 
-  return {
-    agent_id: "team",
-    nome_agente: "Team completo",
-    email_agente: "",
-    opp_totali: oppTotali,
-    opp_vinte: vinte,
-    opp_perse: sum("opp_perse"),
-    opp_aperte: sum("opp_aperte"),
-    tasso_chiusura: chiuse > 0 ? Math.round((1000 * vinte) / chiuse) / 10 : null,
-    tasso_conversione: oppTotali > 0 ? Math.round((1000 * vinte) / oppTotali) / 10 : null,
-    fatturato_generato: sum("fatturato_generato"),
-    importo_medio_chiusura: vinte > 0 ? Math.round(sum("fatturato_generato") / vinte) : 0,
-    pipeline_valore: sum("pipeline_valore"),
-    fatturato_perso: sum("fatturato_perso"),
-    appuntamenti_fissati: aptFissati,
-    appuntamenti_effettuati: aptEff,
-    appuntamenti_no_show: sum("appuntamenti_no_show"),
-    tasso_show_up: aptFissati > 0 ? Math.round((1000 * aptEff) / aptFissati) / 10 : null,
-    tasso_app_to_opp: aptEff > 0 ? Math.round((1000 * oppTotali) / aptEff) / 10 : null,
-    tasso_app_to_close: aptEff > 0 ? Math.round((1000 * vinte) / aptEff) / 10 : null,
-    avg_giorni_chiusura: cicloVals.length ? Math.round((cicloVals.reduce((a, b) => a + b, 0) / cicloVals.length) * 10) / 10 : 0,
-    avg_giorni_chiusura_perse: cicloPerseVals.length ? Math.round((cicloPerseVals.reduce((a, b) => a + b, 0) / cicloPerseVals.length) * 10) / 10 : 0,
-    min_giorni_chiusura: minVals.length ? Math.min(...minVals) : 0,
-    max_giorni_chiusura: maxVals.length ? Math.max(...maxVals) : 0,
-    nuovi_contatti: sum("nuovi_contatti"),
-  };
-}
+// Mesi di cui arretrare per il confronto; il periodo libero confronta i giorni subito prima.
+const MESI_CONFRONTO: Record<string, number | null> = {
+  mese: 1, mese_prec: 1, trimestre: 3, semestre: 6, anno: 12, anno_prec: 12, custom: null,
+};
 
 const VenditoriPerformanceReport = () => {
-  const [periodKey, setPeriodKey] = useState("trimestre");
-  const [customFrom, setCustomFrom] = useState("");
-  const [customTo, setCustomTo] = useState("");
-  const [agentId, setAgentId] = useState("tutti");
-  const [activeTab, setActiveTab] = useState("overview");
+  // Periodo, venditore e scheda stanno nell'URL: un link mandato a un collega
+  // o un ricarica della pagina mostrano gli stessi numeri.
+  const { params: filtri, setParam } = useURLFilters({
+    periodKey: { key: "periodo", defaultValue: "trimestre" },
+    customFrom: { key: "da", defaultValue: "" },
+    customTo: { key: "a", defaultValue: "" },
+    agentId: { key: "venditore", defaultValue: "tutti" },
+    activeTab: { key: "vista", defaultValue: "overview" },
+  });
+  const periodKey = VENDOR_PERIODS.some((p) => p.value === filtri.periodKey) ? filtri.periodKey : "trimestre";
+  const customFrom = /^\d{4}-\d{2}-\d{2}$/.test(filtri.customFrom) ? filtri.customFrom : "";
+  const customTo = /^\d{4}-\d{2}-\d{2}$/.test(filtri.customTo) ? filtri.customTo : "";
+  const agentId = filtri.agentId;
+  const activeTab = VISTE.includes(filtri.activeTab) ? filtri.activeTab : "overview";
+  const setPeriodKey = (v: string) => setParam("periodKey", v);
+  const setCustomFrom = (v: string) => setParam("customFrom", v);
+  const setCustomTo = (v: string) => setParam("customTo", v);
+  const setAgentId = (v: string) => setParam("agentId", v);
+  const setActiveTab = (v: string) => setParam("activeTab", v);
+  const navigate = useNavigate();
 
   const { inizio, fine } = useMemo(
     () => resolveVendorRange(periodKey, customFrom, customTo),
     [periodKey, customFrom, customTo],
   );
   const effectiveAgentId = agentId === "tutti" ? undefined : agentId;
-  const { data: rawKpiList = [], isLoading } = useVendorKPI(inizio, fine, effectiveAgentId);
+  // Sempre la lista completa: il venditore si sceglie qui. Chiedendo alla
+  // funzione un venditore solo, la tendina restava con lui solo e il radar
+  // (che confronta con il team) non poteva comparire.
+  const { data: rawKpiList = [], isLoading, isError: erroreKpi, refetch: riprovaKpi } = useVendorKPI(inizio, fine);
+  const precedenteRange = useMemo(
+    () => periodoPrecedente(inizio, fine, MESI_CONFRONTO[periodKey] ?? null),
+    [inizio, fine, periodKey],
+  );
+  const { data: rawKpiPrecedente = [] } = useVendorKPI(
+    precedenteRange.inizio, precedenteRange.fine, undefined, activeTab === "overview",
+  );
+  const etichettaPrecedente = `${format(precedenteRange.inizio, "d MMM yyyy", { locale: it })} – ${format(precedenteRange.fine, "d MMM yyyy", { locale: it })}`;
 
   // Il report Venditori deve mostrare i VENDITORI: escludi chi è SOLO call center
   // (gestisce appuntamenti ma non è il venditore che chiude). Stessa definizione
@@ -138,35 +133,57 @@ const VenditoriPerformanceReport = () => {
   // (meglio mostrare tutto che una lista vuota).
   const companyId = useEffectiveCompanyId();
   const { data: allStaff = [] } = useCompanyStaffUsers(companyId, "all");
-  const kpiList = useMemo(() => {
-    const pureCallCenter = new Set(
-      allStaff
-        .filter((s) => {
-          const roles = s.roles ?? [];
-          return (
-            roles.includes("call_center") &&
-            !roles.some((r) => r === "super_admin" || r === "company_admin" || r === "salesperson")
-          );
-        })
-        .map((s) => s.id),
-    );
-    return pureCallCenter.size ? rawKpiList.filter((k) => !pureCallCenter.has(k.agent_id)) : rawKpiList;
-  }, [rawKpiList, allStaff]);
+  const pureCallCenter = useMemo(() => new Set(
+    allStaff
+      .filter((s) => {
+        const roles = s.roles ?? [];
+        return (
+          roles.includes("call_center") &&
+          !roles.some((r) => r === "super_admin" || r === "company_admin" || r === "salesperson")
+        );
+      })
+      .map((s) => s.id),
+  ), [allStaff]);
+  const kpiList = useMemo(
+    () => (pureCallCenter.size ? rawKpiList.filter((k) => !pureCallCenter.has(k.agent_id)) : rawKpiList),
+    [rawKpiList, pureCallCenter],
+  );
+  const kpiListPrecedente = useMemo(
+    () => (pureCallCenter.size ? rawKpiPrecedente.filter((k) => !pureCallCenter.has(k.agent_id)) : rawKpiPrecedente),
+    [rawKpiPrecedente, pureCallCenter],
+  );
 
   // Lazy load trend — only when overview or trend tab is active
   const needsTrend = activeTab === "overview" || activeTab === "trend";
-  const { data: trend = [] } = useVendorTrend(
+  const { data: trend = [], isError: erroreTrend, refetch: riprovaTrend } = useVendorTrend(
     fine.getFullYear(),
     effectiveAgentId,
     needsTrend
   );
-  const { data: funnel = [] } = useVendorFunnel(inizio, fine, effectiveAgentId);
-  const { data: integrationHealth = null, isLoading: isIntegrationLoading } =
+  const { data: funnel = [], isError: erroreFunnel, refetch: riprovaFunnel } = useVendorFunnel(inizio, fine, effectiveAgentId);
+  const { data: integrationHealth = null, isLoading: isIntegrationLoading, isError: erroreIntegrazione, refetch: riprovaIntegrazione } =
     useVendorIntegrationHealth(inizio, fine, effectiveAgentId);
+  // Una lettura fallita non è «nessun dato»: prima le schede dicevano «Nessun
+  // dato disponibile per il periodo» e la diagnosi «in controllo».
+  const nonArrivati = [
+    erroreKpi && "i numeri dei venditori",
+    erroreFunnel && "il funnel",
+    erroreTrend && "l'andamento mensile",
+    erroreIntegrazione && "il controllo del CRM",
+  ].filter(Boolean) as string[];
+  const riprova = () => {
+    if (erroreKpi) void riprovaKpi();
+    if (erroreFunnel) void riprovaFunnel();
+    if (erroreTrend) void riprovaTrend();
+    if (erroreIntegrazione) void riprovaIntegrazione();
+  };
 
   const kpiSelected = agentId !== "tutti"
     ? kpiList.find(k => k.agent_id === agentId) ?? null
     : aggregateTeamKPI(kpiList);
+  const kpiPrecedente = agentId !== "tutti"
+    ? kpiListPrecedente.find(k => k.agent_id === agentId) ?? null
+    : aggregateTeamKPI(kpiListPrecedente);
 
   const agenti = kpiList.map(k => ({ id: k.agent_id, nome: k.nome_agente }));
 
@@ -249,9 +266,16 @@ const VenditoriPerformanceReport = () => {
         </CardHeader>
       </Card>
 
+      {nonArrivati.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <span>Non sono arrivati {nonArrivati.join(", ")}: quello che manca non è uno zero.</span>
+          <Button size="sm" variant="outline" onClick={riprova}>Riprova</Button>
+        </div>
+      )}
+
       {/* Sub-tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
+        <TabsList className="max-w-full justify-start overflow-x-auto">
           <TabsTrigger value="overview" className="gap-1.5">
             <BarChart3 className="h-4 w-4" /> Panoramica
           </TabsTrigger>
@@ -267,40 +291,69 @@ const VenditoriPerformanceReport = () => {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6 mt-4">
-          <KPISection kpi={kpiSelected} isLoading={isLoading} />
+          {erroreKpi ? (
+            <Card>
+              <CardContent className="py-10 text-center text-sm text-muted-foreground">
+                I numeri dei venditori non sono arrivati: riprova dal pulsante qui sopra.
+              </CardContent>
+            </Card>
+          ) : (
+            <>
+            <KPISection
+              kpi={kpiSelected}
+              isLoading={isLoading}
+              precedente={kpiPrecedente}
+              etichettaPrecedente={etichettaPrecedente}
+            />
 
-          <VendorOperationalDiagnosis
-            kpi={kpiSelected}
-            integration={integrationHealth}
-            isLoading={isLoading || isIntegrationLoading}
-          />
-
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <AppuntamentiScorecard kpi={kpiSelected} isLoading={isLoading} />
-            <TempisticheScorecard kpi={kpiSelected} isLoading={isLoading} />
-            {agentId !== "tutti" && kpiList.length > 1 ? (
-              <AgentRadarProfile selected={kpiSelected} all={kpiList} />
-            ) : (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Profilo Radar</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground">
-                    Seleziona un singolo agente per visualizzare il profilo radar rispetto alla media del team.
-                  </p>
-                </CardContent>
-              </Card>
+            {!erroreIntegrazione && (
+              <VendorOperationalDiagnosis
+                kpi={kpiSelected}
+                integration={integrationHealth}
+                isLoading={isLoading || isIntegrationLoading}
+              />
             )}
-          </div>
 
-          <VenditoriFunnel stages={funnel} />
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <AppuntamentiScorecard kpi={kpiSelected} isLoading={isLoading} />
+              <TempisticheScorecard kpi={kpiSelected} isLoading={isLoading} />
+              {agentId !== "tutti" && kpiList.length > 1 ? (
+                <AgentRadarProfile selected={kpiSelected} all={kpiList} />
+              ) : (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Profilo Radar</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-muted-foreground">
+                      Seleziona un singolo agente per visualizzare il profilo radar rispetto alla media del team.
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
 
-          <VenditoriInsights kpi={kpiSelected} trend={trend} kpiList={kpiList} />
+            <VenditoriFunnel stages={funnel} />
+
+            <VenditoriInsights kpi={kpiSelected} trend={trend} kpiList={kpiList} />
+            </>
+          )}
         </TabsContent>
 
         <TabsContent value="ranking" className="mt-4">
-          <VenditoriRanking kpiList={kpiList} isLoading={isLoading} />
+          {erroreKpi ? (
+            <Card>
+              <CardContent className="py-10 text-center text-sm text-muted-foreground">
+                La classifica non è arrivata: riprova dal pulsante qui sopra.
+              </CardContent>
+            </Card>
+          ) : (
+            <VenditoriRanking
+              kpiList={kpiList}
+              isLoading={isLoading}
+              onApriVenditore={(id) => navigate(`/azienda/marketing/opportunita?assigned_to=${id}`)}
+            />
+          )}
         </TabsContent>
 
         <TabsContent value="trend" className="mt-4">

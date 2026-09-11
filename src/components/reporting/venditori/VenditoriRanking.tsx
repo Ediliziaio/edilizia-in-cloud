@@ -8,50 +8,57 @@ import { Crown, Medal, Award, Users } from "lucide-react";
 import { useTableSort } from "@/hooks/useTableSort";
 import { formatCurrency } from "@/lib/formatters";
 import type { VendorKPI } from "@/hooks/useVendorReport";
+import {
+  aggregateTeamKPI,
+  giorniTesto,
+  semaforoVenditori,
+  tassoTesto,
+  type CampoConSoglia,
+  type Semaforo,
+} from "@/lib/reporting/venditoriRegole";
 
 const RANK_ICONS = [Crown, Medal, Award];
 const RANK_COLORS = ["text-yellow-500", "text-gray-400", "text-amber-600"];
 
-function kpiBadge(val: number | null, field: string) {
-  const v = val ?? 0;
-  const good = (f: string, n: number) => {
-    if (f === "avg_giorni_chiusura") return n > 0 && n < 30;
-    if (f === "tasso_chiusura") return n >= 35;
-    if (f === "tasso_show_up") return n >= 70;
-    if (f === "tasso_app_to_close") return n >= 25;
-    return false;
-  };
-  const bad = (f: string, n: number) => {
-    if (f === "avg_giorni_chiusura") return n > 60;
-    if (f === "tasso_chiusura") return n < 20;
-    if (f === "tasso_show_up") return n < 50;
-    if (f === "tasso_app_to_close") return n < 12;
-    return false;
-  };
+const BADGE: Record<Semaforo, string> = {
+  buono: "bg-green-50 text-green-700 border-green-200",
+  medio: "bg-amber-50 text-amber-700 border-amber-200",
+  critico: "bg-red-50 text-red-700 border-red-200",
+};
 
-  const isPercent = ["tasso_chiusura", "tasso_show_up", "tasso_app_to_close"].includes(field);
+/** Badge con le soglie comuni del report; «—» grigio quando il numero non c'è. */
+function kpiBadge(val: number | null, field: CampoConSoglia, conVendite = true) {
   const isDays = field === "avg_giorni_chiusura";
-  const display = isPercent ? `${v}%` : isDays ? `${v}gg` : String(v);
-
-  const color = good(field, v)
-    ? "bg-green-50 text-green-700 border-green-200"
-    : bad(field, v)
-    ? "bg-red-50 text-red-700 border-red-200"
-    : "bg-amber-50 text-amber-700 border-amber-200";
-
-  return <Badge variant="outline" className={`text-xs font-medium ${color}`}>{display}</Badge>;
+  const s = isDays && !conVendite ? null : semaforoVenditori(field, isDays ? Math.max(val ?? 0, 0.1) : val);
+  const display = isDays ? giorniTesto(val, conVendite) : tassoTesto(val);
+  return (
+    <Badge variant="outline" className={`text-xs font-medium ${s ? BADGE[s] : "text-muted-foreground"}`}>
+      {display}
+    </Badge>
+  );
 }
 
-export function VenditoriRanking({ kpiList, isLoading }: { kpiList: VendorKPI[]; isLoading: boolean }) {
+export function VenditoriRanking({
+  kpiList,
+  isLoading,
+  onApriVenditore,
+}: {
+  kpiList: VendorKPI[];
+  isLoading: boolean;
+  /** Clic su una riga: le opportunità di quel venditore. */
+  onApriVenditore?: (agentId: string) => void;
+}) {
   const accessors = useMemo(() => ({
     nome_agente: (k: VendorKPI) => k.nome_agente,
     fatturato_generato: (k: VendorKPI) => k.fatturato_generato,
-    tasso_chiusura: (k: VendorKPI) => k.tasso_chiusura ?? 0,
-    tasso_show_up: (k: VendorKPI) => k.tasso_show_up ?? 0,
+    // null (non calcolabile) finisce sempre in fondo, in entrambi i versi
+    tasso_chiusura: (k: VendorKPI) => k.tasso_chiusura,
+    tasso_show_up: (k: VendorKPI) => k.tasso_show_up,
     importo_medio_chiusura: (k: VendorKPI) => k.importo_medio_chiusura,
     opp_vinte: (k: VendorKPI) => k.opp_vinte,
-    tasso_app_to_close: (k: VendorKPI) => k.tasso_app_to_close ?? 0,
-    avg_giorni_chiusura: (k: VendorKPI) => -(k.avg_giorni_chiusura ?? 0), // negated so asc = fastest
+    tasso_app_to_close: (k: VendorKPI) => k.tasso_app_to_close,
+    // crescente = il più veloce per primo; chi non ha vendite non ha un ciclo
+    avg_giorni_chiusura: (k: VendorKPI) => (k.opp_vinte > 0 ? k.avg_giorni_chiusura : null),
     pipeline_valore: (k: VendorKPI) => k.pipeline_valore,
     nuovi_contatti: (k: VendorKPI) => k.nuovi_contatti,
   }), []);
@@ -80,16 +87,9 @@ export function VenditoriRanking({ kpiList, isLoading }: { kpiList: VendorKPI[];
     );
   }
 
-  // Team totals
-  const totFatturato = sortedItems.reduce((a, k) => a + k.fatturato_generato, 0);
-  const totVinte = sortedItems.reduce((a, k) => a + k.opp_vinte, 0);
-  const totPipeline = sortedItems.reduce((a, k) => a + k.pipeline_valore, 0);
-  const totContatti = sortedItems.reduce((a, k) => a + k.nuovi_contatti, 0);
+  // Totale con le regole del database (tassi dai conteggi), lo stesso della Panoramica.
+  const team = aggregateTeamKPI(sortedItems);
   const n = sortedItems.length;
-  const avgChiusura = n > 0 ? Math.round(sortedItems.reduce((a, k) => a + (k.tasso_chiusura ?? 0), 0) / n) : 0;
-  const avgShowUp = n > 0 ? Math.round(sortedItems.reduce((a, k) => a + (k.tasso_show_up ?? 0), 0) / n) : 0;
-  const avgAppClose = n > 0 ? Math.round(sortedItems.reduce((a, k) => a + (k.tasso_app_to_close ?? 0), 0) / n) : 0;
-  const avgCiclo = n > 0 ? Math.round(sortedItems.reduce((a, k) => a + (k.avg_giorni_chiusura ?? 0), 0) / n) : 0;
 
   return (
     <Card>
@@ -103,7 +103,7 @@ export function VenditoriRanking({ kpiList, isLoading }: { kpiList: VendorKPI[];
               <SortableTableHead column="tasso_chiusura" label="Chiusura%" sortConfig={sortConfig} onSort={toggleSort} className="text-center" />
               <SortableTableHead column="tasso_show_up" label="Show-Up%" sortConfig={sortConfig} onSort={toggleSort} className="text-center" />
               <SortableTableHead column="importo_medio_chiusura" label="Deal Medio" sortConfig={sortConfig} onSort={toggleSort} className="text-right" />
-              <SortableTableHead column="opp_vinte" label="Opp Vinte" sortConfig={sortConfig} onSort={toggleSort} className="text-center" />
+              <SortableTableHead column="opp_vinte" label="Vinte / chiuse" sortConfig={sortConfig} onSort={toggleSort} className="text-center" />
               <SortableTableHead column="tasso_app_to_close" label="App→Close" sortConfig={sortConfig} onSort={toggleSort} className="text-center" />
               <SortableTableHead column="avg_giorni_chiusura" label="Ciclo" sortConfig={sortConfig} onSort={toggleSort} className="text-center" />
               <SortableTableHead column="pipeline_valore" label="Pipeline" sortConfig={sortConfig} onSort={toggleSort} className="text-right" />
@@ -112,10 +112,17 @@ export function VenditoriRanking({ kpiList, isLoading }: { kpiList: VendorKPI[];
           </TableHeader>
           <TableBody>
             {sortedItems.map((k, idx) => {
-              const RankIcon = RANK_ICONS[idx];
+              const RankIcon = sortConfig ? undefined : RANK_ICONS[idx];
               const rankColor = RANK_COLORS[idx] ?? "";
               return (
-                <TableRow key={k.agent_id}>
+                <TableRow
+                  key={k.agent_id}
+                  className={onApriVenditore ? "cursor-pointer hover:bg-muted/50" : undefined}
+                  onClick={onApriVenditore ? () => onApriVenditore(k.agent_id) : undefined}
+                  onKeyDown={onApriVenditore ? (e) => { if (e.key === "Enter") onApriVenditore(k.agent_id); } : undefined}
+                  tabIndex={onApriVenditore ? 0 : undefined}
+                  title={onApriVenditore ? `Apri le opportunità di ${k.nome_agente}` : undefined}
+                >
                   <TableCell className="text-center font-medium">
                     {RankIcon ? <RankIcon className={`h-4 w-4 mx-auto ${rankColor}`} /> : idx + 1}
                   </TableCell>
@@ -129,40 +136,45 @@ export function VenditoriRanking({ kpiList, isLoading }: { kpiList: VendorKPI[];
                   <TableCell className="text-right tabular-nums">{formatCurrency(k.importo_medio_chiusura)}</TableCell>
                   <TableCell className="text-center">
                     <span className="font-semibold">{k.opp_vinte}</span>
-                    <span className="text-muted-foreground text-xs"> / {k.opp_totali}</span>
+                    <span className="text-muted-foreground text-xs"> / {k.opp_vinte + k.opp_perse}</span>
                   </TableCell>
                   <TableCell className="text-center">{kpiBadge(k.tasso_app_to_close, "tasso_app_to_close")}</TableCell>
-                  <TableCell className="text-center">{kpiBadge(k.avg_giorni_chiusura, "avg_giorni_chiusura")}</TableCell>
+                  <TableCell className="text-center">{kpiBadge(k.avg_giorni_chiusura, "avg_giorni_chiusura", k.opp_vinte > 0)}</TableCell>
                   <TableCell className="text-right tabular-nums text-muted-foreground">{formatCurrency(k.pipeline_valore)}</TableCell>
                   <TableCell className="text-center">{k.nuovi_contatti}</TableCell>
                 </TableRow>
               );
             })}
           </TableBody>
-          {n > 1 && (
+          {n > 1 && team && (
             <TableFooter>
               <TableRow>
                 <TableCell />
                 <TableCell className="font-semibold">Totale Team</TableCell>
-                <TableCell className="text-right font-semibold tabular-nums">{formatCurrency(totFatturato)}</TableCell>
-                <TableCell className="text-center text-xs text-muted-foreground">{avgChiusura}% avg</TableCell>
-                <TableCell className="text-center text-xs text-muted-foreground">{avgShowUp}% avg</TableCell>
-                <TableCell className="text-right tabular-nums text-muted-foreground">{formatCurrency(totVinte > 0 ? totFatturato / totVinte : 0)}</TableCell>
-                <TableCell className="text-center font-semibold">{totVinte}</TableCell>
-                <TableCell className="text-center text-xs text-muted-foreground">{avgAppClose}% avg</TableCell>
-                <TableCell className="text-center text-xs text-muted-foreground">{avgCiclo}gg avg</TableCell>
-                <TableCell className="text-right tabular-nums text-muted-foreground">{formatCurrency(totPipeline)}</TableCell>
-                <TableCell className="text-center">{totContatti}</TableCell>
+                <TableCell className="text-right font-semibold tabular-nums">{formatCurrency(team.fatturato_generato)}</TableCell>
+                <TableCell className="text-center text-xs text-muted-foreground">{tassoTesto(team.tasso_chiusura)}</TableCell>
+                <TableCell className="text-center text-xs text-muted-foreground">{tassoTesto(team.tasso_show_up)}</TableCell>
+                <TableCell className="text-right tabular-nums text-muted-foreground">{formatCurrency(team.importo_medio_chiusura)}</TableCell>
+                <TableCell className="text-center">
+                  <span className="font-semibold">{team.opp_vinte}</span>
+                  <span className="text-muted-foreground text-xs"> / {team.opp_vinte + team.opp_perse}</span>
+                </TableCell>
+                <TableCell className="text-center text-xs text-muted-foreground">{tassoTesto(team.tasso_app_to_close)}</TableCell>
+                <TableCell className="text-center text-xs text-muted-foreground">{giorniTesto(team.avg_giorni_chiusura, team.opp_vinte > 0)}</TableCell>
+                <TableCell className="text-right tabular-nums text-muted-foreground">{formatCurrency(team.pipeline_valore)}</TableCell>
+                <TableCell className="text-center">{team.nuovi_contatti}</TableCell>
               </TableRow>
             </TableFooter>
           )}
         </Table>
       </CardContent>
 
-      <div className="flex items-center gap-4 px-6 pb-4 text-xs text-muted-foreground">
+      <div className="flex flex-wrap items-center gap-4 px-6 pb-4 text-xs text-muted-foreground">
         <span><Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-xs">val</Badge> Ottimo</span>
         <span><Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-xs">val</Badge> Da migliorare</span>
         <span><Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 text-xs">val</Badge> Critico</span>
+        <span>«—» = non calcolabile (niente chiuso o nessun appuntamento con esito)</span>
+        {onApriVenditore && <span>Clic su un venditore per aprire le sue opportunità</span>}
       </div>
     </Card>
   );

@@ -3,16 +3,16 @@ import { TrendingDown } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 import type { FunnelStage } from "@/hooks/useVendorReport";
 
-const STAGE_ORDER: Record<string, number> = {
-  nuovo: 1, lead: 1,
-  prospect: 2, qualificato: 2,
-  appuntamento: 3, presentazione: 3,
-  proposta: 4, offerta: 4, preventivo: 4,
-  trattativa: 5, negoziazione: 5,
-  decisione: 6,
-  vinto: 7, won: 7, chiuso_vinto: 7, closed_won: 7,
-  perso: 8, lost: 8, chiuso_perso: 8, closed_lost: 8,
-};
+/*
+ * Dove sono oggi le opportunità create nel periodo, fase per fase, nell'ordine
+ * della pipeline (get_vendor_funnel_stages le ordina per posizione).
+ *
+ * Prima tra una fase e l'altra c'era un «conv. %» = opportunità nella fase
+ * dopo ÷ opportunità in questa: su una fotografia di dove stanno le trattative
+ * oggi non è una conversione (usciva anche 133%). E le fasi venivano
+ * riordinate indovinando dal nome («nuovo», «proposta»…), che per nomi come
+ * «Primo Contatto» non funzionava.
+ */
 
 const STAGE_COLORS = [
   "hsl(var(--primary) / 0.5)",
@@ -23,36 +23,33 @@ const STAGE_COLORS = [
   "hsl(var(--primary))",
 ];
 
-const WON_STAGES = ["vinto", "won", "chiuso_vinto", "closed_won"];
-const LOST_STAGES = ["perso", "lost", "chiuso_perso", "closed_lost"];
+const WON_STAGES = ["vinto", "vinta", "vinte", "won", "chiuso vinto", "closed won"];
+const LOST_STAGES = ["perso", "persa", "perse", "lost", "chiuso perso", "closed lost"];
 
-function isWon(stage: string) { return WON_STAGES.includes(stage.toLowerCase()); }
-function isLost(stage: string) { return LOST_STAGES.includes(stage.toLowerCase()); }
+const norm = (s: string) => s.toLowerCase().replace(/[_-]+/g, " ").trim();
+function isWon(stage: string) { return WON_STAGES.includes(norm(stage)); }
+function isLost(stage: string) { return LOST_STAGES.includes(norm(stage)); }
 
 export function VenditoriFunnel({ stages }: { stages: FunnelStage[] }) {
   if (!stages.length) return null;
 
-  const openStages = stages
-    .filter(s => !isWon(s.stage ?? "") && !isLost(s.stage ?? ""))
-    .sort((a, b) => (STAGE_ORDER[a.stage?.toLowerCase() ?? ""] ?? 5) - (STAGE_ORDER[b.stage?.toLowerCase() ?? ""] ?? 5));
-  const wonStages = stages.filter(s => isWon(s.stage ?? ""));
-  const lostStages = stages.filter(s => isLost(s.stage ?? ""));
-  const allOrdered = [...openStages, ...wonStages, ...lostStages];
-
   const maxCount = Math.max(...stages.map(s => s.count_opp), 1);
   const totalOpp = stages.reduce((a, s) => a + s.count_opp, 0);
+  const conVinteOPerse = stages.some(s => isWon(s.stage ?? "") || isLost(s.stage ?? ""));
 
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
           <TrendingDown className="h-5 w-5" />
-          Funnel Opportunità
+          Opportunità per fase
         </CardTitle>
-        <CardDescription>{totalOpp} opportunità totali nel periodo</CardDescription>
+        <CardDescription>
+          Dove sono oggi le {totalOpp} opportunità create nel periodo, nell'ordine della pipeline
+        </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-1">
-        {allOrdered.map((stage, idx) => {
+      <CardContent className="space-y-1.5">
+        {stages.map((stage, idx) => {
           const width = Math.max((stage.count_opp / maxCount) * 100, 8);
           const won = isWon(stage.stage ?? "");
           const lost = isLost(stage.stage ?? "");
@@ -62,49 +59,37 @@ export function VenditoriFunnel({ stages }: { stages: FunnelStage[] }) {
             ? "hsl(0 84% 60%)"
             : STAGE_COLORS[idx % STAGE_COLORS.length];
 
-          const nextStage = allOrdered[idx + 1];
-          const convRate =
-            nextStage && !won && !lost && stage.count_opp > 0
-              ? Math.round((nextStage.count_opp / stage.count_opp) * 100)
-              : null;
-
           return (
-            <div key={stage.stage} className="space-y-0.5">
-              {idx > 0 && convRate !== null && (
-                <div className="flex items-center gap-2 pl-28 text-xs text-muted-foreground py-0.5">
-                  <div className="w-px h-3 bg-border" />
-                  ↓ conv. {convRate}%
+            <div key={stage.stage} className="flex items-center gap-3">
+              <span className="w-28 text-sm text-right truncate text-muted-foreground font-medium" title={stage.stage}>
+                {stage.stage}
+              </span>
+              <div className="flex-1 h-7 bg-muted rounded-md overflow-hidden">
+                <div
+                  className="h-full rounded-md flex items-center justify-end px-2 text-xs font-semibold text-primary-foreground transition-all"
+                  style={{ width: `${width}%`, backgroundColor: bgColor }}
+                >
+                  {stage.count_opp}
+                  <span className="ml-1 opacity-75">{Number(stage.pct_del_totale ?? 0).toLocaleString("it-IT")}%</span>
                 </div>
-              )}
-              <div className="flex items-center gap-3">
-                <span className="w-28 text-sm text-right truncate text-muted-foreground font-medium">
-                  {stage.stage}
-                </span>
-                <div className="flex-1 h-7 bg-muted rounded-md overflow-hidden">
-                  <div
-                    className="h-full rounded-md flex items-center justify-end px-2 text-xs font-semibold text-primary-foreground transition-all"
-                    style={{ width: `${width}%`, backgroundColor: bgColor }}
-                  >
-                    {stage.count_opp}
-                    <span className="ml-1 opacity-75">{stage.pct_del_totale}%</span>
-                  </div>
-                </div>
-                <span className="w-24 text-sm text-right tabular-nums text-muted-foreground">
-                  {formatCurrency(stage.valore_totale)}
-                </span>
               </div>
+              <span className="w-24 text-sm text-right tabular-nums text-muted-foreground">
+                {formatCurrency(stage.valore_totale)}
+              </span>
             </div>
           );
         })}
 
-        <div className="flex items-center gap-4 pt-3 text-xs text-muted-foreground">
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: "hsl(142 76% 36%)" }} /> Vinte
+        {conVinteOPerse && (
+          <div className="flex items-center gap-4 pt-3 text-xs text-muted-foreground">
+            <div className="flex items-center gap-1.5">
+              <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: "hsl(142 76% 36%)" }} /> Vinte
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: "hsl(0 84% 60%)" }} /> Perse
+            </div>
           </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: "hsl(0 84% 60%)" }} /> Perse
-          </div>
-        </div>
+        )}
       </CardContent>
     </Card>
   );

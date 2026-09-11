@@ -14,13 +14,25 @@ export const DealHealthOverview = memo(function DealHealthOverview({ companyId }
     queryKey: [...salesOSKeys.all, 'deal-health', companyId],
     enabled: !!companyId,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('marketing_opportunities')
-        .select('id, updated_at, last_activity_at, stage_changed_at, next_action, expected_close_date, probability, created_at, contact:marketing_contacts(is_decision_maker)')
-        .eq('company_id', companyId)
-        .eq('status', 'open');
-      if (error) throw error;
-      return data ?? [];
+      // Tutte le aperte e non cancellate: PostgREST ne dà al massimo 1000 per
+      // chiamata, e prima le cancellate contavano e oltre le mille si perdeva
+      // il resto. Le note si contano nel database come sulle schede del kanban:
+      // senza, ogni trattativa perdeva 10 punti per «meno di 2 contatti registrati».
+      const righe: any[] = [];
+      for (let da = 0; da < 20_000; da += 1000) {
+        const { data, error } = await supabase
+          .from('marketing_opportunities')
+          .select('id, updated_at, last_activity_at, stage_changed_at, next_action, expected_close_date, probability, created_at, contact:marketing_contacts(is_decision_maker), marketing_contact_notes(count)')
+          .eq('company_id', companyId)
+          .eq('status', 'open')
+          .is('deleted_at', null)
+          .order('id')
+          .range(da, da + 999);
+        if (error) throw error;
+        righe.push(...(data ?? []));
+        if (!data || data.length < 1000) break;
+      }
+      return righe;
     },
     staleTime: 1000 * 60 * 5,
   });
@@ -31,10 +43,12 @@ export const DealHealthOverview = memo(function DealHealthOverview({ companyId }
     for (const opp of opportunities) {
       const oppRec = opp as typeof opp & {
         contact?: { is_decision_maker?: boolean } | { is_decision_maker?: boolean }[] | null;
+        marketing_contact_notes?: { count?: number | null }[] | null;
       };
       const contact = Array.isArray(oppRec.contact) ? oppRec.contact[0] : oppRec.contact;
       const input = buildDealHealthInput({
         ...opp,
+        notes_count: oppRec.marketing_contact_notes?.[0]?.count ?? 0,
         contact_is_decision_maker: contact?.is_decision_maker ?? null,
       });
       const health = calculateDealHealth(input);

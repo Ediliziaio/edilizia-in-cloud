@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { RadarChart, PolarGrid, PolarAngleAxis, Radar, ResponsiveContainer, Legend } from "recharts";
 import type { VendorKPI } from "@/hooks/useVendorReport";
+import { aggregateTeamKPI } from "@/lib/reporting/venditoriRegole";
 
 interface Props { selected: VendorKPI | null; all: VendorKPI[]; }
 
@@ -16,7 +17,14 @@ const DIMS: { key: keyof VendorKPI; label: string }[] = [
 export function AgentRadarProfile({ selected, all }: Props) {
   if (!selected || all.length < 2) return null;
 
-  const avg = (f: keyof VendorKPI) => all.reduce((s, k) => s + (Number(k[f]) || 0), 0) / all.length;
+  // Riferimento del team: i tassi e il deal medio del team intero (dai
+  // conteggi, come la Panoramica), i conteggi per venditore medio.
+  const team = aggregateTeamKPI(all);
+  const PER_VENDITORE: (keyof VendorKPI)[] = ["opp_vinte", "nuovi_contatti"];
+  const avg = (f: keyof VendorKPI) => {
+    const v = Number(team?.[f]) || 0;
+    return PER_VENDITORE.includes(f) ? v / all.length : v;
+  };
   const maxVal = (f: keyof VendorKPI) => Math.max(...all.map(k => Number(k[f]) || 0)) || 1;
 
   const data = DIMS.map(d => ({
@@ -29,7 +37,7 @@ export function AgentRadarProfile({ selected, all }: Props) {
     <Card>
       <CardHeader className="pb-2">
         <CardTitle className="text-base">Profilo vs Media Team</CardTitle>
-        <CardDescription className="text-xs">Valori normalizzati 0–100 rispetto al top performer</CardDescription>
+        <CardDescription className="text-xs">Valori normalizzati 0–100 rispetto al migliore; i tassi non calcolabili valgono 0</CardDescription>
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={260}>
