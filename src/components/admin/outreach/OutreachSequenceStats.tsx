@@ -9,8 +9,6 @@ import { Loader2 } from "lucide-react";
  * è espansa. Errore tabella mancante → silenzioso (gate gestito dal genitore).
  */
 
-interface Row { status: string; current_step: number }
-
 /**
  * @param compact variante inline per l'header CHIUSO della sequenza: solo i
  * chip essenziali (iscritti/attivi/risposte/reply rate), niente card né barre
@@ -21,23 +19,41 @@ export function OutreachSequenceStats({ sequenceId, compact = false }: { sequenc
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any;
   const q = useQuery({
-    queryKey: ["outreach-seq-stats", sequenceId],
+    queryKey: ["outreach-seq-stats", sequenceId, compact ? "compact" : "full"],
     retry: false,
     staleTime: 15_000,
+    // Conteggi ESATTI lato database: scaricare le righe e contarle si fermava
+    // al tetto di 1000 righe per risposta, e una sequenza da 1.676 iscritti
+    // risultava "1000 iscritti · 1000 attivi".
     queryFn: async () => {
-      const { data, error } = await db.from("outreach_enrollments")
-        .select("status,current_step").eq("sequence_id", sequenceId).limit(5000);
-      if (error) throw error;
-      const rows = (data ?? []) as Row[];
-      const c = { total: rows.length, active: 0, completed: 0, replied: 0, stopped: 0 };
-      const steps = new Map<number, number>();
-      for (const r of rows) {
-        if (r.status === "active") { c.active++; steps.set(r.current_step, (steps.get(r.current_step) ?? 0) + 1); }
-        else if (r.status === "completed") c.completed++;
-        else if (r.status === "replied") c.replied++;
-        else c.stopped++; // paused/stopped/bounced/opted_out
-      }
-      return { c, steps: [...steps.entries()].sort((a, b) => a[0] - b[0]) };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const conta = async (filtro?: (qb: any) => any) => {
+        let qb = db.from("outreach_enrollments").select("id", { count: "exact", head: true }).eq("sequence_id", sequenceId);
+        if (filtro) qb = filtro(qb);
+        const { count, error } = await qb;
+        if (error) throw error;
+        return (count ?? 0) as number;
+      };
+      const [total, active, completed, replied] = await Promise.all([
+        conta(),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        conta((qb: any) => qb.eq("status", "active")),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        conta((qb: any) => qb.eq("status", "completed")),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        conta((qb: any) => qb.eq("status", "replied")),
+      ]);
+      const c = { total, active, completed, replied, stopped: Math.max(0, total - active - completed - replied) };
+      if (compact) return { c, steps: [] as Array<[number, number]> };
+      // Attivi per step: gli step sono pochi, un conteggio ciascuno. L'etichetta
+      // è la POSIZIONE nella cadenza (step_order può partire da 0 o da 1).
+      const { data: st } = await db.from("outreach_sequence_steps").select("step_order").eq("sequence_id", sequenceId);
+      const ordini = [...new Set(((st ?? []) as Array<{ step_order: number }>).map((r) => r.step_order))].sort((a, b) => a - b);
+      const perStep = await Promise.all(ordini.map(async (o, i) => [i, await conta(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (qb: any) => qb.eq("status", "active").eq("current_step", o),
+      )] as [number, number]));
+      return { c, steps: perStep.filter(([, n]) => n > 0) };
     },
   });
 
@@ -62,8 +78,8 @@ export function OutreachSequenceStats({ sequenceId, compact = false }: { sequenc
   if (compact) {
     return (
       <div className="mt-1 flex flex-wrap gap-1.5">
-        <StatChip label="iscritti" value={d.c.total} />
-        <StatChip label="attivi" value={d.c.active} tone="active" />
+        <StatChip label="iscritti" value={d.c.total.toLocaleString("it-IT")} />
+        <StatChip label="attivi" value={d.c.active.toLocaleString("it-IT")} tone="active" />
         <StatChip label="risposte" value={d.c.replied} tone="good" />
         <StatChip label="reply rate" value={`${replyRate}%`} tone="good" />
       </div>

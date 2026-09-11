@@ -30,12 +30,12 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
-import { Plus, Play, Pause, Users, Send, MessageCircle, AlertTriangle, Ban, WifiOff, RotateCcw, ExternalLink, Copy, Pencil, FlaskConical, Clock, Loader2, KanbanSquare, XCircle, Trash2 } from "lucide-react";
+import { Plus, Send, MessageCircle, AlertTriangle, Ban, WifiOff, ExternalLink, Loader2, ChevronDown, ChevronRight, RotateCcw } from "lucide-react";
 import { Link } from "react-router-dom";
 import RisposteRapide from "@/components/admin/whatsapp-locale/RisposteRapide";
 import PipelineCampagna from "@/components/admin/whatsapp-locale/PipelineCampagna";
 import RisposteCampagna from "@/components/admin/whatsapp-locale/RisposteCampagna";
+import { CampagnaFlusso } from "@/components/admin/whatsapp-locale/CampagnaFlusso";
 
 interface Riepilogo {
   id: string;
@@ -57,14 +57,6 @@ interface Riepilogo {
   avviata_at: string | null;
 }
 
-const STATO_BADGE: Record<string, { label: string; className: string }> = {
-  bozza: { label: "Bozza", className: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300" },
-  in_corso: { label: "In corso", className: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" },
-  in_pausa: { label: "In pausa", className: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300" },
-  completata: { label: "Completata", className: "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300" },
-  annullata: { label: "Annullata", className: "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400" },
-};
-
 const STATO_NUMERO: Record<string, { label: string; className: string }> = {
   connected: { label: "connesso", className: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" },
   connecting: { label: "in connessione", className: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300" },
@@ -72,6 +64,7 @@ const STATO_NUMERO: Record<string, { label: string; className: string }> = {
   banned: { label: "BANNATO", className: "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300" },
 };
 
+const IN_ARCHIVIO = new Set(["completata", "annullata"]);
 
 /** Variabili del contatto disponibili nei testi ({{nome}}, {{azienda}}…). */
 const VARIABILI_CONTATTO = ["nome", "cognome", "nome_completo", "azienda", "citta", "provincia", "telefono", "email", "sito", "fonte", "tag"] as const;
@@ -101,6 +94,14 @@ export default function AdminWhatsappLocaleCampagne() {
   const qc = useQueryClient();
   const [creaAperto, setCreaAperto] = useState(false);
   const [listaPer, setListaPer] = useState<Riepilogo | null>(null);
+  // Campagne aperte sul loro flusso (come le sequenze email) e archivio.
+  const [aperte, setAperte] = useState<Set<string>>(() => new Set());
+  const apriChiudi = (id: string) => setAperte((s) => {
+    const n = new Set(s);
+    if (n.has(id)) n.delete(id); else n.add(id);
+    return n;
+  });
+  const [archivioAperto, setArchivioAperto] = useState(false);
 
   // Nuova campagna
   const [nome, setNome] = useState("");
@@ -163,11 +164,11 @@ export default function AdminWhatsappLocaleCampagne() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("openwa_numbers")
-        .select("id, numero, display_name, stato, daily_cap, daily_sent, daily_sent_date")
+        .select("id, numero, display_name, stato, tags, daily_cap, daily_sent, daily_sent_date")
         .is("deleted_at", null);
       if (error) throw error;
       return (data ?? []) as Array<{
-        id: string; numero: string | null; display_name: string | null; stato: string;
+        id: string; numero: string | null; display_name: string | null; stato: string; tags: string[] | null;
         daily_cap: number | null; daily_sent: number | null; daily_sent_date: string | null;
       }>;
     },
@@ -203,9 +204,9 @@ export default function AdminWhatsappLocaleCampagne() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("openwa_campagne")
-        .select("id, messaggio, messaggio_b, ai_personalizza, ai_istruzioni, followup_messaggio, followup_dopo_giorni, followup2_messaggio, followup2_dopo_giorni, followup3_messaggio, followup3_dopo_giorni, parte_il, nome, orario_da, orario_a, giorni_settimana, scadenza_il, max_al_giorno, variabili, stop_se_risponde");
+        .select("id, messaggio, messaggio_b, ai_personalizza, ai_istruzioni, followup_messaggio, followup_dopo_giorni, followup2_messaggio, followup2_dopo_giorni, followup3_messaggio, followup3_dopo_giorni, parte_il, nome, orario_da, orario_a, giorni_settimana, scadenza_il, max_al_giorno, variabili, stop_se_risponde, tags_numeri");
       if (error) throw error;
-      const m: Record<string, { messaggio: string; followup_messaggio: string | null; followup_dopo_giorni: number; followup2_messaggio: string | null; followup2_dopo_giorni: number; followup3_messaggio: string | null; followup3_dopo_giorni: number; messaggio_b: string | null; ai_personalizza: boolean; ai_istruzioni: string | null; parte_il: string | null; nome: string; orario_da: number | null; orario_a: number | null; giorni_settimana: number[] | null; scadenza_il: string | null; max_al_giorno: number | null; variabili: Record<string, string> | null; stop_se_risponde: boolean | null }> = {};
+      const m: Record<string, { messaggio: string; followup_messaggio: string | null; followup_dopo_giorni: number; followup2_messaggio: string | null; followup2_dopo_giorni: number; followup3_messaggio: string | null; followup3_dopo_giorni: number; messaggio_b: string | null; ai_personalizza: boolean; ai_istruzioni: string | null; parte_il: string | null; nome: string; orario_da: number | null; orario_a: number | null; giorni_settimana: number[] | null; scadenza_il: string | null; max_al_giorno: number | null; variabili: Record<string, string> | null; stop_se_risponde: boolean | null; tags_numeri: string[] | null }> = {};
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       for (const c of (data ?? []) as any[]) m[c.id] = c;
       return m;
@@ -584,171 +585,80 @@ export default function AdminWhatsappLocaleCampagne() {
         </Card>
       ) : (
         <div className="space-y-3">
-          {campagneOrdinate.map((c) => {
-            const badge = STATO_BADGE[c.stato] ?? { label: c.stato, className: "bg-slate-100" };
-            const contattati = c.inviati + c.followup_inviati + c.risposti;
-            const tassoRisposta = contattati > 0 ? Math.round((c.risposti / contattati) * 100) : null;
-            return (
-              <Card key={c.id} className="p-4">
-                <div className="flex items-start justify-between gap-4 flex-wrap">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-semibold">{c.nome}</span>
-                      <Badge className={badge.className} variant="secondary">{badge.label}</Badge>
-                      {testiById[c.id]?.ai_personalizza && (
-                        <Badge variant="outline" className="text-xs text-violet-700 dark:text-violet-400">AI</Badge>
-                      )}
-                      {testiById[c.id]?.messaggio_b && (
-                        <Badge variant="outline" className="text-xs">A/B</Badge>
-                      )}
-                      {c.ha_followup && (
-                        <Badge variant="outline" className="text-xs">
-                          follow-up a {c.followup_dopo_giorni} giorni
-                        </Badge>
-                      )}
-                    </div>
-                    {/* Il testo che partira': prima non era piu' rileggibile
-                        da nessuna parte una volta creata la campagna. */}
-                    {testiById[c.id]?.messaggio && (
-                      <p className="mt-1.5 line-clamp-2 max-w-2xl rounded-md bg-muted/50 px-2.5 py-1.5 text-xs text-muted-foreground">
-                        {testiById[c.id].messaggio}
-                      </p>
-                    )}
-                    {c.stato === "in_corso" && c.da_inviare > 0 && capacitaGiorno > 0 && (
-                      <p className="mt-1 text-[11px] text-muted-foreground">
-                        Al ritmo attuale finisce in ≈ {Math.ceil(c.da_inviare / capacitaGiorno)}{" "}
-                        {Math.ceil(c.da_inviare / capacitaGiorno) === 1 ? "giorno" : "giorni"}.
-                      </p>
-                    )}
-                    <p className="mt-1 text-[10px] text-muted-foreground/70">
-                      Creata il {new Date(c.created_at).toLocaleDateString("it-IT")}
-                      {c.avviata_at && ` · avviata il ${new Date(c.avviata_at).toLocaleDateString("it-IT")}`}
-                    </p>
-                    {testiById[c.id]?.parte_il && new Date(testiById[c.id].parte_il!) > new Date() && (
-                      <p className="mt-1 flex items-center gap-1 text-[11px] text-sky-700 dark:text-sky-400">
-                        <Clock className="h-3 w-3" /> Programmata: parte il{" "}
-                        {new Date(testiById[c.id].parte_il!).toLocaleString("it-IT", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
-                      </p>
-                    )}
-                    {(() => {
-                      const t = testiById[c.id];
-                      if (!t) return null;
-                      const parti = [
-                        t.orario_da != null || t.orario_a != null ? `ore ${t.orario_da ?? 8}-${t.orario_a ?? 21}` : null,
-                        t.giorni_settimana?.length ? t.giorni_settimana.map((g) => GIORNI_SETTIMANA.find(([n]) => n === g)?.[1]).filter(Boolean).join(" ") : null,
-                        t.max_al_giorno ? `max ${t.max_al_giorno}/giorno` : null,
-                        t.scadenza_il ? `scade il ${new Date(t.scadenza_il).toLocaleDateString("it-IT")}` : null,
-                        t.stop_se_risponde === false ? "continua anche se risponde" : null,
-                      ].filter(Boolean);
-                      return parti.length ? <p className="text-xs text-muted-foreground">Tempi: {parti.join(" · ")}</p> : null;
-                    })()}
-                    {/* La riga "479 · 12 · 30 · …" era illeggibile: numeri
-                        etichettati, e una barra che mostra COSA è successo,
-                        non solo quanto. */}
-                    <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1.5">
-                      {[
-                        { n: c.totali, label: "destinatari" },
-                        { n: c.da_inviare, label: "in coda" },
-                        { n: contattati, label: "contattati" },
-                        { n: c.risposti, label: tassoRisposta !== null ? `risposte (${tassoRisposta}%)` : "risposte", forte: true },
-                        ...(c.saltati > 0 ? [{ n: c.saltati, label: "saltati" }] : []),
-                        ...(c.falliti > 0 ? [{ n: c.falliti, label: "falliti", rosso: true }] : []),
-                      ].map((st, i) => (
-                        <div key={i} className="min-w-0">
-                          <div className={cn(
-                            "text-base font-semibold leading-tight tabular-nums",
-                            st.rosso && "text-red-600 dark:text-red-400",
-                            st.forte && "text-emerald-700 dark:text-emerald-400",
-                          )}>{st.n}</div>
-                          <div className="text-[11px] text-muted-foreground">{st.label}</div>
-                        </div>
-                      ))}
-                    </div>
-                    {c.totali > 0 && (
-                      <div className="mt-2.5 flex h-2 w-full max-w-md overflow-hidden rounded-full bg-muted"
-                        title={`${c.risposti} risposte · ${contattati - c.risposti} contattati senza risposta · ${c.falliti} falliti`}>
-                        <div className="h-full bg-emerald-600" style={{ width: `${(c.risposti / c.totali) * 100}%` }} />
-                        <div className="h-full bg-emerald-300 dark:bg-emerald-800" style={{ width: `${(Math.max(0, contattati - c.risposti) / c.totali) * 100}%` }} />
-                        <div className="h-full bg-red-300 dark:bg-red-900" style={{ width: `${(c.falliti / c.totali) * 100}%` }} />
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-2 shrink-0 flex-wrap">
-                    {c.risposti > 0 && (
-                      <Button variant="ghost" size="sm" className="text-emerald-700 dark:text-emerald-400"
-                        onClick={() => setRispostePer(c)}>
-                        <MessageCircle className="h-4 w-4 mr-1.5" /> Risposte
-                      </Button>
-                    )}
-                    <Button variant="ghost" size="sm" onClick={() => setPipelinePer(c)}
-                      title="Destinatari, risposte ed esiti su una bacheca">
-                      <KanbanSquare className="h-4 w-4 mr-1.5" /> Pipeline
-                    </Button>
-                    <Button variant="ghost" size="sm" onClick={() => setProvaPer(c)} title="Mandalo prima a te">
-                      <FlaskConical className="h-4 w-4 mr-1.5" /> Prova
-                    </Button>
-                    <Button variant="ghost" size="sm" disabled={duplica.isPending}
-                      onClick={() => duplica.mutate(c)} title="Copia il testo in una nuova campagna">
-                      <Copy className="h-4 w-4 mr-1.5" /> Duplica
-                    </Button>
-                    {(c.stato === "bozza" || c.stato === "in_pausa") && (
-                      <Button variant="ghost" size="sm" onClick={() => apriModifica(c)}>
-                        <Pencil className="h-4 w-4 mr-1.5" /> Modifica
-                      </Button>
-                    )}
-                    {(c.falliti > 0 || c.saltati > 0) && (
-                      <Button variant="ghost" size="sm" className="text-amber-700 dark:text-amber-400"
-                        onClick={() => setErroriPer(c)}>
-                        <AlertTriangle className="h-4 w-4 mr-1.5" /> Problemi
-                      </Button>
-                    )}
-                    {c.falliti > 0 && (
-                      <Button variant="outline" size="sm"
-                        disabled={riprovaFalliti.isPending}
-                        onClick={() => riprovaFalliti.mutate(c.id)}>
-                        <RotateCcw className="h-4 w-4 mr-1.5" /> Riprova {c.falliti} falliti
-                      </Button>
-                    )}
-                    <Button variant="outline" size="sm" onClick={() => setListaPer(c)}>
-                      <Users className="h-4 w-4 mr-1.5" /> Destinatari
-                    </Button>
-                    {(c.stato === "in_corso" || c.stato === "in_pausa") && (
-                      <Button variant="ghost" size="sm" className="text-red-600 dark:text-red-400"
-                        disabled={annulla.isPending}
-                        onClick={() => {
-                          if (window.confirm(`Annullare "${c.nome}"? Gli invii si fermano per sempre; i dati restano.`)) annulla.mutate(c.id);
-                        }}>
-                        <XCircle className="h-4 w-4 mr-1.5" /> Annulla
-                      </Button>
-                    )}
-                    {c.stato === "bozza" && (
-                      <Button variant="ghost" size="sm" className="text-red-600 dark:text-red-400"
-                        disabled={elimina.isPending}
-                        onClick={() => {
-                          if (window.confirm(`Eliminare la bozza "${c.nome}"? Sparisce anche la lista destinatari.`)) elimina.mutate(c.id);
-                        }}>
-                        <Trash2 className="h-4 w-4 mr-1.5" /> Elimina
-                      </Button>
-                    )}
-                    {c.stato === "in_corso" ? (
-                      <Button variant="outline" size="sm"
-                        onClick={() => cambiaStato.mutate({ id: c.id, stato: "in_pausa" })}>
-                        <Pause className="h-4 w-4 mr-1.5" /> Pausa
-                      </Button>
-                    ) : (c.stato === "bozza" || c.stato === "in_pausa") ? (
-                      <Button size="sm"
-                        disabled={c.totali === 0 || cambiaStato.isPending}
-                        title={c.totali === 0 ? "Carica prima i destinatari" : undefined}
-                        onClick={() => cambiaStato.mutate({ id: c.id, stato: "in_corso" })}>
-                        <Play className="h-4 w-4 mr-1.5" /> Avvia
-                      </Button>
-                    ) : null}
-                  </div>
+          {campagneOrdinate.filter((c) => !IN_ARCHIVIO.has(c.stato)).map((c) => (
+            <CampagnaFlusso
+              key={c.id}
+              c={c}
+              t={testiById[c.id]}
+              numeri={numeri}
+              capacitaGiorno={capacitaGiorno}
+              aperta={aperte.has(c.id)}
+              onToggle={() => apriChiudi(c.id)}
+              onDestinatari={() => setListaPer(c)}
+              onStato={(stato) => {
+                if (stato === c.stato) return;
+                if (stato === "annullata") {
+                  if (window.confirm(`Annullare "${c.nome}"? Gli invii si fermano per sempre; i dati restano.`)) annulla.mutate(c.id);
+                  return;
+                }
+                cambiaStato.mutate({ id: c.id, stato });
+              }}
+              onModifica={() => apriModifica(c)}
+              onProva={() => setProvaPer(c)}
+              onDuplica={() => duplica.mutate(c)}
+              onPipeline={() => setPipelinePer(c)}
+              onRisposte={() => setRispostePer(c)}
+              onProblemi={() => setErroriPer(c)}
+              onRiprova={() => riprovaFalliti.mutate(c.id)}
+              onElimina={() => {
+                if (window.confirm(`Eliminare la bozza "${c.nome}"? Sparisce anche la lista destinatari.`)) elimina.mutate(c.id);
+              }}
+              inCorso={{
+                duplica: duplica.isPending,
+                stato: cambiaStato.isPending || annulla.isPending,
+                riprova: riprovaFalliti.isPending,
+                elimina: elimina.isPending,
+              }}
+            />
+          ))}
+          {/* Completate e annullate sono archivio, non lavoro: chiuse in fondo. */}
+          {campagneOrdinate.some((c) => IN_ARCHIVIO.has(c.stato)) && (
+            <div className="pt-2">
+              <button
+                className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
+                onClick={() => setArchivioAperto((v) => !v)}
+              >
+                {archivioAperto ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                Archivio · {campagneOrdinate.filter((c) => IN_ARCHIVIO.has(c.stato)).length} completate o annullate
+              </button>
+              {archivioAperto && (
+                <div className="mt-2 space-y-3 opacity-80">
+                  {campagneOrdinate.filter((c) => IN_ARCHIVIO.has(c.stato)).map((c) => (
+                    <CampagnaFlusso
+                      key={c.id}
+                      c={c}
+                      t={testiById[c.id]}
+                      numeri={numeri}
+                      capacitaGiorno={capacitaGiorno}
+                      aperta={aperte.has(c.id)}
+                      onToggle={() => apriChiudi(c.id)}
+                      onDestinatari={() => setListaPer(c)}
+                      onStato={() => undefined}
+                      onModifica={() => apriModifica(c)}
+                      onProva={() => setProvaPer(c)}
+                      onDuplica={() => duplica.mutate(c)}
+                      onPipeline={() => setPipelinePer(c)}
+                      onRisposte={() => setRispostePer(c)}
+                      onProblemi={() => setErroriPer(c)}
+                      onRiprova={() => riprovaFalliti.mutate(c.id)}
+                      onElimina={() => undefined}
+                      inCorso={{ duplica: duplica.isPending, stato: false, riprova: riprovaFalliti.isPending, elimina: false }}
+                    />
+                  ))}
                 </div>
-              </Card>
-            );
-          })}
+              )}
+            </div>
+          )}
         </div>
       )}
 
