@@ -72,11 +72,13 @@ export function AdAccountPickerDialog({ open, onOpenChange, companyId, accounts 
       // li reimporta, con la scelta attuale già spuntata.
       const integrationId = accounts.find((a) => a.asset_id === assetId)?.integration_id;
       if (integrationId) {
-        await supabase.functions
-          .invoke("meta-api-proxy", {
+        try {
+          await supabase.functions.invoke("meta-api-proxy", {
             body: { action: "purge-unselected", company_id: companyId, integration_id: integrationId },
-          })
-          .catch(() => undefined); // best-effort: il proxy rifiuta comunque gli account non scelti
+          });
+        } catch {
+          // best-effort: il proxy rifiuta comunque gli account non scelti
+        }
       }
     },
     onSuccess: (_data, assetId) => {
