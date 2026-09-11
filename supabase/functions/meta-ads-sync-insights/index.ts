@@ -115,7 +115,31 @@ Deno.serve(async (req) => {
       return json({ error: "accounts_fetch_failed", detail: String(accountsErr.message) }, 500, corsHeaders);
     }
 
-    const integrationIds = [...new Set((accounts ?? []).map((a) => a.integration_id).filter(Boolean))];
+    // Gli account scelti in meta_assets contano anche senza una riga in
+    // meta_ad_accounts (che nasce solo con il modulo Pubblicità): i clienti
+    // seguiti nel marketing hanno solo la scelta, e senza questo passaggio il
+    // sync notturno ne processava uno su cinque.
+    const assetsQuery = admin
+      .from("meta_assets")
+      .select("company_id, integration_id, asset_id")
+      .eq("asset_type", "ad_account")
+      .eq("selected", true);
+    if (filterCompanyId) assetsQuery.eq("company_id", filterCompanyId);
+    const { data: assetAccounts } = await assetsQuery;
+    const visti = new Set<string>();
+    const candidati: { id: string; company_id: string; integration_id: string; ad_account_id: string }[] = [];
+    for (const a of [
+      ...(accounts ?? []).map((a) => ({ id: a.id as string, company_id: a.company_id as string, integration_id: a.integration_id as string, ad_account_id: a.ad_account_id as string })),
+      ...(assetAccounts ?? []).map((a) => ({ id: "", company_id: a.company_id as string, integration_id: a.integration_id as string, ad_account_id: a.asset_id as string })),
+    ]) {
+      if (!a.company_id || !a.integration_id || !a.ad_account_id) continue;
+      const chiave = `${a.company_id}|${a.integration_id}|${a.ad_account_id.startsWith("act_") ? a.ad_account_id : `act_${a.ad_account_id}`}`;
+      if (visti.has(chiave)) continue;
+      visti.add(chiave);
+      candidati.push(a);
+    }
+
+    const integrationIds = [...new Set(candidati.map((a) => a.integration_id).filter(Boolean))];
     // Solo gli account che l'azienda ha scelto (meta_assets.selected). Con un
     // token "agenzia" meta_ad_accounts si riempiva degli account di tutti i
     // clienti e questo sync scriveva i loro insight dentro ogni azienda.
@@ -142,7 +166,7 @@ Deno.serve(async (req) => {
       (credsRes.data ?? []).map((c) => [c.integration_id, c.access_token_encrypted]),
     );
 
-    companies = (accounts ?? [])
+    companies = candidati
       .filter((a) => connected.has(a.integration_id) && tokenByIntegration.get(a.integration_id))
       .filter((a) => scelti.has(`${a.integration_id}|${actNorm(a.ad_account_id)}`))
       .map((a) => ({
