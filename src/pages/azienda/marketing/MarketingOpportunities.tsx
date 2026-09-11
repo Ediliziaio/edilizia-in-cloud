@@ -18,7 +18,7 @@ import { OpportunityFiltersSheet, OpportunityFilters, EMPTY_FILTERS, countActive
 import { BulkEditSheet } from "@/components/opportunities/BulkEditSheet";
 import {
   usePipelines, useCompanyStaff, useBulkDeleteOpportunities, enrichPage, filtroSoloMiei,
-  useOpportunitySummary, useOpportunityList, useOpportunityTags, idsOpportunita, MASSIMO_ELIMINAZIONE,
+  useOpportunitySummary, useOpportunityList, useOpportunityTags, useOpportunitiesLive, idsOpportunita, MASSIMO_ELIMINAZIONE,
 } from "@/hooks/useOpportunitiesData";
 import { OpportunityDetailDialog } from "@/components/opportunities/OpportunityDetailDialog";
 import { useOpportunityCustomFields } from "@/hooks/useOpportunityDetailData";
@@ -355,6 +355,9 @@ function MarketingOpportunitiesContent() {
     error: riepilogoError,
     isFetching: aggiornoRiepilogo,
   } = useOpportunitySummary(selectedPipelineId, filtriServer);
+
+  // Lead nuovi e schede spostate da altri compaiono da soli, senza F5.
+  useOpportunitiesLive(selectedPipelineId);
 
   const lista = useOpportunityList({
     pipelineId: selectedPipelineId,

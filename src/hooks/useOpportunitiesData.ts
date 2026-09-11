@@ -4,10 +4,11 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { userErrorMessage } from "@/lib/userErrorMessage";
 import { queryKeys } from "@/lib/queryKeys";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { withClientTimeout, retryListQuery } from "@/lib/query-timeout";
+import { subscribeChannel } from "@/lib/realtime/subscribeChannel";
 import type { FiltriServerOpportunita } from "@/lib/marketingOpportunities";
 
 export function usePipelines() {
@@ -543,6 +544,103 @@ export function useOpportunityTags(pipelineId: string | null, enabled: boolean) 
     enabled: enabled && !!companyId && !!pipelineId,
     staleTime: 5 * 60 * 1000,
   });
+}
+
+/*
+ * Tempo reale. Un lead che arriva da Meta o dal modulo, un collega che sposta
+ * una scheda o se la assegna: la pipeline aperta si aggiorna da sola in un
+ * paio di secondi, senza ricaricare la pagina.
+ *
+ * La riga arrivata non si incolla nella cache: colonne, ordine e conteggi li
+ * decide il database (opportunita_kanban, opportunita_riepilogo) con i filtri
+ * della pagina, e l'unico modo di non sbagliarli è richiederli. Costa poco
+ * (misurato sul «Nuovo» di BeMade, 17.882 opportunità: circa 0,2 s tra
+ * riepilogo e prime pagine), e le modifiche che arrivano insieme — il contatto,
+ * l'opportunità e le automazioni di un lead, un'importazione, uno spostamento
+ * in blocco — diventano una ricarica sola, mai più di una ogni 3 secondi.
+ */
+const TEMPO_REALE_ATTESA_MS = 1000;
+const TEMPO_REALE_OGNI_MS = 3000;
+
+/** La scheda è tra quelle caricate per questa pipeline (a schermo o in cache)? */
+function schedaCaricata(queryClient: ReturnType<typeof useQueryClient>, pipelineId: string, id: unknown): boolean {
+  if (typeof id !== "string") return false;
+  return queryClient.getQueriesData({ queryKey: queryKeys.opportunities.all }).some(([chiave, dati]) => {
+    if (chiave[3] !== pipelineId || !dati) return false;
+    const righe: any[] = (dati as any).pages ? (dati as any).pages.flat() : Array.isArray(dati) ? dati : [];
+    return righe.some((r) => r?.id === id);
+  });
+}
+
+export function useOpportunitiesLive(pipelineId: string | null) {
+  const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (!companyId || !pipelineId) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let ultimaRicarica = 0;
+    let arretrata = false;
+    let giaAgganciato = false;
+
+    const ricarica = () => {
+      timer = undefined;
+      // Scheda del browser nascosta: nessuna richiesta, si ricarica al ritorno.
+      if (document.hidden) { arretrata = true; return; }
+      // Uno spostamento sta ancora salvando: ricaricare adesso riporterebbe la
+      // scheda indietro per un attimo. Si riprova tra poco.
+      if (queryClient.isMutating() > 0) { programma(); return; }
+      ultimaRicarica = Date.now();
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.opportunities.all,
+        predicate: (q) => q.queryKey[3] === pipelineId
+          && ["riepilogo", "fase", "lista", "list"].includes(q.queryKey[1] as string),
+      });
+    };
+    const programma = () => {
+      if (timer) return; // la ricarica già in coda vedrà anche questa modifica
+      timer = setTimeout(ricarica, Math.max(TEMPO_REALE_ATTESA_MS, TEMPO_REALE_OGNI_MS - (Date.now() - ultimaRicarica)));
+    };
+    // Arriva tutta l'azienda (il tempo reale accetta un solo filtro): conta la
+    // pipeline aperta, o una scheda a schermo che se ne va in un'altra pipeline.
+    const rigaNuovaOCambiata = (riga: { id?: string; pipeline_id?: string } | undefined) => {
+      if (riga?.pipeline_id === pipelineId || schedaCaricata(queryClient, pipelineId, riga?.id)) programma();
+    };
+    // Di una riga cancellata arriva solo l'id, e le cancellazioni non si possono
+    // filtrare: conta solo se la scheda è tra quelle caricate.
+    const rigaCancellata = (id: unknown) => {
+      if (schedaCaricata(queryClient, pipelineId, id)) programma();
+    };
+    const alRitorno = () => {
+      if (!document.hidden && arretrata) { arretrata = false; programma(); }
+    };
+
+    const tabella = { schema: "public", table: "marketing_opportunities" } as const;
+    const canale = supabase
+      .channel(`opportunita-live:${pipelineId}:${Math.random().toString(36).slice(2, 9)}`)
+      .on("postgres_changes", { event: "INSERT", ...tabella, filter: `company_id=eq.${companyId}` },
+        (p) => rigaNuovaOCambiata(p.new as { id?: string; pipeline_id?: string }))
+      .on("postgres_changes", { event: "UPDATE", ...tabella, filter: `company_id=eq.${companyId}` },
+        (p) => rigaNuovaOCambiata(p.new as { id?: string; pipeline_id?: string }))
+      .on("postgres_changes", { event: "DELETE", ...tabella },
+        (p) => rigaCancellata((p.old as { id?: string } | undefined)?.id));
+    subscribeChannel(canale, "opportunita-live", {
+      // Al primo aggancio i dati sono freschi; dopo una riconnessione no: quello
+      // che è cambiato mentre la connessione era giù non ce l'ha mandato nessuno.
+      onSubscribed: () => {
+        if (giaAgganciato) programma();
+        giaAgganciato = true;
+      },
+    });
+    document.addEventListener("visibilitychange", alRitorno);
+
+    return () => {
+      if (timer) clearTimeout(timer);
+      document.removeEventListener("visibilitychange", alRitorno);
+      void supabase.removeChannel(canale);
+    };
+  }, [companyId, pipelineId, queryClient]);
 }
 
 /**
