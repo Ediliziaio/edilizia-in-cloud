@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   SCAGLIONI_STANDARD, provvigioneAScaglioni, aliquotaEffettiva, scaglioneCorrente, alProssimoScaglione,
   normalizzaScaglioni, costoPer, variazione, meseChiave, meseLeggibile, fineMeseOOggi, leggiMese, totaliMese,
-  cosaFareOggi, fetteScaglioni, linkGestioneInserzioni, linkWhatsapp, spostaMese,
+  cosaFareOggi, fetteScaglioni, linkGestioneInserzioni, linkWhatsapp, spostaMese, azionePerRegola, COPERTI_DAL_MOTORE,
   type ClienteMarketing,
 } from "@/components/admin/clienti-marketing/provvigioni";
 
@@ -168,6 +168,20 @@ describe("scorciatoie", () => {
     expect(linkWhatsapp("0039 333 1234567")).toBe("https://wa.me/393331234567");
     expect(linkWhatsapp("12")).toBeNull();
     expect(linkWhatsapp(null)).toBeNull();
+  });
+  it("ogni regola del manuale apre il posto giusto", () => {
+    expect(azionePerRegola("R3")).toBe("lead_fermi");
+    expect(azionePerRegola("R8")).toBe("inserzioni");
+    expect(azionePerRegola("R12")).toBe("ricollega_meta");
+    expect(azionePerRegola("R19")).toBe("ricollega_meta");
+    expect(azionePerRegola("R20")).toBe("moduli");
+    expect(azionePerRegola("R22")).toBe("costi");
+    expect(azionePerRegola("R25")).toBe("referente");
+    expect(azionePerRegola("R30")).toBe("incassi");
+    expect(azionePerRegola("R33")).toBe("lead_fermi");
+    expect(azionePerRegola("R99")).toBe("entra");
+    expect(COPERTI_DAL_MOTORE.has("lead_fermi")).toBe(true);
+    expect(COPERTI_DAL_MOTORE.has("senza_costi")).toBe(false);
   });
   it("le fette degli scaglioni spiegano il compenso", () => {
     const f = fetteScaglioni(75_000, SCAGLIONI_STANDARD);

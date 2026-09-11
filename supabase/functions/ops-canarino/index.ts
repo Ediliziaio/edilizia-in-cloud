@@ -18,7 +18,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
-import { rapportoClientiMarketing } from "./clienti-marketing.ts";
+import { oraDiRoma, rapportoClientiMarketing } from "./clienti-marketing.ts";
 
 import { serveConMetriche } from "../_shared/withMetrics.ts";
 const supabase = createClient(
@@ -70,13 +70,20 @@ serveConMetriche("ops-canarino", async (req) => {
   // spesa, CPL, cose da fare). Una funzione in più non si può pubblicare (tetto
   // delle edge function), e il canarino ha già destinatari e mittente.
   let modo = "";
+  let oraRoma: number | null = null;
   try {
     const corpo = await req.json();
     modo = String(corpo?.modo ?? "");
+    oraRoma = corpo?.ora_roma == null ? null : Number(corpo.ora_roma);
   } catch {
     // corpo vuoto: rapporto di piattaforma
   }
   if (modo === "clienti-marketing") {
+    // Due cron in UTC (04:00 e 05:00) coprono ora legale e solare: parte solo
+    // quello che cade davvero all'ora di Roma chiesta (06:00).
+    if (oraRoma != null && oraDiRoma() !== oraRoma) {
+      return new Response(JSON.stringify({ ok: true, saltato: true, motivo: `ora di Roma ${oraDiRoma()}, atteso ${oraRoma}` }), { headers: corsH });
+    }
     try {
       // Ai super admin si aggiungono gli indirizzi scritti in platform_settings
       // (chiave clienti_marketing_rapporto_destinatari: lista JSON o testo con

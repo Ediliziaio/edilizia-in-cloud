@@ -1,69 +1,89 @@
 /**
- * Il rapporto del mattino sui clienti marketing: per ogni cliente attivo i
- * lead di ieri e del mese, i fermi, la spesa e il CPL, la provvigione che
- * matura, e in cima la lista di cosa fare oggi (lead fermi, Meta scaduto,
- * niente lead da giorni, costi mancanti, promemoria scaduti).
+ * Il rapporto del mattino dei clienti marketing (manuale, Parte 12).
  *
- * I numeri sono gli stessi della console (admin_clienti_marketing_riepilogo,
- * chiamata col ruolo di servizio); le regole degli avvisi sono la copia di
- * leggiMese in src/components/admin/clienti-marketing/provvigioni.ts — se
- * cambiano lì, cambiano anche qui.
+ * I numeri li prepara il database (mkt_rapporto_mattino: metriche del giorno,
+ * semafori, allarmi del motore di regole, denaro, silenzi). Qui si decide solo
+ * la forma: prima i numeri di ieri cliente per cliente — è quello che il
+ * titolare vuole leggere ogni giorno — poi le cose da fare (massimo cinque,
+ * ognuna con un verbo e una scadenza), poi da guardare, denaro e silenzi.
+ * Testo semplice, una colonna: si legge dal telefono in dieci secondi.
  */
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-interface Riga {
+interface Cliente {
   service_client_id: string;
   cliente_nome: string;
-  stato: string;
-  provvigione_scaglioni: unknown;
-  lead_mese: number;
-  lead_prec: number;
-  lead_meta: number;
-  lead_non_gestiti: number;
-  appuntamenti_mese: number;
-  vinte_mese: number;
-  valore_vinto_mese: number;
-  fatturato_mese: number | null;
-  fatture_collegate: boolean;
-  spesa_meta: number;
-  lead_meta_dichiarati: number;
-  spesa_google: number;
-  spesa_manuale: number;
-  meta_stato: string | null;
-  meta_account_id: string | null;
-  utenti: number;
-  ultimo_accesso: string | null;
-  lead_giorni: number[];
-  giorni_senza_lead: number | null;
-  promemoria_scaduti: number;
-  prossimo_promemoria: { titolo: string; scadenza: string | null } | null;
+  classe: string | null;
+  stato_cliente: string;
+  semaforo: string | null;
+  semaforo_componenti: Record<string, string> | null;
+  lead_grezzi_giorno: number;
+  media_lead_7g: number | null;
+  lead_grezzi_7g: number;
+  lead_validi_7g: number;
+  spesa_giorno: number;
+  spesa_7g: number;
+  spesa_mese: number;
+  budget: number | null;
+  copertura_budget: number | null;
+  cpl_valido_7g: number | null;
+  cpl_target: number | null;
+  cpl_giallo: number | null;
+  cpl_rosso: number | null;
+  fattore_stagionale: number | null;
+  lead_fermi: number;
+  lead_fermo_piu_vecchio_ore: number;
+  mediana_primo_contatto_min_7g: number | null;
+  appuntamenti_14g: number;
+  costo_appuntamento_14g: number | null;
+  vendite_mese: number;
+  venduto_base: number;
+  provvigione_mese: number;
+  indice_esecuzione: number | null;
+  giorni_dall_ultimo_accesso: number | null;
+  dati_freschi: boolean;
+  spesa_disponibile: boolean;
+  rapporto_zero: number | null;
 }
 
-interface Scaglione { da: number; a: number | null; pct: number }
+interface Azione {
+  id: string;
+  service_client_id: string;
+  cliente_nome: string;
+  regola: string;
+  gravita: string;
+  titolo: string;
+  azione: string;
+  proprietario: string;
+  scadenza: string | null;
+}
+
+interface Rapporto {
+  giorno: string;
+  stato: { attivi: number; verdi: number; gialli: number; rossi: number; non_leggibili: number; aggiornato_alle: string | null; dati_vecchi: Array<{ cliente: string; fermo_dalle: string | null }> };
+  clienti: Cliente[];
+  azioni: Azione[];
+  da_guardare: Azione[];
+  altri_allarmi: number;
+  ieri: { lead: number; media_7g: number; spesa: number; vendite_registrate: number; valore_vendite: number };
+  denaro: { provvigioni_mese: number; fatture_scadute: Array<{ cliente: string; importo: number; scaduta_da_giorni: number }> };
+  silenzi: Array<{ cliente: string; giorni_senza_lead: number | null; giorni_senza_accesso: number | null }>;
+}
 
 const n = (v: unknown) => Number(v ?? 0) || 0;
-const eur = (v: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(Math.round(v || 0));
-const eur2 = (v: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 2 }).format(v);
+const eur = (v: number | null | undefined, dec = 0) => v == null ? "—" : new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", minimumFractionDigits: 0, maximumFractionDigits: dec }).format(v);
 const esc = (s: string) => s.replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch] ?? ch));
+const oraRoma = (iso: string | null | undefined) => iso ? new Intl.DateTimeFormat("it-IT", { timeZone: "Europe/Rome", hour: "2-digit", minute: "2-digit" }).format(new Date(iso)) : "—";
+const giornoRoma = (iso: string | null | undefined) => iso ? new Intl.DateTimeFormat("it-IT", { timeZone: "Europe/Rome", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(iso)) : "";
 
-function scaglioni(raw: unknown): Scaglione[] {
-  if (!Array.isArray(raw)) return [];
-  const out: Scaglione[] = [];
-  for (const r of raw as Array<Record<string, unknown>>) {
-    const da = Number(r?.da), pct = Number(r?.pct);
-    const a = r?.a == null || r?.a === "" ? null : Number(r.a);
-    if (!Number.isFinite(da) || da < 0 || !Number.isFinite(pct) || pct < 0) continue;
-    if (a != null && (!Number.isFinite(a) || a <= da)) continue;
-    out.push({ da, a, pct });
-  }
-  return out.sort((x, y) => x.da - y.da);
-}
+const PALLINO: Record<string, string> = { R: "🔴", G: "🟡", V: "🟢", N: "⚪" };
+const GRAVITA: Record<string, string> = { grave: "🔴", rosso: "🔴", giallo: "🟡", nota: "ℹ️" };
 
-function provvigione(base: number, s: Scaglione[]): number {
-  const b = Math.max(0, base);
-  let tot = 0;
-  for (const x of s) tot += (Math.max(0, Math.min(b, x.a ?? Infinity) - x.da) * x.pct) / 100;
-  return Math.round(tot * 100) / 100;
+function ore(min: number | null): string {
+  if (min == null) return "—";
+  if (min < 60) return `${Math.round(min)} min`;
+  if (min < 48 * 60) return `${(Math.round(min / 6) / 10).toLocaleString("it-IT")} h`;
+  return `${Math.round(min / 60 / 24)} giorni`;
 }
 
 /** Primo giorno del mese e data di oggi, ora di Roma. */
@@ -72,79 +92,105 @@ export function meseDiOggi(adesso = new Date()): { mese: string; oggi: string } 
   return { mese: `${oggi.slice(0, 7)}-01`, oggi };
 }
 
-interface Voce { cliente: string; grave: boolean; testo: string }
+/** L'ora di Roma di adesso (0-23): serve a tenere solo il cron delle 06:00. */
+export function oraDiRoma(adesso = new Date()): number {
+  return Number(new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Rome", hour: "2-digit", hour12: false }).format(adesso));
+}
 
-function avvisi(c: Riga, oggi: string): Voce[] {
-  const out: Voce[] = [];
-  const spesa = n(c.spesa_meta) + n(c.spesa_google) + n(c.spesa_manuale);
-  const push = (grave: boolean, testo: string) => out.push({ cliente: c.cliente_nome, grave, testo });
-  if (n(c.lead_non_gestiti) > 0) push(n(c.lead_non_gestiti) >= 5, `${n(c.lead_non_gestiti)} lead del mese fermi da più di 2 giorni senza nessuna azione`);
-  if (c.meta_stato === "token_expired") push(true, "Collegamento Meta scaduto: va ricollegato");
-  else if (!c.meta_stato) push(false, "Meta non collegato: niente costi né lead dalle inserzioni");
-  else if (!c.meta_account_id) push(false, "Nessun account pubblicitario scelto su Meta");
-  if (c.giorni_senza_lead != null && c.giorni_senza_lead >= 3) push(c.giorni_senza_lead >= 5, `Nessun lead da ${c.giorni_senza_lead} giorni`);
-  else if (n(c.lead_mese) === 0) push(true, "Nessun lead questo mese");
-  if (n(c.lead_mese) > 0 && spesa === 0) push(false, "Costi del mese non ancora caricati: CPL e CPA restano vuoti");
-  if (n(c.lead_meta_dichiarati) > 0 && n(c.lead_meta) < n(c.lead_meta_dichiarati) * 0.8) {
-    push(true, `Meta conta ${n(c.lead_meta_dichiarati)} lead, nel CRM ne sono arrivati ${n(c.lead_meta)}: controlla il collegamento dei moduli`);
-  }
-  if (n(c.utenti) > 0 && !c.ultimo_accesso) push(false, "Nessun utente del cliente è mai entrato nel gestionale");
-  if (!c.fatture_collegate && n(c.valore_vinto_mese) === 0) push(false, "Fatture non collegate: il venduto va inserito a mano alla chiusura del mese");
-  if (n(c.promemoria_scaduti) > 0) push(false, n(c.promemoria_scaduti) === 1 ? "1 promemoria scaduto" : `${n(c.promemoria_scaduti)} promemoria scaduti`);
-  if (c.prossimo_promemoria?.scadenza === oggi) push(false, `Promemoria di oggi: ${c.prossimo_promemoria.titolo}`);
-  return out;
+const td = (s: string, dx = false, stile = "") => `<td style="padding:5px 6px;border-bottom:1px solid #e5e7eb;white-space:nowrap;text-align:${dx ? "right" : "left"};${stile}">${s}</td>`;
+const th = (s: string, dx = false) => `<th style="padding:5px 6px;border-bottom:2px solid #d1d5db;text-align:${dx ? "right" : "left"};font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:#6b7280;font-weight:600;">${s}</th>`;
+
+function rigaCliente(c: Cliente): string {
+  const attivo = c.stato_cliente === "attivo";
+  const cplStile = c.cpl_valido_7g == null || c.cpl_target == null ? ""
+    : c.cpl_rosso != null && c.cpl_valido_7g > c.cpl_rosso ? "color:#b91c1c;font-weight:600;"
+    : c.cpl_valido_7g > c.cpl_target ? "color:#b45309;font-weight:600;" : "color:#047857;";
+  const media = c.media_lead_7g == null ? "" : `<span style="color:#6b7280;"> (media ${c.media_lead_7g.toLocaleString("it-IT")})</span>`;
+  const cpl = c.cpl_valido_7g == null
+    ? (c.spesa_disponibile ? "—" : `<span style="color:#9ca3af;">senza spesa</span>`)
+    : `${eur(c.cpl_valido_7g, 2)}<span style="color:#6b7280;"> / ${eur(c.cpl_target, 0)}</span>`;
+  const fermi = c.lead_fermi > 0 ? `<span style="color:#b91c1c;font-weight:600;">${c.lead_fermi}</span><span style="color:#6b7280;"> (${Math.round(c.lead_fermo_piu_vecchio_ore)} h)</span>` : "0";
+  return `<tr style="${attivo ? "" : "color:#9ca3af;"}">
+    ${td(`${PALLINO[c.semaforo ?? "N"] ?? "⚪"} <strong>${esc(c.cliente_nome)}</strong>${attivo ? "" : " <span style=\"font-size:10px;\">(in pausa)</span>"}`)}
+    ${td(`${n(c.lead_grezzi_giorno)}${media}`, true)}
+    ${td(c.spesa_disponibile ? eur(c.spesa_giorno) : `<span style="color:#9ca3af;">—</span>`, true)}
+    ${td(cpl, true, cplStile)}
+    ${td(fermi, true)}
+    ${td(String(n(c.appuntamenti_14g)), true)}
+    ${td(`${n(c.vendite_mese)}<span style="color:#6b7280;"> · ${eur(c.venduto_base)}</span>`, true)}
+    ${td(eur(c.provvigione_mese), true)}
+    ${td(c.indice_esecuzione == null ? "—" : String(c.indice_esecuzione), true, c.indice_esecuzione != null && c.indice_esecuzione < 50 ? "color:#b91c1c;" : "")}
+  </tr>`;
+}
+
+function rigaAzione(a: Azione, urlConsole: string): string {
+  const scad = a.scadenza ? `entro ${giornoRoma(a.scadenza)}` : "senza scadenza";
+  return `<div style="margin:0 0 12px;padding:10px 12px;border-left:4px solid ${a.gravita === "giallo" ? "#f59e0b" : a.gravita === "nota" ? "#9ca3af" : "#dc2626"};background:#f9fafb;border-radius:0 6px 6px 0;">
+    <div style="font-size:13px;"><strong>${GRAVITA[a.gravita] ?? ""} ${esc(a.cliente_nome)}</strong> — ${esc(a.titolo)}</div>
+    <div style="font-size:13px;margin-top:4px;">→ ${esc(a.azione)}</div>
+    <div style="font-size:11px;color:#6b7280;margin-top:4px;">${a.regola} · ${scad} · chi: ${a.proprietario === "noi" ? "tu" : a.proprietario} · <a href="${esc(urlConsole)}" style="color:#2563eb;">apri la scheda</a></div>
+  </div>`;
 }
 
 export async function rapportoClientiMarketing(supabase: SupabaseClient, urlConsole: string): Promise<{ subject: string; html: string; cose: number; clienti: number }> {
-  const { mese, oggi } = meseDiOggi();
-  const { data, error } = await supabase.rpc("admin_clienti_marketing_riepilogo", { p_mese: mese });
-  if (error) throw new Error(`riepilogo clienti marketing: ${error.message}`);
-  const righe = ((data ?? []) as Riga[]).filter((r) => r.stato === "attivo");
-  const meseLeggibile = new Intl.DateTimeFormat("it-IT", { month: "long", year: "numeric" }).format(new Date(`${mese}T12:00:00`));
+  let { data, error } = await supabase.rpc("mkt_rapporto_mattino");
+  if (error) throw new Error(`mkt_rapporto_mattino: ${error.message}`);
+  let r = data as Rapporto;
+  // Il primo giorno, o se il cron delle 05:30 non è passato: si calcola adesso.
+  if (!r || !Array.isArray(r.clienti) || r.clienti.length === 0) {
+    const agg = await supabase.rpc("mkt_aggiorna");
+    if (agg.error) throw new Error(`mkt_aggiorna: ${agg.error.message}`);
+    ({ data, error } = await supabase.rpc("mkt_rapporto_mattino"));
+    if (error) throw new Error(`mkt_rapporto_mattino: ${error.message}`);
+    r = data as Rapporto;
+  }
 
-  const voci: Voce[] = [];
-  const tabella = righe.map((c) => {
-    const ieri = Array.isArray(c.lead_giorni) && c.lead_giorni.length >= 2 ? n(c.lead_giorni[c.lead_giorni.length - 2]) : 0;
-    const spesa = n(c.spesa_meta) + n(c.spesa_google) + n(c.spesa_manuale);
-    const cpl = n(c.lead_mese) > 0 && spesa > 0 ? spesa / n(c.lead_mese) : null;
-    const fatt = c.fatturato_mese == null ? null : n(c.fatturato_mese);
-    const venduto = c.fatture_collegate && fatt != null ? Math.max(0, fatt) : n(c.valore_vinto_mese);
-    const prov = provvigione(venduto, scaglioni(c.provvigione_scaglioni));
-    const proprie = avvisi(c, oggi);
-    voci.push(...proprie);
-    const gravi = proprie.filter((v) => v.grave).length;
-    return `<tr>
-      <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;"><strong>${esc(c.cliente_nome)}</strong>${gravi ? ` <span style="color:#b91c1c;">●${gravi}</span>` : ""}</td>
-      <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;text-align:right;">${ieri}</td>
-      <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;text-align:right;">${n(c.lead_mese)}<span style="color:#6b7280;"> / ${n(c.lead_prec)}</span></td>
-      <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;text-align:right;${n(c.lead_non_gestiti) > 0 ? "color:#b91c1c;font-weight:600;" : ""}">${n(c.lead_non_gestiti)}</td>
-      <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;text-align:right;">${n(c.appuntamenti_mese)}</td>
-      <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;text-align:right;">${n(c.vinte_mese)}</td>
-      <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;text-align:right;">${eur(spesa)}</td>
-      <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;text-align:right;">${cpl == null ? "—" : eur2(Math.round(cpl * 100) / 100)}</td>
-      <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;text-align:right;">${prov > 0 ? eur(prov) : "—"}</td>
-    </tr>`;
-  });
+  const attivi = r.clienti.filter((c) => c.stato_cliente === "attivo");
+  const azioni = r.azioni ?? [];
+  const daGuardare = r.da_guardare ?? [];
+  const subject = azioni.length === 0
+    ? `Clienti marketing · ${r.stato.rossi} rossi, ${r.stato.gialli} gialli · niente da fare oggi`
+    : `Clienti marketing · ${r.stato.rossi} rossi, ${r.stato.gialli} gialli · ${azioni.length} ${azioni.length === 1 ? "cosa" : "cose"} da fare`;
 
-  voci.sort((x, y) => Number(y.grave) - Number(x.grave) || x.cliente.localeCompare(y.cliente));
-  const gravi = voci.filter((v) => v.grave).length;
-  const subject = voci.length === 0
-    ? "Clienti marketing — niente da fare oggi"
-    : `Clienti marketing — ${voci.length} ${voci.length === 1 ? "cosa" : "cose"} da fare oggi${gravi ? ` (${gravi} ${gravi === 1 ? "grave" : "gravi"})` : ""}`;
+  const datiVecchi = r.stato.dati_vecchi?.length
+    ? `<p style="margin:0 0 12px;padding:8px 10px;background:#fef3c7;color:#92400e;border-radius:6px;font-size:13px;">Attenzione: la spesa di ${r.stato.dati_vecchi.map((d) => esc(d.cliente)).join(", ")} è ferma dalle ${r.stato.dati_vecchi.map((d) => oraRoma(d.fermo_dalle)).join(", ")}. Per questi clienti gli allarmi su costo e richieste sono sospesi.</p>`
+    : "";
+  const senzaSpesa = attivi.filter((c) => !c.spesa_disponibile).length;
 
-  const th = (t: string, dx = true) => `<th style="padding:6px 8px;border-bottom:2px solid #d1d5db;text-align:${dx ? "right" : "left"};font-size:11px;text-transform:uppercase;color:#6b7280;">${t}</th>`;
-  const html = `<div style="max-width:720px;margin:0 auto;padding:24px;font-family:sans-serif;color:#374151;font-size:13px;">
-    <h2 style="font-size:18px;color:#111827;margin:0 0 4px;">${esc(subject)}</h2>
-    <p style="margin:0 0 16px;color:#6b7280;">${righe.length} clienti attivi · ${esc(meseLeggibile)} · <a href="${esc(urlConsole)}" style="color:#2563eb;">apri la console</a></p>
-    ${voci.length === 0 ? `<p style="color:#047857;">Nessun avviso sui clienti attivi.</p>` : `<ul style="margin:0 0 20px;padding-left:18px;">${
-      voci.map((v) => `<li style="margin:4px 0;${v.grave ? "color:#b91c1c;" : ""}"><strong>${esc(v.cliente)}</strong> — ${esc(v.testo)}</li>`).join("")
-    }</ul>`}
+  const html = `<div style="max-width:760px;margin:0 auto;padding:20px;font-family:-apple-system,Segoe UI,Roboto,sans-serif;color:#374151;font-size:13px;">
+    <h2 style="font-size:17px;color:#111827;margin:0 0 4px;">${esc(subject)}</h2>
+    <p style="margin:0 0 14px;color:#6b7280;">${r.stato.attivi} clienti attivi · ${r.stato.verdi} verdi · ${r.stato.gialli} gialli · ${r.stato.rossi} rossi${r.stato.non_leggibili ? ` · ${r.stato.non_leggibili} senza dati` : ""} · dati aggiornati alle ${oraRoma(r.stato.aggiornato_alle)} · <a href="${esc(urlConsole)}" style="color:#2563eb;">apri la console</a></p>
+    ${datiVecchi}
+
+    <h3 style="font-size:13px;color:#111827;margin:18px 0 6px;text-transform:uppercase;letter-spacing:.04em;">I numeri di ieri, cliente per cliente</h3>
+    <div style="overflow-x:auto;">
     <table style="width:100%;border-collapse:collapse;">
-      <thead><tr>${th("Cliente", false)}${th("Lead ieri")}${th("Lead mese / prima")}${th("Fermi")}${th("App.")}${th("Vendite")}${th("Spesa")}${th("CPL")}${th("Provvigione")}</tr></thead>
-      <tbody>${tabella.join("")}</tbody>
+      <thead><tr>${th("Cliente")}${th("Richieste ieri", true)}${th("Spesa ieri", true)}${th("Costo richiesta 7g / target", true)}${th("Ferme", true)}${th("Sopralluoghi 14g", true)}${th("Contratti mese", true)}${th("Provvigione", true)}${th("Indice", true)}</tr></thead>
+      <tbody>${r.clienti.map(rigaCliente).join("")}</tbody>
     </table>
-    <p style="font-size:11px;color:#9ca3af;margin-top:24px;">Ogni mattina alle 08:00. La spesa Meta è quella scaricata di notte; CPL = spesa / lead del mese; la provvigione è stimata sul venduto del mese a oggi.</p>
+    </div>
+    <p style="margin:6px 0 0;font-size:11px;color:#9ca3af;">Costo per richiesta sui 7 giorni (finestra chiusa ieri) contro il target del mese, già adattato alla stagione. Ferme = richieste senza nessuna azione da più di 24 ore di servizio (fra parentesi la più vecchia). Indice = Indice di Esecuzione del cliente, 0-100.${senzaSpesa ? ` ${senzaSpesa} client${senzaSpesa === 1 ? "e" : "i"} senza spesa registrata: il costo per richiesta arriva dal sync Meta.` : ""}</p>
+
+    <h3 style="font-size:13px;color:#111827;margin:18px 0 6px;text-transform:uppercase;letter-spacing:.04em;">Ieri in tre numeri</h3>
+    <p style="margin:0;"><strong>${n(r.ieri.lead)}</strong> richieste (media 7 giorni: ${n(r.ieri.media_7g).toLocaleString("it-IT")}) · <strong>${eur(n(r.ieri.spesa))}</strong> di spesa · <strong>${n(r.ieri.vendite_registrate)}</strong> contratti registrati${n(r.ieri.valore_vendite) > 0 ? ` per ${eur(n(r.ieri.valore_vendite))}` : ""}</p>
+
+    <h3 style="font-size:13px;color:#111827;margin:18px 0 8px;text-transform:uppercase;letter-spacing:.04em;">Cosa fare oggi${azioni.length ? ` (${azioni.length})` : ""}</h3>
+    ${azioni.length === 0 ? `<p style="margin:0;color:#047857;">Niente: nessun allarme aperto sui clienti attivi.</p>` : azioni.map((a) => rigaAzione(a, urlConsole)).join("")}
+
+    ${daGuardare.length ? `<h3 style="font-size:13px;color:#111827;margin:18px 0 6px;text-transform:uppercase;letter-spacing:.04em;">Da guardare (${daGuardare.length})</h3>
+    <ul style="margin:0;padding-left:18px;">${daGuardare.map((a) => `<li style="margin:3px 0;"><strong>${esc(a.cliente_nome)}</strong> — ${esc(a.titolo)} <span style="color:#6b7280;">(${a.regola})</span></li>`).join("")}</ul>` : ""}
+    ${r.altri_allarmi ? `<p style="margin:6px 0 0;font-size:11px;color:#9ca3af;">Altri ${r.altri_allarmi} allarmi registrati e non mostrati (campione insufficiente, tetto di cinque, rimandati).</p>` : ""}
+
+    <h3 style="font-size:13px;color:#111827;margin:18px 0 6px;text-transform:uppercase;letter-spacing:.04em;">Denaro</h3>
+    <p style="margin:0;">Provvigioni maturate questo mese: <strong>${eur(n(r.denaro.provvigioni_mese))}</strong>${r.denaro.fatture_scadute?.length
+      ? `<br>Fatture scadute: ${r.denaro.fatture_scadute.map((f) => `<strong>${esc(f.cliente)}</strong> ${eur(n(f.importo))}, scaduta da ${f.scaduta_da_giorni} giorni`).join(" · ")}`
+      : "<br>Nessuna fattura scaduta."}</p>
+
+    ${r.silenzi?.length ? `<h3 style="font-size:13px;color:#111827;margin:18px 0 6px;text-transform:uppercase;letter-spacing:.04em;">Silenzi</h3>
+    <ul style="margin:0;padding-left:18px;">${r.silenzi.map((s) => `<li style="margin:3px 0;"><strong>${esc(s.cliente)}</strong> — ${s.giorni_senza_lead != null ? `nessuna richiesta da ${s.giorni_senza_lead} giorni` : "mai una richiesta"}${s.giorni_senza_accesso != null ? `, nessun accesso da ${s.giorni_senza_accesso} giorni` : ", mai un accesso"}</li>`).join("")}</ul>` : ""}
+
+    <p style="font-size:11px;color:#9ca3af;margin-top:22px;">Ogni mattina alle 06:00. Le soglie (costo per richiesta, zero richieste, velocità) sono quelle della scheda di ogni cliente: si cambiano dalla console, e dal giorno 91 il sistema le propone dallo storico.</p>
   </div>`;
 
-  return { subject, html, cose: voci.length, clienti: righe.length };
+  return { subject, html, cose: azioni.length, clienti: attivi.length };
 }

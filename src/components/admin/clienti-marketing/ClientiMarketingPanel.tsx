@@ -1,9 +1,9 @@
 /**
  * Console dei clienti marketing: un mese alla volta, in cima la lista di cosa
- * fare oggi, poi una scheda per cliente. «Aggiorna costi Meta» chiede a Meta
- * la spesa del mese di ogni cliente con l'account pubblicitario scelto (di
- * notte lo fa da solo meta-ads-sync-insights); tutto il resto arriva già
- * pronto dal database (admin_clienti_marketing_riepilogo).
+ * fare oggi (gli allarmi del motore di regole del manuale), poi una scheda per
+ * cliente con semaforo e soglie. «Aggiorna costi Meta» chiede a Meta la spesa
+ * del mese; di notte lo fa da solo meta-ads-sync-insights. Tutto il resto
+ * arriva già pronto dal database.
  */
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -14,11 +14,16 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { NewTaskDialog } from "@/components/admin/tasks/NewTaskDialog";
 import { ClienteMarketingCard } from "./ClienteMarketingCard";
-import { CosaFareOggi } from "./CosaFareOggi";
+import { CosaFareOggi, type AllarmeConCliente } from "./CosaFareOggi";
 import { CostiMeseDialog } from "./CostiMeseDialog";
+import { SoglieDialog } from "./SoglieDialog";
 import { useAggiornaSpesaMeta } from "./useClientiMarketing";
+import { useChiudiAllarme, useMktConsole, useRicalcola } from "./useMktConsole";
 import { useEntraInAzienda } from "./useEntraInAzienda";
-import { cosaFareOggi, linkGestioneInserzioni, linkWhatsapp, meseLeggibile, spostaMese, type ClienteMarketing, type VoceOggi } from "./provvigioni";
+import {
+  COPERTI_DAL_MOTORE, azionePerRegola, cosaFareOggi, linkGestioneInserzioni, linkWhatsapp, meseLeggibile, spostaMese,
+  type AzioneOggi, type ClienteMarketing, type VoceOggi,
+} from "./provvigioni";
 
 interface Props {
   mese: string;
@@ -36,20 +41,48 @@ interface Props {
   onVaiAiContratti: () => void;
 }
 
+const SEMAFORO_ETICHETTA: Record<string, string> = { V: "verdi", G: "gialli", R: "rossi", N: "senza dati" };
+
 export function ClientiMarketingPanel({ mese, meseOggi, oggi, onMese, righe, isLoading, isError, isFetching, refetch, onModifica, onIncassi, onReport, onVaiAiContratti }: Props) {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [mostraCessati, setMostraCessati] = useState(false);
   const [costiDi, setCostiDi] = useState<ClienteMarketing | null>(null);
   const [promemoriaDi, setPromemoriaDi] = useState<ClienteMarketing | null>(null);
+  const [soglieDi, setSoglieDi] = useState<ClienteMarketing | null>(null);
   const aggiorna = useAggiornaSpesaMeta(mese);
+  const motore = useMktConsole();
+  const chiudi = useChiudiAllarme();
+  const ricalcola = useRicalcola();
   const { entra, inCorso, permesso } = useEntraInAzienda();
   const meseCorrente = mese === meseOggi;
   const leggibile = meseLeggibile(mese);
   const cessati = righe.filter((r) => r.stato === "cessato").length;
   const visibili = mostraCessati ? righe : righe.filter((r) => r.stato !== "cessato");
   const conMeta = righe.filter((r) => r.stato === "attivo" && r.meta_stato === "connected" && r.meta_account_id).length;
-  const voci = useMemo(() => cosaFareOggi(righe, meseCorrente), [righe, meseCorrente]);
+  const perId = useMemo(() => new Map(righe.map((r) => [r.service_client_id, r])), [righe]);
+
+  // Gli allarmi del motore con il nome del cliente; gli avvisi della console
+  // restano solo per ciò che il motore non copre (o per tutto, finché il
+  // motore non ha ancora calcolato niente).
+  const allarmi: AllarmeConCliente[] = useMemo(() => (motore.data?.allarmi ?? [])
+    .map((a) => { const c = perId.get(a.service_client_id); return c && c.stato === "attivo" ? { ...a, cliente: c.cliente_nome, company_id: c.company_id } : null; })
+    .filter((a): a is AllarmeConCliente => a !== null), [motore.data?.allarmi, perId]);
+  const motoreAttivo = (motore.data?.metriche.size ?? 0) > 0;
+  const voci: VoceOggi[] = useMemo(() => {
+    const tutte = cosaFareOggi(righe, meseCorrente);
+    return motoreAttivo ? tutte.filter((v) => !COPERTI_DAL_MOTORE.has(v.tipo)) : tutte;
+  }, [righe, meseCorrente, motoreAttivo]);
+  const semafori = useMemo(() => {
+    const c: Record<string, number> = { V: 0, G: 0, R: 0, N: 0 };
+    for (const r of righe) if (r.stato === "attivo") c[motore.data?.metriche.get(r.service_client_id)?.semaforo ?? "N"] += 1;
+    return c;
+  }, [righe, motore.data?.metriche]);
+  const aggiornatoAlle = useMemo(() => {
+    let max: string | null = null;
+    for (const m of motore.data?.metriche.values() ?? []) if (!max || m.calcolato_il > max) max = m.calcolato_il;
+    return max;
+  }, [motore.data?.metriche]);
 
   const aggiornaMeta = async () => {
     try {
@@ -69,11 +102,9 @@ export function ClientiMarketingPanel({ mese, meseOggi, oggi, onMese, righe, isL
 
   const apriEsterno = (url: string) => window.open(url, "_blank", "noopener,noreferrer");
 
-  /** Ogni voce della lista ha un'azione che la chiude, o almeno la avvicina. */
-  const eseguiAzione = (v: VoceOggi) => {
-    const c = righe.find((r) => r.service_client_id === v.service_client_id);
-    if (!c) return;
-    switch (v.azione) {
+  /** Ogni azione porta dove si risolve la cosa: dentro l'azienda, su Meta, al referente, ai costi, agli incassi. */
+  const eseguiAzione = (azione: AzioneOggi, c: ClienteMarketing) => {
+    switch (azione) {
       case "lead_fermi": void entra(c.company_id, "/azienda/marketing/opportunita"); break;
       case "ricollega_meta": void entra(c.company_id, "/azienda/marketing/pubblicita"); break;
       case "moduli": void entra(c.company_id, "/azienda/marketing/facebook-forms"); break;
@@ -84,6 +115,7 @@ export function ClientiMarketingPanel({ mese, meseOggi, oggi, onMese, righe, isL
         break;
       }
       case "costi": setCostiDi(c); break;
+      case "incassi": onIncassi(c.service_client_id); break;
       case "referente": {
         const wa = linkWhatsapp(c.referente_telefono);
         if (wa) apriEsterno(wa);
@@ -93,6 +125,24 @@ export function ClientiMarketingPanel({ mese, meseOggi, oggi, onMese, righe, isL
       }
       case "promemoria": navigate("/admin/attivita"); break;
       default: void entra(c.company_id);
+    }
+  };
+
+  const chiudiAllarme = async (id: string, esito: "risolto" | "falso_positivo" | "rimandato") => {
+    try {
+      await chiudi.mutateAsync({ id, esito });
+      toast.success(esito === "rimandato" ? "Rimandato a domani" : esito === "falso_positivo" ? "Segnato: non era un problema" : "Fatto");
+    } catch (e) {
+      toast.error("Non riesco a chiudere l'allarme", { description: e instanceof Error ? e.message : String(e) });
+    }
+  };
+
+  const ricalcolaAdesso = async () => {
+    try {
+      const r = await ricalcola.mutateAsync();
+      toast.success(`Ricalcolato: ${r.clienti} clienti, ${r.allarmi_nuovi} allarmi nuovi`);
+    } catch (e) {
+      toast.error("Ricalcolo non riuscito", { description: e instanceof Error ? e.message : String(e) });
     }
   };
 
@@ -106,6 +156,15 @@ export function ClientiMarketingPanel({ mese, meseOggi, oggi, onMese, righe, isL
         </div>
         {!meseCorrente && <Button variant="ghost" size="sm" onClick={() => onMese(meseOggi)}>Mese in corso</Button>}
         {isFetching && !isLoading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" aria-label="Aggiornamento in corso" />}
+        {motoreAttivo && (
+          <span className="text-xs text-muted-foreground">
+            {(["V", "G", "R", "N"] as const).filter((k) => semafori[k] > 0).map((k) => (
+              <span key={k} className="mr-2 inline-flex items-center gap-1">
+                <span className={`inline-block h-2 w-2 rounded-full ${k === "V" ? "bg-emerald-500" : k === "G" ? "bg-amber-500" : k === "R" ? "bg-rose-500" : "bg-slate-400"}`} />{semafori[k]} {SEMAFORO_ETICHETTA[k]}
+              </span>
+            ))}
+          </span>
+        )}
         <div className="ml-auto flex flex-wrap items-center gap-2">
           {cessati > 0 && (
             <button type="button" className="text-xs text-muted-foreground underline-offset-2 hover:underline" onClick={() => setMostraCessati((v) => !v)}>
@@ -137,11 +196,27 @@ export function ClientiMarketingPanel({ mese, meseOggi, oggi, onMese, righe, isL
         </div>
       ) : (
         <div className="space-y-3">
-          {meseCorrente && <CosaFareOggi voci={voci} inCorso={inCorso} puoEntrare={permesso} onAzione={eseguiAzione} />}
+          {meseCorrente && (
+            <CosaFareOggi
+              allarmi={allarmi}
+              voci={voci}
+              aggiornatoAlle={aggiornatoAlle}
+              oggi={oggi}
+              inCorso={inCorso}
+              puoEntrare={permesso}
+              onApri={(a) => { const c = perId.get(a.service_client_id); if (c) eseguiAzione(azionePerRegola(a.regola), c); }}
+              onChiudi={(id, esito) => void chiudiAllarme(id, esito)}
+              chiusuraInCorso={chiudi.isPending}
+              onAzione={(v) => { const c = perId.get(v.service_client_id); if (c) eseguiAzione(v.azione, c); }}
+              onRicalcola={() => void ricalcolaAdesso()}
+              ricalcoloInCorso={ricalcola.isPending}
+            />
+          )}
           {visibili.map((c) => (
             <ClienteMarketingCard
               key={c.service_client_id}
               c={c}
+              metriche={motore.data?.metriche.get(c.service_client_id) ?? null}
               meseCorrente={meseCorrente}
               meseLeggibile={leggibile}
               oggi={oggi}
@@ -152,6 +227,7 @@ export function ClientiMarketingPanel({ mese, meseOggi, oggi, onMese, righe, isL
               onIncassi={() => onIncassi(c.service_client_id)}
               onModifica={() => onModifica(c.service_client_id)}
               onPromemoria={() => setPromemoriaDi(c)}
+              onSoglie={() => setSoglieDi(c)}
               onReport={() => onReport(c.service_client_id)}
             />
           ))}
@@ -160,6 +236,16 @@ export function ClientiMarketingPanel({ mese, meseOggi, oggi, onMese, righe, isL
 
       {/* La chiave rimonta il dialog a ogni cliente/mese: la data proposta riparte da capo. */}
       <CostiMeseDialog key={`${mese}-${costiDi?.company_id ?? ""}`} cliente={costiDi} mese={mese} meseLeggibile={leggibile} oggi={oggi} open={!!costiDi} onOpenChange={(v) => { if (!v) setCostiDi(null); }} />
+
+      <SoglieDialog
+        key={soglieDi?.service_client_id ?? "nessuno"}
+        cliente={soglieDi}
+        soglia={soglieDi ? motore.data?.soglie.get(soglieDi.service_client_id) ?? null : null}
+        benchmark={motore.data?.benchmark ?? []}
+        oggi={oggi}
+        open={!!soglieDi}
+        onOpenChange={(v) => { if (!v) setSoglieDi(null); }}
+      />
 
       {/* Il promemoria è un'attività della piattaforma sull'azienda del cliente:
           finisce in Attività e torna qui nella scheda e nella lista del mattino. */}

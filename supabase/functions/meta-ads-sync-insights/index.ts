@@ -33,8 +33,16 @@ interface SyncResult {
   insights_rows_written: number;
   /** righe a livello account (spesa del mese) scritte per la console clienti marketing */
   account_rows_written: number;
+  /** righe giorno per giorno (ultimi 3 giorni) scritte in mkt_spesa_giornaliera */
+  daily_rows_written: number;
   errors: string[];
   duration_ms: number;
+}
+
+/** Da tre giorni fa a oggi, ora di Roma: la finestra che si riscrive a ogni sync. */
+export function ultimiTreGiorni(adesso = new Date()): [string, string] {
+  const f = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Rome", year: "numeric", month: "2-digit", day: "2-digit" });
+  return [f.format(new Date(adesso.getTime() - 3 * 86400000)), f.format(adesso)];
 }
 
 /**
@@ -182,6 +190,7 @@ Deno.serve(async (req) => {
     let campaignsSynced = 0;
     let insightsRows = 0;
     let accountRows = 0;
+    let dailyRows = 0;
 
     for (const c of companies) {
       try {
@@ -216,6 +225,40 @@ Deno.serve(async (req) => {
           } catch (e) {
             errors.push(`account_${c.meta_act_id}_failed:${String(e).substring(0, 100)}`);
           }
+        }
+
+        // Spesa giorno per giorno degli ultimi 3 giorni (Meta rettifica a
+        // posteriori: si riscrivono sempre): è la grana della console clienti
+        // marketing — CPL a 7 giorni, spesa senza lead, sotto-consegna.
+        try {
+          const [da, a] = ultimiTreGiorni();
+          const gUrl = `https://graph.facebook.com/${apiVersion}/${c.meta_act_id}/insights?fields=spend,impressions,clicks,frequency,actions&level=account&time_increment=1&time_range={"since":"${da}","until":"${a}"}&access_token=${accessToken}`;
+          const gRes = await fetch(gUrl);
+          if (!gRes.ok) {
+            errors.push(`account_${c.meta_act_id}_daily_failed`);
+          } else {
+            const gJson = await gRes.json() as { data?: MetaInsightAPI[] };
+            for (const row of gJson.data ?? []) {
+              if (!row.date_start) continue;
+              const leadAct = (row.actions ?? []).find((x) => x.action_type === "lead" || x.action_type === "leadgen.other" || x.action_type === "onsite_conversion.lead_grouped");
+              const { error: gErr } = await admin.from("mkt_spesa_giornaliera").upsert({
+                company_id: c.company_id,
+                giorno: row.date_start,
+                canale: "meta",
+                account_esterno_id: c.meta_act_id,
+                spesa: Math.round(parseFloat(row.spend ?? "0") * 100) / 100,
+                impression: parseInt(row.impressions ?? "0", 10),
+                click: parseInt(row.clicks ?? "0", 10),
+                lead_dichiarati: parseInt(leadAct?.value ?? "0", 10),
+                frequenza: row.frequency ? parseFloat(row.frequency) : null,
+                sincronizzato_il: new Date().toISOString(),
+              }, { onConflict: "company_id,giorno,canale,account_esterno_id" });
+              if (gErr) errors.push(`daily_upsert:${String(gErr.message ?? "").substring(0, 100)}`);
+              else dailyRows += 1;
+            }
+          }
+        } catch (e) {
+          errors.push(`account_${c.meta_act_id}_daily_failed:${String(e).substring(0, 100)}`);
         }
 
         // Lista campagne attive/recenti
@@ -339,6 +382,7 @@ Deno.serve(async (req) => {
       campaigns_synced: campaignsSynced,
       insights_rows_written: insightsRows,
       account_rows_written: accountRows,
+      daily_rows_written: dailyRows,
       errors,
       duration_ms: Date.now() - t0,
     };

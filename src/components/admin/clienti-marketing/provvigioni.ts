@@ -283,7 +283,29 @@ export function leggiMese(c: ClienteMarketing, meseCorrente: boolean): LetturaMe
 }
 
 /** Cosa si può fare, con un clic, per ogni avviso. */
-export type AzioneOggi = "lead_fermi" | "ricollega_meta" | "inserzioni" | "moduli" | "costi" | "referente" | "fatture" | "promemoria" | "entra";
+export type AzioneOggi = "lead_fermi" | "ricollega_meta" | "inserzioni" | "moduli" | "costi" | "referente" | "fatture" | "promemoria" | "incassi" | "entra";
+
+/** Gli avvisi che il motore di regole (mkt_allarmi) copre: quando c'è, la lista del mattino non li ripete. */
+export const COPERTI_DAL_MOTORE: ReadonlySet<TipoAvviso> = new Set<TipoAvviso>(["lead_fermi", "meta_scaduto", "mai_entrati"]);
+
+/**
+ * L'azione con cui si apre un allarme del motore, regola per regola (manuale,
+ * Parte 8): lead e lavorazione → CRM del cliente; flusso e costo → Gestione
+ * inserzioni; budget e collegamento → Pubblicità; moduli → moduli; sync ferma
+ * → costi; accessi ed esecuzione → referente; denaro → registro incassi.
+ */
+export function azionePerRegola(regola: string): AzioneOggi {
+  const n = Number(regola.replace(/\D/g, ""));
+  if (n >= 1 && n <= 5) return "lead_fermi";
+  if ((n >= 6 && n <= 11) || n === 23) return "inserzioni";
+  if (n === 12 || n === 13 || n === 19) return "ricollega_meta";
+  if (n === 20 || n === 21) return "moduli";
+  if (n === 22) return "costi";
+  if (n >= 24 && n <= 26) return "referente";
+  if (n >= 29 && n <= 31) return "incassi";
+  if ([14, 15, 16, 17, 18, 27, 28, 32, 33].includes(n)) return "lead_fermi";
+  return "entra";
+}
 
 export interface VoceOggi {
   service_client_id: string;

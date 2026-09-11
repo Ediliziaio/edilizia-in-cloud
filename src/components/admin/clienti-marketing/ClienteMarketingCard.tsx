@@ -10,8 +10,9 @@ import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import {
   AlertTriangle, ArrowDownRight, ArrowUpRight, BellPlus, CalendarCheck, ClipboardList, Coins, ExternalLink, FileText, Globe, Inbox,
-  Loader2, LogIn, Mail, Megaphone, MessageCircle, MoreHorizontal, Pencil, Percent, Printer, Receipt, Trophy, UserRoundCheck, Users, Wallet,
+  Loader2, LogIn, Mail, Megaphone, MessageCircle, MoreHorizontal, Pencil, Percent, Printer, Receipt, SlidersHorizontal, Trophy, UserRoundCheck, Users, Wallet,
 } from "lucide-react";
+import type { Metriche } from "./useMktConsole";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -33,6 +34,7 @@ const STATO: Record<string, { etichetta: string; classe: string }> = {
 
 interface Props {
   c: ClienteMarketing;
+  metriche: Metriche | null;
   meseCorrente: boolean;
   meseLeggibile: string;
   oggi: Date;
@@ -43,7 +45,25 @@ interface Props {
   onIncassi: () => void;
   onModifica: () => void;
   onPromemoria: () => void;
+  onSoglie: () => void;
   onReport: () => void;
+}
+
+const SEMAFORO: Record<string, { classe: string; testo: string }> = {
+  V: { classe: "bg-emerald-500", testo: "verde" },
+  G: { classe: "bg-amber-500", testo: "giallo" },
+  R: { classe: "bg-rose-500", testo: "rosso" },
+  N: { classe: "bg-slate-300 dark:bg-slate-600", testo: "senza dati" },
+};
+const COMPONENTE: Record<string, string> = { velocita: "velocità di risposta", flusso: "flusso di lead", costo: "costo del lead", qualita: "qualità del lead", tecnico: "tecnica", esecuzione: "esecuzione del cliente" };
+
+/** Il pallino del semaforo: il colore peggiore dei sei componenti, che si leggono al passaggio del mouse. */
+function Semaforo({ m }: { m: Metriche | null }) {
+  const s = SEMAFORO[m?.semaforo ?? "N"];
+  const dettaglio = m?.semaforo_componenti
+    ? Object.entries(m.semaforo_componenti).map(([k, v]) => `${COMPONENTE[k] ?? k}: ${SEMAFORO[v]?.testo ?? v}`).join(" · ")
+    : "il motore non ha ancora calcolato questo cliente";
+  return <span className={cn("inline-block h-3 w-3 shrink-0 rounded-full ring-2 ring-background", s.classe)} title={`Semaforo ${s.testo} — ${dettaglio}`} aria-label={`Semaforo ${s.testo}`} />;
 }
 
 function Delta({ adesso, prima }: { adesso: number; prima: number }) {
@@ -93,8 +113,12 @@ function testoUltimiGiorni(c: ClienteMarketing): string {
   return `ieri ${numero(ieri)} · ${ultimo}`;
 }
 
-export function ClienteMarketingCard({ c, meseCorrente, meseLeggibile, oggi, entraInCorso, puoEntrare, onEntra, onCosti, onIncassi, onModifica, onPromemoria, onReport }: Props) {
+export function ClienteMarketingCard({ c, metriche, meseCorrente, meseLeggibile, oggi, entraInCorso, puoEntrare, onEntra, onCosti, onIncassi, onModifica, onPromemoria, onSoglie, onReport }: Props) {
   const l = leggiMese(c, meseCorrente);
+  const m = metriche;
+  const cplVsTarget = m?.cpl_valido_7g != null && m.cpl_target != null
+    ? { testo: `CPL 7 gg ${eur(m.cpl_valido_7g, 2)} / target ${eur(m.cpl_target, 2)}`, classe: m.cpl_rosso != null && m.cpl_valido_7g > m.cpl_rosso ? "text-rose-700 dark:text-rose-400" : m.cpl_valido_7g > m.cpl_target ? "text-amber-700 dark:text-amber-400" : "text-emerald-700 dark:text-emerald-400" }
+    : m?.cpl_target != null ? { testo: `target ${eur(m.cpl_target, 2)}${m.fattore_stagionale != null && m.fattore_stagionale !== 1 ? ` (×${m.fattore_stagionale.toLocaleString("it-IT")} di stagione)` : ""}`, classe: "" } : null;
   const stato = STATO[c.stato] ?? { etichetta: c.stato, classe: "" };
   const spento = c.stato === "cessato";
   const canali = [
@@ -134,8 +158,15 @@ export function ClienteMarketingCard({ c, meseCorrente, meseLeggibile, oggi, ent
           </Avatar>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
+              <Semaforo m={m} />
               <h3 className="truncate text-base font-semibold leading-tight">{c.cliente_nome}</h3>
               <Badge variant="secondary" className={cn("border-0 text-[10px]", stato.classe)}>{stato.etichetta}</Badge>
+              {m?.indice_esecuzione != null && (
+                <span className={cn("text-[11px]", m.indice_esecuzione < 50 ? "text-rose-700 dark:text-rose-400" : m.indice_esecuzione < 75 ? "text-amber-700 dark:text-amber-400" : "text-emerald-700 dark:text-emerald-400")}
+                  title={m.indice_componenti ? Object.entries(m.indice_componenti).map(([k, v]) => `${k}: ${Math.round(v * 100)}`).join(" · ") : undefined}>
+                  Indice di Esecuzione {m.indice_esecuzione}
+                </span>
+              )}
             </div>
             <div className="mt-0.5 text-xs text-muted-foreground">
               {c.servizio ?? "Marketing"}{c.data_inizio ? ` · dal ${dataBreve(c.data_inizio, false, oggi)}` : ""}{c.commerciale ? ` · comm. ${c.commerciale}` : ""}
@@ -170,6 +201,7 @@ export function ClienteMarketingCard({ c, meseCorrente, meseLeggibile, oggi, ent
           <Button size="sm" variant="ghost" className="gap-1.5" onClick={onIncassi}><Wallet className="h-3.5 w-3.5" /> Incassi</Button>
           <Button size="sm" variant="ghost" className="gap-1.5" onClick={onModifica} aria-label="Modifica contratto"><Pencil className="h-3.5 w-3.5" /> Contratto</Button>
           <Button size="sm" variant="ghost" className="gap-1.5" onClick={onPromemoria}><BellPlus className="h-3.5 w-3.5" /> Promemoria</Button>
+          <Button size="sm" variant="ghost" className="gap-1.5" onClick={onSoglie} title="Settore, budget, target di costo e regole dello zero"><SlidersHorizontal className="h-3.5 w-3.5" /> Soglie</Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button size="sm" variant="ghost" className="h-8 w-8 p-0" aria-label="Altre azioni"><MoreHorizontal className="h-4 w-4" /></Button>
@@ -226,7 +258,9 @@ export function ClienteMarketingCard({ c, meseCorrente, meseLeggibile, oggi, ent
           righe={[<Delta key="d" adesso={c.vinte_mese} prima={c.vinte_prec} />, c.valore_vinto_mese > 0 ? `valore ${eur(c.valore_vinto_mese)}` : "nessun valore nel CRM", l.cpa != null ? `CPA ${eur(l.cpa)}` : null]} />
         <Stat etichetta="Spesa ads" icona={Coins} valore={eur(l.spesa)}
           righe={[fontiSpesa || (c.meta_account_id ? "Meta: nessuna spesa scaricata per il mese" : "nessun costo caricato"),
-            l.cpl != null ? `CPL ${eur(l.cpl, 2)}${l.roas != null ? ` · ${l.roas.toLocaleString("it-IT")}× ritorno` : ""}` : null,
+            l.cpl != null ? `CPL mese ${eur(l.cpl, 2)}${l.roas != null ? ` · ${l.roas.toLocaleString("it-IT")}× ritorno` : ""}` : null,
+            cplVsTarget ? <span key="t" className={cn("font-medium", cplVsTarget.classe)}>{cplVsTarget.testo}</span> : null,
+            m?.rapporto_zero != null && m.rapporto_zero >= 3 ? <span key="z" className={cn("font-medium", m.rapporto_zero >= 5 ? "text-rose-700 dark:text-rose-400" : "text-amber-700 dark:text-amber-400")}>{eur(m.spesa_senza_lead)} spesi senza richieste ({m.rapporto_zero.toLocaleString("it-IT")}× il target)</span> : null,
             c.spesa_meta_al ? `Meta aggiornato ${dataBreve(c.spesa_meta_al, true, oggi)}` : null]} />
         <Stat etichetta="Provvigione" icona={Percent} valore={l.scaglioni.length ? eur(l.provvigione) : "—"}
           righe={[
