@@ -102,6 +102,8 @@ export function useEliminaCostoManuale(mese: string) {
 
 export interface EsitoAggiornamento {
   aggiornati: string[];
+  /** Meta ha risposto, ma nel mese l'account non ha speso nulla (il proxy non scrive righe vuote in cache) */
+  senzaSpesa: string[];
   saltati: string[];
   errori: Array<{ nome: string; motivo: string }>;
 }
@@ -117,7 +119,7 @@ export function useAggiornaSpesaMeta(mese: string) {
   return useMutation({
     mutationFn: async (clienti: ClienteMarketing[]): Promise<EsitoAggiornamento> => {
       const oggi = new Date();
-      const esito: EsitoAggiornamento = { aggiornati: [], saltati: [], errori: [] };
+      const esito: EsitoAggiornamento = { aggiornati: [], senzaSpesa: [], saltati: [], errori: [] };
       const daFare = clienti.filter((c) => c.stato === "attivo");
       // Uno alla volta: Meta ha limiti per token, e il token è lo stesso per tutti.
       for (const c of daFare) {
@@ -134,8 +136,9 @@ export function useAggiornaSpesaMeta(mese: string) {
             time_increment: "all_days",
           },
         });
-        const r = data as { error?: string } | null;
+        const r = data as { error?: string; insights?: unknown[] } | null;
         if (error || r?.error) esito.errori.push({ nome: c.cliente_nome, motivo: r?.error ?? (error as Error)?.message ?? "errore" });
+        else if (Array.isArray(r?.insights) && r.insights.length === 0) esito.senzaSpesa.push(c.cliente_nome);
         else esito.aggiornati.push(c.cliente_nome);
       }
       return esito;

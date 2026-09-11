@@ -45,11 +45,13 @@ export function ClientiMarketingPanel({ mese, meseOggi, oggi, onMese, righe, isL
     try {
       const e = await aggiorna.mutateAsync(righe);
       const dettagli = [
+        e.senzaSpesa.length ? `Nessuna spesa su Meta nel mese: ${e.senzaSpesa.join(", ")}` : null,
         e.saltati.length ? `Senza account Meta: ${e.saltati.join(", ")}` : null,
         e.errori.length ? `Errori: ${e.errori.map((x) => `${x.nome} (${x.motivo})`).join("; ")}` : null,
       ].filter(Boolean).join(" · ");
-      if (e.aggiornati.length) toast.success(`Spesa Meta di ${leggibile} aggiornata per ${e.aggiornati.length} client${e.aggiornati.length === 1 ? "e" : "i"}`, { description: dettagli || undefined });
-      else toast.warning("Nessuna spesa Meta aggiornata", { description: dettagli || "Nessun cliente attivo con un account pubblicitario Meta scelto." });
+      const letti = e.aggiornati.length + e.senzaSpesa.length;
+      if (letti) toast.success(`Spesa Meta di ${leggibile} letta per ${letti} client${letti === 1 ? "e" : "i"}`, { description: dettagli || undefined });
+      else toast.warning("Nessuna spesa Meta letta", { description: dettagli || "Nessun cliente attivo con un account pubblicitario Meta scelto." });
     } catch (err) {
       toast.error("Aggiornamento non riuscito", { description: err instanceof Error ? err.message : String(err) });
     }

@@ -158,9 +158,11 @@ export function ChiusuraMeseDialog({ open, onOpenChange, nomiServizi }: Props) {
 
   // Clienti attivi + le loro righe di provvigione + gli incassi gia' presenti
   // per il mese scelto (per non sovrascrivere quello che hai gia' incassato).
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, dataUpdatedAt } = useQuery({
     queryKey: ["chiusura-mese", periodo],
     enabled: open,
+    // Le basi si scrivono a mano: un cambio di finestra non deve rifare la schermata.
+    refetchOnWindowFocus: false,
     queryFn: async (): Promise<DatiMese> => {
       const [cli, lines, esistenti, storico, riepilogo] = await Promise.all([
         sb().from("aedix_service_clients")
@@ -209,8 +211,9 @@ export function ChiusuraMeseDialog({ open, onOpenChange, nomiServizi }: Props) {
         {isLoading || !data ? (
           <div className="flex items-center justify-center py-10"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
         ) : (
-          // La chiave rimonta la schermata a ogni mese: le righe ripartono dai dati di quel mese.
-          <CorpoChiusura key={periodo} data={data} periodo={periodo} nomiServizi={nomiServizi} onOpenChange={onOpenChange} />
+          // La chiave rimonta la schermata a ogni mese e a ogni lettura nuova dei
+          // dati: le righe ripartono da quello che il mese ha davvero.
+          <CorpoChiusura key={`${periodo}-${dataUpdatedAt}`} data={data} periodo={periodo} nomiServizi={nomiServizi} onOpenChange={onOpenChange} />
         )}
       </DialogContent>
     </Dialog>

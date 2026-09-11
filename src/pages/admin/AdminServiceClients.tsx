@@ -540,6 +540,10 @@ export default function AdminServiceClients() {
         </CardContent>
       </Card>
 
+      </>}
+
+      {/* Le finestre stanno fuori dal ramo della vista: la scheda contratto e
+          l'eliminazione si aprono anche dalla console clienti marketing. */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
@@ -696,8 +700,6 @@ export default function AdminServiceClients() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      </>}
 
       <ServiceBillingsDialog client={billClient} open={!!billClient} onOpenChange={(v) => { if (!v) setBillClient(null); }} />
 

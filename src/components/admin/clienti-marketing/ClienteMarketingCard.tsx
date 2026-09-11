@@ -149,7 +149,7 @@ export function ClienteMarketingCard({ c, meseCorrente, meseLeggibile, oggi, ent
         <Stat etichetta="Vendite" icona={Trophy} valore={numero(c.vinte_mese)}
           righe={[<Delta key="d" adesso={c.vinte_mese} prima={c.vinte_prec} />, c.valore_vinto_mese > 0 ? `valore ${eur(c.valore_vinto_mese)}` : "nessun valore nel CRM", l.cpa != null ? `CPA ${eur(l.cpa)}` : null]} />
         <Stat etichetta="Spesa ads" icona={Coins} valore={eur(l.spesa)}
-          righe={[fontiSpesa || (c.meta_account_id ? "Meta: costi non ancora scaricati" : "nessun costo caricato"),
+          righe={[fontiSpesa || (c.meta_account_id ? "Meta: nessuna spesa scaricata per il mese" : "nessun costo caricato"),
             l.cpl != null ? `CPL ${eur(l.cpl, 2)}${l.roas != null ? ` · ${l.roas.toLocaleString("it-IT")}× ritorno` : ""}` : null,
             c.spesa_meta_al ? `Meta aggiornato ${dataBreve(c.spesa_meta_al, true, oggi)}` : null]} />
         <Stat etichetta="Provvigione" icona={Percent} valore={l.scaglioni.length ? eur(l.provvigione) : "—"}
