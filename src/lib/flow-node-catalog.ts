@@ -1679,7 +1679,11 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     icon: 'Tag',
     categoria: 'crm',
     configSchema: [
-      { id: 'contact_id', label: 'ID Contatto', type: 'text', required: true, supportsVariables: true, placeholder: '{{contatto.id}}' },
+      // Niente «ID Contatto»: il motore applica i tag SEMPRE al contatto con
+      // cui il flusso è partito (entityId dell'iscrizione) e questo campo non
+      // lo leggeva. Era obbligatorio ma il pannello non lo mostrava più: un
+      // requisito impossibile che bloccava «Pubblica» (11/09/2026, flusso
+      // «Facebook Green Energy»: trigger lead Facebook → il contatto c'è già).
       { id: 'tags', label: 'Tag da aggiungere', type: 'tag_input', required: true, placeholder: 'cliente_vip, follow_up' },
     ],
   },
@@ -1690,7 +1694,11 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     icon: 'Tag',
     categoria: 'crm',
     configSchema: [
-      { id: 'contact_id', label: 'ID Contatto', type: 'text', required: true, supportsVariables: true, placeholder: '{{contatto.id}}' },
+      // Niente «ID Contatto»: il motore applica i tag SEMPRE al contatto con
+      // cui il flusso è partito (entityId dell'iscrizione) e questo campo non
+      // lo leggeva. Era obbligatorio ma il pannello non lo mostrava più: un
+      // requisito impossibile che bloccava «Pubblica» (11/09/2026, flusso
+      // «Facebook Green Energy»: trigger lead Facebook → il contatto c'è già).
       { id: 'tags', label: 'Tag da rimuovere', type: 'tag_input', required: true },
     ],
   },
@@ -1756,7 +1764,9 @@ export const ACTION_CATALOG: ActionDefinition[] = [
         { value: 'contacts', label: 'Contatto' }, { value: 'opportunities', label: 'Opportunità' },
         { value: 'tickets', label: 'Ticket' }, { value: 'tasks', label: 'Task' },
       ]},
-      { id: 'entity_id', label: 'ID entità', type: 'text', required: true, supportsVariables: true, placeholder: '{{contatto.id}}' },
+      // Niente «ID entità»: il motore lavora SEMPRE sull'entità con cui il
+      // flusso è partito e ignorava questo campo — scriverci un altro id dava
+      // l'illusione di agire altrove.
       { id: 'strategia', label: 'Strategia assegnazione', type: 'select', required: true, options: [
         { value: 'specifico', label: 'Agente specifico' }, { value: 'round_robin', label: 'Round-robin (rotazione)' },
         { value: 'meno_carico', label: 'Meno carico di lavoro' },
@@ -1777,7 +1787,9 @@ export const ACTION_CATALOG: ActionDefinition[] = [
         { value: 'tickets', label: 'Ticket assistenza' }, { value: 'tasks', label: 'Task' },
         { value: 'orders', label: 'Ordine' }, { value: 'invoices', label: 'Fattura' },
       ]},
-      { id: 'entity_id', label: 'ID entità', type: 'text', required: true, supportsVariables: true, placeholder: '{{contatto.id}}' },
+      // Niente «ID entità»: il motore lavora SEMPRE sull'entità con cui il
+      // flusso è partito e ignorava questo campo — scriverci un altro id dava
+      // l'illusione di agire altrove.
       { id: 'campo', label: 'Nome campo DB', type: 'text', required: true, placeholder: 'Es: status, assigned_to, notes' },
       { id: 'valore', label: 'Nuovo valore', type: 'text', required: true, supportsVariables: true },
     ],
