@@ -8,8 +8,9 @@
  *    risposta su 3 email alla stessa persona è 1 persona su 1;
  *  - le aperture si mostrano solo se la campagna le traccia: con il testo
  *    semplice senza pixel un «0% aperte» è falso, non basso;
- *  - il grafico giornaliero guarda indietro E avanti (inviate / in programma):
- *    una campagna appena partita non è «un picco nell'ultimo giorno».
+ *  - il grafico giornaliero guarda indietro (inviate, fatti) E avanti (stima al
+ *    ritmo vero delle caselle): la data scritta in coda è un minimo, non una
+ *    promessa — con 45 email al giorno la coda diceva «tutti entro martedì».
  */
 import { useMemo, useState, type ReactNode } from "react";
 import {
@@ -25,11 +26,16 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { useCampagnaStatistiche, oggiRoma, type StatisticheCampagna, type CampagnaRiepilogo } from "./useCampagneOutreach";
-import { percentuale, oggettoLeggibile, inRitardo, passoMigliore, etichettaCanale, STATO_CAMPAGNA } from "./campagneFasi";
+import {
+  percentuale, oggettoLeggibile, passoMigliore, etichettaCanale, STATO_CAMPAGNA, numero, giorniLeggibili, followupSchiacciati,
+  type StimaTempi, type RitmoBrand,
+} from "./campagneFasi";
+
+type Stima = StimaTempi & { brand: RitmoBrand };
 
 const GIORNI = ["dom", "lun", "mar", "mer", "gio", "ven", "sab"];
 const MESI = ["gen", "feb", "mar", "apr", "mag", "giu", "lug", "ago", "set", "ott", "nov", "dic"];
-const it = (v: number) => v.toLocaleString("it-IT");
+const it = numero;
 
 function dataCorta(iso: string | null | undefined, conOra = false): string {
   if (!iso) return "—";
@@ -41,7 +47,7 @@ function dataCorta(iso: string | null | undefined, conOra = false): string {
 function ore(h: number | null | undefined): string {
   if (h == null) return "—";
   if (h < 1) return `${Math.max(1, Math.round(h * 60))} min`;
-  if (h < 48) return `${it(Math.round(h * 10) / 10)} h`;
+  if (h < 48) return `${(Math.round(h * 10) / 10).toLocaleString("it-IT")} h`;
   return `${it(Math.round(h / 24))} giorni`;
 }
 
@@ -54,11 +60,13 @@ const ESITO: Record<string, { etichetta: string; nota: string }> = {
   da_classificare: { etichetta: "Da classificare", nota: "l'AI non le ha ancora lette" },
 };
 
-export function CampagnaStatistiche({ companyId, campagna, campagne, onScegli }: {
+export function CampagnaStatistiche({ companyId, campagna, campagne, stime, onScegli }: {
   companyId: string;
   /** null = tutte le campagne */
   campagna: CampagnaRiepilogo | null;
   campagne: CampagnaRiepilogo[];
+  /** stima dei tempi: una per la campagna, o una per brand nella panoramica */
+  stime: Stima[];
   onScegli: (id: string) => void;
 }) {
   const q = useCampagnaStatistiche(companyId, campagna?.sequence_id ?? null);
@@ -73,13 +81,13 @@ export function CampagnaStatistiche({ companyId, campagna, campagne, onScegli }:
   }
   return (
     <div className={cn("space-y-6 transition-opacity", q.isFetching && "opacity-80")}>
-      <Contenuto s={q.data} campagna={campagna} campagne={campagne} onScegli={onScegli} />
+      <Contenuto s={q.data} campagna={campagna} campagne={campagne} stime={stime} onScegli={onScegli} />
     </div>
   );
 }
 
-function Contenuto({ s, campagna, campagne, onScegli }: {
-  s: StatisticheCampagna; campagna: CampagnaRiepilogo | null; campagne: CampagnaRiepilogo[]; onScegli: (id: string) => void;
+function Contenuto({ s, campagna, campagne, stime, onScegli }: {
+  s: StatisticheCampagna; campagna: CampagnaRiepilogo | null; campagne: CampagnaRiepilogo[]; stime: Stima[]; onScegli: (id: string) => void;
 }) {
   const t = s.totali;
   const m = s.messaggi;
@@ -97,7 +105,7 @@ function Contenuto({ s, campagna, campagne, onScegli }: {
         <Tessera icona={Sparkles} etichetta="Interessati" valore={it(t.interessati)}
           nota={`con le domande · ${percentuale(t.interessati, t.contattati)}`} buono={t.interessati > 0} />
         <Tessera icona={Send} etichetta="Email inviate" valore={it(m.inviati)}
-          nota={m.programmati ? `${it(m.programmati)} in programma` : "nessuna in programma"} />
+          nota={m.programmati ? `${it(m.programmati)} già in coda` : "nessuna in coda"} />
         <Tessera icona={AlertTriangle} etichetta="Rimbalzi" valore={it(t.rimbalzati)}
           nota={`${percentuale(t.rimbalzati, m.inviati)} degli invii${t.disiscritti ? ` · ${it(t.disiscritti)} disiscritti` : ""}`}
           allerta={tassoRimbalzo > 0.03} />
@@ -115,7 +123,7 @@ function Contenuto({ s, campagna, campagne, onScegli }: {
         </p>
       )}
 
-      <GraficoGiorni giorni={s.giorni} />
+      <GraficoGiorni giorni={s.giorni} stime={stime} />
 
       <RendimentoPassi s={s} ramificata={campagna?.ramificata ?? !campagna} />
 
@@ -124,7 +132,7 @@ function Contenuto({ s, campagna, campagne, onScegli }: {
         <Caselle s={s} />
       </div>
 
-      <Tempi s={s} />
+      <RitmoETempi s={s} stime={stime} campagna={campagna} campagne={campagne} />
 
       {!campagna && campagne.length > 0 && <Confronto campagne={campagne} onScegli={onScegli} />}
     </>
@@ -170,32 +178,40 @@ function Riquadro({ icona: Icona, titolo, azioni, children, nota }: {
   );
 }
 
-// ── Invii giorno per giorno: inviate (piene) e in programma (chiare), risposte sotto ──
+// ── Invii giorno per giorno: fatti (inviate) e stima (al ritmo delle caselle), risposte sotto ──
 
-interface PuntoGiorno { giorno: string; etichetta: string; inviati: number; programmati: number; risposte: number }
+interface PuntoGiorno { giorno: string; etichetta: string; inviati: number; stima: number; risposte: number }
 
-function GraficoGiorni({ giorni }: { giorni: StatisticheCampagna["giorni"] }) {
+function GraficoGiorni({ giorni, stime }: { giorni: StatisticheCampagna["giorni"]; stime: Stima[] }) {
   const [tabella, setTabella] = useState(false);
   const oggi = oggiRoma();
-  const dati: PuntoGiorno[] = useMemo(() => giorni.map((g) => {
-    const d = new Date(`${g.giorno}T12:00:00`);
-    return {
-      giorno: g.giorno,
-      etichetta: g.giorno === oggi ? "oggi" : `${GIORNI[d.getDay()]} ${d.getDate()}`,
-      inviati: g.inviati,
-      programmati: g.giorno >= oggi ? g.programmati : 0,
-      risposte: g.risposte,
-    };
-  }), [giorni, oggi]);
-  const ritardo = inRitardo(giorni, oggi);
+  const dati: PuntoGiorno[] = useMemo(() => {
+    // La stima arriva da stimaTempi (oggi compreso, quello che resta da spedire
+    // oggi); nella panoramica si sommano i brand.
+    const stimaPer = new Map<string, number>();
+    for (const st of stime) for (const g of st.perGiorno) stimaPer.set(g.giorno, (stimaPer.get(g.giorno) ?? 0) + g.stima);
+    return giorni.map((g) => {
+      const d = new Date(`${g.giorno}T12:00:00`);
+      return {
+        giorno: g.giorno,
+        etichetta: g.giorno === oggi ? "oggi" : `${GIORNI[d.getDay()]} ${d.getDate()}`,
+        inviati: g.giorno <= oggi ? g.inviati : 0,
+        stima: g.giorno >= oggi ? stimaPer.get(g.giorno) ?? 0 : 0,
+        risposte: g.risposte,
+      };
+    });
+  }, [giorni, stime, oggi]);
   const risposteTot = dati.reduce((s, d) => s + d.risposte, 0);
-  const vuoto = dati.every((d) => !d.inviati && !d.programmati);
+  const vuoto = dati.every((d) => !d.inviati && !d.stima);
+  const conStima = stime.length > 0;
 
   return (
     <Riquadro
       icona={BarChart3}
       titolo="Invii giorno per giorno"
-      nota="Le ultime due settimane e le prossime due. Il programma si aggiorna man mano: finestra d'invio e tetti delle caselle decidono il ritmo."
+      nota={conStima
+        ? "Le ultime due settimane come sono andate e le prossime due come andranno al ritmo delle caselle: giorni d'invio, tetti e warm-up compresi."
+        : "Le ultime due settimane. Nessuna stima: la campagna è ferma o il brand non ha caselle attive."}
       azioni={
         <Button variant="ghost" size="sm" className="h-7 gap-1.5 px-2 text-xs" onClick={() => setTabella((v) => !v)} aria-pressed={tabella}>
           {tabella ? <BarChart3 className="h-3.5 w-3.5" /> : <Table2 className="h-3.5 w-3.5" />} {tabella ? "Grafico" : "Tabella"}
@@ -210,16 +226,16 @@ function GraficoGiorni({ giorni }: { giorni: StatisticheCampagna["giorni"] }) {
               <thead className="sticky top-0 bg-card">
                 <tr className="border-b border-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                   <th className="py-2 pr-3">Giorno</th><th className="px-3 py-2 text-right">Inviate</th>
-                  <th className="px-3 py-2 text-right">In programma</th><th className="py-2 pl-3 text-right">Risposte</th>
+                  <th className="px-3 py-2 text-right">Stima</th><th className="py-2 pl-3 text-right">Risposte</th>
                 </tr>
               </thead>
               <tbody>
                 {dati.map((d) => (
                   <tr key={d.giorno} className={cn("border-b border-border/60", d.giorno === oggi && "bg-muted/40 font-medium")}>
                     <td className="py-1.5 pr-3">{dataCorta(`${d.giorno}T12:00:00`)}</td>
-                    <td className="px-3 py-1.5 text-right tabular-nums">{it(d.inviati)}</td>
-                    <td className="px-3 py-1.5 text-right tabular-nums">{d.programmati ? it(d.programmati) : "—"}</td>
-                    <td className="py-1.5 pl-3 text-right tabular-nums">{it(d.risposte)}</td>
+                    <td className="px-3 py-1.5 text-right tabular-nums">{d.giorno <= oggi ? it(d.inviati) : "—"}</td>
+                    <td className="px-3 py-1.5 text-right tabular-nums">{d.giorno >= oggi && conStima ? it(d.stima) : "—"}</td>
+                    <td className="py-1.5 pl-3 text-right tabular-nums">{d.giorno <= oggi ? it(d.risposte) : "—"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -229,7 +245,7 @@ function GraficoGiorni({ giorni }: { giorni: StatisticheCampagna["giorni"] }) {
           <>
             <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
               <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-[var(--serie-invii)]" /> Inviate</span>
-              <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-[var(--serie-invii)] opacity-35" /> In programma</span>
+              {conStima && <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-[var(--serie-invii)] opacity-35" /> Stima dei prossimi giorni</span>}
             </div>
             <div className="relative">
               <ResponsiveContainer width="100%" height={230}>
@@ -239,11 +255,11 @@ function GraficoGiorni({ giorni }: { giorni: StatisticheCampagna["giorni"] }) {
                     tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} interval="preserveStartEnd" minTickGap={10} />
                   <YAxis allowDecimals={false} tickLine={false} axisLine={false} width={44}
                     tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickFormatter={(v: number) => it(v)} />
-                  <Tooltip content={<SuggerimentoGiorno />} cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.6 }} />
+                  <Tooltip content={<SuggerimentoGiorno oggi={oggi} />} cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.6 }} />
                   <ReferenceLine x="oggi" stroke="hsl(var(--foreground))" strokeOpacity={0.25} />
                   <Bar dataKey="inviati" name="Inviate" stackId="g" maxBarSize={22} fill="var(--serie-invii)"
-                    shape={(p: unknown) => <BarraArrotondata {...(p as FormaBarra)} cima={!((p as FormaBarra).payload?.programmati)} />} />
-                  <Bar dataKey="programmati" name="In programma" stackId="g" maxBarSize={22} fill="var(--serie-invii)"
+                    shape={(p: unknown) => <BarraArrotondata {...(p as FormaBarra)} cima={!((p as FormaBarra).payload?.stima)} />} />
+                  <Bar dataKey="stima" name="Stima" stackId="g" maxBarSize={22} fill="var(--serie-invii)"
                     shape={(p: unknown) => <BarraArrotondata {...(p as FormaBarra)} fillOpacity={0.35} cima stacco={!!(p as FormaBarra).payload?.inviati} />} />
                 </BarChart>
               </ResponsiveContainer>
@@ -256,14 +272,14 @@ function GraficoGiorni({ giorni }: { giorni: StatisticheCampagna["giorni"] }) {
             <div className="mt-3 border-t border-border pt-2">
               <div className="mb-1 flex items-center gap-1.5 text-xs text-muted-foreground">
                 <span className="h-2.5 w-2.5 rounded-sm bg-[var(--serie-risposte)]" /> Risposte
-                <span className="text-muted-foreground/70">· {risposteTot ? `${it(risposteTot)} in questi giorni` : "nessuna in questi giorni"}</span>
+                <span className="text-muted-foreground/70">· {risposteTot ? `${it(risposteTot)} nelle ultime due settimane` : "nessuna nelle ultime due settimane"}</span>
               </div>
               <ResponsiveContainer width="100%" height={64}>
                 <BarChart data={dati} margin={{ top: 4, right: 8, left: 0, bottom: 0 }} barCategoryGap="22%">
                   <XAxis dataKey="etichetta" hide />
                   <YAxis allowDecimals={false} width={44} tickLine={false} axisLine={false}
                     tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickCount={2} tickFormatter={(v: number) => it(v)} />
-                  <Tooltip content={<SuggerimentoGiorno />} cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.6 }} />
+                  <Tooltip content={<SuggerimentoGiorno oggi={oggi} />} cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.6 }} />
                   <ReferenceLine x="oggi" stroke="hsl(var(--foreground))" strokeOpacity={0.25} />
                   <Bar dataKey="risposte" name="Risposte" maxBarSize={22} fill="var(--serie-risposte)"
                     shape={(p: unknown) => <BarraArrotondata {...(p as FormaBarra)} cima />} />
@@ -271,12 +287,6 @@ function GraficoGiorni({ giorni }: { giorni: StatisticheCampagna["giorni"] }) {
               </ResponsiveContainer>
             </div>
           </>
-        )}
-        {ritardo > 0 && (
-          <p className="mt-3 flex items-start gap-1.5 rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
-            <CalendarClock className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-            <span><strong className="font-semibold text-foreground">{it(ritardo)}</strong> {ritardo === 1 ? "invio programmato" : "invii programmati"} nei giorni scorsi non {ritardo === 1 ? "è ancora partito" : "sono ancora partiti"}: partono alla prossima finestra d'invio, rispettando i tetti delle caselle.</span>
-          </p>
         )}
       </div>
     </Riquadro>
@@ -294,15 +304,16 @@ function BarraArrotondata({ x = 0, y = 0, width = 0, height = 0, fill, fillOpaci
   return <path d={d} fill={fill} fillOpacity={fillOpacity} />;
 }
 
-function SuggerimentoGiorno({ active, payload }: { active?: boolean; payload?: Array<{ payload: PuntoGiorno }> }) {
+function SuggerimentoGiorno({ active, payload, oggi }: { active?: boolean; payload?: Array<{ payload: PuntoGiorno }>; oggi: string }) {
   if (!active || !payload?.length) return null;
   const d = payload[0].payload;
+  const futuro = d.giorno > oggi;
   return (
     <div className="rounded-lg border border-border bg-card px-3 py-2 text-xs shadow-md">
       <div className="mb-1 text-muted-foreground">{dataCorta(`${d.giorno}T12:00:00`)}</div>
-      <RigaSuggerimento colore="var(--serie-invii)" valore={d.inviati} etichetta="inviate" />
-      {d.programmati > 0 && <RigaSuggerimento colore="var(--serie-invii)" chiaro valore={d.programmati} etichetta="in programma" />}
-      <RigaSuggerimento colore="var(--serie-risposte)" valore={d.risposte} etichetta={d.risposte === 1 ? "risposta" : "risposte"} />
+      {!futuro && <RigaSuggerimento colore="var(--serie-invii)" valore={d.inviati} etichetta="inviate" />}
+      {d.giorno >= oggi && <RigaSuggerimento colore="var(--serie-invii)" chiaro valore={d.stima} etichetta={futuro ? "stimate" : "ancora da spedire oggi (stima)"} />}
+      {!futuro && <RigaSuggerimento colore="var(--serie-risposte)" valore={d.risposte} etichetta={d.risposte === 1 ? "risposta" : "risposte"} />}
     </div>
   );
 }
@@ -482,25 +493,104 @@ function Caselle({ s }: { s: StatisticheCampagna }) {
   );
 }
 
-// ── Tempi ──
+// ── Ritmo e tempi: quando finiscono davvero, al ritmo delle caselle ──
 
-function Tempi({ s }: { s: StatisticheCampagna }) {
+function RitmoETempi({ s, stime, campagna, campagne }: {
+  s: StatisticheCampagna; stime: Stima[]; campagna: CampagnaRiepilogo | null; campagne: CampagnaRiepilogo[];
+}) {
   const m = s.messaggi;
-  const [adesso] = useState(() => Date.now());
-  const voci: Array<[string, string]> = [
+  const fatti: Array<[string, string]> = [
     ["Primo invio", dataCorta(m.primo_invio, true)],
     ["Ultimo invio", dataCorta(m.ultimo_invio, true)],
-    ["Prossimo invio", m.prossimo_invio ? (new Date(m.prossimo_invio).getTime() <= adesso ? "in coda: alla prossima finestra" : dataCorta(m.prossimo_invio, true)) : "—"],
-    ["Ultimo invio in programma", dataCorta(m.ultimo_programmato)],
   ];
+  const ferma = campagna && campagna.stato !== "active";
+
   return (
-    <div className="grid grid-cols-2 gap-3 rounded-xl border border-border bg-card p-4 shadow-sm md:grid-cols-4">
-      {voci.map(([k, v]) => (
-        <div key={k}>
-          <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{k}</div>
-          <div className="mt-1 text-sm font-semibold text-foreground">{v}</div>
+    <Riquadro icona={CalendarClock} titolo="Ritmo e tempi"
+      nota="Quando finiscono gli invii al ritmo vero delle caselle: la data scritta in coda è un minimo, non una promessa.">
+      <div className="space-y-4">
+        {ferma ? (
+          <p className="text-sm text-muted-foreground">La campagna è {STATO_CAMPAGNA[campagna.stato]?.etichetta.toLowerCase() ?? campagna.stato}: non spedisce, quindi non c'è una stima.</p>
+        ) : stime.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Nessuna stima: il brand non ha caselle attive o è in pausa.</p>
+        ) : stime.map((st) => {
+          const b = st.brand;
+          const nCaselle = b.caselle.length;
+          const campagneBrand = campagne.filter((c) => c.brand_id === b.brand_id && c.stato === "active");
+          const primi = campagna ? campagna.da_contattare : campagneBrand.reduce((a, c) => a + c.da_contattare, 0);
+          const tutti = campagna ? campagna.messaggi_da_mandare : campagneBrand.reduce((a, c) => a + c.messaggi_da_mandare, 0);
+          const passi = campagna?.passi ?? 0;
+          return (
+            <div key={b.brand_id} className="space-y-3">
+              <p className="text-sm text-foreground">
+                <span className="font-semibold">{b.brand}</span>: fino a <strong>{it(st.capOggi)}</strong> email al giorno oggi,{" "}
+                <strong>{it(st.capRegime)}</strong> a regime · {it(nCaselle)} {nCaselle === 1 ? "casella" : "caselle"}
+                {b.nuovi_al_giorno ? ` · al massimo ${it(b.nuovi_al_giorno)} nuovi contatti per casella al giorno` : ""} · spedisce {giorniLeggibili(b.giorni_invio)} fino alle {b.ora_fine}.
+                {campagna && campagneBrand.length > 1 && (
+                  <span className="text-muted-foreground"> Il ritmo è diviso con {campagneBrand.length === 2 ? "l'altra campagna" : `altre ${campagneBrand.length - 1} campagne`} del brand.</span>
+                )}
+              </p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Previsione
+                  titolo="Primi contatti"
+                  quanti={primi}
+                  unita="da contattare"
+                  esito={st.primi}
+                  oltre={st.oltre && !st.primi}
+                />
+                <Previsione
+                  titolo={campagna ? `Tutta la sequenza${passi ? ` (${passi} email a testa)` : ""}` : "Tutte le sequenze"}
+                  quanti={tutti}
+                  unita="email se nessuno risponde"
+                  esito={st.tutto}
+                  oltre={st.oltre}
+                />
+              </div>
+              {primi > 0 && followupSchiacciati(b) && (
+                <p className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-2 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                  <span>
+                    <strong className="font-semibold">I follow-up restano indietro.</strong> Il tetto giornaliero delle caselle è uguale ai nuovi contatti al giorno:
+                    finché ci sono primi contatti da mandare si prendono tutti i posti, e la seconda email arriva settimane dopo invece che al giorno previsto.
+                    Alzando il tetto delle caselle (Deliverability) e lasciando uguali i nuovi al giorno, i follow-up partono in tempo.
+                  </span>
+                </p>
+              )}
+            </div>
+          );
+        })}
+        <div className="grid grid-cols-2 gap-3 border-t border-border pt-3 md:grid-cols-4">
+          {fatti.map(([k, v]) => (
+            <div key={k}>
+              <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{k}</div>
+              <div className="mt-1 text-sm font-semibold text-foreground">{v}</div>
+            </div>
+          ))}
+          <div className="col-span-2">
+            <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Per andare più veloce</div>
+            <div className="mt-1 text-xs text-muted-foreground">Più caselle o un tetto giornaliero più alto (Deliverability → caselle), dopo il riscaldamento.</div>
+          </div>
         </div>
-      ))}
+      </div>
+    </Riquadro>
+  );
+}
+
+function Previsione({ titolo, quanti, unita, esito, oltre }: {
+  titolo: string; quanti: number; unita: string; esito: { giorni: number; fine: Date } | null; oltre: boolean;
+}) {
+  return (
+    <div className="rounded-lg border border-border bg-muted/20 p-3">
+      <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{titolo}</div>
+      <div className="mt-1 text-sm text-foreground">
+        <strong className="text-base font-semibold">{it(quanti)}</strong> {unita}
+      </div>
+      <div className="mt-1 text-xs text-muted-foreground">
+        {quanti === 0 ? "niente da mandare"
+          : esito ? <>finiti verso <strong className="font-semibold text-foreground">{dataCorta(esito.fine.toISOString())}</strong> · circa {it(esito.giorni)} giorni d'invio (stima)</>
+          : oltre ? "oltre tre anni a questo ritmo"
+          : "—"}
+      </div>
     </div>
   );
 }

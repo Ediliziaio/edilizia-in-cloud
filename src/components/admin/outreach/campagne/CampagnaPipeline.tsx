@@ -13,7 +13,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   ChevronRight, Clock, Search, Loader2, Mail, MessageSquareReply, LogOut, Users, Send, ArrowUpRight,
-  ChevronLeft, CalendarClock, Sparkles,
+  ChevronLeft, CalendarClock, Sparkles, AlertTriangle,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -22,7 +22,8 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { OutreachConvertContactDialog } from "../OutreachConvertContactDialog";
 import {
-  costruisciFasi, faseIniziale, percentuale, numeroPasso, type FaseVista, type TonoFase,
+  costruisciFasi, faseIniziale, percentuale, numeroPasso, numero, followupSchiacciati,
+  type FaseVista, type TonoFase, type StimaTempi, type RitmoBrand,
 } from "./campagneFasi";
 import {
   useCampagnaFasi, useCampagnaPassi, useCampagnaContatti, CONTATTI_PER_PAGINA,
@@ -76,7 +77,12 @@ function prossimo(iso: string | null, adesso: number): string {
   return dataBreve(iso, false);
 }
 
-export function CampagnaPipeline({ companyId, campagna }: { companyId: string; campagna: CampagnaRiepilogo }) {
+export function CampagnaPipeline({ companyId, campagna, stima }: {
+  companyId: string;
+  campagna: CampagnaRiepilogo;
+  /** stima dei tempi al ritmo vero delle caselle (null = campagna ferma o brand senza caselle) */
+  stima: (StimaTempi & { brand: RitmoBrand }) | null;
+}) {
   const fasiQ = useCampagnaFasi(companyId, campagna.sequence_id);
   const passiQ = useCampagnaPassi(campagna.sequence_id);
   const fasi = useMemo(() => costruisciFasi(fasiQ.data ?? [], passiQ.data ?? []), [fasiQ.data, passiQ.data]);
@@ -115,23 +121,39 @@ export function CampagnaPipeline({ companyId, campagna }: { companyId: string; c
         <Numero icona={Send} valore={contattati} etichetta={`contattati · ${percentuale(contattati, iscritti)}`} />
         <Numero icona={MessageSquareReply} valore={totRisposte} etichetta={`risposte · ${percentuale(totRisposte, contattati)} dei contattati`} />
         <Numero icona={Sparkles} valore={caldi} etichetta="interessati o con domande" />
-        {campagna.ultimo_programmato && (
+        {campagna.da_contattare > 0 && (
           <div className="ml-auto text-right text-[11px] text-muted-foreground">
-            <span className="inline-flex items-center gap-1"><CalendarClock className="h-3.5 w-3.5" /> ultimo invio in programma</span>
-            <div className="text-sm font-semibold text-foreground">{dataBreve(campagna.ultimo_programmato, false)}</div>
+            <span className="inline-flex items-center gap-1"><CalendarClock className="h-3.5 w-3.5" /> primi contatti finiti · stima</span>
+            <div className="text-sm font-semibold text-foreground">
+              {campagna.stato !== "active" ? "campagna ferma" : stima?.primi ? `verso ${dataBreve(stima.primi.fine.toISOString(), false)}` : stima?.oltre ? "oltre tre anni" : "—"}
+            </div>
+            {stima?.primi && <div>circa {numero(stima.primi.giorni)} giorni d'invio · {numero(stima.capOggi)} email al giorno oggi</div>}
           </div>
         )}
       </div>
+
+      {stima && campagna.da_contattare > 0 && campagna.in_corso > 0 && followupSchiacciati(stima.brand) && (
+        <p className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-2 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <span>
+            <strong className="font-semibold">I follow-up restano indietro.</strong> Ogni casella di {stima.brand.brand} manda al massimo{" "}
+            {numero(Math.max(...stima.brand.caselle.map((c) => c.tetto)))} email al giorno e fino a {numero(stima.brand.nuovi_al_giorno ?? 0)} possono
+            essere primi contatti: finché ce ne sono, i primi si prendono tutti i posti e le email successive partono in ritardo sul programma.
+            Alzando il tetto delle caselle (Deliverability) e lasciando uguali i nuovi al giorno, i follow-up partono in tempo.
+          </span>
+        </p>
+      )}
 
       {/* NEL FLUSSO — le colonne in fila, nell'ordine in cui le attraversa un contatto. */}
       <section aria-label="Nel flusso" className="space-y-2">
         <Intestazione icona={Mail} titolo="Nel flusso" nota="dove si trova adesso ogni contatto: «Email 2» = ha ricevuto la seconda e aspetta la terza" />
         <div className="-mx-1 overflow-x-auto px-1 pb-1">
-          <div className="flex min-w-max items-stretch gap-1">
+          <div className="flex w-full min-w-max items-stretch gap-1">
             {flusso.map((f, i) => (
-              <div key={f.chiave} className="flex items-stretch gap-1">
+              <div key={f.chiave} className="flex flex-1 items-stretch gap-1">
                 {i > 0 && <ChevronRight className="h-4 w-4 shrink-0 self-center text-muted-foreground/40" aria-hidden />}
-                <Tessera f={f} iscritti={iscritti} attiva={attiva === f.chiave} onClick={() => setScelta(f.chiave)} caricamento={!pronta} adesso={adesso} />
+                <Tessera f={f} iscritti={iscritti} attiva={attiva === f.chiave} onClick={() => setScelta(f.chiave)} caricamento={!pronta} adesso={adesso}
+                  tutti={f.chiave === "da_contattare" ? stima?.primi?.fine ?? null : null} />
               </div>
             ))}
           </div>
@@ -140,7 +162,7 @@ export function CampagnaPipeline({ companyId, campagna }: { companyId: string; c
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,4fr)_minmax(0,3fr)]">
         <section aria-label="Hanno risposto" className="space-y-2">
-          <Intestazione icona={MessageSquareReply} titolo="Hanno risposto" nota={totRisposte ? `${totRisposte.toLocaleString("it-IT")} in tutto` : "escono dal flusso e finiscono qui"} />
+          <Intestazione icona={MessageSquareReply} titolo="Hanno risposto" nota={totRisposte ? `${numero(totRisposte)} in tutto` : "escono dal flusso e finiscono qui"} />
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {risposte.map((f) => (
               <Tessera key={f.chiave} f={f} iscritti={iscritti} attiva={attiva === f.chiave} onClick={() => setScelta(f.chiave)} caricamento={!pronta} adesso={adesso} largo />
@@ -148,7 +170,7 @@ export function CampagnaPipeline({ companyId, campagna }: { companyId: string; c
           </div>
         </section>
         <section aria-label="Usciti dal flusso" className="space-y-2">
-          <Intestazione icona={LogOut} titolo="Usciti dal flusso" nota={totUscite ? `${totUscite.toLocaleString("it-IT")} in tutto` : "nessuno, per ora"} />
+          <Intestazione icona={LogOut} titolo="Usciti dal flusso" nota={totUscite ? `${numero(totUscite)} in tutto` : "nessuno, per ora"} />
           <div className="grid grid-cols-3 gap-2">
             {uscite.map((f) => (
               <Tessera key={f.chiave} f={f} iscritti={iscritti} attiva={attiva === f.chiave} onClick={() => setScelta(f.chiave)} caricamento={!pronta} adesso={adesso} largo />
@@ -176,7 +198,7 @@ function Numero({ icona: Icona, valore, etichetta }: { icona: typeof Users; valo
     <div className="flex items-center gap-2.5">
       <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-muted-foreground"><Icona className="h-4 w-4" /></span>
       <div>
-        <div className="text-xl font-semibold leading-tight text-foreground">{valore.toLocaleString("it-IT")}</div>
+        <div className="text-xl font-semibold leading-tight text-foreground">{numero(valore)}</div>
         <div className="text-[11px] text-muted-foreground">{etichetta}</div>
       </div>
     </div>
@@ -194,8 +216,10 @@ function Intestazione({ icona: Icona, titolo, nota }: { icona: typeof Mail; tito
   );
 }
 
-function Tessera({ f, iscritti, attiva, onClick, caricamento, adesso, largo = false }: {
-  f: FaseVista; iscritti: number; attiva: boolean; onClick: () => void; caricamento: boolean; adesso: number; largo?: boolean;
+function Tessera({ f, iscritti, attiva, onClick, caricamento, adesso, tutti = null, largo = false }: {
+  f: FaseVista; iscritti: number; attiva: boolean; onClick: () => void; caricamento: boolean; adesso: number;
+  /** quando finiscono tutti (stima al ritmo delle caselle) */
+  tutti?: Date | null; largo?: boolean;
 }) {
   const tono = TONO[f.tono];
   const quota = iscritti > 0 && f.contatti > 0 ? Math.max(3, Math.round((f.contatti / iscritti) * 100)) : 0;
@@ -208,14 +232,14 @@ function Tessera({ f, iscritti, attiva, onClick, caricamento, adesso, largo = fa
       className={cn(
         "flex flex-col rounded-xl border bg-card p-3 text-left transition-colors",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        largo ? "min-w-0" : "w-[148px] shrink-0",
+        largo ? "min-w-0" : "min-w-[132px] flex-1",
         attiva ? "border-primary ring-1 ring-primary" : "border-border hover:border-primary/40",
         vuota && !attiva && "bg-card/60",
       )}
     >
       <span className="truncate text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{f.titolo}</span>
       <span className={cn("mt-1 text-2xl font-semibold leading-none", vuota ? "text-muted-foreground/50" : "text-foreground")}>
-        {caricamento ? "…" : f.contatti.toLocaleString("it-IT")}
+        {caricamento ? "…" : numero(f.contatti)}
       </span>
       <span className="mt-1 text-[11px] text-muted-foreground">{percentuale(f.contatti, iscritti)} degli iscritti</span>
       <span className="mt-2 h-1 w-full overflow-hidden rounded-full bg-muted" aria-hidden>
@@ -227,8 +251,8 @@ function Tessera({ f, iscritti, attiva, onClick, caricamento, adesso, largo = fa
           <Clock className="mt-0.5 h-3 w-3 shrink-0" /> prossimo: {prossimo(f.prossimoInvio, adesso)}
         </span>
       )}
-      {f.chiave === "da_contattare" && f.contatti > 0 && f.ultimoProgrammato && (
-        <span className="mt-0.5 text-[11px] leading-snug text-muted-foreground">tutti entro {dataBreve(f.ultimoProgrammato, false)}</span>
+      {f.chiave === "da_contattare" && f.contatti > 0 && tutti && (
+        <span className="mt-0.5 text-[11px] leading-snug text-muted-foreground">tutti verso {dataBreve(tutti.toISOString(), false)} (stima)</span>
       )}
       {f.inPausa > 0 && <Badge variant="outline" className="mt-1.5 w-fit text-[10px]">{f.inPausa} in pausa</Badge>}
     </button>
@@ -259,7 +283,7 @@ function ElencoContatti({ companyId, sequenceId, fase, nPassi, adesso }: {
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className={cn("rounded-md px-2 py-0.5 text-xs font-semibold", TONO[fase.tono].chip)}>{fase.titolo}</span>
-            <span className="text-sm font-semibold text-foreground">{fase.contatti.toLocaleString("it-IT")} contatti</span>
+            <span className="text-sm font-semibold text-foreground">{numero(fase.contatti)} contatti</span>
           </div>
           <p className="mt-0.5 text-xs text-muted-foreground">{fase.sottotitolo}</p>
         </div>
@@ -304,7 +328,7 @@ function ElencoContatti({ companyId, sequenceId, fase, nPassi, adesso }: {
 
       {totale > 0 && (
         <div className="flex items-center justify-between gap-2 border-t border-border px-4 py-2 text-xs text-muted-foreground">
-          <span className="tabular-nums">{da.toLocaleString("it-IT")}–{a.toLocaleString("it-IT")} di {totale.toLocaleString("it-IT")}</span>
+          <span className="tabular-nums">{numero(da)}–{numero(a)} di {numero(totale)}</span>
           <div className="flex gap-1">
             <Button size="sm" variant="outline" className="h-7 gap-1 px-2 text-xs" disabled={pagina === 0 || q.isFetching} onClick={() => setPagina((p) => Math.max(0, p - 1))}>
               <ChevronLeft className="h-3.5 w-3.5" /> Indietro
@@ -321,7 +345,9 @@ function ElencoContatti({ companyId, sequenceId, fase, nPassi, adesso }: {
 
 function Riga({ r, gruppo, nPassi, companyId, adesso }: { r: ContattoCampagna; gruppo: FaseVista["gruppo"]; nPassi: number; companyId: string; adesso: number }) {
   const titolo = r.azienda || r.nome || r.email || "Contatto";
-  const sotto = [r.azienda && r.nome ? r.nome : null, r.email].filter(Boolean).join(" · ");
+  // Nelle liste importate il nome è spesso l'insegna: non ripeterlo sotto il titolo.
+  const nomeDiverso = r.nome && r.azienda && r.nome.trim().toLowerCase() !== r.azienda.trim().toLowerCase() ? r.nome : null;
+  const sotto = [nomeDiverso, r.email].filter(Boolean).join(" · ");
   const zona = [r.citta, r.provincia && r.provincia !== r.citta ? r.provincia : null].filter(Boolean).join(" · ") || "—";
   const ricevute = nPassi > 0 ? `${r.inviati} di ${nPassi}` : String(r.inviati);
   const interessante = r.risposta_intent === "interested" || r.risposta_intent === "question";

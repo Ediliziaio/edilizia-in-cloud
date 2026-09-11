@@ -8,7 +8,7 @@
 import { useMemo, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import type { FaseRiga, PassoDef } from "./campagneFasi";
+import { stimaTempi, type FaseRiga, type PassoDef, type RitmoBrand, type StimaTempi } from "./campagneFasi";
 
 // Le funzioni sono nuove: i tipi generati non le conoscono ancora.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -20,6 +20,7 @@ export interface CampagnaRiepilogo {
   sequence_id: string;
   nome: string;
   stato: string;
+  brand_id: string | null;
   brand: string | null;
   creata_at: string;
   passi: number;
@@ -39,6 +40,8 @@ export interface CampagnaRiepilogo {
   in_pausa: number;
   messaggi_inviati: number;
   messaggi_programmati: number;
+  /** messaggi che chi è ancora nel flusso riceverà, se nessuno risponde */
+  messaggi_da_mandare: number;
   prossimo_invio: string | null;
   ultimo_programmato: string | null;
 }
@@ -46,6 +49,7 @@ export interface CampagnaRiepilogo {
 const CAMPI_NUMERICI = [
   "passi", "iscritti", "contattati", "da_contattare", "in_corso", "completati", "risposte", "interessati",
   "non_interessati", "rimbalzati", "disiscritti", "fermati", "in_pausa", "messaggi_inviati", "messaggi_programmati",
+  "messaggi_da_mandare",
 ] as const;
 
 export function useCampagneRiepilogo(companyId: string) {
@@ -210,6 +214,68 @@ export function useCampagnaStatistiche(companyId: string, sequenceId: string | n
       return (data ?? null) as StatisticheCampagna | null;
     },
   });
+}
+
+/** Il ritmo di ogni brand: caselle con tetto e warm-up, nuovi al giorno, giorni d'invio. */
+export function useCampagneRitmo(companyId: string) {
+  return useQuery({
+    queryKey: ["outreach-campagne", "ritmo", companyId],
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const { data, error } = await db.rpc("outreach_campagne_ritmo", { p_company: companyId });
+      if (error) throw error;
+      return ((data ?? []) as Array<Record<string, unknown>>).map((r): RitmoBrand => ({
+        brand_id: String(r.brand_id),
+        brand: String(r.brand ?? ""),
+        stato: String(r.stato ?? ""),
+        nuovi_al_giorno: r.nuovi_al_giorno == null ? null : n(r.nuovi_al_giorno),
+        giorni_invio: ((r.giorni_invio ?? [1, 2, 3, 4, 5]) as number[]).map(Number),
+        ora_fine: n(r.ora_fine) || 19,
+        caselle: ((r.caselle ?? []) as Array<Record<string, unknown>>).map((c) => ({
+          tetto: n(c.tetto), base: n(c.base), passo: n(c.passo), giorno: n(c.giorno),
+          avviato: c.avviato === true, inviati_oggi: n(c.inviati_oggi),
+        })),
+      }));
+    },
+  });
+}
+
+/** Ora corrente a Roma (0-23): la finestra d'invio si chiude su quel fuso. */
+export function oraRoma(d: Date): number {
+  return Number(new Intl.DateTimeFormat("it-IT", { hour: "numeric", hourCycle: "h23", timeZone: TZ }).format(d)) || 0;
+}
+
+/**
+ * Stima dei tempi di una campagna, o di tutte le campagne attive di un brand
+ * (campagna = null). Solo le campagne attive si dividono il ritmo del brand:
+ * una in pausa non spedisce.
+ */
+export function stimaCampagna(
+  campagna: CampagnaRiepilogo | null,
+  brandId: string | null,
+  campagne: CampagnaRiepilogo[],
+  ritmi: RitmoBrand[],
+  adesso: Date,
+): (StimaTempi & { brand: RitmoBrand }) | null {
+  const idBrand = campagna?.brand_id ?? brandId;
+  const ritmo = ritmi.find((r) => r.brand_id === idBrand);
+  if (!ritmo || ritmo.stato === "paused" || ritmo.stato === "archived") return null;
+  const attive = campagne.filter((c) => c.brand_id === idBrand && c.stato === "active");
+  const primiBrand = attive.reduce((s, c) => s + c.da_contattare, 0);
+  const messaggiBrand = attive.reduce((s, c) => s + c.messaggi_da_mandare, 0);
+  if (campagna && campagna.stato !== "active") return null;
+  const primi = campagna ? campagna.da_contattare : primiBrand;
+  const messaggi = campagna ? campagna.messaggi_da_mandare : messaggiBrand;
+  const stima = stimaTempi({
+    ritmo,
+    primiDaMandare: primi,
+    messaggiDaMandare: messaggi,
+    quotaPrimi: primiBrand > 0 ? primi / primiBrand : 0,
+    quotaTotale: messaggiBrand > 0 ? messaggi / messaggiBrand : 0,
+    adesso,
+    oraAdesso: oraRoma(adesso),
+  });
+  return { ...stima, brand: ritmo };
 }
 
 const CHIAVE_MEMORIA = "outreach-campagna-scelta";
