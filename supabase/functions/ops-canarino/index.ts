@@ -78,7 +78,20 @@ serveConMetriche("ops-canarino", async (req) => {
   }
   if (modo === "clienti-marketing") {
     try {
-      const destinatari = await destinatariSuperAdmin();
+      // Ai super admin si aggiungono gli indirizzi scritti in platform_settings
+      // (chiave clienti_marketing_rapporto_destinatari: lista JSON o testo con
+      // virgole): il titolare lo vuole sulla sua casella personale.
+      const { data: impostazione } = await supabase
+        .from("platform_settings").select("value").eq("key", "clienti_marketing_rapporto_destinatari").maybeSingle();
+      const grezzo = impostazione?.value;
+      const extra: string[] = Array.isArray(grezzo)
+        ? grezzo.map(String)
+        : typeof grezzo === "string"
+          ? grezzo.split(/[,;\s]+/)
+          : Array.isArray((grezzo as { emails?: unknown })?.emails)
+            ? ((grezzo as { emails: unknown[] }).emails).map(String)
+            : [];
+      const destinatari = [...new Set([...(await destinatariSuperAdmin()), ...extra.map((e) => e.trim().toLowerCase()).filter((e) => e.includes("@"))])];
       if (!destinatari.length) {
         return new Response(JSON.stringify({ ok: false, reason: "nessun super_admin con email" }), { headers: corsH });
       }
