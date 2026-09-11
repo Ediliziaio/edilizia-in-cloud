@@ -143,7 +143,11 @@ serveConMetriche("openwa-campagna-dispatch", async (req) => {
     // per 15 minuti: ogni esito qui sotto le rilascia; quelle che restano non
     // lavorate (pool esaurito) vengono rilasciate subito in fondo.
     const lavorati = new Set<string>();
+    // Campagne il cui numero ha gia' detto basta in questo giro (tetto o
+    // throttle): le loro righe si saltano senza riprovare una per una.
+    const campagneEsaurite = new Set<string>();
     for (const m of (maturi ?? []) as Maturo[]) {
+      if (campagneEsaurite.has(m.campagna_id)) continue;
       lavorati.add(m.destinatario_id);
       const cfgAi = campagneAi.get(m.campagna_id);
       let testo = (m.messaggio ?? "").trim();
@@ -221,13 +225,18 @@ serveConMetriche("openwa-campagna-dispatch", async (req) => {
         continue;
       }
 
-      // 409 = pool esaurito o fuori orario: NON e' colpa del destinatario.
-      // Ci si ferma qui senza consumare tentativi — riprende il giro dopo.
+      // 409 = pool esaurito o fuori orario: NON e' colpa del destinatario,
+      // niente tentativi consumati. Fuori orario vale per tutti e chiude il
+      // giro; il pool esaurito riguarda il numero di QUESTA campagna: con un
+      // numero per campagna, fermarsi qui lasciava a secco anche le altre
+      // (11/09/2026: tre numeri al tetto, il quarto fermo con 690 in coda).
       if (res.status === 409) {
         esito.pool_esaurito = true;
         lavorati.delete(m.destinatario_id); // questo NON e' stato lavorato
         await scalaTetto();
-        break;
+        if (res.motivo === "fuori_orario") break;
+        campagneEsaurite.add(m.campagna_id);
+        continue;
       }
 
       // 400 = destinatario non contattabile (opt-out, numero mancante):

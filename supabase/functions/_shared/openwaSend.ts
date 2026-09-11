@@ -196,6 +196,9 @@ export interface SendResult {
   chatId?: string;
   error?: string;
   status?: number;  // codice HTTP suggerito per l'errore (400/409/502)
+  // Perché un 409: fuori orario vale per tutti i numeri, il pool esaurito
+  // solo per quelli che servono questo contatto (tag).
+  motivo?: "fuori_orario" | "pool_esaurito";
 }
 
 /**
@@ -215,7 +218,7 @@ export async function sendOpenWaMessage(admin: Admin, params: SendParams): Promi
 
   // Anti-ban #1: finestra oraria umana (solo per invii automatici).
   if (!params.bypassQuietHours && await outsideQuietHours()) {
-    return { ok: false, error: "Fuori dall'orario di invio consentito (finestra anti-ban). Riprova nella fascia diurna.", status: 409 };
+    return { ok: false, error: "Fuori dall'orario di invio consentito (finestra anti-ban). Riprova nella fascia diurna.", status: 409, motivo: "fuori_orario" };
   }
 
   let phone = (params.to ?? "").trim();
@@ -327,7 +330,7 @@ export async function sendOpenWaMessage(admin: Admin, params: SendParams): Promi
     ? pool.find((n) => n.id === params.numberId && n.stato === "connected") ?? null
     : pickOpenWaNumber(pool, contactTags, today, nowMs, weekKey);
   if (!chosen) {
-    return { ok: false, error: "Nessun numero WhatsApp Locale disponibile (warm-up/cap esaurito, throttle o tag non coperto).", status: 409 };
+    return { ok: false, error: "Nessun numero WhatsApp Locale disponibile (warm-up/cap esaurito, throttle o tag non coperto).", status: 409, motivo: "pool_esaurito" };
   }
 
   const cfg = await getOwaConfig();
