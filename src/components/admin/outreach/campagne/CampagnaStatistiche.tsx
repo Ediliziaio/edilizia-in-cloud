@@ -40,7 +40,9 @@ const it = numero;
 function dataCorta(iso: string | null | undefined, conOra = false): string {
   if (!iso) return "—";
   const d = new Date(iso);
-  const g = `${GIORNI[d.getDay()]} ${d.getDate()} ${MESI[d.getMonth()]}`;
+  // L'anno solo quando non è quello in corso: «gio 6 apr» di due anni dopo non si capiva.
+  const anno = d.getFullYear() !== new Date().getFullYear() ? ` ${d.getFullYear()}` : "";
+  const g = `${GIORNI[d.getDay()]} ${d.getDate()} ${MESI[d.getMonth()]}${anno}`;
   return conOra ? `${g}, ${d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}` : g;
 }
 
@@ -127,7 +129,7 @@ function Contenuto({ s, campagna, campagne, stime, onScegli }: {
 
       <RendimentoPassi s={s} ramificata={campagna?.ramificata ?? !campagna} />
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid items-start gap-6 lg:grid-cols-2">
         <Esiti s={s} />
         <Caselle s={s} />
       </div>

@@ -60,7 +60,8 @@ const GIORNI = ["dom", "lun", "mar", "mer", "gio", "ven", "sab"];
 function dataBreve(iso: string | null | undefined, conOra = true): string {
   if (!iso) return "—";
   const d = new Date(iso);
-  const g = `${GIORNI[d.getDay()]} ${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
+  const anno = d.getFullYear() !== new Date().getFullYear() ? `/${String(d.getFullYear()).slice(2)}` : "";
+  const g = `${GIORNI[d.getDay()]} ${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}${anno}`;
   return conOra ? `${g} ${d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}` : g;
 }
 
