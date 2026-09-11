@@ -123,7 +123,7 @@ export async function applicaRegole(dip: DipendenzeMotore, ctx: MessaggioInArriv
     if (rispondi && ctx.numberId) {
       giaRisposto = true;
       await dip.inviaRisposta({ to: ctx.phone || ctx.chatId, text: r.reply_text, numberId: ctx.numberId, contactId: ctx.contactId })
-        .catch(() => null);
+        .catch((): void => { /* best-effort: il resto delle azioni va avanti */ });
     }
 
     if (bersaglio.length && (r.ferma_flusso || r.optout)) {

@@ -10,6 +10,7 @@ import { applicaRegole, type MessaggioInArrivo } from "../../../supabase/functio
 
 type Filtro = [string, ...unknown[]];
 interface Voce { tabella: string; op: "select" | "insert" | "update"; dati?: Record<string, unknown>; filtri: Filtro[] }
+interface Risposta { data?: unknown; count?: number; error: { code?: string; message: string } | null }
 
 interface Stato {
   destinatari: Array<{ destinatario_id: string; campagna_id: string; contact_id: string | null }>;
@@ -23,7 +24,7 @@ interface Stato {
 function clienteFinto(stato: Stato) {
   const log: Voce[] = [];
   const risposteDate = stato.risposteGiaDate ?? new Set<string>();
-  const rispondi = (v: Voce) => {
+  const rispondi = (v: Voce): Risposta => {
     if (v.tabella === "openwa_rules") return { data: stato.regole, error: null };
     if (v.tabella === "openwa_messages") return { count: stato.inbound ?? 1, error: null };
     if (v.tabella === "openwa_regole_scatti" && v.op === "insert" && v.dati?.risposta_inviata) {
@@ -57,7 +58,7 @@ function clienteFinto(stato: Stato) {
     }
     return b;
   };
-  const admin = { from, rpc: async () => ({ data: stato.destinatari, error: null }) };
+  const admin = { from, rpc: async (): Promise<Risposta> => ({ data: stato.destinatari, error: null }) };
   return { admin, log };
 }
 
@@ -78,7 +79,7 @@ const MSG = (text: string): MessaggioInArrivo => ({
   numberId: "num-1", chatId: "393331234567@c.us", phone: "+393331234567", text, contactId: "contatto-chat",
 });
 
-const regola = (r: Record<string, unknown>) => ({
+const regola = (r: Record<string, unknown>): Record<string, unknown> => ({
   id: "r", name: "Regola", enabled: true, priority: 10, campagna_id: "camp-A", number_id: null,
   match_type: "contains", match_keywords: [], only_first_contact: false, only_outside_hours: false,
   reply_text: null, add_tags: [], assign_to: null, notify_email: null, block: false,
