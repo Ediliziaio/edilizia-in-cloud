@@ -333,7 +333,15 @@ Deno.serve(async (req) => {
     // Item 9: Welcome email con credenziali — NON BLOCCANTE (background).
     // Eseguita dopo la risposta: se il provider email è lento/non configurato
     // non deve più far fallire (per wall-clock) la creazione utente già avvenuta.
-    runInBackground((async () => {
+    //
+    // Account creati con un indirizzo SEGNAPOSTO (…@no-email.ediliziaincloud.local,
+    // la stessa convenzione dei clienti senza email) non ricevono niente: si
+    // creano quando la persona esiste ma la sua email non si conosce ancora, e
+    // si sostituisce dopo. Spedire le credenziali a un dominio .local vuol dire
+    // un rimbalzo certo registrato sul nostro dominio di invio — 13 per l'import
+    // BeMade dell'11/09/2026 — senza che nessuno le legga.
+    const indirizzoSegnaposto = /@no-email\.ediliziaincloud\.local$/i.test(String(email).trim());
+    if (!indirizzoSegnaposto) runInBackground((async () => {
     try {
       const branding = await getBrandingForCompany(supabaseAdmin, targetCompanyId);
 
