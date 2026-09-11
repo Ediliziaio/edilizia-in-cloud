@@ -429,38 +429,25 @@ Deno.serve(async (req) => {
         }
 
         if (stageId) {
-          const { data: existingOpportunity } = await supabase
-            .from("marketing_opportunities")
-            .select("id")
-            .eq("company_id", form.company_id)
-            .eq("contact_id", contactId)
-            .eq("source", formOpportunitySource)
-            .eq("status", "open")
-            .maybeSingle();
-
-          const opportunityName = `Lead da form: ${mappedFirstName || mappedEmail || "Nuovo"}`;
-          if (existingOpportunity?.id) {
-            await supabase
-              .from("marketing_opportunities")
-              .update({
-                updated_at: new Date().toISOString(),
-                notes: `Nuovo invio form ${form_id} il ${new Date().toISOString().slice(0, 10)}`,
-              })
-              .eq("id", existingOpportunity.id);
-          } else {
-            await supabase.from("marketing_opportunities").insert({
-              company_id: form.company_id,
-              contact_id: contactId,
-              pipeline_id: pipelineId,
-              stage_id: stageId,
-              name: opportunityName,
-              value: 0,
-              status: "open",
-              source: formOpportunitySource,
-              assigned_to: assignedUserId || null,
-              ...(defaultTags.length > 0 ? { tags: defaultTags } : {}),
-            });
-          }
+          // Niente controllo «esiste già?» qui: se il contatto ha già
+          // un'opportunità aperta nella stessa pipeline, il trigger
+          // dedupe_fb_open_opportunity scarta questa riga e riporta quella
+          // esistente nella prima fase, con una nota e la notifica a chi la
+          // segue (migrazione 20280914000012). Prima qui si riscriveva il
+          // campo note dell'opportunità vecchia — cancellando quelle scritte
+          // dal call center — e la scheda restava dov'era.
+          await supabase.from("marketing_opportunities").insert({
+            company_id: form.company_id,
+            contact_id: contactId,
+            pipeline_id: pipelineId,
+            stage_id: stageId,
+            name: `Lead da form: ${mappedFirstName || mappedEmail || "Nuovo"}`,
+            value: 0,
+            status: "open",
+            source: formOpportunitySource,
+            assigned_to: assignedUserId || null,
+            ...(defaultTags.length > 0 ? { tags: defaultTags } : {}),
+          });
         }
       } catch (error) {
         console.warn("Marketing opportunity creation skipped:", error);
