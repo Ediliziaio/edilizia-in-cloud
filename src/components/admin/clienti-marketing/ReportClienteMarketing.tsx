@@ -80,7 +80,7 @@ export function ReportClienteMarketing({ c, mese, meseLeggibile, meseOggi, oggi,
             <div>
               <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{c.servizio ?? "Marketing"} · report del mese</div>
               <h1 className="text-2xl font-bold leading-tight">{c.cliente_nome}</h1>
-              <div className="text-sm capitalize text-slate-600">{meseLeggibile}{meseCorrente ? ` (dati al ${dataBreve(oggi.toISOString(), false, oggi)})` : ""}</div>
+              <div className="text-sm text-slate-600"><span className="capitalize">{meseLeggibile}</span>{meseCorrente ? ` (dati al ${dataBreve(oggi.toISOString(), false, oggi)})` : ""}</div>
             </div>
           </div>
           <div className="text-right text-xs text-slate-500">

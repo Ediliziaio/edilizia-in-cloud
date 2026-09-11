@@ -58,7 +58,7 @@ function Delta({ adesso, prima }: { adesso: number; prima: number }) {
   );
 }
 
-function Stat({ etichetta, icona: Icona, valore, righe, tono }: { etichetta: string; icona: typeof Coins; valore: ReactNode; righe: ReactNode[]; tono?: "ok" | "attenzione" }) {
+function Stat({ etichetta, icona: Icona, valore, righe, tono, piede }: { etichetta: string; icona: typeof Coins; valore: ReactNode; righe: ReactNode[]; tono?: "ok" | "attenzione"; piede?: ReactNode }) {
   return (
     <div className={cn("min-w-0 rounded-lg px-3 py-2.5", tono === "attenzione" ? "bg-rose-50 dark:bg-rose-950/40" : "bg-muted/40")}>
       <div className="flex items-center gap-1.5 text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -68,6 +68,8 @@ function Stat({ etichetta, icona: Icona, valore, righe, tono }: { etichetta: str
       {righe.filter(Boolean).map((r, i) => (
         <div key={i} className="mt-0.5 truncate text-[11px] leading-snug text-muted-foreground" title={typeof r === "string" ? r : undefined}>{r}</div>
       ))}
+      {/* Il piede non si tronca: la linea dei giorni sta su una riga sua, la didascalia sotto. */}
+      {piede}
     </div>
   );
 }
@@ -206,11 +208,14 @@ export function ClienteMarketingCard({ c, meseCorrente, meseLeggibile, oggi, ent
           righe={[
             <Delta key="d" adesso={c.lead_mese} prima={c.lead_prec} />,
             canali || (c.lead_mese > 0 ? "fonte non riconosciuta" : "nessun lead nel mese"),
-            c.lead_giorni.length >= 2 ? (
-              <span key="s" className="inline-flex items-center gap-2"><Sparkline valori={c.lead_giorni} titolo="Lead al giorno negli ultimi 30 giorni" /> {testoUltimiGiorni(c)}</span>
-            ) : null,
             c.lead_meta_dichiarati > 0 ? `Meta ne dichiara ${numero(c.lead_meta_dichiarati)}` : null,
-          ]} />
+          ]}
+          piede={c.lead_giorni.length >= 2 ? (
+            <div className="mt-1.5 text-[11px] leading-snug text-muted-foreground">
+              <Sparkline valori={c.lead_giorni} titolo="Lead al giorno negli ultimi 30 giorni" />
+              <div className="mt-0.5">ultimi 30 giorni · {testoUltimiGiorni(c)}</div>
+            </div>
+          ) : null} />
         <Stat etichetta="Seguiti" icona={UserRoundCheck} valore={<>{numero(c.lead_lavorati)}{c.lead_mese > 0 && c.lead_lavorati <= c.lead_mese && <span className="text-sm font-medium text-muted-foreground"> / {numero(c.lead_mese)}</span>}</>}
           tono={c.lead_non_gestiti >= 5 ? "attenzione" : undefined}
           righe={[c.ore_mediane_primo_contatto != null ? `primo contatto in ${ore(c.ore_mediane_primo_contatto)} (mediana)` : "nessuna azione registrata",
