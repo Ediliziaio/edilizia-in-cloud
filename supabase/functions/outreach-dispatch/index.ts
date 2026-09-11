@@ -19,7 +19,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
-import { assignSenders, dailyCapWithVariance, remainingToday, sentToday, type SenderState, statoPerPrimiContatti } from "../_shared/outreach-dispatch-logic.ts";
+import { assignSenders, dailyCapWithVariance, remainingToday, sentToday, type SenderState, statoPerPrimiContatti, unaAssegnazionePerCasella } from "../_shared/outreach-dispatch-logic.ts";
 import { renderTemplate, contactToVars, hashSeed, htmlToPlainText } from "../_shared/outreach-template.ts";
 import { isWithinSendWindow, parseSendWindow, type SendWindow } from "../_shared/outreach-schedule.ts";
 import { parseVariants, pickVariant } from "../_shared/outreach-abz.ts";
@@ -1027,6 +1027,16 @@ serveConMetriche("outreach-dispatch", async (req) => {
         assignments.push(...tenuti);
       }
     } catch { /* cap dominio best-effort */ }
+
+    // UN SOLO invio per casella per tick (vedi outreach-dispatch-logic.ts):
+    // le altre assegnazioni alla stessa casella in questo giro tornano in coda
+    // e ripartono al tick successivo, distanziate per davvero.
+    {
+      const { kept, deferred } = unaAssegnazionePerCasella(assignments);
+      assignments.length = 0;
+      assignments.push(...kept);
+      result.deferred += deferred;
+    }
 
     // Running total per casella, seminato dallo snapshot iniziale. Il contatore
     // viene scritto DOPO OGNI invio (non a fine tick): se il tick viene ucciso

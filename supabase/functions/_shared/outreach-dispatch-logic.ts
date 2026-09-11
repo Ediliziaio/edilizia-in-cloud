@@ -192,6 +192,31 @@ export function assignSenders(
 }
 
 /**
+ * UNA sola assegnazione per casella (`senderId`) nell'elenco: tiene la prima
+ * occorrenza per casella nell'ORDINE d'ingresso, le successive tornano in coda
+ * (`deferred`). `assignSenders` round-robina bene quando le caselle eleggibili
+ * bastano per la coda dovuta, ma se in un tick sono dovuti più messaggi che
+ * caselle il round-robin può assegnarne 2+ alla STESSA casella nello stesso
+ * giro: partirebbero a pochi secondi l'uno dall'altro, non "a orari diversi".
+ * Tenendo solo la prima, le altre ripartono al tick successivo — distanziati
+ * per davvero (il cron gira a intervalli fissi) — così una casella non spedisce
+ * mai due volte nello stesso momento. L'ordine d'ingresso decide chi vince a
+ * parità di casella: il chiamante mette prima ciò che vuole prioritario (es.
+ * il follow-up "sticky" di un thread aperto prima di un primo contatto nuovo).
+ */
+export function unaAssegnazionePerCasella(assignments: Assignment[]): { kept: Assignment[]; deferred: number } {
+  const viste = new Set<string>();
+  const kept: Assignment[] = [];
+  let deferred = 0;
+  for (const a of assignments) {
+    if (viste.has(a.senderId)) { deferred++; continue; }
+    viste.add(a.senderId);
+    kept.push(a);
+  }
+  return { kept, deferred };
+}
+
+/**
  * Tetto dei PRIMI contatti al giorno per casella, separato dai follow-up.
  *
  * Il tetto totale contava tutto insieme: con «5 nuovi al giorno» e sei

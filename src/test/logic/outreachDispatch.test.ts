@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
   effectiveDailyCap, sentToday, remainingToday, totalCapacity, shouldAutoPause, assignSenders,
-  steadyCap, poolCapacityStats, dailyCapWithVariance,
-  type SenderState,
+  steadyCap, poolCapacityStats, dailyCapWithVariance, unaAssegnazionePerCasella,
+  type SenderState, type Assignment,
 } from "../../../supabase/functions/_shared/outreach-dispatch-logic";
 
 const TODAY = "2026-06-14";
@@ -139,6 +139,38 @@ describe("assignSenders — round-robin con cap", () => {
     const counts = Object.values(perSender);
     expect(Math.max(...counts)).toBeLessThanOrEqual(40); // mai oltre il cap
     expect(Math.max(...counts) - Math.min(...counts)).toBeLessThanOrEqual(1); // equa
+  });
+});
+
+describe("unaAssegnazionePerCasella — mai 2 invii dalla stessa casella nello stesso tick", () => {
+  const a = (queueId: string, senderId: string): Assignment => ({ queueId, senderId });
+
+  it("tiene tutte le assegnazioni se ogni casella compare una sola volta", () => {
+    const { kept, deferred } = unaAssegnazionePerCasella([a("m1", "x"), a("m2", "y"), a("m3", "z")]);
+    expect(kept).toEqual([a("m1", "x"), a("m2", "y"), a("m3", "z")]);
+    expect(deferred).toBe(0);
+  });
+
+  it("tiene solo la prima occorrenza per casella, rinvia le altre", () => {
+    const { kept, deferred } = unaAssegnazionePerCasella([a("m1", "x"), a("m2", "x"), a("m3", "x")]);
+    expect(kept).toEqual([a("m1", "x")]);
+    expect(deferred).toBe(2);
+  });
+
+  it("l'ordine d'ingresso decide chi vince a parità di casella (es. sticky prima di un primo contatto)", () => {
+    const { kept } = unaAssegnazionePerCasella([a("sticky-followup", "x"), a("nuovo-contatto", "x")]);
+    expect(kept).toEqual([a("sticky-followup", "x")]);
+  });
+
+  it("caselle diverse restano tutte, solo i duplicati sulla stessa casella vengono rinviati", () => {
+    const input = [a("m1", "a"), a("m2", "b"), a("m3", "a"), a("m4", "c"), a("m5", "b")];
+    const { kept, deferred } = unaAssegnazionePerCasella(input);
+    expect(kept.map((x) => x.queueId)).toEqual(["m1", "m2", "m4"]);
+    expect(deferred).toBe(2);
+  });
+
+  it("lista vuota → nessuna assegnazione, nessun rinvio", () => {
+    expect(unaAssegnazionePerCasella([])).toEqual({ kept: [], deferred: 0 });
   });
 });
 
