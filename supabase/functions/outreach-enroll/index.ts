@@ -25,9 +25,12 @@ import { isPecEmail, isRoleEmail, domainOf, domainHasMx } from "../_shared/outre
 const PLATFORM_COMPANY = "00000000-0000-0000-0000-000000000001";
 const MAX_CONTACTS = 5000;
 // Oltre questo tempo si smette di valutare/bloccare nuovi contatti e si iscrive
-// ciò che è già pronto: la funzione ha 150 s, e un kill a metà lascerebbe lock
-// multi-brand acquisiti senza iscrizione (aziende bloccate per 25 giorni a vuoto).
-const BUDGET_VALUTAZIONE_MS = 90_000;
+// ciò che è già pronto: un kill a metà lascerebbe lock multi-brand acquisiti
+// senza iscrizione (aziende bloccate per 25 giorni a vuoto). Margini stretti:
+// a ~130 s il lavoro finiva ma il browser aveva già chiuso la connessione
+// («Failed to send a request»), e chi arruolava vedeva un errore su
+// un'ondata riuscita.
+const BUDGET_VALUTAZIONE_MS = 55_000;
 
 interface ContactRow {
   id: string;
