@@ -122,8 +122,9 @@ const BATCH = 100;
 // puliti (le righe non ancora prese restano 'queued' per il tick successivo).
 // Sotto il limite 150s della edge function, con margine per l'update finale.
 const TICK_BUDGET_MS = 110_000;
-// Caselle servite in parallelo nello stesso tick (una assegnazione per casella).
-const CONCORRENZA_CASELLE = 8;
+// Caselle servite in parallelo nello stesso tick (una assegnazione per casella):
+// con 60 caselle e ~12 s a invio, 12 alla volta chiudono il giro in un minuto.
+const CONCORRENZA_CASELLE = 12;
 
 async function inParallelo<T>(items: T[], limite: number, fn: (x: T) => Promise<void>): Promise<void> {
   let i = 0;
@@ -1121,7 +1122,7 @@ serveConMetriche("outreach-dispatch", async (req) => {
     let fermaTick = false;
     const lavora = async (a: Assignment): Promise<void> => {
       if (fermaTick) return;
-      await new Promise((r) => setTimeout(r, Math.floor(Math.random() * 12_000)));
+      await new Promise((r) => setTimeout(r, Math.floor(Math.random() * 8_000)));
       if (fermaTick) return;
       // Time-budget: usciamo puliti prima del limite 150s della edge. Le righe
       // non ancora prese restano 'queued' per il tick successivo; nessuna resta
