@@ -174,14 +174,28 @@ function notaProgettiFv(quanti: number): string | undefined {
     : `${quanti} preventivi fotovoltaici restano nell'area Fotovoltaico, senza piu' il collegamento all'opportunita'.`;
 }
 
+/**
+ * Filtro «vede solo i propri» per le opportunità: un'opportunità è mia se ne
+ * sono venditore, call center o follower — lo stesso criterio delle regole del
+ * database (migrazione 20280914000010).
+ *
+ * Prima si guardava solo `assigned_to`: un operatore di call center assegnato
+ * come call center non vedeva nulla (Venusia, BeMade, 11/09/2026).
+ */
+export function filtroSoloMiei(userId: string): string {
+  return `assigned_to.eq.${userId},call_center_id.eq.${userId},follower_id.eq.${userId}`;
+}
+
 export async function enrichPage(data: any[], companyId: string) {
-  // Enrich with assigned profile names
-  const assignedIds = [...new Set(data.filter((o) => o.assigned_to).map((o) => o.assigned_to))];
-  const profilesMap: Record<string, { first_name: string; last_name: string }> = {};
+  // Profili di venditore e call center (nome, iniziali, foto per l'avatar).
+  const assignedIds = [...new Set(
+    data.flatMap((o) => [o.assigned_to, o.call_center_id]).filter(Boolean),
+  )];
+  const profilesMap: Record<string, { first_name: string; last_name: string; avatar_url?: string | null }> = {};
   if (assignedIds.length > 0) {
     const { data: profiles } = await supabase
       .from("profiles")
-      .select("id, first_name, last_name")
+      .select("id, first_name, last_name, avatar_url")
       .in("id", assignedIds);
     if (profiles) {
       profiles.forEach((p: any) => { profilesMap[p.id] = p; });
@@ -251,6 +265,7 @@ export async function enrichPage(data: any[], companyId: string) {
   return data.map((o) => ({
     ...o,
     assigned_profile: o.assigned_to ? profilesMap[o.assigned_to] || null : null,
+    call_center_profile: o.call_center_id ? profilesMap[o.call_center_id] || null : null,
     notes_count: notesCountMap[o.id] || 0,
     documents_count: docsCountMap[o.id] || 0,
     next_appointment: o.contact_id ? appointmentMap[o.contact_id] || null : null,
@@ -258,14 +273,18 @@ export async function enrichPage(data: any[], companyId: string) {
 }
 
 export function useOpportunities(pipelineId: string | null) {
-  const { effectiveCompany, user } = useAuth();
+  const { effectiveCompany, user, viewAsUserId } = useAuth();
   const companyId = effectiveCompany?.id;
   const permissions = usePermissions();
+  // In «Vista come» i permessi sono quelli dell'utente simulato ma la sessione
+  // resta del super admin: il filtro va fatto sull'utente SIMULATO, altrimenti
+  // si vedono le opportunità del super admin (cioè nessuna).
+  const idAgente = viewAsUserId ?? user?.id;
 
   const infiniteQuery = useInfiniteQuery({
-    // Scope permessi nella key: con onlyAssigned la query filtra assigned_to,
+    // Scope permessi nella key: con onlyAssigned la query filtra per persona,
     // ma la cache era condivisa → "Visualizza come" serviva il dataset pieno.
-    queryKey: [...queryKeys.opportunities.list(companyId, pipelineId), permissions.onlyAssigned ? user?.id ?? "me" : "all"],
+    queryKey: [...queryKeys.opportunities.list(companyId, pipelineId), permissions.onlyAssigned ? idAgente ?? "me" : "all"],
     queryFn: async ({ pageParam = 0 }) => {
       const from = pageParam * PAGE_SIZE;
       const to = from + PAGE_SIZE - 1;
@@ -280,9 +299,9 @@ export function useOpportunities(pipelineId: string | null) {
         .is("deleted_at", null)
         .order("created_at", { ascending: false })
         .range(from, to);
-      // Permission enforcement: restrict to assigned opportunities only
-      if (permissions.onlyAssigned && user?.id) {
-        query = query.eq("assigned_to", user.id);
+      // «Vede solo i propri»: venditore, call center o follower.
+      if (permissions.onlyAssigned && idAgente) {
+        query = query.or(filtroSoloMiei(idAgente));
       }
       const { data, error } = await withClientTimeout(query, "Caricamento opportunità", 15_000);
       if (error) throw error;

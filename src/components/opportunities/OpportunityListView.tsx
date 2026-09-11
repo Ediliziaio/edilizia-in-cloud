@@ -196,7 +196,8 @@ export const OpportunityListView = memo(function OpportunityListView({
                 ? `${contact.first_name || ""} ${contact.last_name || ""}`.trim()
                 : opp.name;
               const contactPhone = contact?.phone;
-              const profile = opp.assigned_profile;
+              // Venditore prima; se manca, il call center (come nella scheda kanban).
+              const profile = opp.assigned_profile ?? opp.call_center_profile;
               const ownerInitials = profile
                 ? `${profile.first_name?.[0] || ""}${profile.last_name?.[0] || ""}`.toUpperCase()
                 : null;
@@ -394,7 +395,8 @@ export const OpportunityListView = memo(function OpportunityListView({
                   : opp.name;
                 const contactCity = contact?.city ? `· ${contact.city}` : "";
 
-                const profile = opp.assigned_profile;
+                // Venditore prima; se manca, il call center (come nella scheda kanban).
+                const profile = opp.assigned_profile ?? opp.call_center_profile;
                 const ownerName = profile
                   ? `${profile.first_name || ""} ${profile.last_name || ""}`.trim()
                   : null;

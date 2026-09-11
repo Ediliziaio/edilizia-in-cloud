@@ -60,14 +60,23 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
   const stageChangedAt = opportunity.stage_changed_at || opportunity.updated_at || null;
   const daysInStage = stageChangedAt ? Math.max(0, differenceInDays(new Date(), new Date(stageChangedAt))) : null;
 
-  // Owner avatar from assigned_profile
-  const profile = opportunity.assigned_profile;
-  const assignedInitials = profile
-    ? `${profile.first_name?.[0] || ""}${profile.last_name?.[0] || ""}`.toUpperCase()
+  // Avatar di chi segue l'opportunità: il VENDITORE ha la precedenza; se non
+  // c'è, si mostra il CALL CENTER (con un colore diverso, per distinguerli a
+  // colpo d'occhio). Prima un'opportunità affidata solo al call center restava
+  // «Non assegnato» anche dopo l'assegnazione.
+  const venditore = opportunity.assigned_profile;
+  const callCenter = opportunity.call_center_profile;
+  const persona = venditore ?? callCenter ?? null;
+  const personaDelCallCenter = !venditore && !!callCenter;
+  const nomeDi = (p: { first_name?: string | null; last_name?: string | null } | null | undefined) =>
+    p ? `${p.first_name || ""} ${p.last_name || ""}`.trim() : "";
+  const assignedInitials = persona
+    ? `${persona.first_name?.[0] || ""}${persona.last_name?.[0] || ""}`.toUpperCase() || null
     : null;
-  const assignedFullName = profile
-    ? `${profile.first_name || ""} ${profile.last_name || ""}`.trim()
-    : null;
+  const assignedFullName = [
+    venditore ? `Venditore: ${nomeDi(venditore)}` : null,
+    callCenter ? `Call center: ${nomeDi(callCenter)}` : null,
+  ].filter(Boolean).join(" · ") || null;
 
   // Tags
   const tags: string[] = opportunity.tags || [];
@@ -232,8 +241,16 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
           {isFieldActive("owner") && (
             <Tooltip>
               <TooltipTrigger asChild>
-                {assignedInitials ? (
-                  <span className="shrink-0 h-5 w-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-[9px] font-bold cursor-default">
+                {persona?.avatar_url ? (
+                  <img
+                    src={persona.avatar_url}
+                    alt={nomeDi(persona)}
+                    className={`shrink-0 h-5 w-5 rounded-full object-cover cursor-default ${personaDelCallCenter ? "ring-2 ring-amber-400" : ""}`}
+                  />
+                ) : assignedInitials ? (
+                  <span className={`shrink-0 h-5 w-5 rounded-full flex items-center justify-center text-[9px] font-bold cursor-default ${
+                    personaDelCallCenter ? "bg-amber-500 text-white" : "bg-primary text-primary-foreground"
+                  }`}>
                     {assignedInitials}
                   </span>
                 ) : (

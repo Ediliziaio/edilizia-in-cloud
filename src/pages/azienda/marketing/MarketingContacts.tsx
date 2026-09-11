@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
+import { filtroSoloMiei } from "@/hooks/useOpportunitiesData";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useURLFilters } from "@/hooks/useURLFilters";
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
@@ -539,7 +540,10 @@ function BulkEnrichButton({ selectedIds, onDone }: { selectedIds: Set<string>; o
 
 export default function MarketingContacts() {
   const isMobile = useIsMobile();
-  const { effectiveCompany, user } = useAuth();
+  const { effectiveCompany, user, viewAsUserId } = useAuth();
+  // «Vede solo i propri»: in «Vista come» la sessione è del super admin ma i
+  // permessi sono dell'utente simulato → il filtro va sull'utente simulato.
+  const idAgente = viewAsUserId ?? user?.id;
   const companyId = effectiveCompany?.id;
   const permissions = usePermissions();
   const canEditContacts = permissions.canEditMarketingContacts || permissions.canEditMarketing;
@@ -740,8 +744,8 @@ export default function MarketingContacts() {
           .order("created_at", { ascending: false })
           .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
 
-        if (permissions.onlyAssigned && user?.id) {
-          query = query.eq("assigned_to", user.id);
+        if (permissions.onlyAssigned && idAgente) {
+          query = query.or(filtroSoloMiei(idAgente));
         }
 
         // Apply search filter if active
@@ -858,7 +862,7 @@ export default function MarketingContacts() {
     } finally {
       setExporting(false);
     }
-  }, [companyId, exporting, selectedIds, contactCustomFields, filters, search, permissions.onlyAssigned, user?.id, activeTab, qualityFilter, stalePreset, stalePresetActive, sourceFilter]);
+  }, [companyId, exporting, selectedIds, contactCustomFields, filters, search, permissions.onlyAssigned, idAgente, activeTab, qualityFilter, stalePreset, stalePresetActive, sourceFilter]);
 
   // Consolidated filter data query (pipelines, tags, list count)
   const { data: filterData } = useQuery({
@@ -902,7 +906,7 @@ export default function MarketingContacts() {
   // calcolati sulla pagina corrente erano fuorvianti: qui i numeri dicono
   // davvero quanti contatti hanno un recapito utilizzabile per le campagne.
   const { data: reachStats } = useQuery({
-    queryKey: ["marketing-contacts-reachability", companyId, permissions.onlyAssigned ? user?.id : null],
+    queryKey: ["marketing-contacts-reachability", companyId, permissions.onlyAssigned ? idAgente : null],
     staleTime: 5 * 60 * 1000,
     enabled: !!companyId,
     queryFn: async () => {
@@ -911,7 +915,7 @@ export default function MarketingContacts() {
           .from("marketing_contacts")
           .select("id", { count: "exact", head: true })
           .eq("company_id", companyId!);
-        if (permissions.onlyAssigned && user?.id) q = q.eq("assigned_to", user.id);
+        if (permissions.onlyAssigned && idAgente) q = q.or(filtroSoloMiei(idAgente));
         return q;
       };
       const results = await Promise.all([
@@ -1015,8 +1019,8 @@ export default function MarketingContacts() {
 
     // Now query contacts with standard + tag rules
     let query = supabase.from("marketing_contacts").select("id").eq("company_id", companyId);
-    if (permissions.onlyAssigned && user?.id) {
-      query = query.eq("assigned_to", user.id);
+    if (permissions.onlyAssigned && idAgente) {
+      query = query.or(filtroSoloMiei(idAgente));
     }
     if (filterIds) query = query.in("id", filterIds);
     for (const rule of standardRules) query = applyRuleToQuery(query, rule);
@@ -1034,7 +1038,9 @@ export default function MarketingContacts() {
 
   // Fetch contacts with grouped filter rules
   const { data, isLoading } = useQuery({
-    queryKey: ["marketing-contacts", companyId, search, page, pageSize, sortField, sortDirection, filters, activeTab, stalePreset, qualityFilter, meseFilter, sourceFilter],
+    // Lo scope «solo i propri» sta nella chiave: senza, passando a «Vista come»
+    // la cache serviva l'elenco pieno del super admin.
+    queryKey: ["marketing-contacts", companyId, search, page, pageSize, sortField, sortDirection, filters, activeTab, stalePreset, qualityFilter, meseFilter, sourceFilter, permissions.onlyAssigned ? idAgente : "tutti"],
     queryFn: async () => {
       if (!companyId) return { contacts: [] as MarketingContact[], count: 0 };
 
@@ -1088,8 +1094,8 @@ export default function MarketingContacts() {
         .range(from, to);
 
       // Permission enforcement: restrict to assigned contacts only
-      if (permissions.onlyAssigned && user?.id) {
-        query = query.eq("assigned_to", user.id);
+      if (permissions.onlyAssigned && idAgente) {
+        query = query.or(filtroSoloMiei(idAgente));
       }
 
       if (finalIds) query = query.in("id", finalIds);

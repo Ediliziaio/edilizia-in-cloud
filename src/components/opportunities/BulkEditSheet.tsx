@@ -5,7 +5,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Search, ChevronRight, Loader2 } from "lucide-react";
-import { useBulkUpdateOpportunities, useBulkTagOpportunities, useCompanyStaff } from "@/hooks/useOpportunitiesData";
+import {
+  useBulkUpdateOpportunities, useBulkTagOpportunities, useCompanyStaff,
+  useCompanySalespeople, useCompanyCallCenterUsers,
+} from "@/hooks/useOpportunitiesData";
 import { STATUS_OPTIONS } from "@/types/opportunities";
 import { toast } from "sonner";
 
@@ -18,13 +21,14 @@ interface BulkEditSheetProps {
   canEdit?: boolean;
 }
 
-type Field = "stage_id" | "status" | "value" | "assigned_to" | "follower_id" | "source" | "expected_close_date" | "next_action" | "add_tags" | "remove_tags";
+type Field = "stage_id" | "status" | "value" | "assigned_to" | "call_center_id" | "follower_id" | "source" | "expected_close_date" | "next_action" | "add_tags" | "remove_tags";
 
 const FIELDS: { key: Field; label: string }[] = [
   { key: "stage_id", label: "Fase" },
   { key: "status", label: "Stato" },
   { key: "value", label: "Valore" },
   { key: "assigned_to", label: "Venditore" },
+  { key: "call_center_id", label: "Call center" },
   { key: "follower_id", label: "Follower" },
   { key: "source", label: "Fonte" },
   { key: "expected_close_date", label: "Data chiusura prevista" },
@@ -47,6 +51,13 @@ export function BulkEditSheet({ open, onOpenChange, selectedIds, stages, onDone,
   const [fieldValue, setFieldValue] = useState("");
   const [search, setSearch] = useState("");
   const { data: staff = [] } = useCompanyStaff();
+  // Ogni ruolo pesca dalle sue persone, come nel dettaglio opportunità: prima
+  // il campo «Venditore» elencava tutto lo staff, operatori call center
+  // compresi — ed era facile affidare una vendita a chi deve solo chiamare.
+  const { data: venditori = [] } = useCompanySalespeople();
+  const { data: operatoriCallCenter = [] } = useCompanyCallCenterUsers();
+  const personePerCampo = (campo: Field | null) =>
+    campo === "assigned_to" ? venditori : campo === "call_center_id" ? operatoriCallCenter : staff;
   const bulkUpdate = useBulkUpdateOpportunities();
   const bulkTag = useBulkTagOpportunities();
 
@@ -94,7 +105,7 @@ export function BulkEditSheet({ open, onOpenChange, selectedIds, stages, onDone,
     } else if (selectedField === "status" && fieldValue === "lost") {
       toast.error("Per segnare opportunità perse serve indicare il motivo dal dettaglio opportunità");
       return;
-    } else if (selectedField === "assigned_to" || selectedField === "follower_id") {
+    } else if (selectedField === "assigned_to" || selectedField === "call_center_id" || selectedField === "follower_id") {
       data[selectedField] = fieldValue === "none" ? null : fieldValue;
     } else if (selectedField === "source") {
       data.source = fieldValue.trim();
@@ -209,12 +220,12 @@ export function BulkEditSheet({ open, onOpenChange, selectedIds, stages, onDone,
                   />
                 )}
 
-                {(selectedField === "assigned_to" || selectedField === "follower_id") && (
+                {(selectedField === "assigned_to" || selectedField === "call_center_id" || selectedField === "follower_id") && (
                   <Select value={fieldValue} onValueChange={setFieldValue}>
                     <SelectTrigger><SelectValue placeholder="Seleziona persona..." /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">Nessuno</SelectItem>
-                      {staff.map((s: any) => (
+                      {personePerCampo(selectedField).map((s: any) => (
                         <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
                       ))}
                     </SelectContent>
