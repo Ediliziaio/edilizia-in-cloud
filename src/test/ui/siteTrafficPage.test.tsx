@@ -19,7 +19,7 @@ const traffico = {
     pagine_per_sessione: 1.51, sessioni_una_pagina: 285,
     tempo_tipico_pagina_s: 40.8, tempo_medio_pagina_s: 190.0, viste_con_tempo: 366,
     viste_precedente: 0, sessioni_precedente: 0, visitatori_precedente: 0,
-    crescita_viste_pct: null, crescita_sessioni_pct: null, crescita_visitatori_pct: null,
+    crescita_viste_pct: null as number | null, crescita_sessioni_pct: null as number | null, crescita_visitatori_pct: null as number | null,
     richieste: 3, tasso_richiesta_pct: 0.9,
   },
   pagine: [
