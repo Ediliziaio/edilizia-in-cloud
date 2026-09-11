@@ -19,9 +19,9 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
-import { assignSenders, dailyCapWithVariance, remainingToday, sentToday, type SenderState, statoPerPrimiContatti, unaAssegnazionePerCasella } from "../_shared/outreach-dispatch-logic.ts";
+import { assignSenders, cadenzaCasella, dailyCapWithVariance, remainingToday, sentToday, type SenderState, statoPerPrimiContatti, unaAssegnazionePerCasella } from "../_shared/outreach-dispatch-logic.ts";
 import { renderTemplate, contactToVars, hashSeed, htmlToPlainText } from "../_shared/outreach-template.ts";
-import { isWithinSendWindow, parseSendWindow, type SendWindow } from "../_shared/outreach-schedule.ts";
+import { DEFAULT_SEND_WINDOW, finestraEffettiva, isWithinSendWindow, minutoDelGiorno, parseSendWindow, type SendWindow } from "../_shared/outreach-schedule.ts";
 import { parseVariants, pickVariant } from "../_shared/outreach-abz.ts";
 import { nextEmailStep, computeStepSchedule, applyJitter, spostaFuoriWeekend, type SeqStep } from "../_shared/outreach-sequence.ts";
 import {
@@ -788,31 +788,38 @@ serveConMetriche("outreach-dispatch", async (req) => {
     // 1. coda dovuta — SOLO righe spedibili (kind='send'). Le righe 'advance' sono
     // gestite sopra. Filtro tollerante: se 'kind' non esiste ricade su tutte le
     // righe (legacy), che sono comunque send.
+    // Due letture separate — follow-up e primi contatti — ognuna coi suoi BATCH
+    // più vecchi. Con una lettura sola ordinata per scheduled_for, un arretrato
+    // di primi contatti (una lista grande appena arruolata matura più in fretta
+    // di quanto le caselle smaltiscano) riempiva tutto il batch: i follow-up,
+    // dovuti più tardi, non entravano mai nel giro e restavano fermi per mesi.
+    // I follow-up vanno davanti: sono thread già aperti.
     let queue: any[] | null = null;
     {
-      const sel = () => supabase
+      const sel = (primo: boolean) => supabase
         .from("outreach_send_queue")
         .select("id, to_email, subject, body, attempts, max_attempts, contact_id, enrollment_id, brand_id, primo_contatto")
-        .eq("status", "queued").eq("channel", "email")
+        .eq("status", "queued").eq("channel", "email").eq("primo_contatto", primo)
         .lte("scheduled_for", now.toISOString())
         .order("scheduled_for", { ascending: true })
         .limit(BATCH);
-      const r = await sel().eq("kind", "send");
-      if (r.error) {
+      const leggi = async (primo: boolean): Promise<any[]> => {
+        const r = await sel(primo).eq("kind", "send");
+        if (!r.error) return r.data ?? [];
         // 'kind' assente (pre-migrazione grafo): riprova senza il filtro.
-        const r2 = await sel();
+        const r2 = await sel(primo);
         if (r2.error) throw r2.error;
-        queue = r2.data;
-      } else {
-        queue = r.data;
-      }
+        return r2.data ?? [];
+      };
+      const [seguiti, primi] = await Promise.all([leggi(false), leggi(true)]);
+      queue = [...seguiti, ...primi];
     }
     if (!queue || queue.length === 0) { await logRun(supabase, "outreach-dispatch", now, { ...result, note: "coda vuota" }); return json({ ...result, note: "coda vuota" }, 200, cors); }
 
     // 2. caselle del pool
     const { data: sendersRaw, error: sErr } = await supabase
       .from("outreach_sender_accounts")
-      .select("id,status,daily_cap_target,warmup_base,warmup_step,warmup_day,daily_sent,daily_sent_date,email,display_name,brand_id,sending_domain_id,provider,smtp_host,smtp_port,smtp_secure,smtp_username,secret_ref,connection_status,oauth_connection_id,signature")
+      .select("id,status,daily_cap_target,warmup_base,warmup_step,warmup_day,daily_sent,daily_sent_date,last_sent_at,email,display_name,brand_id,sending_domain_id,provider,smtp_host,smtp_port,smtp_secure,smtp_username,secret_ref,connection_status,oauth_connection_id,signature")
       .in("status", ["active", "warming"]);
     if (sErr) throw sErr;
     // Una casella in errore NON entra in rotazione: prima veniva scelta lo
@@ -958,6 +965,24 @@ serveConMetriche("outreach-dispatch", async (req) => {
       const nuoviAlGiorno = brandById.get(brand)?.new_per_day ?? null;
       if (brandSenders.length === 0) { result.deferred += ids.length; continue; } // nessuna casella per quel brand
       const brandIds = new Set(brandSenders.map((s) => s.id));
+      // CADENZA per casella: il tetto del giorno si spalma sulla finestra di
+      // invio (vedi cadenzaCasella). Una casella non ancora "pronta" salta il
+      // giro, anche se in coda c'è altro da mandare.
+      const bwRaw = brandById.get(brand)?.send_window;
+      const fin = finestraEffettiva(sendWindow ?? DEFAULT_SEND_WINDOW, bwRaw ? parseSendWindow(bwRaw) : null);
+      const minutiFinestra = (fin.endHour - fin.startHour) * 60;
+      const minutiDallApertura = minutoDelGiorno(now, fin.timeZone) - fin.startHour * 60;
+      const pronte = new Set(brandSenders.filter((s) => {
+        const ultimo = (s as SenderState & { last_sent_at?: string | null }).last_sent_at;
+        return cadenzaCasella({
+          senderId: s.id, dateKey: today,
+          capGiorno: dailyCapWithVariance(s, today),
+          inviatiOggi: sentToday(s, today),
+          ultimoInvio: ultimo ? new Date(ultimo) : null,
+          ora: now, minutiFinestra, minutiDallApertura,
+        }).pronta;
+      }).map((s) => s.id));
+      const brandSendersPronti = brandSenders.filter((s) => pronte.has(s.id));
       const usati = new Map<string, number>();
       const usatiPrimi = new Map<string, number>();
       const liberi: string[] = [];
@@ -965,6 +990,8 @@ serveConMetriche("outreach-dispatch", async (req) => {
         const q = queueById.get(qid);
         const sid = q?.enrollment_id ? stickyByEnrollment.get(q.enrollment_id) : undefined;
         if (sid && brandIds.has(sid)) {
+          // Il follow-up parte solo dalla sua casella: se non è ancora pronta, aspetta.
+          if (!pronte.has(sid)) { result.deferred++; continue; }
           const s = senderById.get(sid) as SenderState;
           const rem = remainingToday(s, today, today) - (usati.get(sid) ?? 0);
           if (rem > 0) { assignments.push({ queueId: qid, senderId: sid }); usati.set(sid, (usati.get(sid) ?? 0) + 1); }
@@ -984,7 +1011,7 @@ serveConMetriche("outreach-dispatch", async (req) => {
       const primi = liberi.filter((qid) => queueById.get(qid)?.primo_contatto === true);
       const seguiti = liberi.filter((qid) => queueById.get(qid)?.primo_contatto !== true);
       if (primi.length) {
-        const statiPrimi = conUsati(brandSenders).map((s) =>
+        const statiPrimi = conUsati(brandSendersPronti).map((s) =>
           statoPerPrimiContatti(s, nuoviAlGiorno, (nuoviOggiPerCasella.get(s.id) ?? 0) + (usatiPrimi.get(s.id) ?? 0), today));
         const rp = assignSenders(primi, statiPrimi, today, today);
         for (const a of rp.assignments) {
@@ -995,7 +1022,7 @@ serveConMetriche("outreach-dispatch", async (req) => {
         result.deferred += primi.length - rp.assignments.length;
       }
       if (seguiti.length) {
-        const r = assignSenders(seguiti, conUsati(brandSenders), today, today);
+        const r = assignSenders(seguiti, conUsati(brandSendersPronti), today, today);
         assignments.push(...r.assignments);
         result.deferred += seguiti.length - r.assignments.length;
       }

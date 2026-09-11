@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   effectiveDailyCap, sentToday, remainingToday, totalCapacity, shouldAutoPause, assignSenders,
-  steadyCap, poolCapacityStats, dailyCapWithVariance, unaAssegnazionePerCasella,
+  steadyCap, poolCapacityStats, dailyCapWithVariance, unaAssegnazionePerCasella, cadenzaCasella,
   type SenderState, type Assignment,
 } from "../../../supabase/functions/_shared/outreach-dispatch-logic";
 
@@ -171,6 +171,95 @@ describe("unaAssegnazionePerCasella — mai 2 invii dalla stessa casella nello s
 
   it("lista vuota → nessuna assegnazione, nessun rinvio", () => {
     expect(unaAssegnazionePerCasella([])).toEqual({ kept: [], deferred: 0 });
+  });
+});
+
+describe("cadenzaCasella — il tetto del giorno spalmato sulla finestra", () => {
+  const FINESTRA = 660; // 8-19
+  const apertura = new Date("2026-09-14T06:00:00Z"); // 08:00 a Roma (CEST)
+  const alMinuto = (m: number) => new Date(apertura.getTime() + m * 60_000);
+
+  /** Un giorno di tick ogni 10' con coda infinita: quando parte, e quante. */
+  function simula(senderId: string, cap: number, dateKey = "2026-09-14"): number[] {
+    const invii: number[] = [];
+    for (let m = 0; m < FINESTRA; m += 10) {
+      if (invii.length >= cap) break;
+      const ultimo = invii.length ? alMinuto(invii[invii.length - 1]) : null;
+      const { pronta } = cadenzaCasella({
+        senderId, dateKey, capGiorno: cap, inviatiOggi: invii.length, ultimoInvio: ultimo,
+        ora: alMinuto(m), minutiFinestra: FINESTRA, minutiDallApertura: m,
+      });
+      if (pronta) invii.push(m); // al massimo uno per tick, come nel dispatcher
+    }
+    return invii;
+  }
+
+  it("primo invio del giorno: mai prima dell'apertura", () => {
+    const r = cadenzaCasella({
+      senderId: "x", dateKey: "2026-09-14", capGiorno: 3, inviatiOggi: 0, ultimoInvio: null,
+      ora: alMinuto(-5), minutiFinestra: FINESTRA, minutiDallApertura: -5,
+    });
+    expect(r.pronta).toBe(false);
+  });
+
+  it("primo invio entro la prima metà dell'intervallo medio (finestra/tetto)", () => {
+    for (let i = 0; i < 50; i++) {
+      const [primo] = simula(`casella-${i}`, 3);
+      expect(primo).toBeLessThanOrEqual(Math.ceil((FINESTRA / 3) * 0.5 / 10) * 10);
+    }
+  });
+
+  it("con coda infinita il tetto NON parte tutto al mattino: invii distribuiti nella giornata", () => {
+    for (let i = 0; i < 50; i++) {
+      const invii = simula(`casella-${i}`, 3);
+      expect(invii.length).toBe(3);
+      expect(invii[2] - invii[0]).toBeGreaterThanOrEqual(180); // almeno 3 ore tra il primo e l'ultimo
+      expect(invii[2]).toBeLessThan(FINESTRA); // e tutti dentro la finestra
+    }
+  });
+
+  it("mai due invii della stessa casella a meno di un giro di distanza", () => {
+    for (const cap of [2, 5, 12, 30]) {
+      const invii = simula("c", cap);
+      for (let k = 1; k < invii.length; k++) expect(invii[k] - invii[k - 1]).toBeGreaterThanOrEqual(10);
+    }
+  });
+
+  it("a regime (tetto 30) il tetto si chiude quasi tutto dentro la finestra", () => {
+    for (let i = 0; i < 20; i++) expect(simula(`regime-${i}`, 30).length).toBeGreaterThanOrEqual(27);
+  });
+
+  it("caselle diverse partono a orari diversi (non tutte all'apertura)", () => {
+    const primi = new Set(Array.from({ length: 12 }, (_, i) => simula(`pool-${i}`, 2)[0]));
+    expect(primi.size).toBeGreaterThan(4);
+  });
+
+  it("le pause cambiano da un invio all'altro", () => {
+    const invii = simula("varia", 6);
+    const pause = invii.slice(1).map((m, k) => m - invii[k]);
+    expect(new Set(pause).size).toBeGreaterThan(1);
+  });
+
+  it("partenza tardiva: gli invii si stringono nel tempo rimasto invece di perdersi", () => {
+    // flusso attivato alle 15:00 (minuto 420): restano 240 minuti
+    const invii: number[] = [];
+    for (let m = 420; m < FINESTRA; m += 10) {
+      if (invii.length >= 4) break;
+      const ultimo = invii.length ? alMinuto(invii[invii.length - 1]) : null;
+      if (cadenzaCasella({
+        senderId: "tardi", dateKey: "2026-09-14", capGiorno: 4, inviatiOggi: invii.length, ultimoInvio: ultimo,
+        ora: alMinuto(m), minutiFinestra: FINESTRA, minutiDallApertura: m,
+      }).pronta) invii.push(m);
+    }
+    expect(invii.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("deterministica: stessa casella, stesso giorno, stesso stato → stessa risposta", () => {
+    const input = {
+      senderId: "d", dateKey: "2026-09-14", capGiorno: 5, inviatiOggi: 2, ultimoInvio: alMinuto(100),
+      ora: alMinuto(160), minutiFinestra: FINESTRA, minutiDallApertura: 160,
+    };
+    expect(cadenzaCasella(input)).toEqual(cadenzaCasella(input));
   });
 });
 

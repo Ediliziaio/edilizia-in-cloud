@@ -33,6 +33,34 @@ export function localParts(date: Date, timeZone: string): { hour: number; weekda
   return { hour, weekday };
 }
 
+/** Minuti dalla mezzanotte locale (0-1439) di un istante in un fuso, via Intl (gestisce la DST). */
+export function minutoDelGiorno(date: Date, timeZone: string): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone, hour: "2-digit", minute: "2-digit", hour12: false,
+  }).formatToParts(date);
+  let h = 0, m = 0;
+  for (const p of parts) {
+    if (p.type === "hour") h = parseInt(p.value, 10) % 24;
+    else if (p.type === "minute") m = parseInt(p.value, 10);
+  }
+  return h * 60 + m;
+}
+
+/**
+ * La finestra in cui si spedisce DAVVERO quando valgono sia quella di
+ * piattaforma (il dispatcher esce subito fuori da questa) sia quella del brand
+ * (controllata riga per riga): l'intersezione. Se non si sovrappongono resta
+ * quella di piattaforma, così il calcolo della cadenza non degenera.
+ */
+export function finestraEffettiva(piattaforma: SendWindow, brand: SendWindow | null | undefined): SendWindow {
+  if (!brand) return piattaforma;
+  const days = piattaforma.days.filter((d) => brand.days.includes(d));
+  const startHour = Math.max(piattaforma.startHour, brand.startHour);
+  const endHour = Math.min(piattaforma.endHour, brand.endHour);
+  if (!days.length || startHour >= endHour) return piattaforma;
+  return { days, startHour, endHour, timeZone: piattaforma.timeZone };
+}
+
 /** True se l'istante cade nella finestra (giorno consentito e ora tra start e end). */
 export function isWithinSendWindow(date: Date, w: SendWindow = DEFAULT_SEND_WINDOW): boolean {
   const { hour, weekday } = localParts(date, w.timeZone);

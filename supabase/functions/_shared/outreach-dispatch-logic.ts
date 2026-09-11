@@ -216,6 +216,65 @@ export function unaAssegnazionePerCasella(assignments: Assignment[]): { kept: As
   return { kept, deferred };
 }
 
+/** Frazione deterministica in [0,1) da un seme testuale. */
+function frazione(seme: string): number {
+  return (fnv1a(seme) % 10_000) / 10_000;
+}
+
+export interface CadenzaInput {
+  senderId: string;
+  /** Giorno 'YYYY-MM-DD': seme della variazione, cambia ogni giorno. */
+  dateKey: string;
+  /** Tetto di oggi della casella (quello che userà il dispatcher). */
+  capGiorno: number;
+  /** Invii già fatti oggi dalla casella. */
+  inviatiOggi: number;
+  /** Ultimo invio della casella (`last_sent_at`), se c'è. */
+  ultimoInvio: Date | null;
+  ora: Date;
+  /** Durata della finestra di invio effettiva, in minuti. */
+  minutiFinestra: number;
+  /** Minuti passati dall'apertura della finestra di oggi (negativo se non è ancora aperta). */
+  minutiDallApertura: number;
+}
+
+/**
+ * La casella può spedire in questo giro? Serve a SPALMARE il tetto del giorno
+ * sulla finestra di invio. Con una coda lunga (una lista appena arruolata, o i
+ * contatti accumulati nella notte) il dispatcher trova sempre qualcosa di
+ * dovuto: senza questa regola ogni casella brucerebbe il suo tetto nei primi
+ * giri — 8:00, 8:10, 8:20 — e poi silenzio fino al giorno dopo, un ritmo da
+ * macchina, identico ogni giorno.
+ *
+ *  - Primo invio del giorno: dopo uno scarto proprio della casella, tra 0 e
+ *    metà dell'intervallo medio (finestra/tetto), così le caselle non partono
+ *    tutte all'apertura.
+ *  - Invii successivi: la finestra RIMASTA dopo l'ultimo invio, divisa per
+ *    gli invii ancora disponibili, per un fattore tra 0,5 e 0,9. Resta sempre
+ *    spazio per chiudere il tetto dentro la finestra, e se si parte tardi
+ *    (flusso attivato nel pomeriggio, dispatcher fermo al mattino) gli invii
+ *    si stringono invece di perdersi.
+ *
+ * Tutto deterministico per casella, giorno e numero d'invio: due giri
+ * sovrapposti danno la stessa risposta, e ogni pausa è diversa dalla prima.
+ */
+export function cadenzaCasella(c: CadenzaInput): { pronta: boolean; attesaMinuti: number } {
+  const cap = Math.max(1, Math.floor(c.capGiorno));
+  const finestra = Math.max(60, c.minutiFinestra);
+  if (c.inviatiOggi <= 0 || !c.ultimoInvio) {
+    const scarto = (finestra / cap) * 0.5 * frazione(`${c.senderId}|${c.dateKey}|primo`);
+    const attesa = Math.max(0, scarto - c.minutiDallApertura);
+    return { pronta: attesa <= 0, attesaMinuti: Math.ceil(attesa) };
+  }
+  const trascorsi = Math.max(0, (c.ora.getTime() - c.ultimoInvio.getTime()) / 60_000);
+  const aperturaAllUltimo = c.minutiDallApertura - trascorsi;
+  const rimastiMinuti = Math.max(10, finestra - aperturaAllUltimo);
+  const rimastiInvii = Math.max(1, cap - c.inviatiOggi);
+  const pausa = (rimastiMinuti / rimastiInvii) * (0.5 + 0.4 * frazione(`${c.senderId}|${c.dateKey}|${c.inviatiOggi}`));
+  const attesa = Math.max(0, pausa - trascorsi);
+  return { pronta: attesa <= 0, attesaMinuti: Math.ceil(attesa) };
+}
+
 /**
  * Tetto dei PRIMI contatti al giorno per casella, separato dai follow-up.
  *

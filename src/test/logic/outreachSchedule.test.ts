@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  isWithinSendWindow, localParts, DEFAULT_SEND_WINDOW, parseSendWindow,
+  isWithinSendWindow, localParts, DEFAULT_SEND_WINDOW, parseSendWindow, minutoDelGiorno, finestraEffettiva,
 } from "../../../supabase/functions/_shared/outreach-schedule";
 
 // 2026-06-15 = lunedì (estate, CEST +2) · 2026-01-12 = lunedì (inverno, CET +1)
@@ -83,5 +83,35 @@ describe("parseSendWindow — config robusta da platform_settings", () => {
   });
   it("timeZone mancante → Europe/Rome", () => {
     expect(parseSendWindow({ days: [1, 2] }).timeZone).toBe("Europe/Rome");
+  });
+});
+
+describe("minutoDelGiorno — minuti dalla mezzanotte locale", () => {
+  it("estate (+2): 06:30Z = 08:30 a Roma = 510", () => {
+    expect(minutoDelGiorno(new Date("2026-06-15T06:30:00Z"), "Europe/Rome")).toBe(510);
+  });
+  it("inverno (+1): 06:30Z = 07:30 a Roma = 450", () => {
+    expect(minutoDelGiorno(new Date("2026-01-12T06:30:00Z"), "Europe/Rome")).toBe(450);
+  });
+  it("mezzanotte locale = 0", () => {
+    expect(minutoDelGiorno(new Date("2026-06-14T22:00:00Z"), "Europe/Rome")).toBe(0);
+  });
+});
+
+describe("finestraEffettiva — piattaforma ∩ brand", () => {
+  const brand = { days: [1, 2, 3, 4, 5, 6], startHour: 7, endHour: 19, timeZone: "Europe/Rome" };
+  it("senza brand vale la piattaforma", () => {
+    expect(finestraEffettiva(DEFAULT_SEND_WINDOW, null)).toEqual(DEFAULT_SEND_WINDOW);
+  });
+  it("intersezione di giorni e ore (Lun-Sab 7-19 dentro Lun-Ven 8-19 = Lun-Ven 8-19)", () => {
+    expect(finestraEffettiva(DEFAULT_SEND_WINDOW, brand)).toEqual({ days: [1, 2, 3, 4, 5], startHour: 8, endHour: 19, timeZone: "Europe/Rome" });
+  });
+  it("brand più stretto: vince il brand", () => {
+    const stretto = { days: [2, 4], startHour: 9, endHour: 12, timeZone: "Europe/Rome" };
+    expect(finestraEffettiva(DEFAULT_SEND_WINDOW, stretto)).toEqual({ days: [2, 4], startHour: 9, endHour: 12, timeZone: "Europe/Rome" });
+  });
+  it("nessuna sovrapposizione: resta la piattaforma, non una finestra vuota", () => {
+    const sera = { days: [1, 2, 3, 4, 5], startHour: 20, endHour: 23, timeZone: "Europe/Rome" };
+    expect(finestraEffettiva(DEFAULT_SEND_WINDOW, sera)).toEqual(DEFAULT_SEND_WINDOW);
   });
 });

@@ -49,7 +49,19 @@ describe("Il tetto dei nuovi contatti è separato dai follow-up", () => {
   it("prima i primi contatti col loro tetto, poi i follow-up", () => {
     expect(dispatch).toContain("statoPerPrimiContatti(s, nuoviAlGiorno,");
     expect(dispatch).toContain("const primi = liberi.filter((qid) => queueById.get(qid)?.primo_contatto === true)");
-    expect(dispatch).toContain("assignSenders(seguiti, conUsati(brandSenders), today, today)");
+    expect(dispatch).toContain("assignSenders(seguiti, conUsati(brandSendersPronti), today, today)");
+  });
+
+  it("follow-up e primi contatti si leggono dalla coda separati: un arretrato di primi non affama i follow-up", () => {
+    expect(dispatch).toContain('.eq("status", "queued").eq("channel", "email").eq("primo_contatto", primo)');
+    expect(dispatch).toContain("const [seguiti, primi] = await Promise.all([leggi(false), leggi(true)]);");
+    expect(dispatch).toContain("queue = [...seguiti, ...primi];");
+  });
+
+  it("la cadenza per casella filtra le caselle prima dell'assegnazione", () => {
+    expect(dispatch).toContain("cadenzaCasella({");
+    expect(dispatch).toContain("if (!pronte.has(sid)) { result.deferred++; continue; }");
+    expect(dispatch).toContain("unaAssegnazionePerCasella(assignments)");
   });
 
   it("il conteggio dei nuovi di oggi guarda solo i primi contatti spediti", () => {
