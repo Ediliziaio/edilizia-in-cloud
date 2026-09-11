@@ -33,6 +33,12 @@ import { Users, Plus, Pencil, Trash2, Loader2, Building2, UserRound, Link2, Wall
 import { ServiceBillingsDialog } from "@/components/admin/settings/ServiceBillingsDialog";
 import { ChiusuraMeseDialog } from "@/components/admin/settings/ChiusuraMeseDialog";
 import { ValoreClientiTable } from "@/components/admin/settings/ValoreClientiTable";
+import { ClientiMarketingPanel } from "@/components/admin/clienti-marketing/ClientiMarketingPanel";
+import { ScaglioniEditor } from "@/components/admin/clienti-marketing/ScaglioniEditor";
+import { useClientiMarketing } from "@/components/admin/clienti-marketing/useClientiMarketing";
+import {
+  SCAGLIONI_STANDARD, meseChiave, normalizzaScaglioni, righeDaScaglioni, scaglioniDaRighe, totaliMese, variazione, type RigaScaglione,
+} from "@/components/admin/clienti-marketing/provvigioni";
 import { PLATFORM_ADMIN_COMPANY_ID } from "@/lib/adminConstants";
 
 interface ProductLineLite { id: string; nome: string; colore: string | null; }
@@ -53,6 +59,8 @@ interface ServiceClient {
   data_inizio: string;
   data_fine: string | null;
   note: string | null;
+  /** scaglioni progressivi [{da, a, pct}] sul venduto mensile; null = righe a % fissa */
+  provvigione_scaglioni: unknown;
 }
 interface BillingRow { service_client_id: string; periodo: string; importo_dovuto: number; importo_incassato: number; }
 interface CommLine { id?: string; etichetta: string; base: string; percentuale: number; }
@@ -74,7 +82,8 @@ const RICORRENZE = [
   { value: "una_tantum", label: "Una-tantum" },
 ];
 const STATI: Record<string, string> = { attivo: "bg-emerald-100 text-emerald-700", pausa: "bg-amber-100 text-amber-700", cessato: "bg-slate-200 text-slate-600" };
-const eur = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(Math.round(n || 0));
+// useGrouping booleano: la stringa "always" non passa il typecheck (vedi ChiusuraMeseDialog).
+const eur = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: true }).format(Math.round(n || 0));
 
 type Draft = Partial<ServiceClient>;
 const EMPTY: Draft = { billing_model: "retainer_fisso", ricorrenza: "mensile", stato: "attivo", importo: 0, data_inizio: new Date().toISOString().slice(0, 10) };
@@ -90,10 +99,19 @@ export default function AdminServiceClients() {
   const [billClient, setBillClient] = useState<{ id: string; cliente_nome: string; importo: number; commerciale?: string | null } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ServiceClient | null>(null);
   const [commLines, setCommLines] = useState<CommLine[]>([]);
+  // Provvigione a scaglioni progressivi (Marketing Edile) al posto delle righe a % fissa.
+  const [usaScaglioni, setUsaScaglioni] = useState(false);
+  const [righeScaglioni, setRigheScaglioni] = useState<RigaScaglione[]>([]);
   const [chiusuraOpen, setChiusuraOpen] = useState(false);
-  // "contratti" = una riga per relazione (default storico); "clienti" = una riga
-  // per persona, con gli acquisti ripetuti sommati.
-  const [vista, setVista] = useState<"contratti" | "clienti">("contratti");
+  // "marketing" = la console dei clienti seguiti nel marketing, un mese alla
+  // volta; "contratti" = una riga per relazione; "clienti" = una riga per
+  // persona, con gli acquisti ripetuti sommati.
+  const [vista, setVista] = useState<"marketing" | "contratti" | "clienti">("marketing");
+  const [oggi] = useState(() => new Date());
+  const meseOggi = meseChiave(oggi);
+  const [mese, setMese] = useState(meseOggi);
+  const riepilogo = useClientiMarketing(mese, vista === "marketing");
+  const totali = useMemo(() => totaliMese(riepilogo.data ?? [], mese === meseOggi), [riepilogo.data, mese, meseOggi]);
   // Filtri lista
   const [search, setSearch] = useState("");
   const [filtServizio, setFiltServizio] = useState("tutti");
@@ -191,7 +209,8 @@ export default function AdminServiceClients() {
     if (!contactId) {
       const { data: creato, error } = await sb()
         .from("marketing_contacts")
-        .insert({ company_id: PLATFORM_ADMIN_COMPANY_ID, company_name: c.label, source_channel: "cliente_servizio" })
+        // first_name è obbligatorio a database: per un'azienda vale il suo nome.
+        .insert({ company_id: PLATFORM_ADMIN_COMPANY_ID, first_name: c.label, company_name: c.label, source_channel: "cliente_servizio" })
         .select("id")
         .single();
       if (error) { toast.error("Non riesco a creare il contatto per questa azienda", { description: error.message }); return; }
@@ -206,15 +225,19 @@ export default function AdminServiceClients() {
       // fermarsi qui con un messaggio chiaro che far fallire l'insert.
       if (!d.contact_id) throw new Error("Collega il cliente a un contatto (o a un'azienda) prima di salvare");
       const isProv = d.billing_model === "provvigione";
+      const scaglioni = isProv && usaScaglioni ? scaglioniDaRighe(righeScaglioni) : [];
+      if (isProv && usaScaglioni && !scaglioni.length) throw new Error("Compila almeno uno scaglione (oltre, fino a, %) oppure usa la tabella standard");
       // Una riga conta solo se ha una % > 0 (le righe vuote/incomplete si scartano).
-      const activeLines = commLines.filter((l) => Number(l.percentuale) > 0);
+      const activeLines = scaglioni.length ? [] : commLines.filter((l) => Number(l.percentuale) > 0);
       const payload = {
         product_line_id: d.product_line_id, package_id: d.package_id ?? null,
         contact_id: d.contact_id ?? null, company_id: d.company_id ?? null, cliente_nome: d.cliente_nome,
         commerciale: d.commerciale?.trim() || null,
         billing_model: d.billing_model, importo: Number(d.importo) || 0,
-        // provvigione_pct legacy = prima riga (compat. letture vecchie); le righe reali stanno in aedix_service_commission_lines
-        provvigione_pct: isProv ? (activeLines[0] ? Number(activeLines[0].percentuale) || 0 : null) : null,
+        // provvigione_pct legacy = prima riga o primo scaglione (compat. letture vecchie);
+        // le righe reali stanno in aedix_service_commission_lines, gli scaglioni qui sotto.
+        provvigione_pct: isProv ? (scaglioni[0] ? scaglioni[0].pct : activeLines[0] ? Number(activeLines[0].percentuale) || 0 : null) : null,
+        provvigione_scaglioni: scaglioni.length ? scaglioni : null,
         ricorrenza: d.ricorrenza, stato: d.stato, data_inizio: d.data_inizio, data_fine: d.data_fine ?? null,
         note: d.note ?? null, updated_at: new Date().toISOString(),
       };
@@ -239,12 +262,12 @@ export default function AdminServiceClients() {
         }
       }
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin", "service-clients"] }); qc.invalidateQueries({ queryKey: ["admin", "commission-lines"] }); toast.success(isEdit ? "Cliente-servizio aggiornato" : "Cliente-servizio creato"); setDialogOpen(false); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin", "service-clients"] }); qc.invalidateQueries({ queryKey: ["admin", "commission-lines"] }); qc.invalidateQueries({ queryKey: ["clienti-marketing"] }); toast.success(isEdit ? "Cliente-servizio aggiornato" : "Cliente-servizio creato"); setDialogOpen(false); },
     onError: (e: unknown) => toast.error("Errore nel salvataggio", { description: e instanceof Error ? e.message : String(e) }),
   });
   const del = useMutation({
     mutationFn: async (id: string) => { const { error } = await sb().from("aedix_service_clients").delete().eq("id", id); if (error) throw error; },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin", "service-clients"] }); toast.success("Eliminato"); setDeleteTarget(null); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin", "service-clients"] }); qc.invalidateQueries({ queryKey: ["clienti-marketing"] }); toast.success("Eliminato"); setDeleteTarget(null); },
     onError: (e: unknown) => toast.error("Errore", { description: e instanceof Error ? e.message : String(e) }),
   });
   // Cambio stato rapido dalla lista (senza aprire il dialog completo).
@@ -253,14 +276,21 @@ export default function AdminServiceClients() {
       const { error } = await sb().from("aedix_service_clients").update({ stato, updated_at: new Date().toISOString() }).eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "service-clients"] }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin", "service-clients"] }); qc.invalidateQueries({ queryKey: ["clienti-marketing"] }); },
     onError: (e: unknown) => toast.error("Errore", { description: e instanceof Error ? e.message : String(e) }),
   });
 
-  const openNew = () => { setDraft(EMPTY); setClientQuery(""); setCommLines([{ etichetta: "", base: "fatturato", percentuale: 0 }]); setDialogOpen(true); };
+  const openNew = () => {
+    setDraft(EMPTY); setClientQuery(""); setCommLines([{ etichetta: "", base: "fatturato", percentuale: 0 }]);
+    setUsaScaglioni(false); setRigheScaglioni(righeDaScaglioni(SCAGLIONI_STANDARD));
+    setDialogOpen(true);
+  };
   const openEdit = async (r: ServiceClient) => {
     // Reset SUBITO commLines: evita di mostrare le righe del cliente precedente
     // finché la query asincrona del nuovo cliente non risolve.
+    const scaglioni = normalizzaScaglioni(r.provvigione_scaglioni);
+    setUsaScaglioni(scaglioni.length > 0);
+    setRigheScaglioni(righeDaScaglioni(scaglioni.length ? scaglioni : SCAGLIONI_STANDARD));
     setDraft({ ...r }); setClientQuery(""); setCommLines([]); setDialogOpen(true);
     if (r.billing_model === "provvigione") {
       try {
@@ -294,14 +324,31 @@ export default function AdminServiceClients() {
 
   const hasFilters = search.trim() !== "" || filtServizio !== "tutti" || filtStato !== "tutti";
   const canSave = !!draft.cliente_nome?.trim() && !!draft.product_line_id && !!draft.billing_model;
+  const apriDaConsole = (serviceClientId: string, cosa: "modifica" | "incassi") => {
+    const r = rows.find((x) => x.id === serviceClientId);
+    if (!r) { toast.error("Contratto non trovato: ricarica la pagina"); return; }
+    if (cosa === "modifica") void openEdit(r);
+    else setBillClient({ id: r.id, cliente_nome: r.cliente_nome, importo: r.importo, commerciale: r.commerciale });
+  };
+  const deltaLead = variazione(totali.lead, totali.leadPrec);
+  const kpiMarketing = [
+    { l: "Clienti attivi", v: String(totali.clienti) },
+    { l: "Lead del mese", v: `${totali.lead.toLocaleString("it-IT")}${deltaLead == null ? "" : ` (${deltaLead > 0 ? "+" : ""}${deltaLead}%)`}` },
+    { l: "Appuntamenti", v: totali.appuntamenti.toLocaleString("it-IT") },
+    { l: "Vendite chiuse", v: `${totali.vinte.toLocaleString("it-IT")} · ${eur(totali.valoreVinto)}` },
+    { l: "Spesa ads", v: eur(totali.spesa) },
+    { l: "Provvigioni stimate", v: eur(totali.provvigioni) },
+  ];
 
   return (
     <div className="space-y-5">
       <BrandPageHeader
         icon={Users}
         eyebrow="CRM · Servizi"
-        title="Clienti-Servizio"
-        subtitle="Le relazioni ricorrenti cliente ↔ servizio (retainer, provvigioni, performance). Collega ogni cliente a un contatto CRM o a un'azienda."
+        title={vista === "marketing" ? "Clienti marketing" : "Clienti-Servizio"}
+        subtitle={vista === "marketing"
+          ? "Per ogni azienda seguita nel marketing: lead arrivati e seguiti, appuntamenti, vendite, costi per lead e per vendita, venduto e provvigione del mese."
+          : "Le relazioni ricorrenti cliente ↔ servizio (retainer, provvigioni, performance). Collega ogni cliente a un contatto CRM o a un'azienda."}
         actions={
           <div className="flex flex-wrap items-center gap-2">
             {/* Icon-only su mobile: la CTA primaria deve restare leggibile. */}
@@ -315,14 +362,14 @@ export default function AdminServiceClients() {
           </div>
         }
       >
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-          {[
+        <div className={`grid grid-cols-2 gap-3 sm:grid-cols-3 ${vista === "marketing" ? "lg:grid-cols-6" : "lg:grid-cols-5"}`}>
+          {(vista === "marketing" ? kpiMarketing : [
             { l: "Clienti attivi", v: String(kpi.attivi) },
             { l: "Totale relazioni", v: String(kpi.tot) },
             { l: "Ricorrente ~mese", v: eur(kpi.mrr) },
             { l: "Incassato (mese)", v: eur(billSummary.incassatoMeseTot) },
             { l: "Da incassare", v: eur(billSummary.daIncassareMese) },
-          ].map((k) => (
+          ]).map((k) => (
             <div key={k.l} className="rounded-xl bg-white/[0.07] p-3">
               <div className="text-[11px] uppercase tracking-wide text-blue-50/70">{k.l}</div>
               <div className="mt-1 text-xl font-bold tabular-nums">{k.v}</div>
@@ -332,7 +379,7 @@ export default function AdminServiceClients() {
       </BrandPageHeader>
 
       <div className="inline-flex rounded-lg border p-0.5">
-        {([["contratti", "Contratti"], ["clienti", "Per cliente"]] as const).map(([v, label]) => (
+        {([["marketing", "Clienti marketing"], ["contratti", "Contratti"], ["clienti", "Per cliente"]] as const).map(([v, label]) => (
           <button
             key={v}
             type="button"
@@ -344,7 +391,22 @@ export default function AdminServiceClients() {
         ))}
       </div>
 
-      {vista === "clienti" ? <ValoreClientiTable /> : <>
+      {vista === "marketing" ? (
+        <ClientiMarketingPanel
+          mese={mese}
+          meseOggi={meseOggi}
+          oggi={oggi}
+          onMese={setMese}
+          righe={riepilogo.data ?? []}
+          isLoading={riepilogo.isLoading}
+          isError={riepilogo.isError}
+          isFetching={riepilogo.isFetching}
+          refetch={() => void riepilogo.refetch()}
+          onModifica={(id) => apriDaConsole(id, "modifica")}
+          onIncassi={(id) => apriDaConsole(id, "incassi")}
+          onVaiAiContratti={() => setVista("contratti")}
+        />
+      ) : vista === "clienti" ? <ValoreClientiTable /> : <>
 
       {/* Toolbar: ricerca + filtri */}
       {rows.length > 0 && (
@@ -436,7 +498,9 @@ export default function AdminServiceClients() {
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground">
                           {BILLING.find((b) => b.value === r.billing_model)?.label ?? r.billing_model}
-                          {r.billing_model === "provvigione" && r.provvigione_pct != null ? ` · ${r.provvigione_pct}%` : ""}
+                          {r.billing_model === "provvigione" && normalizzaScaglioni(r.provvigione_scaglioni).length
+                            ? ` · a scaglioni ${normalizzaScaglioni(r.provvigione_scaglioni)[0].pct.toLocaleString("it-IT")}% → ${normalizzaScaglioni(r.provvigione_scaglioni).at(-1)?.pct.toLocaleString("it-IT")}%`
+                            : r.billing_model === "provvigione" && r.provvigione_pct != null ? ` · ${r.provvigione_pct}%` : ""}
                         </TableCell>
                         <TableCell className="text-right tabular-nums">{eur(r.importo)}<span className="text-xs text-muted-foreground">/{r.ricorrenza === "mensile" ? "mese" : r.ricorrenza === "annuale" ? "anno" : "una tantum"}</span></TableCell>
                         <TableCell className="text-right tabular-nums">
@@ -555,6 +619,19 @@ export default function AdminServiceClients() {
             </div>
 
             {draft.billing_model === "provvigione" && (
+              <div className="inline-flex w-fit rounded-lg border p-0.5 text-xs">
+                {([[true, "A scaglioni progressivi"], [false, "Percentuale fissa"]] as const).map(([v, label]) => (
+                  <button key={String(v)} type="button" onClick={() => setUsaScaglioni(v)}
+                    className={`rounded-md px-2.5 py-1 transition-colors ${usaScaglioni === v ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
+            {draft.billing_model === "provvigione" && usaScaglioni && (
+              <ScaglioniEditor righe={righeScaglioni} onChange={setRigheScaglioni} />
+            )}
+            {draft.billing_model === "provvigione" && !usaScaglioni && (
               <div className="grid gap-2 rounded-lg border border-dashed p-3">
                 <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Provvigioni — % sul fatturato/incassato mensile del cliente (una o più)</div>
                 {commLines.map((l, i) => (
