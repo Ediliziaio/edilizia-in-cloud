@@ -57,6 +57,11 @@ function safeRedirectUrl(value: unknown): string | null {
   return url;
 }
 
+const ATTR_PARAMS = [
+  "utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term",
+  "gclid", "wbraid", "gbraid", "fbclid", "ttclid", "msclkid", "li_fat_id",
+] as const;
+
 function isMissingSchemaError(error: unknown): boolean {
   const message = String((error as any)?.message ?? (error as any)?.details ?? error ?? "").toLowerCase();
   return (
@@ -146,11 +151,26 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json();
-    const {
-      form_id, data: formData, session_id, visitor_id,
-      utm_source, utm_medium, utm_campaign, utm_content, utm_term,
-      gclid, wbraid, gbraid, fbclid, ttclid, msclkid, li_fat_id
-    } = body;
+    // I siti che mandano i dati con un form proprio (senza il nostro iframe,
+    // es. Renova) passano solo page_url: i parametri di campagna stanno
+    // nell'indirizzo della pagina. Si usano quando il campo esplicito manca,
+    // altrimenti quei lead restavano senza campagna né gclid.
+    const dallaPagina: Record<string, string> = {};
+    if (typeof body.page_url === "string" && body.page_url.length < 4000) {
+      try {
+        const qs = new URL(body.page_url).searchParams;
+        for (const k of ATTR_PARAMS) {
+          const v = qs.get(k);
+          if (v) dallaPagina[k] = v.slice(0, 500);
+        }
+      } catch { /* indirizzo non valido: si ignora */ }
+    }
+    const attr = (k: string) => body[k] || dallaPagina[k] || undefined;
+    const { form_id, data: formData, session_id, visitor_id } = body;
+    const utm_source = attr("utm_source"), utm_medium = attr("utm_medium"), utm_campaign = attr("utm_campaign"),
+      utm_content = attr("utm_content"), utm_term = attr("utm_term");
+    const gclid = attr("gclid"), wbraid = attr("wbraid"), gbraid = attr("gbraid"), fbclid = attr("fbclid"),
+      ttclid = attr("ttclid"), msclkid = attr("msclkid"), li_fat_id = attr("li_fat_id");
 
     if (!form_id || !formData) {
       return new Response(
@@ -325,6 +345,10 @@ Deno.serve(async (req) => {
           attr_medium: utm_medium || null,
           attr_campaign: utm_campaign || null,
           attr_content: utm_content || null,
+          // Il clic da un annuncio Meta: prima restava solo sull'invio del
+          // form. fbc è il formato che Meta usa per riconoscere il clic
+          // (fb.1.<ms>.<fbclid>) quando il lead viene rimandato con la CAPI.
+          ...(fbclid ? { fbclid, fbc: `fb.1.${Date.now()}.${fbclid}` } : {}),
           // Città, azienda, indirizzo… mappati dal form.
           ...extraContactFields,
         };
