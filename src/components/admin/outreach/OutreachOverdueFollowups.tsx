@@ -71,12 +71,10 @@ export function OutreachOverdueFollowups({ companyId }: { companyId: string }) {
       </CardHeader>
       <CardContent className="pt-4">
         {!has ? (
-          <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
-            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50">
-              <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-            </span>
-            <p className="text-sm font-medium text-foreground">Nessun follow-up scaduto</p>
-            <p className="text-xs text-muted-foreground">Sei in pari con la pipeline. Ottimo lavoro.</p>
+          // In pari: una riga, non un riquadro vuoto che spinge giù il resto.
+          <div className="flex items-center gap-2.5 py-1">
+            <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
+            <p className="text-sm text-foreground">Nessun follow-up scaduto <span className="text-muted-foreground">— sei in pari con le opportunità.</span></p>
           </div>
         ) : (
           <div className="space-y-2">

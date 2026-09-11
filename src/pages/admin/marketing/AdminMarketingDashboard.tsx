@@ -25,7 +25,8 @@ import { OutreachRubricaCard } from "@/components/admin/outreach/OutreachRubrica
 import { OutreachComposeDialog } from "@/components/admin/outreach/OutreachComposeDialog";
 import { OutreachMessagePlayground } from "@/components/admin/outreach/OutreachMessagePlayground";
 import { OutreachPipelineAnalytics } from "@/components/admin/outreach/OutreachPipelineAnalytics";
-import { OutreachStatsDashboard } from "@/components/admin/outreach/OutreachStatsDashboard";
+import { PipelineCampagne, StatisticheCampagne } from "@/components/admin/outreach/campagne/SezioniCampagne";
+import { useCampagnaScelta } from "@/components/admin/outreach/campagne/useCampagneOutreach";
 import { OutreachConvertContactDialog } from "@/components/admin/outreach/OutreachConvertContactDialog";
 import { OutreachOverdueFollowups } from "@/components/admin/outreach/OutreachOverdueFollowups";
 import { EmailSuppressionsTable } from "@/components/admin/settings/EmailSuppressionsTable";
@@ -84,6 +85,8 @@ function Shortcut({ to, icon: Icon, label, desc }: { to: string; icon: typeof Ma
 function OutreachCockpit() {
   const { companyId } = useAdminMarketing();
   const [tab, setTab] = useState("oggi");
+  // La campagna scelta è la stessa in Pipeline e Statistiche.
+  const campagne = useCampagnaScelta(companyId);
 
   const contacts = useQuery({
     queryKey: ["outreach-count", "contacts", companyId],
@@ -156,7 +159,7 @@ function OutreachCockpit() {
                 className="flex w-full items-center gap-2 rounded-lg border border-dashed border-border px-3 py-2 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
               >
                 <BarChart3 className="h-3.5 w-3.5" />
-                Funnel completo, aperture, clic e risposte
+                Risposte, rendimento per email e invii in programma, campagna per campagna
                 <span className="ml-auto font-medium text-primary">Statistiche →</span>
               </button>
             </Reveal>
@@ -244,25 +247,31 @@ function OutreachCockpit() {
         </TabsContent>
 
         {/* ── PIPELINE ──
-            Prima ciò che chiede AZIONE (follow-up scaduti + converti contatto),
-            poi i numeri: prima le analytics stavano sopra e i follow-up scaduti
-            — l'unica cosa urgente — finivano sotto la piega. */}
+            Ogni campagna ha la SUA pipeline: dove sono adesso i suoi contatti
+            (da contattare → email 1…N → finito, più risposte e uscite), con
+            l'elenco di chi c'è in ogni fase. Sotto, quello che succede DOPO una
+            risposta: le opportunità commerciali. */}
         <TabsContent value="pipeline" className="mt-4 space-y-6">
           <Reveal className="space-y-3">
-            <SectionLabel>Da fare ora</SectionLabel>
-            <OutreachOverdueFollowups companyId={companyId} />
-            <div className="flex justify-end"><OutreachConvertContactDialog companyId={companyId} /></div>
+            <SectionLabel>Pipeline della campagna</SectionLabel>
+            <PipelineCampagne companyId={companyId} sc={campagne} onVaiSequenze={() => setTab("sequenze")} />
           </Reveal>
           <Reveal className="space-y-3" delay={0.06}>
-            <SectionLabel>Andamento pipeline</SectionLabel>
-            <OutreachPipelineAnalytics companyId={companyId} />
-            <Shortcut to="/admin/marketing/opportunita" icon={Briefcase} label="Apri la pipeline (kanban)" desc="Trascina le opportunità tra gli stage" />
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <SectionLabel>Dopo la risposta — opportunità</SectionLabel>
+              <OutreachConvertContactDialog companyId={companyId} />
+            </div>
+            <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+              <OutreachOverdueFollowups companyId={companyId} />
+              <OutreachPipelineAnalytics companyId={companyId} />
+            </div>
+            <Shortcut to="/admin/marketing/opportunita" icon={Briefcase} label="Apri la pipeline opportunità (kanban)" desc="Trascina le opportunità tra gli stage" />
           </Reveal>
         </TabsContent>
 
-        {/* ── STATISTICHE ── */}
+        {/* ── STATISTICHE ── per campagna, o la panoramica di tutte. */}
         <TabsContent value="statistiche" className="mt-4">
-          <OutreachStatsDashboard companyId={companyId} />
+          <StatisticheCampagne companyId={companyId} sc={campagne} onVaiSequenze={() => setTab("sequenze")} />
         </TabsContent>
 
         {/* ── DELIVERABILITY ──
