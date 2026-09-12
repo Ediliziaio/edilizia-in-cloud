@@ -23,6 +23,7 @@ import { cn } from "@/lib/utils";
 import { OutreachConvertContactDialog } from "../OutreachConvertContactDialog";
 import {
   costruisciFasi, faseIniziale, percentuale, numeroPasso, numero, followupSchiacciati,
+  giorniLeggibili, STATO_CAMPAGNA,
   type FaseVista, type TonoFase, type StimaTempi, type RitmoBrand,
 } from "./campagneFasi";
 import {
@@ -116,22 +117,18 @@ export function CampagnaPipeline({ companyId, campagna, stima }: {
 
   return (
     <div className={cn("space-y-4 transition-opacity", fasiQ.isFetching && !fasiQ.isLoading && "opacity-80")}>
-      {/* Il colpo d'occhio: quanti, quanto avanti, quante risposte. */}
-      <div className="flex flex-wrap items-end gap-x-8 gap-y-3 rounded-xl border border-border bg-card px-4 py-3.5 shadow-sm">
-        <Numero icona={Users} valore={iscritti} etichetta="iscritti" />
-        <Numero icona={Send} valore={contattati} etichetta={`contattati · ${percentuale(contattati, iscritti)}`} />
-        <Numero icona={MessageSquareReply} valore={totRisposte} etichetta={`risposte · ${percentuale(totRisposte, contattati)} dei contattati`} />
-        <Numero icona={Sparkles} valore={caldi} etichetta="interessati o con domande" />
-        {campagna.da_contattare > 0 && (
-          <div className="ml-auto text-right text-[11px] text-muted-foreground">
-            <span className="inline-flex items-center gap-1"><CalendarClock className="h-3.5 w-3.5" /> primi contatti finiti · stima</span>
-            <div className="text-sm font-semibold text-foreground">
-              {campagna.stato !== "active" ? "campagna ferma" : stima?.primi ? `verso ${dataBreve(stima.primi.fine.toISOString(), false)}` : stima?.oltre ? "oltre tre anni" : "—"}
-            </div>
-            {stima?.primi && <div>circa {numero(stima.primi.giorni)} giorni d'invio · {numero(stima.capOggi)} email al giorno oggi</div>}
-          </div>
-        )}
-      </div>
+      <Riepilogo
+        campagna={campagna}
+        stima={stima}
+        iscritti={iscritti}
+        contattati={contattati}
+        daContattare={fasi.find((f) => f.chiave === "da_contattare")?.contatti ?? 0}
+        nelFlusso={contattati - totRisposte - totUscite}
+        totRisposte={totRisposte}
+        totUscite={totUscite}
+        caldi={caldi}
+        adesso={adesso}
+      />
 
       {stima && campagna.da_contattare > 0 && campagna.in_corso > 0 && followupSchiacciati(stima.brand) && (
         <p className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-2 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
@@ -145,40 +142,50 @@ export function CampagnaPipeline({ companyId, campagna, stima }: {
         </p>
       )}
 
-      {/* NEL FLUSSO — le colonne in fila, nell'ordine in cui le attraversa un contatto. */}
-      <section aria-label="Nel flusso" className="space-y-2">
-        <Intestazione icona={Mail} titolo="Nel flusso" nota="dove si trova adesso ogni contatto: «Email 2» = ha ricevuto la seconda e aspetta la terza" />
+      {/*
+        Il percorso, una riga sola.
+        Prima erano nove riquadri grandi uguali, e con una sequenza da nove
+        passi otto mostravano zero: un muro di zeri in cui l'occhio non si
+        posava da nessuna parte. Adesso le tappe vuote si stringono e
+        sbiadiscono, quelle con qualcuno dentro restano leggibili.
+      */}
+      <section aria-label="Il percorso" className="space-y-2">
+        <Intestazione
+          icona={Mail}
+          titolo="Il percorso"
+          nota="dove si trova adesso ogni contatto · clicca una tappa per vedere chi c'è"
+        />
         <div className="-mx-1 overflow-x-auto px-1 pb-1">
-          <div className="flex w-full min-w-max items-stretch gap-1">
-            {flusso.map((f, i) => (
-              <div key={f.chiave} className="flex flex-1 items-stretch gap-1">
-                {i > 0 && <ChevronRight className="h-4 w-4 shrink-0 self-center text-muted-foreground/40" aria-hidden />}
-                <Tessera f={f} iscritti={iscritti} attiva={attiva === f.chiave} onClick={() => setScelta(f.chiave)} caricamento={!pronta} adesso={adesso}
-                  tutti={f.chiave === "da_contattare" ? stima?.primi?.fine ?? null : null} />
-              </div>
+          <div className="flex min-w-max items-stretch gap-1.5">
+            {flusso.map((f) => (
+              <Tappa
+                key={f.chiave}
+                f={f}
+                iscritti={iscritti}
+                attiva={attiva === f.chiave}
+                onClick={() => setScelta(f.chiave)}
+                caricamento={!pronta}
+                adesso={adesso}
+              />
             ))}
           </div>
         </div>
       </section>
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,4fr)_minmax(0,3fr)]">
-        <section aria-label="Hanno risposto" className="space-y-2">
-          <Intestazione icona={MessageSquareReply} titolo="Hanno risposto" nota={totRisposte ? `${numero(totRisposte)} in tutto` : "escono dal flusso e finiscono qui"} />
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {risposte.map((f) => (
-              <Tessera key={f.chiave} f={f} iscritti={iscritti} attiva={attiva === f.chiave} onClick={() => setScelta(f.chiave)} caricamento={!pronta} adesso={adesso} largo />
-            ))}
-          </div>
-        </section>
-        <section aria-label="Usciti dal flusso" className="space-y-2">
-          <Intestazione icona={LogOut} titolo="Usciti dal flusso" nota={totUscite ? `${numero(totUscite)} in tutto` : "nessuno, per ora"} />
-          <div className="grid grid-cols-3 gap-2">
-            {uscite.map((f) => (
-              <Tessera key={f.chiave} f={f} iscritti={iscritti} attiva={attiva === f.chiave} onClick={() => setScelta(f.chiave)} caricamento={!pronta} adesso={adesso} largo />
-            ))}
-          </div>
-        </section>
-      </div>
+      {/*
+        Risposte e uscite: sette tessere che stanno a zero per settimane
+        finché la campagna non gira. Restano cliccabili, ma smettono di
+        occupare mezza pagina finché non c'è niente dentro.
+      */}
+      <Esiti
+        risposte={risposte}
+        uscite={uscite}
+        iscritti={iscritti}
+        attiva={attiva}
+        onScegli={setScelta}
+        caricamento={!pronta}
+        adesso={adesso}
+      />
 
       {faseAttiva && (
         <ElencoContatti
@@ -194,15 +201,236 @@ export function CampagnaPipeline({ companyId, campagna, stima }: {
   );
 }
 
-function Numero({ icona: Icona, valore, etichetta }: { icona: typeof Users; valore: number; etichetta: string }) {
+/**
+ * Il riepilogo in cima: una frase, una barra, e la riga che dice quando
+ * si spedisce davvero.
+ *
+ * Prima c'erano quattro numeri affiancati e, staccata in un angolo, la stima
+ * della fine — il pezzo che interessa di più. E in nessun punto la pagina
+ * diceva la cosa che chiunque si chiede guardando «0 contattati oggi»: che
+ * di sabato non parte niente perché la finestra d'invio è lun–ven.
+ */
+function Riepilogo({
+  campagna, stima, iscritti, contattati, daContattare, nelFlusso, totRisposte, totUscite, caldi, adesso,
+}: {
+  campagna: CampagnaRiepilogo;
+  stima: (StimaTempi & { brand: RitmoBrand }) | null;
+  iscritti: number; contattati: number; daContattare: number; nelFlusso: number;
+  totRisposte: number; totUscite: number; caldi: number; adesso: number;
+}) {
+  const ferma = campagna.stato !== "active";
+  const fin = stima ? finestraAdesso(stima.brand.giorni_invio, stima.brand.ora_fine, new Date(adesso)) : null;
+
+  const segmenti = [
+    { chiave: "da_contattare", etichetta: "Da contattare", valore: daContattare, colore: "bg-muted-foreground/30" },
+    { chiave: "in_corso", etichetta: "Nel flusso", valore: Math.max(0, nelFlusso), colore: "bg-primary" },
+    { chiave: "risposte", etichetta: "Hanno risposto", valore: totRisposte, colore: "bg-emerald-600" },
+    { chiave: "uscite", etichetta: "Usciti", valore: totUscite, colore: "bg-muted-foreground/50" },
+  ].filter((x) => x.valore > 0);
+
   return (
-    <div className="flex items-center gap-2.5">
-      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-muted-foreground"><Icona className="h-4 w-4" /></span>
-      <div>
-        <div className="text-xl font-semibold leading-tight text-foreground">{numero(valore)}</div>
-        <div className="text-[11px] text-muted-foreground">{etichetta}</div>
+    <div className="rounded-xl border border-border bg-card px-4 py-3.5 shadow-sm">
+      <p className="text-sm text-foreground">
+        <span className="text-lg font-semibold">{numero(contattati)}</span>
+        <span className="text-muted-foreground"> contattati su {numero(iscritti)}</span>
+        {totRisposte > 0 ? (
+          <>
+            <span className="text-muted-foreground"> · </span>
+            <span className="font-semibold">{numero(totRisposte)}</span>
+            <span className="text-muted-foreground"> hanno risposto</span>
+            {caldi > 0 && (
+              <span className="text-emerald-700 dark:text-emerald-400"> · {numero(caldi)} da richiamare</span>
+            )}
+          </>
+        ) : (
+          <span className="text-muted-foreground"> · nessuna risposta ancora</span>
+        )}
+      </p>
+
+      <div className="mt-2.5 flex h-2 w-full overflow-hidden rounded-full bg-muted" aria-hidden>
+        {segmenti.map((sg) => (
+          <span key={sg.chiave} className={cn("block h-full", sg.colore)} style={{ width: `${(sg.valore / Math.max(1, iscritti)) * 100}%` }} />
+        ))}
+      </div>
+      <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
+        {segmenti.map((sg) => (
+          <span key={sg.chiave} className="inline-flex items-center gap-1.5">
+            <span className={cn("h-2 w-2 rounded-full", sg.colore)} aria-hidden />
+            {sg.etichetta} <span className="font-semibold text-foreground">{numero(sg.valore)}</span>
+          </span>
+        ))}
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-start gap-x-2 gap-y-1 border-t border-border pt-2.5 text-xs">
+        <CalendarClock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+        <p className="min-w-0 flex-1 text-muted-foreground">
+          {ferma ? (
+            <span className="text-foreground">Campagna {(STATO_CAMPAGNA[campagna.stato]?.etichetta ?? campagna.stato).toLowerCase()}: non parte niente finché non la riattivi.</span>
+          ) : fin && !fin.aperta ? (
+            <>
+              <span className="font-semibold text-foreground">Oggi non si spedisce.</span>{" "}
+              La finestra è {giorniLeggibili(stima!.brand.giorni_invio)} fino alle {stima!.brand.ora_fine}: riprende {fin.riprende}.
+            </>
+          ) : (
+            <span className="font-semibold text-foreground">Si sta spedendo adesso.</span>
+          )}
+          {!ferma && stima && daContattare > 0 && (
+            <>
+              {" "}Al ritmo di oggi ({numero(stima.capOggi)} email al giorno){" "}
+              {stima.primi
+                ? <>i primi contatti finiscono verso <span className="font-semibold text-foreground">{dataBreve(stima.primi.fine.toISOString(), false)}</span>, circa {numero(stima.primi.giorni)} giorni d'invio.</>
+                : stima.oltre
+                  ? <span className="text-amber-700 dark:text-amber-400">servirebbero più di tre anni: alza il tetto delle caselle in Deliverability.</span>
+                  : <>restano {numero(daContattare)} contatti da raggiungere.</>}
+            </>
+          )}
+        </p>
       </div>
     </div>
+  );
+}
+
+/** Giorno della settimana (0-6) e ora a Roma: la finestra d'invio vive su quel fuso. */
+function oraEGiornoRoma(d: Date): { ora: number; giorno: number } {
+  const parti = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Europe/Rome", hour: "2-digit", hour12: false, weekday: "short",
+  }).formatToParts(d);
+  const nomi: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  let ora = 0, giorno = 0;
+  for (const p of parti) {
+    if (p.type === "hour") ora = parseInt(p.value, 10) % 24;
+    else if (p.type === "weekday") giorno = nomi[p.value] ?? 0;
+  }
+  return { ora, giorno };
+}
+
+const NOMI_GIORNO = ["domenica", "lunedì", "martedì", "mercoledì", "giovedì", "venerdì", "sabato"];
+
+/** Se adesso si spedisce, e quando riprende se no. */
+function finestraAdesso(giorni: number[], oraFine: number, d: Date): { aperta: boolean; riprende: string } {
+  const { ora, giorno } = oraEGiornoRoma(d);
+  if (giorni.includes(giorno) && ora < oraFine) return { aperta: true, riprende: "" };
+  for (let k = 1; k <= 7; k++) {
+    const g = (giorno + k) % 7;
+    if (giorni.includes(g)) return { aperta: false, riprende: k === 1 ? "domani" : NOMI_GIORNO[g] };
+  }
+  return { aperta: false, riprende: "quando imposti dei giorni d'invio" };
+}
+
+/**
+ * Una tappa del percorso. Vuota si stringe e sbiadisce: serve a tenere la
+ * forma del flusso, non a occupare spazio con uno zero.
+ */
+function Tappa({ f, iscritti, attiva, onClick, caricamento, adesso }: {
+  f: FaseVista; iscritti: number; attiva: boolean; onClick: () => void; caricamento: boolean; adesso: number;
+}) {
+  const vuota = f.contatti === 0;
+  const tono = TONO[f.tono];
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={attiva}
+      title={f.sottotitolo}
+      className={cn(
+        "flex flex-col justify-between rounded-lg border px-3 py-2 text-left transition-colors",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        vuota ? "min-w-[96px] bg-muted/30" : "min-w-[132px] bg-card",
+        attiva ? "border-primary ring-1 ring-primary" : "border-border hover:border-primary/40",
+      )}
+    >
+      <span className={cn("truncate text-[11px] font-semibold uppercase tracking-wide", vuota ? "text-muted-foreground/60" : "text-muted-foreground")}>
+        {f.titolo}
+      </span>
+      <span className={cn("mt-0.5 text-xl font-semibold leading-none tabular-nums", vuota ? "text-muted-foreground/40" : "text-foreground")}>
+        {caricamento ? "…" : numero(f.contatti)}
+      </span>
+      {!vuota && (
+        <>
+          <span className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-muted" aria-hidden>
+            <span className={cn("block h-full rounded-full", tono.barra)} style={{ width: `${Math.max(3, Math.round((f.contatti / Math.max(1, iscritti)) * 100))}%` }} />
+          </span>
+          {f.prossimoInvio && f.gruppo === "flusso" && (
+            <span className="mt-1.5 inline-flex items-start gap-1 text-[11px] leading-snug text-muted-foreground">
+              <Clock className="mt-0.5 h-3 w-3 shrink-0" /> {prossimo(f.prossimoInvio, adesso)}
+            </span>
+          )}
+          {f.inPausa > 0 && <Badge variant="outline" className="mt-1.5 w-fit text-[10px]">{f.inPausa} in pausa</Badge>}
+        </>
+      )}
+    </button>
+  );
+}
+
+/**
+ * Risposte e uscite. Quando sono tutte a zero diventano una riga di
+ * pastiglie: restano raggiungibili, smettono di riempire la pagina di zeri.
+ */
+function Esiti({ risposte, uscite, iscritti, attiva, onScegli, caricamento, adesso }: {
+  risposte: FaseVista[]; uscite: FaseVista[]; iscritti: number; attiva: string | null;
+  onScegli: (chiave: string) => void; caricamento: boolean; adesso: number;
+}) {
+  const tutte = [...risposte, ...uscite];
+  const conQualcuno = tutte.filter((f) => f.contatti > 0);
+  const vuote = tutte.filter((f) => f.contatti === 0);
+
+  if (conQualcuno.length === 0) {
+    return (
+      <section aria-label="Risposte e uscite" className="space-y-2">
+        <Intestazione icona={MessageSquareReply} titolo="Risposte e uscite" nota="nessuno è ancora uscito dal flusso" />
+        <div className="flex flex-wrap gap-1.5">
+          {tutte.map((f) => (
+            <button
+              key={f.chiave}
+              type="button"
+              onClick={() => onScegli(f.chiave)}
+              aria-pressed={attiva === f.chiave}
+              className={cn(
+                "rounded-full border px-2.5 py-1 text-[11px] text-muted-foreground transition-colors",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                attiva === f.chiave ? "border-primary text-foreground" : "border-border hover:border-primary/40",
+              )}
+            >
+              {f.titolo} <span className="tabular-nums">0</span>
+            </button>
+          ))}
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section aria-label="Risposte e uscite" className="space-y-2">
+      <Intestazione
+        icona={MessageSquareReply}
+        titolo="Risposte e uscite"
+        nota={`${numero(conQualcuno.reduce((s, f) => s + f.contatti, 0))} contatti hanno lasciato il flusso`}
+      />
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+        {conQualcuno.map((f) => (
+          <Tessera key={f.chiave} f={f} iscritti={iscritti} attiva={attiva === f.chiave} onClick={() => onScegli(f.chiave)} caricamento={caricamento} adesso={adesso} largo />
+        ))}
+      </div>
+      {vuote.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 pt-0.5">
+          {vuote.map((f) => (
+            <button
+              key={f.chiave}
+              type="button"
+              onClick={() => onScegli(f.chiave)}
+              aria-pressed={attiva === f.chiave}
+              className={cn(
+                "rounded-full border px-2.5 py-1 text-[11px] text-muted-foreground transition-colors",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                attiva === f.chiave ? "border-primary text-foreground" : "border-border hover:border-primary/40",
+              )}
+            >
+              {f.titolo} <span className="tabular-nums">0</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 
