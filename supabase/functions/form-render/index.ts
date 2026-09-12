@@ -307,6 +307,21 @@ Deno.serve(async (req) => {
         })
       }).then(function(r){return r.json()}).then(function(r){
         if(r.ok){
+          // L'invio riuscito viene annunciato alla pagina che ci ospita. Dentro
+          // un iframe il sito non puo' vedere il nostro submit: senza questo
+          // messaggio Google Tag Manager non ha nessun evento da agganciare, ed
+          // e' il motivo per cui le conversioni dai moduli incorporati non si
+          // tracciavano. Va mandato PRIMA del redirect, altrimenti la pagina
+          // cambia e il messaggio non parte.
+          try{
+            window.parent.postMessage({
+              type:'eic-lead-form-submit',
+              slug:'${jsStr(form.slug)}',
+              form_id:'${jsStr(form.id)}',
+              contact_id:r.contact_id||null,
+              redirect_url:r.redirect_url||null
+            },'*');
+          }catch(e){}
           if(r.redirect_url){
             // Redirect a livello di PAGINA INTERA (non solo dell'iframe): così sul
             // sito del cliente il visitatore atterra davvero su /grazie e il

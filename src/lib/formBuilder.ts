@@ -295,9 +295,25 @@ export function buildLeadFormAutoResizeEmbedSnippet(publicUrl: string, options: 
     if(event.source!==iframe.contentWindow)return;
     if('${escapeInlineJs(allowedOrigin)}'&&event.origin!=='${escapeInlineJs(allowedOrigin)}')return;
     var data=event.data||{};
-    if(data.type!=='eic-lead-form-height'||data.slug!=='${escapeInlineJs(slug)}')return;
-    var height=Math.max(${minHeight},Math.min(2600,Number(data.height||0)+16));
-    if(height)iframe.style.height=height+'px';
+    if(data.slug!=='${escapeInlineJs(slug)}')return;
+    if(data.type==='eic-lead-form-height'){
+      var height=Math.max(${minHeight},Math.min(2600,Number(data.height||0)+16));
+      if(height)iframe.style.height=height+'px';
+      return;
+    }
+    // Invio riuscito. Dentro un iframe il sito non vede il submit del modulo:
+    // senza questo rilancio Google Tag Manager non ha nessun evento da
+    // agganciare e le conversioni dai moduli incorporati non si tracciano.
+    // Arriva in due forme, si usa quella che il tuo strumento preferisce.
+    if(data.type==='eic-lead-form-submit'){
+      try{
+        window.dataLayer=window.dataLayer||[];
+        window.dataLayer.push({event:'eic_form_submit',form_slug:data.slug,form_id:data.form_id||null,contact_id:data.contact_id||null});
+      }catch(e){}
+      try{
+        mount.dispatchEvent(new CustomEvent('eic:form-submit',{bubbles:true,detail:data}));
+      }catch(e){}
+    }
   });
 })();
 </script>`;
