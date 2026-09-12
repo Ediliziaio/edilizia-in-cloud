@@ -50,6 +50,7 @@ import { formatCurrency } from "@/lib/formatters";
 import type { FamilyWithAxes, AxisSelection } from "@/types/articleFamily";
 import type { QuoteItemPro } from "@/types/quoteItem";
 import type { TariffaPro } from "@/hooks/usePreventivoCosti";
+import { formattaMaggiorazione } from "@/lib/listino/maggiorazione";
 
 interface Props {
   open: boolean;
@@ -614,9 +615,7 @@ export default function QuoteWizardSerramenti({
                             {v.label}
                             {v.maggiorazione_tipo !== "none" && v.maggiorazione_valore !== 0 && (
                               <span className="ml-2 text-xs text-muted-foreground">
-                                {v.maggiorazione_tipo === "percentuale"
-                                  ? `(+${v.maggiorazione_valore}%)`
-                                  : `(+${formatCurrency(v.maggiorazione_valore)})`}
+                                ({formattaMaggiorazione(v.maggiorazione_tipo, v.maggiorazione_valore)})
                               </span>
                             )}
                           </SelectItem>

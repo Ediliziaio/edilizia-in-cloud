@@ -40,6 +40,7 @@ import {
 import { DynamicFieldsRenderer } from "@/components/listino/DynamicFieldsRenderer";
 import { useSupplierProductLines } from "@/features/serramenti-listini/hooks/useSupplierProductLines";
 import type { SupplierProductLine } from "@/features/serramenti-listini/types";
+import { suffissoMaggiorazione } from "@/lib/listino/maggiorazione";
 
 export interface ListinoPickResult {
   family_id: string;
@@ -686,11 +687,7 @@ export function ListinoPickerDialog({
                           </SelectTrigger>
                           <SelectContent>
                             {axis.values.filter((v) => v.attivo).map((v) => {
-                              const magg = v.maggiorazione_tipo === "none" || !v.maggiorazione_valore
-                                ? ""
-                                : v.maggiorazione_tipo === "percentuale"
-                                  ? ` (+${v.maggiorazione_valore}%)`
-                                  : ` (+€${Number(v.maggiorazione_valore).toLocaleString("it-IT", { minimumFractionDigits: 2 })}${v.maggiorazione_tipo === "fisso_mq" ? "/m²" : v.maggiorazione_tipo === "fisso_ml" ? "/ml" : ""})`;
+                              const magg = suffissoMaggiorazione(v.maggiorazione_tipo, v.maggiorazione_valore);
                               return (
                                 <SelectItem key={v.id} value={v.id} className="text-xs">
                                   {v.label}{magg}

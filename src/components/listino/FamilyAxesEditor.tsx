@@ -73,19 +73,14 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { ArticlePdfDocumentsSection } from "./ArticlePdfDocumentsSection";
+import { formattaMaggiorazione } from "@/lib/listino/maggiorazione";
 
 /**
  * Label compatto per il tipo maggiorazione (usato nei badge valore).
  * Mostra l'unità con cui si applica la maggiorazione al prezzo.
  */
 function maggiorazioneLabel(tipo: MaggiorazioneTipo, valore: number): string {
-  if (tipo === "none") return "";
-  if (tipo === "percentuale") return `+${valore}%`;
-  if (tipo === "fisso_pz") return `+${valore}€/pz`;
-  if (tipo === "fisso_mq") return `+${valore}€/m²`;
-  if (tipo === "fisso_ml") return `+${valore}€/ml`;
-  if (tipo === "fisso_mc") return `+${valore}€/m³`;
-  return "";
+  return formattaMaggiorazione(tipo, valore);
 }
 
 /** Classi Tailwind per il badge maggiorazione: codice colore semantico. */
@@ -1926,9 +1921,7 @@ function ValueFormDialog({
                       <span className="font-mono">
                         {value.maggiorazione_tipo === "none"
                           ? "Nessuna"
-                          : value.maggiorazione_tipo === "percentuale"
-                            ? `+${value.maggiorazione_valore}%`
-                            : `+${value.maggiorazione_valore} €`}
+                          : formattaMaggiorazione(value.maggiorazione_tipo, value.maggiorazione_valore)}
                       </span>
                     </div>
                     <div className="flex justify-between">

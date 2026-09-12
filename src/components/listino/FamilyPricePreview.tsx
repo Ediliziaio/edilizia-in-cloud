@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/select";
 import { applyScontiFornitore, applyMarkup } from "@/lib/priceMarkup";
 import type { FamilyWithAxes, AxisSelection } from "@/types/articleFamily";
+import { suffissoMaggiorazione } from "@/lib/listino/maggiorazione";
 
 // Limiti plausibili per validazione client (#4)
 const MIN_DIM_MM = 100;
@@ -547,9 +548,7 @@ export function FamilyPricePreview({ family }: Props) {
                         <SelectItem key={v.id} value={v.id}>
                           {v.label}
                           {v.maggiorazione_tipo !== "none"
-                            ? v.maggiorazione_tipo === "percentuale"
-                              ? ` (+${v.maggiorazione_valore}%)`
-                              : ` (+${v.maggiorazione_valore} €)`
+                            ? suffissoMaggiorazione(v.maggiorazione_tipo, v.maggiorazione_valore)
                             : ""}
                         </SelectItem>
                       ))}

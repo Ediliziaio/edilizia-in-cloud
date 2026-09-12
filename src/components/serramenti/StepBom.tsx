@@ -49,6 +49,7 @@ import { formatEuro } from "@/lib/serramenti/format";
 import type { ListinoFamily } from "@/lib/serramenti/api";
 import { DynamicFieldsRenderer } from "@/components/listino/DynamicFieldsRenderer";
 import { useListinoCategorie } from "@/hooks/useListinoCategorie";
+import { suffissoMaggiorazione } from "@/lib/listino/maggiorazione";
 
 interface Props {
   progettoId: string;
@@ -1037,11 +1038,7 @@ function SerramentoRow({
                             </SelectTrigger>
                             <SelectContent>
                               {axis.values.filter((v) => v.attivo).map((v) => {
-                                const magg = v.maggiorazione_tipo === "none" || !v.maggiorazione_valore
-                                  ? ""
-                                  : v.maggiorazione_tipo === "percentuale"
-                                    ? ` (+${v.maggiorazione_valore}%)`
-                                    : ` (+€${Number(v.maggiorazione_valore).toLocaleString("it-IT", { minimumFractionDigits: 2 })}${v.maggiorazione_tipo === "fisso_mq" ? "/m²" : v.maggiorazione_tipo === "fisso_ml" ? "/ml" : ""})`;
+                                const magg = suffissoMaggiorazione(v.maggiorazione_tipo, v.maggiorazione_valore);
                                 const std = v.is_default ? " · standard" : "";
                                 return (
                                   <SelectItem key={v.id} value={v.id} className="text-xs">
