@@ -16,6 +16,7 @@ import { NewTaskDialog } from "@/components/admin/tasks/NewTaskDialog";
 import { ClienteMarketingCard } from "./ClienteMarketingCard";
 import { CosaFareOggi, type AllarmeConCliente } from "./CosaFareOggi";
 import { CostiMeseDialog } from "./CostiMeseDialog";
+import { SchedaClienteMarketing } from "./SchedaClienteMarketing";
 import { SoglieDialog } from "./SoglieDialog";
 import { useAggiornaSpesaMeta } from "./useClientiMarketing";
 import { useChiudiAllarme, useMktConsole, useRicalcola } from "./useMktConsole";
@@ -29,6 +30,9 @@ interface Props {
   mese: string;
   meseOggi: string;
   oggi: Date;
+  /** ?scheda=<id>: la scheda del cliente prende il posto dell'elenco */
+  schedaId: string | null;
+  onScheda: (id: string | null) => void;
   onMese: (m: string) => void;
   righe: ClienteMarketing[];
   isLoading: boolean;
@@ -43,7 +47,7 @@ interface Props {
 
 const SEMAFORO_ETICHETTA: Record<string, string> = { V: "verdi", G: "gialli", R: "rossi", N: "senza dati" };
 
-export function ClientiMarketingPanel({ mese, meseOggi, oggi, onMese, righe, isLoading, isError, isFetching, refetch, onModifica, onIncassi, onReport, onVaiAiContratti }: Props) {
+export function ClientiMarketingPanel({ mese, meseOggi, oggi, schedaId, onScheda, onMese, righe, isLoading, isError, isFetching, refetch, onModifica, onIncassi, onReport, onVaiAiContratti }: Props) {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [mostraCessati, setMostraCessati] = useState(false);
@@ -146,8 +150,32 @@ export function ClientiMarketingPanel({ mese, meseOggi, oggi, onMese, righe, isL
     }
   };
 
+  // La scheda del cliente prende il posto dell'elenco: le finestre (costi,
+  // soglie, promemoria) restano montate e funzionano anche da lì.
+  const schedaCliente = schedaId ? perId.get(schedaId) ?? null : null;
+
   return (
     <div className="space-y-3">
+      {schedaId ? (
+        <SchedaClienteMarketing
+          serviceClientId={schedaId}
+          cliente={schedaCliente}
+          metriche={motore.data?.metriche.get(schedaId) ?? null}
+          allarmi={(motore.data?.allarmi ?? []).filter((a) => a.service_client_id === schedaId && a.mostrato)}
+          oggi={oggi}
+          puoEntrare={permesso}
+          entraInCorso={inCorso === schedaCliente?.company_id}
+          onEntra={(pagina) => { if (schedaCliente) void entra(schedaCliente.company_id, pagina); }}
+          onChiudi={() => onScheda(null)}
+          onCosti={() => { if (schedaCliente) setCostiDi(schedaCliente); }}
+          onIncassi={() => onIncassi(schedaId)}
+          onSoglie={() => { if (schedaCliente) setSoglieDi(schedaCliente); }}
+          onPromemoria={() => { if (schedaCliente) setPromemoriaDi(schedaCliente); }}
+          onContratto={() => onModifica(schedaId)}
+          onReport={() => onReport(schedaId)}
+        />
+      ) : (
+      <>
       <div className="flex flex-wrap items-center gap-2">
         <div className="inline-flex items-center rounded-lg border">
           <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => onMese(spostaMese(mese, -1))} aria-label="Mese precedente"><ChevronLeft className="h-4 w-4" /></Button>
@@ -229,9 +257,12 @@ export function ClientiMarketingPanel({ mese, meseOggi, oggi, onMese, righe, isL
               onPromemoria={() => setPromemoriaDi(c)}
               onSoglie={() => setSoglieDi(c)}
               onReport={() => onReport(c.service_client_id)}
+              onScheda={() => onScheda(c.service_client_id)}
             />
           ))}
         </div>
+      )}
+      </>
       )}
 
       {/* La chiave rimonta il dialog a ogni cliente/mese: la data proposta riparte da capo. */}

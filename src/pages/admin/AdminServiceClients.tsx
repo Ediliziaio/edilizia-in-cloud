@@ -113,10 +113,12 @@ export default function AdminServiceClients() {
   const [oggi] = useState(() => new Date());
   const meseOggi = meseChiave(oggi);
   const [mese, setMese] = useState(meseOggi);
-  // ?report=<cliente-servizio>: il report del mese da stampare, al posto della console.
+  // ?report=<cliente-servizio>: il report del mese da stampare, al posto della
+  // console; ?scheda=<cliente-servizio>: la scheda completa del cliente.
   const [searchParams, setSearchParams] = useSearchParams();
   const reportId = searchParams.get("report");
-  const riepilogo = useClientiMarketing(mese, vista === "marketing" || !!reportId);
+  const schedaId = searchParams.get("scheda");
+  const riepilogo = useClientiMarketing(mese, vista === "marketing" || !!reportId || !!schedaId);
   const totali = useMemo(() => totaliMese(riepilogo.data ?? [], mese === meseOggi), [riepilogo.data, mese, meseOggi]);
   // Filtri lista
   const [search, setSearch] = useState("");
@@ -420,6 +422,8 @@ export default function AdminServiceClients() {
           mese={mese}
           meseOggi={meseOggi}
           oggi={oggi}
+          schedaId={schedaId}
+          onScheda={(id) => setSearchParams(id ? { scheda: id } : {})}
           onMese={setMese}
           righe={riepilogo.data ?? []}
           isLoading={riepilogo.isLoading}

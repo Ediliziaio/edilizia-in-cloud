@@ -10,7 +10,7 @@ import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import {
   AlertTriangle, ArrowDownRight, ArrowUpRight, BellPlus, CalendarCheck, ClipboardList, Coins, ExternalLink, FileText, Globe, Inbox,
-  Loader2, LogIn, Mail, Megaphone, MessageCircle, MoreHorizontal, Pencil, Percent, Printer, Receipt, SlidersHorizontal, Trophy, UserRoundCheck, Users, Wallet,
+  LineChart, Loader2, LogIn, Mail, Megaphone, MessageCircle, MoreHorizontal, Pencil, Percent, Printer, Receipt, SlidersHorizontal, Trophy, UserRoundCheck, Users, Wallet,
 } from "lucide-react";
 import type { Metriche } from "./useMktConsole";
 import { Button } from "@/components/ui/button";
@@ -47,6 +47,7 @@ interface Props {
   onPromemoria: () => void;
   onSoglie: () => void;
   onReport: () => void;
+  onScheda: () => void;
 }
 
 const SEMAFORO: Record<string, { classe: string; testo: string }> = {
@@ -113,7 +114,7 @@ function testoUltimiGiorni(c: ClienteMarketing): string {
   return `ieri ${numero(ieri)} · ${ultimo}`;
 }
 
-export function ClienteMarketingCard({ c, metriche, meseCorrente, meseLeggibile, oggi, entraInCorso, puoEntrare, onEntra, onCosti, onIncassi, onModifica, onPromemoria, onSoglie, onReport }: Props) {
+export function ClienteMarketingCard({ c, metriche, meseCorrente, meseLeggibile, oggi, entraInCorso, puoEntrare, onEntra, onCosti, onIncassi, onModifica, onPromemoria, onSoglie, onReport, onScheda }: Props) {
   const l = leggiMese(c, meseCorrente);
   const m = metriche;
   const cplVsTarget = m?.cpl_valido_7g != null && m.cpl_target != null
@@ -159,7 +160,10 @@ export function ClienteMarketingCard({ c, metriche, meseCorrente, meseLeggibile,
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <Semaforo m={m} />
-              <h3 className="truncate text-base font-semibold leading-tight">{c.cliente_nome}</h3>
+              {/* Il nome apre la scheda: è il gesto che il titolare fa per primo. */}
+              <button type="button" onClick={onScheda} className="truncate text-left text-base font-semibold leading-tight underline-offset-4 hover:underline">
+                {c.cliente_nome}
+              </button>
               <Badge variant="secondary" className={cn("border-0 text-[10px]", stato.classe)}>{stato.etichetta}</Badge>
               {m?.indice_esecuzione != null && (
                 <span className={cn("text-[11px]", m.indice_esecuzione < 50 ? "text-rose-700 dark:text-rose-400" : m.indice_esecuzione < 75 ? "text-amber-700 dark:text-amber-400" : "text-emerald-700 dark:text-emerald-400")}
@@ -194,6 +198,7 @@ export function ClienteMarketingCard({ c, metriche, meseCorrente, meseLeggibile,
           </div>
         </div>
         <div className="flex flex-wrap gap-1.5 lg:justify-end">
+          <Button size="sm" className="gap-1.5" onClick={onScheda}><LineChart className="h-3.5 w-3.5" /> Apri la scheda</Button>
           <Button size="sm" variant="outline" className="gap-1.5" onClick={() => onEntra()} disabled={!puoEntrare || entraInCorso}>
             {entraInCorso ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <LogIn className="h-3.5 w-3.5" />} Entra nell'azienda
           </Button>

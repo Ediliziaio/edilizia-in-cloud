@@ -25,6 +25,8 @@ interface SyncInsightsRequest {
   company_id?: string;
   /** Force = ignora last_synced_at e rifai sync completo */
   force?: boolean;
+  /** Quanti giorni indietro riscrivere nel dettaglio giornaliero (default 3; fino a 90 per il recupero storico) */
+  giorni_indietro?: number;
 }
 
 interface SyncResult {
@@ -39,10 +41,15 @@ interface SyncResult {
   duration_ms: number;
 }
 
-/** Da tre giorni fa a oggi, ora di Roma: la finestra che si riscrive a ogni sync. */
-export function ultimiTreGiorni(adesso = new Date()): [string, string] {
+/**
+ * La finestra del dettaglio giornaliero, in ora di Roma: di norma gli ultimi
+ * tre giorni (Meta rettifica la spesa a posteriori, quindi si riscrivono), fino
+ * a 90 quando si recupera lo storico con `giorni_indietro`.
+ */
+export function ultimiTreGiorni(adesso = new Date(), giorni = 3): [string, string] {
   const f = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Rome", year: "numeric", month: "2-digit", day: "2-digit" });
-  return [f.format(new Date(adesso.getTime() - 3 * 86400000)), f.format(adesso)];
+  const n = Math.min(90, Math.max(1, Math.round(giorni)));
+  return [f.format(new Date(adesso.getTime() - n * 86400000)), f.format(adesso)];
 }
 
 /**
@@ -231,8 +238,27 @@ Deno.serve(async (req) => {
         // posteriori: si riscrivono sempre): è la grana della console clienti
         // marketing — CPL a 7 giorni, spesa senza lead, sotto-consegna.
         try {
-          const [da, a] = ultimiTreGiorni();
-          const gUrl = `https://graph.facebook.com/${apiVersion}/${c.meta_act_id}/insights?fields=spend,impressions,clicks,frequency,actions&level=account&time_increment=1&time_range={"since":"${da}","until":"${a}"}&access_token=${accessToken}`;
+          const [da, a] = ultimiTreGiorni(new Date(), body.giorni_indietro ?? 3);
+          // Le colonne del report giornaliero del titolare: copertura,
+          // interazioni, CPM, click, frequenza, lead dichiarati.
+          const gUrl = `https://graph.facebook.com/${apiVersion}/${c.meta_act_id}/insights?fields=spend,impressions,clicks,reach,cpm,frequency,actions&level=account&time_increment=1&time_range={"since":"${da}","until":"${a}"}&access_token=${accessToken}`;
+          // Quante campagne hanno consegnato quel giorno: si contano dalle righe
+          // per campagna, non dallo stato dichiarato (una campagna «attiva» che
+          // non spende non è attiva).
+          const campagnePerGiorno = new Map<string, Set<string>>();
+          try {
+            const cUrl = `https://graph.facebook.com/${apiVersion}/${c.meta_act_id}/insights?fields=campaign_id,spend&level=campaign&time_increment=1&limit=500&time_range={"since":"${da}","until":"${a}"}&access_token=${accessToken}`;
+            const cRes = await fetch(cUrl);
+            if (cRes.ok) {
+              const cJson = await cRes.json() as { data?: Array<{ campaign_id?: string; spend?: string; date_start?: string }> };
+              for (const r of cJson.data ?? []) {
+                if (!r.date_start || !r.campaign_id || parseFloat(r.spend ?? "0") <= 0) continue;
+                if (!campagnePerGiorno.has(r.date_start)) campagnePerGiorno.set(r.date_start, new Set());
+                campagnePerGiorno.get(r.date_start)!.add(r.campaign_id);
+              }
+            }
+          } catch { /* le campagne attive sono un di più: se mancano, la riga si scrive lo stesso */ }
+
           const gRes = await fetch(gUrl);
           if (!gRes.ok) {
             errors.push(`account_${c.meta_act_id}_daily_failed`);
@@ -241,6 +267,9 @@ Deno.serve(async (req) => {
             for (const row of gJson.data ?? []) {
               if (!row.date_start) continue;
               const leadAct = (row.actions ?? []).find((x) => x.action_type === "lead" || x.action_type === "leadgen.other" || x.action_type === "onsite_conversion.lead_grouped");
+              const interazioni = (row.actions ?? [])
+                .filter((x) => x.action_type === "post_engagement" || x.action_type === "page_engagement")
+                .reduce((m, x) => Math.max(m, parseInt(x.value ?? "0", 10)), 0);
               const { error: gErr } = await admin.from("mkt_spesa_giornaliera").upsert({
                 company_id: c.company_id,
                 giorno: row.date_start,
@@ -249,6 +278,10 @@ Deno.serve(async (req) => {
                 spesa: Math.round(parseFloat(row.spend ?? "0") * 100) / 100,
                 impression: parseInt(row.impressions ?? "0", 10),
                 click: parseInt(row.clicks ?? "0", 10),
+                copertura: row.reach ? parseInt(row.reach, 10) : null,
+                cpm: row.cpm ? Math.round(parseFloat(row.cpm) * 100) / 100 : null,
+                interazioni: interazioni || null,
+                campagne_attive: campagnePerGiorno.get(row.date_start)?.size ?? null,
                 lead_dichiarati: parseInt(leadAct?.value ?? "0", 10),
                 frequenza: row.frequency ? parseFloat(row.frequency) : null,
                 sincronizzato_il: new Date().toISOString(),
