@@ -85,52 +85,50 @@ export function TaskQuickAdd({ defaultAssignedTo, onAdvancedCreate }: TaskQuickA
     createMutation.mutate(value);
   };
 
+  // Una riga sola, senza riquadro né titolo: sta nella barra dei filtri della
+  // pagina Attività (prima era una scheda a sé, con intestazione, e spingeva
+  // la tabella sotto la piega).
   return (
-    <div className="rounded-xl border bg-card p-3 shadow-sm">
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2 text-sm font-medium">
-          <Plus className="h-4 w-4 text-primary" />
-          Aggiunta rapida
-        </div>
-        {onAdvancedCreate && (
-          <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={onAdvancedCreate}>
-            Apri scheda completa
-          </Button>
-        )}
+    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+      <div className="relative min-w-[200px] flex-1">
+        <Plus className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") handleSubmit();
+          }}
+          placeholder="Nuova attività: scrivi il titolo e premi Invio..."
+          className="h-9 pl-9"
+          disabled={createMutation.isPending}
+          maxLength={200}
+          aria-label="Aggiunta rapida attività"
+        />
       </div>
-      <div className="flex flex-col gap-2 lg:flex-row">
-        <div className="relative min-w-[220px] flex-1">
-          <Plus className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") handleSubmit();
-            }}
-            placeholder="Scrivi il titolo e premi Invio..."
-            className="h-10 pl-9"
-            disabled={createMutation.isPending}
-            maxLength={200}
-          />
-        </div>
-        <Select value={assignedTo} onValueChange={setAssignedTo}>
-          <SelectTrigger className="h-10 w-full lg:w-[210px]">
-            <UserPlus className="mr-2 h-4 w-4 text-muted-foreground" />
-            <SelectValue placeholder="Assegna a" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="none">Da assegnare</SelectItem>
-            {assignableUsers.map((member) => (
-              <SelectItem key={member.id} value={member.id}>
-                {member.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Button className="h-10 gap-2 lg:w-[120px]" onClick={handleSubmit} disabled={!value.trim() || createMutation.isPending}>
+      <Select value={assignedTo} onValueChange={setAssignedTo}>
+        <SelectTrigger className="h-9 w-full sm:w-[190px]" aria-label="Assegna a">
+          <UserPlus className="mr-2 h-4 w-4 text-muted-foreground" />
+          <SelectValue placeholder="Assegna a" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="none">Da assegnare</SelectItem>
+          {assignableUsers.map((member) => (
+            <SelectItem key={member.id} value={member.id}>
+              {member.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <div className="flex items-center gap-2">
+        <Button className="h-9 gap-2" onClick={handleSubmit} disabled={!value.trim() || createMutation.isPending}>
           <Plus className="h-4 w-4" />
           Aggiungi
         </Button>
+        {onAdvancedCreate && (
+          <Button variant="ghost" size="sm" className="h-9 px-2 text-xs whitespace-nowrap" onClick={onAdvancedCreate}>
+            Scheda completa
+          </Button>
+        )}
       </div>
     </div>
   );

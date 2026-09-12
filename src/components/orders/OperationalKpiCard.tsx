@@ -91,9 +91,11 @@ export function OperationalKpiCard({
       )}
     >
       <div className={cn("absolute inset-y-0 left-0 w-1", styles.accent)} />
-      <CardContent className="flex items-center gap-3 p-3 sm:p-4">
-        <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ring-1", styles.iconBox)}>
-          <Icon className={cn("h-5 w-5", styles.icon)} />
+      {/* Riquadri più bassi (erano p-4 su schermo grande con l'icona a 40px):
+          otto card in due righe rubavano una fascia di pagina alla tabella. */}
+      <CardContent className="flex items-center gap-3 p-3">
+        <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ring-1", styles.iconBox)}>
+          <Icon className={cn("h-[18px] w-[18px]", styles.icon)} />
         </div>
         <div className="min-w-0">
           <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 sm:text-xs">{label}</p>
@@ -108,7 +110,7 @@ export function OperationalKpiCard({
                 // "365...." — cioe' il numero spariva del tutto. Misurato: la
                 // colonna di testo della card e' 82px, un importo a text-2xl ne
                 // chiede oltre 90. I conteggi ("10", "5") restano grandi.
-                String(value).length > 5 ? "text-lg sm:text-xl" : "text-xl sm:text-2xl",
+                String(value).length > 5 ? "text-base sm:text-lg" : "text-lg sm:text-xl",
               )}
             >
               {value}

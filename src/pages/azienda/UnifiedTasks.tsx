@@ -604,41 +604,47 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
   const handleRefresh = () => queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
 
   return (
-    <div className={embedded ? "space-y-5" : "space-y-6"}>
-      <div className="rounded-xl border bg-card p-4 shadow-sm">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+    // Intestazione, linguette, aggiunta rapida e filtri stanno in due schede
+    // invece di cinque: la tabella comincia sopra la piega.
+    <Tabs
+      value={activeTab}
+      onValueChange={(v) => setActiveTab(v as "myday" | "all")}
+      className={embedded ? "space-y-4" : "space-y-4"}
+    >
+      <div className="rounded-xl border bg-card p-3 shadow-sm">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">
-            <div className="mb-1 flex flex-wrap items-center gap-2">
-              <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className={cn("font-bold tracking-tight", embedded ? "text-lg" : "text-xl")}>
+                {embedded ? "Regia attività" : "Attività"}
+              </h1>
+              <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
                 Regia operativa
               </span>
               {stats.overdue > 0 && (
-                <span className="rounded-full bg-destructive/10 px-2.5 py-1 text-xs font-medium text-destructive">
+                <span className="rounded-full bg-destructive/10 px-2.5 py-0.5 text-xs font-medium text-destructive">
                   {stats.overdue} scadute
                 </span>
               )}
             </div>
-            <h1 className={cn("font-bold tracking-tight", embedded ? "text-xl" : "text-2xl")}>
-              {embedded ? "Regia attività" : "Attività"}
-            </h1>
-            <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+            <p className="mt-0.5 max-w-2xl text-xs text-muted-foreground">
               Gestisci attività personali e di team, priorità, scadenze e responsabilità da un unico punto.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Button className="gap-2" onClick={() => openNewTask({ assignedTo: user?.id ?? null })}>
+            <Button size="sm" className="h-9 gap-2" onClick={() => openNewTask({ assignedTo: user?.id ?? null })}>
               <Plus className="h-4 w-4" />
               Aggiungi attività
             </Button>
-            <Button variant="outline" className="gap-2" onClick={() => openNewTask({ assignedTo: null })}>
+            <Button size="sm" variant="outline" className="h-9 gap-2" onClick={() => openNewTask({ assignedTo: null })}>
               <Users className="h-4 w-4" />
               Per team
             </Button>
-            <Button variant="outline" className="gap-2" onClick={() => setStatusSettingsOpen(true)}>
+            <Button size="sm" variant="outline" className="h-9 gap-2" onClick={() => setStatusSettingsOpen(true)}>
               <SlidersHorizontal className="h-4 w-4" />
               Stati
             </Button>
-            <Button variant="outline" className="gap-2" onClick={esportaCsv} title="Scarica in CSV (Excel) le attività filtrate">
+            <Button size="sm" variant="outline" className="h-9 gap-2" onClick={esportaCsv} title="Scarica in CSV (Excel) le attività filtrate">
               <Download className="h-4 w-4" />
               Esporta
             </Button>
@@ -650,39 +656,67 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
             />
           </div>
         </div>
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+          <TabsList className="h-9 rounded-lg">
+            <TabsTrigger value="myday">La mia giornata</TabsTrigger>
+            <TabsTrigger value="all">Tutte le attività</TabsTrigger>
+          </TabsList>
+          {/* Il cambio vista sta accanto alle linguette: nella riga dei filtri,
+              con cinque nomi, mandava tutto a capo. */}
+          {activeTab === "all" && (
+            <TooltipProvider delayDuration={200}>
+              <div className="flex rounded-md border overflow-hidden sm:ml-auto" role="group" aria-label="Vista">
+                {VIEW_MODES.map((m) => (
+                  <Tooltip key={m.value}>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={() => setViewMode(m.value)}
+                        aria-label={`Vista ${m.label.toLowerCase()}`}
+                        aria-pressed={viewMode === m.value}
+                        className={cn(
+                        "flex items-center gap-1.5 px-2.5 py-2 text-xs transition-colors",
+                        viewMode === m.value ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"
+                        )}
+                      >
+                        <m.icon className="h-4 w-4" />
+                        {/* Il nome della vista solo sugli schermi molto larghi:
+                          con cinque nomi la riga dei filtri andava a capo. */}
+                        <span className="hidden 2xl:inline">{m.label}</span>
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom" className="max-w-[220px] text-xs">
+                      <p className="font-medium">{m.label}</p>
+                      <p className="text-muted-foreground">{m.descr}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                ))}
+              </div>
+            </TooltipProvider>
+          )}
+        </div>
       </div>
-
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "myday" | "all")}>
-        <TabsList className="h-10 rounded-lg">
-          <TabsTrigger value="myday">La mia giornata</TabsTrigger>
-          <TabsTrigger value="all">Tutte le attività</TabsTrigger>
-        </TabsList>
 
         <TabsContent value="myday">
           <MyDayView onNewTask={() => openNewTask({ assignedTo: user?.id ?? null })} />
         </TabsContent>
 
         <TabsContent value="all">
-          <div className="space-y-6">
-            <TaskQuickAdd
-              defaultAssignedTo={user?.id ?? null}
-              onAdvancedCreate={() => openNewTask({ assignedTo: user?.id ?? null })}
-            />
-            <TaskStatCards
-              {...stats}
-              onFilterClick={handleStatFilterClick}
-              onStatusClick={(status) => {
-                setActiveTab("all");
-                setFilterStatus(status);
-              }}
-            />
-
-            <div className="rounded-xl border bg-card p-3 shadow-sm">
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-2 text-sm font-medium">
-                  <SlidersHorizontal className="h-4 w-4 text-muted-foreground" />
-                  Filtri e vista
-                </div>
+          <div className="space-y-3">
+            <div className="space-y-3 rounded-xl border bg-card p-3 shadow-sm">
+              <TaskQuickAdd
+                defaultAssignedTo={user?.id ?? null}
+                onAdvancedCreate={() => openNewTask({ assignedTo: user?.id ?? null })}
+              />
+              <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-3">
+                <TaskStatCards
+                  {...stats}
+                  onFilterClick={handleStatFilterClick}
+                  onStatusClick={(status) => {
+                    setActiveTab("all");
+                    setFilterStatus(status);
+                  }}
+                />
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-muted-foreground">{filteredTasks.length} di {tasks.length} attività</span>
                   {filtriAttivi && (
@@ -692,8 +726,8 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
                   )}
                 </div>
               </div>
-              <div className="flex flex-wrap items-center gap-3">
-              <div className="relative w-full sm:flex-1 sm:min-w-[200px] sm:max-w-xs">
+              <div className="flex flex-wrap items-center gap-2 border-t pt-3">
+              <div className="relative w-full sm:flex-1 sm:min-w-[170px] sm:max-w-[240px]">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   ref={ricercaRef}
@@ -704,13 +738,13 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
                 />
               </div>
               <Select value={filterFonte} onValueChange={setFilterFonte}>
-                <SelectTrigger className="w-full sm:w-[190px] h-9 gap-1" aria-label="Filtro fonte"><span className="text-muted-foreground">Fonte:</span> <SelectValue placeholder="Tutte" /></SelectTrigger>
+                <SelectTrigger className="w-full sm:w-[186px] h-9 gap-1" aria-label="Filtro fonte"><span className="text-muted-foreground">Fonte:</span> <SelectValue placeholder="Tutte" /></SelectTrigger>
                 <SelectContent>
                   {FONTE_OPTIONS.map((o) => (<SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>))}
                 </SelectContent>
               </Select>
               <Select value={filterStatus} onValueChange={setFilterStatus}>
-                <SelectTrigger className="w-full sm:w-[170px] h-9 gap-1" aria-label="Filtro stato"><span className="text-muted-foreground">Stato:</span> <SelectValue placeholder="Attive" /></SelectTrigger>
+                <SelectTrigger className="w-full sm:w-[150px] h-9 gap-1" aria-label="Filtro stato"><span className="text-muted-foreground">Stato:</span> <SelectValue placeholder="Attive" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Tutte</SelectItem>
                   <SelectItem value="active">Attive</SelectItem>
@@ -722,7 +756,7 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
                 </SelectContent>
               </Select>
               <Select value={filterPriority} onValueChange={setFilterPriority}>
-                <SelectTrigger className="w-full sm:w-[160px] h-9 gap-1" aria-label="Filtro priorità"><span className="text-muted-foreground">Priorità:</span> <SelectValue placeholder="Tutte" /></SelectTrigger>
+                <SelectTrigger className="w-full sm:w-[142px] h-9 gap-1" aria-label="Filtro priorità"><span className="text-muted-foreground">Priorità:</span> <SelectValue placeholder="Tutte" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Tutte</SelectItem>
                   <SelectItem value="bassa">Bassa</SelectItem>
@@ -732,7 +766,7 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
                 </SelectContent>
               </Select>
               <Select value={filterCategory} onValueChange={setFilterCategory}>
-                <SelectTrigger className="w-full sm:w-[180px] h-9 gap-1" aria-label="Filtro categoria"><span className="text-muted-foreground">Categoria:</span> <SelectValue placeholder="Tutte" /></SelectTrigger>
+                <SelectTrigger className="w-full sm:w-[158px] h-9 gap-1" aria-label="Filtro categoria"><span className="text-muted-foreground">Categoria:</span> <SelectValue placeholder="Tutte" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Tutte</SelectItem>
                   {Object.entries(ALL_CATEGORY_LABELS).map(([value, label]) => (
@@ -742,7 +776,7 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
               </Select>
               {seesTeamTasks && (
                 <Select value={filterAssignee} onValueChange={setFilterAssignee}>
-                  <SelectTrigger className="w-full sm:w-[200px] h-9 gap-1" aria-label="Filtro assegnatario"><span className="text-muted-foreground">Assegnatario:</span> <SelectValue placeholder="Tutti" /></SelectTrigger>
+                  <SelectTrigger className="w-full sm:w-[176px] h-9 gap-1" aria-label="Filtro assegnatario"><span className="text-muted-foreground">Assegnatario:</span> <SelectValue placeholder="Tutti" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Tutti</SelectItem>
                     {assignees.map((a) => (
@@ -766,34 +800,6 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
                   Le mie
                 </button>
               )}
-              {/* Toggle view: icona + nome (su schermi larghi) + tooltip con la spiegazione */}
-              <TooltipProvider delayDuration={200}>
-                <div className="flex rounded-md border overflow-hidden sm:ml-auto" role="group" aria-label="Vista">
-                  {VIEW_MODES.map((m) => (
-                    <Tooltip key={m.value}>
-                      <TooltipTrigger asChild>
-                        <button
-                          type="button"
-                          onClick={() => setViewMode(m.value)}
-                          aria-label={`Vista ${m.label.toLowerCase()}`}
-                          aria-pressed={viewMode === m.value}
-                          className={cn(
-                            "flex items-center gap-1.5 px-2.5 py-2 text-xs transition-colors",
-                            viewMode === m.value ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"
-                          )}
-                        >
-                          <m.icon className="h-4 w-4" />
-                          <span className="hidden xl:inline">{m.label}</span>
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom" className="max-w-[220px] text-xs">
-                        <p className="font-medium">{m.label}</p>
-                        <p className="text-muted-foreground">{m.descr}</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  ))}
-                </div>
-              </TooltipProvider>
               </div>
             </div>
 
@@ -906,7 +912,6 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
             )}
           </div>
         </TabsContent>
-      </Tabs>
 
       <AlertDialog open={!!taskToDelete} onOpenChange={(o) => { if (!o) setTaskToDelete(null); }}>
         <AlertDialogContent>
@@ -941,6 +946,6 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
         onSave={saveStatuses}
         onReset={resetStatuses}
       />
-    </div>
+    </Tabs>
   );
 }
