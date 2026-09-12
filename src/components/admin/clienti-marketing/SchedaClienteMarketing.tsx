@@ -35,6 +35,10 @@ const PERIODI = [
   { id: "90", label: "90 giorni", giorni: 90 },
 ] as const;
 
+// Il tempo di richiamo promesso al cliente: 24 ore di servizio, e il
+// cronometro nel fine settimana e' fermo (vedi mkt_orario_servizio).
+const RICHIAMO_ORE = 24;
+
 const chiaveGiorno = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
 interface Props {
@@ -118,7 +122,7 @@ export function SchedaClienteMarketing({
   const suo = [
     { k: "Richieste toccate", v: `${numero(t?.lavorate ?? 0)} / ${numero(t?.opportunita ?? 0)}`, nota: t?.tasso_lavorati != null ? `${Math.round(t.tasso_lavorati * 100)}%` : null,
       male: (t?.tasso_lavorati ?? 1) < 0.6 },
-    { k: "Tempo di richiamo", v: t?.mediana_min != null ? ore(t.mediana_min / 60) : "—", nota: "mediana", male: (t?.mediana_min ?? 0) > 240 },
+    { k: "Tempo di richiamo", v: t?.mediana_min != null ? ore(t.mediana_min / 60) : "—", nota: `entro ${RICHIAMO_ORE} ore`, male: (t?.mediana_min ?? 0) > RICHIAMO_ORE * 60 },
     { k: "Sopralluoghi", v: numero(t?.appuntamenti ?? 0), d: variazione(t?.appuntamenti ?? 0, prec?.appuntamenti ?? 0), male: (t?.appuntamenti ?? 0) === 0 && (t?.lead ?? 0) > 10 },
     { k: "Contratti", v: `${numero(t?.vendite ?? 0)} · ${eur(t?.valore ?? 0)}`, d: variazione(t?.vendite ?? 0, prec?.vendite ?? 0) },
   ];
@@ -226,7 +230,7 @@ export function SchedaClienteMarketing({
             <Kpi etichetta="Toccate" valore={t?.tasso_lavorati != null ? `${Math.round(t.tasso_lavorati * 100)}%` : "—"}
               nota={`${numero(t?.lavorate ?? 0)} su ${numero(t?.opportunita ?? 0)}`} tono={(t?.tasso_lavorati ?? 1) < 0.6 ? "attenzione" : undefined} />
             <Kpi etichetta="Richiamo" valore={t?.mediana_min != null ? ore(t.mediana_min / 60) : "—"} nota="mediana in orario"
-              tono={(t?.mediana_min ?? 0) > 240 ? "attenzione" : undefined} />
+              tono={(t?.mediana_min ?? 0) > RICHIAMO_ORE * 60 ? "attenzione" : undefined} />
             <Kpi etichetta="Sopralluoghi" valore={numero(t?.appuntamenti ?? 0)} delta={variazione(t?.appuntamenti ?? 0, prec?.appuntamenti ?? 0)}
               nota={t?.costo_appuntamento != null ? `${eur(t.costo_appuntamento)} l'uno` : null} />
             <Kpi etichetta="Contratti" valore={`${numero(t?.vendite ?? 0)}`} delta={variazione(t?.vendite ?? 0, prec?.vendite ?? 0)}
@@ -382,7 +386,7 @@ export function SchedaClienteMarketing({
                       <td className="px-2 py-1.5 text-muted-foreground">{l.fonte || "—"}</td>
                       <td className="px-2 py-1.5">{l.fase || "—"}</td>
                       <td className="px-2 py-1.5 text-muted-foreground">{l.assegnato_a || "nessuno"}</td>
-                      <td className={cn(tdc, "text-right", l.primo_contatto_min == null ? "font-medium text-rose-700 dark:text-rose-400" : l.primo_contatto_min > 240 ? "text-amber-700 dark:text-amber-400" : "")}>
+                      <td className={cn(tdc, "text-right", l.primo_contatto_min == null ? "font-medium text-rose-700 dark:text-rose-400" : l.primo_contatto_min > RICHIAMO_ORE * 60 ? "text-amber-700 dark:text-amber-400" : "")}>
                         {l.primo_contatto_min == null ? (l.status === "open" ? "mai" : "—") : ore(l.primo_contatto_min / 60)}
                       </td>
                       <td className={cn(tdc, "text-right")}>{l.value ? eur(l.value) : "—"}</td>
