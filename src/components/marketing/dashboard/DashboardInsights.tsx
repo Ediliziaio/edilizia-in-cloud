@@ -72,8 +72,9 @@ function generateInsights(kpi: KpiData, kpiPrev: KpiData, sales: SalesPerformanc
     }
   }
 
-  // Show rate alert
-  if (kpi.show_rate < 60 && kpi.appointments_set >= 5) {
+  // Show rate alert: solo se qualche appuntamento ha un esito (lo show rate è
+  // effettuati ÷ effettuati + no-show; senza esiti è 0 e non vuol dire niente)
+  if (kpi.show_rate > 0 && kpi.show_rate < 60 && kpi.appointments_done >= 5) {
     insights.push({
       text: `Lo show rate è al ${kpi.show_rate}% — sotto la soglia consigliata del 60%.`,
       type: "warning",

@@ -31,8 +31,8 @@ const STRATEGIC_CARDS: StrategicCard[] = [
   { key: "contracts_won", label: "Contratti Vinti", tooltip: "Opportunità chiuse con successo", icon: Trophy, format: "number", target: 10, accentClass: "text-amber-600 dark:text-amber-400", borderClass: "border-l-amber-500", progressClass: "[&>div]:bg-amber-500" },
   { key: "pipeline_active_value", label: "Pipeline Attiva", tooltip: "Valore totale opportunità aperte", icon: BarChart3, format: "currency", accentClass: "text-blue-600 dark:text-blue-400", borderClass: "border-l-blue-500", progressClass: "[&>div]:bg-blue-500" },
   { key: "forecast_30d", label: "Forecast 30gg", tooltip: "Stima: tasso chiusura × ticket medio × opportunità in fasi avanzate", icon: Zap, format: "currency", accentClass: "text-violet-600 dark:text-violet-400", borderClass: "border-l-violet-500", progressClass: "[&>div]:bg-violet-500" },
-  { key: "close_rate", label: "Tasso Chiusura", tooltip: "Contratti vinti / Appuntamenti svolti × 100", icon: Target, format: "percent", target: 30, accentClass: "text-rose-600 dark:text-rose-400", borderClass: "border-l-rose-500", progressClass: "[&>div]:bg-rose-500" },
-  { key: "show_rate", label: "Show Rate", tooltip: "Appuntamenti svolti / fissati × 100", icon: CalendarCheck, format: "percent", target: 75, accentClass: "text-cyan-600 dark:text-cyan-400", borderClass: "border-l-cyan-500", progressClass: "[&>div]:bg-cyan-500" },
+  { key: "close_rate", label: "Tasso Chiusura", tooltip: "Vinte ÷ (vinte + perse) × 100 — le scartate non contano", icon: Target, format: "percent", target: 30, accentClass: "text-rose-600 dark:text-rose-400", borderClass: "border-l-rose-500", progressClass: "[&>div]:bg-rose-500" },
+  { key: "show_rate", label: "Show Rate", tooltip: "Effettuati ÷ (effettuati + no-show) × 100", icon: CalendarCheck, format: "percent", target: 75, accentClass: "text-cyan-600 dark:text-cyan-400", borderClass: "border-l-cyan-500", progressClass: "[&>div]:bg-cyan-500" },
 ];
 
 export const DashboardStrategicKPI = memo(function DashboardStrategicKPI({ kpi, kpiPrev, isLoading }: Props) {

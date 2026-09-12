@@ -185,3 +185,24 @@ describe("filtro per pipeline", () => {
     expect(sql).toContain("'Modulo: ' || nullif(btrim(lf.name), '')");
   });
 });
+
+describe("dashboard marketing", () => {
+  it("conta con le regole comuni e restringe chi vede solo i propri lead", () => {
+    const sql = readFileSync(
+      resolve(process.cwd(), "supabase/migrations/20280915410009_dashboard_marketing_sulle_regole_comuni.sql"),
+      "utf8",
+    );
+    // vinte e perse datate come ovunque, cancellate fuori, niente is_completed
+    expect(sql).toContain("mo.won_at >= v_date_from AND mo.won_at <= v_date_to");
+    expect(sql).toContain("mo.lost_at >= v_date_from AND mo.lost_at <= v_date_to");
+    expect(sql).not.toMatch(/\w\.is_completed/);
+    expect(sql).toContain("IF public.solo_assegnati_attivo() THEN");
+    expect(sql).toContain("p_assigned_user_ids IS NULL OR p.id = ANY(p_assigned_user_ids)");
+    const kpi = readFileSync(
+      resolve(process.cwd(), "src/components/marketing/dashboard/DashboardStrategicKPI.tsx"),
+      "utf8",
+    );
+    expect(kpi).toContain("Vinte ÷ (vinte + perse)");
+    expect(kpi).toContain("Effettuati ÷ (effettuati + no-show)");
+  });
+});
