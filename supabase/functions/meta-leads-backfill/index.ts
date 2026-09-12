@@ -63,6 +63,7 @@ async function backfillPage(
   pageRowId: string,
   pageToken: string,
   days: number,
+  ignoraSegnalibro = false,
 ): Promise<number> {
   const sinceTs = Math.floor((Date.now() - days * 24 * 60 * 60 * 1000) / 1000);
 
@@ -135,7 +136,7 @@ async function backfillPage(
       if (cfg.sync_mode === "new_only" && cfg.since_date) {
         effectiveSince = Math.max(effectiveSince, Math.floor(new Date(cfg.since_date).getTime() / 1000));
       }
-      if (cfg.last_pull_at) {
+      if (cfg.last_pull_at && !ignoraSegnalibro) {
         effectiveSince = Math.max(effectiveSince, Math.floor(new Date(cfg.last_pull_at).getTime() / 1000));
       }
     }
@@ -202,7 +203,13 @@ serveConMetriche("meta-leads-backfill", async (req) => {
     const body = await req.json().catch(() => ({} as Record<string, unknown>));
     const onlyCompany = (body as { company_id?: string })?.company_id ?? null;
     const daysRaw = (body as { days?: number })?.days;
-    const days = Number.isFinite(Number(daysRaw)) && Number(daysRaw) > 0 ? Number(daysRaw) : 2;
+    const giorniChiesti = Number.isFinite(Number(daysRaw)) && Number(daysRaw) > 0 ? Number(daysRaw) : null;
+    const days = giorniChiesti ?? 2;
+    // Chi passa "days" sta chiedendo di tornare indietro nel tempo: il
+    // segnalibro last_pull_at (aggiornato a ogni giro del cron, quindi sempre
+    // «pochi minuti fa») va ignorato, altrimenti la finestra richiesta veniva
+    // schiacciata sull'ultimo giro e lo storico non rientrava mai.
+    const ignoraSegnalibro = giorniChiesti !== null;
 
     let q = admin
       .from("integrations")
@@ -244,7 +251,7 @@ serveConMetriche("meta-leads-backfill", async (req) => {
             console.warn(`meta-leads-backfill: token pagina ${page.asset_id} non decifrabile`);
             continue;
           }
-          const imported = await backfillPage(admin, integ, page.asset_id, page.id, pageToken, days);
+          const imported = await backfillPage(admin, integ, page.asset_id, page.id, pageToken, days, ignoraSegnalibro);
           out.push({ company_id: integ.company_id, page_id: page.asset_id, imported });
         }
       } catch (e) {

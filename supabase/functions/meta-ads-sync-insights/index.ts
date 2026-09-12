@@ -211,8 +211,13 @@ Deno.serve(async (req) => {
           try {
             const accUrl = `https://graph.facebook.com/${apiVersion}/${c.meta_act_id}/insights?fields=spend,impressions,clicks,reach,cpc,cpm,ctr,actions&level=account&time_range={"since":"${p.since}","until":"${p.until}"}&access_token=${accessToken}`;
             const accRes = await fetch(accUrl);
-            if (!accRes.ok) { errors.push(`account_${c.meta_act_id}_insights_failed`); continue; }
-            const accJson = await accRes.json() as { data?: unknown[] };
+            const accJson = await accRes.json().catch(() => ({})) as { data?: unknown[]; error?: { message?: string } };
+            if (!accRes.ok || accJson.error) {
+              errors.push(
+                `account_${c.meta_act_id}_insights_failed:${String(accJson.error?.message ?? accRes.status).substring(0, 100)}`,
+              );
+              continue;
+            }
             const accRows = accJson.data ?? [];
             // Nessuna riga = nessuna spesa nel periodo: non si scrive niente,
             // come fa il proxy (la console lo dice come «nessuna spesa scaricata»).
@@ -253,8 +258,17 @@ Deno.serve(async (req) => {
             let next: string | null = cUrl;
             while (next) {
               const cRes = await fetch(next);
-              if (!cRes.ok) break;
-              const cJson = await cRes.json() as { data?: Array<{ campaign_id?: string; spend?: string; date_start?: string }>; paging?: { next?: string } };
+              const cJson = await cRes.json().catch(() => ({})) as {
+                data?: Array<{ campaign_id?: string; spend?: string; date_start?: string }>;
+                paging?: { next?: string };
+                error?: { message?: string };
+              };
+              if (!cRes.ok || cJson.error) {
+                errors.push(
+                  `account_${c.meta_act_id}_campagne_attive:${String(cJson.error?.message ?? cRes.status).substring(0, 80)}`,
+                );
+                break;
+              }
               for (const r of cJson.data ?? []) {
                 if (!r.date_start || !r.campaign_id || parseFloat(r.spend ?? "0") <= 0) continue;
                 if (!campagnePerGiorno.has(r.date_start)) campagnePerGiorno.set(r.date_start, new Set());
@@ -266,20 +280,38 @@ Deno.serve(async (req) => {
 
           const giorniMeta: MetaInsightAPI[] = [];
           let pagina: string | null = gUrl;
-          let okDaily = true;
           while (pagina) {
             const gRes = await fetch(pagina);
-            if (!gRes.ok) { okDaily = false; break; }
-            const gJson = await gRes.json() as { data?: MetaInsightAPI[]; paging?: { next?: string } };
+            const gJson = await gRes.json().catch(() => ({})) as {
+              data?: MetaInsightAPI[];
+              paging?: { next?: string };
+              error?: { message?: string };
+            };
+            // Graph risponde 200 anche quando fallisce, con "error" nel corpo e
+            // niente "data": senza questo controllo la sincronizzazione tornava
+            // «nessun errore, zero righe» e il buco passava inosservato.
+            if (!gRes.ok || gJson.error) {
+              errors.push(
+                `account_${c.meta_act_id}_daily_failed:${String(gJson.error?.message ?? gRes.status).substring(0, 100)}`,
+              );
+              break;
+            }
             giorniMeta.push(...(gJson.data ?? []));
             pagina = gJson.paging?.next ?? null;
           }
-          if (!okDaily) {
-            errors.push(`account_${c.meta_act_id}_daily_failed`);
-          } else {
+          // Le pagine già scaricate si scrivono comunque: sono giorni veri, e
+          // l'upsert è idempotente. L'errore sopra dice che manca il resto.
+          {
             for (const row of giorniMeta) {
               if (!row.date_start) continue;
-              const leadAct = (row.actions ?? []).find((x) => x.action_type === "lead" || x.action_type === "leadgen.other" || x.action_type === "onsite_conversion.lead_grouped");
+              // Priorità esplicita, non il primo che capita nell'array: "lead" è
+              // il totale che il cliente legge in Gestione inserzioni, gli altri
+              // due sono sottoinsiemi. Con find(a || b || c) il significato del
+              // numero dipendeva dall'ordine in cui Meta elencava le azioni.
+              const azioni = row.actions ?? [];
+              const leadAct = azioni.find((x) => x.action_type === "lead")
+                ?? azioni.find((x) => x.action_type === "leadgen.other")
+                ?? azioni.find((x) => x.action_type === "onsite_conversion.lead_grouped");
               const interazioni = (row.actions ?? [])
                 .filter((x) => x.action_type === "post_engagement" || x.action_type === "page_engagement")
                 .reduce((m, x) => Math.max(m, parseInt(x.value ?? "0", 10)), 0);
