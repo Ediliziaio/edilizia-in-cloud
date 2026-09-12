@@ -3,6 +3,7 @@ import { getCorsHeaders, jsonResponse, errorResponse, secureHeaders } from "../_
 import { decrypt, getEncryptionKey } from "../_shared/encryption.ts";
 
 import { serveConMetriche } from "../_shared/withMetrics.ts";
+import { isLeadArretrato, notaArretrato } from "../_shared/metaLeadArretrato.ts";
 const MAX_RETRIES = 10;
 const BATCH_SIZE = 20;
 
@@ -128,6 +129,12 @@ serveConMetriche("meta-process-leads", async (req) => {
           .eq("id", event.id);
 
         // Fire automation trigger (non-blocking)
+        //
+        // Un lead ARRETRATO (modulo compilato giorni fa, recuperato ora dallo
+        // storico) entra nel CRM ma non sveglia le automazioni: il 12/09/2026
+        // un recupero ha mandato 91 notifiche «Nuovo lead» in un'ora e mezza
+        // per richieste vecchie fino a tre settimane. Chi riceve la notifica
+        // deve poter presumere che il contatto sia appena arrivato.
         if (result?.contactId) {
           const triggerEvent = result.isNew ? "facebook_lead_received" : "facebook_lead_updated";
           adminClient
@@ -143,6 +150,11 @@ serveConMetriche("meta-process-leads", async (req) => {
                 leadgen_id: event.payload?.leadgen_id || null,
                 campaign_name: result.campaignName || null,
                 is_new_contact: result.isNew,
+                // Lead recuperato dallo storico, non appena arrivato: il motore
+                // automazioni lo mette in pipeline ma non manda notifiche né
+                // messaggi. Vedi _shared/metaLeadArretrato.ts.
+                arretrato: result.arretrato === true,
+                giorni_ritardo: result.giorniRitardo ?? 0,
               },
             })
             .then(
@@ -221,7 +233,7 @@ serveConMetriche("meta-process-leads", async (req) => {
   }
 });
 
-async function processLeadEvent(adminClient: any, event: any): Promise<{ contactId: string; isNew: boolean; campaignName?: string } | null> {
+async function processLeadEvent(adminClient: any, event: any): Promise<{ contactId: string; isNew: boolean; campaignName?: string; arretrato?: boolean; giorniRitardo?: number } | null> {
   const { company_id, integration_id, payload } = event;
   // Due formati di payload convivono in coda:
   //  - WEBHOOK: { leadgen_id, form_id, page_id } → il lead va fetchato da Graph
@@ -605,6 +617,11 @@ async function processLeadEvent(adminClient: any, event: any): Promise<{ contact
     }
   }
 
+  // Il lead è stato compilato giorni fa e recuperato solo ora? Si scrive in
+  // chiaro sull'opportunità, cosi' il commerciale non richiama pensando che
+  // sia di oggi.
+  const arretrato = isLeadArretrato(lead.created_time);
+
   if (pipelineSettings.pipeline_id && pipelineSettings.stage_id) {
     const { data: existingOpp } = await adminClient
       .from("marketing_opportunities")
@@ -624,6 +641,8 @@ async function processLeadEvent(adminClient: any, event: any): Promise<{ contact
         value: 0,
         status: "open",
         source: `meta_lead_${leadgenId}`,
+        notes: arretrato ? notaArretrato(lead.created_time) : null,
+        tags: arretrato ? ["lead-recuperato"] : [],
         assigned_to: pipelineSettings.owner_user_id || null,
         meta_campaign_id: lead.campaign_id || null,
         meta_adset_id: lead.adset_id || null,
@@ -680,6 +699,8 @@ async function processLeadEvent(adminClient: any, event: any): Promise<{ contact
     contactId,
     isNew: !existingContact,
     campaignName: lead.campaign_name || undefined,
+    arretrato,
+    giorniRitardo: arretrato ? Math.floor((Date.now() - new Date(String(lead.created_time)).getTime()) / 86_400_000) : 0,
   };
 }
 

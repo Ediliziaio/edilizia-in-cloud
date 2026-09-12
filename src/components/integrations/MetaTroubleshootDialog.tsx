@@ -49,7 +49,20 @@ export function MetaTroubleshootDialog({
   onReconnect,
 }: MetaTroubleshootDialogProps) {
   const hook = useMetaIntegration(integration);
-  const [days, setDays] = useState<"15" | "30">("15");
+  // Finestre corte in cima: quasi sempre si recupera un buco di poche ore o
+  // giorni. Le finestre lunghe servono dopo un guasto prolungato e vanno
+  // scelte apposta: riportano dentro lead vecchi di settimane.
+  const PERIODI = [
+    { valore: "1", etichetta: "Solo oggi" },
+    { valore: "2", etichetta: "Ieri e oggi" },
+    { valore: "3", etichetta: "Ultimi 3 giorni" },
+    { valore: "7", etichetta: "Ultimi 7 giorni" },
+    { valore: "15", etichetta: "Ultimi 15 giorni" },
+    { valore: "30", etichetta: "Ultimi 30 giorni" },
+    { valore: "60", etichetta: "Ultimi 60 giorni" },
+    { valore: "90", etichetta: "Ultimi 90 giorni" },
+  ];
+  const [days, setDays] = useState("3");
   const [syncing, setSyncing] = useState(false);
 
   const handleBackfill = async () => {
@@ -61,7 +74,7 @@ export function MetaTroubleshootDialog({
       if (forms === 0) {
         toast.info("Nessun modulo lead attivo: attiva prima i moduli dal wizard (Gestisci).");
       } else if (imported === 0) {
-        toast.success(`Nessun lead nuovo negli ultimi ${days} giorni (${forms} moduli controllati).`);
+        toast.success(`Nessun lead da recuperare in questo periodo (${forms} moduli controllati).`);
       } else {
         toast.success(`${imported} lead recuperati da ${forms} moduli: li trovi tra i contatti a breve.`);
       }
@@ -132,17 +145,21 @@ export function MetaTroubleshootDialog({
             </AccordionTrigger>
             <AccordionContent className="space-y-3">
               <p className="text-sm text-muted-foreground">
-                Recupera manualmente i lead ricevuti dai tuoi moduli negli ultimi giorni.
-                I lead già presenti non vengono duplicati.
+                Recupera manualmente i lead ricevuti dai tuoi moduli. I lead già presenti non
+                vengono duplicati. Quelli compilati più di 24 ore fa entrano in pipeline marcati
+                «recuperato», con la data vera della richiesta, e non fanno partire notifiche o
+                messaggi automatici: chi ha scritto settimane fa non deve ricevere un «ti
+                ricontattiamo subito».
               </p>
               <div className="flex items-center gap-2">
-                <Select value={days} onValueChange={(v) => setDays(v as "15" | "30")}>
-                  <SelectTrigger className="w-40">
+                <Select value={days} onValueChange={setDays}>
+                  <SelectTrigger className="w-44">
                     <SelectValue placeholder="Periodo" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="15">Ultimi 15 giorni</SelectItem>
-                    <SelectItem value="30">Ultimi 30 giorni</SelectItem>
+                    {PERIODI.map((p) => (
+                      <SelectItem key={p.valore} value={p.valore}>{p.etichetta}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
                 <Button size="sm" onClick={handleBackfill} disabled={syncing || !integration}>
