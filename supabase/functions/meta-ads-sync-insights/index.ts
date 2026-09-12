@@ -241,30 +241,43 @@ Deno.serve(async (req) => {
           const [da, a] = ultimiTreGiorni(new Date(), body.giorni_indietro ?? 3);
           // Le colonne del report giornaliero del titolare: copertura,
           // interazioni, CPM, click, frequenza, lead dichiarati.
-          const gUrl = `https://graph.facebook.com/${apiVersion}/${c.meta_act_id}/insights?fields=spend,impressions,clicks,reach,cpm,frequency,actions&level=account&time_increment=1&time_range={"since":"${da}","until":"${a}"}&access_token=${accessToken}`;
+          // limit=500 e paginazione: senza, Meta ne restituisce 25 al giorno e
+          // il recupero dello storico si fermava al 25° giorno.
+          const gUrl = `https://graph.facebook.com/${apiVersion}/${c.meta_act_id}/insights?fields=spend,impressions,clicks,reach,cpm,frequency,actions&level=account&time_increment=1&limit=500&time_range={"since":"${da}","until":"${a}"}&access_token=${accessToken}`;
           // Quante campagne hanno consegnato quel giorno: si contano dalle righe
           // per campagna, non dallo stato dichiarato (una campagna «attiva» che
           // non spende non è attiva).
           const campagnePerGiorno = new Map<string, Set<string>>();
           try {
             const cUrl = `https://graph.facebook.com/${apiVersion}/${c.meta_act_id}/insights?fields=campaign_id,spend&level=campaign&time_increment=1&limit=500&time_range={"since":"${da}","until":"${a}"}&access_token=${accessToken}`;
-            const cRes = await fetch(cUrl);
-            if (cRes.ok) {
-              const cJson = await cRes.json() as { data?: Array<{ campaign_id?: string; spend?: string; date_start?: string }> };
+            let next: string | null = cUrl;
+            while (next) {
+              const cRes = await fetch(next);
+              if (!cRes.ok) break;
+              const cJson = await cRes.json() as { data?: Array<{ campaign_id?: string; spend?: string; date_start?: string }>; paging?: { next?: string } };
               for (const r of cJson.data ?? []) {
                 if (!r.date_start || !r.campaign_id || parseFloat(r.spend ?? "0") <= 0) continue;
                 if (!campagnePerGiorno.has(r.date_start)) campagnePerGiorno.set(r.date_start, new Set());
                 campagnePerGiorno.get(r.date_start)!.add(r.campaign_id);
               }
+              next = cJson.paging?.next ?? null;
             }
           } catch { /* le campagne attive sono un di più: se mancano, la riga si scrive lo stesso */ }
 
-          const gRes = await fetch(gUrl);
-          if (!gRes.ok) {
+          const giorniMeta: MetaInsightAPI[] = [];
+          let pagina: string | null = gUrl;
+          let okDaily = true;
+          while (pagina) {
+            const gRes = await fetch(pagina);
+            if (!gRes.ok) { okDaily = false; break; }
+            const gJson = await gRes.json() as { data?: MetaInsightAPI[]; paging?: { next?: string } };
+            giorniMeta.push(...(gJson.data ?? []));
+            pagina = gJson.paging?.next ?? null;
+          }
+          if (!okDaily) {
             errors.push(`account_${c.meta_act_id}_daily_failed`);
           } else {
-            const gJson = await gRes.json() as { data?: MetaInsightAPI[] };
-            for (const row of gJson.data ?? []) {
+            for (const row of giorniMeta) {
               if (!row.date_start) continue;
               const leadAct = (row.actions ?? []).find((x) => x.action_type === "lead" || x.action_type === "leadgen.other" || x.action_type === "onsite_conversion.lead_grouped");
               const interazioni = (row.actions ?? [])
