@@ -206,3 +206,25 @@ describe("dashboard marketing", () => {
     expect(kpi).toContain("Effettuati ÷ (effettuati + no-show)");
   });
 });
+
+describe("obiettivi mensili", () => {
+  it("un obiettivo per venditore e per mese, scritto solo dall'amministratore", () => {
+    const sql = readFileSync(
+      resolve(process.cwd(), "supabase/migrations/20280915410010_obiettivi_mensili_venditori.sql"),
+      "utf8",
+    );
+    expect(sql).toContain("unique (company_id, user_id, year, month)");
+    // la policy «tutti i membri su tutti i comandi» lasciava scrivere a chiunque
+    expect(sql).toContain('drop policy if exists "sales_targets_company_isolation"');
+    expect(sql).toContain('create policy "obiettivi_li_scrive_l_admin"');
+    const hook = readFileSync(resolve(process.cwd(), "src/hooks/useObiettiviVenditori.ts"), "utf8");
+    expect(hook).toContain('onConflict: "company_id,user_id,year,month"');
+    // niente più «settimanali» senza mese
+    const tabella = readFileSync(
+      resolve(process.cwd(), "src/components/marketing/dashboard/DashboardSalesTable.tsx"),
+      "utf8",
+    );
+    expect(tabella).not.toContain('"weekly"');
+    expect(tabella).toContain('.eq("month", mese)');
+  });
+});

@@ -17,7 +17,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useMarketingDashboard } from "@/hooks/useMarketingDashboard";
 import { useDashboardLayout, type DashboardTab } from "@/hooks/useDashboardLayout";
-import { SalesTargetsDialog } from "@/components/marketing/dashboard/SalesTargetsDialog";
+import { ObiettiviVenditoriDialog } from "@/components/reporting/venditori/ObiettiviVenditoriDialog";
 import { DashboardFilters } from "@/components/marketing/dashboard/DashboardFilters";
 import { AlertBanner } from "@/components/marketing/dashboard/AlertBanner";
 import { DashboardCustomizePanel } from "@/components/marketing/dashboard/DashboardCustomizePanel";
@@ -136,6 +136,9 @@ export default function MarketingDashboard() {
 
   // Legenda interattiva: click su una voce per nascondere/mostrare la serie
   const [hiddenSeries, setHiddenSeries] = useState<Set<string>>(new Set());
+  // Obiettivi: uno per venditore e per MESE (prima era una riga per persona
+  // senza mese, cioè un obiettivo solo per sempre).
+  const [obiettiviAperti, setObiettiviAperti] = useState(false);
   const toggleSeries = useCallback((key: string) => {
     setHiddenSeries((prev) => {
       const next = new Set(prev);
@@ -338,7 +341,12 @@ export default function MarketingDashboard() {
         toolbar={<DashboardFilters filters={filters} onUpdate={updateFilters} hideUserFilter={permissions.onlyAssigned} compact />}
         actions={
           <>
-            {permissions.isAdmin && <SalesTargetsDialog />}
+            {permissions.isAdmin && (
+              <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setObiettiviAperti(true)}>
+                <Target className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Obiettivi</span>
+              </Button>
+            )}
             <DashboardCustomizePanel tabs={tabs} onToggle={toggleTabVisibility} />
             <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => refetch()} disabled={isLoading}>
               <RefreshCw className="h-3.5 w-3.5" />
@@ -701,6 +709,12 @@ export default function MarketingDashboard() {
           </CardContent>
         </Card>
       )}
-    </div>
+    
+      <ObiettiviVenditoriDialog
+        aperto={obiettiviAperti}
+        onCambiaApertura={setObiettiviAperti}
+        venditori={(data?.sales_performance ?? []).map((v) => ({ id: v.user_id, nome: v.name }))}
+      />
+</div>
   );
 }

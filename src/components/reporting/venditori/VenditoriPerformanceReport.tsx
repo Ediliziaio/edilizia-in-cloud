@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useURLFilters } from "@/hooks/useURLFilters";
 import { usePipelines } from "@/hooks/useOpportunitiesData";
 import { useNavigate } from "react-router-dom";
@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Users, BarChart3, TrendingUp, GitCompareArrows } from "lucide-react";
+import { Users, BarChart3, TrendingUp, GitCompareArrows, Target } from "lucide-react";
 import {
   useVendorKPI,
   useVendorTrend,
@@ -29,6 +29,9 @@ import { VenditoriTrend } from "./VenditoriTrend";
 import { VenditoriInsights } from "./VenditoriInsights";
 import { VenditoriConfronto } from "./VenditoriConfronto";
 import { ReportExportMenu } from "../shared/ReportExportMenu";
+import { ObiettiviVenditoriDialog } from "./ObiettiviVenditoriDialog";
+import { useObiettiviVenditori } from "@/hooks/useObiettiviVenditori";
+import { usePermissions } from "@/hooks/usePermissions";
 
 const VENDOR_PERIODS: { value: string; label: string }[] = [
   { value: "mese", label: "Questo mese" },
@@ -145,6 +148,11 @@ const VenditoriPerformanceReport = () => {
   // (meglio mostrare tutto che una lista vuota).
   const companyId = useEffectiveCompanyId();
   const { data: allStaff = [] } = useCompanyStaffUsers(companyId, "all");
+  // Obiettivi del mese per venditore: li imposta un amministratore, e la
+  // classifica mostra a che punto è ciascuno.
+  const permessi = usePermissions();
+  const [obiettiviAperti, setObiettiviAperti] = useState(false);
+  const { data: obiettivi } = useObiettiviVenditori(inizio, fine);
   const pureCallCenter = useMemo(() => new Set(
     allStaff
       .filter((s) => {
@@ -226,6 +234,12 @@ const VenditoriPerformanceReport = () => {
               </CardDescription>
             </div>
             <div className="flex flex-wrap gap-2">
+              {permessi.isAdmin && (
+                <Button variant="outline" className="h-10 gap-1.5" onClick={() => setObiettiviAperti(true)}>
+                  <Target className="h-4 w-4" />
+                  Obiettivi
+                </Button>
+              )}
               <ReportExportMenu
                 rows={exportRows}
                 columns={EXPORT_COLUMNS}
@@ -377,6 +391,7 @@ const VenditoriPerformanceReport = () => {
             <VenditoriRanking
               kpiList={kpiList}
               isLoading={isLoading}
+              obiettivi={obiettivi}
               onApriVenditore={(id) =>
                 navigate(`/azienda/marketing/opportunita?assigned_to=${id}${pipelineId ? `&pipeline=${pipelineId}` : ""}`)
               }
@@ -392,6 +407,12 @@ const VenditoriPerformanceReport = () => {
           <VenditoriConfronto kpiList={kpiList} />
         </TabsContent>
       </Tabs>
+
+      <ObiettiviVenditoriDialog
+        aperto={obiettiviAperti}
+        onCambiaApertura={setObiettiviAperti}
+        venditori={kpiList.map((k) => ({ id: k.agent_id, nome: k.nome_agente }))}
+      />
     </div>
   );
 };

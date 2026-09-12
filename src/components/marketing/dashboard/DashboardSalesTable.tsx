@@ -46,14 +46,20 @@ export const DashboardSalesTable = memo(function DashboardSalesTable({ sales, is
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
+  // Obiettivi del MESE in corso (prima erano «settimanali»: una riga per
+  // persona senza mese, cioè un obiettivo solo per sempre).
+  const oggi = new Date();
+  const anno = oggi.getFullYear();
+  const mese = oggi.getMonth() + 1;
   const { data: targets } = useQuery({
-    queryKey: ["sales-targets", companyId],
+    queryKey: ["obiettivi-venditori-mese", companyId, anno, mese],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("sales_targets")
         .select("user_id, target_revenue, target_contracts, target_appointments")
         .eq("company_id", companyId!)
-        .eq("period_type", "weekly");
+        .eq("year", anno)
+        .eq("month", mese);
       if (error) throw error;
       return (data || []) as SalesTarget[];
     },
@@ -147,7 +153,7 @@ export const DashboardSalesTable = memo(function DashboardSalesTable({ sales, is
                   <TableHead className="text-xs text-right">Fatturato</TableHead>
                   <TableHead className="text-xs text-right">Chiusura %</TableHead>
                   <TableHead className="text-xs text-right">vs Media</TableHead>
-                  {hasTargets && <TableHead className="text-xs text-center">Target €</TableHead>}
+                  {hasTargets && <TableHead className="text-xs text-center">Obiettivo mese</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>

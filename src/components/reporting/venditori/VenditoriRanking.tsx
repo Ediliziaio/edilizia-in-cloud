@@ -38,15 +38,34 @@ function kpiBadge(val: number | null, field: CampoConSoglia, conVendite = true) 
   );
 }
 
+/** A che punto è il venditore sull'obiettivo del periodo. */
+function Obiettivo({ fatto, obiettivo }: { fatto: number; obiettivo: number }) {
+  if (!(obiettivo > 0)) return <span className="text-xs text-muted-foreground">—</span>;
+  const pct = Math.round((fatto / obiettivo) * 100);
+  const colore = pct >= 100 ? "bg-emerald-500" : pct >= 60 ? "bg-amber-500" : "bg-red-500";
+  const testo = pct >= 100 ? "text-emerald-700" : pct >= 60 ? "text-amber-700" : "text-red-700";
+  return (
+    <div className="flex min-w-[92px] items-center gap-1.5" title={`${formatCurrency(fatto)} su ${formatCurrency(obiettivo)}`}>
+      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-secondary">
+        <div className={`h-full rounded-full ${colore}`} style={{ width: `${Math.min(pct, 100)}%` }} />
+      </div>
+      <span className={`text-[10px] font-semibold tabular-nums ${testo}`}>{pct}%</span>
+    </div>
+  );
+}
+
 export function VenditoriRanking({
   kpiList,
   isLoading,
   onApriVenditore,
+  obiettivi,
 }: {
   kpiList: VendorKPI[];
   isLoading: boolean;
   /** Clic su una riga: le opportunità di quel venditore. */
   onApriVenditore?: (agentId: string) => void;
+  /** Obiettivi del periodo per venditore (somma dei mesi che tocca). */
+  obiettivi?: Map<string, { fatturato: number; contratti: number }>;
 }) {
   const accessors = useMemo(() => ({
     nome_agente: (k: VendorKPI) => k.nome_agente,
@@ -90,6 +109,8 @@ export function VenditoriRanking({
   // Totale con le regole del database (tassi dai conteggi), lo stesso della Panoramica.
   const team = aggregateTeamKPI(sortedItems);
   const n = sortedItems.length;
+  const obiettivoTeam = sortedItems.reduce((a, k) => a + (obiettivi?.get(k.agent_id)?.fatturato ?? 0), 0);
+  const conObiettivi = obiettivoTeam > 0;
 
   return (
     <Card>
@@ -108,6 +129,7 @@ export function VenditoriRanking({
               <SortableTableHead column="avg_giorni_chiusura" label="Ciclo" sortConfig={sortConfig} onSort={toggleSort} className="text-center" />
               <SortableTableHead column="pipeline_valore" label="Pipeline" sortConfig={sortConfig} onSort={toggleSort} className="text-right" />
               <SortableTableHead column="nuovi_contatti" label="Contatti" sortConfig={sortConfig} onSort={toggleSort} className="text-center" />
+              {conObiettivi && <SortableTableHead column="" label="Obiettivo" sortConfig={null} onSort={() => {}} className="text-center" />}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -142,6 +164,11 @@ export function VenditoriRanking({
                   <TableCell className="text-center">{kpiBadge(k.avg_giorni_chiusura, "avg_giorni_chiusura", k.opp_vinte > 0)}</TableCell>
                   <TableCell className="text-right tabular-nums text-muted-foreground">{formatCurrency(k.pipeline_valore)}</TableCell>
                   <TableCell className="text-center">{k.nuovi_contatti}</TableCell>
+                  {conObiettivi && (
+                    <TableCell className="text-center">
+                      <Obiettivo fatto={k.fatturato_generato} obiettivo={obiettivi?.get(k.agent_id)?.fatturato ?? 0} />
+                    </TableCell>
+                  )}
                 </TableRow>
               );
             })}
@@ -163,6 +190,11 @@ export function VenditoriRanking({
                 <TableCell className="text-center text-xs text-muted-foreground">{giorniTesto(team.avg_giorni_chiusura, team.opp_vinte > 0)}</TableCell>
                 <TableCell className="text-right tabular-nums text-muted-foreground">{formatCurrency(team.pipeline_valore)}</TableCell>
                 <TableCell className="text-center">{team.nuovi_contatti}</TableCell>
+                {conObiettivi && (
+                  <TableCell className="text-center">
+                    <Obiettivo fatto={team.fatturato_generato} obiettivo={obiettivoTeam} />
+                  </TableCell>
+                )}
               </TableRow>
             </TableFooter>
           )}
