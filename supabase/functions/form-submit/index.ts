@@ -425,7 +425,14 @@ Deno.serve(async (req) => {
     const pipelineId = cleanText(settings.pipelineId);
     if (contactId && pipelineId) {
       try {
-        const formOpportunitySource = `form_${form_id}`;
+        // La fonte che si legge sulla scheda dell'opportunita'. Se il modulo
+        // ne dichiara una (impostazioni -> fonteOpportunita) si usa quella, ed
+        // e' un nome leggibile tipo «Google nuovo». Senza, resta il codice
+        // tecnico di prima, che almeno distingue un modulo dall'altro.
+        const formOpportunitySource =
+          cleanText(settings.fonteOpportunita) ||
+          cleanText(settings.opportunitySource) ||
+          `form_${form_id}`;
         const configuredStageId = cleanText(settings.stageId) || cleanText(settings.stage_id) || cleanText(settings.pipelineStageId);
         let stageId: string | null = null;
 

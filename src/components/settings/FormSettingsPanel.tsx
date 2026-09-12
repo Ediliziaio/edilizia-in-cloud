@@ -427,6 +427,26 @@ export function FormSettingsPanel({ form, theme, settings, onThemeChange, onSett
               </Select>
             </div>
           )}
+
+          {selectedPipeline && (
+            <div className="space-y-1">
+              <Label className="text-xs">Fonte scritta sull'opportunità</Label>
+              <Input
+                className="h-8 text-sm"
+                placeholder="es. Google nuovo"
+                value={stringSetting(settings, "fonteOpportunita")}
+                onChange={(e) => {
+                  const v = e.target.value.trim();
+                  updateSettings(v ? { fonteOpportunita: v } : {}, v ? [] : ["fonteOpportunita"]);
+                }}
+                disabled={disabled}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                È quello che si legge alla voce «Fonte» sulla scheda. Lasciandolo vuoto resta un codice tecnico che
+                distingue un modulo dall'altro ma non dice niente a chi guarda.
+              </p>
+            </div>
+          )}
         </div>
       </TabsContent>
 
