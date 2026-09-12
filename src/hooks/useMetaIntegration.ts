@@ -196,6 +196,10 @@ export function useMetaIntegration(integration: Integration | null) {
             page_asset_id: pageAssetId || null,
             status,
             sync_mode: syncMode || "new_only",
+            // «Solo i nuovi» senza una data da cui partire non filtrava nulla:
+            // il recupero poteva tornare indietro a prima che il modulo fosse
+            // collegato. La data si fissa qui, all'attivazione.
+            ...(status === "active" ? { since_date: new Date().toISOString().slice(0, 10) } : {}),
             updated_at: new Date().toISOString(),
           },
           { onConflict: "company_id,form_id" }
