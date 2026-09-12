@@ -365,7 +365,9 @@ const CampaignTable = ({ report }: Props) => {
 
         {/* Tabella */}
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          {/* border-separate: con i bordi uniti il browser non rispetta lo z-index
+                delle celle fisse e il contenuto che scorre ci passa sopra. */}
+          <table className="w-full text-sm border-separate border-spacing-0">
             <thead className="bg-muted/50">
               <tr>
                 {columns.map((col) => (
@@ -374,7 +376,7 @@ const CampaignTable = ({ report }: Props) => {
                     className={cn(
                       "px-3 py-2.5 text-xs font-medium text-muted-foreground whitespace-nowrap cursor-pointer select-none hover:text-foreground transition-colors",
                       col.align === "right" ? "text-right" : "text-left",
-                      col.key === "name" && "sticky left-0 z-10 bg-muted",
+                      col.key === "name" && "sticky left-0 z-[3] bg-muted",
                     )}
                     onClick={() => report.toggleSort(col.key)}
                     title={col.aiuto}
@@ -391,7 +393,7 @@ const CampaignTable = ({ report }: Props) => {
             <tbody>
               {report.isLoading ? (
                 Array.from({ length: 6 }).map((_, i) => (
-                  <tr key={i} className="border-t border-border/50">
+                  <tr key={i} className="[&>td]:border-t [&>td]:border-border/50">
                     {columns.map((col) => (
                       <td key={col.key} className="px-3 py-3">
                         <Skeleton className="h-4 w-16" />
@@ -408,14 +410,16 @@ const CampaignTable = ({ report }: Props) => {
                 </tr>
               ) : (
                 report.rows.map((row, i) => (
-                  <tr key={`${row.id}-${row.account_id}-${i}`} className="border-t border-border/50 hover:bg-muted/20 transition-colors group">
+                  <tr key={`${row.id}-${row.account_id}-${i}`} className="hover:bg-muted/20 transition-colors group [&>td]:border-t [&>td]:border-border/50">
                     {columns.map((col) => (
                       <td
                         key={col.key}
                         className={cn(
                           "px-3 py-2.5 whitespace-nowrap",
                           col.align === "right" ? "text-right tabular-nums" : "text-left",
-                          col.key === "name" && "sticky left-0 z-[1] bg-card group-hover:bg-muted/20",
+                          col.key === "name" &&
+                            "sticky left-0 z-[2] bg-card bg-gradient-to-r from-transparent to-transparent " +
+                            "group-hover:from-muted/20 group-hover:to-muted/20",
                         )}
                       >
                         {cella(col, row)}
@@ -446,14 +450,14 @@ const CampaignTable = ({ report }: Props) => {
             </tbody>
             {!report.isLoading && report.rows.length > 1 && (
               <tfoot>
-                <tr className="border-t-2 bg-muted/40 font-semibold">
+                <tr className="bg-muted/40 font-semibold [&>td]:border-t-2 [&>td]:border-border">
                   {columns.map((col) => (
                     <td
                       key={col.key}
                       className={cn(
                         "px-3 py-2.5 whitespace-nowrap text-sm",
                         col.align === "right" ? "text-right tabular-nums" : "text-left",
-                        col.key === "name" && "sticky left-0 z-[1] bg-muted",
+                        col.key === "name" && "sticky left-0 z-[2] bg-muted",
                       )}
                     >
                       {col.key === "name" ? `Totale · ${report.rows.length} ${unita}` : totali[col.key] ?? ""}
