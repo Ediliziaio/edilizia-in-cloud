@@ -18,8 +18,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import {
-  csvGiorni, useAssegnaResponsabile, useCanaliCliente, useInserzioniCliente, useResponsabili,
-  useSalvaDiario, useSchedaCliente, type GiornoScheda,
+  csvGiorni, useAppuntamentiCliente, useAssegnaResponsabile, useCanaliCliente, useInserzioniCliente,
+  useResponsabili, useSalvaDiario, useSchedaCliente, type GiornoScheda,
 } from "./useSchedaCliente";
 import { CanaliCliente } from "./CanaliCliente";
 import { CampagneCliente } from "./CampagneCliente";
@@ -90,6 +90,7 @@ export function SchedaClienteMarketing({
   const canali = useCanaliCliente(serviceClientId, da, a);
   const [livello, setLivello] = useState<"campagna" | "inserzione">("campagna");
   const campagne = useInserzioniCliente(serviceClientId, livello, da, a);
+  const appuntamenti = useAppuntamentiCliente(serviceClientId, da, a);
   const salvaDiario = useSalvaDiario(serviceClientId);
   const assegna = useAssegnaResponsabile();
   const [cambiaResponsabile, setCambiaResponsabile] = useState(false);
@@ -111,6 +112,24 @@ export function SchedaClienteMarketing({
     URL.revokeObjectURL(url);
   };
 
+  // Uno zero sui sopralluoghi va spiegato: il cliente non ne fa, oppure li fa e
+  // non li segna? La seconda è una cosa da dirgli, non da rinfacciargli.
+  const notaAppuntamenti = useMemo(() => {
+    const ap = appuntamenti.data;
+    if (!ap) return null;
+    if (ap.da_calendario > 0 || ap.da_fase > 0) {
+      const pezzi: string[] = [];
+      if (ap.da_calendario > 0) pezzi.push(`${numero(ap.da_calendario)} in calendario`);
+      if (ap.da_fase > 0) pezzi.push(`${numero(ap.da_fase)} da fase`);
+      return pezzi.join(", ");
+    }
+    const inutilizzate = ap.fasi.filter((f) => f.ingressi === 0);
+    if (inutilizzate.length > 0) {
+      return `la fase «${inutilizzate[0].fase}» c'è ma non la usa nessuno`;
+    }
+    return "nessuna fase di appuntamento nel CRM";
+  }, [appuntamenti.data]);
+
   // «Di chi è»: a sinistra quello che dipende da noi, a destra dal cliente.
   const nostro = [
     { k: "Spesa", v: eur(t?.spesa ?? 0) },
@@ -123,7 +142,8 @@ export function SchedaClienteMarketing({
     { k: "Richieste toccate", v: `${numero(t?.lavorate ?? 0)} / ${numero(t?.opportunita ?? 0)}`, nota: t?.tasso_lavorati != null ? `${Math.round(t.tasso_lavorati * 100)}%` : null,
       male: (t?.tasso_lavorati ?? 1) < 0.6 },
     { k: "Tempo di richiamo", v: t?.mediana_min != null ? ore(t.mediana_min / 60) : "—", nota: `entro ${RICHIAMO_ORE} ore`, male: (t?.mediana_min ?? 0) > RICHIAMO_ORE * 60 },
-    { k: "Sopralluoghi", v: numero(t?.appuntamenti ?? 0), d: variazione(t?.appuntamenti ?? 0, prec?.appuntamenti ?? 0), male: (t?.appuntamenti ?? 0) === 0 && (t?.lead ?? 0) > 10 },
+    { k: "Sopralluoghi", v: numero(t?.appuntamenti ?? 0), nota: notaAppuntamenti,
+      d: variazione(t?.appuntamenti ?? 0, prec?.appuntamenti ?? 0), male: (t?.appuntamenti ?? 0) === 0 && (t?.lead ?? 0) > 10 },
     { k: "Contratti", v: `${numero(t?.vendite ?? 0)} · ${eur(t?.valore ?? 0)}`, d: variazione(t?.vendite ?? 0, prec?.vendite ?? 0) },
   ];
 

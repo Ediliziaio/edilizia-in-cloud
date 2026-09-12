@@ -262,6 +262,36 @@ export function useInserzioniCliente(
   });
 }
 
+export interface Appuntamenti {
+  da_calendario: number;
+  calendario_con_opportunita: number;
+  da_fase: number;
+  fasi: Array<{ fase: string; pipeline: string | null; ingressi: number }>;
+  pipeline: Array<{ nome: string; opportunita: number }>;
+  periodo: { da: string; a: string };
+}
+
+/**
+ * Da dove arrivano gli appuntamenti: calendario del CRM o fase della pipeline.
+ * Serve a leggere uno zero. Un cliente che non fa sopralluoghi e uno che li fa
+ * senza segnarli sono due problemi diversi, e solo uno dei due è colpa sua.
+ */
+export function useAppuntamentiCliente(serviceClientId: string | null, da?: string, a?: string) {
+  return useQuery({
+    queryKey: ["clienti-marketing", "appuntamenti", serviceClientId, da ?? null, a ?? null],
+    enabled: !!serviceClientId,
+    staleTime: 5 * 60_000,
+    placeholderData: keepPreviousData,
+    queryFn: async (): Promise<Appuntamenti | null> => {
+      const { data, error } = await db.rpc("admin_cliente_marketing_appuntamenti", {
+        p_service_client_id: serviceClientId, p_da: da ?? null, p_a: a ?? null,
+      });
+      if (error) throw error;
+      return (data ?? null) as Appuntamenti | null;
+    },
+  });
+}
+
 /** Scrive la riga del diario di una settimana. Il campo lasciato a null non si tocca. */
 export function useSalvaDiario(serviceClientId: string | null) {
   const qc = useQueryClient();
