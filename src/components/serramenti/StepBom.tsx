@@ -4,7 +4,7 @@
  * Tabella editabile: tipologia, materiale, vetro, misure, quantità, prezzo.
  * Aggiungi/duplica/elimina riga. Import da sopralluogo Infissi v6 (Wave 4).
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -29,7 +29,8 @@ import {
 import { ListinoPickerDialog, type ListinoPickResult } from "./ListinoPickerDialog";
 import { AiSerramentiDraftLauncher } from "./AiSerramentiDraftLauncher";
 import { calcolaPrezzoProdotto, calcolaPosaInclusa, applyMaggiorazioniAssi } from "@/lib/serramenti/pricing";
-import { useFamily } from "@/hooks/useFamilies";
+import { useFamilies, useFamily } from "@/hooks/useFamilies";
+import type { FamilyWithAxes } from "@/types/articleFamily";
 import { useSupplierProductLines } from "@/features/serramenti-listini/hooks/useSupplierProductLines";
 import type { SupplierProductLine } from "@/features/serramenti-listini/types";
 import { ServiziSection } from "./ServiziSection";
@@ -72,8 +73,15 @@ export function StepBom({ progettoId, detail }: Props) {
   // Conferma import sopralluogo: invece di `confirm()` nativo (UX scadente,
   // bloccante, brutto su mobile) usiamo un AlertDialog gestito.
   const [importDialogOpen, setImportDialogOpen] = useState(false);
+  // La scelta fatta una volta per tutte le righe: la applica ogni riga con il
+  // proprio ricalcolo (vedi BulkAssiActions).
+  const [richiestaBulk, setRichiestaBulk] = useState<RichiestaBulkAsse | null>(null);
 
   const serramenti = detail.serramenti;
+
+  // Le famiglie con assi e valori: servono per sapere quali variabili sono
+  // comuni alle righe e si possono decidere in una volta sola.
+  const { families: famiglieConAssi } = useFamilies();
 
   // Pre-fetch SOLO le famiglie referenziate dalle righe BOM correnti.
   // useListinoFamilies() senza parametri ritornava LIMIT 100 → se l'utente
@@ -324,6 +332,13 @@ export function StepBom({ progettoId, detail }: Props) {
                 applicare lo stesso flag a tutte le righe (preventivo "solo
                 fornitura" o "tutti con posa"). Visibile solo se ci sono >=2
                 righe — su 1 sola riga il toggle nel singolo card e' piu' veloce. */}
+            <BulkAssiActions
+              serramenti={serramenti}
+              famiglie={famiglieConAssi}
+              onApplica={(codice, valore) =>
+                setRichiestaBulk({ codice, valore, nonce: Date.now() })
+              }
+            />
             <BulkPosaActions
               serramenti={serramenti}
               onBulkUpdate={(esclusa) => {
@@ -361,6 +376,7 @@ export function StepBom({ progettoId, detail }: Props) {
                   macroNome={macroNome}
                   tariffePrezzi={tariffePrezzi}
                   supplierLineMap={supplierLineMap}
+                  richiestaBulk={richiestaBulk}
                 />
               );
             })}
@@ -581,11 +597,86 @@ function BulkPosaActions({
   );
 }
 
+/** Una scelta da applicare a tutte le righe; `nonce` distingue due clic uguali. */
+export interface RichiestaBulkAsse {
+  codice: string;
+  valore: string;
+  nonce: number;
+}
+
+/**
+ * Le variabili prodotto decise una volta per tutte le righe.
+ *
+ * Su un rilievo da venti finestre la linea di profilo e il colore sono gli
+ * stessi ovunque, ma andavano scelti riga per riga: sessanta menu aperti per
+ * dire tre volte la stessa cosa. Qui si sceglie in cima, e ogni riga applica
+ * la scelta con il proprio ricalcolo — chi ha una tipologia che quella variante
+ * non ce l'ha resta com'è.
+ */
+function BulkAssiActions({
+  serramenti, famiglie, onApplica,
+}: {
+  serramenti: SrSerramentoRow[];
+  famiglie: FamilyWithAxes[];
+  onApplica: (codice: string, valore: string) => void;
+}) {
+  const assi = useMemo(() => {
+    const usate = new Set(serramenti.map((s) => s.family_id).filter(Boolean) as string[]);
+    if (usate.size === 0) return [];
+    const perCodice = new Map<string, { nome: string; righe: number; valori: Map<string, string> }>();
+    for (const f of famiglie) {
+      if (!usate.has(f.id)) continue;
+      const quante = serramenti.filter((s) => s.family_id === f.id).length;
+      for (const asse of f.axes) {
+        const voce = perCodice.get(asse.codice) ?? { nome: asse.nome, righe: 0, valori: new Map() };
+        voce.righe += quante;
+        for (const v of asse.values) {
+          if (v.attivo && !voce.valori.has(v.valore)) voce.valori.set(v.valore, v.label);
+        }
+        perCodice.set(asse.codice, voce);
+      }
+    }
+    // Una variabile che tocca una riga sola non merita un'azione di gruppo.
+    return [...perCodice.entries()]
+      .filter(([, v]) => v.righe >= 2 && v.valori.size > 1)
+      .map(([codice, v]) => ({ codice, nome: v.nome, valori: [...v.valori.entries()] }));
+  }, [serramenti, famiglie]);
+
+  if (serramenti.length < 2 || assi.length === 0) return null;
+
+  return (
+    <div className="rounded-md border border-blue-200 bg-blue-50/50 p-2.5 mb-3">
+      <div className="text-[10px] uppercase tracking-wide text-blue-800 font-semibold mb-2">
+        Stesse scelte per tutte le {serramenti.length} righe
+      </div>
+      <div className="flex flex-wrap items-end gap-2">
+        {assi.map((asse) => (
+          <div key={asse.codice} className="space-y-1 min-w-[160px]">
+            <Label className="text-[10px] text-slate-700">{asse.nome}</Label>
+            <Select onValueChange={(v) => onApplica(asse.codice, v)}>
+              <SelectTrigger className="h-8 text-xs bg-white">
+                <SelectValue placeholder="applica a tutte…" />
+              </SelectTrigger>
+              <SelectContent>
+                {asse.valori.map(([valore, label]) => (
+                  <SelectItem key={valore} value={valore} className="text-xs">
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── Singola riga serramento (collassabile) ─────────────────────────────────
 
 function SerramentoRow({
   serramento: s, index, expanded, onToggle, onPatch, onDuplicate, onDelete,
-  family, macroId, macroNome, tariffePrezzi, supplierLineMap,
+  family, macroId, macroNome, tariffePrezzi, supplierLineMap, richiestaBulk,
 }: {
   serramento: SrSerramentoRow;
   index: number;
@@ -604,6 +695,8 @@ function SerramentoRow({
   tariffePrezzi: Map<string, number>;
   /** Mappa linee fornitore → ricarico per ricalcolare griglie avanzate. */
   supplierLineMap: Map<string, SupplierProductLine>;
+  /** Scelta applicata a tutte le righe dall'azione di gruppo. */
+  richiestaBulk: RichiestaBulkAsse | null;
 }) {
   // Label header riga:
   //   - off-listino: usa SR_TIPOLOGIE_SERRAMENTO (Finestra a 1 anta, ecc.)
@@ -778,6 +871,26 @@ function SerramentoRow({
       onPatch({ valori_assi: nextSelections });
     }
   };
+
+  /**
+   * La scelta fatta in cima per tutte le righe arriva qui e passa dallo stesso
+   * `handleAxisPatch` del menu singolo: il prezzo si ricalcola con la griglia e
+   * le tariffe di QUESTA riga, non con una copia della logica. Se la tipologia
+   * non ha quella variante (una tapparella non ha il vetro), non succede nulla.
+   */
+  const ultimaBulk = useRef<number>(0);
+  useEffect(() => {
+    if (!richiestaBulk || richiestaBulk.nonce === ultimaBulk.current) return;
+    ultimaBulk.current = richiestaBulk.nonce;
+    const asse = familyWithAxes?.axes.find((a) => a.codice === richiestaBulk.codice);
+    const valore = asse?.values.find((v) => v.valore === richiestaBulk.valore && v.attivo);
+    if (!asse || !valore) return;
+    if ((s.valori_assi ?? {})[asse.codice] === valore.id) return;
+    handleAxisPatch(asse.codice, valore.id);
+    // handleAxisPatch dipende da stato che cambia a ogni render: l'effetto deve
+    // scattare solo sul nonce, non a ogni ricalcolo.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [richiestaBulk, familyWithAxes]);
 
   /**
    * Toggle "Escludi manodopera" — Use case "solo fornitura": cliente fa

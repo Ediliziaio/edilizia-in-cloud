@@ -59,6 +59,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { FamilyTemplatePicker } from "./FamilyTemplatePicker";
 import { ImpostaStandardSerramentiDialog } from "./ImpostaStandardSerramentiDialog";
+import { ImportaSerieDialog } from "./ImportaSerieDialog";
 import { firstGallerySlugFor } from "@/lib/verticalMapping";
 import { useFamilies, useFamiliesCestino } from "@/hooks/useFamilies";
 import { useFamilyMutations } from "@/hooks/useFamilyMutations";
@@ -272,6 +273,7 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
   const isAdmin = role === "company_admin" || role === "super_admin";
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const [standardSerramentiOpen, setStandardSerramentiOpen] = useState(false);
+  const [serieOpen, setSerieOpen] = useState(false);
   // includeInactive: la pagina di gestione mostra anche i disattivati (per
   // poterli vedere/riattivare). Il preventivatore continua a usare useFamilies()
   // di default → solo attivi.
@@ -763,6 +765,17 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
                 >
                   <Wand2 className="h-4 w-4 mr-1.5" aria-hidden="true" />
                   Imposta listino infissi
+                </Button>
+              )}
+              {isAdmin && effectiveCompany?.id && (
+                <Button
+                  variant="outline"
+                  onClick={() => setSerieOpen(true)}
+                  className="h-10 border-blue-300 text-blue-700 hover:bg-blue-50"
+                  title="Marca e serie di profilo dalla libreria: diventa una linea nelle tue tipologie"
+                >
+                  <Layers className="h-4 w-4 mr-1.5" aria-hidden="true" />
+                  Aggiungi una serie
                 </Button>
               )}
               {isAdmin && effectiveCompany?.id && (
@@ -2212,6 +2225,17 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
           onOpenChange={setStandardSerramentiOpen}
           companyId={effectiveCompany.id}
           famiglie={families.map((f) => ({ id: f.id, nome: f.nome, vertical: f.vertical }))}
+        />
+      )}
+
+      {isAdmin && effectiveCompany?.id && (
+        <ImportaSerieDialog
+          open={serieOpen}
+          onOpenChange={setSerieOpen}
+          companyId={effectiveCompany.id}
+          macrocategoriaId={
+            macroFilter !== ALL_FILTER && macroFilter !== NO_MACRO ? macroFilter : null
+          }
         />
       )}
 

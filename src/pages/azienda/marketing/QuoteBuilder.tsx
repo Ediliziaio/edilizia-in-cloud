@@ -39,6 +39,7 @@ import type { ArticlePro, TariffaPro, BundleConVoci } from "@/hooks/usePreventiv
 import ApplyBundleDialog from "@/components/marketing/preventivi/ApplyBundleDialog";
 import { TariffePickerDialog } from "@/components/marketing/preventivi/TariffePickerDialog";
 import { AddItemDialog } from "@/components/marketing/preventivi/AddItemDialog";
+import { RilievoPosizioniDialog } from "@/components/marketing/preventivi/RilievoPosizioniDialog";
 import { QuotePaymentTermsCard } from "@/components/marketing/preventivi/QuotePaymentTermsCard";
 import { BonusLinesCard } from "@/components/orders/BonusLinesCard";
 import { useBonusFiscaliFlags } from "@/hooks/useBonusFiscaliFlags";
@@ -134,6 +135,7 @@ import {
   ChevronDown,
   MoreVertical,
   StickyNote,
+  Ruler,
   Tag,
   Hash,
   Truck,
@@ -548,6 +550,12 @@ export default function QuoteBuilder() {
 
   // Listino prodotti: usato per le mappe lookup immagini/thumbnail riga (sotto).
   const { families: articleFamilies } = useFamilies();
+  // Il rilievo per posizioni ha senso solo per chi vende serramenti.
+  const haSerramenti = useMemo(
+    () => articleFamilies.some((f) => (f.vertical ?? "").startsWith("serrament")),
+    [articleFamilies],
+  );
+  const [rilievoOpen, setRilievoOpen] = useState(false);
 
   // MP-preventivi-v2: mappe lookup immagini prodotto (thumbnail riga).
   // Le foto vengono lette dinamicamente dal listino, cosi` se aggiorni
@@ -2410,6 +2418,11 @@ export default function QuoteBuilder() {
                           <DropdownMenuItem onClick={() => setBundleOpen(true)}>
                             <Layers className="h-4 w-4 mr-2" /> Bundle
                           </DropdownMenuItem>
+                          {haSerramenti && (
+                            <DropdownMenuItem onClick={() => setRilievoOpen(true)}>
+                              <Ruler className="h-4 w-4 mr-2" /> Rilievo per posizioni
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuItem onClick={() => addItemPro("nota")}>
                             <StickyNote className="h-4 w-4 mr-2" /> Nota
                           </DropdownMenuItem>
@@ -4111,6 +4124,26 @@ export default function QuoteBuilder() {
         }}
       />
 
+
+      {/* Il rilievo: venti finestre in una schermata invece di venti wizard.
+          Compare solo se l'azienda ha serramenti a listino. */}
+      {haSerramenti && (
+        <RilievoPosizioniDialog
+          open={rilievoOpen}
+          onClose={() => setRilievoOpen(false)}
+          currentSortOrder={items.length}
+          famiglie={articleFamilies}
+          onAddItems={(nuovi) => {
+            setItems((prev) => {
+              const base = [...prev];
+              nuovi.forEach((item, idx) => {
+                base.push({ ...item, sort_order: base.length + idx });
+              });
+              return base;
+            });
+          }}
+        />
+      )}
 
       {/* Sprint A — Preventivatore Unificato: dialog 3-stadi dietro feature flag. */}
       {preventivatoreUnifiedOn && (

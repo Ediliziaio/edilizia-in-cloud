@@ -19,6 +19,7 @@ import {
   Image as ImageIcon, X, Minus, ChevronDown, ChevronRight, Layers,
 } from "lucide-react";
 import { GlobalPhotoLibraryPicker } from "@/components/admin/GlobalPhotoLibraryPicker";
+import { LibreriaMarcheSerie } from "@/components/admin/LibreriaMarcheSerie";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -312,6 +313,10 @@ export default function AdminArticleTemplates() {
           </Button>
         </div>
       </div>
+
+      {/* Il livello sopra le tipologie: la marca e la serie di profilo, che è
+          il modo in cui un serramentista descrive davvero il suo listino. */}
+      <LibreriaMarcheSerie />
 
       <Card>
         <CardContent className="p-3 flex flex-col sm:flex-row gap-2 sm:items-center">
