@@ -107,6 +107,9 @@ export interface MetaCampaignRow {
   created_at: string;
   updated_at: string;
   created_by: string | null;
+  /** Chi e quando ha dato l'ok: sopra la soglia di budget la pubblicazione lo richiede. */
+  approved_by?: string | null;
+  approved_at?: string | null;
 }
 
 export interface MetaAdSetRow {

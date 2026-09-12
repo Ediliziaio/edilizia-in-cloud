@@ -21,34 +21,34 @@ interface TourStep {
 
 const STEPS: TourStep[] = [
   {
-    title: "Benvenuto nel modulo Pubblicità",
-    body: "Crei e gestisci campagne Meta (Facebook/Instagram) e Google Ads da un unico posto, con l'AI che ti guida.",
+    title: "Benvenuto nella Pubblicità",
+    body: "Da qui crei le campagne su Facebook, Instagram e Google e vedi quante richieste di preventivo portano.",
     icon: Megaphone,
-    tip: "È una BETA: tutto in bozza finché non confermi la pubblicazione live.",
+    tip: "Niente va online da solo: ogni campagna nasce in pausa e la attivi tu.",
   },
   {
-    title: "Nuova campagna in 5 step",
-    body: "Il wizard ti guida da Offerta → Pubblico → Modulo lead → Creatività → Revisione. L'AI suggerisce copy e immagini.",
+    title: "Una campagna in cinque passaggi",
+    body: "Ti guido dall'offerta al pubblico, al modulo, alle immagini, fino al controllo finale. Testi e foto li propone l'AI.",
     icon: Plus,
-    tip: "Inizia da un template edile (Serramenti, Bagni, etc.) per partire più veloce.",
+    tip: "Parti da un modello (serramenti, bagni, ristrutturazioni): è già impostato per l'edilizia.",
   },
   {
-    title: "Creative Studio AI",
-    body: "Genera testi e immagini reali per le tue campagne. Salvati in libreria per riusarli.",
+    title: "Immagini e testi",
+    body: "Generi testi e foto per gli annunci e li salvi in libreria per riusarli nelle campagne successive.",
     icon: Wand2,
-    tip: "L'AI rispetta le policy Meta: niente claim esagerati, niente promesse di prezzo.",
+    tip: "L'AI resta dentro le regole di Meta: niente promesse di prezzo né affermazioni esagerate.",
   },
   {
-    title: "Performance sotto controllo",
-    body: "Grafici reali su spend, lead, CPL trend. Spend Guard ti pausa le campagne se sforano il cap.",
+    title: "Quanto spendi, quanto rende",
+    body: "Vedi spesa, richieste e costo per richiesta. Se superi il limite mensile le campagne si fermano da sole.",
     icon: TrendingUp,
-    tip: "Configura cap e regole di automazione in Impostazioni → Spend Guard / Automazioni.",
+    tip: "Il limite di spesa si imposta in Impostazioni e vale per tutte le campagne insieme.",
   },
   {
-    title: "Collega Meta + Pixel",
-    body: "In Impostazioni colleghi Business Manager, Ad Account, Pixel + CAPI. Solo dopo puoi pubblicare live.",
+    title: "Prima di partire",
+    body: "In Impostazioni colleghi l'account Meta, scegli conto e pagina e attivi il Pixel. Solo allora puoi mandare online.",
     icon: Settings,
-    tip: "Il CAPI permette di tracciare le commesse chiuse, non solo i click.",
+    tip: "Il Pixel lo cerco io sul tuo conto: non devi copiare nessun numero.",
   },
 ];
 

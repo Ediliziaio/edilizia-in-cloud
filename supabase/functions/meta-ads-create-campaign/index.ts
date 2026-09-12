@@ -238,7 +238,14 @@ Deno.serve(async (req) => {
 
     // SPEND GUARD CHECK
     if (!dryRun) {
-      const guardCheck = await checkSpendGuard(admin, body.company_id, adAccount.id, body.builder_state, isSuperAdmin);
+      const guardCheck = await checkSpendGuard(
+        admin,
+        body.company_id,
+        adAccount.id,
+        body.builder_state,
+        isSuperAdmin,
+        body.draft_id,
+      );
       if (!guardCheck.allowed) {
         return json({
           error: "spend_guard_blocked",
@@ -607,6 +614,7 @@ async function checkSpendGuard(
   adAccountId: string,
   state: BuilderState,
   isSuperAdmin: boolean,
+  draftId?: string,
 ): Promise<{ allowed: boolean; reason?: string }> {
   // Trova guard (per ad_account o globale)
   const { data: guards } = await admin
@@ -614,10 +622,28 @@ async function checkSpendGuard(
     .select("*")
     .eq("company_id", companyId)
     .or(`ad_account_id.eq.${adAccountId},ad_account_id.is.null`);
-  const guard = (guards ?? []).find((g: { ad_account_id: string | null }) => g.ad_account_id === adAccountId)
+  let guard = (guards ?? []).find((g: { ad_account_id: string | null }) => g.ad_account_id === adAccountId)
     ?? (guards ?? []).find((g: { ad_account_id: string | null }) => g.ad_account_id === null);
 
-  if (!guard || !guard.is_active) return { allowed: true };
+  // Nessun tetto per questa azienda: NON si pubblica al buio. Prima qui c'era
+  // `return { allowed: true }`, e siccome la tabella era vuota in produzione
+  // qualunque budget passava — mentre la pagina mostrava al cliente un «Cap
+  // mensile protetto 7.500 €» che non esisteva. Il tetto si crea al volo con i
+  // valori di default, poi si applica: meglio un limite prudente che nessuno.
+  if (!guard) {
+    const { data: creato } = await admin
+      .from("ad_spend_guard")
+      .insert({ company_id: companyId })
+      .select("*")
+      .maybeSingle();
+    guard = creato;
+    if (!guard) {
+      return { allowed: false, reason: "Tetto di spesa non configurato per questa azienda: non pubblico al buio. Riprova o contatta l'assistenza." };
+    }
+  }
+  if (!guard.is_active) {
+    return { allowed: false, reason: "Il tetto di spesa di questa azienda è disattivato: riattivalo prima di pubblicare." };
+  }
 
   const dailyBudgetCents = state.dailyBudget * 100;
   const totalAdSetBudgetCents = state.adSets.reduce(
@@ -626,16 +652,62 @@ async function checkSpendGuard(
   );
   const effectiveBudget = state.budgetMode === "campaign" ? dailyBudgetCents : totalAdSetBudgetCents;
 
+  // Sopra la soglia serve l'ok del TITOLARE, non dell'amministratore della
+  // piattaforma. Prima qui si chiedeva un super_admin: con la soglia di
+  // default a 30 €/giorno nessun cliente poteva pubblicare una campagna con
+  // un budget vero, e il flusso di approvazione del titolare che esiste già
+  // (stato «review» → Approva) non veniva nemmeno guardato.
   if (effectiveBudget > guard.campaign_approval_threshold_cents && !isSuperAdmin) {
-    return {
-      allowed: false,
-      reason: `Budget ${(effectiveBudget / 100).toFixed(0)}€/g sopra soglia approvazione ${(guard.campaign_approval_threshold_cents / 100).toFixed(0)}€/g. Serve super_admin.`,
-    };
+    let approvata = false;
+    if (draftId) {
+      const { data: bozza } = await admin
+        .from("meta_campaigns")
+        .select("approved_at")
+        .eq("id", draftId)
+        .eq("company_id", companyId)
+        .maybeSingle();
+      approvata = Boolean(bozza?.approved_at);
+    }
+    if (!approvata) {
+      const soglia = (guard.campaign_approval_threshold_cents / 100).toFixed(0);
+      return {
+        allowed: false,
+        reason: `Budget ${(effectiveBudget / 100).toFixed(0)} €/giorno sopra la soglia di ${soglia} €/giorno: manda la campagna in revisione e fai dare l'ok al titolare prima di pubblicarla.`,
+      };
+    }
   }
   if (effectiveBudget > guard.daily_cap_cents) {
     return {
       allowed: false,
       reason: `Budget giornaliero ${(effectiveBudget / 100).toFixed(0)}€/g supera il cap (${(guard.daily_cap_cents / 100).toFixed(0)}€/g).`,
+    };
+  }
+
+  // Tetto MENSILE: prima non veniva guardato in fase di pubblicazione (solo
+  // dal controllo orario, a soldi già spesi). Alla spesa già fatta questo mese
+  // si somma quella che la campagna nuova produrrebbe da qui a fine mese.
+  const oggi = new Date();
+  const inizioMese = new Date(Date.UTC(oggi.getUTCFullYear(), oggi.getUTCMonth(), 1)).toISOString().slice(0, 10);
+  const giorniRestanti = Math.max(
+    1,
+    new Date(Date.UTC(oggi.getUTCFullYear(), oggi.getUTCMonth() + 1, 0)).getUTCDate() - oggi.getUTCDate() + 1,
+  );
+  const speseMese = admin
+    .from("meta_insights_cache")
+    .select("spend_cents")
+    .eq("company_id", companyId)
+    .gte("date_start", inizioMese);
+  if (guard.ad_account_id) speseMese.eq("ad_account_id", guard.ad_account_id);
+  const { data: righeMese } = await speseMese;
+  const spesoMese = (righeMese ?? []).reduce(
+    (somma: number, r: { spend_cents: number | null }) => somma + (r.spend_cents ?? 0),
+    0,
+  );
+  const proiezione = spesoMese + effectiveBudget * giorniRestanti;
+  if (proiezione > guard.monthly_cap_cents) {
+    return {
+      allowed: false,
+      reason: `Con ${(effectiveBudget / 100).toFixed(0)}€/g per i ${giorniRestanti} giorni che restano il mese arriverebbe a ${(proiezione / 100).toFixed(0)}€, sopra il tetto di ${(guard.monthly_cap_cents / 100).toFixed(0)}€ (già spesi ${(spesoMese / 100).toFixed(0)}€). Abbassa il budget o alza il tetto in Impostazioni.`,
     };
   }
   return { allowed: true };

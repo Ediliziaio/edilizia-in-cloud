@@ -118,8 +118,20 @@ Deno.serve(async (req) => {
       await admin
         .from("meta_campaigns")
         .update(isOnMeta
-          ? { status: "published", last_published_at: new Date().toISOString() }
-          : { status: "draft", publish_error: null })
+          ? {
+              status: "published",
+              last_published_at: new Date().toISOString(),
+              // Resta scritto chi ha dato l'ok: sopra la soglia di budget la
+              // pubblicazione lo richiede.
+              approved_by: user.id,
+              approved_at: new Date().toISOString(),
+            }
+          : {
+              status: "draft",
+              publish_error: null,
+              approved_by: user.id,
+              approved_at: new Date().toISOString(),
+            })
         .eq("id", body.campaign_id);
 
       return json({
@@ -132,12 +144,15 @@ Deno.serve(async (req) => {
       }, 200, corsHeaders);
     }
 
-    // Approva ma resta in draft (l'utente può modificare ancora)
+    // Approva ma resta in draft (l'utente può modificare ancora). L'ok resta
+    // registrato lo stesso: è quello che sblocca i budget sopra la soglia.
     await admin
       .from("meta_campaigns")
       .update({
         status: "draft",
         publish_error: null,
+        approved_by: user.id,
+        approved_at: new Date().toISOString(),
       })
       .eq("id", body.campaign_id);
 
