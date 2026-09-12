@@ -103,7 +103,20 @@ export function useStandardSerramenti() {
         perAsse.get(v.axis_id)!.set(v.valore, v.id);
       }
 
-      const daInserire: Record<string, unknown>[] = [];
+      /** Riga nuova della tabella varianti: tipizzata, così l'insert non ha bisogno di forzature. */
+      type NuovaVariante = {
+        axis_id: string;
+        company_id: string;
+        attivo: boolean;
+        valore: string;
+        label: string;
+        is_default: boolean;
+        maggiorazione_tipo: string;
+        maggiorazione_valore: number;
+        maggiorazione_acquisto: number;
+        sort_order: number;
+      };
+      const daInserire: NuovaVariante[] = [];
       const daAggiornare: { id: string; variante: (typeof varianti)[number] }[] = [];
       const daDisattivare: string[] = [];
 
