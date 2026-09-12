@@ -40,6 +40,46 @@ function jsStr(value: unknown): string {
     .replace(/>/g, "\\u003e");
 }
 
+// JSON da inserire dentro un <script>: oltre alle virgolette vanno neutralizzati
+// `<` e `>` (altrimenti un `</script>` dentro un nome di campo chiude il blocco)
+// e i due separatori di riga che JSON ammette ma JavaScript no.
+function jsonSicuro(value: unknown): string {
+  return JSON.stringify(value)
+    .replace(/</g, "\\u003c")
+    .replace(/>/g, "\\u003e")
+    .replace(/\u2028/g, "\\u2028")
+    .replace(/\u2029/g, "\\u2029");
+}
+
+// Quali campi del modulo contengono email, telefono, nome e cognome. Servono
+// alla pagina che ci ospita per le conversioni avanzate di Google, che vogliono
+// il dato della persona e non solo l'evento. La regola e' la STESSA di
+// form-submit (prima la mappatura dichiarata, poi il tipo, poi i nomi comuni):
+// se le due divergono, l'opportunita' nel CRM e la conversione mandata a Google
+// finirebbero su persone diverse.
+function chiaviContatto(fields: any[]): Record<string, string[]> {
+  const out: Record<string, string[]> = { email: [], first_name: [], last_name: [], phone: [] };
+
+  for (const f of fields) {
+    const chiave = String(f?.id || f?.name || "");
+    if (!chiave) continue;
+    const m = String(f?.mapping || f?.name || "").toLowerCase();
+    const t = String(f?.type || "").toLowerCase();
+    if (m === "email" || t === "email") out.email.push(chiave);
+    else if (m === "first_name" || m === "nome") out.first_name.push(chiave);
+    else if (m === "last_name" || m === "cognome") out.last_name.push(chiave);
+    else if (m === "phone" || m === "telefono" || t === "phone") out.phone.push(chiave);
+  }
+
+  // Ripiego sui nomi comuni, identico a quello di form-submit.
+  out.email.push("email", "Email", "EMAIL");
+  out.first_name.push("first_name", "nome", "name", "Nome");
+  out.last_name.push("last_name", "cognome", "surname", "Cognome");
+  out.phone.push("phone", "telefono", "Phone", "Telefono");
+
+  return out;
+}
+
 function renderField(f: any): string {
   const req = f.required ? "required" : "";
   const fieldKey = esc(f.id || f.name);
@@ -214,6 +254,47 @@ Deno.serve(async (req) => {
     window._attrSessionId=sid;
     window._attrVisitorId=vid;
 
+    // L'origine della pagina che ci ospita. Dentro un iframe document.referrer
+    // e' proprio quella, e il codice da incorporare fissa
+    // referrerpolicy="strict-origin-when-cross-origin" apposta perche' ci arrivi
+    // sempre. Email e telefono si mandano SOLO a un'origine precisa: con '*' li
+    // leggerebbe qualunque sito che incorpora questo modulo, e oggi un sito
+    // ospite il contenuto dell'iframe non lo puo' leggere.
+    var ORIGINE_PADRE=(function(){
+      try{return document.referrer?new URL(document.referrer).origin:null;}catch(e){return null;}
+    })();
+
+    // Quali chiavi del modulo contengono email/telefono/nome/cognome, nello
+    // stesso ordine di priorita' che usa form-submit per il CRM.
+    var CHIAVI_CONTATTO=${jsonSicuro(chiaviContatto(fields))};
+    function valoreDi(dati,chiavi){
+      for(var i=0;i<chiavi.length;i++){
+        var v=dati[chiavi[i]];
+        if(typeof v==='string'&&v.trim())return v.trim();
+      }
+      return null;
+    }
+
+    // Le conversioni avanzate di Google vogliono il telefono in E.164 (+39…).
+    // Si normalizza solo quando il numero e' riconoscibile: meglio niente che un
+    // prefisso inventato, che accoppierebbe la conversione alla persona
+    // sbagliata. Il numero come l'ha scritto la persona viaggia comunque a parte.
+    function e164(v){
+      if(!v)return null;
+      var s=String(v).replace(/[^\\d+]/g,'');
+      if(!s)return null;
+      if(s.indexOf('00')===0)s='+'+s.slice(2);
+      if(s.charAt(0)==='+')return s.length>=9?s:null;
+      // Prima i numeri nazionali, poi quelli che hanno gia' il 39 davanti:
+      // 3931234567 e' un cellulare (prefisso 393), non «39 + 31234567».
+      // In Italia lo zero dei fissi fa parte del numero anche in E.164:
+      // 02 1234567 diventa +39021234567, non +3921234567.
+      if(/^3[0-9]{8,9}$/.test(s))return '+39'+s;
+      if(/^0[0-9]{5,10}$/.test(s))return '+39'+s;
+      if(/^39[0-9]{8,11}$/.test(s))return '+'+s;
+      return null;
+    }
+
     function reportHeight(){
       if(!window.parent||window.parent===window)return;
       try{
@@ -314,21 +395,40 @@ Deno.serve(async (req) => {
           // tracciavano. Va mandato PRIMA del redirect, altrimenti la pagina
           // cambia e il messaggio non parte.
           try{
-            window.parent.postMessage({
+            var messaggio={
               type:'eic-lead-form-submit',
               slug:'${jsStr(form.slug)}',
               form_id:'${jsStr(form.id)}',
               contact_id:r.contact_id||null,
               redirect_url:r.redirect_url||null
-            },'*');
+            };
+            // I dati della persona viaggiano solo verso un'origine nota (vedi
+            // ORIGINE_PADRE). Se non si riesce a stabilirla, l'evento parte
+            // lo stesso — il tracciamento non si ferma — ma senza di essi.
+            if(ORIGINE_PADRE){
+              var tel=valoreDi(data,CHIAVI_CONTATTO.phone);
+              messaggio.email=(function(e){return e?e.toLowerCase():null;})(valoreDi(data,CHIAVI_CONTATTO.email));
+              messaggio.phone=tel;
+              messaggio.phone_e164=e164(tel);
+              messaggio.first_name=valoreDi(data,CHIAVI_CONTATTO.first_name);
+              messaggio.last_name=valoreDi(data,CHIAVI_CONTATTO.last_name);
+            }
+            window.parent.postMessage(messaggio,ORIGINE_PADRE||'*');
           }catch(e){}
           if(r.redirect_url){
             // Redirect a livello di PAGINA INTERA (non solo dell'iframe): così sul
             // sito del cliente il visitatore atterra davvero su /grazie e il
             // tracking conversioni (GA/pixel) parte come una vera navigazione.
             // Fallback all'iframe se il top è inaccessibile (contesto sandboxed).
-            try{ window.top.location.href=r.redirect_url; }
-            catch(e){ window.location.href=r.redirect_url; }
+            // Un quarto di secondo di respiro prima di cambiare pagina: il
+            // messaggio qui sopra e' appena stato messo in coda, e i tag di
+            // Google Tag Manager sul sito devono fare in tempo a partire. Senza
+            // questa pausa la navigazione puo' annullare la chiamata di
+            // conversione, e il lead risulta arrivato ma non tracciato.
+            setTimeout(function(){
+              try{ window.top.location.href=r.redirect_url; }
+              catch(e){ window.location.href=r.redirect_url; }
+            },250);
             return;
           }
           if(r.success_title)document.getElementById('successTitle').textContent=r.success_title;

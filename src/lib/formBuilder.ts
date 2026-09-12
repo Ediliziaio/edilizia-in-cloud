@@ -308,7 +308,9 @@ export function buildLeadFormAutoResizeEmbedSnippet(publicUrl: string, options: 
     if(data.type==='eic-lead-form-submit'){
       try{
         window.dataLayer=window.dataLayer||[];
-        window.dataLayer.push({event:'eic_form_submit',form_slug:data.slug,form_id:data.form_id||null,contact_id:data.contact_id||null});
+        window.dataLayer.push({event:'eic_form_submit',form_slug:data.slug,form_id:data.form_id||null,contact_id:data.contact_id||null,
+          email:data.email||null,phone:data.phone||null,phone_e164:data.phone_e164||null,
+          first_name:data.first_name||null,last_name:data.last_name||null});
       }catch(e){}
       try{
         mount.dispatchEvent(new CustomEvent('eic:form-submit',{bubbles:true,detail:data}));
