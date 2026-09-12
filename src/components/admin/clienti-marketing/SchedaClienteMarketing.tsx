@@ -18,10 +18,11 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import {
-  csvGiorni, useAssegnaResponsabile, useCanaliCliente, useResponsabili, useSalvaDiario,
-  useSchedaCliente, type GiornoScheda,
+  csvGiorni, useAssegnaResponsabile, useCanaliCliente, useInserzioniCliente, useResponsabili,
+  useSalvaDiario, useSchedaCliente, type GiornoScheda,
 } from "./useSchedaCliente";
 import { CanaliCliente } from "./CanaliCliente";
+import { CampagneCliente } from "./CampagneCliente";
 import { DiarioSettimana } from "./DiarioSettimana";
 import type { Metriche, Allarme } from "./useMktConsole";
 import { variazione, type ClienteMarketing } from "./provvigioni";
@@ -83,6 +84,8 @@ export function SchedaClienteMarketing({
   const a = useMemo(() => chiaveGiorno(oggi), [oggi]);
   const { data, isLoading, isError, isFetching, refetch } = useSchedaCliente(serviceClientId, da, a);
   const canali = useCanaliCliente(serviceClientId, da, a);
+  const [livello, setLivello] = useState<"campagna" | "inserzione">("campagna");
+  const campagne = useInserzioniCliente(serviceClientId, livello, da, a);
   const salvaDiario = useSalvaDiario(serviceClientId);
   const assegna = useAssegnaResponsabile();
   const [cambiaResponsabile, setCambiaResponsabile] = useState(false);
@@ -272,6 +275,12 @@ export function SchedaClienteMarketing({
               <TabsList className="h-8">
                 <TabsTrigger value="giorni" className="text-xs">Giorno per giorno</TabsTrigger>
                 <TabsTrigger value="canali" className="text-xs">Canali{(canali.data?.length ?? 0) > 0 ? ` (${canali.data!.length})` : ""}</TabsTrigger>
+                <TabsTrigger value="campagne" className="text-xs">
+                  Campagne
+                  {(campagne.data ?? []).some((r) => r.verdetto === "da spegnere") && (
+                    <span className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-rose-500" title="ci sono campagne da spegnere" />
+                  )}
+                </TabsTrigger>
                 <TabsTrigger value="settimane" className="text-xs">Settimane</TabsTrigger>
                 <TabsTrigger value="lead" className="text-xs">Richieste ({data.lead.length})</TabsTrigger>
                 <TabsTrigger value="vendite" className="text-xs">Contratti ({data.vendite.length})</TabsTrigger>
@@ -319,6 +328,11 @@ export function SchedaClienteMarketing({
 
             <TabsContent value="canali" className="m-0 overflow-auto">
               <CanaliCliente canali={canali.data ?? []} caricamento={canali.isLoading} />
+            </TabsContent>
+
+            <TabsContent value="campagne" className="m-0">
+              <CampagneCliente righe={campagne.data ?? []} caricamento={campagne.isLoading}
+                livello={livello} onLivello={setLivello} oggi={oggi} />
             </TabsContent>
 
             <TabsContent value="settimane" className="m-0 overflow-auto">

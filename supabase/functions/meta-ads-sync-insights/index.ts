@@ -37,6 +37,8 @@ interface SyncResult {
   account_rows_written: number;
   /** righe giorno per giorno (ultimi 3 giorni) scritte in mkt_spesa_giornaliera */
   daily_rows_written: number;
+  /** righe per campagna e per inserzione scritte in mkt_spesa_inserzione */
+  inserzione_rows_written: number;
   errors: string[];
   duration_ms: number;
 }
@@ -198,6 +200,7 @@ Deno.serve(async (req) => {
     let insightsRows = 0;
     let accountRows = 0;
     let dailyRows = 0;
+    let inserzioneRows = 0;
 
     for (const c of companies) {
       try {
@@ -253,30 +256,119 @@ Deno.serve(async (req) => {
           // per campagna, non dallo stato dichiarato (una campagna «attiva» che
           // non spende non è attiva).
           const campagnePerGiorno = new Map<string, Set<string>>();
-          try {
-            const cUrl = `https://graph.facebook.com/${apiVersion}/${c.meta_act_id}/insights?fields=campaign_id,spend&level=campaign&time_increment=1&limit=500&time_range={"since":"${da}","until":"${a}"}&access_token=${accessToken}`;
-            let next: string | null = cUrl;
-            while (next) {
-              const cRes = await fetch(next);
-              const cJson = await cRes.json().catch(() => ({})) as {
-                data?: Array<{ campaign_id?: string; spend?: string; date_start?: string }>;
-                paging?: { next?: string };
-                error?: { message?: string };
-              };
-              if (!cRes.ok || cJson.error) {
-                errors.push(
-                  `account_${c.meta_act_id}_campagne_attive:${String(cJson.error?.message ?? cRes.status).substring(0, 80)}`,
-                );
-                break;
+
+          // Lo stato dichiarato di campagne e inserzioni: serve a non proporre
+          // di spegnere qualcosa che è già spento. Una chiamata per account,
+          // non una per giorno.
+          const statoDi = new Map<string, string>();
+          for (const [nodo, campo] of [["campaigns", "campaign"], ["ads", "ad"]] as const) {
+            try {
+              let u: string | null =
+                `https://graph.facebook.com/${apiVersion}/${c.meta_act_id}/${nodo}?fields=id,effective_status&limit=500&access_token=${accessToken}`;
+              while (u) {
+                const r = await fetch(u);
+                const j = await r.json().catch(() => ({})) as {
+                  data?: Array<{ id?: string; effective_status?: string }>;
+                  paging?: { next?: string };
+                  error?: { message?: string };
+                };
+                if (!r.ok || j.error) break;
+                for (const riga of j.data ?? []) {
+                  if (riga.id && riga.effective_status) statoDi.set(riga.id, riga.effective_status);
+                }
+                u = j.paging?.next ?? null;
               }
-              for (const r of cJson.data ?? []) {
-                if (!r.date_start || !r.campaign_id || parseFloat(r.spend ?? "0") <= 0) continue;
-                if (!campagnePerGiorno.has(r.date_start)) campagnePerGiorno.set(r.date_start, new Set());
-                campagnePerGiorno.get(r.date_start)!.add(r.campaign_id);
+            } catch { /* lo stato è un di più: senza, la riga si scrive comunque */ void campo; }
+          }
+
+          // Righe per campagna e per inserzione: è quello che dice QUALE
+          // campagna porta le richieste, e quindi cosa si può spegnere.
+          for (const livello of ["campagna", "inserzione"] as const) {
+            const perAd = livello === "inserzione";
+            const campi = perAd
+              ? "campaign_id,campaign_name,adset_id,adset_name,ad_id,ad_name,spend,impressions,clicks,reach,cpm,frequency,actions"
+              : "campaign_id,campaign_name,spend,impressions,clicks,reach,cpm,frequency,actions";
+            const righe: Array<Record<string, unknown>> = [];
+            try {
+              let next: string | null =
+                `https://graph.facebook.com/${apiVersion}/${c.meta_act_id}/insights?fields=${campi}` +
+                `&level=${perAd ? "ad" : "campaign"}&time_increment=1&limit=500` +
+                `&time_range={"since":"${da}","until":"${a}"}&access_token=${accessToken}`;
+              while (next) {
+                const cRes = await fetch(next);
+                const cJson = await cRes.json().catch(() => ({})) as {
+                  data?: Array<Record<string, string | Array<{ action_type?: string; value?: string }>>>;
+                  paging?: { next?: string };
+                  error?: { message?: string };
+                };
+                if (!cRes.ok || cJson.error) {
+                  errors.push(
+                    `account_${c.meta_act_id}_${livello}:${String(cJson.error?.message ?? cRes.status).substring(0, 80)}`,
+                  );
+                  break;
+                }
+                for (const r of cJson.data ?? []) {
+                  const giorno = r.date_start as string | undefined;
+                  const campagnaId = r.campaign_id as string | undefined;
+                  if (!giorno || !campagnaId) continue;
+                  const spesa = Math.round(parseFloat((r.spend as string) ?? "0") * 100) / 100;
+                  const inserzioneId = perAd ? (r.ad_id as string | undefined) ?? null : null;
+                  if (perAd && !inserzioneId) continue;
+
+                  // Le campagne che hanno consegnato quel giorno si contano da
+                  // qui: lo stato dichiarato non basta, una campagna «attiva»
+                  // che non spende non sta consegnando.
+                  if (!perAd && spesa > 0) {
+                    if (!campagnePerGiorno.has(giorno)) campagnePerGiorno.set(giorno, new Set());
+                    campagnePerGiorno.get(giorno)!.add(campagnaId);
+                  }
+
+                  const azioni = (r.actions ?? []) as Array<{ action_type?: string; value?: string }>;
+                  const lead = azioni.find((x) => x.action_type === "lead")
+                    ?? azioni.find((x) => x.action_type === "leadgen.other")
+                    ?? azioni.find((x) => x.action_type === "onsite_conversion.lead_grouped");
+
+                  righe.push({
+                    company_id: c.company_id,
+                    giorno,
+                    canale: "meta",
+                    account_esterno_id: c.meta_act_id,
+                    livello,
+                    campagna_id: campagnaId,
+                    campagna_nome: (r.campaign_name as string) ?? null,
+                    inserzione_id: inserzioneId,
+                    inserzione_nome: perAd ? (r.ad_name as string) ?? null : null,
+                    gruppo_id: perAd ? (r.adset_id as string) ?? null : null,
+                    gruppo_nome: perAd ? (r.adset_name as string) ?? null : null,
+                    spesa,
+                    impression: parseInt((r.impressions as string) ?? "0", 10),
+                    click: parseInt((r.clicks as string) ?? "0", 10),
+                    copertura: r.reach ? parseInt(r.reach as string, 10) : null,
+                    cpm: r.cpm ? Math.round(parseFloat(r.cpm as string) * 100) / 100 : null,
+                    frequenza: r.frequency ? parseFloat(r.frequency as string) : null,
+                    lead_dichiarati: parseInt(lead?.value ?? "0", 10),
+                    stato: statoDi.get(inserzioneId ?? campagnaId) ?? null,
+                    sincronizzato_il: new Date().toISOString(),
+                  });
+                }
+                next = cJson.paging?.next ?? null;
               }
-              next = cJson.paging?.next ?? null;
+            } catch (e) {
+              errors.push(`account_${c.meta_act_id}_${livello}_failed:${String(e).substring(0, 80)}`);
             }
-          } catch { /* le campagne attive sono un di più: se mancano, la riga si scrive lo stesso */ }
+
+            // A lotti: 90 giorni per inserzione su un account attivo sono
+            // migliaia di righe, e un solo upsert gigante va in timeout.
+            for (let i = 0; i < righe.length; i += 500) {
+              const { error: iErr } = await admin
+                .from("mkt_spesa_inserzione")
+                .upsert(righe.slice(i, i + 500), {
+                  onConflict: "company_id,giorno,canale,account_esterno_id,livello,campagna_id,inserzione_id",
+                });
+              if (iErr) errors.push(`${livello}_upsert:${String(iErr.message ?? "").substring(0, 100)}`);
+              else inserzioneRows += righe.slice(i, i + 500).length;
+            }
+          }
 
           const giorniMeta: MetaInsightAPI[] = [];
           let pagina: string | null = gUrl;
@@ -461,6 +553,7 @@ Deno.serve(async (req) => {
       insights_rows_written: insightsRows,
       account_rows_written: accountRows,
       daily_rows_written: dailyRows,
+      inserzione_rows_written: inserzioneRows,
       errors,
       duration_ms: Date.now() - t0,
     };

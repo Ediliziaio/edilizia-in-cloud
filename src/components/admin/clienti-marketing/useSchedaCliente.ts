@@ -202,6 +202,66 @@ export function useCanaliCliente(serviceClientId: string | null, da?: string, a?
   });
 }
 
+export interface RigaInserzione {
+  id: string;
+  nome: string;
+  campagna_nome: string | null;
+  gruppo_nome: string | null;
+  stato: string | null;
+  spesa: number;
+  impression: number | null;
+  click: number | null;
+  copertura: number | null;
+  lead_dichiarati: number;
+  giorni_con_spesa: number;
+  ultimo_giorno: string | null;
+  lead: number;
+  toccati: number;
+  vendite: number;
+  valore: number;
+  cpm: number | null;
+  cpc: number | null;
+  cpl: number | null;
+  cpa: number | null;
+  roas: number | null;
+  cpl_target: number | null;
+  verdetto: "da spegnere" | "da guardare" | "va bene" | "troppo presto";
+  perche: string;
+}
+
+/**
+ * Campagne (o inserzioni) del cliente con il verdetto su cosa spegnere.
+ * La spesa arriva da Meta, le richieste dal CRM: il costo per richiesta è
+ * quello vero, non quello dichiarato dalla piattaforma.
+ */
+export function useInserzioniCliente(
+  serviceClientId: string | null,
+  livello: "campagna" | "inserzione",
+  da?: string,
+  a?: string,
+) {
+  return useQuery({
+    queryKey: ["clienti-marketing", "inserzioni", serviceClientId, livello, da ?? null, a ?? null],
+    enabled: !!serviceClientId,
+    staleTime: 60_000,
+    placeholderData: keepPreviousData,
+    queryFn: async (): Promise<RigaInserzione[]> => {
+      const { data, error } = await db.rpc("admin_cliente_marketing_inserzioni", {
+        p_service_client_id: serviceClientId, p_da: da ?? null, p_a: a ?? null, p_livello: livello,
+      });
+      if (error) throw error;
+      return ((data ?? []) as RigaInserzione[]).map((r) => ({
+        ...r,
+        spesa: Number(r.spesa) || 0,
+        valore: Number(r.valore) || 0,
+        impression: n(r.impression), click: n(r.click), copertura: n(r.copertura),
+        cpm: n(r.cpm), cpc: n(r.cpc), cpl: n(r.cpl), cpa: n(r.cpa), roas: n(r.roas),
+        cpl_target: n(r.cpl_target),
+      }));
+    },
+  });
+}
+
 /** Scrive la riga del diario di una settimana. Il campo lasciato a null non si tocca. */
 export function useSalvaDiario(serviceClientId: string | null) {
   const qc = useQueryClient();
