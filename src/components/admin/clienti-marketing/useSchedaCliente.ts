@@ -225,7 +225,7 @@ export interface RigaInserzione {
   cpa: number | null;
   roas: number | null;
   cpl_target: number | null;
-  verdetto: "da spegnere" | "da guardare" | "va bene" | "troppo presto";
+  verdetto: "da spegnere" | "da capire" | "da guardare" | "va bene" | "troppo presto";
   perche: string;
 }
 

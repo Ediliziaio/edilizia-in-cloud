@@ -20,6 +20,7 @@ const tdc = "px-2 py-1.5 tabular-nums whitespace-nowrap";
 
 const TONO: Record<RigaInserzione["verdetto"], string> = {
   "da spegnere": "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300",
+  "da capire": "bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300",
   "da guardare": "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300",
   "va bene": "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300",
   "troppo presto": "bg-muted text-muted-foreground",
@@ -38,6 +39,7 @@ export function CampagneCliente({
   oggi: Date;
 }) {
   const daSpegnere = righe.filter((r) => r.verdetto === "da spegnere");
+  const daCapire = righe.filter((r) => r.verdetto === "da capire");
   const sprecato = daSpegnere.reduce((s, r) => s + r.spesa, 0);
   const target = righe.find((r) => r.cpl_target != null)?.cpl_target ?? null;
 
@@ -66,6 +68,17 @@ export function CampagneCliente({
         </div>
       ) : (
         <>
+          {daCapire.length > 0 && (
+            <p className="flex items-start gap-2 border-b bg-sky-50 px-3 py-2 text-[11px] text-sky-900 dark:bg-sky-950/40 dark:text-sky-300">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <span>
+                {daCapire.map((r) => r.nome).join(", ")}: Meta dichiara molte più richieste di quelle entrate nel CRM.
+                Il costo per richiesta qui non misura la campagna, misura la consegna. Prima di spegnere, controlla il
+                modulo collegato e l'obiettivo della campagna.
+              </span>
+            </p>
+          )}
+
           {daSpegnere.length > 0 && (
             <p className="flex items-start gap-2 border-b bg-rose-50 px-3 py-2 text-[11px] text-rose-800 dark:bg-rose-950/40 dark:text-rose-300">
               <PauseCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
