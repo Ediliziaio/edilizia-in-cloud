@@ -804,6 +804,11 @@ function getPublishQa(
       (pixelConfig?.pixel_events_last_24h ?? 0) > 0 ||
       (pixelConfig?.capi_events_last_24h ?? 0) > 0,
   );
+  // Il Pixel serve SOLO quando la gente esce da Facebook: la conversione
+  // avviene sul sito e va rimandata indietro a Meta. Con il modulo nativo il
+  // contatto si compila dentro Facebook e la conversione la registra Meta da
+  // sola — chiederlo lì bloccava campagne che non ne hanno bisogno.
+  const pixelObbligatorio = landingNeedsUtm;
 
   const checks = [
     { ok: meta.integration?.status === "connected", message: "Meta non collegato." },
@@ -813,8 +818,14 @@ function getPublishQa(
     // alfabetico rischia l'account sbagliato. 0 → nessuna scelta; >1 → ambiguo.
     { ok: meta.selectedAdAccounts.length === 1, message: "Seleziona l'account pubblicitario prima di pubblicare (selezionane uno solo)." },
     { ok: meta.pages.length > 0, message: "Pagina Facebook non disponibile." },
-    { ok: Boolean(pixelConfig?.pixel_id), message: "Pixel/CAPI non configurato." },
-    { ok: pixelTested, message: "Evento Pixel/CAPI non ancora testato." },
+    {
+      ok: !pixelObbligatorio || Boolean(pixelConfig?.pixel_id),
+      message: "La campagna porta al sito: senza Pixel non sai chi chiede il preventivo. Configuralo in Impostazioni.",
+    },
+    {
+      ok: !pixelObbligatorio || pixelTested,
+      message: "Il Pixel non ha ancora ricevuto nessun evento: fai una prova prima di pubblicare.",
+    },
     { ok: privacyOk, message: "Privacy URL HTTPS mancante." },
     { ok: landingHasUtm, message: "Landing senza UTM: aggiungi utm_source, utm_medium o utm_campaign." },
     { ok: getCampaignDailyBudget(state) >= 10 && getBudgetPerAd(state) >= 1.5, message: "Budget non coerente con la matrice annunci." },
@@ -2265,6 +2276,8 @@ function ConnectionPill({
       fatto: metaConnected,
       manca: "Serve l'accesso al tuo account Meta.",
       fattoDetail: "account Meta collegato",
+      // Senza questo non si pubblica niente.
+      obbligatorio: true,
       azione: { label: "Collega", href: "/azienda/impostazioni/lead-forms" },
     },
     {
@@ -2276,6 +2289,7 @@ function ConnectionPill({
           : "Scegli un solo conto pubblicitario."
         : "Collega la pagina Facebook da cui escono gli annunci.",
       fattoDetail: `${meta.selectedAdAccounts[0]?.asset_name ?? "conto attivo"} · ${meta.pages.length} ${meta.pages.length === 1 ? "pagina" : "pagine"}`,
+      obbligatorio: true,
       azione: onPickAdAccount && metaConnected
         ? { label: "Scegli conto", onClick: onPickAdAccount }
         : { label: "Configura", href: "/azienda/impostazioni/lead-forms" },
@@ -2283,16 +2297,24 @@ function ConnectionPill({
     {
       titolo: "Attiva il Pixel",
       fatto: pixelMesso && pixelProvato,
-      manca: pixelMesso ? "Fai un evento di prova per verificarlo." : "Serve per misurare chi chiede il preventivo.",
+      // Il Pixel NON serve per le campagne con il modulo dentro Facebook: lì
+      // la conversione la registra Meta. Serve quando mandi la gente sulla
+      // tua landing o sul tuo sito, perché quella conversione avviene fuori.
+      manca: pixelMesso
+        ? "Configurato, ma non ha ancora ricevuto eventi: fai una prova."
+        : "Solo se mandi la gente sul tuo sito. Con il modulo dentro Facebook non serve.",
       fattoDetail: "eventi in arrivo",
+      obbligatorio: false,
       azione: { label: "Configura", href: "?tab=impostazioni#pixel-config" },
     },
   ];
 
-  const mancanti = passi.filter((p) => !p.fatto);
+  // Il conteggio in cima parla solo di quello che impedisce di pubblicare.
+  const mancanti = passi.filter((p) => !p.fatto && p.obbligatorio);
+  const facoltativiDaFare = passi.filter((p) => !p.fatto && !p.obbligatorio);
   const caricamento = meta.isLoading;
 
-  if (!caricamento && mancanti.length === 0) {
+  if (!caricamento && mancanti.length === 0 && facoltativiDaFare.length === 0) {
     return (
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-2.5 text-sm">
         <Check className="h-4 w-4 shrink-0 text-emerald-600" />
@@ -2309,11 +2331,19 @@ function ConnectionPill({
     <div className="rounded-xl border border-slate-200 bg-white p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm font-semibold text-slate-900">
-          {caricamento ? "Controllo i collegamenti…" : `${mancanti.length === 1 ? "Manca 1 passaggio" : `Mancano ${mancanti.length} passaggi`} per pubblicare`}
+          {caricamento
+            ? "Controllo i collegamenti…"
+            : mancanti.length === 0
+              ? "Puoi pubblicare"
+              : mancanti.length === 1
+                ? "Manca 1 passaggio per pubblicare"
+                : `Mancano ${mancanti.length} passaggi per pubblicare`}
         </p>
         {!caricamento && (
           <span className="text-xs text-slate-500">
-            Puoi preparare le campagne intanto: restano in bozza.
+            {mancanti.length === 0
+              ? "Il Pixel serve solo per le campagne che portano al tuo sito."
+              : "Puoi preparare le campagne intanto: restano in bozza."}
           </span>
         )}
       </div>
@@ -2335,7 +2365,14 @@ function ConnectionPill({
               {caricamento ? <Loader2 className="h-3 w-3 animate-spin" /> : passo.fatto ? <Check className="h-3.5 w-3.5" /> : i + 1}
             </span>
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium text-slate-900">{passo.titolo}</p>
+              <p className="flex flex-wrap items-center gap-1.5 text-sm font-medium text-slate-900">
+                {passo.titolo}
+                {!passo.obbligatorio && !passo.fatto && (
+                  <span className="rounded bg-slate-200/70 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600">
+                    facoltativo
+                  </span>
+                )}
+              </p>
               <p className="truncate text-xs text-slate-600">{passo.fatto ? passo.fattoDetail : passo.manca}</p>
               {!passo.fatto && !caricamento && (
                 passo.azione.onClick ? (
@@ -3382,9 +3419,30 @@ function CampaignBuilderTab({
                       ))}
                     </SelectContent>
                   </Select>
+                  {/*
+                    Detto qui, dove si sceglie: con il modulo dentro Facebook
+                    la conversione la registra Meta e il Pixel non serve. Se
+                    mandi la gente sul tuo sito la conversione avviene fuori,
+                    e senza Pixel non torna indietro a nessuno.
+                  */}
+                  <p className="mt-1 text-[11px] text-slate-500">
+                    {state.conversionPlace === "instant_form"
+                      ? "Il contatto si compila dentro Facebook: non serve il Pixel."
+                      : "La gente esce da Facebook: serve il Pixel sul sito, altrimenti non sai chi ha chiesto il preventivo."}
+                  </p>
                 </Field>
                 <Field label="Pagina / destinazione">
-                  <Input value={state.landingUrl} onChange={(event) => update("landingUrl", event.target.value)} placeholder="https://..." />
+                  <Input
+                    value={state.landingUrl}
+                    onChange={(event) => update("landingUrl", event.target.value)}
+                    placeholder="https://..."
+                    disabled={state.conversionPlace === "instant_form"}
+                  />
+                  {state.conversionPlace === "instant_form" && (
+                    <p className="mt-1 text-[11px] text-slate-500">
+                      Non serve: il modulo è dentro Facebook.
+                    </p>
+                  )}
                 </Field>
               </div>
               <div className="grid gap-4 md:grid-cols-2">
@@ -6865,7 +6923,20 @@ function SettingsTab({
         { label: "Account Meta collegato", ok: meta.integration?.status === "connected", detail: meta.integration?.status === "connected" ? "collegato" : "non collegato", action: { label: "Collega", href: "/azienda/impostazioni/lead-forms" } },
         { label: "Conto pubblicitario scelto", ok: meta.selectedAdAccounts.length === 1, detail: meta.selectedAdAccounts[0]?.asset_name ?? (meta.adAccounts.length === 0 ? "nessun conto trovato" : `${meta.adAccounts.length} conti, scegline uno`), action: meta.adAccounts.length === 0 ? { label: "Crea su Meta", href: "https://www.facebook.com/adsmanager/", external: true } : { label: "Scegli", href: "/azienda/impostazioni/lead-forms" } },
         { label: "Pagina Facebook", ok: meta.pages.length > 0, detail: meta.pages.length > 0 ? `${meta.pages.length} ${meta.pages.length === 1 ? "pagina disponibile" : "pagine disponibili"}` : "nessuna pagina collegata", action: meta.pages.length === 0 ? { label: "Collega pagina", href: "/azienda/impostazioni/lead-forms" } : null },
-        { label: "Pixel attivo", ok: pixelMesso && pixelProvato, detail: !pixelMesso ? "non configurato" : pixelProvato ? "eventi in arrivo" : "configurato, mai testato", action: { label: "Configura", href: "?tab=impostazioni#pixel-config" } },
+        // Fuori dal punteggio: con il modulo dentro Facebook la conversione la
+        // registra Meta e il Pixel non serve. Serve quando la campagna porta
+        // sul sito, perché lì la conversione avviene fuori da Facebook.
+        {
+          label: "Pixel attivo",
+          ok: pixelMesso && pixelProvato,
+          opzionale: true,
+          detail: !pixelMesso
+            ? "serve solo per le campagne che portano al tuo sito"
+            : pixelProvato
+              ? "eventi in arrivo"
+              : "configurato, mai testato",
+          action: { label: "Configura", href: "?tab=impostazioni#pixel-config" },
+        },
       ],
     },
     ...(googleInUso
@@ -6891,7 +6962,8 @@ function SettingsTab({
     { label: "Prova il modulo", detail: "Compila tu stesso il modulo prima di mandare online la campagna.", href: null },
   ];
 
-  const allChecks = setupBlocks.flatMap((b) => b.items);
+  // Il punteggio conta solo quello che impedisce di pubblicare.
+  const allChecks = setupBlocks.flatMap((b) => b.items).filter((item) => !("opzionale" in item && item.opzionale));
   const doneCount = allChecks.filter((item) => Boolean(item.ok)).length;
   const totalCount = allChecks.length;
   const progressPct = totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 0;
@@ -6953,7 +7025,8 @@ function SettingsTab({
           <div className="grid gap-4 xl:grid-cols-2">
             {setupBlocks.map((block, bi) => {
               const col = blockColors[bi];
-              const blockDone = block.items.filter((item) => Boolean(item.ok)).length;
+              const blockChecks = block.items.filter((item) => !("opzionale" in item && item.opzionale));
+              const blockDone = blockChecks.filter((item) => Boolean(item.ok)).length;
               return (
                 <div key={block.title} className={cn("rounded-xl border p-4", col.border, col.bg)}>
                   <div className="mb-3 flex items-center justify-between">
@@ -6961,7 +7034,7 @@ function SettingsTab({
                       <span className="text-base">{block.icon}</span>
                       <p className={cn("text-sm font-semibold", col.title)}>{block.title}</p>
                     </div>
-                    <span className="text-[11px] font-medium text-slate-500">{blockDone}/{block.items.length}</span>
+                    <span className="text-[11px] font-medium text-slate-500">{blockDone}/{blockChecks.length}</span>
                   </div>
                   <div className="space-y-2">
                     {block.items.map((item) => (
@@ -6984,8 +7057,18 @@ function SettingsTab({
                               </Link>
                             )
                           )}
-                          <Badge variant="outline" className={cn("text-[10px]", item.ok ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-700")}>
-                            {item.ok ? "✓ OK" : "Da fare"}
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              "text-[10px]",
+                              item.ok
+                                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                                : "opzionale" in item && item.opzionale
+                                  ? "border-slate-200 bg-slate-50 text-slate-500"
+                                  : "border-amber-200 bg-amber-50 text-amber-700",
+                            )}
+                          >
+                            {item.ok ? "✓ OK" : "opzionale" in item && item.opzionale ? "Facoltativo" : "Da fare"}
                           </Badge>
                         </div>
                       </div>
