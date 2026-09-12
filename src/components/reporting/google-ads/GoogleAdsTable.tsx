@@ -278,7 +278,9 @@ export default function GoogleAdsTable({ report }: { report: Report }) {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          {/* border-separate: con i bordi uniti il browser non rispetta lo z-index
+              delle celle fisse e il contenuto che scorre ci passa sopra. */}
+          <table className="w-full text-sm border-separate border-spacing-0">
             <thead className="bg-muted/50">
               <tr>
                 {colonne.map((c) => (
@@ -288,7 +290,7 @@ export default function GoogleAdsTable({ report }: { report: Report }) {
                     className={cn(
                       "cursor-pointer select-none whitespace-nowrap px-3 py-2.5 text-xs font-medium text-muted-foreground hover:text-foreground",
                       c.align === "right" ? "text-right" : "text-left",
-                      c.key === "name" && "sticky left-0 z-10 bg-muted",
+                      c.key === "name" && "sticky left-0 z-[3] bg-muted",
                     )}
                   >
                     {c.aiuto ? (
@@ -308,7 +310,7 @@ export default function GoogleAdsTable({ report }: { report: Report }) {
             <tbody>
               {report.isLoading ? (
                 Array.from({ length: 6 }).map((_, i) => (
-                  <tr key={i} className="border-t border-border/50">
+                  <tr key={i} className="[&>td]:border-t [&>td]:border-border/50">
                     {colonne.map((c) => <td key={c.key} className="px-3 py-3"><Skeleton className="h-4 w-16" /></td>)}
                   </tr>
                 ))
@@ -320,14 +322,16 @@ export default function GoogleAdsTable({ report }: { report: Report }) {
                 </tr>
               ) : (
                 report.rows.map((r) => (
-                  <tr key={`${level}-${r.id}`} className="group border-t border-border/50 transition-colors hover:bg-muted/20">
+                  <tr key={`${level}-${r.id}`} className="group transition-colors hover:bg-muted/20 [&>td]:border-t [&>td]:border-border/50">
                     {colonne.map((c) => (
                       <td
                         key={c.key}
                         className={cn(
                           "whitespace-nowrap px-3 py-2.5",
                           c.align === "right" ? "text-right tabular-nums" : "text-left",
-                          c.key === "name" && "sticky left-0 z-[1] bg-card group-hover:bg-muted/20",
+                          c.key === "name" &&
+                            "sticky left-0 z-[2] bg-card bg-gradient-to-r from-transparent to-transparent " +
+                            "group-hover:from-muted/20 group-hover:to-muted/20",
                         )}
                       >
                         {cella(c, r)}
@@ -339,14 +343,14 @@ export default function GoogleAdsTable({ report }: { report: Report }) {
             </tbody>
             {!report.isLoading && report.rows.length > 1 && (
               <tfoot>
-                <tr className="border-t-2 bg-muted/40 font-semibold">
+                <tr className="bg-muted/40 font-semibold [&>td]:border-t-2 [&>td]:border-border">
                   {colonne.map((c) => (
                     <td
                       key={c.key}
                       className={cn(
                         "whitespace-nowrap px-3 py-2.5 text-sm",
                         c.align === "right" ? "text-right tabular-nums" : "text-left",
-                        c.key === "name" && "sticky left-0 z-[1] bg-muted",
+                        c.key === "name" && "sticky left-0 z-[2] bg-muted",
                       )}
                     >
                       {c.key === "name" ? `Totale · ${report.rows.length} ${UNITA[level]}` : totali[c.key] ?? ""}
