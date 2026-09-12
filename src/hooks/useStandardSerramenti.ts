@@ -1,0 +1,192 @@
+/**
+ * Applica lo standard del listino infissi a un gruppo di tipologie.
+ *
+ * Scrive in tre punti: il prezzo al metro quadro sulla tipologia, le linee come
+ * variante "Linea" (la prima è quella base), le percentuali sulle varianti
+ * colore e vetro già presenti. Le linee che l'azienda non usa più vengono
+ * disattivate, non cancellate: un preventivo vecchio le nomina ancora.
+ */
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
+import {
+  CODICE_ASSE,
+  percentualiOpzioni,
+  variantiLinea,
+  type StandardSerramenti,
+} from "@/lib/listino/standardSerramenti";
+
+interface Input {
+  companyId: string;
+  /** Le tipologie a cui applicare lo standard. */
+  familyIds: string[];
+  standard: StandardSerramenti;
+}
+
+export interface EsitoStandard {
+  tipologie: number;
+  lineeScritte: number;
+  varianti: number;
+}
+
+export function useStandardSerramenti() {
+  const qc = useQueryClient();
+
+  return useMutation<EsitoStandard, Error, Input>({
+    mutationFn: async ({ companyId, familyIds, standard }) => {
+      if (!companyId) throw new Error("Azienda non identificata");
+      if (familyIds.length === 0) throw new Error("Nessuna tipologia selezionata");
+
+      // 1. Prezzo al metro quadro sulla tipologia.
+      const { error: errFam } = await supabase
+        .from("article_families")
+        .update({
+          modalita_prezzo_base: "mq",
+          prezzo_base_mode: "vendita",
+          prezzo_base_vendita: standard.prezzoVenditaMq,
+          prezzo_base_acquisto: standard.prezzoAcquistoMq,
+          updated_at: new Date().toISOString(),
+        })
+        .in("id", familyIds)
+        .eq("company_id", companyId);
+      if (errFam) throw errFam;
+
+      // 2. L'asse "Linea": esiste già o va creato, una volta per tipologia.
+      const { data: assiEsistenti, error: errAxes } = await supabase
+        .from("article_family_axes")
+        .select("id, family_id, codice")
+        .in("family_id", familyIds)
+        .eq("company_id", companyId);
+      if (errAxes) throw errAxes;
+
+      const assi = assiEsistenti ?? [];
+      const conLinea = new Set(assi.filter((a) => a.codice === CODICE_ASSE.linea).map((a) => a.family_id));
+      const daCreare = familyIds.filter((id) => !conLinea.has(id));
+      let assiLinea = assi.filter((a) => a.codice === CODICE_ASSE.linea);
+
+      if (daCreare.length > 0) {
+        const { data: creati, error: errNuovi } = await supabase
+          .from("article_family_axes")
+          .insert(
+            daCreare.map((family_id) => ({
+              family_id,
+              company_id: companyId,
+              nome: "Linea",
+              codice: CODICE_ASSE.linea,
+              descrizione:
+                "Il modello di profilo. La prima linea è quella di base; le altre si scostano in percentuale.",
+              tipo: "discrete",
+              obbligatorio: true,
+              // Prima di colore e vetro: è la scelta che cambia di più il prezzo.
+              sort_order: -1,
+            })),
+          )
+          .select("id, family_id, codice");
+        if (errNuovi) throw errNuovi;
+        assiLinea = [...assiLinea, ...(creati ?? [])];
+      }
+
+      // 3. Le varianti della linea: nuove inserite, esistenti aggiornate,
+      //    quelle non più in elenco disattivate.
+      const varianti = variantiLinea(standard.linee);
+      const idAssiLinea = assiLinea.map((a) => a.id);
+      const { data: valoriEsistenti, error: errVal } = await supabase
+        .from("article_family_axis_values")
+        .select("id, axis_id, valore")
+        .in("axis_id", idAssiLinea);
+      if (errVal) throw errVal;
+
+      const perAsse = new Map<string, Map<string, string>>();
+      for (const v of valoriEsistenti ?? []) {
+        if (!perAsse.has(v.axis_id)) perAsse.set(v.axis_id, new Map());
+        perAsse.get(v.axis_id)!.set(v.valore, v.id);
+      }
+
+      const daInserire: Record<string, unknown>[] = [];
+      const daAggiornare: { id: string; variante: (typeof varianti)[number] }[] = [];
+      const daDisattivare: string[] = [];
+
+      for (const asse of assiLinea) {
+        const presenti = perAsse.get(asse.id) ?? new Map<string, string>();
+        for (const variante of varianti) {
+          const id = presenti.get(variante.valore);
+          if (id) daAggiornare.push({ id, variante });
+          else daInserire.push({ axis_id: asse.id, company_id: companyId, attivo: true, ...variante });
+        }
+        for (const [valore, id] of presenti) {
+          if (!varianti.some((v) => v.valore === valore)) daDisattivare.push(id);
+        }
+      }
+
+      if (daInserire.length > 0) {
+        const { error } = await supabase.from("article_family_axis_values").insert(daInserire);
+        if (error) throw error;
+      }
+      // Gli aggiornamenti si raggruppano per variante: una query per linea, non per tipologia.
+      for (const variante of varianti) {
+        const ids = daAggiornare.filter((x) => x.variante.valore === variante.valore).map((x) => x.id);
+        if (ids.length === 0) continue;
+        const { error } = await supabase
+          .from("article_family_axis_values")
+          .update({
+            label: variante.label,
+            is_default: variante.is_default,
+            maggiorazione_tipo: variante.maggiorazione_tipo,
+            maggiorazione_valore: variante.maggiorazione_valore,
+            maggiorazione_acquisto: variante.maggiorazione_acquisto,
+            sort_order: variante.sort_order,
+            attivo: true,
+          })
+          .in("id", ids);
+        if (error) throw error;
+      }
+      if (daDisattivare.length > 0) {
+        const { error } = await supabase
+          .from("article_family_axis_values")
+          .update({ attivo: false })
+          .in("id", daDisattivare);
+        if (error) throw error;
+      }
+
+      // 4. Percentuali su colore e vetro, dove quelle varianti esistono già.
+      const idAltriAssi = assi
+        .filter((a) => a.codice === CODICE_ASSE.colore || a.codice === CODICE_ASSE.vetro)
+        .map((a) => a.id);
+      let varianti_opzioni = 0;
+      if (idAltriAssi.length > 0) {
+        const percentuali = percentualiOpzioni(standard);
+        for (const [valore, pct] of Object.entries(percentuali)) {
+          const { data, error } = await supabase
+            .from("article_family_axis_values")
+            .update({
+              maggiorazione_tipo: pct === 0 ? "none" : "percentuale",
+              maggiorazione_valore: pct,
+              maggiorazione_acquisto: pct,
+            })
+            .in("axis_id", idAltriAssi)
+            .eq("valore", valore)
+            .select("id");
+          if (error) throw error;
+          varianti_opzioni += data?.length ?? 0;
+        }
+      }
+
+      return {
+        tipologie: familyIds.length,
+        lineeScritte: varianti.length,
+        varianti: daInserire.length + daAggiornare.length + varianti_opzioni,
+      };
+    },
+    onSuccess: (esito) => {
+      qc.invalidateQueries({ queryKey: queryKeys.articleFamilies.all });
+      toast.success(
+        `Listino impostato: ${esito.tipologie} tipologie, ${esito.lineeScritte} linee`,
+        { description: "Prezzo al metro quadro e varianti aggiornate." },
+      );
+    },
+    onError: (e) => {
+      toast.error("Non sono riuscito a impostare il listino", { description: e.message });
+    },
+  });
+}

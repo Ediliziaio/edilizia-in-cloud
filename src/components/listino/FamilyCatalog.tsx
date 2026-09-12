@@ -47,6 +47,7 @@ import {
   MoreVertical,
   AlertTriangle,
   Sparkles,
+  Wand2,
   Eye,
   EyeOff,
   LayoutGrid,
@@ -57,6 +58,7 @@ import {
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { FamilyTemplatePicker } from "./FamilyTemplatePicker";
+import { ImpostaStandardSerramentiDialog } from "./ImpostaStandardSerramentiDialog";
 import { firstGallerySlugFor } from "@/lib/verticalMapping";
 import { useFamilies, useFamiliesCestino } from "@/hooks/useFamilies";
 import { useFamilyMutations } from "@/hooks/useFamilyMutations";
@@ -269,6 +271,7 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
   const { role, effectiveCompany } = useAuth();
   const isAdmin = role === "company_admin" || role === "super_admin";
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
+  const [standardSerramentiOpen, setStandardSerramentiOpen] = useState(false);
   // includeInactive: la pagina di gestione mostra anche i disattivati (per
   // poterli vedere/riattivare). Il preventivatore continua a usare useFamilies()
   // di default → solo attivi.
@@ -278,6 +281,12 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
     isError: errorFamilies,
     refetch: refetchFamilies,
   } = useFamilies({ includeInactive: true });
+  // Il pulsante dello standard infissi ha senso solo per chi vende serramenti:
+  // il prezzo al metro quadro e le linee di profilo non c'entrano col resto.
+  const haSerramenti = useMemo(
+    () => families.some((f) => (f.vertical ?? "").startsWith("serrament")),
+    [families],
+  );
   const {
     deleteFamily,
     restoreFamily,
@@ -745,6 +754,17 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
                   </span>
                 )}
               </Button>
+              {isAdmin && effectiveCompany?.id && haSerramenti && (
+                <Button
+                  variant="outline"
+                  onClick={() => setStandardSerramentiOpen(true)}
+                  className="h-10 border-blue-300 text-blue-700 hover:bg-blue-50"
+                  title="Linee, prezzo al metro quadro e opzioni su tutte le tipologie in un colpo solo"
+                >
+                  <Wand2 className="h-4 w-4 mr-1.5" aria-hidden="true" />
+                  Imposta listino infissi
+                </Button>
+              )}
               {isAdmin && effectiveCompany?.id && (
                 <Button
                   variant="outline"
@@ -2186,6 +2206,15 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
 
       {/* Galleria template articoli — clona dal catalogo globale super_admin
           dentro il listino azienda. Visibile solo se siamo in scope azienda. */}
+      {isAdmin && effectiveCompany?.id && (
+        <ImpostaStandardSerramentiDialog
+          open={standardSerramentiOpen}
+          onOpenChange={setStandardSerramentiOpen}
+          companyId={effectiveCompany.id}
+          famiglie={families.map((f) => ({ id: f.id, nome: f.nome, vertical: f.vertical }))}
+        />
+      )}
+
       {isAdmin && effectiveCompany?.id && (
         <FamilyTemplatePicker
           open={templatePickerOpen}
