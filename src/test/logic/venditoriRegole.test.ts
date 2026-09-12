@@ -228,3 +228,24 @@ describe("obiettivi mensili", () => {
     expect(tabella).toContain('.eq("month", mese)');
   });
 });
+
+describe("Sales OS per pipeline", () => {
+  it("tutte le funzioni operative accettano la pipeline e la pagina la tiene nell'URL", () => {
+    const sql = readFileSync(
+      resolve(process.cwd(), "supabase/migrations/20280915410011_sales_os_per_pipeline.sql"),
+      "utf8",
+    );
+    for (const f of ["get_sales_velocity", "get_sales_forecast", "get_weighted_pipeline", "get_stalled_opportunities", "vendite_preventivi"]) {
+      expect(sql).toContain(`drop function if exists public.${f}(`);
+    }
+    // i preventivi passano dall'elenco delle opportunità, letto una volta sola
+    expect(sql).toContain("with pipe as (");
+    expect(sql).toContain("q.opportunity_id in (select pipe.id from pipe)");
+    const hook = readFileSync(resolve(process.cwd(), "src/hooks/useSalesOS.ts"), "utf8");
+    expect(hook).toContain("p_pipeline_id: pipelineId ?? null");
+    expect(hook).toContain("p_pipeline: pipelineId ?? null");
+    const pagina = readFileSync(resolve(process.cwd(), "src/pages/azienda/marketing/SalesOSDashboard.tsx"), "utf8");
+    expect(pagina).toContain('searchParams.get("pipeline")');
+    expect(pagina).toContain("Tutte le pipeline");
+  });
+});

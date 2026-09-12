@@ -12,6 +12,7 @@ import {
   salesOSKeys,
 } from "@/hooks/useSalesOS";
 import { useQueryClient } from "@tanstack/react-query";
+import { usePipelines } from "@/hooks/useOpportunitiesData";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -285,8 +286,8 @@ function useSlowQueryFallback(isLoading: boolean, timeoutMs = 3500) {
 
 // ─── SalesVelocityCard ────────────────────────────────────────────────────────
 
-function SalesVelocityCard({ companyId, daysBack, periodLabel }: { companyId: string; daysBack: number; periodLabel: string }) {
-  const { data: velocity, isLoading, isError, error } = useSalesVelocity(companyId, daysBack);
+function SalesVelocityCard({ companyId, daysBack, periodLabel, pipelineId }: { companyId: string; daysBack: number; periodLabel: string; pipelineId?: string }) {
+  const { data: velocity, isLoading, isError, error } = useSalesVelocity(companyId, daysBack, pipelineId);
   const showSlowFallback = useSlowQueryFallback(isLoading);
   const showLoading = isLoading && !showSlowFallback;
 
@@ -379,14 +380,16 @@ function QuoteRevenueCard({
   dateFrom,
   dateTo,
   periodLabel,
+  pipelineId,
 }: {
   companyId: string;
   dateFrom: string;
   dateTo: string;
   periodLabel: string;
+  pipelineId?: string;
 }) {
   const navigate = useNavigate();
-  const { data, isLoading, isError, error } = useQuoteRevenue(companyId, dateFrom, dateTo);
+  const { data, isLoading, isError, error } = useQuoteRevenue(companyId, dateFrom, dateTo, pipelineId);
   const showSlowFallback = useSlowQueryFallback(isLoading);
   const showLoading = isLoading && !showSlowFallback;
 
@@ -475,6 +478,7 @@ function SalesFocusPanel({
   periodLabel,
   onOpenStalled,
   onOpenConfig,
+  pipelineId,
 }: {
   companyId: string;
   daysBack: number;
@@ -483,14 +487,15 @@ function SalesFocusPanel({
   periodLabel: string;
   onOpenStalled: () => void;
   onOpenConfig: () => void;
+  pipelineId?: string;
 }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { data: velocity, isError: erroreVelocity } = useSalesVelocity(companyId, daysBack);
-  const { data: stalled, isLoading: stalledLoading, isError: erroreFerme } = useStalledOpportunities(companyId);
+  const { data: velocity, isError: erroreVelocity } = useSalesVelocity(companyId, daysBack, pipelineId);
+  const { data: stalled, isLoading: stalledLoading, isError: erroreFerme } = useStalledOpportunities(companyId, pipelineId);
   const { data: leads, isLoading: leadsLoading, isError: erroreLead } = useTopLeads(companyId, 1);
-  const { data: forecast, isError: erroreForecast } = useSalesForecast(companyId, 3);
-  const { data: quoteRevenue, isError: errorePreventivi } = useQuoteRevenue(companyId, dateFrom, dateTo);
+  const { data: forecast, isError: erroreForecast } = useSalesForecast(companyId, 3, pipelineId);
+  const { data: quoteRevenue, isError: errorePreventivi } = useQuoteRevenue(companyId, dateFrom, dateTo, pipelineId);
   // Un numero che non è arrivato non è uno zero: prima una lettura fallita
   // delle opportunità ferme diceva «Follow-up sotto controllo — OK».
   const nonArrivati: Partial<Record<SalesOSCommandAction["key"], boolean>> = {
@@ -689,8 +694,8 @@ function SalesFocusPanel({
 
 // ─── WeightedPipelineChart ────────────────────────────────────────────────────
 
-function WeightedPipelineChart({ companyId }: { companyId: string }) {
-  const { data: stages, isLoading, isError, error } = useWeightedPipeline(companyId);
+function WeightedPipelineChart({ companyId, pipelineId }: { companyId: string; pipelineId?: string }) {
+  const { data: stages, isLoading, isError, error } = useWeightedPipeline(companyId, pipelineId);
   const navigate = useNavigate();
 
   if (isLoading || isError || !stages || stages.length === 0) {
@@ -775,8 +780,8 @@ function WeightedPipelineChart({ companyId }: { companyId: string }) {
 
 // ─── SalesForecastChart ───────────────────────────────────────────────────────
 
-function SalesForecastChart({ companyId }: { companyId: string }) {
-  const { data: forecast, isLoading, isError, error } = useSalesForecast(companyId, 3);
+function SalesForecastChart({ companyId, pipelineId }: { companyId: string; pipelineId?: string }) {
+  const { data: forecast, isLoading, isError, error } = useSalesForecast(companyId, 3, pipelineId);
 
   if (isLoading || isError || !forecast || forecast.length === 0) {
     return (
@@ -825,8 +830,8 @@ function SalesForecastChart({ companyId }: { companyId: string }) {
 
 // ─── StalledOpportunitiesPanel ────────────────────────────────────────────────
 
-function StalledOpportunitiesPanel({ companyId }: { companyId: string }) {
-  const { data: stalled, isLoading, isError, error } = useStalledOpportunities(companyId);
+function StalledOpportunitiesPanel({ companyId, pipelineId }: { companyId: string; pipelineId?: string }) {
+  const { data: stalled, isLoading, isError, error } = useStalledOpportunities(companyId, pipelineId);
   const navigate = useNavigate();
 
   const handleExport = () => {
@@ -969,9 +974,9 @@ function RimandoClassificaVenditori() {
 
 // ─── ConversionBySourceChart ──────────────────────────────────────────────────
 
-function ConversionBySourceChart({ companyId, dateFrom, dateTo }: { companyId: string; dateFrom: string | null; dateTo: string }) {
+function ConversionBySourceChart({ companyId, dateFrom, dateTo, pipelineId }: { companyId: string; dateFrom: string | null; dateTo: string; pipelineId?: string }) {
   const navigate = useNavigate();
-  const { data: sources, isLoading, isError, error } = useConversionBySource(companyId, dateFrom, dateTo);
+  const { data: sources, isLoading, isError, error } = useConversionBySource(companyId, dateFrom, dateTo, pipelineId);
 
   if (isLoading || isError) {
     return (
@@ -1193,6 +1198,21 @@ export default function SalesOSDashboard() {
   const [activeTab, setActiveTab] = useState<SalesOSTab>(
     () => (isSalesOSTab(queryTab) ? queryTab : "pipeline"),
   );
+  // Con più pipeline i numeri messi insieme non dicono niente: cicli e tassi
+  // di lavori diversi. Sta nell'URL come il periodo e la scheda.
+  const { data: pipelines = [], isSuccess: pipelineCaricate } = usePipelines();
+  const queryPipeline = searchParams.get("pipeline");
+  const pipelineId = queryPipeline && /^[0-9a-f-]{36}$/i.test(queryPipeline)
+    && (!pipelineCaricate || pipelines.some((p: { id: string }) => p.id === queryPipeline))
+    ? queryPipeline
+    : undefined;
+  const setPipelineId = (value: string) => {
+    const nextParams = new URLSearchParams(searchParams);
+    if (value === "tutte") nextParams.delete("pipeline");
+    else nextParams.set("pipeline", value);
+    setSearchParams(nextParams, { replace: true });
+  };
+
   // Il periodo sta nell'URL come la scheda: ricaricando non torna a «30 giorni».
   const queryPeriodo = searchParams.get("periodo");
   const period: SalesOSPeriod = PERIOD_OPTIONS.some((o) => o.value === queryPeriodo)
@@ -1249,6 +1269,23 @@ export default function SalesOSDashboard() {
               </p>
             </div>
           </div>
+          <div className="flex flex-wrap items-center gap-2">
+          {pipelines.length > 1 && (
+            <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white/80 px-2 py-1 shadow-sm">
+              <Target className="h-4 w-4 text-orange-500" />
+              <Select value={pipelineId ?? "tutte"} onValueChange={setPipelineId}>
+                <SelectTrigger className="h-9 w-[190px] border-0 bg-transparent shadow-none" aria-label="Pipeline">
+                  <SelectValue placeholder="Pipeline" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="tutte">Tutte le pipeline</SelectItem>
+                  {pipelines.map((p: { id: string; name: string }) => (
+                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white/80 px-2 py-1 shadow-sm">
             <Calendar className="h-4 w-4 text-orange-500" />
             <Select value={period} onValueChange={(v) => setPeriod(v as SalesOSPeriod)}>
@@ -1264,17 +1301,19 @@ export default function SalesOSDashboard() {
               </SelectContent>
             </Select>
           </div>
+          </div>
         </div>
       </div>
 
       {/* KPI Bar — sempre visibile */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <SalesVelocityCard companyId={companyId} daysBack={range.daysBack} periodLabel={range.label} />
+        <SalesVelocityCard companyId={companyId} daysBack={range.daysBack} periodLabel={range.label} pipelineId={pipelineId} />
         <QuoteRevenueCard
           companyId={companyId}
           dateFrom={range.dateFrom}
           dateTo={range.dateTo}
           periodLabel={range.label}
+          pipelineId={pipelineId}
         />
       </div>
 
@@ -1286,6 +1325,7 @@ export default function SalesOSDashboard() {
         periodLabel={range.label}
         onOpenStalled={() => handleTabChange("stalled")}
         onOpenConfig={() => handleTabChange("config")}
+        pipelineId={pipelineId}
       />
 
       {/* Tabs principali */}
@@ -1316,7 +1356,7 @@ export default function SalesOSDashboard() {
         {/* TAB: Pipeline & Forecast */}
         <TabsContent value="pipeline" className="space-y-4 mt-4">
           {/* Deal Health Overview */}
-          <DealHealthOverview companyId={companyId} />
+          <DealHealthOverview companyId={companyId} pipelineId={pipelineId} />
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <Card>
@@ -1327,7 +1367,7 @@ export default function SalesOSDashboard() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <WeightedPipelineChart companyId={companyId} />
+                <WeightedPipelineChart companyId={companyId} pipelineId={pipelineId} />
               </CardContent>
             </Card>
             <Card>
@@ -1341,7 +1381,7 @@ export default function SalesOSDashboard() {
                 </p>
               </CardHeader>
               <CardContent>
-                <SalesForecastChart companyId={companyId} />
+                <SalesForecastChart companyId={companyId} pipelineId={pipelineId} />
               </CardContent>
             </Card>
           </div>
@@ -1357,7 +1397,7 @@ export default function SalesOSDashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <StalledOpportunitiesPanel companyId={companyId} />
+              <StalledOpportunitiesPanel companyId={companyId} pipelineId={pipelineId} />
             </CardContent>
           </Card>
         </TabsContent>
@@ -1403,7 +1443,7 @@ export default function SalesOSDashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <ConversionBySourceChart companyId={companyId} dateFrom={range.dateFrom} dateTo={range.dateTo} />
+              <ConversionBySourceChart companyId={companyId} dateFrom={range.dateFrom} dateTo={range.dateTo} pipelineId={pipelineId} />
             </CardContent>
           </Card>
         </TabsContent>

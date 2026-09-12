@@ -7,11 +7,13 @@ import { salesOSKeys } from "@/hooks/useSalesOS";
 
 interface DealHealthOverviewProps {
   companyId: string;
+  /** Sales OS può guardare una pipeline sola: la salute segue la stessa scelta. */
+  pipelineId?: string;
 }
 
-export const DealHealthOverview = memo(function DealHealthOverview({ companyId }: DealHealthOverviewProps) {
+export const DealHealthOverview = memo(function DealHealthOverview({ companyId, pipelineId }: DealHealthOverviewProps) {
   const { data: opportunities } = useQuery({
-    queryKey: [...salesOSKeys.all, 'deal-health', companyId],
+    queryKey: [...salesOSKeys.all, 'deal-health', companyId, pipelineId ?? 'tutte'],
     enabled: !!companyId,
     queryFn: async () => {
       // Tutte le aperte e non cancellate: PostgREST ne dà al massimo 1000 per
@@ -20,14 +22,14 @@ export const DealHealthOverview = memo(function DealHealthOverview({ companyId }
       // senza, ogni trattativa perdeva 10 punti per «meno di 2 contatti registrati».
       const righe: any[] = [];
       for (let da = 0; da < 20_000; da += 1000) {
-        const { data, error } = await supabase
+        let query = supabase
           .from('marketing_opportunities')
           .select('id, updated_at, last_activity_at, stage_changed_at, next_action, expected_close_date, probability, created_at, contact:marketing_contacts(is_decision_maker), marketing_contact_notes(count)')
           .eq('company_id', companyId)
           .eq('status', 'open')
-          .is('deleted_at', null)
-          .order('id')
-          .range(da, da + 999);
+          .is('deleted_at', null);
+        if (pipelineId) query = query.eq('pipeline_id', pipelineId);
+        const { data, error } = await query.order('id').range(da, da + 999);
         if (error) throw error;
         righe.push(...(data ?? []));
         if (!data || data.length < 1000) break;

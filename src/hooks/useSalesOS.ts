@@ -138,15 +138,15 @@ function numeroONull(value: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-export function useWeightedPipeline(companyId: string | null) {
+export function useWeightedPipeline(companyId: string | null, pipelineId?: string) {
   const { user } = useAuth();
 
   return useQuery({
-    queryKey: salesOSKeys.weightedPipeline(companyId ?? '', scopeUtente(user?.id)),
+    queryKey: [...salesOSKeys.weightedPipeline(companyId ?? '', scopeUtente(user?.id)), pipelineId ?? 'tutte'],
     enabled: !!companyId,
     queryFn: async (): Promise<WeightedPipelineStage[]> => {
       const { data, error } = await supabase
-        .rpc('get_weighted_pipeline', { p_company_id: companyId! });
+        .rpc('get_weighted_pipeline', { p_company_id: companyId!, p_pipeline_id: pipelineId ?? null } as any);
       if (error) throw error;
       return (data ?? []).map((row: any) => ({
         ...row,
@@ -160,17 +160,18 @@ export function useWeightedPipeline(companyId: string | null) {
   });
 }
 
-export function useSalesForecast(companyId: string | null, monthsAhead = 3) {
+export function useSalesForecast(companyId: string | null, monthsAhead = 3, pipelineId?: string) {
   const { user } = useAuth();
 
   return useQuery({
-    queryKey: salesOSKeys.forecast(companyId ?? '', monthsAhead, scopeUtente(user?.id)),
+    queryKey: [...salesOSKeys.forecast(companyId ?? '', monthsAhead, scopeUtente(user?.id)), pipelineId ?? 'tutte'],
     enabled: !!companyId,
     queryFn: async (): Promise<SalesForecastMonth[]> => {
       const { data, error } = await supabase
         .rpc('get_sales_forecast', {
           p_company_id: companyId!,
           p_months_ahead: monthsAhead,
+          p_pipeline_id: pipelineId ?? null,
         });
       if (error) throw error;
       return (data ?? []).map((row: any) => ({
@@ -184,15 +185,15 @@ export function useSalesForecast(companyId: string | null, monthsAhead = 3) {
   });
 }
 
-export function useStalledOpportunities(companyId: string | null) {
+export function useStalledOpportunities(companyId: string | null, pipelineId?: string) {
   const { user } = useAuth();
 
   return useQuery({
-    queryKey: salesOSKeys.stalled(companyId ?? '', scopeUtente(user?.id)),
+    queryKey: [...salesOSKeys.stalled(companyId ?? '', scopeUtente(user?.id)), pipelineId ?? 'tutte'],
     enabled: !!companyId,
     queryFn: async (): Promise<StalledOpportunity[]> => {
       const { data, error } = await supabase
-        .rpc('get_stalled_opportunities', { p_company_id: companyId! });
+        .rpc('get_stalled_opportunities', { p_company_id: companyId!, p_pipeline_id: pipelineId ?? null } as any);
       if (error) throw error;
       return (data ?? []).map((row: any) => ({
         ...row,
@@ -205,17 +206,18 @@ export function useStalledOpportunities(companyId: string | null) {
   });
 }
 
-export function useSalesVelocity(companyId: string | null, daysBack = 90) {
+export function useSalesVelocity(companyId: string | null, daysBack = 90, pipelineId?: string) {
   const { user } = useAuth();
 
   return useQuery({
-    queryKey: [...salesOSKeys.velocity(companyId ?? '', daysBack), scopeUtente(user?.id)],
+    queryKey: [...salesOSKeys.velocity(companyId ?? '', daysBack), scopeUtente(user?.id), pipelineId ?? 'tutte'],
     enabled: !!companyId,
     queryFn: async (): Promise<SalesVelocity | null> => {
       const { data, error } = await supabase
         .rpc('get_sales_velocity', {
           p_company_id: companyId!,
           p_days_back: daysBack,
+          p_pipeline_id: pipelineId ?? null,
         });
       if (error) throw error;
       if (!data || data.length === 0) return null;
@@ -255,17 +257,19 @@ export function useConversionBySource(
   companyId: string | null,
   dateFrom: string | null = null,
   dateTo: string | null = null,
+  pipelineId?: string,
 ) {
   const { user } = useAuth();
 
   return useQuery({
-    queryKey: [...salesOSKeys.conversionBySource(companyId ?? '', dateFrom, scopeUtente(user?.id)), dateTo ?? 'oggi'],
+    queryKey: [...salesOSKeys.conversionBySource(companyId ?? '', dateFrom, scopeUtente(user?.id)), dateTo ?? 'oggi', pipelineId ?? 'tutte'],
     enabled: !!companyId,
     queryFn: async (): Promise<ConversionBySource[]> => {
       const { data, error } = await (supabase as any).rpc('vendite_per_fonte', {
         p_company: companyId!,
         p_da: dateFrom ?? '2000-01-01',
         p_a: ultimoGiornoCompreso(dateTo),
+        p_pipeline: pipelineId ?? null,
       });
       if (error) throw error;
       return ((data ?? []) as any[])
@@ -356,11 +360,12 @@ export function useQuoteRevenue(
   companyId: string | null,
   dateFrom: string,
   dateTo: string,
+  pipelineId?: string,
 ) {
   const { user } = useAuth();
 
   return useQuery({
-    queryKey: salesOSKeys.quoteRevenue(companyId ?? '', dateFrom, dateTo, scopeUtente(user?.id)),
+    queryKey: [...salesOSKeys.quoteRevenue(companyId ?? '', dateFrom, dateTo, scopeUtente(user?.id)), pipelineId ?? 'tutte'],
     enabled: !!companyId,
     queryFn: async (): Promise<QuoteRevenueSummary> => {
       // vendite_preventivi (20280915410001): firmati per data di FIRMA e importo
@@ -370,15 +375,20 @@ export function useQuoteRevenue(
           p_company: companyId!,
           p_da: dateFrom,
           p_a: ultimoGiornoCompreso(dateTo),
+          p_pipeline: pipelineId ?? null,
         }),
-        (supabase as any)
-          .from('marketing_opportunities')
-          .select('id, quotes!inner(id)', { count: 'exact', head: true })
-          .eq('company_id', companyId!)
-          .eq('status', 'open')
-          .is('deleted_at', null)
-          .in('quotes.status', ['inviata', 'accettata'])
-          .is('quotes.deleted_at', null),
+        (() => {
+          let q = (supabase as any)
+            .from('marketing_opportunities')
+            .select('id, quotes!inner(id)', { count: 'exact', head: true })
+            .eq('company_id', companyId!)
+            .eq('status', 'open')
+            .is('deleted_at', null)
+            .in('quotes.status', ['inviata', 'accettata'])
+            .is('quotes.deleted_at', null);
+          if (pipelineId) q = q.eq('pipeline_id', pipelineId);
+          return q;
+        })(),
       ]);
       if (riepilogo.error) throw riepilogo.error;
       if (conPreventivo.error) throw conPreventivo.error;
