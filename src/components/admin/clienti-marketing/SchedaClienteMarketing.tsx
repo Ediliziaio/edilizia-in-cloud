@@ -18,10 +18,13 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import {
-  csvGiorni, useAppuntamentiCliente, useAssegnaResponsabile, useCanaliCliente, useInserzioniCliente,
-  useResponsabili, useSalvaDiario, useSchedaCliente, type GiornoScheda,
+  csvGiorni, useAppuntamentiCliente, useAssegnaResponsabile, useCanaliCliente, useImpostaPipeline,
+  useInserzioniCliente, useOriginiCliente, usePipelineCliente, useResponsabili, useSalvaDiario,
+  useSchedaCliente, type GiornoScheda,
 } from "./useSchedaCliente";
 import { CanaliCliente } from "./CanaliCliente";
+import { OriginiCliente } from "./OriginiCliente";
+import { PipelineScelta } from "./PipelineScelta";
 import { CampagneCliente } from "./CampagneCliente";
 import { DiarioSettimana } from "./DiarioSettimana";
 import type { Metriche, Allarme } from "./useMktConsole";
@@ -91,6 +94,9 @@ export function SchedaClienteMarketing({
   const [livello, setLivello] = useState<"campagna" | "inserzione">("campagna");
   const campagne = useInserzioniCliente(serviceClientId, livello, da, a);
   const appuntamenti = useAppuntamentiCliente(serviceClientId, da, a);
+  const origini = useOriginiCliente(serviceClientId, da, a);
+  const pipeline = usePipelineCliente(serviceClientId, true);
+  const impostaPipeline = useImpostaPipeline();
   const salvaDiario = useSalvaDiario(serviceClientId);
   const assegna = useAssegnaResponsabile();
   const [cambiaResponsabile, setCambiaResponsabile] = useState(false);
@@ -352,6 +358,7 @@ export function SchedaClienteMarketing({
 
             <TabsContent value="canali" className="m-0 overflow-auto">
               <CanaliCliente canali={canali.data ?? []} caricamento={canali.isLoading} />
+              <OriginiCliente origini={origini.data ?? null} oggi={oggi} />
             </TabsContent>
 
             <TabsContent value="campagne" className="m-0">
@@ -440,7 +447,11 @@ export function SchedaClienteMarketing({
               </table>
             </TabsContent>
 
-            <TabsContent value="imbuto" className="m-0 grid gap-4 p-3 md:grid-cols-3">
+            <TabsContent value="imbuto" className="m-0 space-y-3 p-3">
+              <PipelineScelta pipeline={pipeline.data ?? []} caricamento={pipeline.isLoading}
+                salvataggio={impostaPipeline.isPending}
+                onSalva={(ids) => impostaPipeline.mutate({ serviceClientId, pipelineIds: ids })} />
+              <div className="grid gap-4 md:grid-cols-3">
               <div>
                 <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"><Inbox className="h-3 w-3" /> Dove sono ferme le richieste</div>
                 <ul className="space-y-1 text-xs">
@@ -491,6 +502,7 @@ export function SchedaClienteMarketing({
                     </li>
                   ))}
                 </ul>
+                </div>
               </div>
             </TabsContent>
           </Tabs>

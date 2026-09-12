@@ -292,6 +292,91 @@ export function useAppuntamentiCliente(serviceClientId: string | null, da?: stri
   });
 }
 
+export interface Origini {
+  connessioni: Array<{
+    id: string; stato: string; collegata_il: string; ultima_sincronizzazione: string | null;
+    account_visti: number; account_scelti: number; pagine_scelte: number;
+  }>;
+  account: Array<{
+    id: string; nome: string; spesa: number; copertura: number | null; click: number | null;
+    impression: number | null; lead_dichiarati: number; lead: number; cpl: number | null;
+    ultimo_giorno: string | null; giorni_con_spesa: number; scelto: boolean;
+  }>;
+  pagine: Array<{ id: string; nome: string; lead: number; vendite: number; valore: number; ultimo: string | null }>;
+  periodo: { da: string; a: string };
+}
+
+/**
+ * Business Manager, account pubblicitari e pagine, uno per riga.
+ * Nella stessa azienda ce ne può essere più di uno: sommarli nasconde quale
+ * pezzo funziona e quale no.
+ */
+export function useOriginiCliente(serviceClientId: string | null, da?: string, a?: string) {
+  return useQuery({
+    queryKey: ["clienti-marketing", "origini", serviceClientId, da ?? null, a ?? null],
+    enabled: !!serviceClientId,
+    staleTime: 60_000,
+    placeholderData: keepPreviousData,
+    queryFn: async (): Promise<Origini | null> => {
+      const { data, error } = await db.rpc("admin_cliente_marketing_origini", {
+        p_service_client_id: serviceClientId, p_da: da ?? null, p_a: a ?? null,
+      });
+      if (error) throw error;
+      if (!data) return null;
+      const o = data as Origini;
+      return {
+        ...o,
+        account: (o.account ?? []).map((x) => ({
+          ...x, spesa: Number(x.spesa) || 0, copertura: n(x.copertura), click: n(x.click),
+          impression: n(x.impression), cpl: n(x.cpl),
+        })),
+        pagine: (o.pagine ?? []).map((x) => ({ ...x, valore: Number(x.valore) || 0 })),
+      };
+    },
+  });
+}
+
+export interface PipelineCliente {
+  id: string;
+  nome: string;
+  opportunita: number;
+  nuove_30gg: number;
+  scelta: boolean;
+  tutte: boolean;
+}
+
+/** Le pipeline del cliente, con quante opportunità contengono. */
+export function usePipelineCliente(serviceClientId: string | null, attivo: boolean) {
+  return useQuery({
+    queryKey: ["clienti-marketing", "pipeline", serviceClientId],
+    enabled: !!serviceClientId && attivo,
+    staleTime: 5 * 60_000,
+    queryFn: async (): Promise<PipelineCliente[]> => {
+      const { data, error } = await db.rpc("admin_cliente_marketing_pipeline", {
+        p_service_client_id: serviceClientId,
+      });
+      if (error) throw error;
+      return (data ?? []) as PipelineCliente[];
+    },
+  });
+}
+
+/** Sceglie quali pipeline contano come marketing. Elenco vuoto = tutte. */
+export function useImpostaPipeline() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (v: { serviceClientId: string; pipelineIds: string[] | null }) => {
+      const { data, error } = await db.rpc("admin_cliente_marketing_pipeline_imposta", {
+        p_service_client_id: v.serviceClientId,
+        p_pipeline_ids: v.pipelineIds && v.pipelineIds.length > 0 ? v.pipelineIds : null,
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["clienti-marketing"] }); },
+  });
+}
+
 /** Scrive la riga del diario di una settimana. Il campo lasciato a null non si tocca. */
 export function useSalvaDiario(serviceClientId: string | null) {
   const qc = useQueryClient();
