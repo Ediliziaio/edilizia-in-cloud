@@ -5,7 +5,7 @@
  * l'imbuto e chi lavora dentro l'azienda. Serve a non dover entrare
  * nell'azienda per sapere come va.
  */
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -72,13 +72,49 @@ export interface VenditaScheda {
   venditore: string | null;
 }
 
+export interface RigaDiario {
+  settimana: string;
+  trend: string | null;
+  cosa_fare: string | null;
+  esito: string | null;
+  chiusa: boolean;
+  updated_at: string | null;
+}
+
+export interface CanaleScheda {
+  canale: string;
+  nome: string;
+  spesa: number;
+  spesa_importata: number;
+  spesa_a_mano: number;
+  copertura: number | null;
+  interazioni: number | null;
+  click: number | null;
+  impression: number | null;
+  lead_dichiarati: number;
+  lead: number;
+  con_opportunita: number;
+  vendite: number;
+  valore: number;
+  cpm: number | null;
+  cpc: number | null;
+  cpl: number | null;
+  cpa: number | null;
+  roas: number | null;
+  aggiornato_il: string | null;
+  giorni_con_dati: number;
+  origine_costo: string;
+}
+
 export interface SchedaCliente {
   cliente: {
     id: string; company_id: string; cliente_nome: string; azienda_nome: string | null; logo_url: string | null;
-    stato: string; data_inizio: string | null; commerciale: string | null; servizio: string | null; categoria: string | null;
+    stato: string; data_inizio: string | null; commerciale: string | null; commerciale_id: string | null;
+    responsabile_nome: string | null; servizio: string | null; categoria: string | null;
     mkt_settore: string | null; mkt_classe: string | null; mkt_budget_mensile: number | null; mkt_ticket_medio: number | null;
     mkt_chi_richiama: string | null; azienda_telefono: string | null; azienda_email: string | null; provvigione_scaglioni: unknown;
   } | null;
+  diario: RigaDiario[];
   servizi: Array<{ id: string; servizio: string; categoria: string; stato: string; billing_model: string; ricorrenza: string | null; importo: number; data_inizio: string | null; data_fine: string | null; corrente: boolean; incassato: number; da_incassare: number }>;
   periodo: { da: string; a: string; giorni: number; precedente_da: string };
   totali: {
@@ -133,6 +169,85 @@ export function useSchedaCliente(serviceClientId: string | null, da?: string, a?
         },
       };
     },
+  });
+}
+
+/**
+ * I canali del cliente nello stesso periodo: quanto costa Facebook, quanto
+ * Google, quanto TikTok, e quante richieste vere ha portato ognuno. Sta in una
+ * chiamata a parte perché la scheda è già grande e i canali servono solo
+ * quando si apre quella scheda.
+ */
+export function useCanaliCliente(serviceClientId: string | null, da?: string, a?: string) {
+  return useQuery({
+    queryKey: ["clienti-marketing", "canali", serviceClientId, da ?? null, a ?? null],
+    enabled: !!serviceClientId,
+    staleTime: 60_000,
+    placeholderData: keepPreviousData,
+    queryFn: async (): Promise<CanaleScheda[]> => {
+      const { data, error } = await db.rpc("admin_cliente_marketing_canali", {
+        p_service_client_id: serviceClientId, p_da: da ?? null, p_a: a ?? null,
+      });
+      if (error) throw error;
+      return ((data ?? []) as CanaleScheda[]).map((c) => ({
+        ...c,
+        spesa: Number(c.spesa) || 0,
+        spesa_importata: Number(c.spesa_importata) || 0,
+        spesa_a_mano: Number(c.spesa_a_mano) || 0,
+        valore: Number(c.valore) || 0,
+        copertura: n(c.copertura), interazioni: n(c.interazioni), click: n(c.click), impression: n(c.impression),
+        cpm: n(c.cpm), cpc: n(c.cpc), cpl: n(c.cpl), cpa: n(c.cpa), roas: n(c.roas),
+      }));
+    },
+  });
+}
+
+/** Scrive la riga del diario di una settimana. Il campo lasciato a null non si tocca. */
+export function useSalvaDiario(serviceClientId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (v: { settimana?: string | null; trend?: string | null; cosa_fare?: string | null; esito?: string | null; chiusa?: boolean | null }) => {
+      const { data, error } = await db.rpc("admin_mkt_diario_salva", {
+        p_service_client_id: serviceClientId,
+        p_settimana: v.settimana ?? null,
+        p_trend: v.trend ?? null,
+        p_cosa_fare: v.cosa_fare ?? null,
+        p_esito: v.esito ?? null,
+        p_chiusa: v.chiusa ?? null,
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["clienti-marketing", "scheda"] }); },
+  });
+}
+
+/** Chi può seguire un cliente: le persone con un ruolo di piattaforma. */
+export function useResponsabili(attivo: boolean) {
+  return useQuery({
+    queryKey: ["clienti-marketing", "responsabili"],
+    enabled: attivo,
+    staleTime: 5 * 60_000,
+    queryFn: async (): Promise<Array<{ id: string; nome: string; email: string | null; clienti: number }>> => {
+      const { data, error } = await db.rpc("admin_mkt_responsabili");
+      if (error) throw error;
+      return (data ?? []) as Array<{ id: string; nome: string; email: string | null; clienti: number }>;
+    },
+  });
+}
+
+/** Assegna (o toglie) il responsabile di un contratto. */
+export function useAssegnaResponsabile() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (v: { serviceClientId: string; userId: string | null }) => {
+      const { data, error } = await db.rpc("admin_service_client_responsabile", {
+        p_service_client_id: v.serviceClientId, p_user_id: v.userId,
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["clienti-marketing"] }); },
   });
 }
 

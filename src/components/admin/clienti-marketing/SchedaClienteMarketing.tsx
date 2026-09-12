@@ -17,7 +17,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
-import { csvGiorni, useSchedaCliente, type GiornoScheda } from "./useSchedaCliente";
+import {
+  csvGiorni, useAssegnaResponsabile, useCanaliCliente, useResponsabili, useSalvaDiario,
+  useSchedaCliente, type GiornoScheda,
+} from "./useSchedaCliente";
+import { CanaliCliente } from "./CanaliCliente";
+import { DiarioSettimana } from "./DiarioSettimana";
 import type { Metriche, Allarme } from "./useMktConsole";
 import { variazione, type ClienteMarketing } from "./provvigioni";
 import { dataBreve, eur, numero, ore } from "./formato";
@@ -77,6 +82,11 @@ export function SchedaClienteMarketing({
   const da = useMemo(() => chiaveGiorno(new Date(oggi.getTime() - (giorniPeriodo - 1) * 86400000)), [oggi, giorniPeriodo]);
   const a = useMemo(() => chiaveGiorno(oggi), [oggi]);
   const { data, isLoading, isError, isFetching, refetch } = useSchedaCliente(serviceClientId, da, a);
+  const canali = useCanaliCliente(serviceClientId, da, a);
+  const salvaDiario = useSalvaDiario(serviceClientId);
+  const assegna = useAssegnaResponsabile();
+  const [cambiaResponsabile, setCambiaResponsabile] = useState(false);
+  const responsabili = useResponsabili(cambiaResponsabile);
 
   const nome = data?.cliente?.cliente_nome ?? cliente?.cliente_nome ?? "Cliente";
   const t = data?.totali;
@@ -159,11 +169,34 @@ export function SchedaClienteMarketing({
                   {data.cliente.mkt_settore && <Badge variant="outline" className="text-[10px]">{data.cliente.mkt_settore}</Badge>}
                   {data.cliente.mkt_classe && <Badge variant="outline" className="text-[10px]">classe {data.cliente.mkt_classe}</Badge>}
                 </div>
-                <div className="mt-0.5 text-xs text-muted-foreground">
-                  {data.cliente.data_inizio ? `cliente dal ${dataBreve(data.cliente.data_inizio, false, oggi)}` : "senza data d'inizio"}
-                  {data.cliente.commerciale ? ` · segue ${data.cliente.commerciale}` : " · nessun responsabile assegnato"}
-                  {data.cliente.mkt_budget_mensile ? ` · budget ${eur(data.cliente.mkt_budget_mensile)}/mese` : " · budget non impostato"}
-                  {data.cliente.azienda_email ? ` · ${data.cliente.azienda_email}` : ""}
+                <div className="mt-0.5 flex flex-wrap items-center gap-x-1 text-xs text-muted-foreground">
+                  <span>{data.cliente.data_inizio ? `cliente dal ${dataBreve(data.cliente.data_inizio, false, oggi)}` : "senza data d'inizio"} ·</span>
+                  {/* Chi segue il cliente: da qui in avanti decide anche chi ne vede i numeri. */}
+                  {cambiaResponsabile ? (
+                    <select autoFocus disabled={assegna.isPending}
+                      className="rounded border bg-background px-1.5 py-0.5 text-xs"
+                      defaultValue={data.cliente.commerciale_id ?? ""}
+                      onBlur={() => setCambiaResponsabile(false)}
+                      onChange={(e) => {
+                        assegna.mutate({ serviceClientId, userId: e.target.value || null },
+                          { onSettled: () => setCambiaResponsabile(false) });
+                      }}>
+                      <option value="">nessun responsabile</option>
+                      {(responsabili.data ?? []).map((r) => (
+                        <option key={r.id} value={r.id}>{r.nome}{r.clienti > 0 ? ` (${r.clienti})` : ""}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <button type="button" onClick={() => setCambiaResponsabile(true)}
+                      className="underline-offset-2 hover:text-foreground hover:underline"
+                      title="Chi segue questo cliente vede i suoi numeri nella console e nel rapporto del mattino">
+                      {data.cliente.responsabile_nome ?? data.cliente.commerciale ?? "nessun responsabile"}
+                    </button>
+                  )}
+                  <span>
+                    {data.cliente.mkt_budget_mensile ? ` · budget ${eur(data.cliente.mkt_budget_mensile)}/mese` : " · budget non impostato"}
+                    {data.cliente.azienda_email ? ` · ${data.cliente.azienda_email}` : ""}
+                  </span>
                 </div>
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {data.servizi.map((s) => (
@@ -227,10 +260,18 @@ export function SchedaClienteMarketing({
             </ul>
           )}
 
+          <DiarioSettimana
+            righe={data.diario ?? []}
+            oggi={oggi}
+            salvataggio={salvaDiario.isPending}
+            onSalva={(v) => salvaDiario.mutate(v)}
+          />
+
           <Tabs defaultValue="giorni" className="rounded-xl border bg-card shadow-sm">
             <div className="flex flex-wrap items-center gap-2 border-b px-3 py-2">
               <TabsList className="h-8">
                 <TabsTrigger value="giorni" className="text-xs">Giorno per giorno</TabsTrigger>
+                <TabsTrigger value="canali" className="text-xs">Canali{(canali.data?.length ?? 0) > 0 ? ` (${canali.data!.length})` : ""}</TabsTrigger>
                 <TabsTrigger value="settimane" className="text-xs">Settimane</TabsTrigger>
                 <TabsTrigger value="lead" className="text-xs">Richieste ({data.lead.length})</TabsTrigger>
                 <TabsTrigger value="vendite" className="text-xs">Contratti ({data.vendite.length})</TabsTrigger>
@@ -274,6 +315,10 @@ export function SchedaClienteMarketing({
                   ))}
                 </tbody>
               </table>
+            </TabsContent>
+
+            <TabsContent value="canali" className="m-0 overflow-auto">
+              <CanaliCliente canali={canali.data ?? []} caricamento={canali.isLoading} />
             </TabsContent>
 
             <TabsContent value="settimane" className="m-0 overflow-auto">
