@@ -11,6 +11,7 @@ INSERT INTO public.ad_spend_guard (company_id)
 SELECT c.id FROM public.companies c
 WHERE c.deleted_at IS NULL
   AND NOT EXISTS (SELECT 1 FROM public.ad_spend_guard g WHERE g.company_id = c.id AND g.ad_account_id IS NULL);
+
 CREATE OR REPLACE FUNCTION public.crea_tetto_spesa_ads()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -24,6 +25,7 @@ BEGIN
   RETURN NEW;
 END;
 $function$;
+
 DROP TRIGGER IF EXISTS trg_crea_tetto_spesa_ads ON public.companies;
 CREATE TRIGGER trg_crea_tetto_spesa_ads
 AFTER INSERT ON public.companies

@@ -747,6 +747,41 @@ Deno.serve(async (req) => {
         break;
       }
 
+      /**
+       * I Pixel visibili sui conti pubblicitari scelti dall'azienda.
+       *
+       * Serve a non far più copiare a mano un numero di sedici cifre da
+       * Gestione Inserzioni: l'elenco arriva qui e si sceglie con un clic.
+       */
+      case "list-pixels": {
+        const scelti = await accountiScelti();
+        if (scelti.size === 0) {
+          result = { pixels: [], needs_account: true };
+          break;
+        }
+        const trovati = new Map<string, { id: string; name: string; last_fired_time: string | null }>();
+        for (const act of scelti) {
+          const res = await fetchWithRetry(
+            `https://graph.facebook.com/${apiVersion}/${act}/adspixels?fields=id,name,last_fired_time&limit=50&access_token=${accessToken}`,
+          );
+          const dati = await res.json();
+          if (dati?.error) {
+            console.error("meta-api-proxy list-pixels", act, dati.error?.message);
+            continue;
+          }
+          for (const px of (dati.data ?? []) as Array<{ id: string; name?: string; last_fired_time?: string }>) {
+            if (!px?.id) continue;
+            trovati.set(px.id, {
+              id: px.id,
+              name: px.name || `Pixel ${px.id}`,
+              last_fired_time: px.last_fired_time ?? null,
+            });
+          }
+        }
+        result = { pixels: [...trovati.values()], needs_account: false };
+        break;
+      }
+
       case "get-campaign-insights": {
         const { ad_account_id, date_start, date_end, level: insightLevel, time_increment } = body;
         if (!ad_account_id) {

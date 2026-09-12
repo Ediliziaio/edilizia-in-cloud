@@ -230,7 +230,7 @@ export const macroAreas: MacroArea[] = [
       { title: "Sales OS", url: "/azienda/marketing/sales-os", icon: Gauge, permissionKey: "canViewSalesOs", featureKey: "sales_os" },
       { title: "Reportistica", url: "/azienda/marketing/reportistica", icon: PieChart, permissionKey: "canViewMarketingReports", featureKey: "marketing_reporting" },
       // ─── Marketing ───
-      { title: "Pubblicità", url: "/azienda/marketing/pubblicita", icon: Megaphone, permissionKey: "canViewMarketingDashboard", isBeta: true, groupLabel: "Marketing" },
+      { title: "Pubblicità", url: "/azienda/marketing/pubblicita", icon: Megaphone, permissionKey: "canViewMarketingDashboard", groupLabel: "Marketing" },
       { title: "Gestione Social", url: "/azienda/marketing/social", icon: Share2, permissionKey: "canViewMarketingDashboard" },
       { title: "Reputazione", url: "/azienda/marketing/reputazione", icon: Star, permissionKey: "canViewReputazione" },
       // 2026-04-27: voce "Fotovoltaico" rimossa dalla sidebar.
@@ -320,6 +320,6 @@ export const marketingNavItems: NavItem[] = [
   { title: "Agenti AI", url: "/azienda/agenti-ai?tipo=custom", icon: Bot, permissionKey: "canViewMarketingAiAgent", category: "marketing", subcategory: "mkt_automation" },
   { title: "Sales OS", url: "/azienda/marketing/sales-os", icon: Zap, permissionKey: "canViewMarketingOpportunities", category: "marketing", subcategory: "mkt_analisi" },
   { title: "Reportistica", url: "/azienda/marketing/reportistica", icon: BarChart3, permissionKey: "canViewMarketingReports", category: "marketing", subcategory: "mkt_analisi" },
-  { title: "Pubblicità", url: "/azienda/marketing/pubblicita", icon: Megaphone, permissionKey: "canViewMarketingDashboard", category: "marketing", subcategory: "mkt_analisi", isBeta: true },
+  { title: "Pubblicità", url: "/azienda/marketing/pubblicita", icon: Megaphone, permissionKey: "canViewMarketingDashboard", category: "marketing", subcategory: "mkt_analisi" },
   { title: "Reputazione", url: "/azienda/marketing/reputazione", icon: Star, permissionKey: "canViewMarketingDashboard", category: "marketing", subcategory: "mkt_analisi" },
 ];

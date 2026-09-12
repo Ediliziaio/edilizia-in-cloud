@@ -1,10 +1,22 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- il builderState varia per pagina: il tipo resta uno solo, generico. */
 import type { MetaCampaignRow, MetaCampaignStatus } from "@/types/metaAds";
 
 export type AdsCampaignStatus = Exclude<MetaCampaignStatus, "archived">;
 
 export type AdsMetaCampaign = MetaCampaignRow;
 
-export interface AdsLocalCampaignDraft {
+/**
+ * La bozza di campagna. UN SOLO tipo per tutti.
+ *
+ * Ne esistevano due quasi identici — questo e `LocalCampaignDraft` dentro la
+ * pagina — che il codice mescolava in sei punti. Il compilatore protestava, ma
+ * gli errori erano fra i dieci «tollerati» nel baseline, e in quel rumore si
+ * nascondeva la chiamata a `buildMetaPublishRequest` senza la bozza: la
+ * pubblicazione falliva sempre, e nessuno riusciva a mandare online una
+ * campagna. Il parametro `B` lascia alla pagina il suo builderState tipizzato
+ * senza dover duplicare l'interfaccia.
+ */
+export interface AdsLocalCampaignDraft<B = Record<string, unknown>> {
   id: string;
   name: string;
   objective: string;
@@ -18,11 +30,15 @@ export interface AdsLocalCampaignDraft {
   updatedAt?: string;
   copyVariants: string[];
   imagePrompt: string;
-  builderState?: Record<string, unknown>;
+  builderState?: B;
   adAccountId?: string | null;
   integrationId?: string | null;
   metaCampaignId?: string | null;
+  googleCampaignId?: string | null;
+  googleAccountId?: string | null;
   publishError?: string | null;
+  /** Quando il titolare ha approvato. Serve per i budget sopra soglia. */
+  approvedAt?: string | null;
 }
 
 export interface AdsCampaignRow {
@@ -39,7 +55,7 @@ export interface AdsCampaignRow {
   ads: number;
   targetCplCents: number;
   source: "local";
-  draftRef: AdsLocalCampaignDraft;
+  draftRef: AdsLocalCampaignDraft<any>;
   metaCampaignId?: string | null;
   publishError?: string | null;
 }
@@ -51,7 +67,7 @@ export interface AdsAssetRef {
 
 export interface BuildMetaPublishRequestInput {
   companyId: string;
-  draft: AdsLocalCampaignDraft;
+  draft: AdsLocalCampaignDraft<any>;
   adAccountAsset?: AdsAssetRef | null;
   dryRun?: boolean;
 }
@@ -90,10 +106,11 @@ export function metaCampaignToDraft(campaign: AdsMetaCampaign): AdsLocalCampaign
     integrationId: campaign.integration_id,
     metaCampaignId: campaign.meta_campaign_id,
     publishError: campaign.publish_error,
+    approvedAt: campaign.approved_at ?? null,
   };
 }
 
-export function draftToCampaignRow(draft: AdsLocalCampaignDraft): AdsCampaignRow {
+export function draftToCampaignRow(draft: AdsLocalCampaignDraft<any>): AdsCampaignRow {
   return {
     id: draft.id,
     name: draft.name,

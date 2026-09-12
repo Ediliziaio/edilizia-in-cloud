@@ -184,20 +184,19 @@ export function ProviderChoiceDialog({ open, onOpenChange, onConfirm }: Props) {
               )}
             </div>
             <p className="text-sm text-slate-700">
-              Pubblico per <strong>interessi</strong>, <strong>comportamento</strong> e <strong>zona</strong>.
-              Ideale per <strong>lead generation locale</strong> (preventivi, sopralluoghi)
-              quando il cliente non ti conosce ancora.
+              Mostra gli annunci per <strong>interessi</strong>, <strong>abitudini</strong> e <strong>zona</strong>.
+              È la scelta giusta per farsi trovare da chi non ti conosce ancora e chiede
+              un preventivo o un sopralluogo.
             </p>
             <ul className="mt-3 space-y-1.5 text-xs text-slate-600">
-              <li className="flex items-start gap-1.5"><Check className="mt-0.5 h-3 w-3 shrink-0 text-emerald-600" /> Lead form nativo integrato</li>
-              <li className="flex items-start gap-1.5"><Check className="mt-0.5 h-3 w-3 shrink-0 text-emerald-600" /> Geo + audience reale (Meta API)</li>
-              <li className="flex items-start gap-1.5"><Check className="mt-0.5 h-3 w-3 shrink-0 text-emerald-600" /> CPL tipico 8–25 € (edilizia/serramenti IT)</li>
-              <li className="flex items-start gap-1.5"><Check className="mt-0.5 h-3 w-3 shrink-0 text-emerald-600" /> Custom + Lookalike audiences</li>
+              <li className="flex items-start gap-1.5"><Check className="mt-0.5 h-3 w-3 shrink-0 text-emerald-600" /> Il modulo si compila dentro Facebook</li>
+              <li className="flex items-start gap-1.5"><Check className="mt-0.5 h-3 w-3 shrink-0 text-emerald-600" /> Scegli comuni e raggio di lavoro</li>
+              <li className="flex items-start gap-1.5"><Check className="mt-0.5 h-3 w-3 shrink-0 text-emerald-600" /> In edilizia una richiesta costa di solito 8–25 €</li>
+              <li className="flex items-start gap-1.5"><Check className="mt-0.5 h-3 w-3 shrink-0 text-emerald-600" /> Puoi ripartire dai tuoi clienti già acquisiti</li>
             </ul>
-            <div className="mt-3 flex flex-wrap gap-1">
-              <Badge variant="outline" className="border-blue-200 bg-white text-[10px] text-blue-700">Pronto live</Badge>
-              <Badge variant="outline" className="border-emerald-200 bg-white text-[10px] text-emerald-700">AI completo</Badge>
-            </div>
+            <p className="mt-3 rounded-lg bg-emerald-50 px-2.5 py-1.5 text-[11px] font-medium text-emerald-800">
+              Va online direttamente da qui.
+            </p>
           </button>
 
           {/* GOOGLE CARD */}
@@ -228,20 +227,25 @@ export function ProviderChoiceDialog({ open, onOpenChange, onConfirm }: Props) {
               )}
             </div>
             <p className="text-sm text-slate-700">
-              Pubblico per <strong>parole chiave</strong> (cosa la gente cerca su Google).
-              Intent <strong>alto</strong>: utenti che già sanno cosa vogliono.
-              CPC variabile, ROI eccellente quando il brand è riconoscibile.
+              Mostra gli annunci a chi <strong>cerca</strong> quel lavoro su Google.
+              Sono persone che sanno già cosa vogliono: costano di più per clic,
+              ma rendono molto quando il tuo nome è già conosciuto.
             </p>
             <ul className="mt-3 space-y-1.5 text-xs text-slate-600">
-              <li className="flex items-start gap-1.5"><Check className="mt-0.5 h-3 w-3 shrink-0 text-emerald-600" /> Search intenta (alto intent)</li>
-              <li className="flex items-start gap-1.5"><Check className="mt-0.5 h-3 w-3 shrink-0 text-emerald-600" /> Display reach massimo</li>
-              <li className="flex items-start gap-1.5"><Check className="mt-0.5 h-3 w-3 shrink-0 text-emerald-600" /> YouTube video targeting</li>
-              <li className="flex items-start gap-1.5"><Check className="mt-0.5 h-3 w-3 shrink-0 text-emerald-600" /> Performance Max AI cross-canale</li>
+              <li className="flex items-start gap-1.5"><Check className="mt-0.5 h-3 w-3 shrink-0 text-emerald-600" /> Ricerca: chi sta già cercando il lavoro</li>
+              <li className="flex items-start gap-1.5"><Check className="mt-0.5 h-3 w-3 shrink-0 text-emerald-600" /> Banner: massima visibilità sui siti</li>
+              <li className="flex items-start gap-1.5"><Check className="mt-0.5 h-3 w-3 shrink-0 text-emerald-600" /> Video su YouTube</li>
+              <li className="flex items-start gap-1.5"><Check className="mt-0.5 h-3 w-3 shrink-0 text-emerald-600" /> Performance Max: tutti i canali insieme</li>
             </ul>
-            <div className="mt-3 flex flex-wrap gap-1">
-              <Badge variant="outline" className="border-amber-200 bg-white text-[10px] text-amber-700">Beta</Badge>
-              <Badge variant="outline" className="border-slate-200 bg-white text-[10px] text-slate-500">OAuth richiesto</Badge>
-            </div>
+            {/*
+              Detto chiaro prima di cominciare: la campagna Google si prepara
+              qui ma la pubblicazione automatica non c'è ancora (manca il
+              Developer Token di Google). Scoprirlo dopo un'ora di lavoro nel
+              wizard è il modo più sicuro per far arrabbiare qualcuno.
+            */}
+            <p className="mt-3 rounded-lg bg-amber-50 px-2.5 py-1.5 text-[11px] font-medium text-amber-900">
+              Per ora la prepari qui e la carichi a mano su Google: la pubblicazione automatica non è ancora attiva.
+            </p>
           </button>
         </div>
 

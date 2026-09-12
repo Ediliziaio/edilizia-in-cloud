@@ -81,7 +81,7 @@ Deno.serve(async (req) => {
     // LOAD CAMPAIGN
     const { data: campaign, error: campErr } = await admin
       .from("meta_campaigns")
-      .select("id, meta_campaign_id, integration_id, ad_account_id, builder_state, name")
+      .select("id, meta_campaign_id, integration_id, ad_account_id, builder_state, name, approved_at")
       .eq("id", body.campaign_id)
       .eq("company_id", body.company_id)
       .maybeSingle();
@@ -175,10 +175,19 @@ Deno.serve(async (req) => {
           const guard = (guards ?? []).find((g: { ad_account_id: string | null }) => g.ad_account_id === campaign.ad_account_id)
             ?? (guards ?? []).find((g: { ad_account_id: string | null }) => g.ad_account_id === null);
           if (guard?.is_active) {
-            if (body.patch.daily_budget_cents > guard.campaign_approval_threshold_cents && !isSuperAdmin) {
+            // Sopra la soglia serve l'ok del TITOLARE, non dell'amministratore
+            // della piattaforma: chiedere un super_admin qui significava che
+            // nessun cliente poteva alzare il budget della propria campagna.
+            if (
+              guard.campaign_approval_threshold_cents > 0 &&
+              body.patch.daily_budget_cents > guard.campaign_approval_threshold_cents &&
+              !isSuperAdmin &&
+              !campaign.approved_at
+            ) {
+              const soglia = (guard.campaign_approval_threshold_cents / 100).toFixed(0);
               return json({
                 error: "spend_guard_block",
-                detail: `Budget ${(body.patch.daily_budget_cents / 100).toFixed(0)}€/g sopra la soglia approvazione (${(guard.campaign_approval_threshold_cents / 100).toFixed(0)}€/g). Serve super_admin.`,
+                detail: `Budget ${(body.patch.daily_budget_cents / 100).toFixed(0)} €/giorno sopra la soglia di ${soglia} €/giorno: manda la campagna in revisione e fatti dare l'ok dal titolare.`,
               }, 403, corsHeaders);
             }
             if (body.patch.daily_budget_cents > guard.daily_cap_cents) {

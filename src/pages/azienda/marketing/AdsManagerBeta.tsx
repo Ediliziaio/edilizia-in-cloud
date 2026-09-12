@@ -65,7 +65,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { isDemoCompanyId } from "@/lib/constants/demoCompany";
 import {
   buildMetaPublishRequest,
   draftToCampaignRow,
@@ -175,8 +174,6 @@ interface CampaignRow {
   googleChannel?: BuilderState["googleChannel"];
   targetCplCents?: number;
   source: "meta" | "google" | "local";
-  /** True per campagne demo seed (non vanno nei KPI reali). */
-  isDemo?: boolean;
   /** Riferimento al draft locale completo (se source==='local'). */
   draftRef?: LocalCampaignDraft;
   metaCampaignId?: string | null;
@@ -184,29 +181,12 @@ interface CampaignRow {
   publishError?: string | null;
 }
 
-interface LocalCampaignDraft {
-  id: string;
-  name: string;
-  objective: string;
-  status: CampaignStatus;
-  budgetCents: number;
-  zone: string;
-  adSets: number;
-  ads: number;
-  targetCplCents: number;
-  createdAt: string;
-  updatedAt?: string;
-  copyVariants: string[];
-  imagePrompt: string;
-  /** Stato completo del builder per riapertura/edit (v2). */
-  builderState?: BuilderState;
-  adAccountId?: string | null;
-  integrationId?: string | null;
-  metaCampaignId?: string | null;
-  googleCampaignId?: string | null;
-  googleAccountId?: string | null;
-  publishError?: string | null;
-}
+/**
+ * La bozza, con il builderState tipizzato: stesso tipo della libreria, non una
+ * copia. Le due versioni divergenti mescolate fra loro sono ciò che ha lasciato
+ * passare la pubblicazione rotta.
+ */
+type LocalCampaignDraft = AdsLocalCampaignDraft<BuilderState>;
 
 interface BuilderState {
   /** Piattaforma pubblicitaria: 'meta' (Facebook/Instagram) o 'google' (Search/Display/PMax). */
@@ -274,8 +254,10 @@ interface BuilderState {
 
 const TABS: Array<{ value: AdsTab; label: string; icon: React.ComponentType<{ className?: string }> }> = [
   { value: "campagne", label: "Campagne", icon: Megaphone },
-  { value: "creativita", label: "Creatività", icon: Wand2 },
-  { value: "pubblici", label: "Pubblici", icon: Target },
+  { value: "creativita", label: "Immagini e testi", icon: Wand2 },
+  // "Pubblici" prometteva una gestione dei pubblici che non c'è: la scheda
+  // spiega quali pubblici usare e quando, ed è questo che deve dire il nome.
+  { value: "pubblici", label: "Guida ai pubblici", icon: Target },
   { value: "impostazioni", label: "Impostazioni", icon: Settings },
 ];
 
@@ -342,114 +324,6 @@ const CREATIVE_ANGLE_PRESETS: Array<{
     title: "Secondo contatto",
     hook: "Risposta a obiezione per chi ti ha gia visto",
     goal: "Recuperare visitatori e lead tiepidi con messaggio piu specifico.",
-  },
-];
-
-/**
- * Sample campagne — marcate come `isDemo: true` per:
- *  • non inquinare i KPI reali (spese/lead/commesse)
- *  • mostrare esempio visivo nella lista finché non esistono campagne reali
- * Vengono mostrate solo se l'utente attiva il toggle "Mostra esempi".
- */
-const SAMPLE_CAMPAIGNS: CampaignRow[] = [
-  {
-    id: "demo-1",
-    name: "[ESEMPIO] Serramenti - Lead Monza Brianza",
-    objective: "OUTCOME_LEADS",
-    status: "active",
-    platform: "meta",
-    budgetCents: 3000,
-    spentCents: 184000,
-    leads: 23,
-    opportunities: 9,
-    jobs: 5,
-    revenueCents: 6800000,
-    roas: 36.96,
-    adSets: 3,
-    ads: 9,
-    targetCplCents: 2200,
-    source: "meta",
-    isDemo: true,
-  },
-  {
-    id: "demo-2",
-    name: "[ESEMPIO] Bagni chiavi in mano",
-    objective: "OUTCOME_LEADS",
-    status: "paused",
-    platform: "meta",
-    budgetCents: 2500,
-    spentCents: 210000,
-    leads: 14,
-    opportunities: 5,
-    jobs: 2,
-    revenueCents: 2550000,
-    roas: 12.14,
-    adSets: 2,
-    ads: 6,
-    targetCplCents: 2800,
-    source: "meta",
-    isDemo: true,
-  },
-  {
-    id: "demo-3",
-    name: "[ESEMPIO] Brand awareness - provincia",
-    objective: "OUTCOME_AWARENESS",
-    status: "review",
-    platform: "meta",
-    budgetCents: 1500,
-    spentCents: 34000,
-    leads: 4,
-    opportunities: 1,
-    jobs: 0,
-    revenueCents: 0,
-    roas: 0,
-    adSets: 1,
-    ads: 3,
-    targetCplCents: 1800,
-    source: "meta",
-    isDemo: true,
-  },
-  {
-    id: "demo-google-1",
-    name: "[ESEMPIO] Google Search - Ristrutturazione bagno Milano",
-    objective: "OUTCOME_LEADS",
-    status: "active",
-    platform: "google",
-    budgetCents: 4000,
-    spentCents: 156000,
-    leads: 18,
-    opportunities: 11,
-    jobs: 4,
-    revenueCents: 5900000,
-    roas: 37.82,
-    adSets: 2,
-    ads: 4,
-    targetCplCents: 3000,
-    googleChannel: "SEARCH",
-    source: "google",
-    isDemo: true,
-    googleCampaignId: "g-demo-search-1",
-  },
-  {
-    id: "demo-google-2",
-    name: "[ESEMPIO] Performance Max - Serramenti provincia",
-    objective: "OUTCOME_LEADS",
-    status: "review",
-    platform: "google",
-    budgetCents: 3500,
-    spentCents: 92000,
-    leads: 10,
-    opportunities: 6,
-    jobs: 1,
-    revenueCents: 1450000,
-    roas: 15.76,
-    adSets: 1,
-    ads: 8,
-    targetCplCents: 2800,
-    googleChannel: "PERFORMANCE_MAX",
-    source: "google",
-    isDemo: true,
-    googleCampaignId: "g-demo-pmax-1",
   },
 ];
 
@@ -587,7 +461,10 @@ const DEFAULT_BUILDER: BuilderState = {
   qualityQuestion: "Quando vorresti fare il lavoro?",
   privacyUrl: "",
   followUp: "Crea lead CRM, assegna al commerciale e invia WhatsApp entro 5 minuti.",
-  landingUrl: "https://www.ediliziaincloud.com/demo",
+  // Vuoto di proposito: la pagina di atterraggio la mette l'azienda.
+  // Il valore di prima puntava alla demo di Edilizia in Cloud e sarebbe
+  // finito negli annunci di chi non la cambiava.
+  landingUrl: "",
   cta: "GET_QUOTE",
   imagePrompt: "Foto realistica di infissi moderni installati in una casa italiana luminosa, prima/dopo elegante, logo aziendale discreto, tono premium.",
   copyBrief: "Sostituzione infissi con consulenza, sopralluogo e preventivo chiaro per famiglie nella zona.",
@@ -631,13 +508,18 @@ const DEFAULT_BUILDER: BuilderState = {
 DEFAULT_BUILDER.adSets = buildDefaultAdSets(DEFAULT_BUILDER);
 DEFAULT_BUILDER.creatives = buildDefaultCreatives(DEFAULT_BUILDER);
 
+const OPZIONI_EURO: Intl.NumberFormatOptions = {
+  style: "currency",
+  currency: "EUR",
+  maximumFractionDigits: 0,
+  // "always" esiste nei browser (ES2023) ma non nelle definizioni ES2022 del progetto
+  useGrouping: "always" as unknown as boolean,
+};
+
 function formatEuro(cents: number) {
   // Guardia NaN/Infinity: una divisione anomala a monte mostrava "€NaN" nei KPI
   if (!Number.isFinite(cents)) return "—";
-  return new Intl.NumberFormat("it-IT", {
-    style: "currency",
-    currency: "EUR",
-    maximumFractionDigits: 0, useGrouping: "always" }).format(cents / 100);
+  return new Intl.NumberFormat("it-IT", OPZIONI_EURO).format(cents / 100);
 }
 
 /**
@@ -899,6 +781,8 @@ function getPublishQa(
   draft: LocalCampaignDraft,
   meta: ReturnType<typeof useMetaConnection>,
   pixelConfig: MetaConversionPixelRow | null | undefined,
+  /** Soglia oltre la quale serve l'ok del titolare, in centesimi. 0 = nessuna. */
+  sogliaApprovazioneCent = 0,
 ) {
   const state = draft.builderState;
   const blockers: string[] = [];
@@ -937,6 +821,15 @@ function getPublishQa(
     { ok: state.creatives.length >= 3 && state.imagePrompt.trim().length >= 40, message: "Creativita non completa o non approvata." },
     { ok: state.followUp.trim().length >= 20, message: "Follow-up CRM non pronto." },
     { ok: readiness.score >= 80, message: "Checklist lancio sotto 80/100." },
+    // Il tetto di spesa rifiuta la pubblicazione sopra soglia senza l'ok del
+    // titolare: meglio dirlo qui che far arrivare l'errore da Meta.
+    {
+      ok:
+        sogliaApprovazioneCent <= 0 ||
+        getCampaignDailyBudget(state) * 100 <= sogliaApprovazioneCent ||
+        Boolean(draft.approvedAt),
+      message: `Budget sopra ${Math.round(sogliaApprovazioneCent / 100)} €/giorno: mandala in revisione e fatti dare l'ok dal titolare.`,
+    },
   ];
 
   blockers.push(...checks.filter((check) => !check.ok).map((check) => check.message));
@@ -1252,11 +1145,13 @@ function useAdsCampaignBusinessMetrics(companyId: string | undefined, campaigns:
 }
 
 function toLocalCampaignDraft(
-  draft: Omit<AdsLocalCampaignDraft, "status"> & { status?: CampaignStatus },
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- accetta bozze con qualunque forma di builderState (Meta, Google, legacy)
+  draft: Omit<AdsLocalCampaignDraft<any>, "status"> & { status?: CampaignStatus | "archived" },
 ): LocalCampaignDraft {
   return {
     ...draft,
-    status: draft.status ?? "draft",
+    // una bozza archiviata torna in elenco come bozza, come fa metaCampaignToDraft
+    status: !draft.status || draft.status === "archived" ? "draft" : draft.status,
     builderState: draft.builderState as BuilderState | undefined,
   };
 }
@@ -1443,7 +1338,6 @@ export default function AdsManagerBeta() {
   const { effectiveCompany, role } = useAuth();
   const companyId = effectiveCompany?.id;
   const companyName = effectiveCompany?.name ?? "La tua azienda";
-  const isDemoCompany = isDemoCompanyId(companyId);
   const isAdmin = role === "company_admin" || role === "super_admin";
   // Picker account pubblicitario: serve quando l'utente Meta (agenzia) ha più
   // account e bisogna scegliere quello dell'azienda. Solo admin (RLS enforced).
@@ -1602,6 +1496,10 @@ export default function AdsManagerBeta() {
     [updateCampaignStatus, updateGoogleCampaignStatus],
   );
 
+  // Il tetto di spesa dell'azienda: serve al pannello dei numeri e al
+  // controllo che precede la pubblicazione, quindi si legge prima di entrambi.
+  const { config: spendGuardConfig } = useAdSpendGuard(companyId);
+
   const [isPublishing, setIsPublishing] = useState(false);
   const publishDraft = useCallback(
     async (draft: LocalCampaignDraft) => {
@@ -1609,7 +1507,7 @@ export default function AdsManagerBeta() {
       if (draft.builderState?.platform === "google") {
         throw new Error("Google Ads live richiede OAuth Google Ads e Developer Token: completa il collegamento in Impostazioni.");
       }
-      const publishQa = getPublishQa(draft, meta, pixel.config);
+      const publishQa = getPublishQa(draft, meta, pixel.config, spendGuardConfig.campaign_approval_threshold_cents);
       if (publishQa.blockers.length > 0) {
         throw new Error(`QA pre-pubblicazione: ${publishQa.blockers[0]}`);
       }
@@ -1617,6 +1515,12 @@ export default function AdsManagerBeta() {
       try {
         const request = buildMetaPublishRequest({
           companyId,
+          // La bozza da pubblicare: mancava, e siccome il controllo tipi va in
+          // OOM su questo file nessuno se n'era accorto. La pubblicazione
+          // falliva SEMPRE con un errore illeggibile prima ancora di parlare
+          // con Meta — ecco perché nessuno era mai riuscito a mandare online
+          // una campagna.
+          draft,
           // getPublishQa garantisce selectedAdAccounts.length === 1: usiamo
           // l'account SELEZIONATO, non adAccounts[0] (alfabetico → poteva
           // essere quello di un altro cliente).
@@ -1647,7 +1551,62 @@ export default function AdsManagerBeta() {
         setIsPublishing(false);
       }
     },
-    [companyId, meta, pixel.config, queryClient],
+    [companyId, meta, pixel.config, queryClient, spendGuardConfig.campaign_approval_threshold_cents],
+  );
+
+  /**
+   * Pausa e riattivazione su Meta.
+   *
+   * I due pulsanti c'erano già nell'elenco ma mostravano solo un avviso:
+   * «azione non attiva in Beta locale». La funzione lato server esiste da
+   * sempre e nessuno la chiamava, quindi una campagna online si poteva fermare
+   * solo entrando in Gestione Inserzioni di Meta.
+   */
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+  const toggleCampaignStatus = useCallback(
+    async (campaign: CampaignRow) => {
+      if (!companyId) return;
+      if (campaign.platform !== "meta" || !campaign.metaCampaignId) {
+        toast.info("Disponibile solo per le campagne Meta già pubblicate");
+        return;
+      }
+      const spegni = campaign.status === "active";
+      setTogglingId(campaign.id);
+      try {
+        const { data, error } = await supabase.functions.invoke<{
+          success?: boolean;
+          error?: string;
+          detail?: string;
+        }>("meta-ads-update-campaign", {
+          body: {
+            company_id: companyId,
+            campaign_id: campaign.id,
+            action: spegni ? "pause" : "activate",
+          },
+        });
+        if (error) throw error;
+        if (data?.error || data?.success === false) {
+          throw new Error(data?.detail ?? data?.error ?? "aggiornamento_fallito");
+        }
+        await queryClient.invalidateQueries({ queryKey: metaCampaignKeys.byCompany(companyId) });
+        toast.success(spegni ? "Campagna messa in pausa" : "Campagna online", {
+          description: spegni
+            ? "Meta ha smesso di mostrare gli annunci: la spesa si ferma."
+            : "Meta ha ripreso a mostrare gli annunci.",
+        });
+      } catch (err) {
+        const messaggio = err instanceof Error ? err.message : String(err);
+        toast.error(spegni ? "Non sono riuscito a mettere in pausa" : "Non sono riuscito ad attivare", {
+          description:
+            messaggio === "forbidden_activate"
+              ? "Solo il titolare può mandare online una campagna."
+              : messaggio,
+        });
+      } finally {
+        setTogglingId(null);
+      }
+    },
+    [companyId, queryClient],
   );
 
   const view: ViewMode =
@@ -1662,32 +1621,6 @@ export default function AdsManagerBeta() {
   const activeTab: AdsTab = TABS.some((tab) => tab.value === requestedTab)
     ? (requestedTab as AdsTab)
     : "campagne";
-
-  // Toggle "mostra esempi" persistito in localStorage
-  // v2: il vecchio default (mostra-se-zero-bozze) veniva auto-persistito → chi
-  // aveva già aperto la pagina restava con gli esempi accesi. Nuova chiave =
-  // tutti ripartono dal default pulito (nascosti).
-  const sampleKey = companyId ? `eic_ads_manager_show_samples_v2_${companyId}` : null;
-  const [showSamples, setShowSamples] = useState<boolean>(() => {
-    // Default: NASCOSTI. Le campagne [ESEMPIO] con numeri finti ("Attiva",
-    // spesa, lead) mescolate alla lista vera confondevano — sembravano
-    // campagne reali sotto un empty-state che dice "non hai ancora campagne".
-    // Chi vuole vederle usa il toggle "Mostra esempi" (scelta persistita).
-    if (!sampleKey) return false;
-    try {
-      return window.localStorage.getItem(sampleKey) === "1";
-    } catch {
-      return false;
-    }
-  });
-  useEffect(() => {
-    if (!sampleKey) return;
-    try {
-      window.localStorage.setItem(sampleKey, showSamples ? "1" : "0");
-    } catch {
-      // ignore
-    }
-  }, [showSamples, sampleKey]);
 
   // Provider choice dialog — si apre quando l'utente clicca "Crea Campagna".
   // Forza scelta esplicita Meta vs Google PRIMA del wizard, perché i due
@@ -1757,7 +1690,6 @@ export default function AdsManagerBeta() {
   );
 
   const businessMetrics = useAdsCampaignBusinessMetrics(companyId, draftRows);
-  // Solo i draft reali contano per i KPI reali. SAMPLE_CAMPAIGNS sono demo.
   const realCampaigns = useMemo(
     () =>
       draftRows.map((campaign) => {
@@ -1775,13 +1707,10 @@ export default function AdsManagerBeta() {
       }),
     [draftRows, businessMetrics.byCampaign],
   );
-  const allCampaigns = useMemo(
-    () => (showSamples ? [...realCampaigns, ...SAMPLE_CAMPAIGNS] : realCampaigns),
-    [realCampaigns, showSamples],
-  );
-
-  // Spend Guard: il cap mensile arriva dal DB (ad_spend_guard) con fallback default
-  const { config: spendGuardConfig } = useAdSpendGuard(companyId);
+  // Le campagne di esempio sono state tolte: con numeri finti ("Attiva",
+  // spesa, lead) mescolati ai propri, chi apriva la pagina non capiva più
+  // quali fossero le sue.
+  const allCampaigns = realCampaigns;
 
   const monthlySpend = realCampaigns.reduce((sum, c) => sum + c.spentCents, 0);
   const totalLeads = realCampaigns.reduce((sum, c) => sum + c.leads, 0);
@@ -1793,10 +1722,9 @@ export default function AdsManagerBeta() {
   const monthlyCap = spendGuardConfig.monthly_cap_cents;
   const spendPct = monthlyCap > 0 ? Math.min(100, Math.round((monthlySpend / monthlyCap) * 100)) : 0;
 
-  // Modulo Pubblicità: ora PUBBLICO per tutte le aziende (gate = solo permesso
-  // canViewMarketingDashboard + badge beta). L'azienda Demo mantiene i sample
-  // showcase (isDemoCompany usato sotto per connessioni mock + esempi); le
-  // aziende reali collegano i propri account Meta/Google e vedono i propri dati.
+  // Modulo aperto a tutte le aziende: il gate è il permesso
+  // canViewMarketingDashboard. Ogni azienda collega i propri account
+  // Meta e Google e vede soltanto i propri dati.
 
   // ---- QUICK START (AI brief parser, 60s) ----
   if (view === "quickstart") {
@@ -1805,7 +1733,10 @@ export default function AdsManagerBeta() {
         <QuickStartCampaign
           companyId={companyId}
           companyName={companyName}
-          companyCity={effectiveCompany?.city ?? null}
+          // `city` su Company non esiste (sono operational_city / legal_city):
+          // la citta' arrivava sempre vuota e l'AI preparava una campagna
+          // locale senza sapere dove lavora l'azienda.
+          companyCity={effectiveCompany?.operational_city ?? effectiveCompany?.legal_city ?? null}
           onCancel={() => backToList()}
           onConfirm={async (parsed) => {
             // Costruisci BuilderState a partire dal risultato AI
@@ -1874,6 +1805,7 @@ export default function AdsManagerBeta() {
           <ConnectionPill
             meta={meta}
             google={google}
+            pixelConfig={pixel.config}
             onPickAdAccount={isAdmin && meta.allAdAccounts.length > 1 ? () => setAdAccountPickerOpen(true) : undefined}
           />
           <AdAccountPickerDialog
@@ -1951,7 +1883,7 @@ export default function AdsManagerBeta() {
     }
     const draftPlatform = draft.builderState?.platform ?? "meta";
     const publishQa =
-      draftPlatform === "google" ? getGooglePublishQa(draft, google) : getPublishQa(draft, meta, pixel.config);
+      draftPlatform === "google" ? getGooglePublishQa(draft, google) : getPublishQa(draft, meta, pixel.config, spendGuardConfig.campaign_approval_threshold_cents);
     return (
       <div className="min-h-screen bg-slate-50/70">
         <DetailHeader
@@ -2027,6 +1959,7 @@ export default function AdsManagerBeta() {
         <ConnectionPill
           meta={meta}
           google={google}
+          pixelConfig={pixel.config}
           onPickAdAccount={isAdmin && meta.allAdAccounts.length > 1 ? () => setAdAccountPickerOpen(true) : undefined}
         />
         <AdAccountPickerDialog
@@ -2073,8 +2006,6 @@ export default function AdsManagerBeta() {
               costPerLead={costPerLead}
               costPerJob={costPerJob}
               roas={roas}
-              showSamples={showSamples}
-              onToggleSamples={setShowSamples}
               isLoading={
                 allCampaigns.length === 0 &&
                 (campaignsLoading || googleCampaignsLoading || businessMetrics.isLoading)
@@ -2093,6 +2024,8 @@ export default function AdsManagerBeta() {
                   });
                 }
               }}
+              onToggleStatus={toggleCampaignStatus}
+              togglingId={togglingId}
             />
           </TabsContent>
 
@@ -2105,7 +2038,7 @@ export default function AdsManagerBeta() {
           </TabsContent>
 
           <TabsContent value="impostazioni" className="mt-4">
-            <SettingsTab meta={meta} google={google} companyId={companyId} />
+            <SettingsTab meta={meta} google={google} companyId={companyId} pixelConfig={pixel.config} />
           </TabsContent>
         </Tabs>
       </main>
@@ -2120,34 +2053,16 @@ function ListHeader({ onCreate }: { onCreate: () => void }) {
     <div className="border-b bg-white">
       <div className="mx-auto flex max-w-[1500px] flex-col gap-4 px-4 py-5 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
-          <div className="mb-2 flex flex-wrap items-center gap-2">
-            <Badge className="border-orange-200 bg-orange-50 text-orange-700" variant="outline">
-              Beta Demo Azienda
-            </Badge>
-            <Badge className="border-blue-200 bg-blue-50 text-blue-700" variant="outline">
-              Meta + Google Ads
-            </Badge>
-            <Badge className="border-slate-200 bg-white text-slate-600" variant="outline">
-              Pubblicazione live disattivata
-            </Badge>
-          </div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">Pubblicità</h1>
-          <p className="mt-1 max-w-3xl text-sm text-slate-600">
-            Crea richieste preventivo qualificate da Meta e Google Ads senza confondere i due canali. Le bozze restano separate, mentre KPI CRM, vendite, fatturato e ROAS sono letti insieme.
+          <p className="mt-1 max-w-2xl text-sm text-slate-600">
+            Porta richieste di preventivo dalla pubblicità su Facebook, Instagram e Google.
+            Ogni campagna nasce in pausa: va online solo quando la attivi tu.
           </p>
         </div>
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <Button variant="outline" asChild>
-            <Link to="/azienda/impostazioni/integrazioni">
-              <Settings className="h-4 w-4" />
-              Collega Ads
-            </Link>
-          </Button>
-          <Button onClick={onCreate}>
-            <Plus className="h-4 w-4" />
-            Nuova campagna
-          </Button>
-        </div>
+        <Button onClick={onCreate} size="lg" className="shrink-0">
+          <Plus className="h-4 w-4" />
+          Nuova campagna
+        </Button>
       </div>
     </div>
   );
@@ -2311,105 +2226,149 @@ function DetailHeader({
  * Tutta la versione "verbose" è stata spostata nel SettingsTab > setupBlocks
  * per evitare ridondanza con i badge nell'header.
  */
+/**
+ * La striscia «pronto a pubblicare».
+ *
+ * Prima qui c'erano due pastiglie con lo stato grezzo delle integrazioni: chi
+ * apriva la pagina leggeva «ad account da configurare» e non sapeva dove
+ * andare. Ora i passaggi sono numerati, ognuno dice cosa manca e porta al
+ * posto giusto; quando sono tutti a posto la striscia si riduce a una riga
+ * verde e smette di occupare spazio.
+ */
 function ConnectionPill({
   meta,
   google,
+  pixelConfig,
   onPickAdAccount,
 }: {
   meta: ReturnType<typeof useMetaConnection>;
   google: ReturnType<typeof useGoogleAdsConnection>;
+  pixelConfig: MetaConversionPixelRow | null | undefined;
   /** Presente solo per admin con più ad account: apre il picker. */
   onPickAdAccount?: () => void;
 }) {
   const metaConnected = meta.integration?.status === "connected";
-  const metaReady = metaConnected && meta.adAccounts.length > 0 && meta.pages.length > 0;
+  const contoScelto = meta.selectedAdAccounts.length === 1;
+  const paginaOk = meta.pages.length > 0;
+  const pixelMesso = Boolean(pixelConfig?.pixel_id);
+  const pixelProvato = Boolean(
+    pixelConfig?.last_event_at ||
+      (pixelConfig?.pixel_events_last_24h ?? 0) > 0 ||
+      (pixelConfig?.capi_events_last_24h ?? 0) > 0,
+  );
   const googleConnected = google.integration?.status === "connected";
   const googleReady = googleConnected && google.accounts.length > 0;
-  const anyMissing = !metaReady || !googleReady;
-  // Nome dell'account attivo: più utile del conteggio quando è uno solo.
-  const activeAdAccountName = meta.adAccounts[0]?.asset_name;
+
+  const passi = [
+    {
+      titolo: "Collega Facebook",
+      fatto: metaConnected,
+      manca: "Serve l'accesso al tuo account Meta.",
+      fattoDetail: "account Meta collegato",
+      azione: { label: "Collega", href: "/azienda/impostazioni/lead-forms" },
+    },
+    {
+      titolo: "Scegli conto e pagina",
+      fatto: metaConnected && contoScelto && paginaOk,
+      manca: !contoScelto
+        ? meta.adAccounts.length === 0
+          ? "Nessun conto pubblicitario trovato."
+          : "Scegli un solo conto pubblicitario."
+        : "Collega la pagina Facebook da cui escono gli annunci.",
+      fattoDetail: `${meta.selectedAdAccounts[0]?.asset_name ?? "conto attivo"} · ${meta.pages.length} ${meta.pages.length === 1 ? "pagina" : "pagine"}`,
+      azione: onPickAdAccount && metaConnected
+        ? { label: "Scegli conto", onClick: onPickAdAccount }
+        : { label: "Configura", href: "/azienda/impostazioni/lead-forms" },
+    },
+    {
+      titolo: "Attiva il Pixel",
+      fatto: pixelMesso && pixelProvato,
+      manca: pixelMesso ? "Fai un evento di prova per verificarlo." : "Serve per misurare chi chiede il preventivo.",
+      fattoDetail: "eventi in arrivo",
+      azione: { label: "Configura", href: "?tab=impostazioni#pixel-config" },
+    },
+  ];
+
+  const mancanti = passi.filter((p) => !p.fatto);
+  const caricamento = meta.isLoading;
+
+  if (!caricamento && mancanti.length === 0) {
+    return (
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-2.5 text-sm">
+        <Check className="h-4 w-4 shrink-0 text-emerald-600" />
+        <span className="font-semibold text-emerald-900">Tutto pronto: puoi pubblicare.</span>
+        <span className="text-emerald-800/80">
+          {meta.selectedAdAccounts[0]?.asset_name ?? "conto Meta"} · Pixel attivo
+          {googleReady ? " · Google Ads collegato" : ""}
+        </span>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-2.5">
-      <div className="flex flex-wrap items-center gap-2 text-sm">
-        <ConnectionChip
-          loading={meta.isLoading}
-          connected={metaReady}
-          label="Meta Ads"
-          detail={
-            metaReady
-              ? `${activeAdAccountName ?? `${meta.adAccounts.length} ad account`} · ${meta.pages.length} ${meta.pages.length === 1 ? "pagina" : "pagine"}`
-              : metaConnected
-                ? meta.adAccounts.length === 0
-                  ? "ad account da configurare"
-                  : "pagina da configurare"
-                : "non collegato"
-          }
-          tone="blue"
-        />
-        {onPickAdAccount && metaConnected && (
-          <button
-            type="button"
-            onClick={onPickAdAccount}
-            className="rounded-full border border-slate-200 px-2.5 py-0.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900"
-          >
-            Cambia account
-          </button>
+    <div className="rounded-xl border border-slate-200 bg-white p-4">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm font-semibold text-slate-900">
+          {caricamento ? "Controllo i collegamenti…" : `${mancanti.length === 1 ? "Manca 1 passaggio" : `Mancano ${mancanti.length} passaggi`} per pubblicare`}
+        </p>
+        {!caricamento && (
+          <span className="text-xs text-slate-500">
+            Puoi preparare le campagne intanto: restano in bozza.
+          </span>
         )}
-        <ConnectionChip
-          loading={google.isLoading}
-          connected={googleReady}
-          label="Google Ads"
-          detail={
-            googleReady
-              ? `${google.accounts.length} customer ID${google.selectedAccount?.customer_name ? ` · ${google.selectedAccount.customer_name}` : ""}`
-              : googleConnected
-                ? "Customer ID da configurare"
-              : "non collegato"
-          }
-          tone="amber"
-        />
       </div>
-      {anyMissing && (
-        <Button variant="link" size="sm" className="h-auto p-0 text-xs underline" asChild>
-          <Link to="/azienda/impostazioni/integrazioni">Configura integrazioni</Link>
-        </Button>
+      <ol className="grid gap-2 sm:grid-cols-3">
+        {passi.map((passo, i) => (
+          <li
+            key={passo.titolo}
+            className={cn(
+              "flex items-start gap-3 rounded-lg border p-3",
+              passo.fatto ? "border-emerald-200 bg-emerald-50/50" : "border-slate-200 bg-slate-50/60",
+            )}
+          >
+            <span
+              className={cn(
+                "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold",
+                passo.fatto ? "bg-emerald-600 text-white" : "bg-white text-slate-600 ring-1 ring-slate-300",
+              )}
+            >
+              {caricamento ? <Loader2 className="h-3 w-3 animate-spin" /> : passo.fatto ? <Check className="h-3.5 w-3.5" /> : i + 1}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium text-slate-900">{passo.titolo}</p>
+              <p className="truncate text-xs text-slate-600">{passo.fatto ? passo.fattoDetail : passo.manca}</p>
+              {!passo.fatto && !caricamento && (
+                passo.azione.onClick ? (
+                  <button
+                    type="button"
+                    onClick={passo.azione.onClick}
+                    className="mt-1 text-xs font-semibold text-orange-700 underline underline-offset-2"
+                  >
+                    {passo.azione.label}
+                  </button>
+                ) : (
+                  <Link
+                    to={passo.azione.href!}
+                    className="mt-1 inline-block text-xs font-semibold text-orange-700 underline underline-offset-2"
+                  >
+                    {passo.azione.label}
+                  </Link>
+                )
+              )}
+            </div>
+          </li>
+        ))}
+      </ol>
+      {!googleReady && (
+        <p className="mt-3 text-xs text-slate-500">
+          Vuoi anche Google?{" "}
+          <Link to="/azienda/impostazioni/integrazioni" className="font-semibold text-slate-700 underline underline-offset-2">
+            Collega Google Ads
+          </Link>{" "}
+          — facoltativo, Facebook e Instagram bastano per partire.
+        </p>
       )}
     </div>
-  );
-}
-
-function ConnectionChip({
-  loading,
-  connected,
-  label,
-  detail,
-  tone,
-}: {
-  loading: boolean;
-  connected: boolean;
-  label: string;
-  detail: string;
-  tone: "blue" | "amber";
-}) {
-  const toneClass =
-    connected
-      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-      : tone === "amber"
-        ? "border-amber-200 bg-amber-50 text-amber-800"
-        : "border-blue-200 bg-blue-50 text-blue-700";
-  return (
-    <span className={cn("inline-flex items-center gap-2 rounded-full border px-3 py-1", toneClass)}>
-      {loading ? (
-        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-      ) : connected ? (
-        <Check className="h-3.5 w-3.5" />
-      ) : (
-        <AlertTriangle className="h-3.5 w-3.5" />
-      )}
-      <span className="font-semibold">{label}</span>
-      <span className="text-xs opacity-80">{detail}</span>
-    </span>
   );
 }
 
@@ -2425,12 +2384,12 @@ function CampaignsHomeView({
   costPerLead,
   costPerJob,
   roas,
-  showSamples,
-  onToggleSamples,
   isLoading = false,
   onCreate,
   onOpenCampaign,
   onRemoveDraft,
+  onToggleStatus,
+  togglingId,
 }: {
   campaigns: CampaignRow[];
   draftsCount: number;
@@ -2443,16 +2402,15 @@ function CampaignsHomeView({
   costPerLead: number;
   costPerJob: number;
   roas: number;
-  showSamples: boolean;
-  onToggleSamples: (next: boolean) => void;
   isLoading?: boolean;
   onCreate: () => void;
   onOpenCampaign: (campaign: CampaignRow) => void;
   onRemoveDraft: (id: string) => void;
+  onToggleStatus: (campaign: CampaignRow) => void;
+  togglingId: string | null;
 }) {
   return (
-    <div className="space-y-5">
-      {/* KPI bar compatta (solo dati reali, no campagne demo) */}
+    <div className="space-y-4">
       <KpiBar
         monthlySpend={monthlySpend}
         monthlyCap={monthlyCap}
@@ -2466,24 +2424,30 @@ function CampaignsHomeView({
         draftsCount={draftsCount}
       />
 
-      {/* AdsBot dinamico basato sullo stato reale */}
-      <AdsBotPanel draftsCount={draftsCount} totalLeads={totalLeads} onCreate={onCreate} />
+      <AdsBotPanel draftsCount={draftsCount} totalLeads={totalLeads} />
 
-      {/* Lista campagne — vista primaria */}
       <CampaignsList
         campaigns={campaigns}
         draftsCount={draftsCount}
-        showSamples={showSamples}
-        onToggleSamples={onToggleSamples}
         isLoading={isLoading}
         onCreate={onCreate}
         onOpenCampaign={onOpenCampaign}
         onRemoveDraft={onRemoveDraft}
+        onToggleStatus={onToggleStatus}
+        togglingId={togglingId}
       />
     </div>
   );
 }
 
+/**
+ * I numeri del mese, ridotti a quelli su cui l'imprenditore decide davvero.
+ *
+ * Prima erano cinque riquadri, due schede di previsione e tre pulsanti AI:
+ * troppa roba per una pagina che deve dire in tre secondi «quanto spendo,
+ * quante richieste arrivano, quanto mi costa ognuna, quanto rende». Il resto
+ * si vede dentro la singola campagna.
+ */
 function KpiBar({
   monthlySpend,
   monthlyCap,
@@ -2508,212 +2472,127 @@ function KpiBar({
   draftsCount: number;
 }) {
   const isEmpty = monthlySpend === 0 && totalLeads === 0 && draftsCount === 0;
-  // In BETA "Costo per commessa" è sempre 0 perché manca attribuzione live.
-  // La mostriamo SOLO se totalJobs > 0 (cioè quando dati reali ci sono).
-  const showCostPerJob = totalJobs > 0;
 
-  // MIGL: alert CPL fuori soglia. Threshold edilizia tipico: lead qualificato
-  // €30-50, oltre €70 inizia a essere preoccupante. Mostrato solo se hai speso
-  // almeno €100 e ricevuto almeno 1 lead (così CPL è significativo).
-  const TARGET_CPL_CENTS_HIGH = 7000; // €70 per lead — soglia di attenzione edilizia
-  const cplWarning = monthlySpend >= 10000 && totalLeads > 0 && costPerLead > TARGET_CPL_CENTS_HIGH;
-  const lowVolumeWarning = monthlySpend >= 30000 && totalLeads <= 2; // €300+ spesi, max 2 lead
+  // Soglie edilizia: una richiesta qualificata costa 30-50 €, sopra 70 € c'è
+  // qualcosa da rivedere. L'avviso compare solo con almeno 100 € spesi.
+  const cplAlto = monthlySpend >= 10000 && totalLeads > 0 && costPerLead > 7000;
+  const pocheRichieste = monthlySpend >= 30000 && totalLeads <= 2;
 
-  // MIGL: forecast mensile basato sul ritmo attuale.
-  // Esempio: oggi è il 10 del mese, ho speso 300€, allora forecast = 300 * (30/10) = 900€.
-  const now = new Date();
-  const dayOfMonth = now.getDate();
-  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-  const monthlySpendForecast = dayOfMonth > 0 ? Math.round((monthlySpend / dayOfMonth) * daysInMonth) : 0;
-  const forecastOverCap = monthlyCap > 0 && monthlySpendForecast > monthlyCap;
+  const oggi = new Date();
+  const giorno = oggi.getDate();
+  const giorniMese = new Date(oggi.getFullYear(), oggi.getMonth() + 1, 0).getDate();
+  const previsione = giorno > 0 ? Math.round((monthlySpend / giorno) * giorniMese) : 0;
+  const sforaIlTetto = monthlyCap > 0 && previsione > monthlyCap;
+  const vicinoAlTetto = monthlyCap > 0 && spendPct >= 75 && spendPct < 100;
+  const tettoRaggiunto = monthlyCap > 0 && spendPct >= 100;
 
-  // MIGL: alert soft a 75% del cap (prima del 100% che fa auto-pause).
-  const spendingWarning = monthlyCap > 0 && spendPct >= 75 && spendPct < 100;
-  const spendingCritical = monthlyCap > 0 && spendPct >= 100;
   return (
     <Card className={cn(isEmpty && "border-dashed bg-white/60")}>
       <CardContent className="p-4">
-        {/* MIGL: alert proattivi su CPL alto o lead bassi */}
-        {(cplWarning || lowVolumeWarning) && (
-          <div className={cn(
-            "mb-3 flex items-start gap-3 rounded-lg border p-3",
-            cplWarning ? "border-red-200 bg-red-50/60" : "border-amber-200 bg-amber-50/60",
-          )}>
-            <span className="text-base">{cplWarning ? "🚨" : "⚠️"}</span>
-            <div className="min-w-0 flex-1">
-              <p className={cn("text-sm font-semibold", cplWarning ? "text-red-900" : "text-amber-900")}>
-                {cplWarning ? `CPL alto: ${formatEuro(costPerLead)} per lead` : `Volume basso: ${totalLeads} lead con €${(monthlySpend / 100).toFixed(0)} spesi`}
-              </p>
-              <p className={cn("text-xs mt-0.5", cplWarning ? "text-red-700" : "text-amber-700")}>
-                {cplWarning
-                  ? "Per edilizia il CPL atteso è €30-50. Sopra €70 vale la pena rivedere targeting/copy/landing."
-                  : "Pochi lead per la spesa attuale. Potrebbe essere: pubblico troppo stretto, creatività debole, o landing non convertente."}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => window.dispatchEvent(new CustomEvent("silvio:open-chat", { detail: { draft:
-                cplWarning
-                  ? `Il mio CPL è €${(costPerLead / 100).toFixed(2)} (target edilizia €30-50). Spesa mensile €${(monthlySpend / 100).toFixed(0)}, ${totalLeads} lead. Diagnostica: cosa sta facendo salire il CPL? Dimmi top 3 cause + cosa fare nei prossimi 7 giorni.`
-                  : `Sto spendendo €${(monthlySpend / 100).toFixed(0)}/mese ma ho solo ${totalLeads} lead. Cosa controllo? Targeting troppo stretto, copy debole, landing non convertente? Spiegami come capire la causa e quale leva tirare per prima.`
-              }}))}
-              className="shrink-0 rounded-md bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
-            >
-              <Sparkles className="mr-1 inline h-3 w-3" />
-              Chiedi a Silvio
-            </button>
-          </div>
-        )}
-        <div
-          className={cn(
-            "grid gap-4 sm:grid-cols-2",
-            showCostPerJob ? "lg:grid-cols-5" : "lg:grid-cols-4",
-          )}
-        >
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <KpiItem
             icon={BadgeEuro}
             tone="blue"
-            label="Spesa mese"
+            label="Spesa del mese"
             value={formatEuro(monthlySpend)}
-            detail={`${spendPct}% del limite (${formatEuro(monthlyCap)})`}
+            detail={monthlyCap > 0 ? `limite ${formatEuro(monthlyCap)}` : "nessun limite impostato"}
           />
           <KpiItem
             icon={Users}
             tone="orange"
-            label="Lead ricevuti"
+            label="Richieste ricevute"
             value={String(totalLeads)}
-            detail={draftsCount > 0 ? "da bozze in revisione" : "nessuna campagna live"}
+            detail={totalLeads > 0 ? "dal mese in corso" : "nessuna richiesta ancora"}
           />
           <KpiItem
             icon={Target}
             tone="green"
-            label="Costo per lead"
+            label="Costo per richiesta"
             value={costPerLead ? formatEuro(costPerLead) : "—"}
-            detail={totalLeads > 0 ? "media periodo" : "in attesa di lead"}
+            detail={totalLeads > 0 ? "media del mese" : "serve almeno una richiesta"}
           />
           <KpiItem
             icon={Euro}
-            tone="green"
-            label="Fatturato generato"
-            value={totalRevenue ? formatEuro(totalRevenue) : "—"}
-            detail={totalRevenue > 0 ? `ROAS ${roas.toFixed(2)}x` : "vendite vinte da CRM"}
+            tone="violet"
+            label="Lavori chiusi"
+            value={totalJobs ? formatEuro(totalRevenue) : "—"}
+            detail={
+              totalJobs > 0
+                ? `${totalJobs} ${totalJobs === 1 ? "lavoro" : "lavori"} · ${roas.toFixed(1)}€ ogni € speso${costPerJob ? ` · ${formatEuro(costPerJob)} a lavoro` : ""}`
+                : "presi dalle opportunità vinte nel CRM"
+            }
           />
-          {showCostPerJob && (
-            <KpiItem
-              icon={Check}
-              tone="violet"
-              label="Costo per commessa"
-              value={formatEuro(costPerJob)}
-              detail={`${totalJobs} commesse collegate`}
-            />
-          )}
-        </div>
-        <div className="mt-4">
-          <div className="mb-2 flex items-center justify-between text-xs">
-            <span className="text-slate-500">Cap mensile protetto</span>
-            <span className="font-semibold text-slate-700">
-              {formatEuro(monthlySpend)} / {formatEuro(monthlyCap)}
-            </span>
-          </div>
-          <Progress
-            value={spendPct}
-            className="h-2 bg-slate-100"
-            indicatorClassName={cn(spendingCritical ? "bg-red-500" : spendingWarning ? "bg-amber-500" : "bg-orange-500")}
-          />
-          {/* MIGL: forecast + alert spending */}
-          {monthlyCap > 0 && monthlySpend > 0 && (
-            <div className="mt-3 grid gap-2 sm:grid-cols-2">
-              <div className={cn(
-                "rounded-lg border p-2.5 text-xs",
-                forecastOverCap ? "border-red-200 bg-red-50/60 text-red-900" : "border-slate-200 bg-slate-50 text-slate-700",
-              )}>
-                <p className="font-semibold uppercase tracking-wider text-[10px] opacity-70">
-                  Forecast fine mese
-                </p>
-                <p className="mt-0.5 text-sm font-bold">
-                  ≈ {formatEuro(monthlySpendForecast)}
-                  {forecastOverCap && <span className="ml-1.5 text-[10px] font-normal">(sforerai il cap di {formatEuro(monthlySpendForecast - monthlyCap)})</span>}
-                </p>
-                <p className="mt-0.5 text-[10px] opacity-70">se mantieni ritmo {formatEuro(Math.round(monthlySpend / dayOfMonth))}/giorno</p>
-              </div>
-              <div className={cn(
-                "rounded-lg border p-2.5 text-xs",
-                spendingCritical ? "border-red-200 bg-red-50/60 text-red-900" :
-                spendingWarning ? "border-amber-200 bg-amber-50/60 text-amber-900" :
-                "border-emerald-200 bg-emerald-50/40 text-emerald-900",
-              )}>
-                <p className="font-semibold uppercase tracking-wider text-[10px] opacity-70">
-                  {spendingCritical ? "⚠️ Cap raggiunto" : spendingWarning ? "🟡 Vicino al cap" : "✓ Sotto controllo"}
-                </p>
-                <p className="mt-0.5 text-sm font-bold">{spendPct}% usato</p>
-                <p className="mt-0.5 text-[10px] opacity-70">
-                  {spendingCritical ? "Auto-pause attiva" :
-                   spendingWarning ? `Mancano ${formatEuro(monthlyCap - monthlySpend)} prima del cap` :
-                   `${formatEuro(monthlyCap - monthlySpend)} ancora disponibili`}
-                </p>
-              </div>
-            </div>
-          )}
         </div>
 
-        {/* MIGL: 3 CTA Silvio per assistenza imprenditore */}
-        <div className="mt-4 grid gap-2 sm:grid-cols-3">
-          <SilvioAdsButton
-            label="Diagnostica campagne"
-            description="Perché spendo tanto e ho pochi lead?"
-            prompt={
-              `Analizza le mie campagne pubblicitarie. ` +
-              `Mese in corso: spesa €${(monthlySpend / 100).toFixed(0)}, ${totalLeads} lead, ` +
-              `CPL ${costPerLead ? `${(costPerLead / 100).toFixed(2).replace(".", ",")} €` : "n/d"}, ROAS ${roas.toFixed(2)}x. ` +
-              `Forecast fine mese: €${(monthlySpendForecast / 100).toFixed(0)}. ` +
-              `Diagnostica: identifica top 3 cause di inefficienza e dimmi cosa fare nei prossimi 7 giorni. ` +
-              `Tono diretto, italiano colloquiale per imprenditore edile.`
-            }
-          />
-          <SilvioAdsButton
-            label="Budget ottimale"
-            description="Quanto investire per il mio target?"
-            prompt={
-              `Suggerisci un budget pubblicitario ottimale Meta+Google per la mia azienda edile. ` +
-              `Spesa attuale: €${(monthlySpend / 100).toFixed(0)}/mese, target lead/mese non specificato. ` +
-              `Considera: ${totalLeads} lead/mese ricevuti, costo per lead €${(costPerLead / 100).toFixed(0)}, ` +
-              `cap mensile €${(monthlyCap / 100).toFixed(0)}. ` +
-              `Dimmi: (1) budget consigliato per €1k-€5k-€10k mensili di obiettivo, ` +
-              `(2) come distribuirlo tra Meta vs Google, (3) primo mese vs mesi successivi.`
-            }
-          />
-          <SilvioAdsButton
-            label="Scrivi copy"
-            description="3 varianti per un nuovo annuncio"
-            prompt={
-              `Scrivi 3 varianti di copy pubblicitario per la mia azienda edile. ` +
-              `Tono: italiano colloquiale, focus sul valore concreto per il cliente. ` +
-              `Per ogni variante: (a) headline max 40 caratteri, (b) testo max 125 caratteri, ` +
-              `(c) CTA precisa, (d) tipo di immagine consigliata. ` +
-              `Variante 1: focus prezzo/preventivo gratis. ` +
-              `Variante 2: focus qualità/anni di esperienza. ` +
-              `Variante 3: focus velocità/disponibilità immediata.`
-            }
-          />
-        </div>
+        {monthlyCap > 0 && (
+          <div className="mt-4">
+            <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2 text-xs">
+              <span className="text-slate-500">
+                {tettoRaggiunto
+                  ? "Limite mensile raggiunto: le campagne si fermano da sole."
+                  : vicinoAlTetto
+                    ? `Restano ${formatEuro(monthlyCap - monthlySpend)} prima del limite.`
+                    : `Disponibili ${formatEuro(monthlyCap - monthlySpend)} questo mese.`}
+              </span>
+              <span className="font-semibold text-slate-700">
+                {formatEuro(monthlySpend)} / {formatEuro(monthlyCap)}
+              </span>
+            </div>
+            <Progress
+              value={spendPct}
+              className="h-2 bg-slate-100"
+              indicatorClassName={cn(tettoRaggiunto ? "bg-red-500" : vicinoAlTetto ? "bg-amber-500" : "bg-orange-500")}
+            />
+            {monthlySpend > 0 && sforaIlTetto && (
+              <p className="mt-2 text-xs text-red-700">
+                Di questo passo chiuderai il mese a circa {formatEuro(previsione)}: {formatEuro(previsione - monthlyCap)} oltre il limite.
+              </p>
+            )}
+          </div>
+        )}
+
+        {(cplAlto || pocheRichieste) && (
+          <div
+            className={cn(
+              "mt-4 flex flex-wrap items-center gap-3 rounded-lg border p-3",
+              cplAlto ? "border-red-200 bg-red-50/60" : "border-amber-200 bg-amber-50/60",
+            )}
+          >
+            <p className={cn("min-w-0 flex-1 text-sm", cplAlto ? "text-red-900" : "text-amber-900")}>
+              <span className="font-semibold">
+                {cplAlto
+                  ? `Ogni richiesta ti costa ${formatEuro(costPerLead)}.`
+                  : `${totalLeads} richieste con ${formatEuro(monthlySpend)} spesi.`}
+              </span>{" "}
+              {cplAlto
+                ? "In edilizia si sta fra 30 e 50 €: conviene rivedere pubblico, testo o pagina di atterraggio."
+                : "Può essere il pubblico troppo stretto, la creatività debole o la pagina che non convince."}
+            </p>
+            <ChiediASilvio
+              label="Cosa faccio?"
+              prompt={
+                cplAlto
+                  ? `Ogni richiesta mi costa ${(costPerLead / 100).toFixed(2)} € (in edilizia l'obiettivo è 30-50 €). Questo mese ho speso ${(monthlySpend / 100).toFixed(0)} € e ricevuto ${totalLeads} richieste. Dimmi le tre cause più probabili e cosa faccio nei prossimi 7 giorni.`
+                  : `Sto spendendo ${(monthlySpend / 100).toFixed(0)} € al mese in pubblicità ma ho solo ${totalLeads} richieste. Aiutami a capire se è il pubblico, il testo o la pagina, e quale leva tirare per prima.`
+              }
+            />
+          </div>
+        )}
       </CardContent>
     </Card>
   );
 }
 
-function SilvioAdsButton({ label, description, prompt }: { label: string; description: string; prompt: string }) {
+/** Pulsante che apre Silvio con una domanda già scritta. */
+function ChiediASilvio({ label, prompt }: { label: string; prompt: string }) {
   return (
     <button
       type="button"
       onClick={() => window.dispatchEvent(new CustomEvent("silvio:open-chat", { detail: { draft: prompt } }))}
-      className="group flex flex-col items-start gap-1 rounded-lg border border-orange-200 bg-gradient-to-br from-orange-50/60 to-amber-50/40 p-3 text-left transition hover:border-orange-300 hover:shadow-sm"
+      className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-orange-200 bg-white px-3 py-1.5 text-xs font-semibold text-orange-800 shadow-sm transition hover:border-orange-300 hover:bg-orange-50"
     >
-      <div className="flex items-center gap-1.5">
-        <Sparkles className="h-3.5 w-3.5 text-orange-600" />
-        <span className="text-sm font-semibold text-slate-900">{label}</span>
-      </div>
-      <span className="text-[11px] text-slate-600">{description}</span>
-      <span className="mt-auto text-[10px] font-bold text-orange-700 opacity-70 group-hover:opacity-100">Chiedi a Silvio →</span>
+      <Sparkles className="h-3.5 w-3.5" />
+      {label}
     </button>
   );
 }
@@ -2751,78 +2630,67 @@ function KpiItem({
   );
 }
 
-/** AdsBot — raccomandazioni dinamiche basate sullo stato reale del workspace. */
+/**
+ * Il consiglio del momento, una riga sola.
+ *
+ * Era una scheda arancione grande quanto i numeri, che ripeteva «crea una
+ * campagna» accanto al pulsante che fa già quello. Adesso parla solo quando ha
+ * qualcosa da dire e non ruba spazio alla lista.
+ */
 function AdsBotPanel({
   draftsCount,
   totalLeads,
-  onCreate,
 }: {
   draftsCount: number;
   totalLeads: number;
-  onCreate: () => void;
+  onCreate?: () => void;
 }) {
-  let title = "Inizia da una campagna lead locale";
-  let body =
-    "Non hai ancora bozze. Parti da un modello edile (serramenti, bagni, ristrutturazioni): il wizard imposta offerta, pubblico, modulo e prompt creativi.";
-  let actionLabel = "Crea la prima campagna";
+  // Senza campagne parla l'area vuota della lista: qui tacerebbe due volte.
+  if (draftsCount === 0) return null;
 
-  if (draftsCount === 1) {
-    title = "Hai una bozza — preparala al lancio";
-    body =
-      "Apri la bozza e completa la checklist pre-lancio. Quando arrivi a 80/100 di prontezza puoi attivare il proxy live in sicurezza.";
-    actionLabel = "Crea un'altra bozza";
-  } else if (draftsCount >= 2 && totalLeads === 0) {
-    title = "Più bozze, nessun lead ancora";
-    body =
-      "Le bozze restano locali finché non attivi la pubblicazione. Confronta le bozze e scegli quella con readiness più alta come prima da portare live.";
-    actionLabel = "Crea una variante";
-  } else if (totalLeads > 0) {
-    title = "Lead in arrivo: misura prima di scalare";
-    body =
-      "Aspetta almeno 3-5 giorni di test prima di alzare il budget. Verifica CPL, qualità lead e tempo di risposta commerciale.";
-    actionLabel = "Crea variante / pubblico nuovo";
-  }
+  const testo =
+    totalLeads > 0
+      ? "Stanno arrivando richieste: lascia correre 3-5 giorni prima di alzare il budget, così i numeri sono veri."
+      : draftsCount === 1
+        ? "Apri la campagna e completa la lista di controllo: a 80 su 100 sei pronto a mandarla online."
+        : "Hai più bozze: porta online per prima quella con il punteggio di prontezza più alto, le altre restano ferme.";
 
   return (
-    <Card className="border-orange-200 bg-gradient-to-br from-orange-50 via-amber-50 to-white">
-      <CardContent className="flex flex-col gap-4 p-5 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex items-start gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-orange-600 shadow-sm">
-            <Sparkles className="h-5 w-5" />
-          </div>
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-orange-700">AdsBot</p>
-            <p className="text-base font-semibold text-slate-950">{title}</p>
-            <p className="mt-1 max-w-2xl text-sm text-slate-700">{body}</p>
-          </div>
-        </div>
-        <Button onClick={onCreate} className="shrink-0">
-          <Plus className="h-4 w-4" />
-          {actionLabel}
-        </Button>
-      </CardContent>
-    </Card>
+    <div className="flex items-start gap-2.5 rounded-lg border border-orange-100 bg-orange-50/50 px-3.5 py-2.5">
+      <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-orange-600" />
+      <p className="text-sm text-slate-700">{testo}</p>
+    </div>
   );
 }
 
+/**
+ * L'elenco delle campagne: la cosa per cui si apre questa pagina.
+ *
+ * La tabella aveva undici colonne — struttura, CPL obiettivo, vendite,
+ * fatturato, ROAS — e tre filtri sempre accesi anche con due campagne in
+ * elenco. Restano le sei informazioni su cui si decide; il resto vive nella
+ * scheda della singola campagna. I filtri compaiono solo quando servono
+ * davvero.
+ */
 function CampaignsList({
   campaigns,
   draftsCount,
-  showSamples,
-  onToggleSamples,
   isLoading = false,
   onCreate,
   onOpenCampaign,
   onRemoveDraft,
+  onToggleStatus,
+  togglingId,
 }: {
   campaigns: CampaignRow[];
   draftsCount: number;
-  showSamples: boolean;
-  onToggleSamples: (next: boolean) => void;
   isLoading?: boolean;
   onCreate: () => void;
   onOpenCampaign: (campaign: CampaignRow) => void;
   onRemoveDraft: (id: string) => void;
+  /** Mette in pausa o riattiva su Meta. Assente = azione non disponibile. */
+  onToggleStatus: (campaign: CampaignRow) => void;
+  togglingId: string | null;
 }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | CampaignStatus>("all");
@@ -2833,16 +2701,9 @@ function CampaignsList({
     [campaigns, confirmDeleteId],
   );
 
-  // Calcola gli stati effettivamente presenti nelle campagne + conteggi.
-  // Evitiamo di mostrare "Attiva (0)" quando nessuna campagna è in quello stato.
   const statusCounts = useMemo(() => {
     const counts: Record<CampaignStatus, number> = {
-      draft: 0,
-      review: 0,
-      published: 0,
-      active: 0,
-      paused: 0,
-      error: 0,
+      draft: 0, review: 0, published: 0, active: 0, paused: 0, error: 0,
     };
     for (const c of campaigns) {
       if (counts[c.status] !== undefined) counts[c.status] += 1;
@@ -2854,9 +2715,17 @@ function CampaignsList({
     () =>
       (Object.entries(statusCounts) as [CampaignStatus, number][])
         .filter(([, n]) => n > 0)
-        .map(([s]) => s),
+        .map(([st]) => st),
     [statusCounts],
   );
+
+  // I filtri appaiono solo quando c'è qualcosa da filtrare: con tre campagne
+  // e un solo stato erano tre controlli che non toglievano niente di mezzo.
+  const mostraRicerca = campaigns.length > 5;
+  const mostraFiltroStato = availableStatuses.length > 1;
+  const mostraFiltroPiattaforma =
+    campaigns.some((c) => c.platform === "meta") && campaigns.some((c) => c.platform === "google");
+  const haFiltri = mostraRicerca || mostraFiltroStato || mostraFiltroPiattaforma;
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -2881,69 +2750,56 @@ function CampaignsList({
           <div>
             <CardTitle className="text-lg">Le tue campagne</CardTitle>
             <CardDescription>
-              {draftsCount > 0
-                ? `${draftsCount} bozza/e locale/i. Clicca una bozza per modificarla.`
-                : "Nessuna campagna ancora. Inizia con il wizard guidato."}
+              {isEmpty
+                ? "Qui compariranno le campagne che crei."
+                : `${campaigns.length} in elenco${draftsCount > 0 ? `, ${draftsCount} ancora da pubblicare` : ""}. Clicca una riga per aprirla.`}
             </CardDescription>
           </div>
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <div className="relative w-full sm:w-80">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <Input
-                className="pl-9"
-                placeholder="Cerca campagna, obiettivo, stato..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
+          {haFiltri && (
+            <div className="flex flex-col gap-2 sm:flex-row">
+              {mostraRicerca && (
+                <div className="relative w-full sm:w-64">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <Input
+                    className="pl-9"
+                    placeholder="Cerca una campagna"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                  />
+                </div>
+              )}
+              {mostraFiltroStato && (
+                <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}>
+                  <SelectTrigger className="w-full sm:w-44"><SelectValue placeholder="Stato" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tutti gli stati ({campaigns.length})</SelectItem>
+                    {availableStatuses.map((status) => (
+                      <SelectItem key={status} value={status}>
+                        {statusLabel(status)} ({statusCounts[status]})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              {mostraFiltroPiattaforma && (
+                <Select value={platformFilter} onValueChange={(v) => setPlatformFilter(v as typeof platformFilter)}>
+                  <SelectTrigger className="w-full sm:w-40"><SelectValue placeholder="Canale" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tutti i canali</SelectItem>
+                    <SelectItem value="meta">Facebook e Instagram</SelectItem>
+                    <SelectItem value="google">Google</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
             </div>
-            <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}>
-              <SelectTrigger className="w-full sm:w-44">
-                <SelectValue placeholder="Filtro stato" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">
-                  Tutti gli stati ({campaigns.length})
-                </SelectItem>
-                {/* Mostra solo gli stati realmente presenti nelle campagne */}
-                {availableStatuses.map((status) => (
-                  <SelectItem key={status} value={status}>
-                    {statusLabel(status)} ({statusCounts[status]})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={platformFilter} onValueChange={(v) => setPlatformFilter(v as typeof platformFilter)}>
-              <SelectTrigger className="w-full sm:w-40">
-                <SelectValue placeholder="Piattaforma" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Meta + Google</SelectItem>
-                <SelectItem value="meta">Solo Meta Ads</SelectItem>
-                <SelectItem value="google">Solo Google Ads</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-          <span className="text-slate-500">
-            {filtered.length} risultat{filtered.length === 1 ? "o" : "i"} di {campaigns.length}
-          </span>
-          <span className="text-slate-300">·</span>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 px-2 text-xs"
-            onClick={() => onToggleSamples(!showSamples)}
-          >
-            {showSamples ? "Nascondi esempi" : "Mostra esempi"}
-          </Button>
+          )}
         </div>
       </CardHeader>
       <CardContent>
         {isLoading ? (
           <div className="flex items-center justify-center gap-3 py-10 text-sm text-slate-500">
             <Loader2 className="h-4 w-4 animate-spin" />
-            Caricamento campagne...
+            Carico le campagne…
           </div>
         ) : isEmpty ? (
           <EmptyCampaigns onCreate={onCreate} />
@@ -2951,7 +2807,7 @@ function CampaignsList({
           <div className="rounded-xl border border-dashed bg-slate-50 p-8 text-center">
             <Search className="mx-auto mb-2 h-6 w-6 text-slate-400" />
             <p className="text-sm font-semibold text-slate-700">Nessun risultato</p>
-            <p className="mt-1 text-xs text-slate-500">Prova a cambiare ricerca o filtro stato.</p>
+            <p className="mt-1 text-xs text-slate-500">Cambia ricerca o filtro.</p>
           </div>
         ) : (
           <>
@@ -2961,194 +2817,163 @@ function CampaignsList({
                   <TableRow>
                     <TableHead>Campagna</TableHead>
                     <TableHead>Stato</TableHead>
-                    <TableHead>Struttura</TableHead>
-                    <TableHead className="text-right">Budget/giorno</TableHead>
-                    <TableHead className="text-right">Spesa</TableHead>
-                    <TableHead className="text-right">Lead</TableHead>
-                    <TableHead className="text-right">CPL target</TableHead>
-                    <TableHead className="text-right">Vendite</TableHead>
-                    <TableHead className="text-right">Fatturato</TableHead>
-                    <TableHead className="text-right">ROAS</TableHead>
+                    <TableHead className="text-right">Budget al giorno</TableHead>
+                    <TableHead className="text-right">Speso</TableHead>
+                    <TableHead className="text-right">Richieste</TableHead>
+                    <TableHead className="text-right">Costo per richiesta</TableHead>
                     <TableHead className="text-right">Azioni</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filtered.map((campaign) => (
-                    <TableRow
-                      key={campaign.id}
-                      className="cursor-pointer transition-colors hover:bg-slate-50/70"
-                      onClick={() => onOpenCampaign(campaign)}
-                    >
-                      <TableCell>
-                        <div>
+                  {filtered.map((campaign) => {
+                    const costoRichiesta = campaign.leads > 0 ? campaign.spentCents / campaign.leads : 0;
+                    const inCorso = togglingId === campaign.id;
+                    const online = campaign.status === "active";
+                    const puoAccendere = Boolean(campaign.metaCampaignId) && campaign.platform === "meta";
+                    return (
+                      <TableRow
+                        key={campaign.id}
+                        className="cursor-pointer transition-colors hover:bg-slate-50/70"
+                        onClick={() => onOpenCampaign(campaign)}
+                      >
+                        <TableCell>
                           <div className="flex items-center gap-2">
                             <p className="font-medium text-slate-950">{campaign.name}</p>
-                            {campaign.isDemo && (
-                              <Badge variant="outline" className="border-purple-200 bg-purple-50 text-[10px] font-bold uppercase tracking-wide text-purple-700">
-                                Esempio
-                              </Badge>
-                            )}
                             <Badge variant="outline" className={platformBadgeClass(campaign.platform)}>
                               {platformLabel(campaign.platform)}
                             </Badge>
                           </div>
-                          <p className="text-xs text-slate-500">
-                            {objectiveLabel(campaign.objective)} ·{" "}
-                            {campaign.source === "local" ? "bozza locale" : platformLabel(campaign.platform)}
-                          </p>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className={statusClass(campaign.status)}>
-                          {statusLabel(campaign.status)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="text-sm">
-                          <p className="font-medium text-slate-900">{structurePrimary(campaign)}</p>
-                          <p className="text-xs text-slate-500">{structureSecondary(campaign)}</p>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right font-medium">
-                        {formatEuro(campaign.budgetCents)}
-                      </TableCell>
-                      <TableCell className="text-right">{formatEuro(campaign.spentCents)}</TableCell>
-                      <TableCell className="text-right">{campaign.leads}</TableCell>
-                      <TableCell className="text-right">
-                        {campaign.targetCplCents ? formatEuro(campaign.targetCplCents) : "—"}
-                      </TableCell>
-                      <TableCell className="text-right">{campaign.jobs}</TableCell>
-                      <TableCell className="text-right font-semibold text-emerald-700">
-                        {campaign.revenueCents ? formatEuro(campaign.revenueCents) : "—"}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {campaign.roas ? `${campaign.roas.toFixed(2)}x` : "—"}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div
-                          className="flex justify-end gap-1"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          {campaign.source === "local" ? (
-                            <>
+                          <p className="text-xs text-slate-500">{objectiveLabel(campaign.objective)}</p>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={statusClass(campaign.status)}>
+                            {statusLabel(campaign.status)}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right font-medium tabular-nums">
+                          {formatEuro(campaign.budgetCents)}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">{formatEuro(campaign.spentCents)}</TableCell>
+                        <TableCell className="text-right tabular-nums">{campaign.leads || "—"}</TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {costoRichiesta ? formatEuro(costoRichiesta) : "—"}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                            {puoAccendere && (
                               <TooltipProvider>
                                 <Tooltip>
                                   <TooltipTrigger asChild>
                                     <Button
                                       size="icon"
                                       variant="ghost"
-                                      aria-label="Modifica"
-                                      onClick={() => onOpenCampaign(campaign)}
+                                      disabled={inCorso}
+                                      aria-label={online ? "Metti in pausa" : "Manda online"}
+                                      onClick={() => onToggleStatus(campaign)}
                                     >
-                                      <Pencil className="h-4 w-4" />
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>Modifica</TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Button
-                                      size="icon"
-                                      variant="ghost"
-                                      aria-label="Elimina"
-                                      onClick={() => setConfirmDeleteId(campaign.id)}
-                                    >
-                                      <Trash2 className="h-4 w-4 text-red-500" />
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>Elimina bozza</TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                            </>
-                          ) : (
-                            <>
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Button
-                                      size="icon"
-                                      variant="ghost"
-                                      aria-label={campaign.status === "active" ? "Metti in pausa" : "Riattiva"}
-                                      onClick={() =>
-                                        toast.info(`Azione ${platformLabel(campaign.platform)} non attiva in Beta locale`)
-                                      }
-                                    >
-                                      {campaign.status === "active" ? (
+                                      {inCorso ? (
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                      ) : online ? (
                                         <Pause className="h-4 w-4" />
                                       ) : (
-                                        <Play className="h-4 w-4" />
+                                        <Play className="h-4 w-4 text-emerald-600" />
                                       )}
                                     </Button>
                                   </TooltipTrigger>
                                   <TooltipContent>
-                                    {campaign.status === "active" ? "Pausa" : "Riattiva"}
+                                    {online ? "Metti in pausa su Meta" : "Manda online su Meta"}
                                   </TooltipContent>
                                 </Tooltip>
                               </TooltipProvider>
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                aria-label="Apri dettagli"
-                                onClick={() => onOpenCampaign(campaign)}
-                              >
-                                <ChevronRight className="h-4 w-4" />
-                              </Button>
-                            </>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                            )}
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button size="icon" variant="ghost" aria-label="Apri" onClick={() => onOpenCampaign(campaign)}>
+                                    <Pencil className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Apri e modifica</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                            {campaign.source === "local" && !campaign.metaCampaignId && (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button size="icon" variant="ghost" aria-label="Elimina" onClick={() => setConfirmDeleteId(campaign.id)}>
+                                      <Trash2 className="h-4 w-4 text-red-500" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>Elimina la bozza</TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
 
             <div className="grid gap-3 lg:hidden">
-              {filtered.map((campaign) => (
-                <button
-                  key={campaign.id}
-                  type="button"
-                  onClick={() => onOpenCampaign(campaign)}
-                  className="rounded-xl border bg-white p-4 text-left transition-colors hover:bg-slate-50/70"
-                >
-                  <div className="mb-3 flex items-start justify-between gap-3">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <p className="font-semibold text-slate-950">{campaign.name}</p>
-                        {campaign.isDemo && (
-                          <Badge variant="outline" className="border-slate-200 bg-slate-50 text-[10px] text-slate-500">
-                            Esempio
-                          </Badge>
-                        )}
-                        <Badge variant="outline" className={platformBadgeClass(campaign.platform)}>
-                          {platformLabel(campaign.platform)}
+              {filtered.map((campaign) => {
+                const costoRichiesta = campaign.leads > 0 ? campaign.spentCents / campaign.leads : 0;
+                const inCorso = togglingId === campaign.id;
+                const online = campaign.status === "active";
+                const puoAccendere = Boolean(campaign.metaCampaignId) && campaign.platform === "meta";
+                return (
+                  <div key={campaign.id} className="rounded-xl border bg-white p-4">
+                    <button type="button" onClick={() => onOpenCampaign(campaign)} className="block w-full text-left">
+                      <div className="mb-3 flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="font-semibold text-slate-950">{campaign.name}</p>
+                            <Badge variant="outline" className={platformBadgeClass(campaign.platform)}>
+                              {platformLabel(campaign.platform)}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-slate-500">{objectiveLabel(campaign.objective)}</p>
+                        </div>
+                        <Badge variant="outline" className={statusClass(campaign.status)}>
+                          {statusLabel(campaign.status)}
                         </Badge>
                       </div>
-                      <p className="text-xs text-slate-500">{objectiveLabel(campaign.objective)}</p>
-                    </div>
-                    <Badge variant="outline" className={statusClass(campaign.status)}>
-                      {statusLabel(campaign.status)}
-                    </Badge>
+                      <div className="grid grid-cols-4 gap-2 text-sm">
+                        <MiniStat label="Budget/g" value={formatEuro(campaign.budgetCents)} />
+                        <MiniStat label="Speso" value={formatEuro(campaign.spentCents)} />
+                        <MiniStat label="Richieste" value={String(campaign.leads || 0)} />
+                        <MiniStat label="Costo/rich." value={costoRichiesta ? formatEuro(costoRichiesta) : "—"} />
+                      </div>
+                    </button>
+                    {puoAccendere && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="mt-3 w-full"
+                        disabled={inCorso}
+                        onClick={() => onToggleStatus(campaign)}
+                      >
+                        {inCorso ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : online ? (
+                          <Pause className="h-4 w-4" />
+                        ) : (
+                          <Play className="h-4 w-4" />
+                        )}
+                        {online ? "Metti in pausa" : "Manda online"}
+                      </Button>
+                    )}
                   </div>
-                  <div className="grid grid-cols-4 gap-2 text-sm">
-                    <MiniStat label="Budget" value={formatEuro(campaign.budgetCents)} />
-                    <MiniStat label="Ads" value={String(campaign.ads ?? 1)} />
-                    <MiniStat label="Lead" value={String(campaign.leads)} />
-                    <MiniStat label="Fatturato" value={campaign.revenueCents ? formatEuro(campaign.revenueCents) : "—"} />
-                  </div>
-                </button>
-              ))}
+                );
+              })}
             </div>
           </>
         )}
       </CardContent>
 
-      <AlertDialog
-        open={!!confirmDeleteId}
-        onOpenChange={(open) => !open && setConfirmDeleteId(null)}
-      >
+      <AlertDialog open={!!confirmDeleteId} onOpenChange={(open) => !open && setConfirmDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Eliminare questa bozza?</AlertDialogTitle>
@@ -3179,20 +3004,15 @@ function EmptyCampaigns({ onCreate }: { onCreate: () => void }) {
       <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-md">
         <Rocket className="h-7 w-7" />
       </div>
-      <p className="text-lg font-bold text-slate-950">Crea la tua prima campagna Ads</p>
+      <p className="text-lg font-bold text-slate-950">Crea la tua prima campagna</p>
       <p className="mx-auto mt-1 max-w-md text-sm text-slate-600">
-        Il wizard ti fa scegliere Meta o Google e poi adatta offerta, pubblico/intenti, creatività e revisione. Tutto resta in bozza finché non confermi il lancio.
+        Ti guido passo passo: scegli il lavoro che vuoi vendere, io preparo offerta,
+        pubblico, testo e modulo. Niente va online finché non lo dici tu.
       </p>
-      <div className="mt-5 flex flex-wrap justify-center gap-2">
-        <Button onClick={onCreate}>
+      <div className="mt-5 flex justify-center">
+        <Button onClick={onCreate} size="lg">
           <Plus className="h-4 w-4" />
-          Nuova campagna guidata
-        </Button>
-        <Button variant="outline" asChild>
-          <Link to="/azienda/impostazioni/integrazioni">
-            <Settings className="h-4 w-4" />
-            Collega Ads
-          </Link>
+          Inizia
         </Button>
       </div>
     </div>
@@ -4318,7 +4138,11 @@ function LeadFormPreview({ state }: { state: BuilderState }) {
         const c = q as { label: string; options?: string[]; type: string };
         return { label: c.label, kind: "custom" as const, options: c.options };
       })
-    : splitList(state.requiredFields).map((f) => ({ label: f, kind: "prefilled" as const, options: undefined }));
+    : splitList(state.requiredFields).map((f) => ({
+        label: f,
+        kind: "prefilled" as const,
+        options: undefined as string[] | undefined,
+      }));
   const introBody = lf?.introBody ?? state.offer;
   const introHeadline = lf?.introHeadline;
   const qualifying = lf?.questions.find((q) => q.kind === "custom") as { label: string; options?: string[] } | undefined;
@@ -7008,74 +6832,69 @@ function SettingsTab({
   meta,
   google,
   companyId,
+  pixelConfig,
 }: {
   meta: ReturnType<typeof useMetaConnection>;
   google: ReturnType<typeof useGoogleAdsConnection>;
   companyId?: string;
+  pixelConfig: MetaConversionPixelRow | null | undefined;
 }) {
+  /**
+   * La lista di controllo contiene solo cose che il sistema sa verificare.
+   *
+   * Prima erano venti voci e cinque non potevano diventare verdi in nessun
+   * modo — «roadmap», «da completare nel wizard», il Pixel scritto a mano
+   * come «da collegare» anche quando era già attivo. Il punteggio restava
+   * fermo a 9 su 20 per sempre e non diceva più niente a nessuno. I
+   * suggerimenti che non sono verificabili stanno sotto, senza contatore.
+   */
+  const pixelMesso = Boolean(pixelConfig?.pixel_id);
+  const pixelProvato = Boolean(
+    pixelConfig?.last_event_at ||
+      (pixelConfig?.pixel_events_last_24h ?? 0) > 0 ||
+      (pixelConfig?.capi_events_last_24h ?? 0) > 0,
+  );
+  const googleInUso = google.integration?.status === "connected" || google.accounts.length > 0;
+
   const setupBlocks = [
     {
-      title: "Account e permessi",
+      title: "Facebook e Instagram",
       icon: "🔗",
-      body: "Business Manager, account pubblicitario, Pagina Facebook e Instagram collegati.",
+      body: "Account, pagina e misurazione: servono per pubblicare.",
       items: [
-        { label: "Integrazione Meta", ok: meta.integration?.status === "connected", detail: meta.integration?.status ?? "non collegata", action: { label: "Connetti", href: "/azienda/impostazioni/lead-forms" } },
-        { label: "Business Manager", ok: meta.businesses.length > 0, detail: `${meta.businesses.length} rilevati`, action: meta.businesses.length === 0 ? { label: "Crea su Meta", href: "https://business.facebook.com/", external: true } : null },
-        { label: "Account pubblicitario", ok: meta.adAccounts.length > 0, detail: meta.adAccounts[0]?.asset_name ? `attivo: ${meta.adAccounts[0].asset_name}` : `${meta.adAccounts.length} rilevati`, action: meta.adAccounts.length === 0 ? { label: "Crea account", href: "https://www.facebook.com/adsmanager/", external: true } : null },
-        { label: "Pagina Facebook", ok: meta.pages.length > 0, detail: `${meta.pages.length} pagine disponibili`, action: meta.pages.length === 0 ? { label: "Collega pagina", href: "/azienda/impostazioni/lead-forms" } : null },
+        { label: "Account Meta collegato", ok: meta.integration?.status === "connected", detail: meta.integration?.status === "connected" ? "collegato" : "non collegato", action: { label: "Collega", href: "/azienda/impostazioni/lead-forms" } },
+        { label: "Conto pubblicitario scelto", ok: meta.selectedAdAccounts.length === 1, detail: meta.selectedAdAccounts[0]?.asset_name ?? (meta.adAccounts.length === 0 ? "nessun conto trovato" : `${meta.adAccounts.length} conti, scegline uno`), action: meta.adAccounts.length === 0 ? { label: "Crea su Meta", href: "https://www.facebook.com/adsmanager/", external: true } : { label: "Scegli", href: "/azienda/impostazioni/lead-forms" } },
+        { label: "Pagina Facebook", ok: meta.pages.length > 0, detail: meta.pages.length > 0 ? `${meta.pages.length} ${meta.pages.length === 1 ? "pagina disponibile" : "pagine disponibili"}` : "nessuna pagina collegata", action: meta.pages.length === 0 ? { label: "Collega pagina", href: "/azienda/impostazioni/lead-forms" } : null },
+        { label: "Pixel attivo", ok: pixelMesso && pixelProvato, detail: !pixelMesso ? "non configurato" : pixelProvato ? "eventi in arrivo" : "configurato, mai testato", action: { label: "Configura", href: "?tab=impostazioni#pixel-config" } },
       ],
     },
-    {
-      title: "Google Ads",
-      icon: "G",
-      body: "Customer ID, account Google Ads e separazione completa da Meta.",
-      items: [
-        { label: "Integrazione Google Ads", ok: google.integration?.status === "connected", detail: google.integration?.status ?? "non collegata", action: { label: "Configura", href: "/azienda/impostazioni/integrazioni" } },
-        { label: "Customer ID selezionato", ok: google.accounts.length > 0, detail: google.selectedAccount?.customer_id ?? "nessun account", action: google.accounts.length === 0 ? { label: "Configura", href: "/azienda/impostazioni/integrazioni" } : null },
-        { label: "Search / PMax separati", ok: true, detail: "wizard con canale Google", action: null },
-        { label: "Developer Token / OAuth", ok: false, detail: "richiesto per publish live", action: { label: "Integrazioni", href: "/azienda/impostazioni/integrazioni" } },
-      ],
-    },
-    {
-      title: "Tracking e qualità dati",
-      icon: "📡",
-      body: "Pixel/CAPI Meta, GCLID Google, UTM e conversioni offline dal CRM.",
-      items: [
-        { label: "Pixel / CAPI", ok: false, detail: "da collegare", action: { label: "Configura Pixel", href: "#pixel-config" } },
-        { label: "GCLID / Enhanced conversions", ok: false, detail: "da collegare per Google", action: { label: "Configura Google", href: "/azienda/impostazioni/integrazioni" } },
-        { label: "Mapping CRM lead", ok: true, detail: "pipeline pronta", action: null },
-        { label: "Vendite e fatturato CRM", ok: true, detail: "ROAS da opportunità vinte", action: null },
-      ],
-    },
-    {
-      title: "Modulo lead e GDPR",
-      icon: "📋",
-      body: "Privacy URL, consensi separati e domanda di qualificazione prima del lancio.",
-      items: [
-        { label: "Privacy URL", ok: true, detail: "richiesta nel wizard", action: null },
-        { label: "Consensi separati", ok: false, detail: "da completare nel wizard", action: { label: "Apri wizard", href: "#wizard" } },
-        { label: "Domande condizionali", ok: false, detail: "roadmap", action: null },
-        { label: "Test invio modulo", ok: false, detail: "fai un test prima del live", action: { label: "Guida test", href: "https://www.facebook.com/business/help/", external: true } },
-      ],
-    },
-    {
-      title: "Follow-up e automazioni",
-      icon: "⚡",
-      body: "Il lead arriva subito nel CRM e attiva WhatsApp/email/task per non sprecare budget.",
-      items: [
-        { label: "Creazione opportunità", ok: true, detail: "automatica nel CRM", action: null },
-        { label: "WhatsApp entro 5 minuti", ok: false, detail: "da collegare", action: { label: "Configura", href: "/azienda/automazioni" } },
-        { label: "Task commerciale", ok: true, detail: "automatico", action: null },
-        { label: "Nurturing email", ok: false, detail: "da collegare", action: { label: "Configura", href: "/azienda/automazioni" } },
-      ],
-    },
+    ...(googleInUso
+      ? [
+          {
+            title: "Google",
+            icon: "G",
+            body: "Facoltativo: Facebook e Instagram bastano per partire.",
+            items: [
+              { label: "Account Google Ads collegato", ok: google.integration?.status === "connected", detail: google.integration?.status === "connected" ? "collegato" : "non collegato", action: { label: "Configura", href: "/azienda/impostazioni/integrazioni" } },
+              { label: "Numero cliente scelto", ok: google.accounts.length > 0, detail: google.selectedAccount?.customer_id ?? "nessun account", action: google.accounts.length === 0 ? { label: "Configura", href: "/azienda/impostazioni/integrazioni" } : null },
+            ],
+          },
+        ]
+      : []),
   ];
 
-  // Calcola progress totale
-  const allChecks = setupBlocks.flatMap(b => b.items);
-  const doneCount = allChecks.filter(item => Boolean(item.ok)).length;
+  // Suggerimenti che il sistema non può spuntare da solo: restano fuori dal
+  // contatore, così il punteggio può davvero arrivare a fondo.
+  const consigli = [
+    { label: "Rispondi entro 5 minuti", detail: "Un messaggio WhatsApp automatico appena arriva la richiesta.", href: "/azienda/automazioni" },
+    { label: "Email di recupero", detail: "Per chi non risponde alla prima chiamata.", href: "/azienda/automazioni" },
+    { label: "Prova il modulo", detail: "Compila tu stesso il modulo prima di mandare online la campagna.", href: null },
+  ];
+
+  const allChecks = setupBlocks.flatMap((b) => b.items);
+  const doneCount = allChecks.filter((item) => Boolean(item.ok)).length;
   const totalCount = allChecks.length;
-  const progressPct = Math.round((doneCount / totalCount) * 100);
+  const progressPct = totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 0;
 
   // Colori per blocco
   const blockColors = [
@@ -7096,10 +6915,10 @@ function SettingsTab({
             <div>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <ShieldCheck className="h-5 w-5 text-slate-600" />
-                Stato setup campagne
+                Cosa manca per pubblicare
               </CardTitle>
               <CardDescription>
-                Completa questi passaggi prima di pubblicare la prima campagna live.
+                Quando questi passaggi sono tutti verdi puoi mandare online una campagna.
               </CardDescription>
             </div>
             <div className="text-right">
@@ -7176,11 +6995,31 @@ function SettingsTab({
               );
             })}
           </div>
+
+          <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
+            <p className="text-sm font-semibold text-slate-900">Consigliati, ma non obbligatori</p>
+            <p className="mt-0.5 text-xs text-slate-500">
+              Non li possiamo spuntare noi: dipendono da come lavori tu.
+            </p>
+            <ul className="mt-3 space-y-2">
+              {consigli.map((c) => (
+                <li key={c.label} className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-xs">
+                  <span className="font-semibold text-slate-800">{c.label}</span>
+                  <span className="text-slate-600">{c.detail}</span>
+                  {c.href && (
+                    <Link to={c.href} className="font-semibold text-orange-700 underline underline-offset-2">
+                      Imposta
+                    </Link>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
         </CardContent>
       </Card>
 
       {/* ─── 2. PIXEL + CAPI ─────────────────────────────────────── */}
-      <PixelConfigCard companyId={companyId} />
+      <PixelConfigCard companyId={companyId} integrationId={meta.integration?.id} />
 
       {/* ─── 3. SPEND GUARD ──────────────────────────────────────── */}
       <SpendGuardCard companyId={companyId} />
@@ -7553,7 +7392,8 @@ function SpendGuardCard({ companyId }: { companyId?: string }) {
               <span className="whitespace-nowrap text-sm text-slate-500">€/g</span>
             </div>
             <p className="mt-1 text-[11px] text-slate-500">
-              Sopra questa soglia la campagna richiede approvazione esplicita del titolare prima del lancio.
+              Sopra questa cifra la campagna va mandata in revisione e approvata dal titolare prima di andare online.
+              Metti 0 per togliere il passaggio. Di partenza sono 30 €/giorno.
             </p>
           </Field>
           <Field label="Soglia alert (%)">
@@ -7674,8 +7514,13 @@ function ToggleRow({
  *   • Vedere stato salute (last_event_at, event_match_quality_score)
  */
 /** Pixel Wizard — 4 step guidati per configurare Meta Pixel + CAPI. */
-function PixelConfigCard({ companyId }: { companyId?: string }) {
+function PixelConfigCard({ companyId, integrationId }: { companyId?: string; integrationId?: string }) {
   const { config, isLoading, save, isSaving } = useMetaPixelConfig(companyId);
+  // I Pixel già presenti sul conto pubblicitario. Copiare a mano sedici cifre
+  // da Gestione Inserzioni era il passaggio dove la configurazione si fermava.
+  const [pixelTrovati, setPixelTrovati] = useState<Array<{ id: string; name: string; last_fired_time: string | null }>>([]);
+  const [cercandoPixel, setCercandoPixel] = useState(false);
+  const [ricercaFatta, setRicercaFatta] = useState(false);
   const [wizardStep, setWizardStep] = useState(0); // 0=dashboard/intro, 1-4=wizard steps
   const [wizardOpen, setWizardOpen] = useState(false);
   const [pixelId, setPixelId] = useState("");
@@ -7695,6 +7540,42 @@ function PixelConfigCard({ companyId }: { companyId?: string }) {
 
   const hasConfig = !!config?.pixel_id;
   const eventQuality = config?.event_match_quality_score ?? null;
+
+  const cercaPixel = async () => {
+    if (!companyId || !integrationId) {
+      toast.error("Collega prima l'account Meta");
+      return;
+    }
+    setCercandoPixel(true);
+    try {
+      const { data, error } = await supabase.functions.invoke<{
+        pixels?: Array<{ id: string; name: string; last_fired_time: string | null }>;
+        needs_account?: boolean;
+        error?: string;
+      }>("meta-api-proxy", {
+        body: { action: "list-pixels", company_id: companyId, integration_id: integrationId },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      if (data?.needs_account) {
+        toast.error("Scegli prima il conto pubblicitario");
+        return;
+      }
+      setPixelTrovati(data?.pixels ?? []);
+      setRicercaFatta(true);
+      if ((data?.pixels ?? []).length === 0) {
+        toast.info("Nessun Pixel sul conto pubblicitario", {
+          description: "Creane uno in Gestione Inserzioni, oppure inseriscilo a mano qui sotto.",
+        });
+      }
+    } catch (e) {
+      toast.error("Non sono riuscito a leggere i Pixel", {
+        description: e instanceof Error ? e.message : String(e),
+      });
+    } finally {
+      setCercandoPixel(false);
+    }
+  };
 
   const validatePixelId = (v: string) => {
     if (!v.trim()) return "Inserisci il Pixel ID";
@@ -7769,7 +7650,13 @@ function PixelConfigCard({ companyId }: { companyId?: string }) {
     }
   };
 
-  const WIZARD_STEPS = [
+  const WIZARD_STEPS: Array<{
+    title: string;
+    description: string;
+    guide: Array<{ step: string; text: string }>;
+    visual: string | null;
+    action: "pixel_id" | "capi_token" | null;
+  }> = [
     {
       title: "Dove si trova il Pixel ID",
       description: "Apri Meta Business Manager e segui questi passaggi:",
@@ -7943,6 +7830,55 @@ function PixelConfigCard({ companyId }: { companyId?: string }) {
                 <h3 className="text-base font-bold text-slate-800">{currentWizardStep.title}</h3>
                 <p className="text-sm text-slate-500">{currentWizardStep.description}</p>
               </div>
+
+              {/* Scelta automatica: i Pixel già sul conto pubblicitario */}
+              {wizardStep === 0 && (
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-emerald-900">Lo cerco io</p>
+                      <p className="text-xs text-emerald-800/80">
+                        Leggo i Pixel già presenti sul tuo conto pubblicitario: non devi copiare niente.
+                      </p>
+                    </div>
+                    <Button size="sm" variant="outline" disabled={cercandoPixel} onClick={cercaPixel} className="shrink-0 bg-white">
+                      {cercandoPixel ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
+                      {ricercaFatta ? "Cerca di nuovo" : "Trova i miei Pixel"}
+                    </Button>
+                  </div>
+                  {pixelTrovati.length > 0 && (
+                    <ul className="mt-3 space-y-2">
+                      {pixelTrovati.map((px) => (
+                        <li key={px.id}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPixelId(px.id);
+                              setPixelName(px.name);
+                              setPixelIdError("");
+                              setWizardStep(1);
+                            }}
+                            className="flex w-full items-center justify-between gap-3 rounded-lg border border-emerald-200 bg-white px-3 py-2 text-left transition hover:border-emerald-400"
+                          >
+                            <span className="min-w-0">
+                              <span className="block truncate text-sm font-semibold text-slate-900">{px.name}</span>
+                              <span className="block font-mono text-[11px] text-slate-500">{px.id}</span>
+                            </span>
+                            <span className="shrink-0 text-[11px] text-slate-500">
+                              {px.last_fired_time ? "riceve eventi" : "mai usato"}
+                            </span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {ricercaFatta && pixelTrovati.length === 0 && (
+                    <p className="mt-2 text-xs text-emerald-900">
+                      Nessun Pixel trovato: segui i passaggi qui sotto per crearne uno.
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* Guide steps */}
               {currentWizardStep.guide.length > 0 && (
