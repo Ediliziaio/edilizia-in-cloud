@@ -418,8 +418,7 @@ const CampaignTable = ({ report }: Props) => {
                           "px-3 py-2.5 whitespace-nowrap",
                           col.align === "right" ? "text-right tabular-nums" : "text-left",
                           col.key === "name" &&
-                            "sticky left-0 z-[2] bg-card bg-gradient-to-r from-transparent to-transparent " +
-                            "group-hover:from-muted/20 group-hover:to-muted/20",
+                            "sticky left-0 z-[2] bg-card group-hover:bg-muted",
                         )}
                       >
                         {cella(col, row)}

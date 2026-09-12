@@ -330,8 +330,7 @@ export default function GoogleAdsTable({ report }: { report: Report }) {
                           "whitespace-nowrap px-3 py-2.5",
                           c.align === "right" ? "text-right tabular-nums" : "text-left",
                           c.key === "name" &&
-                            "sticky left-0 z-[2] bg-card bg-gradient-to-r from-transparent to-transparent " +
-                            "group-hover:from-muted/20 group-hover:to-muted/20",
+                            "sticky left-0 z-[2] bg-card group-hover:bg-muted",
                         )}
                       >
                         {cella(c, r)}
