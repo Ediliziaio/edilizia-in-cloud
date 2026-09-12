@@ -13,6 +13,7 @@ import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import { romeToday, outsideQuietHours, sendOpenWaMessage } from "../_shared/openwaSend.ts";
 import { isLid, lidDaMessageId, risolviLid, registraLid, numeroDalPayload } from "../_shared/openwaLid.ts";
 import { applicaRegole, type MessaggioInArrivo } from "../_shared/openwa-regole-motore.ts";
+import { mappaStatoOpenWa, statoGrezzoDaPayload, riassuntoPayload } from "../_shared/openwaStato.ts";
 
 const PLATFORM_COMPANY_ID = "00000000-0000-0000-0000-000000000001";
 
@@ -168,17 +169,27 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     // ── session.status ────────────────────────────────────────────────────────
-    if (event.includes("session") || event.includes("status") || event === "session.status") {
-      const raw = String(payload.status ?? payload.state ?? payload.payload?.status ?? "").toLowerCase();
-      // ORDINE E UGUAGLIANZA CONTANO: "disconnected" contiene "connect", e un
-      // includes() valutato per primo marcava CONNESSO un numero caduto — cosi'
-      // l'avviso di caduta non scattava mai e il numero restava in rotazione.
-      let stato = "connecting";
-      if (raw.includes("ban")) stato = "banned";
-      else if (/disconnect|unpaired|logout|logged_out|close|timeout|conflict|unlaunched/.test(raw)) stato = "disconnected";
-      else if (/^(connected|ready|authenticated|open|inchat|online)$/.test(raw)) stato = "connected";
+    // Solo gli eventi di SESSIONE: "status" da solo catturava anche gli ack dei
+    // messaggi (message.status, "sent"/"delivered"), che finivano nel ramo qui
+    // sotto e spegnevano il numero.
+    const eventoSessione = /session|connection|state/.test(event) || event === "session.status";
+    if (eventoSessione) {
+      const raw = statoGrezzoDaPayload(payload);
+      const stato = mappaStatoOpenWa(raw);
 
-      if (number) {
+      // Stato che non so leggere: NON tocco il numero. Prima il default era
+      // "connecting", e un payload con lo stato annidato in `data` (come lo
+      // manda questo gateway) spegneva un numero perfettamente connesso a ogni
+      // riconnessione notturna, fermando le campagne in silenzio.
+      if (number && !stato) {
+        console.warn(`[openwa-webhook] stato sessione non riconosciuto (numero ${number.numero} lasciato '${number.stato}'): evento="${event}" raw="${raw}" payload=${riassuntoPayload(payload)}`);
+        await admin.from("openwa_numbers")
+          .update({ last_seen_at: new Date().toISOString() })
+          .eq("id", number.id);
+        return new Response(JSON.stringify({ ok: true, ignorato: "stato-sconosciuto" }), { headers: jsonH });
+      }
+
+      if (number && stato) {
         await admin.from("openwa_numbers")
           .update({ stato, last_seen_at: new Date().toISOString() })
           .eq("id", number.id);

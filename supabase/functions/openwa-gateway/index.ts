@@ -16,6 +16,7 @@ import {
 } from "../_shared/openwaSend.ts";
 
 import { serveConMetriche } from "../_shared/withMetrics.ts";
+import { mappaStatoOpenWa, statoGrezzoDaPayload } from "../_shared/openwaStato.ts";
 // URL pubblico del webhook (il gateway esterno lo chiama a ogni evento).
 function webhookUrl(): string {
   const base = (Deno.env.get("SUPABASE_URL") ?? "").replace(/\/+$/, "");
@@ -292,12 +293,11 @@ serveConMetriche("openwa-gateway", async (req) => {
       const r = await owaFetch(cfg, OWA_PATHS.status(sessionId));
       if (!r.ok) return new Response(JSON.stringify({ error: `Gateway: ${r.status} ${r.text}` }), { status: 502, headers: jsonH });
 
-      const raw = String(r.json?.status ?? r.json?.state ?? "").toLowerCase();
-      // Stessa regola del webhook: "disconnected" contiene "connect".
-      const stato = raw.includes("ban") ? "banned"
-        : /disconnect|unpaired|logout|logged_out|close|timeout|conflict|unlaunched/.test(raw) ? "disconnected"
-        : /^(connected|ready|authenticated|open|inchat|online)$/.test(raw) ? "connected"
-        : "connecting";
+      const raw = statoGrezzoDaPayload(r.json);
+      // Mappatura condivisa col webhook (_shared/openwaStato.ts): stato
+      // sconosciuto → "connecting" solo qui, dove la lettura è esplicita e
+      // l'operatore sta guardando la scheda del numero.
+      const stato = mappaStatoOpenWa(raw) ?? "connecting";
       const connected = stato === "connected";
       const numero = r.json?.phone ?? r.json?.me?.phone ?? null;
       const pushName = r.json?.pushName ?? null;

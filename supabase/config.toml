@@ -135,6 +135,10 @@ verify_jwt = false
 [functions.openwa-campagna-dispatch]
 verify_jwt = false
 
+# Riconciliazione stati numeri WhatsApp: gira dal cron con x-cron-secret.
+[functions.openwa-riconcilia-stati]
+verify_jwt = false
+
 [functions.sync-stripe-mrr]
 verify_jwt = false
 
