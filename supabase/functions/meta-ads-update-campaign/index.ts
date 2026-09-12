@@ -179,6 +179,7 @@ Deno.serve(async (req) => {
             // della piattaforma: chiedere un super_admin qui significava che
             // nessun cliente poteva alzare il budget della propria campagna.
             if (
+              guard.campaign_approval_threshold_cents > 0 &&
               body.patch.daily_budget_cents > guard.campaign_approval_threshold_cents &&
               !isSuperAdmin &&
               !campaign.approved_at

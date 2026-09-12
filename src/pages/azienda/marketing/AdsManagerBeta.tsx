@@ -7392,7 +7392,8 @@ function SpendGuardCard({ companyId }: { companyId?: string }) {
               <span className="whitespace-nowrap text-sm text-slate-500">€/g</span>
             </div>
             <p className="mt-1 text-[11px] text-slate-500">
-              Sopra questa soglia la campagna richiede approvazione esplicita del titolare prima del lancio.
+              Sopra questa cifra la campagna va mandata in revisione e approvata dal titolare prima di andare online.
+              Metti 0 per togliere il passaggio. Di partenza sono 30 €/giorno.
             </p>
           </Field>
           <Field label="Soglia alert (%)">

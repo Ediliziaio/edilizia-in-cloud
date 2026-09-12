@@ -657,7 +657,14 @@ async function checkSpendGuard(
   // default a 30 €/giorno nessun cliente poteva pubblicare una campagna con
   // un budget vero, e il flusso di approvazione del titolare che esiste già
   // (stato «review» → Approva) non veniva nemmeno guardato.
-  if (effectiveBudget > guard.campaign_approval_threshold_cents && !isSuperAdmin) {
+  // Soglia a 0 = nessun passaggio di approvazione. Prima 0 voleva dire
+  // «chiedi l'ok per qualunque cifra»: il contrario di quello che sembra
+  // a chi svuota il campo nelle impostazioni.
+  if (
+    guard.campaign_approval_threshold_cents > 0 &&
+    effectiveBudget > guard.campaign_approval_threshold_cents &&
+    !isSuperAdmin
+  ) {
     let approvata = false;
     if (draftId) {
       const { data: bozza } = await admin
