@@ -1145,6 +1145,30 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
     return { success: true, output: { action: actionType, simulated: true, test_mode: true } };
   }
 
+  // ── LEAD RECUPERATO DALLO STORICO ──
+  // Un modulo compilato settimane fa e importato solo ora entra in pipeline
+  // (crea opportunità, tag, campi: serve lavorarlo), ma NON deve avvisare
+  // nessuno né scrivere al contatto: il 12/09/2026 un recupero ha mandato 91
+  // notifiche «Nuovo lead» in un'ora e mezza per richieste vecchie fino a tre
+  // settimane, e avrebbe scritto «ti ricontattiamo subito» a chi aspettava da
+  // venti giorni.
+  const leadArretrato = queueItem?.context_json?.payload?.arretrato === true;
+  const AZIONI_CHE_CONTATTANO = new Set([
+    "send_email", "send_whatsapp", "send_whatsapp_locale", "send_sms",
+    "send_notification", "internal_notification", "send_ai_message", "call_with_ai_agent",
+  ]);
+  if (leadArretrato && AZIONI_CHE_CONTATTANO.has(actionType)) {
+    const giorni = Number(queueItem?.context_json?.payload?.giorni_ritardo ?? 0);
+    return {
+      success: true,
+      output: {
+        action: actionType,
+        saltata: "lead recuperato dallo storico",
+        giorni_ritardo: giorni,
+      },
+    };
+  }
+
   // ── SEPARAZIONE AREA (azioni) ──
   // Le azioni di PIATTAFORMA girano SOLO se il flusso appartiene alla
   // platform-admin company; le azioni esclusive AZIENDA (ordini/preventivi/
@@ -1451,6 +1475,17 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
       if (ncfg.call_center_id) insertData.call_center_id = ncfg.call_center_id;
       const fonte = await resolveOppText(ncfg.fonte);
       if (fonte) insertData.source = fonte.slice(0, 100);
+
+      // Lead recuperato dallo storico: si scrive sull'opportunità da quanto
+      // aspetta, altrimenti in pipeline è indistinguibile da una richiesta di
+      // oggi e il commerciale richiama come se fosse appena arrivata.
+      if (leadArretrato) {
+        const giorni = Number(queueItem?.context_json?.payload?.giorni_ritardo ?? 0);
+        insertData.tags = ["lead-recuperato"];
+        insertData.notes = giorni > 0
+          ? `Richiesta compilata ${giorni} giorni fa e recuperata ora dallo storico di Facebook: non è un contatto di oggi.`
+          : "Richiesta recuperata dallo storico di Facebook: non è un contatto di oggi.";
+      }
 
       const { error } = await supabase
         .from("marketing_opportunities")
