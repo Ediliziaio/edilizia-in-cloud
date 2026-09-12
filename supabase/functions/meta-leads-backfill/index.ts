@@ -211,6 +211,21 @@ serveConMetriche("meta-leads-backfill", async (req) => {
     // schiacciata sull'ultimo giro e lo storico non rientrava mai.
     const ignoraSegnalibro = giorniChiesti !== null;
 
+    // Una finestra storica vale per UN cliente per volta. Il 12/09/2026 un
+    // recupero con "days" senza azienda ha ripescato l'arretrato di tutti i
+    // clienti Meta insieme: tre aziende, ~90 lead a testa riversati nel CRM in
+    // un quarto d'ora. Il giro automatico (senza "days") continua a passare su
+    // tutti: guarda solo le ultime ore e rispetta il segnalibro.
+    if (giorniChiesti !== null && !onlyCompany) {
+      return new Response(
+        JSON.stringify({
+          error: "Per recuperare lo storico serve company_id: una finestra di giorni vale per un cliente per volta, " +
+                 "altrimenti l'arretrato di tutti i clienti entra insieme e le loro automazioni partono tutte.",
+        }),
+        { status: 400, headers: { ...cors, "Content-Type": "application/json" } },
+      );
+    }
+
     let q = admin
       .from("integrations")
       .select("id, company_id")
