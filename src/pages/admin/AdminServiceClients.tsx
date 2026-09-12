@@ -293,6 +293,19 @@ export default function AdminServiceClients() {
     setUsaScaglioni(false); setRigheScaglioni(righeDaScaglioni(SCAGLIONI_STANDARD));
     setDialogOpen(true);
   };
+  /**
+   * Un secondo servizio allo stesso cliente (marketing oggi, consulenza
+   * domani): contratto nuovo, stesso contatto e stessa azienda, così
+   * provvigioni e scadenze restano separate ma il cliente resta uno.
+   */
+  const nuovoServizioPer = (serviceClientId: string) => {
+    const r = rows.find((x) => x.id === serviceClientId);
+    if (!r) { toast.error("Cliente non trovato: ricarica la pagina"); return; }
+    setDraft({ ...EMPTY, cliente_nome: r.cliente_nome, contact_id: r.contact_id, company_id: r.company_id, commerciale: r.commerciale });
+    setClientQuery(""); setCommLines([{ etichetta: "", base: "fatturato", percentuale: 0 }]);
+    setUsaScaglioni(false); setRigheScaglioni(righeDaScaglioni(SCAGLIONI_STANDARD));
+    setDialogOpen(true);
+  };
   const openEdit = async (r: ServiceClient) => {
     // Reset SUBITO commLines: evita di mostrare le righe del cliente precedente
     // finché la query asincrona del nuovo cliente non risolve.
@@ -424,6 +437,7 @@ export default function AdminServiceClients() {
           oggi={oggi}
           schedaId={schedaId}
           onScheda={(id) => setSearchParams(id ? { scheda: id } : {})}
+          onNuovoServizio={nuovoServizioPer}
           onMese={setMese}
           righe={riepilogo.data ?? []}
           isLoading={riepilogo.isLoading}

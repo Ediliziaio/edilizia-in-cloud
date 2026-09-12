@@ -33,6 +33,7 @@ interface Props {
   /** ?scheda=<id>: la scheda del cliente prende il posto dell'elenco */
   schedaId: string | null;
   onScheda: (id: string | null) => void;
+  onNuovoServizio: (serviceClientId: string) => void;
   onMese: (m: string) => void;
   righe: ClienteMarketing[];
   isLoading: boolean;
@@ -47,7 +48,7 @@ interface Props {
 
 const SEMAFORO_ETICHETTA: Record<string, string> = { V: "verdi", G: "gialli", R: "rossi", N: "senza dati" };
 
-export function ClientiMarketingPanel({ mese, meseOggi, oggi, schedaId, onScheda, onMese, righe, isLoading, isError, isFetching, refetch, onModifica, onIncassi, onReport, onVaiAiContratti }: Props) {
+export function ClientiMarketingPanel({ mese, meseOggi, oggi, schedaId, onScheda, onNuovoServizio, onMese, righe, isLoading, isError, isFetching, refetch, onModifica, onIncassi, onReport, onVaiAiContratti }: Props) {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [mostraCessati, setMostraCessati] = useState(false);
@@ -172,6 +173,7 @@ export function ClientiMarketingPanel({ mese, meseOggi, oggi, schedaId, onScheda
           onSoglie={() => { if (schedaCliente) setSoglieDi(schedaCliente); }}
           onPromemoria={() => { if (schedaCliente) setPromemoriaDi(schedaCliente); }}
           onContratto={() => onModifica(schedaId)}
+          onNuovoServizio={() => onNuovoServizio(schedaId)}
           onReport={() => onReport(schedaId)}
         />
       ) : (

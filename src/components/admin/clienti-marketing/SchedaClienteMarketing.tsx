@@ -46,6 +46,7 @@ interface Props {
   onSoglie: () => void;
   onPromemoria: () => void;
   onContratto: () => void;
+  onNuovoServizio: () => void;
   onReport: () => void;
 }
 
@@ -69,7 +70,7 @@ const tdc = "px-2 py-1.5 tabular-nums whitespace-nowrap";
 
 export function SchedaClienteMarketing({
   serviceClientId, cliente, metriche, allarmi, oggi, puoEntrare, entraInCorso,
-  onEntra, onChiudi, onCosti, onIncassi, onSoglie, onPromemoria, onContratto, onReport,
+  onEntra, onChiudi, onCosti, onIncassi, onSoglie, onPromemoria, onContratto, onNuovoServizio, onReport,
 }: Props) {
   const [periodo, setPeriodo] = useState<(typeof PERIODI)[number]["id"]>("30");
   const giorniPeriodo = PERIODI.find((p) => p.id === periodo)!.giorni;
@@ -173,7 +174,8 @@ export function SchedaClienteMarketing({
                       {s.incassato > 0 ? ` · incassato ${eur(s.incassato)}` : ""}
                     </span>
                   ))}
-                  <button type="button" onClick={onContratto} className="inline-flex items-center gap-1 rounded-full border border-dashed px-2 py-0.5 text-[11px] text-muted-foreground hover:text-foreground">
+                  <button type="button" onClick={onNuovoServizio} title="Aggiunge un secondo servizio a questo cliente (consulenza, formazione, vendita…)"
+                    className="inline-flex items-center gap-1 rounded-full border border-dashed px-2 py-0.5 text-[11px] text-muted-foreground hover:text-foreground">
                     + aggiungi servizio
                   </button>
                 </div>
