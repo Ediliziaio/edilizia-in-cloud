@@ -386,11 +386,15 @@ Deno.serve(async (req) => {
 
       case "backfill-recent": {
         // "Risolvi → I lead non vengono sincronizzati automaticamente":
-        // recupera i lead degli ultimi N giorni (15 o 30) per TUTTI i moduli
+        // recupera i lead degli ultimi N giorni (1-90) per TUTTI i moduli
         // attivi dell'integrazione e li rimette in coda di processamento.
         // L'upsert su (company,provider,event_id) rende l'operazione
         // idempotente: i lead già importati non vengono duplicati.
-        const days = Number(body.days) === 30 ? 30 : 15;
+        // Finestra libera 1-90 giorni (prima erano ammessi solo 15 e 30, e
+        // qualsiasi altro valore diventava 15 in silenzio): chi ha un buco di
+        // poche ore non deve ripescare mezzo mese di storico.
+        const giorniRichiesti = Math.round(Number(body.days));
+        const days = Number.isFinite(giorniRichiesti) ? Math.min(90, Math.max(1, giorniRichiesti)) : 15;
         const sinceTs = Math.floor((Date.now() - days * 24 * 60 * 60 * 1000) / 1000);
 
         const { data: activeForms } = await adminClient

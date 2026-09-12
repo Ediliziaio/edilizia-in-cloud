@@ -94,12 +94,12 @@ async function backfillPage(
   // in produzione esistono e un join stretto le avrebbe escluse, fermando i lead.
   const { data: formRows } = await admin
     .from("meta_lead_forms")
-    .select("id, form_id, status, sync_mode, since_date, last_pull_at, page_asset_id")
+    .select("id, form_id, status, sync_mode, since_date, last_pull_at, page_asset_id, created_at")
     .eq("company_id", integ.company_id);
 
   const settingsByForm = new Map<string, {
     id: string; status: string | null; sync_mode: string | null;
-    since_date: string | null; last_pull_at: string | null;
+    since_date: string | null; last_pull_at: string | null; created_at: string | null;
   }>();
   for (const row of formRows ?? []) {
     const r = row as Record<string, unknown>;
@@ -111,6 +111,7 @@ async function backfillPage(
       sync_mode: (r.sync_mode as string) ?? null,
       since_date: (r.since_date as string) ?? null,
       last_pull_at: (r.last_pull_at as string) ?? null,
+      created_at: (r.created_at as string) ?? null,
     });
   }
 
@@ -135,6 +136,15 @@ async function backfillPage(
     if (cfg) {
       if (cfg.sync_mode === "new_only" && cfg.since_date) {
         effectiveSince = Math.max(effectiveSince, Math.floor(new Date(cfg.since_date).getTime() / 1000));
+      }
+      // MAI prima di quando il modulo è stato collegato. Chi collega Meta oggi
+      // non si aspetta di trovarsi dentro i lead del mese scorso: sono
+      // richieste che nessuno ha mai lavorato e che nessuno sta aspettando.
+      // Vale anche per i moduli già attivi con "solo i nuovi" ma senza
+      // since_date — cioè tutti quelli collegati finora, per i quali quel
+      // «solo i nuovi» non stava filtrando nulla.
+      if (cfg.created_at) {
+        effectiveSince = Math.max(effectiveSince, Math.floor(new Date(cfg.created_at).getTime() / 1000));
       }
       if (cfg.last_pull_at && !ignoraSegnalibro) {
         effectiveSince = Math.max(effectiveSince, Math.floor(new Date(cfg.last_pull_at).getTime() / 1000));
@@ -210,6 +220,21 @@ serveConMetriche("meta-leads-backfill", async (req) => {
     // «pochi minuti fa») va ignorato, altrimenti la finestra richiesta veniva
     // schiacciata sull'ultimo giro e lo storico non rientrava mai.
     const ignoraSegnalibro = giorniChiesti !== null;
+
+    // Una finestra storica vale per UN cliente per volta. Il 12/09/2026 un
+    // recupero con "days" senza azienda ha ripescato l'arretrato di tutti i
+    // clienti Meta insieme: tre aziende, ~90 lead a testa riversati nel CRM in
+    // un quarto d'ora. Il giro automatico (senza "days") continua a passare su
+    // tutti: guarda solo le ultime ore e rispetta il segnalibro.
+    if (giorniChiesti !== null && !onlyCompany) {
+      return new Response(
+        JSON.stringify({
+          error: "Per recuperare lo storico serve company_id: una finestra di giorni vale per un cliente per volta, " +
+                 "altrimenti l'arretrato di tutti i clienti entra insieme e le loro automazioni partono tutte.",
+        }),
+        { status: 400, headers: { ...cors, "Content-Type": "application/json" } },
+      );
+    }
 
     let q = admin
       .from("integrations")
