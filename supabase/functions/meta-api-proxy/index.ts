@@ -195,12 +195,28 @@ Deno.serve(async (req) => {
         headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
 
+    // Graph pagina TUTTO: senza seguire "paging.next" si vede solo il primo
+    // blocco e il resto sembra non esistere.
+    const tuttePagine = async (url: string, giriMax = 40) => {
+      const righe: any[] = [];
+      let errore: string | null = null;
+      let prossima: string | null = url;
+      for (let giro = 0; prossima && giro < giriMax; giro++) {
+        const r = await fetchWithRetry(prossima);
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok || j.error) { errore = String(j.error?.message ?? `HTTP ${r.status}`); break; }
+        righe.push(...(j.data ?? []));
+        prossima = j.paging?.next ?? null;
+      }
+      return { righe, errore };
+    };
+
     switch (action) {
       case "get-assets": {
-        const pagesRes = await fetchWithRetry(
+        const pagine = await tuttePagine(
           `https://graph.facebook.com/${apiVersion}/me/accounts?fields=id,name,instagram_business_account{id,name,username}&limit=100&access_token=${accessToken}`
         );
-        const pagesData = await pagesRes.json();
+        const pagesData = { data: pagine.righe, error: pagine.errore };
         
         const { data: dbAssets } = await adminClient
           .from("meta_assets")
@@ -211,6 +227,7 @@ Deno.serve(async (req) => {
         result = {
           pages: pagesData.data || [],
           db_assets: dbAssets || [],
+          errore: pagine.errore,
         };
         break;
       }
@@ -244,10 +261,29 @@ Deno.serve(async (req) => {
           ? await decrypt(pageTokens[pageAsset.asset_id], encKey)
           : accessToken;
 
-        const formsRes = await fetchWithRetry(
-          `https://graph.facebook.com/${apiVersion}/${pageAsset.asset_id}/leadgen_forms?fields=id,name,status,questions&access_token=${pageAccessToken}`
-        );
-        const formsData = await formsRes.json();
+        // Meta ne restituisce 25 per volta e li ordina dal piu' recente: senza
+        // seguire le pagine, di una pagina con anni di campagne si vedevano solo
+        // gli ultimi 25 e i moduli vecchi risultavano spariti. Su BeMade e' il
+        // motivo per cui un modulo del 2024 non compariva.
+        const moduli: unknown[] = [];
+        let erroreModuli: string | null = null;
+        let paginaModuli: string | null =
+          `https://graph.facebook.com/${apiVersion}/${pageAsset.asset_id}/leadgen_forms` +
+          `?fields=id,name,status,questions,created_time,leads_count&limit=100&access_token=${pageAccessToken}`;
+        for (let giro = 0; paginaModuli && giro < 40; giro++) {
+          const r = await fetchWithRetry(paginaModuli);
+          const j = await r.json().catch(() => ({}));
+          // Graph risponde 200 anche quando fallisce, con l'errore nel corpo:
+          // senza questo controllo l'elenco tornava vuoto e sembrava che la
+          // pagina non avesse moduli.
+          if (!r.ok || j.error) {
+            erroreModuli = String(j.error?.message ?? `HTTP ${r.status}`);
+            break;
+          }
+          moduli.push(...(j.data ?? []));
+          paginaModuli = j.paging?.next ?? null;
+        }
+        const formsData = { data: moduli, error: erroreModuli };
 
         const { data: dbForms } = await adminClient
           .from("meta_lead_forms")
@@ -258,6 +294,8 @@ Deno.serve(async (req) => {
         result = {
           forms: formsData.data || [],
           db_forms: dbForms || [],
+          totale: moduli.length,
+          errore: erroreModuli,
         };
         break;
       }
@@ -670,12 +708,11 @@ Deno.serve(async (req) => {
       }
 
       case "get-ad-accounts": {
-        const accountsRes = await fetchWithRetry(
+        const elenco = await tuttePagine(
           `https://graph.facebook.com/${apiVersion}/me/adaccounts?fields=id,name,account_status,currency&limit=100&access_token=${accessToken}`
         );
-        const accountsData = await accountsRes.json();
         const visibili: Array<{ id: string; name?: string; account_status?: number; currency?: string }> =
-          accountsData.data || [];
+          elenco.righe as Array<{ id: string; name?: string; account_status?: number; currency?: string }>;
 
         // Solo gli account scelti da questa azienda. Prima si salvavano tutti
         // quelli visibili al token: con un utente agenzia ogni cliente si

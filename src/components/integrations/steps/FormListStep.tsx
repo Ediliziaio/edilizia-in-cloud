@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { Input } from "@/components/ui/input";
 import { Loader2, FileText, Settings2, Download, Calendar as CalendarIcon } from "lucide-react";
 import { toast } from "sonner";
 import { logger } from "@/utils/logger";
@@ -24,6 +25,10 @@ export function FormListStep({ hook, onMapFields }: FormListStepProps) {
   const [backfillMode, setBackfillMode] = useState<"all" | "since_date">("all");
   const [backfillDate, setBackfillDate] = useState<Date | undefined>(undefined);
   const [backfillProgress, setBackfillProgress] = useState<{ running: boolean; imported: number; total: number } | null>(null);
+  // Con anni di campagne i moduli sono centinaia: senza una ricerca, trovarne
+  // uno del 2024 vuol dire scorrere a mano.
+  const [cerca, setCerca] = useState("");
+  const [erroreMeta, setErroreMeta] = useState<string | null>(null);
 
   const selectedPageIds = selectedPages.map((p: any) => p.id).sort().join(",");
 
@@ -34,11 +39,13 @@ export function FormListStep({ hook, onMapFields }: FormListStepProps) {
   const loadForms = async () => {
     if (selectedPages.length === 0) return;
     setLoading(true);
+    setErroreMeta(null);
     try {
       const allForms: any[] = [];
       for (const page of selectedPages) {
         try {
           const result = await callProxy("get-forms", { page_asset_id: page.id });
+          if (result.errore) setErroreMeta(String(result.errore));
           const pageForms = (result.forms || []).map((f: any) => ({
             ...f,
             page_name: page.asset_name,
@@ -56,6 +63,14 @@ export function FormListStep({ hook, onMapFields }: FormListStepProps) {
       setLoading(false);
     }
   };
+
+  const chiave = cerca.trim().toLowerCase();
+  const mostrati = chiave
+    ? metaForms.filter((f: any) =>
+        String(f.name ?? "").toLowerCase().includes(chiave) ||
+        String(f.id ?? "").includes(chiave) ||
+        String(f.created_time ?? "").includes(chiave))
+    : metaForms;
 
   const isFormActive = (formId: string) => {
     return forms.some((f: any) => f.form_id === formId && f.status === "active");
@@ -124,6 +139,24 @@ export function FormListStep({ hook, onMapFields }: FormListStepProps) {
         Attiva i moduli da cui vuoi importare i lead e configura la mappatura dei campi.
       </p>
 
+      {erroreMeta && (
+        <p className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+          Meta ha interrotto l'elenco: {erroreMeta}. Quelli qui sotto potrebbero non essere tutti.
+        </p>
+      )}
+
+      <div className="flex flex-wrap items-center gap-2">
+        <Input
+          value={cerca}
+          onChange={(e) => setCerca(e.target.value)}
+          placeholder="Cerca per nome, identificativo o anno (es. 2024)"
+          className="h-8 max-w-sm text-sm"
+        />
+        <span className="text-xs text-muted-foreground">
+          {chiave ? `${mostrati.length} di ${metaForms.length} moduli` : `${metaForms.length} moduli`}
+        </span>
+      </div>
+
       {/* Backfill progress */}
       {backfillProgress?.running && (
         <div className="border rounded-lg p-3 space-y-2 bg-muted/30">
@@ -142,8 +175,13 @@ export function FormListStep({ hook, onMapFields }: FormListStepProps) {
         </div>
       )}
 
-      <div className="border rounded-lg divide-y max-h-[300px] overflow-y-auto">
-        {metaForms.map((form) => {
+      <div className="border rounded-lg divide-y max-h-[420px] overflow-y-auto">
+        {mostrati.length === 0 && (
+          <p className="px-4 py-6 text-center text-sm text-muted-foreground">
+            Nessun modulo con «{cerca}».
+          </p>
+        )}
+        {mostrati.map((form) => {
           const active = isFormActive(form.id);
           const isBackfillTarget = backfillFormId === form.id;
           return (
@@ -156,7 +194,11 @@ export function FormListStep({ hook, onMapFields }: FormListStepProps) {
                 />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">{form.name}</p>
-                  <p className="text-xs text-muted-foreground">{form.page_name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {form.page_name}
+                    {form.created_time ? ` · creato il ${format(new Date(form.created_time), "d MMM yyyy", { locale: it })}` : ""}
+                    {form.status && form.status !== "ACTIVE" ? ` · ${String(form.status).toLowerCase()}` : ""}
+                  </p>
                 </div>
                 <div className="flex items-center gap-1">
                   {form.questions && (
