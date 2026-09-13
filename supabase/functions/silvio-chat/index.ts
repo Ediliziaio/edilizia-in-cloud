@@ -967,16 +967,25 @@ serve(async (req: Request) => {
     const messages: any[] = [
       { role: "system", content: staticSystemPrompt },
       ...(dynamicSystemPrompt ? [{ role: "system", content: dynamicSystemPrompt }] : []),
-      ...history.map((m) => ({
-        role: m.sender_id === SILVIO_SENDER_ID ? "assistant" : "user",
+      ...history.map((m) => {
+        const eSilvio = m.sender_id === SILVIO_SENDER_ID;
         // Token guard: messaggi history molto lunghi (doc incollati, risposte
         // chilometriche) troncati SOLO nel contesto LLM (non nel DB). Il messaggio
         // corrente dell'utente è inviato integralmente più sotto.
-        content:
-          typeof m.content === "string" && m.content.length > 4000
-            ? `${m.content.slice(0, 4000)} …[troncato]`
-            : m.content,
-      })),
+        // Le risposte PASSATE di Silvio si tagliano a 1500 caratteri: sono
+        // rapporti in markdown da 2-3.000 caratteri l'uno, e al modello basta
+        // ricordare COSA ha detto, non rileggere ogni tabella. Con 12 messaggi
+        // di storico erano 5-8.000 token a chiamata, pagati a ogni giro del
+        // loop. I messaggi dell'utente restano a 4.000: sono la domanda.
+        const tetto = eSilvio ? 1500 : 4000;
+        return {
+          role: eSilvio ? "assistant" : "user",
+          content:
+            typeof m.content === "string" && m.content.length > tetto
+              ? `${m.content.slice(0, tetto)} …[troncato]`
+              : m.content,
+        };
+      }),
     ];
 
     // Sprint AI Upload: se ci sono allegati di qualunque tipo (image/pdf/text/office),

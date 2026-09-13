@@ -921,7 +921,7 @@ export async function aiRouterComplete(
           .from("ai_response_cache")
           .update({ hits: (hit.hits ?? 0) + 1 })
           .eq("id", hit.id)
-          .then(() => undefined, () => undefined);
+          .then((): undefined => undefined, (): undefined => undefined);
         return {
           content: hit.output_content,
           rawResponse: { cached: true },
@@ -955,28 +955,32 @@ export async function aiRouterComplete(
   // resta dopo, perche' gli serve il tier della config.
   const skipCharge = opts.skipCharge === true;
   const controllaSpesa = !skipCharge && !!opts.companyId;
+  // Tipo di ritorno esplicito: il typecheck dell'app (noImplicitAny) conta
+  // come errore ogni callback che ritorna `any` senza dirlo, e questo file
+  // entra nel suo perimetro attraverso i test.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const leggiBudget = async (): Promise<any> => {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data } = await (opts.supabase as any)
+        .rpc("check_company_budget_v2", { p_company_id: opts.companyId });
+      return data ?? null;
+    } catch (e) {
+      // RPC assente (migration non applicata) o errore transitorio:
+      // si procede senza cap, come prima (back-compat).
+      const msg = e instanceof Error ? e.message : String(e);
+      if (!msg.includes("function") && !msg.includes("does not exist")) {
+        console.warn("[aiRouter] checkBudgetAndRoute warning:", msg);
+      }
+      return null;
+    }
+  };
   const [baseConfig, pmGate, budgetLetto] = await Promise.all([
     loadConfig(opts.supabase, opts.taskKey),
     controllaSpesa
       ? checkPaymentMethod(opts.supabase, opts.companyId as string)
       : Promise.resolve(null),
-    controllaSpesa
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      ? Promise.resolve((opts.supabase as any).rpc("check_company_budget_v2", { p_company_id: opts.companyId }))
-        .then(
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (r: any) => r?.data ?? null,
-          (e: unknown) => {
-            // RPC assente (migration non applicata) o errore transitorio:
-            // si procede senza cap, come prima (back-compat).
-            const msg = e instanceof Error ? e.message : String(e);
-            if (!msg.includes("function") && !msg.includes("does not exist")) {
-              console.warn("[aiRouter] checkBudgetAndRoute warning:", msg);
-            }
-            return null;
-          },
-        )
-      : Promise.resolve(null),
+    controllaSpesa ? leggiBudget() : Promise.resolve(null),
   ]);
 
   // ── AI Test Lab — Demo Azienda override automatico ─────────────────────
