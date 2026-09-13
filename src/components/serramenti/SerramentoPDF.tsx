@@ -2784,6 +2784,10 @@ export function SerramentoPDF({
               {/* La tua consulenza — il consulente è SEMPRE l'utente che ha
                   fatto il preventivo (hook fa fallback a auth.user). Mai il
                   nome azienda nel campo nome consulente. */}
+              {/* Titolo e riquadro restano insieme: con tre righe di composizione il
+                  riquadro si spezzava e la pagina dopo restava vuota, con la sola
+                  riga dell'appuntamento. */}
+              <View wrap={false}>
               <Text style={styles.sectionTitle}>La tua consulenza</Text>
               <View style={styles.consBox}>
                 {consulente?.foto_url ? (
@@ -2813,6 +2817,7 @@ export function SerramentoPDF({
                     {[consulente?.telefono, consulente?.email].filter(Boolean).join(" · ")}
                   </Text>
                 </View>
+              </View>
               </View>
 
               <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
