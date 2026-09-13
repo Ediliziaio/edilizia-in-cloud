@@ -154,6 +154,19 @@ const ROLE_SCOPE_MAP: Record<string, string> = {
   produttore_admin: "Produttore — SOLO propri prodotti e provvigioni. NO dati dei clienti finali.",
 };
 
+// Nel registro delle violazioni RBAC non va il testo del messaggio: puo'
+// contenere nomi di clienti, importi, dati sanitari. Solo lunghezza, hash
+// troncato e prima parola — lo stesso criterio di silvio-chat (GDPR / AI Act).
+// Qui finiva il messaggio integro.
+async function improntaMessaggio(rawMessage: string): Promise<string> {
+  const trimmed = (rawMessage ?? "").trim();
+  if (!trimmed) return "[empty]";
+  const firstWord = trimmed.split(/\s+/)[0]?.substring(0, 20) ?? "";
+  const hashBuf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(trimmed));
+  const hashHex = Array.from(new Uint8Array(hashBuf)).slice(0, 8).map((b) => b.toString(16).padStart(2, "0")).join("");
+  return `[len:${trimmed.length}|sha:${hashHex}|w0:${firstWord}]`;
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function loadPersona(supabaseAdmin: any, personaKey: string): Promise<PersonaRow | null> {
   const { data, error } = await supabaseAdmin
@@ -235,7 +248,7 @@ serve(async (req: Request) => {
         p_user_id: userId,
         p_attempted_persona: personaKey,
         p_user_role: primaryRole,
-        p_attempted_message: userMessage,
+        p_attempted_message: await improntaMessaggio(userMessage),
         p_reason: rbac?.reason ?? "unknown",
         p_client_ip: req.headers.get("x-forwarded-for") ?? null,
         p_user_agent: req.headers.get("user-agent") ?? null,

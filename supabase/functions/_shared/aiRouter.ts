@@ -620,10 +620,27 @@ async function callOpenRouter(
     const capped = sysMsgs.length > 4
       ? [...sysMsgs.slice(0, 3), { role: "system", content: sysMsgs.slice(3).map((m) => m.content).join("\n\n") }]
       : sysMsgs;
+    // TTL della cache. Il primo blocco (preambolo + persona + regole) e'
+    // identico per tutta la conversazione e resta in cache UN'ORA invece di
+    // cinque minuti: chi parla con Silvio riprende dopo dieci o venti minuti,
+    // e con il TTL corto ogni ripresa riscriveva tutto il prefisso a prezzo
+    // pieno (misurato su ai_router_usage_log: riuso 30%). La scrittura a 1h
+    // costa 2x invece di 1,25x, la rilettura resta 0,1x: basta UN messaggio
+    // fra i 5 e i 60 minuti dopo perche' convenga. I blocchi successivi
+    // cambiano a ogni messaggio (memoria, RAG) e restano a 5 minuti —
+    // Anthropic vuole i blocchi 1h PRIMA di quelli 5m, ed e' cosi'.
+    // Kill-switch senza redeploy: AI_PROMPT_CACHE_TTL=5m.
+    const ttlLungo = Deno.env.get("AI_PROMPT_CACHE_TTL") !== "5m";
     finalMessages = [
-      ...capped.map((m) => ({
+      ...capped.map((m, idx) => ({
         role: "system",
-        content: [{ type: "text", text: m.content, cache_control: { type: "ephemeral" } }],
+        content: [{
+          type: "text",
+          text: m.content,
+          cache_control: idx === 0 && ttlLungo
+            ? { type: "ephemeral", ttl: "1h" }
+            : { type: "ephemeral" },
+        }],
       })),
       ...messages.slice(leadingSystemCount),
     ];
@@ -931,7 +948,36 @@ export async function aiRouterComplete(
     }
   }
 
-  const baseConfig = await loadConfig(opts.supabase, opts.taskKey);
+  // Le tre letture indipendenti che precedono OGNI chiamata al modello —
+  // config del task, carta dell'azienda, budget mensile — partono insieme.
+  // Prima erano in fila: tre giri verso il database prima di ciascuna
+  // chiamata, e Silvio ne fa tre o quattro per turno. Il precheck del credito
+  // resta dopo, perche' gli serve il tier della config.
+  const skipCharge = opts.skipCharge === true;
+  const controllaSpesa = !skipCharge && !!opts.companyId;
+  const [baseConfig, pmGate, budgetLetto] = await Promise.all([
+    loadConfig(opts.supabase, opts.taskKey),
+    controllaSpesa
+      ? checkPaymentMethod(opts.supabase, opts.companyId as string)
+      : Promise.resolve(null),
+    controllaSpesa
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ? Promise.resolve((opts.supabase as any).rpc("check_company_budget_v2", { p_company_id: opts.companyId }))
+        .then(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (r: any) => r?.data ?? null,
+          (e: unknown) => {
+            // RPC assente (migration non applicata) o errore transitorio:
+            // si procede senza cap, come prima (back-compat).
+            const msg = e instanceof Error ? e.message : String(e);
+            if (!msg.includes("function") && !msg.includes("does not exist")) {
+              console.warn("[aiRouter] checkBudgetAndRoute warning:", msg);
+            }
+            return null;
+          },
+        )
+      : Promise.resolve(null),
+  ]);
 
   // ── AI Test Lab — Demo Azienda override automatico ─────────────────────
   // Se la chiamata viene dalla demo company E non ha già un forceModel
@@ -984,15 +1030,14 @@ export async function aiRouterComplete(
   // ───────────────────────────────────────────────────────────────────────
   // PRECHECK CREDIT (se company_id presente e non skipCharge)
   // ───────────────────────────────────────────────────────────────────────
-  const skipCharge = opts.skipCharge === true;
   const fxUsdToEur = opts.fxUsdToEur ?? Number(Deno.env.get("AI_FX_USD_EUR") ?? "0.92");
   const idempotencyKey = opts.idempotencyKey ?? generateIdempotencyKey(opts.taskKey);
 
   if (!skipCharge && opts.companyId) {
     // Gate "carta obbligatoria": l'AI a consumo richiede un metodo di pagamento valido.
     // La Demo Azienda è esente (gestito dentro checkPaymentMethod).
-    const pmGate = await checkPaymentMethod(opts.supabase, opts.companyId);
-    if (!pmGate.allowed) {
+    // (letto sopra, in parallelo con la config)
+    if (pmGate && !pmGate.allowed) {
       throw new AiRouterError(
         pmGate.message ?? "Registra una carta di pagamento aziendale per usare l'AI.",
         opts.taskKey,
@@ -1052,9 +1097,8 @@ export async function aiRouterComplete(
     // procede senza cap (back-compat).
     // ─────────────────────────────────────────────────────────────────────
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: budget } = await (opts.supabase as any)
-        .rpc("check_company_budget_v2", { p_company_id: opts.companyId });
+      // Letto sopra, in parallelo con config e carta.
+      const budget = budgetLetto;
 
       if (budget && typeof budget === "object") {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any

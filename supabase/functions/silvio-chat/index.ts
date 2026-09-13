@@ -306,6 +306,59 @@ async function buildPageContextSummary(supabaseAdmin: any, companyId: string, ct
   return "";
 }
 
+/**
+ * verificaCreditoSilvio — il credito si controlla PRIMA di costruire il prompt.
+ *
+ * Il precheck vero vive dentro aiRouterComplete, cioe' DOPO memoria, RAG,
+ * classificazione e storico: cinque-otto secondi di lavoro per poi scrivere in
+ * chat «⚠️ problema tecnico: Credito insufficiente». Negli ultimi 90 giorni e'
+ * finita cosi' 12 volte su 30 risposte, con un messaggio da programmatore.
+ * Qui costa una RPC, parte insieme agli altri controlli d'ingresso, e quando
+ * il credito manca lo dice per chi legge: quanto resta e dove si ricarica.
+ *
+ * Fail-open di proposito: se la RPC non risponde si va avanti, il blocco
+ * vero resta quello del router. Questo e' solo il modo gentile di dirlo.
+ */
+async function verificaCreditoSilvio(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabaseAdmin: any,
+  companyId: string,
+): Promise<{ ok: true } | { ok: false; reason: string; messaggio: string }> {
+  try {
+    const { data, error } = await supabaseAdmin.rpc("precheck_ai_credit", {
+      p_company_id: companyId,
+      p_estimated_cost_eur: 0.05,
+    });
+    if (error || !data) return { ok: true };
+    const r = data as { ok?: boolean; reason?: string; message?: string; balance_eur?: number };
+    if (r.ok) return { ok: true };
+
+    const reason = String(r.reason ?? "unknown");
+    const disponibile = Number(r.balance_eur ?? 0);
+    const euro = disponibile.toLocaleString("it-IT", { style: "currency", currency: "EUR" });
+    const doveRicaricare = "[Impostazioni → Crediti](/azienda/impostazioni/crediti)";
+
+    let messaggio: string;
+    if (reason === "hard_cap_exceeded") {
+      messaggio =
+        `⛔ Il tetto mensile di spesa AI che l'azienda si e' data e' stato raggiunto. ` +
+        `Posso ripartire il mese prossimo, oppure alzate il tetto da ${doveRicaricare}.`;
+    } else if (reason === "insufficient_balance" || reason === "wallet_missing") {
+      messaggio =
+        `💳 Il credito AI dell'azienda e' finito (disponibile: ${euro}). ` +
+        `Per continuare a usarmi basta ricaricare il portafoglio da ${doveRicaricare}. ` +
+        `Se il piano include crediti AI mensili, tornano da soli il primo del mese.`;
+    } else {
+      messaggio =
+        `⛔ Le chiamate AI di questa azienda sono bloccate (${r.message ?? reason}). ` +
+        `Controlla ${doveRicaricare} o chiedi al supporto.`;
+    }
+    return { ok: false, reason, messaggio };
+  } catch {
+    return { ok: true };
+  }
+}
+
 serve(async (req: Request) => {
   const corsHeaders = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
@@ -354,13 +407,38 @@ serve(async (req: Request) => {
     if (channel.name !== "silvio-ai") return errorResponse("Canale non è Silvio", 400, corsHeaders);
 
     const companyId: string = channel.company_id;
-    await requireCompanyAccess(supabaseAdmin, userId, companyId, corsHeaders);
 
-    // ── Gate carta (audit AI 2026-06): l'ENTRY POINT principale di Silvio
-    // erogava chiamate AI a pagamento senza alcun controllo sul metodo di
-    // pagamento — i cap di budget intervenivano solo a costi già sostenuti.
-    // Demo company e aziende comped restano esenti (logica nel gate).
-    const paymentBlock = await gateAiPayment(supabaseAdmin, companyId, corsHeaders);
+    // Sei controlli indipendenti, una sola attesa. Prima erano in fila —
+    // accesso, carta, membro del canale, persona, RBAC, e il credito non
+    // c'era affatto — e ognuno e' un giro verso il database: cosi' si paga il
+    // piu' lento, non la somma. requireCompanyAccess lancia una Response:
+    // dentro Promise.all diventa il rifiuto del gruppo e il catch in fondo la
+    // restituisce com'e'. Gli esiti si valutano sotto, nello stesso ordine di
+    // prima, cosi' i codici di errore non cambiano.
+    const [accesso, paymentBlock, credito, membershipRes, personaRes, rbacRes] = await Promise.all([
+      requireCompanyAccess(supabaseAdmin, userId, companyId, corsHeaders),
+      // Gate carta (audit AI 2026-06): l'ENTRY POINT principale di Silvio
+      // erogava chiamate AI a pagamento senza alcun controllo sul metodo di
+      // pagamento — i cap di budget intervenivano solo a costi già sostenuti.
+      // Demo company e aziende comped restano esenti (logica nel gate).
+      gateAiPayment(supabaseAdmin, companyId, corsHeaders),
+      verificaCreditoSilvio(supabaseAdmin, companyId),
+      supabaseAdmin
+        .from("internal_chat_members")
+        .select("user_id")
+        .eq("channel_id", channelId)
+        .eq("user_id", userId)
+        .maybeSingle(),
+      supabaseAdmin
+        .from("ai_personas")
+        .select("system_prompt, recommended_tier_key, recommended_model, enabled, kb_areas_filter, system_prompt_version")
+        .eq("persona_key", PERSONA_KEY)
+        .maybeSingle(),
+      supabaseAdmin.rpc("can_user_use_persona", {
+        p_user_id: userId,
+        p_persona_key: PERSONA_KEY,
+      }),
+    ]);
     if (paymentBlock) return paymentBlock;
 
     // ── AI Test Lab — server-side gating del body.model ───────────────────
@@ -388,30 +466,16 @@ serve(async (req: Request) => {
       }
     }
 
-    const { data: membership } = await supabaseAdmin
-      .from("internal_chat_members")
-      .select("user_id")
-      .eq("channel_id", channelId)
-      .eq("user_id", userId)
-      .maybeSingle();
-
+    const membership = membershipRes?.data ?? null;
     if (!membership) return errorResponse("Utente non membro del canale", 403, corsHeaders);
 
-    // ── 2) Persona Silvio ───────────────────────────────────────────────
-    const { data: persona } = await supabaseAdmin
-      .from("ai_personas")
-      .select("system_prompt, recommended_tier_key, recommended_model, enabled, kb_areas_filter, system_prompt_version")
-      .eq("persona_key", PERSONA_KEY)
-      .maybeSingle();
-
+    // ── 2) Persona Silvio (letta sopra, in parallelo) ───────────────────
+    const persona = personaRes?.data ?? null;
     if (!persona) return errorResponse("Silvio non configurato", 500, corsHeaders);
     if (!persona.enabled) return errorResponse("Silvio temporaneamente disabilitato", 503, corsHeaders);
 
-    // ── 3) RBAC check ───────────────────────────────────────────────────
-    const { data: rbacResult } = await supabaseAdmin.rpc("can_user_use_persona", {
-      p_user_id: userId,
-      p_persona_key: PERSONA_KEY,
-    });
+    // ── 3) RBAC check (letto sopra, in parallelo) ───────────────────────
+    const rbacResult = rbacRes?.data ?? null;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const rbac = rbacResult as any;
@@ -465,20 +529,102 @@ serve(async (req: Request) => {
       }, 200, corsHeaders);
     }
 
-    // ── 4) Profile + role ───────────────────────────────────────────────
-    const { data: profile } = await supabaseAdmin
-      .from("profiles").select("first_name, last_name, email")
-      .eq("id", userId).maybeSingle();
-    const { data: userRoles } = await supabaseAdmin
-      .from("user_roles").select("role").eq("user_id", userId);
+    // ── Credito finito: si dice subito, e per bene ──────────────────────
+    // Dopo il RBAC: chi non puo' usare Silvio riceve il SUO messaggio, non
+    // questo. Il testo lo compone verificaCreditoSilvio (quanto resta, dove
+    // ricaricare); la risposta resta 200/ok:false come per il RBAC, cosi' il
+    // client non mostra un errore tecnico sopra una bolla gia' chiara.
+    if (!credito.ok) {
+      await supabaseAdmin.from("internal_chat_messages").insert({
+        channel_id: channelId, sender_id: SILVIO_SENDER_ID, company_id: companyId,
+        content: credito.messaggio,
+        message_type: "text",
+      });
+      return jsonResponse({ ok: false, error: "credito_esaurito", reason: credito.reason }, 200, corsHeaders);
+    }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const roleList: string[] = (userRoles ?? []).map((r: any) => r.role);
+    // ── 4) Ruolo (dalla verifica accesso, gia' letta) ───────────────────
+    const roleList: string[] = Array.isArray(accesso?.roles) ? accesso.roles : [];
     // Allineato alla matrice del preambolo costituzionale v3. accountant era
     // assente sia qui sia nella priorità → un commercialista cadeva nel
     // fallback "Accesso limitato". Aggiunti anche i ruoli esterni per coerenza.
     const rolePriority = ["super_admin", "company_admin", "accountant", "salesperson", "call_center", "company_staff", "employee", "subcontractor", "worker", "customer", "referrer", "produttore_admin"];
     const primaryRole = rolePriority.find((p) => roleList.includes(p)) ?? roleList[0] ?? "company_staff";
+
+    // ── 4.bis) Tutto cio' che serve al prompt parte ADESSO, insieme ─────
+    // Profilo, memoria, RAG (un embedding + due RPC), storico, classificazione
+    // (spesso una chiamata al modello) e permessi staff non dipendono l'uno
+    // dall'altro, ma si aspettavano uno alla volta: misurato sugli ultimi 90
+    // giorni, un turno durava 22 secondi in mediana mentre il modello ne
+    // prendeva 2. I builder di supabase-js partono solo quando qualcuno li
+    // aspetta: Promise.resolve li fa partire qui. Ogni blocco piu' sotto
+    // aspetta il SUO risultato esattamente dove prima faceva la chiamata,
+    // cosi' la logica che segue non cambia.
+    const profilePromise = Promise.resolve(
+      supabaseAdmin.from("profiles").select("first_name, last_name, email").eq("id", userId).maybeSingle(),
+    );
+    const memoriaPromise = Promise.resolve(
+      supabaseAdmin.rpc("silvio_get_memory_context", {
+        p_company_id: companyId,
+        p_user_id: userId,
+        p_max_summaries: 5,
+      }),
+    );
+    const ragPromise = buildPreRagContext({
+      supabase: supabaseAdmin,
+      query: userMessage,
+      companyId,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      kbAreasFilter: (persona as any).kb_areas_filter ?? null,
+      topKUniversal: 3,
+      topKCompany: 3,
+    });
+    const historyPromise = Promise.resolve(
+      supabaseAdmin
+        .from("internal_chat_messages")
+        .select("sender_id, content, created_at")
+        .eq("channel_id", channelId)
+        .order("created_at", { ascending: false })
+        .limit(MAX_HISTORY),
+    );
+    // Classificazione (MP-09 + token-opt), una sola per due scopi: filtro tool
+    // per dominio e auto-delegate al Council. Kill-switch:
+    // SILVIO_TOOL_DOMAIN_FILTER_DISABLED=true → catalogo completo.
+    const TOOL_FILTER_ENABLED = Deno.env.get("SILVIO_TOOL_DOMAIN_FILTER_DISABLED") !== "true";
+    const ENABLE_COUNCIL_AUTO = Deno.env.get("ENABLE_COUNCIL_AUTO_DELEGATE") !== "false";
+    const classificationPromise: Promise<QueryClassification | null> =
+      (TOOL_FILTER_ENABLED || ENABLE_COUNCIL_AUTO) &&
+      // Audit 2026-09-03: la soglia era 25 caratteri. Ma "come va la cassa?"
+      // ne ha 18 e "chi mi deve pagare?" 19: sotto soglia niente
+      // classificazione, quindi nessun filtro per dominio e catalogo tool
+      // COMPLETO proprio sulle domande piu frequenti. A 12 restano fuori solo
+      // "ciao", "grazie", "ok" — dove il filtro non serve davvero.
+      userMessage.length >= 12 &&
+      attachments.length === 0     // skip multi-modal (immagini/pdf): troppo costoso classificare
+        ? classifyQuery({
+          supabase: supabaseAdmin,
+          query: userMessage,
+          currentPersona: PERSONA_KEY,
+          companyId,
+          userId,
+        }).catch((e: unknown) => {
+          // classifyQuery ha già il suo fallback interno; questo è solo belt-and-suspenders.
+          console.warn("[silvio-chat] classifyQuery failed (no tool filter):", e instanceof Error ? e.message : e);
+          return null;
+        })
+        : Promise.resolve(null);
+    const staffPermsPromise = primaryRole === "company_staff"
+      ? Promise.resolve(
+        supabaseAdmin
+          .from("staff_permissions")
+          .select("*")
+          .eq("user_id", userId)
+          .eq("company_id", companyId)
+          .maybeSingle(),
+      )
+      : null;
+
+    const { data: profile } = await profilePromise;
     const userName = [profile?.first_name, profile?.last_name].filter(Boolean).join(" ") || profile?.email || "Utente";
 
     const roleScopeMap: Record<string, string> = {
@@ -570,11 +716,8 @@ serve(async (req: Request) => {
     let memoryContextPrompt = "";
     let memoryStats = { facts_count: 0, summaries_count: 0 };
     try {
-      const { data: memCtx } = await supabaseAdmin.rpc("silvio_get_memory_context", {
-        p_company_id: companyId,
-        p_user_id: userId,
-        p_max_summaries: 5,
-      });
+      // Partita in 4.bis insieme alle altre letture.
+      const { data: memCtx } = await memoriaPromise;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const ctx = memCtx as any;
       const facts = (ctx?.facts ?? []) as Array<{ key: string; value: unknown; confidence: number }>;
@@ -630,15 +773,8 @@ serve(async (req: Request) => {
     let ragMinSimilarity = 0;
     let ragContextBlock = "";
     try {
-      const ragResult = await buildPreRagContext({
-        supabase: supabaseAdmin,
-        query: userMessage,
-        companyId,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        kbAreasFilter: (persona as any).kb_areas_filter ?? null,
-        topKUniversal: 3,
-        topKCompany: 3,
-      });
+      // Partita in 4.bis insieme alle altre letture.
+      const ragResult = await ragPromise;
       ragSources = ragResult.sources;
       ragMinSimilarity = ragResult.minSimilarity;
       ragContextBlock = ragResult.contextBlock;
@@ -708,15 +844,16 @@ serve(async (req: Request) => {
     }
 
     // ── 6) Carica history (ultimi 12 msg dalla chat) ────────────────────
-    const { data: historyRaw } = await supabaseAdmin
-      .from("internal_chat_messages")
-      .select("sender_id, content, created_at")
-      .eq("channel_id", channelId)
-      .order("created_at", { ascending: false })
-      .limit(MAX_HISTORY);
+    // Partita in 4.bis insieme alle altre letture.
+    const { data: historyRaw } = await historyPromise;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const history: Array<{ sender_id: string; content: string }> = (historyRaw ?? []).reverse() as any;
+    // Le bolle di errore di Silvio («⚠️ problema tecnico…», «💳 credito
+    // finito») non sono risposte: rimesse nello storico come "assistant"
+    // insegnano al modello a scusarsi di guasti che con la domanda non
+    // c'entrano. Restano in chat, escono solo dal contesto del modello.
+    const history: Array<{ sender_id: string; content: string }> = ((historyRaw ?? []) as Array<{ sender_id: string; content: string }>)
+      .filter((m) => !(m.sender_id === SILVIO_SENDER_ID && typeof m.content === "string" && /^\s*(⚠️|💳|⛔)/u.test(m.content)))
+      .reverse();
 
     // ── 6.5) Classificazione query (MP-09 + token-opt) ──────────────────
     // Una sola classifyQuery riusata per DUE scopi:
@@ -725,32 +862,9 @@ serve(async (req: Request) => {
     //   b) auto-delegate al Council se multi-area (sezione 8.5).
     // Le euristiche regex dentro classifyQuery coprono i casi comuni senza LLM.
     // Kill-switch: SILVIO_TOOL_DOMAIN_FILTER_DISABLED=true → catalogo completo.
-    const TOOL_FILTER_ENABLED = Deno.env.get("SILVIO_TOOL_DOMAIN_FILTER_DISABLED") !== "true";
-    const ENABLE_COUNCIL_AUTO = Deno.env.get("ENABLE_COUNCIL_AUTO_DELEGATE") !== "false";
-    let classification: QueryClassification | null = null;
-    if (
-      (TOOL_FILTER_ENABLED || ENABLE_COUNCIL_AUTO) &&
-      // Audit 2026-09-03: la soglia era 25 caratteri. Ma "come va la cassa?"
-      // ne ha 18 e "chi mi deve pagare?" 19: sotto soglia niente
-      // classificazione, quindi nessun filtro per dominio e catalogo tool
-      // COMPLETO proprio sulle domande piu frequenti. A 12 restano fuori solo
-      // "ciao", "grazie", "ok" — dove il filtro non serve davvero.
-      userMessage.length >= 12 &&
-      attachments.length === 0     // skip multi-modal (immagini/pdf): troppo costoso classificare
-    ) {
-      try {
-        classification = await classifyQuery({
-          supabase: supabaseAdmin,
-          query: userMessage,
-          currentPersona: PERSONA_KEY,
-          companyId,
-          userId,
-        });
-      } catch (e) {
-        // classifyQuery ha già il suo fallback interno; questo è solo belt-and-suspenders.
-        console.warn("[silvio-chat] classifyQuery failed (no tool filter):", e instanceof Error ? e.message : e);
-      }
-    }
+    // Partita in 4.bis (condizioni e kill-switch sono la'), insieme a memoria,
+    // RAG e storico: la chiamata al classificatore non e' piu' in coda a loro.
+    const classification: QueryClassification | null = await classificationPromise;
 
     // ── 7) Ottieni tool disponibili per il ruolo ────────────────────────
     // Filtro per dominio SOLO con classificazione affidabile. null = catalogo
@@ -768,14 +882,9 @@ serve(async (req: Request) => {
     // esplicitamente false nasconde i tool del dominio corrispondente (vedi
     // DOMAIN_STAFF_PERMISSION in silvioTools). Admin: nessun filtro extra.
     let staffPermissions: Record<string, unknown> | null = null;
-    if (primaryRole === "company_staff") {
+    if (staffPermsPromise) {
       try {
-        const { data: spRow } = await supabaseAdmin
-          .from("staff_permissions")
-          .select("*")
-          .eq("user_id", userId)
-          .eq("company_id", companyId)
-          .maybeSingle();
+        const { data: spRow } = await staffPermsPromise;
         staffPermissions = (spRow as Record<string, unknown> | null) ?? null;
       } catch (e) {
         console.warn("[silvio-chat] staff_permissions fetch failed (nessun filtro extra):", e);
@@ -1238,18 +1347,30 @@ serve(async (req: Request) => {
           tool_calls: toolCalls,
         });
 
-        // Esegui ogni tool e aggiungi tool message
-        for (const tc of toolCalls) {
-          const toolName = tc.function?.name;
-          emitStep(toolName ?? "tool"); // #10 step live (non bloccante)
+        // Esegui i tool IN PARALLELO, poi aggiungi i tool message nello stesso
+        // ordine in cui il modello li ha chiesti. Prima si eseguivano uno alla
+        // volta: «Cosa conta ora?» ne chiama tre o quattro insieme (scadenze,
+        // cassa, cantieri, posta) e il turno ne pagava la somma. ai-orchestrator
+        // li esegue gia' cosi' (executeToolsParallel); ogni esecuzione ha il suo
+        // audit e non tocca il contesto condiviso.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const chiamate = (toolCalls as any[]).map((tc) => {
+          const toolName: string = tc.function?.name ?? "tool";
+          emitStep(toolName); // #10 step live (non bloccante)
           let toolArgs: Record<string, unknown> = {};
           try {
             toolArgs = JSON.parse(tc.function?.arguments ?? "{}");
           } catch {
             toolArgs = {};
           }
-
-          const toolResult = await executeToolWithRouting(toolName, toolArgs, toolCtx);
+          return { tc, toolName, toolArgs };
+        });
+        const risultati = await Promise.all(
+          chiamate.map((c) => executeToolWithRouting(c.toolName, c.toolArgs, toolCtx)),
+        );
+        for (let k = 0; k < chiamate.length; k++) {
+          const { tc, toolName, toolArgs } = chiamate[k];
+          const toolResult = risultati[k];
           const resultStr = JSON.stringify(toolResult).slice(0, 8000);
 
           toolCallsLog.push({
