@@ -121,6 +121,8 @@ interface SilvioMsg {
   content: string;
   message_type: string;
   created_at: string;
+  /** true mentre silvio-chat sta ancora scrivendo (arriva a lotti via UPDATE). */
+  streaming?: boolean | null;
   rag_sources?: Array<{ id?: string; title?: string; url?: string }> | null;
   ai_confidence?: "high" | "medium" | "low" | null;
   ai_requires_human_review?: boolean | null;
@@ -258,6 +260,13 @@ export default function SilvioAIPage() {
   const [memoriaOpen, setMemoriaOpen] = useState(false);
   const [onboarded, setOnboarded] = useState(true);
   const [toolSteps, setToolSteps] = useState<{ id: string; label: string }[]>([]);
+  // Messaggi arrivati in streaming dal server (colonna `streaming`): per loro
+  // il typewriter finto non parte mai, nemmeno all'aggiornamento definitivo.
+  // E' stato, non ref: lo si legge nel render della lista.
+  const [streamedIds, setStreamedIds] = useState<Set<string>>(() => new Set());
+  const segnaStreamed = useCallback((id: string) => {
+    setStreamedIds((prev) => (prev.has(id) ? prev : new Set(prev).add(id)));
+  }, []);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -474,7 +483,7 @@ export default function SilvioAIPage() {
       const { data } = await supabase
         .from("internal_chat_messages")
         .select(
-          "id, channel_id, sender_id, content, message_type, created_at, rag_sources, ai_confidence, ai_requires_human_review, followup_suggestions, council_data, attachment_url, attachment_name",
+          "id, channel_id, sender_id, content, message_type, created_at, streaming, rag_sources, ai_confidence, ai_requires_human_review, followup_suggestions, council_data, attachment_url, attachment_name",
         )
         .eq("channel_id", activeId)
         .order("created_at", { ascending: false })
@@ -496,6 +505,9 @@ export default function SilvioAIPage() {
           const m = payload.new as SilvioMsg | undefined;
           if (!m?.id) return;
           if (m.sender_id === SILVIO_SENDER_ID) setToolSteps([]); // risposta arrivata → nascondi step
+          // Arrivato in streaming: il testo scorre gia' dal server, niente
+          // typewriter — nemmeno quando diventa definitivo.
+          if (m.streaming) segnaStreamed(m.id);
           qc.setQueryData<SilvioMsg[]>(key, (prev) =>
             !prev ? [m] : prev.some((x) => x.id === m.id) ? prev : [...prev, m],
           );
@@ -507,6 +519,7 @@ export default function SilvioAIPage() {
         (payload) => {
           const m = payload.new as SilvioMsg | undefined;
           if (!m?.id) return;
+          if (m.streaming) segnaStreamed(m.id);
           qc.setQueryData<SilvioMsg[]>(key, (prev) => {
             if (!prev) return [m];
             const idx = prev.findIndex((x) => x.id === m.id);
@@ -531,7 +544,7 @@ export default function SilvioAIPage() {
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [activeId, qc]);
+  }, [activeId, qc, segnaStreamed]);
 
   // Auto-scroll in fondo su nuovi messaggi / streaming
   const lastContent = messages[messages.length - 1]?.content;
@@ -1064,7 +1077,8 @@ export default function SilvioAIPage() {
             <MessaggioSilvio
               key={m.id}
               m={m}
-              animate={isLast && isLive}
+              live={m.streaming === true}
+              animate={isLast && isLive && !m.streaming && !streamedIds.has(m.id)}
               canRegenerate={isLast && !sending}
               onFollowup={onFollowupStable}
               onRegenera={onRegeneraStable}
@@ -1073,7 +1087,7 @@ export default function SilvioAIPage() {
         }
         return <MessaggioUtente key={m.id} m={m} onEdit={onEditUserStable} />;
       }),
-    [messages, sending, mountTime, onFollowupStable, onRegeneraStable, onEditUserStable],
+    [messages, sending, mountTime, streamedIds, onFollowupStable, onRegeneraStable, onEditUserStable],
   );
 
   return (
@@ -1443,7 +1457,8 @@ export default function SilvioAIPage() {
                 ) : (
                   renderedMessages
                 )}
-                {sending && (
+                {/* Con la bolla in streaming gia' in chat, il "pensiero" sarebbe un doppione. */}
+                {sending && !messages.some((m) => m.streaming) && (
                   <div className="flex gap-3">
                     <SilvioAvatar size={32} animated="thinking" className="rounded-lg" />
                     <div className="flex-1 min-w-0 pt-1">
@@ -1783,12 +1798,15 @@ function SkeletonThread() {
  *  ChatMarkdown), follow-up chips e azioni (copia, rigenera, valutazione) on hover. */
 const MessaggioSilvio = memo(function MessaggioSilvio({
   m,
+  live,
   animate,
   canRegenerate,
   onFollowup,
   onRegenera,
 }: {
   m: SilvioMsg;
+  /** Streaming vero dal server: testo com'e' + cursore, niente typewriter. */
+  live: boolean;
   animate: boolean;
   canRegenerate: boolean;
   onFollowup: (q: string) => void;
@@ -1816,7 +1834,12 @@ const MessaggioSilvio = memo(function MessaggioSilvio({
         </div>
         <div className="rounded-2xl rounded-tl-sm bg-white border border-slate-200 px-4 py-3 shadow-sm">
           <AiMessageMetaTop meta={meta} />
-          {animate ? (
+          {live ? (
+            <span className="whitespace-pre-wrap text-sm text-slate-700">
+              {m.content}
+              <span className="inline-block w-1.5 h-4 -mb-0.5 ml-0.5 bg-orange-400 rounded-sm animate-pulse" />
+            </span>
+          ) : animate ? (
             <SilvioAnimatedMessage content={m.content} sources={m.rag_sources ?? undefined} />
           ) : (
             <ChatMarkdown content={m.content} sources={m.rag_sources ?? undefined} />

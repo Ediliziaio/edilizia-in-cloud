@@ -161,6 +161,8 @@ interface SilvioMessage {
   content: string;
   message_type: string;
   created_at: string;
+  /** true mentre silvio-chat sta ancora scrivendo (arriva a lotti via UPDATE). */
+  streaming?: boolean | null;
   attachment_url?: string | null;
   attachment_name?: string | null;
   // Sessione 1 — metadata AI
@@ -755,7 +757,12 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
           m.sender_id === silvioSenderId &&
           m.content &&
           m.content.trim().length > 0 &&
-          m.created_at >= mountTimeRef.current
+          m.created_at >= mountTimeRef.current &&
+          // Streaming vero dal server: il testo arriva gia' a pezzi, il
+          // typewriter finto non serve. Il messaggio viene visto la prima
+          // volta con streaming=true e finisce fra i "gia' visti": quando
+          // diventa definitivo non riparte l'animazione.
+          !m.streaming
         ) {
           newSilvioIds.push(m.id);
         }
@@ -1453,7 +1460,9 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
               ))}
             </AnimatePresence>
           )}
-          {sending && (
+          {/* Mentre la risposta arriva in streaming la bolla e' gia' in chat:
+              i tre puntini sopra sarebbero un doppione. */}
+          {sending && !liveMessages.some((m) => m.streaming) && (
             <div className="flex gap-2 justify-start">
               <SilvioAvatar size={28} animated="thinking" className="rounded-full" />
               <div className="flex flex-col gap-1.5 min-w-0">
@@ -2060,14 +2069,19 @@ function MessageBubble({
   const isImage = message.message_type === "image" && message.attachment_url;
   const isAudio = message.message_type === "audio" && message.attachment_url;
   const isFile = message.message_type === "file" && message.attachment_url;
+  // Streaming vero (colonna `streaming`): il testo arriva gia' a pezzi dal
+  // server; il typewriter finto ripartirebbe da zero a ogni aggiornamento.
+  // Si mostra il testo com'e', col cursore, finche' il server non lo chiude.
+  const isLiveStream = isSilvio && message.streaming === true;
   // FIX 15 (A6): typewriter con skip API + auto-skip per long msg
   const { displayed: animatedContent, skip: skipTypewriter } = useTypewriter(
     message.content || "",
-    isSilvio && streaming,
+    isSilvio && streaming && !isLiveStream,
     60,
   );
-  const visibleContent = isSilvio && streaming ? animatedContent : message.content;
-  const isStillTyping = isSilvio && streaming && animatedContent.length < message.content.length;
+  const visibleContent = isSilvio && streaming && !isLiveStream ? animatedContent : message.content;
+  const isStillTyping = isLiveStream ||
+    (isSilvio && streaming && !isLiveStream && animatedContent.length < message.content.length);
 
   // FIX 15 (A6): auto-skip se il bubble esce dalla viewport (utente scrolla via)
   const bubbleRef = useRef<HTMLDivElement | null>(null);

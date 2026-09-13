@@ -1256,6 +1256,75 @@ serve(async (req: Request) => {
     // Pulisco gli step del giro precedente (non bloccante)
     void supabaseAdmin.from("silvio_tool_steps").delete().eq("channel_id", channelId).then(() => {}, () => {});
 
+    // ── Streaming della risposta finale ─────────────────────────────────
+    // Fino a oggi la risposta compariva in chat tutta insieme alla fine del
+    // turno (22 s in mediana), e il frontend fingeva la digitazione. Ora il
+    // router chiama `mostraInStreaming` con il testo accumulato man mano che
+    // il modello scrive: alla prima soglia si inserisce una riga con
+    // streaming=true, poi la si aggiorna a lotti (realtime UPDATE), e alla
+    // fine la stessa riga riceve contenuto definitivo, metadati e
+    // streaming=false. Due cautele, entrambe misurate sul comportamento dei
+    // modelli:
+    //  - si parte solo dopo 120 caratteri: Claude spesso scrive una frase
+    //    («Controllo le fatture scadute») e POI chiama gli strumenti — quella
+    //    e' una premessa interna, non la risposta; il router smette di
+    //    chiamarci appena compare una tool call, e sotto soglia non si mostra;
+    //  - non si parte se il testo comincia con `{`, `[` o un fence: e' l'output
+    //    strutturato (JSON) che il codice a valle ripulisce prima di mostrarlo.
+    // Le scritture sono in coda, una alla volta, cosi' un UPDATE non supera
+    // l'INSERT. Kill-switch senza redeploy: SILVIO_STREAMING_DISABLED=true.
+    const STREAMING_ATTIVO = Deno.env.get("SILVIO_STREAMING_DISABLED") !== "true";
+    const STREAMING_SOGLIA_AVVIO = 120;
+    const STREAMING_INTERVALLO_MS = 250;
+    let segnapostoId: string | null = null;
+    let streamingAvviato = false;
+    let ultimoAggiornamentoStream = 0;
+    let codaScritture: Promise<void> = Promise.resolve();
+    const inizioMostrabile = (t: string): boolean => {
+      const c = t.trimStart().charAt(0);
+      return c !== "" && c !== "{" && c !== "[" && c !== "`";
+    };
+    const scriviSegnaposto = (contenuto: string): void => {
+      codaScritture = codaScritture
+        .then(async () => {
+          if (segnapostoId === null) {
+            const { data: riga, error } = await supabaseAdmin
+              .from("internal_chat_messages")
+              .insert({
+                channel_id: channelId, sender_id: SILVIO_SENDER_ID, company_id: companyId,
+                content: contenuto, message_type: "text", streaming: true,
+              })
+              .select("id")
+              .single();
+            if (error) throw error;
+            if (riga?.id) segnapostoId = riga.id as string;
+          } else {
+            const { error } = await supabaseAdmin
+              .from("internal_chat_messages")
+              .update({ content: contenuto })
+              .eq("id", segnapostoId);
+            if (error) throw error;
+          }
+        })
+        .catch((e: unknown) => {
+          console.warn("[silvio-chat] streaming: scrittura segnaposto fallita:", e instanceof Error ? e.message : e);
+        });
+    };
+    const mostraInStreaming = (testo: string): void => {
+      if (!STREAMING_ATTIVO) return;
+      const adesso = Date.now();
+      if (!streamingAvviato) {
+        if (testo.length < STREAMING_SOGLIA_AVVIO || !inizioMostrabile(testo)) return;
+        streamingAvviato = true;
+        ultimoAggiornamentoStream = adesso;
+        scriviSegnaposto(testo);
+        return;
+      }
+      if (adesso - ultimoAggiornamentoStream < STREAMING_INTERVALLO_MS) return;
+      ultimoAggiornamentoStream = adesso;
+      scriviSegnaposto(testo);
+    };
+
     // MP-09: se il council ha già prodotto la synthesis, usa quella come finalContent
     // e salta il tool-calling loop. Manteniamo gli altri flow (citation check, evidence,
     // structured output check) che girano normalmente più sotto.
@@ -1310,6 +1379,11 @@ serve(async (req: Request) => {
           idempotencyKey,
           // AI Test Lab override (demo only) > persona.recommended_model > config primary
           forceModel: aiTestLabForceModel ?? persona.recommended_model ?? undefined,
+          // Streaming del testo verso la chat (vedi sopra). Non con l'output
+          // strutturato JSON: quel testo va ripulito prima di essere mostrato.
+          onDelta: STREAMING_ATTIVO && !skipToolsForModel && !(useStructured && toolSchemas.length === 0)
+            ? mostraInStreaming
+            : undefined,
         });
         lastResult = result;
         totalCostEur += result?.costBilledEur ?? 0;
@@ -1320,11 +1394,20 @@ serve(async (req: Request) => {
         const userFriendlyMsg = aiTestLabForceModel
           ? `⚠️ Il modello **${aiTestLabForceModel}** ha avuto un problema:\n\n\`${errMsg.slice(0, 200)}\`\n\n💡 Prova un altro modello dal selettore (Claude/GPT-4 sono i più stabili) o riformula la domanda.`
           : `⚠️ C'è stato un problema tecnico: ${errMsg.slice(0, 300)}`;
-        await supabaseAdmin.from("internal_chat_messages").insert({
-          channel_id: channelId, sender_id: SILVIO_SENDER_ID, company_id: companyId,
-          content: userFriendlyMsg,
-          message_type: "text",
-        });
+        // Se la bolla in streaming era gia' comparsa, l'errore va li' dentro:
+        // una seconda bolla lascerebbe la prima a meta', col cursore acceso.
+        await codaScritture;
+        if (segnapostoId) {
+          await supabaseAdmin.from("internal_chat_messages")
+            .update({ content: userFriendlyMsg, streaming: false })
+            .eq("id", segnapostoId);
+        } else {
+          await supabaseAdmin.from("internal_chat_messages").insert({
+            channel_id: channelId, sender_id: SILVIO_SENDER_ID, company_id: companyId,
+            content: userFriendlyMsg,
+            message_type: "text",
+          });
+        }
         return jsonResponse({ ok: false, error: errMsg }, 200, corsHeaders);
       }
 
@@ -1333,6 +1416,11 @@ serve(async (req: Request) => {
       const toolCalls = rawChoice?.message?.tool_calls ?? [];
 
       if (toolCalls.length > 0) {
+        // Streaming: se il modello aveva scritto abbastanza da far comparire
+        // la bolla e POI ha chiesto strumenti, quel testo era una premessa.
+        // Si lascia un segno di attesa: la risposta vera arriva al giro dopo
+        // e sovrascrive.
+        if (streamingAvviato) scriviSegnaposto("…");
         // Anti-loop guard (necessario dopo aver alzato MAX_TOOL_ITERATIONS a 12):
         // se le ultime 3 iterazioni hanno la stessa firma di tool calls, l'LLM
         // sta loopando e va bloccato. La firma è "nome_tool_1|nome_tool_2|...".
@@ -1596,17 +1684,32 @@ serve(async (req: Request) => {
       council_data: councilData,
     };
 
+    // Streaming: se la bolla e' gia' in chat (riga segnaposto), la si COMPLETA
+    // — contenuto definitivo, metadati, streaming=false — invece di inserirne
+    // un'altra. Prima si aspetta che le scritture a lotti in coda finiscano,
+    // altrimenti un UPDATE parziale in ritardo coprirebbe quello finale.
+    await codaScritture;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const salvaRisposta = async (payload: Record<string, unknown>): Promise<{ data: any; error: any }> => {
+      if (segnapostoId) {
+        const { channel_id: _ch, sender_id: _se, company_id: _co, ...campi } = payload;
+        return await supabaseAdmin
+          .from("internal_chat_messages")
+          .update({ ...campi, streaming: false })
+          .eq("id", segnapostoId)
+          .select()
+          .single();
+      }
+      return await supabaseAdmin.from("internal_chat_messages").insert(payload).select().single();
+    };
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let insertedMsg: any = null;
     let insertError: { message?: string; code?: string } | null = null;
 
     // Tentativo 1: full payload (Sessione 1 + AI Test Lab columns)
     {
-      const { data, error } = await supabaseAdmin
-        .from("internal_chat_messages")
-        .insert({ ...baseInsert, ...sessionOneFields, ...aiRunMeta, ...requestedModelMeta })
-        .select()
-        .single();
+      const { data, error } = await salvaRisposta({ ...baseInsert, ...sessionOneFields, ...aiRunMeta, ...requestedModelMeta });
       if (!error) {
         insertedMsg = data;
       } else {
@@ -1626,11 +1729,7 @@ serve(async (req: Request) => {
     };
     if (!insertedMsg && isMissingColumnError(insertError)) {
       console.warn("[silvio-chat] retrying INSERT senza AI Test Lab columns (migration last_* non applicata)");
-      const { data, error } = await supabaseAdmin
-        .from("internal_chat_messages")
-        .insert({ ...baseInsert, ...sessionOneFields })
-        .select()
-        .single();
+      const { data, error } = await salvaRisposta({ ...baseInsert, ...sessionOneFields });
       if (!error) {
         insertedMsg = data;
       } else {
@@ -1642,11 +1741,7 @@ serve(async (req: Request) => {
     // Tentativo 3 (last-resort): solo campi base (no Sessione 1, no AI Test Lab)
     if (!insertedMsg && isMissingColumnError(insertError)) {
       console.warn("[silvio-chat] retrying INSERT con SOLO campi base (migration Sessione 1 non applicata)");
-      const { data, error } = await supabaseAdmin
-        .from("internal_chat_messages")
-        .insert(baseInsert)
-        .select()
-        .single();
+      const { data, error } = await salvaRisposta({ ...baseInsert });
       if (!error) {
         insertedMsg = data;
       } else {

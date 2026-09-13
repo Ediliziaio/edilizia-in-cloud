@@ -38,6 +38,8 @@
 
 import { checkPaymentMethod } from "./requirePaymentMethod.ts";
 
+import { applicaEvento, creaAccumulatore, estraiEventiSse, rispostaDaAccumulatore } from "./openrouterStream.ts";
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type SupabaseClient = any;
 
@@ -104,6 +106,18 @@ export interface AiRouterCompleteOptions {
    * richiesta (bucket + path + tipo documento + hint) la passa qui.
    */
   cacheKey?: string;
+  /**
+   * Streaming (2026-09-13). Se presente, la chiamata al modello va in stream
+   * e a ogni pezzo di testo ricevuto viene chiamata con il TESTO ACCUMULATO
+   * finora (non il delta) — solo finche' il modello non ha chiesto tool: da
+   * quel momento il testo e' una premessa interna, non la risposta. A fine
+   * stream la risposta viene ricomposta nella forma normale, quindi costi,
+   * registro e cache non cambiano. Se lo stream si interrompe prima di
+   * arrivare in fondo, il tentativo conta come fallito e si prosegue con i
+   * ritentativi e i modelli di ripiego come per una chiamata normale: chi
+   * riceve il testo accumulato lo vedra' ripartire da capo, e sovrascrive.
+   */
+  onDelta?: (testoAccumulato: string) => void;
 }
 
 export interface AiRouterCompleteResult {
@@ -499,6 +513,55 @@ async function precheckCredit(
   }
 }
 
+/**
+ * Legge lo stream SSE fino a [DONE] e ricompone la risposta nella forma non
+ * in stream. `onDelta` riceve il testo accumulato, ma solo finche' non e'
+ * comparsa una tool call: dopo, il testo e' una premessa che il modello si
+ * dice da solo prima di chiamare gli strumenti, non la risposta all'utente.
+ */
+async function leggiStreamOpenRouter(
+  body: ReadableStream<Uint8Array>,
+  onDelta: (testoAccumulato: string) => void,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+): Promise<any> {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  const acc = creaAccumulatore();
+  let buffer = "";
+  let fine = false;
+  let ultimoTestoEmesso = "";
+  try {
+    while (!fine) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const { eventi, resto } = estraiEventiSse(buffer);
+      buffer = resto;
+      for (const ev of eventi) {
+        const esito = applicaEvento(acc, ev);
+        if (esito === "fine") { fine = true; break; }
+        if (acc.errore) throw new Error(`errore nello stream: ${acc.errore}`);
+        if (esito === "dati" && acc.toolCalls.size === 0 && acc.content && acc.content !== ultimoTestoEmesso) {
+          ultimoTestoEmesso = acc.content;
+          try { onDelta(acc.content); } catch (e) { console.warn("[aiRouter] onDelta ha lanciato:", e instanceof Error ? e.message : e); }
+        }
+      }
+    }
+    // Stream chiuso senza la riga vuota finale: si applica quel che resta.
+    if (!fine && buffer.trim()) {
+      for (const ev of estraiEventiSse(buffer + "\n\n").eventi) applicaEvento(acc, ev);
+    }
+  } finally {
+    // Chiude davvero la connessione: dopo [DONE] non c'e' altro da leggere, e
+    // su errore non si lascia un body aperto in attesa del garbage collector.
+    try { await reader.cancel(); } catch { /* gia' chiuso */ }
+    try { reader.releaseLock(); } catch { /* gia' rilasciato */ }
+  }
+  if (acc.errore) throw new Error(`errore nello stream: ${acc.errore}`);
+  if (acc.eventi === 0) throw new Error("stream vuoto: nessun evento ricevuto");
+  return rispostaDaAccumulatore(acc);
+}
+
 /** Chiama OpenRouter una volta con un modello specifico. */
 async function callOpenRouter(
   apiKey: string,
@@ -507,6 +570,7 @@ async function callOpenRouter(
   params: AiRouterParams,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   responseFormat?: any,
+  onDelta?: (testoAccumulato: string) => void,
 ): Promise<{
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   data: any;
@@ -675,6 +739,10 @@ async function callOpenRouter(
   // cache non era misurabile. Non costa nulla richiederlo.
   body.usage = { include: true };
   if (responseFormat) body.response_format = responseFormat;
+  // Streaming: la risposta arriva a pezzi (SSE) e viene ricomposta da
+  // leggiStreamOpenRouter. OpenRouter manda comunque l'usage in un ultimo
+  // evento prima di [DONE], quindi la contabilita' resta identica.
+  if (onDelta) body.stream = true;
 
   // ── Reasoning effort low → riduce latenza + libera budget per content ──
   // OpenRouter accetta `reasoning: { effort: "minimal"|"low"|"medium"|"high" }`.
@@ -735,8 +803,30 @@ async function callOpenRouter(
       throw lastErr;
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let data: any;
+    const tipo = res.headers.get("content-type") ?? "";
+    if (onDelta && res.body && tipo.includes("text/event-stream")) {
+      try {
+        data = await leggiStreamOpenRouter(res.body, onDelta);
+      } catch (streamErr) {
+        // Uno stream che si spezza a meta' vale come una chiamata fallita:
+        // stessi ritentativi e stesso ripiego di modello di una chiamata
+        // normale (il chiamante vedra' il testo ripartire da capo).
+        const errMsg = streamErr instanceof Error ? streamErr.message : String(streamErr);
+        lastErr = new Error(`OpenRouter stream (${model}): ${errMsg.slice(0, 300)}`);
+        if (attempt < MAX_ATTEMPTS && !/errore nello stream: .*(invalid|not found|unsupported|400|401|403|404)/i.test(errMsg)) {
+          await sleep(450 * attempt + Math.floor(Math.random() * 300));
+          continue;
+        }
+        throw lastErr;
+      }
+    } else {
+      // Il provider non ha risposto in stream (o non era stato chiesto):
+      // si legge il JSON intero come sempre.
+      data = await res.json();
+    }
     const durationMs = Date.now() - start;
-    const data = await res.json();
     if (data.error) {
       const em = data.error.message ?? JSON.stringify(data.error);
       lastErr = new Error(`OpenRouter error: ${em}`);
@@ -1172,6 +1262,7 @@ export async function aiRouterComplete(
         opts.messages,
         params,
         opts.responseFormat,
+        opts.onDelta,
       );
 
       const choice = data.choices?.[0];
