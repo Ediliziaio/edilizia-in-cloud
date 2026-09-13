@@ -173,7 +173,7 @@ export function StepPdf({ progettoId, detail }: Props) {
                 ⚡ Risparmio: {formatEuro(p.risparmio_eur_anno)}/anno
               </p>
             )}
-            {p.detrazione_aliquota && (
+            {Number(p.detrazione_aliquota) > 0 && (
               <p className="text-xs text-orange-600">
                 🏛 Detrazione {formatNumero(p.detrazione_aliquota)}%: {formatEuro(p.detrazione_eur_totale)}
               </p>

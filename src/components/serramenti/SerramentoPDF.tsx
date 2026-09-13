@@ -1000,6 +1000,22 @@ function fmtDate(d: string | null | undefined): string {
     return new Date(d).toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric" });
   } catch { return d; }
 }
+/**
+ * «Via della Prova 1, Brescia · 2° piano». Prima usciva «Brescia, · piano 2° piano»:
+ * virgola davanti al punto e la parola «piano» ripetuta quando la si scrive a mano.
+ */
+function rigaCantiere(p: {
+  cantiere_indirizzo?: string | null;
+  cantiere_citta?: string | null;
+  cantiere_piano?: string | null;
+}): string {
+  const piano = (p.cantiere_piano ?? "").trim();
+  return [
+    [p.cantiere_indirizzo, p.cantiere_citta].filter(Boolean).join(", "),
+    piano ? (/piano/i.test(piano) ? piano : `piano ${piano}`) : "",
+  ].filter(Boolean).join(" · ");
+}
+
 function fmtDateTime(d: string | null | undefined): string {
   if (!d) return "—";
   try {
@@ -2398,8 +2414,7 @@ export function SerramentoPDF({
                 <View style={styles.kvRow}>
                   <Text style={styles.kvKey}>Cantiere</Text>
                   <Text style={styles.kvValue}>
-                    {[p.cantiere_indirizzo, p.cantiere_citta, p.cantiere_piano ? `· piano ${p.cantiere_piano}` : null]
-                      .filter(Boolean).join(", ")}
+                    {rigaCantiere(p)}
                   </Text>
                 </View>
               )}
@@ -3042,7 +3057,7 @@ export function SerramentoPDF({
                     Mostrati solo se il toggle è ON E i dati sono presenti sul
                     preventivo (piani finanziamento / detrazione aliquota). */}
                 {((mostraRataMensile && piani.length > 0) ||
-                  (mostraRecuperoFiscale && p.detrazione_aliquota && (p.detrazione_eur_totale ?? 0) > 0)) && (
+                  (mostraRecuperoFiscale && Number(p.detrazione_aliquota) > 0 && Number(p.detrazione_eur_totale ?? 0) > 0)) && (
                   <View style={[styles.priceExtraRow, { marginTop: 8, paddingTop: 8, gap: 12 }]}>
                     {mostraRataMensile && piani.length > 0 && (() => {
                       // Prendiamo il piano con rata più bassa per l'anchor "da € X/mese".
@@ -3057,7 +3072,7 @@ export function SerramentoPDF({
                         </View>
                       );
                     })()}
-                    {mostraRecuperoFiscale && p.detrazione_aliquota && (p.detrazione_eur_totale ?? 0) > 0 && (() => {
+                    {mostraRecuperoFiscale && Number(p.detrazione_aliquota) > 0 && Number(p.detrazione_eur_totale ?? 0) > 0 && (() => {
                       const netto = Math.max(0, totaleMedia - Number(p.detrazione_eur_totale ?? 0));
                       return (
                         <View style={styles.priceExtraItem}>

@@ -216,7 +216,8 @@ export default function SerramentiIndex() {
       // Bonus Ecobonus
       if (bonusFiltro === "50" && p.detrazione_aliquota !== 50) return false;
       if (bonusFiltro === "65" && p.detrazione_aliquota !== 65) return false;
-      if (bonusFiltro === "none" && p.detrazione_aliquota != null) return false;
+      // 0 = detrazione esclusa di proposito: conta come «senza bonus».
+      if (bonusFiltro === "none" && Number(p.detrazione_aliquota) > 0) return false;
       // Schema pagamento
       if (schemaFiltro !== "all" && p.schema_pagamento !== schemaFiltro) return false;
       // Linking CRM / Ordini / Documenti (TriState)

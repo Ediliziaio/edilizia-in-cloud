@@ -38,6 +38,8 @@ type Serramento = {
   tipologia: string;
   tipologia_label?: string | null;
   quantita?: number | null;
+  /** Presente sulle righe aggiunte dal listino. */
+  family_id?: string | null;
 };
 
 type Accessorio = {
@@ -75,6 +77,24 @@ const ACCESSORIO_GROUPS: Record<string, { singular: string; plural: string }> = 
   davanzale:    { singular: "davanzale",     plural: "davanzali" },
   controtelaio: { singular: "controtelaio",  plural: "controtelai" },
 };
+
+/**
+ * Le righe aggiunte dal listino nascono tutte con tipologia «finestra_2ante»: il
+ * tipo vero sta nel nome dell'articolo. Senza, un alzante scorrevole entrava nella
+ * sintesi del PDF come finestra («Sostituzione di 2 finestre»).
+ */
+function gruppoDaNomeArticolo(nome: string): { singular: string; plural: string } {
+  const n = nome.toLowerCase();
+  if (/persian|\bscur[oi]\b/.test(n)) return { singular: "persiana", plural: "persiane" };
+  if (/alzante/.test(n)) return TIPOLOGIA_GROUPS.alzante_scorrevole;
+  if (/scorrevol|traslant|\bslide\b/.test(n)) return TIPOLOGIA_GROUPS.scorrevole;
+  if (/porta[\s-]?finestr/.test(n)) return TIPOLOGIA_GROUPS.portafinestra_1anta;
+  if (/portoncin/.test(n)) return { singular: "portoncino", plural: "portoncini" };
+  if (/\bport[ae]\b/.test(n)) return { singular: "porta", plural: "porte" };
+  if (/finestr|vasistas|wasistas/.test(n)) return TIPOLOGIA_GROUPS.finestra_1anta;
+  if (/\bfiss[oi]\b/.test(n)) return TIPOLOGIA_GROUPS.fisso;
+  return { singular: "serramento", plural: "serramenti" };
+}
 
 /** Concatenazione "naturale" italiana: ["a", "b", "c"] → "a, b e c". */
 function joinItalian(parts: string[]): string {
@@ -115,7 +135,8 @@ export function generateInterventoSintesi(
         continue;
       }
     }
-    const group = TIPOLOGIA_GROUPS[s.tipologia];
+    const nomeArticolo = s.family_id ? (s.tipologia_label ?? "").trim() : "";
+    const group = nomeArticolo ? gruppoDaNomeArticolo(nomeArticolo) : TIPOLOGIA_GROUPS[s.tipologia];
     const key = group ? `${group.singular}|${group.plural}` : (s.tipologia_label || "serramento");
     const qty = s.quantita ?? 1;
     serramentiCounts.set(key, (serramentiCounts.get(key) ?? 0) + qty);

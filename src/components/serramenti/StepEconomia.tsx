@@ -510,6 +510,30 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
     [bonusAttivo, forbice.media, aliquota],
   );
 
+  // Quello che questa scheda mostra è quello che esce nel PDF: la detrazione si
+  // salva appena cambiano interruttore, aliquota o totale. Prima restava solo a
+  // schermo (accesa di default) finché non si premeva «Applica calcoli al
+  // progetto», e il PDF usciva senza. 0 = esclusa di proposito; null = mai scelto,
+  // e l'interruttore la mostra accesa al 50%.
+  useEffect(() => {
+    const salvata = form.detrazione_aliquota == null ? null : Number(form.detrazione_aliquota);
+    if (!ecobonusCalc) {
+      if (salvata !== 0) onChange("detrazione_aliquota", 0);
+      return;
+    }
+    const centesimi = (n: unknown) => Math.round(Number(n ?? 0) * 100);
+    if (
+      salvata === ecobonusCalc.aliquota &&
+      centesimi(form.detrazione_eur_totale) === centesimi(ecobonusCalc.detrazione_totale) &&
+      centesimi(form.detrazione_eur_anno) === centesimi(ecobonusCalc.rata_annuale)
+    ) return;
+    onChange("detrazione_aliquota", ecobonusCalc.aliquota);
+    onChange("detrazione_eur_totale", ecobonusCalc.detrazione_totale);
+    onChange("detrazione_eur_anno", ecobonusCalc.rata_annuale);
+    // onChange cambia identità a ogni render del wizard: contano solo i valori.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ecobonusCalc, form.detrazione_aliquota, form.detrazione_eur_totale, form.detrazione_eur_anno]);
+
   // ─── Risparmio energetico ─────────────────────────────────────────────────
   const [risparmioAttivo, setRisparmioAttivo] = useState(form.risparmio_calcolato ?? false);
   const [m2Casa, setM2Casa] = useState(100);
@@ -586,7 +610,8 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
       onChange("detrazione_eur_totale", ecobonusCalc.detrazione_totale);
       onChange("detrazione_eur_anno", ecobonusCalc.rata_annuale);
     } else {
-      onChange("detrazione_aliquota", null);
+      // 0 e non null: null tornerebbe a mostrarla accesa al prossimo caricamento.
+      onChange("detrazione_aliquota", 0);
     }
     if (risparmioCalc) {
       onChange("risparmio_calcolato", true);
