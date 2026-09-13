@@ -19,7 +19,9 @@ import {
   CopyPlus,
   Eye,
   EyeOff,
+  FileText,
   FolderSymlink,
+  ImagePlus,
   Layers3,
   Link2,
   Link2Off,
@@ -48,6 +50,7 @@ import type { FamilyWithAxes } from "@/types/articleFamily";
 import type { TipologiaStandard } from "@/lib/listino/areeStandard";
 import { formattaMaggiorazione } from "@/lib/listino/maggiorazione";
 import { statoMargine } from "@/lib/listino/filtriListino";
+import { datiTecniciScheda, schedaVuota, type SchedaLinea } from "@/lib/listino/schedeLinea";
 import {
   economiaRiga,
   lineaDiRiferimento,
@@ -96,6 +99,11 @@ export interface ListinoNavigatoreProps {
   onNuovoProdotto?: (area: AreaListino | null, tipologia: TipologiaListino | null, linea: LineaListino | null) => void;
   onPrezziLinee?: (tipologia: TipologiaListino) => void;
   onCollega?: (area: AreaListino, tipologia: TipologiaListino) => void;
+  /** Mette fra gli accessori della finestra una tipologia che lo standard vuole accessorio (tapparelle, zanzariere). */
+  onAccessorio?: (area: AreaListino, tipologia: TipologiaListino) => void;
+  /** La scheda di una linea (foto, descrizione, dati tecnici), se c'è. */
+  schedaDi?: (tipologia: TipologiaListino, linea: LineaListino) => SchedaLinea | null;
+  onSchedaLinea?: (area: AreaListino, tipologia: TipologiaListino, linea: LineaListino) => void;
 }
 
 export function ListinoNavigatore(props: ListinoNavigatoreProps) {
@@ -322,12 +330,18 @@ function ContenutoTipologia({
   onNuovoProdotto,
   onPrezziLinee,
   onCollega,
+  onAccessorio,
+  schedaDi,
+  onSchedaLinea,
 }: ListinoNavigatoreProps & { area: AreaListino; tipologia: TipologiaListino; linea: LineaListino | null }) {
   // Una linea sola che non è una linea (i prodotti senza linea) non merita una linguetta.
   const linguette = tipologia.linee.length === 1 && tipologia.linee[0].fonte === "altri" ? [] : tipologia.linee;
   const puoiAggiungereLinea = isAdmin && !!onNuovaLinea && tipologia.fonte === "macrocategoria";
   const riferimento = lineaDiRiferimento(tipologia);
   const lineaContenitore = linea?.fonte === "categoria" ? linea : null;
+  // La scheda della linea la leggono il preventivatore e il PDF dei serramenti.
+  const lineaConScheda =
+    area.chiave === "serramenti" && linea && linea.fonte !== "altri" && (schedaDi || onSchedaLinea) ? linea : null;
 
   return (
     <div className="space-y-3">
@@ -336,7 +350,13 @@ function ContenutoTipologia({
         <span className="text-sm tabular-nums text-muted-foreground">
           {tipologia.articoli} {tipologia.articoli === 1 ? "prodotto" : "prodotti"}
         </span>
-        <Collegamento area={area} tipologia={tipologia} isAdmin={isAdmin} onCollega={onCollega} />
+        <Collegamento
+          area={area}
+          tipologia={tipologia}
+          isAdmin={isAdmin}
+          onCollega={onCollega}
+          onAccessorio={onAccessorio}
+        />
         {isAdmin && onNuovoProdotto && tipologia.fonte !== "senza" && (
           <Button
             variant="outline"
@@ -418,6 +438,15 @@ function ContenutoTipologia({
         </p>
       )}
 
+      {lineaConScheda && (
+        <RigaSchedaLinea
+          linea={lineaConScheda}
+          scheda={schedaDi?.(tipologia, lineaConScheda) ?? null}
+          isAdmin={isAdmin}
+          onApri={onSchedaLinea ? () => onSchedaLinea(area, tipologia, lineaConScheda) : undefined}
+        />
+      )}
+
       {linea && linea.righe.length > 0 ? (
         <Prodotti righe={linea.righe} vista={vista} isAdmin={isAdmin} azioni={azioni} inAttesa={inAttesa} />
       ) : (
@@ -438,6 +467,85 @@ function ContenutoTipologia({
               : undefined
           }
         />
+      )}
+    </div>
+  );
+}
+
+/** La scheda della linea sotto le linguette: una riga sola, così i prodotti restano in vista. */
+function RigaSchedaLinea({
+  linea,
+  scheda,
+  isAdmin,
+  onApri,
+}: {
+  linea: LineaListino;
+  scheda: SchedaLinea | null;
+  isAdmin: boolean;
+  onApri?: () => void;
+}) {
+  const puoiModificare = isAdmin && !!onApri;
+  if (!scheda || schedaVuota(scheda)) {
+    if (!puoiModificare) return null;
+    return (
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-dashed px-3 py-2">
+        <ImagePlus className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+        <p className="min-w-0 flex-1 basis-64 text-sm text-muted-foreground">
+          <span className="font-medium text-foreground">Scheda di {linea.nome}</span>: foto, descrizione e dati
+          tecnici, scritti una volta per tutti i prodotti della linea. Compare nel preventivatore e nel PDF.
+        </p>
+        <Button variant="outline" size="sm" className="h-8" onClick={onApri}>
+          Compila la scheda
+        </Button>
+      </div>
+    );
+  }
+  const dati = datiTecniciScheda(scheda);
+  return (
+    <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-muted/20 p-2 sm:flex-nowrap">
+      <div className="relative h-14 w-[4.5rem] shrink-0 overflow-hidden rounded-md border bg-white">
+        {scheda.immagine_url ? (
+          <img
+            src={scheda.immagine_url}
+            alt={`Profilo ${linea.nome}`}
+            loading="lazy"
+            className="absolute inset-0 h-full w-full object-contain p-1"
+          />
+        ) : (
+          <ImagePlus
+            className="absolute left-1/2 top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 text-slate-300"
+            aria-hidden="true"
+          />
+        )}
+      </div>
+      <div className="min-w-0 flex-1 basis-48">
+        <p className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-sm">
+          <span className="font-medium">Scheda di {linea.nome}</span>
+          {dati.length > 0 && (
+            <span className="text-xs tabular-nums text-muted-foreground">{dati.map((d) => d.breve).join(" · ")}</span>
+          )}
+        </p>
+        {scheda.descrizione && (
+          <p className="line-clamp-1 text-xs text-muted-foreground" title={scheda.descrizione}>
+            {scheda.descrizione}
+          </p>
+        )}
+      </div>
+      {scheda.scheda_tecnica_url && (
+        <a
+          href={scheda.scheda_tecnica_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-primary hover:underline"
+        >
+          <FileText className="h-3.5 w-3.5" aria-hidden="true" />
+          Scheda del produttore
+        </a>
+      )}
+      {puoiModificare && (
+        <Button variant="ghost" size="sm" className="h-8 shrink-0" onClick={onApri}>
+          Modifica
+        </Button>
       )}
     </div>
   );
@@ -710,21 +818,37 @@ function Collegamento({
   tipologia,
   isAdmin,
   onCollega,
+  onAccessorio,
 }: {
   area: AreaListino;
   tipologia: TipologiaListino;
   isAdmin: boolean;
   onCollega?: (area: AreaListino, tipologia: TipologiaListino) => void;
+  onAccessorio?: (area: AreaListino, tipologia: TipologiaListino) => void;
 }) {
   const preventivatore = area.standard?.preventivatore?.toLowerCase();
   const puoiCollegare = isAdmin && !!onCollega && !!preventivatore && tipologia.fonte === "macrocategoria";
   if (tipologia.collegamento === "area") {
-    return preventivatore ? (
-      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+    if (!preventivatore) return null;
+    // Nel preventivatore serramenti un accessorio si aggiunge alla finestra, un prodotto principale sta da solo.
+    const accessorio = tipologia.categoriaTipo === "accessorio";
+    const daMettereFraGliAccessori =
+      area.chiave === "serramenti" && !accessorio && !!tipologia.standard?.accessorio && isAdmin && !!onAccessorio;
+    return (
+      <span className="inline-flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
         <Link2 className="h-3.5 w-3.5" aria-hidden="true" />
-        Nel {preventivatore}
+        {accessorio ? `Tra gli accessori del ${preventivatore}` : `Nel ${preventivatore}`}
+        {daMettereFraGliAccessori && (
+          <button
+            type="button"
+            className="font-medium text-primary hover:underline"
+            onClick={() => onAccessorio?.(area, tipologia)}
+          >
+            · aggiungila agli accessori della finestra
+          </button>
+        )}
       </span>
-    ) : null;
+    );
   }
   if (tipologia.collegamento === "tutte") {
     return (

@@ -19,9 +19,10 @@ import type {
 } from "@/types/serramenti";
 import type {
   SerramentoPdfEnriched, SerramentoPdfConsulente, SerramentoPdfFamilyData,
-  SerramentoPdfMacroField, SerramentoPdfMacroPagina,
+  SerramentoPdfMacroField, SerramentoPdfMacroPagina, SerramentoPdfLineaPagina,
 } from "@/hooks/useSerramentoPDF";
 import { toDataUrl } from "@/lib/serramenti/pdfImageUtils";
+import { datiTecniciScheda } from "@/lib/listino/schedeLinea";
 
 const MOCK_FAMILY_ID = "demo-family-aluminio-2ante";
 const MOCK_MACRO_ID = "demo-macro-infissi";
@@ -330,6 +331,29 @@ export async function buildMockPdfData(opts: {
     },
   ];
 
+  // La scheda della linea come la scrive l'azienda nel listino.
+  const lineeDedicate: SerramentoPdfLineaPagina[] = [
+    {
+      id: "demo-linea-alluminio-70",
+      nome: "Alluminio a taglio termico 70",
+      tipologia: "Infissi in alluminio premium",
+      descrizione:
+        "Profili in alluminio da 70 mm con barrette isolanti in poliammide: il freddo non passa dal telaio e sul lato interno non si forma condensa.\n\n" +
+        "Di serie:\n" +
+        "- Guarnizione centrale in EPDM\n" +
+        "- Ferramenta anta-ribalta con nottolini antieffrazione\n" +
+        "- Verniciatura a polveri garantita 10 anni",
+      immagine_url: null,
+      dati: datiTecniciScheda({ profondita_mm: 70, camere: null, guarnizioni: 3, uw: 1.3 }).map(({ etichetta, valore }) => ({
+        etichetta,
+        valore,
+      })),
+      scheda_tecnica_url: null,
+      scheda_tecnica_nome: null,
+      prodotti: "Finestra Alluminio Square Plus",
+    },
+  ];
+
   const macroImageById: Record<string, string | null> = {
     [MOCK_MACRO_ID]: null,
   };
@@ -377,6 +401,7 @@ export async function buildMockPdfData(opts: {
     familiesById,
     fieldsByMacro,
     macroPagineDedicate,
+    lineeDedicate,
     macroImageById,
     macroNomeById: {
       [MOCK_MACRO_ID]: "Infissi in alluminio premium",

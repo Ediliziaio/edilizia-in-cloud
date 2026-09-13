@@ -19,7 +19,7 @@
  * fallisce (CORS, network) il renderer fa fallback automatico a Helvetica.
  */
 import * as React from "react";
-import { Document, Page, Text, View, StyleSheet, Image, Svg, Path, Rect, Circle, G, Font, Defs, LinearGradient, RadialGradient, Stop } from "@react-pdf/renderer";
+import { Document, Page, Text, View, StyleSheet, Image, Link, Svg, Path, Rect, Circle, G, Font, Defs, LinearGradient, RadialGradient, Stop } from "@react-pdf/renderer";
 import type {
   SrProgettoDetail, SrSerramentoRow, SrPagamentoMilestone,
   SrPianoFinanziamento, SrEsigenza, SrSoluzioneItem, SrTestimonianza,
@@ -36,7 +36,7 @@ import { generateInterventoSintesi } from "@/lib/serramenti/sintesiIntervento";
 import type {
   SerramentoPdfConsulente, SerramentoPdfFamilyData,
   SerramentoPdfMacroField, SerramentoPdfMacroPagina,
-  SerramentoPdfSupplierLine,
+  SerramentoPdfSupplierLine, SerramentoPdfLineaPagina,
 } from "@/hooks/useSerramentoPDF";
 
 // Font: Helvetica built-in di react-pdf è il default sicuro (zero rete,
@@ -1691,6 +1691,46 @@ export interface SerramentoPDFProps {
   publicUrl?: string | null;
   /** Macro_id default per BOM senza family e senza override esplicito. */
   autoFallbackMacroId?: string | null;
+  /** Pagine «Il sistema scelto»: le schede delle linee usate nel preventivo. */
+  lineeDedicate?: SerramentoPdfLineaPagina[];
+}
+
+/** Un testo scritto nel listino: una riga vuota fa un paragrafo, le righe con «- » un elenco. */
+function TestoListinoPdf({
+  testo, styles, C,
+}: {
+  testo: string;
+  styles: ReturnType<typeof makeStyles>;
+  C: ReturnType<typeof makePalette>;
+}) {
+  // Riga per riga: «Di serie:» resta testo e i «- …» sotto diventano punti dello
+  // stesso paragrafo (con la regola «paragrafo tutto a punti» uscivano come testo).
+  return (
+    <>
+      {testo.split(/\n\n+/).map((paragrafo, i) => (
+        <View key={i} style={{ marginBottom: 8 }}>
+          {paragrafo
+            .split("\n")
+            .map((r) => r.trim())
+            .filter(Boolean)
+            .map((riga, ri) =>
+              /^[-•]\s/.test(riga) ? (
+                <View key={ri} style={styles.bulletItem}>
+                  <View style={styles.bulletDot} />
+                  <Text style={{ flex: 1, fontSize: 10.5, color: C.gray700, lineHeight: 1.55 }}>
+                    {riga.replace(/^[-•]\s*/, "")}
+                  </Text>
+                </View>
+              ) : (
+                <Text key={ri} style={{ fontSize: 11, color: C.gray700, lineHeight: 1.65 }}>
+                  {riga}
+                </Text>
+              ),
+            )}
+        </View>
+      ))}
+    </>
+  );
 }
 
 // ─── Componente principale ─────────────────────────────────────────────────
@@ -1704,6 +1744,7 @@ export function SerramentoPDF({
   supplierLineById = {},
   publicUrl = null,
   autoFallbackMacroId = null,
+  lineeDedicate = [],
 }: SerramentoPDFProps) {
   const p = detail.progetto;
   const companyName = template?.ragione_sociale || company?.ragione_sociale || company?.name || "Azienda";
@@ -2808,6 +2849,65 @@ export function SerramentoPDF({
                       );
                     })}
                   </View>
+                </View>
+                <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
+              </Page>
+            ))}
+            </>
+          ),
+          linee_dedicate: (
+            <>
+            {/* ─── IL SISTEMA SCELTO: una pagina per ogni linea usata ──────────
+                La scheda della linea scritta nel listino (PVC Salamander 76):
+                foto del profilo, dati tecnici, descrizione e link alla scheda
+                del produttore. */}
+            {lineeDedicate.map((linea, li) => (
+              <Page key={linea.id} size="A4" style={styles.page}>
+                <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
+                <Text style={styles.pageEyebrow}>
+                  Il sistema scelto · {li + 1} di {lineeDedicate.length}
+                </Text>
+                <Text style={styles.pageTitle}>{linea.nome}</Text>
+                {linea.prodotti ? (
+                  <Text style={styles.pageSubtitle}>
+                    {linea.tipologia ? `${linea.tipologia} · ` : ""}Per {linea.prodotti}
+                  </Text>
+                ) : null}
+                <View style={styles.macroPageHero}>
+                  {linea.immagine_url ? (
+                    <View style={styles.macroPageImgWrap}>
+                      <Image src={linea.immagine_url} style={styles.macroPageImg} />
+                    </View>
+                  ) : null}
+                  {linea.dati.length > 0 ? (
+                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                      {linea.dati.map((d) => (
+                        <View
+                          key={d.etichetta}
+                          style={{
+                            flexGrow: 1, flexBasis: 110,
+                            borderWidth: 0.5, borderColor: C.gray200, borderStyle: "solid", borderRadius: 8,
+                            paddingVertical: 8, paddingHorizontal: 10,
+                          }}
+                        >
+                          <Text style={{ fontSize: 8, color: C.gray500, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 3 }}>
+                            {d.etichetta}
+                          </Text>
+                          <Text style={{ fontSize: 12, fontWeight: 700, color: C.gray900 }}>{d.valore}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  ) : null}
+                  {linea.descrizione ? (
+                    <View style={styles.macroPageContent}>
+                      <TestoListinoPdf testo={linea.descrizione} styles={styles} C={C} />
+                    </View>
+                  ) : null}
+                  {linea.scheda_tecnica_url ? (
+                    <Link src={linea.scheda_tecnica_url} style={{ fontSize: 10, color: C.primary, textDecoration: "underline" }}>
+                      Scheda tecnica del produttore{linea.scheda_tecnica_nome ? `: ${linea.scheda_tecnica_nome}` : ""}
+                    </Link>
+                  ) : null}
                 </View>
                 <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
               </Page>

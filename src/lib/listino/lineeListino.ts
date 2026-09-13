@@ -32,6 +32,8 @@ import {
   type TipologiaStandard,
 } from "./areeStandard";
 
+import { eAsseLinea } from "./schedeLinea";
+
 export { chiaveTesto };
 
 export interface MacroListino {
@@ -94,6 +96,11 @@ export interface TipologiaListino {
   categoriaId: string | null;
   immagineUrl: string | null;
   accessorio: boolean;
+  /**
+   * Come la tratta il preventivatore, dal database: un «accessorio» si aggiunge
+   * alla finestra, un «principale» sta da solo. Null se non è una macrocategoria.
+   */
+  categoriaTipo: "principale" | "accessorio" | null;
   collegamento: CollegamentoTipologia;
   /** La tipologia standard che rappresenta, se la si riconosce. */
   standard: TipologiaStandard | null;
@@ -123,8 +130,6 @@ export interface EconomiaRiga {
   unita: string;
   griglia: boolean;
 }
-
-const CODICI_ASSE_LINEA = new Set(["linea", "serie"]);
 
 type Ordine = [number, number, string];
 
@@ -173,7 +178,7 @@ type AsseConValori = FamilyAxis & { values: AxisValue[] };
  */
 export function asseLinea(famiglia: FamilyWithAxes): { asse: AsseConValori; valori: AxisValue[] } | null {
   const asse = (famiglia.axes ?? []).find(
-    (a) => CODICI_ASSE_LINEA.has(chiaveTesto(a.codice)) || CODICI_ASSE_LINEA.has(chiaveTesto(a.nome)),
+    (a) => eAsseLinea(a),
   );
   if (!asse) return null;
   const visti = new Set<string>();
@@ -365,6 +370,7 @@ export function costruisciListino(
         categoriaId: null,
         immagineUrl: macro.immagine_url ?? null,
         accessorio,
+        categoriaTipo: macro.categoria_tipo === "accessorio" ? "accessorio" : "principale",
         collegamento,
         standard,
         articoli: articoli.length,
@@ -390,6 +396,7 @@ export function costruisciListino(
         categoriaId: categoria.id,
         immagineUrl: null,
         accessorio: !!standard?.accessorio,
+        categoriaTipo: null,
         collegamento: "nessuno",
         standard,
         articoli: articoli.length,
@@ -411,6 +418,7 @@ export function costruisciListino(
         categoriaId: null,
         immagineUrl: null,
         accessorio: false,
+        categoriaTipo: null,
         collegamento: "nessuno",
         standard: null,
         articoli: articoli.length,

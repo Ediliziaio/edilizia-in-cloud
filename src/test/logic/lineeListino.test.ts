@@ -78,10 +78,10 @@ describe("il serramentista con le tipologie standard", () => {
   it("mette le tipologie nell'ordine dell'azienda, gli accessori in fondo e i senza tipologia per ultimi", () => {
     expect(nomi(aree[0].tipologie)).toEqual([
       "Serramenti",
+      "Persiane e scuri",
       "Tapparelle",
       "Zanzariere",
       "Cassonetti",
-      "Persiane e scuri",
       "Accessori",
       "Senza tipologia",
     ]);

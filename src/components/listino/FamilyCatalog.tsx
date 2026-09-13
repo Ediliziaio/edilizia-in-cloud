@@ -32,6 +32,7 @@ import { ImpostaStandardSerramentiDialog } from "./ImpostaStandardSerramentiDial
 import { ImportaSerieDialog } from "./ImportaSerieDialog";
 import { ListinoBarra, type AzioneImporta, type VistaListino } from "./ListinoBarra";
 import { ListinoNavigatore } from "./ListinoNavigatore";
+import { SchedaLineaDialog } from "./SchedaLineaDialog";
 import { toGallerySlug } from "@/lib/verticalMapping";
 import { useFamilies, useFamiliesCestino } from "@/hooks/useFamilies";
 import { useFamilyMutations } from "@/hooks/useFamilyMutations";
@@ -41,6 +42,7 @@ import {
   type MacrocategoriaPayload,
 } from "@/hooks/useListinoMacrocategorie";
 import { useCategorieMutations, useListinoCategorie } from "@/hooks/useListinoCategorie";
+import { useSchedeLinea } from "@/hooks/useSchedeLinea";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -60,6 +62,7 @@ import {
   type SelezioneListino,
   type TipologiaListino,
 } from "@/lib/listino/lineeListino";
+import { trovaSchedaLinea } from "@/lib/listino/schedeLinea";
 
 /** Valore dei select per «nessuna tipologia» e «nessuna linea». */
 const NESSUNA = "__nessuna__";
@@ -100,6 +103,7 @@ export function FamilyCatalog({ onGestisciTipologie }: FamilyCatalogProps = {}) 
   const { deleteFamily, restoreFamily, hardDeleteFamily, duplicateFamily, updateFamily } = useFamilyMutations();
   const { createMacrocategoria, updateMacrocategoria } = useMacrocategorieMutations();
   const { createCategoria } = useCategorieMutations();
+  const { indice: schedeLinea } = useSchedeLinea();
 
   const [vista, setVistaStato] = useState<VistaListino>(() => {
     try {
@@ -178,6 +182,7 @@ export function FamilyCatalog({ onGestisciTipologie }: FamilyCatalogProps = {}) 
   const [nuovaLinea, setNuovaLinea] = useState<{ area: AreaListino; tipologia: TipologiaListino } | null>(null);
   const [nomeLinea, setNomeLinea] = useState("");
   const [creazioneInCorso, setCreazioneInCorso] = useState(false);
+  const [schedaAperta, setSchedaAperta] = useState<{ tipologia: TipologiaListino; linea: LineaListino } | null>(null);
   // Ogni riga resta bloccata finché la SUA modifica non è conclusa: con
   // l'isPending della mutation un secondo clic veloce annullava il primo.
   const [togglePendingIds, setTogglePendingIds] = useState<Set<string>>(() => new Set());
@@ -406,6 +411,20 @@ export function FamilyCatalog({ onGestisciTipologie }: FamilyCatalogProps = {}) 
     }
   };
 
+  /** Tapparelle, zanzariere, cassonetti: nel preventivatore si aggiungono alla finestra. */
+  const mettiFraGliAccessori = async (tipologia: TipologiaListino) => {
+    if (!tipologia.macrocategoriaId) return;
+    try {
+      await updateMacrocategoria.mutateAsync({
+        id: tipologia.macrocategoriaId,
+        patch: { categoria_tipo: "accessorio" },
+      });
+      toast.success(`«${tipologia.nome}» ora si aggiunge alla finestra, fra gli accessori del preventivatore`);
+    } catch (err) {
+      toast.error("Modifica non riuscita", { description: messaggioErrore(err) });
+    }
+  };
+
   const chiudiNuovaLinea = () => {
     setNuovaLinea(null);
     setNomeLinea("");
@@ -536,6 +555,11 @@ export function FamilyCatalog({ onGestisciTipologie }: FamilyCatalogProps = {}) 
           onNuovoProdotto={isAdmin ? nuovoProdotto : undefined}
           onPrezziLinee={isAdmin && companyId ? () => setStandardSerramentiOpen(true) : undefined}
           onCollega={isAdmin ? (area, tipologia) => void collega(area, tipologia) : undefined}
+          onAccessorio={isAdmin ? (_area, tipologia) => void mettiFraGliAccessori(tipologia) : undefined}
+          schedaDi={(tipologia, linea) => trovaSchedaLinea(schedeLinea, tipologia.macrocategoriaId, linea.nome)}
+          onSchedaLinea={
+            isAdmin && companyId ? (_area, tipologia, linea) => setSchedaAperta({ tipologia, linea }) : undefined
+          }
         />
       )}
 
@@ -1031,6 +1055,16 @@ export function FamilyCatalog({ onGestisciTipologie }: FamilyCatalogProps = {}) 
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Scheda della linea: si monta a ogni apertura, così il modulo parte dalla scheda salvata. */}
+      {isAdmin && companyId && schedaAperta && (
+        <SchedaLineaDialog
+          tipologia={schedaAperta.tipologia}
+          linea={schedaAperta.linea}
+          scheda={trovaSchedaLinea(schedeLinea, schedaAperta.tipologia.macrocategoriaId, schedaAperta.linea.nome)}
+          onChiudi={() => setSchedaAperta(null)}
+        />
+      )}
 
       {isAdmin && companyId && (
         <ImpostaStandardSerramentiDialog

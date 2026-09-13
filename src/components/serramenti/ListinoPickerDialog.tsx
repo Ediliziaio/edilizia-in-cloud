@@ -41,6 +41,10 @@ import { DynamicFieldsRenderer } from "@/components/listino/DynamicFieldsRendere
 import { useSupplierProductLines } from "@/features/serramenti-listini/hooks/useSupplierProductLines";
 import type { SupplierProductLine } from "@/features/serramenti-listini/types";
 import { suffissoMaggiorazione } from "@/lib/listino/maggiorazione";
+import { useSchedeLinea } from "@/hooks/useSchedeLinea";
+import { useListinoCategorie } from "@/hooks/useListinoCategorie";
+import { lineaDellaRiga, schedaVuota, trovaSchedaLinea } from "@/lib/listino/schedeLinea";
+import { SchedaLineaCompatta } from "./SchedaLineaCompatta";
 
 export interface ListinoPickResult {
   family_id: string;
@@ -194,6 +198,24 @@ export function ListinoPickerDialog({
     () => (familyWithAxes?.axes ?? []).slice().sort((a, b) => a.sort_order - b.sort_order),
     [familyWithAxes],
   );
+
+  // La scheda della linea scelta (PVC Salamander 76): foto, dati e testo da
+  // leggere al cliente. La linea è il valore dell'asse Linea, o la categoria.
+  const { indice: schedeLinea } = useSchedeLinea();
+  const { categorie } = useListinoCategorie();
+  const schedaLinea = useMemo(() => {
+    if (!familyWithAxes) return null;
+    const categoria = familyWithAxes.categoria_id
+      ? categorie.find((c) => c.id === familyWithAxes.categoria_id)
+      : undefined;
+    const linea = lineaDellaRiga({ assi: familyWithAxes.axes, valoriAssi: axisSelection, categoria: categoria?.nome });
+    const scheda = trovaSchedaLinea(
+      schedeLinea,
+      familyWithAxes.macrocategoria_id ?? categoria?.macrocategoria_id ?? null,
+      linea,
+    );
+    return schedaVuota(scheda) ? null : scheda;
+  }, [familyWithAxes, categorie, axisSelection, schedeLinea]);
 
   // Pre-popolamento default sugli assi al primo caricamento della family.
   // Pattern: per ogni asse, se non c'e' selezione e c'e' un value.is_default,
@@ -438,7 +460,7 @@ export function ListinoPickerDialog({
                    richiesto (marca una macro come Accessorio vs crea da zero). */
                 text={
                   tipo === "accessorio"
-                    ? "Nessuna macrocategoria \"Accessorio\" configurata. Vai in Listino → Macrocategorie e marca una macro come 🔗 Accessorio (es. Tapparelle, Cassonetti, Zanzariere)."
+                    ? "Nessun accessorio da proporre. Nel listino servono tipologie segnate come accessorio (tapparelle, zanzariere, cassonetti) con prodotti attivi e proposti nei preventivi."
                     : "Nessuna macrocategoria configurata. Vai in Impostazioni → Listino prodotti per crearle."
                 }
               />
@@ -702,6 +724,9 @@ export function ListinoPickerDialog({
                 </div>
               </Card>
             )}
+
+            {/* La scheda della linea scelta: cosa si sta proponendo al cliente. */}
+            {schedaLinea && <SchedaLineaCompatta scheda={schedaLinea} />}
 
             {/* Loading state della family con assi: mostra hint mentre carica */}
             {loadingFamily && axes.length === 0 && (

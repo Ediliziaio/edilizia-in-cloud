@@ -802,10 +802,14 @@ export async function listMacrocategorie(opts?: {
   // Post-refactor 20270513200000: article_families.macrocategoria_id è FK
   // diretto → niente più indirection via listino_categorie.
   // Fallback al vecchio path per articoli pre-refactor (categoria_id legacy).
+  // Contano solo i prodotti che il preventivatore propone davvero: attivi e non
+  // «Fuori dai preventivi». Una tipologia con soli prodotti nascosti non si mostra.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: famRows } = await (supabase as any)
     .from("article_families")
     .select("macrocategoria_id, categoria_id")
+    .eq("attivo", true)
+    .eq("mostra_preventivo", true)
     .is("deleted_at", null);
   const macrosWithFam = new Set<string>();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1084,6 +1088,9 @@ export async function listListinoFamilies(opts?: {
       manodopera_unita, manodopera_costo_acquisto, manodopera_prezzo_vendita
     `)
     .eq("attivo", true)
+    // «Fuori dai preventivi» nel listino vale anche qui: prima il preventivatore
+    // serramenti lo ignorava e proponeva prodotti nascosti, anche a 0 €.
+    .eq("mostra_preventivo", true)
     .is("deleted_at", null)
     .order("nome", { ascending: true })
     .limit(100);

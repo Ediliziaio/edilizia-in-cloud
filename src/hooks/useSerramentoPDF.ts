@@ -9,6 +9,7 @@
  *  - Family per ogni serramento del BOM: immagine_url + custom_field_values
  *  - Macrocategorie con mostra_pagina_dedicata_pdf=true
  *  - Macrocategoria field schema (per filtrare i campi show_in_pdf=true)
+ *  - Schede delle linee usate (listino_schede_linea): pagine «Il sistema scelto»
  *
  * Il pre-fetch garantisce che il componente PDF abbia tutti i dati pronti
  * (no race condition, no immagini mancanti per signed URL scaduti).
@@ -18,6 +19,15 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { getTemplatePdf } from "@/lib/serramenti/api";
 import { toDataUrl } from "@/lib/serramenti/pdfImageUtils";
+import { COLONNE_SCHEDA_LINEA, comeSchedaLinea } from "@/hooks/useSchedeLinea";
+import {
+  datiTecniciScheda,
+  elencoProdotti,
+  indiceSchede,
+  lineaDellaRiga,
+  schedeUsate,
+  type RigaConLinea,
+} from "@/lib/listino/schedeLinea";
 import type {
   SrProgettoDetail, SrTemplatePdfRow,
 } from "@/types/serramenti";
@@ -66,6 +76,21 @@ export interface SerramentoPdfSupplierLine {
   supplier_nome: string | null;
 }
 
+/** Una pagina «Il sistema scelto»: la scheda di una linea usata nel preventivo. */
+export interface SerramentoPdfLineaPagina {
+  id: string;
+  nome: string;
+  /** La tipologia della linea: «Serramenti». */
+  tipologia: string | null;
+  descrizione: string | null;
+  immagine_url: string | null;
+  dati: Array<{ etichetta: string; valore: string }>;
+  scheda_tecnica_url: string | null;
+  scheda_tecnica_nome: string | null;
+  /** Dove si usa: «Finestra 1 Anta, Porta Finestra 2 Ante e altri 3». */
+  prodotti: string;
+}
+
 export interface SerramentoPdfEnriched {
   detail: SrProgettoDetail;
   template?: SrTemplatePdfRow | null;
@@ -86,6 +111,8 @@ export interface SerramentoPdfEnriched {
   fieldsByMacro: Record<string, SerramentoPdfMacroField[]>;
   /** Pagine dedicate da generare in coda al PDF, ordinate per occorrenza nel BOM. */
   macroPagineDedicate: SerramentoPdfMacroPagina[];
+  /** Le schede delle linee usate (PVC Salamander 76…): una pagina ciascuna, nell'ordine del preventivo. */
+  lineeDedicate: SerramentoPdfLineaPagina[];
   /** Mappa macrocategoria_id → immagine_url. Usata come fallback nelle righe
    *  della composizione serramenti quando la famiglia non ha immagine propria. */
   macroImageById: Record<string, string | null>;
@@ -175,6 +202,107 @@ async function mapWithConcurrency<T, R>(
   );
   await Promise.all(workers);
   return out;
+}
+
+/**
+ * Le pagine «Il sistema scelto»: le schede delle linee dei prodotti del
+ * preventivo, serramenti e accessori. La linea di una riga è il valore scelto
+ * sull'asse Linea, altrimenti la categoria del prodotto. Se qualcosa non si
+ * carica, il PDF esce senza queste pagine invece di non uscire.
+ */
+async function caricaLineeDedicate(
+  companyId: string | null | undefined,
+  detail: SrProgettoDetail,
+): Promise<SerramentoPdfLineaPagina[]> {
+  const righeBom = [
+    ...detail.serramenti.map((s) => ({ family_id: s.family_id, valori_assi: s.valori_assi })),
+    ...detail.accessori.map((a) => ({ family_id: a.family_id, valori_assi: a.valori_assi })),
+  ].filter((r): r is { family_id: string; valori_assi: Record<string, string> | null } => !!r.family_id);
+  if (!companyId || righeBom.length === 0) return [];
+
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = supabase as any;
+    const { data: righeSchede, error } = await db
+      .from("listino_schede_linea")
+      .select(COLONNE_SCHEDA_LINEA)
+      .eq("company_id", companyId);
+    if (error) throw error;
+    if (!righeSchede?.length) return [];
+    const schede = (righeSchede as Record<string, unknown>[]).map(comeSchedaLinea);
+
+    type Famiglia = { id: string; nome: string | null; categoria_id: string | null; macrocategoria_id: string | null };
+    type Asse = {
+      family_id: string;
+      codice: string;
+      nome: string | null;
+      values: Array<{ id: string; valore: string | null; label: string | null }>;
+    };
+    const familyIds = [...new Set(righeBom.map((r) => r.family_id))];
+    const [{ data: famiglie }, { data: assi }] = await Promise.all([
+      db.from("article_families").select("id, nome, categoria_id, macrocategoria_id").in("id", familyIds),
+      db
+        .from("article_family_axes")
+        .select("family_id, codice, nome, values:article_family_axis_values(id, valore, label)")
+        .in("family_id", familyIds),
+    ]);
+    const famigliaPerId = new Map(((famiglie ?? []) as Famiglia[]).map((f) => [f.id, f] as const));
+    const assiPerFamiglia = new Map<string, Asse[]>();
+    for (const asse of (assi ?? []) as Asse[]) {
+      assiPerFamiglia.set(asse.family_id, [...(assiPerFamiglia.get(asse.family_id) ?? []), asse]);
+    }
+
+    const categoriaIds = [
+      ...new Set([...famigliaPerId.values()].map((f) => f.categoria_id).filter((id): id is string => !!id)),
+    ];
+    const tipologiaIds = [...new Set(schede.map((s) => s.macrocategoria_id).filter((id): id is string => !!id))];
+    const [{ data: categorie }, { data: tipologie }] = await Promise.all([
+      categoriaIds.length > 0
+        ? db.from("listino_categorie").select("id, nome, macrocategoria_id").in("id", categoriaIds)
+        : Promise.resolve({ data: [] }),
+      tipologiaIds.length > 0
+        ? db.from("listino_macrocategorie").select("id, nome").in("id", tipologiaIds)
+        : Promise.resolve({ data: [] }),
+    ]);
+    const categoriaPerId = new Map(
+      ((categorie ?? []) as Array<{ id: string; nome: string; macrocategoria_id: string | null }>).map(
+        (c) => [c.id, c] as const,
+      ),
+    );
+    const nomeTipologia = new Map(
+      ((tipologie ?? []) as Array<{ id: string; nome: string }>).map((m) => [m.id, m.nome] as const),
+    );
+
+    const righe: RigaConLinea[] = righeBom.map((r) => {
+      const famiglia = famigliaPerId.get(r.family_id);
+      const categoria = famiglia?.categoria_id ? categoriaPerId.get(famiglia.categoria_id) : undefined;
+      return {
+        macrocategoriaId: famiglia?.macrocategoria_id ?? categoria?.macrocategoria_id ?? null,
+        linea: lineaDellaRiga({
+          assi: assiPerFamiglia.get(r.family_id),
+          valoriAssi: r.valori_assi,
+          categoria: categoria?.nome,
+        }),
+        prodotto: famiglia?.nome ?? null,
+      };
+    });
+
+    return await mapWithConcurrency(schedeUsate(righe, indiceSchede(schede)), 3, async ({ scheda, prodotti }) => ({
+      id: scheda.id,
+      nome: scheda.nome,
+      tipologia: scheda.macrocategoria_id ? (nomeTipologia.get(scheda.macrocategoria_id) ?? null) : null,
+      descrizione: scheda.descrizione,
+      // Foto già dentro il PDF: react-pdf non legge il webp e inciampa negli URL lunghi.
+      immagine_url: (await toDataUrl(scheda.immagine_url)) ?? scheda.immagine_url,
+      dati: datiTecniciScheda(scheda).map(({ etichetta, valore }) => ({ etichetta, valore })),
+      scheda_tecnica_url: scheda.scheda_tecnica_url,
+      scheda_tecnica_nome: scheda.scheda_tecnica_nome,
+      prodotti: elencoProdotti(prodotti),
+    }));
+  } catch (err) {
+    console.error("Schede delle linee non caricate per il PDF:", err);
+    return [];
+  }
 }
 
 async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEnriched> {
@@ -466,12 +594,14 @@ async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEn
     inlinedChiSiamoFoto,
     inlinedConsulenteFoto,
     inlinedCoverImage,
+    lineeDedicate,
   ] = await Promise.all([
     toDataUrl(template?.logo_url ?? company?.logo_url ?? null),
     toDataUrl(template?.chi_siamo_foto_url ?? null),
     toDataUrl(consulente?.foto_url ?? null),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     toDataUrl((template as any)?.pdf_cover_image_url ?? null),
+    caricaLineeDedicate(companyId, detail),
   ]);
 
   // Applica i data URL pre-caricati ai rispettivi oggetti
@@ -530,6 +660,7 @@ async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEn
     familiesById: inlinedFamilies,
     fieldsByMacro,
     macroPagineDedicate: inlinedMacroPagine,
+    lineeDedicate,
     macroImageById: inlinedMacroImageById,
     macroNomeById,
     axisLabelByKey,

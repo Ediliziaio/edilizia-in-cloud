@@ -14,6 +14,27 @@ import { ListinoNavigatore } from "@/components/listino/ListinoNavigatore";
 import { ESEMPI_LISTINO } from "@/lib/listino/esempiListino";
 import { FILTRI_LISTINO_VUOTI, filtriAttivi, rigaPassa } from "@/lib/listino/filtriListino";
 import { costruisciListino, filtraListino, type SelezioneListino } from "@/lib/listino/lineeListino";
+import { indiceSchede, trovaSchedaLinea } from "@/lib/listino/schedeLinea";
+
+/** Una scheda di linea d'esempio: senza tipologia, vale ovunque la linea si chiami così. */
+const SCHEDE_ESEMPIO = indiceSchede([
+  {
+    id: "esempio-salamander-76",
+    company_id: "esempio",
+    macrocategoria_id: null,
+    chiave: "pvc_salamander_76",
+    nome: "PVC Salamander 76",
+    descrizione:
+      "Sistema in PVC a 6 camere con 3 guarnizioni e 76 mm di profondità: tiene fuori freddo e rumore, con rinforzi in acciaio e ferramenta di sicurezza di serie.",
+    immagine_url: null,
+    profondita_mm: 76,
+    camere: 6,
+    guarnizioni: 3,
+    uw: 0.9,
+    scheda_tecnica_url: null,
+    scheda_tecnica_nome: null,
+  },
+]);
 
 export default function ListinoAnteprima() {
   const esempi = useMemo(() => ESEMPI_LISTINO.map((crea) => crea()), []);
@@ -130,6 +151,9 @@ export default function ListinoAnteprima() {
           }
           onPrezziLinee={() => avvisa("Prezzi delle linee")}
           onCollega={(area, tipologia) => avvisa(`Collega «${tipologia.nome}» al ${area.standard?.preventivatore ?? "preventivatore"}`)}
+          onAccessorio={(_area, tipologia) => avvisa(`«${tipologia.nome}» fra gli accessori della finestra`)}
+          schedaDi={(tipologia, linea) => trovaSchedaLinea(SCHEDE_ESEMPIO, tipologia.macrocategoriaId, linea.nome)}
+          onSchedaLinea={(_area, _tipologia, linea) => avvisa(`Scheda di ${linea.nome}`)}
         />
       </div>
     </div>

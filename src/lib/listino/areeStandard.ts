@@ -20,7 +20,11 @@ export interface TipologiaStandard {
   nome: string;
   /** Altri nomi con cui le aziende la chiamano. */
   sinonimi: string[];
-  /** Va in fondo all'area e nel preventivo sta fra accessori e complementi. */
+  /**
+   * Nel preventivatore si aggiunge alla finestra (sezione Accessori) invece di
+   * stare da solo: tapparelle, zanzariere, cassonetti, motori. Nel listino va
+   * in fondo all'area.
+   */
   accessorio: boolean;
   fvCategoria: SlotFotovoltaico | null;
 }
@@ -51,9 +55,9 @@ export const AREE_STANDARD: AreaStandard[] = [
     preventivatore: "Preventivatore serramenti",
     tipologie: [
       tipologia("Serramenti", { sinonimi: ["infissi", "finestre"] }),
-      tipologia("Tapparelle", { sinonimi: ["tapparella", "avvolgibili", "avvolgibile"] }),
-      tipologia("Zanzariere", { sinonimi: ["zanzariera"] }),
-      tipologia("Cassonetti", { sinonimi: ["cassonetto"] }),
+      tipologia("Tapparelle", { sinonimi: ["tapparella", "avvolgibili", "avvolgibile"], accessorio: true }),
+      tipologia("Zanzariere", { sinonimi: ["zanzariera"], accessorio: true }),
+      tipologia("Cassonetti", { sinonimi: ["cassonetto"], accessorio: true }),
       tipologia("Persiane e scuri", { sinonimi: ["persiane", "persiana", "scuri", "oscuranti"] }),
       tipologia("Porte da interno", { sinonimi: ["porte interne", "porta interna"] }),
       tipologia("Porte blindate", { sinonimi: ["portoncini blindati", "porta blindata", "blindati"] }),

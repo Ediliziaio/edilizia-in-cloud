@@ -720,6 +720,7 @@ export type SrPdfPageId =
   | "proposta"
   | "allegato_tecnico"
   | "macro_dedicate"
+  | "linee_dedicate"
   | "articoli_dedicati"
   | "investimento"
   | "percorso"
@@ -768,6 +769,14 @@ export const SR_PDF_PAGES_META: SrPdfPageMeta[] = [
     id: "macro_dedicate",
     label: "Pagine dedicate macrocategoria",
     descrizione: "Una pagina per ogni macrocategoria con mostra_pagina_dedicata_pdf=true.",
+    obbligatoria: false,
+  },
+  // Le schede delle linee (Listino → linea → «Scheda di …»): una pagina per
+  // ogni linea usata nel preventivo, subito dopo quelle delle tipologie.
+  {
+    id: "linee_dedicate",
+    label: "Il sistema scelto (schede delle linee)",
+    descrizione: "Una pagina per ogni linea usata, es. PVC Salamander 76: foto del profilo, descrizione e dati tecnici.",
     obbligatoria: false,
   },
   {
@@ -853,7 +862,8 @@ export const SR_PDF_PAGES_DEFAULT: SrPdfPageOrderItem[] = SR_PDF_PAGES_META.map(
 
 /**
  * Merge robust: prende l'array salvato dall'utente e garantisce:
- *  - tutte le pagine canoniche sono presenti (aggiunge le mancanti in coda)
+ *  - tutte le pagine canoniche sono presenti (le mancanti entrano dopo la
+ *    pagina che le precede nell'ordine di default)
  *  - filtra id sconosciuti (es. pagina rimossa in futuro update)
  *  - le pagine obbligatorie hanno sempre visible=true (anche se salvato false
  *    da una versione precedente).
@@ -875,13 +885,18 @@ export function normalizePdfPagesOrder(
       visible: obbligatori.has(item.id) ? true : !!item.visible,
     });
   }
-  // Aggiungi le pagine mancanti in coda (es. nuova pagina rilasciata dopo
-  // che l'utente ha già salvato un ordine).
-  for (const meta of SR_PDF_PAGES_META) {
-    if (!seen.has(meta.id)) {
-      out.push({ id: meta.id, visible: true });
+  // Le pagine mancanti (rilasciate dopo che l'utente ha salvato un ordine)
+  // entrano dopo la pagina che le precede nell'ordine di default: le schede
+  // delle linee seguono le pagine delle tipologie, non finiscono in fondo.
+  SR_PDF_PAGES_META.forEach((meta, i) => {
+    if (seen.has(meta.id)) return;
+    let dopo = -1;
+    for (let j = i - 1; j >= 0 && dopo === -1; j--) {
+      dopo = out.findIndex((it) => it.id === SR_PDF_PAGES_META[j].id);
     }
-  }
+    out.splice(dopo + 1, 0, { id: meta.id, visible: true });
+    seen.add(meta.id);
+  });
   return out;
 }
 

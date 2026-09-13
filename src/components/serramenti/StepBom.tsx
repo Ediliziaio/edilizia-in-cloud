@@ -51,6 +51,9 @@ import type { ListinoFamily } from "@/lib/serramenti/api";
 import { DynamicFieldsRenderer } from "@/components/listino/DynamicFieldsRenderer";
 import { useListinoCategorie } from "@/hooks/useListinoCategorie";
 import { suffissoMaggiorazione } from "@/lib/listino/maggiorazione";
+import { useSchedeLinea } from "@/hooks/useSchedeLinea";
+import { lineaDellaRiga, schedaVuota, trovaSchedaLinea } from "@/lib/listino/schedeLinea";
+import { SchedaLineaCompatta } from "./SchedaLineaCompatta";
 
 interface Props {
   progettoId: string;
@@ -741,6 +744,18 @@ function SerramentoRow({
   // delle Variabili Prodotto al ricalcolo prezzo. Solo per righe listino.
   const { family: familyWithAxes } = useFamily(family?.id);
 
+  // La scheda della linea scelta (PVC Salamander 76), come nel picker: il
+  // valore dell'asse Linea della riga, altrimenti la categoria del prodotto.
+  const { indice: schedeLinea } = useSchedeLinea();
+  const { categorie } = useListinoCategorie();
+  const schedaLinea = useMemo(() => {
+    if (!family) return null;
+    const categoria = family.categoria_id ? categorie.find((c) => c.id === family.categoria_id) : undefined;
+    const linea = lineaDellaRiga({ assi: familyWithAxes?.axes, valoriAssi: s.valori_assi, categoria: categoria?.nome });
+    const scheda = trovaSchedaLinea(schedeLinea, family.macrocategoria_id ?? categoria?.macrocategoria_id ?? null, linea);
+    return schedaVuota(scheda) ? null : scheda;
+  }, [family, familyWithAxes, categorie, s.valori_assi, schedeLinea]);
+
   /**
    * Ricalcola prezzo unitario in base a L/A/Q correnti + Variabili Prodotto
    * (axes) snapshotted sulla riga. Usa il sistema esistente
@@ -1166,6 +1181,12 @@ function SerramentoRow({
                     })}
                 </div>
               </div>
+            </div>
+          )}
+
+          {schedaLinea && (
+            <div className="col-span-12">
+              <SchedaLineaCompatta scheda={schedaLinea} />
             </div>
           )}
 

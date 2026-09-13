@@ -694,7 +694,8 @@ function CopyMisureDialog({
                        coprire questo caso, ma lo lasciamo come safety net
                        (se l'utente ri-cambia manualmente a 'listino'). */
                     <p className="text-xs text-muted-foreground italic">
-                      Nessuna macrocategoria configurata. Vai in <strong>Listino → Macrocategorie</strong> per crearne.
+                      Nessun accessorio da proporre. Nel <strong>Listino</strong> servono tipologie segnate come
+                      accessorio (tapparelle, zanzariere, cassonetti) con prodotti attivi e proposti nei preventivi.
                     </p>
                   ) : (
                     accessoryMacros.map((m) => (
