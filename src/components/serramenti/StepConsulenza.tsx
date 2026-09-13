@@ -15,6 +15,18 @@ import { Calendar, ListChecks, FileText, EyeOff } from "lucide-react";
 import type { SrProgettoRow } from "@/types/serramenti";
 import { SrCard } from "@/lib/serramenti/wizardUI";
 
+/**
+ * Il campo «datetime-local» mostra e restituisce l'ora locale. Riempirlo con
+ * toISOString() gli dava l'ora UTC: l'appuntamento delle 10:30 riappariva alle
+ * 08:30 e, uscendo dal campo, veniva salvato di nuovo due ore prima.
+ */
+function perCampoDataOra(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+}
+
 interface Props {
   form: Partial<SrProgettoRow>;
   onChange: <K extends keyof SrProgettoRow>(key: K, value: SrProgettoRow[K]) => void;
@@ -54,7 +66,7 @@ export function StepConsulenza({ form, onChange }: Props) {
             <Label className="text-xs">Data e ora</Label>
             <Input
               type="datetime-local"
-              defaultValue={form.consulenza_at ? new Date(form.consulenza_at).toISOString().slice(0, 16) : ""}
+              defaultValue={perCampoDataOra(form.consulenza_at)}
               onBlur={(e) => onChange("consulenza_at", e.target.value ? new Date(e.target.value).toISOString() : null)}
               className="h-9 text-xs"
             />

@@ -79,6 +79,7 @@ export function StepBom({ progettoId, detail }: Props) {
   // La scelta fatta una volta per tutte le righe: la applica ogni riga con il
   // proprio ricalcolo (vedi BulkAssiActions).
   const [richiestaBulk, setRichiestaBulk] = useState<RichiestaBulkAsse | null>(null);
+  const [richiestaBulkPosa, setRichiestaBulkPosa] = useState<RichiestaBulkPosa | null>(null);
 
   const serramenti = detail.serramenti;
 
@@ -169,7 +170,11 @@ export function StepBom({ progettoId, detail }: Props) {
         supplier_catalog_id: item.supplier_catalog_id ?? null,
         supplier_product_line_id: item.supplier_product_line_id ?? null,
         valori_assi: item.valori_assi ?? {},
-        note: item.note ?? `Da listino: ${item.family_nome}`,
+        // La nota della riga è quella del commerciale e il PDF la stampa come
+        // «Note tecniche». Il conto del prezzo non è una nota: finiva nel PDF in
+        // formato inglese («1.68 m² × €600.00/m²») e restava vecchio appena si
+        // cambiavano linea, colore o misure, accanto a un prezzo diverso.
+        note: null,
       },
       { onSuccess: (created) => setExpanded(created.id) },
     );
@@ -344,16 +349,14 @@ export function StepBom({ progettoId, detail }: Props) {
             />
             <BulkPosaActions
               serramenti={serramenti}
-              onBulkUpdate={(esclusa) => {
-                // Applica posa_esclusa a TUTTE le righe in parallelo.
-                // updateMut e' la mutation di useUpdateSerramento; eseguita
-                // riga per riga senza Promise.all per evitare rate-limit
-                // su company con 50+ serramenti nello stesso BOM.
-                serramenti.forEach((s) => {
-                  if ((s.posa_esclusa ?? false) === esclusa) return; // no-op
-                  updateMut.mutate({ id: s.id, patch: { posa_esclusa: esclusa } });
-                });
+              conPosaAListino={(s) => {
+                const f = s.family_id ? familiesById.get(s.family_id) : undefined;
+                return !!f?.manodopera_modalita && f.manodopera_modalita !== "nessuna";
               }}
+              // Come per le variabili: ogni riga toglie o rimette la posa col suo
+              // ricalcolo. Prima si cambiava solo il segno «solo fornitura» e il
+              // prezzo restava quello con la posa dentro.
+              onBulkUpdate={(esclusa) => setRichiestaBulkPosa({ esclusa, nonce: Date.now() })}
             />
             <div className="space-y-2 mb-3">
               {serramenti.map((s, idx) => {
@@ -380,6 +383,7 @@ export function StepBom({ progettoId, detail }: Props) {
                   tariffePrezzi={tariffePrezzi}
                   supplierLineMap={supplierLineMap}
                   richiestaBulk={richiestaBulk}
+                  richiestaBulkPosa={richiestaBulkPosa}
                 />
               );
             })}
@@ -549,31 +553,43 @@ export function StepBom({ progettoId, detail }: Props) {
  * Mostra contestualmente lo stato attuale aggregato (X di Y con posa).
  */
 function BulkPosaActions({
-  serramenti, onBulkUpdate,
+  serramenti, conPosaAListino, onBulkUpdate,
 }: {
   serramenti: SrSerramentoRow[];
+  /** L'articolo della riga ha una posa a listino: le altre righe non hanno posa da includere o togliere. */
+  conPosaAListino: (s: SrSerramentoRow) => boolean;
   onBulkUpdate: (esclusa: boolean) => void;
 }) {
   if (serramenti.length < 2) return null;
-  const senzaPosa = serramenti.filter((s) => s.posa_esclusa).length;
-  const conPosa = serramenti.length - senzaPosa;
+  // Contano solo le righe con una posa a listino: una finestra senza posa non è
+  // «con posa inclusa», e la barra diceva «tutte le 2 righe con posa inclusa».
+  const righe = serramenti.filter(conPosaAListino);
+  if (righe.length === 0) return null;
+  const senzaPosaAListino = serramenti.length - righe.length;
+  const senzaPosa = righe.filter((s) => s.posa_esclusa).length;
+  const conPosa = righe.length - senzaPosa;
   const stato =
     senzaPosa === 0 ? "tutte_con" :
     conPosa === 0 ? "tutte_senza" :
     "miste";
+  const quante = (n: number) =>
+    n === serramenti.length ? `tutte le ${n} righe` : n === 1 ? "1 riga" : `${n} righe`;
 
   return (
     <div className="rounded-md border border-slate-200 bg-slate-50/60 p-2.5 mb-3 flex items-center justify-between gap-2 flex-wrap">
       <div className="text-xs text-slate-700 min-w-0">
         <span className="font-semibold">Manodopera:</span>{" "}
         {stato === "tutte_con" && (
-          <span className="text-emerald-700">tutte le {serramenti.length} righe con posa inclusa</span>
+          <span className="text-emerald-700">{quante(conPosa)} con posa inclusa</span>
         )}
         {stato === "tutte_senza" && (
-          <span className="text-amber-700">tutte le {serramenti.length} righe senza posa (solo fornitura)</span>
+          <span className="text-amber-700">{quante(senzaPosa)} senza posa (solo fornitura)</span>
         )}
         {stato === "miste" && (
           <span className="text-slate-600">{conPosa} con posa · {senzaPosa} senza posa</span>
+        )}
+        {senzaPosaAListino > 0 && (
+          <span className="text-muted-foreground"> · {senzaPosaAListino} senza posa a listino</span>
         )}
       </div>
       <div className="flex items-center gap-1.5 shrink-0">
@@ -598,6 +614,12 @@ function BulkPosaActions({
       </div>
     </div>
   );
+}
+
+/** Posa inclusa o esclusa su tutte le righe; `nonce` distingue due clic uguali. */
+export interface RichiestaBulkPosa {
+  esclusa: boolean;
+  nonce: number;
 }
 
 /** Una scelta da applicare a tutte le righe; `nonce` distingue due clic uguali. */
@@ -679,7 +701,7 @@ function BulkAssiActions({
 
 function SerramentoRow({
   serramento: s, index, expanded, onToggle, onPatch, onDuplicate, onDelete,
-  family, macroId, macroNome, tariffePrezzi, supplierLineMap, richiestaBulk,
+  family, macroId, macroNome, tariffePrezzi, supplierLineMap, richiestaBulk, richiestaBulkPosa,
 }: {
   serramento: SrSerramentoRow;
   index: number;
@@ -700,6 +722,8 @@ function SerramentoRow({
   supplierLineMap: Map<string, SupplierProductLine>;
   /** Scelta applicata a tutte le righe dall'azione di gruppo. */
   richiestaBulk: RichiestaBulkAsse | null;
+  /** Posa inclusa o esclusa su tutte le righe dall'azione di gruppo. */
+  richiestaBulkPosa: RichiestaBulkPosa | null;
 }) {
   // Label header riga:
   //   - off-listino: usa SR_TIPOLOGIE_SERRAMENTO (Finestra a 1 anta, ecc.)
@@ -928,6 +952,18 @@ function SerramentoRow({
       onPatch({ posa_esclusa: escludi });
     }
   };
+
+  // «Tutti con posa» / «Solo fornitura» dalla barra in cima: stesso ricalcolo del
+  // toggle della riga, così il prezzo perde o riprende la posa insieme al segno.
+  const ultimaBulkPosa = useRef<number>(0);
+  useEffect(() => {
+    if (!richiestaBulkPosa || richiestaBulkPosa.nonce === ultimaBulkPosa.current) return;
+    ultimaBulkPosa.current = richiestaBulkPosa.nonce;
+    if ((s.posa_esclusa ?? false) === richiestaBulkPosa.esclusa) return;
+    handlePosaEsclusaToggle(richiestaBulkPosa.esclusa);
+    // Come per le variabili: l'effetto scatta solo sul nonce della richiesta.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [richiestaBulkPosa]);
 
   // Posa configurata sull'articolo? (per decidere se mostrare il toggle).
   // Se la family non ha manodopera (modalita="nessuna" o null), il toggle

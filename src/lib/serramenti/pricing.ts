@@ -9,6 +9,7 @@
  * commerciale) e `StepBom.SerramentoRow` (ricalcolo on-change).
  */
 import type { ListinoFamily } from "./api";
+import { formatEuro, formatNumero } from "./format";
 
 // ─── Tipi ──────────────────────────────────────────────────────────────────
 
@@ -117,7 +118,7 @@ export function calcolaPrezzoProdotto(
         return { prezzo: 0, matchedGrigliaId: null, note: "Inserisci larghezza e altezza per calcolo m²" };
       }
       const mq = (larghezza * altezza) / 1_000_000;
-      return { prezzo: base * mq * quantita, matchedGrigliaId: null, note: `${mq.toFixed(2)} m² × €${base.toFixed(2)}/m²` };
+      return { prezzo: base * mq * quantita, matchedGrigliaId: null, note: `${formatNumero(mq, 2)} m² × ${formatEuro(base, 2)}/m²` };
     }
     case "misura_libera":
       return { prezzo: base * quantita, matchedGrigliaId: null, note: "Prezzo a corpo, misure indicative" };
@@ -201,7 +202,7 @@ export function calcolaPrezzoProdotto(
         : Number(best.prezzo_vendita ?? 0);
       return {
         prezzo: prezzoBest * quantita, matchedGrigliaId: best.id,
-        note: `Griglia ${best.valore_x}×${best.valore_y}mm @ €${prezzoBest.toFixed(2)}`,
+        note: `Griglia ${best.valore_x}×${best.valore_y} mm @ ${formatEuro(prezzoBest, 2)}`,
         supplierCatalogId: best.supplier_catalog_id ?? supplierLine?.supplier_catalog_id ?? null,
         supplierProductLineId,
         availableSupplierProductLineIds,

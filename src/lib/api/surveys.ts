@@ -80,16 +80,25 @@ export interface CreateSurveyInput {
   mode?: "structured" | "express";
 }
 
-export async function createSurvey(input: CreateSurveyInput): Promise<SurveyRow> {
-  // companyId è iniettato dal trigger via auth.uid → profiles
-  const { data: profile } = await supabase
-    .from("profiles" as never)
-    .select("company_id")
-    .eq("id", (await supabase.auth.getUser()).data.user?.id ?? "")
-    .maybeSingle();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const companyId = (profile as any)?.company_id;
-  if (!companyId) throw new Error("Profilo senza azienda associata");
+export async function createSurvey(
+  input: CreateSurveyInput,
+  /** L'azienda in cui si sta lavorando (useEffectiveCompanyId). */
+  companyIdEffettiva?: string | null,
+): Promise<SurveyRow> {
+  // L'azienda è quella aperta, non quella del profilo: un super admin entrato in
+  // un'azienda non ne ha nessuna e chi lavora su più aziende creava il
+  // sopralluogo in quella di casa. Il profilo resta il ripiego.
+  let companyId = companyIdEffettiva ?? null;
+  if (!companyId) {
+    const { data: profile } = await supabase
+      .from("profiles" as never)
+      .select("company_id")
+      .eq("id", (await supabase.auth.getUser()).data.user?.id ?? "")
+      .maybeSingle();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    companyId = (profile as any)?.company_id ?? null;
+  }
+  if (!companyId) throw new Error("Nessuna azienda aperta: entra in un'azienda per creare il sopralluogo");
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase as any)

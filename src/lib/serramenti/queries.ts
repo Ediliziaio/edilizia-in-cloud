@@ -31,7 +31,12 @@ import type {
 } from "@/types/serramenti";
 import { toast } from "sonner";
 import { markSurveyConverted } from "@/lib/api/surveys";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 
+// Gli elenchi filtrano per l'azienda aperta. Le regole del database bastano a
+// chi lavora nella sua azienda, ma a un super admin entrato in un'azienda
+// restituiscono le righe di tutte: il picker proponeva tipologie e prodotti
+// di altri clienti.
 export const SR_QK = {
   progetti: (stato?: SrStatoProgetto) => ["sr-progetti", stato ?? "all"] as const,
   progetto: (id: string) => ["sr-progetto", id] as const,
@@ -39,9 +44,11 @@ export const SR_QK = {
 };
 
 export function useProgetti(opts?: { stato?: SrStatoProgetto }) {
+  const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: SR_QK.progetti(opts?.stato),
-    queryFn: () => listProgetti(opts),
+    queryKey: [...SR_QK.progetti(opts?.stato), companyId],
+    queryFn: () => listProgetti({ ...opts, companyId }),
+    enabled: !!companyId,
   });
 }
 
@@ -55,8 +62,11 @@ export function useProgetto(id: string | undefined) {
 
 export function useCreateProgetto() {
   const qc = useQueryClient();
+  // Il preventivo nasce nell'azienda aperta: anche per il super admin entrato in
+  // un'azienda e per chi lavora su più aziende.
+  const companyId = useEffectiveCompanyId();
   return useMutation({
-    mutationFn: (input: SrCreateProgettoInput) => createProgetto(input),
+    mutationFn: (input: SrCreateProgettoInput) => createProgetto(input, companyId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["sr-progetti"] });
       toast.success("Progetto creato");
@@ -195,9 +205,11 @@ export function useDeleteAccessorio(progettoId: string | undefined) {
 // ─── CRM contacts picker ────────────────────────────────────────────────────
 
 export function useCrmContacts(searchQuery: string = "") {
+  const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: ["sr-crm-contacts", searchQuery],
-    queryFn: () => listCrmContacts(searchQuery, 50),
+    queryKey: ["sr-crm-contacts", searchQuery, companyId],
+    queryFn: () => listCrmContacts(searchQuery, 50, companyId),
+    enabled: !!companyId,
     staleTime: 60 * 1000,
   });
 }
@@ -205,9 +217,11 @@ export function useCrmContacts(searchQuery: string = "") {
 // ─── Listino manodopera (tariffe_aziendali) ────────────────────────────────
 
 export function useTariffeManodopera(searchQuery: string = "") {
+  const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: ["sr-tariffe-manodopera", searchQuery],
-    queryFn: () => listTariffeManodopera(searchQuery),
+    queryKey: ["sr-tariffe-manodopera", searchQuery, companyId],
+    queryFn: () => listTariffeManodopera(searchQuery, companyId),
+    enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
   });
 }
@@ -260,9 +274,11 @@ export function useListinoFamilies(opts?: {
   /** @deprecated post-refactor 20270513200000. Usa macroId. */
   categoriaId?: string | null;
 }) {
+  const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: ["sr-listino-families", opts?.searchQuery ?? "", opts?.macroId ?? null, opts?.categoriaId ?? null],
-    queryFn: () => listListinoFamilies(opts),
+    queryKey: ["sr-listino-families", opts?.searchQuery ?? "", opts?.macroId ?? null, opts?.categoriaId ?? null, companyId],
+    queryFn: () => listListinoFamilies({ ...opts, companyId }),
+    enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
   });
 }
@@ -301,9 +317,11 @@ export function useMacrocategorie(opts?: {
   const onlyWithFamilies = opts?.onlyWithFamilies ?? true;
   const vertical = opts?.vertical ?? null;
   const tipo = opts?.tipo ?? null;
+  const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: ["sr-listino-macrocategorie", onlyWithFamilies, vertical, tipo],
-    queryFn: () => listMacrocategorie({ onlyWithFamilies, vertical, tipo }),
+    queryKey: ["sr-listino-macrocategorie", onlyWithFamilies, vertical, tipo, companyId],
+    queryFn: () => listMacrocategorie({ onlyWithFamilies, vertical, tipo, companyId }),
+    enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
   });
 }
@@ -313,10 +331,11 @@ export function useCategorieByMacro(
   opts?: { onlyWithFamilies?: boolean }
 ) {
   const onlyWithFamilies = opts?.onlyWithFamilies ?? true;
+  const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: ["sr-listino-categorie", macroId, onlyWithFamilies],
-    queryFn: () => listCategorieByMacro(macroId, { onlyWithFamilies }),
-    enabled: macroId !== undefined,
+    queryKey: ["sr-listino-categorie", macroId, onlyWithFamilies, companyId],
+    queryFn: () => listCategorieByMacro(macroId, { onlyWithFamilies, companyId }),
+    enabled: macroId !== undefined && !!companyId,
     staleTime: 5 * 60 * 1000,
   });
 }
@@ -396,9 +415,11 @@ export function useListinoGriglia(familyId: string | null | undefined) {
 // ─── Render Infissi ─────────────────────────────────────────────────────────
 
 export function useRenderSessions() {
+  const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: ["sr-render-sessions"],
-    queryFn: () => listRenderSessions({ limit: 30 }),
+    queryKey: ["sr-render-sessions", companyId],
+    queryFn: () => listRenderSessions({ limit: 30, companyId }),
+    enabled: !!companyId,
     staleTime: 60 * 1000,
   });
 }

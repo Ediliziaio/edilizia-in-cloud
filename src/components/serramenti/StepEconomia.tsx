@@ -606,11 +606,12 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
       {/* Riepilogo BOM */}
       <SrCard
         title="Riepilogo composizione"
-        description={`${detail.serramenti.length} serramenti (posa inclusa) · ${detail.accessori.length} accessori · ${(detail.servizi ?? detail.manodopera ?? []).length} servizi · ${formatNumero(totaleCalc.metri_quadri, 2)} m²`}
+        description={`${detail.serramenti.length} serramenti · ${detail.accessori.length} accessori · ${(detail.servizi ?? detail.manodopera ?? []).length} servizi · ${formatNumero(totaleCalc.metri_quadri, 2)} m²`}
         icon={<Calculator className="h-4 w-4" />}
       >
         <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-          <SrKpi label="Serramenti" value={formatEuro(totaleCalc.imponibile_serramenti)} hint="Posa inclusa nei prezzi" />
+          {/* La posa è nel prezzo solo degli articoli che la hanno a listino. */}
+          <SrKpi label="Serramenti" value={formatEuro(totaleCalc.imponibile_serramenti)} hint="Posa compresa dove prevista" />
           <SrKpi label="Accessori" value={formatEuro(totaleCalc.imponibile_accessori)} />
           <SrKpi label="Servizi" value={formatEuro(totaleCalc.imponibile_servizi)} hint="Trasporto, ENEA, ecc." />
           <SrKpi label="Imponibile" value={formatEuro(totaleCalc.imponibile_netto)} hint={totaleCalc.sconto > 0 ? `Sconto: -${formatEuro(totaleCalc.sconto)}` : undefined} />

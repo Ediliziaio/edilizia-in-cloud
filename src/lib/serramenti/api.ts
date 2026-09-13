@@ -27,17 +27,27 @@ import { sinonimiVerticale } from "@/lib/listino/areeStandard";
  */
 export type SrCreateProgettoInput = Partial<SrProgettoRow>;
 
-export async function createProgetto(input: SrCreateProgettoInput): Promise<SrProgettoRow> {
-  // company_id viene iniettato dal trigger / RLS check via profiles.company_id
+export async function createProgetto(
+  input: SrCreateProgettoInput,
+  /** L'azienda in cui si sta lavorando (useEffectiveCompanyId). */
+  companyIdEffettiva?: string | null,
+): Promise<SrProgettoRow> {
+  // L'azienda è quella aperta, non quella del profilo: un super admin entrato in
+  // un'azienda non ne ha nessuna («Profilo senza azienda associata») e chi lavora
+  // su più aziende creava il preventivo in quella di casa. Il profilo resta il
+  // ripiego per chi chiama senza passarla.
   const userId = (await supabase.auth.getUser()).data.user?.id ?? null;
-  const { data: profile } = await supabase
-    .from("profiles" as never)
-    .select("company_id")
-    .eq("id", userId ?? "")
-    .maybeSingle();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const companyId = (profile as any)?.company_id;
-  if (!companyId) throw new Error("Profilo senza azienda associata");
+  let companyId = companyIdEffettiva ?? null;
+  if (!companyId) {
+    const { data: profile } = await supabase
+      .from("profiles" as never)
+      .select("company_id")
+      .eq("id", userId ?? "")
+      .maybeSingle();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    companyId = (profile as any)?.company_id ?? null;
+  }
+  if (!companyId) throw new Error("Nessuna azienda aperta: entra in un'azienda per creare il preventivo");
 
   // FIX integrazione · Leggi i default dal template aziendale (se esiste)
   // e pre-popola i campi `iva_percentuale`, `valido_fino_giorni`,
@@ -128,7 +138,7 @@ export async function createProgettoDaSopralluogo(
   return data as string;
 }
 
-export async function listProgetti(opts?: { stato?: SrStatoProgetto; limit?: number }) {
+export async function listProgetti(opts?: { stato?: SrStatoProgetto; limit?: number; companyId?: string | null }) {
   // SELECT esteso: aggiunge campi usati dai filtri avanzati della lista
   // (commerciale, provincia, m², bonus, pagamento, link CRM/ordini).
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -149,6 +159,7 @@ export async function listProgetti(opts?: { stato?: SrStatoProgetto; limit?: num
     ].join(", "))
     .is("deleted_at", null)
     .order("created_at", { ascending: false });
+  if (opts?.companyId) q = q.eq("company_id", opts.companyId);
   if (opts?.stato) q = q.eq("stato", opts.stato);
   if (opts?.limit) q = q.limit(opts.limit);
   const { data, error } = await q;
@@ -634,7 +645,7 @@ export interface TariffaMinimal {
   tipo: string | null;
 }
 
-export async function listTariffeManodopera(searchQuery?: string): Promise<TariffaMinimal[]> {
+export async function listTariffeManodopera(searchQuery?: string, companyId?: string | null): Promise<TariffaMinimal[]> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let q = (supabase as any)
     .from("tariffe_aziendali")
@@ -644,6 +655,7 @@ export async function listTariffeManodopera(searchQuery?: string): Promise<Tarif
     // La posa inclusa su una family puo' puntare a una tariffa oltre le prime
     // 100 alfabetiche. Aumentiamo il cap per evitare ricalcoli a 0.
     .limit(1000);
+  if (companyId) q = q.eq("company_id", companyId);
   if (searchQuery && searchQuery.trim().length >= 2) {
     const t = `%${searchQuery.trim()}%`;
     q = q.or(`nome.ilike.${t},descrizione.ilike.${t},categoria_prodotto.ilike.${t}`);
@@ -771,6 +783,9 @@ export async function listMacrocategorie(opts?: {
    *  Pass 'principale' per il picker preventivo principale,
    *  'accessorio' per la sezione "Accessori e complementi". */
   tipo?: "principale" | "accessorio" | null;
+  /** L'azienda aperta (useEffectiveCompanyId): a un super admin le regole del
+   *  database restituiscono le tipologie di tutte le aziende. */
+  companyId?: string | null;
 }): Promise<ListinoMacrocategoria[]> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let q = (supabase as any)
@@ -787,6 +802,7 @@ export async function listMacrocategorie(opts?: {
     const contiene = sinonimiVerticale(opts.vertical).map((v) => `verticali_abilitati.cs.{${v}}`);
     q = q.or(["verticali_abilitati.eq.{}", ...contiene].join(","));
   }
+  if (opts?.companyId) q = q.eq("company_id", opts.companyId);
   if (opts?.tipo) {
     q = q.eq("categoria_tipo", opts.tipo);
   }
@@ -804,18 +820,24 @@ export async function listMacrocategorie(opts?: {
   // Fallback al vecchio path per articoli pre-refactor (categoria_id legacy).
   // Contano solo i prodotti che il preventivatore propone davvero: attivi e non
   // «Fuori dai preventivi». Una tipologia con soli prodotti nascosti non si mostra.
+  // Anche qui l'azienda: senza, i prodotti di tutte le aziende superano le mille
+  // righe che il database restituisce e alcune tipologie sparivano a caso.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: famRows } = await (supabase as any)
+  let famQ = (supabase as any)
     .from("article_families")
     .select("macrocategoria_id, categoria_id")
     .eq("attivo", true)
     .eq("mostra_preventivo", true)
     .is("deleted_at", null);
+  if (opts.companyId) famQ = famQ.eq("company_id", opts.companyId);
+  const { data: famRows } = await famQ;
   const macrosWithFam = new Set<string>();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: catRows } = await (supabase as any)
+  let catQ = (supabase as any)
     .from("listino_categorie")
     .select("id, macrocategoria_id");
+  if (opts.companyId) catQ = catQ.eq("company_id", opts.companyId);
+  const { data: catRows } = await catQ;
   const catToMacro = new Map<string, string>();
   (catRows ?? []).forEach((c: { id: string; macrocategoria_id: string | null }) => {
     if (c.macrocategoria_id) catToMacro.set(c.id, c.macrocategoria_id);
@@ -837,7 +859,7 @@ export async function listMacrocategorie(opts?: {
  */
 export async function listCategorieByMacro(
   macroId: string | null,
-  opts?: { onlyWithFamilies?: boolean },
+  opts?: { onlyWithFamilies?: boolean; companyId?: string | null },
 ): Promise<ListinoCategoria[]> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let q = (supabase as any)
@@ -845,6 +867,7 @@ export async function listCategorieByMacro(
     .select("id, nome, descrizione, icona, colore, immagine_url, macrocategoria_id")
     .order("sort_order", { ascending: true, nullsFirst: false })
     .order("nome", { ascending: true });
+  if (opts?.companyId) q = q.eq("company_id", opts.companyId);
   if (macroId) q = q.eq("macrocategoria_id", macroId);
   const { data, error } = await q;
   if (error) {
@@ -1077,6 +1100,8 @@ export async function listListinoFamilies(opts?: {
   macroId?: string | null;
   /** @deprecated usa macroId. Mantenuto per backward compat caller pre-refactor. */
   categoriaId?: string | null;
+  /** L'azienda aperta (useEffectiveCompanyId). */
+  companyId?: string | null;
 }): Promise<ListinoFamily[]> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let q = (supabase as any)
@@ -1094,6 +1119,7 @@ export async function listListinoFamilies(opts?: {
     .is("deleted_at", null)
     .order("nome", { ascending: true })
     .limit(100);
+  if (opts?.companyId) q = q.eq("company_id", opts.companyId);
   const search = opts?.searchQuery?.trim();
   if (search && search.length >= 2) {
     q = q.ilike("nome", `%${search}%`);
@@ -1141,7 +1167,11 @@ export interface CrmContactMinimal {
   company_name: string | null;
 }
 
-export async function listCrmContacts(searchQuery?: string, limit: number = 50): Promise<CrmContactMinimal[]> {
+export async function listCrmContacts(
+  searchQuery?: string,
+  limit: number = 50,
+  companyId?: string | null,
+): Promise<CrmContactMinimal[]> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let q = (supabase as any)
     .from("marketing_contacts")
@@ -1149,6 +1179,7 @@ export async function listCrmContacts(searchQuery?: string, limit: number = 50):
     .order("last_activity_at", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false })
     .limit(limit);
+  if (companyId) q = q.eq("company_id", companyId);
   if (searchQuery && searchQuery.trim().length >= 2) {
     const t = `%${searchQuery.trim()}%`;
     q = q.or(`first_name.ilike.${t},last_name.ilike.${t},email.ilike.${t},phone.ilike.${t},company_name.ilike.${t}`);
@@ -1173,14 +1204,16 @@ export interface RenderSessionMinimal {
   created_at: string;
 }
 
-export async function listRenderSessions(opts?: { limit?: number }): Promise<RenderSessionMinimal[]> {
+export async function listRenderSessions(opts?: { limit?: number; companyId?: string | null }): Promise<RenderSessionMinimal[]> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase as any)
+  let q = (supabase as any)
     .from("render_sessions")
     .select("id, status, result_urls, original_photo_url, config, created_at")
     .eq("status", "completed")
     .order("created_at", { ascending: false })
     .limit(opts?.limit ?? 30);
+  if (opts?.companyId) q = q.eq("company_id", opts.companyId);
+  const { data, error } = await q;
   if (error) {
     console.error("[serramenti] listRenderSessions failed", error);
     throw new Error("Errore caricamento render disponibili");

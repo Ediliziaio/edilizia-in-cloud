@@ -46,6 +46,11 @@
   ! X-Frame-Options
 
 # Security headers for all pages
+# worker-src 'self' blob: — i PDF generati nel browser (@react-pdf, che dentro usa
+# fflate) comprimono le immagini in un worker creato da un blob. Senza questa
+# voce la CSP ricadeva su script-src, il worker veniva rifiutato e la libreria,
+# che non ascolta l'errore, aspettava per sempre: «Generazione PDF in corso…»
+# senza fine (verificato il 14/09/2026 sul preventivatore serramenti).
 /*
   X-Frame-Options: SAMEORIGIN
   X-Content-Type-Options: nosniff
@@ -53,7 +58,7 @@
   Permissions-Policy: camera=(), microphone=(), geolocation=()
   X-XSS-Protection: 1; mode=block
   Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://www.google-analytics.com https://cdn.jsdelivr.net https://connect.facebook.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https: http:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://www.google-analytics.com https://analytics.google.com https://region1.google-analytics.com https://api.open-meteo.com https://graph.facebook.com https://*.facebook.com; frame-src 'self' blob: https://www.google.com https://www.youtube.com https://www.youtube-nocookie.com https://www.facebook.com https://web.facebook.com https://m.facebook.com https://business.facebook.com; object-src 'none'; base-uri 'self'
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://www.google-analytics.com https://cdn.jsdelivr.net https://connect.facebook.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https: http:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://www.google-analytics.com https://analytics.google.com https://region1.google-analytics.com https://api.open-meteo.com https://graph.facebook.com https://*.facebook.com; frame-src 'self' blob: https://www.google.com https://www.youtube.com https://www.youtube-nocookie.com https://www.facebook.com https://web.facebook.com https://m.facebook.com https://business.facebook.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'
 
 # Inter font self-hosted — immutable 1y (woff2 dal version 5.1.0 di @fontsource/inter)
 /fonts/*

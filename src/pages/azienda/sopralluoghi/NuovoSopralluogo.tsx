@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 
 const CATEGORY_ICON: Record<string, string> = {
   infissi: "🪟",
@@ -45,6 +46,7 @@ const CATEGORY_ICON: Record<string, string> = {
 export default function NuovoSopralluogo() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
+  const companyId = useEffectiveCompanyId();
   const [step, setStep] = useState(1);
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
 
@@ -113,7 +115,7 @@ export default function NuovoSopralluogo() {
         city: city || null,
         zip: zip || null,
         notes: notes || null,
-      });
+      }, companyId);
     },
     onSuccess: (survey) => {
       toast.success(`Sopralluogo ${survey.code} creato`);
