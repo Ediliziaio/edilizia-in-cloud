@@ -385,6 +385,338 @@ const DISEGNI = {
   "products/porta-interna-soffietto": portaInterna("soffietto"),
 };
 
+// ─── Persiane: tutte le configurazioni ─────────────────────────────────────
+//
+// Le configurazioni della «Libreria icone persiane»: vista interna, simboli di
+// apertura in rosso con la stessa regola dei serramenti (base dalla parte delle
+// cerniere, vertice dalla parte che si apre): «DX» si apre verso destra. Ogni
+// disegno ha la tela ritagliata su misura, così nel listino e nel PDF si vede
+// intero e senza bianco attorno.
+
+const f1 = (v) => v.toFixed(1);
+const pt = (x, y) => `${f1(x)},${f1(y)}`;
+
+const PERSIANA = {
+  telaio: 7,     // telaio fisso attorno alle ante
+  profilo: 5,    // profilo dell'anta
+  margine: 5,    // bianco attorno al disegno
+  passo: 7,      // distanza tra le stecche
+  anta: "#eceef0",
+  pannello: "#f6f7f8",
+  luce: "#fbfbfc",
+};
+
+function tela(larghezza, altezza, contenuto) {
+  const w = Math.ceil(larghezza), h = Math.ceil(altezza);
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" role="img">` +
+    `<rect width="${w}" height="${h}" fill="#ffffff"/>` + contenuto + `</svg>`;
+}
+
+function rett(x, y, w, h, fill, { bordo = C.telaioBordo, spessore = 1, extra = "" } = {}) {
+  return `<rect x="${f1(x)}" y="${f1(y)}" width="${f1(w)}" height="${f1(h)}" fill="${fill}" stroke="${bordo}" stroke-width="${spessore}"${extra}/>`;
+}
+
+/** Le stecche orizzontali dentro il pannello di un'anta. */
+function stecchePersiana(x, y, w, h) {
+  let out = "";
+  for (let sy = y + PERSIANA.passo * 0.75; sy < y + h - 2; sy += PERSIANA.passo) {
+    out += `<line x1="${f1(x + 2.5)}" y1="${f1(sy)}" x2="${f1(x + w - 2.5)}" y2="${f1(sy)}" stroke="${C.meccanismo}" stroke-width="1"/>`;
+  }
+  return out;
+}
+
+/** Due cardini sul bordo verticale di un'anta. */
+function cardini(x, y, h) {
+  return [0.16, 0.84]
+    .map((t) => rett(x - 1.8, y + h * t - 5, 3.6, 10, C.meccanismo, { bordo: C.meccanismo, spessore: 0.5 }))
+    .join("");
+}
+
+/**
+ * Un'anta: profilo, pannello a stecche e simbolo di apertura.
+ * apre: "dx" (vertice a destra), "sx", oppure null per un pannello fermo.
+ */
+function antaPersiana(x, y, w, h, { apre = null, vetro = false } = {}) {
+  const P = PERSIANA.profilo;
+  const px = x + P, py = y + P, pw = w - P * 2, ph = h - P * 2;
+  let out = rett(x, y, w, h, PERSIANA.anta);
+  out += vetro
+    ? rett(px, py, pw, ph, C.vetro, { bordo: C.vetroBordo, spessore: 0.8 })
+    : rett(px, py, pw, ph, PERSIANA.pannello, { bordo: C.vetroBordo, spessore: 0.8 }) + stecchePersiana(px, py, pw, ph);
+  if (apre === "dx") out += apertura("battente_sx", px, py, pw, ph);
+  if (apre === "sx") out += apertura("battente_dx", px, py, pw, ph);
+  return out;
+}
+
+/** Il telaio fisso attorno alle ante: restituisce il vano interno e la tela su misura. */
+function telaioPersiana(larghezza, altezza) {
+  const M = PERSIANA.margine, T = PERSIANA.telaio;
+  return {
+    out: rett(M, M, larghezza, altezza, C.telaio, { spessore: 1.4 }),
+    x: M + T, y: M + T, w: larghezza - T * 2, h: altezza - T * 2,
+    chiudi: (contenuto) => tela(larghezza + M * 2, altezza + M * 2, contenuto),
+  };
+}
+
+const A = (apre, peso = 1) => ({ apre, peso });
+
+/**
+ * A battente: le ante una accanto all'altra, i cardini dalla parte opposta al
+ * vertice. montanteDopo mette un montante fisso dopo quell'anta: la 4 ante
+ * fatta di due coppie.
+ */
+function persianaBattente({ larghezza, altezza, ante, montanteDopo = null }) {
+  const vano = telaioPersiana(larghezza, altezza);
+  let out = vano.out;
+  const montante = montanteDopo === null ? 0 : 6;
+  const pesoTot = ante.reduce((s, a) => s + a.peso, 0);
+  let ax = vano.x;
+  ante.forEach((a, i) => {
+    const aw = ((vano.w - montante) * a.peso) / pesoTot;
+    out += antaPersiana(ax, vano.y, aw, vano.h, { apre: a.apre });
+    if (a.apre === "dx") out += cardini(ax, vano.y, vano.h);
+    if (a.apre === "sx") out += cardini(ax + aw, vano.y, vano.h);
+    ax += aw;
+    if (montanteDopo === i) {
+      out += rett(ax, vano.y, montante, vano.h, C.telaio);
+      ax += montante;
+    }
+  });
+  return vano.chiudi(out);
+}
+
+/**
+ * A libro: ante incernierate tra loro che si piegano a fisarmonica. gruppi dice
+ * quante ante vanno a sinistra e quante a destra: [3] tutte a sinistra, [2, 2]
+ * due per lato. I cardini stanno sullo stipite e tra le ante dello stesso gruppo.
+ */
+function persianaLibro({ larghezza, altezza, gruppi }) {
+  const vano = telaioPersiana(larghezza, altezza);
+  let out = vano.out;
+  const aw = vano.w / gruppi.reduce((s, g) => s + g, 0);
+  let inizio = 0;
+  gruppi.forEach((quante, g) => {
+    const aDestra = g === 1;
+    for (let k = 0; k < quante; k++) {
+      const pari = (aDestra ? quante - 1 - k : k) % 2 === 0;
+      const apre = aDestra ? (pari ? "sx" : "dx") : (pari ? "dx" : "sx");
+      out += antaPersiana(vano.x + (inizio + k) * aw, vano.y, aw, vano.h, { apre });
+    }
+    out += cardini(vano.x + (aDestra ? inizio + quante : inizio) * aw, vano.y, vano.h);
+    for (let k = 1; k < quante; k++) out += cardini(vano.x + (inizio + k) * aw, vano.y, vano.h);
+    inizio += quante;
+  });
+  return vano.chiudi(out);
+}
+
+/**
+ * A pacchetto: le ante si ripiegano una sull'altra e si raccolgono da un lato.
+ * Il disegno le mostra già raccolte da quel lato, con il tratteggio di dove
+ * arrivano da chiuse e la freccia verso il pacchetto.
+ */
+function persianaPacchetto({ larghezza, altezza, ante, verso }) {
+  const vano = telaioPersiana(larghezza, altezza);
+  let out = vano.out + rett(vano.x, vano.y, vano.w, vano.h, PERSIANA.luce, { bordo: C.vetroBordo, spessore: 0.8 });
+  const aw = vano.w / ante;
+  for (let i = 1; i < ante; i++) {
+    const x = vano.x + i * aw;
+    out += `<line x1="${f1(x)}" y1="${f1(vano.y + 4)}" x2="${f1(x)}" y2="${f1(vano.y + vano.h - 4)}" stroke="${C.vetroBordo}" stroke-width="0.9" stroke-dasharray="4 3"/>`;
+  }
+  const spessore = 10;
+  const pacco = ante * spessore;
+  const px = verso === "dx" ? vano.x + vano.w - pacco : vano.x;
+  for (let i = 0; i < ante; i++) {
+    const sx = px + i * spessore;
+    out += rett(sx, vano.y, spessore, vano.h, PERSIANA.anta, { spessore: 0.9 });
+    for (let sy = vano.y + 5; sy < vano.y + vano.h - 4; sy += PERSIANA.passo) {
+      out += `<line x1="${f1(sx + 2)}" y1="${f1(sy)}" x2="${f1(sx + spessore - 2)}" y2="${f1(sy + 2.2)}" stroke="${C.meccanismo}" stroke-width="0.8"/>`;
+    }
+  }
+  out += cardini(verso === "dx" ? vano.x + vano.w : vano.x, vano.y, vano.h);
+  const cy = vano.y + vano.h / 2;
+  out += verso === "dx"
+    ? freccia(vano.x + vano.w * 0.22, cy, px - 8, cy)
+    : freccia(vano.x + vano.w * 0.78, cy, px + pacco + 8, cy);
+  return vano.chiudi(out);
+}
+
+/**
+ * Scorrevole: le ante corrono su una guida in alto che prosegue oltre la luce
+ * del muro (tratteggiata), dove l'anta va a parcheggiarsi quando si apre.
+ */
+function persianaScorrevole(tipo) {
+  const M = PERSIANA.margine, altezza = 178, guida = 7;
+  const dueAnte = tipo === "2-ante" || tipo === "2-ante-sovrapposte";
+  const luceW = dueAnte ? 168 : 108;
+  const oltreSx = tipo === "1-anta-sx" ? luceW * 0.7 : tipo === "2-ante" ? luceW * 0.4 : 0;
+  const oltreDx = tipo === "1-anta-dx" || tipo === "2-ante-sovrapposte" ? luceW * 0.7 : tipo === "2-ante" ? luceW * 0.4 : 0;
+  const larghezza = oltreSx + luceW + oltreDx;
+  const luceX = M + oltreSx, y0 = M + guida + 3, hAnta = altezza - guida - 6;
+  let out = rett(M, M, larghezza, guida, C.telaio, { spessore: 1.2 });
+  out += rett(luceX, y0, luceW, altezza - guida - 3, PERSIANA.luce, { spessore: 1, extra: ` stroke-dasharray="5 3"` });
+  const carrelli = (x, w) => [x + 12, x + w - 12]
+    .map((cx) => `<circle cx="${f1(cx)}" cy="${f1(M + guida)}" r="3" fill="#ffffff" stroke="${C.meccanismo}" stroke-width="1.1"/>`)
+    .join("");
+  const cy = y0 + 2 + hAnta / 2;
+  if (tipo === "1-anta-dx" || tipo === "1-anta-sx") {
+    out += antaPersiana(luceX, y0 + 2, luceW, hAnta) + carrelli(luceX, luceW);
+    out += tipo === "1-anta-dx"
+      ? freccia(luceX + luceW * 0.28, cy, luceX + luceW * 0.72, cy)
+      : freccia(luceX + luceW * 0.72, cy, luceX + luceW * 0.28, cy);
+  } else if (tipo === "2-ante") {
+    const aw = luceW / 2;
+    out += antaPersiana(luceX, y0 + 2, aw, hAnta) + antaPersiana(luceX + aw, y0 + 2, aw, hAnta);
+    out += carrelli(luceX, aw) + carrelli(luceX + aw, aw);
+    out += freccia(luceX + aw * 0.75, cy, luceX + aw * 0.25, cy) + freccia(luceX + aw * 1.25, cy, luceX + aw * 1.75, cy);
+  } else {
+    // Sovrapposte: due binari, l'anta dietro sfalsata scorre sotto quella davanti.
+    const aw = luceW * 0.58;
+    out += `<line x1="${f1(M + 2)}" y1="${f1(M + guida / 2)}" x2="${f1(M + larghezza - 2)}" y2="${f1(M + guida / 2)}" stroke="${C.telaioBordo}" stroke-width="0.8"/>`;
+    out += antaPersiana(luceX + luceW - aw, y0 + 2, aw, hAnta) + carrelli(luceX + luceW - aw, aw);
+    out += rett(luceX + luceW - aw, y0 + 2, aw, hAnta, "#ffffff", { bordo: "none", spessore: 0, extra: ` fill-opacity="0.35"` });
+    out += antaPersiana(luceX, y0 + 2, aw, hAnta) + carrelli(luceX, aw);
+    out += freccia(luceX + luceW * 0.2, cy, luceX + luceW * 0.8, cy);
+  }
+  return tela(larghezza + M * 2, altezza + M * 2, out);
+}
+
+/** Con sopraluce, con pannello fisso superiore o laterale. */
+function persianaConPannello(tipo) {
+  if (tipo === "laterale") {
+    const vano = telaioPersiana(152, 178);
+    const montante = 5, fissoW = vano.w * 0.36, antaW = vano.w - fissoW - montante;
+    let out = vano.out;
+    out += antaPersiana(vano.x, vano.y, antaW, vano.h, { apre: "dx" }) + cardini(vano.x, vano.y, vano.h);
+    out += rett(vano.x + antaW, vano.y, montante, vano.h, C.telaio);
+    out += antaPersiana(vano.x + antaW + montante, vano.y, fissoW, vano.h);
+    return vano.chiudi(out);
+  }
+  const vano = telaioPersiana(134, 198);
+  const hSopra = vano.h * 0.24, traverso = 5;
+  let out = vano.out;
+  out += tipo === "sopraluce"
+    ? rett(vano.x, vano.y, vano.w, hSopra, C.vetro, { bordo: C.vetroBordo })
+    : antaPersiana(vano.x, vano.y, vano.w, hSopra);
+  out += rett(vano.x, vano.y + hSopra, vano.w, traverso, C.telaio);
+  const yA = vano.y + hSopra + traverso, hA = vano.h - hSopra - traverso, aw = vano.w / 2;
+  out += antaPersiana(vano.x, yA, aw, hA, { apre: "dx" }) + cardini(vano.x, yA, hA);
+  out += antaPersiana(vano.x + aw, yA, aw, hA, { apre: "sx" }) + cardini(vano.x + vano.w, yA, hA);
+  return vano.chiudi(out);
+}
+
+/**
+ * Anta sull'altro muro dell'angolo, vista di scorcio: i bordi verticali restano
+ * verticali, sopra e sotto convergono verso il fondo. Cardini sul bordo in
+ * fondo, vertice del simbolo verso l'angolo.
+ */
+function antaScorcio(x, y, w, h, rientro) {
+  const P = PERSIANA.profilo;
+  const yf = (t) => y + rientro + (h - rientro * 2) * t; // bordo in fondo
+  const yv = (t) => y + h * t;                           // bordo sull'angolo
+  let out = `<polygon points="${[pt(x, y), pt(x + w, y + rientro), pt(x + w, y + h - rientro), pt(x, y + h)].join(" ")}" fill="${PERSIANA.anta}" stroke="${C.telaioBordo}" stroke-width="1"/>`;
+  const tIn = P / h;
+  out += `<polygon points="${[pt(x + P, yv(tIn)), pt(x + w - P * 0.7, yf(tIn)), pt(x + w - P * 0.7, yf(1 - tIn)), pt(x + P, yv(1 - tIn))].join(" ")}" fill="${PERSIANA.pannello}" stroke="${C.vetroBordo}" stroke-width="0.8"/>`;
+  const passi = Math.floor((h - P * 2) / PERSIANA.passo);
+  for (let s = 1; s < passi; s++) {
+    const t = tIn + (1 - tIn * 2) * (s / passi);
+    out += `<line x1="${f1(x + P + 2)}" y1="${f1(yv(t))}" x2="${f1(x + w - P * 0.7 - 2)}" y2="${f1(yf(t))}" stroke="${C.meccanismo}" stroke-width="1"/>`;
+  }
+  out += linea(x + w - P, yf(tIn), x + P, yv(0.5)) + linea(x + w - P, yf(1 - tIn), x + P, yv(0.5));
+  out += [0.16, 0.84].map((t) => rett(x + w - 1.8, yf(t) - 5, 3.6, 10, C.meccanismo, { bordo: C.meccanismo, spessore: 0.5 })).join("");
+  return out;
+}
+
+/** Ad angolo: una parte sul muro di fronte, l'ultima anta di scorcio sull'altro muro. */
+function persianaAngolo(ante) {
+  const M = PERSIANA.margine, T = PERSIANA.telaio, h = 178, palo = 7, rientro = 16;
+  const frontW = ante === 3 ? 136 : 80, scorcioW = 60;
+  let out = rett(M, M, frontW + T * 2, h, C.telaio, { spessore: 1.4 });
+  const fx = M + T, fy = M + T, fh = h - T * 2;
+  if (ante === 3) {
+    const aw = frontW / 2;
+    out += antaPersiana(fx, fy, aw, fh, { apre: "dx" }) + cardini(fx, fy, fh);
+    out += antaPersiana(fx + aw, fy, aw, fh, { apre: "sx" }) + cardini(fx + frontW, fy, fh);
+  } else {
+    out += antaPersiana(fx, fy, frontW, fh, { apre: "dx" }) + cardini(fx, fy, fh);
+  }
+  const ax = M + frontW + T * 2;
+  out += rett(ax, M, palo, h, C.telaio, { spessore: 1.2 });
+  const sx = ax + palo;
+  out += `<polygon points="${[pt(sx, M), pt(sx + scorcioW, M + rientro), pt(sx + scorcioW, M + h - rientro), pt(sx, M + h)].join(" ")}" fill="${C.telaio}" stroke="${C.telaioBordo}" stroke-width="1.4"/>`;
+  out += antaScorcio(sx, M + T, scorcioW - T * 0.8, h - T * 2, rientro * 0.8);
+  return tela(sx + scorcioW + M, h + M * 2, out);
+}
+
+/** Le lamelle in sezione, per la scheda della linea: fisse inclinate, oppure orientabili con l'asta di manovra. */
+function lamelle({ orientabili }) {
+  const w = 184, h = 150, cx = w / 2;
+  let out = rett(8, 6, 12, h - 12, C.telaio, { spessore: 1.2 }) + rett(w - 20, 6, 12, h - 12, C.telaio, { spessore: 1.2 });
+  const angolo = orientabili ? -16 : -38;
+  const rad = (angolo * Math.PI) / 180;
+  const punte = [];
+  // Nelle orientabili una lamella in meno: sotto c'è la freccia della rotazione.
+  for (let i = 0; i < (orientabili ? 5 : 6); i++) {
+    const cy = 22 + i * 21.5;
+    out += `<rect x="${f1(cx - 56)}" y="${f1(cy - 3.5)}" width="112" height="7" rx="2.5" fill="${C.telaio}" stroke="${C.telaioBordo}" stroke-width="1" transform="rotate(${angolo} ${f1(cx)} ${f1(cy)})"/>`;
+    if (orientabili) {
+      out += `<circle cx="${f1(cx)}" cy="${f1(cy)}" r="2.4" fill="${C.meccanismo}"/>`;
+      punte.push([cx + 44 * Math.cos(rad), cy + 44 * Math.sin(rad)]);
+    }
+  }
+  if (orientabili) {
+    // L'asta muove tutte le lamelle insieme: la freccia curva dice che ruotano.
+    const ultima = punte[punte.length - 1];
+    out += `<line x1="${f1(punte[0][0])}" y1="${f1(punte[0][1])}" x2="${f1(ultima[0])}" y2="${f1(ultima[1])}" stroke="${C.meccanismo}" stroke-width="2"/>`;
+    for (const [px, py] of punte) out += `<circle cx="${f1(px)}" cy="${f1(py)}" r="1.8" fill="#ffffff" stroke="${C.meccanismo}" stroke-width="1"/>`;
+    out += `<path d="M ${f1(cx - 30)} ${f1(h - 22)} A 30 14 0 0 0 ${f1(cx + 30)} ${f1(h - 22)}" fill="none" stroke="${C.apertura}" stroke-width="1.6" stroke-linecap="round"/>`;
+    out += linea(cx + 30, h - 22, cx + 22, h - 26) + linea(cx + 30, h - 22, cx + 29, h - 31);
+  }
+  return tela(w, h, out);
+}
+
+// Le misure a disegno: la finestra è più bassa della portafinestra, e ogni anta
+// in più allarga la tela invece di stringere le ante.
+const LARGHEZZA_FINESTRA = { 1: 72, 2: 132, 3: 186, 4: 244 };
+const LARGHEZZA_PORTAFINESTRA = { 1: 86, 2: 150, 3: 210, 4: 268 };
+
+const CONFIGURAZIONI_BATTENTE = [
+  ["1-anta-dx", [A("dx")]],
+  ["1-anta-sx", [A("sx")]],
+  ["2-ante", [A("dx"), A("sx")]],
+  ["2-ante-asimmetriche-principale-sx", [A("dx", 1.6), A("sx")]],
+  ["2-ante-asimmetriche-principale-dx", [A("dx"), A("sx", 1.6)]],
+  ["3-ante-2-1-sx", [A("dx"), A("dx"), A("sx")]],
+  ["3-ante-1-2-dx", [A("dx"), A("sx"), A("sx")]],
+  ["3-ante", [A("dx"), A(null), A("sx")]],
+  ["4-ante-2-2", [A("dx"), A("dx"), A("sx"), A("sx")]],
+  ["4-ante", [A("dx"), A("sx"), A("dx"), A("sx")], { montanteDopo: 1 }],
+];
+
+for (const [chiave, ante, opzioni = {}] of CONFIGURAZIONI_BATTENTE) {
+  DISEGNI[`products/persiana-finestra-${chiave}`] = persianaBattente({ larghezza: LARGHEZZA_FINESTRA[ante.length], altezza: 150, ante, ...opzioni });
+  DISEGNI[`products/persiana-portafinestra-${chiave}`] = persianaBattente({ larghezza: LARGHEZZA_PORTAFINESTRA[ante.length], altezza: 232, ante, ...opzioni });
+}
+Object.assign(DISEGNI, {
+  "products/persiana-libro-2-ante": persianaLibro({ larghezza: 132, altezza: 196, gruppi: [2] }),
+  "products/persiana-libro-3-ante": persianaLibro({ larghezza: 186, altezza: 196, gruppi: [3] }),
+  "products/persiana-libro-4-ante": persianaLibro({ larghezza: 244, altezza: 196, gruppi: [2, 2] }),
+  "products/persiana-pacchetto-3-ante-dx": persianaPacchetto({ larghezza: 186, altezza: 196, ante: 3, verso: "dx" }),
+  "products/persiana-pacchetto-3-ante-sx": persianaPacchetto({ larghezza: 186, altezza: 196, ante: 3, verso: "sx" }),
+  "products/persiana-pacchetto-4-ante-dx": persianaPacchetto({ larghezza: 244, altezza: 196, ante: 4, verso: "dx" }),
+  "products/persiana-pacchetto-4-ante-sx": persianaPacchetto({ larghezza: 244, altezza: 196, ante: 4, verso: "sx" }),
+  "products/persiana-scorrevole-1-anta-dx": persianaScorrevole("1-anta-dx"),
+  "products/persiana-scorrevole-1-anta-sx": persianaScorrevole("1-anta-sx"),
+  "products/persiana-scorrevole-2-ante": persianaScorrevole("2-ante"),
+  "products/persiana-scorrevole-2-ante-sovrapposte": persianaScorrevole("2-ante-sovrapposte"),
+  "products/persiana-con-sopraluce": persianaConPannello("sopraluce"),
+  "products/persiana-pannello-fisso-laterale": persianaConPannello("laterale"),
+  "products/persiana-pannello-fisso-superiore": persianaConPannello("superiore"),
+  "products/persiana-angolo-2-ante": persianaAngolo(2),
+  "products/persiana-angolo-3-ante": persianaAngolo(3),
+  "products/lamelle-fisse": lamelle({ orientabili: false }),
+  "products/lamelle-orientabili": lamelle({ orientabili: true }),
+});
+
 mkdirSync(join(USCITA, "products"), { recursive: true });
 let n = 0;
 for (const [nome, contenuto] of Object.entries(DISEGNI)) {
