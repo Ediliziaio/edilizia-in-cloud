@@ -236,6 +236,10 @@ Deno.serve(async (req) => {
     const settings = (form.settings as any) || {};
     const theme = (form.theme as any) || {};
     const assignedUserId = cleanText(settings.assignedUserId);
+    // Il call center che richiama il lead. Prima il form sapeva assegnare solo
+    // il venditore: le opportunità arrivate dal sito nascevano senza chi le
+    // chiama, mentre quelle da Facebook il call center ce l'avevano.
+    const callCenterId = cleanText(settings.callCenterId);
     const defaultTags = cleanStringList(settings.defaultTags);
 
     // Build contact data from field mappings
@@ -327,6 +331,7 @@ Deno.serve(async (req) => {
           ...extraContactFields,
         };
         if (assignedUserId) contactUpdate.assigned_to = assignedUserId;
+        if (callCenterId) contactUpdate.call_center_id = callCenterId;
         if (defaultTags.length > 0) contactUpdate.tags = mergeStringLists(existing.tags, defaultTags);
 
         await supabase
@@ -354,6 +359,7 @@ Deno.serve(async (req) => {
         };
 
         if (assignedUserId) insertPayload.assigned_to = assignedUserId;
+        if (callCenterId) insertPayload.call_center_id = callCenterId;
         if (defaultTags.length > 0) insertPayload.tags = defaultTags;
 
         const { data: newContact } = await supabase
@@ -477,6 +483,7 @@ Deno.serve(async (req) => {
             status: "open",
             source: formOpportunitySource,
             assigned_to: assignedUserId || null,
+            call_center_id: callCenterId || null,
             ...(defaultTags.length > 0 ? { tags: defaultTags } : {}),
           });
         }

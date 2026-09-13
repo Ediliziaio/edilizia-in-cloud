@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Copy, ExternalLink, X } from "lucide-react";
 import { toast } from "sonner";
+import { useCompanyCallCenterUsers } from "@/hooks/useOpportunitiesData";
 import {
   buildLeadFormAutoResizeEmbedSnippet,
   buildLeadFormIframeSnippet,
@@ -98,6 +99,10 @@ export function FormSettingsPanel({ form, theme, settings, onThemeChange, onSett
     enabled: !!form.company_id,
     staleTime: 10 * 60 * 1000,
   });
+
+  // Gli stessi operatori call center dell'assegnazione in blocco delle
+  // opportunità: nel form si sceglie tra le persone che si vedono nel kanban.
+  const { data: operatoriCallCenter = [] } = useCompanyCallCenterUsers();
 
   const { data: users = [] } = useQuery({
     queryKey: ["form-builder-settings-users", form.company_id],
@@ -341,6 +346,29 @@ export function FormSettingsPanel({ form, theme, settings, onThemeChange, onSett
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="space-y-1">
+            <Label className="text-xs">Call center che richiama il lead</Label>
+            <Select
+              value={stringSetting(settings, "callCenterId", "__none__")}
+              onValueChange={(value) => updateSettings(
+                value === "__none__" ? {} : { callCenterId: value },
+                value === "__none__" ? ["callCenterId"] : [],
+              )}
+              disabled={disabled}
+            >
+              <SelectTrigger className="h-8 text-sm">
+                <SelectValue placeholder="Nessun call center" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">Nessun call center</SelectItem>
+                {operatoriCallCenter.map((operatore) => (
+                  <SelectItem key={operatore.id} value={operatore.id}>{operatore.name || operatore.id}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-[11px] text-muted-foreground">Finisce sull'opportunità come «Call center», come per i lead da Facebook.</p>
           </div>
 
           <div className="space-y-1">
