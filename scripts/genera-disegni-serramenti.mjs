@@ -217,6 +217,126 @@ function persiana({ ante = 2, stecche = true }) {
   return svg(out);
 }
 
+/** Il pavimento sotto una porta: dà il verso al disegno. */
+const PAVIMENTO_Y = H - 8;
+const pavimento = () =>
+  `<line x1="10" y1="${PAVIMENTO_Y}" x2="${W - 10}" y2="${PAVIMENTO_Y}" stroke="${C.telaioBordo}" stroke-width="1.4" stroke-linecap="round"/>`;
+
+/** Maniglia a leva: rosetta e leva rivolta verso le cerniere. */
+function manigliaPorta(x, y, levaASinistra = true) {
+  const lx = levaASinistra ? x - 15 : x;
+  return `<rect x="${(x - 2.2).toFixed(1)}" y="${(y - 7).toFixed(1)}" width="4.4" height="14" rx="2" fill="${C.meccanismo}"/>` +
+    `<rect x="${lx.toFixed(1)}" y="${(y - 1.9).toFixed(1)}" width="15" height="3.8" rx="1.9" fill="${C.meccanismo}"/>`;
+}
+
+/** Il cilindro della serratura, sotto la maniglia. */
+const cilindro = (x, y) =>
+  `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3" fill="none" stroke="${C.meccanismo}" stroke-width="1.3"/>` +
+  `<rect x="${(x - 0.8).toFixed(1)}" y="${y.toFixed(1)}" width="1.6" height="5" fill="${C.meccanismo}"/>`;
+
+/**
+ * Porta blindata: telaio in acciaio più spesso di quello di un serramento,
+ * pannello pieno con una bugna, spioncino, maniglia e cilindro. La classe 4 si
+ * riconosce dai deviatori, i catenacci in più sul lato cerniere, in alto e in
+ * basso. A due ante: anta principale e anta semifissa più stretta.
+ */
+function portaBlindata({ ante = 1, classe = 3 }) {
+  const largh = ante === 1 ? 116 : 156;
+  const x0 = (W - largh) / 2, y0 = 6;
+  const T = classe >= 4 ? 15 : 12;
+  let out = pavimento();
+  out += `<rect x="${x0}" y="${y0}" width="${largh}" height="${PAVIMENTO_Y - y0}" fill="${C.telaio}" stroke="${C.telaioBordo}" stroke-width="1.5"/>`;
+  const ix = x0 + T, iy = y0 + T, iw = largh - T * 2, ih = PAVIMENTO_Y - iy - 2;
+  const parti = ante === 1
+    ? [{ w: iw, principale: true }]
+    : [{ w: iw * 0.62, principale: true }, { w: iw * 0.38, principale: false }];
+  let ax = ix;
+  for (const parte of parti) {
+    out += `<rect x="${ax.toFixed(1)}" y="${iy}" width="${parte.w.toFixed(1)}" height="${ih}" fill="#e1e4e7" stroke="${C.telaioBordo}" stroke-width="1"/>`;
+    out += `<rect x="${(ax + 9).toFixed(1)}" y="${iy + 14}" width="${(parte.w - 18).toFixed(1)}" height="${ih - 28}" fill="none" stroke="${C.vetroBordo}" stroke-width="1"/>`;
+    if (parte.principale) {
+      out += apertura("battente_sx", ax + 5, iy + 5, parte.w - 10, ih - 10);
+      const mx = ax + parte.w - 11, my = iy + ih * 0.53;
+      out += manigliaPorta(mx, my, true) + cilindro(mx, my + 15);
+      out += `<circle cx="${(ax + parte.w / 2).toFixed(1)}" cy="${iy + 30}" r="2.6" fill="${C.meccanismo}"/>`;
+      if (classe >= 4) {
+        for (const y of [iy + 26, iy + ih * 0.5, iy + ih - 26]) {
+          out += `<rect x="${(ax - 3).toFixed(1)}" y="${(y - 6).toFixed(1)}" width="6" height="12" fill="${C.meccanismo}"/>`;
+        }
+        out += `<rect x="${(ax + parte.w / 2 - 7).toFixed(1)}" y="${iy - 3}" width="14" height="6" fill="${C.meccanismo}"/>`;
+        out += `<rect x="${(ax + parte.w / 2 - 7).toFixed(1)}" y="${iy + ih - 3}" width="14" height="6" fill="${C.meccanismo}"/>`;
+      }
+    } else {
+      // Semifissa: chiavistelli in alto e in basso, nessuna apertura.
+      out += `<rect x="${(ax + parte.w / 2 - 2).toFixed(1)}" y="${iy + 4}" width="4" height="16" fill="${C.meccanismo}"/>`;
+      out += `<rect x="${(ax + parte.w / 2 - 2).toFixed(1)}" y="${iy + ih - 20}" width="4" height="16" fill="${C.meccanismo}"/>`;
+    }
+    ax += parte.w;
+  }
+  return svg(out);
+}
+
+/**
+ * Porta da interno in una luce 80×210. Quello che si vende è il modo in cui si
+ * apre: a battente, dentro il muro, sul muro, a soffietto. Nel disegno deve
+ * leggersi a colpo d'occhio.
+ */
+function portaInterna(tipo) {
+  const ANTA_FILL = "#f5f6f7";
+  let out = pavimento();
+  if (tipo === "battente" || tipo === "soffietto") {
+    const largh = 104, x0 = (W - largh) / 2, y0 = 8, T = 7;
+    out += `<rect x="${x0}" y="${y0}" width="${largh}" height="${PAVIMENTO_Y - y0}" fill="${C.telaio}" stroke="${C.telaioBordo}" stroke-width="1.4"/>`;
+    const ix = x0 + T, iy = y0 + T, iw = largh - T * 2, ih = PAVIMENTO_Y - iy - 2;
+    if (tipo === "battente") {
+      out += `<rect x="${ix}" y="${iy}" width="${iw}" height="${ih}" fill="${ANTA_FILL}" stroke="${C.telaioBordo}" stroke-width="1"/>`;
+      out += apertura("battente_sx", ix + 5, iy + 5, iw - 10, ih - 10);
+      const mx = ix + iw - 10, my = iy + ih * 0.53;
+      out += manigliaPorta(mx, my, true);
+      out += `<rect x="${(mx - 1).toFixed(1)}" y="${(my + 11).toFixed(1)}" width="2" height="5" rx="1" fill="${C.meccanismo}"/>`;
+    } else {
+      // Quattro pannelli che si piegano a coppie.
+      const pw = iw / 4;
+      for (let i = 0; i < 4; i++) {
+        out += `<rect x="${(ix + i * pw).toFixed(1)}" y="${iy}" width="${pw.toFixed(1)}" height="${ih}" fill="${ANTA_FILL}" stroke="${C.telaioBordo}" stroke-width="1"/>`;
+      }
+      out += apertura("battente_sx", ix + 4, iy + 6, pw * 2 - 8, ih - 12);
+      out += apertura("battente_sx", ix + pw * 2 + 4, iy + 6, pw * 2 - 8, ih - 12);
+      out += `<circle cx="${(ix + iw - 6).toFixed(1)}" cy="${(iy + ih * 0.53).toFixed(1)}" r="3" fill="${C.meccanismo}"/>`;
+    }
+  } else if (tipo === "scomparsa") {
+    // A sinistra il muro con la tasca: l'anta è per metà già dentro.
+    const muroX = 18, luceX = 104, luceW = 80, y0 = 8;
+    out += `<rect x="${luceX}" y="${y0}" width="${luceW}" height="${PAVIMENTO_Y - y0}" fill="#fbfbfc" stroke="${C.telaioBordo}" stroke-width="1.4"/>`;
+    out += `<rect x="${luceX - 36}" y="${y0 + 7}" width="${luceW}" height="${PAVIMENTO_Y - y0 - 9}" fill="${ANTA_FILL}" stroke="${C.telaioBordo}" stroke-width="1"/>`;
+    const muroW = luceX - muroX, muroH = PAVIMENTO_Y - y0;
+    out += `<defs><clipPath id="muro-tasca"><rect x="${muroX}" y="${y0}" width="${muroW}" height="${muroH}"/></clipPath></defs>`;
+    out += `<rect x="${muroX}" y="${y0}" width="${muroW}" height="${muroH}" fill="#e9ecef" fill-opacity="0.92"/>`;
+    out += `<g clip-path="url(#muro-tasca)">`;
+    for (let x = muroX - muroH; x < muroX + muroW; x += 12) {
+      out += `<line x1="${x}" y1="${PAVIMENTO_Y}" x2="${x + muroH * 0.35}" y2="${y0}" stroke="${C.vetroBordo}" stroke-width="0.6"/>`;
+    }
+    out += `</g><rect x="${muroX}" y="${y0}" width="${muroW}" height="${muroH}" fill="none" stroke="${C.telaioBordo}" stroke-width="1.2"/>`;
+    out += `<rect x="${luceX - 36}" y="${y0 + 7}" width="36" height="${PAVIMENTO_Y - y0 - 9}" fill="none" stroke="${C.meccanismo}" stroke-width="1" stroke-dasharray="4 3"/>`;
+    out += `<rect x="${luceX + luceW - 44}" y="${(H / 2 - 12).toFixed(1)}" width="4" height="24" rx="2" fill="${C.meccanismo}"/>`;
+    out += freccia(luceX + 30, H / 2, luceX - 8, H / 2);
+  } else if (tipo === "esterno_muro") {
+    // Il binario a vista sul muro: l'anta scorre accanto alla luce e la copre.
+    const luceX = 96, luceW = 80, y0 = 24;
+    out += `<rect x="${luceX}" y="${y0}" width="${luceW}" height="${PAVIMENTO_Y - y0}" fill="#fbfbfc" stroke="${C.telaioBordo}" stroke-width="1.2" stroke-dasharray="5 3"/>`;
+    out += `<rect x="16" y="12" width="${W - 32}" height="6" rx="2" fill="${C.meccanismo}"/>`;
+    const antaX = 22, antaW = 84;
+    out += `<rect x="${antaX}" y="${y0}" width="${antaW}" height="${PAVIMENTO_Y - y0 - 2}" fill="${ANTA_FILL}" stroke="${C.telaioBordo}" stroke-width="1.2"/>`;
+    for (const cx of [antaX + 16, antaX + antaW - 16]) {
+      out += `<line x1="${cx}" y1="18" x2="${cx}" y2="${y0}" stroke="${C.meccanismo}" stroke-width="1.4"/>`;
+      out += `<circle cx="${cx}" cy="18" r="3.4" fill="#ffffff" stroke="${C.meccanismo}" stroke-width="1.3"/>`;
+    }
+    out += `<rect x="${antaX + antaW - 12}" y="${(H / 2 - 16).toFixed(1)}" width="4" height="32" rx="2" fill="${C.meccanismo}"/>`;
+    out += freccia(antaX + 22, H / 2 + 34, antaX + antaW + 30, H / 2 + 34);
+  }
+  return svg(out);
+}
+
 const F = (tipo, peso = 1) => ({ tipo, peso });
 
 /** Il catalogo: nome file → disegno. */
@@ -254,6 +374,15 @@ const DISEGNI = {
   "persiana-1-anta": persiana({ ante: 1 }),
   "persiana-2-ante": persiana({ ante: 2 }),
   "scuro-2-ante": persiana({ ante: 2, stecche: false }),
+
+  // --- porte: blindate e da interno (tipologie standard dell'area serramenti)
+  "products/porta-blindata-classe-3": portaBlindata({ ante: 1, classe: 3 }),
+  "products/porta-blindata-classe-4": portaBlindata({ ante: 1, classe: 4 }),
+  "products/porta-blindata-2-ante": portaBlindata({ ante: 2, classe: 3 }),
+  "products/porta-interna-battente": portaInterna("battente"),
+  "products/porta-interna-scorrevole-scomparsa": portaInterna("scomparsa"),
+  "products/porta-interna-scorrevole-esterno-muro": portaInterna("esterno_muro"),
+  "products/porta-interna-soffietto": portaInterna("soffietto"),
 };
 
 mkdirSync(join(USCITA, "products"), { recursive: true });
