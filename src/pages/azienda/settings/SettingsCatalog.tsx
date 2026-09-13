@@ -1,16 +1,9 @@
 /**
  * Preventivatore Verticalizzato Serramentisti — Catalogo listino.
  *
- * Gerarchia a 3 livelli:
- *   MACROCATEGORIA (es. INFISSO MODELLO 1)
- *     └─ CATEGORIA (es. FINESTRA 1 ANTA)
- *         └─ ARTICOLO (ex "famiglia", con prezzi/assi/varianti)
- *
- * UI:
- *  - Header: pulsanti "Gestisci categorie" + "Import Excel/CSV" + "Import AI da PDF".
- *  - Contenuto: catalogo articoli raggruppato per macrocategoria → categoria.
- *  - Niente più tab "Articoli singoli": creando un articolo puoi già definire
- *    il prezzo puntuale, non serve un'altra vista separata.
+ * Area → tipologia → linea → prodotti (vedi FamilyCatalog e
+ * lib/listino/lineeListino). Qui solo l'intestazione, la guida e il dialog
+ * delle tipologie; barra, navigazione e azioni stanno nel catalogo.
  *
  * Permission gating: solo `company_admin` / `super_admin` possono accedere
  * (stesso pattern di WarehouseManager). Un commerciale non deve poter
@@ -18,12 +11,10 @@
  */
 
 import { useState } from "react";
-import { Link } from "react-router-dom";
 import { FamilyCatalog } from "@/components/listino/FamilyCatalog";
 import { MacroCategorieManager } from "@/components/listino/MacroCategorieManager";
 import { ListinoGuide } from "@/components/listino/ListinoGuide";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Dialog,
@@ -32,13 +23,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { Upload, Sparkles, FolderTree, ShieldAlert, ChevronDown, Package } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { FolderTree, ShieldAlert, Package } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 
@@ -74,70 +59,24 @@ export default function SettingsCatalog() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header coerente con SettingsQuoteTemplates — palette arancione */}
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-        <div className="flex items-start gap-3 min-w-0">
-          <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-orange-500 to-amber-400 flex items-center justify-center shrink-0 shadow-sm">
-            <Package className="h-5 w-5 text-white" />
-          </div>
-          <div className="min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold leading-tight">Listino Prodotti</h1>
-            {/* Descrizione lunga: su mobile è solo testo che allunga l'header */}
-            <p className="hidden sm:block text-sm text-muted-foreground">
-              Catalogo articoli organizzato per macrocategoria e categoria con prezzi,
-              griglia L×H e variabili (colore, apertura…).
-            </p>
-          </div>
+    <div className="space-y-3">
+      <div className="flex items-center gap-3">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-orange-500 to-amber-400 shadow-sm">
+          <Package className="h-5 w-5 text-white" aria-hidden="true" />
+        </div>
+        <div className="min-w-0">
+          <h1 className="text-xl font-bold leading-tight sm:text-2xl">Listino prodotti</h1>
+          <p className="hidden text-sm text-muted-foreground sm:block">
+            Area, tipologia, linea: i prodotti con il prezzo di ogni linea.
+          </p>
+        </div>
+        <div className="ml-auto">
+          <ListinoGuide />
         </div>
       </div>
 
-      <ListinoGuide />
-
-      <ErrorBoundary title="Errore nel catalogo articoli">
-      <FamilyCatalog
-        headerActions={
-          <>
-            <Button
-              size="sm"
-              onClick={() => setShowCategorieDialog(true)}
-              className="h-10 bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500 text-white shadow-sm"
-            >
-              <FolderTree className="h-4 w-4 mr-1.5" aria-hidden="true" />
-              Categorie
-            </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="h-10 border-orange-200 hover:bg-orange-50 hover:border-orange-300 hover:text-orange-700 dark:border-orange-900/50 dark:hover:bg-orange-950/40">
-                  <Upload className="h-4 w-4 mr-1.5" aria-hidden="true" />
-                  Importa
-                  <ChevronDown className="h-3.5 w-3.5 ml-1.5 opacity-60" aria-hidden="true" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuItem asChild>
-                  <Link to="/azienda/impostazioni/listino/import" className="cursor-pointer">
-                    <Upload className="h-4 w-4 mr-2" aria-hidden="true" />
-                    <div className="flex flex-col">
-                      <span>Excel / CSV</span>
-                      <span className="text-[10px] text-muted-foreground">Foglio di calcolo</span>
-                    </div>
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link to="/azienda/impostazioni/listino/import" className="cursor-pointer">
-                    <Sparkles className="h-4 w-4 mr-2 text-orange-500" aria-hidden="true" />
-                    <div className="flex flex-col">
-                      <span>AI da PDF</span>
-                      <span className="text-[10px] text-muted-foreground">Listino fornitore</span>
-                    </div>
-                  </Link>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </>
-        }
-      />
+      <ErrorBoundary title="Errore nel listino">
+        <FamilyCatalog onGestisciTipologie={isAdmin ? () => setShowCategorieDialog(true) : undefined} />
       </ErrorBoundary>
 
       <Dialog open={showCategorieDialog} onOpenChange={setShowCategorieDialog}>
@@ -148,10 +87,10 @@ export default function SettingsCatalog() {
                 <FolderTree className="h-4.5 w-4.5 text-white" aria-hidden="true" />
               </div>
               <div className="min-w-0">
-                <DialogTitle>Gestione categorie</DialogTitle>
+                <DialogTitle>Tipologie del listino</DialogTitle>
                 <DialogDescription>
-                  Organizza il listino in macrocategorie e categorie. Gli articoli
-                  saranno raggruppati automaticamente.
+                  Ogni tipologia (serramenti, tapparelle, inverter…) appartiene a un'area, e l'area decide in
+                  quale preventivatore compaiono i suoi prodotti.
                 </DialogDescription>
               </div>
             </div>

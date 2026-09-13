@@ -16,7 +16,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
@@ -245,7 +245,15 @@ export function FamilyEditor() {
   const [codice, setCodice] = useState("");
   // Fornitore associato (article_families.supplier_id). "none" = nessuno.
   const [supplierId, setSupplierId] = useState<string | "none">("none");
-  const [macrocategoriaId, setMacrocategoriaId] = useState<string | "none">("none");
+  // Nuovo prodotto aperto da una tipologia o da una linea del listino: parte già lì.
+  const [parametriIniziali] = useSearchParams();
+  const [macrocategoriaId, setMacrocategoriaId] = useState<string | "none">(
+    () => (isNew ? parametriIniziali.get("tipologia") : null) ?? "none",
+  );
+  // Linea = categoria dentro la tipologia (tapparelle in PVC o in alluminio). "none" = nessuna.
+  const [categoriaId, setCategoriaId] = useState<string | "none">(
+    () => (isNew ? parametriIniziali.get("linea") : null) ?? "none",
+  );
   const [descrizione, setDescrizione] = useState("");
   /**
    * URL pubblico dell'immagine articolo (bucket `article-images`).
@@ -316,14 +324,14 @@ export function FamilyEditor() {
   const currentSnapshot = useMemo(
     () => JSON.stringify({
       nome, codice, descrizione, immagineUrl, modalita, unitOfMeasure, vatRate, vatRateAcquisto,
-      macrocategoriaId, prezzoVendita, prezzoAcquisto, customFieldValues,
+      macrocategoriaId, categoriaId, prezzoVendita, prezzoAcquisto, customFieldValues,
       supplierId, grigliaXLabel, grigliaYLabel, prezzoBaseMode, markupTipo, markupValore,
       scontoFornitore1, scontoFornitore2, manodoperaModalita, posaTariffaId, posaQuantita,
       posaLinked, manodoperaCostoAcquisto, manodoperaPrezzoVendita, manodoperaUnita,
     }),
     [
       nome, codice, descrizione, immagineUrl, modalita, unitOfMeasure, vatRate, vatRateAcquisto,
-      macrocategoriaId, prezzoVendita, prezzoAcquisto, customFieldValues,
+      macrocategoriaId, categoriaId, prezzoVendita, prezzoAcquisto, customFieldValues,
       supplierId, grigliaXLabel, grigliaYLabel, prezzoBaseMode, markupTipo, markupValore,
       scontoFornitore1, scontoFornitore2, manodoperaModalita, posaTariffaId, posaQuantita,
       posaLinked, manodoperaCostoAcquisto, manodoperaPrezzoVendita, manodoperaUnita,
@@ -336,6 +344,15 @@ export function FamilyEditor() {
   // ── Query: macrocategorie + categorie + tariffe ────────────────────────
   const { macrocategorie } = useListinoMacrocategorie();
   const { categorie, isLoading: loadingCategorie } = useListinoCategorie();
+  // Le linee della tipologia scelta; quella già assegnata resta visibile anche
+  // se appartiene a un'altra tipologia (articoli di prima), per non perderla.
+  const lineeDisponibili = useMemo(
+    () =>
+      categorie
+        .filter((c) => (macrocategoriaId !== "none" && c.macrocategoria_id === macrocategoriaId) || c.id === categoriaId)
+        .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.nome.localeCompare(b.nome, "it")),
+    [categorie, macrocategoriaId, categoriaId],
+  );
   // Fornitori dell'azienda per associare il prodotto (article_families.supplier_id).
   const { data: fornitori = [] } = useQuery({
     queryKey: ["suppliers-select", companyId],
@@ -376,6 +393,7 @@ export function FamilyEditor() {
       setCodice(family.codice ?? "");
       setSupplierId((family as { supplier_id?: string | null }).supplier_id ?? "none");
       setMacrocategoriaId(family.macrocategoria_id ?? macroFromCat ?? "none");
+      setCategoriaId(family.categoria_id ?? "none");
       setDescrizione(family.descrizione ?? "");
       setImmagineUrl(family.immagine_url ?? null);
       setModalita(family.modalita_prezzo_base);
@@ -786,14 +804,16 @@ export function FamilyEditor() {
       codice: codice.trim() || null,
       // Fornitore associato (correlazione listino↔fornitori).
       supplier_id: supplierId === "none" ? null : supplierId,
-      // Refactor 20270513200000: scriviamo direttamente macrocategoria_id;
-      // categoria_id resta esposto sui tipi ma settato a NULL su tutte le
-      // nuove creazioni (la colonna DB verrà droppata in migration futura).
+      // Tipologia = macrocategoria, linea = categoria dentro la tipologia.
+      // Fino al 13/09/2026 qui si scriveva categoria_id: null a ogni
+      // salvataggio: da quando la categoria è la linea, la prima modifica di
+      // un prodotto lo avrebbe tolto dalla sua linea.
       ...(categorizzazionePronta
         ? {
             macrocategoria_id:
               macrocategoriaId === "none" ? null : macrocategoriaId,
-            categoria_id: null,
+            categoria_id:
+              macrocategoriaId === "none" || categoriaId === "none" ? null : categoriaId,
           }
         : {}),
       descrizione: descrizione.trim() || null,
@@ -1051,7 +1071,7 @@ export function FamilyEditor() {
 
                   <div>
                     <div className="flex items-center justify-between gap-2">
-                      <Label htmlFor="f-macrocategoria">Macrocategoria</Label>
+                      <Label htmlFor="f-macrocategoria">Tipologia</Label>
                       <Button
                         type="button"
                         variant="ghost"
@@ -1065,7 +1085,11 @@ export function FamilyEditor() {
                     </div>
                     <Select
                       value={macrocategoriaId}
-                      onValueChange={(v) => setMacrocategoriaId(v)}
+                      onValueChange={(v) => {
+                        setMacrocategoriaId(v);
+                        // La linea appartiene alla tipologia: cambiando tipologia si riparte da nessuna.
+                        setCategoriaId("none");
+                      }}
                     >
                       <SelectTrigger id="f-macrocategoria">
                         <SelectValue placeholder="Nessuna" />
@@ -1088,9 +1112,32 @@ export function FamilyEditor() {
                     {macrocategoriaId === "none" && (
                       <p className="mt-1.5 flex items-start gap-1.5 text-xs font-medium text-amber-600">
                         <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-px" aria-hidden="true" />
-                        Senza macrocategoria questo articolo non comparirà nella
+                        Senza tipologia questo prodotto non comparirà nella
                         scelta prodotti del preventivo: si troverà solo con la ricerca.
                       </p>
+                    )}
+                    {macrocategoriaId !== "none" && (
+                      <div className="mt-3">
+                        <Label htmlFor="f-linea">Linea</Label>
+                        <Select value={categoriaId} onValueChange={(v) => setCategoriaId(v)}>
+                          <SelectTrigger id="f-linea">
+                            <SelectValue placeholder="Nessuna linea" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">— Nessuna linea —</SelectItem>
+                            {lineeDisponibili.map((c) => (
+                              <SelectItem key={c.id} value={c.id}>
+                                {c.nome}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Per prodotti diversi della stessa tipologia, come le tapparelle in PVC o
+                          in alluminio. Le serie di profilo con gli stessi modelli e un altro prezzo
+                          (Salamander, Aluplast) si impostano nelle variabili.
+                        </p>
+                      </div>
                     )}
                   </div>
 

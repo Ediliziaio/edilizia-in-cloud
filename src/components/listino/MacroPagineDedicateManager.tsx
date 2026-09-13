@@ -34,6 +34,7 @@ import {
   useMacrocategorieMutations,
   type ListinoMacrocategoria,
 } from "@/hooks/useListinoMacrocategorie";
+import { sinonimiVerticale } from "@/lib/listino/areeStandard";
 
 interface Props {
   /**
@@ -52,10 +53,11 @@ export function MacroPagineDedicateManager({ vertical }: Props) {
 
   // Filtro per vertical: macro con verticali_abilitati = [] (generica) OR
   // contenente il vertical richiesto.
+  const sinonimi = vertical ? sinonimiVerticale(vertical) : [];
   const visible = macrocategorie.filter((m) => {
     if (!vertical) return true;
     const va = m.verticali_abilitati ?? [];
-    return va.length === 0 || va.includes(vertical);
+    return va.length === 0 || va.some((v) => sinonimi.includes(v));
   });
 
   const hasText = (m: ListinoMacrocategoria) =>

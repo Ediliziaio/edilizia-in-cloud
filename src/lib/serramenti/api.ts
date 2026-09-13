@@ -15,6 +15,7 @@ import type {
   SrProgettoDetail,
   SrStatoProgetto,
 } from "@/types/serramenti";
+import { sinonimiVerticale } from "@/lib/listino/areeStandard";
 
 // ─── PROGETTI ───────────────────────────────────────────────────────────────
 
@@ -779,9 +780,12 @@ export async function listMacrocategorie(opts?: {
     .order("sort_order", { ascending: true, nullsFirst: false })
     .order("nome", { ascending: true });
   // Filtro vertical lato server via PostgREST `or`:
-  // verticali_abilitati = '{}' (vuoto → generica) OR ? = ANY(verticali_abilitati)
+  // verticali_abilitati = '{}' (vuoto → generica) OR contiene il vertical in
+  // uno dei modi in cui è scritto («serramentista» e «serramenti» sono la
+  // stessa area: una tipologia etichettata nell'altro modo spariva dal picker).
   if (opts?.vertical) {
-    q = q.or(`verticali_abilitati.eq.{},verticali_abilitati.cs.{${opts.vertical}}`);
+    const contiene = sinonimiVerticale(opts.vertical).map((v) => `verticali_abilitati.cs.{${v}}`);
+    q = q.or(["verticali_abilitati.eq.{}", ...contiene].join(","));
   }
   if (opts?.tipo) {
     q = q.eq("categoria_tipo", opts.tipo);
