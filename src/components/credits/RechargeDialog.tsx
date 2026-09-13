@@ -24,7 +24,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { safeRedirect } from "@/utils/safeRedirect";
 import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, CreditCard, Mail, Bot, MessageSquare, Image as ImageIcon, ArrowRight } from "lucide-react";
+import { Loader2, CreditCard, Wallet, Bot, MessageSquare, Image as ImageIcon, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { WalletType } from "@/hooks/credits/useWallets";
 
@@ -84,10 +84,13 @@ const RENDER_PACKAGES_FALLBACK: RenderPackage[] = [
 ];
 
 const META: Record<WalletType, { label: string; icon: React.ReactNode; color: string; checkoutType: string }> = {
-  email:    { label: "Email Marketing", icon: <Mail className="h-5 w-5" />,            color: "text-blue-600",    checkoutType: "email_credits" },
-  ai:       { label: "Agenti AI",       icon: <Bot className="h-5 w-5" />,             color: "text-violet-600",  checkoutType: "ai_credits" },
-  whatsapp: { label: "WhatsApp",        icon: <MessageSquare className="h-5 w-5" />,   color: "text-emerald-600", checkoutType: "whatsapp_credits" },
-  render:   { label: "Render AI",       icon: <ImageIcon className="h-5 w-5" />,       color: "text-amber-600",   checkoutType: "render_credits" },
+  // Dal 07/09 il saldo in euro e' uno solo (company_credit_pool): il tipo
+  // "email" e' il prodotto Stripe con cui lo si ricarica, ma per chi paga e'
+  // il portafoglio crediti di tutta l'azienda — AI, email e WhatsApp insieme.
+  email:    { label: "portafoglio crediti", icon: <Wallet className="h-5 w-5" />,        color: "text-blue-600",    checkoutType: "email_credits" },
+  ai:       { label: "crediti Agenti AI",   icon: <Bot className="h-5 w-5" />,            color: "text-violet-600",  checkoutType: "ai_credits" },
+  whatsapp: { label: "crediti WhatsApp",    icon: <MessageSquare className="h-5 w-5" />,  color: "text-emerald-600", checkoutType: "whatsapp_credits" },
+  render:   { label: "crediti Render AI",   icon: <ImageIcon className="h-5 w-5" />,      color: "text-amber-600",   checkoutType: "render_credits" },
 };
 
 export function RechargeDialog({ open, onOpenChange, walletType }: Props) {
@@ -215,7 +218,7 @@ export function RechargeDialog({ open, onOpenChange, walletType }: Props) {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <span className={meta.color}>{meta.icon}</span>
-            Ricarica crediti {meta.label}
+            Ricarica {meta.label}
           </DialogTitle>
           <DialogDescription>
             Pagamento sicuro via Stripe (carta o SEPA). I crediti vengono accreditati immediatamente

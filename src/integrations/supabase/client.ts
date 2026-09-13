@@ -3,6 +3,7 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 import { traduciErrorePostgrest } from "@/lib/userErrorMessage";
+import { segnalaBloccoDaRisposta } from "@/lib/creditoEsaurito";
 import { authStorage } from "./authStorage";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -81,11 +82,18 @@ function urlDi(input: RequestInfo | URL): string {
  * `code` intatto. Solo per le chiamate REST/RPC e solo per i messaggi che
  * sono davvero di Postgres (vedi traduciErrorePostgrest); auth, storage ed
  * edge function non vengono toccati.
+ *
+ * Stesso punto, secondo compito: se la risposta (REST o edge function) dice
+ * che i crediti sono finiti o manca la carta, si apre il dialog di ricarica.
+ * Un solo posto per tutti gli strumenti a consumo, anche per le chiamate
+ * fuori dalle mutation di React Query. Vedi lib/creditoEsaurito.ts.
  */
 async function fetchTraducendoGliErrori(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   const res = await fetchWithTimeout(input, init);
   if (res.ok) return res;
-  if (!urlDi(input).includes("/rest/v1/")) return res;
+  const url = urlDi(input);
+  const eRest = url.includes("/rest/v1/");
+  if (!eRest && !url.includes("/functions/v1/")) return res;
   if (!(res.headers.get("content-type") ?? "").includes("application/json")) return res;
 
   let corpo: unknown;
@@ -94,6 +102,11 @@ async function fetchTraducendoGliErrori(input: RequestInfo | URL, init?: Request
   } catch {
     return res;
   }
+
+  // La risposta prosegue intatta verso chi l'ha chiesta: qui si apre solo il dialog.
+  segnalaBloccoDaRisposta(res.status, corpo);
+  if (!eRest) return res;
+
   const tradotto = traduciErrorePostgrest(corpo);
   if (!tradotto) return res;
 

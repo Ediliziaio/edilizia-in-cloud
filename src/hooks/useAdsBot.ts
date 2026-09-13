@@ -12,6 +12,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { segnalaCreditoEsaurito } from "@/lib/creditoEsaurito";
 import { toast } from "sonner";
 
 export interface AdsBotMessage {
@@ -131,8 +132,9 @@ export function useAdsBot(companyId: string | undefined) {
         }
 
         if (data?.error === "insufficient_credits") {
-          toast.error("Crediti AI esauriti", {
-            description: data.user_message ?? "Ricarica per continuare.",
+          segnalaCreditoEsaurito({
+            portafoglio: "ai",
+            messaggio: typeof data.user_message === "string" ? data.user_message : undefined,
           });
           return;
         }

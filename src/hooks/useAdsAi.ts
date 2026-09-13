@@ -15,6 +15,7 @@
 import { useState, useCallback } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { segnalaCreditoEsaurito } from "@/lib/creditoEsaurito";
 
 export interface CopyGenInput {
   brief: string;
@@ -132,8 +133,9 @@ export function useAdsAi(companyId: string | undefined) {
         if (data?.error) {
           // Errori applicativi (insufficient_credits, etc.)
           if (data.error === "insufficient_credits") {
-            toast.error("Crediti AI insufficienti", {
-              description: data.user_message ?? "Ricarica per continuare.",
+            segnalaCreditoEsaurito({
+              portafoglio: "ai",
+              messaggio: typeof data.user_message === "string" ? data.user_message : undefined,
             });
           } else {
             toast.error("Generazione copy fallita", {
@@ -278,7 +280,10 @@ Per ogni scena fornisci: testo overlay breve (max 8 parole, impatto visivo), voi
           return null;
         }
         if (data?.error === "insufficient_credits") {
-          toast.error("Crediti AI insufficienti", { description: data.user_message ?? "Ricarica per continuare." });
+          segnalaCreditoEsaurito({
+            portafoglio: "ai",
+            messaggio: typeof data.user_message === "string" ? data.user_message : undefined,
+          });
           return null;
         }
         if (!data?.copy_variants?.length) {

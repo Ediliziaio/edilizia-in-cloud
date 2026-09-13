@@ -12,6 +12,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { segnalaCreditoEsaurito } from "@/lib/creditoEsaurito";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import {
@@ -733,6 +734,13 @@ export default function SilvioAIPage() {
         signal: ac.signal,
       });
       if (res.error) throw new Error(res.error.message);
+      // Credito finito: Silvio ha gia' scritto in chat la frase con il link ai
+      // crediti; in piu' si apre la finestra di ricarica, come per ogni altro
+      // strumento a consumo.
+      const esito = res.data as { ok?: boolean; error?: string } | null;
+      if (esito?.ok === false && esito.error === "credito_esaurito") {
+        segnalaCreditoEsaurito({ portafoglio: "ai" });
+      }
       qc.invalidateQueries({ queryKey: ["silvio-ai-messages", channelId] });
     },
     onMutate: () => {

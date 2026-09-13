@@ -361,30 +361,15 @@ const queryClient = new QueryClient({
       const silent = (mutation.meta as { silent?: boolean } | undefined)?.silent;
       if (silent) return;
 
-      // Gate "carta obbligatoria": qualsiasi tool a costo risponde HTTP 402
-      // (code "payment_method_required"). Mostra il dialog role-aware invece
-      // del toast tecnico. Copre tutti i tool da un unico punto.
-      // Se il body dice { error: "insufficient_credits" } il problema non è la
-      // carta ma il SALDO CREDITI: il dialog mostra "Crediti esauriti" con CTA
-      // di ricarica invece del fuorviante "Abbonamento non attivo".
+      // Crediti finiti o carta mancante: il dialog di ricarica lo ha gia'
+      // aperto il fetch del client leggendo la risposta (lib/creditoEsaurito.ts),
+      // per ogni strumento e anche fuori dalle mutation. Qui basta non coprirlo
+      // con il toast tecnico ne' contarlo come errore: il 402 e' sempre suo, e
+      // lo e' anche l'errore arrivato subito dopo che il dialog si e' aperto
+      // (il router AI risponde 500 con "Credito insufficiente", non 402).
       const httpStatus = (error as { context?: { status?: number } } | null)?.context?.status;
-      if (httpStatus === 402) {
-        const ctx = (error as { context?: unknown } | null)?.context;
-        if (ctx instanceof Response) {
-          ctx
-            .clone()
-            .json()
-            .then((body: { error?: string } | null) => {
-              usePaymentGateStore
-                .getState()
-                .show(body?.error === "insufficient_credits" ? "credits" : "payment");
-            })
-            .catch(() => usePaymentGateStore.getState().show());
-        } else {
-          usePaymentGateStore.getState().show();
-        }
-        return;
-      }
+      const gate = usePaymentGateStore.getState();
+      if (httpStatus === 402 || (gate.open && Date.now() - gate.apertoAt < 3000)) return;
 
       try {
         captureVelocityError("mutation", error, {
