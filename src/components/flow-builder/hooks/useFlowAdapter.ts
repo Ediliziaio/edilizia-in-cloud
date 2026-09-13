@@ -29,14 +29,17 @@ export function nodesToReactFlow(dbNodes: AutomationNode[]): Node[] {
 }
 
 // sourceHandle non è persistito in automation_connections: si ricostruisce
-// dal label (Sì/No → handle yes/no della condizione, A/B → split_0/split_1).
+// dal label (Sì/No → handle yes/no della condizione, A…E → split_0…split_4).
 // Senza, al reload gli archi dei rami ripartivano tutti dallo stesso handle.
-function labelToSourceHandle(label: string | null): string | undefined {
+export function labelToSourceHandle(label: string | null): string | undefined {
   const v = String(label ?? "").trim().toLowerCase();
   if (v === "sì" || v === "si" || v === "yes") return "yes";
   if (v === "no") return "no";
-  if (v.startsWith("a")) return "split_0";
-  if (v.startsWith("b")) return "split_1";
+  // Solo le etichette che l'editor scrive per gli split: una lettera da sola
+  // ("c") o seguita dai due punti ("c: 30%"). "event" o "timeout" dei nodi di
+  // attesa iniziano anch'essi per lettera, e non sono rami.
+  const ramo = /^([a-e])(\s*:.*)?$/.exec(v);
+  if (ramo) return `split_${ramo[1].charCodeAt(0) - 97}`;
   return undefined;
 }
 

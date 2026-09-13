@@ -18,6 +18,7 @@ import { getSuppressedEmailMap, normalizeEmailAddress } from "../_shared/emailSu
 
 import { getCorsHeaders, secureHeaders } from "../_shared/headers.ts";
 import { appendTrackingSig } from "../_shared/emailTrackingSignature.ts";
+import { arcoDelRamo, leggiPercentuali, ramoPerNumero } from "../_shared/splitRami.ts";
 import { isInternalRequest, isSuperAdminEmailAllowed, requireAuth, requireCompanyAccess, requireInternalSecret, resolveUserEmail } from "../_shared/auth.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import {
@@ -993,20 +994,17 @@ async function executeCondition(supabase: any, cfg: Record<string, any>, entityI
 
 // ── Split ──
 function executeSplit(cfg: Record<string, any>) {
-  // Il builder salva `percentuali` come stringa "60,40": prima era ignorata
-  // e lo split era sempre 50/50. split_a resta prioritario (schema legacy).
-  let splitA = parseInt(cfg.split_a);
-  if (!Number.isFinite(splitA) && typeof cfg.percentuali === "string") {
-    const first = parseInt(cfg.percentuali.split(/[,;|]/)[0]);
-    if (Number.isFinite(first) && first > 0 && first < 100) splitA = first;
-  }
-  if (!Number.isFinite(splitA) || splitA <= 0 || splitA >= 100) splitA = 50;
+  // Da 2 a 5 rami con le percentuali dell'editor ("60,40", "40,30,30"). Prima
+  // si leggeva solo il primo numero e si sceglieva tra "a" e "b": con tre call
+  // center il terzo non riceveva mai nessuno. La regola sta in _shared/splitRami.
+  const percentuali = leggiPercentuali(cfg);
   const arr = new Uint32Array(1);
   crypto.getRandomValues(arr);
-  const rand = (arr[0] / 0xFFFFFFFF) * 100;
-  const branch = rand < splitA ? "a" : "b";
+  // Diviso per 2^32, non per 0xFFFFFFFF: cosi' il numero resta sotto 100.
+  const rand = (arr[0] / 0x100000000) * 100;
+  const branch = ramoPerNumero(percentuali, rand);
 
-  return { success: true, output: { branch, random: rand, split_a: splitA }, branch };
+  return { success: true, output: { branch, random: rand, percentuali }, branch };
 }
 
 // ── Action (safe wrapper with error boundary) ──
@@ -2828,10 +2826,9 @@ async function queueNextNodes(supabase: any, queueItem: any, node: AutomationNod
   let nextConns = connections;
   if (result.branch && (node.node_type === "condition" || node.node_type === "split")) {
     if (node.node_type === "split") {
-      // executeSplit returns "a" or "b"; connection labels are "A: 50%" / "B: 50%"
-      nextConns = connections.filter((c: AutomationConnection) =>
-        c.label?.toLowerCase().charAt(0) === result.branch.toLowerCase()
-      );
+      // executeSplit restituisce la lettera del ramo ("a", "b", "c"…); gli archi
+      // sono etichettati "A", "B", "C" oppure "A: 60%".
+      nextConns = connections.filter((c: AutomationConnection) => arcoDelRamo(c.label, result.branch));
     } else {
       // condition branches: il motore produce "yes"/"no", ma il builder salva
       // gli archi come "Sì"/"No" (i flussi AI/legacy come yes/no) → PRIMA il

@@ -305,12 +305,13 @@ export function FlowBuilderPage() {
         style: { strokeWidth: 2 },
         data: { onAddStep: (edgeId: string) => openCatalogForEdge(edgeId) },
         // Label di ramo: il motore li normalizza (Sì/yes, No/no) — per gli
-        // split gli handle split_0/split_1 diventano "A"/"B" (prima restavano
-        // senza label e il motore seguiva ENTRAMBI i rami).
+        // split l'handle split_N diventa la lettera del ramo: split_0 "A",
+        // split_1 "B", split_2 "C"… (senza label il motore seguiva TUTTI i rami,
+        // e prima dal terzo in poi l'arco nasceva senza nome).
         label: params.sourceHandle === "yes" ? "Sì"
           : params.sourceHandle === "no" ? "No"
-          : params.sourceHandle === "split_0" ? "A"
-          : params.sourceHandle === "split_1" ? "B"
+          : /^split_[0-4]$/.test(params.sourceHandle ?? "")
+            ? String.fromCharCode(65 + Number((params.sourceHandle as string).slice(6)))
           : undefined,
       };
       setRfEdges((eds) => addEdge(newEdge, eds));
