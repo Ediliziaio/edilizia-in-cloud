@@ -12,7 +12,7 @@
 import { useEffect, useMemo, useState, lazy, Suspense, type FormEvent } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSilvioPageContext } from "@/hooks/useSilvioPageContext";
@@ -246,6 +246,32 @@ export function SilvioFAB({ hidden = false, mode = "azienda" }: Props) {
       return (data as MorningBriefing | null) ?? null;
     },
   });
+  // Il briefing e' «letto» quando l'utente apre il pannello e se lo trova
+  // davanti. Prima nessuno scriveva mai read_at: il pallino restava acceso
+  // per sempre e, a registro, 33 briefing su 33 in un mese risultavano mai
+  // letti — non si poteva dire se qualcuno li leggesse. La card resta
+  // visibile per tutta la giornata: cambia solo il conteggio del pallino.
+  const qc = useQueryClient();
+  useEffect(() => {
+    if (!open || !morningBrief || morningBrief.read_at || !user?.id) return;
+    const lettoAlle = new Date().toISOString();
+    const briefId = morningBrief.id;
+    const userId = user.id;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    void (supabase as any)
+      .from("silvio_morning_briefings")
+      .update({ read_at: lettoAlle })
+      .eq("id", briefId)
+      .then(
+        (): void => {
+          qc.setQueryData<MorningBriefing | null>(
+            ["silvio-morning-brief", userId],
+            (prev) => (prev && prev.id === briefId ? { ...prev, read_at: lettoAlle } : prev),
+          );
+        },
+        (): void => {},
+      );
+  }, [open, morningBrief, user?.id, qc]);
   const [smartImportOpen, setSmartImportOpen] = useState(false);
   const [pdfToolsOpen, setPdfToolsOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
@@ -478,7 +504,7 @@ export function SilvioFAB({ hidden = false, mode = "azienda" }: Props) {
               senza dover scrollare. Il contenuto sopra scrolla
               indipendentemente. */}
           <div className="flex-1 space-y-3 overflow-y-auto bg-white p-3">
-            {morningBrief && !morningBrief.read_at && (
+            {morningBrief && (
               <div className={`rounded-lg border-l-4 p-3 ${
                 morningBrief.severity === "urgent"
                   ? "border-l-rose-500 bg-rose-50"

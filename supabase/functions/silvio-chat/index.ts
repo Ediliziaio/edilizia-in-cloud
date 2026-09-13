@@ -1671,9 +1671,12 @@ serve(async (req: Request) => {
         : hasToolErrors
           ? "low"
           : "high";
-      // FIX 12 (A8): tool effettivamente esistenti con effetto laterale
-      const SIDE_EFFECT_TOOLS = ["create_quote_draft", "create_invoice_draft", "propose_action"];
-      const isCritical = toolCallsLog.some((t) => SIDE_EFFECT_TOOLS.includes(t.name));
+      // Un'interazione e' critica se ha toccato un tool con effetto laterale.
+      // Lo dice il registry (riskLevel yellow/red, riportato in ogni
+      // risultato), non una lista scritta a mano: quella aveva tre nomi del
+      // 2026-05, e oggi i tool che scrivono dati sono piu' di venti — il
+      // registro delle decisioni (AI Act) li segnava tutti come non critici.
+      const isCritical = toolCallsLog.some((t) => t.risk_level === "yellow" || t.risk_level === "red");
       const pendingProposalIds = toolCallsLog
         .map((t) => t.proposal_id)
         .filter((proposalId): proposalId is string => Boolean(proposalId));
