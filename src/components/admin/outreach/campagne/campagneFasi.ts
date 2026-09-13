@@ -205,6 +205,8 @@ export interface RitmoBrand {
   nuovi_al_giorno: number | null;
   /** 0 = domenica … 6 = sabato */
   giorni_invio: number[];
+  /** ora di apertura della finestra del brand (0-23) */
+  ora_inizio: number;
   ora_fine: number;
   caselle: CasellaRitmo[];
 }

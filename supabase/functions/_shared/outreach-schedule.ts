@@ -47,18 +47,18 @@ export function minutoDelGiorno(date: Date, timeZone: string): number {
 }
 
 /**
- * La finestra in cui si spedisce DAVVERO quando valgono sia quella di
- * piattaforma (il dispatcher esce subito fuori da questa) sia quella del brand
- * (controllata riga per riga): l'intersezione. Se non si sovrappongono resta
- * quella di piattaforma, così il calcolo della cadenza non degenera.
+ * La finestra in cui spedisce un brand. La decide il brand: il motore gira
+ * tutti i giorni a tutte le ore, e ogni brand sceglie i giorni e gli orari
+ * suoi. Un brand che non ha scelto niente spedisce lun–ven 8–19, così il
+ * cold di notte o di domenica non parte mai per dimenticanza.
+ *
+ * Prima c'era anche una finestra di piattaforma, e il motore si fermava lì
+ * prima ancora di guardare il brand: ThermoDMR era impostato lun–sab e il
+ * sabato non partiva niente, senza che nessuna pagina lo dicesse.
  */
-export function finestraEffettiva(piattaforma: SendWindow, brand: SendWindow | null | undefined): SendWindow {
-  if (!brand) return piattaforma;
-  const days = piattaforma.days.filter((d) => brand.days.includes(d));
-  const startHour = Math.max(piattaforma.startHour, brand.startHour);
-  const endHour = Math.min(piattaforma.endHour, brand.endHour);
-  if (!days.length || startHour >= endHour) return piattaforma;
-  return { days, startHour, endHour, timeZone: piattaforma.timeZone };
+export function finestraDelBrand(raw: unknown): SendWindow {
+  if (raw == null) return DEFAULT_SEND_WINDOW;
+  return parseSendWindow(raw);
 }
 
 /** True se l'istante cade nella finestra (giorno consentito e ora tra start e end). */
@@ -69,8 +69,8 @@ export function isWithinSendWindow(date: Date, w: SendWindow = DEFAULT_SEND_WIND
 }
 
 /**
- * Costruisce una SendWindow da config salvata (JSON in platform_settings,
- * key `outreach_send_window`), validando ogni campo e ripiegando sui default.
+ * Costruisce una SendWindow da config salvata (outreach_brands.send_window),
+ * validando ogni campo e ripiegando sui default.
  * Robusta a input malformati: non lancia mai.
  */
 export function parseSendWindow(raw: unknown): SendWindow {

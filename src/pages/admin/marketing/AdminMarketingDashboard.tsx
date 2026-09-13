@@ -12,7 +12,6 @@ import { OutreachSetupChecklist } from "@/components/admin/outreach/OutreachSetu
 import { OutreachLaunchReadiness } from "@/components/admin/outreach/OutreachLaunchReadiness";
 import { OutreachBrands } from "@/components/admin/outreach/OutreachBrands";
 import { OutreachDeliverabilityScore } from "@/components/admin/outreach/OutreachDeliverabilityScore";
-import { OutreachSendWindowCard } from "@/components/admin/outreach/OutreachSendWindowCard";
 import { OutreachQueueStatus } from "@/components/admin/outreach/OutreachQueueStatus";
 import { OutreachPilotPulse } from "@/components/admin/outreach/OutreachPilotPulse";
 import { OutreachSequences } from "@/components/admin/outreach/OutreachSequences";
@@ -288,9 +287,10 @@ function OutreachCockpit() {
             <OutreachSenderPool companyId={companyId} />
           </Reveal>
           <Reveal className="space-y-3" delay={0.06}>
-            <SectionLabel>Ritmo — warm-up e finestre d'invio</SectionLabel>
+            {/* Gli orari d'invio li decide ogni brand (scheda qui sopra, riga «Orari»):
+                la finestra di piattaforma fermava il motore prima di guardarli. */}
+            <SectionLabel>Ritmo — warm-up</SectionLabel>
             <OutreachWarmupDashboard companyId={companyId} />
-            <OutreachSendWindowCard />
           </Reveal>
           <Reveal className="space-y-3" delay={0.12}>
             <SectionLabel>Blocklist — chi non va contattato</SectionLabel>

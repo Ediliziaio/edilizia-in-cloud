@@ -103,7 +103,7 @@ const casella = (c: Partial<CasellaRitmo> = {}): CasellaRitmo => ({
 });
 const brand = (caselle: CasellaRitmo[], r: Partial<RitmoBrand> = {}): RitmoBrand => ({
   brand_id: "b", brand: "ThermoDMR", stato: "active", nuovi_al_giorno: null,
-  giorni_invio: [1, 2, 3, 4, 5], ora_fine: 19, caselle, ...r,
+  giorni_invio: [1, 2, 3, 4, 5], ora_inizio: 8, ora_fine: 19, caselle, ...r,
 });
 // Venerdì 11 settembre 2026, ore 10: finestra aperta.
 const VENERDI = new Date(2026, 8, 11, 10, 0, 0);

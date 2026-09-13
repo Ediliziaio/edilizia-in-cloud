@@ -29,11 +29,11 @@ interface Brand {
   /** Email che sembrano scritte a mano: niente List-Unsubscribe, link o pixel; opt-out rispondendo; follow-up che citano. */
   stile_umano?: boolean | null;
 }
-/** Finestra di invio del brand (stesso formato del setting globale). 0=Dom … 6=Sab. */
+/** Finestra di invio del brand. 0=Dom … 6=Sab. Senza una sua il brand spedisce lun–ven 8–19. */
 interface Finestra { days: number[]; startHour: number; endHour: number; timeZone: string }
 const GIORNI: Array<[number, string]> = [[1, "Lun"], [2, "Mar"], [3, "Mer"], [4, "Gio"], [5, "Ven"], [6, "Sab"], [0, "Dom"]];
 function descriviFinestra(f: Finestra | null | undefined): string {
-  if (!f) return "globale";
+  if (!f) return "Lun Mar Mer Gio Ven · 8-19 (predefinito)";
   const g = GIORNI.filter(([n]) => f.days.includes(n)).map(([, l]) => l).join(" ");
   return `${g || "nessun giorno"} · ${f.startHour}-${f.endHour}`;
 }
@@ -42,7 +42,7 @@ function FinestraEditor({ value, onChange }: { value: Finestra | null; onChange:
   const attiva = value != null;
   return (
     <div className="space-y-1.5">
-      <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={attiva} onChange={(e) => onChange(e.target.checked ? f : null)} /> Orari propri del brand (altrimenti finestra globale)</label>
+      <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={attiva} onChange={(e) => onChange(e.target.checked ? f : null)} /> Orari propri del brand (altrimenti lun–ven 8–19)</label>
       {attiva && (
         <div className="flex flex-wrap items-center gap-2">
           <Input type="number" min={0} max={23} value={f.startHour} onChange={(e) => onChange({ ...f, startHour: Number(e.target.value) })} className="h-7 w-16 text-xs" aria-label="Dalle" />

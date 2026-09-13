@@ -230,6 +230,7 @@ export function useCampagneRitmo(companyId: string) {
         stato: String(r.stato ?? ""),
         nuovi_al_giorno: r.nuovi_al_giorno == null ? null : n(r.nuovi_al_giorno),
         giorni_invio: ((r.giorni_invio ?? [1, 2, 3, 4, 5]) as number[]).map(Number),
+        ora_inizio: r.ora_inizio == null ? 8 : n(r.ora_inizio),
         ora_fine: n(r.ora_fine) || 19,
         caselle: ((r.caselle ?? []) as Array<Record<string, unknown>>).map((c) => ({
           tetto: n(c.tetto), base: n(c.base), passo: n(c.passo), giorno: n(c.giorno),

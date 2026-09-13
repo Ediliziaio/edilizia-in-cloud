@@ -219,7 +219,7 @@ function Riepilogo({
   totRisposte: number; totUscite: number; caldi: number; adesso: number;
 }) {
   const ferma = campagna.stato !== "active";
-  const fin = stima ? finestraAdesso(stima.brand.giorni_invio, stima.brand.ora_fine, new Date(adesso)) : null;
+  const fin = stima ? finestraAdesso(stima.brand.giorni_invio, stima.brand.ora_inizio, stima.brand.ora_fine, new Date(adesso)) : null;
 
   const segmenti = [
     { chiave: "da_contattare", etichetta: "Da contattare", valore: daContattare, colore: "bg-muted-foreground/30" },
@@ -269,7 +269,7 @@ function Riepilogo({
           ) : fin && !fin.aperta ? (
             <>
               <span className="font-semibold text-foreground">Oggi non si spedisce.</span>{" "}
-              La finestra è {giorniLeggibili(stima!.brand.giorni_invio)} fino alle {stima!.brand.ora_fine}: riprende {fin.riprende}.
+              {stima!.brand.brand} spedisce {giorniLeggibili(stima!.brand.giorni_invio)} dalle {stima!.brand.ora_inizio} alle {stima!.brand.ora_fine}: riprende {fin.riprende}.
             </>
           ) : (
             <span className="font-semibold text-foreground">Si sta spedendo adesso.</span>
@@ -306,15 +306,22 @@ function oraEGiornoRoma(d: Date): { ora: number; giorno: number } {
 
 const NOMI_GIORNO = ["domenica", "lunedì", "martedì", "mercoledì", "giovedì", "venerdì", "sabato"];
 
-/** Se adesso si spedisce, e quando riprende se no. */
-function finestraAdesso(giorni: number[], oraFine: number, d: Date): { aperta: boolean; riprende: string } {
+/**
+ * Se adesso si spedisce, e quando riprende se no. Prima guardava solo l'ora
+ * di chiusura: alle 6 di un lunedì diceva «si sta spedendo» con la finestra
+ * che apriva alle 8.
+ */
+function finestraAdesso(giorni: number[], oraInizio: number, oraFine: number, d: Date): { aperta: boolean; riprende: string } {
   const { ora, giorno } = oraEGiornoRoma(d);
-  if (giorni.includes(giorno) && ora < oraFine) return { aperta: true, riprende: "" };
+  if (giorni.includes(giorno)) {
+    if (ora >= oraInizio && ora < oraFine) return { aperta: true, riprende: "" };
+    if (ora < oraInizio) return { aperta: false, riprende: `oggi alle ${oraInizio}` };
+  }
   for (let k = 1; k <= 7; k++) {
     const g = (giorno + k) % 7;
-    if (giorni.includes(g)) return { aperta: false, riprende: k === 1 ? "domani" : NOMI_GIORNO[g] };
+    if (giorni.includes(g)) return { aperta: false, riprende: `${k === 1 ? "domani" : NOMI_GIORNO[g]} alle ${oraInizio}` };
   }
-  return { aperta: false, riprende: "quando imposti dei giorni d'invio" };
+  return { aperta: false, riprende: "quando il brand avrà dei giorni d'invio" };
 }
 
 /**

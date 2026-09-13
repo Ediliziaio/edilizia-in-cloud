@@ -22,7 +22,7 @@ import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { assignSenders, cadenzaCasella, dailyCapWithVariance, remainingToday, sentToday, type Assignment, type SenderState, statoPerPrimiContatti, unaAssegnazionePerCasella } from "../_shared/outreach-dispatch-logic.ts";
 import { FRASE_USCITA_DEFAULT, haFraseUscita } from "../_shared/outreach-uscita.ts";
 import { renderTemplate, contactToVars, hashSeed, htmlToPlainText } from "../_shared/outreach-template.ts";
-import { DEFAULT_SEND_WINDOW, finestraEffettiva, isWithinSendWindow, minutoDelGiorno, parseSendWindow, type SendWindow } from "../_shared/outreach-schedule.ts";
+import { DEFAULT_SEND_WINDOW, finestraDelBrand, isWithinSendWindow, minutoDelGiorno } from "../_shared/outreach-schedule.ts";
 import { parseVariants, pickVariant } from "../_shared/outreach-abz.ts";
 import { nextEmailStep, computeStepSchedule, applyJitter, spostaFuoriWeekend, ritardoDalPrecedente, type SeqStep } from "../_shared/outreach-sequence.ts";
 import {
@@ -722,17 +722,21 @@ serveConMetriche("outreach-dispatch", async (req) => {
   // "non si poteva mandare": il primo e' normale, il secondo va guardato subito.
   const result = { processed: 0, sent: 0, failed: 0, skipped: 0, deferred: 0, reaped: 0, budgetHit: false, providerBlocked: null as string | null };
 
-  // finestra di invio configurabile (platform_settings.outreach_send_window);
-  // default Lun-Ven 8-19 Europe/Rome. Niente cold di notte o nel weekend.
-  let sendWindow: SendWindow | undefined;
+  // Il motore gira tutti i giorni: giorni e orari li decide ogni brand
+  // (finestraDelBrand; senza una sua, lun–ven 8–19). Per non lavorare a vuoto
+  // di notte e nel weekend si esce subito se adesso non c'è nessun brand
+  // attivo in finestra. Prima qui c'era una finestra di piattaforma lun–ven
+  // che fermava tutto prima di guardare il brand: il sabato di ThermoDMR,
+  // impostato apposta, non partiva mai.
   try {
-    const { data: ws } = await supabase
-      .from("platform_settings").select("value").eq("key", "outreach_send_window").maybeSingle();
-    if (ws?.value) sendWindow = parseSendWindow(ws.value);
-  } catch { /* default */ }
-  if (!isWithinSendWindow(now, sendWindow)) {
-    return json({ ...result, note: "fuori finestra di invio" }, 200, cors);
-  }
+    const { data: attivi } = await supabase
+      .from("outreach_brands").select("send_window").eq("status", "active");
+    const qualcunoAperto = isWithinSendWindow(now, DEFAULT_SEND_WINDOW) ||
+      (attivi ?? []).some((b: { send_window: unknown }) => isWithinSendWindow(now, finestraDelBrand(b.send_window)));
+    if (!qualcunoAperto) {
+      return json({ ...result, note: "nessun brand in finestra d'invio" }, 200, cors);
+    }
+  } catch { /* nel dubbio si prosegue: il controllo riga per riga resta */ }
   // Base dei link di tracking/disiscrizione: un dominio proprio (setting
   // outreach_tracking_base_url, es. https://link.tuodominio.it) invece di
   // *.supabase.co dentro ogni email da casella vera.
@@ -1010,8 +1014,7 @@ serveConMetriche("outreach-dispatch", async (req) => {
       // CADENZA per casella: il tetto del giorno si spalma sulla finestra di
       // invio (vedi cadenzaCasella). Una casella non ancora "pronta" salta il
       // giro, anche se in coda c'è altro da mandare.
-      const bwRaw = brandById.get(brand)?.send_window;
-      const fin = finestraEffettiva(sendWindow ?? DEFAULT_SEND_WINDOW, bwRaw ? parseSendWindow(bwRaw) : null);
+      const fin = finestraDelBrand(brandById.get(brand)?.send_window);
       const minutiFinestra = (fin.endHour - fin.startHour) * 60;
       const minutiDallApertura = minutoDelGiorno(now, fin.timeZone) - fin.startHour * 60;
       const pronte = new Set(brandSenders.filter((s) => {
@@ -1177,10 +1180,10 @@ serveConMetriche("outreach-dispatch", async (req) => {
         return;
       }
 
-      // Finestra di invio del BRAND (se impostata): fuori orario la riga aspetta.
+      // Finestra di invio del BRAND (senza una sua, lun–ven 8–19): fuori orario la riga aspetta.
       {
         const bw = sender.brand_id ? brandById.get(sender.brand_id)?.send_window : null;
-        if (bw && !isWithinSendWindow(now, parseSendWindow(bw))) { result.deferred++; return; }
+        if (!isWithinSendWindow(now, finestraDelBrand(bw))) { result.deferred++; return; }
       }
 
       // CLAIM ATOMICO (compare-and-swap): passiamo a 'sending' SOLO se la riga è

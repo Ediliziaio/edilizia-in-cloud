@@ -527,7 +527,7 @@ function RitmoETempi({ s, stime, campagna, campagne }: {
               <p className="text-sm text-foreground">
                 <span className="font-semibold">{b.brand}</span>: fino a <strong>{it(st.capOggi)}</strong> email al giorno oggi,{" "}
                 <strong>{it(st.capRegime)}</strong> a regime · {it(nCaselle)} {nCaselle === 1 ? "casella" : "caselle"}
-                {b.nuovi_al_giorno ? ` · al massimo ${it(b.nuovi_al_giorno)} nuovi contatti per casella al giorno` : ""} · spedisce {giorniLeggibili(b.giorni_invio)} fino alle {b.ora_fine}.
+                {b.nuovi_al_giorno ? ` · al massimo ${it(b.nuovi_al_giorno)} nuovi contatti per casella al giorno` : ""} · spedisce {giorniLeggibili(b.giorni_invio)} dalle {b.ora_inizio} alle {b.ora_fine}.
                 {campagna && campagneBrand.length > 1 && (
                   <span className="text-muted-foreground"> Il ritmo è diviso con {campagneBrand.length === 2 ? "l'altra campagna" : `altre ${campagneBrand.length - 1} campagne`} del brand.</span>
                 )}

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  isWithinSendWindow, localParts, DEFAULT_SEND_WINDOW, parseSendWindow, minutoDelGiorno, finestraEffettiva,
+  isWithinSendWindow, localParts, DEFAULT_SEND_WINDOW, parseSendWindow, minutoDelGiorno, finestraDelBrand,
 } from "../../../supabase/functions/_shared/outreach-schedule";
 
 // 2026-06-15 = lunedì (estate, CEST +2) · 2026-01-12 = lunedì (inverno, CET +1)
@@ -98,20 +98,21 @@ describe("minutoDelGiorno — minuti dalla mezzanotte locale", () => {
   });
 });
 
-describe("finestraEffettiva — piattaforma ∩ brand", () => {
-  const brand = { days: [1, 2, 3, 4, 5, 6], startHour: 7, endHour: 19, timeZone: "Europe/Rome" };
-  it("senza brand vale la piattaforma", () => {
-    expect(finestraEffettiva(DEFAULT_SEND_WINDOW, null)).toEqual(DEFAULT_SEND_WINDOW);
+describe("finestraDelBrand — giorni e orari li decide il brand", () => {
+  it("senza una finestra propria: lun–ven 8–19", () => {
+    expect(finestraDelBrand(null)).toEqual(DEFAULT_SEND_WINDOW);
+    expect(finestraDelBrand(undefined)).toEqual(DEFAULT_SEND_WINDOW);
   });
-  it("intersezione di giorni e ore (Lun-Sab 7-19 dentro Lun-Ven 8-19 = Lun-Ven 8-19)", () => {
-    expect(finestraEffettiva(DEFAULT_SEND_WINDOW, brand)).toEqual({ days: [1, 2, 3, 4, 5], startHour: 8, endHour: 19, timeZone: "Europe/Rome" });
+  it("lun–sab 7–19 resta lun–sab 7–19: il sabato non viene più tagliato", () => {
+    const brand = { days: [1, 2, 3, 4, 5, 6], startHour: 7, endHour: 19, timeZone: "Europe/Rome" };
+    expect(finestraDelBrand(brand)).toEqual(brand);
+    expect(isWithinSendWindow(new Date("2026-06-13T08:30:00Z"), finestraDelBrand(brand))).toBe(true); // sabato 10:30
   });
-  it("brand più stretto: vince il brand", () => {
-    const stretto = { days: [2, 4], startHour: 9, endHour: 12, timeZone: "Europe/Rome" };
-    expect(finestraEffettiva(DEFAULT_SEND_WINDOW, stretto)).toEqual({ days: [2, 4], startHour: 9, endHour: 12, timeZone: "Europe/Rome" });
+  it("un brand può spedire anche la domenica sera", () => {
+    const b = { days: [0], startHour: 18, endHour: 22, timeZone: "Europe/Rome" };
+    expect(isWithinSendWindow(new Date("2026-06-14T17:00:00Z"), finestraDelBrand(b))).toBe(true); // domenica 19:00
   });
-  it("nessuna sovrapposizione: resta la piattaforma, non una finestra vuota", () => {
-    const sera = { days: [1, 2, 3, 4, 5], startHour: 20, endHour: 23, timeZone: "Europe/Rome" };
-    expect(finestraEffettiva(DEFAULT_SEND_WINDOW, sera)).toEqual(DEFAULT_SEND_WINDOW);
+  it("finestra salvata rotta: ripiega sul predefinito invece di fermarsi", () => {
+    expect(finestraDelBrand("{rotto")).toEqual(DEFAULT_SEND_WINDOW);
   });
 });
