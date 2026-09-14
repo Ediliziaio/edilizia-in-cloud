@@ -311,8 +311,10 @@ async function caricaLineeDedicate(
 
 async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEnriched> {
   const { detail, company } = opts;
+  // Il modello dell'azienda del preventivo: senza filtro il super admin (che
+  // vede tutte le righe) riceveva null e il PDF usciva con i testi di serie.
   const template = opts.useFreshTemplate
-    ? await getTemplatePdf()
+    ? await getTemplatePdf(detail.progetto.company_id)
     : opts.template ?? null;
   const prog = detail.progetto;
   const companyId = prog.company_id;

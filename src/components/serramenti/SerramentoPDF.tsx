@@ -35,6 +35,7 @@ import { applicaMergeTagModulo } from "@/lib/mergeTagsModuli";
 import { generateInterventoSintesi } from "@/lib/serramenti/sintesiIntervento";
 import { testoScelta } from "@/lib/listino/scelteVariante";
 import { schedaPosizione, titoloConLinea } from "@/lib/serramenti/schedaPosizione";
+import { inchiostroSuBianco, testoSopra } from "@/lib/pdf/contrastoColori";
 import type {
   SerramentoPdfConsulente, SerramentoPdfFamilyData,
   SerramentoPdfMacroField, SerramentoPdfMacroPagina,
@@ -78,6 +79,10 @@ function makePalette(primary: string, accent = DEFAULT_ACCENT) {
     accent: safeAccent,
     primaryLight: hexToTint(safePrimary, 0.92),
     primaryBorder: hexToTint(safePrimary, 0.65),
+    // Per scrivere sul bianco e sopra il colore: uguali a primary e al bianco
+    // finché si leggono; con un colore chiaro (il lime di Renova) no.
+    ink: inchiostroSuBianco(safePrimary),
+    onPrimary: testoSopra(safePrimary),
     coverBg: COVER_BG,
     white: "#FFFFFF",
     gray50: "#F8FAFC",
@@ -157,7 +162,7 @@ function makeStyles(C: ReturnType<typeof makePalette>) {
       marginRight: 10,
     },
     headerLeft: { flexDirection: "row", alignItems: "center" },
-    headerName: { fontSize: 11, fontWeight: 700, color: C.primary },
+    headerName: { fontSize: 11, fontWeight: 700, color: C.ink },
     headerRight: { fontSize: 8, color: C.gray500, textAlign: "right" as const },
     headerStimaCode: { fontWeight: 700, color: C.gray900, fontSize: 9 },
 
@@ -264,7 +269,7 @@ function makeStyles(C: ReturnType<typeof makePalette>) {
     // Tipografia pagine
     pageEyebrow: {
       fontSize: 9,
-      color: C.primary,
+      color: C.ink,
       fontWeight: 700,
       letterSpacing: 1.3,
       textTransform: "uppercase" as const,
@@ -297,7 +302,7 @@ function makeStyles(C: ReturnType<typeof makePalette>) {
     sectionTitle: {
       fontSize: 10,
       fontWeight: 700,
-      color: C.primary,
+      color: C.ink,
       textTransform: "uppercase" as const,
       letterSpacing: 0.7,
       marginTop: 20,
@@ -308,7 +313,7 @@ function makeStyles(C: ReturnType<typeof makePalette>) {
     investmentSectionTitle: {
       fontSize: 8.8,
       fontWeight: 800,
-      color: C.primary,
+      color: C.ink,
       textTransform: "uppercase" as const,
       letterSpacing: 0.6,
       marginTop: 10,
@@ -365,15 +370,15 @@ function makeStyles(C: ReturnType<typeof makePalette>) {
     },
     priceLabel: {
       fontSize: 9,
-      color: C.primary,
+      color: C.ink,
       fontWeight: 700,
       textTransform: "uppercase" as const,
       letterSpacing: 0.9,
       marginBottom: 6,
     },
-    priceValue: { fontSize: 28, fontWeight: 800, color: C.primary },
-    priceValueCompact: { fontSize: 24, fontWeight: 800, color: C.primary, lineHeight: 1.08 },
-    priceSuffix: { fontSize: 11, color: C.primary, marginLeft: 8, fontWeight: 500 },
+    priceValue: { fontSize: 28, fontWeight: 800, color: C.ink },
+    priceValueCompact: { fontSize: 24, fontWeight: 800, color: C.ink, lineHeight: 1.08 },
+    priceSuffix: { fontSize: 11, color: C.ink, marginLeft: 8, fontWeight: 500 },
     priceFinePrint: { fontSize: 7.5, color: C.gray500, marginTop: 5, lineHeight: 1.35, fontStyle: "italic" as const },
 
     // Milestone 7: highlight rata mensile + netto post-fiscale dentro priceBox.
@@ -388,14 +393,14 @@ function makeStyles(C: ReturnType<typeof makePalette>) {
     priceExtraItem: { flex: 1 },
     priceExtraLabel: {
       fontSize: 8,
-      color: C.primary,
+      color: C.ink,
       textTransform: "uppercase" as const,
       letterSpacing: 0.6,
       fontWeight: 700,
       marginBottom: 2,
     },
-    priceExtraValue: { fontSize: 14, color: C.primary, fontWeight: 800 },
-    priceExtraSub: { fontSize: 7.5, color: C.primary, marginTop: 1 },
+    priceExtraValue: { fontSize: 14, color: C.ink, fontWeight: 800 },
+    priceExtraSub: { fontSize: 7.5, color: C.ink, marginTop: 1 },
 
     // Milestone 8: mini-tabella ecobonus 10 anni
     // Layout: 5 colonne × 2 righe. Ogni cella ha "Anno N" + quota + cumulato.
@@ -445,12 +450,12 @@ function makeStyles(C: ReturnType<typeof makePalette>) {
       alignItems: "center", justifyContent: "center",
       marginRight: 12,
     },
-    payStepIdxText: { color: C.white, fontSize: 10, fontWeight: 700 },
+    payStepIdxText: { color: C.onPrimary, fontSize: 10, fontWeight: 700 },
     payStepBody: { flex: 1, paddingRight: 8 },
     payStepLabel: { fontSize: 10.5, fontWeight: 700, color: C.gray900 },
     payStepWhen: { fontSize: 9, color: C.gray500, marginTop: 2 },
     payStepRight: { width: 95, alignItems: "flex-end" },
-    payStepPct: { fontSize: 13, fontWeight: 700, color: C.primary },
+    payStepPct: { fontSize: 13, fontWeight: 700, color: C.ink },
     payStepAmount: { fontSize: 8.5, color: C.gray500, marginTop: 2 },
 
     // Milestone 6: timeline orizzontale schema pagamento.
@@ -476,10 +481,10 @@ function makeStyles(C: ReturnType<typeof makePalette>) {
       alignItems: "center", justifyContent: "center",
       marginBottom: 4,
     },
-    payTimelineIdxText: { color: C.white, fontSize: 9, fontWeight: 700 },
+    payTimelineIdxText: { color: C.onPrimary, fontSize: 9, fontWeight: 700 },
     payTimelineLabel: { fontSize: 8.5, fontWeight: 700, color: C.gray900, textAlign: "center" as const, marginBottom: 2 },
     payTimelineWhen: { fontSize: 7, color: C.gray500, textAlign: "center" as const, marginBottom: 4 },
-    payTimelinePct: { fontSize: 16, fontWeight: 700, color: C.primary, marginTop: 2 },
+    payTimelinePct: { fontSize: 16, fontWeight: 700, color: C.ink, marginTop: 2 },
     payTimelineAmount: { fontSize: 7.5, color: C.gray500, marginTop: 1 },
 
     // Finanziamento
@@ -495,7 +500,7 @@ function makeStyles(C: ReturnType<typeof makePalette>) {
       fontSize: 8.5, color: C.gray500, fontWeight: 700,
       textTransform: "uppercase" as const, letterSpacing: 0.7, marginBottom: 6,
     },
-    finCardValue: { fontSize: 20, fontWeight: 800, color: C.primary },
+    finCardValue: { fontSize: 20, fontWeight: 800, color: C.ink },
     finCardSub: { fontSize: 8.5, color: C.gray500, marginTop: 3 },
 
     // Tabella prodotti
@@ -561,7 +566,7 @@ function makeStyles(C: ReturnType<typeof makePalette>) {
     specChipUnit: { color: C.gray500, fontWeight: 400 },
     supplierLineText: {
       fontSize: 8.2,
-      color: C.primary,
+      color: C.ink,
       fontWeight: 700,
       marginTop: 2,
       letterSpacing: 0.15,
@@ -650,7 +655,7 @@ function makeStyles(C: ReturnType<typeof makePalette>) {
       position: "absolute" as const,
       top: 8, left: 8,
       backgroundColor: C.primary,
-      color: C.white,
+      color: C.onPrimary,
       paddingHorizontal: 8, paddingVertical: 3,
       borderRadius: 4,
       fontSize: 8,
@@ -685,7 +690,7 @@ function makeStyles(C: ReturnType<typeof makePalette>) {
       borderRadius: 6,
       borderLeft: `2pt solid ${C.primary}`,
     },
-    articoloNoteLabel: { fontSize: 8, color: C.primary, fontWeight: 700, textTransform: "uppercase" as const, marginBottom: 3 },
+    articoloNoteLabel: { fontSize: 8, color: C.ink, fontWeight: 700, textTransform: "uppercase" as const, marginBottom: 3 },
     articoloNoteText: { fontSize: 9.5, color: C.gray700, lineHeight: 1.5 },
 
     // Milestone 10: "Perché noi" data-driven — riga di big-number cards.
@@ -706,11 +711,11 @@ function makeStyles(C: ReturnType<typeof makePalette>) {
       borderTop: `2pt solid ${C.primary}`,
     },
     percheNoiMetricaIcon: { fontSize: 16, marginBottom: 4 },
-    percheNoiMetricaValue: { fontSize: 20, fontWeight: 800, color: C.primary, textAlign: "center" as const },
-    percheNoiMetricaSuffix: { fontSize: 11, fontWeight: 600, color: C.primary },
+    percheNoiMetricaValue: { fontSize: 20, fontWeight: 800, color: C.ink, textAlign: "center" as const },
+    percheNoiMetricaSuffix: { fontSize: 11, fontWeight: 600, color: C.ink },
     percheNoiMetricaLabel: {
       fontSize: 8,
-      color: C.primary,
+      color: C.ink,
       textAlign: "center" as const,
       marginTop: 3,
       textTransform: "uppercase" as const,
@@ -737,20 +742,13 @@ function makeStyles(C: ReturnType<typeof makePalette>) {
       height: 240,
       objectFit: "contain" as const,
     },
-    chiSiamoHeroPh: {
-      width: "100%", height: 180,
-      borderRadius: 10,
-      backgroundColor: C.gray100,
-      alignItems: "center", justifyContent: "center",
-      marginBottom: 14,
-    },
     // Testo Chi siamo compatto: 10pt invece di 11pt, line-height 1.5 invece
     // di 1.65 → il testo lungo non occupa più 2 pagine intere.
     chiSiamoText: { fontSize: 10, color: C.gray700, lineHeight: 1.5 },
 
     // Percorso cliente — step cards
     percorsoBigNumber: {
-      fontSize: 86, fontWeight: 800, color: C.primary,
+      fontSize: 86, fontWeight: 800, color: C.ink,
       textAlign: "center" as const, lineHeight: 1.0,
     },
     percorsoBadge: {
@@ -762,7 +760,7 @@ function makeStyles(C: ReturnType<typeof makePalette>) {
     },
     percorsoBadgeText: {
       fontSize: 9, fontWeight: 700,
-      color: C.primary, letterSpacing: 1.2,
+      color: C.ink, letterSpacing: 1.2,
       textTransform: "uppercase" as const,
     },
     percorsoFaseCard: {
@@ -783,7 +781,7 @@ function makeStyles(C: ReturnType<typeof makePalette>) {
       backgroundColor: C.primary,
       alignItems: "center", justifyContent: "center",
     },
-    percorsoFaseRomanText: { color: "#FFFFFF", fontSize: 10, fontWeight: 700 },
+    percorsoFaseRomanText: { color: C.onPrimary, fontSize: 10, fontWeight: 700 },
     percorsoFaseLabel: {
       fontSize: 7.5, color: C.primary, fontWeight: 700,
       letterSpacing: 0.8, textTransform: "uppercase" as const,
@@ -797,7 +795,7 @@ function makeStyles(C: ReturnType<typeof makePalette>) {
       alignItems: "center", justifyContent: "center",
       marginTop: 1,
     },
-    percorsoStepIdxText: { color: "#FFFFFF", fontSize: 7.5, fontWeight: 700 },
+    percorsoStepIdxText: { color: C.onPrimary, fontSize: 7.5, fontWeight: 700 },
     percorsoStepText: { fontSize: 8.5, color: "#CBD5E1", flex: 1, lineHeight: 1.35 },
 
     // Render disclaimer
@@ -843,18 +841,18 @@ function makeStyles(C: ReturnType<typeof makePalette>) {
       marginTop: 18,
     },
     ctaTitle: {
-      fontSize: 15, fontWeight: 700, color: C.white,
+      fontSize: 15, fontWeight: 700, color: C.onPrimary,
       textTransform: "uppercase" as const,
       letterSpacing: 0.6, marginBottom: 12,
     },
     ctaStep: { flexDirection: "row", alignItems: "flex-start", marginBottom: 9 },
     ctaCheck: {
       width: 18, height: 18, borderRadius: 9,
-      backgroundColor: C.white, color: C.primary,
+      backgroundColor: C.white, color: C.ink,
       fontSize: 11, fontWeight: 700, textAlign: "center" as const,
       paddingTop: 2, marginRight: 10,
     },
-    ctaText: { flex: 1, fontSize: 10.5, color: C.white, lineHeight: 1.5 },
+    ctaText: { flex: 1, fontSize: 10.5, color: C.onPrimary, lineHeight: 1.5 },
     signatureBox: {
       flexDirection: "row",
       alignItems: "center",
@@ -866,7 +864,7 @@ function makeStyles(C: ReturnType<typeof makePalette>) {
       borderColor: C.primaryBorder,
       backgroundColor: C.primaryLight,
     },
-    signatureTitle: { fontSize: 13, fontWeight: 800, color: C.primary, marginBottom: 4 },
+    signatureTitle: { fontSize: 13, fontWeight: 800, color: C.ink, marginBottom: 4 },
     signatureText: { fontSize: 9.5, lineHeight: 1.45, color: C.gray700 },
     signatureUrl: {
       fontSize: 7.5,
@@ -926,7 +924,7 @@ function makeStyles(C: ReturnType<typeof makePalette>) {
       letterSpacing: 1, textTransform: "uppercase" as const, marginBottom: 4,
     },
     urgenzaTitle: { fontSize: 14, fontWeight: 700, color: C.gray900, marginBottom: 3 },
-    urgenzaScadenza: { fontSize: 12, fontWeight: 700, color: C.primary },
+    urgenzaScadenza: { fontSize: 12, fontWeight: 700, color: C.ink },
     urgenzaDesc: { fontSize: 9, color: C.gray700, marginTop: 4, lineHeight: 1.4 },
 
     // Confronto Prima/Dopo
@@ -1537,7 +1535,7 @@ function PageHeader({ code, clienteNome, companyName, logoUrl, primaryColor, sty
           <Image src={logoUrl} style={styles.headerLogo} />
         ) : (
           <View style={[styles.headerLogo, { backgroundColor: primaryColor, alignItems: "center", justifyContent: "center" }]}>
-            <Text style={{ color: "#FFFFFF", fontSize: 14, fontWeight: 700 }}>
+            <Text style={{ color: testoSopra(primaryColor), fontSize: 14, fontWeight: 700 }}>
               {(companyName || "S").charAt(0).toUpperCase()}
             </Text>
           </View>
@@ -1911,6 +1909,9 @@ export function SerramentoPDF({
     : 13;
   const coverTextColor = normalizeHexColor(tpl.pdf_cover_text_color, "#FFFFFF") ?? "#FFFFFF";
   const coverEyebrowColor = normalizeHexColor(tpl.pdf_cover_eyebrow_color, C.primary) ?? C.primary;
+  // Il cartellino «Preparato per» riprende l'occhiello quando l'azienda ne ha
+  // scelto il colore (il lime di Renova); altrimenti resta l'ambra di sempre.
+  const coverAccento = tpl.pdf_cover_eyebrow_color ? coverEyebrowColor : C.accent;
   const coverTitleColor = normalizeHexColor(tpl.pdf_cover_title_color, coverTextColor) ?? coverTextColor;
   const coverSubtitleColor = normalizeHexColor(tpl.pdf_cover_subtitle_color, "#D1D5DB") ?? "#D1D5DB";
   const coverShowDecoration = tpl.pdf_cover_show_decoration !== false;
@@ -2317,14 +2318,17 @@ export function SerramentoPDF({
               <Image src={coverLogoUrl} style={[styles.coverLogoImage, { maxWidth: 220 * coverLogoScale, height: 70 * coverLogoScale }]} />
             ) : (
               <View style={styles.coverLogoCircle}>
-                <Text style={{ color: "#FFFFFF", fontSize: 28, fontWeight: 700 }}>
+                <Text style={{ color: C.onPrimary, fontSize: 28, fontWeight: 700 }}>
                   {(companyName || "S").charAt(0).toUpperCase()}
                 </Text>
               </View>
             )}
             <View>
               <Text style={[styles.coverCompanyName, { color: coverTextColor }]}>{companyName}</Text>
-              {company?.indirizzo && <Text style={styles.coverCompanyTag}>{company.indirizzo}</Text>}
+              {/* Come nel piè di pagina: prima l'indirizzo del modello, poi quello dell'azienda. */}
+              {template?.indirizzo_completo || company?.indirizzo ? (
+                <Text style={styles.coverCompanyTag}>{template?.indirizzo_completo || company?.indirizzo}</Text>
+              ) : null}
             </View>
             </View>
           </View>
@@ -2336,8 +2340,8 @@ export function SerramentoPDF({
           <Text style={[styles.coverSubtitle, { fontSize: coverSubtitleSize, color: coverSubtitleColor, textAlign: coverTextAlign }]}>{coverSubhero}</Text>
 
           {coverShowClientCard && (
-            <View style={styles.coverCard}>
-              <Text style={styles.coverLabel}>Preparato per</Text>
+            <View style={[styles.coverCard, { borderLeft: `3pt solid ${coverAccento}` }]}>
+              <Text style={[styles.coverLabel, { color: coverAccento }]}>Preparato per</Text>
               <Text style={[styles.coverClientName, { color: coverTextColor }]}>{clienteNome}</Text>
               <Text style={styles.coverClientAddr}>
                 {[p.cliente_indirizzo, p.cantiere_citta || p.cliente_citta].filter(Boolean).join(", ")}
@@ -2409,11 +2413,7 @@ export function SerramentoPDF({
                      
                     />
                   </View>
-                ) : (
-                  <View style={styles.chiSiamoHeroPh}>
-                    <Text style={{ fontSize: 14, color: C.gray500, fontWeight: 700 }}>{companyName}</Text>
-                  </View>
-                )}
+                ) : null}
                 {chiSiamoTesto && (
                   <View>
                     {isLikelyHtml(chiSiamoTesto)
@@ -2580,7 +2580,7 @@ export function SerramentoPDF({
                   <Image src={consulente.foto_url} style={styles.consPhoto} />
                 ) : (
                   <View style={styles.consPhotoPh}>
-                    <Text style={{ color: "#FFFFFF", fontSize: 22, fontWeight: 700 }}>
+                    <Text style={{ color: C.onPrimary, fontSize: 22, fontWeight: 700 }}>
                       {(() => {
                         const name = consulente?.nome ?? "Consulente tecnico";
                         const parts = name.trim().split(/\s+/);
@@ -2593,11 +2593,12 @@ export function SerramentoPDF({
                 <View style={{ flex: 1 }}>
                   <Text style={styles.consName}>{consulente?.nome ?? "Consulente tecnico"}</Text>
                   <Text style={styles.consRole}>{consulente?.ruolo ?? "Consulente tecnico"}</Text>
-                  {consulenteDescrizione && (
-                    <Text style={{ fontSize: 9.5, color: C.gray700, lineHeight: 1.5, marginTop: 5 }}>
-                      {consulenteDescrizione}
-                    </Text>
-                  )}
+                  {/* Dall'editor arriva HTML: si stampano i paragrafi, non i tag. */}
+                  {consulenteDescrizione ? (
+                    <View style={{ marginTop: 5 }}>
+                      {htmlToPdfNodes(consulenteDescrizione, { fontSize: 9.5, color: C.gray700, lineHeight: 1.5 }, "cons-")}
+                    </View>
+                  ) : null}
                   <Text style={styles.consContact}>
                     {p.consulenza_at ? `Appuntamento: ${fmtDateTime(p.consulenza_at)}\n` : ""}
                     {[consulente?.telefono, consulente?.email].filter(Boolean).join(" · ")}
@@ -2729,7 +2730,7 @@ export function SerramentoPDF({
                             primary color per separare visivamente categoria
                             e articolo specifico. */}
                         {macroNomeRow && (
-                          <Text style={{ fontSize: 7.5, fontWeight: 700, color: C.primary, letterSpacing: 0.8, marginBottom: 1 }}>
+                          <Text style={{ fontSize: 7.5, fontWeight: 700, color: C.ink, letterSpacing: 0.8, marginBottom: 1 }}>
                             {macroNomeRow.toUpperCase()}
                           </Text>
                         )}
@@ -2836,8 +2837,8 @@ export function SerramentoPDF({
                             {assi.map((a, si) => (
                               <View key={`asse-${si}`} style={[styles.specChip, { backgroundColor: C.primaryLight }]}>
                                 <Text style={{ fontSize: 8.5 }}>
-                                  <Text style={[styles.specChipLabel, { color: C.primary }]}>{a.label}: </Text>
-                                  <Text style={[styles.specChipValue, { color: C.primary, fontWeight: 700 }]}>{a.value}</Text>
+                                  <Text style={[styles.specChipLabel, { color: C.ink }]}>{a.label}: </Text>
+                                  <Text style={[styles.specChipValue, { color: C.ink, fontWeight: 700 }]}>{a.value}</Text>
                                 </Text>
                               </View>
                             ))}
@@ -3012,7 +3013,7 @@ export function SerramentoPDF({
                     </View>
                   ) : null}
                   {linea.scheda_tecnica_url ? (
-                    <Link src={linea.scheda_tecnica_url} style={{ fontSize: 10, color: C.primary, textDecoration: "underline" }}>
+                    <Link src={linea.scheda_tecnica_url} style={{ fontSize: 10, color: C.ink, textDecoration: "underline" }}>
                       Scheda tecnica del produttore{linea.scheda_tecnica_nome ? `: ${linea.scheda_tecnica_nome}` : ""}
                     </Link>
                   ) : null}
@@ -3131,7 +3132,7 @@ export function SerramentoPDF({
                       concatenati senza separatore → usciva "€1554,19IVA inclusa" */}
                   <Text style={styles.priceSuffix}>{"  "}{p.iva_inclusa ? "IVA inclusa" : "IVA esclusa"}</Text>
                 </Text>
-                <Text style={{ fontSize: 9, color: C.primary, marginTop: 4 }}>
+                <Text style={{ fontSize: 9, color: C.ink, marginTop: 4 }}>
                   Imponibile € {fmtEuro(totaleImponibile, 2)} · IVA € {fmtEuro(totaleIva, 2)}
                 </Text>
                 {/* Nota IVA: spiega l'aliquota applicata. Per IVA mista
@@ -3194,7 +3195,7 @@ export function SerramentoPDF({
                     <Text style={styles.urgenzaDesc}>{urgenzaDescrizione}</Text>
                   )}
                   {earlyBirdAttivo && scadenzaEarlyBird && (
-                    <Text style={[styles.urgenzaDesc, { color: C.primary, fontWeight: 700, marginTop: 6 }]}>
+                    <Text style={[styles.urgenzaDesc, { color: C.ink, fontWeight: 700, marginTop: 6 }]}>
                       Sconto extra -{earlyBirdPct}% se firmi entro il {scadenzaEarlyBird}
                     </Text>
                   )}
@@ -3452,7 +3453,7 @@ export function SerramentoPDF({
                             <Text style={[styles.finCardTitle, { color: positivo ? C.successText : C.gray500 }]}>
                               Costo netto / mese
                             </Text>
-                            <Text style={[styles.finCardValue, { color: positivo ? C.successText : C.primary, fontSize: 17 }]}>
+                            <Text style={[styles.finCardValue, { color: positivo ? C.successText : C.ink, fontSize: 17 }]}>
                               {positivo ? "Gratis o positivo" : `€ ${fmtEuro(costoNetto)}`}
                             </Text>
                             <Text style={[styles.finCardSub, { color: positivo ? C.successText : C.gray500 }]}>
@@ -3636,7 +3637,7 @@ export function SerramentoPDF({
                       <Image src={logoUrl} style={styles.headerLogo} />
                     ) : (
                       <View style={[styles.headerLogo, { backgroundColor: primaryColor, alignItems: "center", justifyContent: "center" }]}>
-                        <Text style={{ color: "#FFFFFF", fontSize: 14, fontWeight: 700 }}>
+                        <Text style={{ color: C.onPrimary, fontSize: 14, fontWeight: 700 }}>
                           {(companyName || "S").charAt(0).toUpperCase()}
                         </Text>
                       </View>
@@ -3681,7 +3682,7 @@ export function SerramentoPDF({
                       borderColor: C.primaryBorder,
                       borderStyle: "solid",
                     }}>
-                      <Text style={{ fontSize: 8, fontWeight: 800, color: C.primary, textTransform: "uppercase", letterSpacing: 0.6 }}>
+                      <Text style={{ fontSize: 8, fontWeight: 800, color: C.ink, textTransform: "uppercase", letterSpacing: 0.6 }}>
                         Preview cliente
                       </Text>
                     </View>
@@ -3751,7 +3752,7 @@ export function SerramentoPDF({
                         }}>
                           <Text style={[styles.renderPairLabel, {
                             fontSize: 9.5,
-                            color: primaryColor,
+                            color: C.ink,
                             marginBottom: 5,
                           }]}>
                             {secondLabel}
@@ -3777,7 +3778,7 @@ export function SerramentoPDF({
                 {/* Disclaimer legale obbligatorio, compatto e nello stesso foglio */}
                 <View style={[styles.renderDisclaimerBox, { marginTop: 9, padding: 8 }]} wrap={false}>
                   <Text style={styles.renderDisclaimerLabel}>Nota sul render AI</Text>
-                  <Text style={[styles.renderDisclaimerText, { fontSize: 8, lineHeight: 1.35 }]}>{renderDisclaimer}</Text>
+                  {htmlToPdfNodes(renderDisclaimer, { ...styles.renderDisclaimerText, fontSize: 8, lineHeight: 1.35 }, "disc-")}
                 </View>
                 </View>
 
@@ -3903,7 +3904,7 @@ export function SerramentoPDF({
                   {garanzie.slice(0, 6).map((g, i) => (
                     <View key={i} style={styles.garanziaCard} wrap={false}>
                       <View style={styles.garanziaIcon}>
-                        <GaranziaIconSvg kind={g.icona} color="#FFFFFF" />
+                        <GaranziaIconSvg kind={g.icona} color={C.onPrimary} />
                       </View>
                       <Text style={styles.garanziaTitolo}>{g.titolo}</Text>
                       <Text style={styles.garanziaDesc}>{g.descrizione}</Text>
@@ -3938,7 +3939,7 @@ export function SerramentoPDF({
                     <Text style={[styles.tableHeaderText, { color: C.gray500 }]}>Attuale</Text>
                   </View>
                   <View style={{ flex: 1, alignItems: "center" }}>
-                    <Text style={[styles.tableHeaderText, { color: C.primary }]}>Nuovo</Text>
+                    <Text style={[styles.tableHeaderText, { color: C.ink }]}>Nuovo</Text>
                   </View>
                   <View style={{ flex: 0.7, alignItems: "flex-end" }}>
                     {/* "Δ" non esiste in Helvetica WinAnsi (usciva «"») */}
