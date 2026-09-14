@@ -187,12 +187,22 @@ export function MetaIntegrationWizard({ open, onOpenChange, integration, onCompl
                     <div>
                       <p className="text-sm font-medium">Integrazione Meta attiva</p>
                       <p className="text-xs text-muted-foreground">
-                        Disconnetti solo se vuoi fermare import lead, webhook e token collegati.
+                        Per concedere permessi nuovi (post, statistiche, messaggi) usa «Aggiorna permessi»:
+                        pagine e moduli restano come sono. Disconnetti solo per fermare lead e webhook.
                       </p>
                     </div>
-                    <Button variant="destructive" size="sm" onClick={() => setShowDisconnectAlert(true)}>
-                      Disconnetti Meta
-                    </Button>
+                    <div className="flex gap-2 shrink-0">
+                      {/* Da connessi il wizard parte da «pages» e il login con Facebook non
+                          ricompariva più: i permessi aggiunti dopo non si potevano concedere
+                          senza disconnettere (lead fermi). Il callback aggiorna token e
+                          permessi e conserva le pagine già scelte. */}
+                      <Button variant="outline" size="sm" onClick={() => setStep("oauth")} disabled={step === "oauth"}>
+                        Aggiorna permessi
+                      </Button>
+                      <Button variant="destructive" size="sm" onClick={() => setShowDisconnectAlert(true)}>
+                        Disconnetti Meta
+                      </Button>
+                    </div>
                   </div>
                 )}
 

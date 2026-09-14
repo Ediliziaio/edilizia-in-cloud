@@ -148,7 +148,7 @@ export function OAuthStep({ onSuccess, hook }: OAuthStepProps) {
           dai moduli Lead Ads delle tue pagine.
         </p>
         <p className="text-xs text-muted-foreground">
-          Verranno richiesti i permessi per: lettura pagine, lead forms, e gestione ads.
+          Facebook ti chiederà i permessi per pagine, moduli lead e inserzioni, più quelli delle funzioni attive (post, statistiche, messaggi).
         </p>
       </div>
       <Button onClick={handleConnect} disabled={loading} className="gap-2">
