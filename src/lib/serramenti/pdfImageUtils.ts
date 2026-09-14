@@ -11,7 +11,9 @@
  * Limiti applicati:
  *  - max 1600px lato lungo → mantiene il PDF leggero su foto da 4000px
  *  - JPEG quality 0.85 → buon compromesso peso/qualità su foto
- *  - PNG per loghi (URL con .png o "logo" nel path) → preserva trasparenza
+ *  - PNG per loghi (URL con .png o "logo" nel path) e per le immagini con parti
+ *    trasparenti (il serramento scontornato del catalogo, spesso webp): in JPEG
+ *    il canvas esporta il trasparente come nero
  *
  * Best-effort, con una regola dura appresa dal campo:
  *
@@ -28,6 +30,14 @@
  * di farcela con la sua richiesta, e il timeout a valle ci copre comunque.
  */
 const IMAGE_LOAD_TIMEOUT_MS = 12_000;
+
+/** C'è almeno un pixel non del tutto opaco? `pixel` è RGBA, come ImageData.data. */
+export function haTrasparenza(pixel: ArrayLike<number>): boolean {
+  for (let i = 3; i < pixel.length; i += 4) {
+    if (pixel[i] < 255) return true;
+  }
+  return false;
+}
 
 export async function toDataUrl(url: string | null | undefined): Promise<string | null> {
   if (!url) return null;
@@ -71,8 +81,10 @@ export async function toDataUrl(url: string | null | undefined): Promise<string 
           return;
         }
         ctx.drawImage(img, 0, 0, w, h);
-        // Euristica: PNG per loghi (preserva trasparenza), JPEG per foto.
-        const isPng = /\.png(\?|$)/i.test(url) || /logo/i.test(url);
+        // PNG per i loghi e per le immagini con parti trasparenti: in JPEG il
+        // trasparente diventa nero e il serramento scontornato usciva su fondo
+        // nero, con i vetri neri. JPEG per le foto.
+        const isPng = /\.png(\?|$)/i.test(url) || /logo/i.test(url) || haTrasparenza(ctx.getImageData(0, 0, w, h).data);
         const dataUrl = isPng
           ? canvas.toDataURL("image/png")
           : canvas.toDataURL("image/jpeg", 0.85);
