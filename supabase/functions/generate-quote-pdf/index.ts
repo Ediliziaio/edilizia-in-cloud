@@ -129,6 +129,7 @@ Deno.serve(async (req) => {
 
     let quote: any;
     let items: any[] = [];
+    const immaginiRighe = new Map<string, string>(); // «a:<articolo>» / «f:<famiglia>» → foto
     let company: any = null;
     let t: any;
     let attachmentRows: any[] = [];
@@ -272,6 +273,28 @@ Deno.serve(async (req) => {
       t = { ...DEFAULT_T, ...(template || {}) };
       items = (itemsRes.data ?? []).filter((i: any) => i.mostra_nel_pdf !== false);
       pdfImp = impRes.data ?? {};
+      // Le righe non salvano image_url: il builder mostra la foto dell'articolo o
+      // della famiglia, il PDF guardava solo quella della riga e con «mostra
+      // immagini» acceso non usciva niente.
+      if (opzione("pdf_mostra_immagini", false)) {
+        type RigaConProdotto = { article_template_id?: string | null; family_id?: string | null };
+        const idArticoli = [...new Set((items as RigaConProdotto[]).map((i) => i.article_template_id).filter(Boolean))] as string[];
+        const idFamiglie = [...new Set((items as RigaConProdotto[]).map((i) => i.family_id).filter(Boolean))] as string[];
+        const [fotoArticoli, fotoFamiglie] = await Promise.all([
+          idArticoli.length > 0
+            ? supabaseAdmin.from("article_templates").select("id, immagine_url").eq("company_id", quote.company_id).in("id", idArticoli)
+            : Promise.resolve({ data: [] }),
+          idFamiglie.length > 0
+            ? supabaseAdmin.from("article_families").select("id, immagine_url").eq("company_id", quote.company_id).in("id", idFamiglie)
+            : Promise.resolve({ data: [] }),
+        ]);
+        for (const r of (fotoArticoli.data ?? []) as Array<{ id: string; immagine_url: string | null }>) {
+          if (r.immagine_url) immaginiRighe.set(`a:${r.id}`, r.immagine_url);
+        }
+        for (const r of (fotoFamiglie.data ?? []) as Array<{ id: string; immagine_url: string | null }>) {
+          if (r.immagine_url) immaginiRighe.set(`f:${r.id}`, r.immagine_url);
+        }
+      }
       const companyData = companyRes.data;
       company = companyData
         ? {
@@ -1033,7 +1056,10 @@ Deno.serve(async (req) => {
       let rowNumber = 0;
 
       // If pdf_mostra_solo_totale: skip item rows, only draw totals
-      const soloTotale = (quote as any).pdf_mostra_solo_totale === true || pdfImp.pdf_mostra_solo_totale === true;
+      // Vale la scelta del preventivo, che nasce dal predefinito dell'azienda: il
+      // predefinito serve solo ai preventivi che non l'hanno salvata. Prima
+      // l'azienda scavalcava il singolo preventivo.
+      const soloTotale = opzione("pdf_mostra_solo_totale", pdfImp.pdf_mostra_solo_totale === true);
 
       if (!soloTotale) {
         for (let idx = 0; idx < items.length; idx++) {
@@ -1116,8 +1142,14 @@ Deno.serve(async (req) => {
           // invece di tagliare a metà «Tipo apertura: Wasistas classi».
           const rigaDettagli = dettagli.join("  ·  ");
           const righeDettagli = rigaDettagli ? wrapText(rigaDettagli, 95).slice(0, 2) : [];
+          const conFoto = item as { image_url?: string | null; article_template_id?: string | null; family_id?: string | null };
           const immagineRiga = opzione("pdf_mostra_immagini", false) && !isNota && !isSubtotale
-            ? await immagineProdotto(String((item as any).image_url ?? ""))
+            ? await immagineProdotto(
+                conFoto.image_url
+                  || immaginiRighe.get(`a:${conFoto.article_template_id}`)
+                  || immaginiRighe.get(`f:${conFoto.family_id}`)
+                  || "",
+              )
             : null;
           const rowH = (hasDesc ? 29 : 18) + rowExtra + righeDettagli.length * 11 + (immagineRiga ? 30 : 0);
 
@@ -1145,7 +1177,7 @@ Deno.serve(async (req) => {
           // una unità di misura larga non deve invadere la colonna prezzo.
           let umText = String(item.unit_of_measure || "pz");
           while (umText.length > 1 && textW(umText, sz(8.5)) > umMaxW) umText = umText.slice(0, -1);
-          const showDiscount = (quote as any).pdf_mostra_sconti !== false && pdfImp.pdf_mostra_sconti !== false;
+          const showDiscount = opzione("pdf_mostra_sconti", pdfImp.pdf_mostra_sconti !== false);
           const discPct = Number(item.discount_percent || 0);
           const priceBase = fmtEur(Number(item.unit_price || 0));
           // Sconto riga accodato al prezzo SOLO se la stringa completa entra
