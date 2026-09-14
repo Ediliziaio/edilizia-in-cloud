@@ -17,6 +17,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import { termineDiRicerca } from "@/lib/ricercaPostgrest";
 import { buildSeedRows } from "@/lib/elettrico/seedListino";
 import { calcPrezzoVoce } from "@/lib/elettrico/calcoli";
 import type {
@@ -374,7 +375,9 @@ export function usePrefillFromArticolo(term: string) {
           "id, name, sku, marca, unit_of_measure, prezzo_vendita, prezzo_acquisto_netto, unit_price, standard_cost",
         )
         .eq("company_id", companyId!);
-      const t = term.trim();
+      // Solo prodotti attivi. Virgole e parentesi nel testo spezzavano il .or().
+      q = q.eq("attivo", true);
+      const t = termineDiRicerca(term);
       if (t) {
         q = q.or(`name.ilike.%${t}%,sku.ilike.%${t}%,marca.ilike.%${t}%`);
       }
@@ -416,7 +419,9 @@ export function usePrefillFromTariffa(term: string) {
           "id, nome, tipo, unita, unita_fatturazione, prezzo_vendita, costo_interno, prezzo_costo",
         )
         .eq("company_id", companyId!);
-      const t = term.trim();
+      // Le tariffe spente dal listino (colonna attivo) non si propongono.
+      q = q.eq("attivo", true);
+      const t = termineDiRicerca(term);
       if (t) q = q.ilike("nome", `%${t}%`);
       const { data, error } = await q.order("nome").limit(40);
       if (error) throw new Error(error.message);
@@ -472,7 +477,7 @@ export function useListinoVociSearch(term: string) {
           "id, descrizione, codice, unita_misura, prezzo_unitario, costo_materiali, costo_manodopera, fonte, capitolo:ele_listino_capitoli(nome)",
         )
         .eq("company_id", companyId!);
-      const t = term.trim();
+      const t = termineDiRicerca(term);
       if (t) q = q.or(`descrizione.ilike.%${t}%,codice.ilike.%${t}%`);
       const { data, error } = await q.order("ordine").limit(40);
       if (error) throw new Error(error.message);

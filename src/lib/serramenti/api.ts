@@ -5,6 +5,7 @@
  * Tabelle sr_* (mirror in src/types/serramenti.ts).
  */
 import { supabase } from "@/integrations/supabase/client";
+import { termineDiRicerca } from "@/lib/ricercaPostgrest";
 import type {
   SrProgettoRow,
   SrSerramentoRow,
@@ -684,8 +685,9 @@ export async function listTariffeManodopera(searchQuery?: string, companyId?: st
     // 100 alfabetiche. Aumentiamo il cap per evitare ricalcoli a 0.
     .limit(1000);
   if (companyId) q = q.eq("company_id", companyId);
-  if (searchQuery && searchQuery.trim().length >= 2) {
-    const t = `%${searchQuery.trim()}%`;
+  const cerca = termineDiRicerca(searchQuery);
+  if (cerca.length >= 2) {
+    const t = `%${cerca}%`;
     q = q.or(`nome.ilike.${t},descrizione.ilike.${t},categoria_prodotto.ilike.${t}`);
   }
   const { data, error } = await q;
