@@ -10,6 +10,8 @@
  */
 import type { ListinoFamily } from "./api";
 import { formatEuro, formatNumero } from "./format";
+import { applyMarkup, applyScontiFornitore } from "@/lib/priceMarkup";
+import type { MarkupTipo } from "@/types/articleFamily";
 
 // ─── Tipi ──────────────────────────────────────────────────────────────────
 
@@ -66,6 +68,34 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
+/**
+ * Il prezzo di vendita salvato o, per un prodotto a ricarico che non l'ha (0),
+ * quello che viene dall'acquisto con sconti fornitore e ricarico, come fa
+ * calcolaPrezzoFamiglia. Prima un prodotto a ricarico senza vendita salvata
+ * finiva nel preventivo a 0 €.
+ *
+ * Il salvato ha la precedenza: è il prezzo che il preventivatore ha sempre
+ * usato. Ricalcolarlo qui avrebbe cambiato i preventivi delle griglie salvate
+ * prima di un cambio di sconti (a Ke Bei 154 celle, fino a un terzo in meno).
+ */
+function venditaOAcquisto(
+  family: ListinoFamily,
+  vendita: number | null | undefined,
+  acquisto: number | null | undefined,
+): number {
+  const salvata = Number(vendita ?? 0);
+  const lordo = Number(acquisto ?? 0);
+  if (salvata > 0 || family.prezzo_base_mode !== "acquisto_markup" || !(lordo > 0)) return salvata;
+  const netto = applyScontiFornitore(lordo, Number(family.sconto_fornitore_1 ?? 0), Number(family.sconto_fornitore_2 ?? 0));
+  return round2(
+    applyMarkup({
+      prezzoAcquisto: netto,
+      markupTipo: (family.markup_tipo ?? "none") as MarkupTipo,
+      markupValore: Number(family.markup_valore ?? 0),
+    }).prezzoVendita,
+  );
+}
+
 // ─── Range griglia ─────────────────────────────────────────────────────────
 
 /**
@@ -107,7 +137,7 @@ export function calcolaPrezzoProdotto(
   griglia: GrigliaPricingItem[],
   options: CalcolaPrezzoOptions = {},
 ): CalcoloPrezzoResult {
-  const base = Number(family.prezzo_base_vendita ?? 0);
+  const base = venditaOAcquisto(family, family.prezzo_base_vendita, family.prezzo_base_acquisto);
   const modalita = family.modalita_prezzo_base ?? "pz";
 
   switch (modalita) {
@@ -199,7 +229,7 @@ export function calcolaPrezzoProdotto(
       }
       const prezzoBest = supplierLine && best.prezzo_acquisto != null && best.prezzo_acquisto > 0
         ? round2(Number(best.prezzo_acquisto) * (1 + Number(supplierLine.ricarico_default ?? 0)))
-        : Number(best.prezzo_vendita ?? 0);
+        : venditaOAcquisto(family, best.prezzo_vendita, best.prezzo_acquisto);
       return {
         prezzo: prezzoBest * quantita, matchedGrigliaId: best.id,
         note: `Griglia ${best.valore_x}×${best.valore_y} mm @ ${formatEuro(prezzoBest, 2)}`,

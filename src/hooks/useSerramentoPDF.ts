@@ -425,13 +425,19 @@ async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEn
   // "Profilo: Square (+8%)" servono le label di axis e value.
   // Fetch batch di article_family_axes + values per tutte le family
   // referenziate dal BOM.
+  // Anche gli accessori: la tapparella motorizzata o antracite si scrive nel PDF
+  // come il colore della finestra, e prima le loro scelte non si leggevano.
+  const famiglieConVarianti = Array.from(new Set([
+    ...familyIds,
+    ...detail.accessori.map((a) => a.family_id).filter((v): v is string => !!v),
+  ]));
   const axisLabelByKey: Record<string, { axisLabel: string; valueLabel: string }> = {};
-  if (familyIds.length > 0) {
+  if (famiglieConVarianti.length > 0) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: axisRows } = await (supabase as any)
       .from("article_family_axes")
       .select("id, family_id, codice, nome, values:article_family_axis_values(id, valore, label)")
-      .in("family_id", familyIds);
+      .in("family_id", famiglieConVarianti);
     // Struttura: { family_id -> { axis_codice -> { axisLabel, values: {value_id -> valueLabel} } } }
     const byFamily: Record<string, Record<string, { axisLabel: string; values: Record<string, string> }>> = {};
     ((axisRows ?? []) as Array<{

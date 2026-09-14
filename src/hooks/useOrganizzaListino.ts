@@ -4,7 +4,8 @@
  *  - una linea nuova sugli stessi modelli di una tipologia («Salamander 73»);
  *  - le linee della tipologia ai prodotti che non le hanno;
  *  - scostamenti e prezzo al mq delle linee di una tipologia;
- *  - la copia di una tipologia con linee, prodotti, varianti e griglie.
+ *  - la copia di una tipologia con linee, prodotti, varianti e griglie;
+ *  - colori e varianti uguali in tutti i prodotti di una tipologia (…600000).
  *
  * Tutto o niente: se una riga non va, non resta un listino a metà. I messaggi
  * d'errore arrivano già in italiano dalle funzioni.
@@ -13,6 +14,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { queryKeys } from "@/lib/queryKeys";
+import type { AsseVariantiDati } from "@/lib/listino/organizzaListino";
+import { invalidaListinoNelPreventivatore } from "@/lib/serramenti/cacheListino";
 
 export interface NuovaLineaAsse {
   macrocategoriaId: string;
@@ -66,6 +69,17 @@ export interface EsitoCopiaTipologia {
   schede: number;
 }
 
+export interface VariantiDellaTipologia {
+  macrocategoriaId: string;
+  assi: AsseVariantiDati[];
+}
+
+export interface EsitoVariantiTipologia {
+  valori: number;
+  aggiunti: number;
+  assi: number;
+}
+
 type RispostaRpc = { data: unknown; error: { message?: string } | null };
 
 async function chiama<T>(funzione: string, argomenti: Record<string, unknown>): Promise<T> {
@@ -85,8 +99,7 @@ export function useOrganizzaListino() {
     void qc.invalidateQueries({ queryKey: ["listino-macrocategorie", companyId] });
     void qc.invalidateQueries({ queryKey: ["listino-categorie", companyId] });
     void qc.invalidateQueries({ queryKey: ["listino-schede-linea", companyId] });
-    // Il preventivatore serramenti legge le tipologie con una sua chiave.
-    void qc.invalidateQueries({ queryKey: ["sr-listino-macrocategorie"] });
+    invalidaListinoNelPreventivatore(qc);
   };
 
   const aggiungiLinea = useMutation<EsitoNuovaLinea, Error, NuovaLineaAsse>({
@@ -131,5 +144,21 @@ export function useOrganizzaListino() {
     onSuccess: invalida,
   });
 
-  return { aggiungiLinea, allineaLinee, prezziLinee, copiaTipologia };
+  const variantiTipologia = useMutation<EsitoVariantiTipologia, Error, VariantiDellaTipologia>({
+    mutationFn: (p) =>
+      chiama<EsitoVariantiTipologia>("listino_varianti_tipologia", {
+        p_macrocategoria_id: p.macrocategoriaId,
+        p_assi: p.assi.map((a) => ({
+          chiave: a.chiave,
+          nome: a.nome,
+          base: a.base,
+          allinea_base: a.allineaBase,
+          completa: a.completa,
+          valori: a.valori,
+        })),
+      }),
+    onSuccess: invalida,
+  });
+
+  return { aggiungiLinea, allineaLinee, prezziLinee, copiaTipologia, variantiTipologia };
 }

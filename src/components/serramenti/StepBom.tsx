@@ -346,6 +346,15 @@ export function StepBom({ progettoId, detail }: Props) {
               onApplica={(codice, valore) =>
                 setRichiestaBulk({ codice, valore, nonce: Date.now() })
               }
+              onColori={({ interno, esterno }) => {
+                for (const riga of serramenti) {
+                  if (riga.tipologia === "a_corpo") continue;
+                  const patch: Partial<SrSerramentoRow> = {};
+                  if (interno) patch.colore_interno = interno;
+                  if (esterno) patch.colore_esterno = esterno;
+                  onPatch(riga.id, patch);
+                }
+              }}
             />
             <BulkPosaActions
               serramenti={serramenti}
@@ -639,12 +648,16 @@ export interface RichiestaBulkAsse {
  * non ce l'ha resta com'è.
  */
 function BulkAssiActions({
-  serramenti, famiglie, onApplica,
+  serramenti, famiglie, onApplica, onColori,
 }: {
   serramenti: SrSerramentoRow[];
   famiglie: FamilyWithAxes[];
   onApplica: (codice: string, valore: string) => void;
+  /** Il colore vero (RAL, effetto legno) per tutte le righe: la variante Colore dice solo la fascia di prezzo. */
+  onColori: (colori: { interno: string; esterno: string }) => void;
 }) {
+  const [coloreInterno, setColoreInterno] = useState("");
+  const [coloreEsterno, setColoreEsterno] = useState("");
   const assi = useMemo(() => {
     const usate = new Set(serramenti.map((s) => s.family_id).filter(Boolean) as string[]);
     if (usate.size === 0) return [];
@@ -667,7 +680,17 @@ function BulkAssiActions({
       .map(([codice, v]) => ({ codice, nome: v.nome, valori: [...v.valori.entries()] }));
   }, [serramenti, famiglie]);
 
-  if (serramenti.length < 2 || assi.length === 0) return null;
+  const righeColorabili = serramenti.filter((s) => s.tipologia !== "a_corpo").length;
+  if (serramenti.length < 2 || (assi.length === 0 && righeColorabili < 2)) return null;
+
+  const applicaColori = () => {
+    const interno = coloreInterno.trim();
+    const esterno = coloreEsterno.trim();
+    if (!interno && !esterno) return;
+    onColori({ interno, esterno });
+    setColoreInterno("");
+    setColoreEsterno("");
+  };
 
   return (
     <div className="rounded-md border border-blue-200 bg-blue-50/50 p-2.5 mb-3">
@@ -692,6 +715,43 @@ function BulkAssiActions({
             </Select>
           </div>
         ))}
+        {righeColorabili >= 2 && (
+          <>
+            <div className="space-y-1 min-w-[150px]">
+              <Label htmlFor="bulk-colore-interno" className="text-[10px] text-slate-700">Colore interno</Label>
+              <Input
+                id="bulk-colore-interno"
+                value={coloreInterno}
+                onChange={(e) => setColoreInterno(e.target.value)}
+                placeholder="Bianco RAL 9010"
+                className="h-8 text-xs bg-white"
+              />
+            </div>
+            <div className="space-y-1 min-w-[150px]">
+              <Label htmlFor="bulk-colore-esterno" className="text-[10px] text-slate-700">Colore esterno</Label>
+              <Input
+                id="bulk-colore-esterno"
+                value={coloreEsterno}
+                onChange={(e) => setColoreEsterno(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") applicaColori();
+                }}
+                placeholder="Antracite RAL 7016"
+                className="h-8 text-xs bg-white"
+              />
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs bg-white"
+              disabled={!coloreInterno.trim() && !coloreEsterno.trim()}
+              onClick={applicaColori}
+            >
+              Colori a tutte
+            </Button>
+          </>
+        )}
       </div>
     </div>
   );
@@ -759,14 +819,24 @@ function SerramentoRow({
 
   // Carico griglia listino della family per ricalcolo prezzo on-the-fly su
   // modifica L/A/Q. enabled solo se family esiste con modalità griglia.
-  const { data: griglia = [] } = useListinoGriglia(family?.id);
+  const { data: griglia = [], isLoading: grigliaInCaricamento } = useListinoGriglia(family?.id);
   const selectedSupplierProductLineId = s.supplier_product_line_id
     ?? griglia.find((g) => g.id === s.listino_voce_id)?.supplier_product_line_id
     ?? null;
 
   // Carica family completa (con axes+values) per applicare le maggiorazioni
   // delle Variabili Prodotto al ricalcolo prezzo. Solo per righe listino.
-  const { family: familyWithAxes } = useFamily(family?.id);
+  const { family: familyWithAxes, isLoading: assiInCaricamento } = useFamily(family?.id);
+  // Griglia o varianti non ancora arrivate: un ricalcolo chiesto adesso aspetta
+  // (vedi l'effetto dopo i gestori) invece di lasciare il prezzo vecchio.
+  const datiInArrivo = !!family && (grigliaInCaricamento || assiInCaricamento);
+  const ricalcoloInSospeso = useRef<{
+    L: number | null;
+    H: number | null;
+    Q: number;
+    selections: Record<string, string>;
+    posaEsclusa: boolean;
+  } | null>(null);
 
   // La scheda della linea scelta (PVC Salamander 76), come nel picker: il
   // valore dell'asse Linea della riga, altrimenti la categoria del prodotto.
@@ -805,6 +875,9 @@ function SerramentoRow({
     if (family.modalita_prezzo_base === "griglia" && griglia.length === 0) return null;
     const Qsafe = Q || 1;
     const sels = selections ?? (s.valori_assi ?? {}) as Record<string, string>;
+    // Varianti non ancora caricate: il prezzo senza le loro maggiorazioni sarebbe
+    // sbagliato (un colore a +15% sparirebbe dal totale). Meglio aspettare.
+    if (!familyWithAxes && Object.keys(sels).length > 0) return null;
     // Override per supportare il toggle UI: l'utente cambia il flag e vuole
     // un ricalcolo IMMEDIATO senza aspettare il roundtrip onPatch → DB → re-fetch.
     const posaEsclusa = posaEsclusaOverride ?? s.posa_esclusa ?? false;
@@ -819,7 +892,7 @@ function SerramentoRow({
     if (result.requiresSupplierLine || result.missingSupplierLinePricing) return null;
 
     // 2. Maggiorazioni assi (Variabili Prodotto) applicate sopra il prezzo
-    //    base. Se familyWithAxes ancora in loading, skip (uso prezzo base).
+    //    base. Senza varianti caricate si arriva qui solo se la riga non ha scelte.
     const prezzoProdotto = familyWithAxes
       ? applyMaggiorazioniAssi(result.prezzo, sels, familyWithAxes.axes, L, H, Qsafe)
       : result.prezzo;
@@ -889,6 +962,15 @@ function SerramentoRow({
     if (nuovoPrezzo != null && Number.isFinite(nuovoPrezzo)) {
       onPatch({ ...patch, prezzo_unitario: Number(nuovoPrezzo.toFixed(2)) });
     } else {
+      if (datiInArrivo) {
+        ricalcoloInSospeso.current = {
+          L,
+          H,
+          Q,
+          selections: (next.valori_assi ?? {}) as Record<string, string>,
+          posaEsclusa: next.posa_esclusa ?? false,
+        };
+      }
       onPatch(patch);
     }
   };
@@ -900,6 +982,12 @@ function SerramentoRow({
    */
   const handleAxisPatch = (axisCodice: string, valueId: string) => {
     const nextSelections = { ...(s.valori_assi ?? {}), [axisCodice]: valueId };
+    // Prezzo manuale («misura libera»): la scelta si salva e il prezzo resta
+    // quello del commerciale. Prima lo sostituiva il prezzo base del listino.
+    if (isListinoManualPrice) {
+      onPatch({ valori_assi: nextSelections });
+      return;
+    }
     const L = s.larghezza_mm ?? null;
     const H = s.altezza_mm ?? null;
     const Q = s.quantita ?? 1;
@@ -907,6 +995,9 @@ function SerramentoRow({
     if (nuovoPrezzo != null && Number.isFinite(nuovoPrezzo)) {
       onPatch({ valori_assi: nextSelections, prezzo_unitario: Number(nuovoPrezzo.toFixed(2)) });
     } else {
+      if (datiInArrivo) {
+        ricalcoloInSospeso.current = { L, H, Q, selections: nextSelections, posaEsclusa: s.posa_esclusa ?? false };
+      }
       onPatch({ valori_assi: nextSelections });
     }
   };
@@ -942,13 +1033,23 @@ function SerramentoRow({
     const L = s.larghezza_mm ?? null;
     const H = s.altezza_mm ?? null;
     const Q = s.quantita ?? 1;
-    const nuovoPrezzo = ricalcolaPrezzoUnitario(L, H, Q, undefined, escludi);
+    // Col prezzo manuale la posa è un'informazione: il prezzo non si tocca.
+    const nuovoPrezzo = isListinoManualPrice ? null : ricalcolaPrezzoUnitario(L, H, Q, undefined, escludi);
     if (isFromListino && nuovoPrezzo != null && Number.isFinite(nuovoPrezzo)) {
       onPatch({
         posa_esclusa: escludi,
         prezzo_unitario: Number(nuovoPrezzo.toFixed(2)),
       });
     } else {
+      if (isFromListino && !isListinoManualPrice && datiInArrivo) {
+        ricalcoloInSospeso.current = {
+          L,
+          H,
+          Q,
+          selections: (s.valori_assi ?? {}) as Record<string, string>,
+          posaEsclusa: escludi,
+        };
+      }
       onPatch({ posa_esclusa: escludi });
     }
   };
@@ -964,6 +1065,27 @@ function SerramentoRow({
     // Come per le variabili: l'effetto scatta solo sul nonce della richiesta.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [richiestaBulkPosa]);
+
+  // Il ricalcolo chiesto mentre griglia o varianti erano in arrivo si rifà
+  // appena arrivano, con misure e scelte di quel momento. Prima il prezzo
+  // restava quello vecchio accanto alle misure o al colore nuovi.
+  useEffect(() => {
+    const attesa = ricalcoloInSospeso.current;
+    if (!attesa || datiInArrivo) return;
+    ricalcoloInSospeso.current = null;
+    const nuovo = ricalcolaPrezzoUnitario(attesa.L, attesa.H, attesa.Q, attesa.selections, attesa.posaEsclusa);
+    if (nuovo == null || !Number.isFinite(nuovo)) return;
+    onPatch({
+      larghezza_mm: attesa.L,
+      altezza_mm: attesa.H,
+      quantita: attesa.Q,
+      valori_assi: attesa.selections,
+      posa_esclusa: attesa.posaEsclusa,
+      prezzo_unitario: Number(nuovo.toFixed(2)),
+    });
+    // Scatta solo quando i dati arrivano: il ricalcolo usa la richiesta salvata.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [datiInArrivo]);
 
   // Posa configurata sull'articolo? (per decidere se mostrare il toggle).
   // Se la family non ha manodopera (modalita="nessuna" o null), il toggle
@@ -1201,15 +1323,23 @@ function SerramentoRow({
                               <SelectValue placeholder="Seleziona…" />
                             </SelectTrigger>
                             <SelectContent>
-                              {axis.values.filter((v) => v.attivo).map((v) => {
+                              {/* Anche il valore scelto e poi spento nel listino: senza,
+                                  la riga sembrava senza scelta pur avendola nel prezzo. */}
+                              {axis.values.filter((v) => v.attivo || v.id === currentId).map((v) => {
                                 const magg = suffissoMaggiorazione(v.maggiorazione_tipo, v.maggiorazione_valore);
                                 const std = v.is_default ? " · standard" : "";
+                                const spento = v.attivo ? "" : " · non più a listino";
                                 return (
                                   <SelectItem key={v.id} value={v.id} className="text-xs">
-                                    {v.label}{magg}{std}
+                                    {v.label}{magg}{std}{spento}
                                   </SelectItem>
                                 );
                               })}
+                              {currentId && !axis.values.some((v) => v.id === currentId) && (
+                                <SelectItem value={currentId} disabled className="text-xs italic">
+                                  Scelta tolta dal listino
+                                </SelectItem>
+                              )}
                             </SelectContent>
                           </Select>
                         </div>
@@ -1469,30 +1599,36 @@ function SerramentoRow({
             </div>
           )}
 
-          {/* Colore interno/esterno: SOLO off-listino. Per i prodotti del
-              listino il colore appartiene alla scheda tecnica della famiglia. */}
-          {!isFromListino && (
-            <>
-              <div className="col-span-12 sm:col-span-6 md:col-span-4">
-                <Label className="text-xs">Colore interno</Label>
-                <Input
-                  defaultValue={s.colore_interno ?? ""}
-                  onBlur={(e) => onPatch({ colore_interno: e.target.value || null })}
-                  placeholder="Bianco RAL 9010"
-                  className="h-9 text-xs"
-                />
-              </div>
-              <div className="col-span-12 sm:col-span-6 md:col-span-4">
-                <Label className="text-xs">Colore esterno</Label>
-                <Input
-                  defaultValue={s.colore_esterno ?? ""}
-                  onBlur={(e) => onPatch({ colore_esterno: e.target.value || null })}
-                  placeholder="Antracite RAL 7016"
-                  className="h-9 text-xs"
-                />
-              </div>
-            </>
-          )}
+          {/* Colore interno/esterno: il colore vero (RAL, effetto legno), anche
+              nelle righe da listino. Lì la variante «Colore» dice solo la fascia
+              di prezzo (standard, fuori standard): senza questi campi né la riga
+              né il PDF dicevano quale colore ordinare. */}
+          <div className="col-span-12 sm:col-span-6 md:col-span-4">
+            <Label className="text-xs">Colore interno</Label>
+            <Input
+              key={`ci-${s.id}-${s.colore_interno ?? ""}`}
+              defaultValue={s.colore_interno ?? ""}
+              onBlur={(e) => {
+                const valore = e.target.value.trim() || null;
+                if (valore !== (s.colore_interno ?? null)) onPatch({ colore_interno: valore });
+              }}
+              placeholder="Bianco RAL 9010"
+              className="h-9 text-xs"
+            />
+          </div>
+          <div className="col-span-12 sm:col-span-6 md:col-span-4">
+            <Label className="text-xs">Colore esterno</Label>
+            <Input
+              key={`ce-${s.id}-${s.colore_esterno ?? ""}`}
+              defaultValue={s.colore_esterno ?? ""}
+              onBlur={(e) => {
+                const valore = e.target.value.trim() || null;
+                if (valore !== (s.colore_esterno ?? null)) onPatch({ colore_esterno: valore });
+              }}
+              placeholder="Antracite RAL 7016"
+              className="h-9 text-xs"
+            />
+          </div>
           {/* Duplica/Elimina sono ora sempre visibili nell'header (icone) —
               evitiamo bottoni duplicati nel dettaglio espanso. */}
         </CardContent>

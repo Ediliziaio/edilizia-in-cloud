@@ -38,6 +38,7 @@ import { NuovaAreaDialog } from "./NuovaAreaDialog";
 import { NuovaLineaDialog, type DatiLineaAsse } from "./NuovaLineaDialog";
 import { NuovaTipologiaDialog, type DatiCopiaTipologia, type ModoNuovaTipologia } from "./NuovaTipologiaDialog";
 import { PrezziLineeDialog, type DatiPrezziLinee } from "./PrezziLineeDialog";
+import { VariantiTipologiaDialog } from "./VariantiTipologiaDialog";
 import { SchedaLineaDialog } from "./SchedaLineaDialog";
 import { toGallerySlug } from "@/lib/verticalMapping";
 import { useFamilies, useFamiliesCestino } from "@/hooks/useFamilies";
@@ -72,10 +73,14 @@ import { trovaSchedaLinea } from "@/lib/listino/schedeLinea";
 import {
   lineeDaAsse,
   nomeTipologiaLibero,
+  percentualeVariante,
   prezzoMqPrevalente,
+  riepilogoVarianti,
   tipologiaDaRiusare,
   tipologiaDiArea,
+  type AsseVariantiDati,
 } from "@/lib/listino/organizzaListino";
+import { CODICE_ASSE, VALORE_COLORE, VALORE_VETRO } from "@/lib/listino/standardSerramenti";
 import { translateListinoError } from "@/lib/listinoErrors";
 
 /** Valore dei select per «nessuna tipologia» e «nessuna linea». */
@@ -122,7 +127,7 @@ export function FamilyCatalog({ onGestisciTipologie }: FamilyCatalogProps = {}) 
   const { deleteFamily, restoreFamily, hardDeleteFamily, duplicateFamily, updateFamily } = useFamilyMutations();
   const { createMacrocategoria, updateMacrocategoria } = useMacrocategorieMutations();
   const { createCategoria } = useCategorieMutations();
-  const { aggiungiLinea, allineaLinee, prezziLinee, copiaTipologia } = useOrganizzaListino();
+  const { aggiungiLinea, allineaLinee, prezziLinee, copiaTipologia, variantiTipologia } = useOrganizzaListino();
   const { indice: schedeLinea } = useSchedeLinea();
 
   const [vista, setVistaStato] = useState<VistaListino>(() => {
@@ -207,6 +212,7 @@ export function FamilyCatalog({ onGestisciTipologie }: FamilyCatalogProps = {}) 
     origine: TipologiaListino | null;
   } | null>(null);
   const [prezziAperti, setPrezziAperti] = useState<TipologiaListino | null>(null);
+  const [variantiAperte, setVariantiAperte] = useState<TipologiaListino | null>(null);
   const [daAllineare, setDaAllineare] = useState<TipologiaListino | null>(null);
   const [creazioneInCorso, setCreazioneInCorso] = useState(false);
   const [schedaAperta, setSchedaAperta] = useState<{ tipologia: TipologiaListino; linea: LineaListino } | null>(null);
@@ -239,6 +245,17 @@ export function FamilyCatalog({ onGestisciTipologie }: FamilyCatalogProps = {}) 
     () => (tipologiaSerramenti ? prezzoMqPrevalente(tipologiaSerramenti) : null),
     [tipologiaSerramenti],
   );
+  // Colore e vetro di oggi: «Imposta il listino infissi» parte da questi e non da zero.
+  const opzioniSerramenti = useMemo(() => {
+    if (!tipologiaSerramenti) return null;
+    const varianti = riepilogoVarianti(tipologiaSerramenti);
+    return {
+      coloreStandard: percentualeVariante(varianti, CODICE_ASSE.colore, VALORE_COLORE.standard),
+      coloreFuori: percentualeVariante(varianti, CODICE_ASSE.colore, VALORE_COLORE.fuoriStandard),
+      antisonoro: percentualeVariante(varianti, CODICE_ASSE.vetro, VALORE_VETRO.antisonoro),
+      antisfondamento: percentualeVariante(varianti, CODICE_ASSE.vetro, VALORE_VETRO.antisfondamento),
+    };
+  }, [tipologiaSerramenti]);
 
   /** Le tipologie per i select, divise per area; quelle vuote e senza area in fondo. */
   const opzioniTipologie = useMemo(() => {
@@ -663,6 +680,25 @@ export function FamilyCatalog({ onGestisciTipologie }: FamilyCatalogProps = {}) 
     }
   };
 
+  const salvaVarianti = async (assi: AsseVariantiDati[]) => {
+    const tipologia = variantiAperte;
+    if (!tipologia?.macrocategoriaId) return;
+    try {
+      const esito = await variantiTipologia.mutateAsync({ macrocategoriaId: tipologia.macrocategoriaId, assi });
+      const dettagli = [
+        esito.valori > 0 ? `${esito.valori} valori aggiornati` : null,
+        esito.aggiunti > 0 ? `${esito.aggiunti} aggiunti dove mancavano` : null,
+        esito.assi > 0 ? `variante messa in ${esito.assi} ${esito.assi === 1 ? "prodotto" : "prodotti"}` : null,
+      ].filter(Boolean);
+      toast.success(`Colori e varianti di ${tipologia.nome} salvati`, {
+        description: dettagli.length > 0 ? `${dettagli.join(", ")}.` : undefined,
+      });
+      setVariantiAperte(null);
+    } catch (err) {
+      toast.error("Varianti non salvate", { description: messaggioErrore(err) });
+    }
+  };
+
   const allinea = async () => {
     const tipologia = daAllineare;
     if (!tipologia?.macrocategoriaId) return;
@@ -788,6 +824,7 @@ export function FamilyCatalog({ onGestisciTipologie }: FamilyCatalogProps = {}) 
           onNuovaLinea={isAdmin ? (area, tipologia) => setNuovaLinea({ area, tipologia }) : undefined}
           onNuovoProdotto={isAdmin ? nuovoProdotto : undefined}
           onPrezziLinee={isAdmin ? (tipologia) => setPrezziAperti(tipologia) : undefined}
+          onVariantiTipologia={isAdmin ? (tipologia) => setVariantiAperte(tipologia) : undefined}
           onAllineaLinee={isAdmin ? (_area, tipologia) => setDaAllineare(tipologia) : undefined}
           onCollega={gestore ? (area, tipologia) => void collega(area, tipologia) : undefined}
           onAccessorio={gestore ? (_area, tipologia) => void mettiFraGliAccessori(tipologia) : undefined}
@@ -1239,6 +1276,7 @@ export function FamilyCatalog({ onGestisciTipologie }: FamilyCatalogProps = {}) 
           famiglie={families.map((f) => ({ id: f.id, nome: f.nome, vertical: f.vertical }))}
           lineeIniziali={lineeSerramenti}
           prezzoIniziale={prezzoSerramenti}
+          opzioniIniziali={opzioniSerramenti}
         />
       )}
 
@@ -1301,6 +1339,15 @@ export function FamilyCatalog({ onGestisciTipologie }: FamilyCatalogProps = {}) 
           inCorso={prezziLinee.isPending}
           onChiudi={() => setPrezziAperti(null)}
           onSalva={(dati) => void salvaPrezzi(dati)}
+        />
+      )}
+
+      {variantiAperte && (
+        <VariantiTipologiaDialog
+          tipologia={variantiAperte}
+          inCorso={variantiTipologia.isPending}
+          onChiudi={() => setVariantiAperte(null)}
+          onSalva={(assi) => void salvaVarianti(assi)}
         />
       )}
 

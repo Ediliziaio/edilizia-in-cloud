@@ -308,3 +308,55 @@ describe("calcolaPrezzoProdotto — griglia preventivatore", () => {
     expect(result.prezzo).toBe(600);
   });
 });
+
+describe("calcolaPrezzoProdotto — prodotti a ricarico sull'acquisto", () => {
+  const aRicarico: ListinoFamily = {
+    id: "fam-ricarico",
+    nome: "Tapparella a ricarico",
+    descrizione: null,
+    immagine_url: null,
+    vertical: "serramentista",
+    prezzo_base_vendita: 0,
+    vat_rate: null,
+    modalita_prezzo_base: "mq",
+    categoria_id: null,
+    custom_field_values: {},
+    manodopera_modalita: "nessuna",
+    posa_tariffa_default_id: null,
+    posa_quantita_default: null,
+    posa_linked: null,
+    manodopera_unita: null,
+    manodopera_costo_acquisto: null,
+    manodopera_prezzo_vendita: null,
+    prezzo_base_mode: "acquisto_markup",
+    prezzo_base_acquisto: 100,
+    sconto_fornitore_1: 10,
+    sconto_fornitore_2: 0,
+    markup_tipo: "percentuale",
+    markup_valore: 50,
+  };
+
+  it("senza vendita salvata calcola da acquisto, sconti e ricarico invece di dare 0 €", () => {
+    // 100 − 10% = 90 di acquisto netto, +50% = 135 €/m², per 1 m².
+    expect(calcolaPrezzoProdottoPreventivo(aRicarico, 1000, 1000, 1, []).prezzo).toBe(135);
+  });
+
+  it("la vendita salvata resta quella usata: non si ricalcola di nascosto", () => {
+    expect(calcolaPrezzoProdottoPreventivo({ ...aRicarico, prezzo_base_vendita: 150 }, 1000, 1000, 1, []).prezzo).toBe(150);
+  });
+
+  it("in griglia una cella con il solo acquisto prende il prezzo dal ricarico", () => {
+    const result = calcolaPrezzoProdottoPreventivo(
+      { ...aRicarico, modalita_prezzo_base: "griglia", sconto_fornitore_1: 0, markup_valore: 100 },
+      900,
+      900,
+      2,
+      [{ id: "c1", valore_x: 1000, valore_y: 1000, prezzo_vendita: null, prezzo_acquisto: 200 }],
+    );
+    expect(result.prezzo).toBe(800);
+  });
+
+  it("un prodotto a prezzo di vendita non guarda l'acquisto", () => {
+    expect(calcolaPrezzoProdottoPreventivo({ ...aRicarico, prezzo_base_mode: "vendita" }, 1000, 1000, 1, []).prezzo).toBe(0);
+  });
+});

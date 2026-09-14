@@ -10,10 +10,15 @@
  *    quel prodotto e non la mostra (lineeListino.ts, nataConArticolo);
  *  - uno scostamento si scrive come lo si legge: «−8», «-8,5», «+3»;
  *  - due prodotti attivi non possono chiamarsi uguale: copiando una tipologia
- *    ai nomi si aggiunge un testo (il materiale, la serie).
+ *    ai nomi si aggiunge un testo (il materiale, la serie);
+ *  - colori e varianti valgono per la tipologia intera: ogni prodotto ha i suoi
+ *    valori nel database, e da lì nascevano 22 finestre col colore fuori
+ *    standard a zero e una sola a +15%.
  */
+import type { FamilyWithAxes, MaggiorazioneTipo } from "@/types/articleFamily";
 import { AREE_STANDARD, chiaveTesto, type AreaStandard } from "./areeStandard";
 import type { AreaListino, LineaListino, TipologiaListino } from "./lineeListino";
+import { formattaMaggiorazione } from "./maggiorazione";
 
 /** listino_macrocategorie.tipologia come la leggono i preventivatori: «bagno», non «bagni». */
 const TIPOLOGIA_DI_AREA: Record<string, string> = { bagni: "bagno", tetti: "tetto" };
@@ -247,5 +252,343 @@ export function prezzoMqPrevalente(tipologia: TipologiaListino): { vendita: numb
     vendita: prevalente(tutti.map((p) => p.vendita)),
     acquisto: prevalente(tutti.map((p) => p.acquisto)),
     prodotti: tutti.length,
+  };
+}
+
+// ─── Colori e varianti di una tipologia ─────────────────────────────────────
+//
+// Le chiavi sono quelle della funzione listino_varianti_tipologia: una
+// variabile si riconosce dal codice (altrimenti dal nome), un valore dal nome
+// (altrimenti dal codice). Le linee restano a «Prezzi delle linee».
+
+/** Come si applica una maggiorazione, nelle parole del listino. */
+export const MODI_MAGGIORAZIONE: ReadonlyArray<{ tipo: MaggiorazioneTipo; etichetta: string }> = [
+  { tipo: "percentuale", etichetta: "% sul prezzo" },
+  { tipo: "fisso_pz", etichetta: "€ al pezzo" },
+  { tipo: "fisso_mq", etichetta: "€ al m²" },
+  { tipo: "fisso_ml", etichetta: "€ al metro di larghezza" },
+];
+
+const ASSI_DELLE_LINEE = new Set(["linea", "serie"]);
+
+export function chiaveAsse(asse: { codice?: string | null; nome: string }): string {
+  return chiaveTesto(asse.codice) || chiaveTesto(asse.nome);
+}
+
+export function chiaveValore(valore: { label?: string | null; valore: string }): string {
+  return chiaveTesto(valore.label?.trim() ? valore.label : valore.valore);
+}
+
+function eAsseDelleLinee(asse: { codice?: string | null; nome: string }): boolean {
+  return ASSI_DELLE_LINEE.has(chiaveTesto(asse.codice)) || ASSI_DELLE_LINEE.has(chiaveTesto(asse.nome));
+}
+
+export interface ValoreVariante {
+  chiave: string;
+  nome: string;
+  /** I codici con cui il valore compare nei prodotti («colore_fuori_standard»). */
+  codici: string[];
+  prodotti: number;
+  /** La maggiorazione che hanno più prodotti. */
+  tipo: MaggiorazioneTipo;
+  vendita: number;
+  acquisto: number;
+  /** Vuoto se tutti i prodotti hanno la stessa; altrimenti quante per ciascuna. */
+  diverse: Array<{ testo: string; prodotti: number }>;
+  attivo: boolean;
+  /** Acceso in alcuni prodotti e spento in altri. */
+  attivoInParte: boolean;
+  /** Il valore di serie della variabile (il più diffuso fra i prodotti). */
+  base: boolean;
+}
+
+export interface AsseVariante {
+  chiave: string;
+  nome: string;
+  prodotti: number;
+  obbligatorio: boolean;
+  /** Prodotti con la variabile il cui valore di serie non è quello indicato qui. */
+  baseDiversaIn: number;
+  valori: ValoreVariante[];
+}
+
+export interface VariantiTipologia {
+  prodotti: number;
+  assi: AsseVariante[];
+}
+
+function testoMaggiorazione(tipo: MaggiorazioneTipo, vendita: number, acquisto: number): string {
+  const v = formattaMaggiorazione(tipo, vendita);
+  if (!v) return acquisto !== 0 ? `nessuna · acquisto ${formattaMaggiorazione(tipo, acquisto)}` : "nessuna";
+  return acquisto === vendita ? v : `${v} · acquisto ${formattaMaggiorazione(tipo, acquisto) || "invariato"}`;
+}
+
+/** Le variabili dei prodotti di una tipologia (linee escluse), valore per valore. */
+export function riepilogoVarianti(tipologia: TipologiaListino): VariantiTipologia {
+  const famiglie = new Map<string, FamilyWithAxes>();
+  for (const riga of tipologia.linee.flatMap((l) => l.righe)) famiglie.set(riga.famiglia.id, riga.famiglia);
+
+  type Magg = { tipo: MaggiorazioneTipo; vendita: number; acquisto: number; prodotti: number };
+  type Conta = {
+    nomi: Map<string, number>;
+    codici: Set<string>;
+    ordine: number;
+    prodotti: number;
+    maggiorazioni: Map<string, Magg>;
+    accesi: number;
+    base: number;
+  };
+  type ContaAsse = { nomi: Map<string, number>; ordine: number; prodotti: number; obbligatori: number; valori: Map<string, Conta> };
+  const assi = new Map<string, ContaAsse>();
+  const aggiungi = (mappa: Map<string, number>, nome: string) => mappa.set(nome, (mappa.get(nome) ?? 0) + 1);
+  const piuFrequente = (mappa: Map<string, number>) =>
+    [...mappa.entries()].reduce<[string, number] | null>((m, e) => (m && m[1] >= e[1] ? m : e), null)?.[0] ?? "";
+
+  for (const famiglia of famiglie.values()) {
+    const assiVisti = new Set<string>();
+    for (const asse of famiglia.axes ?? []) {
+      const chiave = chiaveAsse(asse);
+      if (!chiave || eAsseDelleLinee(asse) || assiVisti.has(chiave)) continue;
+      assiVisti.add(chiave);
+      const voce: ContaAsse = assi.get(chiave) ?? { nomi: new Map(), ordine: asse.sort_order ?? 0, prodotti: 0, obbligatori: 0, valori: new Map() };
+      voce.prodotti += 1;
+      if (asse.obbligatorio) voce.obbligatori += 1;
+      voce.ordine = Math.min(voce.ordine, asse.sort_order ?? 0);
+      aggiungi(voce.nomi, asse.nome);
+      const valoriVisti = new Set<string>();
+      for (const v of asse.values ?? []) {
+        const k = chiaveValore(v);
+        if (!k || valoriVisti.has(k)) continue;
+        valoriVisti.add(k);
+        const c: Conta = voce.valori.get(k) ?? {
+          nomi: new Map(),
+          codici: new Set(),
+          ordine: v.sort_order ?? 0,
+          prodotti: 0,
+          maggiorazioni: new Map(),
+          accesi: 0,
+          base: 0,
+        };
+        c.prodotti += 1;
+        c.ordine = Math.min(c.ordine, v.sort_order ?? 0);
+        aggiungi(c.nomi, (v.label?.trim() ? v.label : v.valore).trim());
+        c.codici.add(v.valore);
+        if (v.attivo) c.accesi += 1;
+        if (v.is_default) c.base += 1;
+        const vendita = Number(v.maggiorazione_valore) || 0;
+        const acquisto = Number(v.maggiorazione_acquisto) || 0;
+        const nessuna = v.maggiorazione_tipo === "none" || (vendita === 0 && acquisto === 0);
+        const m: Omit<Magg, "prodotti"> = nessuna
+          ? { tipo: "none", vendita: 0, acquisto: 0 }
+          : { tipo: v.maggiorazione_tipo, vendita, acquisto };
+        const km = `${m.tipo}|${m.vendita}|${m.acquisto}`;
+        const esistente = c.maggiorazioni.get(km);
+        c.maggiorazioni.set(km, { ...m, prodotti: (esistente?.prodotti ?? 0) + 1 });
+        voce.valori.set(k, c);
+      }
+      assi.set(chiave, voce);
+    }
+  }
+
+  const risultato: AsseVariante[] = [...assi.entries()]
+    .sort(([, a], [, b]) => a.ordine - b.ordine)
+    .map(([chiave, voce]) => {
+      const baseMax = Math.max(0, ...[...voce.valori.values()].map((c) => c.base));
+      const chiaveBase = baseMax > 0 ? [...voce.valori.entries()].find(([, c]) => c.base === baseMax)?.[0] ?? null : null;
+      const valori: ValoreVariante[] = [...voce.valori.entries()]
+        .sort(([, a], [, b]) => a.ordine - b.ordine)
+        .map(([k, c]) => {
+          const gruppi = [...c.maggiorazioni.values()].sort((a, b) => b.prodotti - a.prodotti);
+          const prevalente = gruppi[0];
+          return {
+            chiave: k,
+            nome: piuFrequente(c.nomi),
+            codici: [...c.codici],
+            prodotti: c.prodotti,
+            tipo: prevalente.tipo,
+            vendita: prevalente.vendita,
+            acquisto: prevalente.acquisto,
+            diverse:
+              gruppi.length > 1
+                ? gruppi.map((g) => ({ testo: testoMaggiorazione(g.tipo, g.vendita, g.acquisto), prodotti: g.prodotti }))
+                : [],
+            attivo: c.accesi * 2 >= c.prodotti,
+            attivoInParte: c.accesi > 0 && c.accesi < c.prodotti,
+            base: k === chiaveBase,
+          };
+        });
+      return {
+        chiave,
+        nome: piuFrequente(voce.nomi),
+        prodotti: voce.prodotti,
+        obbligatorio: voce.obbligatori > 0,
+        baseDiversaIn: voce.prodotti - baseMax,
+        valori,
+      };
+    });
+
+  return { prodotti: famiglie.size, assi: risultato };
+}
+
+/**
+ * Il nome di un valore dice ancora il suo codice: «Vetro Antisonoro» per
+ * «antisonoro», «Bianco RAL 9010» per «bianco». Un valore rinominato
+ * («pellicola solo un lato», nato come colore standard) è un'altra cosa, che
+ * l'azienda ha deciso da sé: i modelli standard non lo toccano.
+ */
+export function nomeDiceCodice(nome: string | null | undefined, codice: string): boolean {
+  const k = chiaveTesto(nome);
+  return !k || k === codice || k.endsWith(`_${codice}`) || k.startsWith(`${codice}_`);
+}
+
+/**
+ * La maggiorazione in percentuale di un valore, cercato per codice come fanno
+ * i modelli standard («colore_fuori_standard»). Null se non c'è o non è in %.
+ */
+export function percentualeVariante(varianti: VariantiTipologia, chiaveDellAsse: string, codice: string): number | null {
+  const asse = varianti.assi.find((a) => a.chiave === chiaveDellAsse);
+  const valore =
+    asse?.valori.find((v) => v.codici.includes(codice) && nomeDiceCodice(v.nome, codice)) ??
+    asse?.valori.find((v) => v.chiave === chiaveTesto(codice));
+  if (!valore) return null;
+  if (valore.tipo === "none") return 0;
+  return valore.tipo === "percentuale" ? valore.vendita : null;
+}
+
+export interface VarianteForm {
+  /** Null per un valore nuovo, che non c'è ancora in nessun prodotto. */
+  chiave: string | null;
+  nome: string;
+  tipo: MaggiorazioneTipo;
+  vendita: string;
+  acquisto: string;
+  attivo: boolean;
+  base: boolean;
+  prodotti: number;
+}
+
+export function formVarianti(asse: AsseVariante): VarianteForm[] {
+  return asse.valori.map((v) => ({
+    chiave: v.chiave,
+    nome: v.nome,
+    tipo: v.tipo === "none" ? "percentuale" : v.tipo,
+    vendita: scriviPercentuale(v.vendita),
+    acquisto: scriviPercentuale(v.acquisto),
+    attivo: v.attivo,
+    base: v.base,
+    prodotti: v.prodotti,
+  }));
+}
+
+const numeroDi = (testo: string): number | null => (testo.trim() === "" ? 0 : leggiPercentuale(testo));
+
+/** Perché i valori di una variabile non si possono salvare, o null. */
+export function problemaVarianti(
+  asse: Pick<AsseVariante, "nome" | "prodotti">,
+  iniziali: readonly VarianteForm[],
+  valori: readonly VarianteForm[],
+  completa: boolean,
+  /** Il valore di serie va messo uguale in tutti anche se non è cambiato. */
+  forzaBase = false,
+): string | null {
+  if (valori.length === 0) return `${asse.nome}: serve almeno un valore.`;
+  const visti = new Set<string>();
+  for (const v of valori) {
+    const nome = v.nome.trim();
+    const k = v.chiave ?? chiaveTesto(nome);
+    if (!k) return `${asse.nome}: scrivi il nome del valore nuovo.`;
+    if (visti.has(k)) return `${asse.nome}: «${nome}» c'è due volte.`;
+    visti.add(k);
+    const vendita = numeroDi(v.vendita);
+    const acquisto = numeroDi(v.acquisto);
+    if (vendita === null) return `«${nome}»: scrivi la maggiorazione di vendita come numero, per esempio 15 o 0.`;
+    if (acquisto === null) return `«${nome}»: scrivi la maggiorazione sull'acquisto come numero, per esempio 15 o 0.`;
+    if (v.tipo === "percentuale" && (vendita <= -100 || acquisto <= -100)) return `«${nome}» azzererebbe il prezzo.`;
+  }
+  if (!valori.some((v) => v.attivo)) return `${asse.nome}: lascia acceso almeno un valore.`;
+  const base = valori.find((v) => v.base);
+  if (base && !base.attivo) return `${asse.nome}: il valore di serie «${base.nome.trim()}» è spento.`;
+  if (!completa) {
+    const nuovo = valori.find((v) => v.prodotti === 0);
+    if (nuovo) {
+      return `«${nuovo.nome.trim()}» non c'è ancora in nessun prodotto: spunta «Metti i valori mancanti in tutti i prodotti».`;
+    }
+    const baseIniziale = iniziali.find((v) => v.base)?.chiave ?? null;
+    if (base && (forzaBase || base.chiave !== baseIniziale) && base.prodotti < asse.prodotti) {
+      const mancano = asse.prodotti - base.prodotti;
+      return `«${base.nome.trim()}» manca in ${mancano} ${mancano === 1 ? "prodotto" : "prodotti"}: non può essere il valore di serie, a meno di metterlo in tutti.`;
+    }
+  }
+  return null;
+}
+
+export interface ValoreVariantiDati {
+  nome: string;
+  tipo: MaggiorazioneTipo;
+  vendita: number;
+  acquisto: number;
+  attivo: boolean;
+  /** False: il valore c'è solo per essere aggiunto dove manca, senza toccare gli altri prodotti. */
+  aggiorna: boolean;
+}
+
+export interface AsseVariantiDati {
+  chiave: string;
+  nome: string;
+  /** Il valore di serie per i valori aggiunti e, se `allineaBase`, per tutti. */
+  base: string | null;
+  allineaBase: boolean;
+  /** Mette variabile e valori nei prodotti che non li hanno. */
+  completa: boolean;
+  valori: ValoreVariantiDati[];
+}
+
+/** Cosa mandare al database per una variabile: solo quello che cambia. Null se niente. */
+export function datiAsseVarianti(
+  asse: AsseVariante,
+  iniziali: readonly VarianteForm[],
+  valori: readonly VarianteForm[],
+  completa: boolean,
+  prodottiTipologia: number,
+  forzaBase = false,
+): AsseVariantiDati | null {
+  const prima = new Map(iniziali.flatMap((v) => (v.chiave ? [[v.chiave, v] as const] : [])));
+  const baseRiga = valori.find((v) => v.base) ?? null;
+  const baseIniziale = iniziali.find((v) => v.base)?.chiave ?? null;
+  const allineaBase =
+    baseRiga !== null && (forzaBase || (baseRiga.chiave ?? chiaveTesto(baseRiga.nome)) !== baseIniziale);
+  const asseIncompleto = asse.prodotti < prodottiTipologia;
+  const stesso = (a: string, b: string) => numeroDi(a) === numeroDi(b);
+
+  const dati: ValoreVariantiDati[] = [];
+  for (const v of valori) {
+    const iniziale = v.chiave ? prima.get(v.chiave) : undefined;
+    const cambiato =
+      !iniziale ||
+      iniziale.tipo !== v.tipo ||
+      !stesso(iniziale.vendita, v.vendita) ||
+      !stesso(iniziale.acquisto, v.acquisto) ||
+      iniziale.attivo !== v.attivo;
+    const daCompletare = completa && (asseIncompleto || v.prodotti < asse.prodotti);
+    if (!cambiato && !daCompletare) continue;
+    const vendita = numeroDi(v.vendita) ?? 0;
+    const acquisto = numeroDi(v.acquisto) ?? 0;
+    dati.push({
+      nome: v.nome.trim(),
+      tipo: vendita === 0 && acquisto === 0 ? "none" : v.tipo,
+      vendita,
+      acquisto,
+      attivo: v.attivo,
+      aggiorna: cambiato,
+    });
+  }
+  if (dati.length === 0 && !allineaBase) return null;
+  return {
+    chiave: asse.chiave,
+    nome: asse.nome,
+    base: baseRiga?.nome.trim() ?? null,
+    allineaBase,
+    completa,
+    valori: dati,
   };
 }

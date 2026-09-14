@@ -11,6 +11,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
+import { invalidaListinoNelPreventivatore } from "@/lib/serramenti/cacheListino";
 
 export type FasciaSerie = "basic" | "medium" | "top";
 
@@ -144,6 +145,7 @@ export function useImportaSerieSerramenti() {
     onSuccess: (esito) => {
       void qc.invalidateQueries({ queryKey: queryKeys.articleFamilies.all });
       void qc.invalidateQueries({ queryKey: ["listino-families"] });
+      invalidaListinoNelPreventivatore(qc);
       const pezzi = [
         esito.tipologie_create > 0 ? `${esito.tipologie_create} tipologie nuove` : null,
         esito.tipologie_aggiornate > 0

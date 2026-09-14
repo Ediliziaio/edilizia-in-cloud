@@ -3,18 +3,25 @@ import { costruisciListino, type AreaListino, type MacroListino, type TipologiaL
 import { articoloEsempio, asseEsempio, valoreEsempio } from "@/lib/listino/esempiListino";
 import {
   areeDaAggiungere,
+  datiAsseVarianti,
+  formVarianti,
   leggiImporto,
   leggiPercentuale,
+  nomeDiceCodice,
   nomeLineaDaSerie,
   nomeTipologiaLibero,
+  percentualeVariante,
   prezzoMqPrevalente,
   problemaCopiaTipologia,
   problemaNomeLinea,
   problemaPrezziLinee,
+  problemaVarianti,
   prodottiSenzaLinee,
+  riepilogoVarianti,
   scriviPercentuale,
   tipologiaDaRiusare,
   tipologiaDiArea,
+  type VarianteForm,
 } from "@/lib/listino/organizzaListino";
 
 // Le regole di «+ Area», «+ Tipologia», «+ Linea», «Copia tipologia» e «Prezzi
@@ -179,5 +186,137 @@ describe("prezzi delle linee di una tipologia", () => {
 
   it("propone il prezzo al mq che hanno i prodotti a metro quadro", () => {
     expect(prezzoMqPrevalente(tipologia("Serramenti"))).toEqual({ vendita: 600, acquisto: 180, prodotti: 2 });
+  });
+});
+
+describe("colori e varianti di una tipologia", () => {
+  // Il caso di Renova: 22 finestre col colore fuori standard a zero, l'alzante a
+  // +15% e col colore standard rinominato «pellicola solo un lato».
+  const MACRO_VARIANTI: MacroListino[] = [
+    { id: "m-var", nome: "Serramenti", verticali_abilitati: ["serramentista"], tipologia: "serramenti", sort_order: 0 },
+  ];
+  const percentuale = (valore: number) => ({ maggiorazione_tipo: "percentuale" as const, maggiorazione_valore: valore });
+  const coloreFinestra = (id: string) =>
+    asseEsempio(`colore-${id}`, "Colore", [
+      valoreEsempio(`${id}-bianco`, "Bianco", { is_default: true }),
+      valoreEsempio(`${id}-std`, "Colore Standard"),
+      valoreEsempio(`${id}-fuori`, "Colore Fuori Standard"),
+    ]);
+  const famiglie = [
+    articoloEsempio("v1", "Finestra 1 Anta", {
+      macrocategoria_id: "m-var",
+      axes: [
+        asseEsempio("linea-v1", "Linea", [valoreEsempio("v1-76", "PVC Salamander 76", { is_default: true })]),
+        coloreFinestra("v1"),
+      ],
+    }),
+    articoloEsempio("v2", "Finestra 2 Ante", { macrocategoria_id: "m-var", axes: [coloreFinestra("v2")] }),
+    articoloEsempio("v3", "Alzante scorrevole", {
+      macrocategoria_id: "m-var",
+      axes: [
+        asseEsempio("colore-v3", "Colore", [
+          valoreEsempio("v3-bianco", "Bianco", { is_default: true }),
+          valoreEsempio("v3-pell", "pellicola solo un lato", { valore: "colore_standard", ...percentuale(10) }),
+          valoreEsempio("v3-fuori", "Colore Fuori Standard", percentuale(15)),
+        ]),
+      ],
+    }),
+    // Senza varianti: con «metti in tutti» le riceve.
+    articoloEsempio("v4", "Portoncino", { macrocategoria_id: "m-var" }),
+  ];
+  const serramenti = (): TipologiaListino => {
+    const trovata = costruisciListino(famiglie, MACRO_VARIANTI, [])
+      .flatMap((a) => a.tipologie)
+      .find((t) => t.macrocategoriaId === "m-var");
+    if (!trovata) throw new Error("tipologia di prova mancante");
+    return trovata;
+  };
+
+  it("riassume ogni variabile sui prodotti, linee escluse, e dice dove non sono d'accordo", () => {
+    const riepilogo = riepilogoVarianti(serramenti());
+    expect(riepilogo.prodotti).toBe(4);
+    expect(riepilogo.assi.map((a) => a.chiave)).toEqual(["colore"]);
+    const [colore] = riepilogo.assi;
+    expect(colore.prodotti).toBe(3);
+    expect(Object.fromEntries(colore.valori.map((v) => [v.nome, v.prodotti]))).toEqual({
+      Bianco: 3,
+      "Colore Standard": 2,
+      "Colore Fuori Standard": 3,
+      "pellicola solo un lato": 1,
+    });
+    const fuori = colore.valori.find((v) => v.chiave === "colore_fuori_standard");
+    expect(fuori?.tipo).toBe("none");
+    expect(fuori?.diverse).toEqual([
+      { testo: "nessuna", prodotti: 2 },
+      { testo: "+15% · acquisto invariato", prodotti: 1 },
+    ]);
+    expect(colore.valori.find((v) => v.base)?.nome).toBe("Bianco");
+    expect(colore.baseDiversaIn).toBe(0);
+  });
+
+  it("i modelli standard trovano un valore dal codice, ma non quello rinominato", () => {
+    const riepilogo = riepilogoVarianti(serramenti());
+    expect(nomeDiceCodice("Vetro Antisonoro", "antisonoro")).toBe(true);
+    expect(nomeDiceCodice("Bianco RAL 9010", "bianco")).toBe(true);
+    expect(nomeDiceCodice("pellicola solo un lato", "colore_standard")).toBe(false);
+    expect(percentualeVariante(riepilogo, "colore", "colore_standard")).toBe(0);
+    expect(percentualeVariante(riepilogo, "tipologia_vetro", "antisonoro")).toBeNull();
+  });
+
+  it("manda solo quello che cambia, e aggiunge dove manca solo se lo si chiede", () => {
+    const [colore] = riepilogoVarianti(serramenti()).assi;
+    const iniziali = formVarianti(colore);
+    const fuori15 = iniziali.map((v) => (v.chiave === "colore_fuori_standard" ? { ...v, vendita: "15", acquisto: "15" } : v));
+
+    expect(datiAsseVarianti(colore, iniziali, iniziali, false, 4)).toBeNull();
+    expect(datiAsseVarianti(colore, iniziali, fuori15, false, 4)).toEqual({
+      chiave: "colore",
+      nome: "Colore",
+      base: "Bianco",
+      allineaBase: false,
+      completa: false,
+      valori: [{ nome: "Colore Fuori Standard", tipo: "percentuale", vendita: 15, acquisto: 15, attivo: true, aggiorna: true }],
+    });
+
+    // «Metti in tutti» col portoncino senza colore: partono tutti i valori, ma
+    // dove ci sono già non si riscrivono.
+    const completa = datiAsseVarianti(colore, iniziali, iniziali, true, 4);
+    expect(completa?.valori).toHaveLength(4);
+    expect(completa?.valori.every((v) => !v.aggiorna)).toBe(true);
+
+    const pellicolaDiSerie = iniziali.map((v) => ({ ...v, base: v.chiave === "pellicola_solo_un_lato" }));
+    expect(problemaVarianti(colore, iniziali, pellicolaDiSerie, false)).toContain("manca in 2 prodotti");
+    expect(problemaVarianti(colore, iniziali, pellicolaDiSerie, true)).toBeNull();
+    expect(datiAsseVarianti(colore, iniziali, pellicolaDiSerie, true, 4)?.allineaBase).toBe(true);
+    // Riallineare lo stesso valore di serie quando i prodotti non sono d'accordo.
+    expect(datiAsseVarianti(colore, iniziali, iniziali, false, 4, true)).toMatchObject({ allineaBase: true, valori: [] });
+  });
+
+  it("non lascia salvare valori senza senso", () => {
+    const [colore] = riepilogoVarianti(serramenti()).assi;
+    const iniziali = formVarianti(colore);
+    const nuovo: VarianteForm = {
+      chiave: null,
+      nome: "Antracite RAL 7016",
+      tipo: "percentuale",
+      vendita: "20",
+      acquisto: "20",
+      attivo: true,
+      base: false,
+      prodotti: 0,
+    };
+    expect(problemaVarianti(colore, iniziali, [...iniziali, nuovo], false)).toContain("Metti i valori mancanti");
+    expect(problemaVarianti(colore, iniziali, [...iniziali, nuovo], true)).toBeNull();
+    expect(problemaVarianti(colore, iniziali, [...iniziali, { ...nuovo, nome: "colore standard" }], true)).toContain("due volte");
+    expect(problemaVarianti(colore, iniziali, iniziali.map((v) => ({ ...v, attivo: false })), false)).toBe(
+      "Colore: lascia acceso almeno un valore.",
+    );
+    expect(problemaVarianti(colore, iniziali, iniziali.map((v) => (v.base ? { ...v, attivo: false } : v)), false)).toContain("è spento");
+    expect(problemaVarianti(colore, iniziali, iniziali.map((v, i) => (i === 0 ? { ...v, vendita: "circa dieci" } : v)), false)).toContain(
+      "come numero",
+    );
+    expect(problemaVarianti(colore, iniziali, iniziali.map((v, i) => (i === 0 ? { ...v, vendita: "-100" } : v)), false)).toContain(
+      "azzererebbe",
+    );
   });
 });

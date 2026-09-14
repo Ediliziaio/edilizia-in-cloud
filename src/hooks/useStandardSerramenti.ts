@@ -11,18 +11,21 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { chiaveTesto } from "@/lib/listino/areeStandard";
-import {
-  CODICE_ASSE,
-  percentualiOpzioni,
-  variantiLinea,
-  type StandardSerramenti,
-} from "@/lib/listino/standardSerramenti";
+import { nomeDiceCodice } from "@/lib/listino/organizzaListino";
+import { CODICE_ASSE, variantiLinea, type StandardSerramenti } from "@/lib/listino/standardSerramenti";
+import { invalidaListinoNelPreventivatore } from "@/lib/serramenti/cacheListino";
 
 interface Input {
   companyId: string;
   /** Le tipologie a cui applicare lo standard. */
   familyIds: string[];
   standard: StandardSerramenti;
+  /**
+   * Le percentuali di colore e vetro da scrivere, per codice del valore: solo
+   * quelle cambiate nel dialog. Prima si riscrivevano tutte a ogni «Applica», e
+   * un +15% messo su una finestra tornava a zero.
+   */
+  opzioni?: Record<string, number> | null;
 }
 
 export interface EsitoStandard {
@@ -35,7 +38,7 @@ export function useStandardSerramenti() {
   const qc = useQueryClient();
 
   return useMutation<EsitoStandard, Error, Input>({
-    mutationFn: async ({ companyId, familyIds, standard }) => {
+    mutationFn: async ({ companyId, familyIds, standard, opzioni }) => {
       if (!companyId) throw new Error("Azienda non identificata");
       if (familyIds.length === 0) throw new Error("Nessuna tipologia selezionata");
 
@@ -175,26 +178,35 @@ export function useStandardSerramenti() {
         if (error) throw error;
       }
 
-      // 4. Percentuali su colore e vetro, dove quelle varianti esistono già.
+      // 4. Le percentuali di colore e vetro cambiate nel dialog, dove quelle
+      //    varianti esistono già. Un valore rinominato dall'azienda («pellicola
+      //    solo un lato», nato come colore standard) non è più quello standard.
       const idAltriAssi = assi
         .filter((a) => a.codice === CODICE_ASSE.colore || a.codice === CODICE_ASSE.vetro)
         .map((a) => a.id);
+      const percentuali = Object.entries(opzioni ?? {});
       let varianti_opzioni = 0;
-      if (idAltriAssi.length > 0) {
-        const percentuali = percentualiOpzioni(standard);
-        for (const [valore, pct] of Object.entries(percentuali)) {
-          const { data, error } = await supabase
+      if (idAltriAssi.length > 0 && percentuali.length > 0) {
+        const { data: valoriOpzioni, error: errOpz } = await supabase
+          .from("article_family_axis_values")
+          .select("id, valore, label")
+          .in("axis_id", idAltriAssi);
+        if (errOpz) throw errOpz;
+        for (const [valore, pct] of percentuali) {
+          const ids = (valoriOpzioni ?? [])
+            .filter((v) => v.valore === valore && nomeDiceCodice(v.label, valore))
+            .map((v) => v.id);
+          if (ids.length === 0) continue;
+          const { error } = await supabase
             .from("article_family_axis_values")
             .update({
               maggiorazione_tipo: pct === 0 ? "none" : "percentuale",
               maggiorazione_valore: pct,
               maggiorazione_acquisto: pct,
             })
-            .in("axis_id", idAltriAssi)
-            .eq("valore", valore)
-            .select("id");
+            .in("id", ids);
           if (error) throw error;
-          varianti_opzioni += data?.length ?? 0;
+          varianti_opzioni += ids.length;
         }
       }
 
@@ -206,6 +218,7 @@ export function useStandardSerramenti() {
     },
     onSuccess: (esito) => {
       qc.invalidateQueries({ queryKey: queryKeys.articleFamilies.all });
+      invalidaListinoNelPreventivatore(qc);
       toast.success(
         `Listino impostato: ${esito.tipologie} tipologie, ${esito.lineeScritte} linee`,
         { description: "Prezzo al metro quadro e varianti aggiornate." },

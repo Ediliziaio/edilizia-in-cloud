@@ -1053,6 +1053,13 @@ export interface ListinoFamily {
   manodopera_unita: string | null;
   manodopera_costo_acquisto: number | null;
   manodopera_prezzo_vendita: number | null;
+  // ─── Prezzo da acquisto + ricarico (prezzo_base_mode = "acquisto_markup") ─
+  prezzo_base_mode?: string | null;
+  prezzo_base_acquisto?: number | null;
+  sconto_fornitore_1?: number | null;
+  sconto_fornitore_2?: number | null;
+  markup_tipo?: string | null;
+  markup_valore?: number | null;
 }
 
 export interface ListinoGrigliaItem {
@@ -1084,7 +1091,8 @@ export async function listListinoFamiliesByIds(ids: string[]): Promise<ListinoFa
       id, nome, descrizione, immagine_url, vertical, prezzo_base_vendita, vat_rate,
       modalita_prezzo_base, macrocategoria_id, categoria_id, custom_field_values,
       manodopera_modalita, posa_tariffa_default_id, posa_quantita_default, posa_linked,
-      manodopera_unita, manodopera_costo_acquisto, manodopera_prezzo_vendita
+      manodopera_unita, manodopera_costo_acquisto, manodopera_prezzo_vendita,
+      prezzo_base_mode, prezzo_base_acquisto, sconto_fornitore_1, sconto_fornitore_2, markup_tipo, markup_valore
     `)
     .in("id", ids);
   if (error) {
@@ -1110,7 +1118,8 @@ export async function listListinoFamilies(opts?: {
       id, nome, descrizione, immagine_url, vertical, prezzo_base_vendita, vat_rate,
       modalita_prezzo_base, macrocategoria_id, categoria_id, custom_field_values,
       manodopera_modalita, posa_tariffa_default_id, posa_quantita_default, posa_linked,
-      manodopera_unita, manodopera_costo_acquisto, manodopera_prezzo_vendita
+      manodopera_unita, manodopera_costo_acquisto, manodopera_prezzo_vendita,
+      prezzo_base_mode, prezzo_base_acquisto, sconto_fornitore_1, sconto_fornitore_2, markup_tipo, markup_valore
     `)
     .eq("attivo", true)
     // «Fuori dai preventivi» nel listino vale anche qui: prima il preventivatore

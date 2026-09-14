@@ -20,7 +20,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
-  anteprima, avvisiStandard, margine, validaStandard,
+  anteprima, avvisiStandard, margine, percentualiOpzioni, validaStandard,
   type LineaStandard, type StandardSerramenti,
 } from "@/lib/listino/standardSerramenti";
 import { useStandardSerramenti } from "@/hooks/useStandardSerramenti";
@@ -34,6 +34,14 @@ export interface TipologiaSelezionabile {
   vertical?: string | null;
 }
 
+/** Le percentuali che hanno oggi colore e vetro nei Serramenti (null = il valore non c'è). */
+export interface OpzioniIniziali {
+  coloreStandard: number | null;
+  coloreFuori: number | null;
+  antisonoro: number | null;
+  antisfondamento: number | null;
+}
+
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -44,11 +52,15 @@ interface Props {
   lineeIniziali?: LineaStandard[];
   /** Il prezzo al metro quadro che hanno oggi i serramenti. */
   prezzoIniziale?: { vendita: number | null; acquisto: number | null } | null;
+  /** Le percentuali di oggi: il dialog parte da quelle e riscrive solo quelle cambiate. */
+  opzioniIniziali?: OpzioniIniziali | null;
 }
 
 const eur = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(n);
 
-export function ImpostaStandardSerramentiDialog({ open, onOpenChange, companyId, famiglie, lineeIniziali, prezzoIniziale }: Props) {
+export function ImpostaStandardSerramentiDialog({
+  open, onOpenChange, companyId, famiglie, lineeIniziali, prezzoIniziale, opzioniIniziali,
+}: Props) {
   const serramenti = useMemo(
     () => famiglie.filter((f) => (f.vertical ?? "").startsWith("serrament")),
     [famiglie],
@@ -61,10 +73,12 @@ export function ImpostaStandardSerramentiDialog({ open, onOpenChange, companyId,
   );
   const [prezzoAcquistoMq, setAcquisto] = useState(() => prezzoIniziale?.acquisto ?? 0);
   const [prezzoVenditaMq, setVendita] = useState(() => prezzoIniziale?.vendita ?? 0);
-  const [coloreStandard, setColoreStandard] = useState(0);
-  const [coloreFuori, setColoreFuori] = useState(0);
-  const [antisonoro, setAntisonoro] = useState(0);
-  const [antisfondamento, setAntisfondamento] = useState(0);
+  // Anche le opzioni partono da com'è il listino: prima partivano da zero, e
+  // «Applica» azzerava colore e vetro in tutti i serramenti.
+  const [coloreStandard, setColoreStandard] = useState(() => opzioniIniziali?.coloreStandard ?? 0);
+  const [coloreFuori, setColoreFuori] = useState(() => opzioniIniziali?.coloreFuori ?? 0);
+  const [antisonoro, setAntisonoro] = useState(() => opzioniIniziali?.antisonoro ?? 0);
+  const [antisfondamento, setAntisfondamento] = useState(() => opzioniIniziali?.antisfondamento ?? 0);
   const [selezionate, setSelezionate] = useState<Set<string> | null>(null);
 
   const applica = useStandardSerramenti();
@@ -89,8 +103,17 @@ export function ImpostaStandardSerramentiDialog({ open, onOpenChange, companyId,
     setLinee((prev) => prev.map((l, idx) => (idx === i ? { ...l, ...patch } : l)));
 
   const salva = () => {
+    // Solo le percentuali cambiate: le altre restano quelle di ogni prodotto.
+    const prima = percentualiOpzioni({
+      ...standard,
+      colore: { standardPct: opzioniIniziali?.coloreStandard ?? 0, fuoriStandardPct: opzioniIniziali?.coloreFuori ?? 0 },
+      vetro: { antisonoroPct: opzioniIniziali?.antisonoro ?? 0, antisfondamentoPct: opzioniIniziali?.antisfondamento ?? 0 },
+    });
+    const opzioni = Object.fromEntries(
+      Object.entries(percentualiOpzioni(standard)).filter(([valore, pct]) => pct !== prima[valore]),
+    );
     applica.mutate(
-      { companyId, familyIds: [...scelte], standard },
+      { companyId, familyIds: [...scelte], standard, opzioni },
       { onSuccess: () => onOpenChange(false) },
     );
   };
@@ -200,7 +223,9 @@ export function ImpostaStandardSerramentiDialog({ open, onOpenChange, companyId,
               <div>
                 <h3 className="text-sm font-semibold">Quanto costano in più le opzioni</h3>
                 <p className="text-xs text-muted-foreground">
-                  In percentuale sul prezzo. Lasciandole a zero, in preventivo risultano gratis.
+                  In percentuale sul prezzo, vendita e acquisto. Partono da quelle di oggi e si riscrivono solo quelle
+                  che cambi; a zero, in preventivo risultano gratis. Per gli altri valori: «Colori e varianti» nel
+                  menu della tipologia.
                 </p>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

@@ -2821,10 +2821,21 @@ export function SerramentoPDF({
                       const misure = ax.larghezza_mm && ax.altezza_mm
                         ? `${ax.larghezza_mm}×${ax.altezza_mm} mm`
                         : "—";
+                      // Le scelte dell'accessorio (colore, motore, rete), come
+                      // quelle dei serramenti: il prezzo le conta, il cliente le legge.
+                      const scelte = a.family_id
+                        ? Object.entries(a.valori_assi ?? {})
+                            .map(([codice, valueId]) => axisLabelByKey[`${a.family_id}|${codice}|${valueId}`])
+                            .filter(Boolean)
+                            .map((l) => `${l.axisLabel}: ${l.valueLabel}`)
+                        : [];
                       return (
                         <View key={i} style={styles.tableRow} wrap={false}>
                           <View style={{ flex: 1, paddingRight: 6 }}>
                             <Text style={styles.tableCellStrong}>{a.descrizione || a.tipo}</Text>
+                            {scelte.length > 0 && (
+                              <Text style={styles.tableCellMuted}>{scelte.join(" · ")}</Text>
+                            )}
                           </View>
                           <View style={{ width: 90 }}>
                             <Text style={styles.tableCellMuted}>{misure}</Text>

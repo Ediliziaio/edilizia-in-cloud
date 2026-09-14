@@ -15,6 +15,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { queryKeys } from "@/lib/queryKeys";
+import { invalidaListinoNelPreventivatore } from "@/lib/serramenti/cacheListino";
 import { captureVelocityError } from "@/lib/velocity/sentry";
 import type {
   ArticleFamily,
@@ -93,6 +94,8 @@ export function useFamilyMutations() {
 
   const invalidate = (familyId?: string) => {
     qc.invalidateQueries({ queryKey: queryKeys.articleFamilies.all });
+    // Prezzi e varianti cambiati arrivano subito anche nei preventivi serramenti aperti.
+    invalidaListinoNelPreventivatore(qc);
     if (familyId) {
       qc.invalidateQueries({
         queryKey: queryKeys.articleFamilies.detail(familyId),

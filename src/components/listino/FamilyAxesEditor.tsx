@@ -129,7 +129,7 @@ const MAGGIORAZIONE_OPTIONS: Array<{
   {
     value: "fisso_ml",
     label: "€ fissi al metro lineare",
-    hint: "Moltiplicato per la larghezza (es. davanzali, coprifili).",
+    hint: "Moltiplicato per i metri lineari: nel preventivo serramenti è la larghezza (es. davanzali, coprifili).",
   },
   {
     value: "fisso_mc",
@@ -768,7 +768,8 @@ export function FamilyAxesEditor({ family }: Props) {
           </div>
           {family.axes.map((axis, idx) => {
             const isExpanded = expandedAxisIds.has(axis.id);
-            const defaults = axis.values.filter((v) => v.is_default).length;
+            // Solo i valori accesi: uno standard spento nel preventivo non si propone.
+            const defaults = axis.values.filter((v) => v.is_default && v.attivo).length;
             return (
               <Card key={axis.id}>
                 <CardHeader className="pb-2 p-3 sm:p-4">
@@ -804,7 +805,7 @@ export function FamilyAxesEditor({ family }: Props) {
                             {axis.values.length} {axis.values.length === 1 ? "valore" : "valori"}
                           </span>
                           {axis.obbligatorio && defaults === 0 ? (
-                            <span className="text-xs text-destructive" role="alert">⚠ nessun default</span>
+                            <span className="text-xs text-destructive" role="alert">⚠ nessuno standard acceso</span>
                           ) : null}
                         </div>
                       </div>
@@ -1260,7 +1261,8 @@ export function FamilyAxesEditor({ family }: Props) {
           <AlertDialogHeader>
             <AlertDialogTitle className="text-base sm:text-lg">Eliminare valore "{valueToDelete?.label}"?</AlertDialogTitle>
             <AlertDialogDescription className="text-xs sm:text-sm">
-              Il valore non sarà più disponibile nei nuovi preventivi. I preventivi storici restano invariati.
+              Sparisce anche dai preventivi che l&apos;hanno già scelto: il prezzo resta, ma la scelta non si legge più
+              né nella riga né nel PDF. Se non lo vendi più, spegnilo invece di eliminarlo.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex flex-col-reverse gap-2 sm:flex-row sm:gap-2">
@@ -1805,8 +1807,8 @@ function ValueFormDialog({
               </div>
             </div>
             <p className="text-[11px] text-muted-foreground">
-              Se imposti un <strong>prezzo di vendita</strong>, la variante usa quello (prodotto con prezzo proprio)
-              e la maggiorazione qui sotto viene ignorata.
+              Il <strong>prezzo proprio</strong> lo usano ordini e commesse, quando la variante è un prodotto a sé.
+              Nei preventivi, serramenti compresi, conta la maggiorazione qui sotto.
             </p>
           </div>
 

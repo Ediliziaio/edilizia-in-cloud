@@ -29,6 +29,7 @@ import {
   MoreVertical,
   Package,
   PackageOpen,
+  Palette,
   Percent,
   Plus,
   Power,
@@ -53,7 +54,7 @@ import type { TipologiaStandard } from "@/lib/listino/areeStandard";
 import { formattaMaggiorazione } from "@/lib/listino/maggiorazione";
 import { statoMargine } from "@/lib/listino/filtriListino";
 import { datiTecniciScheda, schedaVuota, type SchedaLinea } from "@/lib/listino/schedeLinea";
-import { eLineaBaseDeiModelli, haLineeDaAsse, prodottiSenzaLinee } from "@/lib/listino/organizzaListino";
+import { eLineaBaseDeiModelli, haLineeDaAsse, prodottiSenzaLinee, riepilogoVarianti } from "@/lib/listino/organizzaListino";
 import {
   economiaRiga,
   lineaDiRiferimento,
@@ -110,6 +111,8 @@ export interface ListinoNavigatoreProps {
   onNuovaLinea?: (area: AreaListino, tipologia: TipologiaListino) => void;
   onNuovoProdotto?: (area: AreaListino | null, tipologia: TipologiaListino | null, linea: LineaListino | null) => void;
   onPrezziLinee?: (tipologia: TipologiaListino) => void;
+  /** Colori e varianti uguali in tutti i prodotti della tipologia. */
+  onVariantiTipologia?: (tipologia: TipologiaListino) => void;
   onCollega?: (area: AreaListino, tipologia: TipologiaListino) => void;
   /** Mette fra gli accessori della finestra una tipologia che lo standard vuole accessorio (tapparelle, zanzariere). */
   onAccessorio?: (area: AreaListino, tipologia: TipologiaListino) => void;
@@ -394,6 +397,7 @@ function ContenutoTipologia({
   onNuovaLinea,
   onNuovoProdotto,
   onPrezziLinee,
+  onVariantiTipologia,
   onCollega,
   onAccessorio,
   onCopiaTipologia,
@@ -408,6 +412,7 @@ function ContenutoTipologia({
   const riferimento = lineaDiRiferimento(tipologia);
   const lineaContenitore = linea?.fonte === "categoria" ? linea : null;
   const senzaLinee = prodottiSenzaLinee(tipologia);
+  const conVarianti = !!onVariantiTipologia && riepilogoVarianti(tipologia).assi.length > 0;
   // La scheda della linea la leggono il preventivatore e il PDF dei serramenti.
   const lineaConScheda =
     area.chiave === "serramenti" && linea && linea.fonte !== "altri" && (schedaDi || onSchedaLinea) ? linea : null;
@@ -448,6 +453,7 @@ function ContenutoTipologia({
             <MenuTipologia
               tipologia={tipologia}
               senzaLinee={senzaLinee}
+              onVarianti={onVariantiTipologia && conVarianti ? () => onVariantiTipologia(tipologia) : undefined}
               onPrezzi={onPrezziLinee && haLineeDaAsse(tipologia) ? () => onPrezziLinee(tipologia) : undefined}
               onAllinea={onAllineaLinee && senzaLinee > 0 ? () => onAllineaLinee(area, tipologia) : undefined}
               onCopia={
@@ -1060,10 +1066,11 @@ function MenuProdotto({
   );
 }
 
-/** Le azioni sulla tipologia intera: prezzi e linee, copia, fuori dai preventivi. */
+/** Le azioni sulla tipologia intera: varianti, prezzi e linee, copia, fuori dai preventivi. */
 function MenuTipologia({
   tipologia,
   senzaLinee,
+  onVarianti,
   onPrezzi,
   onAllinea,
   onCopia,
@@ -1071,12 +1078,13 @@ function MenuTipologia({
 }: {
   tipologia: TipologiaListino;
   senzaLinee: number;
+  onVarianti?: () => void;
   onPrezzi?: () => void;
   onAllinea?: () => void;
   onCopia?: () => void;
   onAttiva?: () => void;
 }) {
-  if (!onPrezzi && !onAllinea && !onCopia && !onAttiva) return null;
+  if (!onVarianti && !onPrezzi && !onAllinea && !onCopia && !onAttiva) return null;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -1085,6 +1093,12 @@ function MenuTipologia({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-64">
+        {onVarianti && (
+          <DropdownMenuItem onClick={onVarianti}>
+            <Palette className="mr-2 h-4 w-4" aria-hidden="true" />
+            Colori e varianti
+          </DropdownMenuItem>
+        )}
         {onPrezzi && (
           <DropdownMenuItem onClick={onPrezzi}>
             <Percent className="mr-2 h-4 w-4" aria-hidden="true" />
@@ -1105,7 +1119,7 @@ function MenuTipologia({
         )}
         {onAttiva && (
           <>
-            {(onPrezzi || onAllinea || onCopia) && <DropdownMenuSeparator />}
+            {(onVarianti || onPrezzi || onAllinea || onCopia) && <DropdownMenuSeparator />}
             <DropdownMenuItem onClick={onAttiva}>
               {tipologia.attiva ? (
                 <PowerOff className="mr-2 h-4 w-4" aria-hidden="true" />

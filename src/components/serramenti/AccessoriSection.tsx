@@ -12,7 +12,7 @@
  * × quantità). Risolve il workflow "ho 10 finestre, voglio 10 tapparelle
  * con le stesse misure senza re-inserirle tutte".
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -36,7 +36,7 @@ import {
 } from "lucide-react";
 import {
   useAddAccessorio, useUpdateAccessorio, useDeleteAccessorio,
-  useListinoFamilies, useMacrocategorie, useListinoGriglia, useTariffeManodopera,
+  useListinoFamilies, useListinoFamiliesByIds, useMacrocategorie, useListinoGriglia, useTariffeManodopera,
 } from "@/lib/serramenti/queries";
 import { SR_ACCESSORI_TIPI } from "@/types/serramenti";
 import type { SrProgettoDetail, SrAccessorioRow, SrSerramentoRow } from "@/types/serramenti";
@@ -48,6 +48,9 @@ import { useFamily } from "@/hooks/useFamilies";
 import { useSupplierProductLines } from "@/features/serramenti-listini/hooks/useSupplierProductLines";
 import type { SupplierProductLine } from "@/features/serramenti-listini/types";
 import { applyMaggiorazioniAssi, calcolaPosaInclusa, calcolaPrezzoProdotto } from "@/lib/serramenti/pricing";
+import type { ListinoFamily } from "@/lib/serramenti/api";
+import { suffissoMaggiorazione } from "@/lib/listino/maggiorazione";
+import { cn } from "@/lib/utils";
 
 interface Props {
   progettoId: string;
@@ -66,6 +69,27 @@ export function AccessoriSection({ progettoId, detail }: Props) {
   const [copyDialogOpen, setCopyDialogOpen] = useState(false);
   /** Picker listino aperto per scegliere un articolo accessorio. */
   const [listinoPickerOpen, setListinoPickerOpen] = useState(false);
+
+  // Gli articoli del listino delle righe, con tariffe e linee fornitore: servono
+  // a ricalcolare il prezzo quando cambiano misure, quantità o varianti.
+  const familyIdsAccessori = useMemo(
+    () => Array.from(new Set(accessori.map((a) => a.family_id).filter((v): v is string => !!v))),
+    [accessori],
+  );
+  const { data: famiglieAccessori = [] } = useListinoFamiliesByIds(familyIdsAccessori);
+  const famigliePerId = useMemo(() => new Map(famiglieAccessori.map((f) => [f.id, f])), [famiglieAccessori]);
+  const { data: tariffe = [] } = useTariffeManodopera();
+  const tariffePrezzi = useMemo(() => {
+    const m = new Map<string, number>();
+    tariffe.forEach((t) => { if (t.prezzo_vendita != null) m.set(t.id, Number(t.prezzo_vendita)); });
+    return m;
+  }, [tariffe]);
+  const { lines: supplierLines = [] } = useSupplierProductLines({ enabled: familyIdsAccessori.length > 0 });
+  const supplierLineMap = useMemo(() => {
+    const m = new Map<string, SupplierProductLine>();
+    supplierLines.forEach((line) => m.set(line.id, line));
+    return m;
+  }, [supplierLines]);
 
   const handleAdd = () => {
     addMut.mutate({
@@ -220,102 +244,15 @@ export function AccessoriSection({ progettoId, detail }: Props) {
                 </TableHeader>
                 <TableBody>
                   {accessori.map((a) => (
-                    <TableRow key={a.id}>
-                      <TableCell>
-                        <Select
-                          value={a.tipo}
-                          onValueChange={(v) => onPatch(a.id, { tipo: v })}
-                        >
-                          <SelectTrigger className="h-8 text-xs w-40">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {SR_ACCESSORI_TIPI.map((t) => (
-                              <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1">
-                          <Input
-                            defaultValue={a.descrizione ?? ""}
-                            onBlur={(e) => onPatch(a.id, { descrizione: e.target.value || null })}
-                            placeholder="es. Alluminio coibentato"
-                            className="h-8 text-xs"
-                          />
-                          {a.family_id && (
-                            <Badge
-                              variant="outline"
-                              className="h-5 text-[9px] px-1 border-orange-300 text-orange-700 shrink-0"
-                              title="Articolo collegato al listino prodotti"
-                            >
-                              <Sparkles className="h-2.5 w-2.5 mr-0.5" />
-                              listino
-                            </Badge>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Input
-                          type="number"
-                          defaultValue={(a as SrAccessorioRow & { larghezza_mm?: number | null }).larghezza_mm ?? ""}
-                          onBlur={(e) =>
-                            onPatch(a.id, {
-                              larghezza_mm: e.target.value ? Number(e.target.value) : null,
-                            } as Partial<SrAccessorioRow>)
-                          }
-                          className="h-8 text-xs w-20"
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Input
-                          type="number"
-                          defaultValue={(a as SrAccessorioRow & { altezza_mm?: number | null }).altezza_mm ?? ""}
-                          onBlur={(e) =>
-                            onPatch(a.id, {
-                              altezza_mm: e.target.value ? Number(e.target.value) : null,
-                            } as Partial<SrAccessorioRow>)
-                          }
-                          className="h-8 text-xs w-20"
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Input
-                          type="number"
-                          min={1}
-                          defaultValue={a.quantita}
-                          onBlur={(e) => onPatch(a.id, { quantita: Math.max(1, Number(e.target.value) || 1) })}
-                          className="h-8 text-xs w-14"
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          defaultValue={a.prezzo_unitario ?? ""}
-                          onBlur={(e) =>
-                            onPatch(a.id, {
-                              prezzo_unitario: e.target.value ? Number(e.target.value) : null,
-                            })
-                          }
-                          className="h-8 text-xs w-24"
-                        />
-                      </TableCell>
-                      <TableCell className="text-xs font-semibold text-orange-600">
-                        {formatEuro(a.prezzo_totale)}
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-8 w-8 sm:h-7 sm:w-7"
-                          onClick={() => setToDelete(a)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5 text-rose-600" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
+                    <AccessorioRiga
+                      key={a.id}
+                      a={a}
+                      family={a.family_id ? famigliePerId.get(a.family_id) : undefined}
+                      tariffePrezzi={tariffePrezzi}
+                      supplierLineMap={supplierLineMap}
+                      onPatch={(patch) => onPatch(a.id, patch)}
+                      onDelete={() => setToDelete(a)}
+                    />
                   ))}
                 </TableBody>
               </Table>
@@ -401,6 +338,255 @@ export function AccessoriSection({ progettoId, detail }: Props) {
   );
 }
 
+// ─── Riga accessorio ────────────────────────────────────────────────────────
+
+/**
+ * Una riga accessorio. Se viene dal listino, misure, quantità e varianti
+ * ricalcolano il prezzo come nei serramenti: prima una tapparella allargata o
+ * passata a motorizzata restava al prezzo di prima, e le sue varianti (colore,
+ * motore, rete) non si potevano più cambiare dopo averla aggiunta.
+ */
+function AccessorioRiga({
+  a, family, tariffePrezzi, supplierLineMap, onPatch, onDelete,
+}: {
+  a: SrAccessorioRow;
+  /** L'articolo del listino, se la riga ne viene. */
+  family?: ListinoFamily;
+  tariffePrezzi: Map<string, number>;
+  supplierLineMap: Map<string, SupplierProductLine>;
+  onPatch: (patch: Partial<SrAccessorioRow>) => void;
+  onDelete: () => void;
+}) {
+  const { data: griglia = [], isLoading: grigliaInCaricamento } = useListinoGriglia(family?.id);
+  const { family: conVarianti, isLoading: variantiInCaricamento } = useFamily(family?.id);
+  const modalita = family?.modalita_prezzo_base ?? null;
+  // «Misura libera»: il prezzo lo scrive il commerciale e il listino non lo tocca.
+  const prezzoAutomatico = !!family && modalita !== "misura_libera";
+  const datiInArrivo = !!family && (grigliaInCaricamento || variantiInCaricamento);
+  const ricalcoloInSospeso = useRef<{
+    L: number | null;
+    H: number | null;
+    Q: number;
+    scelte: Record<string, string>;
+  } | null>(null);
+  const lineaFornitore = a.supplier_product_line_id
+    ?? griglia.find((g) => g.id === a.listino_voce_id)?.supplier_product_line_id
+    ?? null;
+
+  /** Prezzo unitario da listino, con varianti e posa; null se adesso non si può calcolare. */
+  const prezzoDaListino = (L: number | null, H: number | null, Q: number, scelte: Record<string, string>) => {
+    if (!family || !prezzoAutomatico) return null;
+    const conMisure = modalita === "griglia" || modalita === "mq";
+    if (conMisure && (!L || !H)) return null;
+    if (modalita === "griglia" && griglia.length === 0) return null;
+    if (!conVarianti && Object.keys(scelte).length > 0) return null;
+    const q = Q || 1;
+    const base = calcolaPrezzoProdotto(family, conMisure ? L : null, conMisure ? H : null, q, griglia, {
+      supplierProductLineId: lineaFornitore,
+      supplierLines: supplierLineMap,
+    });
+    if (base.fuoriRange || base.requiresSupplierLine || base.missingSupplierLinePricing) return null;
+    const prodotto = conVarianti
+      ? applyMaggiorazioniAssi(base.prezzo, scelte, conVarianti.axes, conMisure ? L : null, conMisure ? H : null, q)
+      : base.prezzo;
+    const posa = a.posa_esclusa ? 0 : calcolaPosaInclusa(family, q, tariffePrezzi);
+    return { unitario: Number(((prodotto + posa) / q).toFixed(2)), voce: base.matchedGrigliaId };
+  };
+
+  const aggiorna = (patch: Partial<SrAccessorioRow>) => {
+    const L = patch.larghezza_mm !== undefined ? patch.larghezza_mm : a.larghezza_mm;
+    const H = patch.altezza_mm !== undefined ? patch.altezza_mm : a.altezza_mm;
+    const Q = patch.quantita ?? a.quantita ?? 1;
+    const scelte = patch.valori_assi ?? a.valori_assi ?? {};
+    const prezzo = prezzoDaListino(L, H, Q, scelte);
+    if (prezzo) {
+      onPatch({ ...patch, prezzo_unitario: prezzo.unitario, ...(prezzo.voce ? { listino_voce_id: prezzo.voce } : {}) });
+      return;
+    }
+    if (prezzoAutomatico && datiInArrivo) ricalcoloInSospeso.current = { L, H, Q, scelte };
+    onPatch(patch);
+  };
+
+  // Come nei serramenti: il ricalcolo chiesto mentre griglia e varianti erano
+  // in arrivo si rifà appena arrivano, con misure e scelte di quel momento.
+  useEffect(() => {
+    const attesa = ricalcoloInSospeso.current;
+    if (!attesa || datiInArrivo) return;
+    ricalcoloInSospeso.current = null;
+    const prezzo = prezzoDaListino(attesa.L, attesa.H, attesa.Q, attesa.scelte);
+    if (!prezzo) return;
+    onPatch({
+      larghezza_mm: attesa.L,
+      altezza_mm: attesa.H,
+      quantita: attesa.Q,
+      valori_assi: attesa.scelte,
+      prezzo_unitario: prezzo.unitario,
+      ...(prezzo.voce ? { listino_voce_id: prezzo.voce } : {}),
+    });
+    // Scatta solo quando i dati arrivano: il ricalcolo usa la richiesta salvata.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [datiInArrivo]);
+
+  const fuoriMisura = useMemo(() => {
+    if (!family || modalita !== "griglia" || griglia.length === 0 || !a.larghezza_mm || !a.altezza_mm) return false;
+    return calcolaPrezzoProdotto(family, a.larghezza_mm, a.altezza_mm, a.quantita || 1, griglia, {
+      supplierProductLineId: lineaFornitore,
+      supplierLines: supplierLineMap,
+    }).fuoriRange === true;
+  }, [family, modalita, griglia, a.larghezza_mm, a.altezza_mm, a.quantita, lineaFornitore, supplierLineMap]);
+
+  const scelteRiga = a.valori_assi ?? {};
+  const assi = (conVarianti?.axes ?? []).filter((ax) => ax.values.some((v) => v.attivo) || !!scelteRiga[ax.codice]);
+
+  return (
+    <>
+      <TableRow className={assi.length > 0 ? "border-b-0" : undefined}>
+        <TableCell>
+          <Select value={a.tipo} onValueChange={(v) => onPatch({ tipo: v })}>
+            <SelectTrigger className="h-8 text-xs w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {SR_ACCESSORI_TIPI.map((t) => (
+                <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </TableCell>
+        <TableCell>
+          <div className="flex items-center gap-1">
+            <Input
+              defaultValue={a.descrizione ?? ""}
+              onBlur={(e) => onPatch({ descrizione: e.target.value || null })}
+              placeholder="es. Alluminio coibentato"
+              className="h-8 text-xs"
+            />
+            {a.family_id && (
+              <Badge
+                variant="outline"
+                className="h-5 text-[9px] px-1 border-orange-300 text-orange-700 shrink-0"
+                title="Articolo collegato al listino prodotti"
+              >
+                <Sparkles className="h-2.5 w-2.5 mr-0.5" />
+                listino
+              </Badge>
+            )}
+          </div>
+          {fuoriMisura && (
+            <p className="mt-0.5 text-[10px] font-medium text-rose-700">
+              Misure fuori dal listino: il prezzo non si aggiorna
+            </p>
+          )}
+        </TableCell>
+        <TableCell>
+          <Input
+            type="number"
+            defaultValue={a.larghezza_mm ?? ""}
+            onBlur={(e) => {
+              const valore = e.target.value ? Number(e.target.value) : null;
+              if (valore !== a.larghezza_mm) aggiorna({ larghezza_mm: valore });
+            }}
+            className="h-8 text-xs w-20"
+          />
+        </TableCell>
+        <TableCell>
+          <Input
+            type="number"
+            defaultValue={a.altezza_mm ?? ""}
+            onBlur={(e) => {
+              const valore = e.target.value ? Number(e.target.value) : null;
+              if (valore !== a.altezza_mm) aggiorna({ altezza_mm: valore });
+            }}
+            className="h-8 text-xs w-20"
+          />
+        </TableCell>
+        <TableCell>
+          <Input
+            type="number"
+            min={1}
+            defaultValue={a.quantita}
+            onBlur={(e) => {
+              const valore = Math.max(1, Number(e.target.value) || 1);
+              if (valore !== a.quantita) aggiorna({ quantita: valore });
+            }}
+            className="h-8 text-xs w-14"
+          />
+        </TableCell>
+        <TableCell>
+          <Input
+            type="number"
+            step="0.01"
+            key={`pu-${a.id}-${a.prezzo_unitario ?? ""}`}
+            defaultValue={a.prezzo_unitario ?? ""}
+            onBlur={(e) => {
+              const valore = e.target.value ? Number(e.target.value) : null;
+              if (valore !== a.prezzo_unitario) onPatch({ prezzo_unitario: valore });
+            }}
+            title={prezzoAutomatico ? "Dal listino: si ricalcola quando cambi misure, quantità o varianti." : undefined}
+            className="h-8 text-xs w-24"
+          />
+        </TableCell>
+        <TableCell className="text-xs font-semibold text-orange-600">
+          {formatEuro(a.prezzo_totale)}
+        </TableCell>
+        <TableCell>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-8 w-8 sm:h-7 sm:w-7"
+            onClick={onDelete}
+            aria-label="Elimina accessorio"
+          >
+            <Trash2 className="h-3.5 w-3.5 text-rose-600" />
+          </Button>
+        </TableCell>
+      </TableRow>
+      {assi.length > 0 && (
+        <TableRow>
+          <TableCell colSpan={8} className="pb-3 pt-0">
+            <div className="flex flex-wrap items-end gap-2">
+              {assi.map((axis) => {
+                const scelto = scelteRiga[axis.codice] ?? "";
+                const manca = axis.obbligatorio && !scelto;
+                return (
+                  <div key={axis.id} className="min-w-[150px] space-y-0.5">
+                    <Label className={cn("text-[10px]", manca ? "font-semibold text-rose-700" : "text-muted-foreground")}>
+                      {axis.nome}
+                      {axis.obbligatorio ? " *" : ""}
+                    </Label>
+                    <Select
+                      value={scelto}
+                      onValueChange={(v) => aggiorna({ valori_assi: { ...scelteRiga, [axis.codice]: v } })}
+                    >
+                      <SelectTrigger className={cn("h-7 text-xs", manca && "border-rose-300")}>
+                        <SelectValue placeholder="Scegli…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {axis.values.filter((v) => v.attivo || v.id === scelto).map((v) => (
+                          <SelectItem key={v.id} value={v.id} className="text-xs">
+                            {v.label}
+                            {suffissoMaggiorazione(v.maggiorazione_tipo, v.maggiorazione_valore)}
+                            {v.attivo ? "" : " · non più a listino"}
+                          </SelectItem>
+                        ))}
+                        {scelto && !axis.values.some((v) => v.id === scelto) && (
+                          <SelectItem value={scelto} disabled className="text-xs italic">
+                            Scelta tolta dal listino
+                          </SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                );
+              })}
+            </div>
+          </TableCell>
+        </TableRow>
+      )}
+    </>
+  );
+}
+
 // ─── Dialog: copia misure dai serramenti ────────────────────────────────────
 
 function CopyMisureDialog({
@@ -477,7 +663,7 @@ function CopyMisureDialog({
     ? pickedFamilies.find((f) => f.id === pickedFamilyId)
     : null;
   const { data: griglia = [], isLoading: loadingGriglia } = useListinoGriglia(pickedFamily?.id);
-  const { family: pickedFamilyWithAxes } = useFamily(pickedFamily?.id);
+  const { family: pickedFamilyWithAxes, isLoading: loadingAssi } = useFamily(pickedFamily?.id);
   const { data: tariffe = [] } = useTariffeManodopera();
   const tariffePrezzi = useMemo(() => {
     const m = new Map<string, number>();
@@ -504,6 +690,32 @@ function CopyMisureDialog({
     }
     return out;
   }, [pickedFamilyWithAxes]);
+  // Le varianti si scelgono qui, partendo da quelle standard. Prima si copiavano
+  // solo quelle: senza uno standard l'accessorio nasceva senza colore né motore,
+  // e senza la loro maggiorazione nel prezzo.
+  // Qui solo le scelte fatte a mano, legate all'articolo: cambiandolo si riparte dagli standard.
+  const [sceltePersonali, setSceltePersonali] = useState<{ familyId: string | null; scelte: Record<string, string> }>({
+    familyId: null,
+    scelte: {},
+  });
+  const pickedFamilyIdCorrente = pickedFamily?.id ?? null;
+  const scelte = useMemo(
+    () => ({
+      ...defaultAxisSelection,
+      ...(sceltePersonali.familyId === pickedFamilyIdCorrente ? sceltePersonali.scelte : {}),
+    }),
+    [defaultAxisSelection, sceltePersonali, pickedFamilyIdCorrente],
+  );
+  const scegli = (codice: string, valoreId: string) =>
+    setSceltePersonali((prima) => ({
+      familyId: pickedFamilyIdCorrente,
+      scelte: { ...(prima.familyId === pickedFamilyIdCorrente ? prima.scelte : {}), [codice]: valoreId },
+    }));
+  const assiDaScegliere = useMemo(
+    () => (pickedFamilyWithAxes?.axes ?? []).filter((ax) => ax.values.some((v) => v.attivo)),
+    [pickedFamilyWithAxes],
+  );
+  const assiMancanti = assiDaScegliere.filter((ax) => ax.obbligatorio && !scelte[ax.codice]);
 
   const handleCopy = async () => {
     const targets = serramenti.filter((s) => selected.has(s.id));
@@ -533,6 +745,16 @@ function CopyMisureDialog({
       loadingGriglia
     ) {
       toast.error("Griglia prezzi ancora in caricamento");
+      return;
+    }
+    if (mode === "listino" && pickedFamily && loadingAssi) {
+      toast.error("Varianti dell'articolo ancora in caricamento");
+      return;
+    }
+    if (mode === "listino" && assiMancanti.length > 0) {
+      toast.error(`Scegli ${assiMancanti.map((ax) => ax.nome).join(", ")}`, {
+        description: "Senza, l'accessorio nascerebbe senza quella variante e senza il suo prezzo.",
+      });
       return;
     }
 
@@ -572,7 +794,7 @@ function CopyMisureDialog({
           const prezzoProdotto = pickedFamilyWithAxes
             ? applyMaggiorazioniAssi(
                 calc.prezzo,
-                defaultAxisSelection,
+                scelte,
                 pickedFamilyWithAxes.axes,
                 wantsDims ? s.larghezza_mm : null,
                 wantsDims ? s.altezza_mm : null,
@@ -593,7 +815,7 @@ function CopyMisureDialog({
             supplier_catalog_id: calc.supplierCatalogId ?? null,
             supplier_product_line_id: calc.supplierProductLineId ?? singleSupplierLineId,
             listino_voce_id: calc.matchedGrigliaId,
-            valori_assi: defaultAxisSelection,
+            valori_assi: scelte,
             modalita_prezzo:
               (modalita === "pz" || modalita === "mq" || modalita === "griglia" || modalita === "misura_libera")
                 ? modalita
@@ -794,6 +1016,38 @@ function CopyMisureDialog({
                   )}
                 </div>
               )}
+
+              {pickedFamily && assiDaScegliere.length > 0 && (
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  {assiDaScegliere.map((axis) => {
+                    const manca = axis.obbligatorio && !scelte[axis.codice];
+                    return (
+                      <div key={axis.id} className="space-y-1">
+                        <Label className={cn("text-xs", manca && "font-semibold text-rose-700")}>
+                          {axis.nome}
+                          {axis.obbligatorio ? " *" : ""}
+                        </Label>
+                        <Select
+                          value={scelte[axis.codice] ?? ""}
+                          onValueChange={(v) => scegli(axis.codice, v)}
+                        >
+                          <SelectTrigger className={cn("h-9 text-xs", manca && "border-rose-300")}>
+                            <SelectValue placeholder="Scegli…" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {axis.values.filter((v) => v.attivo).map((v) => (
+                              <SelectItem key={v.id} value={v.id} className="text-xs">
+                                {v.label}
+                                {suffissoMaggiorazione(v.maggiorazione_tipo, v.maggiorazione_valore)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           ) : (
             /* Mode MANUALE (legacy): tipo enum + descrizione free-form. */
@@ -882,6 +1136,7 @@ function CopyMisureDialog({
               selected.size === 0 ||
               addMut.isPending ||
               (mode === "listino" && !pickedFamily) ||
+              (mode === "listino" && !!pickedFamily && loadingAssi) ||
               (mode === "listino" && pickedFamily?.modalita_prezzo_base === "griglia" && availableSupplierProductLineIds.length > 1)
             }
             className="w-full gap-1.5 bg-orange-500 hover:bg-orange-600 sm:w-auto"
