@@ -145,22 +145,8 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
     [importoDocumento],
   );
 
-  // Salva totale_min/max allineati allo stesso totale documento: il preventivo
-  // serramenti ha un prezzo finale, non una forbice indicativa.
-  // Tolleranza 0.5 € per evitare il "dirty fantasma": float imprecisi possono
-  // far apparire differenze submillesimali tra forbice.min e form.totale_min
-  // anche se nessun utente ha toccato nulla, marcando il progetto come dirty
-  // ad ogni re-render.
-  useEffect(() => {
-    const currentMin = Number(form.totale_min ?? 0);
-    const currentMax = Number(form.totale_max ?? 0);
-    if (Math.abs(importoDocumento - currentMin) > 0.5) {
-      onChange("totale_min", importoDocumento);
-    }
-    if (Math.abs(importoDocumento - currentMax) > 0.5) {
-      onChange("totale_max", importoDocumento);
-    }
-  }, [importoDocumento]); // eslint-disable-line react-hooks/exhaustive-deps
+  // totale_min/max sulla riga del preventivo li scrive il wizard in ogni passo
+  // (righePreventivo.ts), con lo stesso calcolo.
 
   // ─── Sconto: collegamento alle regole azienda ────────────────────────────
   // Replica client-side del compute_max_discount SQL: valuta in tempo reale
@@ -888,7 +874,16 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
             <Input
               type="number"
               defaultValue={form.valido_fino_giorni ?? 15}
-              onBlur={(e) => onChange("valido_fino_giorni", Number(e.target.value) || 15)}
+              onBlur={(e) => {
+                const giorni = Number(e.target.value) || 15;
+                onChange("valido_fino_giorni", giorni);
+                // La scadenza segue i giorni, dalla creazione come nel PDF: la pagina
+                // del cliente e l'avviso «scaduto» leggono la data, che restava
+                // quella calcolata alla creazione.
+                const scadenza = new Date(detail.progetto.created_at);
+                scadenza.setDate(scadenza.getDate() + giorni);
+                onChange("valido_fino_data", scadenza.toLocaleDateString("en-CA"));
+              }}
               className="h-9 text-xs mt-1"
             />
           </div>

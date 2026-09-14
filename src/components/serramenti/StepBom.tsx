@@ -56,6 +56,9 @@ import { SchedaLineaCompatta } from "./SchedaLineaCompatta";
 import { SceltaVariante } from "./SceltaVariante";
 import { coloriDelListino, pulisciVoci, scelteDopo, testoScelta, vociDi } from "@/lib/listino/scelteVariante";
 import { schedaPosizione, scelteDaAssi } from "@/lib/serramenti/schedaPosizione";
+import { Checkbox } from "@/components/ui/checkbox";
+import { misuraDaTesto, quantitaDaTesto } from "@/lib/serramenti/righePreventivo";
+import { preferenzeDaRiga } from "@/lib/serramenti/pickerListino";
 
 interface Props {
   progettoId: string;
@@ -70,6 +73,9 @@ export function StepBom({ progettoId, detail }: Props) {
   const deleteMut = useDeleteSerramento(progettoId);
   const importMut = useImportDaSopralluogo(progettoId);
   const [toDelete, setToDelete] = useState<SrSerramentoRow | null>(null);
+  // Con la finestra si tolgono anche i suoi accessori (la tapparella di quella
+  // finestra), salvo scelta contraria: il database li lascerebbe scollegati.
+  const [eliminaAccessori, setEliminaAccessori] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [listinoOpen, setListinoOpen] = useState(false);
   // Dialog "Aggiungi a mano": form libero per voci off-listino con
@@ -88,6 +94,17 @@ export function StepBom({ progettoId, detail }: Props) {
   // Le famiglie con assi e valori: servono per sapere quali variabili sono
   // comuni alle righe e si possono decidere in una volta sola.
   const { families: famiglieConAssi } = useFamilies();
+
+  // Configurazione rapida: la posizione nuova parte dalle scelte dell'ultima
+  // presa dal listino (linea, colore, vetro) e dai suoi colori scritti a mano.
+  const ultimaDaListino = useMemo(
+    () => [...serramenti].sort((a, b) => (b.position ?? 0) - (a.position ?? 0)).find((s) => s.family_id),
+    [serramenti],
+  );
+  const preferenzeAssi = useMemo(
+    () => preferenzeDaRiga(ultimaDaListino, famiglieConAssi),
+    [ultimaDaListino, famiglieConAssi],
+  );
 
   // Pre-fetch SOLO le famiglie referenziate dalle righe BOM correnti.
   // useListinoFamilies() senza parametri ritornava LIMIT 100 → se l'utente
@@ -174,6 +191,8 @@ export function StepBom({ progettoId, detail }: Props) {
         valori_assi: item.valori_assi ?? {},
         // Il colore vero scelto dentro la fascia (Grigio antracite dentro «Colore Standard»).
         scelte_assi: item.scelte_assi ?? {},
+        colore_interno: ultimaDaListino?.colore_interno ?? null,
+        colore_esterno: ultimaDaListino?.colore_esterno ?? null,
         // La nota della riga è quella del commerciale e il PDF la stampa come
         // «Note tecniche». Il conto del prezzo non è una nota: finiva nel PDF in
         // formato inglese («1.68 m² × €600.00/m²») e restava vecchio appena si
@@ -254,6 +273,8 @@ export function StepBom({ progettoId, detail }: Props) {
       macrocategoria_override_id: s.macrocategoria_override_id,
       valori_assi: s.valori_assi ?? {},
       scelte_assi: s.scelte_assi ?? {},
+      // «Solo fornitura» segue la copia: il prezzo copiato è già senza posa.
+      posa_esclusa: s.posa_esclusa ?? false,
       position: serramenti.length,
       note: s.note,
     });
@@ -284,6 +305,8 @@ export function StepBom({ progettoId, detail }: Props) {
     }
     updateMut.mutate({ id, patch });
   };
+
+  const accessoriDaEliminare = toDelete ? detail.accessori.filter((a) => a.serramento_id === toDelete.id) : [];
 
   return (
     <div className="space-y-3">
@@ -390,7 +413,10 @@ export function StepBom({ progettoId, detail }: Props) {
                   onToggle={() => setExpanded((prev) => prev === s.id ? null : s.id)}
                   onPatch={(patch) => onPatch(s.id, patch)}
                   onDuplicate={() => handleDuplicate(s)}
-                  onDelete={() => setToDelete(s)}
+                  onDelete={() => {
+                    setEliminaAccessori(true);
+                    setToDelete(s);
+                  }}
                   family={family}
                   macroId={macroId}
                   macroNome={macroNome}
@@ -447,6 +473,7 @@ export function StepBom({ progettoId, detail }: Props) {
           open={listinoOpen}
           onOpenChange={setListinoOpen}
           onSelect={handlePickFromListino}
+          preferenzeAssi={preferenzeAssi}
         />
 
         <ManualAddDialog
@@ -477,9 +504,24 @@ export function StepBom({ progettoId, detail }: Props) {
           <AlertDialogHeader>
             <AlertDialogTitle>Eliminare {toDelete?.tipologia_label ?? "serramento"}?</AlertDialogTitle>
             <AlertDialogDescription>
-              L'operazione rimuove anche eventuali accessori e foto collegate. Non è reversibile.
+              Non è reversibile. Le foto collegate restano nel preventivo.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {accessoriDaEliminare.length > 0 && (
+            <label className="flex items-start gap-2 rounded-md border border-slate-200 p-3 text-sm">
+              <Checkbox
+                checked={eliminaAccessori}
+                onCheckedChange={(v) => setEliminaAccessori(v === true)}
+                className="mt-0.5"
+              />
+              <span>
+                Elimina anche {accessoriDaEliminare.length === 1 ? "l'accessorio collegato" : `i ${accessoriDaEliminare.length} accessori collegati`}
+                <span className="block text-xs text-muted-foreground">
+                  {accessoriDaEliminare.map((a) => a.descrizione || a.tipo).join(", ")}
+                </span>
+              </span>
+            </label>
+          )}
           <AlertDialogFooter>
             <AlertDialogCancel disabled={deleteMut.isPending}>Annulla</AlertDialogCancel>
             <AlertDialogAction
@@ -488,9 +530,10 @@ export function StepBom({ progettoId, detail }: Props) {
               onClick={(e) => {
                 e.preventDefault();
                 if (!toDelete) return;
-                deleteMut.mutate(toDelete.id, {
-                  onSettled: () => setToDelete(null),
-                });
+                deleteMut.mutate(
+                  { id: toDelete.id, conAccessori: eliminaAccessori && accessoriDaEliminare.length > 0 },
+                  { onSettled: () => setToDelete(null) },
+                );
               }}
             >
               {deleteMut.isPending && <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />}
@@ -947,6 +990,9 @@ function SerramentoRow({
   ): number | null => {
     if (!family) return null;
     if (family.modalita_prezzo_base === "griglia" && griglia.length === 0) return null;
+    // A m² o a griglia senza una delle due misure il prezzo non si calcola:
+    // prima restava la sola posa (una finestra a 90 €).
+    if ((family.modalita_prezzo_base === "griglia" || family.modalita_prezzo_base === "mq") && (!L || !H)) return null;
     const Qsafe = Q || 1;
     const sels = selections ?? (s.valori_assi ?? {}) as Record<string, string>;
     // Varianti non ancora caricate: il prezzo senza le loro maggiorazioni sarebbe
@@ -963,7 +1009,9 @@ function SerramentoRow({
       supplierProductLineId: selectedSupplierProductLineId,
       supplierLines: supplierLineMap,
     });
-    if (result.requiresSupplierLine || result.missingSupplierLinePricing) return null;
+    // Misura fuori dal listino: il prezzo resta quello di prima e la riga lo
+    // segnala. Prima diventava zero più la posa, e il totale crollava in silenzio.
+    if (result.requiresSupplierLine || result.missingSupplierLinePricing || result.fuoriRange) return null;
 
     // 2. Maggiorazioni assi (Variabili Prodotto) applicate sopra il prezzo
     //    base. Senza varianti caricate si arriva qui solo se la riga non ha scelte.
@@ -1092,8 +1140,11 @@ function SerramentoRow({
   const ultimaBulk = useRef<number>(0);
   useEffect(() => {
     if (!richiestaBulk || richiestaBulk.nonce === ultimaBulk.current) return;
+    // Varianti ancora in arrivo: la scelta si applica appena arrivano. Prima la
+    // richiesta risultava già fatta e la riga restava con la scelta vecchia.
+    if (!familyWithAxes) return;
     ultimaBulk.current = richiestaBulk.nonce;
-    const asse = familyWithAxes?.axes.find((a) => a.codice === richiestaBulk.codice);
+    const asse = familyWithAxes.axes.find((a) => a.codice === richiestaBulk.codice);
     const valore = asse?.values.find((v) => v.valore === richiestaBulk.valore && v.attivo);
     if (!asse || !valore) return;
     // Il colore scelto in cima solo se questa tipologia ce l'ha nell'elenco di quella fascia.
@@ -1540,7 +1591,7 @@ function SerramentoRow({
                     {" "}Range disponibile: <strong>{priceCheck.range.minL}×{priceCheck.range.minH} mm</strong> → <strong>{priceCheck.range.maxL}×{priceCheck.range.maxH} mm</strong>.
                   </>
                 )}
-                {" "}Riduci le misure o contatta il fornitore per una lavorazione speciale.
+                {" "}Il prezzo resta quello di prima: riduci le misure o contatta il fornitore per una lavorazione speciale.
               </p>
             </div>
           )}
@@ -1552,7 +1603,14 @@ function SerramentoRow({
                   type="number"
                   key={`L-${s.id}`}
                   defaultValue={s.larghezza_mm ?? ""}
-                  onBlur={(e) => handleMisurePatch({ larghezza_mm: e.target.value ? Number(e.target.value) : null })}
+                  onBlur={(e) => {
+                    const mm = misuraDaTesto(e.target.value);
+                    const salvata = s.larghezza_mm ?? null;
+                    // Non valida torna quella salvata; uguale non ricalcola, che
+                    // riporterebbe il prezzo al listino di oggi.
+                    e.target.value = String((mm === undefined ? salvata : mm) ?? "");
+                    if (mm !== undefined && mm !== salvata) handleMisurePatch({ larghezza_mm: mm });
+                  }}
                   className="h-9 text-xs"
                 />
               </div>
@@ -1562,7 +1620,12 @@ function SerramentoRow({
                   type="number"
                   key={`H-${s.id}`}
                   defaultValue={s.altezza_mm ?? ""}
-                  onBlur={(e) => handleMisurePatch({ altezza_mm: e.target.value ? Number(e.target.value) : null })}
+                  onBlur={(e) => {
+                    const mm = misuraDaTesto(e.target.value);
+                    const salvata = s.altezza_mm ?? null;
+                    e.target.value = String((mm === undefined ? salvata : mm) ?? "");
+                    if (mm !== undefined && mm !== salvata) handleMisurePatch({ altezza_mm: mm });
+                  }}
                   className="h-9 text-xs"
                 />
               </div>
@@ -1573,7 +1636,11 @@ function SerramentoRow({
                   min={1}
                   key={`Q-${s.id}`}
                   defaultValue={s.quantita}
-                  onBlur={(e) => handleMisurePatch({ quantita: Math.max(1, Number(e.target.value) || 1) })}
+                  onBlur={(e) => {
+                    const pezzi = quantitaDaTesto(e.target.value) ?? s.quantita;
+                    e.target.value = String(pezzi);
+                    if (pezzi !== s.quantita) handleMisurePatch({ quantita: pezzi });
+                  }}
                   className="h-9 text-xs"
                 />
               </div>

@@ -29,6 +29,7 @@ import {
   Calendar, Loader2, AlertCircle,
 } from "lucide-react";
 import { toast } from "sonner";
+import { inchiostroSuBianco, testoSopra } from "@/lib/pdf/contrastoColori";
 
 interface PublicStima {
   progetto: {
@@ -283,6 +284,11 @@ export default function SerramentiStimaPubblica() {
   const { progetto, azienda, consulente, pdf_url } = data;
   const cliente = [progetto.cliente_nome, progetto.cliente_cognome].filter(Boolean).join(" ");
   const colore = azienda.colore_primario || "#2D7D5C";
+  // Il colore dell'azienda com'è per sfondi e tinte; per testi, bordi e icone su
+  // bianco la sua versione leggibile, e il testo dei bottoni in contrasto. Col
+  // lime di Renova titolo e totale non si leggevano, né «Firma digitalmente».
+  const inchiostro = inchiostroSuBianco(colore);
+  const testoBottone = testoSopra(colore);
   const whatsappLink = consulente?.telefono
     ? `https://wa.me/${consulente.telefono.replace(/\D/g, "")}?text=${encodeURIComponent(`Ciao, ho ricevuto la stima ${progetto.code}`)}`
     : null;
@@ -298,7 +304,7 @@ export default function SerramentiStimaPubblica() {
             ) : (
               <div
                 className="h-10 w-10 rounded border-2 flex items-center justify-center font-bold text-lg"
-                style={{ borderColor: colore, color: colore }}
+                style={{ borderColor: inchiostro, color: inchiostro }}
               >
                 {azienda.nome.charAt(0)}
               </div>
@@ -306,7 +312,7 @@ export default function SerramentiStimaPubblica() {
             <div>
               <p className="font-bold text-sm">{azienda.nome}</p>
               <p className="text-[11px] text-muted-foreground">
-                Stima n. <span className="font-mono font-semibold" style={{ color: colore }}>{progetto.code}</span>
+                Stima n. <span className="font-mono font-semibold" style={{ color: inchiostro }}>{progetto.code}</span>
               </p>
             </div>
           </div>
@@ -326,10 +332,10 @@ export default function SerramentiStimaPubblica() {
         {/* Hero */}
         <Card>
           <CardContent className="p-6">
-            <p className="text-[11px] uppercase tracking-wide font-semibold" style={{ color: colore }}>
+            <p className="text-[11px] uppercase tracking-wide font-semibold" style={{ color: inchiostro }}>
               Proposta personalizzata
             </p>
-            <h1 className="text-2xl md:text-3xl font-bold mt-1" style={{ color: colore }}>
+            <h1 className="text-2xl md:text-3xl font-bold mt-1" style={{ color: inchiostro }}>
               {progetto.intervento_titolo ?? `Per ${cliente}`}
             </h1>
             <p className="text-sm text-muted-foreground mt-1">
@@ -344,13 +350,13 @@ export default function SerramentiStimaPubblica() {
         {/* Big total box */}
         <Card style={{ background: `${colore}10`, borderColor: `${colore}40` }}>
           <CardContent className="p-6">
-            <p className="text-[11px] uppercase tracking-wide font-semibold mb-1" style={{ color: colore }}>
+            <p className="text-[11px] uppercase tracking-wide font-semibold mb-1" style={{ color: inchiostro }}>
               Totale preventivo
             </p>
-            <p className="text-3xl md:text-4xl font-bold tabular-nums" style={{ color: colore }}>
+            <p className="text-3xl md:text-4xl font-bold tabular-nums" style={{ color: inchiostro }}>
               {formatEuroRangeOrSingle(progetto.totale_min, progetto.totale_max)}
             </p>
-            <p className="text-xs mt-1" style={{ color: colore }}>
+            <p className="text-xs mt-1" style={{ color: inchiostro }}>
               {progetto.iva_inclusa ? "IVA inclusa" : "IVA esclusa"} · Importo della revisione corrente
             </p>
           </CardContent>
@@ -362,7 +368,7 @@ export default function SerramentiStimaPubblica() {
             {progetto.risparmio_eur_anno && (
               <Card><CardContent className="p-4">
                 <p className="text-[10px] uppercase font-semibold text-muted-foreground">Risparmio bolletta</p>
-                <p className="text-xl font-bold" style={{ color: colore }}>
+                <p className="text-xl font-bold" style={{ color: inchiostro }}>
                   {formatEuro(progetto.risparmio_eur_anno)}<span className="text-xs font-normal ml-1">/anno</span>
                 </p>
               </CardContent></Card>
@@ -370,7 +376,7 @@ export default function SerramentiStimaPubblica() {
             {progetto.detrazione_eur_totale && (
               <Card><CardContent className="p-4">
                 <p className="text-[10px] uppercase font-semibold text-muted-foreground">Detrazione fiscale</p>
-                <p className="text-xl font-bold" style={{ color: colore }}>
+                <p className="text-xl font-bold" style={{ color: inchiostro }}>
                   {formatEuro(progetto.detrazione_eur_totale)}
                 </p>
                 <p className="text-[10px] text-muted-foreground">recuperabile in 10 anni</p>
@@ -379,7 +385,7 @@ export default function SerramentiStimaPubblica() {
             {progetto.payback_anni && (
               <Card><CardContent className="p-4">
                 <p className="text-[10px] uppercase font-semibold text-muted-foreground">Payback</p>
-                <p className="text-xl font-bold" style={{ color: colore }}>
+                <p className="text-xl font-bold" style={{ color: inchiostro }}>
                   {formatNum(progetto.payback_anni, 1)}<span className="text-xs font-normal ml-1">anni</span>
                 </p>
               </CardContent></Card>
@@ -387,7 +393,7 @@ export default function SerramentiStimaPubblica() {
             {progetto.co2_risparmiata_t_anno && (
               <Card><CardContent className="p-4">
                 <p className="text-[10px] uppercase font-semibold text-muted-foreground">CO₂ risparmiata</p>
-                <p className="text-xl font-bold" style={{ color: colore }}>
+                <p className="text-xl font-bold" style={{ color: inchiostro }}>
                   {formatNum(progetto.co2_risparmiata_t_anno, 2)}<span className="text-xs font-normal ml-1">t/anno</span>
                 </p>
               </CardContent></Card>
@@ -400,7 +406,7 @@ export default function SerramentiStimaPubblica() {
           <Card>
             <CardHeader className="p-4 pb-2 flex flex-row items-center justify-between">
               <CardTitle className="text-base flex items-center gap-2">
-                <FileText className="h-4 w-4" style={{ color: colore }} />
+                <FileText className="h-4 w-4" style={{ color: inchiostro }} />
                 Documento completo (3 pagine)
               </CardTitle>
               <Button asChild variant="outline" size="sm">
@@ -424,7 +430,7 @@ export default function SerramentiStimaPubblica() {
         {progetto.consulenza_at && (
           <Card>
             <CardContent className="p-4 flex items-center gap-3 flex-wrap">
-              <Calendar className="h-5 w-5" style={{ color: colore }} />
+              <Calendar className="h-5 w-5" style={{ color: inchiostro }} />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold">
                   Appuntamento di consulenza
@@ -445,7 +451,7 @@ export default function SerramentiStimaPubblica() {
         {consulente && (consulente.telefono || consulente.email) && (
           <Card style={{ background: `${colore}08`, borderColor: `${colore}30` }}>
             <CardContent className="p-4">
-              <p className="text-[11px] uppercase tracking-wide font-semibold mb-2" style={{ color: colore }}>
+              <p className="text-[11px] uppercase tracking-wide font-semibold mb-2" style={{ color: inchiostro }}>
                 La tua consulenza
               </p>
               <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -485,10 +491,10 @@ export default function SerramentiStimaPubblica() {
 
         {/* Firma CTA */}
         {progetto.allow_self_signing && !progetto.firmato_il && (
-          <Card className="border-2" style={{ borderColor: colore }}>
+          <Card className="border-2" style={{ borderColor: inchiostro }}>
             <CardContent className="p-6 text-center">
-              <PenLine className="h-10 w-10 mx-auto mb-3" style={{ color: colore }} />
-              <h3 className="text-lg font-bold mb-1" style={{ color: colore }}>
+              <PenLine className="h-10 w-10 mx-auto mb-3" style={{ color: inchiostro }} />
+              <h3 className="text-lg font-bold mb-1" style={{ color: inchiostro }}>
                 Sei pronto a procedere?
               </h3>
               <p className="text-sm text-muted-foreground mb-4">
@@ -497,7 +503,7 @@ export default function SerramentiStimaPubblica() {
               <Button
                 size="lg"
                 onClick={() => setShowSignDialog(true)}
-                style={{ backgroundColor: colore }}
+                style={{ backgroundColor: colore, color: testoBottone }}
                 className="gap-2 hover:opacity-90"
               >
                 <PenLine className="h-4 w-4" />
@@ -566,7 +572,7 @@ export default function SerramentiStimaPubblica() {
               <Label className="text-xs mb-1 block">La tua firma</Label>
               <div
                 className="border-2 border-dashed rounded-md bg-white"
-                style={{ borderColor: hasInk ? colore : "#cbd5e1" }}
+                style={{ borderColor: hasInk ? inchiostro : "#cbd5e1" }}
               >
                 <canvas
                   ref={canvasRef}
@@ -592,7 +598,7 @@ export default function SerramentiStimaPubblica() {
             <Button
               onClick={submitSignature}
               disabled={signing || !hasInk || !signerName.trim()}
-              style={{ backgroundColor: colore }}
+              style={{ backgroundColor: colore, color: testoBottone }}
               className="hover:opacity-90"
             >
               {signing ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <PenLine className="h-4 w-4 mr-1" />}

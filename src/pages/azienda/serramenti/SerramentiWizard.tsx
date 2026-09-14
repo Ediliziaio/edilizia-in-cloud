@@ -28,8 +28,7 @@ import {
 import { useIsMutating, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useSerramentoPDF } from "@/hooks/useSerramentoPDF";
-import { useTemplatePdf } from "@/lib/serramenti/queries";
-import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import { useTemplatePdf, useAziendaPerPdf } from "@/lib/serramenti/queries";
 import { Eye, ChevronDown, Copy, GitBranch } from "lucide-react";
 import { STATI_LABEL, TRANSIZIONI_STATO } from "@/lib/serramenti/statoLabels";
 import {
@@ -67,6 +66,8 @@ import { StepContenuti } from "@/components/serramenti/StepContenuti";
 import { ContactPickerDialog } from "@/components/serramenti/ContactPickerDialog";
 import { AiSerramentiDraftLauncher } from "@/components/serramenti/AiSerramentiDraftLauncher";
 import type { CrmContactMinimal } from "@/lib/serramenti/api";
+import { confermaSalvate, modificheDaSalvare, segnaModifica, type ModificheInSospeso } from "@/lib/serramenti/modificheInSospeso";
+import { totaliCambiati, totaliDelPreventivo } from "@/lib/serramenti/righePreventivo";
 
 const STEP_ICONS: Record<SrWizardStep, React.FC<React.SVGProps<SVGSVGElement>>> = {
   cliente: User,
@@ -136,37 +137,9 @@ export default function SerramentiWizard() {
   // allo Step PDF finale. Riduce sorprese in fase di invio cliente.
   const { previewPDF, isGenerating: isGeneratingPdf } = useSerramentoPDF();
   const { data: pdfTemplate } = useTemplatePdf();
-  const wizCompanyId = useEffectiveCompanyId();
-  const { data: pdfCompany } = useQuery({
-    queryKey: ["sr-wizard-company-pdf", wizCompanyId],
-    enabled: !!wizCompanyId,
-    staleTime: 5 * 60 * 1000,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("companies")
-        .select("name, business_name, legal_address, legal_city, legal_postal_code, legal_province, phone, email, vat_number, logo_url, website, pec")
-        .eq("id", wizCompanyId!)
-        .maybeSingle();
-      if (error) throw new Error(error.message);
-      if (!data) return null;
-      const indirizzo = [
-        data.legal_address,
-        [data.legal_postal_code, data.legal_city].filter(Boolean).join(" "),
-        data.legal_province,
-      ].filter(Boolean).join(", ");
-      return {
-        name: data.name,
-        ragione_sociale: data.business_name ?? data.name,
-        indirizzo: indirizzo || null,
-        telefono: data.phone,
-        email: data.email,
-        partita_iva: data.vat_number,
-        logo_url: data.logo_url,
-        website: data.website,
-        pec: data.pec,
-      };
-    },
-  });
+  // La stessa anagrafica del passo PDF, dell'azienda del preventivo: qui
+  // mancava il logo chiaro e l'anteprima usciva diversa dal PDF scaricato.
+  const { data: pdfCompany } = useAziendaPerPdf(detail?.progetto.company_id);
 
   // PDF anteprima è disponibile solo se il preventivo è salvato (ha id) e
   // ha almeno 1 serramento o accessorio nel BOM (altrimenti PDF vuoto).
@@ -249,6 +222,10 @@ export default function SerramentiWizard() {
   // Local form state — solo per i campi del progetto stesso
   const [form, setForm] = useState<Partial<SrProgettoRow>>({});
   const [dirty, setDirty] = useState(false);
+  /** I campi toccati e non ancora salvati: l'autosave manda solo questi. */
+  const modificheRef = useRef<ModificheInSospeso<SrProgettoRow>>(new Map());
+  /** I salvataggi partono in fila: uno più vecchio non arriva mai dopo uno più nuovo. */
+  const codaSalvataggiRef = useRef<Promise<void>>(Promise.resolve());
   /** Timestamp ultimo salvataggio riuscito (usato per indicator "Salvato Xs fa"). */
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   /** Tick di refresh ogni 10s per aggiornare il "Salvato Xs fa" in header. */
@@ -259,7 +236,7 @@ export default function SerramentiWizard() {
   }, []);
 
   // ─── localStorage backup per crash recovery ─────────────────────────────
-  // Ogni onChange scrive l'intero form in LS prima ancora del save al server.
+  // Ogni onChange scrive in LS i campi toccati prima ancora del save al server.
   // Se l'utente chiude la tab o il browser crasha durante il debounce, al
   // prossimo mount possiamo proporre il restore.
   const LS_KEY = id ? `sr-autosave-progetto-${id}` : null;
@@ -270,6 +247,7 @@ export default function SerramentiWizard() {
   useEffect(() => {
     if (detail?.progetto) {
       setForm(detail.progetto);
+      modificheRef.current.clear();
       setDirty(false);
       setLastSavedAt(new Date(detail.progetto.updated_at ?? Date.now()));
     }
@@ -286,11 +264,14 @@ export default function SerramentiWizard() {
     try {
       const raw = localStorage.getItem(LS_KEY);
       if (!raw) return;
-      const cached = JSON.parse(raw) as { form: Partial<SrProgettoRow>; timestamp: number };
+      const cached = JSON.parse(raw) as { modifiche?: Partial<SrProgettoRow>; timestamp: number };
       const serverUpdated = new Date(detail.progetto.updated_at ?? 0).getTime();
       // LS più recente del server di almeno 5 secondi → significa cambio non
       // ancora persistito. Sotto la soglia: probabile residuo già salvato.
-      if (cached.timestamp > serverUpdated + 5000) {
+      // Una copia senza `modifiche` è il modulo intero salvato dalla versione di
+      // prima: recuperarla riporterebbe indietro stato e firma, quindi si scarta.
+      const modifiche = cached.modifiche;
+      if (modifiche && cached.timestamp > serverUpdated + 5000) {
         const ageMin = Math.round((Date.now() - cached.timestamp) / 60_000);
         toast.info("Trovate modifiche non salvate", {
           description: `Modifiche di ${ageMin === 0 ? "pochi secondi" : `${ageMin} minuto/i`} fa. Recuperarle?`,
@@ -298,7 +279,10 @@ export default function SerramentiWizard() {
           action: {
             label: "Recupera",
             onClick: () => {
-              setForm(cached.form);
+              for (const campo of Object.keys(modifiche) as Array<keyof SrProgettoRow>) {
+                segnaModifica(modificheRef.current, campo, modifiche[campo]);
+              }
+              setForm((prev) => ({ ...prev, ...modifiche }));
               setDirty(true);
               toast.success("Modifiche ripristinate. Salvataggio in corso…");
             },
@@ -393,57 +377,55 @@ export default function SerramentiWizard() {
   }, [detail?.progetto?.id, id, currentStep]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onChange = <K extends keyof SrProgettoRow>(key: K, value: SrProgettoRow[K]) => {
-    setForm((prev) => {
-      const next = { ...prev, [key]: value };
-      // LS backup sincrono: ogni cambio è subito persisto in LocalStorage,
-      // anche se l'utente chiude la tab prima del debounced autosave.
-      // Recovery al prossimo mount confronta con server.updated_at.
-      if (LS_KEY) {
-        try {
-          localStorage.setItem(LS_KEY, JSON.stringify({ form: next, timestamp: Date.now() }));
-        } catch (e) {
-          // QuotaExceededError raro ma possibile su form enormi: best-effort
-          console.warn("[serramenti] LS backup failed", e);
-        }
+    segnaModifica(modificheRef.current, key, value);
+    setForm((prev) => ({ ...prev, [key]: value }));
+    // LS backup sincrono dei campi toccati: se l'utente chiude la tab prima
+    // dell'autosave, al prossimo mount si propone il recupero.
+    if (LS_KEY) {
+      try {
+        const { patch } = modificheDaSalvare(modificheRef.current);
+        localStorage.setItem(LS_KEY, JSON.stringify({ modifiche: patch, timestamp: Date.now() }));
+      } catch (e) {
+        // QuotaExceededError raro ma possibile: best-effort
+        console.warn("[serramenti] LS backup failed", e);
       }
-      return next;
-    });
+    }
     setDirty(true);
   };
 
   // ─── Autosave debounced ────────────────────────────────────────────────
-  // Salvataggio automatico ogni 2 secondi dopo l'ultima modifica, se il
-  // progetto è esistente (no autosave per isNew: prima Save manuale crea
-  // l'id, poi autosave subentra). Su preventivi esistenti l'utente NON deve
-  // più cliccare "Salva e continua" per non perdere dati.
-  const autosaveTimerRef = useRef<number | null>(null);
-  useEffect(() => {
-    if (isNew || !id) return;
-    if (!dirty) return;
-    if (autosaveTimerRef.current) {
-      window.clearTimeout(autosaveTimerRef.current);
-    }
-    autosaveTimerRef.current = window.setTimeout(() => {
-      void (async () => {
-        try {
-          await updateMut.mutateAsync(form);
+  // Salvataggio automatico 2 secondi dopo l'ultima modifica, se il progetto
+  // esiste (per isNew il primo «Salva» crea l'id). Si salvano solo i campi
+  // toccati: rimandare il modulo caricato all'apertura riportava indietro lo
+  // stato cambiato dal menu e cancellava la firma arrivata dal cliente.
+  const salvaModifiche = (): Promise<void> => {
+    const salvataggio = codaSalvataggiRef.current
+      .catch(() => {})
+      .then(async () => {
+        if (modificheRef.current.size === 0) return;
+        const { patch, versioni } = modificheDaSalvare(modificheRef.current);
+        await updateMut.mutateAsync(patch);
+        // Restano da salvare solo i campi cambiati di nuovo mentre si salvava.
+        confermaSalvate(modificheRef.current, versioni);
+        setLastSavedAt(new Date());
+        if (modificheRef.current.size === 0) {
           setDirty(false);
-          setLastSavedAt(new Date());
-          // Cleanup LS dopo save riuscito: la recovery non avrebbe più senso
-          // perché server è ora la source-of-truth.
           if (LS_KEY) localStorage.removeItem(LS_KEY);
-        } catch {
-          // Errore loggato dal mutation (toast.error sotto). Lasciamo dirty=true
-          // così il prossimo debounce ritenta.
         }
-      })();
+      });
+    codaSalvataggiRef.current = salvataggio;
+    return salvataggio;
+  };
+
+  useEffect(() => {
+    if (isNew || !id || !dirty) return;
+    const timer = window.setTimeout(() => {
+      // L'errore lo mostra la mutation: i campi restano da salvare e si riprova
+      // alla modifica successiva o con «Salva e continua».
+      salvaModifiche().catch(() => {});
     }, 2000);
-    return () => {
-      if (autosaveTimerRef.current) {
-        window.clearTimeout(autosaveTimerRef.current);
-      }
-    };
-  }, [form, dirty, id, isNew, LS_KEY]); // eslint-disable-line react-hooks/exhaustive-deps
+    return () => window.clearTimeout(timer);
+  }, [form, dirty, id, isNew]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Beforeunload guard
   useEffect(() => {
@@ -457,19 +439,38 @@ export default function SerramentiWizard() {
     return () => window.removeEventListener("beforeunload", handler);
   }, [dirty, pendingWrites]);
 
+  // ─── Totali sul preventivo ─────────────────────────────────────────────
+  // Totale, pezzi e m² stanno sulla riga del preventivo: li leggono l'elenco,
+  // le opportunità e la pagina del cliente. Seguono le posizioni in qualunque
+  // passo si sia; prima si aggiornavano solo aprendo Economia, e l'elenco
+  // mostrava «0 pezzi» su preventivi pieni.
+  const { iva_percentuale, sconto_percentuale, sconto_importo } = form;
+  const totaliCalcolati = useMemo(
+    () => (detail ? totaliDelPreventivo(detail, { iva_percentuale, sconto_percentuale, sconto_importo }) : null),
+    [detail, iva_percentuale, sconto_percentuale, sconto_importo],
+  );
+  useEffect(() => {
+    // Solo col modulo già allineato al preventivo aperto: prima sembrerebbe tutto cambiato.
+    if (isNew || !totaliCalcolati || !form.id || form.id !== detail?.progetto.id) return;
+    const cambiati = totaliCambiati(form, totaliCalcolati);
+    if (Object.keys(cambiati).length === 0) return;
+    // Si scrivono come una modifica del modulo, subito dopo il render, e partono
+    // con l'autosave.
+    const timer = window.setTimeout(() => {
+      for (const campo of Object.keys(cambiati) as Array<keyof typeof cambiati>) {
+        onChange(campo, cambiati[campo] as SrProgettoRow[typeof campo]);
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [totaliCalcolati, form.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const saveProgetto = async (): Promise<boolean> => {
     if (!id) return false;
     try {
-      await updateMut.mutateAsync(form);
-      setDirty(false);
-      setLastSavedAt(new Date());
-      if (LS_KEY) localStorage.removeItem(LS_KEY);
+      await salvaModifiche();
       return true;
-    } catch (e) {
-      // Prima: silent catch -> utente cliccava "Salva e continua" e non
-      // succedeva nulla. Ora notifica chiara.
-      const msg = e instanceof Error ? e.message : "Errore sconosciuto";
-      toast.error("Salvataggio fallito", { description: msg });
+    } catch {
+      // Il messaggio d'errore lo mostra la mutation (useUpdateProgetto).
       return false;
     }
   };

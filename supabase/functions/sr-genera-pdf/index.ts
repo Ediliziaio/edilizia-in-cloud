@@ -20,6 +20,7 @@
  */
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth } from "../_shared/auth.ts";
+import { verifyCompanyAccess } from "../_shared/companyAuth.ts";
 import { renderSrPdfHtml, countSrPdfPages, type SrPdfData } from "../_shared/srHtmlTemplate.ts";
 import { buildMergeContext, substituteMergeTags } from "../_shared/quoteTemplateComposer.ts";
 
@@ -185,16 +186,15 @@ Deno.serve(async (req: Request) => {
     if (!prog) return errorResponse("Progetto non trovato", 404, corsHeaders);
     companyId = prog.company_id;
 
-    // Authz: verifica company corrente
-    const { data: profile } = await supabaseAdmin
-      .from("profiles")
-      .select("company_id")
-      .eq("id", userId)
-      .maybeSingle();
-    const userCompanyId = (profile as { company_id?: string } | null)?.company_id ?? null;
-    if (userCompanyId && prog.company_id !== userCompanyId) {
+    // Authz: l'utente lavora nell'azienda del preventivo (azienda principale,
+    // accesso multi-azienda o impersonificazione) oppure è super admin. Prima chi
+    // non aveva un'azienda nel profilo passava senza controlli e riceveva il link
+    // firmato di qualunque preventivo; chi lavora su più aziende prendeva 403.
+    try {
+      await verifyCompanyAccess(supabaseAdmin, auth.userId, prog.company_id);
+    } catch {
       const { data: superRoles } = await supabaseAdmin
-        .from("user_roles").select("role").eq("user_id", userId).eq("role", "super_admin");
+        .from("user_roles").select("role").eq("user_id", auth.userId).eq("role", "super_admin");
       if (!superRoles || superRoles.length === 0) {
         return errorResponse("Non autorizzato per questo progetto", 403, corsHeaders);
       }

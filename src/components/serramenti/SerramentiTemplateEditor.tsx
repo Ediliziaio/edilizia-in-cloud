@@ -3694,7 +3694,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
             <Input
               type="number" min={0} max={100} step={5}
               value={form.anticipo_pct_default ?? 40}
-              onChange={(e) => update("anticipo_pct_default", Number(e.target.value) || 40)}
+              onChange={(e) => update("anticipo_pct_default", e.target.value === "" ? 40 : Number(e.target.value))}
               className="h-9 text-xs"
             />
             <p className="text-[10px] text-muted-foreground mt-0.5">
@@ -3706,7 +3706,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
             <Input
               type="number"
               value={form.iva_percentuale_default ?? 22}
-              onChange={(e) => update("iva_percentuale_default", Number(e.target.value) || 22)}
+              onChange={(e) => update("iva_percentuale_default", e.target.value === "" ? 22 : Number(e.target.value))}
               className="h-9 text-xs"
             />
             <p className="text-[10px] text-muted-foreground mt-0.5">

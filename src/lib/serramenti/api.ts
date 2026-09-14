@@ -15,7 +15,6 @@ import type {
   SrProgettoDetail,
   SrStatoProgetto,
 } from "@/types/serramenti";
-import { sinonimiVerticale } from "@/lib/listino/areeStandard";
 
 // ─── PROGETTI ───────────────────────────────────────────────────────────────
 
@@ -336,7 +335,7 @@ const SR_PROGETTO_UPDATABLE_KEYS: ReadonlySet<keyof SrProgettoRow> = new Set([
   // Output
   "pdf_url", "pdf_generated_at", "pdf_html_url",
   // Note
-  "note_interne",
+  "note_interne", "note_cliente",
 ]);
 
 export async function updateProgetto(id: string, patch: Partial<SrProgettoRow>): Promise<void> {
@@ -365,8 +364,8 @@ export async function updateProgetto(id: string, patch: Partial<SrProgettoRow>):
 }
 
 export async function deleteProgetto(id: string): Promise<void> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   // Soft delete → Cestino (30 giorni, poi purge notturno definitivo)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error } = await (supabase as any).from("sr_progetti").update({ deleted_at: new Date().toISOString() }).eq("id", id);
   if (error) throw new Error("Eliminazione progetto fallita");
 }
@@ -378,94 +377,97 @@ export async function deleteProgetto(id: string): Promise<void> {
  * accessori + servizi sotto un nuovo id.
  *
  * Strategia:
- *  - parent_id = id originale → la nuova riga sa di essere figlia
- *  - revision_number = max(child.revision_number) + 1
+ *  - parent_id = primo preventivo della serie (duplicando la r2 nasce la r3)
+ *  - revision_number = max(revision_number della serie) + 1
  *  - stato = "bozza" (la revisione parte sempre da bozza per editing)
- *  - code = ${original.code}-r${revision_number} (es. SR-2026-001-r2)
+ *  - code = ${codice del primo}-r${revision_number} (es. SF-260914-0001-r2)
  *  - PDF urls + ordine_id NON copiati (sono output, vanno rigenerati)
  *  - consulenza_at + valido_fino_data resetati (nuovo ciclo offerta)
+ *  - link pubblico e firma NON copiati: il link è unico (la revisione ne riceve
+ *    uno suo dal database) e la revisione non è firmata. Copiandolo, ogni
+ *    revisione falliva con «duplicate key».
  *
- * Le righe figlie (serramenti/accessori/servizi) sono insertate via copia
- * delle colonne dati eccetto id/progetto_id/created_at.
+ * Le righe figlie sono copiate con id nuovi; gli accessori seguono la loro
+ * finestra nella revisione. Se una copia fallisce la revisione va nel cestino.
  */
+/** Campi del preventivo che la revisione non eredita. */
+const CAMPI_NON_COPIATI_IN_REVISIONE = new Set([
+  "id", "code", "created_at", "updated_at", "updated_by", "deleted_at",
+  "parent_id", "revision_number", "stato",
+  "pdf_url", "pdf_generated_at", "pdf_html_url", "ordine_id",
+  "consulenza_at", "valido_fino_data",
+  "public_token", "public_url", "firmato_il", "firma_cliente_url",
+]);
+
 export async function duplicaProgetto(originalId: string): Promise<{ newId: string; newCode: string; revision_number: number }> {
-  // 1. Carica originale + childen
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: orig, error: origErr } = await (supabase as any)
-    .from("sr_progetti")
-    .select("*")
-    .eq("id", originalId)
-    .maybeSingle();
+  const sb = supabase as any;
+  const { data: orig, error: origErr } = await sb.from("sr_progetti").select("*").eq("id", originalId).maybeSingle();
   if (origErr || !orig) throw new Error("Progetto originale non trovato");
 
-  // 2. Compute revision_number: max(children) + 1 (parent stesso conta come r1)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: existingRevs } = await (supabase as any)
+  // Le revisioni stanno tutte sotto il primo preventivo della serie.
+  const radiceId: string = orig.parent_id ?? originalId;
+  const { data: serie, error: serieErr } = await sb
     .from("sr_progetti")
-    .select("revision_number")
-    .or(`parent_id.eq.${originalId},id.eq.${originalId}`);
-  const revs = (existingRevs ?? []) as Array<{ revision_number: number }>;
-  const nextRev = Math.max(...revs.map((r) => r.revision_number ?? 1), 1) + 1;
-
-  // 3. Insert nuovo progetto: copia tutti i campi rilevanti, override id e
-  //    metadata. Lasciamo che il DB generi created_at / updated_at.
-   
-  const {
-    id: _origId,
-    code: _origCode,
-    created_at: _ca,
-    updated_at: _ua,
-    pdf_url: _pdf,
-    pdf_generated_at: _pdfAt,
-    pdf_html_url: _pdfHtml,
-    ordine_id: _ordId,
-    consulenza_at: _ca2,
-    valido_fino_data: _vfd,
-    ...copyableFields
-  } = orig as Record<string, unknown>;
-   
-
-  const newCode = `${orig.code}-r${nextRev}`;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: nuovo, error: nuovoErr } = await (supabase as any)
-    .from("sr_progetti")
-    .insert({
-      ...copyableFields,
-      code: newCode,
-      stato: "bozza",
-      parent_id: originalId,
-      revision_number: nextRev,
-    })
     .select("id, code, revision_number")
+    .or(`parent_id.eq.${radiceId},id.eq.${radiceId}`);
+  if (serieErr) throw new Error(`Lettura revisioni fallita: ${serieErr.message}`);
+  const righeSerie = (serie ?? []) as Array<{ id: string; code: string; revision_number: number | null }>;
+  const nextRev = Math.max(1, ...righeSerie.map((r) => r.revision_number ?? 1)) + 1;
+  const codiceRadice = righeSerie.find((r) => r.id === radiceId)?.code ?? orig.code;
+  const newCode = `${codiceRadice}-r${nextRev}`;
+
+  const copiabili = Object.fromEntries(
+    Object.entries(orig as Record<string, unknown>).filter(([campo]) => !CAMPI_NON_COPIATI_IN_REVISIONE.has(campo)),
+  );
+  const { data: nuovo, error: nuovoErr } = await sb
+    .from("sr_progetti")
+    .insert({ ...copiabili, code: newCode, stato: "bozza", parent_id: radiceId, revision_number: nextRev })
+    .select("id")
     .single();
   if (nuovoErr || !nuovo) throw new Error(`Creazione revisione fallita: ${nuovoErr?.message}`);
   const newId = nuovo.id as string;
 
-  // 4. Clona righe figlie. Helper interno per copia generica (skip id/keys server-managed).
-  const cloneRows = async (tableName: string) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: children } = await (supabase as any)
-      .from(tableName)
-      .select("*")
-      .eq("progetto_id", originalId);
-    if (!children || children.length === 0) return;
-    const rowsToInsert = (children as Array<Record<string, unknown>>).map((r) => {
-       
-      const { id: _id, progetto_id: _pid, created_at: _ca, updated_at: _ua, ...rest } = r;
-       
-      return { ...rest, progetto_id: newId };
-    });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error: cloneErr } = await (supabase as any).from(tableName).insert(rowsToInsert);
-    if (cloneErr) {
-      console.warn(`[duplicaProgetto] clone ${tableName} fallito:`, cloneErr.message);
-    }
+  const senzaCampiDelDatabase = (riga: Record<string, unknown>) =>
+    Object.fromEntries(Object.entries(riga).filter(([campo]) => campo !== "id" && campo !== "created_at" && campo !== "updated_at"));
+  const leggi = async (tabella: string) => {
+    const { data, error } = await sb.from(tabella).select("*").eq("progetto_id", originalId);
+    if (error) throw new Error(`Lettura ${tabella} fallita: ${error.message}`);
+    return (data ?? []) as Array<Record<string, unknown>>;
   };
-  await Promise.all([
-    cloneRows("sr_serramenti_progetto"),
-    cloneRows("sr_accessori_progetto"),
-    cloneRows("sr_servizi_progetto"),
-  ]);
+  const inserisci = async (tabella: string, righe: Array<Record<string, unknown>>) => {
+    if (righe.length === 0) return;
+    const { error } = await sb.from(tabella).insert(righe);
+    if (error) throw new Error(`Copia ${tabella} fallita: ${error.message}`);
+  };
+
+  try {
+    const [serramenti, accessori, servizi] = await Promise.all([
+      leggi("sr_serramenti_progetto"),
+      leggi("sr_accessori_progetto"),
+      leggi("sr_servizi_progetto"),
+    ]);
+    // Id nuovi decisi qui, così gli accessori seguono la loro finestra nella
+    // revisione invece di restare legati a quelle del preventivo di partenza.
+    const nuovoIdFinestra = new Map(serramenti.map((riga) => [riga.id as string, crypto.randomUUID()]));
+    await inserisci("sr_serramenti_progetto", serramenti.map((riga) => ({
+      ...senzaCampiDelDatabase(riga),
+      id: nuovoIdFinestra.get(riga.id as string),
+      progetto_id: newId,
+    })));
+    await Promise.all([
+      inserisci("sr_accessori_progetto", accessori.map((riga) => ({
+        ...senzaCampiDelDatabase(riga),
+        progetto_id: newId,
+        serramento_id: riga.serramento_id ? nuovoIdFinestra.get(riga.serramento_id as string) ?? null : null,
+      }))),
+      inserisci("sr_servizi_progetto", servizi.map((riga) => ({ ...senzaCampiDelDatabase(riga), progetto_id: newId }))),
+    ]);
+  } catch (e) {
+    // Una revisione a metà (senza finestre o senza accessori) non deve restare in elenco.
+    await sb.from("sr_progetti").update({ deleted_at: new Date().toISOString() }).eq("id", newId);
+    throw e;
+  }
 
   return { newId, newCode, revision_number: nextRev };
 }
@@ -540,7 +542,18 @@ export async function updateSerramento(id: string, patch: Partial<SrSerramentoRo
   if (error) throw new Error("Modifica serramento fallita");
 }
 
-export async function deleteSerramento(id: string): Promise<void> {
+/**
+ * Elimina una posizione. Con `conAccessori` anche gli accessori collegati (la
+ * tapparella di quella finestra): il database li lascerebbe scollegati, col
+ * loro prezzo ancora nel preventivo. Le foto restano, senza collegamento.
+ */
+export async function deleteSerramento(id: string, opzioni: { conAccessori?: boolean } = {}): Promise<void> {
+  if (opzioni.conAccessori) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error: erroreAccessori } = await (supabase as any)
+      .from("sr_accessori_progetto").delete().eq("serramento_id", id);
+    if (erroreAccessori) throw new Error("Eliminazione accessori collegati fallita");
+  }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error } = await (supabase as any)
     .from("sr_serramenti_progetto").delete().eq("id", id);
@@ -614,6 +627,35 @@ export async function deleteAccessorio(id: string): Promise<void> {
   const { error } = await (supabase as any)
     .from("sr_accessori_progetto").delete().eq("id", id);
   if (error) throw new Error("Eliminazione accessorio fallita");
+}
+
+/** L'anagrafica per il PDF: quella dell'azienda del preventivo, non dell'azienda aperta. */
+export async function getAziendaPerPdf(companyId: string) {
+  const { data, error } = await supabase
+    .from("companies")
+    .select("name, business_name, legal_address, legal_city, legal_postal_code, legal_province, phone, email, vat_number, logo_url, brand_logo_dark_url, website, pec")
+    .eq("id", companyId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) return null;
+  const indirizzo = [
+    data.legal_address,
+    [data.legal_postal_code, data.legal_city].filter(Boolean).join(" "),
+    data.legal_province,
+  ].filter(Boolean).join(", ");
+  return {
+    name: data.name,
+    ragione_sociale: data.business_name ?? data.name,
+    indirizzo: indirizzo || null,
+    telefono: data.phone,
+    email: data.email,
+    partita_iva: data.vat_number,
+    logo_url: data.logo_url,
+    brand_logo_dark_url: (data as { brand_logo_dark_url?: string | null }).brand_logo_dark_url ?? null,
+    // Sito e PEC compilati nell'anagrafica non arrivavano mai al piè di pagina del PDF.
+    website: data.website,
+    pec: data.pec,
+  };
 }
 
 // ─── TEMPLATE PDF (per azienda) ─────────────────────────────────────────────
@@ -726,11 +768,13 @@ export async function updateManodopera(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: orig } = await (supabase as any)
       .from("sr_servizi_progetto").select("quantita, prezzo_unitario_costo, prezzo_unitario_vendita").eq("id", id).maybeSingle();
+    // Un prezzo svuotato svuota anche il totale: con `??` si riprendeva quello
+    // vecchio e il totale restava nel preventivo accanto a un prezzo vuoto.
     const q = patch.quantita ?? orig?.quantita ?? 1;
-    const pc = patch.prezzo_unitario_costo ?? orig?.prezzo_unitario_costo;
-    const pv = patch.prezzo_unitario_vendita ?? orig?.prezzo_unitario_vendita;
-    if (pc != null) patch.prezzo_totale_costo = Number(pc) * q;
-    if (pv != null) patch.prezzo_totale_vendita = Number(pv) * q;
+    const pc = patch.prezzo_unitario_costo !== undefined ? patch.prezzo_unitario_costo : orig?.prezzo_unitario_costo;
+    const pv = patch.prezzo_unitario_vendita !== undefined ? patch.prezzo_unitario_vendita : orig?.prezzo_unitario_vendita;
+    patch.prezzo_totale_costo = pc != null ? Number(pc) * q : null;
+    patch.prezzo_totale_vendita = pv != null ? Number(pv) * q : null;
   }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error } = await (supabase as any)
@@ -765,95 +809,6 @@ export interface ListinoCategoria {
   colore: string | null;
   immagine_url: string | null;
   macrocategoria_id: string | null;
-}
-
-/**
- * Lista macrocategorie attive. Opzioni:
- *   - `vertical`: filtra solo macro esposte al verticale (es. 'serramentista').
- *     Una macro con `verticali_abilitati = []` è considerata generica → sempre
- *     visibile. Quando passi un vertical, vedi: generiche + quelle con il vertical
- *     nell'array.
- *   - `onlyWithFamilies=true` (default nel picker preventivo): filtra fuori
- *     le macro senza famiglie nei suoi rami categoria → famiglia. Evita
- *     macrocategorie fantasma (create durante test ma mai popolate) che
- *     porterebbero a un dead-end UX.
- */
-export async function listMacrocategorie(opts?: {
-  onlyWithFamilies?: boolean;
-  vertical?: string | null;
-  /** Filtro tipo macrocategoria (migration 20270513230000).
-   *  Default: nessun filtro = restituisce tutte (principale + accessorio).
-   *  Pass 'principale' per il picker preventivo principale,
-   *  'accessorio' per la sezione "Accessori e complementi". */
-  tipo?: "principale" | "accessorio" | null;
-  /** L'azienda aperta (useEffectiveCompanyId): a un super admin le regole del
-   *  database restituiscono le tipologie di tutte le aziende. */
-  companyId?: string | null;
-}): Promise<ListinoMacrocategoria[]> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let q = (supabase as any)
-    .from("listino_macrocategorie")
-    .select("id, nome, descrizione, icona, colore, immagine_url, verticali_abilitati, categoria_tipo")
-    .eq("attivo", true)
-    .order("sort_order", { ascending: true, nullsFirst: false })
-    .order("nome", { ascending: true });
-  // Filtro vertical lato server via PostgREST `or`:
-  // verticali_abilitati = '{}' (vuoto → generica) OR contiene il vertical in
-  // uno dei modi in cui è scritto («serramentista» e «serramenti» sono la
-  // stessa area: una tipologia etichettata nell'altro modo spariva dal picker).
-  if (opts?.vertical) {
-    const contiene = sinonimiVerticale(opts.vertical).map((v) => `verticali_abilitati.cs.{${v}}`);
-    q = q.or(["verticali_abilitati.eq.{}", ...contiene].join(","));
-  }
-  if (opts?.companyId) q = q.eq("company_id", opts.companyId);
-  if (opts?.tipo) {
-    q = q.eq("categoria_tipo", opts.tipo);
-  }
-  const { data, error } = await q;
-  if (error) {
-    console.error("[serramenti] listMacrocategorie failed", error);
-    throw new Error("Errore caricamento macrocategorie listino");
-  }
-  const macros = (data ?? []) as ListinoMacrocategoria[];
-  if (!opts?.onlyWithFamilies || macros.length === 0) return macros;
-
-  // Filtro lato client: per ogni macro conta le famiglie esistenti.
-  // Post-refactor 20270513200000: article_families.macrocategoria_id è FK
-  // diretto → niente più indirection via listino_categorie.
-  // Fallback al vecchio path per articoli pre-refactor (categoria_id legacy).
-  // Contano solo i prodotti che il preventivatore propone davvero: attivi e non
-  // «Fuori dai preventivi». Una tipologia con soli prodotti nascosti non si mostra.
-  // Anche qui l'azienda: senza, i prodotti di tutte le aziende superano le mille
-  // righe che il database restituisce e alcune tipologie sparivano a caso.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let famQ = (supabase as any)
-    .from("article_families")
-    .select("macrocategoria_id, categoria_id")
-    .eq("attivo", true)
-    .eq("mostra_preventivo", true)
-    .is("deleted_at", null);
-  if (opts.companyId) famQ = famQ.eq("company_id", opts.companyId);
-  const { data: famRows } = await famQ;
-  const macrosWithFam = new Set<string>();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let catQ = (supabase as any)
-    .from("listino_categorie")
-    .select("id, macrocategoria_id");
-  if (opts.companyId) catQ = catQ.eq("company_id", opts.companyId);
-  const { data: catRows } = await catQ;
-  const catToMacro = new Map<string, string>();
-  (catRows ?? []).forEach((c: { id: string; macrocategoria_id: string | null }) => {
-    if (c.macrocategoria_id) catToMacro.set(c.id, c.macrocategoria_id);
-  });
-  (famRows ?? []).forEach((f: { macrocategoria_id: string | null; categoria_id: string | null }) => {
-    if (f.macrocategoria_id) {
-      macrosWithFam.add(f.macrocategoria_id);
-    } else if (f.categoria_id) {
-      const macroId = catToMacro.get(f.categoria_id);
-      if (macroId) macrosWithFam.add(macroId);
-    }
-  });
-  return macros.filter((m) => macrosWithFam.has(m.id));
 }
 
 /**
@@ -1101,50 +1056,6 @@ export async function listListinoFamiliesByIds(ids: string[]): Promise<ListinoFa
   if (error) {
     console.error("[serramenti] listListinoFamiliesByIds failed", error);
     throw new Error("Errore caricamento famiglie listino");
-  }
-  return (data ?? []) as ListinoFamily[];
-}
-
-export async function listListinoFamilies(opts?: {
-  searchQuery?: string;
-  /** Post-refactor 20270513200000: filtro per macrocategoria diretta. */
-  macroId?: string | null;
-  /** @deprecated usa macroId. Mantenuto per backward compat caller pre-refactor. */
-  categoriaId?: string | null;
-  /** L'azienda aperta (useEffectiveCompanyId). */
-  companyId?: string | null;
-}): Promise<ListinoFamily[]> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let q = (supabase as any)
-    .from("article_families")
-    .select(`
-      id, nome, descrizione, immagine_url, vertical, prezzo_base_vendita, vat_rate,
-      modalita_prezzo_base, macrocategoria_id, categoria_id, custom_field_values,
-      manodopera_modalita, posa_tariffa_default_id, posa_quantita_default, posa_linked,
-      manodopera_unita, manodopera_costo_acquisto, manodopera_prezzo_vendita,
-      prezzo_base_mode, prezzo_base_acquisto, sconto_fornitore_1, sconto_fornitore_2, markup_tipo, markup_valore
-    `)
-    .eq("attivo", true)
-    // «Fuori dai preventivi» nel listino vale anche qui: prima il preventivatore
-    // serramenti lo ignorava e proponeva prodotti nascosti, anche a 0 €.
-    .eq("mostra_preventivo", true)
-    .is("deleted_at", null)
-    .order("nome", { ascending: true })
-    .limit(100);
-  if (opts?.companyId) q = q.eq("company_id", opts.companyId);
-  const search = opts?.searchQuery?.trim();
-  if (search && search.length >= 2) {
-    q = q.ilike("nome", `%${search}%`);
-  }
-  if (opts?.macroId) {
-    q = q.eq("macrocategoria_id", opts.macroId);
-  } else if (opts?.categoriaId) {
-    q = q.eq("categoria_id", opts.categoriaId);
-  }
-  const { data, error } = await q;
-  if (error) {
-    console.error("[serramenti] listListinoFamilies failed", error);
-    throw new Error("Errore caricamento listino prodotti");
   }
   return (data ?? []) as ListinoFamily[];
 }

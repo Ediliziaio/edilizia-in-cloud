@@ -25,7 +25,7 @@ import type {
   SrPianoFinanziamento, SrEsigenza, SrSoluzioneItem, SrTestimonianza,
   SrTemplatePdfRow,
 } from "@/types/serramenti";
-import { SR_TIPOLOGIE_SERRAMENTO, SR_MATERIALI, SR_SCHEMI_PAGAMENTO, SR_PERCORSO_DEFAULT, normalizePdfPagesOrder, SR_GARANZIE_DEFAULT, SR_CONFRONTO_DEFAULT, SR_CERTIFICAZIONI_DEFAULT, SR_FAQ_DEFAULT } from "@/types/serramenti";
+import { SR_TIPOLOGIE_SERRAMENTO, SR_MATERIALI, SR_SCHEMI_PAGAMENTO, SR_PERCORSO_DEFAULT, normalizePdfPagesOrder, SR_GARANZIE_DEFAULT, SR_CONFRONTO_DEFAULT, SR_FAQ_DEFAULT } from "@/types/serramenti";
 import type {
   SrPercorsoCliente, SrPdfPageId, SrPdfPageOrderItem,
   SrGaranzia, SrConfrontoRiga, SrCertificazione, SrBonus, SrFaq,
@@ -2024,8 +2024,9 @@ export function SerramentoPDF({
   const confrontoTitolo = (tpl.confronto_titolo as string | null) || "Il salto di qualità che otterrai";
   const confrontoRigheRaw = (Array.isArray(tpl.confronto_righe) ? tpl.confronto_righe : []) as SrConfrontoRiga[];
   const confrontoRighe: SrConfrontoRiga[] = confrontoRigheRaw.length > 0 ? confrontoRigheRaw : SR_CONFRONTO_DEFAULT;
-  const certificazioniRaw = (Array.isArray(tpl.certificazioni) ? tpl.certificazioni : []) as SrCertificazione[];
-  const certificazioni: SrCertificazione[] = certificazioniRaw.length > 0 ? certificazioniRaw : SR_CERTIFICAZIONI_DEFAULT;
+  // Le certificazioni solo se l'azienda le ha scritte: quelle di serie (ISO 9001,
+  // UNI 11673…) finivano nel PDF di chi non le ha, come una dichiarazione.
+  const certificazioni = (Array.isArray(tpl.certificazioni) ? tpl.certificazioni : []) as SrCertificazione[];
   // Omaggi: solo quelli che l'azienda ha scritto nel modello (es. d'estate «zanzariere
   // in omaggio»). Niente omaggi predefiniti: uscivano per tutte, con valori mai decisi.
   const bonus: SrBonus[] = ((Array.isArray(tpl.bonus_aggiuntivi) ? tpl.bonus_aggiuntivi : []) as SrBonus[])

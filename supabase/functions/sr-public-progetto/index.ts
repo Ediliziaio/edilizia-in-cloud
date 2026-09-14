@@ -85,7 +85,7 @@ Deno.serve(async (req: Request) => {
     // Carica template PDF (per logo/branding fallback)
     const { data: tpl } = await sb
       .from("sr_template_pdf")
-      .select("ragione_sociale, telefono, email, indirizzo_completo, logo_url, colore_primario")
+      .select("ragione_sociale, telefono, email, indirizzo_completo, logo_url, colore_primario, partita_iva")
       .eq("company_id", prog.company_id)
       .maybeSingle();
 
@@ -162,7 +162,8 @@ Deno.serve(async (req: Request) => {
         indirizzo: tpl?.indirizzo_completo || companyAddress || null,
         telefono: tpl?.telefono || company?.phone,
         email: tpl?.email || company?.email,
-        partita_iva: company?.vat_number,
+        // Come nel PDF: prima la P.IVA del modello, poi quella dell'anagrafica.
+        partita_iva: tpl?.partita_iva || company?.vat_number,
         logo_url: tpl?.logo_url || company?.logo_url,
         colore_primario: tpl?.colore_primario || "#2D7D5C",
       },

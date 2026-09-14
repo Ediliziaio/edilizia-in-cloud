@@ -36,7 +36,7 @@ import {
 } from "lucide-react";
 import {
   useAddAccessorio, useUpdateAccessorio, useDeleteAccessorio,
-  useListinoFamilies, useListinoFamiliesByIds, useMacrocategorie, useListinoGriglia, useTariffeManodopera,
+  useListinoFamiliesByIds, useListinoGriglia, useTariffeManodopera,
 } from "@/lib/serramenti/queries";
 import { SR_ACCESSORI_TIPI } from "@/types/serramenti";
 import type { SrProgettoDetail, SrAccessorioRow, SrSerramentoRow } from "@/types/serramenti";
@@ -44,7 +44,11 @@ import { SrCard } from "@/lib/serramenti/wizardUI";
 import { formatEuro } from "@/lib/serramenti/format";
 import { toast } from "sonner";
 import { ListinoPickerDialog, type ListinoPickResult } from "./ListinoPickerDialog";
-import { useFamily } from "@/hooks/useFamilies";
+import { useFamilies, useFamily } from "@/hooks/useFamilies";
+import { useListinoMacrocategorie } from "@/hooks/useListinoMacrocategorie";
+import { useListinoCategorie } from "@/hooks/useListinoCategorie";
+import { areaDelPreventivatore, comeListinoFamily, tipologieProposte } from "@/lib/serramenti/pickerListino";
+import type { FamilyWithAxes } from "@/types/articleFamily";
 import { useSupplierProductLines } from "@/features/serramenti-listini/hooks/useSupplierProductLines";
 import type { SupplierProductLine } from "@/features/serramenti-listini/types";
 import { applyMaggiorazioniAssi, calcolaPosaInclusa, calcolaPrezzoProdotto } from "@/lib/serramenti/pricing";
@@ -52,6 +56,7 @@ import type { ListinoFamily } from "@/lib/serramenti/api";
 import { scelteDopo } from "@/lib/listino/scelteVariante";
 import { SceltaVariante } from "./SceltaVariante";
 import { cn } from "@/lib/utils";
+import { misuraDaTesto, quantitaDaTesto } from "@/lib/serramenti/righePreventivo";
 
 interface Props {
   progettoId: string;
@@ -133,9 +138,10 @@ export function AccessoriSection({ progettoId, detail }: Props) {
     if (patch.prezzo_unitario !== undefined || patch.quantita !== undefined) {
       const orig = accessori.find((a) => a.id === id);
       if (orig) {
-        const pu = patch.prezzo_unitario ?? orig.prezzo_unitario ?? 0;
-        const q = patch.quantita ?? orig.quantita ?? 1;
-        patch.prezzo_totale = pu * q;
+        // Prezzo svuotato vale zero: con `??` si riprendeva quello vecchio e il
+        // totale restava nel preventivo accanto a un prezzo vuoto.
+        const next = { ...orig, ...patch };
+        patch.prezzo_totale = (next.prezzo_unitario ?? 0) * (next.quantita ?? 1);
       }
     }
     updateMut.mutate({ id, patch });
@@ -485,8 +491,11 @@ function AccessorioRiga({
             type="number"
             defaultValue={a.larghezza_mm ?? ""}
             onBlur={(e) => {
-              const valore = e.target.value ? Number(e.target.value) : null;
-              if (valore !== a.larghezza_mm) aggiorna({ larghezza_mm: valore });
+              const mm = misuraDaTesto(e.target.value);
+              const salvata = a.larghezza_mm ?? null;
+              // Non valida (negativa, decimale non intero di mm) torna quella salvata.
+              e.target.value = String((mm === undefined ? salvata : mm) ?? "");
+              if (mm !== undefined && mm !== salvata) aggiorna({ larghezza_mm: mm });
             }}
             className="h-8 text-xs w-20"
           />
@@ -496,8 +505,10 @@ function AccessorioRiga({
             type="number"
             defaultValue={a.altezza_mm ?? ""}
             onBlur={(e) => {
-              const valore = e.target.value ? Number(e.target.value) : null;
-              if (valore !== a.altezza_mm) aggiorna({ altezza_mm: valore });
+              const mm = misuraDaTesto(e.target.value);
+              const salvata = a.altezza_mm ?? null;
+              e.target.value = String((mm === undefined ? salvata : mm) ?? "");
+              if (mm !== undefined && mm !== salvata) aggiorna({ altezza_mm: mm });
             }}
             className="h-8 text-xs w-20"
           />
@@ -508,8 +519,9 @@ function AccessorioRiga({
             min={1}
             defaultValue={a.quantita}
             onBlur={(e) => {
-              const valore = Math.max(1, Number(e.target.value) || 1);
-              if (valore !== a.quantita) aggiorna({ quantita: valore });
+              const pezzi = quantitaDaTesto(e.target.value) ?? a.quantita;
+              e.target.value = String(pezzi);
+              if (pezzi !== a.quantita) aggiorna({ quantita: pezzi });
             }}
             className="h-8 text-xs w-14"
           />
@@ -599,38 +611,44 @@ function CopyMisureDialog({
   const [tipoAccessorio, setTipoAccessorio] = useState<string>("tapparella");
   const [selected, setSelected] = useState<Set<string>>(() => new Set(serramenti.map((s) => s.id)));
   const [descrizionePresetByTipo, setDescrizionePresetByTipo] = useState<string>("");
-  // Modalità "listino": macro filter + family selection.
-  // Mostriamo TUTTE le macrocategorie (l'utente sceglie es. Tapparelle).
-  const [pickedMacroId, setPickedMacroId] = useState<string | null>(null);
+  // Modalità "listino": tipologia e articolo, dagli stessi accessori di
+  // «Aggiungi dal listino»: area Serramenti, proposti nei preventivi, tutti.
+  // Prima i primi 100, con categorie di qualunque area.
+  const [pickedTipologia, setPickedTipologia] = useState<string | null>(null);
   const [pickedFamilyId, setPickedFamilyId] = useState<string | null>(null);
-
-  // Macrocategorie ACCESSORIO (migration 20270513230000): mostrate solo se
-  // l'azienda le ha esplicitamente marcate "Accessorio" in Listino →
-  // Macrocategorie → Tipo macrocategoria. Niente più heuristic per nome.
-  const { data: accessoryMacros = [], isLoading: loadingMacros } = useMacrocategorie({
-    vertical: "serramentista",
-    tipo: "accessorio",
-  });
-
-  // Families della macro selezionata (limite 100 per default del backend).
-  // Loading state esposto per evitare "lista vuota" durante il fetch.
-  const { data: pickedFamilies = [], isLoading: loadingFamilies } =
-    useListinoFamilies({ macroId: pickedMacroId });
+  const { families, isLoading: loadingFamiglie } = useFamilies();
+  const { macrocategorie, isLoading: loadingMacro } = useListinoMacrocategorie();
+  const { categorie, isLoading: loadingCategorie } = useListinoCategorie();
+  const loadingTipologie = loadingFamiglie || loadingMacro || loadingCategorie;
+  const tipologieAccessorio = useMemo(
+    () => tipologieProposte(areaDelPreventivatore(families, macrocategorie, categorie, "accessorio")),
+    [families, macrocategorie, categorie],
+  );
+  // Un articolo compare una volta anche con più linee: la linea si sceglie nelle varianti.
+  const articoliTipologia = useMemo(() => {
+    const articoli = new Map<string, FamilyWithAxes>();
+    tipologieAccessorio
+      .find((t) => t.chiave === pickedTipologia)
+      ?.linee.forEach((l) => l.righe.forEach((r) => {
+        if (!articoli.has(r.famiglia.id)) articoli.set(r.famiglia.id, r.famiglia);
+      }));
+    return [...articoli.values()];
+  }, [tipologieAccessorio, pickedTipologia]);
 
   // Auto-switch a "manuale" quando l'azienda NON ha ancora configurato
   // macrocategorie. Evita il dead-end "Da listino" + 0 macro = utente
   // bloccato senza poter avanzare.
   useEffect(() => {
-    if (open && !loadingMacros && accessoryMacros.length === 0 && mode === "listino") {
+    if (open && !loadingTipologie && tipologieAccessorio.length === 0 && mode === "listino") {
       setMode("manuale");
     }
-  }, [open, loadingMacros, accessoryMacros.length, mode]);
+  }, [open, loadingTipologie, tipologieAccessorio.length, mode]);
 
   // Reset selezione e picker quando il dialog si apre o cambia la lista.
   useEffect(() => {
     if (open) {
       setSelected(new Set(serramenti.map((s) => s.id)));
-      setPickedMacroId(null);
+      setPickedTipologia(null);
       setPickedFamilyId(null);
     }
   }, [open, serramenti]);
@@ -653,11 +671,13 @@ function CopyMisureDialog({
     );
   };
 
-  const pickedFamily = pickedFamilyId
-    ? pickedFamilies.find((f) => f.id === pickedFamilyId)
-    : null;
+  // L'articolo arriva dal listino già con le varianti: niente secondo caricamento.
+  const pickedFamilyWithAxes = articoliTipologia.find((f) => f.id === pickedFamilyId) ?? null;
+  const pickedFamily = useMemo(
+    () => (pickedFamilyWithAxes ? comeListinoFamily(pickedFamilyWithAxes) : null),
+    [pickedFamilyWithAxes],
+  );
   const { data: griglia = [], isLoading: loadingGriglia } = useListinoGriglia(pickedFamily?.id);
-  const { family: pickedFamilyWithAxes, isLoading: loadingAssi } = useFamily(pickedFamily?.id);
   const { data: tariffe = [] } = useTariffeManodopera();
   const tariffePrezzi = useMemo(() => {
     const m = new Map<string, number>();
@@ -748,10 +768,6 @@ function CopyMisureDialog({
       toast.error("Griglia prezzi ancora in caricamento");
       return;
     }
-    if (mode === "listino" && pickedFamily && loadingAssi) {
-      toast.error("Varianti dell'articolo ancora in caricamento");
-      return;
-    }
     if (mode === "listino" && assiMancanti.length > 0) {
       toast.error(`Scegli ${assiMancanti.map((ax) => ax.nome).join(", ")}`, {
         description: "Senza, l'accessorio nascerebbe senza quella variante e senza il suo prezzo.",
@@ -760,8 +776,10 @@ function CopyMisureDialog({
     }
 
     try {
-      let count = 0;
-      for (const s of targets) {
+      // Si preparano e controllano tutte le righe prima di inserirne una: un
+      // serramento senza misure a metà elenco lasciava inseriti i primi, e
+      // riprovando si doppiavano.
+      const nuovi = targets.map((s, indice): Partial<SrAccessorioRow> => {
         if (mode === "listino" && pickedFamily) {
           // Smart copy: collega all'articolo del listino.
           // Logica dims/quantita basata su modalita_prezzo_base del listino:
@@ -802,9 +820,12 @@ function CopyMisureDialog({
                 qty,
               )
             : calc.prezzo;
-          const posa = calcolaPosaInclusa(pickedFamily, qty, tariffePrezzi);
+          // «Solo fornitura» della finestra vale anche per il suo accessorio:
+          // prima la posa si aggiungeva sempre.
+          const posaEsclusa = s.posa_esclusa ?? false;
+          const posa = posaEsclusa ? 0 : calcolaPosaInclusa(pickedFamily, qty, tariffePrezzi);
           const unit = qty > 0 ? Number(((prezzoProdotto + posa) / qty).toFixed(2)) : 0;
-          await addMut.mutateAsync({
+          return {
             tipo: tipoAccessorio,
             descrizione: pickedFamily.nome,
             quantita: qty,
@@ -822,24 +843,27 @@ function CopyMisureDialog({
               (modalita === "pz" || modalita === "mq" || modalita === "griglia" || modalita === "misura_libera")
                 ? modalita
                 : null,
+            posa_esclusa: posaEsclusa,
             serramento_id: s.id,
-            position: position + count,
-          });
-        } else {
-          // Modalità manuale (legacy): tipo enum + descrizione opzionale.
-          await addMut.mutateAsync({
-            tipo: tipoAccessorio,
-            descrizione: descrizionePresetByTipo.trim() ||
-              (s.ambiente ? `${tipoLabel(tipoAccessorio)} ${s.ambiente}` : null),
-            quantita: s.quantita ?? 1,
-            larghezza_mm: s.larghezza_mm,
-            altezza_mm: s.altezza_mm,
-            serramento_id: s.id,
-            position: position + count,
-          });
+            position: position + indice,
+          };
         }
-        count++;
+        // Modalità manuale (legacy): tipo enum + descrizione opzionale.
+        return {
+          tipo: tipoAccessorio,
+          descrizione: descrizionePresetByTipo.trim() ||
+            (s.ambiente ? `${tipoLabel(tipoAccessorio)} ${s.ambiente}` : null),
+          quantita: s.quantita ?? 1,
+          larghezza_mm: s.larghezza_mm,
+          altezza_mm: s.altezza_mm,
+          serramento_id: s.id,
+          position: position + indice,
+        };
+      });
+      for (const accessorio of nuovi) {
+        await addMut.mutateAsync(accessorio);
       }
+      const count = nuovi.length;
       const label = count === 1 ? "accessorio creato" : "accessori creati";
       toast.success(
         `${count} ${label} dalle misure dei serramenti`,
@@ -906,14 +930,14 @@ function CopyMisureDialog({
                articoli verticale con prezzo base.  */
             <div className="space-y-3">
               <div>
-                <Label className="text-xs">Macrocategoria accessorio</Label>
+                <Label className="text-xs">Tipologia accessorio</Label>
                 <div className="flex flex-wrap gap-1.5 mt-1">
-                  {loadingMacros ? (
+                  {loadingTipologie ? (
                     <div className="flex items-center gap-2 text-xs text-muted-foreground italic py-1">
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      Caricamento macrocategorie…
+                      Caricamento tipologie…
                     </div>
-                  ) : accessoryMacros.length === 0 ? (
+                  ) : tipologieAccessorio.length === 0 ? (
                     /* NB: l'auto-switch a 'manuale' partito sopra dovrebbe
                        coprire questo caso, ma lo lasciamo come safety net
                        (se l'utente ri-cambia manualmente a 'listino'). */
@@ -922,37 +946,32 @@ function CopyMisureDialog({
                       accessorio (tapparelle, zanzariere, cassonetti) con prodotti attivi e proposti nei preventivi.
                     </p>
                   ) : (
-                    accessoryMacros.map((m) => (
+                    tipologieAccessorio.map((t) => (
                       <button
-                        key={m.id}
+                        key={t.chiave}
                         type="button"
-                        onClick={() => { setPickedMacroId(m.id); setPickedFamilyId(null); }}
+                        onClick={() => { setPickedTipologia(t.chiave); setPickedFamilyId(null); }}
                         className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${
-                          pickedMacroId === m.id
+                          pickedTipologia === t.chiave
                             ? "bg-orange-100 border-orange-400 text-orange-700"
                             : "bg-background border-slate-200 hover:border-orange-300"
                         }`}
                       >
-                        {m.nome}
+                        {t.nome}
                       </button>
                     ))
                   )}
                 </div>
               </div>
 
-              {pickedMacroId && (
+              {pickedTipologia && (
                 <div>
                   <Label className="text-xs">
-                    Articolo {pickedFamilies.length > 0 && `(${pickedFamilies.length})`}
+                    Articolo {articoliTipologia.length > 0 && `(${articoliTipologia.length})`}
                   </Label>
-                  {loadingFamilies ? (
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground italic mt-1 py-2">
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      Caricamento articoli…
-                    </div>
-                  ) : pickedFamilies.length === 0 ? (
+                  {articoliTipologia.length === 0 ? (
                     <div className="text-xs text-muted-foreground italic mt-1 rounded-md border border-dashed p-3 text-center">
-                      Nessun articolo in questa macrocategoria.
+                      Nessun articolo in questa tipologia.
                       <br />
                       Aggiungi articoli da <strong>Impostazioni → Listino prodotti</strong>,
                       oppure passa a <button
@@ -963,7 +982,7 @@ function CopyMisureDialog({
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5 mt-1 max-h-48 overflow-y-auto pr-1">
-                      {pickedFamilies.map((f) => {
+                      {articoliTipologia.map((f) => {
                         const isSelected = pickedFamilyId === f.id;
                         return (
                           <button
@@ -1131,7 +1150,6 @@ function CopyMisureDialog({
               selected.size === 0 ||
               addMut.isPending ||
               (mode === "listino" && !pickedFamily) ||
-              (mode === "listino" && !!pickedFamily && loadingAssi) ||
               (mode === "listino" && pickedFamily?.modalita_prezzo_base === "griglia" && availableSupplierProductLineIds.length > 1)
             }
             className="w-full gap-1.5 bg-orange-500 hover:bg-orange-600 sm:w-auto"

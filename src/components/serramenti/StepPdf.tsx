@@ -13,13 +13,10 @@ import { toast } from "sonner";
 import type { SrProgettoDetail } from "@/types/serramenti";
 import { SrCard, SrCallout, SrKpi } from "@/lib/serramenti/wizardUI";
 import { formatEuro, formatEuroRangeOrSingle, formatNumero } from "@/lib/serramenti/format";
-import { useGeneraPdf, useConvertiInOrdine, useTemplatePdf } from "@/lib/serramenti/queries";
+import { useGeneraPdf, useConvertiInOrdine, useTemplatePdf, useAziendaPerPdf } from "@/lib/serramenti/queries";
 import { ClipboardList } from "lucide-react";
 import { useSerramentoPDF } from "@/hooks/useSerramentoPDF";
 import { generateInterventoSintesi } from "@/lib/serramenti/sintesiIntervento";
-import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 
 import { useIsMobile } from "@/hooks/use-mobile";
 interface Props {
@@ -48,39 +45,8 @@ export function StepPdf({ progettoId, detail }: Props) {
   // PDF nativo A4 client-side (@react-pdf/renderer, code-split via dynamic import)
   const { downloadPDF, previewPDF, isGenerating: isGeneratingPdf } = useSerramentoPDF();
   const { data: template } = useTemplatePdf();
-  const companyId = useEffectiveCompanyId();
-  const { data: company } = useQuery({
-    queryKey: ["sr-step-pdf-company", companyId],
-    enabled: !!companyId,
-    staleTime: 5 * 60 * 1000,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("companies")
-        .select("name, business_name, legal_address, legal_city, legal_postal_code, legal_province, phone, email, vat_number, logo_url, brand_logo_dark_url, website, pec")
-        .eq("id", companyId!)
-        .maybeSingle();
-      if (error) throw new Error(error.message);
-      if (!data) return null;
-      const indirizzo = [
-        data.legal_address,
-        [data.legal_postal_code, data.legal_city].filter(Boolean).join(" "),
-        data.legal_province,
-      ].filter(Boolean).join(", ");
-      return {
-        name: data.name,
-        ragione_sociale: data.business_name ?? data.name,
-        indirizzo: indirizzo || null,
-        telefono: data.phone,
-        email: data.email,
-        partita_iva: data.vat_number,
-        logo_url: data.logo_url,
-        brand_logo_dark_url: (data as { brand_logo_dark_url?: string | null }).brand_logo_dark_url ?? null,
-        // Sito e PEC compilati nell'anagrafica non arrivavano mai al piè di pagina del PDF.
-        website: data.website,
-        pec: data.pec,
-      };
-    },
-  });
+  // L'anagrafica dell'azienda del preventivo, anche per un super admin entrato in un'altra.
+  const { data: company } = useAziendaPerPdf(detail.progetto.company_id);
   const handleDownloadNative = () => {
     void downloadPDF({ detail, template: template ?? null, company: company ?? null, useFreshTemplate: true });
   };

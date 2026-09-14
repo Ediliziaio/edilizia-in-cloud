@@ -3,7 +3,7 @@
  *
  * Mirror del pattern src/lib/fotovoltaico/queries.ts.
  */
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   listProgetti, getProgetto, createProgetto, updateProgetto, deleteProgetto,
@@ -14,19 +14,19 @@ import {
   uploadMedia, deleteMedia,
   listRenderSessions, importRender,
   listCrmContacts,
-  listListinoFamilies, listListinoFamiliesByIds, listGrigliaByFamily,
-  listMacrocategorie, listCategorieByMacro,
+  listListinoFamiliesByIds, listGrigliaByFamily,
+  listCategorieByMacro,
   listMacroFields, createMacroField, updateMacroField, deleteMacroField,
   seedMacroFieldsFromVertical,
   listTariffeManodopera, addManodopera, updateManodopera, deleteManodopera,
-  duplicaProgetto,
+  duplicaProgetto, getAziendaPerPdf,
   type SrCreateProgettoInput,
   type UploadMediaInput,
   type ListinoMacroField,
 } from "./api";
 import type { SrManodoperaRow } from "@/types/serramenti";
 import type {
-  SrProgettoRow, SrSerramentoRow, SrAccessorioRow, SrTemplatePdfRow,
+  SrProgettoDetail, SrProgettoRow, SrSerramentoRow, SrAccessorioRow, SrTemplatePdfRow,
   SrStatoProgetto,
 } from "@/types/serramenti";
 import { toast } from "sonner";
@@ -43,6 +43,36 @@ export const SR_QK = {
   template: (companyId?: string) => ["sr-template-pdf", companyId ?? "none"] as const,
 };
 
+/** I salvataggi del preventivo aperto: il wizard li conta per non far chiudere la pagina a metà. */
+const salvataggiDel = (progettoId: string | undefined) => ["sr-progetto-autosave", progettoId] as const;
+
+/**
+ * Rilegge il preventivo quando finisce l'ultimo salvataggio in corso: una
+ * rilettura a metà riporterebbe per un attimo, nelle righe appena cambiate, i
+ * valori di prima.
+ */
+function rileggiAFineSalvataggi(qc: QueryClient, progettoId: string | undefined) {
+  if (!progettoId) return;
+  // Il salvataggio che chiama è ancora in corso e si conta.
+  if (qc.isMutating({ mutationKey: salvataggiDel(progettoId) }) > 1) return;
+  void qc.invalidateQueries({ queryKey: SR_QK.progetto(progettoId) });
+}
+
+/**
+ * La modifica di una riga entra subito nei dati del preventivo. Prima due
+ * modifiche rapide (la quantità e poi la posa, il colore e poi il vetro)
+ * partivano entrambe dai dati di prima, e la seconda cancellava la prima.
+ */
+async function modificaInCache(
+  qc: QueryClient,
+  progettoId: string | undefined,
+  modifica: (dati: SrProgettoDetail) => SrProgettoDetail,
+) {
+  if (!progettoId) return;
+  await qc.cancelQueries({ queryKey: SR_QK.progetto(progettoId) });
+  qc.setQueryData<SrProgettoDetail>(SR_QK.progetto(progettoId), (dati) => (dati ? modifica(dati) : dati));
+}
+
 export function useProgetti(opts?: { stato?: SrStatoProgetto }) {
   const companyId = useEffectiveCompanyId();
   return useQuery({
@@ -57,6 +87,16 @@ export function useProgetto(id: string | undefined) {
     queryKey: id ? SR_QK.progetto(id) : ["sr-progetto", "none"],
     queryFn: () => getProgetto(id!),
     enabled: !!id,
+  });
+}
+
+/** L'anagrafica per il PDF dell'azienda del preventivo: anteprima in testata e passo PDF. */
+export function useAziendaPerPdf(companyId: string | undefined) {
+  return useQuery({
+    queryKey: ["sr-azienda-pdf", companyId],
+    queryFn: () => getAziendaPerPdf(companyId!),
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
   });
 }
 
@@ -95,15 +135,15 @@ export function useDuplicaProgetto() {
 export function useUpdateProgetto(id: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationKey: ["sr-progetto-autosave", id],
+    mutationKey: salvataggiDel(id),
     mutationFn: (patch: Partial<SrProgettoRow>) => {
       if (!id) throw new Error("Progetto id mancante");
       return updateProgetto(id, patch);
     },
     onSuccess: () => {
-      if (id) qc.invalidateQueries({ queryKey: SR_QK.progetto(id) });
       qc.invalidateQueries({ queryKey: ["sr-progetti"] });
     },
+    onSettled: () => rileggiAFineSalvataggi(qc, id),
     onError: (e) => toast.error("Salvataggio fallito", { description: String(e) }),
   });
 }
@@ -139,12 +179,15 @@ export function useAddSerramento(progettoId: string | undefined) {
 export function useUpdateSerramento(progettoId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationKey: ["sr-progetto-autosave", progettoId],
+    mutationKey: salvataggiDel(progettoId),
     mutationFn: ({ id, patch }: { id: string; patch: Partial<SrSerramentoRow> }) =>
       updateSerramento(id, patch),
-    onSuccess: () => {
-      if (progettoId) qc.invalidateQueries({ queryKey: SR_QK.progetto(progettoId) });
-    },
+    onMutate: ({ id, patch }) =>
+      modificaInCache(qc, progettoId, (dati) => ({
+        ...dati,
+        serramenti: dati.serramenti.map((s) => (s.id === id ? { ...s, ...patch } : s)),
+      })),
+    onSettled: () => rileggiAFineSalvataggi(qc, progettoId),
     onError: (e) => toast.error("Modifica serramento fallita", { description: String(e) }),
   });
 }
@@ -152,10 +195,11 @@ export function useUpdateSerramento(progettoId: string | undefined) {
 export function useDeleteSerramento(progettoId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => deleteSerramento(id),
-    onSuccess: () => {
+    mutationFn: ({ id, conAccessori }: { id: string; conAccessori?: boolean }) =>
+      deleteSerramento(id, { conAccessori }),
+    onSuccess: (_esito, { conAccessori }) => {
       if (progettoId) qc.invalidateQueries({ queryKey: SR_QK.progetto(progettoId) });
-      toast.success("Serramento eliminato");
+      toast.success(conAccessori ? "Serramento e accessori eliminati" : "Serramento eliminato");
     },
     onError: (e) => toast.error("Eliminazione fallita", { description: String(e) }),
   });
@@ -180,12 +224,15 @@ export function useAddAccessorio(progettoId: string | undefined) {
 export function useUpdateAccessorio(progettoId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationKey: ["sr-progetto-autosave", progettoId],
+    mutationKey: salvataggiDel(progettoId),
     mutationFn: ({ id, patch }: { id: string; patch: Partial<SrAccessorioRow> }) =>
       updateAccessorio(id, patch),
-    onSuccess: () => {
-      if (progettoId) qc.invalidateQueries({ queryKey: SR_QK.progetto(progettoId) });
-    },
+    onMutate: ({ id, patch }) =>
+      modificaInCache(qc, progettoId, (dati) => ({
+        ...dati,
+        accessori: dati.accessori.map((a) => (a.id === id ? { ...a, ...patch } : a)),
+      })),
+    onSettled: () => rileggiAFineSalvataggi(qc, progettoId),
     onError: (e) => toast.error("Modifica accessorio fallita", { description: String(e) }),
   });
 }
@@ -268,21 +315,6 @@ export function useDeleteManodopera(progettoId: string | undefined) {
 
 // ─── Listino prodotti picker ────────────────────────────────────────────────
 
-export function useListinoFamilies(opts?: {
-  searchQuery?: string;
-  macroId?: string | null;
-  /** @deprecated post-refactor 20270513200000. Usa macroId. */
-  categoriaId?: string | null;
-}) {
-  const companyId = useEffectiveCompanyId();
-  return useQuery({
-    queryKey: ["sr-listino-families", opts?.searchQuery ?? "", opts?.macroId ?? null, opts?.categoriaId ?? null, companyId],
-    queryFn: () => listListinoFamilies({ ...opts, companyId }),
-    enabled: !!companyId,
-    staleTime: 5 * 60 * 1000,
-  });
-}
-
 /**
  * Fetch mirato delle famiglie listino per IDs noti. Da usare quando si
  * ha gia' una lista di family_id (es. righe BOM di un preventivo) e
@@ -304,24 +336,6 @@ export function useListinoFamiliesByIds(ids: string[]) {
     queryKey: ["sr-listino-families-by-ids", sortedIds],
     queryFn: () => listListinoFamiliesByIds(sortedIds),
     enabled: sortedIds.length > 0,
-    staleTime: 5 * 60 * 1000,
-  });
-}
-
-export function useMacrocategorie(opts?: {
-  onlyWithFamilies?: boolean;
-  vertical?: string | null;
-  /** Filtro tipo (principale/accessorio). Migration 20270513230000. */
-  tipo?: "principale" | "accessorio" | null;
-}) {
-  const onlyWithFamilies = opts?.onlyWithFamilies ?? true;
-  const vertical = opts?.vertical ?? null;
-  const tipo = opts?.tipo ?? null;
-  const companyId = useEffectiveCompanyId();
-  return useQuery({
-    queryKey: ["sr-listino-macrocategorie", onlyWithFamilies, vertical, tipo, companyId],
-    queryFn: () => listMacrocategorie({ onlyWithFamilies, vertical, tipo, companyId }),
-    enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
   });
 }

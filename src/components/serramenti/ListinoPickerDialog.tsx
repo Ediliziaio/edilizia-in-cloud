@@ -1,17 +1,20 @@
 /**
- * ListinoPickerDialog — picker gerarchico del listino.
+ * ListinoPickerDialog — «Aggiungi dal listino» nel preventivatore serramenti.
  *
- * Flusso 4 step (navigazione drill-down):
- *  1. Macrocategoria (es. Infissi, Persiane, Accessori)
- *  2. Categoria (es. Profilo da 70, Finestra 1 anta)
- *  3. Famiglia / prodotto (es. "COSTRUZIONE 2 IT — FINESTRA 1 ANTA")
- *  4. Misure libere + calcolo prezzo automatico
+ * Lo stesso listino della pagina Listino, nella sola area Serramenti:
+ *  1. Tipologia (Serramenti, Persiane e scuri…) con foto e numero di prodotti
+ *  2. Linea (PVC Salamander 76, PVC Aluplast Ideal 5000) con la sua scheda;
+ *     si salta se la tipologia ne ha una sola
+ *  3. Prodotto, col prezzo nella linea scelta
+ *  4. Misure, variabili e prezzo: la linea già scelta, le altre variabili come
+ *     nell'ultima posizione del preventivo (configurazione rapida)
  *
- *  Search globale: digitando ≥ 2 caratteri salta direttamente alla
- *  vista famiglie cross-categoria.
+ * La ricerca guarda nome, codice, descrizione e linea, ma solo nell'area: un
+ * inverter del fotovoltaico non compare mai in un preventivo serramenti. Cosa
+ * compare lo decide il listino (pickerListino.ts).
  *
- *  La posa configurata sulla famiglia è inglobata nel totale ma NON
- *  esposta al commerciale (UX policy).
+ * La posa configurata sulla famiglia è inglobata nel totale ma NON esposta al
+ * commerciale (UX policy).
  */
 import { useState, useEffect, useMemo } from "react";
 import {
@@ -25,14 +28,9 @@ import {
   Loader2, Search, Package, ArrowLeft, Ruler, Calculator, ChevronRight,
   Layers, AlertCircle,
 } from "lucide-react";
-import {
-  useListinoFamilies, useListinoGriglia, useTariffeManodopera,
-  useMacrocategorie,
-} from "@/lib/serramenti/queries";
-import type {
-  ListinoFamily, ListinoMacrocategoria,
-} from "@/lib/serramenti/api";
-import { useFamily } from "@/hooks/useFamilies";
+import { useListinoGriglia, useTariffeManodopera } from "@/lib/serramenti/queries";
+import { useFamilies } from "@/hooks/useFamilies";
+import { useListinoMacrocategorie } from "@/hooks/useListinoMacrocategorie";
 import type { AxisSelection } from "@/types/articleFamily";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -42,10 +40,27 @@ import { useSupplierProductLines } from "@/features/serramenti-listini/hooks/use
 import type { SupplierProductLine } from "@/features/serramenti-listini/types";
 import { useSchedeLinea } from "@/hooks/useSchedeLinea";
 import { useListinoCategorie } from "@/hooks/useListinoCategorie";
-import { lineaDellaRiga, schedaVuota, trovaSchedaLinea } from "@/lib/listino/schedeLinea";
+import { datiTecniciScheda, lineaDellaRiga, schedaVuota, trovaSchedaLinea } from "@/lib/listino/schedeLinea";
+import type { LineaListino, RigaListino, TipologiaListino } from "@/lib/listino/lineeListino";
+import {
+  areaDelPreventivatore,
+  assiDaScegliere,
+  cercaNellArea,
+  comeListinoFamily,
+  prezzoIndicativo,
+  selezioneIniziale,
+  tipologieProposte,
+  type PreferenzaAsse,
+} from "@/lib/serramenti/pickerListino";
 import { SchedaLineaCompatta } from "./SchedaLineaCompatta";
 import { SceltaVariante } from "./SceltaVariante";
 import { scelteDopo } from "@/lib/listino/scelteVariante";
+import { misuraDaTesto, quantitaDaTesto } from "@/lib/serramenti/righePreventivo";
+import {
+  applyMaggiorazioniAssi,
+  calcolaPrezzoProdotto,
+  calcolaPosaInclusa,
+} from "@/lib/serramenti/pricing";
 
 export interface ListinoPickResult {
   family_id: string;
@@ -77,66 +92,44 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSelect: (item: ListinoPickResult) => void;
-  /** Filtro tipo macrocategoria (migration 20270513230000).
-   *  Default: 'principale' — il picker mostra solo prodotti principali
-   *  (es. Infissi). Per il flow accessori passare 'accessorio'. */
+  /** Prodotti principali (le finestre) o accessori (tapparelle, zanzariere…). */
   tipo?: "principale" | "accessorio";
+  /** Le scelte dell'ultima posizione del preventivo: il prodotto scelto riparte da lì. */
+  preferenzeAssi?: Record<string, PreferenzaAsse>;
 }
-
-// ─── Helpers calcolo prezzo (esportati per riuso in StepBom row) ───────────
-
-// Funzioni di pricing estratte in `@/lib/serramenti/pricing.ts` (rimosso
-// re-export per silenziare i 4 warning react-refresh: HMR non supporta
-// moduli che esportano sia componenti che funzioni). I consumer
-// importano direttamente da `@/lib/serramenti/pricing`.
-import {
-  applyMaggiorazioniAssi,
-  calcolaPrezzoProdotto,
-  calcolaPosaInclusa,
-} from "@/lib/serramenti/pricing";
 
 const MODALITA_LABEL: Record<string, string> = {
   pz: "a pezzo", mq: "a m²", misura_libera: "a corpo", griglia: "da griglia misure",
 };
 
-// Post-refactor 20270513200000: step "categoria" eliminato — il flusso ora è
-// Macro → Famiglia (articolo) → Misure. La gerarchia listino è collassata
-// a 2 livelli.
-type Step = "macro" | "famiglia" | "misure";
+const PERCENTUALE = new Intl.NumberFormat("it-IT", { maximumFractionDigits: 1 });
+const EURO = new Intl.NumberFormat("it-IT", { maximumFractionDigits: 0 });
 
-// ─── Helper: icon o fallback ────────────────────────────────────────────────
+type Step = "tipologia" | "linea" | "prodotto" | "misure";
 
-function IconBox({ colore, iconText }: { colore?: string | null; iconText: string }) {
-  return (
-    <div
-      className="h-12 w-12 rounded-md flex items-center justify-center text-xl shrink-0"
-      style={{
-        backgroundColor: colore ? `${colore}22` : "#10b98122",
-        color: colore ?? "#10b981",
-      }}
-    >
-      {iconText}
-    </div>
-  );
+/** La foto della tipologia, o quella del primo prodotto che ne ha una. */
+function fotoDellaTipologia(t: TipologiaListino): string | null {
+  return t.immagineUrl ?? t.linee.flatMap((l) => l.righe).find((r) => r.famiglia.immagine_url)?.famiglia.immagine_url ?? null;
 }
 
 // ─── Component principale ──────────────────────────────────────────────────
 
 export function ListinoPickerDialog({
-  open, onOpenChange, onSelect, tipo = "principale",
+  open, onOpenChange, onSelect, tipo = "principale", preferenzeAssi,
 }: Props) {
-  const [step, setStep] = useState<Step>("macro");
+  const [step, setStep] = useState<Step>("tipologia");
   const [search, setSearch] = useState("");
   const [debounced, setDebounced] = useState("");
-  const [selectedMacro, setSelectedMacro] = useState<ListinoMacrocategoria | null>(null);
-  const [selectedFamily, setSelectedFamily] = useState<ListinoFamily | null>(null);
+  const [tipologiaChiave, setTipologiaChiave] = useState<string | null>(null);
+  const [lineaChiave, setLineaChiave] = useState<string | null>(null);
+  const [riga, setRiga] = useState<RigaListino | null>(null);
   const [larghezza, setLarghezza] = useState<string>("");
   const [altezza, setAltezza] = useState<string>("");
   const [quantita, setQuantita] = useState<string>("1");
   const [selectedSupplierProductLineId, setSelectedSupplierProductLineId] = useState<string | null>(null);
   // Selezione assi (variabili prodotto): mappa axis.codice -> axis_value.id.
-  // Pre-popolata con `is_default` quando la family viene caricata.
-  // Reset al cambio famiglia / chiusura dialog.
+  // Parte dalla linea della scheda scelta, poi dalle scelte dell'ultima
+  // posizione del preventivo, poi dai valori di serie.
   const [axisSelection, setAxisSelection] = useState<AxisSelection>({});
   // La voce scelta dentro il valore (il colore di una fascia), per asse.
   const [vociScelte, setVociScelte] = useState<Record<string, string>>({});
@@ -146,14 +139,13 @@ export function ListinoPickerDialog({
     return () => clearTimeout(t);
   }, [search]);
 
-  // Search globale: se ≥2 caratteri, salta a vista famiglie filtrata cross-cat
   const isSearching = debounced.trim().length >= 2;
 
   useEffect(() => {
     if (!open) {
-      setStep("macro");
+      setStep("tipologia");
       setSearch(""); setDebounced("");
-      setSelectedMacro(null); setSelectedFamily(null);
+      setTipologiaChiave(null); setLineaChiave(null); setRiga(null);
       setLarghezza(""); setAltezza(""); setQuantita("1");
       setAxisSelection({});
       setVociScelte({});
@@ -161,22 +153,37 @@ export function ListinoPickerDialog({
     }
   }, [open]);
 
-  // Quando l'utente cerca, mostriamo vista famiglie senza alterare il drill state
-  const effectiveStep: Step = isSearching && step !== "misure" ? "famiglia" : step;
+  // Cercando si vedono i risultati, senza perdere il punto in cui si era.
+  const vista: Step | "risultati" = isSearching && step !== "misure" ? "risultati" : step;
 
-  // ─── Data fetch ──────────────────────────────────────────────────────────
-  // Filtro vertical='serramentista': nel preventivo serramenti vediamo solo
-  // macro etichettate per questo verticale (più le generiche con verticali_abilitati=[]).
-  const { data: macros = [], isLoading: loadingMacros } = useMacrocategorie({
-    vertical: "serramentista",
-    tipo,
-  });
-  // Refactor 20270513200000: filtro famiglie direttamente per macrocategoria.
-  // Niente più step categoria intermedio.
-  const { data: families = [], isLoading: loadingFam } = useListinoFamilies({
-    searchQuery: isSearching ? debounced : undefined,
-    macroId: !isSearching && selectedMacro ? selectedMacro.id : undefined,
-  });
+  // ─── Listino: la sola area Serramenti ────────────────────────────────────
+  const { families, isLoading: loadingFamiglie } = useFamilies();
+  const { macrocategorie, isLoading: loadingMacro } = useListinoMacrocategorie();
+  const { categorie, isLoading: loadingCategorie } = useListinoCategorie();
+  const { indice: schedeLinea } = useSchedeLinea();
+  const caricamento = loadingFamiglie || loadingMacro || loadingCategorie;
+
+  const area = useMemo(
+    () => areaDelPreventivatore(families, macrocategorie, categorie, tipo),
+    [families, macrocategorie, categorie, tipo],
+  );
+  const proposte = useMemo(() => tipologieProposte(area), [area]);
+  const risultati = useMemo(() => cercaNellArea(area, debounced), [area, debounced]);
+  const tipologia = useMemo(
+    () => area?.tipologie.find((t) => t.chiave === tipologiaChiave) ?? null,
+    [area, tipologiaChiave],
+  );
+  const linea = useMemo(
+    () => tipologia?.linee.find((l) => l.chiave === lineaChiave) ?? (tipologia?.linee.length === 1 ? tipologia.linee[0] : null),
+    [tipologia, lineaChiave],
+  );
+  const piuLinee = (tipologia?.linee.length ?? 0) > 1;
+
+  // Il prodotto scelto arriva dal listino già con le sue variabili: niente
+  // secondo caricamento, e «Aggiungi» non parte mai senza le variabili.
+  const familyWithAxes = riga?.famiglia ?? null;
+  const selectedFamily = useMemo(() => (riga ? comeListinoFamily(riga.famiglia) : null), [riga]);
+
   const { data: griglia = [], isLoading: loadingGriglia } = useListinoGriglia(selectedFamily?.id);
   const { lines: supplierLines = [], isLoading: loadingSupplierLines } = useSupplierProductLines({
     enabled: open && selectedFamily?.modalita_prezzo_base === "griglia",
@@ -196,54 +203,28 @@ export function ListinoPickerDialog({
       .filter((line): line is SupplierProductLine => !!line),
     [availableSupplierProductLineIds, supplierLineMap],
   );
-  // FamilyWithAxes: carica family + assi + valori. Serve per:
-  //   - mostrare i dropdown delle variabili prodotto (assi) nel picker
-  //   - applicare le maggiorazioni dei valori scelti al prezzo
-  // Caricata solo allo step "misure" (selectedFamily presente).
-  const { family: familyWithAxes, isLoading: loadingFamily } = useFamily(selectedFamily?.id);
+  // Un asse con tutti i valori spenti non si mostra: bloccherebbe l'articolo per sempre.
   const axes = useMemo(
-    () => (familyWithAxes?.axes ?? []).slice().sort((a, b) => a.sort_order - b.sort_order),
+    () => assiDaScegliere((familyWithAxes?.axes ?? []).slice().sort((a, b) => a.sort_order - b.sort_order)),
     [familyWithAxes],
   );
 
   // La scheda della linea scelta (PVC Salamander 76): foto, dati e testo da
   // leggere al cliente. La linea è il valore dell'asse Linea, o la categoria.
-  const { indice: schedeLinea } = useSchedeLinea();
-  const { categorie } = useListinoCategorie();
   const schedaLinea = useMemo(() => {
     if (!familyWithAxes) return null;
     const categoria = familyWithAxes.categoria_id
       ? categorie.find((c) => c.id === familyWithAxes.categoria_id)
       : undefined;
-    const linea = lineaDellaRiga({ assi: familyWithAxes.axes, valoriAssi: axisSelection, categoria: categoria?.nome });
+    const nomeLinea = lineaDellaRiga({ assi: familyWithAxes.axes, valoriAssi: axisSelection, categoria: categoria?.nome });
     const scheda = trovaSchedaLinea(
       schedeLinea,
       familyWithAxes.macrocategoria_id ?? categoria?.macrocategoria_id ?? null,
-      linea,
+      nomeLinea,
     );
     return schedaVuota(scheda) ? null : scheda;
   }, [familyWithAxes, categorie, axisSelection, schedeLinea]);
 
-  // Pre-popolamento default sugli assi al primo caricamento della family.
-  // Pattern: per ogni asse, se non c'e' selezione e c'e' un value.is_default,
-  // usalo. NON sovrascrive le scelte utente fatte in seguito.
-  useEffect(() => {
-    if (!familyWithAxes || axes.length === 0) return;
-    setAxisSelection((prev) => {
-      const next = { ...prev };
-      let changed = false;
-      for (const a of axes) {
-        if (next[a.codice]) continue;
-        const def = a.values.find((v) => v.is_default && v.attivo);
-        if (def) {
-          next[a.codice] = def.id;
-          changed = true;
-        }
-      }
-      return changed ? next : prev;
-    });
-    // axes-deps via familyWithAxes.id evita loop infinito su axes ref instabili
-  }, [familyWithAxes, axes]);
   const { data: tariffe = [] } = useTariffeManodopera();
 
   useEffect(() => {
@@ -271,11 +252,18 @@ export function ListinoPickerDialog({
   }, [tariffe]);
 
   // ─── Calcolo prezzo live ────────────────────────────────────────────────
+  // Misure e pezzi come le colonne del preventivo: millimetri e pezzi interi.
+  // Un decimale faceva fallire l'aggiunta con un errore generico.
+  const larghezzaMm = misuraDaTesto(larghezza);
+  const altezzaMm = misuraDaTesto(altezza);
+  const pezzi = quantitaDaTesto(quantita);
+  const numeriNonValidi = larghezzaMm === undefined || altezzaMm === undefined || pezzi === undefined;
+
   const calcolo = useMemo(() => {
     if (!selectedFamily) return null;
-    const l = larghezza ? Number(larghezza) : null;
-    const h = altezza ? Number(altezza) : null;
-    const q = Math.max(1, Number(quantita) || 1);
+    const l = larghezzaMm ?? null;
+    const h = altezzaMm ?? null;
+    const q = pezzi ?? 1;
 
     // 1. Prezzo BASE prodotto via la strategia consolidata
     //    `calcolaPrezzoProdotto` (filter "quadrante che contiene le misure",
@@ -285,10 +273,7 @@ export function ListinoPickerDialog({
       supplierLines: supplierLineMap,
     });
 
-    // 2. Maggiorazioni assi (Variabili Prodotto) applicate SOPRA il prezzo
-    //    base via `applyMaggiorazioniAssi` (replica della logica di
-    //    `calcolaPrezzoFamiglia` ma senza switchare la strategia di lookup
-    //    griglia che dava risultati incoerenti).
+    // 2. Maggiorazioni assi (Variabili Prodotto) applicate SOPRA il prezzo base.
     const prezzoProdotto = familyWithAxes
       ? applyMaggiorazioniAssi(calc.prezzo, axisSelection, familyWithAxes.axes, l, h, q)
       : calc.prezzo;
@@ -314,7 +299,7 @@ export function ListinoPickerDialog({
       fuoriRange: calc.fuoriRange ?? false,
       range: calc.range,
     };
-  }, [selectedFamily, familyWithAxes, axisSelection, larghezza, altezza, quantita, griglia, selectedSupplierProductLineId, supplierLineMap, tariffePrezzi]);
+  }, [selectedFamily, familyWithAxes, axisSelection, larghezzaMm, altezzaMm, pezzi, griglia, selectedSupplierProductLineId, supplierLineMap, tariffePrezzi]);
 
   const richiedeMisure = selectedFamily && (
     selectedFamily.modalita_prezzo_base === "mq" ||
@@ -323,30 +308,49 @@ export function ListinoPickerDialog({
 
   // ─── Handlers ────────────────────────────────────────────────────────────
 
-  const handleSelectMacro = (m: ListinoMacrocategoria) => {
-    setSelectedMacro(m);
-    // Refactor 20270513200000: skip step categoria → direttamente alle famiglie
-    setStep("famiglia");
+  const scegliTipologia = (t: TipologiaListino) => {
+    setTipologiaChiave(t.chiave);
+    setLineaChiave(t.linee.length === 1 ? t.linee[0].chiave : null);
+    setStep(t.linee.length > 1 ? "linea" : "prodotto");
   };
 
-  const handleSelectFamily = (f: ListinoFamily) => {
-    setSelectedFamily(f);
-    setStep("misure");
-    // Reset selezione assi su cambio famiglia (gli assi sono family-specific).
-    // I default verranno applicati quando familyDetailWithAxes carica.
-    setAxisSelection({});
-    setVociScelte({});
+  const scegliLinea = (l: LineaListino) => {
+    setLineaChiave(l.chiave);
+    setStep("prodotto");
+  };
+
+  const scegliRiga = (r: RigaListino, t: TipologiaListino, l: LineaListino) => {
+    setTipologiaChiave(t.chiave);
+    setLineaChiave(l.chiave);
+    setRiga(r);
+    // Gli assi sono del prodotto: la linea della scheda scelta, poi le scelte
+    // dell'ultima posizione del preventivo, poi i valori di serie.
+    const iniziale = selezioneIniziale(r, preferenzeAssi);
+    setAxisSelection(iniziale.valori);
+    setVociScelte(iniziale.voci);
     setSelectedSupplierProductLineId(null);
+    setStep("misure");
   };
 
   const handleBack = () => {
-    if (step === "misure") {
-      setSelectedFamily(null);
-      setStep("famiglia");
-    } else if (step === "famiglia") {
-      setSelectedMacro(null);
-      setStep("macro");
+    if (vista === "risultati") {
+      setSearch(""); setDebounced("");
+      return;
     }
+    if (step === "misure") {
+      // Da una ricerca si torna ai risultati: il testo cercato è ancora lì.
+      setRiga(null);
+      setStep("prodotto");
+      return;
+    }
+    if (step === "prodotto" && piuLinee) {
+      setLineaChiave(null);
+      setStep("linea");
+      return;
+    }
+    setTipologiaChiave(null);
+    setLineaChiave(null);
+    setStep("tipologia");
   };
 
   const handleConferma = () => {
@@ -380,68 +384,69 @@ export function ListinoPickerDialog({
     onOpenChange(false);
   };
 
-  // ─── Breadcrumb ──────────────────────────────────────────────────────────
-  const breadcrumb = useMemo(() => {
-    if (isSearching && effectiveStep !== "misure") {
-      return `Risultati ricerca per "${debounced}"`;
-    }
-    const parts: string[] = [];
-    if (selectedMacro) parts.push(selectedMacro.nome);
-    if (selectedFamily) parts.push(selectedFamily.nome);
-    return parts.join(" › ") || "Listino";
-  }, [isSearching, debounced, effectiveStep, selectedMacro, selectedFamily]);
+  // ─── Testi della testata ─────────────────────────────────────────────────
+  const nomeArea = area?.nome ?? "Serramenti";
+  const titolo =
+    vista === "tipologia" ? (tipo === "accessorio" ? "Scegli l'accessorio" : `Listino ${nomeArea}`)
+    : vista === "linea" ? (tipologia?.nome ?? "Scegli la linea")
+    : vista === "prodotto" ? ([tipologia?.nome, piuLinee ? linea?.nome : null].filter(Boolean).join(" · ") || "Scegli il prodotto")
+    : vista === "risultati" ? `Ricerca: "${debounced}"`
+    : (selectedFamily?.nome ?? "Misure");
+  const sottotitolo =
+    vista === "tipologia"
+      ? (tipo === "accessorio"
+        ? `Tapparelle, zanzariere, cassonetti: gli accessori dell'area ${nomeArea} proposti nei preventivi`
+        : `Scegli la tipologia: ci sono solo i prodotti dell'area ${nomeArea} proposti nei preventivi`)
+    : vista === "linea" ? "Scegli la linea: la ritrovi già scelta nelle variabili del prodotto"
+    : vista === "prodotto" ? "Scegli il prodotto"
+    : vista === "risultati" ? `Nome, codice o linea, fra i prodotti dell'area ${nomeArea}`
+    : "Inserisci le misure: il prezzo è calcolato automaticamente";
+  const percorso = vista === "risultati"
+    ? `Ricerca nell'area ${nomeArea}`
+    : [nomeArea, tipologia?.nome, piuLinee ? linea?.nome : null, vista === "misure" ? selectedFamily?.nome : null]
+      .filter(Boolean)
+      .join(" › ");
+  const testoVuoto =
+    tipo === "accessorio"
+      ? `Nessun accessorio da proporre. Nel listino servono tipologie dell'area ${nomeArea} segnate come accessorio (tapparelle, zanzariere, cassonetti) con prodotti accesi e proposti nei preventivi.`
+      : area
+        ? `Le tipologie dell'area ${nomeArea} non sono collegate al preventivatore: cerca il prodotto per nome, oppure collegale da Impostazioni → Listino prodotti.`
+        : "Nel listino non c'è ancora niente da proporre nei preventivi serramenti: servono prodotti dell'area Serramenti accesi e proposti nei preventivi (Impostazioni → Listino prodotti).";
+  const macroScheda = familyWithAxes?.macrocategoria_id ?? tipologia?.macrocategoriaId ?? null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      {/* max-w-4xl: prima era 3xl ma con breadcrumb a 3 livelli (Macro › Cat ›
-          Famiglia) + caratteristiche prodotto (4-5 chip) il dialog si
-          impaginava male. 4xl dà respiro senza overflow. */}
       <DialogContent className="max-h-[92dvh] max-w-[calc(100vw-1rem)] overflow-y-auto p-4 sm:max-w-4xl sm:p-6">
         <DialogHeader className="space-y-1.5">
-          {/* Riga 1: solo step icon + titolo step (corto), no breadcrumb.
-              Breadcrumb pieno va in una riga dedicata sotto. */}
           <DialogTitle className="flex items-center gap-2 text-base">
-            {(effectiveStep !== "macro" || isSearching) && !isSearching && (
-              <Button size="icon" variant="ghost" onClick={handleBack} className="h-7 w-7 shrink-0">
+            {vista !== "tipologia" && (
+              <Button size="icon" variant="ghost" onClick={handleBack} className="h-7 w-7 shrink-0" aria-label="Indietro">
                 <ArrowLeft className="h-4 w-4" />
               </Button>
             )}
-            {effectiveStep === "macro" && <Layers className="h-4 w-4 text-orange-600 shrink-0" />}
-            {effectiveStep === "famiglia" && <Package className="h-4 w-4 text-orange-600 shrink-0" />}
-            {effectiveStep === "misure" && <Ruler className="h-4 w-4 text-orange-600 shrink-0" />}
-            <span className="flex-1">
-              {effectiveStep === "macro" && (tipo === "accessorio" ? "Scegli accessorio" : "Scegli macrocategoria")}
-              {effectiveStep === "famiglia" && (isSearching ? `Ricerca: "${debounced}"` : (selectedMacro?.nome ?? "Scegli prodotto"))}
-              {effectiveStep === "misure" && (selectedFamily?.nome ?? "Misure")}
-            </span>
+            {(vista === "tipologia" || vista === "linea") && <Layers className="h-4 w-4 text-orange-600 shrink-0" />}
+            {vista === "prodotto" && <Package className="h-4 w-4 text-orange-600 shrink-0" />}
+            {vista === "risultati" && <Search className="h-4 w-4 text-orange-600 shrink-0" />}
+            {vista === "misure" && <Ruler className="h-4 w-4 text-orange-600 shrink-0" />}
+            <span className="flex-1">{titolo}</span>
           </DialogTitle>
-          <DialogDescription className="text-xs">
-            {effectiveStep === "macro" && (
-              tipo === "accessorio"
-                ? "Macrocategorie marcate come 🔗 Accessorio (Tapparelle, Cassonetti, …)"
-                : "Scegli la macrocategoria di prodotto"
-            )}
-            {effectiveStep === "famiglia" && (isSearching ? "Famiglie corrispondenti alla ricerca" : "Scegli il prodotto specifico")}
-            {effectiveStep === "misure" && "Inserisci le misure: il prezzo è calcolato automaticamente"}
-          </DialogDescription>
-          {/* Breadcrumb compatto su riga dedicata: meno ingombrante del
-              titolo, formattato come pill. Si mostra solo nei livelli ≥ cat. */}
-          {(effectiveStep !== "macro" || isSearching) && (
+          <DialogDescription className="text-xs">{sottotitolo}</DialogDescription>
+          {vista !== "tipologia" && percorso && (
             <div className="text-[10px] text-muted-foreground flex items-center gap-1 flex-wrap pt-0.5">
               <span className="font-semibold uppercase tracking-wide">Percorso:</span>
-              <span className="truncate max-w-full">{breadcrumb}</span>
+              <span className="truncate max-w-full">{percorso}</span>
             </div>
           )}
         </DialogHeader>
 
-        {/* Search bar — visibile in tutti gli step tranne misure */}
-        {effectiveStep !== "misure" && (
+        {/* Ricerca — in tutti gli step tranne misure, sempre dentro l'area */}
+        {vista !== "misure" && (
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Cerca direttamente per nome prodotto…"
+              placeholder="Cerca per nome, codice o linea…"
               className="pl-9 h-10"
             />
             {isSearching && (
@@ -456,116 +461,134 @@ export function ListinoPickerDialog({
           </div>
         )}
 
-        {/* ─── STEP MACROCATEGORIA ──────────────────────────────────────── */}
-        {effectiveStep === "macro" && (
+        {/* ─── TIPOLOGIE ──────────────────────────────────────────────────── */}
+        {vista === "tipologia" && (
           <div className="max-h-[62dvh] overflow-y-auto sm:max-h-[55vh]">
-            {loadingMacros ? (
+            {caricamento ? (
               <LoadingState />
-            ) : macros.length === 0 ? (
-              <EmptyState
-                icon={<Layers className="h-10 w-10" />}
-                /* Empty state context-aware: il messaggio cambia in base al
-                   filtro tipo per dare istruzioni precise sul setup
-                   richiesto (marca una macro come Accessorio vs crea da zero). */
-                text={
-                  tipo === "accessorio"
-                    ? "Nessun accessorio da proporre. Nel listino servono tipologie segnate come accessorio (tapparelle, zanzariere, cassonetti) con prodotti attivi e proposti nei preventivi."
-                    : "Nessuna macrocategoria configurata. Vai in Impostazioni → Listino prodotti per crearle."
-                }
-              />
+            ) : proposte.length === 0 ? (
+              <EmptyState icon={<Layers className="h-10 w-10" />} text={testoVuoto} />
             ) : (
-              /* Card macrocategoria: layout verticale "catalog card".
-                 - Foto IN ALTO 4:3 con object-contain (no crop) su bg
-                   neutro -> articoli verticali (finestre/porte) si
-                   vedono interi.
-                 - Testo sotto con titolo + descrizione clampata.
-                 - Frecciachevron in basso destra come affordance di
-                   navigazione. */
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                {macros.map((m) => (
+                {proposte.map((t) => {
+                  const foto = fotoDellaTipologia(t);
+                  return (
+                    <button
+                      key={t.chiave}
+                      type="button"
+                      onClick={() => scegliTipologia(t)}
+                      className="text-left rounded-lg border-2 border-slate-200 hover:border-orange-400 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-orange-400 transition group overflow-hidden bg-white flex flex-col"
+                    >
+                      <div className="relative aspect-[4/3] bg-slate-50 border-b border-slate-100 flex items-center justify-center">
+                        {foto ? (
+                          <img loading="lazy" src={foto} alt={t.nome} className="absolute inset-0 w-full h-full object-contain p-2" />
+                        ) : (
+                          <Layers className="h-10 w-10 text-slate-300" />
+                        )}
+                      </div>
+                      <div className="flex-1 p-3 flex items-start gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold text-slate-900 truncate group-hover:text-orange-700 transition-colors">{t.nome}</p>
+                          <p className="text-[11px] text-muted-foreground mt-0.5">
+                            {t.articoli} {t.articoli === 1 ? "prodotto" : "prodotti"}
+                            {t.linee.length > 1 ? ` · ${t.linee.length} linee` : ""}
+                          </p>
+                        </div>
+                        <ChevronRight className="h-4 w-4 text-slate-400 group-hover:text-orange-600 mt-0.5 shrink-0 transition-colors" />
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ─── LINEE ──────────────────────────────────────────────────────── */}
+        {vista === "linea" && tipologia && (
+          <div className="max-h-[62dvh] overflow-y-auto sm:max-h-[55vh]">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+              {tipologia.linee.map((l) => {
+                const trovata = trovaSchedaLinea(schedeLinea, tipologia.macrocategoriaId, l.nome);
+                const scheda = schedaVuota(trovata) ? null : trovata;
+                const foto = scheda?.immagine_url ?? l.righe.find((r) => r.famiglia.immagine_url)?.famiglia.immagine_url ?? null;
+                const dati = scheda ? datiTecniciScheda(scheda).map((d) => d.breve).join(" · ") : "";
+                const prodotti = new Set(l.righe.map((r) => r.famiglia.id)).size;
+                return (
                   <button
-                    key={m.id}
-                    onClick={() => handleSelectMacro(m)}
+                    key={l.chiave}
+                    type="button"
+                    onClick={() => scegliLinea(l)}
                     className="text-left rounded-lg border-2 border-slate-200 hover:border-orange-400 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-orange-400 transition group overflow-hidden bg-white flex flex-col"
                   >
-                    {m.immagine_url ? (
-                      <div className="relative aspect-[4/3] bg-slate-50 border-b border-slate-100">
-                        <img loading="lazy"
-                          src={m.immagine_url}
-                          alt={m.nome}
-                          className="absolute inset-0 w-full h-full object-contain p-2"
-                        />
-                      </div>
-                    ) : (
-                      <div className="relative aspect-[4/3] bg-slate-50 border-b border-slate-100 flex items-center justify-center">
-                        <IconBox colore={m.colore} iconText="📦" />
-                      </div>
-                    )}
+                    <div className="relative aspect-[4/3] bg-slate-50 border-b border-slate-100 flex items-center justify-center">
+                      {foto ? (
+                        <img loading="lazy" src={foto} alt={l.nome} className="absolute inset-0 w-full h-full object-contain p-2" />
+                      ) : (
+                        <Layers className="h-10 w-10 text-slate-300" />
+                      )}
+                    </div>
                     <div className="flex-1 p-3 flex items-start gap-2">
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-bold text-slate-900 truncate group-hover:text-orange-700 transition-colors">{m.nome}</p>
-                        {m.descrizione && (
-                          <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2 leading-snug">{m.descrizione}</p>
-                        )}
+                        <p className="text-sm font-bold text-slate-900 group-hover:text-orange-700 transition-colors">{l.nome}</p>
+                        {dati && <p className="text-[11px] text-muted-foreground mt-0.5">{dati}</p>}
+                        <div className="mt-1.5 flex flex-wrap gap-1 text-[10px]">
+                          <span className="rounded bg-slate-100 px-1.5 py-0.5 text-slate-700">
+                            {prodotti} {prodotti === 1 ? "prodotto" : "prodotti"}
+                          </span>
+                          {l.scostamentoPct != null && l.scostamentoPct !== 0 && (
+                            <span className="rounded bg-amber-100 px-1.5 py-0.5 text-amber-800">
+                              {l.scostamentoPct > 0 ? "+" : ""}{PERCENTUALE.format(l.scostamentoPct)}% sul prezzo
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <ChevronRight className="h-4 w-4 text-slate-400 group-hover:text-orange-600 mt-0.5 shrink-0 transition-colors" />
                     </div>
                   </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ─── PRODOTTI della linea ───────────────────────────────────────── */}
+        {vista === "prodotto" && (
+          <div className="max-h-[62dvh] overflow-y-auto sm:max-h-[55vh]">
+            {!tipologia || !linea || linea.righe.length === 0 ? (
+              <EmptyState
+                icon={<Package className="h-10 w-10" />}
+                text={`Nessun prodotto in "${tipologia?.nome ?? "questa tipologia"}".`}
+              />
+            ) : (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+                {linea.righe.map((r) => (
+                  <SchedaProdotto key={r.chiave} riga={r} onClick={() => scegliRiga(r, tipologia, linea)} />
                 ))}
               </div>
             )}
           </div>
         )}
 
-        {/* ─── STEP FAMIGLIA — grid con immagini prodotto ─────────────── */}
-        {effectiveStep === "famiglia" && (
+        {/* ─── RISULTATI della ricerca ────────────────────────────────────── */}
+        {vista === "risultati" && (
           <div className="max-h-[62dvh] overflow-y-auto sm:max-h-[55vh]">
-            {loadingFam ? (
+            {caricamento ? (
               <LoadingState />
-            ) : families.length === 0 ? (
+            ) : risultati.length === 0 ? (
               <EmptyState
                 icon={<Package className="h-10 w-10" />}
-                text={isSearching
-                  ? `Nessun prodotto trovato per "${debounced}".`
-                  : `Nessun prodotto in "${selectedMacro?.nome ?? "questa macrocategoria"}".`
-                }
+                text={`Nessun prodotto dell'area ${nomeArea} per "${debounced}".`}
               />
             ) : (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-                {families.map((f) => (
-                  <button
-                    key={f.id}
-                    onClick={() => handleSelectFamily(f)}
-                    className="text-left rounded-md border-2 border-slate-200 hover:border-orange-400 hover:bg-orange-50/30 focus:outline-none focus:ring-2 focus:ring-orange-400 transition overflow-hidden group flex flex-col"
-                  >
-                    {f.immagine_url ? (
-                      <img loading="lazy"
-                        src={f.immagine_url}
-                        alt={f.nome}
-                        className="w-full h-32 object-contain bg-slate-50"
-                      />
-                    ) : (
-                      <div className="w-full h-32 flex items-center justify-center bg-slate-50 text-4xl text-slate-300">
-                        <Package className="h-10 w-10" />
-                      </div>
-                    )}
-                    <div className="p-2.5 flex flex-col gap-1 flex-1">
-                      <p className="text-xs font-semibold text-slate-900 line-clamp-2 leading-tight">{f.nome}</p>
-                      {f.descrizione && (
-                        <p className="text-[10px] text-muted-foreground line-clamp-2 leading-tight">{f.descrizione}</p>
-                      )}
-                      <div className="flex flex-wrap gap-1 mt-auto pt-1 text-[9px]">
-                        <span className="px-1.5 py-0.5 rounded bg-orange-100 text-orange-600 font-medium">
-                          {MODALITA_LABEL[f.modalita_prezzo_base ?? "pz"]}
-                        </span>
-                        {f.prezzo_base_vendita != null && Number(f.prezzo_base_vendita) > 0 && (
-                          <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-medium">
-                            €{Number(f.prezzo_base_vendita).toFixed(0)}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </button>
+                {risultati.map(({ tipologia: t, linea: l, riga: r }) => (
+                  <SchedaProdotto
+                    key={r.chiave}
+                    riga={r}
+                    contesto={t.linee.length > 1 ? `${t.nome} · ${l.nome}` : t.nome}
+                    onClick={() => scegliRiga(r, t, l)}
+                  />
                 ))}
               </div>
             )}
@@ -573,7 +596,7 @@ export function ListinoPickerDialog({
         )}
 
         {/* ─── STEP MISURE + CALCOLO ─────────────────────────────────── */}
-        {effectiveStep === "misure" && selectedFamily && (
+        {vista === "misure" && selectedFamily && (
           <div className="space-y-3">
             <Card className="bg-orange-50/30 border-orange-200 p-3">
               <p className="text-[11px] uppercase tracking-wide text-orange-600 font-semibold mb-1">
@@ -660,16 +683,16 @@ export function ListinoPickerDialog({
               </p>
             )}
 
-            {/* Scheda tecnica read-only: chiavi visibili (show_in_picker) della
-                macrocategoria della famiglia selezionata. Si nasconde da sé se
-                la macro non ha schema o se la famiglia non ha valori compilati. */}
-            {selectedMacro && Object.keys(selectedFamily.custom_field_values ?? {}).length > 0 && (
+            {/* Scheda tecnica read-only: i campi della tipologia del prodotto
+                scelto (anche arrivando da una ricerca). Si nasconde da sé se la
+                tipologia non ha schema o se il prodotto non ha valori compilati. */}
+            {macroScheda && Object.keys(selectedFamily.custom_field_values ?? {}).length > 0 && (
               <Card className="bg-slate-50 border-slate-200 p-3">
                 <p className="text-[11px] uppercase tracking-wide text-slate-600 font-semibold mb-2">
                   Caratteristiche prodotto
                 </p>
                 <DynamicFieldsRenderer
-                  macroId={selectedMacro.id}
+                  macroId={macroScheda}
                   values={selectedFamily.custom_field_values ?? {}}
                   mode="display"
                 />
@@ -677,18 +700,15 @@ export function ListinoPickerDialog({
             )}
 
             {/* Range disponibile griglia: SEMPRE visibile in modalita' griglia,
-                anche prima di inserire misure. Comunica subito al commerciale
-                quali misure puo' offrire al cliente. */}
+                anche prima di inserire misure. */}
             {selectedFamily.modalita_prezzo_base === "griglia" && calcolo?.range && calcolo.range.minL != null && (
               <p className="text-[11px] text-blue-800 bg-blue-50 border border-blue-200 rounded px-2.5 py-1.5">
                 <span className="font-semibold">Misure disponibili:</span> da {calcolo.range.minL}×{calcolo.range.minH} mm a {calcolo.range.maxL}×{calcolo.range.maxH} mm
               </p>
             )}
 
-            {/* Variabili Prodotto (axes): dropdown per ogni asse con i suoi
-                valori. Mostra la maggiorazione associata al valore (es.
-                "Antracite (+5%)"). Si nasconde se la family non ha assi.
-                I valori default (is_default) sono pre-selezionati. */}
+            {/* Variabili Prodotto (axes): la linea parte già scelta, gli altri
+                assi come nell'ultima posizione o dai valori di serie. */}
             {axes.length > 0 && (
               <Card className="border-slate-200 bg-white p-3">
                 <p className="text-[11px] uppercase tracking-wide text-slate-700 font-semibold mb-2">
@@ -729,13 +749,6 @@ export function ListinoPickerDialog({
             {/* La scheda della linea scelta: cosa si sta proponendo al cliente. */}
             {schedaLinea && <SchedaLineaCompatta scheda={schedaLinea} />}
 
-            {/* Loading state della family con assi: mostra hint mentre carica */}
-            {loadingFamily && axes.length === 0 && (
-              <p className="text-[10px] text-muted-foreground flex items-center gap-1 italic">
-                <Loader2 className="h-3 w-3 animate-spin" /> Caricamento configurazione articolo…
-              </p>
-            )}
-
             {/* Riepilogo calcolo — il commerciale vede solo il totale, niente posa esposta */}
             {calcolo && !calcolo.fuoriRange && (
               <Card className="border-orange-300 bg-orange-50/50 p-4">
@@ -766,9 +779,7 @@ export function ListinoPickerDialog({
               </Card>
             )}
 
-            {/* Stato OUT-OF-RANGE: misure non producibili dal listino.
-                Blocca l'aggiunta al preventivo evitando vendita di articolo
-                non realizzabile. */}
+            {/* Stato OUT-OF-RANGE: misure non producibili dal listino. */}
             {calcolo?.fuoriRange && (
               <Card className="border-rose-300 bg-rose-50 p-4">
                 <p className="text-sm font-bold text-rose-800 mb-1 flex items-center gap-1.5">
@@ -795,27 +806,27 @@ export function ListinoPickerDialog({
         )}
 
         <div className="mt-1 flex flex-col gap-2 border-t pt-3 sm:flex-row sm:items-center sm:justify-between">
-          {/* Hint contestuale a sinistra solo nello step misure quando il
-              bottone è disabled: prima il bottone disabled appariva sospeso
-              senza spiegazione, ora l'utente sa subito cosa manca. */}
           <div className="text-[11px] text-muted-foreground">
-            {effectiveStep === "misure" && richiedeMisure && (!larghezza || !altezza) && (
+            {vista === "misure" && richiedeMisure && (!larghezza || !altezza) && (
               <span>Inserisci larghezza e altezza per calcolare il prezzo.</span>
             )}
-            {effectiveStep === "misure" && calcolo?.requiresSupplierLine && (
+            {vista === "misure" && calcolo?.requiresSupplierLine && (
               <span>Scegli la linea prodotto fornitore prima di aggiungere.</span>
+            )}
+            {vista === "misure" && numeriNonValidi && (
+              <span>Misure in millimetri interi e quantità da 1 in su.</span>
             )}
           </div>
           <div className="flex w-full shrink-0 flex-col-reverse gap-2 sm:w-auto sm:flex-row sm:items-center">
             <Button variant="ghost" onClick={() => onOpenChange(false)} className="w-full sm:w-auto">Annulla</Button>
-            {effectiveStep === "misure" && (
+            {vista === "misure" && (
               <Button
                 onClick={handleConferma}
                 className="w-full bg-orange-500 hover:bg-orange-600 sm:w-auto"
                 disabled={
-                  (richiedeMisure && (!larghezza || !altezza))
+                  numeriNonValidi
+                  || (richiedeMisure && (!larghezza || !altezza))
                   || !calcolo || calcolo.totale <= 0
-                  // Blocca aggiunta se misure fuori range producibile.
                   || calcolo.fuoriRange === true
                   || calcolo.requiresSupplierLine === true
                   || calcolo.missingSupplierLinePricing === true
@@ -837,6 +848,46 @@ export function ListinoPickerDialog({
 }
 
 // ─── Sub-components ─────────────────────────────────────────────────────────
+
+/** Il prodotto nella griglia: foto, nome e prezzo nella linea della riga. */
+function SchedaProdotto({ riga, contesto, onClick }: { riga: RigaListino; contesto?: string; onClick: () => void }) {
+  const f = riga.famiglia;
+  const prezzo = prezzoIndicativo(riga);
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="text-left rounded-md border-2 border-slate-200 hover:border-orange-400 hover:bg-orange-50/30 focus:outline-none focus:ring-2 focus:ring-orange-400 transition overflow-hidden group flex flex-col"
+    >
+      {f.immagine_url ? (
+        <img loading="lazy" src={f.immagine_url} alt={f.nome} className="w-full h-32 object-contain bg-slate-50" />
+      ) : (
+        <div className="w-full h-32 flex items-center justify-center bg-slate-50 text-slate-300">
+          <Package className="h-10 w-10" />
+        </div>
+      )}
+      <div className="p-2.5 flex flex-col gap-1 flex-1">
+        {contesto && (
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-orange-700 line-clamp-1">{contesto}</p>
+        )}
+        <p className="text-xs font-semibold text-slate-900 line-clamp-2 leading-tight">{f.nome}</p>
+        {f.descrizione && (
+          <p className="text-[10px] text-muted-foreground line-clamp-2 leading-tight">{f.descrizione}</p>
+        )}
+        <div className="flex flex-wrap gap-1 mt-auto pt-1 text-[9px]">
+          <span className="px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 font-medium">
+            {MODALITA_LABEL[f.modalita_prezzo_base ?? "pz"]}
+          </span>
+          {prezzo && (
+            <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-medium tabular-nums">
+              € {EURO.format(prezzo.prezzo)}{prezzo.alMetroQuadro ? "/m²" : ""}
+            </span>
+          )}
+        </div>
+      </div>
+    </button>
+  );
+}
 
 function LoadingState() {
   return (
