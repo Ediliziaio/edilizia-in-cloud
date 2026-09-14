@@ -1,8 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
   calcolaPrezzoSerramento,
-  findExactGridCell,
-  findNearestGridCell,
 } from "@/features/serramenti-listini/utils/pricing";
 import type { PricingInput } from "@/features/serramenti-listini/types";
 import { calcolaPrezzoProdotto as calcolaPrezzoProdottoPreventivo } from "@/lib/serramenti/pricing";
@@ -161,37 +159,6 @@ describe("calcolaPrezzoSerramento — margine", () => {
     );
     expect(r.margine_percentuale).toBe(50);
     expect(r.prezzo_vendita_totale).toBe(1500);
-  });
-});
-
-describe("findExactGridCell / findNearestGridCell", () => {
-  const grid = [
-    { valore_x: 1000, valore_y: 1000, prezzo_vendita: 100 },
-    { valore_x: 1200, valore_y: 1200, prezzo_vendita: 150 },
-    { valore_x: 1500, valore_y: 1500, prezzo_vendita: 200 },
-  ];
-
-  it("exact trova cella esatta", () => {
-    const c = findExactGridCell(grid, 1200, 1200);
-    expect(c?.prezzo_vendita).toBe(150);
-  });
-
-  it("exact null se non trovato", () => {
-    expect(findExactGridCell(grid, 1050, 1050)).toBeNull();
-  });
-
-  it("nearest: 1050×1050 → cella 1000×1000 (più vicina)", () => {
-    const c = findNearestGridCell(grid, 1050, 1050);
-    expect(c?.prezzo_vendita).toBe(100);
-  });
-
-  it("nearest: 1300×1300 → cella 1200×1200 (distanza Manhattan minima)", () => {
-    const c = findNearestGridCell(grid, 1300, 1300);
-    expect(c?.prezzo_vendita).toBe(150);
-  });
-
-  it("nearest null se grid vuota", () => {
-    expect(findNearestGridCell([], 1000, 1000)).toBeNull();
   });
 });
 

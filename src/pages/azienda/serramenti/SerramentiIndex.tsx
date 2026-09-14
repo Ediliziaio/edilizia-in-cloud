@@ -59,7 +59,7 @@ import {
   SCHEMI_PAGAMENTO_LABELS, BONUS_OPTIONS, PROVINCE_IT,
   type TriState, type SortKey, SORT_LABELS, PAGE_SIZE,
 } from "./SerramentiIndex/constants";
-import { fmtEur, fmtEurRangeOrSingle } from "./SerramentiIndex/helpers";
+import { formatEuro, formatEuroRangeOrSingle } from "@/lib/serramenti/format";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useTableSelection } from "@/hooks/useTableSelection";
 import { ModuloBulkToolbar } from "@/components/moduli/ModuloBulkToolbar";
@@ -468,14 +468,14 @@ export default function SerramentiIndex() {
             value={stats.aperti}
             icon={<Layers className="h-4 w-4" />}
             tone="navy"
-            hint={stats.valorePipeline > 0 ? fmtEur(stats.valorePipeline) : undefined}
+            hint={stats.valorePipeline > 0 ? formatEuro(stats.valorePipeline) : undefined}
           />
           <KpiCard
             label="Vinte (contratti)"
             value={stats.vinti}
             icon={<Trophy className="h-4 w-4" />}
             tone="orange"
-            hint={stats.valoreVinti > 0 ? fmtEur(stats.valoreVinti) : undefined}
+            hint={stats.valoreVinti > 0 ? formatEuro(stats.valoreVinti) : undefined}
           />
           <KpiCard label="Perse" value={stats.persi} icon={<XCircle className="h-4 w-4" />} tone="rose" />
           <KpiCard
@@ -650,7 +650,7 @@ export default function SerramentiIndex() {
                             {c.conv != null ? `${c.conv}%` : "—"}
                           </td>
                           <td className="text-right py-1.5 px-2 tabular-nums font-semibold">
-                            {c.valoreVinti > 0 ? fmtEur(c.valoreVinti) : "—"}
+                            {c.valoreVinti > 0 ? formatEuro(c.valoreVinti) : "—"}
                           </td>
                         </tr>
                       );
@@ -897,8 +897,8 @@ export default function SerramentiIndex() {
                             </TableCell>
                             <TableCell className="text-xs text-right tabular-nums">{p.totale_serramenti ?? 0}</TableCell>
                             <TableCell className="text-xs text-right tabular-nums font-medium">
-                              {fmtEurRangeOrSingle(p.totale_min, p.totale_max) !== "—" ? (
-                                <span>{fmtEurRangeOrSingle(p.totale_min, p.totale_max)}</span>
+                              {formatEuroRangeOrSingle(p.totale_min, p.totale_max) !== "—" ? (
+                                <span>{formatEuroRangeOrSingle(p.totale_min, p.totale_max)}</span>
                               ) : (
                                 <span className="text-muted-foreground">—</span>
                               )}
@@ -980,8 +980,8 @@ export default function SerramentiIndex() {
                         </div>
                         <div className="flex items-center justify-between text-xs">
                           <span className="font-medium tabular-nums">
-                            {fmtEurRangeOrSingle(p.totale_min, p.totale_max) !== "—" ? (
-                              <>{fmtEurRangeOrSingle(p.totale_min, p.totale_max)}</>
+                            {formatEuroRangeOrSingle(p.totale_min, p.totale_max) !== "—" ? (
+                              <>{formatEuroRangeOrSingle(p.totale_min, p.totale_max)}</>
                             ) : (
                               <span className="text-muted-foreground">—</span>
                             )}

@@ -121,22 +121,6 @@ export async function createProgetto(
   return data as SrProgettoRow;
 }
 
-export async function createProgettoDaSopralluogo(
-  sopralluogo_id: string,
-  cliente_id?: string,
-): Promise<string> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase as any).rpc("sr_create_progetto_da_sopralluogo", {
-    p_sopralluogo_id: sopralluogo_id,
-    p_cliente_id: cliente_id ?? null,
-  });
-  if (error) {
-    console.error("[serramenti] createProgettoDaSopralluogo failed", error);
-    throw new Error("Creazione progetto da sopralluogo fallita");
-  }
-  return data as string;
-}
-
 export async function listProgetti(opts?: { stato?: SrStatoProgetto; limit?: number; companyId?: string | null }) {
   // SELECT esteso: aggiunge campi usati dai filtri avanzati della lista
   // (commerciale, provincia, m², bonus, pagamento, link CRM/ordini).
@@ -282,7 +266,6 @@ export async function getProgetto(id: string): Promise<SrProgettoDetail> {
     media: mediaList,
     risparmio: (risparmio ?? null) as SrCalcoloRisparmioRow | null,
     servizi: serviziList,
-    manodopera: serviziList, // alias retrocompat
   };
 }
 
@@ -811,42 +794,6 @@ export interface ListinoCategoria {
   macrocategoria_id: string | null;
 }
 
-/**
- * Lista categorie. Se `onlyWithFamilies=true` filtra fuori le categorie senza
- * articoli (dead-end UX).
- */
-export async function listCategorieByMacro(
-  macroId: string | null,
-  opts?: { onlyWithFamilies?: boolean; companyId?: string | null },
-): Promise<ListinoCategoria[]> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let q = (supabase as any)
-    .from("listino_categorie")
-    .select("id, nome, descrizione, icona, colore, immagine_url, macrocategoria_id")
-    .order("sort_order", { ascending: true, nullsFirst: false })
-    .order("nome", { ascending: true });
-  if (opts?.companyId) q = q.eq("company_id", opts.companyId);
-  if (macroId) q = q.eq("macrocategoria_id", macroId);
-  const { data, error } = await q;
-  if (error) {
-    console.error("[serramenti] listCategorieByMacro failed", error);
-    throw new Error("Errore caricamento categorie listino");
-  }
-  const cats = (data ?? []) as ListinoCategoria[];
-  if (!opts?.onlyWithFamilies || cats.length === 0) return cats;
-
-  const catIds = cats.map((c) => c.id);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: famRows } = await (supabase as any)
-    .from("article_families")
-    .select("categoria_id")
-    .in("categoria_id", catIds);
-  const catsWithFam = new Set<string>(
-    (famRows ?? []).map((f: { categoria_id: string }) => f.categoria_id),
-  );
-  return cats.filter((c) => catsWithFam.has(c.id));
-}
-
 // ─── SCHEDA TECNICA: campi tipizzati per macrocategoria ──────────────────
 //
 // Ogni macrocategoria può definire un set di "campi descrittivi" tipizzati
@@ -967,25 +914,6 @@ export async function seedMacroFieldsFromVertical(
     throw new Error("Errore seed scheda tecnica");
   }
   return Number(data ?? 0);
-}
-
-/**
- * Aggiorna i verticali abilitati su una macrocategoria. Una macro con
- * `[]` (default) è generica e appare in tutti i moduli preventivo.
- */
-export async function updateMacrocategoriaVerticali(
-  macroId: string,
-  verticali: string[],
-): Promise<void> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await (supabase as any)
-    .from("listino_macrocategorie")
-    .update({ verticali_abilitati: verticali })
-    .eq("id", macroId);
-  if (error) {
-    console.error("[serramenti] updateMacrocategoriaVerticali failed", error);
-    throw new Error("Errore aggiornamento verticali macrocategoria");
-  }
 }
 
 // ─── LISTINO PRODOTTI (article_families + listino_griglia) ─────────────────

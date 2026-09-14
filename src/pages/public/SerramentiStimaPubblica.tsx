@@ -407,7 +407,7 @@ export default function SerramentiStimaPubblica() {
             <CardHeader className="p-4 pb-2 flex flex-row items-center justify-between">
               <CardTitle className="text-base flex items-center gap-2">
                 <FileText className="h-4 w-4" style={{ color: inchiostro }} />
-                Documento completo (3 pagine)
+                Documento completo
               </CardTitle>
               <Button asChild variant="outline" size="sm">
                 <a href={pdf_url} target="_blank" rel="noopener noreferrer" className="gap-1">

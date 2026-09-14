@@ -50,7 +50,7 @@ const centesimi = (valore: number) => Math.round((Number.isFinite(valore) ? valo
  * minimo e massimo coincidono.
  */
 export function totaliDelPreventivo(
-  detail: Pick<SrProgettoDetail, "serramenti" | "accessori"> & Partial<Pick<SrProgettoDetail, "servizi" | "manodopera">>,
+  detail: Pick<SrProgettoDetail, "serramenti" | "accessori"> & Partial<Pick<SrProgettoDetail, "servizi">>,
   economia: Pick<Partial<SrProgettoRow>, "iva_percentuale" | "sconto_percentuale" | "sconto_importo">,
 ): TotaliPreventivo {
   const totale = calcolaTotale(
@@ -61,7 +61,7 @@ export function totaliDelPreventivo(
       sconto_percentuale: economia.sconto_percentuale ?? 0,
       sconto_importo: economia.sconto_importo ?? 0,
     },
-    detail.servizi ?? detail.manodopera ?? [],
+    detail.servizi ?? [],
   );
   const importo = centesimi(totale.totale_iva_inclusa);
   return {

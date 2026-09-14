@@ -944,8 +944,6 @@ export interface SrProgettoDetail {
   risparmio: SrCalcoloRisparmioRow | null;
   /** Servizi aggiuntivi (trasporto, ENEA, smaltimento, sopralluogo) */
   servizi: SrServizioRow[];
-  /** @deprecated alias di servizi */
-  manodopera: SrServizioRow[];
 }
 
 // ─── Wizard step ─────────────────────────────────────────────────────────────

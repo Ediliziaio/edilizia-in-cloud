@@ -15,7 +15,6 @@ import {
   listRenderSessions, importRender,
   listCrmContacts,
   listListinoFamiliesByIds, listGrigliaByFamily,
-  listCategorieByMacro,
   listMacroFields, createMacroField, updateMacroField, deleteMacroField,
   seedMacroFieldsFromVertical,
   listTariffeManodopera, addManodopera, updateManodopera, deleteManodopera,
@@ -336,20 +335,6 @@ export function useListinoFamiliesByIds(ids: string[]) {
     queryKey: ["sr-listino-families-by-ids", sortedIds],
     queryFn: () => listListinoFamiliesByIds(sortedIds),
     enabled: sortedIds.length > 0,
-    staleTime: 5 * 60 * 1000,
-  });
-}
-
-export function useCategorieByMacro(
-  macroId: string | null,
-  opts?: { onlyWithFamilies?: boolean }
-) {
-  const onlyWithFamilies = opts?.onlyWithFamilies ?? true;
-  const companyId = useEffectiveCompanyId();
-  return useQuery({
-    queryKey: ["sr-listino-categorie", macroId, onlyWithFamilies, companyId],
-    queryFn: () => listCategorieByMacro(macroId, { onlyWithFamilies, companyId }),
-    enabled: macroId !== undefined && !!companyId,
     staleTime: 5 * 60 * 1000,
   });
 }

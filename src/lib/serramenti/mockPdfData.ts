@@ -266,7 +266,6 @@ export async function buildMockPdfData(opts: {
     media,
     risparmio,
     servizi,
-    manodopera: [],
   };
 
   const consulente: SerramentoPdfConsulente = {
@@ -354,9 +353,6 @@ export async function buildMockPdfData(opts: {
     },
   ];
 
-  const macroImageById: Record<string, string | null> = {
-    [MOCK_MACRO_ID]: null,
-  };
   const publicUrl = "https://app.ediliziaincloud.com/stima/demo-firma-token";
 
   // Pre-converti le immagini del template (webp → JPEG/PNG) in parallelo.
@@ -402,7 +398,6 @@ export async function buildMockPdfData(opts: {
     fieldsByMacro,
     macroPagineDedicate,
     lineeDedicate,
-    macroImageById,
     macroNomeById: {
       [MOCK_MACRO_ID]: "Infissi in alluminio premium",
     },

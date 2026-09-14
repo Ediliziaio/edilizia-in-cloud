@@ -50,9 +50,6 @@ supabase/migrations/
   20260917000016_*  listino_griglia.axis_config + supplier tracking
   ...
 
-supabase/functions/
-  serramenti-installa-catalogo/   edge fn: seed 20 tipologie base nell'azienda
-  serramenti-estrai-griglia-pdf/  edge fn: AI Vision estrae griglia da PDF
 ```
 
 ## Step di sviluppo

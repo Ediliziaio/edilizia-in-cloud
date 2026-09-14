@@ -79,8 +79,6 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   /** Pre-filtro per verticale (es. "serramenti"). */
   initialVertical?: string | null;
-  /** Pre-filtro per categoria (per ora solo lato tab globale). */
-  initialCategoria?: string | null;
   /** Callback con la foto scelta (sorgente normalizzata). */
   onSelect: (photo: SelectedPhoto) => void;
 }
@@ -89,7 +87,7 @@ type SelectedRef = { id: string; source: "global" | "company" } | null;
 type Tab = "global" | "company";
 
 export function PhotoTemplatePicker({
-  open, onOpenChange, initialVertical, initialCategoria, onSelect,
+  open, onOpenChange, initialVertical, onSelect,
 }: Props) {
   const [tab, setTab] = useState<Tab>("global");
   const [vertical, setVertical] = useState<string>(initialVertical ?? "all");
@@ -115,7 +113,7 @@ export function PhotoTemplatePicker({
   const { data: globalTemplates = [], isLoading: globalLoading, isError: globalError } =
     useArticlePhotoTemplates({
       vertical: vertical === "all" ? null : vertical,
-      categoria: initialCategoria ?? null,
+      categoria: null,
       search,
     });
 

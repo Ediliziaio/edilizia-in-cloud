@@ -11,8 +11,8 @@
  *  - Reset formattazione
  *
  * Output: HTML stringa (es. `<p style="font-size: 14pt"><strong>...</strong></p>`).
- * Per il PDF: usare l'helper `htmlToPdfNodes` in src/lib/serramenti/htmlToPdf.tsx
- * che mappa i tag base ai @react-pdf/renderer Text nodes.
+ * Per il PDF: `htmlToPdfNodes` in src/components/serramenti/SerramentoPDF.tsx
+ * mappa i tag base ai Text di @react-pdf/renderer.
  *
  * Sicurezza: l'HTML viene sanitizzato in input via DOMPurify (vedi onUpdate).
  * Nessuno script/style/iframe può passare attraverso.

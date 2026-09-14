@@ -25,14 +25,13 @@ interface Props {
   className?: string;
   /** Scrive «· standard» accanto al valore di serie. */
   mostraStandard?: boolean;
-  disabled?: boolean;
   "aria-label"?: string;
 }
 
 const conMaggiorazione = (v: AxisValue) => `${v.label}${suffissoMaggiorazione(v.maggiorazione_tipo, v.maggiorazione_valore)}`;
 
 export function SceltaVariante({
-  values, valueId, scelta, onChange, placeholder = "Seleziona…", className, mostraStandard = false, disabled,
+  values, valueId, scelta, onChange, placeholder = "Seleziona…", className, mostraStandard = false,
   "aria-label": ariaLabel,
 }: Props) {
   const corrente = valueId ? values.find((v) => v.id === valueId) ?? null : null;
@@ -47,7 +46,6 @@ export function SceltaVariante({
   return (
     <Select
       value={valore}
-      disabled={disabled}
       onValueChange={(codice) => {
         const scelto = decodificaScelta(codice, values);
         if (scelto) onChange(scelto.valoreId, scelto.scelta);

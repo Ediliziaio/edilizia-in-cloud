@@ -1,11 +1,8 @@
 /**
- * StepPdf — Step 8 wizard: generazione PDF e pagina firma cliente.
+ * StepPdf — Step 8 wizard: PDF del preventivo e link per la firma del cliente.
  *
- * In Wave 4: chiama edge function sr-genera-pdf, salva HTML su Storage,
- * genera link condivisibile per la firma cliente.
- *
- * Per ora mostra solo l'anteprima dei dati che entreranno nel PDF e un
- * placeholder per la generazione effettiva.
+ * Il PDF si genera nel browser (SerramentoPDF). «Genera link firma» chiama
+ * sr-genera-pdf, che salva la versione HTML e il link da mandare al cliente.
  */
 import { FileText, Loader2, Check, AlertCircle, ExternalLink, Link2, Copy, Download, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";

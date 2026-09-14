@@ -12,7 +12,6 @@
  *   6. Margine lordo atteso con overhead + provvigione commerciale
  *
  * Non tocca Supabase: esercita solo le funzioni pure usate da:
- *   - QuoteWizardSerramenti.tsx (wizard 4-step)
  *   - QuoteBuilder.tsx (line items + totali)
  *   - MargineAttesoPanel.tsx (FASE 11)
  *
@@ -33,7 +32,6 @@ import {
   type MargineAttesoInput,
 } from "@/hooks/usePreventivoCosti";
 import {
-  adjustGridForRicarico,
   calcolaPrezzoFamiglia,
   nearestGrid,
   type GridPoint,
@@ -44,6 +42,17 @@ import type {
   AxisValue,
   MaggiorazioneTipo,
 } from "@/types/articleFamily";
+
+/** Il listino fornitore col ricarico dell'azienda: vendita = acquisto × (1 + ricarico). */
+function conRicarico(punti: GridPoint[], ricarico: number): GridPoint[] {
+  return punti.map((p) => ({
+    ...p,
+    prezzo_vendita:
+      p.prezzo_acquisto_netto != null && p.prezzo_acquisto_netto > 0
+        ? round2(p.prezzo_acquisto_netto * (1 + ricarico))
+        : p.prezzo_vendita,
+  }));
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 //   FACTORY HELPERS (riuso pattern familyPricing.test.ts)
@@ -137,7 +146,7 @@ const matriceFornitore: GridPoint[] = [
 
 describe("Serramentisti E2E — pipeline completa", () => {
   it("applica ricarico 100% → pv = pa × 2 (1200×1400: 320 → 640)", () => {
-    const adjusted = adjustGridForRicarico(matriceFornitore, 1.0);
+    const adjusted = conRicarico(matriceFornitore, 1.0);
     const p = adjusted.find((g) => g.valore_x === 1200 && g.valore_y === 1400)!;
     expect(p.prezzo_vendita).toBe(640);
     expect(p.prezzo_acquisto_netto).toBe(320);
@@ -148,7 +157,7 @@ describe("Serramentisti E2E — pipeline completa", () => {
   // ═══════════════════════════════════════════════════════════════════════════
 
   it("nearestGrid su 1250×1420 → usa 1200×1400 (Manhattan)", () => {
-    const adjusted = adjustGridForRicarico(matriceFornitore, 1.0);
+    const adjusted = conRicarico(matriceFornitore, 1.0);
     const r = nearestGrid(adjusted, 1250, 1420);
     expect(r.found).toBe(false);
     expect(r.pv).toBe(640);
@@ -207,7 +216,7 @@ describe("Serramentisti E2E — pipeline completa", () => {
       axes: [vetro, apertura, sicurezza],
     });
 
-    const griglia = adjustGridForRicarico(matriceFornitore, 1.0);
+    const griglia = conRicarico(matriceFornitore, 1.0);
 
     const r = calcolaPrezzoFamiglia(
       {

@@ -106,12 +106,10 @@ export function StepBom({ progettoId, detail }: Props) {
     [ultimaDaListino, famiglieConAssi],
   );
 
-  // Pre-fetch SOLO le famiglie referenziate dalle righe BOM correnti.
-  // useListinoFamilies() senza parametri ritornava LIMIT 100 → se l'utente
-  // aveva 200 articoli e la riga referenziava una family oltre i primi
-  // 100 ordine alfabetico, `family` era undefined → la riga appariva come
-  // "off-listino" mostrando i campi Materiale/Serie/Vetro/Colore (bug
-  // segnalato dall'utente: "non dovrebbero esserci").
+  // Pre-fetch SOLO le famiglie referenziate dalle righe BOM correnti: un
+  // elenco generico si fermava ai primi 100 articoli, e una riga con un
+  // articolo oltre quelli appariva "off-listino", coi campi
+  // Materiale/Serie/Vetro/Colore.
   const familyIdsBOM = useMemo(
     () => Array.from(new Set(serramenti.map((s) => s.family_id).filter(Boolean) as string[])),
     [serramenti],

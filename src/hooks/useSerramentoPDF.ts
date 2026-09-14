@@ -114,9 +114,6 @@ export interface SerramentoPdfEnriched {
   macroPagineDedicate: SerramentoPdfMacroPagina[];
   /** Le schede delle linee usate (PVC Salamander 76…): una pagina ciascuna, nell'ordine del preventivo. */
   lineeDedicate: SerramentoPdfLineaPagina[];
-  /** Mappa macrocategoria_id → immagine_url. Usata come fallback nelle righe
-   *  della composizione serramenti quando la famiglia non ha immagine propria. */
-  macroImageById: Record<string, string | null>;
   /** Mappa macrocategoria_id → nome. Renderizzato nel BOM PDF come breadcrumb
    *  davanti al nome articolo: "MACROCATEGORIA · Articolo". */
   macroNomeById: Record<string, string>;
@@ -564,7 +561,6 @@ async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEn
     }
   }
 
-  const macroImageById: Record<string, string | null> = {};
   const macroNomeById: Record<string, string> = {};
   let macroPagineDedicate: SerramentoPdfMacroPagina[] = [];
   if (macroIdsBomOrdine.length > 0) {
@@ -579,8 +575,6 @@ async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEn
       descrizione_estesa: string | null; immagine_url: string | null;
       mostra_pagina_dedicata_pdf: boolean | null;
     }>).forEach((m) => {
-      // Sempre popolato per fallback immagine BOM
-      macroImageById[m.id] = m.immagine_url;
       // Nome macro: per breadcrumb "MACROCATEGORIA · Articolo" nella
       // composizione del PDF preventivo cliente.
       macroNomeById[m.id] = m.nome;
@@ -651,15 +645,6 @@ async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEn
     };
   });
 
-  // Pre-fetch macro images in parallelo (sempre best-effort)
-  const macroImageEntries = await mapWithConcurrency(
-    Object.entries(macroImageById),
-    4,
-    async ([id, url]) =>
-      [id, await toDataUrl(url)] as [string, string | null],
-  );
-  const inlinedMacroImageById: Record<string, string | null> = Object.fromEntries(macroImageEntries);
-
   // Pre-fetch macro pagine dedicate hero images
   const inlinedMacroPagine = await mapWithConcurrency(
     macroPagineDedicate,
@@ -678,7 +663,6 @@ async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEn
     fieldsByMacro,
     macroPagineDedicate: inlinedMacroPagine,
     lineeDedicate,
-    macroImageById: inlinedMacroImageById,
     macroNomeById,
     axisLabelByKey,
     supplierLineById,

@@ -131,9 +131,9 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
         sconto_percentuale: form.sconto_percentuale ?? 0,
         sconto_importo: form.sconto_importo ?? 0,
       },
-      detail.servizi ?? detail.manodopera ?? [],
+      detail.servizi ?? [],
     ),
-    [detail.serramenti, detail.accessori, detail.servizi, detail.manodopera, form.iva_percentuale, form.sconto_percentuale, form.sconto_importo],
+    [detail.serramenti, detail.accessori, detail.servizi, form.iva_percentuale, form.sconto_percentuale, form.sconto_importo],
   );
 
   const importoDocumento = useMemo(
@@ -265,7 +265,7 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
         a.listino_voce_id,
       );
     });
-    (detail.servizi ?? detail.manodopera ?? []).forEach((m) => {
+    (detail.servizi ?? []).forEach((m) => {
       addRiga(
         Number(m.prezzo_totale_vendita ?? (m.prezzo_unitario_vendita ?? 0) * (m.quantita ?? 1)),
         m.quantita ?? 1,
@@ -294,7 +294,7 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
     };
   }, [
     canViewImpresa, isFetchingGridCosts, prezzoAcquistoByGridId,
-    detail.serramenti, detail.accessori, detail.servizi, detail.manodopera,
+    detail.serramenti, detail.accessori, detail.servizi,
     totaleCalc.imponibile_netto, discountEval.margineMinPct,
   ]);
 
@@ -617,7 +617,7 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
       {/* Riepilogo BOM */}
       <SrCard
         title="Riepilogo composizione"
-        description={`${detail.serramenti.length} serramenti · ${detail.accessori.length} accessori · ${(detail.servizi ?? detail.manodopera ?? []).length} servizi · ${formatNumero(totaleCalc.metri_quadri, 2)} m²`}
+        description={`${detail.serramenti.length} serramenti · ${detail.accessori.length} accessori · ${(detail.servizi ?? []).length} servizi · ${formatNumero(totaleCalc.metri_quadri, 2)} m²`}
         icon={<Calculator className="h-4 w-4" />}
       >
         <div className="grid grid-cols-2 md:grid-cols-5 gap-2">

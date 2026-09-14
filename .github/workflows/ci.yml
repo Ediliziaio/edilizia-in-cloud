@@ -174,6 +174,12 @@ jobs:
           FAILED=()
           for fn in ${{ steps.changed.outputs.functions }}; do
             echo "──────────────────────────────────────────"
+            # Una funzione tolta dal repository compare nel diff ma non c'è più
+            # niente da pubblicare: senza questo controllo il job falliva.
+            if [ ! -d "supabase/functions/${fn}" ]; then
+              echo "↷ ${fn} — tolta dal repository, niente da pubblicare"
+              continue
+            fi
             echo "→ Deploying: ${fn}"
             if supabase functions deploy "${fn}" \
                 --project-ref "${SUPABASE_PROJECT_ID}" \

@@ -58,12 +58,6 @@ interface Props {
   /** Chiamata all'applicazione: riceve gli assi scelti da persistere. */
   onApply: (axes: PresetAxis[]) => void | Promise<void>;
   saving?: boolean;
-  /**
-   * Categoria iniziale da aprire. Il parent (FamilyEditor) può suggerire
-   * quella più coerente con la famiglia corrente in base alla categoria DB
-   * (serramento/porta/oscurante).
-   */
-  defaultCategoria?: PresetCategoria;
 }
 
 export function AxisPresetsDialog({
@@ -72,12 +66,10 @@ export function AxisPresetsDialog({
   existingCodici,
   onApply,
   saving = false,
-  defaultCategoria = "serramenti",
 }: Props) {
   // Set di codici asse selezionati (per id asse, non codice DB)
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [categoria, setCategoria] =
-    useState<PresetCategoria>(defaultCategoria);
+  const [categoria, setCategoria] = useState<PresetCategoria>("serramenti");
 
   const existingSet = useMemo(() => new Set(existingCodici), [existingCodici]);
 

@@ -31,7 +31,7 @@ import type { FamilyWithAxes } from "@/types/articleFamily";
 export type TipoProposta = "principale" | "accessorio";
 
 /** L'area del listino che arriva al preventivatore serramenti. */
-export const AREA_SERRAMENTI = "serramenti";
+const AREA_SERRAMENTI = "serramenti";
 
 const tipoDella = (t: TipologiaListino): TipoProposta => (t.categoriaTipo === "accessorio" ? "accessorio" : "principale");
 

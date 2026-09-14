@@ -351,35 +351,3 @@ export function useFamilyGrid(familyId: string | undefined) {
   });
 }
 
-/**
- * STEP 6 Serramenti Avanzati — adatta i GridPoint al prezzo vendita reale.
- *
- * Nel MatriceEditor (STEP 4) salviamo in listino_griglia:
- *   - prezzo_vendita   = listino fornitore (PRE sconto)
- *   - prezzo_acquisto  = listino × (1 − sconto) = quanto l'azienda paga
- *
- * Il prezzo di vendita REALE al cliente è invece:
- *   prezzo_acquisto × (1 + ricarico_linea)
- *
- * Questa funzione riproduce tale trasformazione in lettura: restituisce una
- * nuova lista di GridPoint dove `prezzo_vendita` è già il valore che il
- * wizard deve mostrare al cliente (prima delle maggiorazioni assi).
- *
- * Se `ricarico` è null/undefined/0 ritorna la lista invariata (retro-compat
- * con griglie legacy dove prezzo_vendita era già il finale).
- */
-export function adjustGridForRicarico(
-  points: GridPoint[],
-  ricarico: number | null | undefined,
-): GridPoint[] {
-  if (ricarico == null || !Number.isFinite(ricarico) || ricarico <= 0) {
-    return points;
-  }
-  return points.map((p) => ({
-    ...p,
-    prezzo_vendita:
-      p.prezzo_acquisto_netto != null && p.prezzo_acquisto_netto > 0
-        ? round2(p.prezzo_acquisto_netto * (1 + ricarico))
-        : p.prezzo_vendita,
-  }));
-}

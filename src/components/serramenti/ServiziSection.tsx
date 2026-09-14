@@ -96,7 +96,7 @@ export function ServiziSection({ progettoId, detail }: Props) {
   // "tipo: ho tariffa configurata o no" usata sui chip.
   const { data: allTariffe = [] } = useTariffeManodopera();
 
-  const righe = detail.servizi ?? detail.manodopera ?? [];
+  const righe = detail.servizi ?? [];
 
   const subtotaleVendita = righe.reduce(
     (acc, r) => acc + Number(r.prezzo_totale_vendita ?? 0), 0,

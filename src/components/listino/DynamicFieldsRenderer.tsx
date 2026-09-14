@@ -39,11 +39,6 @@ interface Props {
   values: DynamicFieldValues;
   onChange?: (values: DynamicFieldValues) => void;
   mode?: "edit" | "display";
-  /**
-   * Se true (default per mode='display'), nasconde i campi con show_in_picker=false.
-   * In edit mode mostra tutti i campi.
-   */
-  pickerOnly?: boolean;
 }
 
 export function DynamicFieldsRenderer({
@@ -51,14 +46,14 @@ export function DynamicFieldsRenderer({
   values,
   onChange,
   mode = "edit",
-  pickerOnly,
 }: Props) {
   const { data: schema = [], isLoading } = useMacroFields(macroId);
 
-  const visibleFields = useMemo(() => {
-    const filterPicker = pickerOnly ?? mode === "display";
-    return filterPicker ? schema.filter((f) => f.show_in_picker) : schema;
-  }, [schema, mode, pickerOnly]);
+  // In lettura solo i campi da mostrare nel picker; in modifica tutti.
+  const visibleFields = useMemo(
+    () => (mode === "display" ? schema.filter((f) => f.show_in_picker) : schema),
+    [schema, mode],
+  );
 
   const updateField = (key: string, value: unknown) => {
     if (!onChange) return;

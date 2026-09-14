@@ -75,6 +75,7 @@ import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { ArticlePdfDocumentsSection } from "./ArticlePdfDocumentsSection";
 import { formattaMaggiorazione } from "@/lib/listino/maggiorazione";
 import { dividiVoci, problemaVoci, pulisciVoci, vociDi } from "@/lib/listino/scelteVariante";
+import { parseImporto } from "@/lib/listino/listinoFornitore";
 
 /**
  * Label compatto per il tipo maggiorazione (usato nei badge valore).
@@ -1640,12 +1641,10 @@ interface ValueFormValues {
   opzioni: string[];
 }
 
-// M-Z (audit): parse decimale difensivo per i campi importo del dialog —
-// virgola decimale normalizzata (la tastiera iOS con inputMode="decimal"
-// produce la virgola) e clamp a >= 0: con parseFloat "10,5" veniva troncato
-// a 10 e i negativi finivano in DB come maggiorazioni/prezzi negativi.
-const parseImporto = (raw: string): number =>
-  Math.max(0, Number(raw.trim().replace(",", ".")) || 0);
+// Importi del dialog: virgola decimale (la tastiera iOS con inputMode="decimal"
+// la produce) e punto delle migliaia, come nel listino fornitore; mai negativi.
+// Prima «1.234,56» diventava 0.
+const leggiImporto = (raw: string): number => Math.max(0, parseImporto(raw) || 0);
 
 function ValueFormDialog({
   open,
@@ -1979,7 +1978,7 @@ function ValueFormDialog({
                     </div>
                     {(() => {
                       const oldV = value.maggiorazione_tipo === "none" ? 0 : value.maggiorazione_valore;
-                      const newV = magTipo === "none" ? 0 : parseImporto(magValore);
+                      const newV = magTipo === "none" ? 0 : leggiImporto(magValore);
                       const diff = newV - oldV;
                       const sameType = value.maggiorazione_tipo === magTipo;
                       if (!sameType) {
@@ -2013,8 +2012,8 @@ function ValueFormDialog({
                     "+500%" su un'interfaccia opaca). */}
                 <PricePreviewRow
                   tipo={magTipo}
-                  vendita={parseImporto(magValore)}
-                  acquisto={parseImporto(magAcquisto)}
+                  vendita={leggiImporto(magValore)}
+                  acquisto={leggiImporto(magAcquisto)}
                 />
               </>
             ) : null}
@@ -2040,11 +2039,11 @@ function ValueFormDialog({
                   is_default: isDefault,
                   attivo,
                   maggiorazione_tipo: magTipo,
-                  maggiorazione_valore: parseImporto(magValore),
-                  maggiorazione_acquisto: parseImporto(magAcquisto),
+                  maggiorazione_valore: leggiImporto(magValore),
+                  maggiorazione_acquisto: leggiImporto(magAcquisto),
                   codice: codiceArt.trim() || null,
-                  prezzo_vendita: prezzoV.trim() ? parseImporto(prezzoV) : null,
-                  prezzo_acquisto: prezzoA.trim() ? parseImporto(prezzoA) : null,
+                  prezzo_vendita: prezzoV.trim() ? leggiImporto(prezzoV) : null,
+                  prezzo_acquisto: prezzoA.trim() ? leggiImporto(prezzoA) : null,
                   sort_order: value?.sort_order ?? nextSortOrder,
                   opzioni: vociPulite,
                 },

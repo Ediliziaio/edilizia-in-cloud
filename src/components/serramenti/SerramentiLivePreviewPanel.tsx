@@ -34,8 +34,6 @@ interface Props {
   companyIndirizzo?: string | null;
   /** Sezione attiva nell'editor → usata per l'auto-scroll alla pagina PDF. */
   activeSection?: string | null;
-  /** Debounce in ms prima di rigenerare dopo una modifica (default 800). */
-  debounceMs?: number;
 }
 
 type Status = "idle" | "loading" | "ready" | "error";
@@ -64,7 +62,6 @@ export function SerramentiLivePreviewPanel({
   companyLogoDarkUrl,
   companyIndirizzo,
   activeSection,
-  debounceMs = 800,
 }: Props) {
   const isMobile = useIsMobile();
   const [status, setStatus] = useState<Status>("idle");
@@ -146,7 +143,7 @@ export function SerramentiLivePreviewPanel({
   // Rigenerazione DEBOUNCED ad ogni cambio del template.
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => void generate(), debounceMs);
+    debounceRef.current = setTimeout(() => void generate(), 800);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
@@ -236,7 +233,6 @@ export function SerramentiLivePreviewPanel({
     })();
 
     return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSection, renderNonce, status]);
 
   // Cleanup allo smontaggio.
