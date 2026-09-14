@@ -9,13 +9,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, Upload, Sparkles } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { ListinoImportWizard } from "@/components/listino-import/ListinoImportWizard";
 import { ListinoAIImport } from "@/components/listino-import/ListinoAIImport";
 import { AiUsageWidget } from "@/components/settings/AiUsageWidget";
 
 export default function SettingsCatalogImport() {
-  const [tab, setTab] = useState<"manual" | "ai">("manual");
+  // ?tab=ai: dal listino, «Listino fornitore in PDF» apriva la scheda dell'Excel.
+  const [parametri] = useSearchParams();
+  const [tab, setTab] = useState<"manual" | "ai">(() => (parametri.get("tab") === "ai" ? "ai" : "manual"));
 
   return (
     <div className="space-y-4">

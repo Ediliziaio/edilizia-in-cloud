@@ -40,21 +40,27 @@ interface Props {
   companyId: string;
   /** Tutte le tipologie del listino: qui si filtra sul verticale serramenti. */
   famiglie: TipologiaSelezionabile[];
+  /** Le linee che l'azienda ha già, la base per prima: il dialog parte da quelle. */
+  lineeIniziali?: LineaStandard[];
+  /** Il prezzo al metro quadro che hanno oggi i serramenti. */
+  prezzoIniziale?: { vendita: number | null; acquisto: number | null } | null;
 }
 
 const eur = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(n);
 
-export function ImpostaStandardSerramentiDialog({ open, onOpenChange, companyId, famiglie }: Props) {
+export function ImpostaStandardSerramentiDialog({ open, onOpenChange, companyId, famiglie, lineeIniziali, prezzoIniziale }: Props) {
   const serramenti = useMemo(
     () => famiglie.filter((f) => (f.vertical ?? "").startsWith("serrament")),
     [famiglie],
   );
 
-  const [linee, setLinee] = useState<LineaStandard[]>([
-    { nome: "", materiale: "PVC", differenzaPct: 0 },
-  ]);
-  const [prezzoAcquistoMq, setAcquisto] = useState(0);
-  const [prezzoVenditaMq, setVendita] = useState(0);
+  // Parte dalle linee e dal prezzo di oggi. Prima partiva da una riga vuota, e
+  // ogni linea che non si riscriveva veniva spenta in tutti i serramenti.
+  const [linee, setLinee] = useState<LineaStandard[]>(() =>
+    lineeIniziali && lineeIniziali.length > 0 ? lineeIniziali : [{ nome: "", materiale: "PVC", differenzaPct: 0 }],
+  );
+  const [prezzoAcquistoMq, setAcquisto] = useState(() => prezzoIniziale?.acquisto ?? 0);
+  const [prezzoVenditaMq, setVendita] = useState(() => prezzoIniziale?.vendita ?? 0);
   const [coloreStandard, setColoreStandard] = useState(0);
   const [coloreFuori, setColoreFuori] = useState(0);
   const [antisonoro, setAntisonoro] = useState(0);

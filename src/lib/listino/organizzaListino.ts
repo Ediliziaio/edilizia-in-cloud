@@ -1,0 +1,251 @@
+/**
+ * Organizzare il listino: le regole dietro «+ Area», «+ Tipologia», «+ Linea»,
+ * «Copia tipologia» e «Prezzi delle linee».
+ *
+ * Qui solo controlli, nomi e numeri, senza database, così si provano nei test:
+ *  - il nome di una tipologia è unico nell'azienda (vincolo del database), e
+ *    «Accessori» sta in tutte e tre le aree standard;
+ *  - una linea-cartella che si chiama come la sua tipologia, o come l'inizio
+ *    del nome di un prodotto, il listino la scambia per una cartella nata con
+ *    quel prodotto e non la mostra (lineeListino.ts, nataConArticolo);
+ *  - uno scostamento si scrive come lo si legge: «−8», «-8,5», «+3»;
+ *  - due prodotti attivi non possono chiamarsi uguale: copiando una tipologia
+ *    ai nomi si aggiunge un testo (il materiale, la serie).
+ */
+import { AREE_STANDARD, chiaveTesto, type AreaStandard } from "./areeStandard";
+import type { AreaListino, LineaListino, TipologiaListino } from "./lineeListino";
+
+/** listino_macrocategorie.tipologia come la leggono i preventivatori: «bagno», non «bagni». */
+const TIPOLOGIA_DI_AREA: Record<string, string> = { bagni: "bagno", tetti: "tetto" };
+
+export function tipologiaDiArea(chiaveArea: string): string {
+  return TIPOLOGIA_DI_AREA[chiaveArea] ?? chiaveArea;
+}
+
+/** Le aree standard che l'azienda non ha ancora nel listino. */
+export function areeDaAggiungere(aree: readonly Pick<AreaListino, "chiave">[]): AreaStandard[] {
+  const presenti = new Set(aree.map((a) => a.chiave));
+  return AREE_STANDARD.filter((a) => !presenti.has(a.chiave));
+}
+
+const chiaveNome = (nome: string) => nome.trim().toLocaleLowerCase("it-IT");
+
+/**
+ * Il nome con cui creare una tipologia senza scontrarsi con quelle che ci sono:
+ * «Accessori» diventa «Accessori Fotovoltaico» se «Accessori» sta già nei serramenti.
+ */
+export function nomeTipologiaLibero(nome: string, esistenti: readonly { nome: string }[], nomeArea: string): string {
+  const occupati = new Set(esistenti.map((m) => chiaveNome(m.nome)));
+  const base = nome.trim();
+  if (!occupati.has(chiaveNome(base))) return base;
+  const conArea = `${base} ${nomeArea}`;
+  if (!occupati.has(chiaveNome(conArea))) return conArea;
+  for (let i = 2; ; i += 1) {
+    const candidato = `${conArea} ${i}`;
+    if (!occupati.has(chiaveNome(candidato))) return candidato;
+  }
+}
+
+/**
+ * Una tipologia con lo stesso nome che nel listino non si vede (vuota e senza
+ * area, un resto di prove): si riusa invece di crearne un'altra col nome cambiato.
+ * `aree` è il listino senza filtri di ricerca.
+ */
+export function tipologiaDaRiusare<T extends { id: string; nome: string }>(
+  nome: string,
+  macrocategorie: readonly T[],
+  aree: readonly AreaListino[],
+): T | null {
+  const visibili = new Set(
+    aree.flatMap((a) => a.tipologie.flatMap((t) => (t.macrocategoriaId ? [t.macrocategoriaId] : []))),
+  );
+  return macrocategorie.find((m) => chiaveNome(m.nome) === chiaveNome(nome) && !visibili.has(m.id)) ?? null;
+}
+
+/** Il nome è già usato da un'altra tipologia (maiuscole e spazi non contano). */
+export function nomeTipologiaOccupato(nome: string, esistenti: readonly { id?: string; nome: string }[], tranneId?: string): boolean {
+  return esistenti.some((m) => m.id !== tranneId && chiaveNome(m.nome) === chiaveNome(nome));
+}
+
+export function haLineeDaAsse(tipologia: TipologiaListino): boolean {
+  return tipologia.linee.some((l) => l.fonte === "asse");
+}
+
+/** Le linee con gli stessi modelli (valori dell'asse Linea), nell'ordine del listino. */
+export function lineeDaAsse(tipologia: TipologiaListino): LineaListino[] {
+  return tipologia.linee.filter((l) => l.fonte === "asse");
+}
+
+/** La «Linea base» con cui nascono i modelli pronti: non è una linea vera. */
+export function eLineaBaseDeiModelli(nome: string): boolean {
+  return chiaveTesto(nome) === "linea_base";
+}
+
+/**
+ * Quanti prodotti della tipologia non hanno le linee degli altri: quelli in
+ * «Altri articoli» e quelli con la sola «Linea base» dei modelli pronti.
+ */
+export function prodottiSenzaLinee(tipologia: TipologiaListino): number {
+  const vere = lineeDaAsse(tipologia).filter((l) => !eLineaBaseDeiModelli(l.nome));
+  if (vere.length === 0) return 0;
+  const conLineeVere = new Set(vere.flatMap((l) => l.righe.map((r) => r.famiglia.id)));
+  const tutti = new Set(tipologia.linee.flatMap((l) => l.righe.map((r) => r.famiglia.id)));
+  return [...tutti].filter((id) => !conLineeVere.has(id)).length;
+}
+
+/**
+ * Perché un nome di linea non va bene, o null.
+ *  - "asse": stessi modelli con un altro prezzo (Salamander 73 accanto a Salamander 76);
+ *  - "categoria": prodotti diversi (tapparelle in PVC e in alluminio).
+ */
+export function problemaNomeLinea(nome: string, tipologia: TipologiaListino, modo: "asse" | "categoria"): string | null {
+  const chiave = chiaveTesto(nome);
+  if (!chiave) return "Scrivi il nome della linea.";
+  const doppia = tipologia.linee.find((l) => l.fonte !== "altri" && chiaveTesto(l.nome) === chiave);
+  if (doppia) return `In ${tipologia.nome} c'è già la linea «${doppia.nome}».`;
+  if (modo === "categoria") {
+    if (chiave === chiaveTesto(tipologia.nome)) {
+      return "Una linea non può chiamarsi come la sua tipologia: aggiungi il materiale o la serie.";
+    }
+    const prodotto = tipologia.linee
+      .flatMap((l) => l.righe)
+      .map((r) => r.famiglia.nome)
+      .find((n) => {
+        const k = chiaveTesto(n);
+        return k === chiave || k.startsWith(`${chiave}_`);
+      });
+    if (prodotto) {
+      return `«${nome.trim()}» è l'inizio del nome di «${prodotto}»: il listino la scambierebbe per quel prodotto. Aggiungi il materiale o la serie.`;
+    }
+  }
+  return null;
+}
+
+/** «−8», «-8,5», «+3», «3%» → numero. Null se non è un numero. */
+export function leggiPercentuale(testo: string): number | null {
+  const pulito = testo.trim().replace(/%$/, "").replace(/[−–]/g, "-").replace(/\s+/g, "").replace(",", ".");
+  if (!/^[+-]?\d+(\.\d+)?$/.test(pulito)) return null;
+  return Number(pulito);
+}
+
+/** «600», «600,50», «1.250», «1.250,50» → numero. Null se non è un numero positivo o zero. */
+export function leggiImporto(testo: string): number | null {
+  const pulito = testo.trim().replace(/[\s€]/g, "");
+  if (pulito === "") return null;
+  let normalizzato = pulito;
+  if (pulito.includes(",")) normalizzato = pulito.replace(/\./g, "").replace(",", ".");
+  else if (/^\d{1,3}(\.\d{3})+$/.test(pulito)) normalizzato = pulito.replace(/\./g, "");
+  return /^\d+(\.\d+)?$/.test(normalizzato) ? Number(normalizzato) : null;
+}
+
+/** Uno scostamento da mostrare in un campo: «−8», «0», «+12,5». */
+export function scriviPercentuale(valore: number | null | undefined): string {
+  if (valore == null || !Number.isFinite(valore)) return "";
+  if (valore === 0) return "0";
+  const testo = Math.abs(valore).toLocaleString("it-IT", { maximumFractionDigits: 2 });
+  return `${valore < 0 ? "−" : "+"}${testo}`;
+}
+
+/**
+ * Il nome della linea da una serie della libreria:
+ * PVC + Salamander + bluEvolution 73 → «PVC Salamander bluEvolution 73».
+ * Il materiale non si ripete se la serie lo dice già, «Generico» non è una marca.
+ */
+export function nomeLineaDaSerie(materiale: string | null | undefined, marca: string, serie: string): string {
+  const parti: string[] = [];
+  const m = (materiale ?? "").trim();
+  const s = serie.trim();
+  if (m && !chiaveTesto(s).startsWith(chiaveTesto(m))) parti.push(m);
+  if (chiaveTesto(marca) !== "generico") parti.push(marca.trim());
+  parti.push(s);
+  return parti.filter(Boolean).join(" ");
+}
+
+export interface CopiaTipologiaForm {
+  nome: string;
+  /** Il testo aggiunto al nome di ogni prodotto copiato: «Alluminio». */
+  suffisso: string;
+  /** Variazione dei prezzi della copia in percentuale; vuoto = uguali. */
+  variazione: string;
+  conProdotti: boolean;
+}
+
+/** Perché la copia non si può fare, o null. */
+export function problemaCopiaTipologia(
+  copia: CopiaTipologiaForm,
+  origine: TipologiaListino,
+  esistenti: readonly { nome: string }[],
+): string | null {
+  if (!copia.nome.trim()) return "Scrivi il nome della nuova tipologia.";
+  if (nomeTipologiaOccupato(copia.nome, esistenti)) return `Esiste già una tipologia «${copia.nome.trim()}».`;
+  if (origine.standard?.fvCategoria) {
+    return "Le tipologie del fotovoltaico non si copiano: ognuna è un componente del configuratore.";
+  }
+  if (copia.conProdotti && origine.articoli > 0 && !copia.suffisso.trim()) {
+    return "Scrivi cosa aggiungere ai nomi dei prodotti, per esempio il materiale: due prodotti attivi non possono chiamarsi uguale.";
+  }
+  if (copia.variazione.trim() !== "") {
+    const v = leggiPercentuale(copia.variazione);
+    if (v === null) return "Scrivi la variazione dei prezzi come numero, per esempio 10 o −5.";
+    if (v <= -100) return "Una variazione del −100% o meno azzera i prezzi.";
+  }
+  return null;
+}
+
+export interface PrezzoLineaForm {
+  nome: string;
+  pct: string;
+  attiva: boolean;
+}
+
+/** Perché i prezzi delle linee non si possono salvare, o null. */
+export function problemaPrezziLinee(linee: readonly PrezzoLineaForm[], venditaMq: string, acquistoMq: string): string | null {
+  if (!linee.some((l) => l.attiva)) return "Lascia accesa almeno una linea.";
+  for (const l of linee) {
+    const v = leggiPercentuale(l.pct);
+    if (v === null) return `Scrivi lo scostamento di «${l.nome}» come numero, per esempio −8 o 0.`;
+    if (v <= -100) return `«${l.nome}» azzererebbe il prezzo.`;
+  }
+  const vendita = venditaMq.trim() ? leggiImporto(venditaMq) : null;
+  const acquisto = acquistoMq.trim() ? leggiImporto(acquistoMq) : null;
+  if (venditaMq.trim() && (vendita === null || vendita <= 0)) {
+    return "Il prezzo di vendita al metro quadro deve essere un numero maggiore di zero.";
+  }
+  if (acquistoMq.trim() && acquisto === null) return "Il prezzo di acquisto al metro quadro non è un numero.";
+  if (vendita !== null && acquisto !== null && acquisto > vendita) {
+    return "L'acquisto supera la vendita: il margine sarebbe negativo.";
+  }
+  return null;
+}
+
+/**
+ * Il prezzo al metro quadro che hanno quasi tutti i prodotti a mq della
+ * tipologia, per proporlo nel dialog. Null se non ce n'è uno prevalente.
+ */
+export function prezzoMqPrevalente(tipologia: TipologiaListino): { vendita: number | null; acquisto: number | null; prodotti: number } {
+  const visti = new Map<string, { vendita: number; acquisto: number }>();
+  for (const riga of tipologia.linee.flatMap((l) => l.righe)) {
+    const f = riga.famiglia;
+    if (f.modalita_prezzo_base !== "mq" || visti.has(f.id)) continue;
+    visti.set(f.id, { vendita: Number(f.prezzo_base_vendita) || 0, acquisto: Number(f.prezzo_base_acquisto) || 0 });
+  }
+  const prevalente = (valori: number[]): number | null => {
+    const conteggi = new Map<number, number>();
+    for (const v of valori) if (v > 0) conteggi.set(v, (conteggi.get(v) ?? 0) + 1);
+    let migliore: number | null = null;
+    let volte = 0;
+    for (const [v, n] of conteggi) {
+      if (n > volte) {
+        migliore = v;
+        volte = n;
+      }
+    }
+    return migliore;
+  };
+  const tutti = [...visti.values()];
+  return {
+    vendita: prevalente(tutti.map((p) => p.vendita)),
+    acquisto: prevalente(tutti.map((p) => p.acquisto)),
+    prodotti: tutti.length,
+  };
+}

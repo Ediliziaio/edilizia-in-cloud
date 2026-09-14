@@ -51,14 +51,14 @@ export function translateListinoError(err: unknown): TranslatedError {
   ) {
     if (/listino_macrocategorie/i.test(raw) || /macrocat/i.test(raw)) {
       return {
-        message: "Esiste già una macrocategoria con questo nome.",
+        message: "Esiste già una tipologia con questo nome.",
         isTransient: false,
       };
     }
     if (/listino_categorie/i.test(raw)) {
       return {
         message:
-          "Esiste già una categoria con questo nome in questa macrocategoria.",
+          "Esiste già una linea con questo nome in questa tipologia.",
         isTransient: false,
       };
     }

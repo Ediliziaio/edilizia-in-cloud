@@ -35,6 +35,9 @@ export default function SettingsCatalog() {
   // e il toggle dato dall'admin non apriva nulla). Modifica ⇒ tutte le azioni; Visualizza ⇒ accesso.
   const isAdmin = role === "company_admin" || role === "super_admin" || permissions.canEditSettingsPricing;
   const canView = isAdmin || permissions.canViewSettingsPricing;
+  // Crea e cancella tipologie solo l'amministratore: è la regola del database, e
+  // con il solo permesso sui prezzi i bottoni del dialog davano un errore.
+  const gestoreTipologie = role === "company_admin" || role === "super_admin";
 
   if (!canView) {
     return (
@@ -76,7 +79,7 @@ export default function SettingsCatalog() {
       </div>
 
       <ErrorBoundary title="Errore nel listino">
-        <FamilyCatalog onGestisciTipologie={isAdmin ? () => setShowCategorieDialog(true) : undefined} />
+        <FamilyCatalog onGestisciTipologie={gestoreTipologie ? () => setShowCategorieDialog(true) : undefined} />
       </ErrorBoundary>
 
       <Dialog open={showCategorieDialog} onOpenChange={setShowCategorieDialog}>

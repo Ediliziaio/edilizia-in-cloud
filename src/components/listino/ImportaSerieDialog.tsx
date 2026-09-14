@@ -32,6 +32,12 @@ interface Props {
   companyId: string;
   /** Dove finiscono le tipologie che l'azienda non ha ancora. */
   macrocategoriaId?: string | null;
+  /**
+   * Spunta iniziale di «Installa anche le tipologie che non ho ancora». Chi ha già
+   * i suoi serramenti parte senza: con la spunta Renova avrebbe ricevuto 15
+   * modelli in più (archi, sopraluce, trapezi) solo per aggiungere una serie.
+   */
+  installaMancantiIniziale?: boolean;
 }
 
 const eur = (n: number) =>
@@ -43,7 +49,7 @@ const num = (s: string) => {
   return Number.isFinite(n) ? n : 0;
 };
 
-export function ImportaSerieDialog({ open, onOpenChange, companyId, macrocategoriaId }: Props) {
+export function ImportaSerieDialog({ open, onOpenChange, companyId, macrocategoriaId, installaMancantiIniziale = true }: Props) {
   const { data: libreria = [], isLoading } = useLibreriaSerramenti();
   const importa = useImportaSerieSerramenti();
 
@@ -52,7 +58,7 @@ export function ImportaSerieDialog({ open, onOpenChange, companyId, macrocategor
   const [differenza, setDifferenza] = useState("0");
   const [vendita, setVendita] = useState("");
   const [acquisto, setAcquisto] = useState("");
-  const [installaMancanti, setInstallaMancanti] = useState(true);
+  const [installaMancanti, setInstallaMancanti] = useState(installaMancantiIniziale);
 
   const marcaAttiva = useMemo(
     () => libreria.find((m) => m.id === marcaId) ?? null,

@@ -45,6 +45,7 @@ export interface MacroListino {
   categoria_tipo?: string | null;
   fv_categoria?: string | null;
   immagine_url?: string | null;
+  attivo?: boolean | null;
 }
 
 export interface CategoriaListino {
@@ -102,6 +103,8 @@ export interface TipologiaListino {
    */
   categoriaTipo: "principale" | "accessorio" | null;
   collegamento: CollegamentoTipologia;
+  /** Spenta (attivo = false): resta nel listino, ma i preventivatori non la propongono. */
+  attiva: boolean;
   /** La tipologia standard che rappresenta, se la si riconosce. */
   standard: TipologiaStandard | null;
   /** Articoli distinti: una tipologia presente in due linee conta una volta. */
@@ -372,6 +375,7 @@ export function costruisciListino(
         accessorio,
         categoriaTipo: macro.categoria_tipo === "accessorio" ? "accessorio" : "principale",
         collegamento,
+        attiva: macro.attivo !== false,
         standard,
         articoli: articoli.length,
         linee: costruisciLinee(articoli, macro, categorie, macro.nome),
@@ -398,6 +402,7 @@ export function costruisciListino(
         accessorio: !!standard?.accessorio,
         categoriaTipo: null,
         collegamento: "nessuno",
+        attiva: true,
         standard,
         articoli: articoli.length,
         linee: costruisciLinee(articoli, null, categorie, categoria.nome),
@@ -420,6 +425,7 @@ export function costruisciListino(
         accessorio: false,
         categoriaTipo: null,
         collegamento: "nessuno",
+        attiva: true,
         standard: null,
         articoli: articoli.length,
         linee: costruisciLinee(articoli, null, categorie, "Senza tipologia"),

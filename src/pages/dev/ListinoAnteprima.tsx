@@ -145,6 +145,11 @@ export default function ListinoAnteprima() {
           }}
           onCreaTipologia={(area, standard) => avvisa(`Crea «${standard.nome}» nell'area ${area.nome}`)}
           onCreaTutteStandard={(area) => avvisa(`Crea ${area.mancanti.length} tipologie standard in ${area.nome}`)}
+          onNuovaArea={() => avvisa("Aggiungi un'area")}
+          onNuovaTipologia={(area) => avvisa(`Nuova tipologia nell'area ${area.nome}`)}
+          onCopiaTipologia={(_area, tipologia) => avvisa(`Copia «${tipologia.nome}»`)}
+          onAttivaTipologia={(_area, tipologia) => avvisa(`${tipologia.attiva ? "Togli dai preventivi" : "Rimetti nei preventivi"} «${tipologia.nome}»`)}
+          onAllineaLinee={(_area, tipologia) => avvisa(`Linee ai prodotti di ${tipologia.nome}`)}
           onNuovaLinea={(_area, tipologia) => avvisa(`Nuova linea in ${tipologia.nome}`)}
           onNuovoProdotto={(_area, tipologia, linea) =>
             avvisa(`Nuovo prodotto${tipologia ? ` in ${tipologia.nome}` : ""}${linea ? ` › ${linea.nome}` : ""}`)

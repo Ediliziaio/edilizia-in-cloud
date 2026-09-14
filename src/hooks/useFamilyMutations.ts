@@ -278,7 +278,9 @@ export function useFamilyMutations() {
       const cambiaMacro =
         args.targetMacrocategoriaId != null &&
         args.targetMacrocategoriaId !== (famRest as { macrocategoria_id?: string | null }).macrocategoria_id;
-      const overrides: Record<string, unknown> = { nome: args.newName };
+      // Il codice articolo (SKU) è dell'originale: due prodotti con lo stesso
+      // codice si confondono nel magazzino e negli ordini.
+      const overrides: Record<string, unknown> = { nome: args.newName, codice: null };
       if (cambiaMacro) {
         overrides.macrocategoria_id = args.targetMacrocategoriaId;
         overrides.categoria_id = null;

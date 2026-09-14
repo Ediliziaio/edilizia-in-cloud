@@ -27,11 +27,17 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
+import { useOrganizzaListino } from "@/hooks/useOrganizzaListino";
 import { FamilyTemplatePicker } from "./FamilyTemplatePicker";
 import { ImpostaStandardSerramentiDialog } from "./ImpostaStandardSerramentiDialog";
 import { ImportaSerieDialog } from "./ImportaSerieDialog";
 import { ListinoBarra, type AzioneImporta, type VistaListino } from "./ListinoBarra";
 import { ListinoNavigatore } from "./ListinoNavigatore";
+import { NuovaAreaDialog } from "./NuovaAreaDialog";
+import { NuovaLineaDialog, type DatiLineaAsse } from "./NuovaLineaDialog";
+import { NuovaTipologiaDialog, type DatiCopiaTipologia, type ModoNuovaTipologia } from "./NuovaTipologiaDialog";
+import { PrezziLineeDialog, type DatiPrezziLinee } from "./PrezziLineeDialog";
 import { SchedaLineaDialog } from "./SchedaLineaDialog";
 import { toGallerySlug } from "@/lib/verticalMapping";
 import { useFamilies, useFamiliesCestino } from "@/hooks/useFamilies";
@@ -51,7 +57,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { ArticleFamily, FamilyWithAxes } from "@/types/articleFamily";
-import { areaDiVerticale, type TipologiaStandard } from "@/lib/listino/areeStandard";
+import { areaDiVerticale, chiaveTesto, type AreaStandard, type TipologiaStandard } from "@/lib/listino/areeStandard";
 import { FILTRI_LISTINO_VUOTI, filtriAttivi, rigaPassa, type FiltriListino } from "@/lib/listino/filtriListino";
 import {
   costruisciListino,
@@ -63,6 +69,14 @@ import {
   type TipologiaListino,
 } from "@/lib/listino/lineeListino";
 import { trovaSchedaLinea } from "@/lib/listino/schedeLinea";
+import {
+  lineeDaAsse,
+  nomeTipologiaLibero,
+  prezzoMqPrevalente,
+  tipologiaDaRiusare,
+  tipologiaDiArea,
+} from "@/lib/listino/organizzaListino";
+import { translateListinoError } from "@/lib/listinoErrors";
 
 /** Valore dei select per «nessuna tipologia» e «nessuna linea». */
 const NESSUNA = "__nessuna__";
@@ -81,7 +95,12 @@ export function FamilyCatalog({ onGestisciTipologie }: FamilyCatalogProps = {}) 
   const navigate = useNavigate();
   const [parametri, setParametri] = useSearchParams();
   const { role, effectiveCompany } = useAuth();
-  const isAdmin = role === "company_admin" || role === "super_admin";
+  const permessi = usePermissions();
+  // Aree e tipologie le crea l'amministratore (è la regola del database sulle
+  // tipologie); prodotti, linee e prezzi anche chi ha il permesso di modificare
+  // il listino, come la pagina che lo ospita.
+  const gestore = role === "company_admin" || role === "super_admin";
+  const isAdmin = gestore || permessi.canEditSettingsPricing;
   const companyId = effectiveCompany?.id ?? null;
 
   // includeInactive: la pagina di gestione mostra anche i disattivati, per
@@ -103,6 +122,7 @@ export function FamilyCatalog({ onGestisciTipologie }: FamilyCatalogProps = {}) 
   const { deleteFamily, restoreFamily, hardDeleteFamily, duplicateFamily, updateFamily } = useFamilyMutations();
   const { createMacrocategoria, updateMacrocategoria } = useMacrocategorieMutations();
   const { createCategoria } = useCategorieMutations();
+  const { aggiungiLinea, allineaLinee, prezziLinee, copiaTipologia } = useOrganizzaListino();
   const { indice: schedeLinea } = useSchedeLinea();
 
   const [vista, setVistaStato] = useState<VistaListino>(() => {
@@ -180,7 +200,14 @@ export function FamilyCatalog({ onGestisciTipologie }: FamilyCatalogProps = {}) 
   const [aperturaCestino, setAperturaCestino] = useState(0);
   const [toHardDelete, setToHardDelete] = useState<ArticleFamily | null>(null);
   const [nuovaLinea, setNuovaLinea] = useState<{ area: AreaListino; tipologia: TipologiaListino } | null>(null);
-  const [nomeLinea, setNomeLinea] = useState("");
+  const [nuovaArea, setNuovaArea] = useState(false);
+  const [nuovaTipologia, setNuovaTipologia] = useState<{
+    area: AreaListino;
+    modo: ModoNuovaTipologia;
+    origine: TipologiaListino | null;
+  } | null>(null);
+  const [prezziAperti, setPrezziAperti] = useState<TipologiaListino | null>(null);
+  const [daAllineare, setDaAllineare] = useState<TipologiaListino | null>(null);
   const [creazioneInCorso, setCreazioneInCorso] = useState(false);
   const [schedaAperta, setSchedaAperta] = useState<{ tipologia: TipologiaListino; linea: LineaListino } | null>(null);
   // Ogni riga resta bloccata finché la SUA modifica non è conclusa: con
@@ -188,6 +215,30 @@ export function FamilyCatalog({ onGestisciTipologie }: FamilyCatalogProps = {}) 
   const [togglePendingIds, setTogglePendingIds] = useState<Set<string>>(() => new Set());
 
   const macroScelta = scelta.tipologia?.macrocategoriaId ?? null;
+
+  // La tipologia «Serramenti» dell'area serramenti: le sue linee e il suo prezzo
+  // sono il punto di partenza di «Prezzi delle linee infissi», e lì finiscono i
+  // modelli installati con una serie di profilo.
+  const tipologiaSerramenti = useMemo(
+    () =>
+      aree
+        .find((a) => a.chiave === "serramenti")
+        ?.tipologie.find((t) => t.standard?.nome === "Serramenti" && !!t.macrocategoriaId) ?? null,
+    [aree],
+  );
+  const lineeSerramenti = useMemo(() => {
+    if (!tipologiaSerramenti) return undefined;
+    const linee = lineeDaAsse(tipologiaSerramenti).filter((l) => l.scostamentoPct != null);
+    return [...linee.filter((l) => l.base), ...linee.filter((l) => !l.base)].map((l) => ({
+      nome: l.nome,
+      materiale: "",
+      differenzaPct: l.scostamentoPct ?? 0,
+    }));
+  }, [tipologiaSerramenti]);
+  const prezzoSerramenti = useMemo(
+    () => (tipologiaSerramenti ? prezzoMqPrevalente(tipologiaSerramenti) : null),
+    [tipologiaSerramenti],
+  );
 
   /** Le tipologie per i select, divise per area; quelle vuote e senza area in fondo. */
   const opzioniTipologie = useMemo(() => {
@@ -324,7 +375,12 @@ export function FamilyCatalog({ onGestisciTipologie }: FamilyCatalogProps = {}) 
       await restoreFamily.mutateAsync(id);
       toast.success("Prodotto ripristinato");
     } catch (err) {
-      toast.error("Ripristino non riuscito", { description: messaggioErrore(err) });
+      const testo = messaggioErrore(err);
+      toast.error("Ripristino non riuscito", {
+        description: /duplicate key|23505/i.test(testo)
+          ? "C'è già un prodotto attivo con lo stesso nome: rinominalo o disattivalo, poi ripristina questo."
+          : testo,
+      });
     }
   };
 
@@ -352,49 +408,167 @@ export function FamilyCatalog({ onGestisciTipologie }: FamilyCatalogProps = {}) 
   const prossimoOrdine = () => Math.max(0, ...macrocategorie.map((m) => Number(m.sort_order) || 0)) + 10;
 
   /**
-   * Una tipologia standard nasce già collegata al preventivatore della sua
-   * area (verticali_abilitati) e, nel fotovoltaico, allo slot del configuratore.
+   * Una tipologia standard nasce già collegata al preventivatore della sua area
+   * (verticali_abilitati) e, nel fotovoltaico, allo slot del configuratore.
+   * Il nome è unico nell'azienda: «Accessori» in una seconda area diventa
+   * «Accessori Fotovoltaico», invece di finire in un errore del database. Una
+   * vecchia tipologia vuota con lo stesso nome, che il listino non mostra, si
+   * riusa.
    */
-  const payloadStandard = (area: AreaListino, standard: TipologiaStandard, ordine: number): MacrocategoriaPayload => ({
-    nome: standard.nome,
-    verticali_abilitati: area.standard ? [area.standard.verticale] : [],
-    tipologia: area.standard ? area.chiave : null,
-    fv_categoria: standard.fvCategoria,
-    categoria_tipo: standard.accessorio ? "accessorio" : "principale",
-    sort_order: ordine,
-  });
+  const creaStandard = async (
+    areaStd: AreaStandard,
+    standard: TipologiaStandard,
+    ordine: number,
+    nomiGiaUsati: Array<{ nome: string }>,
+  ): Promise<string> => {
+    const collegamento = {
+      verticali_abilitati: [areaStd.verticale],
+      tipologia: tipologiaDiArea(areaStd.chiave),
+      fv_categoria: standard.fvCategoria,
+      categoria_tipo: standard.accessorio ? ("accessorio" as const) : ("principale" as const),
+    };
+    const daRiusare = tipologiaDaRiusare(standard.nome, macrocategorie, aree);
+    if (daRiusare) {
+      const riusata = await updateMacrocategoria.mutateAsync({
+        id: daRiusare.id,
+        patch: { ...collegamento, attivo: true, sort_order: ordine },
+      });
+      return riusata.id;
+    }
+    const nome = nomeTipologiaLibero(standard.nome, nomiGiaUsati, areaStd.nome);
+    nomiGiaUsati.push({ nome });
+    const payload: MacrocategoriaPayload = { nome, ...collegamento, sort_order: ordine };
+    const creata = await createMacrocategoria.mutateAsync(payload);
+    return creata.id;
+  };
 
   const creaTipologia = async (area: AreaListino, standard: TipologiaStandard) => {
-    if (creazioneInCorso) return;
+    if (creazioneInCorso || !area.standard) return;
     setCreazioneInCorso(true);
     try {
-      const creata = await createMacrocategoria.mutateAsync(payloadStandard(area, standard, prossimoOrdine()));
+      const id = await creaStandard(area.standard, standard, prossimoOrdine(), [...macrocategorie]);
       toast.success(`Tipologia «${standard.nome}» aggiunta all'area ${area.nome}`);
-      cambiaSelezione({ area: area.chiave, tipologia: `macro:${creata.id}` });
+      setNuovaTipologia(null);
+      cambiaSelezione({ area: area.chiave, tipologia: `macro:${id}` });
     } catch (err) {
-      toast.error("Tipologia non creata", { description: messaggioErrore(err) });
+      toast.error("Tipologia non creata", { description: translateListinoError(err).message });
     } finally {
       setCreazioneInCorso(false);
     }
   };
 
   const creaTutteStandard = async (area: AreaListino) => {
-    if (creazioneInCorso) return;
+    if (creazioneInCorso || !area.standard) return;
     setCreazioneInCorso(true);
     const base = prossimoOrdine();
+    const nomi = [...macrocategorie];
     let create = 0;
     try {
       for (const [i, standard] of area.mancanti.entries()) {
-        await createMacrocategoria.mutateAsync(payloadStandard(area, standard, base + i * 10));
+        await creaStandard(area.standard, standard, base + i * 10, nomi);
         create += 1;
       }
       toast.success(`${create} tipologie standard aggiunte all'area ${area.nome}`);
+      setNuovaTipologia(null);
     } catch (err) {
       toast.error(create > 0 ? `Aggiunte ${create} tipologie su ${area.mancanti.length}` : "Tipologie non create", {
-        description: messaggioErrore(err),
+        description: translateListinoError(err).message,
       });
     } finally {
       setCreazioneInCorso(false);
+    }
+  };
+
+  /** «+ Area»: le tipologie standard scelte, e l'area c'è. */
+  const creaArea = async (areaStd: AreaStandard, tipologie: TipologiaStandard[]) => {
+    if (creazioneInCorso || tipologie.length === 0) return;
+    setCreazioneInCorso(true);
+    const base = prossimoOrdine();
+    const nomi = [...macrocategorie];
+    let create = 0;
+    let prima: string | null = null;
+    try {
+      for (const [i, standard] of tipologie.entries()) {
+        const id = await creaStandard(areaStd, standard, base + i * 10, nomi);
+        prima = prima ?? id;
+        create += 1;
+      }
+      toast.success(`Area ${areaStd.nome} aggiunta con ${create} ${create === 1 ? "tipologia" : "tipologie"}`);
+      setNuovaArea(false);
+      cambiaSelezione({ area: areaStd.chiave, tipologia: prima ? `macro:${prima}` : null });
+    } catch (err) {
+      toast.error(create > 0 ? `Create ${create} tipologie su ${tipologie.length}` : "Area non aggiunta", {
+        description: translateListinoError(err).message,
+      });
+    } finally {
+      setCreazioneInCorso(false);
+    }
+  };
+
+  /** Una tipologia su misura nell'area che si sta guardando. */
+  const creaTipologiaSuMisura = async (area: AreaListino, dati: { nome: string; accessorio: boolean }) => {
+    if (creazioneInCorso) return;
+    setCreazioneInCorso(true);
+    try {
+      // L'etichetta dell'area fa vedere la tipologia anche vuota. «Generale» non ne ha una.
+      const etichetta = area.standard?.verticale ?? (area.chiave !== "generale" ? area.chiave : null);
+      const payload: MacrocategoriaPayload = {
+        nome: dati.nome,
+        verticali_abilitati: etichetta ? [etichetta] : [],
+        tipologia: etichetta ? tipologiaDiArea(area.chiave) : null,
+        categoria_tipo: dati.accessorio ? "accessorio" : "principale",
+        sort_order: prossimoOrdine(),
+      };
+      const creata = await createMacrocategoria.mutateAsync(payload);
+      toast.success(
+        `Tipologia «${creata.nome}» creata nell'area ${area.nome}`,
+        etichetta ? undefined : { description: "Compare nel listino quando ci metti il primo prodotto." },
+      );
+      setNuovaTipologia(null);
+      cambiaSelezione({ area: area.chiave, tipologia: `macro:${creata.id}` });
+    } catch (err) {
+      toast.error("Tipologia non creata", { description: translateListinoError(err).message });
+    } finally {
+      setCreazioneInCorso(false);
+    }
+  };
+
+  const copia = async (area: AreaListino, dati: DatiCopiaTipologia) => {
+    const origineId = dati.origine.macrocategoriaId;
+    if (!origineId || copiaTipologia.isPending) return;
+    try {
+      const esito = await copiaTipologia.mutateAsync({
+        macrocategoriaId: origineId,
+        nome: dati.nome,
+        suffissoProdotti: dati.suffisso || null,
+        variazionePct: dati.variazionePct,
+        conProdotti: dati.conProdotti,
+      });
+      toast.success(`Tipologia «${esito.nome}» creata da ${dati.origine.nome}`, {
+        description: dati.conProdotti
+          ? `${esito.prodotti} ${esito.prodotti === 1 ? "prodotto copiato" : "prodotti copiati"}${esito.linee > 0 ? `, ${esito.linee} linee` : ""}.`
+          : "Senza prodotti: la trovi vuota, con le sue linee.",
+      });
+      setNuovaTipologia(null);
+      cambiaSelezione({ area: area.chiave, tipologia: `macro:${esito.id}` });
+    } catch (err) {
+      toast.error("Tipologia non copiata", { description: messaggioErrore(err) });
+    }
+  };
+
+  /** Fuori dai preventivi o di nuovo dentro: la tipologia resta nel listino con i suoi prodotti. */
+  const attivaTipologia = async (tipologia: TipologiaListino) => {
+    if (!tipologia.macrocategoriaId) return;
+    try {
+      await updateMacrocategoria.mutateAsync({ id: tipologia.macrocategoriaId, patch: { attivo: !tipologia.attiva } });
+      toast.success(
+        tipologia.attiva ? `«${tipologia.nome}» tolta dai preventivi` : `«${tipologia.nome}» di nuovo nei preventivi`,
+        tipologia.attiva
+          ? { description: "Resta nel listino con i suoi prodotti; i preventivi già fatti non cambiano." }
+          : undefined,
+      );
+    } catch (err) {
+      toast.error("Modifica non riuscita", { description: messaggioErrore(err) });
     }
   };
 
@@ -425,25 +599,81 @@ export function FamilyCatalog({ onGestisciTipologie }: FamilyCatalogProps = {}) 
     }
   };
 
-  const chiudiNuovaLinea = () => {
-    setNuovaLinea(null);
-    setNomeLinea("");
-  };
+  const chiudiNuovaLinea = () => setNuovaLinea(null);
 
-  const salvaLinea = async () => {
+  /** Linea-cartella: prodotti diversi dentro la tipologia (tapparelle in PVC e in alluminio). */
+  const salvaLineaCartella = async (nome: string) => {
     const macroId = nuovaLinea?.tipologia.macrocategoriaId;
-    if (!nuovaLinea || !macroId || !nomeLinea.trim()) return;
+    if (!nuovaLinea || !macroId) return;
+    // In fondo alle linee che ci sono: prima l'ordine era il numero di linee e
+    // poteva coincidere con quello di una linea esistente.
+    const ordine =
+      Math.max(-1, ...categorie.filter((c) => c.macrocategoria_id === macroId).map((c) => Number(c.sort_order) || 0)) + 1;
     try {
-      const creata = await createCategoria.mutateAsync({
-        nome: nomeLinea.trim(),
-        macrocategoria_id: macroId,
-        sort_order: nuovaLinea.tipologia.linee.length,
+      const creata = await createCategoria.mutateAsync({ nome, macrocategoria_id: macroId, sort_order: ordine });
+      toast.success(`Linea «${creata.nome}» creata in ${nuovaLinea.tipologia.nome}`, {
+        description: "Sposta i prodotti nella linea dal menu di ogni prodotto.",
       });
-      toast.success(`Linea «${creata.nome}» creata in ${nuovaLinea.tipologia.nome}`);
       cambiaSelezione({ area: nuovaLinea.area.chiave, tipologia: nuovaLinea.tipologia.chiave, linea: `cat:${creata.id}` });
       chiudiNuovaLinea();
     } catch (err) {
+      toast.error("Linea non creata", { description: translateListinoError(err).message });
+    }
+  };
+
+  /** Linea sugli stessi modelli: un valore dell'asse «Linea» di ogni prodotto, con lo scostamento. */
+  const salvaLineaAsse = async (dati: DatiLineaAsse) => {
+    const macroId = nuovaLinea?.tipologia.macrocategoriaId;
+    if (!nuovaLinea || !macroId) return;
+    try {
+      const esito = await aggiungiLinea.mutateAsync({ macrocategoriaId: macroId, ...dati });
+      const parti = [
+        esito.aggiunte > 0 ? `aggiunta a ${esito.aggiunte} ${esito.aggiunte === 1 ? "prodotto" : "prodotti"}` : null,
+        esito.riattivate > 0 ? `riaccesa su ${esito.riattivate}` : null,
+        esito.gia_presenti > 0 ? `c'era già su ${esito.gia_presenti}` : null,
+        esito.saltati > 0 ? `${esito.saltati} senza linee non l'hanno ricevuta` : null,
+      ].filter(Boolean);
+      const testo = parti.join(", ");
+      toast.success(`Linea «${esito.linea}» in ${nuovaLinea.tipologia.nome}`, {
+        description: testo ? `${testo.charAt(0).toUpperCase()}${testo.slice(1)}.` : undefined,
+      });
+      cambiaSelezione({
+        area: nuovaLinea.area.chiave,
+        tipologia: nuovaLinea.tipologia.chiave,
+        linea: `linea:${chiaveTesto(dati.nome)}`,
+      });
+      chiudiNuovaLinea();
+    } catch (err) {
       toast.error("Linea non creata", { description: messaggioErrore(err) });
+    }
+  };
+
+  const salvaPrezzi = async (dati: DatiPrezziLinee) => {
+    const tipologia = prezziAperti;
+    if (!tipologia?.macrocategoriaId) return;
+    try {
+      const esito = await prezziLinee.mutateAsync({ macrocategoriaId: tipologia.macrocategoriaId, ...dati });
+      toast.success(`Prezzi delle linee di ${tipologia.nome} salvati`, {
+        description:
+          esito.prodotti_prezzo > 0 ? `Nuovo prezzo al m² su ${esito.prodotti_prezzo} prodotti.` : undefined,
+      });
+      setPrezziAperti(null);
+    } catch (err) {
+      toast.error("Prezzi non salvati", { description: messaggioErrore(err) });
+    }
+  };
+
+  const allinea = async () => {
+    const tipologia = daAllineare;
+    if (!tipologia?.macrocategoriaId) return;
+    try {
+      const esito = await allineaLinee.mutateAsync(tipologia.macrocategoriaId);
+      toast.success(
+        `${esito.prodotti} ${esito.prodotti === 1 ? "prodotto ha" : "prodotti hanno"} ora le ${esito.linee} linee di ${tipologia.nome}`,
+      );
+      setDaAllineare(null);
+    } catch (err) {
+      toast.error("Linee non assegnate", { description: messaggioErrore(err) });
     }
   };
 
@@ -451,13 +681,16 @@ export function FamilyCatalog({ onGestisciTipologie }: FamilyCatalogProps = {}) 
     const q = new URLSearchParams();
     if (tipologia?.macrocategoriaId) q.set("tipologia", tipologia.macrocategoriaId);
     if (linea?.categoriaId) q.set("linea", linea.categoriaId);
+    // Nei listini senza tipologie la «tipologia» è una categoria: il prodotto nuovo
+    // ci va dentro, invece di finire in «Senza tipologia».
+    else if (tipologia?.fonte === "categoria" && tipologia.categoriaId) q.set("linea", tipologia.categoriaId);
     const suffisso = q.toString();
     navigate(`/azienda/impostazioni/listino/famiglie/nuova${suffisso ? `?${suffisso}` : ""}`);
   };
 
   const azioniImporta: AzioneImporta[] = [
     { etichetta: "Excel o CSV", descrizione: "Da un foglio di calcolo", icona: FileSpreadsheet, href: "/azienda/impostazioni/listino/import" },
-    { etichetta: "Listino fornitore in PDF", descrizione: "Letto dall'intelligenza artificiale", icona: Sparkles, href: "/azienda/impostazioni/listino/import" },
+    { etichetta: "Listino fornitore in PDF", descrizione: "Letto dall'intelligenza artificiale", icona: Sparkles, href: "/azienda/impostazioni/listino/import?tab=ai" },
     ...(companyId
       ? [
           { etichetta: "Modelli pronti", descrizione: "Tipologie con disegno e variabili", icona: Package, onClick: () => setTemplatePickerOpen(true) },
@@ -542,20 +775,22 @@ export function FamilyCatalog({ onGestisciTipologie }: FamilyCatalogProps = {}) 
             onAttivo: (f) => void toggleAttivo(f),
             onPreventivo: (f) => void togglePreventivo(f),
           }}
-          onCreaTipologia={isAdmin ? (area, standard) => void creaTipologia(area, standard) : undefined}
-          onCreaTutteStandard={isAdmin ? (area) => void creaTutteStandard(area) : undefined}
-          onNuovaLinea={
-            isAdmin
-              ? (area, tipologia) => {
-                  setNuovaLinea({ area, tipologia });
-                  setNomeLinea("");
-                }
+          onCreaTipologia={gestore ? (area, standard) => void creaTipologia(area, standard) : undefined}
+          onCreaTutteStandard={gestore ? (area) => void creaTutteStandard(area) : undefined}
+          onNuovaArea={gestore ? () => setNuovaArea(true) : undefined}
+          onNuovaTipologia={
+            gestore
+              ? (area) => setNuovaTipologia({ area, modo: area.mancanti.length > 0 ? "standard" : "nuova", origine: null })
               : undefined
           }
+          onCopiaTipologia={gestore ? (area, tipologia) => setNuovaTipologia({ area, modo: "copia", origine: tipologia }) : undefined}
+          onAttivaTipologia={gestore ? (_area, tipologia) => void attivaTipologia(tipologia) : undefined}
+          onNuovaLinea={isAdmin ? (area, tipologia) => setNuovaLinea({ area, tipologia }) : undefined}
           onNuovoProdotto={isAdmin ? nuovoProdotto : undefined}
-          onPrezziLinee={isAdmin && companyId ? () => setStandardSerramentiOpen(true) : undefined}
-          onCollega={isAdmin ? (area, tipologia) => void collega(area, tipologia) : undefined}
-          onAccessorio={isAdmin ? (_area, tipologia) => void mettiFraGliAccessori(tipologia) : undefined}
+          onPrezziLinee={isAdmin ? (tipologia) => setPrezziAperti(tipologia) : undefined}
+          onAllineaLinee={isAdmin ? (_area, tipologia) => setDaAllineare(tipologia) : undefined}
+          onCollega={gestore ? (area, tipologia) => void collega(area, tipologia) : undefined}
+          onAccessorio={gestore ? (_area, tipologia) => void mettiFraGliAccessori(tipologia) : undefined}
           schedaDi={(tipologia, linea) => trovaSchedaLinea(schedeLinea, tipologia.macrocategoriaId, linea.nome)}
           onSchedaLinea={
             isAdmin && companyId ? (_area, tipologia, linea) => setSchedaAperta({ tipologia, linea }) : undefined
@@ -738,77 +973,6 @@ export function FamilyCatalog({ onGestisciTipologie }: FamilyCatalogProps = {}) 
                 </>
               ) : (
                 "Sposta"
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Nuova linea: una categoria dentro la tipologia. */}
-      <Dialog
-        open={!!nuovaLinea}
-        onOpenChange={(open) => {
-          if (createCategoria.isPending) return;
-          if (!open) chiudiNuovaLinea();
-        }}
-      >
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Nuova linea in {nuovaLinea?.tipologia.nome}</DialogTitle>
-            <DialogDescription>
-              Una linea raccoglie prodotti diversi della stessa tipologia: le tapparelle in PVC e quelle in
-              alluminio, la linea vasca tipo 1 e la tipo 2.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-1.5">
-            <Label htmlFor="nome-linea">Nome della linea</Label>
-            <Input
-              id="nome-linea"
-              value={nomeLinea}
-              onChange={(e) => setNomeLinea(e.target.value)}
-              placeholder="Es. PVC, Alluminio coibentato, Linea vasca tipo 1"
-              autoFocus
-              className="h-10"
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && nomeLinea.trim() && !createCategoria.isPending) {
-                  e.preventDefault();
-                  void salvaLinea();
-                }
-              }}
-            />
-            {nuovaLinea?.area.chiave === "serramenti" && (
-              <p className="text-xs text-muted-foreground">
-                Una serie di profilo con gli stessi modelli e un altro prezzo (Aluplast, Rehau) si aggiunge da{" "}
-                <button
-                  type="button"
-                  className="font-medium text-primary hover:underline"
-                  onClick={() => {
-                    chiudiNuovaLinea();
-                    setSerieOpen(true);
-                  }}
-                >
-                  Serie di profilo
-                </button>
-                .
-              </p>
-            )}
-          </div>
-          <DialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:gap-2">
-            <Button variant="ghost" onClick={chiudiNuovaLinea} disabled={createCategoria.isPending} className="h-10 w-full sm:w-auto">
-              Annulla
-            </Button>
-            <Button
-              onClick={() => void salvaLinea()}
-              disabled={!nomeLinea.trim() || createCategoria.isPending}
-              className="h-10 w-full sm:w-auto"
-            >
-              {createCategoria.isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
-                  Creazione…
-                </>
-              ) : (
-                "Crea linea"
               )}
             </Button>
           </DialogFooter>
@@ -1066,23 +1230,111 @@ export function FamilyCatalog({ onGestisciTipologie }: FamilyCatalogProps = {}) 
         />
       )}
 
-      {isAdmin && companyId && (
+      {/* Si monta a ogni apertura: parte dalle linee e dal prezzo di oggi dei serramenti. */}
+      {isAdmin && companyId && standardSerramentiOpen && (
         <ImpostaStandardSerramentiDialog
-          open={standardSerramentiOpen}
+          open
           onOpenChange={setStandardSerramentiOpen}
           companyId={companyId}
           famiglie={families.map((f) => ({ id: f.id, nome: f.nome, vertical: f.vertical }))}
+          lineeIniziali={lineeSerramenti}
+          prezzoIniziale={prezzoSerramenti}
         />
       )}
 
-      {isAdmin && companyId && (
+      {/* Anche questo si monta a ogni apertura, così la spunta parte giusta. I
+          modelli nuovi vanno nella tipologia Serramenti, non in quella aperta:
+          con Tapparelle aperta finivano fra le tapparelle. */}
+      {isAdmin && companyId && serieOpen && (
         <ImportaSerieDialog
-          open={serieOpen}
+          open
           onOpenChange={setSerieOpen}
           companyId={companyId}
-          macrocategoriaId={scelta.area?.chiave === "serramenti" ? macroScelta : null}
+          macrocategoriaId={
+            tipologiaSerramenti?.macrocategoriaId ?? (scelta.area?.chiave === "serramenti" ? macroScelta : null)
+          }
+          installaMancantiIniziale={!tipologiaSerramenti || tipologiaSerramenti.articoli === 0}
         />
       )}
+
+      {nuovaLinea && (
+        <NuovaLineaDialog
+          area={nuovaLinea.area}
+          tipologia={nuovaLinea.tipologia}
+          inCorso={createCategoria.isPending || aggiungiLinea.isPending}
+          onChiudi={chiudiNuovaLinea}
+          onCreaCategoria={(nome) => void salvaLineaCartella(nome)}
+          onCreaAsse={(dati) => void salvaLineaAsse(dati)}
+        />
+      )}
+
+      {nuovaArea && (
+        <NuovaAreaDialog
+          aree={aree}
+          macrocategorie={macrocategorie}
+          inCorso={creazioneInCorso}
+          onChiudi={() => setNuovaArea(false)}
+          onCrea={(areaStd, tipologie) => void creaArea(areaStd, tipologie)}
+        />
+      )}
+
+      {nuovaTipologia && (
+        <NuovaTipologiaDialog
+          area={nuovaTipologia.area}
+          macrocategorie={macrocategorie}
+          modoIniziale={nuovaTipologia.modo}
+          origineIniziale={nuovaTipologia.origine}
+          inCorso={creazioneInCorso || copiaTipologia.isPending}
+          onChiudi={() => setNuovaTipologia(null)}
+          onCreaStandard={
+            nuovaTipologia.area.standard ? (standard) => void creaTipologia(nuovaTipologia.area, standard) : undefined
+          }
+          onCreaTutteStandard={() => void creaTutteStandard(nuovaTipologia.area)}
+          onCreaNuova={(dati) => void creaTipologiaSuMisura(nuovaTipologia.area, dati)}
+          onCopia={(dati) => void copia(nuovaTipologia.area, dati)}
+        />
+      )}
+
+      {prezziAperti && (
+        <PrezziLineeDialog
+          tipologia={prezziAperti}
+          inCorso={prezziLinee.isPending}
+          onChiudi={() => setPrezziAperti(null)}
+          onSalva={(dati) => void salvaPrezzi(dati)}
+        />
+      )}
+
+      <AlertDialog
+        open={!!daAllineare}
+        onOpenChange={(open) => {
+          if (!open && !allineaLinee.isPending) setDaAllineare(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Dare le linee di {daAllineare?.nome} ai prodotti che non le hanno?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Ognuno riceve le stesse linee e gli stessi scostamenti del prodotto che ne ha di più. La «Linea base» dei
+              modelli pronti si spegne. I preventivi già fatti non cambiano.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:gap-2">
+            <AlertDialogCancel disabled={allineaLinee.isPending} className="mt-0 h-10 w-full sm:w-auto">
+              Annulla
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                void allinea();
+              }}
+              disabled={allineaLinee.isPending}
+              className="h-10 w-full sm:w-auto"
+            >
+              {allineaLinee.isPending ? "Assegno le linee…" : "Dai le linee"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Modelli pronti dalla libreria di piattaforma: si aprono sull'area e
           sulla tipologia che si stanno guardando. */}

@@ -10,6 +10,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
+import { chiaveTesto } from "@/lib/listino/areeStandard";
 import {
   CODICE_ASSE,
   percentualiOpzioni,
@@ -93,14 +94,18 @@ export function useStandardSerramenti() {
       const idAssiLinea = assiLinea.map((a) => a.id);
       const { data: valoriEsistenti, error: errVal } = await supabase
         .from("article_family_axis_values")
-        .select("id, axis_id, valore")
+        .select("id, axis_id, valore, label")
         .in("axis_id", idAssiLinea);
       if (errVal) throw errVal;
 
-      const perAsse = new Map<string, Map<string, string>>();
+      // Una linea si riconosce dal codice o dal nome: «PVC Salamander 76» creata
+      // dalla libreria ha il codice «salamander_76», da qui sarebbe
+      // «pvc_salamander_76». Senza il nome si spegneva e ne nasceva una doppia.
+      const perAsse = new Map<string, Array<{ id: string; valore: string; chiave: string }>>();
       for (const v of valoriEsistenti ?? []) {
-        if (!perAsse.has(v.axis_id)) perAsse.set(v.axis_id, new Map());
-        perAsse.get(v.axis_id)!.set(v.valore, v.id);
+        const lista = perAsse.get(v.axis_id) ?? [];
+        lista.push({ id: v.id, valore: v.valore, chiave: chiaveTesto(v.label || v.valore) });
+        perAsse.set(v.axis_id, lista);
       }
 
       /** Riga nuova della tabella varianti: tipizzata, così l'insert non ha bisogno di forzature. */
@@ -121,14 +126,22 @@ export function useStandardSerramenti() {
       const daDisattivare: string[] = [];
 
       for (const asse of assiLinea) {
-        const presenti = perAsse.get(asse.id) ?? new Map<string, string>();
+        const presenti = perAsse.get(asse.id) ?? [];
+        const usati = new Set<string>();
         for (const variante of varianti) {
-          const id = presenti.get(variante.valore);
-          if (id) daAggiornare.push({ id, variante });
-          else daInserire.push({ axis_id: asse.id, company_id: companyId, attivo: true, ...variante });
+          const chiave = chiaveTesto(variante.label);
+          const trovato = presenti.find(
+            (p) => !usati.has(p.id) && (p.valore === variante.valore || p.chiave === chiave),
+          );
+          if (trovato) {
+            usati.add(trovato.id);
+            daAggiornare.push({ id: trovato.id, variante });
+          } else {
+            daInserire.push({ axis_id: asse.id, company_id: companyId, attivo: true, ...variante });
+          }
         }
-        for (const [valore, id] of presenti) {
-          if (!varianti.some((v) => v.valore === valore)) daDisattivare.push(id);
+        for (const p of presenti) {
+          if (!usati.has(p.id)) daDisattivare.push(p.id);
         }
       }
 

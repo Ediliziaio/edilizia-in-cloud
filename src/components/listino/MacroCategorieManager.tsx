@@ -248,7 +248,7 @@ export function MacroCategorieManager() {
    */
   const handlePhotoTemplateSelect = async (photo: { image_url: string; nome: string }) => {
     if (editMode.kind !== "macro-edit") {
-      toast.error("Salva prima la macrocategoria, poi scegli una foto template.");
+      toast.error("Salva prima la tipologia, poi scegli una foto.");
       return;
     }
     try {
@@ -311,7 +311,7 @@ export function MacroCategorieManager() {
 
     const excludeId = editMode.kind === "macro-edit" ? editMode.row.id : undefined;
     if (isDuplicateMacroName(nome, excludeId)) {
-      toast.error("Esiste già una macrocategoria con questo nome.");
+      toast.error("Esiste già una tipologia con questo nome.");
       return;
     }
 
@@ -328,7 +328,7 @@ export function MacroCategorieManager() {
           tipologia: formTipologia,
           fv_categoria: formTipologia === "fotovoltaico" ? formFvCategoria : null,
         });
-        toast.success("Macrocategoria creata");
+        toast.success("Tipologia creata");
         // Post-refactor 20270513200000: bypassiamo il livello categoria
         // (deprecato) e proponiamo SUBITO l'import dei template articolo per
         // il verticale scelto. Lo step subcategorie standard è stato rimosso.
@@ -353,7 +353,7 @@ export function MacroCategorieManager() {
             fv_categoria: formTipologia === "fotovoltaico" ? formFvCategoria : null,
           },
         });
-        toast.success("Macrocategoria aggiornata");
+        toast.success("Tipologia aggiornata");
       }
       closeForm();
     } catch (err) {
@@ -413,7 +413,7 @@ export function MacroCategorieManager() {
     if (!toDelete) return;
     try {
       await deleteMacrocategoria.mutateAsync(toDelete.row.id);
-      toast.success("Macrocategoria eliminata");
+      toast.success("Tipologia eliminata");
       setToDelete(null);
     } catch (err) {
       const { message } = translateListinoError(err);
@@ -425,9 +425,9 @@ export function MacroCategorieManager() {
 
   const formTitle =
     editMode.kind === "macro-new"
-      ? "Nuova macrocategoria"
+      ? "Nuova tipologia"
       : editMode.kind === "macro-edit"
-        ? "Modifica macrocategoria"
+        ? "Modifica tipologia"
         : "";
 
   return (
@@ -436,7 +436,7 @@ export function MacroCategorieManager() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-2 border-b">
         <div className="flex items-center gap-3 text-sm">
           <span className="font-medium">
-            {macrocategorie.length} {macrocategorie.length === 1 ? "macrocategoria" : "macrocategorie"}
+            {macrocategorie.length} {macrocategorie.length === 1 ? "tipologia" : "tipologie"}
           </span>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -446,7 +446,7 @@ export function MacroCategorieManager() {
             className="bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500 text-white shadow-sm"
           >
             <Plus className="h-4 w-4 mr-1.5" aria-hidden="true" />
-            Nuova macrocategoria
+            Nuova tipologia
           </Button>
         </div>
       </div>
@@ -462,18 +462,18 @@ export function MacroCategorieManager() {
             <Folder className="h-10 w-10 mx-auto opacity-40" aria-hidden="true" />
             <div className="space-y-1">
               <p className="font-medium text-foreground">
-                Nessuna macrocategoria configurata
+                Nessuna tipologia
               </p>
               <p className="text-xs max-w-md mx-auto">
-                Crea la prima macrocategoria (es. <em>Serramenti WND Square</em>)
-                per iniziare a strutturare il listino. Gli articoli (es.
+                Crea la prima tipologia (es. <em>Serramenti</em>, <em>Tapparelle</em>)
+                per iniziare a strutturare il listino. I prodotti (es.
                 <em> Finestra 1 anta</em>) andranno al suo interno.
               </p>
             </div>
             <div className="flex flex-wrap gap-2 justify-center pt-1">
               <Button size="sm" onClick={() => openForm({ kind: "macro-new" })}>
                 <Plus className="h-4 w-4 mr-1.5" aria-hidden="true" />
-                Crea macrocategoria
+                Crea tipologia
               </Button>
             </div>
           </div>
@@ -497,7 +497,7 @@ export function MacroCategorieManager() {
                     const slug = firstGallerySlugFor(m.verticali_abilitati);
                     if (!slug) {
                       toast.error(
-                        "Imposta prima almeno un verticale (in Modifica macrocategoria).",
+                        "Imposta prima almeno un verticale (in Modifica tipologia).",
                       );
                       return;
                     }
@@ -527,7 +527,7 @@ export function MacroCategorieManager() {
               <div className="min-w-0">
                 <DialogTitle>{formTitle}</DialogTitle>
                 <DialogDescription>
-                  Le macrocategorie sono il livello più alto della gerarchia listino (es. <em>Serramenti WND Square</em>). Sotto vi finiranno direttamente gli articoli del listino.
+                  La tipologia raccoglie i prodotti di un tipo (es. <em>Serramenti</em>, <em>Tapparelle</em>) e sta in un'area: i verticali scelti qui sotto decidono in quale preventivatore compare.
                 </DialogDescription>
               </div>
             </div>
@@ -559,7 +559,7 @@ export function MacroCategorieManager() {
                   </span>
                 </div>
                 <p className="text-xs text-orange-900/80 leading-relaxed">
-                  Dopo il salvataggio ti proporremo di creare automaticamente le <strong>subcategorie standard</strong> del settore e di importare gli <strong>articoli template</strong> pre-configurati (foto, variabili Colore + Tipologia Vetro, griglia prezzi). Potrai personalizzare tutto dopo.
+                  Dopo il salvataggio ti proporremo di importare i <strong>modelli pronti</strong> del settore (foto, varianti di colore e vetro, griglia prezzi). Potrai personalizzare tutto dopo.
                 </p>
               </div>
             )}
@@ -568,7 +568,7 @@ export function MacroCategorieManager() {
                   • principale  → ListinoPickerDialog principale (serramenti veri)
                   • accessorio  → sezione "Accessori e complementi" del progetto */}
             <div className="space-y-2 pt-1 border-t">
-              <Label className="text-sm font-medium">Tipo macrocategoria</Label>
+              <Label className="text-sm font-medium">Come compare nel preventivo</Label>
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
@@ -647,7 +647,7 @@ export function MacroCategorieManager() {
               </div>
               <p className="text-[11px] text-muted-foreground">
                 Con tipologia <strong>Fotovoltaico</strong> + componente, i prodotti di questa
-                macrocategoria vengono collegati automaticamente al preventivatore FV
+                tipologia vengono collegati automaticamente al preventivatore FV
                 (anche quelli aggiunti in futuro).
               </p>
             </div>
@@ -657,11 +657,11 @@ export function MacroCategorieManager() {
               <div className="space-y-2 pt-1 border-t">
                 <div className="flex items-center gap-2">
                   <ImageIcon className="h-4 w-4 text-muted-foreground" />
-                  <Label className="text-sm font-medium">Foto macrocategoria (opzionale)</Label>
+                  <Label className="text-sm font-medium">Foto della tipologia (facoltativa)</Label>
                 </div>
                 {editMode.kind === "macro-new" ? (
                   <p className="text-xs text-muted-foreground italic">
-                    Salva prima la macrocategoria, poi rientra in modifica per caricare la foto.
+                    Salva prima la tipologia, poi rientra in modifica per caricare la foto.
                   </p>
                 ) : (
                   <div className="flex items-start gap-3">
@@ -749,7 +749,7 @@ export function MacroCategorieManager() {
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Scegli in quali moduli preventivo (Serramenti, Bagno, Fotovoltaico…)
-                  questa macrocategoria dovrà essere visibile. Lascia <em>tutto deselezionato</em>{" "}
+                  questa tipologia dovrà essere visibile. Lascia <em>tutto deselezionato</em>{" "}
                   per renderla visibile in tutti i moduli.
                 </p>
                 <div className="grid grid-cols-2 gap-x-3 gap-y-2 pt-1 max-h-48 overflow-y-auto">
@@ -859,30 +859,30 @@ export function MacroCategorieManager() {
             </AlertDialogTitle>
             <AlertDialogDescription>
               {!toDelete ? null : toDelete.counts === "loading" ? (
-                "Verifica delle categorie e degli articoli collegati…"
+                "Verifica delle linee e dei prodotti collegati…"
               ) : toDelete.counts === "error" ? (
-                'Impossibile verificare i collegamenti. Eventuali categorie e articoli collegati diventeranno "senza macrocategoria"; nessun elemento verrà eliminato.'
+                'Impossibile verificare i collegamenti. Eventuali linee e prodotti collegati diventeranno "senza tipologia" e nessun prodotto verrà eliminato; le schede delle sue linee invece si cancellano.'
               ) : toDelete.counts.categorie > 0 || toDelete.counts.famiglie > 0 ? (
                 <>
-                  Collegati a questa macrocategoria:{" "}
+                  Collegati a questa tipologia:{" "}
                   {toDelete.counts.categorie > 0 && (
                     <>
                       <strong>{toDelete.counts.categorie}</strong>{" "}
-                      {toDelete.counts.categorie === 1 ? "categoria" : "categorie"}
+                      {toDelete.counts.categorie === 1 ? "linea" : "linee"}
                     </>
                   )}
                   {toDelete.counts.categorie > 0 && toDelete.counts.famiglie > 0 && " e "}
                   {toDelete.counts.famiglie > 0 && (
                     <>
                       <strong>{toDelete.counts.famiglie}</strong>{" "}
-                      {toDelete.counts.famiglie === 1 ? "articolo" : "articoli"}
+                      {toDelete.counts.famiglie === 1 ? "prodotto" : "prodotti"}
                     </>
                   )}
-                  . Diventeranno &quot;senza macrocategoria&quot;: nessun elemento verrà
-                  eliminato.
+                  . Diventeranno &quot;senza tipologia&quot;: nessun prodotto verrà eliminato, ma le
+                  schede delle sue linee si cancellano.
                 </>
               ) : (
-                "Nessuna categoria o articolo è collegato. Puoi procedere."
+                "Nessuna linea o prodotto collegato. Le eventuali schede delle linee si cancellano con la tipologia."
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -1079,7 +1079,7 @@ function MacroRow({
             variant="ghost"
             size="icon"
             onClick={onEditMacro}
-            title="Modifica macrocategoria"
+            title="Modifica tipologia"
             className="h-9 w-9"
           >
             <Edit2 className="h-4 w-4" aria-hidden="true" />
@@ -1099,10 +1099,10 @@ function MacroRow({
       {isOpen && (
         <div className="border-t bg-muted/20">
           <div className="px-6 py-5 text-sm text-muted-foreground text-center">
-            Gli articoli di questa macrocategoria si gestiscono dal{" "}
-            <strong>Listino articoli</strong>. Usa il pulsante{" "}
+            I prodotti di questa tipologia si gestiscono dal{" "}
+            <strong>Listino prodotti</strong>. Usa il pulsante{" "}
             <Sparkles className="inline h-3.5 w-3.5 text-orange-600" /> qui sopra per
-            importare articoli template pre-configurati.
+            importare i modelli pronti.
           </div>
         </div>
       )}

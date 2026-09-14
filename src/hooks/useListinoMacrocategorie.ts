@@ -11,7 +11,7 @@
  *     Categoria: "FINESTRA 1 ANTA" → N article_families
  *     Categoria: "PORTA FINESTRA 2 ANTE" → N article_families
  *
- * Restituisce query + mutations (create, update, delete, reorder).
+ * Restituisce query + mutations (create, update, delete).
  * Invalidation coordinata: quando cambia una macrocat, invalida anche le
  * categorie (dipendono dalla FK) e il catalog delle famiglie.
  */
@@ -256,7 +256,11 @@ export function useMacrocategorieMutations() {
         .eq("company_id", companyId);
       if (error) throw new Error(error.message);
     },
-    onSuccess: invalidate,
+    onSuccess: () => {
+      invalidate();
+      // Le schede delle linee della tipologia se ne vanno con lei (ON DELETE CASCADE).
+      void qc.invalidateQueries({ queryKey: ["listino-schede-linea", companyId] });
+    },
   });
 
   return {

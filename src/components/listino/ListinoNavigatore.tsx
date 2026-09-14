@@ -16,6 +16,7 @@ import {
   AlertTriangle,
   AppWindow,
   Bath,
+  Copy,
   CopyPlus,
   Eye,
   EyeOff,
@@ -28,6 +29,7 @@ import {
   MoreVertical,
   Package,
   PackageOpen,
+  Percent,
   Plus,
   Power,
   PowerOff,
@@ -51,6 +53,7 @@ import type { TipologiaStandard } from "@/lib/listino/areeStandard";
 import { formattaMaggiorazione } from "@/lib/listino/maggiorazione";
 import { statoMargine } from "@/lib/listino/filtriListino";
 import { datiTecniciScheda, schedaVuota, type SchedaLinea } from "@/lib/listino/schedeLinea";
+import { eLineaBaseDeiModelli, haLineeDaAsse, prodottiSenzaLinee } from "@/lib/listino/organizzaListino";
 import {
   economiaRiga,
   lineaDiRiferimento,
@@ -95,6 +98,15 @@ export interface ListinoNavigatoreProps {
   onAzzera?: () => void;
   onCreaTipologia?: (area: AreaListino, standard: TipologiaStandard) => void;
   onCreaTutteStandard?: (area: AreaListino) => void;
+  /** «+ Area»: un'area standard che l'azienda non ha ancora. */
+  onNuovaArea?: () => void;
+  /** «+ Tipologia» in un'area: standard, su misura o copia di una che c'è. */
+  onNuovaTipologia?: (area: AreaListino) => void;
+  onCopiaTipologia?: (area: AreaListino, tipologia: TipologiaListino) => void;
+  /** Toglie la tipologia dai preventivi o ce la rimette (attivo della macrocategoria). */
+  onAttivaTipologia?: (area: AreaListino, tipologia: TipologiaListino) => void;
+  /** Dà le linee della tipologia ai prodotti che non le hanno. */
+  onAllineaLinee?: (area: AreaListino, tipologia: TipologiaListino) => void;
   onNuovaLinea?: (area: AreaListino, tipologia: TipologiaListino) => void;
   onNuovoProdotto?: (area: AreaListino | null, tipologia: TipologiaListino | null, linea: LineaListino | null) => void;
   onPrezziLinee?: (tipologia: TipologiaListino) => void;
@@ -120,11 +132,13 @@ export function ListinoNavigatore(props: ListinoNavigatoreProps) {
     ) : (
       <StatoVuoto
         titolo="Il listino è vuoto"
-        testo="Crea il primo prodotto: la sua tipologia e la sua area decidono in quale preventivatore comparirà."
+        testo="Parti da un'area con le sue tipologie standard, oppure crea il primo prodotto: tipologia e area decidono in quale preventivatore comparirà."
         azione={
-          isAdmin && props.onNuovoProdotto
-            ? { etichetta: "Nuovo prodotto", onClick: () => props.onNuovoProdotto?.(null, null, null) }
-            : undefined
+          isAdmin && props.onNuovaArea
+            ? { etichetta: "Aggiungi un'area", onClick: props.onNuovaArea }
+            : isAdmin && props.onNuovoProdotto
+              ? { etichetta: "Nuovo prodotto", onClick: () => props.onNuovoProdotto?.(null, null, null) }
+              : undefined
         }
       />
     );
@@ -132,7 +146,13 @@ export function ListinoNavigatore(props: ListinoNavigatoreProps) {
 
   return (
     <div className="overflow-hidden rounded-xl border bg-card">
-      <CappelloAree aree={aree} attiva={area} cercando={cercando} onScegli={(chiave) => onSelezione({ area: chiave })} />
+      <CappelloAree
+        aree={aree}
+        attiva={area}
+        cercando={cercando}
+        onScegli={(chiave) => onSelezione({ area: chiave })}
+        onNuovaArea={isAdmin ? props.onNuovaArea : undefined}
+      />
 
       {area && cercando ? (
         <div className="space-y-6 p-3 sm:p-4">
@@ -149,12 +169,13 @@ export function ListinoNavigatore(props: ListinoNavigatoreProps) {
             onScegli={(chiave) => onSelezione({ area: area.chiave, tipologia: chiave })}
             onCreaTipologia={props.onCreaTipologia}
             onCreaTutteStandard={props.onCreaTutteStandard}
+            onNuovaTipologia={props.onNuovaTipologia}
           />
           <div className="min-w-0 flex-1 p-3 sm:p-4">
             {tipologia ? (
               <ContenutoTipologia area={area} tipologia={tipologia} linea={linea} {...props} />
             ) : (
-              <StatoVuoto titolo="Nessuna tipologia" testo="Aggiungi una tipologia standard dalla colonna a sinistra." />
+              <StatoVuoto titolo="Nessuna tipologia" testo="Aggiungi una tipologia con «+ Tipologia», sotto l'elenco delle tipologie." />
             )}
           </div>
         </div>
@@ -168,16 +189,24 @@ function CappelloAree({
   attiva,
   cercando,
   onScegli,
+  onNuovaArea,
 }: {
   aree: AreaListino[];
   attiva: AreaListino | null;
   cercando: boolean;
   onScegli: (chiave: string) => void;
+  onNuovaArea?: () => void;
 }) {
   const preventivatore = attiva?.standard?.preventivatore;
+  // Le tipologie dell'area che non arrivano al suo preventivatore: prima la
+  // riga diceva «Collegata» anche quando qualcuna non lo era.
+  const nonCollegate = attiva
+    ? attiva.tipologie.filter((t) => t.fonte === "macrocategoria" && t.collegamento === "nessuno").length
+    : 0;
   return (
     <div className="border-b bg-muted/30">
-      <div role="tablist" aria-label="Aree del listino" className="flex overflow-x-auto px-2">
+      <div className="flex items-center gap-2 pr-2">
+      <div role="tablist" aria-label="Aree del listino" className="flex min-w-0 flex-1 overflow-x-auto px-2">
         {aree.map((a) => {
           const Icona = ICONE_AREA[a.chiave] ?? Layers3;
           const selezionata = a.chiave === attiva?.chiave;
@@ -214,6 +243,18 @@ function CappelloAree({
           );
         })}
       </div>
+      {onNuovaArea && !cercando && (
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 shrink-0 gap-1 border-dashed text-muted-foreground hover:text-foreground"
+          onClick={onNuovaArea}
+        >
+          <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+          Area
+        </Button>
+      )}
+      </div>
       {attiva && (
         <p className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t bg-background/60 px-4 py-1.5 text-xs text-muted-foreground">
           <span>
@@ -222,10 +263,18 @@ function CappelloAree({
             {attiva.articoli === 1 ? "prodotto" : "prodotti"}
           </span>
           {preventivatore ? (
-            <span className="inline-flex items-center gap-1">
-              <Link2 className="h-3.5 w-3.5" aria-hidden="true" />
-              Collegata al {preventivatore.toLowerCase()}
-            </span>
+            nonCollegate > 0 ? (
+              <span className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-400">
+                <Link2Off className="h-3.5 w-3.5" aria-hidden="true" />
+                {nonCollegate === 1 ? "1 tipologia non arriva" : `${nonCollegate} tipologie non arrivano`} al{" "}
+                {preventivatore.toLowerCase()}
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1">
+                <Link2 className="h-3.5 w-3.5" aria-hidden="true" />
+                Collegata al {preventivatore.toLowerCase()}
+              </span>
+            )
           ) : null}
         </p>
       )}
@@ -240,6 +289,7 @@ function ColonnaTipologie({
   onScegli,
   onCreaTipologia,
   onCreaTutteStandard,
+  onNuovaTipologia,
 }: {
   area: AreaListino;
   attiva: TipologiaListino | null;
@@ -247,6 +297,7 @@ function ColonnaTipologie({
   onScegli: (chiave: string) => void;
   onCreaTipologia?: (area: AreaListino, standard: TipologiaStandard) => void;
   onCreaTutteStandard?: (area: AreaListino) => void;
+  onNuovaTipologia?: (area: AreaListino) => void;
 }) {
   const puoiCreare = isAdmin && !!onCreaTipologia && area.mancanti.length > 0;
   return (
@@ -276,12 +327,26 @@ function ColonnaTipologie({
                 {t.collegamento === "nessuno" && (
                   <Link2Off className="h-3.5 w-3.5 shrink-0 text-amber-600" aria-label="Non compare nei preventivi" />
                 )}
+                {!t.attiva && (
+                  <PowerOff className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-label="Tolta dai preventivi" />
+                )}
                 <span className="ml-auto pl-2 text-xs tabular-nums text-muted-foreground">{t.articoli}</span>
               </button>
             </li>
           );
         })}
       </ul>
+      {isAdmin && onNuovaTipologia && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="mt-1 h-8 w-full justify-start gap-1.5 px-2.5 text-primary"
+          onClick={() => onNuovaTipologia(area)}
+        >
+          <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+          Tipologia
+        </Button>
+      )}
       {puoiCreare && (
         <div className="mt-2 hidden border-t pt-2 lg:block">
           <p className="px-2 pb-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
@@ -331,6 +396,9 @@ function ContenutoTipologia({
   onPrezziLinee,
   onCollega,
   onAccessorio,
+  onCopiaTipologia,
+  onAttivaTipologia,
+  onAllineaLinee,
   schedaDi,
   onSchedaLinea,
 }: ListinoNavigatoreProps & { area: AreaListino; tipologia: TipologiaListino; linea: LineaListino | null }) {
@@ -339,6 +407,7 @@ function ContenutoTipologia({
   const puoiAggiungereLinea = isAdmin && !!onNuovaLinea && tipologia.fonte === "macrocategoria";
   const riferimento = lineaDiRiferimento(tipologia);
   const lineaContenitore = linea?.fonte === "categoria" ? linea : null;
+  const senzaLinee = prodottiSenzaLinee(tipologia);
   // La scheda della linea la leggono il preventivatore e il PDF dei serramenti.
   const lineaConScheda =
     area.chiave === "serramenti" && linea && linea.fonte !== "altri" && (schedaDi || onSchedaLinea) ? linea : null;
@@ -357,17 +426,37 @@ function ContenutoTipologia({
           onCollega={onCollega}
           onAccessorio={onAccessorio}
         />
-        {isAdmin && onNuovoProdotto && tipologia.fonte !== "senza" && (
-          <Button
-            variant="outline"
-            size="sm"
-            className="ml-auto h-8 gap-1.5"
-            onClick={() => onNuovoProdotto(area, tipologia, lineaContenitore)}
-          >
-            <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-            Prodotto in {lineaContenitore?.nome ?? tipologia.nome}
-          </Button>
+        {!tipologia.attiva && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+            <PowerOff className="h-3 w-3" aria-hidden="true" />
+            Tolta dai preventivi
+          </span>
         )}
+        <div className="ml-auto flex items-center gap-1.5">
+          {isAdmin && onNuovoProdotto && tipologia.fonte !== "senza" && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 gap-1.5"
+              onClick={() => onNuovoProdotto(area, tipologia, lineaContenitore)}
+            >
+              <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+              Prodotto in {lineaContenitore?.nome ?? tipologia.nome}
+            </Button>
+          )}
+          {isAdmin && tipologia.fonte === "macrocategoria" && (
+            <MenuTipologia
+              tipologia={tipologia}
+              senzaLinee={senzaLinee}
+              onPrezzi={onPrezziLinee && haLineeDaAsse(tipologia) ? () => onPrezziLinee(tipologia) : undefined}
+              onAllinea={onAllineaLinee && senzaLinee > 0 ? () => onAllineaLinee(area, tipologia) : undefined}
+              onCopia={
+                onCopiaTipologia && area.chiave !== "fotovoltaico" ? () => onCopiaTipologia(area, tipologia) : undefined
+              }
+              onAttiva={onAttivaTipologia ? () => onAttivaTipologia(area, tipologia) : undefined}
+            />
+          )}
+        </div>
       </div>
 
       {(linguette.length > 0 || puoiAggiungereLinea) && (
@@ -433,6 +522,24 @@ function ContenutoTipologia({
           {isAdmin && onPrezziLinee && (
             <button type="button" className="font-medium text-primary hover:underline" onClick={() => onPrezziLinee(tipologia)}>
               Cambia i prezzi delle linee
+            </button>
+          )}
+        </p>
+      )}
+
+      {senzaLinee > 0 && linea && (linea.fonte === "altri" || eLineaBaseDeiModelli(linea.nome)) && (
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
+          <span>
+            {senzaLinee === 1 ? "Un prodotto non ha" : `${senzaLinee} prodotti non hanno`} le linee di {tipologia.nome}: nel
+            preventivo non si sceglie la linea e resta il prezzo base.
+          </span>
+          {isAdmin && onAllineaLinee && (
+            <button
+              type="button"
+              className="font-medium underline-offset-2 hover:underline"
+              onClick={() => onAllineaLinee(area, tipologia)}
+            >
+              Dagli le linee
             </button>
           )}
         </p>
@@ -945,6 +1052,67 @@ function MenuProdotto({
             >
               <Trash2 className="mr-2 h-4 w-4" aria-hidden="true" />
               Elimina
+            </DropdownMenuItem>
+          </>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+/** Le azioni sulla tipologia intera: prezzi e linee, copia, fuori dai preventivi. */
+function MenuTipologia({
+  tipologia,
+  senzaLinee,
+  onPrezzi,
+  onAllinea,
+  onCopia,
+  onAttiva,
+}: {
+  tipologia: TipologiaListino;
+  senzaLinee: number;
+  onPrezzi?: () => void;
+  onAllinea?: () => void;
+  onCopia?: () => void;
+  onAttiva?: () => void;
+}) {
+  if (!onPrezzi && !onAllinea && !onCopia && !onAttiva) return null;
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" size="icon" className="h-8 w-8" aria-label={`Altre azioni su ${tipologia.nome}`}>
+          <MoreVertical className="h-4 w-4" aria-hidden="true" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-64">
+        {onPrezzi && (
+          <DropdownMenuItem onClick={onPrezzi}>
+            <Percent className="mr-2 h-4 w-4" aria-hidden="true" />
+            Prezzi delle linee
+          </DropdownMenuItem>
+        )}
+        {onAllinea && (
+          <DropdownMenuItem onClick={onAllinea}>
+            <Layers3 className="mr-2 h-4 w-4" aria-hidden="true" />
+            Dai le linee a {senzaLinee} {senzaLinee === 1 ? "prodotto" : "prodotti"}
+          </DropdownMenuItem>
+        )}
+        {onCopia && (
+          <DropdownMenuItem onClick={onCopia}>
+            <Copy className="mr-2 h-4 w-4" aria-hidden="true" />
+            Copia tipologia
+          </DropdownMenuItem>
+        )}
+        {onAttiva && (
+          <>
+            {(onPrezzi || onAllinea || onCopia) && <DropdownMenuSeparator />}
+            <DropdownMenuItem onClick={onAttiva}>
+              {tipologia.attiva ? (
+                <PowerOff className="mr-2 h-4 w-4" aria-hidden="true" />
+              ) : (
+                <Power className="mr-2 h-4 w-4" aria-hidden="true" />
+              )}
+              {tipologia.attiva ? "Togli dai preventivi" : "Rimetti nei preventivi"}
             </DropdownMenuItem>
           </>
         )}

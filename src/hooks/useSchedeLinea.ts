@@ -105,13 +105,37 @@ export interface SalvaSchedaLinea extends ValoriScheda {
   togliPdf: boolean;
 }
 
-/** Toglie i file della scheda rimasti con un'altra estensione (una foto png dopo una jpg). */
+/** Toglie i file della scheda che non servono più (la foto di prima, anche con un'altra estensione). */
 async function togliFileScheda(bucket: string, cartella: string, id: string, tranne?: string): Promise<void> {
   const { data } = await supabase.storage.from(bucket).list(cartella, { search: id });
   const vecchi = (data ?? [])
-    .filter((f) => f.name.startsWith(`${id}.`) && f.name !== tranne)
+    .filter((f) => (f.name.startsWith(`${id}.`) || f.name.startsWith(`${id}-`)) && f.name !== tranne)
     .map((f) => `${cartella}/${f.name}`);
   if (vecchi.length > 0) await supabase.storage.from(bucket).remove(vecchi);
+}
+
+/**
+ * Un file che un'altra scheda usa ancora non si cancella: una tipologia copiata
+ * (listino_copia_tipologia) porta con sé gli stessi indirizzi di foto e PDF.
+ */
+async function usatoDaAltreSchede(
+  companyId: string,
+  id: string,
+  colonna: "immagine_url" | "scheda_tecnica_url",
+  url: string | null | undefined,
+): Promise<boolean> {
+  if (!url) return false;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any)
+    .from("listino_schede_linea")
+    .select("id")
+    .eq("company_id", companyId)
+    .neq("id", id)
+    .like(colonna, `${url.split("?")[0]}%`)
+    .limit(1);
+  // Nel dubbio il file resta: meglio un file in più che una foto sparita.
+  if (error) return true;
+  return ((data ?? []) as unknown[]).length > 0;
 }
 
 export function useSalvaSchedaLinea() {
@@ -128,34 +152,45 @@ export function useSalvaSchedaLinea() {
         if (errore) throw new Error(errore);
       }
 
-      const id = v.esistente?.id ?? crypto.randomUUID();
+      // La scheda trovata col ripiego (quella senza tipologia) vale per tutte le
+      // tipologie: modificandola da una tipologia se ne crea una sua, invece di
+      // spostare su questa la scheda che le altre usano.
+      const esistente =
+        v.esistente && (v.esistente.macrocategoria_id ?? null) === (v.macrocategoriaId ?? null) ? v.esistente : null;
+      const id = esistente?.id ?? crypto.randomUUID();
       const cartella = `${companyId}/linee`;
       const caricati: Array<[bucket: string, percorso: string]> = [];
+      // Ogni file caricato ha un nome nuovo: sovrascrivere quello di prima
+      // cambiava la foto anche alle schede che lo condividono.
+      const marca = Date.now();
 
       try {
         let immagine_url = v.togliFoto ? null : (v.esistente?.immagine_url ?? null);
+        let nomeFoto: string | undefined;
         if (v.foto) {
           const estensione = v.foto.type === "image/png" ? "png" : v.foto.type === "image/webp" ? "webp" : "jpg";
-          const percorso = `${cartella}/${id}.${estensione}`;
+          nomeFoto = `${id}-${marca}.${estensione}`;
+          const percorso = `${cartella}/${nomeFoto}`;
           const { error } = await supabase.storage
             .from(BUCKET_FOTO)
-            .upload(percorso, v.foto, { upsert: true, cacheControl: "3600", contentType: v.foto.type });
+            .upload(percorso, v.foto, { upsert: false, cacheControl: "3600", contentType: v.foto.type });
           if (error) throw new Error(`Foto non caricata: ${error.message}`);
           caricati.push([BUCKET_FOTO, percorso]);
-          // Il ?t= fa vedere subito la foto nuova a chi aveva in cache quella vecchia.
-          immagine_url = `${supabase.storage.from(BUCKET_FOTO).getPublicUrl(percorso).data.publicUrl}?t=${Date.now()}`;
+          immagine_url = supabase.storage.from(BUCKET_FOTO).getPublicUrl(percorso).data.publicUrl;
         }
 
         let scheda_tecnica_url = v.togliPdf ? null : (v.esistente?.scheda_tecnica_url ?? null);
         let scheda_tecnica_nome = v.togliPdf ? null : (v.esistente?.scheda_tecnica_nome ?? null);
+        let nomePdf: string | undefined;
         if (v.pdf) {
-          const percorso = `${cartella}/${id}.pdf`;
+          nomePdf = `${id}-${marca}.pdf`;
+          const percorso = `${cartella}/${nomePdf}`;
           const { error } = await supabase.storage
             .from(BUCKET_PDF)
-            .upload(percorso, v.pdf, { upsert: true, cacheControl: "3600", contentType: "application/pdf" });
+            .upload(percorso, v.pdf, { upsert: false, cacheControl: "3600", contentType: "application/pdf" });
           if (error) throw new Error(`Scheda del produttore non caricata: ${error.message}`);
           caricati.push([BUCKET_PDF, percorso]);
-          scheda_tecnica_url = `${supabase.storage.from(BUCKET_PDF).getPublicUrl(percorso).data.publicUrl}?t=${Date.now()}`;
+          scheda_tecnica_url = supabase.storage.from(BUCKET_PDF).getPublicUrl(percorso).data.publicUrl;
           scheda_tecnica_nome = v.pdf.name.replace(/\.pdf$/i, "").trim() || "Scheda tecnica";
         }
 
@@ -174,7 +209,7 @@ export function useSalvaSchedaLinea() {
         };
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const tabella = (supabase as any).from("listino_schede_linea");
-        const { data, error } = v.esistente
+        const { data, error } = esistente
           ? await tabella.update(campi).eq("id", id).eq("company_id", companyId).select(COLONNE_SCHEDA_LINEA).single()
           : await tabella.insert({ id, company_id: companyId, ...campi }).select(COLONNE_SCHEDA_LINEA).single();
         if (error) {
@@ -182,18 +217,22 @@ export function useSalvaSchedaLinea() {
           throw new Error(error.message);
         }
 
-        // I file tolti escono anche dallo spazio: se non ci riesce, la scheda è salvata lo stesso.
-        if (v.togliFoto && !v.foto) await togliFileScheda(BUCKET_FOTO, cartella, id).catch((): undefined => undefined);
-        if (v.foto) await togliFileScheda(BUCKET_FOTO, cartella, id, caricati.find(([b]) => b === BUCKET_FOTO)?.[1].split("/").pop()).catch((): undefined => undefined);
-        if (v.togliPdf && !v.pdf) await togliFileScheda(BUCKET_PDF, cartella, id).catch((): undefined => undefined);
+        // I file sostituiti o tolti escono anche dallo spazio, se nessun'altra
+        // scheda li usa. Se non ci riesce, la scheda è salvata lo stesso.
+        const vecchiaFoto = v.esistente?.immagine_url;
+        if ((v.foto || v.togliFoto) && !(await usatoDaAltreSchede(companyId, id, "immagine_url", vecchiaFoto))) {
+          await togliFileScheda(BUCKET_FOTO, cartella, id, nomeFoto).catch((): undefined => undefined);
+        }
+        const vecchioPdf = v.esistente?.scheda_tecnica_url;
+        if ((v.pdf || v.togliPdf) && !(await usatoDaAltreSchede(companyId, id, "scheda_tecnica_url", vecchioPdf))) {
+          await togliFileScheda(BUCKET_PDF, cartella, id, nomePdf).catch((): undefined => undefined);
+        }
 
         return comeSchedaLinea(data as Record<string, unknown>);
       } catch (err) {
-        // Scheda non salvata: i file appena caricati non devono restare orfani.
-        if (!v.esistente) {
-          for (const [bucket, percorso] of caricati) {
-            await supabase.storage.from(bucket).remove([percorso]).catch((): undefined => undefined);
-          }
+        // Scheda non salvata: i file appena caricati hanno nomi nuovi e non servono a nessuno.
+        for (const [bucket, percorso] of caricati) {
+          await supabase.storage.from(bucket).remove([percorso]).catch((): undefined => undefined);
         }
         throw err;
       }
