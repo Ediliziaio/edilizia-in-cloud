@@ -5,6 +5,7 @@
  * per la seconda linea. Una 1200×1400 fa 1,68 m² → 1.008 €, e con la seconda
  * linea 927,36 €. Se sbaglia qui, sbaglia su ogni riga di ogni preventivo.
  */
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { describe, expect, it, vi } from "vitest";
@@ -100,7 +101,9 @@ function render(node: React.ReactElement) {
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);
-  act(() => root.render(node));
+  // Il dialogo carica le griglie con React Query (qui nessuna famiglia è a griglia).
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  act(() => root.render(<QueryClientProvider client={qc}>{node}</QueryClientProvider>));
   return { cleanup: () => { act(() => root.unmount()); container.remove(); } };
 }
 

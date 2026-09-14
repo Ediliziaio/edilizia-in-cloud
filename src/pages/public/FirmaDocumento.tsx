@@ -41,6 +41,36 @@ function secondiRestanti(iso?: string | null): number {
   return Math.max(0, Math.floor((new Date(iso).getTime() - Date.now()) / 1000));
 }
 
+/**
+ * Apre il documento da firmare. Il preventivo fotovoltaico è una pagina HTML:
+ * lo storage la manda come testo semplice e il cliente vedeva il codice. La si
+ * scarica e la si apre come pagina, come fa il dettaglio del preventivo nell'app.
+ */
+async function apriDocumento(evento: { preventDefault: () => void }, url: string | null | undefined) {
+  if (!url) return;
+  let pagina = false;
+  try {
+    pagina = new URL(url).pathname.toLowerCase().endsWith(".html");
+  } catch {
+    // Indirizzo non leggibile: ci pensa il link.
+  }
+  if (!pagina) return;
+  evento.preventDefault();
+  // La scheda si apre subito, dentro il clic: dopo l'attesa il browser la bloccherebbe.
+  const finestra = window.open("", "_blank");
+  try {
+    const risposta = await fetch(url);
+    if (!risposta.ok) throw new Error(String(risposta.status));
+    const indirizzo = URL.createObjectURL(new Blob([await risposta.text()], { type: "text/html" }));
+    if (finestra) finestra.location.href = indirizzo;
+    else window.location.href = indirizzo;
+    setTimeout(() => URL.revokeObjectURL(indirizzo), 60_000);
+  } catch {
+    finestra?.close();
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
+}
+
 export default function FirmaDocumento() {
   const { token } = useParams<{ token: string }>();
   const [step, setStep] = useState<Step>('loading');
@@ -365,7 +395,7 @@ export default function FirmaDocumento() {
           )}
           {sessione.pdf_url && (
             <a
-              href={sessione.pdf_url}
+              href={sessione.pdf_url} onClick={(e) => apriDocumento(e, sessione.pdf_url)}
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center justify-center gap-2 p-2 rounded border border-slate-200 text-sm font-medium text-blue-700 hover:bg-blue-50"
@@ -555,7 +585,7 @@ export default function FirmaDocumento() {
           <p><strong>Data e ora:</strong> {format(new Date(), 'dd/MM/yyyy HH:mm', { locale: it })}</p>
         </div>
         {sessione.pdf_url && (
-          <a href={sessione.pdf_url} target="_blank" rel="noopener noreferrer"
+          <a href={sessione.pdf_url} onClick={(e) => apriDocumento(e, sessione.pdf_url)} target="_blank" rel="noopener noreferrer"
             className="flex items-center gap-2 text-orange-500 text-sm underline">
             <FileText className="h-4 w-4" />
             Visualizza il documento
@@ -705,7 +735,7 @@ export default function FirmaDocumento() {
           {sessione?.tipo_firmatario === 'b2c' && ' Riceverai una copia via email.'}
         </p>
         {sessione?.pdf_url && (
-          <a href={sessione.pdf_url} target="_blank" rel="noopener noreferrer">
+          <a href={sessione.pdf_url} onClick={(e) => apriDocumento(e, sessione.pdf_url)} target="_blank" rel="noopener noreferrer">
             <Button variant="outline" className="gap-2 h-11">
               <FileText className="h-4 w-4" />
               Scarica il documento

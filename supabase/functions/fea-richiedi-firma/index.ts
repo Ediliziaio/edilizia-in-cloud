@@ -1,5 +1,5 @@
 import { getCorsHeaders } from "../_shared/headers.ts";
-import { requireAuth } from "../_shared/auth.ts";
+import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getBrandingForCompany } from "../_shared/getBranding.ts";
 import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
 import { checkPaymentMethod, PAYMENT_METHOD_REQUIRED_MESSAGE } from "../_shared/requirePaymentMethod.ts";
@@ -69,7 +69,46 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const company_id = profile.company_id;
+    // L'azienda della richiesta è quella del DOCUMENTO, non del profilo di chi
+    // la manda. Prima un utente poteva passare l'id di un documento di un'altra
+    // azienda e ottenere il link che lo mostra al cliente; e chi lavora su più
+    // aziende firmava a nome della sua azienda principale.
+    const tabellaDocumento: Record<string, string> = {
+      order: "orders",
+      quote: "quotes",
+      sessione: "documento_sessioni",
+      fv: "fv_progetti",
+    };
+    let company_id: string | null = (profile.company_id as string | null) ?? null;
+    const tabella = tabellaDocumento[tipo_documento];
+    if (tabella) {
+      if (!documento_id) {
+        return new Response(
+          JSON.stringify({ error: "documento_id richiesto" }),
+          { status: 400, headers: { ...corsH, "Content-Type": "application/json" } }
+        );
+      }
+      const { data: documento } = await supabaseAdmin
+        .from(tabella)
+        .select("company_id")
+        .eq("id", documento_id)
+        .maybeSingle();
+      if (!documento?.company_id) {
+        return new Response(
+          JSON.stringify({ error: "Documento non trovato" }),
+          { status: 404, headers: { ...corsH, "Content-Type": "application/json" } }
+        );
+      }
+      company_id = documento.company_id as string;
+    }
+    if (!company_id) {
+      return new Response(
+        JSON.stringify({ error: "Azienda del documento non determinabile" }),
+        { status: 400, headers: { ...corsH, "Content-Type": "application/json" } }
+      );
+    }
+    // Azienda principale, accesso multi-azienda o super admin; altrimenti 403.
+    await requireCompanyAccess(supabaseAdmin, userId, company_id, corsH);
 
     // Gate "carta obbligatoria": la firma digitale (FEA + OTP SMS/email) ha un costo.
     const pmCheck = await checkPaymentMethod(supabaseAdmin, company_id);

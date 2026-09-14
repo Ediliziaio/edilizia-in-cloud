@@ -1,5 +1,5 @@
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
-import { requireAuth } from "../_shared/auth.ts";
+import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import { getBrandingForCompany } from "../_shared/getBranding.ts";
@@ -34,15 +34,10 @@ Deno.serve(async (req) => {
       .single();
     if (qErr || !quote) return errorResponse("Preventivo non trovato", 404);
 
-    // Verify user belongs to company
-    const { data: profile } = await supabaseAdmin
-      .from("profiles")
-      .select("company_id")
-      .eq("id", userId)
-      .single();
-    if (!profile || profile.company_id !== quote.company_id) {
-      return errorResponse("Non autorizzato", 403);
-    }
+    // Accesso all'azienda del preventivo (anche multi-azienda e super admin):
+    // prima chi lavora su più aziende prendeva 403, dopo che un modulo aveva già
+    // caricato il PDF.
+    await requireCompanyAccess(supabaseAdmin, userId, quote.company_id, corsH);
 
     // Determine recipient
     // Lo sconto era controllato solo nel browser (QuoteDiscountControl): qui
@@ -165,6 +160,27 @@ Deno.serve(async (req) => {
     const tipoFirmatario = quote.client_company || quote.client_vat_number ? "b2b" : "b2c";
     const nowIso = new Date().toISOString();
 
+    // Prima di congelare il PDF: una sola richiesta attiva per preventivo (le
+    // vecchie si annullano, e finché ce n'è una aperta il PDF non si rigenera),
+    // e sul preventivo la scadenza e il link nuovi. Prima il PDF firmato
+    // stampava la validità del salvataggio precedente e un QR col link vecchio.
+    const { error: cancelErr } = await supabaseAdmin
+      .from("signature_requests")
+      .update({ status: "cancelled", updated_at: nowIso })
+      .eq("company_id", quote.company_id)
+      .eq("quote_id", quote_id)
+      .in("status", ["pending", "otp_verified"]);
+    if (cancelErr) {
+      console.error("Cancel previous quote signature requests failed:", cancelErr);
+    }
+    const { error: preErr } = await supabaseAdmin
+      .from("quotes")
+      .update({ signature_token: signatureToken, expires_at: expiresAt.toISOString(), updated_at: nowIso })
+      .eq("id", quote_id);
+    if (preErr) {
+      console.error("Scadenza e link del preventivo non aggiornati prima del PDF:", preErr);
+    }
+
     // ── Il PDF che il cliente firma va congelato ADESSO: generato (o riusato,
     // per i moduli che lo caricano già pronto) e con impronta SHA-256 sulla
     // richiesta. Prima la pagina di firma FEA non aveva alcun PDF: si firmava
@@ -199,18 +215,6 @@ Deno.serve(async (req) => {
       }
     } catch (e) {
       console.warn("Impronta PDF non calcolata:", e);
-    }
-
-    // Una sola richiesta attiva per preventivo: le vecchie richieste aperte vengono annullate.
-    const { error: cancelErr } = await supabaseAdmin
-      .from("signature_requests")
-      .update({ status: "cancelled", updated_at: nowIso })
-      .eq("company_id", quote.company_id)
-      .eq("quote_id", quote_id)
-      .in("status", ["pending", "otp_verified"]);
-
-    if (cancelErr) {
-      console.error("Cancel previous quote signature requests failed:", cancelErr);
     }
 
     const { data: signatureRequest, error: sigReqErr } = await supabaseAdmin

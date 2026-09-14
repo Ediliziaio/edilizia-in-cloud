@@ -12,6 +12,9 @@
  * preventivo, con il suo riferimento davanti.
  */
 import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 import { Plus, Ruler, Trash2 } from "lucide-react";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
@@ -25,7 +28,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { formatCurrency } from "@/lib/formatters";
-import { calcolaPrezzoFamiglia } from "@/hooks/useFamilyPricing";
+import { calcolaPrezzoFamiglia, type GridPoint } from "@/hooks/useFamilyPricing";
 import type { FamilyWithAxes } from "@/types/articleFamily";
 import type { QuoteItemPro } from "@/types/quoteItem";
 import {
@@ -86,6 +89,48 @@ export function RilievoPosizioniDialog({
 
   const famiglia = (id: string | null) => serramenti.find((f) => f.id === id) ?? null;
 
+  // Le tipologie a griglia hanno bisogno della loro griglia: senza, il prezzo
+  // veniva zero e restavano le sole maggiorazioni fisse. Si caricano solo quelle
+  // usate nelle posizioni, a pagine da mille celle.
+  const idGriglia = useMemo(
+    () => Array.from(new Set(posizioni
+      .map((p) => p.familyId)
+      .filter((id): id is string => !!id && serramenti.some((f) => f.id === id && f.modalita_prezzo_base === "griglia"))))
+      .sort(),
+    [posizioni, serramenti],
+  );
+  const { data: griglie = {} } = useQuery({
+    queryKey: ["rilievo-griglie", idGriglia],
+    enabled: open && idGriglia.length > 0,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async (): Promise<Record<string, GridPoint[]>> => {
+      const perFamiglia: Record<string, GridPoint[]> = {};
+      const PAGINA = 1000;
+      for (let da = 0; ; da += PAGINA) {
+        const { data, error } = await (supabase as never as typeof supabase)
+          .from("listino_griglia" as never)
+          .select("family_id, valore_x, valore_y, prezzo_vendita, prezzo_acquisto")
+          .in("family_id" as never, idGriglia)
+          .order("id" as never)
+          .range(da, da + PAGINA - 1);
+        if (error) throw error;
+        const celle = (data ?? []) as Array<{
+          family_id: string; valore_x: number; valore_y: number; prezzo_vendita: number; prezzo_acquisto: number | null;
+        }>;
+        for (const c of celle) {
+          (perFamiglia[c.family_id] ??= []).push({
+            valore_x: Number(c.valore_x),
+            valore_y: Number(c.valore_y),
+            prezzo_vendita: Number(c.prezzo_vendita),
+            prezzo_acquisto_netto: c.prezzo_acquisto != null ? Number(c.prezzo_acquisto) : 0,
+          });
+        }
+        if (celle.length < PAGINA) break;
+      }
+      return perFamiglia;
+    },
+  });
+
   /** Il prezzo di ogni posizione, con le scelte comuni e le sue deroghe. */
   const righe = useMemo(
     () =>
@@ -114,7 +159,7 @@ export function RilievoPosizioniDialog({
           larghezza_mm: p.larghezza_mm ?? undefined,
           altezza_mm: p.altezza_mm ?? undefined,
           quantita: p.quantita,
-        });
+        }, griglie[f.id]);
         return {
           posizione: p,
           prezzo: {
@@ -125,7 +170,7 @@ export function RilievoPosizioniDialog({
           selections,
         };
       }),
-    [posizioni, comuni, serramenti],
+    [posizioni, comuni, serramenti, griglie],
   );
 
   const totali = useMemo(() => totaliRilievo(righe), [righe]);
@@ -158,12 +203,19 @@ export function RilievoPosizioniDialog({
 
   const conferma = () => {
     const items: QuoteItemPro[] = [];
+    const senzaPrezzo: string[] = [];
     let ordine = currentSortOrder;
 
     for (const riga of righe) {
       const p = riga.posizione;
       const f = famiglia(p.familyId);
       if (!f || !posizioneCompleta(p)) continue;
+      // Una finestra a 0 € in un preventivo non si nota: senza prezzo (griglia
+      // ancora in arrivo, misura fuori griglia) la posizione non entra.
+      if (!(riga.prezzo.unitario_vendita > 0)) {
+        senzaPrezzo.push(p.riferimento);
+        continue;
+      }
 
       const etichette = f.axes
         .map((asse) => asse.values.find((v) => v.id === riga.selections?.[asse.codice])?.label)
@@ -195,6 +247,11 @@ export function RilievoPosizioniDialog({
       ordine += 1;
     }
 
+    if (senzaPrezzo.length > 0) {
+      toast.warning(`Senza prezzo, non aggiunte: ${senzaPrezzo.join(", ")}`, {
+        description: "Controlla le misure rispetto alla griglia del listino, o riprova tra un attimo.",
+      });
+    }
     if (items.length === 0) return;
     onAddItems(items, ordine);
     onClose();

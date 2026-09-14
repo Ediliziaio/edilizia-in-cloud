@@ -1,5 +1,5 @@
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
-import { requireAuth } from "../_shared/auth.ts";
+import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getBrandingForCompany } from "../_shared/getBranding.ts";
 import { PDFDocument, rgb, StandardFonts, degrees } from "https://esm.sh/pdf-lib@1.17.1";
 import qrcode from "https://esm.sh/qrcode-generator@1.4.4?target=deno";
@@ -219,17 +219,12 @@ Deno.serve(async (req) => {
       // ─── NORMAL MODE ───
       if (!quote_id) return errorResponse("quote_id richiesto", 400, corsH);
 
-      // Batch 1 — quote e profilo utente sono indipendenti: in parallelo.
-      const [quoteRes, profileRes] = await Promise.all([
-        supabaseAdmin.from("quotes").select("*").eq("id", quote_id).single(),
-        supabaseAdmin.from("profiles").select("company_id").eq("id", userId).single(),
-      ]);
+      const quoteRes = await supabaseAdmin.from("quotes").select("*").eq("id", quote_id).single();
       if (quoteRes.error || !quoteRes.data) return errorResponse("Preventivo non trovato", 404, corsH);
       quote = quoteRes.data;
-      const profile = profileRes.data;
-      if (!profile || profile.company_id !== quote.company_id) {
-        return errorResponse("Non autorizzato", 403, corsH);
-      }
+      // Accesso all'azienda del preventivo: azienda principale, accesso
+      // multi-azienda o super admin. Prima chi lavora su più aziende prendeva 403.
+      await requireCompanyAccess(supabaseAdmin, userId, quote.company_id, corsH);
 
       // Batch 2 — tutto il resto dipende solo da quote/company: un giro solo
       // di rete invece di 7 round-trip sequenziali (≈ -300ms a generazione).
@@ -1644,6 +1639,34 @@ Deno.serve(async (req) => {
           gia_firmato: true,
           message: "Preventivo già firmato dal cliente: il PDF firmato non viene rigenerato.",
         }, 200, corsH);
+      }
+    }
+
+    // ─── Documento in firma: non si sovrascrive ───
+    // Con una richiesta di firma aperta il cliente sta firmando QUEL file, e la
+    // sua impronta è sulla richiesta: rigenerarlo sullo stesso percorso cambiava
+    // il documento sotto la firma. Per cambiarlo si rimanda la firma, che prima
+    // annulla la richiesta aperta e poi congela il PDF nuovo.
+    if (quote.pdf_storage_path) {
+      const { data: inFirma } = await supabaseAdmin
+        .from("signature_requests")
+        .select("id")
+        .eq("quote_id", quote.id)
+        .in("status", ["pending", "otp_verified"])
+        .limit(1);
+      if (inFirma && inFirma.length > 0) {
+        const { data: congelato } = await supabaseAdmin.storage
+          .from("quote-pdfs")
+          .createSignedUrl(quote.pdf_storage_path, 3600);
+        if (congelato?.signedUrl) {
+          return jsonResponse({
+            success: true,
+            pdf_path: quote.pdf_storage_path,
+            signed_url: congelato.signedUrl,
+            in_firma: true,
+            message: "Preventivo in firma dal cliente: si mostra il PDF inviato, non se ne genera uno nuovo.",
+          }, 200, corsH);
+        }
       }
     }
 

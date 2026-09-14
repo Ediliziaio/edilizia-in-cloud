@@ -29,11 +29,20 @@ interface RigaCommessa {
   vat_rate: number;
 }
 
-/** Un'aliquota può arrivare come frazione (0,10) o come percentuale (10). */
+/**
+ * Un'aliquota può arrivare come frazione (0,10) o come percentuale (10). Lo 0 è
+ * un'aliquota vera (reverse charge, esenzione): diventava 22%.
+ */
 function aliquotaInPercentuale(valore: unknown, predefinita = 22): number {
+  if (valore == null || valore === "") return predefinita;
   const n = Number(valore);
-  if (!Number.isFinite(n) || n <= 0) return predefinita;
-  return n <= 1 ? Math.round(n * 10000) / 100 : n;
+  if (!Number.isFinite(n) || n < 0) return predefinita;
+  return n > 0 && n <= 1 ? Math.round(n * 10000) / 100 : n;
+}
+
+/** L'imponibile da un totale IVA inclusa. */
+function scorporaIva(totaleIvato: number, aliquota: number): number {
+  return arrotonda(totaleIvato / (1 + aliquota / 100));
 }
 
 function arrotonda(n: unknown): number {
@@ -93,6 +102,7 @@ async function creaCommessa(params: {
       customer_id: params.clienteId,
       order_code: codice,
       description: params.descrizione,
+      // Imponibile: il PDF della commessa ci aggiunge l'IVA di vat_rate.
       total_amount: totale,
       // Acconto e saldo si impostano dalla commessa: qui non inventiamo un
       // piano di pagamento che il preventivo di modulo non contiene.
@@ -141,7 +151,13 @@ export async function convertiFvInCommessa(progettoId: string, userId: string): 
   if (progetto.ordine_id) throw new Error("Questo preventivo è già diventato una commessa");
 
   const aliquota = aliquotaInPercentuale(progetto.iva_aliquota, 10);
-  const totale = arrotonda(progetto.prezzo_vendita_manuale ?? progetto.prezzo_vendita_iva_inclusa);
+  // Nella commessa total_amount è l'imponibile e l'IVA si aggiunge da vat_rate.
+  // Il prezzo manuale è già imponibile; prezzo_vendita_iva_inclusa no: prima
+  // finiva così com'era, e l'IVA si contava due volte.
+  const manuale = Number(progetto.prezzo_vendita_manuale ?? 0);
+  const totale = manuale > 0
+    ? arrotonda(manuale)
+    : scorporaIva(Number(progetto.prezzo_vendita_iva_inclusa ?? 0), aliquota);
   if (totale <= 0) throw new Error("Il preventivo non ha un prezzo di vendita: completalo prima di creare la commessa");
 
   const [componenti, servizi, manodopera] = await Promise.all([
@@ -230,7 +246,10 @@ export async function convertiRstInCommessa(progettoId: string, userId: string):
   if ((progetto as { ordine_id?: string | null }).ordine_id) throw new Error("Questo preventivo è già diventato una commessa");
 
   const aliquota = aliquotaInPercentuale(progetto.iva_pct, 22);
-  const totale = arrotonda(progetto.totale);
+  // Imponibile, come le altre commesse: `totale` è IVA inclusa.
+  const totale = Number(progetto.totale_imponibile ?? 0) > 0
+    ? arrotonda(progetto.totale_imponibile)
+    : scorporaIva(Number(progetto.totale ?? 0), aliquota);
   if (totale <= 0) throw new Error("Il computo è vuoto: completalo prima di creare la commessa");
 
   const { data: voci } = await supabase

@@ -93,7 +93,7 @@ Deno.serve(async (req: Request) => {
     // Carica sigReq via token
     const { data: sigReq, error: fetchErr } = await supabaseAdmin
       .from("signature_requests")
-      .select("id, status, tipo_firmatario, signer_email, signer_name, documento_hash, company_id, sessione_id, order_id, quote_id, tipo_documento, created_by")
+      .select("id, status, tipo_firmatario, signer_email, signer_name, documento_hash, company_id, sessione_id, order_id, quote_id, fv_progetto_id, tipo_documento, created_by")
       .eq("token", token)
       .single();
 
@@ -160,6 +160,41 @@ Deno.serve(async (req: Request) => {
           .update({ status: sigReq.status, signed_at: null })
           .eq("id", sigReq.id);
         return errore(500, "Errore nell'aggiornamento del preventivo collegato. La firma non è stata registrata: riprova tra qualche istante.");
+      }
+    }
+
+    // Anche il progetto da cui nasce il documento risulta firmato. Prima restava
+    // «emesso» (fotovoltaico) o «bozza» (moduli): modificabile, annullabile, e
+    // l'opportunità non vedeva mai un preventivo accettato.
+    if (sigReq.fv_progetto_id) {
+      const { error: fvErr } = await supabaseAdmin
+        .from("fv_progetti")
+        .update({ stato: "firmato", firmato_il: ora })
+        .eq("id", sigReq.fv_progetto_id)
+        .eq("company_id", sigReq.company_id);
+      if (fvErr) console.error("Stato firmato sul preventivo fotovoltaico non aggiornato:", fvErr);
+    }
+    if (sigReq.quote_id) {
+      // I moduli (ristrutturazione, bagni…) firmano tramite un preventivo «ombra»
+      // con source = modulo:<chiave>:<id progetto>.
+      const { data: ombra } = await supabaseAdmin
+        .from("quotes")
+        .select("source")
+        .eq("id", sigReq.quote_id)
+        .maybeSingle();
+      const modulo = /^modulo:([a-z]+):([0-9a-f-]{36})$/.exec(String(ombra?.source ?? ""));
+      const tabellaModulo: Record<string, string> = {
+        rst: "rst_progetti", bagni: "bgn_progetti", tetti: "tet_progetti", clm: "clm_progetti",
+        ele: "ele_progetti", idr: "idr_progetti", pav: "pav_progetti", pis: "pis_progetti",
+      };
+      const tabella = modulo ? tabellaModulo[modulo[1]] : undefined;
+      if (modulo && tabella) {
+        const { error: modErr } = await supabaseAdmin
+          .from(tabella)
+          .update({ stato: "accettato" })
+          .eq("id", modulo[2])
+          .eq("company_id", sigReq.company_id);
+        if (modErr) console.error(`Stato accettato su ${tabella} non aggiornato:`, modErr);
       }
     }
 

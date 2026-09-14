@@ -861,12 +861,12 @@ export default function QuoteBuilder() {
             supplier_product_line_id: i.supplier_product_line_id ?? null,
             // Sprint A §4.9 — Preventivatore Unificato (posa legata).
             // Rileggiamo `parent_item_id` persistito per riabilitare il
-            // DELETE cascade + QUANTITY sync anche in modalità edit.
-            // `client_temp_id`/`parent_temp_id` restano null: sono vivi solo
-            // tra l'aggiunta e il primo SAVE.
+            // DELETE cascade + QUANTITY sync anche in modalità edit. Al
+            // salvataggio la RPC ricostruisce i legami SOLO dai temp id: dalle
+            // righe rilette si rifanno dagli id, o la posa perdeva il prodotto.
             parent_item_id: (i as { parent_item_id?: string | null }).parent_item_id ?? null,
-            client_temp_id: null,
-            parent_temp_id: null,
+            client_temp_id: i.id,
+            parent_temp_id: (i as { parent_item_id?: string | null }).parent_item_id ?? null,
           };
         })
       );
@@ -1053,7 +1053,8 @@ export default function QuoteBuilder() {
     const { prezzo_vendita, prezzo_acquisto } = calcolaTariffaAutomatica(
       tariffa,
       1,
-      pianoInstallazione
+      pianoInstallazione,
+      kmCantiere,
     );
     setItems((prev) => [
       ...prev,
@@ -1065,7 +1066,7 @@ export default function QuoteBuilder() {
         quantity: 1,
         unit_price: prezzo_vendita,
         discount_percent: 0,
-        vat_rate: 22,
+        vat_rate: ivaPredefinita(),
         unit_of_measure: tariffa.unita,
         sort_order: prev.length,
         article_template_id: null,
@@ -1083,7 +1084,8 @@ export default function QuoteBuilder() {
       const { prezzo_vendita, prezzo_acquisto } = calcolaTariffaAutomatica(
         tariffa,
         1,
-        pianoInstallazione
+        pianoInstallazione,
+        kmCantiere,
       );
       setItems((prev) => [
         ...prev,
@@ -1095,7 +1097,7 @@ export default function QuoteBuilder() {
           quantity: 1,
           unit_price: prezzo_vendita,
           discount_percent: 0,
-          vat_rate: 22,
+          vat_rate: ivaPredefinita(),
           unit_of_measure: tariffa.unita,
           sort_order: prev.length,
           article_template_id: null,
@@ -1137,7 +1139,7 @@ export default function QuoteBuilder() {
     for (const r of righe) {
       let upv = r.unit_price ?? 0;
       let upa = 0;
-      let vat_rate = 22;
+      let vat_rate = ivaPredefinita();
 
       if (r.article_template_id) {
         const art = articoli.find((a) => a.id === r.article_template_id);
@@ -1162,7 +1164,7 @@ export default function QuoteBuilder() {
         const tar = tariffe.find((t) => t.id === r.tariffa_id);
         if (tar) {
           const qty = r.quantita || 1;
-          const calc = calcolaTariffaAutomatica(tar, qty, pianoInstallazione);
+          const calc = calcolaTariffaAutomatica(tar, qty, pianoInstallazione, kmCantiere);
           if (upv === 0) upv = qty > 0 ? calc.prezzo_vendita / qty : calc.prezzo_vendita;
           upa = qty > 0 ? calc.prezzo_acquisto / qty : calc.prezzo_acquisto;
         }
@@ -1250,7 +1252,7 @@ export default function QuoteBuilder() {
         tariffe.find((t) => t.tipo === "posa");
       if (tariffa) {
         const { prezzo_vendita: pvP, prezzo_acquisto: paP } =
-          calcolaTariffaAutomatica(tariffa, qty, pianoInstallazione);
+          calcolaTariffaAutomatica(tariffa, qty, pianoInstallazione, kmCantiere);
         const upvP = qty > 0 ? pvP / qty : pvP;
         const upaP = qty > 0 ? paP / qty : paP;
         newItems.push({
@@ -1261,7 +1263,7 @@ export default function QuoteBuilder() {
           quantity: qty,
           unit_price: upvP,
           discount_percent: 0,
-          vat_rate: 22,
+          vat_rate: ivaPredefinita(),
           unit_of_measure: tariffa.unita,
           sort_order: newItems.length,
           article_template_id: null,
@@ -1496,6 +1498,17 @@ export default function QuoteBuilder() {
     });
   };
 
+  /**
+   * La versione del preventivo dopo le scritture di questa pagina: righe (trigger
+   * dei totali), commissioni e PDF cambiano updated_at. Senza rileggerla il
+   * «Salva» successivo si fermava con «Qualcun altro ha salvato».
+   */
+  const rileggiVersione = useCallback(async (quoteId: string) => {
+    const { data } = await supabase.from("quotes").select("updated_at").eq("id", quoteId).maybeSingle();
+    const versione = (data as { updated_at?: string | null } | null)?.updated_at;
+    if (versione) versioneCaricataRef.current = versione;
+  }, []);
+
   // Autosave bozza silenzioso con indicatore di errore
   const lastSavedHashRef = useRef<string>("");
   const autosaveRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -1566,6 +1579,7 @@ export default function QuoteBuilder() {
         updated_at: new Date().toISOString(),
       }).eq("id", id!).eq("company_id", companyId);
       lastSavedHashRef.current = hash;
+      await rileggiVersione(id!);
       setAutosaveFailed(false);
     } catch {
       setAutosaveFailed(true);
@@ -1574,7 +1588,7 @@ export default function QuoteBuilder() {
     // utente (clientName/items/discount), non sul carico di existingQuote. Leggere status
     // dentro la funzione è sufficiente (closure chiama la query refetch se ID cambia).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clientName, items, discountPercent, companyId, user, saving, isEdit, id]);
+  }, [clientName, items, discountPercent, companyId, user, saving, isEdit, id, rileggiVersione]);
 
   useEffect(() => {
     if (!isEdit) return;
@@ -1765,7 +1779,10 @@ export default function QuoteBuilder() {
       const urlOpportunityId = searchParams.get("opportunity_id") || null;
       const quoteData: Record<string, unknown> = {
         company_id: companyId,
-        status,
+        // Su un preventivo esistente lo stato non si tocca se non è una bozza: i
+        // pulsanti salvano sempre «bozza», e da /modifica un preventivo inviato
+        // o accettato tornava bozza.
+        ...(isEdit && existingQuote?.status && existingQuote.status !== "bozza" ? {} : { status }),
         contact_id: contactId,
         ...(isEdit ? {} : { opportunity_id: urlOpportunityId }),
         client_name: clientName || null,
@@ -1784,7 +1801,8 @@ export default function QuoteBuilder() {
         bonus_lines: bonusLines.length ? serializeBonusLines(bonusLines) : null,
         validity_days: validityDays,
         discount_percent: discountPercent,
-        created_by: user.id,
+        // L'autore resta chi l'ha creato: le notifiche di firma e scadenza vanno a lui.
+        ...(isEdit ? {} : { created_by: user.id }),
         template_id: selectedTemplateId || null,
         tipo_lavoro: tipoLavoro || null,
         indirizzo_lavori: indirizzoLavori || null,
@@ -1958,6 +1976,7 @@ export default function QuoteBuilder() {
         }
       }
 
+      if (isEdit) await rileggiVersione(quoteId);
       queryClient.invalidateQueries({ queryKey: queryKeys.quotes.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.quotes.detail(quoteId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.quotes.items(quoteId) });
@@ -1975,6 +1994,8 @@ export default function QuoteBuilder() {
           const resp = await fetch(pdf.signed_url);
           const blob = await resp.blob();
           setAnteprimaUrl(URL.createObjectURL(blob));
+          // Anche il PDF aggiorna il preventivo (percorso e data del file).
+          await rileggiVersione(quoteId);
           if (!isEdit) setPendingEditNavId(quoteId);
         } catch (ePrev: unknown) {
           toast.error("Anteprima non riuscita", {
@@ -2188,7 +2209,13 @@ export default function QuoteBuilder() {
                 </div>
                 <div>
                   <Label>Validità (giorni)</Label>
-                  <Input type="number" value={validityDays} onChange={(e) => setValidityDays(parseInt(e.target.value) || 30)} />
+                  <Input
+                    type="number"
+                    min={1}
+                    value={validityDays || ""}
+                    onChange={(e) => setValidityDays(Math.max(0, parseInt(e.target.value) || 0))}
+                    onBlur={() => { if (!validityDays) setValidityDays(30); }}
+                  />
                 </div>
                 <div className="md:col-span-3">
                   <Label>Descrizione</Label>

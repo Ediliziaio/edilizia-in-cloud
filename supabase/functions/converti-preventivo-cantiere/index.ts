@@ -1,5 +1,5 @@
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
-import { requireAuth } from "../_shared/auth.ts";
+import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -21,15 +21,8 @@ Deno.serve(async (req) => {
       .single();
     if (qErr || !quote) return errorResponse("Preventivo non trovato", 404);
 
-    // 2. Verifica che l'utente appartenga all'azienda del preventivo
-    const { data: profile } = await supabaseAdmin
-      .from("profiles")
-      .select("company_id")
-      .eq("id", userId)
-      .single();
-    if (!profile || profile.company_id !== quote.company_id) {
-      return errorResponse("Non autorizzato", 403);
-    }
+    // 2. Accesso all'azienda del preventivo (anche multi-azienda e super admin)
+    await requireCompanyAccess(supabaseAdmin, userId, quote.company_id, getCorsHeaders(req));
 
     // 3. Verifica stato preventivo
     if (quote.status !== "accettata") {
@@ -57,16 +50,29 @@ Deno.serve(async (req) => {
     // valori float approssimati dal DB diventino mismatch tra preventivo
     // (dopo round2 in UI) e cantiere (senza round2) — es. 1234.567 → 1234.57.
     const round2 = (n: number) => Math.round(n * 100) / 100;
-    const totalRounded = round2(Number(quote.total ?? 0));
+    // Nella commessa total_amount è l'IMPONIBILE: l'elenco lo chiama così e il
+    // PDF della commessa ci aggiunge l'IVA di vat_rate. Prima ci finiva il totale
+    // IVA inclusa del preventivo, e l'IVA si contava due volte.
+    const totaleIvato = round2(Number(quote.total ?? 0));
+    const conSubtotale = Number(quote.subtotal ?? 0) > 0;
+    const imponibile = conSubtotale
+      ? round2(Number(quote.subtotal) - Number(quote.discount_amount ?? 0))
+      : totaleIvato;
+    // Un'aliquota sola sulla commessa: quella media del preventivo, così
+    // imponibile × aliquota ridà l'IVA del preventivo anche con aliquote miste.
+    const aliquotaMedia = conSubtotale && imponibile > 0
+      ? round2((Number(quote.vat_amount ?? 0) / imponibile) * 100)
+      : 0;
     const orderData: Record<string, unknown> = {
       company_id:     quote.company_id,
       quote_id:       quote.id,
       quote_number:   quote.quote_number ?? null,
       status:         "confermato",
       description:    quote.title || quote.quote_number || "Cantiere da preventivo",
-      total_amount:   totalRounded,
+      total_amount:   imponibile,
+      vat_rate:       aliquotaMedia,
       deposit_amount: 0,
-      balance_amount: totalRounded,
+      balance_amount: imponibile,
       client_name:    quote.client_name    ?? null,
       client_email:   quote.client_email   ?? null,
       client_phone:   quote.client_phone   ?? null,
@@ -119,14 +125,24 @@ Deno.serve(async (req) => {
       : [];
     if (fasiPagamento.length > 0) {
       const tipiRata = new Set(["deposit", "balance", "financing"]);
+      // Le fasi del preventivo sono sul totale IVA inclusa; le rate della
+      // commessa stanno sull'imponibile, come nelle altre commesse: si riportano
+      // in proporzione e l'ultima prende i centesimi di arrotondamento.
+      const fattore = totaleIvato > 0 ? imponibile / totaleIvato : 1;
+      let assegnato = 0;
       const rate = fasiPagamento.map((p, idx) => {
         const tipo = tipiRata.has(String(p.type)) ? String(p.type) : (idx === fasiPagamento.length - 1 ? "balance" : "deposit");
+        const ultima = idx === fasiPagamento.length - 1;
+        const importo = ultima && fattore !== 1
+          ? round2(imponibile - assegnato)
+          : round2((Number(p.amount) || 0) * fattore);
+        assegnato = round2(assegnato + importo);
         return {
           order_id: order.id,
           position: idx,
           label: String(p.label ?? "").trim() || (tipo === "balance" ? "Saldo" : `Acconto ${idx + 1}`),
           type: tipo,
-          amount: round2(Number(p.amount) || 0),
+          amount: importo,
           is_paid: false,
         };
       });

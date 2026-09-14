@@ -1,5 +1,5 @@
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
-import { requireAuth } from "../_shared/auth.ts";
+import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -18,30 +18,19 @@ Deno.serve(async (req) => {
       return errorResponse("quote_id richiesto");
     }
 
-    // Load user's company
-    const { data: profile, error: profileErr } = await supabaseAdmin
-      .from("profiles")
-      .select("company_id")
-      .eq("id", userId)
-      .single();
-
-    if (profileErr || !profile?.company_id) {
-      return errorResponse("Profilo utente non trovato", 404);
-    }
-
-    const companyId: string = profile.company_id;
-
-    // Load quote and verify it belongs to the user's company
+    // Il preventivo, poi l'accesso alla SUA azienda (anche multi-azienda e
+    // super admin): prima valeva solo l'azienda del profilo.
     const { data: quote, error: quoteErr } = await supabaseAdmin
       .from("quotes")
       .select("*")
       .eq("id", quote_id)
-      .eq("company_id", companyId)
       .single();
 
     if (quoteErr || !quote) {
-      return errorResponse("Preventivo non trovato o non autorizzato", 404);
+      return errorResponse("Preventivo non trovato", 404);
     }
+    await requireCompanyAccess(supabaseAdmin, userId, quote.company_id, corsH);
+    const companyId: string = quote.company_id;
 
     // Load all quote items
     const { data: items, error: itemsErr } = await supabaseAdmin
