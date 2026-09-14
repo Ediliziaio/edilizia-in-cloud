@@ -20,7 +20,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { assignSenders, cadenzaCasella, dailyCapWithVariance, remainingToday, sentToday, type Assignment, type SenderState, statoPerPrimiContatti, unaAssegnazionePerCasella } from "../_shared/outreach-dispatch-logic.ts";
-import { FRASE_USCITA_DEFAULT, haFraseUscita } from "../_shared/outreach-uscita.ts";
+import { componiCorpo, haFraseUscita } from "../_shared/outreach-uscita.ts";
 import { renderTemplate, contactToVars, hashSeed, htmlToPlainText } from "../_shared/outreach-template.ts";
 import { DEFAULT_SEND_WINDOW, finestraDelBrand, isWithinSendWindow, minutoDelGiorno } from "../_shared/outreach-schedule.ts";
 import { parseVariants, pickVariant } from "../_shared/outreach-abz.ts";
@@ -1220,13 +1220,18 @@ serveConMetriche("outreach-dispatch", async (req) => {
         // una frase nel corpo che invita a rispondere «no», letta dal poller.
         // Se chi scrive non l'ha messa, la mette il motore, prima della firma.
         const stileUmano = brand?.stile_umano !== false;
-        if (stileUmano && enr && !haFraseUscita(htmlToPlainText(corpo))) {
-          const frase = (brand?.frase_uscita ?? "").trim() || FRASE_USCITA_DEFAULT;
-          corpo += `<br><br>${frase.replace(/&/g, "&amp;").replace(/</g, "&lt;")}`;
-        }
         const firma = sender.signature || brand?.signature;
-        if (firma) corpo += `<br><br>${renderTemplate(firma, vars, { seed })}`;
+        // La frase d'uscita del motore arriva nell'email ma non conta nel
+        // controllo di lunghezza: vedi componiCorpo.
+        const composto = componiCorpo({
+          corpo,
+          aggiungiUscita: Boolean(stileUmano && enr && !haFraseUscita(htmlToPlainText(corpo))),
+          frase: brand?.frase_uscita,
+          firma: firma ? renderTemplate(firma, vars, { seed }) : null,
+        });
+        corpo = composto.html;
         const testoCorpo = htmlToPlainText(corpo);
+        const testoDaControllare = htmlToPlainText(composto.htmlDaControllare);
 
         // ── THREADING: i follow-up restano nel thread del primo messaggio ──
         const precedenti = enr ? await inviatiPrecedenti(supabase, enr.id) : [];
@@ -1242,7 +1247,7 @@ serveConMetriche("outreach-dispatch", async (req) => {
         // GATE DI CONTENUTO sul corpo, con il touch REALE. Prima si lintava il
         // testo COMPLETO di footer: il link di disiscrizione aggiunto dal motore
         // faceva scattare "zero link" e bloccava OGNI email (200/200 a luglio).
-        const rilievi = lintEmail(subjectFinale, testoCorpo, { touch: thr.touch });
+        const rilievi = lintEmail(subjectFinale, testoDaControllare, { touch: thr.touch });
         if (!puoPartire(rilievi)) {
           const motivi = rilievi.filter((r) => r.gravita === "blocco").map((r) => r.regola).join(", ");
           await supabase.from("outreach_send_queue")
