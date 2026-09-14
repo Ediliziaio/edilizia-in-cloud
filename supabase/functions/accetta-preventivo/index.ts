@@ -42,34 +42,35 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Valida token — supporta formato firmato (SEC-014) e legacy base64 (backward compat)
+    // Solo token firmati (SEC-014), e solo con il segreto configurato. Prima, se
+    // mancava, si verificava con «default-change-me», scritto qui nel repository,
+    // e si accettavano token base64 non firmati: chiunque conoscesse l'id poteva
+    // accettare o annullare il preventivo.
+    const secret = Deno.env.get("PREVENTIVO_TOKEN_SECRET");
+    if (!secret) {
+      console.error("accetta-preventivo: PREVENTIVO_TOKEN_SECRET non configurato");
+      return new Response(JSON.stringify({ error: "Link di accettazione non disponibile" }), {
+        status: 503, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+      });
+    }
     let payload: { doc_id: string; company_id: string; exp: number };
     try {
-      const secret = Deno.env.get("PREVENTIVO_TOKEN_SECRET") || "default-change-me";
       const dotIndex = token.indexOf(".");
-      if (dotIndex !== -1) {
-        // Nuovo formato firmato: base64Payload.hmacHex
-        const payloadB64 = token.slice(0, dotIndex);
-        const sigHex = token.slice(dotIndex + 1);
-        const valid = await verifyToken(payloadB64, sigHex, secret);
-        if (!valid) {
-          console.error("accetta-preventivo: firma token non valida");
-          return new Response(JSON.stringify({ error: "Token non valido" }), {
-            status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
-          });
-        }
-        payload = JSON.parse(atob(payloadB64));
-      } else {
-        // Legacy non firmato — accetta solo se PREVENTIVO_TOKEN_SECRET non è configurato
-        if (Deno.env.get("PREVENTIVO_TOKEN_SECRET")) {
-          console.error("accetta-preventivo: token legacy rifiutato (secret configurato)");
-          return new Response(JSON.stringify({ error: "Token non valido" }), {
-            status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
-          });
-        }
-        console.warn("accetta-preventivo: token legacy non firmato accettato (PREVENTIVO_TOKEN_SECRET non configurato)");
-        payload = JSON.parse(atob(token));
+      if (dotIndex === -1) {
+        return new Response(JSON.stringify({ error: "Token non valido" }), {
+          status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+        });
       }
+      const payloadB64 = token.slice(0, dotIndex);
+      const sigHex = token.slice(dotIndex + 1);
+      const valid = await verifyToken(payloadB64, sigHex, secret);
+      if (!valid) {
+        console.error("accetta-preventivo: firma token non valida");
+        return new Response(JSON.stringify({ error: "Token non valido" }), {
+          status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+        });
+      }
+      payload = JSON.parse(atob(payloadB64));
     } catch {
       return new Response(JSON.stringify({ error: "Token non valido" }), {
         status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },

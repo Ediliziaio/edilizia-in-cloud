@@ -81,7 +81,14 @@ Deno.serve(async (req) => {
       exp: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 giorni
     };
     const payloadB64 = btoa(JSON.stringify(payload));
-    const secret = Deno.env.get("PREVENTIVO_TOKEN_SECRET") || "default-change-me";
+    // Mai firmare col segreto di ripiego scritto nel repository: chiunque
+    // potrebbe rifare il token e accettare o annullare il preventivo.
+    const secret = Deno.env.get("PREVENTIVO_TOKEN_SECRET");
+    if (!secret) {
+      return new Response(JSON.stringify({ error: "Link di accettazione non configurato" }), {
+        status: 503, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+      });
+    }
     const sigHex = await signToken(payloadB64, secret);
     const token = `${payloadB64}.${sigHex}`;
 
