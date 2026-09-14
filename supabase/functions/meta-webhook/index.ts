@@ -13,16 +13,29 @@ Deno.serve(async (req) => {
     const verifyToken = url.searchParams.get("hub.verify_token");
     const challenge = url.searchParams.get("hub.challenge");
 
-    // META_WEBHOOK_VERIFY_TOKEN dedicato per Meta (fail-closed: no fallback
-    // al token WhatsApp per evitare accettazione inavvertita di webhook
-    // destinati ad altri prodotti)
-    const expectedToken = Deno.env.get("META_WEBHOOK_VERIFY_TOKEN");
-    if (!expectedToken) {
-      console.error("meta-webhook: META_WEBHOOK_VERIFY_TOKEN non configurato");
+    // Token di verifica: quello nelle variabili della funzione
+    // (META_WEBHOOK_VERIFY_TOKEN) oppure quello nelle impostazioni di
+    // piattaforma (meta_webhook_verify_token), dove lo legge chi configura i
+    // webhook nel pannello Meta. Il 14/09 i due erano diversi: il token delle
+    // impostazioni veniva rifiutato e l'oggetto Instagram non si poteva
+    // registrare. Fail-closed: nessun fallback al token WhatsApp.
+    const tokenAccettati: string[] = [];
+    const envToken = Deno.env.get("META_WEBHOOK_VERIFY_TOKEN") ?? "";
+    if (envToken.length >= 16) tokenAccettati.push(envToken);
+    try {
+      const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+      const { data } = await admin.from("platform_settings").select("value").eq("key", "meta_webhook_verify_token").maybeSingle();
+      const dbToken = String(data?.value ?? "");
+      if (dbToken.length >= 16) tokenAccettati.push(dbToken);
+    } catch (e) {
+      console.warn("meta-webhook: token delle impostazioni non leggibile:", e);
+    }
+    if (tokenAccettati.length === 0) {
+      console.error("meta-webhook: nessun token di verifica configurato");
       return new Response("Configuration error", { status: 500 });
     }
 
-    if (mode === "subscribe" && verifyToken === expectedToken) {
+    if (mode === "subscribe" && verifyToken && tokenAccettati.includes(verifyToken)) {
       console.log("Webhook verified successfully");
       return new Response(challenge, { status: 200 });
     }
