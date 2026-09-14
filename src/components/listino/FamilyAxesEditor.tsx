@@ -74,6 +74,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { ArticlePdfDocumentsSection } from "./ArticlePdfDocumentsSection";
 import { formattaMaggiorazione } from "@/lib/listino/maggiorazione";
+import { dividiVoci, problemaVoci, pulisciVoci, vociDi } from "@/lib/listino/scelteVariante";
 
 /**
  * Label compatto per il tipo maggiorazione (usato nei badge valore).
@@ -592,6 +593,7 @@ export function FamilyAxesEditor({ family }: Props) {
         prezzo_vendita: v.prezzo_vendita,
         prezzo_acquisto: v.prezzo_acquisto,
         immagine_url: v.immagine_url,
+        opzioni: vociDi(v),
         sort_order: maxSort + 10,
         attivo: v.attivo,
       });
@@ -906,6 +908,15 @@ export function FamilyAxesEditor({ family }: Props) {
                                   <span className="text-xs font-mono text-muted-foreground">
                                     {v.valore}
                                   </span>
+                                  {vociDi(v).length > 0 ? (
+                                    <Badge
+                                      variant="outline"
+                                      className="text-[10px] sm:text-xs"
+                                      title={vociDi(v).join(", ")}
+                                    >
+                                      comprende {vociDi(v).length} {vociDi(v).length === 1 ? "voce" : "voci"}
+                                    </Badge>
+                                  ) : null}
                                   {v.prezzo_vendita != null && v.prezzo_vendita > 0 ? (
                                     <Badge variant="outline" className="text-[10px] sm:text-xs border-emerald-300 text-emerald-700">
                                       €{Number(v.prezzo_vendita).toLocaleString("it-IT")}
@@ -1161,6 +1172,7 @@ export function FamilyAxesEditor({ family }: Props) {
                 prezzo_acquisto: values.prezzo_acquisto,
                 sort_order: values.sort_order,
                 attivo: values.attivo ?? true,
+                opzioni: values.opzioni,
               });
               toast.success("Valore creato");
             }
@@ -1624,6 +1636,8 @@ interface ValueFormValues {
   prezzo_acquisto: number | null;
   sort_order: number;
   attivo: boolean;
+  /** Cosa comprende: i colori di «Colore Standard». */
+  opzioni: string[];
 }
 
 // M-Z (audit): parse decimale difensivo per i campi importo del dialog —
@@ -1669,6 +1683,7 @@ function ValueFormDialog({
   const [codiceArt, setCodiceArt] = useState<string>(() => value?.codice ?? "");
   const [prezzoV, setPrezzoV] = useState<string>(() => (value?.prezzo_vendita != null ? String(value.prezzo_vendita) : ""));
   const [prezzoA, setPrezzoA] = useState<string>(() => (value?.prezzo_acquisto != null ? String(value.prezzo_acquisto) : ""));
+  const [voci, setVoci] = useState<string>(() => vociDi(value).join("\n"));
   const [valoreManuallyEdited, setValoreManuallyEdited] = useState<boolean>(() => value !== null);
 
   // Sincronizza il form ogni volta che cambia il record selezionato (open→close→
@@ -1688,6 +1703,7 @@ function ValueFormDialog({
       setCodiceArt(value.codice ?? "");
       setPrezzoV(value.prezzo_vendita != null ? String(value.prezzo_vendita) : "");
       setPrezzoA(value.prezzo_acquisto != null ? String(value.prezzo_acquisto) : "");
+      setVoci(vociDi(value).join("\n"));
       setValoreManuallyEdited(true);
     } else {
       setValore("");
@@ -1701,6 +1717,7 @@ function ValueFormDialog({
       setCodiceArt("");
       setPrezzoV("");
       setPrezzoA("");
+      setVoci("");
       setValoreManuallyEdited(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1711,7 +1728,9 @@ function ValueFormDialog({
     !editing && valore && existingValori.includes(valore)
       ? "Valore già presente su questa variabile"
       : null;
-  const canSave = label.trim() && valore.trim() && !conflict && !saving;
+  const vociPulite = pulisciVoci(dividiVoci(voci));
+  const problemaElenco = problemaVoci(label.trim() || "Questo valore", vociPulite);
+  const canSave = label.trim() && valore.trim() && !conflict && !problemaElenco && !saving;
 
   return (
     <Dialog
@@ -1777,6 +1796,28 @@ function ValueFormDialog({
               rows={2}
               className="resize-none"
             />
+          </div>
+
+          {/* Cosa comprende: per una fascia come «Colore Standard» i colori veri.
+              Nel preventivo si sceglie uno di questi, al prezzo del valore. */}
+          <div className="space-y-1.5">
+            <label htmlFor="val-voci" className="text-sm font-medium">Cosa comprende (opzionale)</label>
+            <Textarea
+              id="val-voci"
+              value={voci}
+              onChange={(e) => setVoci(e.target.value)}
+              rows={3}
+              placeholder={"Uno per riga, per esempio:\nGrigio antracite RAL 7016\nEffetto legno noce"}
+              aria-describedby="val-voci-aiuto"
+              className="resize-y"
+            />
+            <p id="val-voci-aiuto" className="text-[11px] text-muted-foreground">
+              Per una fascia di prezzo come «Colore Standard»: i colori che ci stanno dentro. Nel preventivo si sceglie
+              uno di questi, al prezzo di questo valore.
+            </p>
+            {problemaElenco ? (
+              <p className="text-xs text-destructive" role="alert">{problemaElenco}</p>
+            ) : null}
           </div>
 
           {/* P3 — Codice + prezzo propri della variante (entità completa) */}
@@ -2005,6 +2046,7 @@ function ValueFormDialog({
                   prezzo_vendita: prezzoV.trim() ? parseImporto(prezzoV) : null,
                   prezzo_acquisto: prezzoA.trim() ? parseImporto(prezzoA) : null,
                   sort_order: value?.sort_order ?? nextSortOrder,
+                  opzioni: vociPulite,
                 },
                 isDefault ? otherDefaultIds : [],
               )

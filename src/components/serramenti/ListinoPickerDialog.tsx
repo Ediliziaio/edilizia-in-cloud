@@ -40,11 +40,12 @@ import {
 import { DynamicFieldsRenderer } from "@/components/listino/DynamicFieldsRenderer";
 import { useSupplierProductLines } from "@/features/serramenti-listini/hooks/useSupplierProductLines";
 import type { SupplierProductLine } from "@/features/serramenti-listini/types";
-import { suffissoMaggiorazione } from "@/lib/listino/maggiorazione";
 import { useSchedeLinea } from "@/hooks/useSchedeLinea";
 import { useListinoCategorie } from "@/hooks/useListinoCategorie";
 import { lineaDellaRiga, schedaVuota, trovaSchedaLinea } from "@/lib/listino/schedeLinea";
 import { SchedaLineaCompatta } from "./SchedaLineaCompatta";
+import { SceltaVariante } from "./SceltaVariante";
+import { scelteDopo } from "@/lib/listino/scelteVariante";
 
 export interface ListinoPickResult {
   family_id: string;
@@ -63,6 +64,9 @@ export interface ListinoPickResult {
    *  Mappa { axis_codice -> axis_value_id }. Se l'azienda modifica le
    *  maggiorazioni dopo, il preventivo gia' inviato non cambia. */
   valori_assi: Record<string, string>;
+  /** La voce scelta dentro ogni valore: il colore vero di «Colore Standard».
+   *  Mappa { axis_codice -> voce }; il prezzo resta quello del valore. */
+  scelte_assi?: Record<string, string>;
   /** Snapshot modalita_prezzo_base del listino al momento del pick.
    *  Usato dal frontend per decidere cosa copiare quando l'accessorio
    *  viene clonato in bulk da un serramento (dims vs quantita). */
@@ -134,6 +138,8 @@ export function ListinoPickerDialog({
   // Pre-popolata con `is_default` quando la family viene caricata.
   // Reset al cambio famiglia / chiusura dialog.
   const [axisSelection, setAxisSelection] = useState<AxisSelection>({});
+  // La voce scelta dentro il valore (il colore di una fascia), per asse.
+  const [vociScelte, setVociScelte] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const t = setTimeout(() => setDebounced(search), 300);
@@ -150,6 +156,7 @@ export function ListinoPickerDialog({
       setSelectedMacro(null); setSelectedFamily(null);
       setLarghezza(""); setAltezza(""); setQuantita("1");
       setAxisSelection({});
+      setVociScelte({});
       setSelectedSupplierProductLineId(null);
     }
   }, [open]);
@@ -328,6 +335,7 @@ export function ListinoPickerDialog({
     // Reset selezione assi su cambio famiglia (gli assi sono family-specific).
     // I default verranno applicati quando familyDetailWithAxes carica.
     setAxisSelection({});
+    setVociScelte({});
     setSelectedSupplierProductLineId(null);
   };
 
@@ -366,6 +374,7 @@ export function ListinoPickerDialog({
       // Snapshot scelte assi: salvato sulla riga BOM in modo che modifiche
       // future al listino NON cambino i preventivi gia' inviati.
       valori_assi: { ...axisSelection },
+      scelte_assi: { ...vociScelte },
       modalita_prezzo: modalita,
     });
     onOpenChange(false);
@@ -698,26 +707,18 @@ export function ListinoPickerDialog({
                           {axis.nome}
                           {axis.obbligatorio && <span className="text-rose-500">*</span>}
                         </Label>
-                        <Select
-                          value={currentId ?? ""}
-                          onValueChange={(v) => setAxisSelection((prev) => ({ ...prev, [axis.codice]: v }))}
-                        >
-                          <SelectTrigger className={
-                            "h-9 text-xs " + (isMissing ? "border-rose-300" : "")
-                          }>
-                            <SelectValue placeholder={isMissing ? "Da scegliere…" : "Seleziona…"} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {axis.values.filter((v) => v.attivo).map((v) => {
-                              const magg = suffissoMaggiorazione(v.maggiorazione_tipo, v.maggiorazione_valore);
-                              return (
-                                <SelectItem key={v.id} value={v.id} className="text-xs">
-                                  {v.label}{magg}
-                                </SelectItem>
-                              );
-                            })}
-                          </SelectContent>
-                        </Select>
+                        <SceltaVariante
+                          values={axis.values}
+                          valueId={currentId}
+                          scelta={vociScelte[axis.codice]}
+                          onChange={(valueId, voce) => {
+                            setAxisSelection((prev) => ({ ...prev, [axis.codice]: valueId }));
+                            setVociScelte((prev) => scelteDopo(prev, axis.codice, voce));
+                          }}
+                          placeholder={isMissing ? "Da scegliere…" : "Seleziona…"}
+                          aria-label={axis.nome}
+                          className={"h-9 text-xs " + (isMissing ? "border-rose-300" : "")}
+                        />
                       </div>
                     );
                   })}

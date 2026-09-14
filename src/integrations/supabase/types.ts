@@ -10658,6 +10658,7 @@ export type Database = {
           maggiorazione_acquisto: number | null
           maggiorazione_tipo: string
           maggiorazione_valore: number | null
+          opzioni: Json
           prezzo_acquisto: number | null
           prezzo_vendita: number | null
           sort_order: number | null
@@ -10677,6 +10678,7 @@ export type Database = {
           maggiorazione_acquisto?: number | null
           maggiorazione_tipo?: string
           maggiorazione_valore?: number | null
+          opzioni?: Json
           prezzo_acquisto?: number | null
           prezzo_vendita?: number | null
           sort_order?: number | null
@@ -10696,6 +10698,7 @@ export type Database = {
           maggiorazione_acquisto?: number | null
           maggiorazione_tipo?: string
           maggiorazione_valore?: number | null
+          opzioni?: Json
           prezzo_acquisto?: number | null
           prezzo_vendita?: number | null
           sort_order?: number | null
@@ -81390,6 +81393,7 @@ export type Database = {
           prezzo_unitario: number | null
           progetto_id: string
           quantita: number
+          scelte_assi: Json
           serramento_id: string | null
           supplier_catalog_id: string | null
           supplier_product_line_id: string | null
@@ -81414,6 +81418,7 @@ export type Database = {
           prezzo_unitario?: number | null
           progetto_id: string
           quantita?: number
+          scelte_assi?: Json
           serramento_id?: string | null
           supplier_catalog_id?: string | null
           supplier_product_line_id?: string | null
@@ -81438,6 +81443,7 @@ export type Database = {
           prezzo_unitario?: number | null
           progetto_id?: string
           quantita?: number
+          scelte_assi?: Json
           serramento_id?: string | null
           supplier_catalog_id?: string | null
           supplier_product_line_id?: string | null
@@ -82393,6 +82399,7 @@ export type Database = {
           prezzo_unitario: number | null
           progetto_id: string
           quantita: number
+          scelte_assi: Json
           serie: string | null
           supplier_catalog_id: string | null
           supplier_product_line_id: string | null
@@ -82429,6 +82436,7 @@ export type Database = {
           prezzo_unitario?: number | null
           progetto_id: string
           quantita?: number
+          scelte_assi?: Json
           serie?: string | null
           supplier_catalog_id?: string | null
           supplier_product_line_id?: string | null
@@ -82465,6 +82473,7 @@ export type Database = {
           prezzo_unitario?: number | null
           progetto_id?: string
           quantita?: number
+          scelte_assi?: Json
           serie?: string | null
           supplier_catalog_id?: string | null
           supplier_product_line_id?: string | null

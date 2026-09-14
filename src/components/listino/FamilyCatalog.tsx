@@ -687,6 +687,7 @@ export function FamilyCatalog({ onGestisciTipologie }: FamilyCatalogProps = {}) 
       const esito = await variantiTipologia.mutateAsync({ macrocategoriaId: tipologia.macrocategoriaId, assi });
       const dettagli = [
         esito.valori > 0 ? `${esito.valori} valori aggiornati` : null,
+        esito.elenchi > 0 ? `${esito.elenchi} ${esito.elenchi === 1 ? "elenco aggiornato" : "elenchi aggiornati"}` : null,
         esito.aggiunti > 0 ? `${esito.aggiunti} aggiunti dove mancavano` : null,
         esito.assi > 0 ? `variante messa in ${esito.assi} ${esito.assi === 1 ? "prodotto" : "prodotti"}` : null,
       ].filter(Boolean);
@@ -1345,6 +1346,7 @@ export function FamilyCatalog({ onGestisciTipologie }: FamilyCatalogProps = {}) 
       {variantiAperte && (
         <VariantiTipologiaDialog
           tipologia={variantiAperte}
+          area={aree.find((a) => a.tipologie.some((t) => t.chiave === variantiAperte.chiave))?.chiave ?? null}
           inCorso={variantiTipologia.isPending}
           onChiudi={() => setVariantiAperte(null)}
           onSalva={(assi) => void salvaVarianti(assi)}

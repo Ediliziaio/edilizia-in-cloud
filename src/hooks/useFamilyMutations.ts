@@ -334,6 +334,8 @@ export function useFamilyMutations() {
             prezzo_vendita: v.prezzo_vendita,
             prezzo_acquisto: v.prezzo_acquisto,
             immagine_url: v.immagine_url,
+            // I colori (o i vetri) che il valore comprende: senza, la copia li perdeva.
+            opzioni: v.opzioni ?? [],
             sort_order: v.sort_order,
             attivo: v.attivo,
           }));

@@ -412,7 +412,11 @@ function ContenutoTipologia({
   const riferimento = lineaDiRiferimento(tipologia);
   const lineaContenitore = linea?.fonte === "categoria" ? linea : null;
   const senzaLinee = prodottiSenzaLinee(tipologia);
-  const conVarianti = !!onVariantiTipologia && riepilogoVarianti(tipologia).assi.length > 0;
+  // Colori e varianti si possono anche aggiungere (maniglia, soglia). Nel fotovoltaico no: lì si
+  // aggiungono prodotto per prodotto, e il menu serve solo se le varianti ci sono già.
+  const conVarianti =
+    !!onVariantiTipologia &&
+    (area.chiave === "fotovoltaico" ? riepilogoVarianti(tipologia).assi.length > 0 : tipologia.articoli > 0);
   // La scheda della linea la leggono il preventivatore e il PDF dei serramenti.
   const lineaConScheda =
     area.chiave === "serramenti" && linea && linea.fonte !== "altri" && (schedaDi || onSchedaLinea) ? linea : null;

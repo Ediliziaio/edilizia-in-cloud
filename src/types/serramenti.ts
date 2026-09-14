@@ -265,6 +265,10 @@ export interface SrSerramentoRow {
    *  Snapshot: se l'azienda modifica le maggiorazioni dopo, i preventivi
    *  gia' creati conservano il prezzo originale. */
   valori_assi: Record<string, string>;
+  /** Per ogni variante, la voce scelta dentro il valore di valori_assi: il
+   *  colore vero di «Colore Standard» ({ colore: "Grigio antracite RAL 7016" }).
+   *  Migrazione 20280916700000. */
+  scelte_assi?: Record<string, string> | null;
   foto_storage_path: string | null;
   foto_render_path: string | null;
   note: string | null;
@@ -334,6 +338,8 @@ export interface SrAccessorioRow {
   family_id: string | null;
   /** Snapshot {axisCode: valueId} delle variabili scelte. */
   valori_assi: Record<string, string> | null;
+  /** La voce scelta dentro ogni valore (il colore di una fascia). Migrazione 20280916700000. */
+  scelte_assi?: Record<string, string> | null;
   /** Snapshot della modalita_prezzo del listino al momento del pick.
    *  Determina cosa copiare da serramenti: dims (griglia/mq) o quantita (pz). */
   modalita_prezzo: "pz" | "mq" | "griglia" | "misura_libera" | null;

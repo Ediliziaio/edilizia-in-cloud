@@ -33,6 +33,7 @@ import type {
 import { calcolaTotale } from "@/lib/serramenti/calcoli";
 import { applicaMergeTagModulo } from "@/lib/mergeTagsModuli";
 import { generateInterventoSintesi } from "@/lib/serramenti/sintesiIntervento";
+import { testoScelta } from "@/lib/listino/scelteVariante";
 import type {
   SerramentoPdfConsulente, SerramentoPdfFamilyData,
   SerramentoPdfMacroField, SerramentoPdfMacroPagina,
@@ -1095,6 +1096,8 @@ function groupSerramentiAdvanced(serr: SrSerramentoRow[]): Array<{
    *  per stampare la VERA configurazione scelta dal commerciale (es.
    *  "Profilo: Square +8%") invece dei default della scheda tecnica family. */
   valori_assi: Record<string, string>;
+  /** La voce scelta dentro ogni valore: il colore vero di «Colore Standard». */
+  scelte_assi: Record<string, string>;
   prezzo_totale: number;
   /** True se la riga e' un omaggio commerciale (prezzo=0 + nota OMAGGIO). */
   is_omaggio: boolean;
@@ -1114,6 +1117,7 @@ function groupSerramentiAdvanced(serr: SrSerramentoRow[]): Array<{
     macrocategoria_override_id: string | null;
     note: string | null;
     valori_assi: Record<string, string>;
+    scelte_assi: Record<string, string>;
     prezzo_totale: number;
     is_omaggio: boolean;
     posa_esclusa: boolean;
@@ -1132,6 +1136,10 @@ function groupSerramentiAdvanced(serr: SrSerramentoRow[]): Array<{
     // Senza, due "PORTA BALCONE" con Profilo "Square" vs "Etrum" verrebbero
     // mostrate come UNA riga ×2 con scheda tecnica ambigua nel PDF.
     const assiKey = Object.entries(assi).sort().map(([k, v]) => `${k}=${v}`).join(";");
+    // Anche la voce dentro il valore: due finestre «Colore Standard», una grigio
+    // antracite e una effetto noce, non sono la stessa riga ×2.
+    const scelte = (s.scelte_assi ?? {}) as Record<string, string>;
+    const scelteKey = Object.entries(scelte).sort().map(([k, v]) => `${k}=${v}`).join(";");
     const manualLabelKey = (s.tipologia_label ?? s.tipologia ?? "").trim();
     const baseKey = s.family_id
       ? `fam-${s.family_id}__${s.tipologia}`
@@ -1140,7 +1148,7 @@ function groupSerramentiAdvanced(serr: SrSerramentoRow[]): Array<{
     // una "senza posa" devono restare separate (prezzo unitario diverso).
     const posaKey = s.posa_esclusa ? "noposa" : "posa";
     const supplierKey = `sup-${s.supplier_catalog_id ?? "-"}__line-${s.supplier_product_line_id ?? "-"}`;
-    const key = `${baseKey}__${supplierKey}__${L ?? "-"}x${H ?? "-"}__${s.ambiente ?? ""}__${ci}__${ce}__${assiKey}__${noteVal ?? ""}__${posaKey}`;
+    const key = `${baseKey}__${supplierKey}__${L ?? "-"}x${H ?? "-"}__${s.ambiente ?? ""}__${ci}__${ce}__${assiKey}__${scelteKey}__${noteVal ?? ""}__${posaKey}`;
     const existing = map.get(key);
     if (existing) {
       existing.quantita += s.quantita ?? 1;
@@ -1165,6 +1173,7 @@ function groupSerramentiAdvanced(serr: SrSerramentoRow[]): Array<{
       macrocategoria_override_id: s.macrocategoria_override_id ?? null,
       note: noteVal,
       valori_assi: assi,
+      scelte_assi: scelte,
       prezzo_totale: Number(s.prezzo_totale ?? 0),
       is_omaggio: isOmaggio,
       posa_esclusa: s.posa_esclusa ?? false,
@@ -2612,7 +2621,8 @@ export function SerramentoPDF({
                     for (const [axisCodice, valueId] of Object.entries(g.valori_assi)) {
                       const lookup = axisLabelByKey[`${g.family_id}|${axisCodice}|${valueId}`];
                       if (lookup) {
-                        assi.push({ label: lookup.axisLabel, value: lookup.valueLabel });
+                        // Il colore vero scelto dentro la fascia, se c'è: «Grigio antracite (Colore Standard)».
+                        assi.push({ label: lookup.axisLabel, value: testoScelta(lookup.valueLabel, g.scelte_assi[axisCodice]) });
                       }
                     }
                   }
@@ -2824,10 +2834,10 @@ export function SerramentoPDF({
                       // Le scelte dell'accessorio (colore, motore, rete), come
                       // quelle dei serramenti: il prezzo le conta, il cliente le legge.
                       const scelte = a.family_id
-                        ? Object.entries(a.valori_assi ?? {})
-                            .map(([codice, valueId]) => axisLabelByKey[`${a.family_id}|${codice}|${valueId}`])
-                            .filter(Boolean)
-                            .map((l) => `${l.axisLabel}: ${l.valueLabel}`)
+                        ? Object.entries(a.valori_assi ?? {}).flatMap(([codice, valueId]) => {
+                            const l = axisLabelByKey[`${a.family_id}|${codice}|${valueId}`];
+                            return l ? [`${l.axisLabel}: ${testoScelta(l.valueLabel, (a.scelte_assi ?? {})[codice])}`] : [];
+                          })
                         : [];
                       return (
                         <View key={i} style={styles.tableRow} wrap={false}>

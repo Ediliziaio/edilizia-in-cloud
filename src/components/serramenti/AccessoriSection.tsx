@@ -49,7 +49,8 @@ import { useSupplierProductLines } from "@/features/serramenti-listini/hooks/use
 import type { SupplierProductLine } from "@/features/serramenti-listini/types";
 import { applyMaggiorazioniAssi, calcolaPosaInclusa, calcolaPrezzoProdotto } from "@/lib/serramenti/pricing";
 import type { ListinoFamily } from "@/lib/serramenti/api";
-import { suffissoMaggiorazione } from "@/lib/listino/maggiorazione";
+import { scelteDopo } from "@/lib/listino/scelteVariante";
+import { SceltaVariante } from "./SceltaVariante";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -121,6 +122,7 @@ export function AccessoriSection({ progettoId, detail }: Props) {
       supplier_catalog_id: pick.supplier_catalog_id ?? null,
       supplier_product_line_id: pick.supplier_product_line_id ?? null,
       valori_assi: pick.valori_assi ?? null,
+      scelte_assi: pick.scelte_assi ?? {},
       modalita_prezzo: pick.modalita_prezzo,
       position: accessori.length,
     });
@@ -554,28 +556,20 @@ function AccessorioRiga({
                       {axis.nome}
                       {axis.obbligatorio ? " *" : ""}
                     </Label>
-                    <Select
-                      value={scelto}
-                      onValueChange={(v) => aggiorna({ valori_assi: { ...scelteRiga, [axis.codice]: v } })}
-                    >
-                      <SelectTrigger className={cn("h-7 text-xs", manca && "border-rose-300")}>
-                        <SelectValue placeholder="Scegli…" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {axis.values.filter((v) => v.attivo || v.id === scelto).map((v) => (
-                          <SelectItem key={v.id} value={v.id} className="text-xs">
-                            {v.label}
-                            {suffissoMaggiorazione(v.maggiorazione_tipo, v.maggiorazione_valore)}
-                            {v.attivo ? "" : " · non più a listino"}
-                          </SelectItem>
-                        ))}
-                        {scelto && !axis.values.some((v) => v.id === scelto) && (
-                          <SelectItem value={scelto} disabled className="text-xs italic">
-                            Scelta tolta dal listino
-                          </SelectItem>
-                        )}
-                      </SelectContent>
-                    </Select>
+                    <SceltaVariante
+                      values={axis.values}
+                      valueId={scelto}
+                      scelta={(a.scelte_assi ?? {})[axis.codice]}
+                      onChange={(valueId, voce) => {
+                        const scelte_assi = scelteDopo(a.scelte_assi, axis.codice, voce);
+                        // Un altro colore della stessa fascia: il prezzo non cambia.
+                        if (valueId === scelto) onPatch({ scelte_assi });
+                        else aggiorna({ valori_assi: { ...scelteRiga, [axis.codice]: valueId }, scelte_assi });
+                      }}
+                      placeholder="Scegli…"
+                      aria-label={axis.nome}
+                      className={cn("h-7 text-xs", manca && "border-rose-300")}
+                    />
                   </div>
                 );
               })}
@@ -694,10 +688,12 @@ function CopyMisureDialog({
   // solo quelle: senza uno standard l'accessorio nasceva senza colore né motore,
   // e senza la loro maggiorazione nel prezzo.
   // Qui solo le scelte fatte a mano, legate all'articolo: cambiandolo si riparte dagli standard.
-  const [sceltePersonali, setSceltePersonali] = useState<{ familyId: string | null; scelte: Record<string, string> }>({
-    familyId: null,
-    scelte: {},
-  });
+  const [sceltePersonali, setSceltePersonali] = useState<{
+    familyId: string | null;
+    scelte: Record<string, string>;
+    /** La voce scelta dentro il valore (il colore di una fascia). */
+    voci: Record<string, string>;
+  }>({ familyId: null, scelte: {}, voci: {} });
   const pickedFamilyIdCorrente = pickedFamily?.id ?? null;
   const scelte = useMemo(
     () => ({
@@ -706,11 +702,16 @@ function CopyMisureDialog({
     }),
     [defaultAxisSelection, sceltePersonali, pickedFamilyIdCorrente],
   );
-  const scegli = (codice: string, valoreId: string) =>
-    setSceltePersonali((prima) => ({
-      familyId: pickedFamilyIdCorrente,
-      scelte: { ...(prima.familyId === pickedFamilyIdCorrente ? prima.scelte : {}), [codice]: valoreId },
-    }));
+  const vociScelte = sceltePersonali.familyId === pickedFamilyIdCorrente ? sceltePersonali.voci : {};
+  const scegli = (codice: string, valoreId: string, voce: string | null) =>
+    setSceltePersonali((prima) => {
+      const stessoArticolo = prima.familyId === pickedFamilyIdCorrente;
+      return {
+        familyId: pickedFamilyIdCorrente,
+        scelte: { ...(stessoArticolo ? prima.scelte : {}), [codice]: valoreId },
+        voci: scelteDopo(stessoArticolo ? prima.voci : {}, codice, voce),
+      };
+    });
   const assiDaScegliere = useMemo(
     () => (pickedFamilyWithAxes?.axes ?? []).filter((ax) => ax.values.some((v) => v.attivo)),
     [pickedFamilyWithAxes],
@@ -816,6 +817,7 @@ function CopyMisureDialog({
             supplier_product_line_id: calc.supplierProductLineId ?? singleSupplierLineId,
             listino_voce_id: calc.matchedGrigliaId,
             valori_assi: scelte,
+            scelte_assi: vociScelte,
             modalita_prezzo:
               (modalita === "pz" || modalita === "mq" || modalita === "griglia" || modalita === "misura_libera")
                 ? modalita
@@ -1027,22 +1029,15 @@ function CopyMisureDialog({
                           {axis.nome}
                           {axis.obbligatorio ? " *" : ""}
                         </Label>
-                        <Select
-                          value={scelte[axis.codice] ?? ""}
-                          onValueChange={(v) => scegli(axis.codice, v)}
-                        >
-                          <SelectTrigger className={cn("h-9 text-xs", manca && "border-rose-300")}>
-                            <SelectValue placeholder="Scegli…" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {axis.values.filter((v) => v.attivo).map((v) => (
-                              <SelectItem key={v.id} value={v.id} className="text-xs">
-                                {v.label}
-                                {suffissoMaggiorazione(v.maggiorazione_tipo, v.maggiorazione_valore)}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <SceltaVariante
+                          values={axis.values}
+                          valueId={scelte[axis.codice]}
+                          scelta={vociScelte[axis.codice]}
+                          onChange={(valueId, voce) => scegli(axis.codice, valueId, voce)}
+                          placeholder="Scegli…"
+                          aria-label={axis.nome}
+                          className={cn("h-9 text-xs", manca && "border-rose-300")}
+                        />
                       </div>
                     );
                   })}

@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -50,10 +50,11 @@ import { formatEuro } from "@/lib/serramenti/format";
 import type { ListinoFamily } from "@/lib/serramenti/api";
 import { DynamicFieldsRenderer } from "@/components/listino/DynamicFieldsRenderer";
 import { useListinoCategorie } from "@/hooks/useListinoCategorie";
-import { suffissoMaggiorazione } from "@/lib/listino/maggiorazione";
 import { useSchedeLinea } from "@/hooks/useSchedeLinea";
 import { lineaDellaRiga, schedaVuota, trovaSchedaLinea } from "@/lib/listino/schedeLinea";
 import { SchedaLineaCompatta } from "./SchedaLineaCompatta";
+import { SceltaVariante } from "./SceltaVariante";
+import { coloriDelListino, pulisciVoci, scelteDopo, testoScelta, vociDi } from "@/lib/listino/scelteVariante";
 
 interface Props {
   progettoId: string;
@@ -170,6 +171,8 @@ export function StepBom({ progettoId, detail }: Props) {
         supplier_catalog_id: item.supplier_catalog_id ?? null,
         supplier_product_line_id: item.supplier_product_line_id ?? null,
         valori_assi: item.valori_assi ?? {},
+        // Il colore vero scelto dentro la fascia (Grigio antracite dentro «Colore Standard»).
+        scelte_assi: item.scelte_assi ?? {},
         // La nota della riga è quella del commerciale e il PDF la stampa come
         // «Note tecniche». Il conto del prezzo non è una nota: finiva nel PDF in
         // formato inglese («1.68 m² × €600.00/m²») e restava vecchio appena si
@@ -249,6 +252,7 @@ export function StepBom({ progettoId, detail }: Props) {
       supplier_product_line_id: s.supplier_product_line_id,
       macrocategoria_override_id: s.macrocategoria_override_id,
       valori_assi: s.valori_assi ?? {},
+      scelte_assi: s.scelte_assi ?? {},
       position: serramenti.length,
       note: s.note,
     });
@@ -343,8 +347,8 @@ export function StepBom({ progettoId, detail }: Props) {
             <BulkAssiActions
               serramenti={serramenti}
               famiglie={famiglieConAssi}
-              onApplica={(codice, valore) =>
-                setRichiestaBulk({ codice, valore, nonce: Date.now() })
+              onApplica={(codice, valore, scelta) =>
+                setRichiestaBulk({ codice, valore, scelta, nonce: Date.now() })
               }
               onColori={({ interno, esterno }) => {
                 for (const riga of serramenti) {
@@ -635,6 +639,8 @@ export interface RichiestaBulkPosa {
 export interface RichiestaBulkAsse {
   codice: string;
   valore: string;
+  /** La voce dentro il valore (il colore di una fascia); null = solo il valore. */
+  scelta: string | null;
   nonce: number;
 }
 
@@ -652,7 +658,7 @@ function BulkAssiActions({
 }: {
   serramenti: SrSerramentoRow[];
   famiglie: FamilyWithAxes[];
-  onApplica: (codice: string, valore: string) => void;
+  onApplica: (codice: string, valore: string, scelta: string | null) => void;
   /** Il colore vero (RAL, effetto legno) per tutte le righe: la variante Colore dice solo la fascia di prezzo. */
   onColori: (colori: { interno: string; esterno: string }) => void;
 }) {
@@ -661,7 +667,10 @@ function BulkAssiActions({
   const assi = useMemo(() => {
     const usate = new Set(serramenti.map((s) => s.family_id).filter(Boolean) as string[]);
     if (usate.size === 0) return [];
-    const perCodice = new Map<string, { nome: string; righe: number; valori: Map<string, string> }>();
+    const perCodice = new Map<
+      string,
+      { nome: string; righe: number; valori: Map<string, { label: string; voci: string[] }> }
+    >();
     for (const f of famiglie) {
       if (!usate.has(f.id)) continue;
       const quante = serramenti.filter((s) => s.family_id === f.id).length;
@@ -669,16 +678,33 @@ function BulkAssiActions({
         const voce = perCodice.get(asse.codice) ?? { nome: asse.nome, righe: 0, valori: new Map() };
         voce.righe += quante;
         for (const v of asse.values) {
-          if (v.attivo && !voce.valori.has(v.valore)) voce.valori.set(v.valore, v.label);
+          if (!v.attivo) continue;
+          const presente = voce.valori.get(v.valore);
+          // Le voci della fascia (i colori di «Colore Standard») di tutte le tipologie usate.
+          voce.valori.set(v.valore, {
+            label: presente?.label ?? v.label,
+            voci: pulisciVoci([...(presente?.voci ?? []), ...vociDi(v)]),
+          });
         }
         perCodice.set(asse.codice, voce);
       }
     }
     // Una variabile che tocca una riga sola non merita un'azione di gruppo.
     return [...perCodice.entries()]
-      .filter(([, v]) => v.righe >= 2 && v.valori.size > 1)
-      .map(([codice, v]) => ({ codice, nome: v.nome, valori: [...v.valori.entries()] }));
+      .filter(([, v]) => v.righe >= 2 && (v.valori.size > 1 || [...v.valori.values()].some((x) => x.voci.length > 0)))
+      .map(([codice, v]) => ({
+        codice,
+        nome: v.nome,
+        valori: [...v.valori.entries()].map(([valore, x]) => ({ valore, label: x.label, voci: x.voci })),
+      }));
   }, [serramenti, famiglie]);
+  // I colori scritti nel listino, da suggerire per colore interno ed esterno.
+  const coloriSuggeriti = useMemo(() => {
+    const usate = new Set(serramenti.map((s) => s.family_id).filter(Boolean) as string[]);
+    return coloriDelListino(famiglie.filter((f) => usate.has(f.id)).flatMap((f) => f.axes));
+  }, [serramenti, famiglie]);
+  // Cosa si è scelto in ogni tendina, per scriverlo chiuso («Grigio antracite (Colore Standard)»).
+  const [sceltiGruppo, setSceltiGruppo] = useState<Record<string, string>>({});
 
   const righeColorabili = serramenti.filter((s) => s.tipologia !== "a_corpo").length;
   if (serramenti.length < 2 || (assi.length === 0 && righeColorabili < 2)) return null;
@@ -698,23 +724,54 @@ function BulkAssiActions({
         Stesse scelte per tutte le {serramenti.length} righe
       </div>
       <div className="flex flex-wrap items-end gap-2">
-        {assi.map((asse) => (
-          <div key={asse.codice} className="space-y-1 min-w-[160px]">
-            <Label className="text-[10px] text-slate-700">{asse.nome}</Label>
-            <Select onValueChange={(v) => onApplica(asse.codice, v)}>
-              <SelectTrigger className="h-8 text-xs bg-white">
-                <SelectValue placeholder="applica a tutte…" />
-              </SelectTrigger>
-              <SelectContent>
-                {asse.valori.map(([valore, label]) => (
-                  <SelectItem key={valore} value={valore} className="text-xs">
-                    {label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        ))}
+        {assi.map((asse) => {
+          const codiceScelto = sceltiGruppo[asse.codice] ?? "";
+          const [tipoScelto, indiceValore, indiceVoce] = codiceScelto.split(":");
+          const valoreScelto = codiceScelto ? asse.valori[Number(indiceValore)] : undefined;
+          const testoChiuso = valoreScelto
+            ? testoScelta(valoreScelto.label, tipoScelto === "o" ? valoreScelto.voci[Number(indiceVoce)] : null)
+            : undefined;
+          return (
+            <div key={asse.codice} className="space-y-1 min-w-[160px]">
+              <Label className="text-[10px] text-slate-700">{asse.nome}</Label>
+              <Select
+                value={codiceScelto}
+                onValueChange={(codice) => {
+                  const [tipo, a, b] = codice.split(":");
+                  const voce = asse.valori[Number(a)];
+                  if (!voce) return;
+                  setSceltiGruppo((prima) => ({ ...prima, [asse.codice]: codice }));
+                  onApplica(asse.codice, voce.valore, tipo === "o" ? voce.voci[Number(b)] ?? null : null);
+                }}
+              >
+                <SelectTrigger className="h-8 text-xs bg-white">
+                  <SelectValue placeholder="applica a tutte…">{testoChiuso}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {asse.valori.map((voce, a) =>
+                    voce.voci.length === 0 ? (
+                      <SelectItem key={voce.valore} value={`v:${a}`} className="text-xs">
+                        {voce.label}
+                      </SelectItem>
+                    ) : (
+                      <SelectGroup key={voce.valore}>
+                        <SelectLabel className="py-1 text-[11px] text-muted-foreground">{voce.label}</SelectLabel>
+                        <SelectItem value={`v:${a}`} className="text-xs italic">
+                          Da decidere
+                        </SelectItem>
+                        {voce.voci.map((testoVoce, b) => (
+                          <SelectItem key={testoVoce} value={`o:${a}:${b}`} className="text-xs">
+                            {testoVoce}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    ),
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+          );
+        })}
         {righeColorabili >= 2 && (
           <>
             <div className="space-y-1 min-w-[150px]">
@@ -723,6 +780,7 @@ function BulkAssiActions({
                 id="bulk-colore-interno"
                 value={coloreInterno}
                 onChange={(e) => setColoreInterno(e.target.value)}
+                list={coloriSuggeriti.length > 0 ? "bulk-colori-listino" : undefined}
                 placeholder="Bianco RAL 9010"
                 className="h-8 text-xs bg-white"
               />
@@ -736,6 +794,7 @@ function BulkAssiActions({
                 onKeyDown={(e) => {
                   if (e.key === "Enter") applicaColori();
                 }}
+                list={coloriSuggeriti.length > 0 ? "bulk-colori-listino" : undefined}
                 placeholder="Antracite RAL 7016"
                 className="h-8 text-xs bg-white"
               />
@@ -750,6 +809,13 @@ function BulkAssiActions({
             >
               Colori a tutte
             </Button>
+            {coloriSuggeriti.length > 0 && (
+              <datalist id="bulk-colori-listino">
+                {coloriSuggeriti.map((colore) => (
+                  <option key={colore} value={colore} />
+                ))}
+              </datalist>
+            )}
           </>
         )}
       </div>
@@ -830,6 +896,8 @@ function SerramentoRow({
   // Griglia o varianti non ancora arrivate: un ricalcolo chiesto adesso aspetta
   // (vedi l'effetto dopo i gestori) invece di lasciare il prezzo vecchio.
   const datiInArrivo = !!family && (grigliaInCaricamento || assiInCaricamento);
+  // I colori scritti nelle fasce del listino, suggeriti per colore interno ed esterno.
+  const coloriSuggeriti = useMemo(() => coloriDelListino(familyWithAxes?.axes ?? []), [familyWithAxes]);
   const ricalcoloInSospeso = useRef<{
     L: number | null;
     H: number | null;
@@ -980,12 +1048,19 @@ function SerramentoRow({
    * Aggiorna la mappa valori_assi e ricalcola il prezzo unitario con
    * le maggiorazioni della nuova combinazione, lasciando L/A/Q invariati.
    */
-  const handleAxisPatch = (axisCodice: string, valueId: string) => {
+  const handleAxisPatch = (axisCodice: string, valueId: string, scelta: string | null = null) => {
     const nextSelections = { ...(s.valori_assi ?? {}), [axisCodice]: valueId };
+    // La voce dentro il valore: il colore vero di «Colore Standard».
+    const nextScelte = scelteDopo(s.scelte_assi, axisCodice, scelta);
+    // Stesso valore, un'altra voce (un altro colore della stessa fascia): il prezzo non cambia.
+    if ((s.valori_assi ?? {})[axisCodice] === valueId) {
+      onPatch({ scelte_assi: nextScelte });
+      return;
+    }
     // Prezzo manuale («misura libera»): la scelta si salva e il prezzo resta
     // quello del commerciale. Prima lo sostituiva il prezzo base del listino.
     if (isListinoManualPrice) {
-      onPatch({ valori_assi: nextSelections });
+      onPatch({ valori_assi: nextSelections, scelte_assi: nextScelte });
       return;
     }
     const L = s.larghezza_mm ?? null;
@@ -993,12 +1068,12 @@ function SerramentoRow({
     const Q = s.quantita ?? 1;
     const nuovoPrezzo = ricalcolaPrezzoUnitario(L, H, Q, nextSelections);
     if (nuovoPrezzo != null && Number.isFinite(nuovoPrezzo)) {
-      onPatch({ valori_assi: nextSelections, prezzo_unitario: Number(nuovoPrezzo.toFixed(2)) });
+      onPatch({ valori_assi: nextSelections, scelte_assi: nextScelte, prezzo_unitario: Number(nuovoPrezzo.toFixed(2)) });
     } else {
       if (datiInArrivo) {
         ricalcoloInSospeso.current = { L, H, Q, selections: nextSelections, posaEsclusa: s.posa_esclusa ?? false };
       }
-      onPatch({ valori_assi: nextSelections });
+      onPatch({ valori_assi: nextSelections, scelte_assi: nextScelte });
     }
   };
 
@@ -1015,8 +1090,10 @@ function SerramentoRow({
     const asse = familyWithAxes?.axes.find((a) => a.codice === richiestaBulk.codice);
     const valore = asse?.values.find((v) => v.valore === richiestaBulk.valore && v.attivo);
     if (!asse || !valore) return;
-    if ((s.valori_assi ?? {})[asse.codice] === valore.id) return;
-    handleAxisPatch(asse.codice, valore.id);
+    // Il colore scelto in cima solo se questa tipologia ce l'ha nell'elenco di quella fascia.
+    const scelta = richiestaBulk.scelta && vociDi(valore).includes(richiestaBulk.scelta) ? richiestaBulk.scelta : null;
+    if ((s.valori_assi ?? {})[asse.codice] === valore.id && ((s.scelte_assi ?? {})[asse.codice] ?? null) === scelta) return;
+    handleAxisPatch(asse.codice, valore.id, scelta);
     // handleAxisPatch dipende da stato che cambia a ogni render: l'effetto deve
     // scattare solo sul nonce, non a ogni ricalcolo.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1313,35 +1390,18 @@ function SerramentoRow({
                             {axis.nome}
                             {axis.obbligatorio && <span className="text-rose-500">*</span>}
                           </Label>
-                          <Select
-                            value={currentId}
-                            onValueChange={(v) => handleAxisPatch(axis.codice, v)}
-                          >
-                            <SelectTrigger className={
-                              "h-8 text-xs bg-white " + (isMissing ? "border-rose-300" : "")
-                            }>
-                              <SelectValue placeholder="Seleziona…" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {/* Anche il valore scelto e poi spento nel listino: senza,
-                                  la riga sembrava senza scelta pur avendola nel prezzo. */}
-                              {axis.values.filter((v) => v.attivo || v.id === currentId).map((v) => {
-                                const magg = suffissoMaggiorazione(v.maggiorazione_tipo, v.maggiorazione_valore);
-                                const std = v.is_default ? " · standard" : "";
-                                const spento = v.attivo ? "" : " · non più a listino";
-                                return (
-                                  <SelectItem key={v.id} value={v.id} className="text-xs">
-                                    {v.label}{magg}{std}{spento}
-                                  </SelectItem>
-                                );
-                              })}
-                              {currentId && !axis.values.some((v) => v.id === currentId) && (
-                                <SelectItem value={currentId} disabled className="text-xs italic">
-                                  Scelta tolta dal listino
-                                </SelectItem>
-                              )}
-                            </SelectContent>
-                          </Select>
+                          {/* I valori del listino e, dentro le fasce con un elenco, il
+                              colore vero. Anche il valore scelto e poi spento nel listino
+                              resta: senza, la riga sembrava senza scelta pur avendola nel prezzo. */}
+                          <SceltaVariante
+                            values={axis.values}
+                            valueId={currentId}
+                            scelta={(s.scelte_assi ?? {})[axis.codice]}
+                            onChange={(valueId, scelta) => handleAxisPatch(axis.codice, valueId, scelta)}
+                            mostraStandard
+                            aria-label={axis.nome}
+                            className={"h-8 text-xs bg-white " + (isMissing ? "border-rose-300" : "")}
+                          />
                         </div>
                       );
                     })}
@@ -1612,6 +1672,7 @@ function SerramentoRow({
                 const valore = e.target.value.trim() || null;
                 if (valore !== (s.colore_interno ?? null)) onPatch({ colore_interno: valore });
               }}
+              list={coloriSuggeriti.length > 0 ? `colori-${s.id}` : undefined}
               placeholder="Bianco RAL 9010"
               className="h-9 text-xs"
             />
@@ -1625,9 +1686,17 @@ function SerramentoRow({
                 const valore = e.target.value.trim() || null;
                 if (valore !== (s.colore_esterno ?? null)) onPatch({ colore_esterno: valore });
               }}
+              list={coloriSuggeriti.length > 0 ? `colori-${s.id}` : undefined}
               placeholder="Antracite RAL 7016"
               className="h-9 text-xs"
             />
+            {coloriSuggeriti.length > 0 && (
+              <datalist id={`colori-${s.id}`}>
+                {coloriSuggeriti.map((colore) => (
+                  <option key={colore} value={colore} />
+                ))}
+              </datalist>
+            )}
           </div>
           {/* Duplica/Elimina sono ora sempre visibili nell'header (icone) —
               evitiamo bottoni duplicati nel dettaglio espanso. */}

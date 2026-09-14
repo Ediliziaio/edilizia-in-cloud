@@ -19,6 +19,7 @@ import type { FamilyWithAxes, MaggiorazioneTipo } from "@/types/articleFamily";
 import { AREE_STANDARD, chiaveTesto, type AreaStandard } from "./areeStandard";
 import type { AreaListino, LineaListino, TipologiaListino } from "./lineeListino";
 import { formattaMaggiorazione } from "./maggiorazione";
+import { problemaVoci, stesseVoci, vociDi } from "./scelteVariante";
 
 /** listino_macrocategorie.tipologia come la leggono i preventivatori: «bagno», non «bagni». */
 const TIPOLOGIA_DI_AREA: Record<string, string> = { bagni: "bagno", tetti: "tetto" };
@@ -300,6 +301,10 @@ export interface ValoreVariante {
   attivoInParte: boolean;
   /** Il valore di serie della variabile (il più diffuso fra i prodotti). */
   base: boolean;
+  /** Cosa comprende (i colori di «Colore Standard»): l'elenco che hanno più prodotti. */
+  opzioni: string[];
+  /** Quanti prodotti hanno un elenco diverso da quello. */
+  opzioniDiverse: number;
 }
 
 export interface AsseVariante {
@@ -335,6 +340,7 @@ export function riepilogoVarianti(tipologia: TipologiaListino): VariantiTipologi
     ordine: number;
     prodotti: number;
     maggiorazioni: Map<string, Magg>;
+    elenchi: Map<string, { voci: string[]; prodotti: number }>;
     accesi: number;
     base: number;
   };
@@ -366,6 +372,7 @@ export function riepilogoVarianti(tipologia: TipologiaListino): VariantiTipologi
           ordine: v.sort_order ?? 0,
           prodotti: 0,
           maggiorazioni: new Map(),
+          elenchi: new Map(),
           accesi: 0,
           base: 0,
         };
@@ -384,6 +391,9 @@ export function riepilogoVarianti(tipologia: TipologiaListino): VariantiTipologi
         const km = `${m.tipo}|${m.vendita}|${m.acquisto}`;
         const esistente = c.maggiorazioni.get(km);
         c.maggiorazioni.set(km, { ...m, prodotti: (esistente?.prodotti ?? 0) + 1 });
+        const voci = vociDi(v);
+        const ke = JSON.stringify(voci);
+        c.elenchi.set(ke, { voci, prodotti: (c.elenchi.get(ke)?.prodotti ?? 0) + 1 });
         voce.valori.set(k, c);
       }
       assi.set(chiave, voce);
@@ -400,6 +410,8 @@ export function riepilogoVarianti(tipologia: TipologiaListino): VariantiTipologi
         .map(([k, c]) => {
           const gruppi = [...c.maggiorazioni.values()].sort((a, b) => b.prodotti - a.prodotti);
           const prevalente = gruppi[0];
+          // A pari prodotti vince l'elenco scritto: uno vuoto è quasi sempre un prodotto rimasto indietro.
+          const elenchi = [...c.elenchi.values()].sort((a, b) => b.prodotti - a.prodotti || b.voci.length - a.voci.length);
           return {
             chiave: k,
             nome: piuFrequente(c.nomi),
@@ -415,6 +427,8 @@ export function riepilogoVarianti(tipologia: TipologiaListino): VariantiTipologi
             attivo: c.accesi * 2 >= c.prodotti,
             attivoInParte: c.accesi > 0 && c.accesi < c.prodotti,
             base: k === chiaveBase,
+            opzioni: elenchi[0]?.voci ?? [],
+            opzioniDiverse: c.prodotti - (elenchi[0]?.prodotti ?? 0),
           };
         });
       return {
@@ -465,6 +479,8 @@ export interface VarianteForm {
   attivo: boolean;
   base: boolean;
   prodotti: number;
+  /** Cosa comprende: i colori di «Colore Standard». Vuoto = è già una scelta sola. */
+  opzioni: string[];
 }
 
 export function formVarianti(asse: AsseVariante): VarianteForm[] {
@@ -477,6 +493,58 @@ export function formVarianti(asse: AsseVariante): VarianteForm[] {
     attivo: v.attivo,
     base: v.base,
     prodotti: v.prodotti,
+    opzioni: v.opzioni,
+  }));
+}
+
+/** Una variante che quasi ogni serramento ha, da aggiungere a una tipologia in un clic. */
+export interface VariantePronta {
+  chiave: string;
+  nome: string;
+  valori: ReadonlyArray<{ nome: string; base?: boolean }>;
+}
+
+/**
+ * I nomi e i codici sono quelli dei modelli pronti («colore_standard»,
+ * «tipologia_vetro»): così l'impostazione del listino infissi li ritrova.
+ */
+export const VARIANTI_PRONTE_SERRAMENTI: readonly VariantePronta[] = [
+  {
+    chiave: "colore",
+    nome: "Colore",
+    valori: [{ nome: "Bianco", base: true }, { nome: "Colore Standard" }, { nome: "Colore Fuori Standard" }],
+  },
+  {
+    chiave: "tipologia_vetro",
+    nome: "Tipologia Vetro",
+    valori: [{ nome: "Vetro Standard", base: true }, { nome: "Vetro Antisonoro" }, { nome: "Vetro Antisfondamento" }],
+  },
+  { chiave: "maniglia", nome: "Maniglia", valori: [{ nome: "Standard", base: true }, { nome: "Con chiave" }] },
+  { chiave: "soglia", nome: "Soglia", valori: [{ nome: "Standard", base: true }, { nome: "Ribassata" }] },
+];
+
+/** Perché non si può aggiungere una variante con questo nome, o null. */
+export function problemaNuovaVariante(nome: string, esistenti: readonly { chiave: string; nome: string }[]): string | null {
+  const k = chiaveTesto(nome);
+  if (!k) return "Scrivi il nome della variante, per esempio Maniglia.";
+  if (ASSI_DELLE_LINEE.has(k)) return "Le linee si aggiungono con «+ Linea».";
+  const doppia = esistenti.find((a) => a.chiave === k || chiaveTesto(a.nome) === k);
+  return doppia ? `C'è già la variante «${doppia.nome}».` : null;
+}
+
+/** Le righe con cui parte una variante nuova: quelle del modello pronto, o una da scrivere. */
+export function formVariantePronta(pronta: VariantePronta | null): VarianteForm[] {
+  const valori = pronta?.valori ?? [{ nome: "", base: true }];
+  return valori.map((v): VarianteForm => ({
+    chiave: null,
+    nome: v.nome,
+    tipo: "percentuale",
+    vendita: "0",
+    acquisto: "0",
+    attivo: true,
+    base: !!v.base,
+    prodotti: 0,
+    opzioni: [],
   }));
 }
 
@@ -504,6 +572,8 @@ export function problemaVarianti(
     if (vendita === null) return `«${nome}»: scrivi la maggiorazione di vendita come numero, per esempio 15 o 0.`;
     if (acquisto === null) return `«${nome}»: scrivi la maggiorazione sull'acquisto come numero, per esempio 15 o 0.`;
     if (v.tipo === "percentuale" && (vendita <= -100 || acquisto <= -100)) return `«${nome}» azzererebbe il prezzo.`;
+    const elenco = problemaVoci(nome, v.opzioni);
+    if (elenco) return elenco;
   }
   if (!valori.some((v) => v.attivo)) return `${asse.nome}: lascia acceso almeno un valore.`;
   const base = valori.find((v) => v.base);
@@ -530,6 +600,9 @@ export interface ValoreVariantiDati {
   attivo: boolean;
   /** False: il valore c'è solo per essere aggiunto dove manca, senza toccare gli altri prodotti. */
   aggiorna: boolean;
+  /** L'elenco di cosa comprende: scritto dove il valore si aggiunge, e dove c'è se `aggiornaOpzioni`. */
+  opzioni: string[];
+  aggiornaOpzioni: boolean;
 }
 
 export interface AsseVariantiDati {
@@ -569,8 +642,9 @@ export function datiAsseVarianti(
       !stesso(iniziale.vendita, v.vendita) ||
       !stesso(iniziale.acquisto, v.acquisto) ||
       iniziale.attivo !== v.attivo;
+    const elencoCambiato = !iniziale || !stesseVoci(iniziale.opzioni, v.opzioni);
     const daCompletare = completa && (asseIncompleto || v.prodotti < asse.prodotti);
-    if (!cambiato && !daCompletare) continue;
+    if (!cambiato && !elencoCambiato && !daCompletare) continue;
     const vendita = numeroDi(v.vendita) ?? 0;
     const acquisto = numeroDi(v.acquisto) ?? 0;
     dati.push({
@@ -580,6 +654,8 @@ export function datiAsseVarianti(
       acquisto,
       attivo: v.attivo,
       aggiorna: cambiato,
+      opzioni: v.opzioni,
+      aggiornaOpzioni: elencoCambiato,
     });
   }
   if (dati.length === 0 && !allineaBase) return null;

@@ -518,6 +518,8 @@ export async function addSerramento(
       // Snapshot scelte assi (variabili prodotto) della family al momento
       // del preventivo. Mappa { axis_codice -> axis_value_id }. Default {}.
       valori_assi: serramento.valori_assi ?? {},
+      // La voce scelta dentro ogni valore: il colore vero di «Colore Standard».
+      scelte_assi: serramento.scelte_assi ?? {},
       note: serramento.note ?? null,
       // Default FALSE = posa inclusa (comportamento di default per articoli
       // del listino che hanno manodopera configurata). Il commerciale puo'
@@ -589,6 +591,7 @@ export async function addAccessorio(
       // del preventivo anche se il listino cambia in seguito.
       family_id: accessorio.family_id ?? null,
       valori_assi: accessorio.valori_assi ?? null,
+      scelte_assi: accessorio.scelte_assi ?? {},
       modalita_prezzo: accessorio.modalita_prezzo ?? null,
       supplier_catalog_id: accessorio.supplier_catalog_id ?? null,
       supplier_product_line_id: accessorio.supplier_product_line_id ?? null,

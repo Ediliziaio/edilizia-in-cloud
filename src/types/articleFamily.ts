@@ -213,6 +213,12 @@ export interface AxisValue {
    * è usata nel preventivatore/scheda al posto di quella della famiglia.
    */
   immagine_url: string | null;
+  /**
+   * Cosa comprende il valore (migrazione 20280916700000): i colori di «Colore
+   * Standard», i vetri di «Vetro Antisonoro». Nel preventivo se ne sceglie uno,
+   * al prezzo del valore. Vuoto = il valore è già una scelta sola.
+   */
+  opzioni?: string[] | null;
   sort_order: number;
   attivo: boolean;
   created_at: string;

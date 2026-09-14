@@ -76,6 +76,8 @@ export interface VariantiDellaTipologia {
 
 export interface EsitoVariantiTipologia {
   valori: number;
+  /** Valori a cui è cambiato l'elenco di cosa comprendono. */
+  elenchi: number;
   aggiunti: number;
   assi: number;
 }
@@ -154,7 +156,16 @@ export function useOrganizzaListino() {
           base: a.base,
           allinea_base: a.allineaBase,
           completa: a.completa,
-          valori: a.valori,
+          valori: a.valori.map((v) => ({
+            nome: v.nome,
+            tipo: v.tipo,
+            vendita: v.vendita,
+            acquisto: v.acquisto,
+            attivo: v.attivo,
+            aggiorna: v.aggiorna,
+            opzioni: v.opzioni,
+            aggiorna_opzioni: v.aggiornaOpzioni,
+          })),
         })),
       }),
     onSuccess: invalida,

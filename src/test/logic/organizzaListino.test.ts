@@ -4,6 +4,7 @@ import { articoloEsempio, asseEsempio, valoreEsempio } from "@/lib/listino/esemp
 import {
   areeDaAggiungere,
   datiAsseVarianti,
+  formVariantePronta,
   formVarianti,
   leggiImporto,
   leggiPercentuale,
@@ -14,6 +15,7 @@ import {
   prezzoMqPrevalente,
   problemaCopiaTipologia,
   problemaNomeLinea,
+  problemaNuovaVariante,
   problemaPrezziLinee,
   problemaVarianti,
   prodottiSenzaLinee,
@@ -21,6 +23,8 @@ import {
   scriviPercentuale,
   tipologiaDaRiusare,
   tipologiaDiArea,
+  VARIANTI_PRONTE_SERRAMENTI,
+  type AsseVariante,
   type VarianteForm,
 } from "@/lib/listino/organizzaListino";
 
@@ -275,7 +279,18 @@ describe("colori e varianti di una tipologia", () => {
       base: "Bianco",
       allineaBase: false,
       completa: false,
-      valori: [{ nome: "Colore Fuori Standard", tipo: "percentuale", vendita: 15, acquisto: 15, attivo: true, aggiorna: true }],
+      valori: [
+        {
+          nome: "Colore Fuori Standard",
+          tipo: "percentuale",
+          vendita: 15,
+          acquisto: 15,
+          attivo: true,
+          aggiorna: true,
+          opzioni: [],
+          aggiornaOpzioni: false,
+        },
+      ],
     });
 
     // «Metti in tutti» col portoncino senza colore: partono tutti i valori, ma
@@ -304,6 +319,7 @@ describe("colori e varianti di una tipologia", () => {
       attivo: true,
       base: false,
       prodotti: 0,
+      opzioni: [],
     };
     expect(problemaVarianti(colore, iniziali, [...iniziali, nuovo], false)).toContain("Metti i valori mancanti");
     expect(problemaVarianti(colore, iniziali, [...iniziali, nuovo], true)).toBeNull();
@@ -318,5 +334,78 @@ describe("colori e varianti di una tipologia", () => {
     expect(problemaVarianti(colore, iniziali, iniziali.map((v, i) => (i === 0 ? { ...v, vendita: "-100" } : v)), false)).toContain(
       "azzererebbe",
     );
+  });
+
+  it("tiene l'elenco dei colori di ogni fascia, lo manda solo se cambia e dice dove i prodotti non sono d'accordo", () => {
+    const elenco = ["51 Golden Oak", "21 Nussbaum"];
+    const finestra = (id: string, nome: string, voci: string[]) =>
+      articoloEsempio(id, nome, {
+        macrocategoria_id: "m-var",
+        axes: [
+          asseEsempio(`colore-${id}`, "Colore", [
+            valoreEsempio(`${id}-bianco`, "Bianco", { is_default: true }),
+            valoreEsempio(`${id}-std`, "Colore Standard", { opzioni: voci }),
+          ]),
+        ],
+      });
+    const trovata = costruisciListino(
+      [finestra("e1", "Finestra 1 Anta", elenco), finestra("e2", "Finestra 2 Ante", elenco), finestra("e3", "Alzante", [])],
+      MACRO_VARIANTI,
+      [],
+    )
+      .flatMap((a) => a.tipologie)
+      .find((t) => t.macrocategoriaId === "m-var");
+    if (!trovata) throw new Error("tipologia di prova mancante");
+
+    const [colore] = riepilogoVarianti(trovata).assi;
+    const standard = colore.valori.find((v) => v.chiave === "colore_standard");
+    expect(standard?.opzioni).toEqual(elenco);
+    expect(standard?.opzioniDiverse).toBe(1);
+
+    const iniziali = formVarianti(colore);
+    expect(datiAsseVarianti(colore, iniziali, iniziali, false, 3)).toBeNull();
+    const conMooreiche = iniziali.map((v) =>
+      v.chiave === "colore_standard" ? { ...v, opzioni: [...v.opzioni, "25 Mooreiche"] } : v,
+    );
+    // Cambia solo l'elenco: le maggiorazioni dei prodotti non si riscrivono.
+    expect(datiAsseVarianti(colore, iniziali, conMooreiche, false, 3)?.valori).toEqual([
+      {
+        nome: "Colore Standard",
+        tipo: "none",
+        vendita: 0,
+        acquisto: 0,
+        attivo: true,
+        aggiorna: false,
+        opzioni: [...elenco, "25 Mooreiche"],
+        aggiornaOpzioni: true,
+      },
+    ]);
+    const troppoLunga = iniziali.map((v) => (v.chiave === "colore_standard" ? { ...v, opzioni: ["x".repeat(121)] } : v));
+    expect(problemaVarianti(colore, iniziali, troppoLunga, false)).toContain("più lunga");
+  });
+
+  it("aggiunge a tutti i prodotti una variante che non hanno, anche da un modello pronto", () => {
+    const { assi } = riepilogoVarianti(serramenti());
+    expect(problemaNuovaVariante("colore", assi)).toBe("C'è già la variante «Colore».");
+    expect(problemaNuovaVariante("Linea", assi)).toContain("+ Linea");
+    expect(problemaNuovaVariante("  ", assi)).toContain("Scrivi il nome");
+    expect(problemaNuovaVariante("Maniglia", assi)).toBeNull();
+
+    const maniglia = VARIANTI_PRONTE_SERRAMENTI.find((p) => p.chiave === "maniglia") ?? null;
+    const nuova: AsseVariante = { chiave: "maniglia", nome: "Maniglia", prodotti: 0, obbligatorio: false, baseDiversaIn: 0, valori: [] };
+    const righe = formVariantePronta(maniglia);
+    expect(problemaVarianti(nuova, [], righe, true)).toBeNull();
+    expect(datiAsseVarianti(nuova, [], righe, true, 4)).toMatchObject({
+      chiave: "maniglia",
+      base: "Standard",
+      allineaBase: true,
+      completa: true,
+      valori: [
+        { nome: "Standard", aggiorna: true },
+        { nome: "Con chiave", aggiorna: true },
+      ],
+    });
+    // Senza modello pronto si parte da una riga da scrivere.
+    expect(problemaVarianti(nuova, [], formVariantePronta(null), true)).toContain("nome del valore nuovo");
   });
 });
