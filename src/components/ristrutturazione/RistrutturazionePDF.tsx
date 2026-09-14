@@ -22,6 +22,8 @@
  */
 import * as React from "react";
 import { ChiusuraVendita } from "@/components/preventivi/ChiusuraVenditaPdf";
+import { testoSopra } from "@/lib/pdf/contrastoColori";
+import { testoValiditaCondizioni } from "@/lib/preventivi/validitaOfferta";
 import {
   Document, Page, Text, View, StyleSheet, Image, Svg, Rect, Path, Circle, G, Defs,
   LinearGradient, RadialGradient, Stop, Font,
@@ -178,6 +180,10 @@ function makePalette(t: RstTemplatePdf) {
     primaryBorder: hexToTint(primary, 0.6),
     secondaryLight: hexToTint(secondary, 0.88),
     white: "#FFFFFF",
+    // Testo sopra i riquadri pieni del colore aziendale: bianco se si legge,
+    // scuro sui colori chiari (lime, giallo). Come nel PDF dei serramenti.
+    suPrimario: testoSopra(primary),
+    suSecondario: testoSopra(secondary),
     coverBg: "#0F1B2A",
     gray50: "#F8FAFC",
     gray100: "#F1F5F9",
@@ -289,8 +295,8 @@ function makeStyles(C: Palette) {
       borderRadius: 10,
       padding: 14,
     },
-    coverTotalLabel: { fontSize: 8, color: C.white, textTransform: "uppercase" as const, letterSpacing: 0.5 },
-    coverTotalValue: { fontSize: 24, fontWeight: 700, color: C.white, marginTop: 2 },
+    coverTotalLabel: { fontSize: 8, color: C.suSecondario, textTransform: "uppercase" as const, letterSpacing: 0.5 },
+    coverTotalValue: { fontSize: 24, fontWeight: 700, color: C.suSecondario, marginTop: 2 },
     // Bullet list (esigenze/soluzione/usp)
     bullet: { flexDirection: "row", marginBottom: 7 },
     bulletDot: {
@@ -325,8 +331,8 @@ function makeStyles(C: Palette) {
       marginTop: 10,
       marginBottom: 0,
     },
-    capHeaderTitle: { fontSize: 10, fontWeight: 700, color: C.white },
-    capHeaderSub: { fontSize: 8.5, fontWeight: 700, color: C.white },
+    capHeaderTitle: { fontSize: 10, fontWeight: 700, color: C.suPrimario },
+    capHeaderSub: { fontSize: 8.5, fontWeight: 700, color: C.suPrimario },
     tableHead: {
       flexDirection: "row",
       backgroundColor: C.gray100,
@@ -376,8 +382,8 @@ function makeStyles(C: Palette) {
       paddingHorizontal: 12,
       backgroundColor: C.primary,
     },
-    totalsGrandLabel: { fontSize: 11, fontWeight: 700, color: C.white },
-    totalsGrandValue: { fontSize: 14, fontWeight: 700, color: C.white },
+    totalsGrandLabel: { fontSize: 11, fontWeight: 700, color: C.suPrimario },
+    totalsGrandValue: { fontSize: 14, fontWeight: 700, color: C.suPrimario },
     detrazioneNote: {
       marginTop: 8,
       backgroundColor: hexToTint(C.accent, 0.85),
@@ -418,7 +424,7 @@ function makeStyles(C: Palette) {
       alignItems: "center", justifyContent: "center",
       marginRight: 10,
     },
-    cronoStepText: { fontSize: 9, fontWeight: 700, color: C.white },
+    cronoStepText: { fontSize: 9, fontWeight: 700, color: C.suPrimario },
     cronoFase: { fontSize: 10, fontWeight: 700, color: C.gray900 },
     cronoDurata: { fontSize: 8, color: C.secondary, fontWeight: 700 },
     cronoDesc: { fontSize: 8.5, color: C.gray700, marginTop: 1, lineHeight: 1.35 },
@@ -1171,7 +1177,7 @@ export function RistrutturazionePDF(props: RstPdfEnriched) {
           <View style={styles.condBlock}>
             <Text style={styles.condTitle}>Validità dell'offerta</Text>
             <Text style={styles.condText}>
-              {(t.validity_text ?? "").trim() || "Preventivo valido 30 giorni dalla data di emissione, salvo diversa indicazione scritta."}
+              {testoValiditaCondizioni(t.validity_text, t.default_validita_giorni)}
             </Text>
           </View>
         </View>
@@ -1226,7 +1232,13 @@ export function RistrutturazionePDF(props: RstPdfEnriched) {
             </View>
           ) : null}
         </View>
-        <ChiusuraVendita c={C} companyName={companyName} validityText={t.validity_text} />
+        {/* Le garanzie dell'azienda sono già in «Garanzie & FAQ» qui sopra: la chiusura non le ripete. */}
+        <ChiusuraVendita
+          c={C}
+          companyName={companyName}
+          validityText={t.validity_text}
+          validitaGiorni={t.default_validita_giorni}
+        />
         {footer}
       </Page>
       {/* ─── CONDIZIONI CONTRATTUALI E TERMINI LEGALI (pagina dedicata, come negli altri moduli) ─── */}

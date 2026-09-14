@@ -3,20 +3,23 @@
  * @react-pdf dei moduli edili (tetti, climatizzazione, pavimenti, piscine,
  * ristrutturazione, termoidraulico, bagni, elettrico).
  *
- * Colma le 3 leve di chiusura che mancavano (audit vendita Belfort/Abraham):
- *   1. Garanzia / risk-reversal — rassicurazione forte, sempre presente.
- *   2. Urgenza onesta           — validità reale dell'offerta + blocco condizioni.
- *   3. CTA + firma              — un solo prossimo passo + riga firma per accettazione.
+ * Le leve di chiusura (audit vendita Belfort/Abraham):
+ *   1. Garanzia    — solo le garanzie dell'azienda passate dal modulo; senza,
+ *                    il riquadro non compare.
+ *   2. Validità    — il testo o i giorni di validità del template.
+ *   3. CTA + firma — un solo prossimo passo + riga firma per accettazione.
  *
- * Default ONESTI: nessuna promessa inventata (niente "soddisfatti o rimborsati"),
- * solo baseline veri (regola d'arte, tempi concordati, garanzie di legge). Ogni
- * azienda potrà poi personalizzare i testi dal template.
+ * Niente promesse a nome dell'azienda: le frasi fisse su materiali e tempi, sul
+ * blocco delle condizioni e sul sopralluogo dopo la firma finivano in ogni PDF,
+ * anche dove non erano vere.
  *
  * Self-contained: riceve i colori come prop e costruisce i propri stili, così
  * non dipende dalla StyleSheet del singolo modulo.
  */
 import * as React from "react";
 import { View, Text, StyleSheet } from "@react-pdf/renderer";
+import { testoSopra } from "@/lib/pdf/contrastoColori";
+import { fraseValiditaChiusura } from "@/lib/preventivi/validitaOfferta";
 
 export interface ChiusuraVenditaColors {
   primary: string;
@@ -28,8 +31,12 @@ export interface ChiusuraVenditaColors {
 interface ChiusuraVenditaProps {
   c: ChiusuraVenditaColors;
   companyName: string;
-  /** t.validity_text del template; fallback onesto se vuoto. */
+  /** t.validity_text del template: se c'è, vince sui giorni. */
   validityText?: string | null;
+  /** t.default_validita_giorni del template. */
+  validitaGiorni?: number | null;
+  /** Garanzie scritte dall'azienda. Nessuna garanzia = nessun riquadro. */
+  garanzie?: readonly string[] | null;
   /** Override opzionale del titolo della CTA finale. */
   ctaTitolo?: string | null;
 }
@@ -44,7 +51,15 @@ function hexTint(hex: string, alpha: number): string {
   return `#${[mix(r), mix(g), mix(b)].map((x) => x.toString(16).padStart(2, "0")).join("")}`;
 }
 
-export function ChiusuraVendita({ c, companyName, validityText, ctaTitolo }: ChiusuraVenditaProps) {
+/** I passi dopo il preventivo che valgono per ogni azienda. */
+const PROSSIMI_PASSI = [
+  { n: "1", t: "Conferma", d: "Firma questo preventivo o rispondici anche solo via messaggio." },
+  { n: "2", t: "Partenza lavori", d: "Concordiamo la data di inizio e il cronoprogramma definitivo." },
+] as const;
+
+export function ChiusuraVendita({
+  c, companyName, validityText, validitaGiorni, garanzie, ctaTitolo,
+}: ChiusuraVenditaProps) {
   const accent = c.accent || c.primary;
   const s = StyleSheet.create({
     wrap: { marginTop: 16 },
@@ -106,58 +121,40 @@ export function ChiusuraVendita({ c, companyName, validityText, ctaTitolo }: Chi
       alignItems: "center" as const, justifyContent: "center" as const,
       marginBottom: 4,
     },
-    stepBadgeText: { fontSize: 8.5, fontWeight: 700 as const, color: c.white },
+    // Il numero sta sul colore aziendale: bianco, o scuro se il colore è chiaro.
+    stepBadgeText: { fontSize: 8.5, fontWeight: 700 as const, color: testoSopra(c.primary) },
     stepTitle: { fontSize: 9.5, fontWeight: 700 as const, color: c.primary, marginBottom: 2 },
     stepText: { fontSize: 8, color: hexTint(c.text, 0.15), lineHeight: 1.35 },
   });
 
-  // validityText è testo LIBERO dell'editor (spesso una frase completa tipo
-  // "Offerta valida 30 giorni dalla data di emissione"): incollarlo dentro
-  // "è valido …" produceva doppioni sgrammaticati ("è valido Offerta valida
-  // 30 giorni…"). Se il testo è già una frase (inizia con Offerta/Valid/Prevent
-  // o contiene "valid"), lo usiamo da solo; altrimenti componiamo come prima.
-  const validitaRaw = (validityText ?? "").trim();
-  const validitaFrase = validitaRaw
-    ? (/^(offerta|valid|prevent|quest)/i.test(validitaRaw) || /valid/i.test(validitaRaw)
-        ? validitaRaw.replace(/\.+$/, "") + "."
-        : `Questo preventivo è valido ${validitaRaw.replace(/\.+$/, "")}.`)
-    : "Questo preventivo è valido 30 giorni dalla data di emissione.";
-  const garanzie = [
-    "Lavori eseguiti a regola d'arte, con materiali conformi e certificati.",
-    "Rispetto dei tempi e del preventivo concordati, senza sorprese.",
-    "Assistenza dopo l'intervento e garanzie previste dalla legge.",
-  ];
+  const validitaFrase = fraseValiditaChiusura(validityText, validitaGiorni);
+  const garanzieAzienda = (garanzie ?? []).map((g) => g.trim()).filter(Boolean);
 
   return (
     <View style={s.wrap}>
-      <View style={s.garBox} wrap={false}>
-        <Text style={s.garTitle}>La nostra garanzia</Text>
-        {garanzie.map((g, i) => (
-          <View key={i} style={s.garItem}>
-            <Text style={s.garDot}>•</Text>
-            <Text style={s.garText}>{g}</Text>
-          </View>
-        ))}
-      </View>
+      {garanzieAzienda.length > 0 && (
+        <View style={s.garBox} wrap={false}>
+          <Text style={s.garTitle}>La nostra garanzia</Text>
+          {garanzieAzienda.map((g, i) => (
+            <View key={i} style={s.garItem}>
+              <Text style={s.garDot}>•</Text>
+              <Text style={s.garText}>{g}</Text>
+            </View>
+          ))}
+        </View>
+      )}
 
       <View style={s.urgBox} wrap={false}>
         <Text style={s.urgTitle}>Perché decidere ora</Text>
-        <Text style={s.urgText}>
-          {validitaFrase} I prezzi dei materiali e gli incentivi
-          fiscali possono variare nel tempo: confermando ora blocchi le condizioni di oggi.
-        </Text>
+        <Text style={s.urgText}>{validitaFrase}</Text>
       </View>
 
       {/* I prossimi passi: la pagina di chiusura restava vuota all'80% e la
-          firma "sospesa" — la strip a 3 step dà orientamento e riempie con
-          contenuto utile, non decorativo. */}
+          firma "sospesa" — la strip dà orientamento. Solo i passi veri per ogni
+          azienda: un sopralluogo dopo la firma c'è chi l'ha già fatto e chi no. */}
       <View style={s.stepsRow} wrap={false}>
-        {[
-          { n: "1", t: "Conferma", d: "Firma questo preventivo o rispondici anche solo via messaggio." },
-          { n: "2", t: "Sopralluogo", d: "Fissiamo il rilievo tecnico e definiamo insieme i dettagli." },
-          { n: "3", t: "Partenza lavori", d: "Concordiamo la data di inizio e il cronoprogramma definitivo." },
-        ].map((step, i) => (
-          <View key={i} style={[s.stepCol, i === 2 ? { marginRight: 0 } : {}]}>
+        {PROSSIMI_PASSI.map((step, i) => (
+          <View key={step.n} style={[s.stepCol, i === PROSSIMI_PASSI.length - 1 ? { marginRight: 0 } : {}]}>
             <View style={s.stepBadge}>
               <Text style={s.stepBadgeText}>{step.n}</Text>
             </View>
@@ -170,8 +167,8 @@ export function ChiusuraVendita({ c, companyName, validityText, ctaTitolo }: Chi
       <View style={s.ctaBox} wrap={false}>
         <Text style={s.ctaTitle}>{(ctaTitolo ?? "").trim() || "Pronti a partire?"}</Text>
         <Text style={s.ctaText}>
-          Il prossimo passo è semplice: confermaci questo preventivo e fissiamo insieme il
-          sopralluogo tecnico. Per qualsiasi dubbio, {companyName} è a tua disposizione.
+          Il prossimo passo è semplice: confermaci questo preventivo e concordiamo insieme
+          la data di inizio. Per qualsiasi dubbio, {companyName} è a tua disposizione.
         </Text>
         <View style={s.signRow}>
           <View style={s.signCol}>
