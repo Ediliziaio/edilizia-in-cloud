@@ -115,6 +115,8 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   // Contact fields
+  const [contactFirstName, setContactFirstName] = useState("");
+  const [contactLastName, setContactLastName] = useState("");
   const [contactEmail, setContactEmail] = useState("");
   const [contactPhone, setContactPhone] = useState("");
   // Popup invio rapido SMS/WhatsApp/Email al contatto (senza navigare via).
@@ -239,6 +241,8 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
   useEffect(() => {
     if (opportunity) {
       const contact = opportunity.marketing_contacts;
+      setContactFirstName(contact?.first_name || "");
+      setContactLastName(contact?.last_name || "");
       setContactEmail(contact?.email || "");
       setContactPhone(contact?.phone || "");
       setContactCity(contact?.city || "");
@@ -337,6 +341,10 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
       toast.error("Inserisci il nome dell'opportunità");
       return;
     }
+    if (contact && !pendingContactId && !showNewContactForm && !contactFirstName.trim()) {
+      toast.error("Il nome del contatto non può restare vuoto");
+      return;
+    }
     if (!stageId) {
       toast.error("Seleziona una fase");
       return;
@@ -372,6 +380,8 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
 
     // 2. Update contact base fields if changed (only if not changing contact)
     if (!pendingContactId && !showNewContactForm && contact && (
+      contactFirstName.trim() !== (contact.first_name || "") ||
+      contactLastName.trim() !== (contact.last_name || "") ||
       contactEmail !== (contact.email || "") ||
       contactPhone !== (contact.phone || "") ||
       contactCity !== (contact.city || "") ||
@@ -381,6 +391,8 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
     )) {
       updateContact.mutate({
         id: contact.id,
+        first_name: contactFirstName.trim(),
+        last_name: contactLastName.trim() || null,
         email: contactEmail.trim().toLowerCase() || null,
         phone: contactPhone.trim() ? cleanPhone(contactPhone) : null,
         city: contactCity || null,
@@ -481,6 +493,8 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
 
   const handleSelectExistingContact = (c: any) => {
     setPendingContactId(c.id);
+    setContactFirstName(c.first_name || "");
+    setContactLastName(c.last_name || "");
     setContactEmail(c.email || "");
     setContactPhone(c.phone || "");
     setContactCity(c.city || "");
@@ -804,6 +818,19 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                           <div className="grid grid-cols-2 gap-2">
                             <Input placeholder="Email" value={newContactEmail} onChange={(e) => setNewContactEmail(e.target.value)} className="h-10 sm:h-8 text-sm" type="email" />
                             <Input placeholder="Telefono" value={newContactPhone} onChange={(e) => setNewContactPhone(e.target.value)} className="h-10 sm:h-8 text-sm" type="tel" />
+                          </div>
+                        </div>
+                      )}
+
+                      {contact && !pendingContactId && !showNewContactForm && (
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="space-y-1">
+                            <Label className="text-xs text-muted-foreground">Nome</Label>
+                            <Input value={contactFirstName} onChange={(e) => setContactFirstName(e.target.value)} disabled={!canEditOpportunity} className="h-10 sm:h-8 text-sm" />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs text-muted-foreground">Cognome</Label>
+                            <Input value={contactLastName} onChange={(e) => setContactLastName(e.target.value)} disabled={!canEditOpportunity} className="h-10 sm:h-8 text-sm" />
                           </div>
                         </div>
                       )}
