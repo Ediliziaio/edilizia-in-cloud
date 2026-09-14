@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getMetaCredentials } from "../_shared/getMetaCredentials.ts";
 import { encrypt, getEncryptionKey } from "../_shared/encryption.ts";
 import { timingSafeEqual } from "../_shared/webhookSecurity.ts";
+import { estraiPermessiConcessi } from "../_shared/metaPermessi.ts";
 
 const STATE_MAX_AGE_MS = 10 * 60 * 1000; // 10 minutes
 
@@ -118,6 +119,17 @@ Deno.serve(async (req) => {
       const meRes = await fetch(`https://graph.facebook.com/v21.0/me?access_token=${accessToken}`);
       const meData = await meRes.json();
 
+      // Permessi davvero concessi: lo scambio del codice non li restituisce
+      // (tokenData.scope era vuoto su tutte le credenziali), quindi nessuno
+      // sapeva se un'azienda aveva autorizzato post, messaggi o inserzioni.
+      let permessiConcessi: string[] = [];
+      try {
+        const permRes = await fetch(`https://graph.facebook.com/v21.0/me/permissions?access_token=${accessToken}`);
+        permessiConcessi = estraiPermessiConcessi(await permRes.json());
+      } catch (e) {
+        console.warn("Meta /me/permissions non leggibile:", e);
+      }
+
       // STEP 1: Upsert integration in stato "pending" — non "connected" finché
       // le credenziali non sono salvate. Previene race dove UI mostra
       // "connected" ma token non è ancora presente in DB.
@@ -165,7 +177,7 @@ Deno.serve(async (req) => {
           access_token_encrypted: tokenEncrypted,
           token_type: "bearer",
           expires_at: expiresAt,
-          granted_scopes: tokenData.scope ? tokenData.scope.split(",") : [],
+          granted_scopes: permessiConcessi.length > 0 ? permessiConcessi : (tokenData.scope ? tokenData.scope.split(",") : []),
           meta_user_id: meData.id || null,
           meta_user_name: meData.name || null,
         });

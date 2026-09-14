@@ -117,7 +117,7 @@ describe("collegamenti", () => {
   });
 
   it("i permessi dei messaggi si chiedono solo con l'interruttore acceso", () => {
-    expect(leggi("supabase/functions/meta-oauth-start/index.ts")).toMatch(/chiediPermessiMessaggi\(await modalitaMessaggiSocial\(\w+\), isSuperAdmin\) \? PERMESSI_MESSAGGI : \[\]/);
+    expect(leggi("supabase/functions/meta-oauth-start/index.ts")).toMatch(/scopeRichiesti\(await modalitaPermessiMeta\(\w+\), isSuperAdmin\)/);
   });
 
   it("le chiamate di prova per la App Review coprono i tre permessi dei messaggi", () => {

@@ -95,10 +95,32 @@ export function leggiModalita(valore: unknown): ModalitaMessaggiSocial {
   return "spento";
 }
 
+/**
+ * Modalità dei messaggi: prima platform_settings.meta_permessi_modalita
+ * (JSON per gruppo, chiave "messaggi", vedi metaPermessi.ts), poi la vecchia
+ * meta_messaggi_attivi. Letta qui senza importare metaPermessi (che importa
+ * questo file).
+ */
+export function modalitaMessaggiDaImpostazioni(valoreJson: unknown, valoreVecchio: unknown): ModalitaMessaggiSocial {
+  let messaggi: unknown = undefined;
+  try {
+    const o = typeof valoreJson === "string" ? JSON.parse(valoreJson) : valoreJson;
+    if (o && typeof o === "object" && !Array.isArray(o)) messaggi = (o as Record<string, unknown>).messaggi;
+  } catch {
+    messaggi = undefined;
+  }
+  return leggiModalita(messaggi ?? valoreVecchio);
+}
+
 export async function modalitaMessaggiSocial(admin: any): Promise<ModalitaMessaggiSocial> {
   try {
-    const { data } = await admin.from("platform_settings").select("value").eq("key", CHIAVE_ATTIVAZIONE).maybeSingle();
-    return leggiModalita(data?.value);
+    const { data } = await admin.from("platform_settings").select("key, value")
+      .in("key", ["meta_permessi_modalita", CHIAVE_ATTIVAZIONE]);
+    const righe = (data ?? []) as { key: string; value: unknown }[];
+    return modalitaMessaggiDaImpostazioni(
+      righe.find((r) => r.key === "meta_permessi_modalita")?.value,
+      righe.find((r) => r.key === CHIAVE_ATTIVAZIONE)?.value,
+    );
   } catch {
     return "spento";
   }

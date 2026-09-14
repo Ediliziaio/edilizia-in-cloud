@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getMetaCredentials } from "../_shared/getMetaCredentials.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
-import { chiediPermessiMessaggi, modalitaMessaggiSocial, PERMESSI_MESSAGGI } from "../_shared/socialMessaggiMeta.ts";
+import { modalitaPermessiMeta, scopeRichiesti } from "../_shared/metaPermessi.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -90,22 +90,10 @@ Deno.serve(async (req) => {
     // State = base64payload.hmac
     const signedState = `${stateB64}.${hmac}`;
 
-    const scopes = [
-      "pages_show_list",
-      "pages_read_engagement",
-      // Senza pages_manage_metadata l'iscrizione della pagina al webhook
-      // leadgen (POST /{page}/subscribed_apps) NON è effettiva: Meta risponde
-      // success ma non consegna gli eventi → lead solo via backfill manuale.
-      "pages_manage_metadata",
-      "leads_retrieval",
-      "pages_manage_ads",
-      "ads_read",
-      "business_management",
-      // Messaggi di Instagram e Messenger (platform_settings.meta_messaggi_attivi):
-      // per tutti solo dopo l'approvazione di Meta; in "revisione" solo il super
-      // admin, che ha il ruolo sull'app e può concederli per le prove.
-      ...(chiediPermessiMessaggi(await modalitaMessaggiSocial(adminClient), isSuperAdmin) ? PERMESSI_MESSAGGI : []),
-    ].join(",");
+    // Gruppi di permessi accesi in platform_settings.meta_permessi_modalita:
+    // un permesso non ancora aggiunto all'app su Meta farebbe fallire il
+    // collegamento per tutti (vedi _shared/metaPermessi.ts).
+    const scopes = scopeRichiesti(await modalitaPermessiMeta(adminClient), isSuperAdmin).join(",");
 
     const oauthUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${metaAppId}&redirect_uri=${encodeURIComponent(callbackUrl)}&state=${encodeURIComponent(signedState)}&scope=${encodeURIComponent(scopes)}&response_type=code`;
 
