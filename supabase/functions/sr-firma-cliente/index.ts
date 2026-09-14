@@ -14,7 +14,10 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const PUBLIC_CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type",
+  // Le intestazioni che manda supabase.functions.invoke (come in _shared/headers.ts):
+  // col solo Content-Type il browser bloccava la richiesta, e il link del
+  // cliente non si apriva mai né si poteva firmare.
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 interface Payload {
