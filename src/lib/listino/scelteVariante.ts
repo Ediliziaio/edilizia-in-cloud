@@ -106,14 +106,15 @@ export function scelteDopo(
 }
 
 /**
- * Come si legge la scelta: «Grigio antracite RAL 7016 (Colore Standard)». Se
- * la voce dice già il valore («Bianco RAL 9010» dentro «Bianco»), basta la voce.
+ * Come si legge la scelta: «21 - Nussbaum (noce) · Colore Standard». Il punto e
+ * non la parentesi, perché le voci ne hanno già una. Se la voce dice già il
+ * valore («Bianco RAL 9010» dentro «Bianco»), basta la voce.
  */
 export function testoScelta(nomeValore: string, scelta: string | null | undefined): string {
   const voce = (scelta ?? "").trim();
   if (!voce) return nomeValore;
   const valore = chiave(nomeValore);
-  return !valore || ` ${chiave(voce)} `.includes(` ${valore} `) ? voce : `${voce} (${nomeValore})`;
+  return !valore || ` ${chiave(voce)} `.includes(` ${valore} `) ? voce : `${voce} · ${nomeValore}`;
 }
 
 // ─── Nel listino ────────────────────────────────────────────────────────────
@@ -182,11 +183,23 @@ export function suggerimentiVoci(asse: Asse): string[] {
   return [];
 }
 
-/** Le voci scritte nei valori di una variante «colore», per suggerire colore interno ed esterno. */
-export function coloriDelListino(assi: ReadonlyArray<Asse & { values: ReadonlyArray<{ attivo: boolean; opzioni?: unknown }> }>): string[] {
+/**
+ * I colori di una variante «colore», per suggerire colore interno ed esterno:
+ * le voci delle fasce e i valori che sono già un colore («Bianco»).
+ */
+export function coloriDelListino(
+  assi: ReadonlyArray<Asse & { values: ReadonlyArray<{ attivo: boolean; opzioni?: unknown; label?: string | null }> }>,
+): string[] {
   return pulisciVoci(
     assi
       .filter((a) => eColore(chiave(`${a.codice ?? ""} ${a.nome}`.replace(/_/g, " "))))
-      .flatMap((a) => a.values.filter((v) => v.attivo).flatMap((v) => vociDi(v))),
+      .flatMap((a) =>
+        a.values
+          .filter((v) => v.attivo)
+          .flatMap((v) => {
+            const voci = vociDi(v);
+            return voci.length > 0 ? voci : v.label ? [v.label] : [];
+          }),
+      ),
   );
 }

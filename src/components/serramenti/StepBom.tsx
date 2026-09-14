@@ -55,6 +55,7 @@ import { lineaDellaRiga, schedaVuota, trovaSchedaLinea } from "@/lib/listino/sch
 import { SchedaLineaCompatta } from "./SchedaLineaCompatta";
 import { SceltaVariante } from "./SceltaVariante";
 import { coloriDelListino, pulisciVoci, scelteDopo, testoScelta, vociDi } from "@/lib/listino/scelteVariante";
+import { schedaPosizione, scelteDaAssi } from "@/lib/serramenti/schedaPosizione";
 
 interface Props {
   progettoId: string;
@@ -703,7 +704,7 @@ function BulkAssiActions({
     const usate = new Set(serramenti.map((s) => s.family_id).filter(Boolean) as string[]);
     return coloriDelListino(famiglie.filter((f) => usate.has(f.id)).flatMap((f) => f.axes));
   }, [serramenti, famiglie]);
-  // Cosa si è scelto in ogni tendina, per scriverlo chiuso («Grigio antracite (Colore Standard)»).
+  // Cosa si è scelto in ogni tendina, per scriverlo chiuso («Grigio antracite · Colore Standard»).
   const [sceltiGruppo, setSceltiGruppo] = useState<Record<string, string>>({});
 
   const righeColorabili = serramenti.filter((s) => s.tipologia !== "a_corpo").length;
@@ -898,6 +899,11 @@ function SerramentoRow({
   const datiInArrivo = !!family && (grigliaInCaricamento || assiInCaricamento);
   // I colori scritti nelle fasce del listino, suggeriti per colore interno ed esterno.
   const coloriSuggeriti = useMemo(() => coloriDelListino(familyWithAxes?.axes ?? []), [familyWithAxes]);
+  // I colori che il PDF scrive se i campi restano vuoti: quelli della variante Colore.
+  const coloriDaVariante = useMemo(
+    () => schedaPosizione(scelteDaAssi(familyWithAxes?.axes ?? [], s.valori_assi, s.scelte_assi)),
+    [familyWithAxes, s.valori_assi, s.scelte_assi],
+  );
   const ricalcoloInSospeso = useRef<{
     L: number | null;
     H: number | null;
@@ -1659,10 +1665,10 @@ function SerramentoRow({
             </div>
           )}
 
-          {/* Colore interno/esterno: il colore vero (RAL, effetto legno), anche
-              nelle righe da listino. Lì la variante «Colore» dice solo la fascia
-              di prezzo (standard, fuori standard): senza questi campi né la riga
-              né il PDF dicevano quale colore ordinare. */}
+          {/* Colore interno/esterno: vuoti, il PDF scrive quelli della variante
+              «Colore» (lo stesso sui due lati, o bianco dentro con la pellicola su
+              un lato) e il segnaposto li mostra. Si scrivono solo quando sono
+              diversi, per esempio una finestra bicolore o una riga fuori listino. */}
           <div className="col-span-12 sm:col-span-6 md:col-span-4">
             <Label className="text-xs">Colore interno</Label>
             <Input
@@ -1673,7 +1679,7 @@ function SerramentoRow({
                 if (valore !== (s.colore_interno ?? null)) onPatch({ colore_interno: valore });
               }}
               list={coloriSuggeriti.length > 0 ? `colori-${s.id}` : undefined}
-              placeholder="Bianco RAL 9010"
+              placeholder={coloriDaVariante.coloreInterno ?? "Bianco RAL 9010"}
               className="h-9 text-xs"
             />
           </div>
@@ -1687,7 +1693,7 @@ function SerramentoRow({
                 if (valore !== (s.colore_esterno ?? null)) onPatch({ colore_esterno: valore });
               }}
               list={coloriSuggeriti.length > 0 ? `colori-${s.id}` : undefined}
-              placeholder="Antracite RAL 7016"
+              placeholder={coloriDaVariante.coloreEsterno ?? "Antracite RAL 7016"}
               className="h-9 text-xs"
             />
             {coloriSuggeriti.length > 0 && (

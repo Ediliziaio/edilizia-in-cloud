@@ -124,7 +124,10 @@ export interface SerramentoPdfEnriched {
    *  { axisLabel: "Profilo", valueLabel: "Square" }. Permette al PDF di
    *  stampare le SCELTE effettive del commerciale (snapshot valori_assi)
    *  invece dei default scheda tecnica della family. */
-  axisLabelByKey: Record<string, { axisLabel: string; valueLabel: string }>;
+  axisLabelByKey: Record<
+    string,
+    { axisLabel: string; valueLabel: string; valueDescrizione?: string | null; axisDefaultLabel?: string | null; valueConElenco?: boolean }
+  >;
   /** Lookup linea fornitore: due righe stessa family/misura ma linea diversa
    *  restano distinguibili anche nel PDF cliente. */
   supplierLineById: Record<string, SerramentoPdfSupplierLine>;
@@ -431,33 +434,34 @@ async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEn
     ...familyIds,
     ...detail.accessori.map((a) => a.family_id).filter((v): v is string => !!v),
   ]));
-  const axisLabelByKey: Record<string, { axisLabel: string; valueLabel: string }> = {};
+  // Anche la descrizione del valore (è un dato tecnico: «Uw ≤ 1,3» sul doppio
+  // vetro) e il valore di serie dell'asse (l'interno bianco della pellicola su
+  // un lato): il PDF li usa per scrivere la posizione come la descrive il titolare.
+  const axisLabelByKey: Record<
+    string,
+    { axisLabel: string; valueLabel: string; valueDescrizione?: string | null; axisDefaultLabel?: string | null; valueConElenco?: boolean }
+  > = {};
   if (famiglieConVarianti.length > 0) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: axisRows } = await (supabase as any)
       .from("article_family_axes")
-      .select("id, family_id, codice, nome, values:article_family_axis_values(id, valore, label)")
+      .select("id, family_id, codice, nome, values:article_family_axis_values(id, valore, label, descrizione, is_default, opzioni)")
       .in("family_id", famiglieConVarianti);
-    // Struttura: { family_id -> { axis_codice -> { axisLabel, values: {value_id -> valueLabel} } } }
-    const byFamily: Record<string, Record<string, { axisLabel: string; values: Record<string, string> }>> = {};
+    // Lookup: key = "family_id|axis_codice|value_id"
     ((axisRows ?? []) as Array<{
       family_id: string; codice: string; nome: string;
-      values: Array<{ id: string; valore: string; label: string }>;
+      values: Array<{ id: string; valore: string; label: string; descrizione: string | null; is_default: boolean | null; opzioni: unknown }>;
     }>).forEach((a) => {
-      if (!byFamily[a.family_id]) byFamily[a.family_id] = {};
-      const valuesMap: Record<string, string> = {};
-      (a.values ?? []).forEach((v) => { valuesMap[v.id] = v.label || v.valore; });
-      byFamily[a.family_id][a.codice] = { axisLabel: a.nome, values: valuesMap };
-    });
-    // Flatten lookup: key = "family_id|axis_codice|value_id"
-    Object.entries(byFamily).forEach(([fid, axes]) => {
-      Object.entries(axes).forEach(([codice, info]) => {
-        Object.entries(info.values).forEach(([valueId, valueLabel]) => {
-          axisLabelByKey[`${fid}|${codice}|${valueId}`] = {
-            axisLabel: info.axisLabel,
-            valueLabel,
-          };
-        });
+      const diSerie = (a.values ?? []).find((v) => v.is_default);
+      (a.values ?? []).forEach((v) => {
+        axisLabelByKey[`${a.family_id}|${a.codice}|${v.id}`] = {
+          axisLabel: a.nome,
+          valueLabel: v.label || v.valore,
+          valueDescrizione: v.descrizione ?? null,
+          axisDefaultLabel: diSerie ? diSerie.label || diSerie.valore : null,
+          // Una fascia con l'elenco dei colori: senza colore scelto, il PDF scrive «da scegliere».
+          valueConElenco: Array.isArray(v.opzioni) && v.opzioni.some((o) => typeof o === "string" && o.trim() !== ""),
+        };
       });
     });
   }

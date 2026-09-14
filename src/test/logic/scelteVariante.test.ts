@@ -58,7 +58,9 @@ describe("la scelta nel preventivo", () => {
   });
 
   it("scrive la scelta come la legge il cliente", () => {
-    expect(testoScelta("Colore Standard", "51 Golden Oak")).toBe("51 Golden Oak (Colore Standard)");
+    expect(testoScelta("Colore Standard", "51 Golden Oak")).toBe("51 Golden Oak · Colore Standard");
+    // Le voci hanno già il nome italiano tra parentesi: niente parentesi dentro parentesi.
+    expect(testoScelta("Colore Standard", "21 - Nussbaum (noce)")).toBe("21 - Nussbaum (noce) · Colore Standard");
     expect(testoScelta("Bianco", "Bianco RAL 9010")).toBe("Bianco RAL 9010");
     expect(testoScelta("Colore Standard", null)).toBe("Colore Standard");
     expect(testoScelta("Colore Standard", "  ")).toBe("Colore Standard");
@@ -78,9 +80,18 @@ describe("le parole e i suggerimenti del listino", () => {
     expect(suggerimentiVoci({ codice: "avvolgimento", nome: "Avvolgimento" })).toEqual([]);
     expect(
       coloriDelListino([
-        { codice: "colore", nome: "Colore", values: [{ attivo: true, opzioni: ["21 Nussbaum"] }, { attivo: false, opzioni: ["Rosso"] }] },
+        {
+          codice: "colore",
+          nome: "Colore",
+          values: [
+            // «Bianco» non ha un elenco: è già un colore.
+            { attivo: true, label: "Bianco" },
+            { attivo: true, label: "Colore Standard", opzioni: ["21 Nussbaum"] },
+            { attivo: false, label: "Fuori listino", opzioni: ["Rosso"] },
+          ],
+        },
         { codice: "tipologia_vetro", nome: "Tipologia Vetro", values: [{ attivo: true, opzioni: ["44.2"] }] },
       ]),
-    ).toEqual(["21 Nussbaum"]);
+    ).toEqual(["Bianco", "21 Nussbaum"]);
   });
 });

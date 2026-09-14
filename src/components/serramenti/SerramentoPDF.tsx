@@ -34,6 +34,7 @@ import { calcolaTotale } from "@/lib/serramenti/calcoli";
 import { applicaMergeTagModulo } from "@/lib/mergeTagsModuli";
 import { generateInterventoSintesi } from "@/lib/serramenti/sintesiIntervento";
 import { testoScelta } from "@/lib/listino/scelteVariante";
+import { schedaPosizione, titoloConLinea } from "@/lib/serramenti/schedaPosizione";
 import type {
   SerramentoPdfConsulente, SerramentoPdfFamilyData,
   SerramentoPdfMacroField, SerramentoPdfMacroPagina,
@@ -1183,6 +1184,52 @@ function groupSerramentiAdvanced(serr: SrSerramentoRow[]): Array<{
   return Array.from(map.values());
 }
 
+/** Etichette di variante e valore per il PDF, con descrizione e valore di serie dell'asse. */
+type EtichettaVariantePdf = {
+  axisLabel: string;
+  valueLabel: string;
+  valueDescrizione?: string | null;
+  axisDefaultLabel?: string | null;
+  valueConElenco?: boolean;
+};
+
+/**
+ * Le varianti scelte su un gruppo di righe, lette come le descrive il titolare:
+ * linea nel titolo, colore interno ed esterno, vetro e telaio su una riga
+ * ciascuno, i dati tecnici dei valori scelti (schedaPosizione).
+ */
+function schedaDelGruppo(
+  g: {
+    family_id: string | null;
+    valori_assi: Record<string, string>;
+    scelte_assi: Record<string, string>;
+    colore_interno: string;
+    colore_esterno: string;
+    vetro: string;
+  },
+  etichette: Record<string, EtichettaVariantePdf>,
+) {
+  return schedaPosizione(
+    Object.entries(g.valori_assi ?? {}).flatMap(([codice, valueId]) => {
+      const etichetta = g.family_id ? etichette[`${g.family_id}|${codice}|${valueId}`] : undefined;
+      return etichetta
+        ? [
+            {
+              codice,
+              nomeAsse: etichetta.axisLabel,
+              valore: etichetta.valueLabel,
+              voce: g.scelte_assi?.[codice] ?? null,
+              descrizione: etichetta.valueDescrizione ?? null,
+              diSerie: etichetta.axisDefaultLabel ?? null,
+              conElenco: etichetta.valueConElenco ?? false,
+            },
+          ]
+        : [];
+    }),
+    { coloreInterno: g.colore_interno, coloreEsterno: g.colore_esterno, vetro: g.vetro },
+  );
+}
+
 // Format display value di un custom_field per il PDF (select → label, etc).
 function formatFieldDisplay(field: SerramentoPdfMacroField, raw: unknown): string | null {
   if (raw === null || raw === undefined || raw === "") return null;
@@ -1723,7 +1770,7 @@ export interface SerramentoPDFProps {
   /** Lookup label Variabili Prodotto: key="family_id|axis_codice|value_id".
    *  Permette di stampare le SCELTE del commerciale (es. "Profilo: Square")
    *  al posto del default scheda tecnica. */
-  axisLabelByKey?: Record<string, { axisLabel: string; valueLabel: string }>;
+  axisLabelByKey?: Record<string, EtichettaVariantePdf>;
   /** Lookup linea fornitore, usato nel BOM PDF per distinguere cataloghi e linee. */
   supplierLineById?: Record<string, SerramentoPdfSupplierLine>;
   /** Link pubblico della pagina firma da inserire nel PDF cliente. */
@@ -2609,23 +2656,15 @@ export function SerramentoPDF({
                       if (display) specs.push({ label: f.field_label, value: display, unit: f.field_unit });
                     }
                   }
-                  // Override/aggiungi specs dalle Variabili Prodotto scelte
-                  // dal commerciale (snapshot valori_assi salvato sulla riga
-                  // BOM). Cosi' il PDF stampa la VERA configurazione (es.
-                  // "Profilo: Square") invece del default scheda tecnica
-                  // family che potrebbe non corrispondere alla scelta.
-                  // BUG FIX: senza, il prezzo aveva +8% ma sulla scheda
-                  // tecnica il cliente vedeva il profilo default -> contestabile.
-                  const assi: Array<{ label: string; value: string }> = [];
-                  if (g.family_id && g.valori_assi && Object.keys(g.valori_assi).length > 0) {
-                    for (const [axisCodice, valueId] of Object.entries(g.valori_assi)) {
-                      const lookup = axisLabelByKey[`${g.family_id}|${axisCodice}|${valueId}`];
-                      if (lookup) {
-                        // Il colore vero scelto dentro la fascia, se c'è: «Grigio antracite (Colore Standard)».
-                        assi.push({ label: lookup.axisLabel, value: testoScelta(lookup.valueLabel, g.scelte_assi[axisCodice]) });
-                      }
-                    }
-                  }
+                  // Le Variabili Prodotto scelte dal commerciale (snapshot
+                  // valori_assi salvato sulla riga BOM): il PDF stampa la VERA
+                  // configurazione, non i default della scheda tecnica. Lette come
+                  // le descrive il titolare: «Finestra 2 Ante — PVC Salamander 76,
+                  // colore interno Bianco, colore esterno Noce, doppio vetro, telaio
+                  // a L, Uw ≤ 1,3». Le varianti senza una riga loro restano chip.
+                  const scheda = schedaDelGruppo(g, axisLabelByKey);
+                  const assi = scheda.altre;
+                  const rigaTecnica = [scheda.vetro, scheda.telaio, ...scheda.datiTecnici].filter(Boolean).join(" · ");
                   // Estrai condizioni regalo dalle note (formato:
                   // "🎁 OMAGGIO · Condizioni: <...> · <descrizione>" oppure
                   // "🎁 OMAGGIO · <descrizione>"). Ripulisce per il display.
@@ -2695,7 +2734,7 @@ export function SerramentoPDF({
                           </Text>
                         )}
                         <Text style={styles.tableCellStrong}>
-                          {titolo}
+                          {titoloConLinea(titolo, scheda.linea)}
                           {g.ambiente ? <Text style={{ color: C.gray500, fontWeight: 400 }}> · {g.ambiente}</Text> : null}
                           {/* Badge OMAGGIO INLINE: chip verde subito accanto al
                               nome cosi' il cliente vede a colpo d'occhio che e'
@@ -2736,7 +2775,7 @@ export function SerramentoPDF({
                             // mostrava "Alluminio" per articoli PVC del listino.
                             materialeFromFamily(family) ?? (g.materiale !== "—" ? g.materiale : null),
                             g.serie,
-                            g.vetro,
+                            // Il vetro ha la sua riga qui sotto (anche quello scritto a mano).
                           ].filter(Boolean).join(" · ")}
                         </Text>
                         {supplierLabel && (
@@ -2744,14 +2783,21 @@ export function SerramentoPDF({
                             Linea fornitore: {supplierLabel}
                           </Text>
                         )}
-                        {Boolean(g.colore_interno || g.colore_esterno) && (
+                        {/* Come la legge il cliente: i colori dei due lati (dai campi
+                            della riga o dalla variante Colore) su una riga; vetro,
+                            telaio e dati tecnici sull'altra. Due righe e non cinque,
+                            così la posizione resta intera sulla pagina. Ternari e non
+                            &&: una stringa vuota fuori da <Text> rompe react-pdf. */}
+                        {scheda.coloreInterno || scheda.coloreEsterno ? (
                           <Text style={styles.tableCellMuted}>
-                            Colore: {[
-                              g.colore_interno ? `interno ${g.colore_interno}` : null,
-                              g.colore_esterno ? `esterno ${g.colore_esterno}` : null,
-                            ].filter(Boolean).join(" · ")}
+                            {scheda.coloreInterno ? <Text style={{ fontWeight: 700, color: C.gray700 }}>Colore interno: </Text> : null}
+                            {scheda.coloreInterno ?? null}
+                            {scheda.coloreInterno && scheda.coloreEsterno ? "  ·  " : null}
+                            {scheda.coloreEsterno ? <Text style={{ fontWeight: 700, color: C.gray700 }}>Colore esterno: </Text> : null}
+                            {scheda.coloreEsterno ?? null}
                           </Text>
-                        )}
+                        ) : null}
+                        {rigaTecnica ? <Text style={styles.tableCellMuted}>{rigaTecnica}</Text> : null}
                         {/* Descrizione tecnica dal listino prodotti */}
                         {techDesc && (
                           <Text style={styles.tableTechDesc}>{techDesc}</Text>
@@ -2989,15 +3035,19 @@ export function SerramentoPDF({
               const macroIdResolved = (g.family_id && familiesById[g.family_id]?.macrocategoria_id) || g.macrocategoria_override_id || autoFallbackMacroId || null;
               const macroNome = (macroIdResolved && macroNomeById[macroIdResolved]) || "Articolo";
               const familyNome = g.family_id ? (familiesById[g.family_id]?.nome ?? null) : null;
+              // Stessa lettura della composizione: linea, colori, vetro, telaio e dati tecnici.
+              const scheda = schedaDelGruppo(g, axisLabelByKey);
               const specs: Array<[string, string]> = [];
               if (g.ambiente) specs.push(["Ambiente", g.ambiente]);
-              if (familyNome) specs.push(["Modello", familyNome]);
+              if (familyNome) specs.push(["Modello", titoloConLinea(familyNome, scheda.linea)]);
               if (g.materiale) specs.push(["Materiale", g.materiale]);
               if (g.serie) specs.push(["Serie", g.serie]);
-              if (g.vetro) specs.push(["Vetro", g.vetro]);
+              if (scheda.vetro) specs.push(["Vetro", scheda.vetro]);
+              if (scheda.telaio) specs.push(["Telaio", scheda.telaio]);
               if (dims) specs.push(["Dimensioni", dims]);
-              if (g.colore_interno) specs.push(["Colore interno", g.colore_interno]);
-              if (g.colore_esterno) specs.push(["Colore esterno", g.colore_esterno]);
+              if (scheda.coloreInterno) specs.push(["Colore interno", scheda.coloreInterno]);
+              if (scheda.coloreEsterno) specs.push(["Colore esterno", scheda.coloreEsterno]);
+              if (scheda.datiTecnici.length > 0) specs.push(["Dati tecnici", scheda.datiTecnici.join(" · ")]);
               specs.push(["Quantità", `${g.quantita} pz`]);
               return (
                 <Page key={`art-${ai}-${g.key}`} size="A4" style={styles.page}>
