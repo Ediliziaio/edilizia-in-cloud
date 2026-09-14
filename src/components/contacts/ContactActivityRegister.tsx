@@ -26,6 +26,7 @@ import {
   Loader2, RefreshCw, Clock, CornerDownRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { righeOrigine } from "@/lib/marketing/origineContatto";
 
 interface Member { id: string; name: string }
 interface Props {
@@ -154,6 +155,22 @@ export function ContactActivityRegister({
     (members ?? []).forEach((x) => { if (x?.id) m.set(x.id, x.name); });
     return m;
   }, [members]);
+
+  // Da dove arriva il contatto: piattaforma, campagna e inserzione dei lead
+  // Meta sono sul contatto, la scheda ne passava solo la fonte.
+  const { data: origine } = useQuery({
+    queryKey: ["reg-origine", companyId, contactId],
+    enabled: !!companyId && !!contactId,
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("marketing_contacts")
+        .select("source, attr_campaign, attr_content, meta_platform")
+        .eq("company_id", companyId!).eq("id", contactId!)
+        .maybeSingle();
+      if (error) return null;
+      return data;
+    },
+  });
 
   // Attività generiche (registro contatto)
   const { data: activityRows = [], isLoading: lAct } = useQuery({
@@ -408,7 +425,12 @@ export function ContactActivityRegister({
           id: "entry",
           kind: "entry",
           title: "Contatto entrato in CRM",
-          text: contactSource ? `Fonte: ${contactSource}` : null,
+          text: righeOrigine({
+            fonte: origine?.source || contactSource,
+            piattaforma: origine?.meta_platform,
+            campagna: origine?.attr_campaign,
+            inserzione: origine?.attr_content,
+          }),
           at: contactCreatedAt,
         }]
       : [];
@@ -418,7 +440,7 @@ export function ContactActivityRegister({
     ]
       .filter((i) => i.at)
       .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
-  }, [contactCreatedAt, contactSource, activityRows, noteRows, callRows, smsRows, waRows, emailOutRows, emailInRows, apptRows]);
+  }, [contactCreatedAt, contactSource, origine, activityRows, noteRows, callRows, smsRows, waRows, emailOutRows, emailInRows, apptRows]);
 
   // Contatori per filtro (solo quelli con eventi vengono mostrati)
   const counts = useMemo(() => {

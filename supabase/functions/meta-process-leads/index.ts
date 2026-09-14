@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { piattaformaDelLead } from "../_shared/metaPiattaforma.ts";
 import { getCorsHeaders, jsonResponse, errorResponse, secureHeaders } from "../_shared/headers.ts";
 import { decrypt, getEncryptionKey } from "../_shared/encryption.ts";
 
@@ -262,6 +263,17 @@ async function processLeadEvent(adminClient: any, event: any): Promise<{ contact
 
   const encKey = getEncryptionKey();
 
+  // Page Access Token della pagina del lead (più permessi, richiesto per le
+  // pagine in BM), altrimenti lo User Access Token. Serve anche ai lead da
+  // backfill, per chiedere la piattaforma.
+  const apiVersion = Deno.env.get("META_API_VERSION") || "v21.0";
+  const tokenDelLead = async (): Promise<string> => {
+    const pageId = payload.page_id ? String(payload.page_id) : null;
+    const pageTokens = (creds as any).meta_page_tokens as Record<string, string> | null;
+    if (pageId && pageTokens?.[pageId]) return await decrypt(pageTokens[pageId], encKey);
+    return await decrypt(creds.access_token_encrypted, encKey);
+  };
+
   // Gestione lead di test (iniettati da send-test-lead, senza chiamata a Meta)
   let lead: any;
   if (payload.is_test && payload._test_field_data) {
@@ -279,18 +291,7 @@ async function processLeadEvent(adminClient: any, event: any): Promise<{ contact
     // vecchi di 90 giorni non più leggibili singolarmente).
     lead = payload;
   } else {
-    // Usa il Page Access Token della pagina specifica (più permessi, richiesto per BM pages)
-    // Fallback al User Access Token se il page token non è disponibile
-    const pageId = payload.page_id ? String(payload.page_id) : null;
-    const pageTokens = (creds as any).meta_page_tokens as Record<string, string> | null;
-    let accessToken: string;
-    if (pageId && pageTokens?.[pageId]) {
-      accessToken = await decrypt(pageTokens[pageId], encKey);
-    } else {
-      accessToken = await decrypt(creds.access_token_encrypted, encKey);
-    }
-
-    const apiVersion = Deno.env.get("META_API_VERSION") || "v21.0";
+    const accessToken = await tokenDelLead();
     const leadRes = await fetch(
       `https://graph.facebook.com/${apiVersion}/${leadgenId}?fields=id,created_time,field_data,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,form_id&access_token=${accessToken}`
     );
@@ -302,6 +303,17 @@ async function processLeadEvent(adminClient: any, event: any): Promise<{ contact
         throw new MetaAuthError(code, `Meta API auth error (${code}): ${lead.error.message}`);
       }
       throw new Error(`Meta API error: ${lead.error.message}`);
+    }
+  }
+
+  // Facebook o Instagram: richiesta a parte, così un campo rifiutato da Meta
+  // non ferma l'ingresso del lead. I lead di test non la chiedono.
+  let piattaforma: string | null = null;
+  if (!payload.is_test) {
+    try {
+      piattaforma = await piattaformaDelLead(String(lead.id || leadgenId), await tokenDelLead(), apiVersion);
+    } catch {
+      piattaforma = null;
     }
   }
 
@@ -538,6 +550,7 @@ async function processLeadEvent(adminClient: any, event: any): Promise<{ contact
       if (lead.adset_id) updateData.meta_adset_id = lead.adset_id;
       if (lead.ad_id) updateData.meta_ad_id = lead.ad_id;
       if (lead.id) updateData.meta_lead_id = lead.id;
+      if (piattaforma) updateData.meta_platform = piattaforma;
       // Solo se il modulo ha davvero chiesto: un modulo senza domanda di
       // consenso non deve cancellare un si' raccolto altrove.
       if (consensoMeta !== null) {
@@ -582,6 +595,7 @@ async function processLeadEvent(adminClient: any, event: any): Promise<{ contact
         meta_adset_id: lead.adset_id || null,
         meta_ad_id: lead.ad_id || null,
         meta_lead_id: lead.id || leadgenId,
+        meta_platform: piattaforma,
         marketing_consent: consensoMeta,
         marketing_consent_at: consensoMeta === null ? null : new Date().toISOString(),
         marketing_consent_source: consensoMeta === null ? null : `Facebook Lead Ads — modulo ${actualFormId}`,

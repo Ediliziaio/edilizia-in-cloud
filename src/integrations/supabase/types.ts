@@ -50097,6 +50097,7 @@ export type Database = {
           meta_adset_id: string | null
           meta_campaign_id: string | null
           meta_lead_id: string | null
+          meta_platform: string | null
           notes: string | null
           opt_out: boolean | null
           opt_out_at: string | null
@@ -50195,6 +50196,7 @@ export type Database = {
           meta_adset_id?: string | null
           meta_campaign_id?: string | null
           meta_lead_id?: string | null
+          meta_platform?: string | null
           notes?: string | null
           opt_out?: boolean | null
           opt_out_at?: string | null
@@ -50293,6 +50295,7 @@ export type Database = {
           meta_adset_id?: string | null
           meta_campaign_id?: string | null
           meta_lead_id?: string | null
+          meta_platform?: string | null
           notes?: string | null
           opt_out?: boolean | null
           opt_out_at?: string | null
