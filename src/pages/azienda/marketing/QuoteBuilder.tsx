@@ -25,11 +25,7 @@ import type { QuoteTemplateLayout } from "@/types/quoteTemplate";
 import type { QuoteItemPro } from "@/types/quoteItem";
 import {
   usePreventivoCosti,
-  calcolaMargine,
-  semaforo,
   calcolaTotaliPreventivo,
-  calcolaMargineAtteso,
-  round2,
   espondiBundle,
   useScontiQuantita,
   useBundleProdotti,
@@ -143,8 +139,6 @@ import {
   TrendingUp,
   AlertTriangle,
   Settings2,
-  Wallet,
-  Percent,
   Lock,
   Sparkles,
 } from "lucide-react";
@@ -160,31 +154,6 @@ import {
 } from "@/components/marketing/preventivi/QuoteFinancingPanel";
 
 // ─── Helper components ────────────────────────────────────────────────────────
-
-function MargineSemaforo({
-  pct,
-  sogliaMin = 15,
-  target = 25,
-}: {
-  pct: number;
-  sogliaMin?: number;
-  target?: number;
-}) {
-  const s = semaforo(pct, sogliaMin, target);
-  const colors = {
-    green: "bg-green-100 text-green-700",
-    yellow: "bg-yellow-100 text-yellow-700",
-    red: "bg-red-100 text-red-700",
-  };
-  const icons = { green: "🟢", yellow: "🟡", red: "🔴" };
-  return (
-    <span
-      className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${colors[s]}`}
-    >
-      {icons[s]} {pct.toFixed(1)}%
-    </span>
-  );
-}
 
 function SortableItem({
   id,
@@ -380,17 +349,6 @@ export default function QuoteBuilder() {
   const canEditPreventivi = permissions.canEditPreventivi;
   // #40 Governance — soglie per-azienda (fallback a default su errore/tabella assente).
   const { data: governanceCfg } = useGovernanceThresholds(companyId);
-  /**
-   * Sprint B — Varianti Costo Manodopera.
-   * Flag legacy: le analisi margine inline (per-riga + totali admin + provvigione)
-   * sono state spostate nella pagina dedicata /margini, accessibile tramite il badge
-   * "Margini & pianificazione" in alto. In questo builder tutti i ruoli (anche admin)
-   * vedono SOLO prezzi di vendita — evita screenshot condivisi con commerciali.
-   *
-   * Settare a `true` per ripristinare temporaneamente i blocchi inline.
-   */
-  const QUOTE_BUILDER_INLINE_MARGINS_LEGACY = false;
-  const showInlineMargins = canViewImpresa && QUOTE_BUILDER_INLINE_MARGINS_LEGACY;
 
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
@@ -1748,19 +1706,6 @@ export default function QuoteBuilder() {
     [governanceCfg, totaliPro.subtotale_netto],
   );
 
-  // FASE 11 Serramentisti — breakdown margine atteso (materiali + manodopera +
-  // altri + overhead + provvigione commerciale). Visibile solo agli admin.
-  const margineAtteso = useMemo(
-    () =>
-      calcolaMargineAtteso(
-        items,
-        impostazioni.overhead_percentuale ?? 0,
-        discountPercent,
-        provvigionePct,
-      ),
-    [items, impostazioni.overhead_percentuale, discountPercent, provvigionePct],
-  );
-
   // Save
   const handleSave = async (status: string = "bozza", opts?: { anteprima?: boolean }) => {
     if (!companyId || !user) return;
@@ -2639,11 +2584,6 @@ export default function QuoteBuilder() {
                       const isNota = item.item_category === "nota";
                       const isSubtotale = item.item_category === "subtotale";
                       const isSconto = item.item_category === "sconto";
-                      const margine = calcolaMargine(
-                        item.unit_price * item.quantity,
-                        item.prezzo_acquisto * item.quantity,
-                        impostazioni.overhead_percentuale ?? 0
-                      );
 
                       return (
                         <SortableItem
@@ -2965,20 +2905,6 @@ export default function QuoteBuilder() {
                                   )}
                                 </div>
                               )}
-                              {/* Admin: margine per tutte le categorie con costo noto — legacy (vedi /margini) */}
-                              {showInlineMargins &&
-                                item.prezzo_acquisto > 0 &&
-                                !["nota", "subtotale", "sconto"].includes(item.item_category) && (
-                                  <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
-                                    <span>
-                                      Costo:{" "}
-                                      {formatCurrency(
-                                        item.prezzo_acquisto * item.quantity
-                                      )}
-                                    </span>
-                                    <MargineSemaforo pct={margine.margine_percentuale} sogliaMin={impostazioni.margine_minimo_percentuale ?? 15} target={impostazioni.margine_target_percentuale ?? 25} />
-                                  </div>
-                                )}
                             </div>
                           )}
                         </div>
@@ -3142,50 +3068,6 @@ export default function QuoteBuilder() {
                   <span>Totale</span>
                   <span>{formatCurrency(total)}</span>
                 </div>
-                {/* Admin block — legacy (vedi /margini) */}
-                {showInlineMargins && totaliPro.costo_totale > 0 && (
-                  <>
-                    <Separator />
-                    <div className="space-y-1 text-xs">
-                      <div className="flex justify-between text-muted-foreground">
-                        <span>Costo totale</span>
-                        <span>{formatCurrency(totaliPro.costo_totale)}</span>
-                      </div>
-                      <div className="flex justify-between text-muted-foreground">
-                        <span>
-                          Overhead ({impostazioni.overhead_percentuale ?? 0}%)
-                        </span>
-                        <span>
-                          {formatCurrency(totaliPro.overhead_totale)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center font-medium">
-                        <span>Margine</span>
-                        <MargineSemaforo pct={totaliPro.margine_totale_pct} sogliaMin={impostazioni.margine_minimo_percentuale ?? 15} target={impostazioni.margine_target_percentuale ?? 25} />
-                      </div>
-                      {tipoLavoro &&
-                        (() => {
-                          const catData = categorie.find(
-                            (c) => c.nome === tipoLavoro
-                          );
-                          const target =
-                            catData?.margine_target_percentuale ??
-                            impostazioni.margine_target_percentuale ??
-                            25;
-                          if (totaliPro.margine_totale_pct < target)
-                            return (
-                              <div className="flex items-center gap-1 text-amber-600">
-                                <AlertTriangle className="h-3 w-3" />
-                                <span>
-                                  Target {tipoLavoro}: {target}%
-                                </span>
-                              </div>
-                            );
-                          return null;
-                        })()}
-                    </div>
-                  </>
-                )}
               </CardContent>
             </Card>
 
@@ -3641,199 +3523,6 @@ export default function QuoteBuilder() {
                     governance, non un blocco.
                   </p>
                 </div>
-              </div>
-            )}
-
-            {/* Admin cost block — legacy (vedi /margini) */}
-            {showInlineMargins && totaliPro.costo_totale > 0 && (
-              <div className="border rounded-lg p-4 bg-blue-50/50 space-y-3 text-sm">
-                <h3 className="font-semibold text-sm flex items-center gap-2 text-blue-900">
-                  <TrendingUp className="h-4 w-4" />
-                  Analisi costi (solo admin)
-                </h3>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-                  <span className="text-muted-foreground">
-                    Costo prodotti/servizi
-                  </span>
-                  <span className="text-right">
-                    {formatCurrency(totaliPro.costo_totale)}
-                  </span>
-                  <span className="text-muted-foreground">
-                    Overhead ({impostazioni.overhead_percentuale ?? 0}%)
-                  </span>
-                  <span className="text-right">
-                    {formatCurrency(totaliPro.overhead_totale)}
-                  </span>
-                  <hr className="col-span-2" />
-                  <span className="font-medium">Margine netto</span>
-                  <span className="text-right font-medium flex justify-end gap-2">
-                    {formatCurrency(
-                      round2(totaliPro.subtotale_netto - totaliPro.costo_totale - totaliPro.overhead_totale)
-                    )}
-                    <MargineSemaforo pct={totaliPro.margine_totale_pct} sogliaMin={impostazioni.margine_minimo_percentuale ?? 15} target={impostazioni.margine_target_percentuale ?? 25} />
-                  </span>
-                </div>
-
-                {/* Margine per categoria */}
-                {(() => {
-                  const CATS = ["prodotto", "posa", "trasporto", "smaltimento", "nolo"] as const;
-                  const catRows = CATS.flatMap((cat) => {
-                    const catItems = items.filter((i) => i.item_category === cat && !i.is_optional);
-                    if (catItems.length === 0) return [];
-                    const ricavo = round2(catItems.reduce((s, i) => s + i.quantity * i.unit_price * (1 - (i.discount_percent || 0) / 100), 0) * (1 - discountPercent / 100));
-                    const costo = round2(catItems.reduce((s, i) => s + (i.prezzo_acquisto ?? 0) * i.quantity, 0));
-                    const overhead = round2(costo * ((impostazioni.overhead_percentuale ?? 0) / 100));
-                    const margine_euro = round2(ricavo - costo - overhead);
-                    const margine_pct = ricavo > 0 ? round2((margine_euro / ricavo) * 100) : 0;
-                    const labels: Record<string, string> = { prodotto: "Prodotti", posa: "Posa", trasporto: "Trasporto", smaltimento: "Smaltimento", nolo: "Nolo" };
-                    // `margine_euro` consumato solo per il calcolo di `margine_pct`; la UI mostra ricavo + semaforo
-                    return [{ cat, label: labels[cat], ricavo, margine_pct }];
-                  });
-                  if (catRows.length < 2) return null;
-                  return (
-                    <div className="border-t pt-2 space-y-1">
-                      <p className="text-xs font-medium text-blue-800">Margine per categoria</p>
-                      {catRows.map(({ cat, label, ricavo, margine_pct }) => (
-                        <div key={cat} className="grid grid-cols-3 gap-x-2 text-xs">
-                          <span className="text-muted-foreground">{label}</span>
-                          <span className="text-right">{formatCurrency(ricavo)}</span>
-                          <span className="text-right">
-                            <MargineSemaforo pct={margine_pct} sogliaMin={impostazioni.margine_minimo_percentuale ?? 15} target={impostazioni.margine_target_percentuale ?? 25} />
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  );
-                })()}
-
-                {tipoLavoro &&
-                  (() => {
-                    const catData = categorie.find(
-                      (c) => c.nome === tipoLavoro
-                    );
-                    const target =
-                      catData?.margine_target_percentuale ??
-                      impostazioni.margine_target_default ??
-                      25;
-                    return totaliPro.margine_totale_pct < target ? (
-                      <div className="flex items-center gap-2 text-amber-700 bg-amber-50 rounded p-2 text-xs">
-                        <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                        Margine {totaliPro.margine_totale_pct.toFixed(1)}% sotto
-                        target per "{tipoLavoro}": {target}%
-                      </div>
-                    ) : null;
-                  })()}
-              </div>
-            )}
-
-            {/* FASE 11 Serramentisti — Margine Lordo Atteso (solo admin) — legacy (vedi /margini) */}
-            {showInlineMargins && margineAtteso.ricavo_netto > 0 && (
-              <div className="border rounded-lg p-4 bg-emerald-50/50 space-y-3 text-sm">
-                <div className="flex items-center justify-between gap-3 flex-wrap">
-                  <h3 className="font-semibold text-sm flex items-center gap-2 text-emerald-900">
-                    <Wallet className="h-4 w-4" />
-                    Margine lordo atteso
-                  </h3>
-                  <div className="flex items-center gap-2">
-                    <Label
-                      htmlFor="provvigione-pct"
-                      className="text-xs text-muted-foreground whitespace-nowrap flex items-center gap-1"
-                    >
-                      <Percent className="h-3 w-3" />
-                      Provvigione venditore
-                    </Label>
-                    <Input
-                      id="provvigione-pct"
-                      type="number"
-                      min={0}
-                      max={100}
-                      step={0.5}
-                      value={provvigionePct}
-                      onChange={(e) => {
-                        const v = Number(e.target.value);
-                        setProvvigionePct(
-                          Number.isFinite(v) ? Math.max(0, Math.min(100, v)) : 0,
-                        );
-                      }}
-                      className="w-20 h-8 text-right text-xs"
-                      aria-label="Percentuale provvigione commerciale"
-                    />
-                    <span className="text-xs text-muted-foreground">%</span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-                  <span className="text-muted-foreground">Ricavo netto (IVA esclusa)</span>
-                  <span className="text-right font-medium">
-                    {formatCurrency(margineAtteso.ricavo_netto)}
-                  </span>
-
-                  {margineAtteso.costo_materiali > 0 && (
-                    <>
-                      <span className="text-muted-foreground">− Costo materiali</span>
-                      <span className="text-right text-destructive">
-                        -{formatCurrency(margineAtteso.costo_materiali)}
-                      </span>
-                    </>
-                  )}
-                  {margineAtteso.costo_manodopera > 0 && (
-                    <>
-                      <span className="text-muted-foreground">− Costo manodopera/posa</span>
-                      <span className="text-right text-destructive">
-                        -{formatCurrency(margineAtteso.costo_manodopera)}
-                      </span>
-                    </>
-                  )}
-                  {margineAtteso.costo_altri > 0 && (
-                    <>
-                      <span className="text-muted-foreground">
-                        − Trasporto / smaltimento / nolo
-                      </span>
-                      <span className="text-right text-destructive">
-                        -{formatCurrency(margineAtteso.costo_altri)}
-                      </span>
-                    </>
-                  )}
-
-                  {margineAtteso.overhead_euro > 0 && (
-                    <>
-                      <span className="text-muted-foreground">
-                        − Overhead aziendale ({impostazioni.overhead_percentuale ?? 0}%)
-                      </span>
-                      <span className="text-right text-destructive">
-                        -{formatCurrency(margineAtteso.overhead_euro)}
-                      </span>
-                    </>
-                  )}
-
-                  {margineAtteso.provvigione_euro > 0 && (
-                    <>
-                      <span className="text-muted-foreground">
-                        − Provvigione commerciale ({provvigionePct}%)
-                      </span>
-                      <span className="text-right text-destructive">
-                        -{formatCurrency(margineAtteso.provvigione_euro)}
-                      </span>
-                    </>
-                  )}
-
-                  <hr className="col-span-2 my-1" />
-
-                  <span className="font-semibold text-emerald-900">= Margine atteso</span>
-                  <span className="text-right font-semibold text-emerald-900 flex justify-end gap-2">
-                    {formatCurrency(margineAtteso.margine_atteso_euro)}
-                    <MargineSemaforo
-                      pct={margineAtteso.margine_atteso_pct}
-                      sogliaMin={impostazioni.margine_minimo_percentuale ?? 15}
-                      target={impostazioni.margine_target_percentuale ?? 25}
-                    />
-                  </span>
-                </div>
-
-                <p className="text-[11px] text-muted-foreground border-t pt-2 leading-relaxed">
-                  Proiezione pre-ordine. IVA esclusa (passthrough). Non viene
-                  persistito in DB: serve solo come stima al venditore.
-                </p>
               </div>
             )}
 
