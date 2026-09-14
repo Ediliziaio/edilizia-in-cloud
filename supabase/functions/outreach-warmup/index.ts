@@ -39,7 +39,7 @@ Deno.serve(async (req) => {
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
   const now = new Date();
   const today = now.toISOString().slice(0, 10);
-  const result = { boxes: 0, pairs: 0, sent: 0, failed: 0, replied: 0, spam_recuperate: 0, lette: 0, engage_errori: [] as string[], capEsaurito: 0 };
+  const result = { boxes: 0, pairs: 0, sent: 0, failed: 0, replied: 0, spam_recuperate: 0, lette: 0, engage_errori: [] as string[] };
   const REPLY_RATE = 0.4; // frazione di email di warm-up che riceve una risposta
 
   try {
@@ -114,12 +114,14 @@ Deno.serve(async (req) => {
         const from = byId.get(p.fromId);
         const { subject, body } = warmupMessage(n + now.getDate() * 3, Math.random);
         n++;
-        // Il warm-up consuma il cap della casella come un invio vero: prima
-        // passava sopra al tetto dichiarato (cold + warm-up > cap).
-        const { data: prenotato } = await supabase.rpc("outreach_prenota_invio", {
-          p_sender_id: p.fromId, p_today: today, p_cap: Number(from?.daily_cap_target ?? 5),
-        });
-        if (prenotato === false) { result.capEsaurito++; continue; }
+        // Il warm-up NON consuma il tetto delle email ai clienti (decisione del
+        // titolare, 14/09/2026). Lo consumava dall'11/09: con le caselle nuove il
+        // tetto del giorno è piccolo (3, poi +1 al giorno) e il warm-up cresce
+        // allo stesso passo (2, poi +1), quindi a ogni casella restava UNA email
+        // al giorno per i clienti — 9 in tutto il pool — per quasi due settimane.
+        // Prenotare aggiornava anche last_sent_at, e la cadenza del dispatcher
+        // allontanava l'invio vero successivo. Il volume del warm-up resta
+        // limitato dalla sua curva (warmupTargetForDay, massimo 8 al giorno).
         try {
           const r = await invia(from, p.toEmail, subject, body, { meta: { warmup: true, from_box: p.fromId, to_box: p.toId } });
           if (r.ok) { result.sent++; spediti.set(n - 1, { messageId: r.messageId, subject }); } else result.failed++;
