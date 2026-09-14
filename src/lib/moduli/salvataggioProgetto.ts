@@ -53,8 +53,8 @@ export function inFila<T>(chiave: string, lavoro: () => Promise<T>): Promise<T> 
   const precedente = inCorso.get(chiave) ?? Promise.resolve();
   const questo = precedente.then(() => lavoro());
   const fine = questo.then(
-    () => undefined,
-    () => undefined,
+    (): void => undefined,
+    (): void => undefined,
   );
   inCorso.set(chiave, fine);
   void fine.then(() => {

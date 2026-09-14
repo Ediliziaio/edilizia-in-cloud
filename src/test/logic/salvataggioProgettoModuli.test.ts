@@ -14,7 +14,7 @@ const giro = () => new Promise((r) => setTimeout(r, 0));
 
 describe("il form non scrive le colonne del server", () => {
   it("toglie totali, stato, commessa, codice e date, e tiene il resto", () => {
-    const riga = {
+    const riga: Record<string, unknown> = {
       cliente_nome: "Mario",
       sconto_pct: 5,
       note: null,
