@@ -72,6 +72,7 @@ import {
   useTopFinanziamentiFv,
   useTemplatePdf,
   useServiziCatalogo,
+  useDuplicaProgetto,
   type FvTariffaAziendale,
   type FvTabellaFinanziamento,
   type FvRigaFinanziamento,
@@ -153,7 +154,45 @@ function describeError(e: unknown): string {
   return String(e ?? "Errore sconosciuto");
 }
 
-export default function FotovoltaicoWizard() {
+const MODALITA_FINANZIAMENTO = ["cash", "rate", "zero", "noleggio"] as const;
+
+/** La scelta di finanziamento salvata su fv_progetti, nei campi del wizard. */
+function finanziamentoSalvato(progetto: unknown): Partial<WizardData> {
+  const p = progetto as {
+    modalita_pagamento?: unknown;
+    scenario_finanziamento?: string | null;
+    finanziamento_durata_mesi?: number | null;
+    finanziamento_tabella_id?: string | null;
+  };
+  const modalita = MODALITA_FINANZIAMENTO.find((m) => m === p.scenario_finanziamento);
+  if (p.modalita_pagamento == null || !modalita) return {};
+  return {
+    finanziamento_modalita: modalita,
+    durata_mesi_scelta: p.finanziamento_durata_mesi ?? INITIAL.durata_mesi_scelta,
+    tabella_finanziamento_id: p.finanziamento_tabella_id ?? null,
+  };
+}
+
+/** I dati del tetto come colonne di fv_progetti (l'ombreggiamento a parte). */
+function campiTetto(d: WizardData) {
+  return {
+    fonte_dati_tetto: d.fonte_dati_tetto,
+    ore_sole_annue: d.ore_sole_annue,
+    superficie_tetto_disponibile_mq: d.superficie_tetto_disponibile_mq,
+    numero_pannelli_max: d.numero_pannelli_max,
+    potenza_max_kwp: d.potenza_max_kwp,
+  };
+}
+
+// Un altro progetto sullo stesso percorso (per esempio dopo «Duplica») è un
+// wizard nuovo: senza chiave React teneva lo stato del progetto di prima. /nuovo
+// non cambia indirizzo quando crea la bozza, quindi la chiave non cambia a metà.
+export default function FotovoltaicoWizardPerProgetto() {
+  const { id } = useParams<{ id?: string }>();
+  return <FotovoltaicoWizard key={id ?? "nuovo"} />;
+}
+
+function FotovoltaicoWizard() {
   const { id } = useParams<{ id?: string }>();
   // Company effettiva del frontend (multi-azienda): serve a creare il progetto
   // sotto l'azienda selezionata nello switcher, non sotto la primaria del profilo.
@@ -337,7 +376,11 @@ export default function FotovoltaicoWizard() {
   const { data: componentiEsistenti } = useComponentiProgetto(progettoId ?? undefined);
 
   // Sprint 4: tabelle finanziamento per importo target del progetto
-  const investimentoCorrente = progettoEsistente?.prezzo_vendita_iva_inclusa ?? null;
+  // Il prezzo appena calcolato (scenarioFin) prima di quello riletto dal DB, che
+  // resta vecchio fino al prossimo refetch: tabelle e rata vanno sul prezzo vero.
+  const prezzoCalcolato = (scenarioFin?.costi as { prezzo_vendita_iva_inclusa?: number } | undefined)
+    ?.prezzo_vendita_iva_inclusa;
+  const investimentoCorrente = prezzoCalcolato ?? progettoEsistente?.prezzo_vendita_iva_inclusa ?? null;
   const { data: tabelleFinanziamento = [] } = useTabelleFinanziamentoFv(
     investimentoCorrente ? Number(investimentoCorrente) : undefined,
   );
@@ -466,6 +509,10 @@ export default function FotovoltaicoWizard() {
         (progettoEsistente as { sconto_valore?: number | null }).sconto_valore != null
           ? Number((progettoEsistente as { sconto_valore?: number | null }).sconto_valore)
           : null,
+      // Finanziamento scelto: si salvava ma al riaprire tornava «rate, 84 mesi»,
+      // e «Avanti» in Fase 6 sovrascriveva la scelta. modalita_pagamento la scrive
+      // solo la Fase 6: senza, scenario_finanziamento è il 'cash' predefinito.
+      ...finanziamentoSalvato(progettoEsistente),
     }));
     // Marca tutti gli step "passati" del progetto come completati.
     // Un progetto già emesso ha tutti gli 8 step completati.
@@ -509,6 +556,7 @@ export default function FotovoltaicoWizard() {
         : {
             ...d,
             prodotti_extra: extras.map((c) => ({
+              uid: crypto.randomUUID(),
               listino_id: null,
               descrizione: c.descrizione,
               quantita: Number(c.quantita) || 1,
@@ -518,6 +566,24 @@ export default function FotovoltaicoWizard() {
             })),
           },
     );
+  }, [componentiEsistenti, progettoId]);
+
+  // Pannello, inverter e accumulo scelti vivono nelle righe dei componenti:
+  // senza ripristinarli, riaprendo una bozza la Fase 5 chiedeva di nuovo i
+  // modelli («Seleziona un modello di pannello dal listino»).
+  const modelliHydratedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!progettoId || !componentiEsistenti || componentiEsistenti.length === 0) return;
+    if (modelliHydratedRef.current === progettoId) return;
+    modelliHydratedRef.current = progettoId;
+    const articoloDi = (categoria: string) =>
+      componentiEsistenti.find((c) => c.categoria === categoria && c.articolo_id)?.articolo_id ?? null;
+    setData((d) => ({
+      ...d,
+      pannello_id: d.pannello_id ?? articoloDi("pannello"),
+      inverter_id: d.inverter_id ?? articoloDi("inverter"),
+      accumulo_id: d.accumulo_id ?? articoloDi("accumulo"),
+    }));
   }, [componentiEsistenti, progettoId]);
 
   // Ri-idrata manodopera + servizi dalle tabelle (bozza), una volta per progetto,
@@ -692,8 +758,8 @@ export default function FotovoltaicoWizard() {
   }, []);
 
   // ─── Step 2 → onboarding cliente (crea progetto in DB) ────────────────────
-  const handleSalvaStep2 = async () => {
-    if (!data.indirizzo || data.latitudine == null || data.longitudine == null) return;
+  const handleSalvaStep2 = async (): Promise<boolean> => {
+    if (!data.indirizzo || data.latitudine == null || data.longitudine == null) return false;
     setSalvando(true);
     setAutoSaveState("saving");
     try {
@@ -747,7 +813,7 @@ export default function FotovoltaicoWizard() {
         // Difesa: se la edge function risponde senza progetto_id non avanziamo
         // con id undefined (gli step successivi farebbero no-op silenziosi).
         if (!newId) throw new Error("Risposta del server priva di progetto_id");
-        if (!mountedRef.current) return;
+        if (!mountedRef.current) return false;
         setProgettoId(newId);
         // La bozza ora vive in DB: il draft locale "nuovo" (pre-creazione) va
         // rimosso, altrimenti al prossimo /nuovo verrebbe ripristinato quello
@@ -781,13 +847,15 @@ export default function FotovoltaicoWizard() {
           } as never,
         });
       }
-      if (!mountedRef.current) return;
+      if (!mountedRef.current) return false;
       markSaved();
       goTo(3, { markCompleted: true });
+      return true;
     } catch (e) {
-      if (!mountedRef.current) return;
+      if (!mountedRef.current) return false;
       setAutoSaveState("error");
       toast.error(`Salvataggio non riuscito: ${describeError(e)}`);
+      return false;
     } finally {
       if (mountedRef.current) setSalvando(false);
     }
@@ -996,6 +1064,34 @@ export default function FotovoltaicoWizard() {
   };
 
   // ─── Step 5 → configurazione + componenti ─────────────────────────────────
+  // ─── Step 4 → salva i dati del tetto ─────────────────────────────────────
+  // «Avanti» passava alla Fase 5 senza salvare: i valori scritti a mano non
+  // arrivavano al calcolo, che si fermava per le ore di sole mancanti o usava
+  // quelli di un'analisi fatta prima.
+  const handleSalvaStep4 = async () => {
+    if (!progettoId || readOnlyMode) {
+      goTo(5, { markCompleted: true });
+      return;
+    }
+    setSalvando(true);
+    setAutoSaveState("saving");
+    try {
+      await aggiornaProgetto.mutateAsync({
+        id: progettoId,
+        patch: { ...campiTetto(data), perdita_ombreggiamento_pct: data.perdita_ombreggiamento_pct ?? 0 } as never,
+      });
+      if (!mountedRef.current) return;
+      markSaved();
+      goTo(5, { markCompleted: true });
+    } catch (e) {
+      if (!mountedRef.current) return;
+      setAutoSaveState("error");
+      toast.error(`Salvataggio non riuscito: ${describeError(e)}`);
+    } finally {
+      if (mountedRef.current) setSalvando(false);
+    }
+  };
+
   const handleSalvaStep5 = async (opts?: { skipNav?: boolean }) => {
     if (!progettoId) return;
     if (!opts?.skipNav) setSalvando(true);
@@ -1254,6 +1350,8 @@ export default function FotovoltaicoWizard() {
             sconto_tipo: scontoAttivo ? data.sconto_tipo : null,
             sconto_valore: scontoAttivo ? data.sconto_valore : null,
             prezzo_vendita_manuale: data.kit_bundle_id ? null : (data.prezzo_vendita_manuale ?? null),
+            // L'ombreggiamento cambiato dopo l'analisi del tetto: senza, il calcolo usava quello vecchio.
+            perdita_ombreggiamento_pct: data.perdita_ombreggiamento_pct ?? 0,
           } as never,
         });
       }
@@ -1338,7 +1436,7 @@ export default function FotovoltaicoWizard() {
         tanPct = tabRata.tan;
         totaleDovuto = tabRata.importo_totale_dovuto;
       } else if (data.finanziamento_modalita === "zero" && data.durata_mesi_scelta) {
-        const inv = (progettoEsistente?.prezzo_vendita_iva_inclusa ?? 0) as number;
+        const inv = Number(investimentoCorrente) || 0;
         rataEur = Math.round(inv / data.durata_mesi_scelta);
         taegPct = 0;
         tanPct = 0;
@@ -1433,11 +1531,28 @@ export default function FotovoltaicoWizard() {
       // esclusivamente il denormalizzato fv_progetti.prezzo_vendita_iva_inclusa, che
       // solo il calcolo finanziario aggiorna: senza questo passo, saltare da Fase 5 a
       // Fase 8 (tab-bar, progetto già completato) emetterebbe prezzo/sconto vecchi.
+      const rataSalvata = async () => {
+        const { data: riga } = await supabase
+          .from("fv_progetti" as never)
+          .select("finanziamento_rata_eur")
+          .eq("id", progettoId)
+          .maybeSingle();
+        return Number((riga as { finanziamento_rata_eur?: number | null } | null)?.finanziamento_rata_eur) || 0;
+      };
+      const rataPrima = await rataSalvata();
       await handleSalvaStep5({ skipNav: true });
       if (!mountedRef.current) return;
       const recalc = await handleCalcolaFinanziario({ silent: true });
       if (!mountedRef.current) return;
       if (!recalc) return; // errore di calcolo già segnalato: non emettere importi stantii
+      // Il prezzo è cambiato e il calcolo ha tolto la rata, che era su quello
+      // vecchio: il PDF avrebbe mostrato la rata vecchia accanto al prezzo nuovo.
+      if (rataPrima > 0 && (await rataSalvata()) === 0) {
+        if (!mountedRef.current) return;
+        toast.warning("Il prezzo è cambiato: conferma di nuovo il finanziamento prima di emettere.");
+        goTo(6);
+        return;
+      }
       const { data: result, error } = await supabase.functions.invoke(
         "fv-genera-pdf",
         {
@@ -1530,7 +1645,7 @@ export default function FotovoltaicoWizard() {
         return;
       }
       if (step === 4) {
-        goTo(5, { markCompleted: true });
+        await handleSalvaStep4();
         return;
       }
       if (step === 5) {
@@ -1555,10 +1670,10 @@ export default function FotovoltaicoWizard() {
     }
   };
 
-  const handleSaveDraft = useCallback(async () => {
+  const handleSaveDraft = useCallback(async (): Promise<boolean> => {
     if (!progettoId) {
       toast.info("Compila e salva la fase 2 (immobile) per creare il progetto bozza.");
-      return;
+      return false;
     }
     setSalvando(true);
     setAutoSaveState("saving");
@@ -1592,23 +1707,68 @@ export default function FotovoltaicoWizard() {
           capacita_accumulo_kwh: data.capacita_accumulo_kwh,
           con_wallbox: data.con_wallbox,
           con_ottimizzatori: data.con_ottimizzatori,
+          // cliente e indirizzo (Fase 1-2)
+          cliente_id: data.cliente_id ?? null,
+          cliente_nome: data.cliente_nome || null,
+          cliente_cognome: data.cliente_cognome || null,
+          cliente_telefono: data.cliente_telefono || null,
+          cliente_email: data.cliente_email || null,
+          titolo: `${data.cliente_nome} ${data.cliente_cognome}`.trim() || undefined,
+          archetipo: data.archetipo,
+          indirizzo: data.indirizzo,
+          comune: data.comune,
+          provincia: data.provincia,
+          cap: data.cap,
+          regione: data.regione,
+          latitudine: data.latitudine,
+          longitudine: data.longitudine,
+          prima_casa: data.prima_casa,
+          // tetto scritto a mano (Fase 4)
+          ...campiTetto(data),
+          // kit, prezzo libero e sconto (Fase 5). Il finanziamento no: la rata
+          // la calcola solo la Fase 6, e una modalità salvata senza rata la
+          // contraddirebbe.
+          kit_bundle_id: data.kit_bundle_id,
+          kit_nome: data.kit_nome,
+          kit_prezzo: data.kit_prezzo,
+          prezzo_vendita_manuale: data.kit_bundle_id ? null : data.prezzo_vendita_manuale,
+          layout_overlay: data.layout_overlay,
+          sconto_tipo: data.sconto_valore != null && data.sconto_valore > 0 ? data.sconto_tipo : null,
+          sconto_valore: data.sconto_valore != null && data.sconto_valore > 0 ? data.sconto_valore : null,
         } as never,
       });
 
       // Manodopera e servizi sono salvati dallo Step 5 (righe editate dal
       // commerciale nello stato): qui non ri-generiamo/sovrascriviamo nulla.
 
-      if (!mountedRef.current) return;
+      if (!mountedRef.current) return true;
       markSaved();
       toast.success("Bozza salvata");
+      return true;
     } catch (e) {
-      if (!mountedRef.current) return;
+      if (!mountedRef.current) return false;
       setAutoSaveState("error");
       toast.error(`Salvataggio bozza: ${describeError(e)}`);
+      return false;
     } finally {
       if (mountedRef.current) setSalvando(false);
     }
   }, [progettoId, data, aggiornaProgetto, markSaved, manodoperaEsistente, tariffeFv, upsertManodopera]);
+
+  // «Duplica» e «Clona»: nuova bozza con numero nuovo e versione + 1, anche da
+  // un preventivo emesso o firmato. Prima i due pulsanti mostravano un avviso e
+  // basta, mentre cinque messaggi dicevano di clonare per correggere.
+  const duplicaProgetto = useDuplicaProgetto();
+  const handleDuplica = async () => {
+    if (!progettoId || duplicaProgetto.isPending) return;
+    try {
+      const nuovoId = await duplicaProgetto.mutateAsync(progettoId);
+      toast.success("Progetto duplicato: stai lavorando sulla nuova versione");
+      navigate(`/azienda/marketing/fotovoltaico/${nuovoId}/modifica`);
+    } catch (e) {
+      toast.error(`Duplicazione non riuscita: ${describeError(e)}`);
+    }
+  };
 
   // ─── Header info ──────────────────────────────────────────────────────────
   // F11: il campo reale su FvProgetto è `numero` (non `numero_progetto`),
@@ -1651,9 +1811,11 @@ export default function FotovoltaicoWizard() {
               onClick={() => {
                 if (readOnlyMode) { navigate("/azienda/marketing/fotovoltaico"); return; }
                 if (progettoId) {
-                  // La bozza è già in DB (autosave): conferma e esci
-                  toast.success(`Bozza ${numero ?? ""} salvata — la ritrovi tra i preventivi`.trim());
-                  navigate("/azienda/marketing/fotovoltaico");
+                  // Diceva «salvata» senza salvare: l'autosave è solo nel browser.
+                  // Ora salva davvero ed esce solo se il salvataggio riesce.
+                  void handleSaveDraft().then((salvata) => {
+                    if (salvata) navigate("/azienda/marketing/fotovoltaico");
+                  });
                   return;
                 }
                 const dirty = Boolean(data.cliente_nome || data.cliente_cognome || data.indirizzo);
@@ -1668,7 +1830,8 @@ export default function FotovoltaicoWizard() {
             {progettoId && (
               <button
                 type="button"
-                onClick={() => toast.info("Duplicazione disponibile dalla pagina dettaglio")}
+                onClick={() => void handleDuplica()}
+                disabled={duplicaProgetto.isPending}
                 className="px-3 py-1.5 text-sm font-semibold text-slate-700 border border-slate-300 rounded-lg bg-white hover:bg-slate-50 inline-flex items-center gap-1.5"
               >
                 <Copy className="h-4 w-4" /> Duplica
@@ -1747,7 +1910,8 @@ export default function FotovoltaicoWizard() {
             {data.indirizzo && data.latitudine != null && data.longitudine != null && (
               <AlertDialogAction
                 onClick={async () => {
-                  await handleSalvaStep2();
+                  // Prima usciva con «Bozza salvata» anche quando il salvataggio falliva.
+                  if (!(await handleSalvaStep2())) return;
                   clearPersistedDraft(null);
                   toast.success("Bozza salvata — la ritrovi tra i preventivi");
                   navigate("/azienda/marketing/fotovoltaico");
@@ -1776,11 +1940,8 @@ export default function FotovoltaicoWizard() {
             <div className="flex gap-3 items-center">
               <button
                 type="button"
-                onClick={() => {
-                  toast.info(
-                    "Duplicazione progetto disponibile dalla pagina dettaglio (in arrivo).",
-                  );
-                }}
+                onClick={() => void handleDuplica()}
+                disabled={duplicaProgetto.isPending}
                 className="text-xs font-semibold text-amber-900 underline hover:no-underline whitespace-nowrap"
               >
                 ⎘ Clona
@@ -3248,6 +3409,7 @@ function Step5Configurazione({
     update("prodotti_extra", [
       ...data.prodotti_extra,
       {
+        uid: crypto.randomUUID(),
         listino_id: l.id,
         descrizione: l.nome || l.descrizione || "Prodotto listino",
         quantita: 1,
@@ -3262,6 +3424,7 @@ function Step5Configurazione({
     update("prodotti_extra", [
       ...data.prodotti_extra,
       {
+        uid: crypto.randomUUID(),
         listino_id: null,
         descrizione: nome?.trim() || "",
         quantita: 1,
@@ -3880,12 +4043,13 @@ function Step5Configurazione({
                 <p className="text-xs text-slate-400">Nessuna manodopera. Aggiungi una voce (da tariffa o libera) se serve.</p>
               ) : (
                 <div className="space-y-2">
+                  {/* Il costo segue il prezzo finché sono uguali: con «costo || prezzo» restava la prima cifra digitata (1500 → costo 1). */}
                   {data.manodopera_righe.map((r, idx) => (
                     <div key={idx} className="flex items-center gap-2">
                       <input value={r.descrizione} onChange={(e) => aggiornaManodopera(idx, { descrizione: e.target.value })} placeholder="Descrizione" disabled={readOnlyMode} className="flex-1 rounded border border-slate-200 px-2 py-1 text-sm" />
                       <input type="number" min={0} value={r.ore} onChange={(e) => aggiornaManodopera(idx, { ore: Number(e.target.value) })} title="Ore" disabled={readOnlyMode} className="w-16 rounded border border-slate-200 px-2 py-1 text-sm" />
                       <span className="text-xs text-slate-400">h ×</span>
-                      <input type="number" min={0} value={r.tariffa_oraria_vendita} onChange={(e) => { const v = Number(e.target.value); aggiornaManodopera(idx, { tariffa_oraria_vendita: v, tariffa_oraria_netta: r.tariffa_oraria_netta || v }); }} title="€/h vendita" disabled={readOnlyMode} className="w-20 rounded border border-slate-200 px-2 py-1 text-sm" />
+                      <input type="number" min={0} value={r.tariffa_oraria_vendita} onChange={(e) => { const v = Number(e.target.value); aggiornaManodopera(idx, { tariffa_oraria_vendita: v, tariffa_oraria_netta: r.tariffa_oraria_netta === r.tariffa_oraria_vendita ? v : r.tariffa_oraria_netta }); }} title="€/h vendita" disabled={readOnlyMode} className="w-20 rounded border border-slate-200 px-2 py-1 text-sm" />
                       <span className="text-xs text-slate-400">€/h</span>
                       {!readOnlyMode && <button type="button" onClick={() => rimuoviManodopera(idx)} className="px-1 text-slate-400 hover:text-red-500" title="Rimuovi">✕</button>}
                     </div>
@@ -3920,7 +4084,7 @@ function Step5Configurazione({
                   {data.servizi_righe.map((r, idx) => (
                     <div key={idx} className="flex items-center gap-2">
                       <input value={r.descrizione} onChange={(e) => aggiornaServizio(idx, { descrizione: e.target.value })} placeholder="Descrizione servizio" disabled={readOnlyMode} className="flex-1 rounded border border-slate-200 px-2 py-1 text-sm" />
-                      <input type="number" min={0} value={r.prezzo_vendita} onChange={(e) => { const v = Number(e.target.value); aggiornaServizio(idx, { prezzo_vendita: v, prezzo_netto: r.prezzo_netto || v }); }} title="Prezzo vendita" disabled={readOnlyMode} className="w-24 rounded border border-slate-200 px-2 py-1 text-sm" />
+                      <input type="number" min={0} value={r.prezzo_vendita} onChange={(e) => { const v = Number(e.target.value); aggiornaServizio(idx, { prezzo_vendita: v, prezzo_netto: r.prezzo_netto === r.prezzo_vendita ? v : r.prezzo_netto }); }} title="Prezzo vendita" disabled={readOnlyMode} className="w-24 rounded border border-slate-200 px-2 py-1 text-sm" />
                       <span className="text-xs text-slate-400">€</span>
                       {!readOnlyMode && <button type="button" onClick={() => rimuoviServizio(idx)} className="px-1 text-slate-400 hover:text-red-500" title="Rimuovi">✕</button>}
                     </div>
@@ -4068,6 +4232,11 @@ function Step5Configurazione({
                         </span>
                       </button>
                     ))}
+                    {listinoExtra.length >= 40 && (
+                      <p className="px-3 py-1.5 text-[11px] text-slate-400">
+                        Mostro i primi 40: scrivi di più per restringere.
+                      </p>
+                    )}
                     <button
                       type="button"
                       onClick={() => aggiungiExtraLibero(extraSearch)}
@@ -4096,7 +4265,7 @@ function Step5Configurazione({
             <div className="space-y-2">
               {data.prodotti_extra.map((ex, idx) => (
                 <div
-                  key={`extra-${idx}`}
+                  key={ex.uid ?? `extra-${idx}`}
                   className="grid grid-cols-12 gap-2 items-end rounded-lg border border-slate-200 bg-slate-50/60 p-2.5"
                 >
                   <div className="col-span-12 sm:col-span-5">
@@ -4126,7 +4295,7 @@ function Step5Configurazione({
                     <Label className="text-[11px] text-slate-500">Vendita € (unit.)</Label>
                     <div className="flex gap-1 items-center">
                       <Input
-                        key={`pv-${idx}-${ex.prezzo_vendita === 0 ? "gratis" : "paid"}`}
+                        key={`pv-${ex.uid ?? idx}-${ex.prezzo_vendita === 0 ? "gratis" : "paid"}`}
                         inputMode="decimal"
                         defaultValue={ex.prezzo_vendita === 0 ? "" : ex.prezzo_vendita || ""}
                         disabled={readOnlyMode}

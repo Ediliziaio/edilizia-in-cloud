@@ -448,6 +448,11 @@ Deno.serve(async (req: Request) => {
         margine_pct,
         // Audit sconto: quanto è stato EFFETTIVAMENTE concesso post-clamp.
         sconto_eur_applicato,
+        // Prezzo cambiato: la rata salvata era sul prezzo vecchio e il PDF la
+        // stamperebbe accanto a quello nuovo. Si toglie e la Fase 6 la rifà.
+        ...(Math.abs((Number(prog.prezzo_vendita_iva_inclusa) || 0) - prezzo_vendita_iva_inclusa) >= 1
+          ? { finanziamento_rata_eur: null, finanziamento_totale_dovuto_eur: null }
+          : {}),
         incentivi_applicati: incentivi,
         capienza_irpef_ok: capienza.capienza_ok,
         capienza_irpef_warning: capienza.warning,

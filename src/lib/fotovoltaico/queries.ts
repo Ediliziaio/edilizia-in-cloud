@@ -6,6 +6,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import { termineDiRicerca } from "@/lib/ricercaPostgrest";
 import type {
   FvProgetto,
   FvComponente,
@@ -146,6 +147,26 @@ export function useAggiornaProgetto() {
   });
 }
 
+/**
+ * Duplica un progetto, anche emesso o firmato, come nuova bozza: numero nuovo,
+ * versione + 1 e le stesse righe. Restituisce l'id della copia.
+ */
+export function useDuplicaProgetto() {
+  const qc = useQueryClient();
+  const companyId = useEffectiveCompanyId();
+  return useMutation({
+    mutationFn: async (id: string): Promise<string> => {
+      const { data, error } = await supabase.rpc("fv_duplica_progetto" as never, { p_progetto_id: id } as never);
+      if (error) throw error;
+      if (!data) throw new Error("La copia non è stata creata");
+      return String(data);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: QK.progetti(companyId) });
+    },
+  });
+}
+
 export function useEliminaProgetto() {
   const qc = useQueryClient();
   const companyId = useEffectiveCompanyId();
@@ -154,7 +175,9 @@ export function useEliminaProgetto() {
       if (!companyId) throw new Error("Azienda non disponibile");
       const { data, error } = await supabase
         .from("fv_progetti" as never)
-        .update({ annullato: true, annullato_il: new Date().toISOString() } as never)
+        // Anche lo stato: pagina di dettaglio e wizard guardano quello, e un
+        // preventivo emesso annullato mostrava ancora «Modifica» e «Richiedi firma».
+        .update({ annullato: true, annullato_il: new Date().toISOString(), stato: "annullato" } as never)
         .eq("id", id)
         .eq("company_id", companyId)
         .neq("stato", "firmato")
@@ -404,9 +427,12 @@ export function useListinoPerFv(search?: string) {
         .select("id, nome, descrizione, prezzo_base_vendita, prezzo_base_acquisto")
         .eq("company_id", companyId as string)
         .eq("attivo", true)
+        // Il cestino del listino usa deleted_at: i prodotti eliminati non si propongono.
+        .is("deleted_at", null)
         .order("nome")
         .limit(40);
-      const term = search?.trim();
+      // Virgole e parentesi nel testo spezzavano il filtro .or(): errore 400 ed elenco vuoto.
+      const term = termineDiRicerca(search);
       if (term) q = q.or(`nome.ilike.%${term}%,descrizione.ilike.%${term}%`);
       const { data, error } = await q;
       if (error) throw error;

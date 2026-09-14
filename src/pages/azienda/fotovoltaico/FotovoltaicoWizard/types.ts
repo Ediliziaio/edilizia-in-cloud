@@ -96,6 +96,9 @@ export interface WizardData {
    *  salvati in fv_componenti_progetto con categoria='altro' insieme ai
    *  componenti principali (stesso flusso delete+insert dello Step 5). */
   prodotti_extra: Array<{
+    /** Chiave stabile della riga in pagina, non va nel database: con l'indice,
+     *  dopo una rimozione la riga seguente mostrava i prezzi di quella tolta. */
+    uid?: string;
     listino_id: string | null;
     descrizione: string;
     quantita: number;
