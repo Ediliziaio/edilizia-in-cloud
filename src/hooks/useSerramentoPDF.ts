@@ -104,6 +104,7 @@ export interface SerramentoPdfEnriched {
     logo_url?: string | null;
     brand_logo_dark_url?: string | null;
     website?: string | null;
+    pec?: string | null;
   } | null;
   consulente: SerramentoPdfConsulente | null;
   familiesById: Record<string, SerramentoPdfFamilyData>;

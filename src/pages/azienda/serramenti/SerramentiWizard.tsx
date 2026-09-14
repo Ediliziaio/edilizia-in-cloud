@@ -144,7 +144,7 @@ export default function SerramentiWizard() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("companies")
-        .select("name, business_name, legal_address, legal_city, legal_postal_code, legal_province, phone, email, vat_number, logo_url")
+        .select("name, business_name, legal_address, legal_city, legal_postal_code, legal_province, phone, email, vat_number, logo_url, website, pec")
         .eq("id", wizCompanyId!)
         .maybeSingle();
       if (error) throw new Error(error.message);
@@ -162,6 +162,8 @@ export default function SerramentiWizard() {
         email: data.email,
         partita_iva: data.vat_number,
         logo_url: data.logo_url,
+        website: data.website,
+        pec: data.pec,
       };
     },
   });

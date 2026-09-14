@@ -25,7 +25,7 @@ import type {
   SrPianoFinanziamento, SrEsigenza, SrSoluzioneItem, SrTestimonianza,
   SrTemplatePdfRow,
 } from "@/types/serramenti";
-import { SR_TIPOLOGIE_SERRAMENTO, SR_MATERIALI, SR_SCHEMI_PAGAMENTO, SR_PERCORSO_DEFAULT, normalizePdfPagesOrder, SR_GARANZIE_DEFAULT, SR_CONFRONTO_DEFAULT, SR_CERTIFICAZIONI_DEFAULT, SR_BONUS_DEFAULT, SR_FAQ_DEFAULT } from "@/types/serramenti";
+import { SR_TIPOLOGIE_SERRAMENTO, SR_MATERIALI, SR_SCHEMI_PAGAMENTO, SR_PERCORSO_DEFAULT, normalizePdfPagesOrder, SR_GARANZIE_DEFAULT, SR_CONFRONTO_DEFAULT, SR_CERTIFICAZIONI_DEFAULT, SR_FAQ_DEFAULT } from "@/types/serramenti";
 import type {
   SrPercorsoCliente, SrPdfPageId, SrPdfPageOrderItem,
   SrGaranzia, SrConfrontoRiga, SrCertificazione, SrBonus, SrFaq,
@@ -516,7 +516,9 @@ function makeStyles(C: ReturnType<typeof makePalette>) {
     },
     tableThumb: {
       width: 60, height: 60, borderRadius: 4,
-      objectFit: "cover" as const,
+      // contain: i disegni dei prodotti sono più alti che larghi e con "cover"
+      // la portafinestra perdeva il telaio sopra e sotto.
+      objectFit: "contain" as const,
       marginRight: 10,
       borderWidth: 0.5, borderColor: C.gray200, borderStyle: "solid",
     },
@@ -986,10 +988,21 @@ function makeStyles(C: ReturnType<typeof makePalette>) {
 
 // ─── Helpers formatting ────────────────────────────────────────────────────
 
+/**
+ * Importo all'italiana, con il punto delle migliaia anche sotto le 10.000:
+ * toLocaleString("it-IT") raggruppa solo da cinque cifre e stampava «8699,11».
+ */
 function fmtEuro(v: number | null | undefined, decimals = 0): string {
   const n = Number(v ?? 0);
-  return n.toLocaleString("it-IT", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+  const valore = Number.isFinite(n) ? n : 0;
+  const [intero, decimali] = Math.abs(valore).toFixed(decimals).split(".");
+  const conPunti = intero.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  const segno = valore < 0 && Number(Math.abs(valore).toFixed(decimals)) !== 0 ? "-" : "";
+  return `${segno}${conPunti}${decimali ? `,${decimali}` : ""}`;
 }
+
+/** Il meno tipografico «−» non esiste in Helvetica e nel PDF sparisce: si stampa quello della tastiera. */
+const senzaMenoTipografico = (testo: string | null | undefined) => (testo ?? "").replace(/−/g, "-");
 function roundMoney(v: number | null | undefined): number {
   const n = Number(v ?? 0);
   return Math.round((Number.isFinite(n) ? n : 0) * 100) / 100;
@@ -1375,8 +1388,11 @@ function CashflowSvg({ years, primary, breakEvenColor = "#15803D" }: {
     breakYear = years[0].year;
   }
 
-  // Tick Y a multipli sensati
-  const yTicks = [yMin, (yMin + yMax) / 2, yMax].filter((v, i, arr) => arr.indexOf(v) === i);
+  // Tick Y a multipli sensati. Quelli attaccati alla linea dello zero non si
+  // scrivono: la linea ha già la sua etichetta «0» e le due si sovrapponevano.
+  const yTicks = [yMin, (yMin + yMax) / 2, yMax]
+    .filter((v, i, arr) => arr.indexOf(v) === i)
+    .filter((v) => Math.abs(yOf(v) - zeroY) >= 8);
 
   // Area: chiude sotto la linea zero (per evidenziare la perdita iniziale)
   // e sopra quando recupera.
@@ -1398,7 +1414,7 @@ function CashflowSvg({ years, primary, breakEvenColor = "#15803D" }: {
           {/* Stringa UNICA: il Text dentro <Svg> con children misti
               (stringa+numero) renderizzava glifi rotti ("€ θ k") */}
           <Text x={padL - 6} y={yOf(v) + 3} fill="#64748B" style={{ fontSize: 7, textAnchor: "end" } as never}>
-            {`€ ${Math.round(v / 1000)}k`}
+            {`${Math.round(v / 1000) < 0 ? "-" : ""}€ ${Math.abs(Math.round(v / 1000))}k`}
           </Text>
         </G>
       ))}
@@ -1410,9 +1426,9 @@ function CashflowSvg({ years, primary, breakEvenColor = "#15803D" }: {
       {years.map((y, i) => (
         <Circle key={`p-${i}`} cx={xOf(i)} cy={yOf(y.cumulato)} r={2.2} fill={primary} />
       ))}
-      {/* Label X (A1, A3, A5...) */}
+      {/* Label X: tutti gli anni fino a 12 (uscivano A1, A2, A4, A6…), oltre uno sì e uno no */}
       {years.map((y, i) => {
-        const showLabel = i === 0 || i === years.length - 1 || (i + 1) % 2 === 0;
+        const showLabel = years.length <= 12 || i % 2 === 0;
         if (!showLabel) return null;
         return (
           <Text
@@ -1421,7 +1437,8 @@ function CashflowSvg({ years, primary, breakEvenColor = "#15803D" }: {
             fill="#64748B"
             style={{ fontSize: 7, textAnchor: "middle" } as never}
           >
-            A{y.year}
+            {/* Stringa unica, come per l'asse Y: «A{y.year}» usciva spaziato («A 1») */}
+            {`A${y.year}`}
           </Text>
         );
       })}
@@ -1530,11 +1547,8 @@ function PageFooter({
       {Boolean(legalLine) && <View style={styles.footerRow}><Text>{legalLine}</Text><Text></Text></View>}
       {showRevFooter && (
         <View style={styles.footerRow}>
-          <Text
-            render={({ pageNumber, totalPages }) =>
-              `Preventivo ${quoteCode} · v${revisionNumber ?? 1} · pagina ${pageNumber}/${totalPages} · ${dateStr}`
-            }
-          />
+          {/* Il numero di pagina sta già nella prima riga del piè di pagina. */}
+          <Text>{`Preventivo ${quoteCode} · v${revisionNumber ?? 1} · ${dateStr}`}</Text>
           <Text></Text>
         </View>
       )}
@@ -1955,8 +1969,10 @@ export function SerramentoPDF({
   const confrontoRighe: SrConfrontoRiga[] = confrontoRigheRaw.length > 0 ? confrontoRigheRaw : SR_CONFRONTO_DEFAULT;
   const certificazioniRaw = (Array.isArray(tpl.certificazioni) ? tpl.certificazioni : []) as SrCertificazione[];
   const certificazioni: SrCertificazione[] = certificazioniRaw.length > 0 ? certificazioniRaw : SR_CERTIFICAZIONI_DEFAULT;
-  const bonusRaw = (Array.isArray(tpl.bonus_aggiuntivi) ? tpl.bonus_aggiuntivi : []) as SrBonus[];
-  const bonus: SrBonus[] = bonusRaw.length > 0 ? bonusRaw : SR_BONUS_DEFAULT;
+  // Omaggi: solo quelli che l'azienda ha scritto nel modello (es. d'estate «zanzariere
+  // in omaggio»). Niente omaggi predefiniti: uscivano per tutte, con valori mai decisi.
+  const bonus: SrBonus[] = ((Array.isArray(tpl.bonus_aggiuntivi) ? tpl.bonus_aggiuntivi : []) as SrBonus[])
+    .filter((b) => Boolean(b?.titolo?.trim()));
   const faqItemsRaw = (Array.isArray(tpl.faq_items) ? tpl.faq_items : []) as SrFaq[];
   const faqItems: SrFaq[] = faqItemsRaw.length > 0 ? faqItemsRaw : SR_FAQ_DEFAULT;
   const brandFooterTesto = (tpl.brand_footer_testo as string | null) || null;
@@ -2099,6 +2115,12 @@ export function SerramentoPDF({
       cashflowYears.push({ year: y, cumulato: cum });
     }
   }
+  // Senza il calcolo del risparmio la colonna «Risparmio» era tutta a € 0, e le
+  // didascalie parlavano di un anno di pareggio anche quando in dieci anni la
+  // spesa non si ripaga.
+  const haRisparmioBolletta = Number(p.risparmio_eur_anno ?? 0) > 0;
+  const iPareggio = cashflowYears.findIndex((y, i) => y.cumulato >= 0 && (i === 0 || cashflowYears[i - 1].cumulato < 0));
+  const annoPareggio = iPareggio === -1 ? null : cashflowYears[iPareggio].year;
   const hasMonthlyRateBalance = Boolean(
     schemaCfg?.hasFinanziamento && piani.length > 0 && Number(p.risparmio_eur_anno ?? 0) > 0
   );
@@ -2490,6 +2512,44 @@ export function SerramentoPDF({
                 </>
               )}
 
+              {/* La tua consulenza, nella pagina 2 dal 14/09/2026 (deciso con il
+                  titolare): chi seguirà il cliente e l'appuntamento vengono prima
+                  delle foto dei prodotti. Il consulente è SEMPRE l'utente che ha
+                  fatto il preventivo (hook fa fallback a auth.user), mai il nome
+                  dell'azienda. Titolo e riquadro restano insieme. */}
+              <View wrap={false}>
+              <Text style={styles.sectionTitle}>La tua consulenza</Text>
+              <View style={styles.consBox}>
+                {consulente?.foto_url ? (
+                  <Image src={consulente.foto_url} style={styles.consPhoto} />
+                ) : (
+                  <View style={styles.consPhotoPh}>
+                    <Text style={{ color: "#FFFFFF", fontSize: 22, fontWeight: 700 }}>
+                      {(() => {
+                        const name = consulente?.nome ?? "Consulente tecnico";
+                        const parts = name.trim().split(/\s+/);
+                        if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+                        return name.slice(0, 2).toUpperCase();
+                      })()}
+                    </Text>
+                  </View>
+                )}
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.consName}>{consulente?.nome ?? "Consulente tecnico"}</Text>
+                  <Text style={styles.consRole}>{consulente?.ruolo ?? "Consulente tecnico"}</Text>
+                  {consulenteDescrizione && (
+                    <Text style={{ fontSize: 9.5, color: C.gray700, lineHeight: 1.5, marginTop: 5 }}>
+                      {consulenteDescrizione}
+                    </Text>
+                  )}
+                  <Text style={styles.consContact}>
+                    {p.consulenza_at ? `Appuntamento: ${fmtDateTime(p.consulenza_at)}\n` : ""}
+                    {[consulente?.telefono, consulente?.email].filter(Boolean).join(" · ")}
+                  </Text>
+                </View>
+              </View>
+              </View>
+
               <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
             </Page>
             </>
@@ -2674,7 +2734,7 @@ export function SerramentoPDF({
                             Linea fornitore: {supplierLabel}
                           </Text>
                         )}
-                        {(g.colore_interno || g.colore_esterno) && (
+                        {Boolean(g.colore_interno || g.colore_esterno) && (
                           <Text style={styles.tableCellMuted}>
                             Colore: {[
                               g.colore_interno ? `interno ${g.colore_interno}` : null,
@@ -2780,45 +2840,6 @@ export function SerramentoPDF({
               )}
 
               {/* Cronoprogramma rimosso — sostituito dalla pagina dedicata "Il tuo percorso" */}
-
-              {/* La tua consulenza — il consulente è SEMPRE l'utente che ha
-                  fatto il preventivo (hook fa fallback a auth.user). Mai il
-                  nome azienda nel campo nome consulente. */}
-              {/* Titolo e riquadro restano insieme: con tre righe di composizione il
-                  riquadro si spezzava e la pagina dopo restava vuota, con la sola
-                  riga dell'appuntamento. */}
-              <View wrap={false}>
-              <Text style={styles.sectionTitle}>La tua consulenza</Text>
-              <View style={styles.consBox}>
-                {consulente?.foto_url ? (
-                  <Image src={consulente.foto_url} style={styles.consPhoto} />
-                ) : (
-                  <View style={styles.consPhotoPh}>
-                    <Text style={{ color: "#FFFFFF", fontSize: 22, fontWeight: 700 }}>
-                      {(() => {
-                        const name = consulente?.nome ?? "Consulente tecnico";
-                        const parts = name.trim().split(/\s+/);
-                        if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
-                        return name.slice(0, 2).toUpperCase();
-                      })()}
-                    </Text>
-                  </View>
-                )}
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.consName}>{consulente?.nome ?? "Consulente tecnico"}</Text>
-                  <Text style={styles.consRole}>{consulente?.ruolo ?? "Consulente tecnico"}</Text>
-                  {consulenteDescrizione && (
-                    <Text style={{ fontSize: 9.5, color: C.gray700, lineHeight: 1.5, marginTop: 5 }}>
-                      {consulenteDescrizione}
-                    </Text>
-                  )}
-                  <Text style={styles.consContact}>
-                    {p.consulenza_at ? `Appuntamento: ${fmtDateTime(p.consulenza_at)}\n` : ""}
-                    {[consulente?.telefono, consulente?.email].filter(Boolean).join(" · ")}
-                  </Text>
-                </View>
-              </View>
-              </View>
 
               <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
             </Page>
@@ -3182,12 +3203,29 @@ export function SerramentoPDF({
                 <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
 
                 <Text style={styles.pageEyebrow}>Dettagli economici</Text>
-                <Text style={[styles.pageTitle, { fontSize: 24, marginBottom: 6 }]}>
-                  Valore, recuperi e inclusioni.
-                </Text>
-                <Text style={[styles.pageSubtitle, { fontSize: 10, marginBottom: 12 }]}>
-                  Un riepilogo ordinato per leggere con chiarezza recupero fiscale, recupero economico e ciò che è compreso.
-                </Text>
+                {(() => {
+                  // Titolo e sottotitolo dicono solo quello che la pagina contiene: con la
+                  // sola detrazione promettevano «inclusioni» e «ciò che è compreso».
+                  const voci = [
+                    hasTaxDeduction ? "la detrazione fiscale" : null,
+                    cashflowYears.length > 0 ? "il recupero negli anni" : null,
+                    hasMonthlyRateBalance ? "la rata del finanziamento" : null,
+                    incluso.length > 0 ? "cosa è compreso" : null,
+                    bonus.length > 0 ? "gli omaggi" : null,
+                  ].filter(Boolean) as string[];
+                  const elenco = voci.length > 1 ? `${voci.slice(0, -1).join(", ")} e ${voci[voci.length - 1]}` : voci[0] ?? "";
+                  const haRecuperi = hasTaxDeduction || cashflowYears.length > 0 || hasMonthlyRateBalance;
+                  const haInclusioni = incluso.length > 0 || bonus.length > 0;
+                  const titolo = haRecuperi && haInclusioni ? "Valore, recuperi e inclusioni." : haRecuperi ? "Valore e recuperi." : "Valore e inclusioni.";
+                  return (
+                    <>
+                      <Text style={[styles.pageTitle, { fontSize: 24, marginBottom: 6 }]}>{titolo}</Text>
+                      <Text style={[styles.pageSubtitle, { fontSize: 10, marginBottom: 12 }]}>
+                        {`Un riepilogo ordinato per leggere con chiarezza ${elenco}.`}
+                      </Text>
+                    </>
+                  );
+                })()}
 
                 {hasTaxDeduction && (
                   <View style={styles.investmentBlock} wrap={false}>
@@ -3241,15 +3279,18 @@ export function SerramentoPDF({
                     <Text style={styles.investmentSectionTitle}>Recupero economico · 10 anni</Text>
                     <CashflowSvg years={cashflowYears} primary={primaryColor} />
                     <Text style={{ fontSize: 8.2, color: C.gray500, marginTop: 4, lineHeight: 1.35 }}>
-                      Risparmio bolletta + detrazione fiscale cumulati anno dopo anno.
-                      La linea tratteggiata indica l'anno in cui la spesa iniziale è
-                      completamente ripagato (break-even).
+                      {haRisparmioBolletta
+                        ? "Risparmio in bolletta e detrazione fiscale, cumulati anno dopo anno, meno la spesa iniziale."
+                        : "Detrazione fiscale cumulata anno dopo anno, meno la spesa iniziale."}
+                      {annoPareggio !== null ? " La linea tratteggiata segna l'anno in cui la spesa iniziale è ripagata." : ""}
                     </Text>
 
                     <View style={{ marginTop: 9 }}>
                       <View style={styles.tableHeader}>
                         <View style={{ width: 38 }}><Text style={styles.tableHeaderText}>Anno</Text></View>
-                        <View style={{ flex: 1, alignItems: "flex-end" }}><Text style={styles.tableHeaderText}>Risparmio</Text></View>
+                        {haRisparmioBolletta && (
+                          <View style={{ flex: 1, alignItems: "flex-end" }}><Text style={styles.tableHeaderText}>Risparmio</Text></View>
+                        )}
                         <View style={{ flex: 1, alignItems: "flex-end" }}><Text style={styles.tableHeaderText}>Detrazione</Text></View>
                         <View style={{ flex: 1, alignItems: "flex-end" }}><Text style={styles.tableHeaderText}>Cumulato</Text></View>
                         <View style={{ width: 80, alignItems: "flex-end" }}><Text style={styles.tableHeaderText}>Recupero</Text></View>
@@ -3278,15 +3319,18 @@ export function SerramentoPDF({
                                 A{y.year}{isBreakEven ? " *" : ""}
                               </Text>
                             </View>
-                            <View style={{ flex: 1, alignItems: "flex-end" }}>
-                              <Text style={{ fontSize: 8.6, color: C.gray700 }}>€ {fmtEuro(risp)}</Text>
-                            </View>
+                            {haRisparmioBolletta && (
+                              <View style={{ flex: 1, alignItems: "flex-end" }}>
+                                <Text style={{ fontSize: 8.6, color: C.gray700 }}>€ {fmtEuro(risp)}</Text>
+                              </View>
+                            )}
                             <View style={{ flex: 1, alignItems: "flex-end" }}>
                               <Text style={{ fontSize: 8.6, color: C.gray700 }}>€ {fmtEuro(det)}</Text>
                             </View>
                             <View style={{ flex: 1, alignItems: "flex-end" }}>
                               <Text style={{ fontSize: 8.6, fontWeight: cumulato >= 0 ? 700 : 400, color: cumulato >= 0 ? C.successText : C.gray500 }}>
-                                {cumulato >= 0 ? "+" : ""}€ {fmtEuro(Math.abs(cumulato))}
+                                {/* Il meno serve: senza, «€ 8.264» ancora da recuperare sembrava un guadagno. */}
+                                {cumulato >= 0 ? "+" : "-"}€ {fmtEuro(Math.abs(cumulato))}
                               </Text>
                             </View>
                             <View style={{ width: 80, alignItems: "flex-end" }}>
@@ -3296,9 +3340,13 @@ export function SerramentoPDF({
                         );
                       })}
                     </View>
-                    <Text style={{ fontSize: 7.7, color: C.gray500, marginTop: 5, fontStyle: "italic" }}>
-                      * Anno di break-even — la spesa iniziale è completamente ripagata dal risparmio + detrazione.
-                    </Text>
+                    {annoPareggio !== null && (
+                      <Text style={{ fontSize: 7.7, color: C.gray500, marginTop: 5, fontStyle: "italic" }}>
+                        {haRisparmioBolletta
+                          ? "* Anno di pareggio: la spesa iniziale è ripagata da risparmio e detrazione."
+                          : "* Anno di pareggio: la spesa iniziale è ripagata dalla detrazione."}
+                      </Text>
+                    )}
                   </View>
                 )}
 
@@ -3379,19 +3427,20 @@ export function SerramentoPDF({
                     {bonus.map((b, i) => (
                       <View key={i} style={[styles.bonusBox, { padding: 8, marginBottom: 5 }]} wrap={false}>
                         <Text style={[styles.bonusTitolo, { fontSize: 10 }]}>{b.titolo}</Text>
-                        {b.valore_eur && b.valore_eur > 0 && (
+                        {Number(b.valore_eur) > 0 && (
                           <Text style={[styles.bonusValore, { fontSize: 10 }]}>
-                            valore € {b.valore_eur}
+                            valore € {fmtEuro(Number(b.valore_eur))}
                           </Text>
                         )}
                       </View>
                     ))}
                     {(() => {
                       const valoreTotale = bonus.reduce((acc, b) => acc + (Number(b.valore_eur) || 0), 0);
-                      if (valoreTotale <= 0) return null;
+                      // Il totale serve solo con almeno due omaggi che hanno un valore.
+                      if (bonus.filter((b) => Number(b.valore_eur) > 0).length < 2) return null;
                       return (
                         <Text style={{ fontSize: 8.5, color: C.successText, fontWeight: 700, marginTop: 3, textAlign: "right" as const }}>
-                          Valore omaggi totale: € {valoreTotale}
+                          Valore omaggi totale: € {fmtEuro(valoreTotale)}
                         </Text>
                       );
                     })()}
@@ -3828,16 +3877,16 @@ export function SerramentoPDF({
                 {confrontoRighe.map((r, i) => (
                   <View key={i} style={styles.confrontoRow} wrap={false}>
                     <View style={{ flex: 2 }}>
-                      <Text style={styles.confrontoCell}>{r.parametro}</Text>
+                      <Text style={styles.confrontoCell}>{senzaMenoTipografico(r.parametro)}</Text>
                     </View>
                     <View style={{ flex: 1, alignItems: "center" }}>
-                      <Text style={[styles.confrontoCell, { color: C.gray500 }]}>{r.prima}</Text>
+                      <Text style={[styles.confrontoCell, { color: C.gray500 }]}>{senzaMenoTipografico(r.prima)}</Text>
                     </View>
                     <View style={{ flex: 1, alignItems: "center" }}>
-                      <Text style={styles.confrontoCellStrong}>{r.dopo}</Text>
+                      <Text style={styles.confrontoCellStrong}>{senzaMenoTipografico(r.dopo)}</Text>
                     </View>
                     <View style={{ flex: 0.7, alignItems: "flex-end" }}>
-                      {r.delta && <Text style={styles.confrontoCellDelta}>{r.delta}</Text>}
+                      {r.delta && <Text style={styles.confrontoCellDelta}>{senzaMenoTipografico(r.delta)}</Text>}
                     </View>
                   </View>
                 ))}

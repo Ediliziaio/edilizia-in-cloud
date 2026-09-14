@@ -56,7 +56,7 @@ export function StepPdf({ progettoId, detail }: Props) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("companies")
-        .select("name, business_name, legal_address, legal_city, legal_postal_code, legal_province, phone, email, vat_number, logo_url, brand_logo_dark_url")
+        .select("name, business_name, legal_address, legal_city, legal_postal_code, legal_province, phone, email, vat_number, logo_url, brand_logo_dark_url, website, pec")
         .eq("id", companyId!)
         .maybeSingle();
       if (error) throw new Error(error.message);
@@ -75,6 +75,9 @@ export function StepPdf({ progettoId, detail }: Props) {
         partita_iva: data.vat_number,
         logo_url: data.logo_url,
         brand_logo_dark_url: (data as { brand_logo_dark_url?: string | null }).brand_logo_dark_url ?? null,
+        // Sito e PEC compilati nell'anagrafica non arrivavano mai al piè di pagina del PDF.
+        website: data.website,
+        pec: data.pec,
       };
     },
   });

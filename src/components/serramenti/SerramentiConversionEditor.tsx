@@ -380,6 +380,8 @@ function SerramentiConversionEditorImpl({
       <Section icon={<Gift />} title="5. Bonus aggiuntivi (regali)" tag="+5-10% conv">
         <p className="text-[11px] text-muted-foreground mb-2">
           Regali tangibili con valore €. Il cliente percepisce valore extra non in offerta da concorrenza.
+          Nel PDF escono solo gli omaggi scritti qui, sotto la proposta economica: se la lista è vuota,
+          il preventivo non ne mostra nessuno.
         </p>
         <div className="space-y-2">
           {bonus.map((b, idx) => (
@@ -420,7 +422,7 @@ function SerramentiConversionEditorImpl({
               <Plus className="h-3.5 w-3.5" /> Aggiungi bonus
             </Button>
             <Button size="sm" variant="ghost" onClick={resetBonus} className="text-[11px] text-muted-foreground">
-              Ripristina 3 default
+              Carica 3 esempi
             </Button>
           </div>
         </div>

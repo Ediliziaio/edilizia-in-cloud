@@ -658,10 +658,12 @@ export const SR_GARANZIE_DEFAULT: SrGaranzia[] = [
 
 /** Default per confronto Prima/Dopo numerico (parametri standard infissi). */
 export const SR_CONFRONTO_DEFAULT: SrConfrontoRiga[] = [
-  { parametro: "Trasmittanza termica Uw", prima: "~3,5 W/m²K", dopo: "1,1 W/m²K", delta: "−68%" },
+  // Il meno è quello della tastiera: il segno tipografico «−» non esiste in
+  // Helvetica e nel PDF spariva, così «−68%» usciva come un aumento del 68%.
+  { parametro: "Trasmittanza termica Uw", prima: "~3,5 W/m²K", dopo: "1,1 W/m²K", delta: "-68%" },
   { parametro: "Abbattimento acustico", prima: "~26 dB", dopo: "38 dB", delta: "+46%" },
   { parametro: "Tenuta aria", prima: "Classe 1", dopo: "Classe 4", delta: "4×" },
-  { parametro: "Bolletta gas stimata/anno", prima: "€1.450", dopo: "€1.310", delta: "−€140" },
+  { parametro: "Bolletta gas stimata/anno", prima: "€1.450", dopo: "€1.310", delta: "-€140" },
 ];
 
 /** Default certificazioni serramentista standard. */
@@ -673,7 +675,7 @@ export const SR_CERTIFICAZIONI_DEFAULT: SrCertificazione[] = [
   { nome: "Confartigianato", logo_url: null },
 ];
 
-/** Default bonus per value stacking. */
+/** Tre omaggi d'esempio, caricabili dall'editor del modello: nel PDF non escono da soli. */
 export const SR_BONUS_DEFAULT: SrBonus[] = [
   { icona: "tools", titolo: "Controllo finale e regolazione serramenti", valore_eur: 120 },
   { icona: "gift", titolo: "Pulizia ordinata dell'area di posa a fine lavori", valore_eur: 90 },
@@ -756,7 +758,7 @@ export const SR_PDF_PAGES_META: SrPdfPageMeta[] = [
   {
     id: "proposta",
     label: "Proposta di intervento",
-    descrizione: "Anagrafica cliente, esigenze, soluzione, perché scegliere voi.",
+    descrizione: "Anagrafica cliente, esigenze, soluzione, perché scegliere voi, la consulenza con consulente e appuntamento.",
     obbligatoria: true,
   },
   // Le pagine dedicate macrocategoria ("Linea Prodotto") sono ora messe
@@ -785,25 +787,31 @@ export const SR_PDF_PAGES_META: SrPdfPageMeta[] = [
     descrizione: "Foto attuale vs render AI. Mostrata solo se ci sono media.",
     obbligatoria: false,
   },
-  {
-    id: "allegato_tecnico",
-    label: "Allegato tecnico",
-    descrizione: "Composizione serramenti (foto + scheda tecnica) + La tua consulenza.",
-    obbligatoria: true,
-  },
   // M9: pagine foto-tecniche dedicate per articolo. Visibili solo se il
   // toggle pdf_pagine_articolo_dedicate è attivo AND ci sono media legati
-  // a serramenti via serramento_id. Mostrate DOPO allegato tecnico:
-  // sintesi tecnica → dettagli foto-tecnici → economia.
+  // a serramenti via serramento_id. Come tutte le pagine con le immagini dei
+  // prodotti stanno PRIMA dell'allegato tecnico (regola del 14/09/2026).
   {
     id: "articoli_dedicati",
     label: "Pagine foto-tecniche per articolo",
     descrizione: "Una pagina per ogni gruppo serramento con foto sopralluogo o render AI.",
     obbligatoria: false,
   },
-  // Standard vendita: percorso, garanzie e confronto numerico (processo + prova +
-  // risparmio) vengono PRIMA della proposta economica. Il cliente vede il valore
-  // — come lavoriamo, cosa garantiamo, quanto risparmia — e solo DOPO il prezzo.
+  {
+    id: "allegato_tecnico",
+    label: "Allegato tecnico",
+    descrizione: "Composizione serramenti (foto + scheda tecnica).",
+    obbligatoria: true,
+  },
+  // La proposta economica segue sempre l'allegato tecnico (regola del
+  // 14/09/2026, vedi regoleOrdinePagine): prima i prodotti, poi cosa si
+  // installa, poi il prezzo. Percorso, garanzie e confronto vengono dopo.
+  {
+    id: "investimento",
+    label: "Proposta economica",
+    descrizione: "Totale preventivo, modalità pagamento, finanziamento, risparmio + cashflow, incluso.",
+    obbligatoria: true,
+  },
   {
     id: "percorso",
     label: "Il tuo percorso",
@@ -821,12 +829,6 @@ export const SR_PDF_PAGES_META: SrPdfPageMeta[] = [
     label: "Confronto Prima & Dopo numerico",
     descrizione: "Tabella tecnica indicativa o configurata: serramento attuale vs nuovo.",
     obbligatoria: false,
-  },
-  {
-    id: "investimento",
-    label: "Proposta economica",
-    descrizione: "Totale preventivo, modalità pagamento, finanziamento, risparmio + cashflow, incluso.",
-    obbligatoria: true,
   },
   {
     id: "faq",
@@ -866,7 +868,9 @@ export const SR_PDF_PAGES_DEFAULT: SrPdfPageOrderItem[] = SR_PDF_PAGES_META.map(
  *    pagina che le precede nell'ordine di default)
  *  - filtra id sconosciuti (es. pagina rimossa in futuro update)
  *  - le pagine obbligatorie hanno sempre visible=true (anche se salvato false
- *    da una versione precedente).
+ *    da una versione precedente)
+ *  - le pagine con le immagini dei prodotti stanno prima dell'allegato tecnico
+ *    e la proposta economica subito dopo (regoleOrdinePagine).
  */
 export function normalizePdfPagesOrder(
   saved: SrPdfPageOrderItem[] | null | undefined,
@@ -897,6 +901,32 @@ export function normalizePdfPagesOrder(
     out.splice(dopo + 1, 0, { id: meta.id, visible: true });
     seen.add(meta.id);
   });
+  return regoleOrdinePagine(out);
+}
+
+/** Le pagine con le immagini dei prodotti: tipologie, schede delle linee, foto e render, pagine articolo. */
+const PAGINE_PRODOTTO: SrPdfPageId[] = ["macro_dedicate", "linee_dedicate", "render", "articoli_dedicati"];
+
+/**
+ * Due regole che valgono per ogni azienda, qualunque ordine abbia salvato
+ * (decise il 14/09/2026): i prodotti si mostrano prima dell'allegato tecnico, e
+ * la proposta economica viene subito dopo l'allegato. Una pagina prodotto già
+ * messa prima dell'allegato resta dov'è.
+ */
+function regoleOrdinePagine(pagine: SrPdfPageOrderItem[]): SrPdfPageOrderItem[] {
+  const out = [...pagine];
+  const indice = (id: SrPdfPageId) => out.findIndex((p) => p.id === id);
+  if (indice("allegato_tecnico") === -1) return out;
+  const dopoAllegato = out.filter((p, i) => PAGINE_PRODOTTO.includes(p.id) && i > indice("allegato_tecnico"));
+  for (const pagina of dopoAllegato) {
+    out.splice(indice(pagina.id), 1);
+    out.splice(indice("allegato_tecnico"), 0, pagina);
+  }
+  const iInvestimento = indice("investimento");
+  if (iInvestimento !== -1) {
+    const [investimento] = out.splice(iInvestimento, 1);
+    out.splice(indice("allegato_tecnico") + 1, 0, investimento);
+  }
   return out;
 }
 

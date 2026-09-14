@@ -139,7 +139,9 @@ function SerramentiPagesOrderEditorImpl({ value, onChange }: Props) {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="text-xs text-muted-foreground">
           Trascina per riordinare. Tocca l'occhio per mostrare/nascondere una pagina.
-          La <strong>cover</strong> è sempre la prima e non riordinabile.
+          La <strong>cover</strong> è sempre la prima e non riordinabile. Le pagine con le immagini
+          dei prodotti stanno sempre prima dell'<strong>allegato tecnico</strong>, e la{" "}
+          <strong>proposta economica</strong> subito dopo: se le sposti, tornano lì.
         </div>
         <Button
           size="sm"
