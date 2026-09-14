@@ -21,6 +21,8 @@ import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatters";
 import { calcTotaliComputo, type ComputoRigaInput } from "@/lib/bagni/calcoli";
 import type { BgnComputoVoce } from "@/types/bagni";
+import { toast } from "sonner";
+import { chiaviCapitoli, esitoRinomina, passaChiave } from "@/lib/moduli/capitoliComputo";
 import CapitoloSection from "./CapitoloSection";
 import AddVocePicker from "./AddVocePicker";
 import { pickedToComputoVoce, type PickedVoce } from "./types";
@@ -67,6 +69,15 @@ export default function ComputoEditor({
     }
     return order.map((nome) => ({ nome, voci: map.get(nome) ?? [] }));
   }, [value, emptyCapitoli]);
+
+  // Chiave React per capitolo. Non la posizione (eliminarne uno passava lo stato
+  // della sezione a quello dopo) e non il solo nome (rinominarlo rimonterebbe la
+  // sezione): un capitolo rinominato tiene la chiave che aveva.
+  const [chiaviEreditate, setChiaviEreditate] = useState<ReadonlyMap<string, string>>(() => new Map());
+  const chiavi = useMemo(
+    () => chiaviCapitoli(capitoli.map((c) => c.nome), chiaviEreditate),
+    [capitoli, chiaviEreditate],
+  );
 
   // ─── Totali live ──────────────────────────────────────────────────────────
   const totali = useMemo(() => {
@@ -134,21 +145,33 @@ export default function ComputoEditor({
     setEmptyCapitoli((prev) => [...prev, name]);
   }, [value, emptyCapitoli]);
 
+  // Arriva a fine scrittura (uscita dal campo o Invio), non a ogni tasto.
   const renameCapitolo = useCallback(
     (oldName: string, newName: string) => {
-      const target = newName; // consentito anche vuoto durante la digitazione
+      const esito = esitoRinomina(oldName, newName, capitoli.map((c) => c.nome));
+      if (esito.tipo === "doppione") {
+        toast.error(`Esiste già un capitolo «${esito.nome}»`, {
+          description: "Il capitolo tiene il nome di prima: le voci si sarebbero unite.",
+        });
+        return;
+      }
+      // Vuoto o invariato: resta il nome di prima, e il campo torna a mostrarlo.
+      if (esito.tipo !== "rinomina") return;
+      const target = esito.nome;
+      const chiave = chiavi[capitoli.findIndex((c) => c.nome === oldName)];
       // Aggiorna le voci del capitolo.
       onChange(
         value.map((v) =>
           (v.capitolo_nome || DEFAULT_CAPITOLO) === oldName
-            ? { ...v, capitolo_nome: target || DEFAULT_CAPITOLO }
+            ? { ...v, capitolo_nome: target }
             : v,
         ),
       );
       // Aggiorna anche la lista dei capitoli vuoti.
       setEmptyCapitoli((prev) => prev.map((n) => (n === oldName ? target : n)));
+      if (chiave) setChiaviEreditate((prev) => passaChiave(prev, oldName, target, chiave));
     },
-    [value, onChange],
+    [value, onChange, capitoli, chiavi],
   );
 
   const deleteCapitolo = useCallback(
@@ -230,11 +253,10 @@ export default function ComputoEditor({
         ) : (
           <div className="space-y-3">
             {capitoli.map((cap, idx) => (
-              // Key per indice (non per nome): la rename inline cambia `cap.nome`
-              // a ogni tasto; con key=nome il componente si rimonterebbe perdendo
-              // il focus dell'input. L'ordine dei capitoli non cambia su rename.
+              // Chiave stabile (vedi chiaviCapitoli): il nome si scrive dentro la
+              // sezione e si applica all'uscita dal campo, senza rimontarla.
               <CapitoloSection
-                key={`cap-${idx}`}
+                key={chiavi[idx]}
                 nome={cap.nome}
                 voci={cap.voci}
                 accentIndex={idx}

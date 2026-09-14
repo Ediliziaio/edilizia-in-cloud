@@ -1737,7 +1737,7 @@ export function TermoidraulicoTemplateEditor({ embedded = false }: Props) {
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs">Validità offerta (giorni)</Label>
-                    <Input type="number" min={1} value={form.default_validita_giorni ?? 30} onChange={(e) => set("default_validita_giorni", Number(e.target.value))} />
+                    <Input type="number" min={1} step={1} value={form.default_validita_giorni ?? 30} onChange={(e) => set("default_validita_giorni", Math.trunc(Number(e.target.value)))} />
                   </div>
                 </div>
               </SectionCard>

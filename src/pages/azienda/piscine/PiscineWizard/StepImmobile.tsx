@@ -71,6 +71,12 @@ const toNum = (raw: string): number | null => {
   return Number.isFinite(v) ? v : null;
 };
 
+/** Come `toNum`, per le colonne intere del DB: con un decimale ogni salvataggio falliva. */
+const toInt = (raw: string): number | null => {
+  const v = toNum(raw);
+  return v == null ? null : Math.trunc(v);
+};
+
 export default function StepImmobile({ form, onChange }: Props) {
   return (
     <Card>
@@ -216,9 +222,10 @@ export default function StepImmobile({ form, onChange }: Props) {
             <Label className="text-xs">Anno immobile</Label>
             <Input
               type="number"
+              step={1}
               inputMode="numeric"
               value={form.immobile_anno ?? ""}
-              onChange={(e) => onChange("immobile_anno", toNum(e.target.value))}
+              onChange={(e) => onChange("immobile_anno", toInt(e.target.value))}
               placeholder="2010"
               className="h-9 tabular-nums"
             />
@@ -227,9 +234,10 @@ export default function StepImmobile({ form, onChange }: Props) {
             <Label className="text-xs">Note dimensioni (es. 8×4 m, h 1,5 m)</Label>
             <Input
               value={form.immobile_piani != null ? String(form.immobile_piani) : ""}
-              onChange={(e) => onChange("immobile_piani", toNum(e.target.value))}
+              onChange={(e) => onChange("immobile_piani", toInt(e.target.value))}
               placeholder="Profondità media in cm"
               type="number"
+              step={1}
               inputMode="numeric"
               className="h-9 tabular-nums"
             />

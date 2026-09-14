@@ -69,6 +69,15 @@ export default function CapitoloSection({
 }: Props) {
   const [open, setOpen] = useState(true);
   const [pickerOpen, setPickerOpen] = useState(false);
+  // Il nome si scrive qui e si applica all'uscita dal campo (o con Invio):
+  // applicato a ogni tasto spostava le voci in «Generale» a campo vuoto, o le
+  // univa a un capitolo omonimo a metà parola. null = nessuna modifica in corso.
+  const [nomeInScrittura, setNomeInScrittura] = useState<string | null>(null);
+  const applicaNome = () => {
+    if (nomeInScrittura === null) return;
+    setNomeInScrittura(null);
+    onRename(nomeInScrittura);
+  };
   const accent = ACCENTS[accentIndex % ACCENTS.length];
 
   const sensors = useSensors(
@@ -152,8 +161,12 @@ export default function CapitoloSection({
 
           {/* Nome capitolo editabile inline */}
           <Input
-            value={nome}
-            onChange={(e) => onRename(e.target.value)}
+            value={nomeInScrittura ?? nome}
+            onChange={(e) => setNomeInScrittura(e.target.value)}
+            onBlur={applicaNome}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") e.currentTarget.blur();
+            }}
             placeholder="Nome capitolo…"
             className="h-9 flex-1 border-transparent bg-transparent px-1.5 text-sm font-semibold text-slate-800 shadow-none hover:bg-muted/50 focus-visible:bg-background focus-visible:ring-1"
           />

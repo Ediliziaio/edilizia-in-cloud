@@ -56,6 +56,12 @@ const toNum = (raw: string): number | null => {
   return Number.isFinite(v) ? v : null;
 };
 
+/** Come `toNum`, per le colonne intere del DB: con un decimale ogni salvataggio falliva. */
+const toInt = (raw: string): number | null => {
+  const v = toNum(raw);
+  return v == null ? null : Math.trunc(v);
+};
+
 export default function StepImmobile({ form, onChange }: Props) {
   // Calcolatore rivestimenti (puro, nessuno stato): pavimento + pareti dal perimetro × altezza.
   const riv = form.perimetro_ml != null && form.perimetro_ml > 0
@@ -159,10 +165,11 @@ export default function StepImmobile({ form, onChange }: Props) {
             <Label className="text-xs">N. bagni</Label>
             <Input
               type="number"
+              step={1}
               inputMode="numeric"
               min={1}
               value={form.numero_bagni ?? ""}
-              onChange={(e) => onChange("numero_bagni", toNum(e.target.value))}
+              onChange={(e) => onChange("numero_bagni", toInt(e.target.value))}
               placeholder="1"
               className="h-9 tabular-nums"
             />
@@ -183,9 +190,10 @@ export default function StepImmobile({ form, onChange }: Props) {
             <Label className="text-xs">Anno</Label>
             <Input
               type="number"
+              step={1}
               inputMode="numeric"
               value={form.immobile_anno ?? ""}
-              onChange={(e) => onChange("immobile_anno", toNum(e.target.value))}
+              onChange={(e) => onChange("immobile_anno", toInt(e.target.value))}
               placeholder="1975"
               className="h-9 tabular-nums"
             />
@@ -194,10 +202,11 @@ export default function StepImmobile({ form, onChange }: Props) {
             <Label className="text-xs">Piani</Label>
             <Input
               type="number"
+              step={1}
               inputMode="numeric"
               min={0}
               value={form.immobile_piani ?? ""}
-              onChange={(e) => onChange("immobile_piani", toNum(e.target.value))}
+              onChange={(e) => onChange("immobile_piani", toInt(e.target.value))}
               placeholder="1"
               className="h-9 tabular-nums"
             />
