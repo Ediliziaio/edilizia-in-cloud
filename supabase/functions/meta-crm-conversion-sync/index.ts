@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders, jsonResponse, errorResponse } from "../_shared/headers.ts";
+import { aziendeConPixelAttivo, eventoTroppoVecchio, MAX_TENTATIVI_CAPI } from "../_shared/capiCodaLogica.ts";
 
 type EntityType = "contact" | "appointment" | "opportunity";
 type EventKind = "lead_created" | "appointment_scheduled" | "opportunity_won";
@@ -120,14 +121,34 @@ Deno.serve(async (req) => {
       explicitEventId = String(data ?? "");
     }
 
+    // Solo le aziende con un pixel attivo e il token CAPI: senza, ogni evento
+    // falliva e tornava in coda per sempre.
+    const { data: pixelAttivi, error: pixelErr } = await adminClient
+      .from("meta_conversion_pixel")
+      .select("company_id")
+      .eq("is_active", true)
+      .not("capi_token_encrypted", "is", null);
+    if (pixelErr) throw pixelErr;
+    const aziendeConPixel = aziendeConPixelAttivo(pixelAttivi);
+    if (!explicitEventId && aziendeConPixel.length === 0) {
+      return jsonResponse(
+        { processed: 0, sent: 0, skipped: 0, failed: 0, results: [], nota: "nessun pixel con token CAPI configurato" },
+        200,
+        cors,
+      );
+    }
+
     let query = adminClient
       .from("meta_crm_conversion_events")
       .select("id, company_id, entity_type, entity_id, event_kind, event_name, event_id, attempt_count, created_at")
       .in("status", ["pending", "failed"])
+      // Dopo MAX_TENTATIVI_CAPI fallimenti l'evento non si riprende più.
+      .or(`attempt_count.is.null,attempt_count.lt.${MAX_TENTATIVI_CAPI}`)
       .order("created_at", { ascending: true })
       .limit(limit);
 
     if (explicitEventId) query = query.eq("id", explicitEventId);
+    else query = query.in("company_id", aziendeConPixel);
 
     const { data: events, error } = await query;
     if (error) throw error;
@@ -176,6 +197,16 @@ async function processQueueEvent(
         payload: { reason: "not_meta_attributed" },
       });
       return { id: event.id, status: "skipped", reason: "not_meta_attributed" };
+    }
+
+    // Meta rifiuta gli eventi più vecchi di 7 giorni: inutile mandarli e
+    // contarli come falliti, si scartano con il motivo.
+    const eventTime = eventTimeFromContext(event, context);
+    if (eventoTroppoVecchio(eventTime)) {
+      await markQueueEvent(adminClient, event.id, "skipped", {
+        payload: { reason: "troppo_vecchio", event_time: eventTime },
+      });
+      return { id: event.id, status: "skipped", reason: "troppo_vecchio" };
     }
 
     const payload = buildCapiPayload(event, context);
