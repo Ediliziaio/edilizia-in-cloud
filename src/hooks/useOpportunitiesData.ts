@@ -1038,7 +1038,7 @@ export function useOpportunityNotes(opportunityId: string | null, contactId?: st
         // Fallback: only notes linked to this opportunity
         const { data, error } = await supabase
           .from("marketing_contact_notes")
-          .select("*")
+          .select("*, profiles:created_by(first_name, last_name)")
           .eq("company_id", companyId!)
           .eq("opportunity_id", opportunityId!)
           .order("created_at", { ascending: false });
@@ -1048,7 +1048,7 @@ export function useOpportunityNotes(opportunityId: string | null, contactId?: st
       // Get all notes for the contact (both generic and opportunity-specific)
       const { data, error } = await supabase
         .from("marketing_contact_notes")
-        .select("*")
+        .select("*, profiles:created_by(first_name, last_name)")
         .eq("company_id", companyId!)
         .eq("contact_id", contactId)
         .order("created_at", { ascending: false });

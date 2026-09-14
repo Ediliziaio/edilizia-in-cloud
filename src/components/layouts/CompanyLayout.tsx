@@ -5,6 +5,7 @@ import { navigateToSubdomain } from "@/utils/subdomainNav";
 import { isIOS as isIOSNativePlatform } from "@/lib/mobile/platform";
 import { SidebarSubcategory } from "@/components/layouts/SidebarSubcategory";
 import { useAuth } from "@/contexts/AuthContext";
+import { etichettaRuoloAzienda, puoScegliereSettore } from "@/lib/auth/ruoloAzienda";
 import { usePermissions, type Permissions } from "@/hooks/usePermissions";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { useFeatureFlags } from "@/hooks/useFeatureFlags";
@@ -979,7 +980,7 @@ const SettingsSidebarContent = memo(function SettingsSidebarContent({
 
 const CompanySidebar = memo(function CompanySidebar() {
   const isMobile = useIsMobile();
-  const { signOut, effectiveCompany, profile, isImpersonating, exitImpersonation, role, multiCompanyAccesses, viewAsRole } = useAuth();
+  const { signOut, effectiveCompany, profile, isImpersonating, exitImpersonation, role, userRoles, multiCompanyAccesses, viewAsRole } = useAuth();
   const hasMultipleCompanies = (multiCompanyAccesses?.length ?? 0) > 1;
   // usePermissions è già "viewAs-aware": quando `viewAsRole` è attivo
   // restituisce i permessi REALI dell'utente target (letti da staff_permissions),
@@ -1451,7 +1452,7 @@ const CompanySidebar = memo(function CompanySidebar() {
                           {profile?.first_name} {profile?.last_name}
                         </p>
                         <p className="text-xs text-muted-foreground truncate">
-                          {isImpersonating ? "Super Admin" : "Admin"}
+                          {etichettaRuoloAzienda(role, userRoles, { isImpersonating })}
                         </p>
                       </div>
                       <button
@@ -1521,6 +1522,7 @@ export function CompanyLayout() {
     selectedMultiCompanyId,
     switchMultiCompany,
     role,
+    userRoles,
   } = useAuth();
   const permissions = usePermissions();
   const { isModuleEnabled } = useSubscriptionLimits({ includeUsageCounts: false });
@@ -1702,6 +1704,8 @@ export function CompanyLayout() {
   // scelta del settore (onboarding_vertical_completed=false) forziamo il redirect
   // a /azienda/onboarding/vertical. Escludiamo:
   // - impersonation super_admin: il super_admin non deve subire onboarding del tenant;
+  // - chi non è amministratore: il settore lo sceglie il titolare. Il 14/09 una
+  //   call center di BeMade è stata mandata qui al primo accesso e l'ha scelto;
   // - la pagina di onboarding stessa (evita loop).
   const onboardingVerticalDone =
     (effectiveCompany as unknown as { onboarding_vertical_completed?: boolean } | null)
@@ -1709,10 +1713,11 @@ export function CompanyLayout() {
   useEffect(() => {
     if (isImpersonating) return;
     if (!effectiveCompany) return;
+    if (!puoScegliereSettore(role, userRoles)) return;
     if (onboardingVerticalDone !== false) return;
     if (location.pathname === "/azienda/onboarding/vertical") return;
     navigate("/azienda/onboarding/vertical", { replace: true });
-  }, [isImpersonating, effectiveCompany, onboardingVerticalDone, location.pathname, navigate]);
+  }, [isImpersonating, effectiveCompany, role, userRoles, onboardingVerticalDone, location.pathname, navigate]);
 
   const [npsOpen, setNpsOpen] = useState(false);
 

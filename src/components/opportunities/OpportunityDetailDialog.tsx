@@ -55,6 +55,7 @@ import { ContactActivityRegister } from "@/components/contacts/ContactActivityRe
 import { LogCallButton } from "@/components/marketing/LogCallButton";
 import { getAddedTags, getRemovedTags, normalizeTagList } from "@/lib/marketingTags";
 import { useSoftphoneOptional } from "@/components/telephony/SoftphoneProvider";
+import { firmaNota } from "@/lib/marketing/autoreNota";
 
 interface Props {
   opportunity: any;
@@ -1196,8 +1197,9 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                             )}
                           </div>
                           <p className="text-sm whitespace-pre-wrap">{note.content}</p>
+                          {/* Chi l'ha scritta e quando, con data e ora. */}
                           <p className="text-[11px] text-muted-foreground mt-2">
-                            {format(new Date(note.created_at), "d MMM yyyy HH:mm", { locale: it })}
+                            {firmaNota(note.created_at, note.profiles)}
                           </p>
                         </div>
                       ))}

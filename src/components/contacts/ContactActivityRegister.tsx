@@ -189,7 +189,9 @@ export function ContactActivityRegister({
         .order("created_at", { ascending: false }).limit(30);
       if (error) return [];
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return (data ?? []).map((r: any) => ({ id: `note_${r.id}`, kind: "note" as const, title: "Nota", text: r.content, agentId: r.created_by, at: r.created_at }));
+      return (data ?? []).map((r: any) => ({ id: `note_${r.id}`, kind: "note" as const, title: "Nota", text: r.content, agentId: r.created_by,
+        // Senza autore (import, note automatiche) si dice, invece di non scrivere niente.
+        agentName: r.created_by ? null : "sistema o importazione", at: r.created_at }));
     },
   });
 

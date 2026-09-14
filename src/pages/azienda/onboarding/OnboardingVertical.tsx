@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { puoScegliereSettore } from "@/lib/auth/ruoloAzienda";
 import { useAllBusinessVerticals } from "@/hooks/useBusinessVertical";
 import { useModuliVendita, type ModuloVendutaSlug } from "@/lib/moduli-vendita";
 import { supabase } from "@/integrations/supabase/client";
@@ -118,7 +119,11 @@ const VERTICAL_KEY_TO_MODULE_SLUG: Record<string, ModuloVendutaSlug> = {
 
 export default function OnboardingVertical() {
   const navigate = useNavigate();
-  const { effectiveCompany, refreshAuth } = useAuth();
+  const { effectiveCompany, refreshAuth, role, userRoles, isImpersonating } = useAuth();
+  // Il settore lo sceglie il titolare o l'amministratore. Chi arriva qui da
+  // un link o da una versione vecchia dell'app vede perché non può salvarlo,
+  // e il database comunque rifiuterebbe la modifica.
+  const puoScegliere = isImpersonating || puoScegliereSettore(role, userRoles);
   const { data: verticals = [], isLoading, isError, isRefetching, refetch } = useAllBusinessVerticals();
   const { moduli } = useModuliVendita();
   const [selected, setSelected] = useState<string | null>(null); // vertical_key
@@ -142,6 +147,9 @@ export default function OnboardingVertical() {
     mutationFn: async (verticalKey: string) => {
       if (!companyId) {
         throw new Error("Azienda non identificata");
+      }
+      if (!puoScegliere) {
+        throw new Error("Il settore lo sceglie il titolare o l'amministratore dell'azienda");
       }
       const legacy = toLegacyVertical(verticalKey);
       const { error } = await supabase
@@ -208,9 +216,28 @@ export default function OnboardingVertical() {
   });
 
   const canSubmit = useMemo(
-    () => selected !== null && !saveVertical.isPending,
-    [selected, saveVertical.isPending],
+    () => puoScegliere && selected !== null && !saveVertical.isPending,
+    [puoScegliere, selected, saveVertical.isPending],
   );
+
+  if (!puoScegliere) {
+    return (
+      <div className="min-h-screen bg-muted/30 py-10 px-4">
+        <Card className="mx-auto max-w-lg">
+          <CardHeader>
+            <CardTitle>Il settore lo sceglie l'amministratore</CardTitle>
+            <CardDescription>
+              Il settore principale dell'azienda lo imposta il titolare o l'amministratore.
+              Tu puoi lavorare normalmente: quando lo avranno scelto, lo vedrai applicato.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button onClick={() => navigate("/azienda", { replace: true })}>Vai alla tua area</Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-muted/30 py-6 sm:py-10 px-3 sm:px-4">

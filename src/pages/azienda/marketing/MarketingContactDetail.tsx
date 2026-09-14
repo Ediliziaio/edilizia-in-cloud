@@ -73,6 +73,7 @@ import { OpportunitiesPanel } from "@/components/marketing/contacts/Opportunitie
 import { ContactQuotesPanel } from "@/components/marketing/contacts/ContactQuotesPanel";
 import { getDateLabel, RIGHT_TABS, type RightTab } from "@/components/marketing/contacts/activityHelpers";
 import { getAvatarColor } from "@/lib/contactUtils";
+import { firmaNota } from "@/lib/marketing/autoreNota";
 
 // 2026-05-27 (richiesta utente CC/CCN): parser email CSV/space-separated,
 // lowercase, dedup, validazione basica. Restituisce undefined se input vuoto
@@ -1794,14 +1795,10 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                           <Badge variant="outline" className="text-[9px] h-4 px-1.5 mb-0.5">Opportunità</Badge>
                         )}
                         <p className="text-[11px] whitespace-pre-wrap">{note.content}</p>
+                        {/* Chi l'ha scritta e quando, sempre: una nota senza firma non si può pesare. */}
                         <p className="text-[10px] text-muted-foreground">
-                          {format(new Date(note.created_at), "dd MMM yyyy, HH:mm", { locale: it })}
+                          {firmaNota(note.created_at, note.profiles)}
                         </p>
-                        {note.profiles && (note.profiles as any).first_name && (
-                          <p className="text-[10px] text-muted-foreground">
-                            Creato da: <span className="font-medium">{(note.profiles as any).first_name} {(note.profiles as any).last_name}</span>
-                          </p>
-                        )}
                       </div>
                     ))}
                     {notes.length === 0 && (

@@ -12,6 +12,7 @@ import {
   FileText, AlertCircle, Check, CheckCheck, Clock, AlertTriangle,
 } from "lucide-react";
 import { getMarketingAppointmentStatusMeta } from "@/lib/marketingAppointmentStatus";
+import { autoreNota, dataOraNota } from "@/lib/marketing/autoreNota";
 
 // ── Types ──
 interface TimelineEvent {
@@ -475,7 +476,9 @@ export function UnifiedContactTimeline({
         category: "note",
         icon: <StickyNote className="h-3 w-3" />,
         color: "bg-amber-100 text-amber-600",
-        title: "Nota",
+        // Chi l'ha scritta sta nel titolo: nella riga compatta della cronologia
+        // la descrizione si tronca, il nome no.
+        title: `Nota di ${autoreNota((note as { profiles?: { first_name?: string | null; last_name?: string | null } | null }).profiles)} · ${dataOraNota(note.created_at)}`,
         description: note.content || undefined,
         timestamp: note.created_at,
       });
