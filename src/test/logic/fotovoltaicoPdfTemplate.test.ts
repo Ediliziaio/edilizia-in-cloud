@@ -445,3 +445,65 @@ describe("fotovoltaico PDF — elenco componenti e foto prodotti", () => {
     expect(html).toContain("× 12");
   });
 });
+
+// 14/09/2026 — Il PDF non stampa a nome dell'azienda numeri e promesse che
+// nessuno ha scritto: 25 preventivi in contanti ricevevano rata, TAN e TAEG.
+describe("fotovoltaico PDF — niente numeri e promesse inventate", () => {
+  const pagineDisegnate = (html: string) => html.match(/<div class="page">/g)?.length ?? 0;
+
+  it("senza finanziamento non mostra rata, TAN, TAEG né il piano economico", () => {
+    const d: FvPdfTemplateData = { ...basePdfData(), finanziamento: null };
+    const html = renderFvPdfHtml(d);
+
+    expect(html).not.toContain("Il piano economico");
+    expect(html).not.toContain("TAEG");
+    expect(html).not.toContain("TAN nominale");
+    expect(html).not.toContain("Costo netto reale");
+    expect(html).not.toContain("Cofidis");
+    expect(pagineDisegnate(html)).toBe(getFvPdfRenderedPagesCount(d));
+  });
+
+  it("un tasso che manca si legge n.d., non 4,75% o 5,40%", () => {
+    const d = basePdfData();
+    d.finanziamento = { ...d.finanziamento!, tan_perc: null, taeg_perc: null };
+    const html = renderFvPdfHtml(d);
+
+    expect(html).toContain("Il piano economico");
+    expect(html).toContain('<td class="num-cell">n.d.</td>');
+    expect(html).not.toContain("4,75");
+    expect(html).not.toContain("5,40");
+  });
+
+  it("senza modello dell'azienda non inventa garanzie, FAQ, tempi e certificazioni", () => {
+    const d = basePdfData();
+    const html = renderFvPdfHtml(d);
+
+    for (const inventato of [
+      "Albo installatori GSE",
+      "Intervento entro 48h",
+      "Estendibile a 15 anni",
+      "Polizza RC",
+      "Cosa succede se vendo casa",
+      "7 settimane",
+      "KYC",
+      "3 giornate",
+      "certificata RID GSE",
+      "Domande frequenti",
+    ]) {
+      expect(html).not.toContain(inventato);
+    }
+    // Le garanzie vere: quelle del produttore, con gli anni dei componenti scelti.
+    expect(html).toContain("Garanzia del produttore di 25 anni");
+    expect(pagineDisegnate(html)).toBe(getFvPdfRenderedPagesCount(d));
+  });
+
+  it("il kit senza copertina entra nel numero di pagine del piè di pagina", () => {
+    const d = basePdfData();
+    d.bundle = { nome: "Kit Casa 6 kW", voci: [{ descrizione: "Pannello 500W", quantita: 12 }] };
+    const html = renderFvPdfHtml(d);
+    const totale = getFvPdfRenderedPagesCount(d);
+
+    expect(pagineDisegnate(html)).toBe(totale);
+    expect(html).toContain(`<span class="pnum">${totale} / ${totale}</span>`);
+  });
+});

@@ -32,7 +32,7 @@
 
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { buildMergeContext, substituteMergeTags } from "../_shared/quoteTemplateComposer.ts";
-import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
+import { aziendaAccessibile, requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import {
   getFvPdfRenderedPagesCount,
@@ -74,6 +74,14 @@ function firstString(...values: unknown[]): string | null {
   return null;
 }
 
+/** fv_progetti.iva_aliquota è una frazione (0.1000 = 10%). Il PDF scriveva
+ *  sempre «IVA 10%», anche sui progetti con un'aliquota diversa. */
+function aliquotaIva(valore: unknown): number {
+  const n = Number(valore);
+  if (valore == null || valore === "" || !Number.isFinite(n) || n < 0) return 10;
+  return Math.round((n <= 1 ? n * 100 : n) * 100) / 100;
+}
+
 Deno.serve(async (req: Request) => {
   const corsHeaders = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
@@ -105,7 +113,7 @@ Deno.serve(async (req: Request) => {
     const { data: prog, error: progErr } = await supabaseAdmin
       .from("fv_progetti")
       .select(
-        "id, company_id, numero, titolo, archetipo, indirizzo, comune, provincia, cap, latitudine, longitudine, tipologia_immobile, prima_casa, consumo_annuo_kwh, costo_kwh_attuale, profilo_consumo, fonte_dati_tetto, qualita_dati_tetto, imagery_date, ore_sole_annue, superficie_tetto_disponibile_mq, perdita_ombreggiamento_pct, numero_pannelli_scelti, potenza_kwp, con_accumulo, capacita_accumulo_kwh, prezzo_vendita_iva_inclusa, payback_anni, npv_25_anni, risparmio_anno1, created_at, created_by, scenario_finanziamento, finanziamento_tabella_id, finanziamento_durata_mesi, finanziamento_rata_eur, finanziamento_taeg, finanziamento_tan, finanziamento_totale_dovuto_eur, kit_bundle_id, modalita_pagamento",
+        "id, company_id, numero, titolo, archetipo, indirizzo, comune, provincia, cap, latitudine, longitudine, tipologia_immobile, prima_casa, consumo_annuo_kwh, costo_kwh_attuale, profilo_consumo, fonte_dati_tetto, qualita_dati_tetto, imagery_date, ore_sole_annue, superficie_tetto_disponibile_mq, perdita_ombreggiamento_pct, numero_pannelli_scelti, potenza_kwp, con_accumulo, capacita_accumulo_kwh, prezzo_vendita_iva_inclusa, payback_anni, npv_25_anni, risparmio_anno1, created_at, created_by, scenario_finanziamento, finanziamento_tabella_id, finanziamento_durata_mesi, finanziamento_rata_eur, finanziamento_taeg, finanziamento_tan, finanziamento_totale_dovuto_eur, kit_bundle_id, modalita_pagamento, iva_aliquota",
       )
       .eq("id", p.progetto_id)
       .maybeSingle();
@@ -197,9 +205,10 @@ Deno.serve(async (req: Request) => {
         .map((row) => [String(row.id), row]),
     );
 
-    // Recupera nome venditore (chi ha creato il progetto)
+    // «A cura di» in copertina: chi ha creato il progetto, ma solo se lavora in
+    // questa azienda. Prima ci finiva anche il super admin entrato per assistenza.
     let venditoreNome: string | null = null;
-    if (prog.created_by) {
+    if (prog.created_by && await aziendaAccessibile(supabaseAdmin, prog.created_by, prog.company_id)) {
       const { data: profile } = await supabaseAdmin
         .from("profiles")
         .select("first_name, last_name")
@@ -352,20 +361,28 @@ Deno.serve(async (req: Request) => {
       perdita_ombreggiamento_pct: Number(prog.perdita_ombreggiamento_pct) || 0,
     });
 
-    // Detrazione: 50% se prima_casa===true, 36% altrimenti/null, plafond 96.000€
+    // Detrazione: quella del calcolo finanziario, che la dà solo ai privati
+    // (50% prima casa, 36% le altre, plafond dal catalogo incentivi). Il PDF la
+    // ricalcolava per conto suo e la stampava anche ad aziende, condomini e CER.
     const detrazionePerc = prog.prima_casa === true ? 50 : 36;
-    const baseDetrazione = Math.min(96000, Number(prog.prezzo_vendita_iva_inclusa) || 0);
-    const detrazioneTotale = (baseDetrazione * detrazionePerc) / 100;
+    const privato = ["privato_prima", "privato_seconda", "privato_isee"].includes(String(prog.archetipo ?? ""));
+    const detrazioneTotale = calc?.detrazione_anno_eur != null
+      ? Number(calc.detrazione_anno_eur) * 10
+      : privato
+        ? (Math.min(96000, Number(prog.prezzo_vendita_iva_inclusa) || 0) * detrazionePerc) / 100
+        : 0;
     const costoNetto = (Number(prog.prezzo_vendita_iva_inclusa) || 0) - detrazioneTotale;
 
     // Cassa cumulata: se non disponibile, generiamo proiezione semplice
     let cassaAnni: Array<{ anno: number; cumulato: number }> = [];
     if (Array.isArray(calc?.cassa_anno_per_anno) && (calc!.cassa_anno_per_anno as Array<unknown>).length > 0) {
       cassaAnni = calc!.cassa_anno_per_anno as Array<{ anno: number; cumulato: number }>;
-    } else {
-      // Fallback: proiezione semplice
+    } else if (Number(prog.risparmio_anno1) > 0) {
+      // Fallback: proiezione semplice dal risparmio salvato. Senza risparmio la
+      // cassa resta vuota e la pagina dei 25 anni non esce (prima si partiva da
+      // un risparmio inventato di 1.500 €/anno).
       const investimento = Number(prog.prezzo_vendita_iva_inclusa) || 0;
-      const risparmioAnno = Number(prog.risparmio_anno1) || 1500;
+      const risparmioAnno = Number(prog.risparmio_anno1);
       const detrazioneAnno = detrazioneTotale / 10;
       let cum = -investimento;
       cassaAnni.push({ anno: 0, cumulato: cum });
@@ -396,12 +413,21 @@ Deno.serve(async (req: Request) => {
       finanziaria: string;
       durata_mesi: number;
       rata_mensile: number;
-      tan_perc: number;
-      taeg_perc: number;
+      tan_perc: number | null;
+      taeg_perc: number | null;
       importo_finanziato: number;
     } | null = null;
     const scenarioFinMode = (prog.scenario_finanziamento as string | null) ?? "rate";
-    if (scenarioFinMode !== "cash" && Number(prog.finanziamento_rata_eur) > 0) {
+    // Un tasso assente resta assente («n.d.» nel PDF); il noleggio non ha TAN né TAEG.
+    const tasso = (valore: unknown): number | null =>
+      scenarioFinMode === "noleggio" || valore == null || valore === "" || !Number.isFinite(Number(valore))
+        ? null
+        : Number(valore);
+    if (
+      scenarioFinMode !== "cash" &&
+      Number(prog.finanziamento_rata_eur) > 0 &&
+      Number(prog.finanziamento_durata_mesi) > 0
+    ) {
       // Path Sprint 4: dati reali dal lookup eic_tabelle_finanziamento_righe
       // Recupero nome finanziaria via join (best-effort, fallback "Finanziaria")
       let nomeFinanziaria = "Finanziaria";
@@ -423,31 +449,30 @@ Deno.serve(async (req: Request) => {
       }
       finanziamento = {
         finanziaria: nomeFinanziaria,
-        durata_mesi: Number(prog.finanziamento_durata_mesi) || 84,
+        durata_mesi: Number(prog.finanziamento_durata_mesi),
         rata_mensile: Number(prog.finanziamento_rata_eur),
-        tan_perc: Number(prog.finanziamento_tan ?? 0),
-        taeg_perc: Number(prog.finanziamento_taeg ?? 0),
-        importo_finanziato:
-          Number(prog.finanziamento_totale_dovuto_eur) ||
-          Number(prog.prezzo_vendita_iva_inclusa) ||
-          0,
+        tan_perc: tasso(prog.finanziamento_tan),
+        taeg_perc: tasso(prog.finanziamento_taeg),
+        // Il capitale, non il totale dovuto (che comprende gli interessi); con
+        // un anticipo si riduce più sotto, insieme alla rata.
+        importo_finanziato: Number(prog.prezzo_vendita_iva_inclusa) || 0,
       };
     } else if (scenarioFinMode !== "cash") {
       // Fallback legacy: scenario_completo (Sprint 1/2)
       const scenarioFin = (
         calc?.scenario_completo as { finanziamento?: FinanziamentoLite } | undefined
       )?.finanziamento;
-      if (scenarioFin) {
+      // Solo se il vecchio scenario aveva davvero rata e durata: mancando, prima
+      // si stampavano il 120% del prezzo in 84 rate, TAN 4,75% e TAEG 5,4%.
+      if (scenarioFin && Number(scenarioFin.rata_mensile) > 0 && Number(scenarioFin.durata_mesi) > 0) {
         finanziamento = {
           finanziaria: scenarioFin.finanziaria ?? "Finanziaria",
-          durata_mesi: scenarioFin.durata_mesi ?? 84,
-          rata_mensile:
-            scenarioFin.rata_mensile ??
-            Math.round(((Number(prog.prezzo_vendita_iva_inclusa) || 0) * 1.2) / 84),
-          tan_perc: scenarioFin.tan_perc ?? 4.75,
-          taeg_perc: scenarioFin.taeg_perc ?? 5.4,
+          durata_mesi: Number(scenarioFin.durata_mesi),
+          rata_mensile: Number(scenarioFin.rata_mensile),
+          tan_perc: tasso(scenarioFin.tan_perc),
+          taeg_perc: tasso(scenarioFin.taeg_perc),
           importo_finanziato:
-            scenarioFin.importo_finanziato ?? (Number(prog.prezzo_vendita_iva_inclusa) || 0),
+            Number(scenarioFin.importo_finanziato) || Number(prog.prezzo_vendita_iva_inclusa) || 0,
         };
       }
     }
@@ -499,6 +524,9 @@ Deno.serve(async (req: Request) => {
           tasso_zero: scenarioFinMode === "zero",
           note: noteMp,
         };
+        // Stessa rata e stesso capitale in tutte le pagine: prima l'investimento
+        // mostrava la rata ridotta dall'anticipo, piano economico e firma quella intera.
+        finanziamento = { ...finanziamento, rata_mensile: rataScalata, importo_finanziato: finanziatoEur };
       } else {
         // Pagamento diretto (cash) o fallback senza dati finanziamento.
         const tr = Array.isArray(mpRaw?.tranche) ? mpRaw!.tranche! : [];
@@ -531,7 +559,6 @@ Deno.serve(async (req: Request) => {
     const data: FvPdfTemplateData = {
       azienda: {
         name: company.name ?? "Edilizia in Cloud",
-        tagline: "Specialisti fotovoltaico residenziale",
         vat_number: company.vat_number,
         pec: company.pec,
         phone: template.contatto_telefono ?? company.phone,
@@ -593,7 +620,7 @@ Deno.serve(async (req: Request) => {
       } : null,
       costi: {
         prezzo_vendita_iva_inclusa: Number(prog.prezzo_vendita_iva_inclusa) || 0,
-        iva_perc: 10,
+        iva_perc: aliquotaIva(prog.iva_aliquota),
         detrazione_eur: Math.round(detrazioneTotale),
         detrazione_perc: detrazionePerc,
         costo_netto_dopo_detrazione: Math.round(costoNetto),

@@ -80,7 +80,7 @@ export const FV_PDF_PAGES_META: FvPdfPageMeta[] = [
   {
     id: "piano_pagamento",
     label: "Piano economico",
-    descrizione: "Rata, risparmio e costo netto mensile.",
+    descrizione: "Rata, risparmio e costo netto mensile. Esce solo con un finanziamento.",
     obbligatoria: false,
   },
   {
@@ -116,7 +116,7 @@ export const FV_PDF_PAGES_META: FvPdfPageMeta[] = [
   {
     id: "faq",
     label: "FAQ",
-    descrizione: "Domande e obiezioni frequenti.",
+    descrizione: "Domande e risposte scritte nel modello: senza, la pagina non esce.",
     obbligatoria: false,
   },
   {

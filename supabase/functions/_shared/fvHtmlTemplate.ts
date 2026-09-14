@@ -111,12 +111,15 @@ export interface FvPdfTemplateData {
     detrazione_perc: number;
     costo_netto_dopo_detrazione: number;
   };
+  /** Solo con un finanziamento vero, cioè rata e durata salvate: senza, nel PDF
+   *  non compaiono rata, TAN, TAEG né la pagina del piano economico. */
   finanziamento?: {
     finanziaria: string;
     durata_mesi: number;
     rata_mensile: number;
-    tan_perc: number;
-    taeg_perc: number;
+    /** null = non disponibile: si stampa «n.d.», mai un tasso inventato. */
+    tan_perc: number | null;
+    taeg_perc: number | null;
     importo_finanziato: number;
   } | null;
   /** Schema di pagamento — adattivo alla modalità. Importi già calcolati. */
@@ -791,10 +794,10 @@ export const FV_PDF_PAGES_META: FvPdfPageMeta[] = [
   { id: "co2", label: "Impatto CO2", descrizione: "Beneficio ambientale in equivalenze semplici.", obbligatoria: false },
   // — Atto 4: Offerta (ora il prezzo, e sembra piccolo) —
   { id: "investimento", label: "Investimento", descrizione: "Prezzo, proposta di valore, inclusi e detrazione.", obbligatoria: true },
-  { id: "piano_pagamento", label: "Piano economico", descrizione: "Rata, risparmio e costo netto mensile.", obbligatoria: false },
+  { id: "piano_pagamento", label: "Piano economico", descrizione: "Rata, risparmio e costo netto mensile. Esce solo con un finanziamento.", obbligatoria: false },
   { id: "bollette_240", label: "Perche farlo ora", descrizione: "Narrativa su aumento bollette e urgenza.", obbligatoria: false },
   // — Atto 5: Chiusura —
-  { id: "faq", label: "FAQ", descrizione: "Domande e obiezioni frequenti.", obbligatoria: false },
+  { id: "faq", label: "FAQ", descrizione: "Domande e risposte scritte nel modello: senza, la pagina non esce.", obbligatoria: false },
   { id: "decisione", label: "CTA e firma", descrizione: "Riepilogo offerta, contatti, firma e condizioni.", obbligatoria: true },
 ];
 
@@ -959,14 +962,26 @@ function pageInvestimento(d: FvPdfTemplateData, pageN: number, total: number): s
   const pannello = d.componenti.find((c) => c.categoria === "pannello");
   const inverter = d.componenti.find((c) => c.categoria === "inverter");
   const accumulo = d.componenti.find((c) => c.categoria === "accumulo");
-  if (pannello) inclusi.push(`${pannello.quantita} pannelli ${pannello.marca ?? ""} ${pannello.modello ?? ""} · garanzia ${pannello.garanzia_anni ?? 25} anni`);
-  if (inverter) inclusi.push(`Inverter ${inverter.marca ?? ""} ${inverter.modello ?? ""} · garanzia ${inverter.garanzia_anni ?? 10} anni`);
-  if (accumulo) inclusi.push(`Accumulo ${accumulo.marca ?? ""} ${accumulo.modello ?? ""} (${fmtNum(accumulo.capacita_kwh ?? d.progetto.capacita_accumulo_kwh, 1)} kWh) · garanzia ${accumulo.garanzia_anni ?? 10} anni`);
-  inclusi.push("Struttura supporto + acciaio inox");
-  inclusi.push("Manodopera squadra qualificata · 3 giornate");
-  inclusi.push("Pratica TICA + CILA + RID GSE + ENEA");
-  inclusi.push("Allaccio definitivo alla rete + collaudo finale");
-  inclusi.push("Manuale uso + monitoraggio app dedicata 24/7");
+  // Solo quello che c'è nel preventivo: componenti e servizi scelti. Prima si
+  // aggiungevano garanzie di 25 e 10 anni, «3 giornate» di posa, pratiche e app
+  // di monitoraggio anche a chi non le offriva.
+  const nomeProdotto = (c: { marca?: string | null; modello?: string | null }) =>
+    [c.marca, c.modello].filter(Boolean).join(" ");
+  const conGaranzia = (testo: string, anni: number | null | undefined) =>
+    anni && anni > 0 ? `${testo} · garanzia ${anni} anni` : testo;
+  if (pannello) inclusi.push(conGaranzia([`${pannello.quantita} pannelli`, nomeProdotto(pannello)].filter(Boolean).join(" "), pannello.garanzia_anni));
+  if (inverter) inclusi.push(conGaranzia(["Inverter", nomeProdotto(inverter)].filter(Boolean).join(" "), inverter.garanzia_anni));
+  if (accumulo) inclusi.push(conGaranzia(`${["Accumulo", nomeProdotto(accumulo)].filter(Boolean).join(" ")} (${fmtNum(accumulo.capacita_kwh ?? d.progetto.capacita_accumulo_kwh, 1)} kWh)`, accumulo.garanzia_anni));
+  for (const c of d.componenti) {
+    if (c === pannello || c === inverter || c === accumulo) continue;
+    const testo = plainText(c.descrizione) || nomeProdotto(c);
+    if (testo) inclusi.push(c.quantita > 1 ? `${fmtNum(c.quantita)} × ${testo}` : testo);
+  }
+  for (const s of d.servizi ?? []) {
+    const testo = plainText(s.descrizione);
+    if (testo) inclusi.push(testo);
+  }
+  const altriInclusi = Math.max(0, inclusi.length - 10);
 
   return `<div class="page">
     ${header(d.progetto.numero, cliente, d.azienda.name)}
@@ -981,17 +996,18 @@ function pageInvestimento(d: FvPdfTemplateData, pageN: number, total: number): s
       <div class="invest-hero">
         <div class="label">Prezzo chiavi in mano</div>
         <div class="price">${fmtEur(d.costi.prezzo_vendita_iva_inclusa)}</div>
-        <div class="desc">IVA ${d.costi.iva_perc}% inclusa · materiali, manodopera, pratiche, allaccio rete e collaudo finale.</div>
+        <div class="desc">IVA ${d.costi.iva_perc}% inclusa${inclusi.length > 0 ? " · componenti e servizi elencati qui sotto." : "."}</div>
       </div>
-      <h3 style="font-size:12pt;color:#1E3A5F;margin-bottom:2mm;">Cosa è incluso</h3>
+      ${inclusi.length > 0 ? `<h3 style="font-size:12pt;color:#1E3A5F;margin-bottom:2mm;">Cosa è incluso</h3>
       <ul class="bullets" style="margin-bottom:3mm;">
-        ${inclusi.map((i) => `<li>${escHtml(i)}</li>`).join("")}
-      </ul>
-      <div class="callout callout-success">
+        ${inclusi.slice(0, 10).map((i) => `<li>${escHtml(i)}</li>`).join("")}
+        ${altriInclusi > 0 ? `<li>e altre ${altriInclusi} voci del preventivo</li>` : ""}
+      </ul>` : ""}
+      ${d.costi.detrazione_eur > 0 ? `<div class="callout callout-success">
         <span class="callout-icon">✓</span>
         <div><strong>Detrazione fiscale ${d.costi.detrazione_perc}% — recuperi ${fmtEur(d.costi.detrazione_eur)} in 10 anni.</strong>
-        Costo netto effettivo: <strong>${fmtEur(d.costi.costo_netto_dopo_detrazione)}</strong>. Dettagli a pagina 11.</div>
-      </div>
+        Costo netto effettivo: <strong>${fmtEur(d.costi.costo_netto_dopo_detrazione)}</strong></div>
+      </div>` : ""}
       ${(() => {
         const mp = d.modalita_pagamento;
         if (!mp) return "";
@@ -1241,7 +1257,7 @@ function pageProduzione(d: FvPdfTemplateData, pageN: number, total: number): str
       <div class="kpi-row">
         <div class="kpi-block green"><div class="kpi-label">Producibilità totale</div><div class="kpi-value">${fmtNum(d.flows.produzione_kwh)} <span class="unit">kWh</span></div><div class="kpi-sub">Primo anno</div></div>
         <div class="kpi-block orange"><div class="kpi-label">Autoconsumato</div><div class="kpi-value">${fmtNum(d.flows.autoconsumo_kwh)} <span class="unit">kWh</span></div><div class="kpi-sub">Diretto + da accumulo</div></div>
-        <div class="kpi-block"><div class="kpi-label">Ceduto in rete</div><div class="kpi-value">${fmtNum(d.flows.ceduto_rete_kwh)} <span class="unit">kWh</span></div><div class="kpi-sub">Scambio sul posto</div></div>
+        <div class="kpi-block"><div class="kpi-label">Ceduto in rete</div><div class="kpi-value">${fmtNum(d.flows.ceduto_rete_kwh)} <span class="unit">kWh</span></div><div class="kpi-sub">Energia non autoconsumata</div></div>
       </div>
       ${d.progetto.has_accumulo ? `<div class="callout callout-info">
         <span class="callout-icon">i</span>
@@ -1343,10 +1359,18 @@ function pageCostiFuturi(d: FvPdfTemplateData, pageN: number, total: number): st
   </div>`;
 }
 
-function pagePiano(d: FvPdfTemplateData, pageN: number, total: number): string {
+type FvFinanziamentoPdf = NonNullable<FvPdfTemplateData["finanziamento"]>;
+
+/** Un tasso che non c'è si dichiara, non si inventa. */
+function fmtTasso(valore: number | null): string {
+  return valore == null ? "n.d." : `${fmtNum(valore, 2)}%`;
+}
+
+// Esce solo con un finanziamento vero (vedi pagineDaDisegnare). Prima, senza,
+// stampava una rata pari al 120% del prezzo in 84 mesi con TAN 4,75% e TAEG 5,4%.
+function pagePiano(d: FvPdfTemplateData, fin: FvFinanziamentoPdf, pageN: number, total: number): string {
   const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
-  const fin = d.finanziamento;
-  const rata = fin?.rata_mensile ?? Math.round((d.costi.prezzo_vendita_iva_inclusa * 1.2) / 84);
+  const rata = fin.rata_mensile;
   const risparmioM = d.scenario.risparmio_mensile_eur;
   const netto = Math.max(0, rata - risparmioM);
   return `<div class="page">
@@ -1354,9 +1378,9 @@ function pagePiano(d: FvPdfTemplateData, pageN: number, total: number): string {
     <div class="content">
       <div class="eyebrow">★ Pagina ${pageN} · Il piano economico</div>
       <h1 class="page-title">${fmtEur(netto)} al mese.<br/><span style="color:#F97316">Tutto qui.</span></h1>
-      <p class="page-subtitle">Quello che esce davvero dal tuo conto, ogni mese. Meno di un caffè al giorno.</p>
+      <p class="page-subtitle">Quello che esce davvero dal tuo conto, ogni mese.${netto / 30 <= 1.5 ? " Meno di un caffè al giorno." : ""}</p>
       <div class="split-3">
-        <div class="num-card navy"><div class="nc-label">Rata${fin ? " " + fin.finanziaria.split(" ")[0] : ""}</div><div class="nc-value">${fmtEur(rata)}</div><div class="nc-period">×${fin?.durata_mesi ?? 84} mesi · TAEG ${fmtNum(fin?.taeg_perc ?? 5.4, 2)}%</div></div>
+        <div class="num-card navy"><div class="nc-label">Rata ${escHtml(fin.finanziaria.split(" ")[0])}</div><div class="nc-value">${fmtEur(rata)}</div><div class="nc-period">×${fin.durata_mesi} mesi${fin.taeg_perc != null ? ` · TAEG ${fmtNum(fin.taeg_perc, 2)}%` : ""}</div></div>
         <div class="num-card green"><div class="nc-label">Risparmio bolletta</div><div class="nc-value">${fmtEur(risparmioM)}</div><div class="nc-period">/mese · primo anno</div></div>
         <div class="num-card orange"><div class="nc-label">Costo netto reale</div><div class="nc-value">${fmtEur(netto)}</div><div class="nc-period">/mese · ${fmtEur(rata)} − ${fmtEur(risparmioM)}</div></div>
       </div>
@@ -1367,9 +1391,9 @@ function pagePiano(d: FvPdfTemplateData, pageN: number, total: number): string {
       </div>
       <table>
         <tbody>
-          <tr><td>Importo finanziato</td><td class="num-cell">${fmtEur(fin?.importo_finanziato ?? d.costi.prezzo_vendita_iva_inclusa)}</td><td>Durata</td><td class="num-cell">${fin?.durata_mesi ?? 84} rate</td></tr>
-          <tr><td>Finanziaria</td><td class="num-cell">${escHtml(fin?.finanziaria ?? "—")}</td><td>Rata mensile</td><td class="num-cell" style="color:#F97316;">${fmtEur(rata)}</td></tr>
-          <tr><td>TAN nominale</td><td class="num-cell">${fmtNum(fin?.tan_perc ?? 4.75, 2)}%</td><td>TAEG (incluse spese)</td><td class="num-cell">${fmtNum(fin?.taeg_perc ?? 5.4, 2)}%</td></tr>
+          <tr><td>Importo finanziato</td><td class="num-cell">${fmtEur(fin.importo_finanziato)}</td><td>Durata</td><td class="num-cell">${fin.durata_mesi} rate</td></tr>
+          <tr><td>Finanziaria</td><td class="num-cell">${escHtml(fin.finanziaria)}</td><td>Rata mensile</td><td class="num-cell" style="color:#F97316;">${fmtEur(rata)}</td></tr>
+          <tr><td>TAN nominale</td><td class="num-cell">${fmtTasso(fin.tan_perc)}</td><td>TAEG (incluse spese)</td><td class="num-cell">${fmtTasso(fin.taeg_perc)}</td></tr>
         </tbody>
       </table>
     </div>
@@ -1415,28 +1439,34 @@ function pageCassa25(d: FvPdfTemplateData, pageN: number, total: number): string
   const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
   const cassa = d.scenario.cassa_anno_per_anno;
   const final = cassa.length > 0 ? cassa[cassa.length - 1].cumulato : d.scenario.risparmio_25_anni_eur;
+  // Gli eventi seguono il calcolo (fv-calcolo-finanziario): investimento pagato
+  // all'anno 0, inverter sostituito al 12°. Prima la tabella parlava di una
+  // «rata Cofidis» finita al 7° anno, di un inverter da ~1.000 € al 15°, di un
+  // pareggio al 9° anche quando non era calcolato, e dava 0 € agli anni mancanti.
+  const payback = d.scenario.payback_anni;
   const eventi = [
-    { anno: 0, descr: "Installazione · prima rata", cumulato: cassa[0]?.cumulato ?? -d.costi.prezzo_vendita_iva_inclusa },
-    { anno: 7, descr: "Finita la rata Cofidis · solo risparmi e detrazione", cumulato: cassa.find((c) => c.anno === 7)?.cumulato },
-    { anno: d.scenario.payback_anni ?? 9, descr: "★ Breakeven · da qui in poi è tutto profitto", cumulato: 0 },
-    { anno: 15, descr: "Sostituzione inverter (~1.000 €)", cumulato: cassa.find((c) => c.anno === 15)?.cumulato },
-    { anno: 25, descr: "Fine vita garanzia · profitto totale", cumulato: final },
-  ];
+    { anno: 0, descr: "Installazione · investimento iniziale", cumulato: cassa[0]?.cumulato ?? -d.costi.prezzo_vendita_iva_inclusa },
+    ...(payback != null ? [{ anno: payback, descr: "★ Breakeven · da qui in poi è tutto profitto", cumulato: 0 }] : []),
+    { anno: 12, descr: "Anno indicativo di sostituzione dell'inverter", cumulato: cassa.find((c) => c.anno === 12)?.cumulato },
+    { anno: 25, descr: "Fine del periodo analizzato", cumulato: final },
+  ]
+    .filter((e): e is { anno: number; descr: string; cumulato: number } => e.cumulato != null)
+    .sort((a, b) => a.anno - b.anno);
   return `<div class="page">
     ${header(d.progetto.numero, cliente, d.azienda.name)}
     <div class="content">
       <div class="eyebrow">Pagina ${pageN} · La cassa nei 25 anni</div>
       <h1 class="page-title">${fmtEur(final).replace("€", "+€")}<br/>nelle tue tasche.</h1>
-      <p class="page-subtitle">Profitto netto cumulato dopo 25 anni · breakeven al ${d.scenario.payback_anni ?? 9}° anno · poi puro profitto.</p>
+      <p class="page-subtitle">Profitto netto cumulato dopo 25 anni${payback != null ? ` · breakeven al ${payback}° anno · poi puro profitto` : ""}.</p>
       <div class="chart-card">
         <div class="chart-title">Cassa cumulata anno per anno</div>
-        <div class="chart-sub">Include rate Cofidis, risparmio bolletta, detrazione IRPEF e scambio sul posto</div>
+        <div class="chart-sub">Investimento iniziale, risparmio in bolletta, energia ceduta alla rete${d.costi.detrazione_eur > 0 ? " e detrazione fiscale" : ""}</div>
         ${svgCassaCumulata(cassa, d.scenario.payback_anni, final)}
       </div>
       <table>
         <thead><tr><th>Anno</th><th>Cosa succede</th><th class="num-cell">Cassa cumulata</th></tr></thead>
         <tbody>
-          ${eventi.map((e) => `<tr${e.anno === (d.scenario.payback_anni ?? 9) ? ' class="row-total"' : ""}><td><strong>${e.anno}</strong></td><td>${escHtml(e.descr)}</td><td class="num-cell" style="color:${(e.cumulato ?? 0) >= 0 ? "#16A34A" : "#DC2626"};">${fmtEur(e.cumulato ?? 0)}</td></tr>`).join("")}
+          ${eventi.map((e) => `<tr${e.anno === payback ? ' class="row-total"' : ""}><td><strong>${e.anno}</strong></td><td>${escHtml(e.descr)}</td><td class="num-cell" style="color:${(e.cumulato ?? 0) >= 0 ? "#16A34A" : "#DC2626"};">${fmtEur(e.cumulato ?? 0)}</td></tr>`).join("")}
         </tbody>
       </table>
     </div>
@@ -1467,8 +1497,8 @@ function pageCO2(d: FvPdfTemplateData, pageN: number, total: number): string {
       <div class="eq-row"><div class="eq-num">${fmtNum(co2.km_auto_anno)}<small>Km auto</small></div><div><div class="eq-icons">${carsIcons}</div><div class="eq-desc">Chilometri non percorsi con un'auto a benzina (~150 g CO₂/km). Quasi un giro del mondo all'anno.</div></div></div>
       <div class="callout callout-success">
         <span class="callout-icon">✓</span>
-        <div><strong>Energia 100% pulita, certificata RID GSE.</strong>
-        Il tuo impianto è iscritto al registro nazionale dei produttori di energia rinnovabile.</div>
+        <div><strong>Energia pulita, prodotta sul tuo tetto.</strong>
+        Ogni kWh che autoconsumi è energia che non prelevi dalla rete.</div>
       </div>
     </div>
     ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
@@ -1486,28 +1516,24 @@ function pageGaranzie(d: FvPdfTemplateData, pageN: number, total: number): strin
   const certificazioni = (d.template?.certificazioni ?? [])
     .filter((cert) => plainText(cert.nome).length > 0)
     .slice(0, 4);
+  // Senza garanzie scritte nel modello si parla solo di ciò che è certo: la
+  // garanzia del produttore dei componenti scelti (con gli anni, se il listino
+  // li ha) e quella di legge sui lavori. Prima si promettevano intervento entro
+  // 48 ore, estensioni a 15 anni e una polizza RC a nome dell'azienda.
+  const perCategoria = (categoria: string) => d.componenti.find((c) => c.categoria === categoria);
+  const garanziaProduttore = (anni: number | null | undefined) =>
+    anni && anni > 0
+      ? `Garanzia del produttore di ${anni} anni, alle condizioni della scheda tecnica.`
+      : "Garanzia del produttore, alle condizioni della scheda tecnica.";
+  const anniPannelli = perCategoria("pannello")?.garanzia_anni || null;
+  const contatti = [d.azienda.phone, d.azienda.email].filter(Boolean).join(" · ");
   const defaultGaranzie = [
-    {
-      icona: "sun",
-      titolo: "Garanzia prestazione pannelli",
-      descrizione: "Il produttore garantisce a 25 anni almeno l'80% della potenza iniziale. Garanzia diretta produttore con copertura globale.",
-    },
-    {
-      icona: "battery",
-      titolo: "Garanzia inverter + accumulo",
-      descrizione: "Copertura su tutti i componenti elettronici. Sostituzione gratuita. Estendibile a 15 anni.",
-    },
-    {
-      icona: "tools",
-      titolo: "Garanzia manodopera",
-      descrizione: `${d.azienda.name} garantisce installazione, struttura e tenuta tetto. Intervento entro 48h dalla chiamata.`,
-    },
-    {
-      icona: "shield",
-      titolo: "Polizza RC + danni terzi",
-      descrizione: "Copertura danni a cose e persone durante posa e vita impianto.",
-    },
-  ];
+    perCategoria("pannello") ? { icona: "sun", titolo: "Pannelli", descrizione: garanziaProduttore(anniPannelli) } : null,
+    perCategoria("inverter") ? { icona: "award", titolo: "Inverter", descrizione: garanziaProduttore(perCategoria("inverter")?.garanzia_anni) } : null,
+    perCategoria("accumulo") ? { icona: "battery", titolo: "Accumulo", descrizione: garanziaProduttore(perCategoria("accumulo")?.garanzia_anni) } : null,
+    { icona: "tools", titolo: "Lavori di installazione", descrizione: `I lavori eseguiti da ${d.azienda.name} sono coperti dalla garanzia di legge.` },
+    contatti ? { icona: "shield", titolo: "Assistenza", descrizione: `Per qualsiasi necessità: ${contatti}.` } : null,
+  ].filter((g): g is { icona: string; titolo: string; descrizione: string } => g !== null);
   const customGaranzie = (d.template?.garanzie_conversione ?? [])
     .filter((g) => plainText(g.titolo).length > 0 && plainText(g.descrizione).length > 0)
     .map((g) => ({
@@ -1524,7 +1550,7 @@ function pageGaranzie(d: FvPdfTemplateData, pageN: number, total: number): strin
     ${header(d.progetto.numero, cliente, d.azienda.name)}
     <div class="content">
       <div class="eyebrow">Pagina ${pageN} · Garanzie e assistenza</div>
-      <h1 class="page-title">25 anni di<br/>tranquillità.</h1>
+      <h1 class="page-title">${anniPannelli ? `${anniPannelli} anni di<br/>tranquillità.` : "Garanzie e<br/>assistenza."}</h1>
       <p class="page-subtitle">Le garanzie reali sui componenti, sulla manodopera e sulla nostra azienda.</p>
       ${presentazione || teamImage ? `<div class="callout callout-info">
         <span class="callout-icon">i</span>
@@ -1536,14 +1562,11 @@ function pageGaranzie(d: FvPdfTemplateData, pageN: number, total: number): strin
       <div class="guarantee-grid">
         ${garanzie.map((g) => `<div class="guarantee-card"><div class="g-num">${escHtml(guaranteeIconLabel(g.icona))}</div><div class="g-title">${escHtml(g.titolo)}</div><div class="g-desc">${escHtml(g.descrizione)}</div></div>`).join("")}
       </div>
-      <h3 style="font-size:11pt;color:#1E3A5F;margin:4mm 0 2mm;">${customUsp.length > 0 ? "Perché scegliere noi" : "Affidabilità operativa"}</h3>
+      <h3 style="font-size:11pt;color:#1E3A5F;margin:4mm 0 2mm;">${customUsp.length > 0 ? "Perché scegliere noi" : "L'azienda"}</h3>
       <ul class="bullets">
         ${customUsp.length > 0
           ? customUsp.map((u) => `<li><strong>${escHtml(u.titolo)}</strong>${u.descrizione ? ` — ${escHtml(u.descrizione)}` : ""}</li>`).join("")
-          : `<li>${escHtml(d.azienda.name)} · partner certificato installatori FV residenziali</li>
-        <li>Squadra interna tecnici certificati FER</li>
-        <li>Albo installatori GSE · partner Premium produttori top tier</li>
-        <li>Reperibilità 7gg/7 · linea diretta titolare</li>`}
+          : `<li><strong>${escHtml(d.azienda.name)}</strong></li>${d.azienda.website ? `<li>${escHtml(d.azienda.website)}</li>` : ""}`}
         ${d.azienda.vat_number ? `<li>P.IVA ${escHtml(d.azienda.vat_number)}</li>` : ""}
         ${certificazioni.map((cert) => `<li>${escHtml(plainText(cert.nome))}${plainText(cert.ente) ? ` · ${escHtml(plainText(cert.ente))}` : ""}</li>`).join("")}
       </ul>
@@ -1574,13 +1597,21 @@ function pageIter(d: FvPdfTemplateData, pageN: number, total: number): string {
       descrizione: plainText(c.descrizione),
     }))
     .slice(0, 8);
-  const defaultTimeline = `
-        <div class="tl-item"><div class="tl-day">Settimana 1</div><div class="tl-title">Firma contratto + apertura pratica finanziamento</div><div class="tl-desc">Firma digitale via email. KYC online 5 minuti. Rata parte solo dopo allaccio.</div></div>
-        <div class="tl-item"><div class="tl-day">Settimana 1-2</div><div class="tl-title">CILA Comune ${escHtml(d.cliente.comune ?? "")} + TICA e-Distribuzione</div><div class="tl-desc">Comunicazione Inizio Lavori Asseverata + richiesta connessione. Le predisponiamo, le firmiamo per delega, le inoltriamo.</div></div>
-        <div class="tl-item"><div class="tl-day">Settimana 3-4</div><div class="tl-title">Ordine pannelli + inverter + accumulo</div><div class="tl-desc">Lead time 10 giorni. Tutto consegnato al nostro magazzino per controllo qualità.</div></div>
-        <div class="tl-item"><div class="tl-day">Settimana 5</div><div class="tl-title">★ INSTALLAZIONE · 3 giornate a casa tua</div><div class="tl-desc">Squadra 3 tecnici · giorno 1 struttura · giorno 2 pannelli + cablaggio · giorno 3 inverter + test. Tutto pulito.</div></div>
-        <div class="tl-item"><div class="tl-day">Settimana 6</div><div class="tl-title">Allaccio rete + collaudo + RID GSE</div><div class="tl-desc">e-Distribuzione fa l'allaccio. Apriamo Scambio Sul Posto al GSE. Da qui ATTIVO.</div></div>
-        <div class="tl-item"><div class="tl-day">Settimana 7</div><div class="tl-title">Documentazione + dossier IRPEF + saldo</div><div class="tl-desc">Libretto + manuale + dossier già pronto per commercialista. Saldo finale via finanziaria.</div></div>`;
+  // Fasi senza tempi né promesse: settimane, squadre da 3 tecnici e «Scambio Sul
+  // Posto» non si stampano a nome dell'azienda se non li ha scritti lei.
+  const fasiStandard = [
+    d.finanziamento
+      ? { fase: "Firma e richiesta di finanziamento", descrizione: "Firmi la proposta e presenti la richiesta alla finanziaria." }
+      : { fase: "Firma della proposta", descrizione: "Firmi la proposta e fissiamo il sopralluogo tecnico." },
+    { fase: "Pratiche e richiesta di connessione", descrizione: `Comunicazioni al Comune${d.cliente.comune ? ` di ${d.cliente.comune}` : ""} e domanda di connessione al distributore di rete.` },
+    { fase: "Ordine dei componenti", descrizione: `Pannelli, inverter${d.progetto.has_accumulo ? " e accumulo" : ""} scelti in questa proposta.` },
+    { fase: "Installazione", descrizione: "Montaggio della struttura e dei pannelli, cablaggio e prove di funzionamento." },
+    { fase: "Allaccio alla rete", descrizione: "Il distributore attiva la connessione: da qui l'impianto produce per te." },
+    { fase: "Documentazione finale", descrizione: d.costi.detrazione_eur > 0 ? "Dichiarazione di conformità, manuali e documenti per la detrazione." : "Dichiarazione di conformità e manuali." },
+  ];
+  const defaultTimeline = fasiStandard
+    .map((f, i) => `<div class="tl-item"><div class="tl-day">Fase ${i + 1}</div><div class="tl-title">${escHtml(f.fase)}</div><div class="tl-desc">${escHtml(f.descrizione)}</div></div>`)
+    .join("");
   const customTimeline = customCrono
     .map((c) => `<div class="tl-item"><div class="tl-day">${escHtml(c.durata || "—")}</div><div class="tl-title">${escHtml(c.fase)}</div>${c.descrizione ? `<div class="tl-desc">${escHtml(c.descrizione)}</div>` : ""}</div>`)
     .join("");
@@ -1589,40 +1620,35 @@ function pageIter(d: FvPdfTemplateData, pageN: number, total: number): string {
     <div class="content">
       <div class="eyebrow">Pagina ${pageN} · Iter pratiche</div>
       <h1 class="page-title">Pensiamo a<br/>tutto noi.</h1>
-      <p class="page-subtitle">Tu firmi una sola volta. Noi gestiamo l'intero iter burocratico.</p>
+      <p class="page-subtitle">Tu firmi una sola volta. Ecco i passaggi fino all'accensione dell'impianto.</p>
       ${intro ? `<div class="callout callout-info"><span class="callout-icon">i</span><div><strong>Il percorso cliente</strong><div class="rich-text">${intro}</div></div></div>` : ""}
       <div class="tl">
         ${customCrono.length > 0 ? customTimeline : defaultTimeline}
       </div>
       ${renderServiziInclusi(d)}
-      ${customCrono.length > 0 ? `<div class="callout callout-success">
+      <div class="callout callout-success">
         <span class="callout-icon">✓</span>
         <div><strong>Tu firmi una volta sola.</strong>
-        Tutto il resto — comune, e-Distribuzione, GSE, ENEA — lo gestiamo noi.</div>
-      </div>` : `<div class="callout callout-success">
-        <span class="callout-icon">✓</span>
-        <div><strong>Tempo totale: ~7 settimane dalla firma all'attivazione.</strong>
-        Tu firmi una volta sola. Tutto il resto — comune, e-Distribuzione, GSE, ENEA — lo gestiamo noi.</div>
-      </div>`}
+        Le pratiche comprese nella proposta le seguiamo noi. I tempi dipendono anche dal Comune e dal distributore di rete.</div>
+      </div>
     </div>
     ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
   </div>`;
 }
 
+/** Le domande frequenti scritte dall'azienda nel modello. Senza, la pagina non
+ *  esce: le risposte di prima («il finanziamento si estingue senza penali»,
+ *  «la casa vale l'8-12% in più») erano promesse che nessuno aveva fatto. */
+function faqDellAzienda(d: FvPdfTemplateData): Array<{ q: string; a: string }> {
+  return (d.template?.faq_items ?? [])
+    .filter((f) => plainText(f.domanda).length > 0 && plainText(f.risposta).length > 0)
+    .map((f) => ({ q: plainText(f.domanda), a: plainText(f.risposta) }))
+    .slice(0, 8);
+}
+
 function pageFAQ(d: FvPdfTemplateData, pageN: number, total: number): string {
   const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
-  const defaultFaqs = [
-    { q: "E se l'impianto non produce abbastanza?", a: "Garanzia prestazione produttore: a 25 anni i pannelli producono almeno l'80% della potenza iniziale. Sotto soglia, il produttore sostituisce gratuitamente. L'inverter monitora 24/7: appena qualcosa scende, partiamo noi." },
-    { q: "Cosa succede se vendo casa?", a: "L'impianto resta attaccato all'immobile e ne aumenta valore di vendita 8-12%. Il finanziamento può essere trasferito o estinto senza penali. La detrazione IRPEF si trasferisce al nuovo proprietario." },
-    { q: "L'accumulo dura davvero 10 anni?", a: "Le batterie LFP moderne hanno ~4.500 cicli garantiti — ~12-13 anni di uso normale. Garanzia 10 anni o 70% capacità residua. Sostituzione gratuita in caso di degrado anticipato." },
-    { q: "Posso espandere in futuro?", a: "Sì. Inverter dimensionato con margine. Accumulo modulare: aggiungere altri kWh è plug-and-play. Pratica adeguamento GSE inclusa." },
-    { q: "Cosa succede se la rete elettrica salta?", a: "Inverter ibrido + accumulo abilitano modalità backup: in blackout l'impianto continua a fornire energia per le ore di autonomia disponibile." },
-    { q: "Devo pagare qualcosa al catasto?", a: "No. FV residenziale fino a 20 kWp non genera obblighi catastali e non rileva ai fini IMU. La detrazione IRPEF va indicata in dichiarazione: ti consegnamo dossier già pronto." },
-  ];
-  const customFaqs = (d.template?.faq_items ?? [])
-    .filter((f) => plainText(f.domanda).length > 0 && plainText(f.risposta).length > 0)
-    .map((f) => ({ q: plainText(f.domanda), a: plainText(f.risposta) }));
-  const faqs = (customFaqs.length > 0 ? customFaqs : defaultFaqs).slice(0, 8);
+  const faqs = faqDellAzienda(d);
   return `<div class="page">
     ${header(d.progetto.numero, cliente, d.azienda.name)}
     <div class="content">
@@ -1639,8 +1665,8 @@ function pageFAQ(d: FvPdfTemplateData, pageN: number, total: number): string {
 function pageDecisione(d: FvPdfTemplateData, pageN: number, total: number): string {
   const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
   const fin = d.finanziamento;
-  const rata = fin?.rata_mensile ?? Math.round((d.costi.prezzo_vendita_iva_inclusa * 1.2) / 84);
-  const netto = Math.max(0, rata - d.scenario.risparmio_mensile_eur);
+  // Rata e costo netto mensile solo con un finanziamento vero.
+  const netto = fin ? Math.max(0, fin.rata_mensile - d.scenario.risparmio_mensile_eur) : null;
   const indirizzoCompleto = [
     d.cliente.indirizzo,
     d.cliente.cap && d.cliente.comune ? `${d.cliente.cap} ${d.cliente.comune}` : d.cliente.comune,
@@ -1668,7 +1694,7 @@ function pageDecisione(d: FvPdfTemplateData, pageN: number, total: number): stri
         <div class="offer-eyebrow">★ Riepilogo offerta — valida ${d.progetto.valido_giorni} giorni</div>
         <h3>Impianto FV ${fmtNum(d.progetto.potenza_kwp, 1)} kWp${d.progetto.has_accumulo ? ` + accumulo ${fmtNum(d.progetto.capacita_accumulo_kwh, 1)} kWh` : ""}<br/>chiavi in mano</h3>
         <div class="offer-num">${fmtEur(d.costi.prezzo_vendita_iva_inclusa)}</div>
-        <div style="font-size:9pt;opacity:0.85;margin-top:2mm;position:relative;">IVA ${d.costi.iva_perc}% inclusa${fin ? ` · ${fmtEur(rata)}/mese × ${fin.durata_mesi} mesi (${escHtml(fin.finanziaria)} TAEG ${fmtNum(fin.taeg_perc, 2)}%)` : ""}<br/>Costo netto reale: <strong style="color:#FBBF24;">${fmtEur(netto)}/mese</strong> (rata − risparmio)</div>
+        <div style="font-size:9pt;opacity:0.85;margin-top:2mm;position:relative;">IVA ${d.costi.iva_perc}% inclusa${fin ? ` · ${fmtEur(fin.rata_mensile)}/mese × ${fin.durata_mesi} mesi (${escHtml(fin.finanziaria)}${fin.taeg_perc != null ? ` TAEG ${fmtNum(fin.taeg_perc, 2)}%` : ""})` : ""}${netto != null ? `<br/>Costo netto reale: <strong style="color:#FBBF24;">${fmtEur(netto)}/mese</strong> (rata − risparmio)` : ""}</div>
       </div>
       ${d.template?.urgenza_attiva && urgenzaDescrizione ? `<div class="callout callout-tip">
         <span class="callout-icon">★</span>
@@ -1682,10 +1708,10 @@ function pageDecisione(d: FvPdfTemplateData, pageN: number, total: number): stri
         <div>
           <h3 style="font-size:11pt;color:#1E3A5F;margin-bottom:2mm;">Per accettare la proposta</h3>
           <ol style="font-size:9pt;padding-left:5mm;line-height:1.8;color:#475569;">
-            <li>Firma digitale tramite link sull'email che hai ricevuto</li>
-            <li>Compila KYC finanziaria (5 minuti)</li>
-            <li>Attendi delibera (24-48 ore)</li>
-            <li>Avvio pratiche · prima visita 7 giorni dopo</li>
+            <li>Firma la proposta: con il link ricevuto via email o qui sotto</li>
+            ${fin ? `<li>Invia alla finanziaria i documenti richiesti</li>
+            <li>Attendi l'esito della finanziaria</li>` : ""}
+            <li>Avvio delle pratiche e sopralluogo tecnico</li>
           </ol>
         </div>
         <div>
@@ -1717,33 +1743,44 @@ function hasRealMapImages(d: FvPdfTemplateData): boolean {
   return !!(mi && (mi.close || mi.medium || mi.overview || mi.wide));
 }
 
-export function getFvPdfRenderedPagesCount(d: FvPdfTemplateData): number {
-  const macroPages = dedicatedMacroPages(d);
-  const orderedPages = normalizeFvPdfPagesOrder(d.template?.pdf_pages_order).filter((page) => {
+/** Le pagine che escono davvero. Conteggio e disegno usano la stessa regola:
+ *  prima il kit si disegnava con nome o voci ma si contava solo con la
+ *  copertina, e il piè di pagina arrivava a «9 / 8». */
+function pagineDaDisegnare(d: FvPdfTemplateData): FvPdfPageOrderItem[] {
+  const hasMap = hasRealMapImages(d);
+  return normalizeFvPdfPagesOrder(d.template?.pdf_pages_order).filter((page) => {
     if (!page.visible) return false;
-    // Salta la pagina anteprima se non ci sono immagini satellite reali
-    if (page.id === "anteprima" && !hasRealMapImages(d)) return false;
+    // Senza immagini satellite reali l'anteprima non ha niente da mostrare.
+    if (page.id === "anteprima" && !hasMap) return false;
+    // Rata, TAN e TAEG esistono solo con un finanziamento vero.
+    if (page.id === "piano_pagamento" && !d.finanziamento) return false;
+    // Senza cassa calcolata non c'è niente da proiettare sui 25 anni.
+    if (page.id === "cassa_25" && d.scenario.cassa_anno_per_anno.length === 0) return false;
+    // Le domande frequenti sono quelle scritte dall'azienda.
+    if (page.id === "faq" && faqDellAzienda(d).length === 0) return false;
     return true;
   });
-  const hasBundleKit = !!(d.bundle?.cover_b64);
-  return 1 + (hasBundleKit ? 1 : 0) + orderedPages.reduce((count, page) => (
+}
+
+function haPaginaKit(d: FvPdfTemplateData): boolean {
+  return !!(d.bundle && (d.bundle.nome || (d.bundle.voci ?? []).length > 0));
+}
+
+export function getFvPdfRenderedPagesCount(d: FvPdfTemplateData): number {
+  const macroPages = dedicatedMacroPages(d);
+  return 1 + (haPaginaKit(d) ? 1 : 0) + pagineDaDisegnare(d).reduce((count, page) => (
     count + (page.id === "macro_categorie" ? macroPages.length : 1)
   ), 0);
 }
 
 export function renderFvPdfHtml(d: FvPdfTemplateData): string {
   const macroPages = dedicatedMacroPages(d);
-  const hasMap = hasRealMapImages(d);
-  const orderedPages = normalizeFvPdfPagesOrder(d.template?.pdf_pages_order).filter((page) => {
-    if (!page.visible) return false;
-    if (page.id === "anteprima" && !hasMap) return false;
-    return true;
-  });
+  const orderedPages = pagineDaDisegnare(d);
   const TOTAL = getFvPdfRenderedPagesCount(d);
   let pageN = 1;
   const pages = [pageCover(d)];
-  // Bundle kit page: inserita subito dopo la cover quando il bundle ha una copertina
-  if (d.bundle && (d.bundle.nome || (d.bundle.voci ?? []).length > 0)) {
+  // Pagina del kit subito dopo la copertina, quando il kit ha un nome o delle voci.
+  if (haPaginaKit(d)) {
     pages.push(pageBundleKit(d, ++pageN, TOTAL));
   }
   for (const page of orderedPages) {
@@ -1773,7 +1810,7 @@ export function renderFvPdfHtml(d: FvPdfTemplateData): string {
         pages.push(pageCostiFuturi(d, ++pageN, TOTAL));
         break;
       case "piano_pagamento":
-        pages.push(pagePiano(d, ++pageN, TOTAL));
+        if (d.finanziamento) pages.push(pagePiano(d, d.finanziamento, ++pageN, TOTAL));
         break;
       case "bollette_240":
         pages.push(pageBollette240(d, ++pageN, TOTAL));
