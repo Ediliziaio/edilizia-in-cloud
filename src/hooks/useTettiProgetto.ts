@@ -18,7 +18,10 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
-import { calcRigaImporto, calcTotaliComputo } from "@/lib/tetti/calcoli";
+import { calcRigaImporto, calcTotaliComputo, type ComputoRigaInput } from "@/lib/tetti/calcoli";
+import {
+  aLotti, cambiaITotali, inFila, soloCampiDelForm,
+} from "@/lib/moduli/salvataggioProgetto";
 import type {
   TetProgetto,
   TetComputoVoce,
@@ -132,6 +135,56 @@ async function generateProgettoCode(companyId: string): Promise<string> {
   }
 }
 
+// ─── Totali del progetto ──────────────────────────────────────────────────────
+/**
+ * Totali salvati sul progetto (`totale_imponibile`, `totale`) dalle righe del
+ * computo. Una sola formula per il salvataggio del computo e per il cambio di
+ * sconto o IVA: elenco, valore dell'opportunità e commessa leggono questi campi.
+ */
+function totaliDaRighe(
+  righe: ComputoRigaInput[],
+  parametri: { sconto_pct?: unknown; iva_pct?: unknown },
+): { totale_imponibile: number; totale: number } {
+  const t = calcTotaliComputo(righe, {
+    sconto_pct: Number(parametri.sconto_pct ?? 0),
+    iva_pct: Number(parametri.iva_pct ?? 10),
+  });
+  return { totale_imponibile: t.imponibile, totale: t.totale };
+}
+
+/**
+ * Totali con lo sconto o l'IVA appena cambiati: le righe si rileggono dal DB, e
+ * dal DB arriva anche il parametro che il patch non porta.
+ */
+async function totaliConParametri(
+  progettoId: string,
+  companyId: string,
+  patch: { sconto_pct?: unknown; iva_pct?: unknown },
+): Promise<{ totale_imponibile: number; totale: number }> {
+  const serveProgetto = patch.sconto_pct === undefined || patch.iva_pct === undefined;
+  const [voci, progetto] = await Promise.all([
+    sb()
+      .from("tet_computo_voci")
+      .select("capitolo_nome, quantita, prezzo_unitario, sconto_pct, costo_materiali, costo_manodopera")
+      .eq("progetto_id", progettoId)
+      .eq("company_id", companyId),
+    serveProgetto
+      ? sb()
+          .from("tet_progetti")
+          .select("sconto_pct, iva_pct")
+          .eq("id", progettoId)
+          .eq("company_id", companyId)
+          .maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
+  ]);
+  if (voci.error) throw new Error(voci.error.message);
+  if (progetto.error) throw new Error(progetto.error.message);
+  return totaliDaRighe((voci.data ?? []) as ComputoRigaInput[], {
+    sconto_pct: patch.sconto_pct ?? progetto.data?.sconto_pct,
+    iva_pct: patch.iva_pct ?? progetto.data?.iva_pct,
+  });
+}
+
 export function useUpsertProgetto() {
   const companyId = useEffectiveCompanyId();
   const qc = useQueryClient();
@@ -142,15 +195,25 @@ export function useUpsertProgetto() {
       if (!companyId) throw new Error("Company non disponibile");
       const { id, ...patch } = input;
       if (id) {
-        const { data, error } = await sb()
-          .from("tet_progetti")
-          .update({ ...patch, updated_at: new Date().toISOString() })
-          .eq("id", id)
-          .eq("company_id", companyId)
-          .select()
-          .single();
-        if (error) throw new Error(error.message);
-        return data as TetProgetto;
+        // Il wizard rimanda la riga intera: totali, stato, commessa, codice e
+        // date restano quelli del server (vedi lib/moduli/salvataggioProgetto).
+        const campi = soloCampiDelForm(patch);
+        return inFila(id, async () => {
+          // Sconto o IVA cambiati: i totali salvati si ricalcolano qui, come nel
+          // salvataggio del computo. Senza, restavano quelli col vecchio sconto.
+          const totali = cambiaITotali(campi)
+            ? await totaliConParametri(id, companyId, campi)
+            : {};
+          const { data, error } = await sb()
+            .from("tet_progetti")
+            .update({ ...campi, ...totali, updated_at: new Date().toISOString() })
+            .eq("id", id)
+            .eq("company_id", companyId)
+            .select()
+            .single();
+          if (error) throw new Error(error.message);
+          return data as TetProgetto;
+        });
       }
       // Insert: assicura code + company_id + stato di default.
       const code = (patch.code as string | null | undefined) ?? (await generateProgettoCode(companyId));
@@ -286,94 +349,96 @@ export function useSaveComputo(progettoId: string | undefined) {
     ): Promise<{ totale_imponibile: number; totale: number }> => {
       if (!companyId) throw new Error("Company non disponibile");
       if (!progettoId) throw new Error("Progetto id mancante");
+      // Un salvataggio alla volta per progetto: l'autosave dello step e il
+      // salvataggio all'uscita partivano insieme e duplicavano le righe.
+      return inFila(progettoId, async () => {
+        // 1) Parametri economici correnti del progetto (sconto/IVA: fonte il DB)
+        //    e id delle righe che questo salvataggio sostituisce.
+        const [{ data: prog, error: pErr }, { data: vecchie, error: vErr }] = await Promise.all([
+          sb()
+            .from("tet_progetti")
+            .select("sconto_pct, iva_pct")
+            .eq("id", progettoId)
+            .eq("company_id", companyId)
+            .maybeSingle(),
+          sb()
+            .from("tet_computo_voci")
+            .select("id")
+            .eq("progetto_id", progettoId)
+            .eq("company_id", companyId),
+        ]);
+        if (pErr) throw new Error(pErr.message);
+        if (vErr) throw new Error(vErr.message);
 
-      // 1) Leggi i parametri economici correnti del progetto (sconto/iva) per
-      //    derivare i totali. Single source of truth lato DB per sconto/iva.
-      const { data: prog, error: pErr } = await sb()
-        .from("tet_progetti")
-        .select("sconto_pct, iva_pct")
-        .eq("id", progettoId)
-        .eq("company_id", companyId)
-        .maybeSingle();
-      if (pErr) throw new Error(pErr.message);
-      const sconto_pct = Number(prog?.sconto_pct ?? 0);
-      const iva_pct = Number(prog?.iva_pct ?? 10);
-
-      // 2) Ricalcola importo di ogni riga PRIMA dell'insert (mai fidarsi del
-      //    valore in arrivo dal form) + ordine progressivo stabile.
-      const rows = righe.map((r, idx) => {
-        const quantita = Number(r.quantita) || 0;
-        const costo_materiali = Number(r.costo_materiali) || 0;
-        const costo_manodopera = Number(r.costo_manodopera) || 0;
-        const importo = calcRigaImporto({
-          quantita,
-          prezzo_unitario: Number(r.prezzo_unitario) || 0,
-          sconto_pct: Number(r.sconto_pct) || 0,
+        // 2) Ricalcola importo di ogni riga PRIMA dell'insert (mai fidarsi del
+        //    valore in arrivo dal form) + ordine progressivo stabile.
+        const rows = righe.map((r, idx) => {
+          const quantita = Number(r.quantita) || 0;
+          const costo_materiali = Number(r.costo_materiali) || 0;
+          const costo_manodopera = Number(r.costo_manodopera) || 0;
+          const importo = calcRigaImporto({
+            quantita,
+            prezzo_unitario: Number(r.prezzo_unitario) || 0,
+            sconto_pct: Number(r.sconto_pct) || 0,
+          });
+          // Margine reale della riga (coerente con VoceRow/calcTotaliComputo):
+          // costo riga = (materiali + manodopera) * quantità; il margine deriva
+          // dall'importo già ricalcolato. Clamp NaN→0 per non persistere sporco.
+          const costoRiga = (costo_materiali + costo_manodopera) * quantita;
+          const margine_eur_raw = importo - costoRiga;
+          const margine_pct_raw = importo > 0 ? (margine_eur_raw / importo) * 100 : 0;
+          const margine_eur = Number.isFinite(margine_eur_raw) ? margine_eur_raw : 0;
+          const margine_pct = Number.isFinite(margine_pct_raw) ? margine_pct_raw : 0;
+          return {
+            progetto_id: progettoId,
+            company_id: companyId,
+            capitolo_nome: r.capitolo_nome?.trim() || "Generale",
+            descrizione: r.descrizione?.trim() || "",
+            unita_misura: r.unita_misura,
+            quantita,
+            prezzo_unitario: Number(r.prezzo_unitario) || 0,
+            costo_materiali,
+            costo_manodopera,
+            sconto_pct: Number(r.sconto_pct) || 0,
+            importo,
+            margine_eur,
+            margine_pct,
+            listino_voce_id: r.listino_voce_id ?? null,
+            fonte: r.fonte ?? null,
+            ordine: r.ordine ?? idx,
+          };
         });
-        // Margine reale della riga (coerente con VoceRow/calcTotaliComputo):
-        // costo riga = (materiali + manodopera) * quantità; il margine deriva
-        // dall'importo già ricalcolato. Clamp NaN→0 per non persistere sporco.
-        const costoRiga = (costo_materiali + costo_manodopera) * quantita;
-        const margine_eur_raw = importo - costoRiga;
-        const margine_pct_raw = importo > 0 ? (margine_eur_raw / importo) * 100 : 0;
-        const margine_eur = Number.isFinite(margine_eur_raw) ? margine_eur_raw : 0;
-        const margine_pct = Number.isFinite(margine_pct_raw) ? margine_pct_raw : 0;
-        return {
-          progetto_id: progettoId,
-          company_id: companyId,
-          capitolo_nome: r.capitolo_nome?.trim() || "Generale",
-          descrizione: r.descrizione?.trim() || "",
-          unita_misura: r.unita_misura,
-          quantita,
-          prezzo_unitario: Number(r.prezzo_unitario) || 0,
-          costo_materiali,
-          costo_manodopera,
-          sconto_pct: Number(r.sconto_pct) || 0,
-          importo,
-          margine_eur,
-          margine_pct,
-          listino_voce_id: r.listino_voce_id ?? null,
-          fonte: r.fonte ?? null,
-          ordine: r.ordine ?? idx,
-        };
+
+        // 3) Prima le righe nuove, poi via le vecchie per id. Cancellare prima e
+        //    inserire dopo lasciava il computo VUOTO se l'insert falliva; così al
+        //    peggio resta doppio fino al salvataggio dopo, che lo ripulisce.
+        if (rows.length > 0) {
+          const { error: iErr } = await sb().from("tet_computo_voci").insert(rows);
+          if (iErr) throw new Error(iErr.message);
+        }
+        const idVecchi = ((vecchie ?? []) as Array<{ id: string }>).map((v) => v.id);
+        // A lotti: centinaia di id in un solo filtro superano la lunghezza dell'URL.
+        for (const lotto of aLotti(idVecchi, 100)) {
+          const { error: dErr } = await sb()
+            .from("tet_computo_voci")
+            .delete()
+            .eq("progetto_id", progettoId)
+            .eq("company_id", companyId)
+            .in("id", lotto);
+          if (dErr) throw new Error(dErr.message);
+        }
+
+        // 4) Aggiorna totali sul progetto (imponibile/totale post sconto+IVA).
+        const totali = totaliDaRighe(rows, prog ?? {});
+        const { error: uErr } = await sb()
+          .from("tet_progetti")
+          .update({ ...totali, updated_at: new Date().toISOString() })
+          .eq("id", progettoId)
+          .eq("company_id", companyId);
+        if (uErr) throw new Error(uErr.message);
+
+        return totali;
       });
-
-      // 3) Replace bulk: cancella le righe esistenti del progetto, poi inserisce.
-      const { error: dErr } = await sb()
-        .from("tet_computo_voci")
-        .delete()
-        .eq("progetto_id", progettoId)
-        .eq("company_id", companyId);
-      if (dErr) throw new Error(dErr.message);
-      if (rows.length > 0) {
-        const { error: iErr } = await sb().from("tet_computo_voci").insert(rows);
-        if (iErr) throw new Error(iErr.message);
-      }
-
-      // 4) Aggiorna totali sul progetto (imponibile/totale post sconto+IVA).
-      const totali = calcTotaliComputo(
-        rows.map((r) => ({
-          capitolo_nome: r.capitolo_nome,
-          quantita: r.quantita,
-          prezzo_unitario: r.prezzo_unitario,
-          sconto_pct: r.sconto_pct,
-          costo_materiali: r.costo_materiali,
-          costo_manodopera: r.costo_manodopera,
-        })),
-        { sconto_pct, iva_pct },
-      );
-      const { error: uErr } = await sb()
-        .from("tet_progetti")
-        .update({
-          totale_imponibile: totali.imponibile,
-          totale: totali.totale,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", progettoId)
-        .eq("company_id", companyId);
-      if (uErr) throw new Error(uErr.message);
-
-      return { totale_imponibile: totali.imponibile, totale: totali.totale };
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: K.progetto(progettoId) });

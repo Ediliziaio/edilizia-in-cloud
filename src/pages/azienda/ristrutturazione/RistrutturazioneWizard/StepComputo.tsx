@@ -101,6 +101,8 @@ export default function StepComputo({ progettoId, initialComputo, scontoPct, iva
       margine_pct: v.margine_pct,
       listino_voce_id: v.listino_voce_id,
       fonte: v.fonte,
+      // Senza l'ambiente nel payload ogni salvataggio azzerava il campo «Ambiente».
+      ambiente: v.ambiente ?? null,
       ordine: v.ordine ?? i,
     }));
 
@@ -128,7 +130,9 @@ export default function StepComputo({ progettoId, initialComputo, scontoPct, iva
       void (async () => {
         try {
           await saveMut.mutateAsync(toPayload(computo));
-          setDirty(false);
+          // Salvato solo se nel frattempo il computo non è cambiato: le voci
+          // scritte durante la richiesta restano da salvare al giro dopo.
+          if (computoRef.current === computo) setDirty(false);
           setSavedOnce(true);
         } catch (e) {
           toast.error("Salvataggio computo fallito", {

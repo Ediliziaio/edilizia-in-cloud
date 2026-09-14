@@ -139,7 +139,9 @@ export default function StepComputo({ progettoId, initialComputo, scontoPct, iva
       void (async () => {
         try {
           await saveMut.mutateAsync(toPayload(computo));
-          setDirty(false);
+          // Salvato solo se nel frattempo il computo non è cambiato: le voci
+          // scritte durante la richiesta restano da salvare al giro dopo.
+          if (computoRef.current === computo) setDirty(false);
           setSavedOnce(true);
         } catch (e) {
           toast.error("Salvataggio computo fallito", {

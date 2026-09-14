@@ -103,6 +103,13 @@ export default function ClimatizzazioneWizard() {
 
   // Local form state (campi del progetto).
   const [form, setForm] = useState<ClmFormPatch>({});
+  // L'ultimo form a video. Quando un salvataggio torna, «salvato» vale solo se
+  // nel frattempo non si è scritto altro: azzerare «dirty» comunque perdeva le
+  // modifiche fatte durante la richiesta, perché l'autosave non ripartiva.
+  const formRef = useRef(form);
+  useEffect(() => {
+    formRef.current = form;
+  });
   const [dirty, setDirty] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   // Etichetta "Salvato Xs fa" calcolata fuori dal render (in un tick periodico)
@@ -182,7 +189,7 @@ export default function ClimatizzazioneWizard() {
       void (async () => {
         try {
           await upsertMut.mutateAsync({ ...form, id });
-          setDirty(false);
+          if (formRef.current === form) setDirty(false);
           setLastSavedAt(new Date());
         } catch {
           // Errore: lasciamo dirty=true così il prossimo ciclo ritenta.
@@ -210,7 +217,7 @@ export default function ClimatizzazioneWizard() {
     if (!id) return false;
     try {
       await upsertMut.mutateAsync({ ...form, id });
-      setDirty(false);
+      if (formRef.current === form) setDirty(false);
       setLastSavedAt(new Date());
       return true;
     } catch (e) {
