@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import {
-  Mail, MessageSquare, MessageCircle, StickyNote, Search, Inbox,
+  Mail, MessageSquare, MessageCircle, StickyNote, Search, Inbox, Instagram, Facebook,
   AlertCircle, ChevronLeft, User, Briefcase, RefreshCw, UserCheck, CheckCircle2, RotateCcw, Info,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -32,6 +32,8 @@ const CANALE_META: Record<CanaleConversazione, { label: string; Icon: typeof Mai
   sms:      { label: "SMS",      Icon: MessageSquare, dot: "bg-violet-500" },
   whatsapp: { label: "WhatsApp", Icon: MessageCircle, dot: "bg-green-500" },
   nota:     { label: "Nota",     Icon: StickyNote,    dot: "bg-amber-500" },
+  instagram: { label: "Instagram", Icon: Instagram,   dot: "bg-pink-500" },
+  messenger: { label: "Messenger", Icon: Facebook,    dot: "bg-blue-600" },
 };
 
 const keyOf = (c: ConversazioneListItem) => `${c.entita_tipo}:${c.entita_id}`;

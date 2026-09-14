@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { decrypt, getEncryptionKey } from "../_shared/encryption.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { inviaMessaggioSocial, iscriviPaginaMeta, messaggiSocialAttivi } from "../_shared/socialMessaggiMeta.ts";
 
 const apiVersion = Deno.env.get("META_API_VERSION") || "v21.0";
 
@@ -41,7 +42,10 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const { action, company_id, integration_id, page_asset_id, form_id } = body;
 
-    if (!company_id || !integration_id) {
+    // Le risposte su Instagram/Messenger partono dalla casella Conversazioni,
+    // che non conosce l'integrazione: la pagina si ricava dalla persona.
+    const rispostaSocial = action === "invia-messaggio-social";
+    if (!company_id || (!integration_id && !rispostaSocial)) {
       return new Response(JSON.stringify({ error: "company_id and integration_id required" }), {
         status: 400,
         headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
@@ -78,6 +82,27 @@ Deno.serve(async (req) => {
           headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
         },
       );
+    }
+
+    if (rispostaSocial) {
+      const { contact_id, piattaforma, testo } = body;
+      if (!contact_id || (piattaforma !== "instagram" && piattaforma !== "messenger")) {
+        return new Response(JSON.stringify({ ok: false, error: "contact_id e piattaforma (instagram|messenger) richiesti" }), {
+          status: 400,
+          headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+        });
+      }
+      const esito = await inviaMessaggioSocial(
+        adminClient,
+        { companyId: company_id, contactId: contact_id, piattaforma, testo: String(testo ?? ""), userId: authUser.id },
+        { decrypt, encKey: getEncryptionKey(), apiVersion },
+      );
+      // 200 anche sul rifiuto: il composer mostra il motivo (finestra 24 ore,
+      // pagina scollegata…), che con un 4xx supabase-js non lascerebbe leggere.
+      return new Response(JSON.stringify(esito.ok ? esito : { ok: false, error: esito.errore }), {
+        status: 200,
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+      });
     }
 
     // Verifica anche che integration_id appartenga a questa company (prevenire
@@ -619,14 +644,7 @@ Deno.serve(async (req) => {
           if (!encTok) continue;
           try {
             const pageToken = await decrypt(encTok, encKey);
-            const subRes = await fetch(
-              `https://graph.facebook.com/${apiVersion}/${p.asset_id}/subscribed_apps`,
-              {
-                method: "POST",
-                body: new URLSearchParams({ subscribed_fields: "leadgen", access_token: pageToken }),
-              },
-            );
-            const subData = await subRes.json();
+            const { data: subData, campi: campiIscritti } = await iscriviPaginaMeta(apiVersion, p.asset_id, pageToken, await messaggiSocialAttivi(adminClient));
             if (subData.error) {
               console.warn(`purge-unselected: subscribe ${p.asset_id} fallita:`, subData.error.message);
               continue;
@@ -637,7 +655,7 @@ Deno.serve(async (req) => {
                 integration_id,
                 provider: "meta",
                 page_id: p.asset_id,
-                subscribed_fields: ["leadgen"],
+                subscribed_fields: campiIscritti,
                 status: "active",
                 subscribed_at: new Date().toISOString(),
               },
@@ -1073,14 +1091,7 @@ Deno.serve(async (req) => {
 
         const pageToken = await decrypt(pageTokens[fbPageId], encKey);
 
-        const subRes = await fetch(
-          `https://graph.facebook.com/${apiVersion}/${fbPageId}/subscribed_apps`,
-          {
-            method: "POST",
-            body: new URLSearchParams({ subscribed_fields: "leadgen", access_token: pageToken }),
-          }
-        );
-        const subData = await subRes.json();
+        const { data: subData, campi: campiIscritti } = await iscriviPaginaMeta(apiVersion, fbPageId, pageToken, await messaggiSocialAttivi(adminClient));
         if (subData.error) throw new Error(`Meta subscription error: ${subData.error.message}`);
 
         await adminClient.from("integration_webhook_subscriptions").upsert(
@@ -1088,7 +1099,7 @@ Deno.serve(async (req) => {
             company_id,
             integration_id,
             page_id: fbPageId,
-            subscribed_fields: ["leadgen"],
+            subscribed_fields: campiIscritti,
             status: "active",
             subscribed_at: new Date().toISOString(),
           },
@@ -1120,7 +1131,7 @@ Deno.serve(async (req) => {
           return { ok: r.ok, status: r.status, error: j.error?.message ?? null, data: j };
         };
         // pages_show_list (+ raccoglie page token freschi)
-        const acc = await G(`me/accounts?fields=id,name,access_token&limit=15`);
+        const acc = await G(`me/accounts?fields=id,name,access_token,instagram_business_account{id,username}&limit=15`);
         out.pages_show_list = { ok: acc.ok, status: acc.status, error: acc.error };
         // business_management
         const biz = await G(`me/businesses?fields=id,name&limit=5`);
@@ -1159,6 +1170,23 @@ Deno.serve(async (req) => {
         } else {
           out.leads_retrieval = { ok: false, note: "nessun lead form trovato sulle pagine provate" };
         }
+        // Messaggi (App Review): una chiamata riuscita per permesso. Servono i
+        // permessi concessi al collegamento (meta_messaggi_attivi = revisione).
+        const provaPagine = async (percorso: (p: any) => string | null) => {
+          let esito: any = { ok: false, note: "nessuna pagina adatta" };
+          for (const p of pages) {
+            const path = percorso(p);
+            if (!path) continue;
+            const r = await fetchWithRetry(`https://graph.facebook.com/${apiVersion}/${path}&access_token=${p.access_token}`);
+            const j = await r.json();
+            esito = r.ok ? { ok: true, status: r.status, page: p.name } : { ok: false, status: r.status, error: j.error?.message ?? null, page: p.name };
+            if (r.ok) break;
+          }
+          return esito;
+        };
+        out.pages_messaging = await provaPagine((p) => `${p.id}/conversations?platform=messenger&fields=id,updated_time&limit=1`);
+        out.instagram_basic = await provaPagine((p) => p.instagram_business_account?.id ? `${p.instagram_business_account.id}?fields=id,username` : null);
+        out.instagram_manage_messages = await provaPagine((p) => p.instagram_business_account?.id ? `${p.id}/conversations?platform=instagram&fields=id,updated_time&limit=1` : null);
         result = out;
         break;
       }

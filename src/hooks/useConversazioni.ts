@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
-export type CanaleConversazione = "email" | "sms" | "whatsapp" | "nota";
+export type CanaleConversazione = "email" | "sms" | "whatsapp" | "nota" | "instagram" | "messenger";
 export type DirezioneMessaggio = "in" | "out";
 export type EntitaTipo = "contatto" | "cliente";
 

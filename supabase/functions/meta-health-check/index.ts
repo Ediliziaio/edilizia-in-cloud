@@ -3,6 +3,7 @@ import { getCorsHeaders, jsonResponse, errorResponse } from "../_shared/headers.
 import { decrypt, getEncryptionKey } from "../_shared/encryption.ts";
 import { loadProviderSettings, sendViaProviderWithFailover } from "../_shared/emailProvider.ts";
 import { getMetaCredentials } from "../_shared/getMetaCredentials.ts";
+import { iscriviPaginaMeta, messaggiSocialAttivi, modalitaMessaggiSocial } from "../_shared/socialMessaggiMeta.ts";
 
 const apiVersion = Deno.env.get("META_API_VERSION") || "v21.0";
 // Alert operativo quando un'integrazione si rompe (email best-effort).
@@ -243,6 +244,9 @@ async function ensureLeadgenSubscriptions(
     }
 
     // Verità di Meta: la nostra app è iscritta a leadgen su questa pagina?
+    // Solo da acceso: in revisione una pagina senza permesso resterebbe "da
+    // reiscrivere" a ogni giro.
+    const conMessaggiSocial = (await modalitaMessaggiSocial(admin)) === "attivo";
     let subscribedOnMeta = false;
     let checkDebug: unknown = null;
     try {
@@ -260,7 +264,8 @@ async function ensureLeadgenSubscriptions(
         subscribedOnMeta = (checkData.data ?? []).some(
           (app: { id?: string; subscribed_fields?: string[] }) =>
             (!metaAppId || String(app.id) === String(metaAppId)) &&
-            (app.subscribed_fields ?? []).includes("leadgen"),
+            (app.subscribed_fields ?? []).includes("leadgen") &&
+            (!conMessaggiSocial || (app.subscribed_fields ?? []).includes("messages")),
         );
       }
     } catch (e) {
@@ -286,14 +291,7 @@ async function ensureLeadgenSubscriptions(
       continue;
     }
 
-    const subRes = await fetch(
-      `https://graph.facebook.com/${apiVersion}/${page.asset_id}/subscribed_apps`,
-      {
-        method: "POST",
-        body: new URLSearchParams({ subscribed_fields: "leadgen", access_token: pageToken }),
-      },
-    );
-    const subData = await subRes.json();
+    const { data: subData, campi: campiIscritti } = await iscriviPaginaMeta(apiVersion, page.asset_id, pageToken, await messaggiSocialAttivi(admin));
     if (subData.error) {
       console.warn(`meta-health-check: subscribe ${page.asset_id} fallita:`, subData.error.message);
       continue;
@@ -305,7 +303,7 @@ async function ensureLeadgenSubscriptions(
         integration_id: integ.id,
         provider: "meta",
         page_id: page.asset_id,
-        subscribed_fields: ["leadgen"],
+        subscribed_fields: campiIscritti,
         status: "active",
         subscribed_at: new Date().toISOString(),
       },

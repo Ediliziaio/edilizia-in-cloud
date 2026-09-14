@@ -9,12 +9,25 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Mail, MessageSquare, MessageCircle, Send, Loader2 } from "lucide-react";
+import { Mail, MessageSquare, MessageCircle, Send, Loader2, Instagram, Facebook } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { EntitaTipo } from "@/hooks/useConversazioni";
 import { WhatsAppComposer } from "@/components/whatsapp/WhatsAppComposer";
 
-type Canale = "email" | "whatsapp" | "whatsapp_locale" | "sms";
+type Canale = "email" | "whatsapp" | "whatsapp_locale" | "sms" | "instagram" | "messenger";
+type PiattaformaSocial = "instagram" | "messenger";
+
+interface IdentitaSocial {
+  piattaforma: PiattaformaSocial;
+  nome: string | null;
+  username: string | null;
+  ultimo_in_at: string | null;
+}
+
+/** Meta lascia rispondere entro 24 ore dall'ultimo messaggio della persona. */
+function finestraAperta(ultimoIn: string | null): boolean {
+  return !!ultimoIn && Date.now() - new Date(ultimoIn).getTime() < 24 * 60 * 60 * 1000;
+}
 
 interface EmailAccount {
   id: string;
@@ -48,12 +61,57 @@ export default function ConversazioneComposer({ entitaTipo, entitaId, email, tel
   const { user, effectiveCompany } = useAuth();
   const qc = useQueryClient();
 
-  const [canale, setCanale] = useState<Canale>(email ? "email" : telefono ? "whatsapp" : "email");
+  // null = nessuna scelta: il canale predefinito si ricava dai dati del contatto.
+  const [canaleScelto, setCanale] = useState<Canale | null>(null);
   const [from, setFrom] = useState("");
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [waSending, setWaSending] = useState(false);
   const [testoLocale, setTestoLocale] = useState("");
+  const [testoSocial, setTestoSocial] = useState("");
+
+  // Instagram e Messenger: il canale compare solo se il contatto ci ha scritto.
+  const { data: identitaSocial = [] } = useQuery({
+    queryKey: ["social-identita", entitaTipo, entitaId],
+    enabled: entitaTipo === "contatto" && !!entitaId,
+    staleTime: 30_000,
+    queryFn: async (): Promise<IdentitaSocial[]> => {
+      // Tabella nuova, non ancora nei tipi generati.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any).from("social_identita")
+        .select("piattaforma, nome, username, ultimo_in_at")
+        .eq("contact_id", entitaId)
+        .order("ultimo_in_at", { ascending: false, nullsFirst: false });
+      if (error) return [];
+      return (data ?? []) as IdentitaSocial[];
+    },
+  });
+  const socialDi = (p: PiattaformaSocial) => identitaSocial.find((i) => i.piattaforma === p) ?? null;
+
+  // Chi ha scritto solo da Instagram/Messenger non ha email né telefono:
+  // il composer si apre direttamente sul canale da cui è arrivato.
+  const canale: Canale = canaleScelto
+    ?? (email ? "email" : telefono ? "whatsapp" : identitaSocial[0]?.piattaforma ?? "email");
+
+  const inviaSocial = useMutation({
+    mutationFn: async (piattaforma: PiattaformaSocial) => {
+      if (!effectiveCompany?.id) throw new Error("Azienda non disponibile");
+      const { data, error } = await supabase.functions.invoke("meta-api-proxy", {
+        body: { action: "invia-messaggio-social", company_id: effectiveCompany.id, contact_id: entitaId, piattaforma, testo: testoSocial },
+      });
+      const r = data as { ok?: boolean; error?: string } | null;
+      if (r?.error) throw new Error(r.error);
+      if (error) throw new Error(error.message ?? "Invio non riuscito");
+    },
+    onSuccess: (_d, piattaforma) => {
+      setTestoSocial("");
+      toast.success(`Messaggio ${piattaforma === "instagram" ? "Instagram" : "Messenger"} inviato`);
+      qc.invalidateQueries({ queryKey: ["conversazione-timeline", entitaTipo, entitaId] });
+      qc.invalidateQueries({ queryKey: ["conversazioni-lista"] });
+      onSent?.();
+    },
+    onError: (e) => toast.error("Messaggio non inviato", { description: (e as Error).message }),
+  });
 
   // Numeri del canale WhatsApp LOCALE (non ufficiale, solo piattaforma).
   // La RLS su openwa_numbers e' super-admin-only: per chiunque altro la query
@@ -243,6 +301,8 @@ export default function ConversazioneComposer({ entitaTipo, entitaId, email, tel
       ? [{ key: "whatsapp_locale" as Canale, label: "WA Locale", Icon: MessageCircle, disabled: !cleanPhone }]
       : []),
     { key: "sms", label: "SMS", Icon: MessageSquare, disabled: false },
+    ...(socialDi("instagram") ? [{ key: "instagram" as Canale, label: "Instagram", Icon: Instagram, disabled: false }] : []),
+    ...(socialDi("messenger") ? [{ key: "messenger" as Canale, label: "Messenger", Icon: Facebook, disabled: false }] : []),
   ];
 
   return (
@@ -391,6 +451,53 @@ export default function ConversazioneComposer({ entitaTipo, entitaId, email, tel
           </div>
         </div>
       )}
+
+      {/* INSTAGRAM / MESSENGER — risposta entro 24 ore dall'ultimo messaggio */}
+      {(canale === "instagram" || canale === "messenger") && (() => {
+        const piattaforma: PiattaformaSocial = canale;
+        const id = socialDi(piattaforma);
+        const aperta = finestraAperta(id?.ultimo_in_at ?? null);
+        const etichetta = piattaforma === "instagram" ? "Instagram" : "Messenger";
+        return (
+          <div className="p-3 max-w-3xl mx-auto space-y-2">
+            <p className="text-[11px] text-muted-foreground">
+              {etichetta}{id?.username ? ` · @${id.username}` : id?.nome ? ` · ${id.nome}` : ""}
+              {aperta && " · puoi rispondere fino a 24 ore dal suo ultimo messaggio"}
+            </p>
+            {!aperta && (
+              <div className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-[11px] text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+                Sono passate più di 24 ore dal suo ultimo messaggio: Meta non permette di rispondere da qui
+                finché non scrive di nuovo. Puoi rispondere dall'app di {etichetta}.
+              </div>
+            )}
+            <div className="flex items-end gap-2">
+              <Textarea
+                placeholder={`Messaggio ${etichetta}…`}
+                value={testoSocial}
+                onChange={(e) => setTestoSocial(e.target.value.slice(0, 1000))}
+                rows={2}
+                disabled={!aperta}
+                className="text-sm resize-y min-h-[56px]"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    if (aperta && testoSocial.trim() && !inviaSocial.isPending) inviaSocial.mutate(piattaforma);
+                  }
+                }}
+              />
+              <Button
+                size="icon"
+                className="shrink-0"
+                aria-label={`Invia messaggio ${etichetta}`}
+                onClick={() => inviaSocial.mutate(piattaforma)}
+                disabled={!aperta || !testoSocial.trim() || inviaSocial.isPending}
+              >
+                {inviaSocial.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              </Button>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* SMS */}
       {canale === "sms" && (

@@ -1,6 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getMetaCredentials } from "../_shared/getMetaCredentials.ts";
 import { verifyHmacSha256 } from "../_shared/webhookSecurity.ts";
+import { decrypt, getEncryptionKey } from "../_shared/encryption.ts";
+import { estraiMessaggiSocial, registraMessaggiSocial } from "../_shared/socialMessaggiMeta.ts";
 
 Deno.serve(async (req) => {
   const url = new URL(req.url);
@@ -55,6 +57,25 @@ Deno.serve(async (req) => {
       }
 
       const payload = JSON.parse(body);
+
+      // Messaggi diretti di Instagram (object "instagram") e Messenger
+      // (object "page", entry.messaging). Arrivano solo se la pagina è iscritta
+      // ai messaggi, cioè con meta_messaggi_attivi e i permessi approvati.
+      // Un errore qui non deve mai fermare i lead qui sotto.
+      const messaggiSocial = estraiMessaggiSocial(payload);
+      if (messaggiSocial.length > 0) {
+        try {
+          const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+          const esito = await registraMessaggiSocial(admin, messaggiSocial, {
+            decrypt,
+            encKey: getEncryptionKey(),
+            apiVersion: Deno.env.get("META_API_VERSION") || "v21.0",
+          });
+          console.log("meta-webhook: messaggi social", JSON.stringify(esito));
+        } catch (e) {
+          console.error("meta-webhook: messaggi social non registrati:", e);
+        }
+      }
 
       // Only process leadgen events
       if (payload.object !== "page") {

@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getMetaCredentials } from "../_shared/getMetaCredentials.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { chiediPermessiMessaggi, modalitaMessaggiSocial, PERMESSI_MESSAGGI } from "../_shared/socialMessaggiMeta.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -100,6 +101,10 @@ Deno.serve(async (req) => {
       "pages_manage_ads",
       "ads_read",
       "business_management",
+      // Messaggi di Instagram e Messenger (platform_settings.meta_messaggi_attivi):
+      // per tutti solo dopo l'approvazione di Meta; in "revisione" solo il super
+      // admin, che ha il ruolo sull'app e può concederli per le prove.
+      ...(chiediPermessiMessaggi(await modalitaMessaggiSocial(adminClient), isSuperAdmin) ? PERMESSI_MESSAGGI : []),
     ].join(",");
 
     const oauthUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${metaAppId}&redirect_uri=${encodeURIComponent(callbackUrl)}&state=${encodeURIComponent(signedState)}&scope=${encodeURIComponent(scopes)}&response_type=code`;
