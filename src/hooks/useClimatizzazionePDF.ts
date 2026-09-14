@@ -24,6 +24,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getClmTemplatePdf } from "@/hooks/useClimatizzazioneProgetto";
 import { toDataUrl } from "@/lib/serramenti/pdfImageUtils";
 import { calcTotaliComputo, type ComputoRigaInput } from "@/lib/climatizzazione/calcoli";
+import { calcDetraibile } from "@/lib/preventivi/incentivi";
 import type {
   ClmProgetto, ClmComputoVoce, ClmProgettoMedia, ClmTemplatePdf,
 } from "@/types/climatizzazione";
@@ -209,7 +210,9 @@ async function enrichForPdf(opts: ClmPdfPayload): Promise<ClmPdfEnriched> {
     totale: agg.totale,
     scontoPct,
     detrazionePct,
-    detrazioneEur: agg.imponibile * (detrazionePct / 100),
+    // Come nello step Economia: la detrazione si calcola entro il massimale di
+    // spesa, se c'è. Prima il PDF la prometteva su tutto l'imponibile.
+    detrazioneEur: calcDetraibile(agg.imponibile, detrazionePct, progetto.massimale_detrazione ?? null),
     costoTot: agg.costoTot,
     margineEur: agg.margineEur,
     marginePct: agg.marginePct,

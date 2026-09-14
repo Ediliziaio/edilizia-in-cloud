@@ -7,7 +7,7 @@
  */
 import { describe, it, expect } from "vitest";
 import {
-  aLotti, cambiaITotali, inFila, soloCampiDelForm,
+  aLotti, cambiaITotali, condizioniDiPartenza, inFila, soloCampiDelForm,
 } from "@/lib/moduli/salvataggioProgetto";
 
 const giro = () => new Promise((r) => setTimeout(r, 0));
@@ -83,6 +83,25 @@ describe("i salvataggi dello stesso progetto passano uno alla volta", () => {
     await expect(inFila("progetto-b", async () => "b")).resolves.toBe("b");
     chiudiLento();
     await lento;
+  });
+});
+
+describe("un progetto nuovo parte dai predefiniti dell'azienda", () => {
+  const template = { default_iva_pct: 10, default_detrazione_pct: 50 };
+
+  it("senza scelte prende IVA e detrazione dal template", () => {
+    expect(condizioniDiPartenza({}, template)).toEqual({ iva_pct: 10, detrazione_pct: 50 });
+  });
+
+  it("quello che chi crea ha già scelto resta, zero compreso", () => {
+    expect(condizioniDiPartenza({ iva_pct: 4 }, template)).toEqual({ detrazione_pct: 50 });
+    expect(condizioniDiPartenza({ iva_pct: 0, detrazione_pct: 0 }, template)).toEqual({});
+  });
+
+  it("senza template, o con valori vuoti o fuori scala, decidono i default della tabella", () => {
+    expect(condizioniDiPartenza({}, null)).toEqual({});
+    expect(condizioniDiPartenza({}, { default_iva_pct: null, default_detrazione_pct: 150 })).toEqual({});
+    expect(condizioniDiPartenza({}, { default_iva_pct: "22", default_detrazione_pct: "" })).toEqual({ iva_pct: 22 });
   });
 });
 

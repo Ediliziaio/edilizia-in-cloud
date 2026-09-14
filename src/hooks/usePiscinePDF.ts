@@ -24,6 +24,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getPisTemplatePdf } from "@/hooks/usePiscineProgetto";
 import { toDataUrl } from "@/lib/serramenti/pdfImageUtils";
 import { calcTotaliComputo, type ComputoRigaInput } from "@/lib/piscine/calcoli";
+import { calcDetraibile } from "@/lib/preventivi/incentivi";
 import type {
   PisProgetto, PisComputoVoce, PisProgettoMedia, PisTemplatePdf,
 } from "@/types/piscine";
@@ -209,7 +210,9 @@ async function enrichForPdf(opts: PisPdfPayload): Promise<PisPdfEnriched> {
     totale: agg.totale,
     scontoPct,
     detrazionePct,
-    detrazioneEur: agg.imponibile * (detrazionePct / 100),
+    // Come nello step Economia: la detrazione si calcola entro il massimale di
+    // spesa, se c'è. Prima il PDF la prometteva su tutto l'imponibile.
+    detrazioneEur: calcDetraibile(agg.imponibile, detrazionePct, progetto.massimale_detrazione ?? null),
     costoTot: agg.costoTot,
     margineEur: agg.margineEur,
     marginePct: agg.marginePct,

@@ -20,7 +20,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { calcRigaImporto, calcTotaliComputo, type ComputoRigaInput } from "@/lib/termoidraulico/calcoli";
 import {
-  aLotti, cambiaITotali, inFila, soloCampiDelForm,
+  aLotti, cambiaITotali, condizioniDiPartenza, inFila, soloCampiDelForm,
+  type PredefinitiAzienda,
 } from "@/lib/moduli/salvataggioProgetto";
 import type {
   IdrProgetto,
@@ -185,6 +186,21 @@ async function totaliConParametri(
   });
 }
 
+/**
+ * IVA e detrazione predefinite nel template PDF dell'azienda, come stanno sul DB:
+ * senza template non c'è nulla da applicare e decidono i default della tabella.
+ * Best-effort: un template illeggibile non deve impedire di creare il progetto.
+ */
+async function predefinitiAzienda(companyId: string): Promise<PredefinitiAzienda | null> {
+  const { data, error } = await sb()
+    .from("idr_template_pdf")
+    .select("default_iva_pct, default_detrazione_pct")
+    .eq("company_id", companyId)
+    .maybeSingle();
+  if (error) return null;
+  return (data ?? null) as PredefinitiAzienda | null;
+}
+
 export function useUpsertProgetto() {
   const companyId = useEffectiveCompanyId();
   const qc = useQueryClient();
@@ -215,12 +231,18 @@ export function useUpsertProgetto() {
           return data as IdrProgetto;
         });
       }
-      // Insert: assicura code + company_id + stato di default.
-      const code = (patch.code as string | null | undefined) ?? (await generateProgettoCode(companyId));
+      // Insert: assicura code + company_id + stato di default. IVA e detrazione
+      // partono da quelle predefinite nel template dell'azienda, se chi crea non
+      // le ha già scelte: prima valevano solo i default della tabella.
+      const [code, predefiniti] = await Promise.all([
+        (patch.code as string | null | undefined) ?? generateProgettoCode(companyId),
+        predefinitiAzienda(companyId),
+      ]);
       const { data, error } = await sb()
         .from("idr_progetti")
         .insert({
           ...patch,
+          ...condizioniDiPartenza(patch, predefiniti),
           code,
           company_id: companyId,
           stato: patch.stato ?? "bozza",

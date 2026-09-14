@@ -24,6 +24,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getIdrTemplatePdf } from "@/hooks/useTermoidraulicoProgetto";
 import { toDataUrl } from "@/lib/serramenti/pdfImageUtils";
 import { calcTotaliComputo, type ComputoRigaInput } from "@/lib/termoidraulico/calcoli";
+import { calcDetraibile } from "@/lib/preventivi/incentivi";
 import type {
   IdrProgetto, IdrComputoVoce, IdrProgettoMedia, IdrTemplatePdf,
 } from "@/types/termoidraulico";
@@ -209,7 +210,9 @@ async function enrichForPdf(opts: IdrPdfPayload): Promise<IdrPdfEnriched> {
     totale: agg.totale,
     scontoPct,
     detrazionePct,
-    detrazioneEur: agg.imponibile * (detrazionePct / 100),
+    // Come nello step Economia: la detrazione si calcola entro il massimale di
+    // spesa, se c'è. Prima il PDF la prometteva su tutto l'imponibile.
+    detrazioneEur: calcDetraibile(agg.imponibile, detrazionePct, progetto.massimale_detrazione ?? null),
     costoTot: agg.costoTot,
     margineEur: agg.margineEur,
     marginePct: agg.marginePct,

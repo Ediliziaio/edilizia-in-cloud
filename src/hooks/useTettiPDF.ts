@@ -24,6 +24,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getTetTemplatePdf } from "@/hooks/useTettiProgetto";
 import { toDataUrl } from "@/lib/serramenti/pdfImageUtils";
 import { calcTotaliComputo, type ComputoRigaInput } from "@/lib/tetti/calcoli";
+import { calcDetraibile } from "@/lib/preventivi/incentivi";
 import type {
   TetProgetto, TetComputoVoce, TetProgettoMedia, TetTemplatePdf,
 } from "@/types/tetti";
@@ -209,7 +210,9 @@ async function enrichForPdf(opts: TetPdfPayload): Promise<TetPdfEnriched> {
     totale: agg.totale,
     scontoPct,
     detrazionePct,
-    detrazioneEur: agg.imponibile * (detrazionePct / 100),
+    // Come nello step Economia. Tetti non ha la colonna `massimale_detrazione`:
+    // nessun tetto di spesa da applicare.
+    detrazioneEur: calcDetraibile(agg.imponibile, detrazionePct, null),
     costoTot: agg.costoTot,
     margineEur: agg.margineEur,
     marginePct: agg.marginePct,

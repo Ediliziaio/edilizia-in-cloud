@@ -187,6 +187,7 @@ export default function StepPdf({ progetto, computo, media }: Props) {
           subtotal={totali.imponibile}
           vatAmount={totali.iva}
           total={totali.totale}
+          validityDays={template?.default_validita_giorni ?? undefined}
           disabled={computoVuoto}
           disabledReason="Aggiungi voci al computo prima di inviare il preventivo."
           generaPdfBlob={async () => {

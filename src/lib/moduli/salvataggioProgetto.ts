@@ -8,7 +8,9 @@
  *    memoria cancellava i totali appena salvati dal computo, e uno `stato`
  *    vecchio riportava indietro quello cambiato da un altro flusso;
  *  - i salvataggi dello stesso progetto passano uno alla volta: due salvataggi
- *    del computo sovrapposti duplicavano le righe.
+ *    del computo sovrapposti duplicavano le righe;
+ *  - un progetto nuovo parte con IVA e detrazione predefinite dall'azienda nel
+ *    template del modulo: prima prendeva i default della tabella.
  */
 
 /** Colonne dei progetti che il form del wizard non scrive mai. */
@@ -67,4 +69,34 @@ export function aLotti<T>(elenco: readonly T[], dimensione: number): T[][] {
   const lotti: T[][] = [];
   for (let i = 0; i < elenco.length; i += passo) lotti.push(elenco.slice(i, i + passo));
   return lotti;
+}
+
+/** Predefiniti del template PDF dell'azienda, come stanno sul DB. */
+export interface PredefinitiAzienda {
+  default_iva_pct?: number | string | null;
+  default_detrazione_pct?: number | string | null;
+}
+
+const percentuale = (valore: unknown): number | undefined => {
+  if (valore === null || valore === undefined || valore === "") return undefined;
+  const n = Number(valore);
+  return Number.isFinite(n) && n >= 0 && n <= 100 ? n : undefined;
+};
+
+/**
+ * IVA e detrazione di un progetto nuovo. Resta quello che chi crea ha già
+ * scelto (anche lo zero); il resto arriva dal template dell'azienda. Senza
+ * template, o con un valore vuoto o fuori scala, non si aggiunge nulla e
+ * decidono i default della tabella.
+ */
+export function condizioniDiPartenza(
+  scelte: { iva_pct?: number | null; detrazione_pct?: number | null },
+  azienda: PredefinitiAzienda | null | undefined,
+): { iva_pct?: number; detrazione_pct?: number } {
+  const condizioni: { iva_pct?: number; detrazione_pct?: number } = {};
+  const iva = percentuale(azienda?.default_iva_pct);
+  const detrazione = percentuale(azienda?.default_detrazione_pct);
+  if (scelte.iva_pct == null && iva !== undefined) condizioni.iva_pct = iva;
+  if (scelte.detrazione_pct == null && detrazione !== undefined) condizioni.detrazione_pct = detrazione;
+  return condizioni;
 }
