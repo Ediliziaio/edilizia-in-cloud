@@ -67,13 +67,20 @@ export interface RisultatoRicerca {
   riga: RigaListino;
 }
 
-/** Cerca per nome, codice, descrizione o linea in tutta l'area, anche fra le tipologie non proposte. */
+/**
+ * Cerca per nome, codice, descrizione o linea in tutta l'area, anche fra le
+ * tipologie non proposte. Ogni risultato porta la tipologia intera, con tutte
+ * le sue linee: la scheda dice di quale linea è il prodotto anche quando la
+ * ricerca ne ha lasciata una sola.
+ */
 export function cercaNellArea(area: AreaListino | null, testo: string): RisultatoRicerca[] {
   if (!area || testo.trim().length < 2) return [];
   const [trovata] = filtraListino([area], (r) => rigaPassa(r, testo, FILTRI_LISTINO_VUOTI));
-  return (trovata?.tipologie ?? []).flatMap((tipologia) =>
-    tipologia.linee.flatMap((linea) => linea.righe.map((riga) => ({ tipologia, linea, riga }))),
-  );
+  const intere = new Map(area.tipologie.map((t) => [t.chiave, t]));
+  return (trovata?.tipologie ?? []).flatMap((filtrata) => {
+    const tipologia = intere.get(filtrata.chiave) ?? filtrata;
+    return filtrata.linee.flatMap((linea) => linea.righe.map((riga) => ({ tipologia, linea, riga })));
+  });
 }
 
 /** Gli assi da far scegliere: con almeno un valore acceso. Un asse tutto spento bloccherebbe l'articolo. */

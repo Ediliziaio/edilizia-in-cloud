@@ -73,6 +73,9 @@ describe("aggiungi dal listino nel preventivo serramenti", () => {
     const aluplast = cercaNellArea(area, "aluplast");
     expect(new Set(aluplast.map((r) => r.linea.nome))).toEqual(new Set(["PVC Aluplast Ideal 5000"]));
     expect(nomiProdotti(aluplast)).toEqual(["Finestra 2 Ante", "Porta Finestra 1 Anta"]);
+    // La scheda deve poter scrivere «Serramenti · PVC Aluplast Ideal 5000»: la
+    // tipologia arriva con tutte e due le linee, non solo quella trovata.
+    expect(aluplast.every((r) => r.tipologia.linee.length === 2)).toBe(true);
     expect(cercaNellArea(area, "nascosta")).toEqual([]);
     expect(cercaNellArea(area, "blindata")).toEqual([]);
     expect(cercaNellArea(area, "f")).toEqual([]);
