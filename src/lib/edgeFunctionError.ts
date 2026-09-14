@@ -25,3 +25,25 @@ export async function edgeErrorMessage(
   }
   return error instanceof Error ? error.message : fallback;
 }
+
+/**
+ * Come edgeErrorMessage, ma preferisce `detail`: le funzioni Meta Ads mettono
+ * in `error` un codice (es. `ad_account_not_found`) e in `detail` la frase in
+ * italiano per l'utente. Con edgeErrorMessage si vedeva il codice.
+ */
+export async function edgeErrorDetail(
+  error: unknown,
+  fallback = "Errore sconosciuto",
+): Promise<string> {
+  try {
+    const body = await (error as {
+      context?: { json?: () => Promise<{ detail?: string; error?: string; message?: string }> };
+    }).context?.json?.();
+    if (body?.detail) return String(body.detail);
+    if (body?.error) return String(body.error);
+    if (body?.message) return String(body.message);
+  } catch {
+    /* body non JSON o context assente → fallback sotto */
+  }
+  return error instanceof Error ? error.message : fallback;
+}

@@ -73,6 +73,7 @@ import {
   type AdsLocalCampaignDraft,
 } from "@/lib/ads/campaignState";
 import { cn } from "@/lib/utils";
+import { edgeErrorDetail } from "@/lib/edgeFunctionError";
 import { metaCampaignKeys, useMetaCampaigns } from "@/hooks/useMetaCampaigns";
 import { useGoogleAdsCampaigns } from "@/hooks/useGoogleAdsCampaigns";
 import { useGoogleAdsStats } from "@/hooks/useGoogleAdsStats";
@@ -1545,10 +1546,13 @@ export default function AdsManagerBeta() {
           campaign_id?: string;
           meta_campaign_id?: string;
           errors?: string[];
+          avvisi?: string[];
         }>("meta-ads-create-campaign", {
           body: request,
         });
-        if (error) throw error;
+        // Con un 4xx supabase-js dà solo «non-2xx status code»: la frase vera
+        // (account non scelto, permesso mancante…) sta nel `detail` del corpo.
+        if (error) throw new Error(await edgeErrorDetail(error, "Pubblicazione non riuscita"));
         if (data?.error || data?.success === false) {
           const detail = data?.detail ?? data?.errors?.join(", ") ?? data?.error ?? "publish_failed";
           throw new Error(detail);
@@ -1556,7 +1560,10 @@ export default function AdsManagerBeta() {
         await queryClient.invalidateQueries({ queryKey: metaCampaignKeys.byCompany(companyId) });
         await queryClient.invalidateQueries({ queryKey: ["meta-pending-approvals", companyId] });
         toast.success("Campagna pubblicata in PAUSED", {
-          description: "Meta ha creato campagna, ad set e annunci senza attivarli.",
+          description: [
+            "Meta ha creato campagna, ad set e annunci senza attivarli.",
+            ...(data?.avvisi ?? []),
+          ].join(" "),
         });
       } finally {
         setIsPublishing(false);
@@ -1595,7 +1602,7 @@ export default function AdsManagerBeta() {
             action: spegni ? "pause" : "activate",
           },
         });
-        if (error) throw error;
+        if (error) throw new Error(await edgeErrorDetail(error, "aggiornamento_fallito"));
         if (data?.error || data?.success === false) {
           throw new Error(data?.detail ?? data?.error ?? "aggiornamento_fallito");
         }

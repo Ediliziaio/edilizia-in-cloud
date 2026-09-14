@@ -17,6 +17,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { decrypt, getEncryptionKey } from "../_shared/encryption.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { sincronizzaStatisticheSocial, type EsitoStatisticheSocial } from "../_shared/statisticheSocialMeta.ts";
 
 const apiVersion = Deno.env.get("META_API_VERSION") || "v21.0";
 
@@ -27,6 +28,10 @@ interface SyncInsightsRequest {
   force?: boolean;
   /** Quanti giorni indietro riscrivere nel dettaglio giornaliero (default 3; fino a 90 per il recupero storico) */
   giorni_indietro?: number;
+  /** Statistiche di Pagina/Instagram: giorni da riscrivere (default 3, 30 la prima volta) */
+  giorni_statistiche_social?: number;
+  /** Salta il passo statistiche social (solo inserzioni) */
+  salta_statistiche_social?: boolean;
 }
 
 interface SyncResult {
@@ -547,7 +552,27 @@ Deno.serve(async (req) => {
       }
     }
 
-    const result: SyncResult = {
+    // Statistiche di Pagina Facebook e profilo Instagram: passo in coda, per
+    // tutte le aziende con pagine collegate (anche senza account pubblicitari).
+    // Un permesso mancante finisce in social_statistiche_stato, non negli
+    // errori delle inserzioni; un'eccezione qui non tocca quanto già scritto.
+    // Scadenza: almeno un minuto, ma entro ~6 minuti dall'avvio (tetto del
+    // runtime); le pagine rimaste passano per prime al giro successivo.
+    let statisticheSocial: EsitoStatisticheSocial | null = null;
+    if (!body.salta_statistiche_social) {
+      try {
+        statisticheSocial = await sincronizzaStatisticheSocial(admin, {
+          apiVersion,
+          companyId: filterCompanyId,
+          giorni: body.giorni_statistiche_social,
+          scadenzaMs: Math.min(t0 + 360_000, Math.max(t0 + 240_000, Date.now() + 60_000)),
+        });
+      } catch (e) {
+        errors.push(`statistiche_social_failed:${String(e).substring(0, 100)}`);
+      }
+    }
+
+    const result: SyncResult & { statistiche_social: EsitoStatisticheSocial | null } = {
       companies_processed: companies.length,
       campaigns_synced: campaignsSynced,
       insights_rows_written: insightsRows,
@@ -555,6 +580,7 @@ Deno.serve(async (req) => {
       daily_rows_written: dailyRows,
       inserzione_rows_written: inserzioneRows,
       errors,
+      statistiche_social: statisticheSocial,
       duration_ms: Date.now() - t0,
     };
 

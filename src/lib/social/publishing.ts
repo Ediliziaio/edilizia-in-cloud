@@ -1,3 +1,5 @@
+import type { SocialPostMedia, SocialPublishResultEntry } from "./types";
+
 export const SOCIAL_LIVE_PUBLISHING_ENABLED = true;
 
 export type SocialSchedulingSupport = "native" | "draft_only" | "video_only";
@@ -201,4 +203,100 @@ export function parseSocialBulkCsv(
             : undefined,
     };
   });
+}
+
+// ─── Meta: pagina di destinazione, file, carosello ───────────────────────────
+// Stesse regole del publisher (supabase/functions/_shared/socialPublishLogic.ts),
+// controllate nel composer prima di salvare: meglio un errore qui che un post
+// 'failed' all'ora programmata.
+
+export interface SocialMetaTargetsInput {
+  selectedPlatforms: string[];
+  contentType: string;
+  accounts: Array<{ platform_id: string; page_id: string; page_name?: string }>;
+  targetPageIds: Record<string, string>;
+  media: SocialPostMedia[];
+}
+
+/** Pagine/account collegati per una piattaforma Meta, senza doppioni. */
+export function metaAccountsFor<T extends { platform_id: string; page_id: string }>(accounts: T[], platform: string): T[] {
+  const seen = new Set<string>();
+  return accounts.filter((account) => {
+    if (account.platform_id !== platform || !account.page_id || seen.has(account.page_id)) return false;
+    seen.add(account.page_id);
+    return true;
+  });
+}
+
+export function validateMetaPublishTargets(input: SocialMetaTargetsInput): string[] {
+  const errors: string[] = [];
+  const hasFb = input.selectedPlatforms.includes("facebook");
+  const hasIg = input.selectedPlatforms.includes("instagram");
+
+  for (const platform of ["facebook", "instagram"]) {
+    if (!input.selectedPlatforms.includes(platform)) continue;
+    const options = metaAccountsFor(input.accounts, platform);
+    const chosen = input.targetPageIds[platform];
+    if (chosen && options.length > 0 && !options.some((option) => option.page_id === chosen)) {
+      errors.push(platform === "instagram"
+        ? "L'account Instagram scelto non è più collegato: scegline un altro."
+        : "La pagina Facebook scelta non è più collegata: scegline un'altra.");
+    } else if (!chosen && options.length > 1) {
+      errors.push(platform === "instagram"
+        ? "Scegli su quale account Instagram pubblicare."
+        : "Scegli su quale pagina Facebook pubblicare.");
+    }
+  }
+
+  if (!hasFb && !hasIg) return errors;
+
+  const count = input.media.length;
+  const videos = input.media.filter((item) => item.type === "video").length;
+  if (input.contentType === "carosello") {
+    if (count < 2) errors.push("Il carosello richiede almeno 2 file.");
+    if (count > 10) errors.push("Il carosello accetta al massimo 10 file.");
+    if (hasFb && videos > 0) errors.push("Su Facebook il carosello accetta solo immagini.");
+  }
+  if (input.contentType === "reel" && videos === 0) {
+    errors.push("Il Reel richiede un video (MP4 o MOV).");
+  }
+  if (input.contentType === "story") {
+    if (count > 1) errors.push("La storia accetta un solo file.");
+    if (hasFb) errors.push("Le storie Facebook non si pubblicano ancora da qui: togli Facebook o scegli un altro formato.");
+  }
+  if (hasIg && count === 0) {
+    errors.push("Instagram richiede almeno un'immagine o un video.");
+  }
+  return Array.from(new Set(errors));
+}
+
+const PUBLISH_RESULT_LABELS: Record<string, string> = {
+  facebook: "Facebook",
+  instagram: "Instagram",
+  _error: "Pubblicazione",
+};
+
+export interface SocialPublishIssue {
+  tone: "error" | "warning" | "info";
+  text: string;
+}
+
+/** Righe leggibili dall'esito del publisher (errori, avvisi, elaborazione in corso). */
+export function describePublishResult(
+  result: Record<string, SocialPublishResultEntry> | null | undefined,
+): SocialPublishIssue[] {
+  const issues: SocialPublishIssue[] = [];
+  for (const [key, entry] of Object.entries(result ?? {})) {
+    if (!entry || typeof entry !== "object") continue;
+    const label = PUBLISH_RESULT_LABELS[key] ?? key;
+    if (entry.pending) {
+      issues.push({ tone: "info", text: `${label}: in elaborazione, esce appena Meta ha finito.` });
+    } else if (entry.ok === false && entry.error) {
+      issues.push({ tone: "error", text: `${label}: ${entry.error}` });
+    }
+    for (const warning of entry.warnings ?? []) {
+      issues.push({ tone: "warning", text: `${label}: ${warning}` });
+    }
+  }
+  return issues;
 }

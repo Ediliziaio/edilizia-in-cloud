@@ -1,4 +1,24 @@
-export type SocialPostStatus = "draft" | "scheduled" | "published" | "failed" | "review";
+export type SocialPostStatus = "draft" | "scheduled" | "processing" | "published" | "failed" | "review";
+
+/** Un file del post. bucket+path = caricato nello Storage (URL firmato generato al giro). */
+export interface SocialPostMedia {
+  url?: string;
+  bucket?: string;
+  path?: string;
+  type: "image" | "video";
+}
+
+/** Esito per piattaforma scritto dal publisher in social_posts.publish_result. */
+export interface SocialPublishResultEntry {
+  ok?: boolean;
+  id?: string;
+  error?: string;
+  pending?: boolean;
+  retryable?: boolean;
+  reconnect?: boolean;
+  page_id?: string;
+  warnings?: string[];
+}
 
 export interface SocialConnectedAccount {
   platform_id: string;
@@ -22,6 +42,11 @@ export interface SocialScheduledPost {
   created_at: string;
   reviewNote?: string;
   mediaItemId?: string;
+  /** pagina di destinazione per piattaforma (page_id); vuoto = unica pagina collegata */
+  targetPageIds?: Record<string, string>;
+  /** file del post (più di uno = carosello) */
+  media?: SocialPostMedia[];
+  publishResult?: Record<string, SocialPublishResultEntry>;
 }
 
 export interface SocialMediaItem {

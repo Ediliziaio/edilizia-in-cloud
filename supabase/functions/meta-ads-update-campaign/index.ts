@@ -2,7 +2,9 @@
 //
 // Aggiorna una campagna Meta esistente. Operazioni supportate:
 //   • pause      → status=PAUSED
-//   • activate   → status=ACTIVE (solo company_admin)
+//   • activate   → status=ACTIVE (solo company_admin). Accende anche ad set e
+//                  annunci: nascono tutti in PAUSED e con la sola campagna
+//                  attiva Meta non mostrava niente.
 //   • archive    → status=ARCHIVED
 //   • update     → modifica name / daily_budget / end_time / status
 //   • duplicate  → copia la campagna (status=PAUSED, nuovo nome "[COPIA] ...")
@@ -11,11 +13,17 @@
 //   • Bearer token utente
 //   • Validazione company ownership
 //   • activate richiede company_admin o super_admin
+//   • activate/update solo se l'account pubblicitario è ancora quello scelto
+//     dall'azienda (meta_assets selected). La pausa passa sempre: fermare la
+//     spesa non deve mai essere bloccato.
 //   • Spend guard check su update budget
+//
+// ERRORI: `detail` è sempre una frase in italiano (vedi traduciErroreMeta).
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { decrypt, getEncryptionKey } from "../_shared/encryption.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { normalizzaActId, traduciErroreMeta, type ErroreMetaLeggibile } from "../_shared/metaAdsPubblicazione.ts";
 
 const apiVersion = Deno.env.get("META_API_VERSION") || "v21.0";
 
@@ -75,7 +83,10 @@ Deno.serve(async (req) => {
       return json({ error: "forbidden_company_mismatch" }, 403, corsHeaders);
     }
     if (body.action === "activate" && !isSuperAdmin && !isCompanyAdmin) {
-      return json({ error: "forbidden_requires_company_admin" }, 403, corsHeaders);
+      return json({
+        error: "forbidden_requires_company_admin",
+        detail: "Solo il titolare può mandare online una campagna.",
+      }, 403, corsHeaders);
     }
 
     // LOAD CAMPAIGN
@@ -86,7 +97,7 @@ Deno.serve(async (req) => {
       .eq("company_id", body.company_id)
       .maybeSingle();
     if (campErr || !campaign) {
-      return json({ error: "campaign_not_found" }, 404, corsHeaders);
+      return json({ error: "campaign_not_found", detail: "Campagna non trovata." }, 404, corsHeaders);
     }
 
     // ACTIONS che non richiedono Meta API (su draft)
@@ -124,23 +135,35 @@ Deno.serve(async (req) => {
           .single();
         return json({ success: true, action: "duplicate", new_campaign_id: dup?.id }, 200, corsHeaders);
       }
-      return json({ error: "action_requires_published_campaign" }, 400, corsHeaders);
+      return json({
+        error: "action_requires_published_campaign",
+        detail: "La campagna non è ancora su Meta: pubblicala prima.",
+      }, 400, corsHeaders);
+    }
+
+    // L'account deve essere ancora quello scelto dall'azienda, tranne per
+    // fermare o archiviare: quelli devono passare sempre.
+    if (body.action === "activate" || body.action === "update") {
+      const ancoraScelto = await accountAncoraScelto(admin, body.company_id, campaign.ad_account_id);
+      if (!ancoraScelto) {
+        return json({
+          error: "ad_account_not_selected",
+          detail: "L'account pubblicitario di questa campagna non è più quello scelto per l'azienda: controllalo nelle Integrazioni Meta.",
+        }, 403, corsHeaders);
+      }
     }
 
     // ACTIONS che richiedono Meta API
     // Il token Meta vive su integration_credentials (AES-GCM), non su
-    // integrations (colonna access_token_encrypted inesistente) — stessa
-    // fonte di meta-ads-sync-insights / meta-api-proxy.
-    const { data: cred } = await admin
-      .from("integration_credentials")
-      .select("access_token_encrypted")
-      .eq("integration_id", campaign.integration_id)
-      .maybeSingle();
-    if (!cred?.access_token_encrypted) {
-      return json({ error: "integration_token_missing" }, 400, corsHeaders);
+    // integrations. Se la campagna ha perso integration_id (FK SET NULL dopo
+    // una ricollegata) si usa l'integrazione Meta attuale dell'azienda.
+    const accessToken = await tokenMeta(admin, body.company_id, campaign.integration_id);
+    if (!accessToken) {
+      return json({
+        error: "integration_token_missing",
+        detail: "Il collegamento con Meta non ha un token valido: ricollega Meta dalle Integrazioni.",
+      }, 400, corsHeaders);
     }
-    const encKey = await getEncryptionKey();
-    const accessToken = await decrypt(cred.access_token_encrypted, encKey);
 
     let metaPayload: Record<string, unknown> = {};
     let localUpdate: Record<string, unknown> = {};
@@ -237,19 +260,50 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Esegui call Meta API
-    const url = `https://graph.facebook.com/${apiVersion}/${campaign.meta_campaign_id}`;
-    const resp = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...metaPayload, access_token: accessToken }),
-    });
-    if (!resp.ok) {
-      const text = await resp.text();
-      return json({
-        error: "meta_api_error",
-        detail: text.substring(0, 500),
-      }, 502, corsHeaders);
+    // ATTIVAZIONE: prima annunci e ad set, per ultima la campagna. Se un figlio
+    // non si accende la campagna resta ferma, e non spende a metà.
+    if (body.action === "activate") {
+      const { data: adSets } = await admin
+        .from("meta_ad_sets")
+        .select("id, meta_adset_id, status")
+        .eq("campaign_id", campaign.id)
+        .not("meta_adset_id", "is", null);
+      const adSetAttivabili = (adSets ?? []).filter((a) => !["archived", "deleted"].includes(String(a.status ?? "")));
+      const adSetIds = adSetAttivabili.map((a) => a.id);
+      const { data: ads } = adSetIds.length
+        ? await admin
+          .from("meta_ads")
+          .select("id, meta_ad_id, status")
+          .in("adset_id", adSetIds)
+          .not("meta_ad_id", "is", null)
+        : { data: [] as { id: string; meta_ad_id: string; status: string | null }[] };
+      const adsAttivabili = (ads ?? []).filter((a) => !["archived", "deleted"].includes(String(a.status ?? "")));
+
+      for (const ad of adsAttivabili) {
+        const r = await aggiornaSuMeta(ad.meta_ad_id, accessToken, { status: "ACTIVE" });
+        if (!r.ok) {
+          return errorePerMeta(`Annuncio non attivato, la campagna resta ferma. ${r.errore.messaggio}`, r.errore, corsHeaders);
+        }
+      }
+      for (const adSet of adSetAttivabili) {
+        const r = await aggiornaSuMeta(adSet.meta_adset_id, accessToken, { status: "ACTIVE" });
+        if (!r.ok) {
+          return errorePerMeta(`Ad set non attivato, la campagna resta ferma. ${r.errore.messaggio}`, r.errore, corsHeaders);
+        }
+      }
+      const adesso = new Date().toISOString();
+      if (adsAttivabili.length > 0) {
+        await admin.from("meta_ads").update({ status: "active", last_synced_at: adesso }).in("id", adsAttivabili.map((a) => a.id));
+      }
+      if (adSetIds.length > 0) {
+        await admin.from("meta_ad_sets").update({ status: "active", last_synced_at: adesso }).in("id", adSetIds);
+      }
+    }
+
+    // Esegui call Meta API sulla campagna
+    const esito = await aggiornaSuMeta(campaign.meta_campaign_id, accessToken, metaPayload);
+    if (!esito.ok) {
+      return errorePerMeta(esito.errore.messaggio, esito.errore, corsHeaders);
     }
 
     // Aggiorna DB
@@ -261,9 +315,110 @@ Deno.serve(async (req) => {
     return json({ success: true, action: body.action }, 200, corsHeaders);
   } catch (e) {
     console.error("[meta-ads-update-campaign] uncaught", e);
-    return json({ error: "internal_error", detail: String(e) }, 500, corsHeaders);
+    return json({ error: "internal_error", detail: `Errore interno: ${String(e)}` }, 500, corsHeaders);
   }
 });
+
+/** Token Meta in chiaro per l'integrazione della campagna (o quella attuale dell'azienda). */
+async function tokenMeta(
+  // deno-lint-ignore no-explicit-any
+  admin: any,
+  companyId: string,
+  integrationId: string | null,
+): Promise<string | null> {
+  let id = integrationId;
+  if (!id) {
+    const { data } = await admin
+      .from("integrations")
+      .select("id")
+      .eq("company_id", companyId)
+      .eq("provider", "meta")
+      .maybeSingle();
+    id = data?.id ?? null;
+  }
+  if (!id) return null;
+  const { data: cred } = await admin
+    .from("integration_credentials")
+    .select("access_token_encrypted")
+    .eq("integration_id", id)
+    .maybeSingle();
+  if (!cred?.access_token_encrypted) return null;
+  try {
+    return await decrypt(cred.access_token_encrypted, await getEncryptionKey());
+  } catch (e) {
+    console.warn("[meta-ads-update-campaign] decrypt failed", e);
+    return null;
+  }
+}
+
+/**
+ * L'account della campagna è ancora tra quelli scelti in meta_assets?
+ * Senza una scelta registrata (aziende con la sola meta_ad_accounts) non si blocca.
+ */
+async function accountAncoraScelto(
+  // deno-lint-ignore no-explicit-any
+  admin: any,
+  companyId: string,
+  adAccountUuid: string | null,
+): Promise<boolean> {
+  if (!adAccountUuid) return true;
+  const { data: riga } = await admin
+    .from("meta_ad_accounts")
+    .select("ad_account_id")
+    .eq("id", adAccountUuid)
+    .eq("company_id", companyId)
+    .maybeSingle();
+  if (!riga?.ad_account_id) return true;
+  const { data: scelti } = await admin
+    .from("meta_assets")
+    .select("asset_id")
+    .eq("company_id", companyId)
+    .eq("asset_type", "ad_account")
+    .eq("selected", true);
+  if (!scelti || scelti.length === 0) return true;
+  const act = normalizzaActId(riga.ad_account_id);
+  return (scelti as { asset_id: string }[]).some((s) => normalizzaActId(s.asset_id) === act);
+}
+
+async function aggiornaSuMeta(
+  objectId: string,
+  accessToken: string,
+  payload: Record<string, unknown>,
+): Promise<{ ok: true } | { ok: false; errore: ErroreMetaLeggibile }> {
+  try {
+    const resp = await fetch(`https://graph.facebook.com/${apiVersion}/${objectId}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...payload, access_token: accessToken }),
+    });
+    const testo = await resp.text();
+    let corpo: unknown = null;
+    try {
+      corpo = JSON.parse(testo);
+    } catch {
+      corpo = null;
+    }
+    if (!resp.ok || (corpo as { error?: unknown } | null)?.error) {
+      return { ok: false, errore: traduciErroreMeta(corpo ?? testo) };
+    }
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, errore: { codice: "errore_meta", messaggio: `Meta non raggiungibile: ${String(e)}` } };
+  }
+}
+
+function errorePerMeta(
+  detail: string,
+  errore: ErroreMetaLeggibile,
+  corsHeaders: Record<string, string>,
+): Response {
+  return json({
+    error: "meta_api_error",
+    detail,
+    codice: errore.codice,
+    codice_meta: errore.codice_meta ?? null,
+  }, errore.codice === "permesso_mancante" || errore.codice === "token_scaduto" ? 403 : 502, corsHeaders);
+}
 
 function json(payload: unknown, status: number, corsHeaders: Record<string, string>): Response {
   return new Response(JSON.stringify(payload), {

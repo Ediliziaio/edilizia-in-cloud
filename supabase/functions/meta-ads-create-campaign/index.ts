@@ -21,18 +21,45 @@
 //   campaign.objective       → POST /act_X/campaigns body.objective
 //   adSet.daily_budget       → POST /act_X/adsets body.daily_budget (in CENT della currency)
 //   adSet.targeting          → POST /act_X/adsets body.targeting (JSON)
-//   creative.imagePrompt     → diventa adcreative + object_story_spec.link_data
-//                              (image_hash da NEEDS upload pre-batch, vedi NOTA)
+//   creative                 → adcreative + object_story_spec.link_data
 //
-// NOTA UPLOAD IMMAGINI:
-//   In questa versione iniziale supportiamo solo link ads SENZA immagine
-//   (Meta usa l'image della Page Facebook). Per il supporto completo serve
-//   POST /act_X/adimages PRIMA del batch — verrà aggiunto in iterazione
-//   successiva insieme all'integrazione DALL-E.
+// ACCOUNT PUBBLICITARIO:
+//   La fonte è la scelta fatta nelle Integrazioni (meta_assets, asset_type
+//   'ad_account', selected=true). Prima si cercava solo in meta_ad_accounts,
+//   che scrive soltanto il report: chi non l'aveva mai aperto riceveva
+//   ad_account_not_found. meta_ad_accounts resta come riga «specchio» (le FK
+//   di meta_campaigns / meta_creatives / ad_spend_guard puntano lì) e come
+//   ripiego per le aziende che hanno solo quella.
+//
+// IMMAGINI:
+//   Ogni creatività prende la sua immagine da creatives[i].imageUrl, poi dalla
+//   libreria (builder_state.selectedMediaIds → ad_media), poi da
+//   builder_state.imageUrl. Prima di creare qualunque oggetto l'immagine va su
+//   POST /act_X/adimages come `bytes` base64 (l'endpoint non accetta URL) e
+//   l'hash finisce in link_data.image_hash. Senza immagine resta l'anteprima
+//   del link, come prima.
+//
+// INSTAGRAM:
+//   Se la Pagina ha un account Instagram collegato (metadata.instagram_business_account.id)
+//   va in object_story_spec.instagram_user_id. Se non c'è, gli ad set escono
+//   solo su Facebook invece di far fallire la creatività.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { decrypt, getEncryptionKey } from "../_shared/encryption.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
+import {
+  base64DaBytes,
+  byteDaBase64,
+  costruisciObjectStorySpec,
+  datiDaDataUrl,
+  eUuid,
+  hashDaRispostaAdImages,
+  igUserIdDallaPagina,
+  limitaPiattaformeSenzaInstagram,
+  normalizzaActId,
+  sorgenteImmagineAmmessa,
+  traduciErroreMeta,
+} from "../_shared/metaAdsPubblicazione.ts";
 
 const apiVersion = Deno.env.get("META_API_VERSION") || "v21.0";
 
@@ -86,6 +113,12 @@ interface BuilderState {
   pageId?: string;
   /** ID Meta della pagina, se il client lo conosce già. */
   pageMetaId?: string;
+  /** Titoli degli annunci (link_data.name), uno per creatività. */
+  copyTitles?: string[];
+  /** Immagini scelte dalla libreria ad_media, assegnate alle creatività a giro. */
+  selectedMediaIds?: string[];
+  /** Immagine unica per tutte le creatività: URL dello storage o data: URL. */
+  imageUrl?: string;
   // Targeting Meta avanzato (v2 — multi-luogo, interests reali, placements)
   metaGeoLocations?: Array<{
     key: string;
@@ -132,6 +165,8 @@ interface BuilderCreative {
   hook: string;
   goal: string;
   prompt: string;
+  /** Immagine di questa creatività: URL dello storage o data: URL. */
+  imageUrl?: string;
 }
 
 interface MetaPayload {
@@ -152,6 +187,8 @@ interface CreateResult {
   meta_payload?: MetaPayload;
   errors?: string[];
   rolled_back?: boolean;
+  /** Cose da sapere che non bloccano (es. niente Instagram, niente immagine). */
+  avvisi?: string[];
 }
 
 type MetaFetchResult =
@@ -209,32 +246,12 @@ Deno.serve(async (req) => {
       return json({ error: "forbidden_requires_company_admin" }, 403, corsHeaders);
     }
 
-    // LOAD AD ACCOUNT + INTEGRATION
-    let adAccount: {
-      id: string;
-      ad_account_id: string;
-      integration_id: string;
-      currency: string | null;
-    } | null = null;
-    const { data: adAccountById } = await admin
-      .from("meta_ad_accounts")
-      .select("id, ad_account_id, integration_id, currency")
-      .eq("id", body.ad_account_id)
-      .eq("company_id", body.company_id)
-      .maybeSingle();
-    adAccount = adAccountById;
-    if (!adAccount) {
-      const normalized = normalizeActId(body.ad_account_id);
-      const plain = normalized.replace(/^act_/, "");
-      const { data: adAccountByMetaId } = await admin
-        .from("meta_ad_accounts")
-        .select("id, ad_account_id, integration_id, currency")
-        .eq("company_id", body.company_id)
-        .in("ad_account_id", [body.ad_account_id, normalized, plain])
-        .maybeSingle();
-      adAccount = adAccountByMetaId;
+    // LOAD AD ACCOUNT + INTEGRATION — dalla scelta in meta_assets (vedi testata)
+    const accountRisolto = await risolviAccountPubblicitario(admin, body.company_id, body.ad_account_id, !dryRun);
+    if (!accountRisolto.ok) {
+      return json({ error: accountRisolto.error, detail: accountRisolto.detail }, accountRisolto.status, corsHeaders);
     }
-    if (!adAccount) return json({ error: "ad_account_not_found" }, 404, corsHeaders);
+    const adAccount = accountRisolto.account;
 
     // SPEND GUARD CHECK
     if (!dryRun) {
@@ -255,7 +272,7 @@ Deno.serve(async (req) => {
     }
 
     // BUILD META PAYLOAD
-    const pageMetaId = await resolvePageMetaId(
+    const { pageMetaId, igUserId } = await resolvePageMetaId(
       admin,
       body.company_id,
       adAccount.integration_id,
@@ -267,14 +284,23 @@ Deno.serve(async (req) => {
         detail: "Seleziona o collega una Pagina Facebook prima di pubblicare la campagna.",
       }, 400, corsHeaders);
     }
-    const metaPayload = buildMetaPayload(body.builder_state, adAccount.ad_account_id, pageMetaId);
+    const sorgentiImmagini = await sorgentiImmaginiCreativita(admin, body.company_id, body.builder_state);
+    const avvisi: string[] = [];
+    if (!igUserId) {
+      avvisi.push("La Pagina non ha un account Instagram collegato: gli annunci usciranno solo su Facebook.");
+    }
+    if ((body.builder_state.creatives ?? []).length > 0 && sorgentiImmagini.every((s) => !s)) {
+      avvisi.push("Nessuna immagine scelta: Meta mostrerà l'anteprima della pagina di atterraggio.");
+    }
+    let metaPayload = buildMetaPayload(body.builder_state, adAccount.ad_account_id, pageMetaId, { igUserId });
 
-    // DRY RUN — restituisce solo il payload
+    // DRY RUN — restituisce solo il payload (le immagini si caricano solo alla pubblicazione)
     if (dryRun) {
       const result: CreateResult = {
         success: true,
         dry_run: true,
         meta_payload: metaPayload,
+        avvisi,
       };
       return json(result, 200, corsHeaders);
     }
@@ -306,6 +332,29 @@ Deno.serve(async (req) => {
     }
     const encKey = await getEncryptionKey();
     const accessToken = await decrypt(cred.access_token_encrypted, encKey);
+
+    // IMMAGINI — prima di creare qualunque oggetto su Meta: se il caricamento
+    // fallisce non resta niente da disfare. La stessa immagine si carica una volta.
+    const hashPerSorgente = new Map<string, string>();
+    const imageHashes: Array<string | null> = [];
+    for (const sorgente of sorgentiImmagini) {
+      if (!sorgente) {
+        imageHashes.push(null);
+        continue;
+      }
+      const giaCaricata = hashPerSorgente.get(sorgente);
+      if (giaCaricata) {
+        imageHashes.push(giaCaricata);
+        continue;
+      }
+      const caricata = await caricaImmagineSuMeta(adAccount.ad_account_id, accessToken, sorgente, supabaseUrl);
+      if (!caricata.ok) {
+        return json({ error: "image_upload_failed", detail: caricata.errore }, 400, corsHeaders);
+      }
+      hashPerSorgente.set(sorgente, caricata.hash);
+      imageHashes.push(caricata.hash);
+    }
+    metaPayload = buildMetaPayload(body.builder_state, adAccount.ad_account_id, pageMetaId, { igUserId, imageHashes });
 
     // Crea o riusa la campagna locale in stato 'review' prima del batch (per audit)
     const localCampaignPayload = {
@@ -399,7 +448,8 @@ Deno.serve(async (req) => {
         metaPayload.campaign,
       );
       if (!campaignResp.ok) {
-        throw new Error(`campaign_create_failed: ${campaignResp.error}`);
+        errors.push(`Campagna: ${campaignResp.error}`);
+        throw new Error(`Campagna: ${campaignResp.error}`);
       }
       const campaignMeta = campaignResp.data;
       createdMetaIds.campaign = campaignMeta.id;
@@ -426,8 +476,8 @@ Deno.serve(async (req) => {
           adSetPayload,
         );
         if (!r.ok) {
-          errors.push(`adset_${i}_failed:${r.error}`);
-          throw new Error(`adset_${i}_failed`);
+          errors.push(`Ad set ${i + 1}: ${r.error}`);
+          throw new Error(`Ad set ${i + 1}: ${r.error}`);
         }
         const adSetMeta = r.data;
         createdMetaIds.adSets.push(adSetMeta.id);
@@ -458,8 +508,8 @@ Deno.serve(async (req) => {
           metaPayload.creatives[i],
         );
         if (!r.ok) {
-          errors.push(`creative_${i}_failed:${r.error}`);
-          throw new Error(`creative_${i}_failed`);
+          errors.push(`Creatività ${i + 1}: ${r.error}`);
+          throw new Error(`Creatività ${i + 1}: ${r.error}`);
         }
         const creativeMeta = r.data;
         createdMetaIds.creatives.push(creativeMeta.id);
@@ -475,6 +525,7 @@ Deno.serve(async (req) => {
             title: body.builder_state.creatives[i]?.title ?? null,
             body: body.builder_state.copyVariants[i] ?? body.builder_state.copyVariants[0] ?? null,
             ai_prompt: body.builder_state.creatives[i]?.prompt ?? null,
+            image_hash: imageHashes[i] ?? null,
             object_story_spec: metaPayload.creatives[i].object_story_spec,
             raw: creativeMeta,
             last_published_at: new Date().toISOString(),
@@ -499,8 +550,8 @@ Deno.serve(async (req) => {
           adPayload,
         );
         if (!r.ok) {
-          errors.push(`ad_${i}_failed:${r.error}`);
-          throw new Error(`ad_${i}_failed`);
+          errors.push(`Annuncio ${i + 1}: ${r.error}`);
+          throw new Error(`Annuncio ${i + 1}: ${r.error}`);
         }
         const adMeta = r.data;
         createdMetaIds.ads.push(adMeta.id);
@@ -533,19 +584,25 @@ Deno.serve(async (req) => {
         meta_ad_ids: createdMetaIds.ads,
         meta_payload: metaPayload,
         errors,
+        avvisi,
       };
       return json(result, 200, corsHeaders);
     } catch (e) {
       // ROLLBACK — DELETE oggetti già creati
       console.error("[meta-ads-create-campaign] batch failed, rolling back", e);
       const rollbackResults = await rollbackMetaObjects(accessToken, createdMetaIds);
+      const messaggio = e instanceof Error ? e.message : String(e);
+      // Il frontend mostra `detail`: deve essere una frase, non un JSON di Graph.
+      const detail = rollbackResults.failed === 0
+        ? `Pubblicazione non riuscita, su Meta non è rimasto nulla. ${messaggio}`
+        : `Pubblicazione non riuscita. ${messaggio} Alcuni oggetti in pausa sono rimasti su Meta: controllali in Gestione inserzioni.`;
 
       // Marca campagna locale come error
       await admin
         .from("meta_campaigns")
         .update({
           status: "error",
-          publish_error: String(e),
+          publish_error: messaggio,
         })
         .eq("id", localCampaign.id);
 
@@ -553,9 +610,11 @@ Deno.serve(async (req) => {
         success: false,
         dry_run: false,
         campaign_id: localCampaign.id,
-        errors: [...errors, String(e)],
+        detail,
+        errors: errors.includes(messaggio) ? errors : [...errors, messaggio],
         rolled_back: true,
         rollback_detail: rollbackResults,
+        avvisi,
       }, 200, corsHeaders);
     }
   } catch (e) {
@@ -571,40 +630,276 @@ function getEffectiveDailyBudgetCents(state: BuilderState): number {
   return state.adSets.reduce((sum, adSet) => sum + (adSet.dailyBudget || 0) * 100, 0);
 }
 
+/**
+ * La Pagina che firma gli annunci e, se c'è, l'account Instagram collegato
+ * (salvato da meta-oauth-callback in metadata.instagram_business_account).
+ */
 async function resolvePageMetaId(
   // deno-lint-ignore no-explicit-any
   admin: any,
   companyId: string,
   integrationId: string,
   state: BuilderState,
-): Promise<string | null> {
-  if (state.pageMetaId) return state.pageMetaId;
-
-  if (state.pageId) {
-    const looksLikeUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(state.pageId);
-    if (!looksLikeUuid) return state.pageId;
-
-    const { data: selectedPage } = await admin
-      .from("meta_assets")
-      .select("asset_id")
-      .eq("id", state.pageId)
-      .eq("company_id", companyId)
-      .eq("integration_id", integrationId)
-      .eq("asset_type", "page")
-      .maybeSingle();
-    if (selectedPage?.asset_id) return selectedPage.asset_id;
-  }
-
-  const { data: pages } = await admin
+): Promise<{ pageMetaId: string | null; igUserId: string | null }> {
+  const { data: righe } = await admin
     .from("meta_assets")
-    .select("asset_id, selected")
+    .select("id, asset_id, selected, metadata")
     .eq("company_id", companyId)
     .eq("integration_id", integrationId)
-    .eq("asset_type", "page")
-    .order("selected", { ascending: false })
-    .limit(1);
+    .eq("asset_type", "page");
+  const pagine = (righe ?? []) as Array<{ id: string; asset_id: string; selected: boolean; metadata: unknown }>;
 
-  return pages?.[0]?.asset_id ?? null;
+  let pagina: { asset_id: string; metadata: unknown } | null = null;
+  if (state.pageMetaId) {
+    pagina = pagine.find((p) => p.asset_id === state.pageMetaId) ?? { asset_id: state.pageMetaId, metadata: null };
+  } else if (state.pageId) {
+    pagina = eUuid(state.pageId)
+      ? pagine.find((p) => p.id === state.pageId) ?? null
+      : pagine.find((p) => p.asset_id === state.pageId) ?? { asset_id: state.pageId, metadata: null };
+  }
+  if (!pagina) pagina = pagine.find((p) => p.selected) ?? pagine[0] ?? null;
+
+  return {
+    pageMetaId: pagina?.asset_id ?? null,
+    igUserId: pagina ? igUserIdDallaPagina(pagina.metadata) : null,
+  };
+}
+
+/**
+ * L'account pubblicitario su cui pubblicare.
+ *
+ * Il client manda l'id della riga meta_assets, l'id di meta_ad_accounts o
+ * l'act_ di Meta: tutti e tre devono portare a un account SCELTO dall'azienda.
+ * Con `creaSpecchio` si garantisce la riga in meta_ad_accounts, a cui puntano
+ * meta_campaigns, meta_creatives e ad_spend_guard.
+ */
+async function risolviAccountPubblicitario(
+  // deno-lint-ignore no-explicit-any
+  admin: any,
+  companyId: string,
+  richiesto: string,
+  creaSpecchio: boolean,
+): Promise<
+  | { ok: true; account: { id: string; ad_account_id: string; integration_id: string; currency: string | null } }
+  | { ok: false; status: number; error: string; detail: string }
+> {
+  const { data: righeScelte } = await admin
+    .from("meta_assets")
+    .select("id, integration_id, asset_id, asset_name, metadata")
+    .eq("company_id", companyId)
+    .eq("asset_type", "ad_account")
+    .eq("selected", true);
+  const scelti = (righeScelte ?? []) as Array<{
+    id: string;
+    integration_id: string;
+    asset_id: string;
+    asset_name: string | null;
+    metadata: { currency?: string | null } | null;
+  }>;
+
+  let actRichiesto: string | null = null;
+  let scelto: (typeof scelti)[number] | null = null;
+  if (eUuid(richiesto)) {
+    scelto = scelti.find((a) => a.id === richiesto) ?? null;
+    if (!scelto) {
+      const { data: specchio } = await admin
+        .from("meta_ad_accounts")
+        .select("ad_account_id")
+        .eq("id", richiesto)
+        .eq("company_id", companyId)
+        .maybeSingle();
+      if (specchio?.ad_account_id) actRichiesto = normalizzaActId(specchio.ad_account_id);
+    }
+  } else if (richiesto) {
+    actRichiesto = normalizzaActId(richiesto);
+  }
+  if (!scelto && actRichiesto) {
+    scelto = scelti.find((a) => normalizzaActId(a.asset_id) === actRichiesto) ?? null;
+  }
+
+  if (!scelto && scelti.length > 0) {
+    return {
+      ok: false,
+      status: 403,
+      error: "ad_account_not_selected",
+      detail: "L'account pubblicitario indicato non è quello scelto per questa azienda: controllalo nelle Integrazioni Meta.",
+    };
+  }
+
+  if (!scelto) {
+    // Ripiego: aziende che hanno solo la riga in meta_ad_accounts.
+    let query = admin
+      .from("meta_ad_accounts")
+      .select("id, ad_account_id, integration_id, currency")
+      .eq("company_id", companyId);
+    query = eUuid(richiesto)
+      ? query.eq("id", richiesto)
+      : query.in("ad_account_id", [actRichiesto ?? "", (actRichiesto ?? "").replace(/^act_/, "")]);
+    const { data: righe } = await query.limit(1);
+    const riga = righe?.[0];
+    if (!riga) {
+      return {
+        ok: false,
+        status: 404,
+        error: "ad_account_not_found",
+        detail: "Nessun account pubblicitario scelto per questa azienda: collega Meta e scegli l'account nelle Integrazioni.",
+      };
+    }
+    return {
+      ok: true,
+      account: {
+        id: riga.id,
+        ad_account_id: normalizzaActId(riga.ad_account_id),
+        integration_id: riga.integration_id,
+        currency: riga.currency ?? null,
+      },
+    };
+  }
+
+  const act = normalizzaActId(scelto.asset_id);
+  const { data: esistenti } = await admin
+    .from("meta_ad_accounts")
+    .select("id, currency")
+    .eq("company_id", companyId)
+    .in("ad_account_id", [act, act.replace(/^act_/, "")])
+    .limit(1);
+  let idSpecchio: string = esistenti?.[0]?.id ?? "";
+  const currency = scelto.metadata?.currency ?? esistenti?.[0]?.currency ?? null;
+  if (!idSpecchio && creaSpecchio) {
+    const { data: creato, error } = await admin
+      .from("meta_ad_accounts")
+      .upsert({
+        company_id: companyId,
+        integration_id: scelto.integration_id,
+        ad_account_id: act,
+        ad_account_name: scelto.asset_name || act,
+        currency: currency ?? "EUR",
+        selected: true,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "company_id,ad_account_id" })
+      .select("id")
+      .single();
+    if (error || !creato) {
+      return {
+        ok: false,
+        status: 500,
+        error: "ad_account_mirror_failed",
+        detail: `Non riesco a registrare l'account pubblicitario: ${error?.message ?? "errore sconosciuto"}`,
+      };
+    }
+    idSpecchio = creato.id;
+  }
+  return {
+    ok: true,
+    account: { id: idSpecchio, ad_account_id: act, integration_id: scelto.integration_id, currency },
+  };
+}
+
+/* ----------------------- Immagini ----------------------- */
+
+const LIMITE_BYTE_IMMAGINE = 10 * 1024 * 1024;
+
+/** Per ogni creatività, da dove prendere l'immagine (null = nessuna). */
+async function sorgentiImmaginiCreativita(
+  // deno-lint-ignore no-explicit-any
+  admin: any,
+  companyId: string,
+  state: BuilderState,
+): Promise<Array<string | null>> {
+  const ids = (state.selectedMediaIds ?? []).filter(eUuid);
+  let libreria: string[] = [];
+  if (ids.length > 0) {
+    const { data } = await admin
+      .from("ad_media")
+      .select("id, public_url, kind")
+      .eq("company_id", companyId)
+      .in("id", ids);
+    const perId = new Map<string, string>(
+      ((data ?? []) as Array<{ id: string; public_url: string | null; kind: string | null }>)
+        .filter((m) => m.kind !== "video" && m.public_url)
+        .map((m) => [m.id, m.public_url as string]),
+    );
+    libreria = ids.map((id) => perId.get(id)).filter((u): u is string => Boolean(u));
+  }
+  const unica = typeof state.imageUrl === "string" && state.imageUrl.trim() ? state.imageUrl.trim() : null;
+  return (state.creatives ?? []).map((creative, i) => {
+    const propria = typeof creative.imageUrl === "string" && creative.imageUrl.trim() ? creative.imageUrl.trim() : null;
+    if (propria) return propria;
+    if (libreria.length > 0) return libreria[i % libreria.length];
+    return unica;
+  });
+}
+
+/**
+ * Carica un'immagine nella libreria dell'account: POST /act_X/adimages con
+ * `bytes` in base64 (l'endpoint non accetta URL). Da un URL dello storage si
+ * scarica prima; un data: URL si manda così com'è.
+ */
+async function caricaImmagineSuMeta(
+  actId: string,
+  accessToken: string,
+  sorgente: string,
+  supabaseUrl: string,
+): Promise<{ ok: true; hash: string } | { ok: false; errore: string }> {
+  if (!sorgenteImmagineAmmessa(sorgente, supabaseUrl)) {
+    return {
+      ok: false,
+      errore: "L'immagine deve arrivare dalla libreria del gestionale: non scarico immagini da indirizzi esterni.",
+    };
+  }
+
+  let base64: string;
+  const dataUrl = datiDaDataUrl(sorgente);
+  if (dataUrl) {
+    if (byteDaBase64(dataUrl.base64) > LIMITE_BYTE_IMMAGINE) {
+      return { ok: false, errore: "Immagine troppo pesante: il massimo è 10 MB." };
+    }
+    base64 = dataUrl.base64;
+  } else {
+    let resp: Response;
+    try {
+      resp = await fetch(sorgente, { signal: AbortSignal.timeout(20_000) });
+    } catch (e) {
+      return { ok: false, errore: `Non riesco a scaricare l'immagine dalla libreria: ${String(e)}` };
+    }
+    if (!resp.ok) {
+      return { ok: false, errore: `Non riesco a scaricare l'immagine dalla libreria (HTTP ${resp.status}).` };
+    }
+    const tipo = (resp.headers.get("content-type") ?? "").split(";")[0].trim();
+    if (tipo && !/^image\//i.test(tipo)) {
+      return { ok: false, errore: "Il file scelto per l'annuncio non è un'immagine." };
+    }
+    const bytes = new Uint8Array(await resp.arrayBuffer());
+    if (bytes.byteLength > LIMITE_BYTE_IMMAGINE) {
+      return { ok: false, errore: "Immagine troppo pesante: il massimo è 10 MB." };
+    }
+    base64 = base64DaBytes(bytes);
+  }
+
+  const form = new FormData();
+  form.append("bytes", base64);
+  form.append("access_token", accessToken);
+  try {
+    const r = await fetch(`https://graph.facebook.com/${apiVersion}/${normalizzaActId(actId)}/adimages`, {
+      method: "POST",
+      body: form,
+    });
+    const testo = await r.text();
+    let corpo: unknown = null;
+    try {
+      corpo = JSON.parse(testo);
+    } catch {
+      corpo = null;
+    }
+    if (!r.ok || (corpo as { error?: unknown } | null)?.error) {
+      return { ok: false, errore: `Immagine rifiutata. ${traduciErroreMeta(corpo ?? testo).messaggio}` };
+    }
+    const hash = hashDaRispostaAdImages(corpo);
+    if (!hash) return { ok: false, errore: "Meta ha ricevuto l'immagine ma non ha restituito il suo codice: riprova." };
+    return { ok: true, hash };
+  } catch (e) {
+    return { ok: false, errore: `Caricamento dell'immagine su Meta non riuscito: ${String(e)}` };
+  }
 }
 
 async function checkSpendGuard(
@@ -735,11 +1030,14 @@ async function metaFetch(
     });
     const text = await resp.text();
     if (!resp.ok) {
-      return { ok: false, error: text.substring(0, 500) };
+      return { ok: false, error: traduciErroreMeta(text).messaggio };
     }
     const data = JSON.parse(text);
+    if (data?.error) {
+      return { ok: false, error: traduciErroreMeta(data).messaggio };
+    }
     if (!data.id) {
-      return { ok: false, error: "no_id_returned" };
+      return { ok: false, error: "Meta non ha restituito l'identificativo dell'oggetto creato." };
     }
     return { ok: true, data };
   } catch (e) {
@@ -774,7 +1072,7 @@ async function rollbackMetaObjects(
 }
 
 function normalizeActId(adAccountId: string): string {
-  return adAccountId.startsWith("act_") ? adAccountId : `act_${adAccountId}`;
+  return normalizzaActId(adAccountId);
 }
 
 /* ----------------------- Builder → Meta Payload ----------------------- */
@@ -792,6 +1090,7 @@ function buildMetaPayload(
   state: BuilderState,
   _adAccountId: string,
   pageMetaId?: string | null,
+  opzioni: { igUserId?: string | null; imageHashes?: Array<string | null> } = {},
 ): MetaPayload {
   // CAMPAIGN
   const campaign: Record<string, unknown> = {
@@ -936,7 +1235,8 @@ function buildMetaPayload(
       optimization_goal: optimizationGoal,
       billing_event: "IMPRESSIONS",
       bid_strategy: "LOWEST_COST_WITHOUT_CAP",
-      targeting,
+      // Senza account Instagram collegato alla Pagina: solo Facebook.
+      targeting: opzioni.igUserId ? targeting : limitaPiattaformeSenzaInstagram(targeting).targeting,
     };
   });
 
@@ -945,14 +1245,15 @@ function buildMetaPayload(
     const copy = state.copyVariants[i] ?? state.copyVariants[0] ?? state.offer;
     return {
       name: creative.title,
-      object_story_spec: {
-        ...(pageMetaId ? { page_id: pageMetaId } : {}),
-        link_data: {
-          message: copy,
-          link: state.landingUrl || "https://www.facebook.com",
-          call_to_action: { type: state.cta || "GET_QUOTE" },
-        },
-      },
+      object_story_spec: costruisciObjectStorySpec({
+        pageId: pageMetaId,
+        igUserId: opzioni.igUserId,
+        messaggio: copy,
+        link: state.landingUrl || "https://www.facebook.com",
+        cta: state.cta,
+        imageHash: opzioni.imageHashes?.[i] ?? null,
+        titolo: state.copyTitles?.[i] ?? null,
+      }),
       // adcreative status non si setta in creazione, eredita da ad parent
     };
   });

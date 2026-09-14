@@ -11,7 +11,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
   ArrowRight,
-  ArrowUpRight,
   Calendar,
   Check,
   ChevronDown,
@@ -24,7 +23,6 @@ import {
   Eye,
   Film,
   Hash,
-  Heart,
   Image as ImageIcon,
   ImagePlus,
   Info,
@@ -42,7 +40,6 @@ import {
   Sparkles,
   TrendingUp,
   Upload,
-  Users,
   Wand2,
   X,
   Zap,
@@ -64,15 +61,27 @@ import { cn } from "@/lib/utils";
 import { useAdsAi } from "@/hooks/useAdsAi";
 import { useAuthCompany } from "@/contexts/AuthContext";
 import { AdMediaUploader } from "@/components/ads/AdMediaUploader";
+import { SocialMediaUploader } from "@/components/social/SocialMediaUploader";
+import { StatistichePagineSocial } from "@/components/social/StatistichePagineSocial";
 import { useSocialManagerData } from "@/hooks/useSocialManagerData";
 import {
+  describePublishResult,
+  metaAccountsFor,
   parseSocialBulkCsv,
   SOCIAL_LIVE_PUBLISHING_ENABLED,
+  validateMetaPublishTargets,
   validateSocialDraft,
   type SocialBulkPost,
 } from "@/lib/social/publishing";
+import { ensureRemoteSocialMedia } from "@/lib/social/mediaUpload";
 import { getSocialMediaPreviewUrl } from "@/lib/social/storage";
-import type { SocialConnectedAccount, SocialMediaItem, SocialScheduledPost } from "@/lib/social/types";
+import type {
+  SocialConnectedAccount,
+  SocialMediaItem,
+  SocialPostMedia,
+  SocialPublishResultEntry,
+  SocialScheduledPost,
+} from "@/lib/social/types";
 
 // ─── Platform config ───────────────────────────────────────────────────────────
 
@@ -402,77 +411,6 @@ type ConnectedAccount = SocialConnectedAccount;
 type ScheduledPost = SocialScheduledPost;
 type MediaItem = SocialMediaItem;
 
-// ─── Demo analytics data ───────────────────────────────────────────────────────
-
-const DEMO_ANALYTICS = {
-  period: "Maggio 2026",
-  overview: {
-    reach:       { value: 12_430, change: 18.2 },
-    impressions: { value: 48_920, change: 22.1 },
-    engagement:  { value: 4.8,   change: 0.6  },
-    followers:   { value: 127,   change: 12.4 },
-  },
-  byPlatform: [
-    { id: "instagram", reach: 7_240, impressions: 28_410, engagement: 6.2, followerGain: 84,  posts: 12, topFormat: "Reel"      },
-    { id: "facebook",  reach: 3_180, impressions: 13_200, engagement: 3.1, followerGain: 29,  posts: 8,  topFormat: "Post"      },
-    { id: "linkedin",  reach: 2_010, impressions: 7_310,  engagement: 5.4, followerGain: 14,  posts: 6,  topFormat: "Carosello" },
-  ],
-  weekly: [
-    { label: "L",  posts: 2, reach: 1_840 },
-    { label: "M",  posts: 1, reach:   920 },
-    { label: "M",  posts: 3, reach: 2_100 },
-    { label: "G",  posts: 1, reach: 1_200 },
-    { label: "V",  posts: 4, reach: 3_400 },
-    { label: "S",  posts: 2, reach: 1_970 },
-    { label: "D",  posts: 1, reach: 1_000 },
-  ],
-  topPosts: [
-    { id: "t1", platform: "instagram", contentType: "Reel",      text: "5 errori che fanno perdere soldi in cantiere — e come evitarli",           reach: 3_420, likes: 211, comments: 18, shares: 34, engagementRate: 7.7, date: "15 Mag" },
-    { id: "t2", platform: "facebook",  contentType: "Post",      text: "Il cantiere di Via Roma è completato! 3 mesi di lavoro intenso",            reach: 2_180, likes: 134, comments: 41, shares: 22, engagementRate: 9.0, date: "18 Mag" },
-    { id: "t3", platform: "linkedin",  contentType: "Carosello", text: "Come gestiamo 12 cantieri contemporaneamente senza perdere la testa",       reach: 1_890, likes:  98, comments: 23, shares: 54, engagementRate: 9.2, date: "20 Mag" },
-    { id: "t4", platform: "instagram", contentType: "Post",      text: "I nuovi serramenti in alluminio — un lavoro di precisione assoluta",        reach: 1_640, likes: 156, comments: 12, shares:  8, engagementRate: 10.7,date: "22 Mag" },
-  ],
-  byContentType: [
-    { type: "Reel",      reach: 5_200, engagementRate: 7.1, posts: 5,  color: "from-pink-500 to-rose-500"     },
-    { type: "Post",      reach: 3_800, engagementRate: 4.2, posts: 12, color: "from-blue-500 to-indigo-500"   },
-    { type: "Carosello", reach: 2_100, engagementRate: 8.9, posts: 4,  color: "from-orange-500 to-purple-500" },
-    { type: "Story",     reach: 1_330, engagementRate: 2.1, posts: 9,  color: "from-amber-400 to-orange-500"  },
-  ],
-  insights: [
-    { icon: "🎬", text: "I Reel generano 2.4x il reach dei post normali — pubblica almeno 2 a settimana",               priority: "high"   },
-    { icon: "📅", text: "Venerdì è il giorno con più engagement (+38% vs media) — pianifica i post importanti il venerdì", priority: "high"   },
-    { icon: "🏗️", text: "Il tema 'cantieri completati' genera 9% di engagement — condividi più portfolio lavori",          priority: "medium" },
-    { icon: "💼", text: "LinkedIn ha un engagement del 5.4% — sopra la media edilizia (3.2%)",                            priority: "medium" },
-  ],
-};
-
-// ─── Demo hashtag performance ─────────────────────────────────────────────────
-
-interface HashtagStat {
-  tag: string;
-  uses: number;
-  avgReach: number;
-  totalReach: number;
-  engagementRate: number;
-  trend: number;         // % vs periodo precedente
-  bestPillar?: string;
-}
-
-const DEMO_HASHTAG_STATS: HashtagStat[] = [
-  { tag: "#cantiere",            uses: 18, avgReach: 1_240, totalReach: 22_320, engagementRate: 7.2, trend: 24,  bestPillar: "cantiere"      },
-  { tag: "#impresaedile",        uses: 14, avgReach: 1_080, totalReach: 15_120, engagementRate: 6.4, trend: 18,  bestPillar: "team"          },
-  { tag: "#ristrutturazione",    uses: 12, avgReach: 1_410, totalReach: 16_920, engagementRate: 8.1, trend: 31,  bestPillar: "portfolio"     },
-  { tag: "#costruzioni",         uses: 11, avgReach:   890, totalReach:  9_790, engagementRate: 5.9, trend: 8,   bestPillar: "cantiere"      },
-  { tag: "#lavoriincorso",       uses: 10, avgReach:   760, totalReach:  7_600, engagementRate: 5.2, trend: -5,  bestPillar: "cantiere"      },
-  { tag: "#primadopo",           uses:  8, avgReach: 1_680, totalReach: 13_440, engagementRate: 9.3, trend: 42,  bestPillar: "portfolio"     },
-  { tag: "#consigliutili",       uses:  7, avgReach: 1_120, totalReach:  7_840, engagementRate: 6.8, trend: 15,  bestPillar: "educational"   },
-  { tag: "#teamwork",            uses:  6, avgReach:   640, totalReach:  3_840, engagementRate: 4.7, trend: 3,   bestPillar: "team"          },
-  { tag: "#edilizia",            uses: 16, avgReach:   580, totalReach:  9_280, engagementRate: 3.2, trend: -12, bestPillar: "cantiere"      },
-  { tag: "#preventivogratuito",  uses:  5, avgReach: 1_950, totalReach:  9_750, engagementRate: 11.4,trend: 58,  bestPillar: "promo"         },
-  { tag: "#clientisoddisfatti",  uses:  4, avgReach: 1_340, totalReach:  5_360, engagementRate: 8.6, trend: 22,  bestPillar: "testimonianza" },
-  { tag: "#artigiani",           uses:  4, avgReach:   720, totalReach:  2_880, engagementRate: 5.1, trend: -3,  bestPillar: "team"          },
-];
-
 // ─── Demo media items ──────────────────────────────────────────────────────────
 
 const DEMO_MEDIA_ITEMS: MediaItem[] = [
@@ -692,6 +630,7 @@ const STATUS_CONFIG = {
   draft:     { label: "Bozza",        dot: "bg-slate-400",   pill: "border-slate-200 bg-slate-50 text-slate-600",     calBg: "bg-slate-100 text-slate-600" },
   review:    { label: "In revisione", dot: "bg-amber-400",   pill: "border-amber-200 bg-amber-50 text-amber-700",     calBg: "bg-amber-50 text-amber-700 border border-amber-200" },
   scheduled: { label: "Programmato",  dot: "bg-blue-400",    pill: "border-blue-200 bg-blue-50 text-blue-700",        calBg: "bg-blue-50 text-blue-700 border border-blue-100" },
+  processing: { label: "In pubblicazione", dot: "bg-violet-400", pill: "border-violet-200 bg-violet-50 text-violet-700", calBg: "bg-violet-50 text-violet-700 border border-violet-100" },
   published: { label: "Pubblicato",   dot: "bg-emerald-400", pill: "border-emerald-200 bg-emerald-50 text-emerald-700", calBg: "bg-emerald-50 text-emerald-700 border border-emerald-100" },
   failed:    { label: "Fallito",      dot: "bg-red-400",     pill: "border-red-200 bg-red-50 text-red-700",            calBg: "bg-red-50 text-red-700 border border-red-100" },
 } satisfies Record<ScheduledPost["status"], { label: string; dot: string; pill: string; calBg: string }>;
@@ -1242,6 +1181,17 @@ function CalendarioTab({
                               <Clock className="mr-1 inline h-2.5 w-2.5" />
                               {new Date(p.scheduled_at).toLocaleTimeString("it", { hour:"2-digit", minute:"2-digit" })}
                             </p>
+                            {describePublishResult(p.publishResult).slice(0, 3).map((issue) => (
+                              <p
+                                key={issue.text}
+                                className={cn(
+                                  "mt-1 text-[10px] leading-snug",
+                                  issue.tone === "error" ? "text-red-600" : issue.tone === "warning" ? "text-amber-700" : "text-violet-700",
+                                )}
+                              >
+                                {issue.text}
+                              </p>
+                            ))}
                           </CardContent>
                         </Card>
                       );
@@ -1443,6 +1393,10 @@ function ContentStudioTab({
   // ── Media ──────────────────────────────────────────────────────────────────
   const [mediaUrl, setMediaUrl] = useState<string | null>(null);
   const [selectedLibraryMedia, setSelectedLibraryMedia] = useState<MediaItem | null>(null);
+  // File caricati nel bucket social-media: il video del Reel, le slide del carosello.
+  const [extraMedia, setExtraMedia] = useState<SocialPostMedia[]>([]);
+  // Pagina/account di destinazione per piattaforma, quando ce n'è più d'uno.
+  const [targetPageIds, setTargetPageIds] = useState<Record<string, string>>({});
 
   // ── Brief ─────────────────────────────────────────────────────────────────
   const [brief, setBrief] = useState("");
@@ -1581,7 +1535,21 @@ function ContentStudioTab({
       : null;
   const selectedMediaPreviewUrl = getSocialMediaPreviewUrl(selectedLibraryMedia);
   const activeMediaUrl = mediaUrl ?? selectedMediaPreviewUrl;
-  const draftValidation = validateSocialDraft(
+  // File del post: quello principale (upload immagine, galleria, AI) più i file
+  // caricati nel bucket social-media. Solo il carosello ne tiene più di uno.
+  const isCarouselType = contentTypeId === "carosello";
+  const postMedia = useMemo<SocialPostMedia[]>(() => {
+    const main: SocialPostMedia[] = activeMediaUrl
+      ? [{ url: activeMediaUrl, type: contentTypeId === "reel" || contentTypeId === "video" ? "video" : "image" }]
+      : [];
+    const all = [...main, ...extraMedia];
+    return isCarouselType ? all : all.slice(0, 1);
+  }, [activeMediaUrl, contentTypeId, extraMedia, isCarouselType]);
+  const metaAccounts = useMemo(() => ({
+    facebook: metaAccountsFor(connectedAccounts, "facebook"),
+    instagram: metaAccountsFor(connectedAccounts, "instagram"),
+  }), [connectedAccounts]);
+  const baseDraftValidation = validateSocialDraft(
     {
       selectedPlatforms,
       connectedPlatformIds,
@@ -1589,13 +1557,29 @@ function ContentStudioTab({
       fallbackText: postText,
       textByPlatform: crossPlatformMode ? platformTexts : {},
       hashtags: contentType.hashtagsAllowed ? hashtags : [],
-      mediaUrl: activeMediaUrl,
+      mediaUrl: postMedia[0]?.url ?? null,
       publishNow,
       scheduledAt: scheduledAtForValidation,
       livePublishingEnabled: SOCIAL_LIVE_PUBLISHING_ENABLED,
     },
     PLATFORMS,
   );
+  // Pagina di destinazione, carosello, Reel: le regole del publisher Meta,
+  // controllate qui per non scoprire l'errore all'ora programmata.
+  const metaTargetErrors = validateMetaPublishTargets({
+    selectedPlatforms: baseDraftValidation.connectedSelectedPlatforms,
+    contentType: contentTypeId,
+    accounts: connectedAccounts,
+    targetPageIds,
+    media: postMedia,
+  });
+  const draftValidation = metaTargetErrors.length > 0
+    ? {
+      ...baseDraftValidation,
+      errors: Array.from(new Set([...metaTargetErrors, ...baseDraftValidation.errors])),
+      canPublishLive: false,
+    }
+    : baseDraftValidation;
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -1604,6 +1588,8 @@ function ContentStudioTab({
     setHashtags([]);
     setMediaUrl(null);
     setSelectedLibraryMedia(null);
+    setExtraMedia([]);
+    setTargetPageIds({});
     setScheduledDate("");
     setScheduledTime("09:00");
     setPublishNow(false);
@@ -1633,7 +1619,9 @@ function ContentStudioTab({
       contentType: contentTypeId,
       text: crossPlatformMode ? (platformTexts[selectedPlatforms[0]] ?? postText) : postText,
       platformTexts: crossPlatformMode && Object.keys(platformTexts).length > 0 ? platformTexts : undefined,
-      image_url: activeMediaUrl ?? undefined,
+      image_url: postMedia[0]?.url ?? undefined,
+      media: postMedia.length > 0 ? postMedia : undefined,
+      targetPageIds: Object.keys(targetPageIds).length > 0 ? targetPageIds : undefined,
       hashtags: contentType.hashtagsAllowed ? hashtags : [],
       firstComment: firstComment || undefined,
       scheduled_at: scheduledAt,
@@ -1685,6 +1673,23 @@ function ContentStudioTab({
     }
 
     setIsSubmitting(true);
+    // Meta scarica i file da un indirizzo https: un'immagine rimasta incorporata
+    // (data:) si carica nello Storage prima di salvare il post.
+    let mediaForPost: SocialPostMedia[];
+    try {
+      mediaForPost = companyId ? await ensureRemoteSocialMedia(companyId, postMedia) : postMedia;
+    } catch (err) {
+      toast.error("Caricamento del file non riuscito", {
+        description: err instanceof Error ? err.message : String(err),
+      });
+      setIsSubmitting(false);
+      return;
+    }
+    const chosenTargets = Object.fromEntries(
+      Object.entries(targetPageIds).filter(
+        ([platformId, pageId]) => pageId && draftValidation.connectedSelectedPlatforms.includes(platformId),
+      ),
+    );
     const scheduledAt = publishNow
       ? new Date().toISOString()
       : new Date(`${scheduledDate}T${scheduledTime}`).toISOString();
@@ -1697,7 +1702,9 @@ function ContentStudioTab({
       text: crossPlatformMode
         ? (platformTexts[selectedPlatforms[0]] ?? postText)
         : postText,
-      image_url: activeMediaUrl ?? undefined,
+      image_url: mediaForPost[0]?.url ?? undefined,
+      media: mediaForPost.length > 0 ? mediaForPost : undefined,
+      targetPageIds: Object.keys(chosenTargets).length > 0 ? chosenTargets : undefined,
       hashtags: contentType.hashtagsAllowed ? hashtags : [],
       firstComment: firstComment || undefined,
       scheduled_at: scheduledAt,
@@ -1992,6 +1999,34 @@ function ContentStudioTab({
                   Solo le piattaforme compatibili con <strong>{contentType.label}</strong> sono disponibili.
                 </p>
               )}
+              {/* Destinazione: con più pagine/account collegati si sceglie, mai a caso */}
+              {(["facebook", "instagram"] as const).map((platformId) => {
+                const options = metaAccounts[platformId];
+                if (!selectedPlatforms.includes(platformId) || options.length < 2) return null;
+                const isIg = platformId === "instagram";
+                return (
+                  <div key={platformId} className="mt-3 flex flex-wrap items-center gap-2">
+                    <Label className="text-xs font-semibold text-slate-600">
+                      {isIg ? "Account Instagram" : "Pagina Facebook"}
+                    </Label>
+                    <Select
+                      value={targetPageIds[platformId] ?? ""}
+                      onValueChange={(value) => setTargetPageIds((prev) => ({ ...prev, [platformId]: value }))}
+                    >
+                      <SelectTrigger className="h-8 w-64 text-xs">
+                        <SelectValue placeholder={isIg ? "Scegli l'account" : "Scegli la pagina"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {options.map((account) => (
+                          <SelectItem key={account.page_id} value={account.page_id} className="text-xs">
+                            {account.page_name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                );
+              })}
             </CardContent>
           </Card>
 
@@ -2315,6 +2350,16 @@ function ContentStudioTab({
                 <div className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-amber-200 bg-amber-50 p-8 text-sm text-amber-700">
                   <Loader2 className="h-5 w-5 animate-spin" /> Generazione in corso...
                 </div>
+              ) : isVideoType ? (
+                extraMedia.length === 0 ? (
+                  <SocialMediaUploader
+                    companyId={companyId}
+                    accept="video"
+                    label="Carica il video"
+                    hint="MP4 o MOV · max 200 MB · Instagram lo pubblica come Reel"
+                    onUploaded={(items) => setExtraMedia(items.slice(0, 1))}
+                  />
+                ) : null
               ) : (
                 <AdMediaUploader
                   companyId={companyId}
@@ -2345,6 +2390,38 @@ function ContentStudioTab({
                   ))}
                   {selectedPlatforms.length > 0 && <span className="text-[10px] text-slate-400">formati accettati</span>}
                 </div>
+              )}
+              {/* File caricati nello Storage: video del Reel, slide del carosello */}
+              {extraMedia.length > 0 && (
+                <div className="mt-3 grid grid-cols-3 gap-2">
+                  {extraMedia.map((item, index) => (
+                    <div key={item.path ?? item.url ?? index} className="relative overflow-hidden rounded-lg border bg-slate-50">
+                      {item.type === "video"
+                        ? <video src={item.url} className="h-24 w-full object-cover" muted playsInline preload="metadata" />
+                        : <img loading="lazy" src={item.url} alt="" className="h-24 w-full object-cover" />}
+                      <button
+                        type="button"
+                        aria-label="Rimuovi file"
+                        onClick={() => setExtraMedia((prev) => prev.filter((_, i) => i !== index))}
+                        className="absolute right-1 top-1 rounded-full bg-black/60 p-1 text-white hover:bg-black/80"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {isCarouselType && (
+                <SocialMediaUploader
+                  className="mt-3"
+                  companyId={companyId}
+                  accept={selectedPlatforms.includes("facebook") ? "image" : "any"}
+                  multiple
+                  maxFiles={Math.max(0, 10 - postMedia.length)}
+                  label="Aggiungi slide al carosello"
+                  hint={`${postMedia.length}/10 file · servono almeno 2 · su Facebook solo immagini`}
+                  onUploaded={(items) => setExtraMedia((prev) => [...prev, ...items])}
+                />
               )}
             </CardContent>
           </Card>
@@ -2620,372 +2697,6 @@ function ContentStudioTab({
           </Card>
         </div>
       </div>
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// TAB: ANALITICHE — dashboard completa
-// ═══════════════════════════════════════════════════════════════════════════════
-
-function AnaliticsTab(_props: { connectedAccounts: ConnectedAccount[] }) {
-  const [period, setPeriod] = useState<"7d" | "30d" | "90d">("30d");
-  const da = DEMO_ANALYTICS;
-  const maxWeeklyReach = Math.max(...da.weekly.map(w => w.reach));
-  const maxPlatformReach = Math.max(...da.byPlatform.map(p => p.reach));
-
-  return (
-    <div className="space-y-5">
-
-      {/* Demo banner */}
-      <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5">
-        <Sparkles className="h-4 w-4 text-amber-500 shrink-0" />
-        <p className="text-xs text-amber-800">
-          <strong>Dati demo — {da.period}.</strong> Connetti le piattaforme da Impostazioni → Integrazioni per vedere le metriche reali.
-        </p>
-        <div className="ml-auto flex items-center gap-1 rounded-lg border border-amber-200 bg-white p-0.5">
-          {(["7d","30d","90d"] as const).map(p => (
-            <button key={p} type="button" onClick={() => setPeriod(p)}
-              className={cn("rounded-md px-2.5 py-0.5 text-[11px] font-semibold transition",
-                period === p ? "bg-amber-500 text-white" : "text-amber-700 hover:bg-amber-100")}>
-              {p}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* ── KPI HERO ── */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {[
-          { label: "Reach",          value: da.overview.reach.value,       change: da.overview.reach.change,       suffix: "",  color: "text-orange-600",  bg: "bg-orange-50",  icon: Users,       accent: "from-orange-400 to-amber-400"    },
-          { label: "Impressioni",    value: da.overview.impressions.value, change: da.overview.impressions.change, suffix: "",  color: "text-blue-600",    bg: "bg-blue-50",    icon: Eye,         accent: "from-blue-400 to-sky-400"        },
-          { label: "Engagement",     value: da.overview.engagement.value,  change: da.overview.engagement.change,  suffix: "%", color: "text-emerald-600", bg: "bg-emerald-50", icon: Heart,       accent: "from-emerald-400 to-teal-400"    },
-          { label: "Nuovi follower", value: da.overview.followers.value,   change: da.overview.followers.change,   suffix: "",  color: "text-pink-600",    bg: "bg-pink-50",    icon: ArrowUpRight,accent: "from-pink-400 to-rose-400"       },
-        ].map(({ label, value, change, suffix, color, bg, icon: Icon, accent }) => (
-          <Card key={label} className="overflow-hidden">
-            <div className={cn("h-1 w-full bg-gradient-to-r", accent)} />
-            <CardContent className="p-4">
-              <div className="flex items-start justify-between mb-2">
-                <div className={cn("flex h-8 w-8 items-center justify-center rounded-xl", bg)}>
-                  <Icon className={cn("h-4 w-4", color)} />
-                </div>
-                <span className="flex items-center gap-0.5 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
-                  <ArrowUpRight className="h-3 w-3" />+{change}{suffix === "%" ? "pp" : "%"}
-                </span>
-              </div>
-              <p className={cn("text-2xl font-bold tabular-nums", color)}>
-                {value >= 1000 ? `${(value / 1000).toFixed(1)}K` : value}{suffix}
-              </p>
-              <p className="mt-0.5 text-[11px] text-slate-500">{label}</p>
-              <p className="text-[10px] text-slate-400">vs mese scorso</p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {/* ── MAIN GRID ── */}
-      <div className="grid gap-5 lg:grid-cols-[1fr_340px]">
-
-        {/* LEFT */}
-        <div className="space-y-5">
-
-          {/* Weekly reach bar chart */}
-          <Card className="overflow-hidden">
-            <div className="h-0.5 bg-gradient-to-r from-orange-400 to-blue-400" />
-            <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <TrendingUp className="h-4 w-4 text-orange-500" /> Reach settimanale
-              </CardTitle>
-              <CardDescription className="text-xs">Post pubblicati e reach per giorno — ultima settimana</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-end gap-2" style={{ height: 120 }}>
-                {da.weekly.map((d, i) => {
-                  const barH = Math.max(8, Math.round((d.reach / maxWeeklyReach) * 96));
-                  const isHighest = d.reach === maxWeeklyReach;
-                  return (
-                    <div key={i} className="flex flex-1 flex-col items-center gap-1.5">
-                      <span className="text-[9px] text-slate-400 tabular-nums">{(d.reach / 1000).toFixed(1)}K</span>
-                      <div className="flex w-full flex-col justify-end" style={{ height: 80 }}>
-                        <div
-                          className={cn("w-full rounded-t-lg transition-all", isHighest ? "bg-gradient-to-b from-orange-400 to-orange-600" : "bg-gradient-to-b from-slate-200 to-slate-300")}
-                          style={{ height: barH }}
-                        />
-                      </div>
-                      <span className={cn("text-[11px] font-bold", isHighest ? "text-orange-600" : "text-slate-500")}>{d.label}</span>
-                      {d.posts > 0 && (
-                        <span className={cn("rounded-full px-1.5 text-[8px] font-bold", d.posts >= 3 ? "bg-orange-100 text-orange-700" : "bg-slate-100 text-slate-500")}>{d.posts}</span>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Platform breakdown */}
-          <Card className="overflow-hidden">
-            <div className="h-0.5 bg-gradient-to-r from-orange-400 to-amber-400" />
-            <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Share2 className="h-4 w-4 text-pink-500" /> Performance per piattaforma
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {da.byPlatform.map((p) => {
-                  const pl = PLATFORMS.find(pl => pl.id === p.id);
-                  if (!pl) return null;
-                  const reachPct = Math.round((p.reach / maxPlatformReach) * 100);
-                  return (
-                    <div key={p.id} className="space-y-1.5">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className={cn("flex h-6 w-6 items-center justify-center rounded-lg text-[9px] font-bold text-white bg-gradient-to-br", pl.gradient)}>{pl.icon}</span>
-                          <span className="text-sm font-semibold text-slate-700">{pl.name}</span>
-                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-500">{p.posts} post</span>
-                        </div>
-                        <div className="flex items-center gap-3 text-[11px]">
-                          <span className="text-slate-500">Reach <strong className="text-slate-700">{(p.reach / 1000).toFixed(1)}K</strong></span>
-                          <span className={cn("font-bold", p.engagement >= 5 ? "text-emerald-600" : "text-slate-600")}>{p.engagement}% eng.</span>
-                          <span className="flex items-center gap-0.5 text-blue-600"><ArrowUpRight className="h-3 w-3" />{p.followerGain}</span>
-                        </div>
-                      </div>
-                      <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
-                        <div className={cn("h-full rounded-full bg-gradient-to-r", pl.gradient)} style={{ width: `${reachPct}%` }} />
-                      </div>
-                      <p className="text-[10px] text-slate-400">Top formato: <span className="font-semibold text-slate-600">{p.topFormat}</span></p>
-                    </div>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Top posts */}
-          <Card className="overflow-hidden">
-            <div className="h-0.5 bg-gradient-to-r from-emerald-400 to-teal-400" />
-            <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Sparkles className="h-4 w-4 text-emerald-500" /> Top contenuti del mese
-              </CardTitle>
-              <CardDescription className="text-xs">Ordinati per engagement rate</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {da.topPosts.map((p, rank) => {
-                  const pl = PLATFORMS.find(pl => pl.id === p.platform);
-                  return (
-                    <div key={p.id} className="flex items-start gap-3 rounded-xl border border-slate-100 bg-white p-3 shadow-sm">
-                      {/* Rank */}
-                      <div className={cn(
-                        "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold",
-                        rank === 0 ? "bg-amber-100 text-amber-700" : rank === 1 ? "bg-slate-100 text-slate-600" : "bg-slate-50 text-slate-400"
-                      )}>#{rank + 1}</div>
-                      {/* Platform badge */}
-                      <div className="flex flex-col gap-1 flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          {pl && <span className={cn("flex h-5 w-5 items-center justify-center rounded text-[9px] font-bold text-white bg-gradient-to-br", pl.gradient)}>{pl.icon}</span>}
-                          <span className="rounded-full border border-slate-100 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-500">{p.contentType}</span>
-                          <span className="ml-auto text-[10px] text-slate-400">{p.date}</span>
-                        </div>
-                        <p className="text-[12px] font-medium text-slate-700 line-clamp-1">{p.text}</p>
-                        <div className="flex items-center gap-3 text-[11px] text-slate-500">
-                          <span className="flex items-center gap-1"><Users className="h-3 w-3" />{(p.reach / 1000).toFixed(1)}K reach</span>
-                          <span className="flex items-center gap-1"><Heart className="h-3 w-3 text-rose-400" />{p.likes}</span>
-                          <span className="flex items-center gap-1"><MessageSquare className="h-3 w-3 text-blue-400" />{p.comments}</span>
-                          <span className="flex items-center gap-1"><Share2 className="h-3 w-3 text-orange-400" />{p.shares}</span>
-                          <span className={cn("ml-auto font-bold", p.engagementRate >= 8 ? "text-emerald-600" : p.engagementRate >= 5 ? "text-blue-600" : "text-slate-500")}>
-                            {p.engagementRate}%
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* RIGHT */}
-        <div className="space-y-5">
-
-          {/* Content type performance */}
-          <Card className="overflow-hidden">
-            <div className="h-0.5 bg-gradient-to-r from-orange-400 to-amber-400" />
-            <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Film className="h-4 w-4 text-orange-500" /> Per tipo di contenuto
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {da.byContentType.map((ct) => (
-                  <div key={ct.type} className="flex items-center gap-3">
-                    <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-white text-[10px] font-bold", ct.color)}>
-                      {ct.type.slice(0, 2)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs font-semibold text-slate-700">{ct.type}</span>
-                        <span className="text-[11px] font-bold text-slate-500">{ct.engagementRate}% eng</span>
-                      </div>
-                      <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
-                        <div className={cn("h-full rounded-full bg-gradient-to-r", ct.color)}
-                          style={{ width: `${Math.round((ct.reach / da.byContentType[0].reach) * 100)}%` }} />
-                      </div>
-                      <p className="mt-0.5 text-[10px] text-slate-400">{(ct.reach / 1000).toFixed(1)}K reach · {ct.posts} post</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* AI Insights */}
-          <Card className="overflow-hidden border-orange-100">
-            <div className="h-0.5 bg-gradient-to-r from-orange-500 to-pink-500" />
-            <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Sparkles className="h-4 w-4 text-orange-500" /> AI Insights
-              </CardTitle>
-              <CardDescription className="text-xs">Suggerimenti basati sulle tue performance</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2.5">
-                {da.insights.map((ins, i) => (
-                  <div key={i} className={cn(
-                    "flex items-start gap-3 rounded-xl border px-3 py-2.5",
-                    ins.priority === "high" ? "border-orange-200 bg-orange-50/60" : "border-slate-100 bg-slate-50/60"
-                  )}>
-                    <span className="text-base leading-none">{ins.icon}</span>
-                    <p className="text-[12px] leading-relaxed text-slate-700">{ins.text}</p>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Best posting times */}
-          <Card className="overflow-hidden">
-            <div className="h-0.5 bg-gradient-to-r from-emerald-400 to-teal-400" />
-            <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-sm">
-                <Clock className="h-4 w-4 text-emerald-500" /> Orari migliori per piattaforma
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {PLATFORMS.slice(0, 4).map((p) => (
-                  <div key={p.id} className="flex items-center gap-2">
-                    <span className={cn("flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-[8px] font-bold text-white bg-gradient-to-br", p.gradient)}>{p.icon}</span>
-                    <div className="flex flex-wrap gap-1">
-                      {p.bestTimes.map((t) => (
-                        <span key={t} className="rounded-full border border-slate-100 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-600 shadow-sm">{t}</span>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-
-      {/* ── HASHTAG PERFORMANCE ─────────────────────────────────────────── */}
-      <Card className="overflow-hidden">
-        <div className="h-0.5 bg-gradient-to-r from-orange-400 to-amber-400" />
-        <CardHeader className="pb-2">
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2 text-sm">
-              <Hash className="h-4 w-4 text-orange-500" /> Hashtag Performance
-            </CardTitle>
-            <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-[10px] font-bold text-amber-700">Demo</span>
-          </div>
-          <p className="text-[11px] text-slate-500 mt-0.5">Reach medio e utilizzi degli hashtag nei post del periodo</p>
-        </CardHeader>
-        <CardContent>
-          {/* Summary pills */}
-          <div className="mb-4 flex flex-wrap gap-2">
-            {[
-              { label: "Hashtag usati", value: DEMO_HASHTAG_STATS.length,                       color: "text-orange-700", bg: "bg-orange-50"  },
-              { label: "Reach totale",  value: `${(DEMO_HASHTAG_STATS.reduce((s,h)=>s+h.totalReach,0)/1000).toFixed(1)}K`, color: "text-blue-700", bg: "bg-blue-50" },
-              { label: "Migliore",      value: DEMO_HASHTAG_STATS[0]?.tag ?? "—",               color: "text-emerald-700",bg: "bg-emerald-50" },
-              { label: "Trend",         value: `${DEMO_HASHTAG_STATS.filter(h=>h.trend>0).length} in crescita`, color: "text-violet-700", bg: "bg-violet-50" },
-            ].map(({ label, value, color, bg }) => (
-              <div key={label} className={cn("flex flex-col rounded-xl border border-slate-100 px-3 py-2 text-center", bg)}>
-                <span className={cn("text-base font-bold", color)}>{value}</span>
-                <span className="text-[10px] text-slate-500">{label}</span>
-              </div>
-            ))}
-          </div>
-
-          {/* Hashtag table */}
-          <div className="overflow-x-auto rounded-xl border border-slate-100">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="border-b border-slate-100 bg-slate-50/60 text-left">
-                  <th className="py-2 pl-3 pr-2 font-semibold text-slate-600">#</th>
-                  <th className="py-2 px-2 font-semibold text-slate-600">Hashtag</th>
-                  <th className="py-2 px-2 text-right font-semibold text-slate-600">Utilizzi</th>
-                  <th className="py-2 px-2 text-right font-semibold text-slate-600">Reach medio</th>
-                  <th className="py-2 px-2 text-right font-semibold text-slate-600">Reach totale</th>
-                  <th className="py-2 px-2 text-right font-semibold text-slate-600">Eng. rate</th>
-                  <th className="py-2 pr-3 text-right font-semibold text-slate-600">Trend</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {DEMO_HASHTAG_STATS.map((h, i) => (
-                  <tr key={h.tag} className="group hover:bg-slate-50/60 transition">
-                    <td className="py-2 pl-3 pr-2 text-slate-400">{i + 1}</td>
-                    <td className="py-2 px-2">
-                      <span className="font-semibold text-slate-800">{h.tag}</span>
-                    </td>
-                    <td className="py-2 px-2 text-right tabular-nums text-slate-600">{h.uses}</td>
-                    <td className="py-2 px-2 text-right tabular-nums text-slate-700 font-medium">
-                      {h.avgReach >= 1000 ? `${(h.avgReach / 1000).toFixed(1)}K` : h.avgReach}
-                    </td>
-                    <td className="py-2 px-2 text-right tabular-nums text-slate-700">
-                      {h.totalReach >= 1000 ? `${(h.totalReach / 1000).toFixed(1)}K` : h.totalReach}
-                    </td>
-                    <td className="py-2 px-2 text-right tabular-nums">
-                      <span className={cn("font-semibold",
-                        h.engagementRate >= 6 ? "text-emerald-600" : h.engagementRate >= 4 ? "text-amber-600" : "text-slate-500")}>
-                        {h.engagementRate.toFixed(1)}%
-                      </span>
-                    </td>
-                    <td className="py-2 pr-3 text-right">
-                      <span className={cn("flex items-center justify-end gap-0.5 font-bold text-[10px]",
-                        h.trend > 0 ? "text-emerald-600" : h.trend < 0 ? "text-red-500" : "text-slate-400")}>
-                        {h.trend > 0 ? "▲" : h.trend < 0 ? "▼" : "—"}
-                        {h.trend !== 0 && Math.abs(h.trend)}%
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Recommendations */}
-          <div className="mt-4 space-y-2">
-            <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">💡 Suggerimenti AI</p>
-            {[
-              { icon: "🚀", text: `#${DEMO_HASHTAG_STATS[0]?.tag?.replace("#","")} è il tuo hashtag più performante — usalo in ogni post del pillar ${DEMO_HASHTAG_STATS[0]?.bestPillar ?? "cantiere"}.`, priority: "high" },
-              { icon: "📉", text: `#edilizia ha un trend in calo (-12%) — sostituiscilo con varianti long tail come #impresaedileitalia o #cantiereitalia.`, priority: "medium" },
-              { icon: "✨", text: `Prova ad aggiungere 2-3 hashtag niche con volume inferiore (500-5K) per migliorare il match con l'audience locale.`, priority: "low" },
-            ].map((tip, i) => (
-              <div key={i} className={cn("flex items-start gap-2.5 rounded-xl border px-3 py-2.5",
-                tip.priority === "high" ? "border-orange-200 bg-orange-50/60" : "border-slate-100 bg-slate-50/60")}>
-                <span className="text-base leading-none">{tip.icon}</span>
-                <p className="text-[11px] leading-relaxed text-slate-700">{tip.text}</p>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
     </div>
   );
 }
@@ -4131,11 +3842,22 @@ export default function SocialManagerBeta() {
         if (error) {
           toast.error("Pubblicazione non riuscita", { description: error.message });
         } else {
-          const res = (data as { result?: Record<string, { ok: boolean; error?: string }> } | null)?.result ?? {};
+          const payload = data as { pending?: boolean; result?: Record<string, SocialPublishResultEntry> } | null;
+          const res = payload?.result ?? {};
           const okCh = Object.entries(res).filter(([, v]) => v?.ok).map(([k]) => k);
-          const errCh = Object.entries(res).filter(([, v]) => v && !v.ok);
+          const pendingCh = Object.entries(res).filter(([, v]) => v?.pending).map(([k]) => k);
+          const errCh = Object.entries(res).filter(([, v]) => v && v.ok === false && !v.pending);
+          const warnings = Object.values(res).flatMap((v) => v?.warnings ?? []);
           if (okCh.length) toast.success(`Pubblicato su ${okCh.join(", ")}`);
+          if (pendingCh.length) {
+            toast.info(`${pendingCh.join(", ")}: Meta sta ancora elaborando il file`, {
+              description: "Il post esce da solo appena è pronto: l'esito compare nel calendario.",
+            });
+          } else if (payload?.pending && !okCh.length && !errCh.length) {
+            toast.info("Pubblicazione già in corso", { description: "L'esito compare nel calendario tra poco." });
+          }
           if (errCh.length) toast.error(`Non pubblicato su ${errCh.map(([k]) => k).join(", ")}`, { description: errCh[0]?.[1]?.error });
+          if (warnings.length) toast.warning("Pubblicato con un avviso", { description: warnings[0] });
         }
         queryClient.invalidateQueries({ queryKey: ["social-manager", "posts", companyId] });
       }
@@ -4263,7 +3985,7 @@ export default function SocialManagerBeta() {
               <InboxTab onUnreadChange={setInboxUnread} demoMode={isDemoCompany} />
             )}
             {activeTab === "analitiche" && (
-              <AnaliticsTab connectedAccounts={connectedAccounts} />
+              <StatistichePagineSocial companyId={companyId} connectedAccounts={connectedAccounts} onGoToSettings={goToIntegrations} />
             )}
             {activeTab === "galleria" && (
               <GalleriaTab mediaItems={mediaItems} onUseInPost={handleUseInPost} onUseInAds={handleUseInAds} onUploadRequested={handleUploadRequested} demoMode={isDemoCompany} />

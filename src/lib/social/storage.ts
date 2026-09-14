@@ -1,10 +1,17 @@
-import type { SocialConnectedAccount, SocialMediaItem, SocialPostStatus, SocialScheduledPost } from "./types";
+import type {
+  SocialConnectedAccount,
+  SocialMediaItem,
+  SocialPostMedia,
+  SocialPostStatus,
+  SocialPublishResultEntry,
+  SocialScheduledPost,
+} from "./types";
 
 const STORAGE_PREFIX = "eic_social_manager_v1_";
 const LEGACY_PREFIX = "eic_social_connections_";
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const postStatuses = new Set<SocialPostStatus>(["draft", "scheduled", "published", "failed", "review"]);
+const postStatuses = new Set<SocialPostStatus>(["draft", "scheduled", "processing", "published", "failed", "review"]);
 const mediaTypes = new Set<SocialMediaItem["type"]>(["image", "video", "story"]);
 const mediaFormats = new Set<SocialMediaItem["format"]>(["9:16", "4:5", "1:1", "16:9"]);
 const mediaCategories = new Set<SocialMediaItem["category"]>(["portfolio", "promo", "team", "cantiere", "prodotto"]);
@@ -132,14 +139,65 @@ export function updateSocialPostLocal(
   return posts.map((post) => (post.id === id ? { ...post, ...changes } : post));
 }
 
+export function parseTargetPageIds(value: unknown): Record<string, string> | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const out: Record<string, string> = {};
+  for (const [platform, pageId] of Object.entries(value as Record<string, unknown>)) {
+    if (typeof pageId === "string" && pageId) out[platform] = pageId;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+export function parseSocialPostMedia(value: unknown): SocialPostMedia[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const out: SocialPostMedia[] = [];
+  for (const raw of value) {
+    if (!raw || typeof raw !== "object") continue;
+    const item = raw as Record<string, unknown>;
+    const media: SocialPostMedia = {
+      url: sanitizeSocialMediaUrl(item.url) ?? undefined,
+      bucket: typeof item.bucket === "string" && item.bucket ? item.bucket : undefined,
+      path: typeof item.path === "string" && item.path ? item.path : undefined,
+      type: item.type === "video" ? "video" : "image",
+    };
+    if (media.url || (media.bucket && media.path)) out.push(media);
+  }
+  return out.length > 0 ? out : undefined;
+}
+
+/**
+ * Colonna `media` solo quando serve (più file, o file nello Storage): i post a
+ * immagine singola restano su image_url e si salvano anche prima della
+ * migrazione 20280916910000. I data: URL non finiscono nel jsonb.
+ */
+function mediaForDb(media: SocialPostMedia[] | undefined, force = false) {
+  const list = (media ?? []).filter((m) => m.url || (m.bucket && m.path));
+  if (!force && list.length <= 1 && !list.some((m) => m.path)) return undefined;
+  return list.map((m) => ({
+    bucket: m.bucket ?? null,
+    path: m.path ?? null,
+    url: m.url && !/^data:/i.test(m.url) ? m.url : null,
+    type: m.type,
+  }));
+}
+
+function publishResultFromRow(value: unknown): Record<string, SocialPublishResultEntry> | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  return Object.keys(value).length > 0 ? (value as Record<string, SocialPublishResultEntry>) : undefined;
+}
+
 export function socialPostFromRow(row: Record<string, any>): SocialScheduledPost {
+  const media = parseSocialPostMedia(row.media);
   return {
     id: String(row.id),
     platforms: Array.isArray(row.platforms) ? row.platforms : [],
     contentType: row.content_type ?? "post",
     text: row.text ?? "",
     platformTexts: row.platform_texts && Object.keys(row.platform_texts).length > 0 ? row.platform_texts : undefined,
-    image_url: sanitizeSocialMediaUrl(row.image_url) ?? undefined,
+    image_url: sanitizeSocialMediaUrl(row.image_url) ?? media?.[0]?.url ?? undefined,
+    targetPageIds: parseTargetPageIds(row.target_page_ids),
+    media,
+    publishResult: publishResultFromRow(row.publish_result),
     hashtags: Array.isArray(row.hashtags) ? row.hashtags : [],
     firstComment: row.first_comment ?? undefined,
     scheduled_at: row.scheduled_at ?? row.created_at ?? new Date().toISOString(),
@@ -151,7 +209,11 @@ export function socialPostFromRow(row: Record<string, any>): SocialScheduledPost
 }
 
 export function socialPostToInsert(companyId: string, post: SocialScheduledPost) {
+  const media = mediaForDb(post.media);
+  const targets = parseTargetPageIds(post.targetPageIds);
   return {
+    ...(media ? { media } : {}),
+    ...(targets ? { target_page_ids: targets } : {}),
     company_id: companyId,
     platforms: post.platforms,
     content_type: post.contentType,
@@ -180,6 +242,8 @@ export function socialPostChangesToPatch(changes: Partial<SocialScheduledPost>) 
   if ("status" in changes) patch.status = normalizeSocialPostStatus(changes.status);
   if ("reviewNote" in changes) patch.review_note = changes.reviewNote ?? null;
   if ("mediaItemId" in changes) patch.media_item_id = isUuid(changes.mediaItemId) ? changes.mediaItemId : null;
+  if ("targetPageIds" in changes) patch.target_page_ids = parseTargetPageIds(changes.targetPageIds) ?? {};
+  if ("media" in changes) patch.media = mediaForDb(changes.media, true) ?? [];
   return patch;
 }
 

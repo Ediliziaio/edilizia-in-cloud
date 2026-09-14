@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { decrypt, getEncryptionKey } from "../_shared/encryption.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { inviaMessaggioSocial, iscriviPaginaMeta, messaggiSocialAttivi } from "../_shared/socialMessaggiMeta.ts";
+import { sincronizzaStatisticheSocial } from "../_shared/statisticheSocialMeta.ts";
 
 const apiVersion = Deno.env.get("META_API_VERSION") || "v21.0";
 
@@ -1321,6 +1322,22 @@ Deno.serve(async (req) => {
           shares: p.shares?.count ?? 0,
         }));
         result = { page_id: pageId, posts };
+        break;
+      }
+
+      // ── Statistiche di Pagina Facebook e profilo Instagram — «Aggiorna ora» ──
+      // Stessa sincronizzazione del cron (meta-ads-sync-insights), limitata a
+      // questa azienda e a questa integrazione. Legge solo le pagine scelte
+      // (meta_assets.selected) dell'azienda: niente page_id dal browser.
+      case "sincronizza-statistiche-social": {
+        const giorniRichiesti = Number(body.giorni);
+        result = await sincronizzaStatisticheSocial(adminClient, {
+          apiVersion,
+          companyId: company_id,
+          integrationId: integration_id,
+          giorni: [7, 30, 90].includes(giorniRichiesti) ? giorniRichiesti : 30,
+          scadenzaMs: Date.now() + 110_000,
+        });
         break;
       }
 

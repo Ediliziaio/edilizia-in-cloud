@@ -1,6 +1,9 @@
 // ============================================================================
 // social-publish — pubblica-ora di un singolo social_post (user-auth)
 // ============================================================================
+// Se Instagram sta ancora elaborando un video, la risposta ha pending=true e il
+// post resta 'processing': lo completa social-publish-scheduler al giro dopo.
+// ============================================================================
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { verifyCompanyAccess } from "../_shared/companyAuth.ts";
 import { publishSocialPost, type SocialPostRow } from "../_shared/socialPublishCore.ts";
@@ -15,6 +18,8 @@ const jsonResponse = (data: unknown, status = 200, headers = cors) =>
   new Response(JSON.stringify(data), { status, headers });
 const errorResponse = (message: string, status = 400, headers = cors) =>
   new Response(JSON.stringify({ ok: false, error: message }), { status, headers });
+
+const LEASE_MS = 10 * 60_000;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
@@ -48,8 +53,32 @@ Deno.serve(async (req) => {
       .from("social_posts").select("*").eq("id", postId).eq("company_id", companyId).single();
     if (postErr || !post) return errorResponse("Post non trovato", 404, cors);
 
-    const { ok, result } = await publishSocialPost(admin, post as SocialPostRow);
-    return jsonResponse({ ok, result }, 200, cors);
+    const row = post as SocialPostRow;
+    if (row.status === "published") return errorResponse("Il post è già pubblicato", 409, cors);
+    if (row.status === "processing") {
+      // Già in mano al cron (o a un altro clic): non si pubblica due volte.
+      return jsonResponse({ ok: false, pending: true, status: "processing", result: row.publish_result ?? {} }, 200, cors);
+    }
+
+    // Lucchetto: il cron non deve prendere lo stesso post mentre lo pubblichiamo qui.
+    const { data: claimed, error: claimErr } = await admin
+      .from("social_posts")
+      .update({
+        status: "processing",
+        next_attempt_at: new Date(Date.now() + LEASE_MS).toISOString(),
+        publish_attempts: (row.publish_attempts ?? 0) + 1,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", postId)
+      .eq("status", row.status)
+      .select("id");
+    if (!claimErr && (!claimed || claimed.length === 0)) {
+      return jsonResponse({ ok: false, pending: true, status: "processing", result: {} }, 200, cors);
+    }
+    // claimErr = migrazione 20280916910000 non ancora applicata: si pubblica senza lucchetto, come prima.
+
+    const outcome = await publishSocialPost(admin, row, { inlineWaitMs: 20_000 });
+    return jsonResponse(outcome, 200, cors);
   } catch (e) {
     return errorResponse(e instanceof Error ? e.message : "Errore interno", 500);
   }

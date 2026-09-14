@@ -12,6 +12,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { decrypt, getEncryptionKey } from "../_shared/encryption.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { traduciErroreMeta } from "../_shared/metaAdsPubblicazione.ts";
 
 const apiVersion = Deno.env.get("META_API_VERSION") || "v21.0";
 
@@ -60,6 +61,8 @@ Deno.serve(async (req) => {
     const errors: string[] = [];
     let alertsSent = 0;
     let campaignsPaused = 0;
+    // Un token per integrazione, decifrato una volta sola per giro.
+    const tokenCache = new Map<string, string | null>();
 
     // Oggi (YYYY-MM-DD) e primo del mese
     const today = new Date().toISOString().split("T")[0];
@@ -124,35 +127,53 @@ Deno.serve(async (req) => {
           const { data: activeCampaigns } = await pauseQuery;
 
           for (const camp of activeCampaigns ?? []) {
-            // Get token — vive su integration_credentials (AES-GCM), non su
-            // integrations (colonna access_token_encrypted inesistente).
-            const { data: cred } = await admin
-              .from("integration_credentials")
-              .select("access_token_encrypted")
-              .eq("integration_id", camp.integration_id)
-              .maybeSingle();
-            if (!cred?.access_token_encrypted) continue;
+            // Token — vive su integration_credentials (AES-GCM). Se la campagna
+            // ha perso integration_id si usa l'integrazione Meta dell'azienda.
+            // Prima un token mancante veniva saltato in silenzio: la campagna
+            // restava accesa oltre il tetto e nessuno lo sapeva.
+            const accessToken = await tokenPerCampagna(admin, guard.company_id, camp.integration_id, tokenCache);
+            if (!accessToken) {
+              const msg = "Pausa automatica non riuscita: il collegamento con Meta non ha un token valido. Ricollega Meta e ferma la campagna da Gestione inserzioni.";
+              errors.push(`pause_skipped:${camp.meta_campaign_id}:${msg}`);
+              await admin.from("meta_campaigns").update({ publish_error: msg }).eq("id", camp.id);
+              continue;
+            }
 
             try {
-              const encKey = await getEncryptionKey();
-              const accessToken = await decrypt(cred.access_token_encrypted, encKey);
-
-              // Pausa su Meta
-              await fetch(`https://graph.facebook.com/${apiVersion}/${camp.meta_campaign_id}`, {
+              // Pausa su Meta — prima la risposta non veniva letta: un rifiuto
+              // (permesso mancante, token scaduto) segnava comunque «in pausa»
+              // nel gestionale mentre su Meta la campagna continuava a spendere.
+              const resp = await fetch(`https://graph.facebook.com/${apiVersion}/${camp.meta_campaign_id}`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ status: "PAUSED", access_token: accessToken }),
               });
+              const testo = await resp.text();
+              let corpo: unknown = null;
+              try {
+                corpo = JSON.parse(testo);
+              } catch {
+                corpo = null;
+              }
+              if (!resp.ok || (corpo as { error?: unknown } | null)?.error) {
+                const errore = traduciErroreMeta(corpo ?? testo);
+                errors.push(`pause_failed:${camp.meta_campaign_id}:${errore.messaggio}`);
+                await admin
+                  .from("meta_campaigns")
+                  .update({ publish_error: `Pausa automatica non riuscita: ${errore.messaggio}` })
+                  .eq("id", camp.id);
+                continue;
+              }
 
               // Pausa in DB
               await admin
                 .from("meta_campaigns")
-                .update({ status: "paused", last_synced_at: new Date().toISOString() })
+                .update({ status: "paused", publish_error: null, last_synced_at: new Date().toISOString() })
                 .eq("id", camp.id);
 
               campaignsPaused += 1;
             } catch (e) {
-              errors.push(`pause_failed:${camp.meta_campaign_id}:${String(e)}`);
+              errors.push(`pause_failed:${camp.meta_campaign_id}:Meta non raggiungibile: ${String(e)}`);
             }
           }
 
@@ -213,6 +234,43 @@ Deno.serve(async (req) => {
     return json({ error: "internal_error", detail: String(e) }, 500, corsHeaders);
   }
 });
+
+/** Token Meta in chiaro per la campagna; null se manca o non si decifra. */
+async function tokenPerCampagna(
+  // deno-lint-ignore no-explicit-any
+  admin: any,
+  companyId: string,
+  integrationId: string | null,
+  cache: Map<string, string | null>,
+): Promise<string | null> {
+  let id = integrationId;
+  if (!id) {
+    const { data } = await admin
+      .from("integrations")
+      .select("id")
+      .eq("company_id", companyId)
+      .eq("provider", "meta")
+      .maybeSingle();
+    id = data?.id ?? null;
+  }
+  if (!id) return null;
+  if (cache.has(id)) return cache.get(id) ?? null;
+  const { data: cred } = await admin
+    .from("integration_credentials")
+    .select("access_token_encrypted")
+    .eq("integration_id", id)
+    .maybeSingle();
+  let token: string | null = null;
+  if (cred?.access_token_encrypted) {
+    try {
+      token = await decrypt(cred.access_token_encrypted, await getEncryptionKey());
+    } catch (e) {
+      console.warn("[meta-ads-spend-check] decrypt failed", e);
+    }
+  }
+  cache.set(id, token);
+  return token;
+}
 
 function json(payload: unknown, status: number, corsHeaders: Record<string, string>): Response {
   return new Response(JSON.stringify(payload), {
