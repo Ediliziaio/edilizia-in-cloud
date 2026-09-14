@@ -1634,6 +1634,42 @@ const ROUTES = {
     },
   },
 
+  // Pagina di cancellazione dati: Meta la apre col suo crawler
+  // (facebookexternalhit, un bot) prima di pubblicare l'app. Senza questa voce
+  // riceveva 404 e bloccava il passaggio in modalità Live (14/09/2026).
+  "/data-deletion": {
+    title: "Cancellazione dei dati — Edilizia in Cloud",
+    description:
+      "Istruzioni per richiedere la cancellazione dei dati personali raccolti da Edilizia in Cloud tramite Facebook Login, Instagram e WhatsApp: diritto all'oblio GDPR art. 17.",
+    h1: "Cancellazione dei dati personali",
+    intro:
+      "Come chiedere la cancellazione dei dati personali raccolti da Edilizia in Cloud (Domus Group S.r.l.) tramite Facebook Login, account Instagram e WhatsApp Business, ai sensi dell'art. 17 del Regolamento UE 2016/679 (GDPR).",
+    extra: `
+    <h2>1. Quali dati raccogliamo tramite Meta</h2>
+    <p>Edilizia in Cloud raccoglie dati tramite Facebook Login, gli account Instagram professionali collegati e WhatsApp Business solo per il servizio SaaS fornito alle aziende clienti, che restano titolari autonomi dei dati dei propri utenti finali: nome, email e ID dell'account Facebook usato per collegarsi; ID e nome delle Pagine Facebook e degli account Instagram collegati, con le relative statistiche; messaggi ricevuti e inviati tramite le Pagine, Instagram e il numero WhatsApp Business collegati; token di accesso, conservati cifrati.</p>
+    <h2>2. Come richiedere la cancellazione</h2>
+    <h3>A) Richiesta via email</h3>
+    <p>Scrivi a <a href="mailto:privacy@ediliziaincloud.com">privacy@ediliziaincloud.com</a> indicando l'email dell'account e, se vuoi, il motivo. Rispondiamo entro 72 ore e completiamo la cancellazione entro 30 giorni, come previsto dal GDPR.</p>
+    <h3>B) Revoca da Facebook</h3>
+    <p>Su Facebook apri Impostazioni → App e siti web, trova "Edilizia in Cloud" e premi Rimuovi. Meta invia la richiesta al nostro endpoint di cancellazione: i dati raccolti tramite Meta vengono rimossi entro 30 giorni e su Facebook vedi il codice di conferma.</p>
+    <h3>C) Cancellazione dell'account Edilizia in Cloud</h3>
+    <p>Se hai un account nella piattaforma puoi chiedere la cancellazione completa da Impostazioni → Mio profilo → Elimina account, oppure scrivendo a privacy@ediliziaincloud.com.</p>
+    <h2>3. Tempi</h2>
+    <p>Conferma di ricezione entro 72 ore; verifica dell'identità tramite l'email registrata o un documento; cancellazione effettiva entro 30 giorni.</p>
+    <h2>4. Dati conservati per obblighi di legge</h2>
+    <p>Restano solo i dati che la legge impone di conservare: documenti fiscali e contabili per 10 anni (DPR 633/72 art. 22, Codice Civile art. 2220), log di sicurezza e accessi per 12 mesi, comunicazioni con la Pubblica Amministrazione per 5 anni. Tutto il resto viene cancellato definitivamente.</p>
+    <h2>5. Contatti</h2>
+    <p>Titolare del trattamento: Domus Group S.r.l., Via Aurelio Saffi 29, 20123 Milano. Email DPO: <a href="mailto:privacy@ediliziaincloud.com">privacy@ediliziaincloud.com</a>. PEC: domusgroup@pec.it. Per i reclami puoi rivolgerti al Garante per la Protezione dei Dati Personali.</p>
+    <h2>6. Endpoint tecnico per Meta</h2>
+    <p>Endpoint di callback per la cancellazione dei dati, conforme alle Data Deletion Callback Specifications di Meta: https://rsbrguhkodgnqfomrevo.supabase.co/functions/v1/meta-data-deletion-callback</p>
+    `,
+    links: [
+      { href: "/privacy-policy", label: "Privacy Policy" },
+      { href: "/termini-e-condizioni", label: "Termini e Condizioni" },
+      { href: "/cookie-policy", label: "Cookie Policy" },
+    ],
+  },
+
   "/privacy-policy": {
     title: "Privacy Policy — Edilizia in Cloud",
     description:

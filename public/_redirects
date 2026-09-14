@@ -103,6 +103,7 @@
 /accessibility                     /accessibility/                     301
 /glossario-edilizia                /glossario-edilizia/                301
 /condizioni-utilizzo               /condizioni-utilizzo/               301
+/cancellazione-dati                /data-deletion/                     301
 
 # Wildcard trailing slash per route dinamiche (sintassi Cloudflare Pages :splat)
 # Coprono i pattern dinamici delle landing pages.
