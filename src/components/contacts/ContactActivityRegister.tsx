@@ -87,6 +87,8 @@ const ACTIVITY_LABELS: Record<string, string> = {
   imported: "Importato",
   assigned: "Assegnato",
   form_submitted: "Form compilato",
+  lead_form_submission: "Nuova richiesta dal modulo",
+  site_lead_submitted: "Modulo sito compilato",
 };
 
 // Gruppi di filtro: solo quelli con almeno un evento vengono mostrati.
