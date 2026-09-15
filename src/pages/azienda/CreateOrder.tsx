@@ -66,6 +66,7 @@ import {
   prefillExpectedDates,
 } from "@/lib/orderUtils";
 import { orderSchema, orderDefaultValues, type OrderFormValues } from "@/lib/orderSchema";
+import { primoErroreForm } from "@/lib/form/primoErroreForm";
 import { WarehouseSelect } from "@/components/warehouse/WarehouseSelect";
 import { SedeSelect } from "@/components/sedi/SedeSelect";
 
@@ -996,12 +997,16 @@ function CreateOrderInner() {
     createOrderMutation.mutate();
   };
 
-  const onFormError = () => {
-    // Show first Zod validation error as toast
-    const firstError = Object.values(errors)[0];
-    if (firstError?.message) {
-      toast.error("Campo obbligatorio", { description: String(firstError.message) });
-    }
+  // Gli errori vanno presi dall'argomento che passa react-hook-form, non dalla
+  // variabile `errors` del render: al primo clic quella è ancora vuota (si
+  // riempie al render dopo) e "Crea Commessa" non faceva niente senza dire
+  // perché. E un errore su un campo annidato — i dati del venditore — non ha
+  // un `.message` in cima: restava muto a ogni clic. primoErroreForm scende
+  // nell'albero e, se proprio non trova un testo, dice almeno quale campo.
+  const onFormError = (formErrors: object) => {
+    const primo = primoErroreForm(formErrors);
+    if (!primo) return;
+    toast.error("Commessa non salvata", { description: `${primo.campo}: ${primo.messaggio}` });
   };
 
   const handleCustomerCreated = (newCustomerId: string, _customerName?: string, customer?: CompanyCustomer) => {

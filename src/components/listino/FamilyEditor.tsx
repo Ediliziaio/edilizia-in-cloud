@@ -16,6 +16,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { parseDecimalField, assertFiniteRange } from "@/lib/listino/numeriEditor";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -192,37 +193,6 @@ const PREZZO_MODE_CARDS: Array<{
       "Carico il prezzo del fornitore. Il prezzo di vendita viene calcolato automaticamente.",
   },
 ];
-
-function parseDecimalField(value: string, fallback = 0): number {
-  let s = value.trim();
-  if (s === "") return fallback;
-  // M-30 (audit): formato italiano completo — quando c'è la virgola, i punti
-  // sono separatori delle migliaia ("1.234,56"): senza lo strip il parse
-  // falliva e l'utente vedeva "numero non valido" su un importo legittimo.
-  if (s.includes(",")) s = s.replace(/\./g, "").replace(",", ".");
-  const parsed = Number(s);
-  return Number.isFinite(parsed) ? parsed : Number.NaN;
-}
-
-function assertFiniteRange(
-  value: number,
-  label: string,
-  options: { min?: number; max?: number; allowZero?: boolean } = {},
-) {
-  const { min = 0, max, allowZero = true } = options;
-  if (!Number.isFinite(value)) {
-    throw new Error(`${label} deve essere un numero valido.`);
-  }
-  if (!allowZero && value === 0) {
-    throw new Error(`${label} deve essere maggiore di zero.`);
-  }
-  if (value < min) {
-    throw new Error(`${label} non può essere negativo.`);
-  }
-  if (max != null && value > max) {
-    throw new Error(`${label} non può superare ${max}.`);
-  }
-}
 
 export function FamilyEditor() {
   const { id } = useParams<{ id: string }>();
@@ -407,8 +377,12 @@ export function FamilyEditor() {
       );
       setGrigliaXLabel(family.griglia_asse_x_label);
       setGrigliaYLabel(family.griglia_asse_y_label);
-      setPrezzoVendita(String(family.prezzo_base_vendita));
-      setPrezzoAcquisto(String(family.prezzo_base_acquisto));
+      // `?? 0`, non String(valore): con un campo vuoto nel database String(null)
+      // diventava il testo "null", che al salvataggio non è un numero — e il
+      // prezzo di vendita non si salvava per colpa di un campo mai toccato
+      // (Renova, modulo fotovoltaico importato col prezzo di acquisto vuoto).
+      setPrezzoVendita(String(family.prezzo_base_vendita ?? 0));
+      setPrezzoAcquisto(String(family.prezzo_base_acquisto ?? 0));
       // Scheda tecnica: bootstrap valori da JSONB. Cast defensivo perché i types
       // generati potrebbero non avere `custom_field_values` finché non rigenerati.
       const fxCustom = family as unknown as { custom_field_values?: DynamicFieldValues | null };
@@ -429,7 +403,7 @@ export function FamilyEditor() {
       setScontoFornitore1(String(fx.sconto_fornitore_1 ?? 0));
       setScontoFornitore2(String(fx.sconto_fornitore_2 ?? 0));
       setPosaTariffaId(family.posa_tariffa_default_id ?? "none");
-      setPosaQuantita(String(family.posa_quantita_default));
+      setPosaQuantita(String(family.posa_quantita_default ?? 1));
       // `posa_linked` arriva dalla migration Step 3; fino alla rigenerazione
       // dei types potrebbe non essere presente → default true.
       const pl = (family as unknown as { posa_linked?: boolean | null }).posa_linked;
