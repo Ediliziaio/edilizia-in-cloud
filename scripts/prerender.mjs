@@ -364,6 +364,14 @@ async function main() {
       viewport: { width: 1280, height: 800 },
     });
 
+    // Il prerender gira a ogni pubblicazione del sito (build di Cloudflare) e
+    // apre 250 pagine con l'app vera: senza questo blocco ogni pagina parlava con
+    // il Supabase di PRODUZIONE (misure di velocità, tracciamento, funzioni).
+    // Il 15/09/2026, con 7 push in 50 minuti, le ondate da 250 pagine
+    // coincidevano con i blocchi del database. Per fotografare l'HTML non serve
+    // nessuna risposta dal backend: tutto ciò che va verso Supabase si ferma qui.
+    await context.route(/^https:\/\/[a-z0-9-]+\.supabase\.(co|in)\//i, (route) => route.abort());
+
     let ok = 0;
     let fail = 0;
     const failures = [];
