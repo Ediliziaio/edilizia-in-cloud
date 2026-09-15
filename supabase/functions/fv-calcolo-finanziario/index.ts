@@ -119,6 +119,17 @@ Deno.serve(async (req: Request) => {
     const costo_totale_netto = costo_componenti_netto + costo_manodopera_netto + costo_servizi_netto;
     const prezzo_pieno_netto = costo_componenti_vendita + costo_manodopera_vendita + costo_servizi_vendita;
 
+    // Costi d'acquisto mancanti: un componente senza costo (listino senza prezzi,
+    // kit, prezzo a corpo) o una riga venduta senza costo. Il margine allora non
+    // si conosce e resta vuoto: prima il costo si stimava al 75% del prezzo, e
+    // usciva un margine del 25% che non esisteva.
+    const senzaCosto = (vendita: unknown, netto: unknown) => Number(vendita) > 0 && !(Number(netto) > 0);
+    const costi_incompleti =
+      costo_totale_netto <= 0 ||
+      componenti.some((c: Record<string, unknown>) => Number(c.quantita) > 0 && !(Number(c.prezzo_unitario_netto) > 0)) ||
+      manodopera.some((m: Record<string, unknown>) => senzaCosto(m.tariffa_oraria_vendita, m.tariffa_oraria_netta)) ||
+      servizi.some((x: Record<string, unknown>) => senzaCosto(x.prezzo_vendita, x.prezzo_netto));
+
     // ── 2a. Prezzo di vendita LIBERO a corpo (config manuale, stile Reonic) ──
     // Se il commerciale ha fissato un prezzo di vendita manuale (imponibile),
     // QUELLO è il prezzo finale: sostituisce la somma delle righe e bypassa lo
@@ -160,9 +171,13 @@ Deno.serve(async (req: Request) => {
       : 0;
     const capRegoleEur = prezzo_pieno_netto * (scontoMaxPct / 100);
     // Vincolo margine minimo: (P − s − C) / (P − s) ≥ m  →  s ≤ P − C/(1−m).
-    const capMargineEur = margineMinPct < 100
-      ? Math.max(0, prezzo_pieno_netto - costo_totale_netto / (1 - margineMinPct / 100))
-      : 0;
+    // Senza costi veri il vincolo di margine non si può verificare: vale solo il
+    // massimo delle regole (prima si calcolava su un costo inventato).
+    const capMargineEur = costi_incompleti
+      ? capRegoleEur
+      : margineMinPct < 100
+        ? Math.max(0, prezzo_pieno_netto - costo_totale_netto / (1 - margineMinPct / 100))
+        : 0;
     const scontoCapEur = Math.max(0, Math.min(capRegoleEur, capMargineEur));
     // Con prezzo manuale a corpo lo sconto è ignorato (il prezzo È già il finale).
     const sconto_eur_applicato = usaPrezzoManuale ? 0 : round2(Math.min(sconto_eur_richiesto, scontoCapEur));
@@ -380,8 +395,12 @@ Deno.serve(async (req: Request) => {
         sconto_limitato,
         prezzo_vendita_netto: round2(prezzo_vendita_netto),
         prezzo_vendita_iva_inclusa: round2(prezzo_vendita_iva_inclusa),
-        margine_eur: round2(margine_eur),
-        margine_pct: round4(margine_pct),
+        // null = non disponibile: mancano i costi d'acquisto.
+        margine_eur: costi_incompleti ? null : round2(margine_eur),
+        margine_pct: costi_incompleti ? null : round4(margine_pct),
+        costi_incompleti,
+        // Somma dei componenti a prezzo di vendita: 0 = listino senza prezzi.
+        costo_componenti_vendita: round2(costo_componenti_vendita),
       },
     };
 
@@ -444,8 +463,8 @@ Deno.serve(async (req: Request) => {
         autoconsumo_pct,
         costo_totale_netto,
         prezzo_vendita_iva_inclusa,
-        margine_eur,
-        margine_pct,
+        margine_eur: costi_incompleti ? null : margine_eur,
+        margine_pct: costi_incompleti ? null : margine_pct,
         // Audit sconto: quanto è stato EFFETTIVAMENTE concesso post-clamp.
         sconto_eur_applicato,
         // Prezzo cambiato: la rata salvata era sul prezzo vecchio e il PDF la

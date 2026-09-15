@@ -153,6 +153,31 @@ describe("fotovoltaico PDF template", () => {
     expect(html).toContain("Gestione TICA e allaccio rete");
   });
 
+  it("col prezzo a corpo elenca pratiche e posa senza importi che non tornano col totale", () => {
+    const servizi = [
+      { tipo: "pratica", descrizione: "Pratica GSE", quantita: 1, prezzo_vendita: 450, note_operative: null },
+      { tipo: "installazione", descrizione: "Posa impianto", quantita: 1, prezzo_vendita: 1200, note_operative: "Ore previste: 24" },
+    ];
+    const aCorpo = renderFvPdfHtml({
+      ...basePdfData(),
+      costi: { ...basePdfData().costi, prezzo_a_corpo: true },
+      servizi,
+    });
+    expect(aCorpo).toContain("Pratica GSE");
+    expect(aCorpo).toContain("Ore previste: 24");
+    expect(aCorpo.match(/class="service-meta">[^<]*€/g)).toBeNull();
+
+    const scontato = renderFvPdfHtml({
+      ...basePdfData(),
+      costi: { ...basePdfData().costi, sconto_applicato: true },
+      servizi,
+    });
+    expect(scontato.match(/class="service-meta">[^<]*€/g)).toBeNull();
+
+    const dalListino = renderFvPdfHtml({ ...basePdfData(), servizi });
+    expect(dalListino).toMatch(/class="service-meta">[^<]*€[^<]*\+ IVA/);
+  });
+
   it("uses listino macro-category media when component images are missing", () => {
     const html = renderFvPdfHtml({
       ...basePdfData(),

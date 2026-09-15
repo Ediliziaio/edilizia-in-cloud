@@ -964,7 +964,17 @@ export function SerramentoRow({
   const modalitaPrezzo = family?.modalita_prezzo_base ?? null;
   const isFromListino = !!family;
   const isManualCorpo = !family && (s.tipologia === "a_corpo" || /\bA CORPO\b/i.test(s.note ?? ""));
-  const isListinoManualPrice = isFromListino && modalitaPrezzo === "misura_libera";
+  // Prezzo scritto sul preventivo: per «misura libera» sempre, e per un articolo
+  // a pezzo o al m² che nel listino non ha ancora un prezzo (anche col ricarico
+  // sull'acquisto). Prima restava a 0 € in sola lettura, e un'azienda senza
+  // listino non poteva fare il preventivo.
+  const prezzoBaseListino =
+    family && (modalitaPrezzo === "pz" || modalitaPrezzo === "mq")
+      ? calcolaPrezzoProdotto(family, 1000, 1000, 1, []).prezzo
+      : null;
+  const isListinoManualPrice =
+    isFromListino &&
+    (modalitaPrezzo === "misura_libera" || (prezzoBaseListino != null && !(prezzoBaseListino > 0)));
 
   // Carico griglia listino della family per ricalcolo prezzo on-the-fly su
   // modifica L/A/Q. enabled solo se family esiste con modalità griglia.
@@ -1605,7 +1615,7 @@ export function SerramentoRow({
               spiega all'utente che L/H sono solo descrittive e non
               influenzano il prezzo. Senza, l'utente cambiava larghezza
               e si chiedeva "come mai il prezzo non si aggiorna?". */}
-          {isFromListino && (modalitaPrezzo === "pz" || modalitaPrezzo === "misura_libera") && (
+          {isFromListino && (modalitaPrezzo === "pz" || modalitaPrezzo === "misura_libera" || isListinoManualPrice) && (
             <div className="col-span-12 -mb-1">
               <p className="text-[10px] text-slate-600 bg-slate-50 border border-slate-200 rounded px-2 py-1">
                 {isListinoManualPrice ? (

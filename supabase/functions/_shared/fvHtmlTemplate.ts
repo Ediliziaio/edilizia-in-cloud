@@ -107,6 +107,10 @@ export interface FvPdfTemplateData {
   costi: {
     prezzo_vendita_iva_inclusa: number;
     iva_perc: number;
+    /** Prezzo scritto a mano o del kit: nel PDF le righe non portano importi. */
+    prezzo_a_corpo?: boolean;
+    /** Sconto sul totale: i prezzi delle righe sarebbero quelli prima dello sconto. */
+    sconto_applicato?: boolean;
     detrazione_eur: number;
     detrazione_perc: number;
     costo_netto_dopo_detrazione: number;
@@ -661,6 +665,10 @@ function renderServiziInclusi(d: FvPdfTemplateData): string {
     .filter((s) => plainText(s.descrizione).length > 0)
     .slice(0, 4);
   if (servizi.length === 0) return "";
+  // Col prezzo a corpo, col kit o con uno sconto le cifre delle singole voci
+  // non sommano al totale: si elencano come incluse, senza importo. Negli altri
+  // casi l'importo è imponibile, e lo si dice.
+  const mostraPrezzi = !d.costi.prezzo_a_corpo && !d.costi.sconto_applicato;
   return `<h3 style="font-size:11pt;color:#1E3A5F;margin:4mm 0 2mm;">Servizi inclusi nella proposta</h3>
     <div class="service-list">
       ${servizi.map((s) => {
@@ -671,7 +679,7 @@ function renderServiziInclusi(d: FvPdfTemplateData): string {
         const meta = [
           Number.isFinite(qty) && qty > 1 ? `Quantità ${fmtNum(qty, 1)}` : null,
           note || null,
-          Number.isFinite(price) && price > 0 ? fmtEur(price) : null,
+          mostraPrezzi && Number.isFinite(price) && price > 0 ? `${fmtEur(price)} + IVA` : null,
         ].filter(Boolean).join(" · ");
         return `<div class="service-item">
           <div class="service-title">${escHtml(descrizione)}</div>

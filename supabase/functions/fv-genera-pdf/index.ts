@@ -113,7 +113,7 @@ Deno.serve(async (req: Request) => {
     const { data: prog, error: progErr } = await supabaseAdmin
       .from("fv_progetti")
       .select(
-        "id, company_id, numero, titolo, archetipo, indirizzo, comune, provincia, cap, latitudine, longitudine, tipologia_immobile, prima_casa, consumo_annuo_kwh, costo_kwh_attuale, profilo_consumo, fonte_dati_tetto, qualita_dati_tetto, imagery_date, ore_sole_annue, superficie_tetto_disponibile_mq, perdita_ombreggiamento_pct, numero_pannelli_scelti, potenza_kwp, con_accumulo, capacita_accumulo_kwh, prezzo_vendita_iva_inclusa, payback_anni, npv_25_anni, risparmio_anno1, created_at, created_by, scenario_finanziamento, finanziamento_tabella_id, finanziamento_durata_mesi, finanziamento_rata_eur, finanziamento_taeg, finanziamento_tan, finanziamento_totale_dovuto_eur, kit_bundle_id, modalita_pagamento, iva_aliquota",
+        "id, company_id, numero, titolo, archetipo, indirizzo, comune, provincia, cap, latitudine, longitudine, tipologia_immobile, prima_casa, consumo_annuo_kwh, costo_kwh_attuale, profilo_consumo, fonte_dati_tetto, qualita_dati_tetto, imagery_date, ore_sole_annue, superficie_tetto_disponibile_mq, perdita_ombreggiamento_pct, numero_pannelli_scelti, potenza_kwp, con_accumulo, capacita_accumulo_kwh, prezzo_vendita_iva_inclusa, payback_anni, npv_25_anni, risparmio_anno1, created_at, created_by, scenario_finanziamento, finanziamento_tabella_id, finanziamento_durata_mesi, finanziamento_rata_eur, finanziamento_taeg, finanziamento_tan, finanziamento_totale_dovuto_eur, kit_bundle_id, kit_nome, kit_prezzo, prezzo_vendita_manuale, sconto_valore, modalita_pagamento, iva_aliquota",
       )
       .eq("id", p.progetto_id)
       .maybeSingle();
@@ -283,20 +283,23 @@ Deno.serve(async (req: Request) => {
     let bundleData: BundleRow | null = null;
     let bundleVoci: BundleVoceRow[] = [];
     if (prog.kit_bundle_id) {
-      const [bRes, bvRes] = await Promise.all([
-        supabaseAdmin
-          .from("bundle_prodotti")
-          .select("nome, descrizione, fv_kwp, fv_accumulo_kwh, cover_image_url")
-          .eq("id", prog.kit_bundle_id)
-          .maybeSingle(),
-        supabaseAdmin
+      // Solo un kit di questa azienda: con l'id di un kit altrui il PDF ne
+      // stampava nome, voci e copertina.
+      const bRes = await supabaseAdmin
+        .from("bundle_prodotti")
+        .select("nome, descrizione, fv_kwp, fv_accumulo_kwh, cover_image_url")
+        .eq("id", prog.kit_bundle_id)
+        .eq("company_id", prog.company_id)
+        .maybeSingle();
+      bundleData = bRes.data ?? null;
+      if (bundleData) {
+        const bvRes = await supabaseAdmin
           .from("bundle_voci")
           .select("bundle_id, prodotto_id, quantita, immagine_url, article_templates(name, immagine_url), tariffe_aziendali(nome), article_families(nome, immagine_url)")
           .eq("bundle_id", prog.kit_bundle_id)
-          .order("sort_order"),
-      ]);
-      bundleData = bRes.data ?? null;
-      bundleVoci = (bvRes.data ?? []) as BundleVoceRow[];
+          .order("sort_order");
+        bundleVoci = (bvRes.data ?? []) as BundleVoceRow[];
+      }
     }
 
     // Fetch immagini cantieri + copertina bundle in parallelo
@@ -600,11 +603,16 @@ Deno.serve(async (req: Request) => {
       },
       map_images: mapImages,
       cantieri_foto: cantieriFotoB64.filter((s): s is string => Boolean(s)),
-      bundle: bundleData ? {
-        nome: bundleData.nome,
-        descrizione: bundleData.descrizione,
-        fv_kwp: bundleData.fv_kwp,
-        fv_accumulo_kwh: bundleData.fv_accumulo_kwh,
+      // Il kit com'era quando è stato scelto: nome e taglia salvati sul progetto.
+      // Prima il PDF leggeva il kit di oggi, e se era stato cancellato la
+      // pagina del kit spariva.
+      bundle: bundleData || (prog.kit_bundle_id && prog.kit_nome) ? {
+        nome: firstString(prog.kit_nome, bundleData?.nome) ?? "Kit fotovoltaico",
+        descrizione: bundleData?.descrizione ?? null,
+        fv_kwp: Number(prog.potenza_kwp) > 0 ? Number(prog.potenza_kwp) : (bundleData?.fv_kwp ?? null),
+        fv_accumulo_kwh: prog.con_accumulo && Number(prog.capacita_accumulo_kwh) > 0
+          ? Number(prog.capacita_accumulo_kwh)
+          : null,
         cover_b64: bundleCoverB64 ?? null,
         voci: bundleVoci.map((v) => {
           const u = fotoDellaVoce(v);
@@ -621,6 +629,10 @@ Deno.serve(async (req: Request) => {
       costi: {
         prezzo_vendita_iva_inclusa: Number(prog.prezzo_vendita_iva_inclusa) || 0,
         iva_perc: aliquotaIva(prog.iva_aliquota),
+        // Prezzo a corpo (scritto a mano o del kit) o scontato: i prezzi delle
+        // singole pratiche e della posa non tornerebbero col totale.
+        prezzo_a_corpo: Number(prog.prezzo_vendita_manuale) > 0 || Boolean(prog.kit_bundle_id),
+        sconto_applicato: Number(prog.sconto_valore) > 0,
         detrazione_eur: Math.round(detrazioneTotale),
         detrazione_perc: detrazionePerc,
         costo_netto_dopo_detrazione: Math.round(costoNetto),

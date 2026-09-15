@@ -211,6 +211,29 @@ export async function convertiFvInCommessa(progettoId: string, userId: string): 
     });
   }
 
+  // Le righe devono sommare al totale. Col prezzo a corpo (anche senza listino,
+  // con righe a 0 €) o con uno sconto non tornavano: la differenza diventa una
+  // riga sua, e la commessa dice quanto vale ogni cosa.
+  const sommaRighe = arrotonda(righe.reduce((s, r) => s + r.unit_price * r.quantity, 0));
+  const differenza = arrotonda(totale - sommaRighe);
+  const soglia = manuale > 0 ? 0.01 : 0.5; // sotto 50 cent è l'arrotondamento dello scorporo IVA
+  if (righe.length > 0 && Math.abs(differenza) >= soglia) {
+    righe.push({
+      name: manuale > 0 ? "Prezzo a corpo" : differenza < 0 ? "Sconto commerciale" : "Adeguamento al totale del preventivo",
+      description: manuale > 0
+        ? "Differenza tra il prezzo a corpo del preventivo e le righe di dettaglio."
+        : differenza < 0
+          ? "Sconto concesso nel preventivo."
+          : null,
+      quantity: 1,
+      status: "da_ordinare",
+      position: righe.length,
+      unit_price: differenza,
+      purchase_price: 0,
+      vat_rate: aliquota,
+    });
+  }
+
   const descrizione = String(progetto.titolo ?? "").trim() || `Impianto fotovoltaico ${progetto.numero}`;
   const luogo = [progetto.indirizzo, progetto.comune].filter(Boolean).join(", ");
 

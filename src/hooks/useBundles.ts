@@ -201,12 +201,9 @@ export function useUpsertBundle() {
         bundleId = (data as { id: string }).id;
       }
 
-      // 2) Replace voci (cleaner than diffing — small lists).
-      const { error: delErr } = await supabase.from("bundle_voci" as never)
-        .delete()
-        .eq("bundle_id", bundleId!);
-      if (delErr) throw new Error(delErr.message);
-
+      // 2) Voci: prima le nuove, poi via le vecchie. Cancellando per prime, un
+      // inserimento fallito lasciava il kit senza voci.
+      let nuoveIds: string[] = [];
       if (input.voci.length > 0) {
         const voceRows = input.voci.map((v, idx) => ({
           bundle_id: bundleId,
@@ -221,10 +218,18 @@ export function useUpsertBundle() {
           sort_order: v.sort_order ?? idx,
           immagine_url: v.immagine_url ?? null,
         }));
-        const { error: insErr } = await supabase.from("bundle_voci" as never)
-          .insert(voceRows);
+        const { data: inserite, error: insErr } = await supabase.from("bundle_voci" as never)
+          .insert(voceRows)
+          .select("id");
         if (insErr) throw new Error(insErr.message);
+        nuoveIds = ((inserite ?? []) as Array<{ id: string }>).map((r) => r.id);
       }
+      let vecchie = supabase.from("bundle_voci" as never)
+        .delete()
+        .eq("bundle_id", bundleId!);
+      if (nuoveIds.length > 0) vecchie = vecchie.not("id", "in", `(${nuoveIds.join(",")})`);
+      const { error: delErr } = await vecchie;
+      if (delErr) throw new Error(delErr.message);
 
       return bundleId!;
     },

@@ -40,6 +40,7 @@ import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { useVertical } from "@/hooks/useVertical";
 import { useFamilies } from "@/hooks/useFamilies";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
+import { usePermissions } from "@/hooks/usePermissions";
 import {
   useBundlesList,
   useUpsertBundle,
@@ -149,6 +150,11 @@ export default function SettingsBundle() {
   // FV attivo (aziende "generico" multi-business possono comunque vendere kit FV).
   const { isEnabled: fvModuloAttivo } = useFeatureAccess("modulo_fotovoltaico_attivo");
   const { families } = useFamilies();
+  // Il permesso «Bundle & Pacchetti → modifica» esisteva ma nessuno lo leggeva:
+  // chi vedeva la pagina poteva creare, cambiare ed eliminare i kit.
+  const permissions = usePermissions();
+  const puoModificare = permissions.isAdmin || permissions.canEditSettingsBundle;
+  const senzaPermesso = "Serve il permesso di modificare i bundle";
 
   const { bundles, isLoading, refetch } = useBundlesList();
   const upsertMut = useUpsertBundle();
@@ -319,6 +325,8 @@ export default function SettingsBundle() {
   const isFvVertical = vertical === "fotovoltaico" || fvModuloAttivo;
   const canSave = useMemo(() => {
     if (!draft.nome.trim()) return false;
+    // Un kit FV (ha la taglia in kWp) senza prezzo finiva nel preventivatore a 0 €.
+    if (isFvVertical && draft.fv_kwp != null && !(Number(draft.prezzo_offerta) > 0)) return false;
     if (draft.voci.length === 0) {
       // Kit FV: può bastare la taglia (kWp) + prezzo offerta, voci opzionali.
       return isFvVertical && draft.fv_kwp != null && draft.prezzo_offerta != null;
@@ -336,16 +344,15 @@ export default function SettingsBundle() {
     setCoverUploading(true);
     try {
       const ext = file.name.split(".").pop() ?? "jpg";
-      const path = `bundle-covers/${companyId}/${Date.now()}.${ext}`;
+      // Link pubblico, senza scadenza: quello firmato durava un anno e poi la
+      // copertina spariva dal PDF. La prima cartella è l'azienda (regola del bucket).
+      const path = `${companyId}/bundle-covers/${Date.now()}.${ext}`;
       const { error: upErr } = await supabase.storage
-        .from("fv-progetti")
+        .from("article-images")
         .upload(path, file, { upsert: true, contentType: file.type });
       if (upErr) throw upErr;
-      const { data: signedData, error: signErr } = await supabase.storage
-        .from("fv-progetti")
-        .createSignedUrl(path, 60 * 60 * 24 * 365);
-      if (signErr) throw signErr;
-      setDraft((d) => ({ ...d, cover_image_url: signedData.signedUrl }));
+      const { data: pubblico } = supabase.storage.from("article-images").getPublicUrl(path);
+      setDraft((d) => ({ ...d, cover_image_url: pubblico.publicUrl }));
       toast.success("Immagine caricata");
     } catch (e) {
       toast.error("Upload fallito: " + (e instanceof Error ? e.message : "errore"));
@@ -361,16 +368,13 @@ export default function SettingsBundle() {
     setUploadingVoceKey(key);
     try {
       const ext = file.name.split(".").pop() ?? "jpg";
-      const path = `bundle-voci/${companyId}/${crypto.randomUUID()}.${ext}`;
+      const path = `${companyId}/bundle-voci/${crypto.randomUUID()}.${ext}`;
       const { error: upErr } = await supabase.storage
-        .from("fv-progetti")
+        .from("article-images")
         .upload(path, file, { upsert: true, contentType: file.type });
       if (upErr) throw upErr;
-      const { data: signedData, error: signErr } = await supabase.storage
-        .from("fv-progetti")
-        .createSignedUrl(path, 60 * 60 * 24 * 365);
-      if (signErr) throw signErr;
-      updateVoce(key, { immagine_url: signedData.signedUrl });
+      const { data: pubblico } = supabase.storage.from("article-images").getPublicUrl(path);
+      updateVoce(key, { immagine_url: pubblico.publicUrl });
       toast.success("Foto prodotto caricata");
     } catch (e) {
       toast.error("Upload fallito: " + (e instanceof Error ? e.message : "errore"));
@@ -380,6 +384,10 @@ export default function SettingsBundle() {
   };
 
   const handleSave = async () => {
+    if (!puoModificare) {
+      toast.error(senzaPermesso);
+      return;
+    }
     try {
       const voci: BundleVoceInput[] = draft.voci.map((v, idx) => ({
         prodotto_id: v.type === "product" ? v.prodotto_id : null,
@@ -401,10 +409,12 @@ export default function SettingsBundle() {
         attivo: draft.attivo,
         vertical,
         tipo_lavoro: draft.tipo_lavoro,
-        fv_kwp: isFvVertical ? draft.fv_kwp : null,
-        fv_accumulo_kwh: isFvVertical ? draft.fv_accumulo_kwh : null,
-        prezzo_offerta: isFvVertical ? draft.prezzo_offerta : null,
-        cover_image_url: isFvVertical ? draft.cover_image_url : null,
+        // Si tengono sempre i dati del kit: se l'azienda non vedeva più i campi
+        // FV, salvare un kit gli cancellava taglia, prezzo e copertina.
+        fv_kwp: draft.fv_kwp,
+        fv_accumulo_kwh: draft.fv_accumulo_kwh,
+        prezzo_offerta: draft.prezzo_offerta,
+        cover_image_url: draft.cover_image_url,
         voci,
       });
       toast.success(draft.id ? "Bundle aggiornato" : "Bundle creato");
@@ -418,6 +428,10 @@ export default function SettingsBundle() {
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
+    if (!puoModificare) {
+      toast.error(senzaPermesso);
+      return;
+    }
     try {
       await deleteMut.mutateAsync(deleteTarget.id);
       toast.success("Bundle eliminato");
@@ -430,6 +444,10 @@ export default function SettingsBundle() {
   };
 
   const handleToggle = async (b: Bundle) => {
+    if (!puoModificare) {
+      toast.error(senzaPermesso);
+      return;
+    }
     try {
       await toggleMut.mutateAsync({ id: b.id, attivo: !b.attivo });
       refetch();
@@ -460,13 +478,13 @@ export default function SettingsBundle() {
             variant="outline"
             size="sm"
             onClick={() => installTemplatesMut.mutate()}
-            disabled={installTemplatesMut.isPending || vertical !== "serramentista"}
+            disabled={installTemplatesMut.isPending || vertical !== "serramentista" || !puoModificare}
             title={vertical !== "serramentista" ? "Template disponibili solo per vertical serramentista" : undefined}
           >
             <Sparkles className="h-4 w-4 mr-1.5" />
             {installTemplatesMut.isPending ? "Installazione…" : "Installa 5 template"}
           </Button>
-          <Button size="sm" onClick={openNew}>
+          <Button size="sm" onClick={openNew} disabled={!puoModificare} title={!puoModificare ? senzaPermesso : undefined}>
             <Plus className="h-4 w-4 mr-1.5" />
             Nuovo bundle
           </Button>
@@ -587,6 +605,7 @@ export default function SettingsBundle() {
                   <TableHead>Nome</TableHead>
                   <TableHead>Tipo lavoro</TableHead>
                   <TableHead>Voci</TableHead>
+                  {isFvVertical && <TableHead>Kit FV</TableHead>}
                   <TableHead>Sconto</TableHead>
                   <TableHead>Stato</TableHead>
                   <TableHead className="text-right">Azioni</TableHead>
@@ -609,18 +628,30 @@ export default function SettingsBundle() {
                       )}
                     </TableCell>
                     <TableCell>{b.voci?.length ?? 0}</TableCell>
+                    {isFvVertical && (
+                      <TableCell className="whitespace-nowrap tabular-nums">
+                        {b.fv_kwp != null
+                          ? `${Number(b.fv_kwp).toLocaleString("it-IT")} kWp${
+                              b.prezzo_offerta != null
+                                ? ` · ${new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(Number(b.prezzo_offerta))} + IVA`
+                                : ""
+                            }`
+                          : "—"}
+                      </TableCell>
+                    )}
                     <TableCell>
                       {Number(b.sconto_bundle_pct) > 0 ? `${b.sconto_bundle_pct}%` : "—"}
                     </TableCell>
                     <TableCell>
                       <Switch
                         checked={b.attivo}
+                        disabled={!puoModificare}
                         onCheckedChange={() => handleToggle(b)}
                       />
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
-                        <Button size="icon" variant="ghost" onClick={() => openDuplicate(b)} title="Duplica">
+                        <Button size="icon" variant="ghost" onClick={() => openDuplicate(b)} title="Duplica" disabled={!puoModificare}>
                           <Copy className="h-4 w-4" />
                         </Button>
                         <Button size="icon" variant="ghost" onClick={() => openEdit(b)} title="Modifica">
@@ -629,6 +660,7 @@ export default function SettingsBundle() {
                         <Button
                           size="icon"
                           variant="ghost"
+                          disabled={!puoModificare}
                           onClick={() => setDeleteTarget(b)}
                           title="Elimina"
                         >
@@ -737,14 +769,14 @@ export default function SettingsBundle() {
                     />
                   </div>
                   <div>
-                    <Label>Prezzo offerta (€)</Label>
+                    <Label>Prezzo offerta (€, IVA esclusa)</Label>
                     <Input
                       type="number" min={0} step={1} inputMode="decimal"
                       value={draft.prezzo_offerta ?? ""}
                       onChange={(e) =>
                         setDraft((d) => ({ ...d, prezzo_offerta: e.target.value === "" ? null : Number(e.target.value) }))
                       }
-                      placeholder="chiavi in mano"
+                      placeholder="chiavi in mano, + IVA"
                     />
                   </div>
                 </div>

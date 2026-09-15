@@ -81,6 +81,13 @@ import { useDiscountRules } from "@/hooks/useDiscountRules";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { evaluateDiscountRules, classifyDiscount } from "@/lib/serramenti/discountRules";
 import { parseDecimalIT, formatDecimalIT } from "@/lib/parseDecimalIT";
+import {
+  ALIQUOTE_IVA_FV,
+  aliquotaIvaFv,
+  ivaSuggeritaPerTipologia,
+  mancaPrezzoDiVendita,
+  percentualeIvaFv,
+} from "@/lib/fotovoltaico/importoPreventivo";
 import type {
   FvArchetipo,
   FvProfiloAutoconsumoCodice,
@@ -205,6 +212,8 @@ function FotovoltaicoWizard() {
   // la bozza vera sta in DB, non nel draft locale.
   const [resumeDismissed, setResumeDismissed] = useState(false);
   const [exitDialogOpen, setExitDialogOpen] = useState(false);
+  // Emissione senza prezzo di vendita: si chiede, non si blocca.
+  const [senzaPrezzo, setSenzaPrezzo] = useState<{ totale: number } | null>(null);
   const { data: ultimaBozza } = useQuery({
     queryKey: ["fv-ultima-bozza", effectiveCompanyId, user?.id],
     enabled: !id && !!effectiveCompanyId && !!user?.id,
@@ -496,6 +505,7 @@ function FotovoltaicoWizard() {
         (progettoEsistente as { prezzo_vendita_manuale?: number | null }).prezzo_vendita_manuale != null
           ? Number((progettoEsistente as { prezzo_vendita_manuale?: number | null }).prezzo_vendita_manuale)
           : null,
+      iva_aliquota: aliquotaIvaFv((progettoEsistente as { iva_aliquota?: number | string | null }).iva_aliquota),
       layout_overlay:
         (progettoEsistente as { layout_overlay?: { x: number; y: number; rot: number; cols: number } | null })
           .layout_overlay ?? null,
@@ -1112,6 +1122,7 @@ function FotovoltaicoWizard() {
           // Prezzo di vendita libero: solo in configurazione manuale. Un kit ha
           // già il suo prezzo chiavi-in-mano → azzera l'eventuale override.
           prezzo_vendita_manuale: data.kit_bundle_id ? null : data.prezzo_vendita_manuale,
+          iva_aliquota: aliquotaIvaFv(data.iva_aliquota),
           layout_overlay: data.layout_overlay,
         } as never,
       });
@@ -1136,9 +1147,10 @@ function FotovoltaicoWizard() {
 
       if (data.kit_bundle_id && data.kit_prezzo != null) {
         // Kit FV: un'unica voce col prezzo d'offerta del kit (chiavi in mano).
-        // Costo stimato al 75% del prezzo (margine ~25%) in assenza del dettaglio voci.
+        // Il costo del kit non si conosce: 0 = «non disponibile». Prima si stimava
+        // al 75% del prezzo e la Vista impresa mostrava un margine del 25% inventato.
         const venditaKit = data.kit_prezzo;
-        const nettoKit = Math.round(venditaKit * 0.75);
+        const nettoKit = 0;
         comp.push({
           progetto_id: progettoId,
           articolo_id: null,
@@ -1148,7 +1160,7 @@ function FotovoltaicoWizard() {
           unita_misura: "kit",
           prezzo_unitario_netto: nettoKit,
           prezzo_unitario_vendita: venditaKit,
-          margine_pct: venditaKit > 0 ? (venditaKit - nettoKit) / venditaKit : null,
+          margine_pct: null,
           potenza_unitaria_w: null,
           potenza_unitaria_kw: data.potenza_kwp,
           capacita_kwh: data.con_accumulo ? data.capacita_accumulo_kwh : null,
@@ -1159,8 +1171,8 @@ function FotovoltaicoWizard() {
       const pannello = pannelli.find((p) => (p as { id: string }).id === data.pannello_id);
       if (pannello) {
         const p = pannello as Record<string, unknown>;
-        const netto = (p.prezzo_acquisto as number) ?? (p.prezzo_vendita as number) * 0.75;
-        const vendita = (p.prezzo_vendita as number) ?? netto * 1.3;
+        const netto = Number(p.prezzo_acquisto) || 0; // senza costo d'acquisto: non disponibile
+        const vendita = Number(p.prezzo_vendita) || 0;
         comp.push({
           progetto_id: progettoId,
           articolo_id: data.pannello_id,
@@ -1170,7 +1182,7 @@ function FotovoltaicoWizard() {
           unita_misura: "pz",
           prezzo_unitario_netto: netto,
           prezzo_unitario_vendita: vendita,
-          margine_pct: vendita > 0 ? (vendita - netto) / vendita : null,
+          margine_pct: vendita > 0 && netto > 0 ? (vendita - netto) / vendita : null,
           potenza_unitaria_w: (p.potenza_w as number) ?? 540,
           potenza_unitaria_kw: null,
           capacita_kwh: null,
@@ -1181,8 +1193,8 @@ function FotovoltaicoWizard() {
       const inv = inverter.find((p) => (p as { id: string }).id === data.inverter_id);
       if (inv) {
         const p = inv as Record<string, unknown>;
-        const netto = (p.prezzo_acquisto as number) ?? (p.prezzo_vendita as number) * 0.75;
-        const vendita = (p.prezzo_vendita as number) ?? netto * 1.3;
+        const netto = Number(p.prezzo_acquisto) || 0; // senza costo d'acquisto: non disponibile
+        const vendita = Number(p.prezzo_vendita) || 0;
         comp.push({
           progetto_id: progettoId,
           articolo_id: data.inverter_id,
@@ -1192,7 +1204,7 @@ function FotovoltaicoWizard() {
           unita_misura: "pz",
           prezzo_unitario_netto: netto,
           prezzo_unitario_vendita: vendita,
-          margine_pct: vendita > 0 ? (vendita - netto) / vendita : null,
+          margine_pct: vendita > 0 && netto > 0 ? (vendita - netto) / vendita : null,
           potenza_unitaria_w: null,
           potenza_unitaria_kw: (p.potenza_kw as number) ?? data.potenza_kwp,
           capacita_kwh: null,
@@ -1204,8 +1216,8 @@ function FotovoltaicoWizard() {
         const acc = accumuli.find((p) => (p as { id: string }).id === data.accumulo_id);
         if (acc) {
           const p = acc as Record<string, unknown>;
-          const netto = (p.prezzo_acquisto as number) ?? (p.prezzo_vendita as number) * 0.75;
-          const vendita = (p.prezzo_vendita as number) ?? netto * 1.3;
+          const netto = Number(p.prezzo_acquisto) || 0; // senza costo d'acquisto: non disponibile
+          const vendita = Number(p.prezzo_vendita) || 0;
           comp.push({
             progetto_id: progettoId,
             articolo_id: data.accumulo_id,
@@ -1215,7 +1227,7 @@ function FotovoltaicoWizard() {
             unita_misura: "pz",
             prezzo_unitario_netto: netto,
             prezzo_unitario_vendita: vendita,
-            margine_pct: vendita > 0 ? (vendita - netto) / vendita : null,
+            margine_pct: vendita > 0 && netto > 0 ? (vendita - netto) / vendita : null,
             potenza_unitaria_w: null,
             potenza_unitaria_kw: null,
             capacita_kwh: (p.capacita_kwh as number) ?? data.capacita_accumulo_kwh,
@@ -1230,9 +1242,9 @@ function FotovoltaicoWizard() {
             descrizione: `Accumulo ${data.capacita_accumulo_kwh} kWh`,
             quantita: 1,
             unita_misura: "pz",
-            prezzo_unitario_netto: data.capacita_accumulo_kwh * 600,
+            prezzo_unitario_netto: 0,
             prezzo_unitario_vendita: data.capacita_accumulo_kwh * 800,
-            margine_pct: 0.25,
+            margine_pct: null,
             potenza_unitaria_w: null,
             potenza_unitaria_kw: null,
             capacita_kwh: data.capacita_accumulo_kwh,
@@ -1253,7 +1265,7 @@ function FotovoltaicoWizard() {
         const netto =
           ex.prezzo_acquisto != null && ex.prezzo_acquisto > 0
             ? Number(ex.prezzo_acquisto)
-            : Math.round(vendita * 0.75 * 100) / 100;
+            : 0;
         comp.push({
           progetto_id: progettoId,
           articolo_id: null,
@@ -1263,7 +1275,7 @@ function FotovoltaicoWizard() {
           unita_misura: "pz",
           prezzo_unitario_netto: netto,
           prezzo_unitario_vendita: vendita,
-          margine_pct: vendita > 0 ? (vendita - netto) / vendita : null,
+          margine_pct: vendita > 0 && netto > 0 ? (vendita - netto) / vendita : null,
           potenza_unitaria_w: null,
           potenza_unitaria_kw: null,
           capacita_kwh: null,
@@ -1350,6 +1362,8 @@ function FotovoltaicoWizard() {
             sconto_tipo: scontoAttivo ? data.sconto_tipo : null,
             sconto_valore: scontoAttivo ? data.sconto_valore : null,
             prezzo_vendita_manuale: data.kit_bundle_id ? null : (data.prezzo_vendita_manuale ?? null),
+            // L'IVA scelta: il calcolo la legge dalla riga (prima restava sempre il 10%).
+            iva_aliquota: aliquotaIvaFv(data.iva_aliquota),
             // L'ombreggiamento cambiato dopo l'analisi del tetto: senza, il calcolo usava quello vecchio.
             perdita_ombreggiamento_pct: data.perdita_ombreggiamento_pct ?? 0,
           } as never,
@@ -1386,7 +1400,7 @@ function FotovoltaicoWizard() {
     // aggiornaProgetto escluso dalle deps (identità instabile di useMutation);
     // le dipendenze dati sono progettoId + sconto + prezzo libero correnti.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [progettoId, readOnlyMode, data.sconto_tipo, data.sconto_valore, data.prezzo_vendita_manuale, data.kit_bundle_id]);
+  }, [progettoId, readOnlyMode, data.sconto_tipo, data.sconto_valore, data.prezzo_vendita_manuale, data.kit_bundle_id, data.iva_aliquota]);
 
   // Auto-calcolo entrando nello step 6
   const autoCalcRequested = useRef<string | null>(null);
@@ -1448,7 +1462,7 @@ function FotovoltaicoWizard() {
           | undefined;
         const invNetto =
           Number(scenarioCosti?.prezzo_vendita_netto) ||
-          Math.round((Number(progettoEsistente?.prezzo_vendita_iva_inclusa) || 0) / 1.1);
+          Math.round((Number(progettoEsistente?.prezzo_vendita_iva_inclusa) || 0) / (1 + aliquotaIvaFv(data.iva_aliquota)));
         const risparmioAnno1 =
           Number(scenarioC?.risparmio_bolletta_eur ?? 0) +
           Number(scenarioC?.ricavi_rid_eur ?? 0);
@@ -1514,7 +1528,7 @@ function FotovoltaicoWizard() {
   // significava 3 invocazioni edge function che si overwrite stesso path
   // nello storage. Ora generiamo SOLO la versione "vendita" configurabile.
   // Tecnico/Mobile saranno template differenziati in W2.
-  const handleGeneraEdEmetti = async () => {
+  const handleGeneraEdEmetti = async (opts?: { confermaSenzaPrezzo?: boolean }) => {
     if (!progettoId) return;
     // Guard sola-lettura: un progetto firmato/emesso/annullato ha tutti gli step
     // "completati" → la tab bar consente di arrivare allo Step 8. Senza questo
@@ -1545,6 +1559,22 @@ function FotovoltaicoWizard() {
       const recalc = await handleCalcolaFinanziario({ silent: true });
       if (!mountedRef.current) return;
       if (!recalc) return; // errore di calcolo già segnalato: non emettere importi stantii
+      // Niente kit, niente prezzo a corpo e componenti a 0 € (listino vuoto): il
+      // totale sarebbe di sole pratiche e posa. Si chiede prima di emettere.
+      const costiRecalc = (recalc as {
+        costi?: { costo_componenti_vendita?: number | null; prezzo_vendita_iva_inclusa?: number | null };
+      }).costi;
+      if (
+        !opts?.confermaSenzaPrezzo &&
+        mancaPrezzoDiVendita({
+          kit_bundle_id: data.kit_bundle_id,
+          prezzo_vendita_manuale: data.prezzo_vendita_manuale,
+          costo_componenti_vendita: costiRecalc?.costo_componenti_vendita ?? null,
+        })
+      ) {
+        setSenzaPrezzo({ totale: Number(costiRecalc?.prezzo_vendita_iva_inclusa) || 0 });
+        return;
+      }
       // Il prezzo è cambiato e il calcolo ha tolto la rata, che era su quello
       // vecchio: il PDF avrebbe mostrato la rata vecchia accanto al prezzo nuovo.
       if (rataPrima > 0 && (await rataSalvata()) === 0) {
@@ -1732,6 +1762,7 @@ function FotovoltaicoWizard() {
           kit_nome: data.kit_nome,
           kit_prezzo: data.kit_prezzo,
           prezzo_vendita_manuale: data.kit_bundle_id ? null : data.prezzo_vendita_manuale,
+          iva_aliquota: aliquotaIvaFv(data.iva_aliquota),
           layout_overlay: data.layout_overlay,
           sconto_tipo: data.sconto_valore != null && data.sconto_valore > 0 ? data.sconto_tipo : null,
           sconto_valore: data.sconto_valore != null && data.sconto_valore > 0 ? data.sconto_valore : null,
@@ -1886,6 +1917,37 @@ function FotovoltaicoWizard() {
       </AlertDialog>
 
       {/* ── Uscita con dati non ancora in DB: salva bozza? ── */}
+      <AlertDialog open={senzaPrezzo != null} onOpenChange={(open) => { if (!open) setSenzaPrezzo(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Manca il prezzo di vendita</AlertDialogTitle>
+            <AlertDialogDescription>
+              I componenti non hanno un prezzo nel listino e non hai scritto un prezzo a corpo: il
+              preventivo uscirebbe a {formatEur(senzaPrezzo?.totale ?? 0)}, solo pratiche e posa.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={() => {
+                setSenzaPrezzo(null);
+                goTo(5);
+                window.setTimeout(() => document.getElementById("fv-prezzo-manuale")?.focus(), 300);
+              }}
+            >
+              Scrivi il prezzo
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setSenzaPrezzo(null);
+                void handleGeneraEdEmetti({ confermaSenzaPrezzo: true });
+              }}
+            >
+              Emetti così
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <AlertDialog open={exitDialogOpen} onOpenChange={setExitDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -2047,7 +2109,7 @@ function FotovoltaicoWizard() {
           )}
           {step === 8 && (
             <Step8Genera
-              onEmetti={handleGeneraEdEmetti}
+              onEmetti={() => void handleGeneraEdEmetti()}
               salvando={salvando}
               readOnly={readOnlyMode}
             />
@@ -2448,7 +2510,11 @@ function Step2Immobile({
               <Label>Tipologia</Label>
               <Select
                 value={data.tipologia_immobile}
-                onValueChange={(v) => update("tipologia_immobile", v)}
+                onValueChange={(v) => {
+                  update("tipologia_immobile", v);
+                  // IVA di partenza dal tipo di immobile: si cambia in Fase 5.
+                  update("iva_aliquota", ivaSuggeritaPerTipologia(v));
+                }}
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -2523,14 +2589,14 @@ function Step2Immobile({
                   Detrazione IRPEF spalmata in 10 anni · plafond €96.000 · prima casa max €48.000 recuperati · seconda casa max €34.560
                 </p>
               </div>
-              <FvCallout variant="tip" title="Aliquota IVA 10% applicata">
-                Per immobili residenziali si applica l'IVA al 10%.
+              <FvCallout variant="tip" title={`IVA del preventivo: ${percentualeIvaFv(data.iva_aliquota)}%`}>
+                Per le abitazioni si applica di norma il 10%. L'aliquota si cambia nella Fase 5, accanto al prezzo di vendita.
               </FvCallout>
             </>
           ) : (
-            <FvCallout variant="tip" title="IVA 22% — detrazione abitativa non applicabile">
-              Per capannoni, uffici e immobili non residenziali si applica l'IVA al 22%. La
-              detrazione IRPEF 50%/36% è riservata agli immobili residenziali.
+            <FvCallout variant="tip" title={`Detrazione abitativa non applicabile · IVA ${percentualeIvaFv(data.iva_aliquota)}%`}>
+              Per capannoni, uffici e immobili non residenziali l'IVA è di norma al 22%: l'aliquota si
+              cambia nella Fase 5. La detrazione IRPEF 50%/36% è riservata agli immobili residenziali.
             </FvCallout>
           )}
         </FvCard>
@@ -3101,6 +3167,7 @@ function FvScontoCard({
   }, [data.sconto_valore]);
 
   const costi = (scenario?.costi ?? null) as {
+    costi_incompleti?: boolean;
     costo_totale_netto?: number;
     prezzo_pieno_netto?: number;
     sconto_eur_applicato?: number;
@@ -3117,7 +3184,7 @@ function FvScontoCard({
   const prezzoPienoNetto = baseFromScenario ?? baseFromKit ?? 0;
   const hasBase = prezzoPienoNetto > 0;
   const costoTotaleNetto = costi?.costo_totale_netto ?? 0;
-  const hasCosto = costi?.costo_totale_netto != null;
+  const hasCosto = costi?.costo_totale_netto != null && !costi.costi_incompleti;
 
   const scontoValoreNum = data.sconto_valore ?? 0;
   const scontoAttivo = scontoValoreNum > 0;
@@ -3288,7 +3355,7 @@ function FvScontoCard({
           ) : (
             <div className="rounded-lg bg-slate-50 border border-slate-200 p-3">
               <div className="text-xs text-slate-500">Margine post-sconto</div>
-              <div className="text-xs text-slate-400 pt-1">Calcola per vederlo</div>
+              <div className="text-xs text-slate-400 pt-1">{costi?.costi_incompleti ? "Non disponibile: mancano i costi d'acquisto" : "Calcola per vederlo"}</div>
             </div>
           )}
         </div>
@@ -3349,7 +3416,11 @@ function Step5Configurazione({
   const [extraSearch, setExtraSearch] = useState("");
 
   // ── Composizione offerta: Kit pronto vs configurazione manuale ──
-  const kitDisponibili = useMemo(() => kitFv.filter((k) => k.attivo && k.fv_kwp != null), [kitFv]);
+  // Solo kit con un prezzo: senza, il preventivo usciva a 0 €.
+  const kitDisponibili = useMemo(
+    () => kitFv.filter((k) => k.attivo && k.fv_kwp != null && Number(k.prezzo_offerta) > 0),
+    [kitFv],
+  );
   // Filtri catalogo kit (con ~100 kit servono ricerca + filtri).
   const [kitSearch, setKitSearch] = useState("");
   const [kitPotenza, setKitPotenza] = useState<"all" | "s3" | "3_6" | "6_10" | "g10">("all");
@@ -3380,13 +3451,31 @@ function Step5Configurazione({
   const [modalitaOfferta, setModalitaOfferta] = useState<"kit" | "manuale">(
     data.kit_bundle_id ? "kit" : "manuale",
   );
+  // Configurazione prima del kit: «Rimuovi» la ripristina (prima restavano
+  // potenza e accumulo del kit).
+  const primaDelKit = useRef<{
+    potenza_kwp: number;
+    numero_pannelli_scelti: number;
+    con_accumulo: boolean;
+    capacita_accumulo_kwh: number;
+  } | null>(null);
   const applicaKit = (k: Bundle) => {
+    if (!data.kit_bundle_id) {
+      primaDelKit.current = {
+        potenza_kwp: data.potenza_kwp,
+        numero_pannelli_scelti: data.numero_pannelli_scelti,
+        con_accumulo: data.con_accumulo,
+        capacita_accumulo_kwh: data.capacita_accumulo_kwh,
+      };
+    }
     update("kit_bundle_id", k.id);
     update("kit_nome", k.nome);
     update("kit_prezzo", k.prezzo_offerta ?? null);
     if (k.fv_kwp != null) {
       update("potenza_kwp", Number(k.fv_kwp));
-      update("numero_pannelli_scelti", Math.max(1, Math.round((Number(k.fv_kwp) * 1000) / 540)));
+      // Moduli dalla potenza del pannello scelto; 540 W solo se non ce n'è uno.
+      const wpPannello = Number(pannelli.find((p) => p.id === data.pannello_id)?.potenza_w) || 540;
+      update("numero_pannelli_scelti", Math.max(1, Math.round((Number(k.fv_kwp) * 1000) / wpPannello)));
     }
     const acc = Number(k.fv_accumulo_kwh ?? 0);
     update("con_accumulo", acc > 0);
@@ -3402,6 +3491,14 @@ function Step5Configurazione({
     update("kit_bundle_id", null);
     update("kit_nome", null);
     update("kit_prezzo", null);
+    const prima = primaDelKit.current;
+    if (prima) {
+      update("potenza_kwp", prima.potenza_kwp);
+      update("numero_pannelli_scelti", prima.numero_pannelli_scelti);
+      update("con_accumulo", prima.con_accumulo);
+      update("capacita_accumulo_kwh", prima.capacita_accumulo_kwh);
+      primaDelKit.current = null;
+    }
   };
   const { data: listinoExtra = [] } = useListinoPerFv(extraSearch);
 
@@ -3657,7 +3754,7 @@ function Step5Configurazione({
                           </span>
                         )}
                         {data.kit_prezzo != null && (
-                          <span className="text-[11px] font-bold text-emerald-700">{formatEur(data.kit_prezzo)}</span>
+                          <span className="text-[11px] font-bold text-emerald-700">{formatEur(data.kit_prezzo)} + IVA</span>
                         )}
                       </div>
                     </div>
@@ -3764,6 +3861,7 @@ function Step5Configurazione({
                                 {k.prezzo_offerta != null && (
                                   <p className="mt-2 text-lg font-extrabold text-slate-900">
                                     {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(Number(k.prezzo_offerta))}
+                                    <span className="ml-1 text-[11px] font-semibold text-slate-500">+ IVA</span>
                                   </p>
                                 )}
                                 <p className="mt-1 text-[11px] text-slate-400">{selected ? "Selezionato" : "Click per applicare"}</p>
@@ -4117,17 +4215,24 @@ function Step5Configurazione({
         </FvCard>
       </div>
 
-      {/* ── Prezzo di vendita a corpo (config manuale, stile Reonic) ──────────
-          Il commerciale compone l'impianto e poi può fissare un prezzo di
-          vendita libero: quel valore diventa il prezzo finale (imponibile),
-          sostituisce il totale calcolato e ignora lo sconto. Le righe restano
-          per la scheda tecnica e per il costo/margine. */}
-      {!data.kit_bundle_id && (
-        <div className="mt-4">
-          <FvCard title="Prezzo di vendita">
-            <div className="grid gap-4 md:grid-cols-2 md:items-start">
+      {/* ── Prezzo di vendita e IVA ───────────────────────────────────────────
+          Senza listino si preventiva lo stesso: il prezzo a corpo scritto qui è il
+          prezzo finale (imponibile), sostituisce la somma delle righe e ignora lo
+          sconto. L'IVA la sceglie chi prepara il preventivo, anche con un kit. */}
+      <div className="mt-4">
+        <FvCard title="Prezzo di vendita e IVA">
+          <div className="grid gap-4 md:grid-cols-3 md:items-start">
+            {data.kit_bundle_id ? (
               <div>
-                <Label htmlFor="fv-prezzo-manuale">Prezzo di vendita a corpo (imponibile, IVA esclusa)</Label>
+                <Label>Prezzo del kit (imponibile, IVA esclusa)</Label>
+                <p className="mt-2 text-2xl font-extrabold text-slate-900 tabular-nums">
+                  {data.kit_prezzo != null ? formatEur(data.kit_prezzo) : "—"}
+                </p>
+                <p className="mt-1 text-[11px] text-slate-500">Arriva dal kit scelto.</p>
+              </div>
+            ) : (
+              <div>
+                <Label htmlFor="fv-prezzo-manuale">Prezzo a corpo (imponibile, IVA esclusa)</Label>
                 <div className="relative mt-1">
                   <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">€</span>
                   <Input
@@ -4145,40 +4250,69 @@ function Step5Configurazione({
                   />
                 </div>
                 <p className="mt-1 text-[11px] text-slate-500">
-                  Lascia vuoto per calcolare il prezzo da componenti, manodopera e servizi.
-                  Se lo imposti, <strong>questo è il prezzo di vendita finale</strong>: sostituisce il
-                  totale calcolato e ignora lo sconto commerciale. Pannello, inverter e accumulo restano
-                  nella scheda tecnica e nel calcolo del margine.
+                  Senza listino scrivi qui il prezzo: <strong>è il prezzo di vendita finale</strong>,
+                  sostituisce la somma delle righe e ignora lo sconto. Vuoto = somma di componenti,
+                  manodopera e servizi.
                 </p>
               </div>
-              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                {data.prezzo_vendita_manuale != null && data.prezzo_vendita_manuale > 0 ? (
-                  <>
-                    <p className="text-xs text-slate-500">Chiavi in mano (IVA 10% inclusa)</p>
-                    <p className="text-2xl font-extrabold text-slate-900">
-                      {formatEur(Math.round(data.prezzo_vendita_manuale * 1.1))}
-                    </p>
-                    {!readOnlyMode && (
-                      <button
-                        type="button"
-                        onClick={() => update("prezzo_vendita_manuale", null)}
-                        className="mt-1 text-xs font-semibold text-orange-600 underline"
-                      >
-                        Torna al prezzo calcolato dal listino
-                      </button>
-                    )}
-                  </>
-                ) : (
-                  <p className="text-xs text-slate-500">
-                    Prezzo calcolato automaticamente da componenti, manodopera e servizi.
-                    Il totale chiavi in mano è nella <strong>Fase 6</strong>.
-                  </p>
-                )}
-              </div>
+            )}
+            <div>
+              <Label htmlFor="fv-iva-aliquota">IVA</Label>
+              <Select
+                value={String(aliquotaIvaFv(data.iva_aliquota))}
+                onValueChange={(v) => update("iva_aliquota", aliquotaIvaFv(v))}
+                disabled={readOnlyMode}
+              >
+                <SelectTrigger id="fv-iva-aliquota" className="mt-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {ALIQUOTE_IVA_FV.map((a) => (
+                    <SelectItem key={a.valore} value={String(a.valore)}>
+                      {a.etichetta} · {a.nota}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="mt-1 text-[11px] text-slate-500">Vale per tutto il preventivo: totale, PDF e commessa.</p>
             </div>
-          </FvCard>
-        </div>
-      )}
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+              {(data.kit_bundle_id ? Number(data.kit_prezzo ?? 0) : Number(data.prezzo_vendita_manuale ?? 0)) > 0 ? (
+                <>
+                  <p className="text-xs text-slate-500">
+                    Chiavi in mano (IVA {percentualeIvaFv(data.iva_aliquota)}% inclusa)
+                  </p>
+                  <p className="text-2xl font-extrabold text-slate-900 tabular-nums">
+                    {formatEur(
+                      Math.round(
+                        (data.kit_bundle_id ? Number(data.kit_prezzo ?? 0) : Number(data.prezzo_vendita_manuale ?? 0)) *
+                          (1 + aliquotaIvaFv(data.iva_aliquota)),
+                      ),
+                    )}
+                  </p>
+                  {data.kit_bundle_id && data.sconto_valore != null && data.sconto_valore > 0 && (
+                    <p className="text-[11px] text-slate-500">Prima dello sconto.</p>
+                  )}
+                  {!data.kit_bundle_id && !readOnlyMode && (
+                    <button
+                      type="button"
+                      onClick={() => update("prezzo_vendita_manuale", null)}
+                      className="mt-1 text-xs font-semibold text-orange-600 underline"
+                    >
+                      Torna al prezzo calcolato dal listino
+                    </button>
+                  )}
+                </>
+              ) : (
+                <p className="text-xs text-slate-500">
+                  Prezzo calcolato da componenti, manodopera e servizi. Il totale chiavi in mano è nella{" "}
+                  <strong>Fase 6</strong>.
+                </p>
+              )}
+            </div>
+          </div>
+        </FvCard>
+      </div>
 
       {/* ── Sconto commerciale (Fase 5): scontistica + autorizzazione ──────────
           Non si mostra con un prezzo di vendita libero a corpo: quello è già il
@@ -4419,12 +4553,14 @@ function FvPaymentToggle({
   durata,
   topConsigliata,
   noleggioEnabled = true,
+  ivaPerc = 10,
   onChange,
 }: {
   modalita: "cash" | "rate" | "zero" | "noleggio";
   durata: number;
   topConsigliata: (FvTabellaFinanziamento & { rata: FvRigaFinanziamento }) | null;
   noleggioEnabled?: boolean;
+  ivaPerc?: number;
   onChange: (m: "cash" | "rate" | "zero" | "noleggio") => void;
 }) {
   const baseOpts: Array<{
@@ -4433,7 +4569,7 @@ function FvPaymentToggle({
     label: string;
     sub: string;
   }> = [
-    { key: "cash", icon: "⚡", label: "Pagamento immediato", sub: "Cash · IVA 10%" },
+    { key: "cash", icon: "⚡", label: "Pagamento immediato", sub: `Cash · IVA ${ivaPerc}%` },
     {
       key: "rate",
       icon: "€",
@@ -4519,7 +4655,7 @@ function ModalitaPagamentoCard({
           update("modalita_pagamento", { ...mp, note: e.target.value || null })
         }
         rows={2}
-        placeholder="Es. Acconto tramite bonifico bancario. Saldo a collaudo e allaccio. IVA agevolata 10%."
+        placeholder="Es. Acconto tramite bonifico bancario. Saldo a collaudo e allaccio."
         className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:border-orange-400 focus:outline-none focus:ring-1 focus:ring-orange-400 resize-y"
       />
     </div>
@@ -4874,6 +5010,7 @@ function Step6Finanziario({
     prezzo_vendita_iva_inclusa: number;
     margine_eur?: number;
     margine_pct?: number;
+    costi_incompleti?: boolean;
   };
 
   const investimento = costi?.prezzo_vendita_iva_inclusa ?? 0;
@@ -4890,7 +5027,7 @@ function Step6Finanziario({
     archetipo: data.archetipo,
     investimentoNetto:
       costi?.prezzo_vendita_netto ??
-      (costi?.prezzo_vendita_iva_inclusa ? Math.round(costi.prezzo_vendita_iva_inclusa / 1.1) : 0),
+      (costi?.prezzo_vendita_iva_inclusa ? Math.round(costi.prezzo_vendita_iva_inclusa / (1 + aliquotaIvaFv(data.iva_aliquota))) : 0),
     risparmioAnno1,
     durataMesi: data.durata_mesi_scelta ?? Number(fvTemplate?.noleggio_durata_default_mesi ?? 84),
     manutenzioneAnnua: Number(fvTemplate?.manutenzione_annua_eur ?? 0),
@@ -4965,6 +5102,7 @@ function Step6Finanziario({
     costo_totale_netto: costi?.costo_totale_netto ?? null,
     margine_eur: costi?.margine_eur ?? null,
     margine_pct: costi?.margine_pct ?? null,
+    costi_incompleti: costi?.costi_incompleti ?? false,
     margine_target_pct: Number.isFinite(templateMarginTarget) ? templateMarginTarget : 0.35,
     cpl_max_sostenibile: Number.isFinite(templateCplMax) ? templateCplMax : 120,
     payback_anni: (scenario.payback_anni as number | null) ?? null,
@@ -5037,6 +5175,7 @@ function Step6Finanziario({
         durata={data.durata_mesi_scelta ?? 84}
         topConsigliata={topAuto}
         noleggioEnabled={fvTemplate?.noleggio_operativo_attivo !== false}
+        ivaPerc={percentualeIvaFv(data.iva_aliquota)}
         onChange={(modalita) => update("finanziamento_modalita", modalita)}
       />
 
@@ -5760,10 +5899,17 @@ function Step7VistaImpresa({
     | {
         costo_totale_netto?: number;
         prezzo_vendita_iva_inclusa?: number;
-        margine_eur?: number;
-        margine_pct?: number;
+        margine_eur?: number | null;
+        margine_pct?: number | null;
+        costi_incompleti?: boolean;
       }
     | undefined;
+
+  // Senza costi d'acquisto (listino senza prezzi, kit, prezzo a corpo) il margine
+  // non si conosce: «n.d.» invece di un numero inventato.
+  const nd = Boolean(costi?.costi_incompleti);
+  const euro = (v: number | null | undefined) =>
+    (v ?? 0).toLocaleString("it-IT", { maximumFractionDigits: 0 });
 
   return (
     <>
@@ -5780,10 +5926,8 @@ function Step7VistaImpresa({
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
         <FvKpi
-          label="Ricavo netto"
-          value={(costi?.costo_totale_netto ?? 0).toLocaleString("it-IT", {
-            maximumFractionDigits: 0,
-          })}
+          label="Costo diretto"
+          value={nd ? "n.d." : euro(costi?.costo_totale_netto)}
           unit="€"
         />
         <FvKpi
@@ -5795,19 +5939,26 @@ function Step7VistaImpresa({
         />
         <FvKpi
           label="Margine €"
-          value={(costi?.margine_eur ?? 0).toLocaleString("it-IT", {
-            maximumFractionDigits: 0,
-          })}
+          value={nd || costi?.margine_eur == null ? "n.d." : euro(costi.margine_eur)}
           unit="€"
           variant="green"
         />
         <FvKpi
           label="Margine %"
-          value={`${((costi?.margine_pct ?? 0) * 100).toFixed(1)}`}
+          value={nd || costi?.margine_pct == null ? "n.d." : `${(costi.margine_pct * 100).toFixed(1)}`}
           unit="%"
           variant="orange"
         />
       </div>
+
+      {nd && (
+        <div className="mb-4">
+          <FvCallout variant="tip" title="Margine non disponibile">
+            Alcune voci non hanno un costo d'acquisto (listino senza prezzi, kit o prezzo a corpo): il
+            preventivo esce lo stesso, il margine si vedrà caricando i costi nel listino.
+          </FvCallout>
+        </div>
+      )}
 
       <FvCallout variant="info" title="Vista riservata venditore + Titolare">
         Questa schermata non viene mai esportata né inviata al cliente. I numeri qui sono interni

@@ -39,6 +39,7 @@ import {
   useEliminaProgetto,
 } from "@/lib/fotovoltaico/queries";
 import { FvCard, FvKpi, FvChip, FvCallout } from "@/lib/fotovoltaico/wizardUI";
+import { importoPreventivoFv, type ImportoPreventivoFvInput } from "@/lib/fotovoltaico/importoPreventivo";
 import { stampaPreventivoNativo } from "@/lib/fotovoltaico/htmlToPdf";
 import {
   SendSignatureDialog,
@@ -336,7 +337,7 @@ export default function FotovoltaicoDettaglio() {
             bloccoMotivo={
               !canManagePreventivo
                 ? "Serve il permesso di gestire i preventivi."
-                : Number(progetto.prezzo_vendita_manuale ?? progetto.prezzo_vendita_iva_inclusa ?? 0) <= 0
+                : (importoPreventivoFv(progetto as ImportoPreventivoFvInput) ?? 0) <= 0
                   ? "Il preventivo non ha ancora un prezzo di vendita."
                   : null
             }
@@ -357,8 +358,9 @@ export default function FotovoltaicoDettaglio() {
           <FvKpi
             label="Investimento"
             value={
-              progetto.prezzo_vendita_iva_inclusa != null
-                ? Number(progetto.prezzo_vendita_iva_inclusa).toLocaleString("it-IT", {
+              // Col prezzo a corpo non ancora ricalcolato qui c'era 0 €.
+              importoPreventivoFv(progetto as ImportoPreventivoFvInput) != null
+                ? Number(importoPreventivoFv(progetto as ImportoPreventivoFvInput)).toLocaleString("it-IT", {
                     maximumFractionDigits: 0,
                   })
                 : "—"

@@ -210,6 +210,8 @@ export interface FvEconomicsGuardInput {
   payback_anni?: number | null;
   rata_mensile_eur?: number | null;
   risparmio_mensile_eur?: number | null;
+  /** Righe vendute senza costo d'acquisto: il margine non si conosce. */
+  costi_incompleti?: boolean | null;
 }
 
 export interface FvEconomicsGuardIssue {
@@ -315,14 +317,19 @@ function roundRatio(value: number): number {
 export function calcolaFvEconomicsGuard(input: FvEconomicsGuardInput): FvEconomicsGuard {
   const venditaNetta = finiteNumber(input.prezzo_vendita_netto);
   const costoNetto = finiteNumber(input.costo_totale_netto);
-  const margineEur =
-    finiteNumber(input.margine_eur) ??
-    (venditaNetta != null && costoNetto != null ? roundMoney(venditaNetta - costoNetto) : null);
-  const marginePct =
-    finiteNumber(input.margine_pct) ??
-    (venditaNetta != null && venditaNetta > 0 && margineEur != null
-      ? roundRatio(margineEur / venditaNetta)
-      : null);
+  // Senza costi d'acquisto (listino senza prezzi, kit, prezzo a corpo) il margine
+  // non si conosce: resta vuoto invece di uscire da un costo inventato.
+  const costiNoti = costoNetto != null && costoNetto > 0 && !input.costi_incompleti;
+  const margineEur = !costiNoti
+    ? null
+    : finiteNumber(input.margine_eur) ??
+      (venditaNetta != null && costoNetto != null ? roundMoney(venditaNetta - costoNetto) : null);
+  const marginePct = !costiNoti
+    ? null
+    : finiteNumber(input.margine_pct) ??
+      (venditaNetta != null && venditaNetta > 0 && margineEur != null
+        ? roundRatio(margineEur / venditaNetta)
+        : null);
   const targetPct = finiteNumber(input.margine_target_pct);
   const cplMax = finiteNumber(input.cpl_max_sostenibile);
   const payback = finiteNumber(input.payback_anni);
@@ -337,11 +344,13 @@ export function calcolaFvEconomicsGuard(input: FvEconomicsGuardInput): FvEconomi
 
   const issues: FvEconomicsGuardIssue[] = [];
 
-  if (venditaNetta == null || venditaNetta <= 0 || costoNetto == null || costoNetto <= 0) {
+  // Si preventiva anche senza listino: blocca solo la mancanza del prezzo, non
+  // quella dei costi d'acquisto (senza, il margine resta semplicemente vuoto).
+  if (venditaNetta == null || venditaNetta <= 0) {
     issues.push({
       code: "missing_costs",
       level: "critical",
-      message: "Costi e prezzo vendita non sono disponibili: ricalcola lo scenario prima di emettere.",
+      message: "Manca il prezzo di vendita: scrivi il prezzo a corpo o ricalcola lo scenario prima di emettere.",
     });
   }
 

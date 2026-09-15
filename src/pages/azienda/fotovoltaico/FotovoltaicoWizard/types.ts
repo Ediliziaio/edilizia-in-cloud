@@ -87,6 +87,9 @@ export interface WizardData {
    *  sconto commerciale; le righe restano per scheda tecnica e costo/margine.
    *  null = calcolo automatico dal listino. Persistito su fv_progetti. */
   prezzo_vendita_manuale: number | null;
+  /** Aliquota IVA del preventivo, frazione (0,10 = 10%): la sceglie chi prepara il
+   *  preventivo (Fase 5). Persistita su fv_progetti.iva_aliquota. */
+  iva_aliquota: number;
   /** Editor layout manuale dei moduli sulla foto satellitare (stile Reonic):
    *  offset x/y in %, rotazione in gradi, numero colonne. null = overlay centrato. */
   layout_overlay: { x: number; y: number; rot: number; cols: number } | null;

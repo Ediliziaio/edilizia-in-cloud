@@ -45,6 +45,10 @@ import {
   useFvModuloAttivo,
 } from "@/lib/fotovoltaico/queries";
 import { resolveFvModuloIndexGate } from "@/lib/fotovoltaico/moduloAccess";
+import { importoPreventivoFv, type ImportoPreventivoFvInput } from "@/lib/fotovoltaico/importoPreventivo";
+
+/** Una bozza col prezzo a corpo mostrava 0 € finché non si ricalcolava. */
+const importoFv = (p: unknown) => importoPreventivoFv(p as ImportoPreventivoFvInput);
 import { FvCard, FvKpi, FvChip, FvCallout } from "@/lib/fotovoltaico/wizardUI";
 import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -490,8 +494,8 @@ export default function FotovoltaicoIndex() {
                       <div>
                         <div className="text-[10px] text-slate-400 uppercase tracking-wider">Importo</div>
                         <div className="font-semibold text-slate-900 tabular-nums">
-                          {p.prezzo_vendita_iva_inclusa != null
-                            ? `€ ${Number(p.prezzo_vendita_iva_inclusa).toLocaleString("it-IT", { maximumFractionDigits: 0 })}`
+                          {importoFv(p) != null
+                            ? `€ ${Number(importoFv(p)).toLocaleString("it-IT", { maximumFractionDigits: 0 })}`
                             : "—"}
                         </div>
                       </div>
@@ -610,10 +614,8 @@ export default function FotovoltaicoIndex() {
                             : "—"}
                         </TableCell>
                         <TableCell className="text-right tabular-nums font-semibold">
-                          {p.prezzo_vendita_iva_inclusa != null
-                            ? `€ ${Number(p.prezzo_vendita_iva_inclusa).toLocaleString("it-IT", {
-                                maximumFractionDigits: 0,
-                              })}`
+                          {importoFv(p) != null
+                            ? `€ ${Number(importoFv(p)).toLocaleString("it-IT", { maximumFractionDigits: 0 })}`
                             : "—"}
                         </TableCell>
                         <TableCell className="text-right tabular-nums">

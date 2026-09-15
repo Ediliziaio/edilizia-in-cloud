@@ -144,6 +144,44 @@ export default function ApplyBundleDialog({
     const warnings: string[] = [];
     let sort = currentSortOrder;
 
+    // Kit con prezzo offerta (i kit fotovoltaici): si vende a quel prezzo, come
+    // nel preventivatore FV. Prima si sommavano le voci, spesso a 0 €, e un kit
+    // senza voci diventava «Aggiungi 0 voci».
+    const prezzoKit = Number(selectedBundle.prezzo_offerta ?? 0);
+    if (prezzoKit > 0) {
+      const dettaglio = (selectedBundle.voci ?? [])
+        .map((v) => {
+          const nome = v.article_templates?.name ?? v.article_families?.nome ?? v.tariffe_aziendali?.nome;
+          return nome ? `${Number(v.quantita) || 1} × ${nome}` : null;
+        })
+        .filter(Boolean)
+        .join(", ");
+      items.push({
+        item_type: "product",
+        item_category: "prodotto",
+        name: selectedBundle.nome,
+        description: [
+          selectedBundle.fv_kwp != null ? `${Number(selectedBundle.fv_kwp).toLocaleString("it-IT")} kWp` : null,
+          Number(selectedBundle.fv_accumulo_kwh ?? 0) > 0
+            ? `accumulo ${Number(selectedBundle.fv_accumulo_kwh).toLocaleString("it-IT")} kWh`
+            : null,
+          dettaglio || null,
+        ].filter(Boolean).join(" · "),
+        quantity: 1,
+        unit_price: prezzoKit,
+        discount_percent: 0,
+        vat_rate: 22,
+        unit_of_measure: "kit",
+        sort_order: sort++,
+        article_template_id: null,
+        tariffa_id: null,
+        prezzo_acquisto: 0,
+        mostra_nel_pdf: true,
+        is_optional: false,
+      });
+      return { items, warnings, totalPreview: prezzoKit, nextSortOrder: sort };
+    }
+
     const familyMap = new Map<string, FamilyWithAxes>(
       families.map((f) => [f.id, f]),
     );
