@@ -43,19 +43,19 @@ const SETTINGS_INDEX: SettingsIndexEntry[] = [
   { group: "Account", title: "Crediti & saldo", url: "/azienda/impostazioni/crediti", keywords: ["crediti", "saldo", "ricarica", "ai", "render", "sms"] },
 
   // ── Catalogo & Listini ──
-  { group: "Catalogo", title: "Listino prodotti", url: "/azienda/impostazioni/listino", keywords: ["catalogo", "articoli", "sku", "prezzi", "famiglie"] },
+  { group: "Catalogo", title: "Listino · Prodotti", url: "/azienda/impostazioni/listino", keywords: ["catalogo", "articoli", "sku", "prezzi", "famiglie"] },
   { group: "Catalogo", title: "Import listini", url: "/azienda/impostazioni/listino/import", keywords: ["import", "excel", "csv", "pdf", "carica listino"] },
-  { group: "Catalogo", title: "Manodopera e Servizi", url: "/azienda/impostazioni/tariffe", keywords: ["tariffe", "manodopera", "servizi", "posa", "orario", "ricarico"] },
+  { group: "Catalogo", title: "Listino · Manodopera e servizi", url: "/azienda/impostazioni/tariffe", keywords: ["tariffe", "manodopera", "servizi", "posa", "orario", "ricarico"] },
   { group: "Catalogo", title: "Listino Manutenzione", url: "/azienda/impostazioni/tariffe?tab=manutenzione", keywords: ["manutenzione", "abbonamenti", "contratti", "impianti", "interventi"] },
-  { group: "Catalogo", title: "Bundle & Pacchetti", url: "/azienda/impostazioni/bundle", keywords: ["bundle", "pacchetti", "chiavi in mano"] },
-  { group: "Catalogo", title: "Catalogo render", url: "/azienda/impostazioni/catalogo-render", keywords: ["render", "foto prodotto", "riferimento", "mobile bagno", "sanitari", "piastrelle", "catalogo render"] },
+  { group: "Catalogo", title: "Listino · Kit e pacchetti", url: "/azienda/impostazioni/bundle", keywords: ["bundle", "pacchetti", "chiavi in mano", "kit"] },
+  { group: "Render", title: "Catalogo render", url: "/azienda/impostazioni/catalogo-render", keywords: ["render", "foto prodotto", "riferimento", "mobile bagno", "sanitari", "piastrelle", "catalogo render"] },
 
   // ── Preventivi & vendite ──
-  { group: "Preventivi", title: "Margini preventivi", url: "/azienda/impostazioni/margini", keywords: ["margini", "ricarico", "markup"] },
-  { group: "Preventivi", title: "Regole scontistica", url: "/azienda/impostazioni/scontistica", keywords: ["sconto", "fasce sconto", "scontistica"] },
-  { group: "Preventivi", title: "Template offerte", url: "/azienda/impostazioni/template-preventivi", keywords: ["template", "offerta", "pdf preventivo"] },
-  { group: "Preventivi", title: "Condizioni e firma", url: "/azienda/impostazioni/condizioni-firma", keywords: ["clausole", "vessatorie", "recesso", "privacy", "firma", "condizioni contrattuali"] },
-  { group: "Preventivi", title: "Firma Elettronica FEA", url: "/azienda/impostazioni/firma-elettronica", keywords: ["firma", "fea", "otp", "elettronica"] },
+  { group: "Preventivi", title: "Margini e sconti · Margini", url: "/azienda/impostazioni/margini", keywords: ["margini", "ricarico", "markup", "overhead", "numerazione"] },
+  { group: "Preventivi", title: "Margini e sconti · Sconti", url: "/azienda/impostazioni/scontistica", keywords: ["sconto", "fasce sconto", "scontistica"] },
+  { group: "Preventivi", title: "Modelli di preventivo", url: "/azienda/impostazioni/template-preventivi", keywords: ["template", "offerta", "pdf preventivo", "modello", "serramenti", "fotovoltaico"] },
+  { group: "Preventivi", title: "Firma e condizioni · Condizioni", url: "/azienda/impostazioni/condizioni-firma", keywords: ["clausole", "vessatorie", "recesso", "privacy", "firma", "condizioni contrattuali"] },
+  { group: "Preventivi", title: "Firma e condizioni · Firma elettronica", url: "/azienda/impostazioni/firma-elettronica", keywords: ["firma", "fea", "otp", "elettronica"] },
   { group: "Preventivi", title: "Finanziamenti", url: "/azienda/impostazioni/finanziamenti", keywords: ["finanziamento", "rate", "finanziaria", "compass", "findomestic"] },
 
   // ── Ordini / Cantieri ──

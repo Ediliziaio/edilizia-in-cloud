@@ -177,9 +177,9 @@ export const AUTOMAZIONI_SECTIONS: PermissionSectionDef[] = [
 export const IMPOSTAZIONI_SECTIONS: PermissionSectionDef[] = [
   { label: "Profilo Aziendale",      viewKey: "can_view_settings_profile",        editKey: "can_edit_settings_profile", description: "Dati aziendali e anagrafica" },
   { label: "Listino & Prezzi (tutto)", viewKey: "can_view_settings_pricing",      editKey: "can_edit_settings_pricing", description: "Master: listino prodotti, tariffe, template offerte E le tre voci sotto" },
-  { label: "Regole scontistica",     viewKey: "can_view_settings_scontistica",    editKey: "can_edit_settings_scontistica", description: "Solo fasce sconto e limiti venditori, senza toccare il listino" },
+  { label: "Margini e sconti · Sconti", viewKey: "can_view_settings_scontistica",    editKey: "can_edit_settings_scontistica", description: "Solo fasce sconto e limiti venditori, senza toccare il listino" },
   { label: "Finanziamenti",          viewKey: "can_view_settings_finanziamenti",  editKey: "can_edit_settings_finanziamenti", description: "Solo finanziarie, tassi e rate" },
-  { label: "Bundle & Pacchetti",     viewKey: "can_view_settings_bundle",         editKey: "can_edit_settings_bundle", description: "Solo pacchetti chiavi-in-mano" },
+  { label: "Listino · Kit e pacchetti", viewKey: "can_view_settings_bundle",         editKey: "can_edit_settings_bundle", description: "Solo kit e pacchetti chiavi in mano" },
   { label: "Branding & Template",    viewKey: "can_view_settings_customization",  editKey: "can_edit_settings_customization", description: "Logo, colori e template documenti" },
   { label: "Configurazione Ordini",  viewKey: "can_view_settings_orders",         editKey: "can_edit_settings_orders", description: "Stati, numerazioni e campi commesse" },
   { label: "Fornitori",              viewKey: "can_view_settings_suppliers",      editKey: "can_edit_settings_suppliers", description: "Configurazione fornitori" },

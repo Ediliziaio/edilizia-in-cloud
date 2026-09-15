@@ -3120,7 +3120,7 @@ export default function QuoteBuilder() {
               </CardTitle>
               <p className="text-xs text-muted-foreground mt-1">
                 Le modifiche qui valgono solo per questo preventivo. I valori di default si configurano in{" "}
-                <Link to="/azienda/impostazioni/margini" className="underline">Impostazioni → Preventivi & margini</Link>.
+                <Link to="/azienda/impostazioni/margini" className="underline">Impostazioni → Margini e sconti</Link>.
               </p>
             </CardHeader>
             <CardContent className="space-y-4">

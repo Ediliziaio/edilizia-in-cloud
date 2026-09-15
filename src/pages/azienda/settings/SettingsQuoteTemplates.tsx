@@ -744,11 +744,11 @@ export default function SettingsQuoteTemplates() {
       <TabsList className="bg-slate-100">
         <TabsTrigger value="documenti" className="gap-1.5">
           <FileText className="h-3.5 w-3.5" />
-          Template documenti
+          Preventivo generico
         </TabsTrigger>
         <TabsTrigger value="moduli-vendita" className="gap-1.5">
           <ShoppingBag className="h-3.5 w-3.5" />
-          Template Moduli Vendita
+          Moduli (serramenti, fotovoltaico…)
         </TabsTrigger>
       </TabsList>
 

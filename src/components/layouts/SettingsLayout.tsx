@@ -1,6 +1,14 @@
 import { Outlet, useLocation, Link } from "react-router-dom";
 import { SettingsSearch } from "@/components/layouts/SettingsSearch";
 import { ArrowLeft } from "lucide-react";
+import { usePermissions } from "@/hooks/usePermissions";
+import { cn } from "@/lib/utils";
+import {
+  gruppoDellaSezione,
+  schedaDellaSezione,
+  schedeVisibili,
+  sezioneDaPercorso,
+} from "@/lib/impostazioni/gruppiImpostazioni";
 
 // ─── Mappa URL → titolo + descrizione ───────────────────────────────────────
 interface SectionMeta {
@@ -20,7 +28,7 @@ const SECTION_MAP: Record<string, SectionMeta> = {
   "bundle-serramentista": { title: "Bundle & Pacchetti",         description: "Pacchetti chiavi-in-mano pre-configurati per preventivi serramentista" },
   bundle:                 { title: "Bundle & Pacchetti",         description: "Pacchetti chiavi-in-mano pre-configurati per i preventivi" },
   margini:                { title: "Preventivi & margini",     description: "Imposta margini e configurazioni dei preventivi" },
-  scontistica:            { title: "Regole scontistica",        description: "Limiti di sconto per commerciali, clienti e fasce di importo" },
+  scontistica:            { title: "Margini e sconti",        description: "Limiti di sconto per commerciali, clienti e fasce di importo" },
   "stati-ordine":         { title: "Stati ordine",             description: "Configura gli stati del flusso degli ordini" },
   fornitori:              { title: "Fornitori",                description: "Gestisci l'anagrafica fornitori" },
   "categorie-costi":      { title: "Categorie costi",          description: "Organizza le categorie di costo dei cantieri" },
@@ -29,7 +37,7 @@ const SECTION_MAP: Record<string, SectionMeta> = {
   "campi-personalizzati": { title: "Campi personalizzati",     description: "Crea campi aggiuntivi per i tuoi record" },
   sequenze:               { title: "Sequenze",                 description: "Configura le sequenze di follow-up automatico" },
   "form-builder":         { title: "Form & UTM",               description: "Crea form di acquisizione lead e traccia le campagne" },
-  "template-preventivi":  { title: "Template offerte",         description: "Crea e modifica i template per le offerte commerciali" },
+  "template-preventivi":  { title: "Modelli di preventivo",    description: "Il modello del preventivo generico e quelli di ogni modulo: serramenti, fotovoltaico e gli altri" },
   "catalogo-render":      { title: "Catalogo render",          description: "Foto dei tuoi prodotti da usare come riferimento nei render" },
   "condizioni-firma":     { title: "Condizioni e firma",       description: "Clausole del contratto e testi che il cliente accetta firmando" },
   "firma-elettronica":    { title: "Firma Elettronica",        description: "Configura FEA, OTP, consenso e flussi firma per preventivi e documenti operativi" },
@@ -80,7 +88,16 @@ function getSectionMeta(pathname: string): SectionMeta {
 // ─── Layout wrapper per tutte le route /azienda/impostazioni/* ───────────────
 export function SettingsLayout() {
   const { pathname } = useLocation();
-  const { title, description } = getSectionMeta(pathname);
+  const permissions = usePermissions();
+  // Pagine raggruppate (Listino, Margini e sconti, Firma e condizioni): titolo
+  // del gruppo e schede per passare da una pagina all'altra.
+  const sezione = sezioneDaPercorso(pathname);
+  const gruppo = gruppoDellaSezione(sezione);
+  const schede = gruppo ? schedeVisibili(gruppo, permissions.isAdmin, permissions) : [];
+  const schedaAttiva = gruppo ? schedaDellaSezione(gruppo, sezione) : null;
+  const meta = getSectionMeta(pathname);
+  const title = gruppo?.titolo ?? meta.title;
+  const description = gruppo?.descrizione ?? meta.description;
 
   // v8.6.71 — Sull'hub (/azienda/impostazioni senza sub-segmento) non mostriamo
   // il back arrow (è la pagina root). Su tutte le sotto-pagine sì.
@@ -116,6 +133,31 @@ export function SettingsLayout() {
             </div>
           </div>
         </div>
+        {schede.length > 1 && (
+          <nav
+            aria-label={`Schede di ${title}`}
+            className="-mb-4 mt-3 flex gap-1 overflow-x-auto md:-mb-5"
+          >
+            {schede.map((scheda) => {
+              const attiva = scheda === schedaAttiva;
+              return (
+                <Link
+                  key={scheda.sezione}
+                  to={scheda.to}
+                  aria-current={attiva ? "page" : undefined}
+                  className={cn(
+                    "whitespace-nowrap border-b-2 px-3 py-2 text-sm transition-colors",
+                    attiva
+                      ? "border-primary font-semibold text-foreground"
+                      : "border-transparent text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {scheda.etichetta}
+                </Link>
+              );
+            })}
+          </nav>
+        )}
       </div>
 
       {/* Contenuto della pagina figlia — larghezza piena */}

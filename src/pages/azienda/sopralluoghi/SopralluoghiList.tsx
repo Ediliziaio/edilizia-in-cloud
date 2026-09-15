@@ -17,8 +17,9 @@ import {
 } from "@/components/ui/select";
 import {
   ClipboardList, Plus, MapPin, Search, Calendar,
-  CheckCircle2, Clock, FileSignature, Hammer, AlertCircle,
+  CheckCircle2, Clock, FileSignature, Hammer, AlertCircle, Settings,
 } from "lucide-react";
+import { usePermissions } from "@/hooks/usePermissions";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 
@@ -34,6 +35,7 @@ const STATUS_LABEL: Record<string, { label: string; color: string; icon: typeof 
 };
 
 export default function SopralluoghiList() {
+  const permessi = usePermissions();
   const navigate = useNavigate();
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -70,12 +72,23 @@ export default function SopralluoghiList() {
             </p>
           </div>
         </div>
-        <Button asChild className="gap-2 bg-orange-600 hover:bg-orange-700 w-full sm:w-auto">
-          <Link to="/azienda/sopralluoghi/nuovo">
-            <Plus className="h-4 w-4" />
-            Nuovo sopralluogo
-          </Link>
-        </Button>
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center">
+          {/* Modelli dei sopralluoghi: prima stavano tra le impostazioni dei preventivi. */}
+          {(permessi.isAdmin || permessi.canViewSettingsCustomization) && (
+            <Button asChild variant="outline" className="gap-2 w-full sm:w-auto">
+              <Link to="/azienda/impostazioni/sopralluoghi">
+                <Settings className="h-4 w-4" />
+                Impostazioni
+              </Link>
+            </Button>
+          )}
+          <Button asChild className="gap-2 bg-orange-600 hover:bg-orange-700 w-full sm:w-auto">
+            <Link to="/azienda/sopralluoghi/nuovo">
+              <Plus className="h-4 w-4" />
+              Nuovo sopralluogo
+            </Link>
+          </Button>
+        </div>
       </div>
 
       {/* Filters — mobile: search full + status select full */}

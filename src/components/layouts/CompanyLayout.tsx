@@ -32,9 +32,7 @@ import {
   ArrowLeft,
   Building2,
   Package,
-  Wrench,
   TrendingUp,
-  Percent,
   ListOrdered,
   Truck,
   Users,
@@ -48,7 +46,6 @@ import {
   CalendarDays,
   Wallet,
   Shield,
-  Gavel,
   Paintbrush,
   FileSignature,
   FileStack,
@@ -90,6 +87,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { NavLink } from "@/components/NavLink";
+import { GRUPPI_IMPOSTAZIONI, percorsoNelGruppo, schedeVisibili, type GruppoImpostazioni } from "@/lib/impostazioni/gruppiImpostazioni";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Suspense, useMemo, useState, useEffect, useRef, useCallback, memo } from "react";
 import { SupportChatSheet } from "@/components/layouts/SupportChatSheet";
@@ -750,6 +748,8 @@ interface SettingsNavItem {
   label: string;
   icon: React.ReactNode;
   visible: boolean;
+  /** Voce di un gruppo con schede: resta accesa su tutte le sue pagine. */
+  attivoSu?: (pathname: string) => boolean;
 }
 interface SettingsNavGroup {
   label: string;
@@ -760,6 +760,18 @@ interface SettingsNavGroup {
  *  Il primo gruppo "Il mio account" è sempre visibile a tutti i ruoli.
  *  I gruppi aziendali sono visibili solo se l'utente ha i permessi necessari. */
 function buildSettingsGroups(isAdmin: boolean, permissions: Permissions): SettingsNavGroup[] {
+  // Una voce per argomento: dentro, le schede delle pagine (vedi SettingsLayout).
+  const voceGruppo = (id: GruppoImpostazioni["id"], icon: React.ReactNode): SettingsNavItem => {
+    const gruppo = GRUPPI_IMPOSTAZIONI.find((g) => g.id === id)!;
+    const schede = schedeVisibili(gruppo, isAdmin, permissions);
+    return {
+      to: schede[0]?.to ?? gruppo.schede[0].to,
+      label: gruppo.titolo,
+      icon,
+      visible: schede.length > 0,
+      attivoSu: (pathname) => percorsoNelGruppo(gruppo, pathname),
+    };
+  };
   return [
     {
       label: "Il mio account",
@@ -787,6 +799,7 @@ function buildSettingsGroups(isAdmin: boolean, permissions: Permissions): Settin
       items: [
         { to: "/azienda/impostazioni/ai-memoria", label: "AI Personas (chat + memoria)", icon: <Brain className="h-4 w-4" />, visible: true },
         { to: "/azienda/impostazioni/notifiche",  label: "Notifiche",           icon: <Bell className="h-4 w-4" />,  visible: true },
+        { to: "/azienda/impostazioni/catalogo-render", label: "Catalogo render", icon: <ImagePlus className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsCustomization },
       ],
     },
     {
@@ -796,6 +809,7 @@ function buildSettingsGroups(isAdmin: boolean, permissions: Permissions): Settin
         { to: "/azienda/impostazioni/calendari-lavori",   label: "Calendari lavori",    icon: <HardHat className="h-4 w-4" />,     visible: isAdmin || permissions.canViewSettingsOrders },
         { to: "/azienda/impostazioni/categorie-costi",     label: "Categorie costi",     icon: <FolderOpen className="h-4 w-4" />, visible: isAdmin || permissions.canViewCosts },
         { to: "/azienda/impostazioni/fornitori",           label: "Fornitori",           icon: <Truck className="h-4 w-4" />,       visible: isAdmin || permissions.canViewSettingsSuppliers },
+        { to: "/azienda/impostazioni/sopralluoghi",        label: "Sopralluoghi",        icon: <ClipboardList className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsCustomization },
         { to: "/azienda/impostazioni/qr-codici",           label: "QR & Codici",         icon: <QrCode className="h-4 w-4" />,      visible: isAdmin || permissions.canViewSettingsOrders },
         { to: "/azienda/impostazioni/automazioni-finanza", label: "Automazioni finanza", icon: <RefreshCw className="h-4 w-4" />,  visible: isAdmin || permissions.canViewCosts },
       ],
@@ -806,17 +820,14 @@ function buildSettingsGroups(isAdmin: boolean, permissions: Permissions): Settin
       // aveva SOLO can_view_settings_pricing non vedeva Listino & Prezzi in menu.
       label: "Preventivi & Listino",
       items: [
-        { to: "/azienda/impostazioni/listino",              label: "Listino prodotti",    icon: <Package className="h-4 w-4" />,    visible: isAdmin || permissions.canViewSettingsPricing },
-        { to: "/azienda/impostazioni/tariffe",              label: "Manodopera e Servizi", icon: <Wrench className="h-4 w-4" />,     visible: isAdmin || permissions.canViewSettingsPricing },
+        // 15/09/2026: da undici voci a cinque. Le pagine e gli indirizzi sono gli
+        // stessi; manodopera e kit stanno nel Listino, sconti coi margini,
+        // condizioni con la firma. Render e sopralluoghi sono nei loro gruppi.
+        voceGruppo("listino", <Package className="h-4 w-4" />),
         { to: "/azienda/impostazioni/finanziamenti",        label: "Finanziamenti",        icon: <Banknote className="h-4 w-4" />,   visible: isAdmin || permissions.canViewSettingsFinanziamenti },
-        { to: "/azienda/impostazioni/margini",              label: "Preventivi & Margini",icon: <TrendingUp className="h-4 w-4" />, visible: isAdmin || permissions.canViewCosts },
-        { to: "/azienda/impostazioni/scontistica",          label: "Regole scontistica",  icon: <Percent className="h-4 w-4" />,    visible: isAdmin || permissions.canViewSettingsScontistica },
-        { to: "/azienda/impostazioni/template-preventivi", label: "Template offerte",    icon: <Paintbrush className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsPricing },
-        { to: "/azienda/impostazioni/catalogo-render",    label: "Catalogo render",     icon: <ImagePlus className="h-4 w-4" />,  visible: isAdmin || permissions.canViewSettingsCustomization },
-        { to: "/azienda/impostazioni/condizioni-firma", label: "Condizioni e firma", icon: <Gavel className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsPricing },
-        { to: "/azienda/impostazioni/sopralluoghi",        label: "Impostazioni Sopralluoghi", icon: <ClipboardList className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsCustomization },
-        { to: "/azienda/impostazioni/firma-elettronica",   label: "Firma Elettronica",   icon: <FileSignature className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsIntegrations },
-        { to: "/azienda/impostazioni/bundle",              label: "Bundle & Pacchetti",   icon: <Package className="h-4 w-4" />,    visible: isAdmin || permissions.canViewSettingsBundle },
+        voceGruppo("margini", <TrendingUp className="h-4 w-4" />),
+        { to: "/azienda/impostazioni/template-preventivi", label: "Modelli di preventivo", icon: <Paintbrush className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsPricing },
+        voceGruppo("firma", <FileSignature className="h-4 w-4" />),
       ],
     },
     {
@@ -884,6 +895,7 @@ const SettingsSidebarContent = memo(function SettingsSidebarContent({
   navigate: ReturnType<typeof useNavigate>;
 }) {
   const [query, setQuery] = useState("");
+  const { pathname } = useLocation();
 
   const allGroups = useMemo(
     () => buildSettingsGroups(isAdmin, permissions),
@@ -955,7 +967,11 @@ const SettingsSidebarContent = memo(function SettingsSidebarContent({
               {group.items.map(item => (
                 <SidebarMenuItem key={item.to}>
                   <SidebarMenuButton asChild>
-                    <NavLink to={item.to} className={navLinkClass} activeClassName={navLinkActive}>
+                    <NavLink
+                      to={item.to}
+                      className={cn(navLinkClass, item.attivoSu?.(pathname) && navLinkActive)}
+                      activeClassName={navLinkActive}
+                    >
                       {item.icon}
                       <span>{item.label}</span>
                     </NavLink>

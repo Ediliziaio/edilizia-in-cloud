@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { usePermissions } from "@/hooks/usePermissions";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { UpgradeScopriWall } from "@/components/subscription/UpgradeScopriBanner";
 import { useQuery } from "@tanstack/react-query";
@@ -281,6 +282,7 @@ function formatType(value: string) {
 
 export default function RenderCategoryHub() {
   const navigate = useNavigate();
+  const permessi = usePermissions();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const { isScopriPlan } = useSubscriptionLimits();
@@ -380,8 +382,17 @@ export default function RenderCategoryHub() {
               </p>
             </div>
           </div>
-          <div className="shrink-0">
+          <div className="flex shrink-0 flex-col items-stretch gap-2 lg:items-end">
             <RenderCreditsWidget />
+            {/* Il catalogo foto dei prodotti: prima stava tra le impostazioni dei preventivi. */}
+            {(permessi.isAdmin || permessi.canViewSettingsCustomization) && (
+              <Button asChild variant="outline" size="sm">
+                <Link to="/azienda/impostazioni/catalogo-render">
+                  <Image className="mr-1.5 h-4 w-4" />
+                  Catalogo render
+                </Link>
+              </Button>
+            )}
           </div>
         </div>
       </div>

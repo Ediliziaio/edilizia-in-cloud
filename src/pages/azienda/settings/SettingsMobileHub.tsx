@@ -65,18 +65,18 @@ const SECTIONS: Section[] = [
       { to: "/azienda/impostazioni/calendari-lavori", label: "Calendari lavori", icon: HardHat,   iconColor: "text-orange-600" },
       { to: "/azienda/impostazioni/categorie-costi", label: "Categorie costi",  icon: FolderOpen,  iconColor: "text-emerald-600" },
       { to: "/azienda/impostazioni/fornitori",       label: "Fornitori",        icon: Truck,       iconColor: "text-amber-600" },
+      { to: "/azienda/impostazioni/sopralluoghi",    label: "Sopralluoghi",     icon: ScrollText,  iconColor: "text-amber-600" },
     ],
   },
   {
     label: "Vendite e operativo",
     items: [
-      { to: "/azienda/impostazioni/listino",            label: "Listino prodotti", icon: Tag,            iconColor: "text-blue-600" },
-      { to: "/azienda/impostazioni/tariffe",            label: "Tariffe & Manutenzione", icon: Wrench,   iconColor: "text-teal-600" },
-      { to: "/azienda/impostazioni/template-preventivi", label: "Template offerte", icon: FileText,       iconColor: "text-violet-600" },
-      { to: "/azienda/impostazioni/catalogo-render",  label: "Catalogo render",  icon: ImagePlus,      iconColor: "text-pink-600" },
-      { to: "/azienda/impostazioni/firma-elettronica",  label: "Firma elettronica", icon: FileSignature, iconColor: "text-rose-600" },
-      { to: "/azienda/impostazioni/sopralluoghi",       label: "Sopralluoghi",     icon: ScrollText,    iconColor: "text-amber-600" },
+      // Stesse cinque voci del menu da computer: manodopera e kit sono schede del Listino.
+      { to: "/azienda/impostazioni/listino",            label: "Listino",          icon: Tag,            iconColor: "text-blue-600" },
       { to: "/azienda/impostazioni/finanziamenti",      label: "Finanziamenti",    icon: Banknote,      iconColor: "text-emerald-600" },
+      { to: "/azienda/impostazioni/margini",            label: "Margini e sconti", icon: Wrench,        iconColor: "text-teal-600" },
+      { to: "/azienda/impostazioni/template-preventivi", label: "Modelli di preventivo", icon: FileText,  iconColor: "text-violet-600" },
+      { to: "/azienda/impostazioni/condizioni-firma",   label: "Firma e condizioni", icon: FileSignature, iconColor: "text-rose-600" },
     ],
   },
   {
@@ -93,6 +93,7 @@ const SECTIONS: Section[] = [
       { to: "/azienda/impostazioni/ai-memoria",    label: "AI Personas (chat + memoria)", icon: Brain,    iconColor: "text-violet-600" },
       { to: "/azienda/impostazioni/ai-automazioni", label: "AI Automazioni (auto-execute)", icon: Bot,      iconColor: "text-fuchsia-600" },
       { to: "/azienda/impostazioni/notifiche",     label: "Preferenze notifiche", icon: Bell,     iconColor: "text-rose-600" },
+      { to: "/azienda/impostazioni/catalogo-render", label: "Catalogo render",    icon: ImagePlus, iconColor: "text-pink-600" },
     ],
   },
 ];
@@ -108,10 +109,10 @@ const HIDDEN_ON_MOBILE = new Set<string>([
   "/azienda/impostazioni/categorie-costi",    // Categorie costi
   "/azienda/impostazioni/fornitori",          // Fornitori
   "/azienda/impostazioni/listino",            // Listino prodotti
-  "/azienda/impostazioni/tariffe",            // Tariffe & Manutenzione
-  "/azienda/impostazioni/template-preventivi",// Template offerte
+  "/azienda/impostazioni/margini",            // Margini e sconti
+  "/azienda/impostazioni/template-preventivi",// Modelli di preventivo
   "/azienda/impostazioni/catalogo-render",    // Catalogo render
-  "/azienda/impostazioni/firma-elettronica",  // Firma elettronica
+  "/azienda/impostazioni/condizioni-firma",   // Firma e condizioni
   "/azienda/impostazioni/finanziamenti",      // Finanziamenti
   "/azienda/impostazioni/integrazioni",       // Integrazioni
   "/azienda/impostazioni/lead-forms",         // Lead Facebook
