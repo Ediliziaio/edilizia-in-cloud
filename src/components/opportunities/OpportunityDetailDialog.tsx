@@ -57,6 +57,7 @@ import { LogCallButton } from "@/components/marketing/LogCallButton";
 import { getAddedTags, getRemovedTags, normalizeTagList } from "@/lib/marketingTags";
 import { useSoftphoneOptional } from "@/components/telephony/SoftphoneProvider";
 import { firmaNota } from "@/lib/marketing/autoreNota";
+import { idModuloDaFonte, origineOpportunita, type DatiOrigine } from "@/lib/origineOpportunita";
 
 interface Props {
   opportunity: any;
@@ -109,6 +110,46 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
   const updateContact = useUpdateContact();
   const upsertContactFields = useUpsertContactFieldValues();
   const upsertOppFields = useUpsertOpportunityFieldValues();
+
+  // «Creato il … da …»: chi l'ha inserita e da quale fonte. Le liste (kanban,
+  // pagine) non portano questi campi, quindi si leggono qui, a scheda aperta.
+  const { data: creazione } = useQuery({
+    queryKey: ["opportunita-creazione", opportunity?.id],
+    enabled: open && !!opportunity?.id,
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("marketing_opportunities")
+        .select("created_at, created_by, source, tags, meta_lead_id")
+        .eq("id", opportunity.id)
+        .maybeSingle();
+      if (error) throw error;
+      const riga = data as unknown as (DatiOrigine & { created_at: string }) | null;
+      // Moduli del sito più vecchi: la fonte è `form_<id>`, il nome sta nel modulo.
+      const idModulo = idModuloDaFonte(riga?.source);
+      let nomeModulo: string | null = null;
+      if (idModulo) {
+        const { data: modulo } = await supabase
+          .from("lead_forms").select("name").eq("id", idModulo).maybeSingle();
+        nomeModulo = (modulo as { name?: string | null } | null)?.name ?? null;
+      }
+      return { riga, nomeModulo };
+    },
+  });
+  const nomiStaff = new Map<string, string>();
+  for (const s of [...staff, ...salespeople, ...callCenterUsers] as unknown as Array<{ id: string; name: string }>) {
+    if (s?.id && s.name) nomiStaff.set(s.id, s.name);
+  }
+  const origine = creazione?.riga
+    ? origineOpportunita(creazione.riga, (id) => nomiStaff.get(id), () => creazione.nomeModulo)
+    : null;
+  const testoCreazione = opportunity?.created_at
+    ? [
+        `Creato il ${format(new Date(opportunity.created_at), "d MMM yyyy 'alle' HH:mm", { locale: it })}`,
+        origine ? (origine.tipo === "utente" ? `da ${origine.testo}` : `· fonte: ${origine.testo}`) : null,
+        origine?.importata ? "· importata" : null,
+      ].filter(Boolean).join(" ")
+    : "";
 
   const [tab, setTab] = useState<Tab>("details");
   const [hideEmpty, setHideEmpty] = useState(false);
@@ -1308,8 +1349,9 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
               <span className="hidden sm:inline">Aggiungi/gestisci campi</span>
               <span className="sm:hidden">Gestisci campi</span>
             </button>
-            <span className="text-[11px] text-muted-foreground truncate">
-              Creato il: {format(new Date(opportunity.created_at), "d MMM yyyy", { locale: it })}
+            {/* Va a capo invece di troncare: la fonte è in fondo alla riga ed è la parte che serve. */}
+            <span className="text-[11px] leading-tight text-muted-foreground" title={testoCreazione}>
+              {testoCreazione}
             </span>
           </div>
           <div className="flex items-center gap-1.5 sm:gap-2 ml-auto">
