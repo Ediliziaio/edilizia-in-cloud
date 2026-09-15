@@ -14,6 +14,10 @@
 // - purpose è obbligatorio → default 'bot_operativo' per retro-compat client.
 // - Unicità (company_id, purpose) è garantita dall'indice UNIQUE parziale.
 //   Se tentiamo di connettere un secondo bot_operativo lo UPDATE è idempotente.
+// - Ogni collegamento rifiutato lascia una riga nei log (logRifiuto): il passo,
+//   gli id pubblici e l'errore di Meta, mai token o segreti. Il 15/09/2026 Il
+//   Bagno Group ha completato il popup e questa funzione ha risposto 400 senza
+//   dire dove: scriveva nei log solo lo scambio del codice.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getMetaCredentials } from "../_shared/getMetaCredentials.ts";
@@ -113,6 +117,7 @@ Deno.serve(async (req) => {
     const displayNameOverride = body.display_name ?? null;
 
     if (!company_id) {
+      logRifiuto("richiesta", { motivo: "company_id mancante" });
       return new Response(
         JSON.stringify({ error: "Missing company_id" }),
         { status: 400, headers: { ...cors, "Content-Type": "application/json" } },
@@ -120,6 +125,7 @@ Deno.serve(async (req) => {
     }
 
     if (!ALLOWED_PURPOSES.includes(purpose)) {
+      logRifiuto("richiesta", { company_id, motivo: "purpose non valido", purpose });
       return new Response(
         JSON.stringify({
           error: `Purpose non valido. Ammessi: ${ALLOWED_PURPOSES.join(", ")}`,
@@ -140,6 +146,7 @@ Deno.serve(async (req) => {
       Boolean(body.phone_number_id?.trim()) &&
       Boolean(body.waba_id?.trim());
     if (!code && !hasManualToken) {
+      logRifiuto("richiesta", { company_id, motivo: "né codice Meta né dati manuali" });
       return new Response(
         JSON.stringify({
           error: "Serve un codice OAuth Meta oppure i dati manuali: access_token, phone_number_id, waba_id",
@@ -147,6 +154,7 @@ Deno.serve(async (req) => {
         { status: 400, headers: { ...cors, "Content-Type": "application/json" } },
       );
     }
+    const ramo = code ? "embedded_signup" : "manuale";
 
     let accessToken = body.access_token?.trim() ?? "";
     let wabaId: string | null = body.waba_id?.trim() ?? null;
@@ -161,6 +169,7 @@ Deno.serve(async (req) => {
       const { metaAppId, metaAppSecret: APP_SECRET } = await getMetaCredentials();
       const appId = meta_app_id || metaAppId;
       if (!appId || !APP_SECRET) {
+        logRifiuto("configurazione", { company_id, motivo: "Meta App ID o App Secret non configurati" });
         return new Response(
           JSON.stringify({ error: "Meta App ID o App Secret non configurati" }),
           { status: 500, headers: { ...cors, "Content-Type": "application/json" } },
@@ -176,14 +185,7 @@ Deno.serve(async (req) => {
       const tokenData = await tokenRes.json();
 
       if (!tokenRes.ok || tokenData.error || !tokenData.access_token) {
-        console.error(
-          JSON.stringify({
-            level: "error",
-            fn: "whatsapp-connect",
-            msg: "token exchange failed",
-            error: tokenData.error,
-          }),
-        );
+        logRifiuto("token_exchange", { company_id, http: tokenRes.status, errore: erroreMeta(tokenData.error) });
         return new Response(
           JSON.stringify({
             error: "Token exchange failed",
@@ -204,6 +206,7 @@ Deno.serve(async (req) => {
       const debugData = await debugRes.json();
 
       if (!debugRes.ok || debugData.error) {
+        logRifiuto("debug_token", { company_id, http: debugRes.status, errore: erroreMeta(debugData.error) });
         return new Response(
           JSON.stringify({
             error: "Impossibile verificare il token WhatsApp",
@@ -213,19 +216,27 @@ Deno.serve(async (req) => {
         );
       }
 
-      const granularScopes = debugData.data?.granular_scopes ?? [];
-      wabaId = null;
+      // Tutti gli account WhatsApp che il token può gestire.
+      const granularScopes: Array<{ permission?: string; target_ids?: unknown[] }> =
+        debugData.data?.granular_scopes ?? [];
+      const wabaConcessi: string[] = [];
       for (const scope of granularScopes) {
-        if (
-          scope.permission === "whatsapp_business_management" &&
-          scope.target_ids?.length
-        ) {
-          wabaId = scope.target_ids[0];
-          break;
+        if (scope.permission !== "whatsapp_business_management" || !Array.isArray(scope.target_ids)) continue;
+        for (const id of scope.target_ids) {
+          if (!wabaConcessi.includes(String(id))) wabaConcessi.push(String(id));
         }
       }
+      // L'account scelto nel popup arriva anche nelle informazioni di sessione
+      // (body.waba_id): se il token lo può gestire vince lui. Prima si prendeva
+      // il primo concesso, e con più account WhatsApp nello stesso portafoglio
+      // (Il Bagno Group: quello pagato da GoHighLevel e uno nuovo) poteva
+      // essere quello sbagliato.
+      const wabaSuggerito = body.waba_id?.trim() || null;
+      wabaId = wabaSuggerito && wabaConcessi.includes(wabaSuggerito) ? wabaSuggerito : (wabaConcessi[0] ?? null);
 
       if (!wabaId) {
+        const permessi = granularScopes.map((s) => `${s.permission}:${(s.target_ids ?? []).join("|")}`);
+        logRifiuto("waba", { company_id, waba_suggerito: wabaSuggerito, permessi });
         return new Response(
           JSON.stringify({ error: "Nessun WhatsApp Business Account condiviso da Meta" }),
           { status: 400, headers: { ...cors, "Content-Type": "application/json" } },
@@ -239,6 +250,7 @@ Deno.serve(async (req) => {
       const phonesData = await phonesRes.json();
 
       if (!phonesRes.ok || phonesData.error) {
+        logRifiuto("phone_numbers", { company_id, waba_id: wabaId, http: phonesRes.status, errore: erroreMeta(phonesData.error) });
         return new Response(
           JSON.stringify({
             error: "Impossibile leggere i numeri WhatsApp Business",
@@ -248,11 +260,29 @@ Deno.serve(async (req) => {
         );
       }
 
-      if (phonesData.data?.length) {
-        const phone = phonesData.data[0];
-        phoneNumber = phone.display_phone_number || phone.phone_number;
-        phoneNumberId = phone.id;
+      // Il numero scelto nel popup (informazioni di sessione) se è in questo
+      // account, altrimenti il primo.
+      const numeri: Array<{ id?: string; display_phone_number?: string; phone_number?: string; verified_name?: string }> =
+        Array.isArray(phonesData.data) ? phonesData.data : [];
+      const numeroSuggerito = body.phone_number_id?.trim() || null;
+      const phone = numeri.find((n) => String(n.id) === numeroSuggerito) ?? numeri[0];
+      if (phone) {
+        phoneNumber = phone.display_phone_number || phone.phone_number || null;
+        phoneNumberId = phone.id ?? null;
         businessName = phone.verified_name || null;
+      } else if (!numeroSuggerito) {
+        // Account condiviso senza numeri: succede quando nel popup il numero non
+        // viene aggiunto, per esempio perché Meta lo dà «Non idoneo».
+        logRifiuto("numeri", { company_id, waba_id: wabaId, numeri_nel_waba: 0 });
+        return new Response(
+          JSON.stringify({
+            error: "Meta ha condiviso l'account WhatsApp Business senza nessun numero: nel popup il numero non è stato aggiunto.",
+            details: "Se Meta lo segnalava come «Non idoneo», di solito il numero è ancora in uso sull'app WhatsApp Business o presso un altro fornitore.",
+          }),
+          { status: 400, headers: { ...cors, "Content-Type": "application/json" } },
+        );
+      } else {
+        console.warn(JSON.stringify({ level: "warn", fn: "whatsapp-connect", step: "numeri", msg: "Meta non elenca numeri: uso quello delle informazioni di sessione", company_id, waba_id: wabaId, phone_number_id: numeroSuggerito }));
       }
 
       // ── 4. Subscribe app al WABA ─────────────────────────────────────────
@@ -263,6 +293,7 @@ Deno.serve(async (req) => {
       });
       const subscribeData = await subscribeRes.json().catch(() => ({}));
       if (!subscribeRes.ok || subscribeData.error) {
+        logRifiuto("subscribed_apps", { company_id, waba_id: wabaId, http: subscribeRes.status, errore: erroreMeta(subscribeData.error) });
         return new Response(
           JSON.stringify({
             error: "Collegamento webhook WhatsApp non riuscito",
@@ -307,6 +338,8 @@ Deno.serve(async (req) => {
     }
 
     if (!accessToken || !phoneNumberId || !wabaId) {
+      const haToken = accessToken.length > 0;
+      logRifiuto("dati_mancanti", { company_id, ramo, ha_token: haToken, waba_id: wabaId, phone_number_id: phoneNumberId });
       return new Response(
         JSON.stringify({
           error:
@@ -352,6 +385,7 @@ Deno.serve(async (req) => {
       (clashingByPhoneId.company_id !== company_id ||
         clashingByPhoneId.purpose !== purpose)
     ) {
+      logRifiuto("numero_gia_collegato", { company_id, purpose, phone_number_id: phoneNumberId, gia_su_azienda: clashingByPhoneId.company_id, gia_su_scopo: clashingByPhoneId.purpose });
       return new Response(
         JSON.stringify({
           error:
@@ -392,13 +426,24 @@ Deno.serve(async (req) => {
       ...(cloudApiPin ? { cloud_api_pin: cloudApiPin } : {}),
     };
 
-    if (existingWa) {
-      await supabase
+    // Il risultato del salvataggio si guarda: prima un errore del database
+    // faceva rispondere «collegato» con niente di salvato.
+    const { error: salvataggioErr } = existingWa
+      ? await supabase
         .from("ai_whatsapp_numbers")
         .update(waNumberData)
-        .eq("id", existingWa.id);
-    } else {
-      await supabase.from("ai_whatsapp_numbers").insert(waNumberData);
+        .eq("id", existingWa.id)
+      : await supabase.from("ai_whatsapp_numbers").insert(waNumberData);
+
+    if (salvataggioErr) {
+      logRifiuto("salvataggio", { company_id, purpose, waba_id: wabaId, phone_number_id: phoneNumberId, errore_db: salvataggioErr.message });
+      return new Response(
+        JSON.stringify({
+          error: "Il numero è collegato su Meta ma non è stato salvato nel gestionale",
+          details: salvataggioErr.message,
+        }),
+        { status: 500, headers: { ...cors, "Content-Type": "application/json" } },
+      );
     }
 
     // ── 6. Legacy upsert messaging_whatsapp_config (solo bot_operativo) ─────
@@ -423,15 +468,19 @@ Deno.serve(async (req) => {
         updated_at: new Date().toISOString(),
       };
 
-      if (legacyConfig) {
-        await supabase
+      const { error: legacyErr } = legacyConfig
+        ? await supabase
           .from("messaging_whatsapp_config")
           .update(legacyData)
-          .eq("id", legacyConfig.id);
-      } else {
-        await supabase.from("messaging_whatsapp_config").insert(legacyData);
+          .eq("id", legacyConfig.id)
+        : await supabase.from("messaging_whatsapp_config").insert(legacyData);
+      if (legacyErr) {
+        // Retro-compat: non blocca il collegamento, ma resta scritto.
+        console.warn(JSON.stringify({ level: "warn", fn: "whatsapp-connect", step: "legacy_config", company_id, errore_db: legacyErr.message }));
       }
     }
+
+    console.log(JSON.stringify({ level: "info", fn: "whatsapp-connect", msg: "collegato", company_id, purpose, ramo, waba_id: wabaId, phone_number_id: phoneNumberId }));
 
     return new Response(
       JSON.stringify({
@@ -459,6 +508,28 @@ Deno.serve(async (req) => {
     );
   }
 });
+
+// Una riga nei log per ogni collegamento rifiutato: dove si è fermato e perché.
+// Solo id pubblici (azienda, account WhatsApp, numero) e l'errore di Meta:
+// token, codice OAuth, segreto dell'app e PIN non ci finiscono mai.
+function logRifiuto(step: string, info: Record<string, unknown>): void {
+  console.error(JSON.stringify({ level: "error", fn: "whatsapp-connect", msg: "collegamento rifiutato", step, ...info }));
+}
+
+// L'errore di Graph ridotto ai campi che servono a capirlo.
+function erroreMeta(err: unknown): Record<string, unknown> | null {
+  if (!err || typeof err !== "object") return null;
+  const e = err as Record<string, unknown>;
+  return {
+    message: e.message ?? null,
+    type: e.type ?? null,
+    code: e.code ?? null,
+    error_subcode: e.error_subcode ?? null,
+    error_user_title: e.error_user_title ?? null,
+    error_user_msg: e.error_user_msg ?? null,
+    fbtrace_id: e.fbtrace_id ?? null,
+  };
+}
 
 // Registra un numero sul WhatsApp Cloud API (POST /{phone-number-id}/register).
 // Best-effort: ritorna SEMPRE senza sollevare eccezioni. `registered` è true se

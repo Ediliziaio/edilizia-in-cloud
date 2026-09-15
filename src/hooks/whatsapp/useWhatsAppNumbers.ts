@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { withClientTimeout } from "@/lib/query-timeout";
+import { readInvokeErrorConDettagli } from "@/lib/readInvokeError";
 import { toast } from "sonner";
 import type { Database, Json } from "@/integrations/supabase/types";
 
@@ -330,7 +331,8 @@ export function useConnectWANumber() {
           nome_account: payload.nome_account,
         },
       });
-      if (error) throw error;
+      // Il motivo vero, con l'errore di Meta, invece di "non-2xx status code".
+      if (error) throw new Error(await readInvokeErrorConDettagli(error));
       if (data?.error) throw new Error(data.error);
       return data;
     },

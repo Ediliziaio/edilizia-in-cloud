@@ -28,7 +28,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { isNative } from "@/lib/mobile/platform";
-import { readInvokeError } from "@/lib/readInvokeError";
+import { readInvokeError, readInvokeErrorConDettagli } from "@/lib/readInvokeError";
 import { usePaymentGateStore } from "@/store/paymentGateStore";
 import { WA_NUMBERS_KEY, type WAPurpose } from "./useWhatsAppNumbers";
 
@@ -414,7 +414,9 @@ export function useWhatsAppEmbeddedSignup() {
       });
       if (error) {
         console.error("[wa-embedded] whatsapp-connect error:", error);
-        throw new Error(await readInvokeError(error));
+        // Con il motivo di Meta («details»): è quello che dice perché il
+        // collegamento è stato rifiutato.
+        throw new Error(await readInvokeErrorConDettagli(error));
       }
       if (data?.error) {
         console.error("[wa-embedded] whatsapp-connect data.error:", data.error);
