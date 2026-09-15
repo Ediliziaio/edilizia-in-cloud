@@ -8,7 +8,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import {
   listProgetti, getProgetto, createProgetto, updateProgetto, deleteProgetto,
   addSerramento, updateSerramento, deleteSerramento,
-  addAccessorio, updateAccessorio, deleteAccessorio,
+  addAccessori, updateAccessorio, deleteAccessorio,
   getTemplatePdf, upsertTemplatePdf,
   generaPdf, importDaSopralluogo, convertiInOrdine,
   uploadMedia, deleteMedia,
@@ -206,17 +206,18 @@ export function useDeleteSerramento(progettoId: string | undefined) {
 
 // ─── Accessori BOM ──────────────────────────────────────────────────────────
 
-export function useAddAccessorio(progettoId: string | undefined) {
+/** I complementi nuovi, uno o più, tutti o nessuno: di una finestra, di tutte, di una finestra duplicata. */
+export function useAddAccessori(progettoId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (a: Partial<SrAccessorioRow>) => {
+    mutationFn: (accessori: Partial<SrAccessorioRow>[]) => {
       if (!progettoId) throw new Error("Progetto id mancante");
-      return addAccessorio(progettoId, a);
+      return addAccessori(progettoId, accessori);
     },
     onSuccess: () => {
       if (progettoId) qc.invalidateQueries({ queryKey: SR_QK.progetto(progettoId) });
     },
-    onError: (e) => toast.error("Aggiunta accessorio fallita", { description: String(e) }),
+    onError: (e) => toast.error("Aggiunta complementi fallita", { description: String(e) }),
   });
 }
 
@@ -232,7 +233,7 @@ export function useUpdateAccessorio(progettoId: string | undefined) {
         accessori: dati.accessori.map((a) => (a.id === id ? { ...a, ...patch } : a)),
       })),
     onSettled: () => rileggiAFineSalvataggi(qc, progettoId),
-    onError: (e) => toast.error("Modifica accessorio fallita", { description: String(e) }),
+    onError: (e) => toast.error("Modifica complemento fallita", { description: String(e) }),
   });
 }
 
@@ -242,7 +243,7 @@ export function useDeleteAccessorio(progettoId: string | undefined) {
     mutationFn: (id: string) => deleteAccessorio(id),
     onSuccess: () => {
       if (progettoId) qc.invalidateQueries({ queryKey: SR_QK.progetto(progettoId) });
-      toast.success("Accessorio eliminato");
+      toast.success("Complemento eliminato");
     },
     onError: (e) => toast.error("Eliminazione fallita", { description: String(e) }),
   });
@@ -402,13 +403,20 @@ export function useSeedMacroFields(macroId: string | null | undefined) {
   });
 }
 
-export function useListinoGriglia(familyId: string | null | undefined) {
-  return useQuery({
-    queryKey: ["sr-listino-griglia", familyId],
-    queryFn: () => listGrigliaByFamily(familyId!),
-    enabled: !!familyId,
+/**
+ * La griglia prezzi di un prodotto. La stessa cache serve alle righe del
+ * preventivo e a chi la chiede al volo: il complemento aggiunto a una finestra.
+ */
+export function opzioniGriglia(familyId: string) {
+  return {
+    queryKey: ["sr-listino-griglia", familyId] as const,
+    queryFn: () => listGrigliaByFamily(familyId),
     staleTime: 5 * 60 * 1000,
-  });
+  };
+}
+
+export function useListinoGriglia(familyId: string | null | undefined) {
+  return useQuery({ ...opzioniGriglia(familyId ?? ""), enabled: !!familyId });
 }
 
 // ─── Render Infissi ─────────────────────────────────────────────────────────

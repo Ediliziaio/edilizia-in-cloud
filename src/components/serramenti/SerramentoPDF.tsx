@@ -2851,14 +2851,15 @@ export function SerramentoPDF({
                   <View style={styles.table}>
                     <View style={styles.tableHeader}>
                       <View style={{ flex: 1, paddingRight: 6 }}><Text style={styles.tableHeaderText}>Voce</Text></View>
-                      <View style={{ width: 90 }}><Text style={styles.tableHeaderText}>Misure</Text></View>
+                      <View style={{ width: 110 }}><Text style={styles.tableHeaderText}>Misure</Text></View>
                       <View style={{ width: 50, alignItems: "flex-end" }}><Text style={styles.tableHeaderText}>Q.tà</Text></View>
                     </View>
                     {detail.accessori.map((a, i) => {
                       // eslint-disable-next-line @typescript-eslint/no-explicit-any
                       const ax = a as any;
+                      // Il cassonetto ha anche la profondità: larghezza × altezza × profondità.
                       const misure = ax.larghezza_mm && ax.altezza_mm
-                        ? `${ax.larghezza_mm}×${ax.altezza_mm} mm`
+                        ? `${ax.larghezza_mm}×${ax.altezza_mm}${a.profondita_mm ? `×${a.profondita_mm}` : ""} mm`
                         : "—";
                       // Le scelte dell'accessorio (colore, motore, rete), come
                       // quelle dei serramenti: il prezzo le conta, il cliente le legge.

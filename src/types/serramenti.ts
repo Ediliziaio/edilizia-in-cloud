@@ -325,6 +325,8 @@ export interface SrAccessorioRow {
   // via `as any` cast -> il type system non proteggeva refactor.
   larghezza_mm: number | null;
   altezza_mm: number | null;
+  /** La profondità, per il cassonetto (larghezza × altezza × profondità). Migrazione 20280916970000. */
+  profondita_mm?: number | null;
   prezzo_unitario: number | null;
   prezzo_totale: number | null;
   listino_voce_id: string | null;

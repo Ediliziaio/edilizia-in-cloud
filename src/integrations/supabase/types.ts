@@ -81394,6 +81394,7 @@ export type Database = {
           position: number
           prezzo_totale: number | null
           prezzo_unitario: number | null
+          profondita_mm: number | null
           progetto_id: string
           quantita: number
           scelte_assi: Json
@@ -81419,6 +81420,7 @@ export type Database = {
           position?: number
           prezzo_totale?: number | null
           prezzo_unitario?: number | null
+          profondita_mm?: number | null
           progetto_id: string
           quantita?: number
           scelte_assi?: Json
@@ -81444,6 +81446,7 @@ export type Database = {
           position?: number
           prezzo_totale?: number | null
           prezzo_unitario?: number | null
+          profondita_mm?: number | null
           progetto_id?: string
           quantita?: number
           scelte_assi?: Json

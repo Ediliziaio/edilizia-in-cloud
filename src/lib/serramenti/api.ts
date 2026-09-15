@@ -546,10 +546,7 @@ export async function deleteSerramento(id: string, opzioni: { conAccessori?: boo
 
 // ─── ACCESSORI (BOM) ────────────────────────────────────────────────────────
 
-export async function addAccessorio(
-  progetto_id: string,
-  accessorio: Partial<SrAccessorioRow>,
-): Promise<SrAccessorioRow> {
+async function aziendaDelPreventivo(progetto_id: string): Promise<string> {
   const { data: progetto } = await supabase
     .from("sr_progetti" as never)
     .select("company_id")
@@ -558,45 +555,62 @@ export async function addAccessorio(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const companyId = (progetto as any)?.company_id;
   if (!companyId) throw new Error("Progetto non trovato");
+  return companyId;
+}
 
+/**
+ * I complementi nuovi, uno o più in una volta e tutti o nessuno: la tapparella
+ * di una finestra, quella su tutte le finestre, i complementi di una finestra
+ * duplicata.
+ */
+export async function addAccessori(
+  progetto_id: string,
+  accessori: Partial<SrAccessorioRow>[],
+): Promise<SrAccessorioRow[]> {
+  if (accessori.length === 0) return [];
+  const companyId = await aziendaDelPreventivo(progetto_id);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase as any)
     .from("sr_accessori_progetto")
-    .insert({
-      progetto_id,
-      company_id: companyId,
-      position: accessorio.position ?? 0,
-      tipo: accessorio.tipo ?? "avvolgibile",
-      descrizione: accessorio.descrizione ?? null,
-      quantita: accessorio.quantita ?? 1,
-      // Misure: stessa logica del fix su sr_serramenti_progetto.
-      // Le colonne larghezza_mm/altezza_mm esistono (mig 20270312000000)
-      // ma erano omesse dall'INSERT -> dialog "Copia misure dai serramenti"
-      // creava accessori senza misure.
-      larghezza_mm: accessorio.larghezza_mm ?? null,
-      altezza_mm: accessorio.altezza_mm ?? null,
-      prezzo_unitario: accessorio.prezzo_unitario ?? null,
-      prezzo_totale: accessorio.prezzo_totale ?? null,
-      listino_voce_id: accessorio.listino_voce_id ?? null,
-      serramento_id: accessorio.serramento_id ?? null,
-      note: accessorio.note ?? null,
-      // Default FALSE = posa inclusa (vedi sr_serramenti_progetto).
-      posa_esclusa: accessorio.posa_esclusa ?? false,
-      // Collegamento listino (migration 20270513220000).
-      // Quando family_id valorizzato, l'accessorio è clonato da un articolo
-      // del listino → prezzo/modalita/variabili snapshottati per stabilità
-      // del preventivo anche se il listino cambia in seguito.
-      family_id: accessorio.family_id ?? null,
-      valori_assi: accessorio.valori_assi ?? null,
-      scelte_assi: accessorio.scelte_assi ?? {},
-      modalita_prezzo: accessorio.modalita_prezzo ?? null,
-      supplier_catalog_id: accessorio.supplier_catalog_id ?? null,
-      supplier_product_line_id: accessorio.supplier_product_line_id ?? null,
-    })
-    .select("*")
-    .single();
-  if (error) throw new Error("Aggiunta accessorio fallita");
-  return data as SrAccessorioRow;
+    .insert(accessori.map((accessorio) => nuovoAccessorio(progetto_id, companyId, accessorio)))
+    .select("*");
+  if (error) throw new Error("Aggiunta complementi fallita");
+  return (data ?? []) as SrAccessorioRow[];
+}
+
+/** Le colonne di un complemento nuovo, una per una. */
+function nuovoAccessorio(progetto_id: string, companyId: string, accessorio: Partial<SrAccessorioRow>) {
+  return {
+    progetto_id,
+    company_id: companyId,
+    position: accessorio.position ?? 0,
+    tipo: accessorio.tipo ?? "avvolgibile",
+    descrizione: accessorio.descrizione ?? null,
+    quantita: accessorio.quantita ?? 1,
+    // Misure: le colonne esistono dalla migrazione 20270312000000, ma mancavano
+    // dall'INSERT e i complementi nascevano senza misure.
+    larghezza_mm: accessorio.larghezza_mm ?? null,
+    altezza_mm: accessorio.altezza_mm ?? null,
+    // Il cassonetto si misura anche in profondità (migrazione 20280916970000).
+    profondita_mm: accessorio.profondita_mm ?? null,
+    prezzo_unitario: accessorio.prezzo_unitario ?? null,
+    prezzo_totale: accessorio.prezzo_totale ?? null,
+    listino_voce_id: accessorio.listino_voce_id ?? null,
+    serramento_id: accessorio.serramento_id ?? null,
+    note: accessorio.note ?? null,
+    // Default FALSE = posa inclusa (vedi sr_serramenti_progetto).
+    posa_esclusa: accessorio.posa_esclusa ?? false,
+    // Collegamento listino (migration 20270513220000).
+    // Quando family_id valorizzato, l'accessorio è clonato da un articolo
+    // del listino → prezzo/modalita/variabili snapshottati per stabilità
+    // del preventivo anche se il listino cambia in seguito.
+    family_id: accessorio.family_id ?? null,
+    valori_assi: accessorio.valori_assi ?? null,
+    scelte_assi: accessorio.scelte_assi ?? {},
+    modalita_prezzo: accessorio.modalita_prezzo ?? null,
+    supplier_catalog_id: accessorio.supplier_catalog_id ?? null,
+    supplier_product_line_id: accessorio.supplier_product_line_id ?? null,
+  };
 }
 
 export async function updateAccessorio(id: string, patch: Partial<SrAccessorioRow>): Promise<void> {

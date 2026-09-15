@@ -12,6 +12,10 @@
  *  4. Misure, variabili e prezzo: la linea già scelta, le altre variabili come
  *     nell'ultima posizione del preventivo (configurazione rapida)
  *
+ * Dal box di una finestra si apre già sulla tipologia del complemento (le
+ * tapparelle), con le misure della finestra e, se c'è, il prodotto già scelto:
+ * vedi `partenza`.
+ *
  * La ricerca guarda nome, codice, descrizione e linea, ma solo nell'area: un
  * inverter del fotovoltaico non compare mai in un preventivo serramenti. Cosa
  * compare lo decide il listino (pickerListino.ts).
@@ -89,10 +93,24 @@ export interface ListinoPickResult {
   /** La voce scelta dentro ogni valore: il colore vero di «Colore Standard».
    *  Mappa { axis_codice -> voce }; il prezzo resta quello del valore. */
   scelte_assi?: Record<string, string>;
-  /** Snapshot modalita_prezzo_base del listino al momento del pick.
-   *  Usato dal frontend per decidere cosa copiare quando l'accessorio
-   *  viene clonato in bulk da un serramento (dims vs quantita). */
+  /** Snapshot modalita_prezzo_base del listino al momento del pick: dice se
+   *  misure e pezzi contano nel prezzo (a m², a griglia) o no (a pezzo). */
   modalita_prezzo: "pz" | "mq" | "griglia" | "misura_libera" | null;
+}
+
+/** Da dove si apre il listino per il complemento di una finestra. */
+export interface PartenzaPicker {
+  /** La tipologia (chiave) da cui partire: le tapparelle. Null: dalle tipologie. */
+  tipologia: string | null;
+  /** Il prodotto già scelto: si apre sulle sue misure, con le sue varianti. */
+  familyId?: string | null;
+  valori?: Record<string, string>;
+  voci?: Record<string, string>;
+  larghezza_mm?: number | null;
+  altezza_mm?: number | null;
+  quantita?: number | null;
+  /** Per chi è, sotto il titolo: «Per la finestra 3 · 1200 × 1400 mm». */
+  contesto?: string;
 }
 
 interface Props {
@@ -104,6 +122,10 @@ interface Props {
   tipo?: "principale" | "accessorio";
   /** Le scelte dell'ultima posizione del preventivo: il prodotto scelto riparte da lì. */
   preferenzeAssi?: Record<string, PreferenzaAsse>;
+  /** Aperto dal box di una finestra: tipologia, misure e prodotto da cui partire. */
+  partenza?: PartenzaPicker | null;
+  /** Il bottone che conferma: «Aggiungi alla finestra», «Cambia modello». */
+  testoConferma?: string;
 }
 
 const MODALITA_LABEL: Record<string, string> = {
@@ -123,7 +145,8 @@ function fotoDellaTipologia(t: TipologiaListino): string | null {
 // ─── Component principale ──────────────────────────────────────────────────
 
 export function ListinoPickerDialog({
-  open, onOpenChange, onSelect, tipo = "principale", preferenzeAssi,
+  open, onOpenChange, onSelect, tipo = "principale", preferenzeAssi, partenza,
+  testoConferma = "Aggiungi al preventivo",
 }: Props) {
   const [step, setStep] = useState<Step>("tipologia");
   const [search, setSearch] = useState("");
@@ -365,6 +388,35 @@ export function ListinoPickerDialog({
     setStep("tipologia");
   };
 
+  // Aperto dal box di una finestra: si parte dalla tipologia del complemento,
+  // con le misure della finestra e, se c'è, dal prodotto già scelto con le sue
+  // varianti. Una volta per apertura, poi si naviga come sempre. È stato che
+  // dipende dalle props: si sistema durante il render, senza un effetto.
+  const [partenzaApplicata, setPartenzaApplicata] = useState<PartenzaPicker | null>(null);
+  if (!open && partenzaApplicata) setPartenzaApplicata(null);
+  if (open && partenza && area && partenzaApplicata !== partenza) {
+    setPartenzaApplicata(partenza);
+    if (partenza.larghezza_mm) setLarghezza(String(partenza.larghezza_mm));
+    if (partenza.altezza_mm) setAltezza(String(partenza.altezza_mm));
+    if (partenza.quantita && partenza.quantita > 0) setQuantita(String(partenza.quantita));
+    const t = partenza.tipologia ? area.tipologie.find((x) => x.chiave === partenza.tipologia) : undefined;
+    if (t) {
+      // Un prodotto in più linee compare una volta per linea: quella delle sue varianti.
+      const valori = Object.values(partenza.valori ?? {});
+      const candidati = t.linee.flatMap((l) => l.righe.filter((r) => r.famiglia.id === partenza.familyId).map((r) => ({ l, r })));
+      const prodotto = candidati.find(({ r }) => !r.linea || valori.includes(r.linea.id)) ?? candidati[0];
+      if (!prodotto) {
+        scegliTipologia(t);
+      } else {
+        scegliRiga(prodotto.r, t, prodotto.l);
+        if (partenza.valori) {
+          setAxisSelection({ ...partenza.valori });
+          setVociScelte({ ...(partenza.voci ?? {}) });
+        }
+      }
+    }
+  }
+
   const handleConferma = () => {
     if (!selectedFamily || !calcolo) return;
     // Type-guard sulla modalita: il backend è uno dei 4 valori canonici,
@@ -440,6 +492,9 @@ export function ListinoPickerDialog({
             <span className="flex-1">{titolo}</span>
           </DialogTitle>
           <DialogDescription className="text-xs">{sottotitolo}</DialogDescription>
+          {partenza?.contesto && (
+            <p className="text-[11px] font-medium text-orange-700">{partenza.contesto}</p>
+          )}
           {vista !== "tipologia" && percorso && (
             <div className="text-[10px] text-muted-foreground flex items-center gap-1 flex-wrap pt-0.5">
               <span className="font-semibold uppercase tracking-wide">Percorso:</span>
@@ -847,7 +902,7 @@ export function ListinoPickerDialog({
                   || axes.some((a) => a.obbligatorio && !axisSelection[a.codice])
                 }
               >
-                Aggiungi al preventivo
+                {testoConferma}
               </Button>
             )}
           </div>
