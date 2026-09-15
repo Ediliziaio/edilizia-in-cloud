@@ -286,6 +286,92 @@ async function aggiornaAddonWhatsApp(
   // incomplete: il primo pagamento è ancora in corso, si aspetta.
 }
 
+// ─── Abbonamento Agenti AI ─────────────────────────────────
+// Altro abbonamento a parte dal piano (create-checkout-session, type
+// "ai_subscription"), registrato in ai_subscriptions: i suoi eventi aggiornano
+// solo quella riga. Aveva lo stesso difetto dell'add-on: disdire gli Agenti AI
+// avrebbe fatto scadere l'azienda, un loro rinnovo riscritto il periodo del
+// piano, un addebito rifiutato mandato l'azienda nei solleciti.
+
+const ABBONAMENTO_AGENTI_AI = "ai_subscription";
+
+/** L'abbonamento è quello degli Agenti AI? Metadati, poi ai_subscriptions, poi Stripe. */
+async function eAbbonamentoAgentiAI(
+  supabase: ReturnType<typeof createClient>,
+  subscriptionId: string | null | undefined,
+  metadata: Record<string, unknown> | null | undefined,
+  stripeSecretKey?: string,
+): Promise<boolean> {
+  if (metadata?.type === ABBONAMENTO_AGENTI_AI) return true;
+  if (!subscriptionId) return false;
+  // Gli abbonamenti aperti prima che il checkout scrivesse i metadati si
+  // riconoscono dalla riga registrata al pagamento.
+  const { data: righe, error } = await supabase
+    .from("ai_subscriptions")
+    .select("id")
+    .eq("stripe_subscription_id", subscriptionId)
+    .limit(1);
+  // Nel dubbio non lo si tratta da piano: l'evento va in errore e Stripe lo riconsegna.
+  if (error) throw new Error(`abbonamento Agenti AI non verificabile: ${error.message}`);
+  if (righe?.length) return true;
+  // Fattura arrivata senza i metadati dell'abbonamento: lo si chiede a Stripe.
+  if (metadata == null && stripeSecretKey) {
+    try {
+      const res = await fetch(`https://api.stripe.com/v1/subscriptions/${subscriptionId}`, {
+        headers: { Authorization: `Bearer ${stripeSecretKey}` },
+      });
+      const sub = await res.json();
+      return sub?.metadata?.type === ABBONAMENTO_AGENTI_AI;
+    } catch (e) {
+      console.error("[stripe-webhook] tipo dell'abbonamento non letto:", (e as Error).message);
+    }
+  }
+  return false;
+}
+
+/** Stato Stripe dell'abbonamento → stato in ai_subscriptions (null: resta com'è). */
+function statoAgentiAI(statoStripe: string): string | null {
+  switch (statoStripe) {
+    case "active":
+      return "active";
+    case "trialing":
+      return "trial";
+    case "past_due":
+    case "unpaid":
+      return "past_due";
+    case "canceled":
+    case "incomplete_expired":
+      return "canceled";
+    default:
+      // incomplete: il primo pagamento è ancora in corso, si aspetta.
+      return null;
+  }
+}
+
+/**
+ * Scrive su ai_subscriptions lo stato di QUESTO abbonamento, e nient'altro.
+ * Se la riga non c'è ancora (evento arrivato prima del checkout.session.completed)
+ * non la si crea qui: la registra il checkout.
+ */
+async function aggiornaAbbonamentoAgentiAI(
+  supabase: ReturnType<typeof createClient>,
+  subscriptionId: string,
+  campi: { status: string; current_period_end?: string },
+) {
+  // Filtro sull'abbonamento, non sull'azienda: l'evento tardivo di un
+  // abbonamento vecchio non riscrive quello nuovo.
+  let aggiornamento = supabase
+    .from("ai_subscriptions")
+    .update({ ...campi, updated_at: new Date().toISOString() })
+    .eq("stripe_subscription_id", subscriptionId);
+  // Su Stripe un abbonamento cancellato non si riapre (se ne apre un altro, con
+  // un altro id): una fattura o un aggiornamento riconsegnati dopo la disdetta
+  // non lo rimettono attivo.
+  if (campi.status !== "canceled") aggiornamento = aggiornamento.neq("status", "canceled");
+  const { error } = await aggiornamento;
+  if (error) throw new Error(`aggiornamento abbonamento Agenti AI fallito: ${error.message}`);
+}
+
 async function handleCheckoutCompleted(
   supabase: ReturnType<typeof createClient>,
   session: any,
@@ -753,9 +839,16 @@ async function handleInvoicePaid(
 
   // Rinnovo dell'add-on WhatsApp: periodo del piano e solleciti non c'entrano.
   const eAddon = await eAddonWhatsApp(supabase, company.id, stripeSubscriptionId, sub?.metadata ?? null);
+  // Rinnovo degli Agenti AI: si aggiorna il loro abbonamento, non il piano.
+  const eAgentiAI = !eAddon && await eAbbonamentoAgentiAI(supabase, stripeSubscriptionId, sub?.metadata ?? null);
+  const period = getSubscriptionPeriod(sub);
 
-  if (!eAddon) {
-    const period = getSubscriptionPeriod(sub);
+  if (eAgentiAI) {
+    await aggiornaAbbonamentoAgentiAI(supabase, stripeSubscriptionId, {
+      status: "active",
+      ...(period.end ? { current_period_end: period.end } : {}),
+    });
+  } else if (!eAddon) {
     await supabase
       .from("company_subscriptions")
       .update({
@@ -778,10 +871,13 @@ async function handleInvoicePaid(
       .eq("id", company.id);
   }
 
+  const descrizioneFattura = eAddon
+    ? "Fattura add-on WhatsApp Business pagata"
+    : eAgentiAI ? "Fattura abbonamento Agenti AI pagata" : "Fattura Stripe pagata";
   await supabase.from("subscription_logs").insert({
     company_id: company.id,
     event_type: "invoice_paid",
-    notes: `${eAddon ? "Fattura add-on WhatsApp Business pagata" : "Fattura Stripe pagata"} (${invoice.id})`,
+    notes: `${descrizioneFattura} (${invoice.id})`,
   });
 
   // Email "ricevuta pagamento" all'admin (best-effort, dedup su invoice.id).
@@ -920,6 +1016,36 @@ async function handleInvoicePaymentFailed(
     return;
   }
 
+  // Agenti AI non pagati: il loro abbonamento passa a past_due e Stripe ritenta;
+  // l'esito finale arriva come aggiornamento o disdetta dell'abbonamento. I
+  // solleciti restano per il piano, non per un abbonamento accessorio.
+  if (await eAbbonamentoAgentiAI(supabase, subscriptionIdFallita, invoice.subscription_details?.metadata ?? null, stripeSecretKey)) {
+    if (subscriptionIdFallita) {
+      await aggiornaAbbonamentoAgentiAI(supabase, subscriptionIdFallita, { status: "past_due" });
+    }
+    await supabase.from("subscription_logs").insert({
+      company_id: company.id,
+      event_type: "payment_failed",
+      notes: `Pagamento abbonamento Agenti AI fallito - ${invoice.id}`,
+    });
+    try {
+      await notificaInterna(supabase, {
+        oggetto: `⚠️ Agenti AI non pagati — ${company.name ?? "cliente"}`,
+        sommario: `Il rinnovo dell'abbonamento Agenti AI di ${company.name ?? "un cliente"} è stato rifiutato. Stripe ritenta l'addebito; il piano dell'azienda non è toccato.`,
+        dettagli: [
+          ["Azienda", company.name ?? "—"],
+          ["Fattura Stripe", invoice.number || invoice.id || "—"],
+        ],
+        url: `${APP_BASE}/admin/aziende/${company.id}`,
+        urlLabel: "Apri la scheda azienda",
+        dedupeKey: `agenti-ai-non-pagati:${invoice.id}`,
+      });
+    } catch (e) {
+      console.warn("[stripe-webhook] avviso Agenti AI non pagati fallito:", (e as Error)?.message);
+    }
+    return;
+  }
+
   // Increment failure count
   const { data: current } = await supabase
     .from("companies")
@@ -1031,6 +1157,19 @@ async function handleSubscriptionDeleted(
     return;
   }
 
+  // Disdetti gli Agenti AI: si chiude il loro abbonamento, l'azienda resta com'è.
+  // Evento suo nel registro: "subscription_canceled" conterebbe l'azienda tra
+  // quelle perse nelle metriche SaaS.
+  if (await eAbbonamentoAgentiAI(supabase, subscription.id, subscription.metadata ?? {})) {
+    await aggiornaAbbonamentoAgentiAI(supabase, subscription.id, { status: "canceled" });
+    await supabase.from("subscription_logs").insert({
+      company_id: company.id,
+      event_type: "agenti_ai_disdetti",
+      notes: `Abbonamento Agenti AI cancellato (${subscription.id})`,
+    });
+    return;
+  }
+
   await supabase
     .from("companies")
     .update({
@@ -1078,6 +1217,21 @@ async function handleSubscriptionUpdated(
   // Add-on WhatsApp: segue il suo abbonamento, senza toccare stato e periodo del piano.
   if (await eAddonWhatsApp(supabase, company.id, subscription.id, subscription.metadata ?? {})) {
     await aggiornaAddonWhatsApp(supabase, company.id, subscription);
+    return;
+  }
+
+  // Agenti AI: stato e rinnovo vanno su ai_subscriptions. Niente di quello che
+  // segue vale per loro: stato e periodo del piano, email di disdetta del piano,
+  // prova e onboarding.
+  if (await eAbbonamentoAgentiAI(supabase, subscription.id, subscription.metadata ?? {})) {
+    const stato = statoAgentiAI(String(subscription.status ?? ""));
+    if (stato) {
+      const periodo = getSubscriptionPeriod(subscription);
+      await aggiornaAbbonamentoAgentiAI(supabase, subscription.id, {
+        status: stato,
+        ...(periodo.end ? { current_period_end: periodo.end } : {}),
+      });
+    }
     return;
   }
 
@@ -1417,8 +1571,8 @@ Deno.serve(conMetriche("stripe-webhook", async (req) => {
           break;
         case "customer.subscription.created":
           // Attribuisce il referral al primo abbonamento attivo: quello del
-          // piano, non l'add-on WhatsApp comprato dopo.
-          if (obj.metadata?.type !== ADDON_WHATSAPP) {
+          // piano, non l'add-on WhatsApp o gli Agenti AI comprati dopo.
+          if (obj.metadata?.type !== ADDON_WHATSAPP && obj.metadata?.type !== ABBONAMENTO_AGENTI_AI) {
             await handleReferralAttribution(supabase, obj.customer);
           }
           await handleSubscriptionUpdated(supabase, obj);

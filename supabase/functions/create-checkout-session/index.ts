@@ -230,6 +230,10 @@ Deno.serve(conMetriche("create-checkout-session", async (req) => {
           "metadata[company_id]": company_id,
           "metadata[type]": "ai_subscription",
           "metadata[price_eur]": String(priceEur),
+          // Anche sull'abbonamento: disdetta, rinnovi e fatture si riconoscono
+          // come Agenti AI e non toccano il piano dell'azienda.
+          "subscription_data[metadata][company_id]": company_id,
+          "subscription_data[metadata][type]": "ai_subscription",
         }),
       });
       const session = await sessionRes.json();
