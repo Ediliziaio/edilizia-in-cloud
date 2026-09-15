@@ -163,22 +163,46 @@ async function backfillPage(
         console.warn(`meta-leads-backfill: lead form ${formId} errore:`, data.error.message);
         break;
       }
-      for (const lead of data.data ?? []) {
-        await admin.from("integration_webhook_events").upsert(
-          {
-            company_id: integ.company_id,
-            integration_id: integ.id,
-            provider: "meta",
-            event_type: "leadgen",
-            event_id: lead.id,
-            payload: { ...lead, leadgen_id: lead.id, form_id: formId, page_id: pageId },
-            received_at: new Date().toISOString(),
-            status: "pending",
-            fail_count: 0,
-          },
-          { onConflict: "company_id,provider,event_id", ignoreDuplicates: true },
-        );
-        imported++;
+      // Solo i lead che non abbiamo già: una lettura per pagina di Meta e una
+      // scrittura sola per i nuovi. Prima era un upsert per lead, rifatto a ogni
+      // giro — i moduli senza riga in meta_lead_forms non hanno segnalibro e
+      // rileggono gli ultimi giorni: dal 14/09/2026 (BeMade) ~136 upsert ogni
+      // 5 minuti, ~39.000 richieste al giorno per nessun lead nuovo.
+      const leads = (data.data ?? []) as Array<{ id: string } & Record<string, unknown>>;
+      if (leads.length > 0) {
+        const { data: esistenti, error: errEsistenti } = await admin
+          .from("integration_webhook_events")
+          .select("event_id")
+          .eq("company_id", integ.company_id)
+          .eq("provider", "meta")
+          .in("event_id", leads.map((l) => l.id));
+        if (errEsistenti) {
+          console.warn(`meta-leads-backfill: lettura lead già presenti fallita (${formId}):`, errEsistenti.message);
+        }
+        const giaPresenti = new Set((esistenti ?? []).map((r: { event_id: string }) => r.event_id));
+        const nuovi = errEsistenti ? leads : leads.filter((l) => !giaPresenti.has(l.id));
+        if (nuovi.length > 0) {
+          const ora = new Date().toISOString();
+          const { error: errUpsert } = await admin.from("integration_webhook_events").upsert(
+            nuovi.map((lead) => ({
+              company_id: integ.company_id,
+              integration_id: integ.id,
+              provider: "meta",
+              event_type: "leadgen",
+              event_id: lead.id,
+              payload: { ...lead, leadgen_id: lead.id, form_id: formId, page_id: pageId },
+              received_at: ora,
+              status: "pending",
+              fail_count: 0,
+            })),
+            { onConflict: "company_id,provider,event_id", ignoreDuplicates: true },
+          );
+          if (errUpsert) {
+            console.warn(`meta-leads-backfill: salvataggio lead fallito (${formId}):`, errUpsert.message);
+          } else {
+            imported += errEsistenti ? 0 : nuovi.length;
+          }
+        }
       }
       nextUrl = data.paging?.next || null;
     }
