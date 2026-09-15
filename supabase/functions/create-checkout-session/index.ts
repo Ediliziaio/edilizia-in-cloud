@@ -624,23 +624,11 @@ Deno.serve(conMetriche("create-checkout-session", async (req) => {
       );
     }
 
-    // ─── SUBSCRIPTION CHECKOUT (existing flow) ───
+    // ─── SUBSCRIPTION CHECKOUT ───
+    // Il link lo genera il super admin dalla scheda azienda. L'amministratore
+    // dell'azienda può aprirlo da Impostazioni → Abbonamento, ma solo per il piano
+    // che gli è stato assegnato e solo se non ha già un abbonamento Stripe in corso.
     const { plan_id, billing_period, promo_code } = body;
-
-    // Verify super_admin for subscription management
-    const { data: roleData } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", userId)
-      .eq("role", "super_admin")
-      .maybeSingle();
-
-    if (!roleData) {
-      return new Response(JSON.stringify({ error: "Solo i super admin possono eseguire questa azione" }), {
-        status: 403,
-        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
-      });
-    }
 
     if (!plan_id) {
       return new Response(JSON.stringify({ error: "plan_id è obbligatorio" }), {
@@ -652,7 +640,7 @@ Deno.serve(conMetriche("create-checkout-session", async (req) => {
     // Get company
     const { data: company, error: companyError } = await supabaseAdmin
       .from("companies")
-      .select("id, name, email, stripe_customer_id")
+      .select("id, name, email, stripe_customer_id, subscription_plan_id, stripe_subscription_status, trial_ends_at")
       .eq("id", company_id)
       .single();
 
@@ -661,6 +649,49 @@ Deno.serve(conMetriche("create-checkout-session", async (req) => {
         status: 404,
         headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
+    }
+
+    const { data: roleData } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId)
+      .eq("role", "super_admin")
+      .maybeSingle();
+    const isSuperAdmin = !!roleData;
+
+    if (!isSuperAdmin) {
+      // Amministratore dell'azienda: company_admin con il profilo in questa azienda,
+      // oppure accesso multi-azienda attivo come company_admin. Lo staff no.
+      const [{ data: profilo }, { data: ruoloAdmin }, { data: accesso }] = await Promise.all([
+        supabaseAdmin.from("profiles").select("company_id").eq("id", userId).maybeSingle(),
+        supabaseAdmin.from("user_roles").select("role").eq("user_id", userId).eq("role", "company_admin").maybeSingle(),
+        supabaseAdmin.from("multi_company_access").select("expires_at")
+          .eq("user_id", userId).eq("company_id", company_id)
+          .eq("status", "active").eq("access_role", "company_admin")
+          .maybeSingle(),
+      ]);
+      const adminDellAzienda =
+        (!!ruoloAdmin && profilo?.company_id === company_id) ||
+        (!!accesso && (!accesso.expires_at || new Date(accesso.expires_at) > new Date()));
+
+      if (!adminDellAzienda) {
+        return new Response(JSON.stringify({ error: "Solo l'amministratore dell'azienda può attivare l'abbonamento" }), {
+          status: 403,
+          headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+        });
+      }
+      if (company.subscription_plan_id !== plan_id) {
+        return new Response(JSON.stringify({ error: "Puoi attivare solo il piano assegnato alla tua azienda" }), {
+          status: 403,
+          headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+        });
+      }
+      if (["active", "trialing", "past_due"].includes(company.stripe_subscription_status ?? "")) {
+        return new Response(JSON.stringify({ error: "L'abbonamento è già attivo: lo gestisci dal portale di fatturazione" }), {
+          status: 409,
+          headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+        });
+      }
     }
 
     // Get plan
@@ -728,6 +759,12 @@ Deno.serve(conMetriche("create-checkout-session", async (req) => {
       }
     }
 
+    // Chi paga è il cliente: dopo il pagamento torna alla sua pagina Abbonamento
+    // (il link generato dall'admin riportava a /admin/aziende/…, che al cliente non si apre).
+    const paginaDiRitorno = typeof body.return_to === "string" && /^\/(?!\/)[\w/-]*$/.test(body.return_to)
+      ? body.return_to
+      : "/azienda/impostazioni/abbonamento";
+
     // Build checkout params
     const checkoutParams: Record<string, string> = {
       customer: stripeCustomerId,
@@ -739,8 +776,8 @@ Deno.serve(conMetriche("create-checkout-session", async (req) => {
       // così il cliente lascia comunque la carta e il futuro upgrade a pagamento
       // parte in automatico senza doverla richiedere di nuovo.
       payment_method_collection: "always",
-      success_url: `${appUrl}/admin/aziende/${company_id}?payment=success`,
-      cancel_url: `${appUrl}/admin/aziende/${company_id}?payment=cancelled`,
+      success_url: `${appUrl}${paginaDiRitorno}?payment=success`,
+      cancel_url: `${appUrl}${paginaDiRitorno}?payment=cancelled`,
       "metadata[company_id]": company_id,
       "metadata[plan_id]": plan_id,
     };
@@ -756,8 +793,17 @@ Deno.serve(conMetriche("create-checkout-session", async (req) => {
     // giorni, ma la carta è già raccolta (payment_method_collection:always) e
     // Stripe addebita automaticamente alla fine del trial.
     const trialDays = Number((plan as Record<string, unknown>).trial_days ?? 0);
-    if (trialDays > 0) {
-      checkoutParams["subscription_data[trial_period_days]"] = String(trialDays);
+    if (isSuperAdmin) {
+      if (trialDays > 0) {
+        checkoutParams["subscription_data[trial_period_days]"] = String(trialDays);
+      }
+    } else {
+      // Chi attiva da solo il piano assegnato non riceve una prova nuova: se è ancora
+      // in prova, il primo addebito parte a fine prova (Stripe vuole almeno 48 ore).
+      const fineProva = company.trial_ends_at ? new Date(company.trial_ends_at).getTime() : 0;
+      if (fineProva > Date.now() + 48 * 60 * 60 * 1000) {
+        checkoutParams["subscription_data[trial_end]"] = String(Math.floor(fineProva / 1000));
+      }
     }
     if (stripeCouponId) {
       checkoutParams["discounts[0][coupon]"] = stripeCouponId;

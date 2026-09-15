@@ -35,6 +35,8 @@ export interface BillingInfo {
   paymentFailureCount: number;
   stripeCustomerId: string | null;
   stripeSubscriptionStatus: string | null;
+  /** companies.payment_method: stripe, none, comped, bank_transfer, sepa_debit, other. */
+  paymentMethod: string | null;
   isInDunning: boolean;
   dunningDaysLeft: number;
   // v8.6.58 — Date e ciclo di fatturazione (popolate via sync da Stripe webhook
@@ -62,6 +64,7 @@ export function useBillingInfo() {
           trial_ends_at,
           stripe_customer_id,
           stripe_subscription_status,
+          payment_method,
           dunning_status,
           dunning_started_at,
           payment_failure_count,
@@ -127,6 +130,7 @@ export function useBillingInfo() {
         paymentFailureCount: company.payment_failure_count ?? 0,
         stripeCustomerId: company.stripe_customer_id ?? null,
         stripeSubscriptionStatus: company.stripe_subscription_status ?? null,
+        paymentMethod: company.payment_method ?? null,
         isInDunning,
         dunningDaysLeft,
         currentPeriodStart: sub?.current_period_start ?? null,
@@ -141,6 +145,20 @@ export function useBillingInfo() {
     staleTime: 5 * 60 * 1000,
     gcTime: 15 * 60 * 1000,
   });
+}
+
+// ─── ABBONAMENTO DA ATTIVARE ──────────────────────────────────────────────────
+// Chi paga fuori da Stripe (regalata, bonifico, addebito SEPA concordato, altro)
+// non deve vedere «Attiva abbonamento»: pagherebbe due volte.
+const METODI_FUORI_STRIPE = new Set(["comped", "bank_transfer", "sepa_debit", "other"]);
+const ABBONAMENTO_STRIPE_IN_CORSO = new Set(["active", "trialing", "past_due"]);
+
+/** Piano a pagamento assegnato, ma nessun abbonamento Stripe e nessun pagamento concordato a parte. */
+export function abbonamentoDaAttivare(billing: BillingInfo | null | undefined): boolean {
+  return !!billing?.planId
+    && billing.planPriceMonthly > 0
+    && !ABBONAMENTO_STRIPE_IN_CORSO.has(billing.stripeSubscriptionStatus ?? "")
+    && !METODI_FUORI_STRIPE.has(billing.paymentMethod ?? "none");
 }
 
 // ─── HOOK: PREZZO MAX PIANO (per cross-sell dinamico) ─────────────────────────
@@ -251,6 +269,21 @@ export function useStripePaymentMethod() {
   });
 }
 
+/**
+ * Un 4xx/5xx di supabase.functions.invoke arriva come "Edge Function returned a
+ * non-2xx status code": il motivo vero (es. "Stripe non configurato") è nel corpo.
+ */
+async function messaggioDellaFunzione(error: { message: string; context?: unknown }): Promise<string> {
+  try {
+    const ctx = error.context;
+    if (ctx instanceof Response) {
+      const corpo = (await ctx.json().catch(() => null)) as { error?: string } | null;
+      if (corpo?.error) return corpo.error;
+    }
+  } catch { /* corpo illeggibile: resta il messaggio generico */ }
+  return error.message;
+}
+
 // ─── HOOK: APRIRE IL CUSTOMER PORTAL STRIPE ───────────────────────────────────
 
 /**
@@ -275,7 +308,7 @@ export function useOpenBillingPortal() {
           ? { flow: opts.flow, plan_id: opts.planId, billing_period: opts.billingPeriod }
           : {},
       });
-      if (error) throw error;
+      if (error) throw new Error(await messaggioDellaFunzione(error));
       return data as { url: string };
     },
     onSuccess: ({ url }) => {
@@ -305,16 +338,7 @@ export function useStartCardSetup() {
           return_to: typeof window !== "undefined" ? window.location.pathname : undefined,
         },
       });
-      if (error) {
-        // Mostra il messaggio REALE della edge function (es. "Stripe non configurato")
-        // invece del generico "Edge Function returned a non-2xx status code".
-        let real: string | null = null;
-        try {
-          const ctx = (error as { context?: unknown }).context;
-          if (ctx instanceof Response) real = ((await ctx.json().catch(() => null)) as { error?: string } | null)?.error ?? null;
-        } catch { /* ignore */ }
-        throw new Error(real ?? error.message);
-      }
+      if (error) throw new Error(await messaggioDellaFunzione(error));
       const res = data as { url?: string; error?: string };
       if (res?.error) throw new Error(res.error);
       if (!res?.url) throw new Error("URL checkout non disponibile");
@@ -325,6 +349,39 @@ export function useStartCardSetup() {
     },
     onError: (error: Error) => {
       toast.error("Impossibile avviare l'aggiunta carta", {
+        description: error.message,
+      });
+    },
+  });
+}
+
+// ─── HOOK: ATTIVA ABBONAMENTO — pagamento del piano assegnato ──────────────────
+// Per l'azienda con un piano a pagamento e nessun abbonamento Stripe: apre la
+// pagina di pagamento del piano. A pagamento riuscito il webhook attiva tutto.
+
+export function useStartPlanCheckout() {
+  const { effectiveCompany } = useAuth();
+  return useMutation({
+    mutationFn: async ({ planId, billingPeriod = "monthly" }: { planId: string; billingPeriod?: "monthly" | "yearly" }) => {
+      const { data, error } = await supabase.functions.invoke("create-checkout-session", {
+        body: {
+          company_id: effectiveCompany?.id,
+          plan_id: planId,
+          billing_period: billingPeriod,
+          return_to: typeof window !== "undefined" ? window.location.pathname : undefined,
+        },
+      });
+      if (error) throw new Error(await messaggioDellaFunzione(error));
+      const res = data as { url?: string; error?: string };
+      if (res?.error) throw new Error(res.error);
+      if (!res?.url) throw new Error("Pagina di pagamento non disponibile");
+      return res as { url: string };
+    },
+    onSuccess: ({ url }) => {
+      safeRedirect(url);
+    },
+    onError: (error: Error) => {
+      toast.error("Impossibile aprire il pagamento", {
         description: error.message,
       });
     },

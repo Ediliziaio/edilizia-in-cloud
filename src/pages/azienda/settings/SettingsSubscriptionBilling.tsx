@@ -31,7 +31,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
 import { Pencil } from "lucide-react";
-import { useBillingInfo, useInvoices, useOpenBillingPortal, useTopPlanPrice, useStripePaymentMethod, useAutoTopupFailure } from "@/hooks/useBilling";
+import { useBillingInfo, useInvoices, useOpenBillingPortal, useTopPlanPrice, useStripePaymentMethod, useAutoTopupFailure, useStartCardSetup, useStartPlanCheckout, abbonamentoDaAttivare } from "@/hooks/useBilling";
 import { useBillingDetails } from "@/hooks/useBillingDetails";
 import { formatCurrency } from "@/lib/formatters";
 import { format } from "date-fns";
@@ -44,6 +44,14 @@ import { useIsMobile } from "@/hooks/use-mobile";
 const SettingsCrediti = lazy(() => import("@/pages/azienda/settings/SettingsCredits"));
 
 const VALID_TABS = new Set(["abbonamenti", "pagamenti", "portafoglio", "notifiche"]);
+
+/** Aziende che pagano fuori da Stripe: qui non c'è una carta da aggiungere. */
+const PAGAMENTO_A_PARTE: Record<string, string> = {
+  comped: "Piano offerto: nessun pagamento richiesto.",
+  bank_transfer: "Paghi con bonifico: non serve una carta.",
+  sepa_debit: "Paghi con addebito SEPA concordato: non serve una carta.",
+  other: "Pagamento concordato a parte: non serve una carta.",
+};
 
 /* ═══════════════════════════════════════════════════════════════════════════
    UTILITY
@@ -102,6 +110,10 @@ function companyStatusBadge(status: string) {
 function TabAbbonamenti() {
   const { data: billing, isLoading } = useBillingInfo();
   const { mutate: openPortal, isPending } = useOpenBillingPortal();
+  const { mutate: attivaAbbonamento, isPending: attivazioneInCorso } = useStartPlanCheckout();
+  // Di ritorno da Stripe il webhook arriva un attimo dopo: niente secondo pagamento nel frattempo.
+  const [searchParams] = useSearchParams();
+  const appenaPagato = searchParams.get("payment") === "success";
   const { data: topPlanPrice = 0 } = useTopPlanPrice();
   const navigate = useNavigate();
   // Dialog "Modifica abbonamento" (stile GHL): upgrade / downgrade / annulla.
@@ -148,6 +160,7 @@ function TabAbbonamenti() {
     ? "Gratuito"
     : formatCurrency(billing.planPriceMonthly);
   const isYearly = billing.billingCycle === "yearly";
+  const daAttivare = abbonamentoDaAttivare(billing) && !appenaPagato;
 
   return (
     <div className="space-y-5">
@@ -170,10 +183,43 @@ function TabAbbonamenti() {
             </div>
           </div>
 
+          {/* Piano a pagamento senza abbonamento: il portale Stripe non si apre finché
+              non c'è un primo pagamento, quindi qui si paga il piano assegnato. */}
+          {daAttivare && (
+            <div className="mt-5 rounded-xl border border-primary/30 bg-primary/5 p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+              <div className="flex items-start gap-3 flex-1 min-w-0">
+                <CreditCard className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                <div className="min-w-0">
+                  <p className="font-semibold text-sm">Abbonamento da attivare</p>
+                  <p className="text-xs text-muted-foreground">
+                    {priceLabel} al mese, con carta o addebito SEPA sulla pagina sicura di Stripe.
+                  </p>
+                </div>
+              </div>
+              <Button
+                onClick={() => billing.planId && attivaAbbonamento({ planId: billing.planId })}
+                disabled={attivazioneInCorso}
+                className="w-full sm:w-auto shrink-0"
+              >
+                {attivazioneInCorso ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : null}
+                Attiva abbonamento
+              </Button>
+            </div>
+          )}
+          {appenaPagato && abbonamentoDaAttivare(billing) && (
+            <Alert className="mt-5">
+              <Clock className="h-4 w-4" />
+              <AlertDescription>
+                Pagamento ricevuto: l'abbonamento si attiva in pochi secondi. Ricarica la pagina per vederlo attivo.
+              </AlertDescription>
+            </Alert>
+          )}
+
           {/* CTA piano annuale — risparmio reale calcolato sui prezzi del piano
               (no hardcoded). Mostra solo se l'utente è mensile e il piano ha
-              anche un price_yearly < 12×price_monthly (cioè uno sconto reale). */}
-          {!isYearly && billing.planPriceMonthly > 0 && billing.planPriceYearly > 0 && (() => {
+              anche un price_yearly < 12×price_monthly (cioè uno sconto reale).
+              Senza abbonamento non c'è niente da passare all'annuale. */}
+          {!isYearly && !daAttivare && billing.planPriceMonthly > 0 && billing.planPriceYearly > 0 && (() => {
             const monthlyTotalYear = billing.planPriceMonthly * 12;
             const yearlySaving = monthlyTotalYear - billing.planPriceYearly;
             const savingMonths = yearlySaving / billing.planPriceMonthly;
@@ -403,13 +449,18 @@ function TabPagamenti() {
   const { data: billingDetails } = useBillingDetails();
   const { data: pm, isLoading: pmLoading } = useStripePaymentMethod();
   const { mutate: openPortal, isPending } = useOpenBillingPortal();
+  const { mutate: aggiungiCarta, isPending: aggiuntaCartaInCorso } = useStartCardSetup();
+  const { mutate: attivaAbbonamento, isPending: attivazioneInCorso } = useStartPlanCheckout();
   const [cronTab, setCronTab] = useState<"costi" | "fatture">("fatture");
-  const [, setSearchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   // Dialog gestito da DialogTrigger asChild (focus restore automatico).
 
   // I metodi di pagamento veri (carta last4, brand, scadenza) richiedono Stripe API
   // server-side. Per ora mostriamo placeholder + CTA Stripe Portal.
   const hasStripeCustomer = !!billing?.stripeCustomerId;
+  // Di ritorno da Stripe il webhook arriva un attimo dopo: niente secondo pagamento nel frattempo.
+  const daAttivare = abbonamentoDaAttivare(billing) && searchParams.get("payment") !== "success";
+  const pagamentoAParte = billing?.paymentMethod ? PAGAMENTO_A_PARTE[billing.paymentMethod] : undefined;
 
   return (
     <div className="space-y-5">
@@ -439,14 +490,17 @@ function TabPagamenti() {
               <CreditCard className="h-4 w-4 text-muted-foreground" />
               Metodo di pagamento
             </CardTitle>
-            <Button
-              variant="outline" size="sm" className="h-7 px-2 gap-1 text-xs"
-              onClick={() => openPortal()} disabled={isPending}
-              aria-label="Modifica metodo di pagamento"
-            >
-              {isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <ExternalLink className="h-3 w-3" />}
-              Gestisci
-            </Button>
+            {/* Il portale Stripe esiste solo dopo il primo pagamento. */}
+            {hasStripeCustomer && (
+              <Button
+                variant="outline" size="sm" className="h-7 px-2 gap-1 text-xs"
+                onClick={() => openPortal()} disabled={isPending}
+                aria-label="Modifica metodo di pagamento"
+              >
+                {isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <ExternalLink className="h-3 w-3" />}
+                Gestisci
+              </Button>
+            )}
           </CardHeader>
           <CardContent>
             {pmLoading ? (
@@ -487,10 +541,28 @@ function TabPagamenti() {
                   <p className="text-xs text-muted-foreground">Aggiungi un metodo di pagamento dal portale Stripe.</p>
                 </div>
               </div>
+            ) : daAttivare ? (
+              <div className="text-center py-4">
+                <p className="text-sm text-muted-foreground mb-3">
+                  Abbonamento da attivare: {formatCurrency(billing?.planPriceMonthly ?? 0)} al mese
+                </p>
+                <Button
+                  size="sm"
+                  onClick={() => billing?.planId && attivaAbbonamento({ planId: billing.planId })}
+                  disabled={attivazioneInCorso}
+                >
+                  {attivazioneInCorso ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : null}
+                  Attiva abbonamento
+                </Button>
+              </div>
+            ) : pagamentoAParte ? (
+              <p className="text-sm text-muted-foreground text-center py-4">{pagamentoAParte}</p>
             ) : (
               <div className="text-center py-4">
                 <p className="text-sm text-muted-foreground mb-3">Nessun metodo di pagamento</p>
-                <Button size="sm" onClick={() => openPortal()} disabled={isPending}>
+                {/* Senza cliente Stripe il portale non si apre: la carta si aggiunge col checkout. */}
+                <Button size="sm" onClick={() => aggiungiCarta()} disabled={aggiuntaCartaInCorso}>
+                  {aggiuntaCartaInCorso ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : null}
                   Aggiungi metodo di pagamento
                 </Button>
               </div>

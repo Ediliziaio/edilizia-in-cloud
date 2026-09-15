@@ -1,4 +1,5 @@
 import Stripe from "https://esm.sh/stripe@18.5.0";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth } from "../_shared/auth.ts";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
@@ -45,20 +46,39 @@ Deno.serve(async (req) => {
       body = {};
     }
 
-    // Get user's company
+    // Azienda su cui l'utente sta lavorando: quella scelta nel selettore o quella
+    // impersonata dal super admin. Prima si leggeva sempre il profilo, e chi
+    // impersonava un'azienda apriva il portale della propria o nessun portale.
     const { data: profile } = await supabaseAdmin
       .from("profiles")
       .select("company_id")
       .eq("id", userId)
       .single();
+    let companyId: string | null = profile?.company_id ?? null;
 
-    if (!profile?.company_id) return errorResponse("Azienda non trovata", 404, corsH);
+    const supabaseUtente = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, {
+      global: { headers: { Authorization: req.headers.get("Authorization") ?? "" } },
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const { data: aziendaEffettiva } = await supabaseUtente.rpc("get_effective_company_id");
+    if (typeof aziendaEffettiva === "string" && aziendaEffettiva !== companyId) {
+      // Un'azienda diversa dalla propria: serve il permesso sulla sua fatturazione.
+      const { data: puo } = await supabaseUtente.rpc("has_permission_for_company", {
+        _user_id: userId,
+        _permission: "can_view_billing",
+        _company_id: aziendaEffettiva,
+      });
+      if (puo !== true) return errorResponse("Non puoi gestire la fatturazione di questa azienda", 403, corsH);
+      companyId = aziendaEffettiva;
+    }
+
+    if (!companyId) return errorResponse("Azienda non trovata", 404, corsH);
 
     // Get company's Stripe customer ID
     const { data: company } = await supabaseAdmin
       .from("companies")
       .select("stripe_customer_id")
-      .eq("id", profile.company_id)
+      .eq("id", companyId)
       .single();
 
     if (!company?.stripe_customer_id) {
