@@ -858,7 +858,7 @@ async function executeDelay(
     delayMs = deltaMin * 60_000;
   } else if (cfg.delay_durata != null || cfg.delay_unita) {
     const durata = Math.max(1, parseInt(cfg.delay_durata) || 1);
-    const MS: Record<string, number> = { minuti: 60_000, ore: 3_600_000, giorni: 86_400_000, settimane: 604_800_000 };
+    const MS: Record<string, number> = { secondi: 1_000, minuti: 60_000, ore: 3_600_000, giorni: 86_400_000, settimane: 604_800_000 };
     delayMs = durata * (MS[String(cfg.delay_unita)] ?? 86_400_000);
   }
 
@@ -955,14 +955,22 @@ async function executeCondition(supabase: any, cfg: Record<string, any>, entityI
     const value = r.valore;
     const sa = String(actual ?? "");
     const sv = String(value ?? "");
+    // Campi ELENCO (i tag del contatto sono un array): "contiene" deve valere
+    // sull'elemento intero, non sul testo. Con il confronto testuale il tag
+    // «dvs» risultava presente anche a chi ha solo «dvs ai» — due percorsi
+    // diversi del DVS finivano nello stesso ramo.
+    const elenco = Array.isArray(actual) ? actual.map((v) => String(v).trim().toLowerCase()) : null;
+    const cercato = sv.trim().toLowerCase();
     switch (String(r.operatore ?? "uguale")) {
-      case "uguale": case "equals": return sa === sv;
-      case "diverso": case "not_equals": return sa !== sv;
-      case "contiene": case "contains": return sa.toLowerCase().includes(sv.toLowerCase());
-      case "non_contiene": return !sa.toLowerCase().includes(sv.toLowerCase());
-      case "inizia_con": return sa.toLowerCase().startsWith(sv.toLowerCase());
-      case "vuoto": case "is_empty": return actual == null || sa === "";
-      case "non_vuoto": case "is_not_empty": return !(actual == null || sa === "");
+      case "uguale": case "equals": return elenco ? elenco.includes(cercato) : sa === sv;
+      case "diverso": case "not_equals": return elenco ? !elenco.includes(cercato) : sa !== sv;
+      case "contiene": case "contains":
+        return elenco ? elenco.includes(cercato) : sa.toLowerCase().includes(cercato);
+      case "non_contiene":
+        return elenco ? !elenco.includes(cercato) : !sa.toLowerCase().includes(cercato);
+      case "inizia_con": return sa.toLowerCase().startsWith(cercato);
+      case "vuoto": case "is_empty": return elenco ? elenco.length === 0 : (actual == null || sa === "");
+      case "non_vuoto": case "is_not_empty": return elenco ? elenco.length > 0 : !(actual == null || sa === "");
       case "maggiore": case "gt": return Number(actual) > Number(value);
       case "minore": case "lt": return Number(actual) < Number(value);
       case "maggiore_uguale": case "gte": return Number(actual) >= Number(value);
@@ -1102,6 +1110,9 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
     if (c.destinatario && !c.email_to) c.email_to = c.destinatario;
     if (c.oggetto && !c.email_subject) c.email_subject = c.oggetto;
     if (c.corpo && !c.email_body) c.email_body = c.corpo;
+    // Modello salvato scelto nel builder: oggetto e testo si leggono da
+    // email_templates al momento dell'invio (vedi executeSendEmail).
+    if (c.modello_id && !c.template_id) c.template_id = c.modello_id;
     // Mittente dal builder (EmailConfigPanel scrive da_nome/da_email:
     // prima erano ignorati e si usava sempre il default di piattaforma)
     if (c.da_nome && !c.from_name) c.from_name = c.da_nome;
@@ -2975,7 +2986,8 @@ function evaluateFilters(filters: any, payload: Record<string, any>): boolean {
     if (c.logic) return evaluateFilters(c, payload); // Nested group
     const actual = payload[c.field];
     const sa = String(actual ?? "").toLowerCase();
-    const sv = String(c.value ?? "").toLowerCase();
+    const sv = String(c.value ?? "").toLowerCase().trim();
+    const elenco = Array.isArray(actual) ? actual.map((v) => String(v).trim().toLowerCase()) : null;
     const na = Number(actual);
     const nv = Number(c.value);
     const da = actual != null ? new Date(String(actual)).getTime() : NaN;
@@ -2985,10 +2997,12 @@ function evaluateFilters(filters: any, payload: Record<string, any>): boolean {
     // erano implementati e il resto cadeva nel default → condizione sempre
     // vera in silenzio (es. "valore > 1000" scattava per qualsiasi valore).
     switch (c.operator) {
-      case "equals": match = String(actual) === String(c.value); break;
-      case "not_equals": match = String(actual) !== String(c.value); break;
-      case "contains": match = sa.includes(sv); break;
-      case "not_contains": match = !sa.includes(sv); break;
+      // Campi ELENCO (payload.tags): il confronto vale sull'elemento intero,
+      // altrimenti «dvs» risulta presente anche a chi ha solo «dvs ai».
+      case "equals": match = elenco ? elenco.includes(sv) : String(actual) === String(c.value); break;
+      case "not_equals": match = elenco ? !elenco.includes(sv) : String(actual) !== String(c.value); break;
+      case "contains": match = elenco ? elenco.includes(sv) : sa.includes(sv); break;
+      case "not_contains": match = elenco ? !elenco.includes(sv) : !sa.includes(sv); break;
       case "starts_with": match = sa.startsWith(sv); break;
       case "ends_with": match = sa.endsWith(sv); break;
       case "is_empty": match = !actual; break;
@@ -3244,6 +3258,26 @@ async function executeSendEmail(supabase: any, cfg: Record<string, any>, entityI
     // Build email content
     let html = cfg.email_body || cfg.html || "<p>No content</p>";
     let subject = cfg.email_subject || cfg.subject || "Messaggio";
+
+    // ── Modello salvato ────────────────────────────────────────────────────
+    // Il nodo può puntare a un modello dell'azienda invece di portarsi dietro
+    // il testo: così una sequenza di dieci email si corregge in un posto solo.
+    // Il modello VINCE sul testo del nodo (che resta come copia di scorta se
+    // il modello è stato cancellato nel frattempo).
+    if (cfg.template_id) {
+      const { data: modello } = await supabase
+        .from("email_templates")
+        .select("subject, html_content")
+        .eq("id", cfg.template_id)
+        .eq("company_id", companyId)
+        .maybeSingle();
+      if (modello?.html_content) {
+        html = modello.html_content;
+        subject = modello.subject || subject;
+      } else if (!cfg.email_body && !cfg.html) {
+        return { success: false, error: "Modello email non trovato (o di un'altra azienda)" };
+      }
+    }
 
     // ── TEST A/B ───────────────────────────────────────────────────────────
     // Si attiva da solo quando esiste una variante B: un oggetto alternativo

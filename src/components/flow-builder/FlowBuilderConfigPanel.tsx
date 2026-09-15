@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { seedConfigDefaults, getCatalogItem, type ConfigFieldSchema } from "@/lib/flow-node-catalog";
+import { seedConfigDefaults, getCatalogItem, campiObbligatoriMancanti, type ConfigFieldSchema } from "@/lib/flow-node-catalog";
 import {
   NOTIFICATION_TEMPLATES,
   templatePerTrigger,
@@ -205,9 +205,8 @@ export function FlowBuilderConfigPanel({
   // Validazione LIVE per-campo: stessa regola della checklist di pubblicazione,
   // ma mostrata QUI mentre compili — scoprire i buchi solo al "Pubblica"
   // significa riaprire ogni nodo a caccia del campo dimenticato.
-  const vuoto = (v: unknown) => (Array.isArray(v) ? v.length === 0 : v == null || (typeof v === "string" && v.trim() === ""));
-  const campiMancanti = schema.filter((f) => f.required && vuoto(nodeData[f.id]));
   const itemId = nodeData.itemId as string;
+  const campiMancanti = campiObbligatoriMancanti(itemId, nodeData);
   const nodeType = nodeData.nodeType as string;
 
   const handleChange = (fieldId: string, value: any) => {
@@ -319,7 +318,13 @@ export function FlowBuilderConfigPanel({
             <TaskConfigPanel config={nodeData} onChange={handleChange} />
           )}
           {itemId === "invia_email" && (
-            <EmailConfigPanel config={nodeData} onChange={handleChange} triggerItemId={triggerItemId} />
+            <EmailConfigPanel
+              config={nodeData}
+              onChange={handleChange}
+              onPatch={handlePatch}
+              triggerItemId={triggerItemId}
+              companyId={companyId}
+            />
           )}
           {(itemId === "aggiungi_tag" || itemId === "rimuovi_tag") && (
             <TagActionPanel
@@ -344,7 +349,7 @@ export function FlowBuilderConfigPanel({
 
           {/* Generic fields from configSchema (only if NOT specialized) */}
           {!isSpecialized && schema.map((field) => {
-            const mancante = field.required && vuoto(nodeData[field.id]);
+            const mancante = campiMancanti.some((f) => f.id === field.id);
             return (
               <div key={field.id} className={mancante ? "rounded-lg bg-destructive/5 ring-1 ring-destructive/40 p-2 -mx-2" : undefined}>
                 <ConfigField
@@ -1013,8 +1018,10 @@ function ConfigField({
           <Select
             value={value || ""}
             onValueChange={(v) => {
-              // Cambiare pipeline invalida la fase scelta prima
-              if (onPatch) onPatch({ [field.id]: v, stage_id: null });
+              // Cambiare pipeline invalida le fasi scelte prima — anche quelle
+              // del trigger "cambio fase" (stage_a/stage_da), che altrimenti
+              // restavano puntate a una fase di un'altra pipeline.
+              if (onPatch) onPatch({ [field.id]: v, stage_id: null, stage_a: null, stage_da: null });
               else onChange(v);
             }}
           >

@@ -1,4 +1,4 @@
-import { Clock, CalendarDays } from "lucide-react";
+import { Clock, CalendarDays, CalendarClock } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -14,6 +14,15 @@ interface DelayConfigPanelProps {
 export function DelayConfigPanel({ config, onChange }: DelayConfigPanelProps) {
   const tipo = config.delay_tipo || "attendi";
   const giorniAttivi: number[] = config.delay_giorni_settimana || [1, 2, 3, 4, 5];
+  // Attesa ancorata all'appuntamento: il motore la conosce da tempo
+  // (delay_tipo "prima_appuntamento" + delay_ore), ma il pannello non la
+  // mostrava — chi apriva un promemoria "24 ore prima" vedeva un riquadro
+  // vuoto e, toccando un pulsante, perdeva l'ancoraggio senza accorgersene.
+  const oreApp = Number(config.delay_ore ?? 24);
+  const unitaApp = oreApp > 0 && oreApp < 1 ? "minuti" : "ore";
+  const valoreApp = unitaApp === "minuti" ? Math.round(oreApp * 60) : oreApp;
+  const scriviApp = (valore: number, unita: string) =>
+    onChange("delay_ore", unita === "minuti" ? Math.max(1, valore) / 60 : Math.max(1, valore));
 
   return (
     <div className="space-y-4">
@@ -23,7 +32,8 @@ export function DelayConfigPanel({ config, onChange }: DelayConfigPanelProps) {
         <div className="grid grid-cols-2 gap-2">
           {[
             { val: "attendi", label: "Attendi per", icon: Clock },
-            { val: "fino_a", label: "Fino a", icon: CalendarDays },
+            { val: "fino_a", label: "Fino a un orario", icon: CalendarDays },
+            { val: "prima_appuntamento", label: "Prima dell'appuntamento", icon: CalendarClock },
           ].map(opt => {
             const Icon = opt.icon;
             return (
@@ -31,7 +41,8 @@ export function DelayConfigPanel({ config, onChange }: DelayConfigPanelProps) {
                 key={opt.val}
                 onClick={() => onChange("delay_tipo", opt.val)}
                 className={cn(
-                  "flex items-center justify-center gap-1.5 p-2 rounded-lg border text-xs font-medium transition-all",
+                  "flex items-center justify-center gap-1.5 p-2 rounded-lg border text-center text-xs font-medium transition-all",
+                  opt.val === "prima_appuntamento" && "col-span-2",
                   tipo === opt.val
                     ? "bg-primary/10 border-primary text-primary"
                     : "border-border text-muted-foreground hover:bg-accent/50"
@@ -61,6 +72,9 @@ export function DelayConfigPanel({ config, onChange }: DelayConfigPanelProps) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
+                {/* Secondi: nelle conversazioni (WhatsApp, bot) la pausa
+                    giusta è di trenta secondi, non di un minuto. */}
+                <SelectItem value="secondi">Secondi</SelectItem>
                 <SelectItem value="minuti">Minuti</SelectItem>
                 <SelectItem value="ore">Ore</SelectItem>
                 <SelectItem value="giorni">Giorni</SelectItem>
@@ -84,7 +98,37 @@ export function DelayConfigPanel({ config, onChange }: DelayConfigPanelProps) {
         </div>
       )}
 
+      {/* Ancorata all'appuntamento */}
+      {tipo === "prima_appuntamento" && (
+        <div className="space-y-1.5">
+          <Label className="text-xs">Quanto prima</Label>
+          <div className="flex gap-2">
+            <Input
+              type="number"
+              min={1}
+              value={valoreApp}
+              onChange={e => scriviApp(parseInt(e.target.value) || 1, unitaApp)}
+              className="h-8 text-xs w-20"
+            />
+            <Select value={unitaApp} onValueChange={u => scriviApp(valoreApp, u)}>
+              <SelectTrigger className="h-8 text-xs flex-1">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="minuti">Minuti prima</SelectItem>
+                <SelectItem value="ore">Ore prima</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            Si conta dal primo appuntamento futuro del contatto. Se l'appuntamento
+            non c'è, o è già passato, il flusso prosegue subito.
+          </p>
+        </div>
+      )}
+
       {/* Day picker */}
+      {tipo !== "prima_appuntamento" && (
       <div className="space-y-1.5">
         <Label className="text-xs">Solo in questi giorni</Label>
         <div className="flex gap-1 flex-wrap">
@@ -112,6 +156,7 @@ export function DelayConfigPanel({ config, onChange }: DelayConfigPanelProps) {
           })}
         </div>
       </div>
+      )}
     </div>
   );
 }

@@ -11,7 +11,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { TRIGGER_CATALOG, ACTION_CATALOG, CONDITION_CATALOG } from "@/lib/flow-node-catalog";
+import { TRIGGER_CATALOG, ACTION_CATALOG, CONDITION_CATALOG, campiObbligatoriMancanti } from "@/lib/flow-node-catalog";
 import { FLOW_TEMPLATES } from "@/lib/flow-templates";
 
 const ROOT = join(__dirname, "../../..");
@@ -190,6 +190,58 @@ describe("coerenza catalogo ↔ executor ↔ emettitori", () => {
     expect(filtro("preventivo_accettato", "importo_minimo")).toBe(true);
     expect(filtro("fattura_creata", "importo_minimo")).toBe(true);
     expect(filtro("ferie_richiesta", "tipo_richiesta_filtro")).toBe(true);
+  });
+
+  it("un'email con modello salvato è completa anche senza oggetto e corpo", () => {
+    // Il testo sta nel modello, non nel nodo: chiedere oggetto e corpo qui
+    // bloccherebbe «Pubblica» su un nodo che è invece pronto.
+    expect(campiObbligatoriMancanti("invia_email", {
+      destinatario: "{{contatto.email}}",
+      modello_id: "11111111-1111-1111-1111-111111111111",
+    })).toEqual([]);
+    // Senza modello il testo deve esserci.
+    const mancanti = campiObbligatoriMancanti("invia_email", { destinatario: "{{contatto.email}}" })
+      .map((f) => f.id);
+    expect(mancanti).toEqual(["oggetto", "corpo"]);
+    // L'eccezione vale solo per l'email: le altre azioni restano severe.
+    expect(campiObbligatoriMancanti("invia_whatsapp", { modello_id: "x" }).map((f) => f.id))
+      .toEqual(["numero", "messaggio"]);
+  });
+
+  it("il modello salvato dell'email arriva fino al motore", () => {
+    // Il campo del builder (modello_id) deve essere tradotto e poi LETTO:
+    // il vecchio campo `template` era offerto dal catalogo e ignorato da tutti.
+    expect(EXECUTOR).toContain("c.modello_id && !c.template_id");
+    expect(EXECUTOR).toContain('.from("email_templates")');
+    const azione = ACTION_CATALOG.find((a) => a.id === "invia_email");
+    expect(azione?.configSchema.some((f) => f.id === "modello_id")).toBe(true);
+    expect(azione?.configSchema.some((f) => f.id === "template")).toBe(false);
+  });
+
+  it("i tag si confrontano per intero, non come pezzo di testo", () => {
+    // «dvs» non deve risultare presente a chi ha solo «dvs ai»: sono due
+    // percorsi diversi del sistema DVS. Vale sia nelle condizioni del flusso
+    // sia nei filtri del trigger.
+    expect(EXECUTOR).toContain("const elenco = Array.isArray(actual)");
+    expect(EXECUTOR).toContain("elenco ? elenco.includes(cercato)");
+    expect(EXECUTOR).toContain("elenco ? elenco.includes(sv)");
+    const pannello = readFileSync(join(ROOT, "src/components/flow-builder/config-panels/ConditionConfigPanel.tsx"), "utf8");
+    expect(pannello).toContain("contatto.tags");
+  });
+
+  it("il trigger «cambio fase» offre le fasi vere dell'azienda", () => {
+    // Il motore confronta payload.stage_id (un uuid) con stage_a: con gli slug
+    // inventati del vecchio catalogo non poteva scattare mai.
+    const campi = TRIGGER_CATALOG.find((t) => t.id === "opportunita_stage_cambiato")?.configSchema ?? [];
+    expect(campi.find((f) => f.id === "pipeline_id")?.type).toBe("pipeline_select");
+    expect(campi.find((f) => f.id === "stage_a")?.type).toBe("pipeline_stage_select");
+    expect(campi.find((f) => f.id === "stage_da")?.type).toBe("pipeline_stage_select");
+  });
+
+  it("l'attesa in secondi esiste sia nel pannello sia nel motore", () => {
+    const pannello = readFileSync(join(ROOT, "src/components/flow-builder/config-panels/DelayConfigPanel.tsx"), "utf8");
+    expect(pannello).toContain('value="secondi"');
+    expect(EXECUTOR).toContain("secondi: 1_000");
   });
 
   it("i campi required con default hanno il default seminabile (anti caso-Priorità)", () => {

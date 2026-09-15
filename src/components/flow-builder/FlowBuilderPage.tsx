@@ -34,7 +34,7 @@ import { WorkflowImpostazioni } from "./tabs/WorkflowImpostazioni";
 import { WorkflowCronologia } from "./tabs/WorkflowCronologia";
 import { WorkflowRegistro } from "./tabs/WorkflowRegistro";
 import { TestFlowDialog } from "./TestFlowDialog";
-import { seedConfigDefaults, getCatalogItem, type CatalogItem } from "@/lib/flow-node-catalog";
+import { seedConfigDefaults, campiObbligatoriMancanti, type CatalogItem } from "@/lib/flow-node-catalog";
 import { Loader2, AlertCircle, Wand2, Monitor } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
@@ -1018,13 +1018,7 @@ export function FlowBuilderPage() {
       // falliti su Suntech prima che ce ne accorgessimo. Vale per OGNI nodo.
       const itemId = String(n.data?.itemId ?? n.data?.action_type ?? n.data?.trigger_event ?? "");
       if (itemId) {
-        const mancanti = (getCatalogItem(itemId)?.configSchema ?? [])
-          .filter((f) => f.required)
-          .filter((f) => {
-            const v = (n.data as Record<string, unknown> | undefined)?.[f.id];
-            if (Array.isArray(v)) return v.length === 0;
-            return v == null || (typeof v === "string" && v.trim() === "");
-          });
+        const mancanti = campiObbligatoriMancanti(itemId, n.data as Record<string, unknown> | undefined);
         if (mancanti.length > 0) {
           errs.push({
             nodeId: n.id,
@@ -1043,11 +1037,19 @@ export function FlowBuilderPage() {
         }
       }
 
-      // Delay without duration
+      // Attesa senza durata. Le tre forme si misurano su campi diversi:
+      // "attendi per" su delay_durata, "fino a un orario" su delay_orario,
+      // "prima dell'appuntamento" su delay_ore — prima le ultime due erano
+      // sempre segnalate come non impostate, pur essendo complete.
       if (n.type === "delay") {
-        const delayValue = Number(n.data?.delay_durata ?? n.data?.delay_value);
-        if (!Number.isFinite(delayValue) || delayValue <= 0) {
-        errs.push({ nodeId: n.id, nodeLabel: n.data?.label || "Attesa", tipo: "avviso", messaggio: "Durata dell'attesa non impostata." });
+        const tipo = String(n.data?.delay_tipo ?? "attendi");
+        const impostata = tipo === "fino_a"
+          ? /^\d{1,2}:\d{2}$/.test(String(n.data?.delay_orario ?? ""))
+          : tipo === "prima_appuntamento"
+            ? Number(n.data?.delay_ore) > 0
+            : Number(n.data?.delay_durata ?? n.data?.delay_value) > 0;
+        if (!impostata) {
+          errs.push({ nodeId: n.id, nodeLabel: n.data?.label || "Attesa", tipo: "avviso", messaggio: "Durata dell'attesa non impostata." });
         }
       }
 

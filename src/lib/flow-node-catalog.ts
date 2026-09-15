@@ -292,17 +292,13 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
       { id: 'opportunita.stage_id', label: 'Nuovo stage (ID)', type: 'uuid' },
       { id: 'opportunita.stage_precedente', label: 'Stage precedente (ID)', type: 'uuid' },
     ],
+    // Pipeline e fasi REALI dell'azienda. Prima erano sette slug inventati
+    // ("nuovo_lead", "contattato"…) confrontati dal motore con l'UUID della
+    // fase: il trigger non poteva scattare mai, qualunque cosa si scegliesse.
     configSchema: [
-      { id: 'stage_da', label: 'Da stage (opzionale)', type: 'select', required: false, options: [
-        { value: '', label: 'Qualsiasi' }, { value: 'nuovo_lead', label: 'Nuovo Lead' }, { value: 'contattato', label: 'Contattato' },
-        { value: 'appuntamento', label: 'Appuntamento' }, { value: 'offerta_inviata', label: 'Offerta inviata' },
-        { value: 'negoziazione', label: 'Negoziazione' }, { value: 'vinto', label: 'Vinto' }, { value: 'perso', label: 'Perso' },
-      ]},
-      { id: 'stage_a', label: 'A stage (richiesto)', type: 'select', required: true, options: [
-        { value: 'contattato', label: 'Contattato' }, { value: 'appuntamento', label: 'Appuntamento fissato' },
-        { value: 'offerta_inviata', label: 'Offerta inviata' }, { value: 'negoziazione', label: 'In negoziazione' },
-        { value: 'vinto', label: 'Vinto ✅' }, { value: 'perso', label: 'Perso ❌' },
-      ], helpText: 'Il trigger scatta solo quando si arriva in questo stage' },
+      { id: 'pipeline_id', label: 'Pipeline', type: 'pipeline_select', required: true },
+      { id: 'stage_a', label: 'Quando arriva in questa fase', type: 'pipeline_stage_select', required: true, helpText: 'Il trigger scatta solo entrando in questa fase.' },
+      { id: 'stage_da', label: 'Solo se veniva da questa fase (opzionale)', type: 'pipeline_stage_select', required: false },
     ],
   },
   {
@@ -1622,7 +1618,11 @@ export const ACTION_CATALOG: ActionDefinition[] = [
       { id: 'cc', label: 'CC (opzionale)', type: 'text', required: false, supportsVariables: true },
       { id: 'oggetto', label: 'Oggetto', type: 'text', required: true, supportsVariables: true, placeholder: 'Es: Conferma appuntamento - {{appuntamento.appointment_date}}' },
       { id: 'corpo', label: 'Corpo email (HTML supportato)', type: 'textarea', required: true, supportsVariables: true, placeholder: "Gentile {{contatto.first_name}},\n\nLa tua richiesta è stata ricevuta..." },
-      { id: 'template', label: 'Oppure usa template salvato', type: 'select', required: false, options: [{ value: '', label: 'Nessun template (usa testo sopra)' }], helpText: 'Se selezioni un template, sovrascrive il corpo sopra' },
+      // Modello salvato (Email Marketing → Modelli): se c'è, oggetto e corpo
+      // vengono letti dal modello a OGNI invio — cambiare il modello cambia
+      // tutte le email che lo usano. Prima qui c'era un campo `template` con
+      // una sola opzione vuota: nessuno lo popolava e il motore non lo leggeva.
+      { id: 'modello_id', label: 'Modello salvato', type: 'select', required: false, options: [{ value: '', label: 'Nessun modello (scrivo il testo qui)' }], helpText: "Se scegli un modello, oggetto e testo arrivano da lì a ogni invio." },
     ],
   },
   {
@@ -2361,6 +2361,32 @@ export function seedConfigDefaults(itemId: string): Record<string, unknown> {
 export function getCatalogItem(itemId: string): CatalogItem | undefined {
   if (itemId === "note") return NOTE_CATALOG_ITEM;
   return FULL_CATALOG.find((c) => c.id === itemId);
+}
+
+/**
+ * Campi obbligatori ancora da compilare, con le eccezioni che dipendono dalla
+ * configurazione del nodo. Regola unica per il pannello (avviso mentre scrivi)
+ * e per la checklist di «Pubblica»: due liste diverse sarebbero due verità.
+ *
+ * Oggi l'unica eccezione è l'email con un modello salvato: oggetto e corpo non
+ * stanno nel nodo perché arrivano dal modello a ogni invio, e chiederli qui
+ * bloccherebbe la pubblicazione di un nodo che è invece completo.
+ */
+export function campiObbligatoriMancanti(
+  itemId: string,
+  data: Record<string, unknown> | undefined,
+): ConfigFieldSchema[] {
+  const schema = getCatalogItem(itemId)?.configSchema ?? [];
+  const daModello = itemId === "invia_email" && !vuotoCampo(data?.modello_id);
+  return schema
+    .filter((f) => f.required)
+    .filter((f) => !(daModello && (f.id === "oggetto" || f.id === "corpo")))
+    .filter((f) => vuotoCampo(data?.[f.id]));
+}
+
+function vuotoCampo(v: unknown): boolean {
+  if (Array.isArray(v)) return v.length === 0;
+  return v == null || (typeof v === "string" && v.trim() === "");
 }
 
 // ── Node kind colors (semantic) ──

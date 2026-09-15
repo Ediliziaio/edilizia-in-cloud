@@ -11,7 +11,12 @@ const CAMPI = [
   { value: "contatto.email", label: "Email contatto" },
   { value: "contatto.phone", label: "Telefono contatto" },
   { value: "contatto.city", label: "Città contatto" },
+  { value: "contatto.province", label: "Provincia contatto" },
   { value: "contatto.source", label: "Fonte contatto" },
+  // I tag sono un elenco: "contiene"/"non contiene" valgono sul tag intero.
+  // Senza questa voce le sequenze che si fermano su un tag (il classico
+  // «stop nutrimento») non erano scrivibili dal pannello.
+  { value: "contatto.tags", label: "Tag contatto" },
   { value: "opportunita.value", label: "Valore opportunità" },
   { value: "opportunita.stage_id", label: "Stage opportunità" },
   { value: "appuntamento.status", label: "Stato appuntamento" },
