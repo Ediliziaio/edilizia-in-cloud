@@ -1704,8 +1704,10 @@ export const ACTION_CATALOG: ActionDefinition[] = [
   },
   {
     id: 'crea_opportunita',
-    label: 'Crea opportunità',
-    description: 'Crea una nuova opportunità/deal nella pipeline',
+    label: 'Crea o aggiorna opportunità',
+    // Un contatto che torna (nuova richiesta) ha già un'opportunità aperta:
+    // si aggiorna quella, con fase e assegnazione del flusso di oggi.
+    description: "Crea l'opportunità; se il contatto ne ha già una aperta in questa pipeline la aggiorna: la sposta nella fase scelta e la assegna a venditore e call center indicati qui",
     icon: 'DollarSign',
     categoria: 'crm',
     outputVariables: [{ id: 'opportunita.id', label: 'ID Opportunità creata', type: 'uuid' }],
@@ -1720,8 +1722,8 @@ export const ACTION_CATALOG: ActionDefinition[] = [
       { id: 'pipeline_id', label: 'Pipeline', type: 'pipeline_select', required: true },
       { id: 'stage_id', label: 'Fase pipeline', type: 'pipeline_stage_select', required: true },
       { id: 'fonte', label: 'Fonte opportunità', type: 'text', required: false, supportsVariables: true, placeholder: 'Es: facebook', helpText: 'Comparirà come Fonte sulla scheda opportunità.' },
-      { id: 'assegnato_a', label: 'Venditore', type: 'user_select', required: false },
-      { id: 'call_center_id', label: 'Call center (opzionale)', type: 'user_select', required: false },
+      { id: 'assegnato_a', label: 'Venditore', type: 'user_select', required: false, helpText: 'Vale anche per un\'opportunità già aperta: prende il posto di quello di prima.' },
+      { id: 'call_center_id', label: 'Call center (opzionale)', type: 'user_select', required: false, helpText: 'Vale anche per un\'opportunità già aperta: prende il posto di quello di prima.' },
     ],
   },
   {

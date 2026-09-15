@@ -19,6 +19,7 @@ import { getSuppressedEmailMap, normalizeEmailAddress } from "../_shared/emailSu
 import { getCorsHeaders, secureHeaders } from "../_shared/headers.ts";
 import { appendTrackingSig } from "../_shared/emailTrackingSignature.ts";
 import { arcoDelRamo, leggiPercentuali, ramoPerNumero } from "../_shared/splitRami.ts";
+import { personeDaAvvisare, tagsUniti, testoNotaAggiornamento } from "../_shared/creaAggiornaOpportunita.ts";
 import { isInternalRequest, isSuperAdminEmailAllowed, requireAuth, requireCompanyAccess, requireInternalSecret, resolveUserEmail } from "../_shared/auth.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import {
@@ -1471,6 +1472,108 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
       const pipelineId = ncfg.pipeline_id;
       const stageId = ncfg.stage_id || ncfg.stage;
 
+      const fonte = await resolveOppText(ncfg.fonte);
+
+      // ── CREA O AGGIORNA ──
+      // Il contatto ha già un'opportunità aperta in questa pipeline (ha fatto
+      // di nuovo richiesta): si aggiorna quella, come dice il flusso. Fase e
+      // assegnazione sono quelle del flusso di oggi, anche se prima c'era un
+      // altro venditore o call center: il flusso è la regola che vale adesso.
+      // Prima l'inserimento veniva scartato dal database (dedupe) e chi il
+      // flusso aveva scelto andava perso (BeMade, Marcella Martinucci, 14/09).
+      if (pipelineId && UUID_RE.test(String(entityId))) {
+        const { data: esistente } = await supabase
+          .from("marketing_opportunities")
+          .select("id, name, stage_id, assigned_to, call_center_id, tags")
+          .eq("company_id", companyId)
+          .eq("contact_id", entityId)
+          .eq("pipeline_id", pipelineId)
+          .eq("status", "open")
+          .is("deleted_at", null)
+          .order("updated_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (esistente) {
+          const adesso = new Date().toISOString();
+          // Richiesta fresca: la scheda non è ferma da settimane, anche se la fase non cambia.
+          const patch: Record<string, unknown> = { stage_changed_at: adesso, last_activity_at: adesso, updated_at: adesso };
+          if (stageId && stageId !== esistente.stage_id) patch.stage_id = stageId;
+          if (ncfg.assegnato_a) patch.assigned_to = ncfg.assegnato_a;
+          if (ncfg.call_center_id) patch.call_center_id = ncfg.call_center_id;
+          if (leadArretrato) patch.tags = tagsUniti(esistente.tags, ["lead-recuperato"]);
+
+          const { error: errAggiorna } = await supabase
+            .from("marketing_opportunities")
+            .update(patch)
+            .eq("id", esistente.id)
+            .eq("company_id", companyId);
+          if (errAggiorna) return { success: false, error: errAggiorna.message };
+
+          const idFasi = [esistente.stage_id, stageId].filter(Boolean);
+          const idPersone = [patch.assigned_to, patch.call_center_id].filter(Boolean);
+          const [fasiRes, personeRes, flussoRes] = await Promise.all([
+            idFasi.length ? supabase.from("marketing_pipeline_stages").select("id, name").in("id", idFasi) : Promise.resolve({ data: [] }),
+            idPersone.length ? supabase.from("profiles").select("id, first_name, last_name").in("id", idPersone) : Promise.resolve({ data: [] }),
+            queueItem?.flow_id ? supabase.from("automation_flows").select("name").eq("id", queueItem.flow_id).maybeSingle() : Promise.resolve({ data: null }),
+          ]);
+          const nomeFase = (id: unknown): string | null =>
+            ((fasiRes.data ?? []) as Array<{ id: string; name: string }>).find((f) => f.id === id)?.name ?? null;
+          const nomePersona = (id: unknown): string | null => {
+            const p = ((personeRes.data ?? []) as Array<{ id: string; first_name: string | null; last_name: string | null }>).find((x) => x.id === id);
+            return p ? `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim() || null : null;
+          };
+          const faseOra = nomeFase(stageId || esistente.stage_id);
+
+          // Nota sulla scheda: chi apre l'opportunità capisce perché è tornata qui.
+          await supabase.from("marketing_contact_notes").insert({
+            company_id: companyId,
+            contact_id: entityId,
+            opportunity_id: esistente.id,
+            content: testoNotaAggiornamento({
+              flusso: (flussoRes.data as { name?: string } | null)?.name ?? null,
+              fasePrima: nomeFase(esistente.stage_id),
+              faseDopo: faseOra,
+              venditore: patch.assigned_to ? nomePersona(patch.assigned_to) : null,
+              callCenter: patch.call_center_id ? nomePersona(patch.call_center_id) : null,
+              arretrato: leadArretrato,
+            }),
+            created_by: null,
+          });
+
+          // Avviso a chi la segue adesso. Non per un lead recuperato dallo storico.
+          if (!leadArretrato) {
+            const destinatari = personeDaAvvisare([
+              (patch.assigned_to as string | undefined) ?? esistente.assigned_to,
+              (patch.call_center_id as string | undefined) ?? esistente.call_center_id,
+            ]);
+            if (destinatari.length > 0) {
+              await supabase.from("notifications").insert(destinatari.map((uid) => ({
+                company_id: companyId,
+                user_id: uid,
+                type: "lead_ripresentato",
+                title: `${String(esistente.name || "Un cliente").slice(0, 80)} ha fatto di nuovo richiesta`,
+                body: `L'opportunità è in «${faseOra ?? "prima fase"}», da richiamare.`,
+                entity_type: "marketing_opportunity",
+                entity_id: esistente.id,
+                action_url: `/azienda/marketing/opportunita?pipeline=${pipelineId}&apri=${esistente.id}`,
+              })));
+            }
+          }
+
+          return {
+            success: true,
+            output: {
+              action: "update_opportunity",
+              opportunity_id: esistente.id,
+              name: esistente.name,
+              fase: faseOra,
+              riassegnata: Boolean(ncfg.assegnato_a || ncfg.call_center_id),
+            },
+          };
+        }
+      }
+
       const insertData: any = {
         name,
         value,
@@ -1482,7 +1585,6 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
       if (stageId) insertData.stage_id = stageId;
       if (ncfg.assegnato_a) insertData.assigned_to = ncfg.assegnato_a;
       if (ncfg.call_center_id) insertData.call_center_id = ncfg.call_center_id;
-      const fonte = await resolveOppText(ncfg.fonte);
       if (fonte) insertData.source = fonte.slice(0, 100);
 
       // Lead recuperato dallo storico: si scrive sull'opportunità da quanto
@@ -1496,11 +1598,13 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
           : "Richiesta recuperata dallo storico di Facebook: non è un contatto di oggi.";
       }
 
-      const { error } = await supabase
+      const { data: creata, error } = await supabase
         .from("marketing_opportunities")
-        .insert(insertData);
+        .insert(insertData)
+        .select("id")
+        .maybeSingle();
       if (error) return { success: false, error: error.message };
-      return { success: true, output: { action: "create_opportunity", name } };
+      return { success: true, output: { action: "create_opportunity", name, opportunity_id: creata?.id ?? null } };
     }
 
     case "move_opportunity": {

@@ -586,7 +586,7 @@ const T26: FlowTemplate = {
   nodes: [
     { id: 'trigger-1', nodeType: 'trigger', posX: 250, posY: 50, configJson: { trigger_type: 'form_compilato' }, label: 'Form compilato' },
     { id: 'action-1', nodeType: 'action', posX: 100, posY: 200, configJson: { action_type: 'invia_email', destinatario: '{{contatto.email}}', oggetto: 'Abbiamo ricevuto la tua richiesta!', corpo: 'Gentile {{contatto.first_name}},\n\nGrazie per averci contattato!\nUn nostro consulente ti risponderà nelle prossime ore.\n\nCordiali saluti' }, label: 'Email risposta' },
-    { id: 'action-2', nodeType: 'action', posX: 400, posY: 200, configJson: { action_type: 'crea_opportunita', nome: 'Lead web: {{contatto.first_name}} {{contatto.last_name}}', stage: 'nuovo_lead', valore: 0 }, label: 'Crea opportunità' },
+    { id: 'action-2', nodeType: 'action', posX: 400, posY: 200, configJson: { action_type: 'crea_opportunita', nome: 'Lead web: {{contatto.first_name}} {{contatto.last_name}}', stage: 'nuovo_lead', valore: 0 }, label: 'Crea o aggiorna opportunità' },
     { id: 'action-3', nodeType: 'action', posX: 250, posY: 380, configJson: { action_type: 'crea_task', titolo: '🌐 Lead sito: {{contatto.first_name}} {{contatto.last_name}} ({{contatto.phone}})', priorita: 'alta', scadenza_giorni: 0 }, label: 'Task follow-up' },
   ],
   connections: [
@@ -625,7 +625,7 @@ const T28: FlowTemplate = {
   triggerTipo: 'email_cliccata',
   nodes: [
     { id: 'trigger-1', nodeType: 'trigger', posX: 250, posY: 50, configJson: { trigger_type: 'email_cliccata' }, label: 'Email cliccata' },
-    { id: 'action-1', nodeType: 'action', posX: 100, posY: 200, configJson: { action_type: 'crea_opportunita', nome: 'Interesse da email: {{contatto.first_name}} {{contatto.last_name}}', stage: 'interessato', valore: 0 }, label: 'Crea opportunità' },
+    { id: 'action-1', nodeType: 'action', posX: 100, posY: 200, configJson: { action_type: 'crea_opportunita', nome: 'Interesse da email: {{contatto.first_name}} {{contatto.last_name}}', stage: 'interessato', valore: 0 }, label: 'Crea o aggiorna opportunità' },
     { id: 'action-2', nodeType: 'action', posX: 400, posY: 200, configJson: { action_type: 'invia_notifica_inapp', titolo: '🖱️ {{contatto.first_name}} {{contatto.last_name}} ha cliccato email!', testo: 'Link: {{link.url}} | Opportunità creata' }, label: 'Notifica commerciale' },
     { id: 'action-3', nodeType: 'action', posX: 250, posY: 380, configJson: { action_type: 'crea_task', titolo: 'Contatta: {{contatto.first_name}} {{contatto.last_name}} (ha cliccato su {{link.url}})', priorita: 'alta', scadenza_giorni: 0 }, label: 'Task contatto' },
   ],
