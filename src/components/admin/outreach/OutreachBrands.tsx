@@ -28,6 +28,8 @@ interface Brand {
   new_per_day?: number | null;
   /** Email che sembrano scritte a mano: niente List-Unsubscribe, link o pixel; opt-out rispondendo; follow-up che citano. */
   stile_umano?: boolean | null;
+  /** Stile umano: il motore aggiunge «rispondi no e non ti scrivo più» alle email che non hanno una via d'uscita. False = mai. */
+  frase_uscita_automatica?: boolean | null;
 }
 /** Finestra di invio del brand. 0=Dom … 6=Sab. Senza una sua il brand spedisce lun–ven 8–19. */
 interface Finestra { days: number[]; startHour: number; endHour: number; timeZone: string }
@@ -104,12 +106,12 @@ export function OutreachBrands({ companyId }: { companyId: string }) {
   });
 
   const salvaRitmo = useMutation({
-    mutationFn: async ({ id, trackingBase: tb, nuoviAlGiorno: n, stileUmano: su }: { id: string; trackingBase: string; nuoviAlGiorno: string; stileUmano: boolean }) => {
+    mutationFn: async ({ id, trackingBase: tb, nuoviAlGiorno: n, stileUmano: su, fraseUscita: fu }: { id: string; trackingBase: string; nuoviAlGiorno: string; stileUmano: boolean; fraseUscita: boolean }) => {
       const base = tb.trim();
       if (base && !/^https:\/\/[^\s/]+(\/[^\s]*)?$/.test(base)) throw new Error("La base dei link deve essere un indirizzo https:// (es. https://link.tuodominio.it/l)");
       const nuovi = n.trim() ? Number(n) : null;
       if (nuovi !== null && (!Number.isInteger(nuovi) || nuovi < 0)) throw new Error("«Nuovi al giorno» deve essere un numero intero");
-      const { error } = await db.from(T).update({ tracking_base_url: base || null, new_per_day: nuovi, stile_umano: su }).eq("id", id); if (error) throw error;
+      const { error } = await db.from(T).update({ tracking_base_url: base || null, new_per_day: nuovi, stile_umano: su, frase_uscita_automatica: fu }).eq("id", id); if (error) throw error;
     },
     onSuccess: () => { toast.success("Ritmo e link del brand salvati"); invalidate(); },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Errore"),
@@ -225,18 +227,19 @@ export function OutreachBrands({ companyId }: { companyId: string }) {
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-          {brands.map((b) => <BrandCard key={b.id} brand={b} onDelete={() => del.mutate(b.id)} deleting={del.isPending} onSalvaFinestra={(f) => salvaFinestra.mutate({ id: b.id, finestra: f })} onSalvaRitmo={(tb, n, su) => salvaRitmo.mutate({ id: b.id, trackingBase: tb, nuoviAlGiorno: n, stileUmano: su })} onCambiaStato={(attivo) => cambiaStato.mutate({ id: b.id, attivo })} cambiandoStato={cambiaStato.isPending} />)}
+          {brands.map((b) => <BrandCard key={b.id} brand={b} onDelete={() => del.mutate(b.id)} deleting={del.isPending} onSalvaFinestra={(f) => salvaFinestra.mutate({ id: b.id, finestra: f })} onSalvaRitmo={(tb, n, su, fu) => salvaRitmo.mutate({ id: b.id, trackingBase: tb, nuoviAlGiorno: n, stileUmano: su, fraseUscita: fu })} onCambiaStato={(attivo) => cambiaStato.mutate({ id: b.id, attivo })} cambiandoStato={cambiaStato.isPending} />)}
         </div>
       )}
     </section>
   );
 }
 
-function BrandCard({ brand, onDelete, deleting, onSalvaFinestra, onSalvaRitmo, onCambiaStato, cambiandoStato }: { brand: Brand; onDelete: () => void; deleting: boolean; onSalvaFinestra: (f: Finestra | null) => void; onSalvaRitmo: (trackingBase: string, nuoviAlGiorno: string, stileUmano: boolean) => void; onCambiaStato: (attivo: boolean) => void; cambiandoStato: boolean }) {
+function BrandCard({ brand, onDelete, deleting, onSalvaFinestra, onSalvaRitmo, onCambiaStato, cambiandoStato }: { brand: Brand; onDelete: () => void; deleting: boolean; onSalvaFinestra: (f: Finestra | null) => void; onSalvaRitmo: (trackingBase: string, nuoviAlGiorno: string, stileUmano: boolean, fraseUscita: boolean) => void; onCambiaStato: (attivo: boolean) => void; cambiandoStato: boolean }) {
   const [editRitmo, setEditRitmo] = useState(false);
   const [tb, setTb] = useState(brand.tracking_base_url ?? "");
   const [nuovi, setNuovi] = useState(brand.new_per_day != null ? String(brand.new_per_day) : "");
   const [umano, setUmano] = useState(brand.stile_umano !== false);
+  const [fraseNo, setFraseNo] = useState(brand.frase_uscita_automatica !== false);
   const [editOrari, setEditOrari] = useState(false);
   const [finestra, setFinestra] = useState<Finestra | null>(brand.send_window ?? null);
   return (
@@ -294,8 +297,9 @@ function BrandCard({ brand, onDelete, deleting, onSalvaFinestra, onSalvaRitmo, o
               <Input value={tb} onChange={(e) => setTb(e.target.value)} placeholder="https://link.tuodominio.it/l" className="h-7 w-[260px] font-mono text-xs" />
               <Input value={nuovi} onChange={(e) => setNuovi(e.target.value)} placeholder="nuovi/giorno" inputMode="numeric" className="h-7 w-[110px] text-xs" />
               <label className="flex cursor-pointer items-center gap-1.5 text-xs"><input type="checkbox" checked={umano} onChange={(e) => setUmano(e.target.checked)} className="h-3.5 w-3.5" /> stile umano</label>
-              <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => { setTb(brand.tracking_base_url ?? ""); setNuovi(brand.new_per_day != null ? String(brand.new_per_day) : ""); setUmano(brand.stile_umano !== false); setEditRitmo(false); }}>Annulla</Button>
-              <Button size="sm" className="h-6 px-2 text-xs" onClick={() => { onSalvaRitmo(tb, nuovi, umano); setEditRitmo(false); }}>Salva</Button>
+              <label className="flex cursor-pointer items-center gap-1.5 text-xs" title="Se l'email non ha già una via d'uscita, il motore aggiunge in fondo «Se non ti interessa, rispondi «no» e non ti scrivo più.»"><input type="checkbox" checked={fraseNo} disabled={!umano} onChange={(e) => setFraseNo(e.target.checked)} className="h-3.5 w-3.5" /> frase «rispondi no» in fondo</label>
+              <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => { setTb(brand.tracking_base_url ?? ""); setNuovi(brand.new_per_day != null ? String(brand.new_per_day) : ""); setUmano(brand.stile_umano !== false); setFraseNo(brand.frase_uscita_automatica !== false); setEditRitmo(false); }}>Annulla</Button>
+              <Button size="sm" className="h-6 px-2 text-xs" onClick={() => { onSalvaRitmo(tb, nuovi, umano, fraseNo); setEditRitmo(false); }}>Salva</Button>
             </div>
           ) : (
             <button type="button" className="text-left hover:underline" onClick={() => setEditRitmo(true)} title="Tetto dei nuovi contatti al giorno per casella e dominio dei link">
@@ -304,6 +308,7 @@ function BrandCard({ brand, onDelete, deleting, onSalvaFinestra, onSalvaRitmo, o
               {brand.tracking_base_url ? <span className="font-mono">{brand.tracking_base_url}</span> : <span className="text-amber-700">link su dominio di piattaforma</span>}
               {" · "}
               {brand.stile_umano !== false ? <span className="text-emerald-700">stile umano</span> : <span className="text-amber-700">stile mailer (List-Unsubscribe, link tracciato)</span>}
+              {brand.stile_umano !== false && brand.frase_uscita_automatica === false ? <span className="text-muted-foreground"> · senza frase «rispondi no»</span> : null}
             </button>
           )}
         </Row>

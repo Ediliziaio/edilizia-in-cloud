@@ -758,7 +758,7 @@ serveConMetriche("outreach-dispatch", async (req) => {
   // https://link.thermodmr.it/l) → impostazione di piattaforma → *.supabase.co.
   // L'ultimo è un dominio estraneo al mittente dentro ogni email, anche
   // nell'intestazione List-Unsubscribe: i filtri lo contano.
-  const brandById = new Map<string, { status?: string | null; from_name: string | null; reply_to: string | null; signature: string | null; footer_address: string | null; send_window?: unknown; tracking_base_url?: string | null; new_per_day?: number | null; stile_umano?: boolean | null }>();
+  const brandById = new Map<string, { status?: string | null; from_name: string | null; reply_to: string | null; signature: string | null; footer_address: string | null; send_window?: unknown; tracking_base_url?: string | null; new_per_day?: number | null; stile_umano?: boolean | null; frase_uscita?: string | null; frase_uscita_automatica?: boolean | null }>();
   const trackingBasePiattaforma = String((await getPlatformSetting("outreach_tracking_base_url").catch(() => null)) || `${SUPABASE_URL}/functions/v1`).replace(/\/+$/, "");
   const trackingBasePerBrand = (brandId: string | null): string => {
     const b = brandId ? brandById.get(brandId) : undefined;
@@ -915,7 +915,7 @@ serveConMetriche("outreach-dispatch", async (req) => {
     const queueById = new Map(queue.map((q) => [q.id, q]));
 
     // identità per brand (from_name / reply_to override) + firma e indirizzo footer
-    const { data: brandsRaw } = await supabase.from("outreach_brands").select("id,status,from_name,reply_to,signature,footer_address,send_window,tracking_base_url,new_per_day,stile_umano,frase_uscita");
+    const { data: brandsRaw } = await supabase.from("outreach_brands").select("id,status,from_name,reply_to,signature,footer_address,send_window,tracking_base_url,new_per_day,stile_umano,frase_uscita,frase_uscita_automatica");
     for (const b of brandsRaw || []) brandById.set(b.id, b);
 
     // vars dei contatti per la personalizzazione (variabili + spintax al send)
@@ -1247,7 +1247,9 @@ serveConMetriche("outreach-dispatch", async (req) => {
         // controllo di lunghezza: vedi componiCorpo.
         const composto = componiCorpo({
           corpo,
-          aggiungiUscita: Boolean(stileUmano && enr && !haFraseUscita(htmlToPlainText(corpo))),
+          // Il brand può spegnerla (ThermoDMR, 15/09/2026: «non ci deve essere»):
+          // chi risponde «no» viene fermato lo stesso dal gestore delle risposte.
+          aggiungiUscita: Boolean(stileUmano && enr && brand?.frase_uscita_automatica !== false && !haFraseUscita(htmlToPlainText(corpo))),
           frase: brand?.frase_uscita,
           firma: firma ? renderTemplate(firma, vars, { seed }) : null,
         });
