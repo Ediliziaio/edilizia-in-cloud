@@ -1,7 +1,8 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useBillingActivationGate } from "@/hooks/useBillingActivationGate";
-import { useStartCardSetup, useOpenBillingPortal } from "@/hooks/useBilling";
+import { useStartCardSetup, useOpenBillingPortal, useBillingInfo, useStartPlanCheckout, abbonamentoDaAttivare } from "@/hooks/useBilling";
+import { formatCurrency } from "@/lib/formatters";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -221,10 +222,67 @@ function PaymentStep({ done }: { done: boolean; companyId?: string; method: stri
   );
 }
 
+/**
+ * «Rinnova abbonamento» della schermata di blocco. Il portale Stripe esiste solo per
+ * chi ha già pagato almeno una volta: a un'azienda senza cliente Stripe rispondeva 404
+ * e l'azienda restava chiusa fuori senza modo di pagare (I.E.B. S.r.l., scaduta su
+ * Enterprise senza aver mai pagato). Con un piano da attivare si apre il pagamento del
+ * piano assegnato; negli altri casi resta il portale.
+ * Sta in un componente a parte perché useBillingInfo fa due query: così partono solo su
+ * questa schermata, non a ogni render del guard che avvolge tutta l'app.
+ */
+function RinnovaAbbonamento() {
+  const { data: billing, isLoading } = useBillingInfo();
+  const openPortal = useOpenBillingPortal();
+  const attivaPiano = useStartPlanCheckout();
+  // Di ritorno da Stripe il webhook può arrivare un attimo dopo: il blocco è ancora su
+  // e un secondo clic farebbe pagare due volte.
+  const [appenaPagato] = useState(
+    () => new URLSearchParams(window.location.search).get("payment") === "success",
+  );
+
+  if (appenaPagato) {
+    return (
+      <div className="mt-2 flex w-full flex-col items-center gap-2">
+        <p className="text-sm font-medium">Pagamento ricevuto: il gestionale si riattiva in pochi secondi.</p>
+        <Button className="w-full" onClick={() => window.location.reload()}>
+          Ricarica la pagina
+        </Button>
+        <p className="text-xs text-muted-foreground">
+          Se resta bloccato, scrivi a info@ediliziaincloud.com prima di pagare di nuovo.
+        </p>
+      </div>
+    );
+  }
+
+  const dalPiano = abbonamentoDaAttivare(billing);
+  const inCorso = isLoading || openPortal.isPending || attivaPiano.isPending;
+
+  return (
+    <div className="mt-2 flex w-full flex-col items-center gap-1.5">
+      <Button
+        className="w-full"
+        disabled={inCorso}
+        onClick={() => {
+          if (dalPiano && billing?.planId) attivaPiano.mutate({ planId: billing.planId });
+          else openPortal.mutate();
+        }}
+      >
+        {inCorso ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" />}
+        Rinnova abbonamento
+      </Button>
+      {dalPiano && billing && (
+        <p className="text-xs text-muted-foreground">
+          {billing.planName}: {formatCurrency(billing.planPriceMonthly)} al mese, con carta o addebito SEPA.
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function BillingActivationGuard({ children }: { children: ReactNode }) {
   const { effectiveCompany, signOut } = useAuth();
   const { isBlocked, needsBillingData, needsPaymentMethod, subscriptionExpired, canManage } = useBillingActivationGate();
-  const openPortal = useOpenBillingPortal();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const c = effectiveCompany as any;
@@ -258,12 +316,7 @@ export function BillingActivationGuard({ children }: { children: ReactNode }) {
                 ? " Rinnova per riattivare subito la piattaforma e i tuoi dati."
                 : " Contatta l'amministratore della tua azienda per rinnovare."}
             </p>
-            {canManage && (
-              <Button className="mt-2 w-full" onClick={() => openPortal.mutate()} disabled={openPortal.isPending}>
-                {openPortal.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" />}
-                Rinnova abbonamento
-              </Button>
-            )}
+            {canManage && <RinnovaAbbonamento />}
             <Button variant="outline" size="sm" onClick={() => signOut()} className="mt-1">
               <LogOut className="mr-2 h-4 w-4" /> Esci
             </Button>
