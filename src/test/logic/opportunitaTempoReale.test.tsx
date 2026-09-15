@@ -101,7 +101,7 @@ describe("opportunità in tempo reale", () => {
     expect(invalida).not.toHaveBeenCalled();
   });
 
-  it("una scheda a schermo che passa in un'altra pipeline ricarica, e così la sua cancellazione", () => {
+  it("una scheda a schermo che passa in un'altra pipeline ricarica, e così la sua cancellazione", async () => {
     queryClient.setQueryData(queryKeys.opportunities.fase("az1", "p1", "s1", {}, "created_at:desc"),
       { pages: [[{ id: "a-schermo" }]], pageParams: [0] });
     monta(queryClient);
@@ -115,20 +115,40 @@ describe("opportunità in tempo reale", () => {
     expect(invalida).toHaveBeenCalledTimes(1);
 
     arriva("DELETE", { old: { id: "a-schermo" } });
-    vi.advanceTimersByTime(3_000);
+    await vi.advanceTimersByTimeAsync(15_000);
     expect(invalida).toHaveBeenCalledTimes(2);
   });
 
-  it("mai più di una ricarica ogni 3 secondi", () => {
+  it("mai più di una ricarica ogni 15 secondi", async () => {
     monta(queryClient);
     arriva("INSERT", { new: { id: "o1", pipeline_id: "p1" } });
-    vi.advanceTimersByTime(1_000);                     // t = 1 s: prima ricarica
+    await vi.advanceTimersByTimeAsync(1_000);          // t = 1 s: prima ricarica
     expect(invalida).toHaveBeenCalledTimes(1);
-    vi.advanceTimersByTime(500);                       // t = 1,5 s: nuovo evento
+    await vi.advanceTimersByTimeAsync(500);            // t = 1,5 s: nuovo evento
     arriva("UPDATE", { new: { id: "o1", pipeline_id: "p1" } });
-    vi.advanceTimersByTime(2_499);                     // t = 3,999 s
+    await vi.advanceTimersByTimeAsync(14_499);         // t = 15,999 s
     expect(invalida).toHaveBeenCalledTimes(1);
-    vi.advanceTimersByTime(1);                         // t = 4 s: seconda
+    await vi.advanceTimersByTimeAsync(1);              // t = 16 s: seconda
+    expect(invalida).toHaveBeenCalledTimes(2);
+  });
+
+  it("finché la ricarica precedente non è finita non ne parte un'altra, e dopo una lenta si aspetta di più", async () => {
+    // 15/09/2026: col database lento le ricariche si accavallavano, e quelle
+    // annullate nel browser continuavano sul database.
+    let finisci!: () => void;
+    invalida.mockImplementationOnce(() => new Promise<void>((fine) => { finisci = () => fine(); }));
+    monta(queryClient);
+    arriva("INSERT", { new: { id: "o1", pipeline_id: "p1" } });
+    await vi.advanceTimersByTimeAsync(1_000);          // t = 1 s: parte la prima e resta appesa
+    expect(invalida).toHaveBeenCalledTimes(1);
+    expect(invalida.mock.calls[0][1]).toEqual({ cancelRefetch: false });
+    arriva("UPDATE", { new: { id: "o1", pipeline_id: "p1" } });
+    await vi.advanceTimersByTimeAsync(60_000);         // t = 61 s: la prima non è ancora finita
+    expect(invalida).toHaveBeenCalledTimes(1);
+    finisci();                                         // è durata 60 s: la prossima tra 2 minuti
+    await vi.advanceTimersByTimeAsync(119_000);        // t = 180 s
+    expect(invalida).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(2_000);          // t = 182 s
     expect(invalida).toHaveBeenCalledTimes(2);
   });
 

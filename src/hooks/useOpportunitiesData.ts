@@ -557,10 +557,22 @@ export function useOpportunityTags(pipelineId: string | null, enabled: boolean) 
  * (misurato sul «Nuovo» di BeMade, 17.882 opportunità: circa 0,2 s tra
  * riepilogo e prime pagine), e le modifiche che arrivano insieme — il contatto,
  * l'opportunità e le automazioni di un lead, un'importazione, uno spostamento
- * in blocco — diventano una ricarica sola, mai più di una ogni 3 secondi.
+ * in blocco — diventano una ricarica sola.
+ *
+ * 15/09/2026: quel «costa poco» vale a database tranquillo. Sotto sforzo
+ * riepilogo e colonne arrivavano a 2-17 secondi: una ricarica ogni 3 secondi
+ * poteva partire prima che finisse la precedente, e quella annullata nel
+ * browser continua comunque sul database. Quel giorno due schede aperte sul
+ * kanban hanno fatto più di mille chiamate in due ore, 120 delle circa 150
+ * query annullate per timeout erano del kanban, e il database si è fermato due
+ * volte. Ora una ricarica non parte mentre la precedente è in corso, e tra una
+ * e l'altra si aspetta almeno 15 secondi, o cinque volte quanto è durata
+ * l'ultima, fino a 2 minuti: un database lento riceve meno richieste, non di
+ * più. La prima modifica dopo una pausa arriva comunque in un secondo.
  */
 const TEMPO_REALE_ATTESA_MS = 1000;
-const TEMPO_REALE_OGNI_MS = 3000;
+const TEMPO_REALE_OGNI_MS = 15_000;
+const TEMPO_REALE_MASSIMO_MS = 120_000;
 
 /** La scheda è tra quelle caricate per questa pipeline (a schermo o in cache)? */
 function schedaCaricata(queryClient: ReturnType<typeof useQueryClient>, pipelineId: string, id: unknown): boolean {
@@ -581,6 +593,8 @@ export function useOpportunitiesLive(pipelineId: string | null) {
     if (!companyId || !pipelineId) return;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let ultimaRicarica = 0;
+    let attesa = TEMPO_REALE_OGNI_MS;
+    let inCorso = false;
     let arretrata = false;
     let giaAgganciato = false;
 
@@ -588,19 +602,26 @@ export function useOpportunitiesLive(pipelineId: string | null) {
       timer = undefined;
       // Scheda del browser nascosta: nessuna richiesta, si ricarica al ritorno.
       if (document.hidden) { arretrata = true; return; }
-      // Uno spostamento sta ancora salvando: ricaricare adesso riporterebbe la
-      // scheda indietro per un attimo. Si riprova tra poco.
-      if (queryClient.isMutating() > 0) { programma(); return; }
-      ultimaRicarica = Date.now();
+      // Si riprova tra poco se uno spostamento sta ancora salvando (ricaricare
+      // adesso riporterebbe la scheda indietro per un attimo), se la ricarica
+      // precedente non è finita o se l'attesa dall'ultima non è passata.
+      if (inCorso || queryClient.isMutating() > 0 || Date.now() - ultimaRicarica < attesa) { programma(); return; }
+      inCorso = true;
+      const inizio = Date.now();
+      ultimaRicarica = inizio;
       void queryClient.invalidateQueries({
         queryKey: queryKeys.opportunities.all,
         predicate: (q) => q.queryKey[3] === pipelineId
           && ["riepilogo", "fase", "lista", "list"].includes(q.queryKey[1] as string),
+      }, { cancelRefetch: false }).finally(() => {
+        inCorso = false;
+        ultimaRicarica = Date.now();
+        attesa = Math.min(TEMPO_REALE_MASSIMO_MS, Math.max(TEMPO_REALE_OGNI_MS, (ultimaRicarica - inizio) * 5));
       });
     };
     const programma = () => {
       if (timer) return; // la ricarica già in coda vedrà anche questa modifica
-      timer = setTimeout(ricarica, Math.max(TEMPO_REALE_ATTESA_MS, TEMPO_REALE_OGNI_MS - (Date.now() - ultimaRicarica)));
+      timer = setTimeout(ricarica, Math.max(TEMPO_REALE_ATTESA_MS, attesa - (Date.now() - ultimaRicarica)));
     };
     // Arriva tutta l'azienda (il tempo reale accetta un solo filtro): conta la
     // pipeline aperta, o una scheda a schermo che se ne va in un'altra pipeline.
