@@ -52,6 +52,22 @@ export function isTransientTimeoutError(error: unknown): boolean {
 }
 
 /**
+ * isNetworkError — true se la richiesta non ha raggiunto il server (rete persa,
+ * DNS, CORS bloccato). Stessi pattern del ramo "Connessione persa" qui sotto.
+ */
+export function isNetworkError(error: unknown): boolean {
+  const { msg } = extractRaw(error);
+  return (
+    msg.includes("failed to fetch") ||
+    msg.includes("networkerror") ||
+    msg.includes("network request failed") ||
+    msg.includes("load failed") ||
+    msg.includes("err_internet") ||
+    msg.includes("err_network")
+  );
+}
+
+/**
  * Restituisce un messaggio italiano comprensibile per l'utente finale.
  * @param error l'errore catturato
  * @param fallback messaggio di default se nessun pattern matcha
@@ -60,14 +76,7 @@ export function userErrorMessage(error: unknown, fallback = "Operazione non rius
   const { msg, code, status } = extractRaw(error);
 
   // ── Rete / connessione ──────────────────────────────────────────────────
-  if (
-    msg.includes("failed to fetch") ||
-    msg.includes("networkerror") ||
-    msg.includes("network request failed") ||
-    msg.includes("load failed") ||
-    msg.includes("err_internet") ||
-    msg.includes("err_network")
-  ) {
+  if (isNetworkError(error)) {
     return "Connessione persa. Controlla la rete e riprova.";
   }
 

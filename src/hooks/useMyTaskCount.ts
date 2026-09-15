@@ -3,12 +3,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { addDays, format, startOfDay } from "date-fns";
 import { withClientTimeout } from "@/lib/query-timeout";
+import { contaAttivita, LIMITE_RIGHE_ATTIVITA, type ConteggiAttivita } from "@/lib/badgeConteggi";
 
-interface TaskCounts {
-  total: number;
-  overdue: number;
-  dueToday: number;
-}
+type TaskCounts = ConteggiAttivita;
 
 export function useMyTaskCount(): { data: TaskCounts | null; isLoading: boolean } {
   const { user, effectiveCompany } = useAuth();
@@ -24,41 +21,34 @@ export function useMyTaskCount(): { data: TaskCounts | null; isLoading: boolean 
       const todayStart = format(startOfDay(now), "yyyy-MM-dd");
       const tomorrowStart = format(startOfDay(addDays(now, 1)), "yyyy-MM-dd");
 
-      const base = () =>
-        supabase
-          .from("tasks")
-          .select("id", { count: "exact", head: true })
-          .eq("company_id", companyId)
-          .eq("assigned_to", userId)
-          // Fuori il chiuso e i passi del flusso ancora "In attesa": il badge
-          // conta il lavoro che si puo' fare ADESSO, non quello che aspetta il
-          // proprio turno.
-          .not("status", "in", "(completata,in_attesa)");
+      // 15/09/2026: una richiesta invece di tre. Il count esatto è il totale;
+      // le righe in ordine di scadenza (senza data in fondo) mettono in testa
+      // scadute e di oggi, che si contano lato client.
+      const query = supabase
+        .from("tasks")
+        .select("due_date", { count: "exact" })
+        .eq("company_id", companyId)
+        .eq("assigned_to", userId)
+        // Fuori il chiuso e i passi del flusso ancora "In attesa": il badge
+        // conta il lavoro che si puo' fare ADESSO, non quello che aspetta il
+        // proprio turno.
+        .not("status", "in", "(completata,in_attesa)")
+        .order("due_date", { ascending: true, nullsFirst: false })
+        .limit(LIMITE_RIGHE_ATTIVITA);
 
       // 2026-05-27: timeout 8 → 12s per maggior tolleranza mobile 4G.
-      const [totalRes, overdueRes, todayRes] = await Promise.all([
-        withClientTimeout(base(), "Conteggio attività", 12_000),
-        withClientTimeout(base().lt("due_date", todayStart), "Conteggio attività scadute", 12_000),
-        withClientTimeout(
-          base().gte("due_date", todayStart).lt("due_date", tomorrowStart),
-          "Conteggio attività di oggi",
-          12_000,
-        ),
-      ]);
+      const res = await withClientTimeout(query, "Conteggio attività", 12_000);
+      if (res.error) throw res.error;
 
-      const error = totalRes.error || overdueRes.error || todayRes.error;
-      if (error) throw error;
-
-      return {
-        total: totalRes.count ?? 0,
-        overdue: overdueRes.count ?? 0,
-        dueToday: todayRes.count ?? 0,
-      };
+      return contaAttivita(res.data, res.count, todayStart, tomorrowStart);
     },
     enabled: !!userId && !!companyId,
-    refetchInterval: 60_000,
+    // 15/09/2026: 60s → 180s, mai con la scheda nascosta; al ritorno sulla
+    // scheda si aggiorna subito.
+    refetchInterval: 180_000,
     refetchIntervalInBackground: false,
-    staleTime: 30_000,
+    refetchOnWindowFocus: true,
+    staleTime: 60_000,
     // 2026-05-27: silent — badge sidebar, se va in timeout il count
     // precedente resta visibile. No toast: era rumore intermittente.
     meta: { silent: true },

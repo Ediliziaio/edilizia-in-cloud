@@ -2,23 +2,22 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { withClientTimeout } from "@/lib/query-timeout";
+import { contaEmailNonLette, LIMITE_RIGHE_EMAIL, type ConteggiEmail } from "@/lib/badgeConteggi";
 
-export interface EmailCounts {
-  /** Email non lette nella inbox (escluso archiviate/cestino/spam). */
-  unread: number;
-  /** Email non lette con priorità alta (urgenti). */
-  urgent: number;
-  /** Email non lette classificate come lead/preventivo. */
-  commercial: number;
-}
+/**
+ * - `unread`: email non lette nella inbox (escluso archiviate/cestino).
+ * - `urgent`: email non lette con priorità alta.
+ *
+ * 15/09/2026: tolto `commercial` (lead/preventivo), che nessun componente leggeva
+ * e costava una richiesta a parte a ogni giro.
+ */
+export type EmailCounts = ConteggiEmail;
 
 /**
  * Conteggia le email non lette dell'utente loggato.
  *
- * Usato dal badge della voce "Email" in sidebar (CompanyLayout) — pattern
- * identico a `useMyTaskCount`, con refetch ogni 30s per restare allineato
- * con la sync inbox in background. Il timeout corto evita che una RLS lenta
- * blocchi il rendering della sidebar.
+ * Usato dal badge della voce "Email" in sidebar (CompanyLayout). Il timeout
+ * corto evita che una RLS lenta blocchi il rendering della sidebar.
  *
  * Variante UI consigliata sul badge:
  *   - `urgent > 0`  → destructive (rosso)
@@ -36,45 +35,41 @@ export function useUnreadEmailCount(): {
   return useQuery({
     queryKey: ["unread-email-count", userId, companyId],
     enabled: !!userId && !!companyId,
-    refetchInterval: 30_000,
+    // 15/09/2026: 30s → 120s, e mai con la scheda nascosta. La sync inbox gira
+    // lato server ogni pochi minuti: un giro più stretto non mostrava prima nulla.
+    // Tornando sulla scheda si aggiorna subito (refetchOnWindowFocus).
+    refetchInterval: 120_000,
     refetchIntervalInBackground: false,
-    staleTime: 15_000,
+    refetchOnWindowFocus: true,
+    staleTime: 60_000,
     // 2026-05-27: silent — è un badge sidebar, se va in timeout il valore
     // precedente resta visualizzato ed è OK. Mostrare un toast utente per un
-    // count badge che si autoricarica ogni 30s è rumore, non informazione.
+    // count badge che si autoricarica è rumore, non informazione.
     meta: { silent: true },
     queryFn: async (): Promise<EmailCounts> => {
-      if (!userId || !companyId) return { unread: 0, urgent: 0, commercial: 0 };
+      if (!userId || !companyId) return { unread: 0, urgent: 0 };
 
-      // Conteggio diretto su email_inbox: la RLS owner-only restituisce solo
-      // le email dell'utente loggato, quindi il filtro user_id è ridondante
-      // ma esplicito per chiarezza.
+      // Una sola richiesta: il count esatto dà il totale non lette, le righe
+      // ordinate per priorità ("alta" < "media" < "nessuna") portano le urgenti
+      // in testa, così bastano poche righe per contarle.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const baseQuery = () => (supabase as any)
+      const query = (supabase as any)
         .from("email_inbox")
-        .select("id", { count: "exact", head: true })
+        .select("ai_priority", { count: "exact" })
         .eq("user_id", userId)
         .eq("company_id", companyId)
         .eq("is_read", false)
         .eq("is_archived", false)
-        .eq("is_trashed", false);
+        .eq("is_trashed", false)
+        .order("ai_priority", { ascending: true, nullsFirst: false })
+        .limit(LIMITE_RIGHE_EMAIL);
 
       // 2026-05-27: timeout da 8 → 12s. Su mobile 4G + RLS con join, 8s
       // era troppo stringente e l'utente vedeva toast errore intermittenti.
-      const [unreadRes, urgentRes, commercialRes] = await Promise.all([
-        withClientTimeout(baseQuery(), "Conteggio email non lette", 12_000),
-        withClientTimeout(baseQuery().eq("ai_priority", "alta"), "Conteggio email urgenti", 12_000),
-        withClientTimeout(baseQuery().in("ai_category", ["lead", "quote"]), "Conteggio email commerciali", 12_000),
-      ]);
+      const res = await withClientTimeout(query, "Conteggio email non lette", 12_000);
+      if (res.error) throw res.error;
 
-      const error = unreadRes.error || urgentRes.error || commercialRes.error;
-      if (error) throw error;
-
-      return {
-        unread: unreadRes.count ?? 0,
-        urgent: urgentRes.count ?? 0,
-        commercial: commercialRes.count ?? 0,
-      };
+      return contaEmailNonLette(res.data as { ai_priority: string | null }[] | null, res.count);
     },
   });
 }

@@ -53,7 +53,8 @@ import { customerRoutes, employeeRoutes, salespersonRoutes, partnerRoutes, produ
 // 🛠️ 2026-05-22: tecnicoRoutes/campoRoutes ora caricati via lazy containers
 // (TecnicoRoutesContainer/CampoRoutesContainer sopra) → rimossi gli import diretti
 // che non erano più usati (lint error: 'tecnicoRoutes'/'campoRoutes' defined but never used).
-import { userErrorMessage, isTransientTimeoutError } from "@/lib/userErrorMessage";
+import { userErrorMessage, isTransientTimeoutError, isNetworkError } from "@/lib/userErrorMessage";
+import { segnalaErroreDiRete } from "@/hooks/useOnlineStatus";
 import { ConfirmProvider } from "@/components/ui/confirm-dialog";
 
 // Suspense fallback — full-screen overlay (fixed inset-0 z-40) per evitare
@@ -343,6 +344,10 @@ const queryClient = new QueryClient({
       } catch {
         /* noop — il reporter di errori non deve sollevare errori */
       }
+
+      // 15/09/2026: l'heartbeat di rete gira ogni 2 minuti; una query vera che
+      // non raggiunge il server è il segnale più fresco, e fa verificare subito.
+      if (isNetworkError(error)) segnalaErroreDiRete();
 
       // Toast solo su background-refresh (avevamo già data) e solo se la query
       // non si è dichiarata silent (vedi useWeatherForecast → meta:{silent:true}).

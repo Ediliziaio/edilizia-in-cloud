@@ -31,9 +31,12 @@ export function SilvioBellPopover() {
       return data as { critical: number; warning: number; info: number; total_open: number };
     },
     enabled: !!companyId,
-    staleTime: 60_000,
-    refetchInterval: 120_000,
+    // 15/09/2026: 120s → 5 min, mai a scheda nascosta: gli alert li genera un
+    // cron server, non cambiano ogni due minuti. Al ritorno sulla scheda si aggiorna.
+    staleTime: 2 * 60_000,
+    refetchInterval: 5 * 60_000,
     refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
   });
 
   // Pending proposals count
@@ -51,9 +54,10 @@ export function SilvioBellPopover() {
       return count ?? 0;
     },
     enabled: !!companyId,
-    staleTime: 30_000,
-    refetchInterval: 60_000,
+    staleTime: 2 * 60_000,
+    refetchInterval: 5 * 60_000, // 15/09/2026: era 60s
     refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
   });
 
   const totalAlerts = stats?.total_open ?? 0;

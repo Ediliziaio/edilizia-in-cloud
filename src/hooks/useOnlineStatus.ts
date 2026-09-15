@@ -4,14 +4,19 @@
  * Singleton globale per evitare N interval/listener su mounted multipli.
  * Stato condiviso via store interno + subscribers React.
  *
- *  - 1 solo `setInterval` heartbeat ogni 30s a `/auth/v1/health`
- *  - 1 sola coppia di listener `online`/`offline`
+ *  - 1 sola coppia di listener `online`/`offline` (fonte principale)
+ *  - heartbeat a `/auth/v1/health` ogni 120s, solo a scheda visibile
+ *  - `segnalaErroreDiRete()`: le query vere fallite per rete fanno una verifica
  *  - N componenti subscriber che vengono notificati su change
  */
-import { useState, useEffect, useSyncExternalStore } from "react";
+import { useSyncExternalStore } from "react";
+import { avviaIntervalloVisibile } from "@/lib/intervalloVisibile";
 
 const HEARTBEAT_URL = `${import.meta.env.VITE_SUPABASE_URL ?? ""}/auth/v1/health`;
-const HEARTBEAT_INTERVAL = 30_000;
+// 15/09/2026: 30s → 120s e fermo a scheda nascosta. Ogni scheda aperta faceva
+// ~240 ping/ora (più il preflight CORS), anche di notte. Il cambio di rete lo
+// dicono già gli eventi online/offline e gli errori delle query vere.
+const HEARTBEAT_INTERVAL = 120_000;
 const HEARTBEAT_TIMEOUT = 5_000;
 
 export interface OnlineStatusDetail {
@@ -32,7 +37,7 @@ const store = {
   },
   listeners: new Set<Listener>(),
   inited: false,
-  interval: null as number | null,
+  stopHeartbeat: null as (() => void) | null,
   onlineHandler: null as (() => void) | null,
   offlineHandler: null as (() => void) | null,
   pingInFlight: null as Promise<void> | null,
@@ -83,7 +88,8 @@ const store = {
     window.addEventListener("online", store.onlineHandler);
     window.addEventListener("offline", store.offlineHandler);
 
-    store.interval = window.setInterval(() => {
+    // Al ritorno sulla scheda fa subito un ping (il PC può essersi addormentato).
+    store.stopHeartbeat = avviaIntervalloVisibile(() => {
       if (!navigator.onLine) return;
       void store.pingBackend();
     }, HEARTBEAT_INTERVAL);
@@ -94,10 +100,8 @@ const store = {
       if (store.onlineHandler) window.removeEventListener("online", store.onlineHandler);
       if (store.offlineHandler) window.removeEventListener("offline", store.offlineHandler);
     }
-    if (store.interval !== null) {
-      window.clearInterval(store.interval);
-    }
-    store.interval = null;
+    store.stopHeartbeat?.();
+    store.stopHeartbeat = null;
     store.onlineHandler = null;
     store.offlineHandler = null;
     store.inited = false;
@@ -113,20 +117,16 @@ const store = {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), HEARTBEAT_TIMEOUT);
       try {
-        // Con l'apikey il gateway risponde 200: senza, ogni 30s un 401 rosso
-        // in console che copre gli errori veri. La chiave anon è pubblica.
-        const apikey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined;
-        const res = await fetch(HEARTBEAT_URL, {
+        // 15/09/2026: niente header apikey. Con l'header il GET non è più
+        // "semplice" e il browser manda un preflight OPTIONS in più; senza, il
+        // gateway risponde 401 JSON, che basta a dire che il backend c'è.
+        // Qualunque risposta HTTP = raggiungibile; solo l'errore di rete no.
+        await fetch(HEARTBEAT_URL, {
           method: "GET",
-          headers: apikey ? { apikey } : undefined,
           signal: controller.signal,
           cache: "no-store",
         });
-        const ok = res.ok || res.status === 401 || res.status === 404;
-        store.setState({
-          isReachable: ok,
-          offlineSince: ok ? null : (store.state.offlineSince ?? Date.now()),
-        });
+        store.setState({ isReachable: true, offlineSince: null });
       } catch {
         store.setState({
           isReachable: false,
@@ -141,6 +141,16 @@ const store = {
     return store.pingInFlight;
   },
 };
+
+/**
+ * Da chiamare quando una query vera fallisce per errore di rete: verifica
+ * subito la raggiungibilità invece di aspettare il prossimo heartbeat.
+ * No-op se nessun componente ascolta lo stato.
+ */
+export function segnalaErroreDiRete(): void {
+  if (!store.inited) return;
+  void store.pingBackend();
+}
 
 // useSyncExternalStore richiede getSnapshot stabile: ritorniamo lo state object
 // completo (referential identity preservata da setState).
@@ -164,7 +174,3 @@ export function useOnlineStatus(): boolean {
   const detail = useOnlineStatusDetail();
   return !detail.isOffline;
 }
-
-// ESM module-level: keep static for tree-shaker
-void useState;
-void useEffect;

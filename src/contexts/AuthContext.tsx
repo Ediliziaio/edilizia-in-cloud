@@ -1431,45 +1431,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     queryClient.clear();
   }, [queryClient]);
 
-  // ── Supabase keepalive ─────────────────────────────────────────────────────
-  // Free-tier Supabase projects hibernate after ~5 minutes of DB inactivity.
-  // Pages that rely only on cached React Query data (staleTime 2-5 min) may
-  // not issue any real queries for an extended period, causing the next
-  // cross-subdomain navigation to hit a cold DB (10-15s delay).
-  //
-  // Every 4 minutes we fire a trivial SELECT to keep the project awake.
-  // Only runs when a user is authenticated — stops immediately on sign-out.
-  const authenticatedUserId = state.user?.id;
-
-  useEffect(() => {
-    if (!authenticatedUserId) return;
-    const ping = () => {
-      // v8.6.103 — skip keepalive su tab in background (no battery drain
-      // né query inutili per utenti con 5-10 tab aperte)
-      if (typeof document !== "undefined" && document.visibilityState === "hidden") {
-        return;
-      }
-      void supabase
-        .from("subscription_plans")
-        .select("id")
-        .limit(1)
-        .then(() => undefined)
-        .catch((err: any) => {
-          captureVelocityError("auth.keepalive", err, { source: "subscription_plans" });
-        });
-    };
-    ping();
-    const id = setInterval(ping, 4 * 60 * 1000);
-    // Riattiva subito quando tab torna in foreground
-    const onVisible = () => {
-      if (document.visibilityState === "visible") ping();
-    };
-    document.addEventListener("visibilitychange", onVisible);
-    return () => {
-      clearInterval(id);
-      document.removeEventListener("visibilitychange", onVisible);
-    };
-  }, [authenticatedUserId]);
+  // 15/09/2026: tolto il keepalive su subscription_plans (una SELECT ogni 4
+  // minuti per scheda). Serviva a non far addormentare il database del piano
+  // Free; ora il progetto è su un'istanza Medium a pagamento, che non va mai in
+  // pausa, e quelle richieste erano solo traffico.
 
   // ── Velocity — Sentry user/tenant context ────────────────────────────────
   // Tagga ogni evento Sentry con user_id + role + tenant_id (company).

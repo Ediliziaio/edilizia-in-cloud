@@ -31,7 +31,13 @@ export function useInternalChatUnreadTotal() {
     queryKey: [QUERY_KEY, companyId, userId],
     enabled: !!companyId && !!userId,
     staleTime: 15_000,
-    refetchInterval: 60_000, // safety net se realtime fallisce
+    // 15/09/2026: il badge lo tiene fresco la subscription realtime qui sotto;
+    // il giro è solo una rete di sicurezza, quindi 5 minuti e mai a scheda
+    // nascosta. Al ritorno sulla scheda si riallinea subito (il canale può
+    // essersi perso mentre era in background).
+    refetchInterval: 5 * 60_000,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
     queryFn: async () => {
       // Cast tipato per evitare l'errore TS sui custom RPC non in types.ts
       const rpc = supabase.rpc.bind(supabase) as unknown as (
