@@ -667,7 +667,7 @@ Deno.serve(conMetriche("create-checkout-session", async (req) => {
     const priceField = billing_period === "yearly" ? "stripe_price_yearly_id" : "stripe_price_monthly_id";
     const { data: plan, error: planError } = await supabaseAdmin
       .from("subscription_plans")
-      .select(`id, name, trial_days, ${priceField}`)
+      .select(`id, name, trial_days, price_monthly, price_yearly, ${priceField}`)
       .eq("id", plan_id)
       .single();
 
@@ -679,9 +679,12 @@ Deno.serve(conMetriche("create-checkout-session", async (req) => {
     }
 
     const stripePriceId = (plan as any)[priceField];
-    if (!stripePriceId) {
+    // Un piano senza prezzo su Stripe (per esempio quello riservato a una sola
+    // azienda) si paga col suo importo passato in linea, come fa public-checkout.
+    const importoPiano = Number((plan as Record<string, unknown>)[billing_period === "yearly" ? "price_yearly" : "price_monthly"] ?? 0);
+    if (!stripePriceId && !(importoPiano > 0)) {
       return new Response(
-        JSON.stringify({ error: `Nessun prezzo Stripe configurato per questo piano (${priceField})` }),
+        JSON.stringify({ error: `Nessun prezzo Stripe configurato per questo piano (${priceField}) e nessun importo nel piano` }),
         { status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
       );
     }
@@ -731,7 +734,6 @@ Deno.serve(conMetriche("create-checkout-session", async (req) => {
       mode: "subscription",
       "payment_method_types[0]": "card",
       "payment_method_types[1]": "sepa_debit",
-      "line_items[0][price]": stripePriceId,
       "line_items[0][quantity]": "1",
       // Forza la raccolta della carta anche quando l'importo è €0 (piano demo):
       // così il cliente lascia comunque la carta e il futuro upgrade a pagamento
@@ -742,6 +744,14 @@ Deno.serve(conMetriche("create-checkout-session", async (req) => {
       "metadata[company_id]": company_id,
       "metadata[plan_id]": plan_id,
     };
+    if (stripePriceId) {
+      checkoutParams["line_items[0][price]"] = stripePriceId;
+    } else {
+      checkoutParams["line_items[0][price_data][currency]"] = "eur";
+      checkoutParams["line_items[0][price_data][unit_amount]"] = String(Math.round(importoPiano * 100));
+      checkoutParams["line_items[0][price_data][recurring][interval]"] = billing_period === "yearly" ? "year" : "month";
+      checkoutParams["line_items[0][price_data][product_data][name]"] = `${(plan as Record<string, unknown>).name} — Edilizia in Cloud`;
+    }
     // Periodo di prova gratuito (preso dal piano): il cliente non paga per N
     // giorni, ma la carta è già raccolta (payment_method_collection:always) e
     // Stripe addebita automaticamente alla fine del trial.
