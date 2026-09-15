@@ -81,11 +81,18 @@ const ACCESSORIO_GROUPS: Record<string, { singular: string; plural: string }> = 
 /**
  * Le righe aggiunte dal listino nascono tutte con tipologia «finestra_2ante»: il
  * tipo vero sta nel nome dell'articolo. Senza, un alzante scorrevole entrava nella
- * sintesi del PDF come finestra («Sostituzione di 2 finestre»).
+ * sintesi del PDF come finestra («Sostituzione di 2 finestre»). Dal listino
+ * arrivano come righe a sé anche tapparelle, zanzariere e porte: 4 tapparelle
+ * restano «4 tapparelle», non «4 serramenti».
  */
 function gruppoDaNomeArticolo(nome: string): { singular: string; plural: string } {
   const n = nome.toLowerCase();
   if (/persian|\bscur[oi]\b/.test(n)) return { singular: "persiana", plural: "persiane" };
+  if (/zanzarier/.test(n)) return ACCESSORIO_GROUPS.zanzariera;
+  if (/cassonett/.test(n)) return ACCESSORIO_GROUPS.cassonetto;
+  if (/tapparell|avvolgibil/.test(n)) return ACCESSORIO_GROUPS.tapparella;
+  if (/inferriat/.test(n)) return ACCESSORIO_GROUPS.inferriata;
+  if (/blindat/.test(n)) return { singular: "porta blindata", plural: "porte blindate" };
   if (/alzante/.test(n)) return TIPOLOGIA_GROUPS.alzante_scorrevole;
   if (/scorrevol|traslant|\bslide\b/.test(n)) return TIPOLOGIA_GROUPS.scorrevole;
   if (/porta[\s-]?finestr/.test(n)) return TIPOLOGIA_GROUPS.portafinestra_1anta;
@@ -94,6 +101,24 @@ function gruppoDaNomeArticolo(nome: string): { singular: string; plural: string 
   if (/finestr|vasistas|wasistas/.test(n)) return TIPOLOGIA_GROUPS.finestra_1anta;
   if (/\bfiss[oi]\b/.test(n)) return TIPOLOGIA_GROUPS.fisso;
   return { singular: "serramento", plural: "serramenti" };
+}
+
+/**
+ * Il tipo di un complemento preso dal listino, dal nome dell'articolo: la sintesi
+ * del PDF li conta per tipo. Prima nascevano tutti «avvolgibile», e 2 zanzariere
+ * diventavano «2 avvolgibili».
+ */
+export function tipoAccessorioDaNome(nome: string): string {
+  const n = nome.toLowerCase();
+  if (/zanzarier/.test(n)) return "zanzariera";
+  if (/cassonett/.test(n)) return "cassonetto";
+  if (/persian/.test(n)) return "persiana";
+  if (/\bscur[oi]\b/.test(n)) return "scuro";
+  if (/inferriat/.test(n)) return "inferriata";
+  if (/davanzal/.test(n)) return "davanzale";
+  if (/controtelai|monoblocc/.test(n)) return "controtelaio";
+  if (/tapparell/.test(n)) return "tapparella";
+  return "avvolgibile";
 }
 
 /** Concatenazione "naturale" italiana: ["a", "b", "c"] → "a, b e c". */

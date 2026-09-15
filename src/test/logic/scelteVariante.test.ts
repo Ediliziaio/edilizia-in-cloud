@@ -4,6 +4,7 @@ import {
   coloriDelListino,
   decodificaScelta,
   dividiVoci,
+  gruppiColori,
   paroleVoci,
   problemaVoci,
   pulisciVoci,
@@ -93,5 +94,28 @@ describe("le parole e i suggerimenti del listino", () => {
         { codice: "tipologia_vetro", nome: "Tipologia Vetro", values: [{ attivo: true, opzioni: ["44.2"] }] },
       ]),
     ).toEqual(["Bianco", "21 Nussbaum"]);
+  });
+
+  it("colore interno ed esterno: i colori del listino divisi per fascia, come nella tendina «Colore»", () => {
+    expect(
+      gruppiColori([
+        {
+          codice: "colore",
+          nome: "Colore",
+          values: [
+            { attivo: true, label: "Bianco" },
+            { attivo: true, label: "Colore Standard", opzioni: ["51 - Golden Oak", "21 - Nussbaum (noce)"] },
+            // Lo stesso colore scritto in un altro modo non si ripete nella fascia dopo.
+            { attivo: true, label: "Colore Fuori Standard", opzioni: ["97 - mattGrey", "51 - golden oak"] },
+            { attivo: false, label: "Fuori listino", opzioni: ["Rosso"] },
+          ],
+        },
+        { codice: "tipologia_vetro", nome: "Tipologia Vetro", values: [{ attivo: true, opzioni: ["44.2"] }] },
+      ]),
+    ).toEqual([
+      { titolo: "Colore", voci: ["Bianco"] },
+      { titolo: "Colore Standard", voci: ["51 - Golden Oak", "21 - Nussbaum (noce)"] },
+      { titolo: "Colore Fuori Standard", voci: ["97 - mattGrey"] },
+    ]);
   });
 });

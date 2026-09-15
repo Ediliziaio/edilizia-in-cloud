@@ -2,7 +2,10 @@
  * ListinoPickerDialog — «Aggiungi dal listino» nel preventivatore serramenti.
  *
  * Lo stesso listino della pagina Listino, nella sola area Serramenti:
- *  1. Tipologia (Serramenti, Persiane e scuri…) con foto e numero di prodotti
+ *  1. Tipologia (Serramenti, Persiane e scuri, Tapparelle…) con foto e numero
+ *     di prodotti: tutte, anche per un ordine di sole zanzariere. Quelle con
+ *     prodotti nel listino ma nessuno proposto nei preventivi si vedono spente,
+ *     col motivo e il link al listino
  *  2. Linea (PVC Salamander 76, PVC Aluplast Ideal 5000) con la sua scheda;
  *     si salta se la tipologia ne ha una sola
  *  3. Prodotto, col prezzo nella linea scelta
@@ -26,7 +29,7 @@ import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import {
   Loader2, Search, Package, ArrowLeft, Ruler, Calculator, ChevronRight,
-  Layers, AlertCircle,
+  Layers, AlertCircle, ExternalLink,
 } from "lucide-react";
 import { useListinoGriglia, useTariffeManodopera } from "@/lib/serramenti/queries";
 import { useFamilies } from "@/hooks/useFamilies";
@@ -47,10 +50,14 @@ import {
   assiDaScegliere,
   cercaNellArea,
   comeListinoFamily,
+  indirizzoNelListino,
+  motivoDaCompletare,
   prezzoIndicativo,
   selezioneIniziale,
+  tipologieDaCompletare,
   tipologieProposte,
   type PreferenzaAsse,
+  type TipologiaDaCompletare,
 } from "@/lib/serramenti/pickerListino";
 import { SchedaLineaCompatta } from "./SchedaLineaCompatta";
 import { SceltaVariante } from "./SceltaVariante";
@@ -92,7 +99,8 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSelect: (item: ListinoPickResult) => void;
-  /** Prodotti principali (le finestre) o accessori (tapparelle, zanzariere…). */
+  /** Da dove si apre: la composizione (davanti le finestre) o i complementi di una
+   *  finestra (davanti tapparelle, zanzariere…). Le tipologie sono le stesse. */
   tipo?: "principale" | "accessorio";
   /** Le scelte dell'ultima posizione del preventivo: il prodotto scelto riparte da lì. */
   preferenzeAssi?: Record<string, PreferenzaAsse>;
@@ -168,6 +176,10 @@ export function ListinoPickerDialog({
     [families, macrocategorie, categorie, tipo],
   );
   const proposte = useMemo(() => tipologieProposte(area), [area]);
+  const daCompletare = useMemo(
+    () => tipologieDaCompletare(families, macrocategorie, categorie, area),
+    [families, macrocategorie, categorie, area],
+  );
   const risultati = useMemo(() => cercaNellArea(area, debounced), [area, debounced]);
   const tipologia = useMemo(
     () => area?.tipologie.find((t) => t.chiave === tipologiaChiave) ?? null,
@@ -387,7 +399,7 @@ export function ListinoPickerDialog({
   // ─── Testi della testata ─────────────────────────────────────────────────
   const nomeArea = area?.nome ?? "Serramenti";
   const titolo =
-    vista === "tipologia" ? (tipo === "accessorio" ? "Scegli l'accessorio" : `Listino ${nomeArea}`)
+    vista === "tipologia" ? (tipo === "accessorio" ? "Complemento della finestra" : `Listino ${nomeArea}`)
     : vista === "linea" ? (tipologia?.nome ?? "Scegli la linea")
     : vista === "prodotto" ? ([tipologia?.nome, piuLinee ? linea?.nome : null].filter(Boolean).join(" · ") || "Scegli il prodotto")
     : vista === "risultati" ? `Ricerca: "${debounced}"`
@@ -395,8 +407,8 @@ export function ListinoPickerDialog({
   const sottotitolo =
     vista === "tipologia"
       ? (tipo === "accessorio"
-        ? `Tapparelle, zanzariere, cassonetti: gli accessori dell'area ${nomeArea} proposti nei preventivi`
-        : `Scegli la tipologia: ci sono solo i prodotti dell'area ${nomeArea} proposti nei preventivi`)
+        ? "Tapparelle, zanzariere, persiane, cassonetti da legare a una finestra: ne possono prendere le misure"
+        : "Scegli la tipologia: finestre, persiane, tapparelle, zanzariere… anche un ordine di sole persiane")
     : vista === "linea" ? "Scegli la linea: la ritrovi già scelta nelle variabili del prodotto"
     : vista === "prodotto" ? "Scegli il prodotto"
     : vista === "risultati" ? `Nome, codice o linea, fra i prodotti dell'area ${nomeArea}`
@@ -406,12 +418,9 @@ export function ListinoPickerDialog({
     : [nomeArea, tipologia?.nome, piuLinee ? linea?.nome : null, vista === "misure" ? selectedFamily?.nome : null]
       .filter(Boolean)
       .join(" › ");
-  const testoVuoto =
-    tipo === "accessorio"
-      ? `Nessun accessorio da proporre. Nel listino servono tipologie dell'area ${nomeArea} segnate come accessorio (tapparelle, zanzariere, cassonetti) con prodotti accesi e proposti nei preventivi.`
-      : area
-        ? `Le tipologie dell'area ${nomeArea} non sono collegate al preventivatore: cerca il prodotto per nome, oppure collegale da Impostazioni → Listino prodotti.`
-        : "Nel listino non c'è ancora niente da proporre nei preventivi serramenti: servono prodotti dell'area Serramenti accesi e proposti nei preventivi (Impostazioni → Listino prodotti).";
+  const testoVuoto = area
+    ? `Le tipologie dell'area ${nomeArea} non sono collegate al preventivatore: cerca il prodotto per nome, oppure collegale da Impostazioni → Listino prodotti.`
+    : "Nel listino non c'è ancora niente da proporre nei preventivi serramenti: servono prodotti dell'area Serramenti accesi e proposti nei preventivi (Impostazioni → Listino prodotti).";
   const macroScheda = familyWithAxes?.macrocategoria_id ?? tipologia?.macrocategoriaId ?? null;
 
   return (
@@ -501,6 +510,7 @@ export function ListinoPickerDialog({
                 })}
               </div>
             )}
+            {!caricamento && daCompletare.length > 0 && <DaCompletare elenco={daCompletare} />}
           </div>
         )}
 
@@ -886,6 +896,43 @@ function SchedaProdotto({ riga, contesto, onClick }: { riga: RigaListino; contes
         </div>
       </div>
     </button>
+  );
+}
+
+/**
+ * Le tipologie del listino che nel preventivo non si possono ancora usare, col
+ * motivo e il listino a portata di mano. Il link apre un'altra scheda: il
+ * preventivo resta dov'è.
+ */
+function DaCompletare({ elenco }: { elenco: TipologiaDaCompletare[] }) {
+  return (
+    <div className="mt-4 space-y-2">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+        Nel listino, ma non ancora nei preventivi
+      </p>
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3">
+        {elenco.map((d) => (
+          <div
+            key={d.tipologia.chiave}
+            className="flex items-start gap-2 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-3"
+          >
+            <Layers className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold text-slate-600">{d.tipologia.nome}</p>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">{motivoDaCompletare(d)}</p>
+              <a
+                href={indirizzoNelListino(d.tipologia)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-1 inline-flex items-center gap-1 text-[11px] font-medium text-orange-700 hover:underline"
+              >
+                Completa nel listino <ExternalLink className="h-3 w-3" />
+              </a>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 

@@ -203,3 +203,35 @@ export function coloriDelListino(
       ),
   );
 }
+
+/**
+ * I colori del listino per gruppo, come nella tendina della variante: ogni fascia
+ * col suo elenco («Colore Standard»: 51 - Golden Oak…), e i valori che sono già
+ * un colore («Bianco») sotto il nome della variante. Un colore già in un gruppo
+ * non si ripete nei successivi, anche scritto in un altro modo.
+ */
+export function gruppiColori(
+  assi: ReadonlyArray<Asse & { values: ReadonlyArray<{ attivo: boolean; opzioni?: unknown; label?: string | null }> }>,
+): Array<{ titolo: string; voci: string[] }> {
+  const gruppi = new Map<string, string[]>();
+  for (const asse of assi.filter((a) => eColore(chiave(`${a.codice ?? ""} ${a.nome}`.replace(/_/g, " "))))) {
+    for (const valore of asse.values.filter((v) => v.attivo)) {
+      const voci = vociDi(valore);
+      const titolo = voci.length > 0 ? (valore.label || asse.nome) : asse.nome;
+      const aggiunte = voci.length > 0 ? voci : valore.label ? [valore.label] : [];
+      gruppi.set(titolo, [...(gruppi.get(titolo) ?? []), ...aggiunte]);
+    }
+  }
+  const viste = new Set<string>();
+  return [...gruppi.entries()]
+    .map(([titolo, voci]) => ({
+      titolo,
+      voci: pulisciVoci(voci).filter((voce) => {
+        const k = chiave(voce);
+        if (viste.has(k)) return false;
+        viste.add(k);
+        return true;
+      }),
+    }))
+    .filter((g) => g.voci.length > 0);
+}

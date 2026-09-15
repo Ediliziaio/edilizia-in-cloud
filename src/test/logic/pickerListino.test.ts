@@ -3,10 +3,13 @@ import {
   areaDelPreventivatore,
   assiDaScegliere,
   cercaNellArea,
+  indirizzoNelListino,
+  motivoDaCompletare,
   preferenzeDaRiga,
   preselezioneRiga,
   prezzoIndicativo,
   selezioneIniziale,
+  tipologieDaCompletare,
   tipologieProposte,
 } from "@/lib/serramenti/pickerListino";
 import { articoloEsempio, asseEsempio, fotovoltaicoPerComponente, valoreEsempio } from "@/lib/listino/esempiListino";
@@ -40,6 +43,9 @@ function aziendaMista() {
     articoloEsempio("blind", "Porta blindata", { macrocategoria_id: "m-blindate", prezzo_base_vendita: 1500 }),
     // Senza tipologia: non è fra le schede, ma cercandolo si trova.
     articoloEsempio("zoccolo", "Zoccolino su misura", { prezzo_base_vendita: 35 }),
+    // Nel listino ma senza prezzo, e quindi tolte dai preventivi (le persiane di Renova).
+    articoloEsempio("pers-2", "Persiana 2 ante", { macrocategoria_id: "m-persiane", modalita_prezzo_base: "mq", prezzo_base_vendita: 0, mostra_preventivo: false }),
+    articoloEsempio("pers-1", "Persiana 1 anta", { macrocategoria_id: "m-persiane", modalita_prezzo_base: "mq", prezzo_base_vendita: 0, mostra_preventivo: false }),
   ];
   const macrocategorie: MacroListino[] = [
     ...fv.macrocategorie,
@@ -49,6 +55,7 @@ function aziendaMista() {
     { id: "m-epiq", nome: "Epiq", verticali_abilitati: [], categoria_tipo: "principale" },
     // Tolta dai preventivi.
     { id: "m-blindate", nome: "Porte blindate", verticali_abilitati: ["serramentista"], categoria_tipo: "principale", attivo: false },
+    { id: "m-persiane", nome: "Persiane e scuri", verticali_abilitati: ["serramentista"], categoria_tipo: "principale" },
   ];
   return { famiglie, macrocategorie, categorie: fv.categorie };
 }
@@ -62,7 +69,7 @@ describe("aggiungi dal listino nel preventivo serramenti", () => {
 
   it("propone solo le tipologie dell'area Serramenti, mai il fotovoltaico", () => {
     expect(area?.chiave).toBe("serramenti");
-    expect(tipologieProposte(area).map((t) => t.nome).sort()).toEqual(["Epiq", "Serramenti"]);
+    expect(tipologieProposte(area).map((t) => t.nome).sort()).toEqual(["Epiq", "Serramenti", "Tapparelle"]);
     expect(cercaNellArea(area, "inverter")).toEqual([]);
     expect(cercaNellArea(area, "caldaia")).toEqual([]);
     expect(cercaNellArea(area, "batteria")).toEqual([]);
@@ -84,10 +91,28 @@ describe("aggiungi dal listino nel preventivo serramenti", () => {
     expect(tipologieProposte(area).some((t) => t.nome === "Senza tipologia")).toBe(false);
   });
 
-  it("gli accessori sono un'altra lista", () => {
-    const accessori = areaDelPreventivatore(famiglie, macrocategorie, categorie, "accessorio");
-    expect(tipologieProposte(accessori).map((t) => t.nome)).toEqual(["Tapparelle"]);
-    expect(cercaNellArea(accessori, "finestra")).toEqual([]);
+  it("principali e accessori sono la stessa lista: cambia solo l'ordine", () => {
+    // Un ordine di sole tapparelle si compone come uno di finestre (Renova, 15/09):
+    // prima le tapparelle erano solo accessori di una finestra.
+    const nomi = tipologieProposte(area).map((t) => t.nome);
+    expect(nomi[nomi.length - 1]).toBe("Tapparelle");
+    const complementi = areaDelPreventivatore(famiglie, macrocategorie, categorie, "accessorio");
+    expect(tipologieProposte(complementi).map((t) => t.nome)[0]).toBe("Tapparelle");
+    expect(nomiProdotti(cercaNellArea(complementi, "tapparella"))).toEqual(["Tapparella PVC"]);
+  });
+
+  it("le tipologie senza prodotti da proporre si vedono spente, col motivo e la strada per il listino", () => {
+    const daCompletare = tipologieDaCompletare(famiglie, macrocategorie, categorie, area);
+    // Porte blindate è spenta, il fotovoltaico è un'altra area, le altre sono già proposte.
+    expect(daCompletare.map((d) => [d.tipologia.nome, d.prodotti, d.senzaPrezzo])).toEqual([["Persiane e scuri", 2, 2]]);
+    expect(motivoDaCompletare(daCompletare[0])).toBe("2 prodotti senza prezzo: non ancora proposti nei preventivi");
+    expect(motivoDaCompletare({ prodotti: 1, senzaPrezzo: 0 })).toBe("1 prodotto non proposto nei preventivi");
+    expect(motivoDaCompletare({ prodotti: 3, senzaPrezzo: 1 })).toBe("3 prodotti non proposti nei preventivi, 1 senza prezzo");
+    const indirizzo = indirizzoNelListino(daCompletare[0].tipologia);
+    expect(indirizzo.startsWith("/azienda/impostazioni/listino?area=serramenti&tipologia=")).toBe(true);
+    expect(new URLSearchParams(indirizzo.split("?")[1]).get("tipologia")).toBe(daCompletare[0].tipologia.chiave);
+    // Cercando, i prodotti senza prezzo non compaiono: si vedono solo fra le tipologie da completare.
+    expect(cercaNellArea(area, "persiana")).toEqual([]);
   });
 
   it("la linea scelta resta scelta e il prezzo della scheda è quello della linea", () => {

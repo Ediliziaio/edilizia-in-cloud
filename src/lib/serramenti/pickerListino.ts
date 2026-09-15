@@ -5,10 +5,14 @@
  * prodotti), ma della sola area Serramenti: un inverter o un modulo del
  * fotovoltaico non compare mai, né fra le schede né cercando. Cosa si vede lo
  * decide il listino:
- *  - la tipologia accesa e del tipo giusto (prodotto principale o accessorio);
+ *  - la tipologia accesa, principale o accessorio: un ordine di sole persiane,
+ *    tapparelle o zanzariere si compone come uno di finestre, e il tipo decide
+ *    solo l'ordine delle schede;
  *  - fra le schede, se è collegata al preventivatore o non ha collegamenti:
  *    una tipologia collegata altrove si trova solo cercando;
- *  - dentro, i prodotti accesi e proposti nei preventivi.
+ *  - dentro, i prodotti accesi e proposti nei preventivi. Le tipologie con
+ *    prodotti nel listino ma nessuno ancora proposto si mostrano a parte, con
+ *    il motivo (tipologieDaCompletare).
  *
  * Senza React: la usa ListinoPickerDialog.
  */
@@ -36,8 +40,11 @@ const AREA_SERRAMENTI = "serramenti";
 const tipoDella = (t: TipologiaListino): TipoProposta => (t.categoriaTipo === "accessorio" ? "accessorio" : "principale");
 
 /**
- * L'area come la vede il preventivatore: le tipologie accese del tipo giusto e,
- * dentro, i soli prodotti accesi e proposti nei preventivi. Null se non resta niente.
+ * L'area come la vede il preventivatore: le tipologie accese e, dentro, i soli
+ * prodotti accesi e proposti nei preventivi. Tutte, principali e accessori:
+ * prima tapparelle, zanzariere e cassonetti comparivano solo come accessori di
+ * una finestra, e un ordine di sole zanzariere non si poteva comporre. `tipo`
+ * mette davanti le tipologie di quel tipo. Null se non resta niente.
  */
 export function areaDelPreventivatore(
   famiglie: FamilyWithAxes[],
@@ -51,14 +58,74 @@ export function areaDelPreventivatore(
     (r) => r.famiglia.attivo !== false && r.famiglia.mostra_preventivo !== false,
   );
   if (!trovata) return null;
-  const tipologie = trovata.tipologie.filter((t) => t.attiva && tipoDella(t) === tipo);
-  if (tipologie.length === 0) return null;
+  const accese = trovata.tipologie.filter((t) => t.attiva);
+  if (accese.length === 0) return null;
+  const tipologie = [
+    ...accese.filter((t) => tipoDella(t) === tipo),
+    ...accese.filter((t) => tipoDella(t) !== tipo),
+  ];
   return { ...trovata, tipologie, articoli: tipologie.reduce((n, t) => n + t.articoli, 0) };
 }
 
 /** Le schede da proporre: tipologie collegate al preventivatore o senza collegamenti. */
 export function tipologieProposte(area: AreaListino | null): TipologiaListino[] {
   return (area?.tipologie ?? []).filter((t) => t.collegamento !== "nessuno");
+}
+
+/** Una tipologia che nel listino c'è, ma che nei preventivi non si può ancora usare. */
+export interface TipologiaDaCompletare {
+  tipologia: TipologiaListino;
+  /** Prodotti accesi della tipologia: nessuno proposto nei preventivi. */
+  prodotti: number;
+  /** Quanti non hanno ancora un prezzo di vendita (le griglie non si contano). */
+  senzaPrezzo: number;
+}
+
+/**
+ * Le tipologie dell'area con prodotti accesi ma nessuno proposto nei
+ * preventivi, di solito perché manca il prezzo. Si mostrano spente, con il
+ * motivo e la strada per il listino: prima semplicemente non c'erano, e le
+ * persiane di Renova sembravano sparite.
+ */
+export function tipologieDaCompletare(
+  famiglie: FamilyWithAxes[],
+  macrocategorie: MacroListino[],
+  categorie: CategoriaListino[],
+  proposte: AreaListino | null,
+  area: string = AREA_SERRAMENTI,
+): TipologiaDaCompletare[] {
+  const [intera] = filtraListino(
+    costruisciListino(famiglie, macrocategorie, categorie).filter((a) => a.chiave === area),
+    (r) => r.famiglia.attivo !== false,
+  );
+  const giaProposte = new Set((proposte?.tipologie ?? []).map((t) => t.chiave));
+  return (intera?.tipologie ?? [])
+    .filter((t) => t.attiva && t.collegamento !== "nessuno" && !giaProposte.has(t.chiave))
+    .map((tipologia) => {
+      const perProdotto = new Map(tipologia.linee.flatMap((l) => l.righe).map((r) => [r.famiglia.id, r]));
+      const righe = [...perProdotto.values()];
+      return {
+        tipologia,
+        prodotti: righe.length,
+        senzaPrezzo: righe.filter((r) => r.famiglia.modalita_prezzo_base !== "griglia" && !prezzoIndicativo(r)).length,
+      };
+    })
+    .filter((d) => d.prodotti > 0);
+}
+
+/** Perché la tipologia non si può ancora usare, detto come lo capisce chi fa il preventivo. */
+export function motivoDaCompletare(d: Pick<TipologiaDaCompletare, "prodotti" | "senzaPrezzo">): string {
+  const uno = d.prodotti === 1;
+  const prodotti = `${d.prodotti} ${uno ? "prodotto" : "prodotti"}`;
+  const proposti = uno ? "proposto" : "proposti";
+  if (d.senzaPrezzo >= d.prodotti) return `${prodotti} senza prezzo: non ancora ${proposti} nei preventivi`;
+  if (d.senzaPrezzo > 0) return `${prodotti} non ${proposti} nei preventivi, ${d.senzaPrezzo} senza prezzo`;
+  return `${prodotti} non ${proposti} nei preventivi`;
+}
+
+/** La tipologia nella pagina Listino, dove si mettono i prezzi e si propongono i prodotti. */
+export function indirizzoNelListino(tipologia: TipologiaListino, area: string = AREA_SERRAMENTI): string {
+  return `/azienda/impostazioni/listino?${new URLSearchParams({ area, tipologia: tipologia.chiave }).toString()}`;
 }
 
 export interface RisultatoRicerca {

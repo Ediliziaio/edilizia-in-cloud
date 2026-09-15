@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { generateInterventoSintesi } from "@/lib/serramenti/sintesiIntervento";
+import { generateInterventoSintesi, tipoAccessorioDaNome } from "@/lib/serramenti/sintesiIntervento";
 
 /**
  * Le righe aggiunte dal listino nascono tutte con tipologia «finestra_2ante».
@@ -48,5 +48,29 @@ describe("Sintesi intervento: righe da listino", () => {
   it("le righe senza articolo del listino usano ancora la tipologia", () => {
     const testo = generateInterventoSintesi([{ tipologia: "portafinestra_1anta", quantita: 2 }], [], "sostituzione");
     expect(testo).toContain("2 porte-finestre");
+  });
+
+  it("un ordine di sole tapparelle, zanzariere o porte blindate si legge per quello che è", () => {
+    const testo = generateInterventoSintesi(
+      [
+        riga("Tapparella PVC", 4),
+        riga("Zanzariera Laterale Avvolgibile", 2),
+        riga("Cassonetto Termoisolato PVC"),
+        riga("Porta blindata classe 3 · 1 anta"),
+      ],
+      [],
+      "nuova_costruzione",
+    );
+    expect(testo).toBe("Fornitura e posa di 4 tapparelle, 2 zanzariere, 1 cassonetto e 1 porta blindata.");
+  });
+
+  it("un complemento preso dal listino ha il tipo del suo nome, non sempre «avvolgibile»", () => {
+    expect(tipoAccessorioDaNome("Zanzariera Laterale Avvolgibile")).toBe("zanzariera");
+    expect(tipoAccessorioDaNome("Tapparella Alluminio Coibentata")).toBe("tapparella");
+    expect(tipoAccessorioDaNome("Cassonetto Effetto Legno")).toBe("cassonetto");
+    expect(tipoAccessorioDaNome("Persiana 2 ante lamelle fisse")).toBe("persiana");
+    expect(tipoAccessorioDaNome("Motore tubolare")).toBe("avvolgibile");
+    expect(generateInterventoSintesi([riga("Finestra 2 Ante", 2)], [{ tipo: tipoAccessorioDaNome("Zanzariera a Molla Classica"), quantita: 2 }]))
+      .toBe("Sostituzione di 2 finestre, con l'aggiunta di 2 zanzariere.");
   });
 });

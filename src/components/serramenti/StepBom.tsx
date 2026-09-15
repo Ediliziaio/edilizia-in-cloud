@@ -54,7 +54,8 @@ import { useSchedeLinea } from "@/hooks/useSchedeLinea";
 import { lineaDellaRiga, schedaVuota, trovaSchedaLinea } from "@/lib/listino/schedeLinea";
 import { SchedaLineaCompatta } from "./SchedaLineaCompatta";
 import { SceltaVariante } from "./SceltaVariante";
-import { coloriDelListino, pulisciVoci, scelteDopo, testoScelta, vociDi } from "@/lib/listino/scelteVariante";
+import { SceltaColore } from "./SceltaColore";
+import { gruppiColori, pulisciVoci, scelteDopo, testoScelta, vociDi } from "@/lib/listino/scelteVariante";
 import { schedaPosizione, scelteDaAssi } from "@/lib/serramenti/schedaPosizione";
 import { Checkbox } from "@/components/ui/checkbox";
 import { misuraDaTesto, quantitaDaTesto } from "@/lib/serramenti/righePreventivo";
@@ -740,10 +741,10 @@ function BulkAssiActions({
         valori: [...v.valori.entries()].map(([valore, x]) => ({ valore, label: x.label, voci: x.voci })),
       }));
   }, [serramenti, famiglie]);
-  // I colori scritti nel listino, da suggerire per colore interno ed esterno.
-  const coloriSuggeriti = useMemo(() => {
+  // I colori scritti nel listino, divisi per fascia come nella tendina «Colore».
+  const gruppiDiColori = useMemo(() => {
     const usate = new Set(serramenti.map((s) => s.family_id).filter(Boolean) as string[]);
-    return coloriDelListino(famiglie.filter((f) => usate.has(f.id)).flatMap((f) => f.axes));
+    return gruppiColori(famiglie.filter((f) => usate.has(f.id)).flatMap((f) => f.axes));
   }, [serramenti, famiglie]);
   // Cosa si è scelto in ogni tendina, per scriverlo chiuso («Grigio antracite · Colore Standard»).
   const [sceltiGruppo, setSceltiGruppo] = useState<Record<string, string>>({});
@@ -816,29 +817,28 @@ function BulkAssiActions({
         })}
         {righeColorabili >= 2 && (
           <>
-            <div className="space-y-1 min-w-[150px]">
+            {/* Stessa tendina di «Colore»: i colori del listino divisi per fascia, o
+                scritti a mano. Prima era il suggeritore del browser, grigio e diverso. */}
+            <div className="space-y-1 min-w-[170px]">
               <Label htmlFor="bulk-colore-interno" className="text-[10px] text-slate-700">Colore interno</Label>
-              <Input
+              <SceltaColore
                 id="bulk-colore-interno"
                 value={coloreInterno}
-                onChange={(e) => setColoreInterno(e.target.value)}
-                list={coloriSuggeriti.length > 0 ? "bulk-colori-listino" : undefined}
+                onChange={(valore) => setColoreInterno(valore ?? "")}
+                gruppi={gruppiDiColori}
                 placeholder="Bianco RAL 9010"
-                className="h-8 text-xs bg-white"
+                className="h-8 bg-white"
               />
             </div>
-            <div className="space-y-1 min-w-[150px]">
+            <div className="space-y-1 min-w-[170px]">
               <Label htmlFor="bulk-colore-esterno" className="text-[10px] text-slate-700">Colore esterno</Label>
-              <Input
+              <SceltaColore
                 id="bulk-colore-esterno"
                 value={coloreEsterno}
-                onChange={(e) => setColoreEsterno(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") applicaColori();
-                }}
-                list={coloriSuggeriti.length > 0 ? "bulk-colori-listino" : undefined}
+                onChange={(valore) => setColoreEsterno(valore ?? "")}
+                gruppi={gruppiDiColori}
                 placeholder="Antracite RAL 7016"
-                className="h-8 text-xs bg-white"
+                className="h-8 bg-white"
               />
             </div>
             <Button
@@ -851,13 +851,6 @@ function BulkAssiActions({
             >
               Colori a tutte
             </Button>
-            {coloriSuggeriti.length > 0 && (
-              <datalist id="bulk-colori-listino">
-                {coloriSuggeriti.map((colore) => (
-                  <option key={colore} value={colore} />
-                ))}
-              </datalist>
-            )}
           </>
         )}
       </div>
@@ -938,8 +931,8 @@ function SerramentoRow({
   // Griglia o varianti non ancora arrivate: un ricalcolo chiesto adesso aspetta
   // (vedi l'effetto dopo i gestori) invece di lasciare il prezzo vecchio.
   const datiInArrivo = !!family && (grigliaInCaricamento || assiInCaricamento);
-  // I colori scritti nelle fasce del listino, suggeriti per colore interno ed esterno.
-  const coloriSuggeriti = useMemo(() => coloriDelListino(familyWithAxes?.axes ?? []), [familyWithAxes]);
+  // I colori scritti nelle fasce del listino, divisi per fascia, per colore interno ed esterno.
+  const gruppiDiColori = useMemo(() => gruppiColori(familyWithAxes?.axes ?? []), [familyWithAxes]);
   // I colori che il PDF scrive se i campi restano vuoti: quelli della variante Colore.
   const coloriDaVariante = useMemo(
     () => schedaPosizione(scelteDaAssi(familyWithAxes?.axes ?? [], s.valori_assi, s.scelte_assi)),
@@ -1736,38 +1729,27 @@ function SerramentoRow({
               diversi, per esempio una finestra bicolore o una riga fuori listino. */}
           <div className="col-span-12 sm:col-span-6 md:col-span-4">
             <Label className="text-xs">Colore interno</Label>
-            <Input
-              key={`ci-${s.id}-${s.colore_interno ?? ""}`}
-              defaultValue={s.colore_interno ?? ""}
-              onBlur={(e) => {
-                const valore = e.target.value.trim() || null;
+            <SceltaColore
+              value={s.colore_interno}
+              onChange={(valore) => {
                 if (valore !== (s.colore_interno ?? null)) onPatch({ colore_interno: valore });
               }}
-              list={coloriSuggeriti.length > 0 ? `colori-${s.id}` : undefined}
+              gruppi={gruppiDiColori}
               placeholder={coloriDaVariante.coloreInterno ?? "Bianco RAL 9010"}
-              className="h-9 text-xs"
+              aria-label="Colore interno"
             />
           </div>
           <div className="col-span-12 sm:col-span-6 md:col-span-4">
             <Label className="text-xs">Colore esterno</Label>
-            <Input
-              key={`ce-${s.id}-${s.colore_esterno ?? ""}`}
-              defaultValue={s.colore_esterno ?? ""}
-              onBlur={(e) => {
-                const valore = e.target.value.trim() || null;
+            <SceltaColore
+              value={s.colore_esterno}
+              onChange={(valore) => {
                 if (valore !== (s.colore_esterno ?? null)) onPatch({ colore_esterno: valore });
               }}
-              list={coloriSuggeriti.length > 0 ? `colori-${s.id}` : undefined}
+              gruppi={gruppiDiColori}
               placeholder={coloriDaVariante.coloreEsterno ?? "Antracite RAL 7016"}
-              className="h-9 text-xs"
+              aria-label="Colore esterno"
             />
-            {coloriSuggeriti.length > 0 && (
-              <datalist id={`colori-${s.id}`}>
-                {coloriSuggeriti.map((colore) => (
-                  <option key={colore} value={colore} />
-                ))}
-              </datalist>
-            )}
           </div>
           {/* Duplica/Elimina sono ora sempre visibili nell'header (icone) —
               evitiamo bottoni duplicati nel dettaglio espanso. */}

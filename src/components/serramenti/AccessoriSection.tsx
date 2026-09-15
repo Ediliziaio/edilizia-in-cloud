@@ -44,6 +44,7 @@ import { SrCard } from "@/lib/serramenti/wizardUI";
 import { formatEuro } from "@/lib/serramenti/format";
 import { toast } from "sonner";
 import { ListinoPickerDialog, type ListinoPickResult } from "./ListinoPickerDialog";
+import { tipoAccessorioDaNome } from "@/lib/serramenti/sintesiIntervento";
 import { useFamilies, useFamily } from "@/hooks/useFamilies";
 import { useListinoMacrocategorie } from "@/hooks/useListinoMacrocategorie";
 import { useListinoCategorie } from "@/hooks/useListinoCategorie";
@@ -113,7 +114,9 @@ export function AccessoriSection({ progettoId, detail }: Props) {
    */
   const handleAddFromListino = (pick: ListinoPickResult) => {
     addMut.mutate({
-      tipo: "avvolgibile", // fallback semantic; real type derivato dalla macro
+      // Il tipo dal nome dell'articolo: la sintesi del PDF conta i complementi per
+      // tipo, e con «avvolgibile» fisso 2 zanzariere diventavano «2 avvolgibili».
+      tipo: tipoAccessorioDaNome(pick.family_nome),
       descrizione: pick.family_nome,
       quantita: pick.quantita,
       larghezza_mm: pick.larghezza_mm,
@@ -131,7 +134,7 @@ export function AccessoriSection({ progettoId, detail }: Props) {
       modalita_prezzo: pick.modalita_prezzo,
       position: accessori.length,
     });
-    toast.success(`"${pick.family_nome}" aggiunto agli accessori`);
+    toast.success(`"${pick.family_nome}" aggiunto ai complementi`);
   };
 
   const onPatch = (id: string, patch: Partial<SrAccessorioRow>) => {
@@ -150,8 +153,8 @@ export function AccessoriSection({ progettoId, detail }: Props) {
   return (
     <>
       <SrCard
-        title="Accessori e complementi"
-        description="Tapparelle, cassonetti, zanzariere, persiane, monoblocchi. Possono ereditare le misure dai serramenti già configurati."
+        title="Complementi delle finestre"
+        description="Tapparelle, zanzariere, persiane, cassonetti legati a una finestra: ne prendono le misure. Un ordine di sole persiane o zanzariere si compone da «Aggiungi dal listino», qui sopra."
         icon={<ImageIcon className="h-4 w-4" />}
       >
         {/* Toolbar: aggiungi vuoto + copia da serramenti */}
@@ -160,7 +163,7 @@ export function AccessoriSection({ progettoId, detail }: Props) {
             <ImageIcon className="h-8 w-8 mx-auto text-orange-300" />
             <div>
               <p className="text-sm font-medium text-foreground">
-                Nessun accessorio aggiunto
+                Nessun complemento aggiunto
               </p>
               <p className="text-xs text-muted-foreground mt-1 max-w-md mx-auto">
                 Aggiungi tapparelle, cassonetti o altri complementi.{" "}
@@ -302,18 +305,13 @@ export function AccessoriSection({ progettoId, detail }: Props) {
         position={accessori.length}
       />
 
-      {/* Picker listino prodotti per accessori — usa lo stesso dialog dei
-          serramenti (macro → famiglia → misure). L'utente sceglie un articolo
-          da una macrocategoria diversa da Infissi (Tapparelle, Zanzariere,
-          Cassonetti, Persiane, Monoblocchi). */}
+      {/* I complementi dallo stesso listino di «Aggiungi dal listino»: davanti le
+          tipologie segnate come accessorio (tapparelle, zanzariere, cassonetti),
+          poi tutte le altre, persiane comprese. */}
       <ListinoPickerDialog
         open={listinoPickerOpen}
         onOpenChange={setListinoPickerOpen}
         onSelect={(pick) => handleAddFromListino(pick)}
-        // Filtro tipo='accessorio': il picker degli accessori mostra solo
-        // macrocategorie marcate come "Accessorio" in Listino → Macrocategorie
-        // (Tapparelle, Cassonetti, Zanzariere, …). Esclude i prodotti
-        // principali (es. Infissi).
         tipo="accessorio"
       />
 
@@ -323,7 +321,7 @@ export function AccessoriSection({ progettoId, detail }: Props) {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare accessorio?</AlertDialogTitle>
+            <AlertDialogTitle>Eliminare il complemento?</AlertDialogTitle>
             <AlertDialogDescription>
               {toDelete?.descrizione || toDelete?.tipo} verrà rimosso dal preventivo.
             </AlertDialogDescription>
@@ -549,7 +547,7 @@ function AccessorioRiga({
             variant="ghost"
             className="h-8 w-8 sm:h-7 sm:w-7"
             onClick={onDelete}
-            aria-label="Elimina accessorio"
+            aria-label="Elimina complemento"
           >
             <Trash2 className="h-3.5 w-3.5 text-rose-600" />
           </Button>
@@ -620,10 +618,13 @@ function CopyMisureDialog({
   const { macrocategorie, isLoading: loadingMacro } = useListinoMacrocategorie();
   const { categorie, isLoading: loadingCategorie } = useListinoCategorie();
   const loadingTipologie = loadingFamiglie || loadingMacro || loadingCategorie;
-  const tipologieAccessorio = useMemo(
-    () => tipologieProposte(areaDelPreventivatore(families, macrocategorie, categorie, "accessorio")),
-    [families, macrocategorie, categorie],
-  );
+  // Tutte le tipologie, davanti gli accessori, tranne quelle delle finestre che si
+  // copiano: una persiana o una tapparella si legano alla finestra, un'altra finestra no.
+  const tipologieAccessorio = useMemo(() => {
+    const delleFinestre = new Set(serramenti.map((s) => s.family_id).filter(Boolean));
+    return tipologieProposte(areaDelPreventivatore(families, macrocategorie, categorie, "accessorio"))
+      .filter((t) => !t.linee.some((l) => l.righe.some((r) => delleFinestre.has(r.famiglia.id))));
+  }, [families, macrocategorie, categorie, serramenti]);
   // Un articolo compare una volta anche con più linee: la linea si sceglie nelle varianti.
   const articoliTipologia = useMemo(() => {
     const articoli = new Map<string, FamilyWithAxes>();
@@ -826,7 +827,7 @@ function CopyMisureDialog({
           const posa = posaEsclusa ? 0 : calcolaPosaInclusa(pickedFamily, qty, tariffePrezzi);
           const unit = qty > 0 ? Number(((prezzoProdotto + posa) / qty).toFixed(2)) : 0;
           return {
-            tipo: tipoAccessorio,
+            tipo: tipoAccessorioDaNome(pickedFamily.nome),
             descrizione: pickedFamily.nome,
             quantita: qty,
             larghezza_mm: wantsDims ? s.larghezza_mm : null,
