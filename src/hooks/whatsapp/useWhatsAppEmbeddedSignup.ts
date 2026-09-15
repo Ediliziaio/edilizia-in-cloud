@@ -6,8 +6,10 @@
 //  1. Backend (`whatsapp-embedded-config`) restituisce meta_app_id +
 //     whatsapp_config_id (Embedded Signup Config approvato lato Meta).
 //  2. Frontend carica il Facebook JS SDK on-demand (1 sola volta per sessione).
-//  3. `FB.login()` viene lanciato con `feature: 'whatsapp_embedded_signup'` +
-//     il config_id. Meta apre la popup di onboarding (verifica numero, OTP, ecc.).
+//  3. `FB.login()` viene lanciato con il config_id di una configurazione con
+//     variante «Iscrizione integrata di WhatsApp» (v4: `extras: { setup: {} }`).
+//     Con una configurazione «General» il popup risponde solo "Si è verificato
+//     un errore". Meta apre la popup di onboarding (verifica numero, OTP, ecc.).
 //  4. Al callback (`authResponse.code` + sessionInfo `phone_number_id` /
 //     `waba_id`) chiamiamo `whatsapp-connect` con `{ code, company_id, purpose }`.
 //     L'edge function gestisce internamente lo scambio code→access_token tramite
@@ -38,7 +40,8 @@ export const isEmbeddedSignupSupported = !isNative;
 
 // ── FB SDK loader (singleton) ─────────────────────────────────────────────
 const FB_SDK_SRC = "https://connect.facebook.net/en_US/sdk.js";
-const FB_SDK_VERSION = "v21.0";
+// Ultima versione dell'API Graph indicata da Meta per l'iscrizione integrata v4.
+const FB_SDK_VERSION = "v26.0";
 
 declare global {
   interface Window {
@@ -219,11 +222,21 @@ function isMetaOrigin(origin: string): boolean {
   }
 }
 
+// Esito del messaggio che il popup di Meta manda alla nostra pagina.
+// Quando fallisce, Meta non chiude in silenzio: manda event "CANCEL" con
+// data.error_code / error_message / session_id. Prima lo scartavamo
+// (resolve(null)) e chi collegava restava con il solo "Si è verificato un
+// errore" del popup, senza un codice da capire o da girare al supporto Meta.
+type EsitoPopupMeta =
+  | { tipo: "finito"; info: MetaSessionInfo }
+  | { tipo: "annullato"; passo?: string; codice?: string; messaggio?: string; sessione?: string }
+  | { tipo: "scaduto" };
+
 // Listener temporaneo per il messaggio "session info" dell'Embedded Signup.
 // Meta invia un postMessage con `{ type: 'WA_EMBEDDED_SIGNUP', event: 'FINISH',
-// data: { phone_number_id, waba_id } }` al window padre. Aumentato il timeout
-// a 180s per dare margine ai flussi mobile (OTP via SMS può essere lento).
-function waitForSessionInfo(timeoutMs = 180_000): Promise<MetaSessionInfo | null> {
+// data: { phone_number_id, waba_id } }` al window padre. Timeout di 180s per
+// dare margine ai flussi mobile (OTP via SMS può essere lento).
+function waitForSessionInfo(timeoutMs = 180_000): Promise<EsitoPopupMeta> {
   return new Promise((resolve) => {
     const handler = (event: MessageEvent) => {
       // SECURITY: accetta solo postMessage provenienti da domini Meta.
@@ -240,25 +253,52 @@ function waitForSessionInfo(timeoutMs = 180_000): Promise<MetaSessionInfo | null
         try { payload = JSON.parse(payload); } catch { return; }
       }
       if (payload?.type !== "WA_EMBEDDED_SIGNUP") return;
-      if (payload?.event === "FINISH" || payload?.event === "FINISH_ONLY_WABA") {
-        window.removeEventListener("message", handler);
-        clearTimeout(timer);
+      const evento = String(payload?.event ?? "");
+      const dati = payload?.data ?? {};
+      // "FINISH" e le sue varianti (solo WABA, app WhatsApp Business) chiudono
+      // tutte il flusso con successo.
+      if (evento.startsWith("FINISH")) {
+        chiudi();
         resolve({
-          phone_number_id: payload?.data?.phone_number_id,
-          waba_id: payload?.data?.waba_id,
+          tipo: "finito",
+          info: { phone_number_id: dati.phone_number_id, waba_id: dati.waba_id },
         });
-      } else if (payload?.event === "CANCEL" || payload?.event === "ERROR") {
-        window.removeEventListener("message", handler);
-        clearTimeout(timer);
-        resolve(null);
+      } else if (evento === "CANCEL" || evento === "ERROR") {
+        chiudi();
+        resolve({
+          tipo: "annullato",
+          passo: dati.current_step,
+          codice: dati.error_code != null ? String(dati.error_code) : undefined,
+          messaggio: dati.error_message,
+          sessione: dati.session_id,
+        });
       }
+    };
+    const chiudi = () => {
+      window.removeEventListener("message", handler);
+      clearTimeout(timer);
     };
     window.addEventListener("message", handler);
     const timer = setTimeout(() => {
       window.removeEventListener("message", handler);
-      resolve(null);
+      resolve({ tipo: "scaduto" });
     }, timeoutMs);
   });
+}
+
+/** Messaggio leggibile per un popup Meta chiuso senza codice OAuth. */
+function messaggioEsitoMeta(esito: EsitoPopupMeta): string {
+  if (esito.tipo === "annullato" && (esito.codice || esito.messaggio)) {
+    return (
+      `Meta ha interrotto il collegamento: ${esito.messaggio ?? "errore senza descrizione"}` +
+      (esito.codice ? ` (codice ${esito.codice})` : "") +
+      (esito.sessione ? ` — ID sessione Meta: ${esito.sessione}` : "")
+    );
+  }
+  if (esito.tipo === "annullato") {
+    return `Collegamento annullato nel popup di Meta${esito.passo ? ` (al passo «${esito.passo}»)` : ""}.`;
+  }
+  return "Onboarding annullato o codice OAuth non ricevuto";
 }
 
 export interface EmbeddedSignupResult {
@@ -308,7 +348,12 @@ export function useWhatsAppEmbeddedSignup() {
         throw new Error("Facebook SDK non disponibile");
       }
 
-      // 3. Lancia popup Embedded Signup + cattura sessionInfo in parallelo
+      // 3. Lancia popup Embedded Signup + cattura sessionInfo in parallelo.
+      // Iscrizione integrata v4: `extras: { setup: {} }`. I prodotti stanno
+      // nella configurazione di Facebook Login for Business (variante
+      // «Iscrizione integrata di WhatsApp») e le informazioni di sessione
+      // arrivano sempre, senza sessionInfoVersion. La chiamata v2 di prima
+      // (`feature: 'whatsapp_embedded_signup'`) Meta la spegne a ottobre 2026.
       console.error("[wa-embedded] fase 3 → setPhase(popup) + FB.login(config_id=" + cfg.whatsapp_config_id + ")");
       setPhase("popup");
       const sessionInfoPromise = waitForSessionInfo();
@@ -322,20 +367,30 @@ export function useWhatsAppEmbeddedSignup() {
             config_id: cfg.whatsapp_config_id,
             response_type: "code",
             override_default_response_type: true,
-            extras: {
-              feature: "whatsapp_embedded_signup",
-              sessionInfoVersion: 3,
-            },
+            extras: { setup: {} },
           },
         );
       });
 
+      const attendiEsito = (ms: number) =>
+        Promise.race<EsitoPopupMeta>([
+          sessionInfoPromise,
+          new Promise<EsitoPopupMeta>((r) => setTimeout(() => r({ tipo: "scaduto" }), ms)),
+        ]);
+
       const authCode = loginResponse?.authResponse?.code;
       if (!authCode) {
-        console.error("[wa-embedded] no authCode in response — status=" + loginResponse?.status);
-        throw new Error("Onboarding annullato o codice OAuth non ricevuto");
+        // Il messaggio di Meta con il motivo arriva insieme al callback: gli
+        // diamo un attimo, così l'errore mostrato è il suo e non un generico
+        // "annullato".
+        const esito = await attendiEsito(1500);
+        console.error("[wa-embedded] no authCode — status=" + loginResponse?.status, esito);
+        throw new Error(messaggioEsitoMeta(esito));
       }
-      const sessionInfo = (await sessionInfoPromise) ?? {};
+      // Il codice di Meta scade dopo 30 secondi: le informazioni di sessione
+      // sono solo suggerimenti per il server, non vanno aspettate oltre.
+      const esitoSessione = await attendiEsito(5000);
+      const sessionInfo: MetaSessionInfo = esitoSessione.tipo === "finito" ? esitoSessione.info : {};
       console.error("[wa-embedded] sessionInfo:", sessionInfo);
 
       // 4. Scambio code lato server (whatsapp-connect gestisce tutto)

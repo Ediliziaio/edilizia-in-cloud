@@ -3,7 +3,7 @@
 // Riusa l'hook `useWhatsAppEmbeddedSignup` che gestisce:
 // - Fetch config (meta_app_id + whatsapp_config_id) da platform_settings
 // - Lazy-load Facebook JS SDK
-// - FB.login con feature 'whatsapp_embedded_signup'
+// - FB.login con la configurazione «Iscrizione integrata di WhatsApp» (v4)
 // - Scambio code via `whatsapp-connect` edge function (esistente)
 //
 // Pensato per essere mostrato come PRIMA opzione nel ConnectNumberWizard,
