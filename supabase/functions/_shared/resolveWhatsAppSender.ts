@@ -9,8 +9,14 @@
 // decifrato pronto all'uso.
 //
 // Usare SEMPRE questo helper nei percorsi di invio/lettura credenziali WhatsApp.
+//
+// Add-on WhatsApp Business (15/09/2026): il mittente si restituisce solo se
+// l'azienda ha WhatsApp nel piano, l'add-on pagato o lo sblocco del super admin
+// (vedi whatsappAddon.ts). Passano di qui automazioni, risposte dalla inbox,
+// messaggi da contatti e ordini, template e il vecchio broadcast.
 
 import { decryptMaybeEncrypted, getEncryptionKey } from "./encryption.ts";
+import { addonWhatsAppAttivo } from "./whatsappAddon.ts";
 
 export interface WhatsAppSender {
   /** ID numero (Graph API): https://graph.facebook.com/v21.0/<phoneNumberId>/messages */
@@ -29,17 +35,26 @@ export interface WhatsAppSender {
 // helper in _shared, es. billingConfig.ts) per non accoppiarsi a supabase-js.
 interface MinimalClient {
   from: (table: string) => any;
+  rpc: (fn: string, args?: Record<string, unknown>) => any;
 }
 
 /**
  * Risolve le credenziali WhatsApp per `companyId`.
- * @returns il mittente pronto all'uso, oppure `null` se nessuna config valida.
+ * @returns il mittente pronto all'uso, oppure `null` se nessuna config valida
+ *   o se l'azienda non ha l'add-on WhatsApp Business.
  */
 export async function resolveWhatsAppSender(
   client: MinimalClient,
   companyId: string,
   preferredNumberId?: string | null,
 ): Promise<WhatsAppSender | null> {
+  // Se la verifica dell'add-on non risponde si procede: un intoppo del
+  // database non deve far perdere un messaggio già dovuto.
+  if (!(await addonWhatsAppAttivo(client, companyId, { seNonVerificabile: "consenti" }))) {
+    console.warn(`[wa-addon] ${companyId}: add-on WhatsApp non attivo, nessun mittente`);
+    return null;
+  }
+
   let phoneNumberId: string | null = null;
   let wabaId: string | null = null;
   let encToken: string | null = null;

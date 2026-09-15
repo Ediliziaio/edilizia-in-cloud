@@ -1,8 +1,10 @@
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { safeRedirect } from "@/utils/safeRedirect";
+import { readInvokeError } from "@/lib/readInvokeError";
+import { queryKeys } from "@/lib/queryKeys";
 
 // ─── TIPI ─────────────────────────────────────────────────────────────────────
 
@@ -316,6 +318,42 @@ export function useOpenBillingPortal() {
     },
     onError: (error: Error) => {
       toast.error("Errore nell'apertura del portale fatturazione", {
+        description: error.message,
+      });
+    },
+  });
+}
+
+// ─── HOOK: ADD-ON WHATSAPP BUSINESS ───────────────────────────────────────────
+// Apre il checkout Stripe dell'add-on (abbonamento mensile a parte dal piano).
+// Se risulta già attivo (piano, sblocco del super admin, add-on già pagato) non
+// si paga niente: si rileggono le funzioni dell'azienda.
+
+export function useAttivaAddonWhatsApp() {
+  const { effectiveCompany } = useAuth();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke("create-checkout-session", {
+        body: { company_id: effectiveCompany?.id, type: "whatsapp_addon" },
+      });
+      if (error) throw new Error(await readInvokeError(error));
+      const res = data as { url?: string; already_active?: boolean; error?: string } | null;
+      if (res?.error) throw new Error(res.error);
+      if (!res?.already_active && !res?.url) throw new Error("Pagina di pagamento non disponibile");
+      return res;
+    },
+    onSuccess: (res) => {
+      if (res?.url) {
+        safeRedirect(res.url);
+        return;
+      }
+      void queryClient.invalidateQueries({ queryKey: [queryKeys.featureFlags.companyResolved(undefined)[0]] });
+      void queryClient.invalidateQueries({ queryKey: ["feature-access"] });
+      toast.success("WhatsApp Business è già attivo per la tua azienda");
+    },
+    onError: (error: Error) => {
+      toast.error("Impossibile avviare l'attivazione dell'add-on", {
         description: error.message,
       });
     },

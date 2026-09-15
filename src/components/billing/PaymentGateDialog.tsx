@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CreditCard, Lock, RefreshCw, Wallet } from "lucide-react";
+import { CreditCard, Lock, MessageCircle, RefreshCw, Wallet } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { usePaymentGateStore } from "@/store/paymentGateStore";
 import { isMobileAppRuntime } from "@/lib/mobile/platform";
 import { formatCurrency } from "@/lib/formatters";
 import { RechargeDialog } from "@/components/credits/RechargeDialog";
+import { AddonWhatsAppOfferta } from "@/components/billing/AddonWhatsAppOfferta";
 import type { WalletType } from "@/hooks/credits/useWallets";
 
 /** Ruoli che possono gestire la fatturazione/abbonamento dell'azienda. */
@@ -23,7 +24,9 @@ const CAN_MANAGE_BILLING_ROLES = new Set(["company_admin", "super_admin"]);
  * Role-aware + reason-aware:
  *  - admin: "Aggiungi carta" (manca metodo), "Rinnova abbonamento" (sospeso/scaduto),
  *    oppure "Ricarica ora" (crediti finiti) che apre subito la ricarica Stripe;
- *  - altri utenti: messaggio "contatta l'amministratore dell'azienda".
+ *  - altri utenti: messaggio "contatta l'amministratore dell'azienda";
+ *  - add-on WhatsApp Business non attivo: l'offerta con il pagamento
+ *    (AddonWhatsAppOfferta, che a chi non puo' comprarlo dice a chi chiederlo).
  */
 export function PaymentGateDialog() {
   const open = usePaymentGateStore((s) => s.open);
@@ -45,6 +48,8 @@ export function PaymentGateDialog() {
   const isSubscription = reason === "subscription_inactive";
   // Il saldo crediti e' finito: carta e abbonamento sono a posto.
   const isCredits = kind === "credits";
+  // WhatsApp Business ne' nel piano ne' comprato come add-on.
+  const isAddonWhatsApp = kind === "addon_whatsapp";
   const portafoglio = dettaglio?.portafoglio;
   const eRender = portafoglio === "render";
   const eSms = portafoglio === "sms";
@@ -96,7 +101,9 @@ export function PaymentGateDialog() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              {!canManageBilling ? (
+              {isAddonWhatsApp ? (
+                <MessageCircle className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+              ) : !canManageBilling ? (
                 <Lock className="h-5 w-5 text-amber-600 dark:text-amber-400" />
               ) : isCredits ? (
                 <Wallet className="h-5 w-5 text-amber-600 dark:text-amber-400" />
@@ -105,11 +112,15 @@ export function PaymentGateDialog() {
               ) : (
                 <CreditCard className="h-5 w-5 text-amber-600 dark:text-amber-400" />
               )}
-              {canManageBilling ? title : "Strumento non disponibile"}
+              {isAddonWhatsApp
+                ? "WhatsApp Business non attivo"
+                : canManageBilling ? title : "Strumento non disponibile"}
             </DialogTitle>
           </DialogHeader>
 
-          {!canManageBilling ? (
+          {isAddonWhatsApp ? (
+            <AddonWhatsAppOfferta />
+          ) : !canManageBilling ? (
             <p className="text-sm text-muted-foreground">
               {isCredits
                 ? "I crediti per questa funzione sono esauriti. Contatta l'amministratore della tua azienda perché ricarichi il portafoglio."

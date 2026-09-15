@@ -1,18 +1,20 @@
 import { create } from "zustand";
 
 /**
- * Stato globale del gate "carta obbligatoria / crediti esauriti".
+ * Stato globale del gate "carta obbligatoria / crediti esauriti / add-on".
  *
  * Lo apre il fetch del client Supabase (vedi lib/creditoEsaurito.ts) quando
  * uno strumento a costo risponde che manca la carta (402, code
- * "payment_method_required") o che il credito e' finito — in qualunque forma
- * il server lo dica. Accessibile fuori da React via getState().
+ * "payment_method_required"), che il credito e' finito — in qualunque forma
+ * il server lo dica — o che l'add-on WhatsApp Business non e' attivo (402,
+ * code "whatsapp_addon_required"). Accessibile fuori da React via getState().
  *
- * `kind` distingue i due casi: "payment" (carta/abbonamento mancante) e
- * "credits" (saldo crediti esaurito). Prima il dialog mostrava "Abbonamento
+ * `kind` distingue i casi: "payment" (carta/abbonamento mancante), "credits"
+ * (saldo crediti esaurito) e "addon_whatsapp" (WhatsApp Business ne' nel
+ * piano ne' comprato come add-on). Prima il dialog mostrava "Abbonamento
  * non attivo" anche a chi aveva solo finito i crediti — messaggio fuorviante.
  */
-export type PaymentGateKind = "payment" | "credits";
+export type PaymentGateKind = "payment" | "credits" | "addon_whatsapp";
 
 /** Quale borsellino si e' svuotato: serve a scegliere cosa ricaricare. */
 export type PortafoglioEsaurito = "ai" | "email" | "whatsapp" | "render" | "sms";

@@ -20,6 +20,7 @@ import { getMetaCredentials } from "../_shared/getMetaCredentials.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { encrypt, getEncryptionKey } from "../_shared/encryption.ts";
 import { assertMetaCompanyAdminAccess, getErrorMessage, getErrorStatus } from "../_shared/metaAuth.ts";
+import { cancelloAddonWhatsApp } from "../_shared/whatsappAddon.ts";
 
 type Purpose =
   | "bot_operativo"
@@ -128,6 +129,11 @@ Deno.serve(async (req) => {
     }
 
     await assertMetaCompanyAdminAccess(supabase, userId, company_id);
+
+    // Add-on WhatsApp Business: controllato anche qui e non solo prima del
+    // popup, perché questa funzione accetta anche i dati inseriti a mano.
+    const bloccoAddon = await cancelloAddonWhatsApp(supabase, company_id, cors);
+    if (bloccoAddon) return bloccoAddon;
 
     const hasManualToken =
       Boolean(body.access_token?.trim()) &&

@@ -1,8 +1,9 @@
-import { Link, useLocation } from "react-router-dom";
-import { Lock, Mail, ArrowRight } from "lucide-react";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { Lock, Mail, ArrowRight, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
+import { AddonWhatsAppOfferta } from "@/components/billing/AddonWhatsAppOfferta";
 
 /**
  * UpgradePage — fallback mostrato da `FeatureRoute` quando l'utente tenta
@@ -12,13 +13,52 @@ import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
  * Riceve `deniedFeature` via `location.state` (settato da `<Navigate>` in
  * `FeatureRoute`). Mostra piano corrente, feature negata e CTA verso
  * abbonamento/commerciale. Volutamente minimale.
+ *
+ * WhatsApp Business è un add-on che si compra da soli: al posto del
+ * "contatta il commerciale" c'è l'offerta con il pagamento. Si arriva qui
+ * anche al ritorno da Stripe (`?addon=whatsapp&pagamento=ok|annullato`).
  */
 export default function UpgradePage() {
   const location = useLocation();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { currentPlan } = useSubscriptionLimits();
 
   const deniedFeature = (location.state as { deniedFeature?: string } | null)?.deniedFeature;
   const planName = currentPlan?.name ?? "Piano corrente";
+  const addonWhatsApp = deniedFeature === "whatsapp" || searchParams.get("addon") === "whatsapp";
+  const pagamento = searchParams.get("pagamento");
+
+  if (addonWhatsApp) {
+    return (
+      <div className="max-w-xl mx-auto py-8">
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-full bg-emerald-500/10 flex items-center justify-center">
+                <MessageCircle className="h-5 w-5 text-emerald-600" />
+              </div>
+              <div>
+                <CardTitle>WhatsApp Business</CardTitle>
+                <CardDescription>
+                  Piano attivo: <strong>{planName}</strong>
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {pagamento === "annullato" && (
+              <p className="text-sm text-muted-foreground">Pagamento annullato: nessun addebito.</p>
+            )}
+            <AddonWhatsAppOfferta
+              inAttesaDiAttivazione={pagamento === "ok"}
+              onAttivo={() => navigate("/azienda/whatsapp", { replace: true })}
+            />
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-2xl mx-auto py-8">

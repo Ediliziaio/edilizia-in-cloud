@@ -46,6 +46,13 @@ describe("classificaBloccoPagamento", () => {
     expect(classificaBloccoPagamento(402, { error: "qualcosa" })).toBe("payment");
   });
 
+  it("riconosce l'add-on WhatsApp mancante: e' un 402, ma non chiede la carta", () => {
+    expect(classificaBloccoPagamento(402, {
+      error: "WhatsApp Business non è attivo per questa azienda: va attivato l'add-on WhatsApp.",
+      code: "whatsapp_addon_required",
+    })).toBe("addon_whatsapp");
+  });
+
   it("lascia stare gli altri errori", () => {
     expect(classificaBloccoPagamento(500, { error: "Errore interno: TypeError: x is not a function" })).toBeNull();
     expect(classificaBloccoPagamento(403, { error: "whatsapp_disabled" })).toBeNull();
@@ -95,6 +102,11 @@ describe("segnalaBloccoDaRisposta", () => {
   it("apre il dialog carta senza dettaglio", () => {
     expect(segnalaBloccoDaRisposta(402, { code: "payment_method_required", error: "Serve la carta" })).toBe("payment");
     expect(usePaymentGateStore.getState()).toMatchObject({ open: true, kind: "payment", dettaglio: null });
+  });
+
+  it("apre l'offerta dell'add-on WhatsApp senza dettaglio", () => {
+    expect(segnalaBloccoDaRisposta(402, { code: "whatsapp_addon_required", error: "WhatsApp Business non è attivo" })).toBe("addon_whatsapp");
+    expect(usePaymentGateStore.getState()).toMatchObject({ open: true, kind: "addon_whatsapp", dettaglio: null });
   });
 
   it("non tocca nulla sugli altri errori", () => {

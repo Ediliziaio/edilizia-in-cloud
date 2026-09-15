@@ -4,6 +4,7 @@ import { getCorsHeaders } from "../_shared/headers.ts";
 import { getCompanyBillingConfig } from "../_shared/billingConfig.ts";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import { createOrGetStripeCustomer } from "../_shared/stripeHelpers.ts";
+import { assertMetaCompanyAdminAccess, getErrorMessage, getErrorStatus } from "../_shared/metaAuth.ts";
 import { conMetriche } from "../_shared/withMetrics.ts";
 
 Deno.serve(conMetriche("create-checkout-session", async (req) => {
@@ -241,6 +242,144 @@ Deno.serve(conMetriche("create-checkout-session", async (req) => {
         JSON.stringify({ url: session.url, session_id: session.id }),
         { headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
       );
+    }
+
+    // ─── ADD-ON WHATSAPP BUSINESS (abbonamento mensile a parte dal piano) ───
+    // Incluso nei piani da 247 €/mese; gli altri lo pagano qui, al prezzo di
+    // platform_feature_flags (chiave "whatsapp"). Lo accende stripe-webhook con
+    // un override "addon_stripe:<abbonamento>". Lo compra chi può collegare i
+    // numeri: l'amministratore dell'azienda (o il super admin).
+    if (type === "whatsapp_addon") {
+      const headers = { ...getCorsHeaders(req), "Content-Type": "application/json" };
+      try {
+        await assertMetaCompanyAdminAccess(supabaseAdmin, userId, company_id);
+      } catch (err) {
+        return new Response(JSON.stringify({ error: getErrorMessage(err) }), { status: getErrorStatus(err), headers });
+      }
+
+      // Già attivo (piano, sblocco del super admin, add-on pagato): niente secondo addebito.
+      const { data: stato, error: statoErr } = await supabaseAdmin.rpc("resolve_company_feature", {
+        p_company_id: company_id,
+        p_feature_key: "whatsapp",
+      });
+      if (statoErr) {
+        return new Response(
+          JSON.stringify({ error: "Non riesco a verificare WhatsApp per questa azienda: riprova tra poco." }),
+          { status: 503, headers },
+        );
+      }
+      const statoRiga = (Array.isArray(stato) ? stato[0] : stato) as { is_enabled?: boolean } | null;
+      if (statoRiga?.is_enabled === true) {
+        return new Response(JSON.stringify({ already_active: true }), { headers });
+      }
+
+      // Spento a mano dal super admin: non si riaccende comprandolo.
+      const { data: override } = await supabaseAdmin
+        .from("company_feature_overrides")
+        .select("access_level, override_reason, expires_at")
+        .eq("company_id", company_id)
+        .eq("feature_key", "whatsapp")
+        .maybeSingle();
+      if (
+        override?.access_level === "disabled" &&
+        !String(override.override_reason ?? "").startsWith("addon_stripe:") &&
+        (!override.expires_at || new Date(override.expires_at) > new Date())
+      ) {
+        return new Response(
+          JSON.stringify({ error: "WhatsApp Business è stato disattivato per la tua azienda dall'amministrazione: scrivi all'assistenza per riattivarlo." }),
+          { status: 403, headers },
+        );
+      }
+
+      const { data: company } = await supabaseAdmin
+        .from("companies")
+        .select("id, name, email, stripe_customer_id")
+        .eq("id", company_id)
+        .single();
+      if (!company) {
+        return new Response(JSON.stringify({ error: "Azienda non trovata" }), { status: 404, headers });
+      }
+
+      const { data: flag } = await supabaseAdmin
+        .from("platform_feature_flags")
+        .select("price_per_month")
+        .eq("key", "whatsapp")
+        .maybeSingle();
+      const prezzoEur = Number(flag?.price_per_month ?? 0);
+      if (!(prezzoEur > 0)) {
+        return new Response(JSON.stringify({ error: "Prezzo dell'add-on WhatsApp non configurato" }), { status: 400, headers });
+      }
+
+      let stripeCustomerId: string;
+      try {
+        stripeCustomerId = await createOrGetStripeCustomer(supabaseAdmin, stripeSecretKey, company);
+      } catch (err) {
+        return new Response(JSON.stringify({ error: (err as Error).message }), { status: 400, headers });
+      }
+
+      // Add-on già pagato ma non registrato (webhook in ritardo o fallito): lo
+      // si registra adesso invece di aprire un secondo abbonamento.
+      const abbonamentiRes = await fetch(
+        `https://api.stripe.com/v1/subscriptions?customer=${encodeURIComponent(stripeCustomerId)}&status=all&limit=100`,
+        { headers: { Authorization: `Bearer ${stripeSecretKey}` } },
+      );
+      const abbonamenti = await abbonamentiRes.json();
+      const giaPagato = (abbonamenti?.data ?? []).find(
+        (s: { status?: string; metadata?: Record<string, string> }) =>
+          s?.metadata?.type === "whatsapp_addon" && ["active", "trialing", "past_due"].includes(String(s.status)),
+      ) as { id: string } | undefined;
+      if (giaPagato) {
+        const { error: registraErr } = await supabaseAdmin.from("company_feature_overrides").upsert(
+          {
+            company_id,
+            feature_key: "whatsapp",
+            access_level: "enabled",
+            is_enabled: true,
+            expires_at: null,
+            override_reason: `addon_stripe:${giaPagato.id}`,
+            notes: "Add-on WhatsApp Business pagato con Stripe (registrato dal checkout)",
+          },
+          { onConflict: "company_id,feature_key" },
+        );
+        if (registraErr) {
+          return new Response(JSON.stringify({ error: registraErr.message }), { status: 500, headers });
+        }
+        return new Response(JSON.stringify({ already_active: true }), { headers });
+      }
+
+      const appUrl = Deno.env.get("SITE_URL") ?? "https://app.ediliziaincloud.com";
+      const sessionRes = await fetch("https://api.stripe.com/v1/checkout/sessions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${stripeSecretKey}`,
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: new URLSearchParams({
+          customer: stripeCustomerId,
+          mode: "subscription",
+          "payment_method_types[0]": "card",
+          "line_items[0][price_data][currency]": "eur",
+          "line_items[0][price_data][unit_amount]": String(Math.round(prezzoEur * 100)),
+          "line_items[0][price_data][recurring][interval]": "month",
+          "line_items[0][price_data][product_data][name]": "WhatsApp Business (Meta) — add-on mensile",
+          "line_items[0][quantity]": "1",
+          // Al ritorno la pagina aspetta che il webhook accenda l'add-on.
+          success_url: `${appUrl}/azienda/upgrade?addon=whatsapp&pagamento=ok`,
+          cancel_url: `${appUrl}/azienda/upgrade?addon=whatsapp&pagamento=annullato`,
+          "metadata[company_id]": company_id,
+          "metadata[type]": "whatsapp_addon",
+          "metadata[price_eur]": String(prezzoEur),
+          // Anche sull'abbonamento: disdetta, rinnovi e fatture si riconoscono
+          // come add-on e non toccano il piano dell'azienda.
+          "subscription_data[metadata][company_id]": company_id,
+          "subscription_data[metadata][type]": "whatsapp_addon",
+        }),
+      });
+      const session = await sessionRes.json();
+      if (session.error) {
+        return new Response(JSON.stringify({ error: session.error.message }), { status: 400, headers });
+      }
+      return new Response(JSON.stringify({ url: session.url, session_id: session.id }), { headers });
     }
 
     // ─── EMAIL CREDITS (one-time payment) ───

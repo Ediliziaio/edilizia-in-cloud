@@ -33,6 +33,9 @@ const CODICI_CREDITO = new Set([
 /** Codice del gate "carta obbligatoria" (requirePaymentMethod.ts). */
 const CODICE_CARTA = "payment_method_required";
 
+/** Codice dell'add-on WhatsApp Business non attivo (_shared/whatsappAddon.ts). */
+const CODICE_ADDON_WHATSAPP = "whatsapp_addon_required";
+
 /**
  * Le frasi con cui il server dice che il credito e' finito, in italiano e in
  * inglese: "Credito insufficiente o bloccato", "Crediti email insufficienti",
@@ -59,11 +62,14 @@ function stringheDi(corpo: unknown, profondita = 0, raccolte: string[] = []): st
 
 /**
  * Dice se una risposta del server e' un blocco per crediti finiti ("credits"),
- * per carta o abbonamento mancante ("payment"), o nessuno dei due (null).
+ * per carta o abbonamento mancante ("payment"), per l'add-on WhatsApp Business
+ * non attivo ("addon_whatsapp"), o nessuno (null).
  * Il 402 senza altro indizio resta "payment": e' il contratto storico del gate.
  */
 export function classificaBloccoPagamento(status: number, corpo: unknown): PaymentGateKind | null {
   const stringhe = stringheDi(corpo);
+  // Anche questo e' un 402, ma non chiede una carta: chiede l'add-on.
+  if (stringhe.some((s) => s.trim().toLowerCase() === CODICE_ADDON_WHATSAPP)) return "addon_whatsapp";
   if (stringhe.some((s) => s.trim().toLowerCase() === CODICE_CARTA)) return "payment";
   if (stringhe.some((s) => CODICI_CREDITO.has(s.trim().toLowerCase()) || TESTO_CREDITO.test(s))) {
     return "credits";

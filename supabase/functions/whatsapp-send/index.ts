@@ -4,6 +4,7 @@ import { getWhatsAppWindowStatus } from "../_shared/whatsappWindow.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { checkPaymentMethod, PAYMENT_METHOD_REQUIRED_MESSAGE } from "../_shared/requirePaymentMethod.ts";
 import { addebitaMessaggioWhatsApp, rimborsaMessaggioWhatsApp } from "../_shared/whatsappCredits.ts";
+import { addonWhatsAppAttivo, rispostaAddonWhatsApp } from "../_shared/whatsappAddon.ts";
 
 import { serveConMetriche } from "../_shared/withMetrics.ts";
 type SendType = "text" | "interactive" | "template";
@@ -139,6 +140,14 @@ serveConMetriche("whatsapp-send", async (req) => {
         JSON.stringify({ error: pmCheck.message ?? PAYMENT_METHOD_REQUIRED_MESSAGE, code: "payment_method_required" }),
         { status: 402, headers: jsonHeaders },
       );
+    }
+
+    // Add-on WhatsApp Business: il numero dell'azienda invia solo se il piano
+    // lo include, l'add-on è pagato o il super admin l'ha sbloccato. Se la
+    // verifica non risponde si invia lo stesso: qui passano notifiche e
+    // broadcast già dovuti, e l'add-on non corre a ogni messaggio.
+    if (!(await addonWhatsAppAttivo(adminClient, companyId, { seNonVerificabile: "consenti" }))) {
+      return rispostaAddonWhatsApp(corsHeaders);
     }
 
     let phoneNumberId: string | null = null;

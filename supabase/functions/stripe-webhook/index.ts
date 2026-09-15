@@ -163,6 +163,129 @@ async function saveCardForAutoTopup(
   }
 }
 
+// ─── Add-on WhatsApp Business ──────────────────────────────
+// Abbonamento a parte dal piano (create-checkout-session, type
+// "whatsapp_addon"). Acceso vuol dire un override della chiave "whatsapp" con
+// motivo "addon_stripe:<abbonamento>": la stessa fonte che leggono l'app e le
+// edge function. Disdirlo, o smettere di pagarlo, spegne solo l'add-on. Prima
+// ogni abbonamento del cliente era trattato come il piano: la disdetta di un
+// accessorio avrebbe fatto scadere l'intera azienda.
+
+const ADDON_WHATSAPP = "whatsapp_addon";
+
+function motivoAddonWhatsApp(subscriptionId: string): string {
+  return `addon_stripe:${subscriptionId}`;
+}
+
+/** L'abbonamento è l'add-on WhatsApp? Metadati, poi override registrato, poi Stripe. */
+async function eAddonWhatsApp(
+  supabase: ReturnType<typeof createClient>,
+  companyId: string,
+  subscriptionId: string | null | undefined,
+  metadata: Record<string, unknown> | null | undefined,
+  stripeSecretKey?: string,
+): Promise<boolean> {
+  if (metadata?.type === ADDON_WHATSAPP) return true;
+  if (!subscriptionId) return false;
+  const { data: override } = await supabase
+    .from("company_feature_overrides")
+    .select("id")
+    .eq("company_id", companyId)
+    .eq("feature_key", "whatsapp")
+    .eq("override_reason", motivoAddonWhatsApp(subscriptionId))
+    .maybeSingle();
+  if (override) return true;
+  // Fattura arrivata senza i metadati dell'abbonamento: lo si chiede a Stripe.
+  if (metadata == null && stripeSecretKey) {
+    try {
+      const res = await fetch(`https://api.stripe.com/v1/subscriptions/${subscriptionId}`, {
+        headers: { Authorization: `Bearer ${stripeSecretKey}` },
+      });
+      const sub = await res.json();
+      return sub?.metadata?.type === ADDON_WHATSAPP;
+    } catch (e) {
+      console.error("[stripe-webhook] tipo dell'abbonamento non letto:", (e as Error).message);
+    }
+  }
+  return false;
+}
+
+async function attivaAddonWhatsApp(
+  supabase: ReturnType<typeof createClient>,
+  companyId: string,
+  subscriptionId: string,
+  prezzoEur: number | null,
+) {
+  const { data: esistente } = await supabase
+    .from("company_feature_overrides")
+    .select("access_level, override_reason")
+    .eq("company_id", companyId)
+    .eq("feature_key", "whatsapp")
+    .maybeSingle();
+  // Uno sblocco deciso dal super admin resta suo: non diventa un add-on pagato.
+  if (esistente?.access_level === "enabled" && !String(esistente.override_reason ?? "").startsWith("addon_stripe:")) {
+    console.log(`[STRIPE] add-on WhatsApp ${subscriptionId}: ${companyId} era già sbloccata dal super admin`);
+    return;
+  }
+  const { error } = await supabase.from("company_feature_overrides").upsert(
+    {
+      company_id: companyId,
+      feature_key: "whatsapp",
+      access_level: "enabled",
+      is_enabled: true,
+      expires_at: null,
+      override_reason: motivoAddonWhatsApp(subscriptionId),
+      price_override: prezzoEur,
+      notes: "Add-on WhatsApp Business pagato con Stripe",
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "company_id,feature_key" },
+  );
+  if (error) throw new Error(`attivazione add-on WhatsApp fallita: ${error.message}`);
+}
+
+async function disattivaAddonWhatsApp(
+  supabase: ReturnType<typeof createClient>,
+  companyId: string,
+  subscriptionId: string,
+  perche: string,
+) {
+  // Si toglie solo l'override di QUESTO abbonamento: uno sblocco del super
+  // admin, o un add-on ricomprato dopo, restano accesi.
+  const { data: tolti, error } = await supabase
+    .from("company_feature_overrides")
+    .delete()
+    .eq("company_id", companyId)
+    .eq("feature_key", "whatsapp")
+    .eq("override_reason", motivoAddonWhatsApp(subscriptionId))
+    .select("id");
+  if (error) throw new Error(`spegnimento add-on WhatsApp fallito: ${error.message}`);
+  if (!tolti?.length) return;
+  await supabase.from("subscription_logs").insert({
+    company_id: companyId,
+    event_type: "addon_whatsapp_spento",
+    notes: `Add-on WhatsApp Business spento: ${perche} (${subscriptionId})`,
+  });
+  console.log(`[STRIPE] add-on WhatsApp spento per ${companyId}: ${perche}`);
+}
+
+/** Stato dell'abbonamento dell'add-on → add-on acceso o spento. */
+async function aggiornaAddonWhatsApp(
+  supabase: ReturnType<typeof createClient>,
+  companyId: string,
+  subscription: any,
+) {
+  const stato = String(subscription.status ?? "");
+  if (["active", "trialing", "past_due"].includes(stato)) {
+    // past_due: Stripe sta ritentando l'addebito, l'add-on resta acceso finché non si arrende.
+    const centesimi = subscription.items?.data?.[0]?.price?.unit_amount;
+    await attivaAddonWhatsApp(supabase, companyId, subscription.id, typeof centesimi === "number" ? centesimi / 100 : null);
+  } else if (["canceled", "unpaid", "incomplete_expired"].includes(stato)) {
+    await disattivaAddonWhatsApp(supabase, companyId, subscription.id, `abbonamento ${stato}`);
+  }
+  // incomplete: il primo pagamento è ancora in corso, si aspetta.
+}
+
 async function handleCheckoutCompleted(
   supabase: ReturnType<typeof createClient>,
   session: any,
@@ -444,6 +567,38 @@ async function handleCheckoutCompleted(
     return;
   }
 
+  // ── Add-on WhatsApp Business ──
+  if (metadataType === ADDON_WHATSAPP) {
+    const subscriptionId = typeof session.subscription === "string" ? session.subscription : null;
+    if (!subscriptionId) {
+      console.error(`[STRIPE] checkout add-on WhatsApp ${session.id} senza abbonamento`);
+      return;
+    }
+    const prezzo = Number(session.metadata?.price_eur);
+    await attivaAddonWhatsApp(supabase, companyId, subscriptionId, Number.isFinite(prezzo) ? prezzo : null);
+
+    // La carta appena usata vale anche per gli strumenti a consumo (gli invii
+    // WhatsApp compresi): chi non ne aveva una registrata ora ce l'ha. Un
+    // account regalato resta "comped".
+    const { data: azienda } = await supabase
+      .from("companies")
+      .select("payment_method")
+      .eq("id", companyId)
+      .maybeSingle();
+    if (!azienda?.payment_method || azienda.payment_method === "none") {
+      await supabase.from("companies").update({ payment_method: "stripe" }).eq("id", companyId);
+    }
+    await saveCardForAutoTopup(supabase, stripeSecretKey, companyId, (session.customer as string | null) ?? null, null);
+
+    await supabase.from("subscription_logs").insert({
+      company_id: companyId,
+      event_type: "addon_whatsapp_attivato",
+      notes: `Add-on WhatsApp Business attivato (${subscriptionId})`,
+    });
+    console.log(`[STRIPE] add-on WhatsApp attivo per ${companyId}`);
+    return;
+  }
+
   // ── AI Subscription ──
   if (metadataType === "ai_subscription") {
     const stripeSubscriptionId = session.subscription;
@@ -596,32 +751,37 @@ async function handleInvoicePaid(
   );
   const sub = await subRes.json();
 
-  const period = getSubscriptionPeriod(sub);
-  await supabase
-    .from("company_subscriptions")
-    .update({
-      status: "active",
-      current_period_start: period.start,
-      current_period_end: period.end,
-    })
-    .eq("company_id", company.id);
+  // Rinnovo dell'add-on WhatsApp: periodo del piano e solleciti non c'entrano.
+  const eAddon = await eAddonWhatsApp(supabase, company.id, stripeSubscriptionId, sub?.metadata ?? null);
 
-  // Reset dunning on successful payment
-  await supabase
-    .from("companies")
-    .update({
-      stripe_subscription_status: "active",
-      payment_failure_count: 0,
-      dunning_status: "none",
-      last_payment_failure_at: null,
-      dunning_started_at: null,
-    })
-    .eq("id", company.id);
+  if (!eAddon) {
+    const period = getSubscriptionPeriod(sub);
+    await supabase
+      .from("company_subscriptions")
+      .update({
+        status: "active",
+        current_period_start: period.start,
+        current_period_end: period.end,
+      })
+      .eq("company_id", company.id);
+
+    // Reset dunning on successful payment
+    await supabase
+      .from("companies")
+      .update({
+        stripe_subscription_status: "active",
+        payment_failure_count: 0,
+        dunning_status: "none",
+        last_payment_failure_at: null,
+        dunning_started_at: null,
+      })
+      .eq("id", company.id);
+  }
 
   await supabase.from("subscription_logs").insert({
     company_id: company.id,
     event_type: "invoice_paid",
-    notes: `Fattura Stripe pagata (${invoice.id})`,
+    notes: `${eAddon ? "Fattura add-on WhatsApp Business pagata" : "Fattura Stripe pagata"} (${invoice.id})`,
   });
 
   // Email "ricevuta pagamento" all'admin (best-effort, dedup su invoice.id).
@@ -732,6 +892,34 @@ async function handleInvoicePaymentFailed(
   // Sync failed invoice to subscription_invoices
   await upsertSubscriptionInvoice(supabase, company.id, invoice, stripeCustomerId);
 
+  // Add-on WhatsApp non pagato: Stripe ritenta da solo e, se si arrende,
+  // l'abbonamento chiude e l'add-on si spegne (handleSubscriptionUpdated o
+  // Deleted). Il piano dell'azienda non entra nei solleciti per l'accessorio.
+  const subscriptionIdFallita = typeof invoice.subscription === "string" ? invoice.subscription : null;
+  if (await eAddonWhatsApp(supabase, company.id, subscriptionIdFallita, invoice.subscription_details?.metadata ?? null, stripeSecretKey)) {
+    await supabase.from("subscription_logs").insert({
+      company_id: company.id,
+      event_type: "payment_failed",
+      notes: `Pagamento add-on WhatsApp Business fallito - ${invoice.id}`,
+    });
+    try {
+      await notificaInterna(supabase, {
+        oggetto: `⚠️ Add-on WhatsApp non pagato — ${company.name ?? "cliente"}`,
+        sommario: `Il rinnovo dell'add-on WhatsApp Business di ${company.name ?? "un cliente"} è stato rifiutato. Stripe ritenta; se si arrende, l'add-on si spegne da solo.`,
+        dettagli: [
+          ["Azienda", company.name ?? "—"],
+          ["Fattura Stripe", invoice.number || invoice.id || "—"],
+        ],
+        url: `${APP_BASE}/admin/aziende/${company.id}`,
+        urlLabel: "Apri la scheda azienda",
+        dedupeKey: `addon-whatsapp-non-pagato:${invoice.id}`,
+      });
+    } catch (e) {
+      console.warn("[stripe-webhook] avviso add-on WhatsApp non pagato fallito:", (e as Error)?.message);
+    }
+    return;
+  }
+
   // Increment failure count
   const { data: current } = await supabase
     .from("companies")
@@ -837,6 +1025,12 @@ async function handleSubscriptionDeleted(
   const company = await getCompanyByStripeCustomer(supabase, stripeCustomerId);
   if (!company) return;
 
+  // Disdetto l'add-on WhatsApp: si spegne l'add-on, l'azienda resta com'è.
+  if (await eAddonWhatsApp(supabase, company.id, subscription.id, subscription.metadata ?? {})) {
+    await disattivaAddonWhatsApp(supabase, company.id, subscription.id, "abbonamento cancellato");
+    return;
+  }
+
   await supabase
     .from("companies")
     .update({
@@ -880,6 +1074,12 @@ async function handleSubscriptionUpdated(
   const stripeCustomerId = subscription.customer;
   const company = await getCompanyByStripeCustomer(supabase, stripeCustomerId);
   if (!company) return;
+
+  // Add-on WhatsApp: segue il suo abbonamento, senza toccare stato e periodo del piano.
+  if (await eAddonWhatsApp(supabase, company.id, subscription.id, subscription.metadata ?? {})) {
+    await aggiornaAddonWhatsApp(supabase, company.id, subscription);
+    return;
+  }
 
   const stripeStatus = subscription.status; // active, past_due, canceled, unpaid, etc.
   const previousStatus = (company as { stripe_subscription_status?: string })
@@ -1216,8 +1416,11 @@ Deno.serve(conMetriche("stripe-webhook", async (req) => {
           await handleSubscriptionDeleted(supabase, obj);
           break;
         case "customer.subscription.created":
-          // Attribuisce il referral al primo abbonamento attivo
-          await handleReferralAttribution(supabase, obj.customer);
+          // Attribuisce il referral al primo abbonamento attivo: quello del
+          // piano, non l'add-on WhatsApp comprato dopo.
+          if (obj.metadata?.type !== ADDON_WHATSAPP) {
+            await handleReferralAttribution(supabase, obj.customer);
+          }
           await handleSubscriptionUpdated(supabase, obj);
           break;
         case "customer.subscription.updated":

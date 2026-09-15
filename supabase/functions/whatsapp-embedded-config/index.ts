@@ -3,6 +3,7 @@ import { getMetaCredentials } from "../_shared/getMetaCredentials.ts";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { assertMetaCompanyAdminAccess, getErrorMessage, getErrorStatus } from "../_shared/metaAuth.ts";
+import { cancelloAddonWhatsApp } from "../_shared/whatsappAddon.ts";
 
 Deno.serve(async (req) => {
   const cors = getCorsHeaders(req);
@@ -54,6 +55,10 @@ Deno.serve(async (req) => {
     }
 
     await assertMetaCompanyAdminAccess(adminClient, claimsData.claims.sub as string, company_id);
+
+    // Add-on WhatsApp Business: senza, il popup di Meta non parte nemmeno.
+    const bloccoAddon = await cancelloAddonWhatsApp(adminClient, company_id, cors);
+    if (bloccoAddon) return bloccoAddon;
 
     const { metaAppId } = await getMetaCredentials();
     const whatsappConfigId =

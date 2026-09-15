@@ -28,6 +28,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { isNative } from "@/lib/mobile/platform";
+import { readInvokeError } from "@/lib/readInvokeError";
+import { usePaymentGateStore } from "@/store/paymentGateStore";
 import { WA_NUMBERS_KEY, type WAPurpose } from "./useWhatsAppNumbers";
 
 /**
@@ -198,7 +200,8 @@ async function fetchEmbeddedConfig(companyId: string): Promise<EmbeddedConfigRes
   const { data, error } = await supabase.functions.invoke("whatsapp-embedded-config", {
     body: { company_id: companyId },
   });
-  if (error) throw error;
+  // Il motivo vero (per esempio l'add-on WhatsApp non attivo) sta nel corpo della risposta.
+  if (error) throw new Error(await readInvokeError(error));
   if (!data) throw new Error("Risposta vuota da whatsapp-embedded-config");
   return data as EmbeddedConfigResponse;
 }
@@ -411,7 +414,7 @@ export function useWhatsAppEmbeddedSignup() {
       });
       if (error) {
         console.error("[wa-embedded] whatsapp-connect error:", error);
-        throw error;
+        throw new Error(await readInvokeError(error));
       }
       if (data?.error) {
         console.error("[wa-embedded] whatsapp-connect data.error:", data.error);
@@ -426,7 +429,12 @@ export function useWhatsAppEmbeddedSignup() {
       setPhase("idle");
     },
     onError: (err: Error) => {
-      toast.error(`Connessione Meta fallita: ${err.message}`);
+      // Un blocco di pagamento (add-on WhatsApp non attivo) ha già aperto la
+      // sua finestra con l'offerta: un toast la coprirebbe.
+      const gate = usePaymentGateStore.getState();
+      if (!(gate.open && Date.now() - gate.apertoAt < 3000)) {
+        toast.error(`Connessione Meta fallita: ${err.message}`);
+      }
       setPhase("idle");
     },
   });

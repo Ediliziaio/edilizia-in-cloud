@@ -9,6 +9,8 @@
  *  - Form messaggio opzionale + invio ticket
  *  - 3 modi rapidi: WhatsApp consulente, Email, Form interno
  *  - Stato success con conferma + tempo risposta
+ *  - WhatsApp Business: l'add-on si compra da qui (AddonWhatsAppOfferta), il
+ *    consulente resta come seconda strada
  */
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -23,6 +25,7 @@ import { Label } from "@/components/ui/label";
 import {
   Sparkles, MessageSquare, Loader2, CheckCircle2, Check, Phone, Mail, Clock,
 } from "lucide-react";
+import { AddonWhatsAppOfferta } from "@/components/billing/AddonWhatsAppOfferta";
 
 interface Props {
   open: boolean;
@@ -55,6 +58,9 @@ export function UnlockFeatureDialog({
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
+  // WhatsApp Business è un add-on che l'azienda attiva da sola, pagando.
+  const eAddonWhatsApp = featureKey === "whatsapp";
+  const etichetta = eAddonWhatsApp ? "WhatsApp Business" : featureLabel;
 
   const handleSubmit = async () => {
     if (!effectiveCompany?.id) {
@@ -105,7 +111,7 @@ export function UnlockFeatureDialog({
               <DialogTitle className="text-xl">Richiesta inviata ✓</DialogTitle>
               <DialogDescription className="mt-2">
                 Il tuo consulente è stato avvisato. Ti contatterà a breve per attivare
-                <strong className="text-foreground"> {featureLabel}</strong>.
+                <strong className="text-foreground"> {etichetta}</strong>.
               </DialogDescription>
             </DialogHeader>
             <div className="mt-5 rounded-lg bg-muted/60 px-4 py-3 flex items-center gap-3 text-sm">
@@ -131,7 +137,7 @@ export function UnlockFeatureDialog({
                 </div>
                 <div className="flex-1 min-w-0">
                   <DialogTitle className="text-lg leading-tight">
-                    Sblocca {featureLabel}
+                    {eAddonWhatsApp ? "Attiva WhatsApp Business" : `Sblocca ${featureLabel}`}
                   </DialogTitle>
                   <DialogDescription className="mt-1 text-sm">
                     {actionLabel ? (
@@ -146,43 +152,49 @@ export function UnlockFeatureDialog({
 
             {/* Body */}
             <div className="px-6 py-5 space-y-4">
-              <p className="text-sm text-muted-foreground">{description}</p>
+              {eAddonWhatsApp ? (
+                <AddonWhatsAppOfferta />
+              ) : (
+                <>
+                  <p className="text-sm text-muted-foreground">{description}</p>
 
-              {/* Benefits */}
-              {benefits.length > 0 && (
-                <div className="space-y-1.5">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Cosa otterrai
-                  </p>
-                  <ul className="space-y-1.5">
-                    {benefits.map((b, i) => (
-                      <li key={i} className="flex items-start gap-2 text-sm">
-                        <Check className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
-                        <span>{b}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+                  {/* Benefits */}
+                  {benefits.length > 0 && (
+                    <div className="space-y-1.5">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Cosa otterrai
+                      </p>
+                      <ul className="space-y-1.5">
+                        {benefits.map((b, i) => (
+                          <li key={i} className="flex items-start gap-2 text-sm">
+                            <Check className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
+                            <span>{b}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Message form */}
+                  <div className="pt-2 space-y-1.5">
+                    <Label htmlFor="unlock-msg" className="text-xs">
+                      Aggiungi un messaggio (opzionale)
+                    </Label>
+                    <Textarea
+                      id="unlock-msg"
+                      value={message}
+                      onChange={(e) => setMessage(e.target.value)}
+                      placeholder="Es: vorrei usarla per il progetto Rossi…"
+                      rows={2}
+                      maxLength={500}
+                      className="resize-none"
+                    />
+                    <p className="text-[10px] text-muted-foreground text-right">
+                      {message.length}/500
+                    </p>
+                  </div>
+                </>
               )}
-
-              {/* Message form */}
-              <div className="pt-2 space-y-1.5">
-                <Label htmlFor="unlock-msg" className="text-xs">
-                  Aggiungi un messaggio (opzionale)
-                </Label>
-                <Textarea
-                  id="unlock-msg"
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  placeholder="Es: vorrei usarla per il progetto Rossi…"
-                  rows={2}
-                  maxLength={500}
-                  className="resize-none"
-                />
-                <p className="text-[10px] text-muted-foreground text-right">
-                  {message.length}/500
-                </p>
-              </div>
             </div>
 
             {/* Footer azioni */}
@@ -190,8 +202,11 @@ export function UnlockFeatureDialog({
               <Button
                 onClick={handleSubmit}
                 disabled={sending}
-                className="w-full bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white shadow-sm"
-                size="lg"
+                variant={eAddonWhatsApp ? "outline" : "default"}
+                className={eAddonWhatsApp
+                  ? "w-full"
+                  : "w-full bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white shadow-sm"}
+                size={eAddonWhatsApp ? "default" : "lg"}
               >
                 {sending ? (
                   <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" />Invio richiesta…</>
@@ -215,7 +230,7 @@ export function UnlockFeatureDialog({
                 </Button>
                 <Button variant="outline" size="sm" asChild>
                   <a
-                    href={`mailto:info@ediliziaincloud.com?subject=Sblocco%20${encodeURIComponent(featureLabel)}&body=Ciao%2C%20vorrei%20attivare%20${encodeURIComponent(featureLabel)}%20per%20la%20mia%20azienda.`}
+                    href={`mailto:info@ediliziaincloud.com?subject=Sblocco%20${encodeURIComponent(etichetta)}&body=Ciao%2C%20vorrei%20attivare%20${encodeURIComponent(etichetta)}%20per%20la%20mia%20azienda.`}
                     className="gap-1.5"
                   >
                     <Mail className="h-3.5 w-3.5" />
