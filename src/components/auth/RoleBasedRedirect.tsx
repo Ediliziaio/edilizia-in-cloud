@@ -31,15 +31,17 @@ export function RoleBasedRedirect() {
   // la sessione valida ma ruoli non leggibili (14/09/2026, call center BeMade).
   const [loadingTimedOut, setLoadingTimedOut] = useState(false);
   useEffect(() => {
-    if (!isLoading) {
-      setLoadingTimedOut(false);
-      return;
-    }
+    if (!isLoading) return;
     const timeoutId = window.setTimeout(() => {
       setLoadingTimedOut(true);
       logger.warn("[auth] RoleBasedRedirect: caricamento dell'accesso oltre 25 s");
     }, 25_000);
-    return () => window.clearTimeout(timeoutId);
+    // Finito il caricamento si torna allo stato iniziale: il prossimo
+    // caricamento riparte dalla rotellina, non dal «Riprova».
+    return () => {
+      window.clearTimeout(timeoutId);
+      setLoadingTimedOut(false);
+    };
   }, [isLoading]);
 
   useEffect(() => {
