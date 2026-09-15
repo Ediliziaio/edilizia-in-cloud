@@ -13,6 +13,10 @@ import { useSyncExternalStore } from "react";
 import { avviaIntervalloVisibile } from "@/lib/intervalloVisibile";
 
 const HEARTBEAT_URL = `${import.meta.env.VITE_SUPABASE_URL ?? ""}/auth/v1/health`;
+const HEARTBEAT_PING_URL = (() => {
+  const chiave = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined;
+  return chiave ? `${HEARTBEAT_URL}?apikey=${encodeURIComponent(chiave)}` : HEARTBEAT_URL;
+})();
 // 15/09/2026: 30s → 120s e fermo a scheda nascosta. Ogni scheda aperta faceva
 // ~240 ping/ora (più il preflight CORS), anche di notte. Il cambio di rete lo
 // dicono già gli eventi online/offline e gli errori delle query vere.
@@ -117,11 +121,12 @@ const store = {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), HEARTBEAT_TIMEOUT);
       try {
-        // 15/09/2026: niente header apikey. Con l'header il GET non è più
-        // "semplice" e il browser manda un preflight OPTIONS in più; senza, il
-        // gateway risponde 401 JSON, che basta a dire che il backend c'è.
+        // 15/09/2026: la chiave pubblica va nell'indirizzo, non nell'header.
+        // Con l'header il GET non è più "semplice" e il browser manda un
+        // preflight OPTIONS in più; senza chiave il gateway risponde 401 e la
+        // console si riempie di errori rossi. Con `?apikey=` risponde 200.
         // Qualunque risposta HTTP = raggiungibile; solo l'errore di rete no.
-        await fetch(HEARTBEAT_URL, {
+        await fetch(HEARTBEAT_PING_URL, {
           method: "GET",
           signal: controller.signal,
           cache: "no-store",
