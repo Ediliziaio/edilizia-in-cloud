@@ -12,6 +12,7 @@ import { queryKeys } from "@/lib/queryKeys";
 import { warmupCriticalEdgeFunctions } from "@/lib/utils/edgeWarmup";
 import { mergeProfileCompanyAccess, resolveMultiCompanySelection } from "@/lib/auth/multiCompany";
 import { computeEffectiveRole } from "@/lib/roleHierarchy";
+import { conRiprova } from "@/lib/auth/conRiprova";
 import { useLocation } from "react-router-dom";
 import { areaDaPercorso, ruoloEffettivoPerArea, areeDisponibili as calcolaAree, haEntrambeLeAree } from "@/lib/auth/aree";
 import type { AppArea } from "@/lib/auth/aree";
@@ -33,6 +34,13 @@ import { userErrorMessage } from "@/lib/userErrorMessage";
 // utente vede "non autenticato" e può fare retry — meglio di spinner 22s.
 const AUTH_CRITICAL_FETCH_TIMEOUT_MS = 12_000;
 const AUTH_INITIAL_SESSION_WATCHDOG_MS = 8_000;
+/**
+ * Attese fra un tentativo e l'altro quando profilo e ruoli non si riescono a
+ * leggere (database lento, rete che cade): tre tentativi in tutto. Il
+ * "fallback non autenticato" descritto qui sopra mandava al login anche chi
+ * aveva una sessione valida — 14/09/2026, call center di BeMade.
+ */
+const ATTESE_RIPROVA_DATI_UTENTE_MS = [2_000, 5_000] as const;
 const WARMUP_FETCH_TIMEOUT_MS = 6_000;
 
 interface AuthContextType extends AuthState {
@@ -575,6 +583,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         profile: profileData,
         role: effectiveRole,
         company,
+        // Ruoli che non si sono potuti LEGGERE (timeout, rete, database) non
+        // sono ruoli che mancano: chi chiama riprova invece di mandare al login.
+        transient: !!roleError || rolesData == null,
         // Servono interi: chi ha ufficio + cantiere sceglie il cappello in
         // base all'area, e `role` da solo perderebbe l'altro.
         //
@@ -595,7 +606,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         timeoutMs: AUTH_CRITICAL_FETCH_TIMEOUT_MS,
       });
       logger.error("Error in fetchUserData:", error);
-      return { profile: null, role: null, company: null, userRoles: [] };
+      return { profile: null, role: null, company: null, userRoles: [], transient: true };
     } finally {
       clearTimeout(timeoutId);
     }
@@ -626,8 +637,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const user = sessionResult.data.session?.user ?? null;
 
       if (user) {
-        const userData = await fetchUserData(user.id, user.email);
+        // Database lento o rete che cade: un ruolo che non si riesce a leggere
+        // non è un ruolo che manca. Si riprova, e se ancora non si legge si resta
+        // in caricamento (dopo 25 s ProtectedRoute offre «Riprova») invece di
+        // mandare al login chi ha una sessione valida. 14/09/2026: Venusia di
+        // BeMade rimandata al login mentre il database cancellava query.
+        const userData = await conRiprova(
+          () => fetchUserData(user.id, user.email),
+          (r) => myGen === authGenRef.current && r.role === null && r.transient,
+          ATTESE_RIPROVA_DATI_UTENTE_MS,
+        );
         if (myGen !== authGenRef.current) return;
+        if (userData.role === null && userData.transient) {
+          logger.warn("[auth] refreshAuth: ruoli non leggibili dopo i tentativi — resto in caricamento, nessun logout");
+          setState({
+            user,
+            profile: null,
+            role: null,
+            userRoles: [],
+            company: null,
+            isLoading: true,
+          });
+          return;
+        }
         if (userData.role === null) {
           clearProfileCache();
           resolvedRoleRef.current = null;
@@ -830,22 +862,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // ── Background (or blocking) re-validation ──
           // Always re-fetch to keep data fresh. If the cache was used above this
           // runs silently; if not, it blocks until fetchUserData completes.
-          let userData: { profile: Profile | null; role: AppRole | null; company: Company | null; userRoles: AppRole[] };
-          // Memory-leak fix: il setTimeout precedente NON veniva cancellato se
-          // fetchUserData vinceva il race → timer pendente fino al firing.
-          // Su rapid login/logout cycle, accumulava handle. Ora cleanup esplicito.
-          let raceTimerId: ReturnType<typeof setTimeout> | undefined;
+          let userData: { profile: Profile | null; role: AppRole | null; company: Company | null; userRoles: AppRole[]; transient: boolean };
           try {
-            userData = await Promise.race([
-              fetchUserData(session.user.id, session.user.email)
-                .finally(() => { if (raceTimerId) clearTimeout(raceTimerId); }),
-              new Promise<never>((_, reject) => {
-                // 2026-05-28 Velocity: ridotto da 22s → 14s.
-                // Allineato al critical timeout (12s) con 2s di slack per AbortController.
-                // Worst-case UX: -8s di spinner prima del fallback "non autenticato".
-                raceTimerId = setTimeout(() => reject(new Error("fetchUserData timeout")), 14_000);
-              }),
-            ]);
+            // Ogni tentativo ha il suo tetto di 14 s; fra un tentativo e l'altro
+            // si aspetta (ATTESE_RIPROVA_DATI_UTENTE_MS). Un database lento non
+            // deve più voler dire «non autenticato» (14/09/2026, BeMade).
+            userData = await conRiprova(
+              () => {
+                // Memory-leak fix: il setTimeout NON veniva cancellato se
+                // fetchUserData vinceva il race → timer pendente fino al firing.
+                let raceTimerId: ReturnType<typeof setTimeout> | undefined;
+                return Promise.race([
+                  fetchUserData(session.user.id, session.user.email)
+                    .finally(() => { if (raceTimerId) clearTimeout(raceTimerId); }),
+                  new Promise<never>((_, reject) => {
+                    // Allineato al critical timeout (12s) con 2s di slack per AbortController.
+                    raceTimerId = setTimeout(() => reject(new Error("fetchUserData timeout")), 14_000);
+                  }),
+                ]);
+              },
+              (r) => myGen === authGenRef.current && r.role === null && r.transient,
+              ATTESE_RIPROVA_DATI_UTENTE_MS,
+            );
           } catch {
             // Background re-validation timed out or threw (DB cold-start / network error).
             // The JWT is still valid and the fast-path cache-hit above already committed
@@ -856,15 +894,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             // blanking to only "Attività" after a 12 s DB timeout mid-session.
             logger.warn("[auth] SIGNED_IN/INITIAL_SESSION: background fetchUserData failed — keeping existing state");
             if (!usedCachedAuth && myGen === authGenRef.current) {
-              clearProfileCache();
-              resolvedRoleRef.current = null;
+              // Sessione valida, dati non leggibili dopo i tentativi: si resta in
+              // caricamento. Prima qui si azzerava l'utente e si finiva al login.
               setState({
-                user: null,
+                user: session.user,
                 profile: null,
                 role: null,
                 userRoles: [],
                 company: null,
-                isLoading: false,
+                isLoading: true,
               });
             }
             return;
@@ -872,6 +910,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
           // Another auth event fired while we were fetching — bail out.
           if (myGen !== authGenRef.current) return;
+
+          if (userData.role === null && userData.transient) {
+            logger.warn("[auth] SIGNED_IN/INITIAL_SESSION: ruoli non leggibili dopo i tentativi — resto in caricamento, nessun logout", {
+              usedCachedAuth,
+            });
+            if (!usedCachedAuth) {
+              setState({
+                user: session.user,
+                profile: null,
+                role: null,
+                userRoles: [],
+                company: null,
+                isLoading: true,
+              });
+            }
+            return;
+          }
 
           if (userData.role === null) {
             logger.warn("[auth] SIGNED_IN/INITIAL_SESSION: ruolo non risolto, fail-closed per evitare permessi/spinner incoerenti", {

@@ -7,6 +7,7 @@ import { Loader2 } from "lucide-react";
 import { getCurrentSubdomain } from "@/hooks/useSubdomainRoute";
 import { isSuperAdminEmailAllowed } from "@/config/superAdmin";
 import { COMPANY_APP_HOME, getRoleHomePath } from "@/lib/auth/appHome";
+import { LoadingTimeoutFallback } from "@/components/auth/LoadingTimeoutFallback";
 
 function LoadingSpinner({ text }: { text: string }) {
   return (
@@ -23,6 +24,23 @@ export function RoleBasedRedirect() {
   const { user, role, isLoading, multiCompanyAccesses, multiCompanyLoaded, isImpersonating } = useAuth();
   const [mustChangePassword, setMustChangePassword] = useState<boolean | null>(null);
   const [checkingPassword, setCheckingPassword] = useState(false);
+
+  // Stessa rete di ProtectedRoute: se il caricamento dell'accesso non finisce
+  // (database lento, rete che cade), dopo 25 s si offre «Riprova» invece di una
+  // rotellina senza fine. Serve da quando l'avvio non manda più al login chi ha
+  // la sessione valida ma ruoli non leggibili (14/09/2026, call center BeMade).
+  const [loadingTimedOut, setLoadingTimedOut] = useState(false);
+  useEffect(() => {
+    if (!isLoading) {
+      setLoadingTimedOut(false);
+      return;
+    }
+    const timeoutId = window.setTimeout(() => {
+      setLoadingTimedOut(true);
+      logger.warn("[auth] RoleBasedRedirect: caricamento dell'accesso oltre 25 s");
+    }, 25_000);
+    return () => window.clearTimeout(timeoutId);
+  }, [isLoading]);
 
   useEffect(() => {
     // Cancel flag: evita setState dopo cleanup se role cambia (view-as/impersonation).
@@ -80,6 +98,16 @@ export function RoleBasedRedirect() {
 
   // Show loading while auth is loading
   if (isLoading) {
+    if (loadingTimedOut) {
+      return (
+        <LoadingTimeoutFallback
+          title="Accesso ancora in verifica"
+          description="La sessione è valida ma i dati del tuo accesso non arrivano: può succedere con rete instabile o database lento. Riprova tra qualche secondo."
+          detail="Verifica dell'accesso oltre 25 secondi"
+          homePath="/login"
+        />
+      );
+    }
     return <LoadingSpinner text="Caricamento..." />;
   }
 
