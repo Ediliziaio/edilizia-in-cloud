@@ -10,6 +10,7 @@
  * "precompilando dal listino" per il singolo articolo.
  */
 import { useMemo, useState, useRef } from "react";
+import { leggiNumeroComponente } from "@/lib/fotovoltaico/numeroComponente";
 import { Link } from "react-router-dom";
 import {
   ArrowLeft,
@@ -243,8 +244,21 @@ export default function ComponentiFv() {
       toast.error("Inserisci una descrizione per il componente");
       return;
     }
-    const prezzo = form.prezzo_vendita ? Number(form.prezzo_vendita.replace(",", ".")) : 0;
-    const specNum = form.spec ? Number(form.spec.replace(",", ".")) : null;
+    // Prima: Number(testo.replace(",", ".")) — "1.200,50" diventava NaN e si
+    // salvava 0 senza avviso. Ora i separatori si leggono come nel resto
+    // dell'app, e un testo che non è un numero ferma il salvataggio.
+    const prezzoLetto = leggiNumeroComponente(form.prezzo_vendita);
+    if (prezzoLetto === null) {
+      toast.error("Prezzo di vendita non valido", { description: "Scrivi un numero, per esempio 1200 o 1.200,50" });
+      return;
+    }
+    const prezzo = prezzoLetto ?? 0;
+    const specLetto = leggiNumeroComponente(form.spec);
+    if (specLetto === null) {
+      toast.error("Valore tecnico non valido", { description: "Scrivi un numero, per esempio 3,68" });
+      return;
+    }
+    const specNum = specLetto ?? null;
     const specField = tipoMeta(form.categoria_fv)?.specField ?? null;
     try {
       await upsert.mutateAsync({
@@ -254,7 +268,7 @@ export default function ComponentiFv() {
         codice: form.codice.trim() || null,
         marca_fv: form.marca_fv.trim() || null,
         modello_fv: form.modello_fv.trim() || null,
-        prezzo_vendita: Number.isFinite(prezzo) ? prezzo : 0,
+        prezzo_vendita: prezzo,
         potenza_w: specField === "potenza_w" ? specNum : null,
         potenza_kw: specField === "potenza_kw" ? specNum : null,
         capacita_kwh: specField === "capacita_kwh" ? specNum : null,

@@ -4,6 +4,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { campiDaAggiornare } from "@/lib/fotovoltaico/campiAggiornamento";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { termineDiRicerca } from "@/lib/ricercaPostgrest";
@@ -497,9 +498,14 @@ export function useUpsertArticoloFv() {
         attivo: true,
       };
       if (input.id) {
+        // In modifica si scrivono SOLO i campi che il chiamante ha passato.
+        // Prima il payload completo metteva a null tutto ciò che la schermata
+        // non gestisce: salvare il prezzo di vendita di un inverter cancellava
+        // il suo prezzo di acquisto (e garanzia, efficienza, unità di misura).
+        const soloPassati = campiDaAggiornare(payload, input as unknown as Record<string, unknown>);
         const { error } = await supabase
           .from("articoli_native" as never)
-          .update(payload)
+          .update(soloPassati as never)
           .eq("id", input.id)
           .eq("company_id", companyId);
         if (error) throw error;
