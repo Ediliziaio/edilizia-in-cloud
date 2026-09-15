@@ -295,20 +295,48 @@ Deno.serve(async (req) => {
       return null;
     }
 
+    // Dentro un iframe il body non deve seguire la viewport: con
+    // min-height:100vh la scrollHeight del body vale SEMPRE almeno quanto
+    // l'iframe, il genitore la riceve, aggiunge il proprio margine e
+    // riallarga l'iframe — un ricorsivo che gonfiava il form fino al tetto
+    // dei 2600px, con la card centrata in un mare di spazio vuoto.
+    if(window.parent&&window.parent!==window){
+      try{
+        document.body.style.minHeight='0';
+        document.body.style.alignItems='flex-start';
+      }catch(e){}
+    }
     function reportHeight(){
       if(!window.parent||window.parent===window)return;
       try{
-        var h=Math.max(
-          document.documentElement.scrollHeight||0,
-          document.body.scrollHeight||0,
-          document.documentElement.offsetHeight||0,
-          document.body.offsetHeight||0
-        );
+        // L'altezza vera e' quella della card (.container) piu' i padding del
+        // body: e' identica qualunque sia l'altezza dell'iframe, quindi il
+        // dialogo col genitore converge invece di rincorrersi.
+        var h=0;
+        var c=document.querySelector('.container');
+        if(c){
+          var cs=window.getComputedStyle(document.body);
+          h=Math.ceil(c.getBoundingClientRect().height
+            +(parseFloat(cs.paddingTop)||0)
+            +(parseFloat(cs.paddingBottom)||0));
+        }
+        if(!h){
+          h=Math.max(
+            document.documentElement.scrollHeight||0,
+            document.body.scrollHeight||0,
+            document.documentElement.offsetHeight||0,
+            document.body.offsetHeight||0
+          );
+        }
         window.parent.postMessage({type:'eic-lead-form-height',slug:'${jsStr(form.slug)}',height:h},'*');
       }catch(e){}
     }
     if('ResizeObserver'in window){
-      try{new ResizeObserver(reportHeight).observe(document.body);}catch(e){}
+      try{
+        new ResizeObserver(reportHeight).observe(document.body);
+        var _c=document.querySelector('.container');
+        if(_c)new ResizeObserver(reportHeight).observe(_c);
+      }catch(e){}
     }
     window.addEventListener('load',reportHeight);
     setTimeout(reportHeight,50);
