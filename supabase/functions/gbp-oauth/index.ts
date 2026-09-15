@@ -35,8 +35,15 @@ function admin() {
 }
 
 async function getRedirectUri(): Promise<string> {
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  return `${supabaseUrl}/functions/v1/gbp-oauth?action=callback`;
+  // Il ritorno da Google può passare da un dominio nostro
+  // (google_oauth_callback_base = https://app.ediliziaincloud.com/oauth, vedi
+  // functions/oauth): Google verifica l'app solo se ogni indirizzo di ritorno
+  // sta su un dominio di cui dimostriamo la proprietà, e supabase.co non lo è.
+  // Finché l'impostazione è vuota resta l'indirizzo di sempre: si accende
+  // solo dopo aver registrato il nuovo indirizzo nella console Google.
+  const base = (await getPlatformSetting("google_oauth_callback_base", "GOOGLE_OAUTH_CALLBACK_BASE") ?? "").trim().replace(/\/+$/, "");
+  if (/^https:\/\//i.test(base)) return `${base}/gbp-oauth?action=callback`;
+  return `${Deno.env.get("SUPABASE_URL")!}/functions/v1/gbp-oauth?action=callback`;
 }
 
 async function getCredentials() {

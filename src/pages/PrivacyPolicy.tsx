@@ -5,7 +5,7 @@ export default function PrivacyPolicy() {
     <LegalLayout
       title="Privacy Policy"
       metaDescription="Informativa sul trattamento dei dati personali di Edilizia in Cloud (Domus Group S.r.l.) ai sensi del GDPR (Reg. UE 2016/679)."
-      lastUpdate="27 aprile 2026"
+      lastUpdate="15 settembre 2026"
       downloadHref="/legal/Edilizia-in-Cloud_Privacy-Policy.pdf"
       currentPath="/privacy-policy"
     >
@@ -15,7 +15,7 @@ export default function PrivacyPolicy() {
         Resa ai sensi degli artt. 13 e 14 del Regolamento (UE) 2016/679 ("GDPR") e del D.Lgs.
         196/2003 e ss.mm.ii. ("Codice Privacy").
         <br />
-        Ultimo aggiornamento: 27 aprile 2026 · Versione: 1.0
+        Ultimo aggiornamento: 15 settembre 2026 · Versione: 1.1
       </p>
 
       <h2>Indice</h2>
@@ -34,6 +34,7 @@ export default function PrivacyPolicy() {
         <li>Cookie e tecnologie di tracciamento</li>
         <li>Modifiche all'informativa</li>
         <li>Reclami all'Autorità di controllo</li>
+        <li>Dati degli account Google</li>
       </ol>
 
       <h2>1. Premesse e ambito di applicazione</h2>
@@ -892,6 +893,101 @@ export default function PrivacyPolicy() {
           </a>
         </li>
       </ul>
+
+      {/*
+        Sezione richiesta da Google per verificare l'app OAuth: dice quali dati
+        degli account Google leggiamo, perché, e contiene la dichiarazione sulle
+        norme «Limited Use». Senza, la verifica viene respinta.
+      */}
+      <h2 id="dati-account-google">15. Dati degli account Google</h2>
+      <p>
+        Il Servizio permette all'Utente di collegare, se lo desidera, i propri account Google. Il
+        collegamento avviene solo su iniziativa dell'Utente, attraverso la schermata di consenso di
+        Google, e si può revocare in qualsiasi momento.
+      </p>
+
+      <h3>15.1 Quali dati leggiamo e perché</h3>
+      <ul>
+        <li>
+          <strong>Gmail</strong>: lettura dei messaggi e degli allegati della casella collegata,
+          per mostrarli nella posta del Servizio e collegarli a clienti, preventivi e opportunità;
+          invio delle email che l'Utente scrive o approva, dalla sua casella.
+        </li>
+        <li>
+          <strong>Google Calendar</strong> (calendar.readonly, calendar.events): lettura degli
+          impegni, per non fissare appuntamenti sovrapposti; creazione, modifica e cancellazione
+          degli eventi che corrispondono agli appuntamenti e ai lavori gestiti nel Servizio.
+        </li>
+        <li>
+          <strong>Google Ads</strong> (adwords): lettura di account, campagne e risultati, per
+          mostrarli nel Servizio; invio a Google Ads delle conversioni registrate nel CRM, per
+          misurare il ritorno delle campagne.
+        </li>
+        <li>
+          <strong>Google Business Profile</strong> (business.manage): lettura delle recensioni
+          della scheda aziendale e pubblicazione delle risposte che l'Utente scrive o approva.
+        </li>
+        <li>
+          <strong>Dati di base dell'account</strong> (indirizzo email e nome): per riconoscere
+          quale account è collegato.
+        </li>
+      </ul>
+
+      <h3>15.2 Intelligenza artificiale</h3>
+      <p>
+        Il contenuto delle email può essere elaborato da fornitori di intelligenza artificiale che
+        agiscono come sub-responsabili, tra cui OpenAI e Anthropic, solo per le funzioni che
+        l'Utente usa: classificare i messaggi, riassumerli, estrarre dati dagli allegati e preparare
+        bozze di risposta. I dati provenienti dagli account Google <strong>non sono usati per
+        addestrare</strong> modelli di intelligenza artificiale, né del Servizio né dei fornitori.
+      </p>
+
+      <h3>15.3 Cosa non facciamo con questi dati</h3>
+      <ul>
+        <li>Non li vendiamo.</li>
+        <li>Non li usiamo per pubblicità, profilazione o per mostrare annunci.</li>
+        <li>
+          Non li trasferiamo a terzi, salvo i fornitori necessari alle funzioni richieste
+          dall'Utente, gli obblighi di legge, o una fusione o acquisizione che mantenga le stesse
+          garanzie.
+        </li>
+        <li>
+          Nessuna persona li legge, salvo che l'Utente lo chieda espressamente, per esempio per
+          ricevere assistenza, per motivi di sicurezza o per obblighi di legge.
+        </li>
+      </ul>
+
+      <h3>15.4 Conservazione e revoca</h3>
+      <p>
+        Le credenziali di accesso rilasciate da Google sono conservate sui server del Servizio, con
+        accesso riservato al personale autorizzato. L'Utente può scollegare un account Google dalle
+        impostazioni delle integrazioni del Servizio oppure da{" "}
+        <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener noreferrer">
+          myaccount.google.com/permissions
+        </a>
+        : da quel momento il Servizio smette di accedere ai dati dell'account. I dati già
+        sincronizzati si conservano secondo la sezione 8 e se ne può chiedere la cancellazione ai
+        contatti indicati nella sezione 2.
+      </p>
+
+      <h3>15.5 Google API Services User Data Policy</h3>
+      <p lang="en">
+        Edilizia in Cloud's use and transfer to any other app of information received from Google
+        APIs will adhere to the{" "}
+        <a
+          href="https://developers.google.com/terms/api-services-user-data-policy"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Google API Services User Data Policy
+        </a>
+        , including the Limited Use requirements.
+      </p>
+      <p>
+        L'uso delle informazioni ricevute dalle API di Google, e il loro trasferimento ad altre app,
+        rispettano le Norme sui dati utente dei servizi API di Google, compresi i requisiti di Uso
+        limitato.
+      </p>
 
       <p>
         <em>© 2026 Domus Group S.r.l. — Tutti i diritti riservati. P.IVA 13132010961</em>
