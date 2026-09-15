@@ -53,7 +53,7 @@ import {
 import type { SrAccessorioRow, SrProgettoDetail, SrSerramentoRow, SrMaterialePrincipale } from "@/types/serramenti";
 import { calcolaM2 } from "@/lib/serramenti/calcoli";
 import { SrCard, SrCallout } from "@/lib/serramenti/wizardUI";
-import { formatEuro } from "@/lib/serramenti/format";
+import { formatEuro, formatNumero } from "@/lib/serramenti/format";
 import type { ListinoFamily } from "@/lib/serramenti/api";
 import { DynamicFieldsRenderer } from "@/components/listino/DynamicFieldsRenderer";
 import { useListinoCategorie } from "@/hooks/useListinoCategorie";
@@ -1688,7 +1688,7 @@ function SerramentoRow({
             )}
             {mq > 0 && (
               <span className="text-[11px] font-normal text-orange-600">
-                {mq.toFixed(2)} m²
+                {formatNumero(mq, 2)} m²
               </span>
             )}
             {/* Distingue 3 stati di prezzo nell'header riga:
