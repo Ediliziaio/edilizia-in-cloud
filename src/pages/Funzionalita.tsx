@@ -50,7 +50,7 @@ const CATEGORIES: FeatureCategory[] = [
       { slug: "/funzionalita/gestione-cantieri", label: "Gestione Cantieri", desc: "Avanzamento lavori in tempo reale", icon: HardHat },
       { slug: "/funzionalita/preventivi-edilizia", label: "Preventivi Edilizia", desc: "Computo metrico e prezzari ufficiali", icon: ClipboardList },
       { slug: "/funzionalita/margini-cantiere", label: "Margini Cantiere", desc: "Preventivo vs consuntivo live", icon: TrendingDown },
-      { slug: "/funzionalita/giornale-lavori", label: "Giornale Lavori", desc: "Conforme D.M. 49/2018", icon: BookOpenCheck },
+      { slug: "/funzionalita/giornale-lavori", label: "Giornale Lavori", desc: "Conforme D.Lgs 36/2023", icon: BookOpenCheck },
       { slug: "/funzionalita/foto-cantiere", label: "Foto Cantiere", desc: "Geolocalizzate con timestamp", icon: Camera },
       { slug: "/funzionalita/sicurezza-cantiere", label: "Sicurezza Cantiere", desc: "POS digitali D.Lgs 81/2008", icon: ShieldCheck },
       { slug: "/funzionalita/calendario-lavori", label: "Calendario Lavori", desc: "Gantt multi-cantiere", icon: CalendarDays },

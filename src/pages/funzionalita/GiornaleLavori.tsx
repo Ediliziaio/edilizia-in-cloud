@@ -21,18 +21,18 @@ import type { FunzionalitaPageConfig } from "./_template/types";
 const config: FunzionalitaPageConfig = {
   slug: "giornale-lavori",
   definizione:
-    "Il Giornale Lavori di Edilizia in Cloud è il giornale dei lavori digitale conforme all'art. 15 del D.M. 49/2018 e al Codice Appalti: registrazione giornaliera di maestranze, mezzi, forniture, condizioni meteo e fatti rilevanti, firmato dal cantiere e archiviato a norma.",
+    "Il Giornale Lavori di Edilizia in Cloud è il giornale dei lavori digitale conforme all'Allegato II.14 del Codice dei contratti pubblici (D.Lgs 36/2023): registrazione giornaliera di maestranze, mezzi, forniture, condizioni meteo e fatti rilevanti, firmato dal cantiere e archiviato a norma.",
   vertical: "Giornale Lavori",
   productName: "Giornale Lavori Digitale Edilizia in Cloud",
   audience:
-    "Imprese edili e general contractor che lavorano su appalti pubblici e privati e devono tenere giornale lavori conforme art. 15 D.M. 49/2018 e D.Lgs 50/2016, con firma DL e RUP",
+    "Imprese edili e general contractor che lavorano su appalti pubblici e privati e devono tenere giornale lavori conforme all'Allegato II.14 del D.Lgs 36/2023, con firma DL e RUP",
   audienceShort: "imprese edili che lavorano su appalti normati",
 
   seo: {
     title:
       "Giornale Lavori Digitale",
     description:
-      "Giornale lavori digitale conforme art. 15 D.M. 49/2018 e D.Lgs 50/2016: registrazione giornaliera maestranze, mezzi, forniture, eventi.",
+      "Giornale lavori digitale conforme all'Allegato II.14 del D.Lgs 36/2023: registrazione giornaliera maestranze, mezzi, forniture, eventi.",
     keywords:
       "giornale lavori digitale, art 15 dm 49 2018, dlgs 50 2016 giornale lavori, libro giornale cantiere, giornale cantiere appalto pubblico, registrazione giornaliera cantiere, firma dl rup giornale, pdf/a giornale lavori",
     ogImage: "https://www.ediliziaincloud.com/og/og-default.png",
@@ -43,14 +43,14 @@ const config: FunzionalitaPageConfig = {
   heroH1Highlight: "conforme alla norma",
   heroH1Tail: "che firmi dal cantiere",
   heroSubheadline:
-    "Giornale lavori digitale conforme all'art. 15 D.M. 49/2018 e al D.Lgs 50/2016 (Codice Appalti): registrazione giornaliera di maestranze, mezzi, forniture, eventi atmosferici e fatti rilevanti, firma del Direttore dei Lavori e del RUP, esportazione in PDF/A immutabile. Pronto per ispezioni, niente più libri cartacei.",
+    "Giornale lavori digitale conforme all'Allegato II.14 del D.Lgs 36/2023 (Codice dei contratti pubblici): registrazione giornaliera di maestranze, mezzi, forniture, eventi atmosferici e fatti rilevanti, firma del Direttore dei Lavori e del RUP, esportazione in PDF/A immutabile. Pronto per ispezioni, niente più libri cartacei.",
   heroPrimaryCta: "Prova gratis 31 giorni",
   heroSecondaryCta: "Tutte le funzionalità",
   heroSecondaryCtaTo: "/funzionalita",
 
   reassurancePoints: [
     "Setup in 48 ore",
-    "Conforme art. 15 D.M. 49/2018",
+    "Conforme Allegato II.14 D.Lgs 36/2023",
     "Firma DL e RUP integrata",
   ],
   proofPoints: [
@@ -68,14 +68,14 @@ const config: FunzionalitaPageConfig = {
   betaH2:
     "Più di 300+ imprese italiane usano il Giornale Lavori digitale per essere pronte alle ispezioni.",
   betaBody:
-    "Il Giornale Lavori digitale è già pronto: lo attiviamo in 48 ore configurando i template conformi all'art. 15 D.M. 49/2018, abilitiamo l'app mobile per il capocantiere, configuriamo le firme di Direttore Lavori e RUP, e ti accompagniamo in 3 sessioni 1-a-1 fino al primo giornale lavori chiuso e firmato.",
+    "Il Giornale Lavori digitale è già pronto: lo attiviamo in 48 ore configurando i template conformi all'Allegato II.14 del D.Lgs 36/2023, abilitiamo l'app mobile per il capocantiere, configuriamo le firme di Direttore Lavori e RUP, e ti accompagniamo in 3 sessioni 1-a-1 fino al primo giornale lavori chiuso e firmato.",
 
   speedH2:
     "Il giornale lavori cartaceo è il primo punto debole in caso di ispezione. Il digitale risolve.",
   speedSubheadline:
     "Su un appalto pubblico, il giornale lavori non firmato dal DL o compilato in modo incompleto è motivo di sospensione dei pagamenti. Su appalti privati, è la prima prova in caso di contestazione. Il libro cartaceo si perde, si bagna, si compila in fretta. Il digitale no.",
   speedStats: [
-    { value: 100, prefix: "%", suffix: "", label: "conformità art. 15 D.M. 49/2018" },
+    { value: 100, prefix: "%", suffix: "", label: "conformità Allegato II.14 D.Lgs 36/2023" },
     { value: 40, prefix: "-", suffix: "%", label: "tempo segreteria su giornali lavori" },
     { value: 30, suffix: " sec", label: "per registrare la giornata da mobile" },
   ],
@@ -130,7 +130,7 @@ const config: FunzionalitaPageConfig = {
   painH2:
     "Il giornale lavori cartaceo è la prima cosa che fa cadere l'impresa in fase di ispezione.",
   painSubheadline:
-    "Sui cantieri pubblici, l'art. 15 del D.M. 49/2018 prescrive la tenuta giornaliera del giornale lavori a cura del Direttore dei Lavori. In pratica, sul libro cartaceo si scrive 'a memoria' a fine settimana, mancano firme RUP, mancano allegati. Per il committente è già motivo di sospensione pagamenti.",
+    "Sui cantieri pubblici, l'Allegato II.14 del D.Lgs 36/2023, che ha sostituito il D.M. 49/2018, prescrive la tenuta giornaliera del giornale lavori a cura del Direttore dei Lavori. In pratica, sul libro cartaceo si scrive 'a memoria' a fine settimana, mancano firme RUP, mancano allegati. Per il committente è già motivo di sospensione pagamenti.",
   painPoints: [
     {
       icon: FileText,
@@ -222,7 +222,7 @@ const config: FunzionalitaPageConfig = {
   commercialLevers: [
     {
       icon: ShieldCheck,
-      title: "Conformità art. 15 D.M. 49/2018 garantita",
+      title: "Conformità Allegato II.14 D.Lgs 36/2023 garantita",
       text: "Template conforme alla norma, firme DL/RUP con valore legale eIDAS, archivio PDF/A immutabile. In ispezione INL o RUP, hai tutto pronto in 30 secondi. Niente sospensioni pagamenti per giornale incompleto.",
     },
     {
@@ -250,7 +250,7 @@ const config: FunzionalitaPageConfig = {
   integrationPillars: [
     {
       icon: ListChecks,
-      title: "Template conforme art. 15 D.M. 49/2018",
+      title: "Template conforme Allegato II.14 D.Lgs 36/2023",
       text: "Tutti i campi richiesti dalla norma: maestranze, mezzi, forniture, eventi atmosferici, eventi rilevanti, ordini di servizio. Pre-compilato dai dati operativi.",
     },
     {
@@ -270,7 +270,7 @@ const config: FunzionalitaPageConfig = {
     },
   ],
   resultStats: [
-    { value: 100, prefix: "%", suffix: "", label: "conformità art. 15 D.M. 49/2018" },
+    { value: 100, prefix: "%", suffix: "", label: "conformità Allegato II.14 D.Lgs 36/2023" },
     { value: 40, prefix: "-", suffix: "%", label: "tempo segreteria su giornali lavori" },
     { value: 5, suffix: " sec", label: "ricerca giornata storica nell'archivio" },
   ],
@@ -333,7 +333,7 @@ const config: FunzionalitaPageConfig = {
     "Non un PDF generico. Un giornale lavori conforme, mobile, firmabile, immutabile.",
   featureRows: [
     {
-      label: "Template conforme art. 15 D.M. 49/2018",
+      label: "Template conforme Allegato II.14 D.Lgs 36/2023",
       value:
         "Tutti i campi prescritti dalla norma: maestranze, mezzi, forniture, eventi atmosferici, ordini di servizio, fatti rilevanti. Pre-compilato dai dati operativi.",
     },
@@ -398,11 +398,11 @@ const config: FunzionalitaPageConfig = {
   faqs: [
     {
       q: "Il giornale lavori digitale è legalmente equivalente al cartaceo?",
-      a: "Sì. Il D.Lgs 50/2016 e il D.M. 49/2018 ammettono la tenuta digitale del giornale lavori, purché firmato con firma elettronica avanzata o qualificata (eIDAS) e archiviato in formato PDF/A. Edilizia in Cloud rispetta tutti questi requisiti.",
+      a: "Sì. Il Codice dei contratti pubblici (D.Lgs 36/2023) e il suo Allegato II.14 prevedono la gestione digitale dei documenti contabili, giornale lavori compreso. Conta che le annotazioni siano firmate dalla direzione lavori e conservate senza possibilità di alterazione: Edilizia in Cloud gestisce la firma elettronica eIDAS e l'esportazione in PDF/A.",
     },
     {
       q: "Funziona anche per cantieri privati o solo pubblici?",
-      a: "Funziona per entrambi. Sui cantieri pubblici è obbligatorio per art. 15 D.M. 49/2018. Sui cantieri privati è facoltativo ma utilissimo come prova documentale in caso di contestazione cliente o causa civile. Stesso strumento, doppio uso.",
+      a: "Funziona per entrambi. Sui cantieri pubblici è obbligatorio ai sensi dell'Allegato II.14 del D.Lgs 36/2023. Sui cantieri privati è facoltativo ma utilissimo come prova documentale in caso di contestazione cliente o causa civile. Stesso strumento, doppio uso.",
     },
     {
       q: "Posso allegare foto e documenti?",
@@ -442,7 +442,7 @@ const config: FunzionalitaPageConfig = {
   finalCtaH2:
     "Smetti di compilare il libro cartaceo a memoria. Inizia a chiudere ogni giornata in 30 secondi con firma DL.",
   finalCtaBody:
-    "31 giorni gratuiti per portare il Giornale Lavori digitale dentro la tua impresa edile. Conforme art. 15 D.M. 49/2018, firme DL/RUP eIDAS, esportazione PDF/A, onboarding 1-a-1 inclusi. Cancelli quando vuoi.",
+    "31 giorni gratuiti per portare il Giornale Lavori digitale dentro la tua impresa edile. Conforme Allegato II.14 D.Lgs 36/2023, firme DL/RUP eIDAS, esportazione PDF/A, onboarding 1-a-1 inclusi. Cancelli quando vuoi.",
   finalCtaButton: "Prova gratis 31 giorni",
   finalCtaMicrocopy: "Setup 48h · Conforme normativa · Firme eIDAS",
 

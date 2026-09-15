@@ -87,7 +87,7 @@ const piattaformaColumns: MenuColumn[] = [
       { to: "/funzionalita/gestione-cantieri", label: "Gestione Cantieri", desc: "Avanzamento lavori in tempo reale", icon: HardHat },
       { to: "/funzionalita/preventivi-edilizia", label: "Preventivi Edilizia", desc: "Computo metrico e prezzari", icon: ClipboardList },
       { to: "/funzionalita/margini-cantiere", label: "Margini Cantiere", desc: "Preventivo vs consuntivo live", icon: TrendingDown },
-      { to: "/funzionalita/giornale-lavori", label: "Giornale Lavori", desc: "Conforme D.M. 49/2018", icon: BookOpenCheck },
+      { to: "/funzionalita/giornale-lavori", label: "Giornale Lavori", desc: "Conforme D.Lgs 36/2023", icon: BookOpenCheck },
       { to: "/funzionalita/foto-cantiere", label: "Foto Cantiere", desc: "Geolocalizzate con timestamp", icon: Camera },
       { to: "/funzionalita/sicurezza-cantiere", label: "Sicurezza Cantiere", desc: "POS digitali D.Lgs 81/2008", icon: ShieldCheck },
       { to: "/funzionalita/calendario-lavori", label: "Calendario Lavori", desc: "Gantt multi-cantiere", icon: CalendarDays },

@@ -828,10 +828,10 @@ const ROUTES = {
   "/funzionalita/giornale-lavori": {
     title: "Giornale Lavori Digitale per Cantieri",
     description:
-      "Giornale lavori digitale conforme art. 15 D.M. 49/2018 e D.Lgs 50/2016. Registrazione giornaliera maestranze, mezzi, forniture, eventi. Firma DL e RUP, esportazione PDF/A.",
+      "Giornale lavori digitale conforme Allegato II.14 D.Lgs 36/2023. Registrazione giornaliera maestranze, mezzi, forniture, eventi. Firma DL e RUP, esportazione PDF/A.",
     h1: "Giornale Lavori Digitale per Imprese Edili",
     intro:
-      "Edilizia in Cloud digitalizza il giornale lavori conforme art. 15 D.M. 49/2018 e D.Lgs 50/2016: registrazione giornaliera di maestranze, mezzi, forniture, eventi atmosferici, sospensioni. Firma elettronica del Direttore Lavori e del RUP, esportazione PDF/A per archivio decennale, riduzione 40% del tempo segreteria.",
+      "Edilizia in Cloud digitalizza il giornale lavori conforme Allegato II.14 D.Lgs 36/2023: registrazione giornaliera di maestranze, mezzi, forniture, eventi atmosferici, sospensioni. Firma elettronica del Direttore Lavori e del RUP, esportazione PDF/A per archivio decennale, riduzione 40% del tempo segreteria.",
     links: [
       { href: "/funzionalita", label: "Tutte le Funzionalità" },
       { href: "/funzionalita/gestione-cantieri", label: "Gestione Cantieri" },
