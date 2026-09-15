@@ -65,10 +65,23 @@ async function applicaBounce(admin: any, mb: Casella, b: BounceInfo): Promise<vo
         { onConflict: "company_id,email_normalized,reason" },
       );
     }
-    const { data: contatti } = await admin.from("marketing_contacts").select("id")
+    const { data: contatti } = await admin.from("marketing_contacts").select("id,email")
       .eq("company_id", PLATFORM_COMPANY).ilike("email", email);
     const ids = ((contatti ?? []) as Array<{ id: string }>).map((c) => c.id);
     if (!ids.length) continue;
+    if (b.hard && b.dnd) {
+      // DND email sul contatto (il titolare, 15/09/2026): il flusso si ferma qui
+      // sotto, ma senza DND un altro invio (un'altra sequenza, una campagna,
+      // un'automazione) ripartirebbe verso un indirizzo che non va più bene.
+      // Solo gli indirizzi identici: in ilike «_» fa da jolly.
+      const esatti = ((contatti ?? []) as Array<{ id: string; email: string | null }>)
+        .filter((c) => (c.email ?? "").trim().toLowerCase() === email).map((c) => c.id);
+      if (esatti.length) {
+        await admin.from("marketing_contacts")
+          .update({ optout_email: true, optout_at: new Date().toISOString(), optout_reason: "hard_bounce" })
+          .in("id", esatti).not("optout_email", "is", true);
+      }
+    }
     const { data: enrs } = await admin.from("outreach_enrollments").select("id")
       .eq("company_id", PLATFORM_COMPANY).in("contact_id", ids).in("status", ["active", "paused"]);
     const eids = ((enrs ?? []) as Array<{ id: string }>).map((e) => e.id);

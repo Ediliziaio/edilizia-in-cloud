@@ -22,7 +22,8 @@ import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { assignSenders, cadenzaCasella, dailyCapWithVariance, remainingToday, sentToday, type Assignment, type SenderState, statoPerPrimiContatti, unaAssegnazionePerCasella } from "../_shared/outreach-dispatch-logic.ts";
 import { componiCorpo, haFraseUscita } from "../_shared/outreach-uscita.ts";
 import { renderTemplate, contactToVars, hashSeed, htmlToPlainText } from "../_shared/outreach-template.ts";
-import { DEFAULT_SEND_WINDOW, finestraDelBrand, isWithinSendWindow, minutoDelGiorno } from "../_shared/outreach-schedule.ts";
+import { DEFAULT_SEND_WINDOW, finestraDelBrand, isWithinSendWindow, minutoDelGiorno, orarioFollowUp, orarioTroppoVicino, type SendWindow } from "../_shared/outreach-schedule.ts";
+import { classificaRifiuto } from "../_shared/outreach-bounce.ts";
 import { parseVariants, pickVariant } from "../_shared/outreach-abz.ts";
 import { nextEmailStep, computeStepSchedule, applyJitter, spostaFuoriWeekend, ritardoDalPrecedente, type SeqStep } from "../_shared/outreach-sequence.ts";
 import {
@@ -216,11 +217,17 @@ async function enqueuePlanned(
   delayHours: number,
   baseAt: Date,
   brandId: string | null,
+  finestra: SendWindow = DEFAULT_SEND_WINDOW,
 ): Promise<void> {
   const when = computeStepSchedule(baseAt, delayDays, delayHours);
-  // Jitter umano: 2..90 min al SECONDO (non sul minuto tondo) → i follow-up non
-  // partono tutti allo stesso minuto del tick. Finestra business applicata a valle.
-  const whenJ = spostaFuoriWeekend(applyJitter(when, 90, Math.random(), { minMinutes: 2, stepSeconds: 1 })).toISOString();
+  // Mai alla stessa ora del messaggio appena spedito: con almeno un giorno di mezzo
+  // il follow-up va nell'altra metà della giornata, ad almeno 3 ore di distanza.
+  // Sotto il giorno resta il jitter umano (2..90 min al SECONDO) e decide il
+  // controllo al momento dell'invio. Finestra business applicata a valle.
+  const orario = Math.trunc(delayDays ?? 0) >= 1
+    ? orarioFollowUp(when, baseAt, finestra, Math.random())
+    : applyJitter(when, 90, Math.random(), { minMinutes: 2, stepSeconds: 1 });
+  const whenJ = spostaFuoriWeekend(orario).toISOString();
   // Canale della riga = canale del nodo d'invio (email/whatsapp/sms). Le righe
   // 'advance' (wait) restano sul canale 'email' (riga di solo instradamento, non
   // spedita: il CHECK su channel è soddisfatto, il pass advance le pesca per kind).
@@ -263,6 +270,7 @@ async function advanceGraph(
   contact: any,
   baseAt: Date,
   brandId: string | null,
+  finestra: SendWindow = DEFAULT_SEND_WINDOW,
 ): Promise<void> {
   const fromNode = nodeById(nodes, fromNodeId);
   // successore: next_default del nodo consumato (le email/wait hanno un solo
@@ -287,7 +295,7 @@ async function advanceGraph(
   // Un 'advance' (wait) non richiede contattabilità.
   const planChannel = plan.kind === "send" ? channelForNodeType(nodeType(plan.node)) : null;
   if (plan.kind === "send" && planChannel === "email" && await stopIfUncontactable(supabase, enr.id, contact)) return;
-  await enqueuePlanned(supabase, enr, contact, plan.node, plan.kind, plan.delayDays, plan.delayHours, baseAt, brandId);
+  await enqueuePlanned(supabase, enr, contact, plan.node, plan.kind, plan.delayDays, plan.delayHours, baseAt, brandId, finestra);
 }
 
 /**
@@ -302,6 +310,7 @@ async function advanceEnrollment(
   contact: any,
   sentAt: Date,
   brandId: string | null,
+  finestra: SendWindow = DEFAULT_SEND_WINDOW,
 ): Promise<void> {
   const { data: stepsRaw } = await supabase
     .from("outreach_sequence_steps")
@@ -314,7 +323,7 @@ async function advanceEnrollment(
     // Nodo appena inviato: quello tracciato (current_node_id) o, al primo passo
     // di una sequenza a grafo ancora "legacy-enrolled", l'entry node.
     const fromId = enr.current_node_id ?? entryNode(nodes)?.id ?? null;
-    await advanceGraph(supabase, enr, nodes, fromId, contact, sentAt, brandId);
+    await advanceGraph(supabase, enr, nodes, fromId, contact, sentAt, brandId, finestra);
     return;
   }
 
@@ -331,9 +340,14 @@ async function advanceEnrollment(
   const appenaSpedito = (nodes as unknown as SeqStep[]).find((s) => s.step_order === enr.current_step) ?? null;
   const rit = ritardoDalPrecedente(appenaSpedito, next);
   const when = computeStepSchedule(sentAt, rit.giorni, rit.ore);
-  // Jitter umano: spalma il follow-up su 2..90 min al SECONDO così i passi successivi
-  // non partono tutti allo stesso minuto del tick. La finestra di invio resta a valle.
-  const whenJ = spostaFuoriWeekend(applyJitter(when, 90, Math.random(), { minMinutes: 2, stepSeconds: 1 })).toISOString();
+  // Mai alla stessa ora dell'email appena spedita: con almeno un giorno di mezzo il
+  // follow-up va nell'altra metà della giornata, ad almeno 3 ore di distanza. Sotto
+  // il giorno resta il jitter umano (2..90 min al SECONDO). La finestra di invio
+  // resta a valle, e al momento dell'invio c'è comunque il controllo sull'orario.
+  const orario = rit.giorni >= 1
+    ? orarioFollowUp(when, sentAt, finestra, Math.random())
+    : applyJitter(when, 90, Math.random(), { minMinutes: 2, stepSeconds: 1 });
+  const whenJ = spostaFuoriWeekend(orario).toISOString();
   await supabase.from("outreach_send_queue").insert({
     company_id: PLATFORM_COMPANY,
     enrollment_id: enr.id,
@@ -977,6 +991,9 @@ serveConMetriche("outreach-dispatch", async (req) => {
     // un'altra casella). Se quella casella oggi non ha capacita' il follow-up
     // aspetta; se non e' piu' nel pool si riparte da capo con un'altra.
     const stickyByEnrollment = new Map<string, string>();
+    // Ultimo invio riuscito di ogni iscrizione: il follow-up non parte a meno di 3
+    // ore, come orario del giorno, dall'email precedente allo stesso contatto.
+    const ultimoInvioByEnrollment = new Map<string, Date>();
     if (enrollmentIds.length) {
       try {
         const { data: primi } = await supabase
@@ -985,6 +1002,7 @@ serveConMetriche("outreach-dispatch", async (req) => {
           .not("sender_account_id", "is", null).order("sent_at", { ascending: true });
         for (const r of (primi ?? []) as any[]) {
           if (!stickyByEnrollment.has(r.enrollment_id)) stickyByEnrollment.set(r.enrollment_id, r.sender_account_id);
+          if (r.sent_at) ultimoInvioByEnrollment.set(r.enrollment_id, new Date(r.sent_at));
         }
       } catch { /* pre-migrazione grafo: nessuno sticky */ }
     }
@@ -1033,6 +1051,10 @@ serveConMetriche("outreach-dispatch", async (req) => {
       const liberi: string[] = [];
       for (const qid of ids) {
         const q = queueById.get(qid);
+        // Mai alla stessa ora dell'email precedente a questo contatto: a meno di 3
+        // ore di distanza (come orario del giorno) la riga aspetta un giro più avanti.
+        const ultimoInvio = q?.enrollment_id ? ultimoInvioByEnrollment.get(q.enrollment_id) : undefined;
+        if (ultimoInvio && orarioTroppoVicino(now, ultimoInvio, fin.timeZone)) { result.deferred++; continue; }
         const sid = q?.enrollment_id ? stickyByEnrollment.get(q.enrollment_id) : undefined;
         if (sid && brandIds.has(sid)) {
           // Il follow-up parte solo dalla sua casella: se non è ancora pronta, aspetta.
@@ -1235,6 +1257,14 @@ serveConMetriche("outreach-dispatch", async (req) => {
 
         // ── THREADING: i follow-up restano nel thread del primo messaggio ──
         const precedenti = enr ? await inviatiPrecedenti(supabase, enr.id) : [];
+        // Rete di sicurezza della regola «mai alla stessa ora»: l'assegnazione la
+        // controlla sull'ultimo invio letto in blocco, qui si rilegge il thread vero.
+        const ultimoDelThread = precedenti.length ? precedenti[precedenti.length - 1].sentAt : null;
+        if (ultimoDelThread && orarioTroppoVicino(new Date(), new Date(ultimoDelThread), finestraDelBrand(brand?.send_window).timeZone)) {
+          await supabase.from("outreach_send_queue").update({ status: "queued" }).eq("id", item.id).eq("status", "sending");
+          result.deferred++;
+          return;
+        }
         const oggettoStep = renderTemplate(chosen ? chosen.text : (item.subject || ""), vars, { seed });
         const thr = buildFollowupHeaders(precedenti, oggettoStep);
         // Casella diversa dal primo passo (sticky non disponibile): niente
@@ -1409,12 +1439,31 @@ serveConMetriche("outreach-dispatch", async (req) => {
             fermaTick = true; return;
           }
           // Recapito rifiutato (soppresso, hard fail): non ritentare E fermare l'iscrizione.
+          const testoRifiuto = JSON.stringify(esito.body ?? "skipped");
           await supabase.from("outreach_send_queue")
-            .update({ status: "skipped", sender_account_id: sender.id, last_error: JSON.stringify(esito.body ?? "skipped") })
+            .update({ status: "skipped", sender_account_id: sender.id, last_error: testoRifiuto })
             .eq("id", item.id);
+          // Il server ha risposto che l'indirizzo non esiste (550 5.1.1, user unknown…):
+          // come per i rimbalzi letti nella casella, blocklist e DND email sul contatto,
+          // così nessun altro invio riparte verso un indirizzo che non va più bene.
+          const indirizzoMorto = classificaRifiuto(testoRifiuto).dnd;
+          if (indirizzoMorto) {
+            await supabase.from("email_suppressions").upsert(
+              { company_id: PLATFORM_COMPANY, email: item.to_email, reason: "hard_bounce", notes: `Rifiuto all'invio da ${sender.email}: ${testoRifiuto.slice(0, 120)}` },
+              { onConflict: "company_id,email_normalized,reason" },
+            );
+            if (item.contact_id) {
+              await supabase.from("marketing_contacts")
+                .update({ optout_email: true, optout_at: new Date().toISOString(), optout_reason: "hard_bounce" })
+                .eq("id", item.contact_id).not("optout_email", "is", true);
+            }
+          }
           if (enr) {
             await supabase.from("outreach_enrollments")
-              .update({ status: "stopped", next_action_at: null, stop_reason: "send_rejected" }).eq("id", enr.id);
+              .update(indirizzoMorto
+                ? { status: "bounced", next_action_at: null, stop_reason: "hard_bounce" }
+                : { status: "stopped", next_action_at: null, stop_reason: "send_rejected" })
+              .eq("id", enr.id);
           }
           result.skipped++;
           return;
@@ -1437,7 +1486,7 @@ serveConMetriche("outreach-dispatch", async (req) => {
         result.sent++;
         // avanza la cadenza: prossimo step email o completamento iscrizione
         if (enr) {
-          try { await advanceEnrollment(supabase, enr, contactById.get(item.contact_id), now, item.brand_id ?? null); }
+          try { await advanceEnrollment(supabase, enr, contactById.get(item.contact_id), now, item.brand_id ?? null, finestraDelBrand(item.brand_id ? brandById.get(item.brand_id)?.send_window : null)); }
           catch (advErr) { console.warn("[outreach-dispatch] advance fallito:", advErr instanceof Error ? advErr.message : advErr); }
         }
       } catch (e) {

@@ -101,3 +101,70 @@ export function parseSendWindow(raw: unknown): SendWindow {
     timeZone: tz,
   };
 }
+
+/**
+ * Distanza minima, in minuti, tra l'orario di un follow-up e quello dell'email
+ * precedente allo stesso contatto. Il titolare (15/09/2026): un follow-up non
+ * deve mai arrivare alla stessa ora dell'email prima. Tre giorni dopo ma sempre
+ * alle 9:10 si capisce che è un invio automatico; su 13 follow-up partiti
+ * l'11-15/09, 5 erano arrivati entro un'ora e mezza dallo stesso orario.
+ */
+export const DISTANZA_MINIMA_FOLLOWUP_MIN = 180;
+
+/** Minuti tra due orari del giorno (0-1439), sul giro delle 24 ore: 23:30 e 00:30 distano 60. */
+export function distanzaTraOrari(a: number, b: number): number {
+  const d = Math.abs(a - b) % 1440;
+  return Math.min(d, 1440 - d);
+}
+
+/** True se `ora`, come orario del giorno nel fuso dato, cade a meno di `minimo` minuti dall'orario di `precedente`. */
+export function orarioTroppoVicino(
+  ora: Date,
+  precedente: Date,
+  timeZone: string,
+  minimo: number = DISTANZA_MINIMA_FOLLOWUP_MIN,
+): boolean {
+  return distanzaTraOrari(minutoDelGiorno(ora, timeZone), minutoDelGiorno(precedente, timeZone)) < minimo;
+}
+
+/**
+ * Orario di un follow-up nel giorno di `giorno` (fuso della finestra): nell'altra
+ * metà della giornata rispetto all'email precedente, ad almeno `minimo` minuti dal
+ * suo orario e dentro la finestra d'invio. `caso` in [0,1) (di norma Math.random()).
+ *
+ * Se nella finestra non c'è posto (più stretta del doppio di `minimo`) restituisce
+ * `giorno` com'è: a quel punto vale il controllo al momento dell'invio
+ * (orarioTroppoVicino), che fa aspettare la riga.
+ */
+export function orarioFollowUp(
+  giorno: Date,
+  precedente: Date,
+  finestra: SendWindow,
+  caso: number,
+  minimo: number = DISTANZA_MINIMA_FOLLOWUP_MIN,
+): Date {
+  const tz = finestra.timeZone;
+  const inizio = finestra.startHour * 60;
+  // L'ultimo quarto d'ora resta fuori: un invio programmato alle 18:58 rischia di
+  // non trovare più un giro utile e di scivolare al mattino dopo.
+  const fine = finestra.endHour * 60 - 15;
+  const prev = minutoDelGiorno(precedente, tz);
+  const prima: [number, number] = [inizio, Math.min(fine, prev - minimo)];
+  const dopo: [number, number] = [Math.max(inizio, prev + minimo), fine];
+  const haPosto = (r: [number, number]) => r[1] > r[0];
+  // Si alterna: dopo un'email del mattino il follow-up va al pomeriggio, e viceversa.
+  const [preferito, ripiego] = prev < (inizio + fine) / 2 ? [dopo, prima] : [prima, dopo];
+  const scelto = haPosto(preferito) ? preferito : haPosto(ripiego) ? ripiego : null;
+  if (!scelto) return giorno;
+
+  const r = Math.min(Math.max(caso, 0), 1 - 1e-9);
+  const secondoVoluto = scelto[0] * 60 + Math.floor(r * (scelto[1] - scelto[0]) * 60);
+  const secondoDi = (d: Date) => minutoDelGiorno(d, tz) * 60 + d.getUTCSeconds();
+  let esito = new Date(giorno.getTime() - giorno.getUTCMilliseconds() + (secondoVoluto - secondoDi(giorno)) * 1000);
+  // Il giorno del cambio d'ora lo scarto tra fuso e UTC si sposta: si corregge una volta.
+  const scarto = secondoVoluto - secondoDi(esito);
+  if (scarto !== 0) esito = new Date(esito.getTime() + scarto * 1000);
+  // Finestre quasi da 24 ore: sul giro dell'orologio si potrebbe ricadere vicino.
+  if (distanzaTraOrari(minutoDelGiorno(esito, tz), prev) < minimo) return giorno;
+  return esito;
+}
