@@ -69,7 +69,7 @@ export function StepPdf({ progettoId, detail }: Props) {
       ok: !!sintesiCalcolata,
       label: "Sintesi intervento",
       hint: !sintesiCalcolata
-        ? "Aggiungi almeno un serramento o accessorio: la sintesi si genera da li."
+        ? "Aggiungi almeno un serramento o complemento: la sintesi si genera da lì."
         : undefined,
     },
     {
@@ -109,7 +109,7 @@ export function StepPdf({ progettoId, detail }: Props) {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
           <SrKpi label="Codice" value={p.code} />
           <SrKpi label="Serramenti" value={numSerramenti} />
-          <SrKpi label="Accessori" value={detail.accessori.reduce((a, x) => a + (x.quantita ?? 1), 0)} />
+          <SrKpi label="Complementi" value={detail.accessori.reduce((a, x) => a + (x.quantita ?? 1), 0)} />
           <SrKpi
             label="Totale IVA inclusa"
             value={formatEuroRangeOrSingle(p.totale_min, p.totale_max, 2)}
@@ -126,7 +126,7 @@ export function StepPdf({ progettoId, detail }: Props) {
               {numSerramenti > 0 && ` · ${numSerramenti} serramenti`}
             </p>
             <p className="text-xs text-muted-foreground mt-1 italic">
-              {sintesiCalcolata || "Aggiungi serramenti o accessori per generare la sintesi"}
+              {sintesiCalcolata || "Aggiungi serramenti o complementi per generare la sintesi"}
             </p>
           </div>
           <div className="border-l-4 border-orange-200 pl-3 py-1">
@@ -182,7 +182,7 @@ export function StepPdf({ progettoId, detail }: Props) {
       >
         {!ready && (
           <SrCallout variant="warning" className="mb-3">
-            ⚠️ Completa prima i {erroriCount} elementi mancanti nella checklist sopra.
+            ⚠️ Completa prima {erroriCount === 1 ? "l'elemento mancante" : `i ${erroriCount} elementi mancanti`} nella checklist sopra.
           </SrCallout>
         )}
 

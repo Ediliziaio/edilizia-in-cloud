@@ -45,6 +45,8 @@ type Serramento = {
 type Accessorio = {
   tipo: string;
   quantita?: number | null;
+  /** Il nome del prodotto: dice il tipo meglio del campo tipo delle righe vecchie. */
+  descrizione?: string | null;
 };
 
 /** Mappa tipologia DB → categoria narrativa singolare/plurale. */
@@ -109,16 +111,33 @@ function gruppoDaNomeArticolo(nome: string): { singular: string; plural: string 
  * diventavano «2 avvolgibili».
  */
 export function tipoAccessorioDaNome(nome: string): string {
-  const n = nome.toLowerCase();
-  if (/zanzarier/.test(n)) return "zanzariera";
-  if (/cassonett/.test(n)) return "cassonetto";
-  if (/persian/.test(n)) return "persiana";
-  if (/\bscur[oi]\b/.test(n)) return "scuro";
-  if (/inferriat/.test(n)) return "inferriata";
-  if (/davanzal/.test(n)) return "davanzale";
-  if (/controtelai|monoblocc/.test(n)) return "controtelaio";
-  if (/tapparell/.test(n)) return "tapparella";
-  return "avvolgibile";
+  return tipoDichiaratoDalNome(nome) ?? "avvolgibile";
+}
+
+const TIPI_DAL_NOME: ReadonlyArray<readonly [RegExp, string]> = [
+  [/zanzarier/, "zanzariera"],
+  [/cassonett/, "cassonetto"],
+  [/persian/, "persiana"],
+  [/\bscur[oi]\b/, "scuro"],
+  [/inferriat/, "inferriata"],
+  [/davanzal/, "davanzale"],
+  [/controtelai|monoblocc/, "controtelaio"],
+  [/tapparell/, "tapparella"],
+  [/avvolgibil/, "avvolgibile"],
+];
+
+/**
+ * Il tipo che il nome dice, dalla parola che viene prima: «Cassonetto per
+ * tapparella» è un cassonetto. Null se il nome non ne dice nessuno.
+ */
+export function tipoDichiaratoDalNome(nome: string | null | undefined): string | null {
+  const n = (nome ?? "").toLowerCase();
+  let scelto: { indice: number; tipo: string } | null = null;
+  for (const [re, tipo] of TIPI_DAL_NOME) {
+    const indice = n.search(re);
+    if (indice !== -1 && (!scelto || indice < scelto.indice)) scelto = { indice, tipo };
+  }
+  return scelto?.tipo ?? null;
 }
 
 /** Concatenazione "naturale" italiana: ["a", "b", "c"] → "a, b e c". */
@@ -191,7 +210,10 @@ export function generateInterventoSintesi(
   const accessoriCounts = new Map<string, number>();
   for (const a of accessori) {
     const qty = a.quantita ?? 1;
-    accessoriCounts.set(a.tipo, (accessoriCounts.get(a.tipo) ?? 0) + qty);
+    // Il nome del prodotto prima del tipo salvato: nelle righe vecchie una «Tapparella PVC»
+    // era «avvolgibile» o «scuro», e il PDF diceva «6 avvolgibili e 1 scuro».
+    const tipo = tipoDichiaratoDalNome(a.descrizione) ?? a.tipo;
+    accessoriCounts.set(tipo, (accessoriCounts.get(tipo) ?? 0) + qty);
   }
 
   const accessorioOrder = ["tapparella", "avvolgibile", "cassonetto", "zanzariera",

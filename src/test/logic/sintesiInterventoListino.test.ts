@@ -74,3 +74,24 @@ describe("Sintesi intervento: righe da listino", () => {
       .toBe("Sostituzione di 2 finestre, con l'aggiunta di 2 zanzariere.");
   });
 });
+
+describe("Sintesi intervento: complementi", () => {
+  const finestra = { tipologia: "finestra_2ante", tipologia_label: "Finestra 2 Ante", family_id: "fam-f2a", quantita: 1 };
+
+  it("il nome del prodotto vince sul tipo salvato: 7 tapparelle, non «6 avvolgibili e 1 scuro»", () => {
+    const tapparelle = [
+      ...Array.from({ length: 6 }, () => ({ tipo: "avvolgibile", descrizione: "Tapparella PVC", quantita: 1 })),
+      { tipo: "scuro", descrizione: "Tapparella PVC", quantita: 1 },
+    ];
+    const testo = generateInterventoSintesi([finestra], tapparelle, "sostituzione");
+    expect(testo).toContain("7 tapparelle");
+    expect(testo).not.toContain("avvolgibil");
+    expect(testo).not.toContain("scur");
+  });
+
+  it("conta la parola che viene prima; senza nome resta il tipo", () => {
+    expect(tipoAccessorioDaNome("Cassonetto coibentato per tapparella")).toBe("cassonetto");
+    const testo = generateInterventoSintesi([finestra], [{ tipo: "zanzariera", descrizione: null, quantita: 2 }], "sostituzione");
+    expect(testo).toContain("2 zanzariere");
+  });
+});

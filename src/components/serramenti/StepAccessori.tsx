@@ -137,15 +137,13 @@ export function StepAccessori({ progettoId, detail }: Props) {
 
   return (
     <div className="space-y-3">
-      {/* Nota: gli accessori (tapparelle/cassonetti/persiane/zanzariere) sono
-          stati spostati nella sezione "Composizione offerta" del wizard
-          (Step 4 BOM) per tenere insieme prodotti + complementi correlati.
-          Questo step ora gestisce solo foto cantiere e render foto-realistici. */}
+      {/* I complementi (tapparelle, zanzariere, cassonetti, persiane) stanno nel box
+          della loro finestra, in «Composizione offerta»: questo passo ha solo foto
+          del cantiere e render. */}
       {accessori.length > 0 && (
-        <SrCallout variant="info" icon={<ImageIcon className="h-3.5 w-3.5" />} title="Accessori spostati">
-          Gli accessori sono ora gestiti dentro <strong>Composizione offerta</strong>{" "}
-          (step precedente). Da lì puoi anche copiare le misure dai serramenti
-          in un click per tapparelle e cassonetti.
+        <SrCallout variant="info" icon={<ImageIcon className="h-3.5 w-3.5" />} title="Complementi">
+          Tapparelle, zanzariere e cassonetti si aggiungono nel box di ogni finestra, in{" "}
+          <strong>Composizione offerta</strong>: prendono le sue misure e il modello già usato.
         </SrCallout>
       )}
 

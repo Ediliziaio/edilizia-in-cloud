@@ -558,8 +558,8 @@ export default function TermoidraulicoWizard() {
               <StepComingSoon step={currentStep} />
             )}
 
-            {/* Navigation footer */}
-            <div className="fixed inset-x-0 bottom-0 z-40 flex items-center justify-between gap-2 border-t bg-background/95 px-3 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-8px_20px_rgba(15,23,42,0.08)] backdrop-blur md:static md:mx-0 md:border-t-0 md:bg-transparent md:px-0 md:py-2 md:shadow-none md:backdrop-blur-0">
+            {/* Navigation footer: su telefono sopra la barra in basso, che altrimenti lo copre. */}
+            <div className="fixed inset-x-3 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-40 flex items-center justify-between gap-2 rounded-2xl border bg-background/95 px-3 py-2.5 shadow-[0_-8px_20px_rgba(15,23,42,0.08)] backdrop-blur md:static md:mx-0 md:rounded-none md:border-0 md:bg-transparent md:px-0 md:py-2 md:shadow-none md:backdrop-blur-0">
               <Button
                 variant="outline"
                 onClick={handleBack}
