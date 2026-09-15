@@ -343,7 +343,9 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
           .from("marketing_opportunities")
           .select("id, status, value")
           .eq("contact_id", id)
-          .eq("company_id", companyId),
+          .eq("company_id", companyId)
+          // Le opportunità eliminate (con note o documenti restano in archivio) non contano.
+          .is("deleted_at", null),
         supabase
           // "marketing_appointments" non esiste: la tabella e' "appointments".
           .from("appointments")
@@ -1316,8 +1318,8 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                           // Fetch data for scoring
                           const [{ count: activitiesCount }, { count: oppsCount }, { data: openOpps }] = await Promise.all([
                             supabase.from("marketing_contact_activities").select("*", { count: "exact", head: true }).eq("contact_id", id),
-                            supabase.from("marketing_opportunities").select("*", { count: "exact", head: true }).eq("contact_id", id),
-                            supabase.from("marketing_opportunities").select("id").eq("contact_id", id).eq("status", "open"),
+                            supabase.from("marketing_opportunities").select("*", { count: "exact", head: true }).eq("contact_id", id).is("deleted_at", null),
+                            supabase.from("marketing_opportunities").select("id").eq("contact_id", id).eq("status", "open").is("deleted_at", null),
                           ]);
                           const { data: recentActs } = await supabase.from("marketing_contact_activities")
                             .select("id").eq("contact_id", id)

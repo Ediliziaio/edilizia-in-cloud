@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useDebounce } from "./useDebounce";
 import { queryKeys } from "@/lib/queryKeys";
+import { filtriRicercaContatti } from "@/lib/ricerca/ricercaContatti";
 
 export interface SearchResult {
   id: string;
@@ -40,14 +41,22 @@ export function useGlobalSearch(query: string, companyId: string | undefined) {
           .from("profiles")
           .select("id, first_name, last_name, business_name, email, phone")
           .eq("company_id", companyId!) as any)
-          .or(`first_name.ilike.${pattern},last_name.ilike.${pattern},business_name.ilike.${pattern},email.ilike.${pattern}`)
+          .or(`first_name.ilike.${pattern},last_name.ilike.${pattern},business_name.ilike.${pattern},email.ilike.${pattern},phone.ilike.${pattern}`)
           .limit(15),
-        (supabase
-          .from("marketing_contacts")
-          .select("id, first_name, last_name, email, phone")
-          .eq("company_id", companyId!) as any)
-          .or(`first_name.ilike.${pattern},last_name.ilike.${pattern},email.ilike.${pattern}`)
-          .limit(5),
+        // Contatti: ogni parola in nome, cognome, email o telefono, e un numero
+        // nel telefono. Prima «Lia Logar», «RoccoPagnotta» e i numeri non si
+        // trovavano. Chi vede solo i suoi li trova tutti: titolare, call center
+        // o follower (lo decidono le regole di lettura del database).
+        (() => {
+          const filtri = filtriRicercaContatti(debouncedQuery);
+          if (filtri.length === 0) return Promise.resolve({ data: [], error: null });
+          let q = (supabase
+            .from("marketing_contacts")
+            .select("id, first_name, last_name, email, phone")
+            .eq("company_id", companyId!) as any);
+          for (const filtro of filtri) q = q.or(filtro);
+          return q.order("created_at", { ascending: false }).limit(8);
+        })(),
         (supabase
           .from("tickets")
           .select("id, subject, status")
@@ -118,8 +127,8 @@ export function useGlobalSearch(query: string, companyId: string | undefined) {
         results.push({
           id: c.id,
           type: "contact",
-          title: `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim(),
-          subtitle: c.email ?? c.phone ?? "",
+          title: `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() || c.phone || c.email || "Contatto",
+          subtitle: [c.phone, c.email].filter(Boolean).join(" · "),
           url: `/azienda/marketing/contatti/${c.id}`,
           icon: "UserCircle",
         });

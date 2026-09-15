@@ -1144,6 +1144,7 @@ export default function MarketingContacts() {
           .select("contact_id, name, value, status, marketing_pipelines(name), marketing_pipeline_stages(name)")
           .in("contact_id", contactIds)
           .eq("company_id", companyId)
+          .is("deleted_at", null)
           .order("created_at", { ascending: false });
 
         if (opps) {

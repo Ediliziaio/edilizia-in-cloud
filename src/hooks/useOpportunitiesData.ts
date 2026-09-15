@@ -879,7 +879,7 @@ export function useUpdateOpportunityStage() {
 
 export function useDeleteOpportunity() {
   const queryClient = useQueryClient();
-  const { effectiveCompany } = useAuth();
+  const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
   const permissions = usePermissions();
 
@@ -889,9 +889,13 @@ export function useDeleteOpportunity() {
       if (!canEditOpportunities(permissions)) throw new Error("Non hai i permessi per eliminare opportunità");
       const { daArchiviare, progettiFv } = await countOpportunityLinks([id], companyId);
       if (daArchiviare.has(id)) {
+        // Note e documenti restano, l'opportunità esce dalla pipeline: prima
+        // diventava solo «abbandonata» e restava nella sua colonna, come se
+        // «Elimina» non avesse fatto niente (BeMade, 15/09).
+        const adesso = new Date().toISOString();
         const { error } = await supabase
           .from("marketing_opportunities")
-          .update({ status: "abandoned", updated_at: new Date().toISOString() })
+          .update({ status: "abandoned", deleted_at: adesso, deleted_by: user?.id ?? null, updated_at: adesso } as never)
           .eq("id", id)
           .eq("company_id", companyId);
         if (error) throw error;
@@ -911,7 +915,7 @@ export function useDeleteOpportunity() {
       queryClient.invalidateQueries({ queryKey: queryKeys.marketingContacts.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.marketing.all });
       queryClient.invalidateQueries({ queryKey: ["fv_progetti"] });
-      toast.success(result?.archived ? "Opportunità archiviata: aveva dati collegati" : "Opportunità eliminata", {
+      toast.success(result?.archived ? "Opportunità eliminata: note e documenti restano nella scheda del contatto" : "Opportunità eliminata", {
         description: notaProgettiFv(result?.progettiFv || 0),
       });
     },
@@ -1167,7 +1171,7 @@ export function useBulkTagOpportunities() {
 
 export function useBulkDeleteOpportunities() {
   const queryClient = useQueryClient();
-  const { effectiveCompany } = useAuth();
+  const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
   const permissions = usePermissions();
 
@@ -1186,10 +1190,12 @@ export function useBulkDeleteOpportunities() {
       const archiveIds = ids.filter((id) => daArchiviare.has(id));
       const deleteIds = ids.filter((id) => !daArchiviare.has(id));
 
+      // Come l'eliminazione singola: fuori dalla pipeline, dati collegati salvi.
+      const adesso = new Date().toISOString();
       for (const blocco of aBlocchi(archiveIds, BLOCCO_MODIFICHE)) {
         const { error } = await supabase
           .from("marketing_opportunities")
-          .update({ status: "abandoned", updated_at: new Date().toISOString() })
+          .update({ status: "abandoned", deleted_at: adesso, deleted_by: user?.id ?? null, updated_at: adesso } as never)
           .eq("company_id", companyId)
           .in("id", blocco);
         if (error) throw error;
@@ -1214,8 +1220,8 @@ export function useBulkDeleteOpportunities() {
       const archived = result?.archived || 0;
       const deleted = result?.deleted || 0;
       const nota = notaProgettiFv(result?.progettiFv || 0);
-      if (archived && deleted) toast.success(`${deleted} eliminate, ${archived} archiviate perché avevano dati collegati`, { description: nota });
-      else if (archived) toast.success(`${archived} opportunità archiviate perché avevano dati collegati`, { description: nota });
+      if (archived && deleted) toast.success(`${deleted + archived} opportunità eliminate: di ${archived} note e documenti restano nel contatto`, { description: nota });
+      else if (archived) toast.success(`${archived} opportunità eliminate: note e documenti restano nel contatto`, { description: nota });
       else toast.success("Opportunità eliminate", { description: nota });
     },
     onError: (e: any) => toast.error(userErrorMessage(e, e?.message)),
