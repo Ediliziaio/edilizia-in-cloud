@@ -215,6 +215,7 @@ const LandingAIImprenditoreEdile = lazy(() => import("@/app/landing/ai-imprendit
 const AiEdilizia = lazy(() => import("@/app/ai-edilizia/page"));
 const PartnerPayoutPreview = lazy(() => import("@/pages/partner/PartnerPayoutPreview"));
 const ListinoAnteprima = lazy(() => import("@/pages/dev/ListinoAnteprima"));
+const PreventivoSerramentiAnteprima = lazy(() => import("@/pages/dev/PreventivoSerramentiAnteprima"));
 const AccountantLayout = lazy(() => import("@/pages/accountant/AccountantLayout"));
 const AccountantDashboard = lazy(() => import("@/pages/accountant/AccountantDashboard"));
 const AccountantCompaniesList = lazy(() => import("@/pages/accountant/AccountantCompaniesList"));
@@ -754,6 +755,10 @@ const App = () => (
               <Route
                 path="/dev/listino"
                 element={import.meta.env.DEV ? <ListinoAnteprima /> : <NotFound />}
+              />
+              <Route
+                path="/dev/preventivo-serramenti"
+                element={import.meta.env.DEV ? <PreventivoSerramentiAnteprima /> : <NotFound />}
               />
               {/* Portale commercialista — layout + nested routes.
                   Ogni azienda ha la sua pagina dedicata /commercialista/aziende/:companyId. */}

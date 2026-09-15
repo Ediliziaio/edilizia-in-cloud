@@ -9,8 +9,6 @@
  * preventivo: vedi ComplementiFinestra e lib/serramenti/complementiFinestra.
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -32,7 +30,7 @@ import { RectangleVertical, Plus, Trash2, Copy, Loader2, Upload, HelpCircle, Pac
 import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { ListinoPickerDialog, type ListinoPickResult, type PartenzaPicker } from "./ListinoPickerDialog";
+import { ListinoPickerDialog, type ListinoPickResult } from "./ListinoPickerDialog";
 import { AiSerramentiDraftLauncher } from "./AiSerramentiDraftLauncher";
 import { calcolaPrezzoProdotto, calcolaPosaInclusa, applyMaggiorazioniAssi } from "@/lib/serramenti/pricing";
 import { useFamilies, useFamily } from "@/hooks/useFamilies";
@@ -44,13 +42,13 @@ import { AccessoriSection } from "./AccessoriSection";
 import {
   useAddSerramento, useUpdateSerramento, useDeleteSerramento, useImportDaSopralluogo,
   useListinoFamiliesByIds, useListinoGriglia, useTariffeManodopera,
-  useAddAccessori, useUpdateAccessorio, useDeleteAccessorio, opzioniGriglia,
+  useAddAccessori, useUpdateAccessorio, useDeleteAccessorio,
 } from "@/lib/serramenti/queries";
 import { useListinoMacrocategorie } from "@/hooks/useListinoMacrocategorie";
 import {
   SR_TIPOLOGIE_SERRAMENTO, SR_MATERIALI,
 } from "@/types/serramenti";
-import type { SrAccessorioRow, SrProgettoDetail, SrSerramentoRow, SrMaterialePrincipale } from "@/types/serramenti";
+import type { SrProgettoDetail, SrSerramentoRow, SrMaterialePrincipale } from "@/types/serramenti";
 import { calcolaM2 } from "@/lib/serramenti/calcoli";
 import { SrCard, SrCallout } from "@/lib/serramenti/wizardUI";
 import { formatEuro, formatNumero } from "@/lib/serramenti/format";
@@ -66,16 +64,9 @@ import { gruppiColori, pulisciVoci, scelteDopo, testoScelta, vociDi } from "@/li
 import { schedaPosizione, scelteDaAssi } from "@/lib/serramenti/schedaPosizione";
 import { Checkbox } from "@/components/ui/checkbox";
 import { misuraDaTesto, quantitaDaTesto } from "@/lib/serramenti/righePreventivo";
-import { areaDelPreventivatore, indirizzoNelListino, preferenzeDaRiga, tipologieDaCompletare } from "@/lib/serramenti/pickerListino";
-import type { TipologiaListino } from "@/lib/listino/lineeListino";
-import {
-  accettaComplementi, chiedeProfondita, complementoDaScelta, complementoPerFinestra, conTotale, eComplemento,
-  copiaComplemento, haGiaComplemento, misureCheSeguono, modelloDaRiprendere, nomeBottone, nomeBreve,
-  prezzoComplemento, prodottiDellaTipologia, riepilogoComplementi, tipologiaDelComplemento,
-  tipologiaDelProdotto, tipologieComplemento, type ModelloRipreso,
-} from "@/lib/serramenti/complementiFinestra";
-import { BarraComplementi } from "./BarraComplementi";
-import { ComplementiFinestra } from "./ComplementiFinestra";
+import { preferenzeDaRiga } from "@/lib/serramenti/pickerListino";
+import { ComplementiFinestra, ComplementiSuTutteLeFinestre, EliminaComplementoDialog } from "./ComplementiFinestra";
+import { useComplementiFinestre } from "./useComplementiFinestre";
 
 interface Props {
   progettoId: string;
@@ -182,328 +173,25 @@ export function StepBom({ progettoId, detail }: Props) {
 
   // ─── Complementi delle finestre ──────────────────────────────────────────
   // Tapparella, zanzariera, cassonetto e persiana stanno nel box della loro
-  // finestra: un bottone per tipologia da complemento del listino, col modello
-  // già usato nel preventivo.
-  const queryClient = useQueryClient();
+  // finestra: la logica è in useComplementiFinestre, qui solo dove si salvano.
   const addComplementiMut = useAddAccessori(progettoId);
   const updateComplementoMut = useUpdateAccessorio(progettoId);
   const deleteComplementoMut = useDeleteAccessorio(progettoId);
-  const areaListino = useMemo(
-    () => areaDelPreventivatore(famiglieConAssi, macrosAll, categorie, "accessorio"),
-    [famiglieConAssi, macrosAll, categorie],
-  );
-  const tipologieArea = areaListino?.tipologie;
-  const tipologieComplementi = useMemo(() => tipologieComplemento(areaListino), [areaListino]);
-  // Tapparelle, zanzariere, cassonetti che il listino ha ma non propone nei preventivi (Renova, 15/09):
-  // senza, il box mostrava solo «a mano» e non si capiva perché.
-  const complementiDaCompletare = useMemo(
-    () => tipologieDaCompletare(famiglieConAssi, macrosAll, categorie, areaListino)
-      .filter((d) => eComplemento(d.tipologia))
-      .map((d) => ({ chiave: d.tipologia.chiave, nome: d.tipologia.nome, indirizzo: indirizzoNelListino(d.tipologia) })),
-    [famiglieConAssi, macrosAll, categorie, areaListino],
-  );
-  const complementiPerFinestra = useMemo(() => {
-    const m = new Map<string, SrAccessorioRow[]>();
-    const inOrdine = [...detail.accessori].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
-    for (const a of inOrdine) {
-      if (a.serramento_id) m.set(a.serramento_id, [...(m.get(a.serramento_id) ?? []), a]);
-    }
-    return m;
-  }, [detail.accessori]);
-  const prossimaPosizioneComplemento = detail.accessori.reduce((max, a) => Math.max(max, (a.position ?? 0) + 1), 0);
-  // Le posizioni col box dei complementi: le finestre sì, porte e persiane vendute da sole no.
-  const idConComplementi = useMemo(
-    () => new Set(serramenti.filter((s) => accettaComplementi(s, tipologieArea ?? [])).map((s) => s.id)),
-    [serramenti, tipologieArea],
-  );
-  // Le finestre a cui agganciare un complemento rimasto senza, numerate come nella lista.
-  const finestrePerAggancio = useMemo(
-    () => serramenti.flatMap((s, i) => (idConComplementi.has(s.id)
-      ? [{ id: s.id, etichetta: `${i + 1} · ${s.tipologia_label || "Finestra"}${s.larghezza_mm && s.altezza_mm ? ` · ${s.larghezza_mm}×${s.altezza_mm} mm` : ""}` }]
-      : [])),
-    [serramenti, idConComplementi],
-  );
-  const numeroFinestra = (id: string) => serramenti.findIndex((s) => s.id === id) + 1;
-  const grigliaDi = (familyId: string) => queryClient.fetchQuery(opzioniGriglia(familyId));
-  const misureTesto = (L: number | null, H: number | null) => (L && H ? `${L} × ${H} mm` : "senza misure");
-
-  /** Dove si sta aggiungendo un complemento (una finestra o «tutte») e di che tipologia. */
-  const [complementoInCorso, setComplementoInCorso] = useState<{ dove: string; tipologia: string } | null>(null);
-  const [complementoDaEliminare, setComplementoDaEliminare] = useState<SrAccessorioRow | null>(null);
-  /** Il listino aperto per un complemento: per quali finestre, o per cambiare il modello di uno. */
-  const [listinoComplemento, setListinoComplemento] = useState<{
-    finestre: SrSerramentoRow[];
-    sostituisce: SrAccessorioRow | null;
-    partenza: PartenzaPicker;
-    preferenze: ReturnType<typeof preferenzeDaRiga>;
-  } | null>(null);
-  const complementiOccupati = !!complementoInCorso || addComplementiMut.isPending;
-
-  /**
-   * Apre il listino per un complemento: sulla sua tipologia, con le misure della
-   * finestra (il cassonetto con la larghezza della finestra e l'altezza
-   * dell'ultimo cassonetto) e, se c'è, sul modello da cui ripartire.
-   */
-  const apriListinoComplemento = (opts: {
-    tipologia: TipologiaListino | null;
-    finestre: SrSerramentoRow[];
-    sostituisce?: SrAccessorioRow | null;
-    modello?: ModelloRipreso | null;
-  }) => {
-    const sostituisce = opts.sostituisce ?? null;
-    const [prima] = opts.finestre;
-    const nome = opts.tipologia ? nomeBottone(opts.tipologia) : "Complemento";
-    const cassonetto = !!opts.tipologia && chiedeProfondita(opts.tipologia);
-    const ultimoDellaTipologia = opts.tipologia
-      ? [...detail.accessori]
-        .sort((a, b) => (b.position ?? 0) - (a.position ?? 0))
-        .find((a) => haGiaComplemento([a], opts.tipologia as TipologiaListino))
-      : undefined;
-    const contesto = sostituisce
-      ? `Cambia il modello: ${sostituisce.descrizione || nome} · ${misureTesto(sostituisce.larghezza_mm, sostituisce.altezza_mm)}`
-      : opts.finestre.length > 1
-        ? `${nome} su ${opts.finestre.length} finestre: ognuna con le sue misure e il suo prezzo`
-        : `${nome} per la finestra ${numeroFinestra(prima?.id ?? "")} · ${misureTesto(prima?.larghezza_mm ?? null, prima?.altezza_mm ?? null)}`;
-    setListinoComplemento({
-      finestre: opts.finestre,
-      sostituisce,
-      preferenze: preferenzeDaRiga(sostituisce ?? ultimoDellaTipologia, famiglieConAssi),
-      partenza: {
-        tipologia: opts.tipologia?.chiave ?? null,
-        familyId: opts.modello?.riga.famiglia.id ?? null,
-        valori: opts.modello?.valori,
-        voci: opts.modello?.voci,
-        larghezza_mm: sostituisce ? sostituisce.larghezza_mm : (prima?.larghezza_mm ?? null),
-        altezza_mm: sostituisce
-          ? sostituisce.altezza_mm
-          : cassonetto ? (opts.modello?.misure.altezza_mm ?? null) : (prima?.altezza_mm ?? null),
-        quantita: sostituisce ? sostituisce.quantita : (prima?.quantita ?? 1),
-        contesto,
-      },
-    });
-  };
-
-  /**
-   * «+ Tapparella»: col modello già usato nel preventivo si aggiunge subito, con
-   * misure e prezzo di ogni finestra; al primo, fra più modelli, si sceglie dal
-   * listino. Una finestra che il listino non sa prezzare riapre il listino, dove
-   * si vede perché.
-   */
-  const aggiungiComplementi = async (tipologia: TipologiaListino, finestre: SrSerramentoRow[]) => {
-    if (finestre.length === 0 || complementiOccupati) return;
-    const nome = nomeBottone(tipologia);
-    const modello = modelloDaRiprendere(tipologia, detail.accessori);
-    if (!modello) {
-      apriListinoComplemento({ tipologia, finestre });
-      return;
-    }
-    const perUna = finestre.length === 1;
-    setComplementoInCorso({ dove: perUna ? finestre[0].id : "tutte", tipologia: tipologia.chiave });
-    try {
-      let griglia: Awaited<ReturnType<typeof grigliaDi>> = [];
-      if (modello.riga.famiglia.modalita_prezzo_base === "griglia") {
-        try {
-          griglia = await grigliaDi(modello.riga.famiglia.id);
-        } catch (e) {
-          toast.error(`${nome}: griglia prezzi non letta`, { description: e instanceof Error ? e.message : String(e) });
-          return;
-        }
-      }
-      const righe: Partial<SrAccessorioRow>[] = [];
-      const daCompletare: string[] = [];
-      const scartate: { finestra: SrSerramentoRow; errore: string; motivo: string }[] = [];
-      let position = prossimaPosizioneComplemento;
-      for (const finestra of finestre) {
-        const esito = complementoPerFinestra({
-          modello, tipologia, finestra, griglia, tariffePrezzi, supplierLines: supplierLineMap, position,
-        });
-        if ("errore" in esito) {
-          scartate.push({ finestra, errore: esito.errore, motivo: esito.motivo });
-          continue;
-        }
-        righe.push(esito.riga);
-        if (esito.daCompletare) daCompletare.push(esito.daCompletare);
-        position += 1;
-      }
-      if (righe.length > 0) {
-        try {
-          await addComplementiMut.mutateAsync(righe);
-        } catch {
-          return; // L'errore del salvataggio lo mostra già la mutazione.
-        }
-      }
-      const nomeModello = modello.riga.famiglia.nome;
-      if (perUna) {
-        const [scartata] = scartate;
-        if (!scartata) {
-          toast.success(`Alla finestra ${numeroFinestra(finestre[0].id)}: ${nomeModello}`, {
-            description: daCompletare[0] ?? "Il modello già usato nel preventivo: lo cambi dalla riga.",
-          });
-        } else if (scartata.motivo === "misure") {
-          toast.error(`Scrivi prima larghezza e altezza della finestra ${numeroFinestra(finestre[0].id)}`, {
-            description: `${nome}: le misure le prende da lì.`,
-          });
-        } else {
-          toast.warning(scartata.errore);
-          apriListinoComplemento({ tipologia, finestre, modello });
-        }
-        return;
-      }
-      if (righe.length > 0) {
-        toast.success(`${nomeModello} su ${righe.length} ${righe.length === 1 ? "finestra" : "finestre"}`, {
-          description: daCompletare.length > 0 ? `Da completare sulla riga: ${daCompletare[0]}` : undefined,
-        });
-      }
-      if (scartate.length > 0) {
-        toast.warning(`${nome}: saltate le finestre ${scartate.map((x) => numeroFinestra(x.finestra.id)).join(", ")}`, {
-          description: scartate[0].errore,
-        });
-      }
-    } finally {
-      setComplementoInCorso(null);
-    }
-  };
-
-  /** Su tutte le finestre: solo dove manca quella tipologia. */
-  const aggiungiATutte = (tipologia: TipologiaListino) => {
-    const senza = serramenti.filter((f) => idConComplementi.has(f.id)
-      && !haGiaComplemento(complementiPerFinestra.get(f.id) ?? [], tipologia));
-    if (senza.length === 0) {
-      toast.info(`${nomeBottone(tipologia)}: ce l'hanno già tutte le finestre`);
-      return;
-    }
-    void aggiungiComplementi(tipologia, senza);
-  };
-
-  /** Un complemento fuori listino: misure e pezzi della finestra, il resto sulla riga. */
-  const aggiungiComplementoAMano = (finestra: SrSerramentoRow) => {
-    addComplementiMut.mutate([{
-      tipo: "tapparella",
-      quantita: finestra.quantita ?? 1,
-      larghezza_mm: finestra.larghezza_mm,
-      altezza_mm: finestra.altezza_mm,
-      posa_esclusa: finestra.posa_esclusa ?? false,
-      serramento_id: finestra.id,
-      position: prossimaPosizioneComplemento,
-    }]);
-  };
-
-  /** Il prodotto scelto nel listino: un complemento nuovo, su una o più finestre, o il modello nuovo di uno. */
-  const confermaListinoComplemento = async (scelta: ListinoPickResult) => {
-    const richiesta = listinoComplemento;
-    if (!richiesta) return;
-    const tipologia = tipologiaDelProdotto(tipologieArea ?? [], scelta.family_id);
-    if (richiesta.sostituisce) {
-      // Cambia il modello, il posto resta: finestra, profondità, posa.
-      const { sostituisce } = richiesta;
-      updateComplementoMut.mutate({
-        id: sostituisce.id,
-        patch: complementoDaScelta(scelta, tipologia, sostituisce.posa_esclusa),
-      });
-      toast.success(`Modello cambiato: ${scelta.family_nome}`);
-      return;
-    }
-    const [prima, ...altre] = richiesta.finestre;
-    if (!prima) return;
-    let position = prossimaPosizioneComplemento;
-    const righe: Partial<SrAccessorioRow>[] = [{
-      ...complementoDaScelta(scelta, tipologia, prima.posa_esclusa ?? false),
-      serramento_id: prima.id,
-      position,
-    }];
-    position += 1;
-    const saltate: number[] = [];
-    // Su tutte le finestre: il modello scelto una volta, misure e prezzo di ognuna.
-    const riga = tipologia ? prodottiDellaTipologia(tipologia).find((r) => r.famiglia.id === scelta.family_id) : undefined;
-    if (altre.length > 0 && riga) {
-      const modello: ModelloRipreso = {
-        riga,
-        valori: scelta.valori_assi,
-        voci: scelta.scelte_assi ?? {},
-        misure: { altezza_mm: chiedeProfondita(tipologia, scelta.family_nome) ? scelta.altezza_mm : null, profondita_mm: null },
-      };
-      let griglia: Awaited<ReturnType<typeof grigliaDi>> = [];
-      try {
-        if (riga.famiglia.modalita_prezzo_base === "griglia") griglia = await grigliaDi(riga.famiglia.id);
-      } catch {
-        // Senza griglia le altre finestre risultano saltate, e lo si dice.
-      }
-      for (const finestra of altre) {
-        const esito = complementoPerFinestra({
-          modello, tipologia, finestra, griglia, tariffePrezzi, supplierLines: supplierLineMap, position,
-        });
-        if ("errore" in esito) {
-          saltate.push(numeroFinestra(finestra.id));
-          continue;
-        }
-        righe.push(esito.riga);
-        position += 1;
-      }
-    } else if (altre.length > 0) {
-      saltate.push(...altre.map((f) => numeroFinestra(f.id)));
-    }
-    try {
-      await addComplementiMut.mutateAsync(righe);
-    } catch {
-      return; // L'errore del salvataggio lo mostra già la mutazione.
-    }
-    toast.success(
-      righe.length > 1 ? `${scelta.family_nome} su ${righe.length} finestre` : `Alla finestra ${numeroFinestra(prima.id)}: ${scelta.family_nome}`,
-      saltate.length > 0
-        ? { description: `Saltate le finestre ${saltate.join(", ")}: misure fuori dal listino o senza prezzo` }
-        : undefined,
-    );
-  };
-
-  const cambiaModelloComplemento = (a: SrAccessorioRow) =>
-    apriListinoComplemento({ tipologia: tipologiaDelComplemento(tipologieComplementi, a), finestre: [], sostituisce: a });
-
-  const patchComplemento = (a: SrAccessorioRow, patch: Partial<SrAccessorioRow>) =>
-    updateComplementoMut.mutate({ id: a.id, patch: conTotale(a, patch) });
-
-  /**
-   * La finestra cambia misure, pezzi o posa: i suoi complementi la seguono. Una
-   * misura ritoccata a mano sul complemento resta; il prezzo del listino si rifà.
-   */
-  const seguiLaFinestra = async (prima: SrSerramentoRow, dopo: SrSerramentoRow) => {
-    const cambiaPosa = (dopo.posa_esclusa ?? false) !== (prima.posa_esclusa ?? false);
-    for (const c of complementiPerFinestra.get(prima.id) ?? []) {
-      const misure = misureCheSeguono(c, prima, dopo);
-      if (!misure && !cambiaPosa) continue;
-      const patch: Partial<SrAccessorioRow> = {
-        ...(misure ?? {}),
-        ...(cambiaPosa ? { posa_esclusa: dopo.posa_esclusa ?? false } : {}),
-      };
-      const prossimo = { ...c, ...patch };
-      const famiglia = c.family_id ? famiglieConAssi.find((f) => f.id === c.family_id) : undefined;
-      if (famiglia && famiglia.modalita_prezzo_base !== "misura_libera") {
-        try {
-          const griglia = famiglia.modalita_prezzo_base === "griglia" ? await grigliaDi(famiglia.id) : [];
-          const esito = prezzoComplemento({
-            famiglia,
-            valori: prossimo.valori_assi ?? {},
-            larghezza: prossimo.larghezza_mm,
-            altezza: prossimo.altezza_mm,
-            quantita: prossimo.quantita || 1,
-            posaEsclusa: prossimo.posa_esclusa,
-            griglia,
-            tariffePrezzi,
-            supplierLines: supplierLineMap,
-            lineaFornitore: c.supplier_product_line_id,
-          });
-          if ("errore" in esito) {
-            toast.warning(`${c.descrizione || nomeBreve(c.tipo)}: prezzo da controllare`, { description: esito.errore });
-          } else {
-            patch.prezzo_unitario = esito.unitario;
-            if (esito.voce) patch.listino_voce_id = esito.voce;
-          }
-        } catch {
-          // Griglia non letta: le misure seguono la finestra, il prezzo resta quello di prima.
-        }
-      }
-      updateComplementoMut.mutate({ id: c.id, patch: conTotale(c, patch) });
-    }
-  };
+  const complementi = useComplementiFinestre({
+    serramenti,
+    accessori: detail.accessori,
+    famiglie: famiglieConAssi,
+    macrocategorie: macrosAll,
+    categorie,
+    tariffePrezzi,
+    supplierLineMap,
+    salvataggi: {
+      aggiungi: (righe) => addComplementiMut.mutateAsync(righe),
+      aggiorna: (id, patch) => updateComplementoMut.mutate({ id, patch }),
+      elimina: (id) => deleteComplementoMut.mutate(id),
+      inCorso: addComplementiMut.isPending,
+    },
+  });
 
   // Nuovo flow: ListinoPicker ritorna già misure + prezzo unitario calcolato
   // (incluso eventuale posa configurata sul prodotto). Niente più auto-create
@@ -621,12 +309,7 @@ export function StepBom({ progettoId, detail }: Props) {
       note: s.note,
     }, {
       // La copia nasce coi complementi della finestra: la sua tapparella, la sua zanzariera.
-      onSuccess: (creata) => {
-        const suoi = complementiPerFinestra.get(s.id) ?? [];
-        if (suoi.length > 0) {
-          addComplementiMut.mutate(suoi.map((c, i) => copiaComplemento(c, creata.id, prossimaPosizioneComplemento + i)));
-        }
-      },
+      onSuccess: (creata) => complementi.duplicaComplementi(s.id, creata.id),
     });
   };
 
@@ -655,7 +338,7 @@ export function StepBom({ progettoId, detail }: Props) {
     }
     updateMut.mutate({ id, patch });
     // I complementi della finestra ne seguono misure, pezzi e posa.
-    if (orig) void seguiLaFinestra(orig, { ...orig, ...patch });
+    if (orig) void complementi.seguiLaFinestra(orig, { ...orig, ...patch });
   };
 
   const accessoriDaEliminare = toDelete ? detail.accessori.filter((a) => a.serramento_id === toDelete.id) : [];
@@ -747,19 +430,7 @@ export function StepBom({ progettoId, detail }: Props) {
               // prezzo restava quello con la posa dentro.
               onBulkUpdate={(esclusa) => setRichiestaBulkPosa({ esclusa, nonce: Date.now() })}
             />
-            {idConComplementi.size >= 2 && tipologieComplementi.length > 0 && (
-              <div className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1.5 rounded-md border border-slate-200 bg-slate-50/60 p-2.5">
-                <span className="text-xs font-semibold text-slate-700">Complementi su tutte le finestre:</span>
-                <BarraComplementi
-                  tipologie={tipologieComplementi}
-                  onAggiungi={aggiungiATutte}
-                  inCorso={complementoInCorso?.dove === "tutte" ? complementoInCorso.tipologia : null}
-                  occupata={complementiOccupati}
-                  destinazione="Su tutte le finestre"
-                />
-                <span className="text-[10px] text-muted-foreground">solo dove manca, col modello già usato</span>
-              </div>
-            )}
+            {complementi.barraTutte && <ComplementiSuTutteLeFinestre {...complementi.barraTutte} />}
             <div className="space-y-2 mb-3">
               {serramenti.map((s, idx) => {
               const family = s.family_id ? familiesById.get(s.family_id) : undefined;
@@ -769,8 +440,7 @@ export function StepBom({ progettoId, detail }: Props) {
               const macroId = familyAny?.macrocategoria_id
                 ?? (family?.categoria_id ? catToMacro.get(family.categoria_id) : undefined);
               const macroNome = macroId ? macroIdToNome.get(macroId) : undefined;
-              const suoiComplementi = complementiPerFinestra.get(s.id) ?? [];
-              const conBox = idConComplementi.has(s.id);
+              const bloccoComplementi = complementi.blocco(s, idx);
               return (
                 <SerramentoRow
                   key={s.id}
@@ -791,25 +461,8 @@ export function StepBom({ progettoId, detail }: Props) {
                   supplierLineMap={supplierLineMap}
                   richiestaBulk={richiestaBulk}
                   richiestaBulkPosa={richiestaBulkPosa}
-                  testoComplementi={riepilogoComplementi(suoiComplementi)}
-                  complementi={conBox || suoiComplementi.length > 0 ? (
-                    <ComplementiFinestra
-                      finestra={s}
-                      complementi={suoiComplementi}
-                      tipologie={conBox ? tipologieComplementi : []}
-                      tariffePrezzi={tariffePrezzi}
-                      supplierLineMap={supplierLineMap}
-                      onAggiungi={(t) => void aggiungiComplementi(t, [s])}
-                      onAMano={conBox ? () => aggiungiComplementoAMano(s) : undefined}
-                      onCambiaModello={cambiaModelloComplemento}
-                      onPatch={patchComplemento}
-                      onElimina={setComplementoDaEliminare}
-                      inCorso={complementoInCorso?.dove === s.id ? complementoInCorso.tipologia : null}
-                      occupata={complementiOccupati}
-                      destinazione={`Alla finestra ${idx + 1}`}
-                      daCompletare={conBox ? complementiDaCompletare : []}
-                    />
-                  ) : null}
+                  testoComplementi={complementi.riepilogo(s.id)}
+                  complementi={bloccoComplementi ? <ComplementiFinestra {...bloccoComplementi} /> : null}
                 />
               );
             })}
@@ -863,21 +516,7 @@ export function StepBom({ progettoId, detail }: Props) {
         />
 
         {/* Il listino per un complemento: sulla sua tipologia, con le misure della finestra. */}
-        <ListinoPickerDialog
-          open={!!listinoComplemento}
-          onOpenChange={(aperto) => { if (!aperto) setListinoComplemento(null); }}
-          onSelect={(scelta) => void confermaListinoComplemento(scelta)}
-          tipo="accessorio"
-          partenza={listinoComplemento?.partenza ?? null}
-          preferenzeAssi={listinoComplemento?.preferenze}
-          testoConferma={
-            listinoComplemento?.sostituisce
-              ? "Cambia modello"
-              : (listinoComplemento?.finestre.length ?? 0) > 1
-                ? `Aggiungi a ${listinoComplemento?.finestre.length} finestre`
-                : "Aggiungi alla finestra"
-          }
-        />
+        <ListinoPickerDialog {...complementi.picker} />
 
         <ManualAddDialog
           open={manualDialogOpen}
@@ -889,7 +528,7 @@ export function StepBom({ progettoId, detail }: Props) {
       </SrCard>
 
       {/* I complementi rimasti senza finestra, da agganciare: gli altri stanno nel box della loro finestra. */}
-      <AccessoriSection progettoId={progettoId} detail={detail} finestre={finestrePerAggancio} />
+      <AccessoriSection progettoId={progettoId} detail={detail} finestre={complementi.finestrePerAggancio} />
 
       {/* Sezione Servizi aggiuntivi — trasporto, ENEA, smaltimento, ecc.
           La manodopera/posa è inclusa nel prezzo del singolo prodotto. */}
@@ -944,31 +583,7 @@ export function StepBom({ progettoId, detail }: Props) {
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog
-        open={!!complementoDaEliminare}
-        onOpenChange={(aperto) => { if (!aperto) setComplementoDaEliminare(null); }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              Eliminare {complementoDaEliminare ? complementoDaEliminare.descrizione || nomeBreve(complementoDaEliminare.tipo) : "il complemento"}?
-            </AlertDialogTitle>
-            <AlertDialogDescription>Esce dal preventivo; la finestra resta com'è.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-rose-600 hover:bg-rose-700"
-              onClick={() => {
-                if (complementoDaEliminare) deleteComplementoMut.mutate(complementoDaEliminare.id);
-                setComplementoDaEliminare(null);
-              }}
-            >
-              Elimina
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <EliminaComplementoDialog {...complementi.eliminazione} />
 
       {/* AlertDialog: import sopralluogo con serramenti già esistenti.
           Tre opzioni esplicite (Annulla / Aggiungi in coda / Sostituisci tutto)
@@ -1288,7 +903,7 @@ function BulkAssiActions({
 
 // ─── Singola riga serramento (collassabile) ─────────────────────────────────
 
-function SerramentoRow({
+export function SerramentoRow({
   serramento: s, index, expanded, onToggle, onPatch, onDuplicate, onDelete,
   family, macroId, macroNome, tariffePrezzi, supplierLineMap, richiestaBulk, richiestaBulkPosa,
   testoComplementi, complementi,
@@ -1771,7 +1386,7 @@ function SerramentoRow({
             )}
             {testoComplementi && (
               <span className="text-[10px] font-medium text-orange-800 bg-orange-50 border border-orange-200 rounded px-1.5 py-0.5">
-                + {testoComplementi}
+                con {testoComplementi}
               </span>
             )}
           </button>

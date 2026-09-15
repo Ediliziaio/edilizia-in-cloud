@@ -543,7 +543,7 @@ export function ListinoPickerDialog({
                       onClick={() => scegliTipologia(t)}
                       className="text-left rounded-lg border-2 border-slate-200 hover:border-orange-400 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-orange-400 transition group overflow-hidden bg-white flex flex-col"
                     >
-                      <div className="relative aspect-[4/3] bg-slate-50 border-b border-slate-100 flex items-center justify-center">
+                      <div className="relative aspect-[16/9] sm:aspect-[4/3] bg-slate-50 border-b border-slate-100 flex items-center justify-center">
                         {foto ? (
                           <img loading="lazy" src={foto} alt={t.nome} className="absolute inset-0 w-full h-full object-contain p-2" />
                         ) : (
@@ -586,7 +586,7 @@ export function ListinoPickerDialog({
                     onClick={() => scegliLinea(l)}
                     className="text-left rounded-lg border-2 border-slate-200 hover:border-orange-400 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-orange-400 transition group overflow-hidden bg-white flex flex-col"
                   >
-                    <div className="relative aspect-[4/3] bg-slate-50 border-b border-slate-100 flex items-center justify-center">
+                    <div className="relative aspect-[16/9] sm:aspect-[4/3] bg-slate-50 border-b border-slate-100 flex items-center justify-center">
                       {foto ? (
                         <img loading="lazy" src={foto} alt={l.nome} className="absolute inset-0 w-full h-full object-contain p-2" />
                       ) : (
@@ -870,7 +870,7 @@ export function ListinoPickerDialog({
           </div>
         )}
 
-        <div className="mt-1 flex flex-col gap-2 border-t pt-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="sticky -bottom-4 z-10 -mx-4 mt-1 flex flex-col gap-2 border-t bg-background px-4 pb-4 pt-3 sm:static sm:mx-0 sm:flex-row sm:items-center sm:justify-between sm:px-0 sm:pb-0">
           <div className="text-[11px] text-muted-foreground">
             {vista === "misure" && richiedeMisure && (!larghezza || !altezza) && (
               <span>Inserisci larghezza e altezza per calcolare il prezzo.</span>
@@ -927,8 +927,8 @@ function SchedaProdotto({ riga, contesto, onClick }: { riga: RigaListino; contes
       {f.immagine_url ? (
         <img loading="lazy" src={f.immagine_url} alt={f.nome} className="w-full h-32 object-contain bg-slate-50" />
       ) : (
-        <div className="w-full h-32 flex items-center justify-center bg-slate-50 text-slate-300">
-          <Package className="h-10 w-10" />
+        <div className="w-full h-14 sm:h-32 flex items-center justify-center bg-slate-50 text-slate-300">
+          <Package className="h-6 w-6 sm:h-10 sm:w-10" />
         </div>
       )}
       <div className="p-2.5 flex flex-col gap-1 flex-1">

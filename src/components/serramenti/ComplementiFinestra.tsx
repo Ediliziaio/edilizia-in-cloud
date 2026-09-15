@@ -9,6 +9,10 @@
  */
 import { useEffect, useMemo, useRef } from "react";
 import { ExternalLink, RefreshCw, Sparkles, Trash2 } from "lucide-react";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -197,6 +201,8 @@ export function ComplementoRiga({
     useRicalcoloComplemento(a, tariffePrezzi, supplierLineMap, onPatch);
   const dalListino = !!a.family_id;
   const nome = a.descrizione || nomeBreve(a.tipo);
+  // Solo le misure che mancano: un cassonetto ha già la larghezza della finestra.
+  const misureMancanti = [!a.larghezza_mm && "la larghezza", !a.altezza_mm && "l'altezza"].filter(Boolean).join(" e ");
 
   return (
     <div className="rounded-md border border-slate-200 bg-white p-2">
@@ -323,7 +329,7 @@ export function ComplementoRiga({
       {fuoriMisura ? (
         <p className="mt-1 text-[10px] font-medium text-rose-700">Misure fuori dal listino: il prezzo non si aggiorna</p>
       ) : mancaMisura ? (
-        <p className="mt-1 text-[10px] font-medium text-amber-700">Scrivi larghezza e altezza: il prezzo del listino si calcola da lì</p>
+        <p className="mt-1 text-[10px] font-medium text-amber-700">Scrivi {misureMancanti}: il prezzo del listino si calcola da lì</p>
       ) : null}
 
       {assi.length > 0 && (
@@ -464,5 +470,57 @@ export function ComplementiFinestra({
         />
       )}
     </section>
+  );
+}
+
+/** La barra sopra la composizione: un complemento su tutte le finestre che non ce l'hanno. */
+export function ComplementiSuTutteLeFinestre({
+  tipologie, onAggiungi, inCorso, occupata,
+}: {
+  tipologie: readonly TipologiaListino[];
+  onAggiungi: (tipologia: TipologiaListino) => void;
+  inCorso: string | null;
+  occupata: boolean;
+}) {
+  return (
+    <div className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1.5 rounded-md border border-slate-200 bg-slate-50/60 p-2.5">
+      <span className="text-xs font-semibold text-slate-700">Complementi su tutte le finestre:</span>
+      <BarraComplementi
+        tipologie={tipologie}
+        onAggiungi={onAggiungi}
+        inCorso={inCorso}
+        occupata={occupata}
+        destinazione="Su tutte le finestre"
+      />
+      <span className="text-[10px] text-muted-foreground">solo dove manca, col modello già usato</span>
+    </div>
+  );
+}
+
+/** Conferma prima di togliere un complemento: la finestra resta com'è. */
+export function EliminaComplementoDialog({
+  complemento, onAnnulla, onConferma,
+}: {
+  complemento: SrAccessorioRow | null;
+  onAnnulla: () => void;
+  onConferma: () => void;
+}) {
+  return (
+    <AlertDialog open={!!complemento} onOpenChange={(aperto) => { if (!aperto) onAnnulla(); }}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>
+            Eliminare {complemento ? complemento.descrizione || nomeBreve(complemento.tipo) : "il complemento"}?
+          </AlertDialogTitle>
+          <AlertDialogDescription>Esce dal preventivo; la finestra resta com'è.</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Annulla</AlertDialogCancel>
+          <AlertDialogAction className="bg-rose-600 hover:bg-rose-700" onClick={onConferma}>
+            Elimina
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }

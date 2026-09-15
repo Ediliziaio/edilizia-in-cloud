@@ -25,6 +25,8 @@ interface ChecklistItem {
   ok: boolean;
   label: string;
   hint?: string;
+  /** Consigliato, non obbligatorio: se manca, PDF, link firma e commessa si fanno lo stesso. */
+  facoltativo?: boolean;
 }
 
 export function StepPdf({ progettoId, detail }: Props) {
@@ -90,12 +92,14 @@ export function StepPdf({ progettoId, detail }: Props) {
     {
       ok: !!p.consulenza_at,
       label: "Appuntamento di consulenza",
-      hint: !p.consulenza_at ? "Imposta data e ora nello Step Consulenza" : undefined,
+      // Il titolare (15/09): la data non è obbligatoria. Senza, il PDF non la scrive.
+      facoltativo: true,
+      hint: !p.consulenza_at ? "facoltativo: senza data il PDF non la scrive" : undefined,
     },
   ];
 
-  const ready = checks.every((c) => c.ok);
-  const erroriCount = checks.filter((c) => !c.ok).length;
+  const ready = checks.every((c) => c.ok || c.facoltativo);
+  const erroriCount = checks.filter((c) => !c.ok && !c.facoltativo).length;
   const paginaFirmaUrl = p.public_url ?? p.pdf_html_url;
 
   return (
@@ -161,10 +165,10 @@ export function StepPdf({ progettoId, detail }: Props) {
               {c.ok ? (
                 <Check className="h-4 w-4 text-orange-600 shrink-0 mt-0.5" />
               ) : (
-                <AlertCircle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+                <AlertCircle className={`h-4 w-4 shrink-0 mt-0.5 ${c.facoltativo ? "text-slate-400" : "text-amber-500"}`} />
               )}
               <div className="flex-1">
-                <span className={c.ok ? "text-foreground" : "text-amber-700 font-medium"}>{c.label}</span>
+                <span className={c.ok ? "text-foreground" : c.facoltativo ? "text-muted-foreground" : "text-amber-700 font-medium"}>{c.label}</span>
                 {c.hint && (
                   <span className="text-muted-foreground ml-1">— {c.hint}</span>
                 )}
