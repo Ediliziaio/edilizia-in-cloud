@@ -21,6 +21,7 @@
  * Auth: super_admin / company_admin / company_staff con email_oauth_connection
  * di proprietà.
  */
+import { credenzialiGmail } from "../_shared/gmailOAuthCredentials.ts";
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { smtpSend, buildRFC822, imapAppend, type SmtpAttachment } from "../_shared/imapSmtpClient.ts";
 import { getMsOAuthCredentials } from "../_shared/msOAuth.ts";
@@ -62,7 +63,7 @@ async function refreshTokenIfNeeded(
 
   const tokenUrl = conn.provider === "gmail" ? TOKEN_URL_GMAIL : TOKEN_URL_OUTLOOK;
   const { clientId, clientSecret } = conn.provider === "gmail"
-    ? { clientId: Deno.env.get("GOOGLE_OAUTH_CLIENT_ID"), clientSecret: Deno.env.get("GOOGLE_OAUTH_CLIENT_SECRET") }
+    ? { clientId: credenzialiGmail().clientId, clientSecret: credenzialiGmail().clientSecret }
     : await getMsOAuthCredentials();
   if (!clientId || !clientSecret) throw new Error(`${conn.provider}_oauth_not_configured`);
 

@@ -10,6 +10,7 @@
  * Auth: utente autenticato. Non espone secret, solo check booleani e preview mascherati.
  */
 
+import { credenzialiGmail } from "../_shared/gmailOAuthCredentials.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { getMsOAuthCredentials } from "../_shared/msOAuth.ts";
@@ -100,8 +101,8 @@ Deno.serve(async (req) => {
     });
   }
 
-  const googleId = Deno.env.get("GOOGLE_OAUTH_CLIENT_ID");
-  const googleSecret = Deno.env.get("GOOGLE_OAUTH_CLIENT_SECRET");
+  const googleId = credenzialiGmail().clientId;
+  const googleSecret = credenzialiGmail().clientSecret;
   // Stessa risoluzione delle funzioni che le usano davvero: se la diagnostica
   // guardasse solo la env, direbbe "manca" con le credenziali in platform_settings.
   const ms = await getMsOAuthCredentials();
@@ -145,8 +146,8 @@ Deno.serve(async (req) => {
   const fnDeployed = { count: expectedFns.length, missing: [] as string[] };
 
   const missing: string[] = [];
-  if (!googleId) missing.push("GOOGLE_OAUTH_CLIENT_ID");
-  if (!googleSecret) missing.push("GOOGLE_OAUTH_CLIENT_SECRET");
+  if (!googleId) missing.push(credenzialiGmail().nomeId);
+  if (!googleSecret) missing.push(credenzialiGmail().nomeSecret);
   if (!msId) missing.push("MS_OAUTH_CLIENT_ID (o OUTLOOK_CLIENT_ID / platform_settings outlook_client_id)");
   if (!msSecret) missing.push("MS_OAUTH_CLIENT_SECRET (o OUTLOOK_CLIENT_SECRET / platform_settings outlook_client_secret)");
   if (!inbound) missing.push("INBOUND_EMAIL_SECRET (per webhook ingest, può aspettare)");

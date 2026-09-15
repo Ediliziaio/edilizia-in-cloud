@@ -11,6 +11,7 @@
  *   { success: true, connection_id: uuid, email_address: string, provider }
  */
 
+import { credenzialiGmail } from "../_shared/gmailOAuthCredentials.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
@@ -191,8 +192,8 @@ Deno.serve(async (req) => {
   let clientSecret: string | undefined;
   if (stateDecoded.provider === "gmail") {
     tokenUrl = GMAIL_TOKEN_URL;
-    clientId = Deno.env.get("GOOGLE_OAUTH_CLIENT_ID");
-    clientSecret = Deno.env.get("GOOGLE_OAUTH_CLIENT_SECRET");
+    clientId = credenzialiGmail().clientId;
+    clientSecret = credenzialiGmail().clientSecret;
   } else {
     tokenUrl = OUTLOOK_TOKEN_URL;
     ({ clientId, clientSecret } = await getMsOAuthCredentials());

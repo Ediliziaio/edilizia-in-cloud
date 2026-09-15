@@ -11,6 +11,7 @@
  * Auth: x-cron-secret (env PROACTIVE_CRON_SECRET) o service_role.
  */
 
+import { credenzialiGmail } from "../_shared/gmailOAuthCredentials.ts";
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 
@@ -300,7 +301,7 @@ async function refreshTokenIfNeeded(
 
   const tokenUrl = conn.provider === "gmail" ? TOKEN_URL_GMAIL : TOKEN_URL_OUTLOOK;
   const { clientId, clientSecret } = conn.provider === "gmail"
-    ? { clientId: Deno.env.get("GOOGLE_OAUTH_CLIENT_ID"), clientSecret: Deno.env.get("GOOGLE_OAUTH_CLIENT_SECRET") }
+    ? { clientId: credenzialiGmail().clientId, clientSecret: credenzialiGmail().clientSecret }
     : await getMsOAuthCredentials();
   if (!clientId || !clientSecret) throw new Error(`${conn.provider}_oauth_not_configured`);
 

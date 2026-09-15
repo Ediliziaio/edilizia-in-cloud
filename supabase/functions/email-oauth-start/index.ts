@@ -17,6 +17,7 @@
  * (user_id = auth.uid()) e non condivisa con il tenant.
  */
 
+import { credenzialiGmail } from "../_shared/gmailOAuthCredentials.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
@@ -174,7 +175,7 @@ Deno.serve(async (req) => {
       return null;
     }
     if (!v.endsWith(".apps.googleusercontent.com")) {
-      return "GOOGLE_OAUTH_CLIENT_ID non ha la forma di un ID applicazione Google "
+      return `${credenzialiGmail().nomeId} non ha la forma di un ID applicazione Google `
         + "(deve finire con .apps.googleusercontent.com).";
     }
     return null;
@@ -182,9 +183,9 @@ Deno.serve(async (req) => {
 
   let authUrl: string;
   if (body.provider === "gmail") {
-    const clientId = Deno.env.get("GOOGLE_OAUTH_CLIENT_ID");
+    const clientId = credenzialiGmail().clientId;
     if (!clientId) {
-      return new Response(JSON.stringify({ error: "GOOGLE_OAUTH_CLIENT_ID not configured" }), {
+      return new Response(JSON.stringify({ error: `${credenzialiGmail().nomeId} not configured` }), {
         status: 500, headers: { ...cors, "Content-Type": "application/json" },
       });
     }

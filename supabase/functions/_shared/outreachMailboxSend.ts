@@ -17,6 +17,7 @@
 
 // deno-lint-ignore-file no-explicit-any
 
+import { credenzialiGmail } from "./gmailOAuthCredentials.ts";
 import { buildRFC822, smtpSend } from "./imapSmtpClient.ts";
 import { getMsOAuthCredentials } from "./msOAuth.ts";
 import { getSuppressedEmailMap, normalizeEmailAddress } from "./emailSuppression.ts";
@@ -95,7 +96,7 @@ export async function getOauthAccessToken(admin: any, connectionId: string): Pro
   if (!t.refresh_token) throw new Error("refresh_token_missing");
 
   const { clientId, clientSecret } = t.provider === "gmail"
-    ? { clientId: Deno.env.get("GOOGLE_OAUTH_CLIENT_ID"), clientSecret: Deno.env.get("GOOGLE_OAUTH_CLIENT_SECRET") }
+    ? { clientId: credenzialiGmail().clientId, clientSecret: credenzialiGmail().clientSecret }
     : await getMsOAuthCredentials();
   if (!clientId || !clientSecret) throw new Error(`${t.provider}_oauth_not_configured`);
   const res = await fetch(t.provider === "gmail" ? TOKEN_URL_GMAIL : TOKEN_URL_OUTLOOK, {
