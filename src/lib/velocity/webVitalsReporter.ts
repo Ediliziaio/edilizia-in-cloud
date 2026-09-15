@@ -128,12 +128,33 @@ function handleMetric(metric: MetricType) {
   }
 }
 
+/**
+ * Il sito pubblico (blog, funzionalità, confronti) faceva il 97% degli invii:
+ * ~30.000 righe e ~15.000 chiamate al giorno per visitatori e bot, contro poche
+ * centinaia dalle pagine dell'app — su un database Micro che il 15/09/2026 si è
+ * bloccato due volte. L'app si misura tutta; il sito pubblico solo a campione, e
+ * i browser automatici mai.
+ */
+const CAMPIONE_SITO_PUBBLICO = 0.05;
+const HOST_APP = /^(app|admin|lavori|clienti|commercialista|referral|produttore)\./;
+
+export function daMisurare(
+  host: string = typeof location !== "undefined" ? location.hostname : "",
+  automatico: boolean = typeof navigator !== "undefined" && navigator.webdriver === true,
+  caso: number = Math.random(),
+): boolean {
+  if (automatico) return false;
+  if (HOST_APP.test(host)) return true;
+  return caso < CAMPIONE_SITO_PUBBLICO;
+}
+
 export async function initWebVitalsReporter(): Promise<void> {
   if (initialized) return;
   initialized = true;
 
   // In dev non inviamo: troppa rumore e non c'è utente reale
   if (import.meta.env.DEV) return;
+  if (!daMisurare()) return;
 
   try {
     // Lazy-load della lib così il peso non entra nell'entry bundle

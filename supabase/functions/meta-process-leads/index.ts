@@ -360,7 +360,9 @@ async function processLeadEvent(adminClient: any, event: any): Promise<{ contact
       }
       return undefined;
     };
-    const fullName = pick("full_name");
+    // «name» è il campo nome dei moduli Meta più vecchi (Il Bagno Group, 15/09/2026):
+    // senza, il contatto nasceva «Lead».
+    const fullName = pick("full_name", "name");
     const fName = pick("first_name");
     const lName = pick("last_name");
     const mail = pick("email");

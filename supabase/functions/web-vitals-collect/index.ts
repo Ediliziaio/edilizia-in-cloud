@@ -36,6 +36,19 @@ const MAX_METRICS_PER_BATCH = 20;
 const VALID_METRIC_NAMES = new Set(["LCP", "INP", "CLS", "TTFB", "FCP", "FID"]);
 const VALID_RATINGS = new Set(["good", "needs-improvement", "poor"]);
 
+/** Il token è un JWT con un utente dentro? (la chiave pubblica non lo è) */
+function haUtente(token: string): boolean {
+  const parti = token.split(".");
+  if (parti.length !== 3) return false;
+  try {
+    const base64 = parti[1].replace(/-/g, "+").replace(/_/g, "/");
+    const payload = JSON.parse(atob(base64.padEnd(base64.length + (4 - base64.length % 4) % 4, "=")));
+    return typeof payload?.sub === "string" && payload.sub.length > 0;
+  } catch {
+    return false;
+  }
+}
+
 interface MetricPayload {
   name: string;
   value: number;
@@ -83,13 +96,19 @@ Deno.serve(async (req) => {
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
-    // User id (best-effort): lo estraiamo dal JWT se presente, altrimenti null
+    // User id (best-effort). Il client manda quasi sempre la chiave pubblica,
+    // che non è un utente: chiedere comunque getUser() costava una chiamata
+    // all'autenticazione per ogni invio, rifiutata con 403 «missing sub claim»
+    // — ~15.500 al giorno dal sito pubblico, 15/09/2026. Si chiede solo se il
+    // token porta davvero un utente (sub).
     let userId: string | null = null;
     const authHeader = req.headers.get("Authorization");
     if (authHeader?.startsWith("Bearer ")) {
       const token = authHeader.slice(7);
-      const { data } = await admin.auth.getUser(token);
-      userId = data.user?.id ?? null;
+      if (haUtente(token)) {
+        const { data } = await admin.auth.getUser(token);
+        userId = data.user?.id ?? null;
+      }
     }
 
     let body: RequestBody;
