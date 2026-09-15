@@ -306,7 +306,11 @@ export async function sendOpenWaMessage(admin: Admin, params: SendParams): Promi
     fonte: datiContatto.fonte,
     tag: datiContatto.tag,
   }));
-  if (params.coldOutreach) {
+  // La nota si può spegnere (platform_settings.openwa_nota_optout_attiva = 'false'):
+  // il titolare (15/09/2026) non vuole frasi aggiunte dal motore, né nelle email né
+  // su WhatsApp. Spenta, resta il rischio scritto sopra: chi non sa come dire basta
+  // blocca il numero invece di rispondere.
+  if (params.coldOutreach && (await getPlatformSetting("openwa_nota_optout_attiva")).trim().toLowerCase() !== "false") {
     const nota = (await getPlatformSetting("openwa_nota_optout"))
       || "Se preferisci non ricevere altri messaggi, rispondi STOP.";
     // Solo se non l'ha gia' scritta l'autore del messaggio.
