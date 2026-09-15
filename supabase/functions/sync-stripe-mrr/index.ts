@@ -158,6 +158,178 @@ function isRegalata(company: InternalCompany): boolean {
   return !!method && NON_PAYING_METHODS.has(method);
 }
 
+// ─── Abbonamenti accessori ─────────────────────────────────
+// Dal 15/09/2026 un'azienda può avere, sullo stesso customer Stripe del piano,
+// abbonamenti che il piano non sono: l'add-on WhatsApp Business e gli Agenti AI.
+// Contati come piano, un'azienda da 127 € con l'add-on risultava 157 € su Stripe
+// contro 127 € interni, due volte fra le aziende Stripe e con un «prezzo diverso
+// dal piano» che non esiste. Restano contati, ma a parte, come gli altri
+// prodotti AEDIX.
+
+/** metadata.type scritto da create-checkout-session → nome nel dettaglio discrepanze. */
+const ACCESSORI = new Map<string, string>([
+  ["whatsapp_addon", "add-on WhatsApp Business"],
+  ["ai_subscription", "Agenti AI"],
+]);
+
+const PREFISSO_ADDON = "addon_stripe:";
+
+/**
+ * Accessori riconoscibili anche senza metadati (aperti prima che il checkout li
+ * scrivesse sull'abbonamento): quelli che stripe-webhook ha registrato.
+ * id abbonamento → tipo.
+ */
+async function accessoriRegistrati(): Promise<Map<string, string>> {
+  const [agentiAI, overrideWhatsApp] = await Promise.all([
+    supabase.from("ai_subscriptions").select("stripe_subscription_id").not("stripe_subscription_id", "is", null),
+    supabase.from("company_feature_overrides").select("override_reason").eq("feature_key", "whatsapp"),
+  ]);
+  // Senza questi elenchi un accessorio senza metadati finirebbe contato come
+  // piano: meglio nessuno snapshot oggi che uno sbagliato.
+  if (agentiAI.error) throw new Error(`ai_subscriptions: ${agentiAI.error.message}`);
+  if (overrideWhatsApp.error) throw new Error(`company_feature_overrides: ${overrideWhatsApp.error.message}`);
+  const registrati = new Map<string, string>();
+  for (const riga of agentiAI.data ?? []) registrati.set(riga.stripe_subscription_id, "ai_subscription");
+  for (const riga of overrideWhatsApp.data ?? []) {
+    const motivo = String(riga.override_reason ?? "");
+    if (motivo.startsWith(PREFISSO_ADDON)) registrati.set(motivo.slice(PREFISSO_ADDON.length), "whatsapp_addon");
+  }
+  return registrati;
+}
+
+/** Il tipo dell'abbonamento se è un accessorio, null se è il piano. Prima i metadati, poi i registri. */
+function tipoAccessorio(sub: StripeSubscription, registrati: Map<string, string>): string | null {
+  const tipo = sub.metadata?.type;
+  if (tipo && ACCESSORI.has(tipo)) return tipo;
+  return registrati.get(sub.id) ?? null;
+}
+
+type RigaDiscrepanza = {
+  company_id: string; nome: string; mrr_stripe: number; mrr_interno: number; motivo: string;
+};
+
+/** Stripe contro database: tutto quello che va nello snapshot, senza letture né scritture. */
+function riconcilia(
+  subscriptions: StripeSubscription[],
+  attive: InternalCompany[],
+  registrati: Map<string, string>,
+) {
+  // L'account Stripe e' CONDIVISO con gli altri prodotti AEDIX. Una
+  // sottoscrizione che non risale a nessuna azienda non e' fatturato di
+  // Edilizia in Cloud, ed e' il motivo per cui il cruscotto ha letto 243,13
+  // il 4 settembre e 127 il giorno dopo: quattro abbonamenti di un altro
+  // prodotto si erano chiusi, e finche' erano dentro gonfiavano un numero
+  // che non era mai stato nostro. Restano contati, ma a parte.
+  const perCustomer = new Map<string, InternalCompany>();
+  for (const c of attive) {
+    if (c.stripe_customer_id) perCustomer.set(c.stripe_customer_id, c);
+  }
+  const subNostre = subscriptions.filter((sub) => perCustomer.has(sub.customer));
+  const subAltrui = subscriptions.filter((sub) => !perCustomer.has(sub.customer));
+
+  // Delle nostre, il piano da una parte e gli accessori dall'altra.
+  const subPiano: StripeSubscription[] = [];
+  const subAccessori: Array<{ sub: StripeSubscription; tipo: string }> = [];
+  for (const sub of subNostre) {
+    const tipo = tipoAccessorio(sub, registrati);
+    if (tipo) subAccessori.push({ sub, tipo });
+    else subPiano.push(sub);
+  }
+
+  // MRR e aziende Stripe si confrontano con il MRR interno, che conta solo il
+  // piano: stessa base, e aziende invece di abbonamenti.
+  const mrrStripe = subPiano.reduce((s, sub) => s + calcMrrCents(sub), 0);
+  const aziendeAttivaStripe = new Set(subPiano.map((sub) => sub.customer)).size;
+  const mrrAltriProdotti = subAltrui.reduce((s, sub) => s + calcMrrCents(sub), 0);
+  const mrrAccessori = subAccessori.reduce((s, { sub }) => s + calcMrrCents(sub), 0);
+
+  const paidCompanies = attive.filter(countsAsPaidRevenue);
+  const mrrInterno = paidCompanies.reduce((s, c) => s + companyMrrCents(c), 0);
+
+  // Quanto vale, a listino, quello che stiamo regalando. Non e' fatturato e
+  // non deve sommarsi al MRR, ma senza questo numero non si sa se un mese
+  // piatto e' un mercato fermo o troppa generosita'.
+  const regalate = attive.filter(isRegalata);
+  const mrrRegalato = regalate.reduce((s, c) => s + companyMrrCents(c), 0);
+
+  // Breakdown per piano (Stripe metadata.plan_name)
+  const breakdownPerPiano: Record<string, number> = {};
+  subPiano.forEach((sub) => {
+    const planName = sub.metadata?.plan_name ?? "sconosciuto";
+    breakdownPerPiano[planName] = (breakdownPerPiano[planName] ?? 0) + calcMrrCents(sub);
+  });
+
+  // Riconciliazione per azienda: dov'e' che Stripe e noi diciamo cose diverse.
+  // Questo campo e' sempre stato scritto vuoto, ed e' il motivo per cui il
+  // divario Stripe/interno non era spiegabile da nessuna parte. Le
+  // sottoscrizioni di altri prodotti e gli accessori restano elencati qui: non
+  // sono un'anomalia da inseguire, ma vanno visti.
+  const dettaglioDiscrepanze: RigaDiscrepanza[] = [];
+  for (const sub of subAltrui) {
+    dettaglioDiscrepanze.push({
+      company_id: "", nome: sub.metadata?.plan_name ?? sub.customer,
+      mrr_stripe: calcMrrCents(sub), mrr_interno: 0, motivo: "altro prodotto AEDIX",
+    });
+  }
+  for (const { sub, tipo } of subAccessori) {
+    const c = perCustomer.get(sub.customer);
+    dettaglioDiscrepanze.push({
+      company_id: c?.id ?? "", nome: c?.name ?? "(senza nome)",
+      mrr_stripe: calcMrrCents(sub), mrr_interno: 0,
+      motivo: `abbonamento accessorio: ${ACCESSORI.get(tipo)}`,
+    });
+  }
+
+  // Il piano si confronta una volta per azienda, sulla somma dei suoi
+  // abbonamenti: due abbonamenti del piano sulla stessa azienda sono un doppio
+  // addebito, e presi uno per uno sembravano entrambi in regola.
+  const pianoSuStripe = new Map<string, { azienda: InternalCompany; mrr: number; abbonamenti: number }>();
+  for (const sub of subPiano) {
+    const azienda = perCustomer.get(sub.customer)!;
+    const voce = pianoSuStripe.get(azienda.id) ?? { azienda, mrr: 0, abbonamenti: 0 };
+    voce.mrr += calcMrrCents(sub);
+    voce.abbonamenti += 1;
+    pianoSuStripe.set(azienda.id, voce);
+  }
+  for (const { azienda, mrr, abbonamenti } of pianoSuStripe.values()) {
+    const mrrNostro = countsAsPaidRevenue(azienda) ? companyMrrCents(azienda) : 0;
+    if (mrrNostro === mrr) continue;
+    dettaglioDiscrepanze.push({
+      company_id: azienda.id, nome: azienda.name ?? "(senza nome)",
+      mrr_stripe: mrr, mrr_interno: mrrNostro,
+      motivo: mrrNostro === 0
+        ? "non contata come pagante"
+        : abbonamenti > 1 ? "più abbonamenti del piano su Stripe" : "prezzo diverso dal piano",
+    });
+  }
+  // Chi contiamo noi ma su cui Stripe non incassa il piano: e' il caso piu'
+  // pericoloso, perche' gonfia il MRR senza che arrivi un euro. Un accessorio
+  // pagato non lo copre.
+  for (const c of paidCompanies) {
+    if (pianoSuStripe.has(c.id)) continue;
+    dettaglioDiscrepanze.push({
+      company_id: c.id, nome: c.name ?? "(senza nome)",
+      mrr_stripe: 0, mrr_interno: companyMrrCents(c),
+      motivo: "nessun abbonamento del piano su Stripe",
+    });
+  }
+
+  return {
+    mrrStripe,
+    aziendeAttivaStripe,
+    mrrInterno,
+    aziendeAttivaInterno: paidCompanies.length,
+    mrrRegalato,
+    aziendeRegalate: regalate.length,
+    mrrAltriProdotti,
+    sottoscrizioniAltriProdotti: subAltrui.length,
+    mrrAccessori,
+    abbonamentiAccessori: subAccessori.length,
+    breakdownPerPiano,
+    dettaglioDiscrepanze,
+  };
+}
+
 serveConMetriche("sync-stripe-mrr", async (req: Request) => {
   const corsHeaders = getCorsHeaders(req);
 
@@ -199,116 +371,56 @@ serveConMetriche("sync-stripe-mrr", async (req: Request) => {
 
     const attive = (companies ?? []) as InternalCompany[];
 
-    // L'account Stripe e' CONDIVISO con gli altri prodotti AEDIX. Una
-    // sottoscrizione che non risale a nessuna azienda non e' fatturato di
-    // Edilizia in Cloud, ed e' il motivo per cui il cruscotto ha letto 243,13
-    // il 4 settembre e 127 il giorno dopo: quattro abbonamenti di un altro
-    // prodotto si erano chiusi, e finche' erano dentro gonfiavano un numero
-    // che non era mai stato nostro. Restano contati, ma a parte.
-    const perCustomer = new Map<string, InternalCompany>();
-    for (const c of attive) {
-      if (c.stripe_customer_id) perCustomer.set(c.stripe_customer_id, c);
-    }
-    const subNostre = subscriptions.filter((sub) => perCustomer.has(sub.customer));
-    const subAltrui = subscriptions.filter((sub) => !perCustomer.has(sub.customer));
-
-    const mrrStripe = subNostre.reduce((s, sub) => s + calcMrrCents(sub), 0);
-    const aziendeAttivaStripe = subNostre.length;
-    const mrrAltriProdotti = subAltrui.reduce((s, sub) => s + calcMrrCents(sub), 0);
-
-    const paidCompanies = attive.filter(countsAsPaidRevenue);
-    const mrrInterno = paidCompanies.reduce((s, c) => s + companyMrrCents(c), 0);
-    const aziendeAttivaInterno = paidCompanies.length;
-
-    // Quanto vale, a listino, quello che stiamo regalando. Non e' fatturato e
-    // non deve sommarsi al MRR, ma senza questo numero non si sa se un mese
-    // piatto e' un mercato fermo o troppa generosita'.
-    const regalate = attive.filter(isRegalata);
-    const mrrRegalato = regalate.reduce((s, c) => s + companyMrrCents(c), 0);
-
-    // Breakdown per piano (Stripe metadata.plan_name)
-    const breakdownPerPiano: Record<string, number> = {};
-    subNostre.forEach((sub) => {
-      const planName = sub.metadata?.plan_name ?? "sconosciuto";
-      breakdownPerPiano[planName] = (breakdownPerPiano[planName] ?? 0) + calcMrrCents(sub);
-    });
-
-    // Riconciliazione per azienda: dov'e' che Stripe e noi diciamo cose diverse.
-    // Questo campo e' sempre stato scritto vuoto, ed e' il motivo per cui il
-    // divario Stripe/interno non era spiegabile da nessuna parte. Le
-    // sottoscrizioni di altri prodotti restano elencate qui: non sono
-    // un'anomalia da inseguire, ma vanno viste.
-    const dettaglioDiscrepanze: Array<{
-      company_id: string; nome: string; mrr_stripe: number; mrr_interno: number; motivo: string;
-    }> = [];
-    const visteSuStripe = new Set<string>();
-
-    for (const sub of subscriptions) {
-      const c = perCustomer.get(sub.customer);
-      const mrrSub = calcMrrCents(sub);
-      if (!c) {
-        dettaglioDiscrepanze.push({
-          company_id: "", nome: sub.metadata?.plan_name ?? sub.customer,
-          mrr_stripe: mrrSub, mrr_interno: 0, motivo: "altro prodotto AEDIX",
-        });
-        continue;
-      }
-      visteSuStripe.add(c.id);
-      const mrrNostro = countsAsPaidRevenue(c) ? companyMrrCents(c) : 0;
-      if (mrrNostro !== mrrSub) {
-        dettaglioDiscrepanze.push({
-          company_id: c.id, nome: c.name ?? "(senza nome)",
-          mrr_stripe: mrrSub, mrr_interno: mrrNostro,
-          motivo: mrrNostro === 0 ? "non contata come pagante" : "prezzo diverso dal piano",
-        });
-      }
-    }
-    // Chi contiamo noi ma su cui Stripe non incassa: e' il caso piu' pericoloso,
-    // perche' gonfia il MRR senza che arrivi un euro.
-    for (const c of paidCompanies) {
-      if (visteSuStripe.has(c.id)) continue;
-      dettaglioDiscrepanze.push({
-        company_id: c.id, nome: c.name ?? "(senza nome)",
-        mrr_stripe: 0, mrr_interno: companyMrrCents(c),
-        motivo: "nessun abbonamento attivo su Stripe",
-      });
-    }
+    const r = riconcilia(subscriptions, attive, await accessoriRegistrati());
 
     const oggi = new Date().toISOString().split("T")[0];
 
     // Salva snapshot
-    const { error: upsertError } = await supabase.from("mrr_snapshots").upsert(
-      {
-        data: oggi,
-        mrr_stripe_cents: mrrStripe,
-        mrr_interno_cents: mrrInterno,
-        aziende_attive_stripe: aziendeAttivaStripe,
-        aziende_attive_interno: aziendeAttivaInterno,
-        // Scritto da questa versione, quella che esclude i regalati: gli
-        // snapshot piu' vecchi restano marcati inattendibili.
-        calcolo_affidabile: true,
-        mrr_regalato_cents: mrrRegalato,
-        aziende_regalate: regalate.length,
-        mrr_altri_prodotti_cents: mrrAltriProdotti,
-        sottoscrizioni_altri_prodotti: subAltrui.length,
-        breakdown_per_piano: breakdownPerPiano,
-        dettaglio_discrepanze: dettaglioDiscrepanze,
-      },
-      { onConflict: "data" }
-    );
+    const salva = (riga: Record<string, unknown>) =>
+      supabase.from("mrr_snapshots").upsert(riga, { onConflict: "data" });
+    const snapshot = {
+      data: oggi,
+      mrr_stripe_cents: r.mrrStripe,
+      mrr_interno_cents: r.mrrInterno,
+      aziende_attive_stripe: r.aziendeAttivaStripe,
+      aziende_attive_interno: r.aziendeAttivaInterno,
+      // Scritto da questa versione, quella che esclude i regalati: gli
+      // snapshot piu' vecchi restano marcati inattendibili.
+      calcolo_affidabile: true,
+      mrr_regalato_cents: r.mrrRegalato,
+      aziende_regalate: r.aziendeRegalate,
+      mrr_altri_prodotti_cents: r.mrrAltriProdotti,
+      sottoscrizioni_altri_prodotti: r.sottoscrizioniAltriProdotti,
+      breakdown_per_piano: r.breakdownPerPiano,
+      dettaglio_discrepanze: r.dettaglioDiscrepanze,
+    };
+    let { error: upsertError } = await salva({
+      ...snapshot,
+      mrr_accessori_cents: r.mrrAccessori,
+      abbonamenti_accessori: r.abbonamentiAccessori,
+    });
+    // Su un database senza la migrazione 20280917060000_mrr_abbonamenti_accessori
+    // le due colonne non ci sono: lo snapshot si salva lo stesso, e gli accessori
+    // restano nel dettaglio discrepanze, da cui la migrazione li ricostruisce.
+    if (upsertError && /mrr_accessori_cents|abbonamenti_accessori/.test(upsertError.message)) {
+      console.warn("[sync-stripe-mrr] colonne degli accessori assenti, snapshot salvato senza:", upsertError.message);
+      ({ error: upsertError } = await salva(snapshot));
+    }
 
     if (upsertError) throw new Error(upsertError.message);
 
     return new Response(
       JSON.stringify({
         ok: true,
-        mrr_stripe: mrrStripe,
-        mrr_altri_prodotti: mrrAltriProdotti,
-        mrr_interno: mrrInterno,
-        mrr_regalato: mrrRegalato,
-        aziende_regalate: regalate.length,
-        discrepanza: mrrStripe - mrrInterno,
-        aziende_stripe: aziendeAttivaStripe,
+        mrr_stripe: r.mrrStripe,
+        mrr_altri_prodotti: r.mrrAltriProdotti,
+        mrr_accessori: r.mrrAccessori,
+        abbonamenti_accessori: r.abbonamentiAccessori,
+        mrr_interno: r.mrrInterno,
+        mrr_regalato: r.mrrRegalato,
+        aziende_regalate: r.aziendeRegalate,
+        discrepanza: r.mrrStripe - r.mrrInterno,
+        aziende_stripe: r.aziendeAttivaStripe,
         data: oggi,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
