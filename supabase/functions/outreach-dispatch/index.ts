@@ -1310,7 +1310,16 @@ serveConMetriche("outreach-dispatch", async (req) => {
         if (stileUmano && ultimoPrecedente && thr.inReplyTo) {
           const mittentePrecedente = senderById.get(String(ultimoPrecedente.senderId ?? "")) as { email?: string; display_name?: string | null } | undefined;
           citazione = citazionePrecedente(
-            { ...ultimoPrecedente, fromEmail: mittentePrecedente?.email ?? sender.email, fromName: mittentePrecedente?.display_name ?? brand?.from_name ?? null },
+            {
+              ...ultimoPrecedente,
+              // In coda resta il MODELLO («Buongiorno {{nome}},»): si cita il testo come
+              // l'ha ricevuto il contatto, con le sue variabili e lo stesso seed dello
+              // spintax dell'invio. Fino al 15/09/2026 i 15 follow-up partiti citavano
+              // «> Buongiorno {{nome}},» e «serramentisti {{zona}}».
+              body: renderTemplate(ultimoPrecedente.body ?? "", vars, { seed }),
+              fromEmail: mittentePrecedente?.email ?? sender.email,
+              fromName: mittentePrecedente?.display_name ?? brand?.from_name ?? null,
+            },
             htmlToPlainText,
           );
           html += citazione.html;
