@@ -80,31 +80,36 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-
-    const supabaseUser = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
-
-    const { data: { user: callerUser }, error: userError } = await supabaseUser.auth.getUser();
-    if (userError || !callerUser) {
-      return errorResponse("Unauthorized", 401);
-    }
-
-    const callerId = callerUser.id;
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { data: callerProfile } = await supabaseAdmin
-      .from("profiles")
-      .select("company_id")
-      .eq("id", callerId)
-      .single();
+    // Chiamante interno fidato: la chiave di servizio, che può già scrivere
+    // ovunque. Serve per creare gli accessi di un'azienda senza un utente in
+    // sessione (es. il team di Il Bagno Group, 15/09/2026) mandando la STESSA
+    // email di benvenuto dell'app. Vale come super admin; company_id obbligatorio.
+    const bearer = authHeader.slice("Bearer ".length).trim();
+    const isInternal = bearer.length > 0 && bearer === supabaseServiceKey;
+
+    let callerId: string | null = null;
+    if (!isInternal) {
+      const supabaseUser = createClient(supabaseUrl, supabaseAnonKey, {
+        global: { headers: { Authorization: authHeader } },
+      });
+      const { data: { user: callerUser }, error: userError } = await supabaseUser.auth.getUser();
+      if (userError || !callerUser) {
+        return errorResponse("Unauthorized", 401);
+      }
+      callerId = callerUser.id;
+    }
+
+    const { data: callerProfile } = callerId
+      ? await supabaseAdmin.from("profiles").select("company_id").eq("id", callerId).single()
+      : { data: null };
 
     const { first_name, last_name, email, company_id, role_type, password, phone, permissions } = await req.json();
 
-    const { data: callerRoles } = await supabaseAdmin
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", callerId);
+    const { data: callerRoles } = callerId
+      ? await supabaseAdmin.from("user_roles").select("role").eq("user_id", callerId)
+      : { data: [] as { role: string }[] };
 
     const requestedCompanyId = typeof company_id === "string" && company_id.trim()
       ? company_id.trim()
@@ -115,19 +120,21 @@ Deno.serve(async (req) => {
       return errorResponse("Company ID is required");
     }
 
-    const isSuperAdmin = callerRoles?.some((r) => r.role === "super_admin") ?? false;
+    const isSuperAdmin = isInternal || (callerRoles?.some((r) => r.role === "super_admin") ?? false);
     const isOwnCompanyAdmin = (callerRoles?.some((r) => r.role === "company_admin") ?? false)
       && callerProfile?.company_id === targetCompanyId;
 
-    const { data: selectedCompanyAccess } = await supabaseAdmin
-      .from("multi_company_access")
-      .select("access_role")
-      .eq("user_id", callerId)
-      .eq("company_id", targetCompanyId)
-      // Un accesso multi-azienda sospeso/invitato non conferisce autorità: solo
-      // 'active' abilita la creazione utenti (coerente con le guardie RLS).
-      .eq("status", "active")
-      .maybeSingle();
+    const { data: selectedCompanyAccess } = callerId
+      ? await supabaseAdmin
+        .from("multi_company_access")
+        .select("access_role")
+        .eq("user_id", callerId)
+        .eq("company_id", targetCompanyId)
+        // Un accesso multi-azienda sospeso/invitato non conferisce autorità: solo
+        // 'active' abilita la creazione utenti (coerente con le guardie RLS).
+        .eq("status", "active")
+        .maybeSingle()
+      : { data: null };
 
     const isGrantedCompanyAdmin = selectedCompanyAccess?.access_role === "company_admin";
 
