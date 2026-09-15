@@ -56,7 +56,8 @@ import { ContactActivityRegister } from "@/components/contacts/ContactActivityRe
 import { LogCallButton } from "@/components/marketing/LogCallButton";
 import { getAddedTags, getRemovedTags, normalizeTagList } from "@/lib/marketingTags";
 import { useSoftphoneOptional } from "@/components/telephony/SoftphoneProvider";
-import { firmaNota } from "@/lib/marketing/autoreNota";
+import { NotaModificabile } from "@/components/marketing/NotaModificabile";
+import { puoModificareNota } from "@/lib/marketing/modificaNota";
 import { idModuloDaFonte, origineOpportunita, type DatiOrigine } from "@/lib/origineOpportunita";
 
 interface Props {
@@ -93,6 +94,13 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
   const isPlatformCrm = useIsPlatformCrm();
   const permissions = usePermissions();
   const canEditOpportunity = canEdit && (permissions.canEditMarketingOpportunities || permissions.canEditMarketing);
+  // Chi può correggere una nota: le proprie, o tutte se vede tutti i clienti.
+  const chiModificaNote = {
+    userId: user?.id,
+    isAdmin: permissions.isAdmin,
+    puoModificareContatti: permissions.canEditMarketingContacts,
+    soloAssegnati: permissions.onlyAssigned,
+  };
   const queryClient = useQueryClient();
   const softphone = useSoftphoneOptional();
   const updateOpp = useUpdateOpportunity();
@@ -1258,8 +1266,13 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                   ) : (
                     <div className="space-y-3">
                       {notes.map((note: any) => (
-                        <div key={note.id} className="p-3 rounded-lg border bg-muted/20">
-                          <div className="flex items-center gap-2 mb-1">
+                        <NotaModificabile
+                          key={note.id}
+                          nota={note}
+                          className="p-3 rounded-lg border bg-muted/20"
+                          puoModificare={puoModificareNota(note, chiModificaNote)}
+                          intestazione={
+                            <div className="flex items-center gap-2 mb-1">
                             {note.opportunity_id === opportunity.id ? (
                               <Badge variant="secondary" className="text-[9px] h-4 px-1.5">Opportunità</Badge>
                             ) : note.opportunity_id ? (
@@ -1268,12 +1281,8 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                               <Badge variant="outline" className="text-[9px] h-4 px-1.5">Contatto</Badge>
                             )}
                           </div>
-                          <p className="text-sm whitespace-pre-wrap">{note.content}</p>
-                          {/* Chi l'ha scritta e quando, con data e ora. */}
-                          <p className="text-[11px] text-muted-foreground mt-2">
-                            {firmaNota(note.created_at, note.profiles)}
-                          </p>
-                        </div>
+                          }
+                        />
                       ))}
                     </div>
                   )}

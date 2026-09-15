@@ -24,6 +24,8 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { NotaModificabile } from "@/components/marketing/NotaModificabile";
+import { puoModificareNota } from "@/lib/marketing/modificaNota";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -73,7 +75,6 @@ import { OpportunitiesPanel } from "@/components/marketing/contacts/Opportunitie
 import { ContactQuotesPanel } from "@/components/marketing/contacts/ContactQuotesPanel";
 import { getDateLabel, RIGHT_TABS, type RightTab } from "@/components/marketing/contacts/activityHelpers";
 import { getAvatarColor } from "@/lib/contactUtils";
-import { firmaNota } from "@/lib/marketing/autoreNota";
 
 // 2026-05-27 (richiesta utente CC/CCN): parser email CSV/space-separated,
 // lowercase, dedup, validazione basica. Restituisce undefined se input vuoto
@@ -1790,16 +1791,23 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                   </Button>
                   <div className="space-y-2 pt-1">
                     {notes.map((note: any) => (
-                      <div key={note.id} className="rounded bg-muted/50 p-2 space-y-0.5">
-                        {(note as any).opportunity_id && (
-                          <Badge variant="outline" className="text-[9px] h-4 px-1.5 mb-0.5">Opportunità</Badge>
-                        )}
-                        <p className="text-[11px] whitespace-pre-wrap">{note.content}</p>
-                        {/* Chi l'ha scritta e quando, sempre: una nota senza firma non si può pesare. */}
-                        <p className="text-[10px] text-muted-foreground">
-                          {firmaNota(note.created_at, note.profiles)}
-                        </p>
-                      </div>
+                      <NotaModificabile
+                        key={note.id}
+                        nota={note}
+                        compatta
+                        className="rounded bg-muted/50 p-2 space-y-0.5"
+                        puoModificare={puoModificareNota(note, {
+                          userId: user?.id,
+                          isAdmin: permissions.isAdmin,
+                          puoModificareContatti: permissions.canEditMarketingContacts,
+                          soloAssegnati: permissions.onlyAssigned,
+                        })}
+                        intestazione={
+                          note.opportunity_id ? (
+                            <Badge variant="outline" className="text-[9px] h-4 px-1.5 mb-0.5">Opportunità</Badge>
+                          ) : null
+                        }
+                      />
                     ))}
                     {notes.length === 0 && (
                       <p className="text-[11px] text-muted-foreground text-center py-4">Nessuna nota</p>
