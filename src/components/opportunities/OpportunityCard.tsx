@@ -8,6 +8,7 @@ import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatters";
 import { DealHealthBadge } from "./DealHealthBadge";
+import { RichiestaRipetutaBadge } from "./RichiestaRipetutaBadge";
 import { LeadTemperatureBadge } from "@/components/marketing/LeadTemperatureBadge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -159,6 +160,7 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
             </div>
           )}
           <p className="text-xs font-semibold leading-tight truncate flex-1 min-w-0">{displayName}</p>
+          <RichiestaRipetutaBadge dati={opportunity.richiesta_ripetuta} compatta />
           {opportunity.status === 'open' && <DealHealthBadge opportunity={opportunity} compact />}
           {updatedAgo && (
             <span className="shrink-0 text-[9px] text-muted-foreground whitespace-nowrap">Agg. {updatedAgo}</span>
@@ -237,6 +239,8 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
             ) : (
               <p className="text-sm font-bold leading-tight truncate">{displayName}</p>
             )}
+            {/* Ha già fatto richiesta: è rientrato nello stesso flusso, non è un lead nuovo. */}
+            <RichiestaRipetutaBadge dati={opportunity.richiesta_ripetuta} className="mt-0.5" />
           </div>
           <div className="flex items-center gap-1.5">
           {opportunity.status === 'open' && <DealHealthBadge opportunity={opportunity} compact />}

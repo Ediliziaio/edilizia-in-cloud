@@ -13,6 +13,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "
 // Table components removed — desktop view uses flex grid for proper column alignment with virtualizer
 import { OpportunityDetailDialog } from "./OpportunityDetailDialog";
 import { DealHealthBadge } from "./DealHealthBadge";
+import { RichiestaRipetutaBadge } from "./RichiestaRipetutaBadge";
 import { cn } from "@/lib/utils";
 import { formatCount } from "@/lib/formatters";
 import { STATUS_MAP, hashColor, inferOpportunityStatusFromStage } from "@/types/opportunities";
@@ -253,7 +254,10 @@ export const OpportunityListView = memo(function OpportunityListView({
                   {/* Top row: name + value */}
                   <div className="flex items-start justify-between gap-3 mb-2">
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-sm leading-tight truncate">{opp.name || fullName}</p>
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <p className="font-semibold text-sm leading-tight truncate">{opp.name || fullName}</p>
+                        <RichiestaRipetutaBadge dati={opp.richiesta_ripetuta} />
+                      </div>
                       <div className="flex items-center gap-1.5 mt-0.5">
                         <span
                           className="h-4 w-4 rounded-full flex items-center justify-center text-white text-[8px] font-bold shrink-0"
@@ -491,7 +495,10 @@ export const OpportunityListView = memo(function OpportunityListView({
                     </div>
                     {/* Nome */}
                     <div className="w-[240px] shrink-0 px-3 py-2.5 overflow-hidden">
-                      <p className="text-sm font-medium truncate">{opp.name || fullName}</p>
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <p className="text-sm font-medium truncate">{opp.name || fullName}</p>
+                        <RichiestaRipetutaBadge dati={opp.richiesta_ripetuta} compatta />
+                      </div>
                       {contactCity && <p className="text-xs text-muted-foreground truncate">{contactCity}</p>}
                     </div>
                     {/* Contatto */}
