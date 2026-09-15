@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useDebounce } from "@/hooks/useDebounce";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUpdateOpportunity, useDeleteOpportunity, useCompanyStaff, useCompanySalespeople, useCompanyCallCenterUsers, useOpportunityNotes, useAddOpportunityNote, usePipelines } from "@/hooks/useOpportunitiesData";
 import {
@@ -219,15 +220,18 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
     },
   });
 
+  // La ricerca parte 300 ms dopo l'ultima lettera, non a ogni tasto: il 15/09/2026
+  // con il database saturo ogni lettera diventava una query da 8 secondi.
+  const ricercaContatti = useDebounce(contactSearch, 300);
   const { data: searchContacts = [] } = useQuery({
-    queryKey: ["marketing_contacts_search_detail", companyId, contactSearch],
+    queryKey: ["marketing_contacts_search_detail", companyId, ricercaContatti],
     queryFn: async () => {
       let query = supabase
         .from("marketing_contacts")
         .select("id, first_name, last_name, email, phone, city, address, province, region")
         .eq("company_id", companyId!)
         .limit(20);
-      const safeSearch = sanitizeSearchTerm(contactSearch);
+      const safeSearch = sanitizeSearchTerm(ricercaContatti);
       if (safeSearch) {
         query = query.or(`first_name.ilike.%${safeSearch}%,last_name.ilike.%${safeSearch}%,email.ilike.%${safeSearch}%`);
       }
