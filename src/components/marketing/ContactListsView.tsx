@@ -33,43 +33,86 @@ type EsclusioneRegola = { escludi_tag?: string[] };
 
 export type RegolaLista = EsclusioneRegola & (
   | { tipo: "tag"; tag: string }
+  | { tipo: "tag_uno_di"; valori: string[] }
   | { tipo: "fonte"; valori: string[] }
   | { tipo: "fatturato_minimo"; euro: number }
   | { tipo: "email_contattabile" }
+  | { tipo: "email_pec" }
   | { tipo: "solo_telefono" }
   | { tipo: "senza_contatti"; con_piva?: boolean; con_sito?: boolean }
   | { tipo: "campo_personalizzato"; campo: string; valori: string[] }
+  | { tipo: "campo_valorizzato"; campo: string }
+  | { tipo: "regione"; valori: string[] }
+  | { tipo: "provincia"; valori: string[] }
+  | { tipo: "ateco"; prefissi: string[] }
+  | { tipo: "tutte"; regole: RegolaLista[] }
+  | { tipo: "qualsiasi"; regole: RegolaLista[] }
+  | { tipo: "non"; regola: RegolaLista }
 );
 
 /** La regola detta a parole, per chi guarda la lista e vuole sapere chi ci finisce. */
 function descriviRegola(r: RegolaLista | null): string {
   if (!r) return "";
+  const condizione = descriviCondizione(r);
+  if (!condizione) return "Regola non riconosciuta";
   const esclusi = r.escludi_tag?.length
     ? `, tranne chi ha ${r.escludi_tag.map((t) => `"${t}"`).join(" o ")}`
     : "";
-  return descriviCondizione(r) + esclusi;
+  return `Ci entra chi ${condizione}${esclusi}`;
 }
 
-function descriviCondizione(r: RegolaLista): string {
+const CAMPI_LEGGIBILI: Record<string, string> = {
+  website: "il sito", region: "la regione", province: "la provincia", city: "la citta'",
+  phone: "il telefono", email: "l'email", vat_number: "la partita IVA",
+  ateco_code: "il codice ATECO", company_name: "il nome dell'azienda",
+};
+
+/** Il pezzo di frase che segue «Ci entra chi»; null se la regola non si sa leggere. */
+function descriviCondizione(r: RegolaLista): string | null {
   switch (r.tipo) {
     case "tag":
-      return `Ci entra chi ha il tag "${r.tag}"`;
+      return `ha il tag "${r.tag}"`;
+    case "tag_uno_di":
+      return `ha uno dei tag ${r.valori.map((t) => `"${t}"`).join(", ")}`;
     case "fonte":
-      return `Ci entra chi arriva da ${r.valori.join(" o ")}`;
+      return `arriva da ${r.valori.join(" o ")}`;
     case "fatturato_minimo":
-      return `Ci entra chi fattura almeno ${new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(r.euro)}`;
+      return `fattura almeno ${new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(r.euro)}`;
     case "email_contattabile":
-      return "Ci entra chi ha un'email e non si e' disiscritto";
+      return "ha un'email e non si e' disiscritto";
+    case "email_pec":
+      return "ha un'email PEC";
     case "solo_telefono":
-      return "Ci entra chi ha un numero di telefono ma non un'email";
+      return "ha un numero di telefono ma non un'email";
     case "senza_contatti":
-      if (r.con_sito) return "Ci entra chi non ha ne' email ne' telefono, ma ha il sito";
-      if (r.con_piva) return "Ci entra chi ha la partita IVA ma ne' email ne' telefono";
-      return "Ci entra chi non ha ne' email ne' telefono";
+      if (r.con_sito) return "non ha ne' email ne' telefono, ma ha il sito";
+      if (r.con_piva) return "ha la partita IVA ma ne' email ne' telefono";
+      return "non ha ne' email ne' telefono";
     case "campo_personalizzato":
-      return `Ci entra chi ha "${r.campo}" fra: ${r.valori.join(", ")}`;
+      return `ha "${r.campo}" fra: ${r.valori.join(", ")}`;
+    case "campo_valorizzato":
+      return `ha ${CAMPI_LEGGIBILI[r.campo] ?? `"${r.campo}"`}`;
+    case "regione":
+      return `sta in ${r.valori.join(", ")}`;
+    case "provincia":
+      return `sta in provincia di ${r.valori.join(", ")}`;
+    case "ateco":
+      return `ha un codice ATECO che inizia con ${r.prefissi.join(", ")}`;
+    case "tutte":
+    case "qualsiasi": {
+      const parti = (r.regole ?? []).map((x) => descriviCondizione(x));
+      if (!parti.length || parti.some((x) => !x)) return null;
+      return parti.join(r.tipo === "tutte" ? "; e " : " oppure ");
+    }
+    case "non": {
+      const dentro = r.regola ? descriviCondizione(r.regola) : null;
+      if (!dentro) return null;
+      return r.regola.tipo === "tutte" || r.regola.tipo === "qualsiasi" || dentro.startsWith("non ")
+        ? `non rientra in: ${dentro}`
+        : `non ${dentro}`;
+    }
     default:
-      return "Regola non riconosciuta";
+      return null;
   }
 }
 

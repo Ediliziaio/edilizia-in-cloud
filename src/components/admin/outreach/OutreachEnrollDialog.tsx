@@ -52,7 +52,8 @@ export function OutreachEnrollDialog({ companyId, sequenceId, sequenceName, emai
   // Filtri ICP e qualita' degli indirizzi
   const [provincia, setProvincia] = useState("");
   const [citta, setCitta] = useState("");
-  const [includiRole, setIncludiRole] = useState(false);
+  // Dal 15/09/2026 il titolare scrive anche a info@ e ufficio@: generici dentro di default.
+  const [includiRole, setIncludiRole] = useState(true);
   const [includiPec, setIncludiPec] = useState(false);
   const [verificaMx, setVerificaMx] = useState(true);
 
