@@ -117,14 +117,17 @@ Deno.serve(async (req) => {
     pingUrl("https://login.microsoftonline.com/common/v2.0/.well-known/openid-configuration"),
   ]);
 
-  // DB schema check
+  // Chiave di cifratura dei token: si chiede al database col service role puro.
+  // `supa` porta il JWT dell'utente (ruolo authenticated), e la cifratura non è
+  // eseguibile da authenticated: prima la chiamata finiva in 403 e, siccome
+  // rpc() non lancia, la diagnostica rispondeva comunque «configurata».
+  const admin = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+  );
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: schemaCheck } = await (supa as any).rpc("email_oauth_encrypt_token", { p_token: "test" })
-    .then(() => ({ data: { encryption_key_configured: true } }))
-    .catch((err: { message?: string }) => ({
-      data: { encryption_key_configured: false, _err: err.message },
-    }));
-  const encConfigured = (schemaCheck as { encryption_key_configured?: boolean })?.encryption_key_configured === true;
+  const { data: chiaveOk, error: chiaveErr } = await (admin as any).rpc("email_oauth_chiave_configurata");
+  const encConfigured = !chiaveErr && chiaveOk === true;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: tableCheck } = await (supa as any)
@@ -152,7 +155,7 @@ Deno.serve(async (req) => {
   if (!msSecret) missing.push("MS_OAUTH_CLIENT_SECRET (o OUTLOOK_CLIENT_SECRET / platform_settings outlook_client_secret)");
   if (!inbound) missing.push("INBOUND_EMAIL_SECRET (per webhook ingest, può aspettare)");
   if (!cron) missing.push("PROACTIVE_CRON_SECRET (necessario per poll cron)");
-  if (!encConfigured) missing.push("app.email_oauth_encryption_key (DB setting)");
+  if (!encConfigured) missing.push("email_oauth_token_key (Vault)");
   if (!dbReady) missing.push("schema email_oauth_connections (esegui apply-email-oauth.sql)");
 
   const result: DiagnosticResult = {
@@ -186,7 +189,7 @@ Deno.serve(async (req) => {
       },
       encryption_key_configured: {
         configured: encConfigured,
-        error: !encConfigured ? "Esegui: ALTER DATABASE postgres SET app.email_oauth_encryption_key = '<openssl rand -hex 32>';" : undefined,
+        error: !encConfigured ? "Manca nel Vault il segreto email_oauth_token_key (migrazione email_oauth_chiave_dal_vault)" : undefined,
       },
       google_oauth_endpoint_reachable: googleReach,
       ms_oauth_endpoint_reachable: msReach,
