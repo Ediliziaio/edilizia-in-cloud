@@ -1075,6 +1075,37 @@ async function contaRamiDiOggi(supabase: any, node: AutomationNode, queueItem: a
       .gte("created_at", inizio);
     if (error) throw new Error(`opportunità: ${error.message}`);
     const valori = persone.map((p) => (opp ?? []).filter((o: any) => o[p!.colonna] === p!.id).length);
+
+    // L'opportunità nasce al passo dopo, un minuto più tardi, e Meta consegna i
+    // lead a gruppi (alle 20:57 del 16/09 otto insieme): contando solo le
+    // opportunità, tutto il gruppo andava alla stessa persona. Si aggiungono le
+    // scelte di questo nodo il cui passo successivo non è ancora avvenuto.
+    const da = new Date(Math.max(Date.parse(inizio), Date.now() - 30 * 60_000)).toISOString();
+    const { data: scelte, error: scelteErr } = await supabase
+      .from("automation_execution_log")
+      .select("enrollment_id, output_json, created_at")
+      .eq("node_id", node.id)
+      .eq("status", "success")
+      .gte("created_at", da);
+    if (scelteErr) throw new Error(`scelte recenti: ${scelteErr.message}`);
+    const idScelte = (scelte ?? []).map((r: any) => r.enrollment_id).filter(Boolean);
+    if (idScelte.length) {
+      const { data: passiDopo, error: dopoErr } = await supabase
+        .from("automation_execution_log")
+        .select("enrollment_id, created_at")
+        .in("enrollment_id", idScelte)
+        .eq("node_type", "action")
+        .gte("created_at", da);
+      if (dopoErr) throw new Error(`passi successivi: ${dopoErr.message}`);
+      // Conta solo un'azione venuta DOPO la scelta: una fatta prima dello split
+      // non dice che l'opportunità è nata.
+      for (const r of scelte ?? []) {
+        const fatta = (passiDopo ?? []).some((a: any) => a.enrollment_id === r.enrollment_id && a.created_at > r.created_at);
+        if (fatta) continue;
+        const i = String(r.output_json?.branch ?? "").charCodeAt(0) - 97;
+        if (i >= 0 && i < valori.length) valori[i]++;
+      }
+    }
     return { base: "persone", valori };
   }
 
