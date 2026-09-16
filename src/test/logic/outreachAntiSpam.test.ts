@@ -54,8 +54,18 @@ describe("Il tetto dei nuovi contatti è separato dai follow-up", () => {
 
   it("follow-up e primi contatti si leggono dalla coda separati: un arretrato di primi non affama i follow-up", () => {
     expect(dispatch).toContain('.eq("status", "queued").eq("channel", "email").eq("primo_contatto", primo)');
-    expect(dispatch).toContain("const [seguiti, primi] = await Promise.all([leggi(false), leggi(true)]);");
-    expect(dispatch).toContain("queue = [...seguiti, ...primi];");
+    expect(dispatch).toContain("Promise.all(gruppi.map((g) => leggi(false, g.brandId, g.quante)))");
+    expect(dispatch).toContain("Promise.all(gruppi.map((g) => leggi(true, g.brandId, g.quante)))");
+    expect(dispatch).toContain("queue = [...seguiti.flat(), ...primi.flat()];");
+  });
+
+  it("la coda si legge brand per brand: l'arretrato di un brand non ferma gli altri (16/09/2026)", () => {
+    expect(dispatch).toContain('.from("outreach_brands").select("id").not("status", "in", "(paused,archived)")');
+    expect(dispatch).toContain('else if (brandId !== undefined) q = q.eq("brand_id", brandId);');
+  });
+
+  it("mai due email allo stesso indirizzo nello stesso giro", () => {
+    expect(dispatch).toContain("unaEmailPerDestinatario(assignments, (id) => queueById.get(id)?.to_email)");
   });
 
   it("un brand in pausa non spedisce (lo stato del brand non è più solo un'etichetta)", () => {

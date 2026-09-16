@@ -216,6 +216,31 @@ export function unaAssegnazionePerCasella(assignments: Assignment[]): { kept: As
   return { kept, deferred };
 }
 
+/**
+ * UNA sola email per destinatario nel giro. Lo stesso indirizzo può stare in
+ * più iscrizioni: il contatto di prova in otto flussi, due contatti con la
+ * stessa email, un'iscrizione fatta a mano. Il 16/09/2026 quattro email di
+ * Edilizia in Cloud sono arrivate a flo.andriciuc@gmail.com tra le 13:18:06 e
+ * le 13:18:11, da quattro caselle diverse: nello stesso minuto, alla stessa
+ * persona. Resta la prima assegnazione per indirizzo (maiuscole e spazi non
+ * contano); le altre tornano in coda e ripartono al giro dopo.
+ */
+export function unaEmailPerDestinatario(
+  assignments: Assignment[],
+  indirizzo: (queueId: string) => string | null | undefined,
+): { kept: Assignment[]; deferred: number } {
+  const visti = new Set<string>();
+  const kept: Assignment[] = [];
+  let deferred = 0;
+  for (const a of assignments) {
+    const email = (indirizzo(a.queueId) ?? "").trim().toLowerCase();
+    if (email && visti.has(email)) { deferred++; continue; }
+    if (email) visti.add(email);
+    kept.push(a);
+  }
+  return { kept, deferred };
+}
+
 /** Frazione deterministica in [0,1) da un seme testuale. */
 function frazione(seme: string): number {
   return (fnv1a(seme) % 10_000) / 10_000;

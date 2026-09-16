@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   effectiveDailyCap, sentToday, remainingToday, totalCapacity, shouldAutoPause, assignSenders,
-  steadyCap, poolCapacityStats, dailyCapWithVariance, unaAssegnazionePerCasella, cadenzaCasella,
+  steadyCap, poolCapacityStats, dailyCapWithVariance, unaAssegnazionePerCasella, unaEmailPerDestinatario, cadenzaCasella,
   type SenderState, type Assignment,
 } from "../../../supabase/functions/_shared/outreach-dispatch-logic";
 
@@ -397,5 +397,26 @@ describe("poolCapacityStats — riepilogo capacità pool a scala", () => {
     const r = poolCapacityStats([sender()], TODAY, 0, 40);
     expect(r.mailboxesNeededForTarget).toBe(0);
     expect(r.mailboxesToAdd).toBe(0);
+  });
+});
+
+// 16/09/2026: quattro email di Edilizia in Cloud a flo.andriciuc@gmail.com tra
+// le 13:18:06 e le 13:18:11, da quattro caselle diverse.
+describe("unaEmailPerDestinatario — mai due email allo stesso indirizzo nello stesso giro", () => {
+  const indirizzi: Record<string, string> = {
+    q1: "flo.andriciuc@gmail.com", q2: "Flo.Andriciuc@gmail.com ", q3: "altro@impresa.it", q4: "flo.andriciuc@gmail.com",
+  };
+  const a = (queueId: string, senderId: string): Assignment => ({ queueId, senderId });
+
+  it("tiene la prima per indirizzo, maiuscole e spazi non contano", () => {
+    const { kept, deferred } = unaEmailPerDestinatario(
+      [a("q1", "c1"), a("q2", "c2"), a("q3", "c3"), a("q4", "c4")], (id) => indirizzi[id]);
+    expect(kept.map((x) => x.queueId)).toEqual(["q1", "q3"]);
+    expect(deferred).toBe(2);
+  });
+
+  it("una riga senza indirizzo non blocca le altre", () => {
+    const { kept } = unaEmailPerDestinatario([a("x1", "c1"), a("x2", "c2")], () => null);
+    expect(kept).toHaveLength(2);
   });
 });

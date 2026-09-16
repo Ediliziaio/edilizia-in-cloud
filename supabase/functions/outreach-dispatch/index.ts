@@ -19,7 +19,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
-import { assignSenders, cadenzaCasella, dailyCapWithVariance, remainingToday, sentToday, type Assignment, type SenderState, statoPerPrimiContatti, unaAssegnazionePerCasella } from "../_shared/outreach-dispatch-logic.ts";
+import { assignSenders, cadenzaCasella, dailyCapWithVariance, remainingToday, sentToday, type Assignment, type SenderState, statoPerPrimiContatti, unaAssegnazionePerCasella, unaEmailPerDestinatario } from "../_shared/outreach-dispatch-logic.ts";
 import { componiCorpo, haFraseUscita } from "../_shared/outreach-uscita.ts";
 import { renderTemplate, contactToVars, hashSeed, htmlToPlainText } from "../_shared/outreach-template.ts";
 import { DEFAULT_SEND_WINDOW, finestraDelBrand, isWithinSendWindow, minutoDelGiorno, orarioFollowUp, orarioTroppoVicino, type SendWindow } from "../_shared/outreach-schedule.ts";
@@ -1148,6 +1148,16 @@ serveConMetriche("outreach-dispatch", async (req) => {
         assignments.push(...tenuti);
       }
     } catch { /* cap dominio best-effort */ }
+
+    // UNA SOLA email per destinatario per tick: lo stesso indirizzo in più
+    // iscrizioni non riceve più email nello stesso minuto (vedi
+    // unaEmailPerDestinatario). Le altre ripartono al giro dopo.
+    {
+      const { kept, deferred } = unaEmailPerDestinatario(assignments, (id) => queueById.get(id)?.to_email);
+      assignments.length = 0;
+      assignments.push(...kept);
+      result.deferred += deferred;
+    }
 
     // UN SOLO invio per casella per tick (vedi outreach-dispatch-logic.ts):
     // le altre assegnazioni alla stessa casella in questo giro tornano in coda
