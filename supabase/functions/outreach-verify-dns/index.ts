@@ -1,6 +1,7 @@
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth, requireRole } from "../_shared/auth.ts";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
+import { NOME_SONDA_DKIM, selettoriDaNsec } from "../_shared/dkimNsec.ts";
 
 /**
  * outreach-verify-dns — stato DNS REALE (SPF / DKIM / DMARC) di un dominio
@@ -36,11 +37,29 @@ async function selettorePubblicato(domain: string, sel: string): Promise<boolean
   return !!(await cname(name));
 }
 
+async function selettoreDaNsec(domain: string): Promise<string | null> {
+  try {
+    const res = await fetch(`https://dns.google/resolve?name=${NOME_SONDA_DKIM}._domainkey.${domain}&type=TXT&do=1`, {
+      headers: { accept: "application/dns-json" },
+    });
+    if (!res.ok) return null;
+    const risposta = await res.json();
+    for (const sel of selettoriDaNsec(risposta?.Authority, domain)) {
+      if (await selettorePubblicato(domain, sel)) return sel;
+    }
+  } catch { /* DoH non raggiungibile: restano i selettori noti */ }
+  return null;
+}
+
 async function dkimSelector(domain: string, manuale?: string | null): Promise<string | null> {
   // Register (e altri) generano un selettore univoco per dominio: se l'operatore
   // lo ha scritto sul dominio, si prova quello per primo.
   const m = (manuale ?? "").trim().toLowerCase().replace(/\._domainkey.*$/, "");
   if (m && await selettorePubblicato(domain, m)) return m;
+  // Senza selettore scritto: se la zona è firmata DNSSEC lo nomina il record
+  // NSEC (vedi _shared/dkimNsec.ts). Una domanda sola, prima della lista.
+  const daNsec = await selettoreDaNsec(domain);
+  if (daNsec) return daNsec;
   for (const sel of DKIM_SELECTORS) {
     const name = `${sel}._domainkey.${domain}`;
     const t = await txt(name);

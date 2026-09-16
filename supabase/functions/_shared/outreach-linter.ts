@@ -68,8 +68,15 @@ const AI_TELL = [
 export interface OpzioniLint {
   /** Numero del touch: 1-3 vogliono zero link, dal 4 se ne ammette uno. */
   touch?: number;
-  /** Lunghezza massima in parole (default 120). */
+  /**
+   * Oltre questa lunghezza, in parole, l'email non parte (default 800). Fino al
+   * 16/09/2026 il blocco scattava a 120: il titolare ha scelto di tenere i suoi
+   * testi lunghi (Marketing Edile fino a 234 parole, Edilizia in Cloud fino a
+   * 587). Sopra le 800 non è più un'email, è un documento incollato.
+   */
   maxParole?: number;
+  /** Oltre questa lunghezza solo un avviso (default 120): le email corte ricevono più risposte. */
+  paroleConsigliate?: number;
 }
 
 const contaOccorrenze = (testo: string, ago: string): number => {
@@ -80,7 +87,8 @@ const contaOccorrenze = (testo: string, ago: string): number => {
 
 export function lintEmail(subject: string, body: string, opz: OpzioniLint = {}): Rilievo[] {
   const touch = opz.touch ?? 1;
-  const maxParole = opz.maxParole ?? 120;
+  const maxParole = opz.maxParole ?? 800;
+  const paroleConsigliate = opz.paroleConsigliate ?? 120;
   const testo = `${subject}\n${body}`;
   const basso = testo.toLowerCase();
   const r: Rilievo[] = [];
@@ -124,7 +132,10 @@ export function lintEmail(subject: string, body: string, opz: OpzioniLint = {}):
   const parole = body.trim().split(/\s+/).filter(Boolean).length;
   if (parole > maxParole)
     r.push({ gravita: "blocco", regola: "lunghezza",
-      messaggio: `${parole} parole: sopra le ${maxParole} il tasso di risposta crolla. Taglia.` });
+      messaggio: `${parole} parole: sopra le ${maxParole} non è più un'email. Taglia.` });
+  else if (parole > paroleConsigliate)
+    r.push({ gravita: "avviso", regola: "lunghezza",
+      messaggio: `${parole} parole: sopra le ${paroleConsigliate} le risposte calano. Parte lo stesso.` });
   else if (parole > 0 && parole < 30)
     r.push({ gravita: "avviso", regola: "lunghezza", messaggio: `${parole} parole: probabilmente troppo poche per dire qualcosa di specifico.` });
 

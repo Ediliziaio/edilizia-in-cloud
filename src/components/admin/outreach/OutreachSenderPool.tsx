@@ -210,6 +210,10 @@ export function OutreachSenderPool({ companyId }: { companyId: string }) {
       a.brandId === "" ? 1 : b.brandId === "" ? -1 : a.nome.localeCompare(b.nome));
   }
 
+  // Per le azioni di massa del brand servono TUTTI i suoi domini e caselle,
+  // non solo quelli che passano la ricerca.
+  const brandDiDominio = new Map(domains.map((d) => [d.id, d.brand_id ?? ""]));
+
   const empty = domains.length === 0 && senders.filter((s) => !s.sending_domain_id).length === 0;
   const noMatches = !empty && filtering && matchCount === 0;
 
@@ -334,6 +338,13 @@ export function OutreachSenderPool({ companyId }: { companyId: string }) {
                     DNS completo su {g.dnsCompleti} di {g.domini.length}
                   </span>
                 )}
+                {g.brandId && (
+                  <AzioniBrand
+                    domini={domains.filter((d) => (d.brand_id ?? "") === g.brandId)}
+                    caselle={senders.filter((s) => s.sending_domain_id && brandDiDominio.get(s.sending_domain_id) === g.brandId)}
+                    onChange={invalidate}
+                  />
+                )}
               </div>
               <div className="space-y-3">
                 {g.domini.map((d) => (
@@ -354,6 +365,87 @@ export function OutreachSenderPool({ companyId }: { companyId: string }) {
         </div>
       )}
     </section>
+  );
+}
+
+/**
+ * Azioni di massa di un brand. Marketing Edile ed Edilizia in Cloud hanno 25
+ * domini e 75 caselle: «Verifica DNS» e «Testa» uno per uno sono cento clic.
+ * Qui partono in blocco, sempre da chi preme il bottone e con le stesse
+ * funzioni dei bottoni singoli.
+ */
+function AzioniBrand({ domini, caselle, onChange }: { domini: Domain[]; caselle: Sender[]; onChange: () => void }) {
+  const [fase, setFase] = useState<string | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabase as any;
+
+  const daVerificare = domini.filter((d) => d.status !== "active");
+  // Senza password non c'è niente da testare: la casella va prima collegata.
+  const daTestare = caselle.filter((c) => c.secret_ref && c.connection_status !== "ok");
+  const dominiPronti = new Set(domini.filter((d) => d.status === "active").map((d) => d.id));
+  const daAvviare = caselle.filter((c) =>
+    c.status === "paused" && c.connection_status === "ok" && !!c.sending_domain_id && dominiPronti.has(c.sending_domain_id));
+
+  async function verificaETesta() {
+    let dnsPronti = 0;
+    let collegate = 0;
+    try {
+      for (let i = 0; i < daVerificare.length; i++) {
+        setFase(`DNS ${i + 1} di ${daVerificare.length}…`);
+        try {
+          const { data } = await supabase.functions.invoke("outreach-verify-dns", { body: { domain_id: daVerificare[i].id } });
+          if (data?.status === "active") dnsPronti++;
+        } catch { /* il dominio resta da verificare: lo dice il conteggio */ }
+      }
+      // Quattro test alla volta: una casella per volta sono minuti.
+      let prossima = 0;
+      const lavora = async () => {
+        while (prossima < daTestare.length) {
+          const casella = daTestare[prossima++];
+          setFase(`Test ${prossima} di ${daTestare.length}…`);
+          try {
+            const { data } = await supabase.functions.invoke("outreach-mailbox-test", { body: { sender_account_id: casella.id } });
+            if (data?.ok) collegate++;
+          } catch { /* la casella resta da collegare */ }
+        }
+      };
+      await Promise.all(Array.from({ length: Math.min(4, daTestare.length) }, lavora));
+      const parti: string[] = [];
+      if (daVerificare.length) parti.push(`domini pronti ${dnsPronti} su ${daVerificare.length}`);
+      if (daTestare.length) parti.push(`caselle collegate ${collegate} su ${daTestare.length}`);
+      const messaggio = `Fatto: ${parti.join(" · ")}. I dettagli sono sulle card.`;
+      if (dnsPronti === daVerificare.length && collegate === daTestare.length) toast.success(messaggio);
+      else toast.warning(messaggio);
+    } finally {
+      setFase(null);
+      onChange();
+    }
+  }
+
+  async function avvia() {
+    setFase("Avvio…");
+    const { error } = await db.from(T_SENDERS).update({ status: "warming" }).in("id", daAvviare.map((c) => c.id));
+    setFase(null);
+    if (error) { toast.error(error.message); return; }
+    toast.success(`${daAvviare.length} ${daAvviare.length === 1 ? "casella in" : "caselle in"} warm-up`);
+    onChange();
+  }
+
+  if (daVerificare.length === 0 && daTestare.length === 0 && daAvviare.length === 0) return null;
+  return (
+    <span className="ml-auto flex flex-wrap items-center gap-1.5">
+      {(daVerificare.length > 0 || daTestare.length > 0) && (
+        <Button size="sm" variant="outline" className="h-6 gap-1 bg-card px-2 text-[11px]" disabled={fase !== null} onClick={verificaETesta}>
+          {fase ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+          {fase ?? "Verifica DNS e testa le caselle"}
+        </Button>
+      )}
+      {daAvviare.length > 0 && (
+        <Button size="sm" className="h-6 gap-1 px-2 text-[11px]" disabled={fase !== null} onClick={avvia}>
+          <Play className="h-3 w-3" /> Avvia {daAvviare.length} {daAvviare.length === 1 ? "casella" : "caselle"} in warm-up
+        </Button>
+      )}
+    </span>
   );
 }
 

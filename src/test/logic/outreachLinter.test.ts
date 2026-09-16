@@ -50,7 +50,14 @@ describe("linter cold outreach italiano", () => {
   });
 
   it("blocca le email troppo lunghe", () => {
-    expect(blocchi("x", "parola ".repeat(130))).toContain("lunghezza");
+    expect(blocchi("x", "parola ".repeat(810))).toContain("lunghezza");
+  });
+
+  it("sopra le 120 parole è solo un avviso: i testi lunghi del titolare partono", () => {
+    // 16/09/2026: le email di Marketing Edile ed Edilizia in Cloud arrivano a 587 parole.
+    const r = lintEmail("x", "parola ".repeat(590));
+    expect(r.filter((x) => x.gravita === "blocco").map((x) => x.regola)).not.toContain("lunghezza");
+    expect(r.filter((x) => x.gravita === "avviso").map((x) => x.regola)).toContain("lunghezza");
   });
 
   it("segnala il ritmo piatto delle frasi tutte uguali", () => {

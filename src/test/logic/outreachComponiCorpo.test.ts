@@ -16,6 +16,10 @@ const parole = (n: number) =>
 
 const FIRMA = "Filippo Monti<br>ThermoDMR · +39 350 178 0908";
 
+// La soglia di allora: dal 16/09/2026 il blocco predefinito è a 800 parole
+// (vedi outreach-linter), ma qui conta che la frase del motore non pesi.
+const SOGLIA = { maxParole: 120 };
+
 describe("componiCorpo", () => {
   it("un testo da 110 parole + firma passa anche con la frase d'uscita aggiunta", () => {
     const corpo = parole(110);
@@ -25,15 +29,15 @@ describe("componiCorpo", () => {
     const testoInviato = htmlToPlainText(html);
     expect(haFraseUscita(testoInviato)).toBe(true);
     expect(testoInviato.split(/\s+/).filter(Boolean).length).toBeGreaterThan(120);
-    expect(puoPartire(lintEmail("serramenti su misura", testoInviato))).toBe(false);
+    expect(puoPartire(lintEmail("serramenti su misura", testoInviato, SOGLIA))).toBe(false);
 
     // …ma il controllo guarda quello che ha scritto il brand: l'email parte.
-    expect(puoPartire(lintEmail("serramenti su misura", htmlToPlainText(htmlDaControllare)))).toBe(true);
+    expect(puoPartire(lintEmail("serramenti su misura", htmlToPlainText(htmlDaControllare), SOGLIA))).toBe(true);
   });
 
   it("un testo davvero troppo lungo resta bloccato", () => {
     const { htmlDaControllare } = componiCorpo({ corpo: parole(130), aggiungiUscita: true, firma: FIRMA });
-    const rilievi = lintEmail("serramenti su misura", htmlToPlainText(htmlDaControllare));
+    const rilievi = lintEmail("serramenti su misura", htmlToPlainText(htmlDaControllare), SOGLIA);
     expect(puoPartire(rilievi)).toBe(false);
     expect(rilievi.some((r) => r.regola === "lunghezza")).toBe(true);
   });
