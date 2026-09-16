@@ -20,12 +20,24 @@ export function hashSeed(s: string): number {
 
 const VAR_RE = /\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*(?:\|\s*([^}]*?))?\s*\}\}/g;
 const SPINTAX_RE = /\{([^{}]*\|[^{}]*)\}/g;
+/**
+ * Blocco condizionale `{{#var}}testo{{/var}}`: il testo compare solo se la
+ * variabile ha un valore. Primo uso (16/09/2026): «Ho trovato il vostro
+ * contatto sul sito aziendale» nelle email di Edilizia in Cloud, solo a chi un
+ * sito ce l'ha — a chi non ce l'ha sarebbe una frase falsa.
+ */
+const BLOCCO_RE = /\{\{#\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}([\s\S]*?)\{\{\/\s*\1\s*\}\}/g;
 
 /** Sostituisce variabili e spintax. Variabili PRIMA (usano `{{ }}`), poi spintax (`{ }`). */
 export function renderTemplate(template: string, vars: TemplateVars = {}, opts: { seed?: number } = {}): string {
   if (!template) return "";
 
-  let out = template.replace(VAR_RE, (_m, key: string, fallback?: string) => {
+  let out = template.replace(BLOCCO_RE, (_m, key: string, dentro: string) => {
+    const v = vars[key];
+    return v != null && String(v).trim() ? dentro : "";
+  });
+
+  out = out.replace(VAR_RE, (_m, key: string, fallback?: string) => {
     const v = vars[key];
     const val = v == null ? "" : String(v).trim();
     return val || (fallback ?? "").trim();
@@ -293,7 +305,7 @@ export function meseCorrente(oggi: Date = new Date()): string {
 export function contactToVars(c: {
   first_name?: string | null; last_name?: string | null;
   company_name?: string | null; email?: string | null; phone?: string | null;
-  province?: string | null; region?: string | null;
+  province?: string | null; region?: string | null; website?: string | null;
 }, oggi: Date = new Date()): TemplateVars {
   return {
     first_name: c.first_name ?? "",
@@ -311,5 +323,14 @@ export function contactToVars(c: {
     regione: (c.region ?? "").split("/")[0].trim(),
     // «gennaio»: il mese dell'invio (Marketing Edile, riattivazione a 90 giorni).
     mese: meseCorrente(oggi),
+    // «rossiserramenti.it», o "" se il sito non c'è: usata nei blocchi {{#sito}}…{{/sito}}.
+    sito: sitoDa(c.website),
   };
+}
+
+/** Il dominio del sito, senza protocollo, «www.» e percorso. Vuoto se non sembra un sito. */
+export function sitoDa(website?: string | null): string {
+  const t = (website ?? "").trim().toLowerCase()
+    .replace(/^[a-z]+:\/\//, "").replace(/^www\./, "").split(/[/?#\s]/)[0];
+  return /^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(t) ? t : "";
 }

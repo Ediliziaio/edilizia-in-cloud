@@ -26,6 +26,8 @@ import {
 import { snippetFrom } from "./outreach-inbound-logic.ts";
 import { isAutoReply, type InboundHeaders } from "./outreach-autoreply.ts";
 import { intentDaParoleChiave } from "./outreach-intent-parole.ts";
+import { avvisaSuperAdmin } from "./avvisaSuperAdmin.ts";
+import { testoSenzaCitazione } from "./avvisoEmail.ts";
 
 const PLATFORM_COMPANY = "00000000-0000-0000-0000-000000000001";
 
@@ -38,6 +40,75 @@ export interface InboundReply {
   messageId?: string | null;
   /** Header RFC normalizzati (lowercase→valore), se il provider/IMAP li espone. */
   headers?: InboundHeaders;
+  /** La casella che ha ricevuto la risposta (poll IMAP), per l'avviso al titolare. */
+  casella?: string | null;
+}
+
+const INTENTO_IN_CHIARO: Record<string, string> = {
+  interested: "interessato",
+  question: "fa una domanda",
+  not_interested: "non interessato",
+  unsubscribe: "chiede di non essere più contattato",
+  referral: "indica un'altra persona",
+  other: "altro",
+};
+
+/**
+ * Avviso al titolare per ogni risposta vera (16/09/2026): chi ha risposto, da
+ * quale brand e flusso, a quale casella, e cosa ha scritto. Arriva su
+ * campanella, push e Gmail (vedi avvisaSuperAdmin). Mai bloccante.
+ */
+async function avvisaRisposta(admin: any, r: InboundReply, fromEmail: string, intent: string | null): Promise<void> {
+  try {
+    let nome = "";
+    let azienda = "";
+    let telefono = "";
+    if (r.contactId) {
+      const { data: c } = await admin.from("marketing_contacts")
+        .select("first_name,last_name,company_name,phone").eq("id", r.contactId).maybeSingle();
+      nome = [c?.first_name, c?.last_name].filter(Boolean).join(" ");
+      azienda = c?.company_name ?? "";
+      telefono = c?.phone ?? "";
+    }
+    let brand = "";
+    let flusso = "";
+    if (r.enrollmentId) {
+      const { data: e } = await admin.from("outreach_enrollments").select("sequence_id").eq("id", r.enrollmentId).maybeSingle();
+      if (e?.sequence_id) {
+        const { data: s } = await admin.from("outreach_sequences").select("name,brand_id").eq("id", e.sequence_id).maybeSingle();
+        flusso = s?.name ?? "";
+        if (s?.brand_id) {
+          const { data: b } = await admin.from("outreach_brands").select("name").eq("id", s.brand_id).maybeSingle();
+          brand = b?.name ?? "";
+        }
+      }
+    }
+    const chi = azienda || nome || fromEmail;
+    await avvisaSuperAdmin(admin, {
+      tipo: "outreach_risposta_email",
+      titolo: `Risposta email da ${chi}`,
+      testo: snippetFrom(r.text, 160) ?? "(risposta senza testo)",
+      url: "/admin/marketing?tab=posta",
+      tag: `outreach-risposta-${r.messageId ?? fromEmail}`,
+      entityType: r.contactId ? "marketing_contact" : undefined,
+      entityId: r.contactId,
+      email: {
+        testo: testoSenzaCitazione(r.text) || "(risposta senza testo)",
+        righe: [
+          { etichetta: "Da", valore: [nome, fromEmail].filter(Boolean).join(" · ") },
+          { etichetta: "Azienda", valore: azienda },
+          { etichetta: "Telefono", valore: telefono },
+          { etichetta: "Brand", valore: brand },
+          { etichetta: "Flusso", valore: flusso },
+          { etichetta: "Casella", valore: r.casella ?? "" },
+          { etichetta: "Oggetto", valore: r.subject ?? "" },
+          { etichetta: "Intento", valore: intent ? (INTENTO_IN_CHIARO[intent] ?? intent) : "da classificare" },
+        ],
+      },
+    });
+  } catch (e) {
+    console.warn("[outreach-reply-handler] avviso risposta non inviato:", e instanceof Error ? e.message : e);
+  }
 }
 
 /**
@@ -111,6 +182,9 @@ export async function handleInboundReply(admin: any, r: InboundReply): Promise<v
       await admin.from("outreach_replies").update({ intent, intent_confidence: 0.6 }).eq("id", inserted.id);
     }
   }
+
+  // 2-bis. Avviso al titolare: chi ha risposto e cosa, anche su Gmail.
+  await avvisaRisposta(admin, r, fromEmail, intent);
 
   // 3. AUTO-PAUSA SU RISPOSTA: chi risponde non deve più ricevere follow-up cold.
   // Fermiamo TUTTE le iscrizioni ancora vive del contatto (non solo quella passata

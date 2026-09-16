@@ -15,6 +15,7 @@ import { applySpintax, applyVariabili } from "./openwaTemplate.ts";
 import { pickOpenWaNumber, weekKeyOf, type OpenWaNumberState } from "./openwaPickNumber.ts";
 import { nomeSaluto } from "./outreach-template.ts";
 import { lidDaMessageId, registraLid } from "./openwaLid.ts";
+import { avvisaSuperAdmin } from "./avvisaSuperAdmin.ts";
 
 // I contatti marketing della piattaforma vivono su questa company.
 export const OPENWA_PLATFORM_COMPANY_ID = "00000000-0000-0000-0000-000000000001";
@@ -419,11 +420,26 @@ export async function sendOpenWaMessage(admin: Admin, params: SendParams): Promi
     // Un invio fallito deve pesare sul numero: senza, un numero con la sessione
     // morta ma "connected" nel DB restava sempre il meno carico, veniva scelto
     // a ogni giro e bruciava i tentativi di decine di destinatari.
+    const errori = (chosen.errori_consecutivi ?? 0) + 1;
     await admin.from("openwa_numbers").update({
       last_message_at: nowIso,
-      errori_consecutivi: (chosen.errori_consecutivi ?? 0) + 1,
+      errori_consecutivi: errori,
       ultimo_errore: `${r.status}: ${String(r.text ?? "").slice(0, 200)}`,
     }).eq("id", chosen.id);
+    // Tre invii falliti di fila: il numero risulta collegato ma non spedisce,
+    // come «Flo 1» il 10/09 (sessione morta, 500 a ogni invio). Un avviso solo,
+    // al terzo: arriva anche su Gmail (vedi avvisaSuperAdmin).
+    if (errori === 3) {
+      try {
+        await avvisaSuperAdmin(admin, {
+          tipo: "whatsapp_numero_errori",
+          titolo: `Numero WhatsApp che non spedisce: ${chosen.numero ?? chosen.id}`,
+          testo: `Tre invii falliti di fila (errore ${r.status}). Il numero risulta collegato ma i messaggi non partono: apri la pagina Numeri e premi «Ricollega».`,
+          url: "/admin/impostazioni/whatsapp-locale",
+          tag: `openwa-errori-${chosen.id}`,
+        });
+      } catch { /* l'avviso non deve bloccare l'invio */ }
+    }
     return { ok: false, error: `Invio fallito: ${r.status} ${r.text}`, status: 502, numberId: chosen.id, chatId: sendChatId };
   }
 

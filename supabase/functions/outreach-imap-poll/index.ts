@@ -105,6 +105,15 @@ async function applicaBounce(admin: any, mb: Casella, b: BounceInfo): Promise<vo
     const patch: Record<string, unknown> = { bounce_count: bc };
     if (shouldAutoPause(bc, (row?.complaint_count as number | null) ?? 0)) patch.status = "paused";
     await admin.from("outreach_sender_accounts").update(patch).eq("id", mb.id);
+    // La pausa automatica fermava la casella in silenzio: il titolare deve saperlo.
+    if (patch.status === "paused") {
+      await alertOutreach(admin, {
+        chiave: `autopausa:${mb.id}`, tipo: "outreach_casella_in_pausa", ogniOre: 24,
+        titolo: `Casella messa in pausa per i rimbalzi: ${mb.email}`,
+        testo: `${bc} indirizzi inesistenti: la casella non spedisce più finché non la riattivi da Deliverability. Troppi rimbalzi rovinano la reputazione del dominio: conviene ripulire la lista prima di ripartire.`,
+        url: "/admin/marketing?tab=deliverability",
+      });
+    }
   }
 }
 
@@ -153,6 +162,7 @@ async function processa(admin: any, mb: Casella, msg: MsgIn, poolEmails?: Set<st
   await handleInboundReply(admin, {
     contactId: match.id, enrollmentId: enr?.id ?? null,
     from: msg.from, subject: msg.subject, text: msg.text, messageId: msg.messageId, headers: msg.headers,
+    casella: mb.email,
   });
   return "risposta";
 }

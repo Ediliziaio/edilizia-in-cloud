@@ -70,7 +70,7 @@ describe("contactToVars", () => {
       // (vedi nomeSaluto). «Mario» con azienda «X» è un nome vero, quindi resta.
       // `zona` senza provincia in ingresso resta vuota (vedi zonaDaProvincia).
       // `azienda` vuota: «X» non è un nome da scrivere (vedi nomeAzienda).
-      .toEqual({ first_name: "Mario", last_name: "", company_name: "X", email: "m@x.it", phone: "", nome: "Mario", azienda: "", zona: "", regione: "", mese: "gennaio" });
+      .toEqual({ first_name: "Mario", last_name: "", company_name: "X", email: "m@x.it", phone: "", nome: "Mario", azienda: "", zona: "", regione: "", mese: "gennaio", sito: "" });
   });
 
   it("«regione» si ferma alla barra e «mese» è quello dell'invio a Roma", () => {
@@ -150,5 +150,26 @@ describe("htmlToPlainText — text/plain cold-aware (deliverability)", () => {
   it("è pura/deterministica: stesso input → stesso output", () => {
     const html = '<p>Ciao</p><a href="https://x.it">qui</a>';
     expect(htmlToPlainText(html)).toBe(htmlToPlainText(html));
+  });
+});
+
+// 16/09/2026: «Ho trovato il vostro contatto sul sito aziendale» solo a chi ha un sito.
+describe("renderTemplate — blocchi {{#var}}…{{/var}}", () => {
+  const frase = "Cinque minuti.{{#sito}}<br><br>Ho trovato il vostro contatto sul sito aziendale.{{/sito}}";
+  it("il blocco compare se la variabile ha un valore", () => {
+    expect(renderTemplate(frase, { sito: "rossi.it" })).toBe("Cinque minuti.<br><br>Ho trovato il vostro contatto sul sito aziendale.");
+  });
+  it("sparisce, con i suoi a capo, se la variabile è vuota o assente", () => {
+    expect(renderTemplate(frase, { sito: "" })).toBe("Cinque minuti.");
+    expect(renderTemplate(frase, {})).toBe("Cinque minuti.");
+  });
+  it("dentro il blocco le variabili funzionano", () => {
+    expect(renderTemplate("{{#sito}}Visto su {{sito}}.{{/sito}}", { sito: "rossi.it" })).toBe("Visto su rossi.it.");
+  });
+  it("il sito del contatto diventa un dominio pulito", () => {
+    expect(contactToVars({ website: "https://www.RossiSerramenti.it/contatti" }).sito).toBe("rossiserramenti.it");
+    expect(contactToVars({ website: "rossi.it" }).sito).toBe("rossi.it");
+    expect(contactToVars({ website: "  " }).sito).toBe("");
+    expect(contactToVars({ website: "facebook" }).sito).toBe("");
   });
 });

@@ -452,23 +452,35 @@ Deno.serve(async (req) => {
     }
 
     // Avviso a chi presidia: una risposta a freddo vale finche' e' calda.
-    // Fuori dagli opt-out, dove non c'e' niente da presidiare.
-    if (!didOptOut) {
-      try {
-        const chi = contactName || (phoneDigits ? `+${phoneDigits}` : "un contatto");
-        await avvisaSuperAdmin(admin, {
-          tipo: "whatsapp_risposta",
-          titolo: `Risposta WhatsApp da ${chi}`,
-          testo: (text || "(messaggio senza testo)").slice(0, 160),
-          url: "/admin/marketing/whatsapp-locale",
-          // Stesso tag per chat: se scrive tre volte non vibra tre volte.
-          tag: `openwa-${chatId}`,
-          entityType: contactId ? "marketing_contact" : null,
-          entityId: contactId,
-        });
-      } catch (e) {
-        console.error("[openwa-webhook] avviso staff:", (e as Error)?.message);
-      }
+    // Dal 16/09/2026 arriva anche su Gmail, col messaggio intero e il numero
+    // che l'ha ricevuto. Uno STOP non fa vibrare il telefono (non c'e' niente
+    // da presidiare), ma il titolare vuole sapere anche quello.
+    try {
+      const chi = contactName || (phoneDigits ? `+${phoneDigits}` : "un contatto");
+      const testoRicevuto = text || (mediaUrl ? "(ha mandato un allegato: aprilo dal pannello)" : "(messaggio senza testo)");
+      await avvisaSuperAdmin(admin, {
+        tipo: didOptOut ? "whatsapp_optout" : "whatsapp_risposta",
+        titolo: didOptOut
+          ? `WhatsApp: ${chi} ha chiesto di non essere più contattato`
+          : `Risposta WhatsApp da ${chi}`,
+        testo: testoRicevuto.slice(0, 160),
+        url: "/admin/marketing/whatsapp-locale",
+        // Stesso tag per chat: se scrive tre volte non vibra tre volte.
+        tag: `openwa-${chatId}`,
+        entityType: contactId ? "marketing_contact" : null,
+        entityId: contactId,
+        push: !didOptOut,
+        email: {
+          testo: testoRicevuto,
+          righe: [
+            { etichetta: "Da", valore: [contactName, phoneDigits ? `+${phoneDigits}` : ""].filter(Boolean).join(" · ") },
+            { etichetta: "Numero che l'ha ricevuto", valore: number ? [number.display_name, number.numero].filter(Boolean).join(" · ") : "" },
+            { etichetta: "Esito", valore: didOptOut ? "opt-out registrato: non riceverà più messaggi" : "" },
+          ],
+        },
+      });
+    } catch (e) {
+      console.error("[openwa-webhook] avviso staff:", (e as Error)?.message);
     }
 
     // Motore regole (auto-risposta / tag / assegna / notifica / blocco).

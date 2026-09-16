@@ -758,7 +758,7 @@ serveConMetriche("outreach-dispatch", async (req) => {
   // https://link.thermodmr.it/l) → impostazione di piattaforma → *.supabase.co.
   // L'ultimo è un dominio estraneo al mittente dentro ogni email, anche
   // nell'intestazione List-Unsubscribe: i filtri lo contano.
-  const brandById = new Map<string, { status?: string | null; from_name: string | null; reply_to: string | null; signature: string | null; footer_address: string | null; send_window?: unknown; tracking_base_url?: string | null; new_per_day?: number | null; stile_umano?: boolean | null; frase_uscita?: string | null; frase_uscita_automatica?: boolean | null }>();
+  const brandById = new Map<string, { name?: string | null; status?: string | null; from_name: string | null; reply_to: string | null; signature: string | null; footer_address: string | null; send_window?: unknown; tracking_base_url?: string | null; new_per_day?: number | null; stile_umano?: boolean | null; frase_uscita?: string | null; frase_uscita_automatica?: boolean | null }>();
   const trackingBasePiattaforma = String((await getPlatformSetting("outreach_tracking_base_url").catch(() => null)) || `${SUPABASE_URL}/functions/v1`).replace(/\/+$/, "");
   const trackingBasePerBrand = (brandId: string | null): string => {
     const b = brandId ? brandById.get(brandId) : undefined;
@@ -941,7 +941,7 @@ serveConMetriche("outreach-dispatch", async (req) => {
     const queueById = new Map(queue.map((q) => [q.id, q]));
 
     // identità per brand (from_name / reply_to override) + firma e indirizzo footer
-    const { data: brandsRaw } = await supabase.from("outreach_brands").select("id,status,from_name,reply_to,signature,footer_address,send_window,tracking_base_url,new_per_day,stile_umano,frase_uscita,frase_uscita_automatica");
+    const { data: brandsRaw } = await supabase.from("outreach_brands").select("id,status,from_name,reply_to,signature,footer_address,send_window,tracking_base_url,new_per_day,stile_umano,frase_uscita,frase_uscita_automatica,name");
     for (const b of brandsRaw || []) brandById.set(b.id, b);
 
     // vars dei contatti per la personalizzazione (variabili + spintax al send)
@@ -952,7 +952,7 @@ serveConMetriche("outreach-dispatch", async (req) => {
         .from("marketing_contacts")
         // province e region: alimentano le var `zona` («in provincia di X») e
         // `regione` («Lombardia»), vedi contactToVars.
-        .select("id,first_name,last_name,company_name,email,phone,optout_email,province,region").in("id", contactIds);
+        .select("id,first_name,last_name,company_name,email,phone,optout_email,province,region,website").in("id", contactIds);
       for (const c of cs || []) contactById.set(c.id, c);
     }
 
@@ -1116,6 +1116,33 @@ serveConMetriche("outreach-dispatch", async (req) => {
         }
         assignments.push(...rp.assignments);
         result.deferred += primi.length - rp.assignments.length;
+
+        // CANE DA GUARDIA (16/09/2026). ThermoDMR è rimasto fermo dalle 14:38
+        // alle 20 con caselle libere e duemila primi contatti dovuti, e se n'è
+        // accorto il titolare la sera. Se in questo giro non parte nessun primo
+        // contatto, ci sono caselle con posti liberi per i nuovi, la finestra è
+        // aperta da due ore e il brand non spedisce da due ore, non è un limite
+        // del giorno: avviso, anche su Gmail, al massimo ogni 6 ore.
+        if (rp.assignments.length === 0 && brand !== "__none__" && nuoviAlGiorno
+            && minutiDallApertura >= 120 && minutiDallApertura <= minutiFinestra - 30) {
+          const conPostiLiberi = brandSenders.filter((s) =>
+            (nuoviOggiPerCasella.get(s.id) ?? 0) < nuoviAlGiorno && remainingToday(s, today, today) > 0);
+          if (conPostiLiberi.length > 0) {
+            try {
+              const { data: ultimo } = await supabase.from("outreach_send_queue").select("sent_at")
+                .eq("brand_id", brand).eq("status", "sent").order("sent_at", { ascending: false }).limit(1).maybeSingle();
+              const oreFerme = ultimo?.sent_at ? (now.getTime() - new Date(ultimo.sent_at).getTime()) / 3_600_000 : Infinity;
+              if (oreFerme >= 2) {
+                await alertOutreach(supabase, {
+                  chiave: `brand-fermo:${brand}`, tipo: "outreach_brand_fermo", ogniOre: 6,
+                  titolo: `${brandById.get(brand)?.name ?? "Un brand"}: nessuna email partita da ${Number.isFinite(oreFerme) ? `${Math.floor(oreFerme)} ore` : "inizio giornata"}`,
+                  testo: `Ci sono ${primi.length} primi contatti dovuti e ${conPostiLiberi.length} caselle con posti liberi per i nuovi, ma il motore non ne assegna nessuno. Non è il limite del giorno: va controllato.`,
+                  url: "/admin/marketing?tab=deliverability",
+                });
+              }
+            } catch { /* il cane da guardia non deve fermare il giro */ }
+          }
+        }
       }
       if (seguiti.length) {
         const r = assignSenders(seguiti, conUsati(brandSendersPronti), today, today);
