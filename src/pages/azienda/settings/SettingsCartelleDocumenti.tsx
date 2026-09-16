@@ -18,6 +18,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { useCartelleDocumenti, useRiordinaCartelle, useSalvaCartella } from "@/hooks/useCartelleDocumenti";
 import type { CartellaDocumenti } from "@/lib/commesse/documentiCommessa";
+import { SpazioArchiviazioneCard } from "@/components/billing/SpazioArchiviazioneCard";
 
 const messaggio = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
@@ -219,6 +220,8 @@ export default function SettingsCartelleDocumenti() {
           )}
         </CardContent>
       </Card>
+
+      <SpazioArchiviazioneCard compatta />
 
       {archiviate.length > 0 && (
         <Card>

@@ -54,6 +54,7 @@ import { OrderAttachments } from "@/components/orders/OrderAttachments";
 import { PendingFilesUpload, type PendingFile } from "@/components/orders/PendingFilesUpload";
 import { useCartelleDocumenti } from "@/hooks/useCartelleDocumenti";
 import { cartellaDelFileInCoda, percorsoDocumento } from "@/lib/commesse/documentiCommessa";
+import { riduciFoto } from "@/lib/commesse/riduciFoto";
 import { SalespersonSelect } from "@/components/salespeople/SalespersonSelect";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { useTrack, ANALYTICS_EVENTS } from "@/hooks/useTrack";
@@ -918,21 +919,22 @@ function CreateOrderInner() {
       if (pendingFiles.length > 0) {
         let uploaded = 0;
         for (const pf of pendingFiles) {
-          const filePath = percorsoDocumento(order.id, pf.file.name);
+          const { file } = await riduciFoto(pf.file);
+          const filePath = percorsoDocumento(order.id, file.name);
           try {
             const { error: uploadError } = await supabase.storage
               .from("order-attachments")
-              .upload(filePath, pf.file, { contentType: pf.file.type || undefined });
+              .upload(filePath, file, { contentType: file.type || undefined });
             if (uploadError) throw uploadError;
 
             const { error: dbError } = await supabase
               .from("order_attachments")
               .insert({
                 order_id: order.id,
-                file_name: pf.file.name,
+                file_name: file.name,
                 file_url: filePath,
-                file_type: pf.file.type || "application/octet-stream",
-                file_size: pf.file.size,
+                file_type: file.type || "application/octet-stream",
+                file_size: file.size,
                 uploaded_by: user!.id,
                 visible_to_customer: pf.visibleToCustomer,
                 folder_id: cartellaDelFileInCoda(pf, cartelleDocumenti),

@@ -26,8 +26,6 @@ export interface PendingFile {
   folderId?: string | null;
 }
 
-const SENZA = "__senza";
-
 interface PendingFilesUploadProps {
   files: PendingFile[];
   onFilesChange: (files: PendingFile[]) => void;
@@ -139,9 +137,8 @@ export function PendingFilesUpload({ files, onFilesChange }: PendingFilesUploadP
                   <div className="flex items-center gap-2">
                     {cartelle.length > 0 && (
                       <Select
-                        value={cartella ?? SENZA}
-                        onValueChange={(val) => {
-                          const id = val === SENZA ? null : val;
+                        value={cartella ?? ""}
+                        onValueChange={(id) => {
                           aggiorna(index, {
                             folderId: id,
                             visibleToCustomer: cartelle.find((c) => c.id === id)?.visibile_cliente ?? pf.visibleToCustomer,
@@ -149,11 +146,10 @@ export function PendingFilesUpload({ files, onFilesChange }: PendingFilesUploadP
                         }}
                       >
                         <SelectTrigger className={`h-8 w-full sm:w-[220px] text-xs ${cartella ? "" : "text-muted-foreground"}`}>
-                          <SelectValue />
+                          <SelectValue placeholder="Scegli la cartella" />
                         </SelectTrigger>
                         <SelectContent>
                           {cartelle.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
-                          <SelectItem value={SENZA}>Senza cartella</SelectItem>
                         </SelectContent>
                       </Select>
                     )}
@@ -181,7 +177,7 @@ export function PendingFilesUpload({ files, onFilesChange }: PendingFilesUploadP
               );
             })}
             <p className="text-xs text-muted-foreground text-center pt-1">
-              {files.length} file · massimo {MAX_MB_PER_FILE} MB ciascuno · salgono quando crei la commessa
+              {files.length} file · massimo {MAX_MB_PER_FILE} MB ciascuno · le foto pesanti vengono ridotte · salgono quando crei la commessa
             </p>
           </div>
         )}

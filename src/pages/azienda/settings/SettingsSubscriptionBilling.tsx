@@ -40,6 +40,7 @@ import { BillingDetailsCard } from "@/components/billing/BillingDetailsCard";
 import { PlanChangeDialog, CancelPlanDialog } from "@/components/billing/PlanChangeDialog";
 
 import { useIsMobile } from "@/hooks/use-mobile";
+import { SpazioArchiviazioneCard } from "@/components/billing/SpazioArchiviazioneCard";
 // Lazy-load contenuto Portafoglio (la pagina Crediti & Saldo ha già tutta la logica)
 const SettingsCrediti = lazy(() => import("@/pages/azienda/settings/SettingsCredits"));
 
@@ -350,6 +351,8 @@ function TabAbbonamenti() {
           </div>
         </CardContent>
       </Card>
+
+      <SpazioArchiviazioneCard />
 
       {/* ── Cross-sell: mostrato se l'utente non è sul piano top.
             topPlanPrice viene dalla tabella subscription_plans (no hardcoded). ── */}

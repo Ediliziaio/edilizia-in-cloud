@@ -56,7 +56,7 @@ export function percorsoDocumento(orderId: string, nomeFile: string, ora = Date.
 }
 
 const norm = (s: string) =>
-  s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[_\-.+]/g, " ");
+  s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[_\-.+]/g, " ").replace(/\s+/g, " ");
 
 /**
  * Regole «parole nel nome del file» → «parole nel nome della cartella».
@@ -131,7 +131,11 @@ export function cartellaSuggerita(
     const c = cercaCartella(attive, ["architetton", "progett", "tecnic"]);
     if (c) return c.id;
   }
-  return null;
+  // Ultima spiaggia «Varie» (come fa il database per Silvio e il magazzino):
+  // prima quella che inizia con «Varie», poi una che la contiene.
+  const varie =
+    attive.find((c) => norm(c.nome).startsWith("varie")) ?? attive.find((c) => norm(c.nome).includes("varie"));
+  return varie?.id ?? null;
 }
 
 /** Cartelle obbligatorie ancora vuote per questa commessa. */

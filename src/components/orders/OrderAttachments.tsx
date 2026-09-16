@@ -149,6 +149,7 @@ export function OrderAttachments({ orderId, editable = true }: OrderAttachmentsP
     queryClient.invalidateQueries({ queryKey: ["order-attachments", orderId] });
     queryClient.invalidateQueries({ queryKey: ["order-documents-summary", orderId] });
     queryClient.invalidateQueries({ queryKey: ["order_attachments", orderId] });
+    queryClient.invalidateQueries({ queryKey: ["spazio-archiviazione"] });
   };
 
   const toggleVisibilityMutation = useMutation({

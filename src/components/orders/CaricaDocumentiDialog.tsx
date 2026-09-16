@@ -5,6 +5,9 @@
  */
 import { useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { Checkbox } from "@/components/ui/checkbox";
+import { byteLiberi, chiaveSpazio, useSpazioArchiviazione } from "@/hooks/useSpazioArchiviazione";
+import { riduciFoto, fotoDaRidurre } from "@/lib/commesse/riduciFoto";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -24,7 +27,6 @@ import {
 } from "@/lib/commesse/documentiCommessa";
 import { ATTACHMENTS_BUCKET, fmtBytes } from "./filePreviewUtils";
 
-const SENZA = "__senza";
 const IN_PARALLELO = 3;
 
 type Stato = "attesa" | "caricamento" | "fatto" | "errore";
@@ -35,6 +37,8 @@ interface Voce {
   cartellaId: string | null;
   stato: Stato;
   errore?: string;
+  /** Peso originale se la foto è stata ridotta. */
+  byteOriginali?: number;
 }
 
 let contatore = 0;
@@ -78,6 +82,9 @@ export function CaricaDocumentiDialog({
   // sempre dai file che l'hanno aperto.
   const [voci, setVoci] = useState<Voce[]>(() => vociDaFile(filesIniziali, cartelle, cartellaPredefinita));
   const [inCorso, setInCorso] = useState(false);
+  const [riduci, setRiduci] = useState(true);
+  const { data: spazio } = useSpazioArchiviazione();
+  const liberi = byteLiberi(spazio);
 
   const aggiorna = (chiave: string, patch: Partial<Voce>) =>
     setVoci((prev) => prev.map((v) => (v.chiave === chiave ? { ...v, ...patch } : v)));
@@ -87,20 +94,22 @@ export function CaricaDocumentiDialog({
   const caricaUno = async (v: Voce): Promise<boolean> => {
     if (!user) return false;
     aggiorna(v.chiave, { stato: "caricamento", errore: undefined });
-    const percorso = percorsoDocumento(orderId, v.file.name);
+    const { file, ridotta, byteOriginali } = riduci ? await riduciFoto(v.file) : { file: v.file, ridotta: false, byteOriginali: v.file.size };
+    if (ridotta) aggiorna(v.chiave, { byteOriginali });
+    const percorso = percorsoDocumento(orderId, file.name);
     try {
       const { error: errUpload } = await supabase.storage
         .from(ATTACHMENTS_BUCKET)
-        .upload(percorso, v.file, { contentType: v.file.type || undefined });
+        .upload(percorso, file, { contentType: file.type || undefined });
       if (errUpload) throw errUpload;
 
       const visibile = cartellaDi(v.cartellaId)?.visibile_cliente ?? false;
       const { error: errRiga } = await supabase.from("order_attachments").insert({
         order_id: orderId,
-        file_name: v.file.name,
+        file_name: file.name,
         file_url: percorso,
-        file_type: v.file.type || "application/octet-stream",
-        file_size: v.file.size,
+        file_type: file.type || "application/octet-stream",
+        file_size: file.size,
         uploaded_by: user.id,
         visible_to_customer: visibile,
         folder_id: v.cartellaId,
@@ -118,9 +127,9 @@ export function CaricaDocumentiDialog({
           company_id: effectiveCompany.id,
           event_type: "allegato_caricato",
           payload: {
-            file_name: v.file.name,
-            file_type: v.file.type,
-            file_size: v.file.size,
+            file_name: file.name,
+            file_type: file.type,
+            file_size: file.size,
             visible_to_customer: visibile,
             cartella: cartellaDi(v.cartellaId)?.nome ?? null,
           },
@@ -128,7 +137,7 @@ export function CaricaDocumentiDialog({
           actor_name: autore,
         } as never);
       }
-      aggiorna(v.chiave, { stato: "fatto" });
+      aggiorna(v.chiave, { stato: "fatto", ...(ridotta ? { byteOriginali } : {}) });
       return true;
     } catch (e) {
       logger.error("Caricamento documento commessa:", e);
@@ -145,6 +154,14 @@ export function CaricaDocumentiDialog({
   const caricaTutti = async (soloErrori = false) => {
     const daFare = voci.filter((v) => (soloErrori ? v.stato === "errore" : v.stato === "attesa" || v.stato === "errore"));
     if (daFare.length === 0) return;
+    // Stima prudente: le foto ridotte peseranno meno, qui si conta il peso pieno dei documenti.
+    const stima = daFare.reduce((t, v) => t + (riduci && fotoDaRidurre(v.file) ? v.file.size * 0.3 : v.file.size), 0);
+    if (liberi != null && stima > liberi) {
+      toast.error("Spazio di archiviazione esaurito", {
+        description: `Servono circa ${fmtBytes(stima)}, ne restano ${fmtBytes(liberi) || "0 MB"}. Libera spazio o passa a un piano superiore (Impostazioni → Abbonamento).`,
+      });
+      return;
+    }
     setInCorso(true);
     let ok = 0;
     const coda = [...daFare];
@@ -162,6 +179,8 @@ export function CaricaDocumentiDialog({
     queryClient.invalidateQueries({ queryKey: ["order_attachments", orderId] });
     queryClient.invalidateQueries({ queryKey: ["order-events", orderId] });
     queryClient.invalidateQueries({ queryKey: ["order-diary-audit", orderId] });
+    queryClient.invalidateQueries({ queryKey: chiaveSpazio(effectiveCompany?.id) });
+    queryClient.invalidateQueries({ queryKey: ["spazio-archiviazione"] });
 
     const falliti = daFare.length - ok;
     if (falliti === 0) {
@@ -177,7 +196,7 @@ export function CaricaDocumentiDialog({
   const daCaricare = voci.filter((v) => v.stato !== "fatto").length;
   const errori = voci.filter((v) => v.stato === "errore").length;
   const valoreComune = (() => {
-    const set = new Set(voci.map((v) => v.cartellaId ?? SENZA));
+    const set = new Set(voci.map((v) => v.cartellaId ?? ""));
     return set.size === 1 ? [...set][0] : "";
   })();
 
@@ -217,7 +236,7 @@ export function CaricaDocumentiDialog({
               value={valoreComune}
               disabled={inCorso}
               onValueChange={(val) =>
-                setVoci((prev) => prev.map((v) => (v.stato === "fatto" ? v : { ...v, cartellaId: val === SENZA ? null : val })))
+                setVoci((prev) => prev.map((v) => (v.stato === "fatto" ? v : { ...v, cartellaId: val })))
               }
             >
               <SelectTrigger className="h-8 w-auto min-w-[200px] max-w-full">
@@ -225,11 +244,22 @@ export function CaricaDocumentiDialog({
               </SelectTrigger>
               <SelectContent>
                 {cartelle.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
-                <SelectItem value={SENZA}>Senza cartella</SelectItem>
               </SelectContent>
             </Select>
           </div>
         )}
+
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs text-muted-foreground">
+          {voci.some((v) => fotoDaRidurre(v.file)) ? (
+            <label htmlFor="riduci-foto-commessa" className="flex items-center gap-2 cursor-pointer">
+              <Checkbox id="riduci-foto-commessa" checked={riduci} disabled={inCorso} onCheckedChange={(c) => setRiduci(c === true)} />
+              Riduci le foto pesanti (restano nitide, occupano un quinto dello spazio)
+            </label>
+          ) : <span />}
+          {liberi != null && (
+            <span className="tabular-nums">Spazio libero: {fmtBytes(liberi) || "0 MB"}</span>
+          )}
+        </div>
 
         <div className="flex-1 overflow-y-auto -mx-1 px-1 divide-y border rounded-md">
           {voci.length === 0 ? (
@@ -246,23 +276,26 @@ export function CaricaDocumentiDialog({
                   <div className="min-w-0">
                     <p className="text-sm font-medium truncate" title={v.file.name}>{v.file.name}</p>
                     <p className={`text-xs ${v.stato === "errore" ? "text-destructive" : "text-muted-foreground"}`}>
-                      {v.stato === "errore" ? v.errore : fmtBytes(v.file.size)}
+                      {v.stato === "errore"
+                        ? v.errore
+                        : v.byteOriginali
+                          ? `Foto ridotta da ${fmtBytes(v.byteOriginali)}`
+                          : fmtBytes(v.file.size)}
                     </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-1 pl-7 sm:pl-0">
                   <Select
-                    value={v.cartellaId ?? SENZA}
+                    value={v.cartellaId ?? ""}
                     disabled={inCorso || v.stato === "fatto"}
-                    onValueChange={(val) => aggiorna(v.chiave, { cartellaId: val === SENZA ? null : val })}
+                    onValueChange={(val) => aggiorna(v.chiave, { cartellaId: val })}
                   >
                     <SelectTrigger className={`h-8 w-full sm:w-[240px] text-xs ${v.cartellaId ? "" : "text-muted-foreground"}`}>
-                      <SelectValue />
+                      <SelectValue placeholder="Scegli la cartella" />
                     </SelectTrigger>
                     <SelectContent>
                       {cartelle.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
-                      <SelectItem value={SENZA}>Senza cartella</SelectItem>
-                    </SelectContent>
+                          </SelectContent>
                   </Select>
                   <Button
                     type="button"

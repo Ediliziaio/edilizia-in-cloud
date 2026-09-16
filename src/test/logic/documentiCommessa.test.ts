@@ -45,6 +45,7 @@ describe("cartella proposta dal nome del file", () => {
     expect(cartellaSuggerita("sopralluogo_rossi.pdf", greenEnergy)).toBe("sopr");
     expect(cartellaSuggerita("IMG_4412.HEIC", greenEnergy)).toBe("fotoftv");
     expect(cartellaSuggerita("Re conferma.eml", greenEnergy)).toBe("mail");
+    expect(cartellaSuggerita("Carta identità.jpg", greenEnergy)).toBe("contratti");
   });
 
   it("gruppo base", () => {
@@ -54,9 +55,11 @@ describe("cartella proposta dal nome del file", () => {
     expect(cartellaSuggerita("CILA.pdf", base)).toBe("pratiche");
   });
 
-  it("senza indizi: la cartella aperta, altrimenti nessuna", () => {
-    expect(cartellaSuggerita("scansione 0001.pdf", base, "varie")).toBe("varie");
-    expect(cartellaSuggerita("scansione 0001.pdf", base)).toBeNull();
+  it("senza indizi: la cartella aperta, altrimenti «Varie»", () => {
+    expect(cartellaSuggerita("scansione 0001.pdf", base, "preventivi")).toBe("preventivi");
+    expect(cartellaSuggerita("scansione 0001.pdf", base)).toBe("varie");
+    expect(cartellaSuggerita("scansione 0001.pdf", [...greenEnergy, c("fotovarie", "Foto installazione + Dico Varie")])).toBe("varie");
+    expect(cartellaSuggerita("scansione 0001.pdf", [c("x", "Contratti")])).toBeNull();
     expect(cartellaSuggerita("x.pdf", [])).toBeNull();
     expect(cartellaSuggerita("fattura.pdf", [c("f", "Fatture", { archiviata_at: "2026-01-01" })])).toBeNull();
   });
@@ -89,5 +92,23 @@ describe("cartelle obbligatorie, conteggi, ricerca", () => {
     expect(corrispondeRicerca("Visura Rossi.pdf", "Doc. catastali", "rossi catastali")).toBe(true);
     expect(corrispondeRicerca("Pratica.pdf", "Varie", "citta")).toBe(false);
     expect(corrispondeRicerca("Città.pdf", "Varie", "citta")).toBe(true);
+  });
+});
+
+import { dimensioniRidotte, fotoDaRidurre } from "@/lib/commesse/riduciFoto";
+
+describe("riduzione foto", () => {
+  it("solo JPEG/WebP pesanti", () => {
+    const mb = 1024 * 1024;
+    expect(fotoDaRidurre({ name: "a.jpg", type: "image/jpeg", size: 4 * mb })).toBe(true);
+    expect(fotoDaRidurre({ name: "a.jpg", type: "image/jpeg", size: 0.5 * mb })).toBe(false);
+    expect(fotoDaRidurre({ name: "a.heic", type: "image/heic", size: 4 * mb })).toBe(false);
+    expect(fotoDaRidurre({ name: "a.pdf", type: "application/pdf", size: 9 * mb })).toBe(false);
+    expect(fotoDaRidurre({ name: "a.png", type: "image/png", size: 9 * mb })).toBe(false);
+  });
+  it("proporzioni", () => {
+    expect(dimensioniRidotte(4032, 3024)).toEqual({ w: 2560, h: 1920 });
+    expect(dimensioniRidotte(3024, 4032)).toEqual({ w: 1920, h: 2560 });
+    expect(dimensioniRidotte(1600, 1200)).toEqual({ w: 1600, h: 1200 });
   });
 });
