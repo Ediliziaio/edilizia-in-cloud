@@ -138,6 +138,7 @@ const SettingsPeople = lazy(() => import("@/pages/azienda/settings/SettingsPeopl
 const SettingsSecurityHub = lazy(() => import("@/pages/azienda/settings/SettingsSecurityHub"));
 const SettingsEsportaDati = lazy(() => import("@/pages/azienda/settings/SettingsEsportaDati"));
 const SettingsTags = lazy(() => import("@/pages/azienda/settings/SettingsTags"));
+const SettingsMotiviPerdita = lazy(() => import("@/pages/azienda/settings/SettingsMotiviPerdita"));
 const SettingsCustomFields = lazy(() => import("@/pages/azienda/settings/SettingsCustomFields"));
 const SettingsMarketingCalendars = lazy(() => import("@/pages/azienda/settings/SettingsMarketingCalendars"));
 const SettingsCalendariLavori = lazy(() => import("@/pages/azienda/settings/SettingsCalendariLavori"));
@@ -1183,6 +1184,7 @@ export default function CompanyRoutesContainer() {
           <Route path="categorie-costi" element={withCompanyPermission("canViewCosts", <SettingsCostCategories />)} />
           <Route path="automazioni-finanza" element={withCompanyPermission("canViewCosts", <SettingsFinanceAutomation />)} />
           <Route path="tag" element={withCompanyPermission("canViewSettingsCustomization", <SettingsTags />)} />
+          <Route path="motivi-perdita" element={withCompanyPermission("canViewSettingsCustomization", <SettingsMotiviPerdita />)} />
           <Route path="campi-personalizzati" element={withCompanyPermission("canViewSettingsCustomization", <SettingsCustomFields />)} />
           <Route path="sequenze" element={withCompanyPermission("canViewSettingsCustomization", <SettingsPipelines />)} />
           <Route path="calendari" element={withCompanyPermission("canViewSettingsCustomization", <SettingsMarketingCalendars />)} />

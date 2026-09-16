@@ -16,20 +16,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Plus } from "lucide-react";
-import { toast } from "sonner";
-import { useLossReasons, useAddLossReason } from "@/hooks/useLossReasons";
+import { Loader2 } from "lucide-react";
+import { MotivoPerditaSelect } from "./MotivoPerditaSelect";
 
 export interface EsitoPerdita {
   categoria: string;
@@ -51,18 +43,12 @@ export function LossReasonDialog({
   onClose: () => void;
   onConfirm: (esito: EsitoPerdita) => void;
 }) {
-  const { motivi } = useLossReasons();
-  const aggiungi = useAddLossReason();
-
   const [categoria, setCategoria] = useState("");
   const [dettaglio, setDettaglio] = useState("");
   const [concorrente, setConcorrente] = useState("");
-  const [nuovoMotivo, setNuovoMotivo] = useState("");
-  const [mostraAggiungi, setMostraAggiungi] = useState(false);
 
   const reset = () => {
     setCategoria(""); setDettaglio(""); setConcorrente("");
-    setNuovoMotivo(""); setMostraAggiungi(false);
   };
 
   return (
@@ -78,61 +64,7 @@ export function LossReasonDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-2">
-          <div className="space-y-1">
-            <Label className="text-sm font-medium">Categoria motivo *</Label>
-            <Select value={categoria} onValueChange={setCategoria}>
-              <SelectTrigger className="mt-1">
-                <SelectValue placeholder="Seleziona categoria..." />
-              </SelectTrigger>
-              <SelectContent>
-                {motivi.map((m) => (
-                  <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {!mostraAggiungi ? (
-              <button
-                type="button"
-                className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1 mt-1"
-                onClick={() => setMostraAggiungi(true)}
-              >
-                <Plus className="h-3 w-3" /> Nuovo motivo per la tua azienda
-              </button>
-            ) : (
-              <div className="flex gap-2 mt-1.5">
-                <Input
-                  autoFocus
-                  placeholder="Es. misure sbagliate, condominio non delibera…"
-                  value={nuovoMotivo}
-                  onChange={(e) => setNuovoMotivo(e.target.value)}
-                  className="h-8 text-sm"
-                />
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="secondary"
-                  className="h-8"
-                  disabled={aggiungi.isPending || !nuovoMotivo.trim()}
-                  onClick={() =>
-                    aggiungi.mutate(nuovoMotivo, {
-                      onSuccess: (etichetta) => {
-                        setCategoria(etichetta);
-                        setNuovoMotivo("");
-                        setMostraAggiungi(false);
-                        toast.success("Motivo aggiunto al listino della tua azienda");
-                      },
-                      onError: (e) =>
-                        toast.error("Motivo non aggiunto", {
-                          description: e instanceof Error ? e.message : String(e),
-                        }),
-                    })
-                  }
-                >
-                  {aggiungi.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Aggiungi"}
-                </Button>
-              </div>
-            )}
-          </div>
+          <MotivoPerditaSelect value={categoria} onChange={setCategoria} />
 
           <div className="space-y-1">
             <Label className="text-sm font-medium">Dettaglio (opzionale)</Label>

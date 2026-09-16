@@ -1,29 +1,19 @@
 /**
- * Motivi di perdita per azienda — la tabella opportunity_loss_reasons
- * esisteva (con RLS) ma nessuno la leggeva: il select restava hardcoded a
- * 7 voci. Ora: i motivi dell'azienda si sommano ai default, e chi vende
- * puo' aggiungerne di suoi ("misure sbagliate", "condominio non delibera").
+ * Motivi di perdita per azienda: i sette standard (uguali per tutti) più
+ * quelli che l'azienda aggiunge dal dialog di perdita o da
+ * Impostazioni → Motivi di perdita, dove si rinominano e si tolgono.
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import {
+  MOTIVI_PERDITA_DEFAULT,
+  nomeMotivoValido,
+  unisciMotivi,
+  type MotivoPerdita,
+} from "@/lib/opportunita/motiviPerdita";
 
-export interface MotivoPerdita {
-  value: string;
-  label: string;
-  /** true = voce di default del prodotto, non cancellabile. */
-  predefinito: boolean;
-}
-
-export const MOTIVI_PERDITA_DEFAULT: MotivoPerdita[] = [
-  { value: "prezzo", label: "Prezzo troppo alto", predefinito: true },
-  { value: "concorrente", label: "Scelta concorrente", predefinito: true },
-  { value: "budget_non_disponibile", label: "Budget non disponibile", predefinito: true },
-  { value: "timing", label: "Timing non giusto", predefinito: true },
-  { value: "prodotto_non_adatto", label: "Prodotto non adatto", predefinito: true },
-  { value: "nessuna_risposta", label: "Nessuna risposta del cliente", predefinito: true },
-  { value: "altro", label: "Altro", predefinito: true },
-];
+export { MOTIVI_PERDITA_DEFAULT, type MotivoPerdita };
 
 export function useLossReasons() {
   const companyId = useEffectiveCompanyId();
@@ -39,34 +29,50 @@ export function useLossReasons() {
         .eq("company_id", companyId!)
         .order("position");
       if (error) return MOTIVI_PERDITA_DEFAULT;
-      const custom: MotivoPerdita[] = (data ?? []).map((r) => ({
-        // Il value custom e' l'etichetta stessa: lost_reason_category e' text
-        // libero in DB, i report raggruppano per valore.
-        value: r.label,
-        label: r.label,
-        predefinito: false,
-      }));
-      // Default prima, custom in coda; niente doppioni per etichetta.
-      const etichette = new Set(MOTIVI_PERDITA_DEFAULT.map((m) => m.label.toLowerCase()));
-      return [
-        ...MOTIVI_PERDITA_DEFAULT,
-        ...custom.filter((c) => !etichette.has(c.label.toLowerCase())),
-      ];
+      // Il value dei motivi aziendali è l'etichetta stessa: i report
+      // raggruppano per testo.
+      return unisciMotivi(data ?? []);
     },
   });
 
   return { motivi: query.data ?? MOTIVI_PERDITA_DEFAULT, isLoading: query.isLoading };
 }
 
+/** Quante opportunità (non eliminate) portano ciascun motivo. */
+export function useLossReasonUsage() {
+  const companyId = useEffectiveCompanyId();
+  return useQuery({
+    queryKey: ["loss-reasons-usage", companyId],
+    enabled: !!companyId,
+    queryFn: async (): Promise<Record<string, number>> => {
+      const { data, error } = await supabase.rpc("motivi_perdita_utilizzo" as never);
+      if (error) throw error;
+      const righe = (data ?? []) as unknown as { motivo: string; opportunita: number }[];
+      return Object.fromEntries(righe.map((r) => [r.motivo, r.opportunita]));
+    },
+  });
+}
+
+function useInvalidaMotivi() {
+  const companyId = useEffectiveCompanyId();
+  const queryClient = useQueryClient();
+  return () => {
+    queryClient.invalidateQueries({ queryKey: ["loss-reasons", companyId] });
+    queryClient.invalidateQueries({ queryKey: ["loss-reasons-usage", companyId] });
+  };
+}
+
 export function useAddLossReason() {
   const companyId = useEffectiveCompanyId();
   const queryClient = useQueryClient();
+  const invalida = useInvalidaMotivi();
 
   return useMutation({
     mutationFn: async (label: string) => {
-      const pulita = label.trim();
-      if (!pulita) throw new Error("Scrivi il motivo prima di aggiungerlo");
       if (!companyId) throw new Error("Contesto azienda mancante");
+      const attuali =
+        queryClient.getQueryData<MotivoPerdita[]>(["loss-reasons", companyId]) ?? MOTIVI_PERDITA_DEFAULT;
+      const pulita = nomeMotivoValido(label, attuali);
       const { data: esistenti } = await supabase
         .from("opportunity_loss_reasons")
         .select("position")
@@ -77,11 +83,46 @@ export function useAddLossReason() {
       const { error } = await supabase
         .from("opportunity_loss_reasons")
         .insert({ company_id: companyId, label: pulita, position: posizione });
-      if (error) throw error;
+      if (error) {
+        if (error.code === "23505") throw new Error(`Esiste già il motivo «${pulita}»`);
+        throw error;
+      }
       return pulita;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["loss-reasons", companyId] });
+    onSuccess: invalida,
+  });
+}
+
+export function useRenameLossReason() {
+  const companyId = useEffectiveCompanyId();
+  const queryClient = useQueryClient();
+  const invalida = useInvalidaMotivi();
+
+  return useMutation({
+    mutationFn: async ({ id, label }: { id: string; label: string }) => {
+      const attuali =
+        queryClient.getQueryData<MotivoPerdita[]>(["loss-reasons", companyId]) ?? MOTIVI_PERDITA_DEFAULT;
+      const pulita = nomeMotivoValido(label, attuali, id);
+      // La RPC porta il nuovo nome anche sulle opportunità già perse.
+      const { data, error } = await supabase.rpc("rinomina_motivo_perdita" as never, {
+        p_id: id,
+        p_label: pulita,
+      } as never);
+      if (error) throw error;
+      return { label: pulita, opportunita: (data as unknown as number) ?? 0 };
     },
+    onSuccess: invalida,
+  });
+}
+
+export function useDeleteLossReason() {
+  const invalida = useInvalidaMotivi();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      // Le opportunità già perse tengono il testo: i report non perdono storia.
+      const { error } = await supabase.from("opportunity_loss_reasons").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: invalida,
   });
 }

@@ -86,6 +86,7 @@ const SETTINGS_ITEMS: SettingsItem[] = [
   { label: "Tag",                        path: "/azienda/impostazioni/tag" },
   { label: "Campi personalizzati",       path: "/azienda/impostazioni/campi-personalizzati" },
   { label: "Sequenze",                   path: "/azienda/impostazioni/sequenze" },
+  { label: "Motivi di perdita",          path: "/azienda/impostazioni/motivi-perdita" },
   { label: "Form & UTM",                 path: "/azienda/impostazioni/form-builder" },
   { label: "Modelli di preventivo",      path: "/azienda/impostazioni/template-preventivi" },
   { label: "Firma e condizioni · Condizioni", path: "/azienda/impostazioni/condizioni-firma" },

@@ -71,6 +71,7 @@ const SETTINGS_INDEX: SettingsIndexEntry[] = [
   // ── Marketing & CRM ──
   { group: "Marketing", title: "Tag", url: "/azienda/impostazioni/tag", keywords: ["tag", "etichette", "categoria contatti"] },
   { group: "Marketing", title: "Campi personalizzati", url: "/azienda/impostazioni/campi-personalizzati", keywords: ["campo", "custom field", "field"] },
+  { group: "Marketing", title: "Motivi di perdita", url: "/azienda/impostazioni/motivi-perdita", keywords: ["persa", "perdita", "motivo", "lost reason", "opportunita persa"] },
   { group: "Marketing", title: "Sequenze (Pipeline)", url: "/azienda/impostazioni/sequenze", keywords: ["pipeline", "sequenza", "fase opportunita", "stage"] },
   { group: "Marketing", title: "Form & UTM", url: "/azienda/impostazioni/form-builder", keywords: ["form", "utm", "lead form", "acquisizione"] },
   { group: "Marketing", title: "Calendari marketing", url: "/azienda/impostazioni/calendari", keywords: ["calendario", "google calendar", "appuntamenti"] },

@@ -29,7 +29,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import { TagSelector } from "@/components/marketing/TagSelector";
-import { useLossReasons } from "@/hooks/useLossReasons";
+import { MotivoPerditaSelect } from "./MotivoPerditaSelect";
 import { Badge } from "@/components/ui/badge";
 import {
   Loader2, Trash2, StickyNote, FileText, CalendarDays, Activity,
@@ -200,8 +200,10 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
   const [oppCustomValues, setOppCustomValues] = useState<Record<string, string>>({});
 
   // Sales OS state
-  const { motivi: motiviPerdita } = useLossReasons();
   const [showLostDialog, setShowLostDialog] = useState(false);
+  // «Aggiorna» con lo stato Persa ma senza motivo apre la finestra del motivo:
+  // confermata quella, il salvataggio riparte da solo.
+  const riprendiSalvataggio = useRef(false);
   const [pendingLostStatus, setPendingLostStatus] = useState<string | null>(null);
   const [lostReason, setLostReason] = useState("");
   const [lostCategory, setLostCategory] = useState("");
@@ -402,6 +404,19 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
       toast.error("Seleziona una fase");
       return;
     }
+    // Persa: il motivo è obbligatorio. Prima «Aggiorna» diceva solo «Indica il
+    // motivo» senza dire dove: anche dopo aver già confermato la perdita (il
+    // motivo non viaggiava nel salvataggio) o dopo aver scelto una fase persa
+    // (la finestra del motivo non si apriva). Ora si usa quello già scritto,
+    // e se non c'è si apre la finestra (BeMade/Suntech, Sonia, 16/09).
+    const motivoCategoria = lostCategory || opportunity.lost_reason_category || null;
+    const motivoDettaglio = lostReason || opportunity.lost_reason || opportunity.loss_reason || null;
+    if (status === "lost" && !motivoCategoria && !motivoDettaglio) {
+      setPendingLostStatus("lost");
+      riprendiSalvataggio.current = true;
+      setShowLostDialog(true);
+      return;
+    }
     const numericValue = value.trim() ? Number(value) : 0;
     if (!Number.isFinite(numericValue) || numericValue < 0) {
       toast.error("Il valore economico deve essere un numero positivo");
@@ -484,6 +499,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
       call_center_id: callCenterId || null,
       company_name: companyName || null,
       notes: oppNotes || null,
+      ...(status === "lost" ? { lost_reason_category: motivoCategoria, lost_reason: motivoDettaglio } : {}),
       tags: normalizeTagList(oppTags),
       contact_id: finalContactId,
       // Solo il CRM di piattaforma ha queste colonne valorizzate; per le aziende
@@ -1415,19 +1431,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">
-          <div className="space-y-1">
-            <Label className="text-sm font-medium">Categoria motivo *</Label>
-            <Select value={lostCategory} onValueChange={setLostCategory}>
-              <SelectTrigger className="mt-1">
-                <SelectValue placeholder="Seleziona categoria..." />
-              </SelectTrigger>
-              <SelectContent>
-                {motiviPerdita.map((m) => (
-                  <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <MotivoPerditaSelect value={lostCategory} onChange={setLostCategory} />
           <div className="space-y-1">
             <Label className="text-sm font-medium">Dettaglio (opzionale)</Label>
             <Textarea
@@ -1448,7 +1452,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => setShowLostDialog(false)}>
+          <Button variant="outline" onClick={() => { riprendiSalvataggio.current = false; setShowLostDialog(false); }}>
             Annulla
           </Button>
           <Button
@@ -1473,6 +1477,12 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                   onSuccess: () => {
                     setStatus(pendingLostStatus!);
                     setShowLostDialog(false);
+                    if (riprendiSalvataggio.current) {
+                      // Motivo scritto dopo «Aggiorna»: si completa il salvataggio (fase e altri campi).
+                      riprendiSalvataggio.current = false;
+                      void handleSave();
+                      return;
+                    }
                     toast.success("Opportunità aggiornata");
                   },
                 }
