@@ -4,6 +4,7 @@ import { getEncryptionKey, encrypt, decrypt } from "../_shared/encryption.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
 
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { creaStateFirmato, leggiStateFirmato } from "../_shared/oauthState.ts";
 
 // 2026-05-27 (BUG #2): mancavano scope userinfo.email + userinfo.profile.
 // Senza questi, la chiamata a /oauth2/v2/userinfo ritornava 403
@@ -51,7 +52,7 @@ async function handleStart(req: Request, userId: string, companyId: string): Pro
 
   const redirectUri = await getRedirectUri();
   const appOrigin = req.headers.get("origin") || undefined;
-  const state = btoa(JSON.stringify({ userId, companyId, appOrigin, ts: Date.now() }));
+  const state = await creaStateFirmato({ userId, companyId, appOrigin });
 
   const params = new URLSearchParams({
     client_id: clientId,
@@ -79,11 +80,15 @@ async function handleCallback(req: Request): Promise<Response> {
     return buildCallbackHtml("error", error || "Missing code");
   }
 
-  let state: { userId: string; companyId: string; appOrigin?: string };
-  try {
-    state = JSON.parse(atob(stateParam));
-  } catch {
-    return buildCallbackHtml("error", "Invalid state");
+  const state = await leggiStateFirmato(stateParam);
+  if (!state) {
+    return buildCallbackHtml("error", "Collegamento scaduto o non valido: riprova");
+  }
+  // L'accesso all'azienda si ricontrolla al ritorno: può essere stato tolto
+  // nei minuti passati su Google.
+  // deno-lint-ignore no-explicit-any
+  if (!(await canAccessCompany(getSupabaseAdmin() as any, state.userId, state.companyId))) {
+    return buildCallbackHtml("error", "Accesso all'azienda non consentito", state.appOrigin);
   }
 
   const clientId = await getPlatformSetting("google_calendar_client_id", "GOOGLE_CALENDAR_CLIENT_ID");
@@ -310,21 +315,16 @@ async function handleCallback(req: Request): Promise<Response> {
     console.warn("Auto watch registration failed (non-critical):", e);
   }
 
-  // 2026-05-26: trigger sync immediato dopo OAuth (fire-and-forget). Senza
-  // questo, l'utente collegava il calendario ma vedeva la pagina vuota finché
-  // non cliccava "Sincronizza ora" — confondente. Il primo sync popola
-  // google_calendar_busy_slots con gli eventi delle prossime 4 settimane.
-  try {
-    fetch(`${supabaseUrl}/functions/v1/google-calendar-sync`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${serviceKey}`,
-      },
-      body: JSON.stringify({ companyId: state.companyId, userId: state.userId }),
-    }).catch((e) => console.warn("Auto initial sync failed (non-critical):", e));
-  } catch (e) {
-    console.warn("Auto initial sync schedule failed:", e);
+  // Prima sincronizzazione subito dopo il collegamento, così la pagina non
+  // resta vuota. Prima la chiamata non aveva "action" (400) e passava con una
+  // chiave che il gateway di google-calendar-sync non accetta.
+  {
+    const { error: svegliaErr } = await getSupabaseAdmin().rpc("calendario_esterno_sveglia", {
+      p_funzione: "google-calendar-sync",
+      p_action: "full-sync",
+      p_body: { userId: state.userId, companyId: state.companyId },
+    });
+    if (svegliaErr) console.warn("Auto initial sync failed (non-critical):", svegliaErr.message);
   }
 
   return buildCallbackHtml("success", undefined, state.appOrigin);

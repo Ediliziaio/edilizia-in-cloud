@@ -188,19 +188,15 @@ Deno.serve(async (req) => {
             }
             const agentProfile = ownerId ? { id: ownerId } : null;
             if (agentProfile?.id && appointment.id) {
-              fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/google-calendar-sync`, {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-                },
-                body: JSON.stringify({
-                  action: "push_event",
-                  user_id: agentProfile.id,
-                  company_id: companyId,
-                  appointment_id: appointment.id,
-                }),
-              }).catch((e) => console.error("[WEBHOOK] Google Calendar sync error:", e));
+              // Prima: action "push_event" e campi snake_case, che la funzione
+              // non riconosce (400), e verify_jwt che respingeva la chiamata.
+              adminClient.rpc("calendario_esterno_sveglia", {
+                p_funzione: "google-calendar-sync",
+                p_action: "push-event",
+                p_body: { appointmentId: appointment.id, companyId, userId: agentProfile.id },
+              }).then(({ error }: { error: { message: string } | null }) => {
+                if (error) console.error("[WEBHOOK] Google Calendar sync error:", error.message);
+              });
             }
           }
           break;

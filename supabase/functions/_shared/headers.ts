@@ -211,3 +211,6 @@ export function jsonResponse(data: unknown, status = 200, corsOverride?: Record<
     { status, headers: { ...secureHeaders, ...(corsOverride ?? {}), "Content-Type": "application/json" } }
   );
 }
+
+/** Origin ammesso (stessa regola del CORS): serve anche a validare i redirect di ritorno OAuth. */
+export const origineAmmessa = isAllowedOriginSync;

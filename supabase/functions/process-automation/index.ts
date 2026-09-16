@@ -4074,50 +4074,36 @@ async function executeSyncGoogle(supabase: any, cfg: Record<string, any>, entity
     return { success: true, output: { action: "sync_google", sync_action: "sync_event", skipped: true, reason: "No appointment found for contact" } };
   }
 
-  // Find a Google Calendar connection for this company
-  const { data: gcalConn } = await supabase
+  // Connessione Google: prima quella di chi ha l'appuntamento, poi una
+  // qualunque dell'azienda. Prima si cercavano le colonne calendar_id e
+  // is_active, che non esistono: la query falliva e l'azione rispondeva
+  // sempre «nessuna connessione».
+  const utenteAppuntamento = appointment.assigned_to ?? appointment.created_by ?? null;
+  const { data: connessioni } = await supabase
     .from("google_calendar_connections")
-    .select("id, user_id, calendar_id")
+    .select("id, user_id")
     .eq("company_id", companyId)
-    .eq("is_active", true)
-    .limit(1)
-    .maybeSingle();
+    .eq("status", "connected")
+    .limit(50);
+  const elenco = (connessioni ?? []) as Array<{ id: string; user_id: string }>;
+  const gcalConn = elenco.find((c) => c.user_id === utenteAppuntamento) ?? elenco[0];
 
   if (!gcalConn) {
     return { success: false, error: "No active Google Calendar connection for this company" };
   }
 
-  // Call the existing google-calendar-sync edge function
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-
-  try {
-    const resp = await fetch(`${supabaseUrl}/functions/v1/google-calendar-sync`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${serviceKey}`,
-      },
-      body: JSON.stringify({
-        action: "push-event",
-        connectionId: gcalConn.id,
-        appointmentId: appointment.id,
-        companyId,
-      }),
-    });
-
-    const text = await resp.text();
-    let body: any;
-    try { body = JSON.parse(text); } catch { body = { raw: text.slice(0, 500) }; }
-
-    if (!resp.ok) {
-      return { success: false, error: `Google Calendar sync failed: HTTP ${resp.status}`, output: body };
-    }
-
-    return { success: true, output: { action: "sync_google", sync_action: "sync_event", appointment_id: appointment.id, gcal_response: body } };
-  } catch (e: any) {
-    return { success: false, error: `Google Calendar sync error: ${e.message}` };
+  // google-calendar-sync ha verify_jwt: la chiamata passa dal database, che
+  // manda il segreto interno e la chiave per il gateway.
+  const { error: svegliaErr } = await supabase.rpc("calendario_esterno_sveglia", {
+    p_funzione: "google-calendar-sync",
+    p_action: "push-event",
+    p_body: { appointmentId: appointment.id, companyId, userId: gcalConn.user_id },
+  });
+  if (svegliaErr) {
+    return { success: false, error: `Google Calendar sync error: ${svegliaErr.message}` };
   }
+
+  return { success: true, output: { action: "sync_google", sync_action: "sync_event", appointment_id: appointment.id, queued: true } };
 }
 
 // ────────────────────────────────────────────────────

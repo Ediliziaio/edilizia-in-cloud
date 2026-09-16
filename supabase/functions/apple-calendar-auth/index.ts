@@ -171,7 +171,7 @@ async function handleConnect(req: Request, userId: string, companyId: string): P
   const admin = getAdmin();
   const encKey = getEncryptionKey();
 
-  await admin.from("apple_calendar_connections").upsert({
+  const { error: salvataggioErr } = await admin.from("apple_calendar_connections").upsert({
     company_id: companyId,
     user_id: userId,
     apple_id_email: appleId,
@@ -182,6 +182,12 @@ async function handleConnect(req: Request, userId: string, companyId: string): P
     last_error: null,
     updated_at: new Date().toISOString(),
   }, { onConflict: "company_id,user_id" });
+  // Prima l'errore non si guardava: l'interfaccia diceva «collegato» anche
+  // quando la riga non era stata salvata.
+  if (salvataggioErr) {
+    console.error("[apple-calendar-auth] salvataggio connessione fallito:", salvataggioErr.message);
+    return json({ error: "Collegamento non salvato: riprova tra poco." }, 500, req);
+  }
 
   // Ensure settings row
   await admin.from("apple_calendar_settings").upsert({

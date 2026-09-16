@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getEncryptionKey, decrypt } from "../_shared/encryption.ts";
 import { cronSecretValido } from "../_shared/cronAuth.ts";
+import { canAccessCompany } from "../_shared/effectiveCompany.ts";
 import { getCorsHeaders, jsonResponse as json } from "../_shared/headers.ts";
 
 import { serveConMetriche } from "../_shared/withMetrics.ts";
@@ -601,8 +602,12 @@ serveConMetriche("apple-calendar-sync", async (req: Request) => {
   try {
     // Chiamate interne (trigger di cancellazione via pg_net): x-cron-secret,
     // come google-calendar-sync. L'utente, se manca, e' il responsabile.
-    if (!req.headers.get("Authorization") && cronSecretValido(req)) {
+    // Il trigger manda anche Authorization (chiave anon) per passare il
+    // gateway con verify_jwt: pretendere che mancasse lo respingeva sempre.
+    if (cronSecretValido(req)) {
       const interno = await req.json();
+      // Il job apple-calendar-sync-every-10min manda lo stesso segreto.
+      if (interno.action === "cron-full-sync") return cronFullSync();
       if (!["push-event", "update-event", "delete-event"].includes(interno.action)) return json({ error: "Unknown internal action" }, 400);
       if (!interno.appointmentId || !interno.companyId) return json({ error: "appointmentId e companyId richiesti" }, 400);
       let uid: string | null = interno.userId ?? null;
@@ -661,14 +666,11 @@ serveConMetriche("apple-calendar-sync", async (req: Request) => {
     if (!companyId) return json({ error: "companyId required" }, 400);
 
     // Security: validate companyId (skip for service_role calls)
+    // Stessa regola di apple-calendar-auth (multi-azienda compresa): prima
+    // valeva solo l'azienda del profilo e la sincronizzazione rispondeva 403.
     if (token !== serviceRoleKey) {
-      const admin = getSupabaseAdmin();
-      const { data: profile } = await admin
-        .from("profiles")
-        .select("company_id")
-        .eq("id", userId)
-        .single();
-      if (!profile || profile.company_id !== companyId) {
+      // deno-lint-ignore no-explicit-any
+      if (!(await canAccessCompany(getSupabaseAdmin() as any, userId, companyId))) {
         return json({ error: "Company mismatch" }, 403);
       }
     }

@@ -11,6 +11,20 @@ function getAdmin() {
 }
 
 /**
+ * Chiede a google-calendar-sync una rilettura. Passa dal database perché la
+ * funzione ha verify_jwt: il solo x-cron-secret veniva respinto dal gateway
+ * (401) e le notifiche di Google non producevano nessuna sincronizzazione.
+ */
+async function sveglia(admin: ReturnType<typeof getAdmin>, action: string, body: Record<string, unknown>): Promise<void> {
+  const { error } = await admin.rpc("calendario_esterno_sveglia", {
+    p_funzione: "google-calendar-sync",
+    p_action: action,
+    p_body: body,
+  });
+  if (error) console.error(`[google-calendar-webhook] ${action} non avviata:`, error.message);
+}
+
+/**
  * Un canale per calendario (calendari lavori, 08/09/2026). Il canale storico
  * per-connessione resta per il calendario marketing; qui ogni calendario di
  * squadra (o Posa aziendale) ha il suo, in google_calendar_watches.
@@ -118,19 +132,14 @@ Deno.serve(async (req) => {
         return json({ ok: true, debounced: true });
       }
       await admin.from("google_calendar_watches").update({ last_notified_at: new Date().toISOString() }).eq("id", watch.id);
-      const secret = Deno.env.get("INTERNAL_CRON_SECRET") ?? "";
-      await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/google-calendar-sync`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-cron-secret": secret },
-        body: JSON.stringify({ action: "pull-calendar", connectionId: watch.connection_id, calendarId: watch.calendar_id }),
-      }).catch((e) => console.error("[google-calendar-webhook] pull-calendar failed", e));
+      await sveglia(admin, "pull-calendar", { connectionId: watch.connection_id, calendarId: watch.calendar_id });
       return json({ ok: true, calendar: watch.calendar_id });
     }
 
     // Find the connection by webhook_channel_id
     const { data: conn } = await admin
       .from("google_calendar_connections")
-      .select("id, user_id, company_id, calendar_id, webhook_channel_token, last_webhook_processed_at, last_sync_source, last_sync_at")
+      .select("id, user_id, company_id, webhook_channel_token, last_webhook_processed_at, last_sync_source, last_sync_at")
       .eq("webhook_channel_id", channelId)
       .eq("status", "connected")
       .maybeSingle();
@@ -188,29 +197,9 @@ Deno.serve(async (req) => {
       })
       .eq("id", conn.id);
 
-    // Trigger a sync by calling google-calendar-sync
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-
-    try {
-      const syncRes = await fetch(`${supabaseUrl}/functions/v1/google-calendar-sync`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${serviceKey}`,
-        },
-        body: JSON.stringify({
-          action: "full-sync",
-          userId: conn.user_id,
-          companyId: conn.company_id,
-        }),
-      });
-
-      const syncResult = await syncRes.json();
-      console.log("[google-calendar-webhook] Sync triggered:", syncResult);
-    } catch (err) {
-      console.error("[google-calendar-webhook] Sync trigger failed:", err);
-    }
+    // Rilettura del calendario: passa dal database (calendario_esterno_sveglia),
+    // che manda segreto e chiave per il gateway di google-calendar-sync.
+    await sveglia(admin, "full-sync", { userId: conn.user_id, companyId: conn.company_id });
 
     return json({ ok: true });
   }

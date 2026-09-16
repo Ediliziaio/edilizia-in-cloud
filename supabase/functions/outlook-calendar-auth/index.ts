@@ -16,7 +16,8 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getEncryptionKey, encrypt } from "../_shared/encryption.ts";
-import { getCorsHeaders } from "../_shared/headers.ts";
+import { getCorsHeaders, origineAmmessa } from "../_shared/headers.ts";
+import { creaStateFirmato, leggiStateFirmato } from "../_shared/oauthState.ts";
 import { getMsOAuthCredentials } from "../_shared/msOAuth.ts";
 
 const SCOPES = ["openid", "profile", "offline_access", "User.Read", "Calendars.ReadWrite"].join(" ");
@@ -50,7 +51,7 @@ async function getCredentials() {
 // origin dell'opener), che fa il postMessage e chiude il popup.
 function buildCallbackHtml(status: "ok" | "error", message?: string, appOrigin?: string): Response {
   const siteUrl = Deno.env.get("SITE_URL") || "https://app.ediliziaincloud.com";
-  const origin = appOrigin && /^https?:\/\//.test(appOrigin) ? appOrigin : siteUrl;
+  const origin = appOrigin && origineAmmessa(appOrigin) ? appOrigin : siteUrl;
   const hash = new URLSearchParams({
     kind: "outlook",
     status,
@@ -74,7 +75,7 @@ async function handleStart(req: Request, userId: string, companyId: string): Pro
   }
   const redirectUri = await getRedirectUri();
   const appOrigin = req.headers.get("origin") || undefined;
-  const state = btoa(JSON.stringify({ userId, companyId, appOrigin, ts: Date.now() }));
+  const state = await creaStateFirmato({ userId, companyId, appOrigin });
 
   const params = new URLSearchParams({
     client_id: clientId,
@@ -101,9 +102,8 @@ async function handleCallback(req: Request): Promise<Response> {
     return buildCallbackHtml("error", errorParam || "Missing code");
   }
 
-  let state: { userId: string; companyId: string; appOrigin?: string };
-  try { state = JSON.parse(atob(stateParam)); }
-  catch { return buildCallbackHtml("error", "Invalid state"); }
+  const state = await leggiStateFirmato(stateParam);
+  if (!state) return buildCallbackHtml("error", "Collegamento scaduto o non valido: riprova");
 
   const { clientId, clientSecret } = await getCredentials();
   if (!clientId || !clientSecret) {

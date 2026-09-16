@@ -4,6 +4,8 @@ import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import { getEncryptionKey, encrypt, decrypt } from "../_shared/encryption.ts";
 import { getCorsHeaders, jsonResponse as json } from "../_shared/headers.ts";
 import { serveConMetriche } from "../_shared/withMetrics.ts";
+import { cronSecretValido } from "../_shared/cronAuth.ts";
+import { canAccessCompany } from "../_shared/effectiveCompany.ts";
 // P2-5 nota: questo file usa già AbortSignal.timeout(15000) su tutti i fetch
 // (pattern nativo equivalente a fetchWithTimeout). Nessuna modifica necessaria.
 
@@ -14,18 +16,13 @@ function getSupabaseAdmin() {
   );
 }
 
+// Stessa regola di google-calendar-auth: chi collega il calendario in
+// un'azienda secondaria (multi-azienda, commercialista, impersonation) deve
+// poterlo anche sincronizzare. Prima valeva solo l'azienda del profilo: la
+// connessione riusciva e ogni sincronizzazione rispondeva 403.
 async function verifyCompanyAccess(userId: string, companyId: string): Promise<boolean> {
-  const admin = getSupabaseAdmin();
-  const [profileRes, rolesRes] = await Promise.all([
-    admin.from("profiles").select("company_id").eq("id", userId).maybeSingle(),
-    admin.from("user_roles").select("role").eq("user_id", userId),
-  ]);
-
-  if ((rolesRes.data ?? []).some((row: { role?: string }) => row.role === "super_admin")) {
-    return true;
-  }
-
-  return profileRes.data?.company_id === companyId;
+  // deno-lint-ignore no-explicit-any
+  return canAccessCompany(getSupabaseAdmin() as any, userId, companyId);
 }
 
 // encrypt/decrypt/getEncryptionKey imported from _shared/encryption.ts
@@ -1757,11 +1754,17 @@ serveConMetriche("google-calendar-sync", async (req) => {
   try {
     // Chiamate interne (trigger/cron via pg_net): x-cron-secret, come
     // cliente-notifica. Niente JWT: il segreto sta nel vault e nell'env.
-    const internalSecret = Deno.env.get("INTERNAL_CRON_SECRET");
-    const isInternal = !!internalSecret && req.headers.get("x-cron-secret") === internalSecret;
-    if (isInternal) {
+    // I trigger passano anche un Authorization (chiave anon) per superare il
+    // gateway con verify_jwt: il permesso vero è il segreto.
+    if (cronSecretValido(req)) {
       const interno = await req.json();
       if (interno.action === "process-order-queue") return json(await processOrderQueue(interno.companyId ?? null));
+      // Notifica push di Google (google-calendar-webhook): rilettura completa
+      // del calendario principale di quella connessione.
+      if (interno.action === "full-sync") {
+        if (!interno.userId || !interno.companyId) return json({ error: "userId e companyId richiesti" }, 400);
+        return fullSync(interno.userId, interno.companyId);
+      }
       if (interno.action === "pull-calendar") {
         if (!interno.connectionId || !interno.calendarId) return json({ error: "connectionId e calendarId richiesti" }, 400);
         // Lo stesso canale serve alle pose (commesse) e agli appuntamenti dei
@@ -1865,14 +1868,26 @@ serveConMetriche("google-calendar-sync", async (req) => {
         return deleteEvent(userId, companyId, appointmentId, googleEventId, googleCalendarId);
       case "full-sync":
         return fullSync(userId, companyId);
-      case "push-order":
+      case "push-order": {
         if (!body.orderId) return json({ error: "orderId required" }, 400);
+        // La commessa deve essere dell'azienda verificata sopra.
+        if (token !== serviceRoleKey) {
+          const { data: ord } = await getSupabaseAdmin().from("orders").select("company_id").eq("id", body.orderId).maybeSingle();
+          if ((ord as { company_id?: string } | null)?.company_id !== companyId) return json({ error: "Company mismatch" }, 403);
+        }
         return json(await syncOrderToGoogle(body.orderId));
+      }
       case "process-order-queue":
         return json(await processOrderQueue(companyId));
-      case "pull-calendar":
+      case "pull-calendar": {
         if (!body.connectionId || !body.calendarId) return json({ error: "connectionId e calendarId richiesti" }, 400);
+        // Il calendario Google usato deve essere di una connessione dell'azienda.
+        if (token !== serviceRoleKey) {
+          const { data: c } = await getSupabaseAdmin().from("google_calendar_connections").select("company_id").eq("id", body.connectionId).maybeSingle();
+          if ((c as { company_id?: string } | null)?.company_id !== companyId) return json({ error: "Company mismatch" }, 403);
+        }
         return json(await pullCalendarOrders(body.connectionId, body.calendarId));
+      }
       case "reconcile": {
         const result = await reconcilePrimary(userId, companyId);
         return json({ success: true, reconcile: result });
