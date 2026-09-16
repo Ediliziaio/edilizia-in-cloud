@@ -50,10 +50,12 @@ import {
   Search,
   Settings2,
   MoreHorizontal,
+  LayoutGrid,
+  List,
 } from "lucide-react";
 import { FileThumb, FilePreviewDialog } from "./filePreview";
-import { useSignedUrls, toStoragePath, fmtBytes, fileKind, KIND_LABEL,
-         openAttachmentInTab, type PreviewableFile } from "./filePreviewUtils";
+import { useSignedUrls, useMiniature, toStoragePath, fmtBytes, fileKind, KIND_LABEL, KIND_TINT,
+         scaricaAllegato, type PreviewableFile } from "./filePreviewUtils";
 import { CaricaDocumentiDialog } from "./CaricaDocumentiDialog";
 import { useCartelleDocumenti } from "@/hooks/useCartelleDocumenti";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -293,6 +295,19 @@ export function OrderAttachments({ orderId, editable = true }: OrderAttachmentsP
     BUCKET_DOCUMENTI_CLIENTE,
   );
   const signingUrls = firmaCommessa || firmaCliente;
+  const { data: miniCommessa = {} } = useMiniature(attachments as unknown as PreviewableFile[], attachments.length > 0);
+  const { data: miniCliente = {} } = useMiniature(documentiCliente as unknown as PreviewableFile[], documentiCliente.length > 0, BUCKET_DOCUMENTI_CLIENTE);
+  const miniaturaDi = (a: { file_url: string; daCliente?: unknown }) =>
+    (a.daCliente ? miniCliente : miniCommessa)[toStoragePath(a.file_url)];
+
+  // Elenco o griglia con anteprime: la scelta resta per questo browser.
+  const [vista, setVista] = useState<"elenco" | "griglia">(() => {
+    try { return localStorage.getItem("documenti-commessa-vista") === "elenco" ? "elenco" : "griglia"; } catch { return "griglia"; }
+  });
+  const cambiaVista = (v: "elenco" | "griglia") => {
+    setVista(v);
+    try { localStorage.setItem("documenti-commessa-vista", v); } catch { /* solo comodità */ }
+  };
   const urlDi = (a: { file_url: string; daCliente?: unknown }) =>
     (a.daCliente ? firmeCliente : firmeCommessa)[toStoragePath(a.file_url)];
 
@@ -453,16 +468,34 @@ export function OrderAttachments({ orderId, editable = true }: OrderAttachmentsP
           </nav>
 
           <div className="min-w-0 space-y-2">
-            {tutti.length > 4 && (
-              <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id={`cerca-documenti-${orderId}`}
-                  value={ricerca}
-                  onChange={(e) => setRicerca(e.target.value)}
-                  placeholder={selezione === TUTTI ? "Cerca nei documenti…" : `Cerca in «${selezione === SENZA ? "Senza cartella" : nomeCartella(selezione)}»…`}
-                  className="h-9 pl-8"
-                />
+            {tutti.length > 0 && (
+              <div className="flex items-center gap-2">
+                {tutti.length > 4 ? (
+                  <div className="relative flex-1 min-w-0">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id={`cerca-documenti-${orderId}`}
+                      value={ricerca}
+                      onChange={(e) => setRicerca(e.target.value)}
+                      placeholder={selezione === TUTTI ? "Cerca nei documenti…" : `Cerca in «${selezione === SENZA ? "Senza cartella" : nomeCartella(selezione)}»…`}
+                      className="h-9 pl-8"
+                    />
+                  </div>
+                ) : <div className="flex-1" />}
+                <div className="flex shrink-0 rounded-md border p-0.5" role="group" aria-label="Vista documenti">
+                  <Button
+                    type="button" size="icon" variant={vista === "griglia" ? "secondary" : "ghost"} className="h-8 w-8"
+                    onClick={() => cambiaVista("griglia")} aria-pressed={vista === "griglia"} aria-label="Vista con anteprime"
+                  >
+                    <LayoutGrid className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    type="button" size="icon" variant={vista === "elenco" ? "secondary" : "ghost"} className="h-8 w-8"
+                    onClick={() => cambiaVista("elenco")} aria-pressed={vista === "elenco"} aria-label="Vista elenco"
+                  >
+                    <List className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             )}
 
@@ -494,7 +527,7 @@ export function OrderAttachments({ orderId, editable = true }: OrderAttachmentsP
                       : "Nessun documento in questa cartella."}
               </div>
             ) : (
-              <div className="space-y-1.5">
+              <div className={vista === "griglia" ? "grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4" : "space-y-1.5"}>
                 {visibili.map((attachment) => (
                   <AttachmentItem
                     key={attachment.id}
@@ -503,6 +536,8 @@ export function OrderAttachments({ orderId, editable = true }: OrderAttachmentsP
                     cartelle={cartelle}
                     nomeCartella={selezione === TUTTI || ricerca ? nomeCartella(attachment.folder_id) : null}
                     signedUrl={urlDi(attachment)}
+                    thumbUrl={miniaturaDi(attachment)}
+                    vista={vista}
                     signing={signingUrls}
                     onPreview={() => setPreviewFile(attachment as unknown as PreviewableFile)}
                     onToggleVisibility={(visible) => toggleVisibilityMutation.mutate({ id: attachment.id, visible })}
@@ -527,6 +562,9 @@ export function OrderAttachments({ orderId, editable = true }: OrderAttachmentsP
         url={previewFile ? urlDi(previewFile as unknown as OrderAttachment) : undefined}
         open={!!previewFile}
         onOpenChange={(v) => { if (!v) setPreviewFile(null); }}
+        bucket={(previewFile as unknown as OrderAttachment | null)?.daCliente ? BUCKET_DOCUMENTI_CLIENTE : undefined}
+        elenco={visibili as unknown as PreviewableFile[]}
+        onNavigate={setPreviewFile}
       />
 
       {editable && dialogAperto && (
@@ -551,30 +589,149 @@ interface AttachmentItemProps {
   /** Nome cartella da mostrare sotto il file (vista «Tutti» o ricerca). */
   nomeCartella: string | null;
   signedUrl?: string;
+  /** Miniatura ridimensionata dal server (solo immagini). */
+  thumbUrl?: string;
   signing?: boolean;
+  vista: "elenco" | "griglia";
   onPreview: () => void;
   onToggleVisibility: (visible: boolean) => void;
   onMove: (folderId: string | null) => void;
   onDelete: () => void;
 }
 
-function AttachmentItem({
-  attachment,
-  editable,
-  cartelle,
-  nomeCartella,
-  signedUrl,
-  signing,
-  onPreview,
-  onToggleVisibility,
-  onMove,
-  onDelete,
-}: AttachmentItemProps) {
+/** Scarica + menu (cliente, sposta, elimina): uguale in elenco e in griglia. */
+function AzioniDocumento({
+  attachment, editable, cartelle, onToggleVisibility, onMove, onDelete, mostraInterruttore,
+}: Pick<AttachmentItemProps, "attachment" | "editable" | "cartelle" | "onToggleVisibility" | "onMove" | "onDelete"> & {
+  mostraInterruttore: boolean;
+}) {
+  const daCliente = attachment.daCliente;
+  const [confermaElimina, setConfermaElimina] = useState(false);
+  return (
+    <div className="flex items-center gap-1 shrink-0">
+      {editable && !daCliente && mostraInterruttore ? (
+        <label className="hidden sm:flex items-center gap-1.5 text-xs text-muted-foreground mr-1 cursor-pointer" title="Visibile al cliente nella sua area">
+          {attachment.visible_to_customer ? <Eye className="h-3.5 w-3.5 text-emerald-600" /> : <EyeOff className="h-3.5 w-3.5" />}
+          Cliente
+          <Switch
+            checked={attachment.visible_to_customer}
+            onCheckedChange={onToggleVisibility}
+            aria-label="Visibile al cliente"
+          />
+        </label>
+      ) : attachment.visible_to_customer ? (
+        <Eye className="h-3.5 w-3.5 text-emerald-600 mr-1" aria-label="Visibile al cliente" />
+      ) : null}
+
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-8 w-8"
+        aria-label={`Scarica ${attachment.file_name}`}
+        onClick={(e) => {
+          e.stopPropagation();
+          void scaricaAllegato(attachment.file_url, attachment.file_name, daCliente ? BUCKET_DOCUMENTI_CLIENTE : undefined);
+        }}
+      >
+        <Download className="h-4 w-4" />
+      </Button>
+
+      {editable && !daCliente && (
+        <>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Altre azioni per ${attachment.file_name}`} onClick={(e) => e.stopPropagation()}>
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="max-h-[60vh] overflow-y-auto w-64">
+              <DropdownMenuItem className={mostraInterruttore ? "sm:hidden" : ""} onSelect={() => onToggleVisibility(!attachment.visible_to_customer)}>
+                {attachment.visible_to_customer ? <EyeOff className="h-4 w-4 mr-2" /> : <Eye className="h-4 w-4 mr-2" />}
+                {attachment.visible_to_customer ? "Nascondi al cliente" : "Mostra al cliente"}
+              </DropdownMenuItem>
+              <DropdownMenuLabel className="flex items-center gap-2 text-xs text-muted-foreground font-normal">
+                <FolderInput className="h-3.5 w-3.5" /> Sposta in…
+              </DropdownMenuLabel>
+              {cartelle.map((c) => (
+                <DropdownMenuItem
+                  key={c.id}
+                  disabled={c.id === attachment.folder_id}
+                  onSelect={() => onMove(c.id)}
+                  className="pl-7"
+                >
+                  {c.nome}
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => setConfermaElimina(true)}>
+                <Trash2 className="h-4 w-4 mr-2" /> Elimina
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <AlertDialog open={confermaElimina} onOpenChange={setConfermaElimina}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Eliminare il documento?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  «{attachment.file_name}» verrà eliminato definitivamente dalla commessa.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Annulla</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={onDelete}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  Elimina
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </>
+      )}
+    </div>
+  );
+}
+
+function AttachmentItem(props: AttachmentItemProps) {
+  const { attachment, nomeCartella, signedUrl, thumbUrl, signing, vista, onPreview } = props;
   const daCliente = attachment.daCliente;
   const file = attachment as unknown as PreviewableFile;
   const kind = fileKind(file);
   const data = new Date(attachment.created_at).toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "2-digit" });
-  const [confermaElimina, setConfermaElimina] = useState(false);
+  const peso = fmtBytes(attachment.file_size);
+
+  if (vista === "griglia") {
+    return (
+      <div className="group relative flex flex-col overflow-hidden rounded-lg border bg-card transition-colors hover:border-primary/40">
+        <button
+          type="button"
+          onClick={onPreview}
+          aria-label={`Anteprima di ${attachment.file_name}`}
+          className="relative aspect-[4/3] w-full overflow-hidden bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+        >
+          <FileThumb file={file} url={signedUrl} thumbUrl={thumbUrl} loading={signing} size="tile" />
+          <span className={`absolute left-1.5 top-1.5 rounded px-1.5 py-0.5 text-[10px] font-semibold ${KIND_TINT[kind]}`}>
+            {KIND_LABEL[kind]}
+          </span>
+          {daCliente && (
+            <span className="absolute right-1.5 top-1.5 rounded bg-sky-100 px-1.5 py-0.5 text-[10px] font-semibold text-sky-800 dark:bg-sky-950 dark:text-sky-300">
+              Dal cliente
+            </span>
+          )}
+        </button>
+        <div className="flex items-start gap-1 px-2.5 py-2 min-w-0">
+          <button type="button" onClick={onPreview} className="min-w-0 flex-1 text-left" title={attachment.file_name}>
+            <span className="block truncate text-xs font-medium">{attachment.file_name}</span>
+            <span className="block truncate text-[11px] text-muted-foreground">
+              {nomeCartella ? `${nomeCartella} · ` : ""}{peso ? `${peso} · ` : ""}{data}
+            </span>
+          </button>
+          <AzioniDocumento {...props} mostraInterruttore={false} />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex items-center gap-3 p-2.5 rounded-lg border bg-muted/30">
@@ -584,7 +741,7 @@ function AttachmentItem({
         aria-label={`Anteprima di ${attachment.file_name}`}
         className="rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring shrink-0"
       >
-        <FileThumb file={file} url={signedUrl} loading={signing} size="sm" />
+        <FileThumb file={file} url={signedUrl} thumbUrl={thumbUrl} loading={signing} size="sm" />
       </button>
 
       <div className="flex-1 min-w-0">
@@ -607,89 +764,11 @@ function AttachmentItem({
               Dal cliente: {ETICHETTA_DOCUMENTO_CLIENTE[daCliente.tipo] ?? "documento"} ·
             </span>
           )}
-          <span>{KIND_LABEL[kind]}{fmtBytes(attachment.file_size) ? ` · ${fmtBytes(attachment.file_size)}` : ""} · {data}</span>
+          <span>{KIND_LABEL[kind]}{peso ? ` · ${peso}` : ""} · {data}</span>
         </span>
       </div>
 
-      <div className="flex items-center gap-1 shrink-0">
-        {editable && !daCliente ? (
-          <label className="hidden sm:flex items-center gap-1.5 text-xs text-muted-foreground mr-1 cursor-pointer" title="Visibile al cliente nella sua area">
-            {attachment.visible_to_customer ? <Eye className="h-3.5 w-3.5 text-emerald-600" /> : <EyeOff className="h-3.5 w-3.5" />}
-            Cliente
-            <Switch
-              checked={attachment.visible_to_customer}
-              onCheckedChange={onToggleVisibility}
-              aria-label="Visibile al cliente"
-            />
-          </label>
-        ) : attachment.visible_to_customer ? (
-          <Eye className="h-3.5 w-3.5 text-emerald-600 mr-1" aria-label="Visibile al cliente" />
-        ) : null}
-
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8"
-          aria-label={`Scarica ${attachment.file_name}`}
-          onClick={() => openAttachmentInTab(attachment.file_url, daCliente ? BUCKET_DOCUMENTI_CLIENTE : undefined)}
-        >
-          <Download className="h-4 w-4" />
-        </Button>
-
-        {editable && !daCliente && (
-          <>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Altre azioni per ${attachment.file_name}`}>
-                  <MoreHorizontal className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="max-h-[60vh] overflow-y-auto w-64">
-                <DropdownMenuItem className="sm:hidden" onSelect={() => onToggleVisibility(!attachment.visible_to_customer)}>
-                  {attachment.visible_to_customer ? <EyeOff className="h-4 w-4 mr-2" /> : <Eye className="h-4 w-4 mr-2" />}
-                  {attachment.visible_to_customer ? "Nascondi al cliente" : "Mostra al cliente"}
-                </DropdownMenuItem>
-                <DropdownMenuLabel className="flex items-center gap-2 text-xs text-muted-foreground font-normal">
-                  <FolderInput className="h-3.5 w-3.5" /> Sposta in…
-                </DropdownMenuLabel>
-                {cartelle.map((c) => (
-                  <DropdownMenuItem
-                    key={c.id}
-                    disabled={c.id === attachment.folder_id}
-                    onSelect={() => onMove(c.id)}
-                    className="pl-7"
-                  >
-                    {c.nome}
-                  </DropdownMenuItem>
-                ))}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => setConfermaElimina(true)}>
-                  <Trash2 className="h-4 w-4 mr-2" /> Elimina
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <AlertDialog open={confermaElimina} onOpenChange={setConfermaElimina}>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Eliminare il documento?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  «{attachment.file_name}» verrà eliminato definitivamente dalla commessa.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Annulla</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={onDelete}
-                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                >
-                  Elimina
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-            </AlertDialog>
-          </>
-        )}
-      </div>
+      <AzioniDocumento {...props} mostraInterruttore />
     </div>
   );
 }

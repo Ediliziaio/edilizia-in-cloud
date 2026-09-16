@@ -22,7 +22,7 @@ import { Button } from "@/components/ui/button";
 import { FileText, Receipt, Paperclip, Package, Download, ExternalLink, Loader2, FolderOpen } from "lucide-react";
 import { FileThumb, FilePreviewDialog } from "./filePreview";
 import {
-  useSignedUrls, toStoragePath, fmtBytes, fileKind, KIND_LABEL, KIND_TINT,
+  useSignedUrls, useMiniature, toStoragePath, fmtBytes, fileKind, KIND_LABEL, KIND_TINT,
   type PreviewableFile,
 } from "./filePreviewUtils";
 
@@ -99,6 +99,7 @@ export function OrderFilesDialog({
     allAttachments as unknown as PreviewableFile[], open,
   );
   const urlOf = (d: FileDoc): string | undefined => signedByPath[toStoragePath(d.file_url)];
+  const { data: miniature = {} } = useMiniature(allAttachments as unknown as PreviewableFile[], open);
 
   /** Riquadro file: miniatura vera per le immagini, icona tipizzata per il resto. */
   const FileTile = ({ d }: { d: FileDoc }) => {
@@ -112,7 +113,7 @@ export function OrderFilesDialog({
         className="group flex flex-col overflow-hidden rounded-lg border bg-card text-left transition-colors hover:border-primary/40 hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <div className="relative flex h-24 items-center justify-center overflow-hidden bg-muted/40 [&>div]:h-full [&>div]:w-full [&>div]:rounded-none [&>div]:border-0">
-          <FileThumb file={d as unknown as PreviewableFile} url={urlOf(d)} loading={signing} />
+          <FileThumb file={d as unknown as PreviewableFile} url={urlOf(d)} thumbUrl={miniature[toStoragePath(d.file_url)]} loading={signing} />
           <span className={`absolute left-1.5 top-1.5 rounded px-1.5 py-0.5 text-[10px] font-semibold ${KIND_TINT[kind]}`}>
             {KIND_LABEL[kind]}
           </span>
@@ -137,6 +138,8 @@ export function OrderFilesDialog({
         onOpenChange={(v) => { if (!v) setPreview(null); onOpenChange(v); }}
         onBack={() => setPreview(null)}
         onDownload={() => onOpenDocumento(preview)}
+        elenco={allAttachments as unknown as PreviewableFile[]}
+        onNavigate={(f) => setPreview(f as unknown as FileDoc)}
       />
     );
   }

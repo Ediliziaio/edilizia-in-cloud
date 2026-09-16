@@ -15,7 +15,8 @@ export interface CartellaDocumenti {
 
 /** 50 MB come il vecchio gestionale di Green Energy. */
 export const MAX_MB_PER_FILE = 50;
-export const MAX_BYTES_PER_FILE = MAX_MB_PER_FILE * 1024 * 1024;
+// Il server rifiuta oltre i 50 MB (provato: 45 MB passa, 55 MB «Payload too large»).
+export const MAX_BYTES_PER_FILE = MAX_MB_PER_FILE * 1000 * 1000;
 
 /** Estensioni ammesse: documenti, immagini (anche iPhone), disegni, mail, archivi, firmati. */
 export const ESTENSIONI_AMMESSE = [

@@ -7,7 +7,8 @@ import { useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Checkbox } from "@/components/ui/checkbox";
 import { byteLiberi, chiaveSpazio, useSpazioArchiviazione } from "@/hooks/useSpazioArchiviazione";
-import { riduciFoto, fotoDaRidurre } from "@/lib/commesse/riduciFoto";
+import { riduciFile, fotoDaRidurre } from "@/lib/commesse/riduciFoto";
+import { pdfDaValutare } from "@/lib/commesse/riduciPdf";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -39,6 +40,7 @@ interface Voce {
   errore?: string;
   /** Peso originale se la foto è stata ridotta. */
   byteOriginali?: number;
+  byteRidotti?: number;
 }
 
 let contatore = 0;
@@ -94,8 +96,8 @@ export function CaricaDocumentiDialog({
   const caricaUno = async (v: Voce): Promise<boolean> => {
     if (!user) return false;
     aggiorna(v.chiave, { stato: "caricamento", errore: undefined });
-    const { file, ridotta, byteOriginali } = riduci ? await riduciFoto(v.file) : { file: v.file, ridotta: false, byteOriginali: v.file.size };
-    if (ridotta) aggiorna(v.chiave, { byteOriginali });
+    const { file, ridotta, byteOriginali } = riduci ? await riduciFile(v.file) : { file: v.file, ridotta: false, byteOriginali: v.file.size };
+    if (ridotta) aggiorna(v.chiave, { byteOriginali, byteRidotti: file.size });
     const percorso = percorsoDocumento(orderId, file.name);
     try {
       const { error: errUpload } = await supabase.storage
@@ -137,7 +139,7 @@ export function CaricaDocumentiDialog({
           actor_name: autore,
         } as never);
       }
-      aggiorna(v.chiave, { stato: "fatto", ...(ridotta ? { byteOriginali } : {}) });
+      aggiorna(v.chiave, { stato: "fatto", ...(ridotta ? { byteOriginali, byteRidotti: file.size } : {}) });
       return true;
     } catch (e) {
       logger.error("Caricamento documento commessa:", e);
@@ -145,7 +147,11 @@ export function CaricaDocumentiDialog({
       const msg =
         err?.code === "42501" || /row-level security|violates/i.test(err?.message ?? "")
           ? "Non hai il permesso di caricare documenti su questa commessa"
-          : err?.message || "Caricamento non riuscito";
+          : /too large|exceeded the maximum|413/i.test(`${err?.message} ${err?.statusCode}`)
+            ? "File oltre i 50 MB: dividilo o riducilo e riprova"
+            : /fetch|network|timeout/i.test(err?.message ?? "")
+              ? "Connessione interrotta: premi Riprova"
+              : err?.message || "Caricamento non riuscito";
       aggiorna(v.chiave, { stato: "errore", errore: msg });
       return false;
     }
@@ -250,10 +256,10 @@ export function CaricaDocumentiDialog({
         )}
 
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs text-muted-foreground">
-          {voci.some((v) => fotoDaRidurre(v.file)) ? (
+          {voci.some((v) => fotoDaRidurre(v.file) || pdfDaValutare(v.file)) ? (
             <label htmlFor="riduci-foto-commessa" className="flex items-center gap-2 cursor-pointer">
               <Checkbox id="riduci-foto-commessa" checked={riduci} disabled={inCorso} onCheckedChange={(c) => setRiduci(c === true)} />
-              Riduci le foto pesanti (restano nitide, occupano un quinto dello spazio)
+              Riduci foto e PDF scansionati (restano leggibili, pesano molto meno)
             </label>
           ) : <span />}
           {liberi != null && (
@@ -279,7 +285,7 @@ export function CaricaDocumentiDialog({
                       {v.stato === "errore"
                         ? v.errore
                         : v.byteOriginali
-                          ? `Foto ridotta da ${fmtBytes(v.byteOriginali)}`
+                          ? `Ridotto da ${fmtBytes(v.byteOriginali)} a ${fmtBytes(v.byteRidotti)}`
                           : fmtBytes(v.file.size)}
                     </p>
                   </div>

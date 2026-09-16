@@ -54,7 +54,7 @@ import { OrderAttachments } from "@/components/orders/OrderAttachments";
 import { PendingFilesUpload, type PendingFile } from "@/components/orders/PendingFilesUpload";
 import { useCartelleDocumenti } from "@/hooks/useCartelleDocumenti";
 import { cartellaDelFileInCoda, percorsoDocumento } from "@/lib/commesse/documentiCommessa";
-import { riduciFoto } from "@/lib/commesse/riduciFoto";
+import { riduciFile } from "@/lib/commesse/riduciFoto";
 import { SalespersonSelect } from "@/components/salespeople/SalespersonSelect";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { useTrack, ANALYTICS_EVENTS } from "@/hooks/useTrack";
@@ -919,7 +919,7 @@ function CreateOrderInner() {
       if (pendingFiles.length > 0) {
         let uploaded = 0;
         for (const pf of pendingFiles) {
-          const { file } = await riduciFoto(pf.file);
+          const { file } = await riduciFile(pf.file);
           const filePath = percorsoDocumento(order.id, file.name);
           try {
             const { error: uploadError } = await supabase.storage

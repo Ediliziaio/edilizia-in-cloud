@@ -97,15 +97,29 @@ describe("cartelle obbligatorie, conteggi, ricerca", () => {
 });
 
 import { dimensioniRidotte, fotoDaRidurre } from "@/lib/commesse/riduciFoto";
+import { pdfDaValutare, scalaRender } from "@/lib/commesse/riduciPdf";
 
 describe("riduzione foto", () => {
-  it("solo JPEG/WebP pesanti", () => {
+  it("JPEG/WebP/PNG pesanti, HEIC sempre (per renderle visibili)", () => {
     const mb = 1024 * 1024;
     expect(fotoDaRidurre({ name: "a.jpg", type: "image/jpeg", size: 4 * mb })).toBe(true);
     expect(fotoDaRidurre({ name: "a.jpg", type: "image/jpeg", size: 0.5 * mb })).toBe(false);
-    expect(fotoDaRidurre({ name: "a.heic", type: "image/heic", size: 4 * mb })).toBe(false);
+    expect(fotoDaRidurre({ name: "a.heic", type: "image/heic", size: 0.4 * mb })).toBe(true);
+    expect(fotoDaRidurre({ name: "IMG_1.HEIC", type: "", size: 2 * mb })).toBe(true);
     expect(fotoDaRidurre({ name: "a.pdf", type: "application/pdf", size: 9 * mb })).toBe(false);
-    expect(fotoDaRidurre({ name: "a.png", type: "image/png", size: 9 * mb })).toBe(false);
+    expect(fotoDaRidurre({ name: "a.png", type: "image/png", size: 9 * mb })).toBe(true);
+    expect(fotoDaRidurre({ name: "a.png", type: "image/png", size: 0.3 * mb })).toBe(false);
+  });
+  it("PDF da valutare e scala di render a 150 dpi, massimo 2000 px", () => {
+    const mb = 1024 * 1024;
+    expect(pdfDaValutare({ name: "scan.pdf", type: "application/pdf", size: 3 * mb })).toBe(true);
+    expect(pdfDaValutare({ name: "piccolo.pdf", type: "application/pdf", size: 0.5 * mb })).toBe(false);
+    expect(pdfDaValutare({ name: "enorme.pdf", type: "application/pdf", size: 45 * mb })).toBe(false);
+    expect(pdfDaValutare({ name: "foto.jpg", type: "image/jpeg", size: 3 * mb })).toBe(false);
+    // A4 = 595×842 pt → 150 dpi = 1240×1754 px
+    expect(Math.round(842 * scalaRender(595, 842))).toBe(1754);
+    // A1 enorme: il lato lungo si ferma a 2000 px
+    expect(Math.round(2384 * scalaRender(1684, 2384))).toBe(2000);
   });
   it("proporzioni", () => {
     expect(dimensioniRidotte(4032, 3024)).toEqual({ w: 2560, h: 1920 });

@@ -6,7 +6,7 @@
  */
 import { supabase } from "@/integrations/supabase/client";
 import { problemaFile } from "@/lib/commesse/documentiCommessa";
-import { riduciFoto } from "@/lib/commesse/riduciFoto";
+import { riduciFile } from "@/lib/commesse/riduciFoto";
 
 export const BUCKET_DOCUMENTI_CLIENTE = "customer-documents";
 
@@ -72,7 +72,7 @@ export async function caricaDocumentiCliente(opts: {
     .flatMap(([tipo, lista]) => (lista ?? []).map((f) => ({ tipo, f })));
 
   for (const { tipo, f } of voci) {
-    const { file } = await riduciFoto(f);
+    const { file } = await riduciFile(f);
     const percorso = percorsoDocumentoCliente(opts.companyId, opts.customerId, tipo, file.name);
     try {
       const { error: errUpload } = await supabase.storage

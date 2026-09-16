@@ -8,13 +8,29 @@ export const LATO_MASSIMO = 2560;
 export const SOGLIA_BYTE = 1.5 * 1024 * 1024;
 const QUALITA = 0.85;
 
-/** Solo foto che il browser sa decodificare e che vale la pena ridurre. */
+/**
+ * Foto che vale la pena ridurre. HEIC (iPhone): Safari lo decodifica e diventa
+ * un JPEG visibile ovunque; Chrome no, e allora resta com'è. PNG: solo se non
+ * ha trasparenza (si controlla dopo averlo disegnato).
+ */
 export function fotoDaRidurre(file: { name: string; type: string; size: number }): boolean {
-  if (file.size < SOGLIA_BYTE) return false;
   const tipo = file.type.toLowerCase();
   const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
-  // HEIC: Chrome non lo decodifica. PNG: spesso schermate con trasparenza o testo fine.
-  return tipo === "image/jpeg" || tipo === "image/webp" || ["jpg", "jpeg", "webp"].includes(ext);
+  const heic = tipo === "image/heic" || tipo === "image/heif" || ["heic", "heif"].includes(ext);
+  if (heic) return true; // anche leggero: convertirlo lo rende visibile in ogni browser
+  if (file.size < SOGLIA_BYTE) return false;
+  return ["image/jpeg", "image/webp", "image/png"].includes(tipo) || ["jpg", "jpeg", "webp", "png"].includes(ext);
+}
+
+function haTrasparenza(ctx: CanvasRenderingContext2D, w: number, h: number): boolean {
+  const passo = Math.max(1, Math.floor(Math.min(w, h) / 60));
+  const dati = ctx.getImageData(0, 0, w, h).data;
+  for (let y = 0; y < h; y += passo) {
+    for (let x = 0; x < w; x += passo) {
+      if (dati[(y * w + x) * 4 + 3] < 250) return true;
+    }
+  }
+  return false;
 }
 
 /** Dimensioni finali mantenendo le proporzioni. */
@@ -48,9 +64,13 @@ export async function riduciFoto(file: File): Promise<EsitoRiduzione> {
     if (!ctx) { bitmap.close(); return originale; }
     ctx.drawImage(bitmap, 0, 0, w, h);
     bitmap.close();
+    const png = /png$/i.test(file.type) || /\.png$/i.test(file.name);
+    if (png && haTrasparenza(ctx, w, h)) return originale;
+    const heic = /hei[cf]$/i.test(file.type) || /\.hei[cf]$/i.test(file.name);
     const blob = await new Promise<Blob | null>((ok) => canvas.toBlob(ok, "image/jpeg", QUALITA));
-    if (!blob || blob.size >= file.size * 0.9) return originale;
-    const nome = file.name.replace(/\.(jpe?g|webp)$/i, "") + ".jpg";
+    // HEIC diventa JPEG anche se non pesa meno: così si vede in tutti i browser.
+    if (!blob || (!heic && blob.size >= file.size * 0.9)) return originale;
+    const nome = file.name.replace(/\.(jpe?g|webp|png|heic|heif)$/i, "") + ".jpg";
     return {
       file: new File([blob], nome, { type: "image/jpeg", lastModified: file.lastModified }),
       ridotta: true,
@@ -59,4 +79,12 @@ export async function riduciFoto(file: File): Promise<EsitoRiduzione> {
   } catch {
     return originale;
   }
+}
+
+/** Riduce foto e PDF scansionati; qualunque altro file resta com'è. */
+export async function riduciFile(file: File): Promise<EsitoRiduzione> {
+  if (fotoDaRidurre(file)) return riduciFoto(file);
+  const { pdfDaValutare, riduciPdfScansionato } = await import("./riduciPdf");
+  if (pdfDaValutare(file)) return riduciPdfScansionato(file);
+  return { file, ridotta: false, byteOriginali: file.size };
 }
