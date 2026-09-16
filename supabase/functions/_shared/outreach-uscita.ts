@@ -43,7 +43,11 @@ export function componiCorpo(opz: {
   /** Firma già personalizzata (HTML o testo); vuota = nessuna. */
   firma?: string | null;
 }): { html: string; htmlDaControllare: string } {
-  const firma = (opz.firma ?? "").trim() ? `<br><br>${opz.firma}` : "";
+  // La firma si scrive nel pannello con gli a capo, ma l'email parte in HTML:
+  // senza <br> «Filippo Monti» e «ThermoDMR · +39…» uscivano sulla stessa riga.
+  const firma = (opz.firma ?? "").trim()
+    ? `<br><br>${(opz.firma as string).replace(/\r?\n/g, "<br>")}`
+    : "";
   let uscita = "";
   if (opz.aggiungiUscita) {
     const frase = (opz.frase ?? "").trim() || FRASE_USCITA_DEFAULT;

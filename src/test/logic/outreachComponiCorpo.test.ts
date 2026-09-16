@@ -54,6 +54,13 @@ describe("componiCorpo", () => {
     expect(htmlDaControllare).toBe(html);
   });
 
+  it("gli a capo della firma diventano <br>: nell'HTML la firma non finisce su una riga sola", () => {
+    const firma = "Edoardo Bellini\nMarketing Edile · +39 350 178 0908";
+    const { html } = componiCorpo({ corpo: "Ciao", aggiungiUscita: false, firma });
+    expect(html).toBe("Ciao<br><br>Edoardo Bellini<br>Marketing Edile · +39 350 178 0908");
+    expect(htmlToPlainText(html)).toContain("Edoardo Bellini\nMarketing Edile · +39 350 178 0908");
+  });
+
   it("senza firma non lascia righe vuote in fondo", () => {
     const { html } = componiCorpo({ corpo: "Ciao", aggiungiUscita: false, firma: "  " });
     expect(html).toBe("Ciao");
