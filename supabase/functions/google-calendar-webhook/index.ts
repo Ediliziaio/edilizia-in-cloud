@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getEncryptionKey, encrypt, decrypt } from "../_shared/encryption.ts";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import { corsHeaders, jsonResponse as json } from "../_shared/headers.ts";
+import { puoGestireCalendari } from "../_shared/permessiCalendari.ts";
 
 function getAdmin() {
   return createClient(
@@ -237,13 +238,10 @@ Deno.serve(async (req) => {
       const token = (req.headers.get("authorization") || "").replace("Bearer ", "");
       const { data: { user } } = await admin.auth.getUser(token);
       if (!user) return json({ error: "Unauthorized" }, 401);
-      if (user.id !== conn.user_id) {
-        const { data: ruoli } = await admin
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", user.id)
-          .in("role", ["company_admin", "super_admin"]);
-        if (!ruoli || ruoli.length === 0) return json({ error: "Solo un amministratore" }, 403);
+      // Il canale di un calendario altrui: permesso sui calendari
+      // nell'azienda della connessione (prima: admin di qualunque azienda).
+      if (user.id !== conn.user_id && !(await puoGestireCalendari(admin, user.id, conn.company_id))) {
+        return json({ error: "Serve il permesso di gestire i calendari" }, 403);
       }
     }
     const esito = await avviaWatchCalendario(admin, conn, calendarId);

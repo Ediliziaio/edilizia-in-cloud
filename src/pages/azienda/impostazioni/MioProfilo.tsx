@@ -370,12 +370,20 @@ export default function MioProfilo() {
     return () => window.removeEventListener("message", handler);
   }, [queryClient]);
 
+  // Passa dalla stessa funzione della scheda Impostazioni → Calendari: revoca
+  // il token su Google, toglie canale push, slot occupati ed eventi mappati e
+  // sgancia il calendario personale. Prima qui si cancellavano solo due righe
+  // (errori ignorati): Google continuava a mandare notifiche e il calendario
+  // restava agganciato a una connessione che non c'era più.
   const disconnectGoogle = async () => {
     if (!companyId || !user?.id) return;
-    await supabase.from("google_calendar_connections").delete()
-      .eq("company_id", companyId).eq("user_id", user.id);
-    await supabase.from("google_calendar_settings").delete()
-      .eq("company_id", companyId).eq("user_id", user.id);
+    const res = await supabase.functions.invoke("google-calendar-auth", {
+      body: { action: "disconnect", companyId },
+    });
+    if (res.error) {
+      toast.error("Scollegamento non riuscito", { description: res.error.message });
+      return;
+    }
     queryClient.invalidateQueries({ queryKey: ["google-calendar-connection"] });
     queryClient.invalidateQueries({ queryKey: ["google-calendar-settings"] });
     toast.success("Google Calendar disconnesso");

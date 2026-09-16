@@ -10,6 +10,7 @@
 import { useSearchParams } from "react-router-dom";
 import { CalendarDays, HardHat, Link2, AlertTriangle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import GoogleCalendarConnectionTab from "@/components/settings/GoogleCalendarConnectionTab";
@@ -22,7 +23,9 @@ type Tab = (typeof TABS)[number];
 
 export default function CalendariLavoriConfig() {
   const { role } = useAuth();
-  const canManage = role === "company_admin" || role === "super_admin";
+  const permissions = usePermissions();
+  // Stessa regola della RLS: admin o staff con la modifica delle impostazioni commesse.
+  const canManage = role === "company_admin" || role === "super_admin" || permissions.canEditSettingsOrders;
   const [params, setParams] = useSearchParams();
   const richiesto = params.get("tab") ?? "";
   const tab: Tab = (TABS as readonly string[]).includes(richiesto) ? (richiesto as Tab) : "squadre";

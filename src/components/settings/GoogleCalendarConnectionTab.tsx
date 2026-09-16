@@ -176,7 +176,13 @@ export default function GoogleCalendarConnectionTab() {
       };
 
       pollRef.current = window.setInterval(() => {
-        if (popupRef.current?.closed) stopPolling();
+        if (popupRef.current?.closed) {
+          stopPolling();
+          // Se il messaggio del popup si perde (window.opener tagliato dal
+          // browser), si rilegge comunque lo stato: prima restava «non collegato».
+          queryClient.invalidateQueries({ queryKey: ["google-calendar-connection"] });
+          queryClient.invalidateQueries({ queryKey: ["google-calendar-settings"] });
+        }
       }, 1000);
 
       // Safety: stop polling after 5 minutes regardless of popup state
@@ -185,7 +191,7 @@ export default function GoogleCalendarConnectionTab() {
       toast.error(e.message || "Impossibile avviare il collegamento Google Calendar");
       return;
     }
-  }, [companyId]);
+  }, [companyId, queryClient]);
 
   // Listen for OAuth result
   useEffect(() => {

@@ -4,6 +4,7 @@ import CompanyCalendarsOverview from "@/components/integrations/CompanyCalendars
 import { PROVIDER_LABEL as PROVIDER_NOME, useCaselleCalendario } from "@/hooks/useCalendariEsterni";
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -121,8 +122,28 @@ function normalizeSettingsTab(value: string | null) {
 export default function MarketingCalendarsConfig() {
   const { effectiveCompany, user, role } = useAuth();
   const effectiveCompanyId = effectiveCompany?.id;
-  const canManageCalendars = role === "company_admin" || role === "super_admin";
+  const permissions = usePermissions();
+  // Stessa regola della RLS (calendari_gestiti_dallo_staff): admin o staff con
+  // la modifica di «Personalizzazione».
+  const canManageCalendars = role === "company_admin" || role === "super_admin" || permissions.canEditSettingsCustomization;
   const queryClient = useQueryClient();
+  // Gli elenchi dei calendari vivono anche fuori da questa pagina (dialog
+  // appuntamento, scheda contatto, demo outreach, suggerimenti): senza
+  // rinfrescarli, un calendario nuovo o spento restava invisibile o ancora
+  // selezionabile fino al ricaricamento.
+  const invalidaCalendari = () => {
+    for (const chiave of [
+      "marketing-calendars",
+      "marketing-calendars-con-orari",
+      "appointment-calendars",
+      "marketing-calendars-for-contact",
+      "outreach-demo-calendars",
+      "suggest-calendars",
+      "marketing-calendar-appointment-refs",
+    ]) {
+      void queryClient.invalidateQueries({ queryKey: [chiave] });
+    }
+  };
   const [urlSearchParams, setUrlSearchParams] = useSearchParams();
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
@@ -400,17 +421,26 @@ export default function MarketingCalendarsConfig() {
           specific_date: null as string | null,
         }));
         const { error: errFasce } = await supabase.from("marketing_calendar_availability").insert(fasce);
-        if (errFasce) console.warn("[calendari] orari di partenza non creati:", errFasce.message);
+        if (errFasce) {
+          console.warn("[calendari] orari di partenza non creati:", errFasce.message);
+          return { orariCreati: false };
+        }
       }
+      return { orariCreati: true };
     },
-    onSuccess: (_r, data) => {
+    onSuccess: (esito, data) => {
       // Un canale webhook sul calendario Google agganciato: cosi' uno
       // spostamento fatto su Google arriva in EiC in pochi secondi, come per
       // le pose. Best effort: il cron dei 15 minuti rilegge comunque.
       if (data.external_provider === "google") void registraCanaleCalendario(data.external_connection_id ?? null, data.external_calendar_id ?? null);
-      toast.success("Calendario creato", { description: "Orari di partenza: lunedì-venerdì 9-18. Cambiali dalla sezione Disponibilità." });
-      queryClient.invalidateQueries({ queryKey: ["marketing-calendars"] });
-      queryClient.invalidateQueries({ queryKey: ["marketing-calendars-con-orari"] });
+      // Prima il messaggio prometteva gli orari anche quando non erano stati
+      // salvati: il link di prenotazione restava senza fasce libere.
+      if (esito?.orariCreati === false) {
+        toast.warning("Calendario creato, orari non salvati", { description: "Imposta gli orari dalla sezione Disponibilità, altrimenti nessuno potrà prenotare." });
+      } else {
+        toast.success("Calendario creato", { description: "Orari di partenza: lunedì-venerdì 9-18. Cambiali dalla sezione Disponibilità." });
+      }
+      invalidaCalendari();
       setDialogOpen(false);
     },
     onError: (e: Error) => toast.error(e.message || "Impossibile creare il calendario"),
@@ -462,8 +492,7 @@ export default function MarketingCalendarsConfig() {
     onSuccess: (_r, data) => {
       if (data.external_provider === "google") void registraCanaleCalendario(data.external_connection_id ?? null, data.external_calendar_id ?? null);
       toast.success("Calendario aggiornato");
-      queryClient.invalidateQueries({ queryKey: ["marketing-calendars"] });
-      queryClient.invalidateQueries({ queryKey: ["marketing-calendars-con-orari"] });
+      invalidaCalendari();
       setDialogOpen(false);
       setEditingCalendar(null);
     },
@@ -478,8 +507,7 @@ export default function MarketingCalendarsConfig() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["marketing-calendars"] });
-      queryClient.invalidateQueries({ queryKey: ["marketing-calendars-con-orari"] });
+      invalidaCalendari();
     },
     onError: (e: Error) => toast.error(e.message || "Impossibile aggiornare lo stato del calendario"),
   });
@@ -500,8 +528,7 @@ export default function MarketingCalendarsConfig() {
     onSuccess: (calendar) => {
       toast.success("Link pubblico generato");
       setSharingCalendar(calendar);
-      queryClient.invalidateQueries({ queryKey: ["marketing-calendars"] });
-      queryClient.invalidateQueries({ queryKey: ["marketing-calendars-con-orari"] });
+      invalidaCalendari();
     },
     onError: (e: Error) => toast.error(e.message || "Impossibile generare il link"),
   });
@@ -515,7 +542,9 @@ export default function MarketingCalendarsConfig() {
         .select("id", { count: "exact", head: true })
         .eq("company_id", effectiveCompanyId)
         .eq("calendar_id", id)
-        .not("status", "in", "(cancelled,canceled,archived)");
+        // Anche gli appuntamenti senza stato contano: con il solo "not in"
+        // restavano fuori dal conteggio e perdevano il calendario.
+        .or("status.is.null,status.not.in.(cancelled,canceled,archived)");
       if (countError) throw countError;
       if ((count || 0) > 0) {
         throw new Error("Calendario collegato ad appuntamenti attivi: disattivalo invece di eliminarlo.");
@@ -525,8 +554,7 @@ export default function MarketingCalendarsConfig() {
     },
     onSuccess: () => {
       toast.success("Calendario eliminato");
-      queryClient.invalidateQueries({ queryKey: ["marketing-calendars"] });
-      queryClient.invalidateQueries({ queryKey: ["marketing-calendars-con-orari"] });
+      invalidaCalendari();
       setDeleteId(null);
     },
     onError: (e: Error) => toast.error(e.message || "Impossibile eliminare il calendario"),
@@ -745,7 +773,7 @@ export default function MarketingCalendarsConfig() {
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
             <div>
               <p className="font-medium">Accesso in sola lettura</p>
-              <p className="text-amber-800/80">Puoi consultare calendari e collegamenti, ma solo un amministratore può creare, modificare, disattivare o sincronizzare configurazioni.</p>
+              <p className="text-amber-800/80">Puoi consultare calendari e collegamenti, ma per creare, modificare, disattivare o sincronizzare serve un amministratore o il permesso di modifica su «Personalizzazione».</p>
             </div>
           </CardContent>
         </Card>

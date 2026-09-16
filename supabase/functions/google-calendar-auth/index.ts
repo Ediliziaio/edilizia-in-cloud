@@ -5,6 +5,7 @@ import { canAccessCompany } from "../_shared/effectiveCompany.ts";
 
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { creaStateFirmato, leggiStateFirmato } from "../_shared/oauthState.ts";
+import { puoGestireCalendari } from "../_shared/permessiCalendari.ts";
 
 // 2026-05-27 (BUG #2): mancavano scope userinfo.email + userinfo.profile.
 // Senza questi, la chiamata a /oauth2/v2/userinfo ritornava 403
@@ -497,13 +498,10 @@ async function handleListCalendars(
   if (!conn) return respond({ error: "Not connected" }, 404);
 
   if (connectionId && conn.user_id !== userId) {
-    const { data: ruoli } = await admin
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", userId)
-      .in("role", ["company_admin", "super_admin"]);
-    if (!ruoli || ruoli.length === 0) {
-      return respond({ error: "Solo un amministratore può leggere i calendari di un altro account" }, 403);
+    // Prima: ruolo admin in QUALSIASI azienda. Ora il permesso sui calendari
+    // in QUESTA azienda (staff autorizzato compreso).
+    if (!(await puoGestireCalendari(admin, userId, companyId))) {
+      return respond({ error: "Serve il permesso di gestire i calendari per leggere quelli di un altro account" }, 403);
     }
   }
 
