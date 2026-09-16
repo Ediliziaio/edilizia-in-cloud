@@ -68,6 +68,12 @@ verify_jwt = true
 [functions.outreach-mailbox-test]
 verify_jwt = true
 
+# Prove di invio: un'email vera da una casella precisa (anche in pausa) a un
+# indirizzo del titolare, dalla coda outreach_prove_caselle. Una ogni 5 minuti,
+# chiamata dal cron con x-cron-secret.
+[functions.outreach-prova-caselle]
+verify_jwt = false
+
 # Risposta 2-vie dall'inbox Outreach: invia DALLA stessa casella che ha
 # contattato il prospect (SMTP reale o EE legacy) con threading. Solo super_admin (JWT richiesto).
 [functions.outreach-reply-send]
