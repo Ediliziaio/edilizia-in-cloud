@@ -18,7 +18,7 @@ import { getSuppressedEmailMap, normalizeEmailAddress } from "../_shared/emailSu
 
 import { getCorsHeaders, secureHeaders } from "../_shared/headers.ts";
 import { appendTrackingSig } from "../_shared/emailTrackingSignature.ts";
-import { arcoDelRamo, leggiPercentuali, ramoPerNumero } from "../_shared/splitRami.ts";
+import { arcoDelRamo, inizioGiornoRoma, leggiPercentuali, letteraRamo, modalitaSplit, ramoEquilibrato, ramoPerNumero } from "../_shared/splitRami.ts";
 import { personeDaAvvisare, tagsUniti, testoNotaAggiornamento } from "../_shared/creaAggiornaOpportunita.ts";
 import { isInternalRequest, isSuperAdminEmailAllowed, requireAuth, requireCompanyAccess, requireInternalSecret, resolveUserEmail } from "../_shared/auth.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
@@ -764,7 +764,7 @@ async function executeNode(supabase: any, node: AutomationNode, queueItem: any) 
       return await executeCondition(supabase, cfg, entityId, companyId);
 
     case "split":
-      return executeSplit(cfg);
+      return await executeSplit(supabase, cfg, node, queueItem);
 
     case "action":
       return await executeActionSafe(supabase, cfg, entityId, companyId, queueItem);
@@ -1002,11 +1002,27 @@ async function executeCondition(supabase: any, cfg: Record<string, any>, entityI
 }
 
 // ── Split ──
-function executeSplit(cfg: Record<string, any>) {
+async function executeSplit(supabase: any, cfg: Record<string, any>, node: AutomationNode, queueItem: any) {
   // Da 2 a 5 rami con le percentuali dell'editor ("60,40", "40,30,30"). Prima
   // si leggeva solo il primo numero e si sceglieva tra "a" e "b": con tre call
   // center il terzo non riceveva mai nessuno. La regola sta in _shared/splitRami.
   const percentuali = leggiPercentuali(cfg);
+
+  if (modalitaSplit(cfg) === "equilibrato") {
+    try {
+      const conteggi = await contaRamiDiOggi(supabase, node, queueItem, percentuali.length);
+      const branch = ramoEquilibrato(percentuali, conteggi.valori);
+      return {
+        success: true,
+        output: { branch, modalita: "equilibrato", contati: conteggi.base, conteggi: conteggi.valori, percentuali },
+        branch,
+      };
+    } catch (err: any) {
+      // Meglio un lead assegnato a sorte che un lead fermo.
+      console.error("[split equilibrato] conteggio fallito, si tira a sorte:", err?.message ?? err);
+    }
+  }
+
   const arr = new Uint32Array(1);
   crypto.getRandomValues(arr);
   // Diviso per 2^32, non per 0xFFFFFFFF: cosi' il numero resta sotto 100.
@@ -1014,6 +1030,64 @@ function executeSplit(cfg: Record<string, any>) {
   const branch = ramoPerNumero(percentuali, rand);
 
   return { success: true, output: { branch, random: rand, percentuali }, branch };
+}
+
+/**
+ * Quanto ha già ricevuto oggi ogni ramo dello split equilibrato.
+ *
+ * Se ogni ramo porta a un "Crea opportunità" con una persona (call center o
+ * venditore), si contano le opportunità di oggi di quella persona in TUTTA
+ * l'azienda: così pesano anche i lead arrivati da altri flussi (a BeMade il
+ * Restauro va solo a Venusia). Altrimenti si contano le scelte di questo nodo.
+ */
+async function contaRamiDiOggi(supabase: any, node: AutomationNode, queueItem: any, rami: number) {
+  const inizio = inizioGiornoRoma(new Date()).toISOString();
+
+  const { data: archi, error: archiErr } = await supabase
+    .from("automation_connections")
+    .select("label, to_node_id")
+    .eq("flow_id", queueItem.flow_id)
+    .eq("from_node_id", node.id);
+  if (archiErr) throw new Error(`archi: ${archiErr.message}`);
+
+  const idDestinazioni = (archi ?? []).map((a: any) => a.to_node_id).filter(Boolean);
+  const { data: destinazioni, error: destErr } = idDestinazioni.length
+    ? await supabase.from("automation_nodes").select("id, config_json").in("id", idDestinazioni)
+    : { data: [], error: null };
+  if (destErr) throw new Error(`nodi: ${destErr.message}`);
+  const cfgPerNodo = new Map<string, Record<string, any>>((destinazioni ?? []).map((n: any) => [n.id, n.config_json ?? {}]));
+
+  const persone: Array<{ colonna: "call_center_id" | "assigned_to"; id: string } | null> = [];
+  for (let i = 0; i < rami; i++) {
+    const arco = (archi ?? []).find((a: any) => arcoDelRamo(a.label, letteraRamo(i)));
+    const dest = arco ? cfgPerNodo.get(arco.to_node_id) : undefined;
+    if (dest?.call_center_id) persone.push({ colonna: "call_center_id", id: String(dest.call_center_id) });
+    else if (dest?.assegnato_a) persone.push({ colonna: "assigned_to", id: String(dest.assegnato_a) });
+    else persone.push(null);
+  }
+
+  if (persone.every(Boolean)) {
+    const { data: opp, error } = await supabase
+      .from("marketing_opportunities")
+      .select("call_center_id, assigned_to")
+      .eq("company_id", queueItem.company_id)
+      .is("deleted_at", null)
+      .gte("created_at", inizio);
+    if (error) throw new Error(`opportunità: ${error.message}`);
+    const valori = persone.map((p) => (opp ?? []).filter((o: any) => o[p!.colonna] === p!.id).length);
+    return { base: "persone", valori };
+  }
+
+  const { data: scelte, error } = await supabase
+    .from("automation_execution_log")
+    .select("output_json")
+    .eq("node_id", node.id)
+    .eq("status", "success")
+    .gte("created_at", inizio);
+  if (error) throw new Error(`registro: ${error.message}`);
+  const valori = Array.from({ length: rami }, (_, i) =>
+    (scelte ?? []).filter((r: any) => r.output_json?.branch === letteraRamo(i)).length);
+  return { base: "rami", valori };
 }
 
 // ── Action (safe wrapper with error boundary) ──

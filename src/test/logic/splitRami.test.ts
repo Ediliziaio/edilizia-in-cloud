@@ -10,8 +10,11 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   arcoDelRamo,
+  inizioGiornoRoma,
   leggiPercentuali,
   letteraRamo,
+  modalitaSplit,
+  ramoEquilibrato,
   ramoPerNumero,
 } from "../../../supabase/functions/_shared/splitRami";
 
@@ -125,5 +128,62 @@ describe("il motore usa questa regola", () => {
   it("non sceglie più tra due soli rami", () => {
     expect(motore).not.toMatch(/rand < splitA \? "a" : "b"/);
     expect(motore).toMatch(/ramoPerNumero\(/);
+  });
+});
+
+describe("ramoEquilibrato", () => {
+  it("dà il contatto a chi è più indietro sulla sua quota", () => {
+    // Il 16/09 di BeMade: Venusia 29 (col Restauro), Antonella 15.
+    expect(ramoEquilibrato([50, 50], [15, 29])).toBe("a");
+    expect(ramoEquilibrato([50, 50], [30, 29])).toBe("b");
+  });
+
+  it("a parità sceglie il primo ramo, poi alterna", () => {
+    expect(ramoEquilibrato([50, 50], [0, 0])).toBe("a");
+    expect(ramoEquilibrato([50, 50], [1, 0])).toBe("b");
+  });
+
+  it("rispetta le percentuali sul lungo periodo, senza sbandare", () => {
+    const conteggi = [0, 0, 0];
+    for (let n = 0; n < 100; n++) {
+      const ramo = ramoEquilibrato([50, 30, 20], conteggi);
+      conteggi[ramo.charCodeAt(0) - 97]++;
+    }
+    expect(conteggi).toEqual([50, 30, 20]);
+  });
+
+  it("un ramo allo 0% non riceve mai, anche se è a zero", () => {
+    expect(ramoEquilibrato([0, 100], [0, 40])).toBe("b");
+  });
+
+  it("recupera chi ha ricevuto lead da un altro flusso", () => {
+    // Venusia ha già 12 Restauro: i prossimi Nuovo vanno ad Antonella finché non la raggiunge.
+    const conteggi = [0, 12];
+    const scelte: string[] = [];
+    for (let n = 0; n < 14; n++) {
+      const ramo = ramoEquilibrato([50, 50], conteggi);
+      scelte.push(ramo);
+      conteggi[ramo === "a" ? 0 : 1]++;
+    }
+    expect(scelte.slice(0, 12).every((r) => r === "a")).toBe(true);
+    expect(conteggi).toEqual([13, 13]);
+  });
+});
+
+describe("modalitaSplit", () => {
+  it("senza scelta resta casuale, come i nodi di prima", () => {
+    expect(modalitaSplit({ percentuali: "60,40" })).toBe("casuale");
+    expect(modalitaSplit({ modalita: "equilibrato" })).toBe("equilibrato");
+  });
+});
+
+describe("inizioGiornoRoma", () => {
+  it("in estate la giornata italiana parte alle 22:00 UTC del giorno prima", () => {
+    expect(inizioGiornoRoma(new Date("2026-09-16T21:30:00Z")).toISOString()).toBe("2026-09-15T22:00:00.000Z");
+    expect(inizioGiornoRoma(new Date("2026-09-16T22:30:00Z")).toISOString()).toBe("2026-09-16T22:00:00.000Z");
+  });
+
+  it("in inverno alle 23:00 UTC", () => {
+    expect(inizioGiornoRoma(new Date("2026-01-10T12:00:00Z")).toISOString()).toBe("2026-01-09T23:00:00.000Z");
   });
 });

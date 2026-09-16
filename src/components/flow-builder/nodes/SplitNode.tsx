@@ -37,6 +37,9 @@ function SplitNodeComponent({ data, selected }: NodeProps) {
             </span>
           ))}
         </div>
+        {data.modalita === "equilibrato" && (
+          <p className="mt-1 text-[10px] text-muted-foreground">In modo equo: a chi è più indietro oggi</p>
+        )}
       </div>
 
       {/* Output handles for each branch */}

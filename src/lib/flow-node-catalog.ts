@@ -2203,6 +2203,10 @@ export const CONDITION_CATALOG: ConditionDefinition[] = [
     configSchema: [
       { id: 'rami', label: 'Numero di rami', type: 'number', required: true, defaultValue: 2, min: 2, max: 5 },
       { id: 'percentuali', label: 'Percentuali (es: 50,50 o 33,33,34)', type: 'text', required: true, defaultValue: '50,50', placeholder: '50,50', helpText: 'La somma deve essere 100%' },
+      { id: 'modalita', label: 'Come dividere', type: 'select', required: false, defaultValue: 'casuale', options: [
+        { value: 'casuale', label: 'A sorte, con le percentuali (test A/B)' },
+        { value: 'equilibrato', label: 'In modo equo: a chi è più indietro oggi' },
+      ], helpText: 'In modo equo conta i contatti già ricevuti oggi: se un ramo porta a «Crea opportunità» con un call center o un venditore, contano anche le opportunità che quella persona ha avuto da altri flussi.' },
       { id: 'label', label: 'Etichetta split', type: 'text', required: false, placeholder: 'Es: Test email' },
     ],
   },
