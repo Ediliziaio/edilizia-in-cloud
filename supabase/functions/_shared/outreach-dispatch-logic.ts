@@ -318,10 +318,20 @@ export function statoPerPrimiContatti(
   nuoviAlGiorno: number | null | undefined,
   nuoviSpeditiOggi: number,
   today: string,
+  /**
+   * Seme della variazione del tetto (la data). La variazione si applica QUI,
+   * al tetto vero della casella, e il chiamante passa lo stato ad
+   * `assignSenders` SENZA seme. Il 16/09/2026 la variazione girava sul tetto
+   * artificiale «spediti + posti»: 5 spediti + 1 posto = 6, ridotto del 15%
+   * faceva 5, cioè zero posti. Sette caselle ThermoDMR sono rimaste a 4 nuovi
+   * su 5, e dalle 14:38 alle 20 non è più partito niente.
+   */
+  varianceKey?: string,
 ): SenderState {
   if (nuoviAlGiorno == null || !Number.isFinite(nuoviAlGiorno) || nuoviAlGiorno <= 0) return s;
   const speditiOggi = s.daily_sent_date === today ? Math.max(0, s.daily_sent) : 0;
-  const postiTotali = Math.max(0, effectiveDailyCap(s) - speditiOggi);
+  const capOggi = varianceKey ? dailyCapWithVariance(s, varianceKey) : effectiveDailyCap(s);
+  const postiTotali = Math.max(0, capOggi - speditiOggi);
   const postiNuovi = Math.max(0, Math.floor(nuoviAlGiorno) - Math.max(0, nuoviSpeditiOggi));
   const posti = Math.min(postiTotali, postiNuovi);
   // `effectiveDailyCap` non supera mai `daily_cap_target`: fissandolo a

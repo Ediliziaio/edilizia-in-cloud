@@ -1106,8 +1106,10 @@ serveConMetriche("outreach-dispatch", async (req) => {
       const seguiti = liberi.filter((qid) => queueById.get(qid)?.primo_contatto !== true);
       if (primi.length) {
         const statiPrimi = conUsati(brandSendersPronti).map((s) =>
-          statoPerPrimiContatti(s, nuoviAlGiorno, (nuoviOggiPerCasella.get(s.id) ?? 0) + (usatiPrimi.get(s.id) ?? 0), today));
-        const rp = assignSenders(primi, statiPrimi, today, today);
+          statoPerPrimiContatti(s, nuoviAlGiorno, (nuoviOggiPerCasella.get(s.id) ?? 0) + (usatiPrimi.get(s.id) ?? 0), today, today));
+        // Senza seme: la variazione del tetto è già dentro statoPerPrimiContatti.
+        // Applicarla di nuovo qui toglieva l'ultimo posto dei nuovi (16/09/2026).
+        const rp = assignSenders(primi, statiPrimi, today);
         for (const a of rp.assignments) {
           usati.set(a.senderId, (usati.get(a.senderId) ?? 0) + 1);
           usatiPrimi.set(a.senderId, (usatiPrimi.get(a.senderId) ?? 0) + 1);
