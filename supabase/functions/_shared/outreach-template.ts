@@ -182,11 +182,19 @@ export function zonaDaProvincia(provincia?: string | null): string {
   return nome ? `in provincia di ${nome}` : "";
 }
 
+const MESI = ["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre"];
+
+/** Il mese in corso a Roma, minuscolo («gennaio»): la var `mese` delle email di riattivazione. */
+export function meseCorrente(oggi: Date = new Date()): string {
+  const n = Number(new Intl.DateTimeFormat("it-IT", { month: "numeric", timeZone: "Europe/Rome" }).format(oggi));
+  return MESI[n - 1] ?? "";
+}
+
 export function contactToVars(c: {
   first_name?: string | null; last_name?: string | null;
   company_name?: string | null; email?: string | null; phone?: string | null;
-  province?: string | null;
-}): TemplateVars {
+  province?: string | null; region?: string | null;
+}, oggi: Date = new Date()): TemplateVars {
   return {
     first_name: c.first_name ?? "",
     last_name: c.last_name ?? "",
@@ -197,5 +205,9 @@ export function contactToVars(c: {
     nome: nomeSaluto(c),
     // "in provincia di X", o "" — vedi zonaDaProvincia().
     zona: zonaDaProvincia(c.province),
+    // «Lombardia». La forma bilingue «Trentino-Alto Adige/Südtirol» si ferma alla barra.
+    regione: (c.region ?? "").split("/")[0].trim(),
+    // «gennaio»: il mese dell'invio (Marketing Edile, riattivazione a 90 giorni).
+    mese: meseCorrente(oggi),
   };
 }

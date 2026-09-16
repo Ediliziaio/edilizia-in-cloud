@@ -924,8 +924,9 @@ serveConMetriche("outreach-dispatch", async (req) => {
     if (contactIds.length) {
       const { data: cs } = await supabase
         .from("marketing_contacts")
-        // province: alimenta la var `zona` ("in provincia di X"), vedi contactToVars.
-        .select("id,first_name,last_name,company_name,email,phone,optout_email,province").in("id", contactIds);
+        // province e region: alimentano le var `zona` («in provincia di X») e
+        // `regione` («Lombardia»), vedi contactToVars.
+        .select("id,first_name,last_name,company_name,email,phone,optout_email,province,region").in("id", contactIds);
       for (const c of cs || []) contactById.set(c.id, c);
     }
 

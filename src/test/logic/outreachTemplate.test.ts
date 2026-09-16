@@ -65,11 +65,20 @@ describe("extractVariables", () => {
 
 describe("contactToVars", () => {
   it("mappa i campi standard, null → stringa vuota", () => {
-    expect(contactToVars({ first_name: "Mario", last_name: null, company_name: "X", email: "m@x.it" }))
+    expect(contactToVars({ first_name: "Mario", last_name: null, company_name: "X", email: "m@x.it" }, new Date("2026-01-15T10:00:00Z")))
       // `nome` è il nome da usare nel saluto: vuoto quando non è di una persona
       // (vedi nomeSaluto). «Mario» con azienda «X» è un nome vero, quindi resta.
       // `zona` senza provincia in ingresso resta vuota (vedi zonaDaProvincia).
-      .toEqual({ first_name: "Mario", last_name: "", company_name: "X", email: "m@x.it", phone: "", nome: "Mario", zona: "" });
+      .toEqual({ first_name: "Mario", last_name: "", company_name: "X", email: "m@x.it", phone: "", nome: "Mario", zona: "", regione: "", mese: "gennaio" });
+  });
+
+  it("«regione» si ferma alla barra e «mese» è quello dell'invio a Roma", () => {
+    // Le liste hanno ancora qualche «Trentino-Alto Adige/Südtirol»: nell'email
+    // deve entrare solo la prima forma.
+    expect(contactToVars({ first_name: "Mario", region: "Trentino-Alto Adige/Südtirol" }).regione).toBe("Trentino-Alto Adige");
+    expect(contactToVars({ first_name: "Mario", region: null }).regione).toBe("");
+    // A Roma sono già le 00:30 del 1° febbraio: conta il fuso, non l'UTC.
+    expect(contactToVars({ first_name: "Mario" }, new Date("2026-01-31T23:30:00Z")).mese).toBe("febbraio");
   });
 
   it("«zona» è «in provincia di X», sempre in coda a una frase", () => {
