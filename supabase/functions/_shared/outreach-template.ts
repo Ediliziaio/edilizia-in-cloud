@@ -145,6 +145,106 @@ export function nomeSaluto(c: { first_name?: string | null; company_name?: strin
 }
 
 /**
+ * Forma giuridica e code della ragione sociale: si taglia dalla prima che
+ * compare, se prima c'è un nome. I confini a destra e a sinistra lasciano
+ * stare «SASSI» e «SPAZIO».
+ */
+const CODA_RAGIONE_SOCIALE = new RegExp(
+  "(?:^|[\\s,\\-–(])(?:" + [
+    "s\\.?\\s?r\\.?\\s?l(?:\\.?\\s?s)?",       // srl, s.r.l., srls
+    "s\\.?\\s?a\\.?\\s?p\\.?\\s?a",
+    "s\\.?\\s?n\\.?\\s?c",
+    "s\\.?\\s?a\\.?\\s?s",
+    "s\\.?\\s?p\\.?\\s?a",
+    "s\\.\\s?s",                               // s.s. solo col punto
+    "s\\.?\\s?c\\.?\\s?a?\\.?\\s?r\\.?\\s?l",  // scarl, scrl
+    "soc\\.?\\s?coop",
+    "societ(?:a|à)['’]?",
+    "unipersonale",
+    "con\\s+unico\\s+socio",
+    "a\\s+socio\\s+unico",
+    "in\\s+liquidazione",
+    "ltd", "gmbh", "sagl",
+  ].join("|") + ")(?=$|[\\s.,\\-–)])",
+  "i",
+);
+
+/** «& C.» o «e C.» in fondo: la società di persone «X di Rossi Paolo & C.». */
+const E_COMPAGNI = /\s*(?:&|\be)\s*c\.?$/i;
+
+const PARTICELLE = new Set(["di", "del", "dei", "degli", "della", "delle", "dello", "da", "dal", "dalla", "e", "ed", "in", "a", "al", "alla", "per", "con", "su"]);
+const APOSTROFATA = /^(dell|dall|nell|all|sull|d|l)(['’])(.+)$/;
+
+// Almeno due lettere, anche separate da punti: «C.M.A.» è un nome.
+const haNome = (s: string): boolean => (s.match(/[a-zà-ù]/gi) ?? []).length >= 2;
+
+function pulisciBordi(s: string): string {
+  const t = s.replace(/^[\s\-–—,;:·]+/, "").replace(/[\s\-–—,;:·&(]+$/, "");
+  // Il punto finale di «Rossi.» sì, quello di una sigla («C.M.A.») no.
+  return /[a-zà-ù]{4}\.$/i.test(t) ? t.slice(0, -1) : t;
+}
+
+const iniziale = (s: string): string => s.replace(/[a-zà-ù]/, (c) => c.toUpperCase());
+
+function parolaInTitolo(t: string, prima: boolean): string {
+  if (/\d/.test(t)) return t;                                          // «3D», «2000»
+  if (/[a-zà-ù]\.[a-zà-ù]/i.test(t)) return t.toUpperCase();           // sigle col punto: «C.M.A.»
+  if (t.length <= 4 && !/[aeiouàèéìòù]/i.test(t)) return t.toUpperCase(); // sigle senza vocali: «KLC»
+  const basso = t.toLowerCase();
+  if (!prima && PARTICELLE.has(basso)) return basso;
+  const a = APOSTROFATA.exec(basso);
+  if (a) return `${prima ? iniziale(a[1]) : a[1]}${a[2]}${a[3].split("-").map(iniziale).join("-")}`;
+  return basso.split("-").map(iniziale).join("-");                     // «Pier-Andrea»
+}
+
+/**
+ * Il nome dell'azienda da scrivere in un oggetto o in una frase: la var `azienda`.
+ *
+ * Dal registro arrivano ragioni sociali come «ROSSI COSTRUZIONI DI ROSSI PAOLO
+ * & C. S.N.C.» o «NERI INFISSI SOCIETA' A RESPONSABILITA' LIMITATA SEMPLIFICATA».
+ * Sulle prime email ThermoDMR in coda il 16/09/2026 erano tutte maiuscole il
+ * 58% e avevano la forma giuridica il 53%: in un oggetto dicono che l'email è
+ * automatica. Qui diventano «Rossi Costruzioni» e «Neri Infissi»:
+ * - via forma giuridica, «unipersonale», «in liquidazione» e quel che segue;
+ * - via «di Rossi Paolo & C.» delle società di persone. Senza «& C.» il «di»
+ *   resta, perché spesso è un luogo («Vetreria di Mestre»);
+ * - sopra i 35 caratteri si tiene il primo pezzo prima di una virgola o di un
+ *   trattino, se ha almeno due parole («Mario Rossi, Consulente Energetico…»);
+ * - tutto maiuscolo o tutto minuscolo diventa «Iniziali Maiuscole», con le
+ *   particelle minuscole e le sigle intatte. Un nome scritto a mano resta com'è.
+ * Vuota se non resta un nome, o se è un indirizzo o un nome utente («mrossi4»):
+ * il chiamante la tratta come ogni variabile vuota.
+ */
+export function nomeAzienda(ragioneSociale?: string | null): string {
+  let s = (ragioneSociale ?? "").replace(/\s+/g, " ").trim();
+  if (!haNome(s) || /@|https?:|www\./i.test(s)) return "";
+
+  const forma = CODA_RAGIONE_SOCIALE.exec(s);
+  if (forma && haNome(s.slice(0, forma.index))) s = s.slice(0, forma.index);
+  s = pulisciBordi(s);
+
+  if (E_COMPAGNI.test(s)) {
+    const senza = s.replace(E_COMPAGNI, "");
+    const di = senza.toLowerCase().lastIndexOf(" di ");
+    const taglio = di > 0 && haNome(senza.slice(0, di)) ? senza.slice(0, di) : senza;
+    if (haNome(taglio)) s = pulisciBordi(taglio);
+  }
+
+  if (s.length > 35) {
+    const primo = pulisciBordi(s.split(/\s*,\s*|\s+[-–—]\s+/)[0]);
+    if (primo.split(" ").length >= 2 && haNome(primo)) s = primo;
+  }
+
+  if (/^[a-zà-ù]+\d+$/.test(s)) return "";
+  if (s === s.toUpperCase() || s === s.toLowerCase()) {
+    s = s.split(" ").map((t, i) => parolaInTitolo(t, i === 0)).join(" ");
+  }
+  // Solo la forma giuridica («S.R.L.»): non c'è un nome da scrivere.
+  const soloForma = /^[\s.]*$/.test(s.replace(CODA_RAGIONE_SOCIALE, ""));
+  return haNome(s) && !soloForma ? s : "";
+}
+
+/**
  * Sigla di provincia → nome. Serve alla personalizzazione geografica
  * dell'outreach (var `zona`, es. «in provincia di Torino»): copia locale e
  * pura delle 107 province italiane, la stessa lista di `it_province` nel
@@ -203,6 +303,8 @@ export function contactToVars(c: {
     phone: c.phone ?? "",
     // Da usare nei saluti al posto di first_name: vedi nomeSaluto().
     nome: nomeSaluto(c),
+    // «Rossi Costruzioni»: la ragione sociale ripulita, per oggetti e frasi. Vedi nomeAzienda().
+    azienda: nomeAzienda(c.company_name),
     // "in provincia di X", o "" — vedi zonaDaProvincia().
     zona: zonaDaProvincia(c.province),
     // «Lombardia». La forma bilingue «Trentino-Alto Adige/Südtirol» si ferma alla barra.

@@ -69,7 +69,8 @@ describe("contactToVars", () => {
       // `nome` è il nome da usare nel saluto: vuoto quando non è di una persona
       // (vedi nomeSaluto). «Mario» con azienda «X» è un nome vero, quindi resta.
       // `zona` senza provincia in ingresso resta vuota (vedi zonaDaProvincia).
-      .toEqual({ first_name: "Mario", last_name: "", company_name: "X", email: "m@x.it", phone: "", nome: "Mario", zona: "", regione: "", mese: "gennaio" });
+      // `azienda` vuota: «X» non è un nome da scrivere (vedi nomeAzienda).
+      .toEqual({ first_name: "Mario", last_name: "", company_name: "X", email: "m@x.it", phone: "", nome: "Mario", azienda: "", zona: "", regione: "", mese: "gennaio" });
   });
 
   it("«regione» si ferma alla barra e «mese» è quello dell'invio a Roma", () => {

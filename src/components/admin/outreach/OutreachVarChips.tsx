@@ -12,7 +12,9 @@ import { Badge } from "@/components/ui/badge";
 const OUTREACH_VAR_CHIPS = [
   // {{nome}} è vuoto quando il «nome» è una ragione sociale o una casella
   // (info@): «Buongiorno Info» brucia il contatto. {{zona}} = «in provincia di…».
+  // {{azienda}} = ragione sociale ripulita: «ROSSI COSTRUZIONI S.R.L.» → «Rossi Costruzioni».
   "{{nome}}",
+  "{{azienda}}",
   "{{zona}}",
   "{{first_name}}",
   "{{first_name|amico}}",
