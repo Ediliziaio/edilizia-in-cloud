@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { warmupTargetForDay, buildWarmupPairs, type WarmupBox } from "../../../supabase/functions/_shared/outreach-warmup";
+import {
+  warmupTargetForDay, buildWarmupPairs, coppieDelGiro, giroDaOraUtc, GIRI_WARMUP, type WarmupBox,
+} from "../../../supabase/functions/_shared/outreach-warmup";
 
 function box(p: Partial<WarmupBox> & { id: string }): WarmupBox {
   return { email: `${p.id}@x.it`, warmup_day: 0, status: "warming", ...p };
@@ -38,5 +40,35 @@ describe("buildWarmupPairs", () => {
     const fromB = pairs.filter((p) => p.fromId === "b");
     expect(fromA).toHaveLength(2); // a manda a 2 altre
     expect(fromB).toHaveLength(1); // b manda a 1
+  });
+});
+
+// 16/09/2026: il titolare vuole che una casella non mandi mai due email nello
+// stesso minuto. Il warm-up partiva tutto insieme alle 8:15 UTC.
+describe("coppieDelGiro — il warm-up spalmato sui giri orari", () => {
+  const boxes = Array.from({ length: 12 }, (_, i) => box({ id: `casella-${i}`, warmup_day: i }));
+  const giornata = buildWarmupPairs(boxes, (b) => warmupTargetForDay(b.warmup_day));
+
+  it("in ogni giro una casella scrive al massimo una volta", () => {
+    for (let giro = 0; giro < GIRI_WARMUP; giro++) {
+      const mittenti = coppieDelGiro(giornata, giro).map((p) => p.fromId);
+      expect(new Set(mittenti).size).toBe(mittenti.length);
+    }
+  });
+
+  it("nella giornata partono tutte le email, ognuna una volta sola", () => {
+    const spedite = Array.from({ length: GIRI_WARMUP }, (_, giro) => coppieDelGiro(giornata, giro)).flat();
+    expect(spedite).toHaveLength(giornata.length);
+    expect(new Set(spedite).size).toBe(giornata.length);
+  });
+
+  it("le caselle non partono tutte al primo giro", () => {
+    expect(coppieDelGiro(giornata, 0).length).toBeLessThan(boxes.length);
+  });
+
+  it("il giro viene dall'ora UTC del cron: 6 → 0, 15 → 9", () => {
+    expect(giroDaOraUtc(6)).toBe(0);
+    expect(giroDaOraUtc(15)).toBe(9);
+    expect(giroDaOraUtc(3)).toBe(7); // chiamata fuori orario: resta dentro i giri
   });
 });

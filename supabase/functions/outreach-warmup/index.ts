@@ -4,6 +4,10 @@
  * Instantly), con volume crescente per giorno. Avanza anche warmup_day in base
  * a warmup_started_on (così il cap del dispatcher sale nel tempo).
  *
+ * Gira una volta all'ora, dalle 6:13 alle 15:13 UTC, lun–ven: le email del
+ * giorno si spalmano sui dieci giri e in ogni giro una casella ne manda al
+ * massimo una (mai due email della stessa casella nello stesso minuto).
+ *
  * Auth: cron interno (service role o x-cron-secret). Richiede tabelle outreach_*.
  * NB: il warm-up COMPLETO prevede anche apertura+risposta automatica lato
  * destinatario (via IMAP): qui c'è lo scambio in uscita; l'auto-engagement
@@ -16,7 +20,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { isNativeProvider, sendViaNativeSender } from "../_shared/outreachMailboxSend.ts";
-import { warmupTargetForDay, buildWarmupPairs, warmupMessage, warmupReply, type WarmupBox } from "../_shared/outreach-warmup.ts";
+import { warmupTargetForDay, buildWarmupPairs, coppieDelGiro, giroDaOraUtc, warmupMessage, warmupReply, type WarmupBox } from "../_shared/outreach-warmup.ts";
 import { engageMailbox } from "../_shared/outreachWarmupEngage.ts";
 import { logRun } from "../_shared/outreachAlert.ts";
 import { selectReplyIndexes } from "../_shared/outreach-warmup-engage.ts";
@@ -104,7 +108,12 @@ Deno.serve(async (req) => {
         }
       }
 
-      const pairs = buildWarmupPairs(boxes as WarmupBox[], (b) => warmupTargetForDay(b.warmup_day));
+      // Le email del giorno si spalmano su dieci giri orari: in ogni giro una
+      // casella ne manda al massimo una (vedi coppieDelGiro).
+      const pairs = coppieDelGiro(
+        buildWarmupPairs(boxes as WarmupBox[], (b) => warmupTargetForDay(b.warmup_day)),
+        giroDaOraUtc(now.getUTCHours()),
+      );
       result.pairs = pairs.length;
       const byId = new Map(boxes.map((b) => [b.id, b]));
       // Message-ID e oggetto del giro: la "risposta" resta NEL THREAD.
@@ -128,12 +137,17 @@ Deno.serve(async (req) => {
         } catch { result.failed++; }
       }
 
-      // engagement a due vie: chi ha ricevuto risponde nel thread a una frazione delle email
+      // engagement a due vie: chi ha ricevuto risponde nel thread a una frazione delle email.
+      // Una casella che ha già scritto in questo giro non risponde: sarebbero due
+      // sue email a pochi secondi di distanza.
+      const hannoScritto = new Set(pairs.map((p) => p.fromId));
       for (const idx of selectReplyIndexes(pairs.length, REPLY_RATE)) {
         const p = pairs[idx];
+        if (hannoScritto.has(p.toId)) continue;
         const replier = byId.get(p.toId);
         const orig = spediti.get(idx);
         if (!orig) continue;
+        hannoScritto.add(p.toId);
         try {
           const r = await invia(replier, p.fromEmail, `Re: ${orig.subject}`, warmupReply(), {
             inReplyTo: orig.messageId && orig.messageId.startsWith("<") ? orig.messageId : null,
