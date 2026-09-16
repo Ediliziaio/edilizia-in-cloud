@@ -42,8 +42,10 @@ import type { StaffPermissions } from "@/components/users/PermissionsDialog";
 import {
   DEFAULT_PERMISSIONS, STANDALONE_SECTIONS, INTERNAL_SECTIONS, MARKETING_SECTIONS,
   ALL_PERMISSION_SECTIONS, ROLE_PRESETS, syncLegacyMarketingFlags,
-  type PermissionSectionDef, type StaffRoleType,
+  isBlockedBySolaLettura, SOLA_LETTURA_BLOCKED_NOTE,
+  type PermissionSectionDef, type StaffRoleType, type BooleanPermissionKey,
 } from "@/components/users/permissionsDefaults";
+import { SolaLetturaToggle } from "@/components/users/SolaLetturaToggle";
 
 interface Props {
   open: boolean;
@@ -81,11 +83,12 @@ function PermGroup({ label, icon: Icon, iconColor, sections, permissions, onTogg
   }, 0);
   const totalCount = sections.reduce((c, s) => c + 1 + (s.editKey ? 1 : 0), 0);
   const allActive = activeCount === totalCount;
+  const bloccato = (key: BooleanPermissionKey) => !!permissions.sola_lettura && isBlockedBySolaLettura(key);
 
   const handleToggleAll = (checked: boolean) => {
     sections.forEach(s => {
-      onToggle(s.viewKey, checked);
-      if (s.editKey) onToggle(s.editKey, checked);
+      if (!(checked && bloccato(s.viewKey))) onToggle(s.viewKey, checked);
+      if (s.editKey && !(checked && bloccato(s.editKey))) onToggle(s.editKey, checked);
     });
   };
 
@@ -111,15 +114,20 @@ function PermGroup({ label, icon: Icon, iconColor, sections, permissions, onTogg
               <Switch
                 id={`plat-${section.viewKey}`}
                 checked={permissions[section.viewKey]}
+                disabled={bloccato(section.viewKey)}
                 onCheckedChange={(checked) => onToggle(section.viewKey, checked)}
               />
               <Label htmlFor={`plat-${section.viewKey}`} className="text-sm cursor-pointer">{section.label}</Label>
+              {(bloccato(section.viewKey) || (section.editKey && bloccato(section.editKey))) && (
+                <span className="text-[11px] text-amber-600">{SOLA_LETTURA_BLOCKED_NOTE}</span>
+              )}
             </div>
             {section.editKey && permissions[section.viewKey] && (
               <div className="flex items-center gap-1.5">
                 <Switch
                   id={`plat-${section.editKey}`}
                   checked={permissions[section.editKey]}
+                  disabled={bloccato(section.editKey)}
                   onCheckedChange={(checked) => onToggle(section.editKey!, checked)}
                 />
                 <Label htmlFor={`plat-${section.editKey}`} className="text-xs text-muted-foreground cursor-pointer">Modifica</Label>
@@ -209,6 +217,7 @@ export default function CreatePlatformUserDialog({ open, onOpenChange }: Props) 
       setPermissions((prev) => ({
         ...DEFAULT_PERMISSIONS,
         only_assigned: prev.only_assigned,
+        sola_lettura: prev.sola_lettura,
         ...ROLE_PRESETS[firstNonAdminRole],
       }));
     }
@@ -238,7 +247,7 @@ export default function CreatePlatformUserDialog({ open, onOpenChange }: Props) 
   };
 
   const totalActive = useMemo(() => {
-    const excluded = new Set(["only_assigned", "can_view_marketing", "can_edit_marketing"]);
+    const excluded = new Set(["only_assigned", "sola_lettura", "can_view_marketing", "can_edit_marketing"]);
     return Object.entries(permissions).filter(([k, v]) => v === true && !excluded.has(k)).length;
   }, [permissions]);
 
@@ -686,6 +695,11 @@ export default function CreatePlatformUserDialog({ open, onOpenChange }: Props) 
                       onToggle={handleToggle}
                     />
                   </div>
+                  <SolaLetturaToggle
+                    id="plat-sola_lettura"
+                    checked={permissions.sola_lettura || false}
+                    onCheckedChange={(checked) => setPermissions(prev => syncLegacyMarketingFlags({ ...prev, sola_lettura: checked }))}
+                  />
                   <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
                     <div>
                       <Label htmlFor="plat-only_assigned" className="text-sm font-medium cursor-pointer">

@@ -22,7 +22,9 @@ import {
   DEFAULT_PERMISSIONS, ALL_PERMISSION_SECTIONS,
   CRUSCOTTO_SECTIONS, CANTIERI_SECTIONS, FINANZA_SECTIONS, PERSONE_SECTIONS,
   MARKETING_SECTIONS, AUTOMAZIONI_SECTIONS, IMPOSTAZIONI_SECTIONS,
+  isBlockedBySolaLettura, syncLegacyMarketingFlags, SOLA_LETTURA_BLOCKED_NOTE,
 } from "@/components/users/permissionsDefaults";
+import { SolaLetturaToggle } from "@/components/users/SolaLetturaToggle";
 
 interface StaffUserDialogProps {
   open: boolean;
@@ -115,20 +117,20 @@ export function StaffUserDialog({
 
   const handleSelectAll = () => {
     setPermissions((prev) => {
-      const allTrue: any = { ...DEFAULT_PERMISSIONS, only_assigned: prev.only_assigned };
+      const allTrue: any = { ...DEFAULT_PERMISSIONS, only_assigned: prev.only_assigned, sola_lettura: prev.sola_lettura };
       ALL_PERMISSION_SECTIONS.forEach(s => {
         allTrue[s.viewKey] = true;
         if (s.editKey) allTrue[s.editKey] = true;
       });
       allTrue.can_view_cruscotto = true;
       allTrue.can_view_marketing = true;
-      allTrue.can_edit_marketing = true;
-      return allTrue;
+      // Deriva la modifica e rispegne ciò che la sola lettura blocca.
+      return syncLegacyMarketingFlags(allTrue);
     });
   };
 
   const handleDeselectAll = () => {
-    setPermissions((prev) => ({ ...DEFAULT_PERMISSIONS, only_assigned: prev.only_assigned }));
+    setPermissions((prev) => ({ ...DEFAULT_PERMISSIONS, only_assigned: prev.only_assigned, sola_lettura: prev.sola_lettura }));
   };
 
   const handleGeneratePassword = () => {
@@ -157,7 +159,7 @@ export function StaffUserDialog({
         email: email.trim().toLowerCase(),
         role_type: roleType,
         password: pwd || undefined,
-        permissions: ROLES_WITH_PERMISSIONS.includes(roleType) ? permissions : undefined,
+        permissions: ROLES_WITH_PERMISSIONS.includes(roleType) ? syncLegacyMarketingFlags(permissions) : undefined,
       });
       if (result.temporaryPassword) {
         setTemporaryPassword(result.temporaryPassword);
@@ -187,6 +189,8 @@ export function StaffUserDialog({
 
   const selectedRoleOption = ROLE_OPTIONS.find((o) => o.value === roleType) ?? ROLE_OPTIONS[0];
 
+  const bloccato = (key: typeof ALL_PERMISSION_SECTIONS[0]["viewKey"]) => !!permissions.sola_lettura && isBlockedBySolaLettura(key);
+
   const renderSection = (section: typeof ALL_PERMISSION_SECTIONS[0]) => (
     <div key={section.viewKey} className="space-y-1.5">
       <div className="flex items-center space-x-2">
@@ -194,11 +198,14 @@ export function StaffUserDialog({
           id={`create-${section.viewKey}`}
           checked={permissions[section.viewKey] as boolean}
           onCheckedChange={(checked) => handleTogglePermission(section.viewKey, checked as boolean)}
-          disabled={isLoading}
+          disabled={isLoading || bloccato(section.viewKey)}
         />
         <Label htmlFor={`create-${section.viewKey}`} className="font-medium text-sm">
           {section.label}
         </Label>
+        {(bloccato(section.viewKey) || (section.editKey && bloccato(section.editKey))) && (
+          <span className="text-[11px] text-amber-600">{SOLA_LETTURA_BLOCKED_NOTE}</span>
+        )}
       </div>
       {section.editKey && permissions[section.viewKey] && (
         <div className="ml-6 flex items-center space-x-2">
@@ -206,7 +213,7 @@ export function StaffUserDialog({
             id={`create-${section.editKey}`}
             checked={permissions[section.editKey] as boolean}
             onCheckedChange={(checked) => handleTogglePermission(section.editKey!, checked as boolean)}
-            disabled={isLoading}
+            disabled={isLoading || bloccato(section.editKey)}
           />
           <Label htmlFor={`create-${section.editKey}`} className="text-xs text-muted-foreground">
             Può modificare
@@ -384,6 +391,13 @@ export function StaffUserDialog({
                   })}
 
                   <Separator />
+
+                  <SolaLetturaToggle
+                    id="create-sola_lettura"
+                    checked={permissions.sola_lettura || false}
+                    disabled={isLoading}
+                    onCheckedChange={(checked) => setPermissions((prev) => syncLegacyMarketingFlags({ ...prev, sola_lettura: checked }))}
+                  />
 
                   <div className="space-y-1.5">
                     <div className="flex items-center space-x-2">

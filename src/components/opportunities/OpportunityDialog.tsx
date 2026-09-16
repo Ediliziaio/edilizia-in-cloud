@@ -66,8 +66,8 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
   const companyId = effectiveCompany?.id;
   const isPlatformCrm = useIsPlatformCrm();
   const permissions = usePermissions();
-  const canEditOpportunities = permissions.canEditMarketingOpportunities || permissions.canEditMarketing;
-  const canEditContacts = permissions.canEditMarketingContacts || permissions.canEditMarketing;
+  const canEditOpportunities = permissions.canEditMarketingOpportunities;
+  const canEditContacts = permissions.canEditMarketingContacts;
   const createOpportunity = useCreateOpportunity();
   const navigate = useNavigate();
 

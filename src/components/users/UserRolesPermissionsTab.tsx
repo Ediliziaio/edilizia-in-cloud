@@ -31,7 +31,14 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { StaffPermissions } from "@/components/users/PermissionsDialog";
-import { DEFAULT_PERMISSIONS, ROLE_PRESETS, ECONOMIC_LEVELS, detectEconomicLevel, type BooleanPermissionKey } from "@/components/users/permissionsDefaults";
+import {
+  DEFAULT_PERMISSIONS, ROLE_PRESETS, ECONOMIC_LEVELS, detectEconomicLevel,
+  CRUSCOTTO_SECTIONS, CANTIERI_SECTIONS, FINANZA_SECTIONS, PERSONE_SECTIONS,
+  MARKETING_SECTIONS, AUTOMAZIONI_SECTIONS, IMPOSTAZIONI_SECTIONS,
+  isBlockedBySolaLettura, SOLA_LETTURA_BLOCKED_NOTE,
+  type BooleanPermissionKey, type PermissionSectionDef,
+} from "@/components/users/permissionsDefaults";
+import { SolaLetturaToggle } from "@/components/users/SolaLetturaToggle";
 
 /**
  * Each PermissionModule maps 1:1 to a unique DB column.
@@ -64,123 +71,38 @@ import {
   Settings as SettingsIcon,
 } from "lucide-react";
 
-export const PERMISSION_CATEGORIES: PermissionCategory[] = [
-  {
-    id: "cruscotto",
-    label: "Cruscotto",
-    icon: LayoutDashboard,
-    modules: [
-      { id: "cruscotto", label: "Cruscotto Aziendale", description: "Centro di controllo executive unificato", viewKey: "can_view_cruscotto" },
-      { id: "controllo-gestione", label: "Controllo di Gestione", description: "Direzione & bilancio: conto economico, KPI, tesoreria (CFO)", viewKey: "can_view_controllo_gestione" },
-    ],
-  },
-  {
-    id: "cantieri",
-    label: "Cantieri & Lavori",
-    icon: Hammer,
-    modules: [
-      { id: "dashboard",        label: "Dashboard",              description: "Visualizza la dashboard principale",       viewKey: "can_view_dashboard" },
-      // NB: questo elenco è un secondo esemplare di ALL_PERMISSION_SECTIONS in
-      // permissionsDefaults.ts (62 voci qui, 64 là: hanno già divergiuto). Una
-      // descrizione cambiata va cambiata in tutti e due i posti finché non si
-      // unificano.
-      { id: "orders",           label: "Ordini e Commesse",      description: "Senza «Modifica» le commesse si vedono soltanto. Con «Modifica» si creano e si modificano — e si può registrare il cliente da intestare alla commessa", viewKey: "can_view_orders",               editKey: "can_edit_orders" },
-      { id: "order-amounts",    label: "Importi di vendita",     description: "Vede importi e prezzi di vendita in commesse e preventivi", viewKey: "can_view_order_amounts" },
-      { id: "approve-orders",   label: "Approva Ordini",         description: "Può approvare ordini e commesse",          viewKey: "can_approve_orders" },
-      { id: "delete-orders",    label: "Elimina Ordini",         description: "Può eliminare ordini e commesse",          viewKey: "can_delete_orders" },
-      { id: "warehouse",        label: "Magazzino",              description: "Gestisci inventario e movimenti",          viewKey: "can_view_warehouse",            editKey: "can_edit_warehouse" },
-      { id: "warehouse-items",  label: "Gestione Articoli",      description: "Gestisci articoli e listino magazzino",    viewKey: "can_manage_warehouse_items" },
-      { id: "calendar",         label: "Calendario",             description: "Visualizza e gestisci il calendario",      viewKey: "can_view_calendar" },
-      { id: "customers",        label: "Clienti",                description: "Gestisci anagrafica clienti",              viewKey: "can_view_customers",            editKey: "can_edit_customers" },
-      { id: "export-clients",   label: "Esporta Clienti",        description: "Esporta l'anagrafica clienti in CSV",      viewKey: "can_export_clients" },
-      { id: "tickets",          label: "Ticket Assistenza",      description: "Gestisci ticket di supporto",              viewKey: "can_view_tickets",              editKey: "can_edit_tickets" },
-      { id: "interventi",       label: "Interventi",             description: "Gestisci interventi tecnici pianificati",  viewKey: "can_view_interventi" },
-      { id: "manutenzione",     label: "Manutenzione",           description: "Gestisci piani di manutenzione programmata", viewKey: "can_view_manutenzione" },
-      { id: "sicurezza",        label: "Sicurezza Cantiere",     description: "Accesso al modulo sicurezza e PSC",        viewKey: "can_view_sicurezza_cantiere" },
-      { id: "subappaltatori-perm", label: "Subappaltatori",      description: "Visualizza e gestisci subappaltatori",     viewKey: "can_view_subappaltatori" },
-      { id: "firma-elettronica",   label: "Firma Elettronica (FEA)", description: "Modulo firma elettronica avanzata (cantieri e CRM)", viewKey: "can_view_firma_elettronica" },
-    ],
-  },
-  {
-    id: "finanza",
-    label: "Finanza",
-    icon: Euro,
-    modules: [
-      { id: "billing",          label: "Fatturazione",               description: "Fatture e documenti fiscali",             viewKey: "can_view_billing" },
-      { id: "scadenzario",      label: "Scadenzario",                description: "Scadenze attive e passive",               viewKey: "can_view_scadenzario" },
-      { id: "tesoreria",        label: "Tesoreria",                  description: "Conti correnti e movimenti bancari",      viewKey: "can_view_tesoreria" },
-      { id: "prima-nota",       label: "Prima Nota e Contabilità",   description: "Registrazioni contabili",                 viewKey: "can_view_prima_nota" },
-      { id: "costs",            label: "Costi",                      description: "Gestione e analisi costi",                viewKey: "can_view_costs" },
-      { id: "forecast",         label: "Previsionale",               description: "Previsioni finanziarie e ordini acquisto", viewKey: "can_view_forecast",          includes: ["Ordini Acquisto"] },
-      { id: "financial-reports",label: "Report Finanziari",          description: "Visualizza report e analisi finanziarie", viewKey: "can_view_financial_reports" },
-      { id: "margins",          label: "Visualizza Margini",         description: "Visualizza i margini per ordine",         viewKey: "can_view_margins" },
-      { id: "payments",         label: "Gestione Pagamenti",         description: "Gestisci e registra i pagamenti",         viewKey: "can_manage_payments" },
-      { id: "suppliers",        label: "Gestione Fornitori",         description: "Gestisci l'anagrafica fornitori",         viewKey: "can_manage_suppliers" },
-    ],
-  },
-  {
-    id: "persone",
-    label: "Persone",
-    icon: UsersIcon,
-    modules: [
-      { id: "persone",            label: "Personale, Chat e Messaggistica", description: "HR, chat interna e messaggistica",                 viewKey: "can_view_persone" },
-      { id: "employees",          label: "Gestione Dipendenti",             description: "Anagrafica e dati dipendenti",                     viewKey: "can_view_employees" },
-      { id: "users",              label: "Utenti & Team",                   description: "Gestisci utenti e team aziendali",                 viewKey: "can_view_users" },
-      { id: "giornale-lavori",    label: "Giornale Lavori",                 description: "Visualizza e compila le registrazioni giornaliere di cantiere", viewKey: "can_view_giornale_lavori", editKey: "can_edit_giornale_lavori" },
-      { id: "formazione",         label: "Formazione (fruizione corsi)",    description: "Accede all'area Formazione per seguire i corsi assegnati",   viewKey: "can_view_formazione" },
-      { id: "portale-gestione",   label: "Portale corsi (gestione)",        description: "Gestisce il Portale corsi: crea/modifica corsi, iscrizioni, materiali", viewKey: "can_manage_portal" },
-    ],
-  },
-  {
-    id: "marketing",
-    label: "Marketing & Vendita",
-    icon: Megaphone,
-    modules: [
-      { id: "mkt-dashboard",     label: "Dashboard Marketing", description: "Panoramica performance marketing",          viewKey: "can_view_marketing_dashboard" },
-      { id: "mkt-contacts",      label: "Contatti CRM",        description: "Gestisci contatti marketing",              viewKey: "can_view_marketing_contacts",      editKey: "can_edit_marketing_contacts" },
-      { id: "mkt-opportunities", label: "Opportunità",         description: "Gestisci pipeline e opportunità",          viewKey: "can_view_marketing_opportunities", editKey: "can_edit_marketing_opportunities", includes: ["Sales OS"] },
-      { id: "mkt-preventivi",    label: "Preventivi",          description: "Crea e gestisci i preventivi",             viewKey: "can_view_preventivi",              editKey: "can_edit_preventivi" },
-      { id: "mkt-approve-disc",  label: "Approva Sconti",      description: "Può approvare/impostare sconti oltre soglia (approvazione sconti)", viewKey: "can_approve_discounts" },
-      { id: "mkt-sopralluoghi",  label: "Sopralluoghi",        description: "Sopralluoghi tecnici e firma cliente",     viewKey: "can_view_sopralluoghi" },
-      { id: "mkt-activities",    label: "Attività",            description: "Visualizza attività marketing",            viewKey: "can_view_marketing_activities" },
-      { id: "mkt-appointments",  label: "Appuntamenti",        description: "Gestisci appuntamenti commerciali",        viewKey: "can_view_marketing_appointments" },
-      { id: "mkt-email",         label: "Email Marketing",     description: "Campagne e template email",                viewKey: "can_view_marketing_email" },
-      { id: "mkt-sms",           label: "SMS Marketing",       description: "Campagne e automazioni SMS",               viewKey: "can_view_sms_marketing" },
-      { id: "mkt-whatsapp",      label: "WhatsApp",            description: "Messaggistica WhatsApp",                   viewKey: "can_view_marketing_whatsapp" },
-      { id: "mkt-sales-os",      label: "Sales OS",            description: "Dashboard e strumenti commerciali avanzati", viewKey: "can_view_sales_os" },
-      { id: "mkt-reports",       label: "Reportistica",        description: "Report e analisi marketing",               viewKey: "can_view_marketing_reports" },
-      { id: "mkt-reputazione",   label: "Reputazione",         description: "Gestione recensioni e reputazione online",  viewKey: "can_view_reputazione" },
-    ],
-  },
-  {
-    id: "automazioni",
-    label: "Automazioni & AI",
-    icon: Bot,
-    modules: [
-      { id: "automations", label: "Automazioni", description: "Flussi automatizzati",      viewKey: "can_view_automazioni" },
-      { id: "ai-agent",    label: "Agenti AI",   description: "Agenti AI voce e chat",     viewKey: "can_view_marketing_ai_agent" },
-      { id: "render-ai",   label: "Render AI",   description: "Generazione render con AI", viewKey: "can_view_render_ai" },
-    ],
-  },
-  {
-    id: "impostazioni",
-    label: "Impostazioni",
-    icon: SettingsIcon,
-    modules: [
-      { id: "settings-profile",   label: "Profilo Aziendale",     description: "Anagrafica, logo, dati fiscali e portale clienti",                                            viewKey: "can_view_settings_profile",        editKey: "can_edit_settings_profile" },
-      { id: "settings-pricing",   label: "Listino & Prezzi (tutto)", description: "Master: listino prodotti, tariffe, template offerte E le tre voci sotto",                   viewKey: "can_view_settings_pricing",        editKey: "can_edit_settings_pricing" },
-      { id: "settings-scontistica",   label: "Margini e sconti · Sconti", description: "Solo fasce sconto e limiti venditori, senza toccare il listino",                             viewKey: "can_view_settings_scontistica",    editKey: "can_edit_settings_scontistica" },
-      { id: "settings-finanziamenti", label: "Finanziamenti",       description: "Solo finanziarie, tassi e rate",                                                              viewKey: "can_view_settings_finanziamenti",  editKey: "can_edit_settings_finanziamenti" },
-      { id: "settings-bundle",        label: "Listino · Kit e pacchetti", description: "Solo kit e pacchetti chiavi in mano",                                                               viewKey: "can_view_settings_bundle",         editKey: "can_edit_settings_bundle" },
-      { id: "settings-custom",    label: "Branding & Template",   description: "Branding, tag, campi personalizzati, sequenze, calendari, form builder e AI",                 viewKey: "can_view_settings_customization",  editKey: "can_edit_settings_customization" },
-      { id: "settings-orders",    label: "Configurazione Ordini", description: "Stati ordine e codici QR",                                                                    viewKey: "can_view_settings_orders",         editKey: "can_edit_settings_orders" },
-      { id: "settings-suppliers", label: "Fornitori",             description: "Anagrafica fornitori",                                                                        viewKey: "can_view_settings_suppliers",      editKey: "can_edit_settings_suppliers" },
-      { id: "settings-people",    label: "Team & Utenti",         description: "Utenti, ruoli e permessi, venditori, staff e sedi",                                           viewKey: "can_view_settings_people",         editKey: "can_edit_settings_people" },
-      { id: "settings-integr",    label: "Integrazioni & Canali", description: "Integrazioni, API, webhook, WhatsApp bot, firma elettronica, lead form e telefonia",          viewKey: "can_view_settings_integrations",   editKey: "can_edit_settings_integrations" },
-      { id: "settings-sec",       label: "Sicurezza & Privacy",   description: "Privacy, GDPR, dashboard sicurezza e registro attività",                                      viewKey: "can_view_settings_security" },
-    ],
-  },
+// Derivato dal registro unico (permissionsDefaults.ts): prima qui c'era una
+// seconda lista scritta a mano, con descrizioni e chiavi di modifica che
+// divergevano da quelle del wizard e della dialog.
+const CATEGORY_DEFS: { id: string; label: string; icon: PermissionCategory["icon"]; sections: PermissionSectionDef[] }[] = [
+  { id: "cruscotto",    label: "Cruscotto",           icon: LayoutDashboard, sections: CRUSCOTTO_SECTIONS },
+  { id: "cantieri",     label: "Cantieri & Lavori",   icon: Hammer,          sections: CANTIERI_SECTIONS },
+  { id: "finanza",      label: "Finanza",             icon: Euro,            sections: FINANZA_SECTIONS },
+  { id: "persone",      label: "Persone",             icon: UsersIcon,       sections: PERSONE_SECTIONS },
+  { id: "marketing",    label: "Marketing & Vendita", icon: Megaphone,       sections: MARKETING_SECTIONS },
+  { id: "automazioni",  label: "Automazioni & AI",    icon: Bot,             sections: AUTOMAZIONI_SECTIONS },
+  { id: "impostazioni", label: "Impostazioni",        icon: SettingsIcon,    sections: IMPOSTAZIONI_SECTIONS },
 ];
+
+// Moduli che aprono anche pagine con un nome diverso: aiutano la ricerca.
+const MODULE_INCLUDES: Partial<Record<BooleanPermissionKey, string[]>> = {
+  can_view_forecast: ["Ordini Acquisto"],
+  can_view_marketing_opportunities: ["Sales OS"],
+};
+
+export const PERMISSION_CATEGORIES: PermissionCategory[] = CATEGORY_DEFS.map((c) => ({
+  id: c.id,
+  label: c.label,
+  icon: c.icon,
+  modules: c.sections.map((s) => ({
+    id: s.viewKey,
+    label: s.label,
+    description: s.description ?? "",
+    viewKey: s.viewKey,
+    ...(s.editKey ? { editKey: s.editKey } : {}),
+    ...(MODULE_INCLUDES[s.viewKey] ? { includes: MODULE_INCLUDES[s.viewKey] } : {}),
+  })),
+}));
 
 // ─── Visibilità dati economici — modello a 3 livelli su 3 toggle ──────────
 // Operativo (niente soldi) · Commerciale (importi sì, costi/margini no) · Pieno.
@@ -319,7 +241,7 @@ export function UserRolesPermissionsTab({
     setSelectedRole(newRole);
     onChangeRole?.(newRole);
     if (applyPreset && ROLE_PRESETS[newRole]) {
-      setPermissions((prev) => ({ ...DEFAULT_PERMISSIONS, only_assigned: prev.only_assigned, ...ROLE_PRESETS[newRole] }));
+      setPermissions((prev) => ({ ...DEFAULT_PERMISSIONS, only_assigned: prev.only_assigned, sola_lettura: prev.sola_lettura, ...ROLE_PRESETS[newRole] }));
     }
     setPendingRoleChange(null);
   };
@@ -349,8 +271,10 @@ export function UserRolesPermissionsTab({
     setPermissions((prev) => {
       const next = { ...prev };
       cat.modules.forEach((mod) => {
-        next[mod.viewKey] = enable;
-        if (mod.editKey) next[mod.editKey] = enable;
+        // In sola lettura le azioni speciali e le modifiche restano spente.
+        const bloccato = (k: BooleanPermissionKey) => enable && !!prev.sola_lettura && isBlockedBySolaLettura(k);
+        if (!bloccato(mod.viewKey)) next[mod.viewKey] = enable;
+        if (mod.editKey && !bloccato(mod.editKey)) next[mod.editKey] = enable;
       });
       return next;
     });
@@ -395,11 +319,12 @@ export function UserRolesPermissionsTab({
 
   const handleSelectAll = () => {
     setPermissions((prev) => {
-      const allTrue: StaffPermissions = { ...DEFAULT_PERMISSIONS, only_assigned: prev.only_assigned };
+      const allTrue: StaffPermissions = { ...DEFAULT_PERMISSIONS, only_assigned: prev.only_assigned, sola_lettura: prev.sola_lettura };
       const allModules = PERMISSION_CATEGORIES.flatMap((c) => c.modules);
+      const bloccato = (k: BooleanPermissionKey) => !!prev.sola_lettura && isBlockedBySolaLettura(k);
       allModules.forEach((mod) => {
-        allTrue[mod.viewKey] = true;
-        if (mod.editKey) allTrue[mod.editKey] = true;
+        if (!bloccato(mod.viewKey)) allTrue[mod.viewKey] = true;
+        if (mod.editKey && !bloccato(mod.editKey)) allTrue[mod.editKey] = true;
       });
       allTrue.can_view_marketing = true;
       allTrue.can_edit_marketing = true;
@@ -408,7 +333,7 @@ export function UserRolesPermissionsTab({
   };
 
   const handleDeselectAll = () => {
-    setPermissions((prev) => ({ ...DEFAULT_PERMISSIONS, only_assigned: prev.only_assigned }));
+    setPermissions((prev) => ({ ...DEFAULT_PERMISSIONS, only_assigned: prev.only_assigned, sola_lettura: prev.sola_lettura }));
   };
 
   const handleApplyRolePreset = () => {
@@ -417,6 +342,7 @@ export function UserRolesPermissionsTab({
     setPermissions((prev) => ({
       ...DEFAULT_PERMISSIONS,
       only_assigned: prev.only_assigned,
+      sola_lettura: prev.sola_lettura,
       ...preset,
     }));
   };
@@ -771,6 +697,26 @@ export function UserRolesPermissionsTab({
                 />
               </div>
 
+              {/* Sola lettura: accanto alla limitazione di visibilità, perché come
+                  quella vale per tutte le aree insieme. Spegnerla (o accenderla)
+                  qui non tocca gli interruttori: la modifica la ricalcola il
+                  salvataggio (applyEditFollowsView + trigger). */}
+              <SolaLetturaToggle
+                id="tab-sola_lettura"
+                checked={permissions.sola_lettura || false}
+                onCheckedChange={(checked) =>
+                  setPermissions((prev) => {
+                    const next = { ...prev, sola_lettura: checked };
+                    if (checked) {
+                      Object.keys(next).forEach((k) => {
+                        if (isBlockedBySolaLettura(k as BooleanPermissionKey)) next[k as BooleanPermissionKey] = false;
+                      });
+                    }
+                    return next;
+                  })
+                }
+              />
+
               {/* Visibilità sul team — trasversale (attività e calendario riguardano
                   tutta l'azienda, non un modulo): vive qui accanto a only_assigned. */}
               <div className="rounded-lg border bg-muted/30 p-3 space-y-3">
@@ -908,6 +854,8 @@ export function UserRolesPermissionsTab({
                         <div className="mt-1 ml-3 border-l-2 border-muted pl-3 space-y-0.5">
                           {category.modules.map((mod) => {
                             const viewEnabled = permissions[mod.viewKey] as boolean;
+                            const viewBloccato = !!permissions.sola_lettura && isBlockedBySolaLettura(mod.viewKey);
+                            const editBloccato = !!permissions.sola_lettura && !!mod.editKey && isBlockedBySolaLettura(mod.editKey);
                             return (
                               <div
                                 key={mod.id}
@@ -920,6 +868,7 @@ export function UserRolesPermissionsTab({
                                   <div className="flex items-start gap-3 min-w-0 flex-1">
                                     <Switch
                                       checked={viewEnabled}
+                                      disabled={viewBloccato}
                                       onCheckedChange={(checked) => handleToggle(mod.viewKey, checked)}
                                       className="mt-0.5"
                                     />
@@ -928,6 +877,9 @@ export function UserRolesPermissionsTab({
                                       <p className="text-xs text-muted-foreground mt-0.5">
                                         {mod.description}
                                       </p>
+                                      {viewBloccato && (
+                                        <p className="text-[11px] text-amber-600 mt-0.5">{SOLA_LETTURA_BLOCKED_NOTE}</p>
+                                      )}
                                       {mod.includes && mod.includes.length > 0 && (
                                         <p className="text-[10px] text-muted-foreground/70 mt-1 flex items-center gap-1">
                                           <span className="inline-block h-1 w-1 rounded-full bg-muted-foreground/40" />
@@ -949,6 +901,7 @@ export function UserRolesPermissionsTab({
                                       <Checkbox
                                         id={`${mod.id}-edit`}
                                         checked={permissions[mod.editKey] as boolean}
+                                        disabled={editBloccato}
                                         onCheckedChange={(checked) =>
                                           handleToggle(mod.editKey!, checked as boolean)
                                         }
@@ -956,6 +909,9 @@ export function UserRolesPermissionsTab({
                                       <Label htmlFor={`${mod.id}-edit`} className="text-xs font-medium">
                                         Modifica
                                       </Label>
+                                      {editBloccato && (
+                                        <span className="text-[11px] text-amber-600">{SOLA_LETTURA_BLOCKED_NOTE}</span>
+                                      )}
                                     </div>
                                   </div>
                                 )}

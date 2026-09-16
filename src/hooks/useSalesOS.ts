@@ -440,7 +440,7 @@ export function useUpdateOpportunityMutation() {
       }>;
     }) => {
       if (!companyId) throw new Error('Azienda non selezionata');
-      if (!(permissions.canEditMarketingOpportunities || permissions.canEditMarketing)) {
+      if (!permissions.canEditMarketingOpportunities) {
         throw new Error('Non hai i permessi per modificare opportunità');
       }
       if (data.probability !== undefined && data.probability !== null) {
@@ -480,7 +480,7 @@ export function useRecalculateAllLeadScores(companyId: string | null) {
     mutationFn: async () => {
       if (!companyId) throw new Error('companyId mancante');
       if (effectiveCompany?.id !== companyId) throw new Error('Azienda non selezionata');
-      if (!(permissions.canEditMarketingContacts || permissions.canEditMarketing)) {
+      if (!permissions.canEditMarketingContacts) {
         throw new Error('Non hai i permessi per ricalcolare i lead score');
       }
 

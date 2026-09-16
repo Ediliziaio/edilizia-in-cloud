@@ -8,6 +8,7 @@ import { getBrandingForCompany } from "../_shared/getBranding.ts";
 import { emailCredenziali } from "../_shared/emailCredenziali.ts";
 
 import { serveConMetriche } from "../_shared/withMetrics.ts";
+import { buildStaffPermissionsRecord } from "../_shared/staffPermissionsDefaults.ts";
 /**
  * Costruisce e invia l'email di benvenuto al nuovo utente piattaforma con
  * credenziali. Non blocca il flusso se l'email fallisce — l'utente è già
@@ -322,18 +323,18 @@ serveConMetriche("manage-platform-users", async (req) => {
             .map((ca: any) => ca.companyId);
 
           if (nonAdminCompanyIds.length > 0) {
-            const permRows = nonAdminCompanyIds.map((companyId: string) => ({
-              user_id: userId,
-              company_id: companyId,
-              ...companyPermissions,
-            }));
+            // Record completo e filtrato alle chiavi note: una chiave in più nel
+            // payload faceva fallire l'insert intero.
+            const permRows = nonAdminCompanyIds.map((companyId: string) =>
+              buildStaffPermissionsRecord(userId, companyId, companyPermissions),
+            );
 
             const { error: permError } = await supabaseAdmin
               .from("staff_permissions")
               .insert(permRows);
-            if (permError) {
-              console.error("Failed to insert staff permissions:", permError);
-            }
+            // Prima l'errore finiva solo nei log: l'utente risultava creato ma
+            // entrava nell'azienda senza alcun permesso.
+            if (permError) throw new Error(`Failed to insert staff permissions: ${permError.message}`);
           }
         }
       }

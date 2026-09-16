@@ -41,7 +41,9 @@ import {
 } from "@/components/ui/select";
 import { CreateUserWizard, type WizardUserFormData } from "@/components/users/CreateUserWizard";
 import { StaffPermissions } from "@/components/users/PermissionsDialog";
-import { syncLegacyMarketingFlags, syncLegacySettingsFlags } from "@/components/users/permissionsDefaults";
+import {
+  syncLegacyMarketingFlags, syncLegacySettingsFlags, DEFAULT_PERMISSIONS, ROLE_PRESETS, type StaffRoleType,
+} from "@/components/users/permissionsDefaults";
 import { usePermissions } from "@/hooks/usePermissions";
 import { withClientTimeout } from "@/lib/query-timeout";
 
@@ -1152,7 +1154,7 @@ export function UsersConfig() {
     let imported = 0;
     const failedRows: { row: number; email: string; reason: string }[] = [];
     const seenEmails = new Set<string>();
-    const roleMap: Record<string, string> = {
+    const roleMap: Record<string, StaffRoleType> = {
       operatore: "company_staff",
       venditore: "salesperson", "call center": "call_center",
       operaio: "employee", subappaltatore: "subcontractor",
@@ -1182,9 +1184,14 @@ export function UsersConfig() {
       }
 
       const roleType = roleMap[normalizedRoleLabel] || "company_staff";
+      // Come il wizard: il preset del ruolo viaggia con la creazione. Senza,
+      // chi arrivava dall'import nasceva coi soli default e non vedeva nulla.
+      const permissions = syncLegacySettingsFlags(
+        syncLegacyMarketingFlags({ ...DEFAULT_PERMISSIONS, ...ROLE_PRESETS[roleType] }),
+      );
       try {
         const { data: fnData, error: fnError } = await supabase.functions.invoke("create-company-staff", {
-          body: { first_name: firstName, last_name: lastName, email, company_id: effectiveCompanyId, role_type: roleType },
+          body: { first_name: firstName, last_name: lastName, email, company_id: effectiveCompanyId, role_type: roleType, permissions },
         });
         if (fnError) throw fnError;
         if (fnData?.error) throw new Error(fnData.error);

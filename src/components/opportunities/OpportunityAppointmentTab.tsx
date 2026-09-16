@@ -22,6 +22,7 @@ import MarketingAppointmentDialog, { type MarketingAppointmentData } from "@/com
 import CalendarSuggestions, { type CalendarSuggestion } from "@/components/marketing/CalendarSuggestions";
 import { useGoogleCalendarSync } from "@/hooks/useGoogleCalendarSync";
 import { useAppleCalendarSync } from "@/hooks/useAppleCalendarSync";
+import { usePermissions } from "@/hooks/usePermissions";
 
 interface Props {
   contactId: string;
@@ -89,6 +90,8 @@ function diffMinutesTimeStr(start: string, end: string): number | null {
 }
 
 export function OpportunityAppointmentTab({ contactId, companyId, opportunityId, contactName }: Props) {
+  // In sola lettura niente prenotazioni (policy RESTRICTIVE su appointments).
+  const { solaLettura } = usePermissions();
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const googleSync = useGoogleCalendarSync();
@@ -465,7 +468,7 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
             <div className="flex items-center gap-1">
               <span className="text-xs text-muted-foreground hidden sm:inline">Clicca per modificare</span>
               <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
-              <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); deleteMutation.mutate(existingContactAppointment.id); }} disabled={deleteMutation.isPending}>
+              <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); deleteMutation.mutate(existingContactAppointment.id); }} disabled={deleteMutation.isPending || solaLettura} title={solaLettura ? "Sei in sola lettura" : undefined}>
                 <Trash2 className="h-3.5 w-3.5" />
               </Button>
             </div>
@@ -720,7 +723,8 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
       {/* Book button */}
       <Button
         className="w-full"
-        disabled={!calendarId || !date || (!selectedSlot && !manualStartTime) || bookMutation.isPending}
+        disabled={solaLettura || !calendarId || !date || (!selectedSlot && !manualStartTime) || bookMutation.isPending}
+        title={solaLettura ? "Sei in sola lettura" : undefined}
         onClick={() => bookMutation.mutate()}
       >
         {bookMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

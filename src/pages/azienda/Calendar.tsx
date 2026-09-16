@@ -1247,7 +1247,8 @@ function CalendarInner() {
             <span className="hidden sm:inline">Oggi</span>
           </Button>
 
-          <Button variant="default" size="sm" onClick={() => setAppointmentDialogOpen(true)} className="gap-1.5">
+          {/* In sola lettura il calendario si consulta: la policy su appointments rifiuta le scritture. */}
+          <Button variant="default" size="sm" onClick={() => setAppointmentDialogOpen(true)} disabled={permissions.solaLettura} title={permissions.solaLettura ? "Sei in sola lettura" : undefined} className="gap-1.5">
             <Plus className="h-4 w-4 sm:mr-1.5" />
             <span className="hidden sm:inline">Appuntamento</span>
           </Button>

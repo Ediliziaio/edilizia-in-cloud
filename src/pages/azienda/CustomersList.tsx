@@ -889,14 +889,23 @@ function CustomersListInner() {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          {/* New customer */}
-          <Button asChild size="sm" variant="brand">
-            <Link to="/azienda/clienti/nuovo">
+          {/* New customer — la rotta chiede canEditCustomers: senza, il bottone
+              portava a una pagina «Accesso negato». */}
+          {canEditCustomers ? (
+            <Button asChild size="sm" variant="brand">
+              <Link to="/azienda/clienti/nuovo">
+                <Plus className="mr-1.5 h-4 w-4" />
+                <span className="sm:hidden">Nuovo</span>
+                <span className="hidden sm:inline">Nuovo Cliente</span>
+              </Link>
+            </Button>
+          ) : (
+            <Button size="sm" variant="brand" disabled title={customerPermissions.solaLettura ? "Sei in sola lettura" : "Non hai il permesso di modifica"}>
               <Plus className="mr-1.5 h-4 w-4" />
               <span className="sm:hidden">Nuovo</span>
               <span className="hidden sm:inline">Nuovo Cliente</span>
-            </Link>
-          </Button>
+            </Button>
+          )}
           </div>
         </div>
       </div>

@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { listSurveysByOrder } from "@/lib/api/surveys";
+import { usePermissions } from "@/hooks/usePermissions";
 import {
   ClipboardCheck, Plus, MapPin, Calendar, ChevronRight, Ruler, Loader2,
 } from "lucide-react";
@@ -31,6 +32,8 @@ interface OrderSurveysCardProps {
 
 export function OrderSurveysCard({ orderId }: OrderSurveysCardProps) {
   const navigate = useNavigate();
+  // La rotta di creazione rimanda indietro chi è in sola lettura: meglio spegnere il bottone.
+  const { solaLettura } = usePermissions();
   const { data: surveys, isLoading, isError } = useQuery({
     queryKey: ["order-surveys", orderId],
     queryFn: () => listSurveysByOrder(orderId),
@@ -50,7 +53,7 @@ export function OrderSurveysCard({ orderId }: OrderSurveysCardProps) {
             <span className="text-xs font-normal text-muted-foreground shrink-0">({surveys.length})</span>
           )}
         </CardTitle>
-        <Button size="sm" variant="outline" className="h-8 shrink-0" onClick={goNew}>
+        <Button size="sm" variant="outline" className="h-8 shrink-0" onClick={goNew} disabled={solaLettura} title={solaLettura ? "Sei in sola lettura" : undefined}>
           <Plus className="h-4 w-4 sm:mr-1" />
           <span className="hidden sm:inline">Nuovo sopralluogo</span>
         </Button>

@@ -25,9 +25,10 @@ import {
   DEFAULT_PERMISSIONS, CRUSCOTTO_SECTIONS, CANTIERI_SECTIONS, FINANZA_SECTIONS,
   PERSONE_SECTIONS, MARKETING_SECTIONS, AUTOMAZIONI_SECTIONS, IMPOSTAZIONI_SECTIONS,
   ALL_PERMISSION_SECTIONS, ROLE_PRESETS, syncLegacyMarketingFlags, syncLegacySettingsFlags,
-  ECONOMIC_LEVELS, detectEconomicLevel,
+  ECONOMIC_LEVELS, detectEconomicLevel, isBlockedBySolaLettura, SOLA_LETTURA_BLOCKED_NOTE,
   type PermissionSectionDef, type StaffRoleType, type BooleanPermissionKey,
 } from "@/components/users/permissionsDefaults";
+import { SolaLetturaToggle } from "@/components/users/SolaLetturaToggle";
 
 export type { StaffRoleType };
 
@@ -85,11 +86,12 @@ function PermGroup({ label, icon: Icon, iconColor, sections, permissions, onTogg
   }, 0);
   const totalCount = sections.reduce((c, s) => c + 1 + (s.editKey ? 1 : 0), 0);
   const allActive = activeCount === totalCount;
+  const bloccato = (key: BooleanPermissionKey) => !!permissions.sola_lettura && isBlockedBySolaLettura(key);
 
   const handleToggleAll = (checked: boolean) => {
     sections.forEach(s => {
-      onToggle(s.viewKey, checked);
-      if (s.editKey) onToggle(s.editKey, checked);
+      if (!(checked && bloccato(s.viewKey))) onToggle(s.viewKey, checked);
+      if (s.editKey && !(checked && bloccato(s.editKey))) onToggle(s.editKey, checked);
     });
   };
 
@@ -125,12 +127,16 @@ function PermGroup({ label, icon: Icon, iconColor, sections, permissions, onTogg
                 id={`wiz-${section.viewKey}`}
                 className="mt-0.5"
                 checked={permissions[section.viewKey]}
+                disabled={bloccato(section.viewKey)}
                 onCheckedChange={(checked) => onToggle(section.viewKey, checked)}
               />
               <div className="min-w-0">
                 <Label htmlFor={`wiz-${section.viewKey}`} className="text-sm cursor-pointer leading-tight">{section.label}</Label>
                 {section.description && (
                   <p className="text-xs text-muted-foreground mt-0.5 leading-snug">{section.description}</p>
+                )}
+                {(bloccato(section.viewKey) || (section.editKey && bloccato(section.editKey))) && (
+                  <p className="text-[11px] text-amber-600 mt-0.5">{SOLA_LETTURA_BLOCKED_NOTE}</p>
                 )}
               </div>
             </div>
@@ -139,6 +145,7 @@ function PermGroup({ label, icon: Icon, iconColor, sections, permissions, onTogg
                 <Switch
                   id={`wiz-${section.editKey}`}
                   checked={permissions[section.editKey]}
+                  disabled={bloccato(section.editKey)}
                   onCheckedChange={(checked) => onToggle(section.editKey!, checked)}
                 />
                 <Label htmlFor={`wiz-${section.editKey}`} className="text-xs text-muted-foreground cursor-pointer">Modifica</Label>
@@ -172,7 +179,9 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading }: Cr
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [roleType, setRoleType] = useState<StaffRoleType>("company_staff");
-  const [permissions, setPermissions] = useState<StaffPermissions>({ ...DEFAULT_PERMISSIONS });
+  // Parte col preset del ruolo già selezionato: prima «Operatore» risultava
+  // scelto ma, senza un click sulla card, l'utente nasceva coi soli default.
+  const [permissions, setPermissions] = useState<StaffPermissions>({ ...DEFAULT_PERMISSIONS, ...ROLE_PRESETS.company_staff });
   const [permSearch, setPermSearch] = useState("");
   const economicLevel = detectEconomicLevel(permissions);
   const filterWizardSections = (sections: PermissionSectionDef[]) => {
@@ -248,15 +257,16 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading }: Cr
       (allTrue as any)[s.viewKey] = true;
       if (s.editKey) (allTrue as any)[s.editKey] = true;
     });
-    setPermissions(prev => ({ ...prev, ...allTrue, can_view_marketing: true, can_edit_marketing: true }));
+    // syncLegacyMarketingFlags rispegne ciò che la sola lettura blocca.
+    setPermissions(prev => syncLegacyMarketingFlags({ ...prev, ...allTrue, can_view_marketing: true }));
   };
 
   const handleDeselectAll = () => {
-    setPermissions(prev => ({ ...DEFAULT_PERMISSIONS, only_assigned: prev.only_assigned }));
+    setPermissions(prev => ({ ...DEFAULT_PERMISSIONS, only_assigned: prev.only_assigned, sola_lettura: prev.sola_lettura }));
   };
 
   const handleResetPreset = () => {
-    setPermissions(prev => ({ ...DEFAULT_PERMISSIONS, only_assigned: prev.only_assigned, ...ROLE_PRESETS[roleType] }));
+    setPermissions(prev => ({ ...DEFAULT_PERMISSIONS, only_assigned: prev.only_assigned, sola_lettura: prev.sola_lettura, ...ROLE_PRESETS[roleType] }));
   };
 
   const handleNext = () => {
@@ -330,7 +340,7 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading }: Cr
   };
 
   const totalActive = useMemo(() => {
-    const excluded = new Set(["only_assigned", "can_view_marketing", "can_edit_marketing"]);
+    const excluded = new Set(["only_assigned", "sola_lettura", "can_view_marketing", "can_edit_marketing"]);
     return Object.entries(permissions).filter(([k, v]) => v === true && !excluded.has(k)).length;
   }, [permissions]);
 
@@ -619,6 +629,12 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading }: Cr
                   ))}
                 </div>
               </div>
+
+              <SolaLetturaToggle
+                id="wiz-sola_lettura"
+                checked={permissions.sola_lettura || false}
+                onCheckedChange={checked => setPermissions(prev => syncLegacyMarketingFlags({ ...prev, sola_lettura: checked }))}
+              />
 
               {/* Limita visibilità + visibilità sul team */}
               <div className="rounded-lg border bg-muted/30 p-3 space-y-3">

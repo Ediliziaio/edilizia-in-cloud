@@ -136,6 +136,10 @@ export interface Permissions {
   onlyMyWarehouse: boolean;
   /** Aree visibili all'utente. Vuoto = tutte le aree. */
   visibleAreas: string[];
+  /** Vede le sue aree ma non crea e non modifica nulla (staff_permissions.sola_lettura).
+   *  Serve anche dove non c'è una colonna di modifica: appuntamenti, attività,
+   *  sopralluoghi (in DB policy RESTRICTIVE con utente_sola_lettura). */
+  solaLettura: boolean;
 }
 
 // Esportato per il test contratto permissionsRegistryParity: ogni permesso
@@ -232,6 +236,7 @@ export const STAFF_PERMISSIONS_SELECT_KEYS = [
   "can_view_financial_reports",
   "only_assigned",
   "only_my_warehouse",
+  "sola_lettura",
   "visible_areas",
 ];
 const STAFF_PERMISSIONS_SELECT = STAFF_PERMISSIONS_SELECT_KEYS.join(",");
@@ -283,6 +288,7 @@ const ALL_PERMISSIONS: Permissions = {
   canManagePayments: true, canManageSuppliers: true, canManageWarehouseItems: true,
   canViewFinancialReports: true,
   isAdmin: true, isLoading: false, loadError: null, onlyAssigned: false, onlyMyWarehouse: false, visibleAreas: [],
+  solaLettura: false,
 };
 
 const NO_PERMISSIONS: Permissions = {
@@ -332,6 +338,7 @@ const NO_PERMISSIONS: Permissions = {
   canManagePayments: false, canManageSuppliers: false, canManageWarehouseItems: false,
   canViewFinancialReports: false,
   isAdmin: false, isLoading: false, loadError: null, onlyAssigned: false, onlyMyWarehouse: false, visibleAreas: [],
+  solaLettura: false,
 };
 
 // Permessi del commercialista quando opera su un'azienda cliente delegata
@@ -418,6 +425,7 @@ const COMMERCIALISTA_PERMISSIONS: Permissions = {
   canViewSettingsSuppliers: false, canEditSettingsSuppliers: false,
   canViewSettingsIntegrations: false, canEditSettingsIntegrations: false,
   isAdmin: false, isLoading: false, loadError: null, onlyAssigned: false, onlyMyWarehouse: false, visibleAreas: [],
+  solaLettura: false,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -428,8 +436,9 @@ const COMMERCIALISTA_PERMISSIONS: Permissions = {
 function mapDbRowToPermissions(row: Record<string, unknown> | null | undefined): Permissions {
   const r = (row ?? {}) as Record<string, unknown>;
   const g = (key: string): boolean => r[key] === true;
+  const solaLettura = r["sola_lettura"] === true;
 
-  return {
+  const mapped: Permissions = {
     canViewDashboard:  g("can_view_dashboard"),
     canViewOrders:     g("can_view_orders"),
     canEditOrders:     g("can_edit_orders"),
@@ -542,7 +551,20 @@ function mapDbRowToPermissions(row: Record<string, unknown> | null | undefined):
     onlyAssigned:  r["only_assigned"] === true,
     onlyMyWarehouse: r["only_my_warehouse"] === true,
     visibleAreas:  Array.isArray(r["visible_areas"]) ? (r["visible_areas"] as string[]) : [],
+    solaLettura,
   };
+
+  // Il trigger in DB spegne già le colonne; qui anche i permessi derivati
+  // (es. Scontistica da Listino, corsi da Portale) e le righe lette prima
+  // della migrazione, così nessun bottone di scrittura resta acceso.
+  if (solaLettura) {
+    for (const key of Object.keys(mapped) as (keyof Permissions)[]) {
+      if (/^can(Edit|Manage|Approve|Delete|Create)[A-Z]/.test(key)) {
+        (mapped as unknown as Record<string, boolean>)[key] = false;
+      }
+    }
+  }
+  return mapped;
 }
 
 export function usePermissions(): Permissions {

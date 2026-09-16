@@ -97,7 +97,7 @@ export function useUpdateContact() {
   return useMutation({
     mutationFn: async ({ id, ...data }: { id: string } & Record<string, unknown>) => {
       if (!companyId) throw new Error("Azienda non selezionata");
-      if (!(permissions.canEditMarketingContacts || permissions.canEditMarketing)) {
+      if (!permissions.canEditMarketingContacts) {
         throw new Error("Non hai i permessi per modificare contatti");
       }
       const { error } = await supabase

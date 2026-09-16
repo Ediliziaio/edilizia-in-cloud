@@ -7,7 +7,10 @@ import { toast } from "sonner";
 import { queryKeys } from "@/lib/queryKeys";
 import { formatCurrency } from "@/lib/formatters";
 import { StaffPermissions } from "@/components/users/PermissionsDialog";
-import { ALL_PERMISSION_SECTIONS } from "@/components/users/permissionsDefaults";
+import {
+  ALL_PERMISSION_SECTIONS, isBlockedBySolaLettura, syncLegacyMarketingFlags, SOLA_LETTURA_BLOCKED_NOTE,
+} from "@/components/users/permissionsDefaults";
+import { SolaLetturaToggle } from "@/components/users/SolaLetturaToggle";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -204,7 +207,7 @@ export function SalespeopleConfig() {
       email: accountEmail,
       password: accountPassword || undefined,
       phone: accountPhone || undefined,
-      permissions: accountPermissions,
+      permissions: syncLegacyMarketingFlags(accountPermissions),
     });
   };
 
@@ -230,12 +233,13 @@ export function SalespeopleConfig() {
         can_view_marketing: true, can_edit_marketing: true,
         can_view_settings: true, can_edit_settings: true,
         only_assigned: prev.only_assigned,
+        sola_lettura: prev.sola_lettura,
       };
     });
   };
 
   const handleDeselectAllPerms = () => {
-    setAccountPermissions((prev) => ({ ...DEFAULT_PERMISSIONS, only_assigned: prev.only_assigned }));
+    setAccountPermissions((prev) => ({ ...DEFAULT_PERMISSIONS, only_assigned: prev.only_assigned, sola_lettura: prev.sola_lettura }));
   };
 
   const copyPassword = () => {
@@ -247,16 +251,25 @@ export function SalespeopleConfig() {
     return type === "fixed" ? formatCurrency(value) : `${value}%`;
   };
 
+  // In sola lettura le azioni speciali restano spente (lo impone anche il trigger).
+  const permBloccato = (key: typeof ALL_PERMISSION_SECTIONS[0]["viewKey"]) =>
+    !!accountPermissions.sola_lettura && isBlockedBySolaLettura(key);
+
   const renderPermSection = (section: typeof ALL_PERMISSION_SECTIONS[0]) => (
     <div key={section.viewKey} className="space-y-1.5">
       <div className="flex items-center space-x-2">
         <Checkbox id={`sp-${section.viewKey}`} checked={accountPermissions[section.viewKey] as boolean}
+          disabled={permBloccato(section.viewKey)}
           onCheckedChange={(checked) => handleTogglePermission(section.viewKey, checked as boolean)} />
         <Label htmlFor={`sp-${section.viewKey}`} className="font-medium text-sm">{section.label}</Label>
+        {(permBloccato(section.viewKey) || (section.editKey && permBloccato(section.editKey))) && (
+          <span className="text-[11px] text-amber-600">{SOLA_LETTURA_BLOCKED_NOTE}</span>
+        )}
       </div>
       {section.editKey && accountPermissions[section.viewKey] && (
         <div className="ml-6 flex items-center space-x-2">
           <Checkbox id={`sp-${section.editKey}`} checked={accountPermissions[section.editKey] as boolean}
+            disabled={permBloccato(section.editKey)}
             onCheckedChange={(checked) => handleTogglePermission(section.editKey!, checked as boolean)} />
           <Label htmlFor={`sp-${section.editKey}`} className="text-xs text-muted-foreground">Può modificare</Label>
         </div>
@@ -423,6 +436,11 @@ export function SalespeopleConfig() {
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Marketing e Vendita</p>
                 {MARKETING_SECTIONS.map(renderPermSection)}
                 <Separator />
+                <SolaLetturaToggle
+                  id="sp-sola_lettura"
+                  checked={accountPermissions.sola_lettura || false}
+                  onCheckedChange={(checked) => setAccountPermissions((prev) => syncLegacyMarketingFlags({ ...prev, sola_lettura: checked }))}
+                />
                 <div className="space-y-1.5">
                   <div className="flex items-center space-x-2">
                     <Checkbox id="sp-only_assigned" checked={accountPermissions.only_assigned || false}

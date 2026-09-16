@@ -102,7 +102,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
   const permissions = usePermissions();
   const queryClient = useQueryClient();
   const companyId = effectiveCompany?.id;
-  const canEditContacts = permissions.canEditMarketingContacts || permissions.canEditMarketing;
+  const canEditContacts = permissions.canEditMarketingContacts;
 
   const [rightTab, setRightTab] = useState<RightTab | null>("notes");
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -1786,7 +1786,9 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                   <Button
                     size="sm"
                     className="w-full h-7 text-[11px]"
-                    disabled={!newNote.trim() || addNote.isPending}
+                    // La nota va su marketing_contact_notes: la RLS chiede can_edit_marketing_contacts.
+                    disabled={!newNote.trim() || addNote.isPending || !canEditContacts}
+                    title={!canEditContacts ? (permissions.solaLettura ? "Sei in sola lettura" : "Non hai il permesso di modifica") : undefined}
                     onClick={() => addNote.mutate(newNote.trim())}
                   >
                     <Plus className="h-3 w-3 mr-1" /> Aggiungi nota

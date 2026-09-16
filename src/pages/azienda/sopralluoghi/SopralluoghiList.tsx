@@ -36,6 +36,8 @@ const STATUS_LABEL: Record<string, { label: string; color: string; icon: typeof 
 
 export default function SopralluoghiList() {
   const permessi = usePermissions();
+  // In sola lettura i sopralluoghi si consultano ma non si creano (policy in DB).
+  const puoCreare = !permessi.solaLettura;
   const navigate = useNavigate();
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -82,12 +84,19 @@ export default function SopralluoghiList() {
               </Link>
             </Button>
           )}
-          <Button asChild className="gap-2 bg-orange-600 hover:bg-orange-700 w-full sm:w-auto">
-            <Link to="/azienda/sopralluoghi/nuovo">
+          {puoCreare ? (
+            <Button asChild className="gap-2 bg-orange-600 hover:bg-orange-700 w-full sm:w-auto">
+              <Link to="/azienda/sopralluoghi/nuovo">
+                <Plus className="h-4 w-4" />
+                Nuovo sopralluogo
+              </Link>
+            </Button>
+          ) : (
+            <Button disabled title="Sei in sola lettura" className="gap-2 w-full sm:w-auto">
               <Plus className="h-4 w-4" />
               Nuovo sopralluogo
-            </Link>
-          </Button>
+            </Button>
+          )}
         </div>
       </div>
 
@@ -145,12 +154,14 @@ export default function SopralluoghiList() {
                 : "Usa il pulsante \"Nuovo sopralluogo\" in alto per crearne uno."}
             </p>
             {/* CTA Desktop only: su mobile è già visibile nell'header full-width */}
+            {puoCreare && (
             <Button asChild className="hidden sm:inline-flex mt-4 gap-2 bg-orange-600 hover:bg-orange-700">
               <Link to="/azienda/sopralluoghi/nuovo">
                 <Plus className="h-4 w-4" />
                 Nuovo sopralluogo
               </Link>
             </Button>
+            )}
           </CardContent>
         </Card>
       ) : (

@@ -68,6 +68,9 @@ export const STAFF_PERMISSION_DEFAULTS: Record<string, boolean | string[]> = {
   can_approve_discounts: false,
   only_assigned: false,
   only_my_warehouse: false,
+  // Vede ma non scrive. Le can_edit_* operative le ricalcola comunque il
+  // trigger permessi_modifica_segue_visibilita dalla visibilità.
+  sola_lettura: false,
   visible_areas: [],
 };
 

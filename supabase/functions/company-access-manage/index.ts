@@ -14,6 +14,7 @@
 
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth } from "../_shared/auth.ts";
+import { buildStaffPermissionsRecord } from "../_shared/staffPermissionsDefaults.ts";
 
 const ALLOWED_ROLES = new Set([
   "company_admin", "company_staff", "salesperson", "call_center", "employee", "subcontractor",
@@ -170,6 +171,25 @@ Deno.serve(async (req) => {
         );
         if (upErr) return errorResponse(`Errore concessione accesso: ${upErr.message}`, 500, corsH);
       }
+
+      // Senza una riga staff_permissions l'invitato non-admin entrava e non
+      // vedeva nulla. I preset per ruolo vivono solo nel client: qui la riga
+      // nasce coi default completi (la modifica operativa la deriva il trigger)
+      // e l'admin la regola dalla scheda utente. Se la riga c'è già non si tocca.
+      if (accessRole !== "company_admin") {
+        const { data: permRow, error: permReadErr } = await supabaseAdmin
+          .from("staff_permissions").select("id")
+          .eq("user_id", targetUserId).eq("company_id", companyId)
+          .limit(1).maybeSingle();
+        if (permReadErr) return errorResponse(`Errore lettura permessi: ${permReadErr.message}`, 500, corsH);
+        if (!permRow) {
+          const { error: permErr } = await supabaseAdmin
+            .from("staff_permissions")
+            .insert(buildStaffPermissionsRecord(targetUserId, companyId));
+          if (permErr) return errorResponse(`Accesso concesso, ma permessi non creati: ${permErr.message}`, 500, corsH);
+        }
+      }
+
       return jsonResponse({ success: true, user_id: targetUserId, invited }, 200, corsH);
     }
 

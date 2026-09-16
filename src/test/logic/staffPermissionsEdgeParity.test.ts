@@ -19,6 +19,12 @@ describe("staff_permissions: parità edge ↔ client", () => {
     expect(edgeKeys).toEqual(clientKeys);
   });
 
+  it("anche i valori dei default edge coincidono con DEFAULT_PERMISSIONS", () => {
+    // Stesse chiavi ma valori diversi = un utente creato dal client nasce
+    // diverso da uno creato dall'edge (era il caso di can_view_formazione).
+    expect(STAFF_PERMISSION_DEFAULTS).toEqual(DEFAULT_PERMISSIONS);
+  });
+
   it("i valori rispecchiano i default DB (niente cambi per chi non passa permissions)", () => {
     // In DB tutto false tranne formazione e importi di vendita
     expect(STAFF_PERMISSION_DEFAULTS.can_view_formazione).toBe(true);

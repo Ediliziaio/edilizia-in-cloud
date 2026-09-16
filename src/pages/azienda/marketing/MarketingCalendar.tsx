@@ -797,6 +797,8 @@ export default function MarketingCalendar() {
   }, [filteredAppointments, kpiFilter, headerStats.conflictIds]);
 
   const openNewDialog = (date?: Date, hour?: number, minute?: number) => {
+    // In sola lettura clic su slot e giorni non aprono un modulo che non salverebbe.
+    if (permissions.solaLettura) return;
     if (!hasCalendars) {
       toast.error("Prima configura almeno un calendario CRM");
       return;
@@ -1207,6 +1209,8 @@ export default function MarketingCalendar() {
           <Button
             size="sm"
             onClick={() => (hasCalendars ? openNewDialog() : navigate(calendarSettingsPath))}
+            disabled={hasCalendars && permissions.solaLettura}
+            title={hasCalendars && permissions.solaLettura ? "Sei in sola lettura" : undefined}
             className="h-9"
           >
             {hasCalendars ? (

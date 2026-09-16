@@ -42,7 +42,7 @@ export function usePipelines() {
 }
 
 function canEditOpportunities(permissions: ReturnType<typeof usePermissions>) {
-  return permissions.canEditMarketingOpportunities || permissions.canEditMarketing;
+  return permissions.canEditMarketingOpportunities;
 }
 
 function validateOpportunityPayload(data: Record<string, any>) {

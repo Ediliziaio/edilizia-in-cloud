@@ -24,6 +24,7 @@ import AddressAutocomplete, { type AddressData, emptyAddress } from "@/component
 import AddressMapPreview from "@/components/shared/AddressMapPreview";
 import CalendarSuggestions, { type CalendarSuggestion } from "./CalendarSuggestions";
 import { useGoogleCalendarSync } from "@/hooks/useGoogleCalendarSync";
+import { usePermissions } from "@/hooks/usePermissions";
 import { useAppleCalendarSync } from "@/hooks/useAppleCalendarSync";
 import { queryKeys } from "@/lib/queryKeys";
 import {
@@ -121,6 +122,10 @@ export default function MarketingAppointmentDialog({
   const isEditing = !!appointment?.id;
   const googleSync = useGoogleCalendarSync();
   const appleSync = useAppleCalendarSync();
+  // In sola lettura niente prenotazioni né modifiche: la policy su appointments
+  // le rifiuterebbe, meglio dirlo sul bottone.
+  const { solaLettura } = usePermissions();
+  const bloccoTitle = solaLettura ? "Sei in sola lettura" : undefined;
   const queryClient = useQueryClient();
 
   const [activeTab, setActiveTab] = useState<"appointment" | "blocked">("appointment");
@@ -1244,7 +1249,7 @@ export default function MarketingAppointmentDialog({
         <DialogFooter className="flex-col gap-3 sm:flex-row sm:items-center sm:gap-2 mt-4">
           <div className="flex flex-wrap items-center gap-2 sm:mr-auto">
             {isEditing && (
-              <Button variant="destructive" onClick={() => setDeleteConfirmOpen(true)} disabled={saving} size="sm">
+              <Button variant="destructive" onClick={() => setDeleteConfirmOpen(true)} disabled={saving || solaLettura} title={bloccoTitle} size="sm">
                 <Trash2 className="h-4 w-4 mr-1" aria-hidden="true" />
                 Elimina
               </Button>
@@ -1275,7 +1280,7 @@ export default function MarketingAppointmentDialog({
             <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
               Annulla
             </Button>
-            <Button onClick={handleSave} disabled={saving || calendars.length === 0 || !!timeError} className="gap-2">
+            <Button onClick={handleSave} disabled={saving || solaLettura || calendars.length === 0 || !!timeError} title={bloccoTitle} className="gap-2">
               {saving && <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />}
               {saving
                 ? "Salvataggio..."

@@ -59,7 +59,10 @@ describe("CreateUserWizard — step Permessi (parità con la scheda utente)", ()
     expect(screen.getByRole("button", { name: /nessuno/i })).toBeInTheDocument();
 
     // Descrizioni dei moduli renderizzate (dal registro condiviso)
-    expect(screen.getByText(/Con «Modifica» si creano e si modificano/)).toBeInTheDocument();
+    expect(screen.getByText(/Vede, crea e modifica le commesse/)).toBeInTheDocument();
+
+    // Sola lettura al posto dei «Modifica» delle aree operative
+    expect(screen.getByText("Sola lettura")).toBeInTheDocument();
     expect(screen.getByText("Può eliminare ordini e commesse")).toBeInTheDocument();
   }, TIMEOUT_MATRICE_PERMESSI);
 
@@ -107,5 +110,22 @@ describe("CreateUserWizard — step Permessi (parità con la scheda utente)", ()
     // non anche come riga del gruppo Cantieri (niente doppioni).
     expect(screen.getAllByText("Importi di vendita")).toHaveLength(1);
     expect(screen.getAllByText("Margini")).toHaveLength(1);
+  }, TIMEOUT_MATRICE_PERMESSI);
+
+  it("le aree operative non hanno più un «Modifica» a parte", () => {
+    openWizardAtStep3();
+    // Il preset Venditore vede contatti/opportunità/preventivi: nessun switch
+    // di modifica per loro (li deriva la visibilità).
+    expect(document.getElementById("wiz-can_edit_marketing_contacts")).toBeNull();
+    expect(document.getElementById("wiz-can_edit_orders")).toBeNull();
+  }, TIMEOUT_MATRICE_PERMESSI);
+
+  it("con Sola lettura le azioni speciali si disabilitano", () => {
+    openWizardAtStep3();
+    const approva = document.getElementById("wiz-can_approve_discounts")!;
+    expect(approva).not.toBeDisabled();
+    fireEvent.click(document.getElementById("wiz-sola_lettura")!);
+    expect(approva).toBeDisabled();
+    expect(approva).toHaveAttribute("aria-checked", "false");
   }, TIMEOUT_MATRICE_PERMESSI);
 });

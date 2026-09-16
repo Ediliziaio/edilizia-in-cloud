@@ -1038,7 +1038,8 @@ const GROUP_OPTIONS: { value: GroupBy; label: string }[] = [
 function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { initialDueDate?: AddTaskRequest | null; calendarDate?: string | null; onCalendarDateClear?: () => void }) {
   const { user, effectiveCompany, role } = useAuth();
   const isAdmin = role === "company_admin";
-  const { canViewTeamTasks } = usePermissions();
+  const { canViewTeamTasks, solaLettura } = usePermissions();
+  const creaTitle = solaLettura ? "Sei in sola lettura" : undefined;
   // "Attività del team": l'admin vede tutto; gli altri solo con il permesso
   // esplicito can_view_team_tasks. La scrittura resta comunque limitata alle
   // proprie task per i non-admin (guard nelle mutation).
@@ -1286,6 +1287,8 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
 
   // ── Helpers ──
   const openCreate = (dueDate?: string) => {
+    // In sola lettura la policy su tasks rifiuta l'inserimento: niente modulo.
+    if (solaLettura) return;
     setEditingTask(null);
     setFormTitle(""); setFormNotes(""); setFormPriority("normale");
     setFormDueDate(dueDate ?? ""); setFormCategory("altro"); setFormStatus("da_fare");
@@ -1561,7 +1564,7 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
               </button>
               {/* Su mobile il «+» in alto doppiava la riga «Aggiungi attività…» qui sotto:
                   un solo modo per aggiungere. Silvio ha già il bottone centrale in basso. */}
-              <Button size="sm" className="hidden sm:inline-flex h-8 gap-1.5" onClick={() => openCreate()}>
+              <Button size="sm" className="hidden sm:inline-flex h-8 gap-1.5" disabled={solaLettura} title={creaTitle} onClick={() => openCreate()}>
                 <Plus className="h-3.5 w-3.5" /><span className="hidden sm:inline">Nuova</span>
               </Button>
             </div>
@@ -1710,13 +1713,14 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
               {/* Quick add */}
               <div className="flex items-center gap-2">
                 <div className="flex-1 relative">
-                  <Input ref={quickAddRef} placeholder="Aggiungi attività…" value={quickAddTitle}
+                  <Input ref={quickAddRef} placeholder={solaLettura ? "Sei in sola lettura" : "Aggiungi attività…"} value={quickAddTitle}
+                    disabled={solaLettura}
                     onChange={e => setQuickAddTitle(e.target.value)}
                     onKeyDown={e => { if (e.key === "Enter" && !createTask.isPending) handleQuickAdd(); if (e.key === "Escape") { setQuickAddTitle(""); quickAddRef.current?.blur(); } }}
                     className="h-9 text-base md:text-sm pr-8" />
                   {quickAddTitle && <button onClick={() => setQuickAddTitle("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /></button>}
                 </div>
-                <Button variant="outline" size="sm" className="h-9 shrink-0" onClick={handleQuickAdd} disabled={!quickAddTitle.trim() || createTask.isPending}>
+                <Button variant="outline" size="sm" className="h-9 shrink-0" onClick={handleQuickAdd} disabled={solaLettura || !quickAddTitle.trim() || createTask.isPending} title={creaTitle}>
                   {createTask.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                 </Button>
               </div>

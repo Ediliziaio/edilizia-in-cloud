@@ -546,7 +546,7 @@ export default function MarketingContacts() {
   const idAgente = viewAsUserId ?? user?.id;
   const companyId = effectiveCompany?.id;
   const permissions = usePermissions();
-  const canEditContacts = permissions.canEditMarketingContacts || permissions.canEditMarketing;
+  const canEditContacts = permissions.canEditMarketingContacts;
   const columnsStorageKey = useMemo(() => getStorageKey(user?.id, companyId), [user?.id, companyId]);
   const queryClient = useQueryClient();
   const { data: contactCustomFields = [] } = useContactCustomFields();

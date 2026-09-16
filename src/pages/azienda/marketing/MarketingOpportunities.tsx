@@ -99,7 +99,7 @@ function MarketingOpportunitiesContent() {
   // propri» valgono per l'utente SIMULATO.
   const currentUserId = viewAsUserId ?? user?.id ?? null;
   const permissions = usePermissions();
-  const canEditOpportunities = permissions.canEditMarketingOpportunities || permissions.canEditMarketing;
+  const canEditOpportunities = permissions.canEditMarketingOpportunities;
   const { data: pipelines = [], isLoading: loadingPipelines, error: pipelinesError, refetch: refetchPipelines } = usePipelines();
 
   const { params: urlFilters, setParam: setURLParam } = useURLFilters({

@@ -93,7 +93,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
   const companyId = effectiveCompany?.id;
   const isPlatformCrm = useIsPlatformCrm();
   const permissions = usePermissions();
-  const canEditOpportunity = canEdit && (permissions.canEditMarketingOpportunities || permissions.canEditMarketing);
+  const canEditOpportunity = canEdit && permissions.canEditMarketingOpportunities;
   // Chi può correggere una nota: le proprie, o tutte se vede tutti i clienti.
   const chiModificaNote = {
     userId: user?.id,
@@ -1272,7 +1272,15 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                       rows={2}
                       className="text-sm flex-1"
                     />
-                    <Button size="sm" onClick={handleAddNote} disabled={addNote.isPending || !newNote.trim() || !canEditOpportunity} className="self-end">
+                    {/* Le note finiscono su marketing_contact_notes, che la RLS apre a
+                        can_edit_marketing_contacts: serve quel permesso, non l'opportunità. */}
+                    <Button
+                      size="sm"
+                      onClick={handleAddNote}
+                      disabled={addNote.isPending || !newNote.trim() || !canEdit || !permissions.canEditMarketingContacts}
+                      title={!permissions.canEditMarketingContacts ? (permissions.solaLettura ? "Sei in sola lettura" : "Non hai il permesso di modifica") : undefined}
+                      className="self-end"
+                    >
                       {addNote.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Aggiungi"}
                     </Button>
                   </div>

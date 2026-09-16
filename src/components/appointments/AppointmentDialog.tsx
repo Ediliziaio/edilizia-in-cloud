@@ -404,7 +404,10 @@ export function AppointmentDialog({
   const queryClient = useQueryClient();
   const currentAppointment = appointment ?? initialData ?? null;
   const isEditing = !!currentAppointment?.id;
-  const { onlyAssigned } = usePermissions();
+  const { onlyAssigned, solaLettura } = usePermissions();
+  // In sola lettura l'appuntamento si consulta: la policy RESTRICTIVE su
+  // appointments rifiuterebbe comunque il salvataggio.
+  const bloccoTitle = solaLettura ? "Sei in sola lettura" : undefined;
   // 2026-05-27: hasAnyCompanyGoogleConnection invece di isGoogleConnected
   // così l'admin (anche se lui non ha Google) può creare un appointment
   // per un posatore connesso. La edge function risolve il push verso il
@@ -1336,7 +1339,7 @@ export function AppointmentDialog({
 
         <DialogFooter className="flex-col sm:flex-row gap-2">
           {isEditing && (
-            <Button variant="destructive" onClick={handleDelete} disabled={saving} className="sm:mr-auto">
+            <Button variant="destructive" onClick={handleDelete} disabled={saving || solaLettura} title={bloccoTitle} className="sm:mr-auto">
               <Trash2 className="h-4 w-4 mr-2" />
               Elimina
             </Button>
@@ -1344,7 +1347,7 @@ export function AppointmentDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
             Annulla
           </Button>
-          <Button onClick={handleSave} disabled={saving}>
+          <Button onClick={handleSave} disabled={saving || solaLettura} title={bloccoTitle}>
             {saving ? "Salvataggio..." : isEditing ? "Salva modifiche" : "Crea appuntamento"}
           </Button>
         </DialogFooter>

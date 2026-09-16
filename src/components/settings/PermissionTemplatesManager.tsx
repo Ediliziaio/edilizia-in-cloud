@@ -23,7 +23,10 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { DEFAULT_PERMISSIONS, ALL_PERMISSION_SECTIONS } from "@/components/users/permissionsDefaults";
+import {
+  DEFAULT_PERMISSIONS, ALL_PERMISSION_SECTIONS, isBlockedBySolaLettura, SOLA_LETTURA_BLOCKED_NOTE,
+} from "@/components/users/permissionsDefaults";
+import { SolaLetturaToggle } from "@/components/users/SolaLetturaToggle";
 
 interface Template {
   id: string;
@@ -197,6 +200,24 @@ export function PermissionTemplatesManager() {
     setPermissions((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
+  // Il template salva i flag; la modifica operativa la ricalcola il trigger
+  // quando il template viene applicato. Qui basta non lasciare accese le
+  // azioni che la sola lettura spegnerebbe comunque.
+  const bloccato = (key: (typeof ALL_PERMISSION_SECTIONS)[number]["viewKey"]) =>
+    !!permissions.sola_lettura && isBlockedBySolaLettura(key);
+
+  const toggleSolaLettura = (checked: boolean) => {
+    setPermissions((prev) => {
+      const next: Record<string, boolean> = { ...prev, sola_lettura: checked };
+      if (checked) {
+        Object.keys(next).forEach((k) => {
+          if (isBlockedBySolaLettura(k as (typeof ALL_PERMISSION_SECTIONS)[number]["viewKey"])) next[k] = false;
+        });
+      }
+      return next;
+    });
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-40">
@@ -303,13 +324,24 @@ export function PermissionTemplatesManager() {
 
             <div className="space-y-3">
               <Label className="text-sm font-semibold">Permessi</Label>
+              <SolaLetturaToggle
+                id="template-sola_lettura"
+                checked={permissions.sola_lettura || false}
+                onCheckedChange={toggleSolaLettura}
+              />
               {ALL_PERMISSION_SECTIONS?.map((section) => (
                 <div key={section.viewKey} className="flex items-center justify-between py-1">
-                  <span className="text-sm">{section.label}</span>
+                  <span className="text-sm">
+                    {section.label}
+                    {(bloccato(section.viewKey) || (section.editKey && bloccato(section.editKey))) && (
+                      <span className="block text-[11px] text-amber-600">{SOLA_LETTURA_BLOCKED_NOTE}</span>
+                    )}
+                  </span>
                   <div className="flex items-center gap-3">
                     <label className="flex items-center gap-1.5 text-xs">
                       <Checkbox
                         checked={permissions[section.viewKey] || false}
+                        disabled={bloccato(section.viewKey)}
                         onCheckedChange={() => togglePermission(section.viewKey)}
                       />
                       Visualizza
@@ -318,6 +350,7 @@ export function PermissionTemplatesManager() {
                       <label className="flex items-center gap-1.5 text-xs">
                         <Checkbox
                           checked={permissions[section.editKey] || false}
+                          disabled={bloccato(section.editKey)}
                           onCheckedChange={() => togglePermission(section.editKey!)}
                         />
                         Modifica

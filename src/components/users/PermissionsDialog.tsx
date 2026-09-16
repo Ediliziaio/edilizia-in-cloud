@@ -14,9 +14,10 @@ import {
   CRUSCOTTO_SECTIONS, CANTIERI_SECTIONS, FINANZA_SECTIONS,
   PERSONE_SECTIONS, MARKETING_SECTIONS, AUTOMAZIONI_SECTIONS, IMPOSTAZIONI_SECTIONS,
   ALL_PERMISSION_SECTIONS, ROLE_PRESETS, syncLegacyMarketingFlags, syncLegacySettingsFlags,
-  DEFAULT_PERMISSIONS,
+  DEFAULT_PERMISSIONS, isBlockedBySolaLettura, SOLA_LETTURA_BLOCKED_NOTE,
   type PermissionSectionDef, type StaffRoleType, type BooleanPermissionKey,
 } from "@/components/users/permissionsDefaults";
+import { SolaLetturaToggle } from "@/components/users/SolaLetturaToggle";
 
 export interface StaffPermissions {
   // ── Cruscotto ──────────────────────────────────────────
@@ -121,6 +122,9 @@ export interface StaffPermissions {
   only_assigned: boolean;
   /** Vede tutte e sole le commesse dei magazzini a cui è assegnato. Ignorato se only_assigned è attivo (più stretto). */
   only_my_warehouse: boolean;
+  /** Vede le sue aree ma non crea e non modifica nulla. Le can_edit_* operative
+   *  seguono la visibilità (trigger permessi_modifica_segue_visibilita). */
+  sola_lettura: boolean;
   /** Aree visibili: se vuoto = tutte le aree. Valori: cantiere, commerciale, amministrazione, tecnico */
   visible_areas: string[];
   /** Flag interno: l'utente deve cambiare password al primo accesso */
@@ -159,10 +163,14 @@ function PermGroup({ label, icon: Icon, iconColor, sections, permissions, onTogg
 
   const allActive = activeCount === totalCount;
 
+  // In sola lettura le azioni speciali e le modifiche delle impostazioni
+  // restano spente: gli interruttori sono disabilitati e «attiva tutto» li salta.
+  const bloccato = (key: BooleanPermissionKey) => !!permissions.sola_lettura && isBlockedBySolaLettura(key);
+
   const handleToggleAll = (checked: boolean) => {
     sections.forEach(s => {
-      onToggle(s.viewKey, checked);
-      if (s.editKey) onToggle(s.editKey, checked);
+      if (!(checked && bloccato(s.viewKey))) onToggle(s.viewKey, checked);
+      if (s.editKey && !(checked && bloccato(s.editKey))) onToggle(s.editKey, checked);
     });
   };
 
@@ -197,6 +205,7 @@ function PermGroup({ label, icon: Icon, iconColor, sections, permissions, onTogg
               <Switch
                 id={section.viewKey}
                 checked={permissions[section.viewKey]}
+                disabled={bloccato(section.viewKey)}
                 onCheckedChange={(checked) => onToggle(section.viewKey, checked)}
               />
               <div className="min-w-0">
@@ -207,6 +216,9 @@ function PermGroup({ label, icon: Icon, iconColor, sections, permissions, onTogg
                 {section.description && (
                   <p className="text-xs text-muted-foreground mt-0.5 leading-snug">{section.description}</p>
                 )}
+                {(bloccato(section.viewKey) || (section.editKey && bloccato(section.editKey))) && (
+                  <p className="text-[11px] text-amber-600 mt-0.5">{SOLA_LETTURA_BLOCKED_NOTE}</p>
+                )}
               </div>
             </div>
             {section.editKey && permissions[section.viewKey] && (
@@ -214,6 +226,7 @@ function PermGroup({ label, icon: Icon, iconColor, sections, permissions, onTogg
                 <Switch
                   id={section.editKey}
                   checked={permissions[section.editKey]}
+                  disabled={bloccato(section.editKey)}
                   onCheckedChange={(checked) => onToggle(section.editKey!, checked)}
                 />
                 <Label htmlFor={section.editKey} className="text-xs text-muted-foreground cursor-pointer">Modifica</Label>
@@ -257,7 +270,9 @@ export function PermissionsDialog({
       allTrue[s.viewKey] = true;
       if (s.editKey) allTrue[s.editKey] = true;
     });
-    setPermissions(prev => ({ ...prev, ...allTrue, can_view_marketing: true, can_edit_marketing: true }));
+    // La sola lettura resta com'è: syncLegacyMarketingFlags (applyEditFollowsView)
+    // rispegne le modifiche bloccate.
+    setPermissions(prev => syncLegacyMarketingFlags({ ...prev, ...allTrue, can_view_marketing: true }));
   };
 
   const handleDeselectAll = () => {
@@ -283,12 +298,13 @@ export function PermissionsDialog({
       ...DEFAULT_PERMISSIONS,
       only_assigned: prev.only_assigned,
       only_my_warehouse: prev.only_my_warehouse,
+      sola_lettura: prev.sola_lettura,
       ...preset,
     }));
   };
 
   const totalActive = useMemo(() => {
-    const excluded = new Set(["only_assigned", "only_my_warehouse", "can_view_marketing", "can_edit_marketing"]);
+    const excluded = new Set(["only_assigned", "only_my_warehouse", "sola_lettura", "can_view_marketing", "can_edit_marketing"]);
     return Object.entries(permissions).filter(([k, v]) => v === true && !excluded.has(k)).length;
   }, [permissions]);
 
@@ -388,6 +404,13 @@ export function PermissionsDialog({
               onCheckedChange={(checked) => setPermissions(prev => ({ ...prev, only_assigned: checked }))}
             />
           </div>
+
+          <SolaLetturaToggle
+            id="sola_lettura"
+            className="my-1"
+            checked={permissions.sola_lettura || false}
+            onCheckedChange={(checked) => setPermissions(prev => syncLegacyMarketingFlags({ ...prev, sola_lettura: checked }))}
+          />
 
           {/* Terza modalità, per chi manda avanti una filiale: tutte le commesse
               del suo magazzino, comprese quelle dei colleghi di quel magazzino,

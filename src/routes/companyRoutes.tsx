@@ -423,6 +423,15 @@ import { Routes } from "react-router-dom";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { usePermissions } from "@/hooks/usePermissions";
 
+// Sopralluoghi non ha una colonna di modifica: in DB la scrittura la ferma
+// una policy RESTRICTIVE su «Sola lettura». La pagina di creazione legge lo
+// stesso flag, invece di aprire un modulo che poi non salva.
+function SolaLetturaWriteGuard({ children, fallback }: { children: ReactNode; fallback: string }) {
+  const { solaLettura, isLoading } = usePermissions();
+  if (!isLoading && solaLettura) return <Navigate to={fallback} replace />;
+  return <>{children}</>;
+}
+
 /**
  * Index /azienda: su MOBILE atterra su Attività (richiesta utente 2026-06:
  * "quando apro l'app deve finire in attività" — coerente con logo header e
@@ -640,7 +649,7 @@ export default function CompanyRoutesContainer() {
         <Route path="email/ai" element={withCompanyPermission("canViewMarketingEmail", <EmailAiSettingsPage />)} />
         {/* 🆕 Sprint S1-S3: Modulo Sopralluoghi (Beta) */}
         <Route path="sopralluoghi" element={withCompanyPermission("canViewSopralluoghi", <SopralluoghiList />)} />
-        <Route path="sopralluoghi/nuovo" element={withCompanyPermission("canViewSopralluoghi", <NuovoSopralluogo />)} />
+        <Route path="sopralluoghi/nuovo" element={withCompanyPermission("canViewSopralluoghi", <SolaLetturaWriteGuard fallback="/azienda/sopralluoghi"><NuovoSopralluogo /></SolaLetturaWriteGuard>)} />
         <Route path="sopralluoghi/:id" element={withCompanyPermission("canViewSopralluoghi", <SopralluogoEditor />)} />
         <Route path="sopralluoghi/:id/firma" element={withCompanyPermission("canViewSopralluoghi", <FirmaCliente />)} />
         {/* v8.6.71 — RIMOSSO: impostazioni/sopralluoghi era qui (fuori dal

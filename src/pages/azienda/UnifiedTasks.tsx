@@ -94,7 +94,10 @@ const FILTRI_DEFAULT = { stato: "active", priorita: "all", categoria: "all", fon
 
 export default function UnifiedTasks({ embedded = false, initialTab = "myday" }: UnifiedTasksProps = {}) {
   const { effectiveCompany, user, isImpersonating, role } = useAuth() as any;
-  const { isAdmin, canViewTeamTasks } = usePermissions();
+  const { isAdmin, canViewTeamTasks, solaLettura } = usePermissions();
+  // In sola lettura le attività si consultano: la policy RESTRICTIVE su tasks
+  // rifiuterebbe l'inserimento, quindi i comandi di creazione sono spenti.
+  const creaTitle = solaLettura ? "Sei in sola lettura" : undefined;
   // Visione team: admin, permesso esplicito, o ruolo piattaforma in
   // impersonificazione (che gestisce per conto dell'azienda).
   const seesTeamTasks = isAdmin || canViewTeamTasks || (isImpersonating && PLATFORM_ROLES.includes(role));
@@ -438,6 +441,7 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
   };
 
   const openNewTask = useCallback((options?: { assignedTo?: string | null; defaults?: Record<string, unknown> | null }) => {
+    if (solaLettura) return;
     const defaultAssignee =
       options?.assignedTo !== undefined
         ? options.assignedTo
@@ -445,7 +449,7 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
     setDialogDefaultAssignedTo(defaultAssignee);
     setEditingTask(options?.defaults ?? null);
     setDialogOpen(true);
-  }, [user?.id]);
+  }, [user?.id, solaLettura]);
 
   // Scorciatoie da tastiera (come nei task manager): n = nuova attività, / = cerca.
   // Ignorate mentre si scrive in un campo o con un dialog aperto.
@@ -632,11 +636,11 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Button size="sm" className="h-9 gap-2" onClick={() => openNewTask({ assignedTo: user?.id ?? null })}>
+            <Button size="sm" className="h-9 gap-2" disabled={solaLettura} title={creaTitle} onClick={() => openNewTask({ assignedTo: user?.id ?? null })}>
               <Plus className="h-4 w-4" />
               Aggiungi attività
             </Button>
-            <Button size="sm" variant="outline" className="h-9 gap-2" onClick={() => openNewTask({ assignedTo: null })}>
+            <Button size="sm" variant="outline" className="h-9 gap-2" disabled={solaLettura} title={creaTitle} onClick={() => openNewTask({ assignedTo: null })}>
               <Users className="h-4 w-4" />
               Per team
             </Button>
@@ -704,10 +708,12 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
         <TabsContent value="all">
           <div className="space-y-3">
             <div className="space-y-3 rounded-xl border bg-card p-3 shadow-sm">
-              <TaskQuickAdd
-                defaultAssignedTo={user?.id ?? null}
-                onAdvancedCreate={() => openNewTask({ assignedTo: user?.id ?? null })}
-              />
+              {!solaLettura && (
+                <TaskQuickAdd
+                  defaultAssignedTo={user?.id ?? null}
+                  onAdvancedCreate={() => openNewTask({ assignedTo: user?.id ?? null })}
+                />
+              )}
               <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-3">
                 <TaskStatCards
                   {...stats}
@@ -833,7 +839,7 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
                     <>
                       <h3 className="text-lg font-medium mb-1">Nessuna attività</h3>
                       <p className="text-muted-foreground mb-4">Crea la tua prima attività per iniziare</p>
-                      <Button onClick={() => openNewTask({ assignedTo: user?.id ?? null })}>
+                      <Button disabled={solaLettura} title={creaTitle} onClick={() => openNewTask({ assignedTo: user?.id ?? null })}>
                         <Plus className="h-4 w-4 mr-2" /> Nuova Attività
                       </Button>
                     </>

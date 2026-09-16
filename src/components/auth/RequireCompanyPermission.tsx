@@ -9,7 +9,8 @@ import { LoadingTimeoutFallback } from "@/components/auth/LoadingTimeoutFallback
 import { logger } from "@/utils/logger";
 import { captureVelocityError } from "@/lib/velocity/sentry";
 
-type NonPermissionKeys = "isLoading" | "isAdmin" | "onlyAssigned" | "visibleAreas" | "loadError";
+// solaLettura è un limite, non un permesso: non deve poter aprire una rotta.
+type NonPermissionKeys = "isLoading" | "isAdmin" | "onlyAssigned" | "visibleAreas" | "loadError" | "solaLettura";
 export type CompanyPermissionKey = Exclude<keyof Permissions, NonPermissionKeys>;
 
 interface RequireCompanyPermissionProps {

@@ -904,6 +904,10 @@ function OrdersListInner() {
   // (can_delete_orders) — prima il toggle esisteva nella dialog ma non era
   // applicato da nessuna parte.
   const canDeleteOrders = orderPerms.isAdmin || orderPerms.canDeleteOrders;
+  // Creare una commessa scrive su orders: la RLS chiede can_edit_orders, che
+  // in DB segue la visibilità salvo «Sola lettura». Il bottone legge lo stesso.
+  const canCreateOrders = orderPerms.canEditOrders;
+  const createOrdersBlockedTitle = orderPerms.solaLettura ? "Sei in sola lettura" : "Non hai il permesso di modifica";
 
   const deleteOrderMutation = useMutation({
     mutationFn: async (orderId: string) => {
@@ -1853,6 +1857,12 @@ function OrdersListInner() {
               <span className="hidden sm:inline">Sola lettura</span>
               <span className="sm:hidden">Lettura</span>
             </Button>
+          ) : !canCreateOrders ? (
+            <Button disabled title={createOrdersBlockedTitle} aria-label={`Nuova Commessa — ${createOrdersBlockedTitle}`}>
+              <Plus className="h-4 w-4 mr-1" />
+              <span className="hidden sm:inline">Nuova Commessa</span>
+              <span className="sm:hidden">Nuovo</span>
+            </Button>
           ) : appaltatoreEnabled ? (
             <Button
               onClick={() => setShowOrderTypeDialog(true)}
@@ -2338,7 +2348,7 @@ function OrdersListInner() {
                   <Button variant="outline" onClick={clearAllFilters} className="gap-2">
                     Pulisci tutti i filtri
                   </Button>
-                ) : stats.totalOrders === 0 && !isCommercialistaMode && (
+                ) : stats.totalOrders === 0 && !isCommercialistaMode && canCreateOrders && (
                   appaltatoreEnabled ? (
                     <Button onClick={() => setShowOrderTypeDialog(true)}>
                       <Plus className="h-4 w-4 mr-2" />
