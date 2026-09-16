@@ -172,3 +172,12 @@ export function cartellaDelFileInCoda(
 ): string | null {
   return pf.folderId !== undefined ? pf.folderId : cartellaSuggerita(pf.file.name, cartelle);
 }
+
+/** Cartella in cui mostrare i documenti personali del cliente dentro la commessa. */
+export function cartellaDocumentiCliente(cartelle: CartellaDocumenti[]): string | null {
+  const attive = cartelle.filter((c) => !c.archiviata_at);
+  return (
+    cercaCartella(attive, ["doc cliente", "documenti cliente", "contratt"])?.id ??
+    cartellaSuggerita("documento", attive)
+  );
+}

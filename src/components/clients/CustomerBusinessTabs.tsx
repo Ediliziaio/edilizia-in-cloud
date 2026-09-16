@@ -6,8 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   ClipboardList, Ticket, FileText, ExternalLink,
-  CalendarDays, CreditCard, FileSignature, Wrench, Link2, Plus,
-  AlertTriangle, FileCheck2, FileWarning, Mail, MessageSquare, Paperclip, Sparkles,
+  CalendarDays, CreditCard, FileSignature, Wrench, Plus,
+  AlertTriangle, Mail, MessageSquare, Paperclip, Sparkles,
   PencilLine,
 } from "lucide-react";
 import { format } from "date-fns";
@@ -15,6 +15,7 @@ import { it } from "date-fns/locale";
 // KpiMini rimosso (2026-05-27): le KPI sono già nell'header CompanyCustomerDetail.
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { FascicoloCliente } from "@/components/clients/FascicoloCliente";
 import { EmailComposeDialog, type ComposeContext } from "@/pages/azienda/email/components/EmailComposeDialog";
 
 // ── Row types ────────────────────────────────────────────────────────────────
@@ -113,14 +114,6 @@ interface CustomerEmailConversationRow {
   status: string | null;
 }
 
-const CUSTOMER_DOCUMENT_BUCKET = "customer-documents";
-const CUSTOMER_DOCUMENT_LABELS: Record<CustomerDocumentRow["document_type"], string> = {
-  contract: "Contratto",
-  identity: "Documento identità",
-  fiscal_code: "Codice fiscale",
-  other: "Altro",
-};
-const EXPECTED_CUSTOMER_DOCUMENTS: Array<CustomerDocumentRow["document_type"]> = ["contract", "identity", "fiscal_code"];
 
 type CustomerDocumentsQueryClient = {
   from: (table: "customer_documents") => {
@@ -474,77 +467,19 @@ function DocumentiTab({
   fatture,
   customerDocuments,
   anagraficaCollegata,
+  customerId,
+  companyId,
 }: {
   fatture: FatturaRow[];
   customerDocuments: CustomerDocumentRow[];
   anagraficaCollegata: { id: string; ragione_sociale: string | null } | null;
+  customerId: string;
+  companyId: string;
 }) {
   const navigate = useNavigate();
-  const uploadedTypes = new Set(customerDocuments.map((doc) => doc.document_type));
-  const missingTypes = EXPECTED_CUSTOMER_DOCUMENTS.filter((type) => !uploadedTypes.has(type));
-
-  const openCustomerDocument = async (doc: CustomerDocumentRow) => {
-    const { data, error } = await supabase.storage
-      .from(CUSTOMER_DOCUMENT_BUCKET)
-      .createSignedUrl(doc.file_path, 60 * 5);
-    if (!error && data?.signedUrl) {
-      window.open(data.signedUrl, "_blank", "noopener,noreferrer");
-    }
-  };
-
-  if (!anagraficaCollegata && customerDocuments.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center py-10 text-center gap-3">
-        <FileText className="h-10 w-10 text-muted-foreground/30" />
-        <p className="text-sm text-muted-foreground">Nessuna anagrafica fiscale collegata</p>
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-1.5"
-          onClick={() => navigate("/azienda/fatturazione")}
-        >
-          <Link2 className="h-3.5 w-3.5" />
-          Vai a Riconciliazione
-        </Button>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-4">
-      <div className="rounded-lg border p-3">
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <div>
-            <p className="text-sm font-semibold">Fascicolo cliente</p>
-            <p className="text-xs text-muted-foreground">Contratto, identità e CF: presenti o da recuperare.</p>
-          </div>
-          <Badge variant={missingTypes.length ? "outline" : "default"} className="text-xs">
-            {customerDocuments.length}/{EXPECTED_CUSTOMER_DOCUMENTS.length} caricati
-          </Badge>
-        </div>
-        <div className="grid gap-2 sm:grid-cols-3">
-          {EXPECTED_CUSTOMER_DOCUMENTS.map((type) => {
-            const doc = customerDocuments.find((item) => item.document_type === type);
-            return (
-              <button
-                key={type}
-                type="button"
-                disabled={!doc}
-                onClick={() => doc && openCustomerDocument(doc)}
-                className="rounded-md border p-2 text-left transition-colors enabled:hover:bg-muted/50 disabled:cursor-default"
-              >
-                <div className="flex items-center gap-2">
-                  {doc ? <FileCheck2 className="h-4 w-4 text-emerald-600" /> : <FileWarning className="h-4 w-4 text-amber-600" />}
-                  <span className="text-xs font-medium">{CUSTOMER_DOCUMENT_LABELS[type]}</span>
-                </div>
-                <p className="mt-1 truncate text-[11px] text-muted-foreground">
-                  {doc ? doc.file_name : "Mancante"}
-                </p>
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      <FascicoloCliente customerId={customerId} companyId={companyId} documenti={customerDocuments} />
 
       {fatture.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-8 text-center">
@@ -1005,6 +940,8 @@ export function CustomerBusinessTabs({
         <DocumentiTab
           fatture={fatture}
           customerDocuments={customerDocuments}
+          customerId={customerId}
+          companyId={companyId}
           anagraficaCollegata={anagraficaCollegata}
         />
       </TabsContent>

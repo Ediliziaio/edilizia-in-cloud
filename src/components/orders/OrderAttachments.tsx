@@ -57,8 +57,10 @@ import { useSignedUrls, toStoragePath, fmtBytes, fileKind, KIND_LABEL,
 import { CaricaDocumentiDialog } from "./CaricaDocumentiDialog";
 import { useCartelleDocumenti } from "@/hooks/useCartelleDocumenti";
 import { usePermissions } from "@/hooks/usePermissions";
+import { BUCKET_DOCUMENTI_CLIENTE, ETICHETTA_DOCUMENTO_CLIENTE } from "@/lib/clienti/documentiCliente";
 import {
   ACCEPT_INPUT,
+  cartellaDocumentiCliente,
   cartelleMancanti,
   contaPerCartella,
   corrispondeRicerca,
@@ -76,6 +78,8 @@ interface OrderAttachment {
   visible_to_customer: boolean;
   created_at: string;
   folder_id: string | null;
+  /** Documento personale del cliente (carta d'identità, CF…): sta sul cliente, qui solo si consulta. */
+  daCliente?: { tipo: string };
 }
 
 interface OrderAttachmentsProps {
@@ -144,6 +148,39 @@ export function OrderAttachments({ orderId, editable = true }: OrderAttachmentsP
     },
     enabled: !!orderId,
   });
+
+  // Documenti personali del cliente della commessa: si mostrano nella
+  // cartella documenti cliente, senza copiarli.
+  const { data: righeCliente = [] } = useQuery({
+    queryKey: ["documenti-cliente-commessa", orderId],
+    enabled: !!orderId,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("documenti_cliente_della_commessa" as never, { p_order_id: orderId } as never);
+      if (error) return [];
+      return (data ?? []) as unknown as {
+        id: string; document_type: string; file_name: string; file_path: string;
+        file_type: string | null; file_size: number | null; created_at: string;
+      }[];
+    },
+  });
+  const cartellaCliente = useMemo(() => cartellaDocumentiCliente(cartelle), [cartelle]);
+  const documentiCliente = useMemo<OrderAttachment[]>(
+    () => righeCliente.map((d) => ({
+      id: `cliente-${d.id}`,
+      order_id: orderId,
+      file_name: d.file_name,
+      file_url: d.file_path,
+      file_type: d.file_type ?? "",
+      file_size: d.file_size ?? 0,
+      visible_to_customer: false,
+      created_at: d.created_at,
+      folder_id: cartellaCliente,
+      daCliente: { tipo: d.document_type },
+    })),
+    [righeCliente, cartellaCliente, orderId],
+  );
+  const tutti = useMemo(() => [...attachments, ...documentiCliente], [attachments, documentiCliente]);
 
   const invalida = () => {
     queryClient.invalidateQueries({ queryKey: ["order-attachments", orderId] });
@@ -246,22 +283,30 @@ export function OrderAttachments({ orderId, editable = true }: OrderAttachmentsP
   };
 
   const [previewFile, setPreviewFile] = useState<PreviewableFile | null>(null);
-  const { data: signedByPath = {}, isLoading: signingUrls } = useSignedUrls(
+  const { data: firmeCommessa = {}, isLoading: firmaCommessa } = useSignedUrls(
     attachments as unknown as PreviewableFile[],
     attachments.length > 0,
   );
+  const { data: firmeCliente = {}, isLoading: firmaCliente } = useSignedUrls(
+    documentiCliente as unknown as PreviewableFile[],
+    documentiCliente.length > 0,
+    BUCKET_DOCUMENTI_CLIENTE,
+  );
+  const signingUrls = firmaCommessa || firmaCliente;
+  const urlDi = (a: { file_url: string; daCliente?: unknown }) =>
+    (a.daCliente ? firmeCliente : firmeCommessa)[toStoragePath(a.file_url)];
 
   // Una cartella archiviata che contiene ancora file resta nell'elenco.
-  const conteggi = useMemo(() => contaPerCartella(attachments), [attachments]);
+  const conteggi = useMemo(() => contaPerCartella(tutti), [tutti]);
   const nomeCartella = useMemo(() => {
     const m = new Map(cartelle.map((c) => [c.id, c.nome]));
     return (id: string | null) => (id ? m.get(id) ?? "Cartella archiviata" : "Senza cartella");
   }, [cartelle]);
-  const mancanti = useMemo(() => cartelleMancanti(cartelle, attachments), [cartelle, attachments]);
-  const orfani = attachments.filter((a) => a.folder_id && !cartelle.some((c) => c.id === a.folder_id)).length;
+  const mancanti = useMemo(() => cartelleMancanti(cartelle, tutti), [cartelle, tutti]);
+  const orfani = tutti.filter((a) => a.folder_id && !cartelle.some((c) => c.id === a.folder_id)).length;
   const senzaCartella = (conteggi[""] ?? 0) + orfani;
 
-  const visibili = attachments.filter((a) => {
+  const visibili = tutti.filter((a) => {
     const inCartella =
       selezione === TUTTI ||
       (selezione === SENZA
@@ -339,8 +384,8 @@ export function OrderAttachments({ orderId, editable = true }: OrderAttachmentsP
         <CardTitle className="flex items-center gap-2 min-w-0 text-base sm:text-lg">
           <Paperclip className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />
           <span className="truncate">Documenti commessa</span>
-          {attachments.length > 0 && (
-            <span className="text-sm font-normal text-muted-foreground tabular-nums">{attachments.length}</span>
+          {tutti.length > 0 && (
+            <span className="text-sm font-normal text-muted-foreground tabular-nums">{tutti.length}</span>
           )}
         </CardTitle>
         {editable && (
@@ -387,7 +432,7 @@ export function OrderAttachments({ orderId, editable = true }: OrderAttachmentsP
           {/* Cartelle: colonna su desktop, riga scorrevole su telefono */}
           <nav aria-label="Cartelle documenti" className="min-w-0">
             <div className="flex md:flex-col gap-1.5 md:gap-0.5 overflow-x-auto pb-1 md:pb-0 -mx-1 px-1">
-              {voceCartella(TUTTI, "Tutti", attachments.length)}
+              {voceCartella(TUTTI, "Tutti", tutti.length)}
               {caricoCartelle && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground m-2" />}
               {cartelle.map((c) =>
                 voceCartella(c.id, c.nome, conteggi[c.id] ?? 0, {
@@ -408,7 +453,7 @@ export function OrderAttachments({ orderId, editable = true }: OrderAttachmentsP
           </nav>
 
           <div className="min-w-0 space-y-2">
-            {attachments.length > 4 && (
+            {tutti.length > 4 && (
               <div className="relative">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -457,7 +502,7 @@ export function OrderAttachments({ orderId, editable = true }: OrderAttachmentsP
                     editable={editable}
                     cartelle={cartelle}
                     nomeCartella={selezione === TUTTI || ricerca ? nomeCartella(attachment.folder_id) : null}
-                    signedUrl={signedByPath[toStoragePath(attachment.file_url)]}
+                    signedUrl={urlDi(attachment)}
                     signing={signingUrls}
                     onPreview={() => setPreviewFile(attachment as unknown as PreviewableFile)}
                     onToggleVisibility={(visible) => toggleVisibilityMutation.mutate({ id: attachment.id, visible })}
@@ -479,7 +524,7 @@ export function OrderAttachments({ orderId, editable = true }: OrderAttachmentsP
 
       <FilePreviewDialog
         file={previewFile}
-        url={previewFile ? signedByPath[toStoragePath(previewFile.file_url)] : undefined}
+        url={previewFile ? urlDi(previewFile as unknown as OrderAttachment) : undefined}
         open={!!previewFile}
         onOpenChange={(v) => { if (!v) setPreviewFile(null); }}
       />
@@ -525,6 +570,7 @@ function AttachmentItem({
   onMove,
   onDelete,
 }: AttachmentItemProps) {
+  const daCliente = attachment.daCliente;
   const file = attachment as unknown as PreviewableFile;
   const kind = fileKind(file);
   const data = new Date(attachment.created_at).toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "2-digit" });
@@ -556,12 +602,17 @@ function AttachmentItem({
               <Folder className="h-3 w-3" /> {nomeCartella} ·
             </span>
           )}
+          {daCliente && (
+            <span className="text-sky-700 dark:text-sky-400">
+              Dal cliente: {ETICHETTA_DOCUMENTO_CLIENTE[daCliente.tipo] ?? "documento"} ·
+            </span>
+          )}
           <span>{KIND_LABEL[kind]}{fmtBytes(attachment.file_size) ? ` · ${fmtBytes(attachment.file_size)}` : ""} · {data}</span>
         </span>
       </div>
 
       <div className="flex items-center gap-1 shrink-0">
-        {editable ? (
+        {editable && !daCliente ? (
           <label className="hidden sm:flex items-center gap-1.5 text-xs text-muted-foreground mr-1 cursor-pointer" title="Visibile al cliente nella sua area">
             {attachment.visible_to_customer ? <Eye className="h-3.5 w-3.5 text-emerald-600" /> : <EyeOff className="h-3.5 w-3.5" />}
             Cliente
@@ -580,12 +631,12 @@ function AttachmentItem({
           size="icon"
           className="h-8 w-8"
           aria-label={`Scarica ${attachment.file_name}`}
-          onClick={() => openAttachmentInTab(attachment.file_url)}
+          onClick={() => openAttachmentInTab(attachment.file_url, daCliente ? BUCKET_DOCUMENTI_CLIENTE : undefined)}
         >
           <Download className="h-4 w-4" />
         </Button>
 
-        {editable && (
+        {editable && !daCliente && (
           <>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

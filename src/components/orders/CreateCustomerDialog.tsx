@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { User, Copy, Check, ShieldCheck, ShieldOff, Upload, X, FileCheck2, FileWarning } from "lucide-react";
+import { User, Copy, Check, ShieldCheck, ShieldOff, FileCheck2 } from "lucide-react";
+import { DocumentiClienteInput } from "@/components/clients/DocumentiClienteInput";
+import { caricaDocumentiCliente, contaFileDocumentiCliente, type FileDocumentiCliente } from "@/lib/clienti/documentiCliente";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -21,7 +23,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -37,17 +38,6 @@ import {
 
 const PHONE_CLEAN_REGEX = /[\u200B-\u200D\uFEFF]/g;
 const PHONE_ALLOWED = /^[0-9+\-\s().]+$/;
-const CUSTOMER_DOCUMENT_BUCKET = "customer-documents";
-type CustomerDocumentType = "contract" | "identity" | "fiscal_code";
-const CUSTOMER_DOCUMENTS: Array<{ type: CustomerDocumentType; label: string }> = [
-  { type: "contract", label: "Contratto" },
-  { type: "identity", label: "Documento identità" },
-  { type: "fiscal_code", label: "Codice fiscale" },
-];
-
-function sanitizeFileName(fileName: string) {
-  return fileName.replace(/[^\w.-]+/g, "_");
-}
 
 /** Divide un nome completo / ragione sociale in nome + cognome (best-effort:
  *  primo token = nome, resto = cognome; parola singola → tutto nel nome). */
@@ -119,7 +109,7 @@ export function CreateCustomerDialog({
   // facoltativi e ci mette dentro il referente: mancava solo chi glieli
   // passasse.
   const [isBusiness, setIsBusiness] = useState(false);
-  const [customerDocuments, setCustomerDocuments] = useState<Partial<Record<CustomerDocumentType, File>>>({});
+  const [customerDocuments, setCustomerDocuments] = useState<FileDocumentiCliente>({});
   const [createPortalAccount, setCreatePortalAccount] = useState(defaultCreatePortalAccount ?? companyPortalEnabled);
   const [sendWelcomeEmail, setSendWelcomeEmail] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -131,7 +121,7 @@ export function CreateCustomerDialog({
   const [createdCustomerId, setCreatedCustomerId] = useState("");
   const [passwordCopied, setPasswordCopied] = useState(false);
   const [showConfirmClose, setShowConfirmClose] = useState(false);
-  const selectedDocumentCount = Object.values(customerDocuments).filter(Boolean).length;
+  const selectedDocumentCount = contaFileDocumentiCliente(customerDocuments);
 
   useEffect(() => {
     if (!companyPortalEnabled) {
@@ -140,41 +130,16 @@ export function CreateCustomerDialog({
     }
   }, [companyPortalEnabled]);
 
-  const handleDocumentChange = (type: CustomerDocumentType, file: File | null) => {
-    setCustomerDocuments((prev) => {
-      const next = { ...prev };
-      if (file) next[type] = file;
-      else delete next[type];
-      return next;
-    });
-  };
-
   const uploadCustomerDocuments = async (customerId: string) => {
     if (!effectiveCompany?.id || !user?.id) return;
-    const entries = Object.entries(customerDocuments) as Array<[CustomerDocumentType, File | undefined]>;
-    for (const [documentType, file] of entries) {
-      if (!file) continue;
-      const filePath = `${effectiveCompany.id}/${customerId}/${documentType}/${Date.now()}-${sanitizeFileName(file.name)}`;
-      const { error: uploadError } = await supabase.storage
-        .from(CUSTOMER_DOCUMENT_BUCKET)
-        .upload(filePath, file, { contentType: file.type || undefined, upsert: false });
-      if (uploadError) throw uploadError;
-      const customerDocumentsClient = supabase as unknown as {
-        from: (table: "customer_documents") => {
-          insert: (payload: Record<string, unknown>) => Promise<{ error: { message?: string } | null }>;
-        };
-      };
-      const { error: insertError } = await customerDocumentsClient.from("customer_documents").insert({
-        company_id: effectiveCompany.id,
-        customer_id: customerId,
-        document_type: documentType,
-        file_name: file.name,
-        file_path: filePath,
-        file_type: file.type || null,
-        file_size: file.size,
-        uploaded_by: user.id,
-      });
-      if (insertError) throw insertError;
+    const { caricati, falliti } = await caricaDocumentiCliente({
+      companyId: effectiveCompany.id,
+      customerId,
+      userId: user.id,
+      file: customerDocuments,
+    });
+    if (falliti.length > 0) {
+      throw new Error(`Non caricati: ${falliti.join(", ")}${caricati ? ` (${caricati} caricati)` : ""}`);
     }
   };
 
@@ -358,7 +323,7 @@ export function CreateCustomerDialog({
         try {
           await uploadCustomerDocuments(newCustomerId);
           toast.success("Documenti cliente caricati", {
-            description: `${selectedDocumentCount} documento/i salvati nel fascicolo cliente.`,
+            description: `${selectedDocumentCount} file salvati sul cliente: li trovi anche nei documenti delle sue commesse.`,
           });
         } catch (uploadError) {
           logger.error("Customer documents upload error:", uploadError);
@@ -580,64 +545,19 @@ export function CreateCustomerDialog({
                 <div className="flex items-start gap-2">
                   <FileCheck2 className="h-4 w-4 text-emerald-600 mt-0.5" />
                   <div>
-                    <p className="text-sm font-medium">Documenti cliente</p>
+                    <p className="text-sm font-medium">Documenti personali <span className="font-normal text-muted-foreground">(facoltativi)</span></p>
                     <p className="text-xs text-muted-foreground">
-                      Opzionali, ma tracciati come presenti o mancanti nel fascicolo.
+                      Carta d'identità e codice fiscale, anche più file. Compaiono anche nei documenti delle commesse
+                      del cliente. Il contratto si carica nella commessa.
                     </p>
                   </div>
                 </div>
-                <Alert className="py-2 bg-amber-50/60 border-amber-200">
-                  <FileWarning className="h-4 w-4 text-amber-600" />
-                  <AlertDescription className="text-xs text-amber-900">
-                    Se non li carichi ora, il cliente viene creato comunque.
-                  </AlertDescription>
-                </Alert>
-                <div className="space-y-2">
-                  {CUSTOMER_DOCUMENTS.map((doc) => {
-                    const file = customerDocuments[doc.type];
-                    return (
-                      <div key={doc.type} className="flex items-center justify-between gap-2 rounded-md border bg-background p-2">
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <p className="text-xs font-medium">{doc.label}</p>
-                            <Badge variant={file ? "default" : "outline"} className="text-[10px]">
-                              {file ? "presente" : "mancante"}
-                            </Badge>
-                          </div>
-                          {file && <p className="truncate text-[11px] text-muted-foreground">{file.name}</p>}
-                        </div>
-                        <div className="flex shrink-0 items-center gap-1">
-                          <Label
-                            htmlFor={`dialog-customer-doc-${doc.type}`}
-                            className="inline-flex h-8 cursor-pointer items-center justify-center rounded-md border bg-background px-2 text-xs font-medium hover:bg-accent hover:text-accent-foreground"
-                          >
-                            <Upload className="mr-1 h-3.5 w-3.5" />
-                            {file ? "Cambia" : "Carica"}
-                          </Label>
-                          <Input
-                            id={`dialog-customer-doc-${doc.type}`}
-                            type="file"
-                            className="hidden"
-                            accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx,application/pdf,image/*"
-                            onChange={(event) => handleDocumentChange(doc.type, event.target.files?.[0] ?? null)}
-                          />
-                          {file && (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                              onClick={() => handleDocumentChange(doc.type, null)}
-                              aria-label={`Rimuovi ${doc.label}`}
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                <DocumentiClienteInput
+                  value={customerDocuments}
+                  onChange={setCustomerDocuments}
+                  idPrefisso="dialog-customer-doc"
+                  compatto
+                />
               </div>
 
               <div className="space-y-2">

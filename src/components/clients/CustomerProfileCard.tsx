@@ -112,11 +112,17 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved }: Custom
   // Update singolo campo (pattern marketing updateField)
   const updateField = useMutation({
     mutationFn: async ({ field, value }: { field: string; value: string | null }) => {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("profiles")
         .update({ [field]: value } as never)
-        .eq("id", customer.id);
+        .eq("id", customer.id)
+        .select("id");
       if (error) throw error;
+      // Senza permesso la RLS non dà errore: aggiorna zero righe e il valore
+      // tornava quello di prima senza che nessuno se ne accorgesse.
+      if (!data || data.length === 0) {
+        throw new Error("Modifica non salvata: non hai il permesso di modificare questo cliente.");
+      }
       return { field, value };
     },
     onSuccess: ({ field, value }) => {

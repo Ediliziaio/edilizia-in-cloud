@@ -34,9 +34,9 @@ export function toStoragePath(fileUrl: string): string {
 }
 
 /** Apre un allegato in una scheda nuova via signed URL. */
-export async function openAttachmentInTab(fileUrl: string) {
+export async function openAttachmentInTab(fileUrl: string, bucket: string = ATTACHMENTS_BUCKET) {
   const { data, error } = await supabase.storage
-    .from(ATTACHMENTS_BUCKET)
+    .from(bucket)
     .createSignedUrl(toStoragePath(fileUrl), 3600);
   if (error || !data?.signedUrl) { toast.error("Impossibile aprire il file"); return; }
   window.open(data.signedUrl, "_blank", "noopener");
@@ -78,15 +78,15 @@ export function fmtBytes(n?: number | null): string {
  * Firma in UNA chiamata gli URL di tutti gli allegati passati, invece di una
  * richiesta per miniatura. Restituisce una mappa percorso -> signed URL.
  */
-export function useSignedUrls(files: PreviewableFile[], enabled: boolean) {
+export function useSignedUrls(files: PreviewableFile[], enabled: boolean, bucket: string = ATTACHMENTS_BUCKET) {
   const paths = Array.from(new Set(files.map((f) => toStoragePath(f.file_url)))).sort();
   return useQuery({
-    queryKey: ["order-files-signed", paths.join("|")],
+    queryKey: ["order-files-signed", bucket, paths.join("|")],
     enabled: enabled && paths.length > 0,
     staleTime: 45 * 60 * 1000, // gli URL durano un'ora: non rifirmare a ogni apertura
     queryFn: async (): Promise<Record<string, string>> => {
       const { data, error } = await supabase.storage
-        .from(ATTACHMENTS_BUCKET)
+        .from(bucket)
         .createSignedUrls(paths, 3600);
       if (error) return {};
       const map: Record<string, string> = {};

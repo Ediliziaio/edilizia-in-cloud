@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  cartellaDocumentiCliente,
   cartellaSuggerita,
   cartelleMancanti,
   contaPerCartella,
@@ -110,5 +111,30 @@ describe("riduzione foto", () => {
     expect(dimensioniRidotte(4032, 3024)).toEqual({ w: 2560, h: 1920 });
     expect(dimensioniRidotte(3024, 4032)).toEqual({ w: 1920, h: 2560 });
     expect(dimensioniRidotte(1600, 1200)).toEqual({ w: 1600, h: 1200 });
+  });
+});
+
+import { aggiungiFileCliente, contaFileDocumentiCliente, percorsoDocumentoCliente, togliFileCliente } from "@/lib/clienti/documentiCliente";
+
+describe("documenti personali del cliente", () => {
+  it("nella commessa vanno nella cartella documenti cliente", () => {
+    expect(cartellaDocumentiCliente(greenEnergy)).toBe("contratti");
+    expect(cartellaDocumentiCliente(base)).toBe("documenti cliente");
+    expect(cartellaDocumentiCliente([c("v", "Varie")])).toBe("v");
+    expect(cartellaDocumentiCliente([])).toBeNull();
+  });
+  it("più file per tipo, niente doppioni, formati controllati", () => {
+    const fronte = new File(["a"], "ci fronte.png", { type: "image/png" });
+    const retro = new File(["bb"], "ci retro.png", { type: "image/png" });
+    let { valore, scartati } = aggiungiFileCliente({}, "identity", [fronte, retro, fronte]);
+    expect(valore.identity?.map((f) => f.name)).toEqual(["ci fronte.png", "ci retro.png"]);
+    expect(scartati).toEqual([]);
+    ({ valore, scartati } = aggiungiFileCliente(valore, "fiscal_code", [new File(["x"], "virus.exe")]));
+    expect(scartati.length).toBe(1);
+    expect(contaFileDocumentiCliente(valore)).toBe(2);
+    expect(togliFileCliente(valore, "identity", 0).identity?.map((f) => f.name)).toEqual(["ci retro.png"]);
+  });
+  it("percorso con azienda davanti (lo richiede lo storage)", () => {
+    expect(percorsoDocumentoCliente("az", "cl", "identity", "Carta identità.png", 7, 0.25)).toBe("az/cl/identity/7-250000-Carta_identita.png");
   });
 });
