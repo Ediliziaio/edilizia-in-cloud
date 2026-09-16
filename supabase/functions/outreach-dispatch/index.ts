@@ -825,25 +825,51 @@ serveConMetriche("outreach-dispatch", async (req) => {
     // di quanto le caselle smaltiscano) riempiva tutto il batch: i follow-up,
     // dovuti più tardi, non entravano mai nel giro e restavano fermi per mesi.
     // I follow-up vanno davanti: sono thread già aperti.
+    //
+    // E una lettura PER BRAND. Con la lettura unica, un brand con un arretrato
+    // vecchio riempiva il batch e gli altri non entravano mai nel giro: il
+    // 16/09/2026 ThermoDMR aveva 2.063 primi contatti dovuti dall'11/09, e le
+    // prime email di Marketing Edile ed Edilizia in Cloud, appena accesi, non
+    // sarebbero partite per settimane con le loro caselle libere.
     let queue: any[] | null = null;
     {
-      const sel = (primo: boolean) => supabase
-        .from("outreach_send_queue")
-        .select("id, to_email, subject, body, attempts, max_attempts, contact_id, enrollment_id, brand_id, primo_contatto")
-        .eq("status", "queued").eq("channel", "email").eq("primo_contatto", primo)
-        .lte("scheduled_for", now.toISOString())
-        .order("scheduled_for", { ascending: true })
-        .limit(BATCH);
-      const leggi = async (primo: boolean): Promise<any[]> => {
-        const r = await sel(primo).eq("kind", "send");
+      // `undefined` = nessun filtro sul brand (ripiego se i brand non si leggono).
+      const sel = (primo: boolean, brandId: string | null | undefined, quante: number) => {
+        let q = supabase
+          .from("outreach_send_queue")
+          .select("id, to_email, subject, body, attempts, max_attempts, contact_id, enrollment_id, brand_id, primo_contatto")
+          .eq("status", "queued").eq("channel", "email").eq("primo_contatto", primo)
+          .lte("scheduled_for", now.toISOString());
+        if (brandId === null) q = q.is("brand_id", null);
+        else if (brandId !== undefined) q = q.eq("brand_id", brandId);
+        return q.order("scheduled_for", { ascending: true }).limit(quante);
+      };
+      const leggi = async (primo: boolean, brandId: string | null | undefined, quante: number): Promise<any[]> => {
+        const r = await sel(primo, brandId, quante).eq("kind", "send");
         if (!r.error) return r.data ?? [];
         // 'kind' assente (pre-migrazione grafo): riprova senza il filtro.
-        const r2 = await sel(primo);
+        const r2 = await sel(primo, brandId, quante);
         if (r2.error) throw r2.error;
         return r2.data ?? [];
       };
-      const [seguiti, primi] = await Promise.all([leggi(false), leggi(true)]);
-      queue = [...seguiti, ...primi];
+      // I brand in pausa o archiviati non spediscono (vedi sotto): non si leggono.
+      const { data: brandInGiro, error: bgErr } = await supabase
+        .from("outreach_brands").select("id").not("status", "in", "(paused,archived)");
+      const idBrand = ((brandInGiro ?? []) as Array<{ id: string }>).map((b) => b.id);
+      // Il totale resta intorno ai BATCH di prima: gli id della coda finiscono
+      // in filtri `in (…)` dentro l'URL, e un giro serve al massimo una email
+      // per casella. Le righe senza brand sono un residuo: ne bastano poche.
+      const gruppi: Array<{ brandId: string | null | undefined; quante: number }> = bgErr
+        ? [{ brandId: undefined, quante: BATCH }]
+        : [
+            { brandId: null, quante: 10 },
+            ...idBrand.map((id) => ({ brandId: id, quante: Math.max(20, Math.floor(BATCH / Math.max(1, idBrand.length))) })),
+          ];
+      const [seguiti, primi] = await Promise.all([
+        Promise.all(gruppi.map((g) => leggi(false, g.brandId, g.quante))),
+        Promise.all(gruppi.map((g) => leggi(true, g.brandId, g.quante))),
+      ]);
+      queue = [...seguiti.flat(), ...primi.flat()];
     }
     if (!queue || queue.length === 0) { await logRun(supabase, "outreach-dispatch", now, { ...result, note: "coda vuota" }); return json({ ...result, note: "coda vuota" }, 200, cors); }
 
