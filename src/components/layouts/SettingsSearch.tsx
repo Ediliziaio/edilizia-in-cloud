@@ -59,6 +59,7 @@ const SETTINGS_INDEX: SettingsIndexEntry[] = [
   { group: "Preventivi", title: "Finanziamenti", url: "/azienda/impostazioni/finanziamenti", keywords: ["finanziamento", "rate", "finanziaria", "compass", "findomestic"] },
 
   // ── Ordini / Cantieri ──
+  { group: "Ordini", title: "Cartelle documenti", url: "/azienda/impostazioni/cartelle-documenti", keywords: ["cartelle", "documenti", "allegati", "file commessa", "carica documenti", "pratica"] },
   { group: "Ordini", title: "Stati ordine", url: "/azienda/impostazioni/stati-ordine", keywords: ["stato", "fasi", "kanban", "tracker"] },
   { group: "Ordini", title: "Categorie costi", url: "/azienda/impostazioni/categorie-costi", keywords: ["costi", "categoria costo", "voci spesa"] },
   { group: "Ordini", title: "Fornitori", url: "/azienda/impostazioni/fornitori", keywords: ["fornitore", "subappalto", "anagrafica fornitori"] },

@@ -138,6 +138,7 @@ const SettingsPeople = lazy(() => import("@/pages/azienda/settings/SettingsPeopl
 const SettingsSecurityHub = lazy(() => import("@/pages/azienda/settings/SettingsSecurityHub"));
 const SettingsEsportaDati = lazy(() => import("@/pages/azienda/settings/SettingsEsportaDati"));
 const SettingsTags = lazy(() => import("@/pages/azienda/settings/SettingsTags"));
+const SettingsCartelleDocumenti = lazy(() => import("@/pages/azienda/settings/SettingsCartelleDocumenti"));
 const SettingsMotiviPerdita = lazy(() => import("@/pages/azienda/settings/SettingsMotiviPerdita"));
 const SettingsCustomFields = lazy(() => import("@/pages/azienda/settings/SettingsCustomFields"));
 const SettingsMarketingCalendars = lazy(() => import("@/pages/azienda/settings/SettingsMarketingCalendars"));
@@ -1179,6 +1180,7 @@ export default function CompanyRoutesContainer() {
           {/* Clausole contrattuali + testi mostrati al cliente quando firma */}
           <Route path="condizioni-firma" element={withCompanyPermission("canViewSettingsPricing", <SettingsCondizioniFirma />)} />
           <Route path="stati-ordine" element={withCompanyPermission("canViewSettingsOrders", <SettingsOrderStatus />)} />
+          <Route path="cartelle-documenti" element={withCompanyPermission("canViewSettingsOrders", <SettingsCartelleDocumenti />)} />
           <Route path="fornitori" element={withCompanyPermission("canViewSettingsSuppliers", <SettingsSuppliers />)} />
           <Route path="qr-codici" element={withCompanyPermission("canViewSettingsOrders", <SettingsQrCodici />)} />
           <Route path="categorie-costi" element={withCompanyPermission("canViewCosts", <SettingsCostCategories />)} />

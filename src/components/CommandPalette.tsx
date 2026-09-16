@@ -80,6 +80,7 @@ const SETTINGS_ITEMS: SettingsItem[] = [
   { label: "Margini e sconti · Margini", path: "/azienda/impostazioni/margini" },
   { label: "Margini e sconti · Sconti",  path: "/azienda/impostazioni/scontistica" },
   { label: "Stati ordine",               path: "/azienda/impostazioni/stati-ordine" },
+  { label: "Cartelle documenti",         path: "/azienda/impostazioni/cartelle-documenti" },
   { label: "Fornitori",                  path: "/azienda/impostazioni/fornitori" },
   { label: "Categorie costi",            path: "/azienda/impostazioni/categorie-costi" },
   { label: "Automazioni finanza",        path: "/azienda/impostazioni/automazioni-finanza" },

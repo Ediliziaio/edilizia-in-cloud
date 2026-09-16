@@ -52,6 +52,8 @@ import { OrderItemsList, OrderItem } from "@/components/orders/OrderItemsList";
 import { FinancialSummary, PaymentType } from "@/components/orders/FinancialSummary";
 import { OrderAttachments } from "@/components/orders/OrderAttachments";
 import { PendingFilesUpload, type PendingFile } from "@/components/orders/PendingFilesUpload";
+import { useCartelleDocumenti } from "@/hooks/useCartelleDocumenti";
+import { cartellaDelFileInCoda, percorsoDocumento } from "@/lib/commesse/documentiCommessa";
 import { SalespersonSelect } from "@/components/salespeople/SalespersonSelect";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { useTrack, ANALYTICS_EVENTS } from "@/hooks/useTrack";
@@ -144,6 +146,7 @@ function CreateOrderInner() {
   // Ripartizione della commessa su più bonus edilizi (pratiche distinte).
   const [bonusLines, setBonusLines] = useState<BonusLine[]>([]);
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
+  const { cartelle: cartelleDocumenti } = useCartelleDocumenti();
   const [showCreateCustomer, setShowCreateCustomer] = useState(false);
   // ?action=import-contratto (dal flusso "Importa documento intelligente" di
   // Silvio): la pagina apre già col dialog contratto spalancato — un contratto
@@ -915,14 +918,11 @@ function CreateOrderInner() {
       if (pendingFiles.length > 0) {
         let uploaded = 0;
         for (const pf of pendingFiles) {
+          const filePath = percorsoDocumento(order.id, pf.file.name);
           try {
-            const timestamp = Date.now();
-            const sanitizedName = pf.file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
-            const filePath = `orders/${order.id}/${timestamp}-${sanitizedName}`;
-
             const { error: uploadError } = await supabase.storage
               .from("order-attachments")
-              .upload(filePath, pf.file);
+              .upload(filePath, pf.file, { contentType: pf.file.type || undefined });
             if (uploadError) throw uploadError;
 
             const { error: dbError } = await supabase
@@ -931,12 +931,16 @@ function CreateOrderInner() {
                 order_id: order.id,
                 file_name: pf.file.name,
                 file_url: filePath,
-                file_type: pf.file.type,
+                file_type: pf.file.type || "application/octet-stream",
                 file_size: pf.file.size,
                 uploaded_by: user!.id,
                 visible_to_customer: pf.visibleToCustomer,
-              });
-            if (dbError) throw dbError;
+                folder_id: cartellaDelFileInCoda(pf, cartelleDocumenti),
+              } as never);
+            if (dbError) {
+              await supabase.storage.from("order-attachments").remove([filePath]);
+              throw dbError;
+            }
             uploaded++;
           } catch (err) {
             logger.error("File upload error:", err);

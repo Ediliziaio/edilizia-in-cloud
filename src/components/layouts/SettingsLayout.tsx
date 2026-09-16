@@ -30,6 +30,7 @@ const SECTION_MAP: Record<string, SectionMeta> = {
   margini:                { title: "Preventivi & margini",     description: "Imposta margini e configurazioni dei preventivi" },
   scontistica:            { title: "Margini e sconti",        description: "Limiti di sconto per commerciali, clienti e fasce di importo" },
   "stati-ordine":         { title: "Stati ordine",             description: "Configura gli stati del flusso degli ordini" },
+  "cartelle-documenti":   { title: "Cartelle documenti",       description: "Le cartelle in cui si dividono i documenti di ogni commessa" },
   fornitori:              { title: "Fornitori",                description: "Gestisci l'anagrafica fornitori" },
   "categorie-costi":      { title: "Categorie costi",          description: "Organizza le categorie di costo dei cantieri" },
   "automazioni-finanza":  { title: "Automazioni finanza",      description: "Configura automazioni per la gestione finanziaria" },

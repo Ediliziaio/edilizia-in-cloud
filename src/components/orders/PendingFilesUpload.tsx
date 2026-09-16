@@ -1,33 +1,32 @@
+/**
+ * Documenti scelti mentre si crea la commessa: salgono quando la commessa
+ * nasce. Ogni file ha già la sua cartella (proposta dal nome, correggibile).
+ */
 import { useRef, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
-import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Paperclip, Upload, X, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
-import { MAX_FILES_PER_ORDER, isValidMimeType } from "./orderAttachmentRules";
-
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
-const ACCEPTED_FORMATS = ".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif";
+import { useCartelleDocumenti } from "@/hooks/useCartelleDocumenti";
+import {
+  ACCEPT_INPUT,
+  MAX_MB_PER_FILE,
+  cartellaDelFileInCoda,
+  cartellaSuggerita,
+  problemaFile,
+} from "@/lib/commesse/documentiCommessa";
+import { fmtBytes } from "./filePreviewUtils";
 
 export interface PendingFile {
   file: File;
   visibleToCustomer: boolean;
+  /** undefined = nessuna scelta: vale la cartella proposta dal nome del file. */
+  folderId?: string | null;
 }
 
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function getFileIcon(type: string) {
-  if (type.includes("pdf")) return "📄";
-  if (type.includes("image")) return "🖼️";
-  if (type.includes("word") || type.includes("document")) return "📝";
-  if (type.includes("sheet") || type.includes("excel")) return "📊";
-  return "📎";
-}
+const SENZA = "__senza";
 
 interface PendingFilesUploadProps {
   files: PendingFile[];
@@ -38,89 +37,47 @@ export function PendingFilesUpload({ files, onFilesChange }: PendingFilesUploadP
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const dragCounter = useRef(0);
+  const { cartelle } = useCartelleDocumenti();
 
   const validateAndAddFiles = useCallback((selected: File[]) => {
     const valid: PendingFile[] = [];
-    const remaining = MAX_FILES_PER_ORDER - files.length;
-
-    if (remaining <= 0) {
-      toast.error("Limite file raggiunto", {
-        description: `Massimo ${MAX_FILES_PER_ORDER} file per commessa.`,
-      });
-      return;
-    }
-
     for (const file of selected) {
-      if (valid.length >= remaining) {
-        toast.warning("Limite file", {
-          description: `Solo ${remaining} file possono essere ancora aggiunti.`,
-        });
-        break;
-      }
-      if (!isValidMimeType(file.type)) {
-        toast.error("Tipo file non consentito", {
-          description: `"${file.name}" non è un formato valido. Supportati: PDF, Word, Excel, immagini.`,
-        });
+      const problema = problemaFile(file);
+      if (problema) {
+        toast.error("File escluso", { description: problema });
         continue;
       }
-      if (file.size > MAX_FILE_SIZE) {
-        toast.error("File troppo grande", {
-          description: `"${file.name}" supera il limite di 10MB.`,
-        });
-        continue;
-      }
-      valid.push({ file, visibleToCustomer: false });
+      if (files.some((p) => p.file.name === file.name && p.file.size === file.size)) continue;
+      const folderId = cartellaSuggerita(file.name, cartelle);
+      valid.push({
+        file,
+        folderId,
+        visibleToCustomer: cartelle.find((c) => c.id === folderId)?.visibile_cliente ?? false,
+      });
     }
-
-    if (valid.length > 0) {
-      onFilesChange([...files, ...valid]);
-    }
-  }, [files, onFilesChange]);
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selected = Array.from(e.target.files || []);
-    validateAndAddFiles(selected);
-    if (fileInputRef.current) fileInputRef.current.value = "";
-  };
+    if (valid.length > 0) onFilesChange([...files, ...valid]);
+  }, [files, onFilesChange, cartelle]);
 
   const handleDragEnter = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
+    e.preventDefault(); e.stopPropagation();
     dragCounter.current++;
     if (e.dataTransfer.items?.length) setIsDragging(true);
   };
-
   const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
+    e.preventDefault(); e.stopPropagation();
     dragCounter.current--;
     if (dragCounter.current === 0) setIsDragging(false);
   };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-  };
-
+  const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); };
   const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(false);
-    dragCounter.current = 0;
+    e.preventDefault(); e.stopPropagation();
+    setIsDragging(false); dragCounter.current = 0;
     const droppedFiles = Array.from(e.dataTransfer.files);
     if (droppedFiles.length > 0) validateAndAddFiles(droppedFiles);
   };
 
-  const removeFile = (index: number) => {
-    onFilesChange(files.filter((_, i) => i !== index));
-  };
-
-  const toggleVisibility = (index: number) => {
-    const updated = files.map((pf, i) =>
-      i === index ? { ...pf, visibleToCustomer: !pf.visibleToCustomer } : pf
-    );
-    onFilesChange(updated);
-  };
+  const aggiorna = (index: number, patch: Partial<PendingFile>) =>
+    onFilesChange(files.map((pf, i) => (i === index ? { ...pf, ...patch } : pf)));
 
   return (
     <Card
@@ -130,34 +87,31 @@ export function PendingFilesUpload({ files, onFilesChange }: PendingFilesUploadP
       onDrop={handleDrop}
       className={`relative transition-colors ${isDragging ? "border-dashed border-2 border-primary/50 bg-primary/5" : ""}`}
     >
-      <CardHeader className="flex flex-row items-center justify-between">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
           <Paperclip className="h-5 w-5" />
-          Documenti Commessa
+          Documenti commessa
         </CardTitle>
         <div>
           <input
             ref={fileInputRef}
+            id="documenti-nuova-commessa"
             type="file"
             multiple
-            onChange={handleFileSelect}
+            onChange={(e) => {
+              validateAndAddFiles(Array.from(e.target.files || []));
+              e.target.value = "";
+            }}
             className="hidden"
-            accept={ACCEPTED_FORMATS}
+            accept={ACCEPT_INPUT}
           />
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={files.length >= MAX_FILES_PER_ORDER}
-          >
+          <Button type="button" size="sm" variant="outline" onClick={() => fileInputRef.current?.click()}>
             <Upload className="h-4 w-4 mr-2" />
-            Carica File
+            Carica file
           </Button>
         </div>
       </CardHeader>
       <CardContent>
-        {/* Drag overlay */}
         {isDragging && (
           <div className="absolute inset-0 z-10 flex flex-col items-center justify-center rounded-lg bg-primary/5 border-2 border-dashed border-primary/50 pointer-events-none">
             <Upload className="h-10 w-10 text-primary/60 mb-2" />
@@ -167,62 +121,67 @@ export function PendingFilesUpload({ files, onFilesChange }: PendingFilesUploadP
 
         {files.length === 0 ? (
           <p className="text-muted-foreground text-sm text-center py-4">
-            Nessun documento selezionato. Carica o trascina i file qui.
+            Nessun documento. Scegli o trascina qui i file: puoi selezionarne tanti insieme.
           </p>
         ) : (
           <div className="space-y-2">
-            {files.map((pf, index) => (
-              <div
-                key={`${pf.file.name}-${index}`}
-                className="flex items-center gap-3 p-3 rounded-lg border bg-muted/30"
-              >
-                <span className="text-lg">{getFileIcon(pf.file.type)}</span>
-                <div className="flex-1 min-w-0">
-                  <span className="text-sm font-medium truncate block">
-                    {pf.file.name}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    {formatFileSize(pf.file.size)}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Switch
-                    checked={pf.visibleToCustomer}
-                    onCheckedChange={() => toggleVisibility(index)}
-                  />
-                  <Badge
-                    variant={pf.visibleToCustomer ? "default" : "secondary"}
-                    className={pf.visibleToCustomer
-                      ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100"
-                      : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"
-                    }
-                  >
-                    {pf.visibleToCustomer ? (
-                      <>
-                        <Eye className="h-3 w-3 mr-1" />
-                        Visibile
-                      </>
-                    ) : (
-                      <>
-                        <EyeOff className="h-3 w-3 mr-1" />
-                        Privato
-                      </>
-                    )}
-                  </Badge>
-                </div>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-destructive"
-                  onClick={() => removeFile(index)}
+            {files.map((pf, index) => {
+              const cartella = cartellaDelFileInCoda(pf, cartelle);
+              return (
+                <div
+                  key={`${pf.file.name}-${pf.file.size}-${index}`}
+                  className="flex flex-col sm:flex-row sm:items-center gap-2 p-2.5 rounded-lg border bg-muted/30"
                 >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-            ))}
+                  <div className="flex-1 min-w-0">
+                    <span className="text-sm font-medium truncate block" title={pf.file.name}>{pf.file.name}</span>
+                    <span className="text-xs text-muted-foreground">{fmtBytes(pf.file.size)}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {cartelle.length > 0 && (
+                      <Select
+                        value={cartella ?? SENZA}
+                        onValueChange={(val) => {
+                          const id = val === SENZA ? null : val;
+                          aggiorna(index, {
+                            folderId: id,
+                            visibleToCustomer: cartelle.find((c) => c.id === id)?.visibile_cliente ?? pf.visibleToCustomer,
+                          });
+                        }}
+                      >
+                        <SelectTrigger className={`h-8 w-full sm:w-[220px] text-xs ${cartella ? "" : "text-muted-foreground"}`}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {cartelle.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
+                          <SelectItem value={SENZA}>Senza cartella</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
+                    <label className="flex items-center gap-1.5 text-xs text-muted-foreground shrink-0" title="Visibile al cliente nella sua area">
+                      {pf.visibleToCustomer ? <Eye className="h-3.5 w-3.5 text-emerald-600" /> : <EyeOff className="h-3.5 w-3.5" />}
+                      Cliente
+                      <Switch
+                        checked={pf.visibleToCustomer}
+                        onCheckedChange={(v) => aggiorna(index, { visibleToCustomer: v })}
+                        aria-label="Visibile al cliente"
+                      />
+                    </label>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-destructive shrink-0"
+                      onClick={() => onFilesChange(files.filter((_, i) => i !== index))}
+                      aria-label={`Togli ${pf.file.name}`}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
             <p className="text-xs text-muted-foreground text-center pt-1">
-              Formati: PDF, Word, Excel, immagini. Max 10MB per file. ({files.length}/{MAX_FILES_PER_ORDER})
+              {files.length} file · massimo {MAX_MB_PER_FILE} MB ciascuno · salgono quando crei la commessa
             </p>
           </div>
         )}
