@@ -19,6 +19,8 @@ import {
   type FvPdfTemplateData,
 } from "../../../supabase/functions/_shared/fvHtmlTemplate";
 import { useFitScale, LARGHEZZA_A4_PX } from "@/components/shared/livePreview/useFitScale";
+import { useFileRiservato, useImmaginiModelloFirmate } from "@/hooks/useFileRiservati";
+import { CAMPI_IMMAGINE_FOTOVOLTAICO } from "@/lib/storage/immaginiModelloPdf";
 
 interface Props {
   /** Stato corrente del template FV in editing. */
@@ -64,7 +66,11 @@ const SECTION_KEYWORDS: Record<string, string[]> = {
 // tagliato — era il "template FV zoomato al massimo con le scritte
 // disallineate". L'adattamento ora vive in useFitScale, condiviso.
 
-export function FvLivePreviewPanel({ form, companyName, logoUrl, activeSection, debounceMs = 350 }: Props) {
+export function FvLivePreviewPanel({ form: formSalvato, companyName, logoUrl: logoSalvato, activeSection, debounceMs = 350 }: Props) {
+  // Le immagini del modello sono percorsi nel bucket privato: l'anteprima usa i
+  // link firmati (vedi supabase/functions/_shared/immaginiModelloPdf.ts).
+  const form = useImmaginiModelloFirmate(formSalvato, CAMPI_IMMAGINE_FOTOVOLTAICO);
+  const logoUrl = useFileRiservato(logoSalvato) || null;
   const [html, setHtml] = useState("");
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const savedScrollRef = useRef(0);

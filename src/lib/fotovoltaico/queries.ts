@@ -6,6 +6,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { campiDaAggiornare } from "@/lib/fotovoltaico/campiAggiornamento";
 import { supabase } from "@/integrations/supabase/client";
+import { CAMPI_IMMAGINE_FOTOVOLTAICO, normalizzaImmaginiModello } from "@/lib/storage/immaginiModelloPdf";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { termineDiRicerca } from "@/lib/ricercaPostgrest";
 import type {
@@ -979,9 +980,12 @@ export function useUpsertTemplatePdf() {
   return useMutation({
     mutationFn: async (input: Record<string, unknown>) => {
       if (!companyId) throw new Error("Azienda non disponibile");
+      // Come per Serramenti: nel modello il percorso delle immagini dell'azienda,
+      // mai un link firmato (vedi supabase/functions/_shared/immaginiModelloPdf.ts).
+      const riga = normalizzaImmaginiModello({ ...input, company_id: companyId }, CAMPI_IMMAGINE_FOTOVOLTAICO, companyId);
       const { error } = await supabase
         .from("fv_template_pdf" as never)
-        .upsert({ ...input, company_id: companyId } as never, { onConflict: "company_id" });
+        .upsert(riga as never, { onConflict: "company_id" });
       if (error) throw error;
     },
     onSuccess: () => {

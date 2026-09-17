@@ -3,8 +3,9 @@
 // dentro l'editor template (parità col modulo Serramenti). Renderizza lato client
 // la stessa funzione del PDF (`renderFvPdfHtml`, già pura e condivisa con la edge
 // function) usando dati cliente/impianto DEMO + il template live in editing.
-// Le immagini (cover, foto team, recensioni) sono signed URL: nell'iframe del
-// browser si vedono senza problemi (no base64 necessario per l'anteprima).
+// Le immagini (cover, foto team, recensioni) sono percorsi nel bucket privato:
+// si firmano prima di comporre l'HTML, e nell'iframe il link firmato basta
+// (niente base64 per l'anteprima).
 // ─────────────────────────────────────────────────────────────────────────────
 import { useMemo } from "react";
 import {
@@ -17,6 +18,8 @@ import {
   renderFvPdfHtml,
   type FvPdfTemplateData,
 } from "../../../supabase/functions/_shared/fvHtmlTemplate";
+import { useFileRiservato, useImmaginiModelloFirmate } from "@/hooks/useFileRiservati";
+import { CAMPI_IMMAGINE_FOTOVOLTAICO } from "@/lib/storage/immaginiModelloPdf";
 
 /** Dati cliente/impianto di esempio: riempiono le pagine "dato-dipendenti"
  *  (investimento, scenario, flussi). Le pagine template-dipendenti (cover, chi
@@ -127,9 +130,9 @@ function demoBase(): FvPdfTemplateData {
 export default function FvTemplatePreviewDialog({
   open,
   onOpenChange,
-  form,
+  form: formSalvato,
   companyName,
-  logoUrl,
+  logoUrl: logoSalvato,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
@@ -138,6 +141,10 @@ export default function FvTemplatePreviewDialog({
   companyName?: string | null;
   logoUrl?: string | null;
 }) {
+  // Immagini del modello: percorsi nel bucket privato, firmati solo mentre il
+  // dialogo è aperto (vedi supabase/functions/_shared/immaginiModelloPdf.ts).
+  const form = useImmaginiModelloFirmate(open ? formSalvato : null, CAMPI_IMMAGINE_FOTOVOLTAICO);
+  const logoUrl = useFileRiservato(open ? logoSalvato : null) || null;
   const html = useMemo(() => {
     if (!open) return "";
     const base = demoBase();

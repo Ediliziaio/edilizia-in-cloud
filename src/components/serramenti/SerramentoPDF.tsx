@@ -2168,7 +2168,9 @@ export function SerramentoPDF({
     hasTaxDeduction || cashflowYears.length > 0 || hasMonthlyRateBalance || incluso.length > 0 || bonus.length > 0
   );
 
-  const galleryLavori = (tpl.gallery_lavori ?? []) as Array<{ id: string; url: string; didascalia?: string | null; luogo?: string | null }>;
+  // Una foto che non si è potuta firmare arriva senza url: si salta.
+  const galleryLavori = ((tpl.gallery_lavori ?? []) as Array<{ id: string; url: string; didascalia?: string | null; luogo?: string | null }>)
+    .filter((item) => Boolean(item?.url));
 
   const indirizzo = template?.indirizzo_completo || company?.indirizzo;
   const telefono = template?.telefono || company?.telefono;

@@ -5,6 +5,7 @@
  * Tabelle sr_* (mirror in src/types/serramenti.ts).
  */
 import { supabase } from "@/integrations/supabase/client";
+import { CAMPI_IMMAGINE_SERRAMENTI, normalizzaImmaginiModello } from "@/lib/storage/immaginiModelloPdf";
 import { termineDiRicerca } from "@/lib/ricercaPostgrest";
 import type {
   SrProgettoRow,
@@ -1353,10 +1354,14 @@ export async function importDaSopralluogo(input: {
 
 export async function upsertTemplatePdf(patch: Partial<SrTemplatePdfRow>, companyId: string): Promise<void> {
   if (!companyId) throw new Error("Profilo senza azienda");
+  // Un link firmato a un'immagine dell'azienda torna percorso prima di finire nel
+  // modello: una scheda aperta da prima dell'aggiornamento, o un link incollato,
+  // riporterebbero la scadenza (vedi supabase/functions/_shared/immaginiModelloPdf.ts).
+  const riga = normalizzaImmaginiModello({ ...patch, company_id: companyId }, CAMPI_IMMAGINE_SERRAMENTI, companyId);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error } = await (supabase as any)
     .from("sr_template_pdf")
-    .upsert({ ...patch, company_id: companyId }, { onConflict: "company_id" });
+    .upsert(riga, { onConflict: "company_id" });
   if (error) {
     console.error("[serramenti] upsertTemplatePdf failed", error);
     throw new Error("Salvataggio template fallito");

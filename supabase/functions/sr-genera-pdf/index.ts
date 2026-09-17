@@ -23,6 +23,7 @@ import { requireAuth } from "../_shared/auth.ts";
 import { verifyCompanyAccess } from "../_shared/companyAuth.ts";
 import { renderSrPdfHtml, countSrPdfPages, type SrPdfData } from "../_shared/srHtmlTemplate.ts";
 import { buildMergeContext, substituteMergeTags } from "../_shared/quoteTemplateComposer.ts";
+import { CAMPI_IMMAGINE_SERRAMENTI, firmaImmaginiModello, firmatarioStorage } from "../_shared/immaginiModelloPdf.ts";
 
 interface Payload {
   progetto_id: string;
@@ -472,8 +473,18 @@ Deno.serve(async (req: Request) => {
         : null;
 
     // 5. Costruisci payload template
+    // Le immagini del modello sono percorsi nel bucket privato (vedi
+    // _shared/immaginiModelloPdf.ts): si firmano adesso, e solo se stanno nella
+    // cartella di questa azienda. L'HTML generato resta salvato e si riapre nei
+    // mesi: la firma vale un anno, come i vecchi link, ma riparte a ogni generazione.
+    const tplFirmato = await firmaImmaginiModello(
+      template ?? {},
+      CAMPI_IMMAGINE_SERRAMENTI,
+      firmatarioStorage(supabaseAdmin, 60 * 60 * 24 * 365),
+      prog.company_id,
+    );
     // deno-lint-ignore no-explicit-any
-    const tpl = (template ?? {}) as any;
+    const tpl = tplFirmato as any;
     // deno-lint-ignore no-explicit-any
     const com = (company ?? {}) as any;
     const companyAddress = [
@@ -603,8 +614,9 @@ Deno.serve(async (req: Request) => {
       colore_primario: tpl.colore_primario || "#2D7D5C",
     };
 
-    // 6b. Rigenera signed URL del logo/foto se provengono dal bucket sr-progetti.
-    data.azienda_logo_url = await refreshSrProgettiUrl(data.azienda_logo_url, 60 * 60 * 24 * 365);
+    // 6b. Rigenera signed URL della foto del consulente se proviene dal bucket
+    // sr-progetti. Il logo del modello è già firmato al punto 5: rifirmarlo qui
+    // valeva per qualsiasi percorso del bucket, anche di un'altra azienda.
     data.consulente_foto_url = await refreshSrProgettiUrl(data.consulente_foto_url);
 
     // 6. Render HTML

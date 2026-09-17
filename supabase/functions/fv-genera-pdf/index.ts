@@ -40,6 +40,7 @@ import {
   type FvPdfTemplateData,
 } from "../_shared/fvHtmlTemplate.ts";
 import { calcolaEnergyFlows } from "../_shared/fvCalcoli.ts";
+import { CAMPI_IMMAGINE_FOTOVOLTAICO, firmaImmaginiModello, firmatarioStorage } from "../_shared/immaginiModelloPdf.ts";
 import {
   assertFvPdfQueryOk,
   mapFvManodoperaRowsToPdfServices,
@@ -179,7 +180,17 @@ Deno.serve(async (req: Request) => {
 
     const calc = calcRes.data;
     const company = companyRes.data ?? { name: "Edilizia in Cloud" };
-    const template = templateRes.data ?? {};
+    // Le immagini del modello sono percorsi nel bucket privato (vedi
+    // _shared/immaginiModelloPdf.ts): si firmano adesso, e solo se stanno nella
+    // cartella di questa azienda. Logo e copertina restano link dentro l'HTML
+    // salvato, che si riapre nei mesi: la firma vale un anno, come i vecchi link,
+    // ma riparte a ogni generazione. Le altre foto diventano base64 qui sotto.
+    const template = await firmaImmaginiModello(
+      templateRes.data ?? {},
+      CAMPI_IMMAGINE_FOTOVOLTAICO,
+      firmatarioStorage(supabaseAdmin, 60 * 60 * 24 * 365),
+      prog.company_id,
+    );
     const listinoMacrocategorieFv = ((macroRes.data ?? []) as FvListinoMacroForPdf[]).filter((macro) => {
       const verticali = macro.verticali_abilitati ?? [];
       return verticali.length === 0 || verticali.includes("fotovoltaico");
@@ -255,7 +266,7 @@ Deno.serve(async (req: Request) => {
 
     // ── Cantieri + Bundle: fetch immagini in parallelo ────────────────────────
     const cantieriGalleria = (
-      (templateRes.data as Record<string, unknown> | null)?.cantieri_galleria as
+      (template as Record<string, unknown>).cantieri_galleria as
         | Array<{ foto_url?: string; citta?: string; descrizione?: string }> | null
     ) ?? [];
     const cantieriFotoUrls = cantieriGalleria

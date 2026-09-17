@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { getTemplatePdf } from "@/lib/serramenti/api";
 import { toDataUrl } from "@/lib/serramenti/pdfImageUtils";
+import { CAMPI_IMMAGINE_SERRAMENTI, firmaImmagine, firmaImmaginiModello } from "@/lib/storage/immaginiModelloPdf";
 import { COLONNE_SCHEDA_LINEA, comeSchedaLinea } from "@/hooks/useSchedeLinea";
 import {
   datiTecniciScheda,
@@ -307,12 +308,20 @@ async function caricaLineeDedicate(
 }
 
 async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEnriched> {
-  const { detail, company } = opts;
+  const { detail } = opts;
   // Il modello dell'azienda del preventivo: senza filtro il super admin (che
   // vede tutte le righe) riceveva null e il PDF usciva con i testi di serie.
-  const template = opts.useFreshTemplate
+  const templateSalvato = opts.useFreshTemplate
     ? await getTemplatePdf(detail.progetto.company_id)
     : opts.template ?? null;
+  // Le immagini del modello sono percorsi nel bucket privato: si firmano qui,
+  // per il tempo della generazione. Anche il logo dato come logo dell'azienda,
+  // che nell'anteprima dell'editor è quello del modello.
+  const [template, logoAzienda] = await Promise.all([
+    firmaImmaginiModello(templateSalvato, CAMPI_IMMAGINE_SERRAMENTI),
+    firmaImmagine(opts.company?.logo_url),
+  ]);
+  const company = opts.company ? { ...opts.company, logo_url: logoAzienda } : null;
   const prog = detail.progetto;
   const companyId = prog.company_id;
 

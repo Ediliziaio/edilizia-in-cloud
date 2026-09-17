@@ -2,8 +2,10 @@ import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { Trash2, Upload, ImageIcon } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
+import { ImgRiservata } from "@/components/common/ImgRiservata";
+import { BUCKET_RISERVATI } from "@/lib/storage/fileRiservati";
+import { riferimentoImmagine } from "@/lib/storage/immaginiModelloPdf";
 import type { GalleryLavoroItem } from "@/types/gallery";
 
 interface Props {
@@ -43,9 +45,13 @@ export function GalleryLavoriEditor({
       const path = `${uploadPath}/${crypto.randomUUID()}.${ext}`;
       const { error } = await supabase.storage.from(bucket).upload(path, file, { contentType: file.type, upsert: false });
       if (error) { toast.error(`Errore upload ${file.name}`); continue; }
-      const { data: signed } = await supabase.storage.from(bucket).createSignedUrl(path, 60 * 60 * 24 * 365);
-      if (!signed?.signedUrl) continue;
-      added.push({ id: crypto.randomUUID(), url: signed.signedUrl });
+      // Mai un link firmato nel modello: scade. Da un bucket riservato si salva il
+      // percorso, firmato quando serve (supabase/functions/_shared/immaginiModelloPdf.ts);
+      // da uno pubblico l'indirizzo pubblico, che non scade.
+      const url = (BUCKET_RISERVATI as readonly string[]).includes(bucket)
+        ? riferimentoImmagine(bucket, path)
+        : supabase.storage.from(bucket).getPublicUrl(path).data.publicUrl;
+      added.push({ id: crypto.randomUUID(), url });
     }
     if (added.length > 0) {
       onChange([...items, ...added]);
@@ -70,7 +76,7 @@ export function GalleryLavoriEditor({
           {items.map((item, idx) => (
             <div key={item.id} className="rounded-lg border bg-muted/20 overflow-hidden">
               <div className="relative aspect-video bg-muted">
-                <img
+                <ImgRiservata
                   src={item.url}
                   alt={item.didascalia || `Lavoro ${idx + 1}`}
                   className="w-full h-full object-cover"

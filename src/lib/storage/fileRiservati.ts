@@ -10,12 +10,22 @@
  * nudo) e restituisce un link FIRMATO, valido per il tempo indicato. Funziona
  * sia mentre il contenitore e' ancora pubblico sia dopo la chiusura, quindi la
  * conversione si puo' fare senza finestre di disservizio.
+ *
+ * Vale anche per le immagini dei modelli PDF (sr-progetti, fv-progetti): nel
+ * modello c'e' il percorso nudo, firmato quando serve. Il perche' sta in
+ * supabase/functions/_shared/immaginiModelloPdf.ts.
  */
 
 import { supabase } from "@/integrations/supabase/client";
+import { BUCKET_IMMAGINI_MODELLO } from "../../../supabase/functions/_shared/immaginiModelloPdf";
 
 /** Contenitori che vanno letti con link firmato. */
-export const BUCKET_RISERVATI = ["campo-rapportini", "campo-firme", "documenti-sub"] as const;
+export const BUCKET_RISERVATI = [
+  "campo-rapportini",
+  "campo-firme",
+  "documenti-sub",
+  ...BUCKET_IMMAGINI_MODELLO,
+] as const;
 
 const ORE = 60 * 60;
 /** Otto ore: copre una giornata di cantiere senza rigenerare a ogni tocco. */
@@ -39,6 +49,18 @@ export function riconosciFile(valore: string | null | undefined): Riferimento | 
     if (i > 0) return { bucket: v.slice(0, i), path: v.slice(i + 1) };
   }
   return null;
+}
+
+/**
+ * true per un percorso nudo "<bucket>/<path>" di un contenitore riservato. Non
+ * e' un indirizzo: dato cosi' a un <img> il browser lo cercherebbe tra le
+ * pagine dell'app. Va prima firmato.
+ */
+export function eRiferimentoNudo(valore: string | null | undefined): boolean {
+  const v = String(valore ?? "").trim();
+  if (!v || /^[a-z][a-z0-9+.-]*:/i.test(v)) return false;
+  const rif = riconosciFile(v);
+  return !!rif && (BUCKET_RISERVATI as readonly string[]).includes(rif.bucket);
 }
 
 /**

@@ -87,6 +87,8 @@ import { COVER_STOCK_IMAGES, COVER_STOCK_CATEGORIE, type CoverStockImage } from 
 // M20 · Palette colore intelligente (brand variations + curate)
 import { generateBrandPalette, CURATED_PALETTES } from "@/lib/utils/colorPalette";
 import { GalleryLavoriEditor } from "@/components/shared/GalleryLavoriEditor";
+import { ImgRiservata } from "@/components/common/ImgRiservata";
+import { riferimentoImmagine } from "@/lib/storage/immaginiModelloPdf";
 import type { GalleryLavoroItem } from "@/types/gallery";
 import { useBeforeUnload } from "@/hooks/useBeforeUnload";
 
@@ -752,12 +754,9 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
         .upload(storagePath, file, { contentType: file.type, upsert: false });
       if (uploadErr) throw new Error(`Upload fallito: ${uploadErr.message}`);
 
-      const { data: signed } = await supabase.storage
-        .from("sr-progetti")
-        .createSignedUrl(storagePath, 60 * 60 * 24 * 365);
-      const logoUrl = signed?.signedUrl ?? "";
-
-      update("logo_url", logoUrl);
+      // Nel modello il percorso del file, non un link firmato che scade: si
+      // firma quando serve (supabase/functions/_shared/immaginiModelloPdf.ts).
+      update("logo_url", riferimentoImmagine("sr-progetti", storagePath));
       toast.success("Logo caricato. Salva per applicare.");
     } catch (e) {
       console.error("[serramenti-template-editor] logo upload", e);
@@ -770,7 +769,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
 
   /**
    * Upload diretto foto "Chi siamo" — riusa lo stesso pattern del logo
-   * (bucket sr-progetti, signed URL 1 anno). Salva in chi_siamo_foto_url.
+   * (bucket sr-progetti, nel modello il percorso del file). Salva in chi_siamo_foto_url.
    */
   const handleChiSiamoUpload = async (file: File) => {
     if (!file.type.startsWith("image/")) {
@@ -793,12 +792,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
         .upload(storagePath, file, { contentType: file.type, upsert: false });
       if (uploadErr) throw new Error(`Upload fallito: ${uploadErr.message}`);
 
-      const { data: signed } = await supabase.storage
-        .from("sr-progetti")
-        .createSignedUrl(storagePath, 60 * 60 * 24 * 365);
-      const url = signed?.signedUrl ?? "";
-
-      update("chi_siamo_foto_url", url);
+      update("chi_siamo_foto_url", riferimentoImmagine("sr-progetti", storagePath));
       toast.success("Foto azienda caricata. Salva per applicare.");
     } catch (e) {
       console.error("[serramenti-template-editor] chi-siamo upload", e);
@@ -809,8 +803,8 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
     }
   };
 
-  /** Upload foto opzionale di una recensione. Stesso pattern (bucket sr-progetti +
-   *  signed URL 1 anno). Salva in testimonianze_default[idx].foto_url. */
+  /** Upload foto opzionale di una recensione. Stesso pattern (bucket sr-progetti,
+   *  nel modello il percorso del file). Salva in testimonianze_default[idx].foto_url. */
   const [uploadingTestFoto, setUploadingTestFoto] = useState<number | null>(null);
   const [selectedSharedLegalId, setSelectedSharedLegalId] = useState("");
   const handleTestimonianzaFotoUpload = async (idx: number, file: File) => {
@@ -824,9 +818,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
       const { error: uploadErr } = await supabase.storage
         .from("sr-progetti").upload(storagePath, file, { contentType: file.type, upsert: false });
       if (uploadErr) throw new Error(`Upload fallito: ${uploadErr.message}`);
-      const { data: signed } = await supabase.storage
-        .from("sr-progetti").createSignedUrl(storagePath, 60 * 60 * 24 * 365);
-      updateTestimonianza(idx, "foto_url", signed?.signedUrl ?? "");
+      updateTestimonianza(idx, "foto_url", riferimentoImmagine("sr-progetti", storagePath));
       toast.success("Foto recensione caricata. Salva per applicare.");
     } catch (e) {
       console.error("[serramenti-template-editor] testimonianza foto upload", e);
@@ -838,7 +830,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
 
   /**
    * Upload immagine di sfondo cover (pagina 1 del PDF).
-   * Stesso pattern logo/chi-siamo: bucket sr-progetti + signed URL 1 anno.
+   * Stesso pattern logo/chi-siamo: bucket sr-progetti, nel modello il percorso del file.
    */
   const handleCoverUpload = async (file: File) => {
     if (!file.type.startsWith("image/")) {
@@ -861,12 +853,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
         .upload(storagePath, file, { contentType: file.type, upsert: false });
       if (uploadErr) throw new Error(`Upload fallito: ${uploadErr.message}`);
 
-      const { data: signed } = await supabase.storage
-        .from("sr-progetti")
-        .createSignedUrl(storagePath, 60 * 60 * 24 * 365);
-      const url = signed?.signedUrl ?? "";
-
-      update("pdf_cover_image_url", url);
+      update("pdf_cover_image_url", riferimentoImmagine("sr-progetti", storagePath));
       toast.success("Immagine cover caricata. Salva per applicare.");
     } catch (e) {
       console.error("[serramenti-template-editor] cover upload", e);
@@ -898,12 +885,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
         .upload(storagePath, file, { contentType: file.type, upsert: false });
       if (uploadErr) throw new Error(`Upload fallito: ${uploadErr.message}`);
 
-      const { data: signed } = await supabase.storage
-        .from("sr-progetti")
-        .createSignedUrl(storagePath, 60 * 60 * 24 * 365);
-      const logoUrl = signed?.signedUrl ?? "";
-
-      update("pdf_cover_logo_url", logoUrl);
+      update("pdf_cover_logo_url", riferimentoImmagine("sr-progetti", storagePath));
       toast.success("Logo copertina caricato. Salva per applicare.");
     } catch (e) {
       console.error("[serramenti-template-editor] cover logo upload", e);
@@ -1267,7 +1249,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
               onClick={() => !uploadingLogo && logoInputRef.current?.click()}
             >
               {form.logo_url ? (
-                <img loading="lazy" src={form.logo_url} alt="" className="w-full h-full object-contain p-2" />
+                <ImgRiservata loading="lazy" src={form.logo_url} alt="" className="w-full h-full object-contain p-2" />
               ) : (
                 <div className="text-center p-3">
                   <ImageIcon className="h-8 w-8 mx-auto text-muted-foreground/40 mb-1" />
@@ -1872,7 +1854,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                 >
                   {/* Immagine di sfondo */}
                   {form.pdf_cover_image_url && (
-                    <img loading="lazy"
+                    <ImgRiservata loading="lazy"
                       src={form.pdf_cover_image_url}
                       alt="cover bg"
                       className="absolute inset-0 w-full h-full object-cover"
@@ -1979,7 +1961,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                           const sz = Math.round(28 * ((form.pdf_cover_logo_size ?? 100) / 100));
                           const coverLogo = form.pdf_cover_logo_url ?? brand?.brand_logo_dark_url ?? form.logo_url;
                           return coverLogo ? (
-                            <img
+                            <ImgRiservata
                               loading="lazy"
                               src={coverLogo}
                               alt="logo"
@@ -2536,7 +2518,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                     <div className="flex items-center gap-2">
                       <div className="h-11 w-11 rounded bg-slate-900 flex items-center justify-center overflow-hidden shrink-0 p-1 relative">
                         {(form.pdf_cover_logo_url ?? brand?.brand_logo_dark_url ?? form.logo_url) ? (
-                          <img
+                          <ImgRiservata
                             loading="lazy"
                             src={(form.pdf_cover_logo_url ?? brand?.brand_logo_dark_url ?? form.logo_url) ?? ""}
                             alt="Logo copertina"
@@ -2854,7 +2836,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                     onClick={() => !uploadingChiSiamo && chiSiamoInputRef.current?.click()}
                   >
                     {form.chi_siamo_foto_url ? (
-                      <img loading="lazy"
+                      <ImgRiservata loading="lazy"
                         src={form.chi_siamo_foto_url}
                         alt="Foto azienda"
                         className="w-full h-auto max-h-[280px] object-contain"
@@ -3042,7 +3024,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                       </div>
                       <div className="col-span-12 flex items-center gap-2">
                         {t.foto_url ? (
-                          <img src={t.foto_url} alt="" className="h-10 w-10 rounded-full object-cover border" />
+                          <ImgRiservata src={t.foto_url} alt="" className="h-10 w-10 rounded-full object-cover border" />
                         ) : (
                           <span className="h-10 w-10 rounded-full bg-muted flex items-center justify-center text-muted-foreground">
                             <ImageIcon className="h-4 w-4" />

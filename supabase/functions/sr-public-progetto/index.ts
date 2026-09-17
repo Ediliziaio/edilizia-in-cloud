@@ -15,6 +15,7 @@
  */
 import { jsonResponse, errorResponse } from "../_shared/headers.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { CAMPI_IMMAGINE_SERRAMENTI, firmaImmaginiModello, firmatarioStorage } from "../_shared/immaginiModelloPdf.ts";
 
 // CORS pubblico per microsito (qualsiasi origine)
 const PUBLIC_CORS_HEADERS = {
@@ -86,11 +87,19 @@ Deno.serve(async (req: Request) => {
       .maybeSingle();
 
     // Carica template PDF (per logo/branding fallback)
-    const { data: tpl } = await sb
+    const { data: tplSalvato } = await sb
       .from("sr_template_pdf")
       .select("ragione_sociale, telefono, email, indirizzo_completo, logo_url, colore_primario, partita_iva")
       .eq("company_id", prog.company_id)
       .maybeSingle();
+    // Il logo del modello è un percorso nel bucket privato (vedi
+    // _shared/immaginiModelloPdf.ts): si firma per questa pagina, come il PDF qui sotto.
+    const tpl = await firmaImmaginiModello(
+      tplSalvato,
+      CAMPI_IMMAGINE_SERRAMENTI,
+      firmatarioStorage(sb, 60 * 60 * 24 * 7),
+      prog.company_id,
+    );
 
     // Carica consulente
     let consulente = null;

@@ -68,6 +68,8 @@ const FvTemplatePreviewDialog = lazy(() => import("./FvTemplatePreviewDialog"));
 // Pannello anteprima live persistente (lazy per lo stesso motivo: usa renderFvPdfHtml).
 const FvLivePreviewPanel = lazy(() => import("./FvLivePreviewPanel").then((m) => ({ default: m.FvLivePreviewPanel })));
 import { GalleryLavoriEditor } from "@/components/shared/GalleryLavoriEditor";
+import { ImgRiservata } from "@/components/common/ImgRiservata";
+import { riferimentoImmagine } from "@/lib/storage/immaginiModelloPdf";
 import type { GalleryLavoroItem } from "@/types/gallery";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { ImportaCondizioniBar } from "@/components/quote-templates/ImportaCondizioniBar";
@@ -842,6 +844,11 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
   };
 
   // ─── Logo upload ──────────────────────────────────────────────────────────
+  // I file vanno nella cartella dell'azienda su cui si lavora (anche impersonata
+  // o scelta tra più aziende), non in quella del profilo: le policy di
+  // fv-progetti guardano quella, sia per caricare sia per firmare. Nel modello
+  // va il percorso del file, non un link firmato che scade dopo un anno (vedi
+  // supabase/functions/_shared/immaginiModelloPdf.ts).
   const handleLogoUpload = async (file: File) => {
     if (!file.type.startsWith("image/")) {
       toast.error("Carica un file immagine");
@@ -853,15 +860,6 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
     }
     setUploadingLogo(true);
     try {
-      const userId = (await supabase.auth.getUser()).data.user?.id;
-      if (!userId) throw new Error("Non autenticato");
-      const { data: profile } = await supabase
-        .from("profiles" as never)
-        .select("company_id")
-        .eq("id", userId)
-        .maybeSingle();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const companyId = (profile as any)?.company_id;
       if (!companyId) throw new Error("Profilo senza azienda");
 
       const ext = file.name.includes(".") ? file.name.split(".").pop()!.toLowerCase() : "png";
@@ -872,12 +870,7 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
         .upload(storagePath, file, { contentType: file.type, upsert: false });
       if (uploadErr) throw new Error(`Upload fallito: ${uploadErr.message}`);
 
-      const { data: signed } = await supabase.storage
-        .from("fv-progetti")
-        .createSignedUrl(storagePath, 60 * 60 * 24 * 365);
-      const logoUrl = signed?.signedUrl ?? "";
-
-      update("logo_url", logoUrl);
+      update("logo_url", riferimentoImmagine("fv-progetti", storagePath));
       toast.success("Logo caricato. Salva per applicare.");
     } catch (e) {
       console.error("[fv-template] logo upload", e);
@@ -899,27 +892,14 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
     }
     setUploadingCoverLogo(true);
     try {
-      const userId = (await supabase.auth.getUser()).data.user?.id;
-      if (!userId) throw new Error("Non autenticato");
-      const { data: profile } = await supabase
-        .from("profiles" as never)
-        .select("company_id")
-        .eq("id", userId)
-        .maybeSingle();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const cid = (profile as any)?.company_id;
-      if (!cid) throw new Error("Profilo senza azienda");
+      if (!companyId) throw new Error("Profilo senza azienda");
       const ext = file.name.includes(".") ? file.name.split(".").pop()!.toLowerCase() : "png";
-      const storagePath = `${cid}/template-logos/cover-${crypto.randomUUID()}.${ext}`;
+      const storagePath = `${companyId}/template-logos/cover-${crypto.randomUUID()}.${ext}`;
       const { error: uploadErr } = await supabase.storage
         .from("fv-progetti")
         .upload(storagePath, file, { contentType: file.type, upsert: false });
       if (uploadErr) throw new Error(`Upload fallito: ${uploadErr.message}`);
-      const { data: signed } = await supabase.storage
-        .from("fv-progetti")
-        .createSignedUrl(storagePath, 60 * 60 * 24 * 365);
-      const coverLogoUrl = signed?.signedUrl ?? "";
-      update("pdf_cover_logo_url", coverLogoUrl);
+      update("pdf_cover_logo_url", riferimentoImmagine("fv-progetti", storagePath));
       toast.success("Logo copertina caricato. Salva per applicare.");
     } catch (e) {
       console.error("[fv-template] cover logo upload", e);
@@ -941,15 +921,6 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
     }
     setUploadingCover(true);
     try {
-      const userId = (await supabase.auth.getUser()).data.user?.id;
-      if (!userId) throw new Error("Non autenticato");
-      const { data: profile } = await supabase
-        .from("profiles" as never)
-        .select("company_id")
-        .eq("id", userId)
-        .maybeSingle();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const companyId = (profile as any)?.company_id;
       if (!companyId) throw new Error("Profilo senza azienda");
 
       const ext = file.name.includes(".") ? file.name.split(".").pop()!.toLowerCase() : "jpg";
@@ -959,10 +930,7 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
         .upload(storagePath, file, { contentType: file.type, upsert: false });
       if (uploadErr) throw new Error(`Upload fallito: ${uploadErr.message}`);
 
-      const { data: signed } = await supabase.storage
-        .from("fv-progetti")
-        .createSignedUrl(storagePath, 60 * 60 * 24 * 365);
-      update("pdf_cover_image_url", signed?.signedUrl ?? "");
+      update("pdf_cover_image_url", riferimentoImmagine("fv-progetti", storagePath));
       toast.success("Copertina caricata. Salva per applicare.");
     } catch (e) {
       console.error("[fv-template] cover upload", e);
@@ -1027,17 +995,8 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
   };
 
   // ─── Upload immagini (foto azienda + foto impianti recensioni) ─────────────
-  // Stesso pattern di logo/cover: bucket fv-progetti + signed URL 1 anno.
+  // Stesso pattern di logo/cover: bucket fv-progetti, nel modello il percorso del file.
   const uploadTemplateImage = async (file: File, folder: string): Promise<string> => {
-    const userId = (await supabase.auth.getUser()).data.user?.id;
-    if (!userId) throw new Error("Non autenticato");
-    const { data: profile } = await supabase
-      .from("profiles" as never)
-      .select("company_id")
-      .eq("id", userId)
-      .maybeSingle();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const companyId = (profile as any)?.company_id;
     if (!companyId) throw new Error("Profilo senza azienda");
     const ext = file.name.includes(".") ? file.name.split(".").pop()!.toLowerCase() : "jpg";
     const storagePath = `${companyId}/${folder}/${crypto.randomUUID()}.${ext}`;
@@ -1045,10 +1004,7 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
       .from("fv-progetti")
       .upload(storagePath, file, { contentType: file.type, upsert: false });
     if (uploadErr) throw new Error(`Upload fallito: ${uploadErr.message}`);
-    const { data: signed } = await supabase.storage
-      .from("fv-progetti")
-      .createSignedUrl(storagePath, 60 * 60 * 24 * 365);
-    return signed?.signedUrl ?? "";
+    return riferimentoImmagine("fv-progetti", storagePath);
   };
 
   const handleFotoTeamUpload = async (file: File) => {
@@ -1692,7 +1648,7 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
                 }}
               >
                 {form.pdf_cover_image_url && (
-                  <img loading="lazy"
+                  <ImgRiservata loading="lazy"
                     src={form.pdf_cover_image_url}
                     alt=""
                     className="absolute inset-0 h-full w-full object-cover"
@@ -1758,7 +1714,7 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
                     >
                       <div className="flex h-9 w-9 items-center justify-center rounded bg-orange-500 text-white">
                         {(form.pdf_cover_logo_url ?? form.logo_url) ? (
-                          <img loading="lazy" src={(form.pdf_cover_logo_url ?? form.logo_url) as string} alt="" className="h-full w-full rounded object-contain bg-white p-1" />
+                          <ImgRiservata loading="lazy" src={(form.pdf_cover_logo_url ?? form.logo_url) as string} alt="" className="h-full w-full rounded object-contain bg-white p-1" />
                         ) : (
                           <Sun className="h-5 w-5" />
                         )}
@@ -1861,7 +1817,7 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
               onClick={() => !uploadingLogo && logoInputRef.current?.click()}
             >
               {form.logo_url ? (
-                <img loading="lazy" src={form.logo_url} alt="Logo azienda" className="w-full h-full object-contain p-2" />
+                <ImgRiservata loading="lazy" src={form.logo_url} alt="Logo azienda" className="w-full h-full object-contain p-2" />
               ) : (
                 <div className="text-center p-3">
                   <ImageIcon className="h-8 w-8 mx-auto text-muted-foreground/40 mb-1" />
@@ -1904,7 +1860,7 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
             <div className="rounded-md border border-sky-200 bg-sky-50/50 p-2.5 flex items-center gap-2 dark:border-sky-900/40 dark:bg-sky-950/30">
               <div className="h-10 w-10 rounded bg-slate-900 flex items-center justify-center overflow-hidden shrink-0 p-1">
                 {form.logo_url ? (
-                  <img loading="lazy" src={form.logo_url as string} alt="" className="h-full w-full object-contain" />
+                  <ImgRiservata loading="lazy" src={form.logo_url as string} alt="" className="h-full w-full object-contain" />
                 ) : (
                   <ImageIcon className="h-4 w-4 text-slate-500" />
                 )}
@@ -2018,7 +1974,7 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
                 <Label className="text-xs">Foto team / azienda</Label>
                 <div className="flex items-center gap-3 mt-1">
                   {form.foto_team_url ? (
-                    <img
+                    <ImgRiservata
                       src={form.foto_team_url}
                       alt="Foto azienda"
                       className="h-12 w-16 rounded object-cover border border-slate-200"
@@ -2956,7 +2912,7 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
                   <Label className="text-xs">Foto impianto installato (opzionale)</Label>
                   <div className="flex items-center gap-3 mt-1">
                     {r.foto_url ? (
-                      <img
+                      <ImgRiservata
                         src={r.foto_url}
                         alt="Impianto installato"
                         className="h-12 w-16 rounded object-cover border border-slate-200"

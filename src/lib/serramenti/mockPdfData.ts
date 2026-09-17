@@ -22,6 +22,7 @@ import type {
   SerramentoPdfMacroField, SerramentoPdfMacroPagina, SerramentoPdfLineaPagina,
 } from "@/hooks/useSerramentoPDF";
 import { toDataUrl } from "@/lib/serramenti/pdfImageUtils";
+import { CAMPI_IMMAGINE_SERRAMENTI, firmaImmagine, firmaImmaginiModello } from "@/lib/storage/immaginiModelloPdf";
 import { datiTecniciScheda } from "@/lib/listino/schedeLinea";
 
 const MOCK_FAMILY_ID = "demo-family-aluminio-2ante";
@@ -355,17 +356,23 @@ export async function buildMockPdfData(opts: {
 
   const publicUrl = "https://app.ediliziaincloud.com/stima/demo-firma-token";
 
+  // Le immagini del modello sono percorsi nel bucket privato: prima si firmano,
+  // insieme al logo dato come logo dell'azienda (l'editor passa quello del modello).
+  const [tpl, companyLogoUrl] = await Promise.all([
+    firmaImmaginiModello(opts.template ?? null, CAMPI_IMMAGINE_SERRAMENTI),
+    firmaImmagine(opts.companyLogoUrl),
+  ]);
+
   // Pre-converti le immagini del template (webp → JPEG/PNG) in parallelo.
   // Senza questo step, l'anteprima mostra box vuoti perché react-pdf non
   // supporta webp e gli URL Supabase fornisco webp per default.
-  const tpl = opts.template ?? null;
   const [
     inlinedLogo,
     inlinedChiSiamoFoto,
     inlinedCoverImage,
     inlinedLogoDark,
   ] = await Promise.all([
-    toDataUrl(tpl?.logo_url ?? opts.companyLogoUrl ?? null),
+    toDataUrl(tpl?.logo_url ?? companyLogoUrl ?? null),
     toDataUrl(tpl?.chi_siamo_foto_url ?? null),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     toDataUrl((tpl as any)?.pdf_cover_image_url ?? null),
@@ -389,7 +396,7 @@ export async function buildMockPdfData(opts: {
       telefono: "+39 02 87654321",
       email: "info@example.com",
       partita_iva: "01234567890",
-      logo_url: inlinedLogo ?? opts.companyLogoUrl ?? null,
+      logo_url: inlinedLogo ?? companyLogoUrl ?? null,
       brand_logo_dark_url: inlinedLogoDark ?? opts.companyLogoDarkUrl ?? null,
       website: "www.example.com",
     },
