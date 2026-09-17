@@ -40,11 +40,11 @@ vi.mock("sonner", () => ({ toast }));
 const mutate = vi.fn();
 vi.mock("@/hooks/useOpportunitiesData", () => ({
   useCreateOpportunity: () => ({ mutate, isPending: false }),
-  useCompanyStaff: () => ({ data: [] }),
-  useCompanySalespeople: () => ({ data: [] }),
-  useCompanyCallCenterUsers: () => ({ data: [] }),
+  useCompanyStaff: () => ({ data: [] as unknown[] }),
+  useCompanySalespeople: () => ({ data: [] as unknown[] }),
+  useCompanyCallCenterUsers: () => ({ data: [] as unknown[] }),
 }));
-vi.mock("@/hooks/useOpportunityDetailData", () => ({ useOpportunityCustomFields: () => ({ data: [] }) }));
+vi.mock("@/hooks/useOpportunityDetailData", () => ({ useOpportunityCustomFields: () => ({ data: [] as unknown[] }) }));
 vi.mock("@/hooks/useIsPlatformCrm", () => ({ useIsPlatformCrm: () => false }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "azienda-1" } }) }));
 vi.mock("@/hooks/usePermissions", () => ({
@@ -52,8 +52,8 @@ vi.mock("@/hooks/usePermissions", () => ({
 }));
 vi.mock("react-router-dom", () => ({ useNavigate: () => vi.fn() }));
 vi.mock("@/hooks/useTagSync", () => ({ syncTagsToContact: vi.fn() }));
-vi.mock("@/components/marketing/TagSelector", () => ({ TagSelector: () => null }));
-vi.mock("./ServizioAedixFields", () => ({ ServizioAedixFields: () => null }));
+vi.mock("@/components/marketing/TagSelector", () => ({ TagSelector: (): null => null }));
+vi.mock("./ServizioAedixFields", () => ({ ServizioAedixFields: (): null => null }));
 
 import { OpportunityDialog } from "@/components/opportunities/OpportunityDialog";
 
