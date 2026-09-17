@@ -11,7 +11,19 @@ import type { GalleryLavoroItem } from "@/types/gallery";
 interface Props {
   items: GalleryLavoroItem[];
   onChange: (items: GalleryLavoroItem[]) => void;
-  /** Bucket Supabase Storage (es. "companies", "sr-progetti") */
+  /**
+   * Bucket Supabase Storage in cui caricare. Deve esistere: fino al 17/09/2026
+   * otto moduli passavano "companies", che non c'è, e nessuna foto arrivava.
+   *
+   * - Serramenti e Fotovoltaico: sr-progetti e fv-progetti, privati, perché
+   *   accanto ai modelli ci sono i file dei progetti dei clienti. Nel modello va
+   *   il percorso, firmato quando serve (supabase/functions/_shared/immaginiModelloPdf.ts).
+   * - Gli altri otto: company-photo-library, pubblico, dove stanno già logo e
+   *   copertina degli stessi modelli. Le foto dei lavori sono fatte per essere
+   *   mostrate al cliente nel preventivo: un bucket privato obbligherebbe a
+   *   firmarle in otto PDF e nelle anteprime senza nascondere niente che il
+   *   cliente non veda già. Nel modello va l'indirizzo pubblico, che non scade.
+   */
   bucket: string;
   /** Prefisso path upload (es. "abc123/tetti/gallery") — senza slash finale */
   uploadPath: string;

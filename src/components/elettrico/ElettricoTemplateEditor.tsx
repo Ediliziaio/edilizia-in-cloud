@@ -1550,10 +1550,12 @@ export function ElettricoTemplateEditor({ embedded = false }: Props) {
 
           {activeSection === "page_testimonianze" && (
             <SectionCard icon={ImageIcon} title="Gallery lavori" description="Foto di lavori realizzati, mostrate nel PDF.">
+              {/* Nello stesso bucket delle altre immagini del modello: il bucket
+                  "companies" non esiste e ogni foto finiva in errore. */}
               <GalleryLavoriEditor
                 items={(form.gallery_lavori ?? []) as GalleryLavoroItem[]}
                 onChange={(items) => set("gallery_lavori", items)}
-                bucket="companies"
+                bucket={BUCKET}
                 uploadPath={`${companyId}/elettrico/gallery`}
               />
             </SectionCard>
