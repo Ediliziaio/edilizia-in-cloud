@@ -1758,6 +1758,7 @@ serveConMetriche("google-calendar-sync", async (req) => {
     // gateway con verify_jwt: il permesso vero è il segreto.
     if (cronSecretValido(req)) {
       const interno = await req.json();
+      if (interno.action === "cron-full-sync") return cronFullSync();
       if (interno.action === "process-order-queue") return json(await processOrderQueue(interno.companyId ?? null));
       // Notifica push di Google (google-calendar-webhook): rilettura completa
       // del calendario principale di quella connessione.
@@ -1806,18 +1807,11 @@ serveConMetriche("google-calendar-sync", async (req) => {
     const body = await req.json();
     const { action } = body;
 
-    // Cron full-sync. Il controllo e' verify_jwt del gateway: senza un JWT
-    // valido di progetto la richiesta non arriva nemmeno qui.
-    //
-    // Prima c'era un confronto a mano fra il token ricevuto e
-    // SUPABASE_ANON_KEY, e non ha mai lasciato passare nessuno: il job
-    // rispondeva 403 e google_calendar_sync_log e' rimasta vuota dal primo
-    // giorno. Quella variabile, nell'ambiente delle edge function, non
-    // contiene la chiave anon del progetto — e verificarla non proteggeva
-    // comunque niente, visto che la chiave anon e' pubblica e sta nel bundle
-    // JavaScript servito a ogni browser.
+    // Sincronizzazione di tutte le connessioni: solo col segreto interno (ramo
+    // sopra). Prima bastava un JWT del progetto, cioè anche la chiave anon
+    // pubblica: chiunque poteva far partire il giro su tutte le aziende.
     if (action === "cron-full-sync") {
-      return cronFullSync();
+      return json({ error: "Unauthorized for cron" }, 403);
     }
 
     // Service-role calls (from DB trigger): accept userId from body

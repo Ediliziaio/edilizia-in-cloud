@@ -3,6 +3,7 @@ import { getEncryptionKey, encrypt, decrypt } from "../_shared/encryption.ts";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import { corsHeaders, jsonResponse as json } from "../_shared/headers.ts";
 import { puoGestireCalendari } from "../_shared/permessiCalendari.ts";
+import { cronSecretValido } from "../_shared/cronAuth.ts";
 
 function getAdmin() {
   return createClient(
@@ -413,6 +414,9 @@ Deno.serve(async (req) => {
 
   // ── Renew watches (called by cron) ──
   if (action === "renew_watches") {
+    // Solo il job google-calendar-renew-watches-6h: prima nessun controllo,
+    // chiunque poteva far rinnovare i canali di tutte le connessioni.
+    if (!cronSecretValido(req)) return json({ error: "Unauthorized" }, 401);
     const cutoff = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // expiring within 24h
 
     // Canali per calendario (squadre / Posa): stessa scadenza, stessa cadenza.
