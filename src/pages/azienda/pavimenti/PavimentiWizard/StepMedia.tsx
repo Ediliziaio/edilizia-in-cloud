@@ -8,16 +8,14 @@
  *  - riordino su/giù (persistito ricompattando `ordine`)
  *  - elimina con conferma
  *
- * Bucket Storage: `company-photo-library` (PUBLIC, già esistente sul remoto).
- *   Perché non `sr-progetti` (usato da Serramenti): quel bucket è PRIVATO e
- *   richiederebbe una migrazione storage che non possiamo applicare in locale;
- *   inoltre i suoi URL sono firmati a TTL (scadono → il PDF perderebbe le
- *   immagini). `company-photo-library` è invece pubblico in lettura e
- *   company-scoped in scrittura/cancellazione tramite la policy
- *   `(storage.foldername(name))[1] = get_user_company_id(...)`, quindi il path
- *   DEVE iniziare con `{company_id}/…`. Lì salviamo
- *   `{company_id}/pavimenti/{progetto_id}/{uuid}.{ext}` e in
- *   `pav_progetti_media.url` mettiamo l'URL pubblico stabile (ideale per il PDF).
+ * Bucket Storage: `progetti-media`, PRIVATO. Sono foto della casa del cliente,
+ *   render e allegati del suo preventivo: in company-photo-library (pubblico)
+ *   chiunque avesse l'indirizzo li avrebbe aperti, e il bucket si poteva elencare.
+ *   Il path resta `{company_id}/pavimenti/{progetto_id}/{uuid}.{ext}`: le
+ *   policy guardano la prima cartella, l'azienda su cui si lavora. In
+ *   `pav_progetti_media.url` va il riferimento "progetti-media/<path>",
+ *   non un link: si firma quando serve (anteprima qui sotto, PDF in
+ *   usePavimentiPDF), quindi non scade. Vedi src/lib/storage/fileRiservati.ts.
  *
  * Niente setState-in-effect: lo stato locale di editing caption deriva dai
  * dati server tramite `key` sulla riga; gli importi/ordini si ricavano con
@@ -39,6 +37,8 @@ import {
   Building2,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useFileRiservato } from "@/hooks/useFileRiservati";
+import { BUCKET_MEDIA_PROGETTI, riconosciFile, riferimentoFile } from "@/lib/storage/fileRiservati";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -61,7 +61,7 @@ interface Props {
   media: PavProgettoMedia[];
 }
 
-const BUCKET = "company-photo-library";
+const BUCKET = BUCKET_MEDIA_PROGETTI;
 const MAX_FILE_BYTES = 8 * 1024 * 1024; // 8 MB
 const ALLOWED_MIMES = new Set(["image/png", "image/jpeg", "image/webp", "application/pdf"]);
 
@@ -129,8 +129,8 @@ export default function StepMedia({ progettoId, media }: Props) {
           toast.error(`Upload di "${file.name}" fallito`, { description: upErr.message });
           continue;
         }
-        const { data: pub } = supabase.storage.from(BUCKET).getPublicUrl(storagePath);
-        const url = pub.publicUrl;
+        // Nel progetto il riferimento, non un link: il bucket è privato.
+        const url = riferimentoFile(BUCKET, storagePath);
         // Allegati PDF → tipo "allegato", altrimenti default "situazione".
         const tipo = file.type === "application/pdf" ? "allegato" : "situazione";
         try {
@@ -205,9 +205,9 @@ export default function StepMedia({ progettoId, media }: Props) {
     if (!ok) return;
     try {
       await deleteMut.mutateAsync(m.id);
-      // Best-effort: rimuovi anche l'oggetto Storage dal path pubblico.
-      const path = extractStoragePath(m.url);
-      if (path) void supabase.storage.from(BUCKET).remove([path]);
+      // Best-effort: rimuovi anche il file dallo Storage.
+      const file = riconosciFile(m.url);
+      if (file?.bucket === BUCKET) void supabase.storage.from(BUCKET).remove([file.path]);
       toast.success("File eliminato");
     } catch (e) {
       toast.error("Eliminazione non riuscita", {
@@ -319,6 +319,8 @@ function MediaCard({
   const meta = tipoMeta(media.tipo);
   const TipoIcon = meta.icon;
   const pdf = isPdf(media.url);
+  // Il file è nel bucket privato: si mostra col link firmato ("" finché non arriva).
+  const link = useFileRiservato(media.url);
 
   // Caption: stato locale seedato dal valore server tramite `key` sulla riga
   // (vedi sotto). Salvataggio on-blur per non spammare update a ogni tasto.
@@ -331,7 +333,7 @@ function MediaCard({
         <div className="relative aspect-[4/3] overflow-hidden rounded-lg border bg-muted/40">
           {pdf ? (
             <a
-              href={media.url}
+              href={link || undefined}
               target="_blank"
               rel="noopener noreferrer"
               className="flex h-full w-full flex-col items-center justify-center gap-1.5 text-muted-foreground transition-colors hover:bg-muted/60"
@@ -339,14 +341,14 @@ function MediaCard({
               <FileText className="h-9 w-9 text-amber-500" />
               <span className="text-[11px] font-medium">Apri PDF</span>
             </a>
-          ) : (
+          ) : link ? (
             <img
-              src={media.url}
+              src={link}
               alt={media.caption ?? meta.label}
               loading="lazy"
               className="h-full w-full object-cover"
             />
-          )}
+          ) : null}
           <Badge
             variant="outline"
             className={cn("absolute left-1.5 top-1.5 gap-1 text-[10px] backdrop-blur", meta.badge)}
@@ -423,21 +425,4 @@ function MediaCard({
       </CardContent>
     </Card>
   );
-}
-
-/**
- * Ricava lo storage path da un public URL del bucket per la pulizia best-effort.
- * Formato URL: `…/storage/v1/object/public/{bucket}/{path}`. Se non riconosciuto
- * ritorna null (l'oggetto resta nel bucket: tollerabile, niente errori UI).
- */
-function extractStoragePath(url: string): string | null {
-  const marker = `/object/public/${BUCKET}/`;
-  const idx = url.indexOf(marker);
-  if (idx === -1) return null;
-  const raw = url.slice(idx + marker.length).split("?")[0];
-  try {
-    return decodeURIComponent(raw);
-  } catch {
-    return raw;
-  }
 }

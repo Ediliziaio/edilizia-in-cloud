@@ -19,12 +19,26 @@
 import { supabase } from "@/integrations/supabase/client";
 import { BUCKET_IMMAGINI_MODELLO } from "../../../supabase/functions/_shared/immaginiModelloPdf";
 
+/**
+ * Foto e allegati dei progetti di bagni, tetti, elettrico, termoidraulico,
+ * piscine, ristrutturazione, pavimenti e climatizzazione (StepMedia).
+ *
+ * Sono foto della casa del cliente, render e documenti del suo preventivo:
+ * stanno in un contenitore privato e nel progetto c'e' il percorso nudo,
+ * firmato quando serve (anteprima nello step, PDF). Prima finivano in
+ * company-photo-library, pubblico: chiunque avesse l'indirizzo avrebbe aperto
+ * il file, e il contenitore si poteva anche elencare. Un link firmato salvato
+ * nel progetto sarebbe invece scaduto, e il PDF avrebbe perso le foto.
+ */
+export const BUCKET_MEDIA_PROGETTI = "progetti-media";
+
 /** Contenitori che vanno letti con link firmato. */
 export const BUCKET_RISERVATI = [
   "campo-rapportini",
   "campo-firme",
   "documenti-sub",
   ...BUCKET_IMMAGINI_MODELLO,
+  BUCKET_MEDIA_PROGETTI,
 ] as const;
 
 const ORE = 60 * 60;
@@ -49,6 +63,11 @@ export function riconosciFile(valore: string | null | undefined): Riferimento | 
     if (i > 0) return { bucket: v.slice(0, i), path: v.slice(i + 1) };
   }
   return null;
+}
+
+/** Il percorso nudo da salvare per un file di un contenitore riservato. */
+export function riferimentoFile(bucket: string, path: string): string {
+  return `${bucket}/${path.replace(/^\/+/, "")}`;
 }
 
 /**

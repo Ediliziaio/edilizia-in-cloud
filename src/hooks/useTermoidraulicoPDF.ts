@@ -13,16 +13,18 @@
  *    qualunque errore (dati vuoti, render fallito, popup bloccato) produce un
  *    messaggio chiaro all'utente; non "non succede nulla".
  *
- * Le immagini provengono dal bucket PUBLIC `company-photo-library` (URL pubblici
- * stabili), ma le inliniamo comunque a data URL via `toDataUrl` perché react-pdf
- * supporta solo JPG/PNG e alcune foto possono essere WEBP: la conversione canvas
- * le rende sicure per il renderer.
+ * Le immagini del modello (logo, copertina, chi siamo) stanno nel bucket pubblico
+ * `company-photo-library`; foto e allegati del progetto nel bucket privato
+ * `progetti-media`, e si firmano qui prima dell'uso. Tutte si inlineano a data URL
+ * via `toDataUrl` perché react-pdf supporta solo JPG/PNG e alcune foto possono
+ * essere WEBP: la conversione canvas le rende sicure per il renderer.
  */
 import { useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { getIdrTemplatePdf } from "@/hooks/useTermoidraulicoProgetto";
 import { toDataUrl } from "@/lib/serramenti/pdfImageUtils";
+import { eRiferimentoNudo, linkFileRiservati } from "@/lib/storage/fileRiservati";
 import { calcTotaliComputo, type ComputoRigaInput } from "@/lib/termoidraulico/calcoli";
 import { calcDetraibile } from "@/lib/preventivi/incentivi";
 import type {
@@ -235,14 +237,16 @@ async function enrichForPdf(opts: IdrPdfPayload): Promise<IdrPdfEnriched> {
     : null;
 
   // Inline le immagini media (escludi i PDF allegati: non vanno nel render).
+  // Stanno nel bucket privato progetti-media: prima si firmano, con una sola
+  // chiamata, poi si convertono. Una foto che non si riesce a firmare resta fuori.
   const imageMedia = [...media]
-    .filter((m) => !/\.pdf($|\?)/i.test(m.url))
+    .filter((m) => Boolean(m.url) && !/\.pdf($|\?)/i.test(m.url))
     .sort((a, b) => (a.ordine ?? 0) - (b.ordine ?? 0));
-  const inlinedUrls = await mapWithConcurrency(imageMedia, 4, async (m) => toDataUrl(m.url));
-  const inlinedMedia: IdrProgettoMedia[] = imageMedia.map((m, i) => ({
-    ...m,
-    url: inlinedUrls[i] ?? m.url,
-  }));
+  const linkMedia = await linkFileRiservati(imageMedia.map((m) => m.url));
+  const inlinedUrls = await mapWithConcurrency(imageMedia, 4, async (_m, i) => toDataUrl(linkMedia[i]));
+  const inlinedMedia: IdrProgettoMedia[] = imageMedia
+    .map((m, i) => ({ ...m, url: inlinedUrls[i] ?? linkMedia[i] ?? "" }))
+    .filter((m) => m.url && !eRiferimentoNudo(m.url));
 
   return {
     progetto,
