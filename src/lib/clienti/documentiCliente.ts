@@ -7,6 +7,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { problemaFile } from "@/lib/commesse/documentiCommessa";
 import { riduciFile } from "@/lib/commesse/riduciFoto";
+import { caricaMiniatura } from "@/lib/commesse/miniatura";
 
 export const BUCKET_DOCUMENTI_CLIENTE = "customer-documents";
 
@@ -79,6 +80,7 @@ export async function caricaDocumentiCliente(opts: {
         .from(BUCKET_DOCUMENTI_CLIENTE)
         .upload(percorso, file, { contentType: file.type || undefined, upsert: false });
       if (errUpload) throw errUpload;
+      const miniatura = await caricaMiniatura(BUCKET_DOCUMENTI_CLIENTE, percorso, file);
       const { error: errRiga } = await supabase.from("customer_documents" as never).insert({
         company_id: opts.companyId,
         customer_id: opts.customerId,
@@ -88,9 +90,10 @@ export async function caricaDocumentiCliente(opts: {
         file_type: file.type || null,
         file_size: file.size,
         uploaded_by: opts.userId,
+        thumb_path: miniatura,
       } as never);
       if (errRiga) {
-        await supabase.storage.from(BUCKET_DOCUMENTI_CLIENTE).remove([percorso]);
+        await supabase.storage.from(BUCKET_DOCUMENTI_CLIENTE).remove(miniatura ? [percorso, miniatura] : [percorso]);
         throw errRiga;
       }
       caricati++;

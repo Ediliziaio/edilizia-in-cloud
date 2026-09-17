@@ -9,6 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { byteLiberi, chiaveSpazio, useSpazioArchiviazione } from "@/hooks/useSpazioArchiviazione";
 import { riduciFile, fotoDaRidurre } from "@/lib/commesse/riduciFoto";
 import { pdfDaValutare } from "@/lib/commesse/riduciPdf";
+import { caricaMiniatura } from "@/lib/commesse/miniatura";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -104,6 +105,7 @@ export function CaricaDocumentiDialog({
         .from(ATTACHMENTS_BUCKET)
         .upload(percorso, file, { contentType: file.type || undefined });
       if (errUpload) throw errUpload;
+      const miniatura = await caricaMiniatura(ATTACHMENTS_BUCKET, percorso, file);
 
       const visibile = cartellaDi(v.cartellaId)?.visibile_cliente ?? false;
       const { error: errRiga } = await supabase.from("order_attachments").insert({
@@ -115,10 +117,11 @@ export function CaricaDocumentiDialog({
         uploaded_by: user.id,
         visible_to_customer: visibile,
         folder_id: v.cartellaId,
+        thumb_path: miniatura,
       } as never);
       if (errRiga) {
         // Il file senza riga sarebbe invisibile: lo si toglie dallo storage.
-        await supabase.storage.from(ATTACHMENTS_BUCKET).remove([percorso]);
+        await supabase.storage.from(ATTACHMENTS_BUCKET).remove(miniatura ? [percorso, miniatura] : [percorso]);
         throw errRiga;
       }
 

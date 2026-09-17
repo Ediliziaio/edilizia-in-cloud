@@ -10,24 +10,22 @@
  * (es. "orders/<id>/1-scheda.pdf"); le righe vecchie possono contenere un URL
  * intero, gestito dal marker piu' sotto.
  *
- * Anteprime: invece di un elenco di righe tutte uguali, i file diventano riquadri
- * con miniatura reale (immagini) o icona tipizzata, e un clic apre l'anteprima
- * dentro al popup — immagine a schermo o PDF nel visualizzatore del browser —
- * senza costringere a scaricare il file per capire cos'e'.
+ * I file sono riquadri con la miniatura salvata al caricamento (o l'icona del
+ * tipo); un clic scarica il file.
  */
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { FileText, Receipt, Paperclip, Package, Download, ExternalLink, Loader2, FolderOpen } from "lucide-react";
-import { FileThumb, FilePreviewDialog } from "./filePreview";
+import { FileThumb } from "./filePreview";
 import {
-  useSignedUrls, useMiniature, toStoragePath, fmtBytes, fileKind, KIND_LABEL, KIND_TINT,
+  useUrlMiniature, fmtBytes, fileKind, scaricaAllegato, KIND_LABEL, KIND_TINT,
   type PreviewableFile,
 } from "./filePreviewUtils";
 
 import { useIsMobile } from "@/hooks/use-mobile";
-interface FileDoc { id: string; file_name: string; file_url: string; file_type?: string | null; file_size?: number | null }
+interface FileDoc { id: string; file_name: string; file_url: string; file_type?: string | null; file_size?: number | null; thumb_path?: string | null }
 interface FiscalDoc { id: string; numero: string; tipo?: string | null; stato?: string | null; totale_da_pagare?: number | null }
 interface ItemWithFiles { id: string; name?: string | null; attachments?: FileDoc[] | null }
 
@@ -37,8 +35,8 @@ interface Props {
   fatture: FiscalDoc[];
   documenti: FileDoc[];
   items: ItemWithFiles[];
-  /** Apre un allegato commessa (order_attachments) — handler già presente in OrderDetail. */
-  onOpenDocumento: (d: FileDoc) => void;
+  /** Non più usato: cliccando, gli allegati si scaricano. */
+  onOpenDocumento?: (d: FileDoc) => void;
   /** Etichetta tipo allegato commessa. */
   formatDocType?: (d: FileDoc) => string;
   /** Scarica un documento fiscale. */
@@ -74,13 +72,10 @@ function SectionTitle({ icon: Icon, children, count }: { icon: typeof FileText; 
 }
 
 export function OrderFilesDialog({
-  open, onOpenChange, fatture, documenti, items, onOpenDocumento, formatDocType, onDownloadFattura, onDownloadOrderPdf, pdfBusy,
+  open, onOpenChange, fatture, documenti, items, formatDocType, onDownloadFattura, onDownloadOrderPdf, pdfBusy,
 }: Props) {
   const isMobile = useIsMobile();
   const navigate = useNavigate();
-  /** File aperto in anteprima dentro al popup (null = si vede la griglia). */
-  const [preview, setPreview] = useState<FileDoc | null>(null);
-
   const itemsWithFiles = useMemo(
     () => items.filter((i) => (i.attachments?.length ?? 0) > 0),
     [items],
@@ -94,12 +89,8 @@ export function OrderFilesDialog({
     [documenti, itemsWithFiles],
   );
 
-  /** Una firma sola per tutti gli allegati: serve alle miniature e all'anteprima. */
-  const { data: signedByPath = {}, isLoading: signing } = useSignedUrls(
-    allAttachments as unknown as PreviewableFile[], open,
-  );
-  const urlOf = (d: FileDoc): string | undefined => signedByPath[toStoragePath(d.file_url)];
-  const { data: miniature = {} } = useMiniature(allAttachments as unknown as PreviewableFile[], open);
+  const { data: miniature = {} } = useUrlMiniature(allAttachments.map((d) => d.thumb_path), open);
+  const miniaturaDi = (d: FileDoc) => (d.thumb_path ? miniature[d.thumb_path] : undefined);
 
   /** Riquadro file: miniatura vera per le immagini, icona tipizzata per il resto. */
   const FileTile = ({ d }: { d: FileDoc }) => {
@@ -108,12 +99,12 @@ export function OrderFilesDialog({
     return (
       <button
         type="button"
-        onClick={() => setPreview(d)}
+        onClick={() => void scaricaAllegato(d.file_url, d.file_name)}
         title={d.file_name}
         className="group flex flex-col overflow-hidden rounded-lg border bg-card text-left transition-colors hover:border-primary/40 hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <div className="relative flex h-24 items-center justify-center overflow-hidden bg-muted/40 [&>div]:h-full [&>div]:w-full [&>div]:rounded-none [&>div]:border-0">
-          <FileThumb file={d as unknown as PreviewableFile} url={urlOf(d)} thumbUrl={miniature[toStoragePath(d.file_url)]} loading={signing} />
+          <FileThumb file={d as unknown as PreviewableFile} thumbUrl={miniaturaDi(d)} size="tile" />
           <span className={`absolute left-1.5 top-1.5 rounded px-1.5 py-0.5 text-[10px] font-semibold ${KIND_TINT[kind]}`}>
             {KIND_LABEL[kind]}
           </span>
@@ -128,22 +119,6 @@ export function OrderFilesDialog({
     );
   };
 
-  /* ── Anteprima dentro al popup: stesso visualizzatore della card in pagina ── */
-  if (preview) {
-    return (
-      <FilePreviewDialog
-        file={preview as unknown as PreviewableFile}
-        url={urlOf(preview)}
-        open={open}
-        onOpenChange={(v) => { if (!v) setPreview(null); onOpenChange(v); }}
-        onBack={() => setPreview(null)}
-        onDownload={() => onOpenDocumento(preview)}
-        elenco={allAttachments as unknown as PreviewableFile[]}
-        onNavigate={(f) => setPreview(f as unknown as FileDoc)}
-      />
-    );
-  }
-
   /* ── Elenco ──────────────────────────────────────────────────────────────── */
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -153,7 +128,7 @@ export function OrderFilesDialog({
             <FolderOpen className="h-5 w-5 text-primary" /> Documenti e file della commessa
           </DialogTitle>
           <DialogDescription>
-            PDF, fatture, allegati e schede prodotto collegati. Clicca un file per vederlo senza scaricarlo.
+            PDF, fatture, allegati e schede prodotto collegati. Clicca un file per scaricarlo.
           </DialogDescription>
         </DialogHeader>
 

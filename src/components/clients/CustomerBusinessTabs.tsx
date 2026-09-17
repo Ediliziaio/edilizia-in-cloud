@@ -95,6 +95,7 @@ interface CustomerDocumentRow {
   file_type: string | null;
   file_size: number | null;
   created_at: string;
+  thumb_path?: string | null;
 }
 
 interface CustomerEmailConversationRow {
@@ -818,7 +819,7 @@ export function CustomerBusinessTabs({
       const customerDocumentsClient = supabase as unknown as CustomerDocumentsQueryClient;
       const { data, error } = await customerDocumentsClient
         .from("customer_documents")
-        .select("id, document_type, file_name, file_path, file_type, file_size, created_at")
+        .select("id, document_type, file_name, file_path, file_type, file_size, created_at, thumb_path")
         .eq("customer_id", customerId)
         .order("created_at", { ascending: false });
       if (error) throw error;

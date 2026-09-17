@@ -53,8 +53,8 @@ import {
   LayoutGrid,
   List,
 } from "lucide-react";
-import { FileThumb, FilePreviewDialog } from "./filePreview";
-import { useSignedUrls, useMiniature, toStoragePath, fmtBytes, fileKind, KIND_LABEL, KIND_TINT,
+import { FileThumb } from "./filePreview";
+import { useUrlMiniature, toStoragePath, fmtBytes, fileKind, KIND_LABEL, KIND_TINT,
          scaricaAllegato, type PreviewableFile } from "./filePreviewUtils";
 import { CaricaDocumentiDialog } from "./CaricaDocumentiDialog";
 import { useCartelleDocumenti } from "@/hooks/useCartelleDocumenti";
@@ -80,6 +80,8 @@ interface OrderAttachment {
   visible_to_customer: boolean;
   created_at: string;
   folder_id: string | null;
+  /** Miniatura creata al caricamento e salvata accanto al file. */
+  thumb_path?: string | null;
   /** Documento personale del cliente (carta d'identità, CF…): sta sul cliente, qui solo si consulta. */
   daCliente?: { tipo: string };
 }
@@ -162,7 +164,7 @@ export function OrderAttachments({ orderId, editable = true }: OrderAttachmentsP
       if (error) return [];
       return (data ?? []) as unknown as {
         id: string; document_type: string; file_name: string; file_path: string;
-        file_type: string | null; file_size: number | null; created_at: string;
+        file_type: string | null; file_size: number | null; created_at: string; thumb_path: string | null;
       }[];
     },
   });
@@ -178,6 +180,7 @@ export function OrderAttachments({ orderId, editable = true }: OrderAttachmentsP
       visible_to_customer: false,
       created_at: d.created_at,
       folder_id: cartellaCliente,
+      thumb_path: d.thumb_path,
       daCliente: { tipo: d.document_type },
     })),
     [righeCliente, cartellaCliente, orderId],
@@ -240,7 +243,8 @@ export function OrderAttachments({ orderId, editable = true }: OrderAttachmentsP
       if (error) throw error;
       // Il file si toglie dopo la riga: se la riga resta, il file deve restare.
       if (attachment.file_url) {
-        await supabase.storage.from("order-attachments").remove([toStoragePath(attachment.file_url)]);
+        const daTogliere = [toStoragePath(attachment.file_url), ...(attachment.thumb_path ? [attachment.thumb_path] : [])];
+        await supabase.storage.from("order-attachments").remove(daTogliere);
       }
     },
     onSuccess: () => {
@@ -284,21 +288,14 @@ export function OrderAttachments({ orderId, editable = true }: OrderAttachmentsP
     apriCaricamento(Array.from(e.dataTransfer.files), cartellaId);
   };
 
-  const [previewFile, setPreviewFile] = useState<PreviewableFile | null>(null);
-  const { data: firmeCommessa = {}, isLoading: firmaCommessa } = useSignedUrls(
-    attachments as unknown as PreviewableFile[],
-    attachments.length > 0,
-  );
-  const { data: firmeCliente = {}, isLoading: firmaCliente } = useSignedUrls(
-    documentiCliente as unknown as PreviewableFile[],
-    documentiCliente.length > 0,
-    BUCKET_DOCUMENTI_CLIENTE,
-  );
-  const signingUrls = firmaCommessa || firmaCliente;
-  const { data: miniCommessa = {} } = useMiniature(attachments as unknown as PreviewableFile[], attachments.length > 0);
-  const { data: miniCliente = {} } = useMiniature(documentiCliente as unknown as PreviewableFile[], documentiCliente.length > 0, BUCKET_DOCUMENTI_CLIENTE);
-  const miniaturaDi = (a: { file_url: string; daCliente?: unknown }) =>
-    (a.daCliente ? miniCliente : miniCommessa)[toStoragePath(a.file_url)];
+  // Miniature salvate al caricamento: un solo gruppo di URL firmati per bucket.
+  const { data: miniCommessa = {} } = useUrlMiniature(attachments.map((a) => a.thumb_path), attachments.length > 0);
+  const { data: miniCliente = {} } = useUrlMiniature(documentiCliente.map((a) => a.thumb_path), documentiCliente.length > 0, BUCKET_DOCUMENTI_CLIENTE);
+  const miniaturaDi = (a: OrderAttachment) =>
+    a.thumb_path ? (a.daCliente ? miniCliente : miniCommessa)[a.thumb_path] : undefined;
+  const scarica = (a: OrderAttachment) => {
+    void scaricaAllegato(a.file_url, a.file_name, a.daCliente ? BUCKET_DOCUMENTI_CLIENTE : undefined);
+  };
 
   // Elenco o griglia con anteprime: la scelta resta per questo browser.
   const [vista, setVista] = useState<"elenco" | "griglia">(() => {
@@ -308,8 +305,6 @@ export function OrderAttachments({ orderId, editable = true }: OrderAttachmentsP
     setVista(v);
     try { localStorage.setItem("documenti-commessa-vista", v); } catch { /* solo comodità */ }
   };
-  const urlDi = (a: { file_url: string; daCliente?: unknown }) =>
-    (a.daCliente ? firmeCliente : firmeCommessa)[toStoragePath(a.file_url)];
 
   // Una cartella archiviata che contiene ancora file resta nell'elenco.
   const conteggi = useMemo(() => contaPerCartella(tutti), [tutti]);
@@ -535,11 +530,9 @@ export function OrderAttachments({ orderId, editable = true }: OrderAttachmentsP
                     editable={editable}
                     cartelle={cartelle}
                     nomeCartella={selezione === TUTTI || ricerca ? nomeCartella(attachment.folder_id) : null}
-                    signedUrl={urlDi(attachment)}
                     thumbUrl={miniaturaDi(attachment)}
                     vista={vista}
-                    signing={signingUrls}
-                    onPreview={() => setPreviewFile(attachment as unknown as PreviewableFile)}
+                    onPreview={() => scarica(attachment)}
                     onToggleVisibility={(visible) => toggleVisibilityMutation.mutate({ id: attachment.id, visible })}
                     onMove={(folderId) => spostaMutation.mutate({ id: attachment.id, folderId })}
                     onDelete={() => deleteAttachmentMutation.mutate(attachment)}
@@ -557,15 +550,6 @@ export function OrderAttachments({ orderId, editable = true }: OrderAttachmentsP
         </div>
       </CardContent>
 
-      <FilePreviewDialog
-        file={previewFile}
-        url={previewFile ? urlDi(previewFile as unknown as OrderAttachment) : undefined}
-        open={!!previewFile}
-        onOpenChange={(v) => { if (!v) setPreviewFile(null); }}
-        bucket={(previewFile as unknown as OrderAttachment | null)?.daCliente ? BUCKET_DOCUMENTI_CLIENTE : undefined}
-        elenco={visibili as unknown as PreviewableFile[]}
-        onNavigate={setPreviewFile}
-      />
 
       {editable && dialogAperto && (
         <CaricaDocumentiDialog
@@ -588,11 +572,10 @@ interface AttachmentItemProps {
   cartelle: CartellaDocumenti[];
   /** Nome cartella da mostrare sotto il file (vista «Tutti» o ricerca). */
   nomeCartella: string | null;
-  signedUrl?: string;
-  /** Miniatura ridimensionata dal server (solo immagini). */
+  /** URL firmato della miniatura salvata al caricamento. */
   thumbUrl?: string;
-  signing?: boolean;
   vista: "elenco" | "griglia";
+  /** Clic sul file: lo scarica. */
   onPreview: () => void;
   onToggleVisibility: (visible: boolean) => void;
   onMove: (folderId: string | null) => void;
@@ -694,7 +677,7 @@ function AzioniDocumento({
 }
 
 function AttachmentItem(props: AttachmentItemProps) {
-  const { attachment, nomeCartella, signedUrl, thumbUrl, signing, vista, onPreview } = props;
+  const { attachment, nomeCartella, thumbUrl, vista, onPreview } = props;
   const daCliente = attachment.daCliente;
   const file = attachment as unknown as PreviewableFile;
   const kind = fileKind(file);
@@ -707,10 +690,10 @@ function AttachmentItem(props: AttachmentItemProps) {
         <button
           type="button"
           onClick={onPreview}
-          aria-label={`Anteprima di ${attachment.file_name}`}
+          aria-label={`Scarica ${attachment.file_name}`}
           className="relative aspect-[4/3] w-full overflow-hidden bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
         >
-          <FileThumb file={file} url={signedUrl} thumbUrl={thumbUrl} loading={signing} size="tile" />
+          <FileThumb file={file} thumbUrl={thumbUrl} size="tile" />
           <span className={`absolute left-1.5 top-1.5 rounded px-1.5 py-0.5 text-[10px] font-semibold ${KIND_TINT[kind]}`}>
             {KIND_LABEL[kind]}
           </span>
@@ -738,10 +721,10 @@ function AttachmentItem(props: AttachmentItemProps) {
       <button
         type="button"
         onClick={onPreview}
-        aria-label={`Anteprima di ${attachment.file_name}`}
+        aria-label={`Scarica ${attachment.file_name}`}
         className="rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring shrink-0"
       >
-        <FileThumb file={file} url={signedUrl} thumbUrl={thumbUrl} loading={signing} size="sm" />
+        <FileThumb file={file} thumbUrl={thumbUrl} size="sm" />
       </button>
 
       <div className="flex-1 min-w-0">

@@ -96,46 +96,24 @@ export function useSignedUrls(files: PreviewableFile[], enabled: boolean, bucket
   });
 }
 
-/** Immagini che il browser non sa mostrare (HEIC dell'iPhone, TIFF): servono la versione convertita dal server. */
-export function immagineDaConvertire(d: Pick<PreviewableFile, "file_name" | "file_type">): boolean {
-  const ext = (d.file_name.split(".").pop() || "").toLowerCase();
-  const mime = (d.file_type || "").toLowerCase();
-  return ["heic", "heif", "tif", "tiff"].includes(ext) || /hei[cf]|tiff/.test(mime);
-}
-
 /**
- * Miniature delle immagini ridimensionate dal server (Supabase image
- * transformation): 4 KB invece dei 3 MB della foto intera, e le HEIC
- * dell'iPhone diventano visibili anche in Chrome. Mappa percorso → URL.
+ * URL firmati delle miniature salvate accanto ai file (thumb_path), in una
+ * sola chiamata. Mappa thumb_path → URL. Nessuna conversione del server.
  */
-export function useMiniature(files: PreviewableFile[], enabled: boolean, bucket: string = ATTACHMENTS_BUCKET, lato = 240) {
-  const paths = Array.from(new Set(
-    files.filter((f) => fileKind(f) === "image").map((f) => toStoragePath(f.file_url)),
-  )).sort();
+export function useUrlMiniature(percorsi: (string | null | undefined)[], enabled: boolean, bucket: string = ATTACHMENTS_BUCKET) {
+  const paths = Array.from(new Set(percorsi.filter((p): p is string => !!p))).sort();
   return useQuery({
-    queryKey: ["order-files-thumbs", bucket, lato, paths.join("|")],
+    queryKey: ["order-files-thumbs", bucket, paths.join("|")],
     enabled: enabled && paths.length > 0,
     staleTime: 45 * 60 * 1000,
     queryFn: async (): Promise<Record<string, string>> => {
-      const risultati = await Promise.all(paths.map(async (path) => {
-        const { data } = await supabase.storage.from(bucket).createSignedUrl(path, 3600, {
-          transform: { width: lato, height: lato, resize: "cover", quality: 70 },
-        });
-        return [path, data?.signedUrl] as const;
-      }));
+      const { data, error } = await supabase.storage.from(bucket).createSignedUrls(paths, 3600);
+      if (error) return {};
       const map: Record<string, string> = {};
-      risultati.forEach(([p, u]) => { if (u) map[p] = u; });
+      (data ?? []).forEach((r) => { if (r.signedUrl && r.path) map[r.path] = r.signedUrl; });
       return map;
     },
   });
-}
-
-/** Versione grande convertita (per HEIC/TIFF nel visualizzatore). */
-export async function urlImmagineConvertita(fileUrl: string, bucket: string = ATTACHMENTS_BUCKET): Promise<string | null> {
-  const { data } = await supabase.storage.from(bucket).createSignedUrl(toStoragePath(fileUrl), 3600, {
-    transform: { width: 2000, height: 2000, resize: "contain", quality: 85 },
-  });
-  return data?.signedUrl ?? null;
 }
 
 /** Scarica davvero il file (con il suo nome), invece di aprirlo in una scheda. */

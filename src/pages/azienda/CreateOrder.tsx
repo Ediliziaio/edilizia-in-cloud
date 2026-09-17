@@ -55,6 +55,7 @@ import { PendingFilesUpload, type PendingFile } from "@/components/orders/Pendin
 import { useCartelleDocumenti } from "@/hooks/useCartelleDocumenti";
 import { cartellaDelFileInCoda, percorsoDocumento } from "@/lib/commesse/documentiCommessa";
 import { riduciFile } from "@/lib/commesse/riduciFoto";
+import { caricaMiniatura } from "@/lib/commesse/miniatura";
 import { SalespersonSelect } from "@/components/salespeople/SalespersonSelect";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { useTrack, ANALYTICS_EVENTS } from "@/hooks/useTrack";
@@ -926,6 +927,7 @@ function CreateOrderInner() {
               .from("order-attachments")
               .upload(filePath, file, { contentType: file.type || undefined });
             if (uploadError) throw uploadError;
+            const miniatura = await caricaMiniatura("order-attachments", filePath, file);
 
             const { error: dbError } = await supabase
               .from("order_attachments")
@@ -938,9 +940,10 @@ function CreateOrderInner() {
                 uploaded_by: user!.id,
                 visible_to_customer: pf.visibleToCustomer,
                 folder_id: cartellaDelFileInCoda(pf, cartelleDocumenti),
+                thumb_path: miniatura,
               } as never);
             if (dbError) {
-              await supabase.storage.from("order-attachments").remove([filePath]);
+              await supabase.storage.from("order-attachments").remove(miniatura ? [filePath, miniatura] : [filePath]);
               throw dbError;
             }
             uploaded++;

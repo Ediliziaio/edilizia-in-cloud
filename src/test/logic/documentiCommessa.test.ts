@@ -152,3 +152,13 @@ describe("documenti personali del cliente", () => {
     expect(percorsoDocumentoCliente("az", "cl", "identity", "Carta identità.png", 7, 0.25)).toBe("az/cl/identity/7-250000-Carta_identita.png");
   });
 });
+
+import { percorsoMiniatura } from "@/lib/commesse/miniatura";
+
+describe("miniature salvate accanto al file", () => {
+  it("stessa cartella, sottocartella miniature, sempre .jpg", () => {
+    expect(percorsoMiniatura("orders/abc/123-456-Visura.pdf")).toBe("orders/abc/miniature/123-456-Visura.jpg");
+    expect(percorsoMiniatura("az/cl/identity/1-2-ci.fronte.png")).toBe("az/cl/identity/miniature/1-2-ci.fronte.jpg");
+    expect(percorsoMiniatura("file.heic")).toBe("miniature/file.jpg");
+  });
+});

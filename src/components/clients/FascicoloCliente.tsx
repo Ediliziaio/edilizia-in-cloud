@@ -21,7 +21,8 @@ import {
   caricaDocumentiCliente,
   type TipoDocumentoCliente,
 } from "@/lib/clienti/documentiCliente";
-import { fmtBytes } from "@/components/orders/filePreviewUtils";
+import { fmtBytes, scaricaAllegato, useUrlMiniature } from "@/components/orders/filePreviewUtils";
+import { FileThumb } from "@/components/orders/filePreview";
 
 export interface DocumentoClienteRiga {
   id: string;
@@ -31,13 +32,9 @@ export interface DocumentoClienteRiga {
   file_type: string | null;
   file_size: number | null;
   created_at: string;
+  thumb_path?: string | null;
 }
 
-async function apri(percorso: string) {
-  const { data, error } = await supabase.storage.from(BUCKET_DOCUMENTI_CLIENTE).createSignedUrl(percorso, 60 * 5);
-  if (error || !data?.signedUrl) { toast.error("Impossibile aprire il file"); return; }
-  window.open(data.signedUrl, "_blank", "noopener,noreferrer");
-}
 
 export function FascicoloCliente({
   customerId,
@@ -52,6 +49,8 @@ export function FascicoloCliente({
   const qc = useQueryClient();
   const [inCaricamento, setInCaricamento] = useState<TipoDocumentoCliente | null>(null);
   const [daTogliere, setDaTogliere] = useState<DocumentoClienteRiga | null>(null);
+  const { data: miniature = {} } = useUrlMiniature(documenti.map((d) => d.thumb_path), documenti.length > 0, BUCKET_DOCUMENTI_CLIENTE);
+  const scarica = (d: DocumentoClienteRiga) => { void scaricaAllegato(d.file_path, d.file_name, BUCKET_DOCUMENTI_CLIENTE); };
 
   const invalida = () => {
     qc.invalidateQueries({ queryKey: ["customer-documents", customerId] });
@@ -79,7 +78,7 @@ export function FascicoloCliente({
     mutationFn: async (d: DocumentoClienteRiga) => {
       const { error } = await supabase.from("customer_documents" as never).delete().eq("id" as never, d.id as never);
       if (error) throw error;
-      await supabase.storage.from(BUCKET_DOCUMENTI_CLIENTE).remove([d.file_path]);
+      await supabase.storage.from(BUCKET_DOCUMENTI_CLIENTE).remove(d.thumb_path ? [d.file_path, d.thumb_path] : [d.file_path]);
     },
     onSuccess: () => { invalida(); toast.success("Documento tolto"); },
     onError: () => toast.error("Documento non tolto"),
@@ -137,14 +136,21 @@ export function FascicoloCliente({
               {lista.length === 0 ? (
                 <p className="text-[11px] text-muted-foreground">Nessun file</p>
               ) : (
-                <ul className="space-y-0.5">
+                <ul className="space-y-1">
                   {lista.map((d) => (
-                    <li key={d.id} className="flex items-center gap-1 text-[11px]">
-                      <button type="button" onClick={() => void apri(d.file_path)} className="flex-1 min-w-0 truncate text-left hover:underline" title={d.file_name}>
+                    <li key={d.id} className="flex items-center gap-1.5 text-[11px]">
+                      <button type="button" onClick={() => scarica(d)} className="shrink-0 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={`Scarica ${d.file_name}`}>
+                        <FileThumb
+                          file={{ id: d.id, file_name: d.file_name, file_url: d.file_path, file_type: d.file_type, file_size: d.file_size }}
+                          thumbUrl={d.thumb_path ? miniature[d.thumb_path] : undefined}
+                          size="sm"
+                        />
+                      </button>
+                      <button type="button" onClick={() => scarica(d)} className="flex-1 min-w-0 truncate text-left hover:underline" title={d.file_name}>
                         {d.file_name}
                       </button>
                       <span className="text-muted-foreground tabular-nums shrink-0">{fmtBytes(d.file_size)}</span>
-                      <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => void apri(d.file_path)} aria-label={`Apri ${d.file_name}`}>
+                      <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => scarica(d)} aria-label={`Scarica ${d.file_name}`}>
                         <Download className="h-3 w-3" />
                       </Button>
                       <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0 text-destructive" onClick={() => setDaTogliere(d)} aria-label={`Togli ${d.file_name}`}>

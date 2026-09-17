@@ -273,6 +273,7 @@ interface OrderDocumentSummary {
   file_size: number;
   visible_to_customer: boolean;
   created_at: string;
+  thumb_path?: string | null;
 }
 
 interface LinkedFiscalDocument {
@@ -500,12 +501,13 @@ function OrderDetailInner() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_attachments")
-        .select("id, file_name, file_url, file_type, file_size, visible_to_customer, created_at")
+        .select("id, file_name, file_url, file_type, file_size, visible_to_customer, created_at, thumb_path")
         .eq("order_id", id!)
         .order("created_at", { ascending: false })
         .limit(8);
       if (error) throw error;
-      return (data ?? []) as OrderDocumentSummary[];
+      // thumb_path non è ancora nei tipi generati.
+      return (data ?? []) as unknown as OrderDocumentSummary[];
     },
     enabled: !!id && !!user,
     staleTime: 120_000,
