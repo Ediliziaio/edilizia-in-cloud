@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getEncryptionKey, encrypt, decrypt } from "../_shared/encryption.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
+import { puoGestireCalendari } from "../_shared/permessiCalendari.ts";
 
 function json(data: unknown, status = 200, req?: Request) {
   return new Response(JSON.stringify(data), {
@@ -230,19 +231,23 @@ async function handleDisconnect(req: Request, userId: string, companyId: string)
 }
 
 // Handler: lista calendari disponibili
-async function handleListCalendars(req: Request, userId: string, companyId: string): Promise<Response> {
+async function handleListCalendars(req: Request, userId: string, companyId: string, connectionId?: string | null): Promise<Response> {
   const admin = getAdmin();
   const encKey = getEncryptionKey();
 
-  const { data: conn } = await admin
-    .from("apple_calendar_connections")
-    .select("*")
-    .eq("company_id", companyId)
-    .eq("user_id", userId)
-    .maybeSingle();
+  // Con connectionId: l'account Apple scelto nel dialog del calendario, che può
+  // essere di un collega. Prima il parametro era ignorato e si leggeva sempre
+  // l'account di chi chiedeva (o «non connesso»). Come per Google, leggere
+  // l'account di un altro richiede il permesso di gestire i calendari.
+  let query = admin.from("apple_calendar_connections").select("*").eq("company_id", companyId);
+  query = connectionId ? query.eq("id", connectionId) : query.eq("user_id", userId);
+  const { data: conn } = await query.maybeSingle();
 
   if (!conn || conn.status !== "connected") {
     return json({ error: "Apple Calendar non connesso" }, 400, req);
+  }
+  if (conn.user_id !== userId && !(await puoGestireCalendari(admin, userId, companyId))) {
+    return json({ error: "Serve il permesso di gestire i calendari per leggere quelli di un altro account" }, 403, req);
   }
 
   const appPassword = await decrypt(conn.app_password_encrypted, encKey);
@@ -320,7 +325,7 @@ Deno.serve(async (req: Request) => {
     switch (action) {
       case "connect": return handleConnect(req, userId, companyId);
       case "disconnect": return handleDisconnect(req, userId, companyId);
-      case "list-calendars": return handleListCalendars(req, userId, companyId);
+      case "list-calendars": return handleListCalendars(req, userId, companyId, body.connectionId ?? null);
       case "test-connection": return handleTestConnection(req, userId, companyId);
       default: return json({ error: `Azione sconosciuta: ${action}` }, 400, req);
     }

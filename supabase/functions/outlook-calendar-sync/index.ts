@@ -246,6 +246,7 @@ serveConMetriche("outlook-calendar-sync", async (req) => {
   try {
     const body = (await req.json().catch(() => ({}))) as {
       action?: string;
+      companyId?: string;
       calendar_id?: string;
       from?: string;
       to?: string;
@@ -275,27 +276,51 @@ serveConMetriche("outlook-calendar-sync", async (req) => {
     }
 
     const db = admin();
-    const { data: conn } = await db
+    // Un collegamento per azienda: si usa quello dell'azienda attiva.
+    const companyId = typeof body.companyId === "string" && body.companyId ? body.companyId : null;
+    let q = db
       .from("outlook_calendar_connections")
       .select("id, company_id, user_id, primary_calendar_id, synced_calendar_ids")
-      .eq("user_id", user.id)
-      .maybeSingle();
+      .eq("user_id", user.id);
+    if (companyId) q = q.eq("company_id", companyId);
+    const { data: righe } = await q.limit(2);
+    const conn = (righe ?? []).length === 1 ? righe![0] : null;
     if (!conn) {
-      return new Response(JSON.stringify({ error: "Outlook non collegato" }), {
+      return new Response(JSON.stringify({ error: (righe ?? []).length > 1 ? "Indica l'azienda da sincronizzare" : "Outlook non collegato" }), {
         status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
-    const calendarId = body.calendar_id ?? conn.primary_calendar_id;
-    if (!calendarId) {
+    // Tutti i calendari spuntati, come fa il giro automatico. Prima la sync
+    // manuale leggeva solo il principale e ignorava le spunte.
+    let calendari: string[];
+    if (body.calendar_id) {
+      calendari = [body.calendar_id];
+    } else {
+      const { data: agganciati } = await db
+        .from("marketing_calendars")
+        .select("external_calendar_id")
+        .eq("external_connection_id", conn.id)
+        .eq("external_provider", "outlook")
+        .eq("is_active", true);
+      calendari = Array.from(new Set([
+        conn.primary_calendar_id,
+        ...((conn.synced_calendar_ids as string[] | null) ?? []),
+        ...((agganciati ?? []) as Array<{ external_calendar_id: string | null }>).map((a) => a.external_calendar_id),
+      ].filter((x): x is string => !!x)));
+    }
+    if (calendari.length === 0) {
       return new Response(JSON.stringify({ error: "Nessun calendario selezionato" }), {
         status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
-    const synced = await syncConnection(db, conn as ConnRow, calendarId, { from: body.from, to: body.to });
+    let synced = 0;
+    for (const calendarId of calendari) {
+      synced += await syncConnection(db, conn as ConnRow, calendarId, { from: body.from, to: body.to });
+    }
 
-    return new Response(JSON.stringify({ ok: true, synced, calendar_id: calendarId }), {
+    return new Response(JSON.stringify({ ok: true, synced, calendari: calendari.length }), {
       headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
     });
   } catch (e) {

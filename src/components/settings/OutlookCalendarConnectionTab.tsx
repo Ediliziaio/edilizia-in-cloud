@@ -65,18 +65,21 @@ export default function OutlookCalendarConnectionTab() {
   }, []);
 
   const { data: connection, refetch: refetchConnection } = useQuery({
-    queryKey: ["outlook-calendar-connection", userId],
+    queryKey: ["outlook-calendar-connection", companyId, userId],
     queryFn: async () => {
       if (!userId) return null;
       const { data, error } = await supabase
         .from("outlook_calendar_connections")
         .select("id, microsoft_account_email, status, primary_calendar_id, primary_calendar_name, synced_calendar_ids, last_sync_at, last_sync_event_count, last_error")
         .eq("user_id", userId)
+        .eq("company_id", companyId!)
         .maybeSingle();
       if (error) throw error;
       return data as OutlookConnection | null;
     },
-    enabled: !!userId,
+    // Un collegamento per azienda: senza il filtro, con più aziende la
+    // scheda mostrava quello di un'altra.
+    enabled: !!userId && !!companyId,
   });
 
   const isConnected = connection?.status === "connected";
@@ -121,7 +124,7 @@ export default function OutlookCalendarConnectionTab() {
       if (!data || data.source !== "outlook-calendar-oauth") return;
       if (data.status === "ok") {
         toast.success("Outlook Calendar collegato");
-        queryClient.invalidateQueries({ queryKey: ["outlook-calendar-connection", userId] });
+        queryClient.invalidateQueries({ queryKey: ["outlook-calendar-connection"] });
         // Prima sync subito: senza, dopo il collegamento il calendario restava
         // vuoto finche' qualcuno non premeva "Sincronizza".
         setAutoSyncDopoCollegamento(true);
@@ -132,7 +135,7 @@ export default function OutlookCalendarConnectionTab() {
     };
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
-  }, [cleanupPopup, queryClient, userId]);
+  }, [cleanupPopup, queryClient]);
 
   const handleConnect = useCallback(async () => {
     if (!userId) return;
@@ -143,7 +146,7 @@ export default function OutlookCalendarConnectionTab() {
       const res = await fetch(`${supabaseUrl}/functions/v1/outlook-calendar-auth?action=start`, {
         method: "POST",
         headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ companyId }),
       });
       const json = await res.json();
       if (!res.ok || !json.url) throw new Error(json.error ?? "Impossibile avviare OAuth");
@@ -162,7 +165,7 @@ export default function OutlookCalendarConnectionTab() {
       toast.error((e as Error).message);
       setConnecting(false);
     }
-  }, [userId, getAccessToken, cleanupPopup, refetchConnection]);
+  }, [userId, companyId, getAccessToken, cleanupPopup, refetchConnection]);
 
   const [autoSyncDopoCollegamento, setAutoSyncDopoCollegamento] = useState(false);
 
@@ -171,14 +174,14 @@ export default function OutlookCalendarConnectionTab() {
     mutationFn: async () => {
       setSyncing(true);
       const { data, error } = await supabase.functions.invoke("outlook-calendar-sync", {
-        body: {},
+        body: { companyId },
       });
       if (error) throw error;
       return data;
     },
     onSuccess: (data) => {
       toast.success(`Sincronizzazione completata: ${data?.synced ?? 0} eventi`);
-      queryClient.invalidateQueries({ queryKey: ["outlook-calendar-connection", userId] });
+      queryClient.invalidateQueries({ queryKey: ["outlook-calendar-connection"] });
       setSyncing(false);
     },
     onError: (e: Error) => {
@@ -208,7 +211,7 @@ export default function OutlookCalendarConnectionTab() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["outlook-calendar-connection", userId] });
+      queryClient.invalidateQueries({ queryKey: ["outlook-calendar-connection"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -221,7 +224,7 @@ export default function OutlookCalendarConnectionTab() {
       const res = await fetch(`${supabaseUrl}/functions/v1/outlook-calendar-auth?action=disconnect`, {
         method: "POST",
         headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ companyId }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Errore disconnessione");
@@ -229,7 +232,7 @@ export default function OutlookCalendarConnectionTab() {
     },
     onSuccess: () => {
       toast.success("Outlook Calendar scollegato");
-      queryClient.invalidateQueries({ queryKey: ["outlook-calendar-connection", userId] });
+      queryClient.invalidateQueries({ queryKey: ["outlook-calendar-connection"] });
       setDisconnectOpen(false);
     },
     onError: (e: Error) => toast.error(e.message),

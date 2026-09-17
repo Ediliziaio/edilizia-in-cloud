@@ -6,6 +6,7 @@ import { getCorsHeaders, jsonResponse as json } from "../_shared/headers.ts";
 import { serveConMetriche } from "../_shared/withMetrics.ts";
 import { cronSecretValido } from "../_shared/cronAuth.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
+import { puoGestireCalendari } from "../_shared/permessiCalendari.ts";
 // P2-5 nota: questo file usa già AbortSignal.timeout(15000) su tutti i fetch
 // (pattern nativo equivalente a fetchWithTimeout). Nessuna modifica necessaria.
 
@@ -1845,6 +1846,20 @@ serveConMetriche("google-calendar-sync", async (req) => {
     if (token !== serviceRoleKey) {
       if (!(await verifyCompanyAccess(userId, companyId))) {
         return json({ error: "Company mismatch" }, 403);
+      }
+      // Scheda utente (Impostazioni → Utenti → Calendario): chi gestisce i
+      // calendari può rileggere quello di un collega. Prima body.userId era
+      // ignorato e «Sincronizza ora» aggiornava il calendario di chi cliccava.
+      // Solo letture: gli eventi si scrivono sempre come chi li crea.
+      const bersaglio = typeof body.userId === "string" ? body.userId : null;
+      if (bersaglio && bersaglio !== userId && (action === "full-sync" || action === "pull-busy-slots")) {
+        const admin = getSupabaseAdmin();
+        const { data: conn } = await admin.from("google_calendar_connections").select("id").eq("user_id", bersaglio).eq("company_id", companyId).maybeSingle();
+        if (!conn) return json({ error: "Il collega non ha Google Calendar collegato in questa azienda" }, 404);
+        if (!(await puoGestireCalendari(admin, userId, companyId))) {
+          return json({ error: "Serve il permesso di gestire i calendari per sincronizzare quello di un collega" }, 403);
+        }
+        userId = bersaglio;
       }
     }
 

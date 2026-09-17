@@ -21,7 +21,7 @@ export function useOutlookCalendarSync() {
   const userId = user?.id;
 
   const { data: connection } = useQuery({
-    queryKey: ["outlook-calendar-connection", userId],
+    queryKey: ["outlook-calendar-connection", companyId, userId],
     queryFn: async () => {
       if (!companyId || !userId) return null;
       const { data } = await supabase
@@ -44,7 +44,7 @@ export function useOutlookCalendarSync() {
   async function pullBusySlots() {
     if (!companyId || !hasOutlookConnection) return;
     try {
-      const { data, error } = await supabase.functions.invoke("outlook-calendar-sync", { body: {} });
+      const { data, error } = await supabase.functions.invoke("outlook-calendar-sync", { body: { companyId } });
       if (error) throw error;
       return data;
     } catch (e: unknown) {

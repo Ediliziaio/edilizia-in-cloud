@@ -18,6 +18,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getEncryptionKey, encrypt } from "../_shared/encryption.ts";
 import { getCorsHeaders, origineAmmessa } from "../_shared/headers.ts";
 import { creaStateFirmato, leggiStateFirmato } from "../_shared/oauthState.ts";
+import { canAccessCompany } from "../_shared/effectiveCompany.ts";
 import { getMsOAuthCredentials } from "../_shared/msOAuth.ts";
 
 const SCOPES = ["openid", "profile", "offline_access", "User.Read", "Calendars.ReadWrite"].join(" ");
@@ -163,7 +164,7 @@ async function handleCallback(req: Request): Promise<Response> {
       granted_scopes: tokens.scope ? tokens.scope.split(" ") : SCOPES.split(" "),
       status: "connected",
       last_error: null,
-    }, { onConflict: "user_id" })
+    }, { onConflict: "company_id,user_id" })
     .select("id")
     .single();
 
@@ -223,9 +224,15 @@ async function fetchAndCacheCalendars(connectionId: string, accessToken: string)
   }
 }
 
-async function handleDisconnect(req: Request, userId: string, _companyId: string): Promise<Response> {
+async function handleDisconnect(req: Request, userId: string, companyId: string): Promise<Response> {
   const db = admin();
-  await db.from("outlook_calendar_connections").delete().eq("user_id", userId);
+  // Solo il collegamento di questa azienda: con più aziende ognuna ha il suo.
+  const { error } = await db.from("outlook_calendar_connections").delete().eq("user_id", userId).eq("company_id", companyId);
+  if (error) {
+    return new Response(JSON.stringify({ error: "Scollegamento non riuscito" }), {
+      status: 500, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+    });
+  }
   return new Response(JSON.stringify({ ok: true }), {
     headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
   });
@@ -262,17 +269,31 @@ Deno.serve(async (req) => {
   }
 
   const db = admin();
-  const { data: profile } = await db.from("profiles").select("company_id").eq("id", user.id).maybeSingle();
-  if (!profile?.company_id) {
+  // L'azienda attiva della pagina (multi-azienda), come per Google e Apple;
+  // senza, quella del profilo. Prima valeva sempre quella del profilo: da
+  // un'azienda secondaria il collegamento finiva nell'altra.
+  const corpo = (await req.clone().json().catch(() => ({}))) as { companyId?: string };
+  let companyId = typeof corpo.companyId === "string" && corpo.companyId ? corpo.companyId : null;
+  if (!companyId) {
+    const { data: profile } = await db.from("profiles").select("company_id").eq("id", user.id).maybeSingle();
+    companyId = profile?.company_id ?? null;
+  }
+  if (!companyId) {
     return new Response(JSON.stringify({ error: "Azienda non trovata" }), {
       status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+    });
+  }
+  // deno-lint-ignore no-explicit-any
+  if (!(await canAccessCompany(db as any, user.id, companyId))) {
+    return new Response(JSON.stringify({ error: "Accesso all'azienda non consentito" }), {
+      status: 403, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
     });
   }
 
   try {
     switch (action) {
-      case "start": return await handleStart(req, user.id, profile.company_id);
-      case "disconnect": return await handleDisconnect(req, user.id, profile.company_id);
+      case "start": return await handleStart(req, user.id, companyId);
+      case "disconnect": return await handleDisconnect(req, user.id, companyId);
       default:
         return new Response(JSON.stringify({ error: "Unknown action" }), {
           status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
