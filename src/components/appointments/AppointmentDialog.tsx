@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
+import { useMembriMieSquadre } from "@/hooks/useMembriMieSquadre";
 import { toast } from "@/hooks/use-toast";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -405,6 +406,10 @@ export function AppointmentDialog({
   const currentAppointment = appointment ?? initialData ?? null;
   const isEditing = !!currentAppointment?.id;
   const { onlyAssigned, solaLettura } = usePermissions();
+  // Con «Solo i propri» l'appuntamento è di chi lo crea; il responsabile di una
+  // squadra (Impostazioni → Team) lo può dare anche ai membri, di cui vede e
+  // lavora gli appuntamenti.
+  const { data: membriSquadra = [] } = useMembriMieSquadre(open && onlyAssigned);
   // In sola lettura l'appuntamento si consulta: la policy RESTRICTIVE su
   // appointments rifiuterebbe comunque il salvataggio.
   const bloccoTitle = solaLettura ? "Sei in sola lettura" : undefined;
@@ -563,16 +568,18 @@ export function AppointmentDialog({
   });
 
   const assignableUsers = useMemo(() => {
-    if (!isOperationalAppointment) return staffUsers;
     const allowed = new Set(workEmployeeUserIds);
     orderOperationalUserIds.forEach((id) => allowed.add(id));
-    return staffUsers.filter((u) => {
+    const perTipo = !isOperationalAppointment ? staffUsers : staffUsers.filter((u) => {
       if (allowed.has(u.id)) return true;
       const roles = u.roles || [];
       if (roles.includes("employee") || roles.includes("worker") || roles.includes("subcontractor")) return true;
       return roles.length === 0 && workEmployeeUserIds.length === 0 && orderOperationalUserIds.length === 0;
     });
-  }, [isOperationalAppointment, orderOperationalUserIds, staffUsers, workEmployeeUserIds]);
+    if (!onlyAssigned || membriSquadra.length === 0) return perTipo;
+    const ammessi = new Set([user?.id, ...membriSquadra]);
+    return perTipo.filter((u) => ammessi.has(u.id));
+  }, [isOperationalAppointment, orderOperationalUserIds, staffUsers, workEmployeeUserIds, onlyAssigned, membriSquadra, user?.id]);
 
   const selectedDateStr = appointmentDate ? format(appointmentDate, "yyyy-MM-dd") : null;
   const { data: dayAppointments = [] } = useQuery<AvailabilityAppointment[]>({
@@ -1111,7 +1118,7 @@ export function AppointmentDialog({
               placeholder="Nessun assegnatario"
               searchPlaceholder="Cerca operaio, tecnico o subappaltatore..."
               emptyLabel="Nessun assegnatario trovato"
-              disabled={onlyAssigned}
+              disabled={onlyAssigned && membriSquadra.length === 0}
               onChange={(value) => setAssignedTo(value === "none" ? "" : value)}
             />
           </div>

@@ -33,6 +33,7 @@ interface Team {
   name: string;
   description: string | null;
   color: string | null;
+  leader_id: string | null;
   company_id: string;
   created_at: string;
 }
@@ -146,6 +147,7 @@ export default function SettingsTeams() {
   const [formName, setFormName] = useState("");
   const [formDesc, setFormDesc] = useState("");
   const [formColor, setFormColor] = useState(COLORS[0]);
+  const [formLeader, setFormLeader] = useState("");
   const [selectedUserId, setSelectedUserId] = useState("");
   const [activeDragMember, setActiveDragMember] = useState<TeamMember | null>(null);
   const [activeDragTeam, setActiveDragTeam] = useState<Team | null>(null);
@@ -208,6 +210,7 @@ export default function SettingsTeams() {
         name: formName.trim(),
         description: formDesc.trim() || null,
         color: formColor,
+        leader_id: formLeader || null,
       });
       if (error) throw error;
     },
@@ -219,7 +222,7 @@ export default function SettingsTeams() {
     mutationFn: async () => {
       if (!editTeam) return;
       const { error } = await supabase.from("teams")
-        .update({ name: formName.trim(), description: formDesc.trim() || null, color: formColor, updated_at: new Date().toISOString() })
+        .update({ name: formName.trim(), description: formDesc.trim() || null, color: formColor, leader_id: formLeader || null, updated_at: new Date().toISOString() })
         .eq("id", editTeam.id);
       if (error) throw error;
     },
@@ -273,11 +276,16 @@ export default function SettingsTeams() {
   });
 
   function resetForm() {
-    setFormName(""); setFormDesc(""); setFormColor(COLORS[0]);
+    setFormName(""); setFormDesc(""); setFormColor(COLORS[0]); setFormLeader("");
   }
 
   function openEdit(team: Team) {
-    setFormName(team.name); setFormDesc(team.description || ""); setFormColor(team.color || COLORS[0]); setEditTeam(team);
+    setFormName(team.name); setFormDesc(team.description || ""); setFormColor(team.color || COLORS[0]); setFormLeader(team.leader_id || ""); setEditTeam(team);
+  }
+
+  function nomeProfilo(id: string) {
+    const p = companyProfiles.find((x) => x.id === id);
+    return p ? `${p.first_name} ${p.last_name}` : "—";
   }
 
   const getMembersForTeam = useCallback((teamId: string) => allMembers.filter((m) => m.team_id === teamId), [allMembers]);
@@ -416,6 +424,9 @@ export default function SettingsTeams() {
                       </div>
                     </div>
                     {team.description && <p className="text-sm text-muted-foreground mt-1">{team.description}</p>}
+                    {team.leader_id && (
+                      <p className="text-xs text-muted-foreground mt-1">Responsabile: {nomeProfilo(team.leader_id)}</p>
+                    )}
                     <TeamKpiBar membersCount={members.length} color={team.color || COLORS[0]} />
                   </CardHeader>
                   <CardContent className="space-y-3">
@@ -475,6 +486,21 @@ export default function SettingsTeams() {
             <div>
               <Label>Descrizione</Label>
               <Textarea value={formDesc} onChange={(e) => setFormDesc(e.target.value)} placeholder="Descrizione opzionale" rows={2} />
+            </div>
+            <div>
+              <Label>Responsabile</Label>
+              <Select value={formLeader || "_nessuno"} onValueChange={(v) => setFormLeader(v === "_nessuno" ? "" : v)}>
+                <SelectTrigger><SelectValue placeholder="Nessun responsabile" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_nessuno">Nessun responsabile</SelectItem>
+                  {companyProfiles.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>{p.first_name} {p.last_name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Vede e lavora opportunità, contatti e appuntamenti dei membri, anche se ha «Solo i propri».
+              </p>
             </div>
             <div>
               <Label>Colore</Label>
