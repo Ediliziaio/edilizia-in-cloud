@@ -86,6 +86,25 @@ describe("whatsapp-connect · l'account scelto nel popup", () => {
   it("vince il numero delle informazioni di sessione, se è in quell'account", () => {
     expect(sorgente).toMatch(/numeri\.find\(\(n\) => String\(n\.id\) === numeroSuggerito\)/);
   });
+
+  it("legge i permessi dal campo `scope`, come li manda Meta (17/09: con `permission` nessun account trovato)", () => {
+    expect(sorgente).toMatch(/voce\.scope \?\? voce\.permission/);
+    expect(sorgente).not.toMatch(/scope\.permission !== "whatsapp_business_management"/);
+  });
+
+  it("senza indicazione dal popup e con più account, sceglie quello senza altre app iscritte", () => {
+    const pos = sorgente.indexOf("wabaSenzaAltreApp(wabaConcessi");
+    expect(pos).toBeGreaterThan(0);
+    expect(sorgente.lastIndexOf("wabaConcessi.length <= 1", pos)).toBeGreaterThan(0);
+    const corpo = sorgente.split("async function wabaSenzaAltreApp(")[1]?.split("\n}\n")[0] ?? "";
+    expect(corpo).toMatch(/subscribed_apps/);
+    expect(corpo).toMatch(/!== nostraApp/);
+    expect(corpo).toMatch(/liberi\.length === 1/);
+  });
+
+  it("tra più numeri preferisce quello non ancora collegato nel gestionale", () => {
+    expect(sorgente).toMatch(/numeri\.find\(\(n\) => !giaCollegati\.has\(String\(n\.id\)\)\)/);
+  });
 });
 
 describe("readInvokeErrorConDettagli", () => {

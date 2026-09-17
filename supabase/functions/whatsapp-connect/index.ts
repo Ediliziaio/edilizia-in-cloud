@@ -216,26 +216,41 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Tutti gli account WhatsApp che il token può gestire.
-      const granularScopes: Array<{ permission?: string; target_ids?: unknown[] }> =
+      // Tutti gli account WhatsApp che il token può gestire. Meta chiama il
+      // campo `scope`: finché si è letto `permission` (che non esiste) nessun
+      // account veniva trovato e ogni collegamento si fermava qui — il 15 e il
+      // 17/09 per Il Bagno Group, con due account concessi.
+      const granularScopes: Array<{ scope?: string; permission?: string; target_ids?: unknown[] }> =
         debugData.data?.granular_scopes ?? [];
       const wabaConcessi: string[] = [];
-      for (const scope of granularScopes) {
-        if (scope.permission !== "whatsapp_business_management" || !Array.isArray(scope.target_ids)) continue;
-        for (const id of scope.target_ids) {
+      for (const voce of granularScopes) {
+        if ((voce.scope ?? voce.permission) !== "whatsapp_business_management" || !Array.isArray(voce.target_ids)) continue;
+        for (const id of voce.target_ids) {
           if (!wabaConcessi.includes(String(id))) wabaConcessi.push(String(id));
         }
       }
-      // L'account scelto nel popup arriva anche nelle informazioni di sessione
-      // (body.waba_id): se il token lo può gestire vince lui. Prima si prendeva
-      // il primo concesso, e con più account WhatsApp nello stesso portafoglio
-      // (Il Bagno Group: quello pagato da GoHighLevel e uno nuovo) poteva
-      // essere quello sbagliato.
+      // Quale account collegare. L'account scelto nel popup arriva nelle
+      // informazioni di sessione (body.waba_id): se il token lo può gestire
+      // vince lui. Se manca e gli account sono più d'uno (Il Bagno Group: quello
+      // pagato da GoHighLevel e il nuovo) si preferisce quello a cui nessun'altra
+      // app è iscritta: è l'account creato per noi, non quello ancora in uso
+      // presso un altro fornitore. Solo come ultima risorsa, il primo concesso.
       const wabaSuggerito = body.waba_id?.trim() || null;
-      wabaId = wabaSuggerito && wabaConcessi.includes(wabaSuggerito) ? wabaSuggerito : (wabaConcessi[0] ?? null);
+      let sceltaWaba = "suggerito";
+      if (wabaSuggerito && wabaConcessi.includes(wabaSuggerito)) {
+        wabaId = wabaSuggerito;
+      } else if (wabaConcessi.length <= 1) {
+        wabaId = wabaConcessi[0] ?? null;
+        sceltaWaba = "unico";
+      } else {
+        const libero = await wabaSenzaAltreApp(wabaConcessi, accessToken, appId);
+        wabaId = libero ?? wabaConcessi[0];
+        sceltaWaba = libero ? "senza_altre_app" : "primo";
+      }
+      console.log(JSON.stringify({ level: "info", fn: "whatsapp-connect", step: "waba", company_id, waba_id: wabaId, scelta: sceltaWaba, candidati: wabaConcessi, waba_suggerito: wabaSuggerito }));
 
       if (!wabaId) {
-        const permessi = granularScopes.map((s) => `${s.permission}:${(s.target_ids ?? []).join("|")}`);
+        const permessi = granularScopes.map((s) => `${s.scope ?? s.permission}:${(s.target_ids ?? []).join("|")}`);
         logRifiuto("waba", { company_id, waba_suggerito: wabaSuggerito, permessi });
         return new Response(
           JSON.stringify({ error: "Nessun WhatsApp Business Account condiviso da Meta" }),
@@ -261,15 +276,26 @@ Deno.serve(async (req) => {
       }
 
       // Il numero scelto nel popup (informazioni di sessione) se è in questo
-      // account, altrimenti il primo.
+      // account; altrimenti il primo non ancora collegato nel gestionale (dopo
+      // una migrazione l'account contiene anche numeri già collegati, per
+      // esempio quello virtuale usato per crearlo); come ultima risorsa il primo.
       const numeri: Array<{ id?: string; display_phone_number?: string; phone_number?: string; verified_name?: string }> =
         Array.isArray(phonesData.data) ? phonesData.data : [];
       const numeroSuggerito = body.phone_number_id?.trim() || null;
-      const phone = numeri.find((n) => String(n.id) === numeroSuggerito) ?? numeri[0];
+      const { data: righeCollegate } = await supabase
+        .from("ai_whatsapp_numbers")
+        .select("phone_number_id")
+        .eq("company_id", company_id)
+        .is("deleted_at", null);
+      const giaCollegati = new Set((righeCollegate ?? []).map((r: { phone_number_id: string | null }) => String(r.phone_number_id)));
+      const phone = numeri.find((n) => String(n.id) === numeroSuggerito)
+        ?? numeri.find((n) => !giaCollegati.has(String(n.id)))
+        ?? numeri[0];
       if (phone) {
         phoneNumber = phone.display_phone_number || phone.phone_number || null;
         phoneNumberId = phone.id ?? null;
         businessName = phone.verified_name || null;
+        console.log(JSON.stringify({ level: "info", fn: "whatsapp-connect", step: "numeri", company_id, waba_id: wabaId, phone_number_id: phoneNumberId, suggerito: numeroSuggerito, numeri_nel_waba: numeri.length, gia_collegati: numeri.filter((n) => giaCollegati.has(String(n.id))).length }));
       } else if (!numeroSuggerito) {
         // Account condiviso senza numeri: succede quando nel popup il numero non
         // viene aggiunto, per esempio perché Meta lo dà «Non idoneo».
@@ -529,6 +555,29 @@ function erroreMeta(err: unknown): Record<string, unknown> | null {
     error_user_msg: e.error_user_msg ?? null,
     fbtrace_id: e.fbtrace_id ?? null,
   };
+}
+
+// Tra più account WhatsApp concessi, l'unico a cui non è iscritta nessun'altra
+// app (GET /{waba}/subscribed_apps): quello creato per il nostro collegamento,
+// non quello ancora in uso presso un altro fornitore. Null se non è uno solo.
+async function wabaSenzaAltreApp(candidati: string[], accessToken: string, nostraApp: string): Promise<string | null> {
+  const liberi: string[] = [];
+  for (const waba of candidati) {
+    try {
+      const res = await fetch(
+        `https://graph.facebook.com/v21.0/${waba}/subscribed_apps?${new URLSearchParams({ access_token: accessToken })}`,
+      );
+      const dati = await res.json().catch(() => ({}));
+      if (!res.ok || dati?.error) continue;
+      const app: Array<{ whatsapp_business_api_data?: { id?: string }; id?: string }> =
+        Array.isArray(dati?.data) ? dati.data : [];
+      const altre = app.filter((a) => String(a.whatsapp_business_api_data?.id ?? a.id ?? "") !== nostraApp);
+      if (altre.length === 0) liberi.push(waba);
+    } catch {
+      // Un account che non si riesce a leggere non si sceglie a caso.
+    }
+  }
+  return liberi.length === 1 ? liberi[0] : null;
 }
 
 // Registra un numero sul WhatsApp Cloud API (POST /{phone-number-id}/register).
