@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, User, UserPlus, Settings2, DatabaseZap, Briefcase, Users, Headset } from "lucide-react";
+import { Loader2, User, UserPlus, Settings2, DatabaseZap, Briefcase, Users, Headset, Plus } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { TagSelector } from "@/components/marketing/TagSelector";
 import { CustomFieldInput } from "@/components/shared/CustomFieldInput";
@@ -74,7 +74,9 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
   const [selectedContactId, setSelectedContactId] = useState("");
   const [contactSearch, setContactSearch] = useState("");
   const [showNewContact, setShowNewContact] = useState(false);
-  const [newContactName, setNewContactName] = useState("");
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [newContactFirstName, setNewContactFirstName] = useState("");
+  const [newContactLastName, setNewContactLastName] = useState("");
   const [newContactEmail, setNewContactEmail] = useState("");
   const [newContactPhone, setNewContactPhone] = useState("");
 
@@ -123,7 +125,7 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
         setNewContactPhone(data.phone || "");
         // L'auto-nome guarda i risultati della ricerca, dove questo contatto
         // non c'è: il nome dell'opportunità va composto qui.
-        setOppName(data.city ? `${nome} - ${data.city}` : nome);
+        setOppName(nome);
       });
     return () => { annullato = true; };
   }, [open, initialContactId, companyId]);
@@ -166,19 +168,41 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
   // Auto-name from contact
   const selectedContact = contacts.find((c) => c.id === selectedContactId);
 
+  // Il nome dell'opportunità segue nome e cognome del contatto (esistente o
+  // appena scritto), finché non lo si cambia a mano.
   useEffect(() => {
-    if (selectedContact && !nameManuallySet) {
-      const name = `${selectedContact.first_name} ${selectedContact.last_name || ""}`.trim();
-      const autoName = selectedContact.city ? `${name} - ${selectedContact.city}` : name;
-      setOppName(autoName);
+    if (nameManuallySet) return;
+    if (showNewContact) {
+      setOppName(`${newContactFirstName.trim()} ${newContactLastName.trim()}`.trim());
+    } else if (selectedContact) {
+      setOppName(`${selectedContact.first_name ?? ""} ${selectedContact.last_name || ""}`.trim());
     }
-  }, [selectedContactId, selectedContact, nameManuallySet]);
+  }, [selectedContactId, selectedContact, nameManuallySet, showNewContact, newContactFirstName, newContactLastName]);
+
+  // Apre la scheda «nuovo contatto» riportando quello che si era già scritto
+  // nella ricerca: la prima parola è il nome, il resto il cognome.
+  const apriNuovoContatto = () => {
+    const parti = contactSearch.trim().split(/\s+/).filter(Boolean);
+    const sembraContatto = parti.length > 0 && !contactSearch.includes("@") && !/^\+?[0-9\s]+$/.test(contactSearch.trim());
+    setShowNewContact(true);
+    setSelectedContactId("");
+    setShowDropdown(false);
+    if (sembraContatto) {
+      setNewContactFirstName(parti[0]);
+      setNewContactLastName(parti.slice(1).join(" "));
+    } else if (contactSearch.includes("@")) {
+      setNewContactEmail(contactSearch.trim());
+    } else if (contactSearch.trim()) {
+      setNewContactPhone(contactSearch.trim());
+    }
+  };
 
   const resetForm = () => {
     setSelectedContactId("");
     setContactSearch("");
     setShowNewContact(false);
-    setNewContactName("");
+    setNewContactFirstName("");
+    setNewContactLastName("");
     setNewContactEmail("");
     setNewContactPhone("");
     setOppName("");
@@ -268,7 +292,7 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
         toast.error("Non hai i permessi per creare contatti");
         return;
       }
-      if (!newContactName.trim()) {
+      if (!newContactFirstName.trim()) {
         toast.error("Inserisci il nome del contatto");
         return;
       }
@@ -283,9 +307,8 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
         toast.error("Contatto già presente", { description: "Seleziona il contatto esistente per evitare duplicati nel CRM." });
         return;
       }
-      const nameParts = newContactName.trim().split(" ");
-      const firstName = nameParts[0];
-      const lastName = nameParts.slice(1).join(" ") || null;
+      const firstName = newContactFirstName.trim();
+      const lastName = newContactLastName.trim() || null;
 
       const { data: newContact, error } = await supabase
         .from("marketing_contacts")
@@ -301,10 +324,22 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
 
       if (error) { toast.error(error.message); return; }
       contactId = newContact.id;
+      // Se poi l'opportunità non si salva, riprovando si riusa questo contatto
+      // invece di trovarlo «già presente».
+      setSelectedContactId(newContact.id);
+      setShowNewContact(false);
+      setContactSearch(`${firstName} ${lastName ?? ""}`.trim());
+      queryClient.invalidateQueries({ queryKey: ["marketing_contacts_search"] });
     }
 
     if (!contactId) {
-      toast.error("Seleziona o crea un contatto");
+      // Scritto un nome senza sceglierlo: si apre la creazione con quel nome.
+      if (contactSearch.trim() && canEditContacts) {
+        apriNuovoContatto();
+        toast.info("Contatto non trovato", { description: "Completa i dati per crearlo: basta email o telefono." });
+      } else {
+        toast.error("Seleziona o crea un contatto");
+      }
       return;
     }
 
@@ -418,7 +453,6 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
     );
   };
 
-  const [showDropdown, setShowDropdown] = useState(false);
   const searchTrimmed = contactSearch.trim();
 
   const statusOptions = STATUS_OPTIONS;
@@ -445,9 +479,11 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
                   <Label className="text-xs font-medium">
                     Nome del contatto primario <span className="text-red-500">*</span>
                   </Label>
-                  <div className="relative">
+                  {!showNewContact && (
+                  <div className="flex gap-2">
+                  <div className="relative flex-1">
                     <Input
-                      placeholder="Cerca contatto..."
+                      placeholder="Cerca per nome o email..."
                       value={contactSearch}
                       onChange={(e) => {
                         setContactSearch(e.target.value);
@@ -491,14 +527,7 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
                         <button
                           className="w-full text-left px-3 py-2.5 text-sm hover:bg-accent transition-colors flex items-center gap-2 text-primary font-medium border-t"
                           onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => {
-                            setShowNewContact(true);
-                            setSelectedContactId("");
-                            setShowDropdown(false);
-                            if (searchTrimmed) {
-                              setNewContactName(searchTrimmed);
-                            }
-                          }}
+                          onClick={apriNuovoContatto}
                         >
                           <UserPlus className="h-3.5 w-3.5" />
                           + {searchTrimmed || ""} (Crea nuovo contatto)
@@ -506,6 +535,21 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
                       </div>
                     )}
                   </div>
+                  {canEditContacts && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className="h-9 w-9 shrink-0"
+                      onClick={apriNuovoContatto}
+                      title="Crea un nuovo contatto"
+                      aria-label="Crea un nuovo contatto"
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  )}
+                  </div>
+                  )}
                 </div>
 
                 {/* New contact inline form */}
@@ -513,13 +557,15 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
                   <div className="space-y-2 p-3 rounded-lg border border-dashed bg-muted/30">
                     <div className="flex items-center justify-between">
                       <Label className="text-xs font-semibold flex items-center gap-1.5"><UserPlus className="h-3.5 w-3.5" /> Nuovo contatto</Label>
-                      <button className="text-xs text-muted-foreground hover:text-foreground" onClick={() => setShowNewContact(false)}>Annulla</button>
+                      <button type="button" className="text-xs text-muted-foreground hover:text-foreground" onClick={() => setShowNewContact(false)}>Cerca un contatto esistente</button>
                     </div>
-                    <Input placeholder="Nome e cognome *" value={newContactName} onChange={(e) => setNewContactName(e.target.value)} className="h-8 text-sm" />
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      <Input placeholder="Nome *" value={newContactFirstName} onChange={(e) => setNewContactFirstName(e.target.value)} className="h-8 text-sm" autoFocus />
+                      <Input placeholder="Cognome" value={newContactLastName} onChange={(e) => setNewContactLastName(e.target.value)} className="h-8 text-sm" />
                       <Input placeholder="Email" value={newContactEmail} onChange={(e) => setNewContactEmail(e.target.value)} className="h-8 text-sm" type="email" />
                       <Input placeholder="Telefono" value={newContactPhone} onChange={(e) => setNewContactPhone(e.target.value)} className="h-8 text-sm" type="tel" />
                     </div>
+                    <p className="text-[11px] text-muted-foreground">Email o telefono: ne basta uno.</p>
                   </div>
                 )}
 
@@ -561,7 +607,7 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
                   <Input
                     value={oppName}
                     onChange={(e) => { setOppName(e.target.value); setNameManuallySet(true); }}
-                    placeholder="Auto: nome contatto - città"
+                    placeholder="Auto: nome e cognome del contatto"
                     className="h-9 text-sm"
                   />
                 </div>
