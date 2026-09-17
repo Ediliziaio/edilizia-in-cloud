@@ -14,7 +14,7 @@
  * - le edge function firmino solo i file nella cartella dell'azienda del modello.
  */
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   CAMPI_IMMAGINE_FOTOVOLTAICO,
@@ -297,5 +297,40 @@ describe("regole del percorso", () => {
     };
     expect(await firmaImmaginiModello(modello, CAMPI_IMMAGINE_SERRAMENTI, firma, AZIENDA)).toBe(modello);
     expect(chiamato).toBe(false);
+  });
+});
+
+describe("la migrazione riporta a percorso i link già salvati", () => {
+  const file = readdirSync(resolve(RADICE, "supabase/migrations")).find((f) =>
+    f.endsWith("_modelli_pdf_immagini_come_percorso.sql"),
+  );
+  const sql = file ? leggi(`supabase/migrations/${file}`) : "";
+
+  it("scrive con le protezioni di CLAUDE.md e si ferma se resta un link da convertire", () => {
+    expect(file).toBeDefined();
+    expect(sql).toContain("set local lock_timeout = '3s';");
+    expect(sql).toContain("set local statement_timeout = '60s';");
+    expect(sql).toContain("raise exception");
+  });
+
+  it("converte solo i file nella cartella dell'azienda del modello", () => {
+    expect(sql).toContain("|| azienda::text || '/[A-Za-z0-9._/-]+[?]token=[A-Za-z0-9._-]+$'");
+    expect(sql).toMatch(/update public\.sr_template_pdf t[\s\S]*?where concat_ws[\s\S]*?t\.company_id::text \|\| '\/'\);/);
+    expect(sql).toMatch(/update public\.fv_template_pdf t[\s\S]*?where concat_ws[\s\S]*?t\.company_id::text \|\| '\/'\);/);
+  });
+
+  it.each([
+    ["sr_template_pdf", CAMPI_IMMAGINE_SERRAMENTI],
+    ["fv_template_pdf", CAMPI_IMMAGINE_FOTOVOLTAICO],
+  ] as const)("in %s tocca gli stessi campi che il codice firma", (tabella, campi) => {
+    const blocco = sql.match(new RegExp(`update public\\.${tabella} t[\\s\\S]*?;`))?.[0] ?? "";
+    for (const campo of campi.singoli) {
+      expect(blocco).toMatch(new RegExp(`${campo}\\s+= pg_temp\\.immagine_come_percorso\\(t\\.${campo}, t\\.company_id\\)`));
+    }
+    for (const [lista, campo] of campi.liste) {
+      expect(blocco).toMatch(
+        new RegExp(`${lista}\\s+= pg_temp\\.lista_con_percorsi\\(t\\.${lista}, '${campo}', t\\.company_id\\)`),
+      );
+    }
   });
 });
