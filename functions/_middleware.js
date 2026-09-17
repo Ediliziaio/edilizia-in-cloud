@@ -123,6 +123,14 @@ const LEGACY_REDIRECTS = {
   "/termini": "/termini-e-condizioni/",
   "/cookie": "/cookie-policy/",
   "/blog/categoria": "/blog/",
+  // File interni della home, mai pagine da visitare. Google li trova come
+  // stringhe nello script in linea della shell (preload dell'immagine hero:
+  // location.pathname === "/index.html" || "/_home/index.html") e li segnala
+  // in Search Console come «Non trovata (404)». Il prerender della home si
+  // legge con env.ASSETS.fetch, che non passa da questo middleware: il 301
+  // vale solo per chi li chiede da fuori.
+  "/index.html": "/",
+  "/_home/index.html": "/",
 };
 
 // ─── Blog: metadati post a scope modulo ──────────────────────────────────────
