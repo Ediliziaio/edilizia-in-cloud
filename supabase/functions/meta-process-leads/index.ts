@@ -5,6 +5,8 @@ import { decrypt, getEncryptionKey } from "../_shared/encryption.ts";
 
 import { serveConMetriche } from "../_shared/withMetrics.ts";
 import { isLeadArretrato, notaArretrato } from "../_shared/metaLeadArretrato.ts";
+import { filtroSenzaCollegamentiScaduti, MINUTI_CODA_FERMA, minutiDiAttesa } from "../_shared/metaCodaLead.ts";
+import { alertOutreach } from "../_shared/outreachAlert.ts";
 const MAX_RETRIES = 10;
 const BATCH_SIZE = 20;
 
@@ -90,13 +92,53 @@ serveConMetriche("meta-process-leads", async (req) => {
       .lt("locked_at", lockTimeout)
       .not("locked_by", "is", null);
 
-    // Lock a batch of pending events
-    const { data: events } = await adminClient
+    // Gli eventi dei collegamenti col token scaduto aspettano la riconnessione
+    // fuori dal lotto: dentro occupavano i posti di tutti (_shared/metaCodaLead.ts).
+    const { data: collegamentiScaduti } = await adminClient
+      .from("integrations")
+      .select("id")
+      .eq("status", "token_expired");
+    const filtroScaduti = filtroSenzaCollegamentiScaduti(
+      ((collegamentiScaduti ?? []) as Array<{ id: string }>).map((c) => c.id),
+    );
+
+    // Sentinella: un lead mai tentato che aspetta da più di mezz'ora vuol dire
+    // che la coda non scorre. Il cron risulta comunque riuscito, quindi senza
+    // questo avviso nessuno se ne accorge (16/09: undici ore).
+    try {
+      let piuVecchio = adminClient
+        .from("integration_webhook_events")
+        .select("received_at")
+        .eq("status", "pending")
+        .eq("fail_count", 0);
+      if (filtroScaduti) piuVecchio = piuVecchio.or(filtroScaduti);
+      const { data: primo } = await piuVecchio.order("received_at", { ascending: true }).limit(1).maybeSingle();
+      const attesa = minutiDiAttesa(primo?.received_at);
+      if (attesa !== null && attesa > MINUTI_CODA_FERMA) {
+        await alertOutreach(adminClient, {
+          chiave: "lead-meta-coda-ferma",
+          tipo: "lead_coda_ferma",
+          ogniOre: 2,
+          titolo: "Lead Facebook fermi in coda",
+          testo: `Il lead più vecchio in attesa aspetta da ${attesa} minuti: i lead di Facebook delle aziende non stanno entrando nel CRM.`,
+          url: "/admin/aziende",
+        });
+      }
+    } catch (e) {
+      console.warn("meta-process-leads: sentinella della coda non riuscita:", e);
+    }
+
+    // Lock a batch of pending events. Prima i lead mai tentati: uno che fallisce
+    // di continuo non deve passare davanti a quelli appena arrivati.
+    let lotto = adminClient
       .from("integration_webhook_events")
       .select("*")
       .eq("status", "pending")
       .lt("fail_count", MAX_RETRIES)
-      .is("locked_by", null)
+      .is("locked_by", null);
+    if (filtroScaduti) lotto = lotto.or(filtroScaduti);
+    const { data: events } = await lotto
+      .order("fail_count", { ascending: true })
       .order("received_at", { ascending: true })
       .limit(BATCH_SIZE);
 
@@ -179,6 +221,11 @@ serveConMetriche("meta-process-leads", async (req) => {
         // 'pending' senza incrementare fail_count.
         if (error instanceof MetaAuthError) {
           if (event.integration_id) {
+            const { data: prima } = await adminClient
+              .from("integrations")
+              .select("status")
+              .eq("id", event.integration_id)
+              .maybeSingle();
             await adminClient
               .from("integrations")
               .update({
@@ -187,6 +234,28 @@ serveConMetriche("meta-process-leads", async (req) => {
                 last_error_message: message.slice(0, 500),
               })
               .eq("id", event.integration_id);
+            // Da qui i lead di questa azienda aspettano la riconnessione: va
+            // detto subito, non alla scoperta che mancano (Ser Style, 17/09:
+            // scollegata senza che nessuno lo sapesse).
+            if (prima?.status !== "token_expired") {
+              try {
+                const { data: azienda } = await adminClient
+                  .from("companies")
+                  .select("name")
+                  .eq("id", event.company_id)
+                  .maybeSingle();
+                await alertOutreach(adminClient, {
+                  chiave: `lead-meta-scaduto:${event.integration_id}`,
+                  tipo: "lead_collegamento_scaduto",
+                  ogniOre: 24,
+                  titolo: `Facebook scollegato: ${azienda?.name ?? "un'azienda"}`,
+                  testo: "Meta ha rifiutato il collegamento (token scaduto o password cambiata). I lead di questa azienda restano in attesa finché non ricollega Facebook.",
+                  url: "/admin/aziende",
+                });
+              } catch (e) {
+                console.warn("meta-process-leads: avviso collegamento scaduto non inviato:", e);
+              }
+            }
           }
           await adminClient
             .from("integration_webhook_events")

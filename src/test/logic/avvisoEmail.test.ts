@@ -11,6 +11,9 @@ describe("avvisoEmail", () => {
     expect(vaPerEmail("outreach_casella_errore")).toBe(true);
     expect(vaPerEmail("whatsapp_risposta")).toBe(true);
     expect(vaPerEmail("whatsapp_numero_bannato")).toBe(true);
+    // 17/09/2026: anche i lead delle aziende fermi (coda Facebook, collegamento scaduto).
+    expect(vaPerEmail("lead_coda_ferma")).toBe(true);
+    expect(vaPerEmail("lead_collegamento_scaduto")).toBe(true);
     expect(vaPerEmail("prenotazione_nuova")).toBe(false);
   });
 

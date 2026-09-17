@@ -24,11 +24,13 @@ export interface ContenutoAvviso {
 }
 
 /**
- * Vanno per email le risposte e i blocchi dell'outreach e di WhatsApp. Gli
- * altri avvisi della piattaforma (prenotazioni, ecc.) restano su campanella e push.
+ * Vanno per email le risposte e i blocchi dell'outreach e di WhatsApp, e i
+ * blocchi dei lead delle aziende (coda Facebook ferma, collegamento scaduto:
+ * 17/09/2026). Gli altri avvisi della piattaforma (prenotazioni, ecc.) restano
+ * su campanella e push.
  */
 export function vaPerEmail(tipo: string): boolean {
-  return /^(outreach_|whatsapp_)/.test(tipo);
+  return /^(outreach_|whatsapp_|lead_)/.test(tipo);
 }
 
 /** Destinatari da platform_settings: lista JSON, oppure testo separato da virgole, spazi o punti e virgola. */
