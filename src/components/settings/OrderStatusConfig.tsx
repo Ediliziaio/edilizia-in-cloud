@@ -274,8 +274,12 @@ export function OrderStatusConfig() {
       setHasChanges(false);
       toast.success("Salvato: gli stati ordine sono stati aggiornati");
     } catch (error: unknown) {
-      const rawMsg = error instanceof Error ? error.message : "Impossibile salvare le modifiche";
-      let errorMsg = rawMsg;
+      // L'errore di una RPC Supabase è un oggetto con `message`, non un Error:
+      // con instanceof il motivo vero spariva e restava solo il testo generico.
+      const rawMsg =
+        (error && typeof error === "object" && "message" in error && typeof error.message === "string" && error.message)
+        || "Impossibile salvare le modifiche";
+      let errorMsg: string;
 
       // Traduzioni errori dalla RPC
       if (rawMsg.includes("status_in_use")) {
@@ -292,6 +296,8 @@ export function OrderStatusConfig() {
         errorMsg = "Non hai i permessi per modificare gli stati ordine.";
       } else if (rawMsg.includes("almeno 2 stati")) {
         errorMsg = "Sono richiesti almeno 2 stati ordine.";
+      } else {
+        errorMsg = `Impossibile salvare le modifiche: ${rawMsg}`;
       }
 
       toast.error(errorMsg);
