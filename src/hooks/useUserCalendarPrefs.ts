@@ -98,12 +98,13 @@ export function useDisconnectGoogleCalendar(userId: string | undefined, companyI
   return useMutation({
     mutationFn: async () => {
       if (!userId || !companyId) throw new Error("userId e companyId richiesti");
-      const { error } = await supabase
-        .from("google_calendar_connections")
-        .delete()
-        .eq("user_id", userId)
-        .eq("company_id", companyId);
+      // Dalla edge function: revoca il token, toglie canale e slot, e vale
+      // anche per il calendario di un collega (con il permesso sui calendari).
+      const { data, error } = await supabase.functions.invoke("google-calendar-auth", {
+        body: { action: "disconnect", companyId, userId },
+      });
       if (error) throw error;
+      if ((data as { error?: string } | null)?.error) throw new Error((data as { error: string }).error);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["google-calendar-connection", companyId, userId] });

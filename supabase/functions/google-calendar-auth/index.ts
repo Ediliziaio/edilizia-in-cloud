@@ -42,6 +42,20 @@ async function getRedirectUri(): Promise<string> {
 
 // ---- ACTION HANDLERS ----
 
+/** Link di prenotazione libero, con la stessa forma di src/lib/bookingLinks.ts. */
+// deno-lint-ignore no-explicit-any
+async function slugLibero(admin: any, nome: string): Promise<string | null> {
+  const base = nome.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim()
+    .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 72) || "calendario";
+  let candidato = base;
+  for (let tentativo = 0; tentativo < 20; tentativo++) {
+    const { data } = await admin.from("marketing_calendars").select("id").eq("booking_slug", candidato).limit(1);
+    if (!data || data.length === 0) return candidato;
+    candidato = `${base}-${Math.random().toString(36).slice(2, 6)}`;
+  }
+  return null;
+}
+
 async function handleStart(req: Request, userId: string, companyId: string): Promise<Response> {
   const clientId = await getPlatformSetting("google_calendar_client_id", "GOOGLE_CALENDAR_CLIENT_ID");
   if (!clientId) {
@@ -277,7 +291,11 @@ async function handleCallback(req: Request): Promise<Response> {
         if (!displayName) displayName = "Utente";
 
         const calendarName = `Calendario ${displayName}`;
-        const { error: calErr } = await admin
+        // Come un calendario creato dalla pagina: link di prenotazione e orari
+        // di partenza lun-ven 9-18. Prima nasceva senza l'uno e senza gli
+        // altri, e il link pubblico non mostrava nessuna fascia libera.
+        const bookingSlug = await slugLibero(admin, calendarName);
+        const { data: creato, error: calErr } = await admin
           .from("marketing_calendars")
           .insert({
             company_id: state.companyId,
@@ -287,11 +305,26 @@ async function handleCallback(req: Request): Promise<Response> {
             created_by: state.userId,
             is_active: true,
             duration_minutes: 30,
+            booking_slug: bookingSlug,
             ...aggancio,
-          });
-        if (calErr) {
-          console.warn("[google-calendar-auth] auto-create marketing_calendar failed:", calErr.message);
+          })
+          .select("id")
+          .single();
+        if (calErr || !creato) {
+          console.warn("[google-calendar-auth] auto-create marketing_calendar failed:", calErr?.message);
         } else {
+          const { error: orariErr } = await admin.from("marketing_calendar_availability").insert(
+            [0, 1, 2, 3, 4, 5, 6].map((giorno) => ({
+              company_id: state.companyId,
+              calendar_id: creato.id,
+              day_of_week: giorno,
+              start_time: "09:00",
+              end_time: "18:00",
+              is_enabled: giorno >= 1 && giorno <= 5,
+              specific_date: null,
+            })),
+          );
+          if (orariErr) console.warn("[google-calendar-auth] orari di partenza non creati:", orariErr.message);
           console.log(`[google-calendar-auth] auto-created marketing_calendar "${calendarName}" for user ${state.userId}`);
         }
       }
@@ -631,8 +664,20 @@ Deno.serve(async (req) => {
     switch (action) {
       case "start":
         return handleStart(req, userId, companyId);
-      case "disconnect":
-        return handleDisconnect(req, userId, companyId);
+      case "disconnect": {
+        // Scheda utente lato admin: scollegare il calendario di un collega.
+        // Prima la pagina cancellava la riga dal browser: la RLS lo impediva
+        // in silenzio (nessun errore, collegamento ancora lì) e comunque non
+        // si revocava il token né si toglieva il canale Google.
+        const bersaglio = typeof body.userId === "string" && body.userId ? body.userId : userId;
+        if (bersaglio !== userId && !(await puoGestireCalendari(admin, userId, companyId))) {
+          return new Response(JSON.stringify({ error: "Serve il permesso di gestire i calendari per scollegare quello di un collega" }), {
+            status: 403,
+            headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+          });
+        }
+        return handleDisconnect(req, bersaglio, companyId);
+      }
       case "refresh":
         return handleRefresh(req, userId, companyId);
       case "list-calendars":

@@ -93,7 +93,8 @@ export default function AppleCalendarConnectionTab() {
       const { data, error } = await withConnectionTimeout(
         supabase
           .from("apple_calendar_connections")
-          .select("*")
+          // Mai la password cifrata: il database non la concede più al browser.
+          .select("id, company_id, user_id, apple_id_email, caldav_principal_url, caldav_home_url, status, last_sync_at, last_error, ctag, created_at, updated_at")
           .eq("company_id", companyId)
           .eq("user_id", userId)
           .maybeSingle(),

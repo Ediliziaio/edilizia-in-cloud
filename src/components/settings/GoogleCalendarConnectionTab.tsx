@@ -79,7 +79,8 @@ export default function GoogleCalendarConnectionTab() {
       const { data, error } = await withConnectionTimeout(
         supabase
           .from("google_calendar_connections")
-          .select("*")
+          // Mai i token cifrati: il database non li concede più al browser.
+          .select("id, company_id, user_id, google_account_email, google_sub, token_expires_at, status, last_sync_at, last_error, created_at, updated_at, webhook_channel_id, webhook_resource_id, webhook_expiry_at, last_webhook_processed_at, last_sync_source")
           .eq("company_id", companyId)
           .eq("user_id", userId)
           .maybeSingle(),
