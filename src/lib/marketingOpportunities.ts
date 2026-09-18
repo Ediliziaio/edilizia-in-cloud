@@ -158,6 +158,26 @@ export interface FiltriServerOpportunita {
   striscia?: "stallo" | "azioni_scadute";
 }
 
+/**
+ * Le schede già a schermo si possono tenere mentre si carica solo se sono
+ * della STESSA colonna (stessa pipeline, stessa fase).
+ *
+ * 18/09/2026: con `keepPreviousData` secco, cambiando fase — sul telefono si
+ * guarda una colonna per volta — per qualche secondo comparivano sotto «Da
+ * Chiamare» le schede di «Non Risponde 3». Sembravano tornate indietro. Se la
+ * colonna è un'altra è meglio lo scheletro di caricamento che schede sbagliate.
+ *
+ * La chiave è ["marketing-opportunities", tipo, azienda, pipeline, fase, …].
+ */
+export function stessaColonna(
+  chiavePrecedente: readonly unknown[] | undefined,
+  pipelineId: string | null,
+  stageId: string | null,
+): boolean {
+  if (!Array.isArray(chiavePrecedente)) return false;
+  return chiavePrecedente[3] === pipelineId && chiavePrecedente[4] === stageId;
+}
+
 export function filtriPerServer({
   searchQuery = "",
   filters = {},

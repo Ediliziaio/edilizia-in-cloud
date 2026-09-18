@@ -1,4 +1,4 @@
-import { useQuery, useInfiniteQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -9,7 +9,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { withClientTimeout, retryListQuery } from "@/lib/query-timeout";
 import { subscribeChannel } from "@/lib/realtime/subscribeChannel";
-import type { FiltriServerOpportunita } from "@/lib/marketingOpportunities";
+import { stessaColonna, type FiltriServerOpportunita } from "@/lib/marketingOpportunities";
 import { LIMITE_CESTINO, rigaCestino, type OpportunitaNelCestino, type RigaCestinoGrezza } from "@/lib/opportunitaCestino";
 
 export function usePipelines() {
@@ -377,7 +377,10 @@ export function useStageOpportunities({ pipelineId, stageId, filtri, sortField, 
     getNextPageParam: (ultima, _tutte, ultimoDa) =>
       ultima.length === SCHEDE_PER_PAGINA_FASE ? ultimoDa + SCHEDE_PER_PAGINA_FASE : undefined,
     enabled: enabled && !!companyId && !!pipelineId,
-    placeholderData: keepPreviousData,
+    // Solo le schede della stessa colonna: cambiando fase si aspetta, non si
+    // mostrano quelle di prima sotto un'altra intestazione.
+    placeholderData: (precedenti, queryPrecedente) =>
+      stessaColonna(queryPrecedente?.queryKey, pipelineId, stageId) ? precedenti : undefined,
     retry: retryListQuery,
     staleTime: 60_000,
     gcTime: 10 * 60 * 1000,
@@ -401,7 +404,10 @@ export function useOpportunityList({ pipelineId, stageId, filtri, sortField, sor
     getNextPageParam: (ultima, _tutte, ultimoDa) =>
       ultima.length === RIGHE_PER_PAGINA_LISTA ? ultimoDa + RIGHE_PER_PAGINA_LISTA : undefined,
     enabled: enabled && !!companyId && !!pipelineId,
-    placeholderData: keepPreviousData,
+    // Solo le schede della stessa colonna: cambiando fase si aspetta, non si
+    // mostrano quelle di prima sotto un'altra intestazione.
+    placeholderData: (precedenti, queryPrecedente) =>
+      stessaColonna(queryPrecedente?.queryKey, pipelineId, stageId) ? precedenti : undefined,
     retry: retryListQuery,
     staleTime: 60_000,
     gcTime: 10 * 60 * 1000,
@@ -783,12 +789,22 @@ export function useUpdateOpportunityStage() {
         updateData.competitor_won = perdita.concorrente;
       }
 
-      const { error } = await supabase
+      // `.select()` non è un lusso: senza, un aggiornamento che non tocca
+      // NESSUNA riga (permessi, scheda spostata da un collega, id vecchio in
+      // una pagina aperta da ore) tornava «riuscito», la scheda restava nella
+      // colonna nuova per un attimo e poi rimbalzava indietro al primo
+      // ricaricamento — senza che nessuno dicesse niente (BeMade, 18/09).
+      const { data, error } = await supabase
         .from("marketing_opportunities")
         .update({ ...updateData, updated_at: new Date().toISOString() })
         .eq("id", id)
-        .eq("company_id", companyId);
+        .eq("company_id", companyId)
+        .select("id, stage_id");
       if (error) throw error;
+      const riga = (data ?? [])[0] as { stage_id?: string } | undefined;
+      if (!riga || riga.stage_id !== stage_id) {
+        throw new Error("La scheda non si è spostata: ricarica la pagina e riprova.");
+      }
     },
     onMutate: async ({ id, stage_id, pipeline_id, auto_status }) => {
       await queryClient.cancelQueries({ queryKey: queryKeys.opportunities.all });

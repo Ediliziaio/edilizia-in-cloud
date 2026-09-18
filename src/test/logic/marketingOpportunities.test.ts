@@ -5,6 +5,7 @@ import {
   normalizeOpportunityUrlState,
   resolveOpportunityPipelineId,
   sanitizeOpportunitySearchTerm,
+  stessaColonna,
 } from "@/lib/marketingOpportunities";
 
 describe("marketing opportunities helpers", () => {
@@ -173,5 +174,28 @@ describe("filtri per il database (opportunita_filtrate)", () => {
 
   it("«I miei deal» senza utente non filtra (non si vede una pagina vuota)", () => {
     expect(filtriPerServer({ onlyMine: true, currentUserId: null })).toEqual({});
+  });
+});
+
+// 18/09/2026: sul telefono si guarda una colonna per volta. Le schede di prima
+// restano a schermo solo se sono della stessa colonna, altrimenti si vedevano
+// quelle di «Non Risponde 3» sotto «Da Chiamare».
+describe("stessaColonna", () => {
+  const chiave = ["marketing-opportunities", "fase", "azienda-1", "pipe-1", "fase-1", {}, "created_at:desc"] as const;
+
+  it("tiene le schede solo per la stessa pipeline e la stessa fase", () => {
+    expect(stessaColonna(chiave, "pipe-1", "fase-1")).toBe(true);
+    expect(stessaColonna(chiave, "pipe-1", "fase-2")).toBe(false);
+    expect(stessaColonna(chiave, "pipe-2", "fase-1")).toBe(false);
+  });
+
+  it("senza chiave precedente non tiene niente", () => {
+    expect(stessaColonna(undefined, "pipe-1", "fase-1")).toBe(false);
+  });
+
+  it("la vista lista senza fase (tutte le colonne) resta valida", () => {
+    const lista = ["marketing-opportunities", "lista", "azienda-1", "pipe-1", null, {}, "created_at:desc"] as const;
+    expect(stessaColonna(lista, "pipe-1", null)).toBe(true);
+    expect(stessaColonna(lista, "pipe-1", "fase-1")).toBe(false);
   });
 });
