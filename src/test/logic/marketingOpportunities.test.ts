@@ -194,7 +194,7 @@ describe("stessaColonna", () => {
   });
 
   it("la vista lista senza fase (tutte le colonne) resta valida", () => {
-    const lista = ["marketing-opportunities", "lista", "azienda-1", "pipe-1", null, {}, "created_at:desc"] as const;
+    const lista: readonly unknown[] = ["marketing-opportunities", "lista", "azienda-1", "pipe-1", null, {}, "created_at:desc"];
     expect(stessaColonna(lista, "pipe-1", null)).toBe(true);
     expect(stessaColonna(lista, "pipe-1", "fase-1")).toBe(false);
   });
