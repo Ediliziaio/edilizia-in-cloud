@@ -53,6 +53,12 @@ verify_jwt = false
 [functions.outreach-imap-poll]
 verify_jwt = false
 
+# Riepilogo giornaliero dell'outreach al titolare (cron 05:30 UTC): email
+# partite, risposte, rimbalzi, coda e caselle ferme, per brand. Auth
+# x-cron-secret == PROACTIVE_CRON_SECRET o service role.
+[functions.outreach-riepilogo]
+verify_jwt = false
+
 # Warm-up caselle (cron): le caselle del pool si scambiano email di riscaldamento.
 # Auth x-cron-secret == PROACTIVE_CRON_SECRET o service role.
 [functions.outreach-warmup]

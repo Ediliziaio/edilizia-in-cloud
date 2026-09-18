@@ -17,6 +17,7 @@ import { getCorsHeaders } from "../_shared/headers.ts";
 import { normalizeInbound, isSnsSubscriptionConfirmation } from "../_shared/outreach-inbound-logic.ts";
 import { classifyDeliveryEvent, shouldPauseSender, type DeliveryEvent } from "../_shared/outreach-reputation.ts";
 import { handleInboundReply } from "../_shared/outreach-reply-handler.ts";
+import { idsCitati, scegliInvio, testoInvito, type InvioFatto } from "../_shared/outreachRispostaBrand.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -73,22 +74,48 @@ Deno.serve(async (req) => {
       .eq("company_id", PLATFORM_COMPANY).ilike("email", norm.fromEmail).maybeSingle();
     const contactId = contact?.id ?? null;
 
-    // 6. Enrollment attivo per quel contatto?
+    // 6. A quale invio — e quindi a quale BRAND — sta rispondendo? Stessa
+    // scelta del poller IMAP (_shared/outreachRispostaBrand): header citato,
+    // poi la casella a cui è arrivata, poi il brand di quella casella.
     let enrollmentId: string | null = null;
+    let brandId: string | null = null;
+    let senderAccountId: string | null = null;
+    let invito: string | null = null;
     if (contactId) {
-      const { data: enr } = await supabase
-        .from("outreach_enrollments").select("id")
-        .eq("company_id", PLATFORM_COMPANY).eq("contact_id", contactId).eq("status", "active").maybeSingle();
-      enrollmentId = enr?.id ?? null;
+      if (norm.toEmail) {
+        const { data: mb } = await supabase.from("outreach_sender_accounts")
+          .select("id, brand_id").ilike("email", norm.toEmail).limit(1).maybeSingle();
+        senderAccountId = mb?.id ?? null;
+        brandId = mb?.brand_id ?? null;
+      }
+      const { data: invii } = await supabase.from("outreach_send_queue")
+        .select("enrollment_id, brand_id, sender_account_id, message_id, sent_at")
+        .eq("company_id", PLATFORM_COMPANY).eq("contact_id", contactId).eq("status", "sent")
+        .order("sent_at", { ascending: false }).limit(50);
+      const scelta = scegliInvio((invii ?? []) as InvioFatto[], {
+        casellaId: senderAccountId,
+        brandCasella: brandId,
+        citati: idsCitati(norm.inReplyTo, (norm.headers?.references ?? "").split(/\s+/)),
+      });
+      enrollmentId = scelta?.invio.enrollment_id ?? null;
+      if (!brandId) brandId = scelta?.invio.brand_id ?? null;
+      invito = testoInvito(scelta, norm.toEmail);
+      if (!enrollmentId) {
+        const { data: enr } = await supabase
+          .from("outreach_enrollments").select("id")
+          .eq("company_id", PLATFORM_COMPANY).eq("contact_id", contactId).eq("status", "active").limit(1).maybeSingle();
+        enrollmentId = enr?.id ?? null;
+      }
     }
 
     // 7. Gestisci la risposta (inbox + intent + stop sequenza + opt-out).
     // Logica condivisa col poller IMAP (outreach-imap-poll): _shared/outreach-reply-handler.
     await handleInboundReply(supabase, {
-      contactId, enrollmentId,
+      contactId, enrollmentId, brandId, senderAccountId, invito,
       from: norm.fromEmail, subject: norm.subject ?? "", text: norm.snippet ?? "",
       messageId: norm.messageId,
       headers: norm.headers,
+      casella: norm.toEmail,
     });
 
     return json({ ok: true, matched: !!contactId, stopped: !!enrollmentId }, 200, cors);

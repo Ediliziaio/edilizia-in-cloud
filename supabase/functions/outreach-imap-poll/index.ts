@@ -23,6 +23,7 @@ import { getCorsHeaders } from "../_shared/headers.ts";
 import { imapFetchUnreadSince, imapCuraWarmup, type ImapConfig } from "../_shared/imapSmtpClient.ts";
 import { matchReplyToContact, type KnownContact } from "../_shared/outreach-reply-match.ts";
 import { rilasciaLock, handleInboundReply } from "../_shared/outreach-reply-handler.ts";
+import { idsCitati, scegliInvio, scegliIscrizione, testoInvito, type InvioFatto } from "../_shared/outreachRispostaBrand.ts";
 import { parseBounce, type BounceInfo } from "../_shared/outreach-bounce.ts";
 import { htmlToPlainText } from "../_shared/outreach-template.ts";
 import { shouldAutoPause } from "../_shared/outreach-dispatch-logic.ts";
@@ -36,7 +37,7 @@ const PLATFORM_COMPANY = "00000000-0000-0000-0000-000000000001";
 const DAY_MS = 86_400_000;
 const PER_MAILBOX = 30;
 
-interface Casella { id: string; email: string }
+interface Casella { id: string; email: string; brand_id?: string | null }
 interface MsgIn {
   messageId: string | null;
   from: string;
@@ -157,10 +158,54 @@ async function processa(admin: any, mb: Casella, msg: MsgIn, poolEmails?: Set<st
     (cands ?? []) as KnownContact[],
   );
   if (!match) return "ignorato";
-  const { data: enr } = await admin.from("outreach_enrollments").select("id")
-    .eq("company_id", PLATFORM_COMPANY).eq("contact_id", match.id).eq("status", "active").limit(1).maybeSingle();
+
+  // A QUALE BRAND ha risposto (18/09/2026). Lo stesso contatto può essere
+  // iscritto a tutti e tre i servizi: prendere la prima iscrizione attiva
+  // faceva scrivere nell'avviso un brand che non gli aveva mai scritto. Si
+  // parte dagli invii veri a quell'indirizzo — header citato, poi questa
+  // casella, poi il brand della casella.
+  const { data: invii } = await admin.from("outreach_send_queue")
+    .select("enrollment_id, brand_id, sender_account_id, message_id, sent_at")
+    .eq("company_id", PLATFORM_COMPANY).eq("contact_id", match.id).eq("status", "sent")
+    .order("sent_at", { ascending: false }).limit(50);
+  const scelta = scegliInvio((invii ?? []) as InvioFatto[], {
+    casellaId: mb.id,
+    brandCasella: mb.brand_id ?? null,
+    citati: idsCitati(msg.inReplyTo, msg.references),
+  });
+  // L'header è la prova; poi vale la casella che ha ricevuto, perché chi
+  // risponde risponde proprio a quell'indirizzo.
+  let brandId = (scelta?.motivo === "header" ? scelta.invio.brand_id : null)
+    ?? (mb.brand_id ?? null) ?? (scelta?.invio.brand_id ?? null);
+  let enrollmentId = scelta?.invio.enrollment_id ?? null;
+  if (!enrollmentId) {
+    // Nessun invio in coda (coda ripulita, o risposta girata a mano): si
+    // ripiega sulle iscrizioni vive, preferendo il brand della casella.
+    const { data: enrs } = await admin.from("outreach_enrollments")
+      .select("id, sequence_id, enrolled_at")
+      .eq("company_id", PLATFORM_COMPANY).eq("contact_id", match.id).in("status", ["active", "paused"]);
+    const righe = (enrs ?? []) as Array<{ id: string; sequence_id: string | null; enrolled_at: string | null }>;
+    const seqIds = [...new Set(righe.map((e) => e.sequence_id).filter(Boolean))] as string[];
+    const brandDiSequenza = new Map<string, string | null>();
+    if (seqIds.length) {
+      const { data: seqs } = await admin.from("outreach_sequences").select("id, brand_id").in("id", seqIds);
+      for (const sq of (seqs ?? []) as Array<{ id: string; brand_id: string | null }>) brandDiSequenza.set(sq.id, sq.brand_id);
+    }
+    const iscrizione = scegliIscrizione(
+      righe.map((e) => ({
+        id: e.id,
+        brandId: e.sequence_id ? brandDiSequenza.get(e.sequence_id) ?? null : null,
+        iscrittoIl: e.enrolled_at,
+      })),
+      mb.brand_id ?? null,
+    );
+    enrollmentId = iscrizione?.id ?? null;
+    if (!brandId) brandId = iscrizione?.brandId ?? null;
+  }
+
   await handleInboundReply(admin, {
-    contactId: match.id, enrollmentId: enr?.id ?? null,
+    contactId: match.id, enrollmentId,
+    brandId, senderAccountId: mb.id, invito: testoInvito(scelta, mb.email),
     from: msg.from, subject: msg.subject, text: msg.text, messageId: msg.messageId, headers: msg.headers,
     casella: mb.email,
   });
@@ -195,7 +240,7 @@ serveConMetriche("outreach-imap-poll", async (req) => {
     // A. Caselle SMTP con IMAP (attive O in warm-up), connessione sana.
     const { data: smtpBoxes, error: mErr } = await admin
       .from("outreach_sender_accounts")
-      .select("id, email, imap_host, imap_port, imap_secure, smtp_username, secret_ref, last_imap_check_at, last_imap_uid")
+      .select("id, email, brand_id, imap_host, imap_port, imap_secure, smtp_username, secret_ref, last_imap_check_at, last_imap_uid")
       .eq("provider", "smtp").in("status", ["active", "warming"]).eq("connection_status", "ok")
       .not("imap_host", "is", null);
     if (mErr) throw mErr;
@@ -243,7 +288,7 @@ serveConMetriche("outreach-imap-poll", async (req) => {
     // B. Caselle Gmail/Outlook (OAuth): la posta e' gia' in email_inbox.
     const { data: oauthBoxes, error: oErr } = await admin
       .from("outreach_sender_accounts")
-      .select("id, email, oauth_connection_id, last_imap_check_at")
+      .select("id, email, brand_id, oauth_connection_id, last_imap_check_at")
       .in("provider", ["gmail", "outlook"]).in("status", ["active", "warming"])
       .not("oauth_connection_id", "is", null);
     if (oErr) throw oErr;

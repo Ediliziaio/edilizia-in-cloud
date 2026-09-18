@@ -42,6 +42,12 @@ export interface InboundReply {
   headers?: InboundHeaders;
   /** La casella che ha ricevuto la risposta (poll IMAP), per l'avviso al titolare. */
   casella?: string | null;
+  /** Il brand a cui ha risposto, deciso da chi legge la posta (outreachRispostaBrand). */
+  brandId?: string | null;
+  /** La casella che ha ricevuto, per id: resta scritta sulla risposta. */
+  senderAccountId?: string | null;
+  /** «sì, scritta il 14/09/2026 da info@…» — la verifica dell'invito, già in italiano. */
+  invito?: string | null;
 }
 
 const INTENTO_IN_CHIARO: Record<string, string> = {
@@ -72,21 +78,27 @@ async function avvisaRisposta(admin: any, r: InboundReply, fromEmail: string, in
     }
     let brand = "";
     let flusso = "";
+    // Il brand lo decide chi ha letto la posta (la casella che ha ricevuto);
+    // dalla sequenza si prende solo il nome del flusso, e il brand come ripiego.
+    let brandId = r.brandId ?? null;
     if (r.enrollmentId) {
       const { data: e } = await admin.from("outreach_enrollments").select("sequence_id").eq("id", r.enrollmentId).maybeSingle();
       if (e?.sequence_id) {
         const { data: s } = await admin.from("outreach_sequences").select("name,brand_id").eq("id", e.sequence_id).maybeSingle();
         flusso = s?.name ?? "";
-        if (s?.brand_id) {
-          const { data: b } = await admin.from("outreach_brands").select("name").eq("id", s.brand_id).maybeSingle();
-          brand = b?.name ?? "";
-        }
+        if (!brandId) brandId = s?.brand_id ?? null;
       }
+    }
+    if (brandId) {
+      const { data: b } = await admin.from("outreach_brands").select("name").eq("id", brandId).maybeSingle();
+      brand = b?.name ?? "";
     }
     const chi = azienda || nome || fromEmail;
     await avvisaSuperAdmin(admin, {
       tipo: "outreach_risposta_email",
-      titolo: `Risposta email da ${chi}`,
+      // Il brand nell'oggetto: tre servizi diversi, e la prima cosa da sapere
+      // aprendo la mail è per chi ha risposto questa persona.
+      titolo: brand ? `${brand} · Risposta email da ${chi}` : `Risposta email da ${chi}`,
       testo: snippetFrom(r.text, 160) ?? "(risposta senza testo)",
       url: "/admin/marketing?tab=posta",
       tag: `outreach-risposta-${r.messageId ?? fromEmail}`,
@@ -101,6 +113,7 @@ async function avvisaRisposta(admin: any, r: InboundReply, fromEmail: string, in
           { etichetta: "Brand", valore: brand },
           { etichetta: "Flusso", valore: flusso },
           { etichetta: "Casella", valore: r.casella ?? "" },
+          { etichetta: "Invito verificato", valore: r.invito ?? "" },
           { etichetta: "Oggetto", valore: r.subject ?? "" },
           { etichetta: "Intento", valore: intent ? (INTENTO_IN_CHIARO[intent] ?? intent) : "da classificare" },
         ],
@@ -141,10 +154,12 @@ export async function handleInboundReply(admin: any, r: InboundReply): Promise<v
 
   // 1. Scrivi la risposta nell'inbox. Per le autorisposte fissiamo subito
   // intent='auto_reply' sulla riga (niente classificazione AII a seguire).
-  const { data: inserted, error: insErr } = await admin.from("outreach_replies").insert({
+  const riga: Record<string, unknown> = {
     company_id: PLATFORM_COMPANY,
     contact_id: r.contactId,
     enrollment_id: r.enrollmentId ?? null,
+    brand_id: r.brandId ?? null,
+    sender_account_id: r.senderAccountId ?? null,
     channel: "email",
     from_email: fromEmail,
     subject: r.subject ?? null,
@@ -161,7 +176,14 @@ export async function handleInboundReply(admin: any, r: InboundReply): Promise<v
       text: r.text ?? null,
       auto_reply: autoReply,
     },
-  }).select("id").single();
+  };
+  let { data: inserted, error: insErr } = await admin.from("outreach_replies").insert(riga).select("id").single();
+  if (insErr && /brand_id|sender_account_id/.test(String(insErr.message ?? ""))) {
+    // Funzione deployata prima della migrazione: la risposta si salva lo stesso.
+    delete riga.brand_id;
+    delete riga.sender_account_id;
+    ({ data: inserted, error: insErr } = await admin.from("outreach_replies").insert(riga).select("id").single());
+  }
   if (insErr) throw insErr;
 
   // Autorisposta: ci fermiamo qui. La sequenza prosegue (nessuno stop), nessuna
