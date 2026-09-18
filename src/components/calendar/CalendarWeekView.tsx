@@ -17,7 +17,7 @@ import { Card } from "@/components/ui/card";
 import { ChevronLeft, ChevronRight, Hammer, Package, Wrench, CalendarClock, Check, Loader2, Settings } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { APPOINTMENT_ICONS, DEFAULT_CALENDAR_EVENT_COLORS, getCalendarEventStyle, mapAppointmentToEditData, type CalendarEventColors } from "@/lib/calendarUtils";
+import { APPOINTMENT_ICONS, DEFAULT_CALENDAR_EVENT_COLORS, getCalendarEventStyle, mapAppointmentToEditData, appuntamentoAnnullato, type CalendarEventColors } from "@/lib/calendarUtils";
 import { EditOrderDatesDialog } from "./EditOrderDatesDialog";
 import { AppointmentDialog, type AppointmentData } from "@/components/appointments/AppointmentDialog";
 import { supabase } from "@/integrations/supabase/client";
@@ -373,7 +373,7 @@ export function CalendarWeekView({
           {apt.appointment_time && (
             <span className="font-medium">{apt.appointment_time.slice(0, 5)}</span>
           )}
-          <span className="truncate">{apt.title}</span>
+          <span className={cn("truncate", appuntamentoAnnullato(apt.status) && "line-through opacity-70")}>{apt.title}</span>
           {isSynced && <Check className="h-3 w-3 shrink-0 text-green-600" />}
           {apt.is_completed && <Check className="h-3 w-3 shrink-0 text-green-600" />}
         </div>

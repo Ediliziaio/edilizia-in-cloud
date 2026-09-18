@@ -881,12 +881,37 @@ async function reconcileCalendario(
     }
   }
 
-  // Clean up mappings for events deleted on Google
+  // Evento sparito da Google: l'appuntamento NON si cancella, diventa
+  // «annullato» e resta nello storico (richiesta di Il Bagno Group, 18/09/2026:
+  // il cliente toglie l'evento dal calendario e prima in EiC non restava niente
+  // da vedere). Si guarda solo la finestra letta qui sopra: un appuntamento
+  // fuori da -7/+60 giorni non è "sparito", semplicemente non è stato chiesto.
+  const giornoMin = timeMin.slice(0, 10);
+  const giornoMax = timeMax.slice(0, 10);
   for (const [gId, mapping] of mappingsByGoogleId.entries()) {
-    if (!seenGoogleIds.has(gId)) {
-      await admin.from("google_calendar_event_map").delete().eq("id", mapping.id);
-      removed++;
+    if (seenGoogleIds.has(gId)) continue;
+    const { data: apt } = await admin
+      .from("appointments")
+      .select("id, appointment_date, status, internal_notes")
+      .eq("id", mapping.appointment_id)
+      .maybeSingle();
+    const riga = apt as { id: string; appointment_date: string | null; status: string | null; internal_notes: string | null } | null;
+    const dentroFinestra = !!riga?.appointment_date && riga.appointment_date >= giornoMin && riga.appointment_date <= giornoMax;
+    if (!riga || !dentroFinestra) continue;
+
+    if (!["annullato", "cancelled", "completato"].includes(String(riga.status ?? ""))) {
+      const nota = `Annullato il ${new Date().toLocaleDateString("it-IT")}: l'evento è stato eliminato da Google Calendar.`;
+      await admin
+        .from("appointments")
+        .update({
+          status: "annullato",
+          cancelled_at: new Date().toISOString(),
+          internal_notes: riga.internal_notes ? `${riga.internal_notes}\n${nota}` : nota,
+        })
+        .eq("id", riga.id);
     }
+    await admin.from("google_calendar_event_map").delete().eq("id", mapping.id);
+    removed++;
   }
 
   return { created, updated, removed };

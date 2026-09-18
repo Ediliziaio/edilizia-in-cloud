@@ -217,3 +217,12 @@ export function mapAppointmentToEditData(apt: CalendarAppointment): AppointmentD
     lng: apt.lng ?? null,
   };
 }
+
+/**
+ * Un appuntamento annullato non sparisce dal calendario: resta, barrato e
+ * sbiadito, così si vede che quel posto era occupato e non lo è più
+ * (richiesta di Il Bagno Group, 18/09/2026).
+ */
+export function appuntamentoAnnullato(stato?: string | null): boolean {
+  return ["annullato", "cancelled", "canceled"].includes(String(stato ?? "").toLowerCase());
+}

@@ -677,14 +677,19 @@ export default function MarketingAppointmentDialog({
     }
   };
 
+  // Annulla, non elimina: resta nello storico come «annullato» (si ritrova nel
+  // filtro «Annullati» della lista) e viene tolto dai calendari esterni.
   const handleDelete = async () => {
     if (!appointment?.id || !companyId) return;
     setSaving(true);
     try {
       await syncDeletedAppointment(appointment.id);
-      const { error } = await supabase.from("appointments").delete().eq("id", appointment.id).eq("company_id", companyId);
+      const { error } = await supabase
+        .from("appointments")
+        .update({ status: "annullato", cancelled_at: new Date().toISOString(), cancelled_by: user?.id ?? null })
+        .eq("id", appointment.id).eq("company_id", companyId);
       if (error) throw error;
-      toast({ title: "Appuntamento eliminato" });
+      toast({ title: "Appuntamento annullato", description: "Resta nello storico, segnato come annullato." });
       onSaved();
       onOpenChange(false);
     } catch (e: unknown) {
@@ -1253,7 +1258,7 @@ export default function MarketingAppointmentDialog({
             {isEditing && (
               <Button variant="destructive" onClick={() => setDeleteConfirmOpen(true)} disabled={saving || solaLettura} title={bloccoTitle} size="sm">
                 <Trash2 className="h-4 w-4 mr-1" aria-hidden="true" />
-                Elimina
+                Annulla
               </Button>
             )}
 
@@ -1301,19 +1306,20 @@ export default function MarketingAppointmentDialog({
     <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitleComp>Elimina appuntamento</AlertDialogTitleComp>
+          <AlertDialogTitleComp>Annulla appuntamento</AlertDialogTitleComp>
           <AlertDialogDesc>
-            Sei sicuro di voler eliminare questo appuntamento? L'azione non è reversibile.
+            L'appuntamento resta nello storico segnato come «annullato» e viene tolto dai
+            calendari collegati (Google, Apple). Lo ritrovi nel filtro «Annullati».
           </AlertDialogDesc>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={saving}>Annulla</AlertDialogCancel>
+          <AlertDialogCancel disabled={saving}>Torna indietro</AlertDialogCancel>
           <AlertDialogAction
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             onClick={handleDelete}
             disabled={saving}
           >
-            {saving ? "Eliminazione..." : "Elimina"}
+            {saving ? "Annullamento..." : "Annulla l'appuntamento"}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { ChevronLeft, ChevronRight, Hammer, Package, Wrench, CalendarClock, Check, Car, Settings, type LucideIcon } from "lucide-react";
 import { useOperativeTravelLegs } from "@/hooks/useOperativeTravelLegs";
 import { cn } from "@/lib/utils";
-import { APPOINTMENT_ICONS, DEFAULT_CALENDAR_EVENT_COLORS, getCalendarEventStyle, mapAppointmentToEditData, type CalendarEventColors } from "@/lib/calendarUtils";
+import { APPOINTMENT_ICONS, DEFAULT_CALENDAR_EVENT_COLORS, getCalendarEventStyle, mapAppointmentToEditData, appuntamentoAnnullato, type CalendarEventColors } from "@/lib/calendarUtils";
 import { AppointmentDialog, type AppointmentData } from "@/components/appointments/AppointmentDialog";
 import { EditOrderDatesDialog } from "./EditOrderDatesDialog";
 import { toast } from "sonner";
@@ -420,7 +420,7 @@ export function CalendarDayView({
                       >
                         <Icon className="h-3.5 w-3.5 shrink-0" />
                         <span className="font-medium">{apt.appointment_time?.slice(0, 5)}</span>
-                        <span className="truncate">{apt.title}</span>
+                        <span className={cn("truncate", appuntamentoAnnullato(apt.status) && "line-through opacity-70")}>{apt.title}</span>
                         {(apt.is_completed || isSynced) && <Check className="h-3.5 w-3.5 shrink-0 text-green-600 ml-auto" />}
                       </div>
                     </div>

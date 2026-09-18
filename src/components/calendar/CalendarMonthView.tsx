@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { DEFAULT_CALENDAR_EVENT_COLORS, hasLogisticRisk, rischioPagamenti, getEmployeeInitials, WEEK_DAYS_IT, APPOINTMENT_ICONS, mapAppointmentToEditData, type CalendarEventColors } from "@/lib/calendarUtils";
+import { DEFAULT_CALENDAR_EVENT_COLORS, hasLogisticRisk, rischioPagamenti, getEmployeeInitials, WEEK_DAYS_IT, APPOINTMENT_ICONS, mapAppointmentToEditData, appuntamentoAnnullato, type CalendarEventColors } from "@/lib/calendarUtils";
 import { formatCurrency } from "@/lib/formatters";
 import { EditOrderDatesDialog } from "./EditOrderDatesDialog";
 import type { CalendarOrder, CalendarAppointment, GoogleBusySlot, ApprovedLeave, CalendarWarehouseInfo, CalendarIntervento, CalendarManutenzione } from "@/types/calendar";
@@ -453,7 +453,7 @@ export function CalendarMonthView({
                               style={{ backgroundColor: event.color }}
                             >
                               <AptIcon className="h-3 w-3 flex-shrink-0" />
-                              <span className="truncate font-medium">{apt.title}</span>
+                              <span className={cn("truncate font-medium", appuntamentoAnnullato(apt.status) && "line-through opacity-70")}>{apt.title}</span>
                               {isSynced && <Check className="h-3 w-3 flex-shrink-0 text-green-200" />}
                             </button>
                           </TooltipTrigger>

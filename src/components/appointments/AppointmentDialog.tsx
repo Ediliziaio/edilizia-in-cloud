@@ -968,17 +968,23 @@ export function AppointmentDialog({
     }
   };
 
+  // Annulla, non elimina: l'appuntamento resta nello storico come «annullato»
+  // e sparisce solo dai calendari esterni. Prima la riga veniva cancellata e
+  // di quell'appuntamento non restava traccia da nessuna parte (18/09/2026).
   const handleDelete = async () => {
     if (!currentAppointment?.id) return;
     setSaving(true);
     try {
-      // Fire-and-forget Google delete before CRM delete
+      // Fire-and-forget Google delete: l'evento esterno va comunque tolto.
       if (hasAnyCompanyGoogleConnection) {
         gcalDelete(currentAppointment.id).catch(() => {});
       }
-      const { error } = await supabase.from("appointments").delete().eq("id", currentAppointment.id);
+      const { error } = await supabase
+        .from("appointments")
+        .update({ status: "annullato", cancelled_at: new Date().toISOString(), cancelled_by: user?.id ?? null })
+        .eq("id", currentAppointment.id);
       if (error) throw error;
-      toast({ title: "Appuntamento eliminato" });
+      toast({ title: "Appuntamento annullato", description: "Resta nello storico, segnato come annullato." });
       if (onDeleted) onDeleted();
       else onSaved();
       onOpenChange(false);
@@ -1350,7 +1356,7 @@ export function AppointmentDialog({
           {isEditing && (
             <Button variant="destructive" onClick={handleDelete} disabled={saving || solaLettura} title={bloccoTitle} className="sm:mr-auto">
               <Trash2 className="h-4 w-4 mr-2" />
-              Elimina
+              Annulla appuntamento
             </Button>
           )}
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
