@@ -33,12 +33,12 @@ import { syncTagsToOpportunities, removeTagFromOpportunities } from "@/hooks/use
 import { exportToCSV, exportToXLSX } from "@/lib/csvExport";
 import { useContactCustomFields } from "@/hooks/useOpportunityDetailData";
 import { ContactFieldsSheet } from "@/components/marketing/ContactFieldsSheet";
-import { ContactFiltersSheet, type ContactFilters, type FilterRule, type FilterGroup, EMPTY_CONTACT_FILTERS, countActiveContactFilters, type PipelineWithStages } from "@/components/marketing/ContactFiltersSheet";
+import { ContactFiltersSheet, type ContactFilters, EMPTY_CONTACT_FILTERS, countActiveContactFilters, type PipelineWithStages } from "@/components/marketing/ContactFiltersSheet";
 import { usePermissions } from "@/hooks/usePermissions";
 import { queryKeys } from "@/lib/queryKeys";
 import { perOgniLotto, raccogliALotti, sommaALotti } from "@/lib/lottiDiId";
 import {
-  buildContactDateRange,
+  regoleGruppiPerIlDatabase,
   normalizeContactsUrlState,
   sanitizeContactSearchTerm,
   toggleContactsPageSelection,
@@ -48,62 +48,6 @@ import { getAddedTags, getRemovedTags, normalizeTagList } from "@/lib/marketingT
 
 import { useIsMobile } from "@/hooks/use-mobile";
 // Map filter field keys to actual DB columns
-const FIELD_TO_COLUMN: Record<string, string> = {
-  name: "first_name", // special handling
-  email: "email",
-  phone: "phone",
-  company_name: "company_name",
-  source: "source",
-  city: "city",
-  province: "province",
-  region: "region",
-  created_at: "created_at",
-  last_activity_at: "last_activity_at",
-  attr_source: "attr_source",
-  attr_campaign: "attr_campaign",
-};
-
-function applyRuleToQuery(query: any, rule: FilterRule) {
-  const column = FIELD_TO_COLUMN[rule.field];
-  if (!column) return query;
-
-  const isName = rule.field === "name";
-  const isDate = rule.field === "created_at" || rule.field === "last_activity_at";
-  const value = sanitizeContactSearchTerm(rule.value);
-  const dateRange = isDate ? buildContactDateRange(value) : null;
-
-  switch (rule.operator) {
-    case "is":
-      if (isDate) {
-        if (!dateRange) return query;
-        return query.gte(column, dateRange.start).lt(column, dateRange.endExclusive);
-      }
-      if (isName) {
-        const n = `%${value}%`;
-        return query.or(`first_name.ilike.${n},last_name.ilike.${n}`);
-      }
-      return query.ilike(column, `%${value}%`);
-    case "is_not":
-      if (isDate) {
-        if (!dateRange) return query;
-        return query.or(`${column}.lt.${dateRange.start},${column}.gte.${dateRange.endExclusive},${column}.is.null`);
-      }
-      if (isName) {
-        const n = `%${value}%`;
-        return query.not("first_name", "ilike", n).not("last_name", "ilike", n);
-      }
-      return query.not(column, "ilike", `%${value}%`);
-    case "is_empty":
-      if (isDate) return query.is(column, null);
-      return query.or(`${column}.is.null,${column}.eq.`);
-    case "is_not_empty":
-      if (isDate) return query.not(column, "is", null);
-      return query.not(column, "is", null).neq(column, "");
-    default:
-      return query;
-  }
-}
-
 const CSV_FIELDS: ImportField[] = [
   { key: "first_name", label: "Nome", required: true },
   { key: "last_name", label: "Cognome", required: false },
@@ -701,103 +645,6 @@ export default function MarketingContacts() {
   }, [companyId, activeTab, search, pageSize, sortField, sortDirection, filters, stalePreset, qualityFilter]);
 
   // Helper: apply a single group's rules to get matching contact IDs
-  async function applyGroupRules(group: FilterGroup, companyId: string): Promise<string[] | null> {
-    const rules = group.rules.filter((r) => {
-      if (r.operator === "is_empty" || r.operator === "is_not_empty") return true;
-      return r.value.trim().length > 0;
-    });
-    if (rules.length === 0) return null;
-
-    const standardRules: FilterRule[] = [];
-    const tagRules: FilterRule[] = [];
-    const oppRules: FilterRule[] = [];
-    const cfRules: FilterRule[] = [];
-
-    for (const rule of rules) {
-      if (rule.field === "tags") tagRules.push(rule);
-      else if (rule.field.startsWith("opp_")) oppRules.push(rule);
-      else if (rule.field.startsWith("cf_")) cfRules.push(rule);
-      else if (FIELD_TO_COLUMN[rule.field]) standardRules.push(rule);
-    }
-
-    // Opp filter → contact_ids
-    let oppContactIds: string[] | null = null;
-    if (oppRules.length > 0) {
-      let oppQuery = supabase.from("marketing_opportunities").select("contact_id").eq("company_id", companyId);
-      for (const rule of oppRules) {
-        if (rule.field === "opp_status") {
-          if (rule.operator === "is") oppQuery = oppQuery.eq("status", sanitizeContactSearchTerm(rule.value));
-          else if (rule.operator === "is_not") oppQuery = oppQuery.neq("status", sanitizeContactSearchTerm(rule.value));
-        } else if (rule.field === "opp_stage") {
-          if (rule.operator === "is") oppQuery = oppQuery.eq("stage_id", sanitizeContactSearchTerm(rule.value));
-          else if (rule.operator === "is_not") oppQuery = oppQuery.neq("stage_id", sanitizeContactSearchTerm(rule.value));
-        } else if (rule.field.startsWith("opp_pipeline_")) {
-          const pipelineId = rule.field.replace("opp_pipeline_", "");
-          if (rule.operator === "is") oppQuery = oppQuery.eq("pipeline_id", pipelineId);
-          else if (rule.operator === "is_not") oppQuery = oppQuery.neq("pipeline_id", pipelineId);
-        }
-      }
-      const { data: oppData, error: oppError } = await oppQuery;
-      if (oppError) throw oppError;
-      oppContactIds = [...new Set((oppData || []).map((o) => o.contact_id))];
-      if (oppContactIds.length === 0) return [];
-    }
-
-    // CF filter → contact_ids (AND within group)
-    let cfContactIds: string[] | null = null;
-    if (cfRules.length > 0) {
-      const sets: Set<string>[] = [];
-      for (const rule of cfRules) {
-        const fieldId = rule.field.replace("cf_", "");
-        let cfQuery = supabase.from("marketing_contact_field_values").select("contact_id").eq("field_id", fieldId);
-        switch (rule.operator) {
-          case "is": cfQuery = cfQuery.ilike("value", `%${sanitizeContactSearchTerm(rule.value)}%`); break;
-          case "is_not": cfQuery = cfQuery.not("value", "ilike", `%${sanitizeContactSearchTerm(rule.value)}%`); break;
-          case "is_empty": cfQuery = cfQuery.or("value.is.null,value.eq."); break;
-          case "is_not_empty": cfQuery = cfQuery.not("value", "is", null).neq("value", ""); break;
-        }
-        const { data: cfData, error: cfError } = await cfQuery;
-        if (cfError) throw cfError;
-        sets.push(new Set((cfData || []).map((r) => r.contact_id)));
-      }
-      // AND: intersect all sets
-      let result = sets[0];
-      for (let i = 1; i < sets.length; i++) {
-        result = new Set([...result].filter((id) => sets[i].has(id)));
-      }
-      cfContactIds = [...result];
-      if (cfContactIds.length === 0) return [];
-    }
-
-    // Intersect opp + cf (AND)
-    let filterIds: string[] | null;
-    if (oppContactIds && cfContactIds) {
-      const cfSet = new Set(cfContactIds);
-      filterIds = oppContactIds.filter((id) => cfSet.has(id));
-      if (filterIds.length === 0) return [];
-    } else {
-      filterIds = oppContactIds || cfContactIds;
-    }
-
-    // Now query contacts with standard + tag rules
-    let query = supabase.from("marketing_contacts").select("id").eq("company_id", companyId);
-    if (permissions.onlyAssigned && idAgente) {
-      query = query.or(filtroSoloMiei(idAgente));
-    }
-    if (filterIds) query = query.in("id", filterIds);
-    for (const rule of standardRules) query = applyRuleToQuery(query, rule);
-    for (const rule of tagRules) {
-      const tagValue = sanitizeContactSearchTerm(rule.value);
-      if (rule.operator === "is") query = query.overlaps("tags", [tagValue]);
-      else if (rule.operator === "is_not") query = query.not("tags", "cs", `{${tagValue}}`);
-      else if (rule.operator === "is_empty") query = query.or("tags.is.null,tags.eq.{}");
-      else if (rule.operator === "is_not_empty") query = query.not("tags", "is", null).not("tags", "eq", "{}");
-    }
-    const { data, error } = await query;
-    if (error) throw error;
-    return (data || []).map((r) => r.id);
-  }
-
   // ── I filtri attivi, applicati a una query qualsiasi ───────────────────
   // Stessa logica per l'elenco, l'esportazione e la selezione di tutti i
   // risultati. Prima erano due copie che divergevano: quella dell'esportazione
@@ -831,18 +678,36 @@ export default function MarketingContacts() {
     return query;
   }, [permissions.onlyAssigned, idAgente, meseRange, sourceFilter, qualityFilter, stalePresetActive, stalePreset, search]);
 
-  /** Gli id che passano i gruppi dei filtri avanzati; null se non ce ne sono. */
-  const idsDeiGruppiAttivi = useCallback(async (): Promise<string[] | null> => {
-    if (!companyId) return null;
-    const gruppi = filters.groups.filter((g) => g.rules.length > 0);
-    if (gruppi.length === 0) return null;
-    if (gruppi.length === 1) return await applyGroupRules(gruppi[0], companyId);
-    // Più gruppi = unione, valutati in parallelo.
-    const uniti = new Set<string>();
-    const elenchi = await Promise.all(gruppi.map((g) => applyGroupRules(g, companyId)));
-    for (const ids of elenchi) if (ids !== null) ids.forEach((id) => uniti.add(id));
-    return [...uniti];
-  }, [companyId, filters.groups]);
+  /** I gruppi dei filtri avanzati nel formato che capisce il database. */
+  const regoleDeiGruppiAttivi = useCallback(() => regoleGruppiPerIlDatabase(filters.groups), [filters.groups]);
+
+  /**
+   * Da dove arrivano i contatti: la tabella, oppure — se ci sono filtri
+   * avanzati a gruppi — la funzione del database che li valuta.
+   *
+   * Prima i gruppi venivano risolti qui nel browser in un elenco di id da
+   * rimandare indietro nella query: il database non restituisce più di mille
+   * righe per volta, quindi i gruppi vedevano al massimo mille contatti su
+   * novantaseimila, senza dirlo a nessuno.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sorgenteContatti = useCallback((colonne: string, conConteggio = false): any => {
+    const gruppi = regoleDeiGruppiAttivi();
+    if (gruppi) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (supabase as any)
+        .rpc(
+          "marketing_contatti_dei_gruppi",
+          { p_company: companyId, p_gruppi: gruppi },
+          conConteggio ? { count: "exact" } : undefined,
+        )
+        .select(colonne);
+    }
+    return supabase
+      .from("marketing_contacts")
+      .select(colonne, conConteggio ? { count: "exact" } : undefined)
+      .eq("company_id", companyId!);
+  }, [companyId, regoleDeiGruppiAttivi]);
 
   // ── Seleziona tutti i risultati, non solo la pagina ────────────────────
   // Serviva per agire su migliaia di contatti: prima la casella in testa alla
@@ -854,26 +719,21 @@ export default function MarketingContacts() {
     if (!companyId || selezionandoTutti) return;
     setSelezionandoTutti(true);
     try {
-      const idsGruppi = await idsDeiGruppiAttivi();
-      if (idsGruppi && idsGruppi.length === 0) {
-        toast.info("Nessun contatto corrisponde ai filtri");
-        return;
-      }
       const PAGINA = 1000;
       const raccolti = new Set<string>();
       for (let da = 0; raccolti.size < LIMITE_SELEZIONE; da += PAGINA) {
-        let query = supabase
-          .from("marketing_contacts")
-          .select("id")
-          .eq("company_id", companyId)
+        let query = sorgenteContatti("id")
           .order(sortField, { ascending: sortDirection === "asc" })
           .range(da, da + PAGINA - 1);
-        if (idsGruppi) query = query.in("id", idsGruppi);
         query = applicaFiltriCorrenti(query);
         const { data, error } = await query;
         if (error) throw error;
         (data ?? []).forEach((r: { id: string }) => raccolti.add(r.id));
         if ((data?.length ?? 0) < PAGINA) break;
+      }
+      if (raccolti.size === 0) {
+        toast.info("Nessun contatto corrisponde ai filtri");
+        return;
       }
       setSelectedIds(raccolti);
       toast.success(
@@ -886,26 +746,16 @@ export default function MarketingContacts() {
     } finally {
       setSelezionandoTutti(false);
     }
-  }, [companyId, selezionandoTutti, idsDeiGruppiAttivi, applicaFiltriCorrenti, sortField, sortDirection]);
+  }, [companyId, selezionandoTutti, sorgenteContatti, applicaFiltriCorrenti, sortField, sortDirection]);
 
   const doExport = useCallback(async (format: "csv" | "xlsx") => {
     if (!companyId || exporting) return;
     setExporting(true);
     try {
       // C'è una selezione? Si esporta quella. Altrimenti tutto ciò che passa
-      // i filtri attivi, con le stesse regole dell'elenco.
-      let finalIds: string[] | null = null;
-
-      if (selectedIds.size > 0) {
-        finalIds = [...selectedIds];
-      } else {
-        finalIds = await idsDeiGruppiAttivi();
-        if (finalIds && finalIds.length === 0) {
-          setExporting(false);
-          toast.info("Nessun contatto corrisponde ai filtri");
-          return;
-        }
-      }
+      // i filtri attivi, con le stesse regole dell'elenco (i gruppi dei filtri
+      // avanzati sono già dentro la sorgente).
+      const finalIds: string[] | null = selectedIds.size > 0 ? [...selectedIds] : null;
 
       // Le righe. Con un elenco di id si va a lotti: `.in(...)` sta nell'URL
       // e i 25.000 id di «Seleziona tutti» non ci entrano. Senza elenco, a
@@ -916,10 +766,7 @@ export default function MarketingContacts() {
 
       if (finalIds) {
         allRows = await raccogliALotti<string, any>(finalIds, async (lotto) => {
-          let query = supabase
-            .from("marketing_contacts")
-            .select(COLONNE)
-            .eq("company_id", companyId)
+          let query = sorgenteContatti(COLONNE)
             .order("created_at", { ascending: false })
             .in("id", lotto);
           query = applicaFiltriCorrenti(query);
@@ -931,10 +778,7 @@ export default function MarketingContacts() {
         let page = 0;
         let hasMore = true;
         while (hasMore) {
-          let query = supabase
-            .from("marketing_contacts")
-            .select(COLONNE)
-            .eq("company_id", companyId)
+          let query = sorgenteContatti(COLONNE)
             .order("created_at", { ascending: false })
             .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
 
@@ -1037,7 +881,7 @@ export default function MarketingContacts() {
     } finally {
       setExporting(false);
     }
-  }, [companyId, exporting, selectedIds, contactCustomFields, applicaFiltriCorrenti, idsDeiGruppiAttivi, activeTab]);
+  }, [companyId, exporting, selectedIds, contactCustomFields, applicaFiltriCorrenti, sorgenteContatti, activeTab]);
 
   // Consolidated filter data query (pipelines, tags, list count)
   const { data: filterData } = useQuery({
@@ -1121,15 +965,12 @@ export default function MarketingContacts() {
     queryFn: async () => {
       if (!companyId) return { contacts: [] as MarketingContact[], count: 0 };
 
-      // Gli id che passano i filtri avanzati (null = nessun gruppo attivo).
-      const finalIds = await idsDeiGruppiAttivi();
-      if (finalIds && finalIds.length === 0) return { contacts: [] as MarketingContact[], count: 0 };
-
       const from = (page - 1) * pageSize;
       const to = from + pageSize - 1;
 
-      let query = supabase
-        .from("marketing_contacts")
+      // I filtri avanzati a gruppi stanno nella sorgente: li valuta il
+      // database, non più un elenco di id costruito qui.
+      let query = sorgenteContatti(
         // Select chirurgico (stesso elenco usato per l'export a riga ~597):
         // marketing_contacts è larga (~78 colonne), `select("*")` scaricava
         // colonne inutili a ogni pagina. ATTENZIONE: con le colonne esplicite
@@ -1139,15 +980,12 @@ export default function MarketingContacts() {
         // tsc: prima di toccare l'elenco, validare contro information_schema.
         // L'elenco copre l'interfaccia MarketingContact (ContactsTable) incl.
         // opt_out/optout_*/unsubscribed usati da badge consensi e KPI qualità.
-        .select(
-          "id, first_name, last_name, email, phone, company_name, address, city, province, postal_code, country, website, date_of_birth, notes, contact_type, source, tags, assigned_to, company_id, created_at, updated_at, last_activity_at, call_center_id, attr_source, attr_campaign, lead_score, icp_score, score, ai_score, ai_score_tier, ai_score_reasoning, ai_next_action, preferred_channel, opt_out, optout_email, optout_sms, optout_whatsapp, optout_call, unsubscribed, unsubscribed_at",
-          { count: "exact" },
-        )
-        .eq("company_id", companyId)
+        "id, first_name, last_name, email, phone, company_name, address, city, province, postal_code, country, website, date_of_birth, notes, contact_type, source, tags, assigned_to, company_id, created_at, updated_at, last_activity_at, call_center_id, attr_source, attr_campaign, lead_score, icp_score, score, ai_score, ai_score_tier, ai_score_reasoning, ai_next_action, preferred_channel, opt_out, optout_email, optout_sms, optout_whatsapp, optout_call, unsubscribed, unsubscribed_at",
+        true,
+      )
         .order(sortField, { ascending: sortDirection === "asc" })
         .range(from, to);
 
-      if (finalIds) query = query.in("id", finalIds);
       query = applicaFiltriCorrenti(query);
 
       const { data: contactsRaw, count, error } = await query;

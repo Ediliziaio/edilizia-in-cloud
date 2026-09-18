@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildContactDateRange,
+  regoleGruppiPerIlDatabase,
   normalizeContactsUrlState,
   sanitizeContactSearchTerm,
   toggleContactsPageSelection,
@@ -82,5 +83,55 @@ describe("marketing contacts helpers", () => {
       endExclusive: "2026-05-24T00:00:00.000Z",
     });
     expect(buildContactDateRange("not-a-date")).toBeNull();
+  });
+});
+
+// I filtri avanzati a gruppi non si risolvono più in un elenco di id dentro
+// l'URL: il browser manda le regole e le valuta il database. Questa è la
+// traduzione, l'unico pezzo che resta da questa parte.
+describe("regoleGruppiPerIlDatabase", () => {
+  it("manda campo, operatore e valore per ogni regola, gruppo per gruppo", () => {
+    expect(
+      regoleGruppiPerIlDatabase([
+        { rules: [{ field: "city", operator: "is", value: "Milano" }] },
+        { rules: [{ field: "tags", operator: "is", value: "fotovoltaico" }] },
+      ]),
+    ).toEqual([
+      { regole: [{ campo: "city", operatore: "is", valore: "Milano" }] },
+      { regole: [{ campo: "tags", operatore: "is", valore: "fotovoltaico" }] },
+    ]);
+  });
+
+  it("le date diventano un intervallo: il giorno intero, non l'istante", () => {
+    expect(regoleGruppiPerIlDatabase([{ rules: [{ field: "created_at", operator: "is", value: "2026-05-23" }] }])).toEqual([
+      {
+        regole: [{
+          campo: "created_at",
+          operatore: "is",
+          valore: "2026-05-23",
+          da: "2026-05-23T00:00:00.000Z",
+          a: "2026-05-24T00:00:00.000Z",
+        }],
+      },
+    ]);
+  });
+
+  it("scarta le regole senza valore e le date che non si capiscono", () => {
+    expect(regoleGruppiPerIlDatabase([{ rules: [{ field: "city", operator: "is", value: "   " }] }])).toBeNull();
+    expect(regoleGruppiPerIlDatabase([{ rules: [{ field: "created_at", operator: "is", value: "il mese scorso" }] }])).toBeNull();
+  });
+
+  it("tiene «vuoto» e «non vuoto», che un valore non ce l'hanno", () => {
+    expect(regoleGruppiPerIlDatabase([{ rules: [{ field: "email", operator: "is_empty", value: "" }] }])).toEqual([
+      { regole: [{ campo: "email", operatore: "is_empty", valore: "" }] },
+    ]);
+    expect(regoleGruppiPerIlDatabase([{ rules: [{ field: "last_activity_at", operator: "is_not_empty", value: "" }] }])).toEqual([
+      { regole: [{ campo: "last_activity_at", operatore: "is_not_empty", valore: "" }] },
+    ]);
+  });
+
+  it("niente gruppi usabili = nessun filtro, non un filtro vuoto", () => {
+    expect(regoleGruppiPerIlDatabase([])).toBeNull();
+    expect(regoleGruppiPerIlDatabase([{ rules: [] }])).toBeNull();
   });
 });

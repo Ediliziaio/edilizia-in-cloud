@@ -109,3 +109,43 @@ export function buildContactDateRange(value: unknown): { start: string; endExclu
     endExclusive: end.toISOString(),
   };
 }
+
+/** Una regola dei filtri avanzati, nel formato che capisce il database. */
+export type RegolaPerIlDatabase = Record<string, string>;
+
+/**
+ * Traduce i gruppi del pannello «Filtri avanzati» nel JSON che legge la
+ * funzione `marketing_contatti_dei_gruppi`: regole in AND dentro il gruppo,
+ * gruppi fra loro in OR.
+ *
+ * Le regole senza valore si scartano (a parte «vuoto»/«non vuoto», che un
+ * valore non ce l'hanno), e le date diventano un intervallo «da»/«a»: il
+ * calendario lo sa fare il browser, il database riceve due istanti precisi.
+ * Una data che non si capisce fa cadere la regola, com'era prima.
+ */
+export function regoleGruppiPerIlDatabase(
+  gruppi: Array<{ rules: Array<{ field: string; operator: string; value: string }> }>,
+): Array<{ regole: RegolaPerIlDatabase[] }> | null {
+  const usabili = gruppi
+    .map((gruppo) => ({
+      regole: gruppo.rules
+        .map((regola): RegolaPerIlDatabase | null => {
+          const senzaValore = regola.operator === "is_empty" || regola.operator === "is_not_empty";
+          const valore = sanitizeContactSearchTerm(regola.value);
+          if (!senzaValore && valore.trim().length === 0) return null;
+
+          const uscita: RegolaPerIlDatabase = { campo: regola.field, operatore: regola.operator, valore };
+          if ((regola.field === "created_at" || regola.field === "last_activity_at") && !senzaValore) {
+            const intervallo = buildContactDateRange(valore);
+            if (!intervallo) return null;
+            uscita.da = intervallo.start;
+            uscita.a = intervallo.endExclusive;
+          }
+          return uscita;
+        })
+        .filter((regola): regola is RegolaPerIlDatabase => regola !== null),
+    }))
+    .filter((gruppo) => gruppo.regole.length > 0);
+
+  return usabili.length > 0 ? usabili : null;
+}
