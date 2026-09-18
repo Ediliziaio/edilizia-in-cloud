@@ -91,7 +91,7 @@ function diffMinutesTimeStr(start: string, end: string): number | null {
 
 export function OpportunityAppointmentTab({ contactId, companyId, opportunityId, contactName }: Props) {
   // In sola lettura niente prenotazioni (policy RESTRICTIVE su appointments).
-  const { solaLettura } = usePermissions();
+  const { solaLettura, onlyAssigned } = usePermissions();
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const googleSync = useGoogleCalendarSync();
@@ -382,7 +382,8 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
         description: description || null,
         appointment_type: appointmentType || "sopralluogo_preventivo",
         status: status || "confermato",
-        assigned_to: assignedTo || null,
+        // Con «Solo i propri» l'appuntamento resta a chi lo fissa.
+        assigned_to: assignedTo || (onlyAssigned ? (user?.id ?? null) : null),
         reminder_minutes: reminderMinutes !== "none" ? parseInt(reminderMinutes, 10) : null,
         created_by: user!.id,
         address_line: addressData.address_line || null,

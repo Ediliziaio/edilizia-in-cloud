@@ -124,7 +124,7 @@ export default function MarketingAppointmentDialog({
   const appleSync = useAppleCalendarSync();
   // In sola lettura niente prenotazioni né modifiche: la policy su appointments
   // le rifiuterebbe, meglio dirlo sul bottone.
-  const { solaLettura } = usePermissions();
+  const { solaLettura, onlyAssigned } = usePermissions();
   const bloccoTitle = solaLettura ? "Sei in sola lettura" : undefined;
   const queryClient = useQueryClient();
 
@@ -585,7 +585,9 @@ export default function MarketingAppointmentDialog({
         appointment_time: startTime + ":00",
         appointment_end_time: endTime + ":00",
         appointment_type: isBlocked ? "blocked" : effectiveMeetingProvider === "google_meet" ? "videocall" : "generico",
-        assigned_to: assignedTo && assignedTo !== "none" ? assignedTo : null,
+        // Con «Solo i propri» l'appuntamento resta a chi lo fissa: senza
+        // assegnatario il database non glielo farebbe più nemmeno rileggere.
+        assigned_to: assignedTo && assignedTo !== "none" ? assignedTo : (onlyAssigned ? user.id : null),
         calendar_id: calendarId,
         contact_id: !isBlocked && contactId && contactId !== "none" ? contactId : null,
         status: isBlocked ? "confermato" : status,

@@ -862,7 +862,9 @@ export function AppointmentDialog({
         appointment_time: appointmentTime || null,
         appointment_end_time: effectiveEndTime,
         appointment_type: appointmentType,
-        assigned_to: assignedTo && assignedTo !== "none" ? assignedTo : null,
+        // Chi vede «Solo i propri» non può lasciare l'appuntamento senza
+        // assegnatario: gli sparirebbe dalla vista appena salvato.
+        assigned_to: assignedTo && assignedTo !== "none" ? assignedTo : (onlyAssigned ? (user?.id ?? null) : null),
         order_id: effectiveOrderId && effectiveOrderId !== "none" ? effectiveOrderId : null,
         calendar_id: hideMarketingFields ? null : (calendarId && calendarId !== "none" ? calendarId : null),
         contact_id: hideMarketingFields ? null : (contactId && contactId !== "none" ? contactId : null),
