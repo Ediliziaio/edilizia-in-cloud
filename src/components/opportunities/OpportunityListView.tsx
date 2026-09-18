@@ -18,7 +18,9 @@ import { cn } from "@/lib/utils";
 import { formatCount } from "@/lib/formatters";
 import { STATUS_MAP, hashColor, inferOpportunityStatusFromStage } from "@/types/opportunities";
 import type { OpportunityStage } from "@/types/opportunities";
-import { useUpdateOpportunityStage, type RiepilogoOpportunita } from "@/hooks/useOpportunitiesData";
+import { useUpdateOpportunityStage, usePipelines, type RiepilogoOpportunita } from "@/hooks/useOpportunitiesData";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { toast } from "sonner";
 
@@ -71,23 +73,62 @@ export const OpportunityListView = memo(function OpportunityListView({
   const setMobileStageId = onMobileStageChange;
   // Quick-move: opportunità per cui mostrare il selettore di fase (Sheet bottom)
   const [moveOpp, setMoveOpp] = useState<any>(null);
+  // Pipeline scelta nel pannello «Sposta»: di solito quella dell'opportunità,
+  // ma si può spostare in un'altra (es. da «DVS Pipeline» a «2° Fase»).
+  const [movePipelineId, setMovePipelineId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const updateStage = useUpdateOpportunityStage();
+  const { data: pipelines = [] } = usePipelines();
+
+  const pipelineCorrente = useMemo(() => {
+    if (!moveOpp) return null;
+    return pipelines.find((p: any) => p.id === moveOpp.pipeline_id)
+      ?? pipelines.find((p: any) => (p.marketing_pipeline_stages || []).some((s: any) => s.id === moveOpp.stage_id))
+      ?? null;
+  }, [moveOpp, pipelines]);
+
+  const pipelineScelta = useMemo(
+    () => pipelines.find((p: any) => p.id === (movePipelineId ?? pipelineCorrente?.id)) ?? null,
+    [pipelines, movePipelineId, pipelineCorrente],
+  );
+
+  // Le fasi da mostrare: quelle della pipeline scelta. Senza pipeline caricate
+  // restano quelle della pipeline aperta, come prima.
+  const fasiDaMostrare = useMemo(() => {
+    const dellaPipeline = (pipelineScelta?.marketing_pipeline_stages || []) as Array<{ id: string; name: string; auto_status?: string | null }>;
+    return dellaPipeline.length > 0 ? dellaPipeline : stages;
+  }, [pipelineScelta, stages]);
+
+  const apriSpostamento = (opp: any) => {
+    setMoveOpp(opp);
+    setMovePipelineId(null);
+  };
 
   const handleQuickMove = (targetStageId: string) => {
     if (!moveOpp || !canEdit) return;
-    if (moveOpp.stage_id === targetStageId) {
+    const cambiaPipeline = !!pipelineScelta && !!pipelineCorrente && pipelineScelta.id !== pipelineCorrente.id;
+    if (moveOpp.stage_id === targetStageId && !cambiaPipeline) {
       setMoveOpp(null);
       return;
     }
-    const targetStage = stages.find((s) => s.id === targetStageId);
+    const targetStage = fasiDaMostrare.find((s) => s.id === targetStageId);
     const nextStatus = inferOpportunityStatusFromStage(targetStage, "open");
     updateStage.mutate(
-      { id: moveOpp.id, stage_id: targetStageId, auto_status: nextStatus },
+      {
+        id: moveOpp.id,
+        stage_id: targetStageId,
+        auto_status: nextStatus,
+        ...(cambiaPipeline ? { pipeline_id: pipelineScelta.id } : {}),
+      },
       {
         onSuccess: () => {
-          toast.success(`Spostata in "${targetStage?.name ?? "fase"}"`);
+          toast.success(
+            cambiaPipeline
+              ? `Spostata in "${pipelineScelta.name}" — ${targetStage?.name ?? "fase"}`
+              : `Spostata in "${targetStage?.name ?? "fase"}"`,
+          );
           setMoveOpp(null);
+          setMovePipelineId(null);
         },
         onError: (e: Error) => toast.error(e.message),
       },
@@ -288,7 +329,7 @@ export const OpportunityListView = memo(function OpportunityListView({
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          setMoveOpp(opp);
+                          apriSpostamento(opp);
                         }}
                         className="inline-flex items-center gap-1 rounded-md border border-dashed border-primary/40 px-1.5 py-0.5 text-[10px] font-medium text-primary hover:bg-primary/5 active:bg-primary/10 transition-colors"
                         title="Sposta in un'altra fase"
@@ -336,17 +377,36 @@ export const OpportunityListView = memo(function OpportunityListView({
       )}
 
       {/* ── Quick-move Sheet (mobile + desktop) ── */}
-      <Sheet open={moveOpp != null} onOpenChange={(v) => { if (!v) setMoveOpp(null); }}>
+      <Sheet open={moveOpp != null} onOpenChange={(v) => { if (!v) { setMoveOpp(null); setMovePipelineId(null); } }}>
         <SheetContent side="bottom" className="max-h-[70vh] flex flex-col">
           <SheetHeader>
             <SheetTitle>Sposta opportunità</SheetTitle>
             <SheetDescription className="text-xs">
-              {moveOpp?.name ?? ""} — seleziona la fase di destinazione
+              {moveOpp?.name ?? ""} — scegli la pipeline e la fase di destinazione
             </SheetDescription>
           </SheetHeader>
+          {pipelines.length > 1 && (
+            <div className="mt-3 space-y-1">
+              <Label className="text-xs font-medium">Pipeline</Label>
+              <Select
+                value={pipelineScelta?.id ?? ""}
+                onValueChange={(v) => setMovePipelineId(v)}
+                disabled={updateStage.isPending}
+              >
+                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Pipeline" /></SelectTrigger>
+                <SelectContent>
+                  {pipelines.map((p: any) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name}{p.id === pipelineCorrente?.id ? " (attuale)" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <div className="flex-1 overflow-y-auto mt-3 space-y-1.5 pb-4">
-            {stages.map((s) => {
-              const isCurrent = moveOpp?.stage_id === s.id;
+            {fasiDaMostrare.map((s) => {
+              const isCurrent = moveOpp?.stage_id === s.id && pipelineScelta?.id === pipelineCorrente?.id;
               return (
                 <button
                   key={s.id}
@@ -518,7 +578,7 @@ export const OpportunityListView = memo(function OpportunityListView({
                       {canEdit ? (
                         <button
                           type="button"
-                          onClick={() => setMoveOpp(opp)}
+                          onClick={() => apriSpostamento(opp)}
                           className="inline-flex items-center gap-1 rounded-md border border-dashed border-primary/40 px-2 py-0.5 text-xs font-medium text-primary hover:bg-primary/5 transition-colors whitespace-nowrap"
                           title="Sposta in un'altra fase"
                         >

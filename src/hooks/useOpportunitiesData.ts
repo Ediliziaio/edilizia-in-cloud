@@ -807,16 +807,21 @@ export function useUpdateOpportunityStage() {
   const permissions = usePermissions();
 
   return useMutation({
-    mutationFn: async ({ id, stage_id, auto_status, perdita }: {
-      id: string; stage_id: string; auto_status?: string;
+    mutationFn: async ({ id, stage_id, pipeline_id, auto_status, perdita }: {
+      id: string; stage_id: string;
+      /** Spostamento in un'ALTRA pipeline: la fase da sola non basta, l'opportunità
+       *  resterebbe agganciata alla pipeline vecchia e sparirebbe da entrambe. */
+      pipeline_id?: string;
+      auto_status?: string;
       /** Compilato quando il drag finisce su una fase persa: il motivo
        *  viaggia nella stessa update dello spostamento. */
       perdita?: { categoria: string; dettaglio: string | null; concorrente: string | null };
     }) => {
       if (!companyId) throw new Error("Azienda non selezionata");
       if (!canEditOpportunities(permissions)) throw new Error("Non hai i permessi per spostare opportunità");
-      validateOpportunityPayload({ stage_id });
+      validateOpportunityPayload(pipeline_id ? { stage_id, pipeline_id } : { stage_id });
       const updateData: any = { stage_id };
+      if (pipeline_id) updateData.pipeline_id = pipeline_id;
       if (auto_status) {
         updateData.status = auto_status;
       }
@@ -835,7 +840,7 @@ export function useUpdateOpportunityStage() {
         .eq("company_id", companyId);
       if (error) throw error;
     },
-    onMutate: async ({ id, stage_id, auto_status }) => {
+    onMutate: async ({ id, stage_id, pipeline_id, auto_status }) => {
       await queryClient.cancelQueries({ queryKey: queryKeys.opportunities.all });
 
       const previousData = queryClient.getQueriesData({ queryKey: queryKeys.opportunities.all });
@@ -847,6 +852,7 @@ export function useUpdateOpportunityStage() {
         stage_id,
         stage_changed_at: now,
         updated_at: now,
+        ...(pipeline_id ? { pipeline_id } : {}),
         ...(auto_status ? { status: auto_status } : {}),
       });
 
