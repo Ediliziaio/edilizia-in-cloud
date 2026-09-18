@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   idsCitati,
+  iscrizioniDaFermare,
   scegliInvio,
   scegliIscrizione,
   testoInvito,
@@ -78,5 +79,30 @@ describe("a quale brand ha risposto", () => {
       { casellaId: "c1", brandCasella: EIC },
     );
     expect(testoInvito(altroBrand, "info@ediliziaincloud.it")).toContain("un altro brand");
+  });
+
+  // 18/09/2026, decisione del titolare: «non deve fermarsi anche negli altri
+  // brand perché sono distinti». Prima 9 risposte avevano chiuso 15 iscrizioni.
+  it("una risposta ferma solo il brand a cui ha risposto", () => {
+    const vive = [
+      { id: "i-eic", brandId: EIC },
+      { id: "i-tdm", brandId: TDM },
+      { id: "i-me", brandId: "brand-me" },
+    ];
+    expect(iscrizioniDaFermare(vive, { brandRisposta: TDM, iscrizioneScelta: "i-tdm" })).toEqual(["i-tdm"]);
+    // L'iscrizione da cui è arrivata la risposta si ferma comunque.
+    expect(iscrizioniDaFermare(vive, { brandRisposta: EIC, iscrizioneScelta: "i-tdm" })).toEqual(["i-eic", "i-tdm"]);
+  });
+
+  it("«cancellatemi» vale per tutti i servizi", () => {
+    const vive = [{ id: "i-eic", brandId: EIC }, { id: "i-tdm", brandId: TDM }];
+    expect(iscrizioniDaFermare(vive, { brandRisposta: TDM, tutte: true })).toEqual(["i-eic", "i-tdm"]);
+  });
+
+  it("brand ignoto: si ferma solo l'iscrizione della risposta, o tutto se non c'è nemmeno quella", () => {
+    const vive = [{ id: "i-eic", brandId: EIC }, { id: "i-tdm", brandId: TDM }];
+    expect(iscrizioniDaFermare(vive, { iscrizioneScelta: "i-tdm" })).toEqual(["i-tdm"]);
+    expect(iscrizioniDaFermare(vive, {})).toEqual(["i-eic", "i-tdm"]);
+    expect(iscrizioniDaFermare([], { brandRisposta: EIC })).toEqual([]);
   });
 });

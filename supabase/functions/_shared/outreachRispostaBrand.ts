@@ -129,3 +129,35 @@ export function testoInvito(
   if (scelta.motivo === "brand") return `sì, scritta${dataTesto} da un'altra casella dello stesso brand`;
   return `⚠ l'ultima email a questo indirizzo${dataTesto} è partita da un altro brand`;
 }
+
+/**
+ * Quali iscrizioni fermare dopo una risposta (18/09/2026, decisione del
+ * titolare: «non deve fermarsi anche negli altri brand, sono distinti»).
+ *
+ * Chi risponde a ThermoDMR non deve sparire da Marketing Edile e da Edilizia
+ * in Cloud: sono tre servizi diversi, mandati da indirizzi diversi. Si ferma
+ * solo il brand a cui ha risposto — più l'iscrizione da cui è arrivata la
+ * risposta, sempre.
+ * L'unica eccezione è «cancellatemi»: quella vale per tutti, e si passa
+ * `tutte`.
+ */
+export function iscrizioniDaFermare(
+  iscrizioni: Array<{ id: string; brandId: string | null }>,
+  opzioni: { brandRisposta?: string | null; iscrizioneScelta?: string | null; tutte?: boolean } = {},
+): string[] {
+  const vive = iscrizioni ?? [];
+  const scelta = opzioni.iscrizioneScelta ?? null;
+  if (opzioni.tutte) {
+    const tutte = vive.map((i) => i.id);
+    return scelta && !tutte.includes(scelta) ? [...tutte, scelta] : tutte;
+  }
+  // Brand ignoto: si ferma solo l'iscrizione da cui è arrivata la risposta.
+  // Se non si sa nemmeno quella, meglio fermare tutto che continuare a
+  // scrivere a chi ha appena risposto.
+  if (!opzioni.brandRisposta) {
+    if (scelta) return [scelta];
+    return vive.map((i) => i.id);
+  }
+  const ids = vive.filter((i) => i.brandId === opzioni.brandRisposta).map((i) => i.id);
+  return scelta && !ids.includes(scelta) ? [...ids, scelta] : ids;
+}

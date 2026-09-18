@@ -28,6 +28,7 @@ import { isAutoReply, type InboundHeaders } from "./outreach-autoreply.ts";
 import { intentDaParoleChiave } from "./outreach-intent-parole.ts";
 import { avvisaSuperAdmin } from "./avvisaSuperAdmin.ts";
 import { testoSenzaCitazione } from "./avvisoEmail.ts";
+import { iscrizioniDaFermare } from "./outreachRispostaBrand.ts";
 
 const PLATFORM_COMPANY = "00000000-0000-0000-0000-000000000001";
 
@@ -64,7 +65,10 @@ const INTENTO_IN_CHIARO: Record<string, string> = {
  * quale brand e flusso, a quale casella, e cosa ha scritto. Arriva su
  * campanella, push e Gmail (vedi avvisaSuperAdmin). Mai bloccante.
  */
-async function avvisaRisposta(admin: any, r: InboundReply, fromEmail: string, intent: string | null): Promise<void> {
+async function avvisaRisposta(
+  admin: any, r: InboundReply, fromEmail: string, intent: string | null,
+  brandId: string | null, flusso: string,
+): Promise<void> {
   try {
     let nome = "";
     let azienda = "";
@@ -77,18 +81,6 @@ async function avvisaRisposta(admin: any, r: InboundReply, fromEmail: string, in
       telefono = c?.phone ?? "";
     }
     let brand = "";
-    let flusso = "";
-    // Il brand lo decide chi ha letto la posta (la casella che ha ricevuto);
-    // dalla sequenza si prende solo il nome del flusso, e il brand come ripiego.
-    let brandId = r.brandId ?? null;
-    if (r.enrollmentId) {
-      const { data: e } = await admin.from("outreach_enrollments").select("sequence_id").eq("id", r.enrollmentId).maybeSingle();
-      if (e?.sequence_id) {
-        const { data: s } = await admin.from("outreach_sequences").select("name,brand_id").eq("id", e.sequence_id).maybeSingle();
-        flusso = s?.name ?? "";
-        if (!brandId) brandId = s?.brand_id ?? null;
-      }
-    }
     if (brandId) {
       const { data: b } = await admin.from("outreach_brands").select("name").eq("id", brandId).maybeSingle();
       brand = b?.name ?? "";
@@ -125,6 +117,25 @@ async function avvisaRisposta(admin: any, r: InboundReply, fromEmail: string, in
 }
 
 /**
+ * Il brand a cui ha risposto e il nome del flusso. Il brand lo decide chi ha
+ * letto la posta (la casella che ha ricevuto, gli header citati); dalla
+ * sequenza arriva il nome del flusso, e il brand solo come ripiego.
+ */
+async function brandEFlusso(admin: any, r: InboundReply): Promise<{ brandId: string | null; flusso: string }> {
+  let brandId = r.brandId ?? null;
+  let flusso = "";
+  if (r.enrollmentId) {
+    const { data: e } = await admin.from("outreach_enrollments").select("sequence_id").eq("id", r.enrollmentId).maybeSingle();
+    if (e?.sequence_id) {
+      const { data: s } = await admin.from("outreach_sequences").select("name,brand_id").eq("id", e.sequence_id).maybeSingle();
+      flusso = s?.name ?? "";
+      if (!brandId) brandId = s?.brand_id ?? null;
+    }
+  }
+  return { brandId, flusso };
+}
+
+/**
  * Gestisce una risposta in arrivo: inbox + intent + stop sequenza + opt-out.
  * Idempotenza: NON deduplica per messageId (l'inbound non lo faceva); i
  * chiamanti che leggono via IMAP devono evitare di rileggere gli stessi UID.
@@ -140,6 +151,7 @@ export async function handleInboundReply(admin: any, r: InboundReply): Promise<v
   }
   const fromEmail = (r.from || "").trim();
   const snippet = snippetFrom(r.text);
+  const { brandId, flusso } = await brandEFlusso(admin, r);
 
   // AUTORISPOSTA (OOO / mailer-daemon / no-reply)? Va trattata a parte: salviamo
   // comunque la riga (resta visibile in Posta), ma NON fermiamo la sequenza e NON
@@ -158,7 +170,7 @@ export async function handleInboundReply(admin: any, r: InboundReply): Promise<v
     company_id: PLATFORM_COMPANY,
     contact_id: r.contactId,
     enrollment_id: r.enrollmentId ?? null,
-    brand_id: r.brandId ?? null,
+    brand_id: brandId,
     sender_account_id: r.senderAccountId ?? null,
     channel: "email",
     from_email: fromEmail,
@@ -206,15 +218,17 @@ export async function handleInboundReply(admin: any, r: InboundReply): Promise<v
   }
 
   // 2-bis. Avviso al titolare: chi ha risposto e cosa, anche su Gmail.
-  await avvisaRisposta(admin, r, fromEmail, intent);
+  await avvisaRisposta(admin, r, fromEmail, intent, brandId, flusso);
 
-  // 3. AUTO-PAUSA SU RISPOSTA: chi risponde non deve più ricevere follow-up cold.
-  // Fermiamo TUTTE le iscrizioni ancora vive del contatto (non solo quella passata
-  // dal chiamante: un lead può essere in più sequenze) → 'replied' + annulliamo i
-  // messaggi ancora 'queued'. Idempotente (filtri su status) e coerente con lo
-  // skip del dispatcher (TERMINAL_ENROLLMENT include 'replied'). Se manca il
-  // contatto ricadiamo sull'enrollmentId passato, se presente.
-  await stopActiveSequences(admin, r.contactId, r.enrollmentId);
+  // 3. AUTO-PAUSA SU RISPOSTA, ma SOLO nel brand a cui ha risposto (18/09/2026,
+  // decisione del titolare: «non deve fermarsi anche negli altri brand perché
+  // sono distinti»). Prima una risposta a ThermoDMR fermava anche Marketing
+  // Edile ed Edilizia in Cloud: 9 risposte avevano chiuso 15 iscrizioni.
+  // «Cancellatemi» resta globale: quello vale per tutti i servizi.
+  await stopActiveSequences(admin, r.contactId, r.enrollmentId, {
+    brandId,
+    tutte: intent === "unsubscribe",
+  });
 
   // 4-bis. TRIGGER: una risposta interessata o una domanda diventa un task di
   // chiamata entro domani (pending in outreach_call_tasks, visibile in "Oggi"):
@@ -249,14 +263,10 @@ export async function handleInboundReply(admin: any, r: InboundReply): Promise<v
     }
   }
 
-  // 4-ter. "Non interessato": cooldown di 6 mesi. Prima restava contattabile
-  // e la campagna successiva lo riprendeva dopo 90 giorni.
-  if (intent === "not_interested" && r.contactId) {
-    try {
-      await admin.from("marketing_contacts")
-        .update({ ricontatta_dopo: new Date(Date.now() + 183 * 86_400_000).toISOString() }).eq("id", r.contactId);
-    } catch { /* colonna assente pre-migrazione */ }
-  }
+  // 4-ter. "Non interessato": il cooldown lo tiene il lock del BRAND qui sotto
+  // (24 mesi su quell'azienda per quel brand). Il campo `ricontatta_dopo` del
+  // contatto non si tocca più: è globale, e avrebbe zittito anche gli altri
+  // due servizi — cosa che il titolare ha escluso il 18/09/2026.
 
   // 4-quater. Il lock multi-brand sull'azienda si chiude con l'esito: opt-out
   // = 10 anni e soppressione dell'azienda, no = 24 mesi, sì = 12 mesi. Prima
@@ -308,21 +318,36 @@ export async function rilasciaLock(
 }
 
 /**
- * Ferma le sequenze cold ancora attive del contatto dopo una sua risposta.
+ * Ferma le sequenze cold ancora attive del contatto dopo una sua risposta, nel
+ * SOLO brand a cui ha risposto (`tutte` per l'opt-out, che vale ovunque).
  * Stati vivi = 'active' | 'paused' (gli altri sono già terminali). Le porta a
  * 'replied' e annulla i messaggi ancora 'queued'. Se non c'è il contatto ma c'è
  * un enrollmentId esplicito, ferma almeno quello. Idempotente.
  */
-async function stopActiveSequences(admin: any, contactId: string | null, enrollmentId?: string | null): Promise<void> {
+async function stopActiveSequences(
+  admin: any, contactId: string | null, enrollmentId?: string | null,
+  opzioni: { brandId?: string | null; tutte?: boolean } = {},
+): Promise<void> {
   let ids: string[] = [];
   if (contactId) {
     const { data: enrs } = await admin
       .from("outreach_enrollments")
-      .select("id")
+      .select("id, sequence_id")
       .eq("company_id", PLATFORM_COMPANY)
       .eq("contact_id", contactId)
       .in("status", ["active", "paused"]);
-    ids = ((enrs ?? []) as Array<{ id: string }>).map((e) => e.id);
+    const vive = (enrs ?? []) as Array<{ id: string; sequence_id: string | null }>;
+    // Il brand di ogni iscrizione, per fermare solo quelle giuste.
+    const seqIds = [...new Set(vive.map((e) => e.sequence_id).filter(Boolean))] as string[];
+    const brandDiSequenza = new Map<string, string | null>();
+    if (seqIds.length && !opzioni.tutte) {
+      const { data: seqs } = await admin.from("outreach_sequences").select("id, brand_id").in("id", seqIds);
+      for (const sq of (seqs ?? []) as Array<{ id: string; brand_id: string | null }>) brandDiSequenza.set(sq.id, sq.brand_id);
+    }
+    ids = iscrizioniDaFermare(
+      vive.map((e) => ({ id: e.id, brandId: e.sequence_id ? brandDiSequenza.get(e.sequence_id) ?? null : null })),
+      { brandRisposta: opzioni.brandId ?? null, iscrizioneScelta: enrollmentId ?? null, tutte: opzioni.tutte },
+    );
   }
   // Fallback: nessun contatto collegato ma il chiamante ha trovato un enrollment.
   if (ids.length === 0 && enrollmentId) ids = [enrollmentId];
