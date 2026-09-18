@@ -3115,7 +3115,12 @@ export function SerramentoPDF({
                   € {fmtEuro(totaleDocumento, 2)}
                   {/* Spazio esplicito: i Text annidati in react-pdf vengono
                       concatenati senza separatore → usciva "€1554,19IVA inclusa" */}
-                  <Text style={styles.priceSuffix}>{"  "}{p.iva_inclusa ? "IVA inclusa" : "IVA esclusa"}</Text>
+                  {/* 18/09/2026: qui c'era `p.iva_inclusa ? "IVA inclusa" : "IVA esclusa"`,
+                      ma `iva_inclusa` dice se i PREZZI inseriti comprendono l'IVA, non se
+                      la comprende il totale stampato: `totaleDocumento` è sempre il totale
+                      con l'IVA. Un preventivo da 12.590 + 10% usciva «€ 13.849,00 IVA
+                      esclusa»: il cliente poteva aspettarsi un'altra fattura. */}
+                  <Text style={styles.priceSuffix}>{"  "}{totaleIva > 0 ? "IVA inclusa" : "IVA non applicata"}</Text>
                 </Text>
                 <Text style={{ fontSize: 9, color: C.ink, marginTop: 4 }}>
                   Imponibile € {fmtEuro(totaleImponibile, 2)} · IVA € {fmtEuro(totaleIva, 2)}
