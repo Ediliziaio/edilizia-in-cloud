@@ -165,7 +165,27 @@ function classificaErrore(msg: string): { accountFailure: boolean; transient: bo
   if (/smtp_unexpected: 4|smtp_rcpt_rejected: 4|smtp_connection_closed|connection refused|econnrefused|timed out|network|tls|_5\d\d:|gmail_send_5|outlook_send_5|failed to fetch/.test(m)) {
     return { accountFailure: false, transient: true, recipientRejected: false };
   }
+  // 5xx DOPO il messaggio (smtp_unexpected su DATA): l'ha rifiutato il server
+  // del destinatario, non è la nostra casella a non spedire. Il caso tipico è
+  // «550 5.2.0 … Spam Rejected» di Microsoft su hotmail.it/live.it: prima
+  // finiva nel ramo «guasto account», che fermava tutto il giro e mandava
+  // l'allarme «Casella outreach in errore» su una casella che stava benissimo
+  // (18/09/2026). L'indirizzo esiste: si ritenta più tardi, di norma da
+  // un'altra casella, e dopo i tentativi previsti la riga si chiude da sola.
+  // Restano guasto account i 5xx che parlano di autenticazione o del diritto
+  // di spedire con quel mittente.
+  if (/^smtp_unexpected: 5/.test(m)) {
+    const guastoCasella = /auth|credential|not authori[sz]ed|permission|relay access denied|sender address rejected|not owned by|account (disabled|suspended|blocked)|5\.7\.0|5\.7\.8/.test(m);
+    if (!guastoCasella) return { accountFailure: false, transient: true, recipientRejected: false };
+  }
   return { accountFailure: true, transient: false, recipientRejected: false };
+}
+
+/** Rifiuto per contenuto/reputazione: non è un guasto, ma va contato. */
+export function rifiutoPerSpam(msg: string): boolean {
+  const m = (msg || "").toLowerCase();
+  if (!/^smtp_unexpected: 5|_5\d\d:/.test(m)) return false;
+  return /spam|blacklist|blocked|policy|reputation|content rejected|5\.7\.1/.test(m);
 }
 
 async function gmailSend(accessToken: string, rfc822: string, threadId?: string | null): Promise<{ id: string; threadId: string | null }> {

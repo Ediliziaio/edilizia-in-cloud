@@ -41,7 +41,7 @@ import { appendTrackingSig, outreachOpenPixelUrl } from "../_shared/emailTrackin
 import { lintEmail, puoPartire } from "../_shared/outreach-linter.ts";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import { buildFollowupHeaders, citazionePrecedente, type SentStep } from "../_shared/outreach-threading.ts";
-import { sendViaNativeSender, isNativeProvider, getOauthAccessToken } from "../_shared/outreachMailboxSend.ts";
+import { sendViaNativeSender, isNativeProvider, getOauthAccessToken, rifiutoPerSpam } from "../_shared/outreachMailboxSend.ts";
 import { alertOutreach, logRun } from "../_shared/outreachAlert.ts";
 
 import { serveConMetriche } from "../_shared/withMetrics.ts";
@@ -876,7 +876,7 @@ serveConMetriche("outreach-dispatch", async (req) => {
     // 2. caselle del pool
     const { data: sendersRaw, error: sErr } = await supabase
       .from("outreach_sender_accounts")
-      .select("id,status,daily_cap_target,warmup_base,warmup_step,warmup_day,daily_sent,daily_sent_date,last_sent_at,email,display_name,brand_id,sending_domain_id,provider,smtp_host,smtp_port,smtp_secure,smtp_username,secret_ref,connection_status,oauth_connection_id,signature")
+      .select("id,status,daily_cap_target,warmup_base,warmup_step,warmup_day,daily_sent,daily_sent_date,last_sent_at,email,display_name,brand_id,sending_domain_id,provider,smtp_host,smtp_port,smtp_secure,smtp_username,secret_ref,connection_status,oauth_connection_id,signature,complaint_count")
       .in("status", ["active", "warming"]);
     if (sErr) throw sErr;
     // Una casella in errore NON entra in rotazione: prima veniva scelta lo
@@ -1574,6 +1574,30 @@ serveConMetriche("outreach-dispatch", async (req) => {
         }
         const attempts = (item.attempts || 0) + 1;
         const isFinal = attempts >= (item.max_attempts || 3);
+        const messaggioErrore = e instanceof Error ? e.message : String(e);
+        // Rifiuto per contenuto o reputazione (tipico: «550 Spam Rejected» di
+        // Microsoft): non ferma il giro — l'indirizzo è valido e si ritenta —
+        // ma se capita spesso alla stessa casella è la sua reputazione che
+        // scricchiola, e allora conviene dirlo.
+        if (rifiutoPerSpam(messaggioErrore)) {
+          await supabase.from("outreach_sender_accounts")
+            .update({ complaint_count: (sender.complaint_count ?? 0) + 1 })
+            .eq("id", sender.id);
+          const { count: rifiutiOggi } = await supabase
+            .from("outreach_send_queue")
+            .select("id", { count: "exact", head: true })
+            .eq("sender_account_id", sender.id)
+            .gte("updated_at", new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString())
+            .ilike("last_error", "%spam%");
+          if ((rifiutiOggi ?? 0) + 1 >= 5) {
+            await alertOutreach(supabase, {
+              chiave: `reputazione:${sender.id}`, tipo: "outreach_casella_reputazione",
+              titolo: `Messaggi rifiutati come spam: ${sender.email}`,
+              testo: `${(rifiutiOggi ?? 0) + 1} rifiuti nelle ultime 24 ore (ultimo: ${messaggioErrore.slice(0, 120)}). Gli invii continuano: controlla testo e riscaldamento della casella.`,
+              url: "/admin/marketing?tab=deliverability",
+            });
+          }
+        }
         // Retry con backoff esponenziale (15min·2^attempts): niente martellamento
         // ravvicinato di un provider magari in rate-limit. Al tentativo finale
         // fermiamo anche l'iscrizione, altrimenti resta 'active' bloccata.
@@ -1583,7 +1607,7 @@ serveConMetriche("outreach-dispatch", async (req) => {
           status: isFinal ? "failed" : "queued",
           attempts,
           scheduled_for: isFinal ? item.scheduled_for : nextAt,
-          last_error: e instanceof Error ? e.message : String(e),
+          last_error: messaggioErrore,
         }).eq("id", item.id);
         if (isFinal && enr) {
           await supabase.from("outreach_enrollments")
