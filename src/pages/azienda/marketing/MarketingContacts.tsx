@@ -1020,7 +1020,12 @@ export default function MarketingContacts() {
       }
 
       // Fetch call_center names
-      const callCenterIds = [...new Set((contactsRaw || []).map((c: any) => c.call_center_id).filter(Boolean))];
+      // Il tipo va scritto: la sorgente ora può essere la funzione del
+      // database, che torna `any`, e senza annotazione qui arriverebbe
+      // `unknown[]` dentro `.in(...)`.
+      const callCenterIds: string[] = [
+        ...new Set<string>((contactsRaw || []).map((c: any) => c.call_center_id).filter(Boolean)),
+      ];
       const callCenterMap: Record<string, string> = {};
       if (callCenterIds.length > 0) {
         const { data: profiles } = await supabase

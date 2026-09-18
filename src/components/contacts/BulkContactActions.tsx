@@ -93,16 +93,25 @@ export function BulkTagsDialog({ selectedIds }: { selectedIds: Set<string> }) {
       }
 
       let aggiornati = 0;
-      for (const gruppo of gruppi.values()) {
-        await perOgniLotto(gruppo.ids, async (lotto) => {
-          const { error: upErr } = await supabase
-            .from("marketing_contacts")
-            .update({ tags: gruppo.next, updated_at: new Date().toISOString() })
-            .eq("company_id", effectiveCompany!.id)
-            .in("id", lotto);
-          if (upErr) throw upErr;
-        });
-        aggiornati += gruppo.ids.length;
+      try {
+        for (const gruppo of gruppi.values()) {
+          await perOgniLotto(gruppo.ids, async (lotto) => {
+            const { error: upErr } = await supabase
+              .from("marketing_contacts")
+              .update({ tags: gruppo.next, updated_at: new Date().toISOString() })
+              .eq("company_id", effectiveCompany!.id)
+              .in("id", lotto);
+            if (upErr) throw upErr;
+            aggiornati += lotto.length;
+          });
+        }
+      } catch (errore) {
+        // A lotti si può fallire a metà: i tag già scritti restano scritti.
+        const causa = errore instanceof Error ? errore.message : String(errore);
+        throw new Error(
+          aggiornati > 0 ? `Tag aggiornati su ${aggiornati} contatti, poi si è fermato: ${causa}` : causa,
+          { cause: errore },
+        );
       }
       return aggiornati;
     },

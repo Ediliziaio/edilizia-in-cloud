@@ -78,17 +78,30 @@ export function BulkEnrollAutomationDropdown({ selectedIds }: BulkEnrollAutomati
       // che finisce in timeout e non lascia iscritto nessuno.
       let enrolled = 0;
       let saltati = 0;
-      await perOgniLotto(contactIds, async (lotto) => {
-        const { data, error } = await supabase.rpc("enroll_entities_in_flow", {
-          p_flow_id: flowId,
-          p_entity_ids: lotto,
-          p_entity_type: "contact",
+      try {
+        await perOgniLotto(contactIds, async (lotto) => {
+          const { data, error } = await supabase.rpc("enroll_entities_in_flow", {
+            p_flow_id: flowId,
+            p_entity_ids: lotto,
+            p_entity_type: "contact",
+          });
+          if (error) throw error;
+          const parziale = (data ?? {}) as { enrolled?: number; skipped?: number };
+          enrolled += parziale.enrolled ?? 0;
+          saltati += parziale.skipped ?? 0;
         });
-        if (error) throw error;
-        const parziale = (data ?? {}) as { enrolled?: number; skipped?: number };
-        enrolled += parziale.enrolled ?? 0;
-        saltati += parziale.skipped ?? 0;
-      });
+      } catch (errore) {
+        // A lotti si può fallire a metà strada: chi è già entrato nel flusso
+        // ci resta, e va detto — altrimenti si riprova su tutti e si iscrive
+        // due volte chi era già dentro.
+        if (enrolled > 0) {
+          throw new Error(
+            `${enrolled} contatti iscritti, poi l'iscrizione si è fermata: ${userErrorMessage(errore, "errore del database")}`,
+            { cause: errore },
+          );
+        }
+        throw errore;
+      }
 
       if (enrolled === 0) {
         throw new Error("Nessun contatto iscritto: risultano già tutti in questa automazione");

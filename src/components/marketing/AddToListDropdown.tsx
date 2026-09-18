@@ -78,14 +78,27 @@ export function AddToListDropdown({ selectedIds }: AddToListDropdownProps) {
       await assertListBelongsToCompany(listId, companyId);
       const contactIds = await getCompanyScopedContactIds(Array.from(selectedIds), companyId);
 
-      await perOgniLotto(contactIds, async (lotto) => {
-        const rows = lotto.map((contactId) => ({ list_id: listId, contact_id: contactId }));
-        const { error } = await supabase.from("marketing_contact_list_members").upsert(rows, { onConflict: "list_id,contact_id" });
-        if (error) throw error;
-      }, LOTTO_RIGHE);
+      let aggiunti = 0;
+      try {
+        await perOgniLotto(contactIds, async (lotto) => {
+          const rows = lotto.map((contactId) => ({ list_id: listId, contact_id: contactId }));
+          const { error } = await supabase.from("marketing_contact_list_members").upsert(rows, { onConflict: "list_id,contact_id" });
+          if (error) throw error;
+          aggiunti += lotto.length;
+        }, LOTTO_RIGHE);
+      } catch (errore) {
+        // A lotti si può fallire a metà: chi è già nella lista ci resta.
+        throw new Error(
+          aggiunti > 0
+            ? `${aggiunti} contatti aggiunti, poi si è fermata: ${errore instanceof Error ? errore.message : String(errore)}`
+            : errore instanceof Error ? errore.message : String(errore),
+          { cause: errore },
+        );
+      }
+      return aggiunti;
     },
-    onSuccess: () => {
-      toast.success(`${selectedIds.size} contatti aggiunti alla lista`);
+    onSuccess: (aggiunti: number) => {
+      toast.success(`${aggiunti.toLocaleString("it-IT")} contatti aggiunti alla lista`);
       queryClient.invalidateQueries({ queryKey: queryKeys.contactLists.all });
       setOpen(false);
     },
