@@ -16,7 +16,14 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 
 const AZIENDA_PIATTAFORMA = "00000000-0000-0000-0000-000000000001";
-const PAGINA = 2000;
+/**
+ * PostgREST non restituisce più di 1.000 righe per chiamata, qualunque
+ * intervallo si chieda: con pagine da 2.000 la prima risposta sembrava già
+ * l'ultima e l'esportazione si fermava a mille contatti.
+ */
+const PAGINA = 1000;
+/** Tetto di sicurezza: 200 pagine = 200.000 contatti, nessun ciclo infinito. */
+const PAGINE_MASSIME = 200;
 
 /** Settori riconosciuti dai tag, in ordine di precedenza. */
 const SETTORI: Array<{ gruppo: string; tag: string[] }> = [
@@ -118,7 +125,8 @@ Deno.serve(async (req) => {
     const perGruppo = new Map<string, string[]>();
     let letti = 0;
     let scartatiSenzaRecapito = 0;
-    for (let da = 0; ; da += PAGINA) {
+    for (let pagina = 0; pagina < PAGINE_MASSIME; pagina++) {
+      const da = pagina * PAGINA;
       const { data, error } = await admin
         .from("marketing_contacts")
         .select("first_name, last_name, company_name, email, phone, telefono_normalized, city, tags")
