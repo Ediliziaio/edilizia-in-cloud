@@ -16,6 +16,7 @@ export function OpportunitiesPanel({ contactId, companyId }: { contactId: string
         .select("id, name, value, status, pipeline_id, marketing_pipeline_stages(name), marketing_pipelines(name)")
         .eq("contact_id", contactId)
         .eq("company_id", companyId)
+        .is("deleted_at", null)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data;

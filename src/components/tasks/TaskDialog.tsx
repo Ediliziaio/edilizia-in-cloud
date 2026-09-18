@@ -383,6 +383,7 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
         .from("marketing_opportunities")
         .select("id, name, value")
         .eq("company_id", companyId)
+        .is("deleted_at", null)
         .order("created_at", { ascending: false })
         .limit(100);
       return data || [];

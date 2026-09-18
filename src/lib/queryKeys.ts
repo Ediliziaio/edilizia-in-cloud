@@ -73,6 +73,8 @@ export const queryKeys = {
       ["marketing-opportunities", "detail", opportunityId] as const,
     byContact: (contactId: string | undefined) =>
       ["marketing-opportunities", "by-contact", contactId] as const,
+    cestino: (companyId: string | undefined) =>
+      ["marketing-opportunities", "cestino", companyId] as const,
   },
 
   // ── Marketing Custom Fields ────────────────────────────

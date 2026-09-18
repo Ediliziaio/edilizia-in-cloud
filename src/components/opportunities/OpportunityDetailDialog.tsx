@@ -1415,7 +1415,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Eliminare questa opportunità?</AlertDialogTitle>
-          <AlertDialogDescription>Questa azione non può essere annullata.</AlertDialogDescription>
+          <AlertDialogDescription>Finisce nel cestino: la puoi ripristinare da Opportunità → Altre azioni → Cestino.</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Annulla</AlertDialogCancel>

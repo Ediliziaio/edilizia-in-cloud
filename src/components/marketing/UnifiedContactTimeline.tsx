@@ -9,7 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   Activity, Mail, MessageSquare, Phone, CalendarDays, StickyNote,
   Target, UserPlus, Settings, ArrowRight, RefreshCw, UserCheck,
-  FileText, AlertCircle, Check, CheckCheck, Clock, AlertTriangle,
+  FileText, AlertCircle, Check, CheckCheck, Clock, AlertTriangle, Trash2, ArchiveRestore,
 } from "lucide-react";
 import { getMarketingAppointmentStatusMeta } from "@/lib/marketingAppointmentStatus";
 import { autoreNota, dataOraNota } from "@/lib/marketing/autoreNota";
@@ -61,6 +61,8 @@ function getActivityIcon(type: string) {
     case "opportunity_created": return <Target className="h-3 w-3" />;
     case "stage_changed": return <ArrowRight className="h-3 w-3" />;
     case "status_changed": return <RefreshCw className="h-3 w-3" />;
+    case "opportunity_deleted": return <Trash2 className="h-3 w-3" />;
+    case "opportunity_restored": return <ArchiveRestore className="h-3 w-3" />;
     case "opportunity_assigned":
     case "contact_assigned": return <UserCheck className="h-3 w-3" />;
     case "document_uploaded": return <FileText className="h-3 w-3" />;

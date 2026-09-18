@@ -21,6 +21,7 @@ import {
   useOpportunitySummary, useOpportunityList, useOpportunityTags, useOpportunitiesLive, idsOpportunita, MASSIMO_ELIMINAZIONE,
 } from "@/hooks/useOpportunitiesData";
 import { OpportunityDetailDialog } from "@/components/opportunities/OpportunityDetailDialog";
+import { OpportunitaCestinoDialog } from "@/components/opportunities/OpportunitaCestinoDialog";
 import { useOpportunityCustomFields } from "@/hooks/useOpportunityDetailData";
 import { ImportWizard } from "@/components/shared/ImportWizard";
 import type { ImportField } from "@/components/shared/CSVImportDialog";
@@ -258,6 +259,7 @@ function MarketingOpportunitiesContent() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkEditOpen, setBulkEditOpen] = useState(false);
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
+  const [cestinoOpen, setCestinoOpen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
 
   const handleSelect = useCallback((id: string, sel: boolean) => {
@@ -808,6 +810,11 @@ function MarketingOpportunitiesContent() {
               <DropdownMenuItem onClick={handleExportOpportunities} disabled={isExporting}>
                 {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />} Esporta CSV
               </DropdownMenuItem>
+              {canEditOpportunities && (
+                <DropdownMenuItem onClick={() => setCestinoOpen(true)}>
+                  <Trash2 className="mr-2 h-4 w-4" /> Cestino
+                </DropdownMenuItem>
+              )}
               {!isAdminContext && <DropdownMenuItem onClick={() => navigate("/azienda/impostazioni/sequenze")}>Impostazioni pipeline</DropdownMenuItem>}
             </DropdownMenuContent>
           </DropdownMenu>
@@ -1115,7 +1122,7 @@ function MarketingOpportunitiesContent() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Eliminare {selectedIds.size} opportunità?</AlertDialogTitle>
-            <AlertDialogDescription>Questa azione non può essere annullata.</AlertDialogDescription>
+            <AlertDialogDescription>Finiscono nel cestino: le puoi ripristinare da Altre azioni → Cestino.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Annulla</AlertDialogCancel>
@@ -1125,6 +1132,7 @@ function MarketingOpportunitiesContent() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <OpportunitaCestinoDialog open={cestinoOpen} onOpenChange={setCestinoOpen} />
       <CreateListDialog
         open={createListOpen}
         onOpenChange={setCreateListOpen}

@@ -10,6 +10,7 @@ import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { withClientTimeout, retryListQuery } from "@/lib/query-timeout";
 import { subscribeChannel } from "@/lib/realtime/subscribeChannel";
 import type { FiltriServerOpportunita } from "@/lib/marketingOpportunities";
+import { LIMITE_CESTINO, rigaCestino, type OpportunitaNelCestino, type RigaCestinoGrezza } from "@/lib/opportunitaCestino";
 
 export function usePipelines() {
   const { effectiveCompany } = useAuth();
@@ -59,118 +60,10 @@ function validateOpportunityPayload(data: Record<string, any>) {
   }
 }
 
-/**
- * Tabelle che rendono un'opportunita' da ARCHIVIARE invece che da eliminare:
- * contengono lavoro che vive dentro il filo dell'opportunita' e che una
- * cancellazione scollegherebbe in silenzio (il vincolo e' ON DELETE SET NULL,
- * quindi la delete riesce e il collegamento sparisce senza dare errore).
- *
- * L'elenco era scritto a mano e ne aveva perse cinque - commesse,
- * appuntamenti, passaggi di chiamata, simulazioni ROI, clienti servizi: una
- * commessa nata da un'opportunita' restava orfana senza che nessuno lo sapesse.
- */
-const OPPORTUNITY_LINK_TABLES = [
-  "aedix_service_clients",
-  "appointments",
-  "crm_roi_simulations",
-  "marketing_contact_notes",
-  "marketing_documents",
-  "marketing_opportunity_notes",
-  "orders",
-  "passaggi_chiamata",
-  "quotes",
-  "render_bagno_sessions",
-  "render_facciata_sessions",
-  "render_pavimento_sessions",
-  "render_pergole_sessions",
-  "render_persiane_sessions",
-  "render_piscine_sessions",
-  "render_sessions",
-  "render_stanza_sessions",
-  "render_technical_sessions",
-  "render_tetto_sessions",
-  "tasks",
-] as const;
-
-interface OpportunityLinks {
-  /** Opportunita' con lavoro collegato: si archiviano, non si eliminano. */
-  daArchiviare: Set<string>;
-  /** Preventivi fotovoltaici collegati: si eliminano lo stesso, ma va detto. */
-  progettiFv: number;
-}
-
-/**
- * Conta i collegamenti di PIU' opportunita' in una volta sola.
- *
- * Prima si contava un'opportunita' alla volta, quindici richieste ciascuna:
- * su una selezione da cento partivano millecinquecento chiamate insieme. Ora
- * e' una query per tabella, qualunque sia il numero di opportunita'.
- */
-/**
- * Quanti id per richiesta. Il filtro `in` finisce nell'URL: con cinquecento
- * uuid in una volta sola l'indirizzo supera i limiti del server e la richiesta
- * torna 414. A cento la lunghezza resta ampiamente sotto.
- */
-const LINK_CHUNK = 100;
-
 function aBlocchi<T>(elementi: readonly T[], dimensione: number): T[][] {
   const blocchi: T[][] = [];
   for (let i = 0; i < elementi.length; i += dimensione) blocchi.push(elementi.slice(i, i + dimensione));
   return blocchi;
-}
-
-async function countOpportunityLinks(ids: string[], companyId: string): Promise<OpportunityLinks> {
-  const daArchiviare = new Set<string>();
-  if (ids.length === 0) return { daArchiviare, progettiFv: 0 };
-
-  const blocchi = aBlocchi(ids, LINK_CHUNK);
-
-  await Promise.all(
-    OPPORTUNITY_LINK_TABLES.flatMap((table) =>
-      blocchi.map(async (blocco) => {
-        const { data, error, count } = await supabase
-          .from(table as any)
-          .select("opportunity_id", { count: "exact" })
-          .eq("company_id", companyId)
-          .in("opportunity_id", blocco);
-        if (error) throw error;
-        // Risposta troncata: non so QUALI id siano collegati, quindi archivio
-        // tutto il blocco. In dubbio si sceglie l'opzione che non perde dati.
-        if (count !== null && (data?.length ?? 0) < count) {
-          blocco.forEach((id) => daArchiviare.add(id));
-          return;
-        }
-        (data || []).forEach((row: any) => {
-          if (row?.opportunity_id) daArchiviare.add(row.opportunity_id);
-        });
-      })
-    )
-  );
-
-  // Il preventivo fotovoltaico NON impedisce di eliminare: vive nella sua area
-  // e sta in piedi da solo (il vincolo e' ON DELETE SET NULL, migrazione
-  // 20280911100007). Lo conto solo per dirlo, invece di scollegarlo di nascosto.
-  const conteggiFv = await Promise.all(
-    blocchi.map(async (blocco) => {
-      const { count, error } = await supabase
-        .from("fv_progetti")
-        .select("id", { count: "exact", head: true })
-        .eq("company_id", companyId)
-        .in("opportunita_crm_id", blocco);
-      if (error) throw error;
-      return count || 0;
-    })
-  );
-
-  return { daArchiviare, progettiFv: conteggiFv.reduce((a, b) => a + b, 0) };
-}
-
-/** "1 preventivo fotovoltaico resta..." / "3 preventivi fotovoltaici restano..." */
-function notaProgettiFv(quanti: number): string | undefined {
-  if (quanti < 1) return undefined;
-  return quanti === 1
-    ? "1 preventivo fotovoltaico resta nell'area Fotovoltaico, senza piu' il collegamento all'opportunita'."
-    : `${quanti} preventivi fotovoltaici restano nell'area Fotovoltaico, senza piu' il collegamento all'opportunita'.`;
 }
 
 /**
@@ -727,7 +620,64 @@ function spostaSchedaNeiCache(
 /** Un filtro `in` finisce nell'URL: oltre qualche centinaio di id la
  *  richiesta viene rifiutata (414). Le modifiche in blocco vanno a blocchi. */
 const BLOCCO_MODIFICHE = 200;
+/** Più di mille in un colpo solo è quasi sempre un «Seleziona tutti» partito
+ *  su una pipeline intera (BeMade ne ha diciottomila). */
 export const MASSIMO_ELIMINAZIONE = 1000;
+
+/**
+ * «Elimina» sposta nel cestino, sempre. Fino al 17/09/2026 le opportunità
+ * senza note né documenti si cancellavano per sempre, senza traccia di chi:
+ * un lead BeMade arrivato la mattina è sparito così, e lo si è capito solo
+ * dal registro attività del contatto.
+ *
+ * Qui si scrive solo deleted_at. Lo stato di prima, «abbandonata» e chi ha
+ * eliminato li mette il database (trigger opportunita_cestino_stato,
+ * migrazione 20280918201000), che al ripristino rimette lo stato com'era e
+ * non fa ripartire le automazioni.
+ */
+async function scriviCestino(ids: string[], companyId: string, nelCestino: boolean, userId?: string | null) {
+  const adesso = new Date().toISOString();
+  // Il tipo scritto a mano perché qui `null` da solo sarebbe un tipo implicito.
+  const aggiornamento: { deleted_at: string | null; deleted_by?: string | null; updated_at: string } = nelCestino
+    ? { deleted_at: adesso, deleted_by: userId ?? null, updated_at: adesso }
+    : { deleted_at: null, updated_at: adesso };
+  for (const blocco of aBlocchi(ids, BLOCCO_MODIFICHE)) {
+    const { error } = await supabase
+      .from("marketing_opportunities")
+      .update(aggiornamento)
+      .eq("company_id", companyId)
+      .in("id", blocco);
+    if (error) throw error;
+  }
+}
+
+function invalidaOpportunita(queryClient: ReturnType<typeof useQueryClient>) {
+  queryClient.invalidateQueries({ queryKey: queryKeys.opportunities.all });
+  queryClient.invalidateQueries({ queryKey: queryKeys.marketingContacts.all });
+  queryClient.invalidateQueries({ queryKey: queryKeys.marketing.all });
+}
+
+/** Dopo «Elimina»: dove ritrovarle, e «Annulla» per rimetterle subito. */
+function avvisaCestino(queryClient: ReturnType<typeof useQueryClient>, ids: string[], companyId: string) {
+  const una = ids.length === 1;
+  toast.success(una ? "Opportunità spostata nel cestino" : `${ids.length.toLocaleString("it-IT")} opportunità spostate nel cestino`, {
+    description: `${una ? "La" : "Le"} ritrovi in Opportunità → Altre azioni → Cestino.`,
+    duration: 8000,
+    action: {
+      label: "Annulla",
+      // Una funzione e non una mutation: il dettaglio che ha eliminato si è
+      // già chiuso quando si preme «Annulla».
+      onClick: () => {
+        void scriviCestino(ids, companyId, false)
+          .then(() => {
+            invalidaOpportunita(queryClient);
+            toast.success(una ? "Opportunità ripristinata" : `${ids.length.toLocaleString("it-IT")} opportunità ripristinate`);
+          })
+          .catch((e) => toast.error(userErrorMessage(e, "Ripristino non riuscito: riprova dal cestino")));
+      },
+    },
+  });
+}
 
 export function useCreateOpportunity() {
   const { effectiveCompany } = useAuth();
@@ -893,42 +843,77 @@ export function useDeleteOpportunity() {
     mutationFn: async (id: string) => {
       if (!companyId) throw new Error("Azienda non selezionata");
       if (!canEditOpportunities(permissions)) throw new Error("Non hai i permessi per eliminare opportunità");
-      const { daArchiviare, progettiFv } = await countOpportunityLinks([id], companyId);
-      if (daArchiviare.has(id)) {
-        // Note e documenti restano, l'opportunità esce dalla pipeline: prima
-        // diventava solo «abbandonata» e restava nella sua colonna, come se
-        // «Elimina» non avesse fatto niente (BeMade, 15/09).
-        const adesso = new Date().toISOString();
-        const { error } = await supabase
-          .from("marketing_opportunities")
-          .update({ status: "abandoned", deleted_at: adesso, deleted_by: user?.id ?? null, updated_at: adesso } as never)
-          .eq("id", id)
-          .eq("company_id", companyId);
-        if (error) throw error;
-        return { archived: true, progettiFv };
-      }
-
-      const { error } = await supabase
-        .from("marketing_opportunities")
-        .delete()
-        .eq("id", id)
-        .eq("company_id", companyId);
-      if (error) throw error;
-      return { archived: false, progettiFv };
+      await scriviCestino([id], companyId, true, user?.id);
+      return { ids: [id], companyId };
     },
-    onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.opportunities.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.marketingContacts.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.marketing.all });
-      queryClient.invalidateQueries({ queryKey: ["fv_progetti"] });
-      toast.success(result?.archived ? "Opportunità eliminata: note e documenti restano nella scheda del contatto" : "Opportunità eliminata", {
-        description: notaProgettiFv(result?.progettiFv || 0),
-      });
+    onSuccess: ({ ids, companyId: azienda }) => {
+      invalidaOpportunita(queryClient);
+      avvisaCestino(queryClient, ids, azienda);
     },
-    // Un vincolo del database non va mostrato com'e': l'utente si e' visto
-    // arrivare a schermo "violates foreign key constraint fv_progetti_...".
     // Il fallback tiene i messaggi scritti qui sopra, gia' in italiano.
     onError: (e: any) => toast.error(userErrorMessage(e, e?.message)),
+  });
+}
+
+export function useRipristinaOpportunita() {
+  const queryClient = useQueryClient();
+  const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
+  const permissions = usePermissions();
+
+  return useMutation({
+    mutationFn: async (ids: string[]) => {
+      if (!companyId) throw new Error("Azienda non selezionata");
+      if (!canEditOpportunities(permissions)) throw new Error("Non hai i permessi per ripristinare opportunità");
+      await scriviCestino(ids, companyId, false);
+      return ids.length;
+    },
+    onSuccess: (quante) => {
+      invalidaOpportunita(queryClient);
+      toast.success(quante === 1 ? "Opportunità ripristinata" : `${quante.toLocaleString("it-IT")} opportunità ripristinate`, {
+        description: "Torna nella sua fase, con lo stato che aveva.",
+      });
+    },
+    onError: (e: any) => toast.error(userErrorMessage(e, e?.message)),
+  });
+}
+
+export function useOpportunitaCestino(enabled: boolean) {
+  const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
+
+  return useQuery({
+    queryKey: queryKeys.opportunities.cestino(companyId),
+    enabled: enabled && !!companyId,
+    queryFn: async (): Promise<OpportunitaNelCestino[]> => {
+      const { data, error } = await withClientTimeout(
+        supabase
+          .from("marketing_opportunities")
+          .select("id, name, value, deleted_at, deleted_by, marketing_contacts(first_name, last_name, company_name), marketing_pipelines(name), marketing_pipeline_stages(name)")
+          .eq("company_id", companyId!)
+          .not("deleted_at", "is", null)
+          .order("deleted_at", { ascending: false })
+          .limit(LIMITE_CESTINO),
+        "Caricamento cestino opportunità",
+      );
+      if (error) throw error;
+      const righe = (data || []) as unknown as RigaCestinoGrezza[];
+
+      // Chi ha eliminato: senza nome resta «un utente», il cestino si apre lo stesso.
+      const idAutori = [...new Set(righe.map((r) => r.deleted_by).filter((id): id is string => !!id))];
+      const autori: Record<string, string> = {};
+      if (idAutori.length > 0) {
+        const { data: profili } = await supabase
+          .from("profiles")
+          .select("id, first_name, last_name")
+          .in("id", idAutori);
+        (profili || []).forEach((p) => {
+          const nome = [p.first_name, p.last_name].map((s) => s?.trim()).filter(Boolean).join(" ");
+          if (nome) autori[p.id] = nome;
+        });
+      }
+      return righe.map((r) => rigaCestino(r, autori));
+    },
   });
 }
 
@@ -1185,50 +1170,16 @@ export function useBulkDeleteOpportunities() {
     mutationFn: async (ids: string[]) => {
       if (!companyId) throw new Error("Azienda non selezionata");
       if (!canEditOpportunities(permissions)) throw new Error("Non hai i permessi per eliminare opportunità");
-      if (ids.length === 0) return;
-      // Prima di eliminare si controllano i collegamenti di ogni opportunità,
-      // una richiesta per tabella ogni cento id: con «Seleziona tutti» su una
-      // pipeline da diciottomila sarebbero migliaia di richieste insieme.
       if (ids.length > MASSIMO_ELIMINAZIONE) {
         throw new Error(`Si possono eliminare al massimo ${MASSIMO_ELIMINAZIONE.toLocaleString("it-IT")} opportunità alla volta: restringi la selezione con i filtri.`);
       }
-      const { daArchiviare, progettiFv } = await countOpportunityLinks(ids, companyId);
-      const archiveIds = ids.filter((id) => daArchiviare.has(id));
-      const deleteIds = ids.filter((id) => !daArchiviare.has(id));
-
-      // Come l'eliminazione singola: fuori dalla pipeline, dati collegati salvi.
-      const adesso = new Date().toISOString();
-      for (const blocco of aBlocchi(archiveIds, BLOCCO_MODIFICHE)) {
-        const { error } = await supabase
-          .from("marketing_opportunities")
-          .update({ status: "abandoned", deleted_at: adesso, deleted_by: user?.id ?? null, updated_at: adesso } as never)
-          .eq("company_id", companyId)
-          .in("id", blocco);
-        if (error) throw error;
-      }
-
-      for (const blocco of aBlocchi(deleteIds, BLOCCO_MODIFICHE)) {
-        const { error } = await supabase
-          .from("marketing_opportunities")
-          .delete()
-          .eq("company_id", companyId)
-          .in("id", blocco);
-        if (error) throw error;
-      }
-
-      return { archived: archiveIds.length, deleted: deleteIds.length, progettiFv };
+      // Come l'eliminazione singola: nel cestino, con note e documenti al loro posto.
+      if (ids.length > 0) await scriviCestino(ids, companyId, true, user?.id);
+      return { ids, companyId };
     },
-    onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.opportunities.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.marketingContacts.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.marketing.all });
-      queryClient.invalidateQueries({ queryKey: ["fv_progetti"] });
-      const archived = result?.archived || 0;
-      const deleted = result?.deleted || 0;
-      const nota = notaProgettiFv(result?.progettiFv || 0);
-      if (archived && deleted) toast.success(`${deleted + archived} opportunità eliminate: di ${archived} note e documenti restano nel contatto`, { description: nota });
-      else if (archived) toast.success(`${archived} opportunità eliminate: note e documenti restano nel contatto`, { description: nota });
-      else toast.success("Opportunità eliminate", { description: nota });
+    onSuccess: ({ ids, companyId: azienda }) => {
+      invalidaOpportunita(queryClient);
+      if (ids.length > 0) avvisaCestino(queryClient, ids, azienda);
     },
     onError: (e: any) => toast.error(userErrorMessage(e, e?.message)),
   });

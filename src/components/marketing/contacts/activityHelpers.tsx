@@ -1,6 +1,6 @@
 import {
   UserPlus, Settings, StickyNote, Mail, MessageSquare, Target,
-  ArrowRight, RefreshCw, UserCheck, FileText, Activity,
+  ArrowRight, RefreshCw, UserCheck, FileText, Activity, Trash2, ArchiveRestore,
 } from "lucide-react";
 import { isToday, isYesterday, format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -17,6 +17,8 @@ export function getActivityIcon(type: string) {
     case "opportunity_created": return <Target className="h-3.5 w-3.5" />;
     case "stage_changed": return <ArrowRight className="h-3.5 w-3.5" />;
     case "status_changed": return <RefreshCw className="h-3.5 w-3.5" />;
+    case "opportunity_deleted": return <Trash2 className="h-3.5 w-3.5" />;
+    case "opportunity_restored": return <ArchiveRestore className="h-3.5 w-3.5" />;
     case "opportunity_assigned":
     case "contact_assigned": return <UserCheck className="h-3.5 w-3.5" />;
     case "document_uploaded": return <FileText className="h-3.5 w-3.5" />;
@@ -35,6 +37,8 @@ export function getActivityColor(type: string) {
     case "opportunity_created": return "bg-purple-100 text-purple-600";
     case "stage_changed": return "bg-sky-100 text-sky-600";
     case "status_changed": return "bg-orange-100 text-orange-600";
+    case "opportunity_deleted": return "bg-red-100 text-red-600";
+    case "opportunity_restored": return "bg-emerald-100 text-emerald-600";
     case "opportunity_assigned":
     case "contact_assigned": return "bg-indigo-100 text-indigo-600";
     case "document_uploaded": return "bg-cyan-100 text-cyan-600";

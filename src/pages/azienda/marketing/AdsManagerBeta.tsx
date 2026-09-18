@@ -1251,6 +1251,7 @@ async function fetchBusinessOpportunities(companyId: string, contactIds: string[
       .from("marketing_opportunities")
       .select("id, contact_id, status, value")
       .eq("company_id", companyId)
+      .is("deleted_at", null)
       .in("contact_id", contactIds)
       .limit(2000);
     if (error) throw error;

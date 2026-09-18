@@ -85,6 +85,7 @@ export default function StepCliente({ form, onChange }: Props) {
         .from("marketing_opportunities")
         .select("id, name, value")
         .eq("company_id", companyId!)
+        .is("deleted_at", null)
         .limit(20);
       const safe = oppSearch.replace(/[%,]/g, " ").trim();
       if (safe) query = query.ilike("name", `%${safe}%`);

@@ -63,6 +63,7 @@ export default function CRMFunnelSection({ dateRange, isConnected }: Props) {
           .from("marketing_opportunities")
           .select("id", { count: "exact", head: true })
           .eq("company_id", companyId)
+          .is("deleted_at", null)
           .in("contact_id", contactIds);
         opportunitiesCount = count || 0;
       }
