@@ -34,3 +34,25 @@ describe("sposta opportunità in un'altra pipeline", () => {
     expect(hook).toMatch(/\.\.\.\(pipeline_id \? \{ pipeline_id \} : \{\}\)/);
   });
 });
+
+describe("scheda opportunità: cambio pipeline", () => {
+  const scheda = leggi("src/components/opportunities/OpportunityDetailDialog.tsx");
+
+  it("«Sequenza» è una scelta, non più una casella grigia", () => {
+    // Il popup della scheda è la strada che usano davvero: lì la pipeline era
+    // solo scritta, e non c'era modo di spostare l'opportunità (Il Bagno
+    // Group, 18/09/2026).
+    expect(scheda).toContain("const [pipelineId, setPipelineId]");
+    expect(scheda).toMatch(/Sequenza<\/Label>\s*\n\s*\{canEditOpportunity && pipelines\.length > 1 \?/);
+  });
+
+  it("cambiando pipeline le fasi diventano quelle nuove", () => {
+    expect(scheda).toContain("fasiDisponibili.map");
+    expect(scheda).toContain("const prima = fasi[0]");
+  });
+
+  it("il salvataggio porta con sé la pipeline", () => {
+    expect(scheda).toMatch(/pipelineId !== opportunity\.pipeline_id \? \{ pipeline_id: pipelineId \}/);
+  });
+});
+

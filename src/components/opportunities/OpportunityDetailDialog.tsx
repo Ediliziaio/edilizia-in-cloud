@@ -188,6 +188,9 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
   // Opportunity fields
   const [name, setName] = useState("");
   const [stageId, setStageId] = useState("");
+  // La pipeline si può cambiare dalla scheda: prima «Sequenza» era una casella
+  // grigia e l'unico modo per passare da una pipeline all'altra non esisteva.
+  const [pipelineId, setPipelineId] = useState("");
   const [status, setStatus] = useState("open");
   const [value, setValue] = useState("");
   const [source, setSource] = useState("");
@@ -306,6 +309,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
       setContactRegion(contact?.region || "");
       setName(opportunity.name || "");
       setStageId(opportunity.stage_id || "");
+      setPipelineId(opportunity.pipeline_id || "");
       setStatus(opportunity.status || "open");
       setValue(String(opportunity.value || 0));
       setSource(opportunity.source || "");
@@ -384,6 +388,10 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
   const fullName = contact ? `${contact.first_name || ""} ${contact.last_name || ""}`.trim() : opportunity.name;
   const cityPart = contact?.city ? ` - ${contact.city}` : "";
   const pipelineName = pipelines.find((p: any) => p.id === opportunity.pipeline_id)?.name || "";
+  // Le fasi da mostrare sono quelle della pipeline scelta nella scheda, non
+  // per forza quelle della vista da cui si è aperta l'opportunità.
+  const fasiDellaPipelineScelta = (pipelines.find((p: any) => p.id === pipelineId)?.marketing_pipeline_stages ?? []) as Array<{ id: string; name: string; auto_status?: string | null }>;
+  const fasiDisponibili = fasiDellaPipelineScelta.length > 0 ? fasiDellaPipelineScelta : stages;
 
   const isSaving = updateOpp.isPending || updateContact.isPending || upsertContactFields.isPending || upsertOppFields.isPending;
 
@@ -492,6 +500,9 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
     updateOpp.mutate({
       id: opportunity.id,
       name: name.trim(), stage_id: stageId, status,
+      // Spostamento in un'altra pipeline: senza questo la fase cambierebbe ma
+      // l'opportunità resterebbe agganciata alla pipeline vecchia.
+      ...(pipelineId && pipelineId !== opportunity.pipeline_id ? { pipeline_id: pipelineId } : {}),
       value: numericValue,
       source: source || null,
       assigned_to: assignedTo || null,
@@ -976,22 +987,45 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div className="space-y-1">
                           <Label className="text-xs text-muted-foreground">Sequenza</Label>
-                          <div className="h-10 sm:h-8 px-3 border rounded-md bg-muted/30 text-sm flex items-center truncate">
-                            {pipelineName || "—"}
-                          </div>
+                          {canEditOpportunity && pipelines.length > 1 ? (
+                            <Select
+                              value={pipelineId}
+                              onValueChange={(nuovaPipeline) => {
+                                setPipelineId(nuovaPipeline);
+                                // Cambiando pipeline la fase vecchia non esiste più:
+                                // si parte dalla prima della nuova.
+                                const fasi = (pipelines.find((p: any) => p.id === nuovaPipeline)?.marketing_pipeline_stages ?? []) as Array<{ id: string; auto_status?: string | null }>;
+                                const prima = fasi[0];
+                                if (prima) {
+                                  setStageId(prima.id);
+                                  setStatus(inferOpportunityStatusFromStage(prima, "open"));
+                                }
+                              }}
+                            >
+                              <SelectTrigger className={SELECT_TRIGGER_CLS}><SelectValue placeholder="Sequenza" /></SelectTrigger>
+                              <SelectContent>
+                                {pipelines.map((p: any) => (
+                                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <div className="h-10 sm:h-8 px-3 border rounded-md bg-muted/30 text-sm flex items-center truncate">
+                              {pipelineName || "—"}
+                            </div>
+                          )}
                         </div>
                         <div className="space-y-1">
                           <Label className="text-xs text-muted-foreground">Fase</Label>
                           <Select value={stageId} onValueChange={(newStageId) => {
                             setStageId(newStageId);
                             // Auto-update status based on stage's auto_status
-                            const pipeline = pipelines.find((p: any) => p.id === opportunity.pipeline_id);
-                            const targetStage = pipeline?.marketing_pipeline_stages?.find((s: any) => s.id === newStageId);
+                            const targetStage = fasiDisponibili.find((s) => s.id === newStageId);
                             setStatus(inferOpportunityStatusFromStage(targetStage, "open"));
                           }}>
                             <SelectTrigger className={SELECT_TRIGGER_CLS}><SelectValue /></SelectTrigger>
                             <SelectContent>
-                              {stages.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                              {fasiDisponibili.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                             </SelectContent>
                           </Select>
                         </div>
@@ -1168,7 +1202,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                             className="h-6 text-xs shrink-0"
                             disabled={updateOpportunity.isPending || !canEditOpportunity}
                             onClick={() => {
-                              const faseVinta = stages?.find((st: any) => st.auto_status === "won");
+                              const faseVinta = fasiDisponibili?.find((st) => st.auto_status === "won");
                               updateOpportunity.mutate({
                                 id: opportunity.id,
                                 data: { status: "won", ...(faseVinta ? { stage_id: faseVinta.id } : {}) },
