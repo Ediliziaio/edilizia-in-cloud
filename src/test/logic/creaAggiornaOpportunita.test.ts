@@ -11,23 +11,32 @@ const MOTORE = readFileSync(join(__dirname, "../../../supabase/functions/process
 const CATALOGO = readFileSync(join(__dirname, "../../lib/flow-node-catalog.ts"), "utf8");
 
 describe("Crea o aggiorna opportunità — nota e avvisi", () => {
-  it("racconta la fase di prima, quella di adesso e chi l'ha presa", () => {
+  // 18/09/2026: una nuova richiesta non riporta più la scheda in «Da Chiamare».
+  it("dice dove resta la scheda e che non la riporta indietro", () => {
     expect(
       testoNotaAggiornamento({
         flusso: "FB - Nuovo",
-        fasePrima: "Non interessato per ora",
-        faseDopo: "Da Chiamare",
-        callCenter: "Venusia BeMade",
+        fasePrima: "Non risponde 3",
+        faseFlusso: "Da Chiamare",
       }),
     ).toBe(
-      "L'automazione «FB - Nuovo» ha ritrovato questa opportunità aperta e l'ha riportata in «Da Chiamare» (era in «Non interessato per ora»). Assegnata come da flusso: call center Venusia BeMade.",
+      "L'automazione «FB - Nuovo» ha ritrovato questa opportunità aperta in «Non risponde 3» e l'ha lasciata lì: non la riporta in «Da Chiamare» e non ne crea un'altra.",
     );
   });
 
-  it("se era già nella fase giusta lo dice, senza inventare uno spostamento", () => {
-    expect(testoNotaAggiornamento({ fasePrima: "Da Chiamare", faseDopo: "Da Chiamare" })).toBe(
+  it("se è già nella fase del flusso lo dice, senza inventare uno spostamento", () => {
+    expect(testoNotaAggiornamento({ fasePrima: "Da Chiamare", faseFlusso: "Da Chiamare" })).toBe(
       "L'automazione ha ritrovato questa opportunità aperta in «Da Chiamare»: non ne ha creata un'altra.",
     );
+  });
+
+  it("scrive chi l'ha presa solo quando non era di nessuno", () => {
+    expect(
+      testoNotaAggiornamento({ flusso: "FB - Nuovo", fasePrima: "Da Chiamare", faseFlusso: "Da Chiamare", callCenter: "Venusia BeMade" }),
+    ).toBe(
+      "L'automazione «FB - Nuovo» ha ritrovato questa opportunità aperta in «Da Chiamare»: non ne ha creata un'altra. Non era di nessuno: l'ha presa call center Venusia BeMade.",
+    );
+    expect(testoNotaAggiornamento({ fasePrima: "Standby", faseFlusso: "Da Chiamare" })).not.toMatch(/presa/);
   });
 
   it("avvisa ogni persona una volta sola", () => {
@@ -46,10 +55,12 @@ describe("Crea o aggiorna opportunità — motore e catalogo", () => {
     expect(azione.indexOf('action: "update_opportunity"')).toBeLessThan(azione.indexOf(".insert(insertData)"));
   });
 
-  it("l'assegnazione del flusso vale anche su un'opportunità già assegnata", () => {
+  it("la scheda già aperta non si sposta e non cambia di mano", () => {
     const azione = MOTORE.split('case "create_opportunity": {')[1];
-    expect(azione).toMatch(/if \(ncfg\.assegnato_a\) patch\.assigned_to = ncfg\.assegnato_a;/);
-    expect(azione).toMatch(/if \(ncfg\.call_center_id\) patch\.call_center_id = ncfg\.call_center_id;/);
+    // Niente stage_id nel patch: la fase la decide chi lavora la scheda.
+    expect(azione.split(".insert(insertData)")[0]).not.toMatch(/patch\.stage_id/);
+    expect(azione).toMatch(/if \(!esistente\.assigned_to && ncfg\.assegnato_a\) patch\.assigned_to = ncfg\.assegnato_a;/);
+    expect(azione).toMatch(/if \(!esistente\.call_center_id && ncfg\.call_center_id\) patch\.call_center_id = ncfg\.call_center_id;/);
   });
 
   it("nel costruttore l'azione si chiama «Crea o aggiorna opportunità»", () => {

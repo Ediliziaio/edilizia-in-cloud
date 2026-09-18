@@ -5,17 +5,27 @@
  * l'azione provava a creare un'opportunità nuova, il database la scartava
  * perché ce n'era già una aperta, e chi il flusso aveva scelto (venditore,
  * call center) andava perso: Marcella Martinucci (BeMade, 14/09) è tornata in
- * «Da Chiamare» senza nessuno. Ora l'opportunità aperta si aggiorna come dice
- * il flusso: fase e assegnazione di oggi, anche se prima c'era qualcun altro,
- * perché il flusso è la regola che vale adesso.
+ * «Da Chiamare» senza nessuno. Allora l'opportunità aperta si aggiornava come
+ * diceva il flusso: fase e assegnazione di oggi.
+ *
+ * 18/09/2026: era troppo. La scheda tornava in «Da Chiamare» da qualunque
+ * fase — «Non risponde 3», «Standby», perfino un appuntamento fissato — e
+ * cambiava di mano, ogni volta che quella persona ricompilava il modulo (i
+ * caroselli Meta la fanno compilare più volte). Venusia e Antonella (BeMade)
+ * si sono ritrovate in «Da Chiamare» contatti che avevano appena classificato.
+ * Ora la scheda NON si muove e non cambia di mano: resta dov'è, con la data
+ * dell'ultima attività aggiornata, il badge «Di nuovo» sulla scheda, una nota
+ * e un avviso a chi la segue. Quando decidere di richiamare è di chi chiama.
  *
  * Qui solo le parti senza database, provate a parte.
  */
 
 export interface DatiNotaAggiornamento {
   flusso?: string | null;
+  /** Dove sta la scheda (e dove resta). */
   fasePrima?: string | null;
-  faseDopo?: string | null;
+  /** Dove l'avrebbe messa il flusso: si scrive solo per dire che non ce l'ha portata. */
+  faseFlusso?: string | null;
   venditore?: string | null;
   callCenter?: string | null;
   arretrato?: boolean;
@@ -23,17 +33,20 @@ export interface DatiNotaAggiornamento {
 
 export function testoNotaAggiornamento(d: DatiNotaAggiornamento): string {
   const origine = d.flusso ? `L'automazione «${d.flusso}»` : "L'automazione";
+  const dove = d.fasePrima ?? d.faseFlusso ?? null;
   const parti: string[] = [];
-  if (d.faseDopo && d.fasePrima && d.fasePrima !== d.faseDopo) {
-    parti.push(`${origine} ha ritrovato questa opportunità aperta e l'ha riportata in «${d.faseDopo}» (era in «${d.fasePrima}»).`);
+  if (d.fasePrima && d.faseFlusso && d.fasePrima !== d.faseFlusso) {
+    parti.push(
+      `${origine} ha ritrovato questa opportunità aperta in «${d.fasePrima}» e l'ha lasciata lì: non la riporta in «${d.faseFlusso}» e non ne crea un'altra.`,
+    );
   } else {
-    parti.push(`${origine} ha ritrovato questa opportunità aperta${d.faseDopo ? ` in «${d.faseDopo}»` : ""}: non ne ha creata un'altra.`);
+    parti.push(`${origine} ha ritrovato questa opportunità aperta${dove ? ` in «${dove}»` : ""}: non ne ha creata un'altra.`);
   }
   const assegnazioni = [
     d.venditore ? `venditore ${d.venditore}` : null,
     d.callCenter ? `call center ${d.callCenter}` : null,
   ].filter(Boolean);
-  if (assegnazioni.length > 0) parti.push(`Assegnata come da flusso: ${assegnazioni.join(", ")}.`);
+  if (assegnazioni.length > 0) parti.push(`Non era di nessuno: l'ha presa ${assegnazioni.join(", ")}.`);
   if (d.arretrato) parti.push("Richiesta recuperata dallo storico: non è un contatto di oggi.");
   return parti.join(" ");
 }

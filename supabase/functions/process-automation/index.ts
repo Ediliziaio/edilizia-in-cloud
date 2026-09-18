@@ -1581,11 +1581,10 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
 
       // ── CREA O AGGIORNA ──
       // Il contatto ha già un'opportunità aperta in questa pipeline (ha fatto
-      // di nuovo richiesta): si aggiorna quella, come dice il flusso. Fase e
-      // assegnazione sono quelle del flusso di oggi, anche se prima c'era un
-      // altro venditore o call center: il flusso è la regola che vale adesso.
-      // Prima l'inserimento veniva scartato dal database (dedupe) e chi il
-      // flusso aveva scelto andava perso (BeMade, Marcella Martinucci, 14/09).
+      // di nuovo richiesta): non se ne crea un'altra e quella aperta resta
+      // dov'è, di chi la sta seguendo. Fino al 18/09/2026 tornava invece nella
+      // fase del flusso e cambiava di mano a ogni nuova compilazione: in BeMade
+      // i contatti classificati «Non risponde» si ritrovavano in «Da Chiamare».
       if (pipelineId && UUID_RE.test(String(entityId))) {
         const { data: esistente } = await supabase
           .from("marketing_opportunities")
@@ -1601,11 +1600,16 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
 
         if (esistente) {
           const adesso = new Date().toISOString();
-          // Richiesta fresca: la scheda non è ferma da settimane, anche se la fase non cambia.
-          const patch: Record<string, unknown> = { stage_changed_at: adesso, last_activity_at: adesso, updated_at: adesso };
-          if (stageId && stageId !== esistente.stage_id) patch.stage_id = stageId;
-          if (ncfg.assegnato_a) patch.assigned_to = ncfg.assegnato_a;
-          if (ncfg.call_center_id) patch.call_center_id = ncfg.call_center_id;
+          // La scheda NON si muove e non cambia di mano: chi l'ha classificata
+          // («Non risponde 3», «Standby», un appuntamento fissato) ha deciso, e
+          // una nuova compilazione del modulo non ribalta quella decisione —
+          // con i caroselli Meta la stessa persona compila più volte. Si segna
+          // solo che è di nuovo viva: badge «Di nuovo», nota e avviso.
+          // Il venditore e il call center del flusso entrano solo se la scheda
+          // non è di nessuno (BeMade 18/09: prima se la palleggiavano).
+          const patch: Record<string, unknown> = { last_activity_at: adesso, updated_at: adesso };
+          if (!esistente.assigned_to && ncfg.assegnato_a) patch.assigned_to = ncfg.assegnato_a;
+          if (!esistente.call_center_id && ncfg.call_center_id) patch.call_center_id = ncfg.call_center_id;
           if (leadArretrato) patch.tags = tagsUniti(esistente.tags, ["lead-recuperato"]);
 
           const { error: errAggiorna } = await supabase
@@ -1628,7 +1632,7 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
             const p = ((personeRes.data ?? []) as Array<{ id: string; first_name: string | null; last_name: string | null }>).find((x) => x.id === id);
             return p ? `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim() || null : null;
           };
-          const faseOra = nomeFase(stageId || esistente.stage_id);
+          const faseOra = nomeFase(esistente.stage_id);
 
           // Nota sulla scheda: chi apre l'opportunità capisce perché è tornata qui.
           await supabase.from("marketing_contact_notes").insert({
@@ -1637,8 +1641,8 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
             opportunity_id: esistente.id,
             content: testoNotaAggiornamento({
               flusso: (flussoRes.data as { name?: string } | null)?.name ?? null,
-              fasePrima: nomeFase(esistente.stage_id),
-              faseDopo: faseOra,
+              fasePrima: faseOra,
+              faseFlusso: nomeFase(stageId),
               venditore: patch.assigned_to ? nomePersona(patch.assigned_to) : null,
               callCenter: patch.call_center_id ? nomePersona(patch.call_center_id) : null,
               arretrato: leadArretrato,
@@ -1658,7 +1662,7 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
                 user_id: uid,
                 type: "lead_ripresentato",
                 title: `${String(esistente.name || "Un cliente").slice(0, 80)} ha fatto di nuovo richiesta`,
-                body: `L'opportunità è in «${faseOra ?? "prima fase"}», da richiamare.`,
+                body: `La scheda resta dov'è, in «${faseOra ?? "prima fase"}»: decidi tu se richiamarlo.`,
                 entity_type: "marketing_opportunity",
                 entity_id: esistente.id,
                 action_url: `/azienda/marketing/opportunita?pipeline=${pipelineId}&apri=${esistente.id}`,
@@ -1673,7 +1677,8 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
               opportunity_id: esistente.id,
               name: esistente.name,
               fase: faseOra,
-              riassegnata: Boolean(ncfg.assegnato_a || ncfg.call_center_id),
+              spostata: false,
+              riassegnata: Boolean(patch.assigned_to || patch.call_center_id),
             },
           };
         }
