@@ -994,7 +994,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                                 setPipelineId(nuovaPipeline);
                                 // Cambiando pipeline la fase vecchia non esiste più:
                                 // si parte dalla prima della nuova.
-                                const fasi = (pipelines.find((p: any) => p.id === nuovaPipeline)?.marketing_pipeline_stages ?? []) as Array<{ id: string; auto_status?: string | null }>;
+                                const fasi = (pipelines.find((p: any) => p.id === nuovaPipeline)?.marketing_pipeline_stages ?? []) as Array<{ id: string; name: string; auto_status?: string | null }>;
                                 const prima = fasi[0];
                                 if (prima) {
                                   setStageId(prima.id);
