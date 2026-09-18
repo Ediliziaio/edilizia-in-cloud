@@ -22,14 +22,10 @@ import { Tags, DollarSign, Loader2, X } from "lucide-react";
 import { TagSelector } from "@/components/marketing/TagSelector";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { queryKeys } from "@/lib/queryKeys";
+import { perOgniLotto, raccogliALotti, LOTTO_RIGHE } from "@/lib/lottiDiId";
 
-const CHUNK = 20;
-
-async function inChunks<T>(items: T[], fn: (item: T) => Promise<void>) {
-  for (let i = 0; i < items.length; i += CHUNK) {
-    await Promise.all(items.slice(i, i + CHUNK).map(fn));
-  }
-}
+/** Quanti contatti si leggono per proporre i tag da rimuovere. */
+const TAG_DA_LEGGERE = 5000;
 
 // ── Modifica tag in blocco ──────────────────────────────────────────────────
 
@@ -41,48 +37,78 @@ export function BulkTagsDialog({ selectedIds }: { selectedIds: Set<string> }) {
   const [tagsToRemove, setTagsToRemove] = useState<string[]>([]);
 
   const ids = useMemo(() => [...selectedIds], [selectedIds]);
+  // Con «Seleziona tutti» gli id sono decine di migliaia: leggerli tutti solo
+  // per proporre i tag da togliere costerebbe cinquanta richieste a ogni
+  // apertura. Si guardano i primi cinquemila e lo si dice.
+  const idsPerTag = useMemo(() => ids.slice(0, TAG_DA_LEGGERE), [ids]);
+  const tagTroncati = ids.length > idsPerTag.length;
 
   // Tag attualmente presenti sui selezionati (per la sezione "rimuovi")
   const { data: existingTags = [] } = useQuery({
-    queryKey: ["bulk-selected-tags", effectiveCompany?.id, ids],
+    // La chiave non contiene l'elenco: react-query la serializza a ogni
+    // render, e 25.000 id sono quasi un megabyte di JSON per volta.
+    queryKey: ["bulk-selected-tags", effectiveCompany?.id, idsPerTag.length, idsPerTag[0], idsPerTag[idsPerTag.length - 1]],
     enabled: open && ids.length > 0 && !!effectiveCompany?.id,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("marketing_contacts")
-        .select("tags")
-        .eq("company_id", effectiveCompany!.id)
-        .in("id", ids);
-      if (error) throw error;
+      const righe = await raccogliALotti(idsPerTag, async (lotto) => {
+        const { data, error } = await supabase
+          .from("marketing_contacts")
+          .select("tags")
+          .eq("company_id", effectiveCompany!.id)
+          .in("id", lotto);
+        if (error) throw error;
+        return data ?? [];
+      });
       const all = new Set<string>();
-      for (const row of data ?? []) for (const t of row.tags ?? []) all.add(t);
+      for (const row of righe) for (const t of row.tags ?? []) all.add(t);
       return [...all].sort();
     },
   });
 
   const mutation = useMutation({
     mutationFn: async () => {
-      const { data: rows, error } = await supabase
-        .from("marketing_contacts")
-        .select("id, tags")
-        .eq("company_id", effectiveCompany!.id)
-        .in("id", ids);
-      if (error) throw error;
-      await inChunks(rows ?? [], async (row) => {
+      const rows = await raccogliALotti(ids, async (lotto) => {
+        const { data, error } = await supabase
+          .from("marketing_contacts")
+          .select("id, tags")
+          .eq("company_id", effectiveCompany!.id)
+          .in("id", lotto);
+        if (error) throw error;
+        return data ?? [];
+      });
+
+      // Stessi tag di partenza, stesso risultato: si raggruppa e si fa un
+      // update per gruppo invece di uno per contatto. Su 25.000 selezionati
+      // erano 25.000 richieste, adesso sono una manciata.
+      const gruppi = new Map<string, { next: string[]; ids: string[] }>();
+      for (const row of rows) {
         const current: string[] = row.tags ?? [];
         const next = [...new Set([...current.filter((t) => !tagsToRemove.includes(t)), ...tagsToAdd])];
         // Salta gli invariati: niente update inutili su selezioni grandi
-        if (next.length === current.length && next.every((t) => current.includes(t))) return;
-        const { error: upErr } = await supabase
-          .from("marketing_contacts")
-          .update({ tags: next, updated_at: new Date().toISOString() })
-          .eq("id", row.id);
-        if (upErr) throw upErr;
-      });
-      return rows?.length ?? 0;
+        if (next.length === current.length && next.every((t) => current.includes(t))) continue;
+        const chiave = [...next].sort().join("\u0000");
+        const gruppo = gruppi.get(chiave) ?? { next, ids: [] };
+        gruppo.ids.push(row.id);
+        gruppi.set(chiave, gruppo);
+      }
+
+      let aggiornati = 0;
+      for (const gruppo of gruppi.values()) {
+        await perOgniLotto(gruppo.ids, async (lotto) => {
+          const { error: upErr } = await supabase
+            .from("marketing_contacts")
+            .update({ tags: gruppo.next, updated_at: new Date().toISOString() })
+            .eq("company_id", effectiveCompany!.id)
+            .in("id", lotto);
+          if (upErr) throw upErr;
+        });
+        aggiornati += gruppo.ids.length;
+      }
+      return aggiornati;
     },
     onSuccess: (n) => {
       qc.invalidateQueries({ queryKey: queryKeys.marketingContacts.all });
-      toast.success(`Tag aggiornati su ${n} contatti`);
+      toast.success(n === 0 ? "Nessun contatto da aggiornare: avevano già questi tag" : `Tag aggiornati su ${n} contatti`);
       setOpen(false);
       setTagsToAdd([]);
       setTagsToRemove([]);
@@ -135,6 +161,11 @@ export function BulkTagsDialog({ selectedIds }: { selectedIds: Set<string> }) {
                     );
                   })}
                 </div>
+              )}
+              {tagTroncati && (
+                <p className="text-[11px] text-muted-foreground">
+                  Tag visti nei primi {TAG_DA_LEGGERE.toLocaleString("it-IT")} contatti selezionati; la rimozione vale comunque su tutti e {ids.length.toLocaleString("it-IT")}.
+                </p>
               )}
               {tagsToRemove.length > 0 && (
                 <p className="text-[11px] text-red-600">{tagsToRemove.length} tag verranno rimossi dai contatti selezionati.</p>
@@ -209,15 +240,18 @@ export function BulkCreateOpportunitiesDialog({ selectedIds }: { selectedIds: Se
     mutationFn: async () => {
       if (!companyId) throw new Error("Azienda non disponibile");
       if (!pipelineId || !stageId) throw new Error("Seleziona pipeline e fase");
-      const { data: contacts, error } = await supabase
-        .from("marketing_contacts")
-        .select("id, first_name, last_name")
-        .eq("company_id", companyId)
-        .in("id", ids);
-      if (error) throw error;
+      const contacts = await raccogliALotti(ids, async (lotto) => {
+        const { data, error } = await supabase
+          .from("marketing_contacts")
+          .select("id, first_name, last_name")
+          .eq("company_id", companyId)
+          .in("id", lotto);
+        if (error) throw error;
+        return data ?? [];
+      });
 
       const numValue = Number(value.replace(",", ".")) || 0;
-      const rows = (contacts ?? []).map((c) => ({
+      const rows = contacts.map((c) => ({
         company_id: companyId,
         contact_id: c.id,
         pipeline_id: pipelineId,
@@ -229,8 +263,10 @@ export function BulkCreateOpportunitiesDialog({ selectedIds }: { selectedIds: Se
         assigned_to: assignedTo || null,
         call_center_id: callCenterId || null,
       }));
-      const { error: insErr } = await supabase.from("marketing_opportunities").insert(rows);
-      if (insErr) throw insErr;
+      await perOgniLotto(rows, async (lotto) => {
+        const { error: insErr } = await supabase.from("marketing_opportunities").insert(lotto);
+        if (insErr) throw insErr;
+      }, LOTTO_RIGHE);
       return rows.length;
     },
     onSuccess: (n) => {

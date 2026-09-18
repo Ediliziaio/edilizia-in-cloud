@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ListPlus, Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
+import { perOgniLotto, raccogliALotti, LOTTO_RIGHE } from "@/lib/lottiDiId";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -31,15 +32,18 @@ async function getCompanyScopedContactIds(contactIds: string[], companyId: strin
   if (!companyId) throw new Error("Azienda non selezionata");
   if (contactIds.length === 0) throw new Error("Seleziona almeno un contatto");
 
-  const { data, error } = await supabase
-    .from("marketing_contacts")
-    .select("id")
-    .eq("company_id", companyId)
-    .in("id", contactIds);
-
-  if (error) throw error;
-
-  const safeIds = (data || []).map((row) => row.id);
+  // A lotti: PostgREST risponde al massimo con mille righe e l'URL non regge
+  // 25.000 id, quindi con la selezione intera il controllo qui sotto
+  // («ne ho ritrovati quanti ne ho mandati») falliva da solo.
+  const safeIds = await raccogliALotti(contactIds, async (lotto) => {
+    const { data, error } = await supabase
+      .from("marketing_contacts")
+      .select("id")
+      .eq("company_id", companyId)
+      .in("id", lotto);
+    if (error) throw error;
+    return (data || []).map((row) => row.id);
+  });
   if (safeIds.length !== contactIds.length) {
     throw new Error("Alcuni contatti selezionati non appartengono all'azienda corrente");
   }
@@ -73,10 +77,12 @@ export function AddToListDropdown({ selectedIds }: AddToListDropdownProps) {
     mutationFn: async (listId: string) => {
       await assertListBelongsToCompany(listId, companyId);
       const contactIds = await getCompanyScopedContactIds(Array.from(selectedIds), companyId);
-      const rows = contactIds.map(contactId => ({ list_id: listId, contact_id: contactId }));
 
-      const { error } = await supabase.from("marketing_contact_list_members").upsert(rows, { onConflict: "list_id,contact_id" });
-      if (error) throw error;
+      await perOgniLotto(contactIds, async (lotto) => {
+        const rows = lotto.map((contactId) => ({ list_id: listId, contact_id: contactId }));
+        const { error } = await supabase.from("marketing_contact_list_members").upsert(rows, { onConflict: "list_id,contact_id" });
+        if (error) throw error;
+      }, LOTTO_RIGHE);
     },
     onSuccess: () => {
       toast.success(`${selectedIds.size} contatti aggiunti alla lista`);
@@ -98,9 +104,11 @@ export function AddToListDropdown({ selectedIds }: AddToListDropdownProps) {
         .single();
       if (error) throw error;
 
-      const rows = contactIds.map(contactId => ({ list_id: list.id, contact_id: contactId }));
-      const { error: err2 } = await supabase.from("marketing_contact_list_members").insert(rows);
-      if (err2) throw err2;
+      await perOgniLotto(contactIds, async (lotto) => {
+        const rows = lotto.map((contactId) => ({ list_id: list.id, contact_id: contactId }));
+        const { error: err2 } = await supabase.from("marketing_contact_list_members").insert(rows);
+        if (err2) throw err2;
+      }, LOTTO_RIGHE);
     },
     onSuccess: () => {
       toast.success("Lista creata e contatti aggiunti");

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
 import { userErrorMessage } from "@/lib/userErrorMessage";
+import { perOgniLotto, raccogliALotti } from "@/lib/lottiDiId";
 
 interface BulkEnrollAutomationDropdownProps {
   selectedIds: Set<string>;
@@ -16,15 +17,17 @@ async function getCompanyScopedContactIds(contactIds: string[], companyId: strin
   if (!companyId) throw new Error("Azienda non selezionata");
   if (contactIds.length === 0) throw new Error("Seleziona almeno un contatto");
 
-  const { data, error } = await supabase
-    .from("marketing_contacts")
-    .select("id")
-    .eq("company_id", companyId)
-    .in("id", contactIds);
-
-  if (error) throw error;
-
-  const safeIds = (data || []).map((row) => row.id);
+  // A lotti: vedi lottiDiId.ts — l'URL non regge 25.000 id e PostgREST
+  // risponde al massimo con mille righe.
+  const safeIds = await raccogliALotti(contactIds, async (lotto) => {
+    const { data, error } = await supabase
+      .from("marketing_contacts")
+      .select("id")
+      .eq("company_id", companyId)
+      .in("id", lotto);
+    if (error) throw error;
+    return (data || []).map((row) => row.id);
+  });
   if (safeIds.length !== contactIds.length) {
     throw new Error("Alcuni contatti selezionati non appartengono all'azienda corrente");
   }
@@ -70,19 +73,27 @@ export function BulkEnrollAutomationDropdown({ selectedIds }: BulkEnrollAutomati
       //     far partire un flusso e' la riga in automation_queue, non
       //     l'iscrizione
       // La RPC inserisce iscrizione + coda dal primo nodo dopo il trigger.
-      const { data, error } = await supabase.rpc("enroll_entities_in_flow", {
-        p_flow_id: flowId,
-        p_entity_ids: contactIds,
-        p_entity_type: "contact",
+      // Anche la RPC va a lotti: gli id viaggiano nel corpo, ma iscrivere
+      // 25.000 contatti in un colpo solo significa una transazione lunghissima
+      // che finisce in timeout e non lascia iscritto nessuno.
+      let enrolled = 0;
+      let saltati = 0;
+      await perOgniLotto(contactIds, async (lotto) => {
+        const { data, error } = await supabase.rpc("enroll_entities_in_flow", {
+          p_flow_id: flowId,
+          p_entity_ids: lotto,
+          p_entity_type: "contact",
+        });
+        if (error) throw error;
+        const parziale = (data ?? {}) as { enrolled?: number; skipped?: number };
+        enrolled += parziale.enrolled ?? 0;
+        saltati += parziale.skipped ?? 0;
       });
-      if (error) throw error;
 
-      const result = (data ?? {}) as { enrolled?: number; skipped?: number };
-      const enrolled = result.enrolled ?? 0;
       if (enrolled === 0) {
         throw new Error("Nessun contatto iscritto: risultano già tutti in questa automazione");
       }
-      return { enrolled, skipped: result.skipped ?? 0 };
+      return { enrolled, skipped: saltati };
     },
     onSuccess: ({ enrolled, skipped }) => {
       // Prima si annunciava selectedIds.size: contava anche chi non era stato

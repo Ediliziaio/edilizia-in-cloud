@@ -36,6 +36,7 @@ import { ContactFieldsSheet } from "@/components/marketing/ContactFieldsSheet";
 import { ContactFiltersSheet, type ContactFilters, type FilterRule, type FilterGroup, EMPTY_CONTACT_FILTERS, countActiveContactFilters, type PipelineWithStages } from "@/components/marketing/ContactFiltersSheet";
 import { usePermissions } from "@/hooks/usePermissions";
 import { queryKeys } from "@/lib/queryKeys";
+import { perOgniLotto, raccogliALotti, sommaALotti } from "@/lib/lottiDiId";
 import {
   buildContactDateRange,
   normalizeContactsUrlState,
@@ -906,30 +907,46 @@ export default function MarketingContacts() {
         }
       }
 
-      // Paginated fetch to handle >1000 rows
+      // Le righe. Con un elenco di id si va a lotti: `.in(...)` sta nell'URL
+      // e i 25.000 id di «Seleziona tutti» non ci entrano. Senza elenco, a
+      // pagine da mille (PostgREST non ne restituisce di più comunque).
       const PAGE_SIZE = 1000;
+      const COLONNE = "id, first_name, last_name, email, phone, company_name, address, city, province, postal_code, country, website, date_of_birth, notes, contact_type, source, tags, assigned_to, company_id, created_at, updated_at, last_activity_at, call_center_id, attr_source, attr_campaign, lead_score, icp_score, score, ai_score, ai_score_tier, ai_score_reasoning, ai_next_action, preferred_channel, opt_out, optout_email, optout_sms, optout_whatsapp, optout_call, unsubscribed, unsubscribed_at";
       let allRows: any[] = [];
-      let page = 0;
-      let hasMore = true;
 
-      while (hasMore) {
-        let query = supabase
-          .from("marketing_contacts")
-          .select("id, first_name, last_name, email, phone, company_name, address, city, province, postal_code, country, website, date_of_birth, notes, contact_type, source, tags, assigned_to, company_id, created_at, updated_at, last_activity_at, call_center_id, attr_source, attr_campaign, lead_score, icp_score, score, ai_score, ai_score_tier, ai_score_reasoning, ai_next_action, preferred_channel, opt_out, optout_email, optout_sms, optout_whatsapp, optout_call, unsubscribed, unsubscribed_at")
-          .eq("company_id", companyId)
-          .order("created_at", { ascending: false })
-          .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+      if (finalIds) {
+        allRows = await raccogliALotti<string, any>(finalIds, async (lotto) => {
+          let query = supabase
+            .from("marketing_contacts")
+            .select(COLONNE)
+            .eq("company_id", companyId)
+            .order("created_at", { ascending: false })
+            .in("id", lotto);
+          query = applicaFiltriCorrenti(query);
+          const { data, error } = await query;
+          if (error) throw error;
+          return (data as any[]) || [];
+        });
+      } else {
+        let page = 0;
+        let hasMore = true;
+        while (hasMore) {
+          let query = supabase
+            .from("marketing_contacts")
+            .select(COLONNE)
+            .eq("company_id", companyId)
+            .order("created_at", { ascending: false })
+            .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
 
-        query = applicaFiltriCorrenti(query);
+          query = applicaFiltriCorrenti(query);
 
-        if (finalIds) query = query.in("id", finalIds);
+          const { data, error } = await query;
+          if (error) throw error;
 
-        const { data, error } = await query;
-        if (error) throw error;
-
-        allRows = allRows.concat(data || []);
-        hasMore = (data?.length || 0) === PAGE_SIZE;
-        page++;
+          allRows = allRows.concat(data || []);
+          hasMore = (data?.length || 0) === PAGE_SIZE;
+          page++;
+        }
       }
 
       const all = allRows;
@@ -957,17 +974,26 @@ export default function MarketingContacts() {
       const cfMap: Record<string, Record<string, string>> = {};
       if (cfColumns.length > 0 && all && all.length > 0) {
         const ids = all.map((c: any) => c.id);
-        // Chunk .in() queries to avoid Supabase limits
-        const CHUNK_SIZE = 2000;
-        let allVals: any[] = [];
-        for (let i = 0; i < ids.length; i += CHUNK_SIZE) {
-          const chunk = ids.slice(i, i + CHUNK_SIZE);
-          const { data: vals } = await supabase
-            .from("marketing_contact_field_values")
-            .select("contact_id, field_id, value")
-            .in("contact_id", chunk);
-          allVals = allVals.concat(vals || []);
-        }
+        // Lotti piccoli e, dentro ogni lotto, pagine da mille: un contatto ha
+        // più valori personalizzati, quindi le righe sono più degli id e il
+        // tetto di PostgREST (mille per risposta) si tocca in fretta. Prima i
+        // lotti erano da 2.000 id e i valori oltre la millesima riga
+        // sparivano dall'esportazione senza un errore.
+        const allVals = await raccogliALotti<string, any>(ids, async (lotto) => {
+          const righe: any[] = [];
+          for (let pagina = 0; ; pagina++) {
+            const { data: vals, error } = await supabase
+              .from("marketing_contact_field_values")
+              .select("contact_id, field_id, value")
+              .in("contact_id", lotto)
+              .order("contact_id", { ascending: true })
+              .range(pagina * 1000, (pagina + 1) * 1000 - 1);
+            if (error) throw error;
+            righe.push(...(vals || []));
+            if ((vals?.length || 0) < 1000) break;
+          }
+          return righe;
+        }, 250);
         for (const v of allVals) {
           if (!cfMap[v.contact_id]) cfMap[v.contact_id] = {};
           if (v.value) cfMap[v.contact_id][v.field_id] = v.value;
@@ -1269,46 +1295,52 @@ export default function MarketingContacts() {
    * farlo. Adesso i conteggi alimentano il dialog di conferma.
    */
   const contaCollegamenti = async (ids: string[]): Promise<ContactLinks> => {
-    const [opp, app, quo, tsk, fv] = await Promise.all([
-      supabase
-        .from("marketing_opportunities")
-        .select("id", { count: "exact", head: true })
-        .eq("company_id", companyId!)
-        .in("contact_id", ids),
-      supabase
-        .from("appointments")
-        .select("id", { count: "exact", head: true })
-        .eq("company_id", companyId!)
-        .in("contact_id", ids),
-      supabase
-        .from("quotes")
-        .select("id", { count: "exact", head: true })
-        .eq("company_id", companyId!)
-        .in("contact_id", ids),
-      supabase
-        .from("tasks")
-        .select("id", { count: "exact", head: true })
-        .eq("company_id", companyId!)
-        .in("contact_id", ids),
+    // A lotti: con «Seleziona tutti i risultati» gli id possono essere
+    // migliaia, e un `.in(...)` viaggia nell'URL.
+    type Conteggio = { count: number | null; error: { message: string } | null };
+    const conta = (query: (lotto: string[]) => PromiseLike<Conteggio>) =>
+      sommaALotti(ids, async (lotto) => {
+        const { count, error } = await query(lotto);
+        if (error) throw new Error(error.message);
+        return count ?? 0;
+      });
+
+    const [opportunities, appointments, quotes, tasks, progettiFv] = await Promise.all([
+      conta((lotto) =>
+        supabase
+          .from("marketing_opportunities")
+          .select("id", { count: "exact", head: true })
+          .eq("company_id", companyId!)
+          .in("contact_id", lotto)),
+      conta((lotto) =>
+        supabase
+          .from("appointments")
+          .select("id", { count: "exact", head: true })
+          .eq("company_id", companyId!)
+          .in("contact_id", lotto)),
+      conta((lotto) =>
+        supabase
+          .from("quotes")
+          .select("id", { count: "exact", head: true })
+          .eq("company_id", companyId!)
+          .in("contact_id", lotto)),
+      conta((lotto) =>
+        supabase
+          .from("tasks")
+          .select("id", { count: "exact", head: true })
+          .eq("company_id", companyId!)
+          .in("contact_id", lotto)),
       // Il preventivo fotovoltaico usa un nome italiano per la colonna
       // (cliente_id), motivo per cui era sfuggito a ogni conteggio.
-      supabase
-        .from("fv_progetti")
-        .select("id", { count: "exact", head: true })
-        .eq("company_id", companyId!)
-        .in("cliente_id", ids),
+      conta((lotto) =>
+        supabase
+          .from("fv_progetti")
+          .select("id", { count: "exact", head: true })
+          .eq("company_id", companyId!)
+          .in("cliente_id", lotto)),
     ]);
 
-    const err = [opp, app, quo, tsk, fv].find((r) => r.error)?.error;
-    if (err) throw err;
-
-    return {
-      opportunities: opp.count || 0,
-      appointments: app.count || 0,
-      quotes: quo.count || 0,
-      tasks: tsk.count || 0,
-      progettiFv: fv.count || 0,
-    };
+    return { opportunities, appointments, quotes, tasks, progettiFv };
   };
 
   const saveMutation = useMutation({
@@ -1367,26 +1399,32 @@ export default function MarketingContacts() {
       // 1. Scollega cio' che puo' sopravvivere senza contatto. Un preventivo
       //    e' un documento commerciale: si scollega, non si cancella.
       for (const tabella of ["appointments", "quotes", "tasks"] as const) {
-        const { error } = await supabase
-          .from(tabella)
-          .update({ contact_id: null })
-          .eq("company_id", companyId)
-          .in("contact_id", ids);
-        if (error) throw new Error(`Non sono riuscito a scollegare ${tabella}: ${error.message}`);
+        await perOgniLotto(ids, async (lotto) => {
+          const { error } = await supabase
+            .from(tabella)
+            .update({ contact_id: null })
+            .eq("company_id", companyId)
+            .in("contact_id", lotto);
+          if (error) throw new Error(`Non sono riuscito a scollegare ${tabella}: ${error.message}`);
+        });
       }
 
       // 2. Elimina le opportunita': contact_id e' NOT NULL, quindi non
       //    esiste un modo di conservarle senza il contatto.
-      const { error: errOpp } = await supabase
-        .from("marketing_opportunities")
-        .delete()
-        .eq("company_id", companyId)
-        .in("contact_id", ids);
-      if (errOpp) throw new Error(`Non sono riuscito a eliminare le opportunità collegate: ${errOpp.message}`);
+      await perOgniLotto(ids, async (lotto) => {
+        const { error: errOpp } = await supabase
+          .from("marketing_opportunities")
+          .delete()
+          .eq("company_id", companyId)
+          .in("contact_id", lotto);
+        if (errOpp) throw new Error(`Non sono riuscito a eliminare le opportunità collegate: ${errOpp.message}`);
+      });
 
       // 3. Solo adesso il contatto.
-      const { error } = await supabase.from("marketing_contacts").delete().eq("company_id", companyId).in("id", ids);
-      if (error) throw error;
+      await perOgniLotto(ids, async (lotto) => {
+        const { error } = await supabase.from("marketing_contacts").delete().eq("company_id", companyId).in("id", lotto);
+        if (error) throw error;
+      });
     },
     onSuccess: (_, ids) => {
       const l = deleteLinks;
