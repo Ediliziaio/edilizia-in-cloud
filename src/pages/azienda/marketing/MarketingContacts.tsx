@@ -699,245 +699,6 @@ export default function MarketingContacts() {
     setSelectedIds(new Set());
   }, [companyId, activeTab, search, pageSize, sortField, sortDirection, filters, stalePreset, qualityFilter]);
 
-  const doExport = useCallback(async (format: "csv" | "xlsx") => {
-    if (!companyId || exporting) return;
-    setExporting(true);
-    try {
-      // If selected, export only those; otherwise apply active filters
-      let finalIds: string[] | null = null;
-
-      if (selectedIds.size > 0) {
-        finalIds = [...selectedIds];
-      } else {
-        // Apply active filters to get IDs (same logic as the main query)
-        const activeGroups = filters.groups.filter((g) => g.rules.length > 0);
-        if (activeGroups.length > 0) {
-          if (activeGroups.length === 1) {
-            const ids = await applyGroupRules(activeGroups[0], companyId);
-            if (ids !== null) {
-              if (ids.length === 0) { setExporting(false); toast.info("Nessun contatto corrisponde ai filtri"); return; }
-              finalIds = ids;
-            }
-          } else {
-            const allIds = new Set<string>();
-            for (const group of activeGroups) {
-              const ids = await applyGroupRules(group, companyId);
-              if (ids !== null) ids.forEach((id) => allIds.add(id));
-            }
-            if (allIds.size === 0) { setExporting(false); toast.info("Nessun contatto corrisponde ai filtri"); return; }
-            finalIds = [...allIds];
-          }
-        }
-      }
-
-      // Paginated fetch to handle >1000 rows
-      const PAGE_SIZE = 1000;
-      let allRows: any[] = [];
-      let page = 0;
-      let hasMore = true;
-
-      while (hasMore) {
-        let query = supabase
-          .from("marketing_contacts")
-          .select("id, first_name, last_name, email, phone, company_name, address, city, province, postal_code, country, website, date_of_birth, notes, contact_type, source, tags, assigned_to, company_id, created_at, updated_at, last_activity_at, call_center_id, attr_source, attr_campaign, lead_score, icp_score, score, ai_score, ai_score_tier, ai_score_reasoning, ai_next_action, preferred_channel, opt_out, optout_email, optout_sms, optout_whatsapp, optout_call, unsubscribed, unsubscribed_at")
-          .eq("company_id", companyId)
-          .order("created_at", { ascending: false })
-          .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
-
-        if (permissions.onlyAssigned && idAgente) {
-          query = query.or(filtroSoloMiei(idAgente));
-        }
-
-        // Apply search filter if active
-        const safeSearch = sanitizeContactSearchTerm(search);
-        if (safeSearch) {
-          const s = `%${safeSearch}%`;
-          query = query.or(`first_name.ilike.${s},last_name.ilike.${s},email.ilike.${s},phone.ilike.${s}`);
-        }
-
-        query = applyQualityToQuery(query, qualityFilter);
-
-        if (sourceFilter) query = query.eq("source", sourceFilter);
-
-        if (stalePresetActive) {
-          const now = Date.now();
-          if (stalePreset === "stale_2h") {
-            const twoHoursAgo = new Date(now - 2 * 60 * 60 * 1000).toISOString();
-            query = query
-              .gte("created_at", new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString())
-              .lte("created_at", twoHoursAgo)
-              .or("last_activity_at.is.null");
-          } else {
-            const fortyEightHoursAgo = new Date(now - 48 * 60 * 60 * 1000).toISOString();
-            query = query.or(`last_activity_at.is.null,last_activity_at.lte.${fortyEightHoursAgo}`);
-          }
-        }
-
-        if (finalIds) query = query.in("id", finalIds);
-
-        const { data, error } = await query;
-        if (error) throw error;
-
-        allRows = allRows.concat(data || []);
-        hasMore = (data?.length || 0) === PAGE_SIZE;
-        page++;
-      }
-
-      const all = allRows;
-
-      // Build columns including custom fields
-      const baseColumns = [
-        { key: "first_name", label: "Nome" },
-        { key: "last_name", label: "Cognome" },
-        { key: "phone", label: "Telefono" },
-        { key: "email", label: "Email" },
-        { key: "company_name", label: "Azienda" },
-        { key: "city", label: "Città" },
-        { key: "province", label: "Provincia" },
-        { key: "tags", label: "Tag" },
-        { key: "notes", label: "Note" },
-        { key: "source", label: "Fonte" },
-        { key: "contact_type", label: "Tipo" },
-        { key: "created_at", label: "Data Creazione" },
-      ];
-
-      // Add custom field columns
-      const cfColumns = contactCustomFields.map(f => ({ key: `cf_${f.id}`, label: f.name }));
-
-      // Fetch custom field values for exported contacts if any
-      const cfMap: Record<string, Record<string, string>> = {};
-      if (cfColumns.length > 0 && all && all.length > 0) {
-        const ids = all.map((c: any) => c.id);
-        // Chunk .in() queries to avoid Supabase limits
-        const CHUNK_SIZE = 2000;
-        let allVals: any[] = [];
-        for (let i = 0; i < ids.length; i += CHUNK_SIZE) {
-          const chunk = ids.slice(i, i + CHUNK_SIZE);
-          const { data: vals } = await supabase
-            .from("marketing_contact_field_values")
-            .select("contact_id, field_id, value")
-            .in("contact_id", chunk);
-          allVals = allVals.concat(vals || []);
-        }
-        for (const v of allVals) {
-          if (!cfMap[v.contact_id]) cfMap[v.contact_id] = {};
-          if (v.value) cfMap[v.contact_id][v.field_id] = v.value;
-        }
-      }
-
-      const rows = (all || []).map((c: any) => {
-        const row: Record<string, string> = {
-          first_name: c.first_name || "",
-          last_name: c.last_name || "",
-          phone: c.phone || "",
-          email: c.email || "",
-          company_name: c.company_name || "",
-          city: c.city || "",
-          province: c.province || "",
-          tags: (c.tags || []).join(", "),
-          notes: c.notes || "",
-          source: c.source || "",
-          contact_type: c.contact_type || "",
-          created_at: c.created_at ? new Date(c.created_at).toLocaleDateString("it-IT") : "",
-        };
-        // Add custom field values
-        for (const cf of contactCustomFields) {
-          row[`cf_${cf.id}`] = cfMap[c.id]?.[cf.id] || "";
-        }
-        return row;
-      });
-
-      const allColumns = [...baseColumns, ...cfColumns];
-      const today = new Date().toISOString().slice(0, 10);
-      const suffix = selectedIds.size > 0 ? `_selezionati_${selectedIds.size}` : "";
-
-      if (format === "xlsx") {
-        exportToXLSX(rows, allColumns, `contatti${suffix}_${today}.xlsx`);
-      } else {
-        exportToCSV(rows, allColumns, `contatti${suffix}_${today}.csv`);
-      }
-      toast.success(`${rows.length} contatti esportati in ${format.toUpperCase()}`);
-    } catch {
-      toast.error("Errore durante l'esportazione");
-    } finally {
-      setExporting(false);
-    }
-  }, [companyId, exporting, selectedIds, contactCustomFields, filters, search, permissions.onlyAssigned, idAgente, activeTab, qualityFilter, stalePreset, stalePresetActive, sourceFilter]);
-
-  // Consolidated filter data query (pipelines, tags, list count)
-  const { data: filterData } = useQuery({
-    queryKey: ["marketing-filter-data", companyId],
-    staleTime: 10 * 60 * 1000,
-    gcTime: 30 * 60 * 1000,
-    queryFn: async () => {
-      const [pipelinesRes, tagsRes, countRes] = await Promise.all([
-        supabase
-          .from("marketing_pipelines")
-          .select("id, name, marketing_pipeline_stages(id, name, position)")
-          .eq("company_id", companyId!)
-          .order("position"),
-        supabase
-          .from("marketing_tags")
-          .select("name")
-          .eq("company_id", companyId!)
-          .order("name"),
-        supabase
-          .from("marketing_contact_lists")
-          .select("id", { count: "exact", head: true })
-          .eq("company_id", companyId!),
-      ]);
-      if (pipelinesRes.error) throw pipelinesRes.error;
-      if (tagsRes.error) throw tagsRes.error;
-      if (countRes.error) throw countRes.error;
-      return {
-        pipelines: (pipelinesRes.data || []) as PipelineWithStages[],
-        availableTags: normalizeTagList((tagsRes.data || []).map((t) => t.name)),
-        listCount: countRes.count || 0,
-      };
-    },
-    enabled: !!companyId,
-  });
-  const pipelines = filterData?.pipelines ?? [];
-  const availableTags = filterData?.availableTags ?? [];
-  const listCount = filterData?.listCount ?? 0;
-
-  // Contattabilità sull'INTERO database azienda: count esatti head-only in
-  // parallelo (mai fetch-e-conta). Su decine di migliaia di contatti i KPI
-  // calcolati sulla pagina corrente erano fuorvianti: qui i numeri dicono
-  // davvero quanti contatti hanno un recapito utilizzabile per le campagne.
-  const { data: reachStats } = useQuery({
-    queryKey: ["marketing-contacts-reachability", companyId, permissions.onlyAssigned ? idAgente : null],
-    staleTime: 5 * 60 * 1000,
-    enabled: !!companyId,
-    queryFn: async () => {
-      const base = () => {
-        let q = supabase
-          .from("marketing_contacts")
-          .select("id", { count: "exact", head: true })
-          .eq("company_id", companyId!);
-        if (permissions.onlyAssigned && idAgente) q = q.or(filtroSoloMiei(idAgente));
-        return q;
-      };
-      const results = await Promise.all([
-        base(),
-        applyQualityToQuery(base(), "has_email"),
-        applyQualityToQuery(base(), "has_phone"),
-        applyQualityToQuery(base(), "contactable"),
-        applyQualityToQuery(base(), "no_contact"),
-      ]);
-      const failed = results.find((r) => r.error);
-      if (failed?.error) throw failed.error;
-      const [totalRes, emailRes, phoneRes, reachableRes, unreachableRes] = results;
-      return {
-        total: totalRes.count || 0,
-        withEmail: emailRes.count || 0,
-        withPhone: phoneRes.count || 0,
-        reachable: reachableRes.count || 0,
-        unreachable: unreachableRes.count || 0,
-      };
-    },
-  });
-
   // Helper: apply a single group's rules to get matching contact IDs
   async function applyGroupRules(group: FilterGroup, companyId: string): Promise<string[] | null> {
     const rules = group.rules.filter((r) => {
@@ -1036,6 +797,296 @@ export default function MarketingContacts() {
     return (data || []).map((r) => r.id);
   }
 
+  // ── I filtri attivi, applicati a una query qualsiasi ───────────────────
+  // Stessa logica per l'elenco, l'esportazione e la selezione di tutti i
+  // risultati. Prima erano due copie che divergevano: quella dell'esportazione
+  // dimenticava il filtro mese e cercava su meno colonne.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const applicaFiltriCorrenti = useCallback((query: any) => {
+    if (permissions.onlyAssigned && idAgente) query = query.or(filtroSoloMiei(idAgente));
+    if (meseRange) query = query.gte("created_at", meseRange.start).lt("created_at", meseRange.end);
+    if (sourceFilter) query = query.eq("source", sourceFilter);
+    query = applyQualityToQuery(query, qualityFilter);
+
+    // Preset "lead da contattare": nuovi non ancora contattati, oppure fermi da 48h.
+    if (stalePresetActive) {
+      const ora = Date.now();
+      if (stalePreset === "stale_2h") {
+        query = query
+          .gte("created_at", new Date(ora - 7 * 24 * 60 * 60 * 1000).toISOString())
+          .lte("created_at", new Date(ora - 2 * 60 * 60 * 1000).toISOString())
+          .or("last_activity_at.is.null");
+      } else {
+        const quarantottoOre = new Date(ora - 48 * 60 * 60 * 1000).toISOString();
+        query = query.or(`last_activity_at.is.null,last_activity_at.lte.${quarantottoOre}`);
+      }
+    }
+
+    const ricerca = sanitizeContactSearchTerm(search);
+    if (ricerca) {
+      const s = `%${ricerca}%`;
+      query = query.or(`first_name.ilike.${s},last_name.ilike.${s},phone.ilike.${s},email.ilike.${s},company_name.ilike.${s}`);
+    }
+    return query;
+  }, [permissions.onlyAssigned, idAgente, meseRange, sourceFilter, qualityFilter, stalePresetActive, stalePreset, search]);
+
+  /** Gli id che passano i gruppi dei filtri avanzati; null se non ce ne sono. */
+  const idsDeiGruppiAttivi = useCallback(async (): Promise<string[] | null> => {
+    if (!companyId) return null;
+    const gruppi = filters.groups.filter((g) => g.rules.length > 0);
+    if (gruppi.length === 0) return null;
+    if (gruppi.length === 1) return await applyGroupRules(gruppi[0], companyId);
+    // Più gruppi = unione, valutati in parallelo.
+    const uniti = new Set<string>();
+    const elenchi = await Promise.all(gruppi.map((g) => applyGroupRules(g, companyId)));
+    for (const ids of elenchi) if (ids !== null) ids.forEach((id) => uniti.add(id));
+    return [...uniti];
+  }, [companyId, filters.groups]);
+
+  // ── Seleziona tutti i risultati, non solo la pagina ────────────────────
+  // Serviva per agire su migliaia di contatti: prima la casella in testa alla
+  // tabella prendeva solo le 25 righe a schermo. Si fermano a 25.000 per non
+  // far esplodere il browser e le query che poi ricevono gli id.
+  const LIMITE_SELEZIONE = 25000;
+  const [selezionandoTutti, setSelezionandoTutti] = useState(false);
+  const selezionaTuttiIRisultati = useCallback(async () => {
+    if (!companyId || selezionandoTutti) return;
+    setSelezionandoTutti(true);
+    try {
+      const idsGruppi = await idsDeiGruppiAttivi();
+      if (idsGruppi && idsGruppi.length === 0) {
+        toast.info("Nessun contatto corrisponde ai filtri");
+        return;
+      }
+      const PAGINA = 1000;
+      const raccolti = new Set<string>();
+      for (let da = 0; raccolti.size < LIMITE_SELEZIONE; da += PAGINA) {
+        let query = supabase
+          .from("marketing_contacts")
+          .select("id")
+          .eq("company_id", companyId)
+          .order(sortField, { ascending: sortDirection === "asc" })
+          .range(da, da + PAGINA - 1);
+        if (idsGruppi) query = query.in("id", idsGruppi);
+        query = applicaFiltriCorrenti(query);
+        const { data, error } = await query;
+        if (error) throw error;
+        (data ?? []).forEach((r: { id: string }) => raccolti.add(r.id));
+        if ((data?.length ?? 0) < PAGINA) break;
+      }
+      setSelectedIds(raccolti);
+      toast.success(
+        raccolti.size >= LIMITE_SELEZIONE
+          ? `Selezionati i primi ${raccolti.size.toLocaleString("it-IT")} contatti: restringi i filtri per gli altri`
+          : `${raccolti.size.toLocaleString("it-IT")} contatti selezionati`,
+      );
+    } catch (err) {
+      toast.error(`Selezione non riuscita: ${(err as Error).message}`);
+    } finally {
+      setSelezionandoTutti(false);
+    }
+  }, [companyId, selezionandoTutti, idsDeiGruppiAttivi, applicaFiltriCorrenti, sortField, sortDirection]);
+
+  const doExport = useCallback(async (format: "csv" | "xlsx") => {
+    if (!companyId || exporting) return;
+    setExporting(true);
+    try {
+      // C'è una selezione? Si esporta quella. Altrimenti tutto ciò che passa
+      // i filtri attivi, con le stesse regole dell'elenco.
+      let finalIds: string[] | null = null;
+
+      if (selectedIds.size > 0) {
+        finalIds = [...selectedIds];
+      } else {
+        finalIds = await idsDeiGruppiAttivi();
+        if (finalIds && finalIds.length === 0) {
+          setExporting(false);
+          toast.info("Nessun contatto corrisponde ai filtri");
+          return;
+        }
+      }
+
+      // Paginated fetch to handle >1000 rows
+      const PAGE_SIZE = 1000;
+      let allRows: any[] = [];
+      let page = 0;
+      let hasMore = true;
+
+      while (hasMore) {
+        let query = supabase
+          .from("marketing_contacts")
+          .select("id, first_name, last_name, email, phone, company_name, address, city, province, postal_code, country, website, date_of_birth, notes, contact_type, source, tags, assigned_to, company_id, created_at, updated_at, last_activity_at, call_center_id, attr_source, attr_campaign, lead_score, icp_score, score, ai_score, ai_score_tier, ai_score_reasoning, ai_next_action, preferred_channel, opt_out, optout_email, optout_sms, optout_whatsapp, optout_call, unsubscribed, unsubscribed_at")
+          .eq("company_id", companyId)
+          .order("created_at", { ascending: false })
+          .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+
+        query = applicaFiltriCorrenti(query);
+
+        if (finalIds) query = query.in("id", finalIds);
+
+        const { data, error } = await query;
+        if (error) throw error;
+
+        allRows = allRows.concat(data || []);
+        hasMore = (data?.length || 0) === PAGE_SIZE;
+        page++;
+      }
+
+      const all = allRows;
+
+      // Build columns including custom fields
+      const baseColumns = [
+        { key: "first_name", label: "Nome" },
+        { key: "last_name", label: "Cognome" },
+        { key: "phone", label: "Telefono" },
+        { key: "email", label: "Email" },
+        { key: "company_name", label: "Azienda" },
+        { key: "city", label: "Città" },
+        { key: "province", label: "Provincia" },
+        { key: "tags", label: "Tag" },
+        { key: "notes", label: "Note" },
+        { key: "source", label: "Fonte" },
+        { key: "contact_type", label: "Tipo" },
+        { key: "created_at", label: "Data Creazione" },
+      ];
+
+      // Add custom field columns
+      const cfColumns = contactCustomFields.map(f => ({ key: `cf_${f.id}`, label: f.name }));
+
+      // Fetch custom field values for exported contacts if any
+      const cfMap: Record<string, Record<string, string>> = {};
+      if (cfColumns.length > 0 && all && all.length > 0) {
+        const ids = all.map((c: any) => c.id);
+        // Chunk .in() queries to avoid Supabase limits
+        const CHUNK_SIZE = 2000;
+        let allVals: any[] = [];
+        for (let i = 0; i < ids.length; i += CHUNK_SIZE) {
+          const chunk = ids.slice(i, i + CHUNK_SIZE);
+          const { data: vals } = await supabase
+            .from("marketing_contact_field_values")
+            .select("contact_id, field_id, value")
+            .in("contact_id", chunk);
+          allVals = allVals.concat(vals || []);
+        }
+        for (const v of allVals) {
+          if (!cfMap[v.contact_id]) cfMap[v.contact_id] = {};
+          if (v.value) cfMap[v.contact_id][v.field_id] = v.value;
+        }
+      }
+
+      const rows = (all || []).map((c: any) => {
+        const row: Record<string, string> = {
+          first_name: c.first_name || "",
+          last_name: c.last_name || "",
+          phone: c.phone || "",
+          email: c.email || "",
+          company_name: c.company_name || "",
+          city: c.city || "",
+          province: c.province || "",
+          tags: (c.tags || []).join(", "),
+          notes: c.notes || "",
+          source: c.source || "",
+          contact_type: c.contact_type || "",
+          created_at: c.created_at ? new Date(c.created_at).toLocaleDateString("it-IT") : "",
+        };
+        // Add custom field values
+        for (const cf of contactCustomFields) {
+          row[`cf_${cf.id}`] = cfMap[c.id]?.[cf.id] || "";
+        }
+        return row;
+      });
+
+      const allColumns = [...baseColumns, ...cfColumns];
+      const today = new Date().toISOString().slice(0, 10);
+      const suffix = selectedIds.size > 0 ? `_selezionati_${selectedIds.size}` : "";
+
+      if (format === "xlsx") {
+        exportToXLSX(rows, allColumns, `contatti${suffix}_${today}.xlsx`);
+      } else {
+        exportToCSV(rows, allColumns, `contatti${suffix}_${today}.csv`);
+      }
+      toast.success(`${rows.length} contatti esportati in ${format.toUpperCase()}`);
+    } catch {
+      toast.error("Errore durante l'esportazione");
+    } finally {
+      setExporting(false);
+    }
+  }, [companyId, exporting, selectedIds, contactCustomFields, applicaFiltriCorrenti, idsDeiGruppiAttivi, activeTab]);
+
+  // Consolidated filter data query (pipelines, tags, list count)
+  const { data: filterData } = useQuery({
+    queryKey: ["marketing-filter-data", companyId],
+    staleTime: 10 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+    queryFn: async () => {
+      const [pipelinesRes, tagsRes, countRes] = await Promise.all([
+        supabase
+          .from("marketing_pipelines")
+          .select("id, name, marketing_pipeline_stages(id, name, position)")
+          .eq("company_id", companyId!)
+          .order("position"),
+        supabase
+          .from("marketing_tags")
+          .select("name")
+          .eq("company_id", companyId!)
+          .order("name"),
+        supabase
+          .from("marketing_contact_lists")
+          .select("id", { count: "exact", head: true })
+          .eq("company_id", companyId!),
+      ]);
+      if (pipelinesRes.error) throw pipelinesRes.error;
+      if (tagsRes.error) throw tagsRes.error;
+      if (countRes.error) throw countRes.error;
+      return {
+        pipelines: (pipelinesRes.data || []) as PipelineWithStages[],
+        availableTags: normalizeTagList((tagsRes.data || []).map((t) => t.name)),
+        listCount: countRes.count || 0,
+      };
+    },
+    enabled: !!companyId,
+  });
+  const pipelines = filterData?.pipelines ?? [];
+  const availableTags = filterData?.availableTags ?? [];
+  const listCount = filterData?.listCount ?? 0;
+
+  // Contattabilità sull'INTERO database azienda: count esatti head-only in
+  // parallelo (mai fetch-e-conta). Su decine di migliaia di contatti i KPI
+  // calcolati sulla pagina corrente erano fuorvianti: qui i numeri dicono
+  // davvero quanti contatti hanno un recapito utilizzabile per le campagne.
+  const { data: reachStats } = useQuery({
+    queryKey: ["marketing-contacts-reachability", companyId, permissions.onlyAssigned ? idAgente : null],
+    staleTime: 5 * 60 * 1000,
+    enabled: !!companyId,
+    queryFn: async () => {
+      const base = () => {
+        let q = supabase
+          .from("marketing_contacts")
+          .select("id", { count: "exact", head: true })
+          .eq("company_id", companyId!);
+        if (permissions.onlyAssigned && idAgente) q = q.or(filtroSoloMiei(idAgente));
+        return q;
+      };
+      const results = await Promise.all([
+        base(),
+        applyQualityToQuery(base(), "has_email"),
+        applyQualityToQuery(base(), "has_phone"),
+        applyQualityToQuery(base(), "contactable"),
+        applyQualityToQuery(base(), "no_contact"),
+      ]);
+      const failed = results.find((r) => r.error);
+      if (failed?.error) throw failed.error;
+      const [totalRes, emailRes, phoneRes, reachableRes, unreachableRes] = results;
+      return {
+        total: totalRes.count || 0,
+        withEmail: emailRes.count || 0,
+        withPhone: phoneRes.count || 0,
+        reachable: reachableRes.count || 0,
+        unreachable: unreachableRes.count || 0,
+      };
+    },
+  });
+
   // Fetch contacts with grouped filter rules
   const { data, isLoading } = useQuery({
     // Lo scope «solo i propri» sta nella chiave: senza, passando a «Vista come»
@@ -1044,32 +1095,9 @@ export default function MarketingContacts() {
     queryFn: async () => {
       if (!companyId) return { contacts: [] as MarketingContact[], count: 0 };
 
-      const activeGroups = filters.groups.filter((g) => g.rules.length > 0);
-
-      // Determine filtered IDs if we have groups
-      let finalIds: string[] | null = null;
-      if (activeGroups.length > 0) {
-        if (activeGroups.length === 1) {
-          // Single group: just apply AND rules
-          const ids = await applyGroupRules(activeGroups[0], companyId);
-          if (ids !== null) {
-            if (ids.length === 0) return { contacts: [] as MarketingContact[], count: 0 };
-            finalIds = ids;
-          }
-        } else {
-          // Multiple groups: OR (union) the results — valutati in PARALLELO
-          // (prima erano in serie: N round-trip sequenziali = waterfall).
-          const allIds = new Set<string>();
-          const idArrays = await Promise.all(
-            activeGroups.map((group) => applyGroupRules(group, companyId)),
-          );
-          for (const ids of idArrays) {
-            if (ids !== null) ids.forEach((id) => allIds.add(id));
-          }
-          if (allIds.size === 0) return { contacts: [] as MarketingContact[], count: 0 };
-          finalIds = [...allIds];
-        }
-      }
+      // Gli id che passano i filtri avanzati (null = nessun gruppo attivo).
+      const finalIds = await idsDeiGruppiAttivi();
+      if (finalIds && finalIds.length === 0) return { contacts: [] as MarketingContact[], count: 0 };
 
       const from = (page - 1) * pageSize;
       const to = from + pageSize - 1;
@@ -1093,43 +1121,8 @@ export default function MarketingContacts() {
         .order(sortField, { ascending: sortDirection === "asc" })
         .range(from, to);
 
-      // Permission enforcement: restrict to assigned contacts only
-      if (permissions.onlyAssigned && idAgente) {
-        query = query.or(filtroSoloMiei(idAgente));
-      }
-
       if (finalIds) query = query.in("id", finalIds);
-
-      // Drill-down per mese (dai grafici trend)
-      if (meseRange) query = query.gte("created_at", meseRange.start).lt("created_at", meseRange.end);
-
-      // Drill-down per fonte (dalla reportistica CRM-vendite)
-      if (sourceFilter) query = query.eq("source", sourceFilter);
-
-      query = applyQualityToQuery(query, qualityFilter);
-
-      // Preset "lead da contattare" — applicato server-side se ?filter=stale|stale_2h.
-      // - stale_2h: lead nuovi (creati ≤ 2h fa) ma non ancora contattati
-      // - stale: lead con last_activity_at oltre 48h fa o nullo
-      if (stalePresetActive) {
-        const now = Date.now();
-        if (stalePreset === "stale_2h") {
-          const twoHoursAgo = new Date(now - 2 * 60 * 60 * 1000).toISOString();
-          query = query
-            .gte("created_at", new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString())
-            .lte("created_at", twoHoursAgo)
-            .or("last_activity_at.is.null");
-        } else {
-          const fortyEightHoursAgo = new Date(now - 48 * 60 * 60 * 1000).toISOString();
-          query = query.or(`last_activity_at.is.null,last_activity_at.lte.${fortyEightHoursAgo}`);
-        }
-      }
-
-      const safeSearch = sanitizeContactSearchTerm(search);
-      if (safeSearch) {
-        const s = `%${safeSearch}%`;
-        query = query.or(`first_name.ilike.${s},last_name.ilike.${s},phone.ilike.${s},email.ilike.${s},company_name.ilike.${s}`);
-      }
+      query = applicaFiltriCorrenti(query);
 
       const { data: contactsRaw, count, error } = await query;
       if (error) throw error;
@@ -1968,48 +1961,44 @@ export default function MarketingContacts() {
                   onChange={(e) => { setSearchInput(e.target.value); setPage(1); }}
                 />
               </div>
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex min-w-0 items-center gap-2">
-                  {/* Desktop: la ricerca per prima, è il gesto più frequente. */}
-                  <div className="relative hidden sm:block">
-                    <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                    <Input placeholder="Cerca per nome, email, telefono…" inputMode="search" enterKeyHint="search" className="h-8 w-[260px] pl-8 text-xs lg:w-[320px]" value={searchInput} onChange={(e) => { setSearchInput(e.target.value); setPage(1); }} />
-                  </div>
-                  <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setFiltersSheetOpen(true)}>
-                    <Filter className="h-3.5 w-3.5" />
-                    <span className="hidden sm:inline">Filtri avanzati</span>
-                    <span className="sm:hidden">Filtri</span>
-                    {activeFilterCount > 0 && (
-                      <Badge className="flex h-4 w-4 items-center justify-center rounded-full p-0 text-[9px]">
-                        {activeFilterCount}
-                      </Badge>
-                    )}
-                  </Button>
-                  {activeFilterCount > 0 && (
-                    <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setSalvaListaOpen(true)}>
-                      <BookmarkPlus className="h-3.5 w-3.5" />
-                      <span className="hidden sm:inline">Salva lista</span>
-                    </Button>
-                  )}
-                  <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => { setSortDirection(sortDirection === "asc" ? "desc" : "asc"); setPage(1); }}>
-                    <ArrowUpDown className="h-3.5 w-3.5" />
-                    Ordina
-                  </Button>
+              {/* Una riga sola: ricerca, filtri e viste rapide. Prima le viste
+                  stavano su una riga tutta loro, vuota per metà schermo, e la
+                  tabella partiva più in basso. */}
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Desktop: la ricerca per prima, è il gesto più frequente. */}
+                <div className="relative hidden sm:block">
+                  <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                  <Input placeholder="Cerca per nome, email, telefono…" inputMode="search" enterKeyHint="search" className="h-8 w-[220px] pl-8 text-xs lg:w-[280px]" value={searchInput} onChange={(e) => { setSearchInput(e.target.value); setPage(1); }} />
                 </div>
-                <Button variant="ghost" size="sm" className="hidden h-8 gap-1.5 text-xs text-muted-foreground sm:flex" onClick={() => setFieldsSheetOpen(true)}>
-                  <Settings2 className="h-3.5 w-3.5" /> Gestisci campi
+                <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setFiltersSheetOpen(true)}>
+                  <Filter className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Filtri avanzati</span>
+                  <span className="sm:hidden">Filtri</span>
+                  {activeFilterCount > 0 && (
+                    <Badge className="flex h-4 w-4 items-center justify-center rounded-full p-0 text-[9px]">
+                      {activeFilterCount}
+                    </Badge>
+                  )}
                 </Button>
-              </div>
+                {activeFilterCount > 0 && (
+                  <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setSalvaListaOpen(true)}>
+                    <BookmarkPlus className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">Salva lista</span>
+                  </Button>
+                )}
+                <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => { setSortDirection(sortDirection === "asc" ? "desc" : "asc"); setPage(1); }}>
+                  <ArrowUpDown className="h-3.5 w-3.5" />
+                  Ordina
+                </Button>
 
-              {/* Viste rapide: filtrano l'intero database. */}
-              <div className="-mx-1 hidden items-center gap-1.5 overflow-x-auto px-1 sm:flex">
-                <span className="shrink-0 text-[11px] font-medium uppercase tracking-wide text-slate-400">Vista</span>
+                {/* Viste rapide: filtrano l'intero database, non la pagina. */}
+                <span className="ml-1 hidden shrink-0 items-center text-[11px] font-medium uppercase tracking-wide text-slate-400 sm:inline-flex">Vista</span>
                 {QUALITY_FILTERS.map((filter) => (
                   <button
                     key={filter.value}
                     type="button"
                     aria-pressed={qualityFilter === filter.value}
-                    className={`h-7 shrink-0 rounded-full border px-2.5 text-xs font-medium transition-colors ${
+                    className={`hidden h-7 shrink-0 rounded-full border px-2.5 text-xs font-medium transition-colors sm:inline-block ${
                       qualityFilter === filter.value
                         ? "border-orange-300 bg-orange-50 text-orange-700"
                         : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
@@ -2021,10 +2010,14 @@ export default function MarketingContacts() {
                   </button>
                 ))}
                 {qualityStats.duplicates > 0 && (
-                  <span className="ml-auto inline-flex shrink-0 items-center gap-1 text-[11px] text-amber-700" title="Stessa email o stesso telefono di un altro contatto di questa pagina">
+                  <span className="hidden shrink-0 items-center gap-1 text-[11px] text-amber-700 sm:inline-flex" title="Stessa email o stesso telefono di un altro contatto di questa pagina">
                     <Copy className="h-3 w-3" /> {qualityStats.duplicates} possibili doppioni in questa pagina
                   </span>
                 )}
+
+                <Button variant="ghost" size="sm" className="ml-auto hidden h-8 gap-1.5 text-xs text-muted-foreground sm:flex" onClick={() => setFieldsSheetOpen(true)}>
+                  <Settings2 className="h-3.5 w-3.5" /> Gestisci campi
+                </Button>
               </div>
             </div>
           </div>
@@ -2124,6 +2117,9 @@ export default function MarketingContacts() {
               selectedIds={selectedIds}
               onToggleSelect={handleToggleSelect}
               onToggleAll={handleToggleAll}
+              onSelezionaTuttiIRisultati={selezionaTuttiIRisultati}
+              selezionandoTutti={selezionandoTutti}
+              onAnnullaSelezione={() => setSelectedIds(new Set())}
               onEdit={handleEdit}
               onDelete={handleRichiestaEliminazione}
               page={page}

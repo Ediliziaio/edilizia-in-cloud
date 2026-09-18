@@ -1,7 +1,7 @@
 import { memo, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMarketingRoutePrefix } from "@/hooks/useMarketingRoutePrefix";
-import { Trash2, Pencil, ChevronUp, ChevronDown } from "lucide-react";
+import { Trash2, Pencil, ChevronUp, ChevronDown, ListChecks, Loader2 } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 import { LeadTemperatureBadge } from "./LeadTemperatureBadge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -140,6 +140,10 @@ interface ContactsTableProps {
   sortDirection: SortDirection;
   onSort: (field: SortField, direction: SortDirection) => void;
   bulkActions?: React.ReactNode;
+  /** Seleziona tutti i contatti che passano i filtri, non solo la pagina. */
+  onSelezionaTuttiIRisultati?: () => void;
+  selezionandoTutti?: boolean;
+  onAnnullaSelezione?: () => void;
   visibleColumns: Set<string>;
   customFields?: CustomFieldDef[];
   customFieldValues?: Record<string, Record<string, string>>;
@@ -263,7 +267,9 @@ function renderStaticCell(col: { key: string; label: string }, c: MarketingConta
 export const ContactsTable = memo(function ContactsTable({
   contacts, totalCount, selectedIds, onToggleSelect, onToggleAll,
   onEdit, onDelete, page, pageSize, onPageChange, onPageSizeChange,
-  sortField, sortDirection, onSort, bulkActions, visibleColumns,
+  sortField, sortDirection, onSort, bulkActions,
+  onSelezionaTuttiIRisultati, selezionandoTutti = false, onAnnullaSelezione,
+  visibleColumns,
   customFields = [], customFieldValues = {}, canEdit = true, onOpenPreview,
 }: ContactsTableProps) {
   const navigate = useNavigate();
@@ -295,14 +301,38 @@ export const ContactsTable = memo(function ContactsTable({
   return (
     <div className="space-y-3">
       {selectedIds.size > 0 && (
-        <div className="flex items-center gap-3 bg-muted/50 rounded-lg px-4 py-2 text-sm">
-          <span className="font-medium">{selectedIds.size} selezionati</span>
-          {bulkActions}
-          {canEdit && (
-          <Button size="sm" variant="destructive" onClick={() => onDelete(Array.from(selectedIds))}>
-            <Trash2 className="h-4 w-4 mr-1" /> Elimina
-          </Button>
+        <div className="flex flex-wrap items-center gap-2 rounded-lg bg-muted/50 px-3 py-2 text-sm">
+          <span className="font-medium tabular-nums">{selectedIds.size.toLocaleString("it-IT")} selezionati</span>
+          {/* La casella in testa alla tabella prende solo la pagina: qui si
+              prendono tutti i contatti che passano i filtri, anche quelli
+              delle altre pagine. */}
+          {onSelezionaTuttiIRisultati && allSelected && selectedIds.size < totalCount && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7"
+              disabled={selezionandoTutti}
+              onClick={onSelezionaTuttiIRisultati}
+            >
+              {selezionandoTutti
+                ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                : <ListChecks className="mr-1 h-3.5 w-3.5" />}
+              Seleziona tutti i {totalCount.toLocaleString("it-IT")}
+            </Button>
           )}
+          {onAnnullaSelezione && (
+            <Button size="sm" variant="ghost" className="h-7 text-muted-foreground" onClick={onAnnullaSelezione}>
+              Annulla
+            </Button>
+          )}
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            {bulkActions}
+            {canEdit && (
+              <Button size="sm" variant="destructive" onClick={() => onDelete(Array.from(selectedIds))}>
+                <Trash2 className="h-4 w-4 mr-1" /> Elimina
+              </Button>
+            )}
+          </div>
         </div>
       )}
 
