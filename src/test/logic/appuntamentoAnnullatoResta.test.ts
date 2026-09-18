@@ -55,3 +55,15 @@ describe("appuntamento annullato", () => {
     }
   });
 });
+
+describe("importa gli eventi Google nel CRM", () => {
+  it("la sincronizzazione legge l'interruttore che la scheda salva davvero", () => {
+    const sync = leggi("supabase/functions/google-calendar-sync/index.ts");
+    const scheda = leggi("src/components/settings/GoogleCalendarSyncPrefsDialog.tsx");
+    // Stessa colonna da una parte e dall'altra: prima la sync guardava
+    // «import_all_google_events», che nel database non esiste.
+    expect(scheda).toContain("import_google_events_to_crm");
+    expect(sync).toContain("import_google_events_to_crm");
+    expect(sync).not.toContain("import_all_google_events?");
+  });
+});

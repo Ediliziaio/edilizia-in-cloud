@@ -832,8 +832,12 @@ async function reconcileCalendario(
       }
     } else if (allowImport) {
       // New Google-only event → import to CRM
-      // B12 Fix: only import events with [CRM] prefix unless import_all_google_events is enabled
-      const importAll = (settings as any)?.import_all_google_events || false;
+      // Senza l'interruttore acceso entrano solo gli eventi con il prefisso
+      // [CRM]. L'interruttore vero è `import_google_events_to_crm` (quello che
+      // la scheda Google salva): qui si leggeva `import_all_google_events`, una
+      // colonna che non esiste, quindi restava sempre spento e la scelta
+      // dell'utente non contava niente (18/09/2026).
+      const importAll = (settings as { import_google_events_to_crm?: boolean } | null)?.import_google_events_to_crm === true;
       const hasCrmPrefix = (gEvent.summary || "").startsWith("[CRM]");
       if (!importAll && !hasCrmPrefix) continue;
 
