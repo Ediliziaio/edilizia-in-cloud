@@ -67,3 +67,13 @@ describe("importa gli eventi Google nel CRM", () => {
     expect(sync).not.toContain("import_all_google_events?");
   });
 });
+
+describe("eventi Google importati", () => {
+  it("nascono assegnati a chi possiede l'agenda", () => {
+    const sync = leggi("supabase/functions/google-calendar-sync/index.ts");
+    // Senza assegnatario chi vede «solo i propri» non vedrebbe nemmeno i
+    // propri eventi importati.
+    expect(sync).toMatch(/created_by: userId,[\s\S]{0,260}assigned_to: userId,/);
+  });
+});
+

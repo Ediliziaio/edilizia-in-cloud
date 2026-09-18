@@ -847,6 +847,10 @@ async function reconcileCalendario(
         .insert({
           company_id: companyId,
           created_by: userId,
+          // L'evento è sull'agenda di questa persona: l'appuntamento è suo.
+          // Senza assegnatario, chi vede «solo i propri» non vedrebbe in EiC
+          // nemmeno gli eventi importati dal proprio calendario.
+          assigned_to: userId,
           title: fields.title || "Evento Google",
           appointment_date: fields.date,
           appointment_time: fields.time,
