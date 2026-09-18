@@ -583,10 +583,10 @@ export function useOutreachConversations(companyId: string) {
   // L'intent vive per-risposta (outreach_replies.intent); la conversazione mostra
   // quello della risposta più recente, quindi è quella che aggiorniamo.
   const setIntent = useMutation({
-    mutationFn: async ({ contactId, intent }: { contactId: string; intent: string }) => {
+    mutationFn: async ({ contactId, intent }: { contactId: string; intent: string }): Promise<{ brand: string | null }> => {
       const { data: last, error: selErr } = await db
         .from(T_REPLIES)
-        .select("id")
+        .select("id, enrollment_id")
         .eq("company_id", companyId)
         .eq("contact_id", contactId)
         .order("received_at", { ascending: false })
@@ -599,17 +599,56 @@ export function useOutreachConversations(companyId: string) {
         .update({ intent, intent_confidence: 1 })
         .eq("id", last.id);
       if (error) throw error;
-      // "Non interessato" = cooldown di 6 mesi: l'arruolamento lo salta finche'
-      // non scade. Prima restava contattabile alla campagna successiva.
-      if (intent === "not_interested") {
-        const { error: e2 } = await db.from("marketing_contacts")
-          .update({ ricontatta_dopo: new Date(Date.now() + 183 * 86_400_000).toISOString() })
-          .eq("id", contactId);
-        if (e2) throw e2;
+      if (intent !== "not_interested") return { brand: null };
+
+      // «Non interessato» vale per il brand DI QUESTA conversazione, non per
+      // tutti (decisione del titolare, 18/09/2026: i tre servizi sono distinti
+      // e partono da indirizzi diversi). Prima qui si scriveva
+      // `ricontatta_dopo` sul contatto: sei mesi di silenzio anche dai brand
+      // che a quella persona non avevano mai scritto.
+      const enrollmentId = (last.enrollment_id as string | null) ?? null;
+      if (!enrollmentId) return { brand: null };
+      const { data: enr } = await db.from(T_ENROLLMENTS).select("sequence_id").eq("id", enrollmentId).maybeSingle();
+      const sequenceId = (enr?.sequence_id as string | null) ?? null;
+      if (!sequenceId) return { brand: null };
+      const { data: seq } = await db.from(T_SEQUENCES).select("brand_id").eq("id", sequenceId).maybeSingle();
+      const brandId = (seq?.brand_id as string | null) ?? null;
+      if (!brandId) return { brand: null };
+
+      // Le iscrizioni ancora vive di QUEL brand si chiudono qui; quelle degli
+      // altri brand proseguono.
+      const { data: flussi } = await db.from(T_SEQUENCES).select("id").eq("brand_id", brandId);
+      const seqIds = ((flussi ?? []) as Array<{ id: string }>).map((f) => f.id);
+      if (seqIds.length) {
+        const { data: vive } = await db
+          .from(T_ENROLLMENTS)
+          .select("id")
+          .eq("company_id", companyId)
+          .eq("contact_id", contactId)
+          .in("sequence_id", seqIds)
+          .in("status", ["active", "paused"]);
+        const ids = ((vive ?? []) as Array<{ id: string }>).map((e) => e.id);
+        if (ids.length) {
+          await db.from(T_ENROLLMENTS)
+            .update({ status: "stopped", next_action_at: null, stop_reason: "Segnato non interessato" })
+            .in("id", ids);
+          await db.from(T_SENT)
+            .update({ status: "cancelled", last_error: "non interessato" })
+            .in("enrollment_id", ids)
+            .eq("status", "queued");
+        }
       }
+      const { data: b } = await db.from("outreach_brands").select("name").eq("id", brandId).maybeSingle();
+      return { brand: (b?.name as string | null) ?? null };
     },
-    onSuccess: (_d, v) => {
-      toast.success(v.intent === "not_interested" ? "Segnato non interessato: non verrà ricontattato per 6 mesi" : "Intento aggiornato");
+    onSuccess: (res, v) => {
+      toast.success(
+        v.intent !== "not_interested"
+          ? "Intento aggiornato"
+          : res?.brand
+            ? `Segnato non interessato per ${res.brand}: gli altri servizi proseguono`
+            : "Segnato non interessato",
+      );
       qc.invalidateQueries({ queryKey: ["outreach-inbox-replies", companyId] });
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Errore"),
