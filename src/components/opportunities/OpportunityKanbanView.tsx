@@ -16,9 +16,10 @@ import { formatCurrency, formatCount } from "@/lib/formatters";
 import { OpportunityDetailDialog } from "./OpportunityDetailDialog";
 import { LossReasonDialog } from "./LossReasonDialog";
 import {
-  useUpdateOpportunityStage, useDeleteOpportunity, useStageOpportunities,
+  useUpdateOpportunityStage, useDeleteOpportunity, useStageOpportunities, usePipelines,
   type RiepilogoOpportunita,
 } from "@/hooks/useOpportunitiesData";
+import { toast } from "sonner";
 import type { FiltriServerOpportunita } from "@/lib/marketingOpportunities";
 import type { OpportunityStage } from "@/types/opportunities";
 import { hashColor, inferOpportunityStatusFromStage } from "@/types/opportunities";
@@ -45,6 +46,33 @@ function useVistaAlmenoUnaVolta(elemento: HTMLElement | null, radice: HTMLElemen
     return () => osservatore.disconnect();
   }, [elemento, radice, vista]);
   return vista;
+}
+
+/**
+ * Striscia delle ALTRE pipeline, visibile solo mentre si trascina una scheda.
+ *
+ * Il kanban mostra una pipeline per volta, quindi «trascinare in un'altra
+ * pipeline» non può essere una colonna in più: è una zona che compare sotto le
+ * fasi quando la scheda è in volo. Si lascia lì e l'opportunità riparte dalla
+ * prima fase della pipeline scelta (18/09/2026, richiesta di Il Bagno Group).
+ */
+function ZonaPipeline({ pipeline }: { pipeline: { id: string; name: string; marketing_pipeline_stages?: Array<{ id: string; name: string }> } }) {
+  const { setNodeRef, isOver } = useDroppable({ id: `pipeline:${pipeline.id}`, data: { pipelineDestinazione: pipeline.id } });
+  const prima = pipeline.marketing_pipeline_stages?.[0]?.name;
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn(
+        "flex min-w-[180px] flex-1 flex-col justify-center rounded-lg border-2 border-dashed px-3 py-2 transition-colors",
+        isOver ? "border-primary bg-primary/10" : "border-muted-foreground/30 bg-background/80",
+      )}
+    >
+      <span className="truncate text-xs font-semibold">{pipeline.name}</span>
+      <span className="truncate text-[11px] text-muted-foreground">
+        {prima ? `entra in «${prima}»` : "nessuna fase"}
+      </span>
+    </div>
+  );
 }
 
 interface StageColumnProps {
@@ -365,6 +393,15 @@ export function OpportunityKanbanView({
     });
   }, []);
 
+  // Le altre pipeline dell'azienda: usePipelines porta già le fasi con sé,
+  // quindi la striscia non costa nessuna query in più.
+  const { data: pipelines = [] } = usePipelines();
+  const altrePipeline = useMemo(
+    () => (pipelines as Array<{ id: string; name: string; marketing_pipeline_stages?: Array<{ id: string; name: string }> }>)
+      .filter((p) => p.id !== pipelineId),
+    [pipelines, pipelineId],
+  );
+
   const sensors = useSensors(
     // Desktop: distance 5px è il minimo che evita click accidentali — sotto si
     // attivava drag su semplice click. Tuned per ridurre "lag percepito".
@@ -405,6 +442,29 @@ export function OpportunityKanbanView({
     const activeOpp = active.data.current?.opp;
     if (!activeOpp) return;
 
+    // Lasciata sulla striscia di un'altra pipeline: ci va per intero, partendo
+    // dalla sua prima fase. Cambiare la sola fase la lascerebbe agganciata alla
+    // pipeline di prima, sparendo da tutte e due.
+    const pipelineDestinazione = over.data.current?.pipelineDestinazione as string | undefined;
+    if (pipelineDestinazione && pipelineDestinazione !== pipelineId) {
+      const destinazione = altrePipeline.find((p: { id: string }) => p.id === pipelineDestinazione);
+      const primaFase = destinazione?.marketing_pipeline_stages?.[0];
+      if (!primaFase) {
+        toast.error(`«${destinazione?.name ?? "La pipeline scelta"}» non ha nessuna fase`);
+        return;
+      }
+      updateStage.mutate(
+        {
+          id: activeOpp.id,
+          stage_id: primaFase.id,
+          pipeline_id: pipelineDestinazione,
+          auto_status: inferOpportunityStatusFromStage(primaFase, "open"),
+        },
+        { onSuccess: () => toast.success(`Spostata in «${destinazione?.name}» — ${primaFase.name}`) },
+      );
+      return;
+    }
+
     const targetStageId = (over.data.current?.stageId as string | undefined) ?? (over.id as string);
 
     if (activeOpp.stage_id !== targetStageId && stages.some(s => s.id === targetStageId)) {
@@ -421,7 +481,7 @@ export function OpportunityKanbanView({
         auto_status: nextStatus,
       });
     }
-  }, [stages, updateStage, canEdit]);
+  }, [stages, updateStage, canEdit, pipelineId, altrePipeline]);
 
   const handleDelete = useCallback((id: string) => {
     if (!canEdit) return;
@@ -548,6 +608,18 @@ export function OpportunityKanbanView({
               />
             ))}
           </div>
+          {/* Trascinando, sotto le fasi compaiono le altre pipeline: è l'unico
+              modo per spostare in una pipeline che il kanban non sta mostrando. */}
+          {activeItem && canEdit && altrePipeline.length > 0 && (
+            <div className="sticky bottom-0 left-0 z-30 mx-1 mb-1 rounded-xl border bg-background/95 p-2 shadow-lg backdrop-blur">
+              <p className="px-1 pb-1.5 text-[11px] font-medium text-muted-foreground">
+                Lascia qui per spostare in un'altra pipeline
+              </p>
+              <div className="flex gap-2 overflow-x-auto">
+                {altrePipeline.map((p) => <ZonaPipeline key={p.id} pipeline={p} />)}
+              </div>
+            </div>
+          )}
           {/* dropAnimation null: la card non "vola indietro" al rilascio — l'update
               ottimistico la posiziona subito nella nuova colonna (drop snappy). */}
           <DragOverlay dropAnimation={null}>

@@ -56,3 +56,24 @@ describe("scheda opportunità: cambio pipeline", () => {
   });
 });
 
+describe("kanban: trascinare in un'altra pipeline", () => {
+  const kanban = leggi("src/components/opportunities/OpportunityKanbanView.tsx");
+
+  it("mentre si trascina compaiono le altre pipeline come zona di rilascio", () => {
+    expect(kanban).toContain("function ZonaPipeline");
+    expect(kanban).toContain('id: `pipeline:${pipeline.id}`');
+    expect(kanban).toContain("Lascia qui per spostare in un'altra pipeline");
+    // Solo mentre una scheda è in volo, e solo se ci sono altre pipeline.
+    expect(kanban).toContain("{activeItem && canEdit && altrePipeline.length > 0 && (");
+  });
+
+  it("il rilascio porta pipeline e prima fase insieme", () => {
+    expect(kanban).toContain("pipelineDestinazione");
+    expect(kanban).toMatch(/stage_id: primaFase\.id,\s*\n\s*pipeline_id: pipelineDestinazione,/);
+  });
+
+  it("una pipeline senza fasi lo dice invece di fallire in silenzio", () => {
+    expect(kanban).toContain("non ha nessuna fase");
+  });
+});
+
