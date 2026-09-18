@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { righeOrigine } from "@/lib/marketing/origineContatto";
+import { autoreAzione, etichettaAttivita } from "@/lib/marketing/autoreRegistro";
 
 interface Member { id: string; name: string }
 interface Props {
@@ -76,20 +77,6 @@ const KIND_META: Record<EventKind, { Icon: typeof Mail; color: string; bg: strin
   activity:   { Icon: Activity,       color: "text-slate-600",   bg: "bg-slate-100" },
 };
 
-const ACTIVITY_LABELS: Record<string, string> = {
-  created: "Contatto creato",
-  stage_change: "Cambio fase",
-  status_change: "Cambio stato",
-  tag_added: "Etichetta aggiunta",
-  tag_removed: "Etichetta rimossa",
-  opportunity_created: "Opportunità creata",
-  converted: "Convertito in cliente",
-  imported: "Importato",
-  assigned: "Assegnato",
-  form_submitted: "Form compilato",
-  lead_form_submission: "Nuova richiesta dal modulo",
-  site_lead_submitted: "Modulo sito compilato",
-};
 
 // Gruppi di filtro: solo quelli con almeno un evento vengono mostrati.
 const FILTERS: { key: string; label: string; kinds: EventKind[] | null }[] = [
@@ -188,9 +175,10 @@ export function ContactActivityRegister({
       if (error) return [];
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return (data ?? []).map((r: any) => {
-        const label = ACTIVITY_LABELS[r.activity_type]
-          || (r.activity_type ? r.activity_type.charAt(0).toUpperCase() + r.activity_type.slice(1).replace(/_/g, " ") : "Attività");
-        return { id: `act_${r.id}`, kind: "activity" as const, title: label, text: r.description, agentId: r.created_by, at: r.created_at };
+        return {
+          id: `act_${r.id}`, kind: "activity" as const, title: etichettaAttivita(r.activity_type),
+          text: r.description, agentId: r.created_by, at: r.created_at,
+        };
       });
     },
   });
@@ -208,9 +196,10 @@ export function ContactActivityRegister({
         .order("created_at", { ascending: false }).limit(30);
       if (error) return [];
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return (data ?? []).map((r: any) => ({ id: `note_${r.id}`, kind: "note" as const, title: "Nota", text: r.content, agentId: r.created_by,
-        // Senza autore (import, note automatiche) si dice, invece di non scrivere niente.
-        agentName: r.created_by ? null : "sistema o importazione", at: r.created_at }));
+      return (data ?? []).map((r: any) => ({
+        id: `note_${r.id}`, kind: "note" as const, title: "Nota", text: r.content,
+        agentId: r.created_by, at: r.created_at,
+      }));
     },
   });
 
@@ -444,6 +433,38 @@ export function ContactActivityRegister({
       .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
   }, [contactCreatedAt, contactSource, origine, activityRows, noteRows, callRows, smsRows, waRows, emailOutRows, emailInRows, apptRows]);
 
+  // Chi ha fatto l'azione: i membri passati dalla scheda non bastano (chi ha
+  // lasciato l'azienda, chi è di un'altra squadra). Gli id che restano senza
+  // nome si chiedono a profiles, una volta sola.
+  const idsSenzaNome = useMemo(() => {
+    const mancanti = new Set<string>();
+    allItems.forEach((i) => {
+      if (i.agentId && !i.agentName && !memberMap.has(i.agentId)) mancanti.add(i.agentId);
+    });
+    return [...mancanti].sort();
+  }, [allItems, memberMap]);
+
+  const { data: nomiExtra } = useQuery({
+    queryKey: ["reg-autori", companyId, idsSenzaNome.join(",")],
+    enabled: idsSenzaNome.length > 0,
+    staleTime: 10 * 60_000,
+    queryFn: async (): Promise<Record<string, string>> => {
+      const { data } = await supabase.from("profiles").select("id, first_name, last_name").in("id", idsSenzaNome);
+      const out: Record<string, string> = {};
+      (data ?? []).forEach((p) => {
+        const nome = [p.first_name, p.last_name].map((x) => x?.trim()).filter(Boolean).join(" ");
+        if (nome) out[p.id] = nome;
+      });
+      return out;
+    },
+  });
+
+  const nomiAutori = useMemo(() => {
+    const m = new Map(memberMap);
+    Object.entries(nomiExtra ?? {}).forEach(([id, nome]) => m.set(id, nome));
+    return m;
+  }, [memberMap, nomiExtra]);
+
   // Contatori per filtro (solo quelli con eventi vengono mostrati)
   const counts = useMemo(() => {
     const c: Record<string, number> = {};
@@ -560,20 +581,23 @@ export function ContactActivityRegister({
                   const meta = KIND_META[i.kind];
                   const Icon = meta.Icon;
                   const dir = i.direction;
-                  const agent = i.agentName || (i.agentId ? memberMap.get(i.agentId) : null);
+                  // Chi l'ha fatto: persona o automazione (col nome del flusso
+                  // quando la nota lo dice). Mai una riga senza autore.
+                  const autore = autoreAzione({ agentId: i.agentId, agentName: i.agentName, testo: i.text, nomi: nomiAutori });
+                  const agent = autore.nome;
                   // Sottotitolo "da chi → a chi": chiaro per ogni canale.
                   const subParts: string[] = [];
                   if (i.meta) subParts.push(i.meta);
                   if (i.kind === "note" || i.kind === "activity") {
-                    if (agent) subParts.push(`di ${agent}`);
+                    subParts.push(autore.automatica ? `dall'${agent.toLowerCase()}` : `di ${agent}`);
                   } else if (i.kind === "appointment") {
-                    if (agent) subParts.push(`assegnato a ${agent}`);
+                    if (i.agentId || i.agentName) subParts.push(`assegnato a ${agent}`);
                   } else if (i.kind === "entry") {
                     // nessun mittente
                   } else if (dir === "inbound") {
                     if (i.fromLabel) subParts.push(`da ${i.fromLabel}`);
                   } else {
-                    if (agent) subParts.push(`da ${agent}`);
+                    if (i.agentId || i.agentName) subParts.push(`da ${agent}`);
                     if (i.toLabel) subParts.push(`a ${i.toLabel}`);
                   }
                   const subtitle = subParts.join(" · ");
