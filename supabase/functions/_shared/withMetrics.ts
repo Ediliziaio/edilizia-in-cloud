@@ -21,6 +21,7 @@
 // rumore che nasconderebbe la latenza vera).
 
 import { recordMetric } from "./healthMetrics.ts";
+import { daMisurare } from "./chiamateDaMisurare.ts";
 
 type Gestore = (req: Request) => Promise<Response> | Response;
 
@@ -28,6 +29,8 @@ type Gestore = (req: Request) => Promise<Response> | Response;
  * Avvolge un gestore registrando durata ed esito di ogni chiamata.
  * Non altera il comportamento: un errore nella misurazione non può far
  * fallire la richiesta, e una richiesta fallita viene comunque misurata.
+ * Le chiamate da pg_net respinte (401/403) non si registrano: vedi
+ * chiamateDaMisurare.ts.
  */
 export function conMetriche(nomeFunzione: string, gestore: Gestore): Gestore {
   return async (req: Request): Promise<Response> => {
@@ -37,6 +40,7 @@ export function conMetriche(nomeFunzione: string, gestore: Gestore): Gestore {
     // credenziali, e il 401 che riceve non è un guasto da mettere in Salute.
     if (new URL(req.url).searchParams.get("warmup") === "1") return await gestore(req);
 
+    const agente = req.headers.get("user-agent");
     const inizio = Date.now();
     let statusCode = 200;
     let errore: string | undefined;
@@ -57,13 +61,15 @@ export function conMetriche(nomeFunzione: string, gestore: Gestore): Gestore {
       throw e;
     } finally {
       // La misurazione non deve mai rallentare la risposta né poterla rompere.
-      void recordMetric({
-        metricType: "edge_function_call",
-        functionName: nomeFunzione,
-        statusCode,
-        latencyMs: Date.now() - inizio,
-        errorMessage: errore,
-      }).catch(() => {});
+      if (daMisurare(agente, statusCode)) {
+        void recordMetric({
+          metricType: "edge_function_call",
+          functionName: nomeFunzione,
+          statusCode,
+          latencyMs: Date.now() - inizio,
+          errorMessage: errore,
+        }).catch(() => {});
+      }
     }
   };
 }
