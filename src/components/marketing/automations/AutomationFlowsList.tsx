@@ -25,18 +25,19 @@ import { cn } from "@/lib/utils";
 import {
   Zap, Plus, MoreHorizontal, Pencil, Copy, Archive, Trash2,
   ChevronLeft, ChevronRight, ChevronDown, Folder, FolderOpen,
-  List, Grid3X3, Play, Pause, Clock, AlertTriangle,
-  Users, Megaphone, ClipboardList, Coins, Package, HardHat,
-  Headphones, Warehouse, UserCog, CheckSquare, Bell, Settings, RefreshCw,
+  List, Grid3X3, Play, Pause, Clock, AlertTriangle, RefreshCw,
 } from "lucide-react";
 import { Fragment, useEffect, useState, useMemo, type ReactNode } from "react";
 import type { AutomationFlow } from "@/types/automationBuilder";
+// Il catalogo è già nel pacchetto della pagina (lo usa CreaAutomazioneAIDialog).
+import { ACTION_MAP, TRIGGER_MAP } from "@/lib/flow-node-catalog";
 
 import { ConfermaQuantita, useConfermaQuantita } from "@/components/shared/ConfermaQuantita";
 import { AutomazioniCestinoDialog } from "./AutomazioniCestinoDialog";
 type AutomationNodeRow = {
   flow_id?: string;
   node_type: string;
+  label?: string | null;
   config_json: Record<string, unknown> | null;
 };
 
@@ -86,23 +87,88 @@ function validateAutomationForPublish(nodes: AutomationNodeRow[] | null | undefi
   return errors;
 }
 
+function idVoce(config: Record<string, unknown> | null): string | null {
+  const c = config ?? {};
+  const id = c.item_id ?? c.itemId ?? c.action_type ?? c.trigger_event;
+  return typeof id === "string" && id !== "" ? id : null;
+}
+
+// Da dove parte: il nome che il nodo ha nel builder («Form compilato — Vendita
+// Edile»), altrimenti quello del catalogo.
+function nomeTrigger(nodo: AutomationNodeRow): string {
+  const id = idVoce(nodo.config_json);
+  const nome = nodo.label
+    ?? (typeof nodo.config_json?.label === "string" ? nodo.config_json.label : null)
+    ?? (id ? TRIGGER_MAP[id]?.label : null);
+  return nome?.trim() || "Trigger";
+}
+
+// Cosa fa un'azione, in una parola: [una, più di una]. Le altre azioni prendono
+// il nome del catalogo.
+const AZIONI_IN_BREVE: Record<string, [string, string]> = {
+  invia_email: ["email", "email"],
+  invia_email_admin_azienda: ["email", "email"],
+  invia_whatsapp: ["WhatsApp", "WhatsApp"],
+  invia_whatsapp_locale: ["WhatsApp", "WhatsApp"],
+  invia_sms: ["SMS", "SMS"],
+  chiama_ai: ["chiamata AI", "chiamate AI"],
+  notifica_interna: ["notifica", "notifiche"],
+  invia_notifica_inapp: ["notifica", "notifiche"],
+  invia_notifica_team_admin: ["notifica", "notifiche"],
+  crea_task: ["attività", "attività"],
+  crea_cs_task: ["attività", "attività"],
+  crea_opportunita: ["opportunità", "opportunità"],
+  sposta_opportunita: ["cambio di fase", "cambi di fase"],
+  aggiungi_tag: ["tag", "tag"],
+  crea_appuntamento: ["appuntamento", "appuntamenti"],
+};
+
+// «4 email · opportunità · tag»: le azioni raggruppate, le più numerose prima,
+// al massimo tre voci. Attese, condizioni e rami non sono azioni e non contano.
+function riassumiAzioni(azioni: AutomationNodeRow[]): string | null {
+  const gruppi = new Map<string, { una: string; tante: string | null; quante: number }>();
+  for (const nodo of azioni) {
+    const id = idVoce(nodo.config_json) ?? "";
+    const breve = AZIONI_IN_BREVE[id];
+    const chiave = breve ? breve[0] : id;
+    const gruppo = gruppi.get(chiave) ?? {
+      una: breve?.[0] ?? ACTION_MAP[id]?.label ?? nodo.label ?? "azione",
+      tante: breve?.[1] ?? null,
+      quante: 0,
+    };
+    gruppo.quante++;
+    gruppi.set(chiave, gruppo);
+  }
+  if (gruppi.size === 0) return null;
+  const voci = [...gruppi.values()]
+    .sort((a, b) => b.quante - a.quante)
+    .map(g => (g.quante === 1 ? g.una : g.tante ? `${g.quante} ${g.tante}` : `${g.una} (${g.quante})`));
+  return voci.length > 3 ? `${voci.slice(0, 3).join(" · ")} · +${voci.length - 3}` : voci.join(" · ");
+}
+
 function summarizeNodes(nodes: AutomationNodeRow[] | undefined) {
   const rows = nodes ?? [];
   const errors = validateAutomationForPublish(rows);
+  const triggers = rows.filter(n => n.node_type === "trigger");
   return {
-    triggerCount: rows.filter(n => n.node_type === "trigger").length,
+    triggerCount: triggers.length,
     actionCount: rows.filter(n => PUBLISHABLE_NODE_TYPES.has(n.node_type)).length,
     issueCount: errors.length,
     firstIssue: errors[0] ?? null,
+    // null = parte solo quando un'altra automazione ce la manda.
+    avvio: triggers.length === 0
+      ? null
+      : `${nomeTrigger(triggers[0])}${triggers.length > 1 ? ` (+${triggers.length - 1})` : ""}`,
+    azioni: riassumiAzioni(rows.filter(n => n.node_type === "action")),
   };
 }
 
 type NodeSummary = ReturnType<typeof summarizeNodes>;
 
 /**
- * La riga sotto il nome: com'è fatta l'automazione, oppure cosa manca per
- * pubblicarla. Prima erano tre colonne (Controlli, Struttura, Categoria) e un
- * «Pronta» verde col triangolo che sembrava un tasto per avviarla.
+ * La riga sotto il nome: da dove parte e cosa fa («Lead da campagna Facebook →
+ * 4 email · opportunità · tag»), oppure cosa manca per pubblicarla. Fino al
+ * 19/09 diceva «1 trigger · 2 passaggi · Marketing», uguale su quasi ogni riga.
  * null = struttura non ancora caricata.
  */
 function descriviFlusso(
@@ -117,30 +183,47 @@ function descriviFlusso(
   if (summary.issueCount > 0 && flow.status !== "archived") {
     return { testo: summary.firstIssue ?? "Da completare prima di pubblicare", problema: true };
   }
-  const avvio = summary.triggerCount === 0
-    ? "Parte da un'altra automazione"
-    : `${summary.triggerCount} trigger`;
-  const passaggi = `${summary.actionCount} passagg${summary.actionCount === 1 ? "io" : "i"}`;
-  const categoria = flow.category && flow.category !== "generale"
-    ? CATEGORY_ICON_MAP[flow.category]?.label
-    : null;
-  return { testo: [avvio, passaggi, categoria].filter(Boolean).join(" · "), problema: false };
+  const avvio = summary.avvio ?? "Da un'altra automazione";
+  const cosaFa = summary.azioni
+    ?? `${summary.actionCount} passagg${summary.actionCount === 1 ? "io" : "i"}`;
+  return { testo: `${avvio} → ${cosaFa}`, problema: false };
 }
 
-// --- Lucide icons instead of emojis ---
-const CATEGORY_ICON_MAP: Record<string, { label: string; icon: ReactNode }> = {
-  crm: { label: "CRM & Vendite", icon: <Users className="h-3.5 w-3.5" /> },
-  marketing: { label: "Marketing", icon: <Megaphone className="h-3.5 w-3.5" /> },
-  preventivi: { label: "Preventivi", icon: <ClipboardList className="h-3.5 w-3.5" /> },
-  fatturazione: { label: "Fatturazione", icon: <Coins className="h-3.5 w-3.5" /> },
-  ordini: { label: "Ordini", icon: <Package className="h-3.5 w-3.5" /> },
-  cantieri: { label: "Cantieri", icon: <HardHat className="h-3.5 w-3.5" /> },
-  assistenza: { label: "Assistenza", icon: <Headphones className="h-3.5 w-3.5" /> },
-  magazzino: { label: "Magazzino", icon: <Warehouse className="h-3.5 w-3.5" /> },
-  hr: { label: "HR", icon: <UserCog className="h-3.5 w-3.5" /> },
-  task: { label: "Task", icon: <CheckSquare className="h-3.5 w-3.5" /> },
-  notifiche: { label: "Notifiche", icon: <Bell className="h-3.5 w-3.5" /> },
-  generale: { label: "Generale", icon: <Settings className="h-3.5 w-3.5" /> },
+// «oggi, 13:06», «ieri, 18:40», «12 set», «12 set 2025»: si legge prima di
+// «19 set 2026» ripetuto su ogni riga. La data completa va nel title.
+function quando(iso: string, adessoMs: number): string {
+  const d = new Date(iso);
+  const adesso = new Date(adessoMs);
+  const ieri = new Date(adessoMs);
+  ieri.setDate(ieri.getDate() - 1);
+  const ora = d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+  if (d.toDateString() === adesso.toDateString()) return `oggi, ${ora}`;
+  if (d.toDateString() === ieri.toDateString()) return `ieri, ${ora}`;
+  return d.toLocaleDateString("it-IT", d.getFullYear() === adesso.getFullYear()
+    ? { day: "numeric", month: "short" }
+    : { day: "numeric", month: "short", year: "numeric" });
+}
+
+function dataCompleta(iso: string): string {
+  return new Date(iso).toLocaleString("it-IT", {
+    day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit",
+  });
+}
+
+// Una riga di automazioni_attivita (la funzione non è nei tipi generati).
+type RigaAttivita = {
+  flow_id: string;
+  ultima_esecuzione: string | null;
+  esecuzioni_7gg: number | null;
+  errori_7gg: number | null;
+  ultimo_errore: string | null;
+};
+
+type AttivitaFlusso = {
+  ultima: string | null;
+  esecuzioni7: number;
+  errori7: number;
+  ultimoErrore: string | null;
 };
 
 // --- Status filter chips config ---
@@ -286,12 +369,15 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
   });
 
   const { data: nodeSummaries } = useQuery({
-    queryKey: ["automation-node-summaries", effectiveCompany?.id],
+    // «descrizione»: dal 19/09 il riepilogo dice anche da dove parte e cosa fa.
+    // La copia salvata nel browser può sopravvivere a un rilascio: con la chiave
+    // nuova quella della forma vecchia non si legge.
+    queryKey: ["automation-node-summaries", effectiveCompany?.id, "descrizione"],
     queryFn: async () => {
       const { data, error } = await withClientTimeout(
         supabase
           .from("automation_nodes")
-          .select("flow_id, node_type, config_json")
+          .select("flow_id, node_type, label, config_json")
           .eq("company_id", effectiveCompany!.id)
           .limit(10000),
         "Caricamento struttura automazioni",
@@ -311,6 +397,37 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
     gcTime: 5 * 60 * 1000,
   });
 
+  // Quando ha lavorato l'ultima volta ogni automazione, e gli errori della
+  // settimana. automazioni_attivita legge con i permessi di chi chiama, come il
+  // registro. Senza, una pubblicata mai partita sembrava uguale a una che gira.
+  const { data: attivita } = useQuery({
+    queryKey: ["automation-activity", effectiveCompany?.id],
+    queryFn: async () => {
+      const { data, error } = await withClientTimeout(
+        supabase.rpc("automazioni_attivita" as never, { p_company_id: effectiveCompany!.id } as never),
+        "Caricamento esecuzioni automazioni",
+      );
+      if (error) throw error;
+      const perFlusso: Record<string, AttivitaFlusso> = {};
+      for (const r of ((data ?? []) as unknown as RigaAttivita[])) {
+        perFlusso[r.flow_id] = {
+          ultima: r.ultima_esecuzione,
+          esecuzioni7: r.esecuzioni_7gg ?? 0,
+          errori7: r.errori_7gg ?? 0,
+          ultimoErrore: r.ultimo_errore,
+        };
+      }
+      return perFlusso;
+    },
+    enabled: !!effectiveCompany?.id,
+    retry: retryListQuery,
+    staleTime: 60 * 1000,
+    refetchOnMount: "always",
+  });
+
+  // L'ora di riferimento per «oggi» e «ieri»: letta una volta, non a ogni render.
+  const [adessoMs] = useState(() => Date.now());
+
   // Invalidation unica per tutte le mutation: prima ogni mutation invalidava
   // solo "automation-flows" e i KPI (automation-overview-stats), la struttura
   // e gli iscritti restavano stale — es. "Flussi totali" fermo al valore
@@ -320,6 +437,7 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
     void queryClient.invalidateQueries({ queryKey: ["automation-overview-stats"] });
     void queryClient.invalidateQueries({ queryKey: ["automation-node-summaries"] });
     void queryClient.invalidateQueries({ queryKey: ["automation-enrollment-counts"] });
+    void queryClient.invalidateQueries({ queryKey: ["automation-activity"] });
   };
 
   // --- Mutations (kept from original) ---
@@ -626,9 +744,22 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
     setSelectedIds(next);
   };
 
-  const formatDate = (d: string) => {
-    const date = new Date(d);
-    return date.toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric" });
+  // Ultima esecuzione: la data; «Mai» per una pubblicata che non ha ancora
+  // eseguito un passaggio; «—» per bozze e archiviate mai partite.
+  // null = dati non ancora arrivati.
+  const esecuzioneDi = (flow: AutomationFlow) => {
+    if (!attivita) return null;
+    const a = attivita[flow.id];
+    const passaggi = a ? `${a.esecuzioni7} passagg${a.esecuzioni7 === 1 ? "io" : "i"} in 7 giorni` : "";
+    return {
+      testo: a?.ultima ? quando(a.ultima, adessoMs) : flow.status === "published" ? "Mai" : "—",
+      titolo: a?.ultima
+        ? `${dataCompleta(a.ultima)} · ${passaggi}`
+        : flow.status === "published" ? "Pubblicata, ma non ha ancora eseguito nessun passaggio" : undefined,
+      mai: !a?.ultima,
+      errori: a?.errori7 ?? 0,
+      ultimoErrore: a?.ultimoErrore ?? null,
+    };
   };
 
   if (isLoading) {
@@ -709,6 +840,7 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
     // non ha nodi, summarizeNodes([]) dà il vero stato ("Aggiungi un trigger…").
     const summary = nodeSummaries ? (nodeSummaries[flow.id] ?? summarizeNodes([])) : null;
     const dettaglio = descriviFlusso(flow, summary);
+    const esecuzione = esecuzioneDi(flow);
 
     return (
       <TableRow
@@ -748,7 +880,26 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
             <span className="ml-1 text-xs text-muted-foreground">· {counts.active.toLocaleString("it-IT")} attivi</span>
           )}
         </TableCell>
-        <TableCell className="whitespace-nowrap py-2 text-sm text-muted-foreground">{formatDate(flow.updated_at)}</TableCell>
+        <TableCell className="whitespace-nowrap py-2 text-sm">
+          {esecuzione && (
+            <>
+              <span className={cn(esecuzione.mai && "text-muted-foreground")} title={esecuzione.titolo}>
+                {esecuzione.testo}
+              </span>
+              {esecuzione.errori > 0 && (
+                <p className="text-xs text-destructive" title={esecuzione.ultimoErrore ?? undefined}>
+                  {esecuzione.errori} error{esecuzione.errori === 1 ? "e" : "i"} in 7 giorni
+                </p>
+              )}
+            </>
+          )}
+        </TableCell>
+        <TableCell
+          className="hidden whitespace-nowrap py-2 text-sm text-muted-foreground lg:table-cell"
+          title={dataCompleta(flow.updated_at)}
+        >
+          {quando(flow.updated_at, adessoMs)}
+        </TableCell>
         <TableCell className="py-2" onClick={e => e.stopPropagation()}>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -790,6 +941,7 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
     // Stessa semantica della riga tabella: null = struttura non disponibile.
     const summary = nodeSummaries ? (nodeSummaries[flow.id] ?? summarizeNodes([])) : null;
     const dettaglio = descriviFlusso(flow, summary);
+    const esecuzione = esecuzioneDi(flow);
     return (
       <div
         key={flow.id}
@@ -817,7 +969,19 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
             {counts.total.toLocaleString("it-IT")} iscritti
             {counts.active > 0 && ` · ${counts.active.toLocaleString("it-IT")} attivi`}
           </span>
-          <span className="ml-auto">{formatDate(flow.updated_at)}</span>
+          {esecuzione && esecuzione.errori > 0 ? (
+            <span className="ml-auto text-destructive" title={esecuzione.ultimoErrore ?? undefined}>
+              {esecuzione.errori} error{esecuzione.errori === 1 ? "e" : "i"} in 7 giorni
+            </span>
+          ) : esecuzione && !esecuzione.mai ? (
+            <span className="ml-auto" title={esecuzione.titolo}>Eseguita {esecuzione.testo}</span>
+          ) : esecuzione && flow.status === "published" ? (
+            <span className="ml-auto" title={esecuzione.titolo}>Mai eseguita</span>
+          ) : (
+            <span className="ml-auto" title={dataCompleta(flow.updated_at)}>
+              Modificata {quando(flow.updated_at, adessoMs)}
+            </span>
+          )}
         </div>
       </div>
     );
@@ -838,7 +1002,9 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
       {/* Filter chips toolbar */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-1.5 flex-wrap">
-          {STATUS_CHIPS.map(chip => {
+          {/* Una pastiglia a zero non filtra niente: compare quando serve (resta
+              visibile quella scelta, e sempre «Tutti»). */}
+          {STATUS_CHIPS.filter(chip => chip.key === "all" || chip.key === internalStatusFilter || (statusCounts[chip.key] ?? 0) > 0).map(chip => {
             const isActive = internalStatusFilter === chip.key;
             const count = statusCounts[chip.key] ?? 0;
             return (
@@ -909,9 +1075,10 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
                 <TableRow className="bg-muted/20">
                   <TableHead className="h-9 w-10"><Checkbox checked={allSelected} onCheckedChange={toggleAll} /></TableHead>
                   <TableHead className="h-9">Nome</TableHead>
-                  <TableHead className="h-9 w-32">Stato</TableHead>
-                  <TableHead className="h-9 w-40 text-right">Iscritti</TableHead>
-                  <TableHead className="h-9 w-32">Aggiornato</TableHead>
+                  <TableHead className="h-9 w-28">Stato</TableHead>
+                  <TableHead className="h-9 w-24 text-right">Iscritti</TableHead>
+                  <TableHead className="h-9 w-36">Ultima esecuzione</TableHead>
+                  <TableHead className="hidden h-9 w-28 lg:table-cell">Modificata</TableHead>
                   <TableHead className="h-9 w-12"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -931,7 +1098,7 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
                         onClick={() => toggleFolder(folder.id)}
                       >
                         <TableCell className="py-2" onClick={e => e.stopPropagation()} />
-                        <TableCell className="py-2" colSpan={4}>
+                        <TableCell className="py-2" colSpan={5}>
                           <div className="flex items-center gap-2">
                             {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
                             {isExpanded ? <FolderOpen className="h-4 w-4 text-primary" /> : <Folder className="h-4 w-4 text-primary" />}
@@ -970,7 +1137,7 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
                 {/* Empty state */}
                 {filtered.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-12">
+                    <TableCell colSpan={7} className="text-center py-12">
                       <Zap className="h-10 w-10 mx-auto text-muted-foreground/30 mb-3" />
                       <p className="text-sm text-muted-foreground">Nessuna automazione con questi filtri</p>
                     </TableCell>

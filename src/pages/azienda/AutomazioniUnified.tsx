@@ -88,9 +88,16 @@ export default function AutomazioniUnified() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <h1 className="text-xl font-semibold tracking-tight">Flussi di lavoro</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            Automazioni per CRM, cantieri, preventivi e notifiche.
-          </p>
+          {/* 19/09/2026 — Sotto il titolo i numeri del motore, al posto della
+              fascia di sei riquadri. Solo desktop: su mobile le cinque query di
+              conteggio non valgono lo spazio, resta la descrizione. */}
+          {effectiveCompany?.id && !isMobile ? (
+            <AutomationOverviewStats companyId={effectiveCompany.id} />
+          ) : (
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              Automazioni per CRM, cantieri, preventivi e notifiche.
+            </p>
+          )}
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <Button size="sm" onClick={() => navigate(`${routePrefix}/automazioni/nuova`)}>
@@ -120,15 +127,6 @@ export default function AutomazioniUnified() {
           </DropdownMenu>
         </div>
       </div>
-
-      {/* KPI globali — non reagiscono ai filtri (come pattern ordini).
-          La card "Attivi" filtra a status=published; "Errori 24h" sarebbe un
-          deeplink al primo flusso con errori — per ora toggle visivo. */}
-      {/* 6 KPI-vetrina + 7 count query: solo desktop. Su mobile vai dritto
-          all'elenco flussi (operativo). */}
-      {effectiveCompany?.id && !vistaTemplates && !isMobile && (
-        <AutomationOverviewStats companyId={effectiveCompany.id} />
-      )}
 
       {/* Filters row */}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">

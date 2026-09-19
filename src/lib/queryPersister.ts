@@ -118,6 +118,7 @@ const PERSIST_WHITELIST = new Set<string>([
   "automation-node-summaries",
   "automation-enrollment-counts",
   "automation-overview-stats",
+  "automation-activity",         // 19/09: ultima esecuzione di ogni automazione
   "platform-admin-company-id",   // AdminTeamChat: id quasi statico, sblocca il mount immediato
   "admin-attivita-tasks",        // /admin/attivita: lista task subito dalla cache
 ]);
