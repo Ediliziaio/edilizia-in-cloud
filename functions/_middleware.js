@@ -1918,26 +1918,19 @@ const ROUTES = {
   "/offerta-2-mesi-gratis": {
     title: "Offerta 2 mesi gratis — Gestionale Edilizia in Cloud",
     description:
-      "Aumenta margini e guadagni, libera tempo dalla gestione e dì addio a software sparsi ed Excel. Con l'annuale 2 mesi gratis e l'Avvio Guidato incluso. Prenota la demo.",
-    h1: "Aumenta i tuoi margini e i tuoi guadagni. Libera tempo dalla gestione.",
+      "Per aziende edili, serramentisti e fotovoltaico: aumenta margini e guadagni di +50.000 € e dì addio a software sparsi ed Excel. 2 mesi gratis, solo per 8 aziende.",
+    h1: "Aumenta i tuoi margini e i tuoi guadagni di +50.000 €. Liberati dalla gestione. Delega con efficienza. Controlla i margini in tempo reale.",
     intro:
-      "Dì addio a software sparsi, fogli Excel e carte da rincorrere: Edilizia in Cloud mette cantieri, preventivi, fatture e squadra in un posto solo, con il margine di ogni commessa sotto gli occhi. L'offerta: con l'annuale 2 mesi te li regaliamo noi. Paghi 10 mesi e ne usi 12, l'Avvio Guidato è incluso e il prezzo che firmi non aumenta più finché resti cliente.",
+      "Per aziende edili, serramentisti, fotovoltaico, impiantisti e ristrutturazioni. Dì addio a software sparsi, fogli Excel e carte da rincorrere: Edilizia in Cloud mette cantieri, preventivi, fatture e squadra in un posto solo, con il margine di ogni commessa sotto gli occhi.",
     extra: `
-    <h2>L'offerta: 12 mesi al prezzo di 10</h2>
-    <ul>
-      <li><strong>Gestionale</strong> — annuale 1.270 € con l'Avvio Guidato incluso (mensile 127 € + avvio 490 €).</li>
-      <li><strong>Professionista</strong> — annuale 2.470 € con l'Avvio Guidato incluso (mensile 247 € + avvio 890 €).</li>
-      <li><strong>Impresa AI</strong> — annuale 5.470 € con l'Avvio Guidato a metà prezzo, 1.450 € (mensile da 547 € + avvio 2.900 €).</li>
-    </ul>
-    <p>Prezzi IVA esclusa. Il prezzo bloccato vale per i primi cento clienti.</p>
+    <h2>La promo: 2 mesi gratis, solo per 8 aziende</h2>
+    <p>I primi due mesi di Edilizia in Cloud non li paghi. I posti sono otto perché l'avvio lo seguiamo noi, azienda per azienda: carichiamo cantieri, anagrafiche e listini e formiamo la squadra. Quando i posti sono presi, la promo si chiude.</p>
 
     <h2>Le garanzie</h2>
     <ul>
       <li><strong>Operativo in 30 giorni, o il canone non parte</strong> — cantieri aperti con il margine visibile, fatture a SDI, squadra formata.</li>
       <li><strong>I tuoi dati escono quando vuoi</strong> — in Excel e PDF, anche per novanta giorni dopo la disdetta.</li>
       <li><strong>Il margine in due minuti</strong> — al sessantesimo giorno lo leggi dal telefono, o ti restituiamo l'avvio.</li>
-      <li><strong>60 giorni per ripensarci</strong> — sull'annuale ti restituiamo i mesi che non hai usato.</li>
-      <li><strong>Prezzo bloccato finché resti</strong> — il canone che firmi non aumenta più.</li>
     </ul>
 
     <h2>Come si parte</h2>

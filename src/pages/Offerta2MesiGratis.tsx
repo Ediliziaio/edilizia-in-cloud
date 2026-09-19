@@ -1,8 +1,8 @@
 import { lazy, Suspense, useCallback, useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import {
-  ArrowDown, BadgeCheck, CalendarCheck, CalendarDays, Check, Clock, CreditCard, Database,
-  Lock, Smartphone, Sparkles, Timer, Undo2, Users,
+  BadgeCheck, CalendarCheck, CalendarDays, Clock, CreditCard, Database, HardHat,
+  Smartphone, Sparkles, Timer, Users,
 } from "lucide-react";
 import { useSEO } from "@/hooks/useSEO";
 import { JsonLd } from "@/components/seo/JsonLd";
@@ -11,17 +11,17 @@ import LandingNavbar from "@/components/landing/LandingNavbar";
 import PlatformMockup from "@/components/landing/PlatformMockup";
 import { CalendarioInPagina, type PrenotazioneFatta } from "@/components/marketing/CalendarioInPagina";
 import { trackPixel } from "@/lib/meta/fbcTracker";
-import { DOMANDE_OFFERTA, PIANI_OFFERTA } from "@/data/offerta2MesiGratis";
+import { DOMANDE_OFFERTA, POSTI_PROMO, SETTORI } from "@/data/offerta2MesiGratis";
 
 /**
- * /offerta-2-mesi-gratis — la pagina di vendita dell'offerta annuale
+ * /offerta-2-mesi-gratis — la pagina di vendita della promo «2 mesi gratis»
  * (19/09/2026, richiesta di Florin).
  *
- * L'offerta e le garanzie sono quelle del manuale della rete vendita («Vendita
- * Ibrida»): con l'annuale si pagano 10 mesi su 12, l'Avvio Guidato è incluso e
- * il prezzo resta bloccato. I numeri vengono dal suo «cheat sheet del prezzo»;
- * le garanzie sono G1, G2 e G3 (quelle «da pagina») più G5 e G6, che parlano
- * proprio dell'annuale.
+ * La promo vale solo per 8 aziende: l'avvio lo seguiamo noi, uno per uno. La
+ * prima versione vendeva l'annuale del manuale della rete vendita («Vendita
+ * Ibrida»: 12 mesi al prezzo di 10, prezzo bloccato); Florin l'ha fatta
+ * togliere la sera stessa, e con lei le due garanzie che parlavano
+ * dell'annuale. Restano le tre garanzie «da pagina» del manuale (G1, G2, G3).
  *
  * Il resto riusa la home: le sue sezioni (numeri, problemi, soluzione, moduli,
  * testimonianze) e le sue immagini. Ogni pulsante porta al calendario in fondo,
@@ -90,13 +90,32 @@ function HeroOfferta() {
       <div className="absolute bottom-1/4 right-1/4 h-40 w-40 rounded-full bg-[#F97415]/[0.08] blur-[100px] md:h-80 md:w-80" />
 
       <div className="relative z-10 mx-auto max-w-5xl px-5 text-center sm:px-6">
+        {/* Per chi è, in cima. Su telefono solo i primi tre settori, su due righe
+            bilanciate: per questo lì gli angoli non sono a pillola. */}
+        <span className="mb-6 inline-flex items-center gap-2 rounded-2xl border border-[#F97415]/40 bg-[#F97415]/10 px-4 py-2 text-[10px] font-semibold uppercase leading-relaxed tracking-wider text-[#F97415] md:rounded-full md:px-5 md:text-xs md:tracking-widest">
+          <HardHat className="h-3.5 w-3.5 shrink-0" />
+          <span className="text-balance">
+            Per{" "}
+            {SETTORI.map((settore, i) => (
+              <span key={settore} className={i >= 3 ? "hidden md:inline" : undefined}>
+                {i > 0 && " · "}
+                {settore}
+              </span>
+            ))}
+          </span>
+        </span>
+
         {/* Prima la promessa, poi l'offerta: così l'ha chiesta Florin (19/09). */}
         <h1 className="mx-auto max-w-5xl font-extrabold leading-[1.05] tracking-tight">
           <span className="block text-balance text-[clamp(2.1rem,5vw,4.6rem)] text-white">
-            Aumenta i tuoi margini e i tuoi guadagni.
+            Aumenta i tuoi margini e i tuoi guadagni di{" "}
+            <span className="whitespace-nowrap text-[#F97415]">+50.000 €</span>.
           </span>
-          <span className="mt-2 block text-balance text-[clamp(2.1rem,5vw,4.6rem)] text-[#F97415] md:mt-3">
-            Libera tempo dalla gestione.
+          {/* Da tablet in su ogni frase resta intera: si va a capo tra una e l'altra. */}
+          <span className="mt-3 block text-balance text-[clamp(1.35rem,2.9vw,2.6rem)] leading-tight text-white/90 md:mt-4">
+            <span className="md:whitespace-nowrap">Liberati dalla gestione.</span>{" "}
+            <span className="md:whitespace-nowrap">Delega con efficienza.</span>{" "}
+            <span className="md:whitespace-nowrap">Controlla i margini in tempo reale.</span>
           </span>
         </h1>
 
@@ -108,16 +127,13 @@ function HeroOfferta() {
         <div className="mx-auto mt-8 max-w-2xl rounded-2xl border border-[#F97415]/45 bg-[#F97415]/10 px-5 py-4 backdrop-blur-sm md:px-8 md:py-5">
           <p className="flex items-center justify-center gap-2 text-[11px] font-bold uppercase tracking-widest text-[#F97415] md:text-xs">
             <Sparkles className="h-3.5 w-3.5" />
-            L&apos;offerta
+            La promo
           </p>
           <p className="mt-1.5 text-balance text-xl font-extrabold leading-snug text-white md:text-3xl">
-            Con l&apos;annuale, <span className="text-[#F97415]">2 mesi te li regaliamo noi.</span>
+            2 mesi gratis, <span className="text-[#F97415]">solo per {POSTI_PROMO} aziende.</span>
           </p>
-          {/* Ogni voce resta intera: si va a capo tra una voce e l'altra, mai dentro. */}
-          <p className="mt-2 text-sm leading-relaxed text-white/70 md:text-base">
-            <span className="whitespace-nowrap">12 mesi al prezzo di 10 ·</span>{" "}
-            <span className="whitespace-nowrap">Avvio Guidato incluso ·</span>{" "}
-            <span className="whitespace-nowrap">Prezzo bloccato finché resti cliente</span>
+          <p className="mt-2 text-balance text-sm leading-relaxed text-white/70 md:text-base">
+            L&apos;avvio lo seguiamo noi, uno per uno: quando i posti sono presi, la promo si chiude.
           </p>
         </div>
 
@@ -136,7 +152,7 @@ function HeroOfferta() {
           {[
             { Icon: Timer, label: "Operativo in 30 giorni" },
             { Icon: Database, label: "I tuoi dati escono quando vuoi" },
-            { Icon: Undo2, label: "60 giorni per ripensarci" },
+            { Icon: Clock, label: "Il margine in due minuti" },
           ].map(({ Icon, label }) => (
             <span
               key={label}
@@ -293,85 +309,53 @@ function CostoSostituito() {
   );
 }
 
-// ── 5. L'offerta ─────────────────────────────────────────────────────────────────────
+// ── 5. La promo ──────────────────────────────────────────────────────────────────────
 
-function OffertaAnnuale() {
+function Promo() {
+  const punti = [
+    {
+      valore: "2 mesi",
+      etichetta: "gratis",
+      testo: "I primi due mesi di Edilizia in Cloud non li paghi.",
+    },
+    {
+      valore: String(POSTI_PROMO),
+      etichetta: "aziende, non una di più",
+      testo: "L'avvio lo seguiamo noi, uno per uno: carichiamo cantieri, anagrafiche e listini e formiamo la squadra.",
+    },
+    {
+      valore: "30 giorni",
+      etichetta: "per essere operativo",
+      testo: "Garantito: se per causa nostra non ci sei, il canone non parte.",
+    },
+  ];
   return (
     <section id="offerta" className="relative overflow-hidden px-5 py-20 sm:px-6 md:py-28" style={{ background: NERO }}>
       <div className="absolute left-1/2 top-0 h-72 w-[40rem] -translate-x-1/2 rounded-full bg-[#F97415]/[0.12] blur-[120px]" />
       <div className="relative mx-auto max-w-6xl">
         <div className="mx-auto max-w-3xl text-center">
-          <p className="text-sm font-bold uppercase tracking-widest text-[#F97415]">L&apos;offerta</p>
+          <p className="text-sm font-bold uppercase tracking-widest text-[#F97415]">La promo</p>
           <h2 className="mt-3 text-3xl font-extrabold leading-tight text-balance text-white md:text-5xl">
-            12 mesi al prezzo di 10.
+            2 mesi gratis. Solo per {POSTI_PROMO} aziende.
           </h2>
           <p className="mt-5 text-lg leading-relaxed text-white/70">
-            Con l&apos;annuale 2 mesi sono gratis, l&apos;Avvio Guidato è incluso e il prezzo che firmi
-            non aumenta più, finché resti cliente.
+            Non è uno sconto per tutti: i posti sono {POSTI_PROMO} perché l&apos;avvio lo facciamo noi, azienda
+            per azienda. Quando sono presi, la promo si chiude.
           </p>
         </div>
 
-        <div className="mt-12 grid gap-6 lg:grid-cols-3">
-          {PIANI_OFFERTA.map((p) => (
-            <div
-              key={p.nome}
-              className={`relative flex flex-col rounded-3xl p-7 ${p.consigliato ? "bg-white shadow-2xl lg:-translate-y-3" : "border border-white/10 bg-white/[0.04]"}`}
-            >
-              {p.consigliato && (
-                <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-white" style={{ background: ARANCIO }}>
-                  Il più scelto
-                </span>
-              )}
-              <h3 className={`text-xl font-extrabold ${p.consigliato ? "text-[#111111]" : "text-white"}`}>{p.nome}</h3>
-              <p className={`mt-1 text-sm ${p.consigliato ? "text-[#111111]/55" : "text-white/55"}`}>{p.perChi}</p>
-
-              <div className="mt-6">
-                <p className={`text-sm ${p.consigliato ? "text-[#111111]/55" : "text-white/55"}`}>Annuale, 2 mesi gratis</p>
-                <p className={`mt-1 text-4xl font-extrabold tabular-nums ${p.consigliato ? "text-[#111111]" : "text-white"}`}>
-                  {p.annuale}
-                  <span className={`ml-1 text-base font-semibold ${p.consigliato ? "text-[#111111]/50" : "text-white/50"}`}>/anno</span>
-                </p>
-                <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-[#F97415]/15 px-3 py-1 text-xs font-bold text-[#F97415]">
-                  <Check className="h-3.5 w-3.5" /> {p.avvioAnnuale}
-                </p>
-              </div>
-
-              <div className={`mt-6 space-y-2 rounded-2xl p-4 text-sm ${p.consigliato ? "bg-[#f7f9fc]" : "bg-white/[0.05]"}`}>
-                <div className={`flex justify-between gap-3 ${p.consigliato ? "text-[#111111]/65" : "text-white/60"}`}>
-                  <span>
-                    Mensile <span className="whitespace-nowrap">{p.mensile}</span> + avvio{" "}
-                    <span className="whitespace-nowrap">{p.avvio}</span>
-                  </span>
-                  <span className="shrink-0 tabular-nums line-through">{p.primoAnnoMensile}</span>
-                </div>
-                <div className={`flex justify-between gap-3 font-bold ${p.consigliato ? "text-[#111111]" : "text-white"}`}>
-                  <span>Risparmi il primo anno</span>
-                  <span className="shrink-0 tabular-nums text-[#F97415]">{p.risparmio}</span>
-                </div>
-              </div>
-
-              <a
-                href="#prenota"
-                onClick={vaiAllaPrenotazione}
-                className={`mt-7 inline-flex items-center justify-center gap-2 rounded-full px-6 py-3.5 text-sm font-bold transition-all hover:opacity-90 ${p.consigliato ? "text-white" : "border border-white/25 text-white hover:bg-white/5"}`}
-                style={p.consigliato ? { background: ARANCIO_CTA } : undefined}
-              >
-                <CalendarCheck className="h-4 w-4" />
-                Prenota la demo
-              </a>
+        <div className="mt-12 grid gap-6 md:grid-cols-3">
+          {punti.map(({ valore, etichetta, testo }) => (
+            <div key={valore} className="rounded-3xl border border-white/10 bg-white/[0.04] p-7 text-center">
+              <p className="text-5xl font-extrabold tabular-nums text-[#F97415]">{valore}</p>
+              <p className="mt-2 text-sm font-bold uppercase tracking-wider text-white">{etichetta}</p>
+              <p className="mt-4 text-sm leading-relaxed text-white/65">{testo}</p>
             </div>
           ))}
         </div>
 
-        <div className="mx-auto mt-10 max-w-3xl space-y-2 text-center text-sm text-white/55">
-          <p>
-            Preferisci il mensile? Si può: lo disdici dal pannello in tre clic, senza penali, e l&apos;avvio
-            si paga a parte.
-          </p>
-          <p>
-            Il prezzo bloccato vale per i primi cento clienti. Gli avvii li seguiamo noi, al massimo otto al
-            mese. Prezzi IVA esclusa.
-          </p>
+        <div className="mt-12 text-center">
+          <PulsantePrenota>Prenota la demo gratuita</PulsantePrenota>
         </div>
       </div>
     </section>
@@ -380,6 +364,7 @@ function OffertaAnnuale() {
 
 // ── 6. Le garanzie ───────────────────────────────────────────────────────────────────
 
+// Le tre garanzie «da pagina» del manuale della rete vendita (G1, G2, G3).
 const GARANZIE: Array<{ Icon: typeof Timer; titolo: string; testo: string; condizione?: string }> = [
   {
     Icon: Timer,
@@ -398,17 +383,6 @@ const GARANZIE: Array<{ Icon: typeof Timer; titolo: string; testo: string; condi
     testo: "Al sessantesimo giorno leggi dal telefono il margine reale di qualsiasi cantiere aperto in meno di due minuti. Se non ci riesci, ti restituiamo l'avvio per intero.",
     condizione: "Con i dati del cantiere consegnati e la squadra formata.",
   },
-  {
-    Icon: Undo2,
-    titolo: "60 giorni per ripensarci",
-    testo: "Sull'annuale, nei primi sessanta giorni, se non funziona ti restituiamo i mesi che non hai usato.",
-  },
-  {
-    Icon: Lock,
-    titolo: "Prezzo bloccato finché resti",
-    testo: "Il canone che firmi oggi non aumenta più, finché sei cliente. Anche se il listino sale.",
-    condizione: "Vale per i primi cento clienti.",
-  },
 ];
 
 function Garanzie() {
@@ -424,7 +398,7 @@ function Garanzie() {
             Chi ha già provato un gestionale e l&apos;ha lasciato a metà sa perché servono.
           </p>
         </div>
-        <div className="mt-12 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-12 grid gap-5 md:grid-cols-3">
           {GARANZIE.map(({ Icon, titolo, testo, condizione }) => (
             <div key={titolo} className="flex flex-col rounded-3xl border border-gray-100 bg-white p-7 shadow-sm">
               <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#F97415]/10">
@@ -435,19 +409,18 @@ function Garanzie() {
               {condizione && <p className="mt-3 text-xs leading-relaxed text-[#111111]/45">{condizione}</p>}
             </div>
           ))}
-          <div className="flex flex-col justify-center rounded-3xl p-7 text-white" style={{ background: NERO }}>
+        </div>
+        <div
+          className="mt-6 flex flex-col items-center justify-between gap-5 rounded-3xl p-7 text-center text-white md:flex-row md:px-10 md:text-left"
+          style={{ background: NERO }}
+        >
+          <div>
             <p className="text-lg font-extrabold leading-snug">Vuoi vederle sulla tua impresa?</p>
-            <p className="mt-2 text-sm leading-relaxed text-white/65">
+            <p className="mt-1 text-sm leading-relaxed text-white/65">
               In trenta minuti ti mostriamo come arrivi al margine di ogni cantiere.
             </p>
-            <a
-              href="#prenota"
-              onClick={vaiAllaPrenotazione}
-              className="mt-6 inline-flex items-center gap-2 text-sm font-bold text-[#F97415] hover:underline"
-            >
-              Prenota la demo <ArrowDown className="h-4 w-4" />
-            </a>
           </div>
+          <PulsantePrenota className="w-full shrink-0 md:w-auto">Prenota la demo</PulsantePrenota>
         </div>
       </div>
     </section>
@@ -586,7 +559,7 @@ function Chiusura() {
           Il prossimo cantiere che chiudi, sai già quanto ci hai guadagnato.
         </h2>
         <p className="mt-5 text-lg text-white/70">
-          12 mesi al prezzo di 10, l&apos;avvio incluso, 60 giorni per ripensarci.
+          2 mesi gratis, solo per {POSTI_PROMO} aziende. Operativo in 30 giorni, garantito.
         </p>
         <div className="mt-9">
           <PulsantePrenota>Prenota la demo gratuita</PulsantePrenota>
@@ -602,9 +575,9 @@ export default function Offerta2MesiGratis() {
   useSEO({
     title: "Offerta 2 mesi gratis — Gestionale Edilizia in Cloud",
     description:
-      "Aumenta margini e guadagni, libera tempo dalla gestione e dì addio a software sparsi ed Excel. Con l'annuale 2 mesi gratis e l'Avvio Guidato incluso. Prenota la demo.",
+      "Per aziende edili, serramentisti e fotovoltaico: aumenta margini e guadagni di +50.000 € e dì addio a software sparsi ed Excel. 2 mesi gratis, solo per 8 aziende.",
     canonical: "/offerta-2-mesi-gratis",
-    keywords: "offerta gestionale edilizia, gestionale edilizia 2 mesi gratis, software edilizia prezzo annuale, demo gestionale imprese edili",
+    keywords: "offerta gestionale edilizia, gestionale edilizia 2 mesi gratis, gestionale serramentisti, gestionale fotovoltaico, demo gestionale imprese edili",
   });
 
   // La barra «Prenota» in fondo (solo telefono) serve quando nessun altro
@@ -671,7 +644,7 @@ export default function Offerta2MesiGratis() {
       <HubSeoSchema
         pageName="Offerta 2 mesi gratis"
         pagePath="/offerta-2-mesi-gratis"
-        pageDescription="L'annuale di Edilizia in Cloud: 12 mesi al prezzo di 10, Avvio Guidato incluso, prezzo bloccato e 60 giorni per ripensarci."
+        pageDescription="Edilizia in Cloud per aziende edili, serramentisti e fotovoltaico: 2 mesi gratis, solo per 8 aziende. Operativo in 30 giorni, garantito."
         breadcrumbs={[
           { name: "Home", url: "/" },
           { name: "Offerta 2 mesi gratis", url: "/offerta-2-mesi-gratis" },
@@ -703,7 +676,7 @@ export default function Offerta2MesiGratis() {
         </Suspense>
         <SilvioInCantiere />
         <CostoSostituito />
-        <OffertaAnnuale />
+        <Promo />
         <Garanzie />
         <Suspense fallback={<Fallback />}>
           <ModulesSection />

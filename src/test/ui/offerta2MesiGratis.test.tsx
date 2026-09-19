@@ -2,8 +2,10 @@
  * /offerta-2-mesi-gratis — la pagina di vendita dell'annuale (19/09/2026).
  *
  * Tiene fermo:
- *   · i numeri dell'offerta tornano tra loro: annuale = 10 mensilità, primo
- *     anno sul mensile = 12 mensilità + avvio, risparmio = la differenza;
+ *   · in cima per chi è (aziende edili, serramentisti, fotovoltaico…), poi la
+ *     promessa, poi la promo: 2 mesi gratis, solo per 8 aziende;
+ *   · l'annuale non c'è più (tolto da Florin la sera stessa): né prezzi, né
+ *     «12 mesi al prezzo di 10», né le due garanzie che ne parlavano;
  *   · ogni «Prenota» porta al calendario in fondo alla pagina, e il calendario
  *     è quello della demo di Edilizia in Cloud;
  *   · una prenotazione confermata nel calendario è la conversione della pagina
@@ -12,7 +14,7 @@
  *     portata: non accanto a quelli dell'hero, non sopra il calendario; e il
  *     pulsante WhatsApp sale e scende con lei.
  */
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -33,10 +35,7 @@ vi.mock("@/components/landing/TestimonialsSection", () => ({ default: () => <sec
 vi.mock("@/components/landing/LandingFooter", () => ({ default: () => <footer /> }));
 
 import Offerta2MesiGratis from "@/pages/Offerta2MesiGratis";
-import { DOMANDE_OFFERTA, PIANI_OFFERTA } from "@/data/offerta2MesiGratis";
-
-/** «1.270 €» → 1270, «da 547 €» → 547, «Avvio Guidato incluso» → 0. */
-const euro = (testo: string) => Number(testo.replace(/\D/g, ""));
+import { DOMANDE_OFFERTA, POSTI_PROMO, SETTORI } from "@/data/offerta2MesiGratis";
 
 // Un IntersectionObserver finto: il test decide che cosa è sullo schermo.
 const osservati = new Map<string, (inVista: boolean) => void>();
@@ -101,64 +100,54 @@ afterEach(() => {
   osservati.clear();
 });
 
-describe("i numeri dell'offerta", () => {
-  it("tornano tra loro, piano per piano", () => {
-    expect(PIANI_OFFERTA).toHaveLength(3);
-    for (const p of PIANI_OFFERTA) {
-      const mensile = euro(p.mensile);
-      const avvio = euro(p.avvio);
-      // Con l'annuale l'avvio è incluso (0) oppure a metà prezzo.
-      const avvioConAnnuale = euro(p.avvioAnnuale);
-      expect([0, avvio / 2]).toContain(avvioConAnnuale);
-
-      expect(euro(p.annuale)).toBe(10 * mensile);
-      expect(euro(p.primoAnnoMensile)).toBe(12 * mensile + avvio);
-      expect(euro(p.risparmio)).toBe(euro(p.primoAnnoMensile) - euro(p.annuale) - avvioConAnnuale);
-    }
-  });
-
-  it("un solo piano è quello consigliato: il Professionista", () => {
-    expect(PIANI_OFFERTA.filter((p) => p.consigliato).map((p) => p.nome)).toEqual(["Professionista"]);
-  });
-});
-
 describe("la pagina", () => {
-  it("titolo, indirizzo canonico, prezzi annuali e garanzie", async () => {
+  it("in cima i settori, poi la promessa, poi la promo per 8 aziende", async () => {
     await apri();
 
-    // Prima la promessa, poi l'offerta.
+    expect(POSTI_PROMO).toBe(8);
+    // I settori in cima: tutti nella pagina, i primi tre anche su telefono.
+    const riga = screen.getByText("aziende edili").closest("span.inline-flex") as HTMLElement;
+    expect(riga).toHaveTextContent("Per aziende edili · serramentisti · fotovoltaico · impiantisti · ristrutturazioni");
+    const settore = (nome: string) => within(riga).getByText(new RegExp(`^(· )?${nome}$`));
+    for (const nome of SETTORI.slice(3)) expect(settore(nome)).toHaveClass("hidden", "md:inline");
+    for (const nome of SETTORI.slice(0, 3)) expect(settore(nome)).not.toHaveClass("hidden");
+
     const titolo = screen.getByRole("heading", { level: 1 });
-    expect(titolo).toHaveTextContent("Aumenta i tuoi margini e i tuoi guadagni.");
-    expect(titolo).toHaveTextContent("Libera tempo dalla gestione.");
+    expect(titolo).toHaveTextContent("Aumenta i tuoi margini e i tuoi guadagni di +50.000 €.");
+    expect(titolo).toHaveTextContent("Liberati dalla gestione. Delega con efficienza. Controlla i margini in tempo reale.");
     expect(screen.getByText(/^Dì addio a software sparsi, fogli Excel/)).toBeInTheDocument();
-    expect(screen.getByText("2 mesi te li regaliamo noi.")).toBeInTheDocument();
+    expect(screen.getByText("solo per 8 aziende.")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "2 mesi gratis. Solo per 8 aziende." })).toBeInTheDocument();
     expect(document.title).toBe("Offerta 2 mesi gratis — Gestionale Edilizia in Cloud");
     expect(document.querySelector('link[rel="canonical"]')?.getAttribute("href")).toBe(
       "https://www.ediliziaincloud.com/offerta-2-mesi-gratis/",
     );
 
-    expect(screen.getByRole("heading", { level: 2, name: "12 mesi al prezzo di 10." })).toBeInTheDocument();
-    for (const p of PIANI_OFFERTA) {
-      expect(screen.getByRole("heading", { level: 3, name: p.nome })).toBeInTheDocument();
-      expect(screen.getByText(p.annuale)).toBeInTheDocument();
-    }
-
     for (const garanzia of [
       "Operativo in 30 giorni, o il canone non parte",
       "I tuoi dati escono quando vuoi",
       "Il margine in due minuti",
-      "60 giorni per ripensarci",
-      "Prezzo bloccato finché resti",
     ]) {
       expect(screen.getByRole("heading", { level: 3, name: garanzia })).toBeInTheDocument();
     }
   });
 
+  it("l'annuale non c'è più: né prezzi, né «12 mesi al prezzo di 10», né le sue garanzie", async () => {
+    const { container } = await apri();
+    const testo = container.textContent ?? "";
+
+    expect(testo).not.toMatch(/annual/i);
+    expect(testo).not.toMatch(/12 mesi al prezzo di 10|60 giorni per ripensarci|prezzo bloccato|primi cento/i);
+    expect(testo).not.toMatch(/1\.270|2\.470|5\.470/);
+    for (const { q, a } of DOMANDE_OFFERTA) expect(`${q} ${a}`).not.toMatch(/annual|prezzo bloccato/i);
+  });
+
   it("ogni «Prenota» porta al calendario, e il calendario è quello della demo", async () => {
     await apri();
 
+    // Hero, promo, garanzie, chiusura (la barra del telefono in cima è nascosta).
     const pulsanti = screen.getAllByRole("link", { name: /prenota/i });
-    expect(pulsanti.length).toBeGreaterThanOrEqual(6);
+    expect(pulsanti.length).toBeGreaterThanOrEqual(4);
     for (const pulsante of pulsanti) expect(pulsante).toHaveAttribute("href", "#prenota");
 
     const calendario = document.getElementById("prenota");

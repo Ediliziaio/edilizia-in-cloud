@@ -74,16 +74,21 @@ describe("/offerta-2-mesi-gratis nel sito", () => {
     expect(risposta.headers.get("x-robots-tag")).toBeNull();
   });
 
-  it("il motore di ricerca riceve la pagina indicizzabile, con l'offerta e le garanzie", async () => {
+  it("il motore di ricerca riceve la pagina indicizzabile, con la promo e le garanzie", async () => {
     const risposta = await chiedi("/offerta-2-mesi-gratis/", GOOGLEBOT);
     expect(risposta.status).toBe(200);
     expect(risposta.headers.get("x-robots-tag")).toBe("index, follow");
     const html = await risposta.text();
     expect(html).toContain("<title>Offerta 2 mesi gratis — Gestionale Edilizia in Cloud</title>");
     expect(html).toContain('rel="canonical" href="https://www.ediliziaincloud.com/offerta-2-mesi-gratis/"');
-    expect(html).toContain("<h1>Aumenta i tuoi margini e i tuoi guadagni. Libera tempo dalla gestione.</h1>");
-    expect(html).toContain("12 mesi al prezzo di 10");
+    expect(html).toContain(
+      "<h1>Aumenta i tuoi margini e i tuoi guadagni di +50.000 €. Liberati dalla gestione. Delega con efficienza. Controlla i margini in tempo reale.</h1>",
+    );
+    expect(html).toContain("Per aziende edili, serramentisti, fotovoltaico");
+    expect(html).toContain("La promo: 2 mesi gratis, solo per 8 aziende");
     expect(html).toContain("Operativo in 30 giorni, o il canone non parte");
+    // L'annuale è stato tolto: nemmeno i motori devono vederlo.
+    expect(html).not.toMatch(/annual|12 mesi al prezzo di 10|prezzo bloccato/i);
     expect(html).toContain("https://www.ediliziaincloud.com/og/eic-demo.png");
   });
 

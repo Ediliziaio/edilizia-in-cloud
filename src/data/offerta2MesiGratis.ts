@@ -1,56 +1,29 @@
 /**
- * I numeri e le domande della pagina /offerta-2-mesi-gratis (19/09/2026).
+ * I dati della pagina /offerta-2-mesi-gratis (19/09/2026).
  *
- * In un file a parte perché li leggono anche i test: controllano che i numeri
- * tornino tra loro e che le domande della pagina siano le stesse dei dati
- * strutturati (FAQPage).
+ * In un file a parte perché li leggono anche i test: controllano che le
+ * domande della pagina siano le stesse dei dati strutturati (FAQPage) e che
+ * la pagina non torni a promettere l'annuale.
  */
 
-// Dal «cheat sheet del prezzo» del manuale della rete vendita. Prezzi IVA esclusa.
-export const PIANI_OFFERTA = [
-  {
-    nome: "Gestionale",
-    perChi: "Imprese fino a 500K € di fatturato",
-    mensile: "127 €",
-    avvio: "490 €",
-    primoAnnoMensile: "2.014 €",
-    annuale: "1.270 €",
-    avvioAnnuale: "Avvio Guidato incluso",
-    risparmio: "744 €",
-    consigliato: false,
-  },
-  {
-    nome: "Professionista",
-    perChi: "Imprese da 500K a 2M € di fatturato",
-    mensile: "247 €",
-    avvio: "890 €",
-    primoAnnoMensile: "3.854 €",
-    annuale: "2.470 €",
-    avvioAnnuale: "Avvio Guidato incluso",
-    risparmio: "1.384 €",
-    consigliato: true,
-  },
-  {
-    nome: "Impresa AI",
-    perChi: "Oltre 2M € o più sedi",
-    mensile: "da 547 €",
-    avvio: "2.900 €",
-    primoAnnoMensile: "9.464 €",
-    annuale: "5.470 €",
-    avvioAnnuale: "Avvio Guidato a metà prezzo: 1.450 €",
-    risparmio: "2.544 €",
-    consigliato: false,
-  },
-] as const;
+/** La promo «2 mesi gratis» vale solo per questo numero di aziende (Florin, 19/09). */
+export const POSTI_PROMO = 8;
+
+/** Per chi è, nella riga in cima all'hero. Su telefono si vedono i primi tre. */
+export const SETTORI = ["aziende edili", "serramentisti", "fotovoltaico", "impiantisti", "ristrutturazioni"] as const;
 
 export const DOMANDE_OFFERTA = [
   {
     q: "Cosa vuol dire «2 mesi gratis»?",
-    a: "Con l'annuale paghi 10 mensilità e usi Edilizia in Cloud per 12 mesi. In più l'Avvio Guidato è incluso: sul mensile si paga a parte.",
+    a: `Che i primi due mesi di Edilizia in Cloud non li paghi. La promo è riservata a ${POSTI_PROMO} aziende: quando i posti sono presi, si chiude.`,
   },
   {
-    q: "E se dopo qualche settimana mi accorgo che non fa per me?",
-    a: "Sull'annuale hai sessanta giorni: se non funziona ti restituiamo i mesi che non hai usato. Il mensile invece lo disdici quando vuoi dal pannello, senza penali.",
+    q: `Perché solo ${POSTI_PROMO} aziende?`,
+    a: "Perché l'avvio lo seguiamo noi, azienda per azienda: carichiamo cantieri, anagrafiche e listini e formiamo la squadra. Di più, insieme, non li seguiremmo bene.",
+  },
+  {
+    q: "Va bene per il mio settore?",
+    a: "È fatto per chi lavora in cantiere: aziende edili, serramentisti, fotovoltaico, impiantisti, ristrutturazioni. In demo lo vediamo sul tuo modo di lavorare, non su un esempio preconfezionato.",
   },
   {
     q: "Quanto ci vuole per partire?",
@@ -61,15 +34,11 @@ export const DOMANDE_OFFERTA = [
     a: "No. Nell'Avvio Guidato cantieri, anagrafiche e listini li carichiamo noi. A te chiediamo i file e tre sessioni con la squadra.",
   },
   {
-    q: "I miei dati restano miei?",
-    a: "Sì. Li esporti quando vuoi in Excel e PDF, e dopo un'eventuale disdetta hai novanta giorni per scaricare tutto.",
+    q: "E se mi accorgo che non fa per me?",
+    a: "Lo disdici quando vuoi dal pannello, senza penali. I tuoi dati li esporti in Excel e PDF, e dopo la disdetta hai novanta giorni per scaricare tutto.",
   },
   {
     q: "La demo mi impegna a qualcosa?",
     a: "No. Trenta minuti in videochiamata, senza carta di credito e senza obbligo di acquisto. Alla fine decidi tu.",
-  },
-  {
-    q: "Il prezzo aumenterà?",
-    a: "Il canone che firmi non aumenta più finché resti cliente, anche se il listino sale. Vale per i primi cento clienti.",
   },
 ] as const;
