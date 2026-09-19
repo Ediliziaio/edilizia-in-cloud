@@ -228,6 +228,10 @@ export function TabCedolini() {
         lordo: String(esito.lordo ?? ""),
         contributi_dipendente: String(esito.contributi_dipendente ?? ""),
         contributi_datore: String(esito.contributi_datore ?? ""),
+        // cedolino_calcola restituisce anche l'IRPEF del mese: prima restava
+        // fuori e il cedolino salvato aveva IRPEF 0 (netto gonfiato) se nessuno
+        // la scriveva a mano.
+        ritenute_irpef: String(esito.ritenute_irpef ?? ""),
         note: [f.note, ...righeNote].filter(Boolean).join("\n"),
       }));
 
