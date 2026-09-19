@@ -123,6 +123,18 @@ describe("Email al cliente", () => {
     expect(e.testo).toContain("Il Bagno Group — P.IVA 01544570136");
   });
 
+  it("col telefono in anagrafica il cliente può anche chiamare", () => {
+    const a = appuntamento({ azienda: { nome: "Il Bagno Group", piva: null, email: null, telefono: "031.696031", notifiche_dal: null } });
+    const l = luogoAppuntamento(a);
+    const e = emailConferma(a, l);
+    expect(e.testo).toContain("Se hai un imprevisto, rispondi a questa email o chiamaci allo 031.696031: troviamo insieme un altro orario.");
+    expect(e.html).toContain('href="tel:031696031"');
+    expect(emailPromemoria(a, l, new Date("2026-09-23T08:00:00Z")).testo).toContain("o chiamaci allo 031.696031 e troviamo un altro orario.");
+    expect(emailAnnullamento(a, l).testo).toContain("rispondi a questa email o chiamaci allo 031.696031.");
+    // Senza P.IVA niente piè di pagina: il nome è già nella firma.
+    expect(e.testo.match(/Il Bagno Group/g)?.length).toBe(1);
+  });
+
   it("il rilievo di William: indirizzo del cliente e parole giuste", () => {
     const a = rilievo();
     const e = emailConferma(a, luogoAppuntamento(a));

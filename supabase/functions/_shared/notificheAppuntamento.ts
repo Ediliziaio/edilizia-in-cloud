@@ -269,11 +269,31 @@ function piede(a: AppuntamentoDaNotificare): { html: string; testo: string } {
   };
 }
 
-function paragrafo(testo: string): string {
-  return `<p style="margin:0 0 12px">${esc(testo)}</p>`;
+/** Un paragrafo è testo semplice, o testo con un pezzo di HTML (un link). */
+type Paragrafo = string | { html: string; testo: string };
+
+function paragrafo(p: Paragrafo): string {
+  return `<p style="margin:0 0 12px">${typeof p === "string" ? esc(p) : p.html}</p>`;
 }
 
-function componi(a: AppuntamentoDaNotificare, oggetto: string, paragrafiPrima: string[], dettagli: { html: string; testo: string } | null, paragrafiDopo: string[]): EmailComposta {
+const testoDi = (p: Paragrafo): string => (typeof p === "string" ? p : p.testo);
+
+/**
+ * «…rispondi a questa email o chiamaci allo 031.696031…»: il numero
+ * dell'azienda, cliccabile dal telefono, se in anagrafica c'è.
+ */
+function oChiamaci(a: AppuntamentoDaNotificare, prima: string, dopo: string): Paragrafo {
+  const tel = String(a.azienda?.telefono ?? "").trim();
+  if (!tel) return `${prima}${dopo}`;
+  const al = tel.startsWith("0") ? "allo" : "al";
+  const numero = tel.replace(/[^\d+]/g, "");
+  return {
+    testo: `${prima} o chiamaci ${al} ${tel}${dopo}`,
+    html: `${esc(prima)} o chiamaci ${al} <a href="tel:${esc(numero)}" style="color:#0f172a">${esc(tel)}</a>${esc(dopo)}`,
+  };
+}
+
+function componi(a: AppuntamentoDaNotificare, oggetto: string, paragrafiPrima: Paragrafo[], dettagli: { html: string; testo: string } | null, paragrafiDopo: Paragrafo[]): EmailComposta {
   const f = firma(a);
   const p = piede(a);
   const html = `<div style="${CORNICE}">
@@ -284,14 +304,15 @@ function componi(a: AppuntamentoDaNotificare, oggetto: string, paragrafiPrima: s
       ${f.html}
       ${p.html}
     </div>`;
-  const testo = [saluto(a), ...paragrafiPrima, dettagli?.testo ?? "", ...paragrafiDopo, f.testo, p.testo]
+  const testo = [saluto(a), ...paragrafiPrima.map(testoDi), dettagli?.testo ?? "", ...paragrafiDopo.map(testoDi), f.testo, p.testo]
     .filter(Boolean).join("\n\n").replace(/\n{3,}/g, "\n\n").trim();
   return { oggetto, html, testo };
 }
 
 // ── Al cliente ──────────────────────────────────────────────────────────────
 
-const PER_CAMBIARE = "Se hai un imprevisto, rispondi a questa email: troviamo insieme un altro orario.";
+const perCambiare = (a: AppuntamentoDaNotificare) =>
+  oChiamaci(a, "Se hai un imprevisto, rispondi a questa email", ": troviamo insieme un altro orario.");
 const ALLEGATO = "In allegato trovi il file per aggiungerlo al tuo calendario.";
 
 function lineaFuoriSede(a: AppuntamentoDaNotificare, luogo: Luogo | null): string[] {
@@ -308,7 +329,7 @@ export function emailConferma(a: AppuntamentoDaNotificare, luogo: Luogo | null):
     `${cosa.nome} ${accorda("confermato", cosa.femminile)}: ${quandoBreve(a)}`,
     [`ti confermiamo ${cosa.conArticolo}${dove}.`],
     dettagliCliente(a, luogo),
-    [...lineaFuoriSede(a, luogo), PER_CAMBIARE, ...(a.ora ? [ALLEGATO] : [])],
+    [...lineaFuoriSede(a, luogo), perCambiare(a), ...(a.ora ? [ALLEGATO] : [])],
   );
 }
 
@@ -324,7 +345,7 @@ export function emailSpostamento(a: AppuntamentoDaNotificare, luogo: Luogo | nul
     `${cosa.nome} ${accorda(spostato ? "spostato" : "aggiornato", cosa.femminile)}: ${quandoBreve(a)}`,
     [apertura],
     dettagliCliente(a, luogo),
-    [...lineaFuoriSede(a, luogo), PER_CAMBIARE, ...(a.ora ? ["In allegato trovi il file aggiornato per il tuo calendario."] : [])],
+    [...lineaFuoriSede(a, luogo), perCambiare(a), ...(a.ora ? ["In allegato trovi il file aggiornato per il tuo calendario."] : [])],
   );
 }
 
@@ -337,7 +358,7 @@ export function emailAnnullamento(a: AppuntamentoDaNotificare, luogo: Luogo | nu
     `${cosa.nome} ${accorda("annullato", cosa.femminile)}: ${quandoBreve(a)}`,
     [`${cosa.conArticolo} di ${quando(a)}${dove} è ${stato} ${accorda("annullato", cosa.femminile)}.`],
     null,
-    ["Se vuoi fissare una nuova data, rispondi a questa email."],
+    [oChiamaci(a, "Se vuoi fissare una nuova data, rispondi a questa email", ".")],
   );
 }
 
@@ -354,7 +375,7 @@ export function emailPromemoria(a: AppuntamentoDaNotificare, luogo: Luogo | null
     oggetto,
     [`ti ricordiamo ${cosa.conArticolo} di ${giorno}${alle}`.replace(/,$/, "") + "."],
     dettagliCliente(a, luogo),
-    [...lineaFuoriSede(a, luogo), "Se non riesci più, rispondi a questa email e troviamo un altro orario."],
+    [...lineaFuoriSede(a, luogo), oChiamaci(a, "Se non riesci più, rispondi a questa email", " e troviamo un altro orario.")],
   );
 }
 
