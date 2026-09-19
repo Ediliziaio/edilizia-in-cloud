@@ -1570,63 +1570,56 @@ const ROUTES = {
     },
   },
 
+  // Stessi contenuti di src/pages/Integrazioni.tsx: solo collegamenti che
+  // funzionano oggi (verificati nel codice e nel database il 19/09/2026).
+  // Prima qui c'erano PSD2 con nomi di banche, Stripe, SEPA, invio MUT alla
+  // Cassa Edile, UniEmens, sync HR Zucchetti, PEC, FEQ, HubSpot e un'API
+  // OpenAPI con sandbox: niente di tutto questo esiste.
   "/integrazioni": {
     title: "Integrazioni Software Edilizia | Edilizia in Cloud",
     description:
-      "Connetti Edilizia in Cloud con fatturazione elettronica, contabilità, CRM, banche, posta certificata e Cassa Edile. 20+ integrazioni native e API REST per l'edilizia.",
-    h1: "Integrazioni native per il software gestionale edilizia",
+      "Edilizia in Cloud si collega a Fatture in Cloud, Aruba e Fattura24, invia le fatture allo SDI, usa i prezzari regionali e lavora con WhatsApp, Gmail e Google Calendar.",
+    h1: "Integrazioni del gestionale per l'edilizia",
     intro:
-      "Edilizia in Cloud si collega in tempo reale con i principali strumenti utilizzati dalle imprese edili italiane: fatturazione elettronica SDI, contabilità, CRM, banche con PSD2, presenze e paghe, Cassa Edile, Google Calendar e Outlook, posta certificata, firma elettronica, marketplace e prezzari edilizi. Oltre 20 integrazioni native già pronte e API REST documentata per sviluppi custom.",
+      "Edilizia in Cloud si collega ai programmi che un'impresa edile usa già: invio delle fatture elettroniche allo SDI, import delle fatture da Fatture in Cloud e dagli altri programmi di fatturazione, prezzari regionali, computi da Primus, moduli di Facebook e Instagram, WhatsApp Business, posta e calendari. Qui sotto c'è cosa funziona oggi.",
     extra: `
-    <h2>Categorie di integrazioni disponibili</h2>
-    <h3>Fatturazione elettronica e contabilità</h3>
+    <h2>Collegamenti attivi</h2>
+    <h3>Fatturazione elettronica</h3>
     <ul>
-      <li><strong>SDI Agenzia delle Entrate</strong> — invio e ricezione fatture B2B e FatturaPA via web service ufficiale</li>
-      <li><strong>Fatture in Cloud, Aruba Fatturazione, Danea Easyfatt</strong> — import storico fatture e anagrafiche</li>
-      <li><strong>Zucchetti, Profis, TeamSystem Contabilità</strong> — export prima nota per il commercialista</li>
-      <li><strong>SDICoop / Aruba PEC</strong> — canali certificati per la trasmissione SDI</li>
+      <li><strong>SDI Agenzia delle Entrate</strong> — invio delle fatture elettroniche verso aziende e privati tramite un intermediario accreditato, con lo stato di ogni invio nel cassetto SDI</li>
+      <li><strong>Fatture in Cloud</strong> — le fatture emesse su Fatture in Cloud e quelle dei fornitori arrivano in Edilizia in Cloud due volte al giorno, abbinate a clienti e commesse. Il collegamento va in una direzione: le fatture fatte in Edilizia in Cloud non finiscono su Fatture in Cloud</li>
+      <li><strong>Aruba, Fattura24, Invoicetronic</strong> — import delle fatture emesse</li>
+      <li><strong>File XML FatturaPA</strong> — caricamento di file XML o ZIP di fatture emesse e ricevute da qualsiasi programma</li>
     </ul>
-    <h3>Banche, pagamenti e tesoreria</h3>
+    <h3>Commercialista</h3>
     <ul>
-      <li><strong>API PSD2</strong> — riconciliazione automatica estratti conto Intesa Sanpaolo, UniCredit, BPER, BNL, Crédit Agricole, Banco BPM, Banca Popolare di Sondrio</li>
-      <li><strong>Stripe</strong> — pagamenti acconti e saldi via link in fattura</li>
-      <li><strong>SEPA Direct Debit</strong> — RID per canoni periodici</li>
+      <li><strong>Area commercialista</strong> — accesso dedicato per seguire tutte le aziende clienti; prima nota, registro IVA e documenti esportabili in CSV</li>
     </ul>
-    <h3>HR, presenze e Cassa Edile</h3>
+    <h3>Prezzari e computi</h3>
     <ul>
-      <li><strong>Cassa Edile</strong> — invio mensile MUT (denuncia operai) per le principali province italiane</li>
-      <li><strong>INPS UniEMens</strong> — export per consulente del lavoro</li>
-      <li><strong>Zucchetti HR Infinity, Inaz Easy, EcosAgile</strong> — sincronizzazione anagrafiche dipendenti e presenze</li>
+      <li><strong>Prezzari regionali</strong> — voci dei prezzari ufficiali di 19 regioni e province autonome, da inserire nei computi metrici</li>
+      <li><strong>ACCA Primus</strong> — import dei computi metrici in formato XPWE</li>
     </ul>
-    <h3>Calendario, comunicazione e firma</h3>
+    <h3>Clienti, posta e calendari</h3>
     <ul>
-      <li><strong>Google Calendar e Outlook 365</strong> — sync cantieri e appuntamenti commerciali</li>
-      <li><strong>WhatsApp Business API</strong> — notifiche cantiere automatiche al cliente</li>
-      <li><strong>PEC certificata Aruba, Legalmail, PostecertPEC</strong> — invio documenti certificati</li>
-      <li><strong>Namirial / InfoCert / Universign</strong> — firma elettronica avanzata (FEA) e qualificata (FEQ) per preventivi e SAL</li>
+      <li><strong>Moduli Facebook e Instagram</strong> — i contatti delle inserzioni entrano nel CRM in tempo reale</li>
+      <li><strong>WhatsApp Business</strong> — numero dell'azienda collegato con l'API ufficiale di Meta: messaggi, modelli approvati, invii dalle automazioni</li>
+      <li><strong>Gmail e posta IMAP</strong> — la posta dell'azienda nel gestionale, con le email di ogni cliente nella sua scheda</li>
+      <li><strong>Google Calendar e calendario Apple</strong> — appuntamenti sul calendario e orari occupati rispettati</li>
     </ul>
-    <h3>Preventivi, prezzari e BIM</h3>
+    <h3>Automazioni</h3>
     <ul>
-      <li><strong>DEI, Prezzario Regione Lombardia, Prezzario DEI Tipografia del Genio Civile</strong> — import voci di capitolato</li>
-      <li><strong>ACCA Primus / Primus DCF</strong> — import preventivi e computi metrici (formato XPWE/PMU)</li>
-      <li><strong>IFC / BIM viewer</strong> — visualizzazione modelli per quantità e quote di cantiere</li>
+      <li><strong>Zapier, Make, n8n</strong> — un'automazione chiama un indirizzo web quando nasce una fattura, arriva un pagamento o un preventivo viene accettato</li>
+      <li><strong>Assistenti AI (MCP)</strong> — chiavi API dell'azienda, revocabili, per collegare assistenti AI ai dati del gestionale</li>
     </ul>
-    <h3>CRM, marketing e portali</h3>
-    <ul>
-      <li><strong>HubSpot, Pipedrive</strong> — sync lead e opportunità commerciali</li>
-      <li><strong>Mailchimp, Brevo</strong> — newsletter mirate a clienti esistenti</li>
-      <li><strong>Google Ads e Meta Ads</strong> — tracciamento conversioni preventivi</li>
-    </ul>
-    <h2>API REST per integrazioni custom</h2>
-    <p>Edilizia in Cloud espone un'API REST documentata (OpenAPI 3.0) che permette di costruire integrazioni custom verso ERP proprietari, software di nicchia o sistemi legacy dell'impresa. Autenticazione tramite API key con scope granulari, rate limiting, webhook per eventi (nuovo cantiere, fattura emessa, presenza registrata, DDT firmato). Ambiente sandbox gratuito per test prima del go-live in produzione.</p>
-    <h2>Roadmap nuove integrazioni 2026</h2>
-    <p>In rilascio nei prossimi trimestri: integrazione SOA (verifica automatica attestazioni), MEPA per appalti pubblici, sistemi GPS per macchine movimento terra, sistemi di pesatura automezzi con DDT digitale e piattaforme cessione crediti bonus edilizia.</p>
+    <h2>API</h2>
+    <p>Un'API pubblica per leggere e scrivere i dati dall'esterno non c'è ancora. Per collegare un programma che non è in elenco si usano le automazioni con la chiamata a un indirizzo web, oppure si chiede al nostro team se il collegamento si può fare.</p>
+    <h2>In arrivo</h2>
+    <p>PagoPA, export per Wolters Kluwer CGN, Mailchimp, Dropbox Business, disegni DXF/DWG e modelli BIM IFC.</p>
     `,
     links: [
       { href: "/funzionalita", label: "Tutte le Funzionalità" },
       { href: "/funzionalita/fatturazione-elettronica", label: "Fatturazione SDI" },
-      { href: "/funzionalita/hr-personale", label: "HR e Personale" },
-      { href: "/funzionalita/cassa-cantiere", label: "Cassa Cantiere" },
       { href: "/demo", label: "Richiedi Demo" },
       { href: "/prezzi", label: "Piani e Prezzi" },
     ],
@@ -1634,10 +1627,10 @@ const ROUTES = {
       "@context": "https://schema.org",
       "@type": "FAQPage",
       mainEntity: [
-        { "@type": "Question", name: "Edilizia in Cloud si integra con la fatturazione elettronica SDI?", acceptedAnswer: { "@type": "Answer", text: "Sì, Edilizia in Cloud invia e riceve fatture B2B e FatturaPA via web service ufficiale Agenzia delle Entrate e gestisce conservazione fiscale a norma. Compatibile con SDICoop e Aruba PEC." } },
-        { "@type": "Question", name: "Posso collegare Edilizia in Cloud al mio conto bancario?", acceptedAnswer: { "@type": "Answer", text: "Sì, tramite API PSD2 puoi connettere Intesa Sanpaolo, UniCredit, BPER, BNL, Banco BPM e altre banche italiane per la riconciliazione automatica degli incassi clienti e il monitoraggio cash flow." } },
-        { "@type": "Question", name: "Edilizia in Cloud invia il MUT alla Cassa Edile?", acceptedAnswer: { "@type": "Answer", text: "Sì, il modulo HR genera ed invia in automatico la denuncia MUT mensile alla Cassa Edile per le principali province italiane (Milano, Roma, Torino, Bologna, Firenze, Napoli, Genova e oltre 60 province coperte)." } },
-        { "@type": "Question", name: "Esiste un'API per integrazioni custom?", acceptedAnswer: { "@type": "Answer", text: "Sì, Edilizia in Cloud espone un'API REST documentata (OpenAPI 3.0) con autenticazione API key, webhook eventi e ambiente sandbox gratuito. Adatta per integrazioni con ERP proprietari, software di nicchia o sistemi legacy aziendali." } },
+        { "@type": "Question", name: "Edilizia in Cloud si integra con Fatture in Cloud?", acceptedAnswer: { "@type": "Answer", text: "Sì, in una direzione. Colleghi il tuo account Fatture in Cloud e le fatture che emetti lì, insieme a quelle dei fornitori, arrivano in Edilizia in Cloud due volte al giorno, abbinate a clienti e commesse. Le fatture fatte in Edilizia in Cloud non finiscono su Fatture in Cloud." } },
+        { "@type": "Question", name: "Edilizia in Cloud invia le fatture allo SDI?", acceptedAnswer: { "@type": "Answer", text: "Sì, le fatture elettroniche verso aziende e privati partono dal gestionale verso lo SDI tramite un intermediario accreditato, e lo stato di ogni invio si vede nel cassetto SDI." } },
+        { "@type": "Question", name: "Posso collegare Edilizia in Cloud al mio commercialista?", acceptedAnswer: { "@type": "Answer", text: "Sì. Il commercialista può avere un accesso suo e seguire da lì tutte le aziende clienti. Prima nota, registro IVA e documenti si esportano in CSV." } },
+        { "@type": "Question", name: "Esiste un'API per integrazioni custom?", acceptedAnswer: { "@type": "Answer", text: "Non ancora un'API pubblica per leggere e scrivere i dati. Oggi un altro programma si collega con le automazioni, che chiamano un indirizzo web ricevibile da Zapier, Make o n8n, e con le chiavi API per gli assistenti AI tramite MCP." } },
       ],
     },
   },

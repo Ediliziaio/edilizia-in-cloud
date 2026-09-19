@@ -7,44 +7,50 @@ import { JsonLd } from "@/components/seo/JsonLd";
 import { HubSeoSchema } from "@/components/seo/HubSeoSchema";
 
 // ── Dati integrazioni ────────────────────────────────────────────────────────
+// Solo cose che funzionano oggi nel prodotto, verificate nel codice e nel
+// database il 19/09/2026. Prima la pagina dichiarava «native» anche SEPA/CBI,
+// Zucchetti, TeamSystem, Google Drive, INPS, Casse Edili e un'API REST da 120
+// endpoint che non esistono, e diceva che le fatture andavano da Edilizia in
+// Cloud verso Fatture in Cloud (è il contrario). Prima di aggiungere una voce
+// «attiva», controllare che ci sia davvero.
 interface Integration {
   name: string;
   category: string;
   description: string;
   logo: string;          // emoji per semplicità (nessun asset esterno richiesto)
-  status: "nativa" | "in-arrivo";
+  status: "attiva" | "in-arrivo";
 }
 
 const INTEGRATIONS: Integration[] = [
   // Fatturazione
-  { name: "Sistema di Interscambio (SDI)", category: "Fatturazione Elettronica", description: "Fatture elettroniche inviate direttamente al SDI dell'Agenzia delle Entrate: firma digitale, ricevute di consegna e conservazione a norma per 10 anni.", logo: "🏛️", status: "nativa" },
-  { name: "Fattura PA", category: "Fatturazione Elettronica", description: "Emissione e invio di fatture verso la Pubblica Amministrazione tramite NSO. Gestione codice destinatario, CIG/CUP e firma digitale.", logo: "📄", status: "nativa" },
+  { name: "Sistema di Interscambio (SDI)", category: "Fatturazione Elettronica", description: "Le fatture elettroniche verso aziende e privati partono dal gestionale verso lo SDI dell'Agenzia delle Entrate, tramite un intermediario accreditato. Lo stato di ogni invio lo vedi nel cassetto SDI.", logo: "🏛️", status: "attiva" },
+  { name: "Fatture in Cloud", category: "Fatturazione Elettronica", description: "Colleghi il tuo account: le fatture che emetti su Fatture in Cloud e quelle dei fornitori arrivano in Edilizia in Cloud due volte al giorno, abbinate a clienti e commesse.", logo: "🧾", status: "attiva" },
+  { name: "Aruba, Fattura24, Invoicetronic", category: "Fatturazione Elettronica", description: "Se fatturi con uno di questi programmi, le fatture emesse arrivano in Edilizia in Cloud da sole: non le ricopi a mano.", logo: "🔌", status: "attiva" },
+  { name: "File XML FatturaPA", category: "Fatturazione Elettronica", description: "Carichi i file XML o ZIP delle fatture emesse e ricevute, esportati da qualsiasi programma di fatturazione nel formato standard dell'Agenzia delle Entrate.", logo: "📄", status: "attiva" },
   // Bancario
-  { name: "Bonifici SEPA", category: "Banca & Pagamenti", description: "Generazione file SEPA XML per pagamenti fornitori e subappaltatori. Esportazione distinta bonifici per la banca in formato standard CBI.", logo: "🏦", status: "nativa" },
   { name: "PagoPA", category: "Banca & Pagamenti", description: "Riconciliazione automatica dei pagamenti da enti pubblici tramite il nodo PagoPA. Integrazione per SAL su commesse pubbliche.", logo: "💳", status: "in-arrivo" },
   // Contabilità
-  { name: "Zucchetti", category: "Contabilità & ERP", description: "Esportazione prima nota, analitica per centro di costo e integrazione con i moduli HR di Zucchetti Paghe. Compatibilità con Ad Hoc, Infinity e Mago.", logo: "📊", status: "nativa" },
-  { name: "TeamSystem", category: "Contabilità & ERP", description: "Connettore bidirezionale con TeamSystem Studio e Enterprise. Sincronizzazione clienti, fornitori, analitica commessa e scadenzario.", logo: "🔄", status: "nativa" },
-  { name: "Wolters Kluwer CGN", category: "Contabilità & ERP", description: "Export contabilità per studi commercialisti che usano Arca Evolution o Profis. Formato compatibile con l'importazione automatica.", logo: "📈", status: "in-arrivo" },
+  { name: "Area commercialista", category: "Contabilità & Commercialista", description: "Il commercialista entra con un accesso suo e segue da lì tutte le aziende clienti. Prima nota, registro IVA e documenti si esportano in CSV.", logo: "📊", status: "attiva" },
+  { name: "Wolters Kluwer CGN", category: "Contabilità & Commercialista", description: "Export contabilità per studi commercialisti che usano Arca Evolution o Profis. Formato compatibile con l'importazione automatica.", logo: "📈", status: "in-arrivo" },
   // Prezzari
-  { name: "Prezzari Regionali", category: "Prezzari & Computi", description: "Integrazione con i prezzari regionali ufficiali italiani (DEI, SIX, Pricebook) per la compilazione automatica di computi metrici estimativi aggiornati.", logo: "📐", status: "nativa" },
-  { name: "Primus (ACCA Software)", category: "Prezzari & Computi", description: "Importazione/esportazione di computi metrici e preventivi in formato XMK compatibile con Primus e altri software di computo metrico ACCA.", logo: "🏗️", status: "nativa" },
+  { name: "Prezzari Regionali", category: "Prezzari & Computi", description: "Le voci dei prezzari regionali ufficiali di 19 regioni e province autonome sono già caricate: le cerchi e le inserisci nei computi metrici.", logo: "📐", status: "attiva" },
+  { name: "Primus (ACCA Software)", category: "Prezzari & Computi", description: "Importi i computi metrici esportati da Primus in formato XPWE, senza ricopiare le voci.", logo: "🏗️", status: "attiva" },
   // Comunicazione
-  { name: "WhatsApp Business API", category: "CRM & Marketing", description: "Invio automatico di messaggi WhatsApp per scadenze SAL, promemoria pagamenti, conferme appuntamenti con clienti e aggiornamenti cantiere.", logo: "💬", status: "nativa" },
-  { name: "Gmail / Google Workspace", category: "CRM & Marketing", description: "Sincronizzazione email con Gmail per tracciare le comunicazioni con clienti e fornitori direttamente dalla scheda commessa. OAuth 2.0 sicuro.", logo: "📧", status: "nativa" },
+  { name: "Moduli Facebook e Instagram", category: "CRM & Marketing", description: "Chi compila il modulo di una tua inserzione entra nel CRM in tempo reale, pronto da chiamare.", logo: "📣", status: "attiva" },
+  { name: "WhatsApp Business", category: "CRM & Marketing", description: "Colleghi il numero WhatsApp Business dell'azienda con l'API ufficiale di Meta: messaggi, modelli approvati e invii dalle automazioni.", logo: "💬", status: "attiva" },
+  { name: "Gmail e posta IMAP", category: "CRM & Marketing", description: "Colleghi la casella dell'azienda, Gmail o qualsiasi posta con IMAP: le email arrivano nel gestionale e quelle di un cliente le ritrovi nella sua scheda e nelle sue commesse.", logo: "📧", status: "attiva" },
   { name: "Mailchimp", category: "CRM & Marketing", description: "Sincronizzazione lista contatti e clienti con Mailchimp per campagne email marketing automatizzate. Segmentazione per zona geografica e tipo lavoro.", logo: "📮", status: "in-arrivo" },
+  // Calendari
+  { name: "Google Calendar", category: "Calendari", description: "Appuntamenti e sopralluoghi del gestionale finiscono sul tuo Google Calendar, e gli impegni che hai già lì bloccano gli orari occupati.", logo: "📅", status: "attiva" },
+  { name: "Calendario Apple (iCloud)", category: "Calendari", description: "Colleghi il calendario iCloud: gli orari occupati si vedono quando fissi un appuntamento.", logo: "🍎", status: "attiva" },
   // Storage & Docs
-  { name: "Google Drive", category: "Documenti & Storage", description: "Archiviazione automatica di documenti cantiere (planimetrie, foto, contratti) su Google Drive con struttura cartelle per commessa.", logo: "☁️", status: "nativa" },
   { name: "Dropbox Business", category: "Documenti & Storage", description: "Condivisione documenti di cantiere con clienti e DL tramite Dropbox. Upload automatico di foto e report dalla app mobile.", logo: "📁", status: "in-arrivo" },
   // CAD e BIM
   { name: "Autodesk AutoCAD (DXF/DWG)", category: "CAD & BIM", description: "Importazione di planimetrie e disegni tecnici in formato DXF/DWG per la gestione del cantiere referenziata alle tavole di progetto.", logo: "📐", status: "in-arrivo" },
   { name: "BIM (IFC)", category: "CAD & BIM", description: "Compatibilità con modelli BIM in formato IFC per l'estrazione automatica di quantità e la compilazione del computo metrico.", logo: "🏢", status: "in-arrivo" },
-  // HR e presenze
-  { name: "INPS Telematici", category: "HR & Presenze", description: "Export modelli per le comunicazioni obbligatorie INPS: Uniemens, LUL, CU e Denuncia Mensile Analitica (DMA) per la Cassa Edile.", logo: "🏛️", status: "nativa" },
-  { name: "Casse Edili (CNCE)", category: "HR & Presenze", description: "Generazione automatica dei file telematici per la denuncia mensile alla Cassa Edile territoriale. Calcolo ore, paga oraria, maggiorazioni e contributi.", logo: "👷", status: "nativa" },
-  // API
-  { name: "API REST", category: "API & Sviluppatori", description: "API REST documentata con autenticazione OAuth 2.0. Oltre 120 endpoint per integrare Edilizia in Cloud con qualsiasi sistema aziendale o piattaforma custom.", logo: "⚡", status: "nativa" },
-  { name: "Webhook", category: "API & Sviluppatori", description: "Webhook configurabili per eventi chiave: nuovo SAL, pagamento ricevuto, variante approvata, fine cantiere. Integrazione con Zapier, Make e n8n.", logo: "🔗", status: "nativa" },
+  // Automazioni e sviluppatori
+  { name: "Zapier, Make e n8n", category: "Automazioni & Sviluppatori", description: "Un'automazione può chiamare un indirizzo web quando nasce una fattura, arriva un pagamento o un preventivo viene accettato: Zapier, Make o n8n ricevono la chiamata e fanno il resto.", logo: "🔗", status: "attiva" },
+  { name: "Assistenti AI (MCP)", category: "Automazioni & Sviluppatori", description: "Crei chiavi API per l'azienda, revocabili in ogni momento, e colleghi gli assistenti AI compatibili con il protocollo MCP ai dati del gestionale.", logo: "⚡", status: "attiva" },
 ];
 
 const CATEGORIES = [...new Set(INTEGRATIONS.map((i) => i.category))];
@@ -52,32 +58,32 @@ const CATEGORIES = [...new Set(INTEGRATIONS.map((i) => i.category))];
 const CATEGORY_COLORS: Record<string, string> = {
   "Fatturazione Elettronica": "bg-blue-100 text-blue-700",
   "Banca & Pagamenti": "bg-emerald-100 text-emerald-700",
-  "Contabilità & ERP": "bg-indigo-100 text-indigo-700",
+  "Contabilità & Commercialista": "bg-indigo-100 text-indigo-700",
   "Prezzari & Computi": "bg-orange-100 text-orange-700",
   "CRM & Marketing": "bg-rose-100 text-rose-700",
+  "Calendari": "bg-sky-100 text-sky-700",
   "Documenti & Storage": "bg-yellow-100 text-yellow-700",
   "CAD & BIM": "bg-slate-100 text-slate-700",
-  "HR & Presenze": "bg-purple-100 text-purple-700",
-  "API & Sviluppatori": "bg-gray-100 text-gray-700",
+  "Automazioni & Sviluppatori": "bg-gray-100 text-gray-700",
 };
 
 export default function Integrazioni() {
   useSEO({
     title: "Integrazioni Gestionale Edilizia",
-    description: "Edilizia in Cloud si integra con i principali software italiani: fatturazione elettronica SDI, Zucchetti, TeamSystem, prezzari regionali, Cassa Edile e API REST.",
+    description: "Edilizia in Cloud si collega a Fatture in Cloud, Aruba e Fattura24, invia le fatture allo SDI, usa i prezzari regionali e lavora con WhatsApp, Gmail e Google Calendar.",
     canonical: "/integrazioni",
-    keywords: "integrazioni gestionale edilizia, software edilizia fatturazione elettronica, edilizia zucchetti, teamSystem edilizia, API gestionale edilizia, whatsapp impresa edile, cassa edile software, prezzari edilizia software",
+    keywords: "integrazioni gestionale edilizia, gestionale edilizia fatture in cloud, software edilizia fatturazione elettronica, prezzari regionali software, whatsapp impresa edile, gestionale edilizia google calendar, webhook gestionale edilizia",
   });
 
   const baseUrl = "https://www.ediliziaincloud.com";
-  const nativeCount = INTEGRATIONS.filter((i) => i.status === "nativa").length;
+  const nativeCount = INTEGRATIONS.filter((i) => i.status === "attiva").length;
 
   return (
     <div className="min-h-screen bg-white text-[#111111]">
       <HubSeoSchema
         pageName="Integrazioni"
         pagePath="/integrazioni"
-        pageDescription="Integrazioni native con SDI Agenzia Entrate, banche PSD2, Cassa Edile, INPS, INAIL, CRM e tool di marketing."
+        pageDescription="Collegamenti attivi con SDI, Fatture in Cloud, prezzari regionali, WhatsApp Business, Gmail, Google Calendar e moduli Facebook."
         breadcrumbs={[
           { name: "Home", url: "/" },
           { name: "Integrazioni", url: "/integrazioni" },
@@ -98,7 +104,7 @@ export default function Integrazioni() {
         "@type": "WebPage",
         "@id": `${baseUrl}/integrazioni`,
         "name": "Integrazioni Gestionale Edilizia",
-        "description": "Tutte le integrazioni native di Edilizia in Cloud: fatturazione elettronica SDI, Zucchetti, TeamSystem, WhatsApp Business, Cassa Edile e API REST.",
+        "description": "I collegamenti attivi di Edilizia in Cloud: invio allo SDI, Fatture in Cloud e altri programmi di fatturazione, prezzari regionali, WhatsApp Business, posta, calendari e automazioni.",
         "url": `${baseUrl}/integrazioni`,
         "inLanguage": "it",
         "isPartOf": { "@id": `${baseUrl}/#website` },
@@ -111,7 +117,7 @@ export default function Integrazioni() {
         "name": "Edilizia in Cloud",
         "url": baseUrl,
         "applicationCategory": "BusinessApplication",
-        "featureList": INTEGRATIONS.filter((i) => i.status === "nativa").map((i) => `Integrazione ${i.name}`),
+        "featureList": INTEGRATIONS.filter((i) => i.status === "attiva").map((i) => `Integrazione ${i.name}`),
       }} />
 
       <LandingNavbar />
@@ -124,19 +130,18 @@ export default function Integrazioni() {
             <span className="text-[#F97415] text-xs font-bold uppercase tracking-widest">Integrazioni</span>
           </div>
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-white mb-6 leading-tight">
-            Si integra con i software<br />
+            Si collega ai programmi<br />
             <span className="text-[#F97415]">che già usi</span>
           </h1>
           <p className="text-white/60 text-lg md:text-xl max-w-2xl mx-auto mb-10">
-            {nativeCount} integrazioni native con i principali software italiani:
-            fatturazione elettronica, contabilità, HR, prezzari, CRM e API REST.
-            Nessun import/export manuale.
+            Fatturazione elettronica, programmi di fatturazione, prezzari regionali,
+            WhatsApp, posta e calendari. Qui trovi cosa funziona oggi e cosa è in arrivo.
           </p>
           <div className="grid grid-cols-3 gap-6 max-w-lg mx-auto">
             {[
-              { value: `${nativeCount}`, label: "Integrazioni native" },
-              { value: "API REST", label: "120+ endpoint" },
-              { value: "0", label: "Import manuali" },
+              { value: `${nativeCount}`, label: "Collegamenti attivi" },
+              { value: "19", label: "Prezzari regionali caricati" },
+              { value: "2 al giorno", label: "Import da Fatture in Cloud" },
             ].map((s, i) => (
               <div key={i} className="text-center">
                 <p className="text-2xl font-extrabold text-[#F97415]">{s.value}</p>
@@ -165,7 +170,7 @@ export default function Integrazioni() {
                   <div
                     key={item.name}
                     className={`rounded-2xl p-6 border transition-all duration-200 ${
-                      item.status === "nativa"
+                      item.status === "attiva"
                         ? "bg-white border-gray-200 hover:border-[#F97415]/40 hover:shadow-md"
                         : "bg-gray-50 border-gray-100 opacity-70"
                     }`}
@@ -173,11 +178,11 @@ export default function Integrazioni() {
                     <div className="flex items-start justify-between mb-3">
                       <span className="text-2xl">{item.logo}</span>
                       <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full ${
-                        item.status === "nativa"
+                        item.status === "attiva"
                           ? "bg-green-100 text-green-700"
                           : "bg-gray-200 text-gray-500"
                       }`}>
-                        {item.status === "nativa" ? "✓ Nativa" : "In arrivo"}
+                        {item.status === "attiva" ? "✓ Attiva" : "In arrivo"}
                       </span>
                     </div>
                     <h3 className="font-bold text-[#111111] mb-2">{item.name}</h3>
@@ -189,27 +194,28 @@ export default function Integrazioni() {
           );
         })}
 
-        {/* API section */}
+        {/* Automazioni e sviluppatori: cosa c'è davvero oggi. Niente API REST
+            pubblica: prima qui si prometteva un'API da 120 endpoint con OAuth,
+            sandbox e 1.000 richieste al minuto che non esiste. */}
         <div className="mt-8 rounded-3xl bg-[#111111] p-8 md:p-12">
           <div className="grid md:grid-cols-2 gap-8 items-center">
             <div>
               <span className="inline-block px-3 py-1 rounded-full bg-[#F97415]/10 text-[#F97415] text-xs font-bold uppercase tracking-widest mb-4">
-                API & Sviluppatori
+                Automazioni & Sviluppatori
               </span>
               <h2 className="text-2xl md:text-3xl font-extrabold text-white mb-4">
-                API REST completa per ogni esigenza custom
+                Collegare un programma che non è in elenco
               </h2>
               <p className="text-white/60 mb-6">
-                Oltre 120 endpoint documentati con autenticazione OAuth 2.0.
-                Integra Edilizia in Cloud con qualsiasi software aziendale, ERP personalizzato o app custom.
+                Un&apos;API pubblica per leggere e scrivere i dati dall&apos;esterno non c&apos;è ancora.
+                Oggi un altro programma si collega così:
               </p>
               <ul className="space-y-2 mb-8">
                 {[
-                  "Documentazione API completa con esempi",
-                  "Sandbox di test gratuita",
-                  "Webhook configurabili per ogni evento",
-                  "Rate limit generosi (1.000 req/min)",
-                  "Supporto sviluppatori via email dedicata",
+                  "Un'automazione chiama un indirizzo web quando succede qualcosa",
+                  "Zapier, Make e n8n ricevono la chiamata e proseguono da soli",
+                  "Chiavi API per l'azienda, revocabili quando vuoi",
+                  "Assistenti AI collegati ai dati tramite MCP",
                 ].map((f, i) => (
                   <li key={i} className="flex items-center gap-2 text-white/70 text-sm">
                     <CheckCircle2 size={14} className="text-[#F97415] shrink-0" />
@@ -221,7 +227,7 @@ export default function Integrazioni() {
                 to="/demo/"
                 className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#F97415] text-white font-bold hover:bg-[#e8650e] transition-all"
               >
-                Richiedi accesso API <ExternalLink size={15} />
+                Parlane con noi <ExternalLink size={15} />
               </Link>
             </div>
             <div className="bg-[#0d0d0d] rounded-2xl p-6 font-mono text-sm overflow-hidden">
@@ -229,22 +235,16 @@ export default function Integrazioni() {
                 <div className="w-3 h-3 rounded-full bg-red-500" />
                 <div className="w-3 h-3 rounded-full bg-yellow-500" />
                 <div className="w-3 h-3 rounded-full bg-green-500" />
-                <span className="text-gray-500 text-xs ml-2">GET /api/v1/commesse</span>
+                <span className="text-gray-500 text-xs ml-2">POST dalla tua automazione</span>
               </div>
               <pre className="text-green-400 text-xs leading-relaxed overflow-x-auto">{`{
-  "commesse": [
-    {
-      "id": "C-2026-042",
-      "nome": "Ristrutturazione via Roma",
-      "cliente": "Immobiliare Rossi Srl",
-      "margine_attuale": 22.4,
-      "avanzamento_pct": 68,
-      "sal_prossimo": "2026-04-15",
-      "liquidita_30gg": 48500
-    }
-  ],
-  "totale": 12,
-  "meta": { "cursor": "eyJpZCI..." }
+  "entity_id": "8f3c2a71-…-e21a",
+  "company_id": "5c06…9def",
+  "config": {
+    "url": "https://hooks.zapier.com/…",
+    "metodo": "POST",
+    …
+  }
 }`}</pre>
             </div>
           </div>
@@ -256,8 +256,8 @@ export default function Integrazioni() {
             Non trovi l'integrazione che cerchi?
           </h2>
           <p className="text-gray-500 mb-8 max-w-xl mx-auto">
-            Il nostro team tecnico valuta nuove integrazioni su richiesta.
-            Contattaci e ti diciamo se è fattibile — solitamente in meno di 72 ore.
+            Il nostro team valuta nuove integrazioni su richiesta. Scrivici quale
+            programma usi e ti diciamo se si può collegare.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
@@ -285,10 +285,10 @@ export default function Integrazioni() {
           mainEntity: [
             {
               "@type": "Question",
-              name: "Edilizia in Cloud si integra con FattureInCloud?",
+              name: "Edilizia in Cloud si integra con Fatture in Cloud?",
               acceptedAnswer: {
                 "@type": "Answer",
-                text: "Sì. L'integrazione con FattureInCloud è nativa: le fatture create in Edilizia in Cloud vengono sincronizzate automaticamente su FattureInCloud per la contabilità. Non serve doppio inserimento.",
+                text: "Sì, in una direzione. Colleghi il tuo account Fatture in Cloud e le fatture che emetti lì, insieme a quelle dei fornitori, arrivano in Edilizia in Cloud due volte al giorno, abbinate a clienti e commesse. Non vale il contrario: le fatture fatte in Edilizia in Cloud non finiscono su Fatture in Cloud. Chi fattura con Fatture in Cloud continua a farlo lì.",
               },
             },
             {
@@ -296,7 +296,7 @@ export default function Integrazioni() {
               name: "Posso collegare Edilizia in Cloud al mio commercialista?",
               acceptedAnswer: {
                 "@type": "Answer",
-                text: "Sì. Edilizia in Cloud esporta automaticamente prima nota, registro IVA e movimenti in formato compatibile con i principali software contabili (TeamSystem, Zucchetti, Datev). Il tuo commercialista riceve i dati già strutturati.",
+                text: "Sì. Il commercialista può avere un accesso suo e seguire da lì tutte le aziende clienti. Prima nota, registro IVA e documenti si esportano in CSV, e le fatture elettroniche restano nel formato XML standard che ogni programma di contabilità legge.",
               },
             },
             {
@@ -304,7 +304,7 @@ export default function Integrazioni() {
               name: "C'è un'API per integrazioni personalizzate?",
               acceptedAnswer: {
                 "@type": "Answer",
-                text: "Sì. Edilizia in Cloud dispone di API REST documentata con autenticazione OAuth 2.0. Puoi collegare qualsiasi sistema esterno: ERP, CRM, software paghe, piattaforme e-commerce. La documentazione API è disponibile nel piano Impresa AI.",
+                text: "Non ancora un'API pubblica per leggere e scrivere i dati. Oggi un altro programma si collega con le automazioni: quando nasce una fattura, arriva un pagamento o un preventivo viene accettato, Edilizia in Cloud chiama un indirizzo web che Zapier, Make o n8n possono ricevere. Con le chiavi API dell'azienda si collegano anche gli assistenti AI tramite MCP.",
               },
             },
             {
@@ -312,7 +312,7 @@ export default function Integrazioni() {
               name: "Le integrazioni hanno costi aggiuntivi?",
               acceptedAnswer: {
                 "@type": "Answer",
-                text: "Le integrazioni native (FattureInCloud, Aruba, Stripe, Google Calendar, ecc.) sono incluse nel piano senza costi aggiuntivi. L'accesso alle API REST è disponibile dal piano Impresa AI in poi.",
+                text: "I collegamenti fanno parte del piano che scegli: in consulenza verifichiamo con te quali ti servono. I servizi esterni restano a parte con il loro fornitore, per esempio l'abbonamento a Fatture in Cloud o i messaggi WhatsApp che Meta fa pagare.",
               },
             },
           ],
@@ -325,10 +325,10 @@ export default function Integrazioni() {
           </h2>
           <div className="divide-y divide-gray-200">
             {[
-              { q: "Edilizia in Cloud si integra con FattureInCloud?", a: "Sì. L'integrazione con FattureInCloud è nativa: le fatture vengono sincronizzate automaticamente. Nessun doppio inserimento." },
-              { q: "Posso collegare Edilizia in Cloud al mio commercialista?", a: "Sì. Edilizia in Cloud esporta prima nota, registro IVA e movimenti in formato compatibile con TeamSystem, Zucchetti e Datev. Il commercialista riceve i dati già strutturati." },
-              { q: "C'è un'API per integrazioni personalizzate?", a: "Sì. API REST documentata con autenticazione OAuth 2.0. Puoi collegare qualsiasi sistema esterno: ERP, CRM, software paghe, piattaforme e-commerce." },
-              { q: "Le integrazioni hanno costi aggiuntivi?", a: "Le integrazioni native sono incluse nel piano. L'accesso alle API REST è disponibile dal piano Impresa AI in poi." },
+              { q: "Edilizia in Cloud si integra con Fatture in Cloud?", a: "Sì, in una direzione: le fatture che emetti su Fatture in Cloud, e quelle dei fornitori, arrivano in Edilizia in Cloud due volte al giorno, abbinate a clienti e commesse. Le fatture fatte in Edilizia in Cloud non finiscono su Fatture in Cloud." },
+              { q: "Posso collegare Edilizia in Cloud al mio commercialista?", a: "Sì. Il commercialista può avere un accesso suo e seguire da lì tutte le aziende clienti. Prima nota, registro IVA e documenti si esportano in CSV." },
+              { q: "C'è un'API per integrazioni personalizzate?", a: "Non ancora un'API pubblica. Oggi un altro programma si collega con le automazioni, che chiamano un indirizzo web ricevibile da Zapier, Make o n8n, e con le chiavi API per gli assistenti AI tramite MCP." },
+              { q: "Le integrazioni hanno costi aggiuntivi?", a: "I collegamenti fanno parte del piano che scegli: in consulenza verifichiamo con te quali ti servono. I servizi esterni, come l'abbonamento a Fatture in Cloud, restano a parte con il loro fornitore." },
             ].map((item, i) => (
               <details key={i} className="py-5 group">
                 <summary className="flex justify-between items-center cursor-pointer list-none font-semibold text-[#111111] text-sm">
