@@ -24,6 +24,7 @@ import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { resolveSender } from "../_shared/resolveSender.ts";
 
 import { serveConMetriche } from "../_shared/withMetrics.ts";
+import { isInternalRequest } from "../_shared/auth.ts";
 // Stesso numero del bottone WhatsApp del sito pubblico (WhatsAppFab.tsx),
 // verificato su WhatsApp Business. wa.me vuole il formato internazionale
 // senza "+". Chi ha la carta rifiutata vuole parlare con qualcuno, non
@@ -125,10 +126,14 @@ serveConMetriche("auto-topup-trigger", async (req) => {
     return new Response(null, { headers: getCorsHeaders(req) });
   }
 
+  // Solo il cron. Prima bastava QUALSIASI «Authorization: Bearer …» — anche la
+  // chiave pubblica del sito, che sta nel JavaScript — per far partire gli
+  // addebiti automatici sulle carte (audit 19/09/2026). Il controllo guardava
+  // che l'intestazione cominciasse con «Bearer», non che fosse valida.
   const cronSecret = Deno.env.get("CRON_SECRET");
   const requestCronSecret = req.headers.get("x-cron-secret");
-  const authHeader = req.headers.get("authorization");
-  if (cronSecret && requestCronSecret !== cronSecret && !authHeader?.startsWith("Bearer ")) {
+  const autorizzato = isInternalRequest(req) || (Boolean(cronSecret) && requestCronSecret === cronSecret);
+  if (!autorizzato) {
     return errorResponse("Unauthorized", 401);
   }
 
