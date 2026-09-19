@@ -12,6 +12,7 @@
  *   - extractStatusFromError(e)
  */
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { isInternalRequest } from "../_shared/auth.ts";
 
 // ─── Supabase admin client ──────────────────────────────────────────────
 export function createAdminClient(): SupabaseClient {
@@ -180,6 +181,10 @@ export async function verifyServiceRoleOrSuperAdmin(
   supabase: SupabaseClient,
   req: Request,
 ): Promise<{ ok: true; userId?: string } | { ok: false; response: Response }> {
+  // I cron di Beatrice, Elena, Sofia e Tommaso mandano «x-cron-secret», non un
+  // Bearer: prima questo controllo li respingeva tutti con 401, ogni giorno.
+  if (isInternalRequest(req)) return { ok: true };
+
   const authHeader = req.headers.get("Authorization") ?? "";
   const token = authHeader.replace(/^Bearer\s+/i, "");
   if (!token) {

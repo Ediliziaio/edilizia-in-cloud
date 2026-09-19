@@ -17,6 +17,7 @@ import { aiRouterComplete } from "../_shared/aiRouter.ts";
 // 🛡️ Anti chain-of-thought leak — strip tool names + opener narrativi dal
 // briefing markdown salvato e mostrato nell'admin dashboard.
 import { sanitizeAnswer } from "../_shared/structuredOutput.ts";
+import { isInternalRequest } from "../_shared/auth.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -61,9 +62,11 @@ REGOLE:
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
 
-  // Auth: cron secret OR super_admin
-  const cronSecret = req.headers.get("x-cron-secret");
-  const isCronCall = INTERNAL_CRON_SECRET && cronSecret === INTERNAL_CRON_SECRET;
+  // Auth: cron secret OR super_admin.
+  // Il cron passa da silvio_invoke_edge, che manda «x-internal-cron-secret»:
+  // qui si leggeva solo «x-cron-secret», quindi la chiamata notturna finiva
+  // sempre nel ramo utente e tornava 401. isInternalRequest le accetta tutte e due.
+  const isCronCall = isInternalRequest(req);
 
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
   let triggeredBy = "cron";

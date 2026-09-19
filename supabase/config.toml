@@ -870,3 +870,44 @@ verify_jwt = false
 
 [functions.cliente-notifica]
 verify_jwt = false
+
+# ── Chiamate solo dal cron (19/09/2026) ──────────────────────────────────────
+# Il cron manda il segreto interno (x-cron-secret / x-internal-cron-secret),
+# non un JWT: con verify_jwt = true il gateway le respingeva tutte con 401
+# prima ancora di arrivare al codice, ogni giorno, senza che nessuno se ne
+# accorgesse (pg_cron segna «succeeded» appena la richiesta è partita).
+# Ognuna controlla il segreto da sé (requireInternalSecret / isInternalRequest)
+# e, per le chiamate dall'app, il token dell'utente.
+[functions.platform-lifecycle-cron]
+verify_jwt = false
+
+[functions.morning-briefing-capomastri]
+verify_jwt = false
+
+[functions.silvio-daily-briefing]
+verify_jwt = false
+
+[functions.silvio-admin-briefing]
+verify_jwt = false
+
+[functions.silvio-memory-extract]
+verify_jwt = false
+
+# Agenti customer-os: in produzione erano già senza verifica del gateway, ma
+# senza una voce qui la prossima pubblicazione dalla CI li avrebbe richiusi.
+[functions.beatrice-cfo-daily]
+verify_jwt = false
+
+[functions.elena-cs-health-daily]
+verify_jwt = false
+
+[functions.sofia-onboarding]
+verify_jwt = false
+
+[functions.tommaso-insight-daily]
+verify_jwt = false
+
+# Stessa libreria condivisa: toccarla la ripubblica, e senza voce qui passerebbe
+# da «false» (com'è in produzione) al default «true».
+[functions.giorgio-support-triage]
+verify_jwt = false
