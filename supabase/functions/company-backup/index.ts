@@ -42,6 +42,31 @@ const BUCKET = "company-exports";
 
 /** Righe per blocco: ~15 MB di JSON sulla tabella più larga (coda invii). */
 const BLOCCO = 5000;
+
+/**
+ * Un blocco come TESTO, senza mai trasformarlo in oggetti. Il primo giro
+ * (19/09) faceva rpc() → JSON.parse → JSON.stringify su 131 MB e la funzione
+ * è stata fermata per «CPU Time exceeded» a metà dei contatti. Qui il testo
+ * che esce dal database finisce nel file così com'è; per andare avanti
+ * servono solo n, finito e ultimo, che si leggono con due espressioni
+ * regolari agli estremi del testo (jsonb ordina le chiavi per lunghezza e poi
+ * alfabeticamente: «n» apre l'oggetto, «finito» e «ultimo» lo chiudono).
+ */
+async function bloccoComeTesto(
+  url: string, chiave: string, parametri: Record<string, unknown>,
+): Promise<{ testo: string; n: number; finito: boolean; ultimo: string | null }> {
+  const risposta = await fetch(`${url}/rest/v1/rpc/admin_esporta_blocco`, {
+    method: "POST",
+    headers: { apikey: chiave, Authorization: `Bearer ${chiave}`, "Content-Type": "application/json" },
+    body: JSON.stringify(parametri),
+  });
+  const testo = await risposta.text();
+  if (!risposta.ok) throw new Error(`admin_esporta_blocco ${risposta.status}: ${testo.slice(0, 300)}`);
+  const inizio = /^\{"n":\s*(\d+)/.exec(testo);
+  const fine = /"finito":\s*(true|false),\s*"ultimo":\s*(null|"([^"]*)")\s*\}\s*$/.exec(testo.slice(-400));
+  if (!inizio || !fine) throw new Error(`blocco illeggibile: ${testo.slice(0, 80)} … ${testo.slice(-120)}`);
+  return { testo, n: Number(inizio[1]), finito: fine[1] === "true", ultimo: fine[3] ?? null };
+}
 /** Oltre questo tempo non si parte con un blocco nuovo: il limite della funzione è 400 s. */
 const TETTO_MS = 330_000;
 
@@ -56,15 +81,18 @@ async function backupPiattaformaABlocchi(admin: Admin, azienda: Record<string, u
   const tabelle: Array<{ tabella: string; righe_attese: number; righe_salvate: number; file: string[]; errore?: string }> = [];
   let completo = true;
 
-  const carica = async (percorso: string, contenuto: unknown) => {
+  const url = Deno.env.get("SUPABASE_URL")!;
+  const chiave = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const caricaTesto = async (percorso: string, testo: string) => {
     const { error } = await admin.storage
       .from(BUCKET)
-      .upload(percorso, new Blob([JSON.stringify(contenuto)], { type: "application/json" }), {
+      .upload(percorso, new Blob([testo], { type: "application/json" }), {
         upsert: true,
         contentType: "application/json",
       });
     if (error) throw new Error(`${percorso}: ${error.message}`);
   };
+  const carica = (percorso: string, contenuto: unknown) => caricaTesto(percorso, JSON.stringify(contenuto));
 
   await carica(`${base}/azienda.json`, azienda);
 
@@ -79,14 +107,13 @@ async function backupPiattaformaABlocchi(admin: Admin, azienda: Record<string, u
     try {
       for (let n = 1; ; n++) {
         if (Date.now() - inizio > TETTO_MS) { completo = false; riga.errore = "tempo finito"; break; }
-        const { data: blocco, error } = await admin.rpc("admin_esporta_blocco", {
+        const b = await bloccoComeTesto(url, chiave, {
           p_company_id: id, p_tabella: voce.tabella, p_dopo: dopo, p_limite: BLOCCO,
         });
-        if (error) throw new Error(error.message);
-        const b = blocco as { righe: unknown[]; n: number; ultimo: string | null; finito: boolean };
         if (b.n > 0) {
+          // Il file è il blocco intero: { n, righe: [...], finito, ultimo }.
           const nome = `${base}/${voce.tabella}/${String(n).padStart(3, "0")}.json`;
-          await carica(nome, b.righe);
+          await caricaTesto(nome, b.testo);
           riga.file.push(nome);
           riga.righe_salvate += b.n;
         }
