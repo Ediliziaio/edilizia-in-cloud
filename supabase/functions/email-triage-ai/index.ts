@@ -18,11 +18,14 @@
  *
  *   2. TRIAGE_PENDING (chiamata interna o cron):
  *      { mode: "triage_pending", company_id?: uuid, limit?: number }
- *      → processa email status='new' applicando AI classification
+ *      → processa le email in arrivo status='new' degli ultimi
+ *        FINESTRA_TRIAGE_GIORNI, le più recenti prima
  *
  * Auth:
  *   - Webhook esterno: header `x-inbound-secret` (env INBOUND_EMAIL_SECRET)
  *   - Cron triage_pending: x-cron-secret (env PROACTIVE_CRON_SECRET)
+ *   Nessuno dei due manda un JWT: in config.toml verify_jwt = false, il
+ *   controllo del segreto è quello in fondo al file.
  */
 
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -44,6 +47,10 @@ interface TriageBody {
   company_id?: string;
   limit?: number;
 }
+
+// Età massima di un'email che il triage_pending classifica. Il triage costa
+// credito AI all'azienda e serve finché l'email è fresca (priorità, azione).
+const FINESTRA_TRIAGE_GIORNI = 3;
 
 const SYSTEM_PROMPT_TRIAGE = `Sei l'assistente che triagia le email in ingresso di un'impresa edile italiana.
 
@@ -436,18 +443,31 @@ async function processTriagePending(
   body: TriageBody,
 ): Promise<Response> {
   const limit = Math.min(body.limit ?? 10, 50);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const dal = new Date(Date.now() - FINESTRA_TRIAGE_GIORNI * 24 * 60 * 60 * 1000).toISOString();
   // `ai_processed_at IS NULL` = mai tentato. Senza questo filtro, un'email che
   // fallisce sempre il triage resta status='new' e viene ripescata a ogni run
-  // (ordinata per received_at asc) → loop infinito + starvation delle email nuove
-  // dietro. Così ogni email riceve UN tentativo, poi resta parcheggiata con
-  // ai_error (visibile in UI) invece di intasare la coda.
+  // → loop infinito + starvation delle email nuove dietro. Così ogni email
+  // riceve UN tentativo, poi resta parcheggiata con ai_error (visibile in UI)
+  // invece di intasare la coda.
+  //
+  // Solo posta in arrivo degli ultimi FINESTRA_TRIAGE_GIORNI, la più recente
+  // per prima. Finché in config.toml mancava la voce di questa funzione il
+  // gateway respingeva ogni chiamata con 401 (trovato il 19/09/2026) e le email
+  // si sono accumulate mai classificate: prese dalla più vecchia, alla
+  // riapertura il poller le avrebbe pagate tutte col credito AI dell'azienda,
+  // e quelle appena arrivate sarebbero rimaste in fondo alla coda. Lo stesso
+  // per lo storico di una casella appena collegata. Le più vecchie restano come
+  // sono: la categoria nella lista la danno L1/L3 e le regole predittive. Le
+  // inviate non si classificano, le abbiamo scritte noi.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let q = (supa as any)
     .from("email_inbox")
     .select("id, company_id, subject, raw_text, from_email")
     .eq("status", "new")
     .is("ai_processed_at", null)
-    .order("received_at", { ascending: true })
+    .eq("mailbox_folder", "inbox")
+    .gte("received_at", dal)
+    .order("received_at", { ascending: false })
     .limit(limit);
   if (body.company_id) q = q.eq("company_id", body.company_id);
 

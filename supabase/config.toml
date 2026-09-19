@@ -701,6 +701,14 @@ verify_jwt = false
 [functions.email-poll-inbox]
 verify_jwt = false
 
+# email-triage-ai: la chiama email-poll-inbox con x-cron-secret (triage_pending)
+# e un eventuale webhook di posta in arrivo con x-inbound-secret; nessuno dei
+# due manda un JWT. Senza questa voce il gateway le respingeva tutte con 401
+# prima del codice (19/09/2026: 18 chiamate su 18). Il segreto lo controlla la
+# funzione.
+[functions.email-triage-ai]
+verify_jwt = false
+
 # MP-EMAIL-AI cascade L1→L4 + Silvio. Tutte fanno auth interna (Bearer getUser
 # e/o x-cron-secret), quindi verify_jwt=false per consentire il path cron.
 [functions.email-ai-l1-classify]

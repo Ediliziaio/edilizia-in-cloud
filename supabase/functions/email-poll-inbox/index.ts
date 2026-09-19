@@ -1100,9 +1100,11 @@ serveConMetriche("email-poll-inbox", async (req) => {
         await resolveThreadsForUser(conn.user_id, emails.length + 20);
       }
       if (triageCandidates > 0) {
-        // MP-EMAIL-AI-01: prima la cascata L1 (costo zero) → poi triage AI legacy
-        // come fallback per le email non risolte da L1. Quando L3 batch sarà su
-        // cron, possiamo togliere il triage legacy.
+        // MP-EMAIL-AI-01: la cascata L1 (costo zero) e poi L3 danno la
+        // `categoria`. Il triage di email-triage-ai resta anche con L3 su cron:
+        // è l'unico che scrive priorità, riassunto, azione suggerita e dati
+        // estratti (ai_*), letti dal pannello AI dell'email, dalla pagina
+        // Triage email e dal badge «urgenti». Toglierlo spegne quelli.
         queueL1Cascade(conn.company_id, triageCandidates);
         queueTriagePending(conn.company_id, triageCandidates);
         summary.ai_triage_queued += triageCandidates;
