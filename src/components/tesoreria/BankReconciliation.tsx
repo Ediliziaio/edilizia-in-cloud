@@ -248,18 +248,24 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
       }
 
       // Step 4: write-back verso il gestionale esterno (best-effort) se saldata.
-      let wb: "ok" | "scope" | "error" | null = null;
+      let wb: "ok" | "problema" | "error" | null = null;
+      let messaggioFic = "";
       if (inv.external_provider === "fattureincloud" && fullyPaid) {
         try {
           const { data: pr, error: pErr } = await supabase.functions.invoke("billing-payment-push", { body: { invoice_id: inv.id } });
-          wb = pErr ? "error" : pr?.error === "scope" ? "scope" : pr?.ok ? "ok" : "error";
+          if (pErr) wb = "error";
+          else if (pr?.ok) wb = "ok";
+          else { wb = "problema"; messaggioFic = String(pr?.messaggio ?? ""); }
         } catch { wb = "error"; }
       }
 
-      toast.success(
-        `Riconciliata con fattura ${inv.invoice_number}` +
-        (wb === "ok" ? " · aggiornata su Fatture in Cloud" : wb === "scope" ? " · FIC: manca il permesso di scrittura" : "")
-      );
+      if (wb === "problema" || wb === "error") {
+        toast.warning(`Riconciliata con fattura ${inv.invoice_number}, non aggiornata su Fatture in Cloud`, {
+          description: messaggioFic || "Aggiornamento su Fatture in Cloud non riuscito, riprova più tardi.",
+        });
+      } else {
+        toast.success(`Riconciliata con fattura ${inv.invoice_number}` + (wb === "ok" ? " · aggiornata su Fatture in Cloud" : ""));
+      }
       setSelectedTx(null);
       await loadData();
     } catch (e: any) {

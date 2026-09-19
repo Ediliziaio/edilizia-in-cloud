@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Loader2, Plus, Trash2, Star, CheckCircle2, XCircle, RefreshCw, Plug, ScrollText, FileText, ExternalLink, Check } from "lucide-react";
+import { Loader2, Plus, Trash2, Star, CheckCircle2, XCircle, RefreshCw, Plug, ScrollText, FileText, ExternalLink, Check, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const PROVIDERS = [
@@ -521,7 +521,26 @@ export default function SettingsBilling() {
                             </div>
                           </div>
                         </CardHeader>
-                        <CardContent>
+                        <CardContent className="space-y-3">
+                          {/* Collegato prima del 19/09/2026: il permesso di registrare
+                              gli incassi non era stato chiesto, «segna pagata» non
+                              arriva a Fatture in Cloud finché non si ricollega. */}
+                          {integ.provider === "fattureincloud" && integ.is_active && integ.scrittura_incassi_autorizzata === false && (
+                            <div className="flex flex-col gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm dark:border-amber-900 dark:bg-amber-950/40 sm:flex-row sm:items-center sm:justify-between">
+                              <p className="flex items-start gap-2 text-amber-900 dark:text-amber-200">
+                                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                                Ricollega Fatture in Cloud per segnare pagate anche lì le fatture che incassi qui.
+                              </p>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="shrink-0"
+                                onClick={() => connectFic().catch((e: unknown) => toast.error(e instanceof Error ? e.message : String(e)))}
+                              >
+                                Ricollega
+                              </Button>
+                            </div>
+                          )}
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-4">
                               <div className="flex items-center gap-2">
@@ -649,7 +668,8 @@ export default function SettingsBilling() {
                         </p>
                         <p className="text-xs">
                           Le fatture emesse su Fatture in Cloud verranno importate e monitorate in EiC (numero, cliente,
-                          importi, stato SDI e pagamento).
+                          importi, stato SDI e pagamento). Quando incassi una fattura qui, viene segnata pagata anche su
+                          Fatture in Cloud: per questo il collegamento chiede anche il permesso di modificare le fatture.
                         </p>
                       </div>
                     )}

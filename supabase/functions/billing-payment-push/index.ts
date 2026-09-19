@@ -2,11 +2,22 @@
 // Quando l'utente segna una fattura "pagata" in app, registra il pagamento su
 // Fatture in Cloud così i due sistemi restano allineati (niente doppio inserimento).
 // One-way controllato: lo scatena l'azione utente, NON il sync di lettura → nessun loop.
-// Richiede che il token FIC abbia lo SCOPE DI SCRITTURA (issued_documents:a); se manca
-// l'API risponde 401/403 e l'utente deve riconnettere FIC autorizzando la scrittura.
+// Richiede lo scope di scrittura `issued_documents.invoices:a` (chiesto da billing-connect
+// dal 19/09/2026: prima il collegamento era in sola lettura). Chi ha collegato FIC prima
+// deve ricollegarlo.
+//
+// FIC rifiuta un pagamento «saldato» senza CONTO DI SALDO (422 «È necessario impostare
+// il conto di saldo nel pagamento»): era l'errore vero in produzione. Il conto si sceglie
+// come fa FIC stesso: quello già sul pagamento, poi il conto predefinito del metodo di
+// pagamento della fattura, poi il conto con lo stesso IBAN, poi l'unico conto esistente.
+//
+// Risposte: 200 con { ok: true } oppure { ok: false, motivo, messaggio } per i problemi
+// lato Fatture in Cloud (così le schermate leggono il messaggio: supabase.functions.invoke
+// non espone il corpo delle risposte 4xx/5xx). 4xx solo per richieste non valide.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
+import { scegliContoDiSaldo, type ContoFic, type MetodoFic } from "../_shared/contoDiSaldoFic.ts";
 
 const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 const FIC_CLIENT_ID = Deno.env.get("FIC_CLIENT_ID") || "";
@@ -78,6 +89,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
   const json = (data: unknown, status = 200) =>
     new Response(JSON.stringify(data), { status, headers: { ...cors, "Content-Type": "application/json" } });
+  const PERMESSO = "Fatture in Cloud non permette la scrittura a questo collegamento: ricollegalo da Impostazioni › Fatturazione e autorizza anche la modifica delle fatture.";
 
   try {
     // Auth: utente (Bearer JWT → canAccessCompany) OPPURE chiamata interna server-side
@@ -105,7 +117,7 @@ Deno.serve(async (req) => {
 
     const { data: inv } = await supabase
       .from("invoices")
-      .select("id, company_id, external_id, external_provider, total, due_date, status")
+      .select("id, company_id, external_id, external_provider, total, due_date, status, bank_iban")
       .eq("id", invoiceId).maybeSingle();
     if (!inv) return json({ error: "Fattura non trovata" }, 404);
 
@@ -122,23 +134,49 @@ Deno.serve(async (req) => {
     const { data: integ } = await supabase
       .from("billing_integrations").select("*")
       .eq("company_id", inv.company_id).eq("provider", "fattureincloud").eq("is_active", true).maybeSingle();
-    if (!integ) return json({ error: "Fatture in Cloud non connesso" }, 400);
+    if (!integ) return json({ ok: false, motivo: "non_collegato", messaggio: "Fatture in Cloud non è collegato." });
     await ensureFreshFicToken(integ);
 
     const base = `https://api-v2.fattureincloud.it/c/${integ.company_external_id}`;
     const h = { Authorization: `Bearer ${integ.access_token}`, "Content-Type": "application/json" };
 
-    // 1) GET del documento per preservare le rate esistenti (payments_list).
-    const gr = await fetch(`${base}/issued_documents/${inv.external_id}?fields=payments_list,amount_gross`, { headers: h });
-    if (gr.status === 401 || gr.status === 403) {
-      return json({ error: "scope", detail: "Token Fatture in Cloud senza permesso di scrittura. Riconnetti FIC dalle Impostazioni autorizzando la scrittura." }, 403);
-    }
+    // 1) GET del documento per preservare le rate esistenti (payments_list): FIC
+    //    SOSTITUISCE l'intero elenco con quello inviato.
+    const gr = await fetch(`${base}/issued_documents/${inv.external_id}?fields=payments_list,amount_gross,payment_method`, { headers: h });
+    if (gr.status === 401 || gr.status === 403) return json({ ok: false, motivo: "permesso", messaggio: PERMESSO });
     let existing: any[] = [];
     let grossFromFic = Number(inv.total || 0);
+    let metodoId: number | null = null;
     if (gr.ok) {
       const gd = await gr.json().catch(() => ({}));
       existing = Array.isArray(gd?.data?.payments_list) ? gd.data.payments_list : [];
       if (gd?.data?.amount_gross) grossFromFic = Number(gd.data.amount_gross);
+      metodoId = Number(gd?.data?.payment_method?.id) || null;
+    }
+
+    // 1b) Conto di saldo per le rate che non ce l'hanno.
+    let conto: ContoFic | null = null;
+    const serveConto = existing.length === 0 || existing.some((p: any) => !p?.payment_account?.id);
+    if (serveConto) {
+      const [rc, rm] = await Promise.all([
+        fetch(`${base}/info/payment_accounts`, { headers: h }),
+        metodoId ? fetch(`${base}/info/payment_methods`, { headers: h }) : Promise.resolve(null),
+      ]);
+      if (rc.status === 401 || rc.status === 403) return json({ ok: false, motivo: "permesso", messaggio: PERMESSO });
+      const conti: ContoFic[] = rc.ok ? ((await rc.json().catch(() => ({})))?.data ?? []) : [];
+      const metodi: MetodoFic[] = rm && rm.ok ? ((await rm.json().catch(() => ({})))?.data ?? []) : [];
+      const metodo = metodoId ? metodi.find((m) => m.id === metodoId) ?? null : null;
+      conto = scegliContoDiSaldo({ conti, metodo, ibanFattura: inv.bank_iban ?? null });
+      if (!conto) {
+        const messaggio = conti.length === 0
+          ? "Su Fatture in Cloud non c'è nessun conto di saldo (il conto su cui arriva l'incasso): creane uno nelle impostazioni di Fatture in Cloud e riprova."
+          : `Su Fatture in Cloud ci sono ${conti.length} conti di saldo e non si capisce quale usare: imposta il conto predefinito del metodo di pagamento${metodo?.name ? ` «${metodo.name}»` : ""} e riprova.`;
+        await supabase.from("billing_sync_log").insert({
+          company_id: inv.company_id, invoice_id: inv.id, provider: "fattureincloud",
+          direction: "push", action: "mark_paid", status: "error", error_message: messaggio,
+        });
+        return json({ ok: false, motivo: "conto_di_saldo", messaggio });
+      }
     }
 
     // 2) Marca pagate tutte le rate (preserva importi/scadenze). Se non ci sono rate,
@@ -149,9 +187,9 @@ Deno.serve(async (req) => {
           due_date: p.due_date || inv.due_date || paidDate,
           paid_date: p.paid_date || paidDate,
           status: "paid",
-          payment_account: p.payment_account || undefined,
+          payment_account: p?.payment_account?.id ? { id: p.payment_account.id } : { id: conto!.id },
         }))
-      : [{ amount: grossFromFic, due_date: inv.due_date || paidDate, paid_date: paidDate, status: "paid" }];
+      : [{ amount: grossFromFic, due_date: inv.due_date || paidDate, paid_date: paidDate, status: "paid", payment_account: { id: conto!.id } }];
 
     // 3) PUT: aggiorna il documento su FIC.
     const pr = await fetch(`${base}/issued_documents/${inv.external_id}`, {
@@ -159,22 +197,26 @@ Deno.serve(async (req) => {
       body: JSON.stringify({ data: { payments_list } }),
     });
     if (pr.status === 401 || pr.status === 403) {
-      return json({ error: "scope", detail: "Token Fatture in Cloud senza permesso di scrittura. Riconnetti FIC dalle Impostazioni autorizzando la scrittura." }, 403);
+      await supabase.from("billing_integrations").update({ scrittura_incassi_autorizzata: false }).eq("id", integ.id);
+      return json({ ok: false, motivo: "permesso", messaggio: PERMESSO });
     }
     if (!pr.ok) {
       const t = await pr.text().catch(() => "");
+      let dettaglio = t.slice(0, 300);
+      try { dettaglio = JSON.parse(t)?.error?.message || dettaglio; } catch { /* testo grezzo */ }
       await supabase.from("billing_sync_log").insert({
         company_id: inv.company_id, invoice_id: inv.id, provider: "fattureincloud",
         direction: "push", action: "mark_paid", status: "error", error_message: `FIC ${pr.status}: ${t.slice(0, 300)}`,
       });
-      return json({ error: `Errore Fatture in Cloud (${pr.status})`, detail: t.slice(0, 300) }, 502);
+      return json({ ok: false, motivo: "errore", messaggio: `Fatture in Cloud ha rifiutato l'aggiornamento: ${dettaglio}` });
     }
 
     await supabase.from("billing_sync_log").insert({
       company_id: inv.company_id, invoice_id: inv.id, provider: "fattureincloud",
       direction: "push", action: "mark_paid", status: "success",
+      response_payload: conto ? { conto_di_saldo: { id: conto.id, nome: conto.name ?? null } } : null,
     });
-    return json({ ok: true });
+    return json({ ok: true, conto: conto?.name ?? null });
   } catch (e) {
     return json({ error: String(e) }, 500);
   }

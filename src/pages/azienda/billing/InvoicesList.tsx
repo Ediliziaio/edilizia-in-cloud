@@ -207,26 +207,29 @@ export default function InvoicesList() {
 
       // Write-back: se la fattura arriva da un gestionale, registra il pagamento
       // anche lì (best-effort: l'incasso in app resta salvato comunque).
-      let writeback: "ok" | "scope" | "error" | "skipped" = "skipped";
+      // La funzione risponde 200 con { ok, messaggio }: il messaggio dice cosa
+      // sistemare su Fatture in Cloud (permesso, conto di saldo).
+      let writeback: "ok" | "problema" | "error" | "skipped" = "skipped";
+      let messaggio = "";
       if (inv.externalProvider === "fattureincloud") {
         try {
           const { data: pr, error: pErr } = await supabase.functions.invoke("billing-payment-push", {
             body: { invoice_id: inv.id },
           });
-          writeback = pErr ? "error" : pr?.error === "scope" ? "scope" : pr?.ok ? "ok" : "skipped";
+          if (pErr) writeback = "error";
+          else if (pr?.ok) writeback = "ok";
+          else if (pr?.messaggio) { writeback = "problema"; messaggio = String(pr.messaggio); }
         } catch { writeback = "error"; }
       }
-      return { writeback };
+      return { writeback, messaggio };
     },
     onSuccess: (res) => {
       if (res?.writeback === "ok") {
-        toast.success("Pagata — sincronizzata su Fatture in Cloud");
-      } else if (res?.writeback === "scope") {
-        toast.warning("Pagata in EdiliziaInCloud", {
-          description: "Non aggiornata su Fatture in Cloud: manca il permesso di scrittura. Riconnetti FIC autorizzando la scrittura.",
-        });
+        toast.success("Pagata — aggiornata anche su Fatture in Cloud");
+      } else if (res?.writeback === "problema") {
+        toast.warning("Pagata in Edilizia in Cloud, non su Fatture in Cloud", { description: res.messaggio });
       } else if (res?.writeback === "error") {
-        toast.warning("Pagata in app", {
+        toast.warning("Pagata in Edilizia in Cloud", {
           description: "Aggiornamento su Fatture in Cloud non riuscito, riprova più tardi.",
         });
       } else {

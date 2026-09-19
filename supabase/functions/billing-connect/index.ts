@@ -56,14 +56,17 @@ serveConMetriche("billing-connect", async (req) => {
       `client_id=${FIC_CLIENT_ID}` +
       `&redirect_uri=${encodeURIComponent(FIC_REDIRECT_URI)}` +
       `&response_type=code` +
-      // Sola lettura (import/monitoraggio). Scope GRANULARI validi FIC v2 (verificati su
+      // Import/monitoraggio + registrazione degli incassi. Scope GRANULARI validi FIC v2 (verificati su
       // developers.fattureincloud.it/docs/basics/scopes): NON esiste "issued_documents:r"
       // né "info:r". Servono invoices + credit_notes (documenti emessi importati) +
       // entity.clients (anagrafica cliente embeddata nelle fatture). Separatore = spazio (qui "+").
       // issued_* = fatture emesse; received_documents = fatture PASSIVE (ricevute dai
       // fornitori) → import in fatture_ricevute. ⚠️ Le aziende già collegate devono
       // RICONNETTERE l'account FIC per concedere il nuovo scope received_documents:r.
-      `&scope=issued_documents.invoices:r+issued_documents.credit_notes:r+received_documents:r+entity.clients:r+entity.suppliers:r` +
+      // issued_documents.invoices:a (dal 19/09/2026): serve a billing-payment-push per
+      // segnare pagata su FIC una fattura incassata in EiC. Senza, il pulsante non poteva
+      // funzionare. Nessun'altra scrittura: EiC non crea né modifica altro su FIC.
+      `&scope=issued_documents.invoices:r+issued_documents.invoices:a+issued_documents.credit_notes:r+received_documents:r+entity.clients:r+entity.suppliers:r` +
       // ⚠️ encodeURIComponent OBBLIGATORIO: btoa() produce base64 con `+`, `/`, `=` che nel
       // querystring vengono interpretati (es. `+`→spazio) corrompendo lo state → al callback
       // atob() fallisce e company_id va perso (token salvato sull'azienda sbagliata).
@@ -112,6 +115,8 @@ serveConMetriche("billing-connect", async (req) => {
       provider_company_name: ficCo?.name,
       provider_vat_number: ficCo?.vat_number,
       auto_sync: true,
+      // L'URL di autorizzazione chiede issued_documents.invoices:a: segna pagata funziona.
+      scrittura_incassi_autorizzata: true,
       updated_at: new Date().toISOString(),
     }, { onConflict: "company_id,provider" });
 
