@@ -57,6 +57,12 @@ export interface PassoFlusso {
   giorni_dopo_sblocco?: number;
   /** Fatto che chiude il passo da solo; null = si chiude a mano. */
   chiudi_su_evento?: EventoChiusura | null;
+  /**
+   * Fase (`order_statuses`) in cui passa la commessa quando questo passo si
+   * chiude; null = la fase non cambia. Solo commesse: il trigger DB
+   * `avanza_fase_da_passo_chiuso` la applica, e solo in avanti.
+   */
+  fase_raggiunta_id?: string | null;
 }
 
 interface RigaTemplate {
@@ -70,10 +76,11 @@ interface RigaTemplate {
   dipende_da_id: string | null;
   giorni_dopo_sblocco: number;
   chiudi_su_evento: string | null;
+  fase_raggiunta_id: string | null;
 }
 
 const CAMPI_TEMPLATE =
-  "id, titolo, descrizione, giorni_offset, priorita, assegna_a_utente, assegna_a_ufficio_id, dipende_da_id, giorni_dopo_sblocco, chiudi_su_evento";
+  "id, titolo, descrizione, giorni_offset, priorita, assegna_a_utente, assegna_a_ufficio_id, dipende_da_id, giorni_dopo_sblocco, chiudi_su_evento, fase_raggiunta_id";
 
 /**
  * Legge il flusso configurato dall'azienda per questo ambito e questo vertical
@@ -107,6 +114,7 @@ export async function leggiFlussoAzienda(params: {
     dipende_da_id: t.dipende_da_id ?? null,
     giorni_dopo_sblocco: Number(t.giorni_dopo_sblocco) || 0,
     chiudi_su_evento: (t.chiudi_su_evento as EventoChiusura | null) ?? null,
+    fase_raggiunta_id: t.fase_raggiunta_id ?? null,
   }));
 }
 
@@ -227,6 +235,8 @@ export async function applicaFlusso(params: ApplicaFlussoParams): Promise<{ crea
         ? responsabilePerUfficio.get(s.assegna_a_ufficio_id) ?? null
         : s.assegna_a_utente ?? assignedTo ?? createdBy,
       created_by: createdBy,
+      // La fase la avanza il DB alla chiusura (trigger avanza_fase_da_passo_chiuso).
+      fase_al_completamento_id: ambito === "commessa" ? s.fase_raggiunta_id ?? null : null,
     };
   };
 

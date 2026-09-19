@@ -64,6 +64,8 @@ interface Row {
   dipende_da_key: string | null;
   /** Fatto che chiude il passo da solo; null = lo spunta una persona. */
   chiudi_su_evento: EventoChiusura | null;
+  /** Fase in cui passa la commessa quando il passo si chiude; null = resta dov'è. */
+  fase_raggiunta_id: string | null;
 }
 
 /** Riga come arriva dal DB. */
@@ -79,6 +81,7 @@ interface DbRow {
   assegna_a_ufficio_id: string | null;
   dipende_da_id: string | null;
   chiudi_su_evento: string | null;
+  fase_raggiunta_id: string | null;
 }
 
 const PRIORITA = ["bassa", "normale", "alta", "urgente"] as const;
@@ -89,6 +92,8 @@ const RESPONSABILE = "__responsabile__";
 const PREFISSO_UFFICIO = "uff:";
 /** Il passo lo chiude una persona spuntandolo. */
 const A_MANO = "__a_mano__";
+/** Chiudere il passo non cambia la fase della commessa. */
+const STESSA_FASE = "__stessa_fase__";
 
 function newKey() {
   return `r-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -139,13 +144,30 @@ export function PlaybookEditorDialog({ open, onOpenChange, companyId, ambito = "
     if (error) { setAutoApply(!val); toast.error("Non riesco a salvare l'interruttore: " + error.message); }
   };
 
+  // Chiave propria: la stessa di OrderDetail con un select diverso
+  // avvelenerebbe la cache di entrambe le schermate.
+  const { data: fasi = [] } = useQuery({
+    queryKey: ["order-statuses-flusso", companyId],
+    enabled: open && !!companyId && !perTicket,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("order_statuses")
+        .select("id, name, position")
+        .eq("company_id", companyId)
+        .order("position");
+      if (error) throw error;
+      return (data ?? []) as Array<{ id: string; name: string; position: number }>;
+    },
+  });
+
   const { data: dbRows, isLoading, refetch } = useQuery({
     queryKey: ["order-task-template", companyId, ambito, v],
     enabled: open && !!companyId,
     queryFn: async () => {
       let q = supabase
         .from("order_task_template")
-        .select("id, titolo, giorni_offset, giorni_dopo_sblocco, priorita, attivo, sort_order, assegna_a_utente, assegna_a_ufficio_id, dipende_da_id, chiudi_su_evento")
+        .select("id, titolo, giorni_offset, giorni_dopo_sblocco, priorita, attivo, sort_order, assegna_a_utente, assegna_a_ufficio_id, dipende_da_id, chiudi_su_evento, fase_raggiunta_id")
         .eq("company_id", companyId)
         .eq("ambito", ambito)
         .order("sort_order", { ascending: true });
@@ -173,6 +195,7 @@ export function PlaybookEditorDialog({ open, onOpenChange, companyId, ambito = "
         assegna_a_utente: r.assegna_a_utente ?? null,
         assegna_a_ufficio_id: r.assegna_a_ufficio_id ?? null,
         chiudi_su_evento: (r.chiudi_su_evento as EventoChiusura | null) ?? null,
+        fase_raggiunta_id: r.fase_raggiunta_id ?? null,
         dipende_da_key: r.dipende_da_id ? keyPerId.get(r.dipende_da_id) ?? null : null,
       })),
     );
@@ -197,6 +220,7 @@ export function PlaybookEditorDialog({ open, onOpenChange, companyId, ambito = "
       assegna_a_utente: null,
       assegna_a_ufficio_id: null,
       chiudi_su_evento: s.chiudi_su_evento ?? null,
+      fase_raggiunta_id: null,
       dipende_da_key: i === 0 ? null : keys[i - 1],
     })));
     toast.info("Flusso standard importato a catena — assegna le persone e salva.");
@@ -212,6 +236,7 @@ export function PlaybookEditorDialog({ open, onOpenChange, companyId, ambito = "
     assegna_a_utente: null,
     assegna_a_ufficio_id: null,
     chiudi_su_evento: null,
+    fase_raggiunta_id: null,
     // Di default il nuovo passo si accoda all'ultimo: è il caso normale.
     dipende_da_key: p.length > 0 ? p[p.length - 1]._key : null,
   }]);
@@ -254,6 +279,7 @@ export function PlaybookEditorDialog({ open, onOpenChange, companyId, ambito = "
           assegna_a_utente: r.assegna_a_ufficio_id ? null : r.assegna_a_utente,
           assegna_a_ufficio_id: r.assegna_a_ufficio_id,
           chiudi_su_evento: r.chiudi_su_evento,
+          fase_raggiunta_id: perTicket ? null : r.fase_raggiunta_id,
         }));
         // Prima le righe, poi le dipendenze: l'insert non conosce ancora gli id
         // che sta per generare, quindi `dipende_da_id` si scrive in un secondo
@@ -458,6 +484,24 @@ export function PlaybookEditorDialog({ open, onOpenChange, companyId, ambito = "
                       </SelectContent>
                     </Select>
                   </div>
+
+                  {/* Chiudere il passo sposta la commessa nella fase scelta: chi
+                      guarda l'elenco commesse vede a che punto è senza aprirle. */}
+                  {!perTicket && fasi.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 pl-7 text-xs text-muted-foreground">
+                      <span className="shrink-0">Quando si chiude, la commessa passa a</span>
+                      <Select
+                        value={r.fase_raggiunta_id ?? STESSA_FASE}
+                        onValueChange={(val) => updateRow(r._key, { fase_raggiunta_id: val === STESSA_FASE ? null : val })}
+                      >
+                        <SelectTrigger className="h-8 w-[230px] text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={STESSA_FASE}>nessun cambio di fase</SelectItem>
+                          {fasi.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
 
                   {/* Il passo "aspetta l'incasso" non è lavoro di nessuno: qui
                       si dice al gestionale di accorgersene da solo. */}
