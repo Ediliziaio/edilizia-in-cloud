@@ -72,13 +72,21 @@ export const STAFF_PERMISSION_DEFAULTS: Record<string, boolean | string[]> = {
   // trigger permessi_modifica_segue_visibilita dalla visibilità.
   sola_lettura: false,
   visible_areas: [],
+  // Pipeline che l'utente vede (vuoto = tutte). La regola la applica il
+  // database con policy RESTRICTIVE; qui serve perché l'utente nasca già con
+  // la scelta fatta nella creazione (prima la chiave veniva scartata).
+  pipeline_visibili: [],
 };
+
+// pipeline_visibili è uuid[] in DB: una stringa che non è un id farebbe
+// fallire l'INSERT dell'utente intero.
+const ID_PIPELINE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * Record pronto per l'INSERT/UPSERT su staff_permissions: default completi +
  * merge delle sole chiavi note dal payload (id/user_id/company_id/timestamp e
  * chiavi ignote vengono ignorati; i booleani accettano solo boolean veri,
- * visible_areas solo array di stringhe).
+ * visible_areas solo array di stringhe, pipeline_visibili solo id di pipeline).
  */
 export function buildStaffPermissionsRecord(
   userId: string,
@@ -95,6 +103,8 @@ export function buildStaffPermissionsRecord(
       if (!(key in STAFF_PERMISSION_DEFAULTS)) continue;
       if (key === "visible_areas") {
         if (Array.isArray(value)) record[key] = value.filter((v) => typeof v === "string");
+      } else if (key === "pipeline_visibili") {
+        if (Array.isArray(value)) record[key] = value.filter((v) => typeof v === "string" && ID_PIPELINE.test(v));
       } else if (typeof value === "boolean") {
         record[key] = value;
       }

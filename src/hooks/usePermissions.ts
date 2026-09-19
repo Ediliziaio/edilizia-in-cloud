@@ -136,6 +136,9 @@ export interface Permissions {
   onlyMyWarehouse: boolean;
   /** Aree visibili all'utente. Vuoto = tutte le aree. */
   visibleAreas: string[];
+  /** Pipeline visibili all'utente (id). Vuoto = tutte. La regola vera la
+   *  applica il database (policy RESTRICTIVE): qui è solo da leggere. */
+  pipelineVisibili: string[];
   /** Vede le sue aree ma non crea e non modifica nulla (staff_permissions.sola_lettura).
    *  Serve anche dove non c'è una colonna di modifica: appuntamenti, attività,
    *  sopralluoghi (in DB policy RESTRICTIVE con utente_sola_lettura). */
@@ -238,6 +241,7 @@ export const STAFF_PERMISSIONS_SELECT_KEYS = [
   "only_my_warehouse",
   "sola_lettura",
   "visible_areas",
+  "pipeline_visibili",
 ];
 const STAFF_PERMISSIONS_SELECT = STAFF_PERMISSIONS_SELECT_KEYS.join(",");
 
@@ -287,7 +291,7 @@ const ALL_PERMISSIONS: Permissions = {
   canApproveOrders: true, canDeleteOrders: true, canExportClients: true,
   canManagePayments: true, canManageSuppliers: true, canManageWarehouseItems: true,
   canViewFinancialReports: true,
-  isAdmin: true, isLoading: false, loadError: null, onlyAssigned: false, onlyMyWarehouse: false, visibleAreas: [],
+  isAdmin: true, isLoading: false, loadError: null, onlyAssigned: false, onlyMyWarehouse: false, visibleAreas: [], pipelineVisibili: [],
   solaLettura: false,
 };
 
@@ -337,7 +341,7 @@ const NO_PERMISSIONS: Permissions = {
   canApproveOrders: false, canDeleteOrders: false, canExportClients: false,
   canManagePayments: false, canManageSuppliers: false, canManageWarehouseItems: false,
   canViewFinancialReports: false,
-  isAdmin: false, isLoading: false, loadError: null, onlyAssigned: false, onlyMyWarehouse: false, visibleAreas: [],
+  isAdmin: false, isLoading: false, loadError: null, onlyAssigned: false, onlyMyWarehouse: false, visibleAreas: [], pipelineVisibili: [],
   solaLettura: false,
 };
 
@@ -424,7 +428,7 @@ const COMMERCIALISTA_PERMISSIONS: Permissions = {
   canViewSettingsBundle: false, canEditSettingsBundle: false,
   canViewSettingsSuppliers: false, canEditSettingsSuppliers: false,
   canViewSettingsIntegrations: false, canEditSettingsIntegrations: false,
-  isAdmin: false, isLoading: false, loadError: null, onlyAssigned: false, onlyMyWarehouse: false, visibleAreas: [],
+  isAdmin: false, isLoading: false, loadError: null, onlyAssigned: false, onlyMyWarehouse: false, visibleAreas: [], pipelineVisibili: [],
   solaLettura: false,
 };
 
@@ -551,6 +555,7 @@ function mapDbRowToPermissions(row: Record<string, unknown> | null | undefined):
     onlyAssigned:  r["only_assigned"] === true,
     onlyMyWarehouse: r["only_my_warehouse"] === true,
     visibleAreas:  Array.isArray(r["visible_areas"]) ? (r["visible_areas"] as string[]) : [],
+    pipelineVisibili: Array.isArray(r["pipeline_visibili"]) ? (r["pipeline_visibili"] as string[]) : [],
     solaLettura,
   };
 

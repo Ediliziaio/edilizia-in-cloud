@@ -144,7 +144,12 @@ describe("collegamenti", () => {
 describe("verifica del webhook Meta", () => {
   it("accetta anche il token delle impostazioni di piattaforma, senza ripiegare su WhatsApp", () => {
     const webhook = leggi("supabase/functions/meta-webhook/index.ts");
-    expect(webhook).toMatch(/eq\("key", "meta_webhook_verify_token"\)/);
+    // Dal 19/09/2026 i segreti di piattaforma stanno nel Vault: il token delle
+    // impostazioni si legge con leggiImpostazionePiattaforma, che passa dalla
+    // funzione impostazione_piattaforma, non più da platform_settings.
+    expect(webhook).toMatch(/leggiImpostazionePiattaforma\("meta_webhook_verify_token"\)/);
+    expect(webhook).toMatch(/tokenAccettati\.push\(dbToken\)/);
+    expect(leggi("supabase/functions/_shared/getPlatformSetting.ts")).toMatch(/rpc\("impostazione_piattaforma"/);
     expect(webhook).toMatch(/Deno\.env\.get\("META_WEBHOOK_VERIFY_TOKEN"\)/);
     expect(webhook).not.toMatch(/WHATSAPP_VERIFY_TOKEN|WA_VERIFY_TOKEN/);
   });

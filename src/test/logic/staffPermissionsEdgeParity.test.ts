@@ -65,6 +65,15 @@ describe("staff_permissions: parità edge ↔ client", () => {
     expect("chiave_inventata" in record).toBe(false);
   });
 
+  it("buildStaffPermissionsRecord: pipeline_visibili passa solo con id veri (uuid[] in DB)", () => {
+    const id = "193b7839-f388-4b50-ae05-e53717067d33";
+    const record = buildStaffPermissionsRecord("u", "c", {
+      pipeline_visibili: [id, "Nutrimento", 7 as unknown as string, ""],
+    });
+    expect(record.pipeline_visibili).toEqual([id]);
+    expect(buildStaffPermissionsRecord("u", "c").pipeline_visibili).toEqual([]);
+  });
+
   it("senza payload restituisce i puri default (+ user/company)", () => {
     const record = buildStaffPermissionsRecord("u", "c");
     expect(Object.keys(record).length).toBe(Object.keys(STAFF_PERMISSION_DEFAULTS).length + 2);
