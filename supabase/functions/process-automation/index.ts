@@ -20,6 +20,7 @@ import { getCorsHeaders, secureHeaders } from "../_shared/headers.ts";
 import { appendTrackingSig } from "../_shared/emailTrackingSignature.ts";
 import { arcoDelRamo, inizioGiornoRoma, leggiPercentuali, letteraRamo, modalitaSplit, ramoEquilibrato, ramoPerNumero } from "../_shared/splitRami.ts";
 import { nomeOpportunitaPulito, personeDaAvvisare, tagsUniti, testoNotaAggiornamento } from "../_shared/creaAggiornaOpportunita.ts";
+import { conLinkCliccabili, numeroWhatsApp, schedaAndataAvanti, senzaSpazioPrimaDellaVirgola } from "../_shared/sequenzaContatto.ts";
 import { isInternalRequest, isSuperAdminEmailAllowed, requireAuth, requireCompanyAccess, requireInternalSecret, resolveUserEmail } from "../_shared/auth.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import {
@@ -568,24 +569,54 @@ async function processQueue(supabase: any) {
       const { data: contatto } = await supabase.from("marketing_contacts")
         .select("email").eq("id", item.entity_id).maybeSingle();
       const indirizzo = String(contatto?.email ?? "").trim().toLowerCase();
-      if (!indirizzo) return false;
 
-      const { data: risposta } = await supabase.from("email_inbox")
-        .select("id").eq("company_id", item.company_id)
-        .ilike("from_email", indirizzo)
-        .gt("received_at", iscr.created_at)
-        .limit(1).maybeSingle();
-      if (!risposta) return false;
+      let motivo: string | null = null;
+      if (indirizzo) {
+        const { data: risposta } = await supabase.from("email_inbox")
+          .select("id").eq("company_id", item.company_id)
+          .ilike("from_email", indirizzo)
+          .gt("received_at", iscr.created_at)
+          .limit(1).maybeSingle();
+        if (risposta) motivo = "il contatto ha risposto";
+      }
 
-      // Ha risposto: si chiude l'iscrizione e si annulla tutta la coda residua,
-      // non solo il passo corrente.
+      // La scheda andata avanti a mano (19/09/2026). WhatsApp e prenotazioni
+      // spesso passano da canali che il CRM non vede (il telefono di chi
+      // vende, un calendario esterno): quando qualcuno prende in mano il
+      // contatto sposta la sua scheda oltre la prima fase, e da lì la
+      // sequenza automatica si ferma. La creazione della scheda non conta.
+      if (!motivo) {
+        const { data: opps } = await supabase.from("marketing_opportunities")
+          .select("id").eq("company_id", item.company_id).eq("contact_id", item.entity_id)
+          .is("deleted_at", null).limit(20);
+        const idsOpp = ((opps ?? []) as Array<{ id: string }>).map((o) => o.id);
+        if (idsOpp.length) {
+          const { data: ingressi } = await supabase.from("marketing_opportunity_stage_history")
+            .select("stage_id, entered_at").in("opportunity_id", idsOpp)
+            .gt("entered_at", iscr.created_at).limit(50);
+          const righe = (ingressi ?? []) as Array<{ stage_id: string; entered_at: string | null }>;
+          const fasi = [...new Set(righe.map((r) => r.stage_id))];
+          if (fasi.length) {
+            const { data: st } = await supabase.from("marketing_pipeline_stages")
+              .select("id, position").in("id", fasi);
+            const posizioni = new Map(((st ?? []) as Array<{ id: string; position: number | null }>).map((x) => [x.id, x.position]));
+            if (schedaAndataAvanti(righe, posizioni, iscr.created_at)) {
+              motivo = "la scheda del contatto è andata avanti nella pipeline";
+            }
+          }
+        }
+      }
+      if (!motivo) return false;
+
+      // Si chiude l'iscrizione e si annulla tutta la coda residua, non solo il
+      // passo corrente.
       await supabase.from("automation_enrollments")
         .update({ status: "stopped", updated_at: new Date().toISOString() })
         .eq("id", item.enrollment_id);
       await supabase.from("automation_queue")
-        .update({ status: "cancelled", last_error: "fermata: il contatto ha risposto", updated_at: new Date().toISOString() })
+        .update({ status: "cancelled", last_error: `fermata: ${motivo}`, updated_at: new Date().toISOString() })
         .eq("enrollment_id", item.enrollment_id).eq("status", "pending");
-      console.log(`[process-automation] iscrizione ${item.enrollment_id} fermata: il contatto ha risposto`);
+      console.log(`[process-automation] iscrizione ${item.enrollment_id} fermata: ${motivo}`);
       return true;
     } catch (e) {
       // Fail-open: un controllo che non riesce non deve bloccare la sequenza.
@@ -1845,7 +1876,8 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
       const resolveNotifText = async (s: unknown): Promise<string> => {
         if (typeof s !== "string" || s === "") return "";
         const withContact = notifContact ? await resolveContactText(supabase, s, notifContact, companyId) : s;
-        return rv(withContact);
+        // «Ciao {{contatto.first_name}},» col nome vuoto: niente «Ciao ,».
+        return senzaSpazioPrimaDellaVirgola(rv(withContact));
       };
       const messaggio = (await resolveNotifText(ncfg.messaggio || ncfg.testo)).trim();
       if (!messaggio) return { success: false, error: "Nessun messaggio configurato" };
@@ -1928,7 +1960,7 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
         );
         const bodyLines = messaggio
           .split("\n")
-          .map((l) => `<p style="margin:0 0 10px;line-height:1.55;color:#1f2937">${escapeNotif(l) || "&nbsp;"}</p>`)
+          .map((l) => `<p style="margin:0 0 10px;line-height:1.55;color:#1f2937">${conLinkCliccabili(escapeNotif(l)) || "&nbsp;"}</p>`)
           .join("");
         const html = `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" lang="it"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><meta name="color-scheme" content="light"/></head>
@@ -3563,6 +3595,9 @@ async function executeSendEmail(supabase: any, cfg: Record<string, any>, entityI
     // vanno per prime: le altre regole non le conoscono.
     html = await resolveContactText(supabase, conVariabili(html), contact, companyId);
     subject = await resolveContactText(supabase, conVariabili(subject), contact, companyId);
+    // «Ciao {{contatto.first_name}},» con il nome vuoto usciva «Ciao ,».
+    html = senzaSpazioPrimaDellaVirgola(html);
+    subject = senzaSpazioPrimaDellaVirgola(subject);
 
     // Fattura della commessa in allegato (nodo «allega la fattura»): l'ultima
     // caricata in «Fatture e pagamenti» (vedi scegliFatturaDaAllegare). Se
@@ -3579,11 +3614,25 @@ async function executeSendEmail(supabase: any, cfg: Record<string, any>, entityI
     }
 
     if (casellaId) {
+      // Anche dalla casella collegata, un'email a un contatto deve poter dire
+      // «esci qui»: prima {{unsubscribe_url}} restava scritto così nel testo
+      // (19/09/2026, sequenza «Download Risorse — PDF Vendita» che parte da
+      // info@ perché il canale marketing è scaduto).
+      if (!commessa && html.includes("{{unsubscribe_url}}")) {
+        const urlUscita = await appendTrackingSig(
+          `${Deno.env.get("SUPABASE_URL")!}/functions/v1/email-tracking?type=automation_unsub&rid=${contact.id}&co=${companyId}`,
+          { co: companyId, rid: contact.id, type: "automation_unsub" },
+        );
+        html = html.replace(/\{\{unsubscribe_url\}\}/g, urlUscita);
+      }
       return await inviaDaCasellaAzienda(supabase, {
         casellaId, companyId, toAddress, subject, html,
         cc: listaEmail(conVariabili(String(cfg.cc ?? ""))),
         fattura,
         orderId: commessa ? entityId : null,
+        // «Da nome» del nodo: senza, il nome è quello del profilo di chi ha
+        // collegato la casella (e «flo.andriciuc Admin» non passava il filtro).
+        fromName: typeof cfg.from_name === "string" ? cfg.from_name : null,
       });
     }
 
@@ -3838,6 +3887,7 @@ async function inviaDaCasellaAzienda(supabase: any, p: {
   cc: string[];
   fattura: { file_name: string; file_url: string; file_type: string | null; file_size: number | null } | null;
   orderId: string | null;
+  fromName?: string | null;
 }) {
   const { data: conn } = await supabase
     .from("email_oauth_connections")
@@ -3859,6 +3909,8 @@ async function inviaDaCasellaAzienda(supabase: any, p: {
     cc_emails: p.cc,
     subject: p.subject,
     body_html: p.html,
+    // eslint-disable-next-line no-control-regex -- niente caratteri di controllo nell'intestazione
+    from_name: p.fromName ? p.fromName.replace(/[\x00-\x1F\x7F]/g, "").trim().slice(0, 78) || null : null,
     attachments: p.fattura
       ? [{ filename: p.fattura.file_name, mime: p.fattura.file_type || "application/pdf", size: p.fattura.file_size ?? undefined, storage_path: p.fattura.file_url, bucket: "order-attachments" }]
       : [],
@@ -4157,6 +4209,9 @@ async function resolveContactText(
     provincia: contact?.province ?? "",
     citta: contact?.city ?? "",
     telefono: contact?.phone ?? "",
+    // Il numero come lo vuole wa.me, per il link che apre la chat dal
+    // telefono (notifiche «manda questo WhatsApp a …»).
+    telefono_whatsapp: numeroWhatsApp(contact?.phone),
     azienda: contact?.company_name ?? "",
   };
 

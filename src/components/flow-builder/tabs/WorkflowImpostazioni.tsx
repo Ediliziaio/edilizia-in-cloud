@@ -103,7 +103,7 @@ export function WorkflowImpostazioni({ flowId }: Props) {
           />
           <ToggleSetting
             titolo="Interrompi su risposta"
-            descrizione="Se il contatto risponde a un messaggio, il flusso viene interrotto."
+            descrizione="Si ferma se il contatto risponde a un'email, o se sposti la sua scheda oltre la prima fase della pipeline: da lì te ne occupi tu (WhatsApp, chiamata, appuntamento)."
             valore={get("stop_on_reply", false)}
             onChange={(v) => handleChange("stop_on_reply", v)}
           />

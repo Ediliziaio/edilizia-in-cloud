@@ -418,7 +418,13 @@ serveConMetriche("email-send", async (req) => {
     // un client di posta scrive «Florin Andriciuc <info@…>». Il nome è quello
     // del profilo di chi invia.
     let fromName: string | null = null;
-    try {
+    // Il nome scelto da chi ha costruito l'automazione («da nome» del nodo
+    // email) vince su quello del profilo (19/09/2026).
+    const nomeScelto = typeof (outbox as { from_name?: unknown }).from_name === "string"
+      ? String((outbox as { from_name: string }).from_name).trim()
+      : "";
+    if (nomeScelto) fromName = nomeScelto;
+    if (!fromName) try {
       const { data: prof } = await supabase
         .from("profiles").select("first_name, last_name").eq("id", outbox.user_id).maybeSingle();
       const nome = [prof?.first_name, prof?.last_name].filter(Boolean).join(" ").trim();
