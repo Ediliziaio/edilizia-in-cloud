@@ -20,338 +20,349 @@ import {
 import FunzionalitaPageTemplate from "./_template/FunzionalitaPageTemplate";
 import type { FunzionalitaPageConfig } from "./_template/types";
 
+// Contenuti verificati nel codice e nel database il 19/09/2026. Il modulo
+// prepara una BOZZA di cedolino dalle timbrature (ore ordinarie, straordinari
+// 25/50/100%, lordo da anagrafica, INPS, Cassa Edile e IRPEF con le aliquote
+// standard dell'Edilizia Industria) e tiene l'archivio dei cedolini. Non fa:
+// tabelle CCNL per livello, Artigianato/PMI, casse edili provinciali, malattia,
+// tredicesima, TFR, trasferte, banca ore, comunicazioni di assunzione, denunce
+// all'INPS o alla Cassa Edile, invio telematico dell'F24, libro unico, firma
+// digitale dei cedolini, export verso programmi paghe. Non sostituisce il
+// consulente del lavoro: prima di aggiungere una promessa, controllare che ci sia.
+// Le ferie approvate in app NON entrano ancora nella bozza (il calcolo legge
+// hr_assenze, l'app scrive hr_richieste): non scrivere che «tiene conto delle ferie».
 const config: FunzionalitaPageConfig = {
   slug: "cedolini-paga",
   definizione:
-    "Cedolini Paga di Edilizia in Cloud è il modulo paghe con CCNL Edilizia industria e artigianato già configurato: calcolo automatico della Cassa Edile, ferie, ROL e banca ore, malattia INPS, F24 telematico e denunce UNILAV e UNIEMENS, per produrre i cedolini senza consulente esterno ogni mese.",
+    "Cedolini Paga di Edilizia in Cloud prepara la bozza del cedolino di ogni operaio partendo dalle timbrature vere: ore ordinarie, straordinari al 25, 50 e 100%, lordo dallo stipendio in anagrafica, contributi INPS e Cassa Edile e IRPEF con le aliquote standard dell'Edilizia Industria. Il consulente del lavoro controlla e chiude; i cedolini restano in archivio e gli operai li vedono dall'app.",
   vertical: "Cedolini Paga",
   productName: "Modulo Cedolini Paga Edilizia in Cloud",
   audience:
-    "Imprese edili, ristrutturatori, general contractor e artigiani edili che vogliono produrre cedolini paga internamente con CCNL Edilizia industria/artigianato già configurato, calcolo automatico cassa edile, F24, UNILAV e UNIEMENS senza dipendere dal consulente esterno",
+    "Imprese edili, ristrutturatori, general contractor e artigiani edili che vogliono passare al consulente del lavoro ore e presenze già calcolate dalle timbrature, con una bozza di cedolino da controllare e l'archivio dei cedolini consultabile dagli operai",
   audienceShort: "imprese edili e artigiani",
 
   seo: {
     title:
       "Cedolini Paga Edilizia",
     description:
-      "Cedolini paga per imprese edili: CCNL Edilizia preconfigurato, cassa edile calcolata in automatico, ferie, ROL, banca ore e F24 dei contributi.",
+      "Bozza di cedolino dalle timbrature: ore, straordinari 25/50/100%, INPS, Cassa Edile e IRPEF. Il consulente controlla, gli operai li vedono in app.",
     keywords:
-      "cedolini paga edilizia, software paghe imprese edili, CCNL edilizia industria, CCNL edilizia artigianato, cassa edile automatica, F24 edilizia, UNILAV edilizia, UNIEMENS edilizia, paghe operai cantiere",
+      "cedolini paga edilizia, bozza cedolino operai, straordinari edilizia 25 50 100, calcolo contributi cassa edile, timbrature cantiere buste paga, archivio cedolini dipendenti, ferie ROL edilizia, consulente del lavoro edilizia, paghe operai cantiere",
     ogImage: "https://www.ediliziaincloud.com/og/og-default.png",
   },
 
   heroBadge: "Funzionalità · Cedolini Paga",
   heroH1Lead: "Cedolini paga edilizia",
-  heroH1Highlight: "senza consulente esterno",
-  heroH1Tail: "ogni mese",
+  heroH1Highlight: "già calcolati dalle timbrature",
+  heroH1Tail: "per il tuo consulente",
   heroSubheadline:
-    "Modulo paghe con CCNL Edilizia industria e artigianato preconfigurato, calcolo automatico cassa edile, ferie ROL banca ore, malattia INPS, F24 telematico, denuncia UNILAV e UNIEMENS. Produci cedolini, livelli di inquadramento, accantonamenti GNF e gratifica natalizia direttamente in azienda, riducendo del 50% la dipendenza dal consulente paga esterno.",
+    "Le ore che gli operai timbrano in cantiere diventano la bozza del cedolino: ore ordinarie, straordinari al 25, 50 e 100%, lordo, contributi INPS e Cassa Edile, IRPEF. I giorni con timbrature incomplete sono segnalati. Il consulente del lavoro controlla e chiude, tu smetti di mandargli fogli presenze ricopiati a mano.",
   heroPrimaryCta: "Prova gratis 31 giorni",
   heroSecondaryCta: "Tutte le funzionalità",
   heroSecondaryCtaTo: "/funzionalita",
 
   reassurancePoints: [
-    "CCNL Edilizia preconfigurato e aggiornato",
-    "Cassa Edile automatica con denuncia MUT",
-    "F24 telematico generato in 1 click",
+    "Bozza calcolata dalle timbrature vere",
+    "Straordinari 25/50/100% separati",
+    "Il consulente controlla e chiude",
   ],
   proofPoints: [
-    "Cedolini in PDF firmati digitalmente",
-    "UNILAV e UNIEMENS automatici",
-    "Banca ore e ROL sempre a saldo",
+    "Archivio cedolini per dipendente",
+    "Cedolini visibili dall'app operaio",
+    "Saldi ferie, permessi e ROL aggiornati",
   ],
 
   objectiveRow: [
-    ["Obiettivo", "Produrre cedolini paga edilizia internamente, senza errori e senza ritardi"],
-    ["Momento chiave", "Ogni fine mese, con il consulente che oggi ti costa €30-100/h"],
-    ["Risultato", "-50% dipendenza dal consulente, zero errori cassa edile, F24 in 1 click"],
+    ["Obiettivo", "Passare al consulente ore e presenze già calcolate, senza fogli Excel"],
+    ["Momento chiave", "Fine mese, quando le presenze vanno chiuse e girate al consulente"],
+    ["Risultato", "Meno ricopiature, errori sulle ore visti prima, cedolini consultabili dagli operai"],
   ],
 
   betaH2:
-    "Più di 280 imprese edili italiane producono cedolini paga e adempimenti CCNL Edilizia direttamente con Edilizia in Cloud.",
+    "Il cedolino parte da dove nasce il dato: la timbratura in cantiere.",
   betaBody:
-    "Il modulo Cedolini Paga è attivo in 48 ore: importiamo l'anagrafica dipendenti, configuriamo il CCNL applicato (Industria, Artigianato o PMI Edilizia), agganciamo la tua Cassa Edile provinciale, sincronizziamo banca ore e ferie residue. Quattro sessioni 1-a-1 con il nostro team paghe ti accompagnano fino al primo cedolino mensile chiuso senza errori.",
+    "Carichiamo l'anagrafica dei dipendenti con lo stipendio di ciascuno e colleghiamo le timbrature dell'app di cantiere. Da lì, ogni mese, il modulo calcola la bozza del cedolino con le aliquote standard dell'Edilizia Industria. Se applichi l'Artigianato o un altro contratto, i contributi della bozza vanno verificati con il consulente: oggi quelle aliquote non sono configurate.",
 
   speedH2:
-    "Il consulente paga ti costa €600-1.500 al mese per 5-15 dipendenti. Il software li fa in 20 minuti.",
+    "Il consulente paga riceve ore già contate, non un foglio presenze da ricostruire.",
   speedSubheadline:
-    "Le imprese edili pagano in media €40-80/mese a dipendente al consulente paga esterno per cedolini, F24 e adempimenti. Con il CCNL Edilizia preconfigurato e il calcolo automatico cassa edile, l'elaborazione mensile si fa in azienda in 20 minuti, lasciando al consulente solo la consulenza strategica.",
+    "Oggi il foglio presenze passa dal capocantiere all'ufficio e dall'ufficio al consulente, e a ogni passaggio si perde un'ora o se ne conta una di troppo. Con le timbrature in app le ore sono già nel gestionale: la bozza del cedolino si calcola da lì e il consulente parte da numeri che puoi mostrargli giorno per giorno.",
   speedStats: [
-    { value: 50, prefix: "-", suffix: "%", label: "costo consulente paga esterno" },
-    { value: 20, suffix: " min", label: "elaborazione mensile cedolini" },
-    { value: 100, suffix: "%", label: "conformità CCNL Edilizia aggiornato" },
+    { value: 3, label: "fasce di straordinario separate in bozza: 25, 50 e 100%" },
+    { value: 1, label: "bozza di cedolino per operaio al mese, calcolata dalle timbrature" },
+    { value: 0, label: "fogli Excel di presenze da mandare al consulente" },
   ],
 
-  familyH2: "Cedolini paga collegati a presenze, cantiere e contabilità.",
+  familyH2: "Cedolini collegati a timbrature, ferie e cantiere.",
   familySubheadline:
-    "Il cedolino paga non vive da solo: parte dalle timbrature GPS dei cantieri, attinge ai dati anagrafici HR, alimenta la contabilità con scritture automatiche, genera F24 sincronizzati con la tesoreria. Una sola piattaforma, nessuna riconciliazione manuale.",
+    "Il cedolino non vive da solo: parte dalle timbrature GPS dei cantieri, prende lo stipendio dall'anagrafica del dipendente e segnala le ore che mancano. Le ore restano le stesse ovunque: nella bozza del cedolino, nel costo della commessa, nello storico dell'operaio.",
   familyItems: [
     {
       icon: Users,
       title: "HR Personale",
-      text: "Anagrafica dipendenti, livelli CCNL Edilizia, contratti e mansioni alimentano i cedolini.",
+      text: "Anagrafica dipendenti e stipendio: da qui la bozza del cedolino prende il lordo.",
       to: "/funzionalita/hr-personale",
     },
     {
       icon: Smartphone,
       title: "Timbrature GPS",
-      text: "Ore lavorate per cantiere registrate via app entrano automatiche nel cedolino mensile.",
+      text: "Ore lavorate per cantiere registrate via app: sono la base della bozza mensile.",
       to: "/funzionalita/timbrature-gps",
     },
     {
       icon: Calendar,
       title: "Ferie e Permessi",
-      text: "Saldo ferie ROL banca ore aggiornato in tempo reale, riportato nel cedolino.",
+      text: "Saldi di ferie, permessi e ROL che scendono quando approvi una richiesta.",
       to: "/funzionalita/ferie-permessi",
     },
     {
       icon: Calculator,
       title: "Contabilità Fiscale",
-      text: "Scritture stipendi e oneri sociali generate automaticamente in prima nota.",
+      text: "Righe F24 di IVA e ritenute IRPEF (codice 1001) precompilate: il versamento lo fai tu.",
       to: "/funzionalita/contabilita-fiscale",
     },
     {
       icon: Wallet,
       title: "Tesoreria",
-      text: "F24 e bonifici stipendi sincronizzati con il piano cassa aziendale.",
+      text: "Conti, movimenti e previsionale di cassa dell'impresa in un posto solo.",
       to: "/funzionalita/tesoreria",
     },
     {
       icon: HardHat,
       title: "Margini Cantiere",
-      text: "Costo del lavoro per cantiere alimentato dai cedolini per analisi marginalità.",
+      text: "Le stesse ore delle timbrature pesano sul costo della commessa giusta.",
       to: "/funzionalita/margini-cantiere",
     },
   ],
-  familyBonusTitle: "Una sola piattaforma. Cedolini, presenze, contabilità e cantiere allineati.",
+  familyBonusTitle: "Un dato inserito una volta. Usato dove serve.",
   familyBonusText:
-    "Quando un operaio timbra l'ingresso in cantiere alle 7:30, quel dato confluisce nel cedolino del mese, nel costo orario del cantiere, nella scrittura contabile dello stipendio e nell'F24 di fine mese. Un dato inserito una volta, valorizzato in cinque punti diversi, senza riconciliazioni e senza errori di trascrizione.",
+    "Quando un operaio timbra l'ingresso in cantiere alle 7:30, quell'ora finisce nella bozza del cedolino del mese e nel costo del cantiere su cui ha lavorato. Nessuno la ricopia da un foglio, e se manca l'uscita la bozza te lo segnala prima che il dato arrivi al consulente.",
 
   painKicker: "Il problema vero",
-  painH2: "Il consulente paga ti dà i cedolini il giorno 27 e l'F24 lo ricevi via email il 15.",
+  painH2: "Il foglio presenze arriva al consulente a fine mese, pieno di buchi e di ore contate a memoria.",
   painSubheadline:
-    "L'edilizia ha regole paga uniche in Italia: cassa edile provinciale, GNF, gratifica natalizia, ferie e permessi specifici. Pochi consulenti le conoscono davvero, e quelli che le conoscono costano. Intanto tu non hai visibilità in tempo reale del costo del lavoro per cantiere e gli errori di calcolo li scopri quando arriva l'ispezione.",
+    "L'edilizia ha regole paga sue: straordinari, Cassa Edile, ferie e permessi. Il consulente del lavoro le conosce, ma lavora sui dati che gli mandi tu. Se le ore arrivano da un foglio compilato a fine settimana, gli errori li scopri quando l'operaio apre la busta.",
   painPoints: [
     {
       icon: AlertTriangle,
-      title: "Cassa edile calcolata male o in ritardo",
-      text: "Ogni provincia ha aliquote e scadenze MUT diverse. Il consulente generalista sbaglia accantonamenti GNF, gratifica natalizia o anzianità. Risultato: ispezione, sanzioni e lavoratori che chiedono spiegazioni.",
+      title: "Ore contate a memoria",
+      text: "Il capocantiere compila il foglio presenze il venerdì, ricostruendo la settimana. Un'uscita dimenticata, uno straordinario del sabato non segnato, e il cedolino è sbagliato prima ancora di essere fatto.",
     },
     {
       icon: Clock,
       title: "Cedolini in ritardo, operai arrabbiati",
-      text: "Il consulente consegna i cedolini il 27-28 del mese, gli stipendi escono il 30. Se sbagli un dato di presenza, la correzione slitta al mese dopo. Operai che chiamano arrabbiati ogni 30 giorni.",
+      text: "Il consulente consegna i cedolini a fine mese e gli stipendi escono subito dopo. Se un dato di presenza è sbagliato, la correzione slitta al mese dopo. Operai che chiamano arrabbiati ogni 30 giorni.",
     },
     {
       icon: FileText,
-      title: "UNILAV e UNIEMENS dimenticati o errati",
-      text: "Comunicazione obbligatoria UNILAV entro il giorno prima dell'assunzione, UNIEMENS entro il giorno 30. Gestiti via email tra azienda e consulente, basta una dimenticanza per beccarsi sanzioni INPS.",
+      title: "Straordinari da ricostruire",
+      text: "25%, 50%, 100%: ogni fascia ha la sua maggiorazione. Se il foglio presenze dice solo 'ore totali', qualcuno deve rifare i conti a mano, e di solito è il consulente, a parcella.",
     },
     {
       icon: Wallet,
-      title: "Costo paghe esterno fuori controllo",
-      text: "€40-80/mese a dipendente solo per cedolini ed F24, più consulenze straordinarie a €80-150/h per ogni infortunio, dimissione, malattia lunga. Su 15 operai sono €10.000-15.000/anno.",
+      title: "Il costo del mese lo scopri dalla busta",
+      text: "Quanto ti costa il personale del mese lo sai solo quando arrivano i cedolini. Lordo, contributi e trattenute: numeri che potevi vedere giorni prima, se le ore fossero già state contate.",
     },
   ],
 
   baKicker: "Prima e dopo Edilizia in Cloud",
-  baH2: "Stessa azienda, stesso CCNL, stessi operai. Cambia chi tiene in mano il volante.",
+  baH2: "Stessa azienda, stesso consulente, stessi operai. Cambia da dove partono i numeri.",
   baSubheadline:
-    "Non sostituisci il consulente paga: gli togli il lavoro ripetitivo (cedolini, F24, UNIEMENS) e gli lasci la consulenza strategica (vertenze, contratti complessi, bilancio sociale). Tu paghi meno, lui lavora meglio, gli operai ricevono cedolini puntuali.",
+    "Non sostituisci il consulente del lavoro: gli togli il lavoro di ricostruire le ore. Lui controlla la bozza, applica il contratto giusto, fa gli adempimenti e chiude i cedolini. Tu hai i numeri prima e l'archivio in un posto solo.",
   baAreas: [
     {
-      title: "Elaborazione cedolino mensile",
+      title: "Presenze del mese",
       before:
-        "Mandi al consulente foglio Excel con presenze, lui torna 5 giorni dopo con il cedolino, tu controlli, segnali errori, lui ri-elabora dopo altri 2 giorni. Totale: 7 giorni.",
+        "Mandi al consulente un foglio Excel con le presenze, lui torna dopo qualche giorno con le domande, tu ricostruisci le ore di chi aveva dimenticato di segnare l'uscita.",
       after:
-        "Le timbrature GPS sono già nel sistema. Premi 'genera cedolini', il modulo applica CCNL Edilizia, calcola cassa edile, ferie ROL e malattia INPS. Cedolini pronti in 20 minuti.",
+        "Le timbrature sono già nel gestionale. A fine mese la bozza conta ore ordinarie e straordinari per ogni operaio e segnala i giorni con la timbratura incompleta, così li sistemi prima.",
     },
     {
-      title: "Calcolo Cassa Edile e MUT",
+      title: "Calcolo della bozza",
       before:
-        "Il consulente generalista usa il template 'metalmeccanici' e adatta a mano. Errori su GNF, gratifica natalizia, anzianità professionale edile. Denuncia MUT in ritardo, sanzioni provinciali.",
+        "Nessuna idea di quanto costerà il mese finché non arrivano i cedolini. Contributi e trattenute li scopri a cose fatte.",
       after:
-        "Aliquote provinciali Cassa Edile precaricate per tutte le 91 casse italiane. GNF, gratifica natalizia, anzianità calcolate automaticamente. Denuncia MUT esportata in 1 click con i dati corretti.",
+        "Lordo dallo stipendio in anagrafica, contributi INPS e Cassa Edile e IRPEF calcolati con le aliquote standard dell'Edilizia Industria. Su ogni bozza c'è scritto che va controllata dal consulente del lavoro, ed è così.",
     },
     {
-      title: "Pagamento F24 contributi",
+      title: "F24 del mese",
       before:
-        "Consulente prepara F24 cartaceo o PDF, te lo manda via email, tu lo carichi in home banking, sbagli un codice tributo, scopri l'errore quando arriva la cartella esattoriale 6 mesi dopo.",
+        "Le cifre da versare le scopri dall'email del consulente o del commercialista, a ridosso della scadenza.",
       after:
-        "F24 generato automatico con tutti i codici tributo edilizia (1001, 1002, contributi cassa edile, INAIL). Telematico via Entratel/Fisconline, ricevuta archiviata, sincronizzato con tesoreria.",
+        "Le righe dell'F24 per IVA e ritenute IRPEF (codice 1001) le trovi già precompilate. Il versamento lo fai tu dalla banca o lo fa il commercialista: il gestionale non trasmette l'F24.",
     },
     {
-      title: "UNILAV nuova assunzione",
+      title: "Consegna dei cedolini",
       before:
-        "Telefonata al consulente la mattina dell'assunzione, lui invia UNILAV nel pomeriggio. Se chiama dopo le 12, l'operaio entra in cantiere senza UNILAV trasmessa: rischio sanzione €1.500-12.000.",
+        "Cedolini stampati e consegnati a mano, o girati su WhatsApp. Quando un operaio chiede quello di marzo, lo cerchi nelle email.",
       after:
-        "Compili l'anagrafica dipendente sul gestionale, premi 'genera UNILAV', invio telematico al CPI con ricevuta in 30 secondi. Operaio in cantiere già coperto dalla comunicazione preventiva obbligatoria.",
+        "I cedolini restano nell'archivio di ogni dipendente. L'operaio li vede e li stampa dall'app di cantiere, l'ufficio li trova nell'area personale.",
     },
   ],
 
   mechanismKicker: "Come funziona",
-  mechanismH2: "Tre passaggi mensili. Niente Excel, niente email al consulente per ogni cedolino.",
+  mechanismH2: "Tre passaggi a fine mese. Niente Excel da mandare al consulente.",
   mechanismSubheadline:
-    "Il modulo Cedolini Paga lavora sui dati che già esistono nel gestionale: timbrature GPS, ferie approvate, malattie registrate. Tu controlli e firmi, il sistema calcola e trasmette.",
+    "Il modulo lavora sui dati che già esistono nel gestionale: timbrature e stipendio in anagrafica. Ferie e permessi del mese li controlli tu con il consulente sulla bozza. Il sistema calcola la bozza, tu sistemi le anomalie, il consulente controlla e chiude.",
   mechanismSteps: [
     {
       icon: ClipboardList,
-      title: "Importazione presenze e voci variabili",
-      text: "Il sistema raccoglie automaticamente timbrature GPS dai cantieri, ferie e ROL approvati, malattie con certificato INPS, infortuni. Tu validi le anomalie (max 5 minuti).",
+      title: "Raccolta delle ore del mese",
+      text: "Il sistema prende le timbrature dai cantieri e le separa in ore ordinarie e straordinari al 25, 50 e 100%. I giorni con timbrature incomplete sono segnalati: li sistemi tu prima di andare avanti.",
     },
     {
       icon: Calculator,
-      title: "Elaborazione cedolino con CCNL Edilizia",
-      text: "Applicazione automatica del CCNL Edilizia industria/artigianato/PMI: paga base, indennità di trasferta, EVR, anzianità, cassa edile, GNF, gratifica natalizia, accantonamento TFR. Cedolini pronti in PDF.",
+      title: "Bozza del cedolino",
+      text: "Dal lordo in anagrafica calcola contributi INPS e Cassa Edile e IRPEF con le aliquote standard dell'Edilizia Industria. È una bozza, e lo dice: va controllata dal consulente del lavoro.",
     },
     {
       icon: Send,
-      title: "Invio F24, UNIEMENS, MUT e cedolini",
-      text: "F24 telematico generato e trasmesso via Entratel. UNIEMENS mensile inviato all'INPS. Denuncia MUT alla Cassa Edile provinciale. Cedolini distribuiti agli operai via app, firma digitale inclusa.",
+      title: "Controllo del consulente e archivio",
+      text: "Il consulente verifica, applica il contratto e fa gli adempimenti. I cedolini del mese entrano nell'archivio di ogni dipendente e l'operaio li vede dall'app.",
     },
   ],
-  mechanismCta: "Genera il primo cedolino in demo",
+  mechanismCta: "Guarda una bozza di cedolino in demo",
 
   commercialKicker: "Perché conviene davvero",
-  commercialH2: "Il modulo paghe ti restituisce 8.000-15.000€/anno e zero ansia da scadenza.",
+  commercialH2: "Il consulente lavora su ore vere. Tu vedi il costo del mese prima della busta.",
   commercialBody:
-    "Le imprese edili che producono i cedolini in autonomia con il modulo Edilizia in Cloud risparmiano in media il 50% del costo paghe esterno e azzerano gli errori cassa edile. Il consulente resta come consulente strategico, non come elaboratore meccanico.",
+    "Il valore non sta nel fare a meno del consulente del lavoro: sta nel mandargli dati già puliti e nel vedere i numeri prima di lui. Meno domande avanti e indietro, meno correzioni il mese dopo, operai che trovano il cedolino nell'app.",
   commercialLevers: [
     {
       icon: TrendingUp,
-      title: "Risparmio diretto sul consulente paga",
-      text: "Da €40-80/mese a dipendente a €15-25/mese per la sola consulenza strategica. Su 15 operai sono €4.500-9.000 all'anno di risparmio diretto, certificato in fattura.",
+      title: "Meno ore di ricostruzione",
+      text: "Le presenze non si ricopiano più da un foglio. Il tempo che oggi tu, l'ufficio o il consulente passate a ricostruire le ore del mese si riduce alle anomalie che la bozza ti segnala.",
     },
     {
       icon: ShieldCheck,
-      title: "Zero errori cassa edile e ispezioni",
-      text: "Le 91 casse edili italiane preconfigurate con aliquote, scadenze MUT e accantonamenti aggiornati. Niente più sanzioni provinciali per denunce errate o tardive.",
+      title: "Errori sulle ore visti prima",
+      text: "Un'uscita non timbrata o uno straordinario fuori posto lo vedi nella bozza, non quando l'operaio contesta la busta. Lo sistemi prima che arrivi al consulente.",
     },
     {
       icon: Clock,
-      title: "Cedolini il giorno 25, stipendi il 27",
-      text: "Le imprese pagano gli stipendi 3-5 giorni prima, gli operai sono più sereni, il rapporto azienda-lavoratore migliora. Niente più 'ma quando arriva il cedolino?' in cantiere.",
+      title: "Il costo del personale prima dei cedolini",
+      text: "Appena chiuse le presenze, la bozza ti dà lordo, contributi e trattenute del mese. Sai quanto esce di stipendi prima che te lo dica qualcun altro.",
     },
     {
       icon: Brain,
-      title: "Costo del lavoro per cantiere in tempo reale",
-      text: "Il cedolino alimenta la marginalità per cantiere giorno per giorno: sai quanto stai spendendo di mano d'opera mentre il cantiere è in corso, non a fine lavori.",
+      title: "Ore e costo per cantiere",
+      text: "Le stesse timbrature che fanno la bozza pesano sul costo della commessa giusta. Sai quanta manodopera sta assorbendo un cantiere mentre è aperto, non a fine lavori.",
     },
   ],
 
   resultsKicker: "Risultati con Edilizia in Cloud",
-  resultsH2: "Niente più 'aspetto il consulente per chiudere il mese'.",
+  resultsH2: "Niente più 'aspetto le presenze per mandarle al consulente'.",
   resultsBody:
-    "Quando i cedolini si producono in azienda con il CCNL Edilizia preconfigurato, il ciclo paghe diventa lineare: presenze, calcolo, F24, UNIEMENS, distribuzione cedolini. Tutto in 20 minuti, tutto verificabile, tutto archiviato secondo CAD per 10 anni.",
+    "Quando le ore arrivano dalle timbrature, il fine mese diventa lineare: presenze già contate, anomalie segnalate, bozza calcolata, controllo del consulente, cedolini in archivio e nell'app degli operai.",
   integrationPillars: [
     {
       icon: Landmark,
-      title: "CCNL Edilizia sempre aggiornato",
-      text: "Industria, Artigianato e PMI Edilizia preconfigurati con tabelle paga aggiornate ad ogni rinnovo contrattuale. Indennità trasferta, EVR, anzianità calcolati per livello.",
+      title: "Aliquote Edilizia Industria",
+      text: "La bozza usa le aliquote standard dell'Edilizia Industria per INPS e Cassa Edile. Se applichi l'Artigianato o un altro contratto, il consulente verifica: oggi quelle tabelle non sono configurate.",
     },
     {
       icon: HardHat,
-      title: "Cassa Edile provinciale automatica",
-      text: "91 casse edili italiane con aliquote e scadenze MUT. Accantonamento GNF, gratifica natalizia, anzianità professionale edile, ferie e permessi calcolati senza intervento manuale.",
+      title: "Straordinari separati per fascia",
+      text: "Ore ordinarie e straordinari al 25, 50 e 100% contati dalle timbrature, con i giorni incompleti segnalati prima del calcolo.",
     },
     {
       icon: Receipt,
-      title: "F24 e UNIEMENS telematici",
-      text: "F24 generato con codici tributo corretti per edilizia, invio telematico Entratel. UNIEMENS mensile, UNILAV per assunzioni/cessazioni, ricevute archiviate digitalmente.",
+      title: "Righe F24 precompilate",
+      text: "Per il mese trovi pronte le righe dell'F24 di IVA e ritenute IRPEF (codice 1001). Il versamento resta a te o al commercialista: il gestionale non lo trasmette.",
     },
     {
       icon: FileSignature,
-      title: "Cedolini firmati digitalmente",
-      text: "Cedolino PDF firmato digitalmente con marca temporale, distribuzione via app dipendente o portale, conservazione decennale a norma CAD D.Lgs 82/2005.",
+      title: "Archivio cedolini per dipendente",
+      text: "I cedolini restano nell'archivio di ogni dipendente. L'operaio li vede e li stampa dall'app di cantiere, l'ufficio dall'area personale.",
     },
   ],
   resultStats: [
-    { value: 50, prefix: "-", suffix: "%", label: "costo annuo consulente paga esterno" },
-    { value: 20, suffix: " min", label: "elaborazione mensile cedolini" },
-    { value: 0, suffix: "", label: "errori cassa edile dopo 6 mesi di utilizzo" },
+    { value: 0, label: "ore ricopiate a mano da un foglio presenze" },
+    { value: 1, label: "archivio dei cedolini per ogni dipendente, consultabile dall'app" },
+    { value: 3, label: "voci calcolate in bozza: INPS, Cassa Edile e IRPEF" },
   ],
   resultsCta: "Apri il modulo cedolini paga",
 
   roiKicker: "Calcola il tuo ROI",
-  roiH2: "Quanto risparmi se produci i cedolini in azienda invece di pagare il consulente?",
+  roiH2: "Quanto tempo recuperi se le presenze non vanno più ricostruite a mano?",
   roiSubheadline:
-    "Sposta i cursori sulla tua realtà: numero di dipendenti tra operai e impiegati e costo orario del consulente paga esterno. La stima parte da 30 minuti a operaio al mese di consulenza esterna risparmiata grazie al CCNL Edilizia preconfigurato.",
+    "Sposta i cursori sulla tua realtà: numero di dipendenti e costo orario di chi oggi prepara le presenze per il consulente. L'ipotesi di partenza è di 20 minuti al mese per dipendente tra foglio presenze, ricopiatura e chiarimenti: è una stima, non una promessa.",
   roi: {
     input1Label: "Operai e impiegati totali",
     input1Default: 12,
     input1Min: 3,
     input1Max: 200,
     input1Step: 1,
-    input2Label: "Costo orario consulente paga (€)",
-    input2Default: 50,
-    input2Min: 30,
-    input2Max: 100,
+    input2Label: "Costo orario di chi prepara le presenze (€)",
+    input2Default: 30,
+    input2Min: 15,
+    input2Max: 80,
     input2Step: 1,
     input2Suffix: " €",
-    outputLabel: "Risparmio annuo stimato",
-    computeOutput: (a, b) => Math.round(a * 12 * 0.5 * b),
-    computeSecondary: (a, b) => [
-      { label: "Ore consulenza esterna risparmiate/anno", value: `${Math.round(a * 12 * 0.5)} h` },
-      { label: "Cedolini elaborati internamente/anno", value: `${a * 13}` },
-      { label: "Tempo recuperato titolare/anno", value: `${Math.round(a * 0.3 * 12)} h` },
+    outputLabel: "Valore del tempo recuperato/anno",
+    computeOutput: (a, b) => Math.round(((a * 12 * 20) / 60) * b),
+    computeSecondary: (a) => [
+      { label: "Ore di preparazione presenze recuperate/anno", value: `${Math.round((a * 12 * 20) / 60)} h` },
+      { label: "Bozze di cedolino calcolate/anno", value: `${a * 12}` },
+      { label: "Fogli presenze da ricopiare a mano", value: "0" },
     ],
     closingPitch:
-      "Stima prudenziale basata su 30 minuti/operaio/mese di consulenza esterna eliminata. Aggiungi le sanzioni cassa edile evitate, la gratifica natalizia calcolata correttamente e i cedolini consegnati 5 giorni prima.",
+      "Stima basata su 20 minuti al mese per dipendente. Non conta il valore di vedere il costo del personale prima dei cedolini, né le correzioni evitate il mese dopo.",
   },
 
   salesKicker: "Impatto operativo",
-  salesH2: "Non un software paghe generico. Un modulo nato per il CCNL Edilizia.",
+  salesH2: "Non un programma paghe. Il pezzo che mancava tra cantiere e consulente.",
   salesBody:
-    "I software paghe generalisti applicano alle imprese edili template metalmeccanici adattati. Il modulo Cedolini Paga di Edilizia in Cloud nasce con CCNL Edilizia industria, artigianato e PMI preconfigurati e Cassa Edile provinciale già integrata.",
+    "Il consulente del lavoro ha già il suo programma paghe: quello che gli manca sono ore affidabili. Il modulo Cedolini Paga di Edilizia in Cloud gliele prepara dalle timbrature, con una bozza calcolata sulle aliquote dell'Edilizia Industria che lui controlla e chiude.",
   salesImpact: [
     {
-      title: "Stipendi puntuali ogni mese",
-      text: "I cedolini si producono in 20 minuti, gli stipendi escono il 27 invece del 30. Operai sereni, clima aziendale migliore, meno turnover.",
+      title: "Fine mese più corto",
+      text: "Le presenze sono già contate quando il mese finisce. Il consulente parte prima e i cedolini arrivano senza il giro di domande sulle ore.",
     },
     {
-      title: "Conformità CCNL Edilizia garantita",
-      text: "Tabelle paga aggiornate ad ogni rinnovo contrattuale, indennità di trasferta, EVR, anzianità, cassa edile sempre allineati alle ultime delibere territoriali.",
+      title: "Anomalie sistemate a monte",
+      text: "Le timbrature incomplete le vedi tu, subito, e le chiudi con il capocantiere. Al consulente arrivano ore pulite.",
     },
     {
       title: "Costo del lavoro visibile per cantiere",
-      text: "Ogni cedolino alimenta la marginalità per cantiere. Sai quanto stai spendendo di manodopera mentre il cantiere è aperto, non a fine lavori.",
+      text: "Le ore delle timbrature finiscono sulla commessa giusta. Sai quanto stai spendendo di manodopera mentre il cantiere è aperto, non a fine lavori.",
     },
     {
-      title: "Consulente paga libero per la consulenza vera",
-      text: "Il consulente smette di essere un elaboratore meccanico e torna a essere uno stratega: vertenze, contratti complessi, accordi sindacali, bilancio sociale.",
+      title: "Operai che trovano il cedolino da soli",
+      text: "Il cedolino è nell'app di cantiere. Niente più 'me lo rimandi su WhatsApp?' e niente buste da consegnare a mano.",
     },
   ],
 
   featureKicker: "Cosa ottieni davvero",
-  featureH2: "Un elenco concreto di quello che attiviamo in 48 ore.",
+  featureH2: "Un elenco concreto di quello che il modulo fa oggi.",
   featureRows: [
     {
-      label: "CCNL Edilizia industria, artigianato e PMI",
-      value: "Tabelle paga preconfigurate per tutti i livelli, indennità di trasferta, EVR, anzianità, scatti, aggiornate ad ogni rinnovo contrattuale.",
+      label: "Bozza di cedolino dalle timbrature",
+      value: "Ore ordinarie e straordinari al 25, 50 e 100% contati dalle timbrature del mese, lordo dallo stipendio in anagrafica.",
     },
     {
-      label: "Cassa Edile provinciale automatica",
-      value: "91 casse edili italiane con aliquote e scadenze MUT. Accantonamento GNF, gratifica natalizia, anzianità professionale, ferie e permessi.",
+      label: "Contributi e trattenute in bozza",
+      value: "Contributi INPS e Cassa Edile e IRPEF calcolati con le aliquote standard dell'Edilizia Industria. Artigianato e altri contratti non sono configurati: li verifica il consulente.",
     },
     {
-      label: "F24 telematico Entratel/Fisconline",
-      value: "Generazione automatica con codici tributo edilizia, invio telematico, ricevuta archiviata, sincronizzazione con tesoreria aziendale.",
+      label: "Giorni incompleti segnalati",
+      value: "Se manca un'entrata o un'uscita, il giorno è evidenziato nella bozza. Lo sistemi prima che il dato arrivi al consulente.",
     },
     {
-      label: "UNILAV e UNIEMENS automatici",
-      value: "UNILAV trasmesso al CPI il giorno prima dell'assunzione, UNIEMENS mensile inviato all'INPS, ricevute archiviate, niente più sanzioni.",
+      label: "Controllo del consulente del lavoro",
+      value: "Ogni bozza dice che va verificata dal consulente. Il gestionale prepara i dati, non sostituisce il consulente né i suoi adempimenti verso INPS e Cassa Edile.",
     },
     {
-      label: "Banca ore e ferie/ROL in tempo reale",
-      value: "Saldo aggiornato a ogni timbratura, riportato nel cedolino, visibile all'operaio dall'app self-service. Niente più richieste di chiarimento.",
+      label: "Archivio cedolini per dipendente",
+      value: "Un archivio mensile per ogni dipendente. L'operaio vede e stampa i suoi cedolini dall'app di cantiere, l'ufficio dall'area personale.",
     },
     {
-      label: "Cedolini firmati digitalmente",
-      value: "PDF firmato con marca temporale, distribuzione via app o portale, conservazione decennale CAD D.Lgs 82/2005, esibizione GdF in 5 minuti.",
+      label: "Ferie, permessi e ROL a saldo",
+      value: "Saldi sempre aggiornati: quando approvi una richiesta di ferie o permesso, il residuo scende da solo.",
     },
     {
-      label: "Costo del lavoro per cantiere",
-      value: "Ore lavorate per cantiere dalle timbrature GPS valorizzate al costo orario corretto, alimentano la marginalità in tempo reale.",
+      label: "Righe F24 precompilate",
+      value: "Righe di IVA e ritenute IRPEF (codice 1001) del mese già pronte. Il versamento non parte dal gestionale: lo fai tu o il commercialista.",
     },
   ],
 
@@ -359,77 +370,72 @@ const config: FunzionalitaPageConfig = {
   scenarioH2: "Tre situazioni in cui il modulo Cedolini Paga cambia il fine mese.",
   scenarios: [
     {
-      title: "Assunzione lampo per cantiere urgente",
-      text: "Lunedì mattina ti serve un manovale per il cantiere che apre martedì. Compili anagrafica, sistema genera UNILAV, lo trasmette al CPI con ricevuta. Operaio in cantiere il giorno dopo, tutto in regola.",
+      title: "Uscita dimenticata il giovedì",
+      text: "Un operaio ha timbrato l'ingresso ma non l'uscita. A fine mese la bozza evidenzia quel giorno: chiami il capocantiere, sistemi l'orario, e al consulente arriva il dato giusto invece di un cedolino da rifare.",
     },
     {
-      title: "Chiusura paga del 25 senza consulente",
-      text: "Il 25 del mese premi 'elabora cedolini'. Il sistema raccoglie timbrature GPS, applica CCNL, calcola cassa edile, genera 15 cedolini, F24 e UNIEMENS in 20 minuti. Il 27 gli stipendi sono in conto.",
+      title: "Chiusura delle presenze a fine mese",
+      text: "L'ultimo giorno del mese apri il modulo: ore e straordinari sono già contati per tutta la squadra, con lordo, contributi e trattenute in bozza. Controlli le anomalie e passi i numeri al consulente, che parte da lì.",
     },
     {
-      title: "Ispezione INL al cantiere",
-      text: "L'ispettore chiede cedolini e UNILAV degli ultimi 12 mesi. Apri il gestionale, esporti il dossier completo in 3 minuti: cedolini firmati digitalmente, UNILAV con ricevute CPI, F24 archiviati. Ispezione chiusa senza rilievi.",
+      title: "L'operaio chiede il cedolino di marzo",
+      text: "Invece di cercarlo tra le email, gli dici di aprire l'app: il cedolino è nel suo archivio, da vedere o stampare. Se chiede quante ferie gli restano, il saldo è lì accanto.",
     },
   ],
 
-  testimonialQuote:
-    "Avevo un consulente paga che mi costava 800€ al mese per 10 operai e mi consegnava i cedolini il giorno 27. Ora li chiudo io il 24, gli stipendi escono il 26, il consulente lo sento solo per le vertenze. Risparmio 6.500€ all'anno e gli operai sono più contenti perché ricevono il cedolino prima.",
-  testimonialAuthor: "Marco P.",
-  testimonialRole: "Edil P. Costruzioni Srl, Verona",
-
   faqKicker: "Domande frequenti",
-  faqH2: "Quello che un titolare di impresa edile vuole sapere prima di passare al modulo paghe.",
+  faqH2: "Quello che un titolare di impresa edile vuole sapere prima di attivare il modulo paghe.",
   faqs: [
     {
-      q: "Posso usare il modulo se ho il CCNL Edilizia Artigianato?",
-      a: "Sì. Il modulo supporta CCNL Edilizia Industria, Artigianato (CNA, Confartigianato) e PMI Edilizia con tabelle paga, EVR, anzianità professionale e indennità di trasferta preconfigurate per ogni contratto. Aggiornamenti automatici a ogni rinnovo.",
+      q: "Il modulo sostituisce il consulente del lavoro?",
+      a: "No. Prepara i dati: conta le ore dalle timbrature, calcola una bozza di cedolino e ti segnala le anomalie. Il consulente del lavoro controlla la bozza, applica il contratto giusto, fa gli adempimenti verso INPS e Cassa Edile e chiude i cedolini.",
+    },
+    {
+      q: "Posso usare il modulo se applico il CCNL Edilizia Artigianato?",
+      a: "Timbrature, conteggio delle ore e archivio dei cedolini funzionano con qualunque contratto. La bozza però usa le aliquote standard dell'Edilizia Industria: Artigianato e PMI oggi non sono configurati, quindi i contributi della bozza vanno verificati con il consulente.",
     },
     {
       q: "Come funziona con la Cassa Edile della mia provincia?",
-      a: "Tutte le 91 casse edili italiane sono precaricate con aliquote contributive, scadenze denuncia MUT, accantonamenti GNF e gratifica natalizia. Il sistema applica automaticamente le aliquote della cassa di riferimento del cantiere e genera la denuncia MUT mensile.",
+      a: "La bozza calcola i contributi Cassa Edile con le aliquote standard dell'Edilizia Industria, non con quelle della singola cassa provinciale. La denuncia mensile alla Cassa Edile non parte dal gestionale: la fa il consulente del lavoro, partendo dalle ore che il modulo gli prepara.",
     },
     {
       q: "Posso continuare ad avere il consulente paga esterno?",
-      a: "Sì. Molte imprese mantengono il consulente per la consulenza strategica (vertenze, contratti, bilancio sociale) e producono internamente cedolini e adempimenti ricorrenti. Il consulente accede al gestionale come collaboratore e supervisiona quando serve.",
+      a: "Sì, ed è il modo giusto di usare il modulo. Il consulente riceve ore già contate e una bozza da controllare invece di un foglio presenze da ricostruire. I cedolini del mese restano nell'archivio di ogni dipendente, visibili dall'app.",
     },
     {
-      q: "Il modulo gestisce anche i contratti a chiamata e gli apprendisti?",
-      a: "Sì. Sono previsti tutti i tipi contrattuali edilizia: tempo indeterminato, determinato, apprendistato professionalizzante, tempo parziale, lavoro a chiamata. Calcolo automatico delle aliquote e degli sgravi contributivi specifici per ogni tipologia.",
+      q: "La bozza calcola malattia, tredicesima e TFR?",
+      a: "No. La bozza copre ore ordinarie, straordinari al 25, 50 e 100%, lordo, contributi INPS e Cassa Edile e IRPEF. Indennità di malattia, tredicesima, TFR, trasferte e banca ore restano al consulente del lavoro.",
     },
     {
-      q: "Come si gestisce la malattia INPS e l'infortunio INAIL?",
-      a: "Inserisci certificato INPS o denuncia INAIL nel gestionale, il sistema calcola automaticamente l'indennità a carico INPS/INAIL e quota azienda. UNIEMENS mensile riporta gli eventi correttamente, evitando contestazioni di calcolo.",
-    },
-    {
-      q: "Quanto costa il modulo Cedolini Paga e ci sono limiti di dipendenti?",
-      a: "Il modulo è incluso nei piani Business di Edilizia in Cloud con dipendenti illimitati e nessun costo per cedolino emesso. Setup in 48 ore, formazione 1-a-1 inclusa, cancelli quando vuoi. Vedi /prezzi per dettagli.",
+      q: "In quali piani è incluso il modulo Cedolini Paga?",
+      a: "HR e cedolini sono inclusi nei piani Professionista e Impresa AI, con utenti illimitati. Il prezzo lo definiamo in consulenza sulla tua impresa, e cancelli quando vuoi. I dettagli dei piani sono su /prezzi.",
     },
   ],
 
   internalLinksKicker: "Esplora la piattaforma",
-  internalLinksH2: "Cedolini Paga è collegato a tutto il ciclo del personale e contabile.",
+  internalLinksH2: "Cedolini Paga è collegato a tutto il ciclo del personale.",
   internalLinksBody:
-    "I cedolini partono dalle timbrature GPS, attingono all'anagrafica HR, alimentano la contabilità e generano F24 sincronizzati con tesoreria.",
+    "I cedolini partono dalle timbrature, prendono lo stipendio dall'anagrafica HR e tengono conto di ferie e permessi approvati.",
   internalLinks: [
-    { to: "/funzionalita/hr-personale", title: "HR Personale", text: "Anagrafica dipendenti, livelli CCNL, contratti alimentano i cedolini." },
-    { to: "/funzionalita/timbrature-gps", title: "Timbrature GPS", text: "Ore lavorate per cantiere registrate via app entrano nel cedolino." },
-    { to: "/funzionalita/ferie-permessi", title: "Ferie e Permessi", text: "Saldo ferie e ROL aggiornato in tempo reale nel cedolino." },
-    { to: "/funzionalita/contabilita-fiscale", title: "Contabilità Fiscale", text: "Scritture stipendi e oneri sociali in prima nota automatici." },
-    { to: "/funzionalita/tesoreria", title: "Tesoreria", text: "F24 e bonifici stipendi sincronizzati con il piano cassa." },
-    { to: "/funzionalita/margini-cantiere", title: "Margini Cantiere", text: "Costo del lavoro per cantiere alimentato dai cedolini." },
-    { to: "/funzionalita/scadenzario", title: "Scadenzario", text: "F24 contributi e scadenze MUT nel calendario aziendale." },
+    { to: "/funzionalita/hr-personale", title: "HR Personale", text: "Anagrafica dipendenti e stipendio: la base della bozza di cedolino." },
+    { to: "/funzionalita/timbrature-gps", title: "Timbrature GPS", text: "Ore lavorate per cantiere registrate via app entrano nella bozza del cedolino." },
+    { to: "/funzionalita/ferie-permessi", title: "Ferie e Permessi", text: "Saldi di ferie, permessi e ROL che scendono a ogni richiesta approvata." },
+    { to: "/funzionalita/contabilita-fiscale", title: "Contabilità Fiscale", text: "Righe F24 di IVA e ritenute IRPEF precompilate, prima nota in CSV." },
+    { to: "/funzionalita/tesoreria", title: "Tesoreria", text: "Conti, movimenti e previsionale di cassa dell'impresa." },
+    { to: "/funzionalita/margini-cantiere", title: "Margini Cantiere", text: "Le ore delle timbrature pesano sul costo della commessa giusta." },
+    { to: "/funzionalita/scadenzario", title: "Scadenzario", text: "Pagamenti da fare e da ricevere, con le scadenze in un posto solo." },
     { to: "/per/imprese-edili", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
-    { to: "/prezzi", title: "Prezzi e Piani", text: "Cedolini Paga incluso nel piano Business con dipendenti illimitati." },
+    { to: "/prezzi", title: "Prezzi e Piani", text: "Cedolini Paga incluso nei piani Professionista e Impresa AI." },
   ],
 
-  finalCtaH2: "Smetti di aspettare il consulente il 27. Chiudi i cedolini il 24, paga il 26.",
+  finalCtaH2: "Smetti di ricostruire le presenze a fine mese. Passa al consulente ore già contate.",
   finalCtaBody:
-    "31 giorni gratuiti per produrre cedolini paga edilizia direttamente in azienda. CCNL preconfigurato, Cassa Edile provinciale, F24 telematico, UNILAV e UNIEMENS automatici. Onboarding 1-a-1 con il nostro team paghe, cancelli quando vuoi.",
+    "31 giorni gratuiti per provare la bozza di cedolino calcolata dalle timbrature dei tuoi cantieri. Straordinari separati, contributi e trattenute in bozza, archivio cedolini nell'app degli operai. Il consulente controlla e chiude, tu cancelli quando vuoi.",
   finalCtaButton: "Prova gratis 31 giorni",
-  finalCtaMicrocopy: "Setup in 48 ore · CCNL Edilizia preconfigurato · Cancelli quando vuoi",
+  finalCtaMicrocopy: "Bozza dalle timbrature · Il consulente controlla · Cancelli quando vuoi",
 
   stickyCtaLabel: "Prova gratis Cedolini Paga",
-  stickyCtaMicrocopy: "Setup 48h · CCNL Edilizia incluso",
+  stickyCtaMicrocopy: "Bozza cedolino dalle timbrature",
 
   applicationSubCategory: "Construction Payroll Software",
 

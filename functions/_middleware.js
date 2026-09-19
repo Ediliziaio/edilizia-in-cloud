@@ -1133,10 +1133,10 @@ const ROUTES = {
   "/funzionalita/cedolini-paga": {
     title: "Cedolini Paga Edilizia e CCNL",
     description:
-      "Cedolini paga edilizia con CCNL Edilizia industria/artigianato, calcolo automatico cassa edile, ferie/permessi/banca ore, F24 telematico, UNILAV/UNIEMENS integrati.",
+      "Bozza di cedolino dalle timbrature: ore, straordinari 25/50/100%, INPS, Cassa Edile e IRPEF. Il consulente controlla, gli operai li vedono in app.",
     h1: "Cedolini Paga per Imprese Edili",
     intro:
-      "Edilizia in Cloud emette i cedolini paga con CCNL Edilizia industria, artigianato e PMI integrati, calcolo automatico cassa edile (91 casse provinciali), ferie/permessi/banca ore, gratifica natalizia, anzianità professionale edile. F24 telematico Entratel, UNILAV e UNIEMENS automatici, MUT e GNF integrati.",
+      "Edilizia in Cloud prepara la bozza del cedolino di ogni operaio dalle timbrature di cantiere: ore ordinarie, straordinari al 25, 50 e 100%, lordo dallo stipendio in anagrafica, contributi INPS e Cassa Edile e IRPEF con le aliquote standard dell'Edilizia Industria, con i giorni di timbratura incompleta segnalati. Ogni bozza va controllata dal consulente del lavoro, che applica il contratto e fa gli adempimenti: il gestionale prepara i dati, non lo sostituisce. I cedolini restano nell'archivio di ogni dipendente, visibili dall'app di cantiere; i saldi di ferie, permessi e ROL scendono quando approvi una richiesta; le righe F24 di IVA e ritenute IRPEF (codice 1001) sono precompilate, il versamento lo fai tu.",
     links: [
       { href: "/funzionalita", label: "Tutte le Funzionalità" },
       { href: "/funzionalita/hr-personale", label: "HR e Personale" },
@@ -1331,7 +1331,7 @@ const ROUTES = {
     <p>Abbiamo messo a confronto i software più diffusi tra le imprese edili italiane su sei criteri concreti: target di utente ideale, presenza di AI nativa, app mobile per il cantiere, fatturazione elettronica SDI integrata, fascia di prezzo e curva di apprendimento. L'obiettivo non è dichiarare un vincitore assoluto, ma chiarire per quale impresa ogni strumento è la scelta migliore.</p>
 
     <h2>Edilizia in Cloud vs Cloudness</h2>
-    <p>Cloudness propone un ERP per edilizia, costruzioni, ristrutturazione e manutenzione, con un'impostazione orientata alla gestione strutturata di commesse e processi. Edilizia in Cloud condivide l'ambito edile ma parte da un presupposto diverso: essere usabile davvero dal capocantiere e dal titolare ogni giorno, con un'app mobile che funziona offline e un assistente AI nativo. Per un'impresa PMI italiana che vuole partire subito, gestire la Cassa Edile e il MUT, emettere fatture SDI e tenere sotto controllo i margini di commessa senza un lungo progetto di implementazione, Edilizia in Cloud offre un percorso più rapido e un costo trasparente da 127€/mese.</p>
+    <p>Cloudness propone un ERP per edilizia, costruzioni, ristrutturazione e manutenzione, con un'impostazione orientata alla gestione strutturata di commesse e processi. Edilizia in Cloud condivide l'ambito edile ma parte da un presupposto diverso: essere usabile davvero dal capocantiere e dal titolare ogni giorno, con un'app mobile che funziona offline e un assistente AI nativo. Per un'impresa PMI italiana che vuole partire subito, emettere fatture SDI, seguire i DURC dei subappaltatori e tenere sotto controllo i margini di commessa senza un lungo progetto di implementazione, Edilizia in Cloud offre un percorso più rapido.</p>
 
     <h2>Edilizia in Cloud vs TeamSystem</h2>
     <p>TeamSystem CPM ed Enterprise sono ERP generalisti molto potenti, con centinaia di moduli, nati per commercialisti e grandi aziende strutturate. Sono la scelta giusta per organizzazioni complesse con un IT interno. Per la PMI edile (1-50 dipendenti) sono però spesso sovradimensionati, costosi (200-500€/mese più setup) e con tempi di formazione lunghi. Edilizia in Cloud copre ciò che serve davvero all'impresa edile con un'interfaccia semplice, un'app da cantiere e un costo nettamente inferiore.</p>
@@ -1363,7 +1363,7 @@ const ROUTES = {
     <h3>Qual è il miglior software gestionale per imprese edili nel 2026?</h3>
     <p>Per le imprese edili PMI italiane che eseguono i lavori, Edilizia in Cloud è il gestionale cloud più completo e accessibile: integra cantieri, preventivi, fatturazione SDI, subappalti, HR e AI a partire da 127€/mese, contro i 200-500€/mese degli ERP generalisti. Strumenti come Primus o STR Vision restano preferibili per il computo tecnico e la progettazione.</p>
     <h3>Edilizia in Cloud è meglio di Cloudness?</h3>
-    <p>Dipende dall'esigenza. Cloudness è un ERP edilizia strutturato; Edilizia in Cloud è più mobile-first e AI-native, pensato per essere operativo subito anche dal capocantiere, con gestione nativa di Cassa Edile, MUT, DURC e margini in tempo reale e un costo trasparente da 127€/mese.</p>
+    <p>Dipende dall'esigenza. Cloudness è un ERP edilizia strutturato; Edilizia in Cloud è più mobile-first e AI-native, pensato per essere operativo subito anche dal capocantiere, con fatturazione SDI, DURC dei subappaltatori e margini in tempo reale. Paghe e denunce alla Cassa Edile restano al consulente del lavoro: il gestionale gli prepara ore e bozza di cedolino.</p>
     <h3>Edilizia in Cloud sostituisce Primus o STR Vision?</h3>
     <p>No, è complementare. Primus e STR Vision eccellono nel computo metrico e nella progettazione tecnica; Edilizia in Cloud gestisce tutta la vita operativa della commessa dopo il preventivo: cantiere, costi, fatturazione, HR e cassa. I preventivi tecnici possono essere importati.</p>
     <h3>Perché non usare Excel per gestire un'impresa edile?</h3>
@@ -1380,7 +1380,7 @@ const ROUTES = {
         <tr><td>AI nativa</td><td>Sì (assistente, OCR, margini)</td><td>No</td><td>No</td><td>No</td><td>No</td><td>No</td></tr>
         <tr><td>App cantiere mobile</td><td>Sì (iOS/Android, GPS, foto, DDT)</td><td>Parziale</td><td>No</td><td>Parziale</td><td>No</td><td>No</td></tr>
         <tr><td>Fatturazione SDI inclusa</td><td>Sì</td><td>Sì (modulo)</td><td>No</td><td>Sì</td><td>Sì</td><td>No</td></tr>
-        <tr><td>Cassa Edile / MUT / DURC</td><td>Sì, nativo</td><td>Parziale</td><td>No</td><td>Parziale</td><td>No</td><td>No</td></tr>
+        <tr><td>Cassa Edile / MUT / DURC</td><td>DURC sì; contributi Cassa Edile in bozza di cedolino; denuncia MUT no</td><td>Parziale</td><td>No</td><td>Parziale</td><td>No</td><td>No</td></tr>
         <tr><td>Prezzo di partenza</td><td>127€/mese</td><td>200-500€/mese</td><td>Licenza una tantum</td><td>Su preventivo</td><td>~150€/anno + moduli</td><td>Incluso in Office</td></tr>
         <tr><td>Vincolo contrattuale</td><td>Nessuno</td><td>Annuale</td><td>—</td><td>Annuale</td><td>Annuale</td><td>—</td></tr>
       </tbody>
@@ -1428,7 +1428,7 @@ const ROUTES = {
           name: "Edilizia in Cloud è meglio di Cloudness?",
           acceptedAnswer: {
             "@type": "Answer",
-            text: "Dipende dall'esigenza. Cloudness è un ERP edilizia strutturato; Edilizia in Cloud è più mobile-first e AI-native, pensato per essere operativo subito anche dal capocantiere, con gestione nativa di Cassa Edile, MUT, DURC e margini in tempo reale e un costo trasparente da 127€/mese.",
+            text: "Dipende dall'esigenza. Cloudness è un ERP edilizia strutturato; Edilizia in Cloud è più mobile-first e AI-native, pensato per essere operativo subito anche dal capocantiere, con fatturazione SDI, DURC dei subappaltatori e margini in tempo reale. Paghe e denunce alla Cassa Edile restano al consulente del lavoro: il gestionale gli prepara ore e bozza di cedolino.",
           },
         },
         {
@@ -2125,12 +2125,12 @@ const ROUTES = {
   "/per/grandi-imprese": {
     title: "Software per Grandi Imprese Edili e General Contractor",
     description:
-      "Gestionale enterprise per grandi imprese edili e general contractor: multi-società, API ERP, dashboard direzionale, governance Codice Appalti.",
+      "Gestionale per grandi imprese edili e general contractor: multi-società, dashboard direzionale, subappalti con DURC e dati verso il gestionale contabile.",
     h1: "Software per grandi imprese edili e general contractor",
     intro:
-      "50+ dipendenti, 10-50 cantieri attivi, holding multi-società: una sola fonte di verità per CFO e direzione. API integration con SAP/Microsoft Dynamics, audit trail, governance approvazioni multi-livello.",
+      "50+ dipendenti, 10-50 cantieri attivi, holding multi-società: una sola fonte di verità per CFO e direzione. Si affianca al gestionale contabile con formati standard (fatture XML FatturaPA, prima nota e registro IVA in CSV) e automazioni via webhook: connettori diretti per ERP come SAP non ci sono.",
     links: [
-      { href: "/integrazioni", label: "Integrazioni ERP" },
+      { href: "/integrazioni", label: "Integrazioni" },
       { href: "/funzionalita/cruscotto-aziendale", label: "Dashboard Direzionale" },
       { href: "/per/medie-imprese", label: "Per Medie Imprese" },
       { href: "/demo", label: "Demo Enterprise" },

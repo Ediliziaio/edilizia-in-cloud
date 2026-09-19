@@ -51,7 +51,7 @@ const config: FunzionalitaPageConfig = {
   heroSecondaryCta: "Tutte le funzionalità",
   heroSecondaryCtaTo: "/funzionalita",
 
-  reassurancePoints: ["Setup in 48 ore", "Alert push automatici", "Conformità CCNL inclusa"],
+  reassurancePoints: ["Setup in 48 ore", "Alert push automatici", "Scostamento per voce di costo"],
   proofPoints: [
     "Margine reale aggiornato ogni notte",
     "Scostamento preventivo / consuntivo",
@@ -60,11 +60,11 @@ const config: FunzionalitaPageConfig = {
 
   objectiveRow: [
     ["Obiettivo", "Difendere il margine prima che il cantiere chiuda in perdita"],
-    ["Momento chiave", "Ogni volta che entra un costo (DDT, busta paga, SAL subappalto)"],
+    ["Momento chiave", "Ogni volta che entra un costo (DDT, ore timbrate, SAL subappalto)"],
     ["Risultato", "+18% margine medio recuperato sui cantieri controllati"],
   ],
 
-  betaH2: "Più di 320 imprese italiane usano Edilizia in Cloud per controllare i margini dei cantieri ogni giorno.",
+  betaH2: "Il margine di ogni cantiere, aggiornato mentre il cantiere è ancora aperto.",
   betaBody:
     "Il modulo Margini Cantiere è il pannello di controllo finanziario della commessa: lo attiviamo in 48 ore, importiamo i tuoi cantieri aperti e i tuoi preventivi originali, configuriamo soglie di alert personalizzate sul tuo modello operativo e ti accompagniamo in 4 sessioni 1-a-1 fino a quando vedi il margine reale aggiornato di ogni cantiere senza dover chiedere a nessuno.",
 
@@ -120,7 +120,7 @@ const config: FunzionalitaPageConfig = {
   ],
   familyBonusTitle: "Una sola piattaforma. Un solo abbonamento. Sei moduli che alimentano il margine.",
   familyBonusText:
-    "Il margine reale di ogni commessa è la somma vera di costi che già esistono nel tuo gestionale: ore via timbratura, materiali via DDT, subappalti via SAL, busta paga via cedolino. Edilizia in Cloud li mette in conversazione tra loro automaticamente, senza file Excel intermedi e senza data entry manuale.",
+    "Il margine reale di ogni commessa è la somma vera di costi che già esistono nel tuo gestionale: ore via timbratura, materiali via DDT, subappalti via SAL. Edilizia in Cloud li mette in conversazione tra loro automaticamente, senza file Excel intermedi e senza data entry manuale.",
 
   painKicker: "Il problema vero",
   painH2: "Scoprire il buco a chiusura cantiere è scoprirlo troppo tardi.",
@@ -159,7 +159,7 @@ const config: FunzionalitaPageConfig = {
       before:
         "Ore imputate a fine settimana, magari su un foglio di carta, magari a forfait. Il costo orario reale per cantiere è una stima a posteriori. Le ore straordinarie spariscono nel margine.",
       after:
-        "Timbratura GPS al check-in, costo orario reale (con CCNL applicato) imputato in automatico alla commessa. Manodopera registrata mentre accade, scostamento sul preventivo aggiornato giorno per giorno.",
+        "Timbratura GPS al check-in, costo orario reale dell'operaio imputato in automatico alla commessa. Manodopera registrata mentre accade, scostamento sul preventivo aggiornato giorno per giorno.",
     },
     {
       title: "Costi dei materiali",
@@ -247,7 +247,7 @@ const config: FunzionalitaPageConfig = {
     {
       icon: Bell,
       title: "Alert configurabili per soglia",
-      text: "Soglie su scostamento globale, scostamento per voce (manodopera, materiali, subappalti), DURC subappaltatori, ritardi. Notifica push, email e Slack se configurato.",
+      text: "Soglie su scostamento globale, scostamento per voce (manodopera, materiali, subappalti), DURC subappaltatori, ritardi. Notifica push ed email.",
     },
     {
       icon: Coins,
@@ -256,8 +256,8 @@ const config: FunzionalitaPageConfig = {
     },
     {
       icon: ShieldCheck,
-      title: "Conformità CCNL e fiscale tracciata",
-      text: "Costo orario CCNL applicato per qualifica e contratto, ritenute subappaltatori calcolate, DURC tracciati. Il margine reale riflette i costi pieni, non quelli ottimistici.",
+      title: "Costi pieni, non ottimistici",
+      text: "Costo orario di ogni operaio applicato alle ore timbrate, ritenute subappaltatori calcolate, DURC tracciati. Il margine reale riflette i costi pieni, non quelli ottimistici.",
     },
   ],
   resultStats: [
@@ -333,7 +333,7 @@ const config: FunzionalitaPageConfig = {
     {
       label: "Alert configurabili per soglia",
       value:
-        "Soglie globali e per voce. Notifiche push, email e Slack quando un cantiere supera la soglia. Configurabili per ruolo (titolare, controller, geometra d'impresa).",
+        "Soglie globali e per voce. Notifiche push ed email quando un cantiere supera la soglia. Configurabili per ruolo (titolare, controller, geometra d'impresa).",
     },
     {
       label: "Importazione automatica DDT e fatture",
@@ -341,9 +341,9 @@ const config: FunzionalitaPageConfig = {
         "Lettura automatica di DDT e fatture passive (anche da PDF/email) con riconciliazione sulla commessa giusta. Riduce il ritardo del costo materiali da settimane a giorni.",
     },
     {
-      label: "Costo orario CCNL per qualifica",
+      label: "Costo orario per operaio",
       value:
-        "Costo orario reale per qualifica e contratto applicato in automatico. La manodopera entra nel margine con il costo pieno, non con stime ottimistiche.",
+        "Il costo orario di ogni operaio applicato in automatico alle ore timbrate. La manodopera entra nel margine con il costo pieno, non con stime ottimistiche.",
     },
     {
       label: "Storico margini per tipologia",
@@ -353,7 +353,7 @@ const config: FunzionalitaPageConfig = {
     {
       label: "Export consuntivo per commercialista",
       value:
-        "Esporta consuntivo per commessa in formato Excel, CSV o tracciato per TeamSystem, Zucchetti, Datev. Il commercialista parte da dati già imputati, non da bolle Excel.",
+        "Report gestionali in PDF ed Excel, documenti e prima nota in CSV, accesso dedicato per il commercialista. Parte da costi già imputati alla commessa, non da bolle Excel.",
     },
   ],
 
@@ -399,15 +399,15 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "Posso configurare alert personalizzati?",
-      a: "Sì. Soglie globali (es. 80% del budget consumato) e per voce (es. materiali +10%). Notifiche push, email e Slack se configurato. Configurabili per ruolo: il titolare riceve tutto, il geometra d'impresa solo i suoi cantieri.",
+      a: "Sì. Soglie globali (es. 80% del budget consumato) e per voce (es. materiali +10%). Notifiche push ed email. Configurabili per ruolo: il titolare riceve tutto, il geometra d'impresa solo i suoi cantieri.",
     },
     {
       q: "I dati sono compatibili con il mio commercialista?",
-      a: "Sì. Edilizia in Cloud esporta consuntivi per commessa in Excel, CSV o tracciati specifici per TeamSystem, Zucchetti, Datev. Il commercialista riceve dati già imputati per centro di costo, non bolle Excel.",
+      a: "Sì. Il commercialista può avere un accesso suo; documenti e prima nota si esportano in CSV, i report gestionali in PDF ed Excel, e le fatture sono XML FatturaPA, il formato che qualsiasi programma di contabilità importa. I costi arrivano già imputati alla commessa, non in bolle Excel.",
     },
     {
       q: "Quanto costa? Ci sono vincoli contrattuali?",
-      a: "Il modulo Margini Cantiere è incluso nei piani Professional e Business di Edilizia in Cloud. Nessun costo di attivazione, nessun vincolo di durata, cancelli quando vuoi. Onboarding 1-a-1, configurazione soglie e supporto italiano sempre inclusi.",
+      a: "Il controllo dei margini per commessa è incluso in tutti i piani di Edilizia in Cloud. Il prezzo lo definiamo in consulenza sulla tua impresa. Nessun costo di attivazione, nessun vincolo di durata, cancelli quando vuoi. Onboarding 1-a-1, configurazione soglie e supporto italiano sempre inclusi.",
     },
   ],
 
@@ -459,7 +459,7 @@ const config: FunzionalitaPageConfig = {
     {
       to: "/prezzi",
       title: "Prezzi e Piani",
-      text: "Piani trasparenti da 49€/mese. Margini Cantiere è incluso in Professional e Business.",
+      text: "Piani su misura per la tua impresa. Il margine per commessa è incluso in tutti i piani.",
     },
   ],
 

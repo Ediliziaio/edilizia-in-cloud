@@ -168,9 +168,9 @@ const concorrentiRows: ConcorrentiRow[] = [
   { feature: "Analisi margini AI in tempo reale", primus: { type: "cross" }, teamsystem: { type: "partial" }, eic: { type: "check" }, category: "ai" },
   { feature: "Portale clienti", primus: { type: "cross" }, teamsystem: { type: "partial" }, eic: { type: "check" }, category: "altro" },
   { feature: "Fatturazione elettronica SDI", primus: { type: "text", text: "Modulo extra" }, teamsystem: { type: "check" }, eic: { type: "check" }, category: "fiscale" },
-  { feature: "F24 e gestione tributi", primus: { type: "check" }, teamsystem: { type: "check" }, eic: { type: "check" }, category: "fiscale" },
+  { feature: "F24 e gestione tributi", primus: { type: "check" }, teamsystem: { type: "check" }, eic: { type: "partial" }, category: "fiscale" },
   { feature: "DURC e scadenze documentali", primus: { type: "partial" }, teamsystem: { type: "check" }, eic: { type: "check" }, category: "fiscale" },
-  { feature: "Cassa Edile MUT", primus: { type: "cross" }, teamsystem: { type: "check" }, eic: { type: "check" }, category: "fiscale" },
+  { feature: "Cassa Edile MUT", primus: { type: "cross" }, teamsystem: { type: "check" }, eic: { type: "cross" }, category: "fiscale" },
   { feature: "CIG / CUP appalti pubblici", primus: { type: "check" }, teamsystem: { type: "check" }, eic: { type: "check" }, category: "fiscale" },
   { feature: "Reverse charge edilizia", primus: { type: "partial" }, teamsystem: { type: "check" }, eic: { type: "check" }, category: "fiscale" },
   { feature: "Bonus 110 / PNRR tracking", primus: { type: "partial" }, teamsystem: { type: "partial" }, eic: { type: "check" }, category: "fiscale" },
@@ -194,7 +194,7 @@ const FILTERS: { label: string; value: RowCategory | "all" }[] = [
 const faqItems = [
   {
     q: "Qual è il miglior gestionale per imprese edili 2026?",
-    a: "Per le PMI edili italiane (200K-5M di fatturato) Edilizia in Cloud è la scelta più completa nel 2026: nativo per il settore, AI per i margini, SDI/Cassa Edile/DURC integrati e prezzo da €127/mese. Primus ACCA resta forte sul computo metrico, TeamSystem Construction su grandi imprese strutturate.",
+    a: "Per le PMI edili italiane (200K-5M di fatturato) Edilizia in Cloud è la scelta più completa nel 2026: nativo per il settore, AI per i margini, fatturazione SDI e DURC dei subappaltatori integrati. Primus ACCA resta forte sul computo metrico, TeamSystem Construction su grandi imprese strutturate.",
   },
   {
     q: "Edilizia in Cloud è meglio di Primus?",
@@ -222,15 +222,15 @@ const faqItems = [
   },
   {
     q: "Esiste un'alternativa cloud a TeamSystem Construction?",
-    a: "Sì: Edilizia in Cloud è l'alternativa cloud-nativa a TeamSystem Construction per le PMI edili. Stesso copertura su SDI/CCNL/Cassa Edile, più funzionalità native per il cantiere, AI inclusa, setup in 48h invece che 4-12 settimane e canone da 127€/mese contro i 250-400€/mese di TeamSystem.",
+    a: "Sì: Edilizia in Cloud è un'alternativa cloud-nativa a TeamSystem Construction per le PMI edili che vogliono gestire la commessa dal cantiere: fatturazione SDI, DURC dei subappaltatori, margini e presenze in un posto solo, con AI inclusa e setup in 48 ore. Le paghe complete non le fa: prepara ore e bozza di cedolino per il consulente del lavoro.",
   },
   {
     q: "Edilizia in Cloud gestisce il DURC e la Cassa Edile?",
-    a: "Sì. Edilizia in Cloud integra nativamente DURC, Cassa Edile (MUT), CCNL edilizia, contributi INPS settore costruzioni, F24, reverse charge edilizia e tracking dei bonus 110/PNRR. Tutto incluso nel canone, senza moduli aggiuntivi.",
+    a: "Il DURC sì: ne segue le scadenze e blocca i pagamenti ai subappaltatori con DURC scaduto. La Cassa Edile in parte: la bozza di cedolino calcola i contributi Cassa Edile, INPS e IRPEF con le aliquote standard dell'Edilizia Industria, partendo dalle timbrature. La denuncia mensile alla Cassa Edile non parte dal gestionale e resta al consulente del lavoro. Per l'F24 prepara le righe di IVA e ritenute IRPEF (codice 1001), ma non lo trasmette. Il reverse charge in fattura è incluso.",
   },
   {
     q: "Posso integrare Edilizia in Cloud con il mio ERP attuale?",
-    a: "Dipende dall'ERP. Offriamo API aperte e connettori nativi per i principali sistemi contabili italiani. Il team tecnico valuta gratuitamente la fattibilità prima della firma di qualsiasi contratto.",
+    a: "Non con un connettore diretto: un'API pubblica per leggere e scrivere i dati non c'è ancora. Oggi si collega così: le automazioni chiamano un indirizzo web quando nasce una fattura, arriva un pagamento o un preventivo viene accettato (lo ricevono Zapier, Make o n8n); le fatture arrivano da Fatture in Cloud, Aruba, Fattura24 e Invoicetronic o come file XML FatturaPA; prima nota, registro IVA e documenti escono in CSV. Il team valuta gratuitamente il tuo caso prima della firma di qualsiasi contratto.",
   },
   {
     q: "Avete un periodo di prova gratuito?",

@@ -69,7 +69,7 @@ const config: FunzionalitaPageConfig = {
     ["Risultato", "Tempi di incasso più brevi, zero rifiuti SDI"],
   ],
 
-  betaH2: "320+ imprese italiane fatturano dal nostro gestionale ogni mese, senza un solo rifiuto SDI.",
+  betaH2: "La fattura nasce dove nasce il lavoro: dal SAL del cantiere, non da un portale separato.",
   betaBody:
     "La fatturazione elettronica di Edilizia in Cloud è già usata in produzione da imprese che fatturano da 100 mila a 30 milioni di euro l'anno. Tracciati TD01-TD24, integrazione nativa con cantieri e SAL, conservazione 10 anni inclusa, supporto italiano e onboarding dedicato per il primo ciclo di fatturazione.",
 
@@ -125,7 +125,7 @@ const config: FunzionalitaPageConfig = {
   ],
   familyBonusTitle: "Una piattaforma. Un abbonamento. Sei moduli connessi.",
   familyBonusText:
-    "Niente più tre software diversi che non si parlano: cantiere, fatturazione e contabilità sono lo stesso flusso. Il commercialista riceve un export pronto per i suoi tracciati. Tu non ti accorgi nemmeno di stare 'fatturando': sta succedendo nella stessa schermata in cui controlli i cantieri.",
+    "Niente più tre software diversi che non si parlano: cantiere, fatturazione e contabilità sono lo stesso flusso. Il commercialista riceve le fatture in XML FatturaPA, prima nota e registro IVA in CSV. Tu non ti accorgi nemmeno di stare 'fatturando': sta succedendo nella stessa schermata in cui controlli i cantieri.",
 
   painKicker: "Il problema vero",
   painH2: "La fatturazione edile non è quella di un consulente. È peggio. Molto peggio.",
@@ -185,7 +185,7 @@ const config: FunzionalitaPageConfig = {
       before:
         "Email al commercialista con allegati misti, tabella Excel di riepilogo che non torna, telefonate per chiarire codici IVA, registri da rifare.",
       after:
-        "Export mensile pronto in 1 click: PDF, Excel e tracciato compatibile con TeamSystem, Zucchetti e Datev. Il commercialista riceve un pacchetto già strutturato.",
+        "Il commercialista ha un accesso suo e trova tutto lì: fatture in XML FatturaPA, il formato che qualsiasi programma di contabilità importa, prima nota e registro IVA in CSV, report in PDF ed Excel.",
     },
   ],
 
@@ -262,7 +262,7 @@ const config: FunzionalitaPageConfig = {
     {
       icon: CloudUpload,
       title: "Export commercialista 1-click",
-      text: "Pacchetti mensili e annuali in PDF, Excel e tracciato per TeamSystem, Zucchetti, Datev e principali gestionali contabili italiani.",
+      text: "Fatture in XML FatturaPA, prima nota e registro IVA in CSV, report in PDF ed Excel. Il commercialista può avere un accesso suo e seguire da lì tutte le aziende clienti.",
     },
   ],
   resultStats: [
@@ -358,7 +358,7 @@ const config: FunzionalitaPageConfig = {
     {
       label: "Export commercialista 1-click",
       value:
-        "Pacchetti mensili in PDF/Excel, tracciati per TeamSystem, Zucchetti, Datev, Profis, Sistemi e i principali gestionali contabili italiani.",
+        "Fatture in XML FatturaPA leggibili da qualsiasi gestionale contabile, prima nota e registro IVA in CSV, report gestionali in PDF ed Excel. Accesso dedicato per il commercialista.",
     },
   ],
 
@@ -392,7 +392,7 @@ const config: FunzionalitaPageConfig = {
   faqs: [
     {
       q: "La fatturazione elettronica è davvero conforme allo SDI?",
-      a: "Sì. Edilizia in Cloud è accreditato come intermediario per la trasmissione. Generiamo XML conformi a tutti i tracciati TD01-TD24, gestiamo nativamente fattura B2B, B2C e PA con CIG/CUP/split payment. La trasmissione allo SDI avviene tramite canale ufficiale.",
+      a: "Sì. Le fatture partono dal gestionale verso lo SDI tramite un intermediario accreditato, e lo stato di ogni invio lo vedi nel cassetto SDI. Generiamo XML conformi ai tracciati TD01-TD24 e gestiamo fattura B2B, B2C e PA con CIG/CUP/split payment.",
     },
     {
       q: "La conservazione sostitutiva è davvero inclusa per 10 anni?",
@@ -408,7 +408,7 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "Il mio commercialista si troverà bene?",
-      a: "Sì. Esportiamo i tracciati compatibili con TeamSystem, Zucchetti, Datev, Profis, Sistemi e i principali gestionali contabili italiani. Il commercialista riceve PDF, Excel e tracciato XML pronto per l'importazione, senza copia-incolla.",
+      a: "Sì. Il commercialista può avere un accesso suo e seguire da lì tutte le aziende clienti. Le fatture escono in XML FatturaPA, il formato standard che qualsiasi programma di contabilità importa; prima nota, registro IVA e documenti si esportano in CSV. Tracciati dedicati ai singoli gestionali contabili non ci sono: con l'XML standard di solito non servono.",
     },
     {
       q: "Cosa succede se sbaglio una fattura emessa?",
@@ -416,7 +416,7 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "Quanto costa? Ci sono limiti al numero di fatture emesse?",
-      a: "Il modulo Fatturazione Elettronica è incluso in tutti i piani Edilizia in Cloud, da 49€/mese. Nessun costo a fattura, nessun limite tecnico. Conservazione 10 anni inclusa. Onboarding 1-a-1, supporto italiano e nessun vincolo di durata.",
+      a: "Il modulo Fatturazione Elettronica è incluso in tutti i piani a pagamento di Edilizia in Cloud. Il prezzo lo definiamo in consulenza sulla tua impresa. Nessun costo a fattura, nessun limite tecnico. Conservazione 10 anni inclusa. Onboarding 1-a-1, supporto italiano e nessun vincolo di durata.",
     },
   ],
 
@@ -468,7 +468,7 @@ const config: FunzionalitaPageConfig = {
     {
       to: "/prezzi",
       title: "Prezzi e Piani",
-      text: "Piani trasparenti da 49€/mese. Beta dedicata con prezzo bloccato. Cancelli quando vuoi.",
+      text: "Piani su misura, fatturazione SDI inclusa in tutti i piani a pagamento. Cancelli quando vuoi.",
     },
   ],
 

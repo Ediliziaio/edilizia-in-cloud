@@ -27,7 +27,7 @@ import type { FunzionalitaPageConfig } from "./_template/types";
 const config: FunzionalitaPageConfig = {
   slug: "hr-personale",
   definizione:
-    "HR Personale di Edilizia in Cloud gestisce operai, presenze, ferie e busta paga in un'unica app collegata al cantiere: timbrature GPS conformi al CCNL Edilizia, ferie e malattie richieste dal telefono, costo orario reale per qualifica e tracciati esportabili per il consulente del lavoro.",
+    "HR Personale di Edilizia in Cloud gestisce operai, presenze, ferie e busta paga in un'unica app collegata al cantiere: timbrature GPS conformi al CCNL Edilizia, ferie e malattie richieste dal telefono, costo orario reale per operaio e una bozza di cedolino, calcolata dalle ore timbrate, da passare al consulente del lavoro.",
   vertical: "HR e Personale",
   productName: "Modulo HR e Personale Edilizia in Cloud",
   audience: "Imprese edili, costruttori, ristrutturatori, responsabili HR di PMI edili, consulenti del lavoro, capi cantiere",
@@ -37,7 +37,7 @@ const config: FunzionalitaPageConfig = {
     title:
       "Software HR Edilizia: Presenze, Ferie e Malattie",
     description:
-      "Gestisci operai e impiegati con timbrature GPS, ferie, malattie, presenze e costo orario CCNL automatico. Esporta i tracciati pronti per il consulente del lavoro.",
+      "Gestisci operai e impiegati con timbrature GPS, ferie, malattie, presenze e costo orario CCNL automatico. Il consulente del lavoro riceve ore già contate.",
     keywords:
       "software HR edilizia, gestione personale impresa edile, timbrature GPS cantiere, costo orario CCNL edilizia, ferie malattie presenze edilizia, busta paga edilizia, software paghe imprese edili, gestione operai cantiere, presenze cantiere edile",
     ogImage: "https://www.ediliziaincloud.com/og/og-default.png",
@@ -48,12 +48,12 @@ const config: FunzionalitaPageConfig = {
   heroH1Highlight: "in un'unica app",
   heroH1Tail: "collegata al cantiere",
   heroSubheadline:
-    "Timbrature GPS conformi al CCNL, ferie e malattie gestite dall'app, costo orario reale per qualifica e contratto, esportazione tracciati per il consulente del lavoro. Tutto collegato direttamente alla commessa, così sai il costo reale di ogni cantiere giorno per giorno.",
+    "Timbrature GPS dal cantiere, ferie e malattie gestite dall'app, costo orario reale di ogni operaio, bozza di cedolino calcolata dalle ore per il consulente del lavoro. Tutto collegato direttamente alla commessa, così sai il costo reale di ogni cantiere giorno per giorno.",
   heroPrimaryCta: "Prova gratis 31 giorni",
   heroSecondaryCta: "Tutte le funzionalità",
   heroSecondaryCtaTo: "/funzionalita",
 
-  reassurancePoints: ["Setup in 48 ore", "Conformità CCNL inclusa", "Esporta a TeamSystem/Zucchetti"],
+  reassurancePoints: ["Setup in 48 ore", "Straordinari 25/50/100% separati", "Ore pronte per il consulente"],
   proofPoints: [
     "Timbrature GPS conformi al CCNL",
     "Ferie e malattie da app mobile",
@@ -66,9 +66,9 @@ const config: FunzionalitaPageConfig = {
     ["Risultato", "Costo manodopera reale per commessa, niente più stime"],
   ],
 
-  betaH2: "Più di 320 imprese italiane usano Edilizia in Cloud per gestire personale e presenze ogni giorno.",
+  betaH2: "Personale e presenze in un'unica app, collegata ai cantieri dove le ore nascono.",
   betaBody:
-    "Il modulo HR e Personale è il nervo centrale della tua impresa edile: lo attiviamo in 48 ore, importiamo l'anagrafica operai e impiegati, configuriamo i contratti CCNL applicati e ti accompagniamo in 4 sessioni 1-a-1 fino a quando l'operaio medio timbra dal telefono e tu vedi il costo orario reale per commessa.",
+    "Il modulo HR e Personale è il nervo centrale della tua impresa edile: lo attiviamo in 48 ore, importiamo l'anagrafica operai e impiegati con stipendi e costi orari e ti accompagniamo in 4 sessioni 1-a-1 fino a quando l'operaio medio timbra dal telefono e tu vedi il costo orario reale per commessa.",
 
   speedH2: "L'operaio timbra dal telefono. Tu vedi il costo orario reale di ogni cantiere giorno per giorno.",
   speedSubheadline:
@@ -76,7 +76,7 @@ const config: FunzionalitaPageConfig = {
   speedStats: [
     { value: 80, prefix: "-", suffix: "%", label: "tempo dedicato a fogli presenze e Excel HR" },
     { value: 95, prefix: "+", suffix: "%", label: "operai che timbrano in autonomia entro 14 giorni" },
-    { value: 24, suffix: " h", label: "ritardo massimo tra evento HR e dato in busta paga" },
+    { value: 24, suffix: " h", label: "ritardo massimo tra timbratura e ore visibili in ufficio" },
   ],
 
   familyH2: "Tutta la piattaforma Edilizia in Cloud collegata al personale.",
@@ -86,7 +86,7 @@ const config: FunzionalitaPageConfig = {
     {
       icon: Users,
       title: "HR e Personale",
-      text: "Operai, ferie, malattie, presenze, busta paga e costo orario reale CCNL collegato alla commessa.",
+      text: "Operai, ferie, malattie, presenze, bozza di cedolino e costo orario reale collegato alla commessa.",
       to: "/funzionalita/hr-personale",
     },
     {
@@ -122,7 +122,7 @@ const config: FunzionalitaPageConfig = {
   ],
   familyBonusTitle: "Una sola piattaforma. Un solo abbonamento. Sei moduli che si parlano.",
   familyBonusText:
-    "Il costo del personale entra automaticamente nel margine della commessa, alimenta i SAL, popola la busta paga e finisce in fatturazione passiva senza copia-incolla. La timbratura GPS dell'operaio è già il costo del cantiere e già la voce della busta paga.",
+    "Il costo del personale entra automaticamente nel margine della commessa e le stesse ore finiscono nella bozza del cedolino, senza copia-incolla. La timbratura GPS dell'operaio è già il costo del cantiere e già il dato di partenza per il consulente del lavoro.",
 
   painKicker: "Il problema vero",
   painH2: "Gestire 20 operai su 5 cantieri con Excel e WhatsApp è una bomba a orologeria.",
@@ -161,7 +161,7 @@ const config: FunzionalitaPageConfig = {
       before:
         "Foglio cartaceo firmato dal capocantiere a fine giornata, raccolto a fine settimana, digitato a inizio settimana successiva. 7 giorni di latenza tra ora lavorata e dato in dashboard.",
       after:
-        "Timbratura GPS al check-in, registrazione automatica delle ore sulla commessa giusta. Il dato è nel sistema in tempo reale, conforme al CCNL Edilizia, archiviato a norma.",
+        "Timbratura GPS al check-in, registrazione automatica delle ore sulla commessa giusta. Il dato è nel sistema in tempo reale e resta archiviato.",
     },
     {
       title: "Ferie e malattie",
@@ -175,14 +175,14 @@ const config: FunzionalitaPageConfig = {
       before:
         "Costo orario stimato a forfait (es. 22€/ora 'standard'). Ore straordinarie a sentimento, riunioni non imputate, tempi morti dispersi. Il costo manodopera reale per commessa è una stima a posteriori.",
       after:
-        "Costo orario CCNL applicato per qualifica, contratto e turno (ordinario, straordinario, festivo, notturno). La manodopera entra nel margine della commessa giusta con il costo pieno reale.",
+        "Il costo orario di ogni operaio applicato alle ore timbrate, con gli straordinari distinti. La manodopera entra nel margine della commessa giusta con il costo pieno reale.",
     },
     {
       title: "Comunicazione con il consulente del lavoro",
       before:
         "Excel mensile inviato via email, riconciliato manualmente dal consulente, errori di battitura corretti via telefono, busta paga emessa con 5 giorni di ritardo. Costo orario amministrativo molto alto.",
       after:
-        "Esportazione automatica a TeamSystem, Zucchetti, Datev e altri tracciati standard. Il consulente riceve i dati già strutturati, emette la busta paga in tempo, con metà degli errori di prima.",
+        "Le ore del mese sono già contate dalle timbrature, con gli straordinari al 25, 50 e 100% separati e i giorni incompleti segnalati. Il consulente parte da una bozza di cedolino da controllare, non da un foglio da ricostruire.",
     },
   ],
 
@@ -199,12 +199,12 @@ const config: FunzionalitaPageConfig = {
     {
       icon: Cloud,
       title: "I dati entrano nella commessa giusta automaticamente",
-      text: "Le ore vanno sulla commessa giusta con costo orario CCNL applicato, le assenze vanno nel piano ferie/malattie, gli straordinari vengono evidenziati. Niente data entry, niente Excel intermedio.",
+      text: "Le ore vanno sulla commessa giusta con il costo orario dell'operaio, le assenze vanno nel piano ferie/malattie, gli straordinari vengono evidenziati. Niente data entry, niente Excel intermedio.",
     },
     {
       icon: BadgeCheck,
-      title: "Il consulente del lavoro riceve l'export pronto",
-      text: "A fine mese, esportazione automatica per TeamSystem, Zucchetti, Datev o tracciato custom. Il consulente del lavoro emette la busta paga senza riconciliazioni manuali.",
+      title: "Il consulente del lavoro parte da una bozza",
+      text: "A fine mese la bozza di cedolino è già calcolata dalle ore: lordo, contributi INPS e Cassa Edile, IRPEF. Il consulente del lavoro controlla e chiude, senza ricostruire le presenze.",
     },
   ],
   mechanismCta: "Prova HR sul tuo team operai",
@@ -232,7 +232,7 @@ const config: FunzionalitaPageConfig = {
     {
       icon: TrendingUp,
       title: "Meno carico amministrativo, meno errori",
-      text: "Tempo dell'amministrazione su HR ridotto del 80%. L'impiegata HR torna a fare il suo lavoro, non riconciliazioni Excel. E gli errori in busta paga calano drasticamente.",
+      text: "L'impiegata HR smette di fare riconciliazioni Excel: le ore sono già contate e le anomalie segnalate. Gli errori sulle ore si vedono prima che arrivino in busta paga.",
     },
   ],
 
@@ -243,8 +243,8 @@ const config: FunzionalitaPageConfig = {
   integrationPillars: [
     {
       icon: MapPin,
-      title: "Timbrature GPS conformi al CCNL",
-      text: "Check-in georeferenziato al cantiere, conformità con il CCNL Edilizia (riposo giornaliero, settimanale, straordinari). Archivio digitale con valore probatorio in caso di contestazione.",
+      title: "Timbrature GPS dal cantiere",
+      text: "Check-in georeferenziato al cantiere, ore ordinarie e straordinari distinti, archivio delle timbrature con orario e posizione da mostrare in caso di contestazione.",
     },
     {
       icon: CalendarDays,
@@ -258,14 +258,14 @@ const config: FunzionalitaPageConfig = {
     },
     {
       icon: FileSignature,
-      title: "Esportazione consulente del lavoro",
-      text: "Tracciati per TeamSystem, Zucchetti, Datev, Inaz e formati custom. Il consulente del lavoro riceve dati già strutturati, riduce gli errori del 70% e velocizza la chiusura mensile.",
+      title: "Bozza di cedolino per il consulente",
+      text: "Ore ordinarie, straordinari al 25, 50 e 100%, lordo, contributi e IRPEF calcolati dalle timbrature. Il consulente del lavoro controlla la bozza invece di ricostruire le presenze.",
     },
   ],
   resultStats: [
     { value: 80, prefix: "-", suffix: "%", label: "tempo amministrativo dedicato all'HR" },
     { value: 95, prefix: "+", suffix: "%", label: "operai che timbrano in autonomia entro 14 giorni" },
-    { value: 70, prefix: "-", suffix: "%", label: "errori in busta paga rispetto al flusso Excel" },
+    { value: 3, label: "fasce di straordinario separate per il consulente: 25, 50 e 100%" },
   ],
   resultsCta: "Apri la dashboard HR di prova",
 
@@ -326,12 +326,12 @@ const config: FunzionalitaPageConfig = {
     {
       label: "Timbrature GPS multi-cantiere",
       value:
-        "Check-in/check-out via app con verifica geografica del cantiere. Conformità CCNL Edilizia, archivio a valore probatorio, esportazione con timestamp e geolocalizzazione.",
+        "Check-in/check-out via app con verifica geografica del cantiere. Ogni timbratura resta in archivio con orario e posizione.",
     },
     {
-      label: "Costo orario CCNL per qualifica",
+      label: "Costo orario per operaio",
       value:
-        "Costo orario reale applicato per qualifica (operaio comune, qualificato, specializzato), tipo turno (ordinario, straordinario, festivo, notturno) e contratto (CCNL Edilizia industria, artigiani, cooperative).",
+        "Il costo orario di ogni operaio applicato in automatico alle ore timbrate sulla commessa, con gli straordinari distinti. La manodopera entra nel margine con il costo pieno, non con una stima a forfait.",
     },
     {
       label: "Ferie, malattie, permessi",
@@ -344,9 +344,9 @@ const config: FunzionalitaPageConfig = {
         "Tracciamento corsi sicurezza D.Lgs 81/2008, DPI consegnati con firma digitale, scadenze visite mediche e idoneità sanitaria. Alert automatici in scadenza.",
     },
     {
-      label: "Esportazione consulente del lavoro",
+      label: "Bozza di cedolino per il consulente",
       value:
-        "Tracciati nativi per TeamSystem, Zucchetti, Datev, Inaz e formati custom (CSV, Excel). Esportazione mensile automatica, riduce errori e tempi del consulente.",
+        "Ore ordinarie e straordinari al 25, 50 e 100% dalle timbrature, lordo dallo stipendio in anagrafica, contributi INPS e Cassa Edile e IRPEF con le aliquote dell'Edilizia Industria. Il consulente del lavoro controlla e chiude.",
     },
     {
       label: "Dashboard costi del personale",
@@ -390,7 +390,7 @@ const config: FunzionalitaPageConfig = {
   faqs: [
     {
       q: "Le timbrature GPS sono conformi al CCNL Edilizia?",
-      a: "Sì. Il sistema rispetta i requisiti del CCNL Edilizia (industria, artigiani, cooperative): registrazione esatta dell'orario, verifica geografica del cantiere, archiviazione con timestamp a valore probatorio. È stato validato dai consulenti del lavoro più importanti del settore.",
+      a: "Il sistema registra l'orario esatto di ingresso e uscita, verifica che l'operaio sia al cantiere e tiene in archivio ogni timbratura con orario e posizione. Straordinari e giorni incompleti sono evidenziati. Come applicare le regole del tuo contratto lo decide il consulente del lavoro, che parte da questi dati.",
     },
     {
       q: "Funziona anche se il cantiere non ha segnale?",
@@ -398,11 +398,11 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "Si integra col mio consulente del lavoro?",
-      a: "Sì. Edilizia in Cloud esporta tracciati nativi per TeamSystem, Zucchetti, Datev, Inaz e altri sistemi. Per consulenti che usano formati custom, esportiamo CSV/Excel personalizzato. La maggior parte dei consulenti dichiara una riduzione degli errori del 70% dopo l'attivazione.",
+      a: "Sì, ma non con un collegamento diretto al suo programma paghe. Il modulo conta le ore dalle timbrature, separa gli straordinari al 25, 50 e 100%, segnala i giorni incompleti e calcola una bozza di cedolino con le aliquote dell'Edilizia Industria. Il consulente parte da lì, controlla e chiude i cedolini con il suo software.",
     },
     {
       q: "Posso gestire più contratti CCNL contemporaneamente?",
-      a: "Sì. Il sistema supporta CCNL Edilizia industria, artigiani, cooperative, oltre a CCNL Metalmeccanici per le officine collegate. Per ogni operaio si applica il contratto specifico, con costo orario, riposi e straordinari calcolati di conseguenza.",
+      a: "Presenze, ferie e costo orario funzionano per ogni operaio, qualunque contratto applichi. La bozza di cedolino invece usa solo le aliquote standard dell'Edilizia Industria: per Artigianato, cooperative o altri CCNL i conti li fa il consulente del lavoro.",
     },
     {
       q: "Cosa succede se un operaio non vuole usare il telefono personale?",
@@ -410,7 +410,7 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "Quanto costa? Ci sono vincoli contrattuali?",
-      a: "Il modulo HR e Personale è incluso nei piani Professional e Business di Edilizia in Cloud. Nessun costo di attivazione, nessun vincolo di durata, cancelli quando vuoi. Onboarding 1-a-1, configurazione CCNL e supporto italiano sempre inclusi.",
+      a: "Il modulo HR e Personale è incluso nei piani Professionista e Impresa AI di Edilizia in Cloud. Il prezzo lo definiamo in consulenza sulla tua impresa. Nessun costo di attivazione, nessun vincolo di durata, cancelli quando vuoi. Onboarding 1-a-1 e supporto italiano sempre inclusi.",
     },
   ],
 
@@ -462,15 +462,15 @@ const config: FunzionalitaPageConfig = {
     {
       to: "/prezzi",
       title: "Prezzi e Piani",
-      text: "Piani trasparenti da 49€/mese. Modulo HR e Personale incluso nei piani Professional e Business.",
+      text: "Piani su misura per la tua impresa. Modulo HR e Personale incluso in Professionista e Impresa AI.",
     },
   ],
 
   finalCtaH2: "Smetti di gestire il personale tra Excel, WhatsApp e fogli cartacei. Inizia a gestirlo da un'app.",
   finalCtaBody:
-    "31 giorni gratuiti per portare Edilizia in Cloud nella tua amministrazione HR. Setup in 48 ore, importazione anagrafica operai, configurazione CCNL ed esportazione consulente del lavoro inclusi. Onboarding 1-a-1 incluso, cancelli quando vuoi.",
+    "31 giorni gratuiti per portare Edilizia in Cloud nella tua amministrazione HR. Setup in 48 ore, importazione anagrafica operai e bozza di cedolino per il consulente del lavoro inclusi. Onboarding 1-a-1 incluso, cancelli quando vuoi.",
   finalCtaButton: "Prova gratis 31 giorni",
-  finalCtaMicrocopy: "Setup in 48 ore · CCNL incluso · Esporta a TeamSystem/Zucchetti",
+  finalCtaMicrocopy: "Setup in 48 ore · Ore pronte per il consulente · Cancelli quando vuoi",
 
   stickyCtaLabel: "Prova gratis HR e Personale",
   stickyCtaMicrocopy: "Setup 48h · Cancelli quando vuoi",

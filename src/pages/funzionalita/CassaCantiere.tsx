@@ -62,7 +62,7 @@ const config: FunzionalitaPageConfig = {
     ["Risultato", "Niente più scoperti a sorpresa, decisioni di cassa basate su dati"],
   ],
 
-  betaH2: "Più di 320 imprese italiane usano Edilizia in Cloud per pianificare la cassa con anticipo.",
+  betaH2: "La cassa dei prossimi 90 giorni, costruita sui dati che hai già nel gestionale.",
   betaBody:
     "Il modulo Cassa & Cash Flow è il pannello finanziario della tua impresa edile: lo attiviamo in 48 ore, importiamo i tuoi conti correnti via API PSD2 (UniCredit, Intesa Sanpaolo, BPER, BPM, Banco Desio, Crédit Agricole, Banca Popolare di Sondrio e oltre 30 banche italiane), riconciliamo automaticamente i movimenti con scadenzario e fatture, ti mostriamo cassa attesa a 30/60/90 giorni dal giorno 1.",
 
@@ -352,7 +352,7 @@ const config: FunzionalitaPageConfig = {
     {
       label: "Export per commercialista e banca",
       value:
-        "Esporta forecast in Excel/PDF firmato per banca o commercialista. Tracciato bancario standard CBI per home banking. Riconciliazione automatica con prima nota.",
+        "Report gestionali in PDF ed Excel da portare in banca o al commercialista. Prima nota e registro IVA esportabili in CSV. I bonifici li disponi dalla tua banca, come sempre.",
     },
   ],
 
@@ -398,7 +398,7 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "Si integra con il mio software contabile?",
-      a: "Sì. Esportiamo forecast e movimenti riconciliati in tracciati nativi per TeamSystem, Zucchetti, Datev e altri sistemi. Per il commercialista forniamo prima nota già strutturata e movimenti bancari riconciliati con scadenzario.",
+      a: "Non con un collegamento diretto. Il commercialista può avere un accesso suo e seguire da lì l'azienda: prima nota, registro IVA e documenti si esportano in CSV, e le fatture sono file XML FatturaPA, il formato standard che qualsiasi programma di contabilità importa. Tracciati dedicati ai singoli gestionali contabili non ci sono.",
     },
     {
       q: "Posso usarlo per gestire più conti correnti contemporaneamente?",
@@ -406,7 +406,7 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "Quanto costa? Ci sono vincoli contrattuali?",
-      a: "Il modulo Cassa & Cash Flow è incluso nei piani Professional e Business di Edilizia in Cloud. Nessun costo di attivazione, nessun vincolo di durata, cancelli quando vuoi. Onboarding 1-a-1, configurazione PSD2 e supporto italiano sempre inclusi.",
+      a: "Il previsionale di cassa è incluso nei piani Gestionale (60 giorni), Professionista (90 giorni) e Impresa AI (365 giorni). Il prezzo lo definiamo in consulenza sulla tua impresa. Nessun costo di attivazione, nessun vincolo di durata, cancelli quando vuoi. Onboarding 1-a-1 e supporto italiano sempre inclusi.",
     },
   ],
 
@@ -423,7 +423,7 @@ const config: FunzionalitaPageConfig = {
     { to: "/funzionalita/margini-cantiere", title: "Margini Cantiere", text: "Margine reale per commessa che alimenta forecast e decisioni." },
     { to: "/funzionalita/gestione-subappalti", title: "Gestione Subappalti", text: "Pagamenti SAL subappalto e ritenute 4% nel forecast pagamenti." },
     { to: "/per/imprese-edili", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
-    { to: "/prezzi", title: "Prezzi e Piani", text: "Modulo Cassa incluso nei piani Professional e Business." },
+    { to: "/prezzi", title: "Prezzi e Piani", text: "Previsionale di cassa incluso nei piani Gestionale, Professionista e Impresa AI." },
   ],
 
   finalCtaH2: "Smetti di scoprire gli scoperti il giorno dopo. Inizia a vederli con 60 giorni di anticipo.",

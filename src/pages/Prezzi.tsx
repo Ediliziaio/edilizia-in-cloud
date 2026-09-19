@@ -91,7 +91,7 @@ const tableRows: TableRow[] = [
   { label: "Agenti AI personalizzati", scopri: "cross", starter: "cross", professional: "cross", enterprise: "check" },
   { label: "Utenti inclusi", scopri: "Illimitati", starter: "Illimitati", professional: "Illimitati", enterprise: "Illimitati", category: "Infrastruttura" },
   { label: "Storage incluso", scopri: "1 GB", starter: "10 GB", professional: "30 GB", enterprise: "100 GB" },
-  { label: "API REST + Webhook", scopri: "cross", starter: "cross", professional: "cross", enterprise: "check" },
+  { label: "Webhook dalle automazioni + chiavi API (MCP)", scopri: "cross", starter: "cross", professional: "cross", enterprise: "check" },
   { label: "SLA uptime", scopri: "cross", starter: "99.5%", professional: "99.7%", enterprise: "99.9%" },
   { label: "Supporto", scopri: "Community", starter: "Email 24h", professional: "Tel/WA 4h", enterprise: "Dedicato 1h" },
   { label: "Call consulente mensile", scopri: "cross", starter: "cross", professional: "1/mese", enterprise: "2/mese" },
@@ -609,7 +609,7 @@ export default function Prezzi() {
                 <Feature label="CRM + Pipeline" negative />
                 <Feature label="HR + Cedolini" negative />
                 <Feature label="Agenti AI" negative />
-                <Feature label="API REST" negative />
+                <Feature label="Webhook e chiavi API (MCP)" negative />
               </FeatureGroup>
             </div>
           </div>
@@ -671,7 +671,7 @@ export default function Prezzi() {
               </FeatureGroup>
               <FeatureGroup title="Non incluso" negative>
                 <Feature label="Multi-sede" negative />
-                <Feature label="API REST + Webhook" negative />
+                <Feature label="Webhook dalle automazioni + chiavi API (MCP)" negative />
                 <Feature label="Agenti AI personalizzati" negative />
               </FeatureGroup>
             </div>
@@ -712,7 +712,7 @@ export default function Prezzi() {
                 <Feature label="WhatsApp Bot AI incluso" />
                 <Feature label="Agenti AI personalizzati" />
                 <Feature label="100 GB storage" />
-                <Feature label="API REST + Webhook" />
+                <Feature label="Webhook dalle automazioni + chiavi API (MCP)" />
                 <Feature label="SLA 99.9% uptime" />
                 <Feature label="Supporto dedicato (risposta 1h)" />
                 <Feature label="2 call consulente/mese" />

@@ -10,7 +10,7 @@ const config: PerTipoConfig = {
   seoDescription:
     "Gestionale enterprise per grandi imprese edili e general contractor 50+ dipendenti, 10-50 cantieri attivi. Multi-società, dashboard direzionale CFO…",
   seoKeywords:
-    "software grandi imprese edili, gestionale general contractor, software 50 dipendenti edilizia, ERP edilizia enterprise, multi-società edile, holding edile gestionale, dashboard direzionale costruzioni, software cantieri SAP alternativa, gestionale group edile",
+    "software grandi imprese edili, gestionale general contractor, software 50 dipendenti edilizia, ERP edilizia enterprise, multi-società edile, holding edile gestionale, dashboard direzionale costruzioni, software cantieri general contractor, gestionale group edile",
   seoCanonical: "/per/grandi-imprese",
 
   // Hero
@@ -22,7 +22,7 @@ const config: PerTipoConfig = {
     </>
   ),
   heroSubtitle:
-    "Hai 3 società operative, 18-30 cantieri attivi e un CdA che alle 9 del lunedì vuole sapere quanto sta perdendo il cantiere di Lecce. Oggi i dati arrivano da SAP, da 4 Excel diversi, da PEC e da WhatsApp del direttore tecnico. Edilizia in Cloud consolida tutto il gruppo in un'unica dashboard direzionale CFO/CEO real-time, si integra con SAP/Microsoft Dynamics via API e impone la governance progetti che il Codice Appalti pretende.",
+    "Hai 3 società operative, 18-30 cantieri attivi e un CdA che alle 9 del lunedì vuole sapere quanto sta perdendo il cantiere di Lecce. Oggi i dati arrivano dal gestionale contabile, da 4 Excel diversi, da PEC e da WhatsApp del direttore tecnico. Edilizia in Cloud consolida tutto il gruppo in un'unica dashboard direzionale CFO/CEO real-time e si affianca al gestionale contabile che già usi: fatture in XML FatturaPA, prima nota e registro IVA in CSV, automazioni che avvisano gli altri sistemi quando succede qualcosa.",
   heroImage: "/hero/stock/cantiere-1600585154526-1400.webp",
 
   // Social proof
@@ -41,7 +41,7 @@ const config: PerTipoConfig = {
     {
       emoji: "🧩",
       title: "Dati frammentati tra ERP, Excel, email e PEC",
-      desc: "Il gestionale contabile è SAP. Il controllo cantieri è in 4 Excel diversi. Le offerte fornitori arrivano via PEC. Le varianti via WhatsApp del DT. Il CFO chiede il margine consolidato di gruppo e nessuno sa rispondere prima di 5 giorni di lavoro manuale di 3 controller.",
+      desc: "Il gestionale contabile è l'ERP di gruppo. Il controllo cantieri è in 4 Excel diversi. Le offerte fornitori arrivano via PEC. Le varianti via WhatsApp del DT. Il CFO chiede il margine consolidato di gruppo e nessuno sa rispondere prima di 5 giorni di lavoro manuale di 3 controller.",
     },
     {
       emoji: "📊",
@@ -77,7 +77,7 @@ const config: PerTipoConfig = {
   transformation: {
     title: "Da governance percepita a governance dimostrabile",
     subtitle:
-      "Non sostituisci SAP né Microsoft Dynamics. Ci colleghi sopra il livello operativo cantieri con una single source of truth che il CFO consulta in tempo reale e che gli auditor accettano senza discussione.",
+      "Non sostituisci il gestionale contabile di gruppo. Gli affianchi il livello operativo dei cantieri, con una sola fonte di verità che il CFO consulta in tempo reale.",
     fromTitle: "Prima: governance per email",
     fromItems: [
       "Reportistica direzionale consolidata 25 giorni dopo la chiusura del mese, fatta a mano in Excel",
@@ -85,7 +85,7 @@ const config: PerTipoConfig = {
       "Ogni capocantiere gestisce subappalti in autonomia: prezzi disallineati, DURC scaduti, doppi pagamenti",
       "Approvazioni acquisti via email senza tracciabilità: chi ha autorizzato cosa scopri solo in audit",
       "Documentazione Codice Appalti, MOG 231 e tracciabilità sparsa tra 4 software, server di rete e PEC",
-      "Integrazione SAP/Dynamics fatta a fine mese con export CSV manuali e ore di pulizia dati",
+      "Dati dei cantieri riportati a mano nel gestionale contabile a fine mese, con ore di pulizia dati",
     ],
     toTitle: "Dopo: governance real-time",
     toItems: [
@@ -94,7 +94,7 @@ const config: PerTipoConfig = {
       "Albo fornitori e subappaltatori unico di gruppo: prezzi standard, DURC monitorato, blocco automatico se non conforme",
       "Workflow approvazioni multi-livello configurabile per importo e categoria: ogni firma è tracciata e auditabile",
       "Repository documentale unico Codice Appalti compliant: ogni cantiere ha il suo dossier completo, sempre pronto per audit",
-      "API REST/SFTP bidirezionali con SAP, Microsoft Dynamics 365, Oracle, TeamSystem: dati che fluiscono ogni notte",
+      "Verso il gestionale contabile: fatture in XML FatturaPA, prima nota e registro IVA in CSV, avvisi via webhook dalle automazioni quando nasce una fattura o arriva un pagamento",
     ],
   },
 
@@ -130,9 +130,9 @@ const config: PerTipoConfig = {
     },
     {
       icon: Network,
-      name: "API Integration ERP-Ready",
-      desc: "Connettori certificati con SAP S/4HANA, SAP Business One, Microsoft Dynamics 365 F&O, Oracle NetSuite, TeamSystem Enterprise, Zucchetti AdHoc. API REST documentate, SFTP, EDI, webhook real-time. Niente più export CSV manuali.",
-      saving: "Zero re-imputazione dati ERP",
+      name: "Scambio dati con il gestionale contabile",
+      desc: "Un connettore diretto con l'ERP non c'è, e non te lo vendiamo. Le fatture escono in XML FatturaPA, il formato che ogni gestionale contabile importa; prima nota, registro IVA e documenti si esportano in CSV; le automazioni chiamano un indirizzo web (Zapier, Make, n8n) quando nasce una fattura, arriva un pagamento o un preventivo viene accettato.",
+      saving: "Meno dati ricopiati a mano",
     },
     {
       icon: LayoutDashboard,
@@ -203,7 +203,7 @@ const config: PerTipoConfig = {
       {
         icon: Receipt,
         name: "Fatturazione e ciclo passivo",
-        desc: "Ciclo attivo e passivo SDI per società, SAL, ritenute e split payment, riconciliazione con l'ERP di gruppo via API.",
+        desc: "Ciclo attivo e passivo SDI per società, SAL, ritenute e split payment, fatture esportabili in XML FatturaPA verso il gestionale contabile di gruppo.",
       },
       {
         icon: Wallet,
@@ -222,8 +222,8 @@ const config: PerTipoConfig = {
       },
       {
         icon: Network,
-        name: "HR di gruppo e cassa edile",
-        desc: "Presenze multi-cantiere, cassa edile, INPS edile e libro unico per società, con export verso i consulenti del lavoro.",
+        name: "HR di gruppo e presenze",
+        desc: "Presenze multi-cantiere dalle timbrature e bozza di cedolino con contributi INPS e Cassa Edile, da passare ai consulenti del lavoro che chiudono paghe e adempimenti.",
       },
       {
         icon: BarChart3,
@@ -244,7 +244,7 @@ const config: PerTipoConfig = {
     initials: "MD",
     gradient: "from-[#F97415] to-[#0d8f79]",
     quote:
-      "Avevamo SAP per la contabilità e 4 Excel di controllo cantiere mantenuti da 3 controller. Il margine consolidato di gruppo lo avevo il 25 del mese, su numeri del mese prima. Con Edilizia in Cloud sopra SAP ora apro il portatile alle 8 del lunedì e vedo i 18 cantieri di tutte le 3 società, il margine atteso vs realizzato, gli scostamenti rossi. Nei primi 6 mesi abbiamo recuperato 380k€ solo riallineando i prezzi dei subappaltatori che ogni cantiere trattava in autonomia.",
+      "Avevamo l'ERP per la contabilità e 4 Excel di controllo cantiere mantenuti da 3 controller. Il margine consolidato di gruppo lo avevo il 25 del mese, su numeri del mese prima. Con Edilizia in Cloud accanto all'ERP ora apro il portatile alle 8 del lunedì e vedo i 18 cantieri di tutte le 3 società, il margine atteso vs realizzato, gli scostamenti rossi. Nei primi 6 mesi abbiamo recuperato 380k€ solo riallineando i prezzi dei subappaltatori che ogni cantiere trattava in autonomia.",
     metrics: [
       { label: "Cantieri attivi gestiti in parallelo", before: "12 (con 4 Excel)", after: "18 (vista unica gruppo)" },
       { label: "Tempo chiusura reporting direzionale", before: "25 giorni", after: "real-time" },
@@ -256,8 +256,8 @@ const config: PerTipoConfig = {
   // FAQ
   faq: [
     {
-      q: "Si integra davvero con SAP S/4HANA, Microsoft Dynamics 365 e Oracle NetSuite?",
-      a: "Sì. Disponiamo di connettori certificati e di un'architettura API REST/SOAP/SFTP/EDI documentata. Per SAP supportiamo IDoc e BAPI; per Dynamics 365 lavoriamo via Dataverse e Logic Apps; per Oracle via REST e Database Link. Il flusso è bidirezionale: anagrafiche fornitori, piano dei conti, ordini di acquisto, fatture passive, registrazioni contabili. La nostra integration factory configura il middleware in 4-8 settimane secondo la complessità, con UAT supervisionato da un solution architect dedicato.",
+      q: "Si collega al nostro ERP di gruppo?",
+      a: "Non con un connettore diretto: oggi non abbiamo connettori per ERP come SAP o Microsoft Dynamics, né un'API pubblica per leggere e scrivere i dati. Quello che c'è: le fatture escono in XML FatturaPA, il formato standard che ogni gestionale contabile importa; prima nota, registro IVA e documenti si esportano in CSV; le automazioni chiamano un indirizzo web quando nasce una fattura, arriva un pagamento o un preventivo viene accettato, e da lì Zapier, Make o n8n portano il dato dove serve. Prima della firma valutiamo con voi se questo basta per il vostro flusso.",
     },
     {
       q: "Quali sono le certificazioni di sicurezza enterprise che possedete?",
@@ -277,7 +277,7 @@ const config: PerTipoConfig = {
     },
     {
       q: "Quanto costa il piano enterprise e come funziona il pricing?",
-      a: "Il piano Enterprise è a quotazione personalizzata: prezzo medio indicativo da 18.000 a 60.000 € all'anno secondo numero di società, utenti concorrenti, volume cantieri, integrazioni richieste e livello SLA. È sempre incluso onboarding dedicato (8-16 settimane), data migration da legacy, formazione per ruolo (direzione, controller, PM, capicantiere, ammnistrazione), Customer Success Manager nominale e supporto premium. Sono disponibili anche modelli OPEX puri o ibridi CAPEX/OPEX su 36 mesi. Richiedi una demo enterprise dedicata: il nostro solution architect prepara un'analisi di fattibilità su misura e un business case con ROI atteso.",
+      a: "Il piano per i gruppi è su misura: il prezzo dipende da numero di società, utenti, cantieri e dal lavoro di avvio. Lo definiamo in una consulenza, dopo aver visto come lavorate oggi. Richiedi una demo dedicata: ti mostriamo la piattaforma sui vostri casi e ti diciamo con chiarezza cosa fa e cosa no.",
     },
   ],
 
@@ -312,15 +312,15 @@ const config: PerTipoConfig = {
     },
     {
       icon: Network,
-      problem: "Integrazione ERP esistente: sostituire SAP/Dynamics non è in agenda, ma serve unificare i dati cantiere",
-      solution: "Edilizia in Cloud non sostituisce il tuo ERP: si integra nativamente. Connettori certificati SAP S/4HANA (IDoc + BAPI), Microsoft Dynamics 365 F&O (Dataverse), Oracle NetSuite (REST), TeamSystem Enterprise, Zucchetti AdHoc. Sincronizzazione bidirezionale notturna o real-time via webhook. La nostra integration factory esegue il go-live in 4-8 settimane con UAT supervisionato.",
-      economicBenefit: "4-8 sett",
-      benefitLabel: "go-live integrazione ERP enterprise certificata",
+      problem: "ERP esistente: sostituirlo non è in agenda, ma serve unificare i dati cantiere",
+      solution: "Edilizia in Cloud non sostituisce il tuo ERP e oggi non ha connettori diretti verso SAP, Dynamics o altri ERP. Si affianca così: fatture in XML FatturaPA che il gestionale contabile importa, prima nota, registro IVA e documenti in CSV, e automazioni che chiamano un indirizzo web (Zapier, Make, n8n) quando nasce una fattura, arriva un pagamento o un preventivo viene accettato.",
+      economicBenefit: "XML + CSV",
+      benefitLabel: "formati standard che il gestionale contabile importa",
     },
   ],
   verticalFeaturesTitle: "Cinque pilastri enterprise per il general contractor moderno",
   verticalFeaturesSubtitle:
-    "Audit trail forense, deleghe a tempo, separazione tra società, approvazioni multi-livello, integrazioni ERP certificate: il livello di rigore che il CdA, il Collegio Sindacale e gli enti di vigilanza si aspettano da una holding edile da 25M€+.",
+    "Audit trail forense, deleghe a tempo, separazione tra società, approvazioni multi-livello, dati verso l'ERP in formati standard: il livello di rigore che il CdA, il Collegio Sindacale e gli enti di vigilanza si aspettano da una holding edile da 25M€+.",
   demoLabel: "Demo enterprise dedicata",
 
   // CTA
@@ -331,17 +331,17 @@ const config: PerTipoConfig = {
     </>
   ),
   ctaSubtitle:
-    "Demo enterprise dedicata di 60 minuti con il nostro solution architect: analisi di fattibilità su misura, integrazione con il tuo ERP, business case ROI a 12-24 mesi. Per holding e general contractor da 15M€ in su.",
+    "Demo enterprise dedicata di 60 minuti con il nostro solution architect: analisi di fattibilità su misura, come si affianca al tuo gestionale contabile, business case ROI a 12-24 mesi. Per holding e general contractor da 15M€ in su.",
 
   // Schema FAQ
   schemaFaq: [
     {
       q: "Qual è il miglior software gestionale per grandi imprese edili e general contractor?",
-      a: "Edilizia in Cloud è la piattaforma enterprise per grandi imprese edili 50+ dipendenti e general contractor con 10-50 cantieri attivi: multi-società nativo, dashboard direzionale CFO real-time, integrazione certificata SAP/Microsoft Dynamics/Oracle, conformità Codice Appalti D.Lgs 36/2023, MOG 231, whistleblowing, audit trail forense e SLA 99,9%.",
+      a: "Edilizia in Cloud è pensato anche per grandi imprese edili e general contractor con molti cantieri attivi: dashboard direzionale, margini per cantiere in tempo reale, subappalti con DURC monitorato, fatturazione SDI e dati che escono verso il gestionale contabile in formati standard (XML FatturaPA e CSV).",
     },
     {
       q: "Edilizia in Cloud sostituisce SAP o Microsoft Dynamics in una holding edile?",
-      a: "No, Edilizia in Cloud non sostituisce l'ERP esistente: si integra nativamente sopra SAP S/4HANA, Microsoft Dynamics 365, Oracle NetSuite e TeamSystem Enterprise tramite connettori certificati. Aggiunge il livello operativo di controllo cantieri, governance progetti e dashboard direzionale che gli ERP generalisti non coprono per il settore edile.",
+      a: "No, e non si collega direttamente all'ERP: non ha connettori per SAP o Microsoft Dynamics. Si affianca al gestionale contabile con formati standard (fatture XML FatturaPA, prima nota e registro IVA in CSV) e con automazioni via webhook, e aggiunge il livello operativo che gli ERP generalisti non coprono per il cantiere: controllo cantieri, subappalti, margini e dashboard direzionale.",
     },
     {
       q: "Come si gestisce il consolidamento multi-società in una holding edile?",
