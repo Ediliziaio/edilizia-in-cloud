@@ -35,7 +35,7 @@ export interface AppuntamentoDaNotificare {
   indirizzo_via: string | null;
   indirizzo_citta: string | null;
   fuori_sede: boolean;
-  azienda: { nome: string | null; piva: string | null; email: string | null; telefono: string | null; notifiche_dal: string | null } | null;
+  azienda: { nome: string | null; ragione_sociale?: string | null; piva: string | null; email: string | null; telefono: string | null; notifiche_dal: string | null } | null;
   consulente: { id: string; nome: string | null; cognome: string | null; email: string | null; telefono: string | null } | null;
   sede: { nome: string; via: string | null; cap: string | null; citta: string | null; prov: string | null } | null;
   cliente: { id: string; nome: string | null; cognome: string | null; email: string | null; telefono: string | null; indirizzo: string | null } | null;
@@ -258,9 +258,13 @@ function firma(a: AppuntamentoDaNotificare): { html: string; testo: string } {
   };
 }
 
-/** Ragione sociale e P.IVA; senza P.IVA niente: il nome è già nella firma. */
+/**
+ * Ragione sociale e P.IVA; senza P.IVA niente: il nome è già nella firma.
+ * Accanto alla P.IVA il nome della società che la possiede («Il Bagno Group
+ * S.r.l.»), non quello commerciale.
+ */
 function piede(a: AppuntamentoDaNotificare): { html: string; testo: string } {
-  const nome = String(a.azienda?.nome ?? "").trim();
+  const nome = String(a.azienda?.ragione_sociale ?? a.azienda?.nome ?? "").trim();
   if (!nome || !a.azienda?.piva) return { html: "", testo: "" };
   const riga = `${nome} — P.IVA ${a.azienda.piva}`;
   return {

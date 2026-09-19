@@ -121,6 +121,8 @@ describe("Email al cliente", () => {
     expect(e.testo).toContain("Via Nuova Valassina 27, 20851 Lissone (MB)");
     expect(e.testo).toContain("Camilla Nespola");
     expect(e.testo).toContain("Il Bagno Group — P.IVA 01544570136");
+    const conRagioneSociale = appuntamento({ azienda: { nome: "Il Bagno Group", ragione_sociale: "Il Bagno Group S.r.l.", piva: "11721620968", email: null, telefono: null, notifiche_dal: null } });
+    expect(emailConferma(conRagioneSociale, luogoAppuntamento(conRagioneSociale)).testo).toContain("Il Bagno Group S.r.l. — P.IVA 11721620968");
   });
 
   it("col telefono in anagrafica il cliente può anche chiamare", () => {
