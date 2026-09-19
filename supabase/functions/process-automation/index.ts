@@ -33,6 +33,7 @@ import {
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { brandEmailBody } from "../_shared/brandEmailBody.ts";
 import { loadContactCustomFieldResolver, applyContactCustomFields } from "../_shared/contactCustomFields.ts";
+import { costruisciVariabiliCommessa, scegliFatturaDaAllegare, sostituisciVariabiliCommessa } from "../_shared/variabiliCommessa.ts";
 
 import { serveConMetriche } from "../_shared/withMetrics.ts";
 interface AutomationNode {
@@ -231,6 +232,9 @@ async function handleTrigger(supabase: any, body: any) {
     ordine_creato: "order_created",
     cantiere_creato: "order_created",
     ordine_stato_cambiato: "order_status_changed",
+    // Emesso da fire_order_automation quando si fissa o si sposta la data di
+    // posa prevista (orders.expected_date).
+    commessa_data_installazione: "order_installation_date_set",
     ordine_in_ritardo: "order_overdue",            // SCHEDULED
     cantiere_in_ritardo: "site_overdue",            // SCHEDULED
     // Fatturazione & incassi
@@ -335,7 +339,9 @@ async function handleTrigger(supabase: any, body: any) {
     if (typeof tcfg.stato_a === "string" && tcfg.stato_a !== "") {
       const normStato = (s: unknown) => String(s ?? "").toLowerCase().trim().replace(/\s+/g, "_");
       const want = normStato(tcfg.stato_a);
-      const got = [ep?.status, ep?.status_name, ep?.new_status].map(normStato);
+      // current_status_id: il builder salva l'id della fase (i nomi le aziende
+      // li cambiano, l'id resta).
+      const got = [ep?.status, ep?.status_name, ep?.new_status, ep?.current_status_id].map(normStato);
       if (!got.includes(want)) continue;
     }
     // Priorità (ticket_creato / task_creato): prima ignorata.
@@ -2205,7 +2211,7 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
     }
 
     case "send_email": {
-      return await executeSendEmail(supabase, ncfg, entityId, companyId);
+      return await executeSendEmail(supabase, ncfg, entityId, companyId, queueItem);
     }
 
     case "send_sms": {
@@ -3424,39 +3430,62 @@ async function processWaitingTimeouts(supabase: any) {
 // ────────────────────────────────────────────────────
 // SEND EMAIL (real provider integration)
 // ────────────────────────────────────────────────────
-async function executeSendEmail(supabase: any, cfg: Record<string, any>, entityId: string, companyId: string) {
+async function executeSendEmail(supabase: any, cfg: Record<string, any>, entityId: string, companyId: string, queueItem?: any) {
   try {
-    // Get contact info
-    const { data: contact } = await supabase
-      .from("marketing_contacts")
-      .select("id, email, first_name, last_name, phone, city, province, company_name, source, unsubscribed, optout_email")
-      .eq("id", entityId)
-      .single();
-
-    if (!contact?.email) {
-      return { success: false, error: "Contact has no email address" };
+    // Automazione su una COMMESSA (benvenuto, fattura, data di posa, saldo):
+    // l'entità è l'ordine, non un contatto marketing. Prima si cercava l'id
+    // dell'ordine fra i contatti e ogni invio falliva «Contact has no email».
+    const suCommessa = queueItem?.entity_type === "order";
+    const commessa = suCommessa ? await caricaContestoCommessa(supabase, entityId, companyId) : null;
+    if (suCommessa && !commessa) {
+      return { success: false, error: "Commessa non trovata (o di un'altra azienda)" };
     }
-    if (contact.unsubscribed || contact.optout_email) {
+
+    let contact: any;
+    if (commessa) {
+      contact = commessa.contatto;
+    } else {
+      const { data } = await supabase
+        .from("marketing_contacts")
+        .select("id, email, first_name, last_name, phone, city, province, company_name, source, unsubscribed, optout_email")
+        .eq("id", entityId)
+        .single();
+      contact = data;
+    }
+    const conVariabili = (t: string) => (commessa ? sostituisciVariabiliCommessa(t, commessa.variabili) : t);
+
+    if (!contact?.email && !(commessa && typeof cfg.email_to === "string" && cfg.email_to.trim())) {
+      return { success: false, error: commessa ? "Il cliente della commessa non ha un indirizzo email" : "Contact has no email address" };
+    }
+    // L'opt-out marketing vale per i contatti: al cliente di una commessa si
+    // scrive per il lavoro in corso (email di servizio).
+    if (!commessa && (contact.unsubscribed || contact.optout_email)) {
       return { success: false, error: "Contact has opted out of email" };
     }
 
-    // Determine stream (default: marketing)
-    const stream = cfg.stream || "marketing";
+    // Stream: le email di commessa sono di servizio, non promozionali.
+    const stream = cfg.stream || (commessa ? "transactional" : "marketing");
+    // Casella dell'azienda scelta nel nodo: l'email parte da lì (e resta nella
+    // sua posta inviata) invece che dal dominio di piattaforma.
+    const casellaId = typeof cfg.casella_id === "string" && UUID_RE.test(cfg.casella_id) ? cfg.casella_id : null;
     const settings = await loadProviderSettings(stream);
 
-    if (!settings.apiKey) {
+    if (!casellaId && !settings.apiKey) {
       return { success: false, error: `No API key configured for ${stream} email provider` };
     }
 
     // Destinatario override (campo "destinatario" del builder, con supporto
     // {{placeholder}}): PRIMA era ignorato e si inviava sempre al contatto.
     // Default (vuoto o uguale) = email del contatto, comportamento invariato.
-    let toAddress: string = contact.email;
+    let toAddress: string = contact?.email ?? "";
     if (typeof cfg.email_to === "string" && cfg.email_to.trim() !== "") {
-      const resolvedTo = (await resolveContactText(supabase, cfg.email_to, contact, companyId)).trim();
+      const resolvedTo = (await resolveContactText(supabase, conVariabili(cfg.email_to), contact, companyId)).trim();
       if (resolvedTo && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(resolvedTo)) {
         toAddress = resolvedTo;
       }
+    }
+    if (!toAddress) {
+      return { success: false, error: "Nessun indirizzo email a cui scrivere" };
     }
 
     const suppressed = await getSuppressedEmailMap(
@@ -3521,8 +3550,33 @@ async function executeSendEmail(supabase: any, cfg: Record<string, any>, entityI
 
     // Personalizzazione completa: {{contatto.X}} (picker IT), {{contact.X}} (EN),
     // nomi nudi e CAMPI PERSONALIZZATI. Anche l'oggetto viene personalizzato.
-    html = await resolveContactText(supabase, html, contact, companyId);
-    subject = await resolveContactText(supabase, subject, contact, companyId);
+    // Le variabili di commessa ({{commessa.x}}, {{cliente.x}}, {{azienda.x}})
+    // vanno per prime: le altre regole non le conoscono.
+    html = await resolveContactText(supabase, conVariabili(html), contact, companyId);
+    subject = await resolveContactText(supabase, conVariabili(subject), contact, companyId);
+
+    // Fattura della commessa in allegato (nodo «allega la fattura»): l'ultima
+    // caricata nella cartella Fatture. Se manca, non si manda un'email che
+    // dice «in allegato la fattura» senza fattura.
+    let fattura: { file_name: string; file_url: string; file_type: string | null; file_size: number | null } | null = null;
+    if (cfg.allega_fattura_commessa === true || cfg.allega_fattura_commessa === "true") {
+      if (!commessa) {
+        return { success: false, error: "«Allega la fattura» funziona solo sulle automazioni di commessa" };
+      }
+      fattura = commessa.fattura;
+      if (!fattura) {
+        return { success: false, error: "Nessuna fattura nei documenti della commessa: caricala nella cartella Fatture e rilancia" };
+      }
+    }
+
+    if (casellaId) {
+      return await inviaDaCasellaAzienda(supabase, {
+        casellaId, companyId, toAddress, subject, html,
+        cc: listaEmail(conVariabili(String(cfg.cc ?? ""))),
+        fattura,
+        orderId: commessa ? entityId : null,
+      });
+    }
 
     // Inject tracking pixel and unsubscribe link for marketing emails.
     // SEC: link firmati HMAC (vedi emailTrackingSignature.ts). L'URL di unsub
@@ -3557,7 +3611,8 @@ async function executeSendEmail(supabase: any, cfg: Record<string, any>, entityI
     // Reply GHL-style: Reply-To = indirizzo unico del contatto (attivo solo se
     // email_reply_domain è configurato) → la risposta rientra nel CRM in
     // tempo reale via edge email-inbound-reply, senza caselle collegate.
-    const routeReplyTo = await getReplyAddress(supabase, companyId, contact.id);
+    // Il cliente di una commessa non è un contatto CRM: risponde all'azienda.
+    const routeReplyTo = commessa ? null : await getReplyAddress(supabase, companyId, contact.id);
     const safeFromName = sanitizeFromName(cfg.from_name);
     const fromAddress = cfg.from_email
       ? safeFromName ? `${safeFromName} <${cfg.from_email}>` : cfg.from_email
@@ -3589,12 +3644,15 @@ async function executeSendEmail(supabase: any, cfg: Record<string, any>, entityI
       }
     }
 
+    const allegatiProvider = fattura ? [await scaricaAllegatoBase64(supabase, fattura)] : undefined;
+
     const result = await sendViaProviderWithFailover(stream, settings, {
       from: fromAddress,
       replyTo: routeReplyTo ?? resolvedSender?.replyTo,
       to: [toAddress],
       subject,
       html,
+      attachments: allegatiProvider,
       headers: stream === "marketing"
         ? {
             // SEC: stesso URL di unsub firmato HMAC iniettato nel corpo.
@@ -3633,7 +3691,11 @@ async function executeSendEmail(supabase: any, cfg: Record<string, any>, entityI
       charged_eur: 0,
       // La variante finisce nel registro: senza, un test A/B produce due
       // email diverse e nessun modo di sapere quale ha reso di piu'.
-      metadata: { contact_id: contact.id, automation: true, ...(variante ? { ab_variant: variante } : {}) },
+      metadata: {
+        contact_id: contact.id, automation: true,
+        ...(commessa ? { order_id: entityId, allegato: fattura?.file_name ?? null } : {}),
+        ...(variante ? { ab_variant: variante } : {}),
+      },
     });
 
     // Fire-and-forget auto-topup check after marketing send
@@ -3660,6 +3722,169 @@ async function executeSendEmail(supabase: any, cfg: Record<string, any>, entityI
   } catch (err: any) {
     return { success: false, error: err.message };
   }
+}
+
+// ────────────────────────────────────────────────────
+// EMAIL DI COMMESSA: contesto, allegato, casella dell'azienda
+// ────────────────────────────────────────────────────
+
+/** Cliente, variabili e fattura di una commessa, per le email di servizio. */
+async function caricaContestoCommessa(supabase: any, orderId: string, companyId: string) {
+  if (!UUID_RE.test(String(orderId))) return null;
+  const { data: ordine } = await supabase
+    .from("orders")
+    .select("id, company_id, customer_id, current_status_id, order_code, description, total_amount, deposit_amount, balance_amount, expected_date, work_start_date, indirizzo_lavori, work_address, client_name, client_email, client_phone")
+    .eq("id", orderId)
+    .eq("company_id", companyId)
+    .maybeSingle();
+  if (!ordine) return null;
+
+  const [clienteRes, aziendaRes, anagraficaRes, faseRes, fileRes] = await Promise.all([
+    ordine.customer_id
+      ? supabase.from("profiles").select("id, first_name, last_name, email, phone").eq("id", ordine.customer_id).maybeSingle()
+      : Promise.resolve({ data: null }),
+    supabase.from("companies").select("name, business_name, email, phone, bank_iban").eq("id", companyId).maybeSingle(),
+    supabase.from("anagrafica_azienda").select("ragione_sociale, iban_principale, intestatario_conto, telefono, email").eq("company_id", companyId).maybeSingle(),
+    ordine.current_status_id
+      ? supabase.from("order_statuses").select("name").eq("id", ordine.current_status_id).maybeSingle()
+      : Promise.resolve({ data: null }),
+    supabase.from("order_attachments")
+      .select("file_name, file_url, file_type, file_size, created_at, order_document_folders:folder_id(nome)")
+      .eq("order_id", orderId)
+      .order("created_at", { ascending: false })
+      .limit(200),
+  ]);
+
+  const cliente = clienteRes.data as { id: string; first_name: string | null; last_name: string | null; email: string | null; phone: string | null } | null;
+  const azienda = aziendaRes.data as Record<string, string | null> | null;
+  const anagrafica = anagraficaRes.data as Record<string, string | null> | null;
+
+  const variabili = costruisciVariabiliCommessa({
+    ordine,
+    cliente,
+    fase: (faseRes.data as { name?: string } | null)?.name ?? null,
+    azienda: {
+      nome: anagrafica?.ragione_sociale || azienda?.business_name || azienda?.name || null,
+      email: anagrafica?.email || azienda?.email || null,
+      telefono: anagrafica?.telefono || azienda?.phone || null,
+      iban: anagrafica?.iban_principale || azienda?.bank_iban || null,
+      intestatario_conto: anagrafica?.intestatario_conto || null,
+    },
+  });
+
+  const file = ((fileRes.data ?? []) as Array<Record<string, any>>).map((f) => ({
+    file_name: String(f.file_name ?? ""),
+    file_url: String(f.file_url ?? ""),
+    file_type: (f.file_type as string | null) ?? null,
+    file_size: (f.file_size as number | null) ?? null,
+    created_at: String(f.created_at ?? ""),
+    cartella: (f.order_document_folders as { nome?: string } | null)?.nome ?? null,
+  })).filter((f) => f.file_url);
+
+  return {
+    // Forma «contatto» per le regole di personalizzazione esistenti ({{nome}}…).
+    contatto: {
+      id: cliente?.id ?? ordine.id,
+      email: variabili["cliente.email"] || null,
+      first_name: variabili["cliente.nome"],
+      last_name: variabili["cliente.cognome"],
+      phone: variabili["cliente.telefono"],
+      address: variabili["commessa.indirizzo"],
+    },
+    variabili,
+    fattura: scegliFatturaDaAllegare(file),
+  };
+}
+
+/** «a@b.it, c@d.it» → indirizzi validi, senza doppioni. */
+function listaEmail(raw: string): string[] {
+  return Array.from(new Set(
+    raw.split(/[,;\s]+/).map((s) => s.trim()).filter((s) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s)),
+  ));
+}
+
+async function scaricaAllegatoBase64(
+  supabase: any,
+  f: { file_name: string; file_url: string; file_type: string | null },
+): Promise<{ filename: string; content: string; type: string }> {
+  const { data, error } = await supabase.storage.from("order-attachments").download(f.file_url);
+  if (error || !data) throw new Error(`Non riesco a leggere la fattura «${f.file_name}»: ${error?.message ?? "file mancante"}`);
+  const buf = new Uint8Array(await data.arrayBuffer());
+  let bin = "";
+  for (let i = 0; i < buf.length; i += 1024) bin += String.fromCharCode(...buf.subarray(i, i + 1024));
+  return { filename: f.file_name, content: btoa(bin), type: f.file_type || "application/pdf" };
+}
+
+/**
+ * Invio dalla casella collegata dall'azienda (Impostazioni › Posta): riga in
+ * email_outbox intestata al proprietario della casella, poi email-send, lo
+ * stesso percorso dei solleciti. L'email resta nella posta inviata vera.
+ */
+async function inviaDaCasellaAzienda(supabase: any, p: {
+  casellaId: string;
+  companyId: string;
+  toAddress: string;
+  subject: string;
+  html: string;
+  cc: string[];
+  fattura: { file_name: string; file_url: string; file_type: string | null; file_size: number | null } | null;
+  orderId: string | null;
+}) {
+  const { data: conn } = await supabase
+    .from("email_oauth_connections")
+    .select("id, user_id, company_id, status, email_address")
+    .eq("id", p.casellaId)
+    .maybeSingle();
+  if (!conn || conn.company_id !== p.companyId) {
+    return { success: false, error: "Casella email non trovata (o di un'altra azienda)" };
+  }
+  if (conn.status !== "active") {
+    return { success: false, error: `La casella ${conn.email_address} non è collegata: ricollegala da Impostazioni › Posta` };
+  }
+
+  const { data: ob, error: obErr } = await supabase.from("email_outbox").insert({
+    company_id: p.companyId,
+    user_id: conn.user_id,
+    oauth_connection_id: conn.id,
+    to_emails: [p.toAddress],
+    cc_emails: p.cc,
+    subject: p.subject,
+    body_html: p.html,
+    attachments: p.fattura
+      ? [{ filename: p.fattura.file_name, mime: p.fattura.file_type || "application/pdf", size: p.fattura.file_size ?? undefined, storage_path: p.fattura.file_url, bucket: "order-attachments" }]
+      : [],
+    status: "draft",
+  }).select("id").maybeSingle();
+  if (obErr || !ob?.id) return { success: false, error: `Coda email: ${obErr?.message ?? "riga non creata"}` };
+
+  const res = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/email-send`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}` },
+    body: JSON.stringify({ outbox_id: ob.id }),
+  });
+  const body = await res.json().catch(() => ({})) as { ok?: boolean; error?: string };
+  const ok = res.ok && body.ok !== false;
+
+  await logEmailDelivery(supabase, {
+    company_id: p.companyId,
+    recipient: p.toAddress,
+    subject: p.subject,
+    template_name: "automation_send",
+    status: ok ? "sent" : "failed",
+    provider: `casella:${conn.email_address}`,
+    stream: "transactional",
+    provider_id: null,
+    error_message: ok ? undefined : body.error ?? `email-send ${res.status}`,
+    cost_eur: 0,
+    charged_eur: 0,
+    metadata: { automation: true, outbox_id: ob.id, order_id: p.orderId, allegato: p.fattura?.file_name ?? null },
+  });
+
+  return {
+    success: ok,
+    output: { action: "send_email", via: "casella", casella: conn.email_address, outbox_id: ob.id },
+    error: ok ? undefined : `Invio dalla casella ${conn.email_address} non riuscito: ${body.error ?? res.status}`,
+  };
 }
 
 // ────────────────────────────────────────────────────

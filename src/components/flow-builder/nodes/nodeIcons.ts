@@ -19,6 +19,7 @@ const TRIGGER_ICON_MAP: Record<string, LucideIcon> = {
   opportunita_persa: XCircle,
   appuntamento_creato: Calendar,
   appuntamento_confermato: CalendarCheck,
+  commessa_data_installazione: CalendarCheck,
   appuntamento_completato: Target,
   appuntamento_no_show: XCircle,
   appuntamento_imminente: Clock,

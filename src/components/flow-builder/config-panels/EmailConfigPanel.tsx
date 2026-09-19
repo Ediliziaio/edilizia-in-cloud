@@ -1,4 +1,6 @@
 import { forwardRef } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -19,7 +21,37 @@ const COMPANY_EMAIL_VARIABLES: EmailVariable[] = [
   { key: "opportunita.name", label: "Nome opportunità" },
 ];
 
+/**
+ * Variabili di commessa: le risolve il motore quando l'automazione parte da
+ * un evento di commessa (supabase/functions/_shared/variabiliCommessa.ts).
+ */
+const COMMESSA_EMAIL_VARIABLES: EmailVariable[] = [
+  { key: "cliente.nome", label: "Nome cliente" },
+  { key: "cliente.cognome", label: "Cognome cliente" },
+  { key: "cliente.nome_completo", label: "Nome e cognome cliente" },
+  { key: "commessa.codice", label: "Codice commessa" },
+  { key: "commessa.descrizione", label: "Descrizione commessa" },
+  { key: "commessa.fase", label: "Fase commessa" },
+  { key: "commessa.importo", label: "Importo commessa" },
+  { key: "commessa.acconto", label: "Acconto" },
+  { key: "commessa.saldo", label: "Saldo" },
+  { key: "commessa.data_installazione", label: "Data di posa (es. lunedì 12 ottobre 2026)" },
+  { key: "commessa.indirizzo", label: "Indirizzo lavori" },
+  { key: "azienda.nome", label: "Nome azienda" },
+  { key: "azienda.iban", label: "IBAN azienda" },
+  { key: "azienda.intestatario_conto", label: "Intestatario del conto" },
+  { key: "azienda.telefono", label: "Telefono azienda" },
+  { key: "azienda.email", label: "Email azienda" },
+];
+
+/** Trigger che fanno partire l'automazione da una commessa (entità "order"). */
+const TRIGGER_COMMESSA = new Set([
+  "ordine_creato", "ordine_stato_cambiato", "commessa_data_installazione", "cantiere_creato",
+]);
+
 const NESSUN_MODELLO = "__nessuno__";
+/** L'email parte dal dominio di piattaforma, con il nome dell'azienda. */
+const PIATTAFORMA = "__piattaforma__";
 
 interface EmailConfigPanelProps {
   config: Record<string, any>;
@@ -32,6 +64,27 @@ interface EmailConfigPanelProps {
 
 export const EmailConfigPanel = forwardRef<HTMLDivElement, EmailConfigPanelProps>(function EmailConfigPanel({ config, onChange, onPatch, triggerItemId, companyId }, ref) {
   const { data: modelli = [] } = useModelliEmail(companyId);
+  const suCommessa = !!triggerItemId && TRIGGER_COMMESSA.has(triggerItemId);
+  const variabili = suCommessa ? [...COMMESSA_EMAIL_VARIABLES, ...COMPANY_EMAIL_VARIABLES] : COMPANY_EMAIL_VARIABLES;
+
+  // Caselle collegate dall'azienda: l'email può partire da una di queste e
+  // restare nella sua posta inviata, invece che dal dominio di piattaforma.
+  const { data: caselle = [] } = useQuery({
+    queryKey: ["flow-email-caselle", companyId],
+    enabled: !!companyId,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("email_oauth_connections")
+        .select("id, email_address, status")
+        .eq("company_id", companyId!)
+        .order("email_address");
+      if (error) throw error;
+      return (data ?? []) as Array<{ id: string; email_address: string; status: string }>;
+    },
+  });
+  const casellaId: string = config.casella_id || "";
+  const casella = caselle.find((c) => c.id === casellaId);
   const modelloId: string = config.modello_id || "";
   const modello = modelli.find((m) => m.id === modelloId);
   // Modello scelto ma non più in elenco (cancellato, o azienda diversa):
@@ -92,7 +145,44 @@ export const EmailConfigPanel = forwardRef<HTMLDivElement, EmailConfigPanelProps
         )}
       </div>
 
-      {/* Sender */}
+      {/* Da dove parte: casella dell'azienda o dominio di piattaforma */}
+      <div className="space-y-1.5">
+        <Label className="text-xs">Invia da</Label>
+        <Select
+          value={casellaId || PIATTAFORMA}
+          onValueChange={(v) => onChange("casella_id", v === PIATTAFORMA ? "" : v)}
+        >
+          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value={PIATTAFORMA}>Email di sistema, con il nome dell'azienda</SelectItem>
+            {caselle.map((c) => (
+              <SelectItem key={c.id} value={c.id}>
+                {c.email_address}{c.status !== "active" ? " — da ricollegare" : ""}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {casellaId && !casella && caselle.length > 0 && (
+          <p className="text-[11px] font-medium text-destructive">La casella scelta non è più collegata: scegline un'altra.</p>
+        )}
+        {casella && casella.status !== "active" && (
+          <p className="text-[11px] font-medium text-destructive">
+            {casella.email_address} è scollegata: finché non la ricolleghi da Impostazioni › Posta le email non partono.
+          </p>
+        )}
+        {casella?.status === "active" && (
+          <p className="text-[11px] text-muted-foreground">Parte da {casella.email_address} e la trovi nella sua posta inviata.</p>
+        )}
+        {caselle.length === 0 && (
+          <p className="text-[11px] text-muted-foreground">
+            Per inviare dalla casella dell'azienda collegala prima in Impostazioni › Posta.
+          </p>
+        )}
+      </div>
+
+      {/* Mittente personalizzato: solo per l'email di sistema. Dalla casella
+          collegata il mittente è la casella stessa. */}
+      {!casellaId && (
       <div className="space-y-1.5">
         <Label className="text-xs">Da (mittente)</Label>
         <Input
@@ -108,6 +198,7 @@ export const EmailConfigPanel = forwardRef<HTMLDivElement, EmailConfigPanelProps
           className="h-8 text-xs"
         />
       </div>
+      )}
 
       {/* Recipient */}
       <EvidenzaObbligatoria mostra={campoVuoto(config.destinatario)}>
@@ -119,11 +210,34 @@ export const EmailConfigPanel = forwardRef<HTMLDivElement, EmailConfigPanelProps
         <Input
           value={config.destinatario || ""}
           onChange={e => onChange("destinatario", e.target.value)}
-          placeholder="{{contatto.email}}"
+          placeholder={suCommessa ? "{{cliente.email}}" : "{{contatto.email}}"}
           className="h-8 text-xs"
         />
+        {suCommessa && (
+          <p className="text-[11px] text-muted-foreground">
+            {"{{cliente.email}}"} = il cliente della commessa.
+          </p>
+        )}
       </div>
       </EvidenzaObbligatoria>
+
+      {/* Fattura in allegato: solo sulle automazioni di commessa */}
+      {suCommessa && (
+        <div className="flex items-start justify-between gap-3 rounded-md border p-2.5">
+          <div className="min-w-0">
+            <Label className="text-xs">Allega la fattura della commessa</Label>
+            <p className="text-[11px] text-muted-foreground">
+              L'ultima caricata nella cartella Fatture dei documenti della commessa. Se non c'è, l'email non parte
+              e l'errore resta nello storico dell'automazione.
+            </p>
+          </div>
+          <Switch
+            checked={config.allega_fattura_commessa === true}
+            onCheckedChange={(v) => onChange("allega_fattura_commessa", v)}
+            aria-label="Allega la fattura della commessa"
+          />
+        </div>
+      )}
 
       {/* CC */}
       <div className="space-y-1.5">
@@ -216,7 +330,7 @@ export const EmailConfigPanel = forwardRef<HTMLDivElement, EmailConfigPanelProps
         <EmailBodyEditor
           value={config.corpo}
           onChange={(html) => onChange("corpo", html)}
-          variables={COMPANY_EMAIL_VARIABLES}
+          variables={variabili}
           triggerItemId={triggerItemId}
         />
       </div>

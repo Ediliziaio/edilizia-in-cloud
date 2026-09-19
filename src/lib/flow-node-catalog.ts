@@ -28,6 +28,7 @@ export type ConfigFieldType =
   | 'meta_form_multi_select' // moduli lead Meta (meta_lead_forms, filtrati per pagina)
   | 'pipeline_select'        // pipeline CRM (marketing_pipelines)
   | 'pipeline_stage_select'  // fase della pipeline scelta (marketing_pipeline_stages)
+  | 'order_status_select'    // fase commessa dell'azienda (order_statuses)
   | 'tag_input'
   | 'json_editor'
   | 'richhtml' // editor email visuale (WYSIWYG) → HTML
@@ -496,12 +497,27 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
       { id: 'ordine.total_amount', label: 'Importo (€)', type: 'number' },
     ],
     configSchema: [
-      { id: 'stato_a', label: 'Quando arriva allo stato', type: 'select', required: true, options: [
-        { value: 'confermato', label: 'Confermato' }, { value: 'in_lavorazione', label: 'In lavorazione' },
-        { value: 'spedito', label: 'Spedito' }, { value: 'consegnato', label: 'Consegnato' },
-        { value: 'annullato', label: 'Annullato' }, { value: 'reso', label: 'Reso/Rimborso' },
-      ]},
+      // Le fasi sono quelle dell'azienda (Impostazioni › Fasi commessa): un
+      // elenco fisso di sei nomi inglesizzati non corrispondeva a nessuna.
+      { id: 'stato_a', label: 'Quando la commessa arriva alla fase', type: 'order_status_select', required: true },
     ],
+  },
+  {
+    id: 'commessa_data_installazione',
+    label: 'Data di posa fissata',
+    description: 'Scatta quando si fissa o si sposta la data di posa prevista della commessa',
+    icon: 'CalendarCheck',
+    categoria: 'ordini',
+    dbTable: 'orders',
+    dbEvent: 'UPDATE',
+    outputVariables: [
+      { id: 'ordine.id', label: 'ID Ordine', type: 'uuid' },
+      { id: 'ordine.order_code', label: 'Codice ordine', type: 'string' },
+      { id: 'ordine.expected_date', label: 'Data di posa', type: 'date' },
+      { id: 'ordine.old_expected_date', label: 'Data di posa precedente', type: 'date' },
+      { id: 'ordine.customer_id', label: 'ID Cliente', type: 'uuid' },
+    ],
+    configSchema: [],
   },
   {
     id: 'ordine_in_ritardo',

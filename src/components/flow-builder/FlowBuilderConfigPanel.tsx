@@ -102,6 +102,7 @@ const TRIGGER_CATEGORY_MAP: Record<string, string> = {
   // Ordini
   ordine_creato: "order",
   ordine_stato_cambiato: "order",
+  commessa_data_installazione: "order",
   ordine_in_ritardo: "order",
   // Fatturazione
   fattura_creata: "invoice",
@@ -711,6 +712,23 @@ function ConfigField({
     staleTime: 5 * 60 * 1000,
   });
 
+  // Fasi commessa dell'azienda (trigger "Stato ordine cambiato"). Chiave
+  // propria: altre schermate leggono order_statuses con select diversi.
+  const { data: fasiCommessa = [] } = useQuery({
+    queryKey: ["flow-order-statuses", companyId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("order_statuses")
+        .select("id, name")
+        .eq("company_id", companyId!)
+        .order("position");
+      if (error) throw error;
+      return (data || []) as Array<{ id: string; name: string }>;
+    },
+    enabled: !!companyId && field.type === "order_status_select",
+    staleTime: 5 * 60 * 1000,
+  });
+
   // Helper: insert variable into text/textarea
   const insertVariable = (variable: string) => {
     const el = inputRef.current ?? textareaRef.current;
@@ -1055,6 +1073,30 @@ function ConfigField({
               {crmStages.map((s: any) => (
                 <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
               ))}
+            </SelectContent>
+          </Select>
+        )
+      )}
+
+      {field.type === "order_status_select" && (
+        fasiCommessa.length === 0 ? (
+          <p className="rounded-lg border border-dashed px-3 py-2.5 text-xs text-muted-foreground">
+            Nessuna fase commessa. Creale in Impostazioni › Fasi commessa.
+          </p>
+        ) : (
+          <Select value={value || ""} onValueChange={onChange}>
+            <SelectTrigger className="h-9 text-sm">
+              <SelectValue placeholder="Seleziona fase..." />
+            </SelectTrigger>
+            <SelectContent>
+              {fasiCommessa.map((f) => (
+                <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
+              ))}
+              {/* Automazioni vecchie salvavano un nome ("confermato"): resta
+                  visibile finché non si sceglie una fase vera. */}
+              {value && !fasiCommessa.some((f) => f.id === value) && (
+                <SelectItem value={String(value)}>{String(value)} (vecchia impostazione)</SelectItem>
+              )}
             </SelectContent>
           </Select>
         )
