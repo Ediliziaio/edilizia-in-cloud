@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   costruisciVariabiliCommessa, dataBreve, dataEstesa, euro, ibanLeggibile,
-  scegliFatturaDaAllegare, sostituisciVariabiliCommessa,
+  scegliFatturaDaAllegare, sostituisciVariabiliCommessa, type OrdineVariabili,
 } from "../../../supabase/functions/_shared/variabiliCommessa";
 
 describe("formati italiani", () => {
@@ -29,7 +29,7 @@ describe("formati italiani", () => {
 });
 
 describe("costruisciVariabiliCommessa", () => {
-  const ordine = {
+  const ordine: OrdineVariabili = {
     order_code: "ORD-2026-0042", total_amount: 10000, deposit_amount: 3000, balance_amount: null,
     expected_date: "2026-10-12", indirizzo_lavori: "Via Roma 1, Bari",
   };
