@@ -26,8 +26,9 @@ const STATUS_MAP: Record<string, { label: string; color: string }> = {
   active:    { label: "Attivo",     color: "text-blue-600 bg-blue-50 dark:bg-blue-950/30" },
   completed: { label: "Completato", color: "text-green-600 bg-green-50 dark:bg-green-950/30" },
   removed:   { label: "Rimosso",    color: "text-red-600 bg-red-50 dark:bg-red-950/30" },
+  canceled:  { label: "Fermato",    color: "text-slate-600 bg-slate-100 dark:bg-slate-800/40" },
   paused:    { label: "In pausa",   color: "text-yellow-600 bg-yellow-50 dark:bg-yellow-950/30" },
-  error:     { label: "Errore",     color: "text-red-600 bg-red-50 dark:bg-red-950/30" },
+  failed:    { label: "Errore",     color: "text-red-600 bg-red-50 dark:bg-red-950/30" },
   waiting:   { label: "In attesa",  color: "text-purple-600 bg-purple-50 dark:bg-purple-950/30" },
 };
 
@@ -554,7 +555,8 @@ export function WorkflowCronologia({ flowId }: Props) {
             <SelectItem value="waiting">In attesa</SelectItem>
             <SelectItem value="paused">In pausa</SelectItem>
             <SelectItem value="removed">Rimosso</SelectItem>
-            <SelectItem value="error">Errore</SelectItem>
+            <SelectItem value="canceled">Fermato</SelectItem>
+            <SelectItem value="failed">Errore</SelectItem>
           </SelectContent>
         </Select>
 

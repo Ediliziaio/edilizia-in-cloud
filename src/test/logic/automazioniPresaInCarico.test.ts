@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { prendiInCarico } from "../../../supabase/functions/_shared/presaInCarico";
 
@@ -85,5 +85,34 @@ describe("il motore prende ogni riga in modo atomico", () => {
     expect(motore).not.toMatch(/\.update\(\{ processed: true \}\)\s*\.eq\("id", evt\.id\);/);
     // Se la gestione fallisce l'evento torna in coda.
     expect(motore).toContain('update({ processed: false }).eq("id", evt.id)');
+  });
+});
+
+// automation_enrollments_status_check ammette solo questi stati. Uno diverso fa
+// fallire l'UPDATE senza che nessuno se ne accorga: dal 05/09 «Interrompi su
+// risposta» scriveva «stopped» e l'iscrizione restava «active» per sempre.
+describe("le funzioni scrivono sulle iscrizioni solo stati ammessi", () => {
+  const AMMESSI = new Set(["active", "paused", "completed", "canceled", "waiting", "removed", "failed"]);
+  const radice = join(__dirname, "../../../supabase/functions");
+
+  it("nessuno stato fuori elenco su automation_enrollments", () => {
+    const fuori: string[] = [];
+    for (const cartella of readdirSync(radice)) {
+      let testo: string;
+      try {
+        testo = readFileSync(join(radice, cartella, "index.ts"), "utf8");
+      } catch {
+        continue;
+      }
+      // Ogni scrittura: from("automation_enrollments") … update/insert({ … status: "x"
+      const scritture = testo.matchAll(/from\("automation_enrollments"\)\s*\.(?:update|insert)\(\{[^}]*?status: "([a-z_]+)"/g);
+      for (const m of scritture) if (!AMMESSI.has(m[1])) fuori.push(`${cartella}: ${m[1]}`);
+    }
+    expect(fuori).toEqual([]);
+  });
+
+  it("chi si ferma per una risposta finisce «canceled»", () => {
+    const motore = readFileSync(join(radice, "process-automation/index.ts"), "utf8");
+    expect(motore).toMatch(/from\("automation_enrollments"\)\s*\.update\(\{ status: "canceled"/);
   });
 });

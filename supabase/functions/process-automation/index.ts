@@ -610,9 +610,11 @@ async function processQueue(supabase: any) {
       if (!motivo) return false;
 
       // Si chiude l'iscrizione e si annulla tutta la coda residua, non solo il
-      // passo corrente.
+      // passo corrente. Lo stato è «canceled»: «stopped» (usato dal 05/09) non
+      // è fra quelli ammessi da automation_enrollments_status_check, l'UPDATE
+      // falliva in silenzio e l'iscrizione restava «active» per sempre.
       await supabase.from("automation_enrollments")
-        .update({ status: "stopped", updated_at: new Date().toISOString() })
+        .update({ status: "canceled", updated_at: new Date().toISOString() })
         .eq("id", item.enrollment_id);
       await supabase.from("automation_queue")
         .update({ status: "cancelled", last_error: `fermata: ${motivo}`, updated_at: new Date().toISOString() })
