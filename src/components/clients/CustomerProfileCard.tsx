@@ -22,6 +22,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -33,7 +34,7 @@ import {
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
-  ChevronDown, Search, User, ExternalLink, Calendar,
+  ChevronDown, Search, User, ExternalLink, Calendar, Lock,
 } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -41,6 +42,9 @@ import { InlineField } from "@/components/marketing/contacts/InlineField";
 import { validatePartitaIva, validateCodiceFiscale } from "@/lib/italianFiscalValidation";
 import { queryKeys } from "@/lib/queryKeys";
 import { geocodeBestEffort } from "@/lib/geo/geocodeBestEffort";
+
+/** Valore della voce «Non assegnato»: Radix Select non accetta la stringa vuota. */
+const NESSUN_AGENTE = "__nessuno";
 
 interface LinkedContact {
   id: string;
@@ -89,25 +93,36 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved }: Custom
   const companyId = effectiveCompany?.id;
   const [fieldSearch, setFieldSearch] = useState("");
 
-  // Lista salespeople per Titolare select
+  // Chi può salvare lo decide il database (company_admin o staff con
+  // can_edit_customers): gli altri vedevano i campi modificabili e scoprivano
+  // il divieto solo al salvataggio. Ora li vedono in sola lettura.
+  const permessi = usePermissions();
+  const puoModificare = permessi.isAdmin || permessi.canEditCustomers;
+  const solaLettura = !puoModificare;
+
+  // Titolare = agente/venditore dell'azienda (tabella salespeople), collegato
+  // al cliente da profiles.salesperson_id — come nell'elenco clienti. Prima si
+  // cercava in profiles.role, colonna che non esiste: la tendina era sempre vuota.
+  // Chiave propria: la stessa chiave con un altro select avvelena la cache.
   const { data: salespeople = [] } = useQuery({
-    queryKey: ["company-salespeople", companyId],
+    queryKey: ["salespeople", "titolare-cliente", companyId],
     enabled: !!companyId,
     staleTime: 5 * 60_000,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("profiles")
-        .select("id, first_name, last_name")
+        .from("salespeople")
+        .select("id, first_name, last_name, is_active")
         .eq("company_id", companyId!)
-        .in("role" as never, ["admin", "salesperson", "office"] as never)
-        .order("first_name", { ascending: true });
-      if (error) {
-        // soft fail — schema può variare
-        return [] as Array<{ id: string; first_name: string | null; last_name: string | null }>;
-      }
-      return data as Array<{ id: string; first_name: string | null; last_name: string | null }>;
+        .order("last_name");
+      if (error) throw error;
+      return (data ?? []) as Array<{ id: string; first_name: string; last_name: string; is_active: boolean }>;
     },
   });
+  // Gli agenti disattivati non si propongono, ma quello già assegnato resta visibile.
+  const agentiInTendina = salespeople.filter((s) => s.is_active || s.id === customer.salesperson_id);
+  const agenteAssegnato = salespeople.find((s) => s.id === customer.salesperson_id);
+  const nomeAgente = (s: { first_name: string | null; last_name: string | null }) =>
+    [s.first_name, s.last_name].filter(Boolean).join(" ") || "Senza nome";
 
   // Update singolo campo (pattern marketing updateField)
   const updateField = useMutation({
@@ -183,30 +198,53 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved }: Custom
 
       <ScrollArea className="flex-1">
         <div className="p-3 space-y-4">
+          {solaLettura && !permessi.isLoading && (
+            <p className="flex items-start gap-1.5 rounded-md border bg-muted/40 px-2 py-1.5 text-[11px] leading-4 text-muted-foreground">
+              <Lock className="mt-0.5 h-3 w-3 shrink-0" />
+              Non hai il permesso di modificare i dati del cliente
+            </p>
+          )}
+
           {/* ─── Block top: Titolare ─── */}
           <div>
             <div className="flex items-center gap-1 mb-0.5">
               <User className="h-3 w-3 text-muted-foreground" />
               <Label className="text-xs text-muted-foreground">Titolare</Label>
             </div>
-            <Select
-              value={customer.salesperson_id || ""}
-              onValueChange={(v) => updateField.mutate({ field: "salesperson_id", value: v || null })}
-            >
-              <SelectTrigger className="h-7 text-xs border-dashed">
-                <SelectValue placeholder="Non assegnato" />
-              </SelectTrigger>
-              <SelectContent>
-                {salespeople.length === 0 && (
-                  <div className="px-2 py-1.5 text-xs text-muted-foreground">Nessun commerciale</div>
-                )}
-                {salespeople.map((s) => (
-                  <SelectItem key={s.id} value={s.id} className="text-xs">
-                    {[s.first_name, s.last_name].filter(Boolean).join(" ") || "Senza nome"}
+            {solaLettura ? (
+              <p className="text-xs min-h-7 flex items-center px-1">
+                {agenteAssegnato
+                  ? nomeAgente(agenteAssegnato)
+                  : <span className="text-muted-foreground">{customer.salesperson_id ? "—" : "Non assegnato"}</span>}
+              </p>
+            ) : (
+              <Select
+                value={customer.salesperson_id || NESSUN_AGENTE}
+                onValueChange={(v) => updateField.mutate({
+                  field: "salesperson_id",
+                  value: v === NESSUN_AGENTE ? null : v,
+                })}
+              >
+                <SelectTrigger className="h-7 text-xs border-dashed">
+                  <SelectValue placeholder="Non assegnato" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NESSUN_AGENTE} className="text-xs">
+                    <span className="text-muted-foreground">Non assegnato</span>
                   </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                  {agentiInTendina.length === 0 && (
+                    <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                      Nessun agente: aggiungili in Impostazioni › Persone › Venditori
+                    </div>
+                  )}
+                  {agentiInTendina.map((s) => (
+                    <SelectItem key={s.id} value={s.id} className="text-xs">
+                      {nomeAgente(s)}{s.is_active ? "" : " (non attivo)"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
 
           {/* ─── Data cliente badge ─── */}
@@ -246,6 +284,7 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved }: Custom
                 <CollapsibleContent className="px-1 space-y-0">
                   {customer.is_business && matchesSearch("Ragione sociale") && (
                     <InlineField
+                      disabled={solaLettura}
                       label="Ragione sociale"
                       value={customer.business_name || ""}
                       onSave={(v) => updateField.mutate({ field: "business_name", value: v || null })}
@@ -253,6 +292,7 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved }: Custom
                   )}
                   {matchesSearch("Nome") && (
                     <InlineField
+                      disabled={solaLettura}
                       label="Nome"
                       value={customer.first_name === "—" ? "" : customer.first_name || ""}
                       onSave={(v) => updateField.mutate({ field: "first_name", value: v || null })}
@@ -260,6 +300,7 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved }: Custom
                   )}
                   {matchesSearch("Cognome") && (
                     <InlineField
+                      disabled={solaLettura}
                       label="Cognome"
                       value={customer.last_name === "—" ? "" : customer.last_name || ""}
                       onSave={(v) => updateField.mutate({ field: "last_name", value: v || null })}
@@ -267,6 +308,7 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved }: Custom
                   )}
                   {matchesSearch("Email") && (
                     <InlineField
+                      disabled={solaLettura}
                       label="Email"
                       value={customer.email || ""}
                       onSave={(v) => updateField.mutate({ field: "email", value: v || null })}
@@ -275,6 +317,7 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved }: Custom
                   )}
                   {matchesSearch("Telefono") && (
                     <InlineField
+                      disabled={solaLettura}
                       label="Telefono"
                       value={customer.phone || ""}
                       onSave={(v) => updateField.mutate({ field: "phone", value: v || null })}
@@ -288,6 +331,7 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved }: Custom
                       fra commesse e fatturazione. */}
                   {matchesSearch("Codice fiscale") && (
                     <InlineField
+                      disabled={solaLettura}
                       label="Codice fiscale"
                       value={customer.fiscal_code || ""}
                       validate={(v) => {
@@ -299,6 +343,7 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved }: Custom
                   )}
                   {matchesSearch("Partita IVA") && (
                     <InlineField
+                      disabled={solaLettura}
                       label="Partita IVA"
                       value={customer.vat_number || ""}
                       validate={(v) => {
@@ -313,10 +358,11 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved }: Custom
                   )}
                   {matchesSearch("Tipo cliente") && (
                     <InlineField
+                      disabled={solaLettura}
                       label="Tipo cliente"
                       value={customer.is_business ? "azienda" : "persona"}
                       onSave={(v) => updateField.mutate({ field: "is_business", value: (v === "azienda") as never })}
-                      type="select"
+                      type={solaLettura ? "text" : "select"}
                       options={["persona", "azienda"]}
                     />
                   )}
@@ -332,6 +378,7 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved }: Custom
                 <CollapsibleContent className="px-1 space-y-0">
                   {matchesSearch("Indirizzo") && (
                     <InlineField
+                      disabled={solaLettura}
                       label="Indirizzo"
                       value={customer.address || ""}
                       onSave={(v) => updateField.mutate({ field: "address", value: v || null })}
@@ -339,6 +386,7 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved }: Custom
                   )}
                   {matchesSearch("Città") && (
                     <InlineField
+                      disabled={solaLettura}
                       label="Città"
                       value={customer.city || ""}
                       onSave={(v) => updateField.mutate({ field: "city", value: v || null })}
@@ -352,6 +400,7 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved }: Custom
                   )}
                   {matchesSearch("CAP") && (
                     <InlineField
+                      disabled={solaLettura}
                       label="CAP"
                       value={customer.postal_code || ""}
                       onSave={(v) => updateField.mutate({ field: "postal_code", value: v || null })}
@@ -365,6 +414,7 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved }: Custom
                   )}
                   {matchesSearch("Provincia") && (
                     <InlineField
+                      disabled={solaLettura}
                       label="Provincia"
                       value={customer.province || ""}
                       onSave={(v) => updateField.mutate({ field: "province", value: v ? v.toUpperCase() : null })}
@@ -372,6 +422,7 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved }: Custom
                   )}
                   {matchesSearch("Paese") && (
                     <InlineField
+                      disabled={solaLettura}
                       label="Paese"
                       value={customer.country || ""}
                       onSave={(v) => updateField.mutate({ field: "country", value: v || null })}
@@ -389,6 +440,7 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved }: Custom
                 <CollapsibleContent className="px-1 space-y-0">
                   {matchesSearch("Indirizzo cantiere") && (
                     <InlineField
+                      disabled={solaLettura}
                       label="Indirizzo"
                       value={customer.site_address || ""}
                       onSave={(v) => updateField.mutate({ field: "site_address", value: v || null })}
@@ -396,6 +448,7 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved }: Custom
                   )}
                   {matchesSearch("Città cantiere") && (
                     <InlineField
+                      disabled={solaLettura}
                       label="Città"
                       value={customer.site_city || ""}
                       onSave={(v) => updateField.mutate({ field: "site_city", value: v || null })}
@@ -409,6 +462,7 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved }: Custom
                   )}
                   {matchesSearch("CAP cantiere") && (
                     <InlineField
+                      disabled={solaLettura}
                       label="CAP"
                       value={customer.site_postal_code || ""}
                       onSave={(v) => updateField.mutate({ field: "site_postal_code", value: v || null })}
@@ -422,6 +476,7 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved }: Custom
                   )}
                   {matchesSearch("Provincia cantiere") && (
                     <InlineField
+                      disabled={solaLettura}
                       label="Provincia"
                       value={customer.site_province || ""}
                       onSave={(v) => updateField.mutate({ field: "site_province", value: v ? v.toUpperCase() : null })}
@@ -438,6 +493,7 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved }: Custom
                 </CollapsibleTrigger>
                 <CollapsibleContent className="px-1 space-y-0">
                   <InlineField
+                    disabled={solaLettura}
                     label="Note"
                     value={customer.notes || ""}
                     onSave={(v) => updateField.mutate({ field: "notes", value: v || null })}
