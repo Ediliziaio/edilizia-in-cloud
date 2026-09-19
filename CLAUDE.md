@@ -95,6 +95,17 @@ I nomi in uso sono `cron_secret`, `proactive_cron_secret` e
 basta aggiornare il valore nel Vault e la variabile d'ambiente della funzione
 corrispondente: nessun job va toccato.
 
+Anche i segreti di `platform_settings` stanno nel Vault, dal 19 settembre 2026,
+col nome `platform_settings.<chiave>`. Segreta è ogni chiave con `_key`, `_secret`,
+`_token`, `_pass` o `_password` (vedi `e_segreto_piattaforma()`); non lo sono le
+chiavi pubbliche e gli indicatori come `openrouter_api_key_set`.
+- Si leggono solo con `impostazione_piattaforma()` o `impostazioni_piattaforma()`,
+  eseguibili dal service role. Nelle edge function passano da `getPlatformSetting`,
+  `leggiImpostazionePiattaforma` o `leggiImpostazioniPiattaforma`: mai con una
+  select sulla tabella, che per i segreti ha il valore vuoto.
+- Si scrivono come prima (pagine admin, `manage-super-admins`): un trigger
+  sposta il valore nel Vault e lascia nella tabella la riga vuota.
+
 ## Funzioni esposte ad anon
 
 Una funzione `SECURITY DEFINER` eseguibile dal ruolo `anon` è chiamabile da
