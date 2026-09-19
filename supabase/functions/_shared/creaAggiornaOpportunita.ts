@@ -60,3 +60,16 @@ export function personeDaAvvisare(ids: Array<string | null | undefined>): string
 export function tagsUniti(esistenti: string[] | null | undefined, nuove: string[] | null | undefined): string[] {
   return Array.from(new Set([...(esistenti ?? []), ...(nuove ?? [])].map((t) => String(t).trim()).filter(Boolean)));
 }
+
+/**
+ * Il nome dell'opportunità dopo le variabili (19/09/2026). Un modello come
+ * «{{contatto.full_name}} · {{settore}}» con il settore vuoto lasciava
+ * «Mario Rossi ·»: i separatori rimasti in testa o in coda si tolgono.
+ */
+export function nomeOpportunitaPulito(risolto: string | null | undefined, ripiego = "Nuova Opportunità"): string {
+  const pulito = String(risolto ?? "")
+    .replace(/^[\s·•|,;:–—-]+/u, "")
+    .replace(/[\s·•|,;:–—-]+$/u, "")
+    .trim();
+  return pulito || ripiego;
+}

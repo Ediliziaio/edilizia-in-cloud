@@ -7,6 +7,7 @@ import { serveConMetriche } from "../_shared/withMetrics.ts";
 import { isLeadArretrato, notaArretrato } from "../_shared/metaLeadArretrato.ts";
 import { filtroSenzaCollegamentiScaduti, MINUTI_CODA_FERMA, minutiDiAttesa } from "../_shared/metaCodaLead.ts";
 import { alertOutreach } from "../_shared/outreachAlert.ts";
+import { campoSettore, settoreDaRisposte } from "../_shared/metaSettoreLead.ts";
 const MAX_RETRIES = 10;
 const BATCH_SIZE = 20;
 
@@ -198,6 +199,9 @@ serveConMetriche("meta-process-leads", async (req) => {
                 // messaggi. Vedi _shared/metaLeadArretrato.ts.
                 arretrato: result.arretrato === true,
                 giorni_ritardo: result.giorniRitardo ?? 0,
+                // Il settore dichiarato nel modulo: le automazioni lo usano
+                // nel nome dell'opportunità ({{settore}}).
+                settore: result.settore ?? null,
               },
             })
             .then(
@@ -303,7 +307,7 @@ serveConMetriche("meta-process-leads", async (req) => {
   }
 });
 
-async function processLeadEvent(adminClient: any, event: any): Promise<{ contactId: string; isNew: boolean; campaignName?: string; arretrato?: boolean; giorniRitardo?: number } | null> {
+async function processLeadEvent(adminClient: any, event: any): Promise<{ contactId: string; isNew: boolean; campaignName?: string; arretrato?: boolean; giorniRitardo?: number; settore?: string | null } | null> {
   const { company_id, integration_id, payload } = event;
   // Due formati di payload convivono in coda:
   //  - WEBHOOK: { leadgen_id, form_id, page_id } → il lead va fetchato da Graph
@@ -680,6 +684,24 @@ async function processLeadEvent(adminClient: any, event: any): Promise<{ contact
     contactId = existingContact.id;
   }
 
+  // Il settore dichiarato nel modulo (19/09/2026): se l'azienda ha un campo
+  // «Settore» e la mappatura non lo riempie già, ci va la risposta — qualunque
+  // sia la formulazione della domanda. Senza campo resta nelle note.
+  const settore = settoreDaRisposte(fieldData);
+  if (settore) {
+    try {
+      const { data: campi } = await adminClient
+        .from("marketing_custom_fields")
+        .select("id, name")
+        .eq("company_id", company_id)
+        .ilike("name", "%settore%");
+      const idCampo = campoSettore((campi ?? []) as Array<{ id: string; name: string | null }>);
+      if (idCampo && customValues[idCampo] === undefined) customValues[idCampo] = settore;
+    } catch (e) {
+      console.warn("meta-process-leads: campo Settore non letto:", e instanceof Error ? e.message : e);
+    }
+  }
+
   // Campi personalizzati mappati (chiavi "custom_<field_id>" nel wizard):
   // vanno in marketing_contact_field_values, la tabella letta dal CRM.
   const customEntries = Object.entries(customValues).filter(([fieldId]) =>
@@ -786,6 +808,7 @@ async function processLeadEvent(adminClient: any, event: any): Promise<{ contact
     campaignName: lead.campaign_name || undefined,
     arretrato,
     giorniRitardo: arretrato ? Math.floor((Date.now() - new Date(String(lead.created_time)).getTime()) / 86_400_000) : 0,
+    settore,
   };
 }
 

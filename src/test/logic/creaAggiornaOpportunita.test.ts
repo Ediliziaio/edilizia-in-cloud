@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
+  nomeOpportunitaPulito,
   personeDaAvvisare,
   tagsUniti,
   testoNotaAggiornamento,
@@ -65,5 +66,25 @@ describe("Crea o aggiorna opportunità — motore e catalogo", () => {
 
   it("nel costruttore l'azione si chiama «Crea o aggiorna opportunità»", () => {
     expect(CATALOGO).toMatch(/id: 'crea_opportunita',\s*label: 'Crea o aggiorna opportunità'/);
+  });
+});
+
+// 19/09/2026: «{{contatto.full_name}} · {{settore}}» nelle automazioni dei lead
+// Facebook della piattaforma — senza settore il nome restava «Mario Rossi ·».
+describe("Crea o aggiorna opportunità — il nome dopo le variabili", () => {
+  it("toglie i separatori rimasti appesi da una variabile vuota", () => {
+    expect(nomeOpportunitaPulito("Mario Rossi · Serramenti")).toBe("Mario Rossi · Serramenti");
+    expect(nomeOpportunitaPulito("Mario Rossi · ")).toBe("Mario Rossi");
+    expect(nomeOpportunitaPulito(" · Mario Rossi")).toBe("Mario Rossi");
+    expect(nomeOpportunitaPulito("Mario Rossi - ")).toBe("Mario Rossi");
+  });
+
+  it("senza niente resta il nome di ripiego", () => {
+    expect(nomeOpportunitaPulito(" · ")).toBe("Nuova Opportunità");
+    expect(nomeOpportunitaPulito(null)).toBe("Nuova Opportunità");
+  });
+
+  it("il motore lo usa davvero", () => {
+    expect(MOTORE).toContain("nomeOpportunitaPulito(await resolveOppText(ncfg.opportunity_name))");
   });
 });

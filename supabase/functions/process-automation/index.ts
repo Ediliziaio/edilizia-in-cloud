@@ -19,7 +19,7 @@ import { getSuppressedEmailMap, normalizeEmailAddress } from "../_shared/emailSu
 import { getCorsHeaders, secureHeaders } from "../_shared/headers.ts";
 import { appendTrackingSig } from "../_shared/emailTrackingSignature.ts";
 import { arcoDelRamo, inizioGiornoRoma, leggiPercentuali, letteraRamo, modalitaSplit, ramoEquilibrato, ramoPerNumero } from "../_shared/splitRami.ts";
-import { personeDaAvvisare, tagsUniti, testoNotaAggiornamento } from "../_shared/creaAggiornaOpportunita.ts";
+import { nomeOpportunitaPulito, personeDaAvvisare, tagsUniti, testoNotaAggiornamento } from "../_shared/creaAggiornaOpportunita.ts";
 import { isInternalRequest, isSuperAdminEmailAllowed, requireAuth, requireCompanyAccess, requireInternalSecret, resolveUserEmail } from "../_shared/auth.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import {
@@ -1572,7 +1572,7 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
         const withContact = oppContact ? await resolveContactText(supabase, s, oppContact, companyId) : s;
         return rv(withContact);
       };
-      const name = (await resolveOppText(ncfg.opportunity_name)).trim() || "Nuova Opportunità";
+      const name = nomeOpportunitaPulito(await resolveOppText(ncfg.opportunity_name));
       const value = Number((await resolveOppText(ncfg.opportunity_value)).replace(",", ".")) || 0;
       const pipelineId = ncfg.pipeline_id;
       const stageId = ncfg.stage_id || ncfg.stage;
