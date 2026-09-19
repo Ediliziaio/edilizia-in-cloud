@@ -15,6 +15,17 @@
 // Non sostituisce il PITR per un ripristino completo del database: serve a
 // rimettere in piedi UNA azienda, che è lo scenario realistico (cancellazione
 // per errore, cliente che chiede i propri dati, contestazione su cosa c'era).
+//
+// L'AREA SUPER ADMIN (19/09/2026)
+// L'azienda della piattaforma era esclusa: ~300.000 righe, ~170 MB in
+// tabella, un JSON unico non sta nella memoria di una edge function. Il
+// 19/09 sono state cancellate per sbaglio 20 sue automazioni e non c'era
+// nessuna copia. Ora, con { piattaforma: true }, si salva a pezzi:
+//   <id>/<data>/indice.json           cosa c'è, quante righe, quali file
+//   <id>/<data>/azienda.json          la riga dell'azienda
+//   <id>/<data>/<tabella>/NNN.json    blocchi da BLOCCO righe, in ordine di id
+// Il lavoro gira in sottofondo (la risposta è subito 202) con un tetto di
+// tempo: se non basta, l'indice lo dice («completo: false»).
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
@@ -28,6 +39,79 @@ const BUCKET = "company-exports";
 // costruisce il dump dentro il database. Le otto tabelle scelte a mano il 4
 // settembre lasciavano fuori listini, famiglie di articoli, tariffe, fornitori
 // e ticket — cioè il lavoro dell'azienda.
+
+/** Righe per blocco: ~15 MB di JSON sulla tabella più larga (coda invii). */
+const BLOCCO = 5000;
+/** Oltre questo tempo non si parte con un blocco nuovo: il limite della funzione è 400 s. */
+const TETTO_MS = 330_000;
+
+type Admin = ReturnType<typeof createClient>;
+
+/** Il backup dell'area super admin, a blocchi. Scrive sempre l'indice, anche se si ferma a metà. */
+async function backupPiattaformaABlocchi(admin: Admin, azienda: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const inizio = Date.now();
+  const id = String(azienda.id);
+  const data = new Date().toISOString().slice(0, 10);
+  const base = `${id}/${data}`;
+  const tabelle: Array<{ tabella: string; righe_attese: number; righe_salvate: number; file: string[]; errore?: string }> = [];
+  let completo = true;
+
+  const carica = async (percorso: string, contenuto: unknown) => {
+    const { error } = await admin.storage
+      .from(BUCKET)
+      .upload(percorso, new Blob([JSON.stringify(contenuto)], { type: "application/json" }), {
+        upsert: true,
+        contentType: "application/json",
+      });
+    if (error) throw new Error(`${percorso}: ${error.message}`);
+  };
+
+  await carica(`${base}/azienda.json`, azienda);
+
+  const { data: elenco, error: errElenco } = await admin.rpc("admin_tabelle_con_dati", { p_company_id: id });
+  if (errElenco) throw new Error(`elenco tabelle: ${errElenco.message}`);
+
+  for (const voce of (elenco ?? []) as Array<{ tabella: string; righe: number }>) {
+    const riga = { tabella: voce.tabella, righe_attese: Number(voce.righe), righe_salvate: 0, file: [] as string[] } as
+      { tabella: string; righe_attese: number; righe_salvate: number; file: string[]; errore?: string };
+    tabelle.push(riga);
+    let dopo: string | null = null;
+    try {
+      for (let n = 1; ; n++) {
+        if (Date.now() - inizio > TETTO_MS) { completo = false; riga.errore = "tempo finito"; break; }
+        const { data: blocco, error } = await admin.rpc("admin_esporta_blocco", {
+          p_company_id: id, p_tabella: voce.tabella, p_dopo: dopo, p_limite: BLOCCO,
+        });
+        if (error) throw new Error(error.message);
+        const b = blocco as { righe: unknown[]; n: number; ultimo: string | null; finito: boolean };
+        if (b.n > 0) {
+          const nome = `${base}/${voce.tabella}/${String(n).padStart(3, "0")}.json`;
+          await carica(nome, b.righe);
+          riga.file.push(nome);
+          riga.righe_salvate += b.n;
+        }
+        if (b.finito || !b.ultimo) break;
+        dopo = b.ultimo;
+      }
+    } catch (e) {
+      completo = false;
+      riga.errore = (e as Error)?.message ?? "errore sconosciuto";
+    }
+    if (riga.errore === "tempo finito") break;
+  }
+
+  const indice = {
+    esportato_il: new Date().toISOString(),
+    azienda: { id, name: azienda.name },
+    a_blocchi: true,
+    righe_per_blocco: BLOCCO,
+    completo: completo && tabelle.every((t) => !t.errore && t.righe_salvate === t.righe_attese),
+    durata_s: Math.round((Date.now() - inizio) / 1000),
+    tabelle,
+  };
+  await carica(`${base}/indice.json`, indice);
+  return indice;
+}
 
 Deno.serve(conMetriche("company-backup", async (req) => {
   const cors = getCorsHeaders(req);
@@ -44,6 +128,39 @@ Deno.serve(conMetriche("company-backup", async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const soloUna: string | null = body?.companyId ?? null;
+
+    // Area super admin: a blocchi, in sottofondo (vedi l'intestazione).
+    if (body?.piattaforma === true) {
+      const { data: piattaforma, error: errPiattaforma } = await admin
+        .from("companies")
+        .select("*")
+        .eq("is_platform_admin_company", true)
+        .is("deleted_at", null)
+        .limit(1)
+        .maybeSingle();
+      if (errPiattaforma) throw new Error(errPiattaforma.message);
+      if (!piattaforma) {
+        return new Response(JSON.stringify({ error: "Azienda della piattaforma non trovata" }), {
+          status: 404, headers: { ...cors, "Content-Type": "application/json" },
+        });
+      }
+      const lavoro = backupPiattaformaABlocchi(admin, piattaforma as Record<string, unknown>)
+        .then((indice) => console.log(JSON.stringify({ fn: "company-backup", piattaforma: true, completo: indice.completo, durata_s: indice.durata_s })))
+        .catch((e) => console.error("[company-backup] piattaforma", (e as Error)?.message ?? e));
+      const runtime = (globalThis as unknown as {
+        EdgeRuntime?: { waitUntil?: (promise: Promise<unknown>) => void };
+      }).EdgeRuntime;
+      if (runtime?.waitUntil) {
+        runtime.waitUntil(lavoro);
+        return new Response(JSON.stringify({ avviato: true, azienda: piattaforma.name }), {
+          status: 202, headers: { ...cors, "Content-Type": "application/json" },
+        });
+      }
+      await lavoro;
+      return new Response(JSON.stringify({ fatto: true, azienda: piattaforma.name }), {
+        headers: { ...cors, "Content-Type": "application/json" },
+      });
+    }
 
     let query = admin
       .from("companies")
