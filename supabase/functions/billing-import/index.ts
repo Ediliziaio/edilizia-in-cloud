@@ -2,6 +2,17 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { createAdapter, arubaSignin, arubaRefresh, arubaFindByUsername, arubaFindInByUsername, ARUBA_STATUS_MAP, acubeLogin, acubeListInvoices, ACUBE_MARKING_MAP } from "../_shared/billingAdapter.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { resolveEffectiveCompanyId, canAccessCompany } from "../_shared/effectiveCompany.ts";
+import {
+  avanzamento, chiudiSeFinito, dopoErrore, dopoPagina, leggiStato, nuovoGiro, parametriPagina, prossimoFlusso,
+  type StatoImport,
+} from "../_shared/importFicStato.ts";
+
+// Import da Fatture in Cloud a blocchi (vedi _shared/importFicStato.ts): pagine
+// per invocazione e tempo massimo prima di fermarsi e salvare il cursore.
+const FIC_PAGINE_PER_GIRO = 6;
+const FIC_BUDGET_MS = 70_000;
+/** Un import rimasto «in corso» da più di così si considera morto e si può riprendere. */
+const FIC_LEASE_MS = 4 * 60_000;
 
 const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 const FIC_CLIENT_ID = Deno.env.get("FIC_CLIENT_ID") || "";
@@ -67,9 +78,6 @@ Deno.serve(async (req) => {
 
     const adapter = createAdapter(integ);
 
-    // Fetch invoices from provider
-    const invoices = await fetchProviderInvoices(adapter, integ);
-
     let imported = 0;
     let updated = 0;
     let failed = 0;
@@ -79,6 +87,33 @@ Deno.serve(async (req) => {
     // Cache per-run su P.IVA/CF: più fatture dello stesso cliente puntano allo stesso contatto
     // e non lo si ricrea. Best-effort: se fallisce, la fattura resta senza link (non blocca il sync).
     const contactCache = new Map<string, string>();
+    // Chiavi già cercate in blocco e non trovate: si crea il contatto senza
+    // rifare la select (una query in meno per ogni cliente nuovo).
+    const cercatiAssenti = new Set<string>();
+    /** Una query per pagina invece di una per fattura. */
+    const precaricaClienti = async (lista: any[]) => {
+      const vats = [...new Set(lista.map((x) => (x.clientVat || "").trim()).filter(Boolean))];
+      const cfs = [...new Set(lista.filter((x) => !(x.clientVat || "").trim())
+        .map((x) => (x.clientFiscalCode || "").trim()).filter(Boolean))];
+      const cerca = async (colonna: "vat_number" | "fiscal_code", valori: string[]) => {
+        const daCercare = valori.filter((v) => !contactCache.has(v.toUpperCase()) && !cercatiAssenti.has(v.toUpperCase()));
+        for (let i = 0; i < daCercare.length; i += 200) {
+          const blocco = daCercare.slice(i, i + 200);
+          const { data, error } = await supabase.from("marketing_contacts").select(`id, ${colonna}`)
+            .eq("company_id", companyId).is("deleted_at", null).in(colonna, blocco);
+          if (error) return; // si ripiega sulla ricerca una alla volta
+          const trovati = new Set<string>();
+          (data || []).forEach((r: any) => {
+            const k = String(r[colonna] ?? "").toUpperCase();
+            if (k && !contactCache.has(k)) contactCache.set(k, r.id);
+            trovati.add(k);
+          });
+          blocco.forEach((v) => { if (!trovati.has(v.toUpperCase())) cercatiAssenti.add(v.toUpperCase()); });
+        }
+      };
+      await cerca("vat_number", vats);
+      await cerca("fiscal_code", cfs);
+    };
     const resolveClientId = async (x: any): Promise<string | null> => {
       const vat = (x.clientVat || "").trim();
       const cf = (x.clientFiscalCode || "").trim();
@@ -86,11 +121,13 @@ Deno.serve(async (req) => {
       const key = (vat || cf).toUpperCase();
       if (contactCache.has(key)) return contactCache.get(key)!;
       try {
-        let q = supabase.from("marketing_contacts").select("id")
-          .eq("company_id", companyId).is("deleted_at", null).limit(1);
-        q = vat ? q.eq("vat_number", vat) : q.eq("fiscal_code", cf);
-        const { data: found } = await q.maybeSingle();
-        if (found?.id) { contactCache.set(key, found.id); return found.id; }
+        if (!cercatiAssenti.has(key)) {
+          let q = supabase.from("marketing_contacts").select("id")
+            .eq("company_id", companyId).is("deleted_at", null).limit(1);
+          q = vat ? q.eq("vat_number", vat) : q.eq("fiscal_code", cf);
+          const { data: found } = await q.maybeSingle();
+          if (found?.id) { contactCache.set(key, found.id); return found.id; }
+        }
         const { data: created } = await supabase.from("marketing_contacts").insert({
           company_id: companyId,
           first_name: (x.clientName || "").trim() || "Cliente",
@@ -216,17 +253,29 @@ Deno.serve(async (req) => {
       return null;
     };
 
-    for (const inv of invoices) {
+    /**
+     * Salva un blocco di fatture emesse. Esistenza letta in blocco e nuove
+     * inserite in blocco (righe comprese): con migliaia di fatture le query una
+     * per fattura erano metà del lavoro. Se l'insert in blocco fallisce si
+     * ripiega su una alla volta, così una fattura sbagliata non ferma le altre.
+     */
+    const salvaFatture = async (lista: any[]) => {
+    if (lista.length === 0) return;
+    await precaricaClienti(lista);
+    const esistenti = new Map<string, { id: string; order_id: string | null }>();
+    const idEsterni = [...new Set(lista.map((i) => String(i.externalId ?? "")).filter(Boolean))];
+    for (let i = 0; i < idEsterni.length; i += 200) {
+      const { data, error } = await supabase.from("invoices").select("id, external_id, order_id")
+        .eq("company_id", companyId).eq("external_provider", provider!)
+        .in("external_id", idEsterni.slice(i, i + 200));
+      if (error) throw new Error(`Lettura delle fatture già importate: ${error.message}`);
+      (data || []).forEach((r: any) => esistenti.set(String(r.external_id), { id: r.id, order_id: r.order_id ?? null }));
+    }
+    const nuove: Array<{ inv: any; riga: Record<string, unknown> }> = [];
+
+    for (const inv of lista) {
       const externalId = inv.externalId;
-      
-      // Check if already exists
-      const { data: existing } = await supabase
-        .from("invoices")
-        .select("id, external_id, order_id")
-        .eq("company_id", companyId)
-        .eq("external_id", externalId)
-        .eq("external_provider", provider!)
-        .maybeSingle();
+      const existing = esistenti.get(String(externalId)) ?? null;
 
       const clientId = await resolveClientId(inv);
       const match = await resolveOrderId(inv);
@@ -282,42 +331,221 @@ Deno.serve(async (req) => {
         }
         updated++;
       } else {
-        const { data: newInv, error: insErr } = await supabase.from("invoices").insert({
-          ...invoiceData,
-          created_by: createdBy,
-          order_id: match?.id ?? null,
-          order_match_origine: match?.origine ?? null,
-        }).select("id").single();
-
-        if (insErr || !newInv) {
-          failed++;
-          if (importErrors.length < 5) importErrors.push(`#${inv.number}: ${insErr?.message ?? "insert nullo"}`);
-          continue;
-        }
-
-        if (inv.lines?.length) {
-          // Controllare SEMPRE l'errore: prima veniva ingoiato → testata importata ma
-          // righe mancanti silenziosamente (fattura senza dettaglio).
-          const { error: lineErr } = await supabase.from("invoice_lines").insert(
-            mapLinesToDb(newInv.id, inv.lines)
-          );
-          if (lineErr && importErrors.length < 5) importErrors.push(`#${inv.number} (righe): ${lineErr.message}`);
-        }
-        imported++;
+        nuove.push({
+          inv,
+          riga: { ...invoiceData, created_by: createdBy, order_id: match?.id ?? null, order_match_origine: match?.origine ?? null },
+        });
       }
     }
 
-    // FATTURE PASSIVE (cassetto SDI): FIC + Aruba, in tabella dedicata
-    // fatture_ricevute. Non blocca l'import delle emesse se fallisce
+    if (nuove.length > 0) {
+      const { data: inserite, error: bloccoErr } = await supabase.from("invoices")
+        .insert(nuove.map((n) => n.riga)).select("id, external_id");
+      if (!bloccoErr && inserite) {
+        imported += inserite.length;
+        const idPerEsterno = new Map((inserite as any[]).map((r) => [String(r.external_id), r.id as string]));
+        const righe = nuove.flatMap((n) => {
+          const id = idPerEsterno.get(String(n.inv.externalId));
+          return id && n.inv.lines?.length ? mapLinesToDb(id, n.inv.lines) : [];
+        });
+        for (let i = 0; i < righe.length; i += 500) {
+          // Controllare SEMPRE l'errore: prima veniva ingoiato → testata importata
+          // ma righe mancanti silenziosamente (fattura senza dettaglio).
+          const { error: lineErr } = await supabase.from("invoice_lines").insert(righe.slice(i, i + 500));
+          if (lineErr && importErrors.length < 5) importErrors.push(`righe: ${lineErr.message}`);
+        }
+      } else {
+        for (const { inv, riga } of nuove) {
+          const { data: newInv, error: insErr } = await supabase.from("invoices").insert(riga).select("id").single();
+          if (insErr || !newInv) {
+            failed++;
+            if (importErrors.length < 5) importErrors.push(`#${inv.number}: ${insErr?.message ?? "insert nullo"}`);
+            continue;
+          }
+          if (inv.lines?.length) {
+            const { error: lineErr } = await supabase.from("invoice_lines").insert(mapLinesToDb(newInv.id, inv.lines));
+            if (lineErr && importErrors.length < 5) importErrors.push(`#${inv.number} (righe): ${lineErr.message}`);
+          }
+          imported++;
+        }
+      }
+    }
+    };
+
+    // ── Fatture in Cloud: un pezzo del giro per invocazione ──────────────
+    // Il cron di mezzogiorno/mattina e il pulsante «Sincronizza» avviano o
+    // proseguono il giro; billing_import_riprendi() lo prosegue ogni 2 minuti
+    // finché non è finito (source = pg_cron_recupero, che non ne avvia mai uno).
+    const passoImportFic = async () => {
+      const adesso = new Date();
+      const tick = body.source === "pg_cron_recupero";
+
+      // Un import alla volta per integrazione: il cron, il recupero e il
+      // pulsante possono partire insieme.
+      const { data: preso, error: leaseErr } = await supabase.from("billing_integrations")
+        .update({ import_in_corso_da: adesso.toISOString() })
+        .eq("id", integ.id)
+        .or(`import_in_corso_da.is.null,import_in_corso_da.lt.${new Date(adesso.getTime() - FIC_LEASE_MS).toISOString()}`)
+        .select("id").maybeSingle();
+      if (leaseErr) throw new Error(`Import non avviato: ${leaseErr.message}`);
+      const precedente = leggiStato(integ.import_stato);
+      if (!preso) {
+        return {
+          success: true, in_corso: true, gia_in_corso: true,
+          avanzamento: precedente ? avanzamento(precedente) : null,
+          messaggio: "L'import da Fatture in Cloud è già in corso: prosegue da solo.",
+        };
+      }
+      const liberaLease = () => supabase.from("billing_integrations").update({ import_in_corso_da: null }).eq("id", integ.id);
+
+      let stato: StatoImport;
+      if (precedente?.in_corso) {
+        if (tick && precedente.sospeso_fino_a && new Date(precedente.sospeso_fino_a) > adesso) {
+          await liberaLease();
+          return { success: true, in_corso: true, sospeso_fino_a: precedente.sospeso_fino_a };
+        }
+        // Chi lo avvia a mano (o il cron programmato) toglie la pausa.
+        stato = tick ? precedente : { ...precedente, sospeso_fino_a: null };
+      } else {
+        if (tick) { await liberaLease(); return { success: true, in_corso: false, nulla_da_fare: true }; }
+        stato = nuovoGiro(precedente, adesso);
+      }
+
+      const salvaStato = () => supabase.from("billing_integrations").update({ import_stato: stato }).eq("id", integ.id);
+      const ricevute = { imported: 0, updated: 0, failed: 0 };
+      const inizio = Date.now();
+      let pagine = 0;
+      let erroreRun: string | null = null;
+
+      try {
+        await ensureFreshFicToken(integ);
+        const base = `https://api-v2.fattureincloud.it/c/${integ.company_external_id}`;
+        const h = { Authorization: `Bearer ${integ.access_token}`, "Content-Type": "application/json" };
+
+        while (pagine < FIC_PAGINE_PER_GIRO && Date.now() - inizio < FIC_BUDGET_MS) {
+          const flusso = prossimoFlusso(stato);
+          if (!flusso) break;
+          const path = flusso === "received" ? "received_documents" : "issued_documents";
+          const r = await fetch(`${base}/${path}?${new URLSearchParams(parametriPagina(stato, flusso))}`, { headers: h });
+          if (r.status === 401) throw new Error("Token Fatture in Cloud scaduto: ricollega l'account da Impostazioni › Fatturazione.");
+          // 403 sulle ricevute = permesso non concesso (collegamento vecchio):
+          // non ferma le emesse, ma va detto all'utente, non è «zero ricevute».
+          if (r.status === 403 && flusso === "received") {
+            stato = {
+              ...stato,
+              permesso_ricevute_mancante: true,
+              flussi: { ...stato.flussi, received: { ...stato.flussi.received, fatto: true } },
+            };
+            await salvaStato();
+            continue;
+          }
+          if (!r.ok) throw new Error(`Fatture in Cloud (${path}) ha risposto ${r.status}`);
+          const d = await r.json();
+          const docs: any[] = Array.isArray(d?.data) ? d.data : [];
+
+          const prima = { imported, updated, failed };
+          if (flusso === "received") {
+            const e = await salvaRicevuteFic(docs, companyId!);
+            e.errori.forEach((m) => { if (importErrors.length < 5) importErrors.push(m); });
+            ricevute.imported += e.imported; ricevute.updated += e.updated; ricevute.failed += e.failed;
+            imported += e.imported; updated += e.updated; failed += e.failed;
+          } else {
+            await salvaFatture(docs.map(mappaEmessaFic));
+          }
+
+          stato = {
+            ...stato,
+            importati: stato.importati + (imported - prima.imported),
+            aggiornati: stato.aggiornati + (updated - prima.updated),
+            falliti: stato.falliti + (failed - prima.failed),
+            errori_consecutivi: 0,
+            flussi: {
+              ...stato.flussi,
+              [flusso]: dopoPagina(stato.flussi[flusso], {
+                ricevuti: docs.length,
+                ultimaPagina: Number(d?.last_page) || null,
+                totale: Number.isFinite(Number(d?.total)) ? Number(d.total) : null,
+              }),
+            },
+          };
+          pagine++;
+          // Cursore salvato dopo OGNI pagina: se la funzione muore, si riparte da qui.
+          await salvaStato();
+        }
+      } catch (e) {
+        erroreRun = e instanceof Error ? e.message : String(e);
+        stato = dopoErrore(stato, erroreRun, new Date());
+      }
+
+      for (const err of importErrors) {
+        if (stato.errori.length >= 5) break;
+        if (!stato.errori.includes(err)) stato = { ...stato, errori: [...stato.errori, err] };
+      }
+      stato = chiudiSeFinito(stato, new Date());
+      const finito = !stato.in_corso;
+      const syncStatus = erroreRun
+        ? "error"
+        : !finito ? "in_corso"
+        : (stato.falliti > 0 || stato.permesso_ricevute_mancante) ? "partial" : "success";
+      const messaggioPermesso = "Fatture ricevute non importate: al collegamento manca il permesso sui documenti ricevuti. Ricollega l'account dalle impostazioni.";
+      const erroriVisibili = [
+        ...(erroreRun ? [erroreRun] : []),
+        ...(stato.permesso_ricevute_mancante ? [messaggioPermesso] : []),
+        ...(finito ? stato.errori : []),
+      ];
+
+      await supabase.from("billing_integrations").update({
+        import_stato: stato,
+        import_in_corso_da: null,
+        last_sync_at: new Date().toISOString(),
+        last_sync_status: syncStatus,
+        last_sync_error: erroriVisibili.length > 0 ? [...new Set(erroriVisibili)].join(" | ") : null,
+        ...(stato.permesso_ricevute_mancante || finito ? { received_scope_missing: stato.permesso_ricevute_mancante } : {}),
+      }).eq("id", integ.id);
+
+      const av = avanzamento(stato);
+      await supabase.from("billing_sync_log").insert({
+        company_id: companyId,
+        provider: provider!,
+        direction: "pull",
+        action: "import",
+        status: syncStatus,
+        error_message: erroreRun,
+        response_payload: {
+          giro: stato.tipo, pagine, imported, updated, failed, received: ricevute,
+          avanzamento: av, finito, fonte: body.source ?? "utente", errors: importErrors,
+        },
+      });
+
+      return {
+        success: !erroreRun,
+        ...(erroreRun ? { error: erroreRun } : {}),
+        in_corso: stato.in_corso,
+        giro: stato.tipo,
+        imported, updated, failed,
+        received: ricevute,
+        avanzamento: av,
+        errors: importErrors,
+      };
+    };
+
+    if (provider === "fattureincloud") {
+      return json(await passoImportFic());
+    }
+
+    // Altri provider: scaricano tutto e salvano in un colpo (volumi piccoli).
+    const invoices = await fetchProviderInvoices(adapter, integ);
+    await salvaFatture(invoices);
+
+    // FATTURE PASSIVE (cassetto SDI): Aruba qui, FIC nel giro a blocchi
+    // (passoImportFic), in tabella dedicata fatture_ricevute. Non blocca l'import delle emesse se fallisce
     // (best-effort). Gli altri provider restano solo-emesse finché il loro
     // endpoint ricevute non è validato su account reale.
     let received: { imported: number; updated: number; failed: number; noPermission?: boolean } =
       { imported: 0, updated: 0, failed: 0 };
-    if (provider === "fattureincloud" || provider === "aruba") {
+    if (provider === "aruba") {
       try {
-        received = provider === "fattureincloud"
-          ? await importFICReceived(integ, companyId!)
-          : await importArubaReceived(integ, companyId!);
+        received = await importArubaReceived(integ, companyId!);
       } catch (e) {
         if (importErrors.length < 5) importErrors.push(`passive: ${String(e)}`);
       }
@@ -459,7 +687,7 @@ async function updateInvoiceLinesAtomically(invoiceId: string, lines: any[]) {
 async function fetchProviderInvoices(adapter: any, integ: any): Promise<any[]> {
   const provider = integ.provider;
 
-  if (provider === "fattureincloud") return await fetchFICInvoices(integ);
+  // fattureincloud: import a blocchi nel gestore (passoImportFic), non qui.
   if (provider === "fattura24") return await fetchFattura24Invoices(integ);
   if (provider === "aruba") return await fetchArubaInvoices(integ);
   if (provider === "invoicetronic") return await fetchInvoicetronicInvoices(integ);
@@ -532,121 +760,89 @@ async function ensureFreshFicToken(integ: any): Promise<void> {
   }
 }
 
-async function fetchFICInvoices(integ: any): Promise<any[]> {
-  await ensureFreshFicToken(integ);
-  const base = `https://api-v2.fattureincloud.it/c/${integ.company_external_id}`;
-  const h = { Authorization: `Bearer ${integ.access_token}`, "Content-Type": "application/json" };
-
-  // FIC distingue fatture e note di credito su ENDPOINT/FILTRO `type` separati:
-  // `?type=invoice` NON restituisce mai le note di credito. Le importiamo entrambe,
-  // altrimenti le note di credito emesse risultano del tutto assenti dal gestionale.
-  const fetchByType = async (docType: "invoice" | "credit_note"): Promise<any[]> => {
-    const collected: any[] = [];
-    let currentPage = 1;
-    while (true) {
-      // fieldset=detailed: l'endpoint LIST di default restituisce un RIASSUNTO senza
-      // items_list → le righe fattura risultavano vuote nel dettaglio. "detailed" include
-      // items_list/payments_list/dati cliente completi.
-      const r = await fetch(`${base}/issued_documents?type=${docType}&fieldset=detailed&per_page=100&page=${currentPage}&sort=-date`, { headers: h });
-      if (r.status === 401) throw new Error("Token FattureInCloud scaduto. Vai in Impostazioni → Integrazioni e riconnetti l'account.");
-      if (!r.ok) throw new Error(`FIC API error: ${r.status}`);
-      const d = await r.json();
-      const docs = d.data || [];
-      collected.push(...docs);
-      // FIC v2 espone la paginazione al TOP LEVEL (current_page/last_page/next_page_url),
-      // NON dentro un oggetto `pagination`. Il vecchio `!d.pagination.next_page` era SEMPRE
-      // truthy → si fermava SEMPRE a pagina 1 (max 100 doc importati). Criterio di stop
-      // robusto e indipendente dal nome del campo: pagina non piena.
-      if (docs.length < 100) break;
-      if (d.last_page && currentPage >= d.last_page) break;
-      currentPage++;
-      if (currentPage > 20) break; // safety cap: max 2000 doc per tipo
-    }
-    return collected;
-  };
-
-  const allDocs = [...(await fetchByType("invoice")), ...(await fetchByType("credit_note"))];
-
+/** Documento emesso di FIC (fieldset=detailed) → forma comune dell'import. */
+function mappaEmessaFic(doc: any): any {
   const statusMap: Record<string, string> = {
     ok: "delivered", sending: "sent", not_sent: "issued", error: "issued",
   };
+  const isCreditNote = doc.type === "credit_note";
+  // Una nota di credito è uno storno, non un incasso: non applichiamo la logica "pagata".
+  // Pagato: FIC tiene le rate in payments_list[] ({amount, due_date, paid_date, status}).
+  // `payments_sum` NON è un campo del fieldset list → il vecchio check era sempre falso
+  // (0/193 incassate). Sommiamo le rate effettivamente saldate (paid_date o status 'paid').
+  const _payList: any[] = Array.isArray(doc.payments_list) ? doc.payments_list : [];
+  const _paidFromList = _payList
+    .filter((p: any) => p && (p.paid_date || p.status === "paid"))
+    .reduce((s: number, p: any) => s + Number(p.amount || 0), 0);
+  const _gross = Number(doc.amount_gross || 0);
+  const _paidAmt = isCreditNote ? 0
+    : (doc.is_marked === true && _paidFromList === 0 ? _gross : Math.round(_paidFromList * 100) / 100);
+  const isPaid = !isCreditNote && _gross > 0 && _paidAmt >= _gross - 0.01;
+  // Nota di credito con tutte le rate saldate su FIC = rimborso fatto: la
+  // scadenza di uscita nasce chiusa invece di restare «da pagare» per anni.
+  // paid_amount resta 0 (lo storno non è un incasso).
+  const ncSaldata = isCreditNote && _payList.length > 0 && _payList.every((p: any) => p && (p.paid_date || p.status === "paid"));
+  const resolvedStatus = (isPaid || ncSaldata) ? "paid" : (statusMap[doc.status] || "issued");
 
-  return allDocs.map((doc: any) => {
-    const isCreditNote = doc.type === "credit_note";
-    // Una nota di credito è uno storno, non un incasso: non applichiamo la logica "pagata".
-    // Pagato: FIC tiene le rate in payments_list[] ({amount, due_date, paid_date, status}).
-    // `payments_sum` NON è un campo del fieldset list → il vecchio check era sempre falso
-    // (0/193 incassate). Sommiamo le rate effettivamente saldate (paid_date o status 'paid').
-    const _payList: any[] = Array.isArray(doc.payments_list) ? doc.payments_list : [];
-    const _paidFromList = _payList
-      .filter((p: any) => p && (p.paid_date || p.status === "paid"))
-      .reduce((s: number, p: any) => s + Number(p.amount || 0), 0);
-    const _gross = Number(doc.amount_gross || 0);
-    const _paidAmt = isCreditNote ? 0
-      : (doc.is_marked === true && _paidFromList === 0 ? _gross : Math.round(_paidFromList * 100) / 100);
-    const isPaid = !isCreditNote && _gross > 0 && _paidAmt >= _gross - 0.01;
-    const resolvedStatus = isPaid ? "paid" : (statusMap[doc.status] || "issued");
-
-    return {
-      externalId: doc.id?.toString(),
-      documentType: isCreditNote ? "credit_note" : "invoice",
-      number: doc.number?.value || doc.number,
-      notes: doc.notes || null,
-      ficObject: doc.subject || doc.visible_subject || null,
-      status: resolvedStatus,
-      paidAmount: _paidAmt,
-      clientName: doc.entity?.name || "",
-      clientEmail: doc.entity?.email || null,
-      clientVat: doc.entity?.vat_number,
-      clientFiscalCode: doc.entity?.tax_code,
-      clientAddress: doc.entity?.address_street,
-      clientCity: doc.entity?.address_city,
-      clientZip: doc.entity?.address_postal_code,
-      clientCountry: doc.entity?.address_country || "IT",
-      clientSdi: doc.entity?.ei_code,
-      clientPec: doc.entity?.certified_email,
-      issueDate: doc.date,
-      // FIC tiene la scadenza in payments_list (per rata), non sempre in due_date.
-      // Recuperiamo la prima scadenza così la fattura genera la riga nello scadenzario.
-      dueDate: doc.due_date || doc.payments_list?.[0]?.due_date || null,
-      subtotal: doc.amount_net,
-      taxAmount: doc.amount_vat,
-      total: doc.amount_gross,
-      paymentMethod: doc.payment_method?.name,
-      iban: doc.payment_account?.iban || null,
-      lines: (doc.items_list || []).map((item: any) => {
-        // BUG FISCALE: `item.vat?.value || 22` trasformava l'IVA 0 in 22%.
-        // In JS `0 || 22 === 22`, quindi i forfettari (IVA 0, Natura N2.2) e
-        // le righe esenti/non imponibili (N1..N7) di una SRL prendevano un
-        // 22% fantasma. L'aliquota va LETTA da FIC preservando lo 0; se manca
-        // del tutto NON si inventa IVA (0), mai un default a 22.
-        const vatRaw = item.vat?.value;
-        const taxRate = Number.isFinite(Number(vatRaw)) ? Number(vatRaw) : 0;
-        // Coercizione difensiva come il ramo passive (~importFICReceived): se FIC omette
-        // qty/net_price/discount → Number(... ?? 1/0), mai NaN nelle righe/totali.
-        const qty = Number(item.qty ?? 1);
-        const unitPrice = Number(item.net_price ?? 0);
-        const discount = Number(item.discount ?? 0);
-        const lineNet = Math.round(unitPrice * qty * (1 - discount / 100) * 100) / 100;
-        const lineTax = Math.round(lineNet * (taxRate / 100) * 100) / 100;
-        return {
-          description: item.name,
-          productCode: item.product_code,
-          quantity: qty,
-          unit: item.measure,
-          unitPrice: unitPrice,
-          discountPercent: discount,
-          taxRate,
-          // Natura IVA da FIC (N2.2 forfettario, N1..N7): serve per esenti/
-          // non imponibili e per la coerenza in XML/anteprima.
-          taxNature: item.vat?.ei_type || null,
-          lineNet,
-          lineTax,
-          lineGross: Math.round((lineNet + lineTax) * 100) / 100,
-        };
-      }),
-    };
-  });
+  return {
+    externalId: doc.id?.toString(),
+    documentType: isCreditNote ? "credit_note" : "invoice",
+    number: doc.number?.value || doc.number,
+    notes: doc.notes || null,
+    ficObject: doc.subject || doc.visible_subject || null,
+    status: resolvedStatus,
+    paidAmount: _paidAmt,
+    clientName: doc.entity?.name || "",
+    clientEmail: doc.entity?.email || null,
+    clientVat: doc.entity?.vat_number,
+    clientFiscalCode: doc.entity?.tax_code,
+    clientAddress: doc.entity?.address_street,
+    clientCity: doc.entity?.address_city,
+    clientZip: doc.entity?.address_postal_code,
+    clientCountry: doc.entity?.address_country || "IT",
+    clientSdi: doc.entity?.ei_code,
+    clientPec: doc.entity?.certified_email,
+    issueDate: doc.date,
+    // FIC tiene la scadenza in payments_list (per rata), non sempre in due_date.
+    // Recuperiamo la prima scadenza così la fattura genera la riga nello scadenzario.
+    dueDate: doc.due_date || doc.payments_list?.[0]?.due_date || null,
+    subtotal: doc.amount_net,
+    taxAmount: doc.amount_vat,
+    total: doc.amount_gross,
+    paymentMethod: doc.payment_method?.name,
+    iban: doc.payment_account?.iban || null,
+    lines: (doc.items_list || []).map((item: any) => {
+      // BUG FISCALE: `item.vat?.value || 22` trasformava l'IVA 0 in 22%.
+      // In JS `0 || 22 === 22`, quindi i forfettari (IVA 0, Natura N2.2) e
+      // le righe esenti/non imponibili (N1..N7) di una SRL prendevano un
+      // 22% fantasma. L'aliquota va LETTA da FIC preservando lo 0; se manca
+      // del tutto NON si inventa IVA (0), mai un default a 22.
+      const vatRaw = item.vat?.value;
+      const taxRate = Number.isFinite(Number(vatRaw)) ? Number(vatRaw) : 0;
+      // Coercizione difensiva come il ramo passive (~importFICReceived): se FIC omette
+      // qty/net_price/discount → Number(... ?? 1/0), mai NaN nelle righe/totali.
+      const qty = Number(item.qty ?? 1);
+      const unitPrice = Number(item.net_price ?? 0);
+      const discount = Number(item.discount ?? 0);
+      const lineNet = Math.round(unitPrice * qty * (1 - discount / 100) * 100) / 100;
+      const lineTax = Math.round(lineNet * (taxRate / 100) * 100) / 100;
+      return {
+        description: item.name,
+        productCode: item.product_code,
+        quantity: qty,
+        unit: item.measure,
+        unitPrice: unitPrice,
+        discountPercent: discount,
+        taxRate,
+        // Natura IVA da FIC (N2.2 forfettario, N1..N7): serve per esenti/
+        // non imponibili e per la coerenza in XML/anteprima.
+        taxNature: item.vat?.ei_type || null,
+        lineNet,
+        lineTax,
+        lineGross: Math.round((lineNet + lineTax) * 100) / 100,
+      };
+    }),
+  };
 }
 
 // ── FATTURE PASSIVE (ricevute dai fornitori) da Fatture in Cloud ──────────────
@@ -655,38 +851,46 @@ async function fetchFICInvoices(integ: any): Promise<any[]> {
 // tabella DEDICATA `fatture_ricevute` (colonne cedente_*), non in `invoices`.
 // doc.entity qui è il FORNITORE (cedente). Dedup su (company_id, cedente_piva,
 // numero_fattura, data_fattura) come l'unique naturale della tabella.
-async function importFICReceived(integ: any, companyId: string): Promise<{ imported: number; updated: number; failed: number; noPermission?: boolean }> {
-  await ensureFreshFicToken(integ);
-  const base = `https://api-v2.fattureincloud.it/c/${integ.company_external_id}`;
-  const h = { Authorization: `Bearer ${integ.access_token}`, "Content-Type": "application/json" };
+/**
+ * Numero del documento ricevuto. FIC lo tiene in `invoice_number` (non in
+ * `number` come per le emesse): leggendo `number` ogni ricevuta risultava senza
+ * numero e veniva scartata. Le spese senza numero (scontrini, ricevute) prendono
+ * l'id FIC, così entrano comunque e non si duplicano.
+ */
+function numeroRicevuta(doc: any): string {
+  const n = doc?.invoice_number ?? doc?.number?.value ?? doc?.number ?? null;
+  const s = n == null ? "" : String(n).trim();
+  return s || (doc?.id != null ? `FIC-${doc.id}` : "");
+}
 
-  const all: any[] = [];
-  let page = 1;
-  while (true) {
-    const r = await fetch(`${base}/received_documents?fieldset=detailed&per_page=100&page=${page}&sort=-date`, { headers: h });
-    if (r.status === 401) throw new Error("Token FattureInCloud scaduto. Riconnetti l'account.");
-    // 403 = scope received_documents non concesso (account collegato prima
-    // dell'update). Non blocca le emesse, ma NON è "zero fatture ricevute":
-    // per mesi ha restituito zeri indistinguibili dal caso legittimo, con la
-    // pagina che prometteva l'arrivo automatico dal SDI. Ora lo dichiariamo.
-    if (r.status === 403) return { imported: 0, updated: 0, failed: 0, noPermission: true };
-    if (!r.ok) throw new Error(`FIC received API error: ${r.status}`);
-    const d = await r.json();
-    const docs = d.data || [];
-    all.push(...docs);
-    if (docs.length < 100) break;
-    if (d.last_page && page >= d.last_page) break;
-    page++;
-    if (page > 20) break;
+async function salvaRicevuteFic(all: any[], companyId: string): Promise<{ imported: number; updated: number; failed: number; errori: string[] }> {
+  const errori: string[] = [];
+  // Righe già presenti lette in blocco (una query per pagina invece di una per
+  // documento), poi insert in blocco dei nuovi con ripiego uno alla volta.
+  const chiave = (numero: string, data: string, piva: string | null) => `${numero}|${data}|${piva ?? ""}`;
+  const numeri = [...new Set(all.map(numeroRicevuta).filter(Boolean))];
+  const esistenti = new Map<string, string>();
+  for (let i = 0; i < numeri.length; i += 200) {
+    const { data, error } = await supabase.from("fatture_ricevute")
+      .select("id, numero_fattura, data_fattura, cedente_piva")
+      .eq("company_id", companyId).in("numero_fattura", numeri.slice(i, i + 200));
+    if (error) throw new Error(`Lettura delle fatture ricevute già importate: ${error.message}`);
+    (data || []).forEach((r: any) => esistenti.set(chiave(String(r.numero_fattura), String(r.data_fattura), r.cedente_piva ?? null), r.id));
   }
+  const nuove: any[] = [];
+  const nuoveChiavi = new Map<string, number>();
 
   let imported = 0, updated = 0, failed = 0;
   for (const doc of all) {
     const e = doc.entity || {};
     const cedentePiva = e.vat_number || null;
-    const numero = (doc.number?.value || doc.number || "")?.toString();
+    const numero = numeroRicevuta(doc);
     const dataFattura = doc.date || null;
-    if (!numero || !dataFattura) { failed++; continue; }
+    if (!numero || !dataFattura) {
+      failed++;
+      if (errori.length < 3) errori.push(`ricevuta FIC ${doc.id ?? "?"}: ${!dataFattura ? "senza data" : "senza numero"}`);
+      continue;
+    }
 
     const righe = (doc.items_list || []).map((item: any) => {
       // Stesso principio del blocco attive: preserva l'IVA 0 (forfettario/
@@ -722,21 +926,32 @@ async function importFICReceived(integ: any, companyId: string): Promise<{ impor
       updated_at: new Date().toISOString(),
     };
 
-    // Dedup su chiave naturale (cedente_piva può essere null → confronto difensivo).
-    let q = supabase.from("fatture_ricevute").select("id")
-      .eq("company_id", companyId).eq("numero_fattura", numero).eq("data_fattura", dataFattura);
-    q = cedentePiva ? q.eq("cedente_piva", cedentePiva) : q.is("cedente_piva", null);
-    const { data: existing } = await q.maybeSingle();
-
-    if (existing) {
-      const { error } = await supabase.from("fatture_ricevute").update(row).eq("id", existing.id);
-      if (error) failed++; else updated++;
+    // Dedup su chiave naturale (company, numero, data, cedente_piva anche null).
+    const k = chiave(numero, String(dataFattura), cedentePiva);
+    const idEsistente = esistenti.get(k);
+    if (idEsistente) {
+      const { error } = await supabase.from("fatture_ricevute").update(row).eq("id", idEsistente);
+      if (error) { failed++; if (errori.length < 3) errori.push(`ricevuta ${numero}: ${error.message}`); } else updated++;
+    } else if (nuoveChiavi.has(k)) {
+      // Stesso documento due volte nella pagina: vale l'ultimo, un insert solo.
+      nuove[nuoveChiavi.get(k)!] = row;
     } else {
-      const { error } = await supabase.from("fatture_ricevute").insert(row);
-      if (error) failed++; else imported++;
+      nuoveChiavi.set(k, nuove.length);
+      nuove.push(row);
     }
   }
-  return { imported, updated, failed };
+  if (nuove.length > 0) {
+    const { error } = await supabase.from("fatture_ricevute").insert(nuove);
+    if (!error) {
+      imported += nuove.length;
+    } else {
+      for (const row of nuove) {
+        const { error: e } = await supabase.from("fatture_ricevute").insert(row);
+        if (e) { failed++; if (errori.length < 3) errori.push(`ricevuta ${row.numero_fattura}: ${e.message}`); } else imported++;
+      }
+    }
+  }
+  return { imported, updated, failed, errori };
 }
 
 /**

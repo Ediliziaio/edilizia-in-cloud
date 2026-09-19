@@ -1,4 +1,4 @@
-import { useState, useMemo, Fragment } from "react";
+import { useState, useMemo, useEffect, Fragment } from "react";
 import { NavyStatCard } from "@/components/costi/KpiCard";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -24,6 +24,32 @@ import { useIsMobile } from "@/hooks/use-mobile";
  * ("12 min fa", "3 h fa", "2 gg fa") + flag `stale` se il dato ha più di 24h,
  * così l'utente capisce a colpo d'occhio se le fatture sono aggiornate.
  */
+interface IntegrazioneFatture {
+  id: string;
+  last_sync_at: string | null;
+  provider: string;
+  last_sync_status: string | null;
+  import_stato: {
+    in_corso?: boolean;
+    tipo?: "completo" | "aggiornamento";
+    flussi?: Record<string, { elaborati?: number; totale?: number | null; fatto?: boolean }>;
+  } | null;
+}
+
+/** Documenti elaborati / dichiarati da FIC nel giro di import in corso. */
+function avanzamentoImport(st: IntegrazioneFatture["import_stato"]): { elaborati: number; totale: number | null } | null {
+  if (!st?.in_corso || !st.flussi) return null;
+  let elaborati = 0;
+  let totale = 0;
+  let noto = true;
+  for (const f of Object.values(st.flussi)) {
+    elaborati += f.elaborati ?? 0;
+    if (f.totale == null && !f.fatto) noto = false;
+    totale += f.totale ?? f.elaborati ?? 0;
+  }
+  return { elaborati, totale: noto ? totale : null };
+}
+
 function syncFreshness(iso?: string | null): { label: string; stale: boolean } | null {
   if (!iso) return null;
   const diffMs = Date.now() - new Date(iso).getTime();
@@ -172,7 +198,7 @@ export default function InvoicesList() {
       // invoke billing-import: senza, provider arrivava undefined alla function)
       const { data, error } = await supabase
         .from("billing_integrations")
-        .select("id, last_sync_at, provider")
+        .select("id, last_sync_at, provider, last_sync_status, import_stato")
         .eq("company_id", companyId!)
         .eq("is_active", true)
         .limit(1)
@@ -181,8 +207,11 @@ export default function InvoicesList() {
       // "Connetti il tuo gestionale" a chi ce l'ha già collegato, con
       // Sincronizza disabilitato e nessuna spiegazione.
       if (error) throw error;
-      return data;
+      return data as unknown as IntegrazioneFatture | null;
     },
+    // Import da Fatture in Cloud a blocchi: mentre è in corso l'avanzamento si
+    // aggiorna da solo (il recupero lavora ogni 2 minuti anche a pagina chiusa).
+    refetchInterval: (q) => ((q.state.data as IntegrazioneFatture | null | undefined)?.import_stato?.in_corso ? 60_000 : false),
     enabled: !!companyId,
     refetchOnMount: "always",
   });
@@ -240,6 +269,13 @@ export default function InvoicesList() {
     onError: (e) => toast.error("Errore", { description: String(e) }),
   });
 
+  // Mentre l'import a blocchi avanza, anche l'elenco si aggiorna: il banner
+  // promette che le fatture «compaiono man mano».
+  const elaboratiImport = avanzamentoImport(integration?.import_stato ?? null)?.elaborati ?? null;
+  useEffect(() => {
+    if (elaboratiImport !== null) queryClient.invalidateQueries({ queryKey: ["invoices"] });
+  }, [elaboratiImport, queryClient]);
+
   const [syncing, setSyncing] = useState(false);
   const syncInvoices = async () => {
     if (!integration) {
@@ -255,9 +291,22 @@ export default function InvoicesList() {
       if (data?.error) throw new Error(data.error);
       const rec = data?.received;
       const recTxt = rec && (rec.imported || rec.updated) ? ` · ${(rec.imported || 0) + (rec.updated || 0)} ricevute` : "";
-      toast.success("Sincronizzazione completata", {
-        description: `${data?.imported || 0} importate, ${data?.updated || 0} aggiornate${data?.failed ? `, ${data.failed} fallite` : ""}${recTxt}`,
-      });
+      if (data?.gia_in_corso) {
+        toast.info("Import già in corso", { description: data?.messaggio ?? "Prosegue da solo." });
+      } else if (data?.in_corso) {
+        // Fatture in Cloud importa a blocchi: questo pezzo è fatto, il resto
+        // prosegue da solo ogni 2 minuti.
+        const av = data?.avanzamento as { elaborati: number; totale: number | null } | undefined;
+        toast.success("Import in corso", {
+          description: av
+            ? `${av.elaborati.toLocaleString("it-IT")}${av.totale ? ` di ${av.totale.toLocaleString("it-IT")}` : ""} documenti. Prosegue da solo, puoi chiudere la pagina.`
+            : "Prosegue da solo, puoi chiudere la pagina.",
+        });
+      } else {
+        toast.success("Sincronizzazione completata", {
+          description: `${data?.imported || 0} importate, ${data?.updated || 0} aggiornate${data?.failed ? `, ${data.failed} fallite` : ""}${recTxt}`,
+        });
+      }
       // Aggiorna SIA la lista fatture SIA l'integrazione (ultimo sync). Senza il
       // secondo invalidate l'header restava su un orario di sync vecchio e, con la
       // cache PWA persistente, la pagina sembrava "non sincronizzata". refetchType
@@ -486,6 +535,32 @@ export default function InvoicesList() {
           </Button>
         </div>
       </div>
+
+      {/* Primo import (o aggiornamento lungo) da Fatture in Cloud: senza questo
+          la pagina sembrava vuota o incompleta senza spiegazione. */}
+      {(() => {
+        const av = avanzamentoImport(integration?.import_stato ?? null);
+        if (!av) return null;
+        const perc = av.totale ? Math.min(100, Math.round((av.elaborati / av.totale) * 100)) : null;
+        return (
+          <div className="rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm dark:border-sky-900 dark:bg-sky-950/40" role="status" aria-live="polite">
+            <div className="flex items-center gap-2 font-medium text-sky-900 dark:text-sky-100">
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              {integration?.import_stato?.tipo === "aggiornamento" ? "Aggiornamento da Fatture in Cloud in corso" : "Import da Fatture in Cloud in corso"}
+            </div>
+            <p className="mt-1 text-sky-800 dark:text-sky-200">
+              {av.elaborati.toLocaleString("it-IT")}
+              {av.totale ? ` di ${av.totale.toLocaleString("it-IT")}` : ""} documenti tra fatture, note di credito e ricevute.
+              Prosegue da solo ogni due minuti: le fatture compaiono qui man mano.
+            </p>
+            {perc !== null && (
+              <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-sky-100 dark:bg-sky-900">
+                <div className="h-full rounded-full bg-sky-500" style={{ width: `${perc}%` }} />
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Top-level view tabs */}
       <Tabs defaultValue="fatture" className="w-full">
