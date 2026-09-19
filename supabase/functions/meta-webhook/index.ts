@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getMetaCredentials } from "../_shared/getMetaCredentials.ts";
+import { leggiImpostazionePiattaforma } from "../_shared/getPlatformSetting.ts";
 import { verifyHmacSha256 } from "../_shared/webhookSecurity.ts";
 import { decrypt, getEncryptionKey } from "../_shared/encryption.ts";
 import { estraiMessaggiSocial, registraMessaggiSocial } from "../_shared/socialMessaggiMeta.ts";
@@ -23,14 +24,9 @@ Deno.serve(async (req) => {
     const tokenAccettati: string[] = [];
     const envToken = Deno.env.get("META_WEBHOOK_VERIFY_TOKEN") ?? "";
     if (envToken.length >= 16) tokenAccettati.push(envToken);
-    try {
-      const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-      const { data } = await admin.from("platform_settings").select("value").eq("key", "meta_webhook_verify_token").maybeSingle();
-      const dbToken = String(data?.value ?? "");
-      if (dbToken.length >= 16) tokenAccettati.push(dbToken);
-    } catch (e) {
-      console.warn("meta-webhook: token delle impostazioni non leggibile:", e);
-    }
+    // Dal 19/09/2026 il token delle impostazioni sta nel Vault.
+    const dbToken = await leggiImpostazionePiattaforma("meta_webhook_verify_token");
+    if (dbToken.length >= 16) tokenAccettati.push(dbToken);
     if (tokenAccettati.length === 0) {
       console.error("meta-webhook: nessun token di verifica configurato");
       return new Response("Configuration error", { status: 500 });

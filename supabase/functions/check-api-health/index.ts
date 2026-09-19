@@ -1,6 +1,7 @@
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { requireAuth, requireRole, isInternalRequest } from "../_shared/auth.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { leggiImpostazioniPiattaforma } from "../_shared/getPlatformSetting.ts";
 
 import { serveConMetriche } from "../_shared/withMetrics.ts";
 interface IntegrationResult {
@@ -230,14 +231,10 @@ serveConMetriche("check-api-health", async (req) => {
       "cloudflare_account_id",
     ];
 
-    const { data: settings } = await admin
-      .from("platform_settings")
-      .select("key, value")
-      .in("key", settingsKeys);
-
+    // I segreti dal 19/09/2026 stanno nel Vault: li legge leggiImpostazioniPiattaforma.
     const settingsMap: Record<string, string> = {};
-    for (const row of settings || []) {
-      if (row.value) settingsMap[row.key] = row.value;
+    for (const [chiave, valore] of Object.entries(await leggiImpostazioniPiattaforma(settingsKeys))) {
+      if (valore) settingsMap[chiave] = valore;
     }
 
     const results: IntegrationResult[] = [];

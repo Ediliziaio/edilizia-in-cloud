@@ -10,6 +10,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { verifyCompanyAccess } from "../_shared/companyAuth.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { leggiImpostazionePiattaforma } from "../_shared/getPlatformSetting.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: getCorsHeaders(req) });
@@ -46,9 +47,10 @@ Deno.serve(async (req) => {
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json({ error: "Email/PEC azienda mancante o non valida (richiesta per la registrazione SDI)." }, 422);
 
     // Token + ambiente openapi (platform-level)
-    const { data: tokRow } = await supabase.from("platform_settings").select("value").eq("key", "openapi_it_token").maybeSingle();
+    // Il token dal 19/09/2026 sta nel Vault.
+    const tokenSalvato = await leggiImpostazionePiattaforma("openapi_it_token");
     const { data: envRow } = await supabase.from("platform_settings").select("value").eq("key", "openapi_env").maybeSingle();
-    const token = (tokRow?.value || Deno.env.get("OPENAPI_IT_TOKEN") || "").trim();
+    const token = (tokenSalvato || Deno.env.get("OPENAPI_IT_TOKEN") || "").trim();
     const env = (envRow?.value || "prod").toLowerCase();
     const invBase = (env === "sandbox" || env === "test") ? "test.invoice.openapi.com" : "invoice.openapi.com";
     if (!token) return json({ error: "openapi_it_token non configurato (scope SDI Electronic Invoicing)." }, 400);

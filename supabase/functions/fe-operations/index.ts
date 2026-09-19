@@ -13,6 +13,7 @@
 // Auth: super_admin (requireAuth → requireRole con allowlist email).
 import { requireAuth, requireRole } from "../_shared/auth.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { leggiImpostazioniPiattaforma } from "../_shared/getPlatformSetting.ts";
 
 const PS = {
   token: "openapi_it_token",
@@ -73,12 +74,8 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({})) as Record<string, unknown>;
     const action = (body.action as string) || "overview";
 
-    const readSettings = async (keys: string[]) => {
-      const { data } = await supabaseAdmin.from("platform_settings").select("key,value").in("key", keys);
-      const m: Record<string, string> = {};
-      for (const row of (data || []) as Array<{ key: string; value: string }>) m[row.key] = row.value;
-      return m;
-    };
+    // Il token openapi dal 19/09/2026 sta nel Vault: si legge da lì.
+    const readSettings = (keys: string[]) => leggiImpostazioniPiattaforma(keys);
 
     // ── set_config ──────────────────────────────────────────────────────
     if (action === "set_config") {

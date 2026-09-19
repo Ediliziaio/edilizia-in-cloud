@@ -24,6 +24,7 @@
 // ============================================================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { leggiImpostazionePiattaforma } from "../_shared/getPlatformSetting.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -157,13 +158,8 @@ Deno.serve(async (req) => {
     auth: { persistSession: false },
   });
 
-  // 1. Carica app_secret da platform_settings (mai esposto al client)
-  const { data: settings } = await supa
-    .from("platform_settings")
-    .select("key, value")
-    .eq("key", "meta_app_secret")
-    .maybeSingle();
-  const appSecret = settings?.value;
+  // 1. Carica app_secret (mai esposto al client; dal 19/09/2026 nel Vault)
+  const appSecret = await leggiImpostazionePiattaforma("meta_app_secret");
   if (!appSecret) {
     console.error("[meta-data-deletion-callback] meta_app_secret non configurato");
     return jsonResponse({ error: "App secret not configured" }, 500);

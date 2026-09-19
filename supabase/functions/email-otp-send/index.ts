@@ -19,6 +19,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { renderSystemEmail } from "../_shared/email-templates/renderSystemEmail.ts";
 import { renderEmailTemplate } from "../_shared/renderTemplate.ts";
+import { leggiImpostazioniPiattaforma } from "../_shared/getPlatformSetting.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -186,18 +187,16 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "Impossibile salvare il codice" }, 500);
   }
 
-  // 5. Carica provider email (Resend) da platform_settings
-  const { data: cfg } = await supa
-    .from("platform_settings")
-    .select("key, value")
-    .in("key", [
-      "email_transactional_api_key",
-      "email_transactional_from_address",
-      "email_transactional_from_name",
-      "email_transactional_provider",
-      "email_default_reply_to",
-    ]);
-  const cfgMap = new Map((cfg ?? []).map((r: { key: string; value: string }) => [r.key, r.value]));
+  // 5. Carica provider email (Resend) da platform_settings; la chiave API dal
+  //    19/09/2026 sta nel Vault.
+  const cfg = await leggiImpostazioniPiattaforma([
+    "email_transactional_api_key",
+    "email_transactional_from_address",
+    "email_transactional_from_name",
+    "email_transactional_provider",
+    "email_default_reply_to",
+  ]);
+  const cfgMap = new Map(Object.entries(cfg));
   const apiKey = cfgMap.get("email_transactional_api_key");
   const replyTo = cfgMap.get("email_default_reply_to");
   const fromAddr = cfgMap.get("email_transactional_from_address") ?? "noreply@notifiche.ediliziaincloud.it";

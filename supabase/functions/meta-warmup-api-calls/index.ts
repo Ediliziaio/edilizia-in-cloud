@@ -9,6 +9,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { decrypt, getEncryptionKey } from "../_shared/encryption.ts";
+import { leggiImpostazionePiattaforma } from "../_shared/getPlatformSetting.ts";
 
 const API_VERSION = Deno.env.get("META_API_VERSION") || "v21.0";
 const BASE = `https://graph.facebook.com/${API_VERSION}`;
@@ -26,15 +27,9 @@ Deno.serve(async (req) => {
   let isAuthed = !!(cronSecret && reqCronSecret === cronSecret);
 
   if (!isAuthed && warmupToken) {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const adminCheck = createClient(supabaseUrl, serviceKey);
-    const { data: tokenRow } = await adminCheck
-      .from("platform_settings")
-      .select("value")
-      .eq("key", "meta_warmup_token")
-      .single();
-    if (tokenRow?.value && warmupToken === tokenRow.value) {
+    // Il token dal 19/09/2026 sta nel Vault.
+    const tokenSalvato = await leggiImpostazionePiattaforma("meta_warmup_token");
+    if (tokenSalvato && warmupToken === tokenSalvato) {
       isAuthed = true;
     }
   }

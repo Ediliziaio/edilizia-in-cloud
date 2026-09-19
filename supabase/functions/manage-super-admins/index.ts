@@ -2,6 +2,7 @@ import { checkRateLimit, rateLimitResponse } from "../_shared/rateLimit.ts";
 import { recordMetric } from "../_shared/healthMetrics.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { requireAuth, requireRole } from "../_shared/auth.ts";
+import { leggiImpostazioniPiattaforma } from "../_shared/getPlatformSetting.ts";
 import { createAuditedAdminClient } from "../_shared/auditContext.ts";
 
 import { serveConMetriche } from "../_shared/withMetrics.ts";
@@ -487,10 +488,14 @@ serveConMetriche("manage-super-admins", async (req) => {
         "google_calendar_allow_two_way", "google_calendar_allow_guest_contact_create", "google_calendar_allow_google_to_crm_import",
       ];
 
-      const { data: settings } = await supabaseAdmin
-        .from("platform_settings")
-        .select("key, value, updated_at")
-        .in("key", allSettingsKeys);
+      // I valori dei segreti dal 19/09/2026 stanno nel Vault: dalla tabella la
+      // data di modifica, da leggiImpostazioniPiattaforma i valori.
+      const [{ data: righe }, valori] = await Promise.all([
+        supabaseAdmin.from("platform_settings").select("key, updated_at").in("key", allSettingsKeys),
+        leggiImpostazioniPiattaforma(allSettingsKeys),
+      ]);
+      const settings = ((righe ?? []) as Array<{ key: string; updated_at: string }>)
+        .map((r) => ({ key: r.key, value: valori[r.key] ?? "", updated_at: r.updated_at }));
 
       const result: Record<string, { value: string; masked?: string; updated_at?: string }> = {};
       const secretKeys = [
@@ -537,10 +542,10 @@ serveConMetriche("manage-super-admins", async (req) => {
         if (!allowedKeys.includes(key)) continue;
         if (!value || typeof value !== "string" || (value as string).trim() === "") continue;
 
-        // Get old value for audit
+        // Get old value for audit (solo se c'era: il valore di un segreto sta nel Vault)
         const { data: existing } = await supabaseAdmin
           .from("platform_settings")
-          .select("value")
+          .select("key")
           .eq("key", key)
           .maybeSingle();
 
@@ -553,7 +558,7 @@ serveConMetriche("manage-super-admins", async (req) => {
             updated_by: callerId,
           }, { onConflict: "key" });
 
-        updates.push({ key, oldValue: existing?.value ? "***" : undefined });
+        updates.push({ key, oldValue: existing ? "***" : undefined });
       }
 
       if (updates.length > 0) {

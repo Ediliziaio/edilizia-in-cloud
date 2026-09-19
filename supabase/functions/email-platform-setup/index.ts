@@ -12,8 +12,7 @@
 // Auth: header x-setup-token == platform_settings.email_setup_token
 // (pattern one-time identico a email-provider-check / meta-warmup).
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
+import { getPlatformSetting, leggiImpostazionePiattaforma } from "../_shared/getPlatformSetting.ts";
 
 const MARKETING_DOMAIN = "mkt.ediliziaincloud.com";
 const CF_ZONE_NAME = "ediliziaincloud.com";
@@ -88,16 +87,9 @@ Deno.serve(async (req) => {
     const token = req.headers.get("x-setup-token") ?? "";
     if (!token) return json({ error: "missing x-setup-token" }, 401);
 
-    const admin = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-    );
-    const { data: tokenRow } = await admin
-      .from("platform_settings")
-      .select("value")
-      .eq("key", "email_setup_token")
-      .maybeSingle();
-    if (!tokenRow?.value || tokenRow.value !== token) {
+    // Il token dal 19/09/2026 sta nel Vault.
+    const tokenSalvato = await leggiImpostazionePiattaforma("email_setup_token");
+    if (!tokenSalvato || tokenSalvato !== token) {
       return json({ error: "invalid token" }, 401);
     }
 

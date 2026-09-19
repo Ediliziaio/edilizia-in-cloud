@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { verifyCompanyAccess } from "../_shared/companyAuth.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { leggiImpostazionePiattaforma } from "../_shared/getPlatformSetting.ts";
 import { generateXML } from "../_shared/generateXML.ts";
 import { utf8ToBase64 } from "../_shared/base64.ts";
 import { checkPaymentMethod, PAYMENT_METHOD_REQUIRED_MESSAGE } from "../_shared/requirePaymentMethod.ts";
@@ -473,9 +474,10 @@ Deno.serve(async (req) => {
       // schema, firma e trasmette allo SDI. Token + ambiente da platform_settings
       // (riusa l'integrazione openapi_it_token / openapi_env già presente).
       const tokKey = isSandbox ? "openapi_it_token_sandbox" : "openapi_it_token";
-      const { data: tokRow } = await supabase.from("platform_settings").select("value").eq("key", tokKey).maybeSingle();
+      // Il token dal 19/09/2026 sta nel Vault.
+      const tokenSalvato = await leggiImpostazionePiattaforma(tokKey);
       const { data: envRow } = await supabase.from("platform_settings").select("value").eq("key", "openapi_env").maybeSingle();
-      const token = (tokRow?.value || Deno.env.get(isSandbox ? "OPENAPI_IT_TOKEN_SANDBOX" : "OPENAPI_IT_TOKEN") || "").trim();
+      const token = (tokenSalvato || Deno.env.get(isSandbox ? "OPENAPI_IT_TOKEN_SANDBOX" : "OPENAPI_IT_TOKEN") || "").trim();
       const env = (envRow?.value || "prod").toLowerCase();
       const invBase = (isSandbox || env === "sandbox" || env === "test") ? "test.invoice.openapi.com" : "invoice.openapi.com";
       const invEndpoint = `https://${invBase}/IT-invoices`;

@@ -8,8 +8,7 @@
 // (token one-time scritto a DB prima della chiamata, stesso pattern di
 // meta-warmup-api-calls).
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
+import { getPlatformSetting, leggiImpostazionePiattaforma } from "../_shared/getPlatformSetting.ts";
 
 Deno.serve(async (req) => {
   const json = (data: unknown, status = 200) =>
@@ -22,16 +21,9 @@ Deno.serve(async (req) => {
     const token = req.headers.get("x-check-token") ?? "";
     if (!token) return json({ error: "missing x-check-token" }, 401);
 
-    const admin = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-    );
-    const { data: tokenRow } = await admin
-      .from("platform_settings")
-      .select("value")
-      .eq("key", "email_check_token")
-      .maybeSingle();
-    if (!tokenRow?.value || tokenRow.value !== token) {
+    // Il token dal 19/09/2026 sta nel Vault.
+    const tokenSalvato = await leggiImpostazionePiattaforma("email_check_token");
+    if (!tokenSalvato || tokenSalvato !== token) {
       return json({ error: "invalid token" }, 401);
     }
 

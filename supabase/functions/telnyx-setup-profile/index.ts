@@ -12,6 +12,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/headers.ts";
 import { requireAuth, requireRole } from "../_shared/auth.ts";
+import { leggiImpostazionePiattaforma } from "../_shared/getPlatformSetting.ts";
 
 const PROFILE_NAME = "Edilizia in Cloud";
 
@@ -38,12 +39,9 @@ Deno.serve(async (req: Request) => {
     const setupToken = req.headers.get("x-setup-token");
     let authed = false;
     if (setupToken) {
-      const { data: tokenRow } = await adminClient
-        .from("platform_settings")
-        .select("value")
-        .eq("key", "telnyx_setup_token")
-        .maybeSingle();
-      authed = Boolean(tokenRow?.value && setupToken === tokenRow.value);
+      // Il token dal 19/09/2026 sta nel Vault.
+      const tokenSalvato = await leggiImpostazionePiattaforma("telnyx_setup_token");
+      authed = Boolean(tokenSalvato && setupToken === tokenSalvato);
     }
     if (!authed) {
       const { userId } = await requireAuth(req, corsHeaders);

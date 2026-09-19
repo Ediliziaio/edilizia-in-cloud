@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { renderEmailTemplate } from "../_shared/renderTemplate.ts";
+import { leggiImpostazioniPiattaforma } from "../_shared/getPlatformSetting.ts";
 
 const PARTNER_BASE = "https://app.ediliziaincloud.com/partner";
 // type evento → template_key del builder (platform_email_templates / SYSTEM_EMAIL_CONTENT)
@@ -109,15 +110,8 @@ Deno.serve(async (req) => {
     const htmlBody = rendered.html;
 
     // Get platform email settings
-    const { data: platformSettings } = await supabase
-      .from("platform_settings")
-      .select("key, value")
-      .in("key", ["smtp_host", "smtp_port", "smtp_user", "smtp_pass", "smtp_from_email", "smtp_from_name"]);
-
-    const settings: Record<string, string> = {};
-    platformSettings?.forEach((s: any) => {
-      settings[s.key] = s.value;
-    });
+    // smtp_pass dal 19/09/2026 sta nel Vault.
+    const settings = await leggiImpostazioniPiattaforma(["smtp_host", "smtp_port", "smtp_user", "smtp_pass", "smtp_from_email", "smtp_from_name"]);
 
     if (settings.smtp_host && settings.smtp_user && settings.smtp_pass) {
       console.log("[partner-notification] Sending partner email", { type, referrer_id });
