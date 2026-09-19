@@ -1042,9 +1042,13 @@ async function executeSplit(supabase: any, cfg: Record<string, any>, node: Autom
  * Quanto ha già ricevuto oggi ogni ramo dello split equilibrato.
  *
  * Se ogni ramo porta a un "Crea opportunità" con una persona (call center o
- * venditore), si contano le opportunità di oggi di quella persona in TUTTA
- * l'azienda: così pesano anche i lead arrivati da altri flussi (a BeMade il
- * Restauro va solo a Venusia). Altrimenti si contano le scelte di questo nodo.
+ * venditore), si contano le opportunità di oggi di quella persona. Se i rami
+ * creano tutti nella STESSA pipeline, si conta solo quella: lo split divide
+ * quella pipeline, e le opportunità di un'altra non devono spostare la quota
+ * (BeMade, 19/09/2026: «Nuovo 50% Antonella, 50% Venusia». Contando tutta
+ * l'azienda, il Restauro di Venusia faceva pendere il Nuovo verso Antonella:
+ * 12 a 5 a metà giornata). Se le pipeline sono diverse si conta tutta
+ * l'azienda, come prima. Senza persone si contano le scelte di questo nodo.
  */
 async function contaRamiDiOggi(supabase: any, node: AutomationNode, queueItem: any, rami: number) {
   const inizio = inizioGiornoRoma(new Date()).toISOString();
@@ -1064,21 +1068,26 @@ async function contaRamiDiOggi(supabase: any, node: AutomationNode, queueItem: a
   const cfgPerNodo = new Map<string, Record<string, any>>((destinazioni ?? []).map((n: any) => [n.id, n.config_json ?? {}]));
 
   const persone: Array<{ colonna: "call_center_id" | "assigned_to"; id: string } | null> = [];
+  const pipelineDeiRami: Array<string | null> = [];
   for (let i = 0; i < rami; i++) {
     const arco = (archi ?? []).find((a: any) => arcoDelRamo(a.label, letteraRamo(i)));
     const dest = arco ? cfgPerNodo.get(arco.to_node_id) : undefined;
+    pipelineDeiRami.push(dest?.pipeline_id ? String(dest.pipeline_id) : null);
     if (dest?.call_center_id) persone.push({ colonna: "call_center_id", id: String(dest.call_center_id) });
     else if (dest?.assegnato_a) persone.push({ colonna: "assigned_to", id: String(dest.assegnato_a) });
     else persone.push(null);
   }
 
   if (persone.every(Boolean)) {
-    const { data: opp, error } = await supabase
+    const pipelineComune = pipelineDeiRami.every((p) => p && p === pipelineDeiRami[0]) ? pipelineDeiRami[0] : null;
+    let query = supabase
       .from("marketing_opportunities")
       .select("call_center_id, assigned_to")
       .eq("company_id", queueItem.company_id)
       .is("deleted_at", null)
       .gte("created_at", inizio);
+    if (pipelineComune) query = query.eq("pipeline_id", pipelineComune);
+    const { data: opp, error } = await query;
     if (error) throw new Error(`opportunità: ${error.message}`);
     const valori = persone.map((p) => (opp ?? []).filter((o: any) => o[p!.colonna] === p!.id).length);
 
@@ -1112,7 +1121,7 @@ async function contaRamiDiOggi(supabase: any, node: AutomationNode, queueItem: a
         if (i >= 0 && i < valori.length) valori[i]++;
       }
     }
-    return { base: "persone", valori };
+    return { base: pipelineComune ? "persone_pipeline" : "persone", valori };
   }
 
   const { data: scelte, error } = await supabase

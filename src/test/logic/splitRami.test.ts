@@ -187,3 +187,18 @@ describe("inizioGiornoRoma", () => {
     expect(inizioGiornoRoma(new Date("2026-01-10T12:00:00Z")).toISOString()).toBe("2026-01-09T23:00:00.000Z");
   });
 });
+
+describe("split «in modo equo»: si conta la pipeline che lo split divide", () => {
+  const motore = readFileSync(join(process.cwd(), "supabase/functions/process-automation/index.ts"), "utf8");
+
+  it("se tutti i rami creano nella stessa pipeline, contano solo le opportunità di quella", () => {
+    // BeMade 19/09: il Restauro di Venusia faceva pendere il Nuovo verso
+    // Antonella (12 a 5) perché il conteggio guardava tutta l'azienda.
+    expect(motore).toContain("pipelineDeiRami.every((p) => p && p === pipelineDeiRami[0])");
+    expect(motore).toContain('if (pipelineComune) query = query.eq("pipeline_id", pipelineComune);');
+  });
+
+  it("con pipeline diverse fra i rami si conta ancora tutta l'azienda", () => {
+    expect(motore).toContain('base: pipelineComune ? "persone_pipeline" : "persone"');
+  });
+});
