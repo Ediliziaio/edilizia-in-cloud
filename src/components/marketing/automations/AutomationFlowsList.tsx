@@ -1077,8 +1077,9 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
                   <TableHead className="h-9">Nome</TableHead>
                   <TableHead className="h-9 w-28">Stato</TableHead>
                   <TableHead className="h-9 w-24 text-right">Iscritti</TableHead>
-                  <TableHead className="h-9 w-36">Ultima esecuzione</TableHead>
-                  <TableHead className="hidden h-9 w-28 lg:table-cell">Modificata</TableHead>
+                  {/* Su una riga: andando a capo alzava tutta l'intestazione. */}
+                  <TableHead className="h-9 w-36 whitespace-nowrap">Ultima esecuzione</TableHead>
+                  <TableHead className="hidden h-9 w-28 whitespace-nowrap lg:table-cell">Modificata</TableHead>
                   <TableHead className="h-9 w-12"></TableHead>
                 </TableRow>
               </TableHeader>
