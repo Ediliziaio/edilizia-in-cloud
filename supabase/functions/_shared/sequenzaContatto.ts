@@ -11,7 +11,10 @@
  * - schedaAndataAvanti: la regola di «Interrompi su risposta» per chi non
  *   risponde per email — se la scheda del contatto entra in una fase dopo la
  *   prima mentre la sequenza gira, qualcuno se ne sta occupando a mano
- *   (ha scritto su WhatsApp, ha prenotato) e la sequenza si ferma.
+ *   (ha scritto su WhatsApp, ha prenotato) e la sequenza si ferma;
+ * - invioEmailDaRimandare / fusoDelFlusso: una sequenza che dura anni
+ *   (Marketing Edile, 19/09/2026) non deve perdere un contatto per un guasto
+ *   passeggero del provider, né mandare fuori orario per un fuso sbagliato.
  *
  * Provato in src/test/logic/sequenzaContatto.test.ts.
  */
@@ -59,4 +62,37 @@ export function schedaAndataAvanti(
     const posizione = posizioni.get(i.stage_id);
     return typeof posizione === "number" && posizione > 0;
   });
+}
+
+/**
+ * Un'email di marketing non partita per colpa del provider (occupato, giù,
+ * troppo lento) si rimanda invece di chiudere l'iscrizione. Prima il motore
+ * ritentava tre volte in due-tre minuti e poi dava il passo per fallito: un
+ * guasto di mezz'ora, o il limite orario di Elastic il martedì alle 8:30,
+ * toglieva per sempre il contatto da una sequenza pensata per non finire mai.
+ * Le email di servizio (commessa, promemoria) restano come prima: arrivare con
+ * un giorno di ritardo è peggio che non arrivare. 0 = nessuna risposta.
+ */
+const ESITI_PASSEGGERI = new Set([0, 408, 425, 429, 500, 502, 503, 504]);
+export const MINUTI_RINVIO_EMAIL = 30;
+
+export function invioEmailDaRimandare(status: number, stream: string): boolean {
+  return stream === "marketing" && ESITI_PASSEGGERI.has(status);
+}
+
+/**
+ * Il fuso con cui leggere la finestra oraria del flusso. «account» (il valore
+ * predefinito delle impostazioni) e «contact» non sono fusi: passati a Intl
+ * davano errore e la finestra «dalle 8 alle 20» si calcolava in UTC, due ore
+ * indietro d'estate. Tutto ciò che non è un fuso vero vale come Roma.
+ */
+export function fusoDelFlusso(fuso: unknown): string {
+  const f = String(fuso ?? "").trim();
+  if (!f) return "Europe/Rome";
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: f });
+    return f;
+  } catch {
+    return "Europe/Rome";
+  }
 }

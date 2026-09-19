@@ -21,7 +21,7 @@ import { getCorsHeaders, secureHeaders } from "../_shared/headers.ts";
 import { appendTrackingSig } from "../_shared/emailTrackingSignature.ts";
 import { arcoDelRamo, inizioGiornoRoma, leggiPercentuali, letteraRamo, modalitaSplit, ramoEquilibrato, ramoPerNumero } from "../_shared/splitRami.ts";
 import { nomeOpportunitaPulito, personeDaAvvisare, tagsUniti, testoNotaAggiornamento } from "../_shared/creaAggiornaOpportunita.ts";
-import { conLinkCliccabili, numeroWhatsApp, schedaAndataAvanti, senzaSpazioPrimaDellaVirgola } from "../_shared/sequenzaContatto.ts";
+import { conLinkCliccabili, fusoDelFlusso, invioEmailDaRimandare, MINUTI_RINVIO_EMAIL, numeroWhatsApp, schedaAndataAvanti, senzaSpazioPrimaDellaVirgola } from "../_shared/sequenzaContatto.ts";
 import { isInternalRequest, isSuperAdminEmailAllowed, requireAuth, requireCompanyAccess, requireInternalSecret, resolveUserEmail } from "../_shared/auth.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import {
@@ -711,11 +711,27 @@ async function processQueue(supabase: any) {
         enrollment_id: item.enrollment_id,
         node_id: node.id,
         node_type: node.node_type,
-        status: result.success ? "success" : rinviato ? "skipped" : "error",
+        status: result.success ? "success" : rinviato || result.fermaIscrizione ? "skipped" : "error",
         input_json: { entity_id: item.entity_id, config: node.config_json },
         output_json: result.output || {},
         error_message: result.error || null,
       });
+
+      if (!result.success && result.fermaIscrizione) {
+        // Chi si è tolto dalla lista, o ha un indirizzo che rimbalza, esce
+        // dalla sequenza (19/09/2026). Non è un guasto: prima si ritentava tre
+        // volte e l'iscrizione finiva fra gli errori e nei falliti, una per
+        // ogni disiscrizione, in flussi pensati per girare anni.
+        const motivo = String(result.fermaIscrizione);
+        await supabase.from("automation_queue")
+          .update({ status: "cancelled", last_error: `fermata: ${motivo}`, updated_at: now })
+          .eq("enrollment_id", item.enrollment_id).in("status", ["pending", "processing"]);
+        await supabase.from("automation_enrollments")
+          .update({ status: "canceled", updated_at: now })
+          .eq("id", item.enrollment_id);
+        await completeExecutionRun(supabase, item.enrollment_id, "completed");
+        continue;
+      }
 
       if (!result.success && result.defer) {
         // Back-pressure: esito transiente (pool WhatsApp Locale saturo / fuori
@@ -3061,7 +3077,7 @@ function orarioInMinuti(v: unknown, difetto: number): number {
 
 function dentroLaFinestra(quando: Date, flusso: Record<string, any> | null): Date {
   if (!flusso || flusso.time_window_active !== true) return quando;
-  const tz = String(flusso.timezone || "Europe/Rome");
+  const tz = fusoDelFlusso(flusso.timezone);
   const apre = orarioInMinuti(flusso.time_window_from, 9 * 60);
   const chiude = orarioInMinuti(flusso.time_window_to, 18 * 60);
   // Finestra incoerente (chiusura <= apertura): si ignora invece di bloccare
@@ -3557,7 +3573,7 @@ async function executeSendEmail(supabase: any, cfg: Record<string, any>, entityI
     // L'opt-out marketing vale per i contatti: al cliente di una commessa si
     // scrive per il lavoro in corso (email di servizio).
     if (!commessa && (contact.unsubscribed || contact.optout_email)) {
-      return { success: false, error: "Contact has opted out of email" };
+      return { success: false, error: "Contact has opted out of email", fermaIscrizione: "il contatto si è tolto dalla lista email" };
     }
 
     // Stream: le email di commessa sono di servizio, non promozionali.
@@ -3592,7 +3608,7 @@ async function executeSendEmail(supabase: any, cfg: Record<string, any>, entityI
       stream,
     );
     if (suppressed.has(normalizeEmailAddress(toAddress))) {
-      return { success: false, error: "Contact is suppressed for this email stream" };
+      return { success: false, error: "Contact is suppressed for this email stream", fermaIscrizione: "l'indirizzo email rimbalza o ci ha segnalati come spam" };
     }
 
     // Build email content
@@ -3826,6 +3842,17 @@ async function executeSendEmail(supabase: any, cfg: Record<string, any>, entityI
           body: JSON.stringify({ company_id: companyId }),
         }).catch(() => { /* intentionally ignored */ });
       } catch { /* intentionally ignored */ }
+    }
+
+    // Provider occupato o giù: si riprova tra mezz'ora (fino a un giorno)
+    // invece di chiudere l'iscrizione. Vedi invioEmailDaRimandare.
+    if (!result.ok && invioEmailDaRimandare(result.status, stream)) {
+      return {
+        success: false,
+        defer: true,
+        deferMinutes: MINUTI_RINVIO_EMAIL,
+        error: `Provider returned ${result.status}: invio rimandato di ${MINUTI_RINVIO_EMAIL} minuti`,
+      };
     }
 
     return {
