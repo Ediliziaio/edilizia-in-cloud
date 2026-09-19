@@ -78,10 +78,6 @@ function accorda(parola: string, femminile: boolean): string {
   return femminile ? parola.replace(/o$/, "a") : parola;
 }
 
-function maiuscola(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1);
-}
-
 /** Le etichette della schermata appuntamento, per l'email al consulente. */
 const TIPI: Record<string, string> = {
   sopralluogo_preventivo: "Sopralluogo preventivo", rilievo_tecnico: "Rilievo tecnico", misurazione: "Misurazione",
@@ -262,10 +258,11 @@ function firma(a: AppuntamentoDaNotificare): { html: string; testo: string } {
   };
 }
 
+/** Ragione sociale e P.IVA; senza P.IVA niente: il nome è già nella firma. */
 function piede(a: AppuntamentoDaNotificare): { html: string; testo: string } {
   const nome = String(a.azienda?.nome ?? "").trim();
-  if (!nome) return { html: "", testo: "" };
-  const riga = a.azienda?.piva ? `${nome} — P.IVA ${a.azienda.piva}` : nome;
+  if (!nome || !a.azienda?.piva) return { html: "", testo: "" };
+  const riga = `${nome} — P.IVA ${a.azienda.piva}`;
   return {
     html: `<p style="margin:28px 0 0;padding-top:12px;border-top:1px solid #e2e8f0;color:#94a3b8;font-size:12px">${esc(riga)}</p>`,
     testo: `\n--\n${riga}`,
@@ -287,8 +284,8 @@ function componi(a: AppuntamentoDaNotificare, oggetto: string, paragrafiPrima: s
       ${f.html}
       ${p.html}
     </div>`;
-  const testo = [saluto(a), "", ...paragrafiPrima, "", dettagli?.testo ?? "", "", ...paragrafiDopo, "", f.testo, p.testo]
-    .join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  const testo = [saluto(a), ...paragrafiPrima, dettagli?.testo ?? "", ...paragrafiDopo, f.testo, p.testo]
+    .filter(Boolean).join("\n\n").replace(/\n{3,}/g, "\n\n").trim();
   return { oggetto, html, testo };
 }
 
@@ -320,7 +317,7 @@ export function emailSpostamento(a: AppuntamentoDaNotificare, luogo: Luogo | nul
   const spostato = Boolean(prima && (prima.data !== a.data || (prima.ora ?? null) !== (a.ora ?? null)));
   const stato = accorda("stato", cosa.femminile);
   const apertura = spostato
-    ? `${maiuscola(cosa.conArticolo)} è ${stato} ${accorda("spostato", cosa.femminile)}: prima era ${quando(prima!)}. Ecco i dettagli aggiornati.`
+    ? `${cosa.conArticolo} è ${stato} ${accorda("spostato", cosa.femminile)}: prima era ${quando(prima!)}. Ecco i dettagli aggiornati.`
     : `abbiamo aggiornato i dettagli per ${cosa.conArticolo}.`;
   return componi(
     a,
@@ -338,7 +335,7 @@ export function emailAnnullamento(a: AppuntamentoDaNotificare, luogo: Luogo | nu
   return componi(
     a,
     `${cosa.nome} ${accorda("annullato", cosa.femminile)}: ${quandoBreve(a)}`,
-    [`${maiuscola(cosa.conArticolo)} di ${quando(a)}${dove} è ${stato} ${accorda("annullato", cosa.femminile)}.`],
+    [`${cosa.conArticolo} di ${quando(a)}${dove} è ${stato} ${accorda("annullato", cosa.femminile)}.`],
     null,
     ["Se vuoi fissare una nuova data, rispondi a questa email."],
   );
@@ -419,10 +416,6 @@ export function emailConsulente(
   if (etichettaTipo) {
     righe.push(riga("Tipo", esc(etichettaTipo)));
     testo.push(`Tipo:  ${etichettaTipo}`);
-  }
-  if (a.cliente && nomeCompleto(a.cliente) && a.titolo && a.titolo.trim() !== chi) {
-    righe.push(riga("Titolo", esc(a.titolo)));
-    testo.push(`Titolo: ${a.titolo}`);
   }
 
   const note = [a.descrizione, a.note_interne].filter(Boolean).join("\n\n") || null;
