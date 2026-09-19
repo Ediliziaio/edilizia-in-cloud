@@ -1,4 +1,5 @@
 import { costruisciEventoPosa, leggiDateDaEventoGoogle, stesseDate } from "../_shared/posaEvento.ts";
+import { dataOraItaliana } from "../_shared/oraItaliana.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import { getEncryptionKey, encrypt, decrypt } from "../_shared/encryption.ts";
@@ -1572,15 +1573,12 @@ function parseGoogleEventToCrmFields(gEvent: any): {
   if (isAllDay) {
     date = gEvent.start.date; // YYYY-MM-DD
   } else {
-    const dt = new Date(gEvent.start.dateTime);
-    const pad = (n: number) => n.toString().padStart(2, "0");
-    date = `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
-    time = `${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
-
-    if (gEvent.end?.dateTime) {
-      const edt = new Date(gEvent.end.dateTime);
-      endTime = `${pad(edt.getHours())}:${pad(edt.getMinutes())}`;
-    }
+    // In ora italiana, non in quella del server (UTC): con getHours() un
+    // evento delle 10:00 entrava alle 08:00. Vedi _shared/oraItaliana.ts.
+    const inizio = dataOraItaliana(gEvent.start.dateTime);
+    date = inizio?.data ?? String(gEvent.start.dateTime).slice(0, 10);
+    time = inizio?.ora ?? String(gEvent.start.dateTime).slice(11, 16);
+    endTime = dataOraItaliana(gEvent.end?.dateTime)?.ora ?? null;
   }
 
   return { title, date, time, endTime, description, location, meetingProvider, meetingUrl, meetingStatus };
