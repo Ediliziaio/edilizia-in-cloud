@@ -147,6 +147,7 @@ const Prezzi = lazy(() => import("@/pages/Prezzi"));
 const OffertaCheckout = lazy(() => import("@/pages/OffertaCheckout"));
 const OffertaGrazie = lazy(() => import("@/pages/OffertaGrazie"));
 const DemoGrazie = lazy(() => import("@/pages/DemoGrazie"));
+const Offerta2MesiGratis = lazy(() => import("@/pages/Offerta2MesiGratis"));
 const Confronto = lazy(() => import("@/pages/Confronto"));
 // Strumenti pubblici (calcolatori gratuiti) — hub + 4 pagine.
 const Strumenti = lazy(() => import("@/pages/Strumenti"));
@@ -463,6 +464,7 @@ const PIXEL_VIEW_CONTENT_PAGES: Record<string, { name: string; category: string 
   "/confronto": { name: "Confronto", category: "comparison" },
   "/casi-studio": { name: "CasiStudio", category: "social_proof" },
   "/demo": { name: "Demo", category: "lead_form" },
+  "/offerta-2-mesi-gratis": { name: "Offerta2MesiGratis", category: "offer" },
 };
 
 /** Tracks public marketing SPA route changes in Google Analytics 4 + Meta Pixel */
@@ -579,6 +581,7 @@ const App = () => (
               <Route path="/register" element={<Navigate to="/demo/" replace />} />
               <Route path="/demo" element={<Demo />} />
               <Route path="/demo/grazie" element={<DemoGrazie />} />
+              <Route path="/offerta-2-mesi-gratis" element={<Offerta2MesiGratis />} />
               <Route path="/funzionalita" element={<Funzionalita />} />
               <Route path="/chi-siamo" element={<ChiSiamo />} />
               <Route path="/autore/florin-andriciuc" element={<AutoreFlorin />} />

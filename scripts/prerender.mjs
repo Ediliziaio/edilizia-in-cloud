@@ -122,6 +122,7 @@ const STATIC_ROUTES = [
   "/funzionalita/whatsapp-marketing",
   "/glossario-edilizia",
   "/integrazioni",
+  "/offerta-2-mesi-gratis",
   "/per/commercialista-edilizia",
   "/per/fotovoltaico",
   "/per/grandi-imprese",

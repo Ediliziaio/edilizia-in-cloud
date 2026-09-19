@@ -83,6 +83,8 @@ function canonicalUrl(pathname = "/") {
 const LEGACY_REDIRECTS = {
   "/home": "/",
   "/register": "/demo/",
+  // Com'è stato scritto nel messaggio del 19/09/2026: l'indirizzo vero è minuscolo.
+  "/Offerta-2-mesi-gratis": "/offerta-2-mesi-gratis/",
   "/gestionale-edilizia": "/software-gestionale-edilizia/",
   "/software-edilizia": "/software-gestionale-edilizia/",
   "/software-imprese-edili": "/software-gestionale-edilizia/",
@@ -1913,6 +1915,34 @@ const ROUTES = {
     ],
   },
 
+  "/offerta-2-mesi-gratis": {
+    title: "Offerta 2 mesi gratis — Gestionale Edilizia in Cloud",
+    description:
+      "Aumenta margini e guadagni, libera tempo dalla gestione e dì addio a software sparsi ed Excel. Con l'annuale 2 mesi gratis e l'Avvio Guidato incluso. Prenota la demo.",
+    h1: "Aumenta i tuoi margini e i tuoi guadagni. Libera tempo dalla gestione.",
+    intro:
+      "Dì addio a software sparsi, fogli Excel e carte da rincorrere: Edilizia in Cloud mette cantieri, preventivi, fatture e squadra in un posto solo, con il margine di ogni commessa sotto gli occhi. L'offerta: con l'annuale 2 mesi te li regaliamo noi. Paghi 10 mesi e ne usi 12, l'Avvio Guidato è incluso e il prezzo che firmi non aumenta più finché resti cliente.",
+    extra: `
+    <h2>L'offerta: 12 mesi al prezzo di 10</h2>
+    <ul>
+      <li><strong>Gestionale</strong> — annuale 1.270 € con l'Avvio Guidato incluso (mensile 127 € + avvio 490 €).</li>
+      <li><strong>Professionista</strong> — annuale 2.470 € con l'Avvio Guidato incluso (mensile 247 € + avvio 890 €).</li>
+      <li><strong>Impresa AI</strong> — annuale 5.470 € con l'Avvio Guidato a metà prezzo, 1.450 € (mensile da 547 € + avvio 2.900 €).</li>
+    </ul>
+    <p>Prezzi IVA esclusa. Il prezzo bloccato vale per i primi cento clienti.</p>
+
+    <h2>Le garanzie</h2>
+    <ul>
+      <li><strong>Operativo in 30 giorni, o il canone non parte</strong> — cantieri aperti con il margine visibile, fatture a SDI, squadra formata.</li>
+      <li><strong>I tuoi dati escono quando vuoi</strong> — in Excel e PDF, anche per novanta giorni dopo la disdetta.</li>
+      <li><strong>Il margine in due minuti</strong> — al sessantesimo giorno lo leggi dal telefono, o ti restituiamo l'avvio.</li>
+      <li><strong>60 giorni per ripensarci</strong> — sull'annuale ti restituiamo i mesi che non hai usato.</li>
+      <li><strong>Prezzo bloccato finché resti</strong> — il canone che firmi non aumenta più.</li>
+    </ul>
+
+    <h2>Come si parte</h2>
+    <p>Prenoti la demo di trenta minuti, carichiamo noi cantieri, anagrafiche e listini con l'Avvio Guidato, e in trenta giorni sei operativo.</p>`,
+  },
   "/demo": {
     title: "Demo Gratuita Edilizia in Cloud — Prenota in 30 Secondi",
     description:
@@ -2580,7 +2610,7 @@ function ogImageFor(pathname) {
   if (p === "/confronto" || p.startsWith("/confronto/")) return OG_IMAGES.confronto;
   if (/^\/software-gestionale-edilizia(-[a-z-]+)?$/.test(p)) return OG_IMAGES.citta;
   if (p === "/blog" || p.startsWith("/blog/")) return OG_IMAGES.blog;
-  if (p === "/demo" || p === "/pianifica-migrazione") return OG_IMAGES.demo;
+  if (p === "/demo" || p === "/pianifica-migrazione" || p === "/offerta-2-mesi-gratis") return OG_IMAGES.demo;
   if (p === "/ai-edilizia" || p.startsWith("/landing/ai-")) return OG_IMAGES.ai;
   return OG_IMAGES.default;
 }

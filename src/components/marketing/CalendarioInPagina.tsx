@@ -14,27 +14,58 @@ import { useEffect, useRef, useState } from "react";
  * il riquadro cresce e si accorcia con il contenuto invece di lasciare un
  * vuoto sotto il calendario o una barra di scorrimento dentro la pagina.
  */
+export interface PrenotazioneFatta {
+  date: string | null;
+  time: string | null;
+  calendar?: string | null;
+}
+
 export function CalendarioInPagina({
   slug,
   titolo,
   sottotitolo,
   className,
+  onPrenotato,
 }: {
   slug: string;
   titolo?: string;
   sottotitolo?: string;
   className?: string;
+  /**
+   * Chiamata quando la prenotazione è confermata dentro il riquadro: la pagina
+   * che ospita il calendario la conta come conversione (Pixel, GA4).
+   */
+  onPrenotato?: (prenotazione: PrenotazioneFatta) => void;
 }) {
   const riquadro = useRef<HTMLIFrameElement>(null);
   const [altezza, setAltezza] = useState(720);
+  // In un ref: se la pagina ricrea la funzione a ogni render, l'ascolto resta lo stesso.
+  const alPrenotato = useRef(onPrenotato);
+  useEffect(() => {
+    alPrenotato.current = onPrenotato;
+  }, [onPrenotato]);
 
   useEffect(() => {
     const ascolta = (e: MessageEvent) => {
       // Solo i messaggi della nostra pagina, e solo dalla nostra origine.
       if (e.origin !== window.location.origin) return;
-      const dato = e.data as { source?: string; event?: string; height?: number } | null;
-      if (dato?.source !== "eic-prenota" || dato.event !== "altezza") return;
+      const dato = e.data as {
+        source?: string;
+        event?: string;
+        height?: number;
+        detail?: PrenotazioneFatta;
+      } | null;
+      if (dato?.source !== "eic-prenota") return;
       if (e.source !== riquadro.current?.contentWindow) return;
+      if (dato.event === "prenotato") {
+        alPrenotato.current?.({
+          date: dato.detail?.date ?? null,
+          time: dato.detail?.time ?? null,
+          calendar: dato.detail?.calendar ?? null,
+        });
+        return;
+      }
+      if (dato.event !== "altezza") return;
       const h = Number(dato.height);
       if (Number.isFinite(h) && h > 200) setAltezza(Math.min(Math.ceil(h) + 8, 2000));
     };

@@ -79,6 +79,14 @@
     <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/chi-siamo/"/>
   </url>
   <url>
+    <loc>https://www.ediliziaincloud.com/offerta-2-mesi-gratis/</loc>
+    <lastmod>2026-09-19</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="it-IT" href="https://www.ediliziaincloud.com/offerta-2-mesi-gratis/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/offerta-2-mesi-gratis/"/>
+  </url>
+  <url>
     <loc>https://www.ediliziaincloud.com/demo/</loc>
     <lastmod>2026-09-03</lastmod>
     <changefreq>monthly</changefreq>

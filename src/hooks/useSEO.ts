@@ -49,7 +49,7 @@ export function ogImageForPath(pathname: string): string {
   if (p === "/confronto" || p.startsWith("/confronto/")) return OG.confronto;
   if (/^\/software-gestionale-edilizia(-[a-z-]+)?$/.test(p)) return OG.citta;
   if (p === "/blog" || p.startsWith("/blog/")) return OG.blog;
-  if (p === "/demo" || p === "/pianifica-migrazione") return OG.demo;
+  if (p === "/demo" || p === "/pianifica-migrazione" || p === "/offerta-2-mesi-gratis") return OG.demo;
   if (p === "/ai-edilizia" || p.startsWith("/landing/ai-")) return OG.ai;
   return OG.default;
 }

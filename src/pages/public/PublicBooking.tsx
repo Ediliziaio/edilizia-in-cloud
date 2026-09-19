@@ -596,11 +596,16 @@ export default function PublicBooking() {
                     month: "w-full space-y-4",
                     month_grid: "w-full border-collapse",
                     weekdays: "flex justify-between",
+                    weekday: "w-full max-w-10 rounded-md text-[0.8rem] font-normal text-muted-foreground",
                     week: "mt-1.5 flex w-full justify-between",
                     // Celle piu' grandi (dito, non mouse) e giorno scelto pieno,
                     // con il numero in bianco: e' l'unico punto della pagina in
                     // cui si capisce dove sei.
-                    day: "relative h-10 w-10 rounded-lg p-0 text-center text-sm focus-within:relative focus-within:z-20",
+                    // Larghe al massimo 40px ma capaci di stringersi: dentro un
+                    // riquadro stretto (l'iframe di una pagina, su telefono)
+                    // sette celle fisse da 40 uscivano a destra e la domenica
+                    // spariva.
+                    day: "relative h-10 w-full max-w-10 rounded-lg p-0 text-center text-sm focus-within:relative focus-within:z-20 [&>button]:w-full",
                     selected: "rounded-lg bg-primary [&>button]:text-primary-foreground [&>button:hover]:bg-primary/90 [&>button:hover]:text-primary-foreground",
                   }}
                 />
