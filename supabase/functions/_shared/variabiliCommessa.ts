@@ -52,7 +52,7 @@ const GIORNI = ["domenica", "lunedì", "martedì", "mercoledì", "giovedì", "ve
 const pulito = (v: unknown): string => (v == null ? "" : String(v).trim());
 
 /**
- * «2026-09-25» → «giovedì 25 settembre 2026». Una data senza ora non ha fuso:
+ * «2026-09-25» → «venerdì 25 settembre 2026». Una data senza ora non ha fuso:
  * si legge come data di calendario, non come istante, altrimenti a mezzanotte
  * UTC diventerebbe il giorno prima.
  */
@@ -148,15 +148,21 @@ export function sostituisciVariabiliCommessa(testo: string, variabili: Record<st
 
 /**
  * La fattura da allegare: fra i file della commessa, il più recente in una
- * cartella che si chiama «fattur…» (Fatture, Fattura acconto, Fatture saldo),
+ * cartella che si chiama «fattur…» (la predefinita è «Fatture e pagamenti»),
  * oppure con «fattur» nel nome del file se la cartella non c'è.
+ * Nella cartella finiscono anche le ricevute dei bonifici: se ci sono file con
+ * «fattur» nel nome vincono loro, così una ricevuta caricata dopo la fattura
+ * non parte al cliente al posto della fattura.
  */
 export function scegliFatturaDaAllegare<T extends { file_name: string | null; created_at: string; cartella?: string | null }>(
   file: T[],
 ): T | null {
   const haFattura = (s: string | null | undefined) => /fattur/i.test(pulito(s));
   const inCartella = file.filter((f) => haFattura(f.cartella));
-  const candidati = inCartella.length > 0 ? inCartella : file.filter((f) => haFattura(f.file_name));
+  const conNome = inCartella.filter((f) => haFattura(f.file_name));
+  const candidati = conNome.length > 0
+    ? conNome
+    : inCartella.length > 0 ? inCartella : file.filter((f) => haFattura(f.file_name));
   if (candidati.length === 0) return null;
   return [...candidati].sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
 }

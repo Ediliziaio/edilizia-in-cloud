@@ -3556,8 +3556,8 @@ async function executeSendEmail(supabase: any, cfg: Record<string, any>, entityI
     subject = await resolveContactText(supabase, conVariabili(subject), contact, companyId);
 
     // Fattura della commessa in allegato (nodo «allega la fattura»): l'ultima
-    // caricata nella cartella Fatture. Se manca, non si manda un'email che
-    // dice «in allegato la fattura» senza fattura.
+    // caricata in «Fatture e pagamenti» (vedi scegliFatturaDaAllegare). Se
+    // manca, non si manda un'email che dice «in allegato la fattura» senza fattura.
     let fattura: { file_name: string; file_url: string; file_type: string | null; file_size: number | null } | null = null;
     if (cfg.allega_fattura_commessa === true || cfg.allega_fattura_commessa === "true") {
       if (!commessa) {
@@ -3565,7 +3565,7 @@ async function executeSendEmail(supabase: any, cfg: Record<string, any>, entityI
       }
       fattura = commessa.fattura;
       if (!fattura) {
-        return { success: false, error: "Nessuna fattura nei documenti della commessa: caricala nella cartella Fatture e rilancia" };
+        return { success: false, error: "Nessuna fattura nei documenti della commessa: caricala nella cartella «Fatture e pagamenti» e rilancia" };
       }
     }
 

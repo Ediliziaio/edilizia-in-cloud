@@ -84,6 +84,13 @@ describe("scegliFatturaDaAllegare", () => {
     ]);
     expect(scelta?.file_name).toBe("saldo.pdf");
   });
+  it("nella cartella la fattura vince sulla ricevuta caricata dopo", () => {
+    const scelta = scegliFatturaDaAllegare([
+      { file_name: "Fattura 7-2026.pdf", created_at: "2026-09-15T10:00:00Z", cartella: "Fatture e pagamenti" },
+      { file_name: "ricevuta bonifico.pdf", created_at: "2026-09-16T10:00:00Z", cartella: "Fatture e pagamenti" },
+    ]);
+    expect(scelta?.file_name).toBe("Fattura 7-2026.pdf");
+  });
   it("senza cartella guarda il nome del file; niente fattura = null", () => {
     expect(scegliFatturaDaAllegare([
       { file_name: "Fattura 12.pdf", created_at: "2026-09-10T10:00:00Z" },

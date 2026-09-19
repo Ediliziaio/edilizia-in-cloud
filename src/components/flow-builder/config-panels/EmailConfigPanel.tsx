@@ -227,8 +227,8 @@ export const EmailConfigPanel = forwardRef<HTMLDivElement, EmailConfigPanelProps
           <div className="min-w-0">
             <Label className="text-xs">Allega la fattura della commessa</Label>
             <p className="text-[11px] text-muted-foreground">
-              L'ultima caricata nella cartella Fatture dei documenti della commessa. Se non c'è, l'email non parte
-              e l'errore resta nello storico dell'automazione.
+              L'ultima caricata nella cartella «Fatture e pagamenti» della commessa (se ci sono anche ricevute, vince
+              il file con «fattura» nel nome). Se non c'è, l'email non parte e l'errore resta nello storico.
             </p>
           </div>
           <Switch
