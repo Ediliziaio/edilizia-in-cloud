@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import {
-  Zap, Plus, ExternalLink, MoreHorizontal, Pencil, Copy, Archive, Trash2,
+  Zap, Plus, MoreHorizontal, Pencil, Copy, Archive, Trash2,
   ChevronLeft, ChevronRight, ChevronDown, Folder, FolderOpen,
   List, Grid3X3, Play, Pause, Clock, AlertTriangle,
   Users, Megaphone, ClipboardList, Coins, Package, HardHat,
@@ -97,6 +97,36 @@ function summarizeNodes(nodes: AutomationNodeRow[] | undefined) {
   };
 }
 
+type NodeSummary = ReturnType<typeof summarizeNodes>;
+
+/**
+ * La riga sotto il nome: com'è fatta l'automazione, oppure cosa manca per
+ * pubblicarla. Prima erano tre colonne (Controlli, Struttura, Categoria) e un
+ * «Pronta» verde col triangolo che sembrava un tasto per avviarla.
+ * null = struttura non ancora caricata.
+ */
+function descriviFlusso(
+  flow: AutomationFlow,
+  summary: NodeSummary | null,
+): { testo: string; problema: boolean } | null {
+  // «Messaggio programmato»: niente nodi per costruzione, non è un flusso vuoto.
+  if ((flow as unknown as { bulk_trigger_config?: unknown }).bulk_trigger_config) {
+    return { testo: "Messaggio programmato", problema: false };
+  }
+  if (!summary) return null;
+  if (summary.issueCount > 0 && flow.status !== "archived") {
+    return { testo: summary.firstIssue ?? "Da completare prima di pubblicare", problema: true };
+  }
+  const avvio = summary.triggerCount === 0
+    ? "Parte da un'altra automazione"
+    : `${summary.triggerCount} trigger`;
+  const passaggi = `${summary.actionCount} passagg${summary.actionCount === 1 ? "io" : "i"}`;
+  const categoria = flow.category && flow.category !== "generale"
+    ? CATEGORY_ICON_MAP[flow.category]?.label
+    : null;
+  return { testo: [avvio, passaggi, categoria].filter(Boolean).join(" · "), problema: false };
+}
+
 // --- Lucide icons instead of emojis ---
 const CATEGORY_ICON_MAP: Record<string, { label: string; icon: ReactNode }> = {
   crm: { label: "CRM & Vendite", icon: <Users className="h-3.5 w-3.5" /> },
@@ -153,7 +183,8 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
   const [cestinoOpen, setCestinoOpen] = useState(false);
   const confermaBulk = useConfermaQuantita(selectedIds.size, bulkDeleteOpen);
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  // 25 per pagina: con 10 una ventina di automazioni finiva su tre pagine.
+  const [pageSize, setPageSize] = useState(25);
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   // Su mobile la tabella a 11 colonne è inservibile → parti dalla vista card.
   const [viewMode, setViewMode] = useState<"list" | "grid">(isMobile ? "grid" : "list");
@@ -184,6 +215,8 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
     },
     enabled: !!effectiveCompany?.id,
     retry: retryListQuery,
+    // Vedi la query dei flussi qui sotto.
+    refetchOnMount: "always",
   });
 
   // Load ALL flows (flat, we group client-side)
@@ -218,6 +251,11 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
     },
     enabled: !!effectiveCompany?.id,
     retry: retryListQuery,
+    // Si ricarica a ogni apertura, e intanto resta a schermo la copia salvata
+    // nel browser (queryPersister). Con i 5 minuti di staleTime dell'app, chi
+    // pubblicava o rinominava nel builder e tornava all'elenco vedeva la copia
+    // vecchia: il builder invalida ["automations"], non queste chiavi.
+    refetchOnMount: "always",
   });
 
   // Enrollment counts
@@ -553,6 +591,15 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
   const totalPages = Math.max(1, Math.ceil(unfolderedFlows.length / pageSize));
   const safePage = Math.min(page, totalPages);
   const paginatedUnfoldered = unfolderedFlows.slice((safePage - 1) * pageSize, safePage * pageSize);
+  const primoDellaPagina = unfolderedFlows.length === 0 ? 0 : (safePage - 1) * pageSize + 1;
+  const ultimoDellaPagina = Math.min(safePage * pageSize, unfolderedFlows.length);
+  // Al massimo 5 numeri, intorno alla pagina corrente: prima erano sempre i primi
+  // 5, e dalla sesta pagina in poi non si vedeva più dove si era.
+  const primaPaginaVisibile = Math.max(1, Math.min(safePage - 2, totalPages - 4));
+  const pagineVisibili = Array.from(
+    { length: Math.min(5, totalPages) },
+    (_, i) => primaPaginaVisibile + i,
+  );
 
   const toggleFolder = (id: string) => {
     setExpandedFolders(prev => {
@@ -588,40 +635,51 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
     return <div className="space-y-2">{[1, 2, 3].map(i => <Skeleton key={i} className="h-12 w-full" />)}</div>;
   }
 
-  if (flowsError || foldersError) {
-    const message = (flowsQueryError as Error | null)?.message || (foldersQueryError as Error | null)?.message || "Impossibile caricare le automazioni.";
+  const hasContent = (allFolders && allFolders.length > 0) || (allFlows && allFlows.length > 0);
+  const inErrore = flowsError || foldersError;
+  const messaggioErrore = (flowsQueryError as Error | null)?.message || (foldersQueryError as Error | null)?.message || "Impossibile caricare le automazioni.";
+  const inAggiornamento = flowsFetching || foldersFetching;
+  const riprova = () => {
+    void refetchFlows();
+    void refetchFolders();
+    // Anche struttura e iscritti: se erano in errore, senza questo il
+    // retry lasciava tutte le righe a "0 trigger · 0 step".
+    void queryClient.invalidateQueries({ queryKey: ["automation-node-summaries"] });
+    void queryClient.invalidateQueries({ queryKey: ["automation-enrollment-counts"] });
+  };
+
+  // «Nessuna automazione» solo quando il database l'ha detto. Prima bastava non
+  // avere dati: mentre il browser rimette in cache la copia salvata le query
+  // restano ferme (niente dati e niente isLoading), e una copia vuota ma recente
+  // non veniva ricaricata. Il 19/09 l'elenco della piattaforma, con 27
+  // automazioni, è rimasto per minuti su «Crea la tua prima automazione».
+  const datiArrivati = allFlows !== undefined && allFolders !== undefined;
+  if (!hasContent && !inErrore && (inAggiornamento || (!datiArrivati && !!effectiveCompany?.id))) {
+    return <div className="space-y-2">{[1, 2, 3].map(i => <Skeleton key={i} className="h-12 w-full" />)}</div>;
+  }
+
+  // La scheda d'errore solo se non c'è niente da mostrare. Con una copia già in
+  // cache l'elenco resta, e l'avviso sta sopra (vedi il render principale).
+  if (inErrore && !hasContent) {
     return (
       <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-6 text-center">
         <AlertTriangle className="mx-auto mb-3 h-10 w-10 text-destructive" />
         <h3 className="font-semibold">Automazioni non caricate</h3>
         <p className="mx-auto mt-1 max-w-xl text-sm text-muted-foreground">
-          {message}
+          {messaggioErrore}
         </p>
         <Button
           variant="outline"
           className="mt-4"
-          disabled={flowsFetching || foldersFetching}
-          onClick={() => {
-            void refetchFlows();
-            void refetchFolders();
-            // Anche struttura e iscritti: se erano in errore, senza questo il
-            // retry lasciava tutte le righe a "0 trigger · 0 step".
-            void queryClient.invalidateQueries({ queryKey: ["automation-node-summaries"] });
-            void queryClient.invalidateQueries({ queryKey: ["automation-enrollment-counts"] });
-          }}
+          disabled={inAggiornamento}
+          onClick={riprova}
         >
-          {flowsFetching || foldersFetching ? (
-            <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <RefreshCw className="mr-2 h-4 w-4" />
-          )}
+          <RefreshCw className={cn("mr-2 h-4 w-4", inAggiornamento && "animate-spin")} />
           Riprova
         </Button>
       </div>
     );
   }
-
-  const hasContent = (allFolders && allFolders.length > 0) || (allFlows && allFlows.length > 0);
 
   if (!hasContent) {
     return (
@@ -646,12 +704,11 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
   const renderFlowRow = (flow: AutomationFlow, indented = false) => {
     const badge = STATUS_BADGE[flow.status] || STATUS_BADGE.draft;
     const counts = enrollmentCounts?.[flow.id] || { total: 0, active: 0 };
-    // null = dati struttura non (ancora) disponibili → "—", non un falso
-    // "0 trigger · 0 step". Se la query è risolta ma il flusso non ha nodi,
-    // summarizeNodes([]) dà il vero stato ("Aggiungi almeno un trigger…").
+    // null = dati struttura non (ancora) disponibili: niente riga sotto il nome,
+    // non un falso "0 trigger · 0 passaggi". Se la query è risolta ma il flusso
+    // non ha nodi, summarizeNodes([]) dà il vero stato ("Aggiungi un trigger…").
     const summary = nodeSummaries ? (nodeSummaries[flow.id] ?? summarizeNodes([])) : null;
-    const cat = CATEGORY_ICON_MAP[flow.category] || CATEGORY_ICON_MAP.generale;
-    const folderName = flow.folder_id ? folderMap[flow.folder_id] : null;
+    const dettaglio = descriviFlusso(flow, summary);
 
     return (
       <TableRow
@@ -659,57 +716,40 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
         className="cursor-pointer hover:bg-muted/40 transition-colors"
         onClick={() => navigate(`${routePrefix}/automazioni/${flow.id}`)}
       >
-        <TableCell onClick={e => e.stopPropagation()}>
+        <TableCell className="py-2" onClick={e => e.stopPropagation()}>
           <Checkbox checked={selectedIds.has(flow.id)} onCheckedChange={() => toggleOne(flow.id)} />
         </TableCell>
-        <TableCell>
-          <div className={cn("flex items-center gap-2", indented && "pl-6")}>
-            <Zap className="h-4 w-4 text-primary shrink-0" />
-            <span className="font-medium">{flow.name}</span>
-            <ExternalLink className="h-3 w-3 text-muted-foreground/40 shrink-0" />
+        <TableCell className="py-2">
+          <div className={cn("flex min-w-0 items-start gap-2", indented && "pl-6")}>
+            <Zap className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+            <div className="min-w-0">
+              <p className="truncate font-medium" title={flow.name}>{flow.name}</p>
+              {dettaglio && (
+                <p
+                  className={cn(
+                    "flex items-center gap-1 truncate text-xs",
+                    dettaglio.problema ? "text-amber-700" : "text-muted-foreground",
+                  )}
+                  title={dettaglio.testo}
+                >
+                  {dettaglio.problema && <AlertTriangle className="h-3 w-3 shrink-0" />}
+                  <span className="truncate">{dettaglio.testo}</span>
+                </p>
+              )}
+            </div>
           </div>
         </TableCell>
-        <TableCell>
+        <TableCell className="py-2">
           <Badge className={cn("text-xs", badge.className)}>{badge.label}</Badge>
         </TableCell>
-        <TableCell>
-          {!summary ? (
-            <span className="text-xs text-muted-foreground/50">—</span>
-          ) : summary.issueCount > 0 ? (
-            <span className="inline-flex max-w-[220px] items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-800" title={summary.firstIssue || undefined}>
-              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-              <span className="truncate">{summary.firstIssue}</span>
-            </span>
-          ) : (
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs text-emerald-700">
-              <Play className="h-3.5 w-3.5" />
-              Pronta
-            </span>
+        <TableCell className="whitespace-nowrap py-2 text-right tabular-nums">
+          {counts.total > 0 ? counts.total.toLocaleString("it-IT") : <span className="text-muted-foreground/60">0</span>}
+          {counts.active > 0 && (
+            <span className="ml-1 text-xs text-muted-foreground">· {counts.active.toLocaleString("it-IT")} attivi</span>
           )}
         </TableCell>
-        <TableCell>
-          <span className="text-xs text-muted-foreground">
-            {summary ? `${summary.triggerCount} trigger · ${summary.actionCount} step` : "—"}
-          </span>
-        </TableCell>
-        <TableCell>
-          {folderName ? (
-            <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <Folder className="h-3 w-3" /> {folderName}
-            </span>
-          ) : (
-            <span className="text-xs text-muted-foreground/50">—</span>
-          )}
-        </TableCell>
-        <TableCell>
-          <Badge variant="outline" className="text-xs font-normal gap-1">
-            {cat.icon} {cat.label}
-          </Badge>
-        </TableCell>
-        <TableCell className="text-right tabular-nums">{counts.total.toLocaleString("it-IT")}</TableCell>
-        <TableCell className="text-right tabular-nums">{counts.active.toLocaleString("it-IT")}</TableCell>
-        <TableCell className="text-muted-foreground text-sm">{formatDate(flow.updated_at)}</TableCell>
-        <TableCell onClick={e => e.stopPropagation()}>
+        <TableCell className="whitespace-nowrap py-2 text-sm text-muted-foreground">{formatDate(flow.updated_at)}</TableCell>
+        <TableCell className="py-2" onClick={e => e.stopPropagation()}>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="h-7 w-7">
@@ -749,33 +789,35 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
     const counts = enrollmentCounts?.[flow.id] || { total: 0, active: 0 };
     // Stessa semantica della riga tabella: null = struttura non disponibile.
     const summary = nodeSummaries ? (nodeSummaries[flow.id] ?? summarizeNodes([])) : null;
+    const dettaglio = descriviFlusso(flow, summary);
     return (
       <div
         key={flow.id}
         onClick={() => navigate(`${routePrefix}/automazioni/${flow.id}`)}
-        className="border rounded-lg p-4 cursor-pointer hover:shadow-md hover:border-primary/30 transition-all bg-card"
+        className="cursor-pointer rounded-lg border bg-card p-3 transition-all hover:border-primary/30 hover:shadow-md"
       >
-        <div className="flex items-start justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-md bg-primary/10 flex items-center justify-center">
-              <Zap className="h-4 w-4 text-primary" />
-            </div>
-          </div>
-          <Badge className={cn("text-xs", badge.className)}>{badge.label}</Badge>
+        <div className="mb-1.5 flex items-start justify-between gap-2">
+          <h3 className="line-clamp-2 flex items-start gap-1.5 text-sm font-medium">
+            <Zap className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+            {flow.name}
+          </h3>
+          <Badge className={cn("shrink-0 text-xs", badge.className)}>{badge.label}</Badge>
         </div>
-        <h3 className="font-medium text-sm mb-2 line-clamp-2">{flow.name}</h3>
-        {summary && (
-          <div className={cn(
-            "mb-3 rounded-md border px-2 py-1.5 text-xs",
-            summary.issueCount > 0 ? "border-amber-200 bg-amber-50 text-amber-800" : "border-emerald-200 bg-emerald-50 text-emerald-700"
+        {dettaglio && (
+          <p className={cn(
+            "mb-2 flex items-start gap-1 text-xs",
+            dettaglio.problema ? "text-amber-700" : "text-muted-foreground",
           )}>
-            {summary.issueCount > 0 ? summary.firstIssue : "Pronta per la pubblicazione"}
-          </div>
+            {dettaglio.problema && <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />}
+            <span className="line-clamp-2">{dettaglio.testo}</span>
+          </p>
         )}
         <div className="flex items-center gap-3 text-xs text-muted-foreground">
-          <span>{counts.total.toLocaleString("it-IT")} iscritti</span>
-          <span>{summary ? `${summary.triggerCount} trigger · ${summary.actionCount} step` : "—"}</span>
-          <span>{formatDate(flow.updated_at)}</span>
+          <span>
+            {counts.total.toLocaleString("it-IT")} iscritti
+            {counts.active > 0 && ` · ${counts.active.toLocaleString("it-IT")} attivi`}
+          </span>
+          <span className="ml-auto">{formatDate(flow.updated_at)}</span>
         </div>
       </div>
     );
@@ -783,6 +825,16 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
 
   return (
     <div className="space-y-3">
+      {inErrore && (
+        <div className="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300">
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+          <span className="min-w-0 flex-1 truncate">Elenco non aggiornato: {messaggioErrore}</span>
+          <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" disabled={inAggiornamento} onClick={riprova}>
+            <RefreshCw className={cn("mr-1 h-3 w-3", inAggiornamento && "animate-spin")} />
+            Riprova
+          </Button>
+        </div>
+      )}
       {/* Filter chips toolbar */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-1.5 flex-wrap">
@@ -802,9 +854,9 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
               >
                 {chip.icon}
                 {chip.label}
-                {isActive && count > 0 && (
-                  <span className="ml-0.5 tabular-nums">{count}</span>
-                )}
+                {/* Il numero su ogni pastiglia: si vede subito quante bozze o
+                    quante da sistemare ci sono, senza doverle aprire una a una. */}
+                <span className={cn("ml-0.5 tabular-nums", !isActive && "text-muted-foreground/70")}>{count}</span>
               </button>
             );
           })}
@@ -818,12 +870,18 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
         <div className="flex items-center border rounded-md overflow-hidden">
           <button
             onClick={() => setViewMode("list")}
+            aria-label="Vista elenco"
+            title="Vista elenco"
+            aria-pressed={viewMode === "list"}
             className={cn("p-1.5 transition-colors", viewMode === "list" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted")}
           >
             <List className="h-4 w-4" />
           </button>
           <button
             onClick={() => setViewMode("grid")}
+            aria-label="Vista a schede"
+            title="Vista a schede"
+            aria-pressed={viewMode === "grid"}
             className={cn("p-1.5 transition-colors", viewMode === "grid" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted")}
           >
             <Grid3X3 className="h-4 w-4" />
@@ -849,49 +907,44 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/20">
-                  <TableHead className="w-10"><Checkbox checked={allSelected} onCheckedChange={toggleAll} /></TableHead>
-                  <TableHead>Nome</TableHead>
-                  <TableHead className="w-28">Stato</TableHead>
-                  <TableHead className="w-56">Controlli</TableHead>
-                  <TableHead className="w-28">Struttura</TableHead>
-                  <TableHead className="w-32">Cartella</TableHead>
-                  <TableHead className="w-32">Categoria</TableHead>
-                  <TableHead className="w-28 text-right">Iscritti</TableHead>
-                  <TableHead className="w-28 text-right">Attivi</TableHead>
-                  <TableHead className="w-32">Aggiornato</TableHead>
-                  <TableHead className="w-12"></TableHead>
+                  <TableHead className="h-9 w-10"><Checkbox checked={allSelected} onCheckedChange={toggleAll} /></TableHead>
+                  <TableHead className="h-9">Nome</TableHead>
+                  <TableHead className="h-9 w-32">Stato</TableHead>
+                  <TableHead className="h-9 w-40 text-right">Iscritti</TableHead>
+                  <TableHead className="h-9 w-32">Aggiornato</TableHead>
+                  <TableHead className="h-9 w-12"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {/* Folder accordion rows */}
-                {allFolders?.filter(f => folderedGroups[f.id] && folderedGroups[f.id].length > 0).map(folder => {
+                {/* Cartelle: solo in prima pagina, sopra le automazioni sciolte.
+                    Prima si ripetevano in cima a ogni pagina. */}
+                {safePage === 1 && allFolders?.filter(f => folderedGroups[f.id] && folderedGroups[f.id].length > 0).map(folder => {
                   const isExpanded = expandedFolders.has(folder.id);
                   const folderFlows = folderedGroups[folder.id] || [];
+                  const pubblicate = folderFlows.filter(f => f.status === "published").length;
                   return (
                     <Fragment key={`folder-group-${folder.id}`}>
                       <TableRow
                         key={`folder-${folder.id}`}
-                        className="cursor-pointer hover:bg-muted/40 bg-muted/10"
+                        className="cursor-pointer bg-muted/20 hover:bg-muted/40"
+                        aria-expanded={isExpanded}
                         onClick={() => toggleFolder(folder.id)}
                       >
-                        <TableCell onClick={e => e.stopPropagation()} />
-                        <TableCell>
+                        <TableCell className="py-2" onClick={e => e.stopPropagation()} />
+                        <TableCell className="py-2" colSpan={4}>
                           <div className="flex items-center gap-2">
                             {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
                             {isExpanded ? <FolderOpen className="h-4 w-4 text-primary" /> : <Folder className="h-4 w-4 text-primary" />}
                             <span className="font-medium">{folder.name}</span>
-                            <span className="text-xs text-muted-foreground">({folderFlows.length})</span>
+                            <span className="rounded-full bg-muted px-1.5 text-xs tabular-nums text-muted-foreground">{folderFlows.length}</span>
+                            {pubblicate > 0 && (
+                              <span className="text-xs text-muted-foreground">
+                                {pubblicate} pubblicat{pubblicate === 1 ? "a" : "e"}
+                              </span>
+                            )}
                           </div>
                         </TableCell>
-                        <TableCell />
-                        <TableCell />
-                        <TableCell />
-                        <TableCell />
-                        <TableCell />
-                        <TableCell />
-                        <TableCell />
-                        <TableCell />
-                        <TableCell onClick={e => e.stopPropagation()}>
+                        <TableCell className="py-2" onClick={e => e.stopPropagation()}>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button variant="ghost" size="icon" className="h-7 w-7">
@@ -917,9 +970,9 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
                 {/* Empty state */}
                 {filtered.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={11} className="text-center py-12">
+                    <TableCell colSpan={6} className="text-center py-12">
                       <Zap className="h-10 w-10 mx-auto text-muted-foreground/30 mb-3" />
-                      <p className="text-sm text-muted-foreground">Nessun flusso di lavoro trovato</p>
+                      <p className="text-sm text-muted-foreground">Nessuna automazione con questi filtri</p>
                     </TableCell>
                   </TableRow>
                 )}
@@ -929,13 +982,16 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
 
           {/* Pagination */}
           {unfolderedFlows.length > pageSize && (
-            <div className="flex items-center justify-end border-t px-4 py-2 bg-muted/10">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t bg-muted/10 px-4 py-2">
+              <span className="text-xs tabular-nums text-muted-foreground">
+                {primoDellaPagina}–{ultimoDellaPagina} di {unfolderedFlows.length}
+              </span>
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-1">
                   <Button variant="outline" size="sm" className="h-7 text-xs" disabled={safePage <= 1} onClick={() => setPage(p => p - 1)}>
                     <ChevronLeft className="h-3.5 w-3.5 mr-1" /> Prec
                   </Button>
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).slice(0, 5).map(p => (
+                  {pagineVisibili.map(p => (
                     <Button key={p} variant={safePage === p ? "default" : "outline"} size="sm" className="h-7 w-7 text-xs p-0" onClick={() => setPage(p)}>
                       {p}
                     </Button>
@@ -965,7 +1021,7 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
           {filtered.length === 0 && (
             <div className="col-span-full text-center py-12">
               <Zap className="h-10 w-10 mx-auto text-muted-foreground/30 mb-3" />
-              <p className="text-sm text-muted-foreground">Nessun flusso di lavoro trovato</p>
+              <p className="text-sm text-muted-foreground">Nessuna automazione con questi filtri</p>
             </div>
           )}
         </div>
