@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -16,6 +16,9 @@ import { it } from "date-fns/locale";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { FascicoloCliente } from "@/components/clients/FascicoloCliente";
+import { DocumentiCommesseCliente } from "@/components/clients/DocumentiCommesseCliente";
+import { useDocumentiCommesseCliente } from "@/hooks/useDocumentiCommesseCliente";
+import type { CommessaDelCliente } from "@/lib/clienti/documentiCommesseCliente";
 import { EmailComposeDialog, type ComposeContext } from "@/pages/azienda/email/components/EmailComposeDialog";
 
 // ── Row types ────────────────────────────────────────────────────────────────
@@ -467,12 +470,14 @@ function InterventiTab({ items }: { items: RapportinoRow[] }) {
 function DocumentiTab({
   fatture,
   customerDocuments,
+  commesse,
   anagraficaCollegata,
   customerId,
   companyId,
 }: {
   fatture: FatturaRow[];
   customerDocuments: CustomerDocumentRow[];
+  commesse: CommessaDelCliente[];
   anagraficaCollegata: { id: string; ragione_sociale: string | null } | null;
   customerId: string;
   companyId: string;
@@ -481,6 +486,8 @@ function DocumentiTab({
   return (
     <div className="space-y-4">
       <FascicoloCliente customerId={customerId} companyId={companyId} documenti={customerDocuments} />
+
+      <DocumentiCommesseCliente customerId={customerId} commesse={commesse} />
 
       {fatture.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-8 text-center">
@@ -827,6 +834,18 @@ export function CustomerBusinessTabs({
     },
     enabled: !!customerId,
   });
+  // File delle commesse del cliente: stessa query della sezione nella tab
+  // Documenti (React Query la fa una volta sola), qui serve per il conteggio.
+  const commesse = useMemo<CommessaDelCliente[]>(
+    () => orders.map((o) => ({
+      id: o.id,
+      order_code: o.order_code,
+      description: o.description,
+      fase: o.order_statuses,
+    })),
+    [orders],
+  );
+  const { data: documentiCommesse = [] } = useDocumentiCommesseCliente(customerId, commesse.map((c) => c.id));
   const {
     data: emailConversations = [],
     isLoading: isLoadingEmailConversations,
@@ -911,7 +930,7 @@ export function CustomerBusinessTabs({
             Interventi ({rapportini.length})
           </TabsTrigger>
           <TabsTrigger value="documenti" className="shrink-0 text-xs px-2 py-2 sm:px-1">
-            Documenti ({fatture.length + customerDocuments.length})
+            Documenti ({fatture.length + customerDocuments.length + documentiCommesse.length})
           </TabsTrigger>
           <TabsTrigger value="email" className="shrink-0 text-xs px-2 py-2 sm:px-1">
             Email ({emailConversations.length})
@@ -941,6 +960,7 @@ export function CustomerBusinessTabs({
         <DocumentiTab
           fatture={fatture}
           customerDocuments={customerDocuments}
+          commesse={commesse}
           customerId={customerId}
           companyId={companyId}
           anagraficaCollegata={anagraficaCollegata}
