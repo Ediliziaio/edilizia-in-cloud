@@ -132,7 +132,7 @@ export default function CassettoSDI({ embedded = false }: CassettoSDIProps = {})
     if (reinviandoId) return; // un reinvio SDI alla volta: evita il doppio invio
     setReinviandoId(docId);
     try {
-      const { error } = await supabase.functions.invoke("invia-sdi", {
+      const { data, error } = await supabase.functions.invoke("invia-sdi", {
         body: { documento_id: docId },
       });
       if (error) {
@@ -145,7 +145,9 @@ export default function CassettoSDI({ embedded = false }: CassettoSDIProps = {})
         const detail = error.context ? await (error.context as any).json?.().catch((): null => null) : null;
         throw new Error(detail?.error || error.message);
       }
-      toast.success("Documento reinviato a SDI");
+      const esito = data as { manuale?: boolean; avviso?: string | null } | null;
+      if (esito?.manuale) toast.success("XML della fattura pronto", { description: esito.avviso ?? undefined, duration: 10000 });
+      else toast.success("Documento reinviato a SDI");
       void refetch();
     } catch (e: any) {
       toast.error(e.message || "Errore nel reinvio");

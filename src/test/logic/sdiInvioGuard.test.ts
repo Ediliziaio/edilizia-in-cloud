@@ -6,6 +6,8 @@ import {
   aggiornaStatoDaNotifica,
   STATO_IN_INVIO,
   STATI_INVIABILI,
+  invioManuale,
+  firmaPaACaricoNostro,
 } from "../../../supabase/functions/_shared/sdiInvioGuard";
 
 /**
@@ -232,5 +234,33 @@ describe("rilasciaClaimInvio", () => {
     db.row.stato = "consegnata"; // webhook SDI arrivato durante l'invio
     await rilasciaClaimInvio(db, "doc-1", "emessa");
     expect(db.row.stato).toBe("consegnata");
+  });
+});
+
+// ─── Canale di invio e firma PA ───────────────────────────────────────────────
+
+describe("fatture verso la PA", () => {
+  it("con openapi.it partono senza firma nostra: la mette openapi", () => {
+    expect(firmaPaACaricoNostro(true, "openapi")).toBe(false);
+  });
+  it("in modalità manuale non si blocca niente: l'XML si firma prima di caricarlo", () => {
+    expect(firmaPaACaricoNostro(true, "manuale")).toBe(false);
+    expect(firmaPaACaricoNostro(true, null)).toBe(false);
+  });
+  it("con Aruba la firma tocca a noi", () => {
+    expect(firmaPaACaricoNostro(true, "aruba")).toBe(true);
+  });
+  it("le fatture non PA non chiedono mai la firma", () => {
+    expect(firmaPaACaricoNostro(false, "aruba")).toBe(false);
+  });
+});
+
+describe("invioManuale", () => {
+  it("solo Aruba e openapi.it trasmettono davvero", () => {
+    expect(invioManuale("aruba")).toBe(false);
+    expect(invioManuale("openapi")).toBe(false);
+    expect(invioManuale("manuale")).toBe(true);
+    expect(invioManuale("infocert")).toBe(true);
+    expect(invioManuale(undefined)).toBe(true);
   });
 });

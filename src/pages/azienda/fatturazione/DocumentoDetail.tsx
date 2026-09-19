@@ -130,12 +130,14 @@ export default function DocumentoDetail() {
           : null;
         throw new Error(detail?.error || resp.error.message);
       }
-      const result = resp.data as { success: boolean; sdi_id?: string; errors?: unknown[] };
+      const result = resp.data as { success: boolean; sdi_id?: string; errors?: unknown[]; manuale?: boolean; avviso?: string | null };
       if (!result.success) {
         toast.error("Errore invio SDI", { description: formatSdiErrors(result.errors) });
         return;
       }
-      toast.success("Fattura inviata al SDI", { description: `ID: ${result.sdi_id}` });
+      // Modalità manuale: nessun invio allo SDI, solo l'XML da caricare a mano.
+      if (result.manuale) toast.success("XML della fattura pronto", { description: result.avviso ?? undefined, duration: 10000 });
+      else toast.success("Fattura inviata al SDI", { description: `ID: ${result.sdi_id}` });
     } catch (err: unknown) { toast.error("Errore invio SDI", { description: getErrorMessage(err) }); }
     finally { setSdiLoading(false); }
   };

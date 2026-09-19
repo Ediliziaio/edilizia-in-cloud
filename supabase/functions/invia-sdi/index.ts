@@ -4,7 +4,7 @@ import { getCorsHeaders } from "../_shared/headers.ts";
 import { generateXML } from "../_shared/generateXML.ts";
 import { utf8ToBase64 } from "../_shared/base64.ts";
 import { checkPaymentMethod, PAYMENT_METHOD_REQUIRED_MESSAGE } from "../_shared/requirePaymentMethod.ts";
-import { valutaPreInvio, claimDocumentoPerInvio, rilasciaClaimInvio } from "../_shared/sdiInvioGuard.ts";
+import { valutaPreInvio, claimDocumentoPerInvio, rilasciaClaimInvio, invioManuale, firmaPaACaricoNostro } from "../_shared/sdiInvioGuard.ts";
 
 /** Validate Italian P.IVA (11 digits, with Luhn-like check) */
 function isValidPartitaIva(piva: string | null | undefined): boolean {
@@ -276,9 +276,23 @@ Deno.serve(async (req) => {
       console.error("XML upload error:", uploadErr);
     }
 
+    const provider = azienda.sdi_provider || "manuale";
+    // Solo Aruba e openapi.it trasmettono davvero: ogni altro valore finisce nel
+    // ramo manuale (XML salvato, nessun invio).
+    const manuale = invioManuale(provider);
+
     // ── Firma digitale per PA ──
-    // Le fatture verso PA (FPA12) devono essere firmate digitalmente (CAdES-BES / p7m)
-    const requiresFirma = isPaCliente;
+    // Le fatture verso PA (FPA12) devono arrivare allo SDI firmate (CAdES-BES / p7m).
+    // Chi firma dipende dal canale:
+    //  • openapi.it le firma da solo prima di trasmetterle (documentazione openapi,
+    //    FAQ Invoice: «le fatture elettroniche destinate alla PA vengono firmate
+    //    automaticamente dal sistema prima dell'invio»);
+    //  • in modalità manuale non trasmettiamo niente: l'XML si scarica e si firma
+    //    prima di caricarlo, lo diciamo nella risposta;
+    //  • solo con Aruba la firma tocca a noi (Aruba Sign) prima dell'invio.
+    // Prima si pretendeva la firma per TUTTI i canali e si chiedeva di «ricaricare
+    // il .p7m» con una funzione che non esiste: nessuna fattura PA poteva partire.
+    const requiresFirma = firmaPaACaricoNostro(isPaCliente, provider);
     const xmlToSend = xml;
     let firmatoP7m = false;
     let p7mUrl: string | null = null;
@@ -323,30 +337,18 @@ Deno.serve(async (req) => {
         }
       }
 
-      if (!firmatoP7m && firmaProvider === "manuale") {
-        // Modalità manuale: l'XML non firmato è stato salvato in storage.
-        // Per le fatture PA la firma è OBBLIGATORIA — blocchiamo l'invio con istruzioni chiare.
-        // Rilascia il claim: il documento non è stato trasmesso, deve restare reinviabile.
-        await rilasciaClaimInvio(supabase, doc.id, claimPrevStato!);
-        return new Response(
-          JSON.stringify({
-            error: "Fattura PA richiede firma digitale. Scaricare l'XML, firmarlo con software certificato (es. Aruba Sign, Namirial, DiKe), e ricaricare il file .p7m tramite l'apposita funzione.",
-            action: "download_and_sign",
-            xml_url: xmlPath,
-          }),
-          { status: 422, headers: getCorsHeaders(req) }
-        );
-      }
-
-      // Se Aruba Sign è configurato ma la firma non è riuscita, blocca anche in quel caso
+      // Con Aruba la fattura PA parte solo firmata. Rilascia il claim: il
+      // documento non è stato trasmesso, deve restare reinviabile.
       if (!firmatoP7m) {
         await rilasciaClaimInvio(supabase, doc.id, claimPrevStato!);
         return new Response(
           JSON.stringify({
-            error: "Firma digitale per fattura PA non riuscita. Verificare la configurazione Aruba Sign o procedere con firma manuale.",
-            action: "check_aruba_sign_config",
+            error: firmaProvider === "aruba_sign"
+              ? "La firma digitale con Aruba Sign non è riuscita: controlla le credenziali di firma in Impostazioni › Fatturazione e riprova."
+              : "Con Aruba le fatture verso la Pubblica Amministrazione devono partire firmate digitalmente. Scegli openapi.it come canale di invio in Impostazioni › Fatturazione: firma lui la fattura prima di trasmetterla.",
+            action: "firma_pa_non_disponibile",
           }),
-          { status: 422, headers: getCorsHeaders(req) }
+          { status: 422, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
         );
       }
     }
@@ -354,8 +356,7 @@ Deno.serve(async (req) => {
     let sdiId: string | null = null;
     let sdiErrors: any[] | null = null;
 
-    // Route to provider
-    const provider = azienda.sdi_provider || "manuale";
+    // Route to provider (scelto sopra, prima della firma PA)
 
     // Guardia: provider Aruba selezionato ma API key mancante. Senza questo blocco
     // il flusso cadeva nel ramo 'manuale' e marcava comunque stato='inviata_sdi' +
@@ -604,8 +605,8 @@ Deno.serve(async (req) => {
         sdi_firmato: firmatoP7m,
         sdi_file_p7m_url: p7mUrl,
         // AT (attesa) only applies to real SDI submissions; manual mode has no SDI lifecycle
-        sdi_stato: provider === "manuale" ? null : "AT",
-        trasmissione: provider === "manuale" ? "manuale" : "sdi",
+        sdi_stato: manuale ? null : "AT",
+        trasmissione: manuale ? "manuale" : "sdi",
       })
       .eq("id", doc.id);
 
@@ -619,7 +620,14 @@ Deno.serve(async (req) => {
       xml_content: xml.slice(0, 5000),
     });
 
-    return new Response(JSON.stringify({ success: true, sdi_id: sdiId, xml_url: xmlPath }), {
+    // In modalità manuale non parte niente verso lo SDI: le schermate devono dirlo,
+    // non mostrare «inviata». Per la PA l'XML va anche firmato prima di caricarlo.
+    const avviso = manuale
+      ? isPaCliente
+        ? "XML pronto. È una fattura verso la Pubblica Amministrazione: firmala digitalmente (file .p7m) prima di caricarla su Fatture e Corrispettivi."
+        : "XML pronto. Scaricalo e caricalo su Fatture e Corrispettivi dell'Agenzia delle Entrate."
+      : null;
+    return new Response(JSON.stringify({ success: true, sdi_id: sdiId, xml_url: xmlPath, manuale, avviso }), {
       headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
     });
   } catch (e) {

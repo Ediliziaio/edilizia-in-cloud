@@ -585,7 +585,7 @@ export default function ImpostazioniFatturazione() {
                   <Info className="h-5 w-5 text-muted-foreground mt-0.5" />
                   <div className="text-sm text-muted-foreground">
                     <p className="font-medium">Modalità manuale</p>
-                    <p className="text-xs mt-0.5">Scarica il file XML e caricalo manualmente sul portale Fatture e Corrispettivi dell'Agenzia delle Entrate.</p>
+                    <p className="text-xs mt-0.5">Scarica il file XML e caricalo manualmente sul portale Fatture e Corrispettivi dell'Agenzia delle Entrate. Le fatture verso la Pubblica Amministrazione vanno firmate digitalmente prima di caricarle: con openapi.it la firma la mette lui.</p>
                   </div>
                 </div>
               )}
@@ -1147,7 +1147,10 @@ export default function ImpostazioniFatturazione() {
                 <div className="flex gap-2 flex-wrap">
                   {[
                     { id: "csv", label: "CSV standard", desc: "Excel, LibreOffice, Google Sheets" },
-                    { id: "fatturapa_xml", label: "FatturaPA XML", desc: "Adatto a Danea, Teamsystem, Zucchetti" },
+                    // L'id resta quello che il backend conosce; il file è un riepilogo
+                    // XML nostro (<ExportContabile>), NON il tracciato FatturaPA: prima
+                    // l'etichetta prometteva l'import in Danea, TeamSystem e Zucchetti.
+                    { id: "fatturapa_xml", label: "Riepilogo XML", desc: "Elenco dei documenti in XML. I file FatturaPA veri si scaricano dal cassetto SDI" },
                     { id: "prima_nota", label: "Prima nota", desc: "Registro contabile semplificato" },
                   ].map((f) => (
                     <button

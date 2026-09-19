@@ -185,3 +185,21 @@ export async function aggiornaStatoDaNotifica(
     .eq("id", documentoId)
     .neq("stato", STATO_IN_INVIO);
 }
+
+// ─── Canale di invio e firma delle fatture PA ─────────────────────────────────
+
+/** Solo questi canali trasmettono davvero allo SDI; ogni altro valore = XML da caricare a mano. */
+export function invioManuale(provider: string | null | undefined): boolean {
+  return provider !== "aruba" && provider !== "openapi";
+}
+
+/**
+ * La fattura verso la PA va firmata da noi prima dell'invio? Solo con Aruba.
+ * openapi.it la firma da solo prima di trasmetterla (FAQ Invoice di openapi:
+ * «le fatture elettroniche destinate alla PA vengono firmate automaticamente dal
+ * sistema prima dell'invio»); in modalità manuale non trasmettiamo niente.
+ * Prima si pretendeva la firma su ogni canale e nessuna fattura PA partiva.
+ */
+export function firmaPaACaricoNostro(isPa: boolean, provider: string | null | undefined): boolean {
+  return isPa && provider === "aruba";
+}

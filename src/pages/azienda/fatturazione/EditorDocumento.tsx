@@ -164,8 +164,14 @@ export default function EditorDocumento() {
         body: { documento_id: state.id },
         headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : undefined,
       });
-      if (resp.error) throw new Error(resp.error.message);
-      const result = resp.data as { success: boolean; sdi_id?: string; errors?: any[] };
+      if (resp.error) {
+        // Il corpo delle risposte 4xx (es. «firma la fattura PA») sta nel context:
+        // senza leggerlo l'utente vedeva solo «non-2xx status code».
+        const ctx = (resp.error as { context?: { json?: () => Promise<{ error?: string }> } }).context;
+        const detail = ctx?.json ? await ctx.json().catch((): null => null) : null;
+        throw new Error(detail?.error || resp.error.message);
+      }
+      const result = resp.data as { success: boolean; sdi_id?: string; errors?: any[]; manuale?: boolean; avviso?: string | null };
       if (!result.success) {
         // Errori SDI leggibili invece del JSON grezzo degli scarti.
         const descr = Array.isArray(result.errors) && result.errors.length
@@ -174,7 +180,8 @@ export default function EditorDocumento() {
         toast.error("Errore invio SDI", { description: descr });
         return;
       }
-      toast.success("Fattura inviata al SDI", { description: `ID trasmissione: ${result.sdi_id}` });
+      if (result.manuale) toast.success("XML della fattura pronto", { description: result.avviso ?? undefined, duration: 10000 });
+      else toast.success("Fattura inviata al SDI", { description: `ID trasmissione: ${result.sdi_id}` });
     } catch (err: any) {
       toast.error("Errore invio SDI", { description: err.message });
     } finally {
