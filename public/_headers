@@ -25,6 +25,13 @@
   Content-Type: text/plain; charset=utf-8
   Cache-Control: public, max-age=86400
 
+# Kit di Edilizia in Cloud (19/09/2026): i 6 file si scaricano dai link delle
+# email a chi ha chiesto la demo o la prova. Raggiungibili, ma fuori dai
+# risultati di ricerca: il kit è di chi lo chiede.
+/risorse/kit-eic/*
+  X-Robots-Tag: noindex, nofollow
+  Cache-Control: public, max-age=3600
+
 # v8.6.123 — HOMEPAGE: HTTP/2 Early Hints (103) + Link preload header
 # Cloudflare può fare Server Push via Link header al primo byte HTML,
 # permettendo al browser di iniziare il download asset critici PRIMA che
