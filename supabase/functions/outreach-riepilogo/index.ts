@@ -65,7 +65,7 @@ serveConMetriche("outreach-riepilogo", async (req) => {
   try {
     // Brand e flussi: servono per raggruppare e per sapere se le aperture
     // sono tracciate (oggi: su nessun flusso).
-    const { data: brands } = await admin.from("outreach_brands").select("id, name").order("name");
+    const { data: brands } = await admin.from("outreach_brands").select("id, name, status").order("name");
     const { data: seqs } = await admin.from("outreach_sequences").select("id, brand_id, track_opens");
     const sequenze = (seqs ?? []) as Array<{ id: string; brand_id: string | null; track_opens: boolean | null }>;
 
@@ -107,9 +107,10 @@ serveConMetriche("outreach-riepilogo", async (req) => {
     });
 
     // Un secchio per brand, più uno per le righe senza brand.
-    const secchi: Array<{ id: string | null; nome: string }> = [
-      ...((brands ?? []) as Array<{ id: string; name: string }>).map((b) => ({ id: b.id, nome: b.name })),
-      { id: null, nome: "Senza brand" },
+    const secchi: Array<{ id: string | null; nome: string; attivo: boolean }> = [
+      ...((brands ?? []) as Array<{ id: string; name: string; status: string | null }>)
+        .map((b) => ({ id: b.id, nome: b.name, attivo: b.status === "active" })),
+      { id: null, nome: "Senza brand", attivo: false },
     ];
 
     const conti: ContiBrand[] = [];
@@ -157,8 +158,9 @@ serveConMetriche("outreach-riepilogo", async (req) => {
         inPartenza,
         inCoda,
       };
-      // Il secchio «Senza brand» compare solo se ha davvero qualcosa dentro.
-      if (s.id || inviate || fallite || mie.length || inCoda) conti.push(conti1);
+      // Un brand in pausa (e il secchio «Senza brand») compare solo se ha
+      // davvero qualcosa dentro: righe tutte a zero sono rumore.
+      if (s.attivo || inviate || fallite || mie.length || inCoda) conti.push(conti1);
     }
 
     // Caselle che non spediscono: in pausa, o con la connessione rotta.
