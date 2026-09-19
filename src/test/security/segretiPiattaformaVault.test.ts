@@ -12,7 +12,9 @@
  * - nessuna edge function legge un segreto direttamente dalla tabella;
  * - il browser non scarica mai il valore di un segreto;
  * - le funzioni di lettura non sono aperte a utenti né ad anon;
- * - il trigger porta nel Vault ogni segreto scritto nella tabella.
+ * - il trigger porta nel Vault ogni segreto scritto nella tabella, e dal
+ *   secondo tempo nella tabella resta solo la riga, col valore vuoto;
+ * - la migrazione del secondo tempo si ferma se resta un segreto in chiaro.
  */
 import { describe, expect, it } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
@@ -155,5 +157,16 @@ describe("le funzioni nel database", () => {
   it("un trigger porta nel Vault ogni segreto scritto nella tabella", () => {
     expect(sql).toMatch(/create trigger platform_settings_segreto_nel_vault\s+before insert or update of value on public\.platform_settings/);
     expect(sql).toMatch(/perform public\.salva_segreto_piattaforma\(new\.key, new\.value\);/);
+  });
+
+  it("dal secondo tempo il trigger sposta: nella tabella resta la riga, vuota", () => {
+    const trigger = ultimaMigrazioneCon("function public.platform_settings_segreto_nel_vault(");
+    expect(trigger).toMatch(/perform public\.salva_segreto_piattaforma\(new\.key, new\.value\);\s+new\.value := '';/);
+  });
+
+  it("il secondo tempo svuota solo dove il Vault ha lo stesso valore, e si ferma se resta un segreto", () => {
+    const vuota = ultimaMigrazioneCon("Restano segreti in chiaro in platform_settings");
+    expect(vuota).toMatch(/set value = ''[\s\S]*?and s\.decrypted_secret = p\.value/);
+    expect(vuota).toMatch(/raise exception 'Restano segreti in chiaro in platform_settings'/);
   });
 });
