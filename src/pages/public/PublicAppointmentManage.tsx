@@ -51,10 +51,13 @@ export default function PublicAppointmentManage() {
     queryKey: ["appuntamento-gestione", token],
     queryFn: async () => {
       if (!token) return null;
-      const { data, error } = await supabase
-        .from("public_appointment_manage")
-        .select("*")
-        .eq("manage_token", token)
+      // Un solo appuntamento, e solo col suo codice. Prima si leggeva la vista
+      // public_appointment_manage filtrandola qui: ma la vista era aperta a
+      // chiunque, e senza filtro restituiva email e codici di tutte le
+      // prenotazioni pubbliche.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
+        .rpc("appuntamento_pubblico_da_token", { p_token: token })
         .maybeSingle();
       if (error) throw error;
       return (data ?? null) as Appuntamento | null;
