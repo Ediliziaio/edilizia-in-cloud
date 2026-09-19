@@ -3,6 +3,7 @@ import { getMetaCredentials } from "../_shared/getMetaCredentials.ts";
 import { verifyHmacSha256 } from "../_shared/webhookSecurity.ts";
 import { decrypt, getEncryptionKey } from "../_shared/encryption.ts";
 import { estraiMessaggiSocial, registraMessaggiSocial } from "../_shared/socialMessaggiMeta.ts";
+import { proprietarioPagina } from "../_shared/metaProprietarioPagina.ts";
 
 Deno.serve(async (req) => {
   const url = new URL(req.url);
@@ -123,15 +124,26 @@ Deno.serve(async (req) => {
             .select("integration_id, company_id")
             .eq("asset_id", String(pageId))
             .eq("asset_type", "page")
-            .eq("selected", true)
-            .limit(1);
+            .eq("selected", true);
 
           if (!pageAssets || pageAssets.length === 0) {
             console.warn(`No integration found for page ${pageId}`);
             continue;
           }
 
-          const { integration_id, company_id } = pageAssets[0];
+          // Pagina scelta in più aziende (un collegamento vecchio e scaduto
+          // rimasto attaccato): il lead va a quella col collegamento vivo.
+          let proprietario = pageAssets[0];
+          if (pageAssets.length > 1) {
+            const ids = pageAssets.map((a: { integration_id: string | null }) => a.integration_id).filter(Boolean);
+            const { data: collegamenti } = await adminClient
+              .from("integrations")
+              .select("id, status, updated_at")
+              .in("id", ids);
+            proprietario = proprietarioPagina(pageAssets, collegamenti ?? []) ?? pageAssets[0];
+          }
+
+          const { integration_id, company_id } = proprietario;
 
           // Enqueue event (idempotent via unique constraint)
           const { error: insertErr } = await adminClient

@@ -26,6 +26,7 @@ import {
 import { toast } from "sonner";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import AdminMetaLeadsCard from "./AdminMetaLeadsCard";
 
 // ─── TYPES ────────────────────────────────────────────────────────────────────
 
@@ -762,6 +763,9 @@ export default function AdminSettingsIntegrations() {
     <div className="space-y-6">
       {/* KPI overview */}
       <IntegrationsKPIs settings={settings} isLoading={settingsLoading} />
+
+      {/* Lead Facebook/Instagram dei brand della piattaforma → CRM del superadmin */}
+      <AdminMetaLeadsCard />
 
       {/* Stripe */}
       <StripeSettingsCard

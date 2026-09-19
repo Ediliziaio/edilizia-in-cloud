@@ -7,7 +7,7 @@ import { Loader2, Wand2, Eye } from "lucide-react";
 import { toast } from "sonner";
 import { CRM_STANDARD_FIELDS } from "@/types/integrations";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { useAuth } from "@/contexts/AuthContext";
+import { useMetaCompanyId } from "../metaCompanyContext";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -101,8 +101,7 @@ const EXAMPLE_BY_CRM: Record<string, string> = {
 
 export function FieldMappingStep({ hook, formId, onSaved }: FieldMappingStepProps) {
   const { callProxy, mappings, saveMapping } = hook;
-  const { effectiveCompany } = useAuth();
-  const companyId = (effectiveCompany as any)?.id;
+  const companyId = useMetaCompanyId();
 
   const [questions, setQuestions] = useState<MetaQuestion[]>([]);
   const [fieldMap, setFieldMap] = useState<Record<string, string>>({});

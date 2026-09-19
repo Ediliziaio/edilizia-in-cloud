@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { useAuth } from "@/contexts/AuthContext";
+import { useMetaCompanyId } from "@/components/integrations/metaCompanyContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
@@ -10,8 +10,9 @@ import type { Integration, MetaAsset, MetaLeadForm, IntegrationFieldMapping } fr
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
 export function useMetaIntegration(integration: Integration | null) {
-  const { effectiveCompany } = useAuth();
-  const companyId = (effectiveCompany as any)?.id;
+  // L'azienda la decide chi apre il wizard (nel superadmin: il CRM della
+  // piattaforma); senza indicazioni, quella in cui si sta lavorando.
+  const companyId = useMetaCompanyId();
   const queryClient = useQueryClient();
 
   // Fetch assets (pages).

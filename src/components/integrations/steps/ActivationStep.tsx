@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchWithTimeout } from "@/lib/utils/fetchWithTimeout";
-import { useAuth } from "@/contexts/AuthContext";
+import { useMetaCompanyId } from "../metaCompanyContext";
 import type { Integration } from "@/types/integrations";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -16,8 +16,7 @@ interface ActivationStepProps {
 
 export function ActivationStep({ hook, integration }: ActivationStepProps) {
   const { selectedPages, forms } = hook;
-  const { effectiveCompany } = useAuth();
-  const companyId = (effectiveCompany as any)?.id;
+  const companyId = useMetaCompanyId();
   const activeForms = forms.filter((f: any) => f.status === "active");
   const [sendingTest, setSendingTest] = useState(false);
 
