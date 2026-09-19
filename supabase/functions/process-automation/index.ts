@@ -23,6 +23,7 @@ import { arcoDelRamo, inizioGiornoRoma, leggiPercentuali, letteraRamo, modalitaS
 import { nomeOpportunitaPulito, personeDaAvvisare, tagsUniti, testoNotaAggiornamento } from "../_shared/creaAggiornaOpportunita.ts";
 import { conLinkCliccabili, fusoDelFlusso, invioEmailDaRimandare, MINUTI_RINVIO_EMAIL, numeroWhatsApp, schedaAndataAvanti, senzaSpazioPrimaDellaVirgola } from "../_shared/sequenzaContatto.ts";
 import { mittenteDelPasso } from "../_shared/mittenteAutomazione.ts";
+import { calendarioDelGiorno, giornoAmmesso, leggiSettimane } from "../_shared/attesaCalendario.ts";
 import { isInternalRequest, isSuperAdminEmailAllowed, requireAuth, requireCompanyAccess, requireInternalSecret, resolveUserEmail } from "../_shared/auth.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import {
@@ -893,6 +894,21 @@ function romeNowParts(at: Date): { minutesOfDay: number; weekday: number } {
   return { minutesOfDay: h * 60 + m, weekday: wd < 0 ? at.getUTCDay() : wd };
 }
 
+/** Anno, mese, giorno e giorno della settimana di un istante, a Roma. */
+function romeGiorno(at: Date) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Europe/Rome", year: "numeric", month: "numeric", day: "numeric", weekday: "short",
+  }).formatToParts(at);
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
+  const wd = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(get("weekday"));
+  return {
+    anno: parseInt(get("year"), 10),
+    mese: parseInt(get("month"), 10),
+    giorno: parseInt(get("day"), 10),
+    giornoSettimana: wd < 0 ? at.getUTCDay() : wd,
+  };
+}
+
 async function executeDelay(
   cfg: Record<string, any>,
   supabase?: any,
@@ -949,11 +965,13 @@ async function executeDelay(
   // solo giorni/ore/minuti (schema catalogo) → OGNI attesa configurata dal
   // builder cadeva nel default di 1 ora ("aspetta 3 giorni" = 1 ora).
   let delayMs = 0;
+  let minutiBersaglio: number | null = null;
 
   if (cfg.delay_tipo === "fino_a" && typeof cfg.delay_orario === "string" && /^\d{1,2}:\d{2}$/.test(cfg.delay_orario)) {
     // Prossima occorrenza dell'orario (ora italiana): oggi se futuro, sennò domani.
     const [th, tm] = cfg.delay_orario.split(":").map((n: string) => parseInt(n, 10));
     const targetMin = (th % 24) * 60 + tm;
+    minutiBersaglio = targetMin;
     const { minutesOfDay } = romeNowParts(new Date());
     let deltaMin = targetMin - minutesOfDay;
     if (deltaMin <= 0) deltaMin += 24 * 60;
@@ -983,14 +1001,31 @@ async function executeDelay(
 
   // "Solo in questi giorni": se l'attesa atterra su un giorno non consentito,
   // slitta di 24h alla volta fino al primo giorno attivo (stessa ora).
-  const giorniOk: number[] = Array.isArray(cfg.delay_giorni_settimana)
-    ? cfg.delay_giorni_settimana.filter((d: unknown) => typeof d === "number")
-    : [];
-  if (giorniOk.length > 0 && giorniOk.length < 7) {
+  // Dal 19/09/2026 anche per settimana dell'anno: «il martedì della settimana
+  // 6» (delay_settimane_anno) o «ogni martedì tranne quelle 9»
+  // (delay_settimane_escluse), per le email a data fissa del broadcast
+  // EdiliziaInCloud. Vedi _shared/attesaCalendario.ts.
+  const regole = {
+    giorni: Array.isArray(cfg.delay_giorni_settimana)
+      ? cfg.delay_giorni_settimana.filter((d: unknown) => typeof d === "number")
+      : [],
+    settimane: leggiSettimane(cfg.delay_settimane_anno),
+    settimaneEscluse: leggiSettimane(cfg.delay_settimane_escluse),
+  };
+  const conRegole = (regole.giorni.length > 0 && regole.giorni.length < 7)
+    || regole.settimane.length > 0 || regole.settimaneEscluse.length > 0;
+  if (conRegole) {
+    // Un anno e una settimana: la settimana 6 dell'anno prossimo ci sta sempre.
     let guard = 0;
-    while (!giorniOk.includes(romeNowParts(new Date(Date.now() + delayMs)).weekday) && guard < 7) {
+    while (!giornoAmmesso(romeGiorno(new Date(Date.now() + delayMs)), regole) && guard < 372) {
       delayMs += 86_400_000;
       guard++;
+    }
+    // Saltando giorni si può attraversare il cambio dell'ora legale: «le 8:30»
+    // diventerebbero le 7:30 o le 9:30. Si rimette l'orario scelto.
+    if (minutiBersaglio !== null && guard > 0) {
+      const scarto = minutiBersaglio - romeNowParts(new Date(Date.now() + delayMs)).minutesOfDay;
+      if (Math.abs(scarto) === 60) delayMs += scarto * 60_000;
     }
   }
 
@@ -1024,7 +1059,8 @@ async function executeCondition(supabase: any, cfg: Record<string, any>, entityI
   // Risolve il record per prefisso campo (cache per non rifare le query).
   // contatto.* → il contatto (entityId); opportunita.*/appuntamento.* → il più
   // recente del contatto; ordine.*/ticket.* → il record se l'entità del flusso
-  // È quell'oggetto (trigger operativi).
+  // È quell'oggetto (trigger operativi); calendario.* → oggi, ora italiana
+  // (anno, mese, giorno, giorno_settimana 0=Dom, settimana_iso).
   const cache: Record<string, any> = {};
   const load = async (prefix: string) => {
     if (prefix in cache) return cache[prefix];
@@ -1040,6 +1076,8 @@ async function executeCondition(supabase: any, cfg: Record<string, any>, entityI
         row = (await supabase.from("orders").select("*").eq("id", entityId).eq("company_id", companyId).maybeSingle()).data;
       } else if (prefix === "ticket") {
         row = (await supabase.from("tickets").select("*").eq("id", entityId).eq("company_id", companyId).maybeSingle()).data;
+      } else if (prefix === "calendario") {
+        row = calendarioDelGiorno(romeGiorno(new Date()));
       }
     } catch (_e) { row = null; }
     cache[prefix] = row;
