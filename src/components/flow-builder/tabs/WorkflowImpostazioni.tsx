@@ -22,13 +22,29 @@ export function WorkflowImpostazioni({ flowId }: Props) {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("automation_flows")
-        .select("allow_reentry, allow_multiple_opportunities, stop_on_reply, timezone, time_window_active, time_window_from, time_window_to, sender_name, sender_email")
+        .select("company_id, allow_reentry, allow_multiple_opportunities, stop_on_reply, stop_on_won_pipeline_id, timezone, time_window_active, time_window_from, time_window_to, sender_name, sender_email")
         .eq("id", flowId!)
         .single();
       if (error) throw error;
       return data;
     },
     enabled: !!flowId,
+  });
+
+  // Pipeline dell'azienda del flusso, per «Fermati quando diventa cliente».
+  const { data: pipelines = [] } = useQuery({
+    queryKey: ["flow-settings-pipelines", settings?.company_id],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("marketing_pipelines")
+        .select("id, name")
+        .eq("company_id", settings!.company_id)
+        .order("name");
+      if (error) throw error;
+      return (data ?? []) as { id: string; name: string }[];
+    },
+    enabled: !!settings?.company_id,
+    staleTime: 5 * 60 * 1000,
   });
 
   const handleChange = (key: string, val: any) => {
@@ -107,6 +123,26 @@ export function WorkflowImpostazioni({ flowId }: Props) {
             valore={get("stop_on_reply", false)}
             onChange={(v) => handleChange("stop_on_reply", v)}
           />
+          <div className="space-y-1.5">
+            <Label className="text-sm font-medium">Fermati quando diventa cliente</Label>
+            <Select
+              value={get("stop_on_won_pipeline_id", null) || "__mai__"}
+              onValueChange={(v) => handleChange("stop_on_won_pipeline_id", v === "__mai__" ? null : v)}
+            >
+              <SelectTrigger className="h-9">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__mai__">No, continua comunque</SelectItem>
+                {pipelines.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>Vinta in «{p.name}»</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Il contatto esce dal flusso appena ha un'opportunità vinta in questa pipeline: un cliente non riceve più email di vendita.
+            </p>
+          </div>
         </div>
       </section>
 

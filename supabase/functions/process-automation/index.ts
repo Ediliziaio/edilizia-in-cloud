@@ -553,27 +553,45 @@ async function processQueue(supabase: any) {
   //
   // Una risposta = una email in arrivo da quell'indirizzo dopo l'iscrizione.
   // Le impostazioni dei flussi si leggono una volta sola per esecuzione.
-  const impostazioniFlusso = new Map<string, { stopOnReply: boolean }>();
+  const impostazioniFlusso = new Map<string, { stopOnReply: boolean; pipelineCliente: string | null }>();
   async function fermaSeHaRisposto(item: any): Promise<boolean> {
     if (!item.flow_id || !item.enrollment_id || !item.entity_id) return false;
     try {
       if (!impostazioniFlusso.has(item.flow_id)) {
         const { data: f } = await supabase.from("automation_flows")
-          .select("stop_on_reply").eq("id", item.flow_id).maybeSingle();
-        impostazioniFlusso.set(item.flow_id, { stopOnReply: f?.stop_on_reply === true });
+          .select("stop_on_reply, stop_on_won_pipeline_id").eq("id", item.flow_id).maybeSingle();
+        impostazioniFlusso.set(item.flow_id, {
+          stopOnReply: f?.stop_on_reply === true,
+          pipelineCliente: typeof f?.stop_on_won_pipeline_id === "string" ? f.stop_on_won_pipeline_id : null,
+        });
       }
-      if (!impostazioniFlusso.get(item.flow_id)!.stopOnReply) return false;
+      const imp = impostazioniFlusso.get(item.flow_id)!;
+      if (!imp.stopOnReply && !imp.pipelineCliente) return false;
 
       const { data: iscr } = await supabase.from("automation_enrollments")
         .select("created_at, status").eq("id", item.enrollment_id).maybeSingle();
       if (!iscr || iscr.status !== "active") return false;
 
-      const { data: contatto } = await supabase.from("marketing_contacts")
-        .select("email").eq("id", item.entity_id).maybeSingle();
+      let motivo: string | null = null;
+
+      // «Si ferma solo se diventa cliente» (19/09/2026, nurturing di Marketing
+      // Edile): il flusso ignora risposte e schede spostate e si chiude appena
+      // il contatto ha un'opportunità vinta nella pipeline scelta. Un cliente
+      // che riceve email di vendita pensa che non stiamo guardando i suoi numeri.
+      if (imp.pipelineCliente) {
+        const { data: vinta } = await supabase.from("marketing_opportunities")
+          .select("id").eq("company_id", item.company_id).eq("contact_id", item.entity_id)
+          .eq("pipeline_id", imp.pipelineCliente).not("won_at", "is", null)
+          .is("deleted_at", null).limit(1).maybeSingle();
+        if (vinta) motivo = "il contatto è diventato cliente";
+      }
+
+      const { data: contatto } = imp.stopOnReply && !motivo
+        ? await supabase.from("marketing_contacts").select("email").eq("id", item.entity_id).maybeSingle()
+        : { data: null };
       const indirizzo = String(contatto?.email ?? "").trim().toLowerCase();
 
-      let motivo: string | null = null;
-      if (indirizzo) {
+      if (!motivo && indirizzo) {
         const { data: risposta } = await supabase.from("email_inbox")
           .select("id").eq("company_id", item.company_id)
           .ilike("from_email", indirizzo)
@@ -585,7 +603,7 @@ async function processQueue(supabase: any) {
       // Risposta su WhatsApp Locale (19/09/2026): i numeri della piattaforma
       // passano dal gateway, quindi i messaggi in arrivo li vediamo. Chi
       // risponde su WhatsApp esce dalla sequenza come chi risponde all'email.
-      if (!motivo && item.company_id === OPENWA_PLATFORM_COMPANY_ID) {
+      if (!motivo && imp.stopOnReply && item.company_id === OPENWA_PLATFORM_COMPANY_ID) {
         const { data: suWhatsApp } = await supabase.from("openwa_messages")
           .select("id").eq("contact_id", item.entity_id).eq("direction", "inbound")
           .gt("created_at", iscr.created_at)
@@ -598,7 +616,7 @@ async function processQueue(supabase: any) {
       // vende, un calendario esterno): quando qualcuno prende in mano il
       // contatto sposta la sua scheda oltre la prima fase, e da lì la
       // sequenza automatica si ferma. La creazione della scheda non conta.
-      if (!motivo) {
+      if (!motivo && imp.stopOnReply) {
         const { data: opps } = await supabase.from("marketing_opportunities")
           .select("id").eq("company_id", item.company_id).eq("contact_id", item.entity_id)
           .is("deleted_at", null).limit(20);
