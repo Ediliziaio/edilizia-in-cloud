@@ -87,3 +87,15 @@ describe("il motore usa numero scelto, fasce e risposte su WhatsApp", () => {
     expect(motore).toMatch(/from\("openwa_messages"\)\s*\.select\("id"\)\.eq\("contact_id", item\.entity_id\)\.eq\("direction", "inbound"\)/);
   });
 });
+
+describe("un passo rinviato non è un passo fatto", () => {
+  const motore = readFileSync(join(__dirname, "../../../supabase/functions/process-automation/index.ts"), "utf8");
+
+  it("il ramo del rinvio esce prima di «completed» e dei passi successivi", () => {
+    const inizio = motore.indexOf("if (!result.success && result.defer) {");
+    const fine = motore.indexOf("} else if (!result.success) {", inizio);
+    expect(inizio).toBeGreaterThan(0);
+    expect(fine).toBeGreaterThan(inizio);
+    expect(motore.slice(inizio, fine)).toMatch(/\bcontinue;\s*$/);
+  });
+});

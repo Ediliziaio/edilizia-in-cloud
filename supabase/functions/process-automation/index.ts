@@ -709,6 +709,11 @@ async function processQueue(supabase: any) {
             .update({ status: "pending", execute_at: new Date(Date.now() + deferMs).toISOString(), last_error: result.error, context_json: { ...ctx, _defer_count: deferCount }, updated_at: now })
             .eq("id", item.id);
         }
+        // Rinviato NON vuol dire fatto (19/09/2026). Senza questo `continue` il
+        // passo, appena rimesso in coda, veniva segnato «completed» qui sotto e
+        // il flusso andava avanti come se il WhatsApp fosse partito: fuori
+        // orario il messaggio non partiva mai. Visto nel collaudo del PDF.
+        continue;
       } else if (!result.success) {
         // Retry logic
         const attempts = item.attempts + 1;
