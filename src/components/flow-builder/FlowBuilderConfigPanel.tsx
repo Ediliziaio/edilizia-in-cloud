@@ -681,6 +681,22 @@ function ConfigField({
     staleTime: 5 * 60 * 1000,
   });
 
+  // Numeri WhatsApp Locale della piattaforma (azione "Invia WhatsApp Locale").
+  const { data: numeriWhatsappLocale = [] } = useQuery({
+    queryKey: ["flow-openwa-numbers"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("openwa_numbers")
+        .select("id, display_name, numero, stato")
+        .is("deleted_at", null)
+        .order("display_name");
+      if (error) throw error;
+      return (data ?? []) as { id: string; display_name: string | null; numero: string | null; stato: string }[];
+    },
+    enabled: field.type === "whatsapp_locale_number_select",
+    staleTime: 60 * 1000,
+  });
+
   // Pipeline e fasi CRM reali (azione "Crea opportunità")
   const { data: crmPipelines = [] } = useQuery({
     queryKey: ["flow-pipelines", companyId],
@@ -1030,6 +1046,28 @@ function ConfigField({
           </div>
         );
       })()}
+
+      {field.type === "whatsapp_locale_number_select" && (
+        <Select
+          value={value || "__auto__"}
+          onValueChange={(v) => onChange(v === "__auto__" ? null : v)}
+        >
+          <SelectTrigger className="h-9 text-sm">
+            <SelectValue placeholder="Scelta automatica" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__auto__">Scelta automatica tra i numeri liberi</SelectItem>
+            {numeriWhatsappLocale
+              .filter((n) => n.numero || n.id === value)
+              .map((n) => (
+                <SelectItem key={n.id} value={n.id}>
+                  {[n.display_name, n.numero].filter(Boolean).join(" · ")}
+                  {n.stato !== "connected" ? " (scollegato)" : ""}
+                </SelectItem>
+              ))}
+          </SelectContent>
+        </Select>
+      )}
 
       {field.type === "pipeline_select" && (
         crmPipelines.length > 0 ? (

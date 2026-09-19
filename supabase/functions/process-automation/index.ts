@@ -8,7 +8,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { decryptMaybeEncrypted, getEncryptionKey } from "../_shared/encryption.ts";
 import { resolveWhatsAppSender } from "../_shared/resolveWhatsAppSender.ts";
-import { sendOpenWaMessage, OPENWA_PLATFORM_COMPANY_ID } from "../_shared/openwaSend.ts";
+import { romeMinuti, sendOpenWaMessage, OPENWA_PLATFORM_COMPANY_ID } from "../_shared/openwaSend.ts";
+import { leggiFasceOrarie, minutiAllaFascia } from "../_shared/openwaFinestraInvio.ts";
 import { sendViaProviderWithFailover, loadProviderSettings, sanitizeFromName } from "../_shared/emailProvider.ts";
 import { addEmailCredits, deductEmailCredits } from "../_shared/emailCredits.ts";
 import { logEmailDelivery } from "../_shared/email-log.ts";
@@ -579,6 +580,17 @@ async function processQueue(supabase: any) {
           .gt("received_at", iscr.created_at)
           .limit(1).maybeSingle();
         if (risposta) motivo = "il contatto ha risposto";
+      }
+
+      // Risposta su WhatsApp Locale (19/09/2026): i numeri della piattaforma
+      // passano dal gateway, quindi i messaggi in arrivo li vediamo. Chi
+      // risponde su WhatsApp esce dalla sequenza come chi risponde all'email.
+      if (!motivo && item.company_id === OPENWA_PLATFORM_COMPANY_ID) {
+        const { data: suWhatsApp } = await supabase.from("openwa_messages")
+          .select("id").eq("contact_id", item.entity_id).eq("direction", "inbound")
+          .gt("created_at", iscr.created_at)
+          .limit(1).maybeSingle();
+        if (suWhatsApp) motivo = "il contatto ha risposto su WhatsApp";
       }
 
       // La scheda andata avanti a mano (19/09/2026). WhatsApp e prenotazioni
@@ -3981,25 +3993,47 @@ async function executeSendWhatsAppLocale(supabase: any, cfg: Record<string, any>
   if (!contact?.phone) return { success: false, error: "Contatto senza numero di telefono" };
   if (contact.optout_whatsapp) return { success: false, error: "Contatto in opt-out WhatsApp" };
 
-  const resolvedText = await resolveContactText(supabase, cfg.whatsapp_text || "", contact, companyId);
+  // «Ciao {{contatto.first_name}},» col nome vuoto: niente «Ciao ,».
+  const resolvedText = senzaSpazioPrimaDellaVirgola(
+    await resolveContactText(supabase, cfg.whatsapp_text || "", contact, companyId),
+  );
   if (!resolvedText) return { success: false, error: "Nessun testo configurato per il messaggio WhatsApp Locale" };
+
+  // Qualche minuto a caso sopra l'apertura: i messaggi rimasti in coda nel
+  // weekend non partono tutti allo stesso minuto del lunedì.
+  const sparpaglia = (minuti: number) => minuti + 1 + Math.floor(Math.random() * 15);
+
+  // Fasce orarie del passo (es. "8-12, 14-20"), in aggiunta alla finestra
+  // generale dei numeri: fuori fascia si rinvia all'inizio della prossima.
+  const attesaFascia = minutiAllaFascia(romeMinuti(), leggiFasceOrarie(cfg.fasce_orarie));
+  if (attesaFascia > 0) {
+    return { success: false, defer: true, deferMinutes: sparpaglia(attesaFascia), error: `Fuori dalle fasce orarie del passo (${cfg.fasce_orarie})` };
+  }
+
+  // Numero mittente scelto nel passo: parte sempre da lì (niente rotazione).
+  const numeroScelto = typeof cfg.numero_mittente === "string" && /^[0-9a-f-]{36}$/i.test(cfg.numero_mittente)
+    ? cfg.numero_mittente
+    : null;
 
   const res = await sendOpenWaMessage(supabase, {
     contactId: contact.id,
     to: contact.phone,
     text: resolvedText,
     contactTags: contact.tags ?? [],
+    numberId: numeroScelto,
   });
   if (!res.ok) {
     // 409 = esito TRANSIENTE (nessun numero disponibile: cap/warm-up/throttle
-    // esauriti o fuori finestra oraria). Non è un errore vero: chiedi al motore
-    // di rinviare senza consumare i tentativi (back-pressure sul pool).
+    // esauriti, numero scelto scollegato, o fuori finestra oraria). Non è un
+    // errore vero: chiedi al motore di rinviare senza consumare i tentativi
+    // (back-pressure sul pool). Fuori orario si rinvia all'apertura.
     if (res.status === 409) {
-      return { success: false, defer: true, deferMinutes: 60, error: res.error };
+      const minuti = res.motivo === "fuori_orario" && res.riapreTraMinuti ? sparpaglia(res.riapreTraMinuti) : 60;
+      return { success: false, defer: true, deferMinutes: minuti, error: res.error };
     }
     return { success: false, error: res.error ?? "Invio WhatsApp Locale fallito" };
   }
-  return { success: true };
+  return { success: true, output: { action: "send_whatsapp_locale", numero_id: res.numberId ?? null } };
 }
 
 async function executeSendWhatsApp(supabase: any, cfg: Record<string, any>, entityId: string, companyId: string) {

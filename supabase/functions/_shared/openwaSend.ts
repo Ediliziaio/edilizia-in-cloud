@@ -10,7 +10,7 @@
 //  header X-API-Key. Config (base URL + api key) in platform_settings.
 
 import { getPlatformSetting } from "./getPlatformSetting.ts";
-import { fuoriFinestraInvio, parseOraMinuti } from "./openwaFinestraInvio.ts";
+import { fuoriFinestraInvio, minutiAllaRiapertura, parseOraMinuti, type FinestraInvioArgs } from "./openwaFinestraInvio.ts";
 import { applySpintax, applyVariabili } from "./openwaTemplate.ts";
 import { pickOpenWaNumber, weekKeyOf, type OpenWaNumberState } from "./openwaPickNumber.ts";
 import { nomeSaluto } from "./outreach-template.ts";
@@ -46,7 +46,7 @@ export const OWA_PATHS = {
 };
 
 /** Minuti dalla mezzanotte, ora di Roma (per la precisione sui minuti: "7:30"). */
-function romeMinuti(): number {
+export function romeMinuti(): number {
   const parti = new Intl.DateTimeFormat("en-GB", {
     timeZone: "Europe/Rome", hour: "2-digit", minute: "2-digit", hour12: false,
   }).formatToParts(new Date());
@@ -74,18 +74,22 @@ function romeWeekday(): number {
  * pura e testata: qui si leggono solo le impostazioni.
  */
 export async function outsideQuietHours(): Promise<boolean> {
+  return fuoriFinestraInvio(await finestraAdesso());
+}
+
+/** La finestra generale dei numeri, letta dalle impostazioni, all'ora di Roma di adesso. */
+async function finestraAdesso(): Promise<FinestraInvioArgs> {
   const startMinuti = parseOraMinuti(await getPlatformSetting("openwa_quiet_start"), 8 * 60);
   const endMinuti = parseOraMinuti(await getPlatformSetting("openwa_quiet_end"), 21 * 60);
   const weekendAperto = ((await getPlatformSetting("openwa_invia_weekend")) || "false").toLowerCase() === "true";
   const sabatoFinoRaw = (await getPlatformSetting("openwa_sabato_fino")).trim();
   const sabatoFinoMinuti = sabatoFinoRaw ? parseOraMinuti(sabatoFinoRaw, -1) : null;
-
-  return fuoriFinestraInvio({
+  return {
     minutiOra: romeMinuti(),
     weekday: romeWeekday(),
     startMinuti, endMinuti, weekendAperto,
     sabatoFinoMinuti: sabatoFinoMinuti != null && sabatoFinoMinuti >= 0 ? sabatoFinoMinuti : null,
-  });
+  };
 }
 
 /** Ritardo "umano" proporzionale alla lunghezza del testo, con jitter. Cap ~4.5s. */
@@ -200,6 +204,8 @@ export interface SendResult {
   // Perché un 409: fuori orario vale per tutti i numeri, il pool esaurito
   // solo per quelli che servono questo contatto (tag).
   motivo?: "fuori_orario" | "pool_esaurito";
+  /** Solo con motivo "fuori_orario": fra quanti minuti la finestra riapre. */
+  riapreTraMinuti?: number;
 }
 
 /**
@@ -218,8 +224,14 @@ export async function sendOpenWaMessage(admin: Admin, params: SendParams): Promi
   if (!params.to && !params.contactId) return { ok: false, error: "Destinatario mancante.", status: 400 };
 
   // Anti-ban #1: finestra oraria umana (solo per invii automatici).
-  if (!params.bypassQuietHours && await outsideQuietHours()) {
-    return { ok: false, error: "Fuori dall'orario di invio consentito (finestra anti-ban). Riprova nella fascia diurna.", status: 409, motivo: "fuori_orario" };
+  if (!params.bypassQuietHours) {
+    const finestra = await finestraAdesso();
+    if (fuoriFinestraInvio(finestra)) {
+      return {
+        ok: false, error: "Fuori dall'orario di invio consentito (finestra anti-ban). Riprova nella fascia diurna.",
+        status: 409, motivo: "fuori_orario", riapreTraMinuti: minutiAllaRiapertura(finestra),
+      };
+    }
   }
 
   let phone = (params.to ?? "").trim();

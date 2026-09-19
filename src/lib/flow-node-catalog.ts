@@ -29,6 +29,7 @@ export type ConfigFieldType =
   | 'pipeline_select'        // pipeline CRM (marketing_pipelines)
   | 'pipeline_stage_select'  // fase della pipeline scelta (marketing_pipeline_stages)
   | 'order_status_select'    // fase commessa dell'azienda (order_statuses)
+  | 'whatsapp_locale_number_select' // numero WhatsApp Locale della piattaforma (openwa_numbers)
   | 'tag_input'
   | 'json_editor'
   | 'richhtml' // editor email visuale (WYSIWYG) → HTML
@@ -1663,6 +1664,8 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     configSchema: [
       { id: 'numero', label: 'Numero di telefono', type: 'text', required: true, supportsVariables: true, placeholder: '{{contatto.phone}}' },
       { id: 'messaggio', label: 'Testo messaggio', type: 'textarea', required: true, supportsVariables: true, placeholder: "Ciao {{contatto.first_name}}, ..." },
+      { id: 'numero_mittente', label: 'Numero che scrive', type: 'whatsapp_locale_number_select', required: false, helpText: 'Vuoto = sceglie il sistema tra i numeri liberi, con i limiti anti-blocco. Scelto = parte sempre da quel numero, e le risposte arrivano lì.' },
+      { id: 'fasce_orarie', label: 'Fasce orarie', type: 'text', required: false, placeholder: '8-12, 14-20', helpText: "Fuori fascia il messaggio aspetta la prossima apertura. Vale sempre anche la finestra generale dei numeri (Impostazioni → WhatsApp Locale)." },
     ],
   },
   {

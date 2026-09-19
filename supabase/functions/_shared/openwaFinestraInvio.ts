@@ -54,3 +54,62 @@ export function fuoriFinestraInvio(args: FinestraInvioArgs): boolean {
   }
   return false;
 }
+
+/**
+ * Fra quanti minuti la finestra riapre (0 = è aperta adesso).
+ *
+ * 19/09/2026: il motore delle automazioni rinviava un WhatsApp fuori orario
+ * di un'ora alla volta, con un tetto di 48 rinvii. Un lead arrivato il venerdì
+ * sera (finestra chiusa fino a lunedì mattina, 60 ore) finiva «fallito» la
+ * domenica e il resto della sequenza non partiva più. Ora si rinvia
+ * direttamente all'apertura. Si cammina a passi di 5 minuti per al massimo
+ * 8 giorni: le soglie sono in minuti e un passo più fine non cambia nulla.
+ */
+export function minutiAllaRiapertura(args: FinestraInvioArgs): number {
+  if (!fuoriFinestraInvio(args)) return 0;
+  const PASSO = 5;
+  const LIMITE = 8 * 24 * 60;
+  let minuti = args.minutiOra;
+  let giorno = args.weekday;
+  for (let trascorsi = PASSO; trascorsi <= LIMITE; trascorsi += PASSO) {
+    minuti += PASSO;
+    if (minuti >= 1440) {
+      minuti -= 1440;
+      giorno = giorno === 7 ? 1 : giorno + 1;
+    }
+    if (!fuoriFinestraInvio({ ...args, minutiOra: minuti, weekday: giorno })) return trascorsi;
+  }
+  // Finestra che non apre mai (impostazioni incoerenti): si riprova fra 8 giorni.
+  return LIMITE;
+}
+
+/** Una fascia oraria in minuti dalla mezzanotte: [da, a). */
+export interface FasciaOraria {
+  da: number;
+  a: number;
+}
+
+/**
+ * Le fasce orarie di un singolo passo di automazione, scritte come le scrive
+ * una persona: "8-12, 14-20" oppure "8:30-12:00; 14-19:30". Pezzi illeggibili
+ * si scartano; vuoto = nessun vincolo oltre alla finestra generale dei numeri.
+ */
+export function leggiFasceOrarie(testo: string | null | undefined): FasciaOraria[] {
+  const fasce: FasciaOraria[] = [];
+  for (const pezzo of String(testo ?? "").split(/[,;]/)) {
+    const m = /^\s*(\d{1,2}(?::\d{1,2})?)\s*[-–]\s*(\d{1,2}(?::\d{1,2})?)\s*$/.exec(pezzo);
+    if (!m) continue;
+    const da = parseOraMinuti(m[1], -1);
+    const a = parseOraMinuti(m[2], -1);
+    if (da >= 0 && a > da) fasce.push({ da, a });
+  }
+  return fasce.sort((x, y) => x.da - y.da);
+}
+
+/** Minuti all'inizio della prossima fascia (0 = dentro una fascia, o nessuna fascia). */
+export function minutiAllaFascia(minutiOra: number, fasce: FasciaOraria[]): number {
+  if (fasce.length === 0) return 0;
+  if (fasce.some((f) => minutiOra >= f.da && minutiOra < f.a)) return 0;
+  const prossima = fasce.find((f) => f.da > minutiOra);
+  return prossima ? prossima.da - minutiOra : 1440 - minutiOra + fasce[0].da;
+}
