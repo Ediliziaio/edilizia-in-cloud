@@ -127,6 +127,7 @@ export default function SettingsNotifiche() {
         .select("id, name, status, bulk_trigger_config")
         .eq("company_id", effectiveCompany!.id)
         .not("bulk_trigger_config", "is", null)
+        .is("deleted_at", null)
         .order("updated_at", { ascending: false })
         .limit(20);
       return (data ?? []) as CompanyBulkFlow[];
@@ -151,11 +152,12 @@ export default function SettingsNotifiche() {
 
   const deleteFlowMut = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("automation_flows").delete().eq("id", id);
+      // Nel cestino delle automazioni, come «Elimina» nella lista.
+      const { error } = await supabase.from("automation_flows").update({ deleted_at: new Date().toISOString() }).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Messaggio programmato eliminato");
+      toast.success("Messaggio programmato spostato nel cestino", { description: "Si ripristina da Automazioni → Cestino." });
       void qc.invalidateQueries({ queryKey: ["settings-notifiche-bulk-flows"] });
     },
     onError: (e: Error) => toast.error("Errore", { description: e.message }),

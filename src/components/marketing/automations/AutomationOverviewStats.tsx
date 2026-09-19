@@ -42,7 +42,7 @@ export function AutomationOverviewStats({ companyId, onErrorClick, onActiveClick
         logs7dSuccess,
         errors24h,
       ] = await Promise.all([
-        supabase.from("automation_flows").select("id", { count: "exact", head: true }).eq("company_id", companyId),
+        supabase.from("automation_flows").select("id", { count: "exact", head: true }).eq("company_id", companyId).is("deleted_at", null),
         supabase.from("automation_flows").select("id", { count: "exact", head: true }).eq("company_id", companyId).eq("status", "published"),
         supabase.from("automation_enrollments").select("id", { count: "exact", head: true }).eq("company_id", companyId).eq("status", "active"),
         supabase.from("automation_execution_log").select("id", { count: "exact", head: true }).eq("company_id", companyId).gte("created_at", day1Iso),

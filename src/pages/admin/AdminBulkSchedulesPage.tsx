@@ -89,6 +89,7 @@ export default function AdminBulkSchedulesPage() {
         .from("automation_flows")
         .select("id, name, description, status, company_id, created_at, updated_at, bulk_trigger_config")
         .not("bulk_trigger_config", "is", null)
+        .is("deleted_at", null)
         .order("updated_at", { ascending: false });
       if (filterCompany !== "all") q = q.eq("company_id", filterCompany);
       if (filterStatus !== "all") q = q.eq("status", filterStatus);
@@ -158,11 +159,12 @@ export default function AdminBulkSchedulesPage() {
 
   const deleteMut = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("automation_flows").delete().eq("id", id);
+      // Nel cestino delle automazioni, come «Elimina» nella lista.
+      const { error } = await supabase.from("automation_flows").update({ deleted_at: new Date().toISOString() }).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Messaggio programmato eliminato");
+      toast.success("Messaggio programmato spostato nel cestino", { description: "Si ripristina da Automazioni → Cestino." });
       void qc.invalidateQueries({ queryKey: ["admin-bulk-flows"] });
     },
     onError: (e: Error) => toast.error("Errore", { description: e.message }),

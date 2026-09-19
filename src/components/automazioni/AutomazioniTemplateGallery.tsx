@@ -153,9 +153,9 @@ export function AutomazioniTemplateGallery({ categoriaFiltro }: Props) {
       // Rollback best-effort della bozza orfana (nodi/connessioni inclusi).
       if (createdFlowId) {
         try {
-          await supabase.from("automation_connections").delete().eq("flow_id", createdFlowId);
-          await supabase.from("automation_nodes").delete().eq("flow_id", createdFlowId);
-          await supabase.from("automation_flows").delete().eq("id", createdFlowId);
+          // Creazione a metà: si toglie davvero (nodi e collegamenti vanno
+          // via a cascata). Una DELETE semplice ora finirebbe nel cestino.
+          await supabase.rpc("automazione_elimina_definitivamente", { p_flow_id: createdFlowId });
         } catch {
           /* best-effort: se anche il cleanup fallisce, resta la bozza ma l'utente è avvisato dall'errore */
         }

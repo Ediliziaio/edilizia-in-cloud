@@ -33,6 +33,7 @@ import { Fragment, useEffect, useState, useMemo, type ReactNode } from "react";
 import type { AutomationFlow } from "@/types/automationBuilder";
 
 import { ConfermaQuantita, useConfermaQuantita } from "@/components/shared/ConfermaQuantita";
+import { AutomazioniCestinoDialog } from "./AutomazioniCestinoDialog";
 type AutomationNodeRow = {
   flow_id?: string;
   node_type: string;
@@ -149,6 +150,7 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
   const [deleteFolderId, setDeleteFolderId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [cestinoOpen, setCestinoOpen] = useState(false);
   const confermaBulk = useConfermaQuantita(selectedIds.size, bulkDeleteOpen);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -202,6 +204,8 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
         // publish-guard dei flussi bulk (0 nodi by-design).
         .select("id, name, description, status, folder_id, company_id, created_at, updated_at, created_by, category, config_json, bulk_trigger_config")
         .eq("company_id", effectiveCompany!.id)
+        // Quelle nel cestino si vedono solo dal Cestino.
+        .is("deleted_at", null)
         .order("updated_at", { ascending: false });
 
       if (categoryFilter) {
@@ -289,9 +293,11 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
         .eq("id", flowId)
         .eq("company_id", effectiveCompany!.id)
         .maybeSingle();
+      // Nel cestino, non via per sempre (19/09/2026: 20 automazioni cancellate
+      // per sbaglio, senza copia). Il database mette in pausa coda e iscrizioni.
       const { error } = await supabase
         .from("automation_flows")
-        .delete()
+        .update({ deleted_at: new Date().toISOString() })
         .eq("id", flowId)
         .eq("company_id", effectiveCompany!.id);
       if (error) throw error;
@@ -304,7 +310,7 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
     },
     onSuccess: () => {
       invalidateAutomationData();
-      toast({ title: "Automazione eliminata" });
+      toast({ title: "Spostata nel cestino", description: "La ritrovi in Cestino: da lì si ripristina con un clic." });
       setDeleteId(null);
     },
     onError: (err: any) => toast({ title: "Errore", description: err.message, variant: "destructive" }),
@@ -451,7 +457,7 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
     mutationFn: async (ids: string[]) => {
       const { error } = await supabase
         .from("automation_flows")
-        .delete()
+        .update({ deleted_at: new Date().toISOString() })
         .eq("company_id", effectiveCompany!.id)
         .in("id", ids);
       if (error) throw error;
@@ -464,7 +470,7 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
     },
     onSuccess: () => {
       invalidateAutomationData();
-      toast({ title: "Automazioni eliminate" });
+      toast({ title: "Spostate nel cestino", description: "Le ritrovi in Cestino: da lì si ripristinano con un clic." });
       setSelectedIds(new Set());
       setBulkDeleteOpen(false);
     },
@@ -623,9 +629,15 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
         <Zap className="h-12 w-12 mx-auto text-muted-foreground/40 mb-4" />
         <h3 className="text-lg font-medium mb-1">Nessuna automazione</h3>
         <p className="text-sm text-muted-foreground mb-4">Crea la tua prima automazione visuale.</p>
-        <Button onClick={() => navigate(`${routePrefix}/automazioni/nuova`)}>
-          <Plus className="h-4 w-4 mr-2" /> Crea Automazione
-        </Button>
+        <div className="flex items-center justify-center gap-2">
+          <Button onClick={() => navigate(`${routePrefix}/automazioni/nuova`)}>
+            <Plus className="h-4 w-4 mr-2" /> Crea Automazione
+          </Button>
+          <Button variant="outline" onClick={() => setCestinoOpen(true)}>
+            <Trash2 className="h-4 w-4 mr-2" /> Cestino
+          </Button>
+        </div>
+        <AutomazioniCestinoDialog open={cestinoOpen} onOpenChange={setCestinoOpen} companyId={effectiveCompany?.id} />
       </div>
     );
   }
@@ -798,6 +810,10 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
           })}
         </div>
 
+        <div className="flex items-center gap-2">
+        <Button variant="ghost" size="sm" className="h-8 text-xs text-muted-foreground" onClick={() => setCestinoOpen(true)}>
+          <Trash2 className="h-3.5 w-3.5 mr-1.5" /> Cestino
+        </Button>
         {/* View toggle */}
         <div className="flex items-center border rounded-md overflow-hidden">
           <button
@@ -812,6 +828,7 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
           >
             <Grid3X3 className="h-4 w-4" />
           </button>
+        </div>
         </div>
       </div>
 
@@ -955,11 +972,12 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
       )}
 
       {/* Dialogs */}
+      <AutomazioniCestinoDialog open={cestinoOpen} onOpenChange={setCestinoOpen} companyId={effectiveCompany?.id} />
       <AlertDialog open={!!deleteId} onOpenChange={o => !o && setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Elimina automazione</AlertDialogTitle>
-            <AlertDialogDescription>Questa azione è irreversibile. Tutti i nodi e le connessioni verranno eliminati.</AlertDialogDescription>
+            <AlertDialogDescription>Finisce nel cestino e si ferma. Da lì si ripristina com'era, passaggi e contatti compresi.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Annulla</AlertDialogCancel>
@@ -987,7 +1005,7 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Elimina {selectedIds.size} automazion{selectedIds.size === 1 ? "e" : "i"}</AlertDialogTitle>
-            <AlertDialogDescription>Questa azione è irreversibile.</AlertDialogDescription>
+            <AlertDialogDescription>Finiscono nel cestino e si fermano. Da lì si ripristinano com'erano.</AlertDialogDescription>
           </AlertDialogHeader>
           <ConfermaQuantita stato={confermaBulk} cosa="automazioni" />
           <AlertDialogFooter>

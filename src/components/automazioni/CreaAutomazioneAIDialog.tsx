@@ -194,9 +194,9 @@ export function CreaAutomazioneAIDialog({ open, onOpenChange }: Props) {
       console.error("[CreaAutomazioneAIDialog]", err);
       if (createdFlowId) {
         try {
-          await supabase.from("automation_connections").delete().eq("flow_id", createdFlowId);
-          await supabase.from("automation_nodes").delete().eq("flow_id", createdFlowId);
-          await supabase.from("automation_flows").delete().eq("id", createdFlowId);
+          // Creazione a metà: si toglie davvero (nodi e collegamenti vanno
+          // via a cascata). Una DELETE semplice ora finirebbe nel cestino.
+          await supabase.rpc("automazione_elimina_definitivamente", { p_flow_id: createdFlowId });
         } catch { /* best-effort */ }
       }
       // Il messaggio dell'edge function (es. carta mancante, descrizione vaga)

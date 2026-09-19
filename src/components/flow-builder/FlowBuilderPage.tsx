@@ -943,9 +943,9 @@ export function FlowBuilderPage() {
     // If flow was auto-created but user never added any persisted nodes, delete it silently.
     if (flowId && !hasPersistedNodes) {
       try {
-        let deleteQuery = supabase.from("automation_flows").delete().eq("id", flowId);
-        if (effectiveCompany?.id) deleteQuery = deleteQuery.eq("company_id", effectiveCompany.id);
-        await deleteQuery;
+        // Definitiva, non cestino: è la bozza vuota che l'editor ha creato da
+        // solo aprendo «Nuova automazione». Nel cestino sarebbe solo rumore.
+        await supabase.rpc("automazione_elimina_definitivamente", { p_flow_id: flowId });
       } catch { /* silently ignore */ }
     }
     navigate(backUrl);

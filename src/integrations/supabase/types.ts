@@ -11969,6 +11969,8 @@ export type Database = {
           config_json: Json
           created_at: string
           created_by: string
+          deleted_at: string | null
+          deleted_by: string | null
           description: string | null
           folder_id: string | null
           id: string
@@ -11977,6 +11979,7 @@ export type Database = {
           note_color: string | null
           sender_email: string | null
           sender_name: string | null
+          stato_prima_eliminazione: string | null
           status: string
           stop_on_reply: boolean
           time_window_active: boolean | null
@@ -11996,6 +11999,8 @@ export type Database = {
           config_json?: Json
           created_at?: string
           created_by: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           description?: string | null
           folder_id?: string | null
           id?: string
@@ -12004,6 +12009,7 @@ export type Database = {
           note_color?: string | null
           sender_email?: string | null
           sender_name?: string | null
+          stato_prima_eliminazione?: string | null
           status?: string
           stop_on_reply?: boolean
           time_window_active?: boolean | null
@@ -12023,6 +12029,8 @@ export type Database = {
           config_json?: Json
           created_at?: string
           created_by?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           description?: string | null
           folder_id?: string | null
           id?: string
@@ -12031,6 +12039,7 @@ export type Database = {
           note_color?: string | null
           sender_email?: string | null
           sender_name?: string | null
+          stato_prima_eliminazione?: string | null
           status?: string
           stop_on_reply?: boolean
           time_window_active?: boolean | null
@@ -99128,6 +99137,10 @@ export type Database = {
       automation_assign_next: {
         Args: { p_flow_id: string; p_n: number; p_node_id: string }
         Returns: number
+      }
+      automazione_elimina_definitivamente: {
+        Args: { p_flow_id: string }
+        Returns: boolean
       }
       azienda_ancora_esiste: {
         Args: { p_company_id: string }
