@@ -63,7 +63,7 @@ async function daPdf(file: File): Promise<Blob | null> {
     await pagina.render({ canvasContext: ctx, viewport, canvas }).promise;
     return canvasInJpeg(canvas);
   } finally {
-    void doc.destroy();
+    void doc.loadingTask.destroy();
   }
 }
 

@@ -58,7 +58,7 @@ export async function extractDurcExpiryFromPdf(file: Blob): Promise<string | nul
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       text += " " + content.items.map((it: any) => (typeof it?.str === "string" ? it.str : "")).join(" ");
     }
-    try { await pdf.destroy(); } catch { /* noop */ }
+    try { await pdf.loadingTask.destroy(); } catch { /* noop */ }
     return parseDurcExpiry(text);
   } catch {
     return null;

@@ -47,19 +47,19 @@ export async function riduciPdfScansionato(file: File): Promise<EsitoRiduzione> 
     const lib = await pdfjs();
     const byte = new Uint8Array(await file.arrayBuffer());
     const doc = await lib.getDocument({ data: byte.slice() }).promise;
-    if (doc.numPages > MAX_PAGINE) { void doc.destroy(); return originale; }
+    if (doc.numPages > MAX_PAGINE) { void doc.loadingTask.destroy(); return originale; }
 
     const { PDFDocument } = await import("pdf-lib");
     const nuovo = await PDFDocument.create();
     const inizio = performance.now();
 
     for (let i = 1; i <= doc.numPages; i++) {
-      if (performance.now() - inizio > TEMPO_MAX_MS) { void doc.destroy(); return originale; }
+      if (performance.now() - inizio > TEMPO_MAX_MS) { void doc.loadingTask.destroy(); return originale; }
       const pagina = await doc.getPage(i);
       // Testo selezionabile = PDF generato da un programma: non si tocca.
       const testo = await pagina.getTextContent();
       const caratteri = testo.items.reduce((t, it) => t + ("str" in it ? it.str.trim().length : 0), 0);
-      if (caratteri > 40) { void doc.destroy(); return originale; }
+      if (caratteri > 40) { void doc.loadingTask.destroy(); return originale; }
 
       const base = pagina.getViewport({ scale: 1 });
       const viewport = pagina.getViewport({ scale: scalaRender(base.width, base.height) });
@@ -67,18 +67,18 @@ export async function riduciPdfScansionato(file: File): Promise<EsitoRiduzione> 
       canvas.width = Math.ceil(viewport.width);
       canvas.height = Math.ceil(viewport.height);
       const ctx = canvas.getContext("2d");
-      if (!ctx) { void doc.destroy(); return originale; }
+      if (!ctx) { void doc.loadingTask.destroy(); return originale; }
       ctx.fillStyle = "#ffffff";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       await pagina.render({ canvasContext: ctx, viewport, canvas }).promise;
       const jpeg = await new Promise<Blob | null>((ok) => canvas.toBlob(ok, "image/jpeg", QUALITA));
-      if (!jpeg) { void doc.destroy(); return originale; }
+      if (!jpeg) { void doc.loadingTask.destroy(); return originale; }
       const immagine = await nuovo.embedJpg(new Uint8Array(await jpeg.arrayBuffer()));
       const p = nuovo.addPage([base.width, base.height]);
       p.drawImage(immagine, { x: 0, y: 0, width: base.width, height: base.height });
       canvas.width = 0; canvas.height = 0; // libera la memoria subito
     }
-    void doc.destroy();
+    void doc.loadingTask.destroy();
 
     const risultato = await nuovo.save();
     if (risultato.byteLength > file.size * 0.7) return originale;

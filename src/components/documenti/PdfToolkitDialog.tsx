@@ -94,7 +94,7 @@ async function renderPdfThumbs(bytes: Uint8Array): Promise<{ thumbs: string[]; r
     thumbs.push(canvas.toDataURL("image/jpeg", 0.72));
     rotates.push(page.rotate ?? 0);
   }
-  void pdf.destroy();
+  void pdf.loadingTask.destroy();
   return { thumbs, rotates };
 }
 
@@ -112,7 +112,7 @@ async function renderPageBig(bytes: Uint8Array, pageIndex: number): Promise<{ ur
   const ctx = canvas.getContext("2d")!;
   await page.render({ canvasContext: ctx, viewport, canvas }).promise;
   const url = canvas.toDataURL("image/jpeg", 0.85);
-  void pdf.destroy();
+  void pdf.loadingTask.destroy();
   return { url, w: canvas.width, h: canvas.height, scale };
 }
 
@@ -653,7 +653,7 @@ export function PdfToolkitDialog({ open, onOpenChange }: Props) {
         outPage.drawImage(jpg, { x: 0, y: 0, width: base.width, height: base.height });
       }
       const numPages = pdf.numPages;
-      void pdf.destroy();
+      void pdf.loadingTask.destroy();
       const bytes = await out.save();
       if (bytes.byteLength >= cmpFile.bytes.byteLength) {
         toast.info("Il PDF è già ben ottimizzato", {
