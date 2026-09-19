@@ -13,11 +13,15 @@
 // - Dedup idempotente su (company_id, provider, event_id): rilanciare non duplica.
 // - Scopre i form da Meta (/{page}/leadgen_forms), non solo quelli registrati nel
 //   wizard: una campagna nuova con un modulo mai configurato è comunque coperta.
-// - Auth: header x-cron-secret (CRON_SECRET) oppure Bearer JWT.
+// - Auth: header x-cron-secret (CRON_SECRET) oppure la chiave di servizio.
 // - Body opzionale: { company_id?: string, days?: number } per un backfill mirato.
+// - Recupero esplicito di UN modulo da una data (19/09/2026):
+//   { company_id, form_id, da: "AAAA-MM-GG" } — lo stesso «Importa lead → Da
+//   una data» del pannello, vale anche prima del collegamento del modulo.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 import { serveConMetriche } from "../_shared/withMetrics.ts";
+import { dataInSecondi, inizioFinestra } from "../_shared/metaFinestraRecupero.ts";
 const apiVersion = Deno.env.get("META_API_VERSION") || "v21.0";
 
 const cors = {
@@ -64,6 +68,8 @@ async function backfillPage(
   pageToken: string,
   days: number,
   ignoraSegnalibro = false,
+  soloModulo: string | null = null,
+  daEsplicita: number | null = null,
 ): Promise<number> {
   const sinceTs = Math.floor((Date.now() - days * 24 * 60 * 60 * 1000) / 1000);
 
@@ -117,6 +123,8 @@ async function backfillPage(
 
   let imported = 0;
   for (const formId of formIds) {
+    // Recupero esplicito di un modulo solo: gli altri della pagina non si toccano.
+    if (soloModulo && formId !== soloModulo) continue;
     const cfg = settingsByForm.get(formId);
 
     // Modulo disattivato esplicitamente → non si importa.
@@ -131,25 +139,13 @@ async function backfillPage(
     }
 
     // Limite temporale: il piu' RECENTE fra finestra di default, since_date
-    // (quando l'utente ha chiesto "solo i nuovi") e ultimo pull riuscito.
-    let effectiveSince = sinceTs;
-    if (cfg) {
-      if (cfg.sync_mode === "new_only" && cfg.since_date) {
-        effectiveSince = Math.max(effectiveSince, Math.floor(new Date(cfg.since_date).getTime() / 1000));
-      }
-      // MAI prima di quando il modulo è stato collegato. Chi collega Meta oggi
-      // non si aspetta di trovarsi dentro i lead del mese scorso: sono
-      // richieste che nessuno ha mai lavorato e che nessuno sta aspettando.
-      // Vale anche per i moduli già attivi con "solo i nuovi" ma senza
-      // since_date — cioè tutti quelli collegati finora, per i quali quel
-      // «solo i nuovi» non stava filtrando nulla.
-      if (cfg.created_at) {
-        effectiveSince = Math.max(effectiveSince, Math.floor(new Date(cfg.created_at).getTime() / 1000));
-      }
-      if (cfg.last_pull_at && !ignoraSegnalibro) {
-        effectiveSince = Math.max(effectiveSince, Math.floor(new Date(cfg.last_pull_at).getTime() / 1000));
-      }
-    }
+    // (quando l'utente ha chiesto "solo i nuovi"), collegamento del modulo e
+    // ultimo pull riuscito. MAI prima di quando il modulo è stato collegato:
+    // chi collega Meta oggi non si aspetta di trovarsi dentro i lead del mese
+    // scorso. L'eccezione è il recupero esplicito di un modulo da una data,
+    // che vale come l'«Importa lead» del pannello. Regole in
+    // _shared/metaFinestraRecupero.ts.
+    const effectiveSince = inizioFinestra({ sinceTs, cfg, ignoraSegnalibro, daEsplicita });
 
     let nextUrl: string | null =
       `https://graph.facebook.com/${apiVersion}/${formId}/leads` +
@@ -225,7 +221,13 @@ serveConMetriche("meta-leads-backfill", async (req) => {
   const cronSecret = Deno.env.get("CRON_SECRET");
   const reqSecret = req.headers.get("x-cron-secret");
   const authHeader = req.headers.get("Authorization");
-  const authorized = (cronSecret && reqSecret === cronSecret) || authHeader?.startsWith("Bearer ");
+  // Prima bastava un «Bearer» qualsiasi (la funzione è verify_jwt=false):
+  // chiunque conoscesse l'URL poteva lanciare un recupero storico sul CRM di
+  // un'azienda. L'unico chiamante è il cron: segreto del cron, o la chiave di
+  // servizio per un giro lanciato dal server (19/09/2026).
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  const bearer = (authHeader ?? "").replace(/^Bearer\s+/i, "");
+  const authorized = (!!cronSecret && reqSecret === cronSecret) || (!!serviceKey && bearer === serviceKey);
   if (!authorized) return json({ error: "Unauthorized" }, 401);
 
   try {
@@ -239,18 +241,31 @@ serveConMetriche("meta-leads-backfill", async (req) => {
     const daysRaw = (body as { days?: number })?.days;
     const giorniChiesti = Number.isFinite(Number(daysRaw)) && Number(daysRaw) > 0 ? Number(daysRaw) : null;
     const days = giorniChiesti ?? 2;
-    // Chi passa "days" sta chiedendo di tornare indietro nel tempo: il
-    // segnalibro last_pull_at (aggiornato a ogni giro del cron, quindi sempre
-    // «pochi minuti fa») va ignorato, altrimenti la finestra richiesta veniva
-    // schiacciata sull'ultimo giro e lo storico non rientrava mai.
-    const ignoraSegnalibro = giorniChiesti !== null;
+    // Recupero esplicito di UN modulo da una data (come «Importa lead → Da una
+    // data» del pannello): { company_id, form_id, da: "AAAA-MM-GG" }.
+    const soloModulo = typeof (body as { form_id?: unknown })?.form_id === "string"
+      ? String((body as { form_id: string }).form_id).trim() || null
+      : null;
+    const daRaw = (body as { da?: unknown })?.da;
+    const daEsplicita = dataInSecondi(daRaw);
+    if (daRaw !== undefined && daEsplicita === null) {
+      return json({ error: "«da» dev'essere una data AAAA-MM-GG" }, 400);
+    }
+    if (daEsplicita !== null && !soloModulo) {
+      return json({ error: "Il recupero da una data vale per un modulo solo: serve form_id" }, 400);
+    }
+    // Chi passa "days" (o una data) sta chiedendo di tornare indietro nel
+    // tempo: il segnalibro last_pull_at (aggiornato a ogni giro del cron,
+    // quindi sempre «pochi minuti fa») va ignorato, altrimenti la finestra
+    // richiesta veniva schiacciata sull'ultimo giro e lo storico non rientrava mai.
+    const ignoraSegnalibro = giorniChiesti !== null || daEsplicita !== null;
 
     // Una finestra storica vale per UN cliente per volta. Il 12/09/2026 un
     // recupero con "days" senza azienda ha ripescato l'arretrato di tutti i
     // clienti Meta insieme: tre aziende, ~90 lead a testa riversati nel CRM in
     // un quarto d'ora. Il giro automatico (senza "days") continua a passare su
     // tutti: guarda solo le ultime ore e rispetta il segnalibro.
-    if (giorniChiesti !== null && !onlyCompany) {
+    if ((giorniChiesti !== null || soloModulo) && !onlyCompany) {
       return new Response(
         JSON.stringify({
           error: "Per recuperare lo storico serve company_id: una finestra di giorni vale per un cliente per volta, " +
@@ -300,7 +315,7 @@ serveConMetriche("meta-leads-backfill", async (req) => {
             console.warn(`meta-leads-backfill: token pagina ${page.asset_id} non decifrabile`);
             continue;
           }
-          const imported = await backfillPage(admin, integ, page.asset_id, page.id, pageToken, days, ignoraSegnalibro);
+          const imported = await backfillPage(admin, integ, page.asset_id, page.id, pageToken, days, ignoraSegnalibro, soloModulo, daEsplicita);
           out.push({ company_id: integ.company_id, page_id: page.asset_id, imported });
         }
       } catch (e) {
