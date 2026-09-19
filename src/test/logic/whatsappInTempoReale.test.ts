@@ -52,12 +52,13 @@ describe("WhatsApp Locale nelle automazioni", () => {
 describe("un passo rinviato non è un errore", () => {
   it("nel registro va come «skipped»", () => {
     expect(motore).toMatch(/const rinviato = !result\.success && result\.defer && deferCount <= 48;/);
-    expect(motore).toMatch(/status: result\.success \? "success" : rinviato \? "skipped" : "error",/);
+    // Dal 19/09 va come «skipped» anche chi esce perché si è tolto dalla lista.
+    expect(motore).toMatch(/status: result\.success \? "success" : rinviato \|\| result\.fermaIscrizione \? "skipped" : "error",/);
   });
 
   it("il conteggio dei rinvii si fa prima del registro, una volta sola", () => {
     const conteggio = motore.indexOf("const deferCount = (ctx._defer_count || 0) + 1;");
-    const registro = motore.indexOf('status: result.success ? "success" : rinviato ? "skipped" : "error",');
+    const registro = motore.indexOf('status: result.success ? "success" : rinviato || result.fermaIscrizione ? "skipped" : "error",');
     expect(conteggio).toBeGreaterThan(0);
     expect(conteggio).toBeLessThan(registro);
     expect(motore.match(/const deferCount =/g)).toHaveLength(1);

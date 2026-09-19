@@ -22,6 +22,7 @@ import { appendTrackingSig } from "../_shared/emailTrackingSignature.ts";
 import { arcoDelRamo, inizioGiornoRoma, leggiPercentuali, letteraRamo, modalitaSplit, ramoEquilibrato, ramoPerNumero } from "../_shared/splitRami.ts";
 import { nomeOpportunitaPulito, personeDaAvvisare, tagsUniti, testoNotaAggiornamento } from "../_shared/creaAggiornaOpportunita.ts";
 import { conLinkCliccabili, fusoDelFlusso, invioEmailDaRimandare, MINUTI_RINVIO_EMAIL, numeroWhatsApp, schedaAndataAvanti, senzaSpazioPrimaDellaVirgola } from "../_shared/sequenzaContatto.ts";
+import { mittenteDelPasso } from "../_shared/mittenteAutomazione.ts";
 import { isInternalRequest, isSuperAdminEmailAllowed, requireAuth, requireCompanyAccess, requireInternalSecret, resolveUserEmail } from "../_shared/auth.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import {
@@ -2442,7 +2443,7 @@ Istruzione: ${aiPrompt}`;
           if (subjectMatch) subject = subjectMatch[1].trim();
           if (bodyMatch) body = bodyMatch[1].trim();
 
-          return await executeSendEmail(supabase, { ...ncfg, email_subject: subject, email_body: body }, entityId, companyId);
+          return await executeSendEmail(supabase, { ...ncfg, email_subject: subject, email_body: body }, entityId, companyId, undefined, queueItem?.flow_id);
         } else if (aiChannel === "whatsapp") {
           return await executeSendWhatsApp(supabase, { ...ncfg, whatsapp_body: generatedText }, entityId, companyId);
         } else if (aiChannel === "sms") {
@@ -3543,7 +3544,31 @@ async function processWaitingTimeouts(supabase: any) {
 // ────────────────────────────────────────────────────
 // SEND EMAIL (real provider integration)
 // ────────────────────────────────────────────────────
-async function executeSendEmail(supabase: any, cfg: Record<string, any>, entityId: string, companyId: string, queueItem?: any) {
+/**
+ * Mittente scelto nelle Impostazioni dell'automazione (sender_name,
+ * sender_email): letto al massimo una volta al minuto per flusso, non a ogni
+ * email. Un errore di lettura non ferma l'invio: si usa l'ultimo valore noto.
+ */
+const mittentiDeiFlussi = new Map<string, { valore: { sender_name: string | null; sender_email: string | null } | null; letto: number }>();
+
+async function mittenteDelFlusso(supabase: any, flowId: unknown, companyId: string) {
+  if (typeof flowId !== "string" || !UUID_RE.test(flowId)) return null;
+  const inCache = mittentiDeiFlussi.get(flowId);
+  if (inCache && Date.now() - inCache.letto < 60_000) return inCache.valore;
+  const { data, error } = await supabase
+    .from("automation_flows")
+    .select("sender_name, sender_email")
+    .eq("id", flowId)
+    .eq("company_id", companyId)
+    .maybeSingle();
+  if (error) return inCache?.valore ?? null;
+  const valore = data ? { sender_name: data.sender_name ?? null, sender_email: data.sender_email ?? null } : null;
+  if (mittentiDeiFlussi.size > 500) mittentiDeiFlussi.clear();
+  mittentiDeiFlussi.set(flowId, { valore, letto: Date.now() });
+  return valore;
+}
+
+async function executeSendEmail(supabase: any, cfg: Record<string, any>, entityId: string, companyId: string, queueItem?: any, idFlusso: unknown = queueItem?.flow_id) {
   try {
     // Automazione su una COMMESSA (benvenuto, fattura, data di posa, saldo):
     // l'entità è l'ordine, non un contatto marketing. Prima si cercava l'id
@@ -3685,6 +3710,10 @@ async function executeSendEmail(supabase: any, cfg: Record<string, any>, entityI
       }
     }
 
+    // Mittente: prima il passo, poi le Impostazioni dell'automazione, campo per
+    // campo (vedi _shared/mittenteAutomazione.ts). Tutto vuoto = come prima.
+    const mittente = mittenteDelPasso(cfg, await mittenteDelFlusso(supabase, idFlusso, companyId));
+
     if (casellaId) {
       // Anche dalla casella collegata, un'email a un contatto deve poter dire
       // «esci qui»: prima {{unsubscribe_url}} restava scritto così nel testo
@@ -3702,9 +3731,10 @@ async function executeSendEmail(supabase: any, cfg: Record<string, any>, entityI
         cc: listaEmail(conVariabili(String(cfg.cc ?? ""))),
         fattura,
         orderId: commessa ? entityId : null,
-        // «Da nome» del nodo: senza, il nome è quello del profilo di chi ha
-        // collegato la casella (e «flo.andriciuc Admin» non passava il filtro).
-        fromName: typeof cfg.from_name === "string" ? cfg.from_name : null,
+        // «Da nome» del nodo (o delle Impostazioni): senza, il nome è quello
+        // del profilo di chi ha collegato la casella (e «flo.andriciuc Admin»
+        // non passava il filtro). L'indirizzo resta quello della casella.
+        fromName: mittente.nome,
       });
     }
 
@@ -3735,20 +3765,22 @@ async function executeSendEmail(supabase: any, cfg: Record<string, any>, entityI
       html = html.replace(/\{\{unsubscribe_url\}\}/g, automationUnsubUrl);
     }
 
-    const resolvedSender = cfg.from_email
+    const safeFromName = sanitizeFromName(mittente.nome);
+    // Solo il nome, senza indirizzo: va sull'indirizzo dell'azienda (prima il
+    // nome veniva scartato e restava quello dell'azienda).
+    const resolvedSender = mittente.email
       ? null
-      : await resolveSender(companyId, stream, supabase).catch(() => null);
+      : await resolveSender(companyId, stream, supabase, { nome: safeFromName }).catch(() => null);
     // Reply GHL-style: Reply-To = indirizzo unico del contatto (attivo solo se
     // email_reply_domain è configurato) → la risposta rientra nel CRM in
     // tempo reale via edge email-inbound-reply, senza caselle collegate.
     // Il cliente di una commessa non è un contatto CRM: risponde all'azienda.
     const routeReplyTo = commessa ? null : await getReplyAddress(supabase, companyId, contact.id);
-    const safeFromName = sanitizeFromName(cfg.from_name);
-    const fromAddress = cfg.from_email
-      ? safeFromName ? `${safeFromName} <${cfg.from_email}>` : cfg.from_email
+    const fromAddress = mittente.email
+      ? safeFromName ? `${safeFromName} <${mittente.email}>` : mittente.email
       : resolvedSender?.from ?? settings.fromDefault;
-    const providerDomain = cfg.from_email?.includes("@")
-      ? cfg.from_email.split("@").pop() ?? null
+    const providerDomain = mittente.email
+      ? mittente.email.split("@").pop() ?? null
       : resolvedSender?.domain ?? settings.domain ?? null;
 
     // Deduct 1 credit for marketing emails (1 credit = cost per email from platform_settings)

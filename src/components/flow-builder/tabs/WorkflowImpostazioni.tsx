@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { indirizzoMittenteValido } from "../../../../supabase/functions/_shared/mittenteAutomazione";
 
 interface Props {
   flowId?: string;
@@ -225,6 +226,15 @@ export function WorkflowImpostazioni({ flowId }: Props) {
                 className="h-9"
               />
             </div>
+            {String(get("sender_email", "")).trim() && !indirizzoMittenteValido(get("sender_email", "")) ? (
+              <p className="text-[11px] font-medium text-destructive">
+                Indirizzo non valido: le email partiranno dall'indirizzo dell'azienda.
+              </p>
+            ) : (
+              <p className="text-[11px] text-muted-foreground">
+                Vale per le email che non hanno un mittente sul passo. Con il solo nome, partono dall'indirizzo dell'azienda con questo nome.
+              </p>
+            )}
           </div>
         </div>
       </section>

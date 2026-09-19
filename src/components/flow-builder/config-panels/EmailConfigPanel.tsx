@@ -11,6 +11,7 @@ import { EvidenzaObbligatoria, campoVuoto } from "./EvidenzaObbligatoria";
 import { EmailBodyEditor, type EmailVariable } from "./EmailBodyEditor";
 import { EmailPreviewActions } from "./EmailPreviewActions";
 import { useModelliEmail } from "@/hooks/useModelliEmail";
+import { indirizzoMittenteValido } from "../../../../supabase/functions/_shared/mittenteAutomazione";
 
 /** Variabili lato azienda (contatto/opportunità) per il corpo email. */
 const COMPANY_EMAIL_VARIABLES: EmailVariable[] = [
@@ -197,6 +198,13 @@ export const EmailConfigPanel = forwardRef<HTMLDivElement, EmailConfigPanelProps
           placeholder="email@azienda.it"
           className="h-8 text-xs"
         />
+        {config.da_email?.trim() && !indirizzoMittenteValido(config.da_email) ? (
+          <p className="text-[11px] font-medium text-destructive">Indirizzo non valido: non verrà usato.</p>
+        ) : (
+          <p className="text-[11px] text-muted-foreground">
+            Vuoto: vale il mittente nelle Impostazioni dell'automazione, se c'è, altrimenti quello dell'azienda.
+          </p>
+        )}
       </div>
       )}
 

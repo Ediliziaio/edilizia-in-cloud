@@ -44,7 +44,14 @@ export async function resolveSender(
   companyId: string | null,
   stream: EmailStream,
   adminClient?: SupabaseClient,
+  opzioni?: { nome?: string | null },
 ): Promise<ResolvedSender> {
+  // Nome scelto da chi invia (il mittente di un'automazione, 19/09/2026):
+  // prende il posto di quello dell'azienda ma passa dalle stesse regole,
+  // compreso il «via EdiliziaInCloud» quando l'indirizzo è di piattaforma.
+  // Deve arrivare già pronto per l'intestazione (sanitizeFromName).
+  const nomeScelto = opzioni?.nome?.trim() || undefined;
+
   const admin = adminClient ?? createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
@@ -96,7 +103,7 @@ export async function resolveSender(
     .maybeSingle();
 
   const senderPrefix = (prefs?.sender_prefix as string | undefined) ?? "no-reply";
-  const senderName = (prefs?.sender_name as string | undefined) ?? fallbackFromName;
+  const senderName = nomeScelto ?? (prefs?.sender_name as string | undefined) ?? fallbackFromName;
   let replyTo = (prefs?.reply_to_email as string | undefined) || "";
   if (!replyTo) {
     // Fallback: la casella collegata dell'azienda. Le risposte devono arrivare
@@ -147,7 +154,7 @@ export async function resolveSender(
 
     if (domainRow && domainRow.is_active && streamOK) {
       const customEmail = `${senderPrefix}@${domainRow.domain}`;
-      const customName = (domainRow.from_name as string | undefined) || senderName;
+      const customName = nomeScelto ?? ((domainRow.from_name as string | undefined) || senderName);
       return {
         from: `${customName} <${customEmail}>`,
         fromEmail: customEmail,

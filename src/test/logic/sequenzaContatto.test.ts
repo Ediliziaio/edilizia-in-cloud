@@ -92,7 +92,7 @@ describe("il motore usa davvero questi pezzi", () => {
 
   it("dalla casella collegata: link per uscire e nome del mittente", () => {
     expect(motore).toContain('html.includes("{{unsubscribe_url}}")');
-    expect(motore).toContain("fromName: typeof cfg.from_name");
+    expect(motore).toContain("fromName: mittente.nome,");
     expect(motore).toContain("from_name: p.fromName");
     expect(invio).toContain("if (nomeScelto) fromName = nomeScelto;");
   });
