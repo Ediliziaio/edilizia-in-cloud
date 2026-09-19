@@ -22,6 +22,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Switch } from "@/components/ui/switch";
 import { StatusItem } from "./StatusItem";
 import { OrderProgressTracker, type OrderStatus } from "@/components/orders/OrderProgressTracker";
 import { cn } from "@/lib/utils";
@@ -105,6 +106,37 @@ export function OrderStatusConfig() {
   const [statuses, setStatuses] = useState<OrderStatus[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+
+  // Email al cliente a ogni cambio di fase (trigger trg_cliente_stato_commessa).
+  const { data: avvisaCliente = true } = useQuery({
+    queryKey: ["company-avvisa-cliente-cambio-fase", company?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("companies")
+        .select("avvisa_cliente_cambio_fase")
+        .eq("id", company!.id)
+        .maybeSingle();
+      if (error) throw error;
+      return (data as { avvisa_cliente_cambio_fase?: boolean } | null)?.avvisa_cliente_cambio_fase !== false;
+    },
+    enabled: !!company?.id,
+    staleTime: 5 * 60 * 1000,
+  });
+  const cambiaAvvisoCliente = async (valore: boolean) => {
+    if (!company?.id) return;
+    const chiave = ["company-avvisa-cliente-cambio-fase", company.id];
+    queryClient.setQueryData(chiave, valore);
+    const { error } = await supabase
+      .from("companies")
+      .update({ avvisa_cliente_cambio_fase: valore } as never)
+      .eq("id", company.id);
+    if (error) {
+      queryClient.setQueryData(chiave, !valore);
+      toast.error("Non riesco a salvare: " + error.message);
+      return;
+    }
+    toast.success(valore ? "Il cliente riceverà un'email a ogni cambio di fase." : "Niente più email al cliente sui cambi di fase.");
+  };
 
   const { data: queryData, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["order-statuses-config", company?.id],
@@ -370,6 +402,24 @@ export function OrderStatusConfig() {
               {PIPELINE_PRESETS.find((p) => p.key === selectedPreset)?.hint}
             </p>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Email automatica al cliente sui cambi di fase */}
+      <Card>
+        <CardContent className="flex items-center justify-between gap-4 py-4">
+          <div className="min-w-0">
+            <p className="text-sm font-medium">Avvisa il cliente a ogni cambio di fase</p>
+            <p className="text-xs text-muted-foreground">
+              Il cliente con accesso all&apos;area clienti riceve un&apos;email con il nome della nuova fase. Spegnilo se le
+              fasi sono di uso interno o se mandi già le tue email dalle automazioni.
+            </p>
+          </div>
+          <Switch
+            checked={avvisaCliente}
+            onCheckedChange={cambiaAvvisoCliente}
+            aria-label="Avvisa il cliente a ogni cambio di fase"
+          />
         </CardContent>
       </Card>
 
