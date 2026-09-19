@@ -82,6 +82,8 @@ export interface DatiIcs {
   partecipante?: string | null;
   annullato?: boolean;
   sequenza?: number;
+  /** Dove: l'indirizzo, o il link della videochiamata. */
+  luogo?: string | null;
 }
 
 /** File .ics: il cliente lo apre e l'appuntamento entra nel suo calendario. */
@@ -102,6 +104,7 @@ export function creaIcs(d: DatiIcs): string {
     `DTEND:${icsData(fine)}`,
     icsRiga(`SUMMARY:${String(d.titolo).replace(/[\;,]/g, (c) => "\\" + c).replace(/\n/g, "\\n")}`),
     d.descrizione ? icsRiga(`DESCRIPTION:${String(d.descrizione).replace(/[\;,]/g, (c) => "\\" + c).replace(/\n/g, "\\n")}`) : "",
+    d.luogo ? icsRiga(`LOCATION:${String(d.luogo).replace(/[\;,]/g, (c) => "\\" + c).replace(/\n/g, "\\n")}`) : "",
     d.organizzatore ? `ORGANIZER;CN=${d.organizzatore}:mailto:${d.organizzatore}` : "",
     d.partecipante ? `ATTENDEE;CN=${d.partecipante};RSVP=FALSE:mailto:${d.partecipante}` : "",
     `STATUS:${d.annullato ? "CANCELLED" : "CONFIRMED"}`,

@@ -911,3 +911,9 @@ verify_jwt = false
 # da «false» (com'è in produzione) al default «true».
 [functions.giorgio-support-triage]
 verify_jwt = false
+
+# La chiamano il trigger sugli appuntamenti e il cron col segreto interno
+# (x-cron-secret), non con un JWT: col default «true» il gateway la
+# respingerebbe prima che il segreto venga guardato.
+[functions.appuntamenti-notifiche]
+verify_jwt = false
