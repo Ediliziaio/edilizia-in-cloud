@@ -17,6 +17,7 @@ import {
 import { toast } from "sonner";
 import { format, formatDistanceToNow } from "date-fns";
 import { it } from "date-fns/locale";
+import { statoRegistro } from "@/lib/automazioniRegistro";
 
 interface Props {
   flowId?: string;
@@ -97,14 +98,17 @@ function ContactJourney({ enrollmentId }: { enrollmentId: string }) {
                       ? "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-400"
                       : "bg-muted text-muted-foreground"
                   }`}>
-                    {step.status}
+                    {statoRegistro(step.status).etichetta}
                   </span>
                   <span className="text-[10px] text-muted-foreground ml-auto">
                     {format(new Date(step.created_at), "dd/MM HH:mm")}
                   </span>
                 </div>
                 {step.error_message && (
-                  <p className="text-[10px] text-destructive mt-0.5 truncate">{step.error_message}</p>
+                  // Il motivo di un rinvio non è un errore: niente rosso.
+                  <p className={`text-[10px] mt-0.5 truncate ${statoRegistro(step.status).tono === "errore" ? "text-destructive" : "text-muted-foreground"}`}>
+                    {step.error_message}
+                  </p>
                 )}
                 {step.output_json?.action && (
                   <p className="text-[10px] text-muted-foreground mt-0.5">

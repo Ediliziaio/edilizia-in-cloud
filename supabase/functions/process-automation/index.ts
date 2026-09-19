@@ -678,14 +678,22 @@ async function processQueue(supabase: any) {
       // Execute the node
       const result: any = await executeNode(supabase, node, item);
 
-      // Log execution
+      // Rinvii di questo passo, compreso questo: oltre 48 il passo fallisce.
+      const ctx = item.context_json || {};
+      const deferCount = (ctx._defer_count || 0) + 1;
+      const rinviato = !result.success && result.defer && deferCount <= 48;
+
+      // Log execution. Un passo rinviato (WhatsApp fuori dalle fasce del passo,
+      // numeri tutti occupati) va come «skipped», non «error»: riparte da solo.
+      // Contato fra gli errori accendeva il rosso nell'elenco (19/09/2026).
+      // Oltre il tetto dei rinvii invece è un errore vero.
       await supabase.from("automation_execution_log").insert({
         flow_id: item.flow_id,
         company_id: item.company_id,
         enrollment_id: item.enrollment_id,
         node_id: node.id,
         node_type: node.node_type,
-        status: result.success ? "success" : "error",
+        status: result.success ? "success" : rinviato ? "skipped" : "error",
         input_json: { entity_id: item.entity_id, config: node.config_json },
         output_json: result.output || {},
         error_message: result.error || null,
@@ -696,8 +704,6 @@ async function processQueue(supabase: any) {
         // finestra oraria / throttle). Rinvia SENZA consumare i tentativi, così
         // il messaggio attende la capacità invece di fallire in pochi minuti.
         // Cap a 48 rinvii (~2 giorni a 1h) per evitare loop infiniti.
-        const ctx = item.context_json || {};
-        const deferCount = (ctx._defer_count || 0) + 1;
         if (deferCount > 48) {
           await markQueueItem(supabase, item.id, "failed", result.error || "Rinviato troppe volte (pool saturo)");
           await supabase.from("automation_enrollments").update({ status: "failed", updated_at: now }).eq("id", item.enrollment_id);
@@ -4026,6 +4032,11 @@ async function executeSendWhatsAppLocale(supabase: any, cfg: Record<string, any>
     text: resolvedText,
     contactTags: contact.tags ?? [],
     numberId: numeroScelto,
+    // In un'automazione i tempi li decide il flusso: le attese e le fasce del
+    // passo qui sopra. La finestra generale dei numeri resta per gli invii a
+    // freddo delle campagne. Florin, 19/09/2026: chi chiede il PDF alle 2 di
+    // notte riceve subito il W1, non il mattino dopo (né il lunedì).
+    bypassQuietHours: true,
   });
   if (!res.ok) {
     // 409 = esito TRANSIENTE (nessun numero disponibile: cap/warm-up/throttle

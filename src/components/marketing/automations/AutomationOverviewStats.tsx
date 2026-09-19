@@ -36,8 +36,10 @@ export function AutomationOverviewStats({ companyId }: Props) {
         errors24h,
       ] = await Promise.all([
         supabase.from("automation_enrollments").select("id", { count: "exact", head: true }).eq("company_id", companyId).eq("status", "active"),
-        supabase.from("automation_execution_log").select("id", { count: "exact", head: true }).eq("company_id", companyId).gte("created_at", day1Iso),
-        supabase.from("automation_execution_log").select("id", { count: "exact", head: true }).eq("company_id", companyId).gte("created_at", day7Iso),
+        // «skipped» = passo rinviato (WhatsApp fuori fascia, numeri occupati):
+        // non è un passaggio eseguito, e non deve abbassare le riuscite.
+        supabase.from("automation_execution_log").select("id", { count: "exact", head: true }).eq("company_id", companyId).gte("created_at", day1Iso).neq("status", "skipped"),
+        supabase.from("automation_execution_log").select("id", { count: "exact", head: true }).eq("company_id", companyId).gte("created_at", day7Iso).neq("status", "skipped"),
         supabase.from("automation_execution_log").select("id", { count: "exact", head: true }).eq("company_id", companyId).gte("created_at", day7Iso).eq("status", "success"),
         // Il motore scrive status 'error' (CHECK: ok|success|error|skipped):
         // con "failed" la card Errori 24h restava a 0 anche con errori reali.

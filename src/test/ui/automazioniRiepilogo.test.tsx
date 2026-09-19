@@ -4,7 +4,9 @@
  * Tiene fermo:
  *   · una riga di testo al posto dei sei riquadri;
  *   · niente «Flussi» e «Attivi»: li danno le pastiglie dell'elenco;
- *   · gli errori in rosso solo quando ci sono.
+ *   · gli errori in rosso solo quando ci sono;
+ *   · un passo rinviato («skipped», WhatsApp fuori fascia) non è un passaggio
+ *     eseguito e non abbassa le riuscite.
  */
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act } from "react";
@@ -14,27 +16,42 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 let erroriUltimoGiorno = 0;
 const tabelleLette: string[] = [];
 
+// Il registro delle esecuzioni: 82 passaggi riusciti nell'ultima ora, 8 tre
+// giorni fa, 2 WhatsApp rinviati oggi, e gli errori della prova.
+const oreFa = (ore: number) => new Date(Date.now() - ore * 3600 * 1000).toISOString();
+function registro(): { status: string; created_at: string }[] {
+  return [
+    ...Array.from({ length: 82 }, () => ({ status: "success", created_at: oreFa(1) })),
+    ...Array.from({ length: 8 }, () => ({ status: "success", created_at: oreFa(72) })),
+    ...Array.from({ length: 2 }, () => ({ status: "skipped", created_at: oreFa(1) })),
+    ...Array.from({ length: erroriUltimoGiorno }, () => ({ status: "error", created_at: oreFa(1) })),
+  ];
+}
+
 // Il conteggio che il database darebbe per quella tabella e quei filtri.
-function conteggio(tabella: string, uguali: Record<string, string>, daQuando: string | null): number {
+function conteggio(tabella: string, uguali: Record<string, string>, diversi: Record<string, string>, daQuando: string | null): number {
   if (tabella === "automation_enrollments") return uguali.status === "active" ? 2 : 5;
   if (tabella !== "automation_execution_log") return 0;
-  const ultimoGiorno = daQuando !== null && Date.now() - new Date(daQuando).getTime() < 2 * 86400 * 1000;
-  if (uguali.status === "error") return erroriUltimoGiorno;
-  if (uguali.status === "success") return 90;
-  return ultimoGiorno ? 82 : 90;
+  return registro().filter((r) =>
+    (uguali.status === undefined || r.status === uguali.status)
+    && (diversi.status === undefined || r.status !== diversi.status)
+    && (daQuando === null || r.created_at >= daQuando),
+  ).length;
 }
 
 function builder(tabella: string) {
   tabelleLette.push(tabella);
   const uguali: Record<string, string> = {};
+  const diversi: Record<string, string> = {};
   let daQuando: string | null = null;
   const b: Record<string, unknown> = {};
   b.select = () => b;
   b.is = () => b;
   b.eq = (colonna: string, valore: string) => { uguali[colonna] = valore; return b; };
+  b.neq = (colonna: string, valore: string) => { diversi[colonna] = valore; return b; };
   b.gte = (_colonna: string, valore: string) => { daQuando = valore; return b; };
   b.then = (ok: (v: unknown) => unknown) =>
-    Promise.resolve({ data: null as unknown, error: null as unknown, count: conteggio(tabella, uguali, daQuando) }).then(ok);
+    Promise.resolve({ data: null as unknown, error: null as unknown, count: conteggio(tabella, uguali, diversi, daQuando) }).then(ok);
   return b;
 }
 
@@ -86,6 +103,8 @@ describe("numeri delle automazioni sotto il titolo", () => {
   it("gli errori delle ultime 24 ore in rosso", async () => {
     erroriUltimoGiorno = 3;
     await monta();
+    // 82 riusciti + 3 errori; i 2 rinviati non contano.
+    expect(contenitore.textContent).toContain("85 passaggi eseguiti nelle ultime 24 ore · 97% riusciti in 7 giorni");
     const errori = Array.from(contenitore.querySelectorAll("span")).find((s) => s.textContent === "3 errori nelle ultime 24 ore");
     expect(errori).toBeDefined();
     expect(errori?.className).toContain("text-destructive");

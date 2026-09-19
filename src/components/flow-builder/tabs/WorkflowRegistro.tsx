@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
+import { statoRegistro } from "@/lib/automazioniRegistro";
 
 interface Props {
   flowId?: string;
@@ -338,7 +339,7 @@ export function WorkflowRegistro({ flowId }: Props) {
                 <SelectItem value="success">Successo</SelectItem>
                 <SelectItem value="error">Errore</SelectItem>
                 <SelectItem value="running">In corso</SelectItem>
-                <SelectItem value="skipped">Saltato</SelectItem>
+                <SelectItem value="skipped">Rinviato</SelectItem>
               </SelectContent>
             </Select>
 
@@ -426,7 +427,7 @@ export function WorkflowRegistro({ flowId }: Props) {
                       <TableCell>
                         <div className="flex items-center gap-1.5">
                           {STATO_ICON[log.status] ?? null}
-                          <span className="text-xs">{log.status}</span>
+                          <span className="text-xs">{statoRegistro(log.status).etichetta}</span>
                         </div>
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">
@@ -435,7 +436,11 @@ export function WorkflowRegistro({ flowId }: Props) {
                       <TableCell className="text-xs text-muted-foreground max-w-[200px] truncate">
                         {log.output_json?.action ?? log.output_json?.branch ?? "—"}
                       </TableCell>
-                      <TableCell className="text-xs text-destructive max-w-[200px] truncate">
+                      {/* Il motivo di un rinvio non è un errore: niente rosso. */}
+                      <TableCell
+                        className={`text-xs max-w-[200px] truncate ${statoRegistro(log.status).tono === "errore" ? "text-destructive" : "text-muted-foreground"}`}
+                        title={log.error_message || undefined}
+                      >
                         {log.error_message || "—"}
                       </TableCell>
                     </TableRow>
