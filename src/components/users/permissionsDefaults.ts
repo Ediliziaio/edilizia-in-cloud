@@ -64,6 +64,7 @@ export const DEFAULT_PERMISSIONS: StaffPermissions = {
   only_my_warehouse: false,
   sola_lettura: false,
   visible_areas: [],
+  pipeline_visibili: [],
 };
 
 /** Centralized permission section definitions used by PermissionsDialog, UserRolesPermissionsTab and CreateUserWizard */

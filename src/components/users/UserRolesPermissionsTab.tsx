@@ -39,6 +39,7 @@ import {
   type BooleanPermissionKey, type PermissionSectionDef,
 } from "@/components/users/permissionsDefaults";
 import { SolaLetturaToggle } from "@/components/users/SolaLetturaToggle";
+import { usePipelines } from "@/hooks/useOpportunitiesData";
 
 /**
  * Each PermissionModule maps 1:1 to a unique DB column.
@@ -190,6 +191,17 @@ const ROLE_CONFIG: Record<CompanyRole, { label: string; icon: React.ComponentTyp
   },
 };
 
+/** Per il «ci sono modifiche»: gli elenchi (aree, pipeline) si confrontano per
+ *  contenuto, non per riferimento — spuntare e rispuntare non è una modifica. */
+function stessoValore(a: unknown, b: unknown): boolean {
+  if (Array.isArray(a) || Array.isArray(b)) {
+    const x = (Array.isArray(a) ? a : []).map(String).sort();
+    const y = (Array.isArray(b) ? b : []).map(String).sort();
+    return x.length === y.length && x.every((v, i) => v === y[i]);
+  }
+  return (a ?? false) === (b ?? false);
+}
+
 export function UserRolesPermissionsTab({
   user,
   onSave,
@@ -208,6 +220,18 @@ export function UserRolesPermissionsTab({
   const [pendingRoleChange, setPendingRoleChange] = useState<CompanyRole | null>(null);
 
   const additionalRoles = Array.isArray(user.additionalRoles) ? user.additionalRoles : [];
+
+  // Pipeline visibili. Contano solo quelle che esistono ancora: una pipeline
+  // cancellata non deve restare «spuntata» di nascosto.
+  const { data: pipelines = [] } = usePipelines();
+  const pipelineAzienda = pipelines as { id: string; name: string }[];
+  const idPipeline = useMemo(() => new Set(pipelineAzienda.map((p) => p.id)), [pipelineAzienda]);
+  const pipelineScelte = (permissions.pipeline_visibili ?? []).filter((id) => idPipeline.has(id));
+  const togglePipeline = (id: string, attiva: boolean) =>
+    setPermissions((prev) => {
+      const altre = (prev.pipeline_visibili ?? []).filter((x) => idPipeline.has(x) && x !== id);
+      return { ...prev, pipeline_visibili: attiva ? [...altre, id] : altre };
+    });
   const originalPermissions = useMemo(() => user.permissions || DEFAULT_PERMISSIONS, [user.permissions]);
 
   // Reset state quando cambia l'utente corrente O quando i dati vengono re-fetched
@@ -221,7 +245,7 @@ export function UserRolesPermissionsTab({
 
   const isDirty = useMemo(() => {
     const keys = Object.keys(DEFAULT_PERMISSIONS) as (keyof StaffPermissions)[];
-    return keys.some((key) => (permissions[key] ?? false) !== (originalPermissions[key] ?? false));
+    return keys.some((key) => !stessoValore(permissions[key], originalPermissions[key]));
   }, [permissions, originalPermissions]);
 
   // ─── Handlers ──────────────────────────────────────────────────────
@@ -241,7 +265,7 @@ export function UserRolesPermissionsTab({
     setSelectedRole(newRole);
     onChangeRole?.(newRole);
     if (applyPreset && ROLE_PRESETS[newRole]) {
-      setPermissions((prev) => ({ ...DEFAULT_PERMISSIONS, only_assigned: prev.only_assigned, sola_lettura: prev.sola_lettura, ...ROLE_PRESETS[newRole] }));
+      setPermissions((prev) => ({ ...DEFAULT_PERMISSIONS, only_assigned: prev.only_assigned, sola_lettura: prev.sola_lettura, pipeline_visibili: prev.pipeline_visibili, ...ROLE_PRESETS[newRole] }));
     }
     setPendingRoleChange(null);
   };
@@ -319,7 +343,7 @@ export function UserRolesPermissionsTab({
 
   const handleSelectAll = () => {
     setPermissions((prev) => {
-      const allTrue: StaffPermissions = { ...DEFAULT_PERMISSIONS, only_assigned: prev.only_assigned, sola_lettura: prev.sola_lettura };
+      const allTrue: StaffPermissions = { ...DEFAULT_PERMISSIONS, only_assigned: prev.only_assigned, sola_lettura: prev.sola_lettura, pipeline_visibili: prev.pipeline_visibili };
       const allModules = PERMISSION_CATEGORIES.flatMap((c) => c.modules);
       const bloccato = (k: BooleanPermissionKey) => !!prev.sola_lettura && isBlockedBySolaLettura(k);
       allModules.forEach((mod) => {
@@ -333,7 +357,7 @@ export function UserRolesPermissionsTab({
   };
 
   const handleDeselectAll = () => {
-    setPermissions((prev) => ({ ...DEFAULT_PERMISSIONS, only_assigned: prev.only_assigned, sola_lettura: prev.sola_lettura }));
+    setPermissions((prev) => ({ ...DEFAULT_PERMISSIONS, only_assigned: prev.only_assigned, sola_lettura: prev.sola_lettura, pipeline_visibili: prev.pipeline_visibili }));
   };
 
   const handleApplyRolePreset = () => {
@@ -343,6 +367,7 @@ export function UserRolesPermissionsTab({
       ...DEFAULT_PERMISSIONS,
       only_assigned: prev.only_assigned,
       sola_lettura: prev.sola_lettura,
+      pipeline_visibili: prev.pipeline_visibili,
       ...preset,
     }));
   };
@@ -749,6 +774,36 @@ export function UserRolesPermissionsTab({
                   />
                 </div>
               </div>
+
+              {/* Pipeline visibili — come «Aree visibili»: nessuna spuntata =
+                  tutte. La applica il database (policy pipeline_visibili_utente),
+                  quindi vale su kanban, elenco, ricerca e scheda contatto. */}
+              {permissions.can_view_marketing_opportunities && pipelineAzienda.length > 1 && (
+                <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+                  <div className="space-y-0.5">
+                    <Label className="font-medium text-sm">Pipeline visibili</Label>
+                    <p className="text-xs text-muted-foreground">
+                      {pipelineScelte.length === 0
+                        ? "Vede tutte le pipeline. Spunta quelle a cui limitarlo."
+                        : "Vede solo le pipeline spuntate: le opportunità delle altre gli restano nascoste ovunque."}
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                    {pipelineAzienda.map((p) => (
+                      <label
+                        key={p.id}
+                        className="flex items-center gap-2 rounded-md border bg-background/60 px-2.5 py-1.5 cursor-pointer"
+                      >
+                        <Checkbox
+                          checked={pipelineScelte.includes(p.id)}
+                          onCheckedChange={(c) => togglePipeline(p.id, c === true)}
+                        />
+                        <span className="text-sm truncate">{p.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <Separator />
 

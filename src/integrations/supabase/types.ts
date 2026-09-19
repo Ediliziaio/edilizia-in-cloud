@@ -83072,6 +83072,7 @@ export type Database = {
           must_change_password: boolean | null
           only_assigned: boolean
           only_my_warehouse: boolean
+          pipeline_visibili: string[]
           sola_lettura: boolean
           updated_at: string | null
           user_id: string
@@ -83172,6 +83173,7 @@ export type Database = {
           must_change_password?: boolean | null
           only_assigned?: boolean
           only_my_warehouse?: boolean
+          pipeline_visibili?: string[]
           sola_lettura?: boolean
           updated_at?: string | null
           user_id: string
@@ -83272,6 +83274,7 @@ export type Database = {
           must_change_password?: boolean | null
           only_assigned?: boolean
           only_my_warehouse?: boolean
+          pipeline_visibili?: string[]
           sola_lettura?: boolean
           updated_at?: string | null
           user_id?: string

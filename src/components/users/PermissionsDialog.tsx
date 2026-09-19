@@ -127,6 +127,9 @@ export interface StaffPermissions {
   sola_lettura: boolean;
   /** Aree visibili: se vuoto = tutte le aree. Valori: cantiere, commerciale, amministrazione, tecnico */
   visible_areas: string[];
+  /** Pipeline che vede (id): se vuoto = tutte. La applica il database
+   *  (policy «pipeline_visibili_utente»), su opportunità, fasi e contatti seguiti. */
+  pipeline_visibili?: string[];
   /** Flag interno: l'utente deve cambiare password al primo accesso */
   must_change_password?: boolean | null;
 }
