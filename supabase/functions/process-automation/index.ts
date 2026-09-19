@@ -37,6 +37,7 @@ import { loadContactCustomFieldResolver, applyContactCustomFields } from "../_sh
 import { costruisciVariabiliCommessa, scegliFatturaDaAllegare, sostituisciVariabiliCommessa } from "../_shared/variabiliCommessa.ts";
 
 import { serveConMetriche } from "../_shared/withMetrics.ts";
+import { prendiInCarico } from "../_shared/presaInCarico.ts";
 interface AutomationNode {
   id: string;
   flow_id: string;
@@ -629,15 +630,18 @@ async function processQueue(supabase: any) {
     try {
       if (await fermaSeHaRisposto(item)) {
         await supabase.from("automation_queue")
-          .update({ status: "cancelled", updated_at: now }).eq("id", item.id);
+          .update({ status: "cancelled", updated_at: now }).eq("id", item.id).eq("status", "pending");
         continue;
       }
 
-      // Mark as processing
-      await supabase
-        .from("automation_queue")
-        .update({ status: "processing", updated_at: now })
-        .eq("id", item.id);
+      // Presa in carico ATOMICA (19/09/2026): solo se la riga è ancora
+      // «pending». Il cron gira ogni minuto e un giro lento si sovrappone al
+      // successivo: prima tutti e due eseguivano gli stessi passi (email doppie,
+      // tag doppi, opportunità doppie — visto 13–15/09 e 19/09 in collaudo).
+      const passo = await prendiInCarico(supabase, "automation_queue", item.id, "status", "pending",
+        { status: "processing", updated_at: now });
+      if (passo.errore) console.error(`Queue item ${item.id}: presa in carico fallita:`, passo.errore);
+      if (!passo.presa) continue; // l'ha già preso un altro giro (o l'UPDATE è fallito)
 
       // Get the node — distingue errore DB (transiente) da nodo davvero inesistente
       const { data: node, error: nodeErr } = await supabase
@@ -3309,6 +3313,12 @@ async function processTriggerEvents(supabase: any) {
   if (!events || events.length === 0) return;
 
   for (const evt of events) {
+    // Presa in carico ATOMICA (19/09/2026): due giri sovrapposti leggevano lo
+    // stesso evento e arruolavano/eseguivano due volte. Si segna subito come
+    // preso; se la gestione fallisce si rimette in coda per il giro dopo.
+    const evento = await prendiInCarico(supabase, "automation_trigger_events", evt.id, "processed", false,
+      { processed: true });
+    if (!evento.presa) continue;
     try {
       // Check if any enrollments are waiting for this event
       await resolveWaitingEnrollments(supabase, evt);
@@ -3321,17 +3331,13 @@ async function processTriggerEvents(supabase: any) {
         payload: evt.payload,
       });
 
-      // Segna processed SOLO in caso di successo: un errore transitorio (es.
-      // enrollment del lead FB fallito) non deve marcare l'evento come fatto,
-      // altrimenti l'automazione va persa in silenzio. Restando processed=false
-      // il cron (ogni minuto) lo riprova.
-      await supabase
-        .from("automation_trigger_events")
-        .update({ processed: true })
-        .eq("id", evt.id);
+      // L'evento è già segnato come preso (sopra). Un errore transitorio (es.
+      // enrollment del lead FB fallito) non deve perdere l'automazione in
+      // silenzio: nel catch lo si rimette in coda e il cron (ogni minuto) lo riprova.
     } catch (err: any) {
       console.error(`Trigger event ${evt.id} error:`, err);
-      // NON marcare processed: l'evento resta in coda e verrà ritentato.
+      // Rimesso in coda: verrà ritentato al giro dopo.
+      await supabase.from("automation_trigger_events").update({ processed: false }).eq("id", evt.id);
       // RISCHIO NOTO: automation_trigger_events non ha un contatore di tentativi,
       // quindi un evento che fallisce SEMPRE (es. payload corrotto) verrà
       // ritentato all'infinito e, essendo il più vecchio (order created_at ASC,
@@ -3368,6 +3374,13 @@ async function resolveWaitingEnrollments(supabase: any, evt: any) {
       .from("automation_connections")
       .select("*")
       .eq("flow_id", item.flow_id);
+
+    // Presa in carico ATOMICA (19/09/2026): l'evento e la scadenza dell'attesa
+    // possono scattare nello stesso minuto su due giri diversi. Riprende il
+    // flusso solo chi riesce a chiudere questa attesa.
+    const ripresa = await prendiInCarico(supabase, "automation_queue", item.id, "status", "waiting",
+      { status: "cancelled", updated_at: new Date().toISOString() });
+    if (!ripresa.presa) continue;
 
     // Find the node that produced this waiting item - look for connections with label "event" or default
     // Cancel the timeout queue item
@@ -3430,11 +3443,11 @@ async function processWaitingTimeouts(supabase: any) {
   if (!timedOut || timedOut.length === 0) return;
 
   for (const item of timedOut) {
-    // Mark as completed (timeout fired)
-    await supabase
-      .from("automation_queue")
-      .update({ status: "completed", updated_at: now })
-      .eq("id", item.id);
+    // Presa in carico ATOMICA (19/09/2026): due giri sovrapposti trovavano la
+    // stessa attesa scaduta e riprendevano il flusso due volte.
+    const scaduta = await prendiInCarico(supabase, "automation_queue", item.id, "status", "waiting",
+      { status: "completed", updated_at: now });
+    if (!scaduta.presa) continue;
 
     // Attesa "terminale" (nodo wait senza uscite): il timeout chiude
     // l'iscrizione, senza ri-eseguire il nodo di attesa (loop infinito).
