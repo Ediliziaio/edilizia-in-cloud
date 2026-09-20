@@ -228,6 +228,9 @@ async function handleTrigger(supabase: any, body: any) {
     email_cliccata: "email_clicked",
     form_compilato: "form_submitted",
     whatsapp_ricevuto: "whatsapp_message_received",
+    // Un contatto ha scritto per email (20/09/2026): lo emettono
+    // email-poll-inbox e email-inbound-reply, vedi _shared/emailRicevutaEvento.ts.
+    email_ricevuta: "email_received",
     campagna_facebook_lead: "facebook_lead_received",
 
     // ── Trigger OPERATIVI (area azienda). Eventi emessi dai DB-trigger della
@@ -3893,6 +3896,9 @@ async function executeSendEmail(supabase: any, cfg: Record<string, any>, entityI
       // email diverse e nessun modo di sapere quale ha reso di piu'.
       metadata: {
         contact_id: contact.id, automation: true,
+        // Il modello usato: Conversazioni ci legge il testo dell'email
+        // (il registro degli invii tiene solo l'oggetto).
+        ...(cfg.template_id ? { template_id: String(cfg.template_id) } : {}),
         ...(commessa ? { order_id: entityId, allegato: fattura?.file_name ?? null } : {}),
         ...(variante ? { ab_variant: variante } : {}),
       },

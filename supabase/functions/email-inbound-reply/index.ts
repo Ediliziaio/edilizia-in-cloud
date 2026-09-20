@@ -20,6 +20,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendViaProviderWithFailover, loadProviderSettings } from "../_shared/emailProvider.ts";
 import { resolveSender } from "../_shared/resolveSender.ts";
+import { emettiEmailRicevuta } from "../_shared/emailRicevutaEvento.ts";
 
 const ADDR_RE = /(r-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})@[a-z0-9.-]+)/i;
 
@@ -158,6 +159,19 @@ Deno.serve(async (req) => {
       replies_count: (route.replies_count ?? 0) + 1,
     })
     .eq("id", routeId);
+
+  // Le automazioni possono reagire alla risposta («Email ricevuta da un
+  // contatto»): il contatto qui è certo, è quello dell'indirizzo di risposta.
+  await emettiEmailRicevuta(admin, {
+    companyId: route.company_id,
+    contactId: route.contact_id,
+    fromEmail: from.email || contact?.email || null,
+    subject,
+    testo: text,
+    html,
+    ricevutaIl: new Date().toISOString(),
+    casella: routeAddress,
+  });
 
   // ── 2. Copia di cortesia alla casella dell'azienda ────────────────────────
   // Nessun addebito crediti: è un servizio della piattaforma, il costo

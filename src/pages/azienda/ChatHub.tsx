@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { MessagesSquare, Users } from "lucide-react";
 import InternalChat from "@/pages/azienda/InternalChat";
@@ -20,7 +21,12 @@ export default function ChatHub({ companyIdOverride }: ChatHubProps = {}) {
   // Default "team" = nessuna regressione sull'esperienza attuale di /azienda/chat.
   // Il tab "Conversazioni" mostra lo stato di attivazione finché la migration
   // 20270704000000 non è applicata; diventerà default quando l'inbox sarà attivo.
-  const [tab, setTab] = useState<"conversazioni" | "team">("team");
+  // `?tab=conversazioni` apre direttamente l'inbox: lo usano gli avvisi «ti ha
+  // risposto per email», che devono portare al filo e non alla chat del team.
+  const [params] = useSearchParams();
+  const [tab, setTab] = useState<"conversazioni" | "team">(
+    params.get("tab") === "conversazioni" ? "conversazioni" : "team",
+  );
 
   // h-full riempie il content-box di <main> (che ha altezza bloccata e scroll
   // proprio) → dentro la chat NON si scrolla la pagina: ogni colonna ha la sua

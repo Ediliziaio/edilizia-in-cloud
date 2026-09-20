@@ -49,6 +49,7 @@ const TRIGGER_ICON_MAP: Record<string, LucideIcon> = {
   spesa_registrata: DollarSign,
   email_aperta: Mail,
   email_cliccata: Mail,
+  email_ricevuta: Mail,
   risposta_sms: MessageSquare,
   chiamata_completata: Phone,
 };

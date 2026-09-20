@@ -23,6 +23,7 @@ import { imapScaricaNuovi, type ImapMessage } from "../_shared/imapSmtpClient.ts
 import { getMsOAuthCredentials } from "../_shared/msOAuth.ts";
 
 import { serveConMetriche } from "../_shared/withMetrics.ts";
+import { emettiEmailRicevuta } from "../_shared/emailRicevutaEvento.ts";
 interface ConnectionDue {
   id: string;
   provider: "gmail" | "outlook" | "imap";
@@ -750,6 +751,20 @@ async function storePersonalEmail(
     }
     throw error;
   }
+  // Se a scrivere è un contatto del CRM, le automazioni possono reagire
+  // («Email ricevuta da un contatto»): solo posta in arrivo e recente, vedi
+  // _shared/emailRicevutaEvento.ts. Non lancia mai.
+  await emettiEmailRicevuta(supa, {
+    companyId: conn.company_id,
+    fromEmail: email.from_email,
+    subject: email.subject,
+    testo: email.text,
+    html: email.html,
+    ricevutaIl: email.received_at,
+    cartella: folder,
+    casella: conn.email_address,
+    emailInboxId: inserted?.id ?? null,
+  });
   return { stored: true, id: inserted?.id ?? null, needsTriage: true };
 }
 

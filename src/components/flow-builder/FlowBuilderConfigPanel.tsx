@@ -94,6 +94,7 @@ const TRIGGER_CATEGORY_MAP: Record<string, string> = {
   email_aperta: "communication",
   email_cliccata: "communication",
   whatsapp_ricevuto: "communication",
+  email_ricevuta: "communication",
   // Il lead Facebook iscrive un CONTATTO (meta-process-leads → entity_type
   // 'contact'): categoria "contact" così i filtri offrono i campi contatto e
   // le azioni sanno che il contatto arriva dal trigger (badge verde, niente
