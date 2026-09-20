@@ -1,13 +1,10 @@
 -- ════════════════════════════════════════════════════════════════════════════
--- Cron: attese brevi per pg_net  —  DA APPLICARE DOPO IL DEPLOY DELLE FUNZIONI
+-- Cron: attese brevi per pg_net
 -- ════════════════════════════════════════════════════════════════════════════
 --
--- Sta in scripts/ e non in supabase/migrations/ perché l'ordine conta: prima le
--- otto funzioni dell'elenco `rapide` devono essere in produzione nella forma
--- con risposta rapida, poi si accorcia l'attesa dei loro job. Al contrario, una
--- funzione ancora lenta verrebbe ritirata a metà lavoro. Applicata la
--- migrazione, il file si sposta in supabase/migrations/<versione>_cron_attese_
--- brevi_pg_net.sql (vedi CLAUDE.md, «Migrazioni»).
+-- Applicata il 20/09/2026, DOPO il deploy delle otto funzioni dell'elenco
+-- `rapide`: l'ordine conta, perché a una funzione ancora lenta l'attesa corta
+-- toglierebbe il worker a metà lavoro.
 --
 -- PERCHÉ
 -- Il 20/09/2026 la coda HTTP di pg_net si fermava fino a due minuti più volte

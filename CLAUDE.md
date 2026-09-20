@@ -153,7 +153,11 @@ Regole:
 Per vedere chi tiene ferma la coda: `execution_time_ms` per funzione in
 `function_edge_logs` con User-Agent `pg_net/0.20.0`, oppure `latency_ms` in
 `system_health_metrics`. Le query sono in testa alla migrazione
-`cron_attese_brevi_pg_net`.
+`20280920230000_cron_attese_brevi_pg_net`, che il 20 settembre 2026 ha portato a
+15 secondi le attese delle otto funzioni già rapide (`email-poll-inbox`, i tre
+`email-ai-*`, `outreach-imap-poll`, `meta-leads-backfill`,
+`google-calendar-sync`, `outreach-dispatch`) e un tetto di 150 secondi a tutte
+le altre. Lì c'è anche l'elenco di chi resta da convertire.
 
 ## Funzioni esposte ad anon
 
