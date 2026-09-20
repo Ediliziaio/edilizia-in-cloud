@@ -9,6 +9,13 @@
  *             ripristino.
  *   reale   → ripristino in public, solo per un'azienda purgata; tutto o niente.
  *
+ * I backup a blocchi (20/09/2026). Le aziende grandi non si salvano più in un
+ * file solo ma in una cartella <azienda>/<data>/ con un indice e un file per
+ * blocco (vedi company-backup). «elenca» li mostra leggendo l'indice; la prova
+ * di ripristino per questo formato non c'è ancora, e lo si dice invece di
+ * passare l'indice ad admin_ripristina_backup, che risponderebbe con un errore
+ * incomprensibile.
+ *
  * Chiamabile dal super admin dalla pagina o dal cron con x-cron-secret.
  * La logica di ripristino sta nel database (admin_ripristina_backup): qui si
  * scarica il file e si passa il testimone.
@@ -64,9 +71,37 @@ serveConMetriche("company-restore", async (req) => {
         ? [prefisso]
         : ((await db.storage.from(BUCKET).list("", { limit: 500 })).data ?? [])
             .filter((o) => !o.name.includes(".")).map((o) => o.name);
-      const file: Array<{ percorso: string; dimensione: number; creato_il: string | null }> = [];
+      const file: Array<{
+        percorso: string; dimensione: number; creato_il: string | null;
+        a_blocchi?: boolean; completo?: boolean; righe?: number; tabelle?: number;
+      }> = [];
       for (const cartella of cartelle) {
         const { data } = await db.storage.from(BUCKET).list(cartella, { limit: 100, sortBy: { column: "name", order: "desc" } });
+        // Le cartelle con una data per nome sono backup a blocchi: si legge
+        // l'indice (piccolo) per dire quante righe tiene e se è completo.
+        // Solo le ultime sei: ogni indice è un file da scaricare.
+        const aBlocchi = (data ?? []).filter((o) => /^\d{4}-\d{2}-\d{2}$/.test(o.name)).slice(0, 6);
+        for (const o of aBlocchi) {
+          const percorso = `${cartella}/${o.name}/indice.json`;
+          const { data: blob } = await db.storage.from(BUCKET).download(percorso);
+          if (!blob) continue; // cartella senza indice: backup mai arrivato in fondo
+          try {
+            const indice = JSON.parse(await blob.text()) as {
+              esportato_il?: string; completo?: boolean; tabelle?: Array<{ righe_salvate?: number }>;
+            };
+            file.push({
+              percorso,
+              dimensione: 0,
+              creato_il: indice.esportato_il ?? null,
+              a_blocchi: true,
+              completo: indice.completo === true,
+              righe: (indice.tabelle ?? []).reduce((n, t) => n + Number(t.righe_salvate ?? 0), 0),
+              tabelle: (indice.tabelle ?? []).length,
+            });
+          } catch {
+            // indice illeggibile: non lo si mostra come backup
+          }
+        }
         for (const o of data ?? []) {
           if (!o.name.endsWith(".json")) continue;
           file.push({
@@ -81,6 +116,13 @@ serveConMetriche("company-restore", async (req) => {
 
     const percorso = String(corpo.percorso ?? "");
     if (!percorso || percorso.includes("..")) return json({ error: "percorso obbligatorio" }, 400);
+    if (percorso.endsWith("/indice.json")) {
+      return json({
+        ok: false,
+        percorso,
+        error: "Questo è un backup a blocchi: i dati ci sono, ma la prova di ripristino per questo formato non è ancora disponibile.",
+      }, 422);
+    }
     const modo = azione === "reale" ? "reale" : "prova";
 
     const { data: blob, error: errFile } = await db.storage.from(BUCKET).download(percorso);

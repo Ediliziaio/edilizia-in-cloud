@@ -30,6 +30,7 @@ const supabase = createClient(
 // Etichette in italiano per le sezioni del rapporto, nell'ordine di gravita'.
 const SEZIONI: Array<{ key: string; titolo: string }> = [
   { key: "snapshot_vecchio", titolo: "Il controllo stesso: raccolta dati ferma" },
+  { key: "backup_mancanti", titolo: "Aziende senza un backup da più di 8 giorni" },
   { key: "dunning_fermo", titolo: "Aziende in mancato pagamento SENZA solleciti" },
   { key: "cron_silenti", titolo: "Cron giornalieri che non girano da 26 ore" },
   { key: "http_errori_24h", titolo: "Errori HTTP dei cron (ultime 24h)" },
@@ -229,6 +230,22 @@ serveConMetriche("ops-canarino", async (req) => {
     if (etaMinuti > 120) {
       (vitali as Record<string, unknown>)["snapshot_vecchio"] = [
         { problema: `la raccolta dati non gira da ${Math.round(etaMinuti / 60)} ore`, cron: "ops-canarino-snapshot" },
+      ];
+    }
+
+    // Backup: chi e' rimasto senza. Il cron del backup non legge la risposta, e
+    // il 20/09/2026 le quattro aziende piu' grandi erano senza copia da una o
+    // due settimane senza che nessuno lo sapesse. Controllo dal vivo (una
+    // lettura svelta su storage.objects), non dallo snapshot delle 04:50.
+    try {
+      const { data: senzaBackup, error: errBackup } = await supabase.rpc("ops_backup_mancanti", { p_giorni: 8 });
+      if (errBackup) throw new Error(errBackup.message);
+      if (Array.isArray(senzaBackup) && senzaBackup.length > 0) {
+        (vitali as Record<string, unknown>)["backup_mancanti"] = senzaBackup;
+      }
+    } catch (errBackup) {
+      (vitali as Record<string, unknown>)["backup_mancanti"] = [
+        { problema: "impossibile controllare i backup", dettaglio: (errBackup as Error).message },
       ];
     }
 

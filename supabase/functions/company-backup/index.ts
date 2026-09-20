@@ -23,14 +23,36 @@
 // nessuna copia. Ora, con { piattaforma: true }, si salva a pezzi:
 //   <id>/<data>/indice.json           cosa c'è, quante righe, quali file
 //   <id>/<data>/azienda.json          la riga dell'azienda
-//   <id>/<data>/<tabella>/NNN.json    blocchi da BLOCCO righe, in ordine di id
+//   <id>/<data>/<tabella>/NNN.json    blocchi di righe, in ordine di id
 // Il lavoro gira in sottofondo (la risposta è subito 202) con un tetto di
 // tempo: se non basta, l'indice lo dice («completo: false»).
+//
+// LE AZIENDE GRANDI (20/09/2026)
+// Il dump unico (admin_esporta_azienda) è una sola istruzione, e PostgREST la
+// ferma a 8 secondi. Il 20/09 le quattro aziende più grandi — BeMade, Il Bagno
+// Group, Best Infissi e la Demo — sono andate tutte in «statement timeout»;
+// due erano senza copia già dalla domenica prima, e non se n'è accorto
+// nessuno perché il cron non legge la risposta. Ora:
+//   · chi ha più di SOGLIA_RIGHE_A_BLOCCHI righe va dritto a blocchi;
+//   · chi fallisce col dump unico ci ripiega;
+//   · ogni azienda a blocchi gira in una chiamata sua, una dopo l'altra
+//     ({ companyId, aBlocchi: true, poi: [...] }), così ha tutto il tempo e
+//     tutta la memoria per sé e il database ne serve una per volta;
+//   · i blocchi si regolano sul peso: 5.000 note sono 2 MB, 5.000 email con
+//     il corpo HTML sono 137 MB (regole in _shared/backupBlocchi.ts).
+// Chi resta senza backup compare nel rapporto del mattino («backup_mancanti»).
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { requireInternalSecret } from "../_shared/auth.ts";
 import { conMetriche } from "../_shared/withMetrics.ts";
+import {
+  BLOCCO_INIZIALE,
+  BLOCCO_MASSIMO,
+  limiteDopoErrore,
+  prossimoLimite,
+  vaABlocchi,
+} from "../_shared/backupBlocchi.ts";
 
 const BUCKET = "company-exports";
 
@@ -39,9 +61,6 @@ const BUCKET = "company-exports";
 // costruisce il dump dentro il database. Le otto tabelle scelte a mano il 4
 // settembre lasciavano fuori listini, famiglie di articoli, tariffe, fornitori
 // e ticket — cioè il lavoro dell'azienda.
-
-/** Righe per blocco: ~15 MB di JSON sulla tabella più larga (coda invii). */
-const BLOCCO = 5000;
 
 /**
  * Un blocco come TESTO, senza mai trasformarlo in oggetti. Il primo giro
@@ -72,8 +91,12 @@ const TETTO_MS = 330_000;
 
 type Admin = ReturnType<typeof createClient>;
 
-/** Il backup dell'area super admin, a blocchi. Scrive sempre l'indice, anche se si ferma a metà. */
-async function backupPiattaformaABlocchi(admin: Admin, azienda: Record<string, unknown>): Promise<Record<string, unknown>> {
+/**
+ * Il backup di un'azienda a blocchi: l'area super admin, e dal 20/09 ogni
+ * azienda troppo grande per il dump unico. Scrive sempre l'indice, anche se si
+ * ferma a metà.
+ */
+async function backupABlocchi(admin: Admin, azienda: Record<string, unknown>): Promise<Record<string, unknown>> {
   const inizio = Date.now();
   const id = String(azienda.id);
   const data = new Date().toISOString().slice(0, 10);
@@ -104,12 +127,25 @@ async function backupPiattaformaABlocchi(admin: Admin, azienda: Record<string, u
       { tabella: string; righe_attese: number; righe_salvate: number; file: string[]; errore?: string };
     tabelle.push(riga);
     let dopo: string | null = null;
+    // Si parte bassi e ci si regola sul peso dell'ultimo blocco.
+    let limite = BLOCCO_INIZIALE;
     try {
       for (let n = 1; ; n++) {
         if (Date.now() - inizio > TETTO_MS) { completo = false; riga.errore = "tempo finito"; break; }
-        const b = await bloccoComeTesto(url, chiave, {
-          p_company_id: id, p_tabella: voce.tabella, p_dopo: dopo, p_limite: BLOCCO,
-        });
+        let b: Awaited<ReturnType<typeof bloccoComeTesto>>;
+        try {
+          b = await bloccoComeTesto(url, chiave, {
+            p_company_id: id, p_tabella: voce.tabella, p_dopo: dopo, p_limite: limite,
+          });
+        } catch (errBlocco) {
+          // Troppo lento o troppo grande: stesso punto, un quarto delle righe.
+          const ridotto = limiteDopoErrore(limite);
+          if (ridotto === null) throw errBlocco;
+          console.warn(`[company-backup] ${voce.tabella}: blocco da ${limite} righe non passato, riprovo con ${ridotto}`);
+          limite = ridotto;
+          n--;
+          continue;
+        }
         if (b.n > 0) {
           // Il file è il blocco intero: { n, righe: [...], finito, ultimo }.
           const nome = `${base}/${voce.tabella}/${String(n).padStart(3, "0")}.json`;
@@ -119,6 +155,7 @@ async function backupPiattaformaABlocchi(admin: Admin, azienda: Record<string, u
         }
         if (b.finito || !b.ultimo) break;
         dopo = b.ultimo;
+        limite = prossimoLimite(limite, b.testo.length);
       }
     } catch (e) {
       completo = false;
@@ -131,13 +168,47 @@ async function backupPiattaformaABlocchi(admin: Admin, azienda: Record<string, u
     esportato_il: new Date().toISOString(),
     azienda: { id, name: azienda.name },
     a_blocchi: true,
-    righe_per_blocco: BLOCCO,
+    // I blocchi hanno misure diverse (si regolano sul peso): questo è il tetto.
+    righe_per_blocco: BLOCCO_MASSIMO,
     completo: completo && tabelle.every((t) => !t.errore && t.righe_salvate === t.righe_attese),
     durata_s: Math.round((Date.now() - inizio) / 1000),
     tabelle,
   };
   await carica(`${base}/indice.json`, indice);
   return indice;
+}
+
+/** Fa partire il lavoro in sottofondo, se il runtime lo permette; altrimenti lo aspetta. */
+async function inSottofondo(lavoro: Promise<unknown>): Promise<boolean> {
+  const runtime = (globalThis as unknown as {
+    EdgeRuntime?: { waitUntil?: (promise: Promise<unknown>) => void };
+  }).EdgeRuntime;
+  if (runtime?.waitUntil) {
+    runtime.waitUntil(lavoro);
+    return true;
+  }
+  await lavoro;
+  return false;
+}
+
+/**
+ * Chiede a questa stessa funzione il backup a blocchi di un'azienda, in una
+ * chiamata sua. `poi` sono le aziende che vengono dopo: ognuna fa partire la
+ * successiva quando ha finito, così il database ne serve una per volta.
+ */
+async function avviaBackupABlocchi(idAzienda: string, poi: string[]): Promise<void> {
+  const segreto = Deno.env.get("INTERNAL_CRON_SECRET");
+  if (!segreto) throw new Error("INTERNAL_CRON_SECRET non configurato: impossibile avviare il backup a blocchi");
+  const risposta = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/company-backup`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-internal-cron-secret": segreto },
+    body: JSON.stringify({ companyId: idAzienda, aBlocchi: true, poi }),
+    signal: AbortSignal.timeout(20_000),
+  });
+  if (!risposta.ok) {
+    throw new Error(`avvio backup a blocchi ${idAzienda}: HTTP ${risposta.status} ${(await risposta.text()).slice(0, 200)}`);
+  }
+  await risposta.body?.cancel().catch(() => {});
 }
 
 Deno.serve(conMetriche("company-backup", async (req) => {
@@ -171,21 +242,43 @@ Deno.serve(conMetriche("company-backup", async (req) => {
           status: 404, headers: { ...cors, "Content-Type": "application/json" },
         });
       }
-      const lavoro = backupPiattaformaABlocchi(admin, piattaforma as Record<string, unknown>)
+      const lavoro = backupABlocchi(admin, piattaforma as Record<string, unknown>)
         .then((indice) => console.log(JSON.stringify({ fn: "company-backup", piattaforma: true, completo: indice.completo, durata_s: indice.durata_s })))
         .catch((e) => console.error("[company-backup] piattaforma", (e as Error)?.message ?? e));
-      const runtime = (globalThis as unknown as {
-        EdgeRuntime?: { waitUntil?: (promise: Promise<unknown>) => void };
-      }).EdgeRuntime;
-      if (runtime?.waitUntil) {
-        runtime.waitUntil(lavoro);
-        return new Response(JSON.stringify({ avviato: true, azienda: piattaforma.name }), {
-          status: 202, headers: { ...cors, "Content-Type": "application/json" },
+      const avviato = await inSottofondo(lavoro);
+      return new Response(JSON.stringify(avviato ? { avviato: true, azienda: piattaforma.name } : { fatto: true, azienda: piattaforma.name }), {
+        status: avviato ? 202 : 200, headers: { ...cors, "Content-Type": "application/json" },
+      });
+    }
+
+    // Un'azienda a blocchi, in una chiamata sua (vedi l'intestazione). Finito
+    // il suo lavoro — riuscito o no — fa partire la prossima dell'elenco.
+    if (body?.aBlocchi === true) {
+      if (!soloUna) {
+        return new Response(JSON.stringify({ error: "aBlocchi vuole companyId" }), {
+          status: 400, headers: { ...cors, "Content-Type": "application/json" },
         });
       }
-      await lavoro;
-      return new Response(JSON.stringify({ fatto: true, azienda: piattaforma.name }), {
-        headers: { ...cors, "Content-Type": "application/json" },
+      const { data: azienda, error: errAzienda } = await admin
+        .from("companies").select("*").eq("id", soloUna).is("deleted_at", null).maybeSingle();
+      if (errAzienda) throw new Error(errAzienda.message);
+      if (!azienda) {
+        return new Response(JSON.stringify({ error: "Azienda non trovata" }), {
+          status: 404, headers: { ...cors, "Content-Type": "application/json" },
+        });
+      }
+      const poi: string[] = Array.isArray(body?.poi) ? body.poi.filter((v: unknown) => typeof v === "string") : [];
+      const lavoro = backupABlocchi(admin, azienda as Record<string, unknown>)
+        .then((indice) => console.log(JSON.stringify({ fn: "company-backup", a_blocchi: true, azienda: azienda.name, completo: indice.completo, durata_s: indice.durata_s })))
+        .catch((e) => console.error(`[company-backup] a blocchi ${azienda.name}:`, (e as Error)?.message ?? e))
+        .then(async () => {
+          if (poi.length === 0) return;
+          await avviaBackupABlocchi(poi[0], poi.slice(1))
+            .catch((e) => console.error("[company-backup] la prossima azienda a blocchi non è partita:", (e as Error)?.message ?? e));
+        });
+      const avviato = await inSottofondo(lavoro);
+      return new Response(JSON.stringify({ avviato, a_blocchi: true, azienda: azienda.name, poi: poi.length }), {
+        status: avviato ? 202 : 200, headers: { ...cors, "Content-Type": "application/json" },
       });
     }
 
@@ -199,9 +292,19 @@ Deno.serve(conMetriche("company-backup", async (req) => {
     const { data: aziende, error: errAziende } = await query;
     if (errAziende) throw new Error(errAziende.message);
 
-    const esiti: Array<{ azienda: string; percorso?: string; record?: number; errore?: string }> = [];
+    const esiti: Array<{ azienda: string; percorso?: string; record?: number; errore?: string; a_blocchi?: boolean; motivo?: string }> = [];
+    // Le aziende da fare a blocchi, ognuna in una chiamata sua, in fila.
+    const aBlocchi: Array<{ id: string; nome: string }> = [];
 
     for (const azienda of aziende ?? []) {
+      // Quante righe ha? Il conto è svelto (decimi di secondo) e decide la strada.
+      const { data: conDati, error: errConto } = await admin.rpc("admin_tabelle_con_dati", { p_company_id: azienda.id });
+      const righe = errConto ? null : ((conDati ?? []) as Array<{ righe: number }>).reduce((n, t) => n + Number(t.righe ?? 0), 0);
+      if (vaABlocchi(righe)) {
+        aBlocchi.push({ id: azienda.id, nome: azienda.name });
+        esiti.push({ azienda: azienda.name, a_blocchi: true, record: righe ?? undefined, motivo: "azienda grande" });
+        continue;
+      }
       try {
         // Il dump lo costruisce il database in una chiamata sola: 628 tabelle
         // via PostgREST sarebbero migliaia di richieste per azienda.
@@ -221,7 +324,22 @@ Deno.serve(conMetriche("company-backup", async (req) => {
 
         esiti.push({ azienda: azienda.name, percorso, record });
       } catch (e) {
-        esiti.push({ azienda: azienda.name, errore: (e as Error)?.message ?? "errore sconosciuto" });
+        // Il dump unico non è passato (di solito gli 8 secondi di PostgREST):
+        // non si resta senza copia, si ripiega sui blocchi.
+        const motivo = (e as Error)?.message ?? "errore sconosciuto";
+        aBlocchi.push({ id: azienda.id, nome: azienda.name });
+        esiti.push({ azienda: azienda.name, a_blocchi: true, motivo: `dump unico fallito: ${motivo}` });
+      }
+    }
+
+    if (aBlocchi.length > 0) {
+      try {
+        await avviaBackupABlocchi(aBlocchi[0].id, aBlocchi.slice(1).map((a) => a.id));
+      } catch (e) {
+        const motivo = (e as Error)?.message ?? "errore sconosciuto";
+        for (const esito of esiti) {
+          if (esito.a_blocchi) esito.errore = `backup a blocchi non partito: ${motivo}`;
+        }
       }
     }
 

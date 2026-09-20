@@ -17,7 +17,12 @@ import { Archive, CheckCircle2, AlertTriangle, PlayCircle } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 
-interface FileBackup { percorso: string; dimensione: number; creato_il: string | null }
+interface FileBackup {
+  percorso: string; dimensione: number; creato_il: string | null;
+  // Le aziende grandi si salvano a blocchi (una cartella con un indice): di
+  // quelle si sa quante righe tengono e se il backup è arrivato in fondo.
+  a_blocchi?: boolean; completo?: boolean; righe?: number; tabelle?: number;
+}
 interface EsitoTabella { tabella: string; nel_file?: number; ripristinate?: number; errore?: string; nota?: string }
 interface EsitoProva {
   ok: boolean; error?: string; integro?: boolean; azienda?: string; esportato_il?: string;
@@ -79,14 +84,18 @@ export function CompanyBackupCard({ companyId }: { companyId: string }) {
         )}
         {file.map((f) => {
           const e = esiti[f.percorso];
-          const nomeFile = f.percorso.split("/").pop() ?? f.percorso;
+          const parti = f.percorso.split("/");
+          const nomeFile = f.a_blocchi ? `${parti[parti.length - 2]} · a blocchi` : (parti.pop() ?? f.percorso);
           return (
             <div key={f.percorso} className="border rounded-md p-3 space-y-2">
               <div className="flex items-center justify-between gap-2 flex-wrap">
                 <div className="min-w-0">
                   <p className="text-sm font-medium truncate">{nomeFile}</p>
                   <p className="text-[11px] text-muted-foreground">
-                    {kb(f.dimensione)}{f.creato_il ? ` · ${format(new Date(f.creato_il), "d MMM yyyy HH:mm")}` : ""}
+                    {f.a_blocchi
+                      ? `${(f.righe ?? 0).toLocaleString("it-IT")} righe in ${f.tabelle ?? 0} tabelle`
+                      : kb(f.dimensione)}
+                    {f.creato_il ? ` · ${format(new Date(f.creato_il), "d MMM yyyy HH:mm")}` : ""}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -100,11 +109,25 @@ export function CompanyBackupCard({ companyId }: { companyId: string }) {
                       <AlertTriangle className="h-3 w-3" /> incompleto
                     </Badge>
                   )}
-                  <Button size="sm" variant="outline" onClick={() => prova.mutate(f.percorso)}
-                          disabled={prova.isPending}>
-                    <PlayCircle className="h-4 w-4 md:mr-1.5" />
-                    <span className="hidden md:inline">Prova ripristino</span>
-                  </Button>
+                  {f.a_blocchi && f.completo && (
+                    <Badge variant="secondary" className="gap-1">
+                      <CheckCircle2 className="h-3 w-3" /> completo
+                    </Badge>
+                  )}
+                  {f.a_blocchi && !f.completo && (
+                    <Badge variant="destructive" className="gap-1">
+                      <AlertTriangle className="h-3 w-3" /> incompleto
+                    </Badge>
+                  )}
+                  {/* La prova di ripristino per i backup a blocchi non c'è ancora:
+                      meglio nessun pulsante che uno che risponde con un errore. */}
+                  {!f.a_blocchi && (
+                    <Button size="sm" variant="outline" onClick={() => prova.mutate(f.percorso)}
+                            disabled={prova.isPending}>
+                      <PlayCircle className="h-4 w-4 md:mr-1.5" />
+                      <span className="hidden md:inline">Prova ripristino</span>
+                    </Button>
+                  )}
                 </div>
               </div>
               {e && (
@@ -130,7 +153,8 @@ export function CompanyBackupCard({ companyId }: { companyId: string }) {
         <p className="text-[11px] text-muted-foreground">
           La prova non tocca i dati veri: ricrea le tabelle del file in uno schema a parte, le riempie,
           conta, e lo butta via. Il ripristino reale vale solo per un'azienda già purgata e va fatto dal
-          database, tutto o niente.
+          database, tutto o niente. Le aziende grandi si salvano «a blocchi»: i dati ci sono tutti, ma
+          per quel formato la prova di ripristino non è ancora disponibile.
         </p>
       </CardContent>
     </Card>
