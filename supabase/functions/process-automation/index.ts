@@ -654,6 +654,9 @@ async function processQueue(supabase: any) {
       await supabase.from("automation_queue")
         .update({ status: "cancelled", last_error: `fermata: ${motivo}`, updated_at: new Date().toISOString() })
         .eq("enrollment_id", item.enrollment_id).eq("status", "pending");
+      // Fermarsi perché il contatto ha risposto è una fine regolare: anche
+      // l'esecuzione si chiude, altrimenti resta «in corso» nell'elenco.
+      await completeExecutionRun(supabase, item.enrollment_id, "completed");
       console.log(`[process-automation] iscrizione ${item.enrollment_id} fermata: ${motivo}`);
       return true;
     } catch (e) {
@@ -1552,6 +1555,8 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
       const ids = (rimossi ?? []).map((r: { id: string }) => r.id);
       if (ids.length > 0) {
         await supabase.from("automation_queue").update({ status: "canceled" }).in("enrollment_id", ids).in("status", ["pending", "waiting"]);
+        // Le esecuzioni delle iscrizioni tolte si chiudono con loro.
+        for (const id of ids) await completeExecutionRun(supabase, id, "completed");
       }
       return { success: true, output: { iscrizioni_rimosse: ids.length } };
     }
@@ -2530,6 +2535,7 @@ Istruzione: ${aiPrompt}`;
             .update({ status: "cancelled", updated_at: new Date().toISOString() })
             .eq("enrollment_id", enrollment.id)
             .eq("status", "pending");
+          await completeExecutionRun(supabase, enrollment.id, "completed");
         }
       }
       return { success: true, output: { action: "remove_from_automation", target_flow_id: targetFlowId, removed_count: removed?.length || 0 } };
@@ -3234,6 +3240,10 @@ async function queueNextNodes(supabase: any, queueItem: any, node: AutomationNod
           .from("automation_enrollments")
           .update({ status: doneStatus, updated_at: new Date().toISOString() })
           .eq("id", queueItem.enrollment_id);
+        // Anche l'esecuzione va chiusa (20/09/2026): l'iscrizione finiva, ma
+        // nell'elenco restava «in corso» per sempre ogni flusso che termina su
+        // un ramo senza uscite («non è un mio contatto» → fine).
+        await completeExecutionRun(supabase, queueItem.enrollment_id, "completed");
         return;
       }
     }
@@ -3557,6 +3567,7 @@ async function processWaitingTimeouts(supabase: any) {
         .from("automation_enrollments")
         .update({ status: "completed", updated_at: now })
         .eq("id", item.enrollment_id);
+      await completeExecutionRun(supabase, item.enrollment_id, "completed");
       continue;
     }
 
