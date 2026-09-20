@@ -89,7 +89,13 @@ export default function CassettoSDI({ embedded = false }: CassettoSDIProps = {})
           .eq("company_id", companyId!)
           .is("deleted_at", null)
           .or(`anno.eq.${anno},and(anno.is.null,data_emissione.gte.${anno}-01-01,data_emissione.lte.${anno}-12-31)`)
-          .in("stato", ["in_invio", "inviata_sdi", "consegnata", "accettata", "rifiutata"])
+          // Il cassetto raccoglie ciò che è andato allo SDI. Filtrare per `stato`
+          // faceva sparire le fatture trasmesse e poi incassate (lo stato diventa
+          // "pagata"): si guarda l'id di trasmissione, che non cambia più.
+          .or(
+            "sdi_id_trasmissione.not.is.null,sdi_stato.not.is.null," +
+              "stato.in.(in_invio,inviata_sdi,consegnata,accettata,rifiutata)",
+          )
           .order("data_emissione", { ascending: false })
           .abortSignal(timeout.signal);
 

@@ -48,7 +48,11 @@ export default function RegistroIncassi({ embedded = false }: RegistroIncassiPro
 
   // Get unpaid invoices for selection
   const { data: invoicesData } = useDocumentiFiscali({
-    stato: ["emessa", "parzialmente_pagata"],
+    // Una fattura si incassa finché ha un residuo, non finché ha una certa
+    // etichetta: mandandola allo SDI lo stato diventa "inviata_sdi" e prima del
+    // 20/09/2026 spariva da qui, cioè dopo il flusso normale (emetti → invia →
+    // incassa) non era più incassabile.
+    stato: ["emessa", "parzialmente_pagata", "inviata_sdi", "consegnata", "accettata", "rifiutata"],
     perPage: 1000, // KPI/selezione su TUTTI gli aperti, non solo i primi 50 (default paginazione)
   });
   const unpaidInvoices = useMemo(() => invoicesData?.documenti ?? [], [invoicesData?.documenti]);

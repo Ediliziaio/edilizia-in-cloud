@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ChevronDown, Building2, Mail, FileText, Info } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -26,6 +26,19 @@ export function EditorFatturazioneElettronicaSection({ state, dispatch, disabled
   function setField(field: string, value: unknown) {
     dispatch({ type: "SET_FIELD", field, value });
   }
+
+  // Lo split payment verso la PA non è solo un'etichetta nell'XML: toglie l'IVA
+  // dal totale che il cliente pagherà. La tendina qui sotto MOSTRAVA "S" come
+  // valore predefinito senza scriverlo nel documento, così l'XML dichiarava
+  // EsigibilitaIVA=S mentre totale, scadenze e PDF contenevano ancora il 22%
+  // che la PA non versa. Il valore predefinito ora si scrive davvero.
+  useEffect(() => {
+    if (disabled) return;
+    if (state.esigibilita_iva) return;
+    if (!isPA) return;
+    if (!azienda || azienda.split_payment_pa === false) return;
+    dispatch({ type: "SET_FIELD", field: "esigibilita_iva", value: "S" });
+  }, [disabled, isPA, azienda, state.esigibilita_iva, dispatch]);
 
   function updateSnapshotField(field: string, value: string) {
     if (!snap) return;

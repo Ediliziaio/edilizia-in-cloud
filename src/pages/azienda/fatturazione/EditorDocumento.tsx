@@ -340,8 +340,13 @@ export default function EditorDocumento() {
         state={state}
         isSaving={isSaving}
         lastSaved={lastSaved}
-        onEmetti={() => {
+        onEmetti={async () => {
           if (!state.id || emittiMutation.isPending) return;
+          // Il salvataggio automatico aspetta 2 secondi. Chi correggeva un
+          // prezzo e premeva subito «Emetti» emetteva la versione PRECEDENTE:
+          // la mutation rilegge il documento dal database, e il salvataggio in
+          // volo arrivava dopo, quando ormai il documento è immutabile.
+          await saveNow();
           emittiMutation.mutate(state.id, {
             // Risincronizza lo state locale col documento emesso: l'editor
             // si inizializza una sola volta, senza questo restava "Bozza"

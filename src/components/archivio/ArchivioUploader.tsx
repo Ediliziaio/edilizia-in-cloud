@@ -137,7 +137,8 @@ export function ArchivioUploader({ onUpload, isUploading }: Props) {
           <div className="flex items-start gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
             <Info className="h-4 w-4 mt-0.5 shrink-0 text-blue-600" />
             <span>
-              Il documento verrà firmato digitalmente con hash SHA-256 e conservato per 10 anni.
+              Del documento si calcola l'impronta SHA-256, che serve a riconoscere se il file
+              cambia. Non è una firma digitale.
             </span>
           </div>
 

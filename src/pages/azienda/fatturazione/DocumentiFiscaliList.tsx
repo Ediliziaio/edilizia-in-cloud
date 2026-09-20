@@ -625,24 +625,22 @@ function DocumentiFiscaliListInner() {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
+                    {/* Solo i tipi che il database accetta davvero. Il menu ne
+                        offriva sedici, ma documenti_fiscali.tipo ne ammette nove e
+                        documento_crea rispondeva «Il tipo di documento non è ancora
+                        gestito» alle altre dieci — parcella TD06, accompagnatoria
+                        TD24, acconti TD02/TD03, TD25, reverse charge interno TD16,
+                        TD21, TD27 e le autofatture estere TD17/TD18/TD19 — dopo
+                        aver fatto aprire l'editor. Per riaccenderne una servono,
+                        insieme: il vincolo su documenti_fiscali.tipo, l'elenco in
+                        documento_crea, la numerazione, documento_segno e una prova
+                        del suo XML. */}
                     <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=fattura")}>Fattura (TD01)</DropdownMenuItem>
                     <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=fattura_pa")}>Fattura PA</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=parcella")}>Parcella (TD06)</DropdownMenuItem>
                     <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=nota_credito")}>Nota di Credito</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=nota_debito")}>Nota di Debito</DropdownMenuItem>
                     <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=proforma")}>Pro-Forma</DropdownMenuItem>
                     <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=ddt")}>DDT</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=fattura_accompagnatoria")}>Fattura Accompagnatoria (TD24)</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=acconto_fattura")}>Acconto su fattura (TD02)</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=acconto_parcella")}>Acconto su parcella (TD03)</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=fattura_differita_b")}>Fattura differita lett.b (TD25)</DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=reverse_charge_interno")}>Integrazione RC interno (TD16) — Subappalto edile</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=autofattura_splafonamento")}>Autofattura splafonamento (TD21)</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=autoconsumo")}>Autoconsumo (TD27)</DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=integrazione_servizi_estero")}>Autofattura Servizi Estero (TD17)</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=integrazione_beni_ue")}>Integrazione Beni UE (TD18)</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=integrazione_beni_extra_ue")}>Integrazione Beni Extra-UE (TD19)</DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </>

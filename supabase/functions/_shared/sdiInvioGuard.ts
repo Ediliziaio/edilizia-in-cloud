@@ -17,6 +17,16 @@ export const STATO_IN_INVIO = "in_invio";
 export const STATI_INVIABILI = ["emessa", "rifiutata", "scartata"] as const;
 
 /**
+ * Stati di PAGAMENTO che finiscono nella stessa colonna `stato` del ciclo SDI.
+ * Incassare una fattura la porta a 'pagata'/'parzialmente_pagata' e fino al
+ * 20/09/2026 questo bastava a impedirne per sempre l'invio allo SDI: chi
+ * emetteva e incassava in giornata (contanti, POS) non poteva più trasmetterla.
+ * Incassare non è trasmettere: si accettano anche questi stati, ma solo finché
+ * allo SDI la fattura non è mai partita (sdi_stato e id trasmissione vuoti).
+ */
+const STATI_PAGAMENTO = ["pagata", "parzialmente_pagata"];
+
+/**
  * sdi_stato che indicano una fattura già accettata/consegnata/in carico allo
  * SDI: non va MAI ritrasmessa (genererebbe un doppione fiscale). Per correggere
  * una di queste si emette una nota di credito, non si reinvia.
@@ -64,7 +74,12 @@ export function valutaPreInvio(doc: DocPreInvio): PreInvioEsito {
     };
   }
 
-  if (!STATI_INVIABILI.includes(stato as (typeof STATI_INVIABILI)[number])) {
+  const maiTrasmessa = !sdiStato && !doc.sdi_id_trasmissione;
+  const inviabile =
+    STATI_INVIABILI.includes(stato as (typeof STATI_INVIABILI)[number]) ||
+    (maiTrasmessa && STATI_PAGAMENTO.includes(stato));
+
+  if (!inviabile) {
     const error =
       stato === "bozza"
         ? "Il documento è in stato 'bozza'. Azione: aprire il documento e cliccare 'Emetti' prima di inviare all'SDI."

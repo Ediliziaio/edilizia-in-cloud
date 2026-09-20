@@ -84,13 +84,24 @@ Deno.serve(async (req) => {
       return new Response("Missing IdentificativoSdI", { status: 400 });
     }
 
-    // Look up document
-    const { data: doc } = await supabase
-      .from("documenti_fiscali")
-      .select("id, company_id, stato")
-      .eq("sdi_id_trasmissione", idTrasmissione)
-      .limit(1)
-      .maybeSingle();
+    // Il documento si cerca su DUE colonne. `sdi_id_trasmissione` contiene
+    // l'identificativo INTERNO del provider (quello che openapi restituisce
+    // all'invio), mentre la notifica porta l'IdentificativoSdI, che è un altro
+    // numero: cercando solo sulla prima colonna ogni notifica finiva in
+    // «webhook_unknown» con HTTP 200 e lo stato non cambiava mai.
+    // sdi_identificativo lo riempie sdi-stato-tick quando il provider lo dà.
+    // L'identificativo finisce dentro un filtro `or`, dove virgole e parentesi
+    // hanno un significato: si tiene solo quello che un identificativo può
+    // contenere davvero.
+    const idPulito = String(idTrasmissione).replace(/[^A-Za-z0-9._-]/g, "");
+    const { data: doc } = idPulito
+      ? await supabase
+        .from("documenti_fiscali")
+        .select("id, company_id, stato")
+        .or(`sdi_id_trasmissione.eq.${idPulito},sdi_identificativo.eq.${idPulito}`)
+        .limit(1)
+        .maybeSingle()
+      : { data: null };
 
     if (!doc) {
       // Log unknown SDI ID

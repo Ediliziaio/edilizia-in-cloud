@@ -11,6 +11,18 @@ export function fmtNum(n: number, d = 2): string { return n.toFixed(d); }
 export function fmtDate(d: string | null | undefined): string { return d ? d.slice(0, 10) : ""; }
 export function naturaToXml(n: string): string { return n.replace(/_/g, "."); }
 
+/**
+ * CAP come lo vuole lo schema FatturaPA: cinque cifre. I codici postali esteri
+ * (lettere, spazi, lunghezze diverse) fanno scartare la fattura, e per i clienti
+ * non residenti la regola è proprio scrivere 00000.
+ */
+export function capSdi(cap?: string | null, nazione?: string | null): string {
+  const estero = String(nazione || "IT").toUpperCase() !== "IT";
+  const pulito = String(cap || "").replace(/\D/g, "");
+  if (estero || pulito.length !== 5) return "00000";
+  return pulito;
+}
+
 export const TIPO_TO_TD: Record<string, string> = {
   fattura: "TD01", fattura_pa: "TD01",
   acconto_fattura: "TD02",
@@ -44,9 +56,15 @@ export function generateXML(
   const isInversione = TIPI_INVERSIONE.includes(tipoDoc);
   const isPa = !isInversione && snap.tipo_cliente === "PA";
   const formato = isInversione ? "FPR12" : (isPa ? "FPA12" : "FPR12");
+  // Cliente non residente: lo SDI vuole sette X come CodiceDestinatario, non i
+  // sette zeri che valgono per chi in Italia non ha un canale telematico. Con
+  // gli zeri la fattura verso l'estero viene scartata.
+  const clienteEstero = !isInversione && String(snap.indirizzo_nazione || "IT").toUpperCase() !== "IT";
   const codDest = isInversione
     ? (azienda.codice_sdi || "0000000")
-    : (snap.codice_sdi || (isPa ? "000000" : "0000000"));
+    : clienteEstero
+      ? "XXXXXXX"
+      : (snap.codice_sdi || (isPa ? "000000" : "0000000"));
   const righe: any[] = doc.righe || [];
   const scadenze: any[] = doc.scadenze_pagamento || [];
 
@@ -89,7 +107,7 @@ export function generateXML(
       </DatiAnagrafici>
       <Sede>
         <Indirizzo>${escXml(snap.indirizzo_via || "Estero")}</Indirizzo>
-        <CAP>${escXml(snap.indirizzo_cap || "00000")}</CAP>
+        <CAP>${escXml(capSdi(snap.indirizzo_cap, snap.indirizzo_nazione))}</CAP>
         <Comune>${escXml(snap.indirizzo_comune || "Estero")}</Comune>
         <Nazione>${escXml(snap.indirizzo_nazione || "XX")}</Nazione>
       </Sede>

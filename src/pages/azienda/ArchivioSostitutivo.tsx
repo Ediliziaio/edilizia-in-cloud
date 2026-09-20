@@ -30,9 +30,14 @@ export default function ArchivioSostitutivo() {
       <FiscalitaNavigation />
 
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Archiviazione Sostitutiva</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Archivio documenti fiscali</h1>
+        {/* Questa pagina archivia file caricati a mano e ne calcola l'impronta
+            SHA-256. Non è la conservazione sostitutiva a norma: non c'è un
+            conservatore accreditato, né marca temporale, né pacchetto di
+            archiviazione, né una riverifica delle impronte. Finché non ci sono,
+            la pagina non lo dichiara. */}
         <p className="text-muted-foreground mt-1">
-          Conservazione digitale a norma di legge per 10 anni (art. 44 CAD)
+          Archivio dei documenti fiscali, da tenere per 10 anni. Non sostituisce la conservazione a norma.
         </p>
       </div>
 
@@ -116,12 +121,12 @@ export default function ArchivioSostitutivo() {
           <CardHeader className="pb-2 flex flex-row items-center gap-2">
             <Scale className="h-4 w-4 text-muted-foreground" />
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Conservazione legale
+              Da tenere per
             </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold">10 anni</p>
-            <p className="text-xs text-muted-foreground mt-0.5">art. 44 CAD</p>
+            <p className="text-xs text-muted-foreground mt-0.5">termine di legge</p>
           </CardContent>
         </Card>
       </div>

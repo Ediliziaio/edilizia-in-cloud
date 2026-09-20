@@ -107,7 +107,11 @@ describe("valutaPreInvio", () => {
     if (!r.ok) expect(r.status).toBe(409);
   });
 
-  it.each(["inviata_sdi", "consegnata", "accettata", "pagata"])(
+  // "pagata" stava in questo elenco: era l'errore. Una fattura incassata non è
+  // una fattura trasmessa, e trattarla così impediva per sempre l'invio a chi
+  // emette e incassa in giornata. Il caso sta in "fattura incassata prima di
+  // essere trasmessa", più sotto.
+  it.each(["inviata_sdi", "consegnata", "accettata"])(
     "blocca il reinvio di una fattura già trasmessa (stato '%s')",
     (stato) => {
       expect(valutaPreInvio({ stato }).ok).toBe(false);
@@ -262,5 +266,24 @@ describe("invioManuale", () => {
     expect(invioManuale("manuale")).toBe(true);
     expect(invioManuale("infocert")).toBe(true);
     expect(invioManuale(undefined)).toBe(true);
+  });
+});
+
+describe("fattura incassata prima di essere trasmessa", () => {
+  it("parte lo stesso: incassare non è trasmettere", () => {
+    expect(valutaPreInvio({ stato: "pagata" })).toEqual({ ok: true });
+    expect(valutaPreInvio({ stato: "parzialmente_pagata" })).toEqual({ ok: true });
+  });
+  it("ma se allo SDI c'è già andata resta ferma", () => {
+    expect(valutaPreInvio({ stato: "pagata", sdi_stato: "RC" }))
+      .toMatchObject({ ok: false, code: "gia_trasmessa" });
+  });
+  it("e nemmeno con un id di trasmissione senza stato", () => {
+    expect(valutaPreInvio({ stato: "pagata", sdi_id_trasmissione: "OA-123" }))
+      .toMatchObject({ ok: false, code: "stato_non_valido" });
+  });
+  it("la bozza resta bloccata, col messaggio che dice cosa fare", () => {
+    expect(valutaPreInvio({ stato: "bozza" }))
+      .toMatchObject({ ok: false, error: expect.stringContaining("Emetti") });
   });
 });
