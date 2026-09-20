@@ -3,6 +3,7 @@ import { requireAuth, requireRole, isInternalRequest } from "../_shared/auth.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { leggiImpostazioniPiattaforma } from "../_shared/getPlatformSetting.ts";
 import {
+  erroreProviderPiuFresco,
   esitoCloudflare,
   esitoEmailConProve,
   type ProveInvii,
@@ -432,7 +433,7 @@ serveConMetriche("check-api-health", async (req) => {
     try {
       const daIeri = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
       const providerMarketing = emailStreams.marketing.provider;
-      const [ripieghi, riuscite, ultimoRiuscito, ultimoErrore] = await Promise.all([
+      const [ripieghi, riuscite, ultimoRiuscito, ultimoErrore, ultimoRipiego] = await Promise.all([
         admin.from("email_delivery_log").select("id", { head: true, count: "exact" })
           .gte("sent_at", daIeri).eq("metadata->>ripiego", "stream_transazionale"),
         admin.from("email_delivery_log").select("id", { head: true, count: "exact" })
@@ -443,14 +444,25 @@ serveConMetriche("check-api-health", async (req) => {
         admin.from("email_delivery_log").select("sent_at, error_message")
           .eq("stream", "marketing").eq("provider", providerMarketing).eq("status", "failed")
           .order("sent_at", { ascending: false }).limit(1).maybeSingle(),
+        // Il motivo del ripiego, scritto da process-automation accanto
+        // all'email uscita dalla riserva: è la risposta più fresca del provider.
+        admin.from("email_delivery_log").select("sent_at, motivo:metadata->>ripiego_motivo")
+          .eq("metadata->>ripiego", "stream_transazionale").not("metadata->>ripiego_motivo", "is", null)
+          .order("sent_at", { ascending: false }).limit(1).maybeSingle(),
       ]);
       if (!ripieghi.error && !riuscite.error) {
+        const fallito = ultimoErrore.data as { sent_at?: string; error_message?: string } | null;
+        const ripiego = ultimoRipiego.error ? null : ultimoRipiego.data as { sent_at?: string; motivo?: string } | null;
+        const piuFresco = erroreProviderPiuFresco(
+          { testo: fallito?.error_message ?? null, il: fallito?.sent_at ?? null },
+          { testo: ripiego?.motivo ?? null, il: ripiego?.sent_at ?? null },
+        );
         proveMarketing = {
           ripieghi24h: ripieghi.count ?? 0,
           riuscite24h: riuscite.count ?? 0,
           ultimoRiuscito: (ultimoRiuscito.data as { sent_at?: string } | null)?.sent_at ?? null,
-          ultimoErrore: (ultimoErrore.data as { error_message?: string } | null)?.error_message ?? null,
-          ultimoErroreIl: (ultimoErrore.data as { sent_at?: string } | null)?.sent_at ?? null,
+          ultimoErrore: piuFresco.testo,
+          ultimoErroreIl: piuFresco.il,
         };
       }
     } catch (errProve) {

@@ -2173,6 +2173,14 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
           });
           let streamUsato: "marketing" | "transactional" = "marketing";
           let ripiego: string | null = null;
+          // Perché il provider marketing ha rifiutato, con le sue parole. Finisce
+          // nel registro degli invii: è da lì che il controllo salute capisce che
+          // il canale non consegna, e perché («Your plan expired…»). Prima la
+          // notifica usciva dal canale di riserva e del rifiuto non restava
+          // traccia, se non in un log che dopo un giorno non c'è più.
+          const rifiuto = (esito: unknown): string =>
+            JSON.stringify((esito as any)?.body ?? (esito as any)?.error ?? "").slice(0, 300);
+          let motivoRipiego: string | null = r.ok ? null : rifiuto(r);
 
           // 2. Il mittente dell'azienda e' stato rifiutato: riprova col condiviso.
           if (!r.ok && notifSender?.from && notifSender.from !== provider.fromDefault) {
@@ -2192,6 +2200,8 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
               elasticTransactionalClass: true,
             });
             if (r.ok) ripiego = "mittente_condiviso";
+            // Rifiutato anche il mittente condiviso: è questo il motivo che conta.
+            else motivoRipiego = rifiuto(r);
           }
 
           // 3. Anche il provider marketing e' giu' (piano scaduto, account
@@ -2227,7 +2237,10 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
             error_message: r.ok ? undefined : JSON.stringify(r.body),
             cost_eur: 0,
             charged_eur: deductedNotifCost,
-            metadata: { entity_id: entityId, automation: true, internal_notification: true, ...(ripiego ? { ripiego } : {}) },
+            metadata: {
+              entity_id: entityId, automation: true, internal_notification: true,
+              ...(ripiego ? { ripiego, ...(motivoRipiego ? { ripiego_motivo: motivoRipiego } : {}) } : {}),
+            },
           });
 
           if (!r.ok) {

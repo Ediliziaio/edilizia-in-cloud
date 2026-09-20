@@ -133,6 +133,25 @@ export function erroreProviderLeggibile(grezzo: string | null, max = 140): strin
   return testo.length > max ? `${testo.slice(0, max - 1)}…` : testo;
 }
 
+/** Una risposta del provider, e quando è arrivata. */
+export interface ErroreProvider { testo: string | null; il: string | null }
+
+/**
+ * Fra due risposte del provider vale la più recente. Le fonti sono due: gli
+ * invii falliti e il motivo scritto accanto alle email uscite dalla riserva.
+ * Il 20/09 la prima era ferma al 29/08 («From email address not allowed»),
+ * mentre il provider quel giorno rispondeva «Your plan expired».
+ */
+export function erroreProviderPiuFresco(a: ErroreProvider, b: ErroreProvider): ErroreProvider {
+  const candidati = [a, b].filter((c) => !!c.testo);
+  if (candidati.length === 0) return { testo: null, il: null };
+  const tempo = (c: ErroreProvider) => {
+    const t = c.il ? new Date(c.il).getTime() : NaN;
+    return Number.isNaN(t) ? -Infinity : t;
+  };
+  return candidati.reduce((meglio, c) => (tempo(c) > tempo(meglio) ? c : meglio));
+}
+
 /**
  * Corregge l'esito della sonda con le prove degli invii veri.
  *

@@ -14,6 +14,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   erroreProviderLeggibile,
+  erroreProviderPiuFresco,
   esitoCloudflare,
   esitoEmailConProve,
   type EsitoSalute,
@@ -133,6 +134,35 @@ describe("Email marketing: la sonda contro le prove degli invii veri", () => {
     expect(erroreProviderLeggibile("smtp_unexpected: 550 Spam Rejected")).toBe("smtp_unexpected: 550 Spam Rejected");
     expect(erroreProviderLeggibile("x".repeat(500))?.length).toBe(140);
     expect(erroreProviderLeggibile(null)).toBe(null);
+  });
+});
+
+describe("Il motivo: la risposta più fresca del provider", () => {
+  const vecchio = { testo: 'Error: From email address: "no-reply@mkt.ediliziaincloud.com" not allowed.', il: "2026-08-29T17:40:00Z" };
+  const fresco = { testo: '{"Error":"Your plan expired."}', il: "2026-09-20T06:59:00Z" };
+
+  it("il caso vero del 20/09: vale «Your plan expired» di oggi, non il rifiuto del 29/08", () => {
+    expect(erroreProviderPiuFresco(vecchio, fresco)).toEqual(fresco);
+    expect(erroreProviderPiuFresco(fresco, vecchio)).toEqual(fresco);
+  });
+
+  it("se una delle due fonti è vuota vale l'altra; se lo sono entrambe, niente", () => {
+    expect(erroreProviderPiuFresco(vecchio, { testo: null, il: null })).toEqual(vecchio);
+    expect(erroreProviderPiuFresco({ testo: null, il: "2026-09-20T06:59:00Z" }, vecchio)).toEqual(vecchio);
+    expect(erroreProviderPiuFresco({ testo: null, il: null }, { testo: null, il: null })).toEqual({ testo: null, il: null });
+  });
+
+  it("una data illeggibile perde contro una data vera", () => {
+    expect(erroreProviderPiuFresco({ testo: "boh", il: "non-una-data" }, vecchio)).toEqual(vecchio);
+  });
+
+  it("process-automation scrive il motivo accanto all'email uscita dalla riserva", () => {
+    const motore = readFileSync(join(ROOT, "supabase/functions/process-automation/index.ts"), "utf8");
+    expect(motore).toContain("ripiego_motivo: motivoRipiego");
+    // Il motivo che conta è l'ultimo rifiuto del canale marketing, non il primo.
+    expect(motore).toMatch(/if \(r\.ok\) ripiego = "mittente_condiviso";\s*\/\/[^\n]*\n\s*else motivoRipiego = rifiuto\(r\);/);
+    const salute = readFileSync(join(ROOT, "supabase/functions/check-api-health/index.ts"), "utf8");
+    expect(salute).toContain("motivo:metadata->>ripiego_motivo");
   });
 });
 
