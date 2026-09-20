@@ -19,6 +19,7 @@ import {
   calcolaBollettaPrimaDopo,
   type FvFlows,
 } from "./fvCalcoli.ts";
+import { normalizzaHex, fondoPerTestoBianco, scurisci, schiarisci, testoSuChiaro, testoSuScuro, rgbElenco } from "./temaColori.ts";
 import {
   svgProducibilitaMensile,
   svgSankeyDoveVa,
@@ -172,6 +173,10 @@ export interface FvPdfTemplateData {
     pdf_cover_overlay_opacity?: number | null;
     pdf_cover_bg_color?: string | null;
     pdf_cover_text_color?: string | null;
+    /** Colori del marchio scelti nell'editor. Fino al 20/09/2026 si salvavano e
+     *  nessuno li leggeva: il documento usciva sempre blu e arancio. */
+    colore_primario?: string | null;
+    colore_accento?: string | null;
     pdf_cover_text_align?: string | null;
     pdf_cover_logo_position?: string | null;
     pdf_cover_show_client_card?: boolean | null;
@@ -383,7 +388,8 @@ p { margin-bottom: 2mm; }
 .callout-success { background: #DCFCE7; border-left: 3px solid #16A34A; color: #166534; }
 .callout-tip { background: #FFEDD5; border-left: 3px solid #F97316; color: #C2410C; }
 .callout-info { background: #DBEAFE; border-left: 3px solid #3B82F6; color: #1E3A8A; }
-.callout strong { display: block; margin-bottom: 0.5mm; font-size: 9.5pt; }
+.callout > div > strong:first-child { display: block; margin-bottom: 0.5mm; font-size: 9.5pt; }
+.page-title sub { font-size: 0.55em; line-height: 0; position: relative; bottom: -0.12em; vertical-align: baseline; letter-spacing: 0; }
 .rich-text p { margin-bottom: 1.5mm; }
 .rich-text ul, .rich-text ol { padding-left: 5mm; margin: 1.5mm 0; }
 .rich-text li { margin-bottom: 0.8mm; }
@@ -994,7 +1000,7 @@ function pageInvestimento(d: FvPdfTemplateData, pageN: number, total: number): s
   return `<div class="page">
     ${header(d.progetto.numero, cliente, d.azienda.name)}
     <div class="content">
-      <div class="eyebrow">Pagina ${pageN} · L'investimento</div>
+      <div class="eyebrow">L'investimento</div>
       <h1 class="page-title">L'investimento di<br/>una vita.</h1>
       <p class="page-subtitle">Trasparente, completo, chiavi in mano. Senza sorprese.</p>
       ${valoreProposta ? `<div class="callout callout-info">
@@ -1094,7 +1100,7 @@ function pageAnteprima(d: FvPdfTemplateData, pageN: number, total: number): stri
   return `<div class="page">
     ${header(d.progetto.numero, cliente, d.azienda.name)}
     <div class="content">
-      <div class="eyebrow">Pagina ${pageN} · Anteprima dell'impianto</div>
+      <div class="eyebrow">Anteprima dell'impianto</div>
       <h1 class="page-title">La tua casa,<br/>con i pannelli.</h1>
       <p class="page-subtitle">Vista dall'alto del tuo tetto in ${escHtml(d.cliente.indirizzo)}. Disposizione indicativa dei ${np} pannelli sulla falda rilevata.</p>
       <div class="sat-grid">
@@ -1143,7 +1149,7 @@ function pageBundleKit(d: FvPdfTemplateData, pageN: number, total: number): stri
   return `<div class="page">
     ${header(d.progetto.numero, cliente, d.azienda.name)}
     <div class="content">
-      <div class="eyebrow">Pagina ${pageN} · Il tuo kit</div>
+      <div class="eyebrow">Il tuo kit</div>
       <h1 class="page-title">${escHtml(b.nome)}</h1>
       ${b.descrizione ? `<p class="page-subtitle">${escHtml(b.descrizione)}</p>` : ""}
       ${b.cover_b64 ? `<div style="width:100%;height:60mm;border-radius:10px;overflow:hidden;margin:4mm 0;background:linear-gradient(135deg,#F8FAFC 0%,#E2E8F0 100%);display:flex;align-items:center;justify-content:center;padding:4mm;">
@@ -1190,7 +1196,7 @@ function pageComponenti(d: FvPdfTemplateData, pageN: number, total: number): str
   return `<div class="page">
     ${header(d.progetto.numero, cliente, d.azienda.name)}
     <div class="content">
-      <div class="eyebrow">Pagina ${pageN} · I componenti</div>
+      <div class="eyebrow">I componenti</div>
       <h1 class="page-title">Solo materiali<br/>premium.</h1>
       <p class="page-subtitle">Ogni componente è stato scelto per durare 25+ anni. Marche leader con assistenza Italia.</p>
       ${cards || "<p>Nessun componente configurato.</p>"}
@@ -1224,7 +1230,7 @@ function pageMacroCategoriaDedicata(
   return `<div class="page">
     ${header(d.progetto.numero, cliente, d.azienda.name)}
     <div class="content">
-      <div class="eyebrow">Pagina ${pageN} · Pagina dedicata · Linea prodotto</div>
+      <div class="eyebrow">Pagina dedicata · Linea prodotto</div>
       <h1 class="page-title">Pagina dedicata<br/>${escHtml(title)}.</h1>
       <p class="page-subtitle">Approfondimento dal listino prodotti aziendale, sincronizzato con le macro-categorie configurate nelle impostazioni.</p>
       <div class="macro-hero">
@@ -1253,7 +1259,7 @@ function pageProduzione(d: FvPdfTemplateData, pageN: number, total: number): str
   return `<div class="page">
     ${header(d.progetto.numero, cliente, d.azienda.name)}
     <div class="content">
-      <div class="eyebrow">Pagina ${pageN} · La produzione</div>
+      <div class="eyebrow">La produzione</div>
       <h1 class="page-title">Quanta energia<br/>produrrai.</h1>
       <p class="page-subtitle">${fmtNum(d.flows.produzione_kwh)} kWh/anno · calcolato da ${escHtml(source)}${d.progetto.azimut ? ` sulla tua esposizione ${escHtml(d.progetto.azimut)}` : ""}.</p>
       ${renderRoofSourcePanel(d)}
@@ -1282,7 +1288,7 @@ function pageFlussi(d: FvPdfTemplateData, pageN: number, total: number): string 
   return `<div class="page">
     ${header(d.progetto.numero, cliente, d.azienda.name)}
     <div class="content">
-      <div class="eyebrow">Pagina ${pageN} · Flussi energetici</div>
+      <div class="eyebrow">Flussi energetici</div>
       <h1 class="page-title">Dove va<br/>la tua energia.</h1>
       <p class="page-subtitle">Spiegato in modo semplice: cosa succede ai ${fmtNum(d.flows.produzione_kwh)} kWh che produci e ai ${fmtNum(d.progetto.consumo_annuo_kwh)} kWh che consumi.</p>
       <div class="chart-card">
@@ -1314,7 +1320,7 @@ function pageRisparmio(d: FvPdfTemplateData, pageN: number, total: number): stri
   return `<div class="page">
     ${header(d.progetto.numero, cliente, d.azienda.name)}
     <div class="content">
-      <div class="eyebrow">Pagina ${pageN} · Il risparmio</div>
+      <div class="eyebrow">Il risparmio</div>
       <h1 class="page-title">${fmtEur(d.scenario.risparmio_mensile_eur)} al mese,<br/>per sempre.</h1>
       <p class="page-subtitle">Quello che eviti di pagare in bolletta dal primo giorno. Dato indicizzato all'inflazione.</p>
       <div class="kpi-row cols-2">
@@ -1350,7 +1356,7 @@ function pageCostiFuturi(d: FvPdfTemplateData, pageN: number, total: number): st
   return `<div class="page">
     ${header(d.progetto.numero, cliente, d.azienda.name)}
     <div class="content">
-      <div class="eyebrow">Pagina ${pageN} · Costi energetici futuri</div>
+      <div class="eyebrow">Costi energetici futuri</div>
       <h1 class="page-title">Quanto pagherai<br/>nei prossimi 20 anni.</h1>
       <p class="page-subtitle">Confronto annuo bolletta senza fotovoltaico vs con il tuo impianto. Inflazione attesa: 3%/anno.</p>
       <div class="chart-card">
@@ -1384,7 +1390,7 @@ function pagePiano(d: FvPdfTemplateData, fin: FvFinanziamentoPdf, pageN: number,
   return `<div class="page">
     ${header(d.progetto.numero, cliente, d.azienda.name)}
     <div class="content">
-      <div class="eyebrow">★ Pagina ${pageN} · Il piano economico</div>
+      <div class="eyebrow">★ Il piano economico</div>
       <h1 class="page-title">${fmtEur(netto)} al mese.<br/><span style="color:#F97316">Tutto qui.</span></h1>
       <p class="page-subtitle">Quello che esce davvero dal tuo conto, ogni mese.${netto / 30 <= 1.5 ? " Meno di un caffè al giorno." : ""}</p>
       <div class="split-3">
@@ -1420,7 +1426,7 @@ function pageBollette240(d: FvPdfTemplateData, pageN: number, total: number): st
   return `<div class="page">
     ${header(d.progetto.numero, cliente, d.azienda.name)}
     <div class="content">
-      <div class="eyebrow">Pagina ${pageN} · Perché farlo adesso</div>
+      <div class="eyebrow">Perché farlo adesso</div>
       <h1 class="page-title">Bollette: <span style="color:#DC2626">+240%</span><br/>Stipendio: <span style="color:#F97316">+11,5%</span></h1>
       <p class="page-subtitle">In 10 anni le bollette si sono triplicate. Il reddito delle famiglie italiane no. Fonte: Codacons + ISTAT.</p>
       <div class="kpi-row">
@@ -1463,8 +1469,8 @@ function pageCassa25(d: FvPdfTemplateData, pageN: number, total: number): string
   return `<div class="page">
     ${header(d.progetto.numero, cliente, d.azienda.name)}
     <div class="content">
-      <div class="eyebrow">Pagina ${pageN} · La cassa nei 25 anni</div>
-      <h1 class="page-title">${fmtEur(final).replace("€", "+€")}<br/>nelle tue tasche.</h1>
+      <div class="eyebrow">La cassa nei 25 anni</div>
+      <h1 class="page-title">${final > 0 ? "+" : ""}${fmtEur(final)}<br/>nelle tue tasche.</h1>
       <p class="page-subtitle">Profitto netto cumulato dopo 25 anni${payback != null ? ` · breakeven al ${payback}° anno · poi puro profitto` : ""}.</p>
       <div class="chart-card">
         <div class="chart-title">Cassa cumulata anno per anno</div>
@@ -1491,8 +1497,8 @@ function pageCO2(d: FvPdfTemplateData, pageN: number, total: number): string {
   return `<div class="page">
     ${header(d.progetto.numero, cliente, d.azienda.name)}
     <div class="content">
-      <div class="eyebrow">Pagina ${pageN} · L'impatto sul pianeta</div>
-      <h1 class="page-title">${fmtNum(co2.ton_co2_anno, 2)} t di CO₂<br/>in meno ogni anno.</h1>
+      <div class="eyebrow">L'impatto sul pianeta</div>
+      <h1 class="page-title">${fmtNum(co2.ton_co2_anno, 2)} t di CO<sub>2</sub><br/>in meno ogni anno.</h1>
       <p class="page-subtitle">Il tuo impianto è un bosco a casa tua. Ecco cosa significa, in modo concreto.</p>
       <div class="kpi-big" style="text-align:center;padding:8mm;margin:4mm 0;">
         <div class="kbig-label" style="margin-bottom:2mm;">CO₂ evitata in 25 anni</div>
@@ -1557,7 +1563,7 @@ function pageGaranzie(d: FvPdfTemplateData, pageN: number, total: number): strin
   return `<div class="page">
     ${header(d.progetto.numero, cliente, d.azienda.name)}
     <div class="content">
-      <div class="eyebrow">Pagina ${pageN} · Garanzie e assistenza</div>
+      <div class="eyebrow">Garanzie e assistenza</div>
       <h1 class="page-title">${anniPannelli ? `${anniPannelli} anni di<br/>tranquillità.` : "Garanzie e<br/>assistenza."}</h1>
       <p class="page-subtitle">Le garanzie reali sui componenti, sulla manodopera e sulla nostra azienda.</p>
       ${presentazione || teamImage ? `<div class="callout callout-info">
@@ -1626,7 +1632,7 @@ function pageIter(d: FvPdfTemplateData, pageN: number, total: number): string {
   return `<div class="page">
     ${header(d.progetto.numero, cliente, d.azienda.name)}
     <div class="content">
-      <div class="eyebrow">Pagina ${pageN} · Iter pratiche</div>
+      <div class="eyebrow">Iter pratiche</div>
       <h1 class="page-title">Pensiamo a<br/>tutto noi.</h1>
       <p class="page-subtitle">Tu firmi una sola volta. Ecco i passaggi fino all'accensione dell'impianto.</p>
       ${intro ? `<div class="callout callout-info"><span class="callout-icon">i</span><div><strong>Il percorso cliente</strong><div class="rich-text">${intro}</div></div></div>` : ""}
@@ -1660,7 +1666,7 @@ function pageFAQ(d: FvPdfTemplateData, pageN: number, total: number): string {
   return `<div class="page">
     ${header(d.progetto.numero, cliente, d.azienda.name)}
     <div class="content">
-      <div class="eyebrow">Pagina ${pageN} · Domande frequenti</div>
+      <div class="eyebrow">Domande frequenti</div>
       <h1 class="page-title">Le domande<br/>che fanno tutti.</h1>
       <div style="margin-top:4mm;">
         ${faqs.map((f) => `<div class="qa-item"><div class="qa-q">${escHtml(f.q)}</div><div class="qa-a">${escHtml(f.a)}</div></div>`).join("")}
@@ -1692,7 +1698,7 @@ function pageDecisione(d: FvPdfTemplateData, pageN: number, total: number): stri
   return `<div class="page">
     ${header(d.progetto.numero, cliente, d.azienda.name)}
     <div class="content">
-      <div class="eyebrow">Pagina ${pageN} · La tua decisione</div>
+      <div class="eyebrow">La tua decisione</div>
       <h1 class="page-title">${renderCoverLines(ctaTitolo)}</h1>
       ${ctaTesto ? `<div class="callout callout-info">
         <span class="callout-icon">i</span>
@@ -1781,6 +1787,42 @@ export function getFvPdfRenderedPagesCount(d: FvPdfTemplateData): number {
   ), 0);
 }
 
+// ─── TEMA: i colori dell'azienda ────────────────────────────────────────────
+// Il foglio di stile e i grafici sono scritti col blu (#1E3A5F) e l'arancio
+// (#F97316) di serie. Se l'azienda ha scelto i suoi colori, si sostituiscono
+// nell'HTML finito: così cambiano insieme copertina, titoli, tabelle e grafici,
+// senza riscrivere 1.800 righe di stile. Ogni variante è calcolata perché il
+// testo resti leggibile (un marchio lime diventa un verde oliva per i fondi).
+const BLU_DI_SERIE = "#1E3A5F";
+const ARANCIO_DI_SERIE = "#F97316";
+
+export function applicaTemaFv(html: string, template: FvPdfTemplateData["template"] | null | undefined): string {
+  const primario = normalizzaHex(template?.colore_primario);
+  const accento = normalizzaHex(template?.colore_accento);
+  let out = html;
+  if (primario && primario !== BLU_DI_SERIE) {
+    const fondo = fondoPerTestoBianco(primario);
+    // Ordine: prima le varianti, poi il colore base (che è sottostringa di nessuna).
+    out = out
+      .replace(/#0F2542/gi, scurisci(fondo, 0.35))   // angolo scuro del gradiente di copertina
+      .replace(/#2C5184/gi, schiarisci(fondo, 0.18)) // angolo chiaro del gradiente di copertina
+      .replace(/#0F1A2E/gi, scurisci(fondo, 0.5))    // celle dei pannelli nei disegni
+      .replace(/#1E3A5F/gi, fondo);
+  }
+  if (accento && accento !== ARANCIO_DI_SERIE) {
+    const fondoCopertina = primario ? fondoPerTestoBianco(primario) : BLU_DI_SERIE;
+    out = out
+      .replace(/#C2410C/gi, testoSuChiaro(accento, "#FFEDD5"))          // testo dell'accento sui riquadri chiari
+      .replace(/#FBBF24/gi, testoSuScuro(schiarisci(accento, 0.2), fondoCopertina, 3)) // evidenze sulla copertina scura
+      .replace(/#FFEDD5/gi, schiarisci(accento, 0.86))
+      .replace(/#FED7AA/gi, schiarisci(accento, 0.72))
+      .replace(/#FEF3C7/gi, schiarisci(accento, 0.9))
+      .replace(/249,\s*115,\s*22/g, rgbElenco(accento))
+      .replace(/#F97316/gi, accento);
+  }
+  return out;
+}
+
 export function renderFvPdfHtml(d: FvPdfTemplateData): string {
   const macroPages = dedicatedMacroPages(d);
   const orderedPages = pagineDaDisegnare(d);
@@ -1844,7 +1886,7 @@ export function renderFvPdfHtml(d: FvPdfTemplateData): string {
     }
   }
 
-  return `<!DOCTYPE html>
+  return applicaTemaFv(`<!DOCTYPE html>
 <html lang="it">
 <head>
 <meta charset="UTF-8">
@@ -1862,5 +1904,5 @@ ${pages.join("\n")}
   }
 </script>
 </body>
-</html>`;
+</html>`, d.template);
 }

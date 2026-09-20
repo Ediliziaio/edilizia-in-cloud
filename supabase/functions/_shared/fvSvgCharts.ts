@@ -651,6 +651,8 @@ export function svgVistaSatellitareMock(
 }
 
 // ─── 9. IMMAGINI PRODOTTO (mock SVG per pannello/inverter/accumulo) ────────
+// Segnaposto per i prodotti senza foto: NESSUN marchio scritto dentro (fino al
+// 20/09/2026 c'era «HUAWEI», anche nei preventivi di chi installa altre marche).
 
 export function svgProdottoIcona(tipo: "pannello" | "inverter" | "accumulo"): string {
   if (tipo === "pannello") {
@@ -666,17 +668,14 @@ export function svgProdottoIcona(tipo: "pannello" | "inverter" | "accumulo"): st
       <rect x="20" y="20" width="60" height="60" rx="6" fill="white" stroke="#1E3A5F" stroke-width="2"/>
       <rect x="28" y="32" width="44" height="20" rx="3" fill="#0F1A2E"/>
       <text x="50" y="46" text-anchor="middle" font-size="9" fill="${C.amber}" font-family="monospace" font-weight="700">5,8kW</text>
-      <text x="50" y="55" text-anchor="middle" font-size="4" fill="${C.amber}" font-family="monospace">PRODUCING NOW</text>
       <circle cx="34" cy="68" r="2" fill="${C.green}"/>
       <circle cx="42" cy="68" r="2" fill="#cbd5e1"/>
       <circle cx="50" cy="68" r="2" fill="#cbd5e1"/>
-      <text x="62" y="71" font-size="6" font-weight="700" fill="#1E3A5F">HUAWEI</text>
     </svg>`;
   }
   // accumulo
   return `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
     <rect x="25" y="15" width="50" height="70" rx="4" fill="white" stroke="#1E3A5F" stroke-width="2"/>
-    <text x="50" y="26" text-anchor="middle" font-size="6" font-weight="700" fill="#1E3A5F">HUAWEI</text>
     ${[0, 1, 2, 3].map((i) =>
       `<rect x="30" y="${32 + i * 11}" width="40" height="9" rx="1" fill="#F1F5F9" stroke="${C.border}"/><text x="50" y="${39 + i * 11}" text-anchor="middle" font-size="4" fill="${C.gray}">BATTERY MODULE</text>`,
     ).join("")}

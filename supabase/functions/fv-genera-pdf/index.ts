@@ -704,6 +704,8 @@ Deno.serve(async (req: Request) => {
         pdf_cover_overlay_opacity: template.pdf_cover_overlay_opacity ?? null,
         pdf_cover_bg_color: template.pdf_cover_bg_color ?? null,
         pdf_cover_text_color: template.pdf_cover_text_color ?? null,
+        colore_primario: (template as { colore_primario?: string | null }).colore_primario ?? null,
+        colore_accento: (template as { colore_accento?: string | null }).colore_accento ?? null,
         pdf_cover_text_align: template.pdf_cover_text_align ?? null,
         pdf_cover_logo_position: template.pdf_cover_logo_position ?? null,
         pdf_cover_show_client_card: template.pdf_cover_show_client_card ?? null,

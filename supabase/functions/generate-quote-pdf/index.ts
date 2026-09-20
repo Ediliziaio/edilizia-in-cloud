@@ -47,9 +47,23 @@ function normalizeTemplateText(value: unknown): string {
 }
 
 // Importi in formato italiano: 1.234,56 € (WinAnsi-safe per pdf-lib)
+// «always»: il CLDR italiano toglie il punto delle migliaia sotto le cinque
+// cifre («3400,00 €» accanto a «12.500,00 €»). In un preventivo sembra una
+// svista: stessa regola di formatCurrency nell'app, «3.400,00 €» ovunque.
+const FORMATO_EURO = new Intl.NumberFormat("it-IT", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+  useGrouping: "always",
+} as unknown as Intl.NumberFormatOptions);
 function fmtEur(n: number): string {
-  return n.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
+  return FORMATO_EURO.format(Number.isFinite(n) ? n : 0) + " €";
 }
+// Quantità: «4», non «4,00»; i decimali restano solo quando servono («2,5»).
+const FORMATO_QUANTITA = new Intl.NumberFormat("it-IT", {
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 2,
+  useGrouping: "always",
+} as unknown as Intl.NumberFormatOptions);
 
 // Rimuove i caratteri fuori WinAnsi (le StandardFonts non li codificano).
 // I campi utente/AI (client_name, title, item.name, notes, testi template…)
@@ -631,6 +645,22 @@ Deno.serve(async (req) => {
       page.drawLine({ start: { x, y: y + 8 }, end: { x: pageWidth - margin, y: y + 8 }, thickness: 0.6, color: accentC });
     };
 
+    // Sezione breve (le note): prosegue sulla pagina in corso se c'è posto,
+    // col suo titolo; pagina nuova solo se non ci sta. Prima le note andavano
+    // SEMPRE su un foglio a parte, anche quando erano tre righe.
+    const startSection = (title: string, spazioMinimo: number) => {
+      if (y <= margin + spazioMinimo) {
+        drawWatermark(page);
+        startContentPage(title);
+        return;
+      }
+      y -= 14;
+      const x = t.layout === "bold" ? 100 : margin;
+      page.drawText(title, { x, y, size: 13, font: fontBold, color: primaryC });
+      y -= 22;
+      page.drawLine({ start: { x, y: y + 8 }, end: { x: pageWidth - margin, y: y + 8 }, thickness: 0.6, color: accentC });
+    };
+
     const ensureSpace = (needed = 40, title = "CONTINUA") => {
       if (y > margin + needed) return;
       drawWatermark(page);
@@ -793,7 +823,7 @@ Deno.serve(async (req) => {
       hy -= 20;
       if (t.show_quote_number) {
         page.drawText(`OFFERTA N. ${quote.quote_number}${revLabel}`, { x: margin, y: hy, size: 9, font, color: headerTextC });
-        hy -= 16;
+        hy -= 27;
       }
       page.drawText("OFFERTA COMMERCIALE", { x: margin, y: hy, size: 20, font: fontBold, color: headerTextC });
       hy -= 18;
@@ -814,7 +844,7 @@ Deno.serve(async (req) => {
       y -= 20;
       if (t.show_quote_number) {
         page.drawText(`N. ${quote.quote_number}${revLabel}`, { x: margin, y, size: 9, font, color: grayC });
-        y -= 14;
+        y -= 25;
       }
       page.drawText("OFFERTA COMMERCIALE", { x: margin, y, size: 18, font: fontBold, color: textC });
       y -= 18;
@@ -828,7 +858,7 @@ Deno.serve(async (req) => {
       y = drawLogo(page, y, contentX);
       if (t.show_quote_number) {
         page.drawText(`OFFERTA N. ${quote.quote_number}${revLabel}`, { x: contentX, y, size: 9, font, color: grayC });
-        y -= 20;
+        y -= 34;
       }
       page.drawText("OFFERTA", { x: contentX, y, size: 26, font: fontBold, color: textC }); y -= 28;
       page.drawText("COMMERCIALE", { x: contentX, y, size: 26, font: fontBold, color: textC }); y -= 24;
@@ -1004,7 +1034,7 @@ Deno.serve(async (req) => {
     {
       // Nel classic la tabella resta sulla prima pagina se c'è spazio
       // (documento monopagina come da impaginazione professionale).
-      if (!classicPremium || y < 280) {
+      if (y < 280) {
         page = pdfDoc.addPage([pageWidth, pageHeight]);
         y = pageHeight - margin;
       }
@@ -1017,6 +1047,8 @@ Deno.serve(async (req) => {
       const itemWidth = t.layout === "bold" ? contentWidth - 50 : contentWidth;
 
       if (!classicPremium && items.length > 0) {
+        // Ora la tabella può seguire il destinatario sulla stessa pagina: serve aria sopra il titolo.
+        y -= 18;
         page.drawText("DETTAGLIO PRODOTTI E SERVIZI", { x: itemLeftX, y, size: 12, font: fontBold, color: primaryC });
         y -= 25;
       }
@@ -1028,10 +1060,10 @@ Deno.serve(async (req) => {
       // Q.tà spostata a -220 (era -200) per dare respiro alla colonna prezzo:
       // con lo sconto riga accodato il prezzo può arrivare a ~80pt e con il
       // vecchio layout invadeva la cella U.M.
-      const qtyRight = itemLeftX + itemWidth - 220;
+      const qtyRight = itemLeftX + itemWidth - 236;
       const umX = qtyRight + 10;
       const umMaxW = 30; // cella U.M.: oltre → troncamento per larghezza misurata
-      const priceRight = itemLeftX + itemWidth - 90;
+      const priceRight = itemLeftX + itemWidth - 106;
       // Bordo sinistro GARANTITO della colonna prezzo: il prezzo non scende mai
       // sotto questa x, così non tocca mai la U.M. (fine cella = umX + umMaxW).
       const priceLeftBound = umX + umMaxW + 8;
@@ -1172,7 +1204,7 @@ Deno.serve(async (req) => {
           const rowColor = isChild ? grayC : textC;
 
           // Q.tà formato italiano, U.M. in colonna separata, sconto riga accodato al prezzo
-          const qtyText = Number(item.quantity ?? 0).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+          const qtyText = FORMATO_QUANTITA.format(Number(item.quantity ?? 0));
           // U.M. troncata per LARGHEZZA misurata (non per numero di caratteri):
           // una unità di misura larga non deve invadere la colonna prezzo.
           let umText = String(item.unit_of_measure || "pz");
@@ -1225,8 +1257,12 @@ Deno.serve(async (req) => {
           }
           y -= 6 + rowExtra;
           // Filetto orizzontale tra le righe (template "orizzontali" o "tutti")
+          // `y` è già la linea di base della riga DOPO: il confine fra le due
+          // righe sta 12pt più su (dove comincia il fondo zebrato). A `y + 4`
+          // il filetto attraversava il testo della riga successiva, che usciva
+          // barrata (dal 02/09/2026, su ogni riga pari e sul subtotale).
           if (bordiTabella === "horizontal") {
-            page.drawLine({ start: { x: itemLeftX, y: y + 4 }, end: { x: itemLeftX + itemWidth, y: y + 4 }, thickness: 0.35, color: lightGrayC });
+            page.drawLine({ start: { x: itemLeftX, y: y + 12 }, end: { x: itemLeftX + itemWidth, y: y + 12 }, thickness: 0.35, color: lightGrayC });
           }
         }
       }
@@ -1250,7 +1286,7 @@ Deno.serve(async (req) => {
       const totX = itemLeftX + itemWidth - totBoxW;
       const totValX = itemLeftX + itemWidth - 6;
       newPageIfNeeded(150);
-      page.drawLine({ start: { x: totX, y: y + 6 }, end: { x: itemLeftX + itemWidth, y: y + 6 }, thickness: 0.6, color: lightGrayC });
+      page.drawLine({ start: { x: totX, y: y + 14 }, end: { x: itemLeftX + itemWidth, y: y + 14 }, thickness: 0.6, color: lightGrayC });
 
       const drawTotal = (label: string, value: string, bold = false) => {
         if (bold) {
@@ -1539,7 +1575,7 @@ Deno.serve(async (req) => {
       // Riga per riga con guardia di pagina (stesso pattern di drawRichTextBlock):
       // il drawText monolitico faceva finire il testo lungo sotto la banda footer.
       const notesTitle = "NOTE E CONDIZIONI";
-      startContentPage(notesTitle);
+      startSection(notesTitle, 120);
       const noteX = contentLeftX();
       const noteMaxChars = t.layout === "bold" ? 86 : 96;
       for (const rawLine of String(quote.notes).substring(0, 2000).split(/\n/)) {

@@ -339,10 +339,14 @@ describe("fotovoltaico PDF template", () => {
       },
     });
 
-    expect(html.indexOf("Pagina 2 · I componenti")).toBeLessThan(html.indexOf("Pagina 3 · L'investimento"));
+    // L'occhiello non porta più «Pagina N ·»: si riconosce la pagina dalla sua etichetta.
+    const occhiello = (testo: string) => html.indexOf(`<div class="eyebrow">${testo}</div>`);
+    expect(occhiello("I componenti")).toBeGreaterThan(-1);
+    expect(occhiello("I componenti")).toBeLessThan(occhiello("L'investimento"));
+    expect(html).not.toMatch(/class="eyebrow">[^<]*Pagina \d/);
     expect(html).toContain("Batteria dinamica dal preventivo");
     expect(html).toContain("Pagina dedicata letta dal listino");
-    expect(html).not.toContain("Pagina 4 · Domande frequenti");
+    expect(html).not.toContain('<div class="eyebrow">Domande frequenti</div>');
   });
 
   it("calculates the dynamic rendered page count used by the PDF footer and audit log", () => {
@@ -394,7 +398,7 @@ describe("fotovoltaico PDF template", () => {
 
     expect(getFvPdfRenderedPagesCount(data)).toBe(5);
     expect(html).toContain('<span class="pnum">5 / 5</span>');
-    expect(html).not.toContain("Pagina 6");
+    expect(html).not.toContain('<span class="pnum">6 /');
   });
 });
 

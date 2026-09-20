@@ -328,12 +328,15 @@ export function calcolaBollettaPrimaDopo(input: FvBollettaInput): FvBollettaRow[
 
 export function fmtEur(n: number, decimals = 0): string {
   if (!Number.isFinite(n)) return "—";
+  // «always»: il CLDR italiano toglie il punto sotto le cinque cifre, e nel
+  // preventivo uscivano «9000 €» accanto a «18.000 €».
   return new Intl.NumberFormat("it-IT", {
     style: "currency",
     currency: "EUR",
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
-  }).format(n);
+    useGrouping: "always",
+  } as unknown as Intl.NumberFormatOptions).format(n);
 }
 
 export function fmtNum(n: number, decimals = 0): string {
@@ -341,7 +344,8 @@ export function fmtNum(n: number, decimals = 0): string {
   return new Intl.NumberFormat("it-IT", {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
-  }).format(n);
+    useGrouping: "always",
+  } as unknown as Intl.NumberFormatOptions).format(n);
 }
 
 export function fmtPct(p: number, decimals = 0): string {
