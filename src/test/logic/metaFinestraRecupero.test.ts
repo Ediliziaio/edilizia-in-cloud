@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { dataInSecondi, inizioFinestra } from "../../../supabase/functions/_shared/metaFinestraRecupero";
+import { dataInSecondi, inizioFinestra, MARGINE_SEGNALIBRO_S } from "../../../supabase/functions/_shared/metaFinestraRecupero";
 
 // 19/09/2026: «importa i contatti delle ultime 2 settimane di quel modulo,
 // fallo tu». Il recupero dal server non andava mai prima del collegamento del
@@ -17,8 +17,22 @@ describe("da quando si recuperano i lead di un modulo", () => {
   };
   const cinqueGiorniFa = s("2026-09-14T10:00:00Z");
 
-  it("giro automatico: mai prima del collegamento, e dal segnalibro", () => {
-    expect(inizioFinestra({ sinceTs: cinqueGiorniFa, cfg })).toBe(s("2026-09-19T11:45:00Z"));
+  // 20/09/2026: dal segnalibro si torna indietro di sei ore. Facebook può
+  // mostrare un lead un attimo dopo averlo creato: preso alla lettera, il
+  // segnalibro lo lasciava indietro per sempre.
+  it("giro automatico: dal segnalibro, con sei ore di margine", () => {
+    const collegatoDaTempo = { ...cfg, since_date: "2026-09-01", created_at: "2026-09-01T08:00:00Z" };
+    expect(MARGINE_SEGNALIBRO_S).toBe(6 * 60 * 60);
+    expect(inizioFinestra({ sinceTs: cinqueGiorniFa, cfg: collegatoDaTempo })).toBe(s("2026-09-19T05:45:00Z"));
+  });
+
+  it("giro automatico: il margine non scavalca mai il collegamento del modulo", () => {
+    expect(inizioFinestra({ sinceTs: cinqueGiorniFa, cfg })).toBe(s("2026-09-19T10:17:00Z"));
+  });
+
+  it("giro automatico: né la finestra di due giorni, se il segnalibro è vecchio", () => {
+    const fermoDaGiorni = { ...cfg, since_date: "2026-09-01", created_at: "2026-09-01T08:00:00Z", last_pull_at: "2026-09-10T00:00:00Z" };
+    expect(inizioFinestra({ sinceTs: cinqueGiorniFa, cfg: fermoDaGiorni })).toBe(cinqueGiorniFa);
   });
 
   it("recupero per giorni: senza segnalibro, ma sempre non prima del collegamento", () => {
@@ -38,7 +52,7 @@ describe("da quando si recuperano i lead di un modulo", () => {
   it("una data scritta male non diventa una finestra", () => {
     expect(dataInSecondi("05/09/2026")).toBeNull();
     expect(dataInSecondi(undefined)).toBeNull();
-    expect(inizioFinestra({ sinceTs: cinqueGiorniFa, cfg, daEsplicita: null })).toBe(s("2026-09-19T11:45:00Z"));
+    expect(inizioFinestra({ sinceTs: cinqueGiorniFa, cfg, daEsplicita: null })).toBe(s("2026-09-19T10:17:00Z"));
   });
 });
 

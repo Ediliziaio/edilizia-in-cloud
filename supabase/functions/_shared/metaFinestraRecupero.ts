@@ -12,8 +12,19 @@
  *      data chiesta, anche prima del collegamento. Senza, dopo aver collegato
  *      un modulo lo storico si poteva riprendere solo dal pannello.
  *
+ * Il segnalibro non si prende alla lettera (20/09/2026): si riparte da sei ore
+ * prima. Facebook può mostrare un lead qualche istante dopo averlo creato, e il
+ * segnalibro veniva scritto a lettura finita: un lead nato in quel mezzo secondo,
+ * o comparso in ritardo, restava per sempre dietro il segnalibro. Se in quel
+ * momento mancava anche il webhook, era perso. Rileggere sei ore non costa: i
+ * lead già presenti si riconoscono e non si riscrivono. Il margine non scavalca
+ * mai il collegamento del modulo né il «solo i nuovi».
+ *
  * Modulo puro: provato in src/test/logic/metaFinestraRecupero.test.ts.
  */
+
+/** Di quanto si torna indietro rispetto al segnalibro dell'ultimo giro. */
+export const MARGINE_SEGNALIBRO_S = 6 * 60 * 60;
 
 export interface ConfigModulo {
   sync_mode: string | null;
@@ -46,7 +57,7 @@ export function inizioFinestra(p: {
   if (collegato != null) inizio = Math.max(inizio, collegato);
   if (!p.ignoraSegnalibro) {
     const segnalibro = secondi(cfg.last_pull_at);
-    if (segnalibro != null) inizio = Math.max(inizio, segnalibro);
+    if (segnalibro != null) inizio = Math.max(inizio, segnalibro - MARGINE_SEGNALIBRO_S);
   }
   return inizio;
 }
