@@ -8,6 +8,13 @@
  * oppure faccia auth check inline via `auth.getClaims` / `auth.getUser`.
  *
  * Esce con status 1 se trova privileged function senza auth check.
+ *
+ * Qui si guardano solo le privileged, e si pretende un controllo sull'UTENTE.
+ * Il controllo su TUTTE le funzioni con verify_jwt = false (segreto del cron,
+ * firma, token, oppure «pubblica di proposito» col motivo scritto) sta in
+ * src/test/logic/funzioniSenzaJwtConControllo.test.ts e gira in CI con
+ * test:critical: è nato il 20/09/2026, quando otto funzioni aperte senza
+ * alcun controllo sono passate da qui perché non si chiamavano admin-*.
  */
 
 import { readFileSync, readdirSync, statSync } from "node:fs";
@@ -21,14 +28,19 @@ const functionsDir = join(repoRoot, "supabase", "functions");
 
 const config = readFileSync(configPath, "utf8");
 
-// Match the section header and capture the block until the next [section] or EOF
-const sectionRegex = /^\[functions\.([^\]]+)\]\s*\n([\s\S]*?)(?=\n\[|$)/gm;
+// Riga per riga: una voce vale per la sezione in cui sta. La regex «dalla
+// testata alla prossima parentesi quadra» dava a una sezione vuota (c'è:
+// google-calendar-sync) il verify_jwt di quella dopo, che spariva dall'elenco.
+// Stessa lettura di src/test/logic/leggiConfigFunzioni.ts.
 const noVerifyJwt = new Set();
-let m;
-while ((m = sectionRegex.exec(config)) !== null) {
-  const name = m[1];
-  const block = m[2];
-  if (/verify_jwt\s*=\s*false/.test(block)) noVerifyJwt.add(name);
+let sezione = null;
+for (const riga of config.split("\n")) {
+  const testata = riga.match(/^\[([^\]]+)\]\s*$/);
+  if (testata) {
+    sezione = testata[1].startsWith("functions.") ? testata[1].slice("functions.".length) : null;
+    continue;
+  }
+  if (sezione && /^\s*verify_jwt\s*=\s*false\b/.test(riga)) noVerifyJwt.add(sezione);
 }
 
 const PRIVILEGED_PATTERN = /^(admin-|manage-|sign-in-as-|create-super-admin|sign-up-)/;

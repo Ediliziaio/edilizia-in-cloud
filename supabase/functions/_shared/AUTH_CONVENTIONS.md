@@ -35,6 +35,30 @@ Deno.serve(async (req) => {
 });
 ```
 
+## Funzioni per il cron o chiamate da un'altra funzione
+
+Con `verify_jwt = false` il gateway lascia passare chiunque, e `verify_jwt = true`
+da solo non difende: la chiave anon è un JWT valido ed è pubblica. Il controllo
+va nel codice, **prima** di creare il client con la chiave di servizio:
+
+```typescript
+import { chiamataInternaValida, rispostaNonAutorizzata } from "../_shared/chiamataInterna.ts";
+
+Deno.serve(async (req) => {
+  if (!chiamataInternaValida(req)) return rispostaNonAutorizzata();
+  // … lavoro …
+});
+```
+
+Passa chi manda il segreto del cron (`x-cron-secret` / `x-internal-cron-secret`)
+o `Authorization: Bearer <chiave di servizio>`. Mai fidarsi del ruolo letto da un
+JWT di cui non si è verificata la firma.
+
+Il test `src/test/logic/funzioniSenzaJwtConControllo.test.ts` (in CI con
+`test:critical`) ferma una voce `verify_jwt = false` senza controllo nel codice.
+Una funzione pubblica di proposito — modulo, pixel, firma via token — va scritta
+lì in `PUBBLICHE_DI_PROPOSITO`, col motivo.
+
 ## Anti-pattern da evitare
 
 - ❌ Auth check inline duplicato (copia-incolla di `auth.getUser`) — usa gli helper condivisi.

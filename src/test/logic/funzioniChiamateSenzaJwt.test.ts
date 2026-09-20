@@ -19,15 +19,13 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { funzioniConVoce, funzioniSenzaJwt } from "./leggiConfigFunzioni";
 
 const ROOT = join(__dirname, "../../..");
 const config = readFileSync(join(ROOT, "supabase/config.toml"), "utf8");
 
 /** Le funzioni con verify_jwt = false, lette come le legge la CI. */
-const aperte = new Set<string>();
-for (const m of config.matchAll(/^\[functions\.([^\]]+)\]\s*\n([\s\S]*?)(?=\n\[|$(?![\s\S]))/gm)) {
-  if (/^\s*verify_jwt\s*=\s*false/m.test(m[2])) aperte.add(m[1]);
-}
+const aperte = new Set(funzioniSenzaJwt(config));
 
 const DAL_CRON_COL_SOLO_SEGRETO = [
   "ai-conversations-sweeper", "ai-proactive-proposals-daily", "ai-voice-outbound-leads",
@@ -61,9 +59,17 @@ const DA_FUORI = [
   "fea-documento-pubblico", "sr-firma-cliente", "platform-mcp",
 ];
 
+// Una nostra funzione ne chiama un'altra, senza il JWT di un utente.
+// whatsapp-webhook manda a whatsapp-ai-processor la sola x-internal-worker-key,
+// e ai due processori di assistenza e lead la chiave di servizio: se il gateway
+// si richiude, WhatsApp smette di rispondere ai clienti e nessuno lo vede (la
+// chiamata è «lancia e dimentica»). Chi chiama lo controllano loro, nel codice:
+// vedi funzioniSenzaJwtConControllo.test.ts.
+const DA_UN_ALTRA_FUNZIONE = ["whatsapp-ai-processor", "assistenza-ai-processor", "lead-ai-processor"];
+
 describe("verify_jwt = false per chi viene chiamato senza JWT", () => {
   it("config.toml si legge, e non ha voci doppie", () => {
-    const voci = [...config.matchAll(/^\[functions\.([^\]]+)\]/gm)].map((m) => m[1]);
+    const voci = funzioniConVoce(config);
     expect(voci.length).toBeGreaterThan(250);
     expect(voci.filter((v, i) => voci.indexOf(v) !== i)).toEqual([]);
   });
@@ -74,6 +80,11 @@ describe("verify_jwt = false per chi viene chiamato senza JWT", () => {
   });
 
   it.each(DA_FUORI)("%s — chiamata da fuori", (funzione) => {
+    expect(existsSync(join(ROOT, "supabase/functions", funzione, "index.ts"))).toBe(true);
+    expect(aperte.has(funzione)).toBe(true);
+  });
+
+  it.each(DA_UN_ALTRA_FUNZIONE)("%s — chiamata da un'altra nostra funzione", (funzione) => {
     expect(existsSync(join(ROOT, "supabase/functions", funzione, "index.ts"))).toBe(true);
     expect(aperte.has(funzione)).toBe(true);
   });

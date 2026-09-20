@@ -13,7 +13,12 @@
  *     ✓ una sola entry-point per logging/monitoring
  *     ✓ cache HTTP gestita dal CDN Supabase
  *
- * Auth: nessuna (la lista modelli è pubblica). RLS sul DB non c'entra.
+ * Auth: un utente che ha fatto l'accesso (requireAuth). La lista in sé è
+ *   pubblica, ma fino al 20/09/2026 la funzione era aperta a chiunque: un
+ *   passacarte gratuito verso OpenRouter a nome nostro, e invocazioni pagate
+ *   da noi. La usano solo le schermate AI dell'app, che mandano già il JWT
+ *   dell'utente; se risponde 401 l'app ripiega da sola su OpenRouter diretto
+ *   e poi su ai_model_catalog (src/lib/ai/openrouter-models.ts).
  *
  * Body: nessuno (GET-style)
  *
@@ -22,6 +27,7 @@
  */
 
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { requireAuth } from "../_shared/auth.ts";
 
 const OR_MODELS_URL = "https://openrouter.ai/api/v1/models";
 const FETCH_TIMEOUT_MS = 10_000;
@@ -49,6 +55,14 @@ Deno.serve(async (req) => {
       status: 405,
       headers: { ...cors, "Content-Type": "application/json" },
     });
+  }
+
+  // requireAuth lancia una Response 401 se il JWT manca o non è valido.
+  try {
+    await requireAuth(req, cors);
+  } catch (e) {
+    if (e instanceof Response) return e;
+    throw e;
   }
 
   const controller = new AbortController();
@@ -92,8 +106,9 @@ Deno.serve(async (req) => {
         headers: {
           ...cors,
           "Content-Type": "application/json",
-          // Cache 30 minuti edge-side (OpenRouter aggiorna la lista raramente)
-          "Cache-Control": "public, max-age=1800, s-maxage=1800",
+          // Cache 30 minuti (OpenRouter aggiorna la lista raramente). «private»:
+          // da quando serve l'accesso, una cache condivisa non deve servirla ad altri.
+          "Cache-Control": "private, max-age=1800",
         },
       },
     );

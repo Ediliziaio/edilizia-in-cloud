@@ -1084,3 +1084,44 @@ verify_jwt = false
 # pg_cron con x-cron-secret (nessun JWT), il gate è dentro la funzione.
 [functions.sdi-stato-tick]
 verify_jwt = false
+
+# ── Le otto funzioni aperte SENZA alcun controllo (trovate il 20/09/2026) ─────
+# In produzione erano verify_jwt = false, aperte a mano, e nel codice non
+# guardavano chi chiama: bastava conoscere l'URL per farle lavorare con la
+# chiave di servizio. Il censimento qui sopra le aveva lasciate fuori apposta.
+# Ora il controllo è nel codice (_shared/chiamataInterna.ts, requireAuth) e la
+# voce scrive lo stato di oggi: il gateway resta com'era, quindi un chiamante
+# legittimo col solo segreto non viene respinto prima che il codice lo guardi.
+# Il test src/test/logic/funzioniSenzaJwtConControllo.test.ts vieta che una
+# voce verify_jwt = false resti senza controllo nel codice.
+# L'ottava, ai-outbound-call, risponde solo 410 «deprecata»: niente voce, è da
+# eliminare (repository e produzione) insieme al sì di Florin.
+
+# Le chiama solo whatsapp-webhook (handlers/assistenza.ts e handlers/lead.ts)
+# con «Authorization: Bearer <chiave di servizio>»: chiamataInternaValida.
+[functions.assistenza-ai-processor]
+verify_jwt = false
+
+[functions.lead-ai-processor]
+verify_jwt = false
+
+# La chiama l'app (schermate AI: Silvio, Assistente, chat interna, AI Test Lab)
+# col JWT dell'utente: requireAuth.
+[functions.get-openrouter-models]
+verify_jwt = false
+
+# Giri su TUTTE le aziende pensati per un cron che non è mai stato creato: il
+# 20/09/2026 non risultava alcun chiamante (né app, né funzioni, né migrazioni).
+# Proposta a Florin l'eliminazione. Finché esistono le apre solo il segreto del
+# cron o la chiave di servizio: chiamataInternaValida.
+[functions.ai-cfo-weekly-report]
+verify_jwt = false
+
+[functions.ai-fiscal-report-generator]
+verify_jwt = false
+
+[functions.ai-pipeline-forecaster]
+verify_jwt = false
+
+[functions.subappaltatori-compliance-monitor]
+verify_jwt = false

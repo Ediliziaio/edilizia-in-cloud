@@ -11,8 +11,15 @@
  */
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.43.4";
+import { chiamataInternaValida, rispostaNonAutorizzata } from "../_shared/chiamataInterna.ts";
 
 Deno.serve(async (req) => {
+  // Crea il report CFO di ogni azienda che l'ha acceso — cioè tutte, l'opzione
+  // nasce accesa — e lo segna come inviato, con la chiave di servizio: la fa
+  // partire solo il cron o un'altra nostra funzione. Fino al 20/09/2026 bastava
+  // conoscere l'URL. Prima di qualunque lavoro.
+  if (!chiamataInternaValida(req)) return rispostaNonAutorizzata();
+
   if (req.method !== "POST" && req.method !== "GET") {
     return new Response("Method not allowed", { status: 405 });
   }

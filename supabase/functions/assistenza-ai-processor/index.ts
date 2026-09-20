@@ -5,6 +5,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/headers.ts";
+import { chiamataInternaValida, rispostaNonAutorizzata } from "../_shared/chiamataInterna.ts";
 import { callOpenAI, type ChatMessage } from "../whatsapp-ai-processor/openai.ts";
 import { InsufficientCreditsError } from "../_shared/ai-provider/index.ts";
 import { checkBudget, consumeBudget, estimateCostEur } from "../whatsapp-ai-processor/budget.ts";
@@ -27,6 +28,13 @@ interface Request {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  // La chiama solo whatsapp-webhook (handlers/assistenza.ts), con la chiave di
+  // servizio. Senza questo controllo chiunque conoscesse l'URL e l'id di un
+  // contatto faceva rispondere l'AI su WhatsApp a nome dell'azienda, a spese
+  // del suo credito: fino al 20/09/2026 era così. Prima di qualunque lavoro.
+  if (!chiamataInternaValida(req)) return rispostaNonAutorizzata(corsHeaders);
+
   if (req.method !== "POST") return new Response("Method not allowed", { status: 405 });
 
   const supabase = createClient(
