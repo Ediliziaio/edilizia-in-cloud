@@ -488,6 +488,54 @@ function TabellaCapitolo({ tema, cap, indice, mostraMargine, mostraPrezzi, mostr
   );
 }
 
+/**
+ * Le condizioni, articolo per articolo: ogni titolo con il suo testo, così
+ * l'impaginazione non lascia un titolo solo in fondo alla pagina. La prima riga,
+ * se è il titolo generale, si toglie: la pagina ha già il suo.
+ */
+function perArticoli(
+  righe: DocEdileDati["modello"]["condizioniLegali"],
+  { senzaClausoleDaFirmare = false } = {},
+): Array<typeof righe> {
+  const utili = righe.length > 0 && righe[0].tipo === "h1" ? righe.slice(1) : righe;
+  const gruppi: Array<typeof righe> = [];
+  for (const r of utili) {
+    if ((r.tipo === "h1" || r.tipo === "h2") || gruppi.length === 0) gruppi.push([]);
+    gruppi[gruppi.length - 1].push(r);
+  }
+  // L'elenco delle clausole da approvare a parte sta sulla pagina della firma,
+  // accanto alla seconda firma: qui sarebbe una ripetizione, e da sola si
+  // portava via una pagina intera.
+  if (!senzaClausoleDaFirmare) return gruppi;
+  return gruppi.filter((g) => !/1341|approvare specificamente/i.test(g[0]?.testo ?? ""));
+}
+
+/** Una riga da firmare: filetto e, sotto, che cosa ci va scritto. */
+function LineaFirma({ tema, etichetta, larghezza, altezza = 34 }: {
+  tema: TemaDocumento; etichetta: string; larghezza?: number; altezza?: number;
+}) {
+  return (
+    <View style={{ width: larghezza, flex: larghezza ? undefined : 1 }}>
+      <View style={{ height: altezza }} />
+      <View style={{ borderTopWidth: 0.7, borderTopColor: tema.inchiostro, paddingTop: 4 }}>
+        <Text style={{ fontFamily: SANS, fontSize: 7, color: tema.grigio, letterSpacing: 0.9 }}>{etichetta}</Text>
+      </View>
+    </View>
+  );
+}
+
+/** Le voci del riepilogo che il cliente firma: etichetta a sinistra, valore a destra. */
+function RigaRiepilogo({ tema, etichetta, valore, forte = false }: {
+  tema: TemaDocumento; etichetta: string; valore: string; forte?: boolean;
+}) {
+  return (
+    <View style={{ flexDirection: "row", alignItems: "flex-start", paddingVertical: 5, borderBottomWidth: 0.5, borderBottomColor: tema.filetto }}>
+      <Text style={{ fontFamily: SANS, fontSize: 7.5, color: tema.grigio, letterSpacing: 0.8, width: 118, paddingTop: 2 }}>{etichetta.toUpperCase()}</Text>
+      <Text style={{ fontFamily: forte ? SANS_NERO : SANS, fontSize: forte ? 13 : 9.5, color: tema.inchiostro, flex: 1, lineHeight: 1.4 }}>{valore}</Text>
+    </View>
+  );
+}
+
 // ─── Copertina ───────────────────────────────────────────────────────────────
 function Copertina({ tema, dati }: { tema: TemaDocumento; dati: DocEdileDati }) {
   const c = dati.modello.copertina;
@@ -1015,6 +1063,16 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
                 <Text key={i} style={{ fontFamily: SANS, fontSize: 9, color: tema.grigio, lineHeight: 1.5 }}>{r}</Text>
               ))}
             </View>
+            {/* Senza condizioni non c'è la pagina della firma: allora si firma qui.
+                Con le condizioni, la firma sta lì e due riquadri sarebbero uno di troppo. */}
+            {modello.condizioniLegali.length > 0 ? (
+              <View style={{ flex: 1.25, backgroundColor: tema.cartaCalda, padding: 14, justifyContent: "center" }}>
+                <Text style={{ fontFamily: SANS_NERO, fontSize: 7, color: tema.inchiostroMarca, letterSpacing: 1.4, marginBottom: 6 }}>LA FIRMA</Text>
+                <Text style={{ fontFamily: SANS, fontSize: 9, color: tema.grigio, lineHeight: 1.5 }}>
+                  Le condizioni generali e la pagina da firmare sono in fondo a questo documento.
+                </Text>
+              </View>
+            ) : (
             <View style={{ flex: 1.25, borderWidth: 0.8, borderColor: tema.inchiostro, padding: 14 }}>
               <Text style={{ fontFamily: SANS_NERO, fontSize: 7, color: tema.inchiostro, letterSpacing: 1.4 }}>PER ACCETTAZIONE</Text>
               <View style={{ flexDirection: "row", marginTop: 44 }}>
@@ -1026,6 +1084,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
                 </View>
               </View>
             </View>
+            )}
           </View>
         </View>
       </Page>
@@ -1037,12 +1096,115 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
           <Text style={{ fontFamily: SANS_NERO, fontSize: 7, color: tema.inchiostroMarca, letterSpacing: 1.6, marginBottom: 6 }}>ALLEGATO</Text>
           <TitoloAccento testo="Condizioni *contrattuali*." corpo={21} colore={tema.inchiostro} coloreAccento={tema.inchiostroMarca} />
           <View style={{ marginTop: 14 }}>
-            {modello.condizioniLegali.map((r, i) =>
-              r.tipo === "h1" ? <Text key={i} style={{ fontFamily: SANS_NERO, fontSize: 11, color: tema.inchiostro, marginTop: 12, marginBottom: 4 }}>{r.testo}</Text>
-              : r.tipo === "h2" ? <Text key={i} style={{ fontFamily: SANS_NERO, fontSize: 9.5, color: tema.inchiostro, marginTop: 9, marginBottom: 3 }}>{r.testo}</Text>
-              : r.tipo === "li" ? <Text key={i} style={{ fontFamily: SANS, fontSize: 8.5, color: tema.grigio, lineHeight: 1.5, marginLeft: 10, marginBottom: 2 }}>{`- ${r.testo}`}</Text>
-              : <Text key={i} style={{ fontFamily: SANS, fontSize: 8.5, color: tema.grigio, lineHeight: 1.5, marginBottom: 5 }}>{r.testo}</Text>,
-            )}
+            {/* Un articolo per volta: il titolo non resta mai in fondo a una pagina
+                senza il suo testo, e l'elenco delle clausole da firmare non si spezza. */}
+            {perArticoli(modello.condizioniLegali, { senzaClausoleDaFirmare: modello.clausoleDaApprovare.length > 0 }).map((gruppo, g) => (
+              <View key={g} wrap={gruppo.length > 14} minPresenceAhead={36}>
+                {gruppo.map((r, i) =>
+                  r.tipo === "h1" ? <Text key={i} style={{ fontFamily: SANS_NERO, fontSize: 11, color: tema.inchiostroMarca, marginTop: g === 0 ? 0 : 14, marginBottom: 5 }}>{r.testo}</Text>
+                  : r.tipo === "h2" ? <Text key={i} style={{ fontFamily: SANS_NERO, fontSize: 9.5, color: tema.inchiostro, marginTop: g === 0 ? 0 : 10, marginBottom: 3 }}>{r.testo}</Text>
+                  : r.tipo === "li" ? <Text key={i} style={{ fontFamily: SANS, fontSize: 8.5, color: tema.grigio, lineHeight: 1.5, marginLeft: 10, marginBottom: 2 }}>{`- ${r.testo}`}</Text>
+                  : <Text key={i} style={{ fontFamily: SANS, fontSize: 8.5, color: tema.grigio, lineHeight: 1.5, marginBottom: 5 }}>{r.testo}</Text>,
+                )}
+              </View>
+            ))}
+          </View>
+        </Page>
+      ) : null}
+
+      {/* ─── Firma e accettazione ──────────────────────────────────────────
+          Il preventivo firmato è il contratto: questa è la pagina che lo rende
+          tale. Riepilogo di ciò che si firma, dichiarazione, firme delle due
+          parti e — quando le condizioni le elencano — l'approvazione specifica
+          delle clausole dell'art. 1341 c.c., con una seconda firma. */}
+      {modello.condizioniLegali.length > 0 ? (
+        <Page size="A4" style={pagina}>
+          {cornice}
+          <Text style={{ fontFamily: SANS_NERO, fontSize: 7, color: tema.inchiostroMarca, letterSpacing: 1.6, marginBottom: 6 }}>PER ACCETTAZIONE</Text>
+          <TitoloAccento testo="Firma del *contratto*." corpo={21} colore={tema.inchiostro} coloreAccento={tema.inchiostroMarca} />
+
+          <View style={{ marginTop: 16, backgroundColor: tema.cartaCalda, padding: 16 }}>
+            <RigaRiepilogo tema={tema} etichetta="Impresa" valore={[dati.azienda.nome, dati.azienda.partitaIva ? `P.IVA ${dati.azienda.partitaIva}` : null].filter(Boolean).join(" · ")} />
+            <RigaRiepilogo tema={tema} etichetta="Committente" valore={dati.cliente} />
+            <RigaRiepilogo tema={tema} etichetta="Oggetto" valore={dati.tipoIntervento || modulo.etichetta} />
+            {dati.cantiere ? <RigaRiepilogo tema={tema} etichetta="Luogo dei lavori" valore={dati.cantiere} /> : null}
+            <RigaRiepilogo tema={tema} etichetta="Documento" valore={[dati.codice ? `Preventivo ${dati.codice}` : "Preventivo", `del ${oggi()}`].join(" ")} />
+            <RigaRiepilogo tema={tema} etichetta="Importo" valore={`${formatCurrency(totali.totale)} · IVA ${percento(totali.ivaPct)} inclusa`} forte />
+            {modello.giorniValidita && modello.giorniValidita > 0 ? (
+              <RigaRiepilogo tema={tema} etichetta="Validità" valore={`${modello.giorniValidita} giorni dalla data del documento`} />
+            ) : null}
+          </View>
+
+          <Text style={{ fontFamily: SANS, fontSize: 9, color: tema.inchiostro, lineHeight: 1.55, marginTop: 14 }}>
+            Il Committente dichiara di aver ricevuto, letto e accettato il presente documento in ogni sua parte — il piano
+            dei lavori, l'investimento e le condizioni generali di contratto che lo accompagnano — e ne sottoscrive il
+            contenuto.
+          </Text>
+
+          <View wrap={false} style={{ flexDirection: "row", marginTop: 18 }}>
+            <LineaFirma tema={tema} etichetta="LUOGO E DATA" larghezza={150} />
+            <View style={{ width: 16 }} />
+            <LineaFirma tema={tema} etichetta={`PER L'IMPRESA · ${dati.azienda.nome.toUpperCase()}`.slice(0, 44)} />
+            <View style={{ width: 16 }} />
+            <LineaFirma tema={tema} etichetta="FIRMA DEL COMMITTENTE" />
+          </View>
+
+          {modello.clausoleDaApprovare.length > 0 ? (
+            <View wrap={false} style={{ marginTop: 22, borderWidth: 0.8, borderColor: tema.inchiostro, padding: 14 }}>
+              <Text style={{ fontFamily: SANS_NERO, fontSize: 7, color: tema.inchiostro, letterSpacing: 1.2, marginBottom: 6 }}>APPROVAZIONE SPECIFICA (ARTT. 1341 E 1342 C.C.)</Text>
+              <Text style={{ fontFamily: SANS, fontSize: 8.5, color: tema.grigio, lineHeight: 1.5, marginBottom: 6 }}>
+                Il Committente, dopo averle rilette, approva specificamente le clausole seguenti:
+              </Text>
+              {modello.clausoleDaApprovare.map((c, i) => (
+                <Text key={i} style={{ fontFamily: SANS, fontSize: 8.5, color: tema.inchiostro, lineHeight: 1.45, marginBottom: 2 }}>{`- ${c}`}</Text>
+              ))}
+              <View style={{ flexDirection: "row", marginTop: 6 }}>
+                <LineaFirma tema={tema} etichetta="LUOGO E DATA" larghezza={150} altezza={30} />
+                <View style={{ width: 16 }} />
+                <LineaFirma tema={tema} etichetta="SECONDA FIRMA DEL COMMITTENTE" altezza={30} />
+              </View>
+            </View>
+          ) : null}
+        </Page>
+      ) : null}
+
+      {/* ─── Allegato: il modulo di recesso ────────────────────────────────
+          Quando le condizioni parlano di recesso, il modulo va consegnato
+          insieme al contratto (Allegato I, parte B, D.lgs. 206/2005): senza,
+          i 14 giorni non decorrono come dovrebbero. */}
+      {modello.condizioniLegali.length > 0 && modello.conRecesso ? (
+        <Page size="A4" style={pagina}>
+          {cornice}
+          <Text style={{ fontFamily: SANS_NERO, fontSize: 7, color: tema.inchiostroMarca, letterSpacing: 1.6, marginBottom: 6 }}>ALLEGATO</Text>
+          <TitoloAccento testo="Modulo di *recesso*." corpo={21} colore={tema.inchiostro} coloreAccento={tema.inchiostroMarca} />
+          <Text style={{ fontFamily: SANS, fontSize: 9, color: tema.grigio, lineHeight: 1.55, marginTop: 12 }}>
+            Da compilare e restituire soltanto se si intende recedere dal contratto, nei termini indicati nelle condizioni
+            generali. Non serve motivarlo.
+          </Text>
+
+          <View style={{ marginTop: 16, borderWidth: 0.8, borderColor: tema.inchiostro, padding: 18 }}>
+            <Text style={{ fontFamily: SANS, fontSize: 9, color: tema.inchiostro, lineHeight: 1.6 }}>
+              Destinatario: <Text style={{ fontFamily: SANS_NERO }}>{dati.azienda.nome}</Text>
+              {dati.azienda.indirizzo ? `, ${dati.azienda.indirizzo}` : ""}
+              {dati.azienda.email ? ` — ${dati.azienda.email}` : ""}
+            </Text>
+            <Text style={{ fontFamily: SANS, fontSize: 9, color: tema.inchiostro, lineHeight: 1.6, marginTop: 10 }}>
+              Con la presente io/noi notifico/notifichiamo il recesso dal contratto relativo ai lavori e alle forniture di
+              cui al preventivo {dati.codice ?? ""}.
+            </Text>
+            <View style={{ marginTop: 14 }}>
+              {["Data del contratto", "Nome e cognome del consumatore", "Indirizzo del consumatore"].map((e) => (
+                <View key={e} style={{ marginBottom: 16 }}>
+                  <Text style={{ fontFamily: SANS, fontSize: 7.5, color: tema.grigio, letterSpacing: 0.8, marginBottom: 14 }}>{e.toUpperCase()}</Text>
+                  <View style={{ borderTopWidth: 0.6, borderTopColor: tema.grigioChiaro }} />
+                </View>
+              ))}
+            </View>
+            <View style={{ flexDirection: "row", marginTop: 6 }}>
+              <LineaFirma tema={tema} etichetta="DATA" larghezza={150} altezza={28} />
+              <View style={{ width: 16 }} />
+              <LineaFirma tema={tema} etichetta="FIRMA DEL CONSUMATORE (SOLO SE SU CARTA)" altezza={28} />
+            </View>
           </View>
         </Page>
       ) : null}

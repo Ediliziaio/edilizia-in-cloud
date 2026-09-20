@@ -25,14 +25,14 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CopertinaAnteprima } from "@/components/preventivi/CopertinaAnteprima";
+import { CondizioniContratto } from "@/components/preventivi/CondizioniContratto";
 import { Link, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import {
   Save, Loader2, Upload, Image as ImageIcon, Plus, Trash2, GripVertical,
   Palette, FileText, Sparkles, ListChecks, Quote, Clock, Building2,
   Eye, EyeOff, BadgeEuro, AlertTriangle, FileSearch, Route, ShieldCheck, Percent,
-  Wand2,
-} from "lucide-react";
+  Wand2, Scale,} from "lucide-react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
@@ -151,6 +151,7 @@ function PlaceholderChips({
 // con l'interfaccia locale `EleCoverFields` e li serializziamo nel patch (la
 // tabella ele_template_pdf è scritta via `(supabase as any)` nell'hook upsert).
 type FormState = Required<Pick<EleTemplatePdf,
+  | "condizioni_legali_testo" | "condizioni_legali_attivo"
   | "logo_url" | "color_primary" | "color_secondary" | "color_accent" | "color_text"
   | "chi_siamo" | "chi_siamo_foto_url" | "esigenze" | "soluzione" | "usp"
   | "testimonianze" | "cronoprogramma" | "cover_title" | "cover_subtitle"
@@ -206,6 +207,8 @@ function templateToForm(t: EleTemplatePdf): FormState {
     pdf_cover_logo_size: num(raw.pdf_cover_logo_size),
   };
   return {
+    condizioni_legali_testo: t.condizioni_legali_testo ?? "",
+    condizioni_legali_attivo: t.condizioni_legali_attivo ?? true,
     ...cover,
     logo_url: t.logo_url ?? null,
     cover_logo_url: t.cover_logo_url ?? null,
@@ -867,6 +870,18 @@ export function ElettricoTemplateEditor({ embedded = false }: Props) {
                   <Switch checked={form.show_footer_legal} onCheckedChange={(v) => set("show_footer_legal", v)} />
                 </label>
               </div>
+            </SectionCard>
+
+            {/* Condizioni generali di contratto: il preventivo firmato è il contratto. */}
+            <SectionCard icon={Scale} title="Condizioni e firma" description="Le condizioni generali stampate in coda al PDF, prima della pagina della firma.">
+              <CondizioniContratto
+                companyId={companyId}
+                settore="elettrico"
+                attivo={form.condizioni_legali_attivo !== false}
+                testo={form.condizioni_legali_testo ?? ""}
+                onAttivo={(v) => set("condizioni_legali_attivo", v)}
+                onTesto={(v) => set("condizioni_legali_testo", v)}
+              />
             </SectionCard>
             </>
           )}

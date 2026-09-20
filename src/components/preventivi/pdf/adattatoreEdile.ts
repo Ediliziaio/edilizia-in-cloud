@@ -11,6 +11,7 @@
 import { applicaMergeTagModulo } from "@/lib/mergeTagsModuli";
 import { renderTemplateText, buildStandardReplacements } from "@/lib/pdf/renderTemplateText";
 import { coloreDelDocumento as coloreDocumento } from "../../../../supabase/functions/_shared/temaColori";
+import { condizioniStandard, type SettoreCondizioni } from "@/lib/condizioniStandard";
 import type {
   DocEdileCapitolo, DocEdileDati, DocEdileFoto, DocEdileModello, DocEdileModulo,
   DocEdileOpzioniComputo, DocEdileTotali, DocEdileVoceElenco, DocEdileFaq, DocEdileFase,
@@ -88,7 +89,15 @@ export function coloreDelDocumento(delModello: string | null, delMarchio: string
 
 export function leggiModello(
   t: Grezzo,
-  contesto: { progetto: ProgettoComune; azienda: AziendaComune | null; sostituzioniExtra?: Record<string, string> },
+  contesto: {
+    progetto: ProgettoComune;
+    azienda: AziendaComune | null;
+    sostituzioniExtra?: Record<string, string>;
+    /** Il settore decide il testo di base delle condizioni, quando l'azienda non ne ha scritte. */
+    settore?: SettoreCondizioni;
+    /** Il totale del preventivo, per {{preventivo.totale}} dentro le condizioni. */
+    totale?: number | null;
+  },
 ): DocEdileModello {
   const { progetto: p, azienda } = contesto;
   // I segnaposto inseriti dall'editor ({cliente_nome}, {citta}…) vanno espansi:
@@ -106,9 +115,14 @@ export function leggiModello(
   })();
 
   const condizioniAttive = t.condizioni_legali_attivo !== false;
+  // Un preventivo firmato è il contratto: se l'azienda non ha scritto le proprie
+  // condizioni, il documento esce con quelle di base del suo settore invece che
+  // senza niente. L'editor le mostra e le fa adattare; l'interruttore le toglie.
+  const testoCondizioni = String(t.condizioni_legali_testo ?? "").trim()
+    || condizioniStandard(contesto.settore ?? "generico");
   const condizioniLegali = !condizioniAttive
     ? []
-    : applicaMergeTagModulo(String(t.condizioni_legali_testo ?? ""), {
+    : applicaMergeTagModulo(testoCondizioni, {
         companyName: azienda?.ragione_sociale ?? azienda?.name ?? null,
         companyVat: azienda?.partita_iva ?? null,
         clienteNome: p.cliente_nome,
@@ -118,6 +132,12 @@ export function leggiModello(
         numero: p.code,
         dataDocumento: p.created_at ?? null,
         pianoPagamenti: stringa(t.payment_terms_text),
+        // Senza questi, {{preventivo.totale}} e {{azienda.email}} uscivano vuoti
+        // proprio dentro le condizioni, dove contano.
+        totale: contesto.totale ?? null,
+        companyEmail: stringa(t.email) || azienda?.email || null,
+        companyPhone: stringa(t.telefono) || azienda?.telefono || null,
+        companyAddress: stringa(t.indirizzo_completo) || azienda?.indirizzo || null,
       })
         .replace(/\r\n/g, "\n")
         .split("\n")
@@ -186,7 +206,28 @@ export function leggiModello(
     mostraMargine: t.show_margine === true,
     finanziamentoPromo: t.finanziamento_promo ?? null,
     condizioniLegali,
+    clausoleDaApprovare: clausoleDaApprovare(condizioniLegali),
+    conRecesso: condizioniLegali.some((r) => /recesso/i.test(r.testo)),
   };
+}
+
+/**
+ * Le clausole che il Committente approva con una seconda firma: sono le voci
+ * elencate sotto il titolo «Clausole da approvare specificamente» (art. 1341
+ * c.c.). Si leggono dal testo, così valgono anche per le condizioni scritte
+ * dall'azienda — se quel titolo non c'è, la seconda firma non si stampa.
+ */
+function clausoleDaApprovare(righe: DocEdileModello["condizioniLegali"]): string[] {
+  const inizio = righe.findIndex(
+    (r) => (r.tipo === "h1" || r.tipo === "h2") && /1341|approvare specificamente/i.test(r.testo),
+  );
+  if (inizio < 0) return [];
+  const voci: string[] = [];
+  for (const r of righe.slice(inizio + 1)) {
+    if (r.tipo === "h1" || r.tipo === "h2") break;
+    if (r.tipo === "li") voci.push(r.testo);
+  }
+  return voci;
 }
 
 const intero = (n: number | null | undefined): string | null =>
@@ -219,7 +260,10 @@ export function costruisciDatiEdile(input: {
   sostituzioniExtra?: Record<string, string>;
 }): DocEdileDati {
   const { modulo, progetto: p, template: t, azienda } = input;
-  const modello = leggiModello(t, { progetto: p, azienda, sostituzioniExtra: input.sostituzioniExtra });
+  const modello = leggiModello(t, {
+    progetto: p, azienda, sostituzioniExtra: input.sostituzioniExtra,
+    settore: modulo.chiave as SettoreCondizioni, totale: input.totali?.totale ?? null,
+  });
 
   const nomeAzienda = stringa(t.ragione_sociale) || azienda?.ragione_sociale || azienda?.name || "La tua azienda";
   const capitoli: DocEdileCapitolo[] = input.capitoli.map((c) => ({

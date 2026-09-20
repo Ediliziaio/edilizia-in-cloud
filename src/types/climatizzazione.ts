@@ -91,4 +91,7 @@ export interface ClmTemplatePdf {
   default_detrazione_pct: number | null;
   default_validita_giorni: number | null;
   gallery_lavori: GalleryLavoroItem[] | null;
+  /** Condizioni generali di contratto in markdown povero: il PDF le stampa in coda. */
+  condizioni_legali_testo: string | null;
+  condizioni_legali_attivo: boolean | null;
 }

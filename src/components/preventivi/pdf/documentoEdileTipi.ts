@@ -142,6 +142,10 @@ export interface DocEdileModello {
   finanziamentoPromo: unknown;
   /** Già con i merge tag risolti: righe tipizzate pronte da impaginare. */
   condizioniLegali: Array<{ tipo: "h1" | "h2" | "li" | "p"; testo: string }>;
+  /** Le clausole che il cliente approva con una seconda firma (art. 1341 c.c.). */
+  clausoleDaApprovare: string[];
+  /** Le condizioni parlano di recesso: al documento si allega il modulo. */
+  conRecesso: boolean;
 }
 
 export interface DocEdileDati {

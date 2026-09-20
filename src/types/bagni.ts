@@ -119,4 +119,7 @@ export interface BgnTemplatePdf {
   /** 'top_left' (default) | 'top_center' | 'top_right' | 'hidden'. */
   pdf_cover_logo_position: "top_left" | "top_center" | "top_right" | "hidden";
   gallery_lavori: GalleryLavoroItem[] | null;
+  /** Condizioni generali di contratto in markdown povero: il PDF le stampa in coda. */
+  condizioni_legali_testo: string | null;
+  condizioni_legali_attivo: boolean | null;
 }

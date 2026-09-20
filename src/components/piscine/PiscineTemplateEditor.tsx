@@ -25,14 +25,14 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CopertinaAnteprima } from "@/components/preventivi/CopertinaAnteprima";
+import { CondizioniContratto } from "@/components/preventivi/CondizioniContratto";
 import { Link, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import {
   Save, Loader2, Upload, Image as ImageIcon, Plus, Trash2, GripVertical,
   Palette, FileText, Sparkles, ListChecks, Quote, Clock, Building2,
   Eye, EyeOff, BadgeEuro, AlertTriangle, FileSearch, Route, ShieldCheck, Percent,
-  Wand2,
-} from "lucide-react";
+  Wand2, Scale,} from "lucide-react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
@@ -161,6 +161,7 @@ function PlaceholderChips({
 
 // Forma del form locale: stesso shape del patch persistito.
 type FormState = Required<Pick<PisTemplatePdf,
+  | "condizioni_legali_testo" | "condizioni_legali_attivo"
   | "logo_url" | "color_primary" | "color_secondary" | "color_accent" | "color_text"
   | "chi_siamo" | "chi_siamo_foto_url" | "esigenze" | "soluzione" | "usp"
   | "testimonianze" | "cronoprogramma" | "cover_title" | "cover_subtitle"
@@ -185,6 +186,8 @@ type FormState = Required<Pick<PisTemplatePdf,
 
 function templateToForm(t: PisTemplatePdf): FormState {
   return {
+    condizioni_legali_testo: t.condizioni_legali_testo ?? "",
+    condizioni_legali_attivo: t.condizioni_legali_attivo ?? true,
     logo_url: t.logo_url ?? null,
     cover_logo_url: t.cover_logo_url ?? null,
     color_primary: t.color_primary ?? "#1E3A5F",
@@ -806,6 +809,18 @@ export function PiscineTemplateEditor({ embedded = false }: Props) {
                   <Switch checked={form.show_footer_legal} onCheckedChange={(v) => set("show_footer_legal", v)} />
                 </label>
               </div>
+            </SectionCard>
+
+            {/* Condizioni generali di contratto: il preventivo firmato è il contratto. */}
+            <SectionCard icon={Scale} title="Condizioni e firma" description="Le condizioni generali stampate in coda al PDF, prima della pagina della firma.">
+              <CondizioniContratto
+                companyId={companyId}
+                settore="piscine"
+                attivo={form.condizioni_legali_attivo !== false}
+                testo={form.condizioni_legali_testo ?? ""}
+                onAttivo={(v) => set("condizioni_legali_attivo", v)}
+                onTesto={(v) => set("condizioni_legali_testo", v)}
+              />
             </SectionCard>
             </>
           )}

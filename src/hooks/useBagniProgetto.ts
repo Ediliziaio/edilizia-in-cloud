@@ -23,6 +23,7 @@ import {
   aLotti, cambiaITotali, condizioniDiPartenza, inFila, soloCampiDelForm,
   type PredefinitiAzienda,
 } from "@/lib/moduli/salvataggioProgetto";
+import type { GalleryLavoroItem } from "@/types/gallery";
 import type {
   BgnProgetto,
   BgnComputoVoce,
@@ -639,6 +640,15 @@ function normalizeTemplate(row: Record<string, unknown> | null, companyId: strin
     pdf_cover_text_vertical: (r.pdf_cover_text_vertical as BgnTemplatePdf["pdf_cover_text_vertical"]) ?? "bottom",
     pdf_cover_overlay_style: (r.pdf_cover_overlay_style as BgnTemplatePdf["pdf_cover_overlay_style"]) ?? "flat",
     pdf_cover_logo_position: (r.pdf_cover_logo_position as BgnTemplatePdf["pdf_cover_logo_position"]) ?? "top_left",
+    // Anche questi due si perdevano qui: il logo di copertina e la galleria dei
+    // lavori sono nel modello e nel documento, ma non arrivavano mai al PDF.
+    cover_logo_url: (r.cover_logo_url as string | null) ?? null,
+    gallery_lavori: Array.isArray(r.gallery_lavori) ? (r.gallery_lavori as GalleryLavoroItem[]) : null,
+    // Le condizioni generali arrivano fino al PDF: prima il normalizzatore le
+    // buttava via qui, e la pagina del contratto non usciva mai — nemmeno per
+    // chi le aveva scritte.
+    condizioni_legali_testo: (r.condizioni_legali_testo as string | null) ?? null,
+    condizioni_legali_attivo: (r.condizioni_legali_attivo as boolean | null) ?? true,
   };
 }
 

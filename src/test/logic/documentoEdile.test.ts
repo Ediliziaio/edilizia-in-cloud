@@ -4,6 +4,8 @@
  * che cambiano da modulo a modulo, il titolo con la parola in corsivo, i numeri
  * doppi, le durate, la tinta della copertina, la foto di serie.
  */
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { giorniDellaDurata, senzaNumeroDavanti, spezzaAccento } from "@/components/preventivi/pdf/testoDocumento";
 import { coloreDelDocumento, costruisciDatiEdile, leggiModello, type AziendaComune, type ProgettoComune, type VoceComune } from "@/components/preventivi/pdf/adattatoreEdile";
@@ -214,6 +216,87 @@ describe("il colore dell'azienda in copertina", () => {
   it("le foto di serie sono file dell'app, non di siti terzi", () => {
     for (const url of Object.values(COPERTINA_DI_SERIE)) {
       expect(url).toMatch(/^\/cover-stock\/[a-z]+\/\d+\.jpg$/);
+    }
+  });
+});
+
+describe("condizioni generali e firma: il preventivo firmato è il contratto", () => {
+  const leggi = (rel: string) => readFileSync(resolve(process.cwd(), rel), "utf8");
+
+  it("senza condizioni scritte dall'azienda il documento usa quelle del settore", () => {
+    const m = leggiModello({}, { progetto: PROGETTO, azienda: null as AziendaComune | null, settore: "tetti" });
+    expect(m.condizioniLegali.length).toBeGreaterThan(20);
+    // L'articolo che cambia da un mestiere all'altro: nei tetti è l'amianto.
+    expect(m.condizioniLegali.some((r) => /amianto/i.test(r.testo))).toBe(true);
+    expect(m.condizioniLegali.some((r) => /serramenti su misura/i.test(r.testo))).toBe(false);
+  });
+
+  it("l'interruttore spento toglie le condizioni, e con loro la pagina della firma", () => {
+    const m = leggiModello({ condizioni_legali_attivo: false }, { progetto: PROGETTO, azienda: null as AziendaComune | null, settore: "bagni" });
+    expect(m.condizioniLegali).toEqual([]);
+    expect(m.clausoleDaApprovare).toEqual([]);
+  });
+
+  it("il testo dell'azienda vince su quello di base", () => {
+    const m = leggiModello(
+      { condizioni_legali_testo: "# Le nostre condizioni\n## Art. 1 — Oggetto\nQuello che diciamo noi." },
+      { progetto: PROGETTO, azienda: null as AziendaComune | null, settore: "piscine" },
+    );
+    expect(m.condizioniLegali.some((r) => /Quello che diciamo noi/.test(r.testo))).toBe(true);
+    expect(m.condizioniLegali.some((r) => /scavo/i.test(r.testo))).toBe(false);
+  });
+
+  it("le clausole della seconda firma si leggono dal testo, non sono inventate", () => {
+    const m = leggiModello({}, { progetto: PROGETTO, azienda: null as AziendaComune | null, settore: "generico" });
+    expect(m.clausoleDaApprovare.length).toBeGreaterThanOrEqual(5);
+    expect(m.clausoleDaApprovare.every((c) => /^Art\. \d+/.test(c))).toBe(true);
+    // Condizioni scritte a mano senza quel titolo: nessuna seconda firma.
+    const senza = leggiModello(
+      { condizioni_legali_testo: "# Condizioni\n## Art. 1 — Oggetto\nTesto." },
+      { progetto: PROGETTO, azienda: null as AziendaComune | null },
+    );
+    expect(senza.clausoleDaApprovare).toEqual([]);
+  });
+
+  it("dentro le condizioni i tag dell'importo e dei contatti non restano vuoti", () => {
+    const m = leggiModello(
+      { condizioni_legali_testo: "## Art. 1\nImporto {{preventivo.totale}}, scrivere a {{azienda.email}}." },
+      {
+        progetto: PROGETTO,
+        azienda: { email: "info@impresa.it" } as AziendaComune,
+        totale: 18843,
+      },
+    );
+    const testo = m.condizioniLegali.map((r) => r.testo).join(" ");
+    expect(testo).toContain("18.843,00 €");
+    expect(testo).toContain("info@impresa.it");
+  });
+
+  it("il documento ha la pagina della firma e il modulo di recesso", () => {
+    const src = leggi("src/components/preventivi/pdf/DocumentoEdilePDF.tsx");
+    expect(src).toContain("Firma del *contratto*.");
+    expect(src).toContain("APPROVAZIONE SPECIFICA (ARTT. 1341 E 1342 C.C.)");
+    expect(src).toContain("Modulo di *recesso*.");
+    // L'elenco delle clausole non si ripete anche dentro le condizioni.
+    expect(src).toContain("senzaClausoleDaFirmare: modello.clausoleDaApprovare.length > 0");
+  });
+
+  it("le condizioni si impaginano per articoli interi, non riga per riga", () => {
+    const src = leggi("src/components/preventivi/pdf/DocumentoEdilePDF.tsx");
+    expect(src).toMatch(/perArticoli\(modello\.condizioniLegali/);
+    expect(src).toMatch(/minPresenceAhead=\{36\}/);
+  });
+
+  it("i modelli dei moduli portano le condizioni fino al PDF (il normalizzatore non le butta)", () => {
+    for (const hook of [
+      "useRistrutturazioneProgetto", "useBagniProgetto", "useTettiProgetto", "useClimatizzazioneProgetto",
+      "useElettricoProgetto", "useTermoidraulicoProgetto", "usePavimentiProgetto", "usePiscineProgetto",
+    ]) {
+      const src = leggi(`src/hooks/${hook}.ts`);
+      const norm = src.slice(src.indexOf("function normalizeTemplate"));
+      expect(norm).toContain("condizioni_legali_testo:");
+      expect(norm).toContain("gallery_lavori:");
+      expect(norm).toContain("cover_logo_url:");
     }
   });
 });
