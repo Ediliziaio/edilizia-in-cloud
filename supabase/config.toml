@@ -709,6 +709,15 @@ verify_jwt = false
 [functions.email-triage-ai]
 verify_jwt = false
 
+# email-inbound-reply: la chiama Elastic Email quando qualcuno risponde a
+# r-<id>@<dominio delle risposte>, e Elastic non manda un JWT. Era stata
+# pubblicata a mano senza controllo, ma la voce qui mancava: alla prima
+# ripubblicazione dalla CI il gateway avrebbe cominciato a respingere ogni
+# risposta con 401 (20/09/2026). Si difende da sola: l'id della route è un uuid
+# non indovinabile e, se INBOUND_EMAIL_SECRET è impostato, serve ?key=<segreto>.
+[functions.email-inbound-reply]
+verify_jwt = false
+
 # MP-EMAIL-AI cascade L1→L4 + Silvio. Tutte fanno auth interna (Bearer getUser
 # e/o x-cron-secret), quindi verify_jwt=false per consentire il path cron.
 [functions.email-ai-l1-classify]

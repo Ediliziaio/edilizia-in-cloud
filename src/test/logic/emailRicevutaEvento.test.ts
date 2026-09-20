@@ -171,6 +171,11 @@ describe("le due strade della posta emettono l'evento", () => {
     expect(inbound).toContain("contactId: route.contact_id,");
   });
 
+  it("il gateway lascia passare Elastic, che non manda un JWT", () => {
+    // Senza la voce, alla prima ripubblicazione dalla CI ogni risposta tornava 401.
+    expect(leggi("supabase/config.toml")).toMatch(/\[functions\.email-inbound-reply\]\s*\nverify_jwt = false/);
+  });
+
   it("il motore e il builder conoscono l'innesco", () => {
     expect(leggi("supabase/functions/process-automation/index.ts")).toContain('email_ricevuta: "email_received",');
     expect(leggi("src/lib/flow-node-catalog.ts")).toContain("id: 'email_ricevuta',");
