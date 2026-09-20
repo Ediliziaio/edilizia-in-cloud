@@ -37,9 +37,16 @@
  * i trigger che svegliano una funzione: tutti «lancia e dimentica».
  *
  * Insieme a questo va tenuta corta l'attesa di pg_net (`timeout_milliseconds`)
- * nel comando del job: pg_net non ha un limite separato per DNS o connessione,
- * quindi una risoluzione del nome che resta appesa consuma l'attesa INTERA.
- * Vedi la migrazione cron_attese_brevi_pg_net.
+ * nel comando del job: è la durata massima del blocco, per tutti. Vedi la
+ * migrazione cron_attese_brevi_pg_net.
+ *
+ * COSA SI È VISTO IN PRODUZIONE (20/09/2026)
+ * Il «DNS time: 120000 ms» dei messaggi di timeout non era un DNS lento: pg_net
+ * lo scrive quando due contatori di curl restano a zero, cioè a connessione
+ * riutilizzata. Erano due funzioni lente, sempre agli stessi minuti. E senza
+ * waitUntil il lavoro NON finiva: alla chiusura della connessione il runtime
+ * ritirava il worker (EarlyDrop) — outreach-imap-poll non completava un giro da
+ * quattro giorni.
  */
 
 /**

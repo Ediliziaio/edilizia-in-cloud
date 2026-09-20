@@ -9,6 +9,20 @@
  *     connessione.
  * Caselle in warm-up INCLUSE: spediscono, quindi ricevono risposte.
  *
+ * UN GIRO NON LE FA TUTTE (20/09/2026). Con 90 caselle nel pool il giro non
+ * finiva più: due sessioni IMAP a casella, in fila, sono minuti. pg_net
+ * chiudeva la connessione a 120 secondi e il runtime, non vedendo più né una
+ * richiesta né un lavoro in sospeso, ritirava il worker a metà (EarlyDrop, 24
+ * volte su 24). Dal 16/09 nessun giro era arrivato in fondo: 31 caselle mai
+ * lette, 24 ferme da oltre un giorno, e la parte OAuth, l'avviso degli errori
+ * e il registro dei giri — che stanno DOPO il ciclo — mai raggiunti. Nel
+ * frattempo la coda dei cron restava ferma due minuti ogni quarto d'ora.
+ * Ora: si parte dalle caselle ferme da più tempo, se ne fanno al massimo
+ * MAX_CASELLE_PER_GIRO (25 caselle costano ~1,2 s di CPU su un tetto di 2) e
+ * non oltre TEMPO_MASSIMO_MS; le altre al giro dopo, che parte ogni 5 minuti.
+ * A pg_net si risponde subito (serveConMetricheRapida) e il lavoro finisce
+ * sotto waitUntil, così il worker non viene ritirato.
+ *
  * Per ogni messaggio: (1) e' un mancato recapito? → suppression + stop
  * iscrizione + contatore bounce; (2) altrimenti match contatto per mittente →
  * handleInboundReply (dedup per Message-ID, intent AI, stop sequenza, opt-out).
@@ -29,13 +43,17 @@ import { htmlToPlainText } from "../_shared/outreach-template.ts";
 import { shouldAutoPause } from "../_shared/outreach-dispatch-logic.ts";
 import { alertOutreach, logRun } from "../_shared/outreachAlert.ts";
 
-import { serveConMetriche } from "../_shared/withMetrics.ts";
+import { serveConMetricheRapida } from "../_shared/withMetricsRapida.ts";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const CRON_SECRET = Deno.env.get("PROACTIVE_CRON_SECRET") || "";
 const PLATFORM_COMPANY = "00000000-0000-0000-0000-000000000001";
 const DAY_MS = 86_400_000;
 const PER_MAILBOX = 30;
+/** Caselle SMTP per giro: il limite vero è la CPU del worker (2 s), non il tempo. */
+const MAX_CASELLE_PER_GIRO = 25;
+/** Oltre questo tempo non si apre un'altra casella: il giro deve arrivare in fondo. */
+const TEMPO_MASSIMO_MS = 140_000;
 
 interface Casella { id: string; email: string; brand_id?: string | null }
 interface MsgIn {
@@ -212,7 +230,8 @@ async function processa(admin: any, mb: Casella, msg: MsgIn, poolEmails?: Set<st
   return "risposta";
 }
 
-serveConMetriche("outreach-imap-poll", async (req) => {
+// A pg_net (il cron) si risponde entro pochi secondi: vedi _shared/rispostaRapidaCron.ts.
+serveConMetricheRapida("outreach-imap-poll", async (req) => {
   const cors = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
 
@@ -223,7 +242,7 @@ serveConMetriche("outreach-imap-poll", async (req) => {
 
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
   const avvio = new Date();
-  const esito = { checked: 0, replies: 0, bounces: 0, ignored: 0, errors: [] as string[] };
+  const esito = { checked: 0, replies: 0, bounces: 0, ignored: 0, rimandate: 0, errors: [] as string[] };
   const conta = (r: "bounce" | "risposta" | "ignorato") => {
     if (r === "bounce") esito.bounces++; else if (r === "risposta") esito.replies++; else esito.ignored++;
   };
@@ -242,10 +261,22 @@ serveConMetriche("outreach-imap-poll", async (req) => {
       .from("outreach_sender_accounts")
       .select("id, email, brand_id, imap_host, imap_port, imap_secure, smtp_username, secret_ref, last_imap_check_at, last_imap_uid")
       .eq("provider", "smtp").in("status", ["active", "warming"]).eq("connection_status", "ok")
-      .not("imap_host", "is", null);
+      .not("imap_host", "is", null)
+      // Rotazione: prima chi non viene letto da più tempo (mai lette in testa).
+      // Senza un ordine il database restituiva sempre le stesse per prime, e
+      // le ultime arrivate non venivano lette mai.
+      .order("last_imap_check_at", { ascending: true, nullsFirst: true });
     if (mErr) throw mErr;
 
+    let tentate = 0;
     for (const mb of (smtpBoxes ?? []) as any[]) {
+      // Contano i tentativi, non i successi: una casella che fallisce resta in
+      // testa alla rotazione, e non deve poter consumare il giro intero.
+      if (tentate >= MAX_CASELLE_PER_GIRO || Date.now() - avvio.getTime() > TEMPO_MASSIMO_MS) {
+        esito.rimandate = (smtpBoxes ?? []).length - tentate;
+        break;
+      }
+      tentate++;
       try {
         if (!mb.secret_ref) { esito.errors.push(`${mb.email}: secret_ref mancante`); continue; }
         const { data: password, error: secErr } = await admin.rpc("outreach_mailbox_secret", { p_ref: mb.secret_ref });

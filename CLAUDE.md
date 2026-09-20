@@ -112,28 +112,48 @@ chiavi pubbliche e gli indicatori come `openrouter_api_key_set`.
 transazione: finché la più lenta del lotto non risponde, nessuna risposta del
 lotto è visibile e il lotto successivo non parte. È così fino alla 0.20.5, e non
 c'è un'impostazione che lo cambi (`pg_net.batch_size` e `pg_net.ttl` sono altro).
-L'unico limite di tempo è `timeout_milliseconds`, che vale anche per il DNS: il
-20 settembre 2026 una risoluzione del nome appesa su un job da 120 secondi ha
-tenuto ferma per due minuti la coda di tutti i cron, più volte all'ora.
+Quindi **una funzione lenta ferma la coda di tutti i cron per tutto il tempo che
+impiega**, fino a `timeout_milliseconds`. Il 20 settembre 2026 erano due:
+`outreach-imap-poll` (oltre 120 secondi a ogni giro: coda ferma due minuti ogni
+quarto d'ora) e `meta-leads-backfill` (90–120 secondi). Insieme, quasi tre ore
+al giorno.
 
-- Un job nuovo che chiama una edge function aspetta **al massimo 15 secondi**
-  (`timeout_milliseconds := 15000`). Oltre i 150 secondi è comunque inutile: il
-  gateway chiude con un 504.
+Due trappole viste quel giorno:
+- Nei messaggi di timeout «DNS time: 120000 ms» **non vuol dire DNS lento**.
+  pg_net lo deduce da due contatori di curl che restano a zero quando la
+  connessione è riutilizzata: lo stesso job, agli stessi orari, alternava
+  messaggi con e senza. Prima di credere al DNS, guardare se i timeout cadono a
+  orari regolari (`extract(minute from created) % 15`): se sì, è un job.
+  `created` è l'INIZIO del lotto, non il momento del timeout.
+- Una funzione a cui pg_net chiude la connessione **non arriva in fondo**: il
+  runtime non vede più né una richiesta né un `waitUntil` e ritira il worker
+  (`EarlyDrop` in `function_logs`). `outreach-imap-poll` non completava un giro
+  dal 16/09 e nessuno lo vedeva, perché avviso degli errori e registro dei giri
+  stanno in fondo al giro.
+
+Regole:
 - Una funzione chiamata da un cron che può lavorare più di qualche secondo usa
   `serveConMetricheRapida` (`_shared/withMetricsRapida.ts`): a pg_net risponde
   entro 5 secondi (l'esito vero se ha finito, altrimenti 202) e finisce il lavoro
   sotto `EdgeRuntime.waitUntil`. Chi chiama dall'interfaccia riceve l'esito
   completo come prima: pg_net si riconosce dallo User-Agent `pg_net/…`.
+- Un job nuovo che chiama una edge function aspetta **al massimo 15 secondi**
+  (`timeout_milliseconds := 15000`). Oltre i 150 secondi è comunque inutile: il
+  gateway chiude con un 504.
 - Prima la funzione, poi l'attesa: accorciare l'attesa a una funzione ancora
-  lenta fa salire i «timeout» del canarino, che conta ogni risposta senza status.
+  lenta fa salire i «timeout» del canarino, che conta ogni risposta senza status,
+  e la fa ritirare a metà lavoro.
+- Il lavoro che cresce coi dati (caselle, aziende, connessioni) va a rotazione,
+  con un tetto per giro: il limite vero è la CPU del worker (2 secondi), non il
+  tempo. Esempio: `outreach-imap-poll`, 25 caselle per giro dalle più vecchie.
 - Sbloccata la coda, due giri della stessa funzione possono sovrapporsi: chi
   gira ogni minuto deve prendere in carico il lavoro in modo atomico
   (`_shared/presaInCarico.ts`).
 
-Stato al 20 settembre 2026: passate alla risposta rapida `email-poll-inbox` e i
-tre classificatori `email-ai-*`. L'attesa dei job si accorcia con
-`scripts/cron-attese-brevi-pg-net.sql`, **pronta ma non ancora applicata**; lì c'è
-anche l'elenco delle funzioni che restano da convertire, in ordine di peso.
+Per vedere chi tiene ferma la coda: `execution_time_ms` per funzione in
+`function_edge_logs` con User-Agent `pg_net/0.20.0`, oppure `latency_ms` in
+`system_health_metrics`. Le query sono in testa alla migrazione
+`cron_attese_brevi_pg_net`.
 
 ## Funzioni esposte ad anon
 

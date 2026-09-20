@@ -4,7 +4,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import { getEncryptionKey, encrypt, decrypt } from "../_shared/encryption.ts";
 import { getCorsHeaders, jsonResponse as json } from "../_shared/headers.ts";
-import { serveConMetriche } from "../_shared/withMetrics.ts";
+import { serveConMetricheRapida } from "../_shared/withMetricsRapida.ts";
 import { cronSecretValido } from "../_shared/cronAuth.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
 import { puoGestireCalendari } from "../_shared/permessiCalendari.ts";
@@ -1778,7 +1778,8 @@ async function cronFullSync(): Promise<Response> {
 }
 
 // ---- MAIN ----
-serveConMetriche("google-calendar-sync", async (req) => {
+// A pg_net (i cron) si risponde entro pochi secondi: vedi _shared/rispostaRapidaCron.ts.
+serveConMetricheRapida("google-calendar-sync", async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: getCorsHeaders(req) });
   }

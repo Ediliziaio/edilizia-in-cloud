@@ -27,7 +27,7 @@
 // - Log: una riga per pagina e una per giro, con i conteggi. Non una per modulo.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-import { serveConMetriche } from "../_shared/withMetrics.ts";
+import { serveConMetricheRapida } from "../_shared/withMetricsRapida.ts";
 import { dataInSecondi, inizioFinestra } from "../_shared/metaFinestraRecupero.ts";
 import {
   chiusoSuMeta,
@@ -420,7 +420,8 @@ async function backfillPage(
   return c;
 }
 
-serveConMetriche("meta-leads-backfill", async (req) => {
+// A pg_net (i cron) si risponde entro pochi secondi: vedi _shared/rispostaRapidaCron.ts.
+serveConMetricheRapida("meta-leads-backfill", async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
 
   const cronSecret = Deno.env.get("CRON_SECRET");
