@@ -106,6 +106,35 @@ chiavi pubbliche e gli indicatori come `openrouter_api_key_set`.
 - Si scrivono come prima (pagine admin, `manage-super-admins`): un trigger
   sposta il valore nel Vault e lascia nella tabella la riga vuota.
 
+## Cron e pg_net: la coda è una sola
+
+`pg_net` ha un solo worker, che elabora le richieste a lotti dentro **una**
+transazione: finché la più lenta del lotto non risponde, nessuna risposta del
+lotto è visibile e il lotto successivo non parte. È così fino alla 0.20.5, e non
+c'è un'impostazione che lo cambi (`pg_net.batch_size` e `pg_net.ttl` sono altro).
+L'unico limite di tempo è `timeout_milliseconds`, che vale anche per il DNS: il
+20 settembre 2026 una risoluzione del nome appesa su un job da 120 secondi ha
+tenuto ferma per due minuti la coda di tutti i cron, più volte all'ora.
+
+- Un job nuovo che chiama una edge function aspetta **al massimo 15 secondi**
+  (`timeout_milliseconds := 15000`). Oltre i 150 secondi è comunque inutile: il
+  gateway chiude con un 504.
+- Una funzione chiamata da un cron che può lavorare più di qualche secondo usa
+  `serveConMetricheRapida` (`_shared/withMetricsRapida.ts`): a pg_net risponde
+  entro 5 secondi (l'esito vero se ha finito, altrimenti 202) e finisce il lavoro
+  sotto `EdgeRuntime.waitUntil`. Chi chiama dall'interfaccia riceve l'esito
+  completo come prima: pg_net si riconosce dallo User-Agent `pg_net/…`.
+- Prima la funzione, poi l'attesa: accorciare l'attesa a una funzione ancora
+  lenta fa salire i «timeout» del canarino, che conta ogni risposta senza status.
+- Sbloccata la coda, due giri della stessa funzione possono sovrapporsi: chi
+  gira ogni minuto deve prendere in carico il lavoro in modo atomico
+  (`_shared/presaInCarico.ts`).
+
+Stato al 20 settembre 2026: passate alla risposta rapida `email-poll-inbox` e i
+tre classificatori `email-ai-*`. L'attesa dei job si accorcia con
+`scripts/cron-attese-brevi-pg-net.sql`, **pronta ma non ancora applicata**; lì c'è
+anche l'elenco delle funzioni che restano da convertire, in ordine di peso.
+
 ## Funzioni esposte ad anon
 
 Una funzione `SECURITY DEFINER` eseguibile dal ruolo `anon` è chiamabile da

@@ -22,7 +22,7 @@ import { getCorsHeaders } from "../_shared/headers.ts";
 import { imapScaricaNuovi, type ImapMessage } from "../_shared/imapSmtpClient.ts";
 import { getMsOAuthCredentials } from "../_shared/msOAuth.ts";
 
-import { serveConMetriche } from "../_shared/withMetrics.ts";
+import { serveConMetricheRapida } from "../_shared/withMetricsRapida.ts";
 import { emettiEmailRicevuta } from "../_shared/emailRicevutaEvento.ts";
 interface ConnectionDue {
   id: string;
@@ -852,7 +852,8 @@ async function resolveThreadsForUser(userId: string, batchSize: number): Promise
 // MAIN
 // ════════════════════════════════════════════════════════════════════════════
 
-serveConMetriche("email-poll-inbox", async (req) => {
+// A pg_net (i cron) si risponde entro pochi secondi: vedi _shared/rispostaRapidaCron.ts.
+serveConMetricheRapida("email-poll-inbox", async (req) => {
   const cors = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
   if (req.method !== "POST") {

@@ -44,7 +44,7 @@ import {
   type EmailCategoria,
 } from "../_shared/email-ai-cascade.ts";
 
-import { serveConMetriche } from "../_shared/withMetrics.ts";
+import { serveConMetricheRapida } from "../_shared/withMetricsRapida.ts";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const CRON_SECRET = Deno.env.get("PROACTIVE_CRON_SECRET") || "";
@@ -127,7 +127,8 @@ Output:
 // Handler
 // ════════════════════════════════════════════════════════════════════════════
 
-serveConMetriche("email-ai-l3-batch", async (req) => {
+// A pg_net (i cron) si risponde entro pochi secondi: vedi _shared/rispostaRapidaCron.ts.
+serveConMetricheRapida("email-ai-l3-batch", async (req) => {
   const corsHeaders = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   if (req.method !== "POST") {
