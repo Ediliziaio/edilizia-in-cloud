@@ -1074,3 +1074,8 @@ verify_jwt = false
 
 [functions.send-error-ticket]
 verify_jwt = false
+
+# Sonda di sola lettura sui messaggi social: dice se le chat che l'azienda vede
+# su Meta arrivano fino a noi. Auth via x-cron-secret == CRON_SECRET.
+[functions.meta-diagnostica-messaggi]
+verify_jwt = false
