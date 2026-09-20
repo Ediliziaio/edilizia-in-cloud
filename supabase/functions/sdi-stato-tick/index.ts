@@ -15,7 +15,8 @@
 // dice il vocabolario esatto del provider.
 //
 // Chiamata dal cron `sdi-stato-quarto-dora` con x-cron-secret, oppure a mano
-// con la service-role key.
+// con la service-role key. verify_jwt = false in supabase/config.toml: pg_cron
+// non manda nessun JWT, il controllo lo fa la funzione qui sotto.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";

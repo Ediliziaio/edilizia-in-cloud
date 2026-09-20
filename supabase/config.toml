@@ -1079,3 +1079,8 @@ verify_jwt = false
 # su Meta arrivano fino a noi. Auth via x-cron-secret == CRON_SECRET.
 [functions.meta-diagnostica-messaggi]
 verify_jwt = false
+
+# Esiti SDI: chiede a openapi com'è finita ogni fattura trasmessa. La chiama
+# pg_cron con x-cron-secret (nessun JWT), il gate è dentro la funzione.
+[functions.sdi-stato-tick]
+verify_jwt = false
