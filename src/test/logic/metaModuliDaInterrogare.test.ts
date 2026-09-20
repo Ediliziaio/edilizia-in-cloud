@@ -280,6 +280,21 @@ describe("la funzione usa le regole, e non torna indietro", () => {
     expect(fonte).toContain("righe.every((r) => !r.modulo)");
   });
 
+  // 20/09/2026, misurato in produzione: 334 letture una dopo l'altra = giri da
+  // 91-115 secondi, contro il tetto di tempo della funzione. È questa la leva
+  // sulla durata, e non salta nemmeno un modulo.
+  it("le letture dei moduli vanno a lotti, non una dopo l'altra", () => {
+    expect(fonte).toContain("const LETTURE_INSIEME = 5");
+    expect(fonte).toContain("daLeggere.slice(i, i + LETTURE_INSIEME)");
+    expect(fonte).toContain("await Promise.all(lotto.map(");
+    // prima si decide su tutti, poi si legge: i conteggi del log restano completi
+    expect(fonte.indexOf("conta(c, d);")).toBeLessThan(fonte.indexOf("await Promise.all(lotto.map("));
+  });
+
+  it("una lettura che scoppia non porta giù le altre del lotto", () => {
+    expect(fonte).toContain("return { formId, d, cfg, inizioLettura, nuovi: 0, errore: senzaToken(e) };");
+  });
+
   it("il segnalibro avanza solo se la lettura è riuscita, e segna l'inizio della lettura", () => {
     expect(fonte).toContain("if (cfg && !errore) {");
     expect(fonte).toContain("update({ last_pull_at: inizioLettura })");

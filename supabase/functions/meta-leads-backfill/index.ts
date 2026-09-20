@@ -18,13 +18,17 @@
 // - Recupero esplicito di UN modulo da una data (19/09/2026):
 //   { company_id, form_id, da: "AAAA-MM-GG" } — lo stesso «Importa lead → Da
 //   una data» del pannello, vale anche prima del collegamento del modulo.
-// - Dal 20/09/2026 il giro automatico non interroga più a ogni passaggio i
-//   moduli che Meta dà per archiviati o eliminati (erano quasi tutti i ~317
-//   moduli per giro: ~30.000 chiamate al giorno per niente, giri da 118 s). Non
-//   ci si fida alla cieca: chi ha portato lead negli ultimi 30 giorni si legge
-//   comunque, e ogni archiviato si rilegge un'ora al giorno. Regole in
+// - Log: una riga per pagina e una per giro, con i conteggi. Non una per modulo
+//   (erano 30.437 righe al giorno, una per modulo per giro).
+// - Le letture dei moduli vanno a cinque per volta: da sole, una dopo l'altra,
+//   334 letture facevano 100 secondi di giro contro il tetto di tempo della
+//   funzione. Le chiamate a Facebook sono le stesse, il giro è molto più corto.
+// - Lo stato del modulo si chiede a Meta (ACTIVE/ARCHIVED/DELETED/DRAFT) e si
+//   conta nel log. NOTA dai dati veri del 20/09/2026: degli oltre 330 moduli
+//   per giro solo 25 sono archiviati, e nessuno di quelli ha portato lead negli
+//   ultimi 30 giorni — saltarli farebbe risparmiare il 7%, non il 90% sperato.
+//   Per questo SALTA_ARCHIVIATI resta spento: si conta e basta. Regole in
 //   _shared/metaModuliDaInterrogare.ts. Un recupero chiesto legge tutto.
-// - Log: una riga per pagina e una per giro, con i conteggi. Non una per modulo.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 import { serveConMetricheRapida } from "../_shared/withMetricsRapida.ts";
@@ -98,6 +102,16 @@ const senzaToken = (e: unknown): string =>
 // prima di fidarsi. È anche il modo per tornare indietro: false, e si pubblica.
 const SALTA_ARCHIVIATI = false;
 
+// Quante letture di moduli si tengono aperte insieme su una pagina. I moduli si
+// leggevano uno dopo l'altro: 334 letture da ~300 ms fanno 100 secondi di giro,
+// e la funzione ha un tetto di tempo — oltre quello le ultime pagine non si
+// leggono più, in silenzio. Cinque alla volta portano il giro sotto i venti
+// secondi senza chiedere a Facebook niente di più: le chiamate sono le stesse,
+// cambia solo che non si aspetta la fine di una per cominciare l'altra. Poche
+// per non farsi limitare da Meta; se succede, l'errore si conta, il segnalibro
+// non avanza e al giro dopo quel modulo si rilegge.
+const LETTURE_INSIEME = 5;
+
 // Un giro oltre questa durata si fa notare nel log (il 20/09/2026 arrivava a 118 s).
 const GIRO_LENTO_MS = 100_000;
 
@@ -142,6 +156,16 @@ async function elencaModuli(
   // Se anche l'elenco di soli id fallisce il problema non era lo stato.
   if (errore) senzaStato = null;
   return { moduli: [...moduli].map(([id, status]) => ({ id, status })), errore, senzaStato };
+}
+
+/** La riga di meta_lead_forms che serve al giro. */
+interface ConfigModuloRiga {
+  id: string;
+  status: string | null;
+  sync_mode: string | null;
+  since_date: string | null;
+  last_pull_at: string | null;
+  created_at: string | null;
 }
 
 // ── Moduli archiviati su Meta che però ci hanno portato lead di recente ──────
@@ -315,10 +339,7 @@ async function backfillPage(
     .select("id, form_id, status, sync_mode, since_date, last_pull_at, page_asset_id, created_at")
     .eq("company_id", integ.company_id);
 
-  const settingsByForm = new Map<string, {
-    id: string; status: string | null; sync_mode: string | null;
-    since_date: string | null; last_pull_at: string | null; created_at: string | null;
-  }>();
+  const settingsByForm = new Map<string, ConfigModuloRiga>();
   for (const row of formRows ?? []) {
     const r = row as Record<string, unknown>;
     const pa = r.page_asset_id as string | null;
@@ -349,6 +370,9 @@ async function backfillPage(
   const conLeadRecenti = recenti ? new Set(recenti.keys()) : null;
   const archiviatiVivi: string[] = [];
 
+  // Prima si decide su tutti i moduli (regole pure, nessuna chiamata), poi si
+  // legge. Così i conteggi del log sono completi anche se una lettura fallisce.
+  const daLeggere: Array<{ formId: string; d: ReturnType<typeof decidiModulo>; cfg?: ConfigModuloRiga }> = [];
   for (const { id: formId, status } of moduli) {
     const cfg = settingsByForm.get(formId);
     // Un modulo disattivato da noi non si importa; i moduli SENZA riga restano
@@ -368,42 +392,56 @@ async function backfillPage(
     if (d.motivo === "lead_recenti") {
       archiviatiVivi.push(`${formId} (ultimo lead ${(recenti?.get(formId) ?? "").slice(0, 10) || "?"})`);
     }
+    daLeggere.push({ formId, d, cfg });
+  }
 
-    // Limite temporale: il piu' RECENTE fra finestra di default, since_date
-    // (quando l'utente ha chiesto "solo i nuovi"), collegamento del modulo e
-    // ultimo pull riuscito. MAI prima di quando il modulo è stato collegato:
-    // chi collega Meta oggi non si aspetta di trovarsi dentro i lead del mese
-    // scorso. L'eccezione è il recupero esplicito di un modulo da una data,
-    // che vale come l'«Importa lead» del pannello. Regole in
-    // _shared/metaFinestraRecupero.ts.
-    const effectiveSince = inizioFinestra({
-      sinceTs, cfg, ignoraSegnalibro: o.ignoraSegnalibro, daEsplicita: o.daEsplicita,
-    });
+  for (let i = 0; i < daLeggere.length; i += LETTURE_INSIEME) {
+    const lotto = daLeggere.slice(i, i + LETTURE_INSIEME);
+    const esiti = await Promise.all(lotto.map(async ({ formId, d, cfg }) => {
+      // Limite temporale: il piu' RECENTE fra finestra di default, since_date
+      // (quando l'utente ha chiesto "solo i nuovi"), collegamento del modulo e
+      // ultimo pull riuscito. MAI prima di quando il modulo è stato collegato:
+      // chi collega Meta oggi non si aspetta di trovarsi dentro i lead del mese
+      // scorso. L'eccezione è il recupero esplicito di un modulo da una data,
+      // che vale come l'«Importa lead» del pannello. Regole in
+      // _shared/metaFinestraRecupero.ts.
+      const effectiveSince = inizioFinestra({
+        sinceTs, cfg, ignoraSegnalibro: o.ignoraSegnalibro, daEsplicita: o.daEsplicita,
+      });
+      const inizioLettura = new Date().toISOString();
+      // Una lettura che scoppia non deve portarsi dietro le altre quattro del lotto.
+      try {
+        const r = await leggiModulo(admin, integ, pageId, pageToken, formId, effectiveSince);
+        return { formId, d, cfg, inizioLettura, ...r };
+      } catch (e) {
+        return { formId, d, cfg, inizioLettura, nuovi: 0, errore: senzaToken(e) };
+      }
+    }));
 
-    const inizioLettura = new Date().toISOString();
-    const { nuovi, errore } = await leggiModulo(admin, integ, pageId, pageToken, formId, effectiveSince);
-    c.leadNuovi += nuovi;
-    if (errore) segnalaErrore(`lead del modulo ${formId} errore: ${errore}`);
+    for (const { formId, d, cfg, inizioLettura, nuovi, errore } of esiti) {
+      c.leadNuovi += nuovi;
+      if (errore) segnalaErrore(`lead del modulo ${formId} errore: ${errore}`);
 
-    // Un lead NUOVO da un modulo che Meta dà per archiviato smentisce la regola
-    // per cui quei moduli si leggono di rado: deve restare scritto.
-    if (nuovi > 0 && o.giroAutomatico && chiusoSuMeta(d.stato)) {
-      c.leadNuoviDaArchiviati += nuovi;
-      console.warn(
-        `meta-leads-backfill: ATTENZIONE modulo ${formId} (pagina ${pageId}) è ${d.stato} su Meta ` +
-        `ma ha portato ${nuovi} lead nuovi (letto per: ${d.motivo})`,
-      );
-    }
+      // Un lead NUOVO da un modulo che Meta dà per archiviato smentisce la regola
+      // per cui quei moduli si leggono di rado: deve restare scritto.
+      if (nuovi > 0 && o.giroAutomatico && chiusoSuMeta(d.stato)) {
+        c.leadNuoviDaArchiviati += nuovi;
+        console.warn(
+          `meta-leads-backfill: ATTENZIONE modulo ${formId} (pagina ${pageId}) è ${d.stato} su Meta ` +
+          `ma ha portato ${nuovi} lead nuovi (letto per: ${d.motivo})`,
+        );
+      }
 
-    // Segnalibro: senza, ogni giro ripartiva dalla stessa finestra. Avanza solo
-    // se la lettura è andata fino in fondo (prima avanzava anche dopo un errore
-    // di Meta, e i lead di quel buco non si rileggevano più), e segna l'INIZIO
-    // della lettura, non la fine: un lead nato nel mezzo resta davanti.
-    if (cfg && !errore) {
-      await admin
-        .from("meta_lead_forms")
-        .update({ last_pull_at: inizioLettura })
-        .eq("id", cfg.id);
+      // Segnalibro: senza, ogni giro ripartiva dalla stessa finestra. Avanza solo
+      // se la lettura è andata fino in fondo (prima avanzava anche dopo un errore
+      // di Meta, e i lead di quel buco non si rileggevano più), e segna l'INIZIO
+      // della lettura, non la fine: un lead nato nel mezzo resta davanti.
+      if (cfg && !errore) {
+        await admin
+          .from("meta_lead_forms")
+          .update({ last_pull_at: inizioLettura })
+          .eq("id", cfg.id);
+      }
     }
   }
 
