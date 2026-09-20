@@ -97,6 +97,8 @@ const PROVIDER_BADGE_VARIANT: Record<
 interface DomainResponse {
   domain: DomainStatus | null;
   dnsRecords: DnsRecord[];
+  /** Tutti i domini dell'azienda (due marchi = due domini): `domain` è quello mostrato. */
+  tutti?: Array<{ domain: DomainStatus; dnsRecords: DnsRecord[] }>;
   /** Errori dei provider durante add/verify (non i record non ancora propagati). */
   providerErrors?: Record<string, string | null>;
 }
@@ -118,7 +120,11 @@ function normalizeDomainResponse(resp: unknown): DomainResponse {
   } | null;
   if (Array.isArray(r?.domains)) {
     const first = r.domains[0] ?? null;
-    return { domain: first, dnsRecords: first?.dns_records ?? [] };
+    return {
+      domain: first,
+      dnsRecords: first?.dns_records ?? [],
+      tutti: r.domains.map((d) => ({ domain: d, dnsRecords: d.dns_records ?? [] })),
+    };
   }
   if (r?.domain_row) {
     return { domain: r.domain_row, dnsRecords: r.dns_records ?? [], providerErrors: r.provider_errors };
@@ -209,13 +215,20 @@ export default function SettingsEmailDomain() {
   // Auto-polling toggle (default ON se dominio registrato ma non verificato)
   const [autoPoll, setAutoPoll] = useState(true);
 
+  // Più domini per azienda (20/09/2026): chi ha due marchi spedisce da due
+  // domini. La pagina ne mostra uno alla volta; «Aggiungi un altro dominio»
+  // riapre il modulo del primo passo.
+  const [dominioScelto, setDominioScelto] = useState<string | null>(null);
+  const [aggiungeUnAltro, setAggiungeUnAltro] = useState(false);
+
   // Load current status — auto-refresh ogni 30s se dominio presente e non verificato
-  const { data, isLoading, refetch, dataUpdatedAt } = useQuery<DomainResponse>({
+  const { data: risposta, isLoading, refetch, dataUpdatedAt } = useQuery<DomainResponse>({
     queryKey: ["company-email-domain", companyId],
     enabled: !!companyId,
     refetchInterval: (query) => {
-      const d = (query.state.data as DomainResponse | undefined)?.domain;
-      if (!autoPoll || !d || d.is_verified) return false;
+      const r = query.state.data as DomainResponse | undefined;
+      const daVerificare = (r?.tutti ?? []).some((d) => !d.domain.is_verified);
+      if (!autoPoll || !daVerificare) return false;
       return 30_000;
     },
     queryFn: async () => {
@@ -226,6 +239,15 @@ export default function SettingsEmailDomain() {
       return normalizeDomainResponse(resp);
     },
   });
+
+  const tuttiIDomini = risposta?.tutti ?? [];
+  const mostrato = aggiungeUnAltro
+    ? null
+    : tuttiIDomini.find((d) => d.domain.domain === dominioScelto) ?? tuttiIDomini[0] ?? null;
+  // Stessa forma di prima (un dominio e i suoi record): il resto della pagina non cambia.
+  const data: DomainResponse | undefined = risposta
+    ? { ...risposta, domain: mostrato?.domain ?? null, dnsRecords: mostrato?.dnsRecords ?? [] }
+    : undefined;
 
   const testEmailMutation = useMutation({
     mutationFn: async (input: { to: string; stream: "transactional" | "marketing" }) => {
@@ -276,8 +298,11 @@ export default function SettingsEmailDomain() {
       if (error) throw new Error(await edgeErrorMessage(error, "Errore durante l'aggiunta del dominio"));
       return normalizeDomainResponse(resp);
     },
-    onSuccess: () => {
+    onSuccess: (resp) => {
       toast.success("Dominio registrato. Ora configura i record DNS.");
+      setDominioScelto(resp.domain?.domain ?? null);
+      setAggiungeUnAltro(false);
+      setInputDomain("");
       qc.invalidateQueries({ queryKey: ["company-email-domain", companyId] });
     },
     onError: (err: unknown) => {
@@ -333,6 +358,7 @@ export default function SettingsEmailDomain() {
     },
     onSuccess: () => {
       toast.success("Dominio rimosso");
+      setDominioScelto(null);
       qc.invalidateQueries({ queryKey: ["company-email-domain", companyId] });
     },
     onError: (err: unknown) => {
@@ -369,6 +395,16 @@ export default function SettingsEmailDomain() {
 
     return (
       <div className="max-w-3xl space-y-6">
+        {aggiungeUnAltro && tuttiIDomini.length > 0 && (
+          <div className="flex items-center justify-between gap-2 flex-wrap rounded-lg border bg-muted/30 px-3 py-2">
+            <p className="text-sm">
+              Stai aggiungendo un altro dominio. Quelli già collegati restano come sono.
+            </p>
+            <Button variant="outline" size="sm" onClick={() => setAggiungeUnAltro(false)}>
+              Annulla
+            </Button>
+          </div>
+        )}
         {/* Banner stato attuale: dominio fallback piattaforma */}
         <Card className="border-blue-200 bg-blue-50/40">
           <CardContent className="p-4">
@@ -575,6 +611,25 @@ export default function SettingsEmailDomain() {
 
   return (
     <div className="max-w-4xl space-y-6">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {tuttiIDomini.length > 1 && tuttiIDomini.map((d) => (
+            <Button
+              key={d.domain.id}
+              size="sm"
+              variant={d.domain.domain === domain.domain ? "default" : "outline"}
+              onClick={() => setDominioScelto(d.domain.domain)}
+            >
+              {d.domain.domain}
+            </Button>
+          ))}
+        </div>
+        <Button variant="outline" size="sm" onClick={() => setAggiungeUnAltro(true)}>
+          <Globe className="h-4 w-4 mr-2" />
+          Aggiungi un altro dominio
+        </Button>
+      </div>
+
       <Card>
         <CardHeader>
           <div className="flex items-start justify-between gap-4 flex-wrap">

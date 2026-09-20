@@ -96,3 +96,27 @@ export function dominioSconosciutoAlProvider(errore: string | null | undefined):
   const e = String(errore ?? "").toLowerCase();
   return /\b(404|400)\b/.test(e) || e.includes("not found") || e.includes("does not exist") || e.includes("not exist");
 }
+
+// ── DMARC ───────────────────────────────────────────────────────────────────
+// Gmail e Yahoo lo pretendono da chi fa invii di massa. Si mette sul dominio
+// principale (vale anche per i sottodomini). Se il dominio ce l'ha già non si
+// tocca; se manca, la pagina lo propone fra i record, senza bloccare la
+// verifica.
+
+export const DMARC_CONSIGLIATO = "v=DMARC1; p=none;";
+
+/** Secondi livelli che contano come suffisso (il dominio principale ha tre etichette). */
+const SUFFISSI_DOPPI = new Set(["co.uk", "org.uk", "com.au", "com.br", "co.nz", "com.mt", "co.za"]);
+
+/** Il dominio principale: mkt.azienda.it → azienda.it. */
+export function dominioPrincipale(dominio: string): string {
+  const etichette = String(dominio ?? "").trim().toLowerCase().replace(/\.$/, "").split(".").filter(Boolean);
+  if (etichette.length <= 2) return etichette.join(".");
+  const ultimeDue = etichette.slice(-2).join(".");
+  return etichette.slice(SUFFISSI_DOPPI.has(ultimeDue) ? -3 : -2).join(".");
+}
+
+/** Tra i TXT di _dmarc.<dominio>, c'è un record DMARC? */
+export function haDmarc(txt: Array<string | null | undefined>): boolean {
+  return txt.some((t) => /^"?\s*v=DMARC1/i.test(String(t ?? "").trim()));
+}

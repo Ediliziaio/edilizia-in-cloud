@@ -8,7 +8,9 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   chiaviTransazionali,
+  dominioPrincipale,
   dominioSconosciutoAlProvider,
+  haDmarc,
   notaSpf,
   SPF_MARKETING_NUOVO,
   trovaSpf,
@@ -104,6 +106,26 @@ describe("dominioSconosciutoAlProvider", () => {
     expect(dominioSconosciutoAlProvider("Elastic Email verify 401: Unauthorized")).toBe(false);
     expect(dominioSconosciutoAlProvider("Elastic Email verify 503: Service Unavailable")).toBe(false);
     expect(dominioSconosciutoAlProvider(null)).toBe(false);
+  });
+});
+
+describe("DMARC", () => {
+  it("il dominio principale di un sottodominio", () => {
+    expect(dominioPrincipale("mkt.marketingedile.com")).toBe("marketingedile.com");
+    expect(dominioPrincipale("bemade.it")).toBe("bemade.it");
+    expect(dominioPrincipale("News.Mail.Azienda.CO.UK.")).toBe("azienda.co.uk");
+  });
+
+  it("riconosce il record fra i TXT", () => {
+    expect(haDmarc(['"v=DMARC1; p=none; rua=mailto:dmarc@ediliziaincloud.com"'])).toBe(true);
+    expect(haDmarc(['"google-site-verification=abc"'])).toBe(false);
+    expect(haDmarc([])).toBe(false);
+  });
+
+  it("la funzione lo propone solo quando sa che manca", () => {
+    const funzione = leggi("supabase/functions/manage-email-domain/index.ts");
+    expect(funzione).toContain("if (spf?.dmarc === false) {");
+    expect(funzione).toContain("host: `_dmarc.${dominioPrincipale(domain)}`,");
   });
 });
 

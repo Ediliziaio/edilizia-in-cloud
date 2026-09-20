@@ -21,7 +21,10 @@ import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import { serveConMetriche } from "../_shared/withMetrics.ts";
 import {
   chiaviTransazionali,
+  DMARC_CONSIGLIATO,
+  dominioPrincipale,
   dominioSconosciutoAlProvider,
+  haDmarc,
   notaSpf,
   SPF_MARKETING_NUOVO,
   type StatoSpf,
@@ -145,6 +148,24 @@ async function enforceRateLimit(
 interface SpfDaMostrare {
   valore: string;
   stato: StatoSpf;
+  /** Il dominio principale ha già un record DMARC? (null = DNS non letto) */
+  dmarc?: boolean | null;
+}
+
+/** I TXT di un nome dal DNS pubblico (DoH). null = non si è riusciti a leggere. */
+async function txtPubblici(nome: string): Promise<string[] | null> {
+  try {
+    const res = await fetch(
+      `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(nome)}&type=TXT`,
+      { headers: { accept: "application/dns-json" }, signal: AbortSignal.timeout(4000) },
+    );
+    if (!res.ok) return null;
+    const dati = await res.json().catch(() => null);
+    if (!dati) return null;
+    return Array.isArray(dati.Answer) ? dati.Answer.map((a: { data?: string }) => String(a?.data ?? "")) : [];
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -153,20 +174,11 @@ interface SpfDaMostrare {
  * che niente, e la nota sul «uno solo» resta nella pagina.
  */
 async function spfDaMostrare(domain: string): Promise<SpfDaMostrare> {
-  try {
-    const res = await fetch(
-      `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(domain)}&type=TXT`,
-      { headers: { accept: "application/dns-json" }, signal: AbortSignal.timeout(4000) },
-    );
-    if (!res.ok) return { valore: SPF_MARKETING_NUOVO, stato: "nuovo" };
-    const dati = await res.json().catch(() => ({}));
-    const txt = Array.isArray(dati?.Answer)
-      ? dati.Answer.map((a: { data?: string }) => String(a?.data ?? ""))
-      : [];
-    return unisciSpf(trovaSpf(txt));
-  } catch {
-    return { valore: SPF_MARKETING_NUOVO, stato: "nuovo" };
-  }
+  const [txt, dmarc] = await Promise.all([
+    txtPubblici(domain),
+    txtPubblici(`_dmarc.${dominioPrincipale(domain)}`),
+  ]);
+  return { ...unisciSpf(txt ? trovaSpf(txt) : null), dmarc: dmarc === null ? null : haDmarc(dmarc) };
 }
 
 function buildDnsRecords(row: Record<string, unknown>, spf?: SpfDaMostrare): Array<{
@@ -209,6 +221,20 @@ function buildDnsRecords(row: Record<string, unknown>, spf?: SpfDaMostrare): Arr
       verified: Boolean(row.ee_tracking_verified),
     },
   ];
+
+  // DMARC: solo se sappiamo che al dominio principale manca. Consigliato, non
+  // blocca la verifica.
+  if (spf?.dmarc === false) {
+    recs.push({
+      type: "TXT",
+      host: `_dmarc.${dominioPrincipale(domain)}`,
+      value: DMARC_CONSIGLIATO,
+      purpose: "DMARC — consigliato",
+      provider: "elastic_email",
+      verified: false,
+      nota: "Al tuo dominio manca il record DMARC: Gmail e Yahoo lo chiedono a chi manda email a molti contatti, e senza possono respingerle. Non blocca la verifica, ma conviene aggiungerlo.",
+    });
+  }
 
   // ─── SendGrid (transactional legacy) ───
   for (let i = 1; i <= 3; i++) {
@@ -727,15 +753,15 @@ async function actionVerifyDomain(
 
     return {
       domain_row: activated ?? updated,
-      dns_records: buildDnsRecords(activated ?? updated),
+      dns_records: buildDnsRecords(activated ?? updated, await spfDaMostrare(row.domain)),
       provider_errors: providerErrors,
     };
   }
 
   return {
     domain_row: updated,
-    // SPF ancora da sistemare: si rimostra quello unito al record del dominio.
-    dns_records: buildDnsRecords(updated, updated.ee_spf_verified ? undefined : await spfDaMostrare(row.domain)),
+    // L'SPF mostrato è quello del dominio con dentro la nostra autorizzazione.
+    dns_records: buildDnsRecords(updated, await spfDaMostrare(row.domain)),
     provider_errors: providerErrors,
   };
 }
@@ -777,11 +803,11 @@ async function actionGetStatus(admin: SupabaseClient, companyId: string) {
     .eq("company_id", companyId)
     .order("created_at", { ascending: false });
 
-  // Finché l'SPF non è verificato, il record mostrato parte da quello che il
-  // dominio ha già (un dominio ne può avere uno solo).
+  // Il record SPF mostrato parte da quello che il dominio ha già (ne può avere
+  // uno solo); il DMARC compare solo se al dominio manca.
   const domains = await Promise.all((rows ?? []).map(async (r: Record<string, unknown>) => ({
     ...r,
-    dns_records: buildDnsRecords(r, r.ee_spf_verified ? undefined : await spfDaMostrare(String(r.domain ?? ""))),
+    dns_records: buildDnsRecords(r, await spfDaMostrare(String(r.domain ?? ""))),
   })));
   return { domains };
 }

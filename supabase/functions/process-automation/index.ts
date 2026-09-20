@@ -22,7 +22,7 @@ import { appendTrackingSig } from "../_shared/emailTrackingSignature.ts";
 import { arcoDelRamo, inizioGiornoRoma, leggiPercentuali, letteraRamo, modalitaSplit, ramoEquilibrato, ramoPerNumero } from "../_shared/splitRami.ts";
 import { nomeOpportunitaPulito, personeDaAvvisare, tagsUniti, testoNotaAggiornamento } from "../_shared/creaAggiornaOpportunita.ts";
 import { conLinkCliccabili, fusoDelFlusso, invioEmailDaRimandare, MINUTI_RINVIO_EMAIL, numeroWhatsApp, schedaAndataAvanti, senzaSpazioPrimaDellaVirgola } from "../_shared/sequenzaContatto.ts";
-import { mittenteDelPasso } from "../_shared/mittenteAutomazione.ts";
+import { mittenteDelPasso, dominiAmmessi, soloDominiDellAzienda } from "../_shared/mittenteAutomazione.ts";
 import { calendarioDelGiorno, giornoAmmesso, leggiSettimane } from "../_shared/attesaCalendario.ts";
 import { isInternalRequest, isSuperAdminEmailAllowed, requireAuth, requireCompanyAccess, requireInternalSecret, resolveUserEmail } from "../_shared/auth.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
@@ -3633,6 +3633,26 @@ async function mittenteDelFlusso(supabase: any, flowId: unknown, companyId: stri
   return valore;
 }
 
+/**
+ * I domini collegati dall'azienda: letti al massimo una volta al minuto. Se la
+ * lettura fallisce non si ammette nessun dominio (l'email parte comunque, dal
+ * mittente dell'azienda): meglio quello che un mittente non controllato.
+ */
+const dominiDelleAziende = new Map<string, { righe: any[]; letto: number }>();
+
+async function dominiCollegati(supabase: any, companyId: string): Promise<any[]> {
+  const inCache = dominiDelleAziende.get(companyId);
+  if (inCache && Date.now() - inCache.letto < 60_000) return inCache.righe;
+  const { data, error } = await supabase
+    .from("company_email_domains")
+    .select("domain, is_active, ee_spf_verified, ee_dkim_verified, resend_status, sg_cname_1_valid, sg_cname_2_valid, sg_cname_3_valid")
+    .eq("company_id", companyId);
+  if (error) return [];
+  if (dominiDelleAziende.size > 500) dominiDelleAziende.clear();
+  dominiDelleAziende.set(companyId, { righe: data ?? [], letto: Date.now() });
+  return data ?? [];
+}
+
 async function executeSendEmail(supabase: any, cfg: Record<string, any>, entityId: string, companyId: string, queueItem?: any, idFlusso: unknown = queueItem?.flow_id) {
   try {
     // Automazione su una COMMESSA (benvenuto, fattura, data di posa, saldo):
@@ -3777,7 +3797,16 @@ async function executeSendEmail(supabase: any, cfg: Record<string, any>, entityI
 
     // Mittente: prima il passo, poi le Impostazioni dell'automazione, campo per
     // campo (vedi _shared/mittenteAutomazione.ts). Tutto vuoto = come prima.
-    const mittente = mittenteDelPasso(cfg, await mittenteDelFlusso(supabase, idFlusso, companyId));
+    const mittenteScelto = mittenteDelPasso(cfg, await mittenteDelFlusso(supabase, idFlusso, companyId));
+    // Dal provider (condiviso fra le aziende) si spedisce solo dai domini che
+    // QUESTA azienda ha collegato e verificato: vedi mittenteAutomazione.ts.
+    // Dalla casella collegata l'indirizzo è quello della casella, non questo.
+    const mittente = casellaId || !mittenteScelto.email
+      ? mittenteScelto
+      : soloDominiDellAzienda(mittenteScelto, dominiAmmessi(await dominiCollegati(supabase, companyId), stream));
+    if (mittenteScelto.email && !mittente.email && !casellaId) {
+      console.warn(`[process-automation] mittente ${mittenteScelto.email} scartato: il dominio non è fra quelli verificati dell'azienda ${companyId}`);
+    }
 
     if (casellaId) {
       // Anche dalla casella collegata, un'email a un contatto deve poter dire
