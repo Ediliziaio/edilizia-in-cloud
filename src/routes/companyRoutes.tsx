@@ -4,7 +4,7 @@ import { Route, Navigate, useLocation, useParams } from "react-router-dom";
 // meta' file, altrimenti la regola no-use-before-define (che tiene lontani i
 // "Cannot access before initialization" nei componenti) segnala un falso positivo.
 import { COMPANY_ROLES, withCompanyPermission } from "./company/_shared";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth, COMPANY_CHOSEN_KEY } from "@/contexts/AuthContext";
 
 /** Redirect /azienda/interventi/:id → /azienda/assistenza/:id (unificazione) */
 function InterventoDetailRedirect() {
@@ -114,7 +114,6 @@ import { FeatureRoute } from "@/components/auth/FeatureRoute";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { CompanyLayout } from "@/components/layouts/CompanyLayout";
 import { SettingsLayout } from "@/components/layouts/SettingsLayout";
-import { useAuth, COMPANY_CHOSEN_KEY } from "@/contexts/AuthContext";
 
 // Company pages
 const CompanyDashboard = lazy(() => import("@/pages/azienda/CompanyDashboard"));
