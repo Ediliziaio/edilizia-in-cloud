@@ -24,6 +24,7 @@
  * stabile salvato nel template (ideale per il PDF, niente signed URL scaduti).
  */
 import { useEffect, useMemo, useRef, useState } from "react";
+import { CopertinaAnteprima } from "@/components/preventivi/CopertinaAnteprima";
 import { Link, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import {
@@ -954,10 +955,13 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs">Titolo</Label>
+                    <p className="text-[10px] leading-snug text-muted-foreground">
+                      Una parola fra asterischi esce in corsivo: <span className="font-mono">Il *progetto* per la tua casa.</span>
+                    </p>
                     <Input
                       value={form.cover_title ?? ""}
                       onChange={(e) => set("cover_title", e.target.value)}
-                      placeholder="Preventivo di ristrutturazione"
+                      placeholder="Il *progetto* per la tua casa."
                     />
                     <PlaceholderChips
                       value={form.cover_title ?? ""}
@@ -1013,7 +1017,13 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
                 {/* Anteprima A4 (decorazione SVG style-aware col colore TESTO cover) */}
                 <div className="space-y-1.5">
                   <Label className="text-xs">Anteprima</Label>
-                  <CoverPreviewA4 form={form} logoUrl={(form.cover_logo_url ?? form.logo_url)} companyName={companyAnagrafica?.ragione_sociale ?? "La tua azienda"} />
+                  <CopertinaAnteprima
+                    modulo="ristrutturazione"
+                    form={form as unknown as Record<string, unknown>}
+                    maiSalvato={!template?.id}
+                    nomeAzienda={form.ragione_sociale ?? companyAnagrafica?.ragione_sociale ?? null}
+                    logoUrl={form.logo_url ?? null}
+                  />
                 </div>
 
                 {/* Controlli pdf_cover_* */}
@@ -1665,7 +1675,7 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
 /** Etichetta umana per la variante decorazione. */
 function decoLabel(v: "square" | "circle" | "line" | "pattern" | "none"): string {
   switch (v) {
-    case "square": return "Finestra";
+    case "square": return "Squadre";
     case "circle": return "Cerchi";
     case "line": return "Linea";
     case "pattern": return "Punti";
@@ -1752,113 +1762,6 @@ function CoverDecoThumb({ variant }: { variant: "square" | "circle" | "line" | "
  * logo, eyebrow/titolo/sottotitolo posizionati (top/center/bottom), decorazione
  * SVG nel colore TESTO, card cliente.
  */
-function CoverPreviewA4({ form, logoUrl, companyName }: {
-  form: FormState; logoUrl: string | null; companyName: string;
-}) {
-  const hasImage = Boolean(form.pdf_cover_image_url);
-  const bg = (form.pdf_cover_bg_color && /^#[0-9a-fA-F]{6}$/.test(form.pdf_cover_bg_color))
-    ? form.pdf_cover_bg_color
-    : "#0F1B2A";
-  const textColor = (form.pdf_cover_text_color && /^#[0-9a-fA-F]{6}$/.test(form.pdf_cover_text_color))
-    ? form.pdf_cover_text_color
-    : "#FFFFFF";
-  const overlay = Math.max(0, Math.min(100, form.pdf_cover_overlay_opacity ?? 65)) / 100;
-  const align = form.pdf_cover_text_align === "center" ? "center" : "left";
-  const justify =
-    form.pdf_cover_text_vertical === "top" ? "flex-start"
-    : form.pdf_cover_text_vertical === "center" ? "center"
-    : "flex-end";
-  const logoPos = form.pdf_cover_logo_position;
-  const logoAlignSelf =
-    logoPos === "top_right" ? "flex-end" : logoPos === "top_center" ? "center" : "flex-start";
-  // Overlay HTML coerente con i 4 stili PDF.
-  const overlayBg = (() => {
-    if (!hasImage) return undefined;
-    switch (form.pdf_cover_overlay_style) {
-      case "gradient":
-        return `linear-gradient(to bottom, rgba(0,0,0,${overlay * 0.15}), rgba(0,0,0,${overlay * 0.55}) 55%, rgba(0,0,0,${overlay}))`;
-      case "gradient_diag":
-        return `linear-gradient(to bottom right, rgba(0,0,0,${overlay * 0.2}), rgba(0,0,0,${overlay}))`;
-      case "vignette":
-        return `radial-gradient(ellipse 70% 85% at 50% 50%, rgba(0,0,0,${overlay * 0.1}), rgba(0,0,0,${overlay * 0.5}) 70%, rgba(0,0,0,${overlay * 0.95}))`;
-      default:
-        return `rgba(0,0,0,${overlay})`;
-    }
-  })();
-  // Scala font: l'anteprima è ~190px larga vs 595pt reali → fattore ~0.32.
-  const k = 190 / 595;
-  return (
-    <div
-      className="relative w-full overflow-hidden rounded-lg border shadow-sm"
-      style={{ aspectRatio: "595 / 841", backgroundColor: bg }}
-    >
-      {hasImage && (
-        <img src={form.pdf_cover_image_url ?? undefined} alt="" className="absolute inset-0 h-full w-full object-cover" />
-      )}
-      {hasImage && <div className="absolute inset-0" style={{ background: overlayBg }} />}
-      {!hasImage && (
-        // velo gradiente sul fondo solido (come il PDF su bg pieno)
-        <div className="absolute inset-0" style={{ background: `linear-gradient(to bottom, ${bg}, ${bg})` }} />
-      )}
-      {/* Decorazione */}
-      {form.pdf_cover_show_decoration && (
-        <div className="absolute right-2 top-2 opacity-80">
-          <CoverDecoSvgHtml color={textColor} variant={form.pdf_cover_decoration_style} size={48} />
-        </div>
-      )}
-      {/* Logo */}
-      {logoPos !== "hidden" && (
-        <div className="absolute inset-x-2 top-2 flex" style={{ justifyContent: logoAlignSelf }}>
-          {logoUrl ? (
-            <img src={logoUrl} alt="" className="max-h-5 max-w-[60%] object-contain" />
-          ) : (
-            <span className="text-[8px] font-bold" style={{ color: textColor }}>{companyName}</span>
-          )}
-        </div>
-      )}
-      {/* Blocco testo */}
-      <div
-        className="absolute inset-x-3 flex flex-col gap-1"
-        style={{
-          top: 0, bottom: 0,
-          justifyContent: justify,
-          alignItems: align === "center" ? "center" : "flex-start",
-          paddingTop: form.pdf_cover_text_vertical === "top" ? (logoPos === "hidden" ? 24 : 40) : 0,
-          paddingBottom: form.pdf_cover_text_vertical === "bottom" ? 16 : 0,
-          textAlign: align,
-        }}
-      >
-        {/* L'eyebrow nel PDF mostra sempre un default se vuoto (parità bagni):
-            l'anteprima rispecchia lo stesso comportamento per coerenza. */}
-        <span
-          className="font-bold uppercase tracking-wider"
-          style={{ color: textColor, fontSize: Math.max(6, (form.pdf_cover_eyebrow_size ?? 10) * k), opacity: 0.9 }}
-        >
-          {(form.pdf_cover_eyebrow ?? "").trim() || "LA TUA PROPOSTA PERSONALIZZATA"}
-        </span>
-        <span
-          className="font-extrabold leading-tight"
-          style={{ color: textColor, fontSize: Math.max(11, (form.pdf_cover_title_size ?? 40) * k) }}
-        >
-          {(form.cover_title ?? "").trim() || "Preventivo di ristrutturazione"}
-        </span>
-        <span style={{ color: textColor, fontSize: Math.max(7, (form.pdf_cover_subtitle_size ?? 13) * k), opacity: 0.85 }}>
-          {(form.cover_subtitle ?? "").trim() || "La tua casa, rinnovata chiavi in mano"}
-        </span>
-        {form.pdf_cover_show_client_card && (
-          <div
-            className="mt-1.5 w-full rounded px-2 py-1.5"
-            style={{ backgroundColor: "rgba(255,255,255,0.1)", borderLeft: `2px solid ${textColor}` }}
-          >
-            <span className="block text-[6px] uppercase tracking-wide" style={{ color: textColor, opacity: 0.7 }}>Preparato per</span>
-            <span className="block text-[8px] font-bold" style={{ color: textColor }}>Mario Rossi</span>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
 // ─── Section card ─────────────────────────────────────────────────────────────
 interface SectionCardProps {
   icon: React.ComponentType<{ className?: string }>;

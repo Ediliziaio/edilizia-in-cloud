@@ -16,11 +16,14 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { htmlToRichBlocks } from "@/lib/bagni/richTextPdf";
+import { htmlToRichBlocks } from "@/lib/ristrutturazione/richTextPdf";
 
 const read = (rel: string) => readFileSync(resolve(process.cwd(), rel), "utf8");
 
-const CLONE_PDFS = [
+// Dal 20/09/2026 gli otto moduli edili consegnano lo stesso documento: le garanzie
+// di impaginazione si controllano lì, una volta, e ogni modulo deve passare da lì.
+const DOCUMENTO = "src/components/preventivi/pdf/DocumentoEdilePDF.tsx";
+const MODULI_PDF = [
   "src/components/bagni/BagniPDF.tsx",
   "src/components/climatizzazione/ClimatizzazionePDF.tsx",
   "src/components/elettrico/ElettricoPDF.tsx",
@@ -31,28 +34,41 @@ const CLONE_PDFS = [
   "src/components/termoidraulico/TermoidraulicoPDF.tsx",
 ];
 
-describe("computo nei preventivi verticali (CapitoloTable)", () => {
-  it.each(CLONE_PDFS)("%s: capitolo non atomico + header con minPresenceAhead", (rel) => {
-    const src = read(rel);
-    // Il contenitore del capitolo NON deve più essere wrap={false}...
-    expect(src).not.toMatch(/<View wrap=\{false\}>\s*\n\s*<View style=\{styles\.capHeader\}/);
-    // ...ma l'header capitolo deve avere la protezione anti-orfano.
-    expect(src).toMatch(/<View style=\{styles\.capHeader\} minPresenceAhead=\{40\}>/);
-    // Le singole voci restano atomiche.
-    expect(src).toMatch(/style=\{styles\.row\} wrap=\{false\}/);
+describe("computo nel documento edile condiviso (TabellaCapitolo)", () => {
+  const src = read(DOCUMENTO);
+  const tabella = src.slice(src.indexOf("function TabellaCapitolo("), src.indexOf("// ─── Copertina"));
+
+  it("il capitolo non è atomico: uno lungo scorre sulla pagina dopo, non viene tagliato", () => {
+    // Il contenitore del capitolo scorre…
+    expect(tabella).toMatch(/return \(\s*\n\s*<View style=\{\{ marginBottom: 16 \}\}>/);
+    // …l'intestazione del capitolo non resta orfana in fondo alla pagina…
+    expect(tabella).toMatch(/<View wrap=\{false\} minPresenceAhead=\{\d+\}>/);
+    // …e le singole voci restano intere.
+    expect(tabella).toMatch(/<View key=\{v\.id\} wrap=\{false\}/);
   });
 
-  it.each(CLONE_PDFS)("%s: paddingBottom pagina >= 90 (footer fino a 5 righe)", (rel) => {
-    const src = read(rel);
-    expect(src).not.toContain("paddingBottom: 56,");
-    const m = src.match(/paddingBottom: (\d+),/);
+  it("paddingBottom della pagina >= 90 (piè di pagina fino a cinque righe)", () => {
+    const m = src.match(/const pagina = \{ paddingTop: \d+, paddingBottom: (\d+),/);
     expect(m).not.toBeNull();
     expect(Number(m![1])).toBeGreaterThanOrEqual(90);
   });
 
-  it.each(CLONE_PDFS)("%s: blocco Chi siamo non atomico (testi lunghi non troncati)", (rel) => {
-    const src = read(rel);
-    expect(src).not.toMatch(/<View wrap=\{false\}>\s*\n\s*<Text style=\{styles\.sectionTitle\}>Chi siamo/);
+  it("«Chi siamo» non è atomico: un testo lungo non viene troncato", () => {
+    expect(src).not.toMatch(/<View wrap=\{false\}[^>]*>\s*\n\s*<TestoRicco html=\{modello\.chiSiamoHtml\}/);
+  });
+
+  it("solo caratteri che i font interni sanno disegnare (niente frecce, spunte, meno tipografico)", () => {
+    for (const glifo of ["→", "←", "✓", "✔", "−", "≈", "›", "‹", "★", "☀"]) {
+      expect(src).not.toContain(glifo);
+    }
+  });
+
+  it.each(MODULI_PDF)("%s passa dal documento condiviso, senza una sua impaginazione", (rel) => {
+    const modulo = read(rel);
+    expect(modulo).toContain("<DocumentoEdilePDF dati={dati} />");
+    expect(modulo).toContain("costruisciDatiEdile(");
+    expect(modulo).not.toContain("<Page");
+    expect(modulo).not.toContain("StyleSheet");
   });
 });
 

@@ -24,6 +24,7 @@
  * stabile salvato nel template (ideale per il PDF, niente signed URL scaduti).
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { CopertinaAnteprima } from "@/components/preventivi/CopertinaAnteprima";
 import { Link, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import {
@@ -794,10 +795,13 @@ export function TettiTemplateEditor({ embedded = false }: Props) {
                 <div className="space-y-3">
                   <div className="space-y-1.5">
                     <Label className="text-xs">Titolo</Label>
+                    <p className="text-[10px] leading-snug text-muted-foreground">
+                      Una parola fra asterischi esce in corsivo: <span className="font-mono">Il *progetto* per la tua casa.</span>
+                    </p>
                     <Input
                       value={form.cover_title ?? ""}
                       onChange={(e) => set("cover_title", e.target.value)}
-                      placeholder="Preventivo di tetti"
+                      placeholder="Un *tetto* nuovo sopra la tua casa."
                     />
                     <PlaceholderChips value={form.cover_title ?? ""} onChange={(v) => set("cover_title", v)} />
                   </div>
@@ -806,7 +810,7 @@ export function TettiTemplateEditor({ embedded = false }: Props) {
                     <Input
                       value={form.cover_subtitle ?? ""}
                       onChange={(e) => set("cover_subtitle", e.target.value)}
-                      placeholder="La tua casa, rinnovata chiavi in mano"
+                      placeholder="La copertura, rifatta chiavi in mano"
                     />
                     <PlaceholderChips value={form.cover_subtitle ?? ""} onChange={(v) => set("cover_subtitle", v)} />
                   </div>
@@ -993,134 +997,13 @@ export function TettiTemplateEditor({ embedded = false }: Props) {
                 {/* PREVIEW LIVE — formato A4 portrait scalato (fedele a TettiPDF) */}
                 <div className="col-span-12 md:col-span-5">
                   <Label className="mb-1.5 block text-xs">Anteprima cover</Label>
-                  <div
-                    className="relative w-full overflow-hidden rounded-lg border-2 border-slate-200 shadow-sm"
-                    style={{ aspectRatio: "210/297", backgroundColor: form.cover_bg_color || "#0F1B2A" }}
-                  >
-                    {form.cover_image_url && (
-                      <img loading="lazy" src={form.cover_image_url} alt="cover bg" className="absolute inset-0 h-full w-full object-cover" />
-                    )}
-                    {/* Overlay scuro su immagine — stile selezionabile (CSS replica del PDF SVG). */}
-                    {form.cover_image_url && (() => {
-                      const op = form.cover_overlay_opacity ?? 0.4;
-                      const style = form.cover_overlay_style ?? "flat";
-                      let bgValue = "#000000";
-                      let opacityValue: number = op;
-                      if (style === "gradient") {
-                        bgValue = `linear-gradient(to bottom, rgba(0,0,0,${op * 0.15}) 0%, rgba(0,0,0,${op * 0.55}) 55%, rgba(0,0,0,${op}) 100%)`;
-                        opacityValue = 1;
-                      } else if (style === "gradient_diag") {
-                        bgValue = `linear-gradient(135deg, rgba(0,0,0,${op * 0.2}) 0%, rgba(0,0,0,${op}) 100%)`;
-                        opacityValue = 1;
-                      } else if (style === "vignette") {
-                        bgValue = `radial-gradient(ellipse at center, rgba(0,0,0,${op * 0.1}) 0%, rgba(0,0,0,${op * 0.5}) 70%, rgba(0,0,0,${op * 0.95}) 100%)`;
-                        opacityValue = 1;
-                      }
-                      return <div className="pointer-events-none absolute inset-0" style={{ background: bgValue, opacity: opacityValue }} />;
-                    })()}
-                    {/* Decoro in alto a destra — FEDELE al PDF (CoverDecorationSvg):
-                        rispetta cover_decoration_style e usa il colore del TESTO cover. */}
-                    {form.cover_show_decoration !== false && (() => {
-                      const v = form.cover_decoration_style ?? "square";
-                      if (v === "none") return null;
-                      const c = form.cover_text_color || "#FFFFFF";
-                      return (
-                        <svg viewBox="0 0 180 180" aria-hidden className="pointer-events-none absolute right-3 top-3 h-11 w-11">
-                          {v === "circle" ? (
-                            <>
-                              <circle cx={90} cy={90} r={80} stroke={c} strokeWidth={3} fill="none" opacity={0.7} />
-                              <circle cx={90} cy={90} r={56} stroke={c} strokeWidth={1.5} fill="none" opacity={0.4} />
-                              <circle cx={90} cy={90} r={32} stroke={c} strokeWidth={1} fill="none" opacity={0.25} />
-                            </>
-                          ) : v === "line" ? (
-                            <>
-                              <path d="M 90 10 L 90 170" stroke={c} strokeWidth={2.5} opacity={0.7} />
-                              <path d="M 70 40 L 110 40" stroke={c} strokeWidth={1.5} opacity={0.5} />
-                              <path d="M 70 140 L 110 140" stroke={c} strokeWidth={1.5} opacity={0.5} />
-                            </>
-                          ) : v === "pattern" ? (
-                            <g opacity={0.45} fill={c}>
-                              {Array.from({ length: 25 }).map((_, i) => (
-                                <circle key={i} cx={30 + (i % 5) * 30} cy={30 + Math.floor(i / 5) * 30} r={3} />
-                              ))}
-                            </g>
-                          ) : (
-                            <>
-                              <g opacity={0.7} stroke={c} fill="none">
-                                <rect x={20} y={20} width={140} height={140} rx={6} strokeWidth={3} />
-                                <path d="M 90 25 L 90 155" strokeWidth={2} />
-                                <path d="M 25 90 L 155 90" strokeWidth={2} />
-                              </g>
-                              <circle cx={84} cy={90} r={3} fill={c} opacity={0.7} />
-                              <g opacity={0.3} stroke={c}>
-                                <path d="M 0 90 L 18 90" strokeWidth={1.5} />
-                                <path d="M 162 90 L 180 90" strokeWidth={1.5} />
-                                <path d="M 90 0 L 90 18" strokeWidth={1.5} />
-                                <path d="M 90 162 L 90 180" strokeWidth={1.5} />
-                              </g>
-                            </>
-                          )}
-                        </svg>
-                      );
-                    })()}
-                    {/* Contenuto testuale */}
-                    <div
-                      className="absolute inset-0 flex flex-col p-4"
-                      style={{
-                        color: form.cover_text_color || "#FFFFFF",
-                        textAlign: form.cover_text_align === "center" ? "center" : "left",
-                        alignItems: form.cover_text_align === "center" ? "center" : "flex-start",
-                      }}
-                    >
-                      {(form.cover_logo_position ?? "top_left") !== "hidden" && (
-                        <div
-                          className="mb-auto flex w-full items-center gap-2"
-                          style={{
-                            justifyContent: form.cover_logo_position === "top_right" ? "flex-end"
-                              : form.cover_logo_position === "top_center" ? "center" : "flex-start",
-                          }}
-                        >
-                          {(form.cover_logo_url ?? form.logo_url) ? (
-                            <img width={28} height={28} loading="lazy" src={(form.cover_logo_url ?? form.logo_url) as string} alt="logo" className="h-7 w-7 rounded bg-white/10 object-contain p-0.5" />
-                          ) : (
-                            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-white/20 text-[10px] font-bold">A</div>
-                          )}
-                          <span className="text-[10px] font-semibold uppercase tracking-wide">
-                            {form.ragione_sociale || companyAnagrafica?.ragione_sociale ? "Azienda" : "Il tuo brand"}
-                          </span>
-                        </div>
-                      )}
-                      <div
-                        className="mb-4 w-full"
-                        style={{
-                          marginTop: (form.cover_text_vertical ?? "bottom") === "top" ? 0 : "auto",
-                          marginBottom: form.cover_text_vertical === "center" ? "auto" : "1rem",
-                        }}
-                      >
-                        <div
-                          className="mb-2 font-semibold uppercase tracking-wider"
-                          style={{ color: form.color_primary || "#1E3A5F", fontSize: `${(form.cover_eyebrow_size ?? 11) * 0.6}px` }}
-                        >
-                          {form.cover_eyebrow || "★ La tua proposta personalizzata"}
-                        </div>
-                        <div
-                          className="mb-1.5 whitespace-pre-wrap font-bold leading-tight"
-                          style={{ fontSize: `${(form.cover_title_size ?? 30) * 0.5}px` }}
-                        >
-                          {form.cover_title || "Preventivo di tetti"}
-                        </div>
-                        <div className="line-clamp-2 opacity-80" style={{ fontSize: `${(form.cover_subtitle_size ?? 13) * 0.6}px` }}>
-                          {form.cover_subtitle || "La tua casa, rinnovata chiavi in mano"}
-                        </div>
-                        {form.cover_show_client_card !== false && (
-                          <div className="mt-3 rounded-md bg-white/10 p-2 text-left backdrop-blur-sm">
-                            <div className="text-[8px] uppercase opacity-70">Preparato per</div>
-                            <div className="text-xs font-semibold">Mario Rossi</div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
+                  <CopertinaAnteprima
+                    modulo="tetti"
+                    form={form as unknown as Record<string, unknown>}
+                    maiSalvato={!template?.id}
+                    nomeAzienda={(form as unknown as { ragione_sociale?: string | null }).ragione_sociale ?? companyAnagrafica?.ragione_sociale ?? null}
+                    logoUrl={(form as unknown as { logo_url?: string | null }).logo_url ?? null}
+                  />
                   <p className="mt-1.5 text-[10px] text-muted-foreground">
                     Anteprima approssimativa · il PDF finale può differire leggermente per tipografia.
                   </p>
@@ -1325,7 +1208,7 @@ export function TettiTemplateEditor({ embedded = false }: Props) {
                       <Label className="block text-[11px]">Stile decorazione</Label>
                       <div className="grid grid-cols-5 gap-1">
                         {([
-                          { v: "square", label: "⊞ Box", title: "Riquadro stilizzato (default)" },
+                          { v: "square", label: "⌖ Squadre", title: "Squadre e assi da tavola di progetto (di serie)" },
                           { v: "circle", label: "◯ Cerchio", title: "Cerchi concentrici outline" },
                           { v: "line", label: "│ Linea", title: "Linea verticale + tick" },
                           { v: "pattern", label: "⋮⋮ Dots", title: "Pattern 5×5 dots geometrico" },

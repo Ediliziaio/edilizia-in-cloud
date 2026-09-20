@@ -39,9 +39,26 @@ export function haTrasparenza(pixel: ArrayLike<number>): boolean {
   return false;
 }
 
-export async function toDataUrl(url: string | null | undefined): Promise<string | null> {
+export interface OpzioniImmaginePdf {
+  /**
+   * Foto in scala di grigi: la copertina «in tinta» dei documenti edili, dove il
+   * colore lo mette il velo dell'azienda sopra la foto.
+   */
+  scalaDiGrigi?: boolean;
+}
+
+/** Scala di grigi sul posto (luminanza percepita), con un filo di contrasto in più. */
+export function inScalaDiGrigi(pixel: Uint8ClampedArray | number[]): void {
+  for (let i = 0; i < pixel.length; i += 4) {
+    const y = 0.2126 * pixel[i] + 0.7152 * pixel[i + 1] + 0.0722 * pixel[i + 2];
+    const v = Math.max(0, Math.min(255, (y - 128) * 1.08 + 128));
+    pixel[i] = v; pixel[i + 1] = v; pixel[i + 2] = v;
+  }
+}
+
+export async function toDataUrl(url: string | null | undefined, opzioni: OpzioniImmaginePdf = {}): Promise<string | null> {
   if (!url) return null;
-  if (url.startsWith("data:")) return url;
+  if (url.startsWith("data:") && !opzioni.scalaDiGrigi) return url;
   if (typeof globalThis.Image !== "function" || typeof document === "undefined") return url;
   return new Promise<string | null>((resolve) => {
     let settled = false;
@@ -81,6 +98,11 @@ export async function toDataUrl(url: string | null | undefined): Promise<string 
           return;
         }
         ctx.drawImage(img, 0, 0, w, h);
+        if (opzioni.scalaDiGrigi) {
+          const dati = ctx.getImageData(0, 0, w, h);
+          inScalaDiGrigi(dati.data);
+          ctx.putImageData(dati, 0, 0);
+        }
         // PNG per i loghi e per le immagini con parti trasparenti: in JPEG il
         // trasparente diventa nero e il serramento scontornato usciva su fondo
         // nero, con i vetri neri. JPEG per le foto.

@@ -24,6 +24,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { getPisTemplatePdf } from "@/hooks/usePiscineProgetto";
 import { toDataUrl } from "@/lib/serramenti/pdfImageUtils";
+import { immaginiDelModello } from "@/components/preventivi/pdf/immaginiDocumento";
 import { eRiferimentoNudo, linkFileRiservati } from "@/lib/storage/fileRiservati";
 import { calcTotaliComputo, type ComputoRigaInput } from "@/lib/piscine/calcoli";
 import { calcDetraibile } from "@/lib/preventivi/incentivi";
@@ -42,6 +43,9 @@ export interface PisPdfCompany {
   partita_iva?: string | null;
   website?: string | null;
   logo_url?: string | null;
+  /** Kit del marchio (Brand & Azienda): colore e logo chiaro per i fondi scuri. */
+  colore_marca?: string | null;
+  logo_chiaro_url?: string | null;
 }
 
 /** Un capitolo del computo con le sue voci e il subtotale (LORDO, pre sconto globale). */
@@ -140,7 +144,7 @@ async function enrichForPdf(opts: PisPdfPayload): Promise<PisPdfEnriched> {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data } = await (supabase as any)
       .from("companies")
-      .select("name, business_name, legal_address, legal_city, legal_postal_code, legal_province, phone, email, vat_number, website, logo_url")
+      .select("name, business_name, legal_address, legal_city, legal_postal_code, legal_province, phone, email, vat_number, website, logo_url, brand_primary_color, brand_logo_dark_url")
       .eq("id", companyId)
       .maybeSingle();
     if (data) {
@@ -158,6 +162,8 @@ async function enrichForPdf(opts: PisPdfPayload): Promise<PisPdfEnriched> {
         partita_iva: data.vat_number,
         website: data.website,
         logo_url: data.logo_url,
+        colore_marca: data.brand_primary_color ?? null,
+        logo_chiaro_url: data.brand_logo_dark_url ?? null,
       };
     }
   }
@@ -221,19 +227,20 @@ async function enrichForPdf(opts: PisPdfPayload): Promise<PisPdfEnriched> {
   };
 
   // 5) Inline immagini critiche (logo template→company, cover, chi siamo) + media.
-  const [inlinedLogo, inlinedCover, inlinedChiSiamo] = await Promise.all([
+  const [inlinedLogo, inlinedChiSiamo, immaginiModello] = await Promise.all([
     toDataUrl(template.logo_url ?? company?.logo_url ?? null),
-    toDataUrl(template.cover_image_url ?? null),
     toDataUrl(template.chi_siamo_foto_url ?? null),
+    // Copertina (in tinta col colore dell'azienda), logo di copertina e galleria dei lavori.
+    immaginiDelModello("piscine", template as unknown as Record<string, unknown>, company?.logo_chiaro_url ?? null),
   ]);
-  const inlinedTemplate: PisTemplatePdf = {
+  const inlinedTemplate = {
     ...template,
+    ...immaginiModello,
     logo_url: inlinedLogo ?? template.logo_url,
-    cover_image_url: inlinedCover ?? template.cover_image_url,
     chi_siamo_foto_url: inlinedChiSiamo ?? template.chi_siamo_foto_url,
-  };
+  } as PisTemplatePdf;
   const inlinedCompany: PisPdfCompany | null = company
-    ? { ...company, logo_url: inlinedLogo ?? company.logo_url }
+    ? { ...company, logo_url: inlinedLogo ?? company.logo_url, logo_chiaro_url: (immaginiModello.logo_chiaro_url as string | null) ?? null }
     : null;
 
   // Inline le immagini media (escludi i PDF allegati: non vanno nel render).

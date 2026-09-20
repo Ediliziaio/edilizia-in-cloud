@@ -24,6 +24,7 @@
  * stabile salvato nel template (ideale per il PDF, niente signed URL scaduti).
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { CopertinaAnteprima } from "@/components/preventivi/CopertinaAnteprima";
 import { Link, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import {
@@ -944,129 +945,13 @@ export function BagniTemplateEditor({ embedded = false }: Props) {
                 {/* ─── PREVIEW LIVE A4 ─── */}
                 <div className="col-span-12 md:col-span-5">
                   <Label className="text-xs mb-1.5 block">Anteprima cover</Label>
-                  <div
-                    className="relative w-full overflow-hidden rounded-lg border-2 border-slate-200 shadow-sm"
-                    style={{ aspectRatio: "210/297", backgroundColor: form.pdf_cover_bg_color || "#0F1B2A" }}
-                  >
-                    {form.pdf_cover_image_url && (
-                      <img loading="lazy" src={form.pdf_cover_image_url} alt="cover bg" className="absolute inset-0 w-full h-full object-cover" />
-                    )}
-                    {/* Overlay style-aware (replica il PDF) */}
-                    {form.pdf_cover_image_url && (() => {
-                      const op = (form.pdf_cover_overlay_opacity ?? 55) / 100;
-                      const style = form.pdf_cover_overlay_style ?? "flat";
-                      let bgValue = "#000000";
-                      let opacityValue: number = op;
-                      if (style === "gradient") {
-                        bgValue = `linear-gradient(to bottom, rgba(0,0,0,${op * 0.15}) 0%, rgba(0,0,0,${op * 0.55}) 55%, rgba(0,0,0,${op}) 100%)`;
-                        opacityValue = 1;
-                      } else if (style === "gradient_diag") {
-                        bgValue = `linear-gradient(135deg, rgba(0,0,0,${op * 0.2}) 0%, rgba(0,0,0,${op}) 100%)`;
-                        opacityValue = 1;
-                      } else if (style === "vignette") {
-                        bgValue = `radial-gradient(ellipse at center, rgba(0,0,0,${op * 0.1}) 0%, rgba(0,0,0,${op * 0.5}) 70%, rgba(0,0,0,${op * 0.95}) 100%)`;
-                        opacityValue = 1;
-                      }
-                      return <div className="absolute inset-0 pointer-events-none" style={{ background: bgValue, opacity: opacityValue }} />;
-                    })()}
-                    {/* Decoro in alto a destra — fedele al PDF (CoverDecorationSvg) */}
-                    {form.pdf_cover_show_decoration === true && (() => {
-                      const v = form.pdf_cover_decoration_style ?? "square";
-                      if (v === "none") return null;
-                      const c = form.pdf_cover_text_color || "#FFFFFF";
-                      return (
-                        <svg viewBox="0 0 180 180" aria-hidden className="absolute top-3 right-3 w-11 h-11 pointer-events-none">
-                          {v === "circle" ? (
-                            <>
-                              <circle cx={90} cy={90} r={80} stroke={c} strokeWidth={3} fill="none" opacity={0.7} />
-                              <circle cx={90} cy={90} r={56} stroke={c} strokeWidth={1.5} fill="none" opacity={0.4} />
-                              <circle cx={90} cy={90} r={32} stroke={c} strokeWidth={1} fill="none" opacity={0.25} />
-                            </>
-                          ) : v === "line" ? (
-                            <>
-                              <path d="M 90 10 L 90 170" stroke={c} strokeWidth={2.5} opacity={0.7} />
-                              <path d="M 70 40 L 110 40" stroke={c} strokeWidth={1.5} opacity={0.5} />
-                              <path d="M 70 140 L 110 140" stroke={c} strokeWidth={1.5} opacity={0.5} />
-                            </>
-                          ) : v === "pattern" ? (
-                            <g opacity={0.45} fill={c}>
-                              {Array.from({ length: 25 }).map((_, i) => (
-                                <circle key={i} cx={30 + (i % 5) * 30} cy={30 + Math.floor(i / 5) * 30} r={3} />
-                              ))}
-                            </g>
-                          ) : (
-                            <>
-                              <g opacity={0.7} stroke={c} fill="none">
-                                <rect x={20} y={20} width={140} height={140} rx={6} strokeWidth={3} />
-                                <path d="M 90 25 L 90 155" strokeWidth={2} />
-                                <path d="M 25 90 L 155 90" strokeWidth={2} />
-                              </g>
-                              <circle cx={84} cy={90} r={3} fill={c} opacity={0.7} />
-                              <g opacity={0.3} stroke={c}>
-                                <path d="M 0 90 L 18 90" strokeWidth={1.5} />
-                                <path d="M 162 90 L 180 90" strokeWidth={1.5} />
-                                <path d="M 90 0 L 90 18" strokeWidth={1.5} />
-                                <path d="M 90 162 L 90 180" strokeWidth={1.5} />
-                              </g>
-                            </>
-                          )}
-                        </svg>
-                      );
-                    })()}
-                    {/* Contenuto testuale */}
-                    <div
-                      className="absolute inset-0 p-4 flex flex-col"
-                      style={{
-                        color: form.pdf_cover_text_color || "#FFFFFF",
-                        textAlign: form.pdf_cover_text_align === "center" ? "center" : "left",
-                        alignItems: form.pdf_cover_text_align === "center" ? "center" : "flex-start",
-                      }}
-                    >
-                      {(form.pdf_cover_logo_position ?? "top_left") !== "hidden" && (
-                        <div
-                          className="flex items-center gap-2 mb-auto w-full"
-                          style={{ justifyContent: form.pdf_cover_logo_position === "top_right" ? "flex-end" : form.pdf_cover_logo_position === "top_center" ? "center" : "flex-start" }}
-                        >
-                          {(form.cover_logo_url ?? form.logo_url) ? (
-                            <img width={28} height={28} loading="lazy" src={(form.cover_logo_url ?? form.logo_url) as string} alt="logo" className="h-7 w-7 object-contain rounded bg-white/10 p-0.5" />
-                          ) : (
-                            <div className="h-7 w-7 rounded-full bg-white/20 flex items-center justify-center text-[10px] font-bold">
-                              {(form.ragione_sociale ?? "A").charAt(0).toUpperCase()}
-                            </div>
-                          )}
-                          <span className="text-[10px] font-semibold uppercase tracking-wide">
-                            {form.ragione_sociale || "Il tuo brand"}
-                          </span>
-                        </div>
-                      )}
-                      <div
-                        className="mb-4 w-full"
-                        style={{
-                          marginTop: (form.pdf_cover_text_vertical ?? "bottom") === "top" ? 0 : "auto",
-                          marginBottom: form.pdf_cover_text_vertical === "center" ? "auto" : "1rem",
-                        }}
-                      >
-                        <div
-                          className="font-semibold uppercase tracking-wider mb-2"
-                          style={{ color: form.color_primary || "#1E3A5F", fontSize: `${(form.pdf_cover_eyebrow_size ?? 10) * 0.6}px` }}
-                        >
-                          {form.pdf_cover_eyebrow || "★ La tua proposta personalizzata"}
-                        </div>
-                        <div className="font-bold leading-tight whitespace-pre-wrap mb-1.5" style={{ fontSize: `${(form.pdf_cover_title_size ?? 30) * 0.5}px` }}>
-                          {form.pdf_cover_hero || "Il tuo bagno,\nrinnovato chiavi in mano."}
-                        </div>
-                        <div className="opacity-80 line-clamp-2" style={{ fontSize: `${(form.pdf_cover_subtitle_size ?? 13) * 0.6}px` }}>
-                          {form.pdf_cover_subhero || "Sintesi del preventivo"}
-                        </div>
-                        {form.pdf_cover_show_client_card !== false && (
-                          <div className="mt-3 bg-white/10 rounded-md p-2 backdrop-blur-sm text-left">
-                            <div className="text-[8px] uppercase opacity-70">Preparato per</div>
-                            <div className="text-xs font-semibold">Mario Rossi</div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
+                  <CopertinaAnteprima
+                    modulo="bagni"
+                    form={form as unknown as Record<string, unknown>}
+                    maiSalvato={!template?.id}
+                    nomeAzienda={(form as unknown as { ragione_sociale?: string | null }).ragione_sociale ?? companyAnagrafica?.ragione_sociale ?? null}
+                    logoUrl={(form as unknown as { logo_url?: string | null }).logo_url ?? null}
+                  />
                   <p className="text-[10px] text-muted-foreground mt-1.5">
                     Anteprima approssimativa · il PDF finale può differire leggermente per tipografia.
                   </p>
@@ -1183,6 +1068,9 @@ export function BagniTemplateEditor({ embedded = false }: Props) {
                   {/* Titolo hero */}
                   <div>
                     <Label className="text-xs mb-1 block">Titolo hero (a capo per due righe)</Label>
+                    <p className="text-[10px] leading-snug text-muted-foreground">
+                      Una parola fra asterischi esce in corsivo: <span className="font-mono">Il *progetto* per la tua casa.</span>
+                    </p>
                     <Textarea
                       value={form.pdf_cover_hero ?? ""}
                       onChange={(e) => set("pdf_cover_hero", e.target.value || null)}
@@ -1360,7 +1248,7 @@ export function BagniTemplateEditor({ embedded = false }: Props) {
                       <Label className="text-[11px] mb-1 block">Stile decorazione</Label>
                       <div className="grid grid-cols-5 gap-1">
                         {([
-                          { v: "square", label: "⊞ Finestra", title: "Riquadro stilizzato (default)" },
+                          { v: "square", label: "⌖ Squadre", title: "Squadre e assi da tavola di progetto (di serie)" },
                           { v: "circle", label: "◯ Cerchio", title: "Cerchi concentrici outline" },
                           { v: "line", label: "│ Linea", title: "Linea verticale + tick" },
                           { v: "pattern", label: "⋮⋮ Dots", title: "Pattern 5×5 dots geometrico" },

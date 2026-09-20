@@ -24,6 +24,7 @@
  * stabile salvato nel template (ideale per il PDF, niente signed URL scaduti).
  */
 import { useEffect, useMemo, useRef, useState } from "react";
+import { CopertinaAnteprima } from "@/components/preventivi/CopertinaAnteprima";
 import { Link, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import {
@@ -998,6 +999,9 @@ export function PavimentiTemplateEditor({ embedded = false }: Props) {
                     </div>
                     <div className="space-y-1.5">
                       <Label className="text-xs">Titolo (hero)</Label>
+                      <p className="text-[10px] leading-snug text-muted-foreground">
+                        Una parola fra asterischi esce in corsivo: <span className="font-mono">Il *progetto* per la tua casa.</span>
+                      </p>
                       <Textarea
                         value={form.pdf_cover_hero ?? ""}
                         onChange={(e) => {
@@ -1022,7 +1026,7 @@ export function PavimentiTemplateEditor({ embedded = false }: Props) {
                           set("cover_subtitle", e.target.value);
                         }}
                         rows={2}
-                        placeholder="La tua casa, rinnovata chiavi in mano"
+                        placeholder="Pavimenti e rivestimenti, chiavi in mano"
                       />
                       <PlaceholderChips
                         value={form.pdf_cover_subhero ?? ""}
@@ -1166,7 +1170,7 @@ export function PavimentiTemplateEditor({ embedded = false }: Props) {
                           disabled={form.pdf_cover_show_decoration === false}
                           className="h-9 flex-1 rounded-md border border-input bg-background px-2 py-1 text-xs disabled:opacity-50"
                         >
-                          <option value="square">Riquadro</option>
+                          <option value="square">Squadre da progetto</option>
                           <option value="circle">Anelli</option>
                           <option value="line">Linea</option>
                           <option value="pattern">Pattern</option>
@@ -1204,102 +1208,13 @@ export function PavimentiTemplateEditor({ embedded = false }: Props) {
                 {/* Colonna anteprima live A4 + immagine */}
                 <div className="space-y-3">
                   <Label className="text-xs font-medium">Anteprima copertina</Label>
-                  <div
-                    className="relative aspect-[210/297] overflow-hidden rounded-md border bg-slate-900 p-5 shadow-sm"
-                    style={{
-                      backgroundColor: form.pdf_cover_bg_color ?? "#0F1B2A",
-                      color: form.pdf_cover_text_color ?? "#FFFFFF",
-                      textAlign: form.pdf_cover_text_align === "center" ? "center" : "left",
-                    }}
-                  >
-                    {form.pdf_cover_image_url && (
-                      <img loading="lazy" src={form.pdf_cover_image_url} alt="" className="absolute inset-0 h-full w-full object-cover" aria-hidden="true" />
-                    )}
-                    {form.pdf_cover_image_url && (() => {
-                      const op = (form.pdf_cover_overlay_opacity ?? 62) / 100;
-                      const st = form.pdf_cover_overlay_style ?? "flat";
-                      let bg = "#000000"; let o: number = op;
-                      if (st === "gradient") { bg = `linear-gradient(to bottom, rgba(0,0,0,${op * 0.15}) 0%, rgba(0,0,0,${op * 0.55}) 55%, rgba(0,0,0,${op}) 100%)`; o = 1; }
-                      else if (st === "gradient_diag") { bg = `linear-gradient(135deg, rgba(0,0,0,${op * 0.2}) 0%, rgba(0,0,0,${op}) 100%)`; o = 1; }
-                      else if (st === "vignette") { bg = `radial-gradient(ellipse at center, rgba(0,0,0,${op * 0.1}) 0%, rgba(0,0,0,${op * 0.5}) 70%, rgba(0,0,0,${op * 0.95}) 100%)`; o = 1; }
-                      return <div className="absolute inset-0 pointer-events-none" style={{ background: bg, opacity: o }} />;
-                    })()}
-                    {/* Decoro angolo style-aware (colore = testo cover → armonizza, come Serramenti) */}
-                    {form.pdf_cover_show_decoration !== false && (() => {
-                      const v = form.pdf_cover_decoration_style ?? "square";
-                      if (v === "none") return null;
-                      const c = form.pdf_cover_text_color || "#FFFFFF";
-                      return (
-                        <svg viewBox="0 0 180 180" aria-hidden className="absolute top-3 right-3 w-9 h-9 pointer-events-none z-[1]">
-                          {v === "circle" ? (
-                            <>
-                              <circle cx={90} cy={90} r={80} stroke={c} strokeWidth={3} fill="none" opacity={0.7} />
-                              <circle cx={90} cy={90} r={56} stroke={c} strokeWidth={1.5} fill="none" opacity={0.4} />
-                              <circle cx={90} cy={90} r={32} stroke={c} strokeWidth={1} fill="none" opacity={0.25} />
-                            </>
-                          ) : v === "line" ? (
-                            <>
-                              <path d="M 90 10 L 90 170" stroke={c} strokeWidth={2.5} opacity={0.7} />
-                              <path d="M 70 40 L 110 40" stroke={c} strokeWidth={1.5} opacity={0.5} />
-                              <path d="M 70 140 L 110 140" stroke={c} strokeWidth={1.5} opacity={0.5} />
-                            </>
-                          ) : v === "pattern" ? (
-                            <g opacity={0.45} fill={c}>
-                              {Array.from({ length: 25 }).map((_, i) => (<circle key={i} cx={30 + (i % 5) * 30} cy={30 + Math.floor(i / 5) * 30} r={3} />))}
-                            </g>
-                          ) : (
-                            <>
-                              <g opacity={0.7} stroke={c} fill="none">
-                                <rect x={20} y={20} width={140} height={140} rx={6} strokeWidth={3} />
-                                <path d="M 90 25 L 90 155" strokeWidth={2} />
-                                <path d="M 25 90 L 155 90" strokeWidth={2} />
-                              </g>
-                              <circle cx={84} cy={90} r={3} fill={c} opacity={0.7} />
-                            </>
-                          )}
-                        </svg>
-                      );
-                    })()}
-                    <div className="relative z-[1] flex h-full flex-col">
-                      {(form.pdf_cover_logo_position ?? "top_left") !== "hidden" && (
-                        <div className={cn(
-                          "flex items-center gap-2",
-                          form.pdf_cover_logo_position === "top_right" ? "justify-end"
-                            : form.pdf_cover_logo_position === "top_center" ? "justify-center" : "justify-start",
-                        )}>
-                          <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded bg-orange-500 text-white">
-                            {(form.cover_logo_url ?? form.logo_url) ? (
-                              <img loading="lazy" src={(form.cover_logo_url ?? form.logo_url) as string} alt="" className="h-full w-full rounded object-contain bg-white p-1" />
-                            ) : (
-                              <span className="text-xs font-bold">{(form.ragione_sociale ?? companyAnagrafica?.ragione_sociale ?? "A").charAt(0).toUpperCase()}</span>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                      <div
-                        className="space-y-2"
-                        style={{
-                          marginTop: (form.pdf_cover_text_vertical ?? "bottom") === "top" ? "0.75rem" : "auto",
-                          marginBottom: (form.pdf_cover_text_vertical ?? "bottom") === "bottom" ? 0 : "auto",
-                        }}
-                      >
-                        <div className="font-bold uppercase tracking-widest" style={{ fontSize: `${(form.pdf_cover_eyebrow_size ?? 11) * 0.85}px`, color: form.color_secondary ?? "#F97316" }}>
-                          {form.pdf_cover_eyebrow || "La tua proposta personalizzata"}
-                        </div>
-                        <div className="whitespace-pre-line font-black leading-none" style={{ fontSize: `${(form.pdf_cover_title_size ?? 40) * 0.5}px` }}>
-                          {form.pdf_cover_hero || form.cover_title || "Preventivo\npavimenti."}
-                        </div>
-                        <div className="leading-relaxed opacity-85" style={{ fontSize: `${(form.pdf_cover_subtitle_size ?? 13) * 0.85}px` }}>
-                          {form.pdf_cover_subhero_template || form.pdf_cover_subhero || form.cover_subtitle || "La tua casa, rinnovata chiavi in mano"}
-                        </div>
-                        {form.pdf_cover_show_client_card !== false && (
-                          <div className="rounded-md border border-white/20 bg-white/10 p-2 text-[10px]">
-                            Card cliente dinamica
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
+                  <CopertinaAnteprima
+                    modulo="pavimenti"
+                    form={form as unknown as Record<string, unknown>}
+                    maiSalvato={!template?.id}
+                    nomeAzienda={(form as unknown as { ragione_sociale?: string | null }).ragione_sociale ?? companyAnagrafica?.ragione_sociale ?? null}
+                    logoUrl={(form as unknown as { logo_url?: string | null }).logo_url ?? null}
+                  />
                   <div className="flex gap-2">
                     <Button type="button" variant="outline" size="sm" onClick={() => setStockDialogOpen(true)} className="flex-1 gap-1 border-orange-200 text-orange-700 hover:bg-orange-50">
                       📷 Galleria stock

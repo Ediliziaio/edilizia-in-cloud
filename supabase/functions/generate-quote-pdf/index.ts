@@ -4,6 +4,7 @@ import { getBrandingForCompany } from "../_shared/getBranding.ts";
 import { PDFDocument, rgb, StandardFonts, degrees } from "https://esm.sh/pdf-lib@1.17.1";
 import qrcode from "https://esm.sh/qrcode-generator@1.4.4?target=deno";
 // Libreria template componibile: carica i blocchi linkati + sostituisce merge tag
+import { fondoPerTestoBianco, scurisci, schiarisci, testoSuScuro, normalizzaHex } from "../_shared/temaColori.ts";
 import { loadTemplateWithBlocks, attachLinkedBlocks, applyMergeTagsToTemplate, buildMergeContext, type ComposedTemplate } from "../_shared/quoteTemplateComposer.ts";
 
 // ─── Helpers ───
@@ -270,7 +271,7 @@ Deno.serve(async (req) => {
         supabaseAdmin.from("preventivo_impostazioni" as any).select("*").eq("company_id", quote.company_id).maybeSingle(),
         supabaseAdmin
           .from("companies")
-          .select("name, email, phone, legal_address, legal_city, logo_url, vat_number")
+          .select("name, email, phone, legal_address, legal_city, logo_url, vat_number, brand_primary_color")
           .eq("id", quote.company_id)
           .single(),
         getBrandingForCompany(supabaseAdmin, quote.company_id),
@@ -432,6 +433,13 @@ Deno.serve(async (req) => {
     const revisione = Number((quote as any)?.revision_number) || 0;
     const revLabel = revisione > 0 ? ` · Rev. ${revisione}` : "";
 
+    // Kit del marchio: un modello rimasto al blu di fabbrica prende il colore scelto
+    // dall'azienda in «Brand & Azienda». Si sceglie una volta, vale per ogni documento.
+    const BLU_DI_FABBRICA = "#1E40AF";
+    const coloreMarca = normalizzaHex(company?.brand_primary_color);
+    if (coloreMarca && (normalizzaHex(t.primary_color) ?? BLU_DI_FABBRICA) === BLU_DI_FABBRICA) {
+      t.primary_color = coloreMarca;
+    }
     const primaryC = rgbColor(t.primary_color);
     const secondaryC = rgbColor(t.secondary_color);
     const accentC = rgbColor(t.accent_color);
@@ -560,10 +568,21 @@ Deno.serve(async (req) => {
     let pagineSenzaFooter = 0;
     const haCopertina = !!(String(t.cover_title ?? "").trim() || String(t.cover_subtitle ?? "").trim() || (t.show_cover_image && t.cover_image_url));
     if (haCopertina) {
+      // Stesso linguaggio del «Piano dei lavori» dei moduli edili: pagina nel colore
+      // dell'azienda, foto in tinta, titolo con una parola in corsivo (fra asterischi),
+      // barra a segmenti e scheda in basso. Prima era una pagina bianca da modulo.
       const cover = pdfDoc.addPage([pageWidth, pageHeight]);
       pagineSenzaFooter = 1;
-      let cy = pageHeight;
-      // Immagine di copertina: piena larghezza, max 45% dell'altezza, proporzioni mantenute.
+      const fondoHex = fondoPerTestoBianco(normalizzaHex(t.primary_color) ?? "#1E40AF");
+      const scuroHex = scurisci(fondoHex, 0.4);
+      const fondoC = rgbColor(fondoHex);
+      const scuroC = rgbColor(scuroHex);
+      const biancoC = rgb(1, 1, 1);
+      const evidenzaC = rgbColor(testoSuScuro(schiarisci(fondoHex, 0.5), scuroHex, 4.5));
+      const fontCorsivo = await pdfDoc.embedFont(StandardFonts.TimesRomanItalic);
+      cover.drawRectangle({ x: 0, y: 0, width: pageWidth, height: pageHeight, color: scuroC });
+
+      let conFoto = false;
       if (t.show_cover_image && t.cover_image_url) {
         try {
           const path = String(t.cover_image_url);
@@ -573,55 +592,134 @@ Deno.serve(async (req) => {
             const img = bytes[0] === 0x89 && bytes[1] === 0x50 ? await pdfDoc.embedPng(bytes)
               : bytes[0] === 0xff && bytes[1] === 0xd8 ? await pdfDoc.embedJpg(bytes) : null;
             if (img) {
-              const maxH = pageHeight * 0.45;
-              const scale = Math.min(pageWidth / img.width, maxH / img.height);
+              // A tutta pagina, riempiendo (come object-fit: cover): quel che avanza esce dal foglio.
+              const scale = Math.max(pageWidth / img.width, pageHeight / img.height);
               const w = img.width * scale;
               const h = img.height * scale;
-              cover.drawImage(img, { x: (pageWidth - w) / 2, y: pageHeight - h, width: w, height: h });
-              cy = pageHeight - h;
+              cover.drawImage(img, { x: (pageWidth - w) / 2, y: (pageHeight - h) / 2, width: w, height: h });
+              // Il velo nel colore dell'azienda…
+              cover.drawRectangle({ x: 0, y: 0, width: pageWidth, height: pageHeight, color: fondoC, opacity: 0.58 });
+              // …e l'appoggio per il testo, che sfuma dal basso (pdf-lib non ha le sfumature: fasce sottili).
+              const fasce = 40;
+              const altezzaSfumata = pageHeight * 0.62;
+              for (let i = 0; i < fasce; i++) {
+                const quota = 1 - i / fasce; // 1 in basso, 0 in alto
+                cover.drawRectangle({
+                  x: 0, y: (altezzaSfumata / fasce) * i, width: pageWidth, height: altezzaSfumata / fasce + 0.5,
+                  color: scuroC, opacity: Math.min(0.95, quota * quota * 1.05),
+                });
+              }
+              conFoto = true;
             }
           }
         } catch (e) {
           console.warn("[generate-quote-pdf] immagine copertina non caricata (pagina senza immagine):", e instanceof Error ? e.message : e);
         }
       }
-      // Fascia brand sotto l'immagine (o in testa se non c'è immagine)
-      cover.drawRectangle({ x: 0, y: cy - 6, width: pageWidth, height: 6, color: primaryC });
-      let ty = cy - 6 - 60;
-      ty = drawLogo(cover, ty + 20) - 10;
-      const titolo = String(t.cover_title ?? "").trim() || "Offerta";
-      for (const line of wrapText(titolo, 26).slice(0, 3)) {
-        cover.drawText(line, { x: margin, y: ty, size: 30, font: fontBold, color: primaryC });
-        ty -= 38;
+      if (!conFoto) {
+        // Senza foto: tavola di progetto (griglia sottile, due cerchi, assi tratteggiati).
+        cover.drawRectangle({ x: 0, y: 0, width: pageWidth, height: pageHeight, color: fondoC, opacity: 0.55 });
+        for (let gx = 35; gx < pageWidth; gx += 35) cover.drawLine({ start: { x: gx, y: 0 }, end: { x: gx, y: pageHeight }, thickness: 0.4, color: biancoC, opacity: 0.07 });
+        for (let gy = 35; gy < pageHeight; gy += 35) cover.drawLine({ start: { x: 0, y: gy }, end: { x: pageWidth, y: gy }, thickness: 0.4, color: biancoC, opacity: 0.07 });
+        cover.drawCircle({ x: 470, y: pageHeight - 250, size: 190, borderColor: biancoC, borderWidth: 0.8, borderOpacity: 0.16, opacity: 0 });
+        cover.drawCircle({ x: 470, y: pageHeight - 250, size: 120, borderColor: biancoC, borderWidth: 0.6, borderOpacity: 0.16, opacity: 0 });
+        cover.drawLine({ start: { x: 210, y: pageHeight - 250 }, end: { x: pageWidth, y: pageHeight - 250 }, thickness: 0.6, color: biancoC, opacity: 0.16, dashArray: [6, 5] });
+        cover.drawLine({ start: { x: 470, y: pageHeight - 20 }, end: { x: 470, y: pageHeight - 520 }, thickness: 0.6, color: biancoC, opacity: 0.16, dashArray: [6, 5] });
       }
-      const sottotitolo = String(t.cover_subtitle ?? "").trim();
-      if (sottotitolo) {
-        ty -= 4;
-        for (const line of wrapText(sottotitolo, 60).slice(0, 3)) {
-          cover.drawText(line, { x: margin, y: ty, size: 14, font, color: grayC });
-          ty -= 20;
+
+      // In alto: il logo su una targhetta bianca (i loghi nascono per il fondo chiaro), o il nome.
+      const margineC = 48;
+      const largoC = pageWidth - margineC * 2;
+      if (logoEmbed && t.show_logo) {
+        const sc = Math.min(40 / logoEmbed.height, 150 / logoEmbed.width);
+        const lw = logoEmbed.width * sc, lh = logoEmbed.height * sc;
+        cover.drawRectangle({ x: margineC, y: pageHeight - 46 - lh - 16, width: lw + 24, height: lh + 16, color: biancoC });
+        cover.drawImage(logoEmbed, { x: margineC + 12, y: pageHeight - 46 - lh - 8, width: lw, height: lh });
+      } else if (company?.name) {
+        const nome = winAnsiSafe(String(company.name).toUpperCase()).slice(0, 48);
+        let nx = margineC;
+        for (const ch of nome) { // lettere spaziate: pdf-lib non ha la spaziatura fra i caratteri
+          cover.drawText(ch, { x: nx, y: pageHeight - 60, size: 12, font: fontBold, color: biancoC });
+          nx += fontBold.widthOfTextAtSize(ch, 12) + 2.1;
         }
       }
-      // Riquadro riferimenti: numero, data, cliente
-      const boxY = Math.min(ty - 30, pageHeight * 0.42);
-      const righe: Array<[string, string]> = [];
-      if (quote.quote_number) righe.push(["Preventivo", `${quote.quote_number}${revLabel}`]);
-      const dataDoc = quote.created_at ? new Date(quote.created_at).toLocaleDateString("it-IT") : new Date().toLocaleDateString("it-IT");
-      righe.push(["Data", dataDoc]);
-      if (quote.client_name) righe.push(["Cliente", String(quote.client_name)]);
-      if (quote.client_address) righe.push(["Indirizzo", String(quote.client_address)]);
-      const boxH = 22 + righe.length * 18;
-      cover.drawRectangle({ x: margin, y: boxY - boxH, width: contentWidth, height: boxH, color: accentC, borderColor: primaryC, borderWidth: 0.6 });
-      let ry = boxY - 18;
-      for (const [k, v] of righe) {
-        cover.drawText(k.toUpperCase(), { x: margin + 14, y: ry, size: 7.5, font: fontBold, color: primaryC });
-        cover.drawText(String(v).slice(0, 80), { x: margin + 110, y: ry, size: 10, font, color: textC });
-        ry -= 18;
+
+      // Barra a segmenti: il segno ricorrente del documento.
+      const segmenti = (yy: number, colore: any, spessore: number) => {
+        const opacita = [1, 0.72, 0.48, 0.28, 0.14];
+        const passo = largoC / opacita.length;
+        opacita.forEach((o, i) => cover.drawRectangle({ x: margineC + i * passo, y: yy, width: passo - (i < 4 ? 3 : 0), height: spessore, color: colore, opacity: o }));
+      };
+
+      // In basso: la scheda del documento su quattro colonne.
+      const dataDoc = quote.created_at ? new Date(quote.created_at).toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric" }) : new Date().toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric" });
+      const colonne: Array<[string, string]> = [
+        ["PREPARATO PER", String(quote.client_name ?? quote.client_company ?? "—")],
+        ["INDIRIZZO", String(quote.client_address ?? "—")],
+        ["RIFERIMENTO", `${quote.quote_number ?? "—"}${revLabel}`],
+        ["DATA", dataDoc],
+      ];
+      const ySch = 74;
+      segmenti(ySch + 34, biancoC, 2);
+      const pesi = [1, 1.5, 1, 1];
+      const totPesi = pesi.reduce((a, b) => a + b, 0);
+      let cxCol = margineC;
+      colonne.forEach(([etichetta, valore], i) => {
+        const wCol = (largoC * pesi[i]) / totPesi;
+        let ex = cxCol;
+        for (const ch of etichetta) { cover.drawText(ch, { x: ex, y: ySch + 16, size: 6.5, font: fontBold, color: evidenzaC }); ex += fontBold.widthOfTextAtSize(ch, 6.5) + 1.2; }
+        let testo = winAnsiSafe(valore);
+        while (testo.length > 3 && fontBold.widthOfTextAtSize(testo, 9.5) > wCol - 12) testo = testo.slice(0, -2);
+        if (testo !== winAnsiSafe(valore)) testo = testo.trimEnd() + "…";
+        cover.drawText(testo, { x: cxCol, y: ySch, size: 9.5, font: fontBold, color: biancoC });
+        cxCol += wCol;
+      });
+
+      // Il titolo: nero del carattere, con la parola fra asterischi in corsivo e nel colore d'evidenza.
+      const titoloGrezzo = String(t.cover_title ?? "").trim() || "La nostra *offerta* per voi.";
+      const corpoT = 38;
+      type Parola = { testo: string; accento: boolean };
+      const parole: Parola[] = [];
+      {
+        let inAccento = false;
+        for (const pezzo of titoloGrezzo.split(/(\*)/)) {
+          if (pezzo === "*") { inAccento = !inAccento; continue; }
+          for (const w of pezzo.split(/\s+/).filter(Boolean)) parole.push({ testo: winAnsiSafe(w), accento: inAccento });
+        }
       }
-      // Azienda in basso
-      const az = [company?.name, company?.legal_address, company?.legal_city].filter(Boolean).join(" · ");
-      if (az) cover.drawText(String(az).slice(0, 110), { x: margin, y: margin + 10, size: 8.5, font, color: grayC });
-      cover.drawRectangle({ x: 0, y: 0, width: pageWidth, height: 6, color: primaryC });
+      const fontDi = (pa: Parola) => (pa.accento ? fontCorsivo : fontBold);
+      const corpoDi = (pa: Parola) => (pa.accento ? corpoT * 1.1 : corpoT);
+      const larga = (pa: Parola) => fontDi(pa).widthOfTextAtSize(pa.testo, corpoDi(pa));
+      const spazio = fontBold.widthOfTextAtSize(" ", corpoT);
+      const righeTitolo: Parola[][] = [[]];
+      let wRiga = 0;
+      for (const pa of parole) {
+        const w = larga(pa);
+        if (wRiga > 0 && wRiga + spazio + w > largoC * 0.94) { righeTitolo.push([]); wRiga = 0; }
+        righeTitolo[righeTitolo.length - 1].push(pa);
+        wRiga += (wRiga > 0 ? spazio : 0) + w;
+      }
+      const righeT = righeTitolo.slice(0, 4);
+      const sottotitolo = winAnsiSafe(String(t.cover_subtitle ?? "").trim() || String(quote.title ?? "").trim());
+      const righeSotto = sottotitolo ? wrapText(sottotitolo, 62).slice(0, 3) : [];
+      const interlinea = corpoT * 1.2;
+      // Dal basso verso l'alto: scheda, sottotitolo, titolo, occhiello.
+      let yT = ySch + 34 + 40 + righeSotto.length * 18 + (righeSotto.length ? 14 : 0) + (righeT.length - 1) * interlinea;
+      let ex2 = margineC;
+      for (const ch of "PREVENTIVO") { cover.drawText(ch, { x: ex2, y: yT + corpoT + 12, size: 8.5, font: fontBold, color: evidenzaC }); ex2 += fontBold.widthOfTextAtSize(ch, 8.5) + 2.4; }
+      for (const riga of righeT) {
+        let tx = margineC;
+        for (const pa of riga) {
+          cover.drawText(pa.testo, { x: tx, y: yT, size: corpoDi(pa), font: fontDi(pa), color: pa.accento ? evidenzaC : biancoC });
+          tx += larga(pa) + spazio;
+        }
+        yT -= interlinea;
+      }
+      let yS = yT + interlinea - 26;
+      for (const riga of righeSotto) {
+        cover.drawText(riga, { x: margineC, y: yS, size: 12.5, font, color: biancoC, opacity: 0.86 });
+        yS -= 18;
+      }
     }
 
     // ═══════════════════════════════════════

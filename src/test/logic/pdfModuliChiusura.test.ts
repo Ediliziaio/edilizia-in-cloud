@@ -12,16 +12,7 @@ import {
 
 const read = (rel: string) => readFileSync(resolve(process.cwd(), rel), "utf8");
 
-const PDF_MODULI = [
-  "src/components/bagni/BagniPDF.tsx",
-  "src/components/climatizzazione/ClimatizzazionePDF.tsx",
-  "src/components/elettrico/ElettricoPDF.tsx",
-  "src/components/pavimenti/PavimentiPDF.tsx",
-  "src/components/piscine/PiscinePDF.tsx",
-  "src/components/ristrutturazione/RistrutturazionePDF.tsx",
-  "src/components/tetti/TettiPDF.tsx",
-  "src/components/termoidraulico/TermoidraulicoPDF.tsx",
-];
+const DOCUMENTO = "src/components/preventivi/pdf/DocumentoEdilePDF.tsx";
 
 describe("validità dell'offerta", () => {
   it("il testo libero del template vince, senza doppioni", () => {
@@ -48,30 +39,38 @@ describe("validità dell'offerta", () => {
   });
 });
 
-describe("chiusura vendita nei PDF dei moduli", () => {
+describe("chiusura nel documento edile condiviso", () => {
+  const src = read(DOCUMENTO);
+
   it("non promette materiali, tempi, prezzi bloccati né un sopralluogo dopo la firma", () => {
-    const chiusura = read("src/components/preventivi/ChiusuraVenditaPdf.tsx");
     for (const frase of [
       "conformi e certificati",
       "senza sorprese",
       "blocchi le condizioni",
-      't: "Sopralluogo"',
+      'titolo: "Sopralluogo"',
       "sopralluogo tecnico",
       "valido 30 giorni",
     ]) {
-      expect(chiusura).not.toContain(frase);
+      expect(src).not.toContain(frase);
     }
   });
 
-  it.each(PDF_MODULI)("%s: validità dal template e testo leggibile sul colore aziendale", (rel) => {
-    const src = read(rel);
-    expect(src).toContain("validitaGiorni={t.default_validita_giorni}");
+  it("garanzie, percorso, domande e recensioni escono solo se l'azienda le ha scritte", () => {
+    expect(src).toContain("const haPercorso = modello.mostraPercorso && modello.percorso.length > 0;");
+    expect(src).toContain("const haGaranzie = modello.mostraGaranzie && (modello.garanzie.length > 0 || modello.faq.length > 0);");
+    expect(src).toContain("const haRecensioni = modello.testimonianze.length > 0;");
+  });
+
+  it("la validità viene dal modello, mai da un numero scritto a mano", () => {
+    expect(src).toContain("fraseValiditaChiusura(modello.testoValidita, modello.giorniValidita)");
+    expect(src).toContain("testoValiditaCondizioni(modello.testoValidita, modello.giorniValidita)");
     expect(src).not.toContain("Preventivo valido 30 giorni");
-    for (const stile of [
-      "capHeaderTitle", "capHeaderSub", "totalsGrandLabel", "totalsGrandValue",
-      "coverTotalLabel", "coverTotalValue", "cronoStepText",
-    ]) {
-      expect(src).not.toMatch(new RegExp(`${stile}: \\{[^}]*color: C\\.white`));
-    }
+  });
+
+  it("il testo sopra il colore dell'azienda si legge anche con un colore chiaro", () => {
+    const tema = read("src/components/preventivi/pdf/temaDocumento.ts");
+    // I fondi pieni non usano mai il colore grezzo: passano da fondoPerTestoBianco.
+    expect(tema).toContain("const fondo = fondoPerTestoBianco(marca);");
+    expect(src).not.toMatch(/backgroundColor: tema\.marca\b/);
   });
 });
