@@ -2,10 +2,11 @@
  * Sonda dei messaggi social (Messenger/Instagram), sola lettura.
  *
  * Risponde a una domanda sola: le chat che l'azienda vede su Meta arrivano
- * fino a noi? Per ogni pagina collegata legge da Graph:
- *  - subscribed_apps → i campi a cui la NOSTRA app è iscritta (serve "messages");
- *  - conversations di Messenger (token pagina) e di Instagram (token pagina
- *    sull'account IG) → quante e quando è stata aggiornata l'ultima.
+ * fino a noi? Legge da Graph:
+ *  - le iscrizioni dell'APP (oggetti page/instagram e relativi campi): senza
+ *    l'oggetto "instagram" i DM non arrivano nemmeno a pagina perfetta;
+ *  - per ogni pagina, subscribed_apps e le conversations di Messenger e di
+ *    Instagram, con quante sono e la data dell'ultima.
  * E le confronta con social_messaggi, cioè con quello che ci è davvero arrivato.
  *
  * Se l'ultima conversazione su Meta è più recente del nostro ultimo messaggio,
@@ -59,10 +60,39 @@ Deno.serve(async (req) => {
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
-  const { data: impApp } = await admin
-    .from("platform_settings").select("value").eq("key", "meta_app_id").maybeSingle();
-  const metaAppId = String(impApp?.value ?? "");
+  // App id e segreto dal Vault (impostazioni_piattaforma), come getMetaCredentials.
+  const { data: imp } = await admin.rpc("impostazioni_piattaforma", {
+    p_chiavi: ["meta_app_id", "meta_app_secret"],
+  });
+  const valori: Record<string, string> = {};
+  for (const r of (imp ?? []) as { chiave: string; valore: string | null }[]) {
+    if (r.valore != null) valori[r.chiave] = r.valore;
+  }
+  const metaAppId = valori.meta_app_id || Deno.env.get("META_APP_ID") || "";
+  const metaAppSecret = valori.meta_app_secret || Deno.env.get("META_APP_SECRET") || "";
   const encKey = chiaveCifratura();
+
+  // Iscrizioni a livello di APP: se l'oggetto "instagram" non c'è, i DM di
+  // Instagram non ci arrivano nemmeno quando la pagina è a posto.
+  let iscrizioniApp: unknown = { errore: "app id o segreto mancanti" };
+  if (metaAppId && metaAppSecret) {
+    try {
+      const r = await fetch(
+        `https://graph.facebook.com/${apiVersion}/${metaAppId}/subscriptions?access_token=${metaAppId}|${metaAppSecret}`,
+        { signal: AbortSignal.timeout(TIMEOUT_MS) },
+      );
+      const j = await r.json();
+      iscrizioniApp = j?.error
+        ? { errore: j.error.message }
+        : (j.data ?? []).map((o: { object?: string; fields?: { name?: string }[]; callback_url?: string; active?: boolean }) => ({
+            oggetto: o.object,
+            attivo: o.active,
+            campi: (o.fields ?? []).map((f) => f.name),
+          }));
+    } catch (e) {
+      iscrizioniApp = { errore: String(e) };
+    }
+  }
 
   const body = await req.json().catch(() => ({}));
   const soloAzienda: string | null = body?.company_id ?? null;
@@ -168,7 +198,7 @@ Deno.serve(async (req) => {
     }
   }
 
-  return new Response(JSON.stringify({ pagine: out }), {
+  return new Response(JSON.stringify({ iscrizioni_app: iscrizioniApp, pagine: out }), {
     headers: { "Content-Type": "application/json" },
   });
 });
