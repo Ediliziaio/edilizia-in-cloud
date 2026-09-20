@@ -44,7 +44,7 @@ const DAL_CRON_COL_SOLO_SEGRETO = [
   "outreach-dispatch", "outreach-imap-poll", "outreach-prova-caselle", "outreach-riepilogo",
   "outreach-warmup", "platform-lifecycle-cron", "process-automation", "process-dunning",
   "purge-gdpr-exports", "quote-expiry-reminder", "referral-monthly-cycle", "referral-payout-executor",
-  "sa-conversation-intel-daily", "silvio-action-runner", "silvio-admin-briefing", "silvio-chief-of-staff",
+  "sa-conversation-intel-daily", "sdi-stato-tick", "silvio-action-runner", "silvio-admin-briefing", "silvio-chief-of-staff",
   "silvio-daily-briefing", "silvio-generation-worker", "silvio-memory-extract", "silvio-morning-brief",
   "silvio-outbound-worker", "silvio-trigger-tick", "siti-metriche-sync", "sms-rinnovo-numeri",
   "social-publish-scheduler", "sofia-onboarding", "sync-meta-templates", "sync-stripe-mrr",
