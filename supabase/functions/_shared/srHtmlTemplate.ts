@@ -11,6 +11,7 @@
  *  3. Allegato tecnico — BOM serramenti + accessori + consulenza + crono
  *  4. Firma online — render, prossimi passi, link pubblico
  */
+import { mescola, normalizzaHex, schiarisci, scurisci, testoSuChiaro } from "./temaColori.ts";
 
 export interface SrPdfData {
   // Progetto
@@ -971,6 +972,29 @@ html, body { background: #f5f6f8; font-family: -apple-system, "Segoe UI", Roboto
 @page { size: A4; margin: 0; }
 `;
 
+/**
+ * Il foglio di stile nel colore dell'azienda. Il modello porta `colore_primario`
+ * da sempre, ma il CSS era scritto tutto nel verde di fabbrica: il PDF stampato
+ * usciva nei colori dell'azienda e la pagina online del preventivo no. Ogni verde
+ * diventa la variante corrispondente del colore scelto, tenendo il testo
+ * leggibile anche con un marchio chiaro (il lime di Renova).
+ */
+export function cssDelMarchio(colorePrimario: string | null | undefined): string {
+  const marca = normalizzaHex(colorePrimario);
+  if (!marca || marca === SR_GREEN) return css;
+  const tinta = schiarisci(marca, 0.9);
+  const inchiostro = testoSuChiaro(marca);                     // titoli e filetti sul bianco
+  const forte = testoSuChiaro(scurisci(marca, 0.3), tinta, 7); // prezzo e numeri sui riquadri
+  const tenue = testoSuChiaro(mescola(marca, "#64748B", 0.6), tinta, 4.5); // note sui riquadri
+  return css
+    .replace(/#2D7D5C/gi, inchiostro)
+    .replace(/#E8F3EE/gi, tinta)
+    .replace(/#F1F7F4/gi, schiarisci(marca, 0.94))
+    .replace(/#C6E1D3/gi, schiarisci(marca, 0.72))
+    .replace(/#1F5B43/gi, forte)
+    .replace(/#4D6F5D/gi, tenue);
+}
+
 export function renderSrPdfHtml(d: SrPdfData): string {
   const title = `Stima ${d.code} — ${[d.cliente_nome, d.cliente_cognome].filter(Boolean).join(" ")}`;
   return `<!DOCTYPE html>
@@ -979,7 +1003,7 @@ export function renderSrPdfHtml(d: SrPdfData): string {
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>${esc(title)}</title>
-<style>${css}</style>
+<style>${cssDelMarchio(d.colore_primario)}</style>
 </head>
 <body>
   <div class="print-wrap">

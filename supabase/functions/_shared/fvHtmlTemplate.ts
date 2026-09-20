@@ -491,7 +491,7 @@ table .saving-zero { color: #64748B; }
 .eq-row { display: grid; grid-template-columns: 26mm 1fr; gap: 4mm; align-items: center; padding: 3mm 4mm; background: white; border: 1px solid #E2E8F0; border-radius: 8px; margin-bottom: 2.2mm; }
 .eq-row .eq-num { font-family: 'Outfit', sans-serif; font-size: 20pt; font-weight: 800; color: #16A34A; line-height: 1; text-align: center; }
 .eq-row .eq-num small { display: block; font-size: 7.5pt; color: #64748B; font-weight: 600; margin-top: 0.5mm; text-transform: uppercase; letter-spacing: 0.05em; }
-.eq-row .eq-icons { font-size: 16pt; line-height: 1.2; letter-spacing: -2px; }
+.eq-row .eq-icons { line-height: 1; min-height: 15px; }
 .eq-row .eq-desc { font-size: 8pt; color: #64748B; margin-top: 0.5mm; }
 
 .guarantee-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 3mm; margin: 3mm 0; }
@@ -1488,12 +1488,35 @@ function pageCassa25(d: FvPdfTemplateData, pageN: number, total: number): string
   </div>`;
 }
 
+/**
+ * Pittogrammi disegnati, non emoji. Le emoji le disegna il computer che stampa:
+ * su un Mac sono quelle colorate di Apple, su un server Linux quadratini vuoti.
+ * E una fila di venti alberelli a colori non sta in un documento da consegnare.
+ * Questi sono tracciati in tinta unita, nel colore dell'azienda (il blu di serie
+ * qui sotto lo cambia `applicaTemaFv`, come nel resto del documento).
+ */
+const PITTOGRAMMI = {
+  albero: "M12 2 5.5 11H9l-4 6h6v5h2v-5h6l-4-6h3.5z",
+  volo: "M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z",
+  auto: "M18.9 6a1.5 1.5 0 0 0-1.4-1h-11a1.5 1.5 0 0 0-1.4 1L3 12v8a1 1 0 0 0 1 1h1a1 1 0 0 0 1-1v-1h12v1a1 1 0 0 0 1 1h1a1 1 0 0 0 1-1v-8zM6.5 16a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm11 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zM5 11l1.5-4.5h11L19 11z",
+} as const;
+
+/** «TELEFONO  02 1234567»: un'etichetta piccola al posto dell'emoji della cornetta. */
+function etichettaContatto(nome: string): string {
+  return `<span style="display:inline-block;min-width:17mm;font-size:7pt;letter-spacing:0.08em;text-transform:uppercase;color:#94A3B8;font-weight:600;">${nome}</span>`;
+}
+
+function filaDiPittogrammi(quale: keyof typeof PITTOGRAMMI, quanti: number): string {
+  const uno = `<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" style="fill:#1E3A5F;margin-right:1.1mm;vertical-align:middle;"><path d="${PITTOGRAMMI[quale]}"/></svg>`;
+  return uno.repeat(Math.max(0, Math.floor(quanti) || 0));
+}
+
 function pageCO2(d: FvPdfTemplateData, pageN: number, total: number): string {
   const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
   const co2 = calcolaCO2Equivalenze({ produzione_kwh_anno: d.flows.produzione_kwh });
-  const treesIcons = "🌳".repeat(Math.min(20, Math.round(co2.alberi_anno / 8)));
-  const flightsIcons = "✈️".repeat(Math.min(20, co2.voli_anno));
-  const carsIcons = "🚗".repeat(Math.min(10, Math.round(co2.km_auto_anno / 2500)));
+  const treesIcons = filaDiPittogrammi("albero", Math.min(20, Math.round(co2.alberi_anno / 8)));
+  const flightsIcons = filaDiPittogrammi("volo", Math.min(20, co2.voli_anno));
+  const carsIcons = filaDiPittogrammi("auto", Math.min(10, Math.round(co2.km_auto_anno / 2500)));
   return `<div class="page">
     ${header(d.progetto.numero, cliente, d.azienda.name)}
     <div class="content">
@@ -1731,9 +1754,9 @@ function pageDecisione(d: FvPdfTemplateData, pageN: number, total: number): stri
         <div>
           <h3 style="font-size:11pt;color:#1E3A5F;margin-bottom:2mm;">Per parlarne ancora</h3>
           <div style="font-size:9pt;line-height:2;color:#475569;">
-            ${d.azienda.phone ? `📞 <strong>${escHtml(d.azienda.phone)}</strong><br/>` : ""}
-            ${d.azienda.email ? `✉ <strong>${escHtml(d.azienda.email)}</strong><br/>` : ""}
-            ${d.azienda.website ? `🌐 <strong>${escHtml(d.azienda.website)}</strong>` : ""}
+            ${d.azienda.phone ? `${etichettaContatto("Telefono")}<strong>${escHtml(d.azienda.phone)}</strong><br/>` : ""}
+            ${d.azienda.email ? `${etichettaContatto("Email")}<strong>${escHtml(d.azienda.email)}</strong><br/>` : ""}
+            ${d.azienda.website ? `${etichettaContatto("Sito")}<strong>${escHtml(d.azienda.website)}</strong>` : ""}
             ${consulenteDescrizione ? `<div style="line-height:1.45;margin-top:2mm;">${escHtml(consulenteDescrizione)}</div>` : ""}
           </div>
         </div>

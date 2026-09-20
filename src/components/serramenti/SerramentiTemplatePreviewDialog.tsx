@@ -41,6 +41,8 @@ interface Props {
   companyLogoUrl?: string | null;
   /** Logo versione chiara (Brand & Azienda) per la copertina su sfondo scuro. */
   companyLogoDarkUrl?: string | null;
+  /** Colore del marchio (Brand & Azienda), ereditato dal PDF se il modello è al colore di fabbrica. */
+  companyBrandColor?: string | null;
   companyIndirizzo?: string | null;
 }
 
@@ -56,7 +58,7 @@ const STORAGE_KEY_PREVIEW_PROGETTO = "sr-template-preview-progetto-id";
 
 export function SerramentiTemplatePreviewDialog({
   open, onOpenChange, template,
-  companyName, companyLogoUrl, companyLogoDarkUrl, companyIndirizzo,
+  companyName, companyLogoUrl, companyLogoDarkUrl, companyBrandColor, companyIndirizzo,
 }: Props) {
   const [state, setState] = useState<PreviewState>({ status: "idle" });
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -116,7 +118,7 @@ export function SerramentiTemplatePreviewDialog({
             detail,
             template: template as SrTemplatePdfRow | null,
             company: companyName
-              ? { name: companyName, ragione_sociale: companyName, logo_url: companyLogoUrl ?? null, brand_logo_dark_url: companyLogoDarkUrl ?? null, indirizzo: companyIndirizzo ?? null }
+              ? { name: companyName, ragione_sociale: companyName, logo_url: companyLogoUrl ?? null, brand_logo_dark_url: companyLogoDarkUrl ?? null, brand_primary_color: companyBrandColor ?? null, indirizzo: companyIndirizzo ?? null }
               : null,
           });
         } catch (realErr) {
@@ -124,7 +126,7 @@ export function SerramentiTemplatePreviewDialog({
           // cancellato), fallback al mock con toast non bloccante.
           console.warn("[template-preview] real-data fetch failed, fallback to mock:", realErr);
           toast.warning("Anteprima con dati reali non disponibile · uso demo");
-          enriched = await buildMockPdfData({ template, companyName, companyLogoUrl, companyLogoDarkUrl, companyIndirizzo });
+          enriched = await buildMockPdfData({ template, companyName, companyLogoUrl, companyLogoDarkUrl, companyBrandColor, companyIndirizzo });
         }
       } else {
         enriched = await buildMockPdfData({
@@ -132,6 +134,7 @@ export function SerramentiTemplatePreviewDialog({
           companyName,
           companyLogoUrl,
           companyLogoDarkUrl,
+          companyBrandColor,
           companyIndirizzo,
         });
       }

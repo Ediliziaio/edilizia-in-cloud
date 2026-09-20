@@ -43,6 +43,8 @@ export async function buildMockPdfData(opts: {
   companyLogoUrl?: string | null;
   /** Logo versione chiara (Brand & Azienda) per la copertina su sfondo scuro. */
   companyLogoDarkUrl?: string | null;
+  /** Colore del marchio (Brand & Azienda): il PDF lo eredita se il modello è al colore di fabbrica. */
+  companyBrandColor?: string | null;
   companyIndirizzo?: string | null;
   consulenteNome?: string | null;
   consulenteFoto?: string | null;
@@ -398,6 +400,7 @@ export async function buildMockPdfData(opts: {
       partita_iva: "01234567890",
       logo_url: inlinedLogo ?? companyLogoUrl ?? null,
       brand_logo_dark_url: inlinedLogoDark ?? opts.companyLogoDarkUrl ?? null,
+      brand_primary_color: opts.companyBrandColor ?? null,
       website: "www.example.com",
     },
     consulente,

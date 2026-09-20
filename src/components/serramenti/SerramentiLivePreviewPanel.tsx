@@ -31,6 +31,7 @@ interface Props {
   companyName?: string | null;
   companyLogoUrl?: string | null;
   companyLogoDarkUrl?: string | null;
+  companyBrandColor?: string | null;
   companyIndirizzo?: string | null;
   /** Sezione attiva nell'editor → usata per l'auto-scroll alla pagina PDF. */
   activeSection?: string | null;
@@ -60,6 +61,7 @@ export function SerramentiLivePreviewPanel({
   companyName,
   companyLogoUrl,
   companyLogoDarkUrl,
+  companyBrandColor,
   companyIndirizzo,
   activeSection,
 }: Props) {
@@ -83,8 +85,8 @@ export function SerramentiLivePreviewPanel({
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const templateKey = useMemo(
-    () => JSON.stringify(template) + "|" + (companyName ?? "") + "|" + (companyLogoUrl ?? "") + "|" + (companyLogoDarkUrl ?? "") + "|" + (companyIndirizzo ?? ""),
-    [template, companyName, companyLogoUrl, companyLogoDarkUrl, companyIndirizzo],
+    () => JSON.stringify(template) + "|" + (companyName ?? "") + "|" + (companyLogoUrl ?? "") + "|" + (companyLogoDarkUrl ?? "") + "|" + (companyBrandColor ?? "") + "|" + (companyIndirizzo ?? ""),
+    [template, companyName, companyLogoUrl, companyLogoDarkUrl, companyBrandColor, companyIndirizzo],
   );
 
   const generate = async () => {
@@ -104,7 +106,7 @@ export function SerramentiLivePreviewPanel({
       pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
 
       const enriched = await buildMockPdfData({
-        template, companyName, companyLogoUrl, companyLogoDarkUrl, companyIndirizzo,
+        template, companyName, companyLogoUrl, companyLogoDarkUrl, companyBrandColor, companyIndirizzo,
       });
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const element = React.createElement(SerramentoPDF as any, enriched);

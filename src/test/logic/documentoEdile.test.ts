@@ -132,6 +132,16 @@ describe("il kit del marchio: si sceglie una volta in «Brand & Azienda»", () =
     expect(coloreDelDocumento(null, null)).toBeNull();
   });
 
+  it("il blu con cui nasce la colonna del marchio non è una scelta dell'azienda", () => {
+    // companies.brand_primary_color ha DEFAULT '#1E40AF': 19 aziende su 20 lo hanno
+    // senza averlo mai scelto. Non deve tingere i documenti di chi non ha scelto.
+    expect(coloreDelDocumento("#1E3A5F", "#1E40AF")).toBe("#1E3A5F");
+    expect(coloreDelDocumento("#1E3A5F", "#1e40af")).toBe("#1E3A5F");
+    expect(coloreDelDocumento(null, "#1E40AF")).toBeNull();
+    // Chi quel blu lo vuole davvero lo sceglie nel modello, e lì vale.
+    expect(coloreDelDocumento("#1E40AF", null)).toBe("#1E40AF");
+  });
+
   it("arriva fino al documento passando dall'azienda", () => {
     const m = leggiModello({ color_primary: "#1E3A5F" }, { progetto: PROGETTO, azienda: { colore_marca: "#CBA87E" } });
     expect(m.colorePrimario).toBe("#CBA87E");

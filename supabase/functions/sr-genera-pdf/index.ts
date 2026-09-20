@@ -22,6 +22,7 @@ import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.
 import { requireAuth } from "../_shared/auth.ts";
 import { verifyCompanyAccess } from "../_shared/companyAuth.ts";
 import { renderSrPdfHtml, countSrPdfPages, type SrPdfData } from "../_shared/srHtmlTemplate.ts";
+import { coloreDelDocumento } from "../_shared/temaColori.ts";
 import { buildMergeContext, substituteMergeTags } from "../_shared/quoteTemplateComposer.ts";
 import { CAMPI_IMMAGINE_SERRAMENTI, firmaImmaginiModello, firmatarioStorage } from "../_shared/immaginiModelloPdf.ts";
 
@@ -208,7 +209,7 @@ Deno.serve(async (req: Request) => {
         supabaseAdmin.from("sr_accessori_progetto").select("*").eq("progetto_id", p.progetto_id).order("position"),
         supabaseAdmin.from("sr_progetti_media").select("*").eq("progetto_id", p.progetto_id).order("position"),
         supabaseAdmin.from("sr_template_pdf").select("*").eq("company_id", prog.company_id).maybeSingle(),
-        supabaseAdmin.from("companies").select("name, business_name, legal_address, legal_city, legal_postal_code, legal_province, phone, email, vat_number, logo_url").eq("id", prog.company_id).maybeSingle(),
+        supabaseAdmin.from("companies").select("name, business_name, legal_address, legal_city, legal_postal_code, legal_province, phone, email, vat_number, logo_url, brand_primary_color").eq("id", prog.company_id).maybeSingle(),
       ]);
 
     // 2b. Scheda tecnica dinamica: per ogni serramento → family_id →
@@ -611,7 +612,8 @@ Deno.serve(async (req: Request) => {
       azienda_email: tpl.email || com.email,
       azienda_partita_iva: tpl.partita_iva || com.vat_number,
       azienda_logo_url: tpl.logo_url || com.logo_url,
-      colore_primario: tpl.colore_primario || "#2D7D5C",
+      // Il modello rimasto al verde di fabbrica prende il colore scelto in «Brand & Azienda».
+      colore_primario: coloreDelDocumento(tpl.colore_primario, com.brand_primary_color, "#2D7D5C") ?? "#2D7D5C",
     };
 
     // 6b. Rigenera signed URL della foto del consulente se proviene dal bucket

@@ -632,7 +632,7 @@ export async function deleteAccessorio(id: string): Promise<void> {
 export async function getAziendaPerPdf(companyId: string) {
   const { data, error } = await supabase
     .from("companies")
-    .select("name, business_name, legal_address, legal_city, legal_postal_code, legal_province, phone, email, vat_number, logo_url, brand_logo_dark_url, website, pec")
+    .select("name, business_name, legal_address, legal_city, legal_postal_code, legal_province, phone, email, vat_number, logo_url, brand_logo_dark_url, brand_primary_color, website, pec")
     .eq("id", companyId)
     .maybeSingle();
   if (error) throw new Error(error.message);
@@ -651,6 +651,7 @@ export async function getAziendaPerPdf(companyId: string) {
     partita_iva: data.vat_number,
     logo_url: data.logo_url,
     brand_logo_dark_url: (data as { brand_logo_dark_url?: string | null }).brand_logo_dark_url ?? null,
+    brand_primary_color: (data as { brand_primary_color?: string | null }).brand_primary_color ?? null,
     // Sito e PEC compilati nell'anagrafica non arrivavano mai al piè di pagina del PDF.
     website: data.website,
     pec: data.pec,

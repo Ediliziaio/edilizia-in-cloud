@@ -36,6 +36,7 @@ import { generateInterventoSintesi } from "@/lib/serramenti/sintesiIntervento";
 import { testoScelta } from "@/lib/listino/scelteVariante";
 import { schedaPosizione, titoloConLinea } from "@/lib/serramenti/schedaPosizione";
 import { inchiostroSuBianco, testoSopra } from "@/lib/pdf/contrastoColori";
+import { coloreDelDocumento, fondoPerTestoBianco, scurisci, testoSuChiaro, testoSuScuro } from "../../../supabase/functions/_shared/temaColori";
 import type {
   SerramentoPdfConsulente, SerramentoPdfFamilyData,
   SerramentoPdfMacroField, SerramentoPdfMacroPagina,
@@ -54,7 +55,14 @@ Font.registerHyphenationCallback((word) => [word]);
 // ─── Palette default (override dinamico da template.colore_primario) ──────
 const DEFAULT_PRIMARY = "#2D7D5C";
 const DEFAULT_ACCENT = "#F59E0B";
-const COVER_BG = "#0F2A2E";
+/**
+ * Il fondo della copertina quando l'azienda non ne ha scelto uno: il suo colore,
+ * portato quasi al nero. Prima era un verde petrolio fisso (#0F2A2E), che con un
+ * marchio rosso o azzurro non c'entrava niente.
+ */
+function fondoCopertinaDiSerie(primary: string): string {
+  return scurisci(fondoPerTestoBianco(primary), 0.62);
+}
 
 function makePalette(primary: string, accent = DEFAULT_ACCENT) {
   const safePrimary = normalizeHexColor(primary, DEFAULT_PRIMARY) ?? DEFAULT_PRIMARY;
@@ -68,7 +76,7 @@ function makePalette(primary: string, accent = DEFAULT_ACCENT) {
     // finché si leggono; con un colore chiaro (il lime di Renova) no.
     ink: inchiostroSuBianco(safePrimary),
     onPrimary: testoSopra(safePrimary),
-    coverBg: COVER_BG,
+    coverBg: fondoCopertinaDiSerie(safePrimary),
     white: "#FFFFFF",
     gray50: "#F8FAFC",
     gray100: "#F1F5F9",
@@ -237,9 +245,15 @@ function makeStyles(C: ReturnType<typeof makePalette>) {
       flexDirection: "row",
       justifyContent: "space-between",
       paddingTop: 14,
-      borderTop: `0.5pt solid rgba(255,255,255,0.18)`,
       fontSize: 9,
       color: "#9CA3AF",
+    },
+    // Il filetto sopra il piè di copertina. Era un `borderTop` con colore rgba():
+    // react-pdf nella forma abbreviata non lo legge e disegnava un filetto VERDE
+    // su qualsiasi copertina. Un rettangolo bianco al 18% fa quello che si voleva.
+    coverFooterRule: {
+      position: "absolute", top: 0, left: 0, right: 0, height: 0.5,
+      backgroundColor: "#FFFFFF", opacity: 0.18,
     },
     coverFooterStrong: { fontWeight: 700, color: C.white },
     coverDecoSvg: {
@@ -1738,6 +1752,8 @@ export interface SerramentoPDFProps {
     logo_url?: string | null;
     /** Versione chiara del logo (Brand & Azienda) per la copertina su sfondo scuro. */
     brand_logo_dark_url?: string | null;
+    /** Colore del marchio (Brand & Azienda): vale finché il modello resta al verde di fabbrica. */
+    brand_primary_color?: string | null;
     website?: string | null;
   } | null;
   consulente: SerramentoPdfConsulente | null;
@@ -1815,7 +1831,7 @@ export function SerramentoPDF({
   const companyName = template?.ragione_sociale || company?.ragione_sociale || company?.name || "Azienda";
   const logoUrl = template?.logo_url || company?.logo_url || null;
   const coverLogoUrl = template?.pdf_cover_logo_url ?? company?.brand_logo_dark_url ?? logoUrl;
-  const primaryColor = normalizeHexColor(template?.colore_primario, DEFAULT_PRIMARY) ?? DEFAULT_PRIMARY;
+  const primaryColor = coloreDelDocumento(template?.colore_primario, company?.brand_primary_color, DEFAULT_PRIMARY) ?? DEFAULT_PRIMARY;
   const C = makePalette(primaryColor);
   const styles = makeStyles(C);
 
@@ -1889,10 +1905,19 @@ export function SerramentoPDF({
     ? Math.max(10, Math.min(15, tpl.pdf_cover_subtitle_size))
     : 13;
   const coverTextColor = normalizeHexColor(tpl.pdf_cover_text_color, "#FFFFFF") ?? "#FFFFFF";
-  const coverEyebrowColor = normalizeHexColor(tpl.pdf_cover_eyebrow_color, C.primary) ?? C.primary;
-  // Il cartellino «Preparato per» riprende l'occhiello quando l'azienda ne ha
-  // scelto il colore (il lime di Renova); altrimenti resta l'ambra di sempre.
-  const coverAccento = tpl.pdf_cover_eyebrow_color ? coverEyebrowColor : C.accent;
+  // L'occhiello senza un colore scelto prendeva il primario così com'è: con un
+  // marchio nero (Ser Style) usciva nero sul fondo scuro, cioè non usciva. Ora il
+  // primario si schiarisce finché si legge sul fondo della copertina.
+  // Con la foto il testo sta sopra il velo scuro; senza, sopra il fondo scelto,
+  // che può anche essere chiaro: lì il colore si scurisce invece di schiarirsi.
+  const fondoSottoIlTesto = coverImageUrl ? "#1F2937" : (coverBgColor ?? C.coverBg);
+  const coverEyebrowColor = normalizeHexColor(tpl.pdf_cover_eyebrow_color, null)
+    ?? (testoSopra(fondoSottoIlTesto) === "#FFFFFF"
+      ? testoSuScuro(C.primary, fondoSottoIlTesto, 4.5)
+      : testoSuChiaro(C.primary, fondoSottoIlTesto, 4.5));
+  // Il cartellino «Preparato per» riprende l'occhiello: un accento solo in
+  // copertina, quello dell'azienda. Prima, senza un colore scelto, era ambra.
+  const coverAccento = coverEyebrowColor;
   const coverTitleColor = normalizeHexColor(tpl.pdf_cover_title_color, coverTextColor) ?? coverTextColor;
   const coverSubtitleColor = normalizeHexColor(tpl.pdf_cover_subtitle_color, "#D1D5DB") ?? "#D1D5DB";
   const coverShowDecoration = tpl.pdf_cover_show_decoration !== false;
@@ -2356,6 +2381,7 @@ export function SerramentoPDF({
         </View>
 
         <View wrap={false} style={styles.coverFooter}>
+          <View style={styles.coverFooterRule} />
           <View>
             <Text>Preventivo <Text style={styles.coverFooterStrong}>{p.code}</Text></Text>
             <Text>{fmtDate(p.created_at)} · valido {p.valido_fino_giorni ?? 15} giorni</Text>

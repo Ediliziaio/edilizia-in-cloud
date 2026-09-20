@@ -92,3 +92,33 @@ export function rgbElenco(hex: string): string {
   const { r, g, b } = hexToRgb(hex);
   return `${r},${g},${b}`;
 }
+
+// ─── Il kit del marchio ─────────────────────────────────────────────────────
+
+/**
+ * Il colore con cui nasce `companies.brand_primary_color` (è il DEFAULT della
+ * colonna). Non è una scelta: il 20/09/2026 lo avevano 19 aziende su 20, cioè
+ * tutte quelle che in «Brand & Azienda» non sono mai entrate. Trattarlo da
+ * colore del marchio tingerebbe di blu elettrico i documenti di chi non ha
+ * scelto niente.
+ */
+export const COLORE_DI_FABBRICA_MARCHIO = "#1E40AF";
+
+/** Il colore del marchio, solo se l'azienda l'ha scelto davvero. */
+export function marchioScelto(delMarchio: unknown): string | null {
+  const marchio = normalizzaHex(delMarchio);
+  return marchio && marchio !== COLORE_DI_FABBRICA_MARCHIO ? marchio : null;
+}
+
+/**
+ * Il colore di un documento. Vale quello scelto nel modello; se il modello è
+ * rimasto al colore con cui nasce (`diFabbrica`), vale il colore del marchio
+ * scelto una volta in «Brand & Azienda», così non va riscelto modulo per modulo
+ * e tutti i documenti dell'azienda hanno la stessa faccia; se non c'è nemmeno
+ * quello, resta il colore del modello.
+ */
+export function coloreDelDocumento(delModello: unknown, delMarchio: unknown, diFabbrica: string): string | null {
+  const modello = normalizzaHex(delModello);
+  const scelto = modello && modello !== normalizzaHex(diFabbrica) ? modello : null;
+  return scelto ?? marchioScelto(delMarchio) ?? modello;
+}

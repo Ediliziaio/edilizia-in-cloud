@@ -3696,6 +3696,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
               companyName={form.ragione_sociale}
               companyLogoUrl={form.logo_url}
               companyLogoDarkUrl={brand?.brand_logo_dark_url ?? null}
+              companyBrandColor={brand?.brand_primary_color ?? null}
               companyIndirizzo={form.indirizzo_completo}
               activeSection={sectionToPdfTab(activeSection) ?? undefined}
             />
@@ -3732,6 +3733,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
             companyName={form.ragione_sociale}
             companyLogoUrl={form.logo_url}
             companyLogoDarkUrl={brand?.brand_logo_dark_url ?? null}
+            companyBrandColor={brand?.brand_primary_color ?? null}
             companyIndirizzo={form.indirizzo_completo}
           />
         </Suspense>

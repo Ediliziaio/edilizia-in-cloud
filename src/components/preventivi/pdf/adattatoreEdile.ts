@@ -10,6 +10,7 @@
  */
 import { applicaMergeTagModulo } from "@/lib/mergeTagsModuli";
 import { renderTemplateText, buildStandardReplacements } from "@/lib/pdf/renderTemplateText";
+import { coloreDelDocumento as coloreDocumento } from "../../../../supabase/functions/_shared/temaColori";
 import type {
   DocEdileCapitolo, DocEdileDati, DocEdileFoto, DocEdileModello, DocEdileModulo,
   DocEdileOpzioniComputo, DocEdileTotali, DocEdileVoceElenco, DocEdileFaq, DocEdileFase,
@@ -77,14 +78,12 @@ export interface AziendaComune {
 export const COLORE_DI_FABBRICA_MODELLO = "#1E3A5F";
 
 /**
- * Il colore del documento. Se l'azienda ha scelto un colore nel modello, vale
- * quello. Se il modello ha ancora il colore di fabbrica, vale il colore del
- * marchio impostato una volta in «Brand & Azienda»: così non va riscelto modulo
- * per modulo, e tutti i documenti dell'azienda hanno la stessa faccia.
+ * Il colore del documento: quello scelto nel modello e, se il modello è rimasto
+ * al colore di fabbrica, quello del kit del marchio. La regola è una per tutti i
+ * documenti (PDF edili, Serramenti, Fotovoltaico) e sta in `temaColori`.
  */
 export function coloreDelDocumento(delModello: string | null, delMarchio: string | null): string | null {
-  const scelto = delModello && delModello.toUpperCase() !== COLORE_DI_FABBRICA_MODELLO ? delModello : null;
-  return scelto ?? stringa(delMarchio) ?? delModello;
+  return coloreDocumento(delModello, delMarchio, COLORE_DI_FABBRICA_MODELLO);
 }
 
 export function leggiModello(

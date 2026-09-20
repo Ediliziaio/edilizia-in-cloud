@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
-  contrasto, fondoPerTestoBianco, mescola, normalizzaHex, testoSopra, testoSuChiaro, testoSuScuro,
+  COLORE_DI_FABBRICA_MARCHIO, coloreDelDocumento, contrasto, fondoPerTestoBianco, marchioScelto, mescola,
+  normalizzaHex, testoSopra, testoSuChiaro, testoSuScuro,
 } from "../../../supabase/functions/_shared/temaColori";
+import { cssDelMarchio } from "../../../supabase/functions/_shared/srHtmlTemplate";
 import { applicaTemaFv } from "../../../supabase/functions/_shared/fvHtmlTemplate";
 import { fmtEur, fmtNum } from "../../../supabase/functions/_shared/fvCalcoli";
 
@@ -103,9 +105,89 @@ describe("Fotovoltaico: niente marchi nei disegni segnaposto, niente «Pagina N�
     expect(tpl).not.toContain("Pagina ${pageN}");
   });
 
+  it("niente emoji a colori: le disegna il computer che stampa, e su un server sono quadratini", () => {
+    const tpl = leggi("supabase/functions/_shared/fvHtmlTemplate.ts");
+    expect(tpl).not.toMatch(/[\u{1F300}-\u{1FAFF}]/u);
+    expect(tpl).toContain('filaDiPittogrammi("albero"');
+  });
+
   it("nei riquadri solo il primo grassetto va a capo", () => {
     const tpl = leggi("supabase/functions/_shared/fvHtmlTemplate.ts");
     expect(tpl).toContain(".callout > div > strong:first-child { display: block;");
     expect(tpl).not.toContain(".callout strong { display: block;");
+  });
+});
+
+describe("kit del marchio: una regola sola per tutti i documenti", () => {
+  it("il blu con cui nasce companies.brand_primary_color non è una scelta", () => {
+    expect(COLORE_DI_FABBRICA_MARCHIO).toBe("#1E40AF");
+    expect(marchioScelto("#1e40af")).toBeNull();
+    expect(marchioScelto(null)).toBeNull();
+    expect(marchioScelto("#CBA87E")).toBe("#CBA87E");
+  });
+
+  it("il modello rimasto al colore di fabbrica prende il colore del marchio, se scelto", () => {
+    // Serramenti (verde), Fotovoltaico ed edili (blu notte): stessa regola, fabbrica diversa.
+    expect(coloreDelDocumento("#2D7D5C", "#B91C1C", "#2D7D5C")).toBe("#B91C1C");
+    expect(coloreDelDocumento("#1E3A5F", "#B91C1C", "#1E3A5F")).toBe("#B91C1C");
+    expect(coloreDelDocumento("#2D7D5C", "#1E40AF", "#2D7D5C")).toBe("#2D7D5C");
+    expect(coloreDelDocumento(null, null, "#2D7D5C")).toBeNull();
+  });
+
+  it("un colore scelto nel modello vince sempre", () => {
+    expect(coloreDelDocumento("#C8E600", "#B91C1C", "#2D7D5C")).toBe("#C8E600");
+  });
+
+  it("le funzioni che generano i documenti passano dalla regola, non dal colore nudo", () => {
+    expect(leggi("supabase/functions/fv-genera-pdf/index.ts")).toMatch(/colore_primario: coloreDelDocumento\(/);
+    expect(leggi("supabase/functions/sr-genera-pdf/index.ts")).toMatch(/colore_primario: coloreDelDocumento\(/);
+    expect(leggi("src/components/serramenti/SerramentoPDF.tsx")).toMatch(/const primaryColor = coloreDelDocumento\(/);
+  });
+});
+
+describe("Serramenti: la pagina online del preventivo prende il colore dell'azienda", () => {
+  const VERDI = /#2D7D5C|#1F5B43|#4D6F5D|#C6E1D3|#E8F3EE|#F1F7F4/i;
+
+  it("col verde di fabbrica il foglio di stile non cambia", () => {
+    expect(cssDelMarchio("#2D7D5C")).toBe(cssDelMarchio(null));
+    expect(cssDelMarchio("#2D7D5C")).toMatch(VERDI);
+  });
+
+  it("con un altro colore non resta nemmeno un verde", () => {
+    for (const colore of ["#C8E600", "#CBA87E", "#050505", "#00ADEF", "#B91C1C"]) {
+      expect(cssDelMarchio(colore)).not.toMatch(VERDI);
+    }
+  });
+
+  it("titoli, prezzo e note restano leggibili anche con un marchio chiaro", () => {
+    for (const colore of ["#C8E600", "#CBA87E", "#FDE047", "#00ADEF"]) {
+      const css = cssDelMarchio(colore);
+      const titoli = /--sr-green: (#[0-9A-Fa-f]{6})/.exec(css)?.[1] ?? "";
+      const riquadro = /--sr-green-light: (#[0-9A-Fa-f]{6})/.exec(css)?.[1] ?? "";
+      const prezzo = /\.big-price \{[^}]*color: (#[0-9A-Fa-f]{6})/.exec(css)?.[1] ?? "";
+      const nota = /\.kpi-hint \{[^}]*color: (#[0-9A-Fa-f]{6})/.exec(css)?.[1] ?? "";
+      expect(contrasto(titoli, "#FFFFFF")).toBeGreaterThanOrEqual(4.5);
+      expect(contrasto(prezzo, riquadro)).toBeGreaterThanOrEqual(4.5);
+      expect(contrasto(nota, riquadro)).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+});
+
+describe("Serramenti: la copertina del PDF segue il marchio", () => {
+  const src = leggi("src/components/serramenti/SerramentoPDF.tsx");
+
+  it("il fondo di serie nasce dal colore dell'azienda, non da un verde petrolio fisso", () => {
+    expect(src).not.toContain('const COVER_BG = "#0F2A2E"');
+    expect(src).toContain("coverBg: fondoCopertinaDiSerie(safePrimary)");
+  });
+
+  it("l'occhiello senza colore scelto si schiarisce finché si legge (marchio nero su fondo scuro)", () => {
+    expect(src).not.toContain("normalizeHexColor(tpl.pdf_cover_eyebrow_color, C.primary) ?? C.primary");
+    expect(src).toContain("testoSuScuro(C.primary, fondoSottoIlTesto, 4.5)");
+    expect(contrasto(testoSuScuro("#050505", "#1F2937", 4.5), "#1F2937")).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it("nessun bordo abbreviato con rgba(): react-pdf lo disegnava verde", () => {
+    expect(src).not.toMatch(/solid rgba\(/);
   });
 });

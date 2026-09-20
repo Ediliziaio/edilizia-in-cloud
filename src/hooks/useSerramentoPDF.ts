@@ -104,6 +104,7 @@ export interface SerramentoPdfEnriched {
     partita_iva?: string | null;
     logo_url?: string | null;
     brand_logo_dark_url?: string | null;
+    brand_primary_color?: string | null;
     website?: string | null;
     pec?: string | null;
   } | null;

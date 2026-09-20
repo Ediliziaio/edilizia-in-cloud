@@ -844,21 +844,6 @@ export function PavimentiTemplateEditor({ embedded = false }: Props) {
                     placeholder={companyAnagrafica?.partita_iva ? `${companyAnagrafica.partita_iva} · dal profilo` : "IT12345670156"}
                   />
                 </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Tipografia PDF</Label>
-                  <select
-                    value={form.font_family ?? "helvetica"}
-                    onChange={(e) => set("font_family", e.target.value)}
-                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  >
-                    <option value="helvetica">Helvetica · classico</option>
-                    <option value="inter">Inter</option>
-                    <option value="roboto">Roboto</option>
-                  </select>
-                  <p className="text-[10px] text-muted-foreground">
-                    Inter/Roboto richiedono font self-hosted: fallback Helvetica nel PDF.
-                  </p>
-                </div>
               </div>
             </SectionCard>
 

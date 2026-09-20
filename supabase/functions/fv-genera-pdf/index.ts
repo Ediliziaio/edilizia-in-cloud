@@ -40,6 +40,7 @@ import {
   type FvPdfTemplateData,
 } from "../_shared/fvHtmlTemplate.ts";
 import { calcolaEnergyFlows } from "../_shared/fvCalcoli.ts";
+import { coloreDelDocumento } from "../_shared/temaColori.ts";
 import { CAMPI_IMMAGINE_FOTOVOLTAICO, firmaImmaginiModello, firmatarioStorage } from "../_shared/immaginiModelloPdf.ts";
 import {
   assertFvPdfQueryOk,
@@ -153,7 +154,7 @@ Deno.serve(async (req: Request) => {
         .eq("progetto_id", p.progetto_id),
       supabaseAdmin
         .from("companies")
-        .select("name, vat_number, pec, phone, email, website")
+        .select("name, vat_number, pec, phone, email, website, brand_primary_color")
         .eq("id", prog.company_id)
         .maybeSingle(),
       supabaseAdmin
@@ -704,7 +705,13 @@ Deno.serve(async (req: Request) => {
         pdf_cover_overlay_opacity: template.pdf_cover_overlay_opacity ?? null,
         pdf_cover_bg_color: template.pdf_cover_bg_color ?? null,
         pdf_cover_text_color: template.pdf_cover_text_color ?? null,
-        colore_primario: (template as { colore_primario?: string | null }).colore_primario ?? null,
+        // Il modello rimasto al blu di fabbrica prende il colore scelto in «Brand &
+        // Azienda»: le aziende vere non hanno mai aperto il modello del Fotovoltaico.
+        colore_primario: coloreDelDocumento(
+          (template as { colore_primario?: string | null }).colore_primario,
+          (company as { brand_primary_color?: string | null }).brand_primary_color,
+          "#1E3A5F",
+        ),
         colore_accento: (template as { colore_accento?: string | null }).colore_accento ?? null,
         pdf_cover_text_align: template.pdf_cover_text_align ?? null,
         pdf_cover_logo_position: template.pdf_cover_logo_position ?? null,
