@@ -9,6 +9,7 @@
  * Testo semplice, una colonna: si legge dal telefono in dieci secondi.
  */
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { motivoSenzaSpesa } from "../_shared/motivoSenzaSpesa.ts";
 
 interface Cliente {
   service_client_id: string;
@@ -44,6 +45,10 @@ interface Cliente {
   dati_freschi: boolean;
   spesa_disponibile: boolean;
   rapporto_zero: number | null;
+  /** Stato del collegamento Meta dell'azienda del cliente (null = mai collegato). */
+  meta_stato?: string | null;
+  /** C'è almeno un account pubblicitario scelto. */
+  meta_account?: boolean | null;
 }
 
 interface Azione {
@@ -113,7 +118,7 @@ function rigaCliente(c: Cliente): string {
   return `<tr style="${attivo ? "" : "color:#9ca3af;"}">
     ${td(`${PALLINO[c.semaforo ?? "N"] ?? "⚪"} <strong>${esc(c.cliente_nome)}</strong>${attivo ? "" : " <span style=\"font-size:10px;\">(in pausa)</span>"}`)}
     ${td(`${n(c.lead_grezzi_giorno)}${media}`, true)}
-    ${td(c.spesa_disponibile ? eur(c.spesa_giorno) : `<span style="color:#9ca3af;">—</span>`, true)}
+    ${td(c.spesa_disponibile ? eur(c.spesa_giorno) : `<span style="color:#b45309;font-size:11px;">${esc(motivoSenzaSpesa(c)?.breve ?? "—")}</span>`, true)}
     ${td(cpl, true, cplStile)}
     ${td(fermi, true)}
     ${td(String(n(c.appuntamenti_14g)), true)}
@@ -155,12 +160,23 @@ export async function rapportoClientiMarketing(supabase: SupabaseClient, urlCons
   const datiVecchi = r.stato.dati_vecchi?.length
     ? `<p style="margin:0 0 12px;padding:8px 10px;background:#fef3c7;color:#92400e;border-radius:6px;font-size:13px;">Attenzione: la spesa di ${r.stato.dati_vecchi.map((d) => esc(d.cliente)).join(", ")} è ferma dalle ${r.stato.dati_vecchi.map((d) => oraRoma(d.fermo_dalle)).join(", ")}. Per questi clienti gli allarmi su costo e richieste sono sospesi.</p>`
     : "";
-  const senzaSpesa = attivi.filter((c) => !c.spesa_disponibile).length;
+  // Chi non ha la spesa, perché, e cosa fare: in cima, non in una nota a piè di tabella.
+  const senzaSpesa = attivi.filter((c) => !c.spesa_disponibile);
+  const avvisoSenzaSpesa = senzaSpesa.length
+    ? `<div style="margin:0 0 12px;padding:8px 10px;background:#fef3c7;color:#92400e;border-radius:6px;font-size:13px;">
+        <strong>Spesa non leggibile per ${senzaSpesa.length} ${senzaSpesa.length === 1 ? "cliente" : "clienti"} su ${attivi.length}.</strong> Finché resta così, per loro il costo per richiesta non esiste.
+        <ul style="margin:6px 0 0;padding-left:18px;">${senzaSpesa.map((c) => {
+          const m = motivoSenzaSpesa(c);
+          return `<li style="margin:2px 0;"><strong>${esc(c.cliente_nome)}</strong> — ${esc(m?.breve ?? "spesa non disponibile")}: ${esc(m?.cosaFare ?? "")}</li>`;
+        }).join("")}</ul>
+      </div>`
+    : "";
 
   const html = `<div style="max-width:760px;margin:0 auto;padding:20px;font-family:-apple-system,Segoe UI,Roboto,sans-serif;color:#374151;font-size:13px;">
     <h2 style="font-size:17px;color:#111827;margin:0 0 4px;">${esc(subject)}</h2>
     <p style="margin:0 0 14px;color:#6b7280;">${r.stato.attivi} clienti attivi · ${r.stato.verdi} verdi · ${r.stato.gialli} gialli · ${r.stato.rossi} rossi${r.stato.non_leggibili ? ` · ${r.stato.non_leggibili} senza dati` : ""} · dati aggiornati alle ${oraRoma(r.stato.aggiornato_alle)} · <a href="${esc(urlConsole)}" style="color:#2563eb;">apri la console</a></p>
     ${datiVecchi}
+    ${avvisoSenzaSpesa}
 
     <h3 style="font-size:13px;color:#111827;margin:18px 0 6px;text-transform:uppercase;letter-spacing:.04em;">I numeri di ieri, cliente per cliente</h3>
     <div style="overflow-x:auto;">
@@ -169,7 +185,7 @@ export async function rapportoClientiMarketing(supabase: SupabaseClient, urlCons
       <tbody>${r.clienti.map(rigaCliente).join("")}</tbody>
     </table>
     </div>
-    <p style="margin:6px 0 0;font-size:11px;color:#9ca3af;">Costo per richiesta sui 7 giorni (finestra chiusa ieri) contro il target del mese, già adattato alla stagione. Ferme = richieste senza nessuna azione da più di 24 ore di servizio (fra parentesi la più vecchia). Indice = Indice di Esecuzione del cliente, 0-100.${senzaSpesa ? ` ${senzaSpesa} client${senzaSpesa === 1 ? "e" : "i"} senza spesa registrata: il costo per richiesta arriva dal sync Meta.` : ""}</p>
+    <p style="margin:6px 0 0;font-size:11px;color:#9ca3af;">Costo per richiesta sui 7 giorni (finestra chiusa ieri) contro il target del mese, già adattato alla stagione. Ferme = richieste senza nessuna azione da più di 24 ore di servizio (fra parentesi la più vecchia). Indice = Indice di Esecuzione del cliente, 0-100.</p>
 
     <h3 style="font-size:13px;color:#111827;margin:18px 0 6px;text-transform:uppercase;letter-spacing:.04em;">Ieri in tre numeri</h3>
     <p style="margin:0;"><strong>${n(r.ieri.lead)}</strong> richieste (media 7 giorni: ${n(r.ieri.media_7g).toLocaleString("it-IT")}) · <strong>${eur(n(r.ieri.spesa))}</strong> di spesa · <strong>${n(r.ieri.vendite_registrate)}</strong> contratti registrati${n(r.ieri.valore_vendite) > 0 ? ` per ${eur(n(r.ieri.valore_vendite))}` : ""}</p>
