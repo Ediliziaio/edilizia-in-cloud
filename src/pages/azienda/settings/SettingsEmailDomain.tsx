@@ -26,6 +26,7 @@ import {
   Mail, Send, Clock, Info,
 } from "lucide-react";
 import { ProviderGuideAccordion } from "@/components/email/ProviderGuideAccordion";
+import { edgeErrorMessage } from "@/lib/edgeFunctionError";
 
 interface DnsRecord {
   type: "TXT" | "CNAME" | "MX";
@@ -36,6 +37,8 @@ interface DnsRecord {
   provider: "elastic_email" | "sendgrid" | "resend";
   purpose: string;
   verified: boolean;
+  /** Una riga in più dal server (es. «hai già un SPF: non aggiungerne un secondo»). */
+  nota?: string;
 }
 
 interface DomainStatus {
@@ -94,6 +97,8 @@ const PROVIDER_BADGE_VARIANT: Record<
 interface DomainResponse {
   domain: DomainStatus | null;
   dnsRecords: DnsRecord[];
+  /** Errori dei provider durante add/verify (non i record non ancora propagati). */
+  providerErrors?: Record<string, string | null>;
 }
 
 /**
@@ -109,13 +114,14 @@ function normalizeDomainResponse(resp: unknown): DomainResponse {
     domains?: Array<DomainStatus & { dns_records?: DnsRecord[] }>;
     domain_row?: DomainStatus;
     dns_records?: DnsRecord[];
+    provider_errors?: Record<string, string | null>;
   } | null;
   if (Array.isArray(r?.domains)) {
     const first = r.domains[0] ?? null;
     return { domain: first, dnsRecords: first?.dns_records ?? [] };
   }
   if (r?.domain_row) {
-    return { domain: r.domain_row, dnsRecords: r.dns_records ?? [] };
+    return { domain: r.domain_row, dnsRecords: r.dns_records ?? [], providerErrors: r.provider_errors };
   }
   return { domain: null, dnsRecords: [] };
 }
@@ -175,6 +181,12 @@ function DnsRow({ record }: { record: DnsRecord }) {
           {copied === "value" ? <CheckCircle2 className="h-3 w-3 text-green-600" /> : <Copy className="h-3 w-3" />}
         </Button>
       </div>
+
+      {record.nota && !record.verified && (
+        <p className="text-xs rounded border border-amber-200 bg-amber-50 text-amber-900 px-2 py-1.5">
+          {record.nota}
+        </p>
+      )}
     </div>
   );
 }
@@ -261,7 +273,7 @@ export default function SettingsEmailDomain() {
       const { data: resp, error } = await supabase.functions.invoke("manage-email-domain", {
         body: { action: "add_domain", company_id: companyId, ...params },
       });
-      if (error) throw error;
+      if (error) throw new Error(await edgeErrorMessage(error, "Errore durante l'aggiunta del dominio"));
       return normalizeDomainResponse(resp);
     },
     onSuccess: () => {
@@ -283,7 +295,7 @@ export default function SettingsEmailDomain() {
       const { data: resp, error } = await supabase.functions.invoke("manage-email-domain", {
         body: { action: "verify_domain", company_id: companyId, domain: currentDomain },
       });
-      if (error) throw error;
+      if (error) throw new Error(await edgeErrorMessage(error, "Errore durante la verifica"));
       return normalizeDomainResponse(resp);
     },
     onSuccess: (resp) => {
@@ -293,6 +305,10 @@ export default function SettingsEmailDomain() {
         toast.success("Dominio verificato e attivato! Le prossime email usciranno dal tuo dominio.");
       } else if (marketingOk && d?.is_active) {
         toast.success("Dominio attivo per l'email marketing! (Il canale transazionale si attiverà quando anche i suoi record saranno propagati.)");
+      } else if (resp.providerErrors?.elastic_email) {
+        // Non sono i record: è il canale marketing che non ha potuto controllare.
+        // Prima finiva sotto «record non ancora propagati» e si aspettava per niente.
+        toast.error(`Il canale marketing non ha potuto verificare il dominio: ${resp.providerErrors.elastic_email}`);
       } else {
         toast.message("Verifica parziale — alcuni record DNS non sono ancora propagati");
       }

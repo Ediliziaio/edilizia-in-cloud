@@ -19,9 +19,17 @@ import { getCorsHeaders } from "../_shared/headers.ts";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 
 import { serveConMetriche } from "../_shared/withMetrics.ts";
+import {
+  chiaviTransazionali,
+  dominioSconosciutoAlProvider,
+  notaSpf,
+  SPF_MARKETING_NUOVO,
+  type StatoSpf,
+  trovaSpf,
+  unisciSpf,
+} from "../_shared/dominioEmailAzienda.ts";
 const ELASTIC_DKIM_PUBLIC_KEY =
   "k=rsa;t=s;p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCbmGbQMzYeMvxwtNQoXN0waGYaciuKx8mtMh5czguT4EZlJXuCt6V+l56mmt3t68FEX5JJ0q4ijG71BGoFRkl87uJi7LrQt1ZZmZCvrEII0YO4mp8sDLXC8g1aUAoi8TJgxq2MJqCaMyj5kAm3Fdy2tzftPCV/lbdiJqmBnWKjtwIDAQAB";
-const ELASTIC_SPF_VALUE = "v=spf1 a mx include:_spf.elasticemail.com ~all";
 
 type Action = "add_domain" | "verify_domain" | "remove_domain" | "get_status";
 
@@ -133,7 +141,35 @@ async function enforceRateLimit(
   }
 }
 
-function buildDnsRecords(row: Record<string, unknown>): Array<{
+/** L'SPF da mostrare: quello del dominio, con la nostra autorizzazione dentro. */
+interface SpfDaMostrare {
+  valore: string;
+  stato: StatoSpf;
+}
+
+/**
+ * Legge l'SPF che il dominio ha adesso (DNS pubblico, via DoH) e lo unisce al
+ * nostro. Se il DNS non risponde si mostra il record standard: meglio quello
+ * che niente, e la nota sul «uno solo» resta nella pagina.
+ */
+async function spfDaMostrare(domain: string): Promise<SpfDaMostrare> {
+  try {
+    const res = await fetch(
+      `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(domain)}&type=TXT`,
+      { headers: { accept: "application/dns-json" }, signal: AbortSignal.timeout(4000) },
+    );
+    if (!res.ok) return { valore: SPF_MARKETING_NUOVO, stato: "nuovo" };
+    const dati = await res.json().catch(() => ({}));
+    const txt = Array.isArray(dati?.Answer)
+      ? dati.Answer.map((a: { data?: string }) => String(a?.data ?? ""))
+      : [];
+    return unisciSpf(trovaSpf(txt));
+  } catch {
+    return { valore: SPF_MARKETING_NUOVO, stato: "nuovo" };
+  }
+}
+
+function buildDnsRecords(row: Record<string, unknown>, spf?: SpfDaMostrare): Array<{
   type: "TXT" | "CNAME" | "MX";
   host: string;
   value: string;
@@ -141,6 +177,8 @@ function buildDnsRecords(row: Record<string, unknown>): Array<{
   purpose: string;
   provider: "elastic_email" | "sendgrid" | "resend";
   verified: boolean;
+  /** Una riga in più per l'azienda (es. «hai già un SPF: non aggiungerne un secondo»). */
+  nota?: string;
 }> {
   const domain = String(row.domain ?? "");
   const recs: ReturnType<typeof buildDnsRecords> = [
@@ -148,10 +186,11 @@ function buildDnsRecords(row: Record<string, unknown>): Array<{
     {
       type: "TXT",
       host: domain,
-      value: ELASTIC_SPF_VALUE,
+      value: spf?.valore ?? SPF_MARKETING_NUOVO,
       purpose: "SPF — autorizza l'invio email marketing",
       provider: "elastic_email",
       verified: Boolean(row.ee_spf_verified),
+      nota: spf ? notaSpf(spf.stato) : undefined,
     },
     {
       type: "TXT",
@@ -447,6 +486,22 @@ async function resendDeleteDomain(
 // Action handlers
 // ═══════════════════════════════════════════════════════════════════════════
 
+/**
+ * Le chiavi dei provider. Quelle transazionali si cercavano sotto nomi mai
+ * impostati, con un ripiego (`??`) che non scattava perché getPlatformSetting
+ * restituisce "" e non null: vedi _shared/dominioEmailAzienda.ts.
+ */
+async function leggiChiaviProvider(): Promise<{ eeKey: string; sgKey: string; resendKey: string }> {
+  const [eeKey, resend, sendgrid, generica, provider] = await Promise.all([
+    getPlatformSetting("email_marketing_api_key"),
+    getPlatformSetting("email_transactional_api_key_resend"),
+    getPlatformSetting("email_transactional_api_key_sendgrid"),
+    getPlatformSetting("email_transactional_api_key"),
+    getPlatformSetting("email_transactional_provider"),
+  ]);
+  return { eeKey: eeKey || "", ...chiaviTransazionali({ resend, sendgrid, generica, provider }) };
+}
+
 async function actionAddDomain(
   admin: SupabaseClient,
   companyId: string,
@@ -469,20 +524,12 @@ async function actionAddDomain(
 
   await enforceRateLimit(admin, companyId, "add");
 
-  const [eeKey, sgKey, resendKey] = await Promise.all([
-    getPlatformSetting("email_marketing_api_key"),
-    getPlatformSetting("email_transactional_api_key_sendgrid")
-      .then((v) => v ?? getPlatformSetting("email_transactional_api_key")),
-    getPlatformSetting("email_transactional_api_key_resend")
-      .then((v) => v ?? getPlatformSetting("email_transactional_api_key_resend_key")),
-  ]);
+  const { eeKey, sgKey, resendKey } = await leggiChiaviProvider();
 
-  if (!eeKey) throw new Error("Elastic Email API key non configurata (email_marketing_api_key)");
-  if (!resendKey && !sgKey) {
-    throw new Error(
-      "Nessun provider transactional configurato (serve email_transactional_api_key_resend o email_transactional_api_key_sendgrid)",
-    );
-  }
+  // Senza il canale marketing il dominio non serve a niente. Il transazionale
+  // invece non blocca: il dominio si attiva appena il marketing è verificato,
+  // e l'errore del transazionale torna in provider_errors.
+  if (!eeKey) throw new Error("Il canale email marketing della piattaforma non è configurato: scrivi all'assistenza.");
 
   // 1. Register on Elastic Email (always — marketing stream)
   await eeAddDomain(eeKey, normalized);
@@ -538,7 +585,7 @@ async function actionAddDomain(
 
   return {
     domain_row: data,
-    dns_records: buildDnsRecords(data as Record<string, unknown>),
+    dns_records: buildDnsRecords(data as Record<string, unknown>, await spfDaMostrare(normalized)),
     provider_errors: {
       resend: resendResult.status === "rejected" ? String(resendResult.reason?.message ?? resendResult.reason) : null,
       sendgrid: sgResult.status === "rejected" ? String(sgResult.reason?.message ?? sgResult.reason) : null,
@@ -562,12 +609,7 @@ async function actionVerifyDomain(
   if (rowErr) throw new Error(`DB read failed: ${rowErr.message}`);
   if (!row) throw new Error(`Dominio "${domain}" non trovato per questa azienda`);
 
-  const [eeKey, sgKey, resendKey] = await Promise.all([
-    getPlatformSetting("email_marketing_api_key"),
-    getPlatformSetting("email_transactional_api_key_sendgrid")
-      .then((v) => v ?? getPlatformSetting("email_transactional_api_key")),
-    getPlatformSetting("email_transactional_api_key_resend"),
-  ]);
+  const { eeKey, sgKey, resendKey } = await leggiChiaviProvider();
 
   const updates: Record<string, unknown> = {
     last_verification_attempt_at: new Date().toISOString(),
@@ -585,6 +627,15 @@ async function actionVerifyDomain(
   if (eeKey) {
     tasks.push(
       eeVerifyDomain(eeKey, row.domain)
+        // L'account del provider non conosce il dominio (account cambiato, riga
+        // inserita a mano): lo si registra adesso e si riprova, invece di
+        // mandare qualcuno nel pannello del provider.
+        .catch(async (e) => {
+          if (!dominioSconosciutoAlProvider(e instanceof Error ? e.message : String(e))) throw e;
+          await eeAddDomain(eeKey, row.domain);
+          updates.ee_domain_added = true;
+          return await eeVerifyDomain(eeKey, row.domain);
+        })
         .then((ee) => {
           updates.ee_spf_verified = ee.spf;
           updates.ee_dkim_verified = ee.dkim;
@@ -683,7 +734,8 @@ async function actionVerifyDomain(
 
   return {
     domain_row: updated,
-    dns_records: buildDnsRecords(updated),
+    // SPF ancora da sistemare: si rimostra quello unito al record del dominio.
+    dns_records: buildDnsRecords(updated, updated.ee_spf_verified ? undefined : await spfDaMostrare(row.domain)),
     provider_errors: providerErrors,
   };
 }
@@ -701,12 +753,7 @@ async function actionRemoveDomain(
     .maybeSingle();
 
   if (row) {
-    const [eeKey, sgKey, resendKey] = await Promise.all([
-      getPlatformSetting("email_marketing_api_key"),
-      getPlatformSetting("email_transactional_api_key_sendgrid")
-        .then((v) => v ?? getPlatformSetting("email_transactional_api_key")),
-      getPlatformSetting("email_transactional_api_key_resend"),
-    ]);
+    const { eeKey, sgKey, resendKey } = await leggiChiaviProvider();
 
     await Promise.allSettled([
       eeKey ? eeDeleteDomain(eeKey, row.domain) : Promise.resolve(),
@@ -730,12 +777,13 @@ async function actionGetStatus(admin: SupabaseClient, companyId: string) {
     .eq("company_id", companyId)
     .order("created_at", { ascending: false });
 
-  return {
-    domains: (rows ?? []).map((r: Record<string, unknown>) => ({
-      ...r,
-      dns_records: buildDnsRecords(r),
-    })),
-  };
+  // Finché l'SPF non è verificato, il record mostrato parte da quello che il
+  // dominio ha già (un dominio ne può avere uno solo).
+  const domains = await Promise.all((rows ?? []).map(async (r: Record<string, unknown>) => ({
+    ...r,
+    dns_records: buildDnsRecords(r, r.ee_spf_verified ? undefined : await spfDaMostrare(String(r.domain ?? ""))),
+  })));
+  return { domains };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
