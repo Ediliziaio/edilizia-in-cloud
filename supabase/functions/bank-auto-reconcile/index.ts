@@ -306,13 +306,21 @@ Deno.serve(async (req) => {
 
             // paid_amount è ricalcolato dai trigger su invoice_payments → NON
             // sovrascriverlo a mano (doppia scrittura = importi incoerenti).
-            // Impostiamo solo status/paid_at quando la fattura risulta saldata.
+            // Impostiamo solo lo stato quando la fattura risulta saldata.
+            //
+            // Fino al 20/09/2026 qui si scriveva anche `paid_at`, colonna che su
+            // invoices NON esiste: PostgREST rifiutava tutta la UPDATE e l'errore
+            // non veniva letto, così nessuna fattura riconciliata è mai passata a
+            // «pagata» in EiC — mentre il pagamento partiva lo stesso verso FIC.
             const newPaidAmount = (bestMatch.invoice.paid_amount || 0) + matchedAmount;
             const fullyPaid = newPaidAmount >= (bestMatch.invoice.total || 0);
-            if (fullyPaid) {
-              await supabase.from("invoices")
-                .update({ status: "paid", paid_at: new Date().toISOString() })
+            // Per le fatture importate lo stato lo decide il gestionale esterno:
+            // qui si spinge il pagamento (sotto) e l'allineamento lo riporta.
+            if (fullyPaid && !bestMatch.invoice.external_provider) {
+              const { error: statoErr } = await supabase.from("invoices")
+                .update({ status: "paid", payment_date: tx.booking_date ?? localDateIT(new Date()) })
                 .eq("id", bestMatch.invoice.id);
+              if (statoErr) console.error("invoices status=paid failed:", statoErr.message);
             }
 
             // Write-back verso il gestionale esterno (best-effort): se la fattura è di

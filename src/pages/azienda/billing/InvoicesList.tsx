@@ -160,10 +160,36 @@ export default function InvoicesList() {
   // Tab tipo documento stile Fatture in Cloud.
   const [docTab, setDocTab] = useState<DocTab>("fatture");
 
-  const { data: invoices = [], isLoading } = useQuery({
-    queryKey: ["invoices", companyId],
+  // Anni con documenti: una query da due righe (la più vecchia e la più
+  // recente). Serve perché la lista ora scarica UN anno per volta: ricavare gli
+  // anni dai documenti caricati lascerebbe nel menu solo l'anno già scelto.
+  const { data: estremiAnni } = useQuery({
+    queryKey: ["invoices-anni", companyId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const base = () => supabase
+        .from("invoices").select("issue_date")
+        .eq("company_id", companyId!).is("deleted_at", null)
+        .not("issue_date", "is", null).limit(1);
+      const [prima, ultima] = await Promise.all([
+        base().order("issue_date", { ascending: true }),
+        base().order("issue_date", { ascending: false }),
+      ]);
+      return {
+        da: prima.data?.[0]?.issue_date?.slice(0, 4) ?? null,
+        a: ultima.data?.[0]?.issue_date?.slice(0, 4) ?? null,
+      };
+    },
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: invoices = [], isLoading } = useQuery({
+    queryKey: ["invoices", companyId, yearFilter],
+    queryFn: async () => {
+      // L'anno si filtra QUI, non dopo: con lo storico di un gestionale
+      // (Best Infissi: 2.208 documenti dal 2020) il tetto di righe tagliava
+      // l'anno in corso prima ancora che il filtro in pagina lo vedesse.
+      let q = supabase
         .from("invoices")
         // ⚠️ Selezionare SOLO colonne esistenti: PostgREST ritorna 400 sull'INTERA query
         // se anche una sola colonna non esiste (NON undefined) → la lista resta vuota.
@@ -177,7 +203,11 @@ export default function InvoicesList() {
         // il dettaglio — che invece filtra deleted_at — diceva "non trovata".
         .is("deleted_at", null)
         .order("issue_date", { ascending: false, nullsFirst: false })
-        .limit(500);
+        .limit(1000);
+      if (yearFilter !== "all") {
+        q = q.gte("issue_date", `${yearFilter}-01-01`).lte("issue_date", `${yearFilter}-12-31`);
+      }
+      const { data, error } = await q;
       if (error) throw error;
       return data;
     },
@@ -320,12 +350,14 @@ export default function InvoicesList() {
     }
   };
 
-  // Anni disponibili (dalle date fattura) per il filtro, decrescenti.
+  // Anni disponibili per il filtro, dal più recente: dal primo documento
+  // dell'azienda all'ultimo (estremi letti a parte, vedi sopra).
   const years = useMemo(() => {
-    const set = new Set<string>();
-    for (const i of invoices) if (i.issue_date) set.add(i.issue_date.slice(0, 4));
-    return Array.from(set).sort((a, b) => b.localeCompare(a));
-  }, [invoices]);
+    const da = Number(estremiAnni?.da ?? currentYear);
+    const a = Number(estremiAnni?.a ?? currentYear);
+    if (!Number.isFinite(da) || !Number.isFinite(a) || a < da) return [currentYear];
+    return Array.from({ length: a - da + 1 }, (_, i) => String(a - i));
+  }, [estremiAnni, currentYear]);
 
   // Anno di riferimento per la striscia mesi: l'anno selezionato, o il più recente con dati.
   const stripYear = yearFilter !== "all" ? yearFilter : (years[0] ?? String(new Date().getFullYear()));

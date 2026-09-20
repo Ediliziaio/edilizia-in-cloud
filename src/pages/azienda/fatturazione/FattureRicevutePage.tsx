@@ -139,6 +139,12 @@ export default function FattureRicevutePage() {
 
   const [searchQuery, setSearchQuery] = useState("");
   const [statoFilter, setStatoFilter] = useState("all");
+  // Le fatture dei fornitori arrivano dall'import del gestionale: Best Infissi
+  // ne ha 6.979 dal 2020 e la pagina le chiedeva TUTTE, oltre il tetto di mille
+  // righe di PostgREST — che tagliava via una parte dell'anno in corso. Si parte
+  // dall'anno corrente, gli altri restano un clic più in là.
+  const annoCorrente = String(new Date().getFullYear());
+  const [annoFilter, setAnnoFilter] = useState(annoCorrente);
   const [xmlPreview, setXmlPreview] = useState<string | null>(null);
   const [contabilizzaFattura, setContabilizzaFattura] = useState<FatturaRicevuta | null>(null);
   const [collegaFattura, setCollegaFattura] = useState<FatturaRicevuta | null>(null);
@@ -164,23 +170,56 @@ export default function FattureRicevutePage() {
 
   // ─── Data Query ──────────────────────────────────────────
 
+  // Anni con fatture ricevute: due righe sole (la più vecchia e la più recente).
+  const { data: estremiAnni } = useQuery({
+    queryKey: ["fatture-ricevute-anni", companyId],
+    enabled: !!companyId,
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const base = () => supabase
+        .from("fatture_ricevute" as never)
+        .select("data_fattura" as never)
+        .eq("company_id", companyId!)
+        .not("data_fattura", "is", null)
+        .limit(1);
+      const [prima, ultima] = await Promise.all([
+        base().order("data_fattura", { ascending: true }),
+        base().order("data_fattura", { ascending: false }),
+      ]);
+      const primo = (prima.data as unknown as { data_fattura: string }[] | null)?.[0]?.data_fattura;
+      const ultimo = (ultima.data as unknown as { data_fattura: string }[] | null)?.[0]?.data_fattura;
+      return { da: primo?.slice(0, 4) ?? null, a: ultimo?.slice(0, 4) ?? null };
+    },
+  });
+
+  const anniDisponibili = useMemo(() => {
+    const da = Number(estremiAnni?.da ?? annoCorrente);
+    const a = Number(estremiAnni?.a ?? annoCorrente);
+    if (!Number.isFinite(da) || !Number.isFinite(a) || a < da) return [annoCorrente];
+    return Array.from({ length: a - da + 1 }, (_, i) => String(a - i));
+  }, [estremiAnni, annoCorrente]);
+
   const { data: fatture = [], isLoading } = useQuery({
-    queryKey: ["fatture-ricevute", companyId],
+    queryKey: ["fatture-ricevute", companyId, annoFilter],
     enabled: !!companyId,
     queryFn: async () => {
       // NIENTE select("*"): portava dentro xml_raw (l'XML INTERO, decine di KB
       // per fattura) più righe e riepilogo_iva, per disegnare una tabella che
       // non li usa. Con qualche centinaio di fatture erano decine di MB a ogni
       // apertura. L'XML si carica quando lo si chiede davvero.
-      const { data, error } = await supabase
+      let q = supabase
         .from("fatture_ricevute" as never)
         .select(
           "id, company_id, sdi_id_trasmissione, cedente_piva, cedente_cf, cedente_ragione_sociale, cedente_paese, tipo_documento, numero_fattura, data_fattura, imponibile_totale, iva_totale, totale_documento, xml_url, stato, note, created_at, purchase_order_id, company_cost_id, aggancio_oda_manuale, categoria_ai, sottocategoria_ai, categoria_confidenza" as never,
         )
         .eq("company_id", companyId!)
         .order("data_fattura", { ascending: false });
-
-      if (error) throw error;
+      if (annoFilter !== "all") {
+        q = q
+          .gte("data_fattura", `${annoFilter}-01-01`)
+          .lte("data_fattura", `${annoFilter}-12-31`);
+      }
+      const { data, error } = await q;
       return (data as unknown as FatturaRicevuta[]) ?? [];
     },
   });
@@ -689,7 +728,12 @@ export default function FattureRicevutePage() {
             </div>
           </div>
           <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-5 sm:gap-3 xl:grid-cols-4">
-            <NavyStatCard label="Totale ricevute" value={String(kpi.totale)} icon={Inbox} tone="text-orange-100" />
+            <NavyStatCard
+              label={annoFilter === "all" ? "Totale ricevute" : `Ricevute nel ${annoFilter}`}
+              value={String(kpi.totale)}
+              icon={Inbox}
+              tone="text-orange-100"
+            />
             <NavyStatCard
               label="Da leggere"
               value={String(kpi.nonLette)}
@@ -718,6 +762,17 @@ export default function FattureRicevutePage() {
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
+        <Select value={annoFilter} onValueChange={setAnnoFilter}>
+          <SelectTrigger className="w-[140px]">
+            <SelectValue placeholder="Anno" />
+          </SelectTrigger>
+          <SelectContent>
+            {anniDisponibili.map((a) => (
+              <SelectItem key={a} value={a}>{a}</SelectItem>
+            ))}
+            <SelectItem value="all">Tutti gli anni</SelectItem>
+          </SelectContent>
+        </Select>
         <Select value={statoFilter} onValueChange={setStatoFilter}>
           <SelectTrigger className="w-[160px]">
             <SelectValue placeholder="Stato" />

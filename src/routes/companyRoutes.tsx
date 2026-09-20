@@ -4,6 +4,7 @@ import { Route, Navigate, useLocation, useParams } from "react-router-dom";
 // meta' file, altrimenti la regola no-use-before-define (che tiene lontani i
 // "Cannot access before initialization" nei componenti) segnala un falso positivo.
 import { COMPANY_ROLES, withCompanyPermission } from "./company/_shared";
+import { useAuth } from "@/contexts/AuthContext";
 
 /** Redirect /azienda/interventi/:id → /azienda/assistenza/:id (unificazione) */
 function InterventoDetailRedirect() {
@@ -64,8 +65,14 @@ function CommercialistaPermissionScope({
   children: ReactNode;
 }) {
   const location = useLocation();
+  const { role, userRoles } = useAuth();
   const searchParams = new URLSearchParams(location.search);
-  if (searchParams.get("commercialistaMode") === "1") {
+  // Il parametro nell'URL NON è una credenziale: fino al 20/09/2026 bastava
+  // aggiungere ?commercialistaMode=1 a un indirizzo /azienda/... per saltare del
+  // tutto il controllo dei permessi. Lo onoriamo solo a chi il commercialista lo
+  // è davvero; per tutti gli altri vale il permesso della pagina.
+  const eCommercialista = role === "accountant" || (userRoles ?? []).includes("accountant");
+  if (searchParams.get("commercialistaMode") === "1" && eCommercialista) {
     return <>{children}</>;
   }
   return <>{withCompanyPermission(permission, children)}</>;

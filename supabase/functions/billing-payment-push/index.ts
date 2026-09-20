@@ -216,6 +216,16 @@ Deno.serve(async (req) => {
       direction: "push", action: "mark_paid", status: "success",
       response_payload: conto ? { conto_di_saldo: { id: conto.id, nome: conto.name ?? null } } : null,
     });
+
+    // FIC ha accettato: allinea subito anche qui. Sulle fatture importate i
+    // trigger di invoice_payments non toccano più paid_amount (il gestionale è
+    // la verità), quindi senza questa riga l'utente vedrebbe «da incassare»
+    // fino al prossimo allineamento.
+    const { error: locErr } = await supabase.from("invoices")
+      .update({ status: "paid", paid_amount: inv.total, payment_date: paidDate })
+      .eq("id", inv.id);
+    if (locErr) console.error("allineamento locale dopo il push:", locErr.message);
+
     return json({ ok: true, conto: conto?.name ?? null });
   } catch (e) {
     return json({ error: String(e) }, 500);
