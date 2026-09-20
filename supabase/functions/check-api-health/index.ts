@@ -2,6 +2,12 @@ import { getCorsHeaders } from "../_shared/headers.ts";
 import { requireAuth, requireRole, isInternalRequest } from "../_shared/auth.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { leggiImpostazioniPiattaforma } from "../_shared/getPlatformSetting.ts";
+import {
+  esitoCloudflare,
+  esitoEmailConProve,
+  type ProveInvii,
+  type RispostaCloudflare,
+} from "../_shared/saluteIntegrazioni.ts";
 
 import { serveConMetriche } from "../_shared/withMetrics.ts";
 interface IntegrationResult {
@@ -33,6 +39,26 @@ async function pingWithLatency(url: string, options?: RequestInit): Promise<{ ok
     return { ok: res.ok, status: res.status, latency_ms: Date.now() - start };
   } catch (e) {
     return { ok: false, status: 0, latency_ms: Date.now() - start, error: (e as Error).message };
+  }
+}
+
+/** Una chiamata in lettura all'API di Cloudflare, ridotta a ciò che serve per decidere. */
+async function chiamaCloudflare(percorso: string, token: string): Promise<RispostaCloudflare & { ms: number }> {
+  const inizio = Date.now();
+  try {
+    const res = await fetch(`https://api.cloudflare.com/client/v4${percorso}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(5000),
+    });
+    const corpo = await res.json().catch(() => null) as { success?: boolean; result?: { status?: string } } | null;
+    return {
+      http: res.status,
+      success: corpo?.success,
+      statoToken: typeof corpo?.result?.status === "string" ? corpo.result.status : null,
+      ms: Date.now() - inizio,
+    };
+  } catch (e) {
+    return { http: 0, erroreRete: (e as Error).message, ms: Date.now() - inizio };
   }
 }
 
@@ -311,21 +337,35 @@ serveConMetriche("check-api-health", async (req) => {
     }
 
     // ── Cloudflare ───────────────────────────────────────────────────────
+    // Prima si chiedeva GET /accounts/{id}, che vuole un permesso che il nostro
+    // token non ha e non deve avere: 403 a ogni giro, mai verde una volta. Ora
+    // si chiede se il token è valido e se arriva ai domini del progetto Pages,
+    // che è ciò per cui lo usiamo (regole in _shared/saluteIntegrazioni.ts).
     const cloudflareToken = settingsMap["cloudflare_api_token"] || Deno.env.get("CLOUDFLARE_API_TOKEN");
     const cloudflareAccountId = settingsMap["cloudflare_account_id"] || Deno.env.get("CLOUDFLARE_ACCOUNT_ID");
     if (cloudflareToken) {
-      const cloudflareUrl = cloudflareAccountId
-        ? `https://api.cloudflare.com/client/v4/accounts/${cloudflareAccountId}`
-        : "https://api.cloudflare.com/client/v4/user/tokens/verify";
-      const ping = await pingWithLatency(cloudflareUrl, {
-        headers: { Authorization: `Bearer ${cloudflareToken}` },
-      });
+      const progetto = Deno.env.get("CLOUDFLARE_PROJECT_NAME") ?? "edilizia-in-cloud";
+      const verificaUtente = await chiamaCloudflare("/user/tokens/verify", cloudflareToken);
+      const valido = verificaUtente.http === 200 && verificaUtente.statoToken === "active";
+      const verificaAccount = !valido && cloudflareAccountId
+        ? await chiamaCloudflare(`/accounts/${cloudflareAccountId}/tokens/verify`, cloudflareToken)
+        : null;
+      const pages = cloudflareAccountId
+        ? await chiamaCloudflare(`/accounts/${cloudflareAccountId}/pages/projects/${progetto}/domains`, cloudflareToken)
+        : null;
+      const esito = esitoCloudflare({ verificaUtente, verificaAccount, pages, progetto });
       results.push({
         name: "cloudflare",
-        status: ping.ok ? "healthy" : ping.status === 401 || ping.status === 403 ? "degraded" : "down",
+        status: esito.status,
         last_seen: now,
-        response_ms: ping.latency_ms,
-        error: ping.ok ? null : (ping.error || `HTTP ${ping.status}`),
+        response_ms: verificaUtente.ms,
+        error: esito.error,
+        metadata: {
+          token_http: verificaUtente.http,
+          token_account_http: verificaAccount?.http ?? null,
+          pages_http: pages?.http ?? null,
+          progetto_pages: progetto,
+        },
       });
     } else {
       results.push({ name: "cloudflare", status: "unconfigured", last_seen: null, response_ms: null, error: "API token not configured" });
@@ -378,12 +418,48 @@ serveConMetriche("check-api-health", async (req) => {
       },
     } as const;
 
-    const marketingProbe = await probeEmailProvider(
+    const sondaMarketing = await probeEmailProvider(
       emailStreams.marketing.provider,
       emailStreams.marketing.apiKey,
       "marketing",
       emailStreams.marketing.domain,
     );
+    // La sonda manda un corpo vuoto: un piano scaduto non lo vede, perché il
+    // provider risponde prima «mancano i destinatari». Le prove stanno negli
+    // invii veri: quante email sono uscite dal canale di riserva, e quante da
+    // questo (regole in _shared/saluteIntegrazioni.ts).
+    let proveMarketing: ProveInvii | null = null;
+    try {
+      const daIeri = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const providerMarketing = emailStreams.marketing.provider;
+      const [ripieghi, riuscite, ultimoRiuscito, ultimoErrore] = await Promise.all([
+        admin.from("email_delivery_log").select("id", { head: true, count: "exact" })
+          .gte("sent_at", daIeri).eq("metadata->>ripiego", "stream_transazionale"),
+        admin.from("email_delivery_log").select("id", { head: true, count: "exact" })
+          .gte("sent_at", daIeri).eq("stream", "marketing").eq("provider", providerMarketing).eq("status", "sent"),
+        admin.from("email_delivery_log").select("sent_at")
+          .eq("stream", "marketing").eq("provider", providerMarketing).eq("status", "sent")
+          .order("sent_at", { ascending: false }).limit(1).maybeSingle(),
+        admin.from("email_delivery_log").select("sent_at, error_message")
+          .eq("stream", "marketing").eq("provider", providerMarketing).eq("status", "failed")
+          .order("sent_at", { ascending: false }).limit(1).maybeSingle(),
+      ]);
+      if (!ripieghi.error && !riuscite.error) {
+        proveMarketing = {
+          ripieghi24h: ripieghi.count ?? 0,
+          riuscite24h: riuscite.count ?? 0,
+          ultimoRiuscito: (ultimoRiuscito.data as { sent_at?: string } | null)?.sent_at ?? null,
+          ultimoErrore: (ultimoErrore.data as { error_message?: string } | null)?.error_message ?? null,
+          ultimoErroreIl: (ultimoErrore.data as { sent_at?: string } | null)?.sent_at ?? null,
+        };
+      }
+    } catch (errProve) {
+      console.warn("[check-api-health] prove degli invii marketing non leggibili:", (errProve as Error).message);
+    }
+    const marketingProbe: EmailProbeResult = {
+      ...sondaMarketing,
+      ...esitoEmailConProve({ status: sondaMarketing.status, error: sondaMarketing.error }, proveMarketing),
+    };
     const transactionalProbe = await probeEmailProvider(
       emailStreams.transactional.provider,
       emailStreams.transactional.apiKey,
@@ -403,6 +479,9 @@ serveConMetriche("check-api-health", async (req) => {
         stream: "marketing",
         webhook_secret_configured: webhookSecretConfigured,
         webhook_secret_source: webhookSecretSource,
+        sonda: sondaMarketing.status,
+        ripieghi_24h: proveMarketing?.ripieghi24h ?? null,
+        riuscite_24h: proveMarketing?.riuscite24h ?? null,
       },
     });
     results.push({
@@ -550,8 +629,11 @@ serveConMetriche("check-api-health", async (req) => {
     const metaAppId = settingsMap["meta_app_id"] || Deno.env.get("META_APP_ID");
     const metaAppSecret = settingsMap["meta_app_secret"] || Deno.env.get("META_APP_SECRET");
     if (metaAppId && metaAppSecret) {
+      // La stessa versione delle altre funzioni Meta: la v18.0 scritta qui è
+      // spenta da gennaio 2026 (Meta rispondeva con la più vecchia ancora viva).
+      const versioneMeta = Deno.env.get("META_API_VERSION") || "v21.0";
       const ping = await pingWithLatency(
-        `https://graph.facebook.com/v18.0/${metaAppId}?fields=id,name&access_token=${metaAppId}|${metaAppSecret}`
+        `https://graph.facebook.com/${versioneMeta}/${metaAppId}?fields=id,name&access_token=${metaAppId}|${metaAppSecret}`
       );
       results.push({
         name: "meta_whatsapp",

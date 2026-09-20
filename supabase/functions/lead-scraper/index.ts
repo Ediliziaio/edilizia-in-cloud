@@ -2805,7 +2805,9 @@ serveConMetriche("lead-scraper", async (req) => {
       // channel: "mailbox" = ruota sulle caselle Google/Outlook collegate (cold outreach,
       // protegge la reputazione del dominio transazionale); "esp" = Resend (per opt-in).
       const channel = body.channel === "mailbox" ? "mailbox" : "esp";
-      const ctaUrl = (await getPlatformSetting("outreach_cta_url", "OUTREACH_CTA_URL")) || "https://www.ediliziaincloud.it";
+      // Il sito è sul .com: il .it è un dominio parcheggiato con un certificato
+      // non suo, e chi cliccava da un'email vedeva l'avviso «connessione non sicura».
+      const ctaUrl = (await getPlatformSetting("outreach_cta_url", "OUTREACH_CTA_URL")) || "https://www.ediliziaincloud.com";
       const trackBase = `${Deno.env.get("SUPABASE_URL")}/functions/v1/lead-scraper-track`;
       const step = Math.max(1, Math.min(10, Number(body.step) || 1));
       const subjTpl = String(body.subject || "").trim();

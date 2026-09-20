@@ -22,6 +22,13 @@ import { getCorsHeaders } from "../_shared/headers.ts";
 
 // 2026-05-27: aggiunto "openid email profile" — senza questi scope il chiamata
 // a oauth2/v2/userinfo ritorna {} e google_account_email finisce a null in DB.
+// La stessa versione di google-ads-sync-campaigns. Qui era scritta a mano la
+// v17, che Google ha spento a giugno 2025: appena collegato l'account, l'elenco
+// dei clienti rispondeva 404 e il collegamento non si poteva completare. Il
+// 20/09/2026 erano vive dalla v22 alla v26; Google ne spegne una ogni pochi
+// mesi, quindi la si può cambiare dall'ambiente senza ripubblicare.
+const GOOGLE_ADS_API_VERSION = Deno.env.get("GOOGLE_ADS_API_VERSION") || "v25";
+
 const SCOPE = "https://www.googleapis.com/auth/adwords openid email profile";
 const AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
@@ -221,7 +228,7 @@ async function handleCallback(req: Request): Promise<Response> {
 async function fetchAndCacheCustomers(connectionId: string, accessToken: string, developerToken: string) {
   // List accessible customers
   const listRes = await fetch(
-    "https://googleads.googleapis.com/v17/customers:listAccessibleCustomers",
+    `https://googleads.googleapis.com/${GOOGLE_ADS_API_VERSION}/customers:listAccessibleCustomers`,
     {
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -274,7 +281,7 @@ async function fetchAndCacheCustomers(connectionId: string, accessToken: string,
   for (const customerId of customerIds) {
     try {
       const queryRes = await fetch(
-        `https://googleads.googleapis.com/v17/customers/${customerId}/googleAds:searchStream`,
+        `https://googleads.googleapis.com/${GOOGLE_ADS_API_VERSION}/customers/${customerId}/googleAds:searchStream`,
         {
           method: "POST",
           headers: {

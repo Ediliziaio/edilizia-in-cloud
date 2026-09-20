@@ -40,7 +40,10 @@ export function mappaStatoOpenWa(raw: string): StatoOpenWa | null {
   if (s.includes("ban")) return "banned";
   if (/disconnect|unpaired|logout|logged_out|close|timeout|conflict|unlaunched|destroyed|failed/.test(s)) return "disconnected";
   if (/^(connected|ready|authenticated|open|inchat|online|working)$/.test(s)) return "connected";
-  if (/^(connecting|opening|pairing|starting|initializing|reconnecting|syncing|qr|scan_qr|waiting_qr|unpaired_idle)$/.test(s)) return "connecting";
+  // «qr_ready» è come il gateway dice «aspetto che qualcuno inquadri il QR»:
+  // mancava, e dal 19/09 il numero …2744 fermo sul QR ha scritto un avviso di
+  // «stato non riconosciuto» a ogni evento (quasi 500 al giorno nei log).
+  if (/^(connecting|opening|pairing|starting|initializing|reconnecting|syncing|qr|qr_ready|qr_code|qrcode|scan_qr|scan_qr_code|waiting_qr|unpaired_idle)$/.test(s)) return "connecting";
   return null;
 }
 

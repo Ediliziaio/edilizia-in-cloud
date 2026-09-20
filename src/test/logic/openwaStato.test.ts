@@ -44,6 +44,13 @@ describe("mappaStatoOpenWa", () => {
     }
   });
 
+  it("«qr_ready» è un numero che aspetta il QR, non uno stato sconosciuto (20/09)", () => {
+    // Il gateway lo manda così, anche maiuscolo e dentro data.
+    expect(mappaStatoOpenWa("qr_ready")).toBe("connecting");
+    expect(mappaStatoOpenWa("QR_READY")).toBe("connecting");
+    expect(mappaStatoOpenWa(statoGrezzoDaPayload({ event: "session.status", data: { status: "qr_ready" } }))).toBe("connecting");
+  });
+
   it("stato sconosciuto o vuoto → null: il numero NON si tocca", () => {
     expect(mappaStatoOpenWa("")).toBe(null);
     expect(mappaStatoOpenWa("sent")).toBe(null);

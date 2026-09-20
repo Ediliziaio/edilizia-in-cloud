@@ -934,3 +934,143 @@ verify_jwt = false
 # respingerebbe prima che il segreto venga guardato.
 [functions.appuntamenti-notifiche]
 verify_jwt = false
+
+# ── Censimento del 20/09/2026: ciò che in produzione è aperto, scritto qui ────
+# La CI pubblica una funzione leggendo verify_jwt da questo file; se la voce
+# manca vale il default «true». Una funzione aperta a mano in produzione e
+# senza voce qui funziona finché nessuno la tocca: alla prima ripubblicazione
+# (basta una libreria condivisa che cambia) il gateway la chiude, e chi la
+# chiama senza JWT — il cron col segreto, Google, Meta, una pagina pubblica —
+# prende 401 in silenzio. È già successo con nove job il 19/09.
+# Le voci qui sotto NON cambiano niente in produzione: scrivono lo stato di
+# oggi, così una pubblicazione non lo cambia per sbaglio. Ognuna controlla chi
+# chiama da sé (segreto del cron, firma, token, utente).
+
+# Questa invece era CHIUSA, ed era il guasto: il cron delle 06:15 la chiama con
+# il segreto interno (silvio_invoke_edge non manda JWT) e il gateway rispondeva
+# 401 ogni giorno. Il controllo lo fa lei: requireCronOrSuperAdmin.
+[functions.silvio-chief-of-staff]
+verify_jwt = false
+
+# Chiamate dal cron con il solo segreto.
+[functions.ai-proactive-proposals-daily]
+verify_jwt = false
+
+[functions.appuntamenti-promemoria]
+verify_jwt = false
+
+[functions.auto-genera-giornale-cantiere]
+verify_jwt = false
+
+[functions.cleanup-capture-orphans]
+verify_jwt = false
+
+[functions.cleanup-sessions]
+verify_jwt = false
+
+[functions.compute-health-scores]
+verify_jwt = false
+
+[functions.credit-low-balance-alert]
+verify_jwt = false
+
+[functions.entity-embed-batch]
+verify_jwt = false
+
+[functions.execute-playbooks]
+verify_jwt = false
+
+[functions.kb-sync-external-sources]
+verify_jwt = false
+
+[functions.lifecycle-email-tick]
+verify_jwt = false
+
+[functions.rls-health-check]
+verify_jwt = false
+
+[functions.silvio-self-improvement]
+verify_jwt = false
+
+[functions.sms-rinnovo-numeri]
+verify_jwt = false
+
+[functions.sync-openrouter-catalog]
+verify_jwt = false
+
+[functions.task-automation-trigger]
+verify_jwt = false
+
+[functions.topup-outbox-recovery]
+verify_jwt = false
+
+# Chiamate da fuori, senza JWT per natura: Google (notifiche del calendario),
+# Meta (cancellazione dati, firmata), il gancio delle email di Supabase Auth
+# (firmato), il ritorno dell'OAuth delle caselle, le pagine pubbliche di
+# prenotazione e di firma, le chiavi API della piattaforma.
+[functions.google-calendar-webhook]
+verify_jwt = false
+
+[functions.meta-data-deletion-callback]
+verify_jwt = false
+
+[functions.auth-email-hook]
+verify_jwt = false
+
+[functions.email-oauth-start]
+verify_jwt = false
+
+[functions.email-oauth-callback]
+verify_jwt = false
+
+[functions.email-oauth-diagnostic]
+verify_jwt = false
+
+[functions.email-platform-setup]
+verify_jwt = false
+
+[functions.public-booking-crea]
+verify_jwt = false
+
+[functions.public-booking-gestisci]
+verify_jwt = false
+
+[functions.fea-documento-pubblico]
+verify_jwt = false
+
+[functions.sr-firma-cliente]
+verify_jwt = false
+
+[functions.platform-mcp]
+verify_jwt = false
+
+# Chiamate dall'app o da altre funzioni: controllano l'utente (o il segreto) da sé.
+[functions.admin-manage-login]
+verify_jwt = false
+
+[functions.converti-preventivo-cantiere]
+verify_jwt = false
+
+[functions.email-send]
+verify_jwt = false
+
+[functions.export-contabile]
+verify_jwt = false
+
+[functions.openwa-classifica-risposte]
+verify_jwt = false
+
+[functions.outreach-enroll]
+verify_jwt = false
+
+[functions.outreach-send-single]
+verify_jwt = false
+
+[functions.outreach-verify-dns]
+verify_jwt = false
+
+[functions.send-documento-email]
+verify_jwt = false
+
+[functions.send-error-ticket]
+verify_jwt = false

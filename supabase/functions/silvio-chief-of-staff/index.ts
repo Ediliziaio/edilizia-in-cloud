@@ -3,6 +3,12 @@
  *
  * P2 layer for Silvio Superadmin: reads real platform metrics, evaluates
  * permanent monitors, proposes growth experiments and writes a strategic brief.
+ *
+ * Chi la chiama: il cron delle 06:15 (silvio_invoke_edge, che manda solo
+ * x-internal-cron-secret) e il super admin dall'app. Il controllo è qui
+ * dentro (requireCronOrSuperAdmin), quindi in supabase/config.toml ha
+ * verify_jwt = false: fino al 20/09/2026 la voce mancava, il gateway voleva
+ * un JWT e il giro del mattino prendeva 401 ogni giorno.
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
