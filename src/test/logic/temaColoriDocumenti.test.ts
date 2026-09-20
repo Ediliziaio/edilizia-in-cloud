@@ -6,6 +6,7 @@ import {
   normalizzaHex, testoSopra, testoSuChiaro, testoSuScuro,
 } from "../../../supabase/functions/_shared/temaColori";
 import { cssDelMarchio } from "../../../supabase/functions/_shared/srHtmlTemplate";
+import { renderFvPdfHtml } from "../../../supabase/functions/_shared/fvHtmlTemplate";
 import { condizioniStandard } from "../../../supabase/functions/_shared/condizioniStandard";
 import { tipografiaDaModello } from "@/components/preventivi/pdf/temaDocumento";
 import { applicaTemaFv } from "../../../supabase/functions/_shared/fvHtmlTemplate";
@@ -212,7 +213,7 @@ describe("tipografia del documento: una scelta che cambia davvero il PDF", () =>
     const usati = src.match(/"(Helvetica|Times)[A-Za-z-]*"/g) ?? [];
     for (const u of usati) expect(dentro).toContain(u.replaceAll('"', ""));
     // I caratteri del web si nominano solo nel commento che spiega perché non ci sono.
-    const codice = src.split("\n").filter((r) => !r.trimStart().startsWith("*")).join("\n");
+    const codice = src.split("\n").filter((r: string) => !r.trimStart().startsWith("*")).join("\n");
     expect(codice).not.toMatch(/"Inter"|"Roboto"|\.woff/);
   });
 
@@ -248,5 +249,19 @@ describe("condizioni di base: nessun preventivo esce senza contratto", () => {
     expect(leggi("supabase/functions/generate-quote-pdf/index.ts")).toMatch(/condizioniStandard\("generico"\)/);
     expect(leggi("supabase/functions/sr-genera-pdf/index.ts")).toMatch(/condizioniStandard\("serramenti"\)/);
     expect(leggi("src/components/serramenti/SerramentoPDF.tsx")).toMatch(/condizioniStandard\("serramenti"\)/);
+  });
+});
+
+describe("Fotovoltaico: le condizioni hanno una pagina, e non escono tagliate", () => {
+  it("quindici articoli non stanno in una pagina sola: si impaginano su più fogli", () => {
+    const src = leggi("supabase/functions/_shared/fvHtmlTemplate.ts");
+    expect(src).toContain("function impaginaCondizioni(");
+    expect(src).toContain("quantePagineCondizioni(d)");
+    // Il conto delle pagine deve seguire quelle vere, altrimenti il «3 / 15» mente.
+    expect(src).toMatch(/const nuove = pagineCondizioni\(d, pageN \+ 1, TOTAL\);/);
+  });
+
+  it("il testo di base del fotovoltaico arriva dalla funzione, non è riscritto", () => {
+    expect(leggi("supabase/functions/fv-genera-pdf/index.ts")).toMatch(/condizioniStandard\("fotovoltaico"\)/);
   });
 });

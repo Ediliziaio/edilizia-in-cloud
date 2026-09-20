@@ -41,6 +41,7 @@ import {
 } from "../_shared/fvHtmlTemplate.ts";
 import { calcolaEnergyFlows } from "../_shared/fvCalcoli.ts";
 import { coloreDelDocumento } from "../_shared/temaColori.ts";
+import { condizioniStandard } from "../_shared/condizioniStandard.ts";
 import { CAMPI_IMMAGINE_FOTOVOLTAICO, firmaImmaginiModello, firmatarioStorage } from "../_shared/immaginiModelloPdf.ts";
 import {
   assertFvPdfQueryOk,
@@ -734,10 +735,14 @@ Deno.serve(async (req: Request) => {
         faq_items: Array.isArray(template.faq_items) ? template.faq_items : [],
         usp: Array.isArray(template.usp) ? template.usp : [],
         cronoprogramma: Array.isArray(template.cronoprogramma) ? template.cronoprogramma : [],
-        condizioni_legali_attivo: template.condizioni_legali_attivo ?? false,
+        // Acceso di suo: il preventivo si firma, e senza condizioni quel contratto
+        // non dice niente su tempi, varianti, garanzie e recesso.
+        condizioni_legali_attivo: template.condizioni_legali_attivo !== false,
         // Merge tag dei blocchi importati dalla libreria Template offerte → dati del progetto
-        condizioni_legali_testo: template.condizioni_legali_testo
-          ? substituteMergeTags(String(template.condizioni_legali_testo), buildMergeContext({
+        condizioni_legali_testo: substituteMergeTags(
+          // Senza condizioni scritte dall'azienda valgono quelle di base del settore.
+          String(template.condizioni_legali_testo ?? "").trim() || condizioniStandard("fotovoltaico"),
+          buildMergeContext({
               quote: {
                 quote_number: (prog as { numero?: string | number | null }).numero != null ? String((prog as { numero?: string | number | null }).numero) : "",
                 client_name: [prog.cliente_nome, prog.cliente_cognome].filter(Boolean).join(" ").trim() || undefined,
@@ -756,8 +761,8 @@ Deno.serve(async (req: Request) => {
               },
               cantiere: { indirizzo: prog.indirizzo ?? "" },
               template: { payment_terms_text: (template as { condizioni_pagamento_testo?: string | null }).condizioni_pagamento_testo ?? "" },
-            }))
-          : null,
+          }),
+        ),
         urgenza_attiva: template.urgenza_attiva ?? false,
         urgenza_titolo: template.urgenza_titolo ?? null,
         urgenza_descrizione: template.urgenza_descrizione ?? null,

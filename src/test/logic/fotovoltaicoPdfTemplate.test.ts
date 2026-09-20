@@ -259,7 +259,12 @@ describe("fotovoltaico PDF template", () => {
     expect(html).toContain("Sopralluogo tecnico prima dell&#039;ordine");
     expect(html).toContain("L&#039;accumulo e&#039; sempre obbligatorio?");
     expect(html).toContain("Prezzi componenti bloccati");
-    expect(html).toContain("Condizioni commerciali");
+    // Dal 20/09/2026 le condizioni non stanno più in un riquadrino sotto la firma:
+    // hanno una pagina loro, dopo la decisione, con quello che si firma.
+    expect(html).toContain("Quello che<br/>firmiamo insieme.");
+    expect(html).toContain("Offerta soggetta a sopralluogo");
+    expect(html).toContain("sono nella pagina che segue");
+    expect(html).not.toContain("Condizioni commerciali");
   });
 
   it("renders operational rental legal notes when the PDF uses noleggio FV", () => {

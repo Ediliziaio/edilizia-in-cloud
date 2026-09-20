@@ -454,6 +454,16 @@ table .saving-zero { color: #64748B; }
 .sig-box .sig-label { font-size: 7.5pt; text-transform: uppercase; letter-spacing: 0.1em; color: #64748B; font-weight: 700; margin-bottom: 1mm; }
 .sig-box .sig-line { height: 14mm; border-bottom: 1px solid #94A3B8; margin-bottom: 2mm; }
 .sig-box .sig-name { font-size: 9.5pt; color: #1E3A5F; font-weight: 700; }
+.cond-testo { column-count: 2; column-gap: 7mm; font-size: 8.2pt; color: #475569; line-height: 1.5; margin-top: 3mm; }
+.cond-testo .cond-art { font-size: 8.6pt; color: #1E3A5F; font-weight: 700; margin: 2.5mm 0 1mm; break-after: avoid; }
+.cond-testo p { margin-bottom: 1.5mm; }
+.cond-testo ul { margin: 0 0 1.5mm 4mm; }
+.cond-firma { border: 1px solid #1E3A5F; border-radius: 8px; padding: 4mm; margin-top: 4mm; }
+.cond-firma-titolo { font-size: 7.5pt; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; color: #1E3A5F; margin-bottom: 1.5mm; }
+.cond-clausole { margin: 0 0 3mm 4mm; font-size: 8pt; color: #334155; }
+.cond-righe { display: grid; grid-template-columns: 1fr 1.4fr; gap: 6mm; margin-top: 8mm; }
+.cond-righe .cond-riga { border-bottom: 1px solid #94A3B8; height: 8mm; }
+.cond-righe span { font-size: 7pt; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.06em; }
 .legal-box { margin-top: 3mm; padding: 3mm 4mm; background: #F8FAFC; border: 1px solid #CBD5E1; border-radius: 8px; font-size: 7.8pt; color: #475569; }
 
 .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; }
@@ -1767,7 +1777,7 @@ function pageDecisione(d: FvPdfTemplateData, pageN: number, total: number): stri
         <div class="sig-name">${escHtml(cliente)}</div>
         <div style="font-size:8pt;color:#64748B;margin-top:1mm;">${escHtml(indirizzoCompleto)}${d.cliente.cf ? ` · CF: ${escHtml(d.cliente.cf)}` : ""}</div>
       </div>
-      ${d.template?.condizioni_legali_attivo && condizioni ? `<div class="legal-box"><strong>Condizioni commerciali:</strong><div class="rich-text">${condizioni}</div></div>` : ""}
+      ${haPaginaCondizioni(d) ? `<p style="font-size:7.5pt;color:#94A3B8;margin-top:2mm;text-align:center;">Le condizioni generali di contratto, con le clausole da approvare, sono nella pagina che segue.</p>` : (condizioni ? `<div class="legal-box"><strong>Condizioni commerciali:</strong><div class="rich-text">${condizioni}</div></div>` : "")}
     </div>
     <div class="page-footer"><span>${escHtml(docMeta)}</span><span class="pnum">${pageN} / ${total}</span></div>
   </div>`;
@@ -1783,6 +1793,122 @@ function hasRealMapImages(d: FvPdfTemplateData): boolean {
 /** Le pagine che escono davvero. Conteggio e disegno usano la stessa regola:
  *  prima il kit si disegnava con nome o voci ma si contava solo con la
  *  copertina, e il piè di pagina arrivava a «9 / 8». */
+/**
+ * Il testo delle condizioni, spezzato per articoli: markdown povero dell'editor
+ * o HTML già ricco. I blocchi servono a impaginare — quindici articoli non
+ * stanno in una pagina sola, e quello che sborda in un `.page` a misura fissa
+ * non va a capo: sparisce sotto il piè di pagina.
+ */
+function condizioniInBlocchi(testo: string): { blocchi: string[]; clausole: string[] } {
+  const grezzo = testo.trim();
+  if (!grezzo) return { blocchi: [], clausole: [] };
+  if (/<(p|h[1-6]|ul|ol|li)\b/i.test(grezzo)) return { blocchi: [safeRichText(grezzo)], clausole: [] };
+  const clausole: string[] = [];
+  const blocchi: string[] = [];
+  let corrente: string[] = [];
+  let inElenco = false;
+  let dentroLeClausole = false;
+  const chiudiElenco = () => { if (inElenco) { corrente.push("</ul>"); inElenco = false; } };
+  const chiudiBlocco = () => { chiudiElenco(); if (corrente.length) blocchi.push(corrente.join("")); corrente = []; };
+  for (const riga of grezzo.replace(/\r\n/g, "\n").split("\n")) {
+    const r = riga.trim();
+    if (!r) continue;
+    const titolo = /^(#{1,3})\s+(.+)$/.exec(r);
+    const voce = /^[-*]\s+(.+)$/.exec(r);
+    if (inElenco && !voce) chiudiElenco();
+    if (titolo) {
+      chiudiBlocco();
+      dentroLeClausole = /1341|approvare specificamente/i.test(titolo[2]);
+      // Il titolo generale non si ripete: la pagina ha già il suo. L'elenco delle
+      // clausole sta nel riquadro della seconda firma.
+      if (dentroLeClausole || (titolo[1].length === 1 && /condizioni generali/i.test(titolo[2]))) continue;
+      corrente.push(`<h3 class="cond-art">${escHtml(titolo[2])}</h3>`);
+      continue;
+    }
+    if (dentroLeClausole) { if (voce) clausole.push(voce[1]); continue; }
+    if (voce) {
+      if (!inElenco) { corrente.push("<ul>"); inElenco = true; }
+      corrente.push(`<li>${escHtml(voce[1])}</li>`);
+      continue;
+    }
+    corrente.push(`<p>${escHtml(r)}</p>`);
+  }
+  chiudiBlocco();
+  return { blocchi, clausole };
+}
+
+/** Quanti articoli stanno in una pagina: misura a occhio sui caratteri, due colonne. */
+function impaginaCondizioni(blocchi: string[], spazioPerLaFirma: boolean): string[][] {
+  const PIENA = 3600;
+  const pagine: string[][] = [];
+  let corrente: string[] = [];
+  let quanti = 0;
+  for (const b of blocchi) {
+    const peso = b.replace(/<[^>]+>/g, "").length + 120; // i titoli costano più dei caratteri
+    if (corrente.length > 0 && quanti + peso > PIENA) { pagine.push(corrente); corrente = []; quanti = 0; }
+    corrente.push(b);
+    quanti += peso;
+  }
+  if (corrente.length) pagine.push(corrente);
+  // Il riquadro della seconda firma occupa un terzo di pagina: se l'ultima è
+  // già piena, la firma va su una pagina sua invece di finire tagliata.
+  if (spazioPerLaFirma && pagine.length > 0) {
+    const ultima = pagine[pagine.length - 1];
+    const peso = ultima.reduce((n, b) => n + b.replace(/<[^>]+>/g, "").length + 120, 0);
+    if (peso > PIENA * 0.62) pagine.push([]);
+  }
+  return pagine;
+}
+
+/**
+ * Condizioni generali e firma: le pagine che rendono il preventivo un contratto.
+ * Prima le condizioni stavano in un riquadrino in fondo all'ultima pagina, sotto
+ * il blocco della firma — illeggibili, e senza niente da approvare a parte.
+ */
+function pagineCondizioni(d: FvPdfTemplateData, primoNumero: number, total: number): string[] {
+  const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
+  const testo = String(d.template?.condizioni_legali_testo ?? "");
+  const { blocchi, clausole } = condizioniInBlocchi(testo);
+  const gruppi = impaginaCondizioni(blocchi, clausole.length > 0);
+  const docMeta = `${d.azienda.name}${d.azienda.vat_number ? ` · P.IVA ${d.azienda.vat_number}` : ""} · Doc ${d.progetto.numero} · ${fmtData(d.progetto.creato_il)}`;
+  const conRecesso = /recesso/i.test(testo);
+  return gruppi.map((gruppo, i) => {
+    const ultima = i === gruppi.length - 1;
+    const pageN = primoNumero + i;
+    return `<div class="page">
+    ${header(d.progetto.numero, cliente, d.azienda.name)}
+    <div class="content">
+      ${i === 0 ? `<div class="eyebrow">Condizioni generali di contratto</div>
+      <h1 class="page-title">Quello che<br/>firmiamo insieme.</h1>` : `<div class="eyebrow">Condizioni generali di contratto · segue</div>`}
+      <div class="cond-testo">${gruppo.join("")}</div>
+      ${ultima && clausole.length > 0 ? `
+      <div class="cond-firma">
+        <div class="cond-firma-titolo">Approvazione specifica (artt. 1341 e 1342 c.c.)</div>
+        <p style="font-size:8pt;color:#64748B;margin-bottom:1.5mm;">Il Committente, dopo averle rilette, approva specificamente le clausole seguenti:</p>
+        <ul class="cond-clausole">${clausole.map((c) => `<li>${escHtml(c)}</li>`).join("")}</ul>
+        <div class="cond-righe">
+          <div><div class="cond-riga"></div><span>Luogo e data</span></div>
+          <div><div class="cond-riga"></div><span>Seconda firma del Committente</span></div>
+        </div>
+      </div>` : ""}
+      ${ultima && conRecesso ? `
+      <p style="font-size:7.5pt;color:#94A3B8;margin-top:3mm;">
+        Per recedere, quando ne ricorrono i presupposti, è sufficiente una dichiarazione esplicita inviata a
+        ${escHtml(d.azienda.email ?? d.azienda.name)}: non serve motivarla.
+      </p>` : ""}
+    </div>
+    <div class="page-footer"><span>${escHtml(docMeta)}</span><span class="pnum">${pageN} / ${total}</span></div>
+  </div>`;
+  });
+}
+
+/** Quante pagine prendono le condizioni. */
+function quantePagineCondizioni(d: FvPdfTemplateData): number {
+  if (!haPaginaCondizioni(d)) return 0;
+  const { blocchi, clausole } = condizioniInBlocchi(String(d.template?.condizioni_legali_testo ?? ""));
+  return impaginaCondizioni(blocchi, clausole.length > 0).length;
+}
+
 function pagineDaDisegnare(d: FvPdfTemplateData): FvPdfPageOrderItem[] {
   const hasMap = hasRealMapImages(d);
   return normalizeFvPdfPagesOrder(d.template?.pdf_pages_order).filter((page) => {
@@ -1803,9 +1929,15 @@ function haPaginaKit(d: FvPdfTemplateData): boolean {
   return !!(d.bundle && (d.bundle.nome || (d.bundle.voci ?? []).length > 0));
 }
 
+/** Le condizioni generali si stampano quando ci sono e l'azienda non le ha spente. */
+function haPaginaCondizioni(d: FvPdfTemplateData): boolean {
+  return d.template?.condizioni_legali_attivo !== false
+    && Boolean(String(d.template?.condizioni_legali_testo ?? "").trim());
+}
+
 export function getFvPdfRenderedPagesCount(d: FvPdfTemplateData): number {
   const macroPages = dedicatedMacroPages(d);
-  return 1 + (haPaginaKit(d) ? 1 : 0) + pagineDaDisegnare(d).reduce((count, page) => (
+  return 1 + (haPaginaKit(d) ? 1 : 0) + quantePagineCondizioni(d) + pagineDaDisegnare(d).reduce((count, page) => (
     count + (page.id === "macro_categorie" ? macroPages.length : 1)
   ), 0);
 }
@@ -1905,6 +2037,13 @@ export function renderFvPdfHtml(d: FvPdfTemplateData): string {
         break;
       case "decisione":
         pages.push(pageDecisione(d, ++pageN, TOTAL));
+        // Le condizioni si firmano dopo averle lette: vanno subito dopo la pagina
+        // della decisione, non in un riquadro dentro quella pagina.
+        if (haPaginaCondizioni(d)) {
+          const nuove = pagineCondizioni(d, pageN + 1, TOTAL);
+          pageN += nuove.length;
+          pages.push(...nuove);
+        }
         break;
     }
   }
