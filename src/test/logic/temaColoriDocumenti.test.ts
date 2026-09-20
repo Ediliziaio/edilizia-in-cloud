@@ -6,6 +6,8 @@ import {
   normalizzaHex, testoSopra, testoSuChiaro, testoSuScuro,
 } from "../../../supabase/functions/_shared/temaColori";
 import { cssDelMarchio } from "../../../supabase/functions/_shared/srHtmlTemplate";
+import { condizioniStandard } from "../../../supabase/functions/_shared/condizioniStandard";
+import { tipografiaDaModello } from "@/components/preventivi/pdf/temaDocumento";
 import { applicaTemaFv } from "../../../supabase/functions/_shared/fvHtmlTemplate";
 import { fmtEur, fmtNum } from "../../../supabase/functions/_shared/fvCalcoli";
 
@@ -189,5 +191,62 @@ describe("Serramenti: la copertina del PDF segue il marchio", () => {
 
   it("nessun bordo abbreviato con rgba(): react-pdf lo disegnava verde", () => {
     expect(src).not.toMatch(/solid rgba\(/);
+  });
+});
+
+describe("tipografia del documento: una scelta che cambia davvero il PDF", () => {
+  it("i valori vecchi e i caratteri del web ricadono sul lineare", () => {
+    // Inter e Roboto non si possono incorporare qui: il motore, per farlo, li
+    // deve riscrivere, e sui woff2 del sito si rompe.
+    expect(tipografiaDaModello("helvetica")).toBe("lineare");
+    expect(tipografiaDaModello("inter")).toBe("lineare");
+    expect(tipografiaDaModello("roboto")).toBe("lineare");
+    expect(tipografiaDaModello(null)).toBe("lineare");
+    expect(tipografiaDaModello("editoriale")).toBe("editoriale");
+    expect(tipografiaDaModello("times")).toBe("classica");
+  });
+
+  it("ogni tipografia usa solo caratteri che il PDF ha già dentro", () => {
+    const dentro = ["Helvetica", "Helvetica-Bold", "Times-Roman", "Times-Bold", "Times-Italic"];
+    const src = leggi("src/components/preventivi/pdf/temaDocumento.ts");
+    const usati = src.match(/"(Helvetica|Times)[A-Za-z-]*"/g) ?? [];
+    for (const u of usati) expect(dentro).toContain(u.replaceAll('"', ""));
+    // I caratteri del web si nominano solo nel commento che spiega perché non ci sono.
+    const codice = src.split("\n").filter((r) => !r.trimStart().startsWith("*")).join("\n");
+    expect(codice).not.toMatch(/"Inter"|"Roboto"|\.woff/);
+  });
+
+  it("il documento non ha più caratteri scritti a mano: segue la scelta", () => {
+    const src = leggi("src/components/preventivi/pdf/DocumentoEdilePDF.tsx");
+    expect(src).not.toMatch(/const SANS = "Helvetica"/);
+    expect(src).toContain("tema.caratteri.titolo");
+    expect(src).toContain("tipografia: modello.tipografia");
+  });
+});
+
+describe("condizioni di base: nessun preventivo esce senza contratto", () => {
+  it("ogni settore ha il suo articolo, e tutti hanno le clausole da firmare", () => {
+    const attese: Array<[Parameters<typeof condizioniStandard>[0], RegExp]> = [
+      ["tetti", /amianto/i], ["serramenti", /misure definitive/i], ["fotovoltaico", /connessione/i],
+      ["piscine", /scavo/i], ["elettrico", /D\.M\. 37\/2008/], ["generico", /stato dei luoghi/i],
+    ];
+    for (const [settore, atteso] of attese) {
+      const testo = condizioniStandard(settore);
+      expect(testo).toMatch(atteso);
+      expect(testo).toContain("Clausole da approvare specificamente");
+      expect(testo).toMatch(/Art\. 15 — Legge applicabile e foro competente/);
+    }
+  });
+
+  it("il testo di base non promette detrazioni né risultati", () => {
+    const testo = condizioniStandard("fotovoltaico");
+    expect(testo).toMatch(/non ne garantisce il riconoscimento/);
+    expect(testo).toMatch(/non un risultato garantito/);
+  });
+
+  it("i motori dei documenti ricadono sul testo di base quando manca quello dell'azienda", () => {
+    expect(leggi("supabase/functions/generate-quote-pdf/index.ts")).toMatch(/condizioniStandard\("generico"\)/);
+    expect(leggi("supabase/functions/sr-genera-pdf/index.ts")).toMatch(/condizioniStandard\("serramenti"\)/);
+    expect(leggi("src/components/serramenti/SerramentoPDF.tsx")).toMatch(/condizioniStandard\("serramenti"\)/);
   });
 });

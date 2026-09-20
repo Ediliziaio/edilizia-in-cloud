@@ -5,7 +5,8 @@ import { PDFDocument, rgb, StandardFonts, degrees } from "https://esm.sh/pdf-lib
 import qrcode from "https://esm.sh/qrcode-generator@1.4.4?target=deno";
 // Libreria template componibile: carica i blocchi linkati + sostituisce merge tag
 import { fondoPerTestoBianco, scurisci, schiarisci, testoSuScuro, normalizzaHex } from "../_shared/temaColori.ts";
-import { loadTemplateWithBlocks, attachLinkedBlocks, applyMergeTagsToTemplate, buildMergeContext, type ComposedTemplate } from "../_shared/quoteTemplateComposer.ts";
+import { loadTemplateWithBlocks, attachLinkedBlocks, applyMergeTagsToTemplate, buildMergeContext, substituteMergeTags, type ComposedTemplate } from "../_shared/quoteTemplateComposer.ts";
+import { condizioniStandard } from "../_shared/condizioniStandard.ts";
 
 // ─── Helpers ───
 function hexToRgb(hex: string) {
@@ -30,6 +31,36 @@ async function getFont(pdfDoc: any, family: string, style: "normal" | "bold" | "
   };
   const familyMap = map[family] || map.helvetica;
   return pdfDoc.embedFont(familyMap[style] || familyMap.normal);
+}
+
+/**
+ * Le clausole che il cliente approva con una seconda firma: le voci elencate
+ * sotto il titolo dell'art. 1341 c.c. Si leggono dal testo delle condizioni,
+ * così valgono anche per quelle scritte dall'azienda; se quel titolo non c'è,
+ * la seconda firma non si stampa.
+ */
+function clausoleDaApprovare(testo: string): string[] {
+  const righe = testo.split("\n").map((r) => r.trim());
+  const inizio = righe.findIndex((r) => /^#{1,4}\s/.test(r) && /1341|approvare specificamente/i.test(r));
+  if (inizio < 0) return [];
+  const voci: string[] = [];
+  for (const r of righe.slice(inizio + 1)) {
+    if (/^#{1,4}\s/.test(r)) break;
+    if (/^[-*]\s+/.test(r)) voci.push(r.replace(/^[-*]\s+/, ""));
+  }
+  return voci;
+}
+
+/** Il testo senza la sezione delle clausole da approvare: quella sta nel riquadro. */
+function senzaSezioneClausole(testo: string): string {
+  const righe = testo.split("\n");
+  const inizio = righe.findIndex((r) => /^#{1,4}\s/.test(r.trim()) && /1341|approvare specificamente/i.test(r));
+  if (inizio < 0) return testo;
+  let fine = righe.length;
+  for (let i = inizio + 1; i < righe.length; i++) {
+    if (/^#{1,4}\s/.test(righe[i].trim())) { fine = i; break; }
+  }
+  return [...righe.slice(0, inizio), ...righe.slice(fine)].join("\n").trim();
 }
 
 function normalizeTemplateText(value: unknown): string {
@@ -110,6 +141,7 @@ const DEFAULT_T = {
   show_payment_terms: true,
   show_delivery_terms: true,
   show_notes: true,
+  show_contractual_terms: true,
   show_page_numbers: true,
   show_watermark: false,
   watermark_text: "",
@@ -1658,12 +1690,45 @@ Deno.serve(async (req) => {
     // Condizioni contrattuali e termini legali: UNA sezione (prima erano due
     // pagine separate). Il vecchio campo legal_terms_text, se ancora presente,
     // viene stampato di seguito nella stessa sezione.
-    const condizioniETermini = [
+    const scritteDallAzienda = [
       t.show_contractual_terms && opzione("pdf_mostra_condizioni") ? normalizeTemplateText(t.contractual_terms_text) : "",
       t.show_legal_terms && opzione("pdf_mostra_condizioni") ? normalizeTemplateText(t.legal_terms_text) : "",
     ].filter(Boolean).join("\n\n");
+    // Nessuna delle venti aziende aveva scritto una riga di condizioni: il
+    // preventivo si firmava senza niente su tempi, varianti, garanzie e recesso.
+    // Ora, se le condizioni sono attive e il testo manca, valgono quelle di base.
+    const condizioniETermini = scritteDallAzienda
+      // `undefined` vale come acceso: è il default della colonna e dell'editor.
+      || (t.show_contractual_terms !== false && opzione("pdf_mostra_condizioni")
+        ? substituteMergeTags(condizioniStandard("generico"), buildMergeContext({ quote, company, template: t }))
+        : "");
     if (condizioniETermini) {
-      await drawRichTextBlock("CONDIZIONI CONTRATTUALI E TERMINI LEGALI", condizioniETermini, { fontFamily: t.composed_terms?.font_family ?? null });
+      // Le clausole che vogliono una firma a parte (art. 1341 c.c.): si leggono
+      // dal testo, quindi valgono anche per le condizioni scritte dall'azienda.
+      const daApprovare = clausoleDaApprovare(condizioniETermini);
+      // L'elenco sta nel riquadro della seconda firma: nel testo sarebbe ripetuto.
+      const testoCondizioni = daApprovare.length > 0 ? senzaSezioneClausole(condizioniETermini) : condizioniETermini;
+      await drawRichTextBlock("CONDIZIONI CONTRATTUALI E TERMINI LEGALI", testoCondizioni, { fontFamily: t.composed_terms?.font_family ?? null });
+      if (daApprovare.length > 0) {
+        ensureSpace(120, "CONDIZIONI CONTRATTUALI E TERMINI LEGALI");
+        y -= 6;
+        const boxX = contentLeftX();
+        const boxW = contentMaxWidth();
+        const altezza = 44 + daApprovare.length * 12 + 44;
+        page.drawRectangle({ x: boxX, y: y - altezza, width: boxW, height: altezza, borderColor: textC, borderWidth: 0.8 });
+        page.drawText("APPROVAZIONE SPECIFICA (ARTT. 1341 E 1342 C.C.)", { x: boxX + 12, y: y - 18, size: 8, font: fontBold, color: textC });
+        page.drawText("Il Committente, dopo averle rilette, approva specificamente le clausole seguenti:", { x: boxX + 12, y: y - 32, size: 8, font, color: grayC });
+        let ry = y - 46;
+        for (const c of daApprovare) {
+          page.drawText(`- ${c}`.slice(0, 110), { x: boxX + 12, y: ry, size: 8, font, color: textC });
+          ry -= 12;
+        }
+        page.drawLine({ start: { x: boxX + 12, y: ry - 22 }, end: { x: boxX + 150, y: ry - 22 }, thickness: 0.6, color: grayC });
+        page.drawText("LUOGO E DATA", { x: boxX + 12, y: ry - 32, size: 7, font, color: grayC });
+        page.drawLine({ start: { x: boxX + 180, y: ry - 22 }, end: { x: boxX + boxW - 12, y: ry - 22 }, thickness: 0.6, color: grayC });
+        page.drawText("SECONDA FIRMA DEL COMMITTENTE", { x: boxX + 180, y: ry - 32, size: 7, font, color: grayC });
+        y -= altezza + 12;
+      }
     }
 
     // ─── Notes page ───

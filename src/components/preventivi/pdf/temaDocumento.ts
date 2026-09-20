@@ -10,7 +10,45 @@ import {
   fondoPerTestoBianco, normalizzaHex, schiarisci, scurisci, testoSopra, testoSuChiaro, testoSuScuro,
 } from "../../../../supabase/functions/_shared/temaColori";
 
+/**
+ * Le tipografie fra cui l'azienda può scegliere. Sono le famiglie che il PDF ha
+ * già dentro: nessun file da scaricare, nessun carattere che può mancare. I
+ * caratteri del web (Inter, Roboto) non si possono usare qui — il motore, per
+ * incorporarli, li deve riscrivere, e sui woff2 del sito si rompe.
+ */
+export type TipografiaDocumento = "lineare" | "editoriale" | "classica";
+
+export interface CaratteriDocumento {
+  /** Il corpo del testo. */
+  testo: string;
+  /** Occhielli, etichette, numeri: il grassetto piccolo. */
+  forte: string;
+  /** I titoli grandi. */
+  titolo: string;
+  /** La parola in corsivo dentro i titoli. */
+  accento: string;
+}
+
+const CARATTERI: Record<TipografiaDocumento, CaratteriDocumento> = {
+  // Come è sempre stato: tutto lineare, con la parola in corsivo con le grazie.
+  lineare: { testo: "Helvetica", forte: "Helvetica-Bold", titolo: "Helvetica-Bold", accento: "Times-Italic" },
+  // Titoli con le grazie e testo lineare: l'abbinamento delle riviste.
+  editoriale: { testo: "Helvetica", forte: "Helvetica-Bold", titolo: "Times-Bold", accento: "Times-Italic" },
+  // Tutto con le grazie: il documento più formale, da studio.
+  classica: { testo: "Times-Roman", forte: "Times-Bold", titolo: "Times-Bold", accento: "Times-Italic" },
+};
+
+/** Dal valore salvato sul modello alla tipografia: quelli vecchi ricadono su «lineare». */
+export function tipografiaDaModello(valore: unknown): TipografiaDocumento {
+  const v = typeof valore === "string" ? valore.trim().toLowerCase() : "";
+  if (v === "editoriale") return "editoriale";
+  if (v === "classica" || v === "times") return "classica";
+  return "lineare"; // helvetica, inter, roboto, vuoto
+}
+
 export interface TemaDocumento {
+  /** I caratteri scelti dall'azienda. */
+  caratteri: CaratteriDocumento;
   /** Il colore dell'azienda, com'è. */
   marca: string;
   /** Il colore dell'azienda adatto a fare da fondo al testo bianco. */
@@ -34,10 +72,14 @@ export interface TemaDocumento {
 /** Blu notte: il colore di chi non ne ha ancora scelto uno. */
 export const COLORE_DI_SERIE = "#1E3A5F";
 
-export function creaTema(colori: { primario?: string | null; secondario?: string | null; accento?: string | null }): TemaDocumento {
+export function creaTema(colori: {
+  primario?: string | null; secondario?: string | null; accento?: string | null;
+  tipografia?: TipografiaDocumento;
+}): TemaDocumento {
   const marca = normalizzaHex(colori.primario) ?? COLORE_DI_SERIE;
   const fondo = fondoPerTestoBianco(marca);
   return {
+    caratteri: CARATTERI[colori.tipografia ?? "lineare"],
     marca,
     fondo,
     fondoScuro: scurisci(fondo, 0.38),

@@ -23,6 +23,7 @@ import { requireAuth } from "../_shared/auth.ts";
 import { verifyCompanyAccess } from "../_shared/companyAuth.ts";
 import { renderSrPdfHtml, countSrPdfPages, type SrPdfData } from "../_shared/srHtmlTemplate.ts";
 import { coloreDelDocumento } from "../_shared/temaColori.ts";
+import { condizioniStandard } from "../_shared/condizioniStandard.ts";
 import { buildMergeContext, substituteMergeTags } from "../_shared/quoteTemplateComposer.ts";
 import { CAMPI_IMMAGINE_SERRAMENTI, firmaImmaginiModello, firmatarioStorage } from "../_shared/immaginiModelloPdf.ts";
 
@@ -515,8 +516,11 @@ Deno.serve(async (req: Request) => {
       totale_accessori: (accessori ?? []).reduce((acc: number, a: { quantita?: number }) => acc + (a.quantita ?? 1), 0),
       tipo_intervento: prog.tipo_intervento,
       // Merge tag ({{cliente.nome_completo}}, {{azienda.ragione_sociale}}…) sostituiti coi dati del progetto
-      condizioni_legali_testo: tpl?.condizioni_legali_testo
-        ? substituteMergeTags(String(tpl.condizioni_legali_testo), buildMergeContext({
+      // Senza condizioni scritte dall'azienda si usano quelle di base del settore:
+      // un preventivo che si firma senza condizioni è un contratto muto.
+      condizioni_legali_testo: (() => {
+        const testo = String(tpl?.condizioni_legali_testo ?? "").trim() || condizioniStandard("serramenti");
+        return substituteMergeTags(testo, buildMergeContext({
             quote: {
               quote_number: prog.code,
               client_name: [prog.cliente_nome, prog.cliente_cognome].filter(Boolean).join(" ").trim() || undefined,
@@ -527,8 +531,8 @@ Deno.serve(async (req: Request) => {
             },
             company: { name: tpl?.ragione_sociale ?? "", vat_number: tpl?.partita_iva ?? "", address: tpl?.indirizzo_completo ?? "", email: tpl?.email ?? "", phone: tpl?.telefono ?? "" },
             cantiere: { indirizzo: prog.cliente_indirizzo ?? "", citta: prog.cantiere_citta ?? prog.cliente_citta ?? "" },
-          }))
-        : null,
+        }));
+      })(),
       condizioni_legali_attivo: tpl?.condizioni_legali_attivo ?? true,
       intervento_titolo: prog.intervento_titolo || `Per ${prog.cliente_nome ?? ""}`,
       // Sintesi: usa quella esplicitamente inserita; se vuota, auto-genera dal BOM

@@ -1,3 +1,5 @@
+import type { TipografiaDocumento } from "./temaDocumento";
+
 /**
  * Tipi del documento edile condiviso («Piano dei lavori»).
  *
@@ -89,6 +91,8 @@ export interface DocEdileModulo {
 
 /** I campi del modello che il documento legge, con nomi unici per tutti i moduli. */
 export interface DocEdileModello {
+  /** La tipografia scelta dall'azienda: lineare, editoriale o classica. */
+  tipografia: TipografiaDocumento;
   colorePrimario: string | null;
   coloreSecondario: string | null;
   coloreAccento: string | null;

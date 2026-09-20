@@ -12,6 +12,7 @@ import { applicaMergeTagModulo } from "@/lib/mergeTagsModuli";
 import { renderTemplateText, buildStandardReplacements } from "@/lib/pdf/renderTemplateText";
 import { coloreDelDocumento as coloreDocumento } from "../../../../supabase/functions/_shared/temaColori";
 import { condizioniStandard, type SettoreCondizioni } from "@/lib/condizioniStandard";
+import { tipografiaDaModello } from "./temaDocumento";
 import type {
   DocEdileCapitolo, DocEdileDati, DocEdileFoto, DocEdileModello, DocEdileModulo,
   DocEdileOpzioniComputo, DocEdileTotali, DocEdileVoceElenco, DocEdileFaq, DocEdileFase,
@@ -152,6 +153,7 @@ export function leggiModello(
         });
 
   return {
+    tipografia: tipografiaDaModello(t.font_family),
     colorePrimario: coloreDelDocumento(stringa(t.color_primary), azienda?.colore_marca ?? null),
     coloreSecondario: stringa(t.color_secondary),
     coloreAccento: stringa(t.color_accent),

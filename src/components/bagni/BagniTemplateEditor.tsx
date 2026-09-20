@@ -26,6 +26,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CopertinaAnteprima } from "@/components/preventivi/CopertinaAnteprima";
 import { CondizioniContratto } from "@/components/preventivi/CondizioniContratto";
+import { tipografiaDaModello } from "@/components/preventivi/pdf/temaDocumento";
 import { Link, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import {
@@ -772,6 +773,22 @@ export function BagniTemplateEditor({ embedded = false }: Props) {
                     onChange={(e) => set("partita_iva", e.target.value)}
                     placeholder={companyAnagrafica?.partita_iva ? `${companyAnagrafica.partita_iva} · dal profilo` : "IT12345670156"}
                   />
+                </div>
+                <div className="space-y-1.5 md:col-span-2">
+                  <Label className="text-xs">Tipografia del documento</Label>
+                  <select
+                    value={tipografiaDaModello(form.font_family)}
+                    onChange={(e) => set("font_family", e.target.value)}
+                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  >
+                    <option value="lineare">Lineare · titoli e testo senza grazie</option>
+                    <option value="editoriale">Editoriale · titoli con le grazie, testo lineare</option>
+                    <option value="classica">Classica · tutto con le grazie</option>
+                  </select>
+                  <p className="text-[10px] text-muted-foreground">
+                    Cambia davvero il PDF: sono i caratteri che il documento ha già dentro, quindi non c'è niente da
+                    scaricare e nessun carattere può mancare alla stampa.
+                  </p>
                 </div>
               </div>
             </SectionCard>

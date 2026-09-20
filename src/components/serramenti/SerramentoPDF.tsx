@@ -37,6 +37,7 @@ import { testoScelta } from "@/lib/listino/scelteVariante";
 import { schedaPosizione, titoloConLinea } from "@/lib/serramenti/schedaPosizione";
 import { inchiostroSuBianco, testoSopra } from "@/lib/pdf/contrastoColori";
 import { coloreDelDocumento, fondoPerTestoBianco, scurisci, testoSuChiaro, testoSuScuro } from "../../../supabase/functions/_shared/temaColori";
+import { condizioniStandard } from "../../../supabase/functions/_shared/condizioniStandard";
 import type {
   SerramentoPdfConsulente, SerramentoPdfFamilyData,
   SerramentoPdfMacroField, SerramentoPdfMacroPagina,
@@ -2041,7 +2042,10 @@ export function SerramentoPDF({
   const faqItems: SrFaq[] = faqItemsRaw.length > 0 ? faqItemsRaw : SR_FAQ_DEFAULT;
   const brandFooterTesto = (tpl.brand_footer_testo as string | null) || null;
   // Merge tag dei blocchi importati dalla libreria ({{cliente.nome_completo}}, {{azienda.ragione_sociale}}…)
-  const condizioniLegaliTesto = applicaMergeTagModulo((tpl.condizioni_legali_testo as string | null) || null, {
+  // Senza condizioni scritte dall'azienda valgono quelle di base del settore.
+  const condizioniLegaliTesto = applicaMergeTagModulo(
+    String(tpl.condizioni_legali_testo ?? "").trim() || condizioniStandard("serramenti"),
+    {
     companyName,
     companyVat: tpl.partita_iva ?? company?.vat_number ?? null,
     companyAddress: tpl.indirizzo_completo ?? null,
@@ -2050,8 +2054,10 @@ export function SerramentoPDF({
     clienteNome: p.cliente_nome, clienteCognome: p.cliente_cognome,
     clienteEmail: p.cliente_email, clienteTelefono: p.cliente_telefono, clienteIndirizzo: p.cliente_indirizzo,
     cantiereCitta: p.cantiere_citta ?? p.cliente_citta ?? null,
-    numero: p.code, dataDocumento: p.created_at ?? null,
-  }) || null;
+      numero: p.code, dataDocumento: p.created_at ?? null,
+      totale: null,
+    },
+  ) || null;
   // Fix integrazione · Toggle "attivo" devono essere rispettati anche dal PDF.
   // Prima il PDF ignorava i toggle e mostrava il footer/pagina se il testo
   // era valorizzato, anche se l'utente aveva disattivato il toggle nell'editor.
