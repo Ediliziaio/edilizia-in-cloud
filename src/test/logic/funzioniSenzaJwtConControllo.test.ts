@@ -151,7 +151,7 @@ describe("verify_jwt = false: il controllo su chi chiama sta nel codice", () => 
   });
 });
 
-describe("Le otto funzioni trovate aperte il 20/09/2026", () => {
+describe("Le otto funzioni trovate aperte il 20/09/2026: tre chiuse, cinque eliminate", () => {
   const leggi = (funzione: string) => readFileSync(join(FUNZIONI, funzione, "index.ts"), "utf8");
 
   // Il controllo viene prima della chiave di servizio, cioè prima di ogni lavoro.
@@ -169,18 +169,20 @@ describe("Le otto funzioni trovate aperte il 20/09/2026", () => {
     primaIlControllo,
   );
 
-  // I quattro giri su tutte le aziende: nessuno li chiama, proposta a Florin
-  // l'eliminazione. Se un giorno spariscono va bene così — più chiuse di così
-  // non si può — purché sparisca anche la voce in config.toml: una voce senza
-  // cartella ferma la pubblicazione di tutte le altre («failed to bundle»).
+  // Le cinque eliminate il 20/09/2026, col sì di Florin: quattro giri su tutte
+  // le aziende per un cron mai creato (nessun chiamante fra i 143 job, l'app,
+  // le altre funzioni e il database) e una che rispondeva solo 410.
+  // Non devono tornare per sbaglio; e se tornano, la voce va con la cartella:
+  // una voce senza cartella fa fallire la pubblicazione di TUTTE le funzioni.
   it.each([
     "ai-cfo-weekly-report",
     "ai-fiscal-report-generator",
     "ai-pipeline-forecaster",
     "subappaltatori-compliance-monitor",
-  ])("%s — prima il controllo; oppure eliminata, voce compresa", (funzione) => {
-    if (existsSync(join(FUNZIONI, funzione))) primaIlControllo(funzione);
-    else expect(config).not.toContain(`[functions.${funzione}]`);
+    "ai-outbound-call",
+  ])("%s — eliminata: niente cartella, niente voce", (funzione) => {
+    expect(existsSync(join(FUNZIONI, funzione))).toBe(false);
+    expect(config).not.toContain(`[functions.${funzione}]`);
   });
 
   it("get-openrouter-models — serve un utente, prima di chiamare OpenRouter", () => {
@@ -189,10 +191,6 @@ describe("Le otto funzioni trovate aperte il 20/09/2026", () => {
     expect(controllo).toBeGreaterThan(-1);
     expect(controllo).toBeLessThan(testo.indexOf("fetch(OR_MODELS_URL"));
     expect(aperte).toContain("get-openrouter-models");
-  });
-
-  it("ai-outbound-call — solo un 410: nessuna voce che la tenga aperta, è da eliminare", () => {
-    expect(aperte).not.toContain("ai-outbound-call");
   });
 });
 
@@ -204,7 +202,7 @@ describe("chiamataInternaValida: chi passa e chi no", () => {
     vi.stubGlobal("Deno", { env: { get: (nome: string) => ambiente[nome] } });
 
   const richiesta = (headers: Record<string, string> = {}) =>
-    new Request("https://esempio.supabase.co/functions/v1/ai-cfo-weekly-report", { method: "POST", headers });
+    new Request("https://esempio.supabase.co/functions/v1/assistenza-ai-processor", { method: "POST", headers });
 
   afterEach(() => vi.unstubAllGlobals());
 

@@ -1094,8 +1094,17 @@ verify_jwt = false
 # legittimo col solo segreto non viene respinto prima che il codice lo guardi.
 # Il test src/test/logic/funzioniSenzaJwtConControllo.test.ts vieta che una
 # voce verify_jwt = false resti senza controllo nel codice.
-# L'ottava, ai-outbound-call, risponde solo 410 «deprecata»: niente voce, è da
-# eliminare (repository e produzione) insieme al sì di Florin.
+#
+# Cinque delle otto sono state ELIMINATE il 20/09/2026, col sì di Florin —
+# cartella, voce qui e funzione in produzione: ai-cfo-weekly-report,
+# ai-fiscal-report-generator, ai-pipeline-forecaster,
+# subappaltatori-compliance-monitor (giri su tutte le aziende per un cron mai
+# creato: nessun chiamante fra i 143 job, l'app, le altre funzioni e il
+# database; le uniche righe prodotte sono del 9 maggio, il giorno in cui furono
+# scritte) e ai-outbound-call (rispondeva solo 410 «deprecata»). Le stesse
+# operazioni restano strumenti di Silvio: la funzionalità non è sparita.
+# Una voce senza cartella fa fallire la pubblicazione di TUTTE le funzioni
+# («failed to bundle»): quando se ne elimina una, si tolgono tutt'e tre.
 
 # Le chiama solo whatsapp-webhook (handlers/assistenza.ts e handlers/lead.ts)
 # con «Authorization: Bearer <chiave di servizio>»: chiamataInternaValida.
@@ -1108,20 +1117,4 @@ verify_jwt = false
 # La chiama l'app (schermate AI: Silvio, Assistente, chat interna, AI Test Lab)
 # col JWT dell'utente: requireAuth.
 [functions.get-openrouter-models]
-verify_jwt = false
-
-# Giri su TUTTE le aziende pensati per un cron che non è mai stato creato: il
-# 20/09/2026 non risultava alcun chiamante (né app, né funzioni, né migrazioni).
-# Proposta a Florin l'eliminazione. Finché esistono le apre solo il segreto del
-# cron o la chiave di servizio: chiamataInternaValida.
-[functions.ai-cfo-weekly-report]
-verify_jwt = false
-
-[functions.ai-fiscal-report-generator]
-verify_jwt = false
-
-[functions.ai-pipeline-forecaster]
-verify_jwt = false
-
-[functions.subappaltatori-compliance-monitor]
 verify_jwt = false

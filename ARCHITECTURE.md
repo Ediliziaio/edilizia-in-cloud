@@ -222,7 +222,6 @@ catch (err) {
 | `lucia-chat` | Client | Motore AI Lucia (assistente Edilizia in Cloud) |
 | `ai-genera-preventivo-v2` | Client | Generazione preventivo con AI |
 | `ai-analisi-preventivi` | Client | Analisi e suggerimenti preventivi AI |
-| `ai-outbound-call` | **DEPRECATED** | Forwarda a `initiate-outbound-call` |
 | `initiate-outbound-call` | Client | Avvia chiamata AI in uscita (ElevenLabs) |
 | `elevenlabs-proxy` | Client | Proxy per API ElevenLabs voce |
 | `elevenlabs-webhook` | Webhook (ElevenLabs) | Notifiche completamento call |
