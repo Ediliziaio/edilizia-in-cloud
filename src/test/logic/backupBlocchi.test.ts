@@ -122,12 +122,12 @@ describe("company-backup", () => {
 });
 
 describe("dove si vede", () => {
-  it("la scheda Backup elenca anche i backup a blocchi, e non offre una prova che non c'è", () => {
+  it("la scheda Backup elenca anche i backup a blocchi, e ne offre la prova (vedi ripristinoBlocchi.test.ts)", () => {
     const restore = leggi("supabase/functions/company-restore/index.ts");
     expect(restore).toContain("/indice.json");
-    expect(restore).toContain("la prova di ripristino per questo formato non è ancora disponibile");
+    expect(restore).not.toContain("la prova di ripristino per questo formato non è ancora disponibile");
     const scheda = leggi("src/components/admin/company/CompanyBackupCard.tsx");
-    expect(scheda).toContain("{!f.a_blocchi && (");
+    expect(scheda).not.toContain("{!f.a_blocchi && (");
   });
 
   it("il rapporto del mattino dice chi è rimasto senza backup", () => {
