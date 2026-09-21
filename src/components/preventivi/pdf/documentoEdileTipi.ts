@@ -1,4 +1,5 @@
 import type { TipografiaDocumento } from "./temaDocumento";
+import type { PaginaLibera, VoceOrdine } from "./ordineCapitoli";
 
 /**
  * Tipi del documento edile condiviso («Piano dei lavori»).
@@ -150,6 +151,10 @@ export interface DocEdileModello {
   clausoleDaApprovare: string[];
   /** Le condizioni parlano di recesso: al documento si allega il modulo. */
   conRecesso: boolean;
+  /** L'ordine dei capitoli scelto dall'azienda (vuoto = quello di serie). */
+  ordineCapitoli: VoceOrdine[];
+  /** Le pagine scritte dall'azienda: certificazioni, showroom, un lavoro di cui va fiera. */
+  pagineLibere: PaginaLibera[];
 }
 
 export interface DocEdileDati {

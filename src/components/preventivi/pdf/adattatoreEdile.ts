@@ -13,6 +13,7 @@ import { renderTemplateText, buildStandardReplacements } from "@/lib/pdf/renderT
 import { coloreDelDocumento as coloreDocumento } from "../../../../supabase/functions/_shared/temaColori";
 import { condizioniStandard, type SettoreCondizioni } from "@/lib/condizioniStandard";
 import { tipografiaDaModello } from "./temaDocumento";
+import { leggiOrdine, leggiPagineLibere } from "./ordineCapitoli";
 import { testiPerPdf } from "../../../../supabase/functions/_shared/testoPerPdf";
 import type {
   DocEdileCapitolo, DocEdileDati, DocEdileFoto, DocEdileModello, DocEdileModulo,
@@ -209,6 +210,12 @@ export function leggiModello(
     mostraMargine: t.show_margine === true,
     finanziamentoPromo: t.finanziamento_promo ?? null,
     condizioniLegali,
+    ordineCapitoli: leggiOrdine(t.pdf_ordine_capitoli),
+    pagineLibere: leggiPagineLibere(t.pdf_pagine_libere).map((p) => ({
+      ...p,
+      titolo: espandi(p.titolo) ?? p.titolo,
+      occhiello: p.occhiello ? espandi(p.occhiello) : null,
+    })),
     clausoleDaApprovare: clausoleDaApprovare(condizioniLegali),
     conRecesso: condizioniLegali.some((r) => /recesso/i.test(r.testo)),
   };

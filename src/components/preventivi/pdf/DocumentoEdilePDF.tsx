@@ -26,6 +26,7 @@ import { htmlToRichBlocks } from "@/lib/ristrutturazione/richTextPdf";
 import { parseFinanziamentoPromo, calcolaRataMensile } from "@/lib/preventivi/finanziamentoLite";
 import { fraseValiditaChiusura } from "@/lib/preventivi/validitaOfferta";
 import { creaTema, coloriCopertina, copertinaInTinta, type TemaDocumento } from "./temaDocumento";
+import { chiaveLibera, ordineEffettivo } from "./ordineCapitoli";
 import { giorniDellaDurata, senzaNumeroDavanti, spezzaAccento } from "./testoDocumento";
 import type {
   DocEdileCapitolo, DocEdileDati, DocEdileFase, DocEdileFoto, DocEdileVoceElenco,
@@ -692,15 +693,19 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
     tipografia: modello.tipografia,
   });
 
+  // L'ordine e la visibilità scelti dall'azienda (completati con quelli di serie).
+  const ordine = ordineEffettivo(modello.ordineCapitoli, modello.pagineLibere);
+  const visibile = (k: string) => ordine.some((v) => v.chiave === k && v.visibile);
+
   const haChiSiamo = modello.mostraChiSiamo && Boolean(modello.chiSiamoHtml);
   const haUsp = modello.usp.length > 0;
   const haRecensioni = modello.testimonianze.length > 0;
+  const haLavori = modello.galleriaLavori.length > 0 && visibile("lavori");
   // Le recensioni stanno accanto ai lavori finiti (la prova tutta insieme); senza
-  // galleria restano in «Chi siamo».
-  const recensioniCoiLavori = haRecensioni && modello.galleriaLavori.length > 0;
-  const haProgetto = modello.esigenze.length > 0 || modello.soluzione.length > 0;
+  // galleria, o con la galleria nascosta, restano in «Chi siamo».
+  const recensioniCoiLavori = haRecensioni && haLavori;
+  const haProgetto = (modello.esigenze.length > 0 || modello.soluzione.length > 0) && visibile("progetto");
   const haPercorso = modello.mostraPercorso && modello.percorso.length > 0;
-  const haLavori = modello.galleriaLavori.length > 0;
   // La prima foto del progetto apre il capitolo «Il progetto»; le altre hanno il loro capitolo.
   const fotoApertura = haProgetto ? dati.fotoProgetto[0] ?? null : null;
   const fotoCapitolo = fotoApertura ? dati.fotoProgetto.slice(1) : dati.fotoProgetto;
@@ -708,32 +713,39 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
   const haTempi = modello.mostraCronoprogramma && modello.cronoprogramma.length > 0;
   const haGaranzie = modello.mostraGaranzie && (modello.garanzie.length > 0 || modello.faq.length > 0);
 
-  // I numeri dei capitoli seguono quelli che escono davvero: nessun salto da 02 a 05.
-  let n = 0;
-  const numeri = {
-    chiSiamo: haChiSiamo || haUsp || haRecensioni ? ++n : 0,
-    progetto: haProgetto ? ++n : 0,
-    percorso: haPercorso ? ++n : 0,
-    lavori: haLavori ? ++n : 0,
-    foto: haFoto ? ++n : 0,
-    piano: ++n,
-    investimento: ++n,
-    garanzie: haGaranzie ? ++n : 0,
-    tempi: haTempi ? ++n : 0,
-    passi: ++n,
+  // Un capitolo esce se ha qualcosa da dire e se l'azienda non l'ha nascosto.
+  const presente: Record<string, boolean> = {
+    chiSiamo: haChiSiamo || haUsp || (haRecensioni && !recensioniCoiLavori),
+    progetto: haProgetto,
+    percorso: haPercorso,
+    lavori: haLavori,
+    foto: haFoto,
+    // «Voce per voce» senza voci: a corpo il capitolo era una riga su una pagina
+    // bianca. Il totale sta già nell'investimento.
+    piano: oc.livello !== "corpo",
+    investimento: true,
+    garanzie: haGaranzie,
+    tempi: haTempi,
+  };
+  const libere = new Map(modello.pagineLibere.map((pl) => [chiaveLibera(pl.id), pl]));
+  const sequenza = ordine.filter((v) => v.chiave !== "apertura" && v.visibile && (libere.has(v.chiave) || presente[v.chiave]));
+  // I numeri seguono i capitoli che escono davvero, nell'ordine scelto: nessun salto da 02 a 05.
+  const numeroDi = new Map(sequenza.map((v, i) => [v.chiave, i + 1]));
+  const numeroPassi = sequenza.length + 1;
+  const TITOLI: Record<string, string> = {
+    chiSiamo: "Chi siamo", progetto: "Il progetto", percorso: "Come lavoriamo", lavori: "I nostri lavori",
+    foto: "Foto e render", piano: modulo.titoloComputo.replace(/\*/g, ""), investimento: "Il tuo investimento",
+    garanzie: "Garanzie e domande", tempi: "I tempi",
   };
   const sommario: Array<{ numero: number; titolo: string }> = [
-    { numero: numeri.chiSiamo, titolo: "Chi siamo" },
-    { numero: numeri.progetto, titolo: "Il progetto" },
-    { numero: numeri.percorso, titolo: "Come lavoriamo" },
-    { numero: numeri.lavori, titolo: "I nostri lavori" },
-    { numero: numeri.foto, titolo: "Foto e render" },
-    { numero: numeri.piano, titolo: modulo.titoloComputo.replace(/\*/g, "") },
-    { numero: numeri.investimento, titolo: "Il tuo investimento" },
-    { numero: numeri.garanzie, titolo: "Garanzie e domande" },
-    { numero: numeri.tempi, titolo: "I tempi" },
-    { numero: numeri.passi, titolo: "I prossimi passi" },
-  ].filter((v) => v.numero > 0);
+    ...sequenza.map((v) => ({
+      numero: numeroDi.get(v.chiave) ?? 0,
+      titolo: libere.get(v.chiave)?.titolo.replace(/\*/g, "") || TITOLI[v.chiave] || "",
+    })),
+    { numero: numeroPassi, titolo: "I prossimi passi" },
+  ];
+  // Questi capitoli sono brevi: seguono il precedente sulla stessa pagina, se c'è posto.
+  const BREVI = new Set(["percorso", "tempi"]);
 
   // Il piano in numeri: fatti contabili del documento, niente che suoni da promessa.
   const giorniFasi = modello.cronoprogramma.map((f) => giorniDellaDurata(f.durata));
@@ -755,69 +767,26 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
   const pagina = { paddingTop: 96, paddingBottom: 96, paddingHorizontal: MARGINE, fontFamily: tema.caratteri.testo, backgroundColor: tema.carta } as const;
   const cornice = (<><Intestazione tema={tema} dati={dati} /><PieDiPagina tema={tema} dati={dati} /></>);
 
-  return (
-    <Document
-      title={`Piano dei lavori ${dati.codice ?? ""} - ${dati.cliente}`}
-      author={dati.azienda.nome}
-      subject={`${modulo.etichetta} per ${dati.cliente}`}
-    >
-      <Copertina tema={tema} dati={dati} />
-
-      {/* ─── Lettera, intervento in breve, sommario ───────────────────────── */}
-      <Page size="A4" style={pagina}>
-        {cornice}
-        <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 7, color: tema.inchiostroMarca, letterSpacing: 1.6, marginBottom: 8 }}>LA TUA PROPOSTA</Text>
-        <TitoloAccento tema={tema} testo={dati.clienteNome ? `Per *${dati.clienteNome}*,` : "Gentile *cliente*,"} corpo={34} colore={tema.inchiostro} coloreAccento={tema.inchiostroMarca} />
-        <Text style={[corpoTesto, { fontSize: 11, marginTop: 14, maxWidth: 420, color: tema.grigio }]}>
-          {`in queste pagine trovi il piano dei lavori che ${dati.azienda.nome} ha preparato per ${dati.cantiere ? `l'immobile di ${dati.cantiere}` : "il tuo immobile"}: che cosa faremo, in che ordine, e con quale investimento.`}
-        </Text>
-
-        {dati.scheda.length > 0 ? (
-          <View style={{ marginTop: 30 }}>
-            <TitolinoSezione tema={tema} testo="L'intervento in breve" />
-            <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
-              {dati.scheda.map((s, i) => (
-                <View key={i} style={{ width: "50%", paddingVertical: 8, paddingRight: 16, borderBottomWidth: 0.6, borderBottomColor: tema.filetto }}>
-                  <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 7.5, color: tema.grigioChiaro, marginBottom: 2 }}>{s.etichetta}</Text>
-                  <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 10.5, color: tema.inchiostro }}>{s.valore}</Text>
-                </View>
-              ))}
+  // Il contenuto di ogni capitolo, con il suo numero nella sequenza scelta.
+  const contenutoCapitolo = (chiave: string, numero: number): React.ReactNode => {
+    const libera = libere.get(chiave);
+    if (libera) {
+      return (
+        <>
+          <Capitolo tema={tema} numero={numero} occhiello={libera.occhiello ?? dati.azienda.nome} titolo={libera.titolo || "…"} />
+          {libera.fotoUrl ? (
+            <View wrap={false} style={{ marginBottom: 18 }}>
+              <Image src={libera.fotoUrl} style={{ width: UTILE, height: 250, objectFit: "cover" }} />
+              {libera.didascalia ? <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 8, color: tema.grigioChiaro, marginTop: 5 }}>{libera.didascalia}</Text> : null}
             </View>
-          </View>
-        ) : null}
-
-        {inNumeri.length >= 2 ? (
-          <View style={{ marginTop: 30 }} wrap={false}>
-            <TitolinoSezione tema={tema} testo="Il piano in numeri" />
-            <View style={{ flexDirection: "row" }}>
-              {inNumeri.map((v, i) => (
-                <View key={i} style={{ flex: 1, paddingTop: 4, paddingRight: 12, borderLeftWidth: i === 0 ? 0 : 0.6, borderLeftColor: tema.filetto, paddingLeft: i === 0 ? 0 : 14 }}>
-                  <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 34, color: tema.inchiostroMarca, lineHeight: 1.05, letterSpacing: -0.8 }}>{v.numero}</Text>
-                  <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 8.5, color: tema.grigio, marginTop: 3, lineHeight: 1.35 }}>{v.etichetta}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
-        ) : null}
-
-        <View style={{ marginTop: 30 }} wrap={false}>
-          <TitolinoSezione tema={tema} testo="In questo documento" />
-          <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
-            {sommario.map((v) => (
-              <View key={v.numero} style={{ width: "50%", flexDirection: "row", alignItems: "flex-end", paddingVertical: 7, paddingRight: 16, borderBottomWidth: 0.6, borderBottomColor: tema.filetto }}>
-                <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 16, color: tema.inchiostroMarca, width: 30, lineHeight: 1 }}>{dueCifre(v.numero)}</Text>
-                <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 10, color: tema.inchiostro }}>{v.titolo}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
-      </Page>
-
-      {/* ─── Chi siamo · perché sceglierci · recensioni ───────────────────── */}
-      {numeri.chiSiamo > 0 ? (
-        <Page size="A4" style={pagina}>
-          {cornice}
-          <Capitolo tema={tema} numero={numeri.chiSiamo} occhiello="Chi siamo" titolo={`Chi c'è *dietro* questo progetto.`} />
+          ) : null}
+          {libera.testoHtml ? <TestoRicco tema={tema} html={libera.testoHtml} stile={corpoTesto} /> : null}
+        </>
+      );
+    }
+    switch (chiave) {
+      case "chiSiamo": return (<>
+          <Capitolo tema={tema} numero={numero} occhiello="Chi siamo" titolo={`Chi c'è *dietro* questo progetto.`} />
           {haChiSiamo ? (
             <View style={{ flexDirection: "row", marginBottom: 22 }}>
               <View style={{ flex: 1, paddingRight: modello.chiSiamoFotoUrl ? 18 : 60 }}>
@@ -835,16 +804,9 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
             </View>
           ) : null}
           {haRecensioni && !recensioniCoiLavori ? <Recensioni tema={tema} voci={modello.testimonianze} /> : null}
-        </Page>
-      ) : null}
-
-      {/* ─── Il progetto · come lavoriamo ─────────────────────────────────── */}
-      {numeri.progetto > 0 || numeri.percorso > 0 ? (
-        <Page size="A4" style={pagina}>
-          {cornice}
-          {numeri.progetto > 0 ? (
-            <View style={{ marginBottom: 26 }}>
-              <Capitolo tema={tema} numero={numeri.progetto} occhiello="Il progetto" titolo="Le tue *richieste*, in ordine." />
+</>);
+      case "progetto": return (            <View style={{ marginBottom: 26 }}>
+              <Capitolo tema={tema} numero={numero} occhiello="Il progetto" titolo="Le tue *richieste*, in ordine." />
               {fotoApertura ? (
                 <View wrap={false} style={{ marginBottom: 18 }}>
                   <Image src={fotoApertura.url} style={{ width: UTILE, height: 230, objectFit: "cover" }} />
@@ -865,40 +827,22 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
                   </View>
                 ) : null}
               </View>
-            </View>
-          ) : null}
-          {numeri.percorso > 0 ? (
-            <View>
-              <Capitolo tema={tema} numero={numeri.percorso} occhiello="Come lavoriamo" titolo="Dal primo incontro alla *consegna*." />
+            </View>);
+      case "percorso": return (            <View>
+              <Capitolo tema={tema} numero={numero} occhiello="Come lavoriamo" titolo="Dal primo incontro alla *consegna*." />
               <Passi tema={tema} voci={modello.percorso} />
-            </View>
-          ) : null}
-        </Page>
-      ) : null}
-
-      {/* ─── I nostri lavori ──────────────────────────────────────────────── */}
-      {numeri.lavori > 0 ? (
-        <Page size="A4" style={pagina}>
-          {cornice}
-          <Capitolo tema={tema} numero={numeri.lavori} occhiello="I nostri lavori" titolo="Lavori *finiti*, non promesse." sommario="Alcuni interventi che abbiamo già consegnato." />
+            </View>);
+      case "lavori": return (<>
+          <Capitolo tema={tema} numero={numero} occhiello="I nostri lavori" titolo="Lavori *finiti*, non promesse." sommario="Alcuni interventi che abbiamo già consegnato." />
           <Galleria tema={tema} foto={modello.galleriaLavori} />
           {recensioniCoiLavori ? <Recensioni tema={tema} voci={modello.testimonianze} /> : null}
-        </Page>
-      ) : null}
-
-      {/* ─── Foto e render del progetto ───────────────────────────────────── */}
-      {numeri.foto > 0 ? (
-        <Page size="A4" style={pagina}>
-          {cornice}
-          <Capitolo tema={tema} numero={numeri.foto} occhiello="Foto e render" titolo="Il tuo progetto, *da vedere*." sommario="Lo stato di oggi e come diventerà." />
+</>);
+      case "foto": return (<>
+          <Capitolo tema={tema} numero={numero} occhiello="Foto e render" titolo="Il tuo progetto, *da vedere*." sommario="Lo stato di oggi e come diventerà." />
           <Galleria tema={tema} foto={fotoCapitolo} />
-        </Page>
-      ) : null}
-
-      {/* ─── Il piano dei lavori · i tempi ────────────────────────────────── */}
-      <Page size="A4" style={pagina}>
-        {cornice}
-        <Capitolo tema={tema} numero={numeri.piano} occhiello={modulo.titoloComputo.replace(/\*/g, "")} titolo="Che cosa *faremo*, voce per voce." sommario="Le lavorazioni previste, raccolte per capitolo." />
+</>);
+      case "piano": return (<>
+        <Capitolo tema={tema} numero={numero} occhiello={modulo.titoloComputo.replace(/\*/g, "")} titolo="Che cosa *faremo*, voce per voce." sommario="Le lavorazioni previste, raccolte per capitolo." />
         {oc.livello === "corpo" ? (
           <View wrap={false} style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", paddingBottom: 6, borderBottomWidth: 1.2, borderBottomColor: tema.fondo }}>
             <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 11.5, color: tema.inchiostro }}>Lavorazioni a corpo</Text>
@@ -926,12 +870,9 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
           <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 7, color: tema.grigio, letterSpacing: 1.3, marginRight: 16, marginBottom: 2 }}>TOTALE LAVORAZIONI · IVA ESCLUSA</Text>
           <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 14, color: tema.inchiostro, paddingRight: 3.5 }}>{formatCurrency(importoLordo)}</Text>
         </View>
-      </Page>
-
-      {/* ─── Il tuo investimento ──────────────────────────────────────────── */}
-      <Page size="A4" style={pagina}>
-        {cornice}
-        <Capitolo tema={tema} numero={numeri.investimento} occhiello="L'investimento" titolo="Il tuo *investimento*." sommario="Un prezzo chiaro: quanto costa e che cosa comprende, senza giri di parole." />
+</>);
+      case "investimento": return (<>
+        <Capitolo tema={tema} numero={numero} occhiello="L'investimento" titolo="Il tuo *investimento*." sommario="Un prezzo chiaro: quanto costa e che cosa comprende, senza giri di parole." />
 
         {oc.livello !== "corpo" && capitoli.length > 1 ? (
           <View style={{ marginBottom: 14 }}>
@@ -1025,14 +966,9 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
             <TestoRicco tema={tema} html={modello.pagamentoHtml} stile={{ fontFamily: tema.caratteri.testo, fontSize: 9.5, color: tema.inchiostro, lineHeight: 1.5 }} />
           </View>
         ) : null}
-      </Page>
-
-      {/* ─── Garanzie e domande · i prossimi passi ─────────────────────────── */}
-      <Page size="A4" style={pagina}>
-        {cornice}
-        {numeri.garanzie > 0 ? (
-          <View style={{ marginBottom: 28 }}>
-            <Capitolo tema={tema} numero={numeri.garanzie} occhiello="Garanzie e domande" titolo="Più *certezze*, meno dubbi." />
+</>);
+      case "garanzie": return (          <View style={{ marginBottom: 28 }}>
+            <Capitolo tema={tema} numero={numero} occhiello="Garanzie e domande" titolo="Più *certezze*, meno dubbi." />
             {modello.garanzie.length > 0 ? (
               <View style={{ marginBottom: 14 }}>
                 <TitolinoSezione tema={tema} testo="Le nostre garanzie" />
@@ -1050,19 +986,102 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
                 ))}
               </View>
             ) : null}
-          </View>
-        ) : null}
-
-        {numeri.tempi > 0 ? (
+          </View>);
+      case "tempi": return (
           // Un cronoprogramma spezzato fra due pagine non si legge: fino a otto fasi resta intero.
           <View wrap={modello.cronoprogramma.length > 8} style={{ marginBottom: 30 }}>
-            <Capitolo tema={tema} numero={numeri.tempi} occhiello="I tempi" titolo="Quanto *dura* il cantiere." />
+            <Capitolo tema={tema} numero={numero} occhiello="I tempi" titolo="Quanto *dura* il cantiere." />
             <Tempi tema={tema} fasi={modello.cronoprogramma} />
+          </View>
+      );
+      default: return null;
+    }
+  };
+
+  return (
+    <Document
+      title={`Piano dei lavori ${dati.codice ?? ""} - ${dati.cliente}`}
+      author={dati.azienda.nome}
+      subject={`${modulo.etichetta} per ${dati.cliente}`}
+    >
+      <Copertina tema={tema} dati={dati} />
+
+      {/* ─── Apertura: lettera, intervento in breve, sommario ─────────────── */}
+      {visibile("apertura") ? (
+        <Page size="A4" style={pagina}>
+          {cornice}
+        <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 7, color: tema.inchiostroMarca, letterSpacing: 1.6, marginBottom: 8 }}>LA TUA PROPOSTA</Text>
+        <TitoloAccento tema={tema} testo={dati.clienteNome ? `Per *${dati.clienteNome}*,` : "Gentile *cliente*,"} corpo={34} colore={tema.inchiostro} coloreAccento={tema.inchiostroMarca} />
+        <Text style={[corpoTesto, { fontSize: 11, marginTop: 14, maxWidth: 420, color: tema.grigio }]}>
+          {`in queste pagine trovi il piano dei lavori che ${dati.azienda.nome} ha preparato per ${dati.cantiere ? `l'immobile di ${dati.cantiere}` : "il tuo immobile"}: che cosa faremo, in che ordine, e con quale investimento.`}
+        </Text>
+
+        {dati.scheda.length > 0 ? (
+          <View style={{ marginTop: 30 }}>
+            <TitolinoSezione tema={tema} testo="L'intervento in breve" />
+            <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+              {dati.scheda.map((s, i) => (
+                <View key={i} style={{ width: "50%", paddingVertical: 8, paddingRight: 16, borderBottomWidth: 0.6, borderBottomColor: tema.filetto }}>
+                  <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 7.5, color: tema.grigioChiaro, marginBottom: 2 }}>{s.etichetta}</Text>
+                  <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 10.5, color: tema.inchiostro }}>{s.valore}</Text>
+                </View>
+              ))}
+            </View>
           </View>
         ) : null}
 
+        {inNumeri.length >= 2 ? (
+          <View style={{ marginTop: 30 }} wrap={false}>
+            <TitolinoSezione tema={tema} testo="Il piano in numeri" />
+            <View style={{ flexDirection: "row" }}>
+              {inNumeri.map((v, i) => (
+                <View key={i} style={{ flex: 1, paddingTop: 4, paddingRight: 12, borderLeftWidth: i === 0 ? 0 : 0.6, borderLeftColor: tema.filetto, paddingLeft: i === 0 ? 0 : 14 }}>
+                  <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 34, color: tema.inchiostroMarca, lineHeight: 1.05, letterSpacing: -0.8 }}>{v.numero}</Text>
+                  <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 8.5, color: tema.grigio, marginTop: 3, lineHeight: 1.35 }}>{v.etichetta}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        ) : null}
+
+        <View style={{ marginTop: 30 }} wrap={false}>
+          <TitolinoSezione tema={tema} testo="In questo documento" />
+          <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+            {sommario.map((v) => (
+              <View key={v.numero} style={{ width: "50%", flexDirection: "row", alignItems: "flex-end", paddingVertical: 7, paddingRight: 16, borderBottomWidth: 0.6, borderBottomColor: tema.filetto }}>
+                <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 16, color: tema.inchiostroMarca, width: 30, lineHeight: 1 }}>{dueCifre(v.numero)}</Text>
+                <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 10, color: tema.inchiostro }}>{v.titolo}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+        </Page>
+      ) : null}
+
+      {/* ─── I capitoli, nell'ordine scelto dall'azienda ────────────────────
+          Un solo foglio che scorre: ogni capitolo comincia una pagina nuova,
+          tranne quelli brevi, che seguono il precedente se c'è posto. */}
+      <Page size="A4" style={pagina}>
+        {cornice}
+        {/* Lo stacco sta in fondo al capitolo, e solo se quello dopo continua sulla
+            stessa pagina (uno breve, o i prossimi passi). In cima a una pagina nuova
+            un margine spingeva il titolo più in basso degli altri; in fondo a un
+            capitolo che riempie la pagina, sbordava da solo su un foglio bianco. */}
+        {sequenza.map((v, i) => {
+          const breve = BREVI.has(v.chiave) && i > 0;
+          const prossimo = sequenza[i + 1];
+          const continua = !prossimo || BREVI.has(prossimo.chiave);
+          return (
+            <View key={v.chiave} break={i > 0 && !breve} style={continua ? { marginBottom: 28 } : undefined}>
+              {contenutoCapitolo(v.chiave, numeroDi.get(v.chiave) ?? i + 1)}
+            </View>
+          );
+        })}
+
+        {/* ─── I prossimi passi: sempre in fondo, prima delle condizioni ───── */}
+        <View>
         <View wrap={false}>
-          <Capitolo tema={tema} numero={numeri.passi} occhiello="I prossimi passi" titolo="Pronti a *partire*?" sommario={fraseValiditaChiusura(modello.testoValidita, modello.giorniValidita)} />
+          <Capitolo tema={tema} numero={numeroPassi} occhiello="I prossimi passi" titolo="Pronti a *partire*?" sommario={fraseValiditaChiusura(modello.testoValidita, modello.giorniValidita)} />
           <Passi
             tema={tema}
             voci={[
@@ -1101,6 +1120,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
             </View>
             )}
           </View>
+        </View>
         </View>
       </Page>
 

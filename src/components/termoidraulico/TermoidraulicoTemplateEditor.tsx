@@ -26,6 +26,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CopertinaAnteprima } from "@/components/preventivi/CopertinaAnteprima";
 import { CondizioniContratto } from "@/components/preventivi/CondizioniContratto";
+import { OrdineCapitoli } from "@/components/preventivi/OrdineCapitoli";
 import { tipografiaDaModello } from "@/components/preventivi/pdf/temaDocumento";
 import { Link, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -33,7 +34,7 @@ import {
   Save, Loader2, Upload, Image as ImageIcon, Plus, Trash2, GripVertical,
   Palette, FileText, Sparkles, ListChecks, Quote, Clock, Building2,
   Eye, EyeOff, BadgeEuro, AlertTriangle, FileSearch, Route, ShieldCheck, Percent,
-  Wand2,} from "lucide-react";
+  Wand2, ListOrdered,} from "lucide-react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
@@ -101,6 +102,7 @@ const PALETTE_PRESETS: Array<{ nome: string; color_primary: string; color_second
 // Serramenti, aggiunti dalla migration 20271110040000) sono il LAYER di STILE
 // applicato dai preset 1-click e dai controlli avanzati di copertina.
 type FormState = Required<Pick<IdrTemplatePdf,
+  | "pdf_ordine_capitoli" | "pdf_pagine_libere"
   | "condizioni_legali_testo" | "condizioni_legali_attivo"
   | "logo_url" | "color_primary" | "color_secondary" | "color_accent" | "color_text"
   | "chi_siamo" | "chi_siamo_foto_url" | "esigenze" | "soluzione" | "usp"
@@ -122,6 +124,8 @@ type FormState = Required<Pick<IdrTemplatePdf,
 
 function templateToForm(t: IdrTemplatePdf): FormState {
   return {
+    pdf_ordine_capitoli: t.pdf_ordine_capitoli ?? null,
+    pdf_pagine_libere: t.pdf_pagine_libere ?? [],
     condizioni_legali_testo: t.condizioni_legali_testo ?? "",
     condizioni_legali_attivo: t.condizioni_legali_attivo ?? true,
     logo_url: t.logo_url ?? null,
@@ -538,7 +542,7 @@ export function TermoidraulicoTemplateEditor({ embedded = false }: Props) {
   // visibile alla volta — niente più scroll infinito. Deeplink via `?section=`.
   type IdrSection =
     | "brand"
-    | "page_cover" | "page_chi_siamo" | "page_percorso" | "page_testimonianze" | "page_crono" | "page_condizioni"
+    | "page_ordine" | "page_cover" | "page_chi_siamo" | "page_percorso" | "page_testimonianze" | "page_crono" | "page_condizioni"
     | "garanzie" | "contenuti" | "opzioni";
   const IDR_SECTION_GROUPS: Array<{
     label: string;
@@ -553,6 +557,7 @@ export function TermoidraulicoTemplateEditor({ embedded = false }: Props) {
     {
       label: "PAGINE DEL PDF",
       items: [
+        { id: "page_ordine",        label: "Ordine e pagine", emoji: "🔀", descr: "Capitoli, ordine e pagine vostre" },
         { id: "page_cover",         label: "Copertina",     emoji: "🖼️", descr: "Prima pagina del preventivo" },
         { id: "page_chi_siamo",     label: "Chi siamo",     emoji: "👋", descr: "Presentazione impresa" },
         { id: "page_percorso",      label: "Come lavoriamo", emoji: "🗺️", descr: "Le fasi del cantiere" },
@@ -873,6 +878,21 @@ export function TermoidraulicoTemplateEditor({ embedded = false }: Props) {
           )}
 
           {/* Copertina */}
+          {/* Ordine dei capitoli e pagine libere: stesso blocco degli otto moduli. */}
+          {activeSection === "page_ordine" && (
+            <SectionCard icon={ListOrdered} title="Ordine e pagine" description="In che ordine escono i capitoli, quali nascondere, e le pagine scritte da voi.">
+              <OrdineCapitoli
+                ordine={form.pdf_ordine_capitoli}
+                pagine={form.pdf_pagine_libere}
+                onOrdine={(v) => set("pdf_ordine_capitoli", v)}
+                onPagine={(v) => set("pdf_pagine_libere", v)}
+                campoFoto={(valore, onChange) => (
+                  <ImageUploadField label="Foto della pagina" value={valore} companyId={companyId} onChange={onChange} aspect="aspect-[16/9]" />
+                )}
+              />
+            </SectionCard>
+          )}
+
           {activeSection === "page_cover" && (
             <SectionCard icon={FileText} title="Copertina" description="Titolo, sottotitolo, immagine e stile della prima pagina.">
               {/* ── Contenuti cover: titolo + sottotitolo (testo mostrato nel PDF) ── */}

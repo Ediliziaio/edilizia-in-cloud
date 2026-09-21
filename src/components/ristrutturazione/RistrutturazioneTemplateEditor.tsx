@@ -31,8 +31,7 @@ import {
   Save, Loader2, Upload, Image as ImageIcon, Plus, Trash2, GripVertical,
   Palette, FileText, Sparkles, ListChecks, Quote, Clock, Building2,
   Eye, EyeOff, BadgeEuro, AlertTriangle, FileSearch, Route, ShieldCheck, Percent,
-  Wand2, Check,
-} from "lucide-react";
+  Wand2, Check, ListOrdered,} from "lucide-react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
@@ -45,6 +44,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { CondizioniContratto } from "@/components/preventivi/CondizioniContratto";
+import { OrdineCapitoli } from "@/components/preventivi/OrdineCapitoli";
 import { tipografiaDaModello } from "@/components/preventivi/pdf/temaDocumento";
 
 /** Blocco della libreria Template offerte → testo semplice per la textarea. */
@@ -157,6 +157,7 @@ function PlaceholderChips({
 // (aggiunti via migration 20271110070000_ristrutturazione_cover_parity.sql e
 // letti via cast nel PDF), quindi li tipizziamo qui con RstCoverPatch.
 type FormState = Required<Pick<RstTemplatePdf,
+  | "pdf_ordine_capitoli" | "pdf_pagine_libere"
   | "logo_url" | "color_primary" | "color_secondary" | "color_accent" | "color_text"
   | "chi_siamo" | "chi_siamo_foto_url" | "esigenze" | "soluzione" | "usp"
   | "testimonianze" | "cronoprogramma" | "cover_title" | "cover_subtitle"
@@ -214,6 +215,8 @@ function templateToForm(t: RstTemplatePdf): FormState {
     typeof v === "number" && Number.isFinite(v) ? v : d;
   const str = (v: unknown): string | null => (typeof v === "string" ? v : null);
   return {
+    pdf_ordine_capitoli: t.pdf_ordine_capitoli ?? null,
+    pdf_pagine_libere: t.pdf_pagine_libere ?? [],
     logo_url: t.logo_url ?? null,
     cover_logo_url: t.cover_logo_url ?? null,
     color_primary: t.color_primary ?? "#1E3A5F",
@@ -514,7 +517,7 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
   // visibile alla volta — niente più scroll infinito. Deeplink via `?section=`.
   type RstSection =
     | "brand"
-    | "page_cover" | "page_chi_siamo" | "page_percorso" | "page_testimonianze" | "page_crono" | "page_condizioni"
+    | "page_ordine" | "page_cover" | "page_chi_siamo" | "page_percorso" | "page_testimonianze" | "page_crono" | "page_condizioni"
     | "garanzie" | "contenuti" | "opzioni";
   const RST_SECTION_GROUPS: Array<{
     label: string;
@@ -529,6 +532,7 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
     {
       label: "PAGINE DEL PDF",
       items: [
+        { id: "page_ordine",        label: "Ordine e pagine", emoji: "🔀", descr: "Capitoli, ordine e pagine vostre" },
         { id: "page_cover",         label: "Copertina",     emoji: "🖼️", descr: "Prima pagina del preventivo" },
         { id: "page_chi_siamo",     label: "Chi siamo",     emoji: "👋", descr: "Presentazione impresa" },
         { id: "page_percorso",      label: "Come lavoriamo", emoji: "🗺️", descr: "Le fasi del cantiere" },
@@ -849,6 +853,21 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
           )}
 
           {/* Copertina */}
+          {/* Ordine dei capitoli e pagine libere: stesso blocco degli otto moduli. */}
+          {activeSection === "page_ordine" && (
+            <SectionCard icon={ListOrdered} title="Ordine e pagine" description="In che ordine escono i capitoli, quali nascondere, e le pagine scritte da voi.">
+              <OrdineCapitoli
+                ordine={form.pdf_ordine_capitoli}
+                pagine={form.pdf_pagine_libere}
+                onOrdine={(v) => set("pdf_ordine_capitoli", v)}
+                onPagine={(v) => set("pdf_pagine_libere", v)}
+                campoFoto={(valore, onChange) => (
+                  <ImageUploadField label="Foto della pagina" value={valore} companyId={companyId} onChange={onChange} aspect="aspect-[16/9]" />
+                )}
+              />
+            </SectionCard>
+          )}
+
           {activeSection === "page_cover" && (
             <SectionCard icon={FileText} title="Copertina" description="Scegli uno stile pronto e personalizza testo, immagine e layout della prima pagina.">
               {/* ── Preset stili 1-click (8 layout completi) ──────────────── */}

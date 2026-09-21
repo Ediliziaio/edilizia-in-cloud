@@ -46,12 +46,16 @@ export async function immaginiDelModello(modulo: string, template: Grezzo, logoC
   })();
   const logoCopertina = stringa(template.pdf_cover_logo_url) ?? stringa(template.cover_logo_url);
   const galleria = Array.isArray(template.gallery_lavori) ? (template.gallery_lavori as Grezzo[]) : [];
+  const pagineLibere = Array.isArray(template.pdf_pagine_libere) ? (template.pdf_pagine_libere as Grezzo[]) : [];
 
-  const [copertinaPronta, logoPronto, logoChiaroPronto, galleriaPronta] = await Promise.all([
+  const [copertinaPronta, logoPronto, logoChiaroPronto, galleriaPronta, pagineLiberePronte] = await Promise.all([
     toDataUrl(copertina, { scalaDiGrigi: copertinaInTinta(velo) }),
     toDataUrl(logoCopertina),
     toDataUrl(logoChiaroAzienda),
     aGruppi(galleria, 4, async (g) => ({ ...g, url: await toDataUrl(stringa(g.url)) })),
+    // Le foto delle pagine libere: una che non si carica lascia la pagina senza
+    // foto, non il documento senza pagina.
+    aGruppi(pagineLibere, 4, async (p) => ({ ...p, fotoUrl: await toDataUrl(stringa(p.fotoUrl ?? p.foto_url)) })),
   ]);
 
   return {
@@ -61,6 +65,7 @@ export async function immaginiDelModello(modulo: string, template: Grezzo, logoC
     pdf_cover_logo_url: logoPronto,
     cover_logo_url: logoPronto,
     gallery_lavori: galleriaPronta.filter((g) => Boolean(g.url)),
+    pdf_pagine_libere: pagineLiberePronte,
     // Non è un campo del modello: torna qui per comodità di chi chiama (il logo chiaro
     // del kit del marchio, per la copertina su fondo scuro).
     logo_chiaro_url: logoChiaroPronto,

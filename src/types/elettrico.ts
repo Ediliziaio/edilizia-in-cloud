@@ -94,4 +94,8 @@ export interface EleTemplatePdf {
   /** Condizioni generali di contratto in markdown povero: il PDF le stampa in coda. */
   condizioni_legali_testo: string | null;
   condizioni_legali_attivo: boolean | null;
+  /** Ordine e visibilità dei capitoli del PDF: [{chiave, visibile}]. null = di serie. */
+  pdf_ordine_capitoli: Array<{ chiave: string; visibile: boolean }> | null;
+  /** Pagine scritte dall'azienda, dentro la sequenza dei capitoli. */
+  pdf_pagine_libere: Array<{ id: string; occhiello?: string | null; titolo: string; testoHtml?: string | null; fotoUrl?: string | null; didascalia?: string | null }>;
 }
