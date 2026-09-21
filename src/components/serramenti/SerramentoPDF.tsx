@@ -2228,6 +2228,120 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
   // Ordine pagine PDF configurato dall'admin nel template editor.
   // normalizePdfPagesOrder garantisce robustezza: aggiunge pagine nuove
   // mancanti, rimuove ID legacy, forza visible=true sulle obbligatorie.
+
+  // ─── Le sezioni brevi: quando stanno una dopo l'altra condividono le pagine ──
+  // Garanzie, confronto, domande e i nostri lavori aprivano ciascuna un foglio:
+  // con poche garanzie o poche domande restava mezza pagina bianca. Consecutive
+  // nell'ordine scelto, ora scorrono insieme; da sole, restano una pagina ciascuna.
+  const scorrevoli: Record<string, React.ReactNode | null> = {
+    garanzie: garanzie.length > 0 ? (
+      <>
+<View minPresenceAhead={140}>
+                <Text style={styles.pageEyebrow}>Le nostre garanzie</Text>
+                <Text style={styles.pageTitle}>Più controllo.{"\n"}Meno dubbi.</Text>
+                <Text style={styles.pageSubtitle}>
+                  Le garanzie che rendono il progetto più chiaro prima della conferma.
+                </Text>
+</View>
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 14 }}>
+                  {garanzie.slice(0, 6).map((g, i) => (
+                    <View key={i} style={styles.garanziaCard} wrap={false}>
+                      <View style={styles.garanziaIcon}>
+                        <GaranziaIconSvg kind={g.icona} color={C.onPrimary} />
+                      </View>
+                      <Text style={styles.garanziaTitolo}>{g.titolo}</Text>
+                      <Text style={styles.garanziaDesc}>{g.descrizione}</Text>
+                    </View>
+                  ))}
+                </View>
+      </>
+    ) : null,
+    confronto: confrontoAttivo && confrontoRighe.length > 0 ? (
+      <>
+<View minPresenceAhead={140}>
+                <Text style={styles.pageEyebrow}>Confronto tecnico · Prima &amp; Dopo</Text>
+                <Text style={styles.pageTitle}>{confrontoTitolo}</Text>
+                <Text style={styles.pageSubtitle}>
+                  Un confronto semplice tra la situazione attuale e la soluzione proposta.
+                </Text>
+</View>
+                {/* Header tabella */}
+                <View style={{ flexDirection: "row", paddingVertical: 8, borderBottom: `1pt solid ${C.gray300}`, marginTop: 16 }}>
+                  <View style={{ flex: 2 }}>
+                    <Text style={styles.tableHeaderText}>Parametro</Text>
+                  </View>
+                  <View style={{ flex: 1, alignItems: "center" }}>
+                    <Text style={[styles.tableHeaderText, { color: C.gray500 }]}>Attuale</Text>
+                  </View>
+                  <View style={{ flex: 1, alignItems: "center" }}>
+                    <Text style={[styles.tableHeaderText, { color: C.ink }]}>Nuovo</Text>
+                  </View>
+                  <View style={{ flex: 0.7, alignItems: "flex-end" }}>
+                    {/* "Δ" non esiste in Helvetica WinAnsi (usciva «"») */}
+                    <Text style={[styles.tableHeaderText, { color: C.successText }]}>Miglioria</Text>
+                  </View>
+                </View>
+                {confrontoRighe.map((r, i) => (
+                  <View key={i} style={styles.confrontoRow} wrap={false}>
+                    <View style={{ flex: 2 }}>
+                      <Text style={styles.confrontoCell}>{senzaMenoTipografico(r.parametro)}</Text>
+                    </View>
+                    <View style={{ flex: 1, alignItems: "center" }}>
+                      <Text style={[styles.confrontoCell, { color: C.gray500 }]}>{senzaMenoTipografico(r.prima)}</Text>
+                    </View>
+                    <View style={{ flex: 1, alignItems: "center" }}>
+                      <Text style={styles.confrontoCellStrong}>{senzaMenoTipografico(r.dopo)}</Text>
+                    </View>
+                    <View style={{ flex: 0.7, alignItems: "flex-end" }}>
+                      {r.delta && <Text style={styles.confrontoCellDelta}>{senzaMenoTipografico(r.delta)}</Text>}
+                    </View>
+                  </View>
+                ))}
+                <Text style={{ fontSize: 8.5, color: C.gray500, marginTop: 14, fontStyle: "italic" }}>
+                  Valori indicativi, da confermare con rilievo tecnico e schede prodotto definitive.
+                  Quando non personalizzati nel template, i dati rappresentano benchmark medi di settore.
+                </Text>
+      </>
+    ) : null,
+    faq: faqItems.length > 0 ? (
+      <>
+<View minPresenceAhead={140}>
+                <Text style={styles.pageEyebrow}>Domande frequenti</Text>
+                <Text style={styles.pageTitle}>Le risposte{"\n"}prima della conferma.</Text>
+                <Text style={styles.pageSubtitle}>
+                  I dubbi più comuni spiegati in modo semplice, prima di decidere.
+                </Text>
+</View>
+                <View style={{ marginTop: 14 }}>
+                  {faqItems.slice(0, 8).map((f, i) => (
+                    <View key={i} style={styles.faqItem} wrap={false}>
+                      <Text style={styles.faqDomanda}>{i + 1}. {f.domanda}</Text>
+                      <Text style={styles.faqRisposta}>{f.risposta}</Text>
+                    </View>
+                  ))}
+                </View>
+      </>
+    ) : null,
+    gallery_lavori: galleryLavori.length > 0 ? (
+      <>
+<View minPresenceAhead={140}>
+                <Text style={styles.sectionTitle}>I nostri lavori</Text>
+                <Text style={{ fontSize: 8.5, color: "#6B7280", marginBottom: 10 }}>Alcuni esempi di interventi realizzati dalla nostra azienda.</Text>
+</View>
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
+                  {galleryLavori.map((item, i) => (
+                    <View key={i} style={{ width: "47%", marginBottom: 8 }} wrap={false}>
+                      <Image src={item.url} style={{ width: "100%", height: 110, borderRadius: 4 }} />
+                      {item.didascalia ? <Text style={{ fontSize: 8, marginTop: 3, color: "#374151" }}>{item.didascalia}</Text> : null}
+                      {item.luogo ? <Text style={{ fontSize: 7, color: "#9CA3AF" }}>{item.luogo}</Text> : null}
+                    </View>
+                  ))}
+                </View>
+      </>
+    ) : null,
+  };
+  const SCORREVOLI = new Set(Object.keys(scorrevoli));
+
   const pdfPagesOrder = normalizePdfPagesOrder(
     (tpl.pdf_pages_order ?? null) as SrPdfPageOrderItem[] | null,
   );
@@ -3922,28 +4036,13 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
           // ─── PAGINA GARANZIE (CRO) ─────────────────────────────────────
           garanzie: (
             <>
-            {garanzie.length > 0 && (
+            {scorrevoli.garanzie ? (
               <Page size="A4" style={styles.page}>
                 <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
-                <Text style={styles.pageEyebrow}>Le nostre garanzie</Text>
-                <Text style={styles.pageTitle}>Più controllo.{"\n"}Meno dubbi.</Text>
-                <Text style={styles.pageSubtitle}>
-                  Le garanzie che rendono il progetto più chiaro prima della conferma.
-                </Text>
-                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 14 }}>
-                  {garanzie.slice(0, 6).map((g, i) => (
-                    <View key={i} style={styles.garanziaCard} wrap={false}>
-                      <View style={styles.garanziaIcon}>
-                        <GaranziaIconSvg kind={g.icona} color={C.onPrimary} />
-                      </View>
-                      <Text style={styles.garanziaTitolo}>{g.titolo}</Text>
-                      <Text style={styles.garanziaDesc}>{g.descrizione}</Text>
-                    </View>
-                  ))}
-                </View>
+                {scorrevoli.garanzie}
                 <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
               </Page>
-            )}
+            ) : null}
             </>
           ),
           // ─── PAGINA CONFRONTO PRIMA/DOPO NUMERICO ──────────────────────
@@ -3952,77 +4051,25 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
           // la pagina non viene generata.
           confronto: (
             <>
-            {confrontoAttivo && confrontoRighe.length > 0 && (
+            {scorrevoli.confronto ? (
               <Page size="A4" style={styles.page}>
                 <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
-                <Text style={styles.pageEyebrow}>Confronto tecnico · Prima &amp; Dopo</Text>
-                <Text style={styles.pageTitle}>{confrontoTitolo}</Text>
-                <Text style={styles.pageSubtitle}>
-                  Un confronto semplice tra la situazione attuale e la soluzione proposta.
-                </Text>
-                {/* Header tabella */}
-                <View style={{ flexDirection: "row", paddingVertical: 8, borderBottom: `1pt solid ${C.gray300}`, marginTop: 16 }}>
-                  <View style={{ flex: 2 }}>
-                    <Text style={styles.tableHeaderText}>Parametro</Text>
-                  </View>
-                  <View style={{ flex: 1, alignItems: "center" }}>
-                    <Text style={[styles.tableHeaderText, { color: C.gray500 }]}>Attuale</Text>
-                  </View>
-                  <View style={{ flex: 1, alignItems: "center" }}>
-                    <Text style={[styles.tableHeaderText, { color: C.ink }]}>Nuovo</Text>
-                  </View>
-                  <View style={{ flex: 0.7, alignItems: "flex-end" }}>
-                    {/* "Δ" non esiste in Helvetica WinAnsi (usciva «"») */}
-                    <Text style={[styles.tableHeaderText, { color: C.successText }]}>Miglioria</Text>
-                  </View>
-                </View>
-                {confrontoRighe.map((r, i) => (
-                  <View key={i} style={styles.confrontoRow} wrap={false}>
-                    <View style={{ flex: 2 }}>
-                      <Text style={styles.confrontoCell}>{senzaMenoTipografico(r.parametro)}</Text>
-                    </View>
-                    <View style={{ flex: 1, alignItems: "center" }}>
-                      <Text style={[styles.confrontoCell, { color: C.gray500 }]}>{senzaMenoTipografico(r.prima)}</Text>
-                    </View>
-                    <View style={{ flex: 1, alignItems: "center" }}>
-                      <Text style={styles.confrontoCellStrong}>{senzaMenoTipografico(r.dopo)}</Text>
-                    </View>
-                    <View style={{ flex: 0.7, alignItems: "flex-end" }}>
-                      {r.delta && <Text style={styles.confrontoCellDelta}>{senzaMenoTipografico(r.delta)}</Text>}
-                    </View>
-                  </View>
-                ))}
-                <Text style={{ fontSize: 8.5, color: C.gray500, marginTop: 14, fontStyle: "italic" }}>
-                  Valori indicativi, da confermare con rilievo tecnico e schede prodotto definitive.
-                  Quando non personalizzati nel template, i dati rappresentano benchmark medi di settore.
-                </Text>
+                {scorrevoli.confronto}
                 <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
               </Page>
-            )}
+            ) : null}
             </>
           ),
           // ─── PAGINA FAQ ────────────────────────────────────────────────
           faq: (
             <>
-            {faqItems.length > 0 && (
+            {scorrevoli.faq ? (
               <Page size="A4" style={styles.page}>
                 <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
-                <Text style={styles.pageEyebrow}>Domande frequenti</Text>
-                <Text style={styles.pageTitle}>Le risposte{"\n"}prima della conferma.</Text>
-                <Text style={styles.pageSubtitle}>
-                  I dubbi più comuni spiegati in modo semplice, prima di decidere.
-                </Text>
-                <View style={{ marginTop: 14 }}>
-                  {faqItems.slice(0, 8).map((f, i) => (
-                    <View key={i} style={styles.faqItem} wrap={false}>
-                      <Text style={styles.faqDomanda}>{i + 1}. {f.domanda}</Text>
-                      <Text style={styles.faqRisposta}>{f.risposta}</Text>
-                    </View>
-                  ))}
-                </View>
+                {scorrevoli.faq}
                 <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
               </Page>
-            )}
+            ) : null}
             </>
           ),
           // ─── PAGINA CONDIZIONI LEGALI ──────────────────────────────────
@@ -4083,29 +4130,43 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
           // ─── PAGINA I NOSTRI LAVORI (gallery foto realizzazioni) ───────
           gallery_lavori: (
             <>
-            {galleryLavori.length > 0 && (
+            {scorrevoli.gallery_lavori ? (
               <Page size="A4" style={styles.page}>
                 <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
-                <Text style={styles.sectionTitle}>I nostri lavori</Text>
-                <Text style={{ fontSize: 8.5, color: "#6B7280", marginBottom: 10 }}>Alcuni esempi di interventi realizzati dalla nostra azienda.</Text>
-                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
-                  {galleryLavori.map((item, i) => (
-                    <View key={i} style={{ width: "47%", marginBottom: 8 }} wrap={false}>
-                      <Image src={item.url} style={{ width: "100%", height: 110, borderRadius: 4 }} />
-                      {item.didascalia ? <Text style={{ fontSize: 8, marginTop: 3, color: "#374151" }}>{item.didascalia}</Text> : null}
-                      {item.luogo ? <Text style={{ fontSize: 7, color: "#9CA3AF" }}>{item.luogo}</Text> : null}
-                    </View>
-                  ))}
-                </View>
+                {scorrevoli.gallery_lavori}
                 <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
               </Page>
-            )}
+            ) : null}
             </>
           ),
         };
-        return pdfPagesOrder
-          .filter((pg) => pg.visible)
-          .map((pg) => <React.Fragment key={pg.id}>{pageEls[pg.id]}</React.Fragment>);
+        // Le sezioni brevi consecutive (con qualcosa da dire) vanno in una pagina
+        // che scorre; tutte le altre restano come sono, una o più pagine ciascuna.
+        const visibili = pdfPagesOrder.filter((pg) => pg.visible);
+        const blocchi: SrPdfPageId[][] = [];
+        for (const pg of visibili) {
+          const scorre = SCORREVOLI.has(pg.id) && Boolean(scorrevoli[pg.id]);
+          const ultimo = blocchi[blocchi.length - 1];
+          const ultimoScorre = ultimo ? ultimo.every((id) => SCORREVOLI.has(id) && Boolean(scorrevoli[id])) : false;
+          if (scorre && ultimo && ultimoScorre) ultimo.push(pg.id);
+          else blocchi.push([pg.id]);
+        }
+        return blocchi.map((ids) => (
+          ids.length > 1 ? (
+            <Page key={ids.join("+")} size="A4" style={styles.page}>
+              <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
+              {/* Una sezione sale sulla pagina di quella prima solo se ci sta intera:
+                  mai una domanda spezzata a metà o un titolo solo in fondo. La
+                  galleria può scorrere su più pagine, le altre stanno in una. */}
+              {ids.map((id, i) => (
+                <View key={id} wrap={id === "gallery_lavori"} style={i > 0 ? { marginTop: 30 } : undefined}>{scorrevoli[id]}</View>
+              ))}
+              <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
+            </Page>
+          ) : (
+            <React.Fragment key={ids[0]}>{pageEls[ids[0]]}</React.Fragment>
+          )
+        ));
       })()}
 
     </Document>

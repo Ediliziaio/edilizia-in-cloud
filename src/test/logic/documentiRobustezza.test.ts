@@ -124,3 +124,20 @@ describe("impaginazione: i casi limite del collaudo", () => {
     expect(leggi("supabase/functions/generate-quote-pdf/index.ts")).toContain("accetta il preventivo e le condizioni generali di contratto allegate");
   });
 });
+
+describe("Serramenti: le sezioni brevi consecutive condividono le pagine", () => {
+  const src = leggi("src/components/serramenti/SerramentoPDF.tsx");
+
+  it("garanzie, confronto, domande e lavori sono sezioni che scorrono", () => {
+    expect(src).toContain("const scorrevoli: Record<string, React.ReactNode | null> = {");
+    for (const k of ["garanzie:", "confronto:", "faq:", "gallery_lavori:"]) expect(src).toContain(`    ${k} `);
+  });
+
+  it("una sezione sale sulla pagina precedente solo se ci sta intera (la galleria può scorrere)", () => {
+    expect(src).toContain('wrap={id === "gallery_lavori"}');
+  });
+
+  it("da sola, una sezione breve resta una pagina come prima", () => {
+    expect(src).toMatch(/\{scorrevoli\.garanzie \? \(\n\s+<Page size="A4" style=\{styles\.page\}>/);
+  });
+});
