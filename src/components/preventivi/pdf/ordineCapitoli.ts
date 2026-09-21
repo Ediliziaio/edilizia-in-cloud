@@ -14,7 +14,9 @@
 
 export type ChiaveCapitolo =
   | "apertura" | "chiSiamo" | "progetto" | "percorso" | "lavori" | "foto"
-  | "piano" | "investimento" | "garanzie" | "tempi";
+  | "piano" | "investimento" | "garanzie" | "tempi"
+  // I blocchi della libreria (_shared/blocchiPreventivo.ts): testi e foto di serie per settore.
+  | "comeFunziona" | "compreso" | "protezione" | "controlli" | "documenti" | "diario";
 
 export interface VoceOrdine {
   /** Una ChiaveCapitolo, oppure `libera:<id>` per una pagina scritta dall'azienda. */
@@ -40,20 +42,34 @@ export interface CapitoloDescritto {
   spostabile: boolean;
   /** Il prezzo non si nasconde: un preventivo senza investimento non è un preventivo. */
   nascondibile: boolean;
+  /**
+   * Acceso quando l'azienda non ha ancora scelto. I blocchi che promettono qualcosa
+   * al cliente (proteggiamo la casa, controlliamo, consegniamo un fascicolo) nascono
+   * spenti: li accende l'azienda dopo averli riletti.
+   */
+  diSerie: boolean;
+  /** È un impegno verso il cliente: l'editor lo dice accanto all'interruttore. */
+  promessa?: boolean;
 }
 
 /** I capitoli nell'ordine di serie: prima il valore, poi il prezzo. */
 export const CAPITOLI_EDILI: CapitoloDescritto[] = [
-  { chiave: "apertura", etichetta: "Apertura", descrizione: "Lettera, l'intervento in breve, il piano in numeri, l'indice", spostabile: false, nascondibile: true },
-  { chiave: "chiSiamo", etichetta: "Chi siamo", descrizione: "Presentazione, perché sceglierci, recensioni · esce se compilato", spostabile: true, nascondibile: true },
-  { chiave: "progetto", etichetta: "Il progetto", descrizione: "Da dove partiamo e la nostra risposta · esce se compilato", spostabile: true, nascondibile: true },
-  { chiave: "percorso", etichetta: "Come lavoriamo", descrizione: "Le fasi, dal primo incontro alla consegna · esce se compilato", spostabile: true, nascondibile: true },
-  { chiave: "lavori", etichetta: "I nostri lavori", descrizione: "Galleria dei lavori consegnati · esce se ci sono foto", spostabile: true, nascondibile: true },
-  { chiave: "foto", etichetta: "Foto e render", descrizione: "Le foto e i render caricati nel preventivo · esce se ci sono", spostabile: true, nascondibile: true },
-  { chiave: "piano", etichetta: "Il piano dei lavori", descrizione: "Il computo, voce per voce", spostabile: true, nascondibile: true },
-  { chiave: "investimento", etichetta: "Il tuo investimento", descrizione: "Il prezzo, lo sconto, l'IVA, la detrazione", spostabile: true, nascondibile: false },
-  { chiave: "garanzie", etichetta: "Garanzie e domande", descrizione: "Le garanzie e le domande frequenti · esce se compilato", spostabile: true, nascondibile: true },
-  { chiave: "tempi", etichetta: "I tempi", descrizione: "Il cronoprogramma del cantiere · esce se compilato", spostabile: true, nascondibile: true },
+  { chiave: "apertura", etichetta: "Apertura", descrizione: "Lettera, l'intervento in breve, il piano in numeri, l'indice", spostabile: false, nascondibile: true, diSerie: true },
+  { chiave: "chiSiamo", etichetta: "Chi siamo", descrizione: "Presentazione, perché sceglierci, recensioni · esce se compilato", spostabile: true, nascondibile: true, diSerie: true },
+  { chiave: "progetto", etichetta: "Il progetto", descrizione: "Da dove partiamo e la nostra risposta · esce se compilato", spostabile: true, nascondibile: true, diSerie: true },
+  { chiave: "comeFunziona", etichetta: "Come funziona", descrizione: "Le lavorazioni che non si vedono, spiegate con foto tecniche", spostabile: true, nascondibile: true, diSerie: true },
+  { chiave: "percorso", etichetta: "Come lavoriamo", descrizione: "Le fasi, dal primo incontro alla consegna · esce se compilato", spostabile: true, nascondibile: true, diSerie: true },
+  { chiave: "protezione", etichetta: "Protezione della casa", descrizione: "Come proteggete la casa durante i lavori", spostabile: true, nascondibile: true, diSerie: false, promessa: true },
+  { chiave: "controlli", etichetta: "Controlli di qualità", descrizione: "Cosa verificate prima della consegna", spostabile: true, nascondibile: true, diSerie: false, promessa: true },
+  { chiave: "lavori", etichetta: "I nostri lavori", descrizione: "Galleria dei lavori consegnati · esce se ci sono foto", spostabile: true, nascondibile: true, diSerie: true },
+  { chiave: "foto", etichetta: "Foto e render", descrizione: "Le foto e i render caricati nel preventivo · esce se ci sono", spostabile: true, nascondibile: true, diSerie: true },
+  { chiave: "piano", etichetta: "Il piano dei lavori", descrizione: "Il computo, voce per voce", spostabile: true, nascondibile: true, diSerie: true },
+  { chiave: "compreso", etichetta: "Cosa è compreso", descrizione: "Cosa comprende il prezzo, e cosa resta fuori", spostabile: true, nascondibile: true, diSerie: false, promessa: true },
+  { chiave: "investimento", etichetta: "Il tuo investimento", descrizione: "Il prezzo, lo sconto, l'IVA, la detrazione", spostabile: true, nascondibile: false, diSerie: true },
+  { chiave: "garanzie", etichetta: "Garanzie e domande", descrizione: "Le garanzie e le domande frequenti · esce se compilato", spostabile: true, nascondibile: true, diSerie: true },
+  { chiave: "documenti", etichetta: "Documenti consegnati", descrizione: "Il fascicolo che il cliente riceve a fine lavori", spostabile: true, nascondibile: true, diSerie: false, promessa: true },
+  { chiave: "diario", etichetta: "Diario fotografico", descrizione: "Le foto delle fasi, anche di quelle che poi restano nascoste", spostabile: true, nascondibile: true, diSerie: false, promessa: true },
+  { chiave: "tempi", etichetta: "I tempi", descrizione: "Il cronoprogramma del cantiere · esce se compilato", spostabile: true, nascondibile: true, diSerie: true },
 ];
 
 const CHIAVI = new Set<string>(CAPITOLI_EDILI.map((c) => c.chiave));
@@ -112,7 +128,8 @@ export function ordineEffettivo(salvato: VoceOrdine[], pagineLibere: PaginaLiber
     visti.add(c.chiave);
     const prima = CAPITOLI_EDILI.slice(0, i).map((x) => x.chiave).reverse().find((k) => out.some((v) => v.chiave === k));
     const dove = prima ? out.findIndex((v) => v.chiave === prima) + 1 : 0;
-    out.splice(dove, 0, { chiave: c.chiave, visibile: true });
+    // Un capitolo nuovo per chi aveva già scelto l'ordine esce solo se è acceso di serie.
+    out.splice(dove, 0, { chiave: c.chiave, visibile: c.diSerie });
   });
 
   // Le pagine libere nuove vanno prima dell'investimento: si leggono mentre si

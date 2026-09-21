@@ -20,6 +20,7 @@
 import * as React from "react";
 import {
   Document, Page, Text, View, Image, Svg, Rect, Path, Circle, Line, G, Defs, LinearGradient, RadialGradient, Stop, Font,
+  Polyline, Polygon, Ellipse,
 } from "@react-pdf/renderer";
 import { formatCurrency } from "@/lib/formatters";
 import { htmlToRichBlocks } from "@/lib/ristrutturazione/richTextPdf";
@@ -27,10 +28,12 @@ import { parseFinanziamentoPromo, calcolaRataMensile } from "@/lib/preventivi/fi
 import { fraseValiditaChiusura } from "@/lib/preventivi/validitaOfferta";
 import { creaTema, coloriCopertina, copertinaInTinta, type TemaDocumento } from "./temaDocumento";
 import { chiaveLibera, ordineEffettivo } from "./ordineCapitoli";
+import { ICONE, type NomeIcona, type NodoIcona } from "../../../../supabase/functions/_shared/iconePreventivo";
+import { BLOCCHI, type ChiaveBlocco } from "../../../../supabase/functions/_shared/blocchiPreventivo";
 import { MODULO_RECESSO } from "../../../../supabase/functions/_shared/condizioniStandard";
 import { giorniDellaDurata, senzaNumeroDavanti, spezzaAccento } from "./testoDocumento";
 import type {
-  DocEdileCapitolo, DocEdileDati, DocEdileFase, DocEdileFoto, DocEdileVoceElenco,
+  DocEdileBlocco, DocEdileCapitolo, DocEdileDati, DocEdileFase, DocEdileFoto, DocEdileFotoBlocco, DocEdileVoceElenco,
 } from "./documentoEdileTipi";
 
 // Le parole italiane spezzate dal sillabatore inglese erano brutte: mai a capo dentro la parola.
@@ -689,6 +692,104 @@ function Copertina({ tema, dati }: { tema: TemaDocumento; dati: DocEdileDati }) 
 }
 
 // ─── Il documento ────────────────────────────────────────────────────────────
+// ─── Icone dei blocchi: i disegni di Lucide, nel colore dell'azienda ─────────
+function IconaPdf({ nome, colore, lato = 12 }: { nome: NomeIcona; colore: string; lato?: number }) {
+  const tratto = { stroke: colore, strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, fill: "none" };
+  const numero = (x: string | number | undefined) => (x == null ? undefined : Number(x));
+  return (
+    <Svg width={lato} height={lato} viewBox="0 0 24 24">
+      {(ICONE[nome] as NodoIcona[]).map(([tag, a], i) => {
+        switch (tag) {
+          case "path": return <Path key={i} d={String(a.d)} {...tratto} />;
+          case "circle": return <Circle key={i} cx={numero(a.cx)} cy={numero(a.cy)} r={numero(a.r)} {...tratto} />;
+          case "rect": return <Rect key={i} x={numero(a.x) ?? 0} y={numero(a.y) ?? 0} width={numero(a.width)} height={numero(a.height)} rx={numero(a.rx)} ry={numero(a.ry)} {...tratto} />;
+          case "line": return <Line key={i} x1={numero(a.x1)} y1={numero(a.y1)} x2={numero(a.x2)} y2={numero(a.y2)} {...tratto} />;
+          case "polyline": return <Polyline key={i} points={String(a.points)} {...tratto} />;
+          case "polygon": return <Polygon key={i} points={String(a.points)} {...tratto} />;
+          case "ellipse": return <Ellipse key={i} cx={numero(a.cx)} cy={numero(a.cy)} rx={numero(a.rx)} ry={numero(a.ry)} {...tratto} />;
+          default: return null;
+        }
+      })}
+    </Svg>
+  );
+}
+
+/** Una o due foto del blocco; sotto, la nota quando sono foto di serie. */
+function FotoBlocco({ tema, foto, nota }: { tema: TemaDocumento; foto: DocEdileFotoBlocco[]; nota: string | null }) {
+  if (!foto.length) return null;
+  const due = foto.length > 1;
+  const larga = (UTILE - 10) / 2;
+  return (
+    <View wrap={false} style={{ marginBottom: 16 }}>
+      <View style={{ flexDirection: "row" }}>
+        {foto.slice(0, 2).map((f, i) => (
+          <Image key={i} src={f.src} style={{ width: due ? larga : UTILE, height: due ? 156 : 236, objectFit: "cover", marginLeft: i === 0 ? 0 : 10 }} />
+        ))}
+      </View>
+      {nota && foto.some((f) => f.diSerie) ? (
+        <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 7, color: tema.grigioChiaro, marginTop: 5 }}>{nota}</Text>
+      ) : null}
+    </View>
+  );
+}
+
+/** Le voci di un blocco: icona in un cerchio di tinta, titolo, spiegazione. */
+function VociBlocco({ tema, voci, attenuate = false }: { tema: TemaDocumento; voci: DocEdileBlocco["voci"]; attenuate?: boolean }) {
+  // Con una spiegazione le voci stanno su due colonne; solo titoli, su tre.
+  const colonne = voci.some((x) => x.testo) ? 2 : 3;
+  const righe: DocEdileBlocco["voci"][] = [];
+  for (let i = 0; i < voci.length; i += colonne) righe.push(voci.slice(i, i + colonne));
+  const spazio = 14;
+  const larghezza = (UTILE - spazio * (colonne - 1)) / colonne;
+  return (
+    <View>
+      {righe.map((riga, r) => (
+        <View key={r} wrap={false} style={{ flexDirection: "row", marginBottom: colonne === 2 ? 12 : 9 }}>
+          {riga.map((x, i) => (
+            <View key={i} style={{ width: larghezza, marginLeft: i === 0 ? 0 : spazio, flexDirection: "row" }}>
+              <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: attenuate ? tema.cartaCalda : tema.tinta, alignItems: "center", justifyContent: "center", marginRight: 8 }}>
+                {x.icona ? <IconaPdf nome={x.icona} colore={attenuate ? tema.grigio : tema.inchiostroMarca} lato={11} /> : null}
+              </View>
+              <View style={{ flex: 1, paddingTop: x.testo ? 1 : 5 }}>
+                <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 9.5, color: attenuate ? tema.grigio : tema.inchiostro, lineHeight: 1.3 }}>{x.titolo}</Text>
+                {x.testo ? <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 8.5, color: tema.grigio, marginTop: 2, lineHeight: 1.45 }}>{x.testo}</Text> : null}
+              </View>
+            </View>
+          ))}
+        </View>
+      ))}
+    </View>
+  );
+}
+
+/** Un blocco della libreria come capitolo del documento. */
+function CapitoloBlocco({ tema, numero, chiave, blocco }: { tema: TemaDocumento; numero: number; chiave: ChiaveBlocco; blocco: DocEdileBlocco }) {
+  if (chiave === "compreso") {
+    // Tutto insieme: segue il capitolo prima se ci sta, altrimenti va intero alla
+    // pagina dopo. Diviso, il titolo restava da solo in fondo alla pagina del computo.
+    return (
+      <View wrap={false}>
+        <Capitolo tema={tema} numero={numero} occhiello={blocco.occhiello} titolo={blocco.titolo} sommario={blocco.intro} />
+        <TitolinoSezione tema={tema} testo="Compreso nel prezzo" />
+        <VociBlocco tema={tema} voci={blocco.voci} />
+        {blocco.escluse.length > 0 ? (
+          <View style={{ marginTop: 10 }}>
+            <TitolinoSezione tema={tema} testo="Non compreso" />
+            <VociBlocco tema={tema} voci={blocco.escluse} attenuate />
+          </View>
+        ) : null}
+      </View>
+    );
+  }
+  return (
+    <View>
+      <Capitolo tema={tema} numero={numero} occhiello={blocco.occhiello} titolo={blocco.titolo} sommario={blocco.intro} />
+      <FotoBlocco tema={tema} foto={blocco.foto} nota={blocco.nota} />
+      <VociBlocco tema={tema} voci={blocco.voci} />
+    </View>
+  );
+}
+
 export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
   const { modello, modulo, totali, capitoli, opzioniComputo: oc } = dati;
   const tema = creaTema({
@@ -729,6 +830,8 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
     investimento: true,
     garanzie: haGaranzie,
     tempi: haTempi,
+    // I blocchi escono se hanno qualcosa: le voci (o le foto) del settore o dell'azienda.
+    ...Object.fromEntries(BLOCCHI.map(({ chiave }) => [chiave, modello.blocchi[chiave].voci.length > 0 || modello.blocchi[chiave].foto.length > 0])),
   };
   const libere = new Map(modello.pagineLibere.map((pl) => [chiaveLibera(pl.id), pl]));
   const sequenza = ordine.filter((v) => v.chiave !== "apertura" && v.visibile && (libere.has(v.chiave) || presente[v.chiave]));
@@ -739,6 +842,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
     chiSiamo: "Chi siamo", progetto: "Il progetto", percorso: "Come lavoriamo", lavori: "I nostri lavori",
     foto: "Foto e render", piano: modulo.titoloComputo.replace(/\*/g, ""), investimento: "Il tuo investimento",
     garanzie: "Garanzie e domande", tempi: "I tempi",
+    ...Object.fromEntries(BLOCCHI.map((b) => [b.chiave, b.etichetta])),
   };
   const sommario: Array<{ numero: number; titolo: string }> = [
     ...sequenza.map((v) => ({
@@ -748,7 +852,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
     { numero: numeroPassi, titolo: "I prossimi passi" },
   ];
   // Questi capitoli sono brevi: seguono il precedente sulla stessa pagina, se c'è posto.
-  const BREVI = new Set(["percorso", "tempi"]);
+  const BREVI = new Set(["percorso", "tempi", "compreso"]);
 
   // Il piano in numeri: fatti contabili del documento, niente che suoni da promessa.
   const giorniFasi = modello.cronoprogramma.map((f) => giorniDellaDurata(f.durata));
@@ -792,6 +896,8 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
         </>
       );
     }
+    const blocco = BLOCCHI.find((b) => b.chiave === chiave);
+    if (blocco) return <CapitoloBlocco tema={tema} numero={numero} chiave={blocco.chiave} blocco={modello.blocchi[blocco.chiave]} />;
     switch (chiave) {
       case "chiSiamo": return (<>
           <Capitolo tema={tema} numero={numero} occhiello="Chi siamo" titolo={`Chi c'è *dietro* questo progetto.`} />

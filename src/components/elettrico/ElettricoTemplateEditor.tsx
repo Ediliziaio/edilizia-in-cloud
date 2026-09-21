@@ -154,7 +154,7 @@ function PlaceholderChips({
 // tabella ele_template_pdf è scritta via `(supabase as any)` nell'hook upsert).
 type FormState = Required<Pick<EleTemplatePdf,
   | "pdf_ordine_capitoli" | "pdf_pagine_libere"
-  | "condizioni_legali_testo" | "condizioni_legali_attivo" | "modulo_recesso_attivo"
+  | "condizioni_legali_testo" | "condizioni_legali_attivo" | "modulo_recesso_attivo" | "pdf_blocchi"
   | "logo_url" | "color_primary" | "color_secondary" | "color_accent" | "color_text"
   | "chi_siamo" | "chi_siamo_foto_url" | "esigenze" | "soluzione" | "usp"
   | "testimonianze" | "cronoprogramma" | "cover_title" | "cover_subtitle"
@@ -215,6 +215,7 @@ function templateToForm(t: EleTemplatePdf): FormState {
     condizioni_legali_testo: t.condizioni_legali_testo ?? "",
     condizioni_legali_attivo: t.condizioni_legali_attivo ?? true,
     modulo_recesso_attivo: t.modulo_recesso_attivo === true,
+    pdf_blocchi: t.pdf_blocchi ?? {},
     ...cover,
     logo_url: t.logo_url ?? null,
     cover_logo_url: t.cover_logo_url ?? null,
@@ -906,6 +907,9 @@ export function ElettricoTemplateEditor({ embedded = false }: Props) {
                 pagine={form.pdf_pagine_libere}
                 onOrdine={(v) => set("pdf_ordine_capitoli", v)}
                 onPagine={(v) => set("pdf_pagine_libere", v)}
+                settore="elettrico"
+                blocchi={form.pdf_blocchi}
+                onBlocchi={(v) => set("pdf_blocchi", v)}
                 campoFoto={(valore, onChange) => (
                   <ImageUploadField label="Foto della pagina" value={valore} companyId={companyId} onChange={onChange} aspect="aspect-[16/9]" />
                 )}

@@ -11,6 +11,14 @@
  */
 import { toDataUrl } from "@/lib/serramenti/pdfImageUtils";
 import { copertinaInTinta } from "./temaDocumento";
+import { leggiOrdine, leggiPagineLibere, ordineEffettivo } from "./ordineCapitoli";
+import { BLOCCHI, eFotoDiSerie, leggiBlocco, settoreBlocchi } from "../../../../supabase/functions/_shared/blocchiPreventivo";
+
+/** Le foto di serie sono indirizzi del sito («/pdf-stock/…»): si completano con l'origine della pagina. */
+const conOrigine = (url: string): string => {
+  const origine = (globalThis as { location?: { origin?: string } }).location?.origin;
+  return url.startsWith("/") && origine ? `${origine}${url}` : url;
+};
 
 /**
  * La copertina di chi non ha ancora toccato il modello: una foto del mestiere,
@@ -46,9 +54,12 @@ export async function immaginiDelModello(modulo: string, template: Grezzo, logoC
   })();
   const logoCopertina = stringa(template.pdf_cover_logo_url) ?? stringa(template.cover_logo_url);
   const galleria = Array.isArray(template.gallery_lavori) ? (template.gallery_lavori as Grezzo[]) : [];
+  // Le foto dei blocchi si caricano solo per quelli che escono: al massimo due per pagina.
+  const ordine = ordineEffettivo(leggiOrdine(template.pdf_ordine_capitoli), leggiPagineLibere(template.pdf_pagine_libere));
+  const blocchiAccesi = BLOCCHI.filter((b) => ordine.some((v) => v.chiave === b.chiave && v.visibile));
   const pagineLibere = Array.isArray(template.pdf_pagine_libere) ? (template.pdf_pagine_libere as Grezzo[]) : [];
 
-  const [copertinaPronta, logoPronto, logoChiaroPronto, galleriaPronta, pagineLiberePronte] = await Promise.all([
+  const [copertinaPronta, logoPronto, logoChiaroPronto, galleriaPronta, pagineLiberePronte, fotoBlocchi] = await Promise.all([
     toDataUrl(copertina, { scalaDiGrigi: copertinaInTinta(velo) }),
     toDataUrl(logoCopertina),
     toDataUrl(logoChiaroAzienda),
@@ -56,6 +67,12 @@ export async function immaginiDelModello(modulo: string, template: Grezzo, logoC
     // Le foto delle pagine libere: una che non si carica lascia la pagina senza
     // foto, non il documento senza pagina.
     aGruppi(pagineLibere, 4, async (p) => ({ ...p, fotoUrl: await toDataUrl(stringa(p.fotoUrl ?? p.foto_url)) })),
+    // Una foto che non arriva lascia il blocco senza quella foto, non il documento senza blocco.
+    Promise.all(blocchiAccesi.map(async ({ chiave }) => {
+      const indirizzi = leggiBlocco(chiave, settoreBlocchi(modulo), template.pdf_blocchi).foto.slice(0, 2);
+      const pronte = await Promise.all(indirizzi.map(async (u) => ({ src: await toDataUrl(conOrigine(u)), diSerie: eFotoDiSerie(u) })));
+      return [chiave, pronte.filter((f) => Boolean(f.src))] as const;
+    })),
   ]);
 
   return {
@@ -66,6 +83,8 @@ export async function immaginiDelModello(modulo: string, template: Grezzo, logoC
     cover_logo_url: logoPronto,
     gallery_lavori: galleriaPronta.filter((g) => Boolean(g.url)),
     pdf_pagine_libere: pagineLiberePronte,
+    // Non è un campo del modello: le foto dei blocchi accesi, già convertite (le legge l'adattatore).
+    pdf_blocchi_foto: Object.fromEntries(fotoBlocchi),
     // Non è un campo del modello: torna qui per comodità di chi chiama (il logo chiaro
     // del kit del marchio, per la copertina su fondo scuro).
     logo_chiaro_url: logoChiaroPronto,

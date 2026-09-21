@@ -11,6 +11,7 @@ import type { PaginaLibera, VoceOrdine } from "./ordineCapitoli";
  * poche righe. Un miglioramento grafico vale per tutti, una volta sola.
  */
 
+import type { ChiaveBlocco, ContenutoBlocco } from "../../../../supabase/functions/_shared/blocchiPreventivo";
 export interface DocEdileVoce {
   id: string;
   descrizione: string;
@@ -97,6 +98,14 @@ export interface DocEdileModulo {
 }
 
 /** I campi del modello che il documento legge, con nomi unici per tutti i moduli. */
+/** Una foto di un blocco: `diSerie` quando viene dalla libreria (sotto esce la nota). */
+export interface DocEdileFotoBlocco {
+  src: string;
+  diSerie: boolean;
+}
+
+export type DocEdileBlocco = Omit<ContenutoBlocco, "foto"> & { foto: DocEdileFotoBlocco[] };
+
 export interface DocEdileModello {
   /** La tipografia scelta dall'azienda: lineare, editoriale o classica. */
   tipografia: TipografiaDocumento;
@@ -157,6 +166,12 @@ export interface DocEdileModello {
   clausoleDaApprovare: string[];
   /** L'azienda allega il modulo di recesso (interruttore nel modello, spento di serie). */
   conRecesso: boolean;
+  /**
+   * I blocchi della libreria (come funziona, cosa è compreso, protezione…): testi di
+   * serie del settore con sopra quelli dell'azienda, foto già convertite per il PDF.
+   * Se escono lo decide l'ordine dei capitoli, come per gli altri.
+   */
+  blocchi: Record<ChiaveBlocco, DocEdileBlocco>;
   /** L'ordine dei capitoli scelto dall'azienda (vuoto = quello di serie). */
   ordineCapitoli: VoceOrdine[];
   /** Le pagine scritte dall'azienda: certificazioni, showroom, un lavoro di cui va fiera. */

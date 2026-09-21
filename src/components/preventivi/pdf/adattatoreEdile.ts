@@ -15,6 +15,7 @@ import { condizioniStandard, type SettoreCondizioni } from "@/lib/condizioniStan
 import { tipografiaDaModello } from "./temaDocumento";
 import { leggiOrdine, leggiPagineLibere } from "./ordineCapitoli";
 import { testiPerPdf } from "../../../../supabase/functions/_shared/testoPerPdf";
+import { BLOCCHI, eFotoDiSerie, leggiBlocco, settoreBlocchi, type ChiaveBlocco } from "../../../../supabase/functions/_shared/blocchiPreventivo";
 import type {
   DocEdileCapitolo, DocEdileDati, DocEdileFoto, DocEdileModello, DocEdileModulo,
   DocEdileOpzioniComputo, DocEdileTotali, DocEdileVoceElenco, DocEdileFaq, DocEdileFase,
@@ -220,7 +221,29 @@ export function leggiModello(
     // Il modulo di recesso lo accende l'azienda nel modello (spento di serie dal
     // 21/09/2026): serve a chi firma con un privato a casa sua o a distanza.
     conRecesso: t.modulo_recesso_attivo === true,
+    blocchi: leggiBlocchi(t, contesto.settore ?? "ristrutturazione"),
   };
+}
+
+/**
+ * I blocchi del modello: testi di serie del settore con sopra quelli dell'azienda.
+ * Le foto arrivano già convertite da `immaginiDelModello` (`pdf_blocchi_foto`):
+ * una che non si è caricata non c'è, e il blocco esce senza. Senza conversione
+ * (anteprime di prova) si usano gli indirizzi così come sono.
+ */
+function leggiBlocchi(t: Grezzo, settore: string): DocEdileModello["blocchi"] {
+  const pronte = t.pdf_blocchi_foto && typeof t.pdf_blocchi_foto === "object" ? (t.pdf_blocchi_foto as Record<string, unknown>) : null;
+  const out = {} as DocEdileModello["blocchi"];
+  for (const { chiave } of BLOCCHI) {
+    const b = leggiBlocco(chiave, settoreBlocchi(settore), t.pdf_blocchi);
+    const foto = pronte
+      ? (Array.isArray(pronte[chiave]) ? (pronte[chiave] as Array<{ src?: unknown; diSerie?: unknown }>) : [])
+          .filter((f) => typeof f?.src === "string" && f.src)
+          .map((f) => ({ src: String(f.src), diSerie: f.diSerie === true }))
+      : b.foto.map((src) => ({ src, diSerie: eFotoDiSerie(src) }));
+    out[chiave as ChiaveBlocco] = { ...b, foto };
+  }
+  return out;
 }
 
 /**

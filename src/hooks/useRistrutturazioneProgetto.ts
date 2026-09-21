@@ -638,6 +638,7 @@ function normalizeTemplate(row: Record<string, unknown> | null, companyId: strin
     condizioni_legali_testo: (r.condizioni_legali_testo as string | null) ?? null,
     condizioni_legali_attivo: (r.condizioni_legali_attivo as boolean | null) ?? true,
     modulo_recesso_attivo: r.modulo_recesso_attivo === true,
+    pdf_blocchi: r.pdf_blocchi && typeof r.pdf_blocchi === "object" ? (r.pdf_blocchi as Record<string, unknown>) : {},
   };
 }
 
