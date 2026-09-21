@@ -33,7 +33,7 @@ import {
   Save, Loader2, Upload, Image as ImageIcon, Plus, Trash2, GripVertical,
   Palette, FileText, Sparkles, ListChecks, Quote, Clock, Building2,
   Eye, EyeOff, BadgeEuro, AlertTriangle, FileSearch, Route, ShieldCheck, Percent,
-  Wand2, Scale,} from "lucide-react";
+  Wand2,} from "lucide-react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
@@ -558,7 +558,7 @@ export function TermoidraulicoTemplateEditor({ embedded = false }: Props) {
         { id: "page_percorso",      label: "Come lavoriamo", emoji: "🗺️", descr: "Le fasi del cantiere" },
         { id: "page_testimonianze", label: "Testimonianze", emoji: "⭐", descr: "Recensioni clienti" },
         { id: "page_crono",         label: "Cronoprogramma", emoji: "📅", descr: "Fasi del cantiere" },
-        { id: "page_condizioni",    label: "Condizioni",    emoji: "📄", descr: "Pagamenti e validità" },
+        { id: "page_condizioni",    label: "Condizioni",    emoji: "📄", descr: "Pagamenti, validità, condizioni e firma" },
       ],
     },
     {
@@ -868,18 +868,6 @@ export function TermoidraulicoTemplateEditor({ embedded = false }: Props) {
                   <Switch checked={form.show_footer_legal} onCheckedChange={(v) => set("show_footer_legal", v)} />
                 </label>
               </div>
-            </SectionCard>
-
-            {/* Condizioni generali di contratto: il preventivo firmato è il contratto. */}
-            <SectionCard icon={Scale} title="Condizioni e firma" description="Le condizioni generali stampate in coda al PDF, prima della pagina della firma.">
-              <CondizioniContratto
-                companyId={companyId}
-                settore="termoidraulico"
-                attivo={form.condizioni_legali_attivo !== false}
-                testo={form.condizioni_legali_testo ?? ""}
-                onAttivo={(v) => set("condizioni_legali_attivo", v)}
-                onTesto={(v) => set("condizioni_legali_testo", v)}
-              />
             </SectionCard>
             </>
           )}
@@ -1569,6 +1557,17 @@ export function TermoidraulicoTemplateEditor({ embedded = false }: Props) {
                     placeholder="Testo aggiuntivo nel footer (opzionale)"
                   />
                 </div>
+
+                {/* Condizioni generali di contratto: il preventivo firmato è il contratto.
+                    Stesso blocco di tutti i moduli (CondizioniContratto). */}
+                <CondizioniContratto
+                  companyId={companyId}
+                  settore="termoidraulico"
+                  attivo={form.condizioni_legali_attivo !== false}
+                  testo={form.condizioni_legali_testo ?? ""}
+                  onAttivo={(v) => set("condizioni_legali_attivo", v)}
+                  onTesto={(v) => set("condizioni_legali_testo", v)}
+                />
               </div>
             </SectionCard>
           )}

@@ -534,7 +534,7 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
         { id: "page_percorso",      label: "Come lavoriamo", emoji: "🗺️", descr: "Le fasi del cantiere" },
         { id: "page_testimonianze", label: "Testimonianze", emoji: "⭐", descr: "Recensioni clienti" },
         { id: "page_crono",         label: "Cronoprogramma", emoji: "📅", descr: "Fasi del cantiere" },
-        { id: "page_condizioni",    label: "Condizioni",    emoji: "📄", descr: "Pagamenti e validità" },
+        { id: "page_condizioni",    label: "Condizioni",    emoji: "📄", descr: "Pagamenti, validità, condizioni e firma" },
       ],
     },
     {
