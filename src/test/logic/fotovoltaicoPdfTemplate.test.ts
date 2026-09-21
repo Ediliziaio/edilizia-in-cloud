@@ -3,12 +3,17 @@ import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   FOTO_DI_SERIE_FV,
+  FV_PDF_PAGES_DEFAULT,
+  FV_PDF_PAGES_META,
+  fotoBlocchiDalSito,
+  fotoDeiBlocchiFv,
   fotoDiSerieDalSito,
   getFvPdfRenderedPagesCount,
   normalizeFvPdfPagesOrder,
   renderFvPdfHtml,
   type FvPdfTemplateData,
 } from "../../../supabase/functions/_shared/fvHtmlTemplate.ts";
+import { FV_PDF_PAGES_META as PAGINE_DELL_EDITOR, normalizeFvPdfPagesOrder as ordineDellEditor } from "@/lib/fotovoltaico/pdfPages";
 import { condizioniStandard } from "../../../supabase/functions/_shared/condizioniStandard.ts";
 
 function basePdfData(): FvPdfTemplateData {
@@ -393,6 +398,7 @@ describe("fotovoltaico PDF template", () => {
           { id: "co2", visible: false },
           { id: "garanzie", visible: false },
           { id: "iter", visible: false },
+          { id: "come_funziona", visible: false },
           { id: "faq", visible: false },
           { id: "decisione", visible: true },
         ],
@@ -715,3 +721,95 @@ describe("fotovoltaico PDF — le foto di serie", () => {
   });
 });
 
+
+describe("fotovoltaico PDF — le pagine: un elenco solo, e i blocchi", () => {
+  const ids = (pagine: Array<{ id: string }>) => pagine.map((p) => p.id);
+  const visibile = (pagine: Array<{ id: string; visible: boolean }>, id: string) => pagine.find((p) => p.id === id)?.visible;
+  const tutteAccese = () => FV_PDF_PAGES_META.map((p) => ({ id: p.id, visible: true }));
+  const pagina = (html: string, occhiello: string) => {
+    const i = html.indexOf(`<div class="eyebrow">${occhiello}</div>`);
+    return i < 0 ? "" : html.slice(i, html.indexOf('<div class="page">', i));
+  };
+
+  it("l'editor mostra le pagine del PDF, nello stesso ordine: prima la fiducia, il prezzo dopo il valore", () => {
+    // Fino al 22/09/2026 l'editor aveva una sua copia, col prezzo in testa.
+    expect(PAGINE_DELL_EDITOR).toBe(FV_PDF_PAGES_META);
+    expect(ordineDellEditor).toBe(normalizeFvPdfPagesOrder);
+    const ordine = ids(FV_PDF_PAGES_DEFAULT);
+    expect(ordine.slice(0, 2)).toEqual(["garanzie", "iter"]);
+    expect(ordine.indexOf("investimento")).toBeGreaterThan(ordine.indexOf("cassa_25"));
+    expect(ordine[ordine.length - 1]).toBe("decisione");
+  });
+
+  it("«Come funziona» nasce accesa prima dell'anteprima; le pagine che promettono, spente dopo il percorso", () => {
+    const ordine = ids(FV_PDF_PAGES_DEFAULT);
+    expect(ordine[ordine.indexOf("anteprima") - 1]).toBe("come_funziona");
+    expect(ordine.slice(ordine.indexOf("iter") + 1, ordine.indexOf("iter") + 5)).toEqual(["protezione", "controlli", "documenti", "diario"]);
+    expect(visibile(FV_PDF_PAGES_DEFAULT, "come_funziona")).toBe(true);
+    for (const id of ["protezione", "controlli", "documenti", "diario"]) expect(visibile(FV_PDF_PAGES_DEFAULT, id)).toBe(false);
+  });
+
+  it("un ordine salvato prima dei blocchi li riceve al loro posto, non in fondo dopo la firma", () => {
+    const salvato = ["garanzie", "iter", "anteprima", "componenti", "investimento", "decisione"].map((id) => ({ id, visible: true }));
+    const pagine = normalizeFvPdfPagesOrder(salvato);
+    expect(ids(pagine)[ids(pagine).length - 1]).toBe("decisione");
+    expect(ids(pagine).indexOf("come_funziona")).toBeLessThan(ids(pagine).indexOf("anteprima"));
+    expect(visibile(pagine, "protezione")).toBe(false);
+    // accesa dall'azienda, resta accesa
+    expect(visibile(normalizeFvPdfPagesOrder([{ id: "protezione", visible: true }]), "protezione")).toBe(true);
+  });
+
+  it("le foto dei blocchi accesi: al massimo due, dal sito nelle anteprime", () => {
+    const template = { pdf_pages_order: tutteAccese(), pdf_blocchi: { diario: { senzaFoto: true } } };
+    const foto = fotoDeiBlocchiFv(template);
+    expect(foto.comeFunziona).toEqual(["/pdf-stock/fotovoltaico/tecnica-percorso-energia.jpg", "/pdf-stock/fotovoltaico/tecnica-giorno-sera.jpg"]);
+    expect(foto.diario).toEqual([]);
+    expect(fotoBlocchiDalSito("https://app.example.it/", template).comeFunziona[0]).toEqual({
+      src: "https://app.example.it/pdf-stock/fotovoltaico/tecnica-percorso-energia.jpg", diSerie: true,
+    });
+    // di serie spente: nessuna foto da caricare
+    expect(Object.keys(fotoDeiBlocchiFv({}))).toEqual(["comeFunziona"]);
+    for (const file of Object.values(fotoDeiBlocchiFv({ pdf_pages_order: tutteAccese() })).flat()) {
+      expect(existsSync(resolve(process.cwd(), `public${file}`))).toBe(true);
+    }
+  });
+
+  it("le pagine dei blocchi escono coi testi di serie, l'accento, le icone e la nota sulle foto", () => {
+    const d = basePdfData();
+    d.template = { ...d.template, pdf_pages_order: tutteAccese() };
+    d.blocchi_foto = { comeFunziona: [{ src: "data:image/jpeg;base64,AAAA", diSerie: true }] };
+    const html = renderFvPdfHtml(d);
+    const come = pagina(html, "Come funziona");
+    expect(come).toContain('Dal tuo tetto <span class="accento">alla tua presa</span>.');
+    expect(come).toContain('<img src="data:image/jpeg;base64,AAAA"');
+    expect(come).toContain("Immagini indicative");
+    expect(come).toContain("<svg");
+    // senza foto il blocco esce coi soli testi, e senza la nota
+    const sicurezza = pagina(html, "In sicurezza");
+    expect(sicurezza).toContain("Lavoriamo sul tuo tetto");
+    expect(sicurezza).not.toContain("<img");
+    expect(sicurezza).not.toContain("Immagini indicative");
+    // il conteggio delle pagine resta quello disegnato
+    expect(html.split('<div class="page">').length - 1).toBe(getFvPdfRenderedPagesCount(d));
+  });
+
+  it("voci svuotate tornano di serie; spento, il blocco non esce", () => {
+    const d = basePdfData();
+    const vuoto = { voci: [{ titolo: "" }], senzaFoto: true };
+    d.template = { ...d.template, pdf_blocchi: { comeFunziona: vuoto } };
+    // voci vuote tornano di serie: il blocco esce comunque
+    expect(pagina(renderFvPdfHtml(d), "Come funziona")).toContain("Produce");
+    const senza = getFvPdfRenderedPagesCount({ ...d, template: { ...d.template, pdf_pages_order: normalizeFvPdfPagesOrder(null).map((p) => (p.id === "come_funziona" ? { ...p, visible: false } : p)) } });
+    expect(senza).toBe(getFvPdfRenderedPagesCount(d) - 1);
+  });
+
+  it("il generatore incorpora le foto dei blocchi e passa i testi dell'azienda", () => {
+    const src = readFileSync(resolve(process.cwd(), "supabase/functions/fv-genera-pdf/index.ts"), "utf8");
+    expect(src).toContain("fotoDeiBlocchiFv(template as FvPdfTemplateData[\"template\"])");
+    expect(src).toContain("blocchi_foto: blocchiFoto,");
+    expect(src).toContain("pdf_blocchi: template.pdf_blocchi && typeof template.pdf_blocchi === \"object\" ? template.pdf_blocchi : null,");
+    for (const anteprima of ["src/components/fotovoltaico/FvLivePreviewPanel.tsx", "src/components/fotovoltaico/FvTemplatePreviewDialog.tsx"]) {
+      expect(readFileSync(resolve(process.cwd(), anteprima), "utf8")).toContain("blocchi_foto: typeof window !== \"undefined\" ? fotoBlocchiDalSito(window.location.origin");
+    }
+  });
+});

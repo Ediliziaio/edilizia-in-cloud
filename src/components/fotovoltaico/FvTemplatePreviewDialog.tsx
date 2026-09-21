@@ -15,6 +15,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  fotoBlocchiDalSito,
   fotoDiSerieDalSito,
   renderFvPdfHtml,
   type FvPdfTemplateData,
@@ -182,6 +183,8 @@ export default function FvTemplatePreviewDialog({
         ...(f as FvPdfTemplateData["template"]),
         logo_url: (str("logo_url") ?? logoUrl ?? null) as string | null,
       },
+      // Le foto dei blocchi accesi, dal sito o già firmate: come le vedrà il cliente.
+      blocchi_foto: typeof window !== "undefined" ? fotoBlocchiDalSito(window.location.origin, f as FvPdfTemplateData["template"]) : null,
     };
     try {
       return renderFvPdfHtml(data);

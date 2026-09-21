@@ -37,9 +37,11 @@ import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import {
   getFvPdfRenderedPagesCount,
   FOTO_DI_SERIE_FV,
+  fotoDeiBlocchiFv,
   renderFvPdfHtml,
   type FvPdfTemplateData,
 } from "../_shared/fvHtmlTemplate.ts";
+import { eFotoDiSerie } from "../_shared/blocchiPreventivo.ts";
 import { calcolaEnergyFlows } from "../_shared/fvCalcoli.ts";
 import { coloreDelDocumento } from "../_shared/temaColori.ts";
 import { condizioniStandard } from "../_shared/condizioniStandard.ts";
@@ -393,6 +395,29 @@ Deno.serve(async (req: Request) => {
       fotoDiSerie(FOTO_DI_SERIE_FV.bosco), fotoDiSerie(FOTO_DI_SERIE_FV.installatori), fotoDiSerie(FOTO_DI_SERIE_FV.impianto),
     ]);
 
+    // Le foto dei blocchi accesi (come funziona, sicurezza sul tetto…): quelle di
+    // serie dal sito, come sopra; quelle dell'azienda dal link appena firmato.
+    // Solo immagini vere; una che non arriva lascia il blocco senza quella foto.
+    const sitiFotoDiSerie = [...new Set(
+      ["https://app.ediliziaincloud.com", Deno.env.get("APP_URL")]
+        .filter((b): b is string => Boolean(b))
+        .map((b) => b.replace(/\/+$/, "")),
+    )];
+    const fotoDelBlocco = async (indirizzo: string): Promise<string | null> => {
+      const candidati = indirizzo.startsWith("/") ? sitiFotoDiSerie.map((b) => `${b}${indirizzo}`) : [indirizzo];
+      for (const url of candidati) {
+        const dati = await urlToB64(url);
+        if (dati?.startsWith("data:image/")) return dati;
+      }
+      return null;
+    };
+    const blocchiFoto = Object.fromEntries(await Promise.all(
+      Object.entries(fotoDeiBlocchiFv(template as FvPdfTemplateData["template"])).map(async ([chiave, foto]) => {
+        const pronte = await Promise.all(foto.map(async (u) => ({ src: await fotoDelBlocco(u), diSerie: eFotoDiSerie(u) })));
+        return [chiave, pronte.filter((f): f is { src: string; diSerie: boolean } => Boolean(f.src))] as const;
+      }),
+    ));
+
     // ── Calcoli aggregati ──────────────────────────────────────────────────
     const ingressiFlussi = {
       potenza_kwp: Number(prog.potenza_kwp) || 0,
@@ -695,6 +720,7 @@ Deno.serve(async (req: Request) => {
       },
       flows,
       flows_senza_accumulo: flowsSenzaAccumulo,
+      blocchi_foto: blocchiFoto,
       foto_di_serie: {
         alberi: fotoAlberi, voli: fotoVoli, auto: fotoAuto,
         bosco: fotoBosco, installatori: fotoInstallatori, impianto: fotoImpianto,
@@ -766,6 +792,7 @@ Deno.serve(async (req: Request) => {
         pdf_cta_finale_titolo: template.pdf_cta_finale_titolo ?? null,
         pdf_cta_finale_testo: template.pdf_cta_finale_testo ?? null,
         pdf_pages_order: Array.isArray(template.pdf_pages_order) ? template.pdf_pages_order : null,
+        pdf_blocchi: template.pdf_blocchi && typeof template.pdf_blocchi === "object" ? template.pdf_blocchi : null,
         valore_proposta_html: template.valore_proposta_html ?? null,
         garanzie_conversione: Array.isArray(template.garanzie_conversione)
           ? template.garanzie_conversione
