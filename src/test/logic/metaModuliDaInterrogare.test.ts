@@ -12,6 +12,7 @@ import {
   daRicontrollare,
   decidiModulo,
   FINESTRA_CALDA_MS,
+  GIORNI_SENZA_WEBHOOK,
   motivoConteggio,
   oraDiControllo,
   rigaGiro,
@@ -314,6 +315,13 @@ describe("la funzione usa le regole, e non torna indietro", () => {
     expect(fonte).toContain("moduliSuMeta: erroreElenco ? null : new Set(moduli.map((m) => m.id))");
   });
 
+  it("chiede al database dove i lead arrivano solo dal recupero, e nel dubbio non salta", () => {
+    expect(fonte).toContain('.is("payload->raw", null)');
+    expect(fonte).toContain('.select("modulo:payload->>form_id")');
+    expect(fonte).toContain("if (righe.length >= TETTO_RIGHE || (righe.length > 0 && righe.every((r) => !r.modulo))) return null;");
+    expect(fonte).toContain("senzaWebhook,");
+  });
+
   it("un lead nuovo in un modulo col conteggio fermo si scrive nel log, ogni volta", () => {
     expect(fonte).toContain('if (d.conteggio === "fermo") {');
     expect(fonte).toContain("c.leadNuoviDaFermi += nuovi;");
@@ -509,6 +517,71 @@ describe("un modulo che ha dei lead si rilegge ogni ora anche col conteggio ferm
     const c = conteggiVuoti();
     conta(c, decidi({ n: 58, cambiato: PRIMA(180), letto: PRIMA(60) }));
     expect(c).toMatchObject({ letti: 1, fermiLettiPerControllo: 1, saltabiliConteggio: 0 });
+  });
+});
+
+describe("dove i lead arrivano solo dal recupero, il conteggio non fa saltare niente", () => {
+  // Il modulo principale di Green Energy: 106 lead in 14 giorni, tutti dal
+  // recupero, nessuno dal webhook. Lì il recupero è l'unica strada.
+  const CANARINO = "1268174375402285";
+  const fermo = { n: 106, cambiato: PRIMA(180), letto: PRIMA(15) };
+  const decidi = (senzaWebhook: ReadonlySet<string> | null | undefined, visto: unknown = fermo, oraUtc?: number) =>
+    decidiModulo({
+      formId: CANARINO, statusMeta: "ACTIVE", cfg: { status: "active" }, giroAutomatico: true,
+      conLeadRecenti: new Set<string>(), oraUtc: oraUtc ?? (oraDiControllo(CANARINO) + 9) % 24, saltaArchiviati: false,
+      conteggio: { attuale: (visto as { n: number }).n, visto, adessoMs: ORA, saltaFermi: true, senzaWebhook },
+    });
+
+  it("un modulo con lead arrivati solo dal recupero si legge a ogni giro, anche col conteggio fermo", () => {
+    expect(GIORNI_SENZA_WEBHOOK).toBe(3);
+    expect(decidi(new Set([CANARINO]))).toMatchObject({ esito: "letto", motivo: "senza_webhook", conteggio: "fermo" });
+  });
+
+  it("dove il webhook arriva, il conteggio fermo fa saltare", () => {
+    expect(decidi(new Set(["un-altro-modulo"])).esito).toBe("saltato_conteggio_fermo");
+    expect(decidi(new Set()).esito).toBe("saltato_conteggio_fermo");
+  });
+
+  it("se non si è riusciti a saperlo, si leggono tutti i moduli che hanno dei lead", () => {
+    expect(decidi(null)).toMatchObject({ esito: "letto", motivo: "senza_webhook" });
+  });
+
+  it("…ma un modulo a zero lead resta saltabile: non c'è niente che possa sfuggire", () => {
+    expect(decidi(null, { n: 0, cambiato: PRIMA(900), letto: PRIMA(900) }).esito).toBe("saltato_conteggio_fermo");
+  });
+
+  it("senza l'informazione (regola non applicata) si decide come prima", () => {
+    expect(decidi(undefined).esito).toBe("saltato_conteggio_fermo");
+  });
+
+  it("il turno di controllo resta il primo motivo, e il conteggio dei letti li tiene distinti", () => {
+    expect(decidi(new Set([CANARINO]), fermo, oraDiControllo(CANARINO)).motivo).toBe("turno_di_controllo");
+    const c = conteggiVuoti();
+    conta(c, decidi(new Set([CANARINO])));
+    conta(c, decidi(new Set([CANARINO]), fermo, oraDiControllo(CANARINO)));
+    expect(c).toMatchObject({ letti: 2, fermiLettiSenzaWebhook: 1, fermiLettiPerControllo: 1, saltabiliConteggio: 0 });
+    expect(rigaPagina({ companyId: "a", pageId: "p", ms: 1, c })).toContain("fermi_letti_per_controllo=1 fermi_letti_senza_webhook=1");
+  });
+
+  it("un lead del canarino che Meta non conta (o conta in ritardo) arriva comunque al giro dopo", () => {
+    let mappa: Record<string, unknown> = { [CANARINO]: { n: 106, cambiato: PRIMA(600), letto: PRIMA(600) } };
+    let trovatoAlGiro: number | null = null;
+    for (let g = 0; g < 8; g++) {
+      const adessoMs = ORA + g * 15 * 60_000;
+      const nuovoLeggibile = g >= 2; // il lead c'è dal giro 2, ma il conteggio resta 106
+      const d = decidiModulo({
+        formId: CANARINO, statusMeta: "ACTIVE", cfg: { status: "active" }, giroAutomatico: true,
+        conLeadRecenti: new Set<string>(), oraUtc: (oraDiControllo(CANARINO) + 9) % 24, saltaArchiviati: false,
+        conteggio: { attuale: 106, visto: mappa[CANARINO], adessoMs, saltaFermi: true, senzaWebhook: new Set([CANARINO]) },
+      });
+      const letto = d.esito === "letto";
+      if (letto && nuovoLeggibile && trovatoAlGiro === null) trovatoAlGiro = g;
+      mappa = conteggiDaSalvare({
+        precedenti: mappa, visti: new Map([[CANARINO, 106]]), lettiBene: new Set(letto ? [CANARINO] : []),
+        moduliSuMeta: new Set([CANARINO]), adessoIso: new Date(adessoMs).toISOString(),
+      });
+    }
+    expect(trovatoAlGiro).toBe(2);
   });
 });
 

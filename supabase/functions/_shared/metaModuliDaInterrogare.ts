@@ -42,6 +42,11 @@
  *   - qualunque differenza dall'ultimo visto, anche in meno → si legge;
  *   - cambiato da meno di un'ora → si legge a ogni giro: Meta può contare il
  *     lead un attimo prima di renderlo leggibile, e una lettura sola lo perderebbe;
+ *   - fermo, ma negli ultimi giorni a quel modulo un lead è arrivato SOLO dal
+ *     recupero (il webhook non l'ha portato) → si legge a ogni giro, come prima:
+ *     lì il recupero è l'unica strada e non deve dipendere dal conteggio. Il
+ *     21/09/2026 era il caso del modulo principale di Green Energy. Se non si
+ *     riesce a saperlo, si leggono tutti i moduli che hanno dei lead;
  *   - fermo, ma il modulo ha dei lead e non si rilegge da un'ora → si legge:
  *     il 21/09/2026 un modulo BeMade è sceso da 59 a 58 lead (Meta ne ha tolto
  *     uno). Un lead tolto e uno nuovo nello stesso quarto d'ora lascerebbero il
@@ -101,6 +106,7 @@ export type MotivoLettura =
   | "controllo_non_riuscito" // archiviato, ma non si sa se ha lead recenti
   | "turno_di_controllo"   // è l'ora di controllo del modulo
   | "controllo_orario"     // conteggio fermo, ma il modulo ha lead e non si rilegge da un'ora
+  | "senza_webhook"        // conteggio fermo, ma lì i lead arrivano solo dal recupero
   | "in_osservazione"      // archiviato e saltabile, ma il salto è spento
   | "mai_visto"            // conteggio: primo giro per questo modulo
   | "conteggio_cambiato"   // conteggio: diverso dall'ultimo visto
@@ -133,6 +139,9 @@ export const RITARDO_TOLLERATO_S = 15 * 60;
  * cade proprio al quarto giro, non al quinto.
  */
 export const CONTROLLO_ORARIO_MS = 55 * 60 * 1000;
+
+/** Per quanti giorni un lead arrivato solo dal recupero fa leggere il modulo a ogni giro. */
+export const GIORNI_SENZA_WEBHOOK = 3;
 
 /** L'ultimo conteggio visto di un modulo, come sta in meta_moduli_conteggi. */
 export interface ConteggioVisto {
@@ -212,7 +221,18 @@ export function decidiModulo(p: {
    * Il conteggio dei lead: quello che dà Meta in questo giro e l'ultimo visto.
    * Senza, la regola del conteggio non si applica (si decide come prima).
    */
-  conteggio?: { attuale: unknown; visto: unknown; adessoMs: number; saltaFermi: boolean } | null;
+  conteggio?: {
+    attuale: unknown;
+    visto: unknown;
+    adessoMs: number;
+    saltaFermi: boolean;
+    /**
+     * Moduli che negli ultimi giorni hanno ricevuto un lead SOLO dal recupero:
+     * si leggono sempre. null = non si è riusciti a saperlo (e allora si
+     * leggono tutti quelli che hanno dei lead). Assente = regola non applicata.
+     */
+    senzaWebhook?: ReadonlySet<string> | null;
+  } | null;
 }): Decisione {
   const stato = statoMeta(p.statusMeta);
   const configurato = !!p.cfg;
@@ -227,6 +247,10 @@ export function decidiModulo(p: {
     base = { ...base, conteggio: k };
     if (k === "fermo") {
       if (oraDiControllo(p.formId) === p.oraUtc) return { ...base, esito: "letto", motivo: "turno_di_controllo" };
+      const sw = p.conteggio.senzaWebhook;
+      if (sw !== undefined && (sw === null ? (conteggioVisto(p.conteggio.visto)?.n ?? 0) > 0 : sw.has(p.formId))) {
+        return { ...base, esito: "letto", motivo: "senza_webhook" };
+      }
       if (daRicontrollare(p.conteggio.visto, p.conteggio.adessoMs)) {
         return { ...base, esito: "letto", motivo: "controllo_orario" };
       }
@@ -272,8 +296,10 @@ export interface ConteggiPagina {
   saltatiConteggio: number;
   /** Col salto spento: quanti moduli col conteggio fermo non si leggerebbero. */
   saltabiliConteggio: number;
-  /** Moduli col conteggio fermo letti comunque nel loro turno di controllo. */
+  /** Moduli col conteggio fermo letti comunque nel loro turno di controllo (giornaliero o orario). */
   fermiLettiPerControllo: number;
+  /** Moduli col conteggio fermo letti perché lì i lead arrivano solo dal recupero. */
+  fermiLettiSenzaWebhook: number;
   /**
    * Lead nuovi (il webhook non li aveva portati) trovati in moduli col conteggio
    * fermo. Col salto acceso sarebbero arrivati più tardi: devono restare zero.
@@ -310,6 +336,7 @@ export function conteggiVuoti(): ConteggiPagina {
     saltatiConteggio: 0,
     saltabiliConteggio: 0,
     fermiLettiPerControllo: 0,
+    fermiLettiSenzaWebhook: 0,
     leadNuoviDaFermi: 0,
     leadNonContati: 0,
     chiamate: 0,
@@ -337,6 +364,7 @@ export function conta(c: ConteggiPagina, d: Decisione): void {
     if (d.motivo === "in_osservazione") c.saltabili++;
     if (fermo) {
       if (d.motivo === "turno_di_controllo" || d.motivo === "controllo_orario") c.fermiLettiPerControllo++;
+      else if (d.motivo === "senza_webhook") c.fermiLettiSenzaWebhook++;
       else c.saltabiliConteggio++;
     } else if (d.motivo === "turno_di_controllo" || d.motivo === "controllo_non_riuscito") {
       c.archiviatiLettiPerControllo++;
@@ -356,7 +384,7 @@ const elencoConteggio = (c: ConteggiPagina): string =>
 const partiConteggio = (c: ConteggiPagina): string =>
   `conteggio(${elencoConteggio(c)}) saltati_per_conteggio=${c.saltatiConteggio}` +
   (c.saltabiliConteggio > 0 ? ` (salto spento: saltabili=${c.saltabiliConteggio})` : "") +
-  ` fermi_letti_per_controllo=${c.fermiLettiPerControllo}` +
+  ` fermi_letti_per_controllo=${c.fermiLettiPerControllo} fermi_letti_senza_webhook=${c.fermiLettiSenzaWebhook}` +
   ` lead_nuovi_da_fermi=${c.leadNuoviDaFermi} lead_non_contati=${c.leadNonContati}`;
 
 const elencoStati = (r: Record<StatoMeta, number>): string =>
@@ -407,6 +435,7 @@ export function somma(totale: ConteggiPagina, c: ConteggiPagina): void {
   totale.saltatiConteggio += c.saltatiConteggio;
   totale.saltabiliConteggio += c.saltabiliConteggio;
   totale.fermiLettiPerControllo += c.fermiLettiPerControllo;
+  totale.fermiLettiSenzaWebhook += c.fermiLettiSenzaWebhook;
   totale.leadNuoviDaFermi += c.leadNuoviDaFermi;
   totale.leadNonContati += c.leadNonContati;
   totale.chiamate += c.chiamate;

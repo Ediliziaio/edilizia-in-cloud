@@ -47,6 +47,7 @@ import {
   conteggioVisto,
   decidiModulo,
   GIORNI_LEAD_RECENTI,
+  GIORNI_SENZA_WEBHOOK,
   rigaGiro,
   rigaPagina,
   RITARDO_TOLLERATO_S,
@@ -211,7 +212,7 @@ interface ConfigModuloRiga {
 // ogni giro. Si chiedono solo i moduli in dubbio, così la risposta è quasi
 // sempre vuota. `null` = non si è riusciti a saperlo, e allora non si salta niente.
 // Il tetto sta sotto il taglio di PostgREST (mille righe) apposta: così una
-// risposta piena si riconosce con certezza.
+// risposta piena si riconosce con certezza. Vale anche per moduliSenzaWebhook.
 const BLOCCO_MODULI = 100;
 const TETTO_RIGHE = 500;
 async function moduliConLeadRecenti(
@@ -262,6 +263,39 @@ async function moduliConLeadRecenti(
     if (righe.length >= TETTO_RIGHE) for (const f of blocco) if (!trovati.has(f)) trovati.set(f, "");
   }
   return trovati;
+}
+
+// ── Moduli dove i lead arrivano solo dal recupero ───────────────────────────
+// Un lead salvato senza la chiave `raw` nel payload l'ha portato il recupero,
+// non il webhook. Se negli ultimi giorni a un modulo è successo, lì il webhook
+// non arriva, e il recupero è l'unica strada: quel modulo si legge a ogni giro,
+// qualunque cosa dica il conteggio. `null` = non si è riusciti a saperlo (e
+// allora si leggono tutti i moduli che hanno dei lead).
+// Il filtro `payload->raw=is.null` (chiave assente) è stato provato con dati
+// veri su PostgREST di produzione il 21/09/2026; l'alias per lo stesso motivo
+// di moduliConLeadRecenti.
+async function moduliSenzaWebhook(
+  admin: ReturnType<typeof createClient>,
+  companyId: string,
+): Promise<Set<string> | null> {
+  const da = new Date(Date.now() - GIORNI_SENZA_WEBHOOK * 24 * 60 * 60 * 1000).toISOString();
+  const { data, error } = await admin
+    .from("integration_webhook_events")
+    .select("modulo:payload->>form_id")
+    .eq("company_id", companyId)
+    .eq("provider", "meta")
+    .eq("event_type", "leadgen")
+    .gte("received_at", da)
+    .is("payload->raw", null)
+    .limit(TETTO_RIGHE);
+  if (error) {
+    console.warn(`meta-leads-backfill: moduli senza webhook non letti (azienda ${companyId}): ${error.message}`);
+    return null;
+  }
+  const righe = (data ?? []) as unknown as Array<{ modulo: string | null }>;
+  // Righe senza il modulo dentro, o risposta piena: non si sa abbastanza.
+  if (righe.length >= TETTO_RIGHE || (righe.length > 0 && righe.every((r) => !r.modulo))) return null;
+  return new Set(righe.map((r) => String(r.modulo ?? "")).filter(Boolean));
 }
 
 interface OpzioniGiro {
@@ -428,6 +462,8 @@ async function backfillPage(
   }
   const conteggiPrima = ((rigaConteggi as { conteggi?: unknown } | null)?.conteggi ?? {}) as Record<string, unknown>;
   const avvioS = Math.floor(avvio / 1000);
+  // Dove il webhook non arriva il recupero è l'unica strada: lì non si salta.
+  const senzaWebhook = o.giroAutomatico ? await moduliSenzaWebhook(admin, integ.company_id) : new Set<string>();
 
   // Quali moduli si leggono: le regole stanno in _shared/metaModuliDaInterrogare.ts.
   // Dei moduli che Meta dà per archiviati si guarda prima se ci hanno portato
@@ -471,6 +507,7 @@ async function backfillPage(
         visto: conteggiPrima[formId],
         adessoMs: o.adesso.getTime(),
         saltaFermi: SALTA_CONTEGGIO_FERMO,
+        senzaWebhook,
       },
     });
     conta(c, d);
