@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import {
   usePhoneNumbers,
   useSearchAvailableNumbers,
@@ -59,6 +60,11 @@ type PurchaseStep = "search" | "results" | "confirm";
 export default function SettingsPhoneNumbers() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id || null;
+  // Comprare o rilasciare un numero apre/chiude un canone mensile vero: solo
+  // l'amministratore (21/09/2026). Il database e le funzioni edge lo
+  // impongono già (telnyx-proxy, telnyx-acquista-numero); qui si tolgono i
+  // pulsanti a chi il salvataggio lo rifiuterebbe comunque.
+  const { isAdmin } = usePermissions();
 
   const { data: numbers, isLoading, isError: isErrorNumbers } = usePhoneNumbers(companyId);
   const { results, isSearching, search, setResults } = useSearchAvailableNumbers();
@@ -187,6 +193,7 @@ export default function SettingsPhoneNumbers() {
             Sistema telefonico aziendale: gestisci qui i numeri per SMS, chiamate e agenti AI.
           </p>
         </div>
+        {isAdmin && (
         <Dialog open={purchaseOpen} onOpenChange={(open) => { setPurchaseOpen(open); if (!open) resetPurchase(); }}>
           <DialogTrigger asChild>
             <Button disabled={!canBuyNumbers} title={canBuyNumbers ? "Acquista un numero" : "Completa e fai approvare i Dati normativi per acquistare numeri italiani"}>
@@ -325,6 +332,7 @@ export default function SettingsPhoneNumbers() {
             )}
           </DialogContent>
         </Dialog>
+        )}
       </div>
 
       {/* Scorciatoie: dove si usano i numeri (logica GHL — gestione qui, uso altrove) */}
@@ -399,7 +407,7 @@ export default function SettingsPhoneNumbers() {
                   <TableHead>Etichetta</TableHead>
                   <TableHead>Funzionalità</TableHead>
                   <TableHead className="text-right">Costo/mese</TableHead>
-                  <TableHead />
+                  {isAdmin && <TableHead />}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -418,33 +426,35 @@ export default function SettingsPhoneNumbers() {
                       </div>
                     </TableCell>
                     <TableCell className="text-right">€{Number(num.monthly_cost_eur || 0).toFixed(2)}</TableCell>
-                    <TableCell>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Rilascia Numero</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Stai per rilasciare il numero <strong>{num.phone_number}</strong>. 
-                              Questa azione è irreversibile e il numero non sarà più disponibile.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Annulla</AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={() => releaseMutation.mutate({ id: num.id, telnyx_phone_id: num.telnyx_phone_id })}
-                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                            >
-                              Rilascia
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </TableCell>
+                    {isAdmin && (
+                      <TableCell>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Rilascia Numero</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Stai per rilasciare il numero <strong>{num.phone_number}</strong>.
+                                Questa azione è irreversibile e il numero non sarà più disponibile.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Annulla</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => releaseMutation.mutate({ id: num.id, telnyx_phone_id: num.telnyx_phone_id })}
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              >
+                                Rilascia
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
               </TableBody>
@@ -465,15 +475,19 @@ export default function SettingsPhoneNumbers() {
               <Link to="/azienda/agenti-ai?tab=telefonia" className="underline font-medium">Agenti AI → Telefonia</Link>.
             </CardDescription>
           </div>
-          <Button variant="outline" size="sm" onClick={() => importTelnyx.mutate()} disabled={importTelnyx.isPending} className="shrink-0">
-            {importTelnyx.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <Download className="h-4 w-4 mr-1.5" />}
-            Importa numeri Telnyx
-          </Button>
+          {isAdmin && (
+            <Button variant="outline" size="sm" onClick={() => importTelnyx.mutate()} disabled={importTelnyx.isPending} className="shrink-0">
+              {importTelnyx.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <Download className="h-4 w-4 mr-1.5" />}
+              Importa numeri Telnyx
+            </Button>
+          )}
         </CardHeader>
         <CardContent>
           {aiNumbers.length === 0 ? (
             <p className="text-center text-muted-foreground py-8 text-sm">
-              Nessun numero per le chiamate AI. Usa <strong>Importa numeri Telnyx</strong> per portarli qui dai numeri che usi già per gli SMS.
+              {isAdmin
+                ? <>Nessun numero per le chiamate AI. Usa <strong>Importa numeri Telnyx</strong> per portarli qui dai numeri che usi già per gli SMS.</>
+                : "Nessun numero per le chiamate AI."}
             </p>
           ) : (
             <Table>

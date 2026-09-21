@@ -68,9 +68,13 @@ async function buildUserClient(authHeader: string): Promise<SupabaseClient> {
 }
 
 /**
- * Authorize caller: either super_admin OR company member with company_admin role.
- * (Legacy pattern consistent with existing Sprint 7 function — we intentionally
- * do not tighten beyond it here to avoid breaking the SettingsEmailDomain UI.)
+ * Autorizza chi chiama: super_admin, amministratore dell'azienda, oppure —
+ * dal 21/09/2026 — chi ha il permesso «Modelli & Email» (can_view_marketing_email)
+ * e non è in sola lettura. Stessa regola «la modifica segue il permesso»
+ * decisa per WhatsApp Bot/email/scontistica lo stesso giorno (migration
+ * 20280922110000): prima solo l'amministratore poteva usare questa funzione,
+ * ma la pagina si apre a chiunque abbia quel permesso — bottone finto per
+ * 6 persone.
  */
 async function authorize(
   userClient: SupabaseClient,
@@ -107,9 +111,26 @@ async function authorize(
   const isCompanyAdmin = (roles ?? []).some((r: { role: string }) =>
     r.role === "company_admin"
   );
-  if (!isCompanyAdmin) throw new Error("Non autorizzato");
+  if (isCompanyAdmin) return { userId: user.id, isSuperAdmin: false };
 
-  return { userId: user.id, isSuperAdmin: false };
+  // Non amministratore: basta il permesso di vista, se non è in sola lettura.
+  const { data: haPermesso } = await admin.rpc("has_permission_for_company" as never, {
+    _user_id: user.id,
+    _permission: "can_view_marketing_email",
+    _company_id: companyId,
+  } as never);
+  if (haPermesso === true) {
+    const { data: sp } = await admin
+      .from("staff_permissions")
+      .select("sola_lettura")
+      .eq("user_id", user.id)
+      .eq("company_id", companyId)
+      .maybeSingle();
+    if (!(sp as { sola_lettura?: boolean } | null)?.sola_lettura) {
+      return { userId: user.id, isSuperAdmin: false };
+    }
+  }
+  throw new Error("Non autorizzato");
 }
 
 /**
