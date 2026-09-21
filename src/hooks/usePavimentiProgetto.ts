@@ -629,6 +629,7 @@ function normalizeTemplate(row: Record<string, unknown> | null, companyId: strin
     // chi le aveva scritte.
     condizioni_legali_testo: (r.condizioni_legali_testo as string | null) ?? null,
     condizioni_legali_attivo: (r.condizioni_legali_attivo as boolean | null) ?? true,
+    modulo_recesso_attivo: r.modulo_recesso_attivo === true,
   };
 }
 

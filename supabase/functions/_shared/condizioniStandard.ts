@@ -343,8 +343,3 @@ export const MODULO_RECESSO = {
   campi: ["Data del contratto", "Nome e cognome del consumatore", "Indirizzo del consumatore"],
   firme: ["Data", "Firma del consumatore (solo se su carta)"],
 } as const;
-
-/** Le condizioni parlano di recesso: al documento va allegato il modulo. */
-export function prevedeRecesso(testoCondizioni: string | null | undefined): boolean {
-  return /recesso/i.test(String(testoCondizioni ?? ""));
-}

@@ -149,7 +149,7 @@ export interface DocEdileModello {
   condizioniLegali: Array<{ tipo: "h1" | "h2" | "li" | "p"; testo: string }>;
   /** Le clausole che il cliente approva con una seconda firma (art. 1341 c.c.). */
   clausoleDaApprovare: string[];
-  /** Le condizioni parlano di recesso: al documento si allega il modulo. */
+  /** L'azienda allega il modulo di recesso (interruttore nel modello, spento di serie). */
   conRecesso: boolean;
   /** L'ordine dei capitoli scelto dall'azienda (vuoto = quello di serie). */
   ordineCapitoli: VoceOrdine[];

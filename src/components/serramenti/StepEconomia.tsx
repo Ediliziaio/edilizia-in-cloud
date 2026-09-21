@@ -32,6 +32,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useDiscountRules } from "@/hooks/useDiscountRules";
+import { usePrezzoFinaleAMano } from "@/hooks/usePrezzoFinaleAMano";
 import { evaluateDiscountRules, classifyDiscount } from "@/lib/serramenti/discountRules";
 import {
   useTabelleFinanziamentoAttive,
@@ -130,11 +131,30 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
         iva_percentuale: form.iva_percentuale ?? 10,
         sconto_percentuale: form.sconto_percentuale ?? 0,
         sconto_importo: form.sconto_importo ?? 0,
+        // Prezzo pieno scritto a mano: prende il posto della somma delle voci.
+        prezzo_manuale: form.prezzo_manuale ?? null,
       },
       detail.servizi ?? [],
     ),
-    [detail.serramenti, detail.accessori, detail.servizi, form.iva_percentuale, form.sconto_percentuale, form.sconto_importo],
+    [detail.serramenti, detail.accessori, detail.servizi, form.iva_percentuale, form.sconto_percentuale, form.sconto_importo, form.prezzo_manuale],
   );
+
+  // ─── Prezzo scritto a mano ───────────────────────────────────────────────
+  // Per chi non carica i prezzi del listino: le voci restano a 0 € e il prezzo
+  // si scrive qui. Il campo compare se l'azienda l'ha acceso (Impostazioni →
+  // Margini), e resta visibile su un preventivo che ha già un prezzo scritto,
+  // così lo si può togliere anche dopo che l'opzione è stata spenta.
+  const { data: prezzoAManoAttivo = false } = usePrezzoFinaleAMano(detail.progetto.company_id);
+  const mostraPrezzoAMano = prezzoAManoAttivo || totaleCalc.prezzo_manuale;
+  // IVA mista col prezzo scritto a mano: la regola dei beni significativi
+  // ripartisce l'imponibile come le voci. Con le voci tutte a 0 € non c'è niente
+  // da ripartire, e l'aliquota va scelta.
+  const ivaMistaSenzaVoci = totaleCalc.prezzo_manuale && totaleCalc.somma_voci <= 0;
+  const salvaPrezzoManuale = (testo: string) => {
+    const pulito = testo.trim();
+    const valore = Number(pulito);
+    onChange("prezzo_manuale", pulito === "" || !Number.isFinite(valore) || valore <= 0 ? null : roundMoney(valore));
+  };
 
   const importoDocumento = useMemo(
     () => roundMoney(totaleCalc.totale_iva_inclusa),
@@ -229,7 +249,9 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
       costoEsplicito: number | null | undefined,
       listinoVoceId: string | null | undefined,
     ) => {
-      if (venditaRiga <= 0) return;
+      // Col prezzo scritto a mano le voci possono essere a 0 € ma avere un costo:
+      // il margine è prezzo scritto meno i costi di tutte le voci.
+      if (venditaRiga <= 0 && !totaleCalc.prezzo_manuale) return;
       righeConVendita += 1;
       const explicit = Number(costoEsplicito ?? 0);
       const gridCost = listinoVoceId ? prezzoAcquistoByGridId.get(listinoVoceId) : null;
@@ -295,7 +317,7 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
   }, [
     canViewImpresa, isFetchingGridCosts, prezzoAcquistoByGridId,
     detail.serramenti, detail.accessori, detail.servizi,
-    totaleCalc.imponibile_netto, discountEval.margineMinPct,
+    totaleCalc.imponibile_netto, totaleCalc.prezzo_manuale, discountEval.margineMinPct,
   ]);
 
   // ─── Approval workflow ──────────────────────────────────────────────────
@@ -625,7 +647,14 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
           <SrKpi label="Serramenti" value={formatEuro(totaleCalc.imponibile_serramenti)} hint="Posa compresa dove prevista" />
           <SrKpi label="Complementi" value={formatEuro(totaleCalc.imponibile_accessori)} />
           <SrKpi label="Servizi" value={formatEuro(totaleCalc.imponibile_servizi)} hint="Trasporto, ENEA, ecc." />
-          <SrKpi label="Imponibile" value={formatEuro(totaleCalc.imponibile_netto)} hint={totaleCalc.sconto > 0 ? `Sconto: -${formatEuro(totaleCalc.sconto)}` : undefined} />
+          <SrKpi
+            label="Imponibile"
+            value={formatEuro(totaleCalc.imponibile_netto)}
+            hint={[
+              totaleCalc.prezzo_manuale ? "Prezzo scritto a mano" : null,
+              totaleCalc.sconto > 0 ? `Sconto: -${formatEuro(totaleCalc.sconto)}` : null,
+            ].filter(Boolean).join(" · ") || undefined}
+          />
           <SrKpi label="IVA inclusa" value={formatEuro(totaleCalc.totale_iva_inclusa)} variant="primary" />
         </div>
       </SrCard>
@@ -633,9 +662,60 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
       {/* Sconto + totale */}
       <SrCard
         title="Totale preventivo (PDF cliente)"
-        description="Il PDF mostra un importo unico e definitivo per questa revisione: sconti, imponibile e IVA sono calcolati dalle righe dell'offerta."
+        description={totaleCalc.prezzo_manuale
+          ? "Il PDF mostra il totale di questa revisione: sconto, imponibile e IVA si calcolano dal prezzo scritto qui sotto."
+          : "Il PDF mostra il totale di questa revisione: sconto, imponibile e IVA si calcolano dalle righe dell'offerta."}
         icon={<Euro className="h-4 w-4" />}
       >
+        {/* ─── Prezzo scritto a mano ──────────────────────────────────────
+            Prezzo pieno IVA esclusa, al posto della somma delle voci. Sconto
+            e IVA lavorano sopra, così nell'offerta si vedono prezzo, sconto e
+            totale. Acceso per azienda in Impostazioni → Margini. */}
+        {mostraPrezzoAMano && (
+          <div className="mb-3 rounded-md border border-orange-200 bg-orange-50/50 p-3">
+            <div className="grid grid-cols-12 gap-3 items-end">
+              <div className="col-span-12 md:col-span-5">
+                <Label htmlFor="sr-prezzo-manuale" className="text-xs font-semibold text-orange-900 block h-4">
+                  Prezzo del preventivo (IVA esclusa)
+                </Label>
+                <Input
+                  id="sr-prezzo-manuale"
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  inputMode="decimal"
+                  key={`prezzo-manuale-${form.prezzo_manuale ?? ""}`}
+                  defaultValue={form.prezzo_manuale ?? ""}
+                  placeholder={totaleCalc.somma_voci > 0 ? `Somma delle voci: ${formatEuro(totaleCalc.somma_voci, 2)}` : "Scrivi il prezzo"}
+                  onBlur={(e) => salvaPrezzoManuale(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                  className="h-9 text-sm mt-1 bg-white tabular-nums"
+                />
+              </div>
+              <div className="col-span-12 md:col-span-7 text-[11px] text-orange-900/80 leading-snug">
+                {totaleCalc.prezzo_manuale ? (
+                  <>
+                    Prende il posto della somma delle voci
+                    {totaleCalc.somma_voci > 0 ? ` (${formatEuro(totaleCalc.somma_voci, 2)})` : ""}.
+                    Sconto e IVA si calcolano su questo prezzo.{" "}
+                    <button
+                      type="button"
+                      className="underline hover:no-underline"
+                      onClick={() => onChange("prezzo_manuale", null)}
+                    >
+                      Torna alla somma delle voci
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    Vuoto: il prezzo è la somma delle voci ({formatEuro(totaleCalc.somma_voci, 2)}).
+                    Scrivilo se non usi i prezzi del listino: sconto e IVA si calcolano sopra.
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
         {/* ─── Regole scontistica aziendale ───────────────────────────────
             Auto-binding live (mirror del compute_max_discount SQL):
             mostra max sconto, soglia approvazione, margine min in base
@@ -843,7 +923,9 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
                 <SelectItem value="4">4% — IVA speciale (Legge 104 / disabilità)</SelectItem>
                 <SelectItem value="10">10% — Ristrutturazione edilizia</SelectItem>
                 <SelectItem value="22">22% — Ordinaria</SelectItem>
-                <SelectItem value="mista">IVA mista — Beni Significativi (DM 29.12.99)</SelectItem>
+                <SelectItem value="mista" disabled={ivaMistaSenzaVoci && form.iva_percentuale !== IVA_MISTA_SENTINEL}>
+                  IVA mista — Beni Significativi (DM 29.12.99)
+                </SelectItem>
                 {/* Valore legacy fuori standard (es. preventivi vecchi a 21%, 5%,
                     27%): lo mostriamo come opzione cosi' il commerciale
                     sa che e' un valore non standard e puo' correggerlo. */}
@@ -857,7 +939,15 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
             {/* Hint contestuale per IVA mista: spiega la regola DM 29.12.99
                 (Beni Significativi). Il commerciale capisce subito perche'
                 vede 10% e 22% simultaneamente nel riepilogo sotto. */}
-            {form.iva_percentuale === IVA_MISTA_SENTINEL && (
+            {/* La regola dei beni significativi ripartisce l'imponibile come le
+                voci: col prezzo scritto e le voci tutte a 0 € non c'è niente da
+                ripartire. Il calcolo in quel caso mette tutto al 22%. */}
+            {form.iva_percentuale === IVA_MISTA_SENTINEL && ivaMistaSenzaVoci && (
+              <p className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-1 mt-1 leading-tight">
+                ⚠ Con il prezzo scritto a mano e le voci senza prezzo l'IVA mista non si può ripartire: scegli l'aliquota.
+              </p>
+            )}
+            {!ivaMistaSenzaVoci && form.iva_percentuale === IVA_MISTA_SENTINEL && (
               <p className="text-[10px] text-blue-700 bg-blue-50 border border-blue-200 rounded px-1.5 py-1 mt-1 leading-tight">
                 ℹ Regola Beni Significativi (DM 29.12.99): serramenti al 10% fino al valore di posa/accessori, eccedenza al 22%.
               </p>

@@ -137,6 +137,8 @@ export interface SerramentoPdfEnriched {
    *  pagina dedicata (o, in subordine, una sola macro attiva). NULL = nessun
    *  fallback. */
   autoFallbackMacroId: string | null;
+  /** Se il riquadro del prezzo mostra prezzo pieno e sconto (vedi mostraScontiNelPdf). */
+  mostraSconti: boolean;
 }
 
 export interface SerramentoPdfPayload {
@@ -154,6 +156,28 @@ export interface SerramentoPdfPayload {
 }
 
 // ─── Helper pre-fetch ──────────────────────────────────────────────────────
+
+/**
+ * Lo sconto nell'offerta si vede, tranne dove l'azienda ha spento «Mostra
+ * sconti applicati» (Impostazioni → Margini). È la regola del PDF del
+ * preventivo generico (generate-quote-pdf: `pdf_mostra_sconti !== false`): chi
+ * non ha mai salvato quelle impostazioni lo vede. Prima il PDF serramenti non
+ * mostrava mai lo sconto, e chi lo dava non poteva farlo vedere al cliente.
+ */
+async function mostraScontiNelPdf(companyId: string | null | undefined): Promise<boolean> {
+  if (!companyId) return true;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data } = await (supabase as any)
+      .from("preventivo_impostazioni")
+      .select("pdf_mostra_sconti")
+      .eq("company_id", companyId)
+      .maybeSingle();
+    return data?.pdf_mostra_sconti !== false;
+  } catch {
+    return true;
+  }
+}
 
 // M15 · Export pubblico per riuso da SerramentiTemplatePreviewDialog (anteprima
 // con dati reali). Alias del helper interno: stesso comportamento, no fork.
@@ -616,6 +640,7 @@ async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEn
     inlinedConsulenteFoto,
     inlinedCoverImage,
     lineeDedicate,
+    mostraSconti,
   ] = await Promise.all([
     toDataUrl(template?.logo_url ?? company?.logo_url ?? null),
     toDataUrl(template?.chi_siamo_foto_url ?? null),
@@ -623,6 +648,7 @@ async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEn
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     toDataUrl((template as any)?.pdf_cover_image_url ?? null),
     caricaLineeDedicate(companyId, detail),
+    mostraScontiNelPdf(companyId),
   ]);
 
   // Applica i data URL pre-caricati ai rispettivi oggetti
@@ -678,6 +704,7 @@ async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEn
     supplierLineById,
     publicUrl,
     autoFallbackMacroId,
+    mostraSconti,
   };
 }
 

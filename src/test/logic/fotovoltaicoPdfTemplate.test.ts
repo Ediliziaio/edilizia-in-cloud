@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import {
   getFvPdfRenderedPagesCount,
   normalizeFvPdfPagesOrder,
@@ -553,9 +555,10 @@ describe("fotovoltaico PDF — niente numeri e promesse inventate", () => {
 // riquadri (passo successivo, urgenza, noleggio), la firma non lasciava posto al prezzo.
 describe("fotovoltaico PDF — la pagina della firma", () => {
   const pagineDisegnate = (html: string) => html.match(/<div class="page">/g)?.length ?? 0;
-  const conCondizioni = (): FvPdfTemplateData => ({
+  // Il modulo di recesso lo accende l'azienda (spento di serie dal 21/09/2026).
+  const conCondizioni = (recesso = true): FvPdfTemplateData => ({
     ...basePdfData(),
-    template: { condizioni_legali_attivo: true, condizioni_legali_testo: condizioniStandard("fotovoltaico") },
+    template: { condizioni_legali_attivo: true, condizioni_legali_testo: condizioniStandard("fotovoltaico"), modulo_recesso_attivo: recesso },
   });
 
   it("condizioni, poi la firma col riepilogo e la seconda firma, poi il modulo di recesso", () => {
@@ -576,6 +579,15 @@ describe("fotovoltaico PDF — la pagina della firma", () => {
     }
     expect(paginaFirma).toMatch(/Impianto fotovoltaico [\d,]+ kWp/);
     expect(paginaFirma).toContain("condizioni generali di contratto che la accompagnano");
+    expect(pagineDisegnate(html)).toBe(getFvPdfRenderedPagesCount(d));
+  });
+
+  it("con l'interruttore spento niente modulo, anche se le condizioni nominano il recesso", () => {
+    const d = conCondizioni(false);
+    const html = renderFvPdfHtml(d);
+    expect(html).toContain("Firma del<br/>contratto.");
+    expect(html).not.toContain("Modulo di recesso.");
+    expect(html).not.toContain("basta il modulo allegato");
     expect(pagineDisegnate(html)).toBe(getFvPdfRenderedPagesCount(d));
   });
 
@@ -608,6 +620,35 @@ describe("fotovoltaico PDF — la pagina della firma", () => {
     expect(html).toContain("Firma del<br/>contratto.");
     expect(pagineDisegnate(html)).toBe(totale);
     expect(html).toContain(`<span class="pnum">${totale} / ${totale}</span>`);
+  });
+});
+
+// 21/09/2026 — «L'accumulo cambia tutto» stampava «~35%», «il doppio» e un
+// risparmio pari al 40% di quello annuo per tutti: numeri che nessun calcolo aveva
+// prodotto. Ora i due valori vengono dallo stesso modello, con e senza batteria.
+describe("fotovoltaico PDF — l'accumulo con numeri calcolati", () => {
+  it("con i flussi senza batteria stampa i due valori veri e i kWh in più", () => {
+    const d = basePdfData();
+    d.flows_senza_accumulo = { ...d.flows, autoconsumo_kwh: d.flows.autoconsumo_kwh - 1500, autoconsumo_pct: 0.25 };
+    const html = renderFvPdfHtml(d);
+    expect(html).toContain("Senza batteria useresti in casa il 25%");
+    expect(html).toContain("1.500 kWh all'anno");
+    expect(html).not.toContain("~35%");
+    expect(html).not.toContain("il doppio");
+  });
+
+  it("senza quei flussi non inventa la percentuale senza batteria né il risparmio in più", () => {
+    const html = renderFvPdfHtml(basePdfData());
+    expect(html).toContain("L'accumulo cambia tutto.");
+    expect(html).not.toContain("Senza batteria useresti");
+    expect(html).not.toContain("~35%");
+    expect(html).not.toMatch(/in più all'anno<\/strong> di risparmio/);
+  });
+
+  it("il generatore calcola i flussi senza batteria con gli stessi dati", () => {
+    const src = readFileSync(resolve(process.cwd(), "supabase/functions/fv-genera-pdf/index.ts"), "utf8");
+    expect(src).toContain("calcolaEnergyFlows({ ...ingressiFlussi, has_accumulo: false, capacita_accumulo_kwh: 0 })");
+    expect(src).toContain("flows_senza_accumulo: flowsSenzaAccumulo,");
   });
 });
 

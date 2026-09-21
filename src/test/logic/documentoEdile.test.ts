@@ -297,6 +297,16 @@ describe("condizioni generali e firma: il preventivo firmato è il contratto", (
       expect(norm).toContain("condizioni_legali_testo:");
       expect(norm).toContain("gallery_lavori:");
       expect(norm).toContain("cover_logo_url:");
+      expect(norm).toContain("modulo_recesso_attivo: r.modulo_recesso_attivo === true,");
     }
+  });
+
+  // 21/09/2026: il modulo di recesso lo accende l'azienda, spento di serie. Il testo
+  // di base nomina il recesso (art. 13), e prima bastava quello per allegarlo.
+  it("il modulo di recesso esce solo se l'azienda lo accende nel modello", () => {
+    const contesto = { progetto: PROGETTO, azienda: null as AziendaComune | null, settore: "generico" as const };
+    expect(leggiModello({}, contesto).conRecesso).toBe(false);
+    expect(leggiModello({ condizioni_legali_testo: "## Art. 13 — Recesso\nEntro 14 giorni." }, contesto).conRecesso).toBe(false);
+    expect(leggiModello({ modulo_recesso_attivo: true }, contesto).conRecesso).toBe(true);
   });
 });

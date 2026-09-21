@@ -42,6 +42,8 @@ function demoBase(): FvPdfTemplateData {
     finanziamento: { finanziaria: "Finanziaria", durata_mesi: 84, rata_mensile: 230, tan_perc: 4, taeg_perc: 5, importo_finanziato: 18000 },
     scenario: { risparmio_mensile_eur: 150, risparmio_anno1_eur: 1800, risparmio_25_anni_eur: 46000, payback_anni: 8, npv_25_anni: 24000, cassa_anno_per_anno: [{ anno: 0, cumulato: -18000 }, { anno: 8, cumulato: 0 }, { anno: 25, cumulato: 46000 }] },
     flows: { produzione_kwh: 7400, autoconsumo_kwh: 4200, ceduto_rete_kwh: 3200, prelievo_rete_kwh: 900, autoconsumo_pct: 0.57, autosufficienza_pct: 0.78, consumo_da_rete_pct: 0.22, consumo_da_fv_pct: 0.78 },
+    // Gli stessi dati senza batteria (profilo misto: 35% della produzione).
+    flows_senza_accumulo: { produzione_kwh: 7400, autoconsumo_kwh: 2590, ceduto_rete_kwh: 4810, prelievo_rete_kwh: 2510, autoconsumo_pct: 0.35, autosufficienza_pct: 0.51, consumo_da_rete_pct: 0.49, consumo_da_fv_pct: 0.51 },
     componenti: [
       { categoria: "pannello", descrizione: "Pannello 500 W", marca: "—", modello: "PV500", quantita: 12, potenza_w: 500, garanzia_anni: 25 },
       { categoria: "inverter", descrizione: "Inverter ibrido 6 kW", marca: "—", modello: "INV6", quantita: 1, garanzia_anni: 10 },

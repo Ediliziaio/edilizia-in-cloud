@@ -172,20 +172,44 @@ describe("preventivo generico: l'impaginato classico parla la lingua del documen
 });
 
 describe("modulo di recesso e pagina della firma in tutti i documenti", () => {
-  it("un testo solo per il modulo, e la regola su quando allegarlo", async () => {
-    const { MODULO_RECESSO, prevedeRecesso, condizioniStandard } = await import("../../../supabase/functions/_shared/condizioniStandard");
+  it("un testo solo per il modulo, per tutti i documenti", async () => {
+    const { MODULO_RECESSO } = await import("../../../supabase/functions/_shared/condizioniStandard");
     expect(MODULO_RECESSO.dichiarazione("RST-1")).toContain("preventivo RST-1.");
     expect(MODULO_RECESSO.campi).toHaveLength(3);
-    expect(prevedeRecesso(condizioniStandard("fotovoltaico"))).toBe(true);
-    expect(prevedeRecesso("# Condizioni\n## Art. 1\nNiente.")).toBe(false);
   });
 
-  it("i quattro motori allegano il modulo quando le condizioni lo prevedono", () => {
+  // Dal 21/09/2026 il modulo lo accende l'azienda nel modello, spento di serie: serve
+  // solo a chi firma con un privato a casa sua o a distanza. Prima usciva ogni volta
+  // che le condizioni nominavano il recesso, cioè sempre con il testo di base.
+  it("i quattro motori allegano il modulo solo quando l'azienda lo accende", () => {
     expect(leggi("src/components/preventivi/pdf/DocumentoEdilePDF.tsx")).toContain("MODULO_RECESSO.dichiarazione(dati.codice)");
+    expect(leggi("src/components/preventivi/pdf/adattatoreEdile.ts")).toContain("conRecesso: t.modulo_recesso_attivo === true,");
     expect(leggi("supabase/functions/_shared/fvHtmlTemplate.ts")).toContain("if (haModuloRecesso(d)) pages.push(pageModuloRecesso(d, ++pageN, TOTAL));");
-    expect(leggi("supabase/functions/generate-quote-pdf/index.ts")).toContain("if (prevedeRecesso(condizioniETermini)) {");
-    expect(leggi("src/components/serramenti/SerramentoPDF.tsx")).toContain("prevedeRecesso(condizioniLegaliTesto) && (");
+    expect(leggi("supabase/functions/_shared/fvHtmlTemplate.ts")).toContain("return haPaginaCondizioni(d) && d.template?.modulo_recesso_attivo === true;");
+    expect(leggi("supabase/functions/fv-genera-pdf/index.ts")).toContain("modulo_recesso_attivo: template.modulo_recesso_attivo === true,");
+    expect(leggi("supabase/functions/generate-quote-pdf/index.ts")).toContain("if (t.modulo_recesso_attivo === true) {");
+    expect(leggi("src/components/serramenti/SerramentoPDF.tsx")).toContain("condizioniLegaliTesto && moduloRecessoAttivo && (");
+    expect(leggi("src/components/serramenti/SerramentoPDF.tsx")).toContain("const moduloRecessoAttivo = tpl.modulo_recesso_attivo === true;");
     expect(leggi("supabase/functions/_shared/srHtmlTemplate.ts")).toContain("${renderModuloRecesso(d, totalPages(d), totalPages(d))}");
+    expect(leggi("supabase/functions/_shared/srHtmlTemplate.ts")).toContain("return haCondizioni(d) && d.modulo_recesso_attivo === true;");
+    expect(leggi("supabase/functions/sr-genera-pdf/index.ts")).toContain("modulo_recesso_attivo: tpl?.modulo_recesso_attivo === true,");
+    // Nessuno decide più dal testo: la vecchia regola non esiste.
+    expect(leggi("supabase/functions/_shared/condizioniStandard.ts")).not.toContain("prevedeRecesso");
+  });
+
+  it("la colonna nasce spenta in tutti gli undici modelli, e gli editor la mostrano", () => {
+    const sql = leggi("supabase/migrations/20280921170000_modulo_recesso_interruttore.sql");
+    for (const tabella of [
+      "rst_template_pdf", "bgn_template_pdf", "tet_template_pdf", "clm_template_pdf", "ele_template_pdf",
+      "idr_template_pdf", "pav_template_pdf", "pis_template_pdf", "sr_template_pdf", "fv_template_pdf", "quote_templates",
+    ]) expect(sql).toContain(`'${tabella}'`);
+    expect(sql).toContain("add column if not exists modulo_recesso_attivo boolean not null default false");
+    for (const editor of [
+      "src/components/preventivi/CondizioniContratto.tsx",
+      "src/components/serramenti/SerramentiTemplateEditor.tsx",
+      "src/components/fotovoltaico/FotovoltaicoTemplateEditor.tsx",
+      "src/pages/azienda/settings/SettingsQuoteTemplates.tsx",
+    ]) expect(leggi(editor)).toContain('aria-label="Allega il modulo di recesso"');
   });
 
   it("il conto delle pagine tiene conto del modulo (Fotovoltaico e pagina online dei Serramenti)", () => {

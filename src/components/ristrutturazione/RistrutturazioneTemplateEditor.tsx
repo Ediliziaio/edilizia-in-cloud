@@ -171,7 +171,7 @@ type FormState = Required<Pick<RstTemplatePdf,
   | "cover_title_size" | "cover_text_align"
   | "default_iva_pct" | "default_detrazione_pct" | "default_validita_giorni"
   | "gallery_lavori"
-  | "condizioni_legali_attivo" | "condizioni_legali_testo"
+  | "condizioni_legali_attivo" | "condizioni_legali_testo" | "modulo_recesso_attivo"
 >> & RstCoverPatch & {
   /** Eyebrow + titolo/sottotitolo cover usati dal layout preset (pdf_cover_*). */
   pdf_cover_eyebrow: string | null;
@@ -237,6 +237,7 @@ function templateToForm(t: RstTemplatePdf): FormState {
     validity_text: t.validity_text ?? "",
     footer_text: t.footer_text ?? "",
     condizioni_legali_attivo: (t as { condizioni_legali_attivo?: boolean | null }).condizioni_legali_attivo ?? true,
+    modulo_recesso_attivo: (t as { modulo_recesso_attivo?: boolean | null }).modulo_recesso_attivo === true,
     condizioni_legali_testo: (t as { condizioni_legali_testo?: string | null }).condizioni_legali_testo ?? "",
     show_chi_siamo: t.show_chi_siamo ?? true,
     show_cronoprogramma: t.show_cronoprogramma ?? true,
@@ -302,6 +303,7 @@ interface GeneratedTemplateTexts {
   footer_text?: string | null;
   condizioni_legali_attivo?: boolean | null;
   condizioni_legali_testo?: string | null;
+  modulo_recesso_attivo?: boolean | null;
 }
 
 interface Props {
@@ -1366,6 +1368,8 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
                   testo={form.condizioni_legali_testo ?? ""}
                   onAttivo={(v) => set("condizioni_legali_attivo", v)}
                   onTesto={(v) => set("condizioni_legali_testo", v)}
+                  recesso={form.modulo_recesso_attivo === true}
+                  onRecesso={(v) => set("modulo_recesso_attivo", v)}
                 />
               </div>
             </SectionCard>

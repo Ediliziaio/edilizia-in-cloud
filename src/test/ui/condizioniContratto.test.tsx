@@ -24,10 +24,14 @@ afterEach(cleanup);
 function Editor({ settore = "tetti" as const }) {
   const [attivo, setAttivo] = useState(true);
   const [testo, setTesto] = useState("");
+  const [recesso, setRecesso] = useState(false);
   return (
     <>
-      <CondizioniContratto companyId="c1" settore={settore} attivo={attivo} testo={testo} onAttivo={setAttivo} onTesto={setTesto} />
-      <output data-testid="salvato">{JSON.stringify({ attivo, lunghezza: testo.length, inizio: testo.slice(0, 60) })}</output>
+      <CondizioniContratto
+        companyId="c1" settore={settore} attivo={attivo} testo={testo} onAttivo={setAttivo} onTesto={setTesto}
+        recesso={recesso} onRecesso={setRecesso}
+      />
+      <output data-testid="salvato">{JSON.stringify({ attivo, recesso, lunghezza: testo.length, inizio: testo.slice(0, 60) })}</output>
     </>
   );
 }
@@ -35,9 +39,11 @@ function Editor({ settore = "tetti" as const }) {
 const salvato = () => JSON.parse(screen.getByTestId("salvato").textContent ?? "{}");
 
 describe("editor: condizioni generali di contratto", () => {
-  it("vuoto, avverte che il documento esce senza condizioni", () => {
+  // Dal 20/09/2026 vuoto vuol dire «testo di base del settore», non «senza condizioni».
+  it("vuoto, avverte che nel documento esce il testo di base del settore", () => {
     render(<Editor />);
-    expect(screen.getByText(/senza condizioni/)).toBeTruthy();
+    expect(screen.getByText(/testo di base del settore/)).toBeTruthy();
+    expect(screen.queryByText(/senza condizioni/)).toBeNull();
   });
 
   it("«Parti dal testo del settore» riempie il campo con le condizioni del mestiere", () => {
@@ -49,7 +55,7 @@ describe("editor: condizioni generali di contratto", () => {
     const area = screen.getByRole("textbox") as HTMLTextAreaElement;
     expect(area.value).toMatch(/amianto/i);
     // L'avviso sparisce appena c'è un testo.
-    expect(screen.queryByText(/senza condizioni/)).toBeNull();
+    expect(screen.queryByText(/Il campo è vuoto/)).toBeNull();
   });
 
   it("con un testo già scritto chiede conferma prima di sostituirlo", () => {
@@ -75,8 +81,19 @@ describe("editor: condizioni generali di contratto", () => {
 
   it("l'interruttore spento nasconde il campo e lo salva spento", () => {
     render(<Editor />);
-    fireEvent.click(screen.getByRole("switch"));
+    fireEvent.click(screen.getByRole("switch", { name: /Condizioni generali/ }));
     expect(salvato().attivo).toBe(false);
     expect(screen.queryByRole("textbox")).toBeNull();
+  });
+
+  // 21/09/2026: il modulo di recesso lo decide l'azienda, spento di serie.
+  it("il modulo di recesso è spento di serie, dice quando serve e si accende", () => {
+    render(<Editor />);
+    const modulo = screen.getByRole("switch", { name: "Allega il modulo di recesso" });
+    expect(modulo.getAttribute("aria-checked")).toBe("false");
+    expect(screen.getByText(/a casa sua o a distanza/)).toBeTruthy();
+    expect(screen.getByText(/12 mesi/)).toBeTruthy();
+    fireEvent.click(modulo);
+    expect(salvato().recesso).toBe(true);
   });
 });

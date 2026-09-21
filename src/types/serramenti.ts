@@ -145,6 +145,13 @@ export interface SrProgettoRow {
   iva_percentuale: number;
   sconto_percentuale: number;
   sconto_importo: number;
+  /**
+   * Prezzo pieno scritto a mano, IVA esclusa: sostituisce la somma delle voci
+   * (sconto e IVA si calcolano sopra). Null = somma delle voci. Si scrive solo
+   * se l'azienda l'ha acceso in Impostazioni → Margini
+   * (preventivo_impostazioni.prezzo_finale_a_mano).
+   */
+  prezzo_manuale?: number | null;
   fin_anticipo_pct: number;
   fin_piani: SrPianoFinanziamento[];
   fin_tabella_id: string | null;
@@ -491,6 +498,8 @@ export interface SrTemplatePdfRow {
   /** Condizioni e disclaimer legali (pagina appendice). */
   condizioni_legali_attivo: boolean;
   condizioni_legali_testo: string | null;
+  /** Allega il modulo di recesso: serve se si firma con un privato a casa sua o a distanza. Spento di serie. */
+  modulo_recesso_attivo?: boolean | null;
   /** Mostra il blocco "Firma e conferma online" (link pagina pubblica) nel PDF.
    *  Default false = nascosto. */
   pdf_mostra_firma_online?: boolean;

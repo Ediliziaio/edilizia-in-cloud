@@ -96,6 +96,17 @@ function demoBase(): FvPdfTemplateData {
       consumo_da_rete_pct: 0.22,
       consumo_da_fv_pct: 0.78,
     },
+    // Gli stessi dati senza batteria (profilo misto: 35% della produzione).
+    flows_senza_accumulo: {
+      produzione_kwh: 7400,
+      autoconsumo_kwh: 2590,
+      ceduto_rete_kwh: 4810,
+      prelievo_rete_kwh: 2510,
+      autoconsumo_pct: 0.35,
+      autosufficienza_pct: 0.51,
+      consumo_da_rete_pct: 0.49,
+      consumo_da_fv_pct: 0.51,
+    },
     componenti: [
       {
         categoria: "pannello",

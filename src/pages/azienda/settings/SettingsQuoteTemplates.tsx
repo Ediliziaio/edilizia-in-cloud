@@ -1838,6 +1838,22 @@ export default function SettingsQuoteTemplates() {
                       placeholder="1. OGGETTO — {{azienda.ragione_sociale}} si impegna a eseguire i lavori presso {{cantiere.indirizzo}}…&#10;2. GARANZIA — 24 mesi dalla consegna…&#10;3. VARIANTI — concordate per iscritto…&#10;PRIVACY (GDPR Reg. UE 2016/679) — i dati di {{cliente.nome_completo}} sono trattati per…&#10;DIRITTO DI RECESSO — entro 14 giorni (art. 52 D.lgs 206/2005)…&#10;FORO COMPETENTE — Foro di [città azienda]."
                       minHeight={220}
                     />
+                    {/* Il modulo di recesso è una scelta dell'azienda, spenta di serie (21/09/2026). */}
+                    <div className="mt-3 flex items-start justify-between gap-3 rounded-lg border px-3 py-2">
+                      <div className="min-w-0">
+                        <Label className="text-sm font-medium">Allega il modulo di recesso</Label>
+                        <p className="text-xs text-muted-foreground">
+                          Serve quando firmi con un privato a casa sua o a distanza (online, al telefono): senza, il cliente
+                          può arrivare a recedere fino a 12 mesi dopo, anche a lavori finiti. A chi vende ad aziende o fa
+                          firmare in sede non serve.
+                        </p>
+                      </div>
+                      <Switch
+                        checked={form.modulo_recesso_attivo === true}
+                        onCheckedChange={(v) => updateForm({ modulo_recesso_attivo: v })}
+                        aria-label="Allega il modulo di recesso"
+                      />
+                    </div>
                   </div>
                 )}
                 {!!form.legal_terms_text && (

@@ -7,7 +7,7 @@
  * grazie a @page A4 + print-color-adjust: exact.
  */
 
-import { MODULO_RECESSO, prevedeRecesso } from "./condizioniStandard.ts";
+import { MODULO_RECESSO } from "./condizioniStandard.ts";
 import {
   fmtEur,
   fmtNum,
@@ -143,6 +143,10 @@ export interface FvPdfTemplateData {
     cassa_anno_per_anno: Array<{ anno: number; cumulato: number }>;
   };
   flows: FvFlows;
+  /** Gli stessi flussi senza batteria, calcolati con lo stesso modello e gli stessi
+   *  dati: servono a dire quanto cambia l'accumulo con numeri veri. Assenti nelle
+   *  anteprime con dati finti: allora la frase non ne stampa. */
+  flows_senza_accumulo?: FvFlows | null;
   componenti: Array<{
     articolo_id?: string | null;
     categoria: string;
@@ -232,6 +236,8 @@ export interface FvPdfTemplateData {
     }> | null;
     condizioni_legali_attivo?: boolean | null;
     condizioni_legali_testo?: string | null;
+    /** Il modulo di recesso, acceso dall'azienda nel modello (spento di serie). */
+    modulo_recesso_attivo?: boolean | null;
     urgenza_attiva?: boolean | null;
     urgenza_titolo?: string | null;
     urgenza_descrizione?: string | null;
@@ -1309,14 +1315,30 @@ function pageProduzione(d: FvPdfTemplateData, pageN: number, total: number): str
         <div class="kpi-block orange"><div class="kpi-label">Autoconsumato</div><div class="kpi-value">${fmtNum(d.flows.autoconsumo_kwh)} <span class="unit">kWh</span></div><div class="kpi-sub">Diretto + da accumulo</div></div>
         <div class="kpi-block"><div class="kpi-label">Ceduto in rete</div><div class="kpi-value">${fmtNum(d.flows.ceduto_rete_kwh)} <span class="unit">kWh</span></div><div class="kpi-sub">Energia non autoconsumata</div></div>
       </div>
-      ${d.progetto.has_accumulo ? `<div class="callout callout-info">
-        <span class="callout-icon">i</span>
-        <div><strong>L'accumulo cambia tutto.</strong>
-        Senza accumulo l'autoconsumo sarebbe ~35%, con accumulo arriva a ${fmtPct(d.flows.autoconsumo_pct, 0)}. Significa il doppio di energia "tua" che resta in casa. Per ${escHtml(d.cliente.nome)} vuol dire <strong>~${fmtEur(d.scenario.risparmio_anno1_eur * 0.4)} in più all'anno</strong> di risparmio reale.</div>
-      </div>` : ""}
+      ${d.progetto.has_accumulo ? calloutAccumulo(d) : ""}
     </div>
     ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
   </div>`;
+}
+
+/**
+ * «L'accumulo cambia tutto», con i numeri del preventivo: quanta dell'energia
+ * prodotta resta in casa senza batteria e con la batteria, calcolate con lo stesso
+ * modello. Prima la frase diceva «~35%» a tutti (è la base del solo profilo
+ * misto: chi consuma di giorno parte dal 45%, di sera dal 25%), «il doppio» e un
+ * risparmio pari al 40% di quello annuo: numeri che nessun calcolo aveva prodotto.
+ */
+function calloutAccumulo(d: FvPdfTemplateData): string {
+  const senza = d.flows_senza_accumulo;
+  const inPiu = senza ? d.flows.autoconsumo_kwh - senza.autoconsumo_kwh : 0;
+  const testo = senza && inPiu > 0 && senza.autoconsumo_pct < d.flows.autoconsumo_pct
+    ? `Senza batteria useresti in casa il ${fmtPct(senza.autoconsumo_pct, 0)} dell'energia che produci; con la batteria arrivi al ${fmtPct(d.flows.autoconsumo_pct, 0)}. Sono <strong>${fmtNum(inPiu)} kWh all'anno</strong> che restano a te invece di andare in rete.`
+    : `La batteria conserva l'energia prodotta di giorno per usarla la sera: con l'accumulo usi in casa il ${fmtPct(d.flows.autoconsumo_pct, 0)} dell'energia che produci.`;
+  return `<div class="callout callout-info">
+        <span class="callout-icon">i</span>
+        <div><strong>L'accumulo cambia tutto.</strong>
+        ${testo}</div>
+      </div>`;
 }
 
 function pageFlussi(d: FvPdfTemplateData, pageN: number, total: number): string {
@@ -2041,9 +2063,12 @@ function pageModuloRecesso(d: FvPdfTemplateData, pageN: number, total: number): 
   </div>`;
 }
 
-/** Le condizioni prevedono il recesso: si allega il modulo. */
+/**
+ * L'azienda allega il modulo di recesso: un interruttore del modello, spento di
+ * serie dal 21/09/2026. Serve a chi firma con un privato a casa sua o a distanza.
+ */
 function haModuloRecesso(d: FvPdfTemplateData): boolean {
-  return haPaginaCondizioni(d) && prevedeRecesso(d.template?.condizioni_legali_testo);
+  return haPaginaCondizioni(d) && d.template?.modulo_recesso_attivo === true;
 }
 
 /** Quante pagine prendono le condizioni generali. */

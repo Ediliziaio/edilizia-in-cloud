@@ -415,5 +415,7 @@ export async function buildMockPdfData(opts: {
     supplierLineById: {},
     publicUrl,
     autoFallbackMacroId: null,
+    // Come nel PDF vero di chi non ha spento «Mostra sconti applicati».
+    mostraSconti: true,
   };
 }

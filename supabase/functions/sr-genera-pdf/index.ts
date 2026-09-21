@@ -534,6 +534,7 @@ Deno.serve(async (req: Request) => {
         }));
       })(),
       condizioni_legali_attivo: tpl?.condizioni_legali_attivo ?? true,
+      modulo_recesso_attivo: tpl?.modulo_recesso_attivo === true,
       intervento_titolo: prog.intervento_titolo || `Per ${prog.cliente_nome ?? ""}`,
       // Sintesi: usa quella esplicitamente inserita; se vuota, auto-genera dal BOM
       // così il PDF non resta mai senza sezione "L'intervento in sintesi".
