@@ -29,6 +29,8 @@ interface PublicQuote {
   vat_amount?: number | null;
   total?: number | null;
   notes?: string | null;
+  /** Prezzo scritto a mano (21/09/2026): le righe sono a 0€, non si mostra il prezzo unitario/totale di riga. */
+  prezzo_manuale_attivo?: boolean;
 }
 
 interface PublicCompany {
@@ -241,6 +243,10 @@ export default function AccettaPreventivo() {
                     item.quantity *
                       item.unit_price *
                       (1 - (item.discount_percent || 0) / 100);
+                  // Prezzo scritto a mano: le righe sono a 0€ (chi non carica il
+                  // listino), mostrare prezzo/sconto/IVA di riga direbbe il falso.
+                  // Cosa si firma resta chiaro lo stesso: nome, descrizione, quantità.
+                  const nascondiPrezzoRiga = quote?.prezzo_manuale_attivo === true;
                   return (
                     <div key={idx} className="py-3 space-y-1">
                       <div className="flex justify-between gap-4">
@@ -252,17 +258,23 @@ export default function AccettaPreventivo() {
                             </p>
                           )}
                         </div>
-                        <p className="font-semibold shrink-0 tabular-nums">
-                          {formatCurrency(lineTotal)}
-                        </p>
+                        {!nascondiPrezzoRiga && (
+                          <p className="font-semibold shrink-0 tabular-nums">
+                            {formatCurrency(lineTotal)}
+                          </p>
+                        )}
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        {item.quantity} {item.unit_of_measure || "pz"} ×{" "}
-                        {formatCurrency(item.unit_price)}
-                        {(item.discount_percent || 0) > 0 &&
-                          ` — sconto ${item.discount_percent}%`}
-                        {(item.vat_rate || 0) > 0 &&
-                          ` (IVA ${item.vat_rate}%)`}
+                        {item.quantity} {item.unit_of_measure || "pz"}
+                        {!nascondiPrezzoRiga && (
+                          <>
+                            {" "}× {formatCurrency(item.unit_price)}
+                            {(item.discount_percent || 0) > 0 &&
+                              ` — sconto ${item.discount_percent}%`}
+                            {(item.vat_rate || 0) > 0 &&
+                              ` (IVA ${item.vat_rate}%)`}
+                          </>
+                        )}
                       </p>
                     </div>
                   );
@@ -276,7 +288,9 @@ export default function AccettaPreventivo() {
         <Card>
           <CardContent className="pt-6 space-y-2 text-sm">
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Imponibile</span>
+              <span className="text-muted-foreground">
+                {quote?.prezzo_manuale_attivo ? "Prezzo del preventivo" : "Imponibile"}
+              </span>
               <span>{formatCurrency(quote?.subtotal || 0)}</span>
             </div>
             {(quote?.discount_percent || 0) > 0 && (

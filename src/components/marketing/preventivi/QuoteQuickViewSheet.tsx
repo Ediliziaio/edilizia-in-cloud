@@ -30,6 +30,8 @@ interface QuoteSummary {
   vat_amount: number | null;
   discount_percent: number | null;
   discount_amount: number | null;
+  /** Prezzo scritto a mano (21/09/2026): sostituisce la somma delle righe. */
+  prezzo_manuale: number | null;
   created_at: string;
   expires_at: string | null;
   sent_at: string | null;
@@ -76,7 +78,7 @@ export function QuoteQuickViewSheet({ quoteId, open, onOpenChange }: Props) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("quotes")
-        .select("id, quote_number, client_name, title, status, total, subtotal, vat_amount, discount_percent, discount_amount, created_at, expires_at, sent_at, viewed_at, signed_at, signed_by_name, contact_id, opportunity_id, salesperson_id, approval_status, margine_pct_snapshot, commission_amount_snapshot, tipo_lavoro, totale_costo_interno, totale_overhead")
+        .select("id, quote_number, client_name, title, status, total, subtotal, vat_amount, discount_percent, discount_amount, prezzo_manuale, created_at, expires_at, sent_at, viewed_at, signed_at, signed_by_name, contact_id, opportunity_id, salesperson_id, approval_status, margine_pct_snapshot, commission_amount_snapshot, tipo_lavoro, totale_costo_interno, totale_overhead")
         .eq("id", quoteId!)
         .eq("company_id", companyId as string)
         .maybeSingle();
@@ -142,9 +144,15 @@ export function QuoteQuickViewSheet({ quoteId, open, onOpenChange }: Props) {
     return items.reduce((s, it) => s + (it.prezzo_acquisto ?? 0) * (it.quantity ?? 0), 0);
   }, [items]);
 
-  const ricavoNetto = useMemo(() => {
+  const ricavoRighe = useMemo(() => {
     return items.reduce((s, it) => s + (it.line_total ?? (it.quantity * it.unit_price * (1 - (it.discount_percent ?? 0) / 100))), 0);
   }, [items]);
+  // Prezzo scritto a mano (21/09/2026): le righe sono a 0€, la somma delle
+  // righe direbbe "margine -100%" su un preventivo che invece va benissimo.
+  // Il ricavo vero è quello autoritativo salvato (subtotal − discount_amount).
+  const ricavoNetto = Number(quote?.prezzo_manuale ?? 0) > 0
+    ? Number(quote?.subtotal ?? 0) - Number(quote?.discount_amount ?? 0)
+    : ricavoRighe;
 
   const margineEur = ricavoNetto - costoTotale - (quote?.totale_overhead ?? 0);
   const marginePct = ricavoNetto > 0 ? (margineEur / ricavoNetto) * 100 : 0;

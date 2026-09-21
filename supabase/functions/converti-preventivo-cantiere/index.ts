@@ -199,6 +199,34 @@ Deno.serve(async (req) => {
             measure_status:   suMisura ? "da_rilevare" : null,
           };
         });
+
+      // Col prezzo scritto a mano le righe copiate sono a 0€ (chi non carica il
+      // listino): non sommano più all'imponibile della commessa. Una riga di
+      // aggiustamento fa tornare i conti, come nei preventivatori di mestiere
+      // (src/lib/moduli/convertiInCommessa.ts).
+      if (Number(quote.prezzo_manuale ?? 0) > 0 && rows.length > 0) {
+        const sommaRighe = round2(rows.reduce((s, r) => s + (Number(r.unit_price) || 0) * (Number(r.quantity) || 1), 0));
+        const differenza = round2(imponibile - sommaRighe);
+        if (Math.abs(differenza) >= 0.01) {
+          rows.push({
+            order_id:          order.id,
+            name:              differenza > 0 ? "Prezzo a corpo" : "Sconto commerciale",
+            description:       "Differenza tra il prezzo scritto a mano nel preventivo e le righe di dettaglio.",
+            quantity:          1,
+            status:            "da_ordinare",
+            position:          rows.length,
+            unit_price:        differenza,
+            purchase_price:    0,
+            vat_rate:          aliquotaMedia,
+            discount_percent:  null,
+            family_id:         null,
+            axis_selections:   null,
+            misure_preventivo: null,
+            measure_status:    null,
+          });
+        }
+      }
+
       if (rows.length > 0) {
         const { error: itemsErr } = await supabaseAdmin.from("order_items").insert(rows);
         if (itemsErr) {

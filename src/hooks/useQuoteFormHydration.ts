@@ -22,6 +22,10 @@ export interface QuoteExtraFields {
   payment_method?: string | null;
   payment_phases?: unknown;
   bonus_lines?: unknown;
+  /** Prezzo scritto a mano (21/09/2026): sostituisce la somma delle righe. */
+  prezzo_manuale?: number | null;
+  /** Aliquota IVA usata solo insieme a prezzo_manuale (qui l'IVA è per riga). */
+  prezzo_manuale_iva_pct?: number | null;
 }
 
 export interface QuoteFormSetters {
@@ -39,6 +43,8 @@ export interface QuoteFormSetters {
   setNotes: (v: string) => void;
   setInternalNotes: (v: string) => void;
   setDiscountPercent: (v: number) => void;
+  setPrezzoManuale?: (v: number | null) => void;
+  setPrezzoManualeIvaPct?: (v: number | null) => void;
   setSelectedTemplateId: (v: string) => void;
   setTipoLavoro: (v: string) => void;
   setIndirizzoLavori: (v: string) => void;
@@ -114,6 +120,8 @@ export function useQuoteFormHydration(
     s.setNotes(q.notes || "");
     s.setInternalNotes(q.internal_notes || "");
     s.setDiscountPercent(q.discount_percent || 0);
+    s.setPrezzoManuale?.(q.prezzo_manuale ?? null);
+    s.setPrezzoManualeIvaPct?.(q.prezzo_manuale_iva_pct ?? null);
     if (q.template_id) {
       s.setSelectedTemplateId(q.template_id);
     }

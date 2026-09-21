@@ -39,6 +39,8 @@ type QuoteData = {
   discount_amount: number;
   vat_amount: number;
   total: number;
+  /** Prezzo scritto a mano (21/09/2026): le righe sono a 0€, non si mostra il prezzo unitario/totale di riga. */
+  prezzo_manuale_attivo?: boolean;
   created_at: string;
   signed_at: string | null;
   signed_by_name: string | null;
@@ -318,10 +320,14 @@ export default function QuoteSignPage() {
                   <TableRow style={{ background: "#f8fafc" }}>
                     <TableHead>Prodotto</TableHead>
                     <TableHead className="text-right">Q.tà</TableHead>
-                    <TableHead className="text-right">Prezzo Unit.</TableHead>
-                    {hasDiscounts && <TableHead className="text-right">Sconto</TableHead>}
-                    <TableHead className="text-right">IVA</TableHead>
-                    <TableHead className="text-right">Totale</TableHead>
+                    {!quote.prezzo_manuale_attivo && (
+                      <>
+                        <TableHead className="text-right">Prezzo Unit.</TableHead>
+                        {hasDiscounts && <TableHead className="text-right">Sconto</TableHead>}
+                        <TableHead className="text-right">IVA</TableHead>
+                        <TableHead className="text-right">Totale</TableHead>
+                      </>
+                    )}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -343,16 +349,20 @@ export default function QuoteSignPage() {
                       <TableCell className="text-right text-sm">
                         {item.quantity} {item.unit_of_measure || ""}
                       </TableCell>
-                      <TableCell className="text-right text-sm">{formatCurrency(item.unit_price)}</TableCell>
-                      {hasDiscounts && (
-                        <TableCell className="text-right text-sm" style={{ color: item.discount_percent > 0 ? "#ef4444" : "#71717a" }}>
-                          {item.discount_percent > 0 ? `-${item.discount_percent}%` : "—"}
-                        </TableCell>
+                      {!quote.prezzo_manuale_attivo && (
+                        <>
+                          <TableCell className="text-right text-sm">{formatCurrency(item.unit_price)}</TableCell>
+                          {hasDiscounts && (
+                            <TableCell className="text-right text-sm" style={{ color: item.discount_percent > 0 ? "#ef4444" : "#71717a" }}>
+                              {item.discount_percent > 0 ? `-${item.discount_percent}%` : "—"}
+                            </TableCell>
+                          )}
+                          <TableCell className="text-right text-sm">{item.vat_rate}%</TableCell>
+                          <TableCell className="text-right text-sm font-medium">
+                            {formatCurrency(item.line_total)}
+                          </TableCell>
+                        </>
                       )}
-                      <TableCell className="text-right text-sm">{item.vat_rate}%</TableCell>
-                      <TableCell className="text-right text-sm font-medium">
-                        {formatCurrency(item.line_total)}
-                      </TableCell>
                     </TableRow>
                     );
                   })}
@@ -365,7 +375,9 @@ export default function QuoteSignPage() {
               <div className="flex justify-end">
                 <div className="w-full max-w-xs space-y-1.5 text-sm">
                   <div className="flex justify-between">
-                    <span style={{ color: "#71717a" }}>Subtotale</span>
+                    <span style={{ color: "#71717a" }}>
+                      {quote.prezzo_manuale_attivo ? "Prezzo del preventivo" : "Subtotale"}
+                    </span>
                     <span>{formatCurrency(quote.subtotal)}</span>
                   </div>
                   {(quote.discount_percent || 0) > 0 && (

@@ -90,8 +90,9 @@ function PrezzoFinaleAManoCard({ companyId }: { companyId: string }) {
           Per chi usa il preventivatore per il documento ma non carica i prezzi del listino: le voci
           possono restare a 0 € e il prezzo si scrive nella fase Economia, IVA esclusa. Sconto e IVA
           si calcolano sopra quel prezzo. Vale nei preventivatori Serramenti, Ristrutturazione, Bagni,
-          Tetti, Climatizzazione, Elettrico, Termoidraulico, Pavimenti e Piscine; il Fotovoltaico ha
-          già il suo prezzo a corpo.
+          Tetti, Climatizzazione, Elettrico, Termoidraulico, Pavimenti, Piscine e nel preventivo
+          generico (Marketing → Preventivi, dove serve anche scegliere l'aliquota IVA); il
+          Fotovoltaico ha già il suo prezzo a corpo.
         </p>
       </CardContent>
     </Card>
