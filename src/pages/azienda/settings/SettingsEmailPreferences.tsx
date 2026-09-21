@@ -460,7 +460,8 @@ export default function SettingsEmailPreferences() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="__none__">
-                  Sottodominio piattaforma (mail.ediliziaincloud.it)
+                  {/* Il valore vero è email_marketing_fallback_subdomain (21/09/2026). */}
+                  Sottodominio piattaforma (mkt.eic-mail.com)
                 </SelectItem>
                 {marketingDomains.map((d) => (
                   <SelectItem key={d.id} value={d.id}>

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -27,6 +28,14 @@ import {
 } from "lucide-react";
 import { ProviderGuideAccordion } from "@/components/email/ProviderGuideAccordion";
 import { edgeErrorMessage } from "@/lib/edgeFunctionError";
+import {
+  type CanaleEmail,
+  type MittenteDelCanale,
+  prefissoMittente,
+  provenienzaCanale,
+  type ProvenienzaCanale,
+  verificatoPer,
+} from "../../../../supabase/functions/_shared/dominioEmailAzienda";
 
 interface DnsRecord {
   type: "TXT" | "CNAME" | "MX";
@@ -94,6 +103,9 @@ const PROVIDER_BADGE_VARIANT: Record<
   resend: "default",          // transactional new
 };
 
+/** Il mittente vero di ogni canale, calcolato dal server con resolveSender (get_status). */
+type Mittenti = Partial<Record<CanaleEmail, MittenteDelCanale | null>>;
+
 interface DomainResponse {
   domain: DomainStatus | null;
   dnsRecords: DnsRecord[];
@@ -101,6 +113,27 @@ interface DomainResponse {
   tutti?: Array<{ domain: DomainStatus; dnsRecords: DnsRecord[] }>;
   /** Errori dei provider durante add/verify (non i record non ancora propagati). */
   providerErrors?: Record<string, string | null>;
+  /** Da dove partono davvero le email di ogni canale (get_status). */
+  mittenti?: Mittenti;
+  /** I canali di cui il dominio è diventato il mittente con questa verifica (verify). */
+  collegati?: CanaleEmail[];
+}
+
+/** Perché un canale non esce dal dominio mostrato: la riga sotto il mittente. */
+const NOTA_PROVENIENZA: Record<ProvenienzaCanale, string | null> = {
+  dal_dominio: null,
+  altro_dominio: "Esce da un altro tuo dominio, scelto in Preferenze email.",
+  canale_non_verificato: "Passa al tuo dominio quando questo canale risulta verificato.",
+  dominio_non_attivo: "Passa al tuo dominio quando il dominio si attiva, cioè col marketing verificato.",
+  non_scelto: "Il dominio è pronto: per usarlo sceglilo in Preferenze email.",
+};
+
+/** Cosa è cambiato con la verifica, detto con i canali collegati davvero. */
+function avvisoCollegati(collegati: CanaleEmail[]): string {
+  if (collegati.length === 2) return "Da adesso le email di marketing e le transazionali escono dal tuo dominio.";
+  return collegati[0] === "marketing"
+    ? "Da adesso le email di marketing escono dal tuo dominio."
+    : "Da adesso le email transazionali escono dal tuo dominio.";
 }
 
 /**
@@ -117,6 +150,8 @@ function normalizeDomainResponse(resp: unknown): DomainResponse {
     domain_row?: DomainStatus;
     dns_records?: DnsRecord[];
     provider_errors?: Record<string, string | null>;
+    mittenti?: Mittenti;
+    collegati?: CanaleEmail[];
   } | null;
   if (Array.isArray(r?.domains)) {
     const first = r.domains[0] ?? null;
@@ -124,12 +159,18 @@ function normalizeDomainResponse(resp: unknown): DomainResponse {
       domain: first,
       dnsRecords: first?.dns_records ?? [],
       tutti: r.domains.map((d) => ({ domain: d, dnsRecords: d.dns_records ?? [] })),
+      mittenti: r.mittenti,
     };
   }
   if (r?.domain_row) {
-    return { domain: r.domain_row, dnsRecords: r.dns_records ?? [], providerErrors: r.provider_errors };
+    return {
+      domain: r.domain_row,
+      dnsRecords: r.dns_records ?? [],
+      providerErrors: r.provider_errors,
+      collegati: r.collegati,
+    };
   }
-  return { domain: null, dnsRecords: [] };
+  return { domain: null, dnsRecords: [], mittenti: r?.mittenti };
 }
 
 // ─── DNS record row with copy-to-clipboard ────────────────────────────────
@@ -202,10 +243,12 @@ export default function SettingsEmailDomain() {
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
   const qc = useQueryClient();
+  // La stessa pagina vive in /azienda/impostazioni e in /admin/impostazioni:
+  // Preferenze email è la pagina accanto.
+  const { pathname } = useLocation();
+  const percorsoPreferenze = pathname.replace(/dominio-email\/?$/, "preferenze-email");
 
   const [inputDomain, setInputDomain] = useState("");
-  const [inputFromEmail, setInputFromEmail] = useState("noreply");
-  const [inputFromName, setInputFromName] = useState("");
 
   // Test email dialog
   const [testDialogOpen, setTestDialogOpen] = useState(false);
@@ -248,6 +291,10 @@ export default function SettingsEmailDomain() {
   const data: DomainResponse | undefined = risposta
     ? { ...risposta, domain: mostrato?.domain ?? null, dnsRecords: mostrato?.dnsRecords ?? [] }
     : undefined;
+  // Il mittente vero di ogni canale (resolveSender, dal server): la pagina
+  // non lo ricostruisce più da from_email, che nessuno scrive.
+  const mittenti = risposta?.mittenti;
+  const prefisso = prefissoMittente(mittenti?.transactional) || prefissoMittente(mittenti?.marketing) || "no-reply";
 
   const testEmailMutation = useMutation({
     mutationFn: async (input: { to: string; stream: "transactional" | "marketing" }) => {
@@ -297,9 +344,11 @@ export default function SettingsEmailDomain() {
   });
 
   const addMutation = useMutation({
-    mutationFn: async (params: { domain: string; from_email: string; from_name: string | null }) => {
+    // Il nome e la parte prima della @ non si mandano: add_domain non li ha
+    // mai salvati. Si scelgono in Preferenze email e valgono per ogni dominio.
+    mutationFn: async (params: { domain: string }) => {
       const { data: resp, error } = await supabase.functions.invoke("manage-email-domain", {
-        body: { action: "add_domain", company_id: companyId, ...params },
+        body: { action: "add_domain", company_id: companyId, domain: params.domain },
       });
       if (error) throw new Error(await edgeErrorMessage(error, "Errore durante l'aggiunta del dominio"));
       return normalizeDomainResponse(resp);
@@ -332,10 +381,15 @@ export default function SettingsEmailDomain() {
     onSuccess: (resp) => {
       const d = resp.domain;
       const marketingOk = Boolean(d?.ee_spf_verified && d?.ee_dkim_verified);
-      if (d?.is_verified) {
-        toast.success("Dominio verificato e attivato! Le prossime email usciranno dal tuo dominio.");
+      // Si dice solo quello che la verifica ha cambiato davvero: da dove
+      // escono i canali lo mostrano le due caselle, dopo il ricaricamento.
+      const collegati = resp.collegati ?? [];
+      if (collegati.length > 0) {
+        toast.success(avvisoCollegati(collegati));
+      } else if (d?.is_verified) {
+        toast.success("Dominio verificato: tutti i record sono a posto.");
       } else if (marketingOk && d?.is_active) {
-        toast.success("Dominio attivo per l'email marketing! (Il canale transazionale si attiverà quando anche i suoi record saranno propagati.)");
+        toast.success("Marketing verificato. Il canale transazionale si attiverà quando anche i suoi record saranno propagati.");
       } else if (resp.providerErrors?.elastic_email) {
         // Non sono i record: è il canale marketing che non ha potuto controllare.
         // Prima finiva sotto «record non ancora propagati» e si aspettava per niente.
@@ -423,16 +477,21 @@ export default function SettingsEmailDomain() {
                   Le email funzionano già ✅
                 </p>
                 <p className="text-xs text-blue-800 mt-0.5">
-                  Stai usando il dominio di default della piattaforma:{" "}
-                  <code className="text-[11px] bg-white/60 px-1 rounded border border-blue-200">
-                    notifiche.ediliziaincloud.it
-                  </code>
-                  . Tutte le email transazionali (OTP firma, password reset, notifiche)
-                  partiranno come{" "}
-                  <code className="text-[11px] bg-white/60 px-1 rounded border border-blue-200">
-                    Tua Azienda via EdiliziaInCloud &lt;no-reply@notifiche.ediliziaincloud.it&gt;
+                  Stai usando il dominio della piattaforma. Le email transazionali (OTP firma,
+                  password reset, notifiche) partono come{" "}
+                  <code className="text-[11px] bg-white/60 px-1 rounded border border-blue-200 break-all">
+                    {mittenti?.transactional?.from ?? "Tua Azienda via EdiliziaInCloud <no-reply@notifiche.ediliziaincloud.it>"}
                   </code>
                   .
+                  {mittenti?.marketing && (
+                    <>
+                      {" "}Quelle di marketing come{" "}
+                      <code className="text-[11px] bg-white/60 px-1 rounded border border-blue-200 break-all">
+                        {mittenti.marketing.from}
+                      </code>
+                      : per le campagne serve un dominio tuo.
+                    </>
+                  )}
                 </p>
                 <p className="text-xs text-blue-800 mt-2">
                   <strong>Configurando il tuo dominio sotto</strong> otterrai mittente
@@ -489,39 +548,19 @@ export default function SettingsEmailDomain() {
               )}
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="from-email">Parte locale email</Label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    id="from-email"
-                    placeholder="noreply"
-                    value={inputFromEmail}
-                    onChange={(e) => setInputFromEmail(e.target.value.trim().toLowerCase())}
-                    disabled={addMutation.isPending}
-                  />
-                  <span className="text-muted-foreground text-sm">@{inputDomain || "tuaazienda.it"}</span>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="from-name">Nome mittente (opzionale)</Label>
-                <Input
-                  id="from-name"
-                  placeholder="es. Rossi Costruzioni"
-                  value={inputFromName}
-                  onChange={(e) => setInputFromName(e.target.value)}
-                  disabled={addMutation.isPending}
-                />
-              </div>
-            </div>
+            {/* Qui c'erano «Parte locale email» e «Nome mittente»: add_domain non
+                li ha mai salvati, e la pagina poi mostrava "noreply@". */}
+            <p className="text-xs text-muted-foreground">
+              Verificato il dominio, le email partiranno da{" "}
+              <code className="text-[11px]">{prefisso}@{inputDomain || "tuaazienda.it"}</code>.
+              Il nome e la parte prima della @ si cambiano in{" "}
+              <Link to={percorsoPreferenze} className="underline">Preferenze email</Link>{" "}
+              e valgono per tutti i tuoi domini.
+            </p>
 
             <Button
               disabled={!domainValid || addMutation.isPending}
-              onClick={() => addMutation.mutate({
-                domain: inputDomain.trim().toLowerCase(),
-                from_email: inputFromEmail.trim().toLowerCase() || "noreply",
-                from_name: inputFromName.trim() || null,
-              })}
+              onClick={() => addMutation.mutate({ domain: inputDomain.trim().toLowerCase() })}
               className="w-full sm:w-auto"
             >
               {addMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
@@ -581,6 +620,12 @@ export default function SettingsEmailDomain() {
                   </button>
                 </div>
               </div>
+              {mittenti?.[testStream] && (
+                <p className="text-xs text-muted-foreground">
+                  Mittente:{" "}
+                  <code className="text-[11px] break-all">{mittenti[testStream]?.from}</code>
+                </p>
+              )}
               <Alert>
                 <Info className="h-4 w-4" />
                 <AlertDescription className="text-xs">
@@ -615,6 +660,16 @@ export default function SettingsEmailDomain() {
   // ── Step 2+3: domain registered — show DNS records and verify button ─────
   const verifiedCount = records.filter((r) => r.verified).length;
   const totalCount = records.length;
+  // Da dove esce ogni canale rispetto a questo dominio: le due caselle lo
+  // dicono, e il riquadro verde parla di «marketing e transazionali» solo
+  // quando escono davvero tutti e due da qui.
+  const provenienza: Record<CanaleEmail, ProvenienzaCanale> = {
+    marketing: provenienzaCanale(domain, "marketing", mittenti?.marketing),
+    transactional: provenienzaCanale(domain, "transactional", mittenti?.transactional),
+  };
+  const mittenteDaQui = [mittenti?.marketing, mittenti?.transactional]
+    .find((m) => m?.usingCustomDomain && m.customDomainId === domain.id) ?? null;
+  const tuttiDaQui = provenienza.marketing === "dal_dominio" && provenienza.transactional === "dal_dominio";
 
   return (
     <div className="max-w-4xl space-y-6">
@@ -644,12 +699,12 @@ export default function SettingsEmailDomain() {
               <Globe className="h-5 w-5 text-primary" />
               <div>
                 <CardTitle className="text-base">{domain.domain}</CardTitle>
-                <CardDescription>
-                  Mittente:&nbsp;
-                  <code className="text-xs">
-                    {domain.from_name ? `${domain.from_name} <${domain.from_email}@${domain.domain}>` : `${domain.from_email}@${domain.domain}`}
-                  </code>
-                </CardDescription>
+                {mittenteDaQui && (
+                  <CardDescription>
+                    Mittente:&nbsp;
+                    <code className="text-xs break-all">{mittenteDaQui.from}</code>
+                  </CardDescription>
+                )}
               </div>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
@@ -711,16 +766,20 @@ export default function SettingsEmailDomain() {
               label="Email Marketing"
               sublabel="Campagne e newsletter"
               // SPF+DKIM bastano per inviare; il tracking CNAME è opzionale
-              verified={domain.ee_spf_verified && domain.ee_dkim_verified}
+              verified={verificatoPer(domain, "marketing")}
               added={domain.ee_domain_added}
-              extra={domain.ee_spf_verified && domain.ee_dkim_verified && !domain.ee_tracking_verified ? "Tracking opzionale non attivo" : undefined}
+              extra={verificatoPer(domain, "marketing") && !domain.ee_tracking_verified ? "Tracking opzionale non attivo" : undefined}
+              mittente={mittenti?.marketing?.from}
+              nota={mittenti?.marketing ? NOTA_PROVENIENZA[provenienza.marketing] : null}
             />
             <ProviderStatusCard
               label="Email Transazionali"
               sublabel="Notifiche, documenti, OTP"
-              verified={domain.resend_status === "verified"}
+              verified={verificatoPer(domain, "transactional")}
               added={!!domain.resend_domain_id}
               extra={domain.resend_status && domain.resend_status !== "verified" ? "In attesa di verifica" : undefined}
+              mittente={mittenti?.transactional?.from}
+              nota={mittenti?.transactional ? NOTA_PROVENIENZA[provenienza.transactional] : null}
             />
           </div>
         </CardHeader>
@@ -800,13 +859,13 @@ export default function SettingsEmailDomain() {
         </Card>
       )}
 
-      {domain.is_verified && domain.is_active && (
+      {tuttiDaQui && (
         <Alert className="border-green-600">
           <CheckCircle2 className="h-4 w-4 text-green-600" />
           <AlertDescription className="flex items-center justify-between gap-3 flex-wrap">
             <span>
-              Dominio attivo. Tutte le prossime email (marketing e transazionali) usciranno da{" "}
-              <code className="text-xs">{domain.from_email}@{domain.domain}</code>.
+              Dominio attivo: le email di marketing e le transazionali escono da{" "}
+              <code className="text-xs break-all">{mittenti?.marketing?.fromEmail}</code>.
             </span>
             <Button
               variant="outline"
@@ -833,8 +892,8 @@ export default function SettingsEmailDomain() {
               Invia email di test
             </DialogTitle>
             <DialogDescription>
-              Verifica che il dominio <strong>{domain.domain}</strong> stia effettivamente
-              inviando email. La mail arriverà all'indirizzo che indichi sotto.
+              Verifica che le email partano davvero: la prova usa il mittente vero del
+              canale che scegli qui sotto, come le email dell'azienda.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
@@ -868,6 +927,12 @@ export default function SettingsEmailDomain() {
                 </button>
               </div>
             </div>
+            {mittenti?.[testStream] && (
+              <p className="text-xs text-muted-foreground">
+                Mittente:{" "}
+                <code className="text-[11px] break-all">{mittenti[testStream]?.from}</code>
+              </p>
+            )}
             <Alert>
               <Info className="h-4 w-4" />
               <AlertDescription className="text-xs">
@@ -900,13 +965,17 @@ export default function SettingsEmailDomain() {
 }
 
 function ProviderStatusCard({
-  label, sublabel, verified, added, extra,
+  label, sublabel, verified, added, extra, mittente, nota,
 }: {
   label: string;
   sublabel: string;
   verified: boolean;
   added: boolean;
   extra?: string;
+  /** Il mittente vero del canale (resolveSender), quando il server lo dice. */
+  mittente?: string;
+  /** Perché il canale non esce da questo dominio. */
+  nota?: string | null;
 }) {
   return (
     <div className={`rounded-md border p-2 ${verified ? "border-green-200 bg-green-50/50" : added ? "border-yellow-200 bg-yellow-50/50" : "border-slate-200"}`}>
@@ -922,6 +991,13 @@ function ProviderStatusCard({
       </div>
       <div className="text-[10px] text-muted-foreground mt-0.5">{sublabel}</div>
       {extra && <div className="text-[10px] text-muted-foreground mt-0.5">{extra}</div>}
+      {mittente && (
+        <div className="text-[10px] mt-1 break-all">
+          <span className="text-muted-foreground">Da: </span>
+          <code>{mittente}</code>
+        </div>
+      )}
+      {nota && <div className="text-[10px] text-muted-foreground mt-0.5">{nota}</div>}
     </div>
   );
 }
