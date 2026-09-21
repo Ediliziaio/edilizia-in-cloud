@@ -374,10 +374,19 @@ Deno.serve(async (req: Request) => {
     // aperto senza rete. Solo risposte che sono davvero immagini: per un file che
     // manca il sito risponde con la sua pagina HTML, e quella non va nel PDF. Una
     // foto che non arriva lascia la pagina col disegno di prima.
-    const baseFotoDiSerie = `${(Deno.env.get("APP_URL") ?? "https://app.ediliziaincloud.com").replace(/\/+$/, "")}/pdf-stock/fotovoltaico`;
+    // Prima il dominio dell'app che serve di sicuro public/ (verificato il 21/09),
+    // poi APP_URL come riserva: il .it non risponde, e non si sa a quale punti.
+    const basiFotoDiSerie = [...new Set(
+      ["https://app.ediliziaincloud.com", Deno.env.get("APP_URL")]
+        .filter((b): b is string => Boolean(b))
+        .map((b) => `${b.replace(/\/+$/, "")}/pdf-stock/fotovoltaico`),
+    )];
     const fotoDiSerie = async (file: string): Promise<string | null> => {
-      const dati = await urlToB64(`${baseFotoDiSerie}/${file}`);
-      return dati?.startsWith("data:image/") ? dati : null;
+      for (const base of basiFotoDiSerie) {
+        const dati = await urlToB64(`${base}/${file}`);
+        if (dati?.startsWith("data:image/")) return dati;
+      }
+      return null;
     };
     const [fotoAlberi, fotoVoli, fotoAuto, fotoBosco, fotoInstallatori, fotoImpianto] = await Promise.all([
       fotoDiSerie(FOTO_DI_SERIE_FV.alberi), fotoDiSerie(FOTO_DI_SERIE_FV.voli), fotoDiSerie(FOTO_DI_SERIE_FV.auto),

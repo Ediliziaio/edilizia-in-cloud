@@ -707,7 +707,9 @@ describe("fotovoltaico PDF — le foto di serie", () => {
 
   it("il generatore incorpora solo risposte che sono immagini", () => {
     const src = readFileSync(resolve(process.cwd(), "supabase/functions/fv-genera-pdf/index.ts"), "utf8");
-    expect(src).toContain('return dati?.startsWith("data:image/") ? dati : null;');
+    expect(src).toContain('if (dati?.startsWith("data:image/")) return dati;');
+    // Prima il dominio che serve di sicuro le foto, poi APP_URL come riserva.
+    expect(src).toContain('["https://app.ediliziaincloud.com", Deno.env.get("APP_URL")]');
     expect(src).toContain("fotoDiSerie(FOTO_DI_SERIE_FV.alberi)");
     expect(src).toContain("foto_di_serie: {");
   });
