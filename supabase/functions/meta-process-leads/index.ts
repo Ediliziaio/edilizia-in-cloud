@@ -390,6 +390,27 @@ async function processLeadEvent(adminClient: any, event: any): Promise<{ contact
     }
   }
 
+  // ─── Campagne di RECLUTAMENTO: fuori dal CRM clienti ───────────────────────
+  // Un lead che risponde a un annuncio per ASSUMERE (venditori, agenti,
+  // personale) NON è un potenziale cliente: se entra in marketing_contacts
+  // inquina il CRM e fa partire le automazioni commerciali su un candidato.
+  // Nessun modulo del gestionale riceve questi lead (il modulo venditori non è
+  // attivo per queste aziende), quindi si scartano a monte. L'evento viene
+  // comunque marcato "processed" dal chiamante → niente contatto, niente retry.
+  // Riconoscimento dal nome di campagna / adset / annuncio.
+  const testoCampagnaMeta = [lead.campaign_name, lead.adset_name, lead.ad_name]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  const RECLUTAMENTO_RE =
+    /venditor|recluta|assumiam|lavora con noi|candidat|selezione (del )?personale|offerta di lavoro|entra nel (nostro )?team|unisciti al (nostro )?team|cerchiamo (venditor|agent|collabor|personale)/;
+  if (RECLUTAMENTO_RE.test(testoCampagnaMeta)) {
+    console.log(
+      `[meta-process-leads] SKIP lead reclutamento — company=${company_id} campagna="${lead.campaign_name ?? ""}" adset="${lead.adset_name ?? ""}"`,
+    );
+    return null; // evento gestito: nessun contatto creato, nessun retry
+  }
+
   const actualFormId = lead.form_id || formId;
   const { data: mapping } = await adminClient
     .from("integration_field_mappings")
