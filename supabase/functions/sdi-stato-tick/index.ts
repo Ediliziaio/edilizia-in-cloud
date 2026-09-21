@@ -17,9 +17,15 @@
 // Chiamata dal cron `sdi-stato-quarto-dora` con x-cron-secret, oppure a mano
 // con la service-role key. verify_jwt = false in supabase/config.toml: pg_cron
 // non manda nessun JWT, il controllo lo fa la funzione qui sotto.
+//
+// Risposta rapida (serveConMetricheRapida): quaranta documenti con 15 secondi
+// di attesa ciascuno possono durare minuti, e pg_net ha una coda sola per tutti
+// i cron — vedi «Cron e pg_net» in CLAUDE.md. A pg_net si risponde entro 5
+// secondi, il giro finisce in background.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { serveConMetricheRapida } from "../_shared/withMetricsRapida.ts";
 import { leggiImpostazionePiattaforma } from "../_shared/getPlatformSetting.ts";
 import { estraiIdentificativoSdi, leggiEsitoOpenapi } from "../_shared/sdiStatoOpenapi.ts";
 
@@ -33,7 +39,7 @@ const PER_GIRO = 40;
 /** Stati SDI già definitivi: non si chiede più niente. */
 const DEFINITIVI = ["NS", "EC01", "EC02", "DT"];
 
-Deno.serve(async (req) => {
+serveConMetricheRapida("sdi-stato-tick", async (req) => {
   const cors = { ...getCorsHeaders(req), "Access-Control-Allow-Methods": "POST, OPTIONS" };
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
   const json = (data: unknown, status = 200) =>
