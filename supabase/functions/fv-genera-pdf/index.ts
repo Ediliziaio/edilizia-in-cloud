@@ -39,6 +39,7 @@ import {
   getFvPdfRenderedPagesCount,
   FOTO_DI_SERIE_FV,
   fotoDeiBlocchiFv,
+  fotoDellePagineFv,
   renderFvPdfHtml,
   type FvPdfTemplateData,
 } from "../_shared/fvHtmlTemplate.ts";
@@ -416,6 +417,10 @@ Deno.serve(async (req: Request) => {
     const badgeGaranzie = Object.fromEntries(await Promise.all(
       Object.entries(BADGE_GARANZIE_FV).map(async ([icona, file]) => [icona, await fotoDelBlocco(`/pdf-stock/badge/${file}`)] as const),
     ));
+    // Le foto delle pagine (garanzie, perché farlo ora, pagina finale), come quelle dei blocchi.
+    const fotoPagine = Object.fromEntries(await Promise.all(
+      Object.entries(fotoDellePagineFv(template as FvPdfTemplateData["template"])).map(async ([pagina, u]) => [pagina, u ? await fotoDelBlocco(u) : null] as const),
+    ));
     const blocchiFoto = Object.fromEntries(await Promise.all(
       Object.entries(fotoDeiBlocchiFv(template as FvPdfTemplateData["template"])).map(async ([chiave, foto]) => {
         const pronte = await Promise.all(foto.map(async (u) => ({ src: await fotoDelBlocco(u), diSerie: eFotoDiSerie(u) })));
@@ -726,6 +731,7 @@ Deno.serve(async (req: Request) => {
       flows,
       flows_senza_accumulo: flowsSenzaAccumulo,
       blocchi_foto: blocchiFoto,
+      foto_pagine: fotoPagine,
       badge_garanzie: badgeGaranzie,
       foto_di_serie: {
         alberi: fotoAlberi, voli: fotoVoli, auto: fotoAuto,

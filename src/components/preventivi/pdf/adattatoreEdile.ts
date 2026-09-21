@@ -15,8 +15,10 @@ import { condizioniStandard, type SettoreCondizioni } from "@/lib/condizioniStan
 import { tipografiaDaModello } from "./temaDocumento";
 import { leggiOrdine, leggiPagineLibere } from "./ordineCapitoli";
 import { testiPerPdf } from "../../../../supabase/functions/_shared/testoPerPdf";
-import { BLOCCHI, leggiBlocco, settoreBlocchi, type ChiaveBlocco } from "../../../../supabase/functions/_shared/blocchiPreventivo";
-import { fotoPerIlPdf } from "@/lib/pdf/fotoBlocchi";
+import {
+  BLOCCHI, eFotoDiSerie, leggiBlocco, leggiFotoPagina, settoreBlocchi, type ChiaveBlocco, type ChiaveFotoPagina,
+} from "../../../../supabase/functions/_shared/blocchiPreventivo";
+import { conOrigine, fotoPerIlPdf } from "@/lib/pdf/fotoBlocchi";
 import type {
   DocEdileCapitolo, DocEdileDati, DocEdileFoto, DocEdileModello, DocEdileModulo,
   DocEdileOpzioniComputo, DocEdileTotali, DocEdileVoceElenco, DocEdileFaq, DocEdileFase,
@@ -223,7 +225,24 @@ export function leggiModello(
     // 21/09/2026): serve a chi firma con un privato a casa sua o a distanza.
     conRecesso: t.modulo_recesso_attivo === true,
     blocchi: leggiBlocchi(t, contesto.settore ?? "ristrutturazione"),
+    fotoChiusura: fotoDellaPagina(t, "chiusura", contesto.settore ?? "ristrutturazione"),
   };
+}
+
+/**
+ * La foto di una pagina (per ora la chiusura): già convertita da
+ * `immaginiDelModello` (`pdf_pagine_foto`), altrimenti l'indirizzo così com'è.
+ * Una foto che non si è caricata non c'è.
+ */
+function fotoDellaPagina(t: Grezzo, chiave: ChiaveFotoPagina, settore: string): DocEdileModello["fotoChiusura"] {
+  const indirizzo = leggiFotoPagina(chiave, settoreBlocchi(settore), t.pdf_blocchi);
+  if (!indirizzo) return null;
+  const pronte = t.pdf_pagine_foto && typeof t.pdf_pagine_foto === "object" ? (t.pdf_pagine_foto as Record<string, unknown>) : null;
+  if (pronte) {
+    const src = pronte[chiave];
+    return typeof src === "string" && src ? { src, diSerie: eFotoDiSerie(indirizzo) } : null;
+  }
+  return { src: conOrigine(indirizzo), diSerie: eFotoDiSerie(indirizzo) };
 }
 
 /**

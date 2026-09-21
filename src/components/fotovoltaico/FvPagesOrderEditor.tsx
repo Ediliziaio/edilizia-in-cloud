@@ -7,6 +7,7 @@ import {
   GripVertical,
   Image as ImageIcon,
   Pencil,
+  Camera,
   RotateCcw,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -36,7 +37,11 @@ import {
   type FvPdfPageOrderItem,
 } from "@/lib/fotovoltaico/pdfPages";
 import { EditorBlocco } from "@/components/preventivi/EditorBlocco";
-import { bloccoDellaPagina, descrizioneBlocco } from "../../../supabase/functions/_shared/blocchiPreventivo";
+import { EditorFotoPagina } from "@/components/preventivi/EditorFotoPagina";
+import { bloccoDellaPagina, descrizioneBlocco, type ChiaveFotoPagina } from "../../../supabase/functions/_shared/blocchiPreventivo";
+
+/** Le pagine con una foto loro, cambiabile qui: l'id della pagina e la chiave della foto. */
+const FOTO_DELLE_PAGINE: Record<string, ChiaveFotoPagina> = { garanzie: "garanzie", bollette_240: "bollette", decisione: "decisione", componenti: "componenti", costi_futuri: "costi", cassa_25: "cassa", piano_pagamento: "piano" };
 
 interface Props {
   value: FvPdfPageOrderItem[] | null | undefined;
@@ -161,6 +166,7 @@ function FvPagesOrderEditorImpl({ value, onChange, blocchi, onBlocchi, campoFoto
               if (!meta) return null;
               const blocco = bloccoDellaPagina(item.id);
               const modificabile = Boolean(blocco && onBlocchi && campoFoto);
+              const fotoPagina = onBlocchi && campoFoto ? FOTO_DELLE_PAGINE[item.id] ?? null : null;
               return (
                 <SortableFvPageItem
                   key={item.id}
@@ -175,10 +181,20 @@ function FvPagesOrderEditorImpl({ value, onChange, blocchi, onBlocchi, campoFoto
                   onToggleVisible={() => toggleVisible(index)}
                   promessa={blocco ? descrizioneBlocco(blocco).promessa : false}
                   onModifica={modificabile ? () => setAperta(aperta === item.id ? null : item.id) : undefined}
+                  onFoto={fotoPagina ? () => setAperta(aperta === `foto:${item.id}` ? null : `foto:${item.id}`) : undefined}
                 >
                   {modificabile && blocco && aperta === item.id && campoFoto ? (
                     <EditorBlocco
                       chiave={blocco}
+                      settore="fotovoltaico"
+                      salvati={blocchi}
+                      onSalvati={(nuovi) => onBlocchi?.(nuovi)}
+                      campoFoto={campoFoto}
+                    />
+                  ) : null}
+                  {fotoPagina && aperta === `foto:${item.id}` && campoFoto ? (
+                    <EditorFotoPagina
+                      chiave={fotoPagina}
                       settore="fotovoltaico"
                       salvati={blocchi}
                       onSalvati={(nuovi) => onBlocchi?.(nuovi)}
@@ -212,6 +228,7 @@ function SortableFvPageItem({
   onToggleVisible,
   promessa = false,
   onModifica,
+  onFoto,
   children,
 }: {
   item: FvPdfPageOrderItem;
@@ -227,6 +244,8 @@ function SortableFvPageItem({
   promessa?: boolean;
   /** Apre l'editor del blocco sotto la riga. */
   onModifica?: () => void;
+  /** Apre la scelta della foto della pagina sotto la riga. */
+  onFoto?: () => void;
   children?: ReactNode;
 }) {
   const {
@@ -321,6 +340,18 @@ function SortableFvPageItem({
             title="Testi, voci e foto di questa pagina"
           >
             <Pencil className="h-3.5 w-3.5" />
+          </Button>
+        ) : null}
+        {onFoto ? (
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={onFoto}
+            className="h-7 w-7"
+            aria-label={`Foto di ${meta.label}`}
+            title="La foto di questa pagina"
+          >
+            <Camera className="h-3.5 w-3.5" />
           </Button>
         ) : null}
       </div>

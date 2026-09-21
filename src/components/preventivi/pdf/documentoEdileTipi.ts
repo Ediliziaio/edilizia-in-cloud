@@ -172,6 +172,11 @@ export interface DocEdileModello {
    * Se escono lo decide l'ordine dei capitoli, come per gli altri.
    */
   blocchi: Record<ChiaveBlocco, DocEdileBlocco>;
+  /**
+   * La foto dei prossimi passi, in chiusura: di serie per settore (il risultato
+   * finito), cambiata o tolta dall'azienda. Null = niente foto.
+   */
+  fotoChiusura: DocEdileFotoBlocco | null;
   /** L'ordine dei capitoli scelto dall'azienda (vuoto = quello di serie). */
   ordineCapitoli: VoceOrdine[];
   /** Le pagine scritte dall'azienda: certificazioni, showroom, un lavoro di cui va fiera. */

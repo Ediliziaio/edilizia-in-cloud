@@ -12,8 +12,8 @@
 import { toDataUrl } from "@/lib/serramenti/pdfImageUtils";
 import { copertinaInTinta } from "./temaDocumento";
 import { leggiOrdine, leggiPagineLibere, ordineEffettivo } from "./ordineCapitoli";
-import { fotoDeiBlocchi } from "@/lib/pdf/fotoBlocchi";
-import { BLOCCHI, settoreBlocchi } from "../../../../supabase/functions/_shared/blocchiPreventivo";
+import { conOrigine, fotoDeiBlocchi } from "@/lib/pdf/fotoBlocchi";
+import { BLOCCHI, leggiFotoPagina, settoreBlocchi } from "../../../../supabase/functions/_shared/blocchiPreventivo";
 
 /**
  * La copertina di chi non ha ancora toccato il modello: una foto del mestiere,
@@ -23,7 +23,13 @@ import { BLOCCHI, settoreBlocchi } from "../../../../supabase/functions/_shared/
 export const COPERTINA_DI_SERIE: Record<string, string | undefined> = {
   ristrutturazione: "/cover-stock/ristrutturazione/2.jpg",
   bagni: "/cover-stock/bagni/2.jpg",
-  piscine: "/cover-stock/ristrutturazione/3.jpg",
+  piscine: "/pdf-stock/piscine/installazione.jpg",
+  // Dal 22/09/2026 una copertina anche per gli altri cinque: prima uscivano a tinta piena.
+  tetti: "/pdf-stock/tetti/installazione.jpg",
+  climatizzazione: "/pdf-stock/climatizzazione/installazione.jpg",
+  elettrico: "/pdf-stock/ristrutturazione/controllo-elettrico.jpg",
+  termoidraulico: "/pdf-stock/ristrutturazione/tecnica-riscaldamento-pavimento.jpg",
+  pavimenti: "/pdf-stock/pavimenti/installazione.jpg",
 };
 
 type Grezzo = Record<string, unknown>;
@@ -54,8 +60,9 @@ export async function immaginiDelModello(modulo: string, template: Grezzo, logoC
   const blocchiAccesi = BLOCCHI.filter((b) => ordine.some((v) => v.chiave === b.chiave && v.visibile));
   const pagineLibere = Array.isArray(template.pdf_pagine_libere) ? (template.pdf_pagine_libere as Grezzo[]) : [];
 
-  const [copertinaPronta, logoPronto, logoChiaroPronto, galleriaPronta, pagineLiberePronte, fotoBlocchi] = await Promise.all([
-    toDataUrl(copertina, { scalaDiGrigi: copertinaInTinta(velo) }),
+  const fotoChiusura = leggiFotoPagina("chiusura", settoreBlocchi(modulo), template.pdf_blocchi);
+  const [copertinaPronta, logoPronto, logoChiaroPronto, galleriaPronta, pagineLiberePronte, fotoBlocchi, chiusuraPronta] = await Promise.all([
+    toDataUrl(copertina ? conOrigine(copertina) : null, { scalaDiGrigi: copertinaInTinta(velo) }),
     toDataUrl(logoCopertina),
     toDataUrl(logoChiaroAzienda),
     aGruppi(galleria, 4, async (g) => ({ ...g, url: await toDataUrl(stringa(g.url)) })),
@@ -63,6 +70,7 @@ export async function immaginiDelModello(modulo: string, template: Grezzo, logoC
     // foto, non il documento senza pagina.
     aGruppi(pagineLibere, 4, async (p) => ({ ...p, fotoUrl: await toDataUrl(stringa(p.fotoUrl ?? p.foto_url)) })),
     fotoDeiBlocchi(settoreBlocchi(modulo), template.pdf_blocchi, blocchiAccesi.map((b) => b.chiave)),
+    fotoChiusura ? toDataUrl(conOrigine(fotoChiusura)) : Promise.resolve(null),
   ]);
 
   return {
@@ -75,6 +83,8 @@ export async function immaginiDelModello(modulo: string, template: Grezzo, logoC
     pdf_pagine_libere: pagineLiberePronte,
     // Non è un campo del modello: le foto dei blocchi accesi, già convertite (le legge l'adattatore).
     pdf_blocchi_foto: fotoBlocchi,
+    // Non è un campo del modello: le foto delle pagine già convertite (la chiusura).
+    pdf_pagine_foto: { chiusura: chiusuraPronta },
     // Non è un campo del modello: torna qui per comodità di chi chiama (il logo chiaro
     // del kit del marchio, per la copertina su fondo scuro).
     logo_chiaro_url: logoChiaroPronto,

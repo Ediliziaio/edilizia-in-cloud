@@ -24,7 +24,7 @@ import type {
 } from "@/hooks/useSerramentoPDF";
 import { toDataUrl } from "@/lib/serramenti/pdfImageUtils";
 import { CAMPI_IMMAGINE_SERRAMENTI, firmaImmagine, firmaImmaginiModello } from "@/lib/storage/immaginiModelloPdf";
-import { blocchiAccesi, fotoDeiBlocchi } from "@/lib/pdf/fotoBlocchi";
+import { blocchiAccesi, fotoDeiBlocchi, fotoDellePagine } from "@/lib/pdf/fotoBlocchi";
 import { datiTecniciScheda } from "@/lib/listino/schedeLinea";
 
 const MOCK_FAMILY_ID = "demo-family-aluminio-2ante";
@@ -376,6 +376,7 @@ export async function buildMockPdfData(opts: {
     inlinedCoverImage,
     inlinedLogoDark,
     fotoBlocchi,
+    fotoPagine,
   ] = await Promise.all([
     toDataUrl(tpl?.logo_url ?? companyLogoUrl ?? null),
     toDataUrl(tpl?.chi_siamo_foto_url ?? null),
@@ -383,6 +384,7 @@ export async function buildMockPdfData(opts: {
     toDataUrl((tpl as any)?.pdf_cover_image_url ?? null),
     toDataUrl(opts.companyLogoDarkUrl ?? null),
     fotoDeiBlocchi("serramenti", tpl?.pdf_blocchi, blocchiAccesi(normalizePdfPagesOrder(tpl?.pdf_pages_order ?? null))),
+    fotoDellePagine("serramenti", tpl?.pdf_blocchi, ["percorso", "confronto", "cta"]),
   ]);
   const inlinedTemplate = tpl ? {
     ...tpl,
@@ -391,6 +393,7 @@ export async function buildMockPdfData(opts: {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     pdf_cover_image_url: inlinedCoverImage ?? (tpl as any).pdf_cover_image_url,
     pdf_blocchi_foto: fotoBlocchi,
+    pdf_pagine_foto: fotoPagine,
   } : null;
 
   return {

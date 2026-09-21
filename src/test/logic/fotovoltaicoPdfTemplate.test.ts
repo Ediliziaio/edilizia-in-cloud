@@ -769,10 +769,11 @@ describe("fotovoltaico PDF — le pagine: un elenco solo, e i blocchi", () => {
   it("le foto dei blocchi accesi: al massimo due, dal sito nelle anteprime", () => {
     const template = { pdf_pages_order: tutteAccese(), pdf_blocchi: { diario: { senzaFoto: true } } };
     const foto = fotoDeiBlocchiFv(template);
-    expect(foto.comeFunziona).toEqual(["/pdf-stock/fotovoltaico/tecnica-percorso-energia.jpg", "/pdf-stock/fotovoltaico/tecnica-giorno-sera.jpg"]);
+    // «Come funziona» ha una foto sola, larga: la casa in sezione col percorso dell'energia.
+    expect(foto.comeFunziona).toEqual(["/pdf-stock/fotovoltaico/storia-flusso-energia.jpg"]);
     expect(foto.diario).toEqual([]);
     expect(fotoBlocchiDalSito("https://app.example.it/", template).comeFunziona[0]).toEqual({
-      src: "https://app.example.it/pdf-stock/fotovoltaico/tecnica-percorso-energia.jpg", diSerie: true,
+      src: "https://app.example.it/pdf-stock/fotovoltaico/storia-flusso-energia.jpg", diSerie: true,
     });
     // di serie accese tutte: le foto di tutti i blocchi
     expect(Object.keys(fotoDeiBlocchiFv({})).sort()).toEqual(["comeFunziona", "controlli", "diario", "documenti", "protezione"]);

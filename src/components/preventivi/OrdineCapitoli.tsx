@@ -8,7 +8,7 @@
  * il documento consegnato dicono la stessa cosa.
  */
 import { useMemo, useState, type ReactNode } from "react";
-import { ArrowDown, ArrowUp, Eye, EyeOff, FilePlus2, Pencil, RotateCcw, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Camera, Eye, EyeOff, FilePlus2, Pencil, RotateCcw, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,6 +19,7 @@ import {
   type PaginaLibera, type VoceOrdine,
 } from "@/components/preventivi/pdf/ordineCapitoli";
 import { EditorBlocco } from "@/components/preventivi/EditorBlocco";
+import { EditorFotoPagina } from "@/components/preventivi/EditorFotoPagina";
 import { BLOCCHI, type ChiaveBlocco, type SettoreBlocchi } from "../../../supabase/functions/_shared/blocchiPreventivo";
 
 interface Props {
@@ -188,6 +189,24 @@ export function OrdineCapitoli({ ordine, pagine, onOrdine, onPagine, campoFoto, 
             </li>
           );
         })}
+        {/* «I prossimi passi» sta sempre in fondo: non si sposta, ma la sua foto si cambia. */}
+        {settore && onBlocchi ? (
+          <li className="px-3 py-2">
+            <div className="flex items-center gap-2">
+              <span className="w-5 shrink-0" />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium">I prossimi passi</p>
+                <p className="truncate text-[11px] text-muted-foreground">Sempre in fondo: la foto del lavoro finito, i passi, i contatti</p>
+              </div>
+              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setAperta(aperta === "foto:chiusura" ? null : "foto:chiusura")} aria-label="Foto di I prossimi passi" title="La foto di questa pagina">
+                <Camera className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+            {aperta === "foto:chiusura" ? (
+              <EditorFotoPagina chiave="chiusura" settore={settore} salvati={blocchi} onSalvati={(nuovi) => onBlocchi(nuovi)} campoFoto={campoFoto} />
+            ) : null}
+          </li>
+        ) : null}
       </ol>
 
       <Button size="sm" variant="outline" onClick={aggiungiPagina}>

@@ -8,7 +8,7 @@
  */
 
 import { MODULO_RECESSO } from "./condizioniStandard.ts";
-import { eFotoDiSerie, leggiBlocco, PAGINE_BLOCCO, type PaginaBlocco } from "./blocchiPreventivo.ts";
+import { eFotoDiSerie, leggiBlocco, leggiFotoPagina, PAGINE_BLOCCO, type PaginaBlocco } from "./blocchiPreventivo.ts";
 import { iconaSvg } from "./iconePreventivo.ts";
 import { normalizeFvPdfPagesOrder, type FvPdfPageOrderItem } from "./fvPagine.ts";
 export {
@@ -97,6 +97,31 @@ export function fotoDeiBlocchiFv(template: FvPdfTemplateData["template"] | null 
     out[chiave] = leggiBlocco(chiave, "fotovoltaico", template?.pdf_blocchi).foto.slice(0, 2);
   }
   return out;
+}
+
+/** Le pagine del documento che hanno una foto loro (di serie, cambiabile dall'azienda). */
+export const PAGINE_CON_FOTO_FV = ["garanzie", "bollette", "decisione", "componenti", "costi", "cassa", "piano"] as const;
+export type PaginaConFotoFv = (typeof PAGINE_CON_FOTO_FV)[number];
+
+/**
+ * La foto di ogni pagina così come sta nel modello (foto di serie «/pdf-stock/…» o
+ * foto dell'azienda già firmata), o null se l'azienda l'ha tolta.
+ */
+export function fotoDellePagineFv(template: FvPdfTemplateData["template"] | null | undefined): Record<PaginaConFotoFv, string | null> {
+  return Object.fromEntries(
+    PAGINE_CON_FOTO_FV.map((pagina) => [pagina, leggiFotoPagina(pagina, "fotovoltaico", template?.pdf_blocchi)]),
+  ) as Record<PaginaConFotoFv, string | null>;
+}
+
+/** Le foto delle pagine con l'indirizzo completo del sito (anteprime dell'editor). */
+export function fotoPagineDalSito(
+  origine: string,
+  template: FvPdfTemplateData["template"] | null | undefined,
+): NonNullable<FvPdfTemplateData["foto_pagine"]> {
+  const base = origine.replace(/\/+$/, "");
+  return Object.fromEntries(
+    Object.entries(fotoDellePagineFv(template)).map(([pagina, u]) => [pagina, u && u.startsWith("/") ? `${base}${u}` : u]),
+  );
 }
 
 /** Le foto dei blocchi con l'indirizzo completo del sito (anteprime dell'editor). */
@@ -224,6 +249,9 @@ export interface FvPdfTemplateData {
    *  dati: servono a dire quanto cambia l'accumulo con numeri veri. Assenti nelle
    *  anteprime con dati finti: allora la frase non ne stampa. */
   flows_senza_accumulo?: FvFlows | null;
+  /** Le foto delle pagine (garanzie, perché farlo ora, pagina finale): data URI nel
+   *  generatore, indirizzi del sito nelle anteprime. Null o assente: la pagina è senza. */
+  foto_pagine?: Partial<Record<PaginaConFotoFv, string | null>> | null;
   /** I badge delle garanzie per icona (BADGE_GARANZIE_FV): data URI nel generatore,
    *  indirizzi del sito nelle anteprime. Senza, la scheda usa la sigla di testo. */
   badge_garanzie?: Partial<Record<keyof typeof BADGE_GARANZIE_FV, string | null>> | null;
@@ -498,12 +526,12 @@ p { margin-bottom: 2mm; }
 .kpi-big.red .kbig-sub { color: #7F1D1D; }
 
 /* I blocchi della libreria: una o due foto, poi le voci con l'icona in un cerchio dell'accento.
-   La fascia delle foto prende lo spazio che resta nella pagina, fino a un'altezza
-   che taglia poco le foto (16:9): una foto a tutta larghezza fino a 100 mm, due
-   affiancate fino a 72. La pagina non sborda mai per colpa delle foto. */
+   La fascia delle foto prende lo spazio che resta nella pagina: una foto a tutta
+   larghezza fino a 150 mm, due affiancate fino a 110. Meglio una foto un po'
+   tagliata che mezza pagina bianca (22/09/2026); la pagina non sborda mai. */
 .blocco-titolo .accento { color: #C2410C; }
-.content > .blocco-foto { flex: 1 1 0; min-height: 50mm; max-height: 100mm; display: flex; gap: 4mm; margin: 1mm 0 1.5mm; }
-.content > .blocco-foto.due { max-height: 72mm; }
+.content > .blocco-foto { flex: 1 1 0; min-height: 50mm; max-height: 150mm; display: flex; gap: 4mm; margin: 1mm 0 1.5mm; }
+.content > .blocco-foto.due { max-height: 110mm; }
 .blocco-foto img { flex: 1 1 0; min-width: 0; height: 100%; object-fit: cover; border-radius: 10px; display: block; }
 .blocco-nota { font-size: 6.5pt; color: #94A3B8; margin-bottom: 4mm; }
 .blocco-voci { display: grid; grid-template-columns: repeat(2, 1fr); gap: 3mm; margin-top: 2mm; }
@@ -665,6 +693,8 @@ table .saving-zero { color: #64748B; }
 .content > .foto-fascia { flex: 1 1 0; min-height: 0; max-height: 69mm; container-type: size; }
 .foto-fascia img { display: block; width: 100%; height: calc(100% - 5mm); margin-top: 4mm; object-fit: cover; border-radius: 12px; }
 @container (max-height: 39mm) { .foto-fascia img { display: none; } }
+/* La foto di una pagina che ha poco altro (le garanzie): può crescere di più. */
+.content > .foto-fascia.alta { max-height: 125mm; }
 .eq-row { display: grid; grid-template-columns: 26mm 1fr; gap: 4mm; align-items: center; padding: 3mm 4mm; background: white; border: 1px solid #E2E8F0; border-radius: 8px; margin-bottom: 2.2mm; }
 .eq-row .eq-num { font-family: 'Outfit', sans-serif; font-size: 20pt; font-weight: 800; color: #16A34A; line-height: 1; text-align: center; }
 .eq-row .eq-num small { display: block; font-size: 7.5pt; color: #64748B; font-weight: 600; margin-top: 0.5mm; text-transform: uppercase; letter-spacing: 0.05em; }
@@ -1287,6 +1317,7 @@ function pageComponenti(d: FvPdfTemplateData, pageN: number, total: number): str
       <h1 class="page-title">Solo materiali<br/>premium.</h1>
       <p class="page-subtitle">Ogni componente è stato scelto per durare 25+ anni. Marche leader con assistenza Italia.</p>
       ${cards || "<p>Nessun componente configurato.</p>"}
+      ${fasciaFotoPagina(d, "componenti", "center 45%", true)}
     </div>
     ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
   </div>`;
@@ -1471,6 +1502,7 @@ function pageCostiFuturi(d: FvPdfTemplateData, pageN: number, total: number): st
         <div class="kpi-big red"><div class="kbig-label">Senza fotovoltaico</div><div class="kbig-value">~${fmtEur(costi.totale_senza_fv_eur)}</div><div class="kbig-sub">spesi in 20 anni di bollette</div></div>
         <div class="kpi-big"><div class="kbig-label">Con fotovoltaico</div><div class="kbig-value">~${fmtEur(costi.totale_con_fv_eur)}</div><div class="kbig-sub">spesi in 20 anni · risparmi ${fmtEur(costi.totale_risparmio_eur)}</div></div>
       </div>
+      ${fasciaFotoPagina(d, "costi", "center 42%", true)}
     </div>
     ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
   </div>`;
@@ -1513,6 +1545,7 @@ function pagePiano(d: FvPdfTemplateData, fin: FvFinanziamentoPdf, pageN: number,
           <tr><td>TAN nominale</td><td class="num-cell">${fmtTasso(fin.tan_perc)}</td><td>TAEG (incluse spese)</td><td class="num-cell">${fmtTasso(fin.taeg_perc)}</td></tr>
         </tbody>
       </table>
+      ${fasciaFotoPagina(d, "piano", "center 45%", true)}
     </div>
     ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
   </div>`;
@@ -1542,6 +1575,7 @@ function pageBollette240(d: FvPdfTemplateData, pageN: number, total: number): st
         <div class="chart-sub">Indici 100 al 2012 — bollette luce vs reddito netto famiglie italiane</div>
         ${svgForbice()}
       </div>
+      ${fasciaFotoPagina(d, "bollette", "center 40%")}
       <div class="callout callout-tip">
         <span class="callout-icon">★</span>
         <div><strong>Senza FV, in 25 anni ${escHtml(d.cliente.nome)} pagherà ~${fmtEur(costo25senzaFV)} di bollette.</strong>
@@ -1586,6 +1620,7 @@ function pageCassa25(d: FvPdfTemplateData, pageN: number, total: number): string
           ${eventi.map((e) => `<tr${e.anno === payback ? ' class="row-total"' : ""}><td><strong>${e.anno}</strong></td><td>${escHtml(e.descr)}</td><td class="num-cell" style="color:${(e.cumulato ?? 0) >= 0 ? "#16A34A" : "#DC2626"};">${fmtEur(e.cumulato ?? 0)}</td></tr>`).join("")}
         </tbody>
       </table>
+      ${fasciaFotoPagina(d, "cassa", "center 55%", true)}
     </div>
     ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
   </div>`;
@@ -1680,6 +1715,15 @@ function bloccoFv(d: FvPdfTemplateData, id: PaginaBlocco) {
 function bloccoHaContenuto(d: FvPdfTemplateData, id: PaginaBlocco): boolean {
   const { blocco, foto } = bloccoFv(d, id);
   return blocco.voci.length > 0 || foto.length > 0;
+}
+
+/**
+ * La foto di una pagina, nella fascia che prende solo lo spazio libero (.foto-fascia):
+ * con la pagina piena si restringe o sparisce, mai una pagina che sborda.
+ */
+function fasciaFotoPagina(d: FvPdfTemplateData, pagina: PaginaConFotoFv, posizione = "center", alta = false): string {
+  const src = imageHref(d.foto_pagine?.[pagina] ?? null);
+  return src ? `<div class="foto-fascia${alta ? " alta" : ""}"><img src="${escHtml(src)}" alt="" style="object-position:${posizione};" /></div>` : "";
 }
 
 /** «Dal tuo tetto *alla tua presa*.»: la parola fra asterischi nel colore dell'accento. */
@@ -1792,6 +1836,7 @@ function pageGaranzie(d: FvPdfTemplateData, pageN: number, total: number): strin
         <div style="display:grid;grid-template-columns:repeat(${Math.min((d.cantieri_foto ?? []).length, 3)},1fr);gap:2mm;">
           ${(d.cantieri_foto ?? []).slice(0, 3).map((src) => `<div style="height:28mm;border-radius:6px;overflow:hidden;border:1px solid #E2E8F0;"><img src="${escHtml(src)}" alt="Cantiere installato" style="width:100%;height:100%;object-fit:cover;"/></div>`).join("")}
         </div>` : ""}
+      ${fasciaFotoPagina(d, "garanzie", "center 60%", true)}
     </div>
     ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
   </div>`;
@@ -1982,6 +2027,7 @@ function pageDecisione(d: FvPdfTemplateData, pageN: number, total: number): stri
         </div>
       </div>
       ${!haPaginaCondizioni(d) && condizioni ? `<div class="legal-box"><strong>Condizioni commerciali:</strong><div class="rich-text">${condizioni}</div></div>` : ""}
+      ${fasciaFotoPagina(d, "decisione", "center 55%")}
       <div class="callout callout-info">
         <span class="callout-icon">i</span>
         <div><strong>Come si firma</strong>Online, con il link ricevuto via email. Oppure su carta, nella pagina «Firma del contratto»${haPaginaCondizioni(d) ? ", dopo le condizioni generali" : " che segue"}: c'è il riepilogo di quello che si firma, e lo spazio per le firme.</div>

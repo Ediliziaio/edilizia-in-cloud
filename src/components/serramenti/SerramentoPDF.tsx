@@ -42,7 +42,7 @@ import { testiPerPdf } from "../../../supabase/functions/_shared/testoPerPdf";
 import { leggiBlocco, PAGINE_BLOCCO, type ContenutoBlocco, type PaginaBlocco } from "../../../supabase/functions/_shared/blocchiPreventivo";
 import { IconaPdf } from "@/components/preventivi/pdf/IconaPdf";
 import { spezzaAccento } from "@/components/preventivi/pdf/testoDocumento";
-import { fotoPerIlPdf, type FotoBloccoPronta } from "@/lib/pdf/fotoBlocchi";
+import { fotoPaginaPerIlPdf, fotoPerIlPdf, type FotoBloccoPronta } from "@/lib/pdf/fotoBlocchi";
 import type {
   SerramentoPdfConsulente, SerramentoPdfFamilyData,
   SerramentoPdfMacroField, SerramentoPdfMacroPagina,
@@ -2339,6 +2339,14 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
   // normalizePdfPagesOrder garantisce robustezza: aggiunge pagine nuove
   // mancanti, rimuove ID legacy, forza visible=true sulle obbligatorie.
 
+  // ─── Le foto delle pagine: percorso, confronto, pagina finale ───────────────
+  // Di serie per i serramenti (storie di famiglia, termocamera), l'azienda le
+  // cambia o le toglie dall'ordine delle pagine. Riempiono lo spazio che quelle
+  // pagine lasciavano bianco.
+  const fotoPercorso = fotoPaginaPerIlPdf(tpl.pdf_pagine_foto, "percorso", "serramenti", tpl.pdf_blocchi);
+  const fotoConfronto = fotoPaginaPerIlPdf(tpl.pdf_pagine_foto, "confronto", "serramenti", tpl.pdf_blocchi);
+  const fotoCta = fotoPaginaPerIlPdf(tpl.pdf_pagine_foto, "cta", "serramenti", tpl.pdf_blocchi);
+
   // ─── Le sezioni brevi: quando stanno una dopo l'altra condividono le pagine ──
   // Garanzie, confronto, domande e i nostri lavori aprivano ciascuna un foglio:
   // con poche garanzie o poche domande restava mezza pagina bianca. Consecutive
@@ -2375,6 +2383,9 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                   Un confronto semplice tra la situazione attuale e la soluzione proposta.
                 </Text>
 </View>
+                {fotoConfronto ? (
+                  <Image src={fotoConfronto} style={{ width: "100%", height: 190, objectFit: "cover", borderRadius: 6, marginBottom: 4 }} />
+                ) : null}
                 {/* Header tabella */}
                 <View style={{ flexDirection: "row", paddingVertical: 8, borderBottom: `1pt solid ${C.gray300}`, marginTop: 16 }}>
                   <View style={{ flex: 2 }}>
@@ -3888,6 +3899,18 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                   );
                 })()}
 
+                {/* La foto sotto le fasi, solo se la pagina ha posto: con tante fasi
+                    o tanti passaggi resta senza, invece di finire da sola su un foglio. */}
+                {fotoPercorso && (() => {
+                  const perRiga = percorso.fasi.length <= 4 ? percorso.fasi.length : 2;
+                  const righe = Math.ceil(percorso.fasi.length / perRiga);
+                  const passiMax = Math.max(...percorso.fasi.map((f) => f.step.length));
+                  const occupato = 170 + righe * (58 + passiMax * 17);
+                  return occupato + 230 <= 700;
+                })() ? (
+                  <Image src={fotoPercorso} style={{ width: "100%", height: 220, objectFit: "cover", borderRadius: 6, marginTop: 18 }} />
+                ) : null}
+
                 <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
               </Page>
             )}
@@ -4092,6 +4115,16 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                 ))}
               </View>
 
+              {/* La foto finale riempie il vuoto sotto il riquadro. Le note del consulente
+                  e le recensioni vengono prima: con le note la foto non esce (sulla
+                  pagina non ci stanno insieme), con una recensione si abbassa. */}
+              {(() => {
+                const note = (p.note_cliente ?? "").trim().length;
+                const recensioni = recensioniAttivo ? testimonianze.length : 0;
+                if (!fotoCta || note > 0 || recensioni > 1) return null;
+                return <Image src={fotoCta} style={{ width: "100%", height: recensioni > 0 ? 150 : 210, objectFit: "cover", borderRadius: 6, marginTop: 16 }} />;
+              })()}
+
               {publicUrl && tpl.pdf_mostra_firma_online === true && (
                 <View style={styles.signatureBox} wrap={false}>
                   <View style={{ flex: 1 }}>
@@ -4119,7 +4152,9 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                     borderRadius: 6,
                     backgroundColor: C.gray50,
                   }}
-                  wrap
+                  // Note corte tutte intere: il titolo non resta da solo in fondo alla pagina.
+                  wrap={p.note_cliente.length > 600}
+                  minPresenceAhead={60}
                 >
                   <Text style={[styles.sectionTitle, { marginBottom: 6 }]}>Note del consulente</Text>
                   {p.note_cliente.split(/\n\n+/).map((para, i) => (

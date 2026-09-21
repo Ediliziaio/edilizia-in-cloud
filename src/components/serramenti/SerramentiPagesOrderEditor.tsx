@@ -13,7 +13,7 @@
  * State è esterno: il chiamante (SerramentiTemplateEditor) gestisce salvataggio.
  */
 import { memo, useState, type ReactNode } from "react";
-import { GripVertical, ChevronUp, ChevronDown, Eye, EyeOff, RotateCcw, Image as ImageIcon, Pencil } from "lucide-react";
+import { GripVertical, ChevronUp, ChevronDown, Eye, EyeOff, RotateCcw, Image as ImageIcon, Pencil, Camera } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,7 +30,11 @@ import {
   type SrPdfPageOrderItem, type SrPdfPageMeta,
 } from "@/types/serramenti";
 import { EditorBlocco } from "@/components/preventivi/EditorBlocco";
-import { bloccoDellaPagina, descrizioneBlocco } from "../../../supabase/functions/_shared/blocchiPreventivo";
+import { EditorFotoPagina } from "@/components/preventivi/EditorFotoPagina";
+import { bloccoDellaPagina, descrizioneBlocco, type ChiaveFotoPagina } from "../../../supabase/functions/_shared/blocchiPreventivo";
+
+/** Le pagine con una foto loro, cambiabile qui: l'id della pagina e la chiave della foto. */
+const FOTO_DELLE_PAGINE: Record<string, ChiaveFotoPagina> = { percorso: "percorso", confronto: "confronto", cta: "cta" };
 
 interface Props {
   value: SrPdfPageOrderItem[] | null;
@@ -188,6 +192,7 @@ function SerramentiPagesOrderEditorImpl({ value, onChange, blocchi, onBlocchi, c
               if (!meta) return null;
               const blocco = bloccoDellaPagina(it.id);
               const modificabile = Boolean(blocco && onBlocchi && campoFoto);
+              const fotoPagina = onBlocchi && campoFoto ? FOTO_DELLE_PAGINE[it.id] ?? null : null;
               return (
                 <SortablePageItem
                   key={it.id}
@@ -202,10 +207,20 @@ function SerramentiPagesOrderEditorImpl({ value, onChange, blocchi, onBlocchi, c
                   onToggleVisible={() => toggleVisible(idx)}
                   promessa={blocco ? descrizioneBlocco(blocco).promessa : false}
                   onModifica={modificabile ? () => setAperta(aperta === it.id ? null : it.id) : undefined}
+                  onFoto={fotoPagina ? () => setAperta(aperta === `foto:${it.id}` ? null : `foto:${it.id}`) : undefined}
                 >
                   {modificabile && blocco && aperta === it.id && campoFoto ? (
                     <EditorBlocco
                       chiave={blocco}
+                      settore="serramenti"
+                      salvati={blocchi}
+                      onSalvati={(nuovi) => onBlocchi?.(nuovi)}
+                      campoFoto={campoFoto}
+                    />
+                  ) : null}
+                  {fotoPagina && aperta === `foto:${it.id}` && campoFoto ? (
+                    <EditorFotoPagina
+                      chiave={fotoPagina}
                       settore="serramenti"
                       salvati={blocchi}
                       onSalvati={(nuovi) => onBlocchi?.(nuovi)}
@@ -237,7 +252,7 @@ function SerramentiPagesOrderEditorImpl({ value, onChange, blocchi, onBlocchi, c
 
 function SortablePageItem({
   item, meta, position, isFirst, isLast, flashing,
-  onMoveUp, onMoveDown, onToggleVisible, promessa = false, onModifica, children,
+  onMoveUp, onMoveDown, onToggleVisible, promessa = false, onModifica, onFoto, children,
 }: {
   item: SrPdfPageOrderItem;
   meta: SrPdfPageMeta;
@@ -252,6 +267,8 @@ function SortablePageItem({
   promessa?: boolean;
   /** Apre l'editor del blocco sotto la riga. */
   onModifica?: () => void;
+  /** Apre la scelta della foto della pagina sotto la riga. */
+  onFoto?: () => void;
   children?: ReactNode;
 }) {
   const {
@@ -373,6 +390,18 @@ function SortablePageItem({
             title="Testi, voci e foto di questa pagina"
           >
             <Pencil className="h-3.5 w-3.5" />
+          </Button>
+        ) : null}
+        {onFoto ? (
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={onFoto}
+            className="h-7 w-7"
+            aria-label={`Foto di ${meta.label}`}
+            title="La foto di questa pagina"
+          >
+            <Camera className="h-3.5 w-3.5" />
           </Button>
         ) : null}
       </div>

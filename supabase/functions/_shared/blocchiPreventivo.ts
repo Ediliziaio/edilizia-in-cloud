@@ -119,7 +119,9 @@ const COME_FUNZIONA: Record<SettoreBlocchi, Parziale> = {
       v("Conserva", "Con la batteria, se è prevista, l'energia del giorno resta a disposizione la sera e la notte.", "batteria"),
       v("Scambia", "Quello che non usi va in rete; quando ti serve più energia di quella che produci, la prendi dalla rete.", "rete"),
     ],
-    foto: foto("fotovoltaico", "tecnica-percorso-energia", "tecnica-giorno-sera"),
+    // Una foto sola, larga: la casa in sezione con il percorso dell'energia. Le due
+    // tecniche di prima restano in libreria.
+    foto: foto("fotovoltaico", "storia-flusso-energia"),
   },
   bagni: {
     occhiello: "Sotto le piastrelle",
@@ -597,4 +599,76 @@ export function leggiBlocco(chiave: ChiaveBlocco, settore: SettoreBlocchi, salva
 export function settoreBlocchi(modulo: string): SettoreBlocchi {
   const noti: SettoreBlocchi[] = ["serramenti", "fotovoltaico", "ristrutturazione", "bagni", "tetti", "climatizzazione", "elettrico", "termoidraulico", "pavimenti", "piscine"];
   return (noti as string[]).includes(modulo) ? (modulo as SettoreBlocchi) : "ristrutturazione";
+}
+
+// ─── Le foto delle pagine ────────────────────────────────────────────────────
+
+/**
+ * Una foto sola in una pagina che non è un blocco: la chiusura dei documenti
+ * edili, il percorso e il confronto di Serramenti, le garanzie del Fotovoltaico…
+ * Riempie lo spazio che quelle pagine lasciavano bianco. È di serie per settore
+ * e l'azienda la cambia o la toglie: sta in `pdf_blocchi` sotto «pagina_<chiave>»,
+ * con la forma dei blocchi ({ foto: [indirizzo], senzaFoto }), così la firma
+ * delle foto private (_shared/immaginiModelloPdf.ts) la copre già.
+ */
+export type ChiaveFotoPagina =
+  | "chiusura" | "percorso" | "confronto" | "cta"
+  | "garanzie" | "bollette" | "decisione" | "componenti" | "costi" | "cassa" | "piano";
+
+export const FOTO_PAGINE_ETICHETTE: Record<ChiaveFotoPagina, string> = {
+  chiusura: "Foto dei prossimi passi",
+  percorso: "Foto del percorso",
+  confronto: "Foto del confronto",
+  cta: "Foto della pagina finale",
+  garanzie: "Foto delle garanzie",
+  bollette: "Foto di «Perché farlo ora»",
+  decisione: "Foto della pagina finale",
+  componenti: "Foto dei componenti",
+  costi: "Foto dei costi futuri",
+  cassa: "Foto della cassa a 25 anni",
+  piano: "Foto del piano economico",
+};
+
+/** Le foto di serie: «cartella/file» in public/pdf-stock. */
+const FOTO_PAGINE: Partial<Record<SettoreBlocchi, Partial<Record<ChiaveFotoPagina, string>>>> = {
+  serramenti: {
+    percorso: "serramenti/storia-prima-durante-dopo",
+    confronto: "serramenti/storia-termocamera",
+    cta: "serramenti/storia-famiglia-inverno",
+  },
+  fotovoltaico: {
+    garanzie: "fotovoltaico/villa-tramonto",
+    bollette: "fotovoltaico/storia-bolletta-beneficio",
+    decisione: "fotovoltaico/storia-energia-serale",
+    componenti: "fotovoltaico/inverter-batteria-garage",
+    costi: "fotovoltaico/storia-bolletta-serena",
+    cassa: "fotovoltaico/villa-tetto-coppi",
+    piano: "fotovoltaico/monitoraggio-app",
+  },
+  bagni: { chiusura: "bagni/risultato-moderno" },
+  ristrutturazione: { chiusura: "ristrutturazione/risultato" },
+  tetti: { chiusura: "tetti/installazione" },
+  climatizzazione: { chiusura: "climatizzazione/installazione" },
+  elettrico: { chiusura: "ristrutturazione/controllo-elettrico" },
+  termoidraulico: { chiusura: "ristrutturazione/risultato" },
+  pavimenti: { chiusura: "pavimenti/installazione" },
+  piscine: { chiusura: "piscine/storia-prima-durante-dopo" },
+};
+
+export const chiaveSalvataFotoPagina = (chiave: ChiaveFotoPagina): string => `pagina_${chiave}`;
+
+/** La foto di serie di una pagina per un settore, o null se quella pagina non ne ha. */
+export function fotoPaginaDiSerie(chiave: ChiaveFotoPagina, settore: SettoreBlocchi): string | null {
+  const file = FOTO_PAGINE[settore]?.[chiave];
+  return file ? `/pdf-stock/${file}.jpg` : null;
+}
+
+/** La foto che esce in quella pagina: quella scelta dall'azienda, altrimenti quella di serie. */
+export function leggiFotoPagina(chiave: ChiaveFotoPagina, settore: SettoreBlocchi, salvati: unknown): string | null {
+  const tutti = salvati && typeof salvati === "object" ? (salvati as Record<string, unknown>) : {};
+  const s = tutti[chiaveSalvataFotoPagina(chiave)];
+  const scelta = s && typeof s === "object" ? (s as Record<string, unknown>) : {};
+  if (scelta.senzaFoto === true) return null;
+  const propria = Array.isArray(scelta.foto) ? (scelta.foto as unknown[]).map(testo).find(Boolean) : null;
+  return propria ?? fotoPaginaDiSerie(chiave, settore);
 }

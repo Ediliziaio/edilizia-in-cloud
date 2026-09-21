@@ -1174,6 +1174,10 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
         <View>
         <View wrap={false}>
           <Capitolo tema={tema} numero={numeroPassi} occhiello="I prossimi passi" titolo="Pronti a *partire*?" sommario={fraseValiditaChiusura(modello.testoValidita, modello.giorniValidita)} />
+          {/* Il risultato finito, prima dei passi: la chiusura lasciava mezza pagina bianca. */}
+          {modello.fotoChiusura ? (
+            <Image src={modello.fotoChiusura.src} style={{ width: UTILE, height: 190, objectFit: "cover", marginBottom: 16 }} />
+          ) : null}
           <Passi
             tema={tema}
             voci={[

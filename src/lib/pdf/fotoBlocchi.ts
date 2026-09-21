@@ -9,7 +9,8 @@
  */
 import { toDataUrl } from "@/lib/serramenti/pdfImageUtils";
 import {
-  bloccoDellaPagina, eFotoDiSerie, leggiBlocco, type ChiaveBlocco, type SettoreBlocchi,
+  bloccoDellaPagina, eFotoDiSerie, leggiBlocco, leggiFotoPagina,
+  type ChiaveBlocco, type ChiaveFotoPagina, type SettoreBlocchi,
 } from "../../../supabase/functions/_shared/blocchiPreventivo";
 
 export interface FotoBloccoPronta {
@@ -59,4 +60,30 @@ export function blocchiAccesi(pagine: ReadonlyArray<{ id: string; visible: boole
     .filter((p) => p.visible)
     .map((p) => bloccoDellaPagina(p.id))
     .filter((c): c is ChiaveBlocco => c !== null);
+}
+
+/**
+ * Le foto delle pagine (percorso, confronto, chiusura…), già convertite:
+ * { [pagina]: data URI, o null se la pagina è senza foto o la foto non arriva }.
+ */
+export async function fotoDellePagine(
+  settore: SettoreBlocchi,
+  salvati: unknown,
+  chiavi: ChiaveFotoPagina[],
+): Promise<Record<string, string | null>> {
+  const coppie = await Promise.all(chiavi.map(async (chiave) => {
+    const indirizzo = leggiFotoPagina(chiave, settore, salvati);
+    return [chiave, indirizzo ? await toDataUrl(conOrigine(indirizzo)) : null] as const;
+  }));
+  return Object.fromEntries(coppie);
+}
+
+/** La foto di una pagina per il PDF: quella convertita se c'è, altrimenti l'indirizzo completo. */
+export function fotoPaginaPerIlPdf(pronte: unknown, chiave: ChiaveFotoPagina, settore: SettoreBlocchi, salvati: unknown): string | null {
+  if (pronte && typeof pronte === "object") {
+    const src = (pronte as Record<string, unknown>)[chiave];
+    return typeof src === "string" && src ? src : null;
+  }
+  const indirizzo = leggiFotoPagina(chiave, settore, salvati);
+  return indirizzo ? conOrigine(indirizzo) : null;
 }
