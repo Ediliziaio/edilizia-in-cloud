@@ -257,3 +257,72 @@ Ai sensi degli artt. 1341 e 1342 c.c. il Committente approva specificamente le c
 
 /** Retrocompatibilità: il testo generico, come prima. */
 export const CONDIZIONI_STANDARD_MD = condizioniStandard("generico");
+
+// ─── Leggere le condizioni: dal markdown povero alle righe da impaginare ─────
+
+export type RigaCondizioni = { tipo: "h1" | "h2" | "li" | "p"; testo: string };
+
+/**
+ * Le condizioni riga per riga: `#` sezione, `##` articolo, `-` elenco, il resto
+ * paragrafo. Ogni motore dei documenti le impagina a modo suo, ma le legge
+ * così: un motore che stampava il testo com'era mostrava «## Art. 1» al cliente.
+ */
+export function righeDelleCondizioni(testo: string): RigaCondizioni[] {
+  return String(testo ?? "")
+    .replace(/\r\n/g, "\n")
+    .split("\n")
+    .map((r) => r.trim())
+    .filter(Boolean)
+    .map((r): RigaCondizioni => {
+      const h = /^(#{1,4})\s+(.+)$/.exec(r);
+      if (h) return { tipo: h[1].length === 1 ? "h1" : "h2", testo: h[2].trim() };
+      const li = /^[-*•]\s+(.+)$/.exec(r);
+      if (li) return { tipo: "li", testo: li[1].trim() };
+      return { tipo: "p", testo: r };
+    });
+}
+
+const eIlTitoloDelleClausole = (r: RigaCondizioni) =>
+  (r.tipo === "h1" || r.tipo === "h2") && /1341|approvare specificamente/i.test(r.testo);
+
+/**
+ * Le clausole che il cliente approva con una seconda firma (art. 1341 c.c.): le
+ * voci elencate sotto quel titolo. Si leggono dal testo, così valgono anche per
+ * le condizioni scritte dall'azienda — senza quel titolo, niente seconda firma.
+ */
+export function clausoleDaApprovare(righe: RigaCondizioni[]): string[] {
+  const inizio = righe.findIndex(eIlTitoloDelleClausole);
+  if (inizio < 0) return [];
+  const voci: string[] = [];
+  for (const r of righe.slice(inizio + 1)) {
+    if (r.tipo === "h1" || r.tipo === "h2") break;
+    if (r.tipo === "li") voci.push(r.testo);
+  }
+  return voci;
+}
+
+/**
+ * Le righe da stampare nel testo: senza il titolo generale (la pagina ha il suo)
+ * e senza la sezione delle clausole, che va nel riquadro della seconda firma.
+ */
+export function righeDaStampare(righe: RigaCondizioni[], { conRiquadroFirma }: { conRiquadroFirma: boolean }): RigaCondizioni[] {
+  const senzaTitolo = righe.length > 0 && righe[0].tipo === "h1" ? righe.slice(1) : righe;
+  if (!conRiquadroFirma) return senzaTitolo;
+  const inizio = senzaTitolo.findIndex(eIlTitoloDelleClausole);
+  if (inizio < 0) return senzaTitolo;
+  let fine = senzaTitolo.length;
+  for (let i = inizio + 1; i < senzaTitolo.length; i++) {
+    if (senzaTitolo[i].tipo === "h1" || senzaTitolo[i].tipo === "h2") { fine = i; break; }
+  }
+  return [...senzaTitolo.slice(0, inizio), ...senzaTitolo.slice(fine)];
+}
+
+/** Articolo per articolo: ogni titolo con il suo testo, per non lasciare titoli orfani. */
+export function perArticoli(righe: RigaCondizioni[]): RigaCondizioni[][] {
+  const gruppi: RigaCondizioni[][] = [];
+  for (const r of righe) {
+    if (r.tipo === "h1" || r.tipo === "h2" || gruppi.length === 0) gruppi.push([]);
+    gruppi[gruppi.length - 1].push(r);
+  }
+  return gruppi;
+}

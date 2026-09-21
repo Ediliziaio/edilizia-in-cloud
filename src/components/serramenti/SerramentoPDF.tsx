@@ -37,7 +37,8 @@ import { testoScelta } from "@/lib/listino/scelteVariante";
 import { schedaPosizione, titoloConLinea } from "@/lib/serramenti/schedaPosizione";
 import { inchiostroSuBianco, testoSopra } from "@/lib/pdf/contrastoColori";
 import { coloreDelDocumento, fondoPerTestoBianco, scurisci, testoSuChiaro, testoSuScuro } from "../../../supabase/functions/_shared/temaColori";
-import { condizioniStandard } from "../../../supabase/functions/_shared/condizioniStandard";
+import { clausoleDaApprovare, condizioniStandard, perArticoli, righeDaStampare, righeDelleCondizioni } from "../../../supabase/functions/_shared/condizioniStandard";
+import { testiPerPdf } from "../../../supabase/functions/_shared/testoPerPdf";
 import type {
   SerramentoPdfConsulente, SerramentoPdfFamilyData,
   SerramentoPdfMacroField, SerramentoPdfMacroPagina,
@@ -1818,16 +1819,20 @@ function TestoListinoPdf({
 
 // ─── Componente principale ─────────────────────────────────────────────────
 
-export function SerramentoPDF({
-  detail, template, company,
-  consulente, familiesById, fieldsByMacro, macroPagineDedicate,
-  macroNomeById = {},
-  axisLabelByKey = {},
-  supplierLineById = {},
-  publicUrl = null,
-  autoFallbackMacroId = null,
-  lineeDedicate = [],
-}: SerramentoPDFProps) {
+export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
+  // Ogni testo scritto dall'azienda o dal commerciale passa dal filtro: Helvetica
+  // stampa solo l'alfabeto WinAnsi, e una freccia o un'emoji incollate uscivano
+  // come caratteri a caso. Le immagini incorporate restano come sono.
+  const {
+    detail, template, company,
+    consulente, familiesById, fieldsByMacro, macroPagineDedicate,
+    macroNomeById = {},
+    axisLabelByKey = {},
+    supplierLineById = {},
+    publicUrl = null,
+    autoFallbackMacroId = null,
+    lineeDedicate = [],
+  } = testiPerPdf(propsGrezze);
   const p = detail.progetto;
   const companyName = template?.ragione_sociale || company?.ragione_sociale || company?.name || "Azienda";
   const logoUrl = template?.logo_url || company?.logo_url || null;
@@ -2041,23 +2046,6 @@ export function SerramentoPDF({
   const faqItemsRaw = (Array.isArray(tpl.faq_items) ? tpl.faq_items : []) as SrFaq[];
   const faqItems: SrFaq[] = faqItemsRaw.length > 0 ? faqItemsRaw : SR_FAQ_DEFAULT;
   const brandFooterTesto = (tpl.brand_footer_testo as string | null) || null;
-  // Merge tag dei blocchi importati dalla libreria ({{cliente.nome_completo}}, {{azienda.ragione_sociale}}…)
-  // Senza condizioni scritte dall'azienda valgono quelle di base del settore.
-  const condizioniLegaliTesto = applicaMergeTagModulo(
-    String(tpl.condizioni_legali_testo ?? "").trim() || condizioniStandard("serramenti"),
-    {
-    companyName,
-    companyVat: tpl.partita_iva ?? company?.vat_number ?? null,
-    companyAddress: tpl.indirizzo_completo ?? null,
-    companyEmail: tpl.email ?? company?.email ?? null,
-    companyPhone: tpl.telefono ?? company?.phone ?? null,
-    clienteNome: p.cliente_nome, clienteCognome: p.cliente_cognome,
-    clienteEmail: p.cliente_email, clienteTelefono: p.cliente_telefono, clienteIndirizzo: p.cliente_indirizzo,
-    cantiereCitta: p.cantiere_citta ?? p.cliente_citta ?? null,
-      numero: p.code, dataDocumento: p.created_at ?? null,
-      totale: null,
-    },
-  ) || null;
   // Fix integrazione · Toggle "attivo" devono essere rispettati anche dal PDF.
   // Prima il PDF ignorava i toggle e mostrava il footer/pagina se il testo
   // era valorizzato, anche se l'utente aveva disattivato il toggle nell'editor.
@@ -2103,6 +2091,26 @@ export function SerramentoPDF({
   const totaleImponibile = roundMoney(totaleCalcolato.imponibile_netto || imponibileFallback);
   const totaleIva = roundMoney(totaleCalcolato.iva_importo || Math.max(0, totaleDocumento - totaleImponibile));
   const totaleMedia = totaleDocumento;
+  // Merge tag dei blocchi importati dalla libreria ({{cliente.nome_completo}}, {{azienda.ragione_sociale}}…)
+  // Senza condizioni scritte dall'azienda valgono quelle di base del settore.
+  const condizioniLegaliTesto = applicaMergeTagModulo(
+    String(tpl.condizioni_legali_testo ?? "").trim() || condizioniStandard("serramenti"),
+    {
+    companyName,
+    companyVat: tpl.partita_iva ?? company?.vat_number ?? null,
+    companyAddress: tpl.indirizzo_completo ?? null,
+    companyEmail: tpl.email ?? company?.email ?? null,
+    companyPhone: tpl.telefono ?? company?.phone ?? null,
+    clienteNome: p.cliente_nome, clienteCognome: p.cliente_cognome,
+    clienteEmail: p.cliente_email, clienteTelefono: p.cliente_telefono, clienteIndirizzo: p.cliente_indirizzo,
+    cantiereCitta: p.cantiere_citta ?? p.cliente_citta ?? null,
+      numero: p.code, dataDocumento: p.created_at ?? null,
+      // Il totale vero del documento: senza, «{{preventivo.totale}}» usciva vuoto.
+      totale: totaleDocumento,
+    },
+  ) || null;
+  const righeCondizioni = righeDelleCondizioni(condizioniLegaliTesto ?? "");
+  const clausoleSeconda = clausoleDaApprovare(righeCondizioni);
   const esigenze = (Array.isArray(p.esigenze) ? p.esigenze : []) as SrEsigenza[];
   const soluzione = (Array.isArray(p.soluzione) ? p.soluzione : []) as SrSoluzioneItem[];
   const percheNoi = (Array.isArray(p.perche_noi) ? p.perche_noi : []) as Array<string | { titolo: string; descrizione?: string }>;
@@ -4031,13 +4039,39 @@ export function SerramentoPDF({
                 <Text style={styles.pageSubtitle}>
                   Termini contrattuali e disclaimer applicabili a questo preventivo.
                 </Text>
+                {/* Le condizioni si leggono riga per riga: prima il testo si stampava
+                    com'era, e il cliente vedeva «## Art. 1 — Oggetto». Un articolo per
+                    volta, con il suo titolo; le clausole da approvare vanno nel riquadro
+                    della seconda firma, non ripetute nel testo. */}
                 <View style={{ marginTop: 14 }}>
-                  {condizioniLegaliTesto.split(/\n\n+/).map((para, i) => (
-                    <Text key={i} style={[styles.condizioniText, { marginBottom: 8 }]}>
-                      {para}
-                    </Text>
+                  {perArticoli(righeDaStampare(righeCondizioni, { conRiquadroFirma: clausoleSeconda.length > 0 })).map((gruppo, g) => (
+                    <View key={g} wrap={gruppo.length > 14} minPresenceAhead={36}>
+                      {gruppo.map((r, i) =>
+                        r.tipo === "h1" ? <Text key={i} style={{ fontFamily: FF, fontWeight: 700, fontSize: 11, color: C.ink, marginTop: g === 0 ? 0 : 12, marginBottom: 4 }}>{r.testo}</Text>
+                        : r.tipo === "h2" ? <Text key={i} style={{ fontFamily: FF, fontWeight: 700, fontSize: 9.5, color: C.gray900, marginTop: g === 0 ? 0 : 9, marginBottom: 3 }}>{r.testo}</Text>
+                        : r.tipo === "li" ? <Text key={i} style={[styles.condizioniText, { marginLeft: 10, marginBottom: 2 }]}>{`- ${r.testo}`}</Text>
+                        : <Text key={i} style={[styles.condizioniText, { marginBottom: 5 }]}>{r.testo}</Text>,
+                      )}
+                    </View>
                   ))}
                 </View>
+                {clausoleSeconda.length > 0 ? (
+                  <View wrap={false} style={{ marginTop: 16, borderWidth: 0.8, borderColor: C.gray900, borderStyle: "solid", padding: 12 }}>
+                    <Text style={{ fontFamily: FF, fontWeight: 700, fontSize: 7.5, color: C.gray900, letterSpacing: 1 }}>APPROVAZIONE SPECIFICA (ARTT. 1341 E 1342 C.C.)</Text>
+                    <Text style={[styles.condizioniText, { marginTop: 4, marginBottom: 4 }]}>Il Committente, dopo averle rilette, approva specificamente le clausole seguenti:</Text>
+                    {clausoleSeconda.map((c, i) => (
+                      <Text key={i} style={[styles.condizioniText, { marginLeft: 8 }]}>{`- ${c}`}</Text>
+                    ))}
+                    <View style={{ flexDirection: "row", marginTop: 26 }}>
+                      <View style={{ width: 140, borderTopWidth: 0.6, borderTopColor: C.gray500, paddingTop: 3, marginRight: 16 }}>
+                        <Text style={{ fontFamily: FF, fontSize: 7, color: C.gray500, letterSpacing: 0.8 }}>LUOGO E DATA</Text>
+                      </View>
+                      <View style={{ flex: 1, borderTopWidth: 0.6, borderTopColor: C.gray500, paddingTop: 3 }}>
+                        <Text style={{ fontFamily: FF, fontSize: 7, color: C.gray500, letterSpacing: 0.8 }}>SECONDA FIRMA DEL COMMITTENTE</Text>
+                      </View>
+                    </View>
+                  </View>
+                ) : null}
                 {brandFooterAttivo && brandFooterTesto && (
                   <Text style={styles.brandFooter}>{brandFooterTesto}</Text>
                 )}

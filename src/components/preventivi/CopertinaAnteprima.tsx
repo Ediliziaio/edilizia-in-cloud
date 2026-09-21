@@ -70,7 +70,12 @@ export function CopertinaAnteprimaVista({ modulo, form, maiSalvato = false, logo
   const config = MODULI_EDILI[modulo];
   const modello = leggiModello(form, { progetto: PROGETTO_ESEMPIO, azienda: { colore_marca: kit?.coloreMarca ?? null } });
   const c = modello.copertina;
-  const tema = creaTema({ primario: modello.colorePrimario });
+  const tema = creaTema({ primario: modello.colorePrimario, tipografia: modello.tipografia });
+  // Gli stessi caratteri del PDF, in versione schermo: Times per le grazie,
+  // Helvetica per il lineare. Senza, scegliere «Editoriale» non cambiava l'anteprima.
+  const cssDi = (pdf: string) => (pdf.startsWith("Times") ? '"Times New Roman", Times, serif' : '"Helvetica Neue", Helvetica, Arial, sans-serif');
+  const fontTitolo = cssDi(tema.caratteri.titolo);
+  const fontTesto = cssDi(tema.caratteri.testo);
   const { fondo, testo, evidenza } = coloriCopertina(tema, { fondo: c.coloreFondo, testo: c.coloreTesto });
   const immagine = c.immagineUrl ?? (maiSalvato ? COPERTINA_DI_SERIE[modulo] ?? null : null);
   const opacita = c.opacitaVelo ?? 0.6;
@@ -193,7 +198,7 @@ export function CopertinaAnteprimaVista({ modulo, form, maiSalvato = false, logo
           }}
         >
           <div className="font-bold uppercase" style={{ color: evidenza, fontSize: corpoOcchiello, letterSpacing: "0.28em", marginBottom: "2.2%" }}>{occhiello}</div>
-          <div className="font-bold" style={{ fontSize: corpoTitolo, lineHeight: 1.2, letterSpacing: "-0.022em", maxWidth: "96%" }}>
+          <div className="font-bold" style={{ fontFamily: fontTitolo, fontSize: corpoTitolo, lineHeight: 1.2, letterSpacing: "-0.022em", maxWidth: "96%" }}>
             {spezzaAccento(titolo).map((p, i) =>
               p.accento ? (
                 <em key={i} style={{ fontFamily: "Times New Roman, Times, serif", fontWeight: 400, fontSize: "1.1em", color: evidenza, letterSpacing: "-0.012em" }}>{p.testo}</em>
@@ -202,7 +207,7 @@ export function CopertinaAnteprimaVista({ modulo, form, maiSalvato = false, logo
               ),
             )}
           </div>
-          <div style={{ fontSize: corpoSottotitolo, opacity: 0.86, marginTop: "2.2%", lineHeight: 1.4, maxWidth: "80%" }}>{sottotitolo}</div>
+          <div style={{ fontFamily: fontTesto, fontSize: corpoSottotitolo, opacity: 0.86, marginTop: "2.2%", lineHeight: 1.4, maxWidth: "80%" }}>{sottotitolo}</div>
         </div>
 
         {c.mostraScheda ? (

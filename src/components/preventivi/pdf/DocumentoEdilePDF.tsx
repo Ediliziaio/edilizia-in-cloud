@@ -24,7 +24,7 @@ import {
 import { formatCurrency } from "@/lib/formatters";
 import { htmlToRichBlocks } from "@/lib/ristrutturazione/richTextPdf";
 import { parseFinanziamentoPromo, calcolaRataMensile } from "@/lib/preventivi/finanziamentoLite";
-import { fraseValiditaChiusura, testoValiditaCondizioni } from "@/lib/preventivi/validitaOfferta";
+import { fraseValiditaChiusura } from "@/lib/preventivi/validitaOfferta";
 import { creaTema, coloriCopertina, copertinaInTinta, type TemaDocumento } from "./temaDocumento";
 import { giorniDellaDurata, senzaNumeroDavanti, spezzaAccento } from "./testoDocumento";
 import type {
@@ -66,7 +66,10 @@ function TitoloAccento({ tema, testo, corpo, colore, coloreAccento, allineamento
           // L'interlinea va ripetuta su ogni pezzo: quella del contenitore, coi pezzi annidati, non vale.
           <Text key={i} style={{ fontFamily: tema.caratteri.accento, fontSize: corpo * 1.1, color: coloreAccento, letterSpacing: -corpo * 0.012, lineHeight: interlinea / 1.1 }}>{p.testo}</Text>
         ) : (
-          <Text key={i} style={{ lineHeight: interlinea }}>{p.testo}</Text>
+          // La dimensione va ripetuta anche qui: senza, l'interlinea di un pezzo
+          // annidato si calcola su un carattere di 12 punti, e un titolo di copertina
+          // su quattro righe usciva con le righe una sopra l'altra.
+          <Text key={i} style={{ fontSize: corpo, lineHeight: interlinea }}>{p.testo}</Text>
         ),
       )}
     </Text>
@@ -189,7 +192,9 @@ function Intestazione({ tema, dati }: { tema: TemaDocumento; dati: DocEdileDati 
         {azienda.logoUrl ? (
           <Image src={azienda.logoUrl} style={{ height: 24, maxWidth: 130, objectFit: "contain", objectPositionX: 0 }} />
         ) : (
-          <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 9.5, color: tema.inchiostro, letterSpacing: 0.6 }}>{azienda.nome.toUpperCase()}</Text>
+          // Una riga sola, e mai sopra il blocco a destra: con «Costruzioni Edili
+          // Generali Fratelli Bianchi & Figli S.r.l. Unipersonale» ci finiva sopra.
+          <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 9.5, color: tema.inchiostro, letterSpacing: 0.6, maxWidth: UTILE - 200, maxLines: 1, textOverflow: "ellipsis" }}>{azienda.nome.toUpperCase()}</Text>
         )}
         <View style={{ alignItems: "flex-end" }}>
           <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 6.5, color: tema.inchiostroMarca, letterSpacing: 1.3 }}>
@@ -506,15 +511,26 @@ function perArticoli(
   return gruppi.filter((g) => !/1341|approvare specificamente/i.test(g[0]?.testo ?? ""));
 }
 
+/**
+ * Un indirizzo email è una parola sola: se è lungo non va a capo e sborda dal
+ * riquadro. Lo si spezza prima della chiocciola, dove si legge ancora bene.
+ */
+function emailACapo(email: string | null): string | null {
+  if (!email || email.length <= 30 || !email.includes("@")) return email;
+  const [nome, dominio] = email.split("@");
+  return `${nome}\n@${dominio}`;
+}
+
 /** Una riga da firmare: filetto e, sotto, che cosa ci va scritto. */
-function LineaFirma({ tema, etichetta, larghezza, altezza = 34 }: {
-  tema: TemaDocumento; etichetta: string; larghezza?: number; altezza?: number;
+function LineaFirma({ tema, etichetta, chi, larghezza, altezza = 34 }: {
+  tema: TemaDocumento; etichetta: string; chi?: string; larghezza?: number; altezza?: number;
 }) {
   return (
     <View style={{ width: larghezza, flex: larghezza ? undefined : 1 }}>
       <View style={{ height: altezza }} />
       <View style={{ borderTopWidth: 0.7, borderTopColor: tema.inchiostro, paddingTop: 4 }}>
         <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 7, color: tema.grigio, letterSpacing: 0.9 }}>{etichetta}</Text>
+        {chi ? <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 7.5, color: tema.inchiostro, marginTop: 2, maxLines: 1, textOverflow: "ellipsis" }}>{chi}</Text> : null}
       </View>
     </View>
   );
@@ -955,7 +971,9 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
           <View style={{ marginHorizontal: -MARGINE, marginTop: 16, backgroundColor: tema.fondo, paddingHorizontal: MARGINE, paddingVertical: 22, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
             <View>
               <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 7.5, color: tema.bianco, letterSpacing: 1.8 }}>IL TUO INVESTIMENTO</Text>
-              <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 9, color: tema.bianco, opacity: 0.82, marginTop: 4 }}>{`IVA ${percento(totali.ivaPct)} inclusa`}</Text>
+              <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 9, color: tema.bianco, opacity: 0.82, marginTop: 4 }}>
+                {`IVA ${percento(totali.ivaPct)} inclusa${modello.giorniValidita && modello.giorniValidita > 0 ? ` · offerta valida ${modello.giorniValidita} giorni` : ""}`}
+              </Text>
             </View>
             <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 32, color: tema.bianco, letterSpacing: -0.6, paddingRight: 7 }}>{formatCurrency(totali.totale)}</Text>
           </View>
@@ -995,20 +1013,18 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
           </View>
         ) : null}
 
-        <View style={{ flexDirection: "row", marginTop: 24 }}>
-          {modello.pagamentoHtml ? (
-            <View style={{ flex: 1.3, paddingRight: 18 }}>
+        {/* La validità sta nella fascia del prezzo, nei prossimi passi e nella pagina
+            della firma. Qui, in una colonna sua, con un computo lungo il titolo
+            restava in fondo alla pagina e la sua frase finiva da sola su un foglio
+            bianco. Le modalità di pagamento non si staccano dal loro titolo. */}
+        {modello.pagamentoHtml ? (
+          <View style={{ marginTop: 24 }}>
+            <View minPresenceAhead={48}>
               <TitolinoSezione tema={tema} testo="Modalità di pagamento" />
-              <TestoRicco tema={tema} html={modello.pagamentoHtml} stile={{ fontFamily: tema.caratteri.testo, fontSize: 9.5, color: tema.inchiostro, lineHeight: 1.5 }} />
             </View>
-          ) : null}
-          <View style={{ flex: 1 }}>
-            <TitolinoSezione tema={tema} testo="Validità dell'offerta" />
-            <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 9.5, color: tema.inchiostro, lineHeight: 1.5 }}>
-              {testoValiditaCondizioni(modello.testoValidita, modello.giorniValidita)}
-            </Text>
+            <TestoRicco tema={tema} html={modello.pagamentoHtml} stile={{ fontFamily: tema.caratteri.testo, fontSize: 9.5, color: tema.inchiostro, lineHeight: 1.5 }} />
           </View>
-        </View>
+        ) : null}
       </Page>
 
       {/* ─── Garanzie e domande · i prossimi passi ─────────────────────────── */}
@@ -1058,7 +1074,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
             <View style={{ flex: 1, backgroundColor: tema.cartaCalda, padding: 14, marginRight: 12 }}>
               <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 7, color: tema.inchiostroMarca, letterSpacing: 1.4, marginBottom: 7 }}>I NOSTRI CONTATTI</Text>
               <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 10.5, color: tema.inchiostro, marginBottom: 4 }}>{dati.azienda.nome}</Text>
-              {[dati.azienda.telefono, dati.azienda.email, dati.azienda.indirizzo].filter(Boolean).map((r, i) => (
+              {[dati.azienda.telefono, emailACapo(dati.azienda.email), dati.azienda.indirizzo].filter(Boolean).map((r, i) => (
                 <Text key={i} style={{ fontFamily: tema.caratteri.testo, fontSize: 9, color: tema.grigio, lineHeight: 1.5 }}>{r}</Text>
               ))}
             </View>
@@ -1143,9 +1159,9 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
           <View wrap={false} style={{ flexDirection: "row", marginTop: 18 }}>
             <LineaFirma tema={tema} etichetta="LUOGO E DATA" larghezza={150} />
             <View style={{ width: 16 }} />
-            <LineaFirma tema={tema} etichetta={`PER L'IMPRESA · ${dati.azienda.nome.toUpperCase()}`.slice(0, 44)} />
+            <LineaFirma tema={tema} etichetta="PER L'IMPRESA" chi={dati.azienda.nome} />
             <View style={{ width: 16 }} />
-            <LineaFirma tema={tema} etichetta="FIRMA DEL COMMITTENTE" />
+            <LineaFirma tema={tema} etichetta="FIRMA DEL COMMITTENTE" chi={dati.cliente} />
           </View>
 
           {modello.clausoleDaApprovare.length > 0 ? (

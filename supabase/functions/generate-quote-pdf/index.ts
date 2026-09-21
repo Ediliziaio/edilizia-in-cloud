@@ -7,6 +7,7 @@ import qrcode from "https://esm.sh/qrcode-generator@1.4.4?target=deno";
 import { fondoPerTestoBianco, scurisci, schiarisci, testoSuScuro, normalizzaHex } from "../_shared/temaColori.ts";
 import { loadTemplateWithBlocks, attachLinkedBlocks, applyMergeTagsToTemplate, buildMergeContext, substituteMergeTags, type ComposedTemplate } from "../_shared/quoteTemplateComposer.ts";
 import { condizioniStandard } from "../_shared/condizioniStandard.ts";
+import { testoPerPdf } from "../_shared/testoPerPdf.ts";
 
 // ─── Helpers ───
 function hexToRgb(hex: string) {
@@ -102,8 +103,11 @@ const FORMATO_QUANTITA = new Intl.NumberFormat("it-IT", {
 // arrivano spesso con emoji, frecce o simboli matematici: un solo carattere
 // fuori set fa lanciare drawText e fallire l'INTERO preventivo.
 function winAnsiSafe(str: string): string {
+  // Prima si traduce quello che ha un equivalente (la freccia diventa un
+  // trattino, «Ivić» diventa «Ivic»): prima sparivano, e «30% → 40%» usciva
+  // «30%  40%». Poi il filtro stretto di sempre, che tiene in piedi il PDF.
   // eslint-disable-next-line no-control-regex
-  return String(str).replace(/[^\x20-\x7E\xA0-\xFF‘’“”–—…€]/g, "");
+  return testoPerPdf(String(str)).replace(/[^\x20-\x7E\xA0-\xFF‘’“”–—…€]/g, "");
 }
 
 function wrapText(text: string, maxChars: number): string[] {
@@ -1664,7 +1668,19 @@ Deno.serve(async (req) => {
         }
 
         // Riquadri firma
-        newPageIfNeeded(110);
+        newPageIfNeeded(126);
+        // La firma vale anche per le condizioni che seguono: va detto qui, dove
+        // si firma, non solo nelle pagine allegate.
+        const conCondizioni = Boolean(
+          normalizeTemplateText(t.contractual_terms_text) || normalizeTemplateText(t.legal_terms_text)
+          || (t.show_contractual_terms !== false && opzione("pdf_mostra_condizioni")),
+        );
+        if (conCondizioni) {
+          page.drawText(winAnsiSafe("Con la firma il Cliente accetta il preventivo e le condizioni generali di contratto allegate."), {
+            x: margin, y: y - 2, size: 7.8, font: fontItalic, color: grayC, maxWidth: contentWidth,
+          });
+          y -= 16;
+        }
         const sigW = (contentWidth - 14) / 2;
         const sigH = 66;
         const sigBox = (x: number, label: string) => {

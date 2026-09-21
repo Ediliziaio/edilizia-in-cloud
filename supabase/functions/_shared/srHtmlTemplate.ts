@@ -12,6 +12,7 @@
  *  4. Firma online — render, prossimi passi, link pubblico
  */
 import { mescola, normalizzaHex, schiarisci, scurisci, testoSuChiaro } from "./temaColori.ts";
+import { clausoleDaApprovare, righeDaStampare, righeDelleCondizioni } from "./condizioniStandard.ts";
 
 export interface SrPdfData {
   // Progetto
@@ -232,7 +233,12 @@ function totalPages(d: SrPdfData): number {
  */
 function renderPaginaCondizioni(d: SrPdfData, page: number, total: number): string {
   if (!haCondizioni(d)) return "";
-  const righe = String(d.condizioni_legali_testo).replace(/\r\n/g, "\n").split("\n");
+  // Le clausole da approvare a parte vanno nel riquadro della seconda firma,
+  // non ripetute nel testo (stessa regola dei PDF).
+  const tutte = righeDelleCondizioni(String(d.condizioni_legali_testo));
+  const clausole = clausoleDaApprovare(tutte);
+  const righe = righeDaStampare(tutte, { conRiquadroFirma: clausole.length > 0 })
+    .map((r) => (r.tipo === "h1" ? `# ${r.testo}` : r.tipo === "h2" ? `## ${r.testo}` : r.tipo === "li" ? `- ${r.testo}` : r.testo));
   const html: string[] = [];
   let inLista = false;
   const chiudiLista = () => { if (inLista) { html.push("</ul>"); inLista = false; } };
@@ -253,6 +259,13 @@ function renderPaginaCondizioni(d: SrPdfData, page: number, total: number): stri
       <p class="overline">CONDIZIONI</p>
       <h1 class="page-title">Condizioni contrattuali e termini legali</h1>
       <div class="cond-body">${html.join("\n")}</div>
+      ${clausole.length > 0 ? `
+      <div class="cond-firma">
+        <p class="cond-firma-titolo">Approvazione specifica (artt. 1341 e 1342 c.c.)</p>
+        <p class="paragraph cond-p">Il Committente, dopo averle rilette, approva specificamente le clausole seguenti:</p>
+        <ul class="cond-list">${clausole.map((c) => `<li>${esc(c)}</li>`).join("")}</ul>
+        <div class="cond-righe"><div><span>Luogo e data</span></div><div><span>Seconda firma del Committente</span></div></div>
+      </div>` : ""}
     </main>
     ${renderFooter(d, page, total)}
   </section>
@@ -969,6 +982,11 @@ html, body { background: #f5f6f8; font-family: -apple-system, "Segoe UI", Roboto
   .page:last-child { page-break-after: auto; }
 }
 
+.cond-firma { border: 1px solid #1e293b; border-radius: 4px; padding: 12px 14px; margin-top: 14px; break-inside: avoid; }
+.cond-firma-titolo { font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700; color: #1e293b; margin-bottom: 4px; }
+.cond-righe { display: grid; grid-template-columns: 1fr 1.6fr; gap: 16px; margin-top: 28px; }
+.cond-righe div { border-top: 1px solid #94a3b8; padding-top: 3px; }
+.cond-righe span { font-size: 8px; letter-spacing: 0.06em; text-transform: uppercase; color: #64748b; }
 @page { size: A4; margin: 0; }
 `;
 

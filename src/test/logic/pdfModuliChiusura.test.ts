@@ -63,7 +63,9 @@ describe("chiusura nel documento edile condiviso", () => {
 
   it("la validità viene dal modello, mai da un numero scritto a mano", () => {
     expect(src).toContain("fraseValiditaChiusura(modello.testoValidita, modello.giorniValidita)");
-    expect(src).toContain("testoValiditaCondizioni(modello.testoValidita, modello.giorniValidita)");
+    // Dal 21/09/2026 la validità sta anche nella fascia del prezzo (non più in una
+    // colonna sua, che con un computo lungo finiva da sola su una pagina bianca).
+    expect(src).toContain("offerta valida ${modello.giorniValidita} giorni");
     expect(src).not.toContain("Preventivo valido 30 giorni");
   });
 

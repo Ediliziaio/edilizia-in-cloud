@@ -13,6 +13,7 @@ import { renderTemplateText, buildStandardReplacements } from "@/lib/pdf/renderT
 import { coloreDelDocumento as coloreDocumento } from "../../../../supabase/functions/_shared/temaColori";
 import { condizioniStandard, type SettoreCondizioni } from "@/lib/condizioniStandard";
 import { tipografiaDaModello } from "./temaDocumento";
+import { testiPerPdf } from "../../../../supabase/functions/_shared/testoPerPdf";
 import type {
   DocEdileCapitolo, DocEdileDati, DocEdileFoto, DocEdileModello, DocEdileModulo,
   DocEdileOpzioniComputo, DocEdileTotali, DocEdileVoceElenco, DocEdileFaq, DocEdileFase,
@@ -295,7 +296,10 @@ export function costruisciDatiEdile(input: {
     .filter((r): r is { etichetta: string; valore: string } => Boolean(stringa(r.valore)));
 
   const oc = input.opzioniComputo ?? {};
-  return {
+  // Tutti i testi passano dal filtro dei caratteri stampabili: Helvetica conosce
+  // solo l'alfabeto WinAnsi, e una freccia o un'emoji incollate dall'azienda
+  // uscivano come caratteri a caso (e in copertina si mangiavano il resto del titolo).
+  return testiPerPdf({
     modulo,
     codice: p.code,
     cliente: [p.cliente_nome, p.cliente_cognome].filter(Boolean).join(" ").trim() || "Gentile Cliente",
@@ -326,5 +330,5 @@ export function costruisciDatiEdile(input: {
       mostraSubtotali: oc.mostraSubtotali !== false,
     },
     mostraFinanziamento: p.mostra_finanziamento !== false,
-  };
+  });
 }

@@ -1839,7 +1839,7 @@ function condizioniInBlocchi(testo: string): { blocchi: string[]; clausole: stri
 
 /** Quanti articoli stanno in una pagina: misura a occhio sui caratteri, due colonne. */
 function impaginaCondizioni(blocchi: string[], spazioPerLaFirma: boolean): string[][] {
-  const PIENA = 3600;
+  const PIENA = 6400;
   const pagine: string[][] = [];
   let corrente: string[] = [];
   let quanti = 0;
