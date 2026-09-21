@@ -111,9 +111,15 @@ export default function StepPdf({ progetto, computo, media }: Props) {
           costo_materiali: v.costo_materiali,
           costo_manodopera: v.costo_manodopera,
         })),
-        { sconto_pct: Number(progetto.sconto_pct) || 0, iva_pct: Number(progetto.iva_pct ?? 10) },
+        {
+          sconto_pct: Number(progetto.sconto_pct) || 0,
+          iva_pct: Number(progetto.iva_pct ?? 10),
+          // Il prezzo scritto a mano in Economia: senza, anteprima e firma
+          // partivano dalle righe a 0 € e l'invio si bloccava su «totale 0».
+          prezzo_manuale: progetto.prezzo_manuale ?? null,
+        },
       ),
-    [computo, progetto.sconto_pct, progetto.iva_pct],
+    [computo, progetto.sconto_pct, progetto.iva_pct, progetto.prezzo_manuale],
   );
 
   const numCapitoli = totali.perCapitolo.length;
@@ -255,9 +261,13 @@ export default function StepPdf({ progetto, computo, media }: Props) {
                             · {c.voci} {c.voci === 1 ? "voce" : "voci"}
                           </span>
                         </span>
-                        <span className="shrink-0 font-medium tabular-nums text-slate-900">
-                          {formatCurrency(c.imponibile)}
-                        </span>
+                        {/* Col prezzo scritto a mano le righe possono essere a 0 €:
+                            l'importo per capitolo non si mostra, come nel PDF. */}
+                        {!totali.prezzoManuale && (
+                          <span className="shrink-0 font-medium tabular-nums text-slate-900">
+                            {formatCurrency(c.imponibile)}
+                          </span>
+                        )}
                       </div>
                     ))}
                   </div>

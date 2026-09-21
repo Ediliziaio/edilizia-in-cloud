@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { calcolaTotale, IVA_MISTA_SENTINEL } from "@/lib/serramenti/calcoli";
 import { totaliDelPreventivo } from "@/lib/serramenti/righePreventivo";
-import { calcTotaliComputo } from "@/lib/ristrutturazione/calcoli";
+import { calcTotaliComputo as calcRistrutturazione } from "@/lib/ristrutturazione/calcoli";
+import { calcTotaliComputo as calcBagni } from "@/lib/bagni/calcoli";
+import { calcTotaliComputo as calcTetti } from "@/lib/tetti/calcoli";
+import { calcTotaliComputo as calcClimatizzazione } from "@/lib/climatizzazione/calcoli";
+import { calcTotaliComputo as calcElettrico } from "@/lib/elettrico/calcoli";
+import { calcTotaliComputo as calcTermoidraulico } from "@/lib/termoidraulico/calcoli";
+import { calcTotaliComputo as calcPavimenti } from "@/lib/pavimenti/calcoli";
+import { calcTotaliComputo as calcPiscine } from "@/lib/piscine/calcoli";
 import { prezzoDaTesto } from "@/lib/preventivi/prezzoAMano";
 import type { SrAccessorioRow, SrSerramentoRow, SrServizioRow } from "@/types/serramenti";
 
@@ -111,7 +118,20 @@ describe("Il prezzo del preventivo scritto a mano", () => {
   });
 });
 
-describe("Il prezzo scritto a mano nei moduli edili (ristrutturazione)", () => {
+// Gli otto moduli edili hanno ciascuno la propria copia di calcTotaliComputo:
+// le stesse prove girano su tutte, così una copia rimasta indietro si vede.
+const MODULI_EDILI = [
+  ["ristrutturazione", calcRistrutturazione],
+  ["bagni", calcBagni],
+  ["tetti", calcTetti],
+  ["climatizzazione", calcClimatizzazione],
+  ["elettrico", calcElettrico],
+  ["termoidraulico", calcTermoidraulico],
+  ["pavimenti", calcPavimenti],
+  ["piscine", calcPiscine],
+] as const;
+
+describe.each(MODULI_EDILI)("Il prezzo scritto a mano nei moduli edili (%s)", (_modulo, calcTotaliComputo) => {
   const riga = (capitolo: string, extra: Partial<{ quantita: number; prezzo_unitario: number; sconto_pct: number; costo_materiali: number; costo_manodopera: number }> = {}) => ({
     capitolo_nome: capitolo, quantita: 1, prezzo_unitario: 0, sconto_pct: 0, costo_materiali: 0, costo_manodopera: 0, ...extra,
   });
@@ -150,8 +170,10 @@ describe("Il prezzo scritto a mano nei moduli edili (ristrutturazione)", () => {
       expect(t.totale).toBeCloseTo(prima.totale, 6);
     }
   });
+});
 
-  it("il campo legge il numero scritto: vuoto, zero o testo = nessun prezzo", () => {
+describe("Il campo del prezzo", () => {
+  it("legge il numero scritto: vuoto, zero o testo = nessun prezzo", () => {
     expect(prezzoDaTesto("8000")).toBe(8000);
     expect(prezzoDaTesto(" 8500,5 ")).toBe(8500.5);
     expect(prezzoDaTesto("1234.567")).toBe(1234.57);

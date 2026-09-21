@@ -30,6 +30,12 @@ export interface EleProgetto {
   /** Rata finanziamento nel PDF: null=segui template, false=nascondi, true=mostra. */
   mostra_finanziamento?: boolean | null;
   sconto_pct: number; iva_pct: number; detrazione_pct: number;
+  /**
+   * Prezzo pieno scritto a mano, IVA esclusa: sostituisce la somma delle righe
+   * del computo; sconto e IVA si calcolano sopra. Null = somma delle righe. Si
+   * scrive solo se l'azienda l'ha acceso (preventivo_impostazioni.prezzo_finale_a_mano).
+   */
+  prezzo_manuale?: number | null;
   totale_imponibile: number; totale: number; note: string | null;
 }
 export interface EleProgettoMedia { id: string; progetto_id: string; company_id: string; tipo: string; url: string; caption: string | null; ordine: number; }
