@@ -4,6 +4,8 @@
  * Sprint B — Varianti Costo Manodopera.
  *
  * Flow:
+ *   0. fetch quotes.prezzo_manuale/subtotal/discount_amount (ricavo aggregato
+ *      reale quando il prezzo è scritto a mano — 21/09/2026)
  *   1. fetch quote_items del preventivo
  *   2. fetch assegnazioni manodopera (costo bloccato per riga)
  *   3. fetch tariffe_aziendali correlate (per costo_default e varianti default)
@@ -46,6 +48,12 @@ interface TariffaLite {
   prezzo_vendita: number | null;
 }
 
+interface QuoteRicavoManuale {
+  prezzo_manuale: number | null;
+  subtotal: number | null;
+  discount_amount: number | null;
+}
+
 /**
  * Classifica se una riga è "assegnabile" a una variante costo manodopera.
  * Sono assegnabili solo le righe con tariffa_id valorizzato e non di tipo
@@ -73,6 +81,7 @@ export function computeBreakdown(
   assegnazioni: PreventivoManodoperaAssegnazione[],
   tariffe: TariffaLite[],
   varianteDefaultByTariffa: Record<string, TariffaCostoVariante | null>,
+  quoteRicavo?: QuoteRicavoManuale | null,
 ): MargineBreakdown {
   const asgByItemId = new Map<string, PreventivoManodoperaAssegnazione>();
   for (const a of assegnazioni) asgByItemId.set(a.quote_item_id, a);
@@ -168,17 +177,30 @@ export function computeBreakdown(
       ? "parziale"
       : "stimato";
 
-  const margineTotEuro = totaleVendita - totaleCosto;
-  const margineTotPct = totaleVendita > 0 ? (margineTotEuro / totaleVendita) * 100 : 0;
+  // Prezzo scritto a mano (21/09/2026): con le righe a 0€ la somma sopra
+  // direbbe "margine -100%" su un preventivo che invece va benissimo. Per
+  // l'AGGREGATO il ricavo vero è quello autoritativo salvato su quotes
+  // (subtotal - discount_amount), stessa fonte/filosofia di
+  // QuoteQuickViewSheet.tsx e calcolaTotaliPreventivo(). Il dettaglio per riga
+  // NON cambia: resta a 0€, è un limite noto dello strumento (assegna il
+  // costo manodopera riga per riga, non il ricavo).
+  const prezzoManualeAttivo = Number(quoteRicavo?.prezzo_manuale ?? 0) > 0;
+  const totaleVenditaEffettivo = prezzoManualeAttivo
+    ? Number(quoteRicavo?.subtotal ?? 0) - Number(quoteRicavo?.discount_amount ?? 0)
+    : totaleVendita;
+
+  const margineTotEuro = totaleVenditaEffettivo - totaleCosto;
+  const margineTotPct = totaleVenditaEffettivo > 0 ? (margineTotEuro / totaleVenditaEffettivo) * 100 : 0;
 
   return {
     quote_id: items[0]?.quote_id ?? "",
     righe,
-    totale_vendita: totaleVendita,
+    totale_vendita: totaleVenditaEffettivo,
     totale_costo: totaleCosto,
     margine_totale_euro: margineTotEuro,
     margine_totale_pct: margineTotPct,
     stato_completezza,
+    prezzo_manuale_attivo: prezzoManualeAttivo,
   };
 }
 
@@ -193,6 +215,15 @@ export function useMargineBreakdown(quoteId: string | null | undefined) {
     queryKey: ["margine-breakdown", quoteId, canView],
     enabled: !!quoteId && canView,
     queryFn: async () => {
+      // 0. Quote — ricavo autoritativo, serve solo se prezzo_manuale è attivo
+      // (vedi QuoteQuickViewSheet.tsx, stessa query/logica).
+      const { data: quoteRicavo, error: quoteErr } = await supabase
+        .from("quotes")
+        .select("prezzo_manuale, subtotal, discount_amount")
+        .eq("id", quoteId!)
+        .maybeSingle();
+      if (quoteErr) throw new Error(quoteErr.message);
+
       // 1. Quote items
       const { data: itemsData, error: itemsErr } = await supabase
         .from("quote_items")
@@ -245,7 +276,7 @@ export function useMargineBreakdown(quoteId: string | null | undefined) {
         }
       }
 
-      return computeBreakdown(items, assegnazioni, tariffe, varianteDefaultByTariffa);
+      return computeBreakdown(items, assegnazioni, tariffe, varianteDefaultByTariffa, quoteRicavo);
     },
     staleTime: 30 * 1000,
   });
