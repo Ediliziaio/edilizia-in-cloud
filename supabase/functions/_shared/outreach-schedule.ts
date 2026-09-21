@@ -9,6 +9,20 @@ export interface SendWindow {
   startHour: number;  // incluso
   endHour: number;    // escluso
   timeZone: string;
+  /**
+   * Chiusura anticipata di alcuni giorni (0=Dom … 6=Sab → ora di fine, esclusa),
+   * es. `{ 6: 13 }` = il sabato si spedisce solo fino alle 13. Il titolare,
+   * 21/09/2026: «le email di Marketing Edile e Edilizia in Cloud non devono
+   * partire il sabato pomeriggio e la domenica». Un giorno senza voce chiude
+   * a `endHour`; la voce può solo anticipare la chiusura, non allungarla.
+   */
+  endHourByDay?: Partial<Record<number, number>>;
+}
+
+/** L'ora (esclusa) a cui chiude un giorno della settimana: la sua, se anticipa, sennò `endHour`. */
+export function fineDelGiorno(w: SendWindow, weekday: number): number {
+  const f = w.endHourByDay?.[weekday];
+  return typeof f === "number" && f > w.startHour && f < w.endHour ? f : w.endHour;
 }
 
 export const DEFAULT_SEND_WINDOW: SendWindow = {
@@ -61,11 +75,41 @@ export function finestraDelBrand(raw: unknown): SendWindow {
   return parseSendWindow(raw);
 }
 
+/**
+ * Porta un orario nel primo giorno che la finestra del brand ammette, alla
+ * stessa ora. I follow-up saltavano SEMPRE sabato e domenica
+ * (`spostaFuoriWeekend`, del 02/09/2026, quando la finestra era lun–ven per
+ * tutti). Poi la finestra è passata al brand: Marketing Edile ed Edilizia in
+ * Cloud spediscono tutti i giorni, ThermoDMR lun–sab. I primi contatti
+ * partivano anche nel weekend, i richiami no, e il lunedì se li trovava tutti
+ * insieme: il 21/09/2026 tre giorni di richiami nello stesso giorno, e ogni
+ * passo della sequenza allungato di uno o due giorni.
+ * Un brand senza finestra propria resta lun–ven, come prima.
+ */
+export function spostaNeiGiorniDellaFinestra(d: Date, w: SendWindow = DEFAULT_SEND_WINDOW): Date {
+  if (!w.days.length) return d;
+  let esito = d;
+  // Un giorno che chiude prima (il sabato fino alle 13): dopo la chiusura la
+  // riga va al primo giorno buono alla stessa ora, invece di aspettare lì e
+  // partire il lunedì alle 7 insieme a tutte le altre. Negli altri giorni un
+  // orario fuori dalla finestra resta com'è, come prima: decide il controllo
+  // all'invio.
+  for (let i = 0; i < 8; i++) {
+    const { weekday } = localParts(esito, w.timeZone);
+    const giornoNo = !w.days.includes(weekday);
+    const chiudePrima = fineDelGiorno(w, weekday) < w.endHour;
+    const dopoLaChiusura = chiudePrima && minutoDelGiorno(esito, w.timeZone) >= fineDelGiorno(w, weekday) * 60;
+    if (!giornoNo && !dopoLaChiusura) break;
+    esito = new Date(esito.getTime() + 86_400_000);
+  }
+  return esito;
+}
+
 /** True se l'istante cade nella finestra (giorno consentito e ora tra start e end). */
 export function isWithinSendWindow(date: Date, w: SendWindow = DEFAULT_SEND_WINDOW): boolean {
   const { hour, weekday } = localParts(date, w.timeZone);
   if (!w.days.includes(weekday)) return false;
-  return hour >= w.startHour && hour < w.endHour;
+  return hour >= w.startHour && hour < fineDelGiorno(w, weekday);
 }
 
 /**
@@ -94,11 +138,26 @@ export function parseSendWindow(raw: unknown): SendWindow {
   const tz = typeof o.timeZone === "string" && o.timeZone.trim() ? o.timeZone : DEFAULT_SEND_WINDOW.timeZone;
 
   const valid = sh < eh;
+  const inizio = valid ? sh : DEFAULT_SEND_WINDOW.startHour;
+  const fine = valid ? eh : DEFAULT_SEND_WINDOW.endHour;
+  // Chiusure anticipate: chiavi 0-6 (nel JSON sono stringhe), ore intere che
+  // cadono DENTRO la giornata. Le altre si scartano: meglio il giorno intero
+  // che un giorno chiuso per un valore scritto male.
+  const perGiorno: Partial<Record<number, number>> = {};
+  if (o.endHourByDay && typeof o.endHourByDay === "object" && !Array.isArray(o.endHourByDay)) {
+    for (const [k, v] of Object.entries(o.endHourByDay as Record<string, unknown>)) {
+      const g = Number(k);
+      if (Number.isInteger(g) && g >= 0 && g <= 6 && typeof v === "number" && Number.isInteger(v) && v > inizio && v < fine) {
+        perGiorno[g] = v;
+      }
+    }
+  }
   return {
     days: days.length ? days : DEFAULT_SEND_WINDOW.days,
-    startHour: valid ? sh : DEFAULT_SEND_WINDOW.startHour,
-    endHour: valid ? eh : DEFAULT_SEND_WINDOW.endHour,
+    startHour: inizio,
+    endHour: fine,
     timeZone: tz,
+    ...(Object.keys(perGiorno).length ? { endHourByDay: perGiorno } : {}),
   };
 }
 
@@ -146,8 +205,9 @@ export function orarioFollowUp(
   const tz = finestra.timeZone;
   const inizio = finestra.startHour * 60;
   // L'ultimo quarto d'ora resta fuori: un invio programmato alle 18:58 rischia di
-  // non trovare più un giro utile e di scivolare al mattino dopo.
-  const fine = finestra.endHour * 60 - 15;
+  // non trovare più un giro utile e di scivolare al mattino dopo. La chiusura è
+  // quella del giorno del follow-up (il sabato può chiudere alle 13).
+  const fine = fineDelGiorno(finestra, localParts(giorno, tz).weekday) * 60 - 15;
   const prev = minutoDelGiorno(precedente, tz);
   const prima: [number, number] = [inizio, Math.min(fine, prev - minimo)];
   const dopo: [number, number] = [Math.max(inizio, prev + minimo), fine];

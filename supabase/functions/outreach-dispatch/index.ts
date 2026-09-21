@@ -22,10 +22,10 @@ import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { assignSenders, cadenzaCasella, dailyCapWithVariance, remainingToday, sentToday, type Assignment, type SenderState, statoPerPrimiContatti, unaAssegnazionePerCasella, unaEmailPerDestinatario } from "../_shared/outreach-dispatch-logic.ts";
 import { componiCorpo, haFraseUscita } from "../_shared/outreach-uscita.ts";
 import { renderTemplate, contactToVars, hashSeed, htmlToPlainText } from "../_shared/outreach-template.ts";
-import { DEFAULT_SEND_WINDOW, finestraDelBrand, isWithinSendWindow, minutoDelGiorno, orarioFollowUp, orarioTroppoVicino, type SendWindow } from "../_shared/outreach-schedule.ts";
+import { DEFAULT_SEND_WINDOW, finestraDelBrand, fineDelGiorno, isWithinSendWindow, localParts, minutoDelGiorno, orarioFollowUp, orarioTroppoVicino, spostaNeiGiorniDellaFinestra, type SendWindow } from "../_shared/outreach-schedule.ts";
 import { classificaRifiuto } from "../_shared/outreach-bounce.ts";
 import { parseVariants, pickVariant } from "../_shared/outreach-abz.ts";
-import { nextEmailStep, computeStepSchedule, applyJitter, spostaFuoriWeekend, ritardoDalPrecedente, type SeqStep } from "../_shared/outreach-sequence.ts";
+import { nextEmailStep, computeStepSchedule, applyJitter, ritardoDalPrecedente, type SeqStep } from "../_shared/outreach-sequence.ts";
 import {
   isGraphSequence,
   entryNode,
@@ -227,7 +227,8 @@ async function enqueuePlanned(
   const orario = Math.trunc(delayDays ?? 0) >= 1
     ? orarioFollowUp(when, baseAt, finestra, Math.random())
     : applyJitter(when, 90, Math.random(), { minMinutes: 2, stepSeconds: 1 });
-  const whenJ = spostaFuoriWeekend(orario).toISOString();
+  // I giorni sono quelli della finestra del brand, non lun–ven per tutti.
+  const whenJ = spostaNeiGiorniDellaFinestra(orario, finestra).toISOString();
   // Canale della riga = canale del nodo d'invio (email/whatsapp/sms). Le righe
   // 'advance' (wait) restano sul canale 'email' (riga di solo instradamento, non
   // spedita: il CHECK su channel è soddisfatto, il pass advance le pesca per kind).
@@ -347,7 +348,8 @@ async function advanceEnrollment(
   const orario = rit.giorni >= 1
     ? orarioFollowUp(when, sentAt, finestra, Math.random())
     : applyJitter(when, 90, Math.random(), { minMinutes: 2, stepSeconds: 1 });
-  const whenJ = spostaFuoriWeekend(orario).toISOString();
+  // I giorni sono quelli della finestra del brand, non lun–ven per tutti.
+  const whenJ = spostaNeiGiorniDellaFinestra(orario, finestra).toISOString();
   await supabase.from("outreach_send_queue").insert({
     company_id: PLATFORM_COMPANY,
     enrollment_id: enr.id,
@@ -1061,7 +1063,8 @@ serveConMetricheRapida("outreach-dispatch", async (req) => {
       // invio (vedi cadenzaCasella). Una casella non ancora "pronta" salta il
       // giro, anche se in coda c'è altro da mandare.
       const fin = finestraDelBrand(brandById.get(brand)?.send_window);
-      const minutiFinestra = (fin.endHour - fin.startHour) * 60;
+      // La giornata di oggi: il sabato può chiudere prima (endHourByDay).
+      const minutiFinestra = (fineDelGiorno(fin, localParts(now, fin.timeZone).weekday) - fin.startHour) * 60;
       const minutiDallApertura = minutoDelGiorno(now, fin.timeZone) - fin.startHour * 60;
       const pronte = new Set(brandSenders.filter((s) => {
         const ultimo = (s as SenderState & { last_sent_at?: string | null }).last_sent_at;

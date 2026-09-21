@@ -49,17 +49,6 @@ export function nonEmailStepCount(steps: SeqStep[]): number {
  * La finestra di invio è applicata a valle dal dispatcher.
  */
 /**
- * Se la data cade di sabato o domenica (fuso dato) la sposta al lunedi' alla
- * stessa ora: un follow-up "dopo 3 giorni" che scade nel weekend non deve
- * accumularsi e partire a raffica alle 8 di lunedi' insieme a tutti gli altri.
- */
-export function spostaFuoriWeekend(d: Date, timeZone = "Europe/Rome"): Date {
-  const wd = new Intl.DateTimeFormat("en-US", { timeZone, weekday: "short" }).format(d);
-  const salto = wd === "Sat" ? 2 : wd === "Sun" ? 1 : 0;
-  return salto ? new Date(d.getTime() + salto * 86_400_000) : d;
-}
-
-/**
  * Ritardo tra due step di una sequenza LINEARE, da contare dall'invio reale
  * del precedente. I delay_days/delay_hours degli step lineari sono CUMULATIVI
  * dall'iscrizione — così li mostra e li salva l'editor («giorno 0, 3, 7…») e

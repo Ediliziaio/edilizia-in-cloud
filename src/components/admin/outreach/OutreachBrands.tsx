@@ -31,13 +31,22 @@ interface Brand {
   /** Stile umano: il motore aggiunge «rispondi no e non ti scrivo più» alle email che non hanno una via d'uscita. False = mai. */
   frase_uscita_automatica?: boolean | null;
 }
-/** Finestra di invio del brand. 0=Dom … 6=Sab. Senza una sua il brand spedisce lun–ven 8–19. */
-interface Finestra { days: number[]; startHour: number; endHour: number; timeZone: string }
+/**
+ * Finestra di invio del brand. 0=Dom … 6=Sab. Senza una sua il brand spedisce lun–ven 8–19.
+ * `endHourByDay` anticipa la chiusura di un giorno (chiavi "0"-"6"): { "6": 13 } = il sabato solo la mattina.
+ */
+interface Finestra { days: number[]; startHour: number; endHour: number; timeZone: string; endHourByDay?: Record<string, number> }
 const GIORNI: Array<[number, string]> = [[1, "Lun"], [2, "Mar"], [3, "Mer"], [4, "Gio"], [5, "Ven"], [6, "Sab"], [0, "Dom"]];
+/** Il sabato chiude prima? L'ora, se è dentro la giornata; sennò null (sabato intero). */
+function chiusuraSabato(f: Finestra): number | null {
+  const h = f.endHourByDay?.["6"];
+  return typeof h === "number" && h > f.startHour && h < f.endHour ? h : null;
+}
 function descriviFinestra(f: Finestra | null | undefined): string {
   if (!f) return "Lun Mar Mer Gio Ven · 8-19 (predefinito)";
   const g = GIORNI.filter(([n]) => f.days.includes(n)).map(([, l]) => l).join(" ");
-  return `${g || "nessun giorno"} · ${f.startHour}-${f.endHour}`;
+  const sab = f.days.includes(6) ? chiusuraSabato(f) : null;
+  return `${g || "nessun giorno"} · ${f.startHour}-${f.endHour}${sab ? ` (sabato fino alle ${sab})` : ""}`;
 }
 function FinestraEditor({ value, onChange }: { value: Finestra | null; onChange: (v: Finestra | null) => void }) {
   const f = value ?? { days: [1, 2, 3, 4, 5], startHour: 8, endHour: 19, timeZone: "Europe/Rome" };
@@ -55,6 +64,20 @@ function FinestraEditor({ value, onChange }: { value: Finestra | null; onChange:
               onClick={() => onChange({ ...f, days: f.days.includes(n) ? f.days.filter((x) => x !== n) : [...f.days, n] })}
               className={`rounded border px-1.5 py-0.5 text-[11px] ${f.days.includes(n) ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-accent"}`}>{l}</button>
           ))}
+          {f.days.includes(6) && (
+            <label className="flex items-center gap-1 text-xs text-muted-foreground">
+              sabato fino alle
+              <Input type="number" min={f.startHour + 1} max={f.endHour - 1} placeholder={String(f.endHour)}
+                value={chiusuraSabato(f) ?? ""}
+                onChange={(e) => {
+                  const h = e.target.value === "" ? null : Number(e.target.value);
+                  const resto = { ...(f.endHourByDay ?? {}) };
+                  delete resto["6"];
+                  onChange({ ...f, endHourByDay: h ? { ...resto, "6": h } : resto });
+                }}
+                className="h-7 w-16 text-xs" aria-label="Il sabato fino alle" />
+            </label>
+          )}
         </div>
       )}
     </div>
