@@ -204,3 +204,19 @@ describe("modulo di recesso e pagina della firma in tutti i documenti", () => {
     expect(src).toContain("(template?.partita_iva || company?.partita_iva) ? `P.IVA ${template?.partita_iva || company?.partita_iva}`");
   });
 });
+
+describe("Fotovoltaico: pagine meno vuote in fondo", () => {
+  const src = leggi("supabase/functions/_shared/fvHtmlTemplate.ts");
+
+  it("il riquadro di conclusione sta in fondo alla pagina, il resto no", () => {
+    expect(src).toContain(".content { padding: 23mm 16mm 21mm; height: 100%; display: flex; flex-direction: column; }");
+    expect(src).toContain(".content > .callout:last-child:not(:first-child) { margin-top: auto; }");
+    // Una regola su tutti gli ultimi blocchi apriva buchi nel mezzo (schede, condizioni, modulo).
+    expect(src).not.toContain(".content > :last-child:not(:first-child) { margin-top: auto; }");
+  });
+
+  it("caratteri più leggibili su un A4", () => {
+    expect(src).toContain(".page-title { font-size: 25pt;");
+    expect(src).toMatch(/\.callout \{[^}]*font-size: 9\.5pt;/);
+  });
+});

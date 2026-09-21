@@ -324,11 +324,16 @@ h1, h2, h3, h4 { font-family: 'Outfit', -apple-system, sans-serif; letter-spacin
 }
 .page-footer .pnum { font-weight: 700; color: #1E3A5F; }
 /* padding-top staccato dall'header (~18mm alto) così la linea non taglia l'eyebrow */
-.content { padding: 23mm 16mm 16mm; height: 100%; }
+.content { padding: 23mm 16mm 21mm; height: 100%; display: flex; flex-direction: column; }
+/* Il riquadro che chiude la pagina (la conclusione) sta in fondo: il bianco va fra
+   il contenuto e la conclusione, non tutto sotto. Prima ogni pagina aveva un
+   35-45% di bianco in fondo e sembrava lasciata a metà. Solo i riquadri di
+   conclusione: una tabella o una scheda spinte giù lascerebbero un buco nel mezzo. */
+.content > .callout:last-child:not(:first-child) { margin-top: auto; }
 
 .eyebrow { font-size: 8pt; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #F97316; margin-bottom: 4px; }
-.page-title { font-size: 22pt; font-weight: 800; color: #1E3A5F; letter-spacing: -0.03em; line-height: 1.05; margin-bottom: 3mm; }
-.page-subtitle { font-size: 10pt; color: #64748B; margin-bottom: 4mm; font-weight: 500; }
+.page-title { font-size: 25pt; font-weight: 800; color: #1E3A5F; letter-spacing: -0.03em; line-height: 1.05; margin-bottom: 3mm; }
+.page-subtitle { font-size: 10.5pt; color: #64748B; margin-bottom: 5mm; font-weight: 500; }
 p { margin-bottom: 2mm; }
 
 /* COVER */
@@ -377,14 +382,14 @@ p { margin-bottom: 2mm; }
 .kpi-big .kbig-label { font-size: 7pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #166534; margin-bottom: 1mm; }
 .kpi-big.orange .kbig-label { color: #C2410C; }
 .kpi-big.red .kbig-label { color: #991B1B; }
-.kpi-big .kbig-value { font-family: 'Outfit', sans-serif; font-size: 28pt; font-weight: 800; color: #166534; line-height: 1; letter-spacing: -0.02em; }
+.kpi-big .kbig-value { font-family: 'Outfit', sans-serif; font-size: 30pt; font-weight: 800; color: #166534; line-height: 1; letter-spacing: -0.02em; }
 .kpi-big.orange .kbig-value { color: #C2410C; }
 .kpi-big.red .kbig-value { color: #991B1B; }
 .kpi-big .kbig-sub { font-size: 8pt; color: #166534; margin-top: 1.5mm; }
 .kpi-big.orange .kbig-sub { color: #7C2D12; }
 .kpi-big.red .kbig-sub { color: #7F1D1D; }
 
-.callout { border-radius: 8px; padding: 3mm 4mm; margin: 3mm 0; font-size: 9pt; display: flex; gap: 2.5mm; align-items: flex-start; }
+.callout { border-radius: 8px; padding: 3.5mm 4.5mm; margin: 4mm 0; font-size: 9.5pt; display: flex; gap: 2.5mm; align-items: flex-start; }
 .callout-icon { font-size: 12pt; line-height: 1; flex-shrink: 0; }
 .callout-success { background: #DCFCE7; border-left: 3px solid #16A34A; color: #166534; }
 .callout-tip { background: #FFEDD5; border-left: 3px solid #F97316; color: #C2410C; }
@@ -421,7 +426,7 @@ table .saving-zero { color: #64748B; }
 .bullets li::before { content: "✓"; position: absolute; left: 0; color: #16A34A; font-weight: 700; font-size: 10pt; }
 
 .chart-svg { width: 100%; height: auto; display: block; }
-.chart-card { background: white; border: 1px solid #E2E8F0; border-radius: 10px; padding: 4mm; margin: 2.5mm 0; }
+.chart-card { background: white; border: 1px solid #E2E8F0; border-radius: 10px; padding: 5mm; margin: 4mm 0; }
 .chart-card .chart-title { font-size: 10pt; font-weight: 700; color: #1E3A5F; margin-bottom: 1mm; }
 .chart-card .chart-sub { font-size: 7.5pt; color: #64748B; margin-bottom: 2mm; }
 
