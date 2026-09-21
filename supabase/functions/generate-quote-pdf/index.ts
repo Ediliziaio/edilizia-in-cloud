@@ -1269,15 +1269,17 @@ Deno.serve(async (req) => {
         }
         y -= 24;
       };
-      // Header solo se ci sono righe da mostrare (con 0 righe si va dritti ai totali).
-      if (items.length > 0) drawTableHeader();
-      let rowNumber = 0;
 
       // If pdf_mostra_solo_totale: skip item rows, only draw totals
       // Vale la scelta del preventivo, che nasce dal predefinito dell'azienda: il
       // predefinito serve solo ai preventivi che non l'hanno salvata. Prima
       // l'azienda scavalcava il singolo preventivo.
       const soloTotale = opzione("pdf_mostra_solo_totale", pdfImp.pdf_mostra_solo_totale === true);
+
+      // Header solo se ci sono righe da mostrare (con 0 righe si va dritti ai totali)
+      // e solo se non è attivo "solo totale", altrimenti resterebbe orfana senza righe sotto.
+      if (items.length > 0 && !soloTotale) drawTableHeader();
+      let rowNumber = 0;
 
       if (!soloTotale) {
         for (let idx = 0; idx < items.length; idx++) {
