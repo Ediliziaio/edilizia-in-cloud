@@ -112,11 +112,14 @@ const senzaToken = (e: unknown): string =>
 const SALTA_ARCHIVIATI = false;
 
 // Il salto dei moduli col conteggio fermo (leads_count uguale da più di un'ora).
-// Spento: si legge tutto come prima, e il log conta quanti moduli si
+// Spento, si legge tutto come prima e il log conta quanti moduli si
 // salterebbero e — soprattutto — se in un modulo «fermo» è comparso un lead
 // che il conteggio non aveva segnalato (lead_nuovi_da_fermi, lead_non_contati).
-// Si accende solo dopo averli visti restare a zero sui giri veri.
-const SALTA_CONTEGGIO_FERMO = false;
+// Acceso il 21/09/2026 dopo l'osservazione dalle 06:28 alle 08:13: 348
+// chiamate per giro di cui ~320 saltabili, le due prove sempre a zero, e ogni
+// lead arrivato (06:39, 06:44, 07:55) visto nel conteggio al giro subito dopo.
+// Per tornare indietro: false, e si pubblica.
+const SALTA_CONTEGGIO_FERMO = true;
 
 // Quante letture di moduli si tengono aperte insieme su una pagina. I moduli si
 // leggevano uno dopo l'altro: 334 letture da ~300 ms fanno 100 secondi di giro,
