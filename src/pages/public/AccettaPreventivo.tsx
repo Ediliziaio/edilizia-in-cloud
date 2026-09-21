@@ -48,6 +48,7 @@ interface QuoteItem {
   line_total?: number | null;
   item_type?: string | null;
   sort_order?: number | null;
+  mostra_nel_pdf?: boolean | null;
 }
 
 export default function AccettaPreventivo() {
@@ -178,8 +179,8 @@ export default function AccettaPreventivo() {
     );
   }
 
-  // visible items only (exclude section headers without price)
-  const visibleItems = items.filter((i) => i.item_type !== "section");
+  // visible items only (exclude section headers without price, and rows the company hid from the client)
+  const visibleItems = items.filter((i) => i.item_type !== "section" && i.mostra_nel_pdf !== false);
 
   return (
     <div className="min-h-screen bg-muted/30 p-4">

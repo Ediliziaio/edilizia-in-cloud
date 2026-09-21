@@ -149,7 +149,7 @@ serveConMetriche("quote-sign", async (req) => {
         // Load items for display
         const { data: items = [] } = await supabaseAdmin
           .from("quote_items")
-          .select("name, description, quantity, unit_of_measure, unit_price, discount_percent, vat_rate, line_total, item_type, sort_order")
+          .select("name, description, quantity, unit_of_measure, unit_price, discount_percent, vat_rate, line_total, item_type, sort_order, mostra_nel_pdf")
           .eq("quote_id", quote.id)
           .order("sort_order");
 
