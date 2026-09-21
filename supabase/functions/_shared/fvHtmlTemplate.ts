@@ -7,6 +7,7 @@
  * grazie a @page A4 + print-color-adjust: exact.
  */
 
+import { MODULO_RECESSO, prevedeRecesso } from "./condizioniStandard.ts";
 import {
   fmtEur,
   fmtNum,
@@ -464,6 +465,10 @@ table .saving-zero { color: #64748B; }
 .cond-righe { display: grid; grid-template-columns: 1fr 1.4fr; gap: 6mm; margin-top: 8mm; }
 .cond-righe .cond-riga { border-bottom: 1px solid #94A3B8; height: 8mm; }
 .cond-righe span { font-size: 7pt; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.06em; }
+.recesso-box { border: 1px solid #1E3A5F; border-radius: 8px; padding: 6mm; font-size: 9pt; color: #334155; line-height: 1.55; }
+.recesso-campo { margin-top: 7mm; }
+.recesso-campo span { font-size: 7pt; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.06em; }
+.recesso-riga { border-bottom: 1px solid #CBD5E1; height: 7mm; }
 .legal-box { margin-top: 3mm; padding: 3mm 4mm; background: #F8FAFC; border: 1px solid #CBD5E1; border-radius: 8px; font-size: 7.8pt; color: #475569; }
 
 .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; }
@@ -1893,8 +1898,8 @@ function pagineCondizioni(d: FvPdfTemplateData, primoNumero: number, total: numb
       </div>` : ""}
       ${ultima && conRecesso ? `
       <p style="font-size:7.5pt;color:#94A3B8;margin-top:3mm;">
-        Per recedere, quando ne ricorrono i presupposti, è sufficiente una dichiarazione esplicita inviata a
-        ${escHtml(d.azienda.email ?? d.azienda.name)}: non serve motivarla.
+        Per recedere, quando ne ricorrono i presupposti, basta il modulo allegato nella pagina che segue, o una
+        dichiarazione esplicita inviata a ${escHtml(d.azienda.email ?? d.azienda.name)}: non serve motivarla.
       </p>` : ""}
     </div>
     <div class="page-footer"><span>${escHtml(docMeta)}</span><span class="pnum">${pageN} / ${total}</span></div>
@@ -1902,11 +1907,46 @@ function pagineCondizioni(d: FvPdfTemplateData, primoNumero: number, total: numb
   });
 }
 
-/** Quante pagine prendono le condizioni. */
+/**
+ * Il modulo di recesso, allegato quando le condizioni prevedono il recesso del
+ * consumatore. Il fotovoltaico si vende quasi sempre a casa del cliente: è il caso
+ * in cui il modulo va consegnato con il contratto, altrimenti il termine per
+ * recedere non è più di 14 giorni ma si allunga di un anno.
+ */
+function pageModuloRecesso(d: FvPdfTemplateData, pageN: number, total: number): string {
+  const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
+  const docMeta = `${d.azienda.name}${d.azienda.vat_number ? ` · P.IVA ${d.azienda.vat_number}` : ""} · Doc ${d.progetto.numero} · ${fmtData(d.progetto.creato_il)}`;
+  const destinatario = [escHtml(d.azienda.name), d.azienda.email ? escHtml(d.azienda.email) : null].filter(Boolean).join(" — ");
+  return `<div class="page">
+    ${header(d.progetto.numero, cliente, d.azienda.name)}
+    <div class="content">
+      <div class="eyebrow">Allegato</div>
+      <h1 class="page-title">${escHtml(MODULO_RECESSO.titolo)}.</h1>
+      <p style="font-size:9pt;color:#64748B;max-width:150mm;margin-bottom:5mm;">${escHtml(MODULO_RECESSO.istruzioni)}</p>
+      <div class="recesso-box">
+        <p><strong>Destinatario:</strong> ${destinatario}</p>
+        <p style="margin-top:3mm;">${escHtml(MODULO_RECESSO.dichiarazione(d.progetto.numero))}</p>
+        ${MODULO_RECESSO.campi.map((c) => `<div class="recesso-campo"><span>${escHtml(c)}</span><div class="recesso-riga"></div></div>`).join("")}
+        <div class="cond-righe" style="margin-top:10mm;">
+          <div><div class="cond-riga"></div><span>${escHtml(MODULO_RECESSO.firme[0])}</span></div>
+          <div><div class="cond-riga"></div><span>${escHtml(MODULO_RECESSO.firme[1])}</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="page-footer"><span>${escHtml(docMeta)}</span><span class="pnum">${pageN} / ${total}</span></div>
+  </div>`;
+}
+
+/** Le condizioni prevedono il recesso: si allega il modulo. */
+function haModuloRecesso(d: FvPdfTemplateData): boolean {
+  return haPaginaCondizioni(d) && prevedeRecesso(d.template?.condizioni_legali_testo);
+}
+
+/** Quante pagine prendono le condizioni (con il modulo di recesso, se c'è). */
 function quantePagineCondizioni(d: FvPdfTemplateData): number {
   if (!haPaginaCondizioni(d)) return 0;
   const { blocchi, clausole } = condizioniInBlocchi(String(d.template?.condizioni_legali_testo ?? ""));
-  return impaginaCondizioni(blocchi, clausole.length > 0).length;
+  return impaginaCondizioni(blocchi, clausole.length > 0).length + (haModuloRecesso(d) ? 1 : 0);
 }
 
 function pagineDaDisegnare(d: FvPdfTemplateData): FvPdfPageOrderItem[] {
@@ -2043,6 +2083,7 @@ export function renderFvPdfHtml(d: FvPdfTemplateData): string {
           const nuove = pagineCondizioni(d, pageN + 1, TOTAL);
           pageN += nuove.length;
           pages.push(...nuove);
+          if (haModuloRecesso(d)) pages.push(pageModuloRecesso(d, ++pageN, TOTAL));
         }
         break;
     }

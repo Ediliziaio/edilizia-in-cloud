@@ -37,7 +37,7 @@ import { testoScelta } from "@/lib/listino/scelteVariante";
 import { schedaPosizione, titoloConLinea } from "@/lib/serramenti/schedaPosizione";
 import { inchiostroSuBianco, testoSopra } from "@/lib/pdf/contrastoColori";
 import { coloreDelDocumento, fondoPerTestoBianco, scurisci, testoSuChiaro, testoSuScuro } from "../../../supabase/functions/_shared/temaColori";
-import { clausoleDaApprovare, condizioniStandard, perArticoli, righeDaStampare, righeDelleCondizioni } from "../../../supabase/functions/_shared/condizioniStandard";
+import { clausoleDaApprovare, condizioniStandard, MODULO_RECESSO, perArticoli, prevedeRecesso, righeDaStampare, righeDelleCondizioni } from "../../../supabase/functions/_shared/condizioniStandard";
 import { testiPerPdf } from "../../../supabase/functions/_shared/testoPerPdf";
 import type {
   SerramentoPdfConsulente, SerramentoPdfFamilyData,
@@ -2109,6 +2109,19 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
       totale: totaleDocumento,
     },
   ) || null;
+  // Il riepilogo della pagina della firma: che cosa si firma, in poche righe.
+  const luogoLavori = [p.cantiere_indirizzo ?? p.cliente_indirizzo, p.cantiere_citta ?? p.cliente_citta].filter(Boolean).join(", ");
+  const fmtEuroFirma = (n: number) => `${n.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: "always" } as Intl.NumberFormatOptions)} €`;
+  const righeFirma: Array<[string, string]> = [
+      // La partita IVA si legge qui direttamente: `vat` è dichiarata più sotto.
+      ["Impresa", [companyName, (template?.partita_iva || company?.partita_iva) ? `P.IVA ${template?.partita_iva || company?.partita_iva}` : null].filter(Boolean).join(" · ")],
+      ["Committente", clienteNome],
+      ["Oggetto", sintesi],
+      ...(luogoLavori ? [["Luogo dei lavori", luogoLavori]] : []),
+      ["Documento", `Preventivo ${p.code} del ${fmtDate(p.created_at)}`],
+      ["Importo", `${fmtEuroFirma(totaleDocumento)} · IVA inclusa`],
+      ["Validità", `${validoGiorni} giorni dalla data del documento`],
+    ];
   const righeCondizioni = righeDelleCondizioni(condizioniLegaliTesto ?? "");
   const clausoleSeconda = clausoleDaApprovare(righeCondizioni);
   const esigenze = (Array.isArray(p.esigenze) ? p.esigenze : []) as SrEsigenza[];
@@ -4102,6 +4115,48 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                     </View>
                   ))}
                 </View>
+                {brandFooterAttivo && brandFooterTesto && (
+                  <Text style={styles.brandFooter}>{brandFooterTesto}</Text>
+                )}
+                <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
+              </Page>
+            )}
+
+            {/* ─── Firma del contratto ───────────────────────────────────────
+                Nel PDF dei Serramenti non c'era una firma su carta: solo il link
+                per firmare online, e il riquadro della seconda firma chiedeva una
+                «seconda» firma senza che ci fosse la prima. Come negli edili: che
+                cosa si firma, la dichiarazione, le firme, poi le clausole a parte. */}
+            {condizioniLegaliAttivo && condizioniLegaliTesto && (
+              <Page size="A4" style={styles.page}>
+                <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
+                <Text style={styles.pageEyebrow}>Per accettazione</Text>
+                <Text style={[styles.pageTitle, { fontSize: 22 }]}>Firma del contratto</Text>
+                <View style={{ marginTop: 12, backgroundColor: C.gray50, padding: 14 }}>
+                  {righeFirma.map(([etichetta, valore], i) => (
+                    <View key={i} style={{ flexDirection: "row", paddingVertical: 5, borderBottom: i < righeFirma.length - 1 ? `0.5pt solid ${C.gray200}` : undefined }}>
+                      <Text style={{ fontFamily: FF, fontSize: 7.5, color: C.gray500, letterSpacing: 0.8, width: 118, paddingTop: 2 }}>{String(etichetta).toUpperCase()}</Text>
+                      <Text style={{ fontFamily: FF, fontSize: etichetta === "Importo" ? 12 : 9.5, fontWeight: etichetta === "Importo" ? 700 : 400, color: C.gray900, flex: 1, lineHeight: 1.4 }}>{valore}</Text>
+                    </View>
+                  ))}
+                </View>
+                <Text style={[styles.condizioniText, { marginTop: 14 }]}>
+                  Il Committente dichiara di aver ricevuto, letto e accettato il presente preventivo in ogni sua parte —
+                  la composizione dei serramenti, l'importo e le condizioni generali di contratto che lo accompagnano — e ne
+                  sottoscrive il contenuto.
+                </Text>
+                <View wrap={false} style={{ flexDirection: "row", marginTop: 34 }}>
+                  {[
+                    { e: "LUOGO E DATA", chi: null, w: 140 },
+                    { e: "PER L'IMPRESA", chi: companyName, w: 0 },
+                    { e: "FIRMA DEL COMMITTENTE", chi: clienteNome, w: 0 },
+                  ].map((f, i) => (
+                    <View key={i} style={{ width: f.w || undefined, flex: f.w ? undefined : 1, marginRight: i < 2 ? 16 : 0, borderTopWidth: 0.7, borderTopColor: C.gray900, paddingTop: 4 }}>
+                      <Text style={{ fontFamily: FF, fontSize: 7, color: C.gray500, letterSpacing: 0.9 }}>{f.e}</Text>
+                      {f.chi ? <Text style={{ fontFamily: FF, fontSize: 7.5, fontWeight: 700, color: C.gray900, marginTop: 2, maxLines: 1, textOverflow: "ellipsis" }}>{f.chi}</Text> : null}
+                    </View>
+                  ))}
+                </View>
                 {clausoleSeconda.length > 0 ? (
                   <View wrap={false} style={{ marginTop: 16, borderWidth: 0.8, borderColor: C.gray900, borderStyle: "solid", padding: 12 }}>
                     <Text style={{ fontFamily: FF, fontWeight: 700, fontSize: 7.5, color: C.gray900, letterSpacing: 1 }}>APPROVAZIONE SPECIFICA (ARTT. 1341 E 1342 C.C.)</Text>
@@ -4119,9 +4174,41 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                     </View>
                   </View>
                 ) : null}
-                {brandFooterAttivo && brandFooterTesto && (
-                  <Text style={styles.brandFooter}>{brandFooterTesto}</Text>
-                )}
+                <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
+              </Page>
+            )}
+
+            {/* ─── Allegato: il modulo di recesso ────────────────────────────
+                Quando le condizioni prevedono il recesso del consumatore il modulo
+                va consegnato con il contratto: senza, il termine per recedere non è
+                più di 14 giorni ma si allunga di un anno. */}
+            {condizioniLegaliAttivo && condizioniLegaliTesto && prevedeRecesso(condizioniLegaliTesto) && (
+              <Page size="A4" style={styles.page}>
+                <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
+                <Text style={styles.pageEyebrow}>Allegato</Text>
+                <Text style={[styles.pageTitle, { fontSize: 22 }]}>{MODULO_RECESSO.titolo}</Text>
+                <Text style={styles.pageSubtitle}>{MODULO_RECESSO.istruzioni}</Text>
+                <View style={{ marginTop: 14, borderWidth: 0.8, borderColor: C.gray900, borderStyle: "solid", padding: 16 }}>
+                  <Text style={styles.condizioniText}>
+                    <Text style={{ fontWeight: 700 }}>Destinatario: </Text>
+                    {[companyName, indirizzo, email].filter(Boolean).join(" — ")}
+                  </Text>
+                  <Text style={[styles.condizioniText, { marginTop: 8 }]}>{MODULO_RECESSO.dichiarazione(p.code)}</Text>
+                  {MODULO_RECESSO.campi.map((c) => (
+                    <View key={c} style={{ marginTop: 14 }}>
+                      <Text style={{ fontFamily: FF, fontSize: 7, color: C.gray500, letterSpacing: 0.8, marginBottom: 14 }}>{c.toUpperCase()}</Text>
+                      <View style={{ borderTopWidth: 0.6, borderTopColor: C.gray300 }} />
+                    </View>
+                  ))}
+                  <View style={{ flexDirection: "row", marginTop: 30 }}>
+                    <View style={{ width: 140, borderTopWidth: 0.7, borderTopColor: C.gray900, paddingTop: 3, marginRight: 16 }}>
+                      <Text style={{ fontFamily: FF, fontSize: 7, color: C.gray500, letterSpacing: 0.8 }}>{MODULO_RECESSO.firme[0].toUpperCase()}</Text>
+                    </View>
+                    <View style={{ flex: 1, borderTopWidth: 0.7, borderTopColor: C.gray900, paddingTop: 3 }}>
+                      <Text style={{ fontFamily: FF, fontSize: 7, color: C.gray500, letterSpacing: 0.8 }}>{MODULO_RECESSO.firme[1].toUpperCase()}</Text>
+                    </View>
+                  </View>
+                </View>
                 <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
               </Page>
             )}

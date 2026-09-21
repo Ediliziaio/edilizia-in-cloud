@@ -6,7 +6,7 @@ import qrcode from "https://esm.sh/qrcode-generator@1.4.4?target=deno";
 // Libreria template componibile: carica i blocchi linkati + sostituisce merge tag
 import { fondoPerTestoBianco, scurisci, schiarisci, testoSuChiaro, testoSuScuro, normalizzaHex } from "../_shared/temaColori.ts";
 import { loadTemplateWithBlocks, attachLinkedBlocks, applyMergeTagsToTemplate, buildMergeContext, substituteMergeTags, type ComposedTemplate } from "../_shared/quoteTemplateComposer.ts";
-import { condizioniStandard } from "../_shared/condizioniStandard.ts";
+import { condizioniStandard, MODULO_RECESSO, prevedeRecesso } from "../_shared/condizioniStandard.ts";
 import { testoPerPdf } from "../_shared/testoPerPdf.ts";
 
 // ─── Helpers ───
@@ -1803,6 +1803,50 @@ Deno.serve(async (req) => {
         page.drawLine({ start: { x: boxX + 180, y: ry - 22 }, end: { x: boxX + boxW - 12, y: ry - 22 }, thickness: 0.6, color: grayC });
         page.drawText("SECONDA FIRMA DEL COMMITTENTE", { x: boxX + 180, y: ry - 32, size: 7, font, color: grayC });
         y -= altezza + 12;
+      }
+
+      // ─── Il modulo di recesso ───
+      // Quando le condizioni prevedono il recesso del consumatore, il modulo va
+      // consegnato con il contratto: senza, il termine per recedere non è più di
+      // 14 giorni ma si allunga di un anno. Stesso testo di tutti i documenti.
+      if (prevedeRecesso(condizioniETermini)) {
+        drawWatermark(page);
+        startContentPage(MODULO_RECESSO.titolo.toUpperCase());
+        const mx = contentLeftX();
+        const mw = contentMaxWidth();
+        for (const l of wrapText(MODULO_RECESSO.istruzioni, 100)) {
+          page.drawText(l, { x: mx, y, size: 9, font, color: grayC });
+          y -= 12.5;
+        }
+        y -= 12;
+        const topBox = y;
+        let ry = y - 20;
+        const destinatario = winAnsiSafe([company?.name, company?.address, company?.email].filter(Boolean).join(" — "));
+        page.drawText("Destinatario:", { x: mx + 14, y: ry, size: 9, font: fontBold, color: textC });
+        for (const l of wrapText(destinatario, 78)) {
+          page.drawText(l, { x: mx + 14 + fontBold.widthOfTextAtSize("Destinatario: ", 9), y: ry, size: 9, font, color: textC });
+          ry -= 13;
+        }
+        ry -= 6;
+        for (const l of wrapText(winAnsiSafe(MODULO_RECESSO.dichiarazione(String(quote.quote_number ?? ""))), 96)) {
+          page.drawText(l, { x: mx + 14, y: ry, size: 9, font, color: textC });
+          ry -= 13;
+        }
+        ry -= 10;
+        for (const campo of MODULO_RECESSO.campi) {
+          page.drawText(campo.toUpperCase(), { x: mx + 14, y: ry, size: 7, font, color: grayC });
+          ry -= 22;
+          page.drawLine({ start: { x: mx + 14, y: ry }, end: { x: mx + mw - 14, y: ry }, thickness: 0.6, color: lightGrayC });
+          ry -= 16;
+        }
+        ry -= 18;
+        page.drawLine({ start: { x: mx + 14, y: ry }, end: { x: mx + 150, y: ry }, thickness: 0.7, color: textC });
+        page.drawText(MODULO_RECESSO.firme[0].toUpperCase(), { x: mx + 14, y: ry - 11, size: 7, font, color: grayC });
+        page.drawLine({ start: { x: mx + 180, y: ry }, end: { x: mx + mw - 14, y: ry }, thickness: 0.7, color: textC });
+        page.drawText(MODULO_RECESSO.firme[1].toUpperCase(), { x: mx + 180, y: ry - 11, size: 7, font, color: grayC });
+        ry -= 24;
+        page.drawRectangle({ x: mx, y: ry, width: mw, height: topBox - ry, borderColor: textC, borderWidth: 0.8 });
+        y = ry - 12;
       }
     }
 

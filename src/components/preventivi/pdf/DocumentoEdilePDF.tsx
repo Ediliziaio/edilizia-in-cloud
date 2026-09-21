@@ -27,6 +27,7 @@ import { parseFinanziamentoPromo, calcolaRataMensile } from "@/lib/preventivi/fi
 import { fraseValiditaChiusura } from "@/lib/preventivi/validitaOfferta";
 import { creaTema, coloriCopertina, copertinaInTinta, type TemaDocumento } from "./temaDocumento";
 import { chiaveLibera, ordineEffettivo } from "./ordineCapitoli";
+import { MODULO_RECESSO } from "../../../../supabase/functions/_shared/condizioniStandard";
 import { giorniDellaDurata, senzaNumeroDavanti, spezzaAccento } from "./testoDocumento";
 import type {
   DocEdileCapitolo, DocEdileDati, DocEdileFase, DocEdileFoto, DocEdileVoceElenco,
@@ -1213,8 +1214,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
           <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 7, color: tema.inchiostroMarca, letterSpacing: 1.6, marginBottom: 6 }}>ALLEGATO</Text>
           <TitoloAccento tema={tema} testo="Modulo di *recesso*." corpo={21} colore={tema.inchiostro} coloreAccento={tema.inchiostroMarca} />
           <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 9, color: tema.grigio, lineHeight: 1.55, marginTop: 12 }}>
-            Da compilare e restituire soltanto se si intende recedere dal contratto, nei termini indicati nelle condizioni
-            generali. Non serve motivarlo.
+            {MODULO_RECESSO.istruzioni}
           </Text>
 
           <View style={{ marginTop: 16, borderWidth: 0.8, borderColor: tema.inchiostro, padding: 18 }}>
@@ -1224,11 +1224,10 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
               {dati.azienda.email ? ` — ${dati.azienda.email}` : ""}
             </Text>
             <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 9, color: tema.inchiostro, lineHeight: 1.6, marginTop: 10 }}>
-              Con la presente io/noi notifico/notifichiamo il recesso dal contratto relativo ai lavori e alle forniture di
-              cui al preventivo {dati.codice ?? ""}.
+              {MODULO_RECESSO.dichiarazione(dati.codice)}
             </Text>
             <View style={{ marginTop: 14 }}>
-              {["Data del contratto", "Nome e cognome del consumatore", "Indirizzo del consumatore"].map((e) => (
+              {MODULO_RECESSO.campi.map((e) => (
                 <View key={e} style={{ marginBottom: 16 }}>
                   <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 7.5, color: tema.grigio, letterSpacing: 0.8, marginBottom: 14 }}>{e.toUpperCase()}</Text>
                   <View style={{ borderTopWidth: 0.6, borderTopColor: tema.grigioChiaro }} />
@@ -1236,9 +1235,9 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
               ))}
             </View>
             <View style={{ flexDirection: "row", marginTop: 6 }}>
-              <LineaFirma tema={tema} etichetta="DATA" larghezza={150} altezza={28} />
+              <LineaFirma tema={tema} etichetta={MODULO_RECESSO.firme[0].toUpperCase()} larghezza={150} altezza={28} />
               <View style={{ width: 16 }} />
-              <LineaFirma tema={tema} etichetta="FIRMA DEL CONSUMATORE (SOLO SE SU CARTA)" altezza={28} />
+              <LineaFirma tema={tema} etichetta={MODULO_RECESSO.firme[1].toUpperCase()} altezza={28} />
             </View>
           </View>
         </Page>

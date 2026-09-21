@@ -170,3 +170,37 @@ describe("preventivo generico: l'impaginato classico parla la lingua del documen
     expect(src).toMatch(/if \(classicPremium\) \{\n\s+\/\/ Come il computo del documento edile/);
   });
 });
+
+describe("modulo di recesso e pagina della firma in tutti i documenti", () => {
+  it("un testo solo per il modulo, e la regola su quando allegarlo", async () => {
+    const { MODULO_RECESSO, prevedeRecesso, condizioniStandard } = await import("../../../supabase/functions/_shared/condizioniStandard");
+    expect(MODULO_RECESSO.dichiarazione("RST-1")).toContain("preventivo RST-1.");
+    expect(MODULO_RECESSO.campi).toHaveLength(3);
+    expect(prevedeRecesso(condizioniStandard("fotovoltaico"))).toBe(true);
+    expect(prevedeRecesso("# Condizioni\n## Art. 1\nNiente.")).toBe(false);
+  });
+
+  it("i quattro motori allegano il modulo quando le condizioni lo prevedono", () => {
+    expect(leggi("src/components/preventivi/pdf/DocumentoEdilePDF.tsx")).toContain("MODULO_RECESSO.dichiarazione(dati.codice)");
+    expect(leggi("supabase/functions/_shared/fvHtmlTemplate.ts")).toContain("if (haModuloRecesso(d)) pages.push(pageModuloRecesso(d, ++pageN, TOTAL));");
+    expect(leggi("supabase/functions/generate-quote-pdf/index.ts")).toContain("if (prevedeRecesso(condizioniETermini)) {");
+    expect(leggi("src/components/serramenti/SerramentoPDF.tsx")).toContain("prevedeRecesso(condizioniLegaliTesto) && (");
+    expect(leggi("supabase/functions/_shared/srHtmlTemplate.ts")).toContain("${renderModuloRecesso(d, totalPages(d), totalPages(d))}");
+  });
+
+  it("il conto delle pagine tiene conto del modulo (Fotovoltaico e pagina online dei Serramenti)", () => {
+    expect(leggi("supabase/functions/_shared/fvHtmlTemplate.ts")).toContain("impaginaCondizioni(blocchi, clausole.length > 0).length + (haModuloRecesso(d) ? 1 : 0)");
+    expect(leggi("supabase/functions/_shared/srHtmlTemplate.ts")).toContain("(haCondizioni(d) ? 1 : 0) + (haModuloRecesso(d) ? 1 : 0)");
+  });
+
+  it("Serramenti: c'è una firma su carta, con il riepilogo, prima della seconda firma", () => {
+    const src = leggi("src/components/serramenti/SerramentoPDF.tsx");
+    const firma = src.indexOf("Firma del contratto</Text>");
+    const seconda = src.indexOf("SECONDA FIRMA DEL COMMITTENTE");
+    expect(firma).toBeGreaterThan(0);
+    expect(seconda).toBeGreaterThan(firma);
+    expect(src).toContain('{ e: "FIRMA DEL COMMITTENTE", chi: clienteNome, w: 0 }');
+    // La partita IVA non si legge da `vat`, dichiarata più sotto: sarebbe un errore a runtime.
+    expect(src).toContain("(template?.partita_iva || company?.partita_iva) ? `P.IVA ${template?.partita_iva || company?.partita_iva}`");
+  });
+});

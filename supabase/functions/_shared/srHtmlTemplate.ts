@@ -12,7 +12,7 @@
  *  4. Firma online — render, prossimi passi, link pubblico
  */
 import { mescola, normalizzaHex, schiarisci, scurisci, testoSuChiaro } from "./temaColori.ts";
-import { clausoleDaApprovare, righeDaStampare, righeDelleCondizioni } from "./condizioniStandard.ts";
+import { clausoleDaApprovare, MODULO_RECESSO, prevedeRecesso, righeDaStampare, righeDelleCondizioni } from "./condizioniStandard.ts";
 
 export interface SrPdfData {
   // Progetto
@@ -222,8 +222,40 @@ function haCondizioni(d: SrPdfData): boolean {
 /** Numero pagine dell'HTML generato (4 base + macro dedicate + condizioni). */
 export function countSrPdfPages(d: SrPdfData): number { return totalPages(d); }
 
+/** Le condizioni prevedono il recesso del consumatore: si allega il modulo. */
+function haModuloRecesso(d: SrPdfData): boolean {
+  return haCondizioni(d) && prevedeRecesso(d.condizioni_legali_testo);
+}
+
 function totalPages(d: SrPdfData): number {
-  return 4 + (d.macro_pagine_dedicate?.length ?? 0) + (haCondizioni(d) ? 1 : 0);
+  return 4 + (d.macro_pagine_dedicate?.length ?? 0) + (haCondizioni(d) ? 1 : 0) + (haModuloRecesso(d) ? 1 : 0);
+}
+
+/**
+ * Il modulo di recesso, dopo le condizioni. È la pagina che il cliente apre dal
+ * link e firma: il modulo va consegnato insieme al contratto, altrimenti il
+ * termine per recedere non è più di 14 giorni ma si allunga di un anno.
+ */
+function renderModuloRecesso(d: SrPdfData, page: number, total: number): string {
+  if (!haModuloRecesso(d)) return "";
+  const destinatario = [d.azienda_nome, d.azienda_indirizzo, d.azienda_email].filter(Boolean).map((v) => esc(String(v))).join(" — ");
+  return `
+  <section class="page">
+    ${renderHeader(d, page, total)}
+    <main class="page-body">
+      <p class="overline">ALLEGATO</p>
+      <h1 class="page-title">${esc(MODULO_RECESSO.titolo)}</h1>
+      <p class="paragraph cond-p">${esc(MODULO_RECESSO.istruzioni)}</p>
+      <div class="cond-firma">
+        <p class="paragraph cond-p"><strong>Destinatario:</strong> ${destinatario}</p>
+        <p class="paragraph cond-p">${esc(MODULO_RECESSO.dichiarazione(d.code))}</p>
+        ${MODULO_RECESSO.campi.map((c) => `<div class="recesso-campo"><span>${esc(c)}</span></div>`).join("")}
+        <div class="cond-righe"><div><span>${esc(MODULO_RECESSO.firme[0])}</span></div><div><span>${esc(MODULO_RECESSO.firme[1])}</span></div></div>
+      </div>
+    </main>
+    ${renderFooter(d, page, total)}
+  </section>
+  `;
 }
 
 /**
@@ -984,6 +1016,9 @@ html, body { background: #f5f6f8; font-family: -apple-system, "Segoe UI", Roboto
 
 .cond-firma { border: 1px solid #1e293b; border-radius: 4px; padding: 12px 14px; margin-top: 14px; break-inside: avoid; }
 .cond-firma-titolo { font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700; color: #1e293b; margin-bottom: 4px; }
+.cond-firma .cond-list li { font-size: 10px; line-height: 1.5; }
+.recesso-campo { margin-top: 16px; border-bottom: 1px solid #cbd5e1; padding-bottom: 18px; }
+.recesso-campo span { font-size: 8px; letter-spacing: 0.06em; text-transform: uppercase; color: #64748b; }
 .cond-righe { display: grid; grid-template-columns: 1fr 1.6fr; gap: 16px; margin-top: 28px; }
 .cond-righe div { border-top: 1px solid #94a3b8; padding-top: 3px; }
 .cond-righe span { font-size: 8px; letter-spacing: 0.06em; text-transform: uppercase; color: #64748b; }
@@ -1030,7 +1065,8 @@ export function renderSrPdfHtml(d: SrPdfData): string {
     ${renderPage3(d)}
     ${renderPage4(d)}
     ${renderPagineMacroDedicate(d)}
-    ${renderPaginaCondizioni(d, totalPages(d), totalPages(d))}
+    ${renderPaginaCondizioni(d, totalPages(d) - (haModuloRecesso(d) ? 1 : 0), totalPages(d))}
+    ${renderModuloRecesso(d, totalPages(d), totalPages(d))}
   </div>
 </body>
 </html>`;

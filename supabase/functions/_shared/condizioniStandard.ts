@@ -326,3 +326,25 @@ export function perArticoli(righe: RigaCondizioni[]): RigaCondizioni[][] {
   }
   return gruppi;
 }
+
+// ─── Il modulo di recesso ────────────────────────────────────────────────────
+
+/**
+ * Il modulo di recesso tipo (Allegato I, parte B, D.lgs. 206/2005), da consegnare
+ * insieme al contratto quando le condizioni prevedono il recesso del consumatore:
+ * se non lo si consegna, il termine per recedere non è più di 14 giorni ma si
+ * allunga di un anno. Un testo solo, per tutti i documenti.
+ */
+export const MODULO_RECESSO = {
+  titolo: "Modulo di recesso",
+  istruzioni: "Da compilare e restituire soltanto se si intende recedere dal contratto, nei termini indicati nelle condizioni generali. Non serve motivarlo.",
+  dichiarazione: (riferimento: string | null) =>
+    `Con la presente io/noi notifico/notifichiamo il recesso dal contratto relativo ai lavori e alle forniture di cui al preventivo${riferimento ? ` ${riferimento}` : ""}.`,
+  campi: ["Data del contratto", "Nome e cognome del consumatore", "Indirizzo del consumatore"],
+  firme: ["Data", "Firma del consumatore (solo se su carta)"],
+} as const;
+
+/** Le condizioni parlano di recesso: al documento va allegato il modulo. */
+export function prevedeRecesso(testoCondizioni: string | null | undefined): boolean {
+  return /recesso/i.test(String(testoCondizioni ?? ""));
+}
