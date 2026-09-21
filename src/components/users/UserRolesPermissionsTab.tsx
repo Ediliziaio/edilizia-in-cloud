@@ -40,6 +40,7 @@ import {
 } from "@/components/users/permissionsDefaults";
 import { SolaLetturaToggle } from "@/components/users/SolaLetturaToggle";
 import { usePipelines } from "@/hooks/useOpportunitiesData";
+import { aggiuntiviDisponibili, TESTI_RUOLO_AGGIUNTIVO, type RuoloAggiuntivo } from "@/lib/permessi/ruoliUtente";
 
 /**
  * Each PermissionModule maps 1:1 to a unique DB column.
@@ -125,7 +126,8 @@ const VISIBLE_CATEGORIES: PermissionCategory[] = PERMISSION_CATEGORIES.map((c) =
 })).filter((c) => c.modules.length > 0);
 
 export type CompanyRole = "company_admin" | "company_staff" | "salesperson" | "call_center" | "employee" | "subcontractor";
-export type AdditionalRole = "salesperson" | "call_center";
+/** Venditore, Call Center, Operaio: i ruoli che una persona può avere «anche». */
+export type AdditionalRole = RuoloAggiuntivo;
 
 interface UserRolesPermissionsTabProps {
   user: {
@@ -134,7 +136,7 @@ interface UserRolesPermissionsTabProps {
     last_name: string;
     email?: string;
     role?: CompanyRole;
-    /** Ruoli aggiuntivi commerciali (salesperson, call_center) — indipendenti dal ruolo primario */
+    /** Ruoli «anche …» (Venditore, Call Center, Operaio) oltre al principale */
     additionalRoles?: AdditionalRole[];
     permissions: StaffPermissions | null;
   };
@@ -192,6 +194,15 @@ const ROLE_CONFIG: Record<CompanyRole, { label: string; icon: React.ComponentTyp
     description: "Azienda esterna con accesso ai soli ordini assegnati.",
   },
 };
+
+/** Sotto la conferma di un cambio di ruolo: cosa succede ai ruoli «anche …». */
+function notaAggiuntivi(nuovo: CompanyRole, aggiuntivi: AdditionalRole[]): string {
+  if (aggiuntivi.length === 0) return "";
+  const nomi = (ruoli: AdditionalRole[]) => ruoli.map((r) => TESTI_RUOLO_AGGIUNTIVO[r].nome).join(" e ");
+  if (nuovo === "subcontractor") return `I ruoli aggiuntivi (${nomi(aggiuntivi)}) vengono tolti: un subappaltatore non ne ha. `;
+  const restano = aggiuntivi.filter((r) => r !== nuovo);
+  return restano.length > 0 ? `Resta anche ${nomi(restano)}. ` : "";
+}
 
 /** Per il «ci sono modifiche»: gli elenchi (aree, pipeline) si confrontano per
  *  contenuto, non per riferimento — spuntare e rispuntare non è una modifica. */
@@ -547,6 +558,7 @@ export function UserRolesPermissionsTab({
                     {pendingRoleChange === "company_admin"
                       ? ": vede tutti i moduli e può gestire gli utenti."
                       : "."}{" "}
+                    {notaAggiuntivi(pendingRoleChange, additionalRoles)}
                     Non è ancora salvato: conferma per applicarlo.
                   </span>
                 </p>
@@ -560,21 +572,23 @@ export function UserRolesPermissionsTab({
               )}
             </div>
 
-            {/* Additional commercial roles — visible only if onToggleAdditionalRole available and primary is not admin/salesperson/call_center */}
-            {onToggleAdditionalRole && !isAdmin && selectedRole !== "salesperson" && selectedRole !== "call_center" && (
+            {/* Ruoli aggiuntivi (21/09/2026): per qualunque ruolo principale,
+                amministratore compreso, tranne il Subappaltatore. Nascosti
+                mentre un cambio di ruolo aspetta la conferma. */}
+            {onToggleAdditionalRole && !pendingRoleChange && aggiuntiviDisponibili(selectedRole).length > 0 && (
               <>
                 <Separator />
                 <div>
                   <Label className="text-xs text-muted-foreground uppercase tracking-wide mb-2 block">
-                    Ruoli commerciali aggiuntivi
+                    Ruoli aggiuntivi
                   </Label>
                   <p className="text-xs text-muted-foreground mb-3 flex items-start gap-1.5">
                     <Info className="h-3.5 w-3.5 shrink-0 mt-0.5 text-blue-500" />
-                    Se questa persona si occupa <strong>anche</strong> di vendita,
-                    attiva i ruoli sotto: comparirà nel calendario CRM, dropdown venditori e provvigioni.
+                    Se questa persona fa <strong>anche</strong> altro, attivalo qui: tiene il suo ruolo
+                    e in più compare dove serve.
                   </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {(["salesperson", "call_center"] as AdditionalRole[]).map((r) => {
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                    {aggiuntiviDisponibili(selectedRole).map((r) => {
                       const cfg = ROLE_CONFIG[r];
                       const Icon = cfg.icon;
                       const active = additionalRoles.includes(r);
@@ -605,7 +619,7 @@ export function UserRolesPermissionsTab({
                               </span>
                             </div>
                             <p className="text-[11px] text-muted-foreground mt-0.5">
-                              {cfg.description}
+                              {TESTI_RUOLO_AGGIUNTIVO[r].cosaFa}
                             </p>
                           </div>
                         </label>

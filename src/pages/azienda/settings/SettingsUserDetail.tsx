@@ -20,6 +20,7 @@ import { UserActivityLogTab } from "@/components/users/UserActivityLogTab";
 import { UserSecurityTab } from "@/components/users/UserSecurityTab";
 import { StaffPermissions } from "@/components/users/PermissionsDialog";
 import { salvaPermessiUtente } from "@/lib/permessi/salvaPermessiUtente";
+import { ruoloPrincipale, ruoliAggiuntivi, TESTI_RUOLO_AGGIUNTIVO, type RuoloAggiuntivo } from "@/lib/permessi/ruoliUtente";
 import { usePermissions } from "@/hooks/usePermissions";
 import { normalizeCompanyAccessRole } from "@/lib/auth/multiCompany";
 import { isNetworkError, isTransientTimeoutError, sembraErrorePostgresGrezzo, userErrorMessage } from "@/lib/userErrorMessage";
@@ -52,8 +53,8 @@ interface UserDetail {
   /** Chi comanda in questa azienda: il suo ruolo di admin non si tocca. */
   titolare_user_id: string | null;
   e_il_titolare: boolean;
-  /** Ruoli aggiuntivi commerciali (salesperson/call_center quando il primary è altro) */
-  additionalRoles: ("salesperson" | "call_center")[];
+  /** Ruoli «anche …»: Venditore, Call Center, Operaio quando il principale è un altro */
+  additionalRoles: RuoloAggiuntivo[];
   permissions: StaffPermissions | null;
 }
 
@@ -152,22 +153,14 @@ export default function SettingsUserDetail() {
       const selectedAccessRole = normalizeCompanyAccessRole(multiCompanyAccess?.access_role);
       const isMultiCompanyAccess = !!multiCompanyAccess && profile.company_id !== accessCompanyId;
 
-      // Determine effective role with priority: selected company access > global company role.
-      const roleSet = new Set(roles?.map(r => r.role) || []);
-      let effectiveRole: CompanyUserRole | undefined;
-      if (selectedAccessRole) effectiveRole = selectedAccessRole as CompanyUserRole;
-      else if (roleSet.has("company_admin")) effectiveRole = "company_admin";
-      else if (roleSet.has("salesperson")) effectiveRole = "salesperson";
-      else if (roleSet.has("call_center")) effectiveRole = "call_center";
-      else if (roleSet.has("company_staff")) effectiveRole = "company_staff";
-      else if (roleSet.has("employee")) effectiveRole = "employee";
-      else if (roleSet.has("worker")) effectiveRole = "employee"; // retrocompatibilità DB
-      else if (roleSet.has("subcontractor")) effectiveRole = "subcontractor";
-
-      // Ruoli aggiuntivi commerciali (quando il primary NON è già quello)
-      const additionalRoles: ("salesperson" | "call_center")[] = [];
-      if (effectiveRole !== "salesperson" && roleSet.has("salesperson")) additionalRoles.push("salesperson");
-      if (effectiveRole !== "call_center" && roleSet.has("call_center")) additionalRoles.push("call_center");
+      // Ruolo principale: prima l'accesso per questa azienda, poi i ruoli
+      // dell'utente con la classifica di @/lib/permessi/ruoliUtente — la
+      // stessa del database (ruolo_principale_utente). Gli altri fra
+      // Venditore, Call Center e Operaio sono «anche …».
+      const ruoliUtente = (roles ?? []).map((r) => r.role as string);
+      const effectiveRole: CompanyUserRole | undefined =
+        (selectedAccessRole as CompanyUserRole | null) ?? ruoloPrincipale(ruoliUtente);
+      const additionalRoles = ruoliAggiuntivi(ruoliUtente, effectiveRole);
 
       // Chi comanda in questa azienda: il suo ruolo non si tocca, e i ruoli
       // degli altri amministratori li cambia solo lui. Il controllo vero sta
@@ -216,7 +209,7 @@ export default function SettingsUserDetail() {
   // mai funzionato (21/09/2026).
   const toggleAdditionalRoleMutation = useMutation({
     meta: { silent: true },
-    mutationFn: async ({ role: addRole, add }: { role: "salesperson" | "call_center"; add: boolean }) => {
+    mutationFn: async ({ role: addRole, add }: { role: RuoloAggiuntivo; add: boolean }) => {
       const companyId = userData?.access_company_id ?? userData?.company_id;
       if (!userId || !companyId) throw new Error("Utente non inizializzato");
       const { error } = await supabase.rpc("imposta_ruolo_aggiuntivo" as never, {
@@ -233,12 +226,10 @@ export default function SettingsUserDetail() {
       queryClient.invalidateQueries({ queryKey: queryKeys.users.companyUsers });
       queryClient.invalidateQueries({ queryKey: ["company-staff-users"] });
       queryClient.invalidateQueries({ queryKey: ["salespeople"] });
-      const label = addRole === "salesperson" ? "Venditore" : "Call Center";
+      const testi = TESTI_RUOLO_AGGIUNTIVO[addRole];
       toast({
-        title: add ? `Ruolo "${label}" aggiunto` : `Ruolo "${label}" rimosso`,
-        description: add
-          ? "L'utente ora compare nel calendario CRM e nelle liste commerciali."
-          : "L'utente non appare più nel CRM (dati storici preservati).",
+        title: add ? `Ruolo "${testi.nome}" aggiunto` : `Ruolo "${testi.nome}" rimosso`,
+        description: add ? testi.cosaFa : testi.tolto,
       });
     },
     onError: (e: unknown) => {
@@ -522,8 +513,13 @@ export default function SettingsUserDetail() {
               }}
               onSave={(perms) => savePermissionsMutation.mutate(perms)}
               onChangeRole={(ruolo, permessi) => changeRoleMutation.mutate({ ruolo, permessi })}
-              onToggleAdditionalRole={(role, add) =>
-                toggleAdditionalRoleMutation.mutate({ role, add })
+              // I ruoli aggiuntivi valgono per la persona, non per un'azienda: a
+              // chi entra qui con l'accesso multi-azienda li cambia solo la
+              // piattaforma (il database lo impone comunque).
+              onToggleAdditionalRole={
+                userData.is_multi_company_access && !isImpersonating
+                  ? undefined
+                  : (role, add) => toggleAdditionalRoleMutation.mutate({ role, add })
               }
               isLoading={savePermissionsMutation.isPending}
               isChangingRole={

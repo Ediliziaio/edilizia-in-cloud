@@ -48,6 +48,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { withClientTimeout } from "@/lib/query-timeout";
 import { isNetworkError, sembraErrorePostgresGrezzo, userErrorMessage } from "@/lib/userErrorMessage";
 import { salvaPermessiUtente } from "@/lib/permessi/salvaPermessiUtente";
+import { aggiuntiviDisponibili, ruoliAggiuntivi, ruoloPrincipale, TESTI_RUOLO_AGGIUNTIVO, type RuoloAggiuntivo } from "@/lib/permessi/ruoliUtente";
 
 import { useIsMobile } from "@/hooks/use-mobile";
 type EffectiveRole = "company_admin" | "company_staff" | "salesperson" | "call_center" | "employee" | "subcontractor";
@@ -131,10 +132,8 @@ function RoleBadge({ role }: { role: EffectiveRole }) {
 function RolesBadgeGroup({ roles }: { roles: string[] | null | undefined }) {
   const safeRoles = Array.isArray(roles) ? roles : [];
   const primary = determineEffectiveRole(safeRoles);
-  const extras: EffectiveRole[] = [];
-  // Marca il ruolo commerciale come "extra" se non è già il primary
-  if (primary !== "salesperson" && safeRoles.includes("salesperson")) extras.push("salesperson");
-  if (primary !== "call_center" && safeRoles.includes("call_center")) extras.push("call_center");
+  // Venditore, Call Center, Operaio quando non sono già il principale.
+  const extras = ruoliAggiuntivi(safeRoles, primary);
   return (
     <div className="flex items-center gap-1 flex-wrap">
       <RoleBadge role={primary} />
@@ -154,7 +153,7 @@ function RolesBadgeGroup({ roles }: { roles: string[] | null | undefined }) {
               </Badge>
             </TooltipTrigger>
             <TooltipContent side="top" className="text-xs">
-              Ruolo aggiuntivo: appare anche nel CRM (calendario, venditori).
+              Ruolo aggiuntivo. {TESTI_RUOLO_AGGIUNTIVO[r].cosaFa}
             </TooltipContent>
           </Tooltip>
         );
@@ -208,14 +207,11 @@ function getUserStatusKey(u: CompanyUser): Exclude<StatusFilter, "all"> {
   return "inactive";
 }
 
+/** Il ruolo principale con la classifica della scheda utente e del database
+ *  (@/lib/permessi/ruoliUtente): prima qui Operaio stava sopra Utente, e la
+ *  stessa persona risultava «Operaio» nell'elenco e «Utente» nella scheda. */
 function determineEffectiveRole(roles: string[]): EffectiveRole {
-  if (roles.includes("company_admin")) return "company_admin";
-  if (roles.includes("salesperson")) return "salesperson";
-  if (roles.includes("call_center")) return "call_center";
-  if (roles.includes("employee")) return "employee";
-  if (roles.includes("worker")) return "employee";
-  if (roles.includes("subcontractor")) return "subcontractor";
-  return "company_staff";
+  return ruoloPrincipale(roles) ?? "company_staff";
 }
 
 function uniqueValues(values: string[]) {
@@ -922,10 +918,9 @@ export function UsersConfig() {
     onError: () => toast.error("Errore nel cambio stato accesso"),
   });
 
-  // ── Toggle ruolo secondario (salesperson/call_center) ──────────────
-  // Permette a un utente con primary role "operatore ufficio" di avere
-  // ANCHE il ruolo commerciale così compare nel calendario CRM, dropdown
-  // venditori, ecc.
+  // ── Ruoli aggiuntivi (Venditore, Call Center, Operaio) ──────────────
+  // Chiunque, amministratore compreso, può avere ANCHE un altro ruolo: così
+  // compare nel CRM, nel call center o entra nell'Area Campo.
   const toggleSecondaryRoleMutation = useMutation({
     // Lo fa il database (imposta_ruolo_aggiuntivo): su user_roles scrive solo
     // il super admin, e per gli amministratori delle aziende la spunta non ha
@@ -938,9 +933,8 @@ export function UsersConfig() {
       add,
     }: {
       userId: string;
-      role: "salesperson" | "call_center";
+      role: RuoloAggiuntivo;
       add: boolean;
-      userData?: { first_name: string; last_name: string; email: string };
     }) => {
       if (!effectiveCompanyId) throw new Error("Azienda non selezionata");
       const { error } = await supabase.rpc("imposta_ruolo_aggiuntivo" as never, {
@@ -955,12 +949,10 @@ export function UsersConfig() {
       queryClient.invalidateQueries({ queryKey: ["company-users"] });
       queryClient.invalidateQueries({ queryKey: ["company-staff-users"] });
       queryClient.invalidateQueries({ queryKey: ["salespeople"] });
-      const label = role === "salesperson" ? "Venditore" : "Call Center";
-      toast.success(
-        add
-          ? `Ruolo "${label}" aggiunto — ora compare nel CRM`
-          : `Ruolo "${label}" rimosso`
-      );
+      const testi = TESTI_RUOLO_AGGIUNTIVO[role];
+      toast.success(add ? `Ruolo "${testi.nome}" aggiunto` : `Ruolo "${testi.nome}" rimosso`, {
+        description: add ? testi.cosaFa : testi.tolto,
+      });
     },
     // Il database risponde con una frase italiana («Solo un amministratore…»):
     // si mostra quella; gli errori tecnici passano dalla traduzione generica.
@@ -1454,76 +1446,24 @@ export function UsersConfig() {
                                 <Shield className="h-4 w-4 mr-2" /> Permessi
                               </DropdownMenuItem>
                             )}
-                            {/* Toggle ruoli commerciali (multi-role) */}
-                            {canManageUsers && u.effectiveRole !== "company_admin" && (
+                            {/* Ruoli aggiuntivi: per tutti tranne il Subappaltatore */}
+                            {canManageUsers && aggiuntiviDisponibili(u.effectiveRole).length > 0 && (
                               <>
                                 <DropdownMenuSeparator />
-                                {(() => {
-                                  const safeRoles = Array.isArray(u.allRoles) ? u.allRoles : [];
-                                  const isSalesperson = safeRoles.includes("salesperson");
-                                  const isCallCenter = safeRoles.includes("call_center");
-                                  const isPrimarySales = u.effectiveRole === "salesperson";
-                                  const isPrimaryCall = u.effectiveRole === "call_center";
+                                {aggiuntiviDisponibili(u.effectiveRole).map((r) => {
+                                  const attivo = ruoliAggiuntivi(u.allRoles, u.effectiveRole).includes(r);
+                                  const { icon: Icona } = ROLE_CONFIG[r];
+                                  const nome = TESTI_RUOLO_AGGIUNTIVO[r].nome;
                                   return (
-                                    <>
-                                      {/* Se ha già salesperson come primary → non mostrare toggle */}
-                                      {!isPrimarySales && (
-                                        <DropdownMenuItem
-                                          onClick={() =>
-                                            toggleSecondaryRoleMutation.mutate({
-                                              userId: u.id,
-                                              role: "salesperson",
-                                              add: !isSalesperson,
-                                              userData: {
-                                                first_name: u.first_name,
-                                                last_name: u.last_name,
-                                                email: u.email,
-                                              },
-                                            })
-                                          }
-                                        >
-                                          <TrendingUp
-                                            className={`h-4 w-4 mr-2 ${
-                                              isSalesperson ? "text-emerald-600" : ""
-                                            }`}
-                                          />
-                                          {isSalesperson ? (
-                                            <>Rimuovi ruolo Venditore</>
-                                          ) : (
-                                            <>Aggiungi ruolo Venditore</>
-                                          )}
-                                        </DropdownMenuItem>
-                                      )}
-                                      {!isPrimaryCall && (
-                                        <DropdownMenuItem
-                                          onClick={() =>
-                                            toggleSecondaryRoleMutation.mutate({
-                                              userId: u.id,
-                                              role: "call_center",
-                                              add: !isCallCenter,
-                                              userData: {
-                                                first_name: u.first_name,
-                                                last_name: u.last_name,
-                                                email: u.email,
-                                              },
-                                            })
-                                          }
-                                        >
-                                          <Phone
-                                            className={`h-4 w-4 mr-2 ${
-                                              isCallCenter ? "text-blue-600" : ""
-                                            }`}
-                                          />
-                                          {isCallCenter ? (
-                                            <>Rimuovi ruolo Call Center</>
-                                          ) : (
-                                            <>Aggiungi ruolo Call Center</>
-                                          )}
-                                        </DropdownMenuItem>
-                                      )}
-                                    </>
+                                    <DropdownMenuItem
+                                      key={r}
+                                      onClick={() => toggleSecondaryRoleMutation.mutate({ userId: u.id, role: r, add: !attivo })}
+                                    >
+                                      <Icona className={`h-4 w-4 mr-2 ${attivo ? "text-emerald-600" : ""}`} />
+                                      {attivo ? `Rimuovi ruolo ${nome}` : `Aggiungi ruolo ${nome}`}
+                                    </DropdownMenuItem>
                                   );
-                                })()}
+                                })}
                               </>
                             )}
                             {((u.locked_until && new Date(u.locked_until) > new Date()) || u.failed_login_count > 0) && (
