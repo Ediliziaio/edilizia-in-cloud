@@ -58,8 +58,11 @@ export const CAPITOLI_EDILI: CapitoloDescritto[] = [
   { chiave: "apertura", etichetta: "Apertura", descrizione: "Lettera, l'intervento in breve, il piano in numeri, l'indice", spostabile: false, nascondibile: true, diSerie: true },
   { chiave: "chiSiamo", etichetta: "Chi siamo", descrizione: "Presentazione, perché sceglierci, recensioni · esce se compilato", spostabile: true, nascondibile: true, diSerie: true },
   { chiave: "progetto", etichetta: "Il progetto", descrizione: "Da dove partiamo e la nostra risposta · esce se compilato", spostabile: true, nascondibile: true, diSerie: true },
-  { chiave: "comeFunziona", etichetta: "Come funziona", descrizione: "Le lavorazioni che non si vedono, spiegate con foto tecniche", spostabile: true, nascondibile: true, diSerie: true },
+  // «Come lavoriamo» subito dopo il progetto (dal 22/09/2026, prima era dopo «Come
+  // funziona»): due capitoli corti stanno sulla stessa pagina. Fra due pagine di
+  // foto tecniche restava da solo, su un foglio per tre quarti bianco.
   { chiave: "percorso", etichetta: "Come lavoriamo", descrizione: "Le fasi, dal primo incontro alla consegna · esce se compilato", spostabile: true, nascondibile: true, diSerie: true },
+  { chiave: "comeFunziona", etichetta: "Come funziona", descrizione: "Le lavorazioni che non si vedono, spiegate con foto tecniche", spostabile: true, nascondibile: true, diSerie: true },
   { chiave: "protezione", etichetta: "Protezione della casa", descrizione: "Come proteggete la casa durante i lavori", spostabile: true, nascondibile: true, diSerie: true, promessa: true },
   { chiave: "controlli", etichetta: "Controlli di qualità", descrizione: "Cosa verificate prima della consegna", spostabile: true, nascondibile: true, diSerie: true, promessa: true },
   { chiave: "lavori", etichetta: "I nostri lavori", descrizione: "Galleria dei lavori consegnati · esce se ci sono foto", spostabile: true, nascondibile: true, diSerie: true },

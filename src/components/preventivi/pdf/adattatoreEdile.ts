@@ -15,8 +15,9 @@ import { condizioniStandard, type SettoreCondizioni } from "@/lib/condizioniStan
 import { tipografiaDaModello } from "./temaDocumento";
 import { leggiOrdine, leggiPagineLibere } from "./ordineCapitoli";
 import { testiPerPdf } from "../../../../supabase/functions/_shared/testoPerPdf";
+import { IMMOBILI, interventoInParole, parolaDelCodice, unitaInParole } from "./paroleDeiCodici";
 import {
-  BLOCCHI, eFotoDiSerie, leggiBlocco, leggiFotoPagina, settoreBlocchi, type ChiaveBlocco, type ChiaveFotoPagina,
+  BLOCCHI, eFotoDiSerie, leggiBlocco, leggiFotoPagina, RIEMPIMENTI_EDILI, settoreBlocchi, type ChiaveBlocco, type ChiaveFotoPagina,
 } from "../../../../supabase/functions/_shared/blocchiPreventivo";
 import { conOrigine, fotoPerIlPdf } from "@/lib/pdf/fotoBlocchi";
 import type {
@@ -226,6 +227,11 @@ export function leggiModello(
     conRecesso: t.modulo_recesso_attivo === true,
     blocchi: leggiBlocchi(t, contesto.settore ?? "ristrutturazione"),
     fotoChiusura: fotoDellaPagina(t, "chiusura", contesto.settore ?? "ristrutturazione"),
+    fotoRiempimento: Object.fromEntries(
+      Object.entries(RIEMPIMENTI_EDILI)
+        .map(([capitolo, chiave]) => [capitolo, fotoDellaPagina(t, chiave, contesto.settore ?? "ristrutturazione")] as const)
+        .filter(([, f]) => f),
+    ),
   };
 }
 
@@ -308,9 +314,22 @@ export function costruisciDatiEdile(input: {
   /** Segnaposto in più del modulo per i testi di copertina ({superficie_mq}, {tipo_piscina}…). */
   sostituzioniExtra?: Record<string, string>;
 }): DocEdileDati {
-  const { modulo, progetto: p, template: t, azienda } = input;
+  const { modulo, template: t, azienda } = input;
+  // I codici del preventivatore («rifacimento_completo», «casa_indipendente»)
+  // diventano parole prima di tutto il resto: scheda, riepilogo, copertina e segnaposto.
+  const intervento = interventoInParole(input.progetto.tipo_intervento, modulo.chiave);
+  const p: ProgettoComune = {
+    ...input.progetto,
+    tipo_intervento: intervento,
+    immobile_tipo: parolaDelCodice(input.progetto.immobile_tipo, IMMOBILI),
+  };
   const modello = leggiModello(t, {
-    progetto: p, azienda, sostituzioniExtra: input.sostituzioniExtra,
+    progetto: p, azienda,
+    // Dentro una frase («Il preventivo per {tipo_intervento}») va in minuscolo.
+    sostituzioniExtra: {
+      ...(intervento ? { tipo_intervento: intervento.charAt(0).toLowerCase() + intervento.slice(1) } : {}),
+      ...input.sostituzioniExtra,
+    },
     settore: modulo.chiave as SettoreCondizioni, totale: input.totali?.totale ?? null,
   });
 
@@ -324,7 +343,7 @@ export function costruisciDatiEdile(input: {
       return {
         id: v.id,
         descrizione: v.descrizione || "—",
-        unitaMisura: v.unita_misura,
+        unitaMisura: unitaInParole(v.unita_misura),
         quantita: Number(v.quantita) || 0,
         prezzoUnitario: Number(v.prezzo_unitario) || 0,
         importo,

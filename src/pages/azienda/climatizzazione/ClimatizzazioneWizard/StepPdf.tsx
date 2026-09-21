@@ -76,7 +76,7 @@ export default function StepPdf({ progetto, computo, media }: Props) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("companies")
-        .select("name, business_name, legal_address, legal_city, legal_postal_code, legal_province, phone, email, vat_number, website, logo_url")
+        .select("name, business_name, legal_address, legal_city, legal_postal_code, legal_province, phone, email, vat_number, website, logo_url, brand_primary_color, brand_logo_dark_url")
         .eq("id", companyId!)
         .maybeSingle();
       if (error) throw new Error(error.message);
@@ -96,6 +96,11 @@ export default function StepPdf({ progetto, computo, media }: Props) {
         // `website` può non esistere su companies: cast difensivo.
         website: (data as Record<string, unknown>).website as string | null ?? null,
         logo_url: data.logo_url,
+        // Il kit del marchio: il colore vale quando il modello è rimasto a quello di
+        // fabbrica, il logo chiaro va sulla copertina scura. Fino al 22/09/2026 da qui
+        // non arrivavano, e il preventivo scaricato dal preventivatore li ignorava.
+        colore_marca: data.brand_primary_color ?? null,
+        logo_chiaro_url: data.brand_logo_dark_url ?? null,
       };
     },
   });

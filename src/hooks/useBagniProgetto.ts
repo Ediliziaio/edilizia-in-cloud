@@ -575,7 +575,7 @@ export function isBgnModuleNotPublished(
 const asArray = <T,>(v: unknown): T[] => (Array.isArray(v) ? (v as T[]) : []);
 
 /** Normalizza una riga grezza del DB nel tipo `BgnTemplatePdf` (liste sempre array). */
-function normalizeTemplate(row: Record<string, unknown> | null, companyId: string): BgnTemplatePdf {
+export function normalizeTemplate(row: Record<string, unknown> | null, companyId: string): BgnTemplatePdf {
   const r = row ?? {};
   return {
     id: (r.id as string) ?? "",
@@ -659,6 +659,11 @@ function normalizeTemplate(row: Record<string, unknown> | null, companyId: strin
     condizioni_legali_attivo: (r.condizioni_legali_attivo as boolean | null) ?? true,
     modulo_recesso_attivo: r.modulo_recesso_attivo === true,
     pdf_blocchi: r.pdf_blocchi && typeof r.pdf_blocchi === "object" ? (r.pdf_blocchi as Record<string, unknown>) : {},
+    // La rata di esempio: si salva dall'editor, ma fino al 22/09/2026 si perdeva
+    // qui, e né il PDF né l'editor la vedevano più (l'interruttore tornava spento).
+    finanziamento_promo: r.finanziamento_promo && typeof r.finanziamento_promo === "object"
+      ? (r.finanziamento_promo as Record<string, unknown>)
+      : null,
   };
 }
 

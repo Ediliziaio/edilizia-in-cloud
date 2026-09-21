@@ -177,6 +177,11 @@ export interface DocEdileModello {
    * finito), cambiata o tolta dall'azienda. Null = niente foto.
    */
   fotoChiusura: DocEdileFotoBlocco | null;
+  /**
+   * Le foto che riempiono la pagina quando un capitolo finisce a metà foglio,
+   * per capitolo del documento (vedi RIEMPIMENTI_EDILI in _shared/blocchiPreventivo).
+   */
+  fotoRiempimento: Partial<Record<string, DocEdileFotoBlocco>>;
   /** L'ordine dei capitoli scelto dall'azienda (vuoto = quello di serie). */
   ordineCapitoli: VoceOrdine[];
   /** Le pagine scritte dall'azienda: certificazioni, showroom, un lavoro di cui va fiera. */

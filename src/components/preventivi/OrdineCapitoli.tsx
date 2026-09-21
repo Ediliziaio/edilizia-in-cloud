@@ -20,7 +20,7 @@ import {
 } from "@/components/preventivi/pdf/ordineCapitoli";
 import { EditorBlocco } from "@/components/preventivi/EditorBlocco";
 import { EditorFotoPagina } from "@/components/preventivi/EditorFotoPagina";
-import { BLOCCHI, type ChiaveBlocco, type SettoreBlocchi } from "../../../supabase/functions/_shared/blocchiPreventivo";
+import { BLOCCHI, RIEMPIMENTI_EDILI, type ChiaveBlocco, type ChiaveFotoPagina, type SettoreBlocchi } from "../../../supabase/functions/_shared/blocchiPreventivo";
 
 interface Props {
   /** Il valore salvato nel modello (`pdf_ordine_capitoli`): null = ordine di serie. */
@@ -95,6 +95,8 @@ export function OrdineCapitoli({ ordine, pagine, onOrdine, onPagine, campoFoto, 
           const titolo = pagina ? senzaAsterischi(pagina.titolo) || "Pagina senza titolo" : descritto?.etichetta ?? v.chiave;
           const blocco = BLOCCO.get(v.chiave);
           const modificabile = Boolean(blocco && settore && onBlocchi);
+          // La foto che riempie la pagina quando il capitolo finisce a metà foglio.
+          const chiaveFoto = settore && onBlocchi ? (RIEMPIMENTI_EDILI as Record<string, ChiaveFotoPagina>)[v.chiave] : undefined;
           return (
             <li key={v.chiave} className={cn("px-3 py-2", !v.visibile && "bg-muted/40")}>
               <div className="flex items-center gap-2">
@@ -126,6 +128,11 @@ export function OrdineCapitoli({ ordine, pagine, onOrdine, onPagine, campoFoto, 
                     <Pencil className="h-3.5 w-3.5" />
                   </Button>
                 ) : null}
+                {chiaveFoto ? (
+                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setAperta(aperta === `foto:${v.chiave}` ? null : `foto:${v.chiave}`)} aria-label={`Foto di ${titolo}`} title="La foto che riempie la pagina quando il capitolo finisce a metà">
+                    <Camera className="h-3.5 w-3.5" />
+                  </Button>
+                ) : null}
                 {pagina ? (
                   <>
                     <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setAperta(aperta === pagina.id ? null : pagina.id)} aria-label={`Modifica ${titolo}`}>
@@ -153,6 +160,15 @@ export function OrdineCapitoli({ ordine, pagine, onOrdine, onPagine, campoFoto, 
                   onSalvati={(nuovi) => onBlocchi?.(nuovi)}
                   campoFoto={campoFoto}
                 />
+              ) : null}
+
+              {chiaveFoto && settore && onBlocchi && aperta === `foto:${v.chiave}` ? (
+                <div>
+                  <p className="mt-2 text-[11px] text-muted-foreground">
+                    Esce solo quando il capitolo finisce a metà pagina, e riempie lo spazio che resterebbe bianco. Una foto già usata altrove nel documento non si ripete.
+                  </p>
+                  <EditorFotoPagina chiave={chiaveFoto} settore={settore} salvati={blocchi} onSalvati={(nuovi) => onBlocchi(nuovi)} campoFoto={campoFoto} />
+                </div>
               ) : null}
 
               {pagina && aperta === pagina.id ? (

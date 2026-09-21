@@ -12,6 +12,7 @@ import type { IdrPdfEnriched } from "@/hooks/useTermoidraulicoPDF";
 import { DocumentoEdilePDF } from "@/components/preventivi/pdf/DocumentoEdilePDF";
 import { costruisciDatiEdile } from "@/components/preventivi/pdf/adattatoreEdile";
 import { MODULI_EDILI } from "@/components/preventivi/pdf/moduliEdili";
+import { GENERATORI, parolaDelCodice } from "@/components/preventivi/pdf/paroleDeiCodici";
 
 const MODULO = MODULI_EDILI.termoidraulico;
 
@@ -27,7 +28,7 @@ export function TermoidraulicoPDF(props: IdrPdfEnriched) {
     media,
     opzioniComputo: computoOptions,
     schedaModulo: [
-      { etichetta: "Generatore", valore: p.tipo_generatore },
+      { etichetta: "Generatore", valore: parolaDelCodice(p.tipo_generatore, GENERATORI) },
       { etichetta: "Terminali", valore: p.numero_terminali ? String(p.numero_terminali) : null },
     ],
   });

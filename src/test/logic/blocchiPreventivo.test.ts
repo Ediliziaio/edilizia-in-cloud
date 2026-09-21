@@ -2,9 +2,10 @@ import { describe, expect, it } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
-  BLOCCHI, FOTO_LIBRERIA, bloccoDiSerie, eFotoDiSerie, fotoDellaLibreria, leggiBlocco, settoreBlocchi,
-  type SettoreBlocchi,
+  BLOCCHI, FOTO_LIBRERIA, RIEMPIMENTI_EDILI, bloccoDiSerie, eFotoDiSerie, fotoDellaLibreria, fotoPaginaDiSerie, leggiBlocco, settoreBlocchi,
+  type ChiaveFotoPagina, type SettoreBlocchi,
 } from "../../../supabase/functions/_shared/blocchiPreventivo";
+import { COPERTINA_DI_SERIE } from "@/components/preventivi/pdf/immaginiDocumento";
 import { ICONE } from "../../../supabase/functions/_shared/iconePreventivo";
 import { testoPerPdf } from "../../../supabase/functions/_shared/testoPerPdf";
 import { CAPITOLI_EDILI, ordineEffettivo } from "@/components/preventivi/pdf/ordineCapitoli";
@@ -129,5 +130,40 @@ describe("blocchi del preventivo: dal modello al PDF degli edili", () => {
     expect(edile).not.toMatch(/flexGrow:\s*1/);
     const serramenti = leggi("src/components/serramenti/SerramentoPDF.tsx");
     expect(serramenti).toContain("height: altezzaFotoBlocco(blocco, foto.length)");
+  });
+});
+
+describe("le pagine piene dei preventivi edili (22/09/2026)", () => {
+  const leggi = (rel: string) => readFileSync(resolve(process.cwd(), rel), "utf8");
+  it("`wrap` non si passa mai come undefined: per react-pdf vuol dire «non spezzare»", () => {
+    // `'wrap' in props`: con wrap={undefined} un computo lungo finiva schiacciato su un foglio.
+    for (const file of ["src/components/preventivi/pdf/DocumentoEdilePDF.tsx", "src/components/serramenti/SerramentoPDF.tsx"]) {
+      const src = leggi(file);
+      // Solo l'attributo (preceduto da uno spazio), non i commenti che lo raccontano.
+      expect(src, file).not.toMatch(/\swrap=\{[^}]*\bundefined\b[^}]*\}/);
+    }
+  });
+
+  it("nessuna foto di serie si ripete nello stesso documento, e ogni foto esiste", () => {
+    const moduli = ["bagni", "ristrutturazione", "tetti", "climatizzazione", "elettrico", "termoidraulico", "pavimenti", "piscine"] as const;
+    const chiavi = [...new Set([...Object.values(RIEMPIMENTI_EDILI), "chiusura"])] as ChiaveFotoPagina[];
+    for (const m of moduli) {
+      const foto = [
+        COPERTINA_DI_SERIE[m],
+        ...BLOCCHI.flatMap((b) => leggiBlocco(b.chiave, m, {}).foto),
+        ...chiavi.map((k) => fotoPaginaDiSerie(k, m)),
+      ].filter((f): f is string => Boolean(f));
+      const doppie = foto.filter((f, i) => foto.indexOf(f) !== i);
+      expect(doppie, m).toEqual([]);
+      for (const f of foto) expect(existsSync(resolve(process.cwd(), `public${f}`)), `${m}: ${f}`).toBe(true);
+    }
+  });
+
+  it("le pagine che si riempiono hanno la foto cambiabile dall'editor, capitolo per capitolo", () => {
+    const editor = leggi("src/components/preventivi/OrdineCapitoli.tsx");
+    expect(editor).toContain("(RIEMPIMENTI_EDILI as Record<string, ChiaveFotoPagina>)[v.chiave]");
+    expect(Object.keys(RIEMPIMENTI_EDILI).sort()).toEqual(["chiSiamo", "compreso", "garanzie", "investimento", "percorso", "piano", "tempi"]);
+    // Le foto di riempimento passano dalla stessa conversione della chiusura.
+    expect(leggi("src/components/preventivi/pdf/immaginiDocumento.ts")).toContain("Object.entries(RIEMPIMENTI_EDILI)");
   });
 });

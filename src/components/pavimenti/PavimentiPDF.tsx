@@ -12,6 +12,7 @@ import type { PavPdfEnriched } from "@/hooks/usePavimentiPDF";
 import { DocumentoEdilePDF } from "@/components/preventivi/pdf/DocumentoEdilePDF";
 import { costruisciDatiEdile } from "@/components/preventivi/pdf/adattatoreEdile";
 import { MODULI_EDILI } from "@/components/preventivi/pdf/moduliEdili";
+import { MATERIALI_PAVIMENTO, parolaDelCodice } from "@/components/preventivi/pdf/paroleDeiCodici";
 
 const MODULO = MODULI_EDILI.pavimenti;
 
@@ -27,7 +28,7 @@ export function PavimentiPDF(props: PavPdfEnriched) {
     media,
     opzioniComputo: computoOptions,
     schedaModulo: [
-      { etichetta: "Materiale", valore: p.tipo_materiale },
+      { etichetta: "Materiale", valore: parolaDelCodice(p.tipo_materiale, MATERIALI_PAVIMENTO) },
       { etichetta: "Ambienti", valore: p.numero_ambienti ? String(p.numero_ambienti) : null },
     ],
   });

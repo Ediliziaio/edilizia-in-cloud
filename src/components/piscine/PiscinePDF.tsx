@@ -12,6 +12,7 @@ import type { PisPdfEnriched } from "@/hooks/usePiscinePDF";
 import { DocumentoEdilePDF } from "@/components/preventivi/pdf/DocumentoEdilePDF";
 import { costruisciDatiEdile } from "@/components/preventivi/pdf/adattatoreEdile";
 import { MODULI_EDILI } from "@/components/preventivi/pdf/moduliEdili";
+import { COSTRUZIONI_PISCINA, TIPI_PISCINA, parolaDelCodice } from "@/components/preventivi/pdf/paroleDeiCodici";
 
 const MODULO = MODULI_EDILI.piscine;
 
@@ -26,10 +27,11 @@ export function PiscinePDF(props: PisPdfEnriched) {
     totali,
     media,
     opzioniComputo: computoOptions,
-    sostituzioniExtra: { tipo_piscina: (p.tipo_piscina ?? "").trim() },
+    // In una frase: «La tua piscina {tipo_piscina}» → «La tua piscina a skimmer».
+    sostituzioniExtra: { tipo_piscina: (parolaDelCodice(p.tipo_piscina, TIPI_PISCINA) ?? "").toLowerCase() },
     schedaModulo: [
-      { etichetta: "Tipo di piscina", valore: p.tipo_piscina },
-      { etichetta: "Costruzione", valore: p.tipo_costruzione },
+      { etichetta: "Tipo di piscina", valore: parolaDelCodice(p.tipo_piscina, TIPI_PISCINA) },
+      { etichetta: "Costruzione", valore: parolaDelCodice(p.tipo_costruzione, COSTRUZIONI_PISCINA) },
     ],
   });
   return <DocumentoEdilePDF dati={dati} />;

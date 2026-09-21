@@ -617,7 +617,9 @@ export function settoreBlocchi(modulo: string): SettoreBlocchi {
  */
 export type ChiaveFotoPagina =
   | "chiusura" | "percorso" | "confronto" | "cta"
-  | "garanzie" | "bollette" | "decisione" | "componenti" | "costi" | "cassa" | "piano";
+  | "garanzie" | "bollette" | "decisione" | "componenti" | "costi" | "cassa" | "piano"
+  // Edili: la foto che riempie la pagina quando il capitolo finisce a metà foglio.
+  | "chiSiamo" | "tempi" | "computo" | "investimento" | "compreso";
 
 export const FOTO_PAGINE_ETICHETTE: Record<ChiaveFotoPagina, string> = {
   chiusura: "Foto dei prossimi passi",
@@ -631,9 +633,31 @@ export const FOTO_PAGINE_ETICHETTE: Record<ChiaveFotoPagina, string> = {
   costi: "Foto dei costi futuri",
   cassa: "Foto della cassa a 25 anni",
   piano: "Foto del piano economico",
+  chiSiamo: "Foto sotto «Chi siamo»",
+  tempi: "Foto dei tempi",
+  computo: "Foto in fondo al computo",
+  investimento: "Foto sotto il prezzo",
+  compreso: "Foto di «Cosa è compreso»",
 };
 
-/** Le foto di serie: «cartella/file» in public/pdf-stock. */
+/**
+ * Le pagine dei preventivi edili che si riempiono con una foto quando il capitolo
+ * finisce a metà foglio: capitolo del documento → chiave della foto.
+ */
+export const RIEMPIMENTI_EDILI = {
+  chiSiamo: "chiSiamo", percorso: "percorso", garanzie: "garanzie", tempi: "tempi",
+  piano: "computo", investimento: "investimento", compreso: "compreso",
+} as const satisfies Record<string, ChiaveFotoPagina>;
+
+/** Le foto che riempiono le pagine dei preventivi edili, uguali per tutti i mestieri. */
+const RIEMPIMENTI_DI_SERIE: Partial<Record<ChiaveFotoPagina, string>> = {
+  chiSiamo: "ristrutturazione/cantiere",
+  percorso: "comune/storia-assistenza",
+  garanzie: "ristrutturazione/storia-consegna-chiavi",
+  tempi: "ristrutturazione/storia-ciclo-lavori",
+};
+
+/** Le foto di serie: «cartella/file» in public/pdf-stock, o un percorso intero del sito. */
 const FOTO_PAGINE: Partial<Record<SettoreBlocchi, Partial<Record<ChiaveFotoPagina, string>>>> = {
   serramenti: {
     percorso: "serramenti/storia-prima-durante-dopo",
@@ -649,14 +673,22 @@ const FOTO_PAGINE: Partial<Record<SettoreBlocchi, Partial<Record<ChiaveFotoPagin
     cassa: "fotovoltaico/villa-tetto-coppi",
     piano: "fotovoltaico/monitoraggio-app",
   },
-  bagni: { chiusura: "bagni/risultato-moderno" },
-  ristrutturazione: { chiusura: "ristrutturazione/risultato" },
-  tetti: { chiusura: "tetti/installazione" },
-  climatizzazione: { chiusura: "climatizzazione/installazione" },
-  elettrico: { chiusura: "ristrutturazione/controllo-elettrico" },
-  termoidraulico: { chiusura: "ristrutturazione/risultato" },
-  pavimenti: { chiusura: "pavimenti/installazione" },
-  piscine: { chiusura: "piscine/storia-prima-durante-dopo" },
+  // Edili. Una foto per pagina, mai la stessa due volte nello stesso documento:
+  // né quella di copertina, né quelle dei blocchi di serie (vedi il test). Le
+  // pagine che si riempiono (chi siamo, come lavoriamo, garanzie, tempi) la
+  // mostrano solo se il capitolo lascia mezza pagina bianca.
+  bagni: { ...RIEMPIMENTI_DI_SERIE, chiusura: "bagni/risultato-classico", computo: "bagni/installazione", investimento: "/cover-stock/bagni/1.jpg" },
+  // La «ristrutturazione/storia-ciclo-lavori» qui è già in «Cosa è compreso».
+  ristrutturazione: {
+    ...RIEMPIMENTI_DI_SERIE, chiusura: "ristrutturazione/risultato", tempi: "comune/controllo-finale",
+    computo: "ristrutturazione/tecnica-riscaldamento-pavimento", investimento: "/cover-stock/ristrutturazione/1.jpg",
+  },
+  tetti: { ...RIEMPIMENTI_DI_SERIE, chiusura: "tetti/storia-prima-durante-dopo", computo: "tetti/storia-strati" },
+  climatizzazione: { ...RIEMPIMENTI_DI_SERIE, chiusura: "climatizzazione/storia-prima-durante-dopo" },
+  elettrico: { ...RIEMPIMENTI_DI_SERIE, chiusura: "ristrutturazione/risultato" },
+  termoidraulico: { ...RIEMPIMENTI_DI_SERIE, chiusura: "ristrutturazione/risultato", computo: "bagni/tecnica-impianto-idraulico" },
+  pavimenti: { ...RIEMPIMENTI_DI_SERIE, chiusura: "pavimenti/storia-prima-durante-dopo" },
+  piscine: { ...RIEMPIMENTI_DI_SERIE, chiusura: "piscine/installazione" },
 };
 
 export const chiaveSalvataFotoPagina = (chiave: ChiaveFotoPagina): string => `pagina_${chiave}`;
@@ -664,7 +696,8 @@ export const chiaveSalvataFotoPagina = (chiave: ChiaveFotoPagina): string => `pa
 /** La foto di serie di una pagina per un settore, o null se quella pagina non ne ha. */
 export function fotoPaginaDiSerie(chiave: ChiaveFotoPagina, settore: SettoreBlocchi): string | null {
   const file = FOTO_PAGINE[settore]?.[chiave];
-  return file ? `/pdf-stock/${file}.jpg` : null;
+  if (!file) return null;
+  return file.startsWith("/") ? file : `/pdf-stock/${file}.jpg`;
 }
 
 /** La foto che esce in quella pagina: quella scelta dall'azienda, altrimenti quella di serie. */

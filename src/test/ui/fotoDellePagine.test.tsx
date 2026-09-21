@@ -65,9 +65,10 @@ describe("editor: la foto delle pagine", () => {
     expect(salvato()).toEqual({ pagina_garanzie: { foto: ["/pdf-stock/fotovoltaico/villa-tetto-coppi.jpg"], senzaFoto: false } });
   });
 
-  it("edili: «I prossimi passi» ha la sua foto, di serie il bagno finito", () => {
+  it("edili: «I prossimi passi» ha la sua foto, di serie il bagno finito (classico)", () => {
     const { container } = render(<Edile />);
     fireEvent.click(screen.getByRole("button", { name: "Foto di I prossimi passi" }));
-    expect(container.querySelector("img")?.getAttribute("src")).toBe("/pdf-stock/bagni/risultato-moderno.jpg");
+    // Dal 22/09/2026 il bagno classico: quello moderno è già nel diario fotografico.
+    expect(container.querySelector("img")?.getAttribute("src")).toBe("/pdf-stock/bagni/risultato-classico.jpg");
   });
 });
