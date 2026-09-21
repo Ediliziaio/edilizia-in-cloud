@@ -15,6 +15,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  badgeGaranzieDalSito,
   fotoBlocchiDalSito,
   fotoDiSerieDalSito,
   renderFvPdfHtml,
@@ -185,6 +186,7 @@ export default function FvTemplatePreviewDialog({
       },
       // Le foto dei blocchi accesi, dal sito o già firmate: come le vedrà il cliente.
       blocchi_foto: typeof window !== "undefined" ? fotoBlocchiDalSito(window.location.origin, f as FvPdfTemplateData["template"]) : null,
+      badge_garanzie: typeof window !== "undefined" ? badgeGaranzieDalSito(window.location.origin) : null,
     };
     try {
       return renderFvPdfHtml(data);

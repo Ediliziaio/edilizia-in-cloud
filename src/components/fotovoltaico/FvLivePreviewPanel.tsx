@@ -15,6 +15,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Eye, ExternalLink, ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
+  badgeGaranzieDalSito,
   fotoBlocchiDalSito,
   fotoDiSerieDalSito,
   renderFvPdfHtml,
@@ -110,6 +111,7 @@ export function FvLivePreviewPanel({ form: formSalvato, companyName, logoUrl: lo
         },
         // Le foto dei blocchi accesi, dal sito o già firmate: come le vedrà il cliente.
         blocchi_foto: typeof window !== "undefined" ? fotoBlocchiDalSito(window.location.origin, f as FvPdfTemplateData["template"]) : null,
+        badge_garanzie: typeof window !== "undefined" ? badgeGaranzieDalSito(window.location.origin) : null,
       };
       try {
         return renderFvPdfHtml(data);

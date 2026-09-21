@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
+  BADGE_GARANZIE_FV,
+  badgeGaranzieDalSito,
   FOTO_DI_SERIE_FV,
   FV_PDF_PAGES_DEFAULT,
   FV_PDF_PAGES_META,
@@ -810,6 +812,44 @@ describe("fotovoltaico PDF — le pagine: un elenco solo, e i blocchi", () => {
     expect(src).toContain("pdf_blocchi: template.pdf_blocchi && typeof template.pdf_blocchi === \"object\" ? template.pdf_blocchi : null,");
     for (const anteprima of ["src/components/fotovoltaico/FvLivePreviewPanel.tsx", "src/components/fotovoltaico/FvTemplatePreviewDialog.tsx"]) {
       expect(readFileSync(resolve(process.cwd(), anteprima), "utf8")).toContain("blocchi_foto: typeof window !== \"undefined\" ? fotoBlocchiDalSito(window.location.origin");
+    }
+  });
+});
+
+describe("fotovoltaico PDF — i badge delle garanzie", () => {
+  const garanzie = (html: string) => {
+    const i = html.indexOf('<div class="guarantee-grid">');
+    return html.slice(i, html.indexOf("</div>\n      <h3", i));
+  };
+
+  it("un badge per ogni icona, nel sito e piccolo", () => {
+    for (const file of Object.values(BADGE_GARANZIE_FV)) {
+      const percorso = resolve(process.cwd(), `public/pdf-stock/badge/${file}`);
+      expect(existsSync(percorso)).toBe(true);
+      expect(readFileSync(percorso).length).toBeLessThan(40_000);
+    }
+    expect(badgeGaranzieDalSito("https://app.example.it/").sun).toBe("https://app.example.it/pdf-stock/badge/energia-solare.png");
+  });
+
+  it("con i badge la scheda li mostra al posto della sigla; senza, resta la sigla", () => {
+    const d = basePdfData();
+    d.badge_garanzie = { sun: "data:image/png;base64,SOLE", shield: "data:image/png;base64,SCUDO" };
+    const con = garanzie(renderFvPdfHtml(d));
+    expect(con).toContain('<img class="g-badge" src="data:image/png;base64,SOLE"');
+    // un'icona senza badge suo usa quello dello scudo
+    expect(con).toContain('<img class="g-badge" src="data:image/png;base64,SCUDO"');
+    expect(con).not.toContain('class="g-num"');
+    const senza = garanzie(renderFvPdfHtml(basePdfData()));
+    expect(senza).toContain('class="g-num"');
+    expect(senza).not.toContain("g-badge");
+  });
+
+  it("il generatore incorpora i badge, le anteprime li prendono dal sito", () => {
+    const src = readFileSync(resolve(process.cwd(), "supabase/functions/fv-genera-pdf/index.ts"), "utf8");
+    expect(src).toContain("fotoDelBlocco(`/pdf-stock/badge/${file}`)");
+    expect(src).toContain("badge_garanzie: badgeGaranzie,");
+    for (const anteprima of ["src/components/fotovoltaico/FvLivePreviewPanel.tsx", "src/components/fotovoltaico/FvTemplatePreviewDialog.tsx"]) {
+      expect(readFileSync(resolve(process.cwd(), anteprima), "utf8")).toContain("badge_garanzie: typeof window !== \"undefined\" ? badgeGaranzieDalSito(window.location.origin) : null,");
     }
   });
 });

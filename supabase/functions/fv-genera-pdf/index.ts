@@ -35,6 +35,7 @@ import { buildMergeContext, substituteMergeTags } from "../_shared/quoteTemplate
 import { aziendaAccessibile, requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import {
+  BADGE_GARANZIE_FV,
   getFvPdfRenderedPagesCount,
   FOTO_DI_SERIE_FV,
   fotoDeiBlocchiFv,
@@ -411,6 +412,10 @@ Deno.serve(async (req: Request) => {
       }
       return null;
     };
+    // I badge delle garanzie: piccoli (una decina di kB), si incorporano tutti.
+    const badgeGaranzie = Object.fromEntries(await Promise.all(
+      Object.entries(BADGE_GARANZIE_FV).map(async ([icona, file]) => [icona, await fotoDelBlocco(`/pdf-stock/badge/${file}`)] as const),
+    ));
     const blocchiFoto = Object.fromEntries(await Promise.all(
       Object.entries(fotoDeiBlocchiFv(template as FvPdfTemplateData["template"])).map(async ([chiave, foto]) => {
         const pronte = await Promise.all(foto.map(async (u) => ({ src: await fotoDelBlocco(u), diSerie: eFotoDiSerie(u) })));
@@ -721,6 +726,7 @@ Deno.serve(async (req: Request) => {
       flows,
       flows_senza_accumulo: flowsSenzaAccumulo,
       blocchi_foto: blocchiFoto,
+      badge_garanzie: badgeGaranzie,
       foto_di_serie: {
         alberi: fotoAlberi, voli: fotoVoli, auto: fotoAuto,
         bosco: fotoBosco, installatori: fotoInstallatori, impianto: fotoImpianto,

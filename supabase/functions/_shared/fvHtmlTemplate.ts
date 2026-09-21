@@ -53,6 +53,28 @@ export const FOTO_DI_SERIE_FV = {
   impianto: "investimento-impianto.jpg",
 } as const;
 
+/**
+ * I badge delle garanzie, uno per l'icona scelta nel modello: file in
+ * public/pdf-stock/badge del sito. Prendono il posto delle sigle di testo
+ * («PV», «kWh», «FER», «★») che facevano da icona.
+ */
+export const BADGE_GARANZIE_FV = {
+  sun: "energia-solare.png",
+  award: "durata-nel-tempo.png",
+  clock: "tempi-rapidi.png",
+  tools: "installatori-qualificati.png",
+  battery: "energia-elettrica.png",
+  shield: "qualita-verificata.png",
+} as const;
+
+/** Gli indirizzi dei badge a partire dall'origine del sito (anteprime dell'editor). */
+export function badgeGaranzieDalSito(origine: string): Record<keyof typeof BADGE_GARANZIE_FV, string> {
+  const base = `${origine.replace(/\/+$/, "")}/pdf-stock/badge`;
+  return Object.fromEntries(
+    Object.entries(BADGE_GARANZIE_FV).map(([icona, file]) => [icona, `${base}/${file}`]),
+  ) as Record<keyof typeof BADGE_GARANZIE_FV, string>;
+}
+
 /** Gli indirizzi delle foto di serie a partire dall'origine del sito (anteprime dell'editor). */
 export function fotoDiSerieDalSito(origine: string): Record<keyof typeof FOTO_DI_SERIE_FV, string> {
   const base = `${origine.replace(/\/+$/, "")}/pdf-stock/fotovoltaico`;
@@ -202,6 +224,9 @@ export interface FvPdfTemplateData {
    *  dati: servono a dire quanto cambia l'accumulo con numeri veri. Assenti nelle
    *  anteprime con dati finti: allora la frase non ne stampa. */
   flows_senza_accumulo?: FvFlows | null;
+  /** I badge delle garanzie per icona (BADGE_GARANZIE_FV): data URI nel generatore,
+   *  indirizzi del sito nelle anteprime. Senza, la scheda usa la sigla di testo. */
+  badge_garanzie?: Partial<Record<keyof typeof BADGE_GARANZIE_FV, string | null>> | null;
   /** Le foto dei blocchi accesi (come funziona, sicurezza sul tetto…), già pronte:
    *  data URI nel generatore, indirizzi del sito nelle anteprime. Una foto che non
    *  è arrivata non c'è, e il blocco esce senza. */
@@ -651,6 +676,8 @@ table .saving-zero { color: #64748B; }
 .guarantee-card .g-num { font-family: 'Outfit', sans-serif; font-size: 18pt; font-weight: 800; color: #16A34A; line-height: 1; margin-bottom: 1.5mm; }
 .guarantee-card .g-title { font-size: 10pt; font-weight: 700; color: #1E3A5F; margin-bottom: 1.5mm; }
 .guarantee-card .g-desc { font-size: 8pt; color: #475569; line-height: 1.4; }
+.guarantee-card.con-badge { display: grid; grid-template-columns: 13mm 1fr; column-gap: 3.5mm; align-items: start; }
+.guarantee-card .g-badge { width: 13mm; height: 13mm; object-fit: contain; display: block; }
 `;
 
 // ─── Page header/footer comuni ────────────────────────────────────────────
@@ -1739,7 +1766,12 @@ function pageGaranzie(d: FvPdfTemplateData, pageN: number, total: number): strin
         </div>
       </div>` : ""}
       <div class="guarantee-grid">
-        ${garanzie.map((g) => `<div class="guarantee-card"><div class="g-num">${escHtml(guaranteeIconLabel(g.icona))}</div><div class="g-title">${escHtml(g.titolo)}</div><div class="g-desc">${escHtml(g.descrizione)}</div></div>`).join("")}
+        ${garanzie.map((g) => {
+          const badge = imageHref(d.badge_garanzie?.[g.icona as keyof typeof BADGE_GARANZIE_FV] ?? d.badge_garanzie?.shield);
+          return badge
+            ? `<div class="guarantee-card con-badge"><img class="g-badge" src="${escHtml(badge)}" alt="" /><div><div class="g-title">${escHtml(g.titolo)}</div><div class="g-desc">${escHtml(g.descrizione)}</div></div></div>`
+            : `<div class="guarantee-card"><div class="g-num">${escHtml(guaranteeIconLabel(g.icona))}</div><div class="g-title">${escHtml(g.titolo)}</div><div class="g-desc">${escHtml(g.descrizione)}</div></div>`;
+        }).join("")}
       </div>
       <h3 style="font-size:11pt;color:#1E3A5F;margin:4mm 0 2mm;">${customUsp.length > 0 ? "Perché scegliere noi" : "L'azienda"}</h3>
       <ul class="bullets">
