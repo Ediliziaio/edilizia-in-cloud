@@ -141,29 +141,32 @@ async function generateProgettoCode(companyId: string): Promise<string> {
 /**
  * Totali salvati sul progetto (`totale_imponibile`, `totale`) dalle righe del
  * computo. Una sola formula per il salvataggio del computo e per il cambio di
- * sconto o IVA: elenco, valore dell'opportunità e commessa leggono questi campi.
+ * sconto, IVA o prezzo scritto a mano: elenco, valore dell'opportunità e
+ * commessa leggono questi campi.
  */
 function totaliDaRighe(
   righe: ComputoRigaInput[],
-  parametri: { sconto_pct?: unknown; iva_pct?: unknown },
+  parametri: { sconto_pct?: unknown; iva_pct?: unknown; prezzo_manuale?: unknown },
 ): { totale_imponibile: number; totale: number } {
   const t = calcTotaliComputo(righe, {
     sconto_pct: Number(parametri.sconto_pct ?? 0),
     iva_pct: Number(parametri.iva_pct ?? 22),
+    prezzo_manuale: Number(parametri.prezzo_manuale ?? 0) || null,
   });
   return { totale_imponibile: t.imponibile, totale: t.totale };
 }
 
 /**
- * Totali con lo sconto o l'IVA appena cambiati: le righe si rileggono dal DB, e
- * dal DB arriva anche il parametro che il patch non porta.
+ * Totali con lo sconto, l'IVA o il prezzo scritto appena cambiati: le righe si
+ * rileggono dal DB, e dal DB arriva anche il parametro che il patch non porta.
  */
 async function totaliConParametri(
   progettoId: string,
   companyId: string,
-  patch: { sconto_pct?: unknown; iva_pct?: unknown },
+  patch: { sconto_pct?: unknown; iva_pct?: unknown; prezzo_manuale?: unknown },
 ): Promise<{ totale_imponibile: number; totale: number }> {
-  const serveProgetto = patch.sconto_pct === undefined || patch.iva_pct === undefined;
+  const serveProgetto =
+    patch.sconto_pct === undefined || patch.iva_pct === undefined || patch.prezzo_manuale === undefined;
   const [voci, progetto] = await Promise.all([
     sb()
       .from("rst_computo_voci")
@@ -173,7 +176,7 @@ async function totaliConParametri(
     serveProgetto
       ? sb()
           .from("rst_progetti")
-          .select("sconto_pct, iva_pct")
+          .select("sconto_pct, iva_pct, prezzo_manuale")
           .eq("id", progettoId)
           .eq("company_id", companyId)
           .maybeSingle()
@@ -184,6 +187,8 @@ async function totaliConParametri(
   return totaliDaRighe((voci.data ?? []) as ComputoRigaInput[], {
     sconto_pct: patch.sconto_pct ?? progetto.data?.sconto_pct,
     iva_pct: patch.iva_pct ?? progetto.data?.iva_pct,
+    // `null` nel patch vuol dire «tolto»: non si riprende quello del DB.
+    prezzo_manuale: patch.prezzo_manuale !== undefined ? patch.prezzo_manuale : progetto.data?.prezzo_manuale,
   });
 }
 
@@ -314,6 +319,7 @@ export function useClonaProgetto() {
           tipo_intervento: src.tipo_intervento,
           sconto_pct: src.sconto_pct,
           iva_pct: src.iva_pct,
+          prezzo_manuale: src.prezzo_manuale ?? null,
           detrazione_pct: src.detrazione_pct,
           note: src.note,
           template_id: src.template_id,
@@ -381,7 +387,7 @@ export function useSaveComputo(progettoId: string | undefined) {
         const [{ data: prog, error: pErr }, { data: vecchie, error: vErr }] = await Promise.all([
           sb()
             .from("rst_progetti")
-            .select("sconto_pct, iva_pct")
+            .select("sconto_pct, iva_pct, prezzo_manuale")
             .eq("id", progettoId)
             .eq("company_id", companyId)
             .maybeSingle(),

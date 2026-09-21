@@ -20,6 +20,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 const radice = resolve(__dirname, "../../..");
 const leggi = (percorso: string) => readFileSync(resolve(radice, percorso), "utf8");
 const MIGRATION = leggi("supabase/migrations/20280921153700_permessi_dicono_la_verita.sql");
+const MIGRATION_FINANZA = leggi("supabase/migrations/20280921220000_costi_budget_tesoreria_modifica_segue_visibilita.sql");
 
 /** Tabella → permesso che il database chiede per scriverla → pagine che la scrivono. */
 const COPPIE = [
@@ -40,17 +41,61 @@ describe("database e pagine chiedono lo stesso permesso", () => {
     });
   }
 
-  it("la finanza per lo staff resta in sola lettura: il database non la apre in scrittura", () => {
-    // Le regole nuove su costi e categorie di tesoreria sono solo di lettura.
-    for (const tabella of ["company_costs", "treasury_categories"]) {
-      const regole = [...MIGRATION.matchAll(new RegExp(`create policy "[^"]+" on public\\.${tabella}\\s+for (\\w+)`, "g"))];
-      expect(regole.length).toBeGreaterThan(0);
-      for (const r of regole) expect(r[1]).toBe("select");
+it("costi, budget e tesoreria: la modifica segue la visibilità, non solo l'amministratore (21/09/2026, secondo giro)", () => {
+    // Rivisto lo stesso giorno: la fase 1 li aveva lasciati sola lettura «com'era
+    // deciso» nel codice esistente, non su richiesta di Florin. Qui la regola si
+    // allinea alle altre 8 aree operative: chi ha il permesso di vista, e non è
+    // in sola lettura, scrive anche.
+    for (const { tabella, permesso, breve } of [
+      { tabella: "company_costs", permesso: "can_view_costs", breve: "costi" },
+      { tabella: "treasury_categories", permesso: "can_view_tesoreria", breve: "tesoreria" },
+      { tabella: "cost_budgets", permesso: "can_view_costs", breve: "costi: budget" },
+      { tabella: "cost_categories", permesso: "can_view_costs", breve: "costi: categorie" },
+    ]) {
+      const blocco = MIGRATION_FINANZA.slice(MIGRATION_FINANZA.indexOf(`create policy "Permesso ${breve}`));
+      expect(blocco.length, tabella).toBeGreaterThan(0);
+      expect(blocco, tabella).toMatch(
+        new RegExp(`aziende_con_permesso\\('${permesso}'\\)[\\s\\S]{0,80}utente_sola_lettura`),
+      );
     }
-    // …e la pagina dei costi nasconde i pulsanti a chi non è amministratore.
-    const pagina = leggi("src/components/forecast/CompanyCostsManager.tsx");
-    expect(pagina).toMatch(/const soloLettura = !isAdmin;/);
-    expect(pagina).toContain("soloLettura={soloLettura}");
+    // Il budget e le categorie erano PIÙ aperti di prima (chiunque in azienda,
+    // nessun controllo): qui si restringe, non si allarga.
+    expect(MIGRATION_FINANZA).toContain('drop policy if exists "Users can insert own company budgets"');
+    expect(MIGRATION_FINANZA).toContain('drop policy if exists "Users can manage own company cost categories"');
+
+    // Le pagine usano la STESSA formula, in un punto solo (niente copie che divergono).
+    const formula = leggi("src/lib/permessi/modificaSegueVisibilita.ts");
+    expect(formula).toContain("p.isAdmin || (p.canViewCosts && !p.solaLettura)");
+    for (const f of [
+      "src/components/forecast/CompanyCostsManager.tsx",
+      "src/pages/azienda/settings/SettingsCostCategories.tsx",
+    ]) {
+      expect(leggi(f)).toContain("puoModificareCosti");
+    }
+    expect(leggi("src/components/forecast/CostBudgetManager.tsx")).toContain("soloLettura?: boolean");
+  });
+
+  it("tre pulsanti fantasma trovati nell'audit del 21/09: la pagina ora chiede lo stesso permesso del database", () => {
+    // Condizioni e firma: apriva la modifica con «Vedi» su Listino invece che
+    // «Modifica» — un utente vero (Best Infissi) aveva i campi attivi e il
+    // salvataggio veniva rifiutato dal database.
+    expect(leggi("src/pages/azienda/impostazioni/SettingsCondizioniFirma.tsx")).toMatch(
+      /puoModificare = permissions\.isAdmin \|\| permissions\.canEditSettingsPricing/,
+    );
+    // Finanziamenti: le 3 sotto-rotte (nuova/calcolatore/:id) usavano i permessi
+    // di Listino per copia-incolla; le pagine controllano Finanziamenti — un
+    // vicolo cieco per chi aveva Listino ma non Finanziamenti.
+    const rotte = leggi("src/routes/companyRoutes.tsx");
+    for (const path of ["finanziamenti/nuova", "finanziamenti/calcolatore", "finanziamenti/:id"]) {
+      const riga = rotte.slice(rotte.indexOf(`path="${path}"`));
+      expect(riga.slice(0, 120), path).toMatch(/SettingsFinanziamenti/);
+    }
+    // Moduli lead (Facebook/Meta): la pagina controllava solo il ruolo admin,
+    // il database (fase 1) accetta da tempo anche chi ha «Modifica» su
+    // Integrazioni — permesso morto per 6 persone.
+    expect(leggi("src/pages/azienda/marketing/FacebookFormsPage.tsx")).toContain(
+      "permissions.canEditSettingsIntegrations",
+    );
   });
 });
 

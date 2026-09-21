@@ -38,6 +38,9 @@ describe("il form non scrive le colonne del server", () => {
     expect(cambiaITotali({ iva_pct: 0 })).toBe(true);
     expect(cambiaITotali({ sconto_pct: undefined, iva_pct: undefined })).toBe(false);
     expect(cambiaITotali({})).toBe(false);
+    // Anche il prezzo scritto a mano cambia i totali, e toglierlo (null) pure.
+    expect(cambiaITotali({ prezzo_manuale: 8000 })).toBe(true);
+    expect(cambiaITotali({ prezzo_manuale: null })).toBe(true);
   });
 });
 

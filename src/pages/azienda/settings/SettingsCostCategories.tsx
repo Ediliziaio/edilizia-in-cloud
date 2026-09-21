@@ -44,6 +44,9 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 import { useIsMobile } from "@/hooks/use-mobile";
+import { usePermissions } from "@/hooks/usePermissions";
+import { puoModificareCosti } from "@/lib/permessi/modificaSegueVisibilita";
+import { AvvisoSolaLettura } from "@/components/common/AvvisoSolaLettura";
 interface CostCategory {
   id: string;
   company_id: string;
@@ -77,6 +80,12 @@ export default function SettingsCostCategories() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
+  // La modifica segue la visibilità (migration 20280921220000, 21/09/2026):
+  // chi ha «Costi» in vista e non è in sola lettura può anche scrivere qui.
+  // Prima la pagina non controllava nessun permesso: chiunque riuscisse ad
+  // aprirla (route su canViewCosts) vedeva i pulsanti, e il database prima
+  // d'oggi li accettava solo dall'amministratore — un bottone finto.
+  const puoModificare = puoModificareCosti(usePermissions());
 
   const [newName, setNewName] = useState("");
   const [newColor, setNewColor] = useState(DEFAULT_COLOR);
@@ -399,15 +408,17 @@ export default function SettingsCostCategories() {
             </p>
           </div>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => importMutation.mutate()}
-          disabled={importMutation.isPending || !companyId}
-        >
-          <Download className="h-4 w-4 mr-1.5" />
-          {importMutation.isPending ? "Importo…" : "Importa dai costi"}
-        </Button>
+        {puoModificare && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => importMutation.mutate()}
+            disabled={importMutation.isPending || !companyId}
+          >
+            <Download className="h-4 w-4 mr-1.5" />
+            {importMutation.isPending ? "Importo…" : "Importa dai costi"}
+          </Button>
+        )}
         {/* Niente export su telefono. */}
         {!isMobile && (
           <Button
@@ -492,7 +503,13 @@ export default function SettingsCostCategories() {
 
       <Card>
         <CardContent className="pt-5 space-y-4">
+          {!puoModificare && (
+            <AvvisoSolaLettura>
+              Sola lettura: qui serve il permesso «Costi», e chi ce l&apos;ha in «Sola lettura» non può scrivere.
+            </AvvisoSolaLettura>
+          )}
           {/* Add form */}
+          {puoModificare && (
           <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-3">
             <div className="flex-1">
               <Label htmlFor="new-cat-name" className="text-xs">Nuova categoria</Label>
@@ -540,6 +557,7 @@ export default function SettingsCostCategories() {
               {addMutation.isPending ? "Aggiungo…" : "Aggiungi"}
             </Button>
           </div>
+          )}
 
           {/* Search and controls */}
           {categories.length > 0 && (
@@ -611,8 +629,9 @@ export default function SettingsCostCategories() {
                 Nessuna categoria configurata.
               </p>
               <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-                Aggiungine una manualmente qui sopra oppure clicca "Importa dai costi" per
-                creare automaticamente le categorie già usate nei tuoi costi e fornitori.
+                {puoModificare
+                  ? "Aggiungine una manualmente qui sopra oppure clicca \"Importa dai costi\" per creare automaticamente le categorie già usate nei tuoi costi e fornitori."
+                  : "Nessuna categoria creata finora."}
               </p>
             </div>
           ) : filtered.length === 0 ? (
@@ -640,7 +659,7 @@ export default function SettingsCostCategories() {
                   <TableHead className="w-16">Colore</TableHead>
                   <TableHead>Nome</TableHead>
                   <TableHead className="text-center w-24">Utilizzi</TableHead>
-                  <TableHead className="w-[140px] text-right">Azioni</TableHead>
+                  {puoModificare && <TableHead className="w-[140px] text-right">Azioni</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -705,37 +724,39 @@ export default function SettingsCostCategories() {
                           {usage}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-right">
-                        {isEditing ? (
-                          <div className="flex justify-end gap-1">
-                            <Button
-                              size="sm"
-                              onClick={() => saveEdit(cat.id)}
-                              disabled={!editName.trim() || updateMutation.isPending}
-                            >
-                              Salva
-                            </Button>
-                            <Button size="sm" variant="ghost" onClick={() => setEditingId(null)}>
-                              Annulla
-                            </Button>
-                          </div>
-                        ) : (
-                          <div className="flex justify-end gap-1">
-                            <Button size="icon" variant="ghost" onClick={() => startEdit(cat)} aria-label={`Modifica ${cat.name}`}>
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              onClick={() => setDeleteId(cat.id)}
-                              aria-label={usage > 0 ? `${cat.name} protetta: non eliminabile` : `Elimina ${cat.name}`}
-                              title={usage > 0 ? "Categoria protetta perché già usata nei costi" : "Elimina categoria inutilizzata"}
-                            >
-                              <Trash2 className={`h-4 w-4 ${usage > 0 ? "text-muted-foreground" : "text-destructive"}`} />
-                            </Button>
-                          </div>
-                        )}
-                      </TableCell>
+                      {puoModificare && (
+                        <TableCell className="text-right">
+                          {isEditing ? (
+                            <div className="flex justify-end gap-1">
+                              <Button
+                                size="sm"
+                                onClick={() => saveEdit(cat.id)}
+                                disabled={!editName.trim() || updateMutation.isPending}
+                              >
+                                Salva
+                              </Button>
+                              <Button size="sm" variant="ghost" onClick={() => setEditingId(null)}>
+                                Annulla
+                              </Button>
+                            </div>
+                          ) : (
+                            <div className="flex justify-end gap-1">
+                              <Button size="icon" variant="ghost" onClick={() => startEdit(cat)} aria-label={`Modifica ${cat.name}`}>
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => setDeleteId(cat.id)}
+                                aria-label={usage > 0 ? `${cat.name} protetta: non eliminabile` : `Elimina ${cat.name}`}
+                                title={usage > 0 ? "Categoria protetta perché già usata nei costi" : "Elimina categoria inutilizzata"}
+                              >
+                                <Trash2 className={`h-4 w-4 ${usage > 0 ? "text-muted-foreground" : "text-destructive"}`} />
+                              </Button>
+                            </div>
+                          )}
+                        </TableCell>
+                      )}
                     </TableRow>
                   );
                 })}

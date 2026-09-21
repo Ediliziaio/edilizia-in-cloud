@@ -87,7 +87,13 @@ export function TreasuryTab({
   const [isInitializing, setIsInitializing] = useState(false);
   const [showForecast, setShowForecast] = useState(false);
 
-  // Initialize default categories if none exist
+  // Initialize default categories if none exist. Nessun controllo qui: la
+  // pagina si apre già con «Tesoreria» in vista (route su canViewTesoreria), e
+  // dal 21/09/2026 (migration 20280921220000) il database accetta la scrittura
+  // da chiunque abbia quel permesso e non sia in sola lettura — non solo
+  // dall'amministratore. Se manca il permesso di scrivere, `error` non è
+  // null e la funzione non fa nulla (niente categorie automatiche, nessun
+  // errore mostrato: non c'è un'azione dell'utente da bloccare qui).
   const initializeDefaultCategories = useCallback(async () => {
     if (!companyId || treasuryCategories.length > 0 || isInitializing) return;
     setIsInitializing(true);

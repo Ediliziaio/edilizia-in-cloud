@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { calcolaTotale, IVA_MISTA_SENTINEL } from "@/lib/serramenti/calcoli";
 import { totaliDelPreventivo } from "@/lib/serramenti/righePreventivo";
+import { calcTotaliComputo as calcRistrutturazione } from "@/lib/ristrutturazione/calcoli";
+import { calcTotaliComputo as calcBagni } from "@/lib/bagni/calcoli";
+import { calcTotaliComputo as calcTetti } from "@/lib/tetti/calcoli";
+import { calcTotaliComputo as calcClimatizzazione } from "@/lib/climatizzazione/calcoli";
+import { calcTotaliComputo as calcElettrico } from "@/lib/elettrico/calcoli";
+import { calcTotaliComputo as calcTermoidraulico } from "@/lib/termoidraulico/calcoli";
+import { calcTotaliComputo as calcPavimenti } from "@/lib/pavimenti/calcoli";
+import { calcTotaliComputo as calcPiscine } from "@/lib/piscine/calcoli";
+import { prezzoDaTesto } from "@/lib/preventivi/prezzoAMano";
 import type { SrAccessorioRow, SrSerramentoRow, SrServizioRow } from "@/types/serramenti";
 
 /**
@@ -106,5 +115,68 @@ describe("Il prezzo del preventivo scritto a mano", () => {
 
     // Senza prezzo scritto e con le voci a 0 € il totale è 0: il caso di oggi.
     expect(totaliDelPreventivo(detail, { iva_percentuale: 10 }).totale_max).toBe(0);
+  });
+});
+
+// Gli otto moduli edili hanno ciascuno la propria copia di calcTotaliComputo:
+// le stesse prove girano su tutte, così una copia rimasta indietro si vede.
+const MODULI_EDILI = [
+  ["ristrutturazione", calcRistrutturazione],
+  ["bagni", calcBagni],
+  ["tetti", calcTetti],
+  ["climatizzazione", calcClimatizzazione],
+  ["elettrico", calcElettrico],
+  ["termoidraulico", calcTermoidraulico],
+  ["pavimenti", calcPavimenti],
+  ["piscine", calcPiscine],
+] as const;
+
+describe.each(MODULI_EDILI)("Il prezzo scritto a mano nei moduli edili (%s)", (_modulo, calcTotaliComputo) => {
+  const riga = (capitolo: string, extra: Partial<{ quantita: number; prezzo_unitario: number; sconto_pct: number; costo_materiali: number; costo_manodopera: number }> = {}) => ({
+    capitolo_nome: capitolo, quantita: 1, prezzo_unitario: 0, sconto_pct: 0, costo_materiali: 0, costo_manodopera: 0, ...extra,
+  });
+
+  it("prende il posto della somma delle righe; sconto globale e IVA si calcolano sopra", () => {
+    // Righe tutte a 0 €, come chi non carica i prezzi: 12.000 − 5% = 11.400; + 10% = 12.540
+    const t = calcTotaliComputo([riga("Demolizioni"), riga("Impianti", { quantita: 3 })], {
+      sconto_pct: 5, iva_pct: 10, prezzo_manuale: 12000,
+    });
+    expect(t.sommaVoci).toBe(0);
+    expect(t.prezzoManuale).toBe(true);
+    expect(t.imponibileLordo).toBe(12000);
+    expect(t.imponibile).toBeCloseTo(11400, 6);
+    expect(t.iva).toBeCloseTo(1140, 6);
+    expect(t.totale).toBeCloseTo(12540, 6);
+    // I capitoli restano quelli delle righe: servono al documento, non al prezzo.
+    expect(t.perCapitolo.map((c) => c.nome)).toEqual(["Demolizioni", "Impianti"]);
+  });
+
+  it("il margine è il prezzo scritto meno i costi di tutte le righe, anche quelle a 0 €", () => {
+    const t = calcTotaliComputo([riga("Opere", { quantita: 2, costo_materiali: 1000, costo_manodopera: 500 })], {
+      sconto_pct: 0, iva_pct: 22, prezzo_manuale: 5000,
+    });
+    expect(t.costoTot).toBe(3000);
+    expect(t.margineEur).toBe(2000);
+    expect(t.marginePct).toBeCloseTo(40, 6);
+  });
+
+  it("vuoto, zero o non valido: si torna alla somma delle righe, come prima", () => {
+    const righe = [riga("A", { quantita: 2, prezzo_unitario: 100 }), riga("B", { prezzo_unitario: 50, sconto_pct: 10 })];
+    const prima = calcTotaliComputo(righe, { sconto_pct: 10, iva_pct: 22 });
+    for (const prezzo of [null, undefined, 0, -5, Number.NaN]) {
+      const t = calcTotaliComputo(righe, { sconto_pct: 10, iva_pct: 22, prezzo_manuale: prezzo });
+      expect(t.prezzoManuale).toBe(false);
+      expect(t.imponibileLordo).toBeCloseTo(245, 6); // 200 + 45
+      expect(t.totale).toBeCloseTo(prima.totale, 6);
+    }
+  });
+});
+
+describe("Il campo del prezzo", () => {
+  it("legge il numero scritto: vuoto, zero o testo = nessun prezzo", () => {
+    expect(prezzoDaTesto("8000")).toBe(8000);
+    expect(prezzoDaTesto(" 8500,5 ")).toBe(8500.5);
+    expect(prezzoDaTesto("1234.567")).toBe(1234.57);
+    for (const testo of ["", "  ", "0", "-3", "abc"]) expect(prezzoDaTesto(testo)).toBeNull();
   });
 });

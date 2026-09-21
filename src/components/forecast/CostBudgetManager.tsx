@@ -17,6 +17,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
 import { toast } from "sonner";
+import { AvvisoSolaLettura } from "@/components/common/AvvisoSolaLettura";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTooltip, Legend, ResponsiveContainer, Cell,
@@ -25,9 +26,11 @@ import {
 interface CostBudgetManagerProps {
   dynamicCategories: string[];
   allCostsSorted: any[];
+  /** Come in CostsTable: chi ha «Costi» in sola lettura non aggiunge né elimina budget. */
+  soloLettura?: boolean;
 }
 
-export function CostBudgetManager({ dynamicCategories, allCostsSorted }: CostBudgetManagerProps) {
+export function CostBudgetManager({ dynamicCategories, allCostsSorted, soloLettura = false }: CostBudgetManagerProps) {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
@@ -146,39 +149,45 @@ export function CostBudgetManager({ dynamicCategories, allCostsSorted }: CostBud
           <CardDescription>Imposta obiettivi di spesa mensili e confrontali con i costi effettivi</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div>
-              <Label className="text-xs">Mese</Label>
-              <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {monthOptions.map(o => (
-                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          {soloLettura ? (
+            <AvvisoSolaLettura>
+              Sola lettura: qui serve il permesso «Costi», e chi ce l&apos;ha in «Sola lettura» non può scrivere.
+            </AvvisoSolaLettura>
+          ) : (
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div>
+                <Label className="text-xs">Mese</Label>
+                <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+                  <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {monthOptions.map(o => (
+                      <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex-1">
+                <Label className="text-xs">Categoria</Label>
+                <Select value={newCategory} onValueChange={setNewCategory}>
+                  <SelectTrigger><SelectValue placeholder="Seleziona..." /></SelectTrigger>
+                  <SelectContent>
+                    {dynamicCategories.map(cat => (
+                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="w-[140px]">
+                <Label className="text-xs">Budget (€)</Label>
+                <Input type="number" step="0.01" value={newAmount} onChange={e => setNewAmount(e.target.value)} placeholder="0.00" />
+              </div>
+              <div className="flex items-end">
+                <Button size="sm" onClick={handleAdd} disabled={addBudgetMutation.isPending} className="gap-1">
+                  <Plus className="h-4 w-4" /> Aggiungi
+                </Button>
+              </div>
             </div>
-            <div className="flex-1">
-              <Label className="text-xs">Categoria</Label>
-              <Select value={newCategory} onValueChange={setNewCategory}>
-                <SelectTrigger><SelectValue placeholder="Seleziona..." /></SelectTrigger>
-                <SelectContent>
-                  {dynamicCategories.map(cat => (
-                    <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="w-[140px]">
-              <Label className="text-xs">Budget (€)</Label>
-              <Input type="number" step="0.01" value={newAmount} onChange={e => setNewAmount(e.target.value)} placeholder="0.00" />
-            </div>
-            <div className="flex items-end">
-              <Button size="sm" onClick={handleAdd} disabled={addBudgetMutation.isPending} className="gap-1">
-                <Plus className="h-4 w-4" /> Aggiungi
-              </Button>
-            </div>
-          </div>
+          )}
 
           {/* Budget table */}
           {monthBudgets.length > 0 && (
@@ -189,7 +198,7 @@ export function CostBudgetManager({ dynamicCategories, allCostsSorted }: CostBud
                   <TableHead className="text-right">Budget</TableHead>
                   <TableHead className="text-right">Effettivo</TableHead>
                   <TableHead className="text-right">Scostamento</TableHead>
-                  <TableHead className="w-10" />
+                  {!soloLettura && <TableHead className="w-10" />}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -205,26 +214,28 @@ export function CostBudgetManager({ dynamicCategories, allCostsSorted }: CostBud
                       <TableCell className={`text-right font-medium ${over ? "text-destructive" : "text-emerald-600"}`}>
                         {over ? "+" : ""}{formatCurrency(delta)}
                       </TableCell>
-                      <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          aria-label={`Elimina budget ${b.category}`}
-                          onClick={async () => {
-                            if (await confirm({
-                              title: "Eliminare questo budget?",
-                              description: `Budget "${b.category}" verrà rimosso. L'operazione non può essere annullata.`,
-                              confirmLabel: "Elimina",
-                              variant: "destructive",
-                            })) {
-                              deleteBudgetMutation.mutate(b.id);
-                            }
-                          }}
-                        >
-                          <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
-                        </Button>
-                      </TableCell>
+                      {!soloLettura && (
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            aria-label={`Elimina budget ${b.category}`}
+                            onClick={async () => {
+                              if (await confirm({
+                                title: "Eliminare questo budget?",
+                                description: `Budget "${b.category}" verrà rimosso. L'operazione non può essere annullata.`,
+                                confirmLabel: "Elimina",
+                                variant: "destructive",
+                              })) {
+                                deleteBudgetMutation.mutate(b.id);
+                              }
+                            }}
+                          >
+                            <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
+                          </Button>
+                        </TableCell>
+                      )}
                     </TableRow>
                   );
                 })}

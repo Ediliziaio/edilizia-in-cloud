@@ -536,6 +536,7 @@ export default function BagniWizard() {
                 initialComputo={detail.computo}
                 scontoPct={Number(form.sconto_pct ?? detail.progetto.sconto_pct ?? 0)}
                 ivaPct={Number(form.iva_pct ?? detail.progetto.iva_pct ?? 10)}
+                prezzoManuale={form.prezzo_manuale !== undefined ? form.prezzo_manuale : detail.progetto.prezzo_manuale ?? null}
               />
             )}
             {currentStep === "media" && id && detail && (

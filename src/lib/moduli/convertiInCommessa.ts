@@ -262,7 +262,7 @@ export async function convertiFvInCommessa(progettoId: string, userId: string): 
 export async function convertiRstInCommessa(progettoId: string, userId: string): Promise<EsitoConversione> {
   const { data: progetto, error } = await supabase
     .from("rst_progetti")
-    .select("id, company_id, code, stato, note, cliente_id, cliente_nome, cliente_cognome, cantiere_indirizzo, cantiere_citta, totale, totale_imponibile, iva_pct, ordine_id")
+    .select("id, company_id, code, stato, note, cliente_id, cliente_nome, cliente_cognome, cantiere_indirizzo, cantiere_citta, totale, totale_imponibile, iva_pct, prezzo_manuale, ordine_id")
     .eq("id", progettoId)
     .single();
   if (error || !progetto) throw new Error("Preventivo ristrutturazione non trovato");
@@ -296,6 +296,30 @@ export async function convertiRstInCommessa(progettoId: string, userId: string):
       vat_rate: aliquota,
     };
   });
+
+  // Le righe devono sommare al totale, come nel fotovoltaico. Col prezzo scritto
+  // a mano le righe possono essere a 0 €, e con lo sconto globale (o quello di
+  // riga) non tornavano: la differenza diventa una riga sua.
+  const manuale = Number(progetto.prezzo_manuale ?? 0);
+  const sommaRighe = arrotonda(righe.reduce((s, r) => s + r.unit_price * r.quantity, 0));
+  const differenza = arrotonda(totale - sommaRighe);
+  const soglia = manuale > 0 ? 0.01 : 0.5; // sotto 50 cent è l'arrotondamento dello scorporo IVA
+  if (righe.length > 0 && Math.abs(differenza) >= soglia) {
+    righe.push({
+      name: manuale > 0 ? "Prezzo a corpo" : differenza < 0 ? "Sconto commerciale" : "Adeguamento al totale del preventivo",
+      description: manuale > 0
+        ? "Differenza tra il prezzo scritto nel preventivo e le righe del computo."
+        : differenza < 0
+          ? "Sconto concesso nel preventivo."
+          : null,
+      quantity: 1,
+      status: "da_ordinare",
+      position: righe.length,
+      unit_price: differenza,
+      purchase_price: 0,
+      vat_rate: aliquota,
+    });
+  }
 
   const descrizione = String(progetto.note ?? "").trim().split("\n")[0].slice(0, 120)
     || `Ristrutturazione ${progetto.code ?? ""}`.trim();

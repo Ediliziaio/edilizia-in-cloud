@@ -1,4 +1,5 @@
 import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,7 +25,12 @@ export default function FacebookFormsPage() {
   const { effectiveCompany, role } = useAuth();
   const companyId = (effectiveCompany as any)?.id;
   const queryClient = useQueryClient();
-  const canManageMeta = role === "company_admin" || role === "super_admin";
+  const permissions = usePermissions();
+  // La pagina si apre con «Integrazioni» (route in companyRoutes.tsx), ma
+  // gestiva i moduli lead solo per il ruolo admin: il database (migration
+  // 20280921153700, «Permesso integrazioni») accetta da tempo anche chi ha
+  // «Modifica» su Integrazioni — qui restava un permesso morto (21/09/2026).
+  const canManageMeta = role === "company_admin" || role === "super_admin" || permissions.canEditSettingsIntegrations;
   const [wizardOpen, setWizardOpen] = useState(false);
   const [metaConfigMissing, setMetaConfigMissing] = useState(false);
   const [backfillingFormId, setBackfillingFormId] = useState<string | null>(null);

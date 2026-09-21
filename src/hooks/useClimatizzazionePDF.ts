@@ -70,6 +70,8 @@ export interface ClmPdfTotali {
   costoTot: number;
   margineEur: number;
   marginePct: number;
+  /** Il prezzo pieno è quello scritto a mano: il documento non mostra gli importi delle righe. */
+  prezzoManuale?: boolean;
 }
 
 export interface ClmPdfEnriched {
@@ -207,8 +209,14 @@ async function enrichForPdf(opts: ClmPdfPayload): Promise<ClmPdfEnriched> {
     costo_materiali: v.costo_materiali,
     costo_manodopera: v.costo_manodopera,
   }));
-  const agg = calcTotaliComputo(allRows, { sconto_pct: scontoPct, iva_pct: ivaPct });
-  const imponibileLordo = capitoli.reduce((s, c) => s + c.subtotale, 0);
+  const agg = calcTotaliComputo(allRows, {
+    sconto_pct: scontoPct,
+    iva_pct: ivaPct,
+    // Il prezzo scritto a mano in Economia prende il posto della somma delle righe.
+    prezzo_manuale: progetto.prezzo_manuale ?? null,
+  });
+  // Prezzo pieno prima dello sconto: la somma dei capitoli, o il prezzo scritto.
+  const imponibileLordo = agg.imponibileLordo;
   const totali: ClmPdfTotali = {
     imponibileLordo,
     scontoEur: imponibileLordo - agg.imponibile,
@@ -224,6 +232,7 @@ async function enrichForPdf(opts: ClmPdfPayload): Promise<ClmPdfEnriched> {
     costoTot: agg.costoTot,
     margineEur: agg.margineEur,
     marginePct: agg.marginePct,
+    prezzoManuale: agg.prezzoManuale,
   };
 
   // 5) Inline immagini critiche (logo template→company, cover, chi siamo) + media.

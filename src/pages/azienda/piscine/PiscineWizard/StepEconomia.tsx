@@ -31,6 +31,7 @@ import type { PisComputoVoce, PisProgetto } from "@/types/piscine";
 import type { PisFormPatch } from "./types";
 import { FinanziamentoQuoteToggle } from "@/components/moduli/FinanziamentoQuoteToggle";
 import { ScontoGlobaleField } from "@/components/preventivi/ScontoGlobaleField";
+import { PrezzoPreventivoAMano } from "@/components/preventivi/PrezzoPreventivoAMano";
 import { usePisTemplatePdf } from "@/hooks/usePiscineProgetto";
 
 interface Props {
@@ -67,17 +68,17 @@ export default function StepEconomia({ form, onChange, computo }: Props) {
           costo_materiali: v.costo_materiali,
           costo_manodopera: v.costo_manodopera,
         })),
-        { sconto_pct: scontoPct, iva_pct: ivaPct },
+        // Il prezzo scritto a mano prende il posto della somma delle righe.
+        { sconto_pct: scontoPct, iva_pct: ivaPct, prezzo_manuale: form.prezzo_manuale ?? null },
       ),
-    [computo, scontoPct, ivaPct],
+    [computo, scontoPct, ivaPct, form.prezzo_manuale],
   );
 
-  // Imponibile lordo (somma capitoli, pre sconto globale) per la riga di riconciliazione.
-  const lordoCapitoli = useMemo(
-    () => totali.perCapitolo.reduce((s, c) => s + c.imponibile, 0),
-    [totali.perCapitolo],
-  );
-  const scontoGlobaleEur = Math.max(0, lordoCapitoli - totali.imponibile);
+  // Somma delle righe (per il riepilogo per capitolo) e prezzo pieno prima dello
+  // sconto globale: coincidono, tranne quando il prezzo è scritto a mano.
+  const lordoCapitoli = totali.sommaVoci;
+  const imponibileLordo = totali.imponibileLordo;
+  const scontoGlobaleEur = Math.max(0, imponibileLordo - totali.imponibile);
   const massimale = form.massimale_detrazione ?? null;
   const detraibileEur = calcDetraibile(totali.imponibile, detrazionePct, massimale);
   const oltreMassimale = detrazionePct > 0 && superaMassimale(totali.imponibile, massimale);
@@ -90,7 +91,8 @@ export default function StepEconomia({ form, onChange, computo }: Props) {
       <div>
         <h2 className="text-sm font-semibold text-slate-900">Economia</h2>
         <p className="text-[11px] text-muted-foreground">
-          Sconto, IVA, eventuale detrazione fiscale e riepilogo del preventivo. I totali derivano dal computo.
+          Sconto, IVA, eventuale detrazione fiscale e riepilogo del preventivo.{" "}
+          {totali.prezzoManuale ? "I totali partono dal prezzo scritto nei Parametri." : "I totali derivano dal computo."}
         </p>
       </div>
 
@@ -164,11 +166,18 @@ export default function StepEconomia({ form, onChange, computo }: Props) {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
+              <PrezzoPreventivoAMano
+                id="pis-prezzo-manuale"
+                companyId={form.company_id}
+                value={form.prezzo_manuale}
+                sommaVoci={totali.sommaVoci}
+                onCommit={(v) => onChange("prezzo_manuale", v)}
+              />
               <ScontoGlobaleField
                 id="pis-sconto"
                 value={form.sconto_pct ?? 0}
                 onCommit={(v) => onChange("sconto_pct", v)}
-                imponibileLordo={lordoCapitoli}
+                imponibileLordo={imponibileLordo}
                 tipoLavoro="piscine"
               />
               <PctField
@@ -230,7 +239,7 @@ export default function StepEconomia({ form, onChange, computo }: Props) {
           {/* Totali complessivi */}
           <Card className="border-orange-200 bg-gradient-to-b from-orange-50/50 to-transparent">
             <CardContent className="space-y-2 p-4">
-              <SummaryRow label="Imponibile (lordo)" value={lordoCapitoli} muted />
+              <SummaryRow label={totali.prezzoManuale ? "Prezzo del preventivo" : "Imponibile (lordo)"} value={imponibileLordo} muted />
               {scontoGlobaleEur > 0 && (
                 <SummaryRow
                   label={`Sconto globale (${scontoPct.toLocaleString("it-IT")}%)`}

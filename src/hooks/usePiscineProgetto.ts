@@ -145,11 +145,12 @@ async function generateProgettoCode(companyId: string): Promise<string> {
  */
 function totaliDaRighe(
   righe: ComputoRigaInput[],
-  parametri: { sconto_pct?: unknown; iva_pct?: unknown },
+  parametri: { sconto_pct?: unknown; iva_pct?: unknown; prezzo_manuale?: unknown },
 ): { totale_imponibile: number; totale: number } {
   const t = calcTotaliComputo(righe, {
     sconto_pct: Number(parametri.sconto_pct ?? 0),
     iva_pct: Number(parametri.iva_pct ?? 10),
+    prezzo_manuale: Number(parametri.prezzo_manuale ?? 0) || null,
   });
   return { totale_imponibile: t.imponibile, totale: t.totale };
 }
@@ -161,9 +162,10 @@ function totaliDaRighe(
 async function totaliConParametri(
   progettoId: string,
   companyId: string,
-  patch: { sconto_pct?: unknown; iva_pct?: unknown },
+  patch: { sconto_pct?: unknown; iva_pct?: unknown; prezzo_manuale?: unknown },
 ): Promise<{ totale_imponibile: number; totale: number }> {
-  const serveProgetto = patch.sconto_pct === undefined || patch.iva_pct === undefined;
+  const serveProgetto =
+    patch.sconto_pct === undefined || patch.iva_pct === undefined || patch.prezzo_manuale === undefined;
   const [voci, progetto] = await Promise.all([
     sb()
       .from("pis_computo_voci")
@@ -173,7 +175,7 @@ async function totaliConParametri(
     serveProgetto
       ? sb()
           .from("pis_progetti")
-          .select("sconto_pct, iva_pct")
+          .select("sconto_pct, iva_pct, prezzo_manuale")
           .eq("id", progettoId)
           .eq("company_id", companyId)
           .maybeSingle()
@@ -184,6 +186,8 @@ async function totaliConParametri(
   return totaliDaRighe((voci.data ?? []) as ComputoRigaInput[], {
     sconto_pct: patch.sconto_pct ?? progetto.data?.sconto_pct,
     iva_pct: patch.iva_pct ?? progetto.data?.iva_pct,
+    // `null` nel patch vuol dire «tolto»: non si riprende quello del DB.
+    prezzo_manuale: patch.prezzo_manuale !== undefined ? patch.prezzo_manuale : progetto.data?.prezzo_manuale,
   });
 }
 
@@ -314,6 +318,7 @@ export function useClonaProgetto() {
           tipo_intervento: src.tipo_intervento,
           sconto_pct: src.sconto_pct,
           iva_pct: src.iva_pct,
+          prezzo_manuale: src.prezzo_manuale ?? null,
           detrazione_pct: src.detrazione_pct,
           note: src.note,
           template_id: src.template_id,
@@ -380,7 +385,7 @@ export function useSaveComputo(progettoId: string | undefined) {
         const [{ data: prog, error: pErr }, { data: vecchie, error: vErr }] = await Promise.all([
           sb()
             .from("pis_progetti")
-            .select("sconto_pct, iva_pct")
+            .select("sconto_pct, iva_pct, prezzo_manuale")
             .eq("id", progettoId)
             .eq("company_id", companyId)
             .maybeSingle(),

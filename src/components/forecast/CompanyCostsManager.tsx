@@ -33,6 +33,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { formatCurrency } from "@/lib/formatters";
 import { supabase } from "@/integrations/supabase/client";
 import { usePermissions } from "@/hooks/usePermissions";
+import { puoModificareCosti } from "@/lib/permessi/modificaSegueVisibilita";
 import { AvvisoSolaLettura } from "@/components/common/AvvisoSolaLettura";
 
 import { useCompanyCostsData, type PeriodFilter, type StatusFilter, type StatusTabFilter, type UnifiedCost } from "@/hooks/useCompanyCostsData";
@@ -218,11 +219,11 @@ export default function CompanyCostsManager({
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const [searchParams, setSearchParams] = useSearchParams();
-  // I costi per lo staff sono in sola lettura: il database accetta le modifiche
-  // solo dall'amministratore (decisione sulla finanza). Senza questo lo staff
-  // col permesso «Costi» vedeva i pulsanti e il salvataggio veniva rifiutato.
-  const { isAdmin } = usePermissions();
-  const soloLettura = !isAdmin;
+  // La modifica segue la visibilità, come le altre aree operative (migration
+  // 20280921220000, 21/09/2026): chi ha «Costi» in vista e non è in sola
+  // lettura può anche scrivere, non solo l'amministratore.
+  const permissions = usePermissions();
+  const soloLettura = !puoModificareCosti(permissions);
 
   // Preset letto UNA volta al mount (inizializza i filtri sotto), poi ripulito
   // dalla URL per non ri-applicarlo alla prossima visita della tab.
@@ -700,7 +701,7 @@ export default function CompanyCostsManager({
           })()}
         />
 
-        <CostBudgetManager dynamicCategories={data.dynamicCategories} allCostsSorted={data.allCostsUnfiltered} />
+        <CostBudgetManager dynamicCategories={data.dynamicCategories} allCostsSorted={data.allCostsUnfiltered} soloLettura={soloLettura} />
 
         {/* Il "Semaforo Cassa 30/60/90" rifaceva qui il lavoro del Previsionale
             (che ha anche le 13 settimane): un rimando basta. */}
@@ -972,7 +973,7 @@ export default function CompanyCostsManager({
 
           {soloLettura && (
             <AvvisoSolaLettura>
-              Sola lettura: i costi li inserisce e li modifica l&apos;amministratore dell&apos;azienda.
+              Sola lettura: qui serve il permesso «Costi», e chi ce l&apos;ha in «Sola lettura» non può scrivere.
             </AvvisoSolaLettura>
           )}
 
