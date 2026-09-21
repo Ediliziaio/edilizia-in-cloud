@@ -266,20 +266,27 @@ Deno.serve(async (req) => {
           // di spegnere qualcosa che è già spento. Una chiamata per account,
           // non una per giorno.
           const statoDi = new Map<string, string>();
+          // L'obiettivo Meta di ogni campagna (OUTCOME_LEADS, OUTCOME_AWARENESS,
+          // VIDEO_VIEWS…): serve a tenere la spesa di awareness e interazione
+          // fuori dal costo per lead (mkt_campagne_classificate). Arriva nella
+          // stessa chiamata dello stato, senza costare una richiesta in più.
+          const obiettivoDi = new Map<string, string>();
           for (const [nodo, campo] of [["campaigns", "campaign"], ["ads", "ad"]] as const) {
             try {
+              const campiNodo = nodo === "campaigns" ? "id,effective_status,objective" : "id,effective_status";
               let u: string | null =
-                `https://graph.facebook.com/${apiVersion}/${c.meta_act_id}/${nodo}?fields=id,effective_status&limit=500&access_token=${accessToken}`;
+                `https://graph.facebook.com/${apiVersion}/${c.meta_act_id}/${nodo}?fields=${campiNodo}&limit=500&access_token=${accessToken}`;
               while (u) {
                 const r = await fetch(u);
                 const j = await r.json().catch(() => ({})) as {
-                  data?: Array<{ id?: string; effective_status?: string }>;
+                  data?: Array<{ id?: string; effective_status?: string; objective?: string }>;
                   paging?: { next?: string };
                   error?: { message?: string };
                 };
                 if (!r.ok || j.error) break;
                 for (const riga of j.data ?? []) {
                   if (riga.id && riga.effective_status) statoDi.set(riga.id, riga.effective_status);
+                  if (riga.id && riga.objective) obiettivoDi.set(riga.id, riga.objective);
                 }
                 u = j.paging?.next ?? null;
               }
@@ -353,6 +360,7 @@ Deno.serve(async (req) => {
                     frequenza: r.frequency ? parseFloat(r.frequency as string) : null,
                     lead_dichiarati: parseInt(lead?.value ?? "0", 10),
                     stato: statoDi.get(inserzioneId ?? campagnaId) ?? null,
+                    obiettivo: obiettivoDi.get(campagnaId) ?? null,
                     sincronizzato_il: new Date().toISOString(),
                   });
                 }
@@ -372,6 +380,30 @@ Deno.serve(async (req) => {
                 });
               if (iErr) errors.push(`${livello}_upsert:${String(iErr.message ?? "").substring(0, 100)}`);
               else inserzioneRows += righe.slice(i, i + 500).length;
+            }
+          }
+
+          // Le righe già salvate senza obiettivo (prima del 21/09/2026, o giorni
+          // oltre i tre riscritti qui sopra) lo prendono adesso: una UPDATE per
+          // obiettivo, non una per campagna, solo sugli ultimi 90 giorni.
+          if (obiettivoDi.size) {
+            const perObiettivo = new Map<string, string[]>();
+            for (const [campagna, obiettivo] of obiettivoDi) {
+              if (!perObiettivo.has(obiettivo)) perObiettivo.set(obiettivo, []);
+              perObiettivo.get(obiettivo)!.push(campagna);
+            }
+            const da90 = new Date(Date.now() - 90 * 86_400_000).toISOString().slice(0, 10);
+            for (const [obiettivo, campagne] of perObiettivo) {
+              for (let i = 0; i < campagne.length; i += 200) {
+                const { error: oErr } = await admin
+                  .from("mkt_spesa_inserzione")
+                  .update({ obiettivo })
+                  .eq("company_id", c.company_id)
+                  .in("campagna_id", campagne.slice(i, i + 200))
+                  .is("obiettivo", null)
+                  .gte("giorno", da90);
+                if (oErr) errors.push(`obiettivo_update:${String(oErr.message ?? "").substring(0, 100)}`);
+              }
             }
           }
 
