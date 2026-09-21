@@ -18,7 +18,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
-import { oraDiRoma, rapportoClientiMarketing } from "./clienti-marketing.ts";
+import { oraDiRoma, rapportoClientiMarketing, ricordaPriorita } from "./clienti-marketing.ts";
 
 import { serveConMetriche } from "../_shared/withMetrics.ts";
 const supabase = createClient(
@@ -158,16 +158,29 @@ serveConMetriche("ops-canarino", async (req) => {
   // delle edge function), e il canarino ha già destinatari e mittente.
   let modo = "";
   let oraRoma: number | null = null;
+  // Anteprima: il rapporto vero, restituito invece che spedito, senza
+  // ricordare le priorità. Serve a vederlo prima di cambiarne la forma.
+  let anteprima = false;
   try {
     const corpo = await req.json();
     modo = String(corpo?.modo ?? "");
     oraRoma = corpo?.ora_roma == null ? null : Number(corpo.ora_roma);
+    anteprima = corpo?.anteprima === true;
   } catch {
     // corpo vuoto: rapporto di piattaforma
   }
   if (modo === "clienti-marketing") {
     // Due cron in UTC (04:00 e 05:00) coprono ora legale e solare: parte solo
     // quello che cade davvero all'ora di Roma chiesta (06:00).
+    if (anteprima) {
+      try {
+        const urlAnteprima = `${Deno.env.get("APP_URL") ?? "https://app.ediliziaincloud.com"}/admin/marketing/clienti-servizio`;
+        const r = await rapportoClientiMarketing(supabase, urlAnteprima);
+        return new Response(JSON.stringify({ ok: true, anteprima: true, subject: r.subject, html: r.html, priorita: r.priorita }), { headers: corsH });
+      } catch (err) {
+        return new Response(JSON.stringify({ ok: false, error: (err as Error).message }), { status: 500, headers: corsH });
+      }
+    }
     if (oraRoma != null && oraDiRoma() !== oraRoma) {
       return new Response(JSON.stringify({ ok: true, saltato: true, motivo: `ora di Roma ${oraDiRoma()}, atteso ${oraRoma}` }), { headers: corsH });
     }
@@ -205,7 +218,16 @@ serveConMetriche("ops-canarino", async (req) => {
       if (!sendResult.ok) {
         throw new Error(String((sendResult.body as { error?: unknown })?.error ?? `status ${sendResult.status}`));
       }
-      return new Response(JSON.stringify({ ok: true, cose: r.cose, clienti: r.clienti, destinatari: destinatari.length }), { headers: corsH });
+      // Le priorità di stamattina, per dire domani com'è andata. Se non si
+      // riesce l'email è comunque partita: domani manca solo quella riga.
+      let prioritaRicordate = true;
+      try {
+        await ricordaPriorita(supabase, r.giorno, r.priorita);
+      } catch (e) {
+        prioritaRicordate = false;
+        console.error("[ops-canarino clienti-marketing] priorità non salvate:", e);
+      }
+      return new Response(JSON.stringify({ ok: true, cose: r.cose, clienti: r.clienti, destinatari: destinatari.length, priorita_ricordate: prioritaRicordate }), { headers: corsH });
     } catch (err) {
       console.error("[ops-canarino clienti-marketing]", err);
       return new Response(JSON.stringify({ ok: false, error: (err as Error).message }), { status: 500, headers: corsH });
