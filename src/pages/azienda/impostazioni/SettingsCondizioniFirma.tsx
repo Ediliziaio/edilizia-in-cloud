@@ -75,7 +75,11 @@ const TESTI_DI_SISTEMA: Record<TipoLegale, { titolo: string; aiuto: string; test
 
 export default function SettingsCondizioniFirma() {
   const permissions = usePermissions();
-  const puoModificare = permissions.isAdmin || permissions.canViewSettingsPricing;
+  // La pagina si apre con «Vedi» su Listino & prezzi (route in companyRoutes.tsx),
+  // ma modificare le clausole serve «Modifica»: prima usava lo stesso permesso
+  // della vista, e chi aveva solo «Vedi» trovava i campi attivi ma il
+  // salvataggio veniva rifiutato dal database (21/09/2026).
+  const puoModificare = permissions.isAdmin || permissions.canEditSettingsPricing;
   const { vessatorie, testiLegali, isLoading, error, salva, elimina } = useQuoteClauses();
 
   const [bozza, setBozza] = useState<Record<string, Partial<QuoteClause>>>({});

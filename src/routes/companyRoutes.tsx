@@ -1164,11 +1164,17 @@ export default function CompanyRoutesContainer() {
           <Route path="tariffe" element={withCompanyPermission("canViewSettingsPricing", <SettingsTariffe />)} />
           {/* Listino Manutenzione accorpato nella pagina Tariffe (tab Manutenzione) */}
           <Route path="listino-manutenzione" element={<Navigate to="../tariffe?tab=manutenzione" replace />} />
-          {/* Finanziamenti — tabelle finanziarie + calcolatore (Phase A MVP) */}
+          {/* Finanziamenti — tabelle finanziarie + calcolatore (Phase A MVP).
+              Le 3 sotto-rotte usavano per errore i permessi di Listino&prezzi
+              (copia-incolla dalle righe sopra): chi aveva «Vedi» su Listino ma
+              non su Finanziamenti apriva la rotta e trovava dentro un secondo
+              «Accesso negato» della pagina — un vicolo cieco (21/09/2026,
+              trovato con l'audit dei permessi; 3 persone). Ora coincidono con
+              quello che le pagine controllano già internamente. */}
           <Route path="finanziamenti" element={withCompanyPermission("canViewSettingsFinanziamenti", <SettingsFinanziamenti />)} />
-          <Route path="finanziamenti/nuova" element={withCompanyPermission("canEditSettingsPricing", <SettingsFinanziamentiNuova />)} />
-          <Route path="finanziamenti/calcolatore" element={withCompanyPermission("canViewSettingsPricing", <SettingsFinanziamentiCalcolatore />)} />
-          <Route path="finanziamenti/:id" element={withCompanyPermission("canViewSettingsPricing", <SettingsFinanziamentiDetail />)} />
+          <Route path="finanziamenti/nuova" element={withCompanyPermission("canEditSettingsFinanziamenti", <SettingsFinanziamentiNuova />)} />
+          <Route path="finanziamenti/calcolatore" element={withCompanyPermission("canViewSettingsFinanziamenti", <SettingsFinanziamentiCalcolatore />)} />
+          <Route path="finanziamenti/:id" element={withCompanyPermission("canViewSettingsFinanziamenti", <SettingsFinanziamentiDetail />)} />
           {/* Listini Serramenti Avanzati (feature opt-in) */}
           <Route
             path="listini-serramenti/fornitori"
