@@ -141,3 +141,32 @@ describe("Serramenti: le sezioni brevi consecutive condividono le pagine", () =>
     expect(src).toMatch(/\{scorrevoli\.garanzie \? \(\n\s+<Page size="A4" style=\{styles\.page\}>/);
   });
 });
+
+describe("preventivo generico: l'impaginato classico parla la lingua del documento edile", () => {
+  const src = leggi("supabase/functions/generate-quote-pdf/index.ts");
+
+  it("il piè di pagina è un filetto con nome e pagina, non una banda piena", () => {
+    expect(src).toContain("drawRight(page, `Pag. ${pageNum} / ${totalPages}`");
+    expect(src).not.toContain("page.drawRectangle({ x: pageWidth * 0.78, y: 22, width: pageWidth * 0.22, height: 3, color: accentStrongC });");
+  });
+
+  it("intestazione: occhiello, titolo con il corsivo, la riga dei dati, le due parti senza riquadri", () => {
+    expect(src).toContain('const occhiello = "LA NOSTRA OFFERTA";');
+    expect(src).toContain('titolino("L\'IMPRESA", margin, y, boxW);');
+    expect(src).not.toContain('chipBox(margin, boxTop, boxW, boxH, "DATI AZIENDA");');
+  });
+
+  it("il totale è la fascia a tutta larghezza nel colore dell'azienda, staccata dall'ultima riga", () => {
+    expect(src).toContain("page.drawRectangle({ x: 0, y: y - h + 22, width: pageWidth, height: h, color: fondoEdC });");
+    expect(src).toMatch(/y -= 18;\n\s+const h = 42;/);
+  });
+
+  it("le firme sono righe da firmare con il nome sotto", () => {
+    expect(src).toContain('sigBox(margin, "LUOGO, DATA E FIRMA DEL CLIENTE", String(quote.client_name ?? ""));');
+  });
+
+  it("gli altri impaginati (moderno, minimale, bold) restano com'erano", () => {
+    expect(src).toContain('page.drawText("OFFERTA", { x: contentX, y, size: 26, font: fontBold, color: textC });');
+    expect(src).toMatch(/if \(classicPremium\) \{\n\s+\/\/ Come il computo del documento edile/);
+  });
+});

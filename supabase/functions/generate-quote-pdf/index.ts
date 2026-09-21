@@ -4,7 +4,7 @@ import { getBrandingForCompany } from "../_shared/getBranding.ts";
 import { PDFDocument, rgb, StandardFonts, degrees } from "https://esm.sh/pdf-lib@1.17.1";
 import qrcode from "https://esm.sh/qrcode-generator@1.4.4?target=deno";
 // Libreria template componibile: carica i blocchi linkati + sostituisce merge tag
-import { fondoPerTestoBianco, scurisci, schiarisci, testoSuScuro, normalizzaHex } from "../_shared/temaColori.ts";
+import { fondoPerTestoBianco, scurisci, schiarisci, testoSuChiaro, testoSuScuro, normalizzaHex } from "../_shared/temaColori.ts";
 import { loadTemplateWithBlocks, attachLinkedBlocks, applyMergeTagsToTemplate, buildMergeContext, substituteMergeTags, type ComposedTemplate } from "../_shared/quoteTemplateComposer.ts";
 import { condizioniStandard } from "../_shared/condizioniStandard.ts";
 import { testoPerPdf } from "../_shared/testoPerPdf.ts";
@@ -483,6 +483,15 @@ Deno.serve(async (req) => {
     const headerTextC = rgbColor(t.header_text_color);
     const grayC = rgb(0.4, 0.4, 0.4);
     const lightGrayC = rgb(0.7, 0.7, 0.7);
+    // Le tinte del documento edile, dal colore del modello: il fondo per il testo
+    // bianco, l'inchiostro del marchio per scrivere sul bianco, la tinta chiara.
+    const primarioHex = normalizzaHex(t.primary_color) ?? "#1E40AF";
+    const fondoEdC = rgbColor(fondoPerTestoBianco(primarioHex));
+    const inkMarcaC = rgbColor(testoSuChiaro(primarioHex));
+    const tintaC = rgbColor(schiarisci(primarioHex, 0.93));
+    const inchiostroC = rgbColor("#14181F");
+    const filettoC = rgbColor("#E3E6EA");
+    const grigioEdC = rgbColor("#5B6472");
 
     // ─── Logo embed ───
     let logoEmbed: any = null;
@@ -535,17 +544,17 @@ Deno.serve(async (req) => {
       : "";
     function drawPageExtras(page: any, pageNum: number, totalPages: number) {
       if (classicPremium) {
-        // Banda footer brand: nome azienda a sinistra, pagina a destra.
-        page.drawRectangle({ x: 0, y: 0, width: pageWidth, height: 22, color: primaryC });
-        page.drawRectangle({ x: pageWidth * 0.78, y: 22, width: pageWidth * 0.22, height: 3, color: accentStrongC });
+        // Come il documento edile: un filetto, il nome dell'impresa, la pagina.
+        // Prima era una banda piena di colore con una striscia arancione.
+        page.drawLine({ start: { x: margin, y: 36 }, end: { x: pageWidth - margin, y: 36 }, thickness: 0.6, color: filettoC });
         const footLabel = t.footer_text || `${company?.name ?? ""}${t.cover_tagline ? " — " + t.cover_tagline : ""}`;
         if (footLabel.trim()) {
-          page.drawText(String(footLabel).slice(0, 90), { x: margin, y: 8, size: 7.5, font: fontBold, color: headerTextC });
+          page.drawText(winAnsiSafe(String(footLabel)).slice(0, 96), { x: margin, y: 22, size: 7, font: fontBold, color: inchiostroC });
         }
         if (t.show_page_numbers) {
-          drawRight(page, `${pageNum} / ${totalPages}`, pageWidth - margin, 8, 7.5, font, headerTextC);
+          drawRight(page, `Pag. ${pageNum} / ${totalPages}`, pageWidth - margin, 22, 7, fontBold, inkMarcaC);
         }
-        if (etichettaCopia) drawRight(page, etichettaCopia, pageWidth - margin - (t.show_page_numbers ? 48 : 0), 8, 7, fontItalic, headerTextC);
+        if (etichettaCopia) drawRight(page, etichettaCopia, pageWidth - margin - (t.show_page_numbers ? 60 : 0), 22, 7, fontItalic, grigioEdC);
         return;
       }
       if (etichettaCopia) {
@@ -774,9 +783,10 @@ Deno.serve(async (req) => {
         y = drawLogo(page, y);
       }
       const x = t.layout === "bold" ? 100 : margin;
-      page.drawText(title, { x, y, size: 13, font: fontBold, color: primaryC });
+      page.drawText(title, { x, y, size: 13, font: fontBold, color: classicPremium ? inchiostroC : primaryC });
       y -= 22;
-      page.drawLine({ start: { x, y: y + 8 }, end: { x: pageWidth - margin, y: y + 8 }, thickness: 0.6, color: accentC });
+      if (classicPremium) page.drawRectangle({ x, y: y + 7, width: pageWidth - margin - x, height: 1, color: inchiostroC });
+      else page.drawLine({ start: { x, y: y + 8 }, end: { x: pageWidth - margin, y: y + 8 }, thickness: 0.6, color: accentC });
     };
 
     // Sezione breve (le note): prosegue sulla pagina in corso se c'è posto,
@@ -1002,136 +1012,153 @@ Deno.serve(async (req) => {
       // Classic premium (default) — header brand su bianco, barra bicolore,
       // titolo centrato, box Dati azienda/cliente, Oggetto, Luogo + Data.
 
-      // ── Header: logo + nome a sinistra, contatti a destra col filetto ──
-      let nameX = margin;
+      // ── Intestazione come nel documento edile ──
+      // Logo (o nome) a sinistra, «Preventivo · N.» a destra, la barra a segmenti
+      // nel colore dell'azienda. Poi il titolo, la riga dei dati, le due parti.
+      // Prima: contatti con quadratini colorati, barra bicolore arancione, titolo
+      // centrato e riquadri con etichette piene.
+      const spaziato = (testo: string, x: number, yy: number, size: number, f: any, color: any, passo = 1.2) => {
+        let ex = x;
+        for (const ch of winAnsiSafe(testo)) { page.drawText(ch, { x: ex, y: yy, size, font: f, color }); ex += f.widthOfTextAtSize(ch, size) + passo; }
+        return ex - x;
+      };
+      const larghezzaSpaziata = (testo: string, size: number, f: any, passo = 1.2) =>
+        [...winAnsiSafe(testo)].reduce((w, ch) => w + f.widthOfTextAtSize(ch, size) + passo, 0);
+      const segmenti = (x: number, yy: number, w: number, spessore = 2.5) => {
+        const opacita = [1, 0.72, 0.48, 0.28, 0.14];
+        const passo = w / opacita.length;
+        opacita.forEach((o, i) => page.drawRectangle({ x: x + i * passo, y: yy, width: passo - (i < opacita.length - 1 ? 3 : 0), height: spessore, color: fondoEdC, opacity: o }));
+      };
+
+      const yTesta = pageHeight - 44;
       if (logoEmbed && t.show_logo) {
-        const maxH = 42;
-        const scale = Math.min(maxH / logoEmbed.height, 110 / logoEmbed.width);
-        const w = logoEmbed.width * scale;
-        const h = logoEmbed.height * scale;
-        page.drawImage(logoEmbed, { x: margin, y: pageHeight - 30 - h, width: w, height: h });
-        nameX = margin + w + 12;
+        const scale = Math.min(26 / logoEmbed.height, 140 / logoEmbed.width);
+        page.drawImage(logoEmbed, { x: margin, y: yTesta - 6, width: logoEmbed.width * scale, height: logoEmbed.height * scale });
+      } else {
+        let nome = winAnsiSafe(String(company?.name || "Azienda")).toUpperCase();
+        while (nome.length > 3 && larghezzaSpaziata(nome, 9.5, fontBold, 0.6) > contentWidth - 200) nome = nome.slice(0, -2);
+        spaziato(nome, margin, yTesta, 9.5, fontBold, inchiostroC, 0.6);
       }
-      // Il nome non deve invadere il blocco contatti (filetto a x=330): larghezza
-      // dinamica rispetto a nameX (che cresce col logo) + troncamento con ellissi.
-      const nameMaxW = 330 - nameX - 10;
-      let companyNameTxt = String(company?.name || "Azienda");
-      if (textW(companyNameTxt, 16, fontBold) > nameMaxW) {
-        while (companyNameTxt.length > 1 && textW(companyNameTxt + "…", 16, fontBold) > nameMaxW) {
-          companyNameTxt = companyNameTxt.slice(0, -1);
+      const etichettaDoc = `PREVENTIVO${t.show_quote_number ? ` · N. ${quote.quote_number}${revLabel}` : ""}`;
+      const wEt = larghezzaSpaziata(etichettaDoc, 6.5, fontBold, 1.3);
+      spaziato(etichettaDoc, pageWidth - margin - wEt, yTesta + 4, 6.5, fontBold, inkMarcaC, 1.3);
+      const dataDocTesto = new Date(quote.created_at).toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric" });
+      drawRight(page, dataDocTesto, pageWidth - margin, yTesta - 7, 7.5, font, grigioEdC);
+      segmenti(margin, yTesta - 20, contentWidth);
+
+      // ── Titolo: occhiello e frase, con la parola fra asterischi in corsivo ──
+      y = yTesta - 50;
+      const fontCorsivoT = await pdfDoc.embedFont(StandardFonts.TimesRomanItalic);
+      const occhiello = "LA NOSTRA OFFERTA";
+      const xTitolo = (w: number) => allineaHeader === "center" ? (pageWidth - w) / 2 : allineaHeader === "right" ? pageWidth - margin - w : margin;
+      spaziato(occhiello, xTitolo(larghezzaSpaziata(occhiello, 7, fontBold, 1.6)), y, 7, fontBold, inkMarcaC, 1.6);
+      y -= 30;
+      const titoloGrezzo = String(quote.title ?? "").trim()
+        || (quote.client_name ? `Preventivo per *${String(quote.client_name).trim()}*` : "Il nostro *preventivo*");
+      {
+        const corpo = 22;
+        const parole: Array<{ testo: string; accento: boolean }> = [];
+        let inAccento = false;
+        for (const pezzo of titoloGrezzo.split(/(\*)/)) {
+          if (pezzo === "*") { inAccento = !inAccento; continue; }
+          for (const w of pezzo.split(/\s+/).filter(Boolean)) parole.push({ testo: winAnsiSafe(w), accento: inAccento });
         }
-        companyNameTxt += "…";
+        const fDi = (pa: { accento: boolean }) => (pa.accento ? fontCorsivoT : fontBold);
+        const cDi = (pa: { accento: boolean }) => (pa.accento ? corpo * 1.1 : corpo);
+        const largo = (pa: { testo: string; accento: boolean }) => fDi(pa).widthOfTextAtSize(pa.testo, cDi(pa));
+        const spazio = fontBold.widthOfTextAtSize(" ", corpo);
+        const righe: Array<typeof parole> = [[]];
+        let wr = 0;
+        for (const pa of parole) {
+          const w = largo(pa);
+          if (wr > 0 && wr + spazio + w > contentWidth * 0.9) { righe.push([]); wr = 0; }
+          righe[righe.length - 1].push(pa); wr += (wr > 0 ? spazio : 0) + w;
+        }
+        for (const riga of righe.slice(0, 3)) {
+          const wRiga = riga.reduce((a, pa, i) => a + largo(pa) + (i ? spazio : 0), 0);
+          let tx = xTitolo(wRiga);
+          for (const pa of riga) {
+            page.drawText(pa.testo, { x: tx, y, size: cDi(pa), font: fDi(pa), color: pa.accento ? inkMarcaC : inchiostroC });
+            tx += largo(pa) + spazio;
+          }
+          y -= corpo * 1.2;
+        }
       }
-      page.drawText(companyNameTxt, { x: nameX, y: pageHeight - 44, size: 16, font: fontBold, color: primaryC, maxWidth: nameMaxW });
-      if (t.cover_tagline) {
-        page.drawText(String(t.cover_tagline).toUpperCase().slice(0, 50), { x: nameX, y: pageHeight - 58, size: 6.5, font: fontBold, color: grayC });
-      }
-      page.drawLine({ start: { x: 330, y: pageHeight - 28 }, end: { x: 330, y: pageHeight - 70 }, thickness: 0.7, color: lightGrayC });
-      let cy = pageHeight - 36;
-      const contactLine = (label: string) => {
-        page.drawRectangle({ x: 344, y: cy - 0.5, width: 5, height: 5, color: primaryC });
-        page.drawText(label.slice(0, 44), { x: 354, y: cy, size: 7.5, font, color: textC });
-        cy -= 12;
+
+      // ── La riga dei dati del documento ──
+      y -= 6;
+      page.drawLine({ start: { x: margin, y }, end: { x: pageWidth - margin, y }, thickness: 0.6, color: filettoC });
+      y -= 16;
+      const datiDoc: Array<[string, string]> = [
+        ...(t.show_quote_number ? [["NUMERO", `${quote.quote_number}${revLabel}`] as [string, string]] : []),
+        ["DATA", new Date(quote.created_at).toLocaleDateString("it-IT")],
+        ...(t.show_validity_date && quote.expires_at ? [["VALIDO FINO AL", new Date(quote.expires_at).toLocaleDateString("it-IT")] as [string, string]] : []),
+        ...(quote.client_name ? [["PREPARATO PER", String(quote.client_name)] as [string, string]] : []),
+      ];
+      const wCol = contentWidth / Math.max(1, datiDoc.length);
+      datiDoc.forEach(([etichetta, valore], i) => {
+        const cx = margin + i * wCol;
+        spaziato(etichetta, cx, y, 6.5, fontBold, inkMarcaC, 1.2);
+        let v = winAnsiSafe(valore);
+        while (v.length > 3 && fontBold.widthOfTextAtSize(v, 9.5) > wCol - 10) v = v.slice(0, -2);
+        if (v !== winAnsiSafe(valore)) v = v.trimEnd() + "…";
+        page.drawText(v, { x: cx, y: y - 13, size: 9.5, font: fontBold, color: inchiostroC });
+      });
+      y -= 40;
+
+      // ── Le due parti: l'impresa e il cliente, senza riquadri ──
+      const titolino = (testo: string, x: number, yy: number, w: number) => {
+        spaziato(testo, x, yy, 7, fontBold, inchiostroC, 1.5);
+        page.drawRectangle({ x, y: yy - 7, width: w, height: 1, color: inchiostroC });
       };
-      if (company?.address) contactLine(company.address);
-      if (company?.phone) contactLine(`Tel. ${company.phone}`);
-      if (company?.vat_number) contactLine(`P.IVA ${company.vat_number}`);
-      if (company?.email) contactLine(company.email);
-
-      // Barra bicolore sotto l'header
-      const barY = pageHeight - 86;
-      page.drawRectangle({ x: 0, y: barY, width: pageWidth * 0.72, height: 5, color: primaryC });
-      page.drawRectangle({ x: pageWidth * 0.72, y: barY, width: pageWidth * 0.28, height: 5, color: accentStrongC });
-
-      // ── Titolo centrato + riga meta ──
-      y = barY - 36;
-      const bigTitle = "PREVENTIVO";
-      // Allineamento del blocco titolo dal template: centro (default storico), sinistra o destra.
-      const xAllineato = (w: number) => allineaHeader === "left" ? margin : allineaHeader === "right" ? pageWidth - margin - w : (pageWidth - w) / 2;
-      page.drawText(bigTitle, { x: xAllineato(textW(bigTitle, 26, fontBold)), y, size: 26, font: fontBold, color: primaryC });
-      y -= 17;
-      if (quote.title) {
-        const sub = String(quote.title).slice(0, 82);
-        page.drawText(sub, { x: xAllineato(textW(sub, 10, fontItalic)), y, size: 10, font: fontItalic, color: grayC });
-        y -= 15;
-      }
-      const metaParts: string[] = [];
-      if (t.show_quote_number) metaParts.push(`N. ${quote.quote_number}${revLabel}`);
-      metaParts.push(`Data: ${new Date(quote.created_at).toLocaleDateString("it-IT")}`);
-      if (t.show_validity_date && quote.expires_at) {
-        metaParts.push(`Valido fino al: ${new Date(quote.expires_at).toLocaleDateString("it-IT")}`);
-      }
-      const meta = metaParts.join("   ·   ");
-      page.drawText(meta, { x: xAllineato(textW(meta, 9)), y, size: 9, font, color: textC });
-      y -= 24;
-
-      // ── Helper box con chip titolo ──
-      const boxW = (contentWidth - 14) / 2;
-      const chipBox = (x: number, topY: number, w: number, h: number, label: string) => {
-        page.drawRectangle({ x, y: topY - h, width: w, height: h, borderColor: lightGrayC, borderWidth: 0.7 });
-        const chipW = Math.min(190, textW(label, 8, fontBold) + 28);
-        page.drawRectangle({ x, y: topY - 17, width: chipW, height: 17, color: primaryC });
-        page.drawRectangle({ x: x + 8, y: topY - 11.5, width: 5, height: 5, color: accentStrongC });
-        page.drawText(label, { x: x + 19, y: topY - 12, size: 8, font: fontBold, color: headerTextC });
+      const boxW = (contentWidth - 24) / 2;
+      const bX = margin + boxW + 24;
+      titolino("L'IMPRESA", margin, y, boxW);
+      titolino("IL CLIENTE", bX, y, boxW);
+      let ay = y - 22;
+      let by = y - 22;
+      const riga = (xx: number, yy: number, testo: string, bold: boolean) => {
+        let v = winAnsiSafe(testo);
+        while (v.length > 3 && (bold ? fontBold : font).widthOfTextAtSize(v, 9) > boxW) v = v.slice(0, -2);
+        page.drawText(v, { x: xx, y: yy, size: 9, font: bold ? fontBold : font, color: bold ? inchiostroC : grigioEdC });
       };
+      const righeImpresa = [
+        company?.name ? [String(company.name), true] : null,
+        company?.address ? [String(company.address), false] : null,
+        company?.vat_number ? [`P.IVA ${company.vat_number}`, false] : null,
+        company?.phone ? [`Tel. ${company.phone}`, false] : null,
+        company?.email ? [String(company.email), false] : null,
+      ].filter(Boolean) as Array<[string, boolean]>;
+      const righeCliente = [
+        quote.client_name ? [String(quote.client_name), true] : null,
+        quote.client_company ? [String(quote.client_company), false] : null,
+        quote.client_address ? [String(quote.client_address), false] : null,
+        quote.client_fiscal_code ? [`Cod. Fisc. ${quote.client_fiscal_code}`, false] : null,
+        quote.client_vat_number ? [`P.IVA ${quote.client_vat_number}`, false] : null,
+        quote.client_phone ? [`Tel. ${quote.client_phone}`, false] : null,
+        quote.client_email ? [String(quote.client_email), false] : null,
+      ].filter(Boolean) as Array<[string, boolean]>;
+      for (const [testo, bold] of righeImpresa) { riga(margin, ay, testo, bold); ay -= 11.5; }
+      for (const [testo, bold] of righeCliente) { riga(bX, by, testo, bold); by -= 11.5; }
+      y = Math.min(ay, by) - 12;
 
-      // ── Dati azienda | Dati cliente ──
-      const boxTop = y;
-      const boxH = 100;
-      chipBox(margin, boxTop, boxW, boxH, "DATI AZIENDA");
-      chipBox(margin + boxW + 14, boxTop, boxW, boxH, "DATI CLIENTE");
-      // Passo 11 + offset 26 (erano 12 e 30): un cliente B2B completo ha 7
-      // righe (nome, azienda, indirizzo, CF, P.IVA, tel, email) e col vecchio
-      // packing la 7ª — di solito l'email — veniva tagliata in silenzio.
-      let ay = boxTop - 26;
-      const aLine = (s: string, bold = false) => {
-        if (ay < boxTop - boxH + 8) return;
-        page.drawText(s.slice(0, 46), { x: margin + 10, y: ay, size: 8.5, font: bold ? fontBold : font, color: textC });
-        ay -= 11;
-      };
-      if (company?.name) aLine(company.name, true);
-      if (company?.address) aLine(company.address);
-      if (company?.vat_number) aLine(`P.IVA ${company.vat_number}`);
-      if (company?.phone) aLine(`Tel. ${company.phone}`);
-      if (company?.email) aLine(`Email: ${company.email}`);
-      const bX = margin + boxW + 14 + 10;
-      let by = boxTop - 26;
-      const bLine = (s: string, bold = false) => {
-        if (by < boxTop - boxH + 8) return;
-        page.drawText(s.slice(0, 46), { x: bX, y: by, size: 8.5, font: bold ? fontBold : font, color: textC });
-        by -= 11;
-      };
-      if (quote.client_name) bLine(quote.client_name, true);
-      if (quote.client_company) bLine(quote.client_company);
-      if (quote.client_address) bLine(quote.client_address);
-      if (quote.client_fiscal_code) bLine(`Cod. Fisc. ${quote.client_fiscal_code}`);
-      if (quote.client_vat_number) bLine(`P.IVA ${quote.client_vat_number}`);
-      if (quote.client_phone) bLine(`Tel. ${quote.client_phone}`);
-      if (quote.client_email) bLine(`Email: ${quote.client_email}`);
-      y = boxTop - boxH - 14;
-
-      // ── Oggetto dell'intervento ──
-      if (quote.description || quote.title) {
-        const ogText = String(quote.description || quote.title).replace(/\s+/g, " ");
-        const ogLines = wrapText(ogText, 106).slice(0, 3);
-        const ogH = 34 + ogLines.length * 11;
-        chipBox(margin, y, contentWidth, ogH, "OGGETTO DELL'INTERVENTO");
-        ogLines.forEach((l, li) => {
-          page.drawText(l, { x: margin + 10, y: y - 29 - li * 11, size: 8.5, font, color: textC });
-        });
-        y -= ogH + 14;
-      }
-
-      // ── Luogo intervento | Data ──
+      // ── Oggetto e luogo dei lavori ──
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const luogo = (quote as any).indirizzo_lavori || quote.client_address;
+      const oggetto = quote.description && quote.description !== quote.title ? String(quote.description).replace(/\s+/g, " ") : "";
+      if (oggetto) {
+        titolino("OGGETTO DELL'INTERVENTO", margin, y, contentWidth);
+        y -= 22;
+        for (const l of wrapText(winAnsiSafe(oggetto), 104).slice(0, 4)) {
+          page.drawText(l, { x: margin, y, size: 9, font, color: grigioEdC });
+          y -= 12.5;
+        }
+        y -= 10;
+      }
       if (luogo) {
-        const smallH = 44;
-        chipBox(margin, y, boxW, smallH, "LUOGO INTERVENTO");
-        page.drawText(String(luogo).slice(0, 46), { x: margin + 10, y: y - 31, size: 8.5, font, color: textC });
-        chipBox(margin + boxW + 14, y, boxW, smallH, "DATA");
-        page.drawText(new Date(quote.created_at).toLocaleDateString("it-IT"), { x: bX, y: y - 31, size: 8.5, font, color: textC });
-        y -= smallH + 14;
+        spaziato("LUOGO DEI LAVORI", margin, y, 6.5, fontBold, inkMarcaC, 1.2);
+        page.drawText(winAnsiSafe(String(luogo)).slice(0, 90), { x: margin + larghezzaSpaziata("LUOGO DEI LAVORI", 6.5, fontBold, 1.2) + 10, y, size: 9, font: fontBold, color: inchiostroC });
+        y -= 24;
       }
     }
 
@@ -1207,6 +1234,21 @@ Deno.serve(async (req) => {
       const totRight = itemLeftX + itemWidth - 6;
 
       const drawTableHeader = () => {
+        if (classicPremium) {
+          // Come il computo del documento edile: etichette piccole in grigio sopra
+          // un filetto scuro. Prima era una barra piena col testo bianco.
+          const eC = grigioEdC;
+          page.drawText("N.", { x: nX, y, size: 6.5, font: fontBold, color: eC });
+          page.drawText("DESCRIZIONE", { x: descX, y, size: 6.5, font: fontBold, color: eC });
+          drawRight(page, "Q.TÀ", qtyRight, y, 6.5, fontBold, eC);
+          page.drawText("U.M.", { x: umX, y, size: 6.5, font: fontBold, color: eC });
+          drawRight(page, "PREZZO", priceRight, y, 6.5, fontBold, eC);
+          drawRight(page, "IVA", ivaRight, y, 6.5, fontBold, eC);
+          drawRight(page, "IMPORTO", totRight, y, 6.5, fontBold, eC);
+          page.drawRectangle({ x: itemLeftX, y: y - 6, width: itemWidth, height: 1, color: inchiostroC });
+          y -= 22;
+          return;
+        }
         page.drawRectangle({ x: itemLeftX, y: y - 6, width: itemWidth, height: 20, color: primaryC });
         page.drawText("N.", { x: nX, y, size: 8, font: fontBold, color: headerTextC });
         page.drawText("DESCRIZIONE", { x: descX, y, size: 8, font: fontBold, color: headerTextC });
@@ -1325,7 +1367,7 @@ Deno.serve(async (req) => {
           }
           // Alternate row background (zebra), disattivabile dal template
           if (zebraOn && rowNumber % 2 === 1) {
-            page.drawRectangle({ x: itemLeftX, y: y - (rowH - 12), width: itemWidth, height: rowH, color: isChild ? rgb(0.97, 0.97, 0.97) : accentC });
+            page.drawRectangle({ x: itemLeftX, y: y - (rowH - 12), width: itemWidth, height: rowH, color: isChild ? rgb(0.97, 0.97, 0.97) : (classicPremium ? tintaC : accentC) });
           }
 
           // Name prefix for child rows / optional
@@ -1424,16 +1466,31 @@ Deno.serve(async (req) => {
 
       const drawTotal = (label: string, value: string, bold = false) => {
         if (bold) {
+          if (classicPremium) {
+            // La fascia del prezzo a tutta pagina, come nel documento edile: il
+            // numero che il cliente cerca, grande, nel colore dell'azienda.
+            // Stacco sufficiente: la fascia comincia sotto l'ultima riga (l'IVA), non sopra.
+            y -= 18;
+            const h = 42;
+            page.drawRectangle({ x: 0, y: y - h + 22, width: pageWidth, height: h, color: fondoEdC });
+            let ex = margin;
+            for (const ch of "TOTALE PREVENTIVO") { page.drawText(ch, { x: ex, y: y + 2, size: 7.5, font: fontBold, color: rgb(1, 1, 1) }); ex += fontBold.widthOfTextAtSize(ch, 7.5) + 1.6; }
+            page.drawText("IVA inclusa", { x: margin, y: y - 10, size: 8, font, color: rgb(1, 1, 1), opacity: 0.85 });
+            drawRight(page, value, pageWidth - margin - 3, y - 7, 20, fontBold, rgb(1, 1, 1));
+            y -= h;
+            return;
+          }
           // Barra TOTALE in evidenza (respiro di 5pt dalla riga precedente)
           y -= 5;
           page.drawRectangle({ x: totX, y: y - 6, width: totBoxW, height: 21, color: accentStrongC });
-          page.drawText(classicPremium ? "TOTALE PREVENTIVO" : label, { x: totX + 8, y, size: 9.5, font: fontBold, color: rgb(1, 1, 1) });
+          page.drawText(label, { x: totX + 8, y, size: 9.5, font: fontBold, color: rgb(1, 1, 1) });
           drawRight(page, value, totValX, y, 10.5, fontBold, rgb(1, 1, 1));
           y -= 24;
           return;
         }
-        page.drawText(label, { x: totX + 8, y, size: 9, font, color: textC });
-        drawRight(page, value, totValX, y, 9, font, textC);
+        page.drawText(label, { x: totX + 8, y, size: 9, font, color: classicPremium ? grigioEdC : textC });
+        drawRight(page, value, totValX, y, 9, classicPremium ? fontBold : font, classicPremium ? inchiostroC : textC);
+        if (classicPremium) page.drawLine({ start: { x: totX, y: y - 5 }, end: { x: itemLeftX + itemWidth, y: y - 5 }, thickness: 0.5, color: filettoC });
         y -= 15;
       };
 
@@ -1649,21 +1706,19 @@ Deno.serve(async (req) => {
           let deepest = colTop;
           infoCols.forEach((c, ci) => {
             const cx = margin + ci * (colW + gap);
-            page.drawRectangle({ x: cx, y: colTop - 1, width: 6, height: 6, color: primaryC });
-            // Con quattro colonne (coordinate bancarie) l'etichetta si stringe per non toccare il filetto.
-            page.drawText(c.label, { x: cx + 11, y: colTop, size: infoCols.length >= 4 ? 6.8 : 8, font: fontBold, color: primaryC });
-            let ty = colTop - 14;
+            // Come i titolini del documento edile: maiuscoletto spaziato e un filetto.
+            // Prima: un quadratino e l'etichetta nel colore del modello.
+            let ex = cx;
+            for (const ch of c.label) { page.drawText(ch, { x: ex, y: colTop, size: 6.5, font: fontBold, color: inchiostroC }); ex += fontBold.widthOfTextAtSize(ch, 6.5) + 1.3; }
+            page.drawRectangle({ x: cx, y: colTop - 6, width: colW, height: 0.8, color: inchiostroC });
+            let ty = colTop - 18;
             for (const line of wrapText(c.text.replace(/\s+/g, " ").slice(0, 320), maxChars).slice(0, 6)) {
-              page.drawText(line, { x: cx, y: ty, size: 7.5, font, color: grayC });
-              ty -= 10;
+              page.drawText(line, { x: cx, y: ty, size: 8, font, color: grigioEdC });
+              ty -= 10.5;
             }
             deepest = Math.min(deepest, ty);
           });
-          // Filetti verticali tra le colonne
-          for (let ci = 1; ci < infoCols.length; ci++) {
-            const lx = margin + ci * (colW + gap) - gap / 2;
-            page.drawLine({ start: { x: lx, y: colTop + 6 }, end: { x: lx, y: deepest + 4 }, thickness: 0.5, color: lightGrayC });
-          }
+          // Niente filetti verticali: ogni colonna ha già il suo titolino col filetto sotto.
           y = deepest - 18;
         }
 
@@ -1683,14 +1738,18 @@ Deno.serve(async (req) => {
         }
         const sigW = (contentWidth - 14) / 2;
         const sigH = 66;
-        const sigBox = (x: number, label: string) => {
-          page.drawRectangle({ x, y: y - sigH, width: sigW, height: sigH, borderColor: lightGrayC, borderWidth: 0.7 });
-          page.drawText(label, { x: x + (sigW - textW(label, 8.5, fontBold)) / 2, y: y - 15, size: 8.5, font: fontBold, color: primaryC });
-          page.drawLine({ start: { x: x + 24, y: y - sigH + 26 }, end: { x: x + sigW - 24, y: y - sigH + 26 }, thickness: 0.6, color: grayC });
-          page.drawText("Data ____ / ____ / ________", { x: x + 24, y: y - sigH + 10, size: 7.5, font, color: grayC });
+        // Righe da firmare, come nel documento edile: il filetto, sotto che cosa ci
+        // va e di chi è la firma. Prima erano due riquadri con il titolo colorato.
+        const sigBox = (x: number, label: string, chi: string) => {
+          page.drawLine({ start: { x, y: y - sigH + 26 }, end: { x: x + sigW, y: y - sigH + 26 }, thickness: 0.7, color: inchiostroC });
+          let ex = x;
+          for (const ch of label) { page.drawText(ch, { x: ex, y: y - sigH + 15, size: 6.5, font, color: grigioEdC }); ex += font.widthOfTextAtSize(ch, 6.5) + 0.9; }
+          let c = winAnsiSafe(chi);
+          while (c.length > 3 && fontBold.widthOfTextAtSize(c, 7.5) > sigW) c = c.slice(0, -2);
+          page.drawText(c, { x, y: y - sigH + 5, size: 7.5, font: fontBold, color: inchiostroC });
         };
-        sigBox(margin, "FIRMA CLIENTE");
-        sigBox(margin + sigW + 14, `FIRMA ${String(company?.name ?? "AZIENDA").toUpperCase().slice(0, 26)}`);
+        sigBox(margin, "LUOGO, DATA E FIRMA DEL CLIENTE", String(quote.client_name ?? ""));
+        sigBox(margin + sigW + 14, "PER L'IMPRESA", String(company?.name ?? ""));
         y -= sigH + 12;
       }
 
