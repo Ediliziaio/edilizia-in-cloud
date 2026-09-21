@@ -149,6 +149,8 @@ interface FvTemplate {
   cronoprogramma?: FvCronoprogrammaFase[] | null;
   condizioni_legali_attivo?: boolean | null;
   condizioni_legali_testo?: string | null;
+  /** Allega il modulo di recesso: serve se si firma con un privato a casa sua o a distanza. Spento di serie. */
+  modulo_recesso_attivo?: boolean | null;
   urgenza_attiva?: boolean | null;
   urgenza_titolo?: string | null;
   urgenza_descrizione?: string | null;
@@ -455,8 +457,11 @@ function normalizeTemplate(template: FvTemplate): FvTemplate {
     faq_items: DEFAULT_FV_FAQ,
     usp: DEFAULT_FV_USP,
     cronoprogramma: DEFAULT_FV_CRONOPROGRAMMA,
-    condizioni_legali_attivo: false,
+    // Accese di serie, come negli edili: senza condizioni il preventivo firmato non
+    // dice niente su tempi, varianti e garanzie (vuote = esce il testo del settore).
+    condizioni_legali_attivo: true,
     condizioni_legali_testo: "",
+    modulo_recesso_attivo: false,
     urgenza_attiva: false,
     urgenza_titolo: "Validita offerta e disponibilita componenti",
     urgenza_descrizione: "Prezzi, incentivi e disponibilita dei componenti FV possono variare: conferma entro la validita indicata nel preventivo.",
@@ -514,6 +519,8 @@ function normalizeTemplate(template: FvTemplate): FvTemplate {
       safeTemplate.condizioni_legali_attivo ?? defaults.condizioni_legali_attivo,
     condizioni_legali_testo:
       safeTemplate.condizioni_legali_testo ?? defaults.condizioni_legali_testo,
+    modulo_recesso_attivo:
+      safeTemplate.modulo_recesso_attivo ?? defaults.modulo_recesso_attivo,
     urgenza_attiva: safeTemplate.urgenza_attiva ?? defaults.urgenza_attiva,
     urgenza_titolo: safeTemplate.urgenza_titolo ?? defaults.urgenza_titolo,
     urgenza_descrizione: safeTemplate.urgenza_descrizione ?? defaults.urgenza_descrizione,
@@ -2809,6 +2816,25 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
                 disabled={!form.condizioni_legali_attivo}
               />
             </div>
+            {/* Il modulo di recesso è una scelta dell'azienda, spenta di serie (21/09/2026). */}
+            <label className="col-span-12 flex items-start gap-2 text-sm cursor-pointer">
+              <input
+                type="checkbox"
+                checked={form.modulo_recesso_attivo ?? false}
+                onChange={(e) => update("modulo_recesso_attivo", e.target.checked)}
+                disabled={!form.condizioni_legali_attivo}
+                aria-label="Allega il modulo di recesso"
+                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-sky-700 focus:ring-sky-700"
+              />
+              <span>
+                Allega il modulo di recesso
+                <span className="block text-xs text-muted-foreground">
+                  Serve quando firmi con un privato a casa sua o a distanza (online, al telefono): senza, il cliente può
+                  arrivare a recedere fino a 12 mesi dopo, anche a lavori finiti. A chi vende ad aziende o fa firmare in
+                  sede non serve.
+                </span>
+              </span>
+            </label>
             <label className="col-span-12 flex items-center gap-2 text-sm cursor-pointer">
               <input
                 type="checkbox"

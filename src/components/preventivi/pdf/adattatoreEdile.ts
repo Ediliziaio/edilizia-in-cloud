@@ -217,7 +217,9 @@ export function leggiModello(
       occhiello: p.occhiello ? espandi(p.occhiello) : null,
     })),
     clausoleDaApprovare: clausoleDaApprovare(condizioniLegali),
-    conRecesso: condizioniLegali.some((r) => /recesso/i.test(r.testo)),
+    // Il modulo di recesso lo accende l'azienda nel modello (spento di serie dal
+    // 21/09/2026): serve a chi firma con un privato a casa sua o a distanza.
+    conRecesso: t.modulo_recesso_attivo === true,
   };
 }
 

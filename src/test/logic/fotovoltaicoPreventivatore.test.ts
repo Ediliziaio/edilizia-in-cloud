@@ -8,6 +8,7 @@ import {
   DEFAULT_FV_FAQ,
   DEFAULT_FV_GARANZIE,
   shouldSuggestFvAccumulo,
+  type FvTemplateQualityInput,
 } from "@/lib/fotovoltaico/preventivatore";
 
 const listinoMacrosFvPronte = [
@@ -318,3 +319,36 @@ describe("fotovoltaico preventivatore", () => {
     expect(items.some((item) => item.title.includes("Noleggio operativo"))).toBe(true);
   });
 });
+
+// 21/09/2026 — Condizioni accese e vuote non vogliono dire «senza condizioni»: nel
+// PDF esce il testo di base del fotovoltaico. La lista lo dice, invece di segnare
+// un errore grave che non c'è.
+describe("fotovoltaico preventivatore — condizioni di base", () => {
+  const vuoto: FvTemplateQualityInput = {
+    presentazione_impresa_html: "",
+    recensioni: [],
+    certificazioni: [],
+    garanzie_conversione: [],
+    faq_items: [],
+    margine_target_pct: null,
+    costo_kwp_base: null,
+    cpl_max_sostenibile: null,
+    capacita_installazioni_mese: null,
+    zona_servita_note: "",
+    listino_macrocategorie_fv: [],
+  };
+
+  it("accese ma vuote: un avviso che esce il testo di base, non un errore", () => {
+    const voce = buildFvTemplateQualityItems({ ...vuoto, condizioni_legali_attivo: true, condizioni_legali_testo: "" })
+      .find((item) => item.section === "Contratto");
+    expect(voce?.level).toBe("warning");
+    expect(voce?.title).toContain("testo di base");
+  });
+
+  it("spente di proposito o scritte dall'azienda: nessun avviso sul contratto", () => {
+    expect(buildFvTemplateQualityItems({ ...vuoto, condizioni_legali_attivo: false }).some((item) => item.section === "Contratto")).toBe(false);
+    const scritte = "Validita 30 giorni, acconto del 30% alla firma, saldo al collaudo, esclusioni e varianti concordate per iscritto.";
+    expect(buildFvTemplateQualityItems({ ...vuoto, condizioni_legali_attivo: true, condizioni_legali_testo: scritte }).some((item) => item.section === "Contratto")).toBe(false);
+  });
+});
+

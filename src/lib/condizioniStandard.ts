@@ -7,6 +7,6 @@
  */
 export {
   condizioniStandard, CONDIZIONI_STANDARD_MD, TITOLO_CLAUSOLE_SPECIFICHE,
-  righeDelleCondizioni, clausoleDaApprovare, righeDaStampare, perArticoli, MODULO_RECESSO, prevedeRecesso,
+  righeDelleCondizioni, clausoleDaApprovare, righeDaStampare, perArticoli, MODULO_RECESSO,
   type SettoreCondizioni, type RigaCondizioni,
 } from "../../supabase/functions/_shared/condizioniStandard.ts";

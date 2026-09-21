@@ -498,6 +498,8 @@ export interface SrTemplatePdfRow {
   /** Condizioni e disclaimer legali (pagina appendice). */
   condizioni_legali_attivo: boolean;
   condizioni_legali_testo: string | null;
+  /** Allega il modulo di recesso: serve se si firma con un privato a casa sua o a distanza. Spento di serie. */
+  modulo_recesso_attivo?: boolean | null;
   /** Mostra il blocco "Firma e conferma online" (link pagina pubblica) nel PDF.
    *  Default false = nascosto. */
   pdf_mostra_firma_online?: boolean;

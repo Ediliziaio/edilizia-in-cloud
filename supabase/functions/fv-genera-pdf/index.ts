@@ -367,7 +367,7 @@ Deno.serve(async (req: Request) => {
     );
 
     // ── Calcoli aggregati ──────────────────────────────────────────────────
-    const flows = calcolaEnergyFlows({
+    const ingressiFlussi = {
       potenza_kwp: Number(prog.potenza_kwp) || 0,
       has_accumulo: prog.con_accumulo ?? false,
       capacita_accumulo_kwh: Number(prog.capacita_accumulo_kwh) || 0,
@@ -375,7 +375,13 @@ Deno.serve(async (req: Request) => {
       ore_sole_annue: Number(prog.ore_sole_annue) || null,
       profilo_consumo: prog.profilo_consumo ?? "misto",
       perdita_ombreggiamento_pct: Number(prog.perdita_ombreggiamento_pct) || 0,
-    });
+    };
+    const flows = calcolaEnergyFlows(ingressiFlussi);
+    // Gli stessi flussi senza batteria, con gli stessi dati: la pagina della
+    // produzione dice quanto cambia l'accumulo con numeri calcolati, non a occhio.
+    const flowsSenzaAccumulo = ingressiFlussi.has_accumulo
+      ? calcolaEnergyFlows({ ...ingressiFlussi, has_accumulo: false, capacita_accumulo_kwh: 0 })
+      : null;
 
     // Detrazione: quella del calcolo finanziario, che la dà solo ai privati
     // (50% prima casa, 36% le altre, plafond dal catalogo incentivi). Il PDF la
@@ -661,6 +667,7 @@ Deno.serve(async (req: Request) => {
         cassa_anno_per_anno: cassaAnni,
       },
       flows,
+      flows_senza_accumulo: flowsSenzaAccumulo,
       componenti: componentRows.map((c: Record<string, unknown>) => {
         const articoloId = firstString(c.articolo_id);
         const articolo = articoloId ? articoliById.get(articoloId) ?? null : null;
@@ -738,6 +745,8 @@ Deno.serve(async (req: Request) => {
         // Acceso di suo: il preventivo si firma, e senza condizioni quel contratto
         // non dice niente su tempi, varianti, garanzie e recesso.
         condizioni_legali_attivo: template.condizioni_legali_attivo !== false,
+        // Il modulo di recesso: lo accende l'azienda nel modello, spento di serie.
+        modulo_recesso_attivo: template.modulo_recesso_attivo === true,
         // Merge tag dei blocchi importati dalla libreria Template offerte → dati del progetto
         condizioni_legali_testo: substituteMergeTags(
           // Senza condizioni scritte dall'azienda valgono quelle di base del settore.

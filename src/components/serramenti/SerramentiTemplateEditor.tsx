@@ -3608,6 +3608,22 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                 Puoi usare segnaposto come {"{cliente_nome_completo}"}.
                 Salva il testo nella libreria (sopra) per riutilizzarlo in altri template.
               </p>
+              {/* Il modulo di recesso è una scelta dell'azienda, spenta di serie (21/09/2026). */}
+              <label className="flex items-start gap-2 cursor-pointer rounded-md border bg-background px-3 py-2">
+                <Switch
+                  checked={form.modulo_recesso_attivo === true}
+                  onCheckedChange={(checked) => update("modulo_recesso_attivo", checked)}
+                  aria-label="Allega il modulo di recesso"
+                />
+                <div>
+                  <span className="text-sm font-medium">Allega il modulo di recesso</span>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    Serve quando firmi con un privato a casa sua o a distanza (online, al telefono): senza, il cliente può
+                    arrivare a recedere fino a 12 mesi dopo, anche a lavori finiti. A chi vende ad aziende o fa firmare in
+                    sede non serve.
+                  </p>
+                </div>
+              </label>
             </>
           )}
 

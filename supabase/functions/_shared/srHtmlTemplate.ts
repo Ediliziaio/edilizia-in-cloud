@@ -12,7 +12,7 @@
  *  4. Firma online — render, prossimi passi, link pubblico
  */
 import { mescola, normalizzaHex, schiarisci, scurisci, testoSuChiaro } from "./temaColori.ts";
-import { clausoleDaApprovare, MODULO_RECESSO, prevedeRecesso, righeDaStampare, righeDelleCondizioni } from "./condizioniStandard.ts";
+import { clausoleDaApprovare, MODULO_RECESSO, righeDaStampare, righeDelleCondizioni } from "./condizioniStandard.ts";
 
 export interface SrPdfData {
   // Progetto
@@ -46,6 +46,8 @@ export interface SrPdfData {
   // Condizioni contrattuali e termini legali (sr_template_pdf): pagina dedicata in coda
   condizioni_legali_testo?: string | null;
   condizioni_legali_attivo?: boolean | null;
+  /** Il modulo di recesso, acceso dall'azienda nel modello (spento di serie). */
+  modulo_recesso_attivo?: boolean | null;
 
   // Economia
   totale_min: number;
@@ -222,9 +224,9 @@ function haCondizioni(d: SrPdfData): boolean {
 /** Numero pagine dell'HTML generato (4 base + macro dedicate + condizioni). */
 export function countSrPdfPages(d: SrPdfData): number { return totalPages(d); }
 
-/** Le condizioni prevedono il recesso del consumatore: si allega il modulo. */
+/** L'azienda allega il modulo di recesso (interruttore nel modello, spento di serie dal 21/09/2026). */
 function haModuloRecesso(d: SrPdfData): boolean {
-  return haCondizioni(d) && prevedeRecesso(d.condizioni_legali_testo);
+  return haCondizioni(d) && d.modulo_recesso_attivo === true;
 }
 
 function totalPages(d: SrPdfData): number {

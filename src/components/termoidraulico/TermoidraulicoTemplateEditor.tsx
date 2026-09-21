@@ -103,7 +103,7 @@ const PALETTE_PRESETS: Array<{ nome: string; color_primary: string; color_second
 // applicato dai preset 1-click e dai controlli avanzati di copertina.
 type FormState = Required<Pick<IdrTemplatePdf,
   | "pdf_ordine_capitoli" | "pdf_pagine_libere"
-  | "condizioni_legali_testo" | "condizioni_legali_attivo"
+  | "condizioni_legali_testo" | "condizioni_legali_attivo" | "modulo_recesso_attivo"
   | "logo_url" | "color_primary" | "color_secondary" | "color_accent" | "color_text"
   | "chi_siamo" | "chi_siamo_foto_url" | "esigenze" | "soluzione" | "usp"
   | "testimonianze" | "cronoprogramma" | "cover_title" | "cover_subtitle"
@@ -128,6 +128,7 @@ function templateToForm(t: IdrTemplatePdf): FormState {
     pdf_pagine_libere: t.pdf_pagine_libere ?? [],
     condizioni_legali_testo: t.condizioni_legali_testo ?? "",
     condizioni_legali_attivo: t.condizioni_legali_attivo ?? true,
+    modulo_recesso_attivo: t.modulo_recesso_attivo === true,
     logo_url: t.logo_url ?? null,
     cover_logo_url: t.cover_logo_url ?? null,
     color_primary: t.color_primary ?? "#1E3A5F",
@@ -1587,6 +1588,8 @@ export function TermoidraulicoTemplateEditor({ embedded = false }: Props) {
                   testo={form.condizioni_legali_testo ?? ""}
                   onAttivo={(v) => set("condizioni_legali_attivo", v)}
                   onTesto={(v) => set("condizioni_legali_testo", v)}
+                  recesso={form.modulo_recesso_attivo === true}
+                  onRecesso={(v) => set("modulo_recesso_attivo", v)}
                 />
               </div>
             </SectionCard>

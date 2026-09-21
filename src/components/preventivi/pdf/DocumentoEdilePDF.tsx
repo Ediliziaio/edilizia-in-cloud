@@ -1205,9 +1205,9 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
       ) : null}
 
       {/* ─── Allegato: il modulo di recesso ────────────────────────────────
-          Quando le condizioni parlano di recesso, il modulo va consegnato
-          insieme al contratto (Allegato I, parte B, D.lgs. 206/2005): senza,
-          i 14 giorni non decorrono come dovrebbero. */}
+          Esce quando l'azienda lo accende nel modello (spento di serie): serve
+          a chi firma con un privato a casa sua o a distanza (Allegato I, parte B,
+          D.lgs. 206/2005), e allora va consegnato insieme al contratto. */}
       {modello.condizioniLegali.length > 0 && modello.conRecesso ? (
         <Page size="A4" style={pagina}>
           {cornice}

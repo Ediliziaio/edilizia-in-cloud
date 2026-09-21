@@ -37,7 +37,7 @@ import { testoScelta } from "@/lib/listino/scelteVariante";
 import { schedaPosizione, titoloConLinea } from "@/lib/serramenti/schedaPosizione";
 import { inchiostroSuBianco, testoSopra } from "@/lib/pdf/contrastoColori";
 import { coloreDelDocumento, fondoPerTestoBianco, scurisci, testoSuChiaro, testoSuScuro } from "../../../supabase/functions/_shared/temaColori";
-import { clausoleDaApprovare, condizioniStandard, MODULO_RECESSO, perArticoli, prevedeRecesso, righeDaStampare, righeDelleCondizioni } from "../../../supabase/functions/_shared/condizioniStandard";
+import { clausoleDaApprovare, condizioniStandard, MODULO_RECESSO, perArticoli, righeDaStampare, righeDelleCondizioni } from "../../../supabase/functions/_shared/condizioniStandard";
 import { testiPerPdf } from "../../../supabase/functions/_shared/testoPerPdf";
 import type {
   SerramentoPdfConsulente, SerramentoPdfFamilyData,
@@ -2067,6 +2067,8 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
   // come true (retrocompat).
   const brandFooterAttivo = tpl.brand_footer_attivo !== false;
   const condizioniLegaliAttivo = tpl.condizioni_legali_attivo !== false;
+  // Il modulo di recesso lo accende l'azienda nel modello: spento di serie.
+  const moduloRecessoAttivo = tpl.modulo_recesso_attivo === true;
   const confrontoAttivo = tpl.confronto_attivo !== false;
 
   // Validità con countdown calcolato (per box urgenza)
@@ -4215,10 +4217,10 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
             )}
 
             {/* ─── Allegato: il modulo di recesso ────────────────────────────
-                Quando le condizioni prevedono il recesso del consumatore il modulo
-                va consegnato con il contratto: senza, il termine per recedere non è
-                più di 14 giorni ma si allunga di un anno. */}
-            {condizioniLegaliAttivo && condizioniLegaliTesto && prevedeRecesso(condizioniLegaliTesto) && (
+                Esce quando l'azienda lo accende nel modello (spento di serie): serve
+                a chi firma con un privato a casa sua o a distanza, e allora va
+                consegnato con il contratto. */}
+            {condizioniLegaliAttivo && condizioniLegaliTesto && moduloRecessoAttivo && (
               <Page size="A4" style={styles.page}>
                 <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
                 <Text style={styles.pageEyebrow}>Allegato</Text>

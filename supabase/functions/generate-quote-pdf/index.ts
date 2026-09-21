@@ -6,7 +6,7 @@ import qrcode from "https://esm.sh/qrcode-generator@1.4.4?target=deno";
 // Libreria template componibile: carica i blocchi linkati + sostituisce merge tag
 import { fondoPerTestoBianco, scurisci, schiarisci, testoSuChiaro, testoSuScuro, normalizzaHex } from "../_shared/temaColori.ts";
 import { loadTemplateWithBlocks, attachLinkedBlocks, applyMergeTagsToTemplate, buildMergeContext, substituteMergeTags, type ComposedTemplate } from "../_shared/quoteTemplateComposer.ts";
-import { condizioniStandard, MODULO_RECESSO, prevedeRecesso } from "../_shared/condizioniStandard.ts";
+import { condizioniStandard, MODULO_RECESSO } from "../_shared/condizioniStandard.ts";
 import { testoPerPdf } from "../_shared/testoPerPdf.ts";
 
 // ─── Helpers ───
@@ -1806,10 +1806,10 @@ Deno.serve(async (req) => {
       }
 
       // ─── Il modulo di recesso ───
-      // Quando le condizioni prevedono il recesso del consumatore, il modulo va
-      // consegnato con il contratto: senza, il termine per recedere non è più di
-      // 14 giorni ma si allunga di un anno. Stesso testo di tutti i documenti.
-      if (prevedeRecesso(condizioniETermini)) {
+      // Lo accende l'azienda nel modello (spento di serie dal 21/09/2026): serve a
+      // chi firma con un privato a casa sua o a distanza, e allora va consegnato
+      // con il contratto. Stesso testo di tutti i documenti.
+      if (t.modulo_recesso_attivo === true) {
         drawWatermark(page);
         startContentPage(MODULO_RECESSO.titolo.toUpperCase());
         const mx = contentLeftX();

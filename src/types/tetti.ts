@@ -105,6 +105,8 @@ export interface TetTemplatePdf {
   /** Condizioni generali di contratto in markdown povero: il PDF le stampa in coda. */
   condizioni_legali_testo: string | null;
   condizioni_legali_attivo: boolean | null;
+  /** Allega il modulo di recesso: serve se si firma con un privato a casa sua o a distanza. Spento di serie. */
+  modulo_recesso_attivo?: boolean | null;
   /** Ordine e visibilità dei capitoli del PDF: [{chiave, visibile}]. null = di serie. */
   pdf_ordine_capitoli: Array<{ chiave: string; visibile: boolean }> | null;
   /** Pagine scritte dall'azienda, dentro la sequenza dei capitoli. */

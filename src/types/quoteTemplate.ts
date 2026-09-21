@@ -105,6 +105,8 @@ export interface QuoteTemplate {
   legal_terms_text: string | null;
   show_contractual_terms: boolean;
   show_legal_terms: boolean;
+  /** Allega il modulo di recesso: serve se si firma con un privato a casa sua o a distanza. Spento di serie. */
+  modulo_recesso_attivo?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -310,6 +312,7 @@ export const DEFAULT_TEMPLATE: Omit<QuoteTemplate, 'id' | 'company_id' | 'create
   legal_terms_text: null,
   show_contractual_terms: true,
   show_legal_terms: false,
+  modulo_recesso_attivo: false,
 };
 
 /* ─── Label/Option utilities per UI ─────────────────────────── */

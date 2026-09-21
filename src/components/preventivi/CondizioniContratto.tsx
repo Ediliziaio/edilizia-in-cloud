@@ -38,9 +38,12 @@ interface Props {
   testo: string;
   onAttivo: (v: boolean) => void;
   onTesto: (v: string) => void;
+  /** Il modulo di recesso allegato al preventivo: lo accende l'azienda, spento di serie. */
+  recesso: boolean;
+  onRecesso: (v: boolean) => void;
 }
 
-export function CondizioniContratto({ companyId, settore, attivo, testo, onAttivo, onTesto }: Props) {
+export function CondizioniContratto({ companyId, settore, attivo, testo, onAttivo, onTesto, recesso, onRecesso }: Props) {
   const { templates: templatesLibreria } = useQuoteTemplates();
   const blocchi = useMemo(
     () => templatesLibreria.filter((t) => t.is_active !== false && (t.kind === "condizioni" || t.kind === "legali")),
@@ -72,7 +75,7 @@ export function CondizioniContratto({ companyId, settore, attivo, testo, onAttiv
             dalla pagina della firma con l'approvazione delle clausole (art. 1341 c.c.).
           </p>
         </div>
-        <Switch checked={attivo} onCheckedChange={onAttivo} />
+        <Switch checked={attivo} onCheckedChange={onAttivo} aria-label="Condizioni generali nel documento" />
       </div>
 
       {attivo && (
@@ -126,6 +129,20 @@ export function CondizioniContratto({ companyId, settore, attivo, testo, onAttiv
             Il testo di base è un punto di partenza scritto sulle norme più ricorrenti nei lavori edili: rileggilo con il
             tuo consulente prima di usarlo con i clienti.
           </p>
+
+          {/* Il modulo di recesso è una scelta dell'azienda, spenta di serie (21/09/2026):
+              serve solo a chi firma con un privato fuori dalla sede o a distanza. */}
+          <div className="flex items-start justify-between gap-3 rounded-md border bg-background px-3 py-2">
+            <div className="min-w-0">
+              <p className="text-sm font-medium">Allega il modulo di recesso</p>
+              <p className="text-xs text-muted-foreground">
+                Serve quando firmi con un privato a casa sua o a distanza (online, al telefono): senza, il cliente può
+                arrivare a recedere fino a 12 mesi dopo, anche a lavori finiti. A chi vende ad aziende o fa firmare in
+                sede non serve.
+              </p>
+            </div>
+            <Switch checked={recesso} onCheckedChange={onRecesso} aria-label="Allega il modulo di recesso" />
+          </div>
         </>
       )}
     </div>

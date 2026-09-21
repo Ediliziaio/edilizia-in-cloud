@@ -636,12 +636,15 @@ export function buildFvTemplateQualityItems(
       detail: "Anticipa dubbi su accumulo, tempi, pratiche, incentivi, garanzie e varianti.",
     });
   }
-  if (template.condizioni_legali_attivo && !hasReadableText(template.condizioni_legali_testo, 60)) {
+  // Dal 20/09/2026 condizioni accese e vuote non significano «senza condizioni»:
+  // nel PDF esce il testo di base del fotovoltaico. Va riletto e adattato, ma il
+  // documento è completo: un avviso, non un errore.
+  if (template.condizioni_legali_attivo !== false && !hasReadableText(template.condizioni_legali_testo, 60)) {
     items.push({
-      level: "critical",
+      level: "warning",
       section: "Contratto",
-      title: "Condizioni legali attive ma vuote",
-      detail: "Completa validita, acconto, saldo, esclusioni, sopralluogo e varianti.",
+      title: "Condizioni: esce il testo di base del settore",
+      detail: "Rileggilo e adattalo: validita, acconto, saldo, esclusioni, sopralluogo e varianti.",
     });
   }
   if (template.margine_target_pct == null || template.margine_target_pct < 0.2) {
