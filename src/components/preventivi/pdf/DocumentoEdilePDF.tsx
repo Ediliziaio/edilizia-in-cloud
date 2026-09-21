@@ -449,9 +449,11 @@ function Tempi({ tema, fasi }: { tema: TemaDocumento; fasi: DocEdileFase[] }) {
 }
 
 // ─── Il piano dei lavori: capitoli e voci ────────────────────────────────────
-function TabellaCapitolo({ tema, cap, indice, mostraMargine, mostraPrezzi, mostraQta, mostraSubtotali }: {
+function TabellaCapitolo({ tema, cap, indice, mostraMargine, mostraPrezzi, mostraQta, mostraSubtotali, mostraImporti = true }: {
   tema: TemaDocumento; cap: DocEdileCapitolo; indice: number;
   mostraMargine: boolean; mostraPrezzi: boolean; mostraQta: boolean; mostraSubtotali: boolean;
+  /** False col prezzo scritto a mano: le righe possono essere a 0 €, e «0,00 €» su ogni riga smentirebbe il prezzo. */
+  mostraImporti?: boolean;
 }) {
   const testa = { fontFamily: tema.caratteri.forte, fontSize: 6.5, color: tema.grigioChiaro, letterSpacing: 0.9 } as const;
   const cella = { fontFamily: tema.caratteri.testo, fontSize: 9, color: tema.inchiostro } as const;
@@ -470,7 +472,7 @@ function TabellaCapitolo({ tema, cap, indice, mostraMargine, mostraPrezzi, mostr
           {mostraQta ? <Text style={[testa, { width: 40, textAlign: "center" }]}>U.M.</Text> : null}
           {mostraQta ? <Text style={[testa, { width: 44, textAlign: "right" }]}>Q.TÀ</Text> : null}
           {mostraPrezzi ? <Text style={[testa, { width: 66, textAlign: "right" }]}>PREZZO</Text> : null}
-          <Text style={[testa, { width: 74, textAlign: "right" }]}>IMPORTO</Text>
+          {mostraImporti ? <Text style={[testa, { width: 74, textAlign: "right" }]}>IMPORTO</Text> : null}
           {mostraMargine ? <Text style={[testa, { width: 58, textAlign: "right" }]}>MARGINE</Text> : null}
         </View>
       </View>
@@ -483,7 +485,7 @@ function TabellaCapitolo({ tema, cap, indice, mostraMargine, mostraPrezzi, mostr
           {mostraQta ? <Text style={[cella, { width: 40, textAlign: "center", color: tema.grigio }]}>{v.unitaMisura ?? ""}</Text> : null}
           {mostraQta ? <Text style={[cella, { width: 44, textAlign: "right" }]}>{quantita(v.quantita)}</Text> : null}
           {mostraPrezzi ? <Text style={[cella, { width: 66, textAlign: "right", color: tema.grigio }]}>{formatCurrency(v.prezzoUnitario)}</Text> : null}
-          <Text style={[cella, { width: 74, textAlign: "right", fontFamily: tema.caratteri.forte }]}>{formatCurrency(v.importo)}</Text>
+          {mostraImporti ? <Text style={[cella, { width: 74, textAlign: "right", fontFamily: tema.caratteri.forte }]}>{formatCurrency(v.importo)}</Text> : null}
           {mostraMargine ? <Text style={[cella, { width: 58, textAlign: "right", color: "#15803D" }]}>{formatCurrency(v.margineEur ?? 0)}</Text> : null}
         </View>
       ))}
@@ -761,7 +763,12 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
 
   const promo = dati.mostraFinanziamento ? parseFinanziamentoPromo(modello.finanziamentoPromo) : null;
   const rata = promo ? calcolaRataMensile(totali.totale, promo.rate, promo.tan_pct) : 0;
-  const importoLordo = capitoli.reduce((s, c) => s + (Number(c.subtotale) || 0), 0);
+  // Col prezzo scritto a mano le righe possono essere a 0 €: il totale delle
+  // lavorazioni è il prezzo scritto, e gli importi di righe e capitoli non si mostrano.
+  const prezzoManuale = totali.prezzoManuale === true;
+  const importoLordo = prezzoManuale
+    ? Number(totali.imponibileLordo) || 0
+    : capitoli.reduce((s, c) => s + (Number(c.subtotale) || 0), 0);
   const corpoTesto = { fontFamily: tema.caratteri.testo, fontSize: 10, color: tema.inchiostro, lineHeight: 1.55 } as const;
   // paddingBottom: il piè di pagina può arrivare a cinque righe (nome, recapiti, dati
   // fiscali, testo libero, versione). Sotto i 90 punti il testo gli finiva sopra.
@@ -856,14 +863,15 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
                 <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 17, color: tema.inchiostroMarca, width: 28, lineHeight: 1 }}>{dueCifre(i + 1)}</Text>
                 <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 11, color: tema.inchiostro, flex: 1 }}>{cap.nome}</Text>
               </View>
-              <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 11, color: tema.inchiostro }}>{formatCurrency(cap.subtotale)}</Text>
+              {!prezzoManuale ? <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 11, color: tema.inchiostro }}>{formatCurrency(cap.subtotale)}</Text> : null}
             </View>
           ))
         ) : (
           capitoli.map((cap, i) => (
             <TabellaCapitolo
               key={cap.nome} tema={tema} cap={cap} indice={i + 1}
-              mostraMargine={modello.mostraMargine} mostraPrezzi={oc.mostraPrezzi} mostraQta={oc.mostraQta} mostraSubtotali={oc.mostraSubtotali}
+              mostraMargine={modello.mostraMargine} mostraPrezzi={oc.mostraPrezzi && !prezzoManuale} mostraQta={oc.mostraQta}
+              mostraSubtotali={oc.mostraSubtotali && !prezzoManuale} mostraImporti={!prezzoManuale}
             />
           ))
         )}
@@ -875,7 +883,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
       case "investimento": return (<>
         <Capitolo tema={tema} numero={numero} occhiello="L'investimento" titolo="Il tuo *investimento*." sommario="Un prezzo chiaro: quanto costa e che cosa comprende, senza giri di parole." />
 
-        {oc.livello !== "corpo" && capitoli.length > 1 ? (
+        {oc.livello !== "corpo" && capitoli.length > 1 && !prezzoManuale ? (
           <View style={{ marginBottom: 14 }}>
             <View style={{ flexDirection: "row", backgroundColor: tema.fondo, paddingVertical: 6, paddingHorizontal: 10 }}>
               <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 6.5, color: tema.bianco, letterSpacing: 1.2, width: 30 }}>N.</Text>

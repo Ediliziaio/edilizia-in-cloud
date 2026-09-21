@@ -39,6 +39,8 @@ interface Props {
   scontoPct?: number;
   /** IVA % (dallo step Economia) — riflessa nel riepilogo. */
   ivaPct?: number;
+  /** Prezzo scritto a mano in Economia: prende il posto della somma delle righe. */
+  prezzoManuale?: number | null;
 }
 
 /** Capitolo derivato (raggruppamento per nome, ordine preservato). */
@@ -50,7 +52,7 @@ interface CapitoloGroup {
 const DEFAULT_CAPITOLO = "Generale";
 
 export default function ComputoEditor({
-  value, onChange, progettoId, companyId, scontoPct = 0, ivaPct = 22,
+  value, onChange, progettoId, companyId, scontoPct = 0, ivaPct = 22, prezzoManuale = null,
 }: Props) {
   const [showMargine, setShowMargine] = useState(false);
   // ── Prezzo di zona ────────────────────────────────────────────────────────
@@ -114,15 +116,13 @@ export default function ComputoEditor({
       costo_materiali: v.costo_materiali,
       costo_manodopera: v.costo_manodopera,
     }));
-    return calcTotaliComputo(righe, { sconto_pct: scontoPct, iva_pct: ivaPct });
-  }, [value, scontoPct, ivaPct]);
+    return calcTotaliComputo(righe, { sconto_pct: scontoPct, iva_pct: ivaPct, prezzo_manuale: prezzoManuale });
+  }, [value, scontoPct, ivaPct, prezzoManuale]);
 
   const nVoci = value.length;
-  // Imponibile "lordo" pre-sconto globale = somma per-capitolo (per quote/sconto).
-  const imponibileLordo = useMemo(
-    () => totali.perCapitolo.reduce((acc, c) => acc + c.imponibile, 0),
-    [totali.perCapitolo],
-  );
+  // Prezzo pieno prima dello sconto globale: la somma delle righe, o il prezzo
+  // scritto a mano in Economia. Le quote per capitolo restano sulle righe.
+  const imponibileLordo = totali.imponibileLordo;
 
   // ─── Mutazioni capitoli ────────────────────────────────────────────────────
 
@@ -317,7 +317,10 @@ export default function ComputoEditor({
           <div className="space-y-2.5 p-4">
             {/* Righe imponibile / IVA */}
             <div className="space-y-1.5 text-sm">
-              <Row label="Imponibile" value={formatCurrency(scontoPct > 0 ? imponibileLordo : totali.imponibile)} />
+              <Row
+                label={totali.prezzoManuale ? "Prezzo scritto a mano" : "Imponibile"}
+                value={formatCurrency(scontoPct > 0 ? imponibileLordo : totali.imponibile)}
+              />
               {scontoPct > 0 && (
                 <Row
                   label={`Sconto ${scontoPct}%`}
@@ -352,7 +355,7 @@ export default function ComputoEditor({
               <div className="space-y-1 border-t pt-2.5">
                 <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Per capitolo</p>
                 {totali.perCapitolo.map((c) => {
-                  const quota = imponibileLordo > 0 ? (c.imponibile / imponibileLordo) * 100 : 0;
+                  const quota = totali.sommaVoci > 0 ? (c.imponibile / totali.sommaVoci) * 100 : 0;
                   return (
                     <div key={c.nome} className="space-y-0.5">
                       <div className="flex items-center justify-between gap-2 text-[11px]">

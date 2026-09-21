@@ -13972,6 +13972,7 @@ export type Database = {
           numero_bagni: number | null
           opportunita_id: string | null
           perimetro_ml: number | null
+          prezzo_manuale: number | null
           sconto_pct: number
           stato: string
           template_id: string | null
@@ -14011,6 +14012,7 @@ export type Database = {
           numero_bagni?: number | null
           opportunita_id?: string | null
           perimetro_ml?: number | null
+          prezzo_manuale?: number | null
           sconto_pct?: number
           stato?: string
           template_id?: string | null
@@ -14050,6 +14052,7 @@ export type Database = {
           numero_bagni?: number | null
           opportunita_id?: string | null
           perimetro_ml?: number | null
+          prezzo_manuale?: number | null
           sconto_pct?: number
           stato?: string
           template_id?: string | null
@@ -18609,6 +18612,7 @@ export type Database = {
           note: string | null
           numero_unita_interne: number | null
           opportunita_id: string | null
+          prezzo_manuale: number | null
           sconto_pct: number
           stato: string
           template_id: string | null
@@ -18646,6 +18650,7 @@ export type Database = {
           note?: string | null
           numero_unita_interne?: number | null
           opportunita_id?: string | null
+          prezzo_manuale?: number | null
           sconto_pct?: number
           stato?: string
           template_id?: string | null
@@ -18683,6 +18688,7 @@ export type Database = {
           note?: string | null
           numero_unita_interne?: number | null
           opportunita_id?: string | null
+          prezzo_manuale?: number | null
           sconto_pct?: number
           stato?: string
           template_id?: string | null
@@ -29984,6 +29990,7 @@ export type Database = {
           note: string | null
           numero_punti: number | null
           opportunita_id: string | null
+          prezzo_manuale: number | null
           sconto_pct: number
           stato: string
           template_id: string | null
@@ -30021,6 +30028,7 @@ export type Database = {
           note?: string | null
           numero_punti?: number | null
           opportunita_id?: string | null
+          prezzo_manuale?: number | null
           sconto_pct?: number
           stato?: string
           template_id?: string | null
@@ -30058,6 +30066,7 @@ export type Database = {
           note?: string | null
           numero_punti?: number | null
           opportunita_id?: string | null
+          prezzo_manuale?: number | null
           sconto_pct?: number
           stato?: string
           template_id?: string | null
@@ -43911,6 +43920,7 @@ export type Database = {
           note: string | null
           numero_terminali: number | null
           opportunita_id: string | null
+          prezzo_manuale: number | null
           sconto_pct: number
           stato: string
           template_id: string | null
@@ -43948,6 +43958,7 @@ export type Database = {
           note?: string | null
           numero_terminali?: number | null
           opportunita_id?: string | null
+          prezzo_manuale?: number | null
           sconto_pct?: number
           stato?: string
           template_id?: string | null
@@ -43985,6 +43996,7 @@ export type Database = {
           note?: string | null
           numero_terminali?: number | null
           opportunita_id?: string | null
+          prezzo_manuale?: number | null
           sconto_pct?: number
           stato?: string
           template_id?: string | null
@@ -60304,6 +60316,7 @@ export type Database = {
           note: string | null
           numero_ambienti: number | null
           opportunita_id: string | null
+          prezzo_manuale: number | null
           sconto_pct: number
           stato: string
           template_id: string | null
@@ -60341,6 +60354,7 @@ export type Database = {
           note?: string | null
           numero_ambienti?: number | null
           opportunita_id?: string | null
+          prezzo_manuale?: number | null
           sconto_pct?: number
           stato?: string
           template_id?: string | null
@@ -60378,6 +60392,7 @@ export type Database = {
           note?: string | null
           numero_ambienti?: number | null
           opportunita_id?: string | null
+          prezzo_manuale?: number | null
           sconto_pct?: number
           stato?: string
           template_id?: string | null
@@ -61479,6 +61494,7 @@ export type Database = {
           mostra_finanziamento: boolean | null
           note: string | null
           opportunita_id: string | null
+          prezzo_manuale: number | null
           sconto_pct: number
           stato: string
           template_id: string | null
@@ -61516,6 +61532,7 @@ export type Database = {
           mostra_finanziamento?: boolean | null
           note?: string | null
           opportunita_id?: string | null
+          prezzo_manuale?: number | null
           sconto_pct?: number
           stato?: string
           template_id?: string | null
@@ -61553,6 +61570,7 @@ export type Database = {
           mostra_finanziamento?: boolean | null
           note?: string | null
           opportunita_id?: string | null
+          prezzo_manuale?: number | null
           sconto_pct?: number
           stato?: string
           template_id?: string | null
@@ -63855,6 +63873,7 @@ export type Database = {
           pdf_mostra_sconti: boolean | null
           pdf_mostra_solo_totale: boolean | null
           pdf_watermark_text: string | null
+          prezzo_finale_a_mano: boolean
           soglia_margine_visibile: number | null
           visibilita_margini: string | null
         }
@@ -63884,6 +63903,7 @@ export type Database = {
           pdf_mostra_sconti?: boolean | null
           pdf_mostra_solo_totale?: boolean | null
           pdf_watermark_text?: string | null
+          prezzo_finale_a_mano?: boolean
           soglia_margine_visibile?: number | null
           visibilita_margini?: string | null
         }
@@ -63913,6 +63933,7 @@ export type Database = {
           pdf_mostra_sconti?: boolean | null
           pdf_mostra_solo_totale?: boolean | null
           pdf_watermark_text?: string | null
+          prezzo_finale_a_mano?: boolean
           soglia_margine_visibile?: number | null
           visibilita_margini?: string | null
         }
@@ -72392,6 +72413,7 @@ export type Database = {
           numero_vani: number | null
           opportunita_id: string | null
           ordine_id: string | null
+          prezzo_manuale: number | null
           sconto_pct: number
           stato: string
           template_id: string | null
@@ -72430,6 +72452,7 @@ export type Database = {
           numero_vani?: number | null
           opportunita_id?: string | null
           ordine_id?: string | null
+          prezzo_manuale?: number | null
           sconto_pct?: number
           stato?: string
           template_id?: string | null
@@ -72468,6 +72491,7 @@ export type Database = {
           numero_vani?: number | null
           opportunita_id?: string | null
           ordine_id?: string | null
+          prezzo_manuale?: number | null
           sconto_pct?: number
           stato?: string
           template_id?: string | null
@@ -81930,6 +81954,7 @@ export type Database = {
           pdf_html_url: string | null
           pdf_url: string | null
           perche_noi: string[] | null
+          prezzo_manuale: number | null
           prossimi_passi: string[] | null
           public_token: string | null
           public_url: string | null
@@ -82024,6 +82049,7 @@ export type Database = {
           pdf_html_url?: string | null
           pdf_url?: string | null
           perche_noi?: string[] | null
+          prezzo_manuale?: number | null
           prossimi_passi?: string[] | null
           public_token?: string | null
           public_url?: string | null
@@ -82118,6 +82144,7 @@ export type Database = {
           pdf_html_url?: string | null
           pdf_url?: string | null
           perche_noi?: string[] | null
+          prezzo_manuale?: number | null
           prossimi_passi?: string[] | null
           public_token?: string | null
           public_url?: string | null
@@ -88462,6 +88489,7 @@ export type Database = {
           opportunita_id: string | null
           pendenza_pct: number | null
           perimetro_ml: number | null
+          prezzo_manuale: number | null
           sconto_pct: number
           stato: string
           superficie_pianta_mq: number | null
@@ -88501,6 +88529,7 @@ export type Database = {
           opportunita_id?: string | null
           pendenza_pct?: number | null
           perimetro_ml?: number | null
+          prezzo_manuale?: number | null
           sconto_pct?: number
           stato?: string
           superficie_pianta_mq?: number | null
@@ -88540,6 +88569,7 @@ export type Database = {
           opportunita_id?: string | null
           pendenza_pct?: number | null
           perimetro_ml?: number | null
+          prezzo_manuale?: number | null
           sconto_pct?: number
           stato?: string
           superficie_pianta_mq?: number | null

@@ -43,6 +43,12 @@ export interface DocEdileTotali {
   costoTot: number;
   margineEur: number;
   marginePct: number;
+  /**
+   * Il prezzo pieno è scritto a mano in Economia, al posto della somma delle
+   * righe: le righe possono essere a 0 €, e il documento non ne mostra gli
+   * importi né i subtotali — solo le lavorazioni, e il prezzo nell'investimento.
+   */
+  prezzoManuale?: boolean;
 }
 
 export interface DocEdileOpzioniComputo {

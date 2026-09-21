@@ -38,9 +38,9 @@ export function soloCampiDelForm<T extends object>(patch: T): Partial<T> {
   ) as Partial<T>;
 }
 
-/** Il patch cambia sconto o IVA, e con loro i totali salvati sul progetto? */
-export function cambiaITotali(patch: { sconto_pct?: unknown; iva_pct?: unknown }): boolean {
-  return patch.sconto_pct !== undefined || patch.iva_pct !== undefined;
+/** Il patch cambia sconto, IVA o prezzo scritto a mano, e con loro i totali salvati sul progetto? */
+export function cambiaITotali(patch: { sconto_pct?: unknown; iva_pct?: unknown; prezzo_manuale?: unknown }): boolean {
+  return patch.sconto_pct !== undefined || patch.iva_pct !== undefined || patch.prezzo_manuale !== undefined;
 }
 
 const inCorso = new Map<string, Promise<void>>();
