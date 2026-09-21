@@ -29,6 +29,11 @@
 //   ultimi 30 giorni — saltarli farebbe risparmiare il 7%, non il 90% sperato.
 //   Per questo SALTA_ARCHIVIATI resta spento: si conta e basta. Regole in
 //   _shared/metaModuliDaInterrogare.ts. Un recupero chiesto legge tutto.
+// - Dal 21/09/2026 si chiede a Meta anche quanti lead ha ogni modulo
+//   (`leads_count`) e si tiene l'ultimo numero visto in meta_moduli_conteggi.
+//   Un modulo il cui conteggio non si muove da più di un'ora non ha lead nuovi:
+//   non serve chiedergli niente (SALTA_CONTEGGIO_FERMO). Le 336 letture per
+//   giro erano ~33.000 chiamate al giorno, quasi tutte a vuoto.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 import { serveConMetricheRapida } from "../_shared/withMetricsRapida.ts";
@@ -36,12 +41,16 @@ import { dataInSecondi, inizioFinestra } from "../_shared/metaFinestraRecupero.t
 import {
   chiusoSuMeta,
   conta,
+  conteggiDaSalvare,
   conteggiVuoti,
   type ConteggiPagina,
+  conteggioVisto,
   decidiModulo,
   GIORNI_LEAD_RECENTI,
   rigaGiro,
   rigaPagina,
+  RITARDO_TOLLERATO_S,
+  secondiCreazione,
   somma,
   statoMeta,
 } from "../_shared/metaModuliDaInterrogare.ts";
@@ -102,6 +111,13 @@ const senzaToken = (e: unknown): string =>
 // prima di fidarsi. È anche il modo per tornare indietro: false, e si pubblica.
 const SALTA_ARCHIVIATI = false;
 
+// Il salto dei moduli col conteggio fermo (leads_count uguale da più di un'ora).
+// Spento: si legge tutto come prima, e il log conta quanti moduli si
+// salterebbero e — soprattutto — se in un modulo «fermo» è comparso un lead
+// che il conteggio non aveva segnalato (lead_nuovi_da_fermi, lead_non_contati).
+// Si accende solo dopo averli visti restare a zero sui giri veri.
+const SALTA_CONTEGGIO_FERMO = false;
+
 // Quante letture di moduli si tengono aperte insieme su una pagina. I moduli si
 // leggevano uno dopo l'altro: 334 letture da ~300 ms fanno 100 secondi di giro,
 // e la funzione ha un tetto di tempo — oltre quello le ultime pagine non si
@@ -119,32 +135,44 @@ const GIRO_LENTO_MS = 100_000;
 // rifiutare le chiamate non devono tornare le trentamila righe al giorno.
 const ERRORI_IN_CHIARO = 3;
 
-// ── Elenco dei moduli della pagina, con lo stato che dà Meta ─────────────────
-// ACTIVE, ARCHIVED, DELETED, DRAFT. Se Meta rifiutasse il campo si torna
-// all'elenco di soli id, e senza stato si legge tutto come prima: un campo in
-// più non deve poter fermare i lead di una pagina.
+// ── Elenco dei moduli della pagina, con lo stato e il conteggio che dà Meta ─
+// Stato: ACTIVE, ARCHIVED, DELETED, DRAFT. Conteggio: leads_count, quanti lead
+// ha il modulo. Se Meta rifiutasse un campo si ripiega sull'elenco con meno
+// campi, fino ai soli id: senza stato né conteggio si legge tutto come prima.
+// Un campo in più non deve poter fermare i lead di una pagina.
+const CAMPI_ELENCO = ["id,status,leads_count", "id,status", "id"];
 async function elencaModuli(
   pageId: string,
   pageToken: string,
-): Promise<{ moduli: Array<{ id: string; status: unknown }>; errore: string | null; senzaStato: string | null }> {
-  let moduli = new Map<string, unknown>();
+): Promise<{
+  moduli: Array<{ id: string; status: unknown; leadsCount: unknown }>;
+  errore: string | null;
+  /** Campi a cui si è dovuto rinunciare, e perché; null se Meta li ha dati tutti. */
+  ripiego: string | null;
+  chiamate: number;
+}> {
+  let moduli = new Map<string, { status: unknown; leadsCount: unknown }>();
   let errore: string | null = null;
-  let senzaStato: string | null = null;
-  for (const campi of ["id,status", "id"]) {
-    // Secondo tentativo: ci si ricorda perché il primo, con lo stato, è fallito.
-    if (campi === "id") senzaStato = errore;
-    moduli = new Map<string, unknown>();
+  let primoErrore: string | null = null;
+  let campiUsati = CAMPI_ELENCO[0];
+  let chiamate = 0;
+  for (const campi of CAMPI_ELENCO) {
+    campiUsati = campi;
+    moduli = new Map();
     errore = null;
     let url: string | null =
       `https://graph.facebook.com/${apiVersion}/${pageId}/leadgen_forms?fields=${campi}&limit=100&access_token=${pageToken}`;
     try {
       while (url) {
+        chiamate++;
         const d = await chiediAGraph(url);
         if (d.error) {
           errore = String(d.error.message ?? "errore di Graph");
           break;
         }
-        for (const f of d.data ?? []) if (f.id) moduli.set(String(f.id), f.status);
+        for (const f of d.data ?? []) {
+          if (f.id) moduli.set(String(f.id), { status: f.status, leadsCount: f.leads_count });
+        }
         url = d.paging?.next || null;
       }
     } catch (e) {
@@ -152,10 +180,16 @@ async function elencaModuli(
     }
     // Riuscito, o fallito a metà elenco: si lavora con quello che c'è, come prima.
     if (!errore || moduli.size > 0) break;
+    primoErrore ??= errore;
   }
-  // Se anche l'elenco di soli id fallisce il problema non era lo stato.
-  if (errore) senzaStato = null;
-  return { moduli: [...moduli].map(([id, status]) => ({ id, status })), errore, senzaStato };
+  // Se anche l'elenco di soli id fallisce il problema non erano i campi.
+  const ripiego = !errore && campiUsati !== CAMPI_ELENCO[0] ? `solo ${campiUsati} (${primoErrore})` : null;
+  return {
+    moduli: [...moduli].map(([id, v]) => ({ id, status: v.status, leadsCount: v.leadsCount })),
+    errore,
+    ripiego,
+    chiamate,
+  };
 }
 
 /** La riga di meta_lead_forms che serve al giro. */
@@ -245,8 +279,16 @@ async function leggiModulo(
   pageToken: string,
   formId: string,
   effectiveSince: number,
-): Promise<{ nuovi: number; errore: string | null }> {
+  /**
+   * Per i moduli col conteggio fermo: conta i lead restituiti creati in questo
+   * intervallo (secondi Unix, estremi esclusi/inclusi), cioè quelli che il
+   * conteggio non ha segnalato. null per gli altri moduli.
+   */
+  nonContatiTra: [number, number] | null = null,
+): Promise<{ nuovi: number; errore: string | null; chiamate: number; nonContati: number }> {
   let totaleNuovi = 0;
+  let chiamate = 0;
+  let nonContati = 0;
   let nextUrl: string | null =
     `https://graph.facebook.com/${apiVersion}/${formId}/leads` +
     `?fields=id,created_time,field_data,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name` +
@@ -254,14 +296,24 @@ async function leggiModulo(
     `&access_token=${pageToken}`;
   try {
     while (nextUrl) {
+      chiamate++;
       const data = await chiediAGraph(nextUrl);
-      if (data.error) return { nuovi: totaleNuovi, errore: String(data.error.message ?? "errore di Graph") };
+      if (data.error) {
+        return { nuovi: totaleNuovi, errore: String(data.error.message ?? "errore di Graph"), chiamate, nonContati };
+      }
       // Solo i lead che non abbiamo già: una lettura per pagina di Meta e una
       // scrittura sola per i nuovi. Prima era un upsert per lead, rifatto a ogni
       // giro — i moduli senza riga in meta_lead_forms non hanno segnalibro e
       // rileggono gli ultimi giorni: dal 14/09/2026 (BeMade) ~136 upsert ogni
       // 5 minuti, ~39.000 richieste al giorno per nessun lead nuovo.
       const leads = (data.data ?? []) as Array<{ id: string } & Record<string, unknown>>;
+      if (nonContatiTra) {
+        const [da, a] = nonContatiTra;
+        for (const l of leads) {
+          const t = secondiCreazione(l.created_time);
+          if (t !== null && t > da && t <= a) nonContati++;
+        }
+      }
       if (leads.length > 0) {
         const { data: esistenti, error: errEsistenti } = await admin
           .from("integration_webhook_events")
@@ -292,16 +344,18 @@ async function leggiModulo(
           );
           // Lead letti ma non salvati: il segnalibro non deve avanzare, al
           // prossimo giro si riprovano.
-          if (errUpsert) return { nuovi: totaleNuovi, errore: `salvataggio lead fallito: ${errUpsert.message}` };
+          if (errUpsert) {
+            return { nuovi: totaleNuovi, errore: `salvataggio lead fallito: ${errUpsert.message}`, chiamate, nonContati };
+          }
           totaleNuovi += errEsistenti ? 0 : nuovi.length;
         }
       }
       nextUrl = data.paging?.next || null;
     }
   } catch (e) {
-    return { nuovi: totaleNuovi, errore: senzaToken(e) };
+    return { nuovi: totaleNuovi, errore: senzaToken(e), chiamate, nonContati };
   }
-  return { nuovi: totaleNuovi, errore: null };
+  return { nuovi: totaleNuovi, errore: null, chiamate, nonContati };
 }
 
 // ── Backfill di una pagina: scopri i form su Meta e ripesca i lead recenti ───
@@ -321,10 +375,14 @@ async function backfillPage(
     if (c.errori <= ERRORI_IN_CHIARO) console.warn(`meta-leads-backfill: ${testo}`);
   };
 
-  const { moduli, errore: erroreElenco, senzaStato } = await elencaModuli(pageId, pageToken);
+  const { moduli, errore: erroreElenco, ripiego, chiamate: chiamateElenco } = await elencaModuli(pageId, pageToken);
+  c.chiamate += chiamateElenco;
   if (erroreElenco) segnalaErrore(`elenco moduli ${pageId} errore: ${erroreElenco}`);
-  if (senzaStato) {
-    console.warn(`meta-leads-backfill: pagina ${pageId} — Meta non ha dato lo stato dei moduli (${senzaStato}): si leggono tutti`);
+  if (ripiego) {
+    console.warn(
+      `meta-leads-backfill: pagina ${pageId} — Meta non ha accettato tutti i campi dell'elenco, ${ripiego}: ` +
+      `senza stato o conteggio i moduli si leggono tutti`,
+    );
   }
 
   // ── Impostazioni per-modulo (meta_lead_forms) ──────────────────────────────
@@ -354,6 +412,20 @@ async function backfillPage(
     });
   }
 
+  // ── L'ultimo conteggio visto per ogni modulo (meta_moduli_conteggi) ────────
+  // Se non si riesce a leggerlo, ogni modulo risulta «mai visto» e si legge:
+  // nel dubbio si fa il giro di prima.
+  const { data: rigaConteggi, error: errConteggi } = await admin
+    .from("meta_moduli_conteggi")
+    .select("conteggi")
+    .eq("page_asset_id", pageRowId)
+    .maybeSingle();
+  if (errConteggi) {
+    console.warn(`meta-leads-backfill: conteggi della pagina ${pageId} non letti (${errConteggi.message}): si leggono tutti`);
+  }
+  const conteggiPrima = ((rigaConteggi as { conteggi?: unknown } | null)?.conteggi ?? {}) as Record<string, unknown>;
+  const avvioS = Math.floor(avvio / 1000);
+
   // Quali moduli si leggono: le regole stanno in _shared/metaModuliDaInterrogare.ts.
   // Dei moduli che Meta dà per archiviati si guarda prima se ci hanno portato
   // lead negli ultimi 30 giorni: quelli si continuano a leggere a ogni giro.
@@ -372,8 +444,13 @@ async function backfillPage(
 
   // Prima si decide su tutti i moduli (regole pure, nessuna chiamata), poi si
   // legge. Così i conteggi del log sono completi anche se una lettura fallisce.
-  const daLeggere: Array<{ formId: string; d: ReturnType<typeof decidiModulo>; cfg?: ConfigModuloRiga }> = [];
-  for (const { id: formId, status } of moduli) {
+  const daLeggere: Array<{
+    formId: string;
+    d: ReturnType<typeof decidiModulo>;
+    cfg?: ConfigModuloRiga;
+    nonContatiTra: [number, number] | null;
+  }> = [];
+  for (const { id: formId, status, leadsCount } of moduli) {
     const cfg = settingsByForm.get(formId);
     // Un modulo disattivato da noi non si importa; i moduli SENZA riga restano
     // coperti (rete di sicurezza per le campagne nuove, vedi commento in testa).
@@ -386,18 +463,32 @@ async function backfillPage(
       conLeadRecenti,
       oraUtc: o.adesso.getUTCHours(),
       saltaArchiviati: SALTA_ARCHIVIATI,
+      conteggio: {
+        attuale: leadsCount,
+        visto: conteggiPrima[formId],
+        adessoMs: o.adesso.getTime(),
+        saltaFermi: SALTA_CONTEGGIO_FERMO,
+      },
     });
     conta(c, d);
     if (d.esito !== "letto") continue;
     if (d.motivo === "lead_recenti") {
       archiviatiVivi.push(`${formId} (ultimo lead ${(recenti?.get(formId) ?? "").slice(0, 10) || "?"})`);
     }
-    daLeggere.push({ formId, d, cfg });
+    // Un modulo col conteggio fermo che si legge lo stesso (salto spento, o turno
+    // di controllo) dice se ci si può fidare: si contano i lead che Meta
+    // restituisce, creati dopo l'ultimo cambio di conteggio e da più di un giro.
+    const visto = d.conteggio === "fermo" ? conteggioVisto(conteggiPrima[formId]) : null;
+    const nonContatiTra: [number, number] | null = visto
+      ? [Math.floor(Date.parse(visto.cambiato) / 1000), avvioS - RITARDO_TOLLERATO_S]
+      : null;
+    daLeggere.push({ formId, d, cfg, nonContatiTra });
   }
 
+  const lettiBene = new Set<string>();
   for (let i = 0; i < daLeggere.length; i += LETTURE_INSIEME) {
     const lotto = daLeggere.slice(i, i + LETTURE_INSIEME);
-    const esiti = await Promise.all(lotto.map(async ({ formId, d, cfg }) => {
+    const esiti = await Promise.all(lotto.map(async ({ formId, d, cfg, nonContatiTra }) => {
       // Limite temporale: il piu' RECENTE fra finestra di default, since_date
       // (quando l'utente ha chiesto "solo i nuovi"), collegamento del modulo e
       // ultimo pull riuscito. MAI prima di quando il modulo è stato collegato:
@@ -411,16 +502,32 @@ async function backfillPage(
       const inizioLettura = new Date().toISOString();
       // Una lettura che scoppia non deve portarsi dietro le altre quattro del lotto.
       try {
-        const r = await leggiModulo(admin, integ, pageId, pageToken, formId, effectiveSince);
+        const r = await leggiModulo(admin, integ, pageId, pageToken, formId, effectiveSince, nonContatiTra);
         return { formId, d, cfg, inizioLettura, ...r };
       } catch (e) {
-        return { formId, d, cfg, inizioLettura, nuovi: 0, errore: senzaToken(e) };
+        return { formId, d, cfg, inizioLettura, nuovi: 0, errore: senzaToken(e), chiamate: 0, nonContati: 0 };
       }
     }));
 
-    for (const { formId, d, cfg, inizioLettura, nuovi, errore } of esiti) {
+    for (const { formId, d, cfg, inizioLettura, nuovi, errore, chiamate, nonContati } of esiti) {
       c.leadNuovi += nuovi;
+      c.chiamate += chiamate;
       if (errore) segnalaErrore(`lead del modulo ${formId} errore: ${errore}`);
+      else lettiBene.add(formId);
+
+      // Un lead NUOVO (il webhook non l'aveva portato) in un modulo col conteggio
+      // fermo smentisce la regola del conteggio: col salto acceso sarebbe
+      // arrivato più tardi. Deve restare scritto, ogni volta.
+      if (d.conteggio === "fermo") {
+        c.leadNonContati += nonContati;
+        if (nuovi > 0) {
+          c.leadNuoviDaFermi += nuovi;
+          console.warn(
+            `meta-leads-backfill: ATTENZIONE modulo ${formId} (pagina ${pageId}): ${nuovi} lead nuovi con il ` +
+            `conteggio di Meta fermo — il conteggio non li aveva segnalati (letto per: ${d.motivo})`,
+          );
+        }
+      }
 
       // Un lead NUOVO da un modulo che Meta dà per archiviato smentisce la regola
       // per cui quei moduli si leggono di rado: deve restare scritto.
@@ -443,6 +550,26 @@ async function backfillPage(
           .eq("id", cfg.id);
       }
     }
+  }
+
+  // ── Il conteggio si ricorda solo per i moduli letti fino in fondo ──────────
+  // (regole in conteggiDaSalvare). Se l'elenco dei moduli non è arrivato non
+  // c'è niente di nuovo da ricordare.
+  if (moduli.length > 0) {
+    const conteggi = conteggiDaSalvare({
+      precedenti: conteggiPrima,
+      visti: new Map(moduli.map((m) => [m.id, m.leadsCount])),
+      lettiBene,
+      moduliSuMeta: erroreElenco ? null : new Set(moduli.map((m) => m.id)),
+      adessoIso: new Date(avvio).toISOString(),
+    });
+    const { error: errSalva } = await admin
+      .from("meta_moduli_conteggi")
+      .upsert(
+        { page_asset_id: pageRowId, conteggi, aggiornato_il: new Date().toISOString() },
+        { onConflict: "page_asset_id" },
+      );
+    if (errSalva) console.warn(`meta-leads-backfill: conteggi della pagina ${pageId} non salvati: ${errSalva.message}`);
   }
 
   console.log(rigaPagina({ companyId: integ.company_id, pageId, ms: Date.now() - avvio, c }));
@@ -592,7 +719,9 @@ serveConMetricheRapida("meta-leads-backfill", async (req) => {
             moduli: c.moduli,
             letti: c.letti,
             saltati_archiviati: c.saltatiArchiviati,
+            saltati_per_conteggio: c.saltatiConteggio,
             saltati_disattivati: c.saltatiDisattivati,
+            chiamate: c.chiamate,
             errori: c.errori,
           });
         }

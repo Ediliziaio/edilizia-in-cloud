@@ -4,11 +4,17 @@ import { join } from "node:path";
 import {
   chiusoSuMeta,
   conta,
+  conteggiDaSalvare,
+  conteggioMeta,
+  conteggioVisto,
   conteggiVuoti,
   decidiModulo,
+  FINESTRA_CALDA_MS,
+  motivoConteggio,
   oraDiControllo,
   rigaGiro,
   rigaPagina,
+  secondiCreazione,
   somma,
   statoMeta,
 } from "../../../supabase/functions/_shared/metaModuliDaInterrogare";
@@ -253,9 +259,11 @@ describe("una riga di log per pagina, non una per modulo", () => {
 describe("la funzione usa le regole, e non torna indietro", () => {
   const fonte = readFileSync(join(__dirname, "../../../supabase/functions/meta-leads-backfill/index.ts"), "utf8");
 
-  it("chiede a Meta anche lo stato, e se il campo viene rifiutato ripiega sui soli id", () => {
-    expect(fonte).toContain('for (const campi of ["id,status", "id"])');
+  it("chiede a Meta stato e conteggio, e se un campo viene rifiutato ripiega fino ai soli id", () => {
+    expect(fonte).toContain('const CAMPI_ELENCO = ["id,status,leads_count", "id,status", "id"];');
+    expect(fonte).toContain("for (const campi of CAMPI_ELENCO)");
     expect(fonte).toContain("leadgen_forms?fields=${campi}");
+    expect(fonte).toContain("leadsCount: f.leads_count");
   });
 
   it("decide con decidiModulo, e il cron resta l'unico giro «automatico»", () => {
@@ -292,7 +300,22 @@ describe("la funzione usa le regole, e non torna indietro", () => {
   });
 
   it("una lettura che scoppia non porta giù le altre del lotto", () => {
-    expect(fonte).toContain("return { formId, d, cfg, inizioLettura, nuovi: 0, errore: senzaToken(e) };");
+    expect(fonte).toContain("return { formId, d, cfg, inizioLettura, nuovi: 0, errore: senzaToken(e), chiamate: 0, nonContati: 0 };");
+  });
+
+  it("il conteggio: interruttore, mappa salvata per pagina, e si ricorda solo ciò che si è letto bene", () => {
+    expect(fonte).toMatch(/const SALTA_CONTEGGIO_FERMO = (true|false);/);
+    expect(fonte).toContain("saltaFermi: SALTA_CONTEGGIO_FERMO");
+    expect(fonte).toContain('.from("meta_moduli_conteggi")');
+    expect(fonte).toContain('{ onConflict: "page_asset_id" }');
+    expect(fonte).toContain("else lettiBene.add(formId);");
+    expect(fonte).toContain("moduliSuMeta: erroreElenco ? null : new Set(moduli.map((m) => m.id))");
+  });
+
+  it("un lead nuovo in un modulo col conteggio fermo si scrive nel log, ogni volta", () => {
+    expect(fonte).toContain('if (d.conteggio === "fermo") {');
+    expect(fonte).toContain("c.leadNuoviDaFermi += nuovi;");
+    expect(fonte).toContain("ATTENZIONE modulo ${formId} (pagina ${pageId}): ${nuovi} lead nuovi con il");
   });
 
   it("il segnalibro avanza solo se la lettura è riuscita, e segna l'inizio della lettura", () => {
@@ -303,5 +326,328 @@ describe("la funzione usa le regole, e non torna indietro", () => {
   it("il token della pagina non finisce nei log", () => {
     expect(fonte).toContain('"access_token=***"');
     expect(fonte).not.toMatch(/console\.(warn|error|log)\([^)]*,\s*e\)/);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 21/09/2026 — il conteggio dei lead di Meta (leads_count). Se il numero di un
+// modulo è lo stesso dell'ultimo giro, non è entrato niente: non serve chiedere
+// i suoi lead. Da ~33.000 chiamate al giorno a qualche migliaio. Qui si prova
+// che la regola non lascia indietro un lead in nessuno dei modi in cui Meta
+// può comportarsi.
+// ═══════════════════════════════════════════════════════════════════════════
+
+const ORA = Date.parse("2026-09-21T09:13:00Z");
+const PRIMA = (minuti: number) => new Date(ORA - minuti * 60_000).toISOString();
+
+describe("il conteggio come lo dà Meta", () => {
+  it("un intero, anche scritto come testo", () => {
+    expect(conteggioMeta(0)).toBe(0);
+    expect(conteggioMeta(463)).toBe(463);
+    expect(conteggioMeta("463")).toBe(463);
+    expect(conteggioMeta(" 12 ")).toBe(12);
+  });
+
+  it("tutto il resto non è un conteggio: niente si indovina", () => {
+    for (const v of [undefined, null, "", "12a", "1e3", -1, 1.5, NaN, Infinity, {}, [], true] as unknown[]) {
+      expect(conteggioMeta(v)).toBeNull();
+    }
+  });
+
+  it("una voce salvata rotta vale come mai vista", () => {
+    expect(conteggioVisto({ n: 5, cambiato: PRIMA(90) })).toEqual({ n: 5, cambiato: PRIMA(90) });
+    expect(conteggioVisto({ n: "5", cambiato: PRIMA(90) })).toEqual({ n: 5, cambiato: PRIMA(90) });
+    const rotte: unknown[] = [null, undefined, 5, "x", [], { n: 5 }, { cambiato: PRIMA(90) }, { n: -1, cambiato: PRIMA(90) },
+      { n: 5, cambiato: "ieri" }];
+    for (const v of rotte) {
+      expect(conteggioVisto(v)).toBeNull();
+    }
+  });
+});
+
+describe("cosa dice il conteggio rispetto all'ultimo visto", () => {
+  const visto = { n: 10, cambiato: PRIMA(90) };
+
+  it("senza conteggio non si decide niente: si legge", () => {
+    expect(motivoConteggio({ attuale: undefined, visto, adessoMs: ORA })).toBe("conteggio_assente");
+    expect(motivoConteggio({ attuale: "tanti", visto, adessoMs: ORA })).toBe("conteggio_assente");
+  });
+
+  it("modulo mai visto, o voce salvata rotta: si legge", () => {
+    expect(motivoConteggio({ attuale: 10, visto: undefined, adessoMs: ORA })).toBe("mai_visto");
+    expect(motivoConteggio({ attuale: 10, visto: { n: 10 }, adessoMs: ORA })).toBe("mai_visto");
+  });
+
+  it("qualunque differenza, anche in meno, è un cambio", () => {
+    expect(motivoConteggio({ attuale: 11, visto, adessoMs: ORA })).toBe("conteggio_cambiato");
+    expect(motivoConteggio({ attuale: 9, visto, adessoMs: ORA })).toBe("conteggio_cambiato");
+  });
+
+  it("uguale ma cambiato da meno di un'ora: si legge ancora", () => {
+    expect(motivoConteggio({ attuale: 10, visto: { n: 10, cambiato: PRIMA(59) }, adessoMs: ORA })).toBe("appena_cambiato");
+    expect(motivoConteggio({ attuale: 10, visto: { n: 10, cambiato: PRIMA(1) }, adessoMs: ORA })).toBe("appena_cambiato");
+  });
+
+  it("un cambio «nel futuro» (orologi diversi) vale come appena avvenuto", () => {
+    expect(motivoConteggio({ attuale: 10, visto: { n: 10, cambiato: PRIMA(-30) }, adessoMs: ORA })).toBe("appena_cambiato");
+  });
+
+  it("uguale da più di un'ora: fermo", () => {
+    expect(FINESTRA_CALDA_MS).toBe(60 * 60_000);
+    expect(motivoConteggio({ attuale: 10, visto: { n: 10, cambiato: PRIMA(60) }, adessoMs: ORA })).toBe("fermo");
+    expect(motivoConteggio({ attuale: "10", visto, adessoMs: ORA })).toBe("fermo");
+  });
+});
+
+describe("decidere col conteggio", () => {
+  const MOD = "1268174375402285"; // Green Energy: i suoi lead arrivano SOLO dal recupero
+  const fermo = { n: 40, cambiato: PRIMA(120) };
+  const fuoriOra = (oraDiControllo(MOD) + 7) % 24;
+  const conConteggio = (
+    over: Partial<Parameters<typeof decidiModulo>[0]> = {},
+    c: { attuale?: unknown; visto?: unknown; saltaFermi?: boolean } = {},
+  ) =>
+    decidiModulo({
+      formId: MOD,
+      statusMeta: "ACTIVE",
+      cfg: { status: "active" },
+      giroAutomatico: true,
+      conLeadRecenti: new Set<string>(),
+      oraUtc: fuoriOra,
+      saltaArchiviati: false,
+      conteggio: { attuale: 40, visto: fermo, adessoMs: ORA, saltaFermi: true, ...c },
+      ...over,
+    });
+
+  it("conteggio fermo e salto acceso: non si chiedono i lead", () => {
+    expect(conConteggio()).toMatchObject({ esito: "saltato_conteggio_fermo", conteggio: "fermo" });
+  });
+
+  it("ma nel suo turno di controllo si legge lo stesso", () => {
+    expect(conConteggio({ oraUtc: oraDiControllo(MOD) }))
+      .toMatchObject({ esito: "letto", motivo: "turno_di_controllo", conteggio: "fermo" });
+  });
+
+  it("salto spento: si legge come prima, e il modulo resta segnato come fermo", () => {
+    expect(conConteggio({}, { saltaFermi: false }))
+      .toMatchObject({ esito: "letto", motivo: "normale", conteggio: "fermo" });
+  });
+
+  it("appena entra un lead il conteggio cambia e si legge", () => {
+    expect(conConteggio({}, { attuale: 41 })).toMatchObject({ esito: "letto", motivo: "conteggio_cambiato" });
+  });
+
+  it("per un'ora dopo il cambio si continua a leggere a ogni giro", () => {
+    expect(conConteggio({}, { attuale: 41, visto: { n: 41, cambiato: PRIMA(20) } }))
+      .toMatchObject({ esito: "letto", motivo: "appena_cambiato" });
+  });
+
+  it("un modulo mai visto si legge", () => {
+    expect(conConteggio({}, { visto: undefined })).toMatchObject({ esito: "letto", motivo: "mai_visto" });
+  });
+
+  it("un conteggio che cambia vince anche sul salto degli archiviati: è un fatto, non una supposizione", () => {
+    const d = conConteggio({ statusMeta: "ARCHIVED", saltaArchiviati: true }, { attuale: 41 });
+    expect(d).toMatchObject({ esito: "letto", motivo: "conteggio_cambiato" });
+  });
+
+  it("senza conteggio si decide come prima, archiviati compresi", () => {
+    expect(conConteggio({}, { attuale: undefined })).toMatchObject({ esito: "letto", motivo: "normale", conteggio: "conteggio_assente" });
+    expect(conConteggio({ statusMeta: "ARCHIVED", saltaArchiviati: true }, { attuale: undefined }).esito).toBe("saltato_archiviato");
+  });
+
+  it("recupero chiesto, modulo spento da noi, altro modulo: il conteggio non conta", () => {
+    expect(conConteggio({ giroAutomatico: false })).toMatchObject({ esito: "letto", motivo: "recupero_chiesto" });
+    expect(conConteggio({ cfg: { status: "inactive" } }).esito).toBe("saltato_disattivato");
+    expect(conConteggio({ soloModulo: "altro" }).esito).toBe("saltato_altro_modulo");
+  });
+});
+
+describe("i numeri del conteggio nella riga di log", () => {
+  const MOD = "922697992804539";
+  const d = (motivoAtteso: Partial<Parameters<typeof decidiModulo>[0]>, c: Record<string, unknown>) =>
+    decidiModulo({
+      formId: MOD, statusMeta: "ACTIVE", cfg: null, giroAutomatico: true, conLeadRecenti: new Set<string>(),
+      oraUtc: (oraDiControllo(MOD) + 3) % 24, saltaArchiviati: false,
+      conteggio: { attuale: 7, visto: { n: 7, cambiato: PRIMA(300) }, adessoMs: ORA, saltaFermi: false, ...c },
+      ...motivoAtteso,
+    });
+
+  it("col salto spento conta quanti si salterebbero, senza saltarne nessuno", () => {
+    const c = conteggiVuoti();
+    conta(c, d({}, {}));                                           // fermo → saltabile
+    conta(c, d({}, { attuale: 8 }));                               // cambiato
+    conta(c, d({}, { visto: undefined }));                         // mai visto
+    conta(c, d({ oraUtc: oraDiControllo(MOD) }, {}));              // fermo, ma turno
+    conta(c, d({}, { saltaFermi: true }));                         // fermo, salto acceso
+    expect(c).toMatchObject({
+      moduli: 5, letti: 4, saltatiConteggio: 1, saltabiliConteggio: 1, fermiLettiPerControllo: 1,
+      archiviatiLettiPerControllo: 0,
+    });
+    expect(c.perConteggio).toMatchObject({ fermo: 3, conteggio_cambiato: 1, mai_visto: 1 });
+    c.chiamate = 14;
+    c.leadNuoviDaFermi = 0;
+    c.leadNonContati = 0;
+    const riga = rigaPagina({ companyId: "a", pageId: "p", ms: 1, c });
+    expect(riga).toContain("conteggio(conteggio_cambiato=1 fermo=3 mai_visto=1)");
+    expect(riga).toContain("saltati_per_conteggio=1 (salto spento: saltabili=1)");
+    expect(riga).toContain("fermi_letti_per_controllo=1");
+    expect(riga).toContain("lead_nuovi_da_fermi=0 lead_non_contati=0");
+    expect(riga).toContain("chiamate=14");
+  });
+
+  it("la riga del giro somma anche i numeri del conteggio", () => {
+    const a = conteggiVuoti();
+    conta(a, d({}, { saltaFermi: true }));
+    a.chiamate = 3;
+    a.leadNonContati = 2;
+    const t = conteggiVuoti();
+    somma(t, a);
+    somma(t, a);
+    const riga = rigaGiro({ pagine: 2, ms: 1, c: t, automatico: true });
+    expect(riga).toContain("saltati_per_conteggio=2");
+    expect(riga).toContain("lead_non_contati=4");
+    expect(riga).toContain("chiamate=6");
+  });
+});
+
+describe("cosa si ricorda dopo il giro", () => {
+  const adesso = new Date(ORA).toISOString();
+  const precedenti = {
+    "1": { n: 10, cambiato: PRIMA(300) },
+    "2": { n: 5, cambiato: PRIMA(300) },
+    "3": { n: 7, cambiato: PRIMA(300) },
+    "vecchio": { n: 1, cambiato: PRIMA(9000) },
+    "rotto": { n: "tanti" },
+  };
+  const salva = (over: Partial<Parameters<typeof conteggiDaSalvare>[0]> = {}) =>
+    conteggiDaSalvare({
+      precedenti,
+      visti: new Map<string, unknown>([["1", 11], ["2", 5], ["3", 8], ["4", 2], ["5", undefined]]),
+      lettiBene: new Set(["1", "2", "4", "5"]),
+      moduliSuMeta: new Set(["1", "2", "3", "4", "5"]),
+      adessoIso: adesso,
+      ...over,
+    });
+
+  it("letto fino in fondo e conteggio cambiato: si ricorda il numero nuovo e da quando", () => {
+    expect(salva()["1"]).toEqual({ n: 11, cambiato: adesso });
+  });
+
+  it("letto e conteggio uguale: resta l'ora del cambio di prima (l'ora «calda» non riparte)", () => {
+    expect(salva()["2"]).toEqual({ n: 5, cambiato: PRIMA(300) });
+  });
+
+  it("lettura FALLITA: resta il numero vecchio, così al giro dopo risulta ancora cambiato e si rilegge", () => {
+    // il modulo 3 è passato da 7 a 8 ma la lettura non è riuscita
+    expect(salva()["3"]).toEqual({ n: 7, cambiato: PRIMA(300) });
+    expect(motivoConteggio({ attuale: 8, visto: salva()["3"], adessoMs: ORA + 15 * 60_000 })).toBe("conteggio_cambiato");
+  });
+
+  it("lettura fallita di un modulo mai visto: resta non visto, e al giro dopo si legge", () => {
+    const m = salva({ lettiBene: new Set(["1"]) });
+    expect(m["4"]).toBeUndefined();
+  });
+
+  it("senza conteggio da Meta non si ricorda niente", () => {
+    expect(salva()["5"]).toBeUndefined();
+  });
+
+  it("un modulo sparito da Meta si toglie, ma solo se l'elenco è completo", () => {
+    expect(salva()["vecchio"]).toBeUndefined();
+    expect(salva({ moduliSuMeta: null })["vecchio"]).toEqual({ n: 1, cambiato: PRIMA(9000) });
+  });
+
+  it("le voci rotte si buttano, e una mappa illeggibile vale come vuota", () => {
+    expect(salva()["rotto"]).toBeUndefined();
+    for (const p of [null, undefined, "x", 5, [1, 2]] as unknown[]) {
+      expect(salva({ precedenti: p })).toEqual({
+        "1": { n: 11, cambiato: adesso }, "2": { n: 5, cambiato: adesso }, "4": { n: 2, cambiato: adesso },
+      });
+    }
+  });
+});
+
+describe("l'ora di creazione di un lead", () => {
+  it("come la dà Graph, col fuso senza i due punti", () => {
+    expect(secondiCreazione("2026-09-20T12:02:43+0000")).toBe(Date.parse("2026-09-20T12:02:43Z") / 1000);
+    expect(secondiCreazione("2026-09-20T14:02:43+0200")).toBe(Date.parse("2026-09-20T12:02:43Z") / 1000);
+  });
+
+  it("in secondi, come la dà il webhook", () => {
+    expect(secondiCreazione("1789890062")).toBe(1789890062);
+    expect(secondiCreazione(1789890062)).toBe(1789890062);
+  });
+
+  it("niente di leggibile: null", () => {
+    for (const v of [undefined, null, "", "ieri", {}, NaN] as unknown[]) expect(secondiCreazione(v)).toBeNull();
+  });
+});
+
+// ── Una giornata simulata, col Meta più scomodo che si possa immaginare ──────
+describe("una giornata intera col salto acceso: nessun lead resta indietro", () => {
+  const GIRI = 96;
+  const INIZIO = Date.parse("2026-09-21T00:13:00Z"); // il cron gira ai minuti 13/28/43/58
+  const moduli = Array.from({ length: 336 }, (_, i) => String(1_190_000_000_000_000 + i * 104_729));
+  // Dieci moduli vivi ricevono lead lungo il giorno; gli altri 326 mai.
+  const vivi = moduli.slice(0, 10);
+  const lead: Array<{ modulo: string; creatoMs: number }> = [];
+  for (let k = 0; k < 120; k++) {
+    lead.push({ modulo: vivi[k % vivi.length], creatoMs: INIZIO + ((k * 11) % (GIRI - 4)) * 15 * 60_000 + 3 * 60_000 });
+  }
+
+  // Meta «scomodo»: il conteggio arriva SUBITO, ma il lead diventa leggibile
+  // solo dopo `ritardoLetturaMin` minuti. È il caso che una lettura sola perderebbe.
+  const simula = (ritardoLetturaMin: number, saltaFermi: boolean) => {
+    let mappa: Record<string, unknown> = {};
+    const trovatoAlGiro = new Map<number, number>(); // indice lead → giro
+    let letture = 0;
+    for (let g = 0; g < GIRI; g++) {
+      const adessoMs = INIZIO + g * 15 * 60_000;
+      const oraUtc = new Date(adessoMs).getUTCHours();
+      const visti = new Map<string, unknown>();
+      for (const m of moduli) visti.set(m, lead.filter((l) => l.modulo === m && l.creatoMs <= adessoMs).length);
+      const lettiBene = new Set<string>();
+      for (const m of moduli) {
+        const d = decidiModulo({
+          formId: m, statusMeta: "ACTIVE", cfg: null, giroAutomatico: true, conLeadRecenti: new Set<string>(),
+          oraUtc, saltaArchiviati: false,
+          conteggio: { attuale: visti.get(m), visto: mappa[m], adessoMs, saltaFermi },
+        });
+        if (d.esito !== "letto") continue;
+        letture++;
+        lettiBene.add(m);
+        lead.forEach((l, i) => {
+          const leggibile = l.creatoMs + ritardoLetturaMin * 60_000 <= adessoMs;
+          if (l.modulo === m && leggibile && !trovatoAlGiro.has(i)) trovatoAlGiro.set(i, g);
+        });
+      }
+      mappa = conteggiDaSalvare({
+        precedenti: mappa, visti, lettiBene, moduliSuMeta: new Set(moduli), adessoIso: new Date(adessoMs).toISOString(),
+      });
+    }
+    return { letture, trovatoAlGiro };
+  };
+
+  for (const ritardo of [0, 10, 40]) {
+    it(`lead leggibile ${ritardo} minuti dopo essere stato contato: trovato, e al massimo un'ora dopo`, () => {
+      const { trovatoAlGiro } = simula(ritardo, true);
+      lead.forEach((l, i) => {
+        const g = trovatoAlGiro.get(i);
+        expect(g, `lead ${i} del modulo ${l.modulo} mai trovato`).toBeDefined();
+        const leggibileDal = l.creatoMs + ritardo * 60_000;
+        expect((INIZIO + (g as number) * 15 * 60_000) - leggibileDal).toBeLessThanOrEqual(60 * 60_000);
+      });
+    });
+  }
+
+  it("e le chiamate scendono di un ordine di grandezza", () => {
+    const acceso = simula(10, true).letture;
+    const spento = simula(10, false).letture;
+    expect(spento).toBe(336 * GIRI);             // oggi: 32.256 letture
+    expect(acceso).toBeLessThan(spento / 10);    // col conteggio
+    // i 326 moduli fermi si leggono solo: al primo giro (mai visti), l'ora
+    // «calda» che segue, e le 4 letture del loro turno di controllo
+    expect(acceso).toBeLessThan(326 * (1 + 4 + 4) + 10 * GIRI);
   });
 });
