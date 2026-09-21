@@ -71,6 +71,7 @@ const AdminMioProfilo = lazy(() => import("@/pages/admin/impostazioni/AdminMioPr
 const AdminEmailOAuthCallback = lazy(() => import("@/pages/admin/impostazioni/AdminEmailOAuthCallback"));
 const AdminTeamChat = lazy(() => import("@/pages/admin/AdminTeamChat"));
 const AdminSettingsIPAllowlist = lazy(() => import("@/pages/admin/settings/AdminSettingsIPAllowlist"));
+const AdminSettingsMetaLeadDenylist = lazy(() => import("@/pages/admin/settings/AdminSettingsMetaLeadDenylist"));
 const AdminSettingsIntegrations = lazy(() => import("@/pages/admin/settings/AdminSettingsIntegrations"));
 const AdminSettingsApiMcp = lazy(() => import("@/pages/admin/settings/AdminSettingsApiMcp"));
 const AdminSettingsWhatsappLocale = lazy(() => import("@/pages/admin/settings/AdminSettingsWhatsappLocale"));
@@ -291,6 +292,7 @@ export default function AdminRoutesContainer() {
         <Route path="legacy/silvio-approvazioni" element={<RequireSuperAdmin><SilvioApprovalsPage /></RequireSuperAdmin>} />
         <Route path="legacy/ai-test-lab" element={<RequireSuperAdmin><AdminAITestLab /></RequireSuperAdmin>} />
         <Route path="impostazioni/ip-allowlist" element={<RequireSuperAdmin><AdminSettingsIPAllowlist /></RequireSuperAdmin>} />
+        <Route path="impostazioni/meta-lead-esclusioni" element={<RequireSuperAdmin><AdminSettingsMetaLeadDenylist /></RequireSuperAdmin>} />
         <Route path="impostazioni/sicurezza" element={<RequireSuperAdmin><AdminSettingsSecurity /></RequireSuperAdmin>} />
         <Route path="impostazioni/feature-flags" element={<Navigate to="/admin/feature-flags" replace />} />
         <Route path="impostazioni/integrazioni" element={<RequireSuperAdmin><AdminSettingsIntegrations /></RequireSuperAdmin>} />

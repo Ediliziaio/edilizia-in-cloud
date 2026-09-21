@@ -1,6 +1,6 @@
 import {
   User, Users, Server, Mail, Bell,
-  ScrollText, Globe, Zap, Plug, Landmark,
+  ScrollText, Globe, Zap, Plug, Landmark, Filter,
   Webhook, Activity, CalendarDays, Wrench, Variable, Package,
   MessageCircle,
 } from "lucide-react";
@@ -136,6 +136,14 @@ export const ADMIN_SETTINGS_NAV: AdminSettingsGroup[] = [
         description: "Numeri WhatsApp non-ufficiali (gateway self-hosted) per marketing e outreach",
         icon: MessageCircle,
         url: "/admin/impostazioni/whatsapp-locale",
+        permission: "can_manage_admins",
+      },
+      {
+        id: "meta-lead-esclusioni",
+        label: "Filtro Lead Meta",
+        description: "Campagne Meta Lead Ads da non importare nel CRM (es. reclutamento venditori)",
+        icon: Filter,
+        url: "/admin/impostazioni/meta-lead-esclusioni",
         permission: "can_manage_admins",
       },
     ],

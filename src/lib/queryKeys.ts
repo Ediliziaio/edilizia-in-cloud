@@ -502,6 +502,7 @@ export const queryKeys = {
     gdprRequests: ["admin-gdpr-requests"] as const,
     gdprAuditLog: ["gdpr-audit-log"] as const,
     ipAllowlist: ["admin-ip-allowlist"] as const,
+    metaLeadDenylist: ["admin-meta-lead-denylist"] as const,
     onboardingTemplates: ["onboarding-templates"] as const,
     onboardingSteps: (templateId: string | null) => ["onboarding-steps", templateId] as const,
     referralTiers: ["admin-referral-tiers"] as const,

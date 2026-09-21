@@ -307,6 +307,48 @@ serveConMetriche("meta-process-leads", async (req) => {
   }
 });
 
+// ─── Denylist import lead (cache modulo, TTL 5 min) ──────────────────────────
+// Pattern (sottostringa, case-insensitive) confrontati col nome campagna/adset/
+// annuncio del lead. La gestisce il super admin dalla tabella
+// meta_lead_import_denylist. Questi sono il FALLBACK (identici al seed della
+// migrazione) usato se la lettura fallisce o la tabella è vuota: così non si
+// regredisce mai al comportamento "importa tutto".
+const LEAD_DENYLIST_FALLBACK = [
+  "venditor",
+  "recluta",
+  "assumiam",
+  "lavora con noi",
+  "candidat",
+  "selezione personale",
+  "offerta di lavoro",
+];
+let leadDenylistCache: { patterns: string[]; at: number } | null = null;
+async function getLeadDenylistPatterns(adminClient: any): Promise<string[]> {
+  const now = Date.now();
+  if (leadDenylistCache && now - leadDenylistCache.at < 5 * 60 * 1000) {
+    return leadDenylistCache.patterns;
+  }
+  try {
+    const { data, error } = await adminClient
+      .from("meta_lead_import_denylist")
+      .select("pattern")
+      .eq("is_active", true);
+    if (error) throw error;
+    const patterns = (data ?? [])
+      .map((r: { pattern: string | null }) => String(r.pattern ?? "").toLowerCase().trim())
+      .filter(Boolean);
+    const result = patterns.length > 0 ? patterns : LEAD_DENYLIST_FALLBACK;
+    leadDenylistCache = { patterns: result, at: now };
+    return result;
+  } catch (e) {
+    console.warn(
+      "[meta-process-leads] denylist non letta, uso fallback:",
+      e instanceof Error ? e.message : e,
+    );
+    return LEAD_DENYLIST_FALLBACK;
+  }
+}
+
 async function processLeadEvent(adminClient: any, event: any): Promise<{ contactId: string; isNew: boolean; campaignName?: string; arretrato?: boolean; giorniRitardo?: number; settore?: string | null } | null> {
   const { company_id, integration_id, payload } = event;
   // Due formati di payload convivono in coda:
@@ -390,25 +432,27 @@ async function processLeadEvent(adminClient: any, event: any): Promise<{ contact
     }
   }
 
-  // ─── Campagne di RECLUTAMENTO: fuori dal CRM clienti ───────────────────────
-  // Un lead che risponde a un annuncio per ASSUMERE (venditori, agenti,
-  // personale) NON è un potenziale cliente: se entra in marketing_contacts
-  // inquina il CRM e fa partire le automazioni commerciali su un candidato.
-  // Nessun modulo del gestionale riceve questi lead (il modulo venditori non è
-  // attivo per queste aziende), quindi si scartano a monte. L'evento viene
-  // comunque marcato "processed" dal chiamante → niente contatto, niente retry.
-  // Riconoscimento dal nome di campagna / adset / annuncio.
+  // ─── Denylist import lead (gestibile dall'admin) ───────────────────────────
+  // Un lead la cui campagna / adset / annuncio contiene un pattern in denylist
+  // NON entra nel CRM clienti. Nata per le campagne di RECLUTAMENTO venditori
+  // (candidati, non clienti) che inquinavano il CRM e svegliavano le automazioni
+  // commerciali. Il super admin la gestisce da
+  // /admin/impostazioni/meta-lead-esclusioni (tabella meta_lead_import_denylist);
+  // se vuota/irraggiungibile vale il fallback in getLeadDenylistPatterns.
+  // L'evento viene comunque marcato "processed" dal chiamante → niente retry.
   const testoCampagnaMeta = [lead.campaign_name, lead.adset_name, lead.ad_name]
     .filter(Boolean)
     .join(" ")
     .toLowerCase();
-  const RECLUTAMENTO_RE =
-    /venditor|recluta|assumiam|lavora con noi|candidat|selezione (del )?personale|offerta di lavoro|entra nel (nostro )?team|unisciti al (nostro )?team|cerchiamo (venditor|agent|collabor|personale)/;
-  if (RECLUTAMENTO_RE.test(testoCampagnaMeta)) {
-    console.log(
-      `[meta-process-leads] SKIP lead reclutamento — company=${company_id} campagna="${lead.campaign_name ?? ""}" adset="${lead.adset_name ?? ""}"`,
-    );
-    return null; // evento gestito: nessun contatto creato, nessun retry
+  if (testoCampagnaMeta) {
+    const denylist = await getLeadDenylistPatterns(adminClient);
+    const hit = denylist.find((p) => testoCampagnaMeta.includes(p));
+    if (hit) {
+      console.log(
+        `[meta-process-leads] SKIP lead in denylist (pattern="${hit}") — company=${company_id} campagna="${lead.campaign_name ?? ""}" adset="${lead.adset_name ?? ""}"`,
+      );
+      return null; // evento gestito: nessun contatto creato, nessun retry
+    }
   }
 
   const actualFormId = lead.form_id || formId;

@@ -64,6 +64,7 @@ const ROUTE_MAP: Record<string, string> = {
   "/admin/impostazioni/email": "Email",
   "/admin/impostazioni/agenti-ai": "Agenti AI",
   "/admin/impostazioni/ip-allowlist": "IP Allowlist",
+  "/admin/impostazioni/meta-lead-esclusioni": "Filtro Lead Meta",
   "/admin/impostazioni/sicurezza": "Sicurezza",
   "/admin/impostazioni/integrazioni": "Integrazioni",
   "/admin/impostazioni/api-mcp": "API & MCP",
