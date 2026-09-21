@@ -19,7 +19,7 @@ import { UserSessionsTab } from "@/components/users/UserSessionsTab";
 import { UserActivityLogTab } from "@/components/users/UserActivityLogTab";
 import { UserSecurityTab } from "@/components/users/UserSecurityTab";
 import { StaffPermissions } from "@/components/users/PermissionsDialog";
-import { buildStaffPermissionsUpdate } from "@/components/users/permissionsDefaults";
+import { salvaPermessiUtente } from "@/lib/permessi/salvaPermessiUtente";
 import { usePermissions } from "@/hooks/usePermissions";
 import { normalizeCompanyAccessRole } from "@/lib/auth/multiCompany";
 import { isNetworkError, isTransientTimeoutError, sembraErrorePostgresGrezzo, userErrorMessage } from "@/lib/userErrorMessage";
@@ -69,17 +69,6 @@ const SIDEBAR_TABS = [
 ] as const;
 
 type TabId = typeof SIDEBAR_TABS[number]["id"];
-
-/** Salva i permessi di un utente in un'azienda (filtrati e sincronizzati). */
-async function salvaPermessi(userId: string, companyId: string, permissions: StaffPermissions) {
-  const synced = buildStaffPermissionsUpdate(permissions);
-  const { error } = await supabase
-    .from("staff_permissions")
-    .update(synced)
-    .eq("user_id", userId)
-    .eq("company_id", companyId);
-  if (error) throw error;
-}
 
 /**
  * Il messaggio da mostrare quando un cambio di ruolo non riesce. Le regole
@@ -290,7 +279,7 @@ export default function SettingsUserDetail() {
       }
 
       // Filtra alle chiavi note + sincronizza i flag legacy (helper condiviso).
-      await salvaPermessi(userId, companyId, permissions);
+      await salvaPermessiUtente(userId, companyId, permissions);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.users.detail(userId) });
@@ -342,7 +331,7 @@ export default function SettingsUserDetail() {
       // «Conferma con i permessi del ruolo»: si salvano adesso. Prima restavano
       // solo sullo schermo, e la scheda ricaricata col ruolo nuovo li perdeva.
       if (permessi && ruolo !== "company_admin") {
-        await salvaPermessi(userId, companyId, permessi);
+        await salvaPermessiUtente(userId, companyId, permessi);
       }
     },
     onSuccess: () => {

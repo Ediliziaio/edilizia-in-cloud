@@ -29,11 +29,16 @@ const registro: string[] = [];
 /** Quello che risponde il database finto: dati e, se c'è, l'errore. */
 type Risposta = { data: unknown; error: { message: string; code?: string } | null };
 const rpc = vi.fn(async (_nome: string, _args: unknown): Promise<Risposta> => ({ data: { ok: true }, error: null }));
+/** L'utente ha la riga in staff_permissions? (i 26 venditori importati di Ener no) */
+let rigaPermessi = true;
+/** Cosa restituisce il database al salvataggio dei permessi: [] = non ha confermato. */
+let confermaPermessi: unknown[] = [{ user_id: ELENA }];
 
 function builder(tabella: string) {
   const stato = { op: "select", filtri: [] as string[] };
   const risposta = (): Risposta => {
     registro.push(`${stato.op.toUpperCase()} ${tabella} ${stato.filtri.join(" ")}`.trim());
+    if (stato.op === "upsert" && tabella === "staff_permissions") return { data: confermaPermessi, error: null };
     if (stato.op !== "select") return { data: null, error: null };
     if (tabella === "profiles") {
       return {
@@ -43,7 +48,7 @@ function builder(tabella: string) {
     }
     if (tabella === "user_roles") return { data: [{ role: "company_staff" }, { role: "call_center" }], error: null };
     if (tabella === "companies") return { data: { titolare_user_id: null }, error: null };
-    if (tabella === "staff_permissions") return { data: { user_id: ELENA, company_id: ENER }, error: null };
+    if (tabella === "staff_permissions") return { data: rigaPermessi ? { user_id: ELENA, company_id: ENER } : null, error: null };
     return { data: null, error: null };
   };
   const b: Record<string, unknown> = {};
@@ -89,6 +94,8 @@ import { DEFAULT_PERMISSIONS, ROLE_PRESETS } from "@/components/users/permission
 import SettingsUserDetail from "@/pages/azienda/settings/SettingsUserDetail";
 
 beforeEach(() => {
+  rigaPermessi = true;
+  confermaPermessi = [{ user_id: ELENA }];
   registro.length = 0;
   toasts.length = 0;
   rpc.mockClear();
@@ -219,8 +226,55 @@ describe("Scheda utente — il cambio lo fa il database", () => {
     expect(rpc).toHaveBeenCalledWith("cambia_ruolo_utente", expect.objectContaining({ p_ruolo: "salesperson" }));
     const scritture = registro.filter((r) => !r.startsWith("SELECT"));
     expect(scritture).toHaveLength(1);
-    expect(scritture[0]).toMatch(/^UPDATE staff_permissions /);
-    expect(scritture[0]).toContain(`eq("user_id","${ELENA}")`);
+    expect(scritture[0]).toMatch(/^UPSERT staff_permissions /);
+    expect(scritture[0]).toContain(`"user_id":"${ELENA}"`);
+    expect(scritture[0]).toContain(`"company_id":"${ENER}"`);
+  }, 60_000);
+});
+
+describe("Scheda utente — i permessi si salvano anche per chi non ha ancora la riga", () => {
+  function pagina() {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    return render(
+      <QueryClientProvider client={qc}>
+        <MemoryRouter initialEntries={[`/azienda/impostazioni/utenti/${ELENA}?tab=permissions`]}>
+          <Routes>
+            <Route path="/azienda/impostazioni/utenti/:userId" element={<SettingsUserDetail />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+  }
+
+  async function salvaTutti() {
+    await screen.findByRole("combobox", {}, { timeout: 15_000 });
+    // «Tutti»: basta un qualunque cambio perché «Salva Permessi» si accenda.
+    fireEvent.click(screen.getAllByRole("button", { name: /^Tutti$/ })[0]);
+    registro.length = 0;
+    fireEvent.click(screen.getByRole("button", { name: /Salva Permessi/ }));
+  }
+
+  it("senza riga (i venditori importati di Ener): la riga si crea, non un aggiornamento a vuoto", async () => {
+    rigaPermessi = false;
+    pagina();
+    await salvaTutti();
+
+    await waitFor(() => expect(toasts.some((t) => t.title === "Permessi salvati")).toBe(true));
+    const scritture = registro.filter((r) => r.includes("staff_permissions") && !r.startsWith("SELECT"));
+    expect(scritture).toHaveLength(1);
+    expect(scritture[0]).toMatch(/^UPSERT staff_permissions /);
+    expect(scritture[0]).toContain(`"user_id":"${ELENA}"`);
+    expect(scritture[0]).toContain(`"company_id":"${ENER}"`);
+  }, 60_000);
+
+  it("se il database non conferma, si dice che non è salvato: mai «Permessi salvati» a vuoto", async () => {
+    confermaPermessi = [];
+    pagina();
+    await salvaTutti();
+
+    await waitFor(() => expect(toasts.some((t) => t.title === "Errore salvataggio permessi")).toBe(true));
+    expect(toasts.some((t) => t.title === "Permessi salvati")).toBe(false);
+    expect(toasts.find((t) => t.title === "Errore salvataggio permessi")?.description).toMatch(/non sono stati salvati/);
   }, 60_000);
 });
 
@@ -247,6 +301,20 @@ describe("I ruoli si scrivono solo dal database", () => {
     }
     // Per cambiare un ruolo: supabase.rpc("cambia_ruolo_utente") o
     // supabase.rpc("imposta_ruolo_aggiuntivo").
+    expect(colpevoli).toEqual([]);
+  }, TIMEOUT);
+
+  it("i permessi si salvano solo da salvaPermessiUtente: un UPDATE su una riga che manca non salva niente, in silenzio", () => {
+    const colpevoli: string[] = [];
+    for (const f of fileSorgente(SRC)) {
+      if (f.endsWith("salvaPermessiUtente.ts")) continue;
+      const testo = readFileSync(f, "utf8");
+      if (!testo.includes("staff_permissions")) continue;
+      for (const m of testo.matchAll(/from\(\s*["']staff_permissions["']\s*\)([\s\S]{0,300})/g)) {
+        const catena = m[1].split(/;|\n\s*\n/)[0];
+        if (/\.update\s*\(/.test(catena)) colpevoli.push(f.replace(SRC, "src"));
+      }
+    }
     expect(colpevoli).toEqual([]);
   }, TIMEOUT);
 });

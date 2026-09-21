@@ -12,7 +12,7 @@ import { addDays, differenceInDays } from "date-fns";
 import type { Company, CompanyStatus, CompanySector } from "@/types/auth";
 import type { StaffUserFormData, StaffRoleType } from "@/components/users/StaffUserDialog";
 import type { StaffPermissions } from "@/components/users/PermissionsDialog";
-import { buildStaffPermissionsUpdate } from "@/components/users/permissionsDefaults";
+import { salvaPermessiUtente } from "@/lib/permessi/salvaPermessiUtente";
 import type { EmployeeFormData } from "@/components/employees/EmployeeDialog";
 
 const formSchema = z.object({
@@ -526,12 +526,11 @@ export function useCompanyDetail(id: string | undefined) {
       // granulari (accesso pieno) → si salta.
       const newUserId = resp.data.user_id as string | undefined;
       if (newUserId && data.permissions && data.role_type !== "company_admin") {
-        const { error: permErr } = await supabase
-          .from("staff_permissions")
-          .update(buildStaffPermissionsUpdate(data.permissions))
-          .eq("user_id", newUserId)
-          .eq("company_id", id!);
-        if (permErr) console.error("[create-staff] applicazione permessi iniziali fallita:", permErr.message);
+        try {
+          await salvaPermessiUtente(newUserId, id!, data.permissions);
+        } catch (permErr) {
+          console.error("[create-staff] applicazione permessi iniziali fallita:", (permErr as Error).message);
+        }
       }
 
       await refreshTeamData();
@@ -553,12 +552,7 @@ export function useCompanyDetail(id: string | undefined) {
       // Stesso path del lato azienda: filtra alle chiavi note + sincronizza i
       // flag legacy aggregati (settings + marketing) via helper condiviso —
       // così concedere i granulari di Impostazioni accende anche can_view_settings.
-      const { error } = await supabase
-        .from("staff_permissions")
-        .update(buildStaffPermissionsUpdate(permissions))
-        .eq("user_id", permissionsUser.id)
-        .eq("company_id", id!);
-      if (error) throw error;
+      await salvaPermessiUtente(permissionsUser.id, id!, permissions);
       await refreshTeamData();
       // Audit log (best-effort): traccia chi modifica i permessi di chi.
       if (user?.id && id) {

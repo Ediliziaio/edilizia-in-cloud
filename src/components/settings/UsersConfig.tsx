@@ -47,6 +47,7 @@ import {
 import { usePermissions } from "@/hooks/usePermissions";
 import { withClientTimeout } from "@/lib/query-timeout";
 import { isNetworkError, sembraErrorePostgresGrezzo, userErrorMessage } from "@/lib/userErrorMessage";
+import { salvaPermessiUtente } from "@/lib/permessi/salvaPermessiUtente";
 
 import { useIsMobile } from "@/hooks/use-mobile";
 type EffectiveRole = "company_admin" | "company_staff" | "salesperson" | "call_center" | "employee" | "subcontractor";
@@ -740,14 +741,12 @@ export function UsersConfig() {
       // Update permissions
       const rolesWithPermissions = ["company_staff", "salesperson", "call_center", "employee", "subcontractor"];
       if (rolesWithPermissions.includes(data.role_type) && data.permissions && response.data?.user_id) {
-        const synced = syncLegacySettingsFlags(syncLegacyMarketingFlags(data.permissions));
-        const { only_assigned, ...permFields } = synced;
-        const { error: permUpdateError } = await supabase
-          .from("staff_permissions")
-          .update({ ...permFields, only_assigned: only_assigned || false })
-          .eq("user_id", response.data.user_id)
-          .eq("company_id", effectiveCompanyId!);
-        if (permUpdateError) {
+        try {
+          await salvaPermessiUtente(response.data.user_id, effectiveCompanyId!, {
+            ...data.permissions,
+            only_assigned: data.permissions.only_assigned || false,
+          });
+        } catch (permUpdateError) {
           logger.error("Failed to update permissions:", permUpdateError);
           toast.warning("Utente creato, ma i permessi non sono stati salvati");
         }
