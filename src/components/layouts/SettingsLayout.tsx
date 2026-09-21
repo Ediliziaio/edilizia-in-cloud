@@ -2,6 +2,10 @@ import { Outlet, useLocation, Link } from "react-router-dom";
 import { SettingsSearch } from "@/components/layouts/SettingsSearch";
 import { ArrowLeft } from "lucide-react";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useStatoPiano } from "@/hooks/useStatoPiano";
+import { impostazioneNelPiano, nomiRequisito } from "@/lib/impostazioni/pianoImpostazioni";
+import { NonNelPiano } from "@/components/settings/NonNelPiano";
+import { isIOS as isIOSNativePlatform } from "@/lib/mobile/platform";
 import { cn } from "@/lib/utils";
 import {
   gruppoDellaSezione,
@@ -90,11 +94,18 @@ function getSectionMeta(pathname: string): SectionMeta {
 export function SettingsLayout() {
   const { pathname } = useLocation();
   const permissions = usePermissions();
+  const { stato: piano } = useStatoPiano();
   // Pagine raggruppate (Listino, Margini e sconti, Firma e condizioni): titolo
-  // del gruppo e schede per passare da una pagina all'altra.
+  // del gruppo e schede per passare da una pagina all'altra. Le schede fuori
+  // dal piano dell'azienda non compaiono.
   const sezione = sezioneDaPercorso(pathname);
   const gruppo = gruppoDellaSezione(sezione);
-  const schede = gruppo ? schedeVisibili(gruppo, permissions.isAdmin, permissions) : [];
+  const schede = gruppo
+    ? schedeVisibili(gruppo, permissions.isAdmin, permissions).filter((s) => impostazioneNelPiano(s.to, piano))
+    : [];
+  // Le impostazioni seguono il piano (21/09/2026): una pagina che il piano non
+  // comprende non si apre nemmeno dall'indirizzo. Vedi pianoImpostazioni.ts.
+  const nelPiano = impostazioneNelPiano(pathname, piano);
   const schedaAttiva = gruppo ? schedaDellaSezione(gruppo, sezione) : null;
   const meta = getSectionMeta(pathname);
   const title = gruppo?.titolo ?? meta.title;
@@ -163,7 +174,15 @@ export function SettingsLayout() {
 
       {/* Contenuto della pagina figlia — larghezza piena */}
       <div className="flex-1 px-4 py-4 md:px-6 md:py-6">
-        <Outlet />
+        {nelPiano ? (
+          <Outlet />
+        ) : (
+          <NonNelPiano
+            titolo={title}
+            serve={nomiRequisito(pathname)}
+            puoCambiarePiano={permissions.isAdmin && !isIOSNativePlatform}
+          />
+        )}
       </div>
     </div>
   );

@@ -24,6 +24,8 @@ import { toast } from "sonner";
 import CompanyCalendarsOverview from "@/components/integrations/CompanyCalendarsOverview";
 import CompanyEmailsOverview from "@/components/integrations/CompanyEmailsOverview";
 import BankConnectionsCard from "@/components/integrations/BankConnectionsCard";
+import { useStatoPiano } from "@/hooks/useStatoPiano";
+import { REQUISITI_SEZIONI, requisitoSoddisfatto } from "@/lib/impostazioni/pianoImpostazioni";
 import StripePaymentsCard from "@/components/integrations/StripePaymentsCard";
 // Popup components per integrazioni in modalità "popup"
 import GbpConnectionCard from "@/components/integrations/GbpConnectionCard";
@@ -86,6 +88,11 @@ export default function SettingsIntegrations() {
   const companyId = (effectiveCompany as any)?.id;
   const userId = user?.id;
   const permissions = usePermissions();
+  // Conti correnti e incassi con carta servono con tesoreria, preventivi o
+  // fatture: col piano Marketing non compaiono (21/09/2026).
+  const { stato: piano } = useStatoPiano();
+  const mostraContiCorrenti = requisitoSoddisfatto(REQUISITI_SEZIONI.conti_correnti, piano);
+  const mostraPagamentiCarta = requisitoSoddisfatto(REQUISITI_SEZIONI.pagamenti_carta, piano);
   // 13/7/2026: vale anche il permesso "Integrazioni & Canali" (Modifica), non solo il ruolo admin
   const canManageIntegrations = role === "company_admin" || role === "super_admin" || permissions.canEditSettingsIntegrations;
   const navigate = useNavigate();
@@ -438,10 +445,10 @@ export default function SettingsIntegrations() {
       <EmailDomainAuthPanel haCaselle />
 
       {/* Open Banking — collegamento conti correnti + import movimenti */}
-      <BankConnectionsCard />
+      {mostraContiCorrenti && <BankConnectionsCard />}
 
       {/* Pagamenti con carta (Stripe Connect) — incassi con markup */}
-      <StripePaymentsCard />
+      {mostraPagamentiCarta && <StripePaymentsCard />}
 
       {/* Grid integrazioni */}
       <IntegrationsGrid

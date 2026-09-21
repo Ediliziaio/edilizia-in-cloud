@@ -16,6 +16,8 @@
 import { Link } from "react-router-dom";
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useStatoPiano } from "@/hooks/useStatoPiano";
+import { impostazioneNelPiano } from "@/lib/impostazioni/pianoImpostazioni";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -129,10 +131,13 @@ export default function SettingsMobileHub() {
   // (su desktop esiste SettingsSearch, su mobile non c'era nulla).
   const [filtro, setFiltro] = useState("");
   const q = filtro.trim().toLowerCase();
+  // Le impostazioni fuori dal piano dell'azienda non compaiono (21/09/2026).
+  const { stato: piano } = useStatoPiano();
   const sezioniFiltrate = SECTIONS.map((section) => ({
     ...section,
     items: section.items
       .filter((i) => !HIDDEN_ON_MOBILE.has(i.to))
+      .filter((i) => impostazioneNelPiano(i.to, piano))
       .filter((i) => (q ? i.label.toLowerCase().includes(q) : true)),
   })).filter((s) => s.items.length > 0);
 

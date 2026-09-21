@@ -23,6 +23,8 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { Button } from "@/components/ui/button";
+import { useStatoPiano } from "@/hooks/useStatoPiano";
+import { impostazioneNelPiano } from "@/lib/impostazioni/pianoImpostazioni";
 
 interface SettingsIndexEntry {
   title: string;
@@ -111,6 +113,8 @@ export function SettingsSearch({ hideTrigger = false }: SettingsSearchProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const navigate = useNavigate();
+  // Le impostazioni fuori dal piano dell'azienda non si cercano (21/09/2026).
+  const { stato: piano } = useStatoPiano();
 
   // Cmd/Ctrl+K shortcut
   useEffect(() => {
@@ -127,8 +131,9 @@ export function SettingsSearch({ hideTrigger = false }: SettingsSearchProps) {
   // Filtro fuzzy semplice: title + keywords + group + description
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return SETTINGS_INDEX;
-    return SETTINGS_INDEX.filter((e) => {
+    const nelPiano = SETTINGS_INDEX.filter((e) => impostazioneNelPiano(e.url, piano));
+    if (!q) return nelPiano;
+    return nelPiano.filter((e) => {
       const haystack = [
         e.title,
         e.group,
@@ -139,7 +144,7 @@ export function SettingsSearch({ hideTrigger = false }: SettingsSearchProps) {
         .toLowerCase();
       return haystack.includes(q);
     });
-  }, [query]);
+  }, [query, piano]);
 
   const grouped = useMemo(() => {
     const m = new Map<string, SettingsIndexEntry[]>();

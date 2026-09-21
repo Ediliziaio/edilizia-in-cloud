@@ -13,6 +13,8 @@ import { useGlobalSearch, type SearchResult } from "@/hooks/useGlobalSearch";
 import { useAuth } from "@/contexts/AuthContext";
 import { macroAreas } from "@/lib/sidebarConfig";
 import { isDemoCompanyId } from "@/lib/constants/demoCompany";
+import { useStatoPiano } from "@/hooks/useStatoPiano";
+import { impostazioneNelPiano } from "@/lib/impostazioni/pianoImpostazioni";
 
 // 🆕 GAP 1 (Discoverability): personas AI nel command palette
 interface AIPersonaLite {
@@ -150,6 +152,8 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
   const isDemoBaseline = isDemoCompanyId(effectiveCompany?.id);
+  // Le impostazioni fuori dal piano dell'azienda non si cercano (21/09/2026).
+  const { stato: piano } = useStatoPiano();
 
   const { data: results = [], isFetching } = useGlobalSearch(query, effectiveCompany?.id);
 
@@ -268,8 +272,10 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const filteredSettingsItems = useMemo(() => {
     if (query.length < 2) return [];
     const q = query.toLowerCase();
-    return SETTINGS_ITEMS.filter(item => item.label.toLowerCase().includes(q));
-  }, [query]);
+    return SETTINGS_ITEMS.filter(
+      (item) => item.label.toLowerCase().includes(q) && impostazioneNelPiano(item.path, piano),
+    );
+  }, [query, piano]);
 
   return (
     // shouldFilter={false}: questa palette filtra già tutto da sé — le voci di

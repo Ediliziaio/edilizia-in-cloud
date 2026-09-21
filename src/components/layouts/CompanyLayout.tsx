@@ -8,7 +8,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { etichettaRuoloAzienda, puoScegliereSettore } from "@/lib/auth/ruoloAzienda";
 import { usePermissions, type Permissions } from "@/hooks/usePermissions";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
-import { useFeatureFlags } from "@/hooks/useFeatureFlags";
+import { useStatoPiano } from "@/hooks/useStatoPiano";
 import { useBranding } from "@/hooks/useBranding";
 import { useBrandSettings } from "@/hooks/useBrandSettings";
 import { applyBrandTheme, clearBrandTheme } from "@/lib/brandTheme";
@@ -18,7 +18,6 @@ import { PoweredByBadge } from "@/components/shared/PoweredByBadge";
 import { SchedaPassaggioChiamata } from "@/components/telephony/SchedaPassaggioChiamata";
 import { SubscriptionBanner } from "@/components/layouts/SubscriptionBanner";
 import { OfflineBanner } from "@/components/ui/OfflineBanner";
-import { isDemoCompanyId } from "@/lib/constants/demoCompany";
 import { useImpersonationClientView, setImpersonationClientView } from "@/hooks/useImpersonationView";
 import { 
   HeadphonesIcon,
@@ -89,6 +88,7 @@ import {
 } from "@/components/ui/sidebar";
 import { NavLink } from "@/components/NavLink";
 import { GRUPPI_IMPOSTAZIONI, percorsoNelGruppo, schedeVisibili, type GruppoImpostazioni } from "@/lib/impostazioni/gruppiImpostazioni";
+import { impostazioneNelPiano, type StatoPiano } from "@/lib/impostazioni/pianoImpostazioni";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Suspense, useMemo, useState, useEffect, useRef, useCallback, memo } from "react";
 import { SupportChatSheet } from "@/components/layouts/SupportChatSheet";
@@ -293,11 +293,6 @@ const SCOPRI_LOCKED_ROUTES = [
   "/azienda/agenti-ai",
   "/azienda/automazioni",
 ];
-
-// FULL_PLAN_SLUGS: fallback hardcoded usato se `subscription_plans.is_full_plan`
-// non è ancora popolato (backward compat per ambienti pre-migration).
-// Fonte di verità preferita: `currentPlan.is_full_plan === true`.
-const FULL_PLAN_SLUGS = new Set(["starter", "pro", "enterprise"]);
 
 // Aree permesse in vista commercialista: tutto tranne Marketing, Automazioni
 // e Contenuti (richiesta utente — il commercialista vede ciò che serve allo
@@ -760,11 +755,11 @@ interface SettingsNavGroup {
 /** Costruisce i gruppi della sidebar impostazioni in base ai permessi.
  *  Il primo gruppo "Il mio account" è sempre visibile a tutti i ruoli.
  *  I gruppi aziendali sono visibili solo se l'utente ha i permessi necessari. */
-function buildSettingsGroups(isAdmin: boolean, permissions: Permissions): SettingsNavGroup[] {
+function buildSettingsGroups(isAdmin: boolean, permissions: Permissions, piano: StatoPiano): SettingsNavGroup[] {
   // Una voce per argomento: dentro, le schede delle pagine (vedi SettingsLayout).
   const voceGruppo = (id: GruppoImpostazioni["id"], icon: React.ReactNode): SettingsNavItem => {
     const gruppo = GRUPPI_IMPOSTAZIONI.find((g) => g.id === id)!;
-    const schede = schedeVisibili(gruppo, isAdmin, permissions);
+    const schede = schedeVisibili(gruppo, isAdmin, permissions).filter((s) => impostazioneNelPiano(s.to, piano));
     return {
       to: schede[0]?.to ?? gruppo.schede[0].to,
       label: gruppo.titolo,
@@ -884,7 +879,12 @@ function buildSettingsGroups(isAdmin: boolean, permissions: Permissions): Settin
         { to: "/azienda/impostazioni/fatturazione", label: "Fatturazione", icon: <FileText className="h-4 w-4" />, visible: isAdmin },
       ],
     },
-  ];
+  ].map((gruppo) => ({
+    ...gruppo,
+    // Le impostazioni seguono il piano (21/09/2026): una voce resta solo se
+    // oltre al permesso c'è anche il modulo. Vedi pianoImpostazioni.ts.
+    items: gruppo.items.map((voce) => ({ ...voce, visible: voce.visible && impostazioneNelPiano(voce.to, piano) })),
+  }));
 }
 
 /** Sidebar impostazioni: 9 gruppi + barra di ricerca fuzzy */
@@ -899,10 +899,11 @@ const SettingsSidebarContent = memo(function SettingsSidebarContent({
 }) {
   const [query, setQuery] = useState("");
   const { pathname } = useLocation();
+  const { stato: piano } = useStatoPiano();
 
   const allGroups = useMemo(
-    () => buildSettingsGroups(isAdmin, permissions),
-    [isAdmin, permissions]
+    () => buildSettingsGroups(isAdmin, permissions, piano),
+    [isAdmin, permissions, piano]
   );
 
   // Filtra gruppi per ricerca: se query vuota mostra tutto, altrimenti filtra per label
@@ -999,50 +1000,26 @@ const SettingsSidebarContent = memo(function SettingsSidebarContent({
 
 const CompanySidebar = memo(function CompanySidebar() {
   const isMobile = useIsMobile();
-  const { signOut, effectiveCompany, profile, isImpersonating, exitImpersonation, role, userRoles, multiCompanyAccesses, viewAsRole } = useAuth();
+  const { signOut, effectiveCompany, profile, isImpersonating, exitImpersonation, role, userRoles, multiCompanyAccesses } = useAuth();
   const hasMultipleCompanies = (multiCompanyAccesses?.length ?? 0) > 1;
   // usePermissions è già "viewAs-aware": quando `viewAsRole` è attivo
   // restituisce i permessi REALI dell'utente target (letti da staff_permissions),
   // così la sidebar riflette esattamente quello che vedrebbe quell'utente.
   const permissions = usePermissions();
-  const { isModuleEnabled, isScopriPlan, currentPlan, isLoading: limitsLoading } = useSubscriptionLimits({ includeUsageCounts: false });
-  const { isFeaturePreview, getFeatureAccessLevel, isLoading: flagsLoading } = useFeatureFlags();
-
-  // v8.6.102 — Super-admin bypass per badge DEMO.
-  // Bug fix: durante il bootstrap impersonation, il super_admin vedeva per
-  // 1-3 sec badge "DEMO" sulla sidebar perché isImpersonationReady arrivava
-  // dopo. Per super_admin il bypass dei badge è SEMPRE attivo:
-  // — non opera mai realmente come "limited user" sulla UI
-  // — bypass effettivo a livello DB resta gestito da useFeatureFlags.bypass
-  //   che richiede isImpersonationReady, quindi nessun leak privilege
-  // ECCEZIONE "Vista cliente" (toggle nel banner impersonation, default ON):
-  // il super admin vuole verificare COSA VEDE il piano del cliente → in quel
-  // caso la sidebar deve rendere badge/moduli esattamente come per il cliente.
-  // Con "Visualizza come utente" (viewAsRole) la vista cliente è FORZATA:
-  // "loggato come Daniela" = pixel-perfect ciò che vede Daniela.
-  const impersonationClientView = useImpersonationClientView() || !!viewAsRole;
-  const isSuperAdminViewer = role === "super_admin" && !(isImpersonating && impersonationClientView);
-
-  // Demo Azienda S.r.l. = company-vetrina interna. Bypassa DEMO badges così
-  // la sidebar appare full-feature anche se il piano DB è parziale (è il caso
-  // reference che support/onboarding usano come "come dovrebbe apparire").
-  const isDemoBaseline = isDemoCompanyId(effectiveCompany?.id);
-
-  // "Piano full": fonte di verità è la colonna DB `subscription_plans.is_full_plan`.
-  // Fallback su `FULL_PLAN_SLUGS` hardcoded se il campo DB non è popolato
-  // (ambienti pre-migration). Aggiungere un nuovo piano "premium" ora richiede
-  // solo `UPDATE subscription_plans SET is_full_plan=true WHERE slug='premium'`
-  // → nessun deploy frontend.
-  const planIsFullFlag = (currentPlan as { is_full_plan?: boolean } | null | undefined)?.is_full_plan === true;
-  const isFullBySlug = !!currentPlan?.slug && FULL_PLAN_SLUGS.has(currentPlan.slug);
-  const isFullPlan = planIsFullFlag || isFullBySlug;
-
-  // "Piano limitato": ha un piano attivo che NON è full.
-  // - Trial / no plan → fail-open in filterNavItems (gestito separatamente)
-  // - Demo Azienda / super_admin → bypass dedicato
-  // - Full plan → tutto abilitato
-  // - Tutti gli altri (free/scopri/custom/team/etc.) → limited → DEMO badge
-  const isLimitedPlan = !isSuperAdminViewer && !isDemoBaseline && !!currentPlan && !isFullPlan;
+  // Le regole del piano (super admin, azienda demo, piano completo o limitato)
+  // stanno in useStatoPiano: le stesse valgono per le impostazioni.
+  const {
+    isModuleEnabled,
+    isScopriPlan,
+    currentPlan,
+    limitsLoading,
+    isFeaturePreview,
+    getFeatureAccessLevel,
+    flagsLoading,
+    isSuperAdminViewer,
+    isDemoBaseline,
+    isLimitedPlan,
+  } = useStatoPiano();
 
   /** Modulo in modalità demo: non incluso ma piano è "limited" (o no plan) → preview. */
   const isModuleDemo = (moduleKey: string): boolean => {
