@@ -36,6 +36,24 @@ import {
 
 // ─── Tipi del data context ────────────────────────────────────────────────
 
+/** Le foto di serie del documento: file in public/pdf-stock/fotovoltaico del sito. */
+export const FOTO_DI_SERIE_FV = {
+  alberi: "co2-alberi.jpg",
+  voli: "co2-voli.jpg",
+  auto: "co2-auto.jpg",
+  bosco: "co2-bosco.jpg",
+  installatori: "fasi-installatori.jpg",
+  impianto: "investimento-impianto.jpg",
+} as const;
+
+/** Gli indirizzi delle foto di serie a partire dall'origine del sito (anteprime dell'editor). */
+export function fotoDiSerieDalSito(origine: string): Record<keyof typeof FOTO_DI_SERIE_FV, string> {
+  const base = `${origine.replace(/\/+$/, "")}/pdf-stock/fotovoltaico`;
+  return Object.fromEntries(
+    Object.entries(FOTO_DI_SERIE_FV).map(([chiave, file]) => [chiave, `${base}/${file}`]),
+  ) as Record<keyof typeof FOTO_DI_SERIE_FV, string>;
+}
+
 export interface FvPdfTemplateData {
   azienda: {
     name: string;
@@ -147,6 +165,16 @@ export interface FvPdfTemplateData {
    *  dati: servono a dire quanto cambia l'accumulo con numeri veri. Assenti nelle
    *  anteprime con dati finti: allora la frase non ne stampa. */
   flows_senza_accumulo?: FvFlows | null;
+  /** Le foto di serie del documento (public/pdf-stock/fotovoltaico), già incorporate
+   *  dal generatore come data URI. Una che manca: quella pagina usa il disegno di prima. */
+  foto_di_serie?: {
+    alberi?: string | null;
+    voli?: string | null;
+    auto?: string | null;
+    bosco?: string | null;
+    installatori?: string | null;
+    impianto?: string | null;
+  } | null;
   componenti: Array<{
     articolo_id?: string | null;
     categoria: string;
@@ -530,6 +558,28 @@ table .saving-zero { color: #64748B; }
 .macro-pill-row { display: flex; gap: 2mm; flex-wrap: wrap; margin-top: 4mm; }
 .macro-pill { border-radius: 999px; background: #FFEDD5; color: #C2410C; font-size: 7.5pt; font-weight: 700; padding: 1.2mm 2.6mm; }
 
+/* La CO₂ con le foto: la fascia del bosco con le tonnellate, poi tre riquadri. */
+.co2-foto { position: relative; border-radius: 12px; overflow: hidden; height: 60mm; margin: 4mm 0 3mm; }
+.co2-foto img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.co2-foto::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(8,28,18,0.78) 0%, rgba(8,28,18,0.42) 55%, rgba(8,28,18,0.08) 100%); }
+.co2-foto-testo { position: relative; z-index: 1; height: 100%; display: flex; flex-direction: column; justify-content: center; padding: 0 9mm; color: #FFFFFF; }
+.co2-foto-testo .etichetta { font-size: 7.5pt; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; opacity: 0.92; }
+.co2-foto-testo .valore { font-family: 'Outfit', sans-serif; font-size: 40pt; font-weight: 800; line-height: 1; letter-spacing: -0.02em; margin: 2mm 0 2.5mm; }
+.co2-foto-testo .sub { font-size: 9pt; opacity: 0.92; max-width: 100mm; line-height: 1.45; }
+.co2-carte { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4mm; }
+.co2-carta { border: 1px solid #E2E8F0; border-radius: 10px; overflow: hidden; background: #FFFFFF; }
+.co2-carta img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; }
+.co2-carta .corpo { padding: 3mm 3.5mm 3.5mm; }
+.co2-carta .num { font-family: 'Outfit', sans-serif; font-size: 20pt; font-weight: 800; color: #16A34A; line-height: 1; }
+.co2-carta .cosa { font-size: 7.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #64748B; margin-top: 1mm; }
+.co2-carta .desc { font-size: 8pt; color: #475569; margin-top: 1.2mm; line-height: 1.4; }
+/* La fascia foto delle pagine con i contenuti variabili (fasi, investimento):
+   prende solo lo spazio che resta, fino a 64 mm; sotto i 34 mm la foto non esce.
+   Così una pagina piena non sborda mai per colpa di una foto. */
+/* Lo stacco sopra la foto sta dentro la fascia: a zero, la fascia non occupa niente. */
+.content > .foto-fascia { flex: 1 1 0; min-height: 0; max-height: 69mm; container-type: size; }
+.foto-fascia img { display: block; width: 100%; height: calc(100% - 5mm); margin-top: 4mm; object-fit: cover; border-radius: 12px; }
+@container (max-height: 39mm) { .foto-fascia img { display: none; } }
 .eq-row { display: grid; grid-template-columns: 26mm 1fr; gap: 4mm; align-items: center; padding: 3mm 4mm; background: white; border: 1px solid #E2E8F0; border-radius: 8px; margin-bottom: 2.2mm; }
 .eq-row .eq-num { font-family: 'Outfit', sans-serif; font-size: 20pt; font-weight: 800; color: #16A34A; line-height: 1; text-align: center; }
 .eq-row .eq-num small { display: block; font-size: 7.5pt; color: #64748B; font-weight: 600; margin-top: 0.5mm; text-transform: uppercase; letter-spacing: 0.05em; }
@@ -1059,6 +1109,7 @@ function pageInvestimento(d: FvPdfTemplateData, pageN: number, total: number): s
         ${inclusi.slice(0, 10).map((i) => `<li>${escHtml(i)}</li>`).join("")}
         ${altriInclusi > 0 ? `<li>e altre ${altriInclusi} voci del preventivo</li>` : ""}
       </ul>` : ""}
+      ${d.foto_di_serie?.impianto ? `<div class="foto-fascia"><img src="${d.foto_di_serie.impianto}" alt="" /></div>` : ""}
       ${d.costi.detrazione_eur > 0 ? `<div class="callout callout-success">
         <span class="callout-icon">✓</span>
         <div><strong>Detrazione fiscale ${d.costi.detrazione_perc}% — recuperi ${fmtEur(d.costi.detrazione_eur)} in 10 anni.</strong>
@@ -1575,13 +1626,32 @@ function pageCO2(d: FvPdfTemplateData, pageN: number, total: number): string {
   const treesIcons = filaDiPittogrammi("albero", Math.min(20, Math.round(co2.alberi_anno / 8)));
   const flightsIcons = filaDiPittogrammi("volo", Math.min(20, co2.voli_anno));
   const carsIcons = filaDiPittogrammi("auto", Math.min(10, Math.round(co2.km_auto_anno / 2500)));
+  // Un paragone calcolato sul numero vero: prima c'era scritto a tutti «quasi un
+  // giro del mondo all'anno», anche con 19.700 km (mezzo giro).
+  const viaggiMilanoRoma = Math.round(co2.km_auto_anno / 575);
+  const paragoneKm = viaggiMilanoRoma >= 1 ? ` Come ${fmtNum(viaggiMilanoRoma)} ${viaggiMilanoRoma === 1 ? "viaggio" : "viaggi"} Milano–Roma.` : "";
+  const foto = d.foto_di_serie;
+  const conFoto = Boolean(foto?.alberi && foto?.voli && foto?.auto && foto?.bosco);
   return `<div class="page">
     ${header(d.progetto.numero, cliente, d.azienda.name)}
     <div class="content">
       <div class="eyebrow">L'impatto sul pianeta</div>
       <h1 class="page-title">${fmtNum(co2.ton_co2_anno, 2)} t di CO<sub>2</sub><br/>in meno ogni anno.</h1>
       <p class="page-subtitle">Il tuo impianto è un bosco a casa tua. Ecco cosa significa, in modo concreto.</p>
-      <div class="kpi-big" style="text-align:center;padding:8mm;margin:4mm 0;">
+      ${conFoto ? `<div class="co2-foto">
+        <img src="${foto!.bosco}" alt="" />
+        <div class="co2-foto-testo">
+          <div class="etichetta">CO₂ evitata in 25 anni</div>
+          <div class="valore">${fmtNum(co2.ton_co2_totale, 1)} tonnellate</div>
+          <div class="sub">${fmtNum(co2.kg_co2_anno)} kg ogni anno: come una piccola foresta nel tuo cortile.</div>
+        </div>
+      </div>
+      <h3 style="font-size:11pt;color:#1E3A5F;margin:3mm 0 2mm;">Ciò corrisponde, ogni anno, a:</h3>
+      <div class="co2-carte">
+        <div class="co2-carta"><img src="${foto!.alberi}" alt="" /><div class="corpo"><div class="num">${fmtNum(co2.alberi_anno)}</div><div class="cosa">Alberi</div><div class="desc">che assorbono la stessa CO₂: un albero medio ne assorbe circa 25 kg l'anno.</div></div></div>
+        <div class="co2-carta"><img src="${foto!.voli}" alt="" /><div class="corpo"><div class="num">${fmtNum(co2.voli_anno)}</div><div class="cosa">Voli evitati</div><div class="desc">Milano–Maiorca, in CO₂: un volo breve in Europa ne emette circa 200 kg.</div></div></div>
+        <div class="co2-carta"><img src="${foto!.auto}" alt="" /><div class="corpo"><div class="num">${fmtNum(co2.km_auto_anno)}</div><div class="cosa">Km in auto</div><div class="desc">non percorsi con un'auto a benzina (circa 150 g di CO₂ al km).${paragoneKm}</div></div></div>
+      </div>` : `<div class="kpi-big" style="text-align:center;padding:8mm;margin:4mm 0;">
         <div class="kbig-label" style="margin-bottom:2mm;">CO₂ evitata in 25 anni</div>
         <div class="kbig-value" style="font-size:42pt;">${fmtNum(co2.ton_co2_totale, 1)} tonnellate</div>
         <div class="kbig-sub" style="font-size:9pt;margin-top:2mm;">${fmtNum(co2.kg_co2_anno)} kg/anno · pari a una piccola foresta nel tuo cortile</div>
@@ -1589,7 +1659,7 @@ function pageCO2(d: FvPdfTemplateData, pageN: number, total: number): string {
       <h3 style="font-size:11pt;color:#1E3A5F;margin:4mm 0 2mm;">Ciò corrisponde a (ogni anno):</h3>
       <div class="eq-row"><div class="eq-num">${fmtNum(co2.alberi_anno)}<small>Alberi</small></div><div><div class="eq-icons">${treesIcons}</div><div class="eq-desc">Una piccola foresta che assorbe la stessa CO₂. Ogni albero medio assorbe ~25 kg di CO₂ all'anno.</div></div></div>
       <div class="eq-row"><div class="eq-num">${fmtNum(co2.voli_anno)}<small>Voli</small></div><div><div class="eq-icons">${flightsIcons}</div><div class="eq-desc">Voli evitati Milano → Maiorca, in equivalenza CO₂. Un volo medio EU breve emette ~200 kg di CO₂.</div></div></div>
-      <div class="eq-row"><div class="eq-num">${fmtNum(co2.km_auto_anno)}<small>Km auto</small></div><div><div class="eq-icons">${carsIcons}</div><div class="eq-desc">Chilometri non percorsi con un'auto a benzina (~150 g CO₂/km). Quasi un giro del mondo all'anno.</div></div></div>
+      <div class="eq-row"><div class="eq-num">${fmtNum(co2.km_auto_anno)}<small>Km auto</small></div><div><div class="eq-icons">${carsIcons}</div><div class="eq-desc">Chilometri non percorsi con un'auto a benzina (~150 g CO₂/km).${paragoneKm}</div></div></div>`}
       <div class="callout callout-success">
         <span class="callout-icon">✓</span>
         <div><strong>Energia pulita, prodotta sul tuo tetto.</strong>
@@ -1710,6 +1780,9 @@ function pageIter(d: FvPdfTemplateData, pageN: number, total: number): string {
   const customTimeline = customCrono
     .map((c) => `<div class="tl-item"><div class="tl-day">${escHtml(c.durata || "—")}</div><div class="tl-title">${escHtml(c.fase)}</div>${c.descrizione ? `<div class="tl-desc">${escHtml(c.descrizione)}</div>` : ""}</div>`)
     .join("");
+  // Con più di sei fasi i servizi non stanno anche qui: la pagina sbordava e il
+  // fondo si tagliava. Restano elencati nella pagina dell'investimento («Cosa è incluso»).
+  const quanteFasi = customCrono.length > 0 ? customCrono.length : fasiStandard.length;
   return `<div class="page">
     ${header(d.progetto.numero, cliente, d.azienda.name)}
     <div class="content">
@@ -1720,7 +1793,8 @@ function pageIter(d: FvPdfTemplateData, pageN: number, total: number): string {
       <div class="tl">
         ${customCrono.length > 0 ? customTimeline : defaultTimeline}
       </div>
-      ${renderServiziInclusi(d)}
+      ${quanteFasi <= 6 ? renderServiziInclusi(d) : ""}
+      ${d.foto_di_serie?.installatori ? `<div class="foto-fascia"><img src="${d.foto_di_serie.installatori}" alt="" style="object-position:center 55%;" /></div>` : ""}
       <div class="callout callout-success">
         <span class="callout-icon">✓</span>
         <div><strong>Tu firmi una volta sola.</strong>

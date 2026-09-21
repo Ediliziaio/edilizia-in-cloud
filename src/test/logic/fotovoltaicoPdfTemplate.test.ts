@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
+  FOTO_DI_SERIE_FV,
+  fotoDiSerieDalSito,
   getFvPdfRenderedPagesCount,
   normalizeFvPdfPagesOrder,
   renderFvPdfHtml,
@@ -649,6 +651,65 @@ describe("fotovoltaico PDF — l'accumulo con numeri calcolati", () => {
     const src = readFileSync(resolve(process.cwd(), "supabase/functions/fv-genera-pdf/index.ts"), "utf8");
     expect(src).toContain("calcolaEnergyFlows({ ...ingressiFlussi, has_accumulo: false, capacita_accumulo_kwh: 0 })");
     expect(src).toContain("flows_senza_accumulo: flowsSenzaAccumulo,");
+  });
+});
+
+// 21/09/2026 — Le foto di serie del documento (fatte da Florin): la CO₂ con il bosco
+// e tre riquadri, gli installatori nelle fasi, l'impianto nell'investimento.
+describe("fotovoltaico PDF — le foto di serie", () => {
+  const conFoto = (): FvPdfTemplateData => ({ ...basePdfData(), foto_di_serie: fotoDiSerieDalSito("https://app.esempio.test") });
+  const pagina = (html: string, occhiello: string) => {
+    const i = html.indexOf(`<div class="eyebrow">${occhiello}</div>`);
+    return html.slice(i, html.indexOf('<div class="page">', i));
+  };
+
+  it("i file stanno nel sito, uno per ogni foto", () => {
+    for (const file of Object.values(FOTO_DI_SERIE_FV)) {
+      expect(existsSync(resolve(process.cwd(), "public/pdf-stock/fotovoltaico", file))).toBe(true);
+    }
+  });
+
+  it("con le foto: la CO₂ ha il bosco e tre riquadri, fasi e investimento la loro fascia", () => {
+    const html = renderFvPdfHtml(conFoto());
+    const co2 = pagina(html, "L'impatto sul pianeta");
+    expect(co2).toContain('class="co2-foto"');
+    expect(co2).toContain("co2-bosco.jpg");
+    expect(co2.match(/class="co2-carta"/g)?.length).toBe(3);
+    expect(co2).not.toContain('class="eq-row"');
+    expect(pagina(html, "Iter pratiche")).toContain("fasi-installatori.jpg");
+    expect(pagina(html, "L'investimento")).toContain("investimento-impianto.jpg");
+  });
+
+  it("senza foto (o con una che manca) le pagine restano quelle di prima", () => {
+    const d = conFoto();
+    d.foto_di_serie = { ...d.foto_di_serie, voli: null };
+    const co2 = pagina(renderFvPdfHtml(d), "L'impatto sul pianeta");
+    expect(co2).toContain('class="eq-row"');
+    expect(co2).not.toContain('class="co2-carta"');
+    const nessuna = renderFvPdfHtml(basePdfData());
+    expect(nessuna).not.toContain('class="foto-fascia"');
+  });
+
+  it("i chilometri in auto hanno un paragone calcolato, non «quasi un giro del mondo» per tutti", () => {
+    const html = renderFvPdfHtml(conFoto());
+    expect(html).not.toContain("giro del mondo");
+    expect(html).toMatch(/Come [\d.]+ viaggi Milano–Roma\./);
+  });
+
+  it("con più di sei fasi i servizi non si ripetono nella pagina delle fasi (restano nell'investimento)", () => {
+    const d = conFoto();
+    d.servizi = [{ descrizione: "Pratiche GSE e Comune", quantita: 1 }];
+    d.template = { ...d.template, cronoprogramma: Array.from({ length: 7 }, (_, i) => ({ fase: `Fase ${i + 1}`, durata: "1 settimana", descrizione: "" })) };
+    const html = renderFvPdfHtml(d);
+    expect(pagina(html, "Iter pratiche")).not.toContain("Servizi inclusi nella proposta");
+    expect(pagina(html, "L'investimento")).toContain("Pratiche GSE e Comune");
+  });
+
+  it("il generatore incorpora solo risposte che sono immagini", () => {
+    const src = readFileSync(resolve(process.cwd(), "supabase/functions/fv-genera-pdf/index.ts"), "utf8");
+    expect(src).toContain('return dati?.startsWith("data:image/") ? dati : null;');
+    expect(src).toContain("fotoDiSerie(FOTO_DI_SERIE_FV.alberi)");
+    expect(src).toContain("foto_di_serie: {");
   });
 });
 

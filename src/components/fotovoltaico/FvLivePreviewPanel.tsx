@@ -15,6 +15,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Eye, ExternalLink, ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
+  fotoDiSerieDalSito,
   renderFvPdfHtml,
   type FvPdfTemplateData,
 } from "../../../supabase/functions/_shared/fvHtmlTemplate";
@@ -44,6 +45,8 @@ function demoBase(): FvPdfTemplateData {
     flows: { produzione_kwh: 7400, autoconsumo_kwh: 4200, ceduto_rete_kwh: 3200, prelievo_rete_kwh: 900, autoconsumo_pct: 0.57, autosufficienza_pct: 0.78, consumo_da_rete_pct: 0.22, consumo_da_fv_pct: 0.78 },
     // Gli stessi dati senza batteria (profilo misto: 35% della produzione).
     flows_senza_accumulo: { produzione_kwh: 7400, autoconsumo_kwh: 2590, ceduto_rete_kwh: 4810, prelievo_rete_kwh: 2510, autoconsumo_pct: 0.35, autosufficienza_pct: 0.51, consumo_da_rete_pct: 0.49, consumo_da_fv_pct: 0.51 },
+    // Le foto di serie del documento, dal sito stesso: come le vedrà il cliente.
+    foto_di_serie: typeof window !== "undefined" ? fotoDiSerieDalSito(window.location.origin) : null,
     componenti: [
       { categoria: "pannello", descrizione: "Pannello 500 W", marca: "—", modello: "PV500", quantita: 12, potenza_w: 500, garanzia_anni: 25 },
       { categoria: "inverter", descrizione: "Inverter ibrido 6 kW", marca: "—", modello: "INV6", quantita: 1, garanzia_anni: 10 },

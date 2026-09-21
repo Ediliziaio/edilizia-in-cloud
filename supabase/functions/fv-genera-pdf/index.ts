@@ -36,6 +36,7 @@ import { aziendaAccessibile, requireAuth, requireCompanyAccess } from "../_share
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import {
   getFvPdfRenderedPagesCount,
+  FOTO_DI_SERIE_FV,
   renderFvPdfHtml,
   type FvPdfTemplateData,
 } from "../_shared/fvHtmlTemplate.ts";
@@ -366,6 +367,23 @@ Deno.serve(async (req: Request) => {
       }),
     );
 
+    // ── Foto di serie del documento ────────────────────────────────────────
+    // CO₂ (alberi, voli, auto, bosco), fasi (installatori) e investimento
+    // (inverter e batteria): stanno nel sito, in public/pdf-stock/fotovoltaico, e
+    // si incorporano come le altre immagini, così il documento resta completo anche
+    // aperto senza rete. Solo risposte che sono davvero immagini: per un file che
+    // manca il sito risponde con la sua pagina HTML, e quella non va nel PDF. Una
+    // foto che non arriva lascia la pagina col disegno di prima.
+    const baseFotoDiSerie = `${(Deno.env.get("APP_URL") ?? "https://app.ediliziaincloud.com").replace(/\/+$/, "")}/pdf-stock/fotovoltaico`;
+    const fotoDiSerie = async (file: string): Promise<string | null> => {
+      const dati = await urlToB64(`${baseFotoDiSerie}/${file}`);
+      return dati?.startsWith("data:image/") ? dati : null;
+    };
+    const [fotoAlberi, fotoVoli, fotoAuto, fotoBosco, fotoInstallatori, fotoImpianto] = await Promise.all([
+      fotoDiSerie(FOTO_DI_SERIE_FV.alberi), fotoDiSerie(FOTO_DI_SERIE_FV.voli), fotoDiSerie(FOTO_DI_SERIE_FV.auto),
+      fotoDiSerie(FOTO_DI_SERIE_FV.bosco), fotoDiSerie(FOTO_DI_SERIE_FV.installatori), fotoDiSerie(FOTO_DI_SERIE_FV.impianto),
+    ]);
+
     // ── Calcoli aggregati ──────────────────────────────────────────────────
     const ingressiFlussi = {
       potenza_kwp: Number(prog.potenza_kwp) || 0,
@@ -668,6 +686,10 @@ Deno.serve(async (req: Request) => {
       },
       flows,
       flows_senza_accumulo: flowsSenzaAccumulo,
+      foto_di_serie: {
+        alberi: fotoAlberi, voli: fotoVoli, auto: fotoAuto,
+        bosco: fotoBosco, installatori: fotoInstallatori, impianto: fotoImpianto,
+      },
       componenti: componentRows.map((c: Record<string, unknown>) => {
         const articoloId = firstString(c.articolo_id);
         const articolo = articoloId ? articoliById.get(articoloId) ?? null : null;

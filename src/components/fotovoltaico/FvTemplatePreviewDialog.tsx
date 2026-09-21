@@ -15,6 +15,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  fotoDiSerieDalSito,
   renderFvPdfHtml,
   type FvPdfTemplateData,
 } from "../../../supabase/functions/_shared/fvHtmlTemplate";
@@ -107,6 +108,8 @@ function demoBase(): FvPdfTemplateData {
       consumo_da_rete_pct: 0.49,
       consumo_da_fv_pct: 0.51,
     },
+    // Le foto di serie del documento, dal sito stesso: come le vedrà il cliente.
+    foto_di_serie: typeof window !== "undefined" ? fotoDiSerieDalSito(window.location.origin) : null,
     componenti: [
       {
         categoria: "pannello",
