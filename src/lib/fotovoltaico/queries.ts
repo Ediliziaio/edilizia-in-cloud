@@ -1015,33 +1015,3 @@ export function useServiziCatalogo() {
   });
 }
 
-// ─── Hook feature flag per gating ──────────────────────────────────────────
-/**
- * @deprecated dal 2026-04-27: il flag aziendale è ora `modulo_fotovoltaico_attivo`
- * risolto via `resolve_company_feature` (vedi `useFeatureAccess`). Questo hook
- * resta come wrapper di compatibilità per `fv_setup_completato` (campo locale
- * che NON è una feature flag) e ritorna `attivo` leggendo la colonna legacy
- * `companies.fv_modulo_attivo` finché non viene rimossa fisicamente.
- *
- * Nuovi consumer: usare `useFeatureAccess("modulo_fotovoltaico_attivo")`.
- */
-export function useFvModuloAttivo() {
-  const companyIdFromContext = useEffectiveCompanyId();
-  return useQuery({
-    queryKey: ["fv", "modulo-attivo", companyIdFromContext ?? "no-company"],
-    enabled: Boolean(companyIdFromContext),
-    queryFn: async (): Promise<{ attivo: boolean; setup_completato: boolean }> => {
-      const { data, error } = await supabase
-        .from("companies" as never)
-        .select("fv_modulo_attivo, fv_setup_completato")
-        .eq("id", companyIdFromContext as string)
-        .maybeSingle();
-      if (error) throw error;
-      const row = data as { fv_modulo_attivo: boolean; fv_setup_completato: boolean } | null;
-      return {
-        attivo: row?.fv_modulo_attivo ?? false,
-        setup_completato: row?.fv_setup_completato ?? false,
-      };
-    },
-  });
-}

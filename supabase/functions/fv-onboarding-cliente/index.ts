@@ -149,34 +149,28 @@ Deno.serve(async (req: Request) => {
       return errorResponse("Company non identificata", 403, corsHeaders);
     }
 
-    // Verifica accesso al modulo Fotovoltaico.
-    // FONTE DI VERITÀ = il feature flag moderno `modulo_fotovoltaico_attivo`
-    // (resolve_company_feature), lo STESSO che usa il frontend
-    // (useFeatureAccess) per mostrare il modulo. La vecchia colonna
-    // `companies.fv_modulo_attivo` è deprecata dal 2026-04-27 (vedi
-    // src/lib/fotovoltaico/queries.ts): controllarla qui causava un 403 alle
-    // aziende con il modulo attivato solo col sistema nuovo (il menu lo mostra,
-    // ma il salvataggio veniva rifiutato — es. Suntech). Coerente con
-    // resolve_company_feature: accesso se access_level ≠ 'disabled'.
-    // Fallback alla colonna legacy per retrocompatibilità (aziende vecchie il
-    // cui accesso non è ancora migrato al catalogo flag).
-    let moduloAttivo = false;
+    // Verifica accesso al modulo Fotovoltaico. UNA fonte sola: la funzione di
+    // piano `modulo_fotovoltaico_attivo` (resolve_company_feature), la stessa
+    // che guardano la rotta della pagina, il menu e i moduli di vendita.
+    // Accesso se access_level ≠ 'disabled'/'hidden'.
+    // Fino al 21/09/2026 qui c'era anche il ripiego sulla vecchia colonna
+    // `companies.fv_modulo_attivo`: nessuna schermata la accende più, e le
+    // aziende che l'avevano accesa hanno tutte il modulo nel piano. Due fonti
+    // per la stessa cosa erano il motivo per cui la pagina diceva «contatta il
+    // team» a chi il modulo lo aveva (Renova, Best Infissi, Bagni Milano).
     const { data: featRows, error: featErr } = await supabaseAdmin.rpc("resolve_company_feature", {
       p_company_id: company_id,
       p_feature_key: "modulo_fotovoltaico_attivo",
     });
-    if (!featErr && Array.isArray(featRows) && featRows.length > 0) {
+    if (featErr) {
+      // Non sapere non vuol dire «non attivo»: si dice il vero e si riprova.
+      await logFunction(supabaseAdmin, "fv-onboarding-cliente", company_id, userId, null, payload, 503, `verifica modulo non riuscita: ${featErr.message}`, Date.now() - startTime);
+      return errorResponse("Non riesco a verificare il modulo Fotovoltaico: riprova tra poco", 503, corsHeaders);
+    }
+    let moduloAttivo = false;
+    if (Array.isArray(featRows) && featRows.length > 0) {
       const lvl = (featRows[0] as { access_level?: string }).access_level;
       moduloAttivo = lvl != null && lvl !== "disabled" && lvl !== "hidden";
-    }
-    if (!moduloAttivo) {
-      // Retrocompat: rispetta ancora la vecchia colonna se valorizzata true.
-      const { data: company } = await supabaseAdmin
-        .from("companies")
-        .select("fv_modulo_attivo")
-        .eq("id", company_id)
-        .maybeSingle();
-      moduloAttivo = company?.fv_modulo_attivo === true;
     }
     if (!moduloAttivo) {
       await logFunction(supabaseAdmin, "fv-onboarding-cliente", company_id, userId, null, payload, 403, "modulo fotovoltaico non attivo", Date.now() - startTime);

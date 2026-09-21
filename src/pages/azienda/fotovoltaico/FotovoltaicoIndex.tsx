@@ -42,9 +42,7 @@ import {
   useProgetti,
   useStatsAzienda,
   useEliminaProgetto,
-  useFvModuloAttivo,
 } from "@/lib/fotovoltaico/queries";
-import { resolveFvModuloIndexGate } from "@/lib/fotovoltaico/moduloAccess";
 import { importoPreventivoFv, type ImportoPreventivoFvInput } from "@/lib/fotovoltaico/importoPreventivo";
 
 /** Una bozza col prezzo a corpo mostrava 0 € finché non si ricalcolava. */
@@ -87,13 +85,17 @@ export default function FotovoltaicoIndex() {
   const companyId = useEffectiveCompanyId();
   const selBulk = useTableSelection();
 
-  const moduloQuery = useFvModuloAttivo();
-  const moduloGate = resolveFvModuloIndexGate({
-    data: moduloQuery.data,
-    isLoading: moduloQuery.isLoading,
-    isError: moduloQuery.isError,
-    fetchStatus: moduloQuery.fetchStatus,
-  });
+  // Chi può usare il modulo lo decide UNA cosa sola: la funzione di piano
+  // `modulo_fotovoltaico_attivo`, controllata dalla rotta (FeatureRoute in
+  // companyRoutes.tsx) — la stessa che guardano il menu, la scheda nei moduli
+  // di vendita, i preventivi dell'opportunità e il salvataggio del progetto.
+  // Fino al 21/09/2026 questa pagina guardava ANCHE due colonne vecchie
+  // dell'azienda, che nessuna schermata accende più: `fv_modulo_attivo`
+  // bloccava con «contatta il team» chi aveva il modulo nel piano (Renova,
+  // Best Infissi, Bagni Milano), e `fv_setup_completato` mostrava il
+  // benvenuto AL POSTO dell'elenco a chi di progetti ne aveva già (Green
+  // Energy 18, Suntech 7). Il caso «nessun progetto ancora» lo gestisce
+  // l'elenco qui sotto.
   const progettiQuery = useProgetti();
   const progetti = useMemo(() => progettiQuery.data ?? [], [progettiQuery.data]);
   const { data: stats } = useStatsAzienda();
@@ -115,80 +117,6 @@ export default function FotovoltaicoIndex() {
       return true;
     });
   }, [progetti, search, filtroStato, filtroArchetipo]);
-
-  if (moduloGate.showLoading) {
-    return (
-      <div className="flex items-center justify-center py-20 text-slate-500">
-        Caricamento modulo Fotovoltaico…
-      </div>
-    );
-  }
-
-  // Modulo non attivo per questa azienda
-  if (moduloGate.showInactive) {
-    return (
-      <div className="max-w-3xl mx-auto py-12 px-4">
-        <FvCard>
-          <div className="py-12 text-center space-y-4">
-            <Sun className="h-16 w-16 mx-auto text-amber-500" />
-            <h2 className="text-2xl font-bold text-slate-900">Modulo Fotovoltaico</h2>
-            <p className="text-slate-500 max-w-md mx-auto">
-              Il modulo Fotovoltaico è una funzionalità avanzata disponibile su piano dedicato.
-              Permette di generare preventivi fotovoltaici completi (analisi tetto, calcolo
-              finanziario, PDF persuasivo) direttamente integrati con il tuo gestionale.
-            </p>
-            <p className="text-sm text-slate-500">
-              Contatta il team Edilizia in Cloud per attivarlo per la tua azienda.
-            </p>
-          </div>
-        </FvCard>
-      </div>
-    );
-  }
-
-  // Setup non completato — mostriamo onboarding inline (no dead link a /setup
-  // che non esiste). L'utente vede una checklist quickstart e può iniziare
-  // direttamente il primo progetto: il wizard guiderà nella configurazione.
-  if (moduloGate.showSetup) {
-    return (
-      <div className="max-w-3xl mx-auto py-12 px-4">
-        <FvCard>
-          <div className="py-10 text-center space-y-4">
-            <Sun className="h-16 w-16 mx-auto text-amber-500" />
-            <h2 className="text-2xl font-bold text-slate-900">
-              Benvenuto nel modulo Fotovoltaico!
-            </h2>
-            <p className="text-slate-500 max-w-lg mx-auto">
-              Tutto è pronto per iniziare. Crea il tuo primo progetto: il wizard ti guiderà
-              passo-passo dall'anagrafica cliente al PDF preventivo finale configurabile.
-            </p>
-          </div>
-          <div className="border-t border-slate-200 pt-5 mt-2">
-            <h3 className="text-sm font-bold text-slate-900 mb-3 text-center">Per ottenere il massimo dal modulo</h3>
-            <ul className="text-sm text-slate-600 space-y-2 max-w-lg mx-auto">
-              <li className="flex gap-2"><span className="text-emerald-500 font-bold">1.</span> Aggiungi i tuoi pannelli, inverter e accumuli in <Link to="/azienda/marketing/fotovoltaico/componenti" className="text-orange-600 underline">Componenti FV</Link> (puoi precompilarli dal listino già caricato).</li>
-              <li className="flex gap-2"><span className="text-emerald-500 font-bold">2.</span> Aggiungi le tue voci di manodopera in <Link to="/azienda/impostazioni/tariffe" className="text-orange-600 underline">Listino → Manodopera e servizi</Link> (vertical "fotovoltaico" o "generico").</li>
-              <li className="flex gap-2"><span className="text-emerald-500 font-bold">3.</span> Crea il primo progetto qui sotto. Tutto il resto si configura strada facendo.</li>
-            </ul>
-          </div>
-          <div className="text-center mt-6">
-            {canManagePreventivo && (
-              <Button
-                asChild
-                size="lg"
-                className="bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500 shadow-lg"
-              >
-                <Link to="/azienda/marketing/fotovoltaico/nuovo">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Crea il primo progetto
-                </Link>
-              </Button>
-            )}
-          </div>
-        </FvCard>
-      </div>
-    );
-  }
 
   const handleDelete = async (id: string, titolo: string) => {
     if (!confirm(`Annullare il progetto "${titolo}"? Sarà spostato in archivio.`)) return;
@@ -437,9 +365,26 @@ export default function FotovoltaicoIndex() {
                   Chiedi a un admin aziendale di creare il primo progetto.
                 </p>
               )}
-              <FvCallout variant="tip" title="Suggerimento" >
-                Inizia da un cliente esistente del CRM. Il modulo precompila contatti, indirizzo e
-                consumi se disponibili.
+              <FvCallout variant="tip" title="Per ottenere il massimo dal modulo" >
+                <ul className="space-y-1.5 text-left">
+                  <li>
+                    Aggiungi pannelli, inverter e accumuli in{" "}
+                    <Link to="/azienda/marketing/fotovoltaico/componenti" className="text-orange-600 underline">
+                      Componenti FV
+                    </Link>{" "}
+                    (puoi precompilarli dal listino già caricato).
+                  </li>
+                  <li>
+                    Aggiungi le voci di manodopera in{" "}
+                    <Link to="/azienda/impostazioni/tariffe" className="text-orange-600 underline">
+                      Listino → Manodopera e servizi
+                    </Link>.
+                  </li>
+                  <li>
+                    Parti da un cliente del CRM: il modulo precompila contatti, indirizzo e consumi
+                    se disponibili.
+                  </li>
+                </ul>
               </FvCallout>
             </div>
           </FvCard>
