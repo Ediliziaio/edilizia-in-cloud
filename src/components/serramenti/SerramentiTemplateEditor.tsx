@@ -30,6 +30,7 @@ import {
   Sparkles, ListChecks, Clock, Quote, Upload, Image as ImageIcon,
   Building2, Wand2, AlertTriangle, CheckCircle2,
 } from "lucide-react";
+import { CampoFotoModello } from "@/components/preventivi/CampoFotoModello";
 // Lazy load dei 3 sub-editor pesanti.
 // PERF: caricati on-demand quando la tab è attiva o il dialog si apre.
 // Risparmio: ~50 KB nel chunk principale dell'editor.
@@ -516,6 +517,13 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
     setForm((prev) => ({ ...prev, [key]: value }));
     setDirty(true);
   }, []);
+
+  // I blocchi del preventivo (come è fatto un serramento, protezione…) si
+  // modificano dall'ordine delle pagine. Callback stabili: l'editor delle pagine è memoizzato.
+  const aggiornaBlocchi = useCallback((v: Record<string, unknown>) => update("pdf_blocchi", v), [update]);
+  const campoFotoBlocco = useCallback((valore: string | null, onChange: (url: string | null) => void) => (
+    <CampoFotoModello valore={valore} onChange={onChange} bucket="sr-progetti" cartella={companyId ? `${companyId}/template-blocchi` : null} />
+  ), [companyId]);
 
   // Mappa il draft AI (13 campi generici) sui campi del template Serramenti.
   const applyGeneratedSr = useCallback((d: AiTemplateDraft) => {
@@ -3346,6 +3354,9 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                 <SerramentiPagesOrderEditor
                   value={form.pdf_pages_order ?? null}
                   onChange={(next) => update("pdf_pages_order", next)}
+                  blocchi={form.pdf_blocchi}
+                  onBlocchi={aggiornaBlocchi}
+                  campoFoto={campoFotoBlocco}
                 />
               </Suspense>
             </div>

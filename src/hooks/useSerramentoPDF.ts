@@ -19,6 +19,8 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { getTemplatePdf } from "@/lib/serramenti/api";
 import { toDataUrl } from "@/lib/serramenti/pdfImageUtils";
+import { blocchiAccesi, fotoDeiBlocchi } from "@/lib/pdf/fotoBlocchi";
+import { normalizePdfPagesOrder } from "@/types/serramenti";
 import { CAMPI_IMMAGINE_SERRAMENTI, firmaImmagine, firmaImmaginiModello } from "@/lib/storage/immaginiModelloPdf";
 import { COLONNE_SCHEDA_LINEA, comeSchedaLinea } from "@/hooks/useSchedeLinea";
 import {
@@ -641,6 +643,7 @@ async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEn
     inlinedCoverImage,
     lineeDedicate,
     mostraSconti,
+    fotoBlocchi,
   ] = await Promise.all([
     toDataUrl(template?.logo_url ?? company?.logo_url ?? null),
     toDataUrl(template?.chi_siamo_foto_url ?? null),
@@ -649,6 +652,8 @@ async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEn
     toDataUrl((template as any)?.pdf_cover_image_url ?? null),
     caricaLineeDedicate(companyId, detail),
     mostraScontiNelPdf(companyId),
+    // Le foto dei blocchi accesi (come è fatto un serramento, protezione…).
+    fotoDeiBlocchi("serramenti", template?.pdf_blocchi, blocchiAccesi(normalizePdfPagesOrder(template?.pdf_pages_order ?? null))),
   ]);
 
   // Applica i data URL pre-caricati ai rispettivi oggetti
@@ -658,6 +663,8 @@ async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEn
     chi_siamo_foto_url: inlinedChiSiamoFoto ?? template.chi_siamo_foto_url,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     pdf_cover_image_url: inlinedCoverImage ?? (template as any).pdf_cover_image_url,
+    // Non è un campo del modello: le foto dei blocchi già convertite (le legge SerramentoPDF).
+    pdf_blocchi_foto: fotoBlocchi,
   } : null;
   const inlinedCompany = company ? {
     ...company,

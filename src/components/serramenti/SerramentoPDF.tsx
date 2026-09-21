@@ -39,6 +39,10 @@ import { inchiostroSuBianco, testoSopra } from "@/lib/pdf/contrastoColori";
 import { coloreDelDocumento, fondoPerTestoBianco, scurisci, testoSuChiaro, testoSuScuro } from "../../../supabase/functions/_shared/temaColori";
 import { clausoleDaApprovare, condizioniStandard, MODULO_RECESSO, perArticoli, righeDaStampare, righeDelleCondizioni } from "../../../supabase/functions/_shared/condizioniStandard";
 import { testiPerPdf } from "../../../supabase/functions/_shared/testoPerPdf";
+import { leggiBlocco, PAGINE_BLOCCO, type ContenutoBlocco, type PaginaBlocco } from "../../../supabase/functions/_shared/blocchiPreventivo";
+import { IconaPdf } from "@/components/preventivi/pdf/IconaPdf";
+import { spezzaAccento } from "@/components/preventivi/pdf/testoDocumento";
+import { fotoPerIlPdf, type FotoBloccoPronta } from "@/lib/pdf/fotoBlocchi";
 import type {
   SerramentoPdfConsulente, SerramentoPdfFamilyData,
   SerramentoPdfMacroField, SerramentoPdfMacroPagina,
@@ -1559,6 +1563,73 @@ function PageHeader({ code, clienteNome, companyName, logoUrl, primaryColor, sty
   );
 }
 
+// ─── I blocchi della libreria: come è fatto un serramento, protezione… ───────
+// Testi e foto di serie per i serramenti (_shared/blocchiPreventivo.ts), con
+// sopra quello che l'azienda ha cambiato. Stesso disegno del documento edile:
+// una o due foto, poi le voci con l'icona in un cerchio del colore dell'azienda.
+
+/** Larghezza utile della pagina: l'A4 meno i margini laterali di `page`. */
+const UTILE_PAGINA = 595.28 - 44 * 2;
+
+function SezioneBlocco({ blocco, foto, C, styles }: {
+  blocco: ContenutoBlocco;
+  foto: FotoBloccoPronta[];
+  C: ReturnType<typeof makePalette>;
+  styles: ReturnType<typeof makeStyles>;
+}) {
+  const due = foto.length > 1;
+  const mezza = (UTILE_PAGINA - 10) / 2;
+  // Con una spiegazione le voci stanno su due colonne; solo titoli, su tre.
+  const colonne = blocco.voci.some((x) => x.testo) ? 2 : 3;
+  const spazio = 14;
+  const larghezza = (UTILE_PAGINA - spazio * (colonne - 1)) / colonne;
+  const righe: ContenutoBlocco["voci"][] = [];
+  for (let i = 0; i < blocco.voci.length; i += colonne) righe.push(blocco.voci.slice(i, i + colonne));
+  return (
+    <>
+      <View minPresenceAhead={140}>
+        <Text style={styles.pageEyebrow}>{blocco.occhiello}</Text>
+        <Text style={[styles.pageTitle, { fontSize: 26, marginBottom: 6 }]}>
+          {spezzaAccento(blocco.titolo).map((pezzo, i) => (
+            pezzo.accento
+              ? <Text key={i} style={{ color: C.ink, fontStyle: "italic" as const }}>{pezzo.testo}</Text>
+              : <Text key={i}>{pezzo.testo}</Text>
+          ))}
+        </Text>
+        {blocco.intro ? <Text style={[styles.pageSubtitle, { fontSize: 10.5, marginBottom: 14 }]}>{blocco.intro}</Text> : null}
+      </View>
+      {foto.length > 0 ? (
+        <View wrap={false} style={{ marginBottom: 16 }}>
+          <View style={{ flexDirection: "row" }}>
+            {foto.slice(0, 2).map((f, i) => (
+              // In Serramenti un blocco ha di solito la pagina per sé: foto grandi, niente mezza pagina bianca.
+              <Image key={i} src={f.src} style={{ width: due ? mezza : UTILE_PAGINA, height: due ? 200 : 285, objectFit: "cover", borderRadius: 6, marginLeft: i === 0 ? 0 : 10 }} />
+            ))}
+          </View>
+          {blocco.nota && foto.some((f) => f.diSerie) ? (
+            <Text style={{ fontSize: 7, color: C.gray500, marginTop: 5 }}>{blocco.nota}</Text>
+          ) : null}
+        </View>
+      ) : null}
+      {righe.map((riga, r) => (
+        <View key={r} wrap={false} style={{ flexDirection: "row", marginBottom: colonne === 2 ? 16 : 11 }}>
+          {riga.map((x, i) => (
+            <View key={i} style={{ width: larghezza, marginLeft: i === 0 ? 0 : spazio, flexDirection: "row" }}>
+              <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: C.primaryLight, alignItems: "center", justifyContent: "center", marginRight: 9 }}>
+                {x.icona ? <IconaPdf nome={x.icona} colore={C.ink} lato={13} /> : null}
+              </View>
+              <View style={{ flex: 1, paddingTop: x.testo ? 1 : 7 }}>
+                <Text style={{ fontSize: 10.5, fontWeight: 700, color: C.gray900, lineHeight: 1.3 }}>{x.titolo}</Text>
+                {x.testo ? <Text style={{ fontSize: 9.2, color: C.gray700, marginTop: 2, lineHeight: 1.45 }}>{x.testo}</Text> : null}
+              </View>
+            </View>
+          ))}
+        </View>
+      ))}
+    </>
+  );
+}
+
 function PageFooter({
   companyName, indirizzo, telefono, email, vat, website, styles,
   quoteCode, revisionNumber, showRevisionFooter,
@@ -2379,6 +2450,17 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
       </>
     ) : null,
   };
+  // I blocchi: consecutivi fra loro o con garanzie e domande, scorrono insieme
+  // come le altre sezioni brevi. Un blocco senza voci né foto non esce.
+  const PAGINE_DEI_BLOCCHI = Object.keys(PAGINE_BLOCCO) as PaginaBlocco[];
+  for (const id of PAGINE_DEI_BLOCCHI) {
+    const chiave = PAGINE_BLOCCO[id];
+    const blocco = leggiBlocco(chiave, "serramenti", tpl.pdf_blocchi);
+    const foto = fotoPerIlPdf(tpl.pdf_blocchi_foto, chiave, blocco.foto);
+    scorrevoli[id] = blocco.voci.length > 0 || foto.length > 0
+      ? <SezioneBlocco blocco={blocco} foto={foto} C={C} styles={styles} />
+      : null;
+  }
   const SCORREVOLI = new Set(Object.keys(scorrevoli));
 
   const pdfPagesOrder = normalizePdfPagesOrder(
@@ -4252,6 +4334,18 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
             )}
             </>
           ),
+          // ─── I BLOCCHI, quando stanno da soli: una pagina ciascuno ─────
+          ...(Object.fromEntries(PAGINE_DEI_BLOCCHI.map((id) => [id, (
+            <>
+            {scorrevoli[id] ? (
+              <Page size="A4" style={styles.page}>
+                <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
+                {scorrevoli[id]}
+                <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
+              </Page>
+            ) : null}
+            </>
+          )])) as Record<PaginaBlocco, React.ReactElement>),
           // ─── PAGINA I NOSTRI LAVORI (gallery foto realizzazioni) ───────
           gallery_lavori: (
             <>

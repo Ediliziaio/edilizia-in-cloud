@@ -63,6 +63,25 @@ export const BLOCCHI: DescrizioneBlocco[] = [
 export const descrizioneBlocco = (chiave: ChiaveBlocco): DescrizioneBlocco =>
   BLOCCHI.find((b) => b.chiave === chiave) as DescrizioneBlocco;
 
+/**
+ * Le pagine dei blocchi nei documenti con un ordine di pagine (Serramenti,
+ * Fotovoltaico): l'identificativo della pagina e il blocco che mostra. «Cosa è
+ * compreso» lì non c'è: Serramenti lo sceglie preventivo per preventivo, nella
+ * proposta economica.
+ */
+export const PAGINE_BLOCCO = {
+  come_funziona: "comeFunziona",
+  protezione: "protezione",
+  controlli: "controlli",
+  documenti: "documenti",
+  diario: "diario",
+} as const satisfies Record<string, ChiaveBlocco>;
+
+export type PaginaBlocco = keyof typeof PAGINE_BLOCCO;
+
+export const bloccoDellaPagina = (id: string): ChiaveBlocco | null =>
+  (PAGINE_BLOCCO as Record<string, ChiaveBlocco>)[id] ?? null;
+
 /** Le foto di serie stanno nel sito, in public/pdf-stock. */
 export const eFotoDiSerie = (url: string | null | undefined): boolean =>
   typeof url === "string" && /(^|\/)(pdf|cover)-stock\//.test(url);

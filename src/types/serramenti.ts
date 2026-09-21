@@ -471,6 +471,12 @@ export interface SrTemplatePdfRow {
   percorso_cliente: SrPercorsoCliente | null;
   /** Ordine e visibilità delle pagine PDF. NULL = ordine default. */
   pdf_pages_order: SrPdfPageOrderItem[] | null;
+  /**
+   * I blocchi del preventivo (come funziona, protezione, controlli, documenti,
+   * diario): solo i campi che l'azienda ha cambiato rispetto ai testi di serie.
+   * Vedi supabase/functions/_shared/blocchiPreventivo.ts.
+   */
+  pdf_blocchi?: Record<string, unknown> | null;
   // ─── Blocchi conversione PDF (CRO playbook) ───────────────────────────
   /** Lista garanzie mostrate sulla pagina "Le nostre garanzie". */
   garanzie: SrGaranzia[] | null;
@@ -749,7 +755,14 @@ export type SrPdfPageId =
   | "render"
   | "cta"
   | "condizioni"
-  | "gallery_lavori";
+  | "gallery_lavori"
+  // I blocchi della libreria (_shared/blocchiPreventivo.ts): testi e foto di serie
+  // per i serramenti, che l'azienda cambia dall'ordine delle pagine.
+  | "come_funziona"
+  | "protezione"
+  | "controlli"
+  | "documenti"
+  | "diario";
 
 export interface SrPdfPageOrderItem {
   id: SrPdfPageId;
@@ -763,6 +776,11 @@ export interface SrPdfPageMeta {
   descrizione: string;
   /** Se true, la pagina non può essere nascosta (toggle visible disabilitato). */
   obbligatoria: boolean;
+  /**
+   * false = la pagina nasce nascosta, anche nei modelli già salvati: sono i
+   * blocchi che promettono qualcosa al cliente, li accende l'azienda.
+   */
+  diSerie?: boolean;
 }
 
 export const SR_PDF_PAGES_META: SrPdfPageMeta[] = [
@@ -777,6 +795,14 @@ export const SR_PDF_PAGES_META: SrPdfPageMeta[] = [
     label: "Proposta di intervento",
     descrizione: "Anagrafica cliente, esigenze, soluzione, perché scegliere voi, la consulenza con consulente e appuntamento.",
     obbligatoria: true,
+  },
+  // Cosa rende isolante un serramento, con due foto tecniche: prima dei prodotti,
+  // così il cliente sa cosa guardare nelle schede che seguono.
+  {
+    id: "come_funziona",
+    label: "Come è fatto un serramento",
+    descrizione: "Vetro, bordo del vetro, telaio e posa spiegati con due foto tecniche.",
+    obbligatoria: false,
   },
   // Le pagine dedicate macrocategoria ("Linea Prodotto") sono ora messe
   // PRIMA dell'allegato tecnico: l'utente vede prima la presentazione del
@@ -835,6 +861,36 @@ export const SR_PDF_PAGES_META: SrPdfPageMeta[] = [
     descrizione: "Pagina con le 4 fasi e gli step (configurata sopra).",
     obbligatoria: false,
   },
+  // Dopo il percorso, quello che succede in casa durante e dopo la posa. Nascono
+  // spente: promettono qualcosa, e le accende solo chi lo fa davvero.
+  {
+    id: "protezione",
+    label: "Protezione della casa",
+    descrizione: "Come proteggete pavimenti, muri e arredi durante la posa.",
+    obbligatoria: false,
+    diSerie: false,
+  },
+  {
+    id: "controlli",
+    label: "Controlli di qualità",
+    descrizione: "Cosa verificate su ogni serramento prima della consegna.",
+    obbligatoria: false,
+    diSerie: false,
+  },
+  {
+    id: "documenti",
+    label: "Documenti consegnati",
+    descrizione: "Il fascicolo che il cliente riceve a fine lavori.",
+    obbligatoria: false,
+    diSerie: false,
+  },
+  {
+    id: "diario",
+    label: "Diario fotografico",
+    descrizione: "Le foto della posa, anche dei punti che poi restano coperti.",
+    obbligatoria: false,
+    diSerie: false,
+  },
   {
     id: "garanzie",
     label: "Le nostre garanzie",
@@ -876,13 +932,13 @@ export const SR_PDF_PAGES_META: SrPdfPageMeta[] = [
 /** Ordine default delle pagine PDF (usato quando pdf_pages_order è NULL). */
 export const SR_PDF_PAGES_DEFAULT: SrPdfPageOrderItem[] = SR_PDF_PAGES_META.map((p) => ({
   id: p.id,
-  visible: true,
+  visible: p.diSerie !== false,
 }));
 
 /**
  * Merge robust: prende l'array salvato dall'utente e garantisce:
  *  - tutte le pagine canoniche sono presenti (le mancanti entrano dopo la
- *    pagina che le precede nell'ordine di default)
+ *    pagina che le precede nell'ordine di default, nascoste se `diSerie` è false)
  *  - filtra id sconosciuti (es. pagina rimossa in futuro update)
  *  - le pagine obbligatorie hanno sempre visible=true (anche se salvato false
  *    da una versione precedente)
@@ -915,7 +971,7 @@ export function normalizePdfPagesOrder(
     for (let j = i - 1; j >= 0 && dopo === -1; j--) {
       dopo = out.findIndex((it) => it.id === SR_PDF_PAGES_META[j].id);
     }
-    out.splice(dopo + 1, 0, { id: meta.id, visible: true });
+    out.splice(dopo + 1, 0, { id: meta.id, visible: meta.diSerie !== false });
     seen.add(meta.id);
   });
   return regoleOrdinePagine(out);

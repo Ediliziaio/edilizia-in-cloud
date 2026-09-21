@@ -17,12 +17,14 @@ import type {
   SrProgettoDetail, SrProgettoRow, SrSerramentoRow, SrAccessorioRow,
   SrMediaRow, SrCalcoloRisparmioRow, SrServizioRow, SrTemplatePdfRow,
 } from "@/types/serramenti";
+import { normalizePdfPagesOrder } from "@/types/serramenti";
 import type {
   SerramentoPdfEnriched, SerramentoPdfConsulente, SerramentoPdfFamilyData,
   SerramentoPdfMacroField, SerramentoPdfMacroPagina, SerramentoPdfLineaPagina,
 } from "@/hooks/useSerramentoPDF";
 import { toDataUrl } from "@/lib/serramenti/pdfImageUtils";
 import { CAMPI_IMMAGINE_SERRAMENTI, firmaImmagine, firmaImmaginiModello } from "@/lib/storage/immaginiModelloPdf";
+import { blocchiAccesi, fotoDeiBlocchi } from "@/lib/pdf/fotoBlocchi";
 import { datiTecniciScheda } from "@/lib/listino/schedeLinea";
 
 const MOCK_FAMILY_ID = "demo-family-aluminio-2ante";
@@ -373,12 +375,14 @@ export async function buildMockPdfData(opts: {
     inlinedChiSiamoFoto,
     inlinedCoverImage,
     inlinedLogoDark,
+    fotoBlocchi,
   ] = await Promise.all([
     toDataUrl(tpl?.logo_url ?? companyLogoUrl ?? null),
     toDataUrl(tpl?.chi_siamo_foto_url ?? null),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     toDataUrl((tpl as any)?.pdf_cover_image_url ?? null),
     toDataUrl(opts.companyLogoDarkUrl ?? null),
+    fotoDeiBlocchi("serramenti", tpl?.pdf_blocchi, blocchiAccesi(normalizePdfPagesOrder(tpl?.pdf_pages_order ?? null))),
   ]);
   const inlinedTemplate = tpl ? {
     ...tpl,
@@ -386,6 +390,7 @@ export async function buildMockPdfData(opts: {
     chi_siamo_foto_url: inlinedChiSiamoFoto ?? tpl.chi_siamo_foto_url,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     pdf_cover_image_url: inlinedCoverImage ?? (tpl as any).pdf_cover_image_url,
+    pdf_blocchi_foto: fotoBlocchi,
   } : null;
 
   return {

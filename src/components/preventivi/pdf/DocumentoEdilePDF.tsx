@@ -20,7 +20,6 @@
 import * as React from "react";
 import {
   Document, Page, Text, View, Image, Svg, Rect, Path, Circle, Line, G, Defs, LinearGradient, RadialGradient, Stop, Font,
-  Polyline, Polygon, Ellipse,
 } from "@react-pdf/renderer";
 import { formatCurrency } from "@/lib/formatters";
 import { htmlToRichBlocks } from "@/lib/ristrutturazione/richTextPdf";
@@ -28,7 +27,7 @@ import { parseFinanziamentoPromo, calcolaRataMensile } from "@/lib/preventivi/fi
 import { fraseValiditaChiusura } from "@/lib/preventivi/validitaOfferta";
 import { creaTema, coloriCopertina, copertinaInTinta, type TemaDocumento } from "./temaDocumento";
 import { chiaveLibera, ordineEffettivo } from "./ordineCapitoli";
-import { ICONE, type NomeIcona, type NodoIcona } from "../../../../supabase/functions/_shared/iconePreventivo";
+import { IconaPdf } from "./IconaPdf";
 import { BLOCCHI, type ChiaveBlocco } from "../../../../supabase/functions/_shared/blocchiPreventivo";
 import { MODULO_RECESSO } from "../../../../supabase/functions/_shared/condizioniStandard";
 import { giorniDellaDurata, senzaNumeroDavanti, spezzaAccento } from "./testoDocumento";
@@ -692,28 +691,6 @@ function Copertina({ tema, dati }: { tema: TemaDocumento; dati: DocEdileDati }) 
 }
 
 // ─── Il documento ────────────────────────────────────────────────────────────
-// ─── Icone dei blocchi: i disegni di Lucide, nel colore dell'azienda ─────────
-function IconaPdf({ nome, colore, lato = 12 }: { nome: NomeIcona; colore: string; lato?: number }) {
-  const tratto = { stroke: colore, strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, fill: "none" };
-  const numero = (x: string | number | undefined) => (x == null ? undefined : Number(x));
-  return (
-    <Svg width={lato} height={lato} viewBox="0 0 24 24">
-      {(ICONE[nome] as NodoIcona[]).map(([tag, a], i) => {
-        switch (tag) {
-          case "path": return <Path key={i} d={String(a.d)} {...tratto} />;
-          case "circle": return <Circle key={i} cx={numero(a.cx)} cy={numero(a.cy)} r={numero(a.r)} {...tratto} />;
-          case "rect": return <Rect key={i} x={numero(a.x) ?? 0} y={numero(a.y) ?? 0} width={numero(a.width)} height={numero(a.height)} rx={numero(a.rx)} ry={numero(a.ry)} {...tratto} />;
-          case "line": return <Line key={i} x1={numero(a.x1)} y1={numero(a.y1)} x2={numero(a.x2)} y2={numero(a.y2)} {...tratto} />;
-          case "polyline": return <Polyline key={i} points={String(a.points)} {...tratto} />;
-          case "polygon": return <Polygon key={i} points={String(a.points)} {...tratto} />;
-          case "ellipse": return <Ellipse key={i} cx={numero(a.cx)} cy={numero(a.cy)} rx={numero(a.rx)} ry={numero(a.ry)} {...tratto} />;
-          default: return null;
-        }
-      })}
-    </Svg>
-  );
-}
-
 /** Una o due foto del blocco; sotto, la nota quando sono foto di serie. */
 function FotoBlocco({ tema, foto, nota }: { tema: TemaDocumento; foto: DocEdileFotoBlocco[]; nota: string | null }) {
   if (!foto.length) return null;
