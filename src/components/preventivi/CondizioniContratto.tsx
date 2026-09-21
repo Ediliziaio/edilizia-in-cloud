@@ -80,10 +80,12 @@ export function CondizioniContratto({ companyId, settore, attivo, testo, onAttiv
 
       {attivo && (
         <>
+          {/* Vuoto non vuol dire «senza condizioni»: il documento stampa il testo di base
+              del settore (adattatoreEdile). Qui lo si dice com'è, e si invita a rileggerlo. */}
           {!testo.trim() && (
             <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-              Il documento esce <strong>senza condizioni</strong>: tempi, varianti, garanzie e recesso non sono scritti da
-              nessuna parte. Parti dal testo del settore e adattalo.
+              Il campo è vuoto: nel documento esce il <strong>testo di base del settore</strong>. Rileggilo e adattalo
+              alla tua azienda: con «Parti dal testo del settore» lo porti qui e lo modifichi.
             </div>
           )}
 

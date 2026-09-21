@@ -39,9 +39,11 @@ function Editor({ settore = "tetti" as const }) {
 const salvato = () => JSON.parse(screen.getByTestId("salvato").textContent ?? "{}");
 
 describe("editor: condizioni generali di contratto", () => {
-  it("vuoto, avverte che il documento esce senza condizioni", () => {
+  // Dal 20/09/2026 vuoto vuol dire «testo di base del settore», non «senza condizioni».
+  it("vuoto, avverte che nel documento esce il testo di base del settore", () => {
     render(<Editor />);
-    expect(screen.getByText(/senza condizioni/)).toBeTruthy();
+    expect(screen.getByText(/testo di base del settore/)).toBeTruthy();
+    expect(screen.queryByText(/senza condizioni/)).toBeNull();
   });
 
   it("«Parti dal testo del settore» riempie il campo con le condizioni del mestiere", () => {
@@ -53,7 +55,7 @@ describe("editor: condizioni generali di contratto", () => {
     const area = screen.getByRole("textbox") as HTMLTextAreaElement;
     expect(area.value).toMatch(/amianto/i);
     // L'avviso sparisce appena c'è un testo.
-    expect(screen.queryByText(/senza condizioni/)).toBeNull();
+    expect(screen.queryByText(/Il campo è vuoto/)).toBeNull();
   });
 
   it("con un testo già scritto chiede conferma prima di sostituirlo", () => {
