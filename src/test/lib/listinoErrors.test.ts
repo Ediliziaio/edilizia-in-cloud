@@ -20,22 +20,27 @@ describe("translateListinoError — schema cache miss", () => {
 });
 
 describe("translateListinoError — duplicate key", () => {
-  it("23505 su listino_macrocategorie → messaggio macrocategoria duplicata", () => {
+  // Dal 14/09/2026 il listino parla con le parole dello schermo: Area → Tipologia
+  // → Linea. Le tabelle restano listino_macrocategorie (le tipologie) e
+  // listino_categorie (le linee), i messaggi seguono i nomi che l'azienda vede.
+  it("23505 su listino_macrocategorie → messaggio tipologia duplicata", () => {
     const err = new Error(
       'duplicate key value violates unique constraint "listino_macrocategorie_company_id_nome_key"',
     );
     const result = translateListinoError(err);
     expect(result.isTransient).toBe(false);
-    expect(result.message).toMatch(/macrocategoria/i);
+    expect(result.message).toMatch(/tipologia/i);
+    expect(result.message).not.toMatch(/macrocategoria/i);
   });
 
-  it("23505 su listino_categorie → messaggio categoria duplicata", () => {
+  it("23505 su listino_categorie → messaggio linea duplicata nella tipologia", () => {
     const err = new Error(
       'duplicate key value violates unique constraint "listino_categorie_company_macro_nome_uniq"',
     );
     const result = translateListinoError(err);
-    expect(result.message).toMatch(/categoria/i);
-    expect(result.message).toMatch(/macrocategoria/i);
+    expect(result.message).toMatch(/linea/i);
+    expect(result.message).toMatch(/tipologia/i);
+    expect(result.message).not.toMatch(/categoria/i);
   });
 
   it("duplicate generico → messaggio fallback nome già in uso", () => {
