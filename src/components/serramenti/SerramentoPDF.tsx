@@ -1571,6 +1571,31 @@ function PageHeader({ code, clienteNome, companyName, logoUrl, primaryColor, sty
 /** Larghezza utile della pagina: l'A4 meno i margini laterali di `page`. */
 const UTILE_PAGINA = 595.28 - 44 * 2;
 
+/**
+ * L'altezza delle foto di un blocco perché il blocco riempia la sua pagina: due
+ * blocchi con le foto non stanno mai in una pagina, e ognuno lasciava 4-8 cm
+ * bianchi. La pagina utile (~655 punti tra intestazione e piè) meno occhiello,
+ * titolo, introduzione, voci e nota, stimati per eccesso dal numero di caratteri.
+ * Niente flexGrow: accanto a un elemento che si allarga il motore misura male i
+ * titoli su più righe. Due foto affiancate restano più basse (sennò sarebbero strette e alte).
+ */
+function altezzaFotoBlocco(blocco: ContenutoBlocco, quanteFoto: number): number {
+  const righe = (testo: string, perRiga: number) => Math.max(1, Math.ceil(testo.length / perRiga));
+  const titolo = righe(blocco.titolo.replace(/\*/g, ""), 32) * 26 * 1.05 + 6;
+  const intro = blocco.intro ? righe(blocco.intro, 84) * 10.5 * 1.45 + 14 : 0;
+  const colonne = blocco.voci.some((v) => v.testo) ? 2 : 3;
+  let voci = 0;
+  for (let i = 0; i < blocco.voci.length; i += colonne) {
+    const riga = blocco.voci.slice(i, i + colonne);
+    const alta = Math.max(26, ...riga.map((v) => colonne === 2
+      ? 1 + righe(v.titolo, 33) * 10.5 * 1.3 + (v.testo ? 2 + righe(v.testo, 41) * 9.2 * 1.45 : 0)
+      : 7 + righe(v.titolo, 19) * 10.5 * 1.3));
+    voci += alta + (colonne === 2 ? 16 : 11);
+  }
+  const altezza = 655 - 15 - titolo - intro - voci - (blocco.nota ? 12 : 0) - 16 - 16;
+  return Math.max(150, Math.min(quanteFoto > 1 ? 300 : 380, Math.floor(altezza)));
+}
+
 function SezioneBlocco({ blocco, foto, C, styles }: {
   blocco: ContenutoBlocco;
   foto: FotoBloccoPronta[];
@@ -1603,7 +1628,7 @@ function SezioneBlocco({ blocco, foto, C, styles }: {
           <View style={{ flexDirection: "row" }}>
             {foto.slice(0, 2).map((f, i) => (
               // In Serramenti un blocco ha di solito la pagina per sé: foto grandi, niente mezza pagina bianca.
-              <Image key={i} src={f.src} style={{ width: due ? mezza : UTILE_PAGINA, height: due ? 200 : 285, objectFit: "cover", borderRadius: 6, marginLeft: i === 0 ? 0 : 10 }} />
+              <Image key={i} src={f.src} style={{ width: due ? mezza : UTILE_PAGINA, height: altezzaFotoBlocco(blocco, foto.length), objectFit: "cover", borderRadius: 6, marginLeft: i === 0 ? 0 : 10 }} />
             ))}
           </View>
           {blocco.nota && foto.some((f) => f.diSerie) ? (

@@ -118,6 +118,16 @@ describe("blocchi del preventivo: dal modello al PDF degli edili", () => {
   });
 
   it("«Cosa è compreso» resta intero: mai il titolo in fondo a una pagina e le voci su quella dopo", () => {
-    expect(leggi("src/components/preventivi/pdf/DocumentoEdilePDF.tsx")).toMatch(/if \(chiave === "compreso"\) \{[\s\S]{0,300}<View wrap=\{false\}>/);
+    expect(leggi("src/components/preventivi/pdf/DocumentoEdilePDF.tsx")).toMatch(/if \(chiave === "compreso"\) \{[\s\S]{0,600}<View wrap=\{false\}>/);
+  });
+
+  it("i blocchi con le foto hanno una pagina loro, e le foto la riempiono senza flexGrow (22/09/2026)", () => {
+    const edile = leggi("src/components/preventivi/pdf/DocumentoEdilePDF.tsx");
+    expect(edile).toContain("const conPaginaPropria = (chiave: string) =>");
+    expect(edile).toContain("altezza={riempi ? altezzaFotoPiena(blocco) : undefined}");
+    // Un elemento che si allarga dentro il foglio che scorre sovrapponeva i titoli al testo.
+    expect(edile).not.toMatch(/flexGrow:\s*1/);
+    const serramenti = leggi("src/components/serramenti/SerramentoPDF.tsx");
+    expect(serramenti).toContain("height: altezzaFotoBlocco(blocco, foto.length)");
   });
 });

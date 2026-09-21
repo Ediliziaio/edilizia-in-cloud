@@ -691,8 +691,13 @@ function Copertina({ tema, dati }: { tema: TemaDocumento; dati: DocEdileDati }) 
 }
 
 // ─── Il documento ────────────────────────────────────────────────────────────
-/** Una o due foto del blocco; sotto, la nota quando sono foto di serie. */
-function FotoBlocco({ tema, foto, nota }: { tema: TemaDocumento; foto: DocEdileFotoBlocco[]; nota: string | null }) {
+/**
+ * Una o due foto del blocco; sotto, la nota quando sono foto di serie. Con
+ * `altezza` (il blocco ha una pagina sua) le foto sono alte quanto serve a
+ * riempire la pagina. Non con flexGrow: accanto a un elemento che si allarga il
+ * motore misura il titolo su una riga sola, e il sommario ci finisce sopra.
+ */
+function FotoBlocco({ tema, foto, nota, altezza }: { tema: TemaDocumento; foto: DocEdileFotoBlocco[]; nota: string | null; altezza?: number }) {
   if (!foto.length) return null;
   const due = foto.length > 1;
   const larga = (UTILE - 10) / 2;
@@ -700,7 +705,7 @@ function FotoBlocco({ tema, foto, nota }: { tema: TemaDocumento; foto: DocEdileF
     <View wrap={false} style={{ marginBottom: 16 }}>
       <View style={{ flexDirection: "row" }}>
         {foto.slice(0, 2).map((f, i) => (
-          <Image key={i} src={f.src} style={{ width: due ? larga : UTILE, height: due ? 156 : 236, objectFit: "cover", marginLeft: i === 0 ? 0 : 10 }} />
+          <Image key={i} src={f.src} style={{ width: due ? larga : UTILE, height: altezza ?? (due ? 156 : 236), objectFit: "cover", marginLeft: i === 0 ? 0 : 10 }} />
         ))}
       </View>
       {nota && foto.some((f) => f.diSerie) ? (
@@ -708,6 +713,37 @@ function FotoBlocco({ tema, foto, nota }: { tema: TemaDocumento; foto: DocEdileF
       ) : null}
     </View>
   );
+}
+
+/**
+ * L'altezza delle foto di un blocco che ha una pagina sua: la pagina utile (649
+ * punti) meno titolo, sommario, voci e nota, stimati per eccesso dal numero di
+ * caratteri, con un margine di sicurezza. Meglio 1-2 cm bianchi che una foto
+ * troppo alta, che spingerebbe le voci su un'altra pagina.
+ */
+function altezzaFotoPiena(blocco: DocEdileBlocco, conEscluse = false): number {
+  const righe = (testo: string, perRiga: number) => Math.max(1, Math.ceil(testo.length / perRiga));
+  const titolo = righe(blocco.titolo.replace(/\*/g, ""), 32) * 23 * 1.2;
+  const sommario = blocco.intro ? 6 + righe(blocco.intro, 72) * 10 * 1.45 : 0;
+  const capitolo = 3 + 12 + titolo + sommario + 18;
+  const altezzaVoci = (elenco: DocEdileBlocco["voci"]) => {
+    const colonne = elenco.some((v) => v.testo) ? 2 : 3;
+    let totale = 0;
+    for (let i = 0; i < elenco.length; i += colonne) {
+      const riga = elenco.slice(i, i + colonne);
+      const alta = Math.max(22, ...riga.map((v) => colonne === 2
+        ? 1 + righe(v.titolo, 36) * 9.5 * 1.3 + (v.testo ? 2 + righe(v.testo, 45) * 8.5 * 1.45 : 0)
+        : 5 + righe(v.titolo, 21) * 9.5 * 1.3));
+      totale += alta + (colonne === 2 ? 12 : 9);
+    }
+    return totale;
+  };
+  // «Cosa è compreso»: due titolini (compreso, non compreso) e le escluse.
+  const voci = altezzaVoci(blocco.voci)
+    + (conEscluse ? 22 + (blocco.escluse.length > 0 ? 10 + 22 + altezzaVoci(blocco.escluse) : 0) : 0);
+  const nota = blocco.nota ? 14 : 0;
+  const altezza = 649 - capitolo - voci - nota - 16 - 16;
+  return Math.max(150, Math.min(430, Math.floor(altezza)));
 }
 
 /** Le voci di un blocco: icona in un cerchio di tinta, titolo, spiegazione. */
@@ -739,14 +775,17 @@ function VociBlocco({ tema, voci, attenuate = false }: { tema: TemaDocumento; vo
   );
 }
 
-/** Un blocco della libreria come capitolo del documento. */
-function CapitoloBlocco({ tema, numero, chiave, blocco }: { tema: TemaDocumento; numero: number; chiave: ChiaveBlocco; blocco: DocEdileBlocco }) {
+/** Un blocco della libreria come capitolo del documento (con `riempi`, su una pagina sua). */
+function CapitoloBlocco({ tema, numero, chiave, blocco, riempi = false }: { tema: TemaDocumento; numero: number; chiave: ChiaveBlocco; blocco: DocEdileBlocco; riempi?: boolean }) {
   if (chiave === "compreso") {
     // Tutto insieme: segue il capitolo prima se ci sta, altrimenti va intero alla
     // pagina dopo. Diviso, il titolo restava da solo in fondo alla pagina del computo.
+    // Con una foto (dal 22/09/2026 di serie per bagni e ristrutturazione) ha una
+    // pagina sua, e la foto la riempie.
     return (
       <View wrap={false}>
         <Capitolo tema={tema} numero={numero} occhiello={blocco.occhiello} titolo={blocco.titolo} sommario={blocco.intro} />
+        {riempi ? <FotoBlocco tema={tema} foto={blocco.foto} nota={blocco.nota} altezza={altezzaFotoPiena(blocco, true)} /> : null}
         <TitolinoSezione tema={tema} testo="Compreso nel prezzo" />
         <VociBlocco tema={tema} voci={blocco.voci} />
         {blocco.escluse.length > 0 ? (
@@ -761,7 +800,7 @@ function CapitoloBlocco({ tema, numero, chiave, blocco }: { tema: TemaDocumento;
   return (
     <View>
       <Capitolo tema={tema} numero={numero} occhiello={blocco.occhiello} titolo={blocco.titolo} sommario={blocco.intro} />
-      <FotoBlocco tema={tema} foto={blocco.foto} nota={blocco.nota} />
+      <FotoBlocco tema={tema} foto={blocco.foto} nota={blocco.nota} altezza={riempi ? altezzaFotoPiena(blocco) : undefined} />
       <VociBlocco tema={tema} voci={blocco.voci} />
     </View>
   );
@@ -828,8 +867,73 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
     })),
     { numero: numeroPassi, titolo: "I prossimi passi" },
   ];
-  // Questi capitoli sono brevi: seguono il precedente sulla stessa pagina, se c'è posto.
-  const BREVI = new Set(["percorso", "tempi", "compreso"]);
+  // I capitoli che seguono il precedente sulla stessa pagina, interi, se c'è posto:
+  // hanno un'altezza limitata (i blocchi, i passi, un cronoprogramma corto). Gli
+  // altri (computo, progetto, gallerie, prezzo…) cominciano un foglio nuovo.
+  const scorreIntero = (chiave: string) =>
+    ["comeFunziona", "percorso", "protezione", "controlli", "compreso", "documenti", "diario"].includes(chiave)
+    || (chiave === "tempi" && modello.cronoprogramma.length <= 8);
+
+  // I segmenti: un blocco con le foto ha una pagina sua, il resto scorre.
+  const conPaginaPropria = (chiave: string) => {
+    const b = BLOCCHI.find((x) => x.chiave === chiave);
+    return Boolean(b && modello.blocchi[b.chiave].foto.length > 0);
+  };
+  const segmenti: Array<{ propria: boolean; chiavi: string[] }> = [];
+  for (const v of sequenza) {
+    const ultimo = segmenti[segmenti.length - 1];
+    if (conPaginaPropria(v.chiave)) segmenti.push({ propria: true, chiavi: [v.chiave] });
+    else if (ultimo && !ultimo.propria) ultimo.chiavi.push(v.chiave);
+    else segmenti.push({ propria: false, chiavi: [v.chiave] });
+  }
+
+  // I prossimi passi: la foto del lavoro finito, i passi, i contatti (o la firma).
+  const chiusura = (
+    <View wrap={false}>
+      <Capitolo tema={tema} numero={numeroPassi} occhiello="I prossimi passi" titolo="Pronti a *partire*?" sommario={fraseValiditaChiusura(modello.testoValidita, modello.giorniValidita)} />
+      {modello.fotoChiusura ? (
+        <Image src={modello.fotoChiusura.src} style={{ width: UTILE, height: 330, objectFit: "cover", marginBottom: 18 }} />
+      ) : null}
+      <Passi
+        tema={tema}
+        voci={[
+          { titolo: "Conferma", descrizione: "Firma questo documento, o rispondici anche solo con un messaggio." },
+          { titolo: "Partenza lavori", descrizione: "Concordiamo insieme la data di inizio e il calendario definitivo." },
+        ]}
+      />
+      <View wrap={false} style={{ flexDirection: "row", marginTop: 10 }}>
+        <View style={{ flex: 1, backgroundColor: tema.cartaCalda, padding: 14, marginRight: 12 }}>
+          <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 7, color: tema.inchiostroMarca, letterSpacing: 1.4, marginBottom: 7 }}>I NOSTRI CONTATTI</Text>
+          <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 10.5, color: tema.inchiostro, marginBottom: 4 }}>{dati.azienda.nome}</Text>
+          {[dati.azienda.telefono, emailACapo(dati.azienda.email), dati.azienda.indirizzo].filter(Boolean).map((r, i) => (
+            <Text key={i} style={{ fontFamily: tema.caratteri.testo, fontSize: 9, color: tema.grigio, lineHeight: 1.5 }}>{r}</Text>
+          ))}
+        </View>
+        {/* Senza condizioni non c'è la pagina della firma: allora si firma qui.
+            Con le condizioni, la firma sta lì e due riquadri sarebbero uno di troppo. */}
+        {modello.condizioniLegali.length > 0 ? (
+          <View style={{ flex: 1.25, backgroundColor: tema.cartaCalda, padding: 14, justifyContent: "center" }}>
+            <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 7, color: tema.inchiostroMarca, letterSpacing: 1.4, marginBottom: 6 }}>LA FIRMA</Text>
+            <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 9, color: tema.grigio, lineHeight: 1.5 }}>
+              Le condizioni generali e la pagina da firmare sono in fondo a questo documento.
+            </Text>
+          </View>
+        ) : (
+        <View style={{ flex: 1.25, borderWidth: 0.8, borderColor: tema.inchiostro, padding: 14 }}>
+          <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 7, color: tema.inchiostro, letterSpacing: 1.4 }}>PER ACCETTAZIONE</Text>
+          <View style={{ flexDirection: "row", marginTop: 44 }}>
+            <View style={{ width: 86, borderTopWidth: 0.6, borderTopColor: tema.grigioChiaro, paddingTop: 4, marginRight: 14 }}>
+              <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 7, color: tema.grigioChiaro, letterSpacing: 0.8 }}>DATA</Text>
+            </View>
+            <View style={{ flex: 1, borderTopWidth: 0.6, borderTopColor: tema.grigioChiaro, paddingTop: 4 }}>
+              <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 7, color: tema.grigioChiaro, letterSpacing: 0.8 }}>FIRMA DEL CLIENTE</Text>
+            </View>
+          </View>
+        </View>
+        )}
+      </View>
+    </View>
+  );
 
   // Il piano in numeri: fatti contabili del documento, niente che suoni da promessa.
   const giorniFasi = modello.cronoprogramma.map((f) => giorniDellaDurata(f.durata));
@@ -857,7 +961,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
   const cornice = (<><Intestazione tema={tema} dati={dati} /><PieDiPagina tema={tema} dati={dati} /></>);
 
   // Il contenuto di ogni capitolo, con il suo numero nella sequenza scelta.
-  const contenutoCapitolo = (chiave: string, numero: number): React.ReactNode => {
+  const contenutoCapitolo = (chiave: string, numero: number, riempi = false): React.ReactNode => {
     const libera = libere.get(chiave);
     if (libera) {
       return (
@@ -874,7 +978,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
       );
     }
     const blocco = BLOCCHI.find((b) => b.chiave === chiave);
-    if (blocco) return <CapitoloBlocco tema={tema} numero={numero} chiave={blocco.chiave} blocco={modello.blocchi[blocco.chiave]} />;
+    if (blocco) return <CapitoloBlocco tema={tema} numero={numero} chiave={blocco.chiave} blocco={modello.blocchi[blocco.chiave]} riempi={riempi} />;
     switch (chiave) {
       case "chiSiamo": return (<>
           <Capitolo tema={tema} numero={numero} occhiello="Chi siamo" titolo={`Chi c'è *dietro* questo progetto.`} />
@@ -1151,74 +1255,54 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
       ) : null}
 
       {/* ─── I capitoli, nell'ordine scelto dall'azienda ────────────────────
-          Un solo foglio che scorre: ogni capitolo comincia una pagina nuova,
-          tranne quelli brevi, che seguono il precedente se c'è posto. */}
-      <Page size="A4" style={pagina}>
-        {cornice}
-        {/* Lo stacco sta in fondo al capitolo, e solo se quello dopo continua sulla
-            stessa pagina (uno breve, o i prossimi passi). In cima a una pagina nuova
-            un margine spingeva il titolo più in basso degli altri; in fondo a un
-            capitolo che riempie la pagina, sbordava da solo su un foglio bianco. */}
-        {sequenza.map((v, i) => {
-          const breve = BREVI.has(v.chiave) && i > 0;
-          const prossimo = sequenza[i + 1];
-          const continua = !prossimo || BREVI.has(prossimo.chiave);
-          return (
-            <View key={v.chiave} break={i > 0 && !breve} style={continua ? { marginBottom: 28 } : undefined}>
-              {contenutoCapitolo(v.chiave, numeroDi.get(v.chiave) ?? i + 1)}
-            </View>
-          );
-        })}
+          A segmenti. Un blocco con le foto (come funziona, protezione, controlli,
+          documenti, diario) ha una pagina sua, e le foto la riempiono fino in fondo.
+          Gli altri capitoli stanno in fogli che scorrono: i capitoli di altezza
+          limitata (come lavoriamo, cosa è compreso, i tempi brevi) seguono il
+          precedente se ci stanno interi, gli altri cominciano un foglio nuovo.
+          Fino al 22/09/2026 ogni capitolo cominciava un foglio nuovo, e quasi ogni
+          pagina finiva con 7-12 cm bianchi. Una foto che si allarga (flexGrow)
+          dentro un foglio che scorre sposta i calcoli di tutto il foglio, e il testo
+          si sovrappone: per questo i blocchi con le foto stanno su pagine proprie. */}
+      {segmenti.map((segmento, s) => segmento.propria ? (
+        <Page key={`blocco-${segmento.chiavi[0]}`} size="A4" style={pagina}>
+          {cornice}
+          {contenutoCapitolo(segmento.chiavi[0], numeroDi.get(segmento.chiavi[0]) ?? 0, true)}
+        </Page>
+      ) : (
+        <Page key={`flusso-${s}`} size="A4" style={pagina}>
+          {cornice}
+          {/* Lo stacco sta in fondo al capitolo, e solo se quello dopo può continuare
+              sulla stessa pagina (uno che scorre, o i prossimi passi senza foto). In
+              cima a una pagina nuova un margine spingeva il titolo più in basso degli
+              altri; in fondo a un capitolo che riempie la pagina, sbordava da solo su
+              un foglio bianco. */}
+          {segmento.chiavi.map((chiave, i) => {
+            const scorre = i > 0 && scorreIntero(chiave);
+            const prossimo = segmento.chiavi[i + 1];
+            const chiudeQui = !prossimo && s === segmenti.length - 1 && !modello.fotoChiusura;
+            const continua = prossimo ? scorreIntero(prossimo) : chiudeQui;
+            return (
+              <View key={chiave} break={i > 0 && !scorre} wrap={scorre ? false : undefined} style={continua ? { marginBottom: 30 } : undefined}>
+                {contenutoCapitolo(chiave, numeroDi.get(chiave) ?? i + 1)}
+              </View>
+            );
+          })}
+          {/* Senza foto, i prossimi passi seguono l'ultimo capitolo. */}
+          {s === segmenti.length - 1 && !modello.fotoChiusura ? chiusura : null}
+        </Page>
+      ))}
 
-        {/* ─── I prossimi passi: sempre in fondo, prima delle condizioni ───── */}
-        <View>
-        <View wrap={false}>
-          <Capitolo tema={tema} numero={numeroPassi} occhiello="I prossimi passi" titolo="Pronti a *partire*?" sommario={fraseValiditaChiusura(modello.testoValidita, modello.giorniValidita)} />
-          {/* Il risultato finito, prima dei passi: la chiusura lasciava mezza pagina bianca. */}
-          {modello.fotoChiusura ? (
-            <Image src={modello.fotoChiusura.src} style={{ width: UTILE, height: 190, objectFit: "cover", marginBottom: 16 }} />
-          ) : null}
-          <Passi
-            tema={tema}
-            voci={[
-              { titolo: "Conferma", descrizione: "Firma questo documento, o rispondici anche solo con un messaggio." },
-              { titolo: "Partenza lavori", descrizione: "Concordiamo insieme la data di inizio e il calendario definitivo." },
-            ]}
-          />
-          <View wrap={false} style={{ flexDirection: "row", marginTop: 10 }}>
-            <View style={{ flex: 1, backgroundColor: tema.cartaCalda, padding: 14, marginRight: 12 }}>
-              <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 7, color: tema.inchiostroMarca, letterSpacing: 1.4, marginBottom: 7 }}>I NOSTRI CONTATTI</Text>
-              <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 10.5, color: tema.inchiostro, marginBottom: 4 }}>{dati.azienda.nome}</Text>
-              {[dati.azienda.telefono, emailACapo(dati.azienda.email), dati.azienda.indirizzo].filter(Boolean).map((r, i) => (
-                <Text key={i} style={{ fontFamily: tema.caratteri.testo, fontSize: 9, color: tema.grigio, lineHeight: 1.5 }}>{r}</Text>
-              ))}
-            </View>
-            {/* Senza condizioni non c'è la pagina della firma: allora si firma qui.
-                Con le condizioni, la firma sta lì e due riquadri sarebbero uno di troppo. */}
-            {modello.condizioniLegali.length > 0 ? (
-              <View style={{ flex: 1.25, backgroundColor: tema.cartaCalda, padding: 14, justifyContent: "center" }}>
-                <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 7, color: tema.inchiostroMarca, letterSpacing: 1.4, marginBottom: 6 }}>LA FIRMA</Text>
-                <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 9, color: tema.grigio, lineHeight: 1.5 }}>
-                  Le condizioni generali e la pagina da firmare sono in fondo a questo documento.
-                </Text>
-              </View>
-            ) : (
-            <View style={{ flex: 1.25, borderWidth: 0.8, borderColor: tema.inchiostro, padding: 14 }}>
-              <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 7, color: tema.inchiostro, letterSpacing: 1.4 }}>PER ACCETTAZIONE</Text>
-              <View style={{ flexDirection: "row", marginTop: 44 }}>
-                <View style={{ width: 86, borderTopWidth: 0.6, borderTopColor: tema.grigioChiaro, paddingTop: 4, marginRight: 14 }}>
-                  <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 7, color: tema.grigioChiaro, letterSpacing: 0.8 }}>DATA</Text>
-                </View>
-                <View style={{ flex: 1, borderTopWidth: 0.6, borderTopColor: tema.grigioChiaro, paddingTop: 4 }}>
-                  <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 7, color: tema.grigioChiaro, letterSpacing: 0.8 }}>FIRMA DEL CLIENTE</Text>
-                </View>
-              </View>
-            </View>
-            )}
-          </View>
-        </View>
-        </View>
-      </Page>
+      {/* ─── I prossimi passi: con la foto del lavoro finito, una pagina sua ───
+          La foto è alta quanto lasciano titolo, passi e contatti (649 punti utili,
+          ~270 per il resto, con margine per un indirizzo lungo). Senza foto la
+          chiusura segue l'ultimo capitolo; dopo un blocco con pagina sua, ha la sua. */}
+      {modello.fotoChiusura || segmenti.length === 0 || segmenti[segmenti.length - 1].propria ? (
+        <Page size="A4" style={pagina}>
+          {cornice}
+          {chiusura}
+        </Page>
+      ) : null}
 
       {/* ─── Condizioni contrattuali e termini legali ─────────────────────── */}
       {modello.condizioniLegali.length > 0 ? (

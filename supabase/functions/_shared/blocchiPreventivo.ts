@@ -283,6 +283,8 @@ const COMPRESO: Partial<Record<SettoreBlocchi, Parziale>> = {
     ],
   },
   bagni: {
+    // Il bagno di prima, i lavori, il bagno finito: tutto quello che il prezzo comprende.
+    foto: foto("bagni", "storia-prima-durante-dopo"),
     voci: [
       v("Sopralluogo e progetto del bagno", null, "progettazione"),
       v("Protezione della casa", null, "protezione"),
@@ -303,6 +305,8 @@ const COMPRESO: Partial<Record<SettoreBlocchi, Parziale>> = {
     ],
   },
   ristrutturazione: {
+    // Il ciclo dei lavori attorno alla casa: tutto quello che il prezzo comprende.
+    foto: foto("ristrutturazione", "storia-ciclo-lavori"),
     voci: [
       v("Sopralluogo e rilievo", null, "sopralluogo"),
       v("Coordinamento dei lavori", null, "calendario"),
