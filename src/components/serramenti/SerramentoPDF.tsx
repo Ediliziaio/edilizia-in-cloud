@@ -2111,17 +2111,20 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
   ) || null;
   // Il riepilogo della pagina della firma: che cosa si firma, in poche righe.
   const luogoLavori = [p.cantiere_indirizzo ?? p.cliente_indirizzo, p.cantiere_citta ?? p.cliente_citta].filter(Boolean).join(", ");
-  const fmtEuroFirma = (n: number) => `${n.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: "always" } as Intl.NumberFormatOptions)} €`;
+  const fmtEuroFirma = (n: number) => `${n.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: "always" } as unknown as Intl.NumberFormatOptions)} €`;
+  // La partita IVA si legge qui direttamente: `vat` è dichiarata più sotto.
+  const partitaIvaFirma = template?.partita_iva || company?.partita_iva || null;
   const righeFirma: Array<[string, string]> = [
-      // La partita IVA si legge qui direttamente: `vat` è dichiarata più sotto.
-      ["Impresa", [companyName, (template?.partita_iva || company?.partita_iva) ? `P.IVA ${template?.partita_iva || company?.partita_iva}` : null].filter(Boolean).join(" · ")],
-      ["Committente", clienteNome],
-      ["Oggetto", sintesi],
-      ...(luogoLavori ? [["Luogo dei lavori", luogoLavori]] : []),
-      ["Documento", `Preventivo ${p.code} del ${fmtDate(p.created_at)}`],
-      ["Importo", `${fmtEuroFirma(totaleDocumento)} · IVA inclusa`],
-      ["Validità", `${validoGiorni} giorni dalla data del documento`],
-    ];
+    ["Impresa", [companyName, partitaIvaFirma ? `P.IVA ${partitaIvaFirma}` : null].filter(Boolean).join(" · ")],
+    ["Committente", clienteNome],
+    ["Oggetto", sintesi],
+  ];
+  if (luogoLavori) righeFirma.push(["Luogo dei lavori", luogoLavori]);
+  righeFirma.push(
+    ["Documento", `Preventivo ${p.code} del ${fmtDate(p.created_at)}`],
+    ["Importo", `${fmtEuroFirma(totaleDocumento)} · IVA inclusa`],
+    ["Validità", `${validoGiorni} giorni dalla data del documento`],
+  );
   const righeCondizioni = righeDelleCondizioni(condizioniLegaliTesto ?? "");
   const clausoleSeconda = clausoleDaApprovare(righeCondizioni);
   const esigenze = (Array.isArray(p.esigenze) ? p.esigenze : []) as SrEsigenza[];

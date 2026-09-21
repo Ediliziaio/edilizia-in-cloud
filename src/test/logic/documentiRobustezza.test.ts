@@ -201,7 +201,7 @@ describe("modulo di recesso e pagina della firma in tutti i documenti", () => {
     expect(seconda).toBeGreaterThan(firma);
     expect(src).toContain('{ e: "FIRMA DEL COMMITTENTE", chi: clienteNome, w: 0 }');
     // La partita IVA non si legge da `vat`, dichiarata più sotto: sarebbe un errore a runtime.
-    expect(src).toContain("(template?.partita_iva || company?.partita_iva) ? `P.IVA ${template?.partita_iva || company?.partita_iva}`");
+    expect(src).toContain("const partitaIvaFirma = template?.partita_iva || company?.partita_iva || null;");
   });
 });
 
