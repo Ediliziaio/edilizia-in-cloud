@@ -94,7 +94,7 @@ const FILTRI_DEFAULT = { stato: "active", priorita: "all", categoria: "all", fon
 
 export default function UnifiedTasks({ embedded = false, initialTab = "myday" }: UnifiedTasksProps = {}) {
   const { effectiveCompany, user, isImpersonating, role } = useAuth() as any;
-  const { isAdmin, canViewTeamTasks, solaLettura } = usePermissions();
+  const { isAdmin, canViewTeamTasks, solaLettura, canEditSettingsCustomization } = usePermissions();
   // In sola lettura le attività si consultano: la policy RESTRICTIVE su tasks
   // rifiuterebbe l'inserimento, quindi i comandi di creazione sono spenti.
   const creaTitle = solaLettura ? "Sei in sola lettura" : undefined;
@@ -644,10 +644,14 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
               <Users className="h-4 w-4" />
               Per team
             </Button>
-            <Button size="sm" variant="outline" className="h-9 gap-2" onClick={() => setStatusSettingsOpen(true)}>
-              <SlidersHorizontal className="h-4 w-4" />
-              Stati
-            </Button>
+            {/* Gli stati sono dell'azienda (company_task_statuses): li cambia chi ha
+                «Personalizzazione» in modifica, come nelle impostazioni. */}
+            {canEditSettingsCustomization && (
+              <Button size="sm" variant="outline" className="h-9 gap-2" onClick={() => setStatusSettingsOpen(true)}>
+                <SlidersHorizontal className="h-4 w-4" />
+                Stati
+              </Button>
+            )}
             <Button size="sm" variant="outline" className="h-9 gap-2" onClick={esportaCsv} title="Scarica in CSV (Excel) le attività filtrate">
               <Download className="h-4 w-4" />
               Esporta

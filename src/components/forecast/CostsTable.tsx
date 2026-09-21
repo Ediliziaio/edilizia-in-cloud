@@ -83,6 +83,10 @@ interface CostsTableProps {
   onOpenTasks: (id: string) => void;
   bulkMarkPaidPending: boolean;
   bulkMarkUnpaidPending: boolean;
+  /** Chi vede i costi ma non è amministratore: solo lettura. Il database per
+   *  lo staff accetta solo la lettura dei costi (decisione sulla finanza):
+   *  senza questo, i pulsanti c'erano e il salvataggio veniva rifiutato. */
+  soloLettura?: boolean;
 }
 
 const CONFIGURABLE_COLUMNS = [
@@ -128,6 +132,7 @@ export function CostsTable({
   onMarkUnpaid,
   onMarkOrderItemUnpaid,
   onOpenTasks,
+  soloLettura = false,
   bulkMarkPaidPending,
   bulkMarkUnpaidPending,
 }: CostsTableProps) {
@@ -215,7 +220,7 @@ export function CostsTable({
     return { totalNet, totalVat, totalGross, unpaidNet, unpaidGross, paidNet, paidGross };
   }, [items]);
 
-  const selectableItems = paginatedItems.filter(c => !c.isFromOrder);
+  const selectableItems = soloLettura ? [] : paginatedItems.filter(c => !c.isFromOrder);
   const allSelectableIds = selectableItems.map(c => c.id);
   const allSelected = allSelectableIds.length > 0 && allSelectableIds.every(id => selectedIds.has(id));
   const someSelected = selectedIds.size > 0;
@@ -400,7 +405,7 @@ export function CostsTable({
         <div className="text-center py-12 text-muted-foreground">
           <Receipt className="h-10 w-10 mx-auto mb-3 opacity-40" />
           <p className="mb-3">Nessun costo trovato</p>
-          {type !== "all" && (
+          {type !== "all" && !soloLettura && (
             <Button size="sm" variant="outline" onClick={() => onOpenCreate(type === "variable" ? "variable" : "fixed")} className="gap-1">
               <Plus className="h-4 w-4" />
               Aggiungi il primo costo
@@ -434,7 +439,7 @@ export function CostsTable({
                       <span className="text-xs text-muted-foreground">{format(parseISO(cost.due_date), "dd/MM/yyyy")}</span>
                     )}
                   </div>
-                  {!cost.isFromOrder && (
+                  {!cost.isFromOrder && !soloLettura && (
                     <div className="flex shrink-0 items-center">
                       {!cost.is_paid ? (
                         <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => onMarkPaid(cost.id)} aria-label="Segna come pagato">
@@ -477,7 +482,9 @@ export function CostsTable({
               <TableHeader>
               <TableRow>
                 <TableHead className="w-[3%]">
-                  <Checkbox checked={allSelected} onCheckedChange={() => onToggleSelectAll(allSelectableIds)} aria-label="Seleziona tutti" />
+                  {!soloLettura && (
+                    <Checkbox checked={allSelected} onCheckedChange={() => onToggleSelectAll(allSelectableIds)} aria-label="Seleziona tutti" />
+                  )}
                 </TableHead>
                 <SortableTableHead column="name" label="Costo" sortConfig={costSort} onSort={toggleCostSort} className="w-[26%]" />
                 {isColVisible("origin") && <SortableTableHead column="origin" label="Origine" sortConfig={costSort} onSort={toggleCostSort} className="w-[6%]" />}
@@ -509,7 +516,7 @@ export function CostsTable({
                 return (
                   <TableRow key={cost.id} className={`${isOverdue ? "bg-red-50/60 dark:bg-red-900/10" : isExpiring ? "bg-orange-50/60 dark:bg-orange-900/10" : cost.isFromOrder ? "bg-orange-50/30 dark:bg-orange-900/5" : ""} ${isSelected ? "bg-muted/50" : ""}`}>
                     <TableCell>
-                      {!cost.isFromOrder ? (
+                      {!cost.isFromOrder && !soloLettura ? (
                         <Checkbox checked={isSelected} onCheckedChange={() => onToggleSelect(cost.id)} aria-label={`Seleziona ${cost.name}`} />
                       ) : (
                         <span className="block w-4" />
@@ -644,7 +651,7 @@ export function CostsTable({
                     )}
                     <TableCell>
                       <div className="flex items-center justify-end gap-1">
-                        {!cost.isFromOrder && (
+                        {!cost.isFromOrder && !soloLettura && (
                           <>
                             {!cost.is_paid ? (
                               <Tooltip>
@@ -709,7 +716,7 @@ export function CostsTable({
                                 </TooltipTrigger>
                                 <TooltipContent>Calcolato dal contratto: risulta pagato da solo a mese chiuso</TooltipContent>
                               </Tooltip>
-                            ) : !cost.is_paid ? (
+                            ) : soloLettura ? null : !cost.is_paid ? (
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onMarkPaid(cost.id)} aria-label="Segna come pagato">

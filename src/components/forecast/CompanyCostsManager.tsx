@@ -32,6 +32,8 @@ import { NavyStatCard } from "@/components/costi/KpiCard";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { formatCurrency } from "@/lib/formatters";
 import { supabase } from "@/integrations/supabase/client";
+import { usePermissions } from "@/hooks/usePermissions";
+import { AvvisoSolaLettura } from "@/components/common/AvvisoSolaLettura";
 
 import { useCompanyCostsData, type PeriodFilter, type StatusFilter, type StatusTabFilter, type UnifiedCost } from "@/hooks/useCompanyCostsData";
 import { useCompanyCostsMutations, type CostFormData, defaultFormData } from "@/hooks/useCompanyCostsMutations";
@@ -216,6 +218,11 @@ export default function CompanyCostsManager({
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const [searchParams, setSearchParams] = useSearchParams();
+  // I costi per lo staff sono in sola lettura: il database accetta le modifiche
+  // solo dall'amministratore (decisione sulla finanza). Senza questo lo staff
+  // col permesso «Costi» vedeva i pulsanti e il salvataggio veniva rifiutato.
+  const { isAdmin } = usePermissions();
+  const soloLettura = !isAdmin;
 
   // Preset letto UNA volta al mount (inizializza i filtri sotto), poi ripulito
   // dalla URL per non ri-applicarlo alla prossima visita della tab.
@@ -757,9 +764,9 @@ export default function CompanyCostsManager({
               <NavyStatCard
                 label="Ricorrenti"
                 value={<>{eur0(ricorrentiSintesi.data?.mensile ?? 0)}<span className="text-sm font-normal text-blue-50/70">/mese</span></>}
-                sub={`${ricorrentiSintesi.data?.attive ?? 0} voci · gestisci`}
+                sub={`${ricorrentiSintesi.data?.attive ?? 0} voci${soloLettura ? "" : " · gestisci"}`}
                 icon={Repeat}
-                onClick={() => setRicorrentiOpen(true)}
+                onClick={soloLettura ? undefined : () => setRicorrentiOpen(true)}
               />
             ) : (
               <NavyStatCard
@@ -937,7 +944,7 @@ export default function CompanyCostsManager({
             )}
             {/* Azioni a destra della stessa riga: la testata navy e' solo numeri. */}
             <div className="ml-auto flex flex-wrap items-center gap-2">
-              {scadutiTipo.length > 0 && (
+              {scadutiTipo.length > 0 && !soloLettura && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -947,17 +954,27 @@ export default function CompanyCostsManager({
                   <Landmark className="h-4 w-4" /> Riconcilia banca
                 </Button>
               )}
-              <Button variant="outline" size="sm" onClick={() => setImportOpen(true)} className="h-9 gap-1">
-                <Upload className="h-4 w-4" /> Importa
-              </Button>
+              {!soloLettura && (
+                <Button variant="outline" size="sm" onClick={() => setImportOpen(true)} className="h-9 gap-1">
+                  <Upload className="h-4 w-4" /> Importa
+                </Button>
+              )}
               <Button variant="outline" size="sm" onClick={() => { data.exportCostsCSV(); toast({ title: "CSV esportato" }); }} className="h-9 gap-1">
                 <Download className="h-4 w-4" /> Esporta
               </Button>
-              <Button size="sm" onClick={() => openCreate(typeLock)} className="h-9 gap-1 bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
-                <Plus className="h-4 w-4" /> {typeLock === "fixed" ? "Nuovo costo fisso" : "Nuovo costo variabile"}
-              </Button>
+              {!soloLettura && (
+                <Button size="sm" onClick={() => openCreate(typeLock)} className="h-9 gap-1 bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
+                  <Plus className="h-4 w-4" /> {typeLock === "fixed" ? "Nuovo costo fisso" : "Nuovo costo variabile"}
+                </Button>
+              )}
             </div>
           </div>
+
+          {soloLettura && (
+            <AvvisoSolaLettura>
+              Sola lettura: i costi li inserisce e li modifica l&apos;amministratore dell&apos;azienda.
+            </AvvisoSolaLettura>
+          )}
 
           {/* Andamento mensile in stile Commesse: barre blu (spese del mese),
               barre arancio (gia' pagato), linea nera (numero voci, asse destro).
@@ -1070,6 +1087,7 @@ export default function CompanyCostsManager({
           })()}
 
           <CostsTable
+            soloLettura={soloLettura}
             statoUscitaById={statoUscitaById}
                   leftSlot={<div className="flex gap-1 overflow-x-auto pb-0.5 sm:flex-wrap sm:overflow-visible sm:pb-0 [&>button]:shrink-0">
             {([

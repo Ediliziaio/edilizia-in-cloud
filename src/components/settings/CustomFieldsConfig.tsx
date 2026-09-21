@@ -3,6 +3,8 @@ import { TablePagination } from "@/components/ui/table-pagination";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
+import { AvvisoSolaLettura } from "@/components/common/AvvisoSolaLettura";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -1064,6 +1066,9 @@ export function toSnakeCase(s: string) {
 /* ───── component ───── */
 export function CustomFieldsConfig() {
   const { effectiveCompany } = useAuth();
+  // Campi e cartelle li cambia chi ha «Personalizzazione» in modifica: è la
+  // stessa regola del database (policy «Permesso personalizzazione»).
+  const { canEditSettingsCustomization: puoModificare } = usePermissions();
   const queryClient = useQueryClient();
   const companyId = effectiveCompany?.id;
 
@@ -1555,7 +1560,7 @@ export function CustomFieldsConfig() {
         </Tabs>
 
         <div className="flex items-center gap-2 pb-1 shrink-0 w-full sm:w-auto">
-          {activeTab === "folders" ? (
+          {!puoModificare ? null : activeTab === "folders" ? (
             <Button size="sm" onClick={openCreateFolderDialog} disabled={!companyId} className="w-full sm:w-auto">
               <FolderPlus className="h-4 w-4 mr-1.5" /> Aggiungi cartella
             </Button>
@@ -1566,6 +1571,14 @@ export function CustomFieldsConfig() {
           )}
         </div>
       </div>
+
+      {!puoModificare && (
+        <div className="pt-3">
+          <AvvisoSolaLettura>
+            Sola lettura: per aggiungere o modificare campi e cartelle serve il permesso «Modifica» su Personalizzazione.
+          </AvvisoSolaLettura>
+        </div>
+      )}
 
       {/* ── Search bar (solo su "all") ── */}
       {activeTab === "all" && (
@@ -1688,7 +1701,7 @@ export function CustomFieldsConfig() {
                     </TableCell>
                     <TableCell>
                       {!f.isSystem && (
-                        <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className={puoModificare ? "flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity" : "hidden"}>
                           <Button
                             size="icon"
                             variant="ghost"
@@ -1754,9 +1767,11 @@ export function CustomFieldsConfig() {
               <p className="text-xs text-muted-foreground mt-1 max-w-md mx-auto">
                 Crea cartelle per raggruppare campi custom dello stesso oggetto in sezioni logiche.
               </p>
-              <Button size="sm" className="mt-4" onClick={openCreateFolderDialog} disabled={!companyId}>
-                <FolderPlus className="h-4 w-4 mr-1.5" /> Crea la prima cartella
-              </Button>
+              {puoModificare && (
+                <Button size="sm" className="mt-4" onClick={openCreateFolderDialog} disabled={!companyId}>
+                  <FolderPlus className="h-4 w-4 mr-1.5" /> Crea la prima cartella
+                </Button>
+              )}
             </div>
           ) : (
             <div className="border rounded-md">
@@ -1792,7 +1807,7 @@ export function CustomFieldsConfig() {
                         {formatSafeDate(f.created_at)}
                       </TableCell>
                       <TableCell>
-                        <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className={puoModificare ? "flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity" : "hidden"}>
                           <Button
                             size="icon" aria-label="Modifica cartella"
                             variant="ghost"
@@ -1867,7 +1882,7 @@ export function CustomFieldsConfig() {
                         {(f as { deleted_at?: string }).deleted_at ? formatSafeDate((f as { deleted_at?: string }).deleted_at!) : "—"}
                       </TableCell>
                       <TableCell>
-                        <div className="flex items-center justify-end gap-1">
+                        <div className={puoModificare ? "flex items-center justify-end gap-1" : "hidden"}>
                           <Button
                             size="sm"
                             variant="outline"

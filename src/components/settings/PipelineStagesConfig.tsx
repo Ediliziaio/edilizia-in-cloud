@@ -16,6 +16,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AUTO_STATUS_OPTIONS } from "@/types/opportunities";
+import { usePermissions } from "@/hooks/usePermissions";
+import { AvvisoSolaLettura } from "@/components/common/AvvisoSolaLettura";
 
 interface Stage {
   id: string;
@@ -141,6 +143,7 @@ function SortableStage({ stage, onUpdate, onDelete, canDelete, onAutoStatusChang
 
 export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId: string; pipelineName: string }) {
   const { effectiveCompany } = useAuth();
+  const { canEditSettingsCustomization: puoModificare } = usePermissions();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
   const [stages, setStages] = useState<Stage[]>([]);
@@ -357,22 +360,31 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
           <CardTitle>Fasi di "{pipelineName}"</CardTitle>
           <CardDescription>Trascina per riordinare. Associa uno stato automatico per aggiornare le opportunità.</CardDescription>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={handleAdd}>
-            <Plus className="mr-2 h-4 w-4" /> Aggiungi Fase
-          </Button>
-          <Button size="sm" onClick={handleSave} disabled={!hasChanges || isSaving}>
-            {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Salva
-          </Button>
-        </div>
+        {puoModificare && (
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={handleAdd}>
+              <Plus className="mr-2 h-4 w-4" /> Aggiungi Fase
+            </Button>
+            <Button size="sm" onClick={handleSave} disabled={!hasChanges || isSaving}>
+              {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Salva
+            </Button>
+          </div>
+        )}
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-3">
+        {!puoModificare && (
+          <AvvisoSolaLettura>
+            Sola lettura: per modificare le fasi serve il permesso «Modifica» su Personalizzazione.
+          </AvvisoSolaLettura>
+        )}
         {stages.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-8">Nessuna fase. Aggiungi la prima fase della pipeline.</p>
         ) : (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={stages.map((s) => s.id)} strategy={verticalListSortingStrategy}>
-              <div className="space-y-2">
+              {/* Senza permesso di modifica il fieldset spegne campi, menu,
+                  cestino e maniglia di trascinamento in un colpo solo. */}
+              <fieldset disabled={!puoModificare} className="min-w-0 space-y-2">
                 {stages.map((stage) => (
                   <SortableStage
                     key={stage.id}
@@ -384,7 +396,7 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
                     onSalesOSChange={handleSalesOSChange}
                   />
                 ))}
-              </div>
+              </fieldset>
             </SortableContext>
           </DndContext>
         )}

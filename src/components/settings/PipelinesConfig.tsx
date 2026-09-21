@@ -12,6 +12,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { PipelineStagesConfig } from "./PipelineStagesConfig";
+import { usePermissions } from "@/hooks/usePermissions";
+import { AvvisoSolaLettura } from "@/components/common/AvvisoSolaLettura";
 import { AUTO_STATUS_OPTIONS } from "@/types/opportunities";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -142,6 +144,9 @@ function hasDuplicateNames(values: string[]) {
 
 export function PipelinesConfig() {
   const { effectiveCompany } = useAuth();
+  // Crea/rinomina/elimina solo con «Personalizzazione» in modifica: è la
+  // stessa regola del database (policy «Permesso personalizzazione»).
+  const { canEditSettingsCustomization: puoModificare } = usePermissions();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
 
@@ -345,12 +350,19 @@ export function PipelinesConfig() {
               <CardTitle>Sequenze (Pipeline)</CardTitle>
               <CardDescription>Gestisci le pipeline di vendita e le relative fasi</CardDescription>
             </div>
-            <Button size="sm" onClick={openCreateDialog} className="w-full sm:w-auto shrink-0">
-              <Plus className="mr-2 h-4 w-4" /> Crea Sequenza
-            </Button>
+            {puoModificare && (
+              <Button size="sm" onClick={openCreateDialog} className="w-full sm:w-auto shrink-0">
+                <Plus className="mr-2 h-4 w-4" /> Crea Sequenza
+              </Button>
+            )}
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
+          {!puoModificare && (
+            <AvvisoSolaLettura>
+              Sola lettura: per creare o modificare le sequenze serve il permesso «Modifica» su Personalizzazione.
+            </AvvisoSolaLettura>
+          )}
           {pipelines.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <p className="text-sm">Nessuna sequenza creata</p>
@@ -370,6 +382,7 @@ export function PipelinesConfig() {
                       {p.marketing_pipeline_stages?.length || 0} fasi · Aggiornata {format(new Date(p.updated_at), "dd MMM yyyy", { locale: it })}
                     </p>
                   </div>
+                  {puoModificare && (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                       <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -385,6 +398,7 @@ export function PipelinesConfig() {
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
+                  )}
                 </div>
               ))}
             </div>
