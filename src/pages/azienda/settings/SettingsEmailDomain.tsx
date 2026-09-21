@@ -199,7 +199,7 @@ function DnsRow({ record }: { record: DnsRecord }) {
 
 // ─── Main page ────────────────────────────────────────────────────────────
 export default function SettingsEmailDomain() {
-  const { effectiveCompany } = useAuth();
+  const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
   const qc = useQueryClient();
 
@@ -251,9 +251,13 @@ export default function SettingsEmailDomain() {
 
   const testEmailMutation = useMutation({
     mutationFn: async (input: { to: string; stream: "transactional" | "marketing" }) => {
+      // company_id: la prova parte dal mittente di QUESTA azienda, come le
+      // email vere. Senza, partiva da quello della piattaforma, che per il
+      // marketing Elastic rifiuta: la prova falliva anche col dominio verificato.
       const { data: resp, error } = await supabase.functions.invoke("send-test-email", {
         body: {
           testMode: true,
+          company_id: companyId,
           to: input.to,
           stream: input.stream,
           subject: `[TEST] Email di verifica · ${data?.domain?.domain ?? "EdiliziaInCloud"}`,
@@ -261,9 +265,10 @@ export default function SettingsEmailDomain() {
             <div style="max-width:540px;margin:0 auto;background:white;padding:24px;border-radius:12px;border:1px solid #e2e8f0;">
               <h2 style="color:#0f172a;margin:0 0 12px 0;">✅ Test email riuscito</h2>
               <p style="color:#334155;line-height:1.6;">
-                Questa è una email di test inviata ${data?.domain ? `dal tuo dominio personalizzato <strong>${data.domain.domain}</strong>` : `dal dominio piattaforma <strong>notifiche.ediliziaincloud.it</strong>`}
-                sulla pipeline
+                Questa è una email di test sulla pipeline
                 <strong>${input.stream === "transactional" ? "transazionale" : "marketing"}</strong>.
+                Il mittente che vedi è quello da cui partono le email
+                ${input.stream === "transactional" ? "transazionali" : "di marketing"} della tua azienda.
               </p>
               <p style="color:#334155;line-height:1.6;">
                 Se ricevi questa email significa che il sistema di invio è configurato
@@ -277,7 +282,8 @@ export default function SettingsEmailDomain() {
           </body></html>`,
         },
       });
-      if (error) throw error;
+      // Il motivo vero (destinatario non ammesso, mittente rifiutato…) sta nel body.
+      if (error) throw new Error(await edgeErrorMessage(error, "Errore invio email di test"));
       return resp;
     },
     onSuccess: () => {
@@ -439,7 +445,7 @@ export default function SettingsEmailDomain() {
                 size="sm"
                 className="shrink-0 border-blue-300 text-blue-700 hover:bg-blue-100"
                 onClick={() => {
-                  setTestEmailTo("");
+                  setTestEmailTo(user?.email ?? "");
                   setTestStream("transactional");
                   setTestDialogOpen(true);
                 }}
@@ -540,8 +546,8 @@ export default function SettingsEmailDomain() {
                 Invia email di test
               </DialogTitle>
               <DialogDescription>
-                Verifica che il sistema stia inviando email. Il test partirà dal
-                dominio piattaforma <code className="text-[11px]">notifiche.ediliziaincloud.it</code>.
+                Verifica che il sistema stia inviando email. Senza un dominio tuo, il test
+                parte dal dominio della piattaforma, come le email vere.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-3">
@@ -578,8 +584,9 @@ export default function SettingsEmailDomain() {
               <Alert>
                 <Info className="h-4 w-4" />
                 <AlertDescription className="text-xs">
-                  Il test non consuma crediti. Controlla anche la cartella spam
-                  se non arriva in inbox entro 1 minuto.
+                  Arriva al tuo indirizzo o a quello di un collega dell'azienda e non
+                  consuma crediti. Controlla anche la cartella spam se non arriva in
+                  inbox entro 1 minuto.
                 </AlertDescription>
               </Alert>
             </div>
@@ -665,7 +672,7 @@ export default function SettingsEmailDomain() {
                   variant="outline"
                   size="sm"
                   onClick={() => {
-                    setTestEmailTo("");
+                    setTestEmailTo(user?.email ?? "");
                     setTestStream("transactional");
                     setTestDialogOpen(true);
                   }}
@@ -805,7 +812,7 @@ export default function SettingsEmailDomain() {
               variant="outline"
               size="sm"
               onClick={() => {
-                setTestEmailTo("");
+                setTestEmailTo(user?.email ?? "");
                 setTestStream("transactional");
                 setTestDialogOpen(true);
               }}
@@ -864,7 +871,8 @@ export default function SettingsEmailDomain() {
             <Alert>
               <Info className="h-4 w-4" />
               <AlertDescription className="text-xs">
-                L'email di test non consuma crediti. Controlla anche la cartella spam
+                L'email di test arriva al tuo indirizzo o a quello di un collega
+                dell'azienda e non consuma crediti. Controlla anche la cartella spam
                 se non la trovi in inbox entro 1 minuto.
               </AlertDescription>
             </Alert>

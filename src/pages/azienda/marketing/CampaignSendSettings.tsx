@@ -40,6 +40,7 @@ import { Slider } from "@/components/ui/slider";
 import { CampaignAbResults } from "@/components/email-marketing/CampaignAbResults";
 import { EmailCreditsBanner } from "@/components/email-marketing/EmailCreditsBanner";
 import { useEmailMarketingBase } from "@/components/email-marketing/useEmailMarketingBase";
+import { edgeErrorMessage } from "@/lib/edgeFunctionError";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const isValidEmail = (value: string) => EMAIL_RE.test(value.trim());
@@ -327,7 +328,8 @@ export default function CampaignSendSettings() {
       const { data, error } = await supabase.functions.invoke("send-test-email", {
         body: { to: testEmailAddress, campaignId: id },
       });
-      if (error) throw error;
+      // Il motivo vero (es. destinatario fuori dall'azienda) sta nel body.
+      if (error) throw new Error(await edgeErrorMessage(error, "Invio del test non riuscito"));
       if (data?.error) throw new Error(data.error);
       return data;
     },
@@ -801,7 +803,10 @@ export default function CampaignSendSettings() {
                   variant="outline"
                   size="sm"
                   className="w-full justify-start"
-                  onClick={() => setTestEmailOpen(true)}
+                  onClick={() => {
+                    setTestEmailAddress((attuale) => attuale || user?.email || "");
+                    setTestEmailOpen(true);
+                  }}
                 >
                   <Mail className="h-4 w-4 mr-2" /> Invia email di test
                 </Button>
@@ -976,7 +981,8 @@ export default function CampaignSendSettings() {
               maxLength={100}
             />
             <p className="text-xs text-muted-foreground">
-              L'email verrà inviata con oggetto prefissato [TEST]
+              L'email verrà inviata con oggetto prefissato [TEST], al tuo indirizzo o a quello
+              di un collega dell'azienda.
             </p>
           </div>
           <DialogFooter>
