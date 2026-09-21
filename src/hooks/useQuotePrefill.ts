@@ -18,6 +18,41 @@ import { type BonusLine, parseBonusLines } from "@/lib/orders/bonusFiscali";
  */
 
 const SKIP_CATEGORIES = new Set(["subtotale", "sconto", "nota"]);
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
+/**
+ * Prezzo scritto a mano (21/09/2026): le righe del preventivo restano a 0€
+ * per chi non carica il listino, quindi non sommano più all'imponibile vero.
+ * Il form di /azienda/ordini/nuovo non precompila mai `total_amount` da
+ * questa importazione (lo scrive sempre chi crea la commessa): questa
+ * funzione dà comunque un riferimento corretto nella lista voci, invece di
+ * righe tutte a 0€ senza spiegazione — stessa riga di aggiustamento della
+ * conversione automatica (`converti-preventivo-cantiere`) e dei moduli edili
+ * (`convertiInCommessa.ts`). Pura e testabile: nessun accesso a rete.
+ */
+export function rigaAggiustamentoPrezzoManuale(
+  orderItems: Pick<OrderItem, "unit_price" | "quantity">[],
+  quote: { prezzo_manuale?: unknown; prezzo_manuale_iva_pct?: unknown; subtotal?: unknown; discount_amount?: unknown },
+): OrderItem | null {
+  const manuale = Number(quote.prezzo_manuale ?? 0);
+  if (!(manuale > 0) || orderItems.length === 0) return null;
+  const imponibile = round2(Number(quote.subtotal ?? 0) - Number(quote.discount_amount ?? 0));
+  const sommaRighe = round2(
+    orderItems.reduce((s, r) => s + (Number(r.unit_price) || 0) * (Number(r.quantity) || 1), 0),
+  );
+  const differenza = round2(imponibile - sommaRighe);
+  if (Math.abs(differenza) < 0.01) return null;
+  return {
+    name: differenza > 0 ? "Prezzo a corpo" : "Sconto commerciale",
+    description: "Differenza tra il prezzo scritto a mano nel preventivo e le righe di dettaglio.",
+    quantity: 1,
+    status: "da_ordinare",
+    position: orderItems.length,
+    unit_price: differenza,
+    purchase_price: 0,
+    vat_rate: Number(quote.prezzo_manuale_iva_pct ?? 0),
+  };
+}
 
 export interface QuotePrefillClient {
   name: string;
@@ -96,8 +131,14 @@ export function useQuotePrefill(quoteId: string | null | undefined) {
           };
         });
 
-      // ── Fasi di pagamento del preventivo → rate della commessa ──
       const q = quote as Record<string, unknown>;
+
+      // Prezzo scritto a mano: le righe sopra sono a 0€, questa riga dà un
+      // riferimento corretto (vedi commento sulla funzione più sopra).
+      const rigaAggiustamento = rigaAggiustamentoPrezzoManuale(orderItems, q);
+      if (rigaAggiustamento) orderItems.push(rigaAggiustamento);
+
+      // ── Fasi di pagamento del preventivo → rate della commessa ──
       const installments: Installment[] = parseQuotePaymentPhases(q.payment_phases).map((p, idx) => ({
         position: idx,
         label: p.label,
