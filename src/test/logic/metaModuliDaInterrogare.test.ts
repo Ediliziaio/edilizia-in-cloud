@@ -8,6 +8,8 @@ import {
   conteggioMeta,
   conteggioVisto,
   conteggiVuoti,
+  CONTROLLO_ORARIO_MS,
+  daRicontrollare,
   decidiModulo,
   FINESTRA_CALDA_MS,
   motivoConteggio,
@@ -401,7 +403,7 @@ describe("cosa dice il conteggio rispetto all'ultimo visto", () => {
 
 describe("decidere col conteggio", () => {
   const MOD = "1268174375402285"; // Green Energy: i suoi lead arrivano SOLO dal recupero
-  const fermo = { n: 40, cambiato: PRIMA(120) };
+  const fermo = { n: 40, cambiato: PRIMA(120), letto: PRIMA(15) };
   const fuoriOra = (oraDiControllo(MOD) + 7) % 24;
   const conConteggio = (
     over: Partial<Parameters<typeof decidiModulo>[0]> = {},
@@ -463,13 +465,60 @@ describe("decidere col conteggio", () => {
   });
 });
 
+describe("un modulo che ha dei lead si rilegge ogni ora anche col conteggio fermo", () => {
+  // 21/09/2026, 06:43: il modulo BeMade 2166044647486325 è sceso da 59 a 58 lead
+  // — Meta ne ha tolto uno. Un lead tolto e uno nuovo nello stesso quarto d'ora
+  // lascerebbero il numero uguale.
+  const MOD = "2166044647486325";
+  const fuoriOra = (oraDiControllo(MOD) + 5) % 24;
+  const decidi = (visto: unknown, adessoMs = ORA) =>
+    decidiModulo({
+      formId: MOD, statusMeta: "ACTIVE", cfg: null, giroAutomatico: true, conLeadRecenti: new Set<string>(),
+      oraUtc: fuoriOra, saltaArchiviati: false,
+      conteggio: { attuale: 58, visto, adessoMs, saltaFermi: true },
+    });
+
+  it("letto meno di un'ora fa: fermo, si salta", () => {
+    expect(decidi({ n: 58, cambiato: PRIMA(180), letto: PRIMA(15) }).esito).toBe("saltato_conteggio_fermo");
+    expect(decidi({ n: 58, cambiato: PRIMA(180), letto: PRIMA(45) }).esito).toBe("saltato_conteggio_fermo");
+  });
+
+  it("letto da un'ora: si rilegge, e resta contato come fermo", () => {
+    expect(CONTROLLO_ORARIO_MS).toBe(55 * 60_000);
+    expect(decidi({ n: 58, cambiato: PRIMA(180), letto: PRIMA(60) }))
+      .toMatchObject({ esito: "letto", motivo: "controllo_orario", conteggio: "fermo" });
+  });
+
+  it("col cron ogni 15 minuti la rilettura cade proprio al quarto giro", () => {
+    // letto al giro delle 08:13:05, i giri dopo partono alle :28, :43, :58, 09:13
+    const letto = "2026-09-21T08:13:05Z";
+    const giro = (hhmm: string) => Date.parse(`2026-09-21T${hhmm}:02Z`);
+    expect(daRicontrollare({ n: 3, cambiato: PRIMA(600), letto }, giro("08:58"))).toBe(false);
+    expect(daRicontrollare({ n: 3, cambiato: PRIMA(600), letto }, giro("09:13"))).toBe(true);
+  });
+
+  it("una voce salvata prima del 21/09, senza l'ora di lettura, vale come da rileggere", () => {
+    expect(decidi({ n: 58, cambiato: PRIMA(180) })).toMatchObject({ esito: "letto", motivo: "controllo_orario" });
+  });
+
+  it("un modulo a zero lead non ha niente da nascondere: basta il turno giornaliero", () => {
+    expect(daRicontrollare({ n: 0, cambiato: PRIMA(9000), letto: PRIMA(9000) }, ORA)).toBe(false);
+  });
+
+  it("i controlli (giornaliero e orario) contano come letture di moduli fermi, non come saltabili", () => {
+    const c = conteggiVuoti();
+    conta(c, decidi({ n: 58, cambiato: PRIMA(180), letto: PRIMA(60) }));
+    expect(c).toMatchObject({ letti: 1, fermiLettiPerControllo: 1, saltabiliConteggio: 0 });
+  });
+});
+
 describe("i numeri del conteggio nella riga di log", () => {
   const MOD = "922697992804539";
   const d = (motivoAtteso: Partial<Parameters<typeof decidiModulo>[0]>, c: Record<string, unknown>) =>
     decidiModulo({
       formId: MOD, statusMeta: "ACTIVE", cfg: null, giroAutomatico: true, conLeadRecenti: new Set<string>(),
       oraUtc: (oraDiControllo(MOD) + 3) % 24, saltaArchiviati: false,
-      conteggio: { attuale: 7, visto: { n: 7, cambiato: PRIMA(300) }, adessoMs: ORA, saltaFermi: false, ...c },
+      conteggio: { attuale: 7, visto: { n: 7, cambiato: PRIMA(300), letto: PRIMA(15) }, adessoMs: ORA, saltaFermi: false, ...c },
       ...motivoAtteso,
     });
 
@@ -530,12 +579,12 @@ describe("cosa si ricorda dopo il giro", () => {
       ...over,
     });
 
-  it("letto fino in fondo e conteggio cambiato: si ricorda il numero nuovo e da quando", () => {
-    expect(salva()["1"]).toEqual({ n: 11, cambiato: adesso });
+  it("letto fino in fondo e conteggio cambiato: si ricorda il numero nuovo, da quando, e la lettura", () => {
+    expect(salva()["1"]).toEqual({ n: 11, cambiato: adesso, letto: adesso });
   });
 
-  it("letto e conteggio uguale: resta l'ora del cambio di prima (l'ora «calda» non riparte)", () => {
-    expect(salva()["2"]).toEqual({ n: 5, cambiato: PRIMA(300) });
+  it("letto e conteggio uguale: resta l'ora del cambio di prima (l'ora «calda» non riparte), la lettura si aggiorna", () => {
+    expect(salva()["2"]).toEqual({ n: 5, cambiato: PRIMA(300), letto: adesso });
   });
 
   it("lettura FALLITA: resta il numero vecchio, così al giro dopo risulta ancora cambiato e si rilegge", () => {
@@ -562,7 +611,9 @@ describe("cosa si ricorda dopo il giro", () => {
     expect(salva()["rotto"]).toBeUndefined();
     for (const p of [null, undefined, "x", 5, [1, 2]] as unknown[]) {
       expect(salva({ precedenti: p })).toEqual({
-        "1": { n: 11, cambiato: adesso }, "2": { n: 5, cambiato: adesso }, "4": { n: 2, cambiato: adesso },
+        "1": { n: 11, cambiato: adesso, letto: adesso },
+        "2": { n: 5, cambiato: adesso, letto: adesso },
+        "4": { n: 2, cambiato: adesso, letto: adesso },
       });
     }
   });
@@ -640,6 +691,31 @@ describe("una giornata intera col salto acceso: nessun lead resta indietro", () 
       });
     });
   }
+
+  it("un lead tolto e uno nuovo nello stesso quarto d'ora: il numero non si muove, ma il lead arriva entro un'ora", () => {
+    const MOD = vivi[3];
+    let mappa: Record<string, unknown> = {};
+    let trovatoAlGiro: number | null = null;
+    for (let g = 0; g < 16; g++) {
+      const adessoMs = INIZIO + g * 15 * 60_000;
+      // Al giro 6 il modulo è fermo da un pezzo: in quel quarto d'ora Meta toglie
+      // un lead e ne arriva uno nuovo. Il numero resta 20 per tutto il tempo.
+      const nuovoLeggibile = g >= 6;
+      const d = decidiModulo({
+        formId: MOD, statusMeta: "ACTIVE", cfg: null, giroAutomatico: true, conLeadRecenti: new Set<string>(),
+        oraUtc: (oraDiControllo(MOD) + 12) % 24, saltaArchiviati: false,
+        conteggio: { attuale: 20, visto: mappa[MOD], adessoMs, saltaFermi: true },
+      });
+      const letto = d.esito === "letto";
+      if (letto && nuovoLeggibile && trovatoAlGiro === null) trovatoAlGiro = g;
+      mappa = conteggiDaSalvare({
+        precedenti: mappa, visti: new Map([[MOD, 20]]), lettiBene: new Set(letto ? [MOD] : []),
+        moduliSuMeta: new Set([MOD]), adessoIso: new Date(adessoMs).toISOString(),
+      });
+    }
+    expect(trovatoAlGiro).not.toBeNull();
+    expect((trovatoAlGiro as number) - 6).toBeLessThanOrEqual(4); // entro 4 giri: un'ora
+  });
 
   it("e le chiamate scendono di un ordine di grandezza", () => {
     const acceso = simula(10, true).letture;

@@ -42,6 +42,11 @@
  *   - qualunque differenza dall'ultimo visto, anche in meno → si legge;
  *   - cambiato da meno di un'ora → si legge a ogni giro: Meta può contare il
  *     lead un attimo prima di renderlo leggibile, e una lettura sola lo perderebbe;
+ *   - fermo, ma il modulo ha dei lead e non si rilegge da un'ora → si legge:
+ *     il 21/09/2026 un modulo BeMade è sceso da 59 a 58 lead (Meta ne ha tolto
+ *     uno). Un lead tolto e uno nuovo nello stesso quarto d'ora lascerebbero il
+ *     numero uguale; così il nuovo arriva al più tardi un'ora dopo. Un modulo a
+ *     zero lead non può nascondere niente in questo modo;
  *   - fermo, ma è il turno di controllo del modulo → si legge (un'ora al giorno,
  *     contro un conteggio che un giorno smettesse di muoversi);
  *   - un recupero chiesto (giorni, modulo, data) legge tutto come prima.
@@ -95,6 +100,7 @@ export type MotivoLettura =
   | "lead_recenti"         // archiviato, ma con lead negli ultimi 30 giorni
   | "controllo_non_riuscito" // archiviato, ma non si sa se ha lead recenti
   | "turno_di_controllo"   // è l'ora di controllo del modulo
+  | "controllo_orario"     // conteggio fermo, ma il modulo ha lead e non si rilegge da un'ora
   | "in_osservazione"      // archiviato e saltabile, ma il salto è spento
   | "mai_visto"            // conteggio: primo giro per questo modulo
   | "conteggio_cambiato"   // conteggio: diverso dall'ultimo visto
@@ -121,11 +127,20 @@ export const FINESTRA_CALDA_MS = 60 * 60 * 1000;
  */
 export const RITARDO_TOLLERATO_S = 15 * 60;
 
+/**
+ * Un modulo che ha dei lead si rilegge almeno ogni ora anche col conteggio
+ * fermo. Un po' meno di un'ora apposta: col cron ogni 15 minuti la rilettura
+ * cade proprio al quarto giro, non al quinto.
+ */
+export const CONTROLLO_ORARIO_MS = 55 * 60 * 1000;
+
 /** L'ultimo conteggio visto di un modulo, come sta in meta_moduli_conteggi. */
 export interface ConteggioVisto {
   n: number;
   /** Quando si è visto questo n per la prima volta (ISO). */
   cambiato: string;
+  /** L'ultima lettura riuscita del modulo (ISO); manca nelle voci salvate prima del 21/09. */
+  letto?: string;
 }
 
 export type MotivoConteggio =
@@ -150,7 +165,20 @@ export function conteggioVisto(v: unknown): ConteggioVisto | null {
   const r = v as Record<string, unknown>;
   const n = conteggioMeta(r.n);
   const cambiato = typeof r.cambiato === "string" && Number.isFinite(Date.parse(r.cambiato)) ? r.cambiato : null;
-  return n !== null && cambiato !== null ? { n, cambiato } : null;
+  if (n === null || cambiato === null) return null;
+  const letto = typeof r.letto === "string" && Number.isFinite(Date.parse(r.letto)) ? r.letto : null;
+  return letto ? { n, cambiato, letto } : { n, cambiato };
+}
+
+/**
+ * Un modulo che ha dei lead (n > 0) e non si rilegge da un'ora. Senza l'ora
+ * dell'ultima lettura (voci salvate prima del 21/09) vale come da rileggere.
+ */
+export function daRicontrollare(visto: unknown, adessoMs: number): boolean {
+  const v = conteggioVisto(visto);
+  if (!v || v.n === 0) return false;
+  const letto = v.letto ? Date.parse(v.letto) : NaN;
+  return !Number.isFinite(letto) || adessoMs - letto >= CONTROLLO_ORARIO_MS;
 }
 
 /** Cosa dice il conteggio di questo giro rispetto all'ultimo visto. */
@@ -199,6 +227,9 @@ export function decidiModulo(p: {
     base = { ...base, conteggio: k };
     if (k === "fermo") {
       if (oraDiControllo(p.formId) === p.oraUtc) return { ...base, esito: "letto", motivo: "turno_di_controllo" };
+      if (daRicontrollare(p.conteggio.visto, p.conteggio.adessoMs)) {
+        return { ...base, esito: "letto", motivo: "controllo_orario" };
+      }
       if (p.conteggio.saltaFermi) return { ...base, esito: "saltato_conteggio_fermo" };
       // Salto spento: si prosegue con le regole di prima, e il modulo resta
       // contato fra quelli che col salto acceso non si leggerebbero.
@@ -305,7 +336,7 @@ export function conta(c: ConteggiPagina, d: Decisione): void {
     if (d.motivo === "lead_recenti") c.archiviatiConLeadRecenti++;
     if (d.motivo === "in_osservazione") c.saltabili++;
     if (fermo) {
-      if (d.motivo === "turno_di_controllo") c.fermiLettiPerControllo++;
+      if (d.motivo === "turno_di_controllo" || d.motivo === "controllo_orario") c.fermiLettiPerControllo++;
       else c.saltabiliConteggio++;
     } else if (d.motivo === "turno_di_controllo" || d.motivo === "controllo_non_riuscito") {
       c.archiviatiLettiPerControllo++;
@@ -395,7 +426,8 @@ export function somma(totale: ConteggiPagina, c: ConteggiPagina): void {
  * diverso e il modulo si rilegge. È la stessa regola di last_pull_at.
  *
  * `cambiato` è l'ora in cui si è visto un numero nuovo per la prima volta: da lì
- * parte l'ora in cui il modulo si rilegge comunque.
+ * parte l'ora in cui il modulo si rilegge comunque. `letto` è l'ultima lettura
+ * riuscita: un modulo con dei lead si rilegge quando è passata un'ora.
  */
 export function conteggiDaSalvare(p: {
   /** La mappa letta dal database, anche rotta o vuota. */
@@ -424,7 +456,8 @@ export function conteggiDaSalvare(p: {
     const n = conteggioMeta(p.visti.get(formId));
     if (n === null) continue; // senza conteggio non c'è niente da ricordare
     const prima = fuori[formId];
-    fuori[formId] = prima && prima.n === n ? prima : { n, cambiato: p.adessoIso };
+    const cambiato = prima && prima.n === n ? prima.cambiato : p.adessoIso;
+    fuori[formId] = { n, cambiato, letto: p.adessoIso };
   }
   return fuori;
 }
