@@ -46,6 +46,7 @@ import {
 } from "@/components/users/permissionsDefaults";
 import { usePermissions } from "@/hooks/usePermissions";
 import { withClientTimeout } from "@/lib/query-timeout";
+import { isNetworkError, sembraErrorePostgresGrezzo, userErrorMessage } from "@/lib/userErrorMessage";
 
 import { useIsMobile } from "@/hooks/use-mobile";
 type EffectiveRole = "company_admin" | "company_staff" | "salesperson" | "call_center" | "employee" | "subcontractor";
@@ -927,78 +928,29 @@ export function UsersConfig() {
   // ANCHE il ruolo commerciale così compare nel calendario CRM, dropdown
   // venditori, ecc.
   const toggleSecondaryRoleMutation = useMutation({
+    // Lo fa il database (imposta_ruolo_aggiuntivo): su user_roles scrive solo
+    // il super admin, e per gli amministratori delle aziende la spunta non ha
+    // mai funzionato (21/09/2026). La funzione crea o riattiva anche la riga
+    // in salespeople, come faceva qui la pagina.
+    meta: { silent: true },
     mutationFn: async ({
       userId,
       role,
       add,
-      userData,
     }: {
       userId: string;
       role: "salesperson" | "call_center";
       add: boolean;
-      userData: { first_name: string; last_name: string; email: string };
+      userData?: { first_name: string; last_name: string; email: string };
     }) => {
-      if (add) {
-        // Aggiungi ruolo — select-then-insert (safe anche se non c'è
-        // unique index su user_roles(user_id, role))
-        const { data: existingRole } = await supabase
-          .from("user_roles")
-          .select("user_id")
-          .eq("user_id", userId)
-          .eq("role", role)
-          .maybeSingle();
-        if (!existingRole) {
-          const { error } = await supabase
-            .from("user_roles")
-            .insert({ user_id: userId, role });
-          if (error) throw error;
-        }
-
-        // Se stiamo aggiungendo "salesperson", creiamo anche la riga
-        // in tabella salespeople (per provvigioni) se non esiste già
-        if (role === "salesperson" && effectiveCompanyId) {
-          const { data: existing } = await supabase
-            .from("salespeople")
-            .select("id")
-            .eq("user_id", userId)
-            .eq("company_id", effectiveCompanyId)
-            .maybeSingle();
-          if (!existing) {
-            await supabase.from("salespeople").insert({
-              company_id: effectiveCompanyId,
-              user_id: userId,
-              first_name: userData.first_name || "",
-              last_name: userData.last_name || "",
-              email: userData.email || null,
-              is_active: true,
-            });
-          } else {
-            // Riattiva se era stato disattivato
-            await supabase
-              .from("salespeople")
-              .update({ is_active: true })
-              .eq("id", existing.id);
-          }
-        }
-      } else {
-        // Rimuovi ruolo
-        const { error } = await supabase
-          .from("user_roles")
-          .delete()
-          .eq("user_id", userId)
-          .eq("role", role);
-        if (error) throw error;
-
-        // Se rimuoviamo "salesperson" disattiviamo la riga salespeople
-        // (non cancelliamo, perché potrebbe avere provvigioni storiche legate)
-        if (role === "salesperson" && effectiveCompanyId) {
-          await supabase
-            .from("salespeople")
-            .update({ is_active: false })
-            .eq("user_id", userId)
-            .eq("company_id", effectiveCompanyId);
-        }
-      }
+      if (!effectiveCompanyId) throw new Error("Azienda non selezionata");
+      const { error } = await supabase.rpc("imposta_ruolo_aggiuntivo" as never, {
+        p_user_id: userId,
+        p_company_id: effectiveCompanyId,
+        p_ruolo: role,
+        p_attivo: add,
+      } as never);
+      if (error) throw error;
     },
     onSuccess: (_, { role, add }) => {
       queryClient.invalidateQueries({ queryKey: ["company-users"] });
@@ -1011,7 +963,16 @@ export function UsersConfig() {
           : `Ruolo "${label}" rimosso`
       );
     },
-    onError: (e: Error) => toast.error(`Errore: ${e.message}`),
+    // Il database risponde con una frase italiana («Solo un amministratore…»):
+    // si mostra quella; gli errori tecnici passano dalla traduzione generica.
+    onError: (e: unknown) => {
+      const msg = (e as { message?: unknown } | null)?.message;
+      toast.error(
+        typeof msg === "string" && msg && !sembraErrorePostgresGrezzo(msg) && !isNetworkError(e)
+          ? msg
+          : userErrorMessage(e, "Non è stato possibile aggiornare il ruolo."),
+      );
+    },
   });
 
   // ── Filters ─────────────────────────────────────────────────────────

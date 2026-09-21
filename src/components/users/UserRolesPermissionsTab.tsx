@@ -139,7 +139,9 @@ interface UserRolesPermissionsTabProps {
     permissions: StaffPermissions | null;
   };
   onSave: (permissions: StaffPermissions) => void;
-  onChangeRole?: (newRole: CompanyRole) => void;
+  /** `permessiDelRuolo`: i permessi tipici del ruolo da salvare insieme al
+   *  cambio, se l'utente li ha chiesti; null per tenere quelli attuali. */
+  onChangeRole?: (newRole: CompanyRole, permessiDelRuolo: StaffPermissions | null) => void;
   onToggleAdditionalRole?: (role: AdditionalRole, add: boolean) => void;
   isLoading?: boolean;
   isChangingRole?: boolean;
@@ -241,6 +243,9 @@ export function UserRolesPermissionsTab({
 
   useEffect(() => {
     if (user.role) setSelectedRole(user.role);
+    // Il ruolo salvato è cambiato (o è un altro utente): la scelta in sospeso
+    // non vale più.
+    setPendingRoleChange(null);
   }, [user.id, user.role]);
 
   const isDirty = useMemo(() => {
@@ -251,7 +256,11 @@ export function UserRolesPermissionsTab({
   // ─── Handlers ──────────────────────────────────────────────────────
   const handleRoleChange = (value: string) => {
     const newRole = value as CompanyRole;
-    if (newRole === selectedRole) return;
+    // Riscegliere il ruolo attuale annulla la scelta in sospeso.
+    if (newRole === selectedRole) {
+      setPendingRoleChange(null);
+      return;
+    }
     // Self-edit protection: non si può revocare il proprio ruolo admin dal detail
     if (isCurrentUser && selectedRole === "company_admin" && newRole !== "company_admin") {
       return; // il select è già disabled visivamente, ma doppia guardia
@@ -259,15 +268,28 @@ export function UserRolesPermissionsTab({
     setPendingRoleChange(newRole);
   };
 
+  /**
+   * Il cambio parte da qui e lo conferma il database: la scheda mostra il
+   * ruolo nuovo solo quando è salvato davvero (la pagina la ricarica).
+   * Prima il ruolo cambiava subito sullo schermo, anche se poi il database
+   * lo respingeva; e i permessi del ruolo restavano solo sullo schermo, persi
+   * alla ricarica.
+   */
   const confirmRoleChange = (applyPreset: boolean) => {
     if (!pendingRoleChange) return;
     const newRole = pendingRoleChange;
-    setSelectedRole(newRole);
-    onChangeRole?.(newRole);
-    if (applyPreset && ROLE_PRESETS[newRole]) {
-      setPermissions((prev) => ({ ...DEFAULT_PERMISSIONS, only_assigned: prev.only_assigned, sola_lettura: prev.sola_lettura, pipeline_visibili: prev.pipeline_visibili, ...ROLE_PRESETS[newRole] }));
-    }
-    setPendingRoleChange(null);
+    const preset = ROLE_PRESETS[newRole];
+    const permessiDelRuolo =
+      applyPreset && newRole !== "company_admin" && preset && Object.keys(preset).length > 0
+        ? {
+            ...DEFAULT_PERMISSIONS,
+            only_assigned: permissions.only_assigned,
+            sola_lettura: permissions.sola_lettura,
+            pipeline_visibili: permissions.pipeline_visibili,
+            ...preset,
+          }
+        : null;
+    onChangeRole?.(newRole, permessiDelRuolo);
   };
 
   const cancelRoleChange = () => setPendingRoleChange(null);
@@ -458,29 +480,77 @@ export function UserRolesPermissionsTab({
               <Label className="text-xs text-muted-foreground uppercase tracking-wide mb-1.5 block">
                 Ruolo primario
               </Label>
-              <Select
-                value={selectedRole}
-                onValueChange={handleRoleChange}
-                disabled={isChangingRole || (isCurrentUser && selectedRole === "company_admin")}
-              >
-                <SelectTrigger className="w-full md:w-[320px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {(["company_admin", "company_staff", "salesperson", "call_center", "employee", "subcontractor"] as CompanyRole[]).map((r) => {
-                    const cfg = ROLE_CONFIG[r];
-                    const Icon = cfg.icon;
-                    return (
-                      <SelectItem key={r} value={r}>
-                        <div className="flex items-center gap-2">
-                          <Icon className={cn("h-4 w-4", cfg.color)} />
-                          {cfg.label}
-                        </div>
-                      </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
+              {/* Il menu mostra subito il ruolo scelto, e la conferma sta sulla
+                  STESSA riga, a destra (21/09/2026). Prima il menu restava sul
+                  ruolo vecchio e la conferma compariva in un riquadro più in
+                  basso: sembrava che la scelta non fosse presa, si riapriva il
+                  menu, e il menu aperto copriva la conferma — un clic lì chiude
+                  soltanto il menu. Il cambio di ruolo non partiva mai. */}
+              <div className="flex flex-col md:flex-row md:items-center gap-2">
+                <Select
+                  value={pendingRoleChange ?? selectedRole}
+                  onValueChange={handleRoleChange}
+                  disabled={isChangingRole || (isCurrentUser && selectedRole === "company_admin")}
+                >
+                  <SelectTrigger
+                    className={cn("w-full md:w-[320px]", pendingRoleChange && "border-amber-400 ring-1 ring-amber-300")}
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(["company_admin", "company_staff", "salesperson", "call_center", "employee", "subcontractor"] as CompanyRole[]).map((r) => {
+                      const cfg = ROLE_CONFIG[r];
+                      const Icon = cfg.icon;
+                      return (
+                        <SelectItem key={r} value={r}>
+                          <div className="flex items-center gap-2">
+                            <Icon className={cn("h-4 w-4", cfg.color)} />
+                            {cfg.label}
+                          </div>
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+
+                {pendingRoleChange && (
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {pendingRoleChange === "company_admin" ||
+                    Object.keys(ROLE_PRESETS[pendingRoleChange] ?? {}).length === 0 ? (
+                      <Button size="sm" onClick={() => confirmRoleChange(false)} disabled={isChangingRole}>
+                        {isChangingRole ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Check className="h-3.5 w-3.5 mr-1" />}
+                        Conferma
+                      </Button>
+                    ) : (
+                      <>
+                        <Button size="sm" onClick={() => confirmRoleChange(true)} disabled={isChangingRole}>
+                          {isChangingRole ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 mr-1" />}
+                          Conferma con i permessi del ruolo
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => confirmRoleChange(false)} disabled={isChangingRole}>
+                          Conferma, tieni i permessi attuali
+                        </Button>
+                      </>
+                    )}
+                    <Button size="sm" variant="ghost" onClick={cancelRoleChange} disabled={isChangingRole}>
+                      Annulla
+                    </Button>
+                  </div>
+                )}
+              </div>
+              {pendingRoleChange && (
+                <p className="text-xs text-amber-700 dark:text-amber-400 mt-1.5 flex items-start gap-1.5">
+                  <Info className="h-3 w-3 mt-0.5 shrink-0" />
+                  <span>
+                    {`${user.first_name} ${user.last_name}`.trim() || "L'utente"} diventa{" "}
+                    <strong>{ROLE_CONFIG[pendingRoleChange].label}</strong>
+                    {pendingRoleChange === "company_admin"
+                      ? ": vede tutti i moduli e può gestire gli utenti."
+                      : "."}{" "}
+                    Non è ancora salvato: conferma per applicarlo.
+                  </span>
+                </p>
+              )}
               {isCurrentUser && selectedRole === "company_admin" && (
                 <p className="text-xs text-muted-foreground mt-1.5 flex items-start gap-1.5">
                   <Lock className="h-3 w-3 mt-0.5 shrink-0" />
@@ -546,8 +616,9 @@ export function UserRolesPermissionsTab({
               </>
             )}
 
-            {/* Preset apply button */}
-            {!isAdmin && ROLE_PRESETS[selectedRole] && Object.keys(ROLE_PRESETS[selectedRole]).length > 0 && (
+            {/* Preset apply button — nascosto mentre si sta cambiando ruolo:
+                parla del ruolo di adesso, e accanto alla conferma confonde. */}
+            {!isAdmin && !pendingRoleChange && ROLE_PRESETS[selectedRole] && Object.keys(ROLE_PRESETS[selectedRole]).length > 0 && (
               <div className="flex items-center justify-between gap-3 p-3 rounded-lg bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900/50">
                 <div className="flex items-start gap-2">
                   <Sparkles className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
@@ -574,37 +645,6 @@ export function UserRolesPermissionsTab({
             )}
           </CardContent>
         </Card>
-
-        {/* Role change confirmation dialog-lite */}
-        {pendingRoleChange && (
-          <Card className="border-amber-300 bg-amber-50/40 dark:bg-amber-950/20 dark:border-amber-900/50">
-            <CardContent className="p-4 space-y-3">
-              <div className="flex items-start gap-2">
-                <Info className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
-                <div>
-                  <p className="font-medium text-sm">
-                    Cambiare il ruolo in "{ROLE_CONFIG[pendingRoleChange].label}"?
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Puoi applicare i permessi predefiniti di questo ruolo oppure mantenere quelli attuali.
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <Button size="sm" onClick={() => confirmRoleChange(true)}>
-                  <Sparkles className="h-3.5 w-3.5 mr-1" />
-                  Cambia + applica preset
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => confirmRoleChange(false)}>
-                  Cambia senza modificare i permessi
-                </Button>
-                <Button size="sm" variant="ghost" onClick={cancelRoleChange}>
-                  Annulla
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
 
         {isAdmin ? (
           <Card>

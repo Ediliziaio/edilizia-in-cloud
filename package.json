@@ -20,7 +20,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:critical": "vitest run src/test/logic/fatturazione.test.ts src/test/logic/preventivi.test.ts src/test/logic/banking.test.ts src/test/logic/preventiviUnificati.test.ts src/test/logic/funzioniChiamateSenzaJwt.test.ts src/test/logic/funzioniSenzaJwtConControllo.test.ts",
+    "test:critical": "vitest run src/test/logic/fatturazione.test.ts src/test/logic/preventivi.test.ts src/test/logic/banking.test.ts src/test/logic/preventiviUnificati.test.ts src/test/logic/funzioniChiamateSenzaJwt.test.ts src/test/logic/funzioniSenzaJwtConControllo.test.ts src/test/ui/cambioRuoloUtente.test.tsx",
     "test:e2e": "playwright test",
     "test:e2e:install": "playwright install chromium",
     "test:e2e:ui": "playwright test --ui",

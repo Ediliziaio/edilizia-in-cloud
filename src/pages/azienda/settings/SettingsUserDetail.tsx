@@ -22,21 +22,12 @@ import { StaffPermissions } from "@/components/users/PermissionsDialog";
 import { buildStaffPermissionsUpdate } from "@/components/users/permissionsDefaults";
 import { usePermissions } from "@/hooks/usePermissions";
 import { normalizeCompanyAccessRole } from "@/lib/auth/multiCompany";
-import type { Database, Json } from "@/integrations/supabase/types";
+import { isNetworkError, isTransientTimeoutError, sembraErrorePostgresGrezzo, userErrorMessage } from "@/lib/userErrorMessage";
+import type { Database } from "@/integrations/supabase/types";
 
 type CompanyUserRole = "company_admin" | "company_staff" | "salesperson" | "call_center" | "employee" | "subcontractor";
-type DbRole = Database["public"]["Enums"]["app_role"];
 type UserAuditInsert = Database["public"]["Tables"]["user_audit_log"]["Insert"];
 
-const COMPANY_LEVEL_ROLES: DbRole[] = [
-  "company_admin",
-  "company_staff",
-  "salesperson",
-  "call_center",
-  "employee",
-  "worker",
-  "subcontractor",
-];
 
 interface UserDetail {
   id: string;
@@ -79,22 +70,30 @@ const SIDEBAR_TABS = [
 
 type TabId = typeof SIDEBAR_TABS[number]["id"];
 
-function personName(userData: Pick<UserDetail, "first_name" | "last_name" | "email"> | undefined) {
-  return `${userData?.first_name ?? ""} ${userData?.last_name ?? ""}`.trim() || userData?.email || "Utente";
+/** Salva i permessi di un utente in un'azienda (filtrati e sincronizzati). */
+async function salvaPermessi(userId: string, companyId: string, permissions: StaffPermissions) {
+  const synced = buildStaffPermissionsUpdate(permissions);
+  const { error } = await supabase
+    .from("staff_permissions")
+    .update(synced)
+    .eq("user_id", userId)
+    .eq("company_id", companyId);
+  if (error) throw error;
 }
 
-async function ensureStaffPermissionsRow(userId: string, companyId: string) {
-  const { data: existingPermissions } = await supabase
-    .from("staff_permissions")
-    .select("user_id")
-    .eq("user_id", userId)
-    .eq("company_id", companyId)
-    .maybeSingle();
-
-  if (!existingPermissions) {
-    const { error } = await supabase.from("staff_permissions").insert({ user_id: userId, company_id: companyId });
-    if (error) throw error;
+/**
+ * Il messaggio da mostrare quando un cambio di ruolo non riesce. Le regole
+ * stanno nel database e rispondono con una frase italiana («È l'ultimo
+ * amministratore…»): va mostrata così com'è. Il gestore globale la
+ * trasformerebbe in un generico «Non hai i permessi» (codice 42501), per
+ * questo le due mutation di ruolo sono `silent` e l'errore lo dice questa.
+ */
+function messaggioErroreRuolo(e: unknown): string {
+  const msg = (e as { message?: unknown } | null)?.message;
+  if (typeof msg === "string" && msg && !sembraErrorePostgresGrezzo(msg) && !isNetworkError(e) && !isTransientTimeoutError(e)) {
+    return msg;
   }
+  return userErrorMessage(e, "Non è stato possibile cambiare il ruolo. Riprova.");
 }
 
 function writeUserAuditLog(payload: UserAuditInsert) {
@@ -223,61 +222,22 @@ export default function SettingsUserDetail() {
   });
 
   // ── Toggle ruolo aggiuntivo (salesperson/call_center secondario) ──
+  // Lo fa il database (imposta_ruolo_aggiuntivo): su user_roles scrive solo
+  // il super admin, e per gli amministratori delle aziende la spunta non ha
+  // mai funzionato (21/09/2026).
   const toggleAdditionalRoleMutation = useMutation({
+    meta: { silent: true },
     mutationFn: async ({ role: addRole, add }: { role: "salesperson" | "call_center"; add: boolean }) => {
       const companyId = userData?.access_company_id ?? userData?.company_id;
       if (!userId || !companyId) throw new Error("Utente non inizializzato");
-      if (add) {
-        // Select-then-insert (safe anche senza unique constraint)
-        const { data: existing } = await supabase
-          .from("user_roles")
-          .select("user_id")
-          .eq("user_id", userId)
-          .eq("role", addRole)
-          .maybeSingle();
-        if (!existing) {
-          const { error } = await supabase
-            .from("user_roles")
-            .insert({ user_id: userId, role: addRole });
-          if (error) throw error;
-        }
-        // Se è salesperson, crea/riattiva riga in tabella salespeople
-        if (addRole === "salesperson") {
-          const { data: sp } = await supabase
-            .from("salespeople")
-            .select("id")
-            .eq("user_id", userId)
-            .eq("company_id", companyId)
-            .maybeSingle();
-          if (!sp) {
-
-            await supabase.from("salespeople").insert({
-              user_id: userId,
-              company_id: companyId,
-              first_name: userData.first_name || "",
-              last_name: userData.last_name || "",
-              email: userData.email || null,
-              is_active: true,
-            });
-          } else {
-            await supabase.from("salespeople").update({ is_active: true }).eq("id", sp.id);
-          }
-        }
-      } else {
-        const { error } = await supabase
-          .from("user_roles")
-          .delete()
-          .eq("user_id", userId)
-          .eq("role", addRole);
-        if (error) throw error;
-        if (addRole === "salesperson") {
-          await supabase
-            .from("salespeople")
-            .update({ is_active: false })
-            .eq("user_id", userId)
-            .eq("company_id", companyId);
-        }
-      }
+      const { error } = await supabase.rpc("imposta_ruolo_aggiuntivo" as never, {
+        p_user_id: userId,
+        p_company_id: companyId,
+        p_ruolo: addRole,
+        p_attivo: add,
+        p_impersonato: isImpersonating,
+      } as never);
+      if (error) throw error;
     },
     onSuccess: (_, { role: addRole, add }) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.users.detail(userId) });
@@ -292,10 +252,10 @@ export default function SettingsUserDetail() {
           : "L'utente non appare più nel CRM (dati storici preservati).",
       });
     },
-    onError: (e: Error) => {
+    onError: (e: unknown) => {
       toast({
-        title: "Errore",
-        description: `Impossibile aggiornare il ruolo aggiuntivo: ${e.message}`,
+        title: "Impossibile aggiornare il ruolo aggiuntivo",
+        description: messaggioErroreRuolo(e),
         variant: "destructive",
       });
     },
@@ -330,14 +290,7 @@ export default function SettingsUserDetail() {
       }
 
       // Filtra alle chiavi note + sincronizza i flag legacy (helper condiviso).
-      const synced = buildStaffPermissionsUpdate(permissions);
-
-      const { error } = await supabase
-        .from("staff_permissions")
-        .update(synced)
-        .eq("user_id", userId)
-        .eq("company_id", companyId);
-      if (error) throw error;
+      await salvaPermessi(userId, companyId, permissions);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.users.detail(userId) });
@@ -365,187 +318,44 @@ export default function SettingsUserDetail() {
     },
   });
 
+  // Il cambio di ruolo lo fa il database (cambia_ruolo_utente): controlla chi
+  // può, applica le regole (titolare, ultimo amministratore, sé stessi),
+  // scrive il registro e cambia tutto in una transazione. Prima la scheda
+  // scriveva da sé in user_roles, dove solo il super admin può scrivere: per
+  // gli amministratori delle aziende il cambio non funzionava mai, e le due
+  // chiamate separate potevano lasciare un utente senza ruoli (21/09/2026).
   const changeRoleMutation = useMutation({
-    mutationFn: async (newRole: CompanyUserRole) => {
+    meta: { silent: true },
+    mutationFn: async ({ ruolo, permessi }: { ruolo: CompanyUserRole; permessi: StaffPermissions | null }) => {
       if (!userId) throw new Error("userId mancante");
-      const currentRole = userData?.role;
-      if (currentRole === newRole) return;
-
       const companyId = userData?.access_company_id ?? userData?.company_id;
       if (!companyId) throw new Error("company_id mancante nel profilo utente");
 
-      // GUARD 0: il titolare dell'azienda non si declassa, e i ruoli degli altri
-      // amministratori li cambia solo lui. Stessa regola del trigger sul
-      // database: qui l'utente riceve la frase giusta invece di un errore SQL.
-      if (userData?.e_il_titolare && currentRole === "company_admin" && newRole !== "company_admin") {
-        throw new Error(
-          "Questo è il titolare dell'azienda: il suo ruolo di Amministratore non si può togliere. Indica prima un altro titolare.",
-        );
-      }
-      if (
-        currentRole === "company_admin" &&
-        newRole !== "company_admin" &&
-        userData?.titolare_user_id &&
-        userData.titolare_user_id !== currentUser?.id
-      ) {
-        throw new Error(
-          "Il ruolo di un Amministratore lo può cambiare solo il titolare dell'azienda.",
-        );
-      }
+      const { error } = await supabase.rpc("cambia_ruolo_utente" as never, {
+        p_user_id: userId,
+        p_company_id: companyId,
+        p_ruolo: ruolo,
+        p_impersonato: isImpersonating,
+      } as never);
+      if (error) throw error;
 
-      // GUARD 1: self-edit — non permettere di revocare il proprio ruolo admin
-      if (userId === currentUser?.id && currentRole === "company_admin" && newRole !== "company_admin") {
-        throw new Error(
-          "Non puoi rimuovere il tuo ruolo di Amministratore. Chiedi a un altro admin di farlo."
-        );
-      }
-
-      // GUARD 2: last admin — impedisci di revocare l'ultimo admin della company
-      if (currentRole === "company_admin" && newRole !== "company_admin") {
-        // user_roles.user_id punta ad auth.users: l'embed `profiles!inner(company_id)`
-        // rispondeva SEMPRE 400 e si finiva comunque qui. Due passi: gli id
-        // degli admin, poi quanti di loro sono di questa azienda.
-        const { data: profs, error: adminErr } = await supabase
-          .from("user_roles")
-          .select("user_id")
-          .eq("role", "company_admin");
-        if (adminErr) throw adminErr;
-        const adminIds = (profs ?? []).map((p) => p.user_id);
-        if (adminIds.length > 0) {
-          const { count } = await supabase
-            .from("profiles")
-            .select("id", { count: "exact", head: true })
-            .in("id", adminIds)
-            .eq("company_id", companyId);
-          if ((count ?? 0) <= 1) {
-            throw new Error(
-              "Impossibile rimuovere l'ultimo amministratore. Assegna prima un altro admin."
-            );
-          }
-        }
-      }
-
-      if (userData?.is_multi_company_access) {
-        const { data: existingAccess } = await supabase
-          .from("multi_company_access")
-          .select("id")
-          .eq("user_id", userId)
-          .eq("company_id", companyId)
-          .maybeSingle();
-
-        if (existingAccess?.id) {
-          const { error } = await supabase
-            .from("multi_company_access")
-            .update({ access_role: newRole })
-            .eq("id", existingAccess.id);
-          if (error) throw error;
-        } else {
-          const { error } = await supabase
-            .from("multi_company_access")
-            .insert({ user_id: userId, company_id: companyId, access_role: newRole });
-          if (error) throw error;
-        }
-
-        if (newRole !== "company_admin") {
-          await ensureStaffPermissionsRow(userId, companyId);
-        }
-
-        return;
-      }
-
-      // Remove all company-level roles first
-      const { error: deleteError } = await supabase.from("user_roles").delete()
-        .eq("user_id", userId)
-        .in("role", COMPANY_LEVEL_ROLES);
-      if (deleteError) throw deleteError;
-
-      if (newRole === "company_admin") {
-        const { error } = await supabase.from("user_roles").insert({ user_id: userId, role: "company_admin" });
-        if (error) throw error;
-      } else if (newRole === "salesperson" || newRole === "call_center") {
-        // Dual-role: specific role + company_staff
-        const { error: e1 } = await supabase.from("user_roles").insert({ user_id: userId, role: newRole });
-        if (e1) throw e1;
-        const { error: e2 } = await supabase.from("user_roles").insert({ user_id: userId, role: "company_staff" });
-        if (e2) throw e2;
-      } else if (newRole === "employee") {
-        // Employee gets employee role
-        const { error } = await supabase.from("user_roles").insert({ user_id: userId, role: "employee" });
-        if (error) throw error;
-      } else if (newRole === "subcontractor") {
-        // Subcontractor gets subcontractor role
-        const { error } = await supabase.from("user_roles").insert({ user_id: userId, role: "subcontractor" });
-        if (error) throw error;
-      } else {
-        // Plain company_staff
-        const { error } = await supabase.from("user_roles").insert({ user_id: userId, role: "company_staff" });
-        if (error) throw error;
-      }
-
-      // Ensure staff_permissions row exists for non-admin roles
-      if (newRole !== "company_admin") {
-        await ensureStaffPermissionsRow(userId, companyId);
-      }
-
-      // If salesperson, ensure salespeople record exists (o riattiva se era disattivata)
-      if (newRole === "salesperson") {
-        const { data: existingSp } = await supabase.from("salespeople").select("id, is_active").eq("user_id", userId).eq("company_id", companyId).maybeSingle();
-        if (!existingSp) {
-          await supabase.from("salespeople").insert({
-            user_id: userId,
-            company_id: companyId,
-            first_name: userData?.first_name || "",
-            last_name: userData?.last_name || "",
-            email: userData?.email || "",
-            is_active: true,
-          });
-        } else if (!existingSp.is_active) {
-          await supabase.from("salespeople").update({ is_active: true }).eq("id", existingSp.id);
-        }
-      }
-
-      // If subcontractor, ensure the Italian subappaltatori record exists.
-      if (newRole === "subcontractor") {
-        const { data: existingSub } = await supabase.from("subappaltatori").select("id").eq("user_id", userId).eq("company_id", companyId).maybeSingle();
-        if (!existingSub) {
-          const name = personName(userData);
-          await supabase.from("subappaltatori").insert({
-            user_id: userId,
-            company_id: companyId,
-            ragione_sociale: name,
-            responsabile: name,
-            email: userData?.email || "",
-            user_email: userData?.email || "",
-            is_active: true,
-          });
-        }
+      // «Conferma con i permessi del ruolo»: si salvano adesso. Prima restavano
+      // solo sullo schermo, e la scheda ricaricata col ruolo nuovo li perdeva.
+      if (permessi && ruolo !== "company_admin") {
+        await salvaPermessi(userId, companyId, permessi);
       }
     },
-    onSuccess: (_data, newRole) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.users.detail(userId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.users.companyUsers });
-      // Audit log
-      const auditCompanyId = userData?.access_company_id ?? userData?.company_id;
-      if (currentUser && auditCompanyId) {
-        writeUserAuditLog({
-          company_id: auditCompanyId,
-          actor_id: currentUser.id,
-          target_user_id: userId!,
-          action: "role_changed",
-          details: {
-            from: userData.role ?? null,
-            to: newRole,
-            multiCompanyAccess: userData.is_multi_company_access,
-          } satisfies Json,
-          is_impersonated: isImpersonating,
-        });
-      }
+      queryClient.invalidateQueries({ queryKey: ["company-staff-users"] });
+      queryClient.invalidateQueries({ queryKey: ["salespeople"] });
       toast({ title: "Ruolo aggiornato", description: "Il ruolo dell'utente è stato modificato." });
     },
-    onError: (e: Error) => {
+    onError: (e: unknown) => {
       toast({
         title: "Impossibile cambiare il ruolo",
-        description: e.message || "Errore sconosciuto.",
+        description: messaggioErroreRuolo(e),
         variant: "destructive",
       });
     },
@@ -722,7 +532,7 @@ export default function SettingsUserDetail() {
                 additionalRoles: userData.additionalRoles,
               }}
               onSave={(perms) => savePermissionsMutation.mutate(perms)}
-              onChangeRole={(role) => changeRoleMutation.mutate(role)}
+              onChangeRole={(ruolo, permessi) => changeRoleMutation.mutate({ ruolo, permessi })}
               onToggleAdditionalRole={(role, add) =>
                 toggleAdditionalRoleMutation.mutate({ role, add })
               }
