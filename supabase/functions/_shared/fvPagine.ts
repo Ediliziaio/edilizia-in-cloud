@@ -47,8 +47,8 @@ export interface FvPdfPageMeta {
   descrizione: string;
   obbligatoria: boolean;
   /**
-   * false = la pagina nasce nascosta, anche nei modelli già salvati: sono i
-   * blocchi che promettono qualcosa al cliente, li accende l'azienda.
+   * false = la pagina nasce nascosta, anche nei modelli già salvati. Oggi nessuna:
+   * dal 22/09/2026 anche i blocchi che promettono qualcosa nascono accesi.
    */
   diSerie?: boolean;
 }
@@ -62,12 +62,6 @@ export const FV_PDF_PAGES_META: FvPdfPageMeta[] = [
   // — Atto 1: Fiducia —
   { id: "garanzie", label: "Chi siamo e garanzie", descrizione: "Azienda, prova sociale, certificazioni e garanzie.", obbligatoria: false },
   { id: "iter", label: "Percorso cliente", descrizione: "Iter pratiche, installazione, allaccio e servizi inclusi.", obbligatoria: false },
-  // Dopo il percorso, come lavorate sul tetto e cosa resta al cliente. Nascono
-  // spente: promettono qualcosa, e le accende solo chi lo fa davvero.
-  { id: "protezione", label: "Sicurezza sul tetto", descrizione: "Come lavorate sul tetto e proteggete la casa.", obbligatoria: false, diSerie: false },
-  { id: "controlli", label: "Controlli di qualità", descrizione: "Cosa verificate prima di mettere in servizio l'impianto.", obbligatoria: false, diSerie: false },
-  { id: "documenti", label: "Documenti consegnati", descrizione: "Conformità, pratiche, garanzie e monitoraggio consegnati al cliente.", obbligatoria: false, diSerie: false },
-  { id: "diario", label: "Diario fotografico", descrizione: "Le foto dell'installazione, anche di quello che poi resta sotto i pannelli.", obbligatoria: false, diSerie: false },
   // — Atto 2: Desiderio (prodotto e prova) —
   // Come funziona un impianto, con due foto tecniche: prima dell'impianto del cliente.
   { id: "come_funziona", label: "Come funziona un impianto", descrizione: "Produce, converte, conserva, scambia: spiegato con due foto tecniche.", obbligatoria: false },
@@ -85,6 +79,13 @@ export const FV_PDF_PAGES_META: FvPdfPageMeta[] = [
   { id: "investimento", label: "Investimento", descrizione: "Prezzo, proposta di valore, inclusi e detrazione.", obbligatoria: true },
   { id: "piano_pagamento", label: "Piano economico", descrizione: "Rata, risparmio e costo netto mensile. Esce solo con un finanziamento.", obbligatoria: false },
   { id: "bollette_240", label: "Perche farlo ora", descrizione: "Narrativa su aumento bollette e urgenza.", obbligatoria: false },
+  // — Durante e dopo i lavori: rispondono ai dubbi proprio quando il cliente decide.
+  // Promettono qualcosa: accese di serie (22/09/2026), l'azienda le rilegge e le
+  // spegne se non lo fa. In testa, con la fiducia, erano sei pagine prima dell'impianto.
+  { id: "protezione", label: "Sicurezza sul tetto", descrizione: "Come lavorate sul tetto e proteggete la casa.", obbligatoria: false },
+  { id: "controlli", label: "Controlli di qualità", descrizione: "Cosa verificate prima di mettere in servizio l'impianto.", obbligatoria: false },
+  { id: "documenti", label: "Documenti consegnati", descrizione: "Conformità, pratiche, garanzie e monitoraggio consegnati al cliente.", obbligatoria: false },
+  { id: "diario", label: "Diario fotografico", descrizione: "Le foto dell'installazione, anche di quello che poi resta sotto i pannelli.", obbligatoria: false },
   // — Atto 5: Chiusura —
   { id: "faq", label: "FAQ", descrizione: "Domande e risposte scritte nel modello: senza, la pagina non esce.", obbligatoria: false },
   { id: "decisione", label: "CTA e firma", descrizione: "Riepilogo offerta e contatti; dopo, le condizioni, la pagina della firma e il modulo di recesso.", obbligatoria: true },

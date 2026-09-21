@@ -401,6 +401,10 @@ describe("fotovoltaico PDF template", () => {
           { id: "garanzie", visible: false },
           { id: "iter", visible: false },
           { id: "come_funziona", visible: false },
+          { id: "protezione", visible: false },
+          { id: "controlli", visible: false },
+          { id: "documenti", visible: false },
+          { id: "diario", visible: false },
           { id: "faq", visible: false },
           { id: "decisione", visible: true },
         ],
@@ -743,12 +747,12 @@ describe("fotovoltaico PDF — le pagine: un elenco solo, e i blocchi", () => {
     expect(ordine[ordine.length - 1]).toBe("decisione");
   });
 
-  it("«Come funziona» nasce accesa prima dell'anteprima; le pagine che promettono, spente dopo il percorso", () => {
+  it("«Come funziona» accesa prima dell'anteprima; le pagine che promettono, accese prima di domande e firma", () => {
     const ordine = ids(FV_PDF_PAGES_DEFAULT);
     expect(ordine[ordine.indexOf("anteprima") - 1]).toBe("come_funziona");
-    expect(ordine.slice(ordine.indexOf("iter") + 1, ordine.indexOf("iter") + 5)).toEqual(["protezione", "controlli", "documenti", "diario"]);
-    expect(visibile(FV_PDF_PAGES_DEFAULT, "come_funziona")).toBe(true);
-    for (const id of ["protezione", "controlli", "documenti", "diario"]) expect(visibile(FV_PDF_PAGES_DEFAULT, id)).toBe(false);
+    // Rispondono ai dubbi quando il cliente decide, non in testa con la fiducia.
+    expect(ordine.slice(ordine.indexOf("bollette_240") + 1, ordine.indexOf("faq"))).toEqual(["protezione", "controlli", "documenti", "diario"]);
+    for (const id of ["come_funziona", "protezione", "controlli", "documenti", "diario"]) expect(visibile(FV_PDF_PAGES_DEFAULT, id)).toBe(true);
   });
 
   it("un ordine salvato prima dei blocchi li riceve al loro posto, non in fondo dopo la firma", () => {
@@ -756,9 +760,10 @@ describe("fotovoltaico PDF — le pagine: un elenco solo, e i blocchi", () => {
     const pagine = normalizeFvPdfPagesOrder(salvato);
     expect(ids(pagine)[ids(pagine).length - 1]).toBe("decisione");
     expect(ids(pagine).indexOf("come_funziona")).toBeLessThan(ids(pagine).indexOf("anteprima"));
-    expect(visibile(pagine, "protezione")).toBe(false);
-    // accesa dall'azienda, resta accesa
-    expect(visibile(normalizeFvPdfPagesOrder([{ id: "protezione", visible: true }]), "protezione")).toBe(true);
+    expect(ids(pagine).indexOf("diario")).toBeLessThan(ids(pagine).indexOf("decisione"));
+    expect(visibile(pagine, "protezione")).toBe(true);
+    // spenta dall'azienda, resta spenta
+    expect(visibile(normalizeFvPdfPagesOrder([{ id: "protezione", visible: false }]), "protezione")).toBe(false);
   });
 
   it("le foto dei blocchi accesi: al massimo due, dal sito nelle anteprime", () => {
@@ -769,8 +774,8 @@ describe("fotovoltaico PDF — le pagine: un elenco solo, e i blocchi", () => {
     expect(fotoBlocchiDalSito("https://app.example.it/", template).comeFunziona[0]).toEqual({
       src: "https://app.example.it/pdf-stock/fotovoltaico/tecnica-percorso-energia.jpg", diSerie: true,
     });
-    // di serie spente: nessuna foto da caricare
-    expect(Object.keys(fotoDeiBlocchiFv({}))).toEqual(["comeFunziona"]);
+    // di serie accese tutte: le foto di tutti i blocchi
+    expect(Object.keys(fotoDeiBlocchiFv({})).sort()).toEqual(["comeFunziona", "controlli", "diario", "documenti", "protezione"]);
     for (const file of Object.values(fotoDeiBlocchiFv({ pdf_pages_order: tutteAccese() })).flat()) {
       expect(existsSync(resolve(process.cwd(), `public${file}`))).toBe(true);
     }

@@ -72,9 +72,9 @@ describe("editor: ordine e pagine", () => {
   });
 
   // 22/09/2026 — I blocchi della libreria si modificano da qui.
-  it("le pagine-promessa sono spente e lo dicono; la matita apre l'editor del blocco", () => {
+  it("le pagine-promessa sono accese e chiedono di rileggerle; la matita apre l'editor del blocco", () => {
     render(<Editor />);
-    expect(screen.getAllByText(/Spenta di serie: promette qualcosa al cliente/).length).toBe(5);
+    expect(screen.getAllByText(/Promette qualcosa al cliente: rileggila/).length).toBe(5);
     fireEvent.click(screen.getByRole("button", { name: "Modifica Protezione della casa" }));
     const titolo = screen.getByDisplayValue("Trattiamo la tua casa *come se fosse la nostra*.");
     fireEvent.change(titolo, { target: { value: "La tua casa, *protetta*." } });

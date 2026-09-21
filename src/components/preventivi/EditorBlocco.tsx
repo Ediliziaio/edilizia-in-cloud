@@ -126,7 +126,7 @@ export function EditorBlocco({ chiave, settore, salvati, onSalvati, campoFoto }:
     <div className="mt-3 space-y-4 rounded-md border bg-background p-3">
       {descrizione.promessa ? (
         <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-          Questa pagina promette qualcosa al cliente. Accendila solo se lo fate davvero, e adatta le voci a come lavorate.
+          Questa pagina promette qualcosa al cliente ed è accesa di serie: adatta le voci a come lavorate, e spegnila se non lo fate.
         </p>
       ) : null}
 

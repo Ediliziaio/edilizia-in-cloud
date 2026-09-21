@@ -777,8 +777,8 @@ export interface SrPdfPageMeta {
   /** Se true, la pagina non può essere nascosta (toggle visible disabilitato). */
   obbligatoria: boolean;
   /**
-   * false = la pagina nasce nascosta, anche nei modelli già salvati: sono i
-   * blocchi che promettono qualcosa al cliente, li accende l'azienda.
+   * false = la pagina nasce nascosta, anche nei modelli già salvati. Oggi nessuna:
+   * dal 22/09/2026 anche i blocchi che promettono qualcosa nascono accesi.
    */
   diSerie?: boolean;
 }
@@ -861,35 +861,32 @@ export const SR_PDF_PAGES_META: SrPdfPageMeta[] = [
     descrizione: "Pagina con le 4 fasi e gli step (configurata sopra).",
     obbligatoria: false,
   },
-  // Dopo il percorso, quello che succede in casa durante e dopo la posa. Nascono
-  // spente: promettono qualcosa, e le accende solo chi lo fa davvero.
+  // Dopo il percorso, quello che succede in casa durante e dopo la posa: vicino
+  // alla decisione rispondono ai dubbi del cliente. Promettono qualcosa: accese di
+  // serie (22/09/2026), l'azienda le rilegge e le spegne se non lo fa.
   {
     id: "protezione",
     label: "Protezione della casa",
     descrizione: "Come proteggete pavimenti, muri e arredi durante la posa.",
     obbligatoria: false,
-    diSerie: false,
   },
   {
     id: "controlli",
     label: "Controlli di qualità",
     descrizione: "Cosa verificate su ogni serramento prima della consegna.",
     obbligatoria: false,
-    diSerie: false,
   },
   {
     id: "documenti",
     label: "Documenti consegnati",
     descrizione: "Il fascicolo che il cliente riceve a fine lavori.",
     obbligatoria: false,
-    diSerie: false,
   },
   {
     id: "diario",
     label: "Diario fotografico",
     descrizione: "Le foto della posa, anche dei punti che poi restano coperti.",
     obbligatoria: false,
-    diSerie: false,
   },
   {
     id: "garanzie",

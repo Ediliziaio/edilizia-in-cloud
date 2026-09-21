@@ -106,8 +106,8 @@ export function OrdineCapitoli({ ordine, pagine, onOrdine, onPagine, campoFoto, 
                   <p className="truncate text-[11px] text-muted-foreground">
                     {pagina ? (pagina.testoHtml || pagina.fotoUrl ? "Testo e foto scritti da voi" : "Ancora da scrivere: non esce finché è vuota") : descritto?.descrizione}
                   </p>
-                  {blocco?.promessa && !v.visibile ? (
-                    <p className="text-[11px] text-amber-700">Spenta di serie: promette qualcosa al cliente. Accendila solo se lo fate davvero.</p>
+                  {blocco?.promessa && v.visibile ? (
+                    <p className="text-[11px] text-amber-700">Promette qualcosa al cliente: rileggila, e spegnila se non lo fate.</p>
                   ) : null}
                 </div>
                 {spostabile ? (

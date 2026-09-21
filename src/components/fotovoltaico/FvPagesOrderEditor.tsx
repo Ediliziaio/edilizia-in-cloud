@@ -223,7 +223,7 @@ function SortableFvPageItem({
   onMoveUp: () => void;
   onMoveDown: () => void;
   onToggleVisible: () => void;
-  /** Un blocco che promette qualcosa al cliente: spento, lo dice. */
+  /** Un blocco che promette qualcosa al cliente: acceso, chiede di rileggerlo. */
   promessa?: boolean;
   /** Apre l'editor del blocco sotto la riga. */
   onModifica?: () => void;
@@ -288,9 +288,9 @@ function SortableFvPageItem({
         <div className="mt-0.5 truncate text-[10px] text-muted-foreground">
           {meta.descrizione}
         </div>
-        {promessa && !item.visible ? (
+        {promessa && item.visible ? (
           <div className="mt-0.5 text-[10px] text-amber-700">
-            Spenta di serie: promette qualcosa al cliente. Accendila solo se lo fate davvero.
+            Promette qualcosa al cliente: rileggila, e spegnila se non lo fate.
           </div>
         ) : null}
       </div>

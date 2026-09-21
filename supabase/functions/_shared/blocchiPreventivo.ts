@@ -8,9 +8,10 @@
  * non ha toccato resta di serie, anche quando i testi di serie migliorano.
  *
  * Alcuni blocchi promettono qualcosa al cliente (proteggiamo la casa, controlliamo
- * ogni dettaglio, ti consegniamo un fascicolo): nascono SPENTI e li accende
- * l'azienda dopo averli riletti. Uno che promette una cosa che l'azienda non fa è
- * peggio di nessuna pagina.
+ * ogni dettaglio, ti consegniamo un fascicolo). Fino al 21/09/2026 nascevano
+ * spenti; dal 22/09 nascono accesi (decisione di Florin) e l'editor chiede di
+ * rileggerli: uno che promette una cosa che l'azienda non fa è peggio di nessuna
+ * pagina, e l'azienda lo spegne con un clic.
  *
  * I testi usano solo caratteri che i PDF con i caratteri di serie sanno stampare
  * (niente frecce né pedici: «CO2», non «CO₂»).
@@ -47,7 +48,7 @@ export interface DescrizioneBlocco {
   /** Il nome nell'editor e nell'indice del documento. */
   etichetta: string;
   descrizione: string;
-  /** Promette qualcosa al cliente: nasce spento. */
+  /** Promette qualcosa al cliente: l'editor chiede di rileggerlo. */
   promessa: boolean;
 }
 
@@ -106,7 +107,7 @@ const COME_FUNZIONA: Record<SettoreBlocchi, Parziale> = {
       v("Il telaio", "Più camere e rinforzi dentro il profilo, guarnizioni continue: tenuta all'aria e all'acqua che dura negli anni.", "casa"),
       v("La posa", "Una finestra rende quanto la sua posa: il giunto con il muro va sigillato dentro, al centro e fuori.", "installazione"),
     ],
-    foto: foto("serramenti", "tecnica-prima-dopo", "tecnica-canalina"),
+    foto: foto("serramenti", "tecnica-posa", "tecnica-canalina"),
   },
   fotovoltaico: {
     occhiello: "Come funziona",
@@ -130,7 +131,7 @@ const COME_FUNZIONA: Record<SettoreBlocchi, Parziale> = {
       v("Impianto idrico", "Tubazioni nuove per acqua calda e fredda, rubinetti di chiusura, e una prova di tenuta prima di chiudere le pareti.", "verifica"),
       v("Aria e comfort", "Ricambio d'aria, luce e scaldasalviette pensati insieme: meno condensa, niente muffa.", "ventilazione"),
     ],
-    foto: foto("bagni", "tecnica-doccia", "tecnica-impianto-idraulico"),
+    foto: foto("bagni", "tecnica-doccia-spaccato", "tecnica-impianto-idraulico"),
   },
   ristrutturazione: {
     occhiello: "Dentro le pareti",
@@ -346,6 +347,7 @@ const PROTEZIONE: Partial<Record<SettoreBlocchi, Parziale>> = {
       v("Vecchi serramenti portati via", "Nessun ingombro lasciato in casa o in cortile.", "smaltimento"),
       v("Pulizia di vetri e ambienti", "A fine posa ti consegniamo le stanze pulite.", "pulizia"),
     ],
+    foto: [...foto("serramenti", "protezione"), ...foto("comune", "pulizia-consegna")],
   },
   fotovoltaico: {
     occhiello: "In sicurezza",
@@ -358,8 +360,10 @@ const PROTEZIONE: Partial<Record<SettoreBlocchi, Parziale>> = {
       v("Passaggi dei cavi puliti", "Canaline ordinate, fori sigillati, nessun filo a vista dove non serve.", "installazione"),
       v("Nessun rifiuto lasciato", "Imballi e scarti portati via a fine lavori.", "smaltimento"),
     ],
-    foto: foto("fotovoltaico", "fasi-installatori"),
+    foto: foto("fotovoltaico", "sicurezza-tetto"),
   },
+  bagni: { foto: [...foto("bagni", "protezione"), ...foto("comune", "pulizia-consegna")] },
+  ristrutturazione: { foto: foto("ristrutturazione", "protezione-scale", "cantiere-ordinato") },
 };
 
 const CONTROLLI_BASE: Parziale = {
@@ -398,7 +402,7 @@ const CONTROLLI: Partial<Record<SettoreBlocchi, Parziale>> = {
       v("Monitoraggio attivo", "Ti lasciamo l'impianto collegato e visibile dal telefono.", "monitoraggio"),
       v("Verbale di collaudo", "Tutto scritto, e consegnato a te.", "documenti"),
     ],
-    foto: foto("fotovoltaico", "controllo-termografico"),
+    foto: foto("fotovoltaico", "controllo-termografico", "quadro-elettrico"),
   },
   bagni: {
     voci: [
@@ -409,7 +413,7 @@ const CONTROLLI: Partial<Record<SettoreBlocchi, Parziale>> = {
       v("Sanitari e rubinetteria", "Montati, regolati e provati.", "installazione"),
       v("Pulizia finale", "Il bagno ti viene consegnato pronto da usare.", "pulizia"),
     ],
-    foto: foto("bagni", "controllo-impermeabilizzazione"),
+    foto: foto("bagni", "controllo-impermeabilizzazione", "storia-impermeabilizzazione"),
   },
   ristrutturazione: {
     voci: [
@@ -420,6 +424,7 @@ const CONTROLLI: Partial<Record<SettoreBlocchi, Parziale>> = {
       v("Finiture", "Stucchi, pitture e raccordi rivisti stanza per stanza.", "finiture"),
       v("Verbale di fine lavori", "Quello che abbiamo verificato, scritto e consegnato.", "documenti"),
     ],
+    foto: foto("ristrutturazione", "controllo-planarita", "controllo-elettrico"),
   },
   tetti: { foto: foto("tetti", "controllo-termico") },
   climatizzazione: { foto: foto("climatizzazione", "controllo-collaudo") },
@@ -452,6 +457,7 @@ const DOCUMENTI: Partial<Record<SettoreBlocchi, Parziale>> = {
       v("Documenti per le detrazioni, se previste", null, "detrazione"),
       v("Fatture", null, "pagamento"),
     ],
+    foto: foto("serramenti", "storia-consegna-collaudo"),
   },
   fotovoltaico: {
     voci: [
@@ -463,6 +469,7 @@ const DOCUMENTI: Partial<Record<SettoreBlocchi, Parziale>> = {
       v("Documenti per la detrazione, se prevista", null, "detrazione"),
       v("Fatture", null, "pagamento"),
     ],
+    foto: foto("fotovoltaico", "consegna-app"),
   },
 };
 
@@ -489,7 +496,7 @@ const DIARIO: Partial<Record<SettoreBlocchi, Parziale>> = {
       v("Serramenti installati", "Cosa è stato messo, e dove.", "materiali"),
       v("Risultato finale", "Il lavoro consegnato.", "casa"),
     ],
-    foto: foto("serramenti", "installazione"),
+    foto: foto("serramenti", "rilievo", "risultato"),
   },
   fotovoltaico: {
     intro: "Fotografiamo l'impianto mentre lo montiamo: ancoraggi, passaggi dei cavi, collegamenti. Le foto restano con i documenti dell'impianto.",
@@ -501,6 +508,10 @@ const DIARIO: Partial<Record<SettoreBlocchi, Parziale>> = {
     ],
     foto: foto("fotovoltaico", "installazione"),
   },
+  bagni: { foto: foto("bagni", "demolizione", "risultato-moderno") },
+  // Prima, durante e dopo in un'immagine sola, a tutta larghezza.
+  ristrutturazione: { foto: foto("ristrutturazione", "storia-prima-durante-dopo") },
+  piscine: { foto: foto("piscine", "storia-prima-durante-dopo") },
 };
 
 const TABELLE: Record<ChiaveBlocco, { base: Parziale | null; perSettore: Partial<Record<SettoreBlocchi, Parziale>> }> = {
@@ -528,16 +539,16 @@ export function bloccoDiSerie(chiave: ChiaveBlocco, settore: SettoreBlocchi): Co
 
 /** Le foto di serie per cartella: quelle del settore e quelle comuni a tutti. */
 export const FOTO_LIBRERIA: Record<string, string[]> = {
-  bagni: ["controllo-impermeabilizzazione", "installazione", "tecnica-doccia", "tecnica-impianto-idraulico"],
-  climatizzazione: ["controllo-collaudo", "installazione", "tecnica-estate-inverno", "tecnica-multisplit"],
-  comune: ["consegna-documenti", "controllo-finale", "lavorazioni-nascoste", "protezione-ambienti", "pulizia-consegna"],
-  fotovoltaico: ["auto-elettrica-wallbox", "azienda-agricola", "batteria-modulare", "capannone", "co2-alberi", "co2-auto", "co2-bosco", "co2-voli", "componenti-elettrici", "controllo-termografico", "dettaglio-celle", "fasi-installatori", "installazione", "inverter-batteria-garage", "inverter-monofase", "inverter-trifase", "investimento-impianto", "kit-fissaggio", "monitoraggio-app", "pannelli-neve", "pannelli-nuvoloso", "pannelli-pioggia", "pannello-bifacciale", "pannello-standard", "pannello-total-black", "sopralluogo", "tecnica-giorno-sera", "tecnica-percorso-energia", "villa-tetto-coppi", "villa-tetto-piano", "vista-drone", "wallbox"],
-  pavimenti: ["installazione", "tecnica-giunto", "tecnica-stratigrafia"],
-  pergole: ["installazione", "tecnica-acqua", "tecnica-lamelle"],
-  piscine: ["installazione", "tecnica-filtrazione", "tecnica-vasca"],
-  ristrutturazione: ["cantiere", "tecnica-casa-sezionata", "tecnica-riscaldamento-pavimento"],
-  serramenti: ["controllo-squadro", "controllo-tenuta-acqua", "installazione", "tecnica-canalina", "tecnica-prima-dopo"],
-  tetti: ["controllo-termico", "installazione", "tecnica-dispersione", "tecnica-tetto-ventilato"],
+  bagni: ["controllo-impermeabilizzazione", "demolizione", "installazione", "protezione", "risultato-classico", "risultato-moderno", "storia-impermeabilizzazione", "storia-prima-durante-dopo", "tecnica-doccia", "tecnica-doccia-spaccato", "tecnica-impianto-idraulico"],
+  climatizzazione: ["controllo-collaudo", "installazione", "storia-prima-durante-dopo", "tecnica-estate-inverno", "tecnica-multisplit"],
+  comune: ["consegna-documenti", "controllo-finale", "lavorazioni-nascoste", "protezione-ambienti", "pulizia-consegna", "storia-assistenza"],
+  fotovoltaico: ["auto-elettrica-wallbox", "azienda-agricola", "batteria-modulare", "capannone", "co2-alberi", "co2-auto", "co2-bosco", "co2-voli", "componenti-elettrici", "consegna-app", "controllo-termografico", "dettaglio-celle", "fasi-installatori", "installazione", "inverter-batteria-garage", "inverter-monofase", "inverter-trifase", "investimento-impianto", "kit-fissaggio", "monitoraggio-app", "pannelli-neve", "pannelli-nuvoloso", "pannelli-pioggia", "pannello-bifacciale", "pannello-standard", "pannello-total-black", "quadro-elettrico", "sicurezza-tetto", "sopralluogo", "storia-bolletta-beneficio", "storia-bolletta-serena", "storia-drone-termografia", "storia-energia-serale", "storia-flusso-energia", "tecnica-giorno-sera", "tecnica-percorso-energia", "villa-tetto-coppi", "villa-tetto-piano", "villa-tramonto", "vista-drone", "wallbox"],
+  pavimenti: ["installazione", "storia-prima-durante-dopo", "tecnica-giunto", "tecnica-stratigrafia"],
+  pergole: ["installazione", "storia-prima-dopo", "tecnica-acqua", "tecnica-lamelle"],
+  piscine: ["installazione", "storia-prima-durante-dopo", "tecnica-filtrazione", "tecnica-vasca"],
+  ristrutturazione: ["cantiere", "cantiere-ordinato", "controllo-elettrico", "controllo-planarita", "protezione-scale", "risultato", "storia-ciclo-lavori", "storia-consegna-chiavi", "storia-prima-durante-dopo", "tecnica-casa-sezionata", "tecnica-riscaldamento-pavimento"],
+  serramenti: ["controllo-squadro", "controllo-tenuta-acqua", "installazione", "protezione", "rilievo", "risultato", "storia-consegna-collaudo", "storia-famiglia-inverno", "storia-freddo-caldo", "storia-portafinestra", "storia-prima-durante-dopo", "storia-pulizia", "storia-sopralluogo-posa", "storia-termocamera", "tecnica-canalina", "tecnica-posa", "tecnica-prima-dopo"],
+  tetti: ["controllo-termico", "installazione", "storia-prima-durante-dopo", "storia-strati", "tecnica-dispersione", "tecnica-tetto-ventilato"],
 };
 
 /** Le foto che l'editor propone per un settore: le sue, poi le comuni. */

@@ -27,9 +27,9 @@ function Editor({ conBlocchi = true }: { conBlocchi?: boolean }) {
 const salvato = () => JSON.parse(screen.getByTestId("salvato").textContent ?? "{}");
 
 describe("editor Serramenti: le pagine dei blocchi", () => {
-  it("le quattro pagine che promettono sono spente e lo dicono", () => {
+  it("le quattro pagine che promettono sono accese e chiedono di rileggerle", () => {
     render(<Editor />);
-    expect(screen.getAllByText(/Spenta di serie: promette qualcosa al cliente/)).toHaveLength(4);
+    expect(screen.getAllByText(/Promette qualcosa al cliente: rileggila/)).toHaveLength(4);
   });
 
   it("la matita apre testi e voci del blocco, e salva solo quello che cambia", () => {

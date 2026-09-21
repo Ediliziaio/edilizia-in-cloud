@@ -23,9 +23,9 @@ function Editor() {
 const salvato = () => JSON.parse(screen.getByTestId("salvato").textContent ?? "{}");
 
 describe("editor Fotovoltaico: le pagine dei blocchi", () => {
-  it("l'ordine di serie apre con la fiducia, e le pagine che promettono sono spente", () => {
+  it("l'ordine di serie apre con la fiducia, e le pagine che promettono sono accese e chiedono di rileggerle", () => {
     render(<Editor />);
-    expect(screen.getAllByText(/Spenta di serie: promette qualcosa al cliente/)).toHaveLength(4);
+    expect(screen.getAllByText(/Promette qualcosa al cliente: rileggila/)).toHaveLength(4);
     expect(screen.getAllByText(/^(Chi siamo e garanzie|Investimento)$/).map((e) => e.textContent)).toEqual(["Chi siamo e garanzie", "Investimento"]);
   });
 

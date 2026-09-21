@@ -37,16 +37,18 @@ describe("blocchi del preventivo: la libreria di serie", () => {
     }
   });
 
-  it("le promesse sono segnate come tali: nascono spente nell'ordine dei capitoli", () => {
+  it("le promesse sono segnate come tali, e dal 22/09/2026 nascono accese nell'ordine dei capitoli", () => {
     const promesse = BLOCCHI.filter((b) => b.promessa).map((b) => b.chiave);
     expect(promesse).toEqual(["compreso", "protezione", "controlli", "documenti", "diario"]);
     const ordine = ordineEffettivo([], []);
-    for (const k of promesse) expect(ordine.find((v) => v.chiave === k)?.visibile, k).toBe(false);
-    expect(ordine.find((v) => v.chiave === "comeFunziona")?.visibile).toBe(true);
-    // Chi aveva già scelto l'ordine trova i capitoli nuovi spenti, se sono promesse.
+    for (const k of [...promesse, "comeFunziona"]) expect(ordine.find((v) => v.chiave === k)?.visibile, k).toBe(true);
+    // Chi aveva già scelto l'ordine trova i capitoli nuovi accesi, al loro posto.
     const vecchio = CAPITOLI_EDILI.filter((c) => !BLOCCHI.some((b) => b.chiave === c.chiave)).map((c) => ({ chiave: c.chiave, visibile: true }));
     const completato = ordineEffettivo(vecchio, []);
-    for (const k of promesse) expect(completato.find((v) => v.chiave === k)?.visibile, k).toBe(false);
+    for (const k of promesse) expect(completato.find((v) => v.chiave === k)?.visibile, k).toBe(true);
+    // Spento dall'azienda, resta spento.
+    const spento = ordineEffettivo([...vecchio, { chiave: "diario", visibile: false }], []);
+    expect(spento.find((v) => v.chiave === "diario")?.visibile).toBe(false);
   });
 
   it("ogni foto della libreria esiste, e l'editor propone quelle del settore più le comuni", () => {

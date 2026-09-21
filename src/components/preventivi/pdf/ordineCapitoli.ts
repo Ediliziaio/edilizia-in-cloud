@@ -43,12 +43,13 @@ export interface CapitoloDescritto {
   /** Il prezzo non si nasconde: un preventivo senza investimento non è un preventivo. */
   nascondibile: boolean;
   /**
-   * Acceso quando l'azienda non ha ancora scelto. I blocchi che promettono qualcosa
-   * al cliente (proteggiamo la casa, controlliamo, consegniamo un fascicolo) nascono
-   * spenti: li accende l'azienda dopo averli riletti.
+   * Acceso quando l'azienda non ha ancora scelto. Dal 22/09/2026 anche i blocchi
+   * che promettono qualcosa al cliente (proteggiamo la casa, controlliamo,
+   * consegniamo un fascicolo) nascono accesi: l'azienda li rilegge, li cambia o
+   * li spegne dall'editor.
    */
   diSerie: boolean;
-  /** È un impegno verso il cliente: l'editor lo dice accanto all'interruttore. */
+  /** È un impegno verso il cliente: l'editor chiede di rileggerlo. */
   promessa?: boolean;
 }
 
@@ -59,16 +60,16 @@ export const CAPITOLI_EDILI: CapitoloDescritto[] = [
   { chiave: "progetto", etichetta: "Il progetto", descrizione: "Da dove partiamo e la nostra risposta · esce se compilato", spostabile: true, nascondibile: true, diSerie: true },
   { chiave: "comeFunziona", etichetta: "Come funziona", descrizione: "Le lavorazioni che non si vedono, spiegate con foto tecniche", spostabile: true, nascondibile: true, diSerie: true },
   { chiave: "percorso", etichetta: "Come lavoriamo", descrizione: "Le fasi, dal primo incontro alla consegna · esce se compilato", spostabile: true, nascondibile: true, diSerie: true },
-  { chiave: "protezione", etichetta: "Protezione della casa", descrizione: "Come proteggete la casa durante i lavori", spostabile: true, nascondibile: true, diSerie: false, promessa: true },
-  { chiave: "controlli", etichetta: "Controlli di qualità", descrizione: "Cosa verificate prima della consegna", spostabile: true, nascondibile: true, diSerie: false, promessa: true },
+  { chiave: "protezione", etichetta: "Protezione della casa", descrizione: "Come proteggete la casa durante i lavori", spostabile: true, nascondibile: true, diSerie: true, promessa: true },
+  { chiave: "controlli", etichetta: "Controlli di qualità", descrizione: "Cosa verificate prima della consegna", spostabile: true, nascondibile: true, diSerie: true, promessa: true },
   { chiave: "lavori", etichetta: "I nostri lavori", descrizione: "Galleria dei lavori consegnati · esce se ci sono foto", spostabile: true, nascondibile: true, diSerie: true },
   { chiave: "foto", etichetta: "Foto e render", descrizione: "Le foto e i render caricati nel preventivo · esce se ci sono", spostabile: true, nascondibile: true, diSerie: true },
   { chiave: "piano", etichetta: "Il piano dei lavori", descrizione: "Il computo, voce per voce", spostabile: true, nascondibile: true, diSerie: true },
-  { chiave: "compreso", etichetta: "Cosa è compreso", descrizione: "Cosa comprende il prezzo, e cosa resta fuori", spostabile: true, nascondibile: true, diSerie: false, promessa: true },
+  { chiave: "compreso", etichetta: "Cosa è compreso", descrizione: "Cosa comprende il prezzo, e cosa resta fuori", spostabile: true, nascondibile: true, diSerie: true, promessa: true },
   { chiave: "investimento", etichetta: "Il tuo investimento", descrizione: "Il prezzo, lo sconto, l'IVA, la detrazione", spostabile: true, nascondibile: false, diSerie: true },
   { chiave: "garanzie", etichetta: "Garanzie e domande", descrizione: "Le garanzie e le domande frequenti · esce se compilato", spostabile: true, nascondibile: true, diSerie: true },
-  { chiave: "documenti", etichetta: "Documenti consegnati", descrizione: "Il fascicolo che il cliente riceve a fine lavori", spostabile: true, nascondibile: true, diSerie: false, promessa: true },
-  { chiave: "diario", etichetta: "Diario fotografico", descrizione: "Le foto delle fasi, anche di quelle che poi restano nascoste", spostabile: true, nascondibile: true, diSerie: false, promessa: true },
+  { chiave: "documenti", etichetta: "Documenti consegnati", descrizione: "Il fascicolo che il cliente riceve a fine lavori", spostabile: true, nascondibile: true, diSerie: true, promessa: true },
+  { chiave: "diario", etichetta: "Diario fotografico", descrizione: "Le foto delle fasi, anche di quelle che poi restano nascoste", spostabile: true, nascondibile: true, diSerie: true, promessa: true },
   { chiave: "tempi", etichetta: "I tempi", descrizione: "Il cronoprogramma del cantiere · esce se compilato", spostabile: true, nascondibile: true, diSerie: true },
 ];
 

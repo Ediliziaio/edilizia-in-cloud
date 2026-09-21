@@ -248,7 +248,7 @@ function SortablePageItem({
   onMoveUp: () => void;
   onMoveDown: () => void;
   onToggleVisible: () => void;
-  /** Un blocco che promette qualcosa al cliente: spento, lo dice. */
+  /** Un blocco che promette qualcosa al cliente: acceso, chiede di rileggerlo. */
   promessa?: boolean;
   /** Apre l'editor del blocco sotto la riga. */
   onModifica?: () => void;
@@ -314,9 +314,9 @@ function SortablePageItem({
         <div className="text-[10px] text-muted-foreground mt-0.5 line-clamp-1">
           {meta.descrizione}
         </div>
-        {promessa && !item.visible ? (
+        {promessa && item.visible ? (
           <div className="text-[10px] text-amber-700 mt-0.5">
-            Spenta di serie: promette qualcosa al cliente. Accendila solo se lo fate davvero.
+            Promette qualcosa al cliente: rileggila, e spegnila se non lo fate.
           </div>
         ) : null}
       </div>
