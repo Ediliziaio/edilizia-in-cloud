@@ -45,13 +45,17 @@ const centesimi = (valore: number) => Math.round((Number.isFinite(valore) ? valo
 
 /**
  * I totali che il preventivo tiene sulla sua riga, calcolati dalle posizioni
- * come nel passo Economia: li leggono l'elenco dei preventivi, le opportunità e
- * la pagina del cliente. Il preventivo serramenti ha un prezzo finale, quindi
- * minimo e massimo coincidono.
+ * come nel passo Economia: li leggono l'elenco dei preventivi, le opportunità,
+ * la pagina del cliente e la commessa che nasce dal preventivo
+ * (sr_converti_in_ordine prende totale_max). Il preventivo serramenti ha un
+ * prezzo finale, quindi minimo e massimo coincidono.
+ *
+ * Col prezzo scritto a mano il totale parte da quello, non dalle posizioni:
+ * senza, elenco e commessa avrebbero mostrato 0 € per le finestre senza prezzo.
  */
 export function totaliDelPreventivo(
   detail: Pick<SrProgettoDetail, "serramenti" | "accessori"> & Partial<Pick<SrProgettoDetail, "servizi">>,
-  economia: Pick<Partial<SrProgettoRow>, "iva_percentuale" | "sconto_percentuale" | "sconto_importo">,
+  economia: Pick<Partial<SrProgettoRow>, "iva_percentuale" | "sconto_percentuale" | "sconto_importo" | "prezzo_manuale">,
 ): TotaliPreventivo {
   const totale = calcolaTotale(
     detail.serramenti,
@@ -60,6 +64,7 @@ export function totaliDelPreventivo(
       iva_percentuale: economia.iva_percentuale ?? 10,
       sconto_percentuale: economia.sconto_percentuale ?? 0,
       sconto_importo: economia.sconto_importo ?? 0,
+      prezzo_manuale: economia.prezzo_manuale ?? null,
     },
     detail.servizi ?? [],
   );

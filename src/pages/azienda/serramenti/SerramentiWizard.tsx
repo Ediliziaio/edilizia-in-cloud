@@ -444,10 +444,10 @@ export default function SerramentiWizard() {
   // le opportunità e la pagina del cliente. Seguono le posizioni in qualunque
   // passo si sia; prima si aggiornavano solo aprendo Economia, e l'elenco
   // mostrava «0 pezzi» su preventivi pieni.
-  const { iva_percentuale, sconto_percentuale, sconto_importo } = form;
+  const { iva_percentuale, sconto_percentuale, sconto_importo, prezzo_manuale } = form;
   const totaliCalcolati = useMemo(
-    () => (detail ? totaliDelPreventivo(detail, { iva_percentuale, sconto_percentuale, sconto_importo }) : null),
-    [detail, iva_percentuale, sconto_percentuale, sconto_importo],
+    () => (detail ? totaliDelPreventivo(detail, { iva_percentuale, sconto_percentuale, sconto_importo, prezzo_manuale }) : null),
+    [detail, iva_percentuale, sconto_percentuale, sconto_importo, prezzo_manuale],
   );
   useEffect(() => {
     // Solo col modulo già allineato al preventivo aperto: prima sembrerebbe tutto cambiato.

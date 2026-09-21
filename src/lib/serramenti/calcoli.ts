@@ -1,7 +1,7 @@
 /**
  * src/lib/serramenti/calcoli.ts — calcoli economici base
  *
- * - Totale BOM (serramenti + accessori + servizi)
+ * - Totale BOM (serramenti + accessori + servizi), oppure il prezzo scritto a mano
  * - Applicazione sconti (fisso + percentuale)
  * - Forbice min/max (per gestire varianti di mercato)
  * - IVA standard (0/4/10/22) + IVA Mista (Beni Significativi DM 29.12.99)
@@ -32,7 +32,12 @@ export interface CalcoloTotale {
   imponibile_accessori: number;
   /** Servizi aggiuntivi (trasporto, ENEA, smaltimento, ecc.) */
   imponibile_servizi: number;
-  imponibile_lordo: number;       // somma totale
+  /** Prezzo pieno prima dello sconto: la somma delle voci, o il prezzo scritto a mano. */
+  imponibile_lordo: number;
+  /** Somma delle voci, anche quando il prezzo pieno è scritto a mano. */
+  somma_voci: number;
+  /** True se il prezzo pieno è quello scritto a mano, non la somma delle voci. */
+  prezzo_manuale: boolean;
   sconto: number;                  // valore sconto applicato
   imponibile_netto: number;        // dopo sconto
   /** Aliquota IVA effettivamente applicata. -1 = mista (vedi mista_breakdown). */
@@ -64,6 +69,14 @@ export interface CalcoloOptions {
    * Default 0 (non ci sono prestazioni professionali separate).
    */
   prestazioni_professionali?: number;
+  /**
+   * Prezzo pieno scritto a mano, IVA esclusa: prende il posto della somma delle
+   * voci. Serve a chi usa il preventivatore per il documento ma non ha un
+   * listino — le finestre restano a 0 € e il prezzo lo decide alla fine.
+   * Sconto e IVA si calcolano sopra, come sulla somma delle voci.
+   * Vuoto o 0 = somma delle voci.
+   */
+  prezzo_manuale?: number | null;
 }
 
 /** Sentinel: IVA mista (Beni Significativi DM 29.12.99). Vedi StepEconomia. */
@@ -153,7 +166,10 @@ export function calcolaTotale(
     (acc, s) => acc + Number(s.prezzo_totale_vendita ?? (s.prezzo_unitario_vendita ?? 0) * (s.quantita ?? 1)),
     0,
   );
-  const imponibile_lordo = imponibile_serramenti + imponibile_accessori + imponibile_servizi;
+  const somma_voci = imponibile_serramenti + imponibile_accessori + imponibile_servizi;
+  const manuale = Number(opts.prezzo_manuale ?? 0);
+  const prezzo_manuale = Number.isFinite(manuale) && manuale > 0;
+  const imponibile_lordo = prezzo_manuale ? manuale : somma_voci;
 
   // Sconto: prima il fisso, poi il %
   const dopoFisso = Math.max(0, imponibile_lordo - scontoEur);
@@ -171,10 +187,17 @@ export function calcolaTotale(
     // accessori, servizi) cosi' la regola BS opera su importi gia' scontati.
     // Senza ripartizione, applicare lo sconto solo dopo lo split distorcerebbe
     // il limite del bene significativo.
-    const ratio = imponibile_lordo > 0 ? imponibile_netto / imponibile_lordo : 1;
-    const bsScontato = imponibile_serramenti * ratio;
-    const accScontati = imponibile_accessori * ratio;
-    const servScontati = imponibile_servizi * ratio;
+    //
+    // Col prezzo scritto a mano la ripartizione segue quella delle voci. Se le
+    // voci sono tutte a 0 € non c'è niente da ripartire: il prezzo si tratta
+    // come bene significativo senza altre prestazioni — tutto al 22%, il conto
+    // che dice la regola con questi dati. La fase Economia non lascia scegliere
+    // l'IVA mista in quel caso: qui è solo la rete di sicurezza.
+    const ratio = somma_voci > 0 ? imponibile_netto / somma_voci : 1;
+    const soloPrezzo = prezzo_manuale && somma_voci <= 0;
+    const bsScontato = soloPrezzo ? imponibile_netto : imponibile_serramenti * ratio;
+    const accScontati = soloPrezzo ? 0 : imponibile_accessori * ratio;
+    const servScontati = soloPrezzo ? 0 : imponibile_servizi * ratio;
     mista_breakdown = calcolaIvaMista(bsScontato, accScontati, servScontati, prestazioni_professionali);
     iva_importo = mista_breakdown.iva_10 + mista_breakdown.iva_22;
     // Aliquota "effettiva" media (informativa): IVA / imponibile.
@@ -203,6 +226,8 @@ export function calcolaTotale(
     imponibile_accessori,
     imponibile_servizi,
     imponibile_lordo,
+    somma_voci,
+    prezzo_manuale,
     sconto,
     imponibile_netto,
     iva_pct_applicata,

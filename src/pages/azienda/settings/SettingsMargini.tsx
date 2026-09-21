@@ -20,6 +20,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { GovernanceThresholdsCard } from "@/components/settings/GovernanceThresholdsCard";
+import { useImpostaPrezzoFinaleAMano, usePrezzoFinaleAMano } from "@/hooks/usePrezzoFinaleAMano";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 // DB columns for preventivo_impostazioni (nomi REALI, verificati via pg_attribute):
@@ -56,6 +57,43 @@ interface Categoria {
   colore?: string;
   immagine_url?: string | null;
   margine_target_percentuale?: number | null;
+}
+
+// ─── Prezzo scritto a mano ────────────────────────────────────────────────────
+// Salva da sola, con una funzione del database: l'upsert di questa pagina
+// riscrive tutte le opzioni coi valori mostrati, e accendere questa avrebbe
+// cambiato anche le altre (posa automatica, sconti nel PDF…).
+function PrezzoFinaleAManoCard({ companyId }: { companyId: string }) {
+  const { data: attivo = false, isLoading } = usePrezzoFinaleAMano(companyId);
+  const imposta = useImpostaPrezzoFinaleAMano(companyId);
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Prezzo del preventivo</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        <div className="flex items-center gap-3">
+          <Switch
+            checked={attivo}
+            disabled={isLoading || imposta.isPending}
+            aria-label="Scrivi a mano il prezzo del preventivo"
+            onCheckedChange={(v) =>
+              imposta.mutate(v, {
+                onSuccess: () => toast.success(v ? "Prezzo scritto a mano acceso" : "Prezzo scritto a mano spento"),
+                onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Salvataggio non riuscito"),
+              })
+            }
+          />
+          <span className="text-sm">Scrivi a mano il prezzo del preventivo</span>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Per chi usa il preventivatore per il documento ma non carica i prezzi del listino: le voci
+          possono restare a 0 € e il prezzo si scrive nella fase Economia, IVA esclusa. Sconto e IVA
+          si calcolano sopra quel prezzo. Oggi vale nel preventivatore Serramenti.
+        </p>
+      </CardContent>
+    </Card>
+  );
 }
 
 // ─── Margini & PDF Tab ────────────────────────────────────────────────────────
@@ -287,6 +325,8 @@ function MarginiPdfTab({
           ))}
         </CardContent>
       </Card>
+
+      <PrezzoFinaleAManoCard companyId={companyId} />
 
       {/* Numerazione */}
       <Card>

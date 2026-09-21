@@ -993,6 +993,11 @@ function makeStyles(C: ReturnType<typeof makePalette>) {
  * Importo all'italiana, con il punto delle migliaia anche sotto le 10.000:
  * toLocaleString("it-IT") raggruppa solo da cinque cifre e stampava «8699,11».
  */
+/** Percentuale dello sconto all'italiana: 10 → «10», 7.5 → «7,5». */
+function fmtScontoPct(v: number): string {
+  return (Math.round(v * 10) / 10).toLocaleString("it-IT", { maximumFractionDigits: 1 });
+}
+
 function fmtEuro(v: number | null | undefined, decimals = 0): string {
   const n = Number(v ?? 0);
   const valore = Number.isFinite(n) ? n : 0;
@@ -1777,6 +1782,11 @@ export interface SerramentoPDFProps {
   autoFallbackMacroId?: string | null;
   /** Pagine «Il sistema scelto»: le schede delle linee usate nel preventivo. */
   lineeDedicate?: SerramentoPdfLineaPagina[];
+  /**
+   * Se c'è uno sconto, il riquadro del prezzo mostra prezzo pieno e sconto.
+   * False solo dove l'azienda ha spento «Mostra sconti applicati».
+   */
+  mostraSconti?: boolean;
 }
 
 /** Un testo scritto nel listino: una riga vuota fa un paragrafo, le righe con «- » un elenco. */
@@ -1832,6 +1842,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
     publicUrl = null,
     autoFallbackMacroId = null,
     lineeDedicate = [],
+    mostraSconti = true,
   } = testiPerPdf(propsGrezze);
   const p = detail.progetto;
   const companyName = template?.ragione_sociale || company?.ragione_sociale || company?.name || "Azienda";
@@ -2079,9 +2090,19 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
       iva_percentuale: p.iva_percentuale ?? 10,
       sconto_percentuale: p.sconto_percentuale ?? 0,
       sconto_importo: p.sconto_importo ?? 0,
+      // Il prezzo scritto a mano in Economia: senza, un preventivo con le voci
+      // a 0 € usciva col totale salvato ma senza imponibile né sconto giusti.
+      prezzo_manuale: p.prezzo_manuale ?? null,
     },
     detail.servizi ?? [],
   );
+  // Prezzo pieno e sconto, per il riquadro del prezzo: centesimi sotto il mezzo
+  // non sono uno sconto da mostrare.
+  const prezzoPienoPdf = roundMoney(totaleCalcolato.imponibile_lordo);
+  const scontoPdf = roundMoney(totaleCalcolato.sconto);
+  const mostraRigaSconto = mostraSconti && scontoPdf >= 0.5 && prezzoPienoPdf > 0;
+  const scontoPctPdf = Number(p.sconto_percentuale ?? 0);
+  const scontoSoloPct = scontoPctPdf > 0 && !(Number(p.sconto_importo ?? 0) > 0);
   const totaleFallback = Number(p.totale_max || p.totale_min || 0);
   const ivaPctFallback = p.iva_percentuale === -1 ? 10 : Number(p.iva_percentuale ?? 0);
   const imponibileFallback = p.iva_inclusa && ivaPctFallback > 0
@@ -3276,7 +3297,11 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
               <Text style={styles.pageEyebrow}>Proposta economica</Text>
               <Text style={styles.investmentTitle}>Importo chiaro.{"\n"}Senza sorprese.</Text>
               <Text style={styles.investmentSubtitle}>
-                Il totale è calcolato sulla composizione dell'offerta, sugli sconti applicati e sull'IVA selezionata. Eventuali varianti future saranno indicate in una nuova revisione.
+                {/* Col prezzo scritto a mano il totale non viene dalle righe: le
+                    finestre possono essere tutte a 0 €. */}
+                {totaleCalcolato.prezzo_manuale
+                  ? "Il totale comprende la fornitura descritta nelle pagine precedenti, gli sconti applicati e l'IVA selezionata. Eventuali varianti future saranno indicate in una nuova revisione."
+                  : "Il totale è calcolato sulla composizione dell'offerta, sugli sconti applicati e sull'IVA selezionata. Eventuali varianti future saranno indicate in una nuova revisione."}
               </Text>
 
               <View style={styles.priceBoxCompact} wrap={false}>
@@ -3292,7 +3317,15 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                       esclusa»: il cliente poteva aspettarsi un'altra fattura. */}
                   <Text style={styles.priceSuffix}>{"  "}{totaleIva > 0 ? "IVA inclusa" : "IVA non applicata"}</Text>
                 </Text>
-                <Text style={{ fontSize: 9, color: C.ink, marginTop: 4 }}>
+                {/* Prezzo pieno e sconto: «nell'offerta viene prezzo + sconto».
+                    Trattino ASCII e non il segno meno U+2212, che in Helvetica
+                    sparisce. */}
+                {mostraRigaSconto && (
+                  <Text style={{ fontSize: 9, color: C.ink, marginTop: 4 }}>
+                    Prezzo € {fmtEuro(prezzoPienoPdf, 2)} · Sconto{scontoSoloPct ? ` ${fmtScontoPct(scontoPctPdf)}%` : ""} - € {fmtEuro(scontoPdf, 2)}
+                  </Text>
+                )}
+                <Text style={{ fontSize: 9, color: C.ink, marginTop: mostraRigaSconto ? 2 : 4 }}>
                   Imponibile € {fmtEuro(totaleImponibile, 2)} · IVA € {fmtEuro(totaleIva, 2)}
                 </Text>
                 {/* Nota IVA: spiega l'aliquota applicata. Per IVA mista

@@ -295,7 +295,7 @@ const SR_PROGETTO_UPDATABLE_KEYS: ReadonlySet<keyof SrProgettoRow> = new Set([
   "testimonianze", "prossimi_passi",
   // Economia
   "totale_min", "totale_max", "iva_inclusa", "iva_percentuale",
-  "sconto_percentuale", "sconto_importo", "fin_anticipo_pct", "fin_piani",
+  "sconto_percentuale", "sconto_importo", "prezzo_manuale", "fin_anticipo_pct", "fin_piani",
   "fin_tabella_id", "fin_tabella_riga_id", "discount_rule_id",
   "pagamento_milestones", "schema_pagamento",
   // Varianti
