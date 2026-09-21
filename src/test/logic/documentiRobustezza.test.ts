@@ -189,7 +189,7 @@ describe("modulo di recesso e pagina della firma in tutti i documenti", () => {
   });
 
   it("il conto delle pagine tiene conto del modulo (Fotovoltaico e pagina online dei Serramenti)", () => {
-    expect(leggi("supabase/functions/_shared/fvHtmlTemplate.ts")).toContain("impaginaCondizioni(blocchi, clausole.length > 0).length + (haModuloRecesso(d) ? 1 : 0)");
+    expect(leggi("supabase/functions/_shared/fvHtmlTemplate.ts")).toContain("return quantePagineCondizioni(d) + 1 + (haModuloRecesso(d) ? 1 : 0);");
     expect(leggi("supabase/functions/_shared/srHtmlTemplate.ts")).toContain("(haCondizioni(d) ? 1 : 0) + (haModuloRecesso(d) ? 1 : 0)");
   });
 

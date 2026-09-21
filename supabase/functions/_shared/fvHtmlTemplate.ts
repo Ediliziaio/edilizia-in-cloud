@@ -325,6 +325,9 @@ h1, h2, h3, h4 { font-family: 'Outfit', -apple-system, sans-serif; letter-spacin
 .page-footer .pnum { font-weight: 700; color: #1E3A5F; }
 /* padding-top staccato dall'header (~18mm alto) così la linea non taglia l'eyebrow */
 .content { padding: 23mm 16mm 21mm; height: 100%; display: flex; flex-direction: column; }
+/* Un blocco non si accorcia mai per far posto agli altri: nella colonna flessibile
+   il riquadro dell'offerta, su una pagina piena, si schiacciava e il prezzo spariva. */
+.content > * { flex-shrink: 0; }
 /* Il riquadro che chiude la pagina (la conclusione) sta in fondo: il bianco va fra
    il contenuto e la conclusione, non tutto sotto. Prima ogni pagina aveva un
    35-45% di bianco in fondo e sembrava lasciata a metà. Solo i riquadri di
@@ -368,6 +371,9 @@ p { margin-bottom: 2mm; }
 
 .kpi-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2.5mm; margin: 3mm 0; }
 .kpi-row.cols-2 { grid-template-columns: repeat(2, 1fr); }
+.kpi-row.cols-4 { grid-template-columns: repeat(4, 1fr); }
+.kpi-row.grandi .kpi-block { padding: 4mm; }
+.kpi-row.grandi .kpi-value { font-size: 19pt; }
 .kpi-block { background: white; border: 1px solid #E2E8F0; border-radius: 8px; padding: 3.5mm; }
 .kpi-block .kpi-label { font-size: 7pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #64748B; margin-bottom: 1px; }
 .kpi-block .kpi-value { font-family: 'Outfit', sans-serif; font-size: 16pt; font-weight: 700; color: #1E3A5F; line-height: 1.05; }
@@ -456,10 +462,20 @@ table .saving-zero { color: #64748B; }
 .qa-q::before { content: "Q"; background: #F97316; color: white; width: 4.5mm; height: 4.5mm; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 8pt; flex-shrink: 0; margin-top: 1px; }
 .qa-a { color: #475569; font-size: 8.5pt; padding-left: 6.5mm; }
 
-.sig-box { border: 2px dashed #1E3A5F; border-radius: 10px; padding: 5mm; text-align: center; margin-top: 4mm; background: #F8FAFC; }
-.sig-box .sig-label { font-size: 7.5pt; text-transform: uppercase; letter-spacing: 0.1em; color: #64748B; font-weight: 700; margin-bottom: 1mm; }
-.sig-box .sig-line { height: 14mm; border-bottom: 1px solid #94A3B8; margin-bottom: 2mm; }
-.sig-box .sig-name { font-size: 9.5pt; color: #1E3A5F; font-weight: 700; }
+/* La firma del contratto: che cosa si accetta, poi luogo e data e le firme delle due parti. */
+.sig-box { border: 2px dashed #1E3A5F; border-radius: 10px; padding: 5mm; margin-top: 4mm; background: #F8FAFC; }
+.sig-box .sig-dich { font-size: 8.5pt; line-height: 1.5; color: #334155; margin: 0 0 2mm; }
+.sig-box .sig-grid { display: grid; grid-template-columns: 0.8fr 1fr 1.2fr; gap: 6mm; align-items: start; }
+.sig-box .sig-line { height: 13mm; border-bottom: 1px solid #94A3B8; margin-bottom: 1.5mm; }
+.sig-box .sig-label { font-size: 7pt; text-transform: uppercase; letter-spacing: 0.1em; color: #64748B; font-weight: 700; }
+.sig-box .sig-name { font-size: 9pt; color: #1E3A5F; font-weight: 700; margin-top: 0.5mm; }
+.sig-box .sig-sub { font-size: 7.5pt; line-height: 1.35; color: #64748B; margin-top: 0.5mm; }
+.firma-righe { border: 1px solid #E2E8F0; border-radius: 10px; background: #F8FAFC; padding: 1mm 5mm; margin: 2mm 0 1mm; }
+.firma-riga { display: grid; grid-template-columns: 38mm 1fr; gap: 4mm; padding: 2.3mm 0; border-bottom: 1px solid #E2E8F0; font-size: 9.5pt; line-height: 1.4; color: #0F172A; }
+.firma-riga:last-child { border-bottom: none; }
+.firma-riga > span:first-child { font-size: 7pt; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #64748B; padding-top: 0.7mm; }
+.firma-riga.importo > span:last-child { font-family: 'Outfit', sans-serif; font-size: 12pt; font-weight: 800; color: #1E3A5F; }
+.cond-clausole.due-colonne { column-count: 2; column-gap: 8mm; }
 .cond-testo { column-count: 2; column-gap: 7mm; font-size: 8.2pt; color: #475569; line-height: 1.5; margin-top: 3mm; }
 .cond-testo .cond-art { font-size: 8.6pt; color: #1E3A5F; font-weight: 700; margin: 2.5mm 0 1mm; break-after: avoid; }
 .cond-testo p { margin-bottom: 1.5mm; }
@@ -832,7 +848,7 @@ export const FV_PDF_PAGES_META: FvPdfPageMeta[] = [
   { id: "bollette_240", label: "Perche farlo ora", descrizione: "Narrativa su aumento bollette e urgenza.", obbligatoria: false },
   // — Atto 5: Chiusura —
   { id: "faq", label: "FAQ", descrizione: "Domande e risposte scritte nel modello: senza, la pagina non esce.", obbligatoria: false },
-  { id: "decisione", label: "CTA e firma", descrizione: "Riepilogo offerta, contatti, firma e condizioni.", obbligatoria: true },
+  { id: "decisione", label: "CTA e firma", descrizione: "Riepilogo offerta e contatti; dopo, le condizioni, la pagina della firma e il modulo di recesso.", obbligatoria: true },
 ];
 
 export const FV_PDF_PAGES_DEFAULT: FvPdfPageOrderItem[] = FV_PDF_PAGES_META.map((page) => ({
@@ -1719,16 +1735,41 @@ function pageFAQ(d: FvPdfTemplateData, pageN: number, total: number): string {
   </div>`;
 }
 
+/**
+ * I numeri che giustificano la decisione, presi dai calcoli del preventivo: solo
+ * quelli che ci sono davvero (niente zeri, niente rientro oltre i 25 anni).
+ */
+function numeriDellImpianto(d: FvPdfTemplateData): Array<{ etichetta: string; valore: string; unita?: string; nota: string; tono?: "green" | "orange" }> {
+  const out: Array<{ etichetta: string; valore: string; unita?: string; nota: string; tono?: "green" | "orange" }> = [];
+  if (d.flows.produzione_kwh > 0) out.push({ etichetta: "Energia prodotta", valore: fmtNum(d.flows.produzione_kwh), unita: "kWh", nota: "ogni anno, dal primo", tono: "green" });
+  if (d.flows.autosufficienza_pct > 0) out.push({ etichetta: "Autosufficienza", valore: fmtPct(d.flows.autosufficienza_pct, 0), nota: "del consumo di casa dal tuo sole" });
+  if (d.scenario.risparmio_anno1_eur > 0) out.push({ etichetta: "Risparmio", valore: fmtEur(d.scenario.risparmio_anno1_eur), nota: "in bolletta, il primo anno", tono: "orange" });
+  const rientro = d.scenario.payback_anni;
+  if (rientro != null && rientro > 0 && rientro <= 25) {
+    out.push({ etichetta: "Rientro", valore: Number.isInteger(rientro) ? fmtNum(rientro) : fmtNum(rientro, 1), unita: "anni", nota: "per ripagare l'impianto" });
+  } else if (d.scenario.risparmio_25_anni_eur > 0) {
+    out.push({ etichetta: "In 25 anni", valore: fmtEur(d.scenario.risparmio_25_anni_eur), nota: "di risparmio complessivo" });
+  }
+  return out;
+}
+
+/**
+ * A occhio, l'altezza in mm di un riquadro della pagina: margini, titolo e righe da
+ * ~90 caratteri. Serve a decidere se i numeri dell'impianto ci stanno: meglio
+ * stimare largo e toglierli che mandarli sotto il piè di pagina (la pagina ha
+ * altezza fissa, e quello che sborda si taglia).
+ */
+function altezzaRiquadro(testo: string, caratteriPerRiga = 90): number {
+  const caratteri = testo.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().length;
+  // 20 mm fissi: imbottitura, titolo e i margini, che fra figli di un flex non si fondono.
+  return 20 + Math.max(1, Math.ceil(caratteri / caratteriPerRiga)) * 5.2;
+}
+
 function pageDecisione(d: FvPdfTemplateData, pageN: number, total: number): string {
   const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
   const fin = d.finanziamento;
   // Rata e costo netto mensile solo con un finanziamento vero.
   const netto = fin ? Math.max(0, fin.rata_mensile - d.scenario.risparmio_mensile_eur) : null;
-  const indirizzoCompleto = [
-    d.cliente.indirizzo,
-    d.cliente.cap && d.cliente.comune ? `${d.cliente.cap} ${d.cliente.comune}` : d.cliente.comune,
-    d.cliente.provincia ? `(${d.cliente.provincia})` : null,
-  ].filter(Boolean).join(", ");
   const docMeta = `${d.azienda.name}${d.azienda.vat_number ? ` · P.IVA ${d.azienda.vat_number}` : ""} · Doc ${d.progetto.numero} · ${fmtData(d.progetto.creato_il)}`;
   const urgenzaTitolo = plainText(d.template?.urgenza_titolo) || "Validità offerta";
   const urgenzaDescrizione = plainText(d.template?.urgenza_descrizione);
@@ -1738,6 +1779,19 @@ function pageDecisione(d: FvPdfTemplateData, pageN: number, total: number): stri
   const ctaTitolo = plainText(d.template?.pdf_cta_finale_titolo) || "Pronto a\niniziare?";
   const ctaTesto = safeRichText(d.template?.pdf_cta_finale_testo);
   const consulenteDescrizione = plainText(d.template?.consulente_descrizione_default);
+  // I numeri dell'impianto riempiono la pagina quando la firma non c'è più: escono
+  // se lo spazio lasciato dai riquadri facoltativi basta (a pagina vuota ~108 mm).
+  const numeri = numeriDellImpianto(d);
+  const righeTitolo = ctaTitolo.split("\n").reduce((n, r) => n + Math.max(1, Math.ceil(r.length / 34)), 0);
+  const occupato = [
+    ctaTesto ? altezzaRiquadro(ctaTesto) : 0,
+    d.template?.urgenza_attiva && urgenzaDescrizione ? altezzaRiquadro(`${urgenzaTitolo} ${urgenzaDescrizione}`) : 0,
+    isNoleggioOperativo && noleggioNote ? altezzaRiquadro(noleggioNote) : 0,
+    !haPaginaCondizioni(d) && condizioni ? altezzaRiquadro(condizioni, 110) : 0,
+    consulenteDescrizione ? Math.max(0, Math.ceil(consulenteDescrizione.length / 45) - 2) * 4.5 : 0,
+    Math.max(0, righeTitolo - 2) * 9.5,
+  ].reduce((a, b) => a + b, 0);
+  const conNumeri = numeri.length >= 3 && occupato <= 60;
   return `<div class="page">
     ${header(d.progetto.numero, cliente, d.azienda.name)}
     <div class="content">
@@ -1761,11 +1815,15 @@ function pageDecisione(d: FvPdfTemplateData, pageN: number, total: number): stri
         <span class="callout-icon">i</span>
         <div><strong>Nota noleggio operativo</strong><div class="rich-text">${noleggioNote}</div></div>
       </div>` : ""}
+      ${conNumeri ? `<h3 style="font-size:11pt;color:#1E3A5F;margin:3mm 0 0;">Cosa ti porta a casa</h3>
+      <div class="kpi-row cols-${numeri.length} grandi" style="margin-bottom:5mm;">
+        ${numeri.map((n) => `<div class="kpi-block${n.tono ? ` ${n.tono}` : ""}"><div class="kpi-label">${escHtml(n.etichetta)}</div><div class="kpi-value">${escHtml(n.valore)}${n.unita ? ` <span class="unit">${escHtml(n.unita)}</span>` : ""}</div><div class="kpi-sub">${escHtml(n.nota)}</div></div>`).join("")}
+      </div>` : ""}
       <div class="two-col">
         <div>
           <h3 style="font-size:11pt;color:#1E3A5F;margin-bottom:2mm;">Per accettare la proposta</h3>
           <ol style="font-size:9pt;padding-left:5mm;line-height:1.8;color:#475569;">
-            <li>Firma la proposta: con il link ricevuto via email o qui sotto</li>
+            <li>Firma la proposta: online, con il link ricevuto via email, oppure su carta</li>
             ${fin ? `<li>Invia alla finanziaria i documenti richiesti</li>
             <li>Attendi l'esito della finanziaria</li>` : ""}
             <li>Avvio delle pratiche e sopralluogo tecnico</li>
@@ -1781,13 +1839,76 @@ function pageDecisione(d: FvPdfTemplateData, pageN: number, total: number): stri
           </div>
         </div>
       </div>
-      <div class="sig-box">
-        <div class="sig-label">Firma del cliente per accettazione</div>
-        <div class="sig-line"></div>
-        <div class="sig-name">${escHtml(cliente)}</div>
-        <div style="font-size:8pt;color:#64748B;margin-top:1mm;">${escHtml(indirizzoCompleto)}${d.cliente.cf ? ` · CF: ${escHtml(d.cliente.cf)}` : ""}</div>
+      ${!haPaginaCondizioni(d) && condizioni ? `<div class="legal-box"><strong>Condizioni commerciali:</strong><div class="rich-text">${condizioni}</div></div>` : ""}
+      <div class="callout callout-info">
+        <span class="callout-icon">i</span>
+        <div><strong>Come si firma</strong>Online, con il link ricevuto via email. Oppure su carta, nella pagina «Firma del contratto»${haPaginaCondizioni(d) ? ", dopo le condizioni generali" : " che segue"}: c'è il riepilogo di quello che si firma, e lo spazio per le firme.</div>
       </div>
-      ${haPaginaCondizioni(d) ? `<p style="font-size:7.5pt;color:#94A3B8;margin-top:2mm;text-align:center;">Le condizioni generali di contratto, con le clausole da approvare, sono nella pagina che segue.</p>` : (condizioni ? `<div class="legal-box"><strong>Condizioni commerciali:</strong><div class="rich-text">${condizioni}</div></div>` : "")}
+    </div>
+    <div class="page-footer"><span>${escHtml(docMeta)}</span><span class="pnum">${pageN} / ${total}</span></div>
+  </div>`;
+}
+
+/**
+ * La firma del contratto, su carta: dopo le condizioni generali, come nel documento
+ * edile e nei Serramenti. Prima la firma stava nella pagina della decisione — si
+ * firmava prima di leggere le condizioni — e una pagina della decisione piena
+ * (testo del passo successivo, urgenza, noleggio) non aveva più posto per il prezzo.
+ * Qui: che cosa si firma, la dichiarazione, le firme delle due parti, e sotto
+ * l'approvazione specifica delle clausole (la seconda firma).
+ */
+function pageFirmaContratto(d: FvPdfTemplateData, pageN: number, total: number): string {
+  const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
+  const fin = d.finanziamento;
+  const docMeta = `${d.azienda.name}${d.azienda.vat_number ? ` · P.IVA ${d.azienda.vat_number}` : ""} · Doc ${d.progetto.numero} · ${fmtData(d.progetto.creato_il)}`;
+  const luogo = [
+    d.cliente.indirizzo,
+    d.cliente.cap && d.cliente.comune ? `${d.cliente.cap} ${d.cliente.comune}` : d.cliente.comune,
+    d.cliente.provincia ? `(${d.cliente.provincia})` : null,
+  ].filter(Boolean).join(", ");
+  const conCondizioni = haPaginaCondizioni(d);
+  const clausole = conCondizioni ? condizioniInBlocchi(String(d.template?.condizioni_legali_testo ?? "")).clausole : [];
+  const righe: Array<[string, string]> = [
+    ["Impresa", [d.azienda.name, d.azienda.vat_number ? `P.IVA ${d.azienda.vat_number}` : null].filter(Boolean).join(" · ")],
+    ["Committente", [cliente, d.cliente.cf ? `CF ${d.cliente.cf}` : null].filter(Boolean).join(" · ")],
+    ["Oggetto", `Impianto fotovoltaico ${fmtNum(d.progetto.potenza_kwp, 1)} kWp${d.progetto.has_accumulo ? ` con accumulo ${fmtNum(d.progetto.capacita_accumulo_kwh, 1)} kWh` : ""}, chiavi in mano`],
+  ];
+  if (luogo) righe.push(["Luogo dei lavori", luogo]);
+  righe.push(["Documento", `Preventivo ${d.progetto.numero} del ${fmtData(d.progetto.creato_il)}`]);
+  righe.push(["Importo", `${fmtEur(d.costi.prezzo_vendita_iva_inclusa)} · IVA ${d.costi.iva_perc}% inclusa`]);
+  if (fin) righe.push(["Pagamento", `${fmtEur(fin.rata_mensile)}/mese × ${fin.durata_mesi} mesi · ${fin.finanziaria}${fin.taeg_perc != null ? ` · TAEG ${fmtNum(fin.taeg_perc, 2)}%` : ""}`]);
+  righe.push(["Validità", `${d.progetto.valido_giorni} giorni dalla data del documento`]);
+  return `<div class="page">
+    ${header(d.progetto.numero, cliente, d.azienda.name)}
+    <div class="content">
+      <div class="eyebrow">Per accettazione</div>
+      <h1 class="page-title">Firma del<br/>contratto.</h1>
+      <div class="firma-righe">
+        ${righe.map(([k, v]) => `<div class="firma-riga${k === "Importo" ? " importo" : ""}"><span>${escHtml(k)}</span><span>${escHtml(v)}</span></div>`).join("")}
+      </div>
+      <div class="sig-box">
+        <p class="sig-dich">Il Committente dichiara di aver ricevuto, letto e accettato la presente proposta in ogni sua parte — l'impianto, l'importo${conCondizioni ? " e le condizioni generali di contratto che la accompagnano" : ""} — e ne sottoscrive il contenuto.</p>
+        <div class="sig-grid">
+          <div><div class="sig-line"></div><div class="sig-label">Luogo e data</div></div>
+          <div><div class="sig-line"></div><div class="sig-label">Per l'impresa</div><div class="sig-name">${escHtml(d.azienda.name)}</div></div>
+          <div><div class="sig-line"></div><div class="sig-label">Firma del committente</div><div class="sig-name">${escHtml(cliente)}</div></div>
+        </div>
+      </div>
+      ${clausole.length > 0 ? `
+      <div class="cond-firma">
+        <div class="cond-firma-titolo">Approvazione specifica (artt. 1341 e 1342 c.c.)</div>
+        <p style="font-size:8pt;color:#64748B;margin-bottom:1.5mm;">Il Committente, dopo averle rilette, approva specificamente le clausole seguenti:</p>
+        <ul class="cond-clausole${clausole.length > 6 ? " due-colonne" : ""}">${clausole.map((c) => `<li>${escHtml(c)}</li>`).join("")}</ul>
+        <div class="cond-righe">
+          <div><div class="cond-riga"></div><span>Luogo e data</span></div>
+          <div><div class="cond-riga"></div><span>Seconda firma del Committente</span></div>
+        </div>
+      </div>` : ""}
+      ${haModuloRecesso(d) ? `
+      <p style="font-size:7.5pt;color:#94A3B8;margin-top:3mm;">
+        Per recedere, quando ne ricorrono i presupposti, basta il modulo allegato nella pagina che segue, o una
+        dichiarazione esplicita inviata a ${escHtml(d.azienda.email ?? d.azienda.name)}: non serve motivarla.
+      </p>` : ""}
     </div>
     <div class="page-footer"><span>${escHtml(docMeta)}</span><span class="pnum">${pageN} / ${total}</span></div>
   </div>`;
@@ -1848,7 +1969,7 @@ function condizioniInBlocchi(testo: string): { blocchi: string[]; clausole: stri
 }
 
 /** Quanti articoli stanno in una pagina: misura a occhio sui caratteri, due colonne. */
-function impaginaCondizioni(blocchi: string[], spazioPerLaFirma: boolean): string[][] {
+function impaginaCondizioni(blocchi: string[]): string[][] {
   const PIENA = 6400;
   const pagine: string[][] = [];
   let corrente: string[] = [];
@@ -1860,13 +1981,6 @@ function impaginaCondizioni(blocchi: string[], spazioPerLaFirma: boolean): strin
     quanti += peso;
   }
   if (corrente.length) pagine.push(corrente);
-  // Il riquadro della seconda firma occupa un terzo di pagina: se l'ultima è
-  // già piena, la firma va su una pagina sua invece di finire tagliata.
-  if (spazioPerLaFirma && pagine.length > 0) {
-    const ultima = pagine[pagine.length - 1];
-    const peso = ultima.reduce((n, b) => n + b.replace(/<[^>]+>/g, "").length + 120, 0);
-    if (peso > PIENA * 0.62) pagine.push([]);
-  }
   return pagine;
 }
 
@@ -1879,9 +1993,8 @@ function pagineCondizioni(d: FvPdfTemplateData, primoNumero: number, total: numb
   const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
   const testo = String(d.template?.condizioni_legali_testo ?? "");
   const { blocchi, clausole } = condizioniInBlocchi(testo);
-  const gruppi = impaginaCondizioni(blocchi, clausole.length > 0);
+  const gruppi = impaginaCondizioni(blocchi);
   const docMeta = `${d.azienda.name}${d.azienda.vat_number ? ` · P.IVA ${d.azienda.vat_number}` : ""} · Doc ${d.progetto.numero} · ${fmtData(d.progetto.creato_il)}`;
-  const conRecesso = /recesso/i.test(testo);
   return gruppi.map((gruppo, i) => {
     const ultima = i === gruppi.length - 1;
     const pageN = primoNumero + i;
@@ -1891,21 +2004,7 @@ function pagineCondizioni(d: FvPdfTemplateData, primoNumero: number, total: numb
       ${i === 0 ? `<div class="eyebrow">Condizioni generali di contratto</div>
       <h1 class="page-title">Quello che<br/>firmiamo insieme.</h1>` : `<div class="eyebrow">Condizioni generali di contratto · segue</div>`}
       <div class="cond-testo">${gruppo.join("")}</div>
-      ${ultima && clausole.length > 0 ? `
-      <div class="cond-firma">
-        <div class="cond-firma-titolo">Approvazione specifica (artt. 1341 e 1342 c.c.)</div>
-        <p style="font-size:8pt;color:#64748B;margin-bottom:1.5mm;">Il Committente, dopo averle rilette, approva specificamente le clausole seguenti:</p>
-        <ul class="cond-clausole">${clausole.map((c) => `<li>${escHtml(c)}</li>`).join("")}</ul>
-        <div class="cond-righe">
-          <div><div class="cond-riga"></div><span>Luogo e data</span></div>
-          <div><div class="cond-riga"></div><span>Seconda firma del Committente</span></div>
-        </div>
-      </div>` : ""}
-      ${ultima && conRecesso ? `
-      <p style="font-size:7.5pt;color:#94A3B8;margin-top:3mm;">
-        Per recedere, quando ne ricorrono i presupposti, basta il modulo allegato nella pagina che segue, o una
-        dichiarazione esplicita inviata a ${escHtml(d.azienda.email ?? d.azienda.name)}: non serve motivarla.
-      </p>` : ""}
+      ${ultima ? `<p style="font-size:7.5pt;color:#94A3B8;margin-top:3mm;">Segue la pagina della firma${clausole.length > 0 ? ", con l'approvazione specifica delle clausole" : ""}.</p>` : ""}
     </div>
     <div class="page-footer"><span>${escHtml(docMeta)}</span><span class="pnum">${pageN} / ${total}</span></div>
   </div>`;
@@ -1947,11 +2046,18 @@ function haModuloRecesso(d: FvPdfTemplateData): boolean {
   return haPaginaCondizioni(d) && prevedeRecesso(d.template?.condizioni_legali_testo);
 }
 
-/** Quante pagine prendono le condizioni (con il modulo di recesso, se c'è). */
+/** Quante pagine prendono le condizioni generali. */
 function quantePagineCondizioni(d: FvPdfTemplateData): number {
   if (!haPaginaCondizioni(d)) return 0;
-  const { blocchi, clausole } = condizioniInBlocchi(String(d.template?.condizioni_legali_testo ?? ""));
-  return impaginaCondizioni(blocchi, clausole.length > 0).length + (haModuloRecesso(d) ? 1 : 0);
+  return impaginaCondizioni(condizioniInBlocchi(String(d.template?.condizioni_legali_testo ?? "")).blocchi).length;
+}
+
+/**
+ * Le pagine del contratto, che seguono la decisione: le condizioni generali, la
+ * firma (sempre: è lì che la proposta si accetta su carta) e il modulo di recesso.
+ */
+function quantePagineContratto(d: FvPdfTemplateData): number {
+  return quantePagineCondizioni(d) + 1 + (haModuloRecesso(d) ? 1 : 0);
 }
 
 function pagineDaDisegnare(d: FvPdfTemplateData): FvPdfPageOrderItem[] {
@@ -1982,8 +2088,10 @@ function haPaginaCondizioni(d: FvPdfTemplateData): boolean {
 
 export function getFvPdfRenderedPagesCount(d: FvPdfTemplateData): number {
   const macroPages = dedicatedMacroPages(d);
-  return 1 + (haPaginaKit(d) ? 1 : 0) + quantePagineCondizioni(d) + pagineDaDisegnare(d).reduce((count, page) => (
-    count + (page.id === "macro_categorie" ? macroPages.length : 1)
+  // Il contratto (condizioni, firma, modulo di recesso) si conta con la decisione,
+  // che lo porta con sé.
+  return 1 + (haPaginaKit(d) ? 1 : 0) + pagineDaDisegnare(d).reduce((count, page) => (
+    count + (page.id === "macro_categorie" ? macroPages.length : page.id === "decisione" ? 1 + quantePagineContratto(d) : 1)
   ), 0);
 }
 
@@ -2082,14 +2190,15 @@ export function renderFvPdfHtml(d: FvPdfTemplateData): string {
         break;
       case "decisione":
         pages.push(pageDecisione(d, ++pageN, TOTAL));
-        // Le condizioni si firmano dopo averle lette: vanno subito dopo la pagina
-        // della decisione, non in un riquadro dentro quella pagina.
+        // Le condizioni si firmano dopo averle lette: prima le condizioni, poi la
+        // pagina della firma, poi il modulo di recesso se le condizioni lo prevedono.
         if (haPaginaCondizioni(d)) {
           const nuove = pagineCondizioni(d, pageN + 1, TOTAL);
           pageN += nuove.length;
           pages.push(...nuove);
-          if (haModuloRecesso(d)) pages.push(pageModuloRecesso(d, ++pageN, TOTAL));
         }
+        pages.push(pageFirmaContratto(d, ++pageN, TOTAL));
+        if (haModuloRecesso(d)) pages.push(pageModuloRecesso(d, ++pageN, TOTAL));
         break;
     }
   }

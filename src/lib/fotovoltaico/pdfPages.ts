@@ -122,7 +122,7 @@ export const FV_PDF_PAGES_META: FvPdfPageMeta[] = [
   {
     id: "decisione",
     label: "CTA e firma",
-    descrizione: "Riepilogo offerta, contatti, firma e condizioni.",
+    descrizione: "Riepilogo offerta e contatti; dopo, le condizioni, la pagina della firma e il modulo di recesso.",
     obbligatoria: true,
   },
 ];

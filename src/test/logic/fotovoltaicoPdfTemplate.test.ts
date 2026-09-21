@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   getFvPdfRenderedPagesCount,
+  normalizeFvPdfPagesOrder,
   renderFvPdfHtml,
   type FvPdfTemplateData,
 } from "../../../supabase/functions/_shared/fvHtmlTemplate.ts";
+import { condizioniStandard } from "../../../supabase/functions/_shared/condizioniStandard.ts";
 
 function basePdfData(): FvPdfTemplateData {
   return {
@@ -263,7 +265,9 @@ describe("fotovoltaico PDF template", () => {
     // hanno una pagina loro, dopo la decisione, con quello che si firma.
     expect(html).toContain("Quello che<br/>firmiamo insieme.");
     expect(html).toContain("Offerta soggetta a sopralluogo");
-    expect(html).toContain("sono nella pagina che segue");
+    // Dal 21/09/2026 la firma ha una pagina sua, dopo le condizioni.
+    expect(html).toContain("Firma del<br/>contratto.");
+    expect(html).toContain("dopo le condizioni generali");
     expect(html).not.toContain("Condizioni commerciali");
   });
 
@@ -401,9 +405,11 @@ describe("fotovoltaico PDF template", () => {
 
     const html = renderFvPdfHtml(data);
 
-    expect(getFvPdfRenderedPagesCount(data)).toBe(5);
-    expect(html).toContain('<span class="pnum">5 / 5</span>');
-    expect(html).not.toContain('<span class="pnum">6 /');
+    // Copertina, investimento, componenti, batterie, decisione e — dal 21/09/2026 —
+    // la pagina della firma, che segue sempre la decisione.
+    expect(getFvPdfRenderedPagesCount(data)).toBe(6);
+    expect(html).toContain('<span class="pnum">6 / 6</span>');
+    expect(html).not.toContain('<span class="pnum">7 /');
   });
 });
 
@@ -541,3 +547,67 @@ describe("fotovoltaico PDF — niente numeri e promesse inventate", () => {
     expect(html).toContain(`<span class="pnum">${totale} / ${totale}</span>`);
   });
 });
+
+// 21/09/2026 — La firma ha una pagina sua, dopo le condizioni: si firma dopo averle
+// lette, come negli edili e nei Serramenti. Nella pagina della decisione, piena di
+// riquadri (passo successivo, urgenza, noleggio), la firma non lasciava posto al prezzo.
+describe("fotovoltaico PDF — la pagina della firma", () => {
+  const pagineDisegnate = (html: string) => html.match(/<div class="page">/g)?.length ?? 0;
+  const conCondizioni = (): FvPdfTemplateData => ({
+    ...basePdfData(),
+    template: { condizioni_legali_attivo: true, condizioni_legali_testo: condizioniStandard("fotovoltaico") },
+  });
+
+  it("condizioni, poi la firma col riepilogo e la seconda firma, poi il modulo di recesso", () => {
+    const d = conCondizioni();
+    const html = renderFvPdfHtml(d);
+    const condizioni = html.indexOf("Quello che<br/>firmiamo insieme.");
+    const firma = html.indexOf("Firma del<br/>contratto.");
+    const seconda = html.indexOf("Seconda firma del Committente");
+    const recesso = html.indexOf("Modulo di recesso.");
+    expect(condizioni).toBeGreaterThan(0);
+    expect(firma).toBeGreaterThan(condizioni);
+    expect(seconda).toBeGreaterThan(firma);
+    expect(recesso).toBeGreaterThan(seconda);
+    // Che cosa si firma, e chi firma.
+    const paginaFirma = html.slice(firma, recesso);
+    for (const voce of ["Impresa", "Committente", "Oggetto", "Documento", "Importo", "Validità", "Per l'impresa", "Firma del committente"]) {
+      expect(paginaFirma).toContain(voce);
+    }
+    expect(paginaFirma).toMatch(/Impianto fotovoltaico [\d,]+ kWp/);
+    expect(paginaFirma).toContain("condizioni generali di contratto che la accompagnano");
+    expect(pagineDisegnate(html)).toBe(getFvPdfRenderedPagesCount(d));
+  });
+
+  it("la pagina della decisione non porta più la firma: dice come si firma", () => {
+    const html = renderFvPdfHtml(conCondizioni());
+    const decisione = html.slice(html.indexOf("La tua decisione"), html.indexOf("Quello che<br/>firmiamo insieme."));
+    expect(decisione).toContain("Come si firma");
+    expect(decisione).not.toContain('class="sig-box"');
+  });
+
+  it("senza condizioni la firma segue la decisione, senza seconda firma né modulo", () => {
+    const d: FvPdfTemplateData = { ...basePdfData(), template: { condizioni_legali_attivo: false } };
+    const html = renderFvPdfHtml(d);
+    expect(html).toContain("Firma del<br/>contratto.");
+    expect(html).toContain("«Firma del contratto» che segue");
+    expect(html).not.toContain("Seconda firma del Committente");
+    expect(html).not.toContain("Modulo di recesso.");
+    expect(html).not.toContain("condizioni generali di contratto che la accompagnano");
+    expect(pagineDisegnate(html)).toBe(getFvPdfRenderedPagesCount(d));
+  });
+
+  it("la decisione non si nasconde: il contratto esce sempre, anche se l'ordine salvato la spegne", () => {
+    const d = conCondizioni();
+    d.template = {
+      ...d.template,
+      pdf_pages_order: normalizeFvPdfPagesOrder(null).map((p) => (p.id === "decisione" ? { ...p, visible: false } : p)),
+    };
+    const html = renderFvPdfHtml(d);
+    const totale = getFvPdfRenderedPagesCount(d);
+    expect(html).toContain("Firma del<br/>contratto.");
+    expect(pagineDisegnate(html)).toBe(totale);
+    expect(html).toContain(`<span class="pnum">${totale} / ${totale}</span>`);
+  });
+});
+
