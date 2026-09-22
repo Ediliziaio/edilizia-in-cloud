@@ -96,7 +96,12 @@ describe("fix impaginazione/encoding PDF edge (audit)", () => {
     });
 
     it("totali/firme renderizzati anche con 0 righe visibili (header guardato, blocco no)", () => {
-      expect(source).toContain("if (items.length > 0) drawTableHeader()");
+      // L'intestazione esce solo se sotto ci sono righe: con «solo totale» le righe non
+      // si disegnano, e l'intestazione restava orfana sopra i totali (076ac6259).
+      expect(source).toContain("if (items.length > 0 && !soloTotale) drawTableHeader()");
+      expect(source).toContain("if (!soloTotale) {\n        for (let idx = 0; idx < items.length; idx++) {");
+      // Il blocco di tabella, totali e firme invece resta sempre eseguito.
+      expect(source).toContain("// Blocco SEMPRE eseguito: header e righe della tabella sono guardati da");
     });
 
     it("line_total nullo-sicuro: uno 0 legittimo non ricade sul calcolo qtà×prezzo", () => {
