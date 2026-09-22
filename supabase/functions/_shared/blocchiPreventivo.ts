@@ -622,7 +622,9 @@ export type ChiaveFotoPagina =
   | "chiSiamo" | "tempi" | "computo" | "investimento" | "compreso"
   // Serramenti: la foto in fondo all'ultimo foglio della proposta, dell'allegato
   // tecnico e dei dettagli economici, quando la sezione finisce a metà foglio.
-  | "proposta" | "allegato" | "dettagli";
+  | "proposta" | "allegato" | "dettagli"
+  // Fotovoltaico: le foto sotto le domande frequenti, il risparmio e la produzione.
+  | "faq" | "risparmio" | "produzione";
 
 export const FOTO_PAGINE_ETICHETTE: Record<ChiaveFotoPagina, string> = {
   chiusura: "Foto dei prossimi passi",
@@ -644,6 +646,9 @@ export const FOTO_PAGINE_ETICHETTE: Record<ChiaveFotoPagina, string> = {
   proposta: "Foto in fondo alla proposta",
   allegato: "Foto in fondo all'allegato tecnico",
   dettagli: "Foto in fondo ai dettagli economici",
+  faq: "Foto sotto le domande frequenti",
+  risparmio: "Foto del risparmio",
+  produzione: "Foto della produzione",
 };
 
 /**
@@ -682,6 +687,10 @@ const FOTO_PAGINE: Partial<Record<SettoreBlocchi, Partial<Record<ChiaveFotoPagin
     costi: "fotovoltaico/storia-bolletta-serena",
     cassa: "fotovoltaico/villa-tetto-coppi",
     piano: "fotovoltaico/monitoraggio-app",
+    // Riempiono il bianco di pagine con poco contenuto; nessuna è già in un blocco di serie.
+    faq: "fotovoltaico/sopralluogo",
+    risparmio: "fotovoltaico/tecnica-giorno-sera",
+    produzione: "fotovoltaico/vista-drone",
   },
   // Edili. Una foto per pagina, mai la stessa due volte nello stesso documento:
   // né quella di copertina, né quelle dei blocchi di serie (vedi il test). Le

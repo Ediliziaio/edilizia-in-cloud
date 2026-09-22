@@ -17,6 +17,8 @@ import {
 } from "../../../supabase/functions/_shared/fvHtmlTemplate.ts";
 import { FV_PDF_PAGES_META as PAGINE_DELL_EDITOR, normalizeFvPdfPagesOrder as ordineDellEditor } from "@/lib/fotovoltaico/pdfPages";
 import { condizioniStandard } from "../../../supabase/functions/_shared/condizioniStandard.ts";
+import { calcolaBollettaPrimaDopo, calcolaEnergyFlows, quotaAutoconsumo } from "../../../supabase/functions/_shared/fvCalcoli.ts";
+import { indirizzoCompleto } from "../../../supabase/functions/_shared/fvHtmlTemplate.ts";
 
 function basePdfData(): FvPdfTemplateData {
   return {
@@ -661,7 +663,7 @@ describe("fotovoltaico PDF — l'accumulo con numeri calcolati", () => {
 
   it("il generatore calcola i flussi senza batteria con gli stessi dati", () => {
     const src = readFileSync(resolve(process.cwd(), "supabase/functions/fv-genera-pdf/index.ts"), "utf8");
-    expect(src).toContain("calcolaEnergyFlows({ ...ingressiFlussi, has_accumulo: false, capacita_accumulo_kwh: 0 })");
+    expect(src).toContain("calcolaEnergyFlows({ ...ingressiFlussi, has_accumulo: false, capacita_accumulo_kwh: 0, autoconsumo_pct: quotaAutoconsumo(profilo, 0) })");
     expect(src).toContain("flows_senza_accumulo: flowsSenzaAccumulo,");
   });
 });
@@ -857,5 +859,78 @@ describe("fotovoltaico PDF — i badge delle garanzie", () => {
     for (const anteprima of ["src/components/fotovoltaico/FvLivePreviewPanel.tsx", "src/components/fotovoltaico/FvTemplatePreviewDialog.tsx"]) {
       expect(readFileSync(resolve(process.cwd(), anteprima), "utf8")).toContain("badge_garanzie: typeof window !== \"undefined\" ? badgeGaranzieDalSito(window.location.origin) : null,");
     }
+  });
+});
+
+// 22/09/2026 — Il preventivo di prova di Demo Azienda 2 (FV-2026-0008, Vimercate,
+// 6,02 kWp con 5 kWh) generato con le funzioni vere: i numeri di una pagina non
+// tornavano con quelli dell'altra, e il contratto usciva senza cliente né importo.
+describe("fotovoltaico PDF — numeri che tornano fra le pagine", () => {
+  const profiloSera = { codice: "sera", autoconsumo_no_accumulo: 0.25, autoconsumo_accumulo_5kwh: 0.55, autoconsumo_accumulo_10kwh: 0.75, autoconsumo_accumulo_15kwh: 0.85 };
+
+  it("autoconsumo con le fasce del calcolo finanziario, per il PDF e per il calcolo", () => {
+    expect(quotaAutoconsumo(profiloSera, 0)).toBe(0.25);
+    expect(quotaAutoconsumo(profiloSera, 5)).toBe(0.55);
+    expect(quotaAutoconsumo(profiloSera, 8)).toBe(0.75);
+    expect(quotaAutoconsumo(profiloSera, 15)).toBe(0.85);
+    expect(quotaAutoconsumo(null, 5)).toBeNull();
+    const calcolo = readFileSync(resolve(process.cwd(), "supabase/functions/fv-calcolo-finanziario/index.ts"), "utf8");
+    expect(calcolo).toContain("quotaAutoconsumo(prof, prog.con_accumulo === false ? 0 : prog.capacita_accumulo_kwh ?? 0)");
+  });
+
+  it("i flussi usano la produzione e la quota del calcolo: 3.633 kWh in casa, come il risparmio", () => {
+    const flussi = calcolaEnergyFlows({
+      potenza_kwp: 6.02, has_accumulo: true, capacita_accumulo_kwh: 5, consumo_annuo_kwh: 4800, ore_sole_annue: 1480,
+      profilo_consumo: "sera", produzione_kwh: 6605.31, autoconsumo_pct: quotaAutoconsumo(profiloSera, 5),
+    });
+    expect(flussi.produzione_kwh).toBe(6605);
+    expect(flussi.autoconsumo_kwh).toBe(3633);
+    expect(Math.round(flussi.autosufficienza_pct * 100)).toBe(76);
+  });
+
+  it("la bolletta prima e dopo somma giusto e torna col risparmio del titolo", () => {
+    const righe = calcolaBollettaPrimaDopo({ consumo_annuo_kwh: 4800, prelievo_rete_kwh: 1167.08, prezzo_kwh: 0.3, ricavi_rid_eur: 297.24 });
+    const voci = righe.filter((r) => !r.is_kwh_row && !r.is_total && r.oggi_eur > 0);
+    const bolletta = righe.find((r) => r.voce === "Totale bolletta")!;
+    expect(voci.reduce((s, r) => s + r.con_fv_eur, 0)).toBe(bolletta.con_fv_eur);
+    expect(voci.reduce((s, r) => s + r.oggi_eur, 0)).toBe(bolletta.oggi_eur);
+    // 1.089,88 € di bolletta (3.632,92 kWh × 0,30) più 297 € dal GSE: 1.387 €, il titolo della pagina.
+    expect(bolletta.risparmio_eur).toBe(-1090);
+    expect(righe[righe.length - 1]).toMatchObject({ voce: "Spesa netta per l'elettricità", risparmio_eur: -1387 });
+    // Oneri e trasporto scendono coi kWh presi dalla rete: prima restavano fissi.
+    expect(righe.find((r) => r.voce === "Oneri di sistema")!.con_fv_eur).toBeLessThan(righe.find((r) => r.voce === "Oneri di sistema")!.oggi_eur);
+  });
+
+  it("il contratto ha il nome del cliente e il prezzo, non il costo né il vuoto", () => {
+    const src = readFileSync(resolve(process.cwd(), "supabase/functions/fv-genera-pdf/index.ts"), "utf8");
+    expect(src).toContain("total: Number(prog.prezzo_vendita_iva_inclusa) || null,");
+    expect(src).not.toContain("total: prog.costo_totale_netto");
+    // Le colonne che il contratto usa ora si leggono.
+    expect(src).toMatch(/\.select\(\s*"id, company_id, numero,[^"]*cliente_nome, cliente_cognome, cliente_email, cliente_telefono/);
+  });
+
+  it("l'indirizzo non si ripete, e la batteria si dice in copertina", () => {
+    const cliente = { nome: "Chiara", cognome: "Brambilla", indirizzo: "Via Garibaldi, 42, 20871 Vimercate MB, Italia", comune: "Vimercate", cap: "20871", provincia: "MB" };
+    expect(indirizzoCompleto(cliente)).toBe("Via Garibaldi, 42, 20871 Vimercate MB");
+    expect(indirizzoCompleto({ ...cliente, indirizzo: "Via Garibaldi 42" })).toBe("Via Garibaldi 42, 20871 Vimercate (MB)");
+    const base = basePdfData();
+    const html = renderFvPdfHtml({ ...base, template: { ...base.template, pdf_cover_subhero_template: "Impianto fotovoltaico {potenza_kwp} {accumulo_kwh} per {indirizzo}." } });
+    expect(html).toMatch(/kWp con accumulo da [\d,]+ kWh per Via Roma 1/);
+  });
+
+  it("niente promesse né previsioni senza fonte", () => {
+    const html = renderFvPdfHtml(basePdfData());
+    for (const frase of ["per sempre.", "puro profitto", "Breakeven", "Solo materiali", "durare 25+ anni", "in crescita del 15-25%", "L'investimento di", "Inflazione attesa: 3%"]) {
+      expect(html).not.toContain(frase);
+    }
+    // «Perché farlo ora» (bollette +240% dal 2012) è spenta di serie.
+    expect(FV_PDF_PAGES_DEFAULT.find((p) => p.id === "bollette_240")?.visible).toBe(false);
+  });
+
+  it("con PVGIS la fonte dei dati non dice due volte «non indicata»", () => {
+    const base = basePdfData();
+    const html = renderFvPdfHtml({ ...base, progetto: { ...base.progetto, fonte_dati_tetto: "pvgis", qualita_dati_tetto: null, imagery_date: null } });
+    expect(html).toContain("irraggiamento medio della tua zona");
+    expect(html).not.toContain("non indicata");
   });
 });

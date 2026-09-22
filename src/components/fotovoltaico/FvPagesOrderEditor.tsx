@@ -41,7 +41,7 @@ import { EditorFotoPagina } from "@/components/preventivi/EditorFotoPagina";
 import { bloccoDellaPagina, descrizioneBlocco, type ChiaveFotoPagina } from "../../../supabase/functions/_shared/blocchiPreventivo";
 
 /** Le pagine con una foto loro, cambiabile qui: l'id della pagina e la chiave della foto. */
-const FOTO_DELLE_PAGINE: Record<string, ChiaveFotoPagina> = { garanzie: "garanzie", bollette_240: "bollette", decisione: "decisione", componenti: "componenti", costi_futuri: "costi", cassa_25: "cassa", piano_pagamento: "piano" };
+const FOTO_DELLE_PAGINE: Record<string, ChiaveFotoPagina> = { garanzie: "garanzie", bollette_240: "bollette", decisione: "decisione", componenti: "componenti", costi_futuri: "costi", cassa_25: "cassa", piano_pagamento: "piano", faq: "faq", risparmio: "risparmio", produzione: "produzione" };
 
 interface Props {
   value: FvPdfPageOrderItem[] | null | undefined;

@@ -44,7 +44,7 @@ import {
   type FvPdfTemplateData,
 } from "../_shared/fvHtmlTemplate.ts";
 import { eFotoDiSerie } from "../_shared/blocchiPreventivo.ts";
-import { calcolaEnergyFlows } from "../_shared/fvCalcoli.ts";
+import { calcolaEnergyFlows, quotaAutoconsumo, type FvProfiloAutoconsumo } from "../_shared/fvCalcoli.ts";
 import { coloreDelDocumento } from "../_shared/temaColori.ts";
 import { condizioniStandard } from "../_shared/condizioniStandard.ts";
 import { CAMPI_IMMAGINE_FOTOVOLTAICO, firmaImmaginiModello, firmatarioStorage } from "../_shared/immaginiModelloPdf.ts";
@@ -121,7 +121,7 @@ Deno.serve(async (req: Request) => {
     const { data: prog, error: progErr } = await supabaseAdmin
       .from("fv_progetti")
       .select(
-        "id, company_id, numero, titolo, archetipo, indirizzo, comune, provincia, cap, latitudine, longitudine, tipologia_immobile, prima_casa, consumo_annuo_kwh, costo_kwh_attuale, profilo_consumo, fonte_dati_tetto, qualita_dati_tetto, imagery_date, ore_sole_annue, superficie_tetto_disponibile_mq, perdita_ombreggiamento_pct, numero_pannelli_scelti, potenza_kwp, con_accumulo, capacita_accumulo_kwh, prezzo_vendita_iva_inclusa, payback_anni, npv_25_anni, risparmio_anno1, created_at, created_by, scenario_finanziamento, finanziamento_tabella_id, finanziamento_durata_mesi, finanziamento_rata_eur, finanziamento_taeg, finanziamento_tan, finanziamento_totale_dovuto_eur, kit_bundle_id, kit_nome, kit_prezzo, prezzo_vendita_manuale, sconto_valore, modalita_pagamento, iva_aliquota",
+        "id, company_id, numero, titolo, archetipo, indirizzo, comune, provincia, cap, latitudine, longitudine, tipologia_immobile, prima_casa, consumo_annuo_kwh, costo_kwh_attuale, profilo_consumo, fonte_dati_tetto, qualita_dati_tetto, imagery_date, ore_sole_annue, superficie_tetto_disponibile_mq, perdita_ombreggiamento_pct, numero_pannelli_scelti, potenza_kwp, con_accumulo, capacita_accumulo_kwh, con_ottimizzatori, produzione_annua_kwh, autoconsumo_pct, prezzo_vendita_iva_inclusa, payback_anni, npv_25_anni, risparmio_anno1, created_at, created_by, cliente_nome, cliente_cognome, cliente_email, cliente_telefono, scenario_finanziamento, finanziamento_tabella_id, finanziamento_durata_mesi, finanziamento_rata_eur, finanziamento_taeg, finanziamento_tan, finanziamento_totale_dovuto_eur, kit_bundle_id, kit_nome, kit_prezzo, prezzo_vendita_manuale, sconto_valore, modalita_pagamento, iva_aliquota",
       )
       .eq("id", p.progetto_id)
       .maybeSingle();
@@ -138,10 +138,10 @@ Deno.serve(async (req: Request) => {
     await requireCompanyAccess(supabaseAdmin, userId, prog.company_id, corsHeaders);
 
     // Step 2: dati correlati in parallelo (filtrati per company_id corretto)
-    const [calcRes, compRes, manodRes, servRes, companyRes, templateRes, macroRes] = await Promise.all([
+    const [calcRes, compRes, manodRes, servRes, companyRes, templateRes, macroRes, profiliRes] = await Promise.all([
       supabaseAdmin
         .from("fv_calcolo_finanziario")
-        .select("scenario_completo, cassa_anno_per_anno, payback_anni, risparmio_anno1_eur, risparmio_25_anni_eur, npv_25_anni_eur, detrazione_anno_eur")
+        .select("scenario_completo, cassa_anno_per_anno, payback_anni, risparmio_anno1_eur, risparmio_25_anni_eur, npv_25_anni_eur, detrazione_anno_eur, ricavi_rid_eur, inflazione_energia_pct")
         .eq("progetto_id", p.progetto_id)
         .eq("attivo", true)
         .maybeSingle(),
@@ -175,6 +175,10 @@ Deno.serve(async (req: Request) => {
         .eq("attivo", true)
         .order("sort_order", { ascending: true })
         .order("nome", { ascending: true }),
+      // I profili di consumo del calcolo finanziario: i flussi del PDF usano le stesse quote.
+      supabaseAdmin
+        .from("fv_profili_autoconsumo")
+        .select("codice, autoconsumo_no_accumulo, autoconsumo_accumulo_5kwh, autoconsumo_accumulo_10kwh, autoconsumo_accumulo_15kwh"),
     ]);
 
     assertFvPdfQueryOk("calcolo finanziario", calcRes);
@@ -184,6 +188,7 @@ Deno.serve(async (req: Request) => {
     assertFvPdfQueryOk("azienda", companyRes);
     assertFvPdfQueryOk("template PDF", templateRes);
     assertFvPdfQueryOk("macrocategorie listino", macroRes);
+    assertFvPdfQueryOk("profili di consumo", profiliRes);
 
     const calc = calcRes.data;
     const company = companyRes.data ?? { name: "Edilizia in Cloud" };
@@ -429,20 +434,29 @@ Deno.serve(async (req: Request) => {
     ));
 
     // ── Calcoli aggregati ──────────────────────────────────────────────────
+    // Produzione e autoconsumo come nel calcolo finanziario (fv-calcolo-finanziario):
+    // la produzione salvata dal calcolo e la quota del profilo di consumo. Prima il
+    // PDF stimava con una tabella sua, e i kWh dei flussi non tornavano col risparmio.
+    const profilo = ((profiliRes.data ?? []) as FvProfiloAutoconsumo[])
+      .find((x) => x.codice === (prog.profilo_consumo ?? "misto")) ?? null;
+    const capacitaAccumulo = prog.con_accumulo === false ? 0 : Number(prog.capacita_accumulo_kwh) || 0;
     const ingressiFlussi = {
       potenza_kwp: Number(prog.potenza_kwp) || 0,
       has_accumulo: prog.con_accumulo ?? false,
       capacita_accumulo_kwh: Number(prog.capacita_accumulo_kwh) || 0,
       consumo_annuo_kwh: Number(prog.consumo_annuo_kwh) || 0,
       ore_sole_annue: Number(prog.ore_sole_annue) || null,
+      performance_ratio: prog.con_ottimizzatori ? 0.88 : 0.85,
       profilo_consumo: prog.profilo_consumo ?? "misto",
       perdita_ombreggiamento_pct: Number(prog.perdita_ombreggiamento_pct) || 0,
+      produzione_kwh: Number(prog.produzione_annua_kwh) || null,
+      autoconsumo_pct: quotaAutoconsumo(profilo, capacitaAccumulo),
     };
     const flows = calcolaEnergyFlows(ingressiFlussi);
     // Gli stessi flussi senza batteria, con gli stessi dati: la pagina della
     // produzione dice quanto cambia l'accumulo con numeri calcolati, non a occhio.
     const flowsSenzaAccumulo = ingressiFlussi.has_accumulo
-      ? calcolaEnergyFlows({ ...ingressiFlussi, has_accumulo: false, capacita_accumulo_kwh: 0 })
+      ? calcolaEnergyFlows({ ...ingressiFlussi, has_accumulo: false, capacita_accumulo_kwh: 0, autoconsumo_pct: quotaAutoconsumo(profilo, 0) })
       : null;
 
     // Detrazione: quella del calcolo finanziario, che la dà solo ai privati
@@ -635,9 +649,11 @@ Deno.serve(async (req: Request) => {
     }
 
     // ── Estrazione cliente da titolo (in W1 cliente_id non sempre popolato) ─
+    // Il nome del cliente dal progetto; se manca, dal titolo (la procedura guidata ci scrive il cliente).
     const titoloParts = (prog.titolo ?? "").trim().split(/\s+/);
-    const clienteNome = titoloParts[0] ?? "";
-    const clienteCognome = titoloParts.slice(1).join(" ") || "";
+    const conNome = Boolean(String(prog.cliente_nome ?? "").trim() || String(prog.cliente_cognome ?? "").trim());
+    const clienteNome = conNome ? String(prog.cliente_nome ?? "").trim() : titoloParts[0] ?? "";
+    const clienteCognome = conNome ? String(prog.cliente_cognome ?? "").trim() : titoloParts.slice(1).join(" ") || "";
 
     // ── Costruzione data context ──────────────────────────────────────────
     const data: FvPdfTemplateData = {
@@ -657,7 +673,8 @@ Deno.serve(async (req: Request) => {
         comune: prog.comune,
         cap: prog.cap,
         provincia: prog.provincia,
-        tipologia_immobile: prog.tipologia_immobile === "residenziale" ? "Villa singola" : (prog.tipologia_immobile ?? null),
+        // «residenziale» non dice se è una villa o un appartamento.
+        tipologia_immobile: prog.tipologia_immobile === "residenziale" ? "Abitazione" : (prog.tipologia_immobile ?? null),
       },
       progetto: {
         numero: prog.numero ?? "",
@@ -723,6 +740,10 @@ Deno.serve(async (req: Request) => {
       scenario: {
         risparmio_mensile_eur: risparmioMensile,
         risparmio_anno1_eur: Math.round(risparmioAnno1),
+        // I ricavi dell'energia immessa e l'inflazione dell'energia del calcolo: la
+        // bolletta prima e dopo e i costi futuri tornano col risparmio del titolo.
+        ricavi_rid_anno1_eur: calc?.ricavi_rid_eur != null ? Math.round(Number(calc.ricavi_rid_eur)) : null,
+        inflazione_energia_pct: calc?.inflazione_energia_pct != null ? Number(calc.inflazione_energia_pct) : null,
         risparmio_25_anni_eur: Math.round(risparmio25),
         payback_anni: Number(prog.payback_anni) || null,
         npv_25_anni: Number(prog.npv_25_anni) || 0,
@@ -824,11 +845,27 @@ Deno.serve(async (req: Request) => {
           buildMergeContext({
               quote: {
                 quote_number: (prog as { numero?: string | number | null }).numero != null ? String((prog as { numero?: string | number | null }).numero) : "",
-                client_name: [prog.cliente_nome, prog.cliente_cognome].filter(Boolean).join(" ").trim() || undefined,
+                // Il nome dal progetto, altrimenti dal titolo (la procedura guidata ci scrive il cliente).
+                // Prima queste colonne non si leggevano: nel contratto usciva «per (di seguito il Committente)».
+                client_name: [prog.cliente_nome, prog.cliente_cognome].filter(Boolean).join(" ").trim()
+                  || [clienteNome, clienteCognome].filter(Boolean).join(" ").trim() || undefined,
                 client_email: prog.cliente_email ?? "",
                 client_phone: prog.cliente_telefono ?? "",
                 client_address: prog.indirizzo ?? "",
-                total: prog.costo_totale_netto ?? null,
+                // Quello che paga il cliente, IVA compresa. Prima era costo_totale_netto,
+                // mai letto: «il corrispettivo è quello indicato nel preventivo: .»
+                // (e letto, sarebbe stato il costo d'acquisto dell'azienda).
+                total: Number(prog.prezzo_vendita_iva_inclusa) || null,
+                payment_method: modalitaPagamento?.tipo === "finanziato"
+                  ? `anticipo e finanziamento in ${modalitaPagamento.durata_mesi} rate mensili`
+                  : modalitaPagamento?.tipo === "noleggio"
+                    ? `noleggio operativo, canone mensile per ${modalitaPagamento.durata_mesi} mesi`
+                    : "",
+                payment_phases: modalitaPagamento?.tipo === "diretto"
+                  ? modalitaPagamento.tranche.map((t) => ({ label: t.label, percent: t.pct, amount: t.importo_eur }))
+                  : modalitaPagamento?.tipo === "finanziato" && modalitaPagamento.anticipo_eur > 0
+                    ? [{ label: "Anticipo", percent: modalitaPagamento.anticipo_pct, amount: modalitaPagamento.anticipo_eur }]
+                    : [],
                 created_at: prog.created_at,
               },
               company: {

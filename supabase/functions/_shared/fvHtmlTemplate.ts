@@ -100,7 +100,7 @@ export function fotoDeiBlocchiFv(template: FvPdfTemplateData["template"] | null 
 }
 
 /** Le pagine del documento che hanno una foto loro (di serie, cambiabile dall'azienda). */
-export const PAGINE_CON_FOTO_FV = ["garanzie", "bollette", "decisione", "componenti", "costi", "cassa", "piano"] as const;
+export const PAGINE_CON_FOTO_FV = ["garanzie", "bollette", "decisione", "componenti", "costi", "cassa", "piano", "faq", "risparmio", "produzione"] as const;
 export type PaginaConFotoFv = (typeof PAGINE_CON_FOTO_FV)[number];
 
 /**
@@ -243,6 +243,10 @@ export interface FvPdfTemplateData {
     payback_anni: number | null;
     npv_25_anni: number;
     cassa_anno_per_anno: Array<{ anno: number; cumulato: number }>;
+    /** Quello che il GSE paga per l'energia immessa, primo anno (fv_calcolo_finanziario.ricavi_rid_eur). */
+    ricavi_rid_anno1_eur?: number | null;
+    /** Inflazione annua dell'energia del calcolo, come frazione (0,025 = 2,5%). */
+    inflazione_energia_pct?: number | null;
   };
   flows: FvFlows;
   /** Gli stessi flussi senza batteria, calcolati con lo stesso modello e gli stessi
@@ -861,7 +865,14 @@ function hasEstimatedRoofData(d: FvPdfTemplateData): boolean {
 function renderRoofSourcePanel(d: FvPdfTemplateData): string {
   const source = roofSourceLabel(d.progetto.fonte_dati_tetto);
   const quality = roofQualityLabel(d.progetto.qualita_dati_tetto);
-  const imageryDate = d.progetto.imagery_date ? fmtData(d.progetto.imagery_date) : "non indicata";
+  // Con PVGIS non c'è un'immagine del tetto né una qualità del rilievo: prima le due
+  // caselle dicevano «non indicata», in 14 preventivi su 38. Si scrive cosa c'è.
+  const pvgis = d.progetto.fonte_dati_tetto === "pvgis";
+  const celle: Array<[string, string]> = [["Fonte dati tetto", source]];
+  if (pvgis) celle.push(["Dati usati", "irraggiamento medio della tua zona"]);
+  else if (quality !== "non indicata") celle.push(["Qualità dati", quality]);
+  if (d.progetto.imagery_date) celle.push(["Immagine satellitare", fmtData(d.progetto.imagery_date)]);
+  else if (d.progetto.inclinazione_tetto) celle.push(["Inclinazione del tetto", `${fmtNum(d.progetto.inclinazione_tetto)}°`]);
   const warning = hasEstimatedRoofData(d)
     ? `<div class="callout callout-tip">
         <span class="callout-icon">!</span>
@@ -869,9 +880,7 @@ function renderRoofSourcePanel(d: FvPdfTemplateData): string {
       </div>`
     : "";
   return `<div class="source-grid">
-    <div class="source-cell"><div class="source-label">Fonte dati tetto</div><div class="source-value">${escHtml(source)}</div></div>
-    <div class="source-cell"><div class="source-label">Qualità dati</div><div class="source-value">${escHtml(quality)}</div></div>
-    <div class="source-cell"><div class="source-label">Immagine satellitare</div><div class="source-value">${escHtml(imageryDate)}</div></div>
+    ${celle.map(([etichetta, valore]) => `<div class="source-cell"><div class="source-label">${escHtml(etichetta)}</div><div class="source-value">${escHtml(valore)}</div></div>`).join("")}
   </div>${warning}`;
 }
 
@@ -987,6 +996,22 @@ function renderCoverLines(value: string): string {
   return escHtml(value).replace(/\n/g, "<br/>");
 }
 
+/**
+ * Indirizzo, CAP, comune e provincia, senza ripetere quello che l'indirizzo già
+ * contiene: dalla ricerca dell'indirizzo arriva «Via Roma, 12, 20121 Milano MI,
+ * Italia», e il PDF aggiungeva di nuovo «20121 Milano, (MI)».
+ */
+export function indirizzoCompleto(c: FvPdfTemplateData["cliente"]): string {
+  const via = plainText(c.indirizzo).replace(/,?\s*Italia\s*$/i, "").trim();
+  const comune = plainText(c.comune);
+  const giaDentro = Boolean(comune) && via.toLowerCase().includes(comune.toLowerCase());
+  return [
+    via || null,
+    giaDentro ? null : c.cap && comune ? `${c.cap} ${comune}` : comune || null,
+    giaDentro || !c.provincia ? null : `(${c.provincia})`,
+  ].filter(Boolean).join(", ").replace(/, \(/g, " (");
+}
+
 function renderCoverSubtitle(d: FvPdfTemplateData, fallback: string): string {
   const template = plainText(d.template?.pdf_cover_subhero_template);
   const staticText = plainText(d.template?.pdf_cover_subhero);
@@ -995,24 +1020,25 @@ function renderCoverSubtitle(d: FvPdfTemplateData, fallback: string): string {
     cliente_nome: `${d.cliente.nome} ${d.cliente.cognome}`.trim(),
     potenza_kwp: `${fmtNum(d.progetto.potenza_kwp, 1)} kWp`,
     accumulo_kwh: d.progetto.has_accumulo ? `${fmtNum(d.progetto.capacita_accumulo_kwh, 1)} kWh` : "senza accumulo",
-    indirizzo: d.cliente.indirizzo ?? "",
+    indirizzo: plainText(d.cliente.indirizzo).replace(/,?\s*Italia\s*$/i, "").trim(),
     comune: d.cliente.comune ?? "",
     numero_pannelli: String(d.progetto.numero_pannelli),
   };
-  return value.replace(/\{([a-z_]+)\}/gi, (_match, key: string) => replacements[key] ?? "");
+  // «{potenza_kwp} {accumulo_kwh}» (il testo di serie dell'editor) usciva «6,0 kWp 5,0 kWh»:
+  // la batteria si dice, a meno che il testo non la nomini già («accumulo da {accumulo_kwh}»).
+  return value.replace(/\{([a-z_]+)\}/gi, (_match, key: string, pos: number) => {
+    if (key === "accumulo_kwh" && d.progetto.has_accumulo && !/accumulo(\s+da)?\s*$/i.test(value.slice(0, pos))) {
+      return `con accumulo da ${replacements.accumulo_kwh}`;
+    }
+    return replacements[key] ?? "";
+  });
 }
 
 // ─── Pagine ────────────────────────────────────────────────────────────────
 
 function pageCover(d: FvPdfTemplateData): string {
   const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
-  const indirizzoCompleto = [
-    d.cliente.indirizzo,
-    d.cliente.cap && d.cliente.comune ? `${d.cliente.cap} ${d.cliente.comune}` : d.cliente.comune,
-    d.cliente.provincia ? `(${d.cliente.provincia})` : null,
-  ]
-    .filter(Boolean)
-    .join(", ");
+  const indirizzoCliente = indirizzoCompleto(d.cliente);
   const tipologia = d.cliente.tipologia_immobile ?? "Abitazione";
   const defaultSubtitle = `Impianto fotovoltaico ${fmtNum(d.progetto.potenza_kwp, 1)} kWp${d.progetto.has_accumulo ? ` con accumulo ${fmtNum(d.progetto.capacita_accumulo_kwh, 1)} kWh` : ""}${d.cliente.indirizzo ? `\nper ${d.cliente.indirizzo}.` : ""}`;
   const eyebrow = coverText(d.template?.pdf_cover_eyebrow, "La tua proposta personalizzata");
@@ -1076,7 +1102,7 @@ function pageCover(d: FvPdfTemplateData): string {
     ${showClientCard ? `<div class="cover-client">
       <div class="client-label">Preparato per</div>
       <div class="client-name">${escHtml(cliente)}</div>
-      <div class="client-meta">${escHtml(indirizzoCompleto)} · ${escHtml(tipologia)}</div>
+      <div class="client-meta">${escHtml(indirizzoCliente)} · ${escHtml(tipologia)}</div>
     </div>` : ""}
     <div class="cover-footer">
       <div class="doc-meta">Preventivo <strong>${escHtml(d.progetto.numero)}</strong><br/>${escHtml(fmtData(d.progetto.creato_il))} · valido ${d.progetto.valido_giorni} giorni</div>
@@ -1117,8 +1143,8 @@ function pageInvestimento(d: FvPdfTemplateData, pageN: number, total: number): s
     ${header(d.progetto.numero, cliente, d.azienda.name)}
     <div class="content">
       <div class="eyebrow">L'investimento</div>
-      <h1 class="page-title">L'investimento di<br/>una vita.</h1>
-      <p class="page-subtitle">Trasparente, completo, chiavi in mano. Senza sorprese.</p>
+      <h1 class="page-title">Il tuo impianto,<br/>tutto compreso.</h1>
+      <p class="page-subtitle">Il prezzo, cosa comprende e quanto recuperi con la detrazione.</p>
       ${valoreProposta ? `<div class="callout callout-info">
         <span class="callout-icon">i</span>
         <div><strong>Perché questa proposta è costruita su misura</strong><div class="rich-text">${valoreProposta}</div></div>
@@ -1314,8 +1340,8 @@ function pageComponenti(d: FvPdfTemplateData, pageN: number, total: number): str
     ${header(d.progetto.numero, cliente, d.azienda.name)}
     <div class="content">
       <div class="eyebrow">I componenti</div>
-      <h1 class="page-title">Solo materiali<br/>premium.</h1>
-      <p class="page-subtitle">Ogni componente è stato scelto per durare 25+ anni. Marche leader con assistenza Italia.</p>
+      <h1 class="page-title">I componenti,<br/>uno per uno.</h1>
+      <p class="page-subtitle">Marca, modello e garanzia di ogni componente che installiamo sul tuo tetto.</p>
       ${cards || "<p>Nessun componente configurato.</p>"}
       ${fasciaFotoPagina(d, "componenti", "center 45%", true)}
     </div>
@@ -1391,6 +1417,7 @@ function pageProduzione(d: FvPdfTemplateData, pageN: number, total: number): str
         <div class="kpi-block orange"><div class="kpi-label">Autoconsumato</div><div class="kpi-value">${fmtNum(d.flows.autoconsumo_kwh)} <span class="unit">kWh</span></div><div class="kpi-sub">Diretto + da accumulo</div></div>
         <div class="kpi-block"><div class="kpi-label">Ceduto in rete</div><div class="kpi-value">${fmtNum(d.flows.ceduto_rete_kwh)} <span class="unit">kWh</span></div><div class="kpi-sub">Energia non autoconsumata</div></div>
       </div>
+      ${fasciaFotoPagina(d, "produzione", "center 45%")}
       ${d.progetto.has_accumulo ? calloutAccumulo(d) : ""}
     </div>
     ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
@@ -1450,28 +1477,31 @@ function pageRisparmio(d: FvPdfTemplateData, pageN: number, total: number): stri
     consumo_annuo_kwh: d.progetto.consumo_annuo_kwh,
     prelievo_rete_kwh: d.flows.prelievo_rete_kwh,
     prezzo_kwh: d.progetto.costo_kwh_attuale,
+    ricavi_rid_eur: d.scenario.ricavi_rid_anno1_eur ?? null,
   });
+  const conRid = Number(d.scenario.ricavi_rid_anno1_eur) > 0;
   return `<div class="page">
     ${header(d.progetto.numero, cliente, d.azienda.name)}
     <div class="content">
       <div class="eyebrow">Il risparmio</div>
-      <h1 class="page-title">${fmtEur(d.scenario.risparmio_mensile_eur)} al mese,<br/>per sempre.</h1>
-      <p class="page-subtitle">Quello che eviti di pagare in bolletta dal primo giorno. Dato indicizzato all'inflazione.</p>
+      <h1 class="page-title">${fmtEur(d.scenario.risparmio_mensile_eur)} al mese<br/>che restano a te.</h1>
+      <p class="page-subtitle">${conRid ? "Quello che non paghi più in bolletta, più quello che il GSE ti paga per l'energia che immetti in rete." : "Quello che non paghi più in bolletta."} Stima del primo anno, con il prezzo che paghi oggi.</p>
       <div class="kpi-row cols-2">
-        <div class="kpi-big"><div class="kbig-label">Risparmio mensile</div><div class="kbig-value">${fmtEur(d.scenario.risparmio_mensile_eur)}</div><div class="kbig-sub">primo anno · cresce con l'inflazione</div></div>
-        <div class="kpi-big"><div class="kbig-label">Risparmio annuo</div><div class="kbig-value">${fmtEur(d.scenario.risparmio_anno1_eur)}</div><div class="kbig-sub">primo anno (al netto oneri rete)</div></div>
+        <div class="kpi-big"><div class="kbig-label">Al mese</div><div class="kbig-value">${fmtEur(d.scenario.risparmio_mensile_eur)}</div><div class="kbig-sub">in media, il primo anno</div></div>
+        <div class="kpi-big"><div class="kbig-label">All'anno</div><div class="kbig-value">${fmtEur(d.scenario.risparmio_anno1_eur)}</div><div class="kbig-sub">${conRid ? "bolletta più energia venduta, il primo anno" : "in bolletta, il primo anno"}</div></div>
       </div>
       <h3 style="font-size:11pt;color:#1E3A5F;margin:4mm 0 2mm;">La tua bolletta — prima e dopo</h3>
       <table>
         <thead><tr><th>Voce</th><th class="num-cell">Oggi (senza FV)</th><th class="num-cell">Con il fotovoltaico</th><th class="num-cell">Risparmio</th></tr></thead>
         <tbody>
-          ${bolletta.map((r) => `<tr${r.is_total ? ' class="row-total"' : ""}><td>${escHtml(r.voce)}</td><td class="num-cell">${r.is_kwh_row ? `${fmtNum(r.oggi_eur)} kWh` : fmtEur(r.oggi_eur)}</td><td class="num-cell">${r.is_kwh_row ? `~${fmtNum(r.con_fv_eur)} kWh` : fmtEur(r.con_fv_eur)}</td><td class="num-cell ${r.risparmio_eur === 0 ? "saving-zero" : "saving"}">${r.is_kwh_row ? `−${Math.abs(r.risparmio_eur)}%` : r.risparmio_eur === 0 ? "0 €" : fmtEur(r.risparmio_eur)}</td></tr>`).join("")}
+          ${bolletta.map((r) => `<tr${r.is_total ? ' class="row-total"' : ""}><td>${escHtml(r.voce)}</td><td class="num-cell">${r.is_kwh_row ? `${fmtNum(r.oggi_eur)} kWh` : r.oggi_eur === 0 && r.con_fv_eur < 0 ? "—" : fmtEur(r.oggi_eur)}</td><td class="num-cell">${r.is_kwh_row ? `${fmtNum(r.con_fv_eur)} kWh` : fmtEur(r.con_fv_eur)}</td><td class="num-cell ${r.risparmio_eur === 0 ? "saving-zero" : "saving"}">${r.is_kwh_row ? `−${Math.abs(r.risparmio_eur)}%` : r.risparmio_eur === 0 ? "0 €" : fmtEur(r.risparmio_eur)}</td></tr>`).join("")}
         </tbody>
       </table>
+      ${fasciaFotoPagina(d, "risparmio", "center 55%")}
       <div class="callout callout-success">
         <span class="callout-icon">★</span>
-        <div><strong>Bollette previste a ${escHtml(d.cliente.comune ?? "Milano")}: in crescita del 15-25% nei prossimi 5 anni.</strong>
-        Il tuo impianto produce un risparmio in <strong>kWh</strong>, non in euro. Più sale il prezzo dell'energia, più cresce il valore del risparmio.</div>
+        <div><strong>Il risparmio si misura in kWh, non in euro.</strong>
+        La stima usa il prezzo che paghi oggi, ${escHtml(fmtNum(d.progetto.costo_kwh_attuale, 2))} € per kWh: se l'energia rincara, ogni kWh prodotto in casa vale di più; se cala, vale un po' meno.</div>
       </div>
     </div>
     ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
@@ -1480,11 +1510,14 @@ function pageRisparmio(d: FvPdfTemplateData, pageN: number, total: number): stri
 
 function pageCostiFuturi(d: FvPdfTemplateData, pageN: number, total: number): string {
   const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
+  // L'inflazione dell'energia del calcolo finanziario (2,5% di serie): prima qui era 3%,
+  // e i 20 anni non tornavano con la cassa a 25 anni.
+  const inflazione = Number(d.scenario.inflazione_energia_pct) > 0 ? Number(d.scenario.inflazione_energia_pct) * 100 : 2.5;
   const costi = calcolaCosti20Anni({
     consumo_annuo_kwh: d.progetto.consumo_annuo_kwh,
     prelievo_rete_kwh: d.flows.prelievo_rete_kwh,
     prezzo_kwh_attuale: d.progetto.costo_kwh_attuale,
-    inflazione_perc: 3.0,
+    inflazione_perc: inflazione,
     orizzonte_anni: 20,
   });
   return `<div class="page">
@@ -1492,7 +1525,7 @@ function pageCostiFuturi(d: FvPdfTemplateData, pageN: number, total: number): st
     <div class="content">
       <div class="eyebrow">Costi energetici futuri</div>
       <h1 class="page-title">Quanto pagherai<br/>nei prossimi 20 anni.</h1>
-      <p class="page-subtitle">Confronto annuo bolletta senza fotovoltaico vs con il tuo impianto. Inflazione attesa: 3%/anno.</p>
+      <p class="page-subtitle">La bolletta di ogni anno, senza il fotovoltaico e con il tuo impianto. Ipotesi: prezzo dell'energia in crescita del ${escHtml(fmtNum(inflazione, 1))}% l'anno.</p>
       <div class="chart-card">
         <div class="chart-title">Spesa annuale per l'elettricità — anno per anno</div>
         <div class="chart-sub">Senza FV (arancione) vs con il tuo impianto (verde) · scala in € all'anno</div>
@@ -1500,7 +1533,7 @@ function pageCostiFuturi(d: FvPdfTemplateData, pageN: number, total: number): st
       </div>
       <div class="kpi-row cols-2">
         <div class="kpi-big red"><div class="kbig-label">Senza fotovoltaico</div><div class="kbig-value">~${fmtEur(costi.totale_senza_fv_eur)}</div><div class="kbig-sub">spesi in 20 anni di bollette</div></div>
-        <div class="kpi-big"><div class="kbig-label">Con fotovoltaico</div><div class="kbig-value">~${fmtEur(costi.totale_con_fv_eur)}</div><div class="kbig-sub">spesi in 20 anni · risparmi ${fmtEur(costi.totale_risparmio_eur)}</div></div>
+        <div class="kpi-big"><div class="kbig-label">Con fotovoltaico</div><div class="kbig-value">~${fmtEur(costi.totale_con_fv_eur)}</div><div class="kbig-sub">spesi in 20 anni · ${fmtEur(costi.totale_risparmio_eur)} in meno in bolletta</div></div>
       </div>
       ${fasciaFotoPagina(d, "costi", "center 42%", true)}
     </div>
@@ -1579,7 +1612,7 @@ function pageBollette240(d: FvPdfTemplateData, pageN: number, total: number): st
       <div class="callout callout-tip">
         <span class="callout-icon">★</span>
         <div><strong>Senza FV, in 25 anni ${escHtml(d.cliente.nome)} pagherà ~${fmtEur(costo25senzaFV)} di bollette.</strong>
-        Con FV, una frazione. La differenza è il prezzo di restare ostaggio del mercato. <strong>Il sole non aumenta mai di prezzo.</strong></div>
+        Con il fotovoltaico, solo la parte che prendi ancora dalla rete. L'energia che produci sul tuo tetto non segue i rincari del mercato.</div>
       </div>
     </div>
     ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
@@ -1597,7 +1630,7 @@ function pageCassa25(d: FvPdfTemplateData, pageN: number, total: number): string
   const payback = d.scenario.payback_anni;
   const eventi = [
     { anno: 0, descr: "Installazione · investimento iniziale", cumulato: cassa[0]?.cumulato ?? -d.costi.prezzo_vendita_iva_inclusa },
-    ...(payback != null ? [{ anno: payback, descr: "★ Breakeven · da qui in poi è tutto profitto", cumulato: 0 }] : []),
+    ...(payback != null ? [{ anno: payback, descr: "★ La spesa è ripagata: da qui in poi è guadagno", cumulato: 0 }] : []),
     { anno: 12, descr: "Anno indicativo di sostituzione dell'inverter", cumulato: cassa.find((c) => c.anno === 12)?.cumulato },
     { anno: 25, descr: "Fine del periodo analizzato", cumulato: final },
   ]
@@ -1608,7 +1641,7 @@ function pageCassa25(d: FvPdfTemplateData, pageN: number, total: number): string
     <div class="content">
       <div class="eyebrow">La cassa nei 25 anni</div>
       <h1 class="page-title">${final > 0 ? "+" : ""}${fmtEur(final)}<br/>nelle tue tasche.</h1>
-      <p class="page-subtitle">Profitto netto cumulato dopo 25 anni${payback != null ? ` · breakeven al ${payback}° anno · poi puro profitto` : ""}.</p>
+      <p class="page-subtitle">Quello che ti resta dopo 25 anni, tolta la spesa${payback != null ? `: la ripaghi in circa ${escHtml(fmtNum(Math.round(payback)))} anni` : ""}. Stima con le ipotesi del preventivo.</p>
       <div class="chart-card">
         <div class="chart-title">Cassa cumulata anno per anno</div>
         <div class="chart-sub">Investimento iniziale, risparmio in bolletta, energia ceduta alla rete${d.costi.detrazione_eur > 0 ? " e detrazione fiscale" : ""}</div>
@@ -1617,7 +1650,7 @@ function pageCassa25(d: FvPdfTemplateData, pageN: number, total: number): string
       <table>
         <thead><tr><th>Anno</th><th>Cosa succede</th><th class="num-cell">Cassa cumulata</th></tr></thead>
         <tbody>
-          ${eventi.map((e) => `<tr${e.anno === payback ? ' class="row-total"' : ""}><td><strong>${e.anno}</strong></td><td>${escHtml(e.descr)}</td><td class="num-cell" style="color:${(e.cumulato ?? 0) >= 0 ? "#16A34A" : "#DC2626"};">${fmtEur(e.cumulato ?? 0)}</td></tr>`).join("")}
+          ${eventi.map((e) => `<tr${e.anno === payback ? ' class="row-total"' : ""}><td><strong>${escHtml(Number.isInteger(e.anno) ? String(e.anno) : fmtNum(e.anno, 1))}</strong></td><td>${escHtml(e.descr)}</td><td class="num-cell" style="color:${(e.cumulato ?? 0) >= 0 ? "#16A34A" : "#DC2626"};">${fmtEur(e.cumulato ?? 0)}</td></tr>`).join("")}
         </tbody>
       </table>
       ${fasciaFotoPagina(d, "cassa", "center 55%", true)}
@@ -1821,8 +1854,7 @@ function pageGaranzie(d: FvPdfTemplateData, pageN: number, total: number): strin
       <ul class="bullets">
         ${customUsp.length > 0
           ? customUsp.map((u) => `<li><strong>${escHtml(u.titolo)}</strong>${u.descrizione ? ` — ${escHtml(u.descrizione)}` : ""}</li>`).join("")
-          : `<li><strong>${escHtml(d.azienda.name)}</strong></li>${d.azienda.website ? `<li>${escHtml(d.azienda.website)}</li>` : ""}`}
-        ${d.azienda.vat_number ? `<li>P.IVA ${escHtml(d.azienda.vat_number)}</li>` : ""}
+          : `<li><strong>${escHtml(d.azienda.name)}</strong></li>${d.azienda.website ? `<li>${escHtml(d.azienda.website)}</li>` : ""}${d.azienda.vat_number ? `<li>P.IVA ${escHtml(d.azienda.vat_number)}</li>` : ""}`}
         ${certificazioni.map((cert) => `<li>${escHtml(plainText(cert.nome))}${plainText(cert.ente) ? ` · ${escHtml(plainText(cert.ente))}` : ""}</li>`).join("")}
       </ul>
       ${recensioni.length > 0 ? `<h3 style="font-size:11pt;color:#1E3A5F;margin:3mm 0 2mm;">Cosa dicono i clienti</h3>
@@ -1917,6 +1949,7 @@ function pageFAQ(d: FvPdfTemplateData, pageN: number, total: number): string {
       <div style="margin-top:4mm;">
         ${faqs.map((f) => `<div class="qa-item"><div class="qa-q">${escHtml(f.q)}</div><div class="qa-a">${escHtml(f.a)}</div></div>`).join("")}
       </div>
+      ${fasciaFotoPagina(d, "faq", "center 40%", true)}
     </div>
     ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
   </div>`;
@@ -1930,7 +1963,7 @@ function numeriDellImpianto(d: FvPdfTemplateData): Array<{ etichetta: string; va
   const out: Array<{ etichetta: string; valore: string; unita?: string; nota: string; tono?: "green" | "orange" }> = [];
   if (d.flows.produzione_kwh > 0) out.push({ etichetta: "Energia prodotta", valore: fmtNum(d.flows.produzione_kwh), unita: "kWh", nota: "ogni anno, dal primo", tono: "green" });
   if (d.flows.autosufficienza_pct > 0) out.push({ etichetta: "Autosufficienza", valore: fmtPct(d.flows.autosufficienza_pct, 0), nota: "del consumo di casa dal tuo sole" });
-  if (d.scenario.risparmio_anno1_eur > 0) out.push({ etichetta: "Risparmio", valore: fmtEur(d.scenario.risparmio_anno1_eur), nota: "in bolletta, il primo anno", tono: "orange" });
+  if (d.scenario.risparmio_anno1_eur > 0) out.push({ etichetta: "Risparmio", valore: fmtEur(d.scenario.risparmio_anno1_eur), nota: Number(d.scenario.ricavi_rid_anno1_eur) > 0 ? "bolletta ed energia venduta, il primo anno" : "in bolletta, il primo anno", tono: "orange" });
   const rientro = d.scenario.payback_anni;
   if (rientro != null && rientro > 0 && rientro <= 25) {
     out.push({ etichetta: "Rientro", valore: Number.isInteger(rientro) ? fmtNum(rientro) : fmtNum(rientro, 1), unita: "anni", nota: "per ripagare l'impianto" });
@@ -2049,11 +2082,7 @@ function pageFirmaContratto(d: FvPdfTemplateData, pageN: number, total: number):
   const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
   const fin = d.finanziamento;
   const docMeta = `${d.azienda.name}${d.azienda.vat_number ? ` · P.IVA ${d.azienda.vat_number}` : ""} · Doc ${d.progetto.numero} · ${fmtData(d.progetto.creato_il)}`;
-  const luogo = [
-    d.cliente.indirizzo,
-    d.cliente.cap && d.cliente.comune ? `${d.cliente.cap} ${d.cliente.comune}` : d.cliente.comune,
-    d.cliente.provincia ? `(${d.cliente.provincia})` : null,
-  ].filter(Boolean).join(", ");
+  const luogo = indirizzoCompleto(d.cliente);
   const conCondizioni = haPaginaCondizioni(d);
   const clausole = conCondizioni ? condizioniInBlocchi(String(d.template?.condizioni_legali_testo ?? "")).clausole : [];
   const righe: Array<[string, string]> = [

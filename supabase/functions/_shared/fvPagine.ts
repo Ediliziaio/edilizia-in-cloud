@@ -78,7 +78,9 @@ export const FV_PDF_PAGES_META: FvPdfPageMeta[] = [
   // — Atto 4: Offerta (ora il prezzo, e sembra piccolo) —
   { id: "investimento", label: "Investimento", descrizione: "Prezzo, proposta di valore, inclusi e detrazione.", obbligatoria: true },
   { id: "piano_pagamento", label: "Piano economico", descrizione: "Rata, risparmio e costo netto mensile. Esce solo con un finanziamento.", obbligatoria: false },
-  { id: "bollette_240", label: "Perche farlo ora", descrizione: "Narrativa su aumento bollette e urgenza.", obbligatoria: false },
+  // Spenta di serie dal 22/09/2026: numeri del picco del 2022 (+240% dal 2012) presentati
+  // come tendenza, e toni da urgenza. L'azienda che la vuole la riaccende dall'ordine pagine.
+  { id: "bollette_240", label: "Perché farlo ora", descrizione: "Aumento delle bollette 2012-2022 e urgenza: dati di quel periodo, da rileggere prima di accenderla.", obbligatoria: false, diSerie: false },
   // — Durante e dopo i lavori: rispondono ai dubbi proprio quando il cliente decide.
   // Promettono qualcosa: accese di serie (22/09/2026), l'azienda le rilegge e le
   // spegne se non lo fa. In testa, con la fiducia, erano sei pagine prima dell'impianto.

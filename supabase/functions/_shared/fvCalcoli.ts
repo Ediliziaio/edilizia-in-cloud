@@ -26,6 +26,38 @@ export interface FvFlowsInput {
   /** Ombreggiamento da ostacoli VICINI (alberi/edifici adiacenti), frazione 0..1.
    *  Default 0 = nessuno. L'orizzonte lontano è già in ore_sole_annue (PVGIS H(i)_y). */
   perdita_ombreggiamento_pct?: number;
+  /** La produzione del primo anno già calcolata da fv-calcolo-finanziario (fv_progetti.produzione_annua_kwh). */
+  produzione_kwh?: number | null;
+  /** La quota della produzione consumata in casa, dal profilo di consumo (quotaAutoconsumo):
+   *  la stessa del calcolo finanziario. Senza, si stima dal profilo come prima. */
+  autoconsumo_pct?: number | null;
+}
+
+/** Le quote di autoconsumo di un profilo (fv_profili_autoconsumo). */
+export interface FvProfiloAutoconsumo {
+  codice: string;
+  autoconsumo_no_accumulo: number;
+  autoconsumo_accumulo_5kwh: number;
+  autoconsumo_accumulo_10kwh: number;
+  autoconsumo_accumulo_15kwh: number;
+}
+
+/**
+ * Quanta parte della produzione si consuma in casa, per profilo di consumo e
+ * batteria: le fasce di fv-calcolo-finanziario (0, fino a 5, fino a 10, oltre).
+ * La usano il calcolo e il PDF, così risparmio e flussi dicono gli stessi kWh:
+ * prima il PDF stimava per conto suo e con una batteria i numeri non tornavano
+ * (85% nel calcolo, 63% nella pagina dell'energia, col profilo «misto» e 10 kWh).
+ */
+export function quotaAutoconsumo(profilo: FvProfiloAutoconsumo | null | undefined, capacita_kwh: number | null | undefined): number | null {
+  if (!profilo) return null;
+  const cap = Number(capacita_kwh) || 0;
+  const quota = cap <= 0 ? profilo.autoconsumo_no_accumulo
+    : cap <= 5 ? profilo.autoconsumo_accumulo_5kwh
+    : cap <= 10 ? profilo.autoconsumo_accumulo_10kwh
+    : profilo.autoconsumo_accumulo_15kwh;
+  const n = Number(quota);
+  return Number.isFinite(n) && n >= 0 ? Math.min(1, n) : null;
 }
 
 export interface FvFlows {
@@ -55,9 +87,9 @@ export function calcolaEnergyFlows(input: FvFlowsInput): FvFlows {
   // finanziario, altrimenti il PDF sovrastimerebbe la produzione di ~15%.
   // Ombreggiamento vicino (frazione 0..1, clamp [0,0.6]): default 0 = nessun impatto.
   const perdita_ombra = Math.min(0.6, Math.max(0, input.perdita_ombreggiamento_pct ?? 0));
-  const produzione_kwh = Math.round(
-    input.potenza_kwp * oreSole * pr * effSistema * (1 - perdita_ombra),
-  );
+  const produzione_kwh = input.produzione_kwh != null && Number(input.produzione_kwh) > 0
+    ? Math.round(Number(input.produzione_kwh))
+    : Math.round(input.potenza_kwp * oreSole * pr * effSistema * (1 - perdita_ombra));
 
   // Base autoconsumo per profilo (sengza accumulo)
   const baseProfilo: Record<string, number> = {
@@ -78,7 +110,9 @@ export function calcolaEnergyFlows(input: FvFlowsInput): FvFlows {
     else bonusAccumulo = 0.10;
   }
 
-  const autoconsumo_pct = Math.min(0.92, baseAuto + bonusAccumulo);
+  const autoconsumo_pct = input.autoconsumo_pct != null && input.autoconsumo_pct >= 0
+    ? Math.min(1, input.autoconsumo_pct)
+    : Math.min(0.92, baseAuto + bonusAccumulo);
   // autoconsumo_pct = frazione della PRODUZIONE consumata in loco.
   // Min con consumo_annuo: non si può auto-consumare più di quanto si consuma.
   const autoconsumo_kwh = Math.round(
@@ -244,7 +278,10 @@ export function calcolaCO2Equivalenze(input: FvCO2Input): FvCO2Output {
 export interface FvBollettaInput {
   consumo_annuo_kwh: number;
   prelievo_rete_kwh: number;
+  /** Quanto paga oggi il cliente per ogni kWh, tutto compreso (fv_progetti.costo_kwh_attuale). */
   prezzo_kwh: number;
+  /** Quello che il GSE paga per l'energia immessa in rete, primo anno (fv_calcolo_finanziario.ricavi_rid_eur). */
+  ricavi_rid_eur?: number | null;
 }
 
 export interface FvBollettaRow {
@@ -257,70 +294,62 @@ export interface FvBollettaRow {
 }
 
 /**
- * Stima breakdown bolletta "Oggi (senza FV)" vs "Con il fotovoltaico".
- * Usa percentuali standard ARERA per la struttura.
+ * La bolletta dell'elettricità di un anno, oggi e col fotovoltaico, per voci.
+ *
+ * Il prezzo per kWh del cliente è «tutto compreso», e ogni voce si divide con la
+ * composizione tipica di una bolletta domestica (materia energia 71%, oneri 18%,
+ * trasporto 7%, imposte 4%). Col fotovoltaico ogni voce scende con i kWh presi
+ * dalla rete: è lo stesso conto del calcolo finanziario (risparmio = kWh consumati
+ * in casa × prezzo), così la tabella torna col risparmio scritto nel titolo della
+ * pagina. Prima oneri e trasporto restavano fissi, una parte si contava due volte
+ * e le righe non davano il totale (178 + 259 + 101 + 10 = 548, totale 564).
+ *
+ * L'energia immessa in rete non è in bolletta, ma è nel risparmio: con i ricavi
+ * del GSE ci sono due righe in più, i ricavi e la spesa netta.
  */
 export function calcolaBollettaPrimaDopo(input: FvBollettaInput): FvBollettaRow[] {
-  const totaleOggi = input.consumo_annuo_kwh * input.prezzo_kwh;
-  const totaleCon = input.prelievo_rete_kwh * input.prezzo_kwh;
-
-  // Composizione tipica bolletta:
-  //   - Energia (materia prima): 71%
-  //   - Oneri di sistema: 18%
-  //   - Trasporto e gestione: 7%
-  //   - IVA + accise: 4%
-  // Note: oneri restano fissi (bolletta fissa per potenza), trasporto idem.
-  const energiaOggi = totaleOggi * 0.71;
-  const oneriOggi = totaleOggi * 0.18;
-  const trasportoOggi = totaleOggi * 0.07;
-  const ivaOggi = totaleOggi * 0.04;
-
-  const energiaCon = totaleCon * 0.71;
-  // Oneri/trasporto restano (legati alla potenza disponibile, non al consumo)
-  const ivaCon = totaleCon * 0.04;
-
+  const consumo = Math.max(0, input.consumo_annuo_kwh);
+  const prelievo = Math.min(consumo, Math.max(0, input.prelievo_rete_kwh));
+  const quota = consumo > 0 ? prelievo / consumo : 0;
+  const totaleOggi = consumo * input.prezzo_kwh;
+  const voci: Array<[string, number]> = [
+    ["Spesa per la materia energia", 0.71],
+    ["Oneri di sistema", 0.18],
+    ["Trasporto e gestione del contatore", 0.07],
+    ["Imposte (IVA e accise)", 0.04],
+  ];
+  // Totali arrotondati una volta sola, come il risparmio del calcolo (1.089,88 → 1.090);
+  // le voci arrotondate una per una, e la differenza va sulla più grande: la tabella
+  // somma giusto e torna col titolo della pagina (prima 1.386 contro 1.387).
+  const oggi = Math.round(totaleOggi);
+  const con = Math.round(totaleOggi * quota);
+  const voceArrotondata = (totale: number, fattore: number) => {
+    const valori = voci.map(([, peso]) => Math.round(totaleOggi * peso * fattore));
+    valori[0] += totale - valori.reduce((acc, v) => acc + v, 0);
+    return valori;
+  };
+  const oggiVoci = voceArrotondata(oggi, 1);
+  const conVoci = voceArrotondata(con, quota);
+  const righe: FvBollettaRow[] = voci.map(([voce], i) => ({
+    voce, oggi_eur: oggiVoci[i], con_fv_eur: conVoci[i], risparmio_eur: conVoci[i] - oggiVoci[i],
+  }));
+  const rid = Math.max(0, Math.round(Number(input.ricavi_rid_eur) || 0));
   return [
     {
-      voce: "Energia consumata da rete",
-      oggi_eur: Math.round(input.consumo_annuo_kwh),
-      con_fv_eur: Math.round(input.prelievo_rete_kwh),
-      risparmio_eur: -Math.round(
-        ((input.consumo_annuo_kwh - input.prelievo_rete_kwh) /
-          Math.max(1, input.consumo_annuo_kwh)) * 100,
-      ),
+      voce: "Energia presa dalla rete",
+      oggi_eur: Math.round(consumo),
+      con_fv_eur: Math.round(prelievo),
+      risparmio_eur: -Math.round((1 - quota) * 100),
       is_kwh_row: true,
     },
-    {
-      voce: "Spesa materia energia",
-      oggi_eur: Math.round(energiaOggi),
-      con_fv_eur: Math.round(energiaCon),
-      risparmio_eur: Math.round(energiaCon - energiaOggi),
-    },
-    {
-      voce: "Oneri di sistema",
-      oggi_eur: Math.round(oneriOggi),
-      con_fv_eur: Math.round(oneriOggi),
-      risparmio_eur: 0,
-    },
-    {
-      voce: "Trasporto e gestione",
-      oggi_eur: Math.round(trasportoOggi),
-      con_fv_eur: Math.round(trasportoOggi),
-      risparmio_eur: 0,
-    },
-    {
-      voce: "IVA + accise",
-      oggi_eur: Math.round(ivaOggi),
-      con_fv_eur: Math.round(ivaCon),
-      risparmio_eur: Math.round(ivaCon - ivaOggi),
-    },
-    {
-      voce: "Totale annuo",
-      oggi_eur: Math.round(totaleOggi),
-      con_fv_eur: Math.round(totaleCon + oneriOggi + trasportoOggi + (ivaCon - ivaOggi)),
-      risparmio_eur: -Math.round(totaleOggi - (totaleCon + oneriOggi + trasportoOggi + (ivaCon - ivaOggi))),
-      is_total: true,
-    },
+    ...righe,
+    { voce: "Totale bolletta", oggi_eur: oggi, con_fv_eur: con, risparmio_eur: con - oggi, is_total: true },
+    ...(rid > 0
+      ? [
+        { voce: "Energia venduta alla rete (GSE)", oggi_eur: 0, con_fv_eur: -rid, risparmio_eur: -rid },
+        { voce: "Spesa netta per l'elettricità", oggi_eur: oggi, con_fv_eur: con - rid, risparmio_eur: con - rid - oggi, is_total: true },
+      ]
+      : []),
   ];
 }
 
