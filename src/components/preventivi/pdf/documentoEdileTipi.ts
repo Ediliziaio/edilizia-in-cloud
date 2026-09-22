@@ -13,6 +13,7 @@ import type { PaginaLibera, VoceOrdine } from "./ordineCapitoli";
 
 import type { ChiaveBlocco, ContenutoBlocco } from "../../../../supabase/functions/_shared/blocchiPreventivo";
 import type { VotoOnline } from "../../../../supabase/functions/_shared/recensioniOnline";
+import type { PaginaConTestata, TestataPagina } from "../../../../supabase/functions/_shared/testatePagine";
 export interface DocEdileVoce {
   id: string;
   descrizione: string;
@@ -160,6 +161,11 @@ export interface DocEdileModello {
   cronoprogramma: DocEdileFase[];
   mostraCronoprogramma: boolean;
   galleriaLavori: DocEdileFoto[];
+  /**
+   * Occhiello, titolo e introduzione di «Dicono di noi», domande, garanzie e lavori:
+   * di serie, o riscritti dall'azienda (vedi _shared/testatePagine.ts).
+   */
+  testate: Record<PaginaConTestata, TestataPagina>;
 
   pagamentoHtml: string | null;
   testoValidita: string | null;

@@ -18,6 +18,7 @@ import {
   type ChiaveBlocco, type SettoreBlocchi, type VoceBlocco,
 } from "../../../supabase/functions/_shared/blocchiPreventivo";
 import { ICONE, type NodoIcona, type NomeIcona } from "../../../supabase/functions/_shared/iconePreventivo";
+import { eTavola } from "../../../supabase/functions/_shared/proporzioniImmagine";
 
 interface Props {
   chiave: ChiaveBlocco;
@@ -108,17 +109,25 @@ export function EditorBlocco({ chiave, settore, salvati, onSalvati, campoFoto }:
     onSalvati(resto);
   };
 
-  // Due posti per le foto, come nel PDF.
+  // Due posti per le foto, come nel PDF. Una tavola (la grafica verticale con le
+  // scritte dentro) esce da sola e intera, con le voci accanto: un posto solo.
   const slot = [effettivo.foto[0] ?? null, effettivo.foto[1] ?? null];
+  const tavola = slot.find((u) => u && eTavola(u) != null) ?? null;
+  const posti = tavola ? [tavola] : slot;
   const salvaFoto = (nuove: Array<string | null>) => {
     const piene = nuove.filter((u): u is string => Boolean(u));
     salva(piene.length > 0 ? { foto: piene, senzaFoto: false } : { foto: [], senzaFoto: true });
   };
   const scegliDallaLibreria = (url: string) => {
-    const nuove = [...slot];
-    const vuoto = nuove.findIndex((u) => !u);
-    nuove[vuoto >= 0 ? vuoto : 1] = url;
-    salvaFoto(nuove);
+    // Una tavola prende il posto di tutte le foto; una foto prende il posto della tavola.
+    if (eTavola(url) != null || tavola) {
+      salvaFoto([url]);
+    } else {
+      const nuove = [...slot];
+      const vuoto = nuove.findIndex((u) => !u);
+      nuove[vuoto >= 0 ? vuoto : 1] = url;
+      salvaFoto(nuove);
+    }
     setLibreriaAperta(false);
   };
 
@@ -158,23 +167,29 @@ export function EditorBlocco({ chiave, settore, salvati, onSalvati, campoFoto }:
 
       {chiave !== "compreso" ? (
         <div className="space-y-2">
-          <Label className="text-xs">Foto (al massimo due)</Label>
-          <div className="grid gap-3 md:grid-cols-2">
-            {slot.map((url, i) => (
+          <Label className="text-xs">{tavola ? "La tavola" : "Foto (al massimo due)"}</Label>
+          <div className={tavola ? "grid gap-3 md:grid-cols-[220px_1fr] md:items-start" : "grid gap-3 md:grid-cols-2"}>
+            {posti.map((url, i) => (
               <div key={i} className="space-y-1">
                 {url && eFotoDiSerie(url) ? (
-                  <div className="relative overflow-hidden rounded-md border">
-                    <img src={url} alt="" className="aspect-[16/9] w-full object-cover" />
+                  <div className="relative overflow-hidden rounded-md border bg-muted">
+                    <img src={url} alt="" className={tavola ? "aspect-[4/5] w-full object-contain" : "aspect-[16/9] w-full object-cover"} />
                     <span className="absolute left-1.5 top-1.5 rounded bg-background/90 px-1.5 py-0.5 text-[10px]">di serie</span>
-                    <Button size="icon" variant="secondary" className="absolute right-1.5 top-1.5 h-7 w-7" onClick={() => salvaFoto(slot.map((u, j) => (j === i ? null : u)))} aria-label="Togli la foto">
+                    <Button size="icon" variant="secondary" className="absolute right-1.5 top-1.5 h-7 w-7" onClick={() => salvaFoto(tavola ? [] : slot.map((u, j) => (j === i ? null : u)))} aria-label="Togli la foto">
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </div>
                 ) : (
-                  campoFoto(url, (nuova) => salvaFoto(slot.map((u, j) => (j === i ? nuova : u))))
+                  campoFoto(url, (nuova) => salvaFoto(tavola ? [nuova] : slot.map((u, j) => (j === i ? nuova : u))))
                 )}
               </div>
             ))}
+            {tavola ? (
+              <p className="text-[11px] text-muted-foreground">
+                Una tavola esce da sola e intera, grande quanto la pagina permette, con le voci accanto: le sue
+                scritte non si tagliano. Per mettere le vostre foto, toglietela o sceglietene una dalla libreria.
+              </p>
+            ) : null}
           </div>
           <Button size="sm" variant="outline" onClick={() => setLibreriaAperta((a) => !a)}>
             <ImagePlus className="mr-1.5 h-3.5 w-3.5" /> {libreriaAperta ? "Chiudi la libreria" : "Scegli dalla libreria"}
@@ -183,7 +198,7 @@ export function EditorBlocco({ chiave, settore, salvati, onSalvati, campoFoto }:
             <div className="grid max-h-72 grid-cols-2 gap-2 overflow-y-auto rounded-md border p-2 md:grid-cols-4">
               {libreria.map((f) => (
                 <button key={f.url} type="button" onClick={() => scegliDallaLibreria(f.url)} className="group overflow-hidden rounded border text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary">
-                  <img src={f.url} alt={f.nome} loading="lazy" className="aspect-[16/9] w-full object-cover transition group-hover:opacity-80" />
+                  <img src={f.url} alt={f.nome} loading="lazy" className={`aspect-[16/9] w-full bg-muted transition group-hover:opacity-80 ${eTavola(f.url) != null ? "object-contain" : "object-cover"}`} />
                   <span className="block truncate px-1.5 py-1 text-[10px] text-muted-foreground">{f.nome}</span>
                 </button>
               ))}

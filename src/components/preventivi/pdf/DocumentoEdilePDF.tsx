@@ -35,6 +35,7 @@ import {
 } from "./provaSocialePdf";
 import { BLOCCHI, type ChiaveBlocco } from "../../../../supabase/functions/_shared/blocchiPreventivo";
 import { MODULO_RECESSO } from "../../../../supabase/functions/_shared/condizioniStandard";
+import type { PaginaConTestata } from "../../../../supabase/functions/_shared/testatePagine";
 import { giorniDellaDurata, senzaNumeroDavanti, spezzaAccento } from "./testoDocumento";
 import { altezzaTesto, righeDiTesto, testoDaHtml, type FamigliaPdf } from "./misuraTesto";
 import type {
@@ -1025,11 +1026,15 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
   // subito prima dei prossimi passi. L'interruttore del modello vale per entrambi.
   const haGaranzie = modello.mostraGaranzie && modello.garanzie.length > 0;
   const haDomande = modello.mostraGaranzie && modello.faq.length > 0;
-  const sommarioRecensioni = votiOnline.length > 0 && modello.testimonianze.length > 0
+  // Occhiello, titolo e introduzione delle pagine che raccontano l'azienda: di serie,
+  // o riscritti dall'azienda nell'editor (vedi _shared/testatePagine.ts).
+  const testata = (pagina: PaginaConTestata) => ({ ...modello.testate[pagina], titolo: modello.testate[pagina].titolo ?? "" });
+  const [tLavori, tRecensioni, tGaranzie, tDomande] = [testata("lavori"), testata("recensioni"), testata("garanzie"), testata("domande")];
+  const sommarioRecensioni = tRecensioni.intro ?? (votiOnline.length > 0 && modello.testimonianze.length > 0
     ? "Il nostro voto sulle piattaforme di recensioni e le parole di chi ha già lavorato con noi."
     : votiOnline.length > 0
       ? "Il nostro voto sulle piattaforme di recensioni: le recensioni si leggono tutte sulle nostre schede."
-      : "Le parole di chi ha già lavorato con noi.";
+      : "Le parole di chi ha già lavorato con noi.");
   const colonneUsp: 2 | 3 = modello.usp.length % 3 === 0 || modello.usp.length > 4 ? 3 : 2;
   const colonneGaranzie: 2 | 3 = modello.garanzie.length === 2 || modello.garanzie.length === 4 ? 2 : 3;
 
@@ -1057,9 +1062,9 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
   const numeroDi = new Map(sequenza.map((v, i) => [v.chiave, i + 1]));
   const numeroPassi = sequenza.length + 1;
   const TITOLI: Record<string, string> = {
-    chiSiamo: "Chi siamo", progetto: "Il progetto", percorso: "Come lavoriamo", lavori: "I nostri lavori",
+    chiSiamo: "Chi siamo", progetto: "Il progetto", percorso: "Come lavoriamo", lavori: tLavori.occhiello,
     foto: "Foto e render", piano: modulo.titoloComputo.replace(/\*/g, ""), investimento: "Il tuo investimento",
-    garanzie: "Le garanzie", tempi: "I tempi", recensioni: "Dicono di noi", domande: "Domande e risposte",
+    garanzie: tGaranzie.occhiello, tempi: "I tempi", recensioni: tRecensioni.occhiello, domande: tDomande.occhiello,
     ...Object.fromEntries(BLOCCHI.map((b) => [b.chiave, b.etichetta])),
   };
   const sommario: Array<{ numero: number; titolo: string }> = [
@@ -1227,13 +1232,13 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
         break;
       }
       case "percorso": h = stimaTesta(tema, "Dal primo incontro alla consegna.") + stimaPassi(tema, modello.percorso); break;
-      case "lavori": h = stimaTesta(tema, "Lavori finiti, non promesse.", "Alcuni interventi che abbiamo già consegnato.") + stimaGalleria(modello.galleriaLavori); break;
+      case "lavori": h = stimaTesta(tema, tLavori.titolo, tLavori.intro) + stimaGalleria(modello.galleriaLavori); break;
       case "recensioni":
-        h = stimaTesta(tema, "La parola ai nostri clienti.", sommarioRecensioni)
+        h = stimaTesta(tema, tRecensioni.titolo, sommarioRecensioni)
           + stimaVotiOnline(votiOnline) + stimaParoleDeiClienti(tema, modello.testimonianze, UTILE);
         break;
       case "foto": h = stimaTesta(tema, "Il tuo progetto, da vedere.", "Lo stato di oggi e come diventerà.") + stimaGalleria(fotoCapitolo); break;
-      case "garanzie": h = stimaTesta(tema, "Più certezze, meno dubbi.") + stimaSchedeGaranzie(tema, modello.garanzie, colonneGaranzie, UTILE); break;
+      case "garanzie": h = stimaTesta(tema, tGaranzie.titolo, tGaranzie.intro) + stimaSchedeGaranzie(tema, modello.garanzie, colonneGaranzie, UTILE); break;
       case "tempi": h = modello.cronoprogramma.length > 8 ? null : stimaTesta(tema, "Quanto dura il cantiere.") + stimaTempi(tema, modello.cronoprogramma) + 30; break;
       case "investimento": {
         const tabella = oc.livello !== "corpo" && capitoli.length > 1 && !prezzoManuale
@@ -1291,7 +1296,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
 
   // Le domande si spezzano una per volta, come le righe del piano; il titolo resta
   // con la prima.
-  const testaDomande = stimaTesta(tema, "Le domande che ci fanno più spesso.");
+  const testaDomande = stimaTesta(tema, tDomande.titolo, tDomande.intro);
   const codaDelleDomande = (inizio: number): { coda: number; aCapo: boolean } => {
     const alte = altezzeDomande(tema, modello.faq, UTILE);
     let usato = inizio;
@@ -1525,12 +1530,12 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
               <Passi tema={tema} voci={modello.percorso} />
             </View>);
       case "lavori": return (<>
-          <Capitolo tema={tema} numero={numero} occhiello="I nostri lavori" titolo="Lavori *finiti*, non promesse." sommario="Alcuni interventi che abbiamo già consegnato." />
+          <Capitolo tema={tema} numero={numero} occhiello={tLavori.occhiello} titolo={tLavori.titolo} sommario={tLavori.intro} />
           <Galleria tema={tema} foto={modello.galleriaLavori} />
 </>);
       case "recensioni": return (
           <ParoleDeiClienti tema={tema} voci={modello.testimonianze} larghezza={UTILE} testa={<>
-            <Capitolo tema={tema} numero={numero} occhiello="Dicono di noi" titolo="La parola ai *nostri clienti*." sommario={sommarioRecensioni} />
+            <Capitolo tema={tema} numero={numero} occhiello={tRecensioni.occhiello} titolo={tRecensioni.titolo} sommario={sommarioRecensioni} />
             <VotiOnline tema={tema} voti={votiOnline} larghezza={UTILE} />
           </>} />
       );
@@ -1666,11 +1671,11 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
 
 </>);
       case "garanzie": return (<>
-          <Capitolo tema={tema} numero={numero} occhiello="Le nostre garanzie" titolo="Più *certezze*, meno dubbi." />
+          <Capitolo tema={tema} numero={numero} occhiello={tGaranzie.occhiello} titolo={tGaranzie.titolo} sommario={tGaranzie.intro} />
           <SchedeGaranzie tema={tema} voci={modello.garanzie} colonne={colonneGaranzie} larghezza={UTILE} />
 </>);
       case "domande": return (<>
-          <Capitolo tema={tema} numero={numero} occhiello="Domande e risposte" titolo="Le domande che ci fanno *più spesso*." />
+          <Capitolo tema={tema} numero={numero} occhiello={tDomande.occhiello} titolo={tDomande.titolo} sommario={tDomande.intro} />
           <Domande tema={tema} voci={modello.faq} />
 </>);
       case "tempi": return (

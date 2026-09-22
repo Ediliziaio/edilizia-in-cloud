@@ -61,6 +61,8 @@ describe("editor: la foto delle pagine", () => {
     render(<Fotovoltaico />);
     fireEvent.click(screen.getByRole("button", { name: "Foto di Chi siamo e garanzie" }));
     fireEvent.click(screen.getByRole("button", { name: /Scegli dalla libreria/ }));
+    // Le tavole no: qui la foto riempie una fascia e si ritaglia, le scritte si perderebbero.
+    expect(screen.queryByRole("button", { name: /tavola/ })).toBeNull();
     fireEvent.click(screen.getAllByRole("button", { name: /villa tetto coppi/ })[0]);
     expect(salvato()).toEqual({ pagina_garanzie: { foto: ["/pdf-stock/fotovoltaico/villa-tetto-coppi.jpg"], senzaFoto: false } });
   });

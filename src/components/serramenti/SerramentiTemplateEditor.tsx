@@ -1078,6 +1078,125 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
     );
   };
 
+  // Il contenuto delle pagine che raccontano l'azienda: si modifica nella sua
+  // scheda e sotto la matita della pagina, in «Ordine pagine» (una scheda aperta
+  // alla volta, mai due editor della stessa lista insieme).
+  const contenutiPagine = {
+    recensioni: (
+      <SrCard
+        title="Recensioni e testimonianze"
+        description="Escono nella pagina «Dicono di noi» del PDF, sotto il voto su Google o Trustpilot."
+        icon={<Quote className="h-4 w-4" />}
+        variant="highlight"
+      >
+        <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          Usa questa pagina solo con testimonianze reali. Se non hai recensioni verificabili,
+          lasciala vuota o nascondila: è più professionale di una recensione generica.
+        </div>
+        <div className="space-y-3">
+          {testimonianze.length === 0 && (
+            <SrCallout variant="info">
+              Nessuna recensione caricata. Va bene lasciare la pagina vuota finché non hai testimonianze reali: meglio nessuna recensione che una recensione inventata.
+            </SrCallout>
+          )}
+          {testimonianze.map((t, idx) => (
+            <Card key={idx} className="bg-orange-50/30 border-orange-200">
+              <CardHeader className="p-3 pb-2 flex flex-row items-center justify-between">
+                <CardTitle className="text-xs uppercase tracking-wide text-orange-600">
+                  Recensione {idx + 1}
+                </CardTitle>
+                <Button size="sm" variant="ghost" onClick={() => setDelTestIdx(idx)} className="h-7 px-2 text-xs text-rose-600">
+                  <Trash2 className="h-3.5 w-3.5 mr-1" /> Rimuovi
+                </Button>
+              </CardHeader>
+              <CardContent className="p-3 pt-0 grid grid-cols-12 gap-2">
+                <div className="col-span-12">
+                  <Label className="text-xs">Citazione</Label>
+                  <Textarea
+                    value={t.quote ?? ""}
+                    onChange={(e) => updateTestimonianza(idx, "quote", e.target.value)}
+                    placeholder={'"Ci hanno spiegato bene materiali, tempi e posa prima della firma..."'}
+                    rows={3}
+                  />
+                </div>
+                <div className="col-span-12 md:col-span-4">
+                  <Label className="text-xs">Autore</Label>
+                  <Input
+                    value={t.autore ?? ""}
+                    onChange={(e) => updateTestimonianza(idx, "autore", e.target.value)}
+                    placeholder="Nome cliente o iniziali reali"
+                    className="h-9 text-xs"
+                  />
+                </div>
+                <div className="col-span-6 md:col-span-3">
+                  <Label className="text-xs">Città</Label>
+                  <Input
+                    value={t.citta ?? ""}
+                    onChange={(e) => updateTestimonianza(idx, "citta", e.target.value)}
+                    placeholder="Città"
+                    className="h-9 text-xs"
+                  />
+                </div>
+                <div className="col-span-6 md:col-span-5">
+                  <Label className="text-xs">Tipo intervento</Label>
+                  <Input
+                    value={t.intervento ?? ""}
+                    onChange={(e) => updateTestimonianza(idx, "intervento", e.target.value)}
+                    placeholder="Tipo intervento"
+                    className="h-9 text-xs"
+                  />
+                </div>
+                <div className="col-span-12 flex items-center gap-2">
+                  {t.foto_url ? (
+                    <ImgRiservata src={t.foto_url} alt="" className="h-10 w-10 rounded-full object-cover border" />
+                  ) : (
+                    <span className="h-10 w-10 rounded-full bg-muted flex items-center justify-center text-muted-foreground">
+                      <ImageIcon className="h-4 w-4" />
+                    </span>
+                  )}
+                  <label className="text-xs">
+                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded border cursor-pointer hover:bg-muted">
+                      {uploadingTestFoto === idx ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+                      {t.foto_url ? "Cambia foto" : "Foto cliente (opzionale)"}
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => { const f = e.target.files?.[0]; if (f) handleTestimonianzaFotoUpload(idx, f); e.target.value = ""; }}
+                    />
+                  </label>
+                  {t.foto_url && (
+                    <button type="button" onClick={() => updateTestimonianza(idx, "foto_url", "")} className="text-xs text-rose-600 hover:underline">
+                      Rimuovi
+                    </button>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+          <Button
+            onClick={addTestimonianza}
+            variant="outline"
+            className="w-full border-dashed border-2 border-orange-300 hover:bg-orange-50 gap-1"
+          >
+            <Plus className="h-4 w-4" /> Aggiungi recensione
+          </Button>
+        </div>
+      </SrCard>
+    ),
+    lavori: (
+      <GalleryLavoriEditor
+        items={(form.gallery_lavori ?? []) as GalleryLavoroItem[]}
+        onChange={(items) => update("gallery_lavori", items)}
+        bucket="sr-progetti"
+        uploadPath={`${companyId}/gallery-lavori`}
+      />
+    ),
+    garanzie: <SerramentiConversionEditor form={form} update={update} companyAnagrafica={companyAnagrafica} solo="garanzie" />,
+    domande: <SerramentiConversionEditor form={form} update={update} companyAnagrafica={companyAnagrafica} solo="faq" />,
+  };
+
   return (
     <div className="space-y-4">
       {/* TOOLBAR STICKY in alto: sempre visibile durante lo scroll.
@@ -2962,124 +3081,19 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
               </label>
             </div>
             <p className="text-[10px] text-muted-foreground">
-              Le recensioni qui sotto vengono incluse nella pagina finale del PDF solo se
-              "Mostra recensioni" è attivo.
+              Le recensioni qui sotto escono nella pagina «Dicono di noi» solo se "Mostra recensioni"
+              è attivo. Titolo e introduzione della pagina si cambiano in «Ordine pagine», con la matita.
             </p>
 
             {/* Testimonianze */}
-            <SrCard
-              title="Recensioni e testimonianze"
-              description="Pagina 2 del PDF — sezione 'Cosa dicono i nostri clienti'."
-              icon={<Quote className="h-4 w-4" />}
-              variant="highlight"
-            >
-              <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-                Usa questa pagina solo con testimonianze reali. Se non hai recensioni verificabili,
-                lasciala vuota o nascondila: è più professionale di una recensione generica.
-              </div>
-              <div className="space-y-3">
-                {testimonianze.length === 0 && (
-                  <SrCallout variant="info">
-                    Nessuna recensione caricata. Va bene lasciare la pagina vuota finché non hai testimonianze reali: meglio nessuna recensione che una recensione inventata.
-                  </SrCallout>
-                )}
-                {testimonianze.map((t, idx) => (
-                  <Card key={idx} className="bg-orange-50/30 border-orange-200">
-                    <CardHeader className="p-3 pb-2 flex flex-row items-center justify-between">
-                      <CardTitle className="text-xs uppercase tracking-wide text-orange-600">
-                        Recensione {idx + 1}
-                      </CardTitle>
-                      <Button size="sm" variant="ghost" onClick={() => setDelTestIdx(idx)} className="h-7 px-2 text-xs text-rose-600">
-                        <Trash2 className="h-3.5 w-3.5 mr-1" /> Rimuovi
-                      </Button>
-                    </CardHeader>
-                    <CardContent className="p-3 pt-0 grid grid-cols-12 gap-2">
-                      <div className="col-span-12">
-                        <Label className="text-xs">Citazione</Label>
-                        <Textarea
-                          value={t.quote ?? ""}
-                          onChange={(e) => updateTestimonianza(idx, "quote", e.target.value)}
-                          placeholder={'"Ci hanno spiegato bene materiali, tempi e posa prima della firma..."'}
-                          rows={3}
-                        />
-                      </div>
-                      <div className="col-span-12 md:col-span-4">
-                        <Label className="text-xs">Autore</Label>
-                        <Input
-                          value={t.autore ?? ""}
-                          onChange={(e) => updateTestimonianza(idx, "autore", e.target.value)}
-                          placeholder="Nome cliente o iniziali reali"
-                          className="h-9 text-xs"
-                        />
-                      </div>
-                      <div className="col-span-6 md:col-span-3">
-                        <Label className="text-xs">Città</Label>
-                        <Input
-                          value={t.citta ?? ""}
-                          onChange={(e) => updateTestimonianza(idx, "citta", e.target.value)}
-                          placeholder="Città"
-                          className="h-9 text-xs"
-                        />
-                      </div>
-                      <div className="col-span-6 md:col-span-5">
-                        <Label className="text-xs">Tipo intervento</Label>
-                        <Input
-                          value={t.intervento ?? ""}
-                          onChange={(e) => updateTestimonianza(idx, "intervento", e.target.value)}
-                          placeholder="Tipo intervento"
-                          className="h-9 text-xs"
-                        />
-                      </div>
-                      <div className="col-span-12 flex items-center gap-2">
-                        {t.foto_url ? (
-                          <ImgRiservata src={t.foto_url} alt="" className="h-10 w-10 rounded-full object-cover border" />
-                        ) : (
-                          <span className="h-10 w-10 rounded-full bg-muted flex items-center justify-center text-muted-foreground">
-                            <ImageIcon className="h-4 w-4" />
-                          </span>
-                        )}
-                        <label className="text-xs">
-                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded border cursor-pointer hover:bg-muted">
-                            {uploadingTestFoto === idx ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-                            {t.foto_url ? "Cambia foto" : "Foto cliente (opzionale)"}
-                          </span>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            onChange={(e) => { const f = e.target.files?.[0]; if (f) handleTestimonianzaFotoUpload(idx, f); e.target.value = ""; }}
-                          />
-                        </label>
-                        {t.foto_url && (
-                          <button type="button" onClick={() => updateTestimonianza(idx, "foto_url", "")} className="text-xs text-rose-600 hover:underline">
-                            Rimuovi
-                          </button>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-                <Button
-                  onClick={addTestimonianza}
-                  variant="outline"
-                  className="w-full border-dashed border-2 border-orange-300 hover:bg-orange-50 gap-1"
-                >
-                  <Plus className="h-4 w-4" /> Aggiungi recensione
-                </Button>
-              </div>
-            </SrCard>
+            {contenutiPagine.recensioni}
 
             <SrCard
               title="Gallery lavori"
               description="Foto di lavori realizzati, mostrate nel PDF."
               icon={<ImageIcon className="h-4 w-4" />}
             >
-              <GalleryLavoriEditor
-                items={(form.gallery_lavori ?? []) as GalleryLavoroItem[]}
-                onChange={(items) => update("gallery_lavori", items)}
-                bucket="sr-progetti"
-                uploadPath={`${companyId}/gallery-lavori`}
-              />
+              {contenutiPagine.lavori}
             </SrCard>
           </TabsContent>
 
@@ -3357,6 +3371,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                   blocchi={form.pdf_blocchi}
                   onBlocchi={aggiornaBlocchi}
                   campoFoto={campoFotoBlocco}
+                  contenuti={contenutiPagine}
                 />
               </Suspense>
             </div>

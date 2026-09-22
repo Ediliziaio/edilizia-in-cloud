@@ -44,6 +44,7 @@ import { IconaPdf } from "@/components/preventivi/pdf/IconaPdf";
 import { ParoleDeiClienti, VotiOnline } from "@/components/preventivi/pdf/provaSocialePdf";
 import { creaTema } from "@/components/preventivi/pdf/temaDocumento";
 import { leggiVotiOnline } from "../../../supabase/functions/_shared/recensioniOnline";
+import { leggiTestata } from "../../../supabase/functions/_shared/testatePagine";
 import { spezzaAccento } from "@/components/preventivi/pdf/testoDocumento";
 import { fotoPaginaPerIlPdf, fotoPerIlPdf, type FotoBloccoPronta } from "@/lib/pdf/fotoBlocchi";
 import { eTavola, proporzioniImmagine } from "@/lib/pdf/proporzioniImmagine";
@@ -2419,6 +2420,10 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
   // dei lavori e nel colore del documento. Se l'azienda la nasconde, le parole
   // tornano nella pagina finale come prima.
   const votiOnline = leggiVotiOnline(company?.recensioni_online);
+  // Occhiello, titolo e introduzione di recensioni, domande, garanzie e lavori: di
+  // serie, o riscritti dall'azienda nell'editor (vedi _shared/testatePagine.ts).
+  const [tRecensioni, tDomande, tGaranzie, tLavori] = (["recensioni", "domande", "garanzie", "lavori"] as const)
+    .map((pagina) => leggiTestata(pagina, "serramenti", tpl.pdf_blocchi));
   const paroleClienti = recensioniAttivo
     ? testimonianze.filter((t) => t.quote?.trim()).map((t) => ({ autore: t.autore, ruolo: [t.citta, t.intervento].filter(Boolean).join(" · ") || null, testo: t.quote }))
     : [];
@@ -2536,7 +2541,13 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
   // cambia o le toglie dall'ordine delle pagine. Riempiono lo spazio che quelle
   // pagine lasciavano bianco.
   const fotoPercorso = fotoPaginaPerIlPdf(tpl.pdf_pagine_foto, "percorso", "serramenti", tpl.pdf_blocchi);
-  const fotoConfronto = fotoPaginaPerIlPdf(tpl.pdf_pagine_foto, "confronto", "serramenti", tpl.pdf_blocchi);
+  // Riquadro della foto del percorso: 507 punti (la pagina meno i margini) per 220.
+  // Una foto più larga di così si mostra intera, alta quanto chiede la sua proporzione.
+  const proporzionePercorso = proporzioniImmagine(fotoPercorso);
+  const altezzaFotoPercorso = proporzionePercorso != null && proporzionePercorso > 507 / 220
+    ? Math.round(507 / proporzionePercorso)
+    : 220;
+  const fotoConfronto =fotoPaginaPerIlPdf(tpl.pdf_pagine_foto, "confronto", "serramenti", tpl.pdf_blocchi);
   const fotoCta = fotoPaginaPerIlPdf(tpl.pdf_pagine_foto, "cta", "serramenti", tpl.pdf_blocchi);
 
   // ─── Le sezioni brevi: quando stanno una dopo l'altra condividono le pagine ──
@@ -2547,11 +2558,9 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
     garanzie: garanzie.length > 0 ? (
       <>
 <View minPresenceAhead={140}>
-                <Text style={styles.pageEyebrow}>Le nostre garanzie</Text>
-                <Text style={styles.pageTitle}>Più controllo.{"\n"}Meno dubbi.</Text>
-                <Text style={styles.pageSubtitle}>
-                  Le garanzie che rendono il progetto più chiaro prima della conferma.
-                </Text>
+                <Text style={styles.pageEyebrow}>{tGaranzie.occhiello}</Text>
+                <Text style={styles.pageTitle}>{tGaranzie.titolo}</Text>
+                {tGaranzie.intro ? <Text style={styles.pageSubtitle}>{tGaranzie.intro}</Text> : null}
 </View>
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 14 }}>
                   {garanzie.slice(0, 6).map((g, i) => (
@@ -2626,11 +2635,9 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                   <View key={i} style={i === 0 ? undefined : styles.faqItem} wrap={false}>
                     {i === 0 ? (
                       <>
-                        <Text style={styles.pageEyebrow}>Domande frequenti</Text>
-                        <Text style={styles.pageTitle}>Le risposte{"\n"}prima della conferma.</Text>
-                        <Text style={styles.pageSubtitle}>
-                          I dubbi più comuni spiegati in modo semplice, prima di decidere.
-                        </Text>
+                        <Text style={styles.pageEyebrow}>{tDomande.occhiello}</Text>
+                        <Text style={styles.pageTitle}>{tDomande.titolo}</Text>
+                        {tDomande.intro ? <Text style={styles.pageSubtitle}>{tDomande.intro}</Text> : null}
                         <View style={[styles.faqItem, { marginTop: 14 }]}>
                           <Text style={styles.faqDomanda}>{i + 1}. {f.domanda}</Text>
                           <Text style={styles.faqRisposta}>{f.risposta}</Text>
@@ -2655,9 +2662,9 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                   <View key={r} wrap={false}>
                   {r === 0 ? (
                     <>
-                      <Text style={styles.pageEyebrow}>I nostri lavori</Text>
-                      <Text style={styles.pageTitle}>Lavori finiti, non promesse.</Text>
-                      <Text style={styles.pageSubtitle}>Alcuni interventi che abbiamo già consegnato.</Text>
+                      <Text style={styles.pageEyebrow}>{tLavori.occhiello}</Text>
+                      <Text style={styles.pageTitle}>{tLavori.titolo}</Text>
+                      {tLavori.intro ? <Text style={styles.pageSubtitle}>{tLavori.intro}</Text> : null}
                     </>
                   ) : null}
                   <View style={{ flexDirection: "row", marginBottom: 12 }}>
@@ -2681,14 +2688,14 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
     // fondo alla pagina, con le recensioni su quella dopo, non si leggevano.
     recensioni: recensioniInPagina ? (
       <ParoleDeiClienti tema={temaProve} voci={paroleClienti} larghezza={UTILE_PAGINA} testa={<>
-                <Text style={styles.pageEyebrow}>Dicono di noi</Text>
-                <Text style={styles.pageTitle}>La parola ai nostri clienti.</Text>
+                <Text style={styles.pageEyebrow}>{tRecensioni.occhiello}</Text>
+                <Text style={styles.pageTitle}>{tRecensioni.titolo}</Text>
                 <Text style={styles.pageSubtitle}>
-                  {votiOnline.length > 0 && paroleClienti.length > 0
+                  {tRecensioni.intro ?? (votiOnline.length > 0 && paroleClienti.length > 0
                     ? "Il nostro voto sulle piattaforme di recensioni e le parole di chi ha già lavorato con noi."
                     : votiOnline.length > 0
                       ? "Il nostro voto sulle piattaforme di recensioni: le recensioni si leggono tutte sulle nostre schede."
-                      : "Le parole di chi ha già lavorato con noi."}
+                      : "Le parole di chi ha già lavorato con noi.")}
                 </Text>
                 <VotiOnline tema={temaProve} voti={votiOnline} larghezza={UTILE_PAGINA} />
       </>} />
@@ -4214,15 +4221,17 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                 })()}
 
                 {/* La foto sotto le fasi, solo se la pagina ha posto: con tante fasi
-                    o tanti passaggi resta senza, invece di finire da sola su un foglio. */}
+                    o tanti passaggi resta senza, invece di finire da sola su un foglio.
+                    Una foto più larga del riquadro (il trittico prima/durante/dopo di
+                    serie) esce intera, più bassa: ritagliata perderebbe i lati. */}
                 {fotoPercorso && (() => {
                   const perRiga = percorso.fasi.length <= 4 ? percorso.fasi.length : 2;
                   const righe = Math.ceil(percorso.fasi.length / perRiga);
                   const passiMax = Math.max(...percorso.fasi.map((f) => f.step.length));
                   const occupato = 170 + righe * (58 + passiMax * 17);
-                  return occupato + 230 <= 700;
+                  return occupato + altezzaFotoPercorso + 10 <= 700;
                 })() ? (
-                  <Image src={fotoPercorso} style={{ width: "100%", height: 220, objectFit: "cover", borderRadius: 6, marginTop: 18 }} />
+                  <Image src={fotoPercorso} style={{ width: "100%", height: altezzaFotoPercorso, objectFit: "cover", borderRadius: 6, marginTop: 18 }} />
                 ) : null}
 
                 <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />

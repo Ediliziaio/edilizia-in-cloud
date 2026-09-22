@@ -971,6 +971,29 @@ describe("fotovoltaico PDF — «Dicono di noi» (22/09/2026)", () => {
     expect(nascosta).toContain("Cosa dicono i clienti");
   });
 
+  it("la testata delle pagine si riscrive dall'editor: titolo a capo, testo sicuro per l'HTML", () => {
+    const d = basePdfData();
+    const html = renderFvPdfHtml({
+      ...d,
+      template: {
+        ...d.template,
+        recensioni,
+        faq_items: [{ domanda: "Serve l'accumulo?", risposta: "Dipende da quanta energia usate la sera." }],
+        pdf_blocchi: {
+          testata_recensioni: { occhiello: "Parlano loro", titolo: "Cento famiglie\ncol sole in casa.", intro: "Recensioni <vere>." },
+          testata_domande: { titolo: "Prima di firmare" },
+          testata_garanzie: { titolo: "Dieci anni\nsenza pensieri." },
+        },
+      },
+    });
+    expect(html).toContain('<div class="eyebrow">Parlano loro</div>');
+    expect(html).toContain('<h1 class="page-title">Cento famiglie<br/>col sole in casa.</h1>');
+    expect(html).toContain("Recensioni &lt;vere&gt;.");
+    expect(html).toContain('<h1 class="page-title">Prima di firmare</h1>');
+    expect(html).toContain('<h1 class="page-title">Dieci anni<br/>senza pensieri.</h1>');
+    expect(html).not.toContain("anni di<br/>tranquillità.");
+  });
+
   it("un voto fuori scala o senza piattaforma non esce", () => {
     const d = basePdfData();
     const html = renderFvPdfHtml({ ...d, voti_online: [{ piattaforma: "google", voto: 7 }, { voto: 4.5 }] });

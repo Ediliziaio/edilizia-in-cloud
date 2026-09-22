@@ -38,10 +38,15 @@ import {
 } from "@/lib/fotovoltaico/pdfPages";
 import { EditorBlocco } from "@/components/preventivi/EditorBlocco";
 import { EditorFotoPagina } from "@/components/preventivi/EditorFotoPagina";
+import { EditorTestata } from "@/components/preventivi/EditorTestata";
 import { bloccoDellaPagina, descrizioneBlocco, type ChiaveFotoPagina } from "../../../supabase/functions/_shared/blocchiPreventivo";
+import type { PaginaConTestata } from "../../../supabase/functions/_shared/testatePagine";
 
 /** Le pagine con una foto loro, cambiabile qui: l'id della pagina e la chiave della foto. */
 const FOTO_DELLE_PAGINE: Record<string, ChiaveFotoPagina> = { garanzie: "garanzie", bollette_240: "bollette", decisione: "decisione", componenti: "componenti", costi_futuri: "costi", cassa_25: "cassa", piano_pagamento: "piano", faq: "faq", risparmio: "risparmio", produzione: "produzione", recensioni: "recensioni" };
+
+/** Le pagine che raccontano l'azienda: testata e contenuto si scrivono sotto la matita. */
+const TESTATA_DELLA_PAGINA: Record<string, PaginaConTestata> = { recensioni: "recensioni", faq: "domande", garanzie: "garanzie" };
 
 interface Props {
   value: FvPdfPageOrderItem[] | null | undefined;
@@ -51,9 +56,11 @@ interface Props {
   onBlocchi?: (v: Record<string, unknown>) => void;
   /** Il campo per caricare la foto di un blocco: quello dell'editor, col suo bucket. */
   campoFoto?: (valore: string | null, onChange: (url: string | null) => void) => ReactNode;
+  /** Quello che mostrano recensioni, domande e garanzie: gli editor delle loro sezioni. */
+  contenuti?: Partial<Record<PaginaConTestata, ReactNode>>;
 }
 
-function FvPagesOrderEditorImpl({ value, onChange, blocchi, onBlocchi, campoFoto }: Props) {
+function FvPagesOrderEditorImpl({ value, onChange, blocchi, onBlocchi, campoFoto, contenuti }: Props) {
   const items = normalizeFvPdfPagesOrder(value);
   const metaById = new Map(FV_PDF_PAGES_META.map((page) => [page.id, page]));
   const [recentlyMovedId, setRecentlyMovedId] = useState<string | null>(null);
@@ -165,7 +172,8 @@ function FvPagesOrderEditorImpl({ value, onChange, blocchi, onBlocchi, campoFoto
               const meta = metaById.get(item.id);
               if (!meta) return null;
               const blocco = bloccoDellaPagina(item.id);
-              const modificabile = Boolean(blocco && onBlocchi && campoFoto);
+              const testata = onBlocchi ? TESTATA_DELLA_PAGINA[item.id] ?? null : null;
+              const modificabile = Boolean((blocco && onBlocchi && campoFoto) || testata);
               const fotoPagina = onBlocchi && campoFoto ? FOTO_DELLE_PAGINE[item.id] ?? null : null;
               return (
                 <SortableFvPageItem
@@ -183,6 +191,11 @@ function FvPagesOrderEditorImpl({ value, onChange, blocchi, onBlocchi, campoFoto
                   onModifica={modificabile ? () => setAperta(aperta === item.id ? null : item.id) : undefined}
                   onFoto={fotoPagina ? () => setAperta(aperta === `foto:${item.id}` ? null : `foto:${item.id}`) : undefined}
                 >
+                  {testata && onBlocchi && aperta === item.id ? (
+                    <EditorTestata pagina={testata} motore="fotovoltaico" salvati={blocchi} onSalvati={(nuovi) => onBlocchi(nuovi)}>
+                      {contenuti?.[testata]}
+                    </EditorTestata>
+                  ) : null}
                   {modificabile && blocco && aperta === item.id && campoFoto ? (
                     <EditorBlocco
                       chiave={blocco}

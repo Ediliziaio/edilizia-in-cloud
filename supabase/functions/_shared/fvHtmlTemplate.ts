@@ -11,6 +11,7 @@ import { MODULO_RECESSO } from "./condizioniStandard.ts";
 import { eFotoDiSerie, leggiBlocco, leggiFotoPagina, PAGINE_BLOCCO, type PaginaBlocco } from "./blocchiPreventivo.ts";
 import { iconaSvg } from "./iconePreventivo.ts";
 import { eTavola } from "./proporzioniImmagine.ts";
+import { leggiTestata, type PaginaConTestata, type TestataPagina } from "./testatePagine.ts";
 import {
   ORO_STELLE, PUNTI_STELLA, indirizzoDaLeggere, leggiVotiOnline, recensioniScritte, stellePiene, votoScritto, type VotoOnline,
 } from "./recensioniOnline.ts";
@@ -1840,6 +1841,17 @@ function pageBlocco(d: FvPdfTemplateData, id: PaginaBlocco, pageN: number, total
   </div>`;
 }
 
+/**
+ * Occhiello, titolo e introduzione di «Dicono di noi», domande e garanzie: di
+ * serie, o riscritti dall'azienda nell'editor (vedi _shared/testatePagine.ts).
+ */
+function testataFv(d: FvPdfTemplateData, pagina: PaginaConTestata): TestataPagina {
+  return leggiTestata(pagina, "fotovoltaico", d.template?.pdf_blocchi);
+}
+
+/** Un titolo scritto con gli a capo (\n): sicuro per l'HTML, e le righe restano quelle. */
+const titoloHtml = (titolo: string): string => escHtml(titolo).replace(/\n/g, "<br/>");
+
 function pageGaranzie(d: FvPdfTemplateData, pageN: number, total: number): string {
   const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
   const chiSiamoTitolo = plainText(d.template?.chi_siamo_titolo) || "L'azienda dietro al tuo impianto";
@@ -1878,6 +1890,7 @@ function pageGaranzie(d: FvPdfTemplateData, pageN: number, total: number): strin
       descrizione: plainText(g.descrizione),
     }));
   const garanzie = (customGaranzie.length > 0 ? customGaranzie : defaultGaranzie).slice(0, 4);
+  const testata = testataFv(d, "garanzie");
   const customUsp = (d.template?.usp ?? [])
     .filter((u) => plainText(u.titolo).length > 0)
     .map((u) => ({ titolo: plainText(u.titolo), descrizione: plainText(u.descrizione) }))
@@ -1885,9 +1898,9 @@ function pageGaranzie(d: FvPdfTemplateData, pageN: number, total: number): strin
   return `<div class="page">
     ${header(d.progetto.numero, cliente, d.azienda.name)}
     <div class="content">
-      <div class="eyebrow">Garanzie e assistenza</div>
-      <h1 class="page-title">${anniPannelli ? `${anniPannelli} anni di<br/>tranquillità.` : "Garanzie e<br/>assistenza."}</h1>
-      <p class="page-subtitle">Le garanzie reali sui componenti, sulla manodopera e sulla nostra azienda.</p>
+      <div class="eyebrow">${escHtml(testata.occhiello)}</div>
+      <h1 class="page-title">${testata.titolo ? titoloHtml(testata.titolo) : anniPannelli ? `${anniPannelli} anni di<br/>tranquillità.` : "Garanzie e<br/>assistenza."}</h1>
+      ${testata.intro ? `<p class="page-subtitle">${escHtml(testata.intro)}</p>` : ""}
       ${presentazione || teamImage ? `<div class="callout callout-info">
         <span class="callout-icon">i</span>
         <div><strong>${escHtml(chiSiamoTitolo)}</strong>
@@ -2032,18 +2045,19 @@ function pageRecensioni(d: FvPdfTemplateData, pageN: number, total: number): str
   }, []);
   const impianti = (d.cantieri_foto ?? []).slice(0, 3);
   const quando = meseAnno([...voti.map((v) => v.aggiornato).filter((x): x is string => Boolean(x))].sort()[0] ?? null);
-  const sottotitolo = voti.length > 0 && recensioni.length > 0
+  const testata = testataFv(d, "recensioni");
+  const sottotitolo = testata.intro ?? (voti.length > 0 && recensioni.length > 0
     ? "Il nostro voto sulle piattaforme di recensioni e le parole di chi ha già scelto un nostro impianto."
     : voti.length > 0
       ? "Il nostro voto sulle piattaforme di recensioni: le recensioni si leggono tutte sulle nostre schede."
-      : recensioni.length > 0 ? "Le parole di chi ha già scelto un nostro impianto." : "Alcuni impianti che abbiamo già installato.";
+      : recensioni.length > 0 ? "Le parole di chi ha già scelto un nostro impianto." : "Alcuni impianti che abbiamo già installato.");
   // Con un numero dispari di recensioni la prima prende tutta la riga.
   const larga = (i: number) => recensioni.length % 2 === 1 && i === 0;
   return `<div class="page">
     ${header(d.progetto.numero, cliente, d.azienda.name)}
     <div class="content">
-      <div class="eyebrow">Dicono di noi</div>
-      <h1 class="page-title">La parola ai<br/>nostri clienti.</h1>
+      <div class="eyebrow">${escHtml(testata.occhiello)}</div>
+      <h1 class="page-title">${titoloHtml(testata.titolo ?? "")}</h1>
       <p class="page-subtitle">${escHtml(sottotitolo)}</p>
       ${voti.length > 0 ? `<div class="voti-row" style="grid-template-columns:repeat(${voti.length},1fr);">
         ${voti.map((v) => {
@@ -2072,11 +2086,13 @@ function pageRecensioni(d: FvPdfTemplateData, pageN: number, total: number): str
 function pageFAQ(d: FvPdfTemplateData, pageN: number, total: number): string {
   const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
   const faqs = faqDellAzienda(d);
+  const testata = testataFv(d, "domande");
   return `<div class="page">
     ${header(d.progetto.numero, cliente, d.azienda.name)}
     <div class="content">
-      <div class="eyebrow">Domande frequenti</div>
-      <h1 class="page-title">Le domande<br/>che fanno tutti.</h1>
+      <div class="eyebrow">${escHtml(testata.occhiello)}</div>
+      <h1 class="page-title">${titoloHtml(testata.titolo ?? "")}</h1>
+      ${testata.intro ? `<p class="page-subtitle">${escHtml(testata.intro)}</p>` : ""}
       <div style="margin-top:4mm;">
         ${faqs.map((f) => `<div class="qa-item"><div class="qa-q">${escHtml(f.q)}</div><div class="qa-a">${escHtml(f.a)}</div></div>`).join("")}
       </div>
