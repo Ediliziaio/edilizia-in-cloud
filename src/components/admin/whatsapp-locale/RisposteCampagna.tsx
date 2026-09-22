@@ -14,7 +14,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { readInvokeError } from "@/lib/readInvokeError";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -75,6 +75,24 @@ export default function RisposteCampagna({ campagnaId, nome, haVarianteB, aperta
         .rpc("openwa_campagna_ab", { p_campagna_id: campagnaId });
       if (error) return [];
       return (data ?? []) as Array<{ variante: string; inviati: number; risposte: number }>;
+    },
+  });
+
+  const contactIds = [...new Set(risposte.map((r) => r.contact_id).filter(Boolean))];
+  const { data: opportunitaPerContatto = new Map<string, string>() } = useQuery({
+    queryKey: ["openwa-opportunita-aperte", campagnaId, contactIds],
+    enabled: aperta && contactIds.length > 0,
+    staleTime: 30_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("marketing_opportunities")
+        .select("id, contact_id")
+        .eq("status", "open")
+        .in("contact_id", contactIds);
+      if (error) throw error;
+      const m = new Map<string, string>();
+      for (const o of (data ?? []) as Array<{ id: string; contact_id: string }>) m.set(o.contact_id, o.id);
+      return m;
     },
   });
 
@@ -156,6 +174,14 @@ export default function RisposteCampagna({ campagnaId, nome, haVarianteB, aperta
                     {eb
                       ? <Badge variant="secondary" className={`text-[10px] ${eb.cls}`}>{eb.label}</Badge>
                       : <Badge variant="outline" className="text-[10px]">da qualificare</Badge>}
+                    {opportunitaPerContatto.get(r.contact_id) && (
+                      <Link
+                        to={`/admin/marketing/opportunita?apri=${opportunitaPerContatto.get(r.contact_id)}`}
+                        className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-700 hover:underline dark:text-emerald-400"
+                      >
+                        <Sparkles className="h-3 w-3" /> Opportunità
+                      </Link>
+                    )}
                     {r.risposto_at && (
                       <span className="ml-auto text-[10px] text-muted-foreground">
                         {new Date(r.risposto_at).toLocaleString("it-IT", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
