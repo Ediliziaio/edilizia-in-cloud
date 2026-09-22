@@ -16,8 +16,7 @@ import { OutreachQueueStatus } from "@/components/admin/outreach/OutreachQueueSt
 import { OutreachPilotPulse } from "@/components/admin/outreach/OutreachPilotPulse";
 import { OutreachSequences } from "@/components/admin/outreach/OutreachSequences";
 import { OutreachMailClient, PostaUnreadBadge } from "@/components/admin/outreach/OutreachMailClient";
-import { OutreachInboxPreview } from "@/components/admin/outreach/OutreachInboxPreview";
-import { OutreachActivityFeed } from "@/components/admin/outreach/OutreachActivityFeed";
+import { OutreachHotQueue } from "@/components/admin/outreach/OutreachHotQueue";
 import { OutreachLists } from "@/components/admin/outreach/OutreachLists";
 import { OutreachCallTasks } from "@/components/admin/outreach/OutreachCallTasks";
 import { OutreachRubricaCard } from "@/components/admin/outreach/OutreachRubricaCard";
@@ -164,11 +163,8 @@ function OutreachCockpit() {
             </Reveal>
 
             <Reveal className="space-y-3" delay={0.06}>
-              <SectionLabel>Da leggere &amp; attività</SectionLabel>
-              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                <OutreachInboxPreview companyId={companyId} onOpenMailbox={() => setTab("posta")} />
-                <OutreachActivityFeed companyId={companyId} />
-              </div>
+              <SectionLabel>Risposte calde</SectionLabel>
+              <OutreachHotQueue companyId={companyId} onOpenMailbox={() => setTab("posta")} />
             </Reveal>
 
             <Reveal className="space-y-3" delay={0.12}>
