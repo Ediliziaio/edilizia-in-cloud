@@ -10,6 +10,7 @@
 import { MODULO_RECESSO } from "./condizioniStandard.ts";
 import { eFotoDiSerie, leggiBlocco, leggiFotoPagina, PAGINE_BLOCCO, type PaginaBlocco } from "./blocchiPreventivo.ts";
 import { iconaSvg } from "./iconePreventivo.ts";
+import { eTavola } from "./proporzioniImmagine.ts";
 import {
   ORO_STELLE, PUNTI_STELLA, indirizzoDaLeggere, leggiVotiOnline, recensioniScritte, stellePiene, votoScritto, type VotoOnline,
 } from "./recensioniOnline.ts";
@@ -550,6 +551,12 @@ p { margin-bottom: 2mm; }
 .blocco-voce-titolo { font-family: 'Outfit', sans-serif; font-size: 10.5pt; font-weight: 700; color: #1E3A5F; line-height: 1.25; padding-top: 0.6mm; }
 .blocco-voci.tre .blocco-voce-titolo { font-size: 9.5pt; padding-top: 1.8mm; }
 .blocco-voce-testo { font-size: 8.8pt; color: #475569; line-height: 1.45; margin-top: 0.8mm; }
+/* La tavola: una grafica verticale intera, al centro, alta quanto lo spazio che
+   lasciano titolo e voci (cqh), mai più larga della pagina (cqw). */
+.content > .blocco-tavola { flex: 1 1 0; min-height: 0; container-type: size; display: flex; justify-content: center; margin: 1mm 0 2mm; }
+.blocco-tavola figure { margin: 0; }
+.blocco-tavola img { display: block; height: min(calc(100cqh - 6mm), calc(100cqw * 1.25)); width: auto; aspect-ratio: 4 / 5; object-fit: contain; border-radius: 10px; }
+.blocco-tavola figcaption { margin-top: 1.5mm; margin-bottom: 0; }
 
 .callout { border-radius: 8px; padding: 3.5mm 4.5mm; margin: 4mm 0; font-size: 9.5pt; display: flex; gap: 2.5mm; align-items: flex-start; }
 .callout-icon { font-size: 12pt; line-height: 1; flex-shrink: 0; }
@@ -1795,6 +1802,28 @@ function pageBlocco(d: FvPdfTemplateData, id: PaginaBlocco, pageN: number, total
   const { blocco, foto } = bloccoFv(d, id);
   // Con una spiegazione le voci stanno su due colonne; solo titoli, su tre.
   const tre = !blocco.voci.some((v) => v.testo);
+  const voce = (v: (typeof blocco.voci)[number]) => `<div class="blocco-voce">
+          <span class="blocco-icona">${v.icona ? iconaSvg(v.icona, "#C2410C", 15) : ""}</span>
+          <div><div class="blocco-voce-titolo">${escHtml(v.titolo)}</div>${v.testo ? `<div class="blocco-voce-testo">${escHtml(v.testo)}</div>` : ""}</div>
+        </div>`;
+  // Una foto sola e verticale (una tavola, 22/09/2026): intera, al centro, alta quanto
+  // lo spazio che lasciano titolo e voci. La pagina del Fotovoltaico è stretta e alta:
+  // con le voci accanto, come nel Piano dei lavori, sotto restavano 6 cm bianchi.
+  if (foto.length === 1 && eTavola(foto[0].src) != null) {
+    return `<div class="page">
+    ${header(d.progetto.numero, cliente, d.azienda.name)}
+    <div class="content">
+      <div class="eyebrow">${escHtml(blocco.occhiello)}</div>
+      <h1 class="page-title blocco-titolo">${titoloConAccento(blocco.titolo)}</h1>
+      ${blocco.intro ? `<p class="page-subtitle">${escHtml(blocco.intro)}</p>` : ""}
+      <div class="blocco-tavola">
+        <figure><img src="${escHtml(imageHref(foto[0].src) ?? "")}" alt="" />${blocco.nota && foto[0].diSerie ? `<figcaption class="blocco-nota">${escHtml(blocco.nota)}</figcaption>` : ""}</figure>
+      </div>
+      <div class="blocco-voci${tre ? " tre" : ""}">${blocco.voci.map(voce).join("")}</div>
+    </div>
+    ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
+  </div>`;
+  }
   return `<div class="page">
     ${header(d.progetto.numero, cliente, d.azienda.name)}
     <div class="content">
@@ -1804,10 +1833,7 @@ function pageBlocco(d: FvPdfTemplateData, id: PaginaBlocco, pageN: number, total
       ${foto.length > 0 ? `<div class="blocco-foto${foto.length > 1 ? " due" : ""}">${foto.map((f) => `<img src="${escHtml(imageHref(f.src) ?? "")}" alt="" />`).join("")}</div>
       ${blocco.nota && foto.some((f) => f.diSerie) ? `<div class="blocco-nota">${escHtml(blocco.nota)}</div>` : ""}` : ""}
       <div class="blocco-voci${tre ? " tre" : ""}">
-        ${blocco.voci.map((v) => `<div class="blocco-voce">
-          <span class="blocco-icona">${v.icona ? iconaSvg(v.icona, "#C2410C", 15) : ""}</span>
-          <div><div class="blocco-voce-titolo">${escHtml(v.titolo)}</div>${v.testo ? `<div class="blocco-voce-testo">${escHtml(v.testo)}</div>` : ""}</div>
-        </div>`).join("")}
+        ${blocco.voci.map(voce).join("")}
       </div>
     </div>
     ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}

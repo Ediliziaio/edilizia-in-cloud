@@ -46,7 +46,7 @@ import { creaTema } from "@/components/preventivi/pdf/temaDocumento";
 import { leggiVotiOnline } from "../../../supabase/functions/_shared/recensioniOnline";
 import { spezzaAccento } from "@/components/preventivi/pdf/testoDocumento";
 import { fotoPaginaPerIlPdf, fotoPerIlPdf, type FotoBloccoPronta } from "@/lib/pdf/fotoBlocchi";
-import { proporzioniImmagine } from "@/lib/pdf/proporzioniImmagine";
+import { eTavola, proporzioniImmagine } from "@/lib/pdf/proporzioniImmagine";
 import { altezzaTesto, larghezzaTesto, testoDaHtml } from "@/components/preventivi/pdf/misuraTesto";
 import {
   ALTEZZA_UTILE, FOTO_IN_FONDO_MINIMA, UTILE_PAGINA, altezzaGrafico, pezziAllegato, pezziCta, pezziDettagli, pezziProposta,
@@ -1697,6 +1697,33 @@ function altezzaFotoBlocco(blocco: ContenutoBlocco, quanteFoto: number): number 
   return Math.max(150, Math.min(quanteFoto > 1 ? 300 : 380, Math.floor(altezza)));
 }
 
+// ─── La tavola: una foto sola e verticale, intera, con le voci accanto ───────
+// Come nel Piano dei lavori: le tavole del pacchetto bento (22/09/2026) hanno le
+// scritte dentro e non si ritagliano. La più larga che sta nella pagina, con le voci
+// in una colonna al fianco (l'icona piccola accanto al titolo, la spiegazione sotto).
+const STACCO_TAVOLA_SR = 16;
+const COLONNA_VOCI_SR = 105;
+
+function altezzaVociColonnaSr(voci: ContenutoBlocco["voci"], larga: number): number {
+  return voci.reduce((t, v) => t + 12
+    + Math.max(16, altezzaTesto(v.titolo, larga - 22, "Helvetica-Bold", 10.5, 1.3))
+    + (v.testo ? 3 + altezzaTesto(v.testo, larga, "Helvetica", 9.2, 1.45) : 0), 0);
+}
+
+function misuraTavolaSr(blocco: ContenutoBlocco, proporzione: number, conNota: boolean) {
+  // Occhiello, titolo e introduzione come in SezioneBlocco, misurati coi caratteri veri.
+  const testa = 9 * 1.2 + 6 + altezzaTesto(blocco.titolo.replace(/\*/g, ""), UTILE_PAGINA, "Helvetica-Bold", 26, 1.05) + 6
+    + (blocco.intro ? altezzaTesto(blocco.intro, UTILE_PAGINA, "Helvetica", 10.5, 1.45) + 14 : 0);
+  // Meno i 30 punti che separano le sezioni quando scorrono nella stessa pagina: la
+  // sezione non si spezza, e con lo stacco sopra non ci stava più su un foglio intero.
+  const disponibile = ALTEZZA_UTILE - testa - (conNota ? 5 + 7 * 1.2 : 0) - 16 - 30;
+  let larghezza = Math.floor(Math.min(disponibile * proporzione, UTILE_PAGINA - STACCO_TAVOLA_SR - COLONNA_VOCI_SR));
+  while (larghezza > 220 && Math.max(larghezza / proporzione, altezzaVociColonnaSr(blocco.voci, UTILE_PAGINA - STACCO_TAVOLA_SR - larghezza)) > disponibile) {
+    larghezza -= 5;
+  }
+  return { larghezza, altezza: Math.floor(larghezza / proporzione), colonna: UTILE_PAGINA - STACCO_TAVOLA_SR - larghezza };
+}
+
 function SezioneBlocco({ blocco, foto, C, styles }: {
   blocco: ContenutoBlocco;
   foto: FotoBloccoPronta[];
@@ -1705,6 +1732,8 @@ function SezioneBlocco({ blocco, foto, C, styles }: {
 }) {
   const due = foto.length > 1;
   const mezza = (UTILE_PAGINA - 10) / 2;
+  // Una foto sola e verticale (una tavola): intera, con le voci accanto.
+  const tavola = foto.length === 1 ? eTavola(foto[0].src) : null;
   // Con una spiegazione le voci stanno su due colonne; solo titoli, su tre.
   const colonne = blocco.voci.some((x) => x.testo) ? 2 : 3;
   const spazio = 14;
@@ -1724,7 +1753,30 @@ function SezioneBlocco({ blocco, foto, C, styles }: {
         </Text>
         {blocco.intro ? <Text style={[styles.pageSubtitle, { fontSize: 10.5, marginBottom: 14 }]}>{blocco.intro}</Text> : null}
       </View>
-      {foto.length > 0 ? (
+      {tavola != null ? (() => {
+        const { larghezza: lt, altezza: at, colonna } = misuraTavolaSr(blocco, tavola, Boolean(blocco.nota && foto[0].diSerie));
+        return (
+          <View wrap={false} style={{ flexDirection: "row", alignItems: "flex-start" }}>
+            <View style={{ width: lt }}>
+              <Image src={foto[0].src} style={{ width: lt, height: at, objectFit: "contain", borderRadius: 6 }} />
+              {blocco.nota && foto[0].diSerie ? <Text style={{ fontSize: 7, color: C.gray500, marginTop: 5 }}>{blocco.nota}</Text> : null}
+            </View>
+            <View style={{ width: colonna, marginLeft: STACCO_TAVOLA_SR, paddingTop: 2 }}>
+              {blocco.voci.map((x, i) => (
+                <View key={i} wrap={false} style={{ marginBottom: 12 }}>
+                  <View style={{ flexDirection: "row", alignItems: "flex-start" }}>
+                    <View style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: C.primaryLight, alignItems: "center", justifyContent: "center", marginRight: 6 }}>
+                      {x.icona ? <IconaPdf nome={x.icona} colore={C.ink} lato={9} /> : null}
+                    </View>
+                    <Text style={{ flex: 1, fontSize: 10.5, fontWeight: 700, color: C.gray900, lineHeight: 1.3, paddingTop: 1 }}>{x.titolo}</Text>
+                  </View>
+                  {x.testo ? <Text style={{ fontSize: 9.2, color: C.gray700, marginTop: 3, lineHeight: 1.45 }}>{x.testo}</Text> : null}
+                </View>
+              ))}
+            </View>
+          </View>
+        );
+      })() : foto.length > 0 ? (
         <View wrap={false} style={{ marginBottom: 16 }}>
           <View style={{ flexDirection: "row" }}>
             {foto.slice(0, 2).map((f, i) => (
@@ -1737,7 +1789,7 @@ function SezioneBlocco({ blocco, foto, C, styles }: {
           ) : null}
         </View>
       ) : null}
-      {righe.map((riga, r) => (
+      {tavola != null ? null : righe.map((riga, r) => (
         <View key={r} wrap={false} style={{ flexDirection: "row", marginBottom: colonne === 2 ? 16 : 11 }}>
           {riga.map((x, i) => (
             <View key={i} style={{ width: larghezza, marginLeft: i === 0 ? 0 : spazio, flexDirection: "row" }}>
@@ -2565,23 +2617,33 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                 </Text>
       </>
     ) : null,
+    // Le domande si spezzano fra una e l'altra (22/09/2026): il titolo sta con la prima,
+    // le altre seguono. Intere, dopo «Dicono di noi» lasciavano mezza pagina bianca.
+    // Senza un contenitore in mezzo: vedi REACT_PDF_GRUPPO_IN_TESTA in provaSocialePdf.
     faq: faqItems.length > 0 ? (
       <>
-<View minPresenceAhead={140}>
-                <Text style={styles.pageEyebrow}>Domande frequenti</Text>
-                <Text style={styles.pageTitle}>Le risposte{"\n"}prima della conferma.</Text>
-                <Text style={styles.pageSubtitle}>
-                  I dubbi più comuni spiegati in modo semplice, prima di decidere.
-                </Text>
-</View>
-                <View style={{ marginTop: 14 }}>
-                  {faqItems.slice(0, 8).map((f, i) => (
-                    <View key={i} style={styles.faqItem} wrap={false}>
-                      <Text style={styles.faqDomanda}>{i + 1}. {f.domanda}</Text>
-                      <Text style={styles.faqRisposta}>{f.risposta}</Text>
-                    </View>
-                  ))}
-                </View>
+                {faqItems.slice(0, 8).map((f, i) => (
+                  <View key={i} style={i === 0 ? undefined : styles.faqItem} wrap={false}>
+                    {i === 0 ? (
+                      <>
+                        <Text style={styles.pageEyebrow}>Domande frequenti</Text>
+                        <Text style={styles.pageTitle}>Le risposte{"\n"}prima della conferma.</Text>
+                        <Text style={styles.pageSubtitle}>
+                          I dubbi più comuni spiegati in modo semplice, prima di decidere.
+                        </Text>
+                        <View style={[styles.faqItem, { marginTop: 14 }]}>
+                          <Text style={styles.faqDomanda}>{i + 1}. {f.domanda}</Text>
+                          <Text style={styles.faqRisposta}>{f.risposta}</Text>
+                        </View>
+                      </>
+                    ) : (
+                      <>
+                        <Text style={styles.faqDomanda}>{i + 1}. {f.domanda}</Text>
+                        <Text style={styles.faqRisposta}>{f.risposta}</Text>
+                      </>
+                    )}
+                  </View>
+                ))}
       </>
     ) : null,
     gallery_lavori: galleryLavori.length > 0 ? (
@@ -4678,7 +4740,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                   mai una domanda spezzata a metà o un titolo solo in fondo. La
                   galleria può scorrere su più pagine, le altre stanno in una. */}
               {ids.map((id, i) => (
-                <View key={id} wrap={id === "gallery_lavori" || id === "recensioni"} style={i > 0 ? { marginTop: 30 } : undefined}>{scorrevoli[id]}</View>
+                <View key={id} wrap={id === "gallery_lavori" || id === "recensioni" || id === "faq"} style={i > 0 ? { marginTop: 30 } : undefined}>{scorrevoli[id]}</View>
               ))}
               <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
             </Page>
