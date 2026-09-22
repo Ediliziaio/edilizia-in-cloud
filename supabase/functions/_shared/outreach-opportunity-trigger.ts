@@ -21,10 +21,15 @@ const PLATFORM_COMPANY = "00000000-0000-0000-0000-000000000001";
 
 export type CanaleSegnale = "email" | "whatsapp";
 
-/** appuntamento vale come "interested": ha chiesto di parlare, è il segnale più forte che abbiamo su quel canale. */
+/**
+ * Segnali che creano un'opportunità. Oltre a "interessato"/"appuntamento"
+ * (segnale forte), anche "domanda"/"da_ricontattare": chi fa una domanda o
+ * chiede di essere ricontattato è comunque un contatto tiepido che merita
+ * una scheda in pipeline (decisione utente 22/09/2026).
+ */
 const CREA_OPPORTUNITA: Record<CanaleSegnale, ReadonlySet<string>> = {
-  email: new Set(["interested"]),
-  whatsapp: new Set(["appuntamento"]),
+  email: new Set(["interested", "question"]),
+  whatsapp: new Set(["appuntamento", "da_ricontattare"]),
 };
 
 /** Un segnale (intent email o esito WhatsApp) merita la creazione automatica di un'opportunità? */
@@ -38,8 +43,10 @@ export interface SegnaleOpportunita {
   contactId: string;
   sourceRefTable: "outreach_replies" | "openwa_campagna_destinatari";
   sourceRefId: string;
-  /** frammento del messaggio, per la nota dell'opportunità. */
+  /** frammento del messaggio, per la nota dell'opportunità e il registro attività. */
   snippet?: string | null;
+  /** l'intento email (interested/question) o l'esito WhatsApp (appuntamento/da_ricontattare), per il registro attività. */
+  label?: string | null;
   /**
    * Il brand outreach a cui ha risposto (solo email): l'opportunità entra
    * nella pipeline OMONIMA del brand (es. "Marketing Edile" → pipeline
@@ -102,6 +109,64 @@ async function risolviPipeline(admin: any, brandId: string | null | undefined): 
   return { pipelineId, stageId: stage.id };
 }
 
+/** L'intento/esito in chiaro per il registro attività. */
+const INTENTO_ATTIVITA: Record<string, string> = {
+  interested: "INTERESSATO",
+  question: "DOMANDA",
+  appuntamento: "APPUNTAMENTO",
+  da_ricontattare: "DA RICONTATTARE",
+};
+
+/**
+ * Registra nel "Registro attività" del contatto (marketing_contact_activities,
+ * la tabella che il registro dell'opportunità già legge) una riga che dice a
+ * quale email/WhatsApp ha risposto e cosa ha scritto. Best-effort: non lancia
+ * mai. Idempotente sul source_ref (non riscrive la stessa risposta).
+ */
+async function registraAttivitaRisposta(admin: any, segnale: SegnaleOpportunita): Promise<void> {
+  try {
+    const intento = segnale.label ? (INTENTO_ATTIVITA[segnale.label] ?? segnale.label.toUpperCase()) : "";
+    let dettaglioCanale: string;
+    if (segnale.channel === "email") {
+      const { data: reply } = await admin.from("outreach_replies").select("subject").eq("id", segnale.sourceRefId).maybeSingle();
+      const subject = (reply?.subject ?? "").trim();
+      dettaglioCanale = `Ha risposto via email${subject ? ` a «${subject}»` : ""}`;
+    } else {
+      dettaglioCanale = "Ha risposto via WhatsApp";
+    }
+    const testo = segnale.snippet ? `«${segnale.snippet.slice(0, 300)}»` : "(nessun testo)";
+    const description = `${dettaglioCanale}${intento ? ` — ${intento}` : ""}: ${testo}`;
+
+    // Idempotenza: se questa stessa risposta è già registrata, non duplicare.
+    const { data: gia } = await admin
+      .from("marketing_contact_activities")
+      .select("id")
+      .eq("company_id", PLATFORM_COMPANY)
+      .eq("contact_id", segnale.contactId)
+      .eq("activity_type", "outreach_reply")
+      .filter("metadata->>source_ref_id", "eq", segnale.sourceRefId)
+      .limit(1)
+      .maybeSingle();
+    if (gia?.id) return;
+
+    await admin.from("marketing_contact_activities").insert({
+      company_id: PLATFORM_COMPANY,
+      contact_id: segnale.contactId,
+      activity_type: "outreach_reply",
+      description,
+      metadata: {
+        channel: segnale.channel,
+        label: segnale.label ?? null,
+        source_ref_table: segnale.sourceRefTable,
+        source_ref_id: segnale.sourceRefId,
+      },
+      created_by: null,
+    });
+  } catch (e) {
+    console.warn("[outreach-opportunity-trigger] attività risposta non registrata:", e instanceof Error ? e.message : e);
+  }
+}
+
 /**
  * Crea l'opportunità per un segnale caldo, se il contatto non ne ha già una
  * aperta (qualunque fonte — coerente col dedup del motore automazioni).
@@ -111,6 +176,9 @@ async function risolviPipeline(admin: any, brandId: string | null | undefined): 
  * se non ne ha creata una (già presente, o un passaggio è mancante).
  */
 export async function triggerOpportunityFromSignal(admin: any, segnale: SegnaleOpportunita): Promise<string | null> {
+  // La risposta va nel registro attività del contatto a prescindere: è un evento
+  // reale anche se il contatto ha già un'opportunità aperta (nessuna nuova scheda).
+  await registraAttivitaRisposta(admin, segnale);
   try {
     const { data: apertaGia } = await admin
       .from("marketing_opportunities")

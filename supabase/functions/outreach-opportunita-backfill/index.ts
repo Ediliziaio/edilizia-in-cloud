@@ -42,15 +42,15 @@ Deno.serve(async (req) => {
     // ── Email: risposte senza intent, poi tutte quelle con intent "interested" ──
     riepilogo.email_classificate = await classifyIntentBatch(admin, PLATFORM_COMPANY, LOTTO);
 
-    const { data: interessate } = await admin
+    const { data: caldiEmail } = await admin
       .from("outreach_replies")
-      .select("id, contact_id, snippet, brand_id")
+      .select("id, contact_id, snippet, brand_id, intent")
       .eq("company_id", PLATFORM_COMPANY)
-      .eq("intent", "interested")
+      .in("intent", ["interested", "question"])
       .not("contact_id", "is", null);
-    for (const r of (interessate ?? []) as Array<{ id: string; contact_id: string; snippet: string | null; brand_id: string | null }>) {
+    for (const r of (caldiEmail ?? []) as Array<{ id: string; contact_id: string; snippet: string | null; brand_id: string | null; intent: string }>) {
       const id = await triggerOpportunityFromSignal(admin, {
-        channel: "email", contactId: r.contact_id, sourceRefTable: "outreach_replies", sourceRefId: r.id, snippet: r.snippet, brandId: r.brand_id,
+        channel: "email", contactId: r.contact_id, sourceRefTable: "outreach_replies", sourceRefId: r.id, snippet: r.snippet, brandId: r.brand_id, label: r.intent,
       });
       if (id) riepilogo.email_opportunita_create++; else riepilogo.email_gia_avevano++;
     }
@@ -67,14 +67,14 @@ Deno.serve(async (req) => {
       if (esito !== "senza_testo" && esito !== "incerto") riepilogo.whatsapp_classificati++;
     }
 
-    const { data: appuntamenti } = await admin
+    const { data: caldiWa } = await admin
       .from("openwa_campagna_destinatari")
-      .select("id, contact_id")
-      .eq("esito", "appuntamento")
+      .select("id, contact_id, esito")
+      .in("esito", ["appuntamento", "da_ricontattare"])
       .not("contact_id", "is", null);
-    for (const d of (appuntamenti ?? []) as Array<{ id: string; contact_id: string }>) {
+    for (const d of (caldiWa ?? []) as Array<{ id: string; contact_id: string; esito: string }>) {
       const id = await triggerOpportunityFromSignal(admin, {
-        channel: "whatsapp", contactId: d.contact_id, sourceRefTable: "openwa_campagna_destinatari", sourceRefId: d.id,
+        channel: "whatsapp", contactId: d.contact_id, sourceRefTable: "openwa_campagna_destinatari", sourceRefId: d.id, label: d.esito,
       });
       if (id) riepilogo.whatsapp_opportunita_create++; else riepilogo.whatsapp_gia_avevano++;
     }

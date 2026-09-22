@@ -475,6 +475,7 @@ Deno.serve(async (req) => {
               sourceRefTable: "openwa_campagna_destinatari",
               sourceRefId: d.id,
               snippet: text || null,
+              label: esito, // "appuntamento" | "da_ricontattare" → registro attività
             });
           }
         }

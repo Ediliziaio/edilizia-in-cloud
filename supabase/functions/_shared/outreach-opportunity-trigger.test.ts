@@ -5,8 +5,8 @@ Deno.test("shouldCreateOpportunity: email interested → true", () => {
   assertEquals(shouldCreateOpportunity("email", "interested"), true);
 });
 
-Deno.test("shouldCreateOpportunity: email question → false (segnale troppo debole da solo)", () => {
-  assertEquals(shouldCreateOpportunity("email", "question"), false);
+Deno.test("shouldCreateOpportunity: email question → true (contatto tiepido: merita una scheda)", () => {
+  assertEquals(shouldCreateOpportunity("email", "question"), true);
 });
 
 Deno.test("shouldCreateOpportunity: email not_interested/unsubscribe/auto_reply/other → false", () => {
@@ -20,8 +20,11 @@ Deno.test("shouldCreateOpportunity: whatsapp appuntamento → true", () => {
   assertEquals(shouldCreateOpportunity("whatsapp", "appuntamento"), true);
 });
 
-Deno.test("shouldCreateOpportunity: whatsapp da_ricontattare/non_interessato/incerto → false", () => {
-  assertEquals(shouldCreateOpportunity("whatsapp", "da_ricontattare"), false);
+Deno.test("shouldCreateOpportunity: whatsapp da_ricontattare → true (contatto tiepido)", () => {
+  assertEquals(shouldCreateOpportunity("whatsapp", "da_ricontattare"), true);
+});
+
+Deno.test("shouldCreateOpportunity: whatsapp non_interessato/incerto → false", () => {
   assertEquals(shouldCreateOpportunity("whatsapp", "non_interessato"), false);
   assertEquals(shouldCreateOpportunity("whatsapp", "incerto"), false);
 });

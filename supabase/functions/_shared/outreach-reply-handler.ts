@@ -264,9 +264,9 @@ export async function handleInboundReply(admin: any, r: InboundReply): Promise<v
     }
   }
 
-  // 4-bis-2. TRIGGER OPPORTUNITÀ: solo "interessato" crea l'opportunità in
-  // automatico — "domanda" resta un segnale troppo debole da solo (ha comunque
-  // il task di chiamata sopra). Best-effort: un errore qui non deve mai far
+  // 4-bis-2. TRIGGER OPPORTUNITÀ: "interessato" e "domanda" creano l'opportunità
+  // in automatico (contatto tiepido → scheda in pipeline). La politica sta tutta
+  // in shouldCreateOpportunity. Best-effort: un errore qui non deve mai far
   // fallire la gestione della risposta.
   if (r.contactId && shouldCreateOpportunity("email", intent)) {
     await triggerOpportunityFromSignal(admin, {
@@ -276,6 +276,7 @@ export async function handleInboundReply(admin: any, r: InboundReply): Promise<v
       sourceRefId: inserted!.id,
       snippet,
       brandId, // pipeline OMONIMA del brand a cui ha risposto
+      label: intent, // "interested" | "question" → registro attività
     });
   }
 

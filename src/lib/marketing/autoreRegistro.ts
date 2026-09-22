@@ -20,6 +20,7 @@ const ETICHETTE: Record<string, string> = {
   contact_assigned: "Contatto assegnato",
   opportunity_created: "Opportunità creata",
   opportunity_auto_created: "Opportunità creata in automatico",
+  outreach_reply: "Ha risposto all'outreach",
   opportunity_assigned: "Opportunità assegnata",
   opportunity_deleted: "Opportunità nel cestino",
   opportunity_restored: "Opportunità ripristinata",
