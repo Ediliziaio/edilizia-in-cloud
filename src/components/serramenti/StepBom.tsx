@@ -32,7 +32,7 @@ import {
 } from "@/components/ui/tooltip";
 import { ListinoPickerDialog, type ListinoPickResult } from "./ListinoPickerDialog";
 import { AiSerramentiDraftLauncher } from "./AiSerramentiDraftLauncher";
-import { calcolaPrezzoProdotto, calcolaPosaInclusa, applyMaggiorazioniAssi } from "@/lib/serramenti/pricing";
+import { calcolaPrezzoProdotto, calcolaPosaInclusa, applyMaggiorazioniAssi, listinoSenzaPrezzoDiVendita } from "@/lib/serramenti/pricing";
 import { useFamilies, useFamily } from "@/hooks/useFamilies";
 import type { FamilyWithAxes } from "@/types/articleFamily";
 import { useSupplierProductLines } from "@/features/serramenti-listini/hooks/useSupplierProductLines";
@@ -967,14 +967,10 @@ export function SerramentoRow({
   // Prezzo scritto sul preventivo: per «misura libera» sempre, e per un articolo
   // a pezzo o al m² che nel listino non ha ancora un prezzo (anche col ricarico
   // sull'acquisto). Prima restava a 0 € in sola lettura, e un'azienda senza
-  // listino non poteva fare il preventivo.
-  const prezzoBaseListino =
-    family && (modalitaPrezzo === "pz" || modalitaPrezzo === "mq")
-      ? calcolaPrezzoProdotto(family, 1000, 1000, 1, []).prezzo
-      : null;
-  const isListinoManualPrice =
-    isFromListino &&
-    (modalitaPrezzo === "misura_libera" || (prezzoBaseListino != null && !(prezzoBaseListino > 0)));
+  // listino non poteva fare il preventivo. Funzione condivisa con
+  // ListinoPickerDialog (src/lib/serramenti/pricing.ts), che ne aveva bisogno
+  // per non bloccare "Aggiungi al preventivo" su questi stessi prodotti.
+  const isListinoManualPrice = listinoSenzaPrezzoDiVendita(family);
 
   // Carico griglia listino della family per ricalcolo prezzo on-the-fly su
   // modifica L/A/Q. enabled solo se family esiste con modalità griglia.
