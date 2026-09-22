@@ -11,6 +11,7 @@ import {
   chiaveSalvataFotoPagina, eFotoDiSerie, FOTO_PAGINE_ETICHETTE, fotoDellaLibreria, fotoPaginaDiSerie, leggiFotoPagina,
   type ChiaveFotoPagina, type SettoreBlocchi,
 } from "../../../supabase/functions/_shared/blocchiPreventivo";
+import { eTavola } from "../../../supabase/functions/_shared/proporzioniImmagine";
 
 interface Props {
   chiave: ChiaveFotoPagina;
@@ -28,7 +29,9 @@ export function EditorFotoPagina({ chiave, settore, salvati, onSalvati, campoFot
   const attuale = leggiFotoPagina(chiave, settore, tutti);
   const diSerie = fotoPaginaDiSerie(chiave, settore);
   const [libreriaAperta, setLibreriaAperta] = useState(false);
-  const libreria = useMemo(() => fotoDellaLibreria(settore), [settore]);
+  // Senza le tavole: qui la foto riempie una fascia e si ritaglia, e una tavola
+  // perderebbe le sue scritte.
+  const libreria = useMemo(() => fotoDellaLibreria(settore).filter((f) => eTavola(f.url) == null), [settore]);
 
   const salva = (valore: Record<string, unknown> | null) => {
     const { [chiaveSalvata]: _via, ...resto } = tutti;

@@ -71,6 +71,7 @@ import {
   applyMaggiorazioniAssi,
   calcolaPrezzoProdotto,
   calcolaPosaInclusa,
+  listinoSenzaPrezzoDiVendita,
 } from "@/lib/serramenti/pricing";
 
 export interface ListinoPickResult {
@@ -891,7 +892,12 @@ export function ListinoPickerDialog({
                 disabled={
                   numeriNonValidi
                   || (richiedeMisure && (!larghezza || !altezza))
-                  || !calcolo || calcolo.totale <= 0
+                  || !calcolo
+                  // Un prodotto di listino senza prezzo di vendita resta a 0€
+                  // per costruzione (non perché mancano misure valide): chi
+                  // lavora così (es. Infissi e Living) scrive il prezzo a
+                  // mano nel BOM dopo, non qui. Vedi listinoSenzaPrezzoDiVendita.
+                  || (calcolo.totale <= 0 && !listinoSenzaPrezzoDiVendita(selectedFamily))
                   || calcolo.fuoriRange === true
                   || calcolo.requiresSupplierLine === true
                   || calcolo.missingSupplierLinePricing === true

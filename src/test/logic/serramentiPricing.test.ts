@@ -3,7 +3,10 @@ import {
   calcolaPrezzoSerramento,
 } from "@/features/serramenti-listini/utils/pricing";
 import type { PricingInput } from "@/features/serramenti-listini/types";
-import { calcolaPrezzoProdotto as calcolaPrezzoProdottoPreventivo } from "@/lib/serramenti/pricing";
+import {
+  calcolaPrezzoProdotto as calcolaPrezzoProdottoPreventivo,
+  listinoSenzaPrezzoDiVendita,
+} from "@/lib/serramenti/pricing";
 import type { ListinoFamily } from "@/lib/serramenti/api";
 
 /**
@@ -325,5 +328,68 @@ describe("calcolaPrezzoProdotto — prodotti a ricarico sull'acquisto", () => {
 
   it("un prodotto a prezzo di vendita non guarda l'acquisto", () => {
     expect(calcolaPrezzoProdottoPreventivo({ ...aRicarico, prezzo_base_mode: "vendita" }, 1000, 1000, 1, []).prezzo).toBe(0);
+  });
+});
+
+describe("listinoSenzaPrezzoDiVendita — chi lo usa scrive il prezzo a mano (Infissi e Living)", () => {
+  const senzaPrezzo: ListinoFamily = {
+    id: "fam-senza-prezzo",
+    nome: "PVC Salamander proEvolution 72",
+    descrizione: null,
+    immagine_url: null,
+    vertical: "serramentista",
+    prezzo_base_vendita: 0,
+    vat_rate: null,
+    modalita_prezzo_base: "mq",
+    categoria_id: null,
+    custom_field_values: {},
+    manodopera_modalita: "nessuna",
+    posa_tariffa_default_id: null,
+    posa_quantita_default: null,
+    posa_linked: null,
+    manodopera_unita: null,
+    manodopera_costo_acquisto: null,
+    manodopera_prezzo_vendita: null,
+    prezzo_base_mode: "vendita",
+    prezzo_base_acquisto: null,
+    sconto_fornitore_1: 0,
+    sconto_fornitore_2: 0,
+    markup_tipo: null,
+    markup_valore: null,
+  };
+
+  it("nessuna family: non è mai un prodotto senza prezzo (il picker non ha ancora scelto niente)", () => {
+    expect(listinoSenzaPrezzoDiVendita(null)).toBe(false);
+    expect(listinoSenzaPrezzoDiVendita(undefined)).toBe(false);
+  });
+
+  it("mq senza prezzo di vendita né di acquisto: sì, il prezzo va scritto a mano", () => {
+    expect(listinoSenzaPrezzoDiVendita(senzaPrezzo)).toBe(true);
+  });
+
+  it("pz senza prezzo di vendita né di acquisto: sì", () => {
+    expect(listinoSenzaPrezzoDiVendita({ ...senzaPrezzo, modalita_prezzo_base: "pz" })).toBe(true);
+  });
+
+  it("misura libera: sempre sì, indipendentemente dal prezzo", () => {
+    expect(listinoSenzaPrezzoDiVendita({ ...senzaPrezzo, modalita_prezzo_base: "misura_libera", prezzo_base_vendita: 150 })).toBe(true);
+  });
+
+  it("prezzo di vendita salvato: no, il calcolo produce un totale vero", () => {
+    expect(listinoSenzaPrezzoDiVendita({ ...senzaPrezzo, prezzo_base_vendita: 150 })).toBe(false);
+  });
+
+  it("prezzo ad acquisto+ricarico configurato: no, non è \"senza prezzo\" solo perché prezzo_base_vendita è 0", () => {
+    expect(listinoSenzaPrezzoDiVendita({
+      ...senzaPrezzo,
+      prezzo_base_mode: "acquisto_markup",
+      prezzo_base_acquisto: 100,
+      markup_tipo: "percentuale",
+      markup_valore: 50,
+    })).toBe(false);
+  });
+
+  it("griglia: fuori scope di questa funzione, i suoi 0€ sono già gestiti da fuoriRange/requiresSupplierLine", () => {
+    expect(listinoSenzaPrezzoDiVendita({ ...senzaPrezzo, modalita_prezzo_base: "griglia" })).toBe(false);
   });
 });

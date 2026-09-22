@@ -35,6 +35,11 @@ interface Props {
   form: Partial<SrTemplatePdfRow>;
   update: <K extends keyof SrTemplatePdfRow>(key: K, value: SrTemplatePdfRow[K]) => void;
   companyAnagrafica?: TemplateCompanyAnagrafica | null;
+  /**
+   * Solo le garanzie o solo le domande: sotto la matita della loro pagina, in
+   * «Ordine pagine». Senza, tutto il playbook di conversione.
+   */
+  solo?: "garanzie" | "faq";
 }
 
 export type SharedLegalTemplateKind = "condizioni" | "legali";
@@ -71,6 +76,7 @@ function SerramentiConversionEditorImpl({
   form,
   update,
   companyAnagrafica,
+  solo,
 }: Props) {
   // Garanzie
   const garanzie = (form.garanzie ?? []) as SrGaranzia[];
@@ -119,6 +125,7 @@ function SerramentiConversionEditorImpl({
 
   return (
     <div className="space-y-6">
+      {!solo && (<>
       {/* Intro */}
       <div className="rounded-md border border-amber-200 bg-amber-50/40 px-3 py-2">
         <p className="text-xs text-amber-900">
@@ -129,7 +136,9 @@ function SerramentiConversionEditorImpl({
           conta più dell'effetto). Cambiamenti visibili in Anteprima PDF.
         </p>
       </div>
+      </>)}
 
+      {(!solo || solo === "garanzie") && (<>
       {/* ═══ 1. GARANZIE ════════════════════════════════════════════════════ */}
       <Section icon={<Shield />} title="1. Garanzie esplicite" tag="+15-25% conv">
         <p className="text-[11px] text-muted-foreground mb-2">
@@ -181,7 +190,9 @@ function SerramentiConversionEditorImpl({
           </div>
         </div>
       </Section>
+      </>)}
 
+      {!solo && (<>
       {/* ═══ 2. URGENZA / SCADENZA ════════════════════════════════════════ */}
       <Section icon={<Tag />} title="2. Urgenza & scadenza prezzo" tag="+10-18% conv">
         <p className="text-[11px] text-muted-foreground mb-2">
@@ -427,7 +438,9 @@ function SerramentiConversionEditorImpl({
           </div>
         </div>
       </Section>
+      </>)}
 
+      {(!solo || solo === "faq") && (<>
       {/* ═══ 6. FAQ ═════════════════════════════════════════════════════════ */}
       <Section icon={<HelpCircle />} title="6. FAQ — obiezioni anticipate" tag="+3-5% conv">
         <p className="text-[11px] text-muted-foreground mb-2">
@@ -474,7 +487,9 @@ function SerramentiConversionEditorImpl({
           </div>
         </div>
       </Section>
+      </>)}
 
+      {!solo && (<>
       {/* ═══ 7. BRAND FOOTER ═══════════════════════════════════════════════ */}
       <Section icon={<FileText />} title="7. Brand legitimacy footer" tag="trust">
         <p className="text-[11px] text-muted-foreground mb-2">
@@ -529,6 +544,7 @@ function SerramentiConversionEditorImpl({
           </div>
         )}
       </Section>
+      </>)}
 
     </div>
   );

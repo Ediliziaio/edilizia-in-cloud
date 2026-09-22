@@ -33,6 +33,8 @@ const ufy = (id: string) => ({
 });
 
 export const COVER_STOCK_IMAGES: CoverStockImage[] = [
+  // La copertina di serie, nostra (public/cover-stock/tetti, 22/09/2026): la prima proposta.
+  { id: "tet-eic-1", url: "/cover-stock/tetti/1.jpg", thumb: "/cover-stock/tetti/1-thumb.jpg", label: "Tetto rifatto", categoria: "tetto" },
   // ─── Tetto / copertura (5) ───────────────────────────────────────────
   { id: "tet-1", ...ufy("1632759145351-1d592919f522"), label: "Tetto in tegole",       categoria: "tetto" },
   { id: "tet-2", ...ufy("1605276374104-dee2a0ed3cd6"), label: "Copertura residenziale", categoria: "tetto" },

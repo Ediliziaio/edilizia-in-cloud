@@ -32,6 +32,8 @@ const ufy = (id: string) => ({
 });
 
 export const COVER_STOCK_IMAGES: CoverStockImage[] = [
+  // La copertina di serie, nostra (public/cover-stock/elettrico, 22/09/2026): la prima proposta.
+  { id: "ele-eic-1", url: "/cover-stock/elettrico/1.jpg", thumb: "/cover-stock/elettrico/1-thumb.jpg", label: "Luci nuove al tramonto", categoria: "residenziale" },
   // ─── Residenziale (4) ────────────────────────────────────────────────
   { id: "res-1", ...ufy("1502672260266-1c1ef2d93688"), label: "Casa moderna",        categoria: "residenziale" },
   { id: "res-2", ...ufy("1568605114967-8130f3a36994"), label: "Villa contemporanea", categoria: "residenziale" },

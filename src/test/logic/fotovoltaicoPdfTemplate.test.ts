@@ -753,7 +753,8 @@ describe("fotovoltaico PDF — le pagine: un elenco solo, e i blocchi", () => {
     const ordine = ids(FV_PDF_PAGES_DEFAULT);
     expect(ordine[ordine.indexOf("anteprima") - 1]).toBe("come_funziona");
     // Rispondono ai dubbi quando il cliente decide, non in testa con la fiducia.
-    expect(ordine.slice(ordine.indexOf("bollette_240") + 1, ordine.indexOf("faq"))).toEqual(["protezione", "controlli", "documenti", "diario"]);
+    // Poi «Dicono di noi» (22/09/2026): il voto, le parole dei clienti, gli impianti fatti.
+    expect(ordine.slice(ordine.indexOf("bollette_240") + 1, ordine.indexOf("faq"))).toEqual(["protezione", "controlli", "documenti", "diario", "recensioni"]);
     for (const id of ["come_funziona", "protezione", "controlli", "documenti", "diario"]) expect(visibile(FV_PDF_PAGES_DEFAULT, id)).toBe(true);
   });
 
@@ -771,11 +772,11 @@ describe("fotovoltaico PDF — le pagine: un elenco solo, e i blocchi", () => {
   it("le foto dei blocchi accesi: al massimo due, dal sito nelle anteprime", () => {
     const template = { pdf_pages_order: tutteAccese(), pdf_blocchi: { diario: { senzaFoto: true } } };
     const foto = fotoDeiBlocchiFv(template);
-    // «Come funziona» ha una foto sola, larga: la casa in sezione col percorso dell'energia.
-    expect(foto.comeFunziona).toEqual(["/pdf-stock/fotovoltaico/storia-flusso-energia.jpg"]);
+    // «Come funziona» ha una tavola sola, verticale (22/09/2026): produzione, casa, batteria, sera.
+    expect(foto.comeFunziona).toEqual(["/pdf-stock/fotovoltaico/tavola-giorno-e-sera.jpg"]);
     expect(foto.diario).toEqual([]);
     expect(fotoBlocchiDalSito("https://app.example.it/", template).comeFunziona[0]).toEqual({
-      src: "https://app.example.it/pdf-stock/fotovoltaico/storia-flusso-energia.jpg", diSerie: true,
+      src: "https://app.example.it/pdf-stock/fotovoltaico/tavola-giorno-e-sera.jpg", diSerie: true,
     });
     // di serie accese tutte: le foto di tutti i blocchi
     expect(Object.keys(fotoDeiBlocchiFv({})).sort()).toEqual(["comeFunziona", "controlli", "diario", "documenti", "protezione"]);
@@ -932,5 +933,70 @@ describe("fotovoltaico PDF — numeri che tornano fra le pagine", () => {
     const html = renderFvPdfHtml({ ...base, progetto: { ...base.progetto, fonte_dati_tetto: "pvgis", qualita_dati_tetto: null, imagery_date: null } });
     expect(html).toContain("irraggiamento medio della tua zona");
     expect(html).not.toContain("non indicata");
+  });
+});
+
+describe("fotovoltaico PDF — «Dicono di noi» (22/09/2026)", () => {
+  const recensioni = [
+    { quote: "Installazione in una giornata, tetto pulito.", autore: "Famiglia Colombo", citta: "Sesto San Giovanni", intervento: "5,4 kWp" },
+    { quote: "Le pratiche le hanno seguite loro.", autore: "Roberto M.", citta: "Cinisello Balsamo", intervento: null },
+  ];
+
+  it("il voto del Profilo azienda, le parole dei clienti e gli impianti hanno una pagina loro, prima delle domande", () => {
+    const d = basePdfData();
+    const html = renderFvPdfHtml({
+      ...d,
+      template: { ...d.template, recensioni },
+      voti_online: [{ piattaforma: "google", voto: 4.8, numero: 126, aggiornato: "2026-09-22" }],
+      cantieri_foto: ["data:image/png;base64,AAAA"],
+    });
+    expect(html).toContain("La parola ai<br/>nostri clienti.");
+    expect(html).toContain('<div class="voto-numero">4,8<small>su 5</small></div>');
+    expect(html).toContain("126 recensioni");
+    expect(html).toContain("a settembre 2026");
+    expect(html).toContain("I nostri impianti");
+    // Nella pagina delle garanzie non si ripetono.
+    expect(html).not.toContain("Cosa dicono i clienti");
+    expect(html).not.toContain("I nostri cantieri");
+  });
+
+  it("senza voto, recensioni né impianti la pagina non esce; nascosta, le recensioni tornano nelle garanzie", () => {
+    const d = basePdfData();
+    expect(renderFvPdfHtml({ ...d, template: { ...d.template, recensioni: [] }, voti_online: [] })).not.toContain("La parola ai<br/>nostri clienti.");
+    const nascosta = renderFvPdfHtml({
+      ...d,
+      template: { ...d.template, recensioni, pdf_pages_order: [{ id: "recensioni", visible: false }] },
+    });
+    expect(nascosta).not.toContain("La parola ai<br/>nostri clienti.");
+    expect(nascosta).toContain("Cosa dicono i clienti");
+  });
+
+  it("la testata delle pagine si riscrive dall'editor: titolo a capo, testo sicuro per l'HTML", () => {
+    const d = basePdfData();
+    const html = renderFvPdfHtml({
+      ...d,
+      template: {
+        ...d.template,
+        recensioni,
+        faq_items: [{ domanda: "Serve l'accumulo?", risposta: "Dipende da quanta energia usate la sera." }],
+        pdf_blocchi: {
+          testata_recensioni: { occhiello: "Parlano loro", titolo: "Cento famiglie\ncol sole in casa.", intro: "Recensioni <vere>." },
+          testata_domande: { titolo: "Prima di firmare" },
+          testata_garanzie: { titolo: "Dieci anni\nsenza pensieri." },
+        },
+      },
+    });
+    expect(html).toContain('<div class="eyebrow">Parlano loro</div>');
+    expect(html).toContain('<h1 class="page-title">Cento famiglie<br/>col sole in casa.</h1>');
+    expect(html).toContain("Recensioni &lt;vere&gt;.");
+    expect(html).toContain('<h1 class="page-title">Prima di firmare</h1>');
+    expect(html).toContain('<h1 class="page-title">Dieci anni<br/>senza pensieri.</h1>');
+    expect(html).not.toContain("anni di<br/>tranquillità.");
+  });
+
+  it("un voto fuori scala o senza piattaforma non esce", () => {
+    const d = basePdfData();
+    const html = renderFvPdfHtml({ ...d, voti_online: [{ piattaforma: "google", voto: 7 }, { voto: 4.5 }] });
+    expect(html).not.toContain('class="voto-card"');
   });
 });

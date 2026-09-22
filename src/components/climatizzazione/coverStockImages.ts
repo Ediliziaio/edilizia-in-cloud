@@ -34,6 +34,8 @@ const ufy = (id: string) => ({
 });
 
 export const COVER_STOCK_IMAGES: CoverStockImage[] = [
+  // La copertina di serie, nostra (public/cover-stock/climatizzazione, 22/09/2026): la prima proposta.
+  { id: "clm-eic-1", url: "/cover-stock/climatizzazione/1.jpg", thumb: "/cover-stock/climatizzazione/1-thumb.jpg", label: "Soggiorno climatizzato", categoria: "clima" },
   // ─── Clima / comfort (4) ─────────────────────────────────────────────
   { id: "clm-1", ...ufy("1631545806609-c2b999c9e9f9"), label: "Split a parete",        categoria: "clima" },
   { id: "clm-2", ...ufy("1567769541495-138a0a3b0d0e"), label: "Telecomando clima",     categoria: "clima" },

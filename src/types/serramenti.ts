@@ -760,6 +760,8 @@ export type SrPdfPageId =
   | "cta"
   | "condizioni"
   | "gallery_lavori"
+  // Il voto su Google o Trustpilot (Profilo azienda) e le parole dei clienti, dal 22/09/2026.
+  | "recensioni"
   // I blocchi della libreria (_shared/blocchiPreventivo.ts): testi e foto di serie
   // per i serramenti, che l'azienda cambia dall'ordine delle pagine.
   | "come_funziona"
@@ -904,6 +906,21 @@ export const SR_PDF_PAGES_META: SrPdfPageMeta[] = [
     descrizione: "Tabella tecnica indicativa o configurata: serramento attuale vs nuovo.",
     obbligatoria: false,
   },
+  // I lavori fatti e le parole dei clienti, prima delle domande e della pagina finale.
+  // Fino al 22/09/2026 la galleria stava in fondo, dopo le condizioni legali, e le
+  // recensioni erano tre righe nella pagina finale.
+  {
+    id: "gallery_lavori",
+    label: "I nostri lavori",
+    descrizione: "Galleria foto di interventi realizzati dall'azienda.",
+    obbligatoria: false,
+  },
+  {
+    id: "recensioni",
+    label: "Dicono di noi",
+    descrizione: "Il voto su Google o Trustpilot (Profilo azienda) e le parole dei clienti. Esce se c'è almeno uno dei due.",
+    obbligatoria: false,
+  },
   {
     id: "faq",
     label: "FAQ — obiezioni anticipate",
@@ -912,20 +929,14 @@ export const SR_PDF_PAGES_META: SrPdfPageMeta[] = [
   },
   {
     id: "cta",
-    label: "Pronti per partire + recensioni",
-    descrizione: "Box CTA finale + testimonianze cliente (se attive).",
+    label: "Pronti per partire",
+    descrizione: "Box CTA finale; le testimonianze qui solo se «Dicono di noi» è nascosta.",
     obbligatoria: true,
   },
   {
     id: "condizioni",
     label: "Condizioni e disclaimer legali",
     descrizione: "Appendice T&C contrattuali + dati legali azienda (P.IVA, REA, assicurazione).",
-    obbligatoria: false,
-  },
-  {
-    id: "gallery_lavori",
-    label: "I nostri lavori",
-    descrizione: "Galleria foto di interventi realizzati dall'azienda.",
     obbligatoria: false,
   },
 ];
@@ -990,6 +1001,16 @@ const PAGINE_PRODOTTO: SrPdfPageId[] = ["macro_dedicate", "linee_dedicate", "ren
 function regoleOrdinePagine(pagine: SrPdfPageOrderItem[]): SrPdfPageOrderItem[] {
   const out = [...pagine];
   const indice = (id: SrPdfPageId) => out.findIndex((p) => p.id === id);
+  // I lavori e le recensioni non stanno dopo le condizioni legali (dal 22/09/2026):
+  // la galleria era in fondo per chiunque avesse salvato l'ordine, e lì la pagina
+  // «Dicono di noi», nuova, l'avrebbe seguita. Salgono prima delle domande.
+  const dopoLeCondizioni = (["gallery_lavori", "recensioni"] as SrPdfPageId[])
+    .filter((id) => indice("condizioni") !== -1 && indice(id) > indice("condizioni"));
+  if (dopoLeCondizioni.length) {
+    const spostate = dopoLeCondizioni.map((id) => out.splice(indice(id), 1)[0]);
+    const prima = [indice("faq"), indice("cta"), indice("condizioni")].find((i) => i !== -1) ?? out.length;
+    out.splice(prima, 0, ...spostate);
+  }
   if (indice("allegato_tecnico") === -1) return out;
   const dopoAllegato = out.filter((p, i) => PAGINE_PRODOTTO.includes(p.id) && i > indice("allegato_tecnico"));
   for (const pagina of dopoAllegato) {

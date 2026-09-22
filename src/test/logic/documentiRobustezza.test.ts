@@ -133,8 +133,8 @@ describe("Serramenti: le sezioni brevi consecutive condividono le pagine", () =>
     for (const k of ["garanzie:", "confronto:", "faq:", "gallery_lavori:"]) expect(src).toContain(`    ${k} `);
   });
 
-  it("una sezione sale sulla pagina precedente solo se ci sta intera (la galleria può scorrere)", () => {
-    expect(src).toContain('wrap={id === "gallery_lavori"}');
+  it("una sezione sale sulla pagina precedente solo se ci sta intera (galleria, recensioni e domande si spezzano fra un elemento e l'altro)", () => {
+    expect(src).toContain('wrap={id === "gallery_lavori" || id === "recensioni" || id === "faq"}');
   });
 
   it("da sola, una sezione breve resta una pagina come prima", () => {

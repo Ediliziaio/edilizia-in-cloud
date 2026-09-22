@@ -244,6 +244,25 @@ export function calcolaPrezzoProdotto(
   }
 }
 
+/**
+ * Un prodotto di listino "pz"/"mq" senza prezzo di vendita né di acquisto
+ * configurato (o "misura libera"): il prezzo resta sempre 0 per costruzione,
+ * non perché manchino le misure. Chi lo usa (es. Infissi e Living) scrive il
+ * prezzo a mano nel BOM — vedi isListinoManualPrice in StepBom.tsx, stessa
+ * logica estratta qui per essere riusata anche da chi aggiunge la posizione
+ * (ListinoPickerDialog), che altrimenti bloccava "Aggiungi al preventivo" per
+ * sempre su questi prodotti scambiando "0 perché non prezzato" per "0 perché
+ * mancano le misure".
+ */
+export function listinoSenzaPrezzoDiVendita(family: ListinoFamily | null | undefined): boolean {
+  if (!family) return false;
+  const modalita = family.modalita_prezzo_base;
+  if (modalita === "misura_libera") return true;
+  if (modalita !== "pz" && modalita !== "mq") return false;
+  const prezzoBase = calcolaPrezzoProdotto(family, 1000, 1000, 1, []).prezzo;
+  return !(prezzoBase > 0);
+}
+
 // ─── Posa inclusa ──────────────────────────────────────────────────────────
 
 /**

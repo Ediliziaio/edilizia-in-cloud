@@ -31,13 +31,20 @@ import {
 } from "@/types/serramenti";
 import { EditorBlocco } from "@/components/preventivi/EditorBlocco";
 import { EditorFotoPagina } from "@/components/preventivi/EditorFotoPagina";
+import { EditorTestata } from "@/components/preventivi/EditorTestata";
 import { bloccoDellaPagina, descrizioneBlocco, type ChiaveFotoPagina } from "../../../supabase/functions/_shared/blocchiPreventivo";
+import type { PaginaConTestata } from "../../../supabase/functions/_shared/testatePagine";
 
 /** Le pagine con una foto loro, cambiabile qui: l'id della pagina e la chiave della foto. */
 const FOTO_DELLE_PAGINE: Record<string, ChiaveFotoPagina> = {
   percorso: "percorso", confronto: "confronto", cta: "cta",
   // La foto che riempie il fondo quando la sezione finisce a metà foglio.
   proposta: "proposta", allegato_tecnico: "allegato", investimento: "dettagli",
+};
+
+/** Le pagine che raccontano l'azienda: testata e contenuto si scrivono sotto la matita. */
+const TESTATA_DELLA_PAGINA: Record<string, PaginaConTestata> = {
+  recensioni: "recensioni", faq: "domande", garanzie: "garanzie", gallery_lavori: "lavori",
 };
 
 interface Props {
@@ -48,9 +55,11 @@ interface Props {
   onBlocchi?: (v: Record<string, unknown>) => void;
   /** Il campo per caricare la foto di un blocco: quello dell'editor, col suo bucket. */
   campoFoto?: (valore: string | null, onChange: (url: string | null) => void) => ReactNode;
+  /** Quello che mostrano recensioni, domande, garanzie e lavori: gli editor delle loro sezioni. */
+  contenuti?: Partial<Record<PaginaConTestata, ReactNode>>;
 }
 
-function SerramentiPagesOrderEditorImpl({ value, onChange, blocchi, onBlocchi, campoFoto }: Props) {
+function SerramentiPagesOrderEditorImpl({ value, onChange, blocchi, onBlocchi, campoFoto, contenuti }: Props) {
   // Normalizziamo sempre: garantisce che tutte le pagine canoniche siano
   // presenti e che le obbligatorie abbiano visible=true.
   const items = normalizePdfPagesOrder(value);
@@ -195,7 +204,8 @@ function SerramentiPagesOrderEditorImpl({ value, onChange, blocchi, onBlocchi, c
               const meta = metaById.get(it.id);
               if (!meta) return null;
               const blocco = bloccoDellaPagina(it.id);
-              const modificabile = Boolean(blocco && onBlocchi && campoFoto);
+              const testata = onBlocchi ? TESTATA_DELLA_PAGINA[it.id] ?? null : null;
+              const modificabile = Boolean((blocco && onBlocchi && campoFoto) || testata);
               const fotoPagina = onBlocchi && campoFoto ? FOTO_DELLE_PAGINE[it.id] ?? null : null;
               return (
                 <SortablePageItem
@@ -213,6 +223,11 @@ function SerramentiPagesOrderEditorImpl({ value, onChange, blocchi, onBlocchi, c
                   onModifica={modificabile ? () => setAperta(aperta === it.id ? null : it.id) : undefined}
                   onFoto={fotoPagina ? () => setAperta(aperta === `foto:${it.id}` ? null : `foto:${it.id}`) : undefined}
                 >
+                  {testata && onBlocchi && aperta === it.id ? (
+                    <EditorTestata pagina={testata} motore="serramenti" salvati={blocchi} onSalvati={(nuovi) => onBlocchi(nuovi)}>
+                      {contenuti?.[testata]}
+                    </EditorTestata>
+                  ) : null}
                   {modificabile && blocco && aperta === it.id && campoFoto ? (
                     <EditorBlocco
                       chiave={blocco}

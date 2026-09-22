@@ -12,6 +12,8 @@ import type { PaginaLibera, VoceOrdine } from "./ordineCapitoli";
  */
 
 import type { ChiaveBlocco, ContenutoBlocco } from "../../../../supabase/functions/_shared/blocchiPreventivo";
+import type { VotoOnline } from "../../../../supabase/functions/_shared/recensioniOnline";
+import type { PaginaConTestata, TestataPagina } from "../../../../supabase/functions/_shared/testatePagine";
 export interface DocEdileVoce {
   id: string;
   descrizione: string;
@@ -69,6 +71,8 @@ export interface DocEdileAzienda {
   logoUrl: string | null;
   /** Il logo chiaro del kit del marchio: va sulla copertina quando il fondo è scuro. */
   logoChiaroUrl: string | null;
+  /** Il voto su Google, Trustpilot… scritto nel Profilo azienda (vuoto = non esce). */
+  votiOnline: VotoOnline[];
 }
 
 export interface DocEdileFoto {
@@ -79,7 +83,13 @@ export interface DocEdileFoto {
 }
 
 export interface DocEdileVoceElenco { titolo: string; descrizione?: string | null }
-export interface DocEdileTestimonianza { autore: string; ruolo?: string | null; testo: string }
+export interface DocEdileTestimonianza {
+  autore: string;
+  ruolo?: string | null;
+  testo: string;
+  /** Le stelle date dal cliente (1-5), se l'azienda le ha riportate. */
+  voto?: number | null;
+}
 export interface DocEdileFase { fase: string; durata?: string | null; descrizione?: string | null }
 export interface DocEdileFaq { domanda: string; risposta: string }
 
@@ -151,6 +161,11 @@ export interface DocEdileModello {
   cronoprogramma: DocEdileFase[];
   mostraCronoprogramma: boolean;
   galleriaLavori: DocEdileFoto[];
+  /**
+   * Occhiello, titolo e introduzione di «Dicono di noi», domande, garanzie e lavori:
+   * di serie, o riscritti dall'azienda (vedi _shared/testatePagine.ts).
+   */
+  testate: Record<PaginaConTestata, TestataPagina>;
 
   pagamentoHtml: string | null;
   testoValidita: string | null;

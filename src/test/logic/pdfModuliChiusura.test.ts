@@ -57,8 +57,11 @@ describe("chiusura nel documento edile condiviso", () => {
 
   it("garanzie, percorso, domande e recensioni escono solo se l'azienda le ha scritte", () => {
     expect(src).toContain("const haPercorso = modello.mostraPercorso && modello.percorso.length > 0;");
-    expect(src).toContain("const haGaranzie = modello.mostraGaranzie && (modello.garanzie.length > 0 || modello.faq.length > 0);");
-    expect(src).toContain("const haRecensioni = modello.testimonianze.length > 0;");
+    // Dal 22/09/2026 garanzie e domande sono due capitoli, con lo stesso interruttore.
+    expect(src).toContain("const haGaranzie = modello.mostraGaranzie && modello.garanzie.length > 0;");
+    expect(src).toContain("const haDomande = modello.mostraGaranzie && modello.faq.length > 0;");
+    // «Dicono di noi»: le parole dei clienti o il voto del Profilo azienda, mai inventati.
+    expect(src).toContain("const haRecensioni = modello.testimonianze.length > 0 || votiOnline.length > 0;");
   });
 
   it("la validità viene dal modello, mai da un numero scritto a mano", () => {

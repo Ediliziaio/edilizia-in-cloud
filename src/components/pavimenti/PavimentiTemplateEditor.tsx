@@ -72,6 +72,7 @@ import {
   COVER_STOCK_IMAGES, COVER_STOCK_CATEGORIE, type CoverStockImage,
 } from "@/components/pavimenti/coverStockImages";
 import { GalleryLavoriEditor } from "@/components/shared/GalleryLavoriEditor";
+import { VotoOnlineDelProfilo } from "@/components/preventivi/VotoOnlineDelProfilo";
 import type { GalleryLavoroItem } from "@/types/gallery";
 import { useBeforeUnload } from "@/hooks/useBeforeUnload";
 import { FinanziamentoPromoField } from "@/components/preventivi/FinanziamentoPromoField";
@@ -622,6 +623,37 @@ export function PavimentiTemplateEditor({ embedded = false }: Props) {
     );
   }
 
+  // Il contenuto delle pagine che raccontano l'azienda: si modifica nella sua
+  // sezione e sotto la matita della pagina, in «Ordine e pagine».
+  const contenutiPagine = {
+    recensioni: (
+      <TestimonianzeEditor
+        items={form.testimonianze}
+        onChange={(items) => set("testimonianze", items)}
+      />
+    ),
+    domande: (
+      <FaqEditor items={form.faq} onChange={(items) => set("faq", items)} />
+    ),
+    garanzie: (
+      <ListItemsEditor
+        items={form.garanzie}
+        onChange={(items) => set("garanzie", items)}
+        addLabel="Aggiungi garanzia"
+        titlePlaceholder="Es. Garanzia 10 anni sulle opere"
+        descPlaceholder="Dettaglio (opzionale)"
+      />
+    ),
+    lavori: (
+      <GalleryLavoriEditor
+        items={(form.gallery_lavori ?? []) as GalleryLavoroItem[]}
+        onChange={(items) => set("gallery_lavori", items)}
+        bucket={BUCKET}
+        uploadPath={`${companyId}/pavimenti/gallery`}
+      />
+    ),
+  };
+
   return (
     <div className={cn("space-y-4", embedded ? "" : "mx-auto max-w-4xl p-4")}>
       {backendReady === false && (
@@ -912,6 +944,7 @@ export function PavimentiTemplateEditor({ embedded = false }: Props) {
                 settore="pavimenti"
                 blocchi={form.pdf_blocchi}
                 onBlocchi={(v) => set("pdf_blocchi", v)}
+                contenuti={contenutiPagine}
                 campoFoto={(valore, onChange) => (
                   <ImageUploadField label="Foto della pagina" value={valore} companyId={companyId} onChange={onChange} aspect="aspect-[16/9]" />
                 )}
@@ -1334,17 +1367,11 @@ export function PavimentiTemplateEditor({ embedded = false }: Props) {
               <div className="space-y-5">
                 <div className="space-y-2">
                   <Label className="text-xs font-medium">Garanzie</Label>
-                  <ListItemsEditor
-                    items={form.garanzie}
-                    onChange={(items) => set("garanzie", items)}
-                    addLabel="Aggiungi garanzia"
-                    titlePlaceholder="Es. Garanzia 10 anni sulle opere"
-                    descPlaceholder="Dettaglio (opzionale)"
-                  />
+                  {contenutiPagine.garanzie}
                 </div>
                 <div className="space-y-2 border-t pt-4">
                   <Label className="text-xs font-medium">Domande frequenti</Label>
-                  <FaqEditor items={form.faq} onChange={(items) => set("faq", items)} />
+                  {contenutiPagine.domande}
                 </div>
               </div>
             </SectionCard>
@@ -1352,11 +1379,9 @@ export function PavimentiTemplateEditor({ embedded = false }: Props) {
 
           {/* Testimonianze */}
           {activeSection === "page_testimonianze" && (
-            <SectionCard icon={Quote} title="Testimonianze" description="Recensioni dei clienti mostrate nel PDF.">
-              <TestimonianzeEditor
-                items={form.testimonianze}
-                onChange={(items) => set("testimonianze", items)}
-              />
+            <SectionCard icon={Quote} title="Testimonianze" description="Le parole dei clienti: nel PDF escono nella pagina «Dicono di noi». Titolo e introduzione della pagina si cambiano in «Ordine e pagine», con la matita.">
+              <VotoOnlineDelProfilo />
+              {contenutiPagine.recensioni}
             </SectionCard>
           )}
 
@@ -1364,12 +1389,7 @@ export function PavimentiTemplateEditor({ embedded = false }: Props) {
             <SectionCard icon={ImageIcon} title="Gallery lavori" description="Foto di lavori realizzati, mostrate nel PDF.">
               {/* Nello stesso bucket delle altre immagini del modello: il bucket
                   "companies" non esiste e ogni foto finiva in errore. */}
-              <GalleryLavoriEditor
-                items={(form.gallery_lavori ?? []) as GalleryLavoroItem[]}
-                onChange={(items) => set("gallery_lavori", items)}
-                bucket={BUCKET}
-                uploadPath={`${companyId}/pavimenti/gallery`}
-              />
+              {contenutiPagine.lavori}
             </SectionCard>
           )}
 

@@ -160,7 +160,7 @@ Deno.serve(async (req: Request) => {
         .eq("progetto_id", p.progetto_id),
       supabaseAdmin
         .from("companies")
-        .select("name, vat_number, pec, phone, email, website, brand_primary_color")
+        .select("name, vat_number, pec, phone, email, website, brand_primary_color, recensioni_online")
         .eq("id", prog.company_id)
         .maybeSingle(),
       supabaseAdmin
@@ -281,10 +281,20 @@ Deno.serve(async (req: Request) => {
       (template as Record<string, unknown>).cantieri_galleria as
         | Array<{ foto_url?: string; citta?: string; descrizione?: string }> | null
     ) ?? [];
-    const cantieriFotoUrls = cantieriGalleria
-      .map((c) => c.foto_url)
-      .filter((u): u is string => Boolean(u))
-      .slice(0, 3);
+    // Le foto degli impianti: prima quelle della «Gallery lavori» dell'editor
+    // (gallery_lavori, che fino al 22/09/2026 il PDF non leggeva: l'azienda le
+    // caricava e non uscivano), poi cantieri_galleria, scritta senza editor.
+    const galleriaLavori = (
+      (template as Record<string, unknown>).gallery_lavori as Array<{ url?: string }> | null
+    ) ?? [];
+    // Fino a sei: la pagina «Dicono di noi» ne mostra tre o sei, quella delle garanzie tre.
+    const cantieriFotoUrls = [
+      ...(Array.isArray(galleriaLavori) ? galleriaLavori : []).map((g) => g?.url),
+      ...(Array.isArray(cantieriGalleria) ? cantieriGalleria : []).map((c) => c?.foto_url),
+    ]
+      .filter((u): u is string => typeof u === "string" && u.length > 0)
+      .filter((u, i, tutte) => tutte.indexOf(u) === i)
+      .slice(0, 6);
 
     type BundleRow = { nome: string; descrizione: string | null; fv_kwp: number | null; fv_accumulo_kwh: number | null; cover_image_url: string | null };
     type BundleVoceRow = { bundle_id: string; prodotto_id: string | null; quantita: number; immagine_url?: string | null; article_templates?: { name?: string; immagine_url?: string | null } | null; tariffe_aziendali?: { nome?: string } | null; article_families?: { nome?: string; immagine_url?: string | null } | null };
@@ -701,6 +711,8 @@ Deno.serve(async (req: Request) => {
       },
       map_images: mapImages,
       cantieri_foto: cantieriFotoB64.filter((s): s is string => Boolean(s)),
+      // Il voto su Google, Trustpilot… scritto nel Profilo azienda: la pagina «Dicono di noi».
+      voti_online: (company as { recensioni_online?: unknown }).recensioni_online ?? [],
       // Il kit com'era quando è stato scelto: nome e taglia salvati sul progetto.
       // Prima il PDF leggeva il kit di oggi, e se era stato cancellato la
       // pagina del kit spariva.

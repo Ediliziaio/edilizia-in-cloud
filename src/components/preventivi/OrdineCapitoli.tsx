@@ -20,7 +20,9 @@ import {
 } from "@/components/preventivi/pdf/ordineCapitoli";
 import { EditorBlocco } from "@/components/preventivi/EditorBlocco";
 import { EditorFotoPagina } from "@/components/preventivi/EditorFotoPagina";
+import { EditorTestata } from "@/components/preventivi/EditorTestata";
 import { BLOCCHI, RIEMPIMENTI_EDILI, type ChiaveBlocco, type ChiaveFotoPagina, type SettoreBlocchi } from "../../../supabase/functions/_shared/blocchiPreventivo";
+import { pagineConTestata, type PaginaConTestata } from "../../../supabase/functions/_shared/testatePagine";
 
 interface Props {
   /** Il valore salvato nel modello (`pdf_ordine_capitoli`): null = ordine di serie. */
@@ -36,14 +38,21 @@ interface Props {
   /** Le scelte dell'azienda sui blocchi (`pdf_blocchi`): con `onBlocchi`, i blocchi si modificano qui. */
   blocchi?: unknown;
   onBlocchi?: (v: Record<string, unknown>) => void;
+  /**
+   * Quello che mostrano le pagine che raccontano l'azienda (le recensioni, le
+   * domande, le garanzie, le foto dei lavori): gli editor delle loro sezioni, che
+   * la matita della pagina apre qui sotto la testata.
+   */
+  contenuti?: Partial<Record<PaginaConTestata, ReactNode>>;
 }
 
 const BLOCCO = new Map(BLOCCHI.map((b) => [b.chiave as string, b]));
+const CON_TESTATA = new Set<string>(pagineConTestata("edili"));
 
 const DESCRITTI = new Map(CAPITOLI_EDILI.map((c) => [c.chiave as string, c]));
 const senzaAsterischi = (t: string) => t.replace(/\*/g, "");
 
-export function OrdineCapitoli({ ordine, pagine, onOrdine, onPagine, campoFoto, settore, blocchi, onBlocchi }: Props) {
+export function OrdineCapitoli({ ordine, pagine, onOrdine, onPagine, campoFoto, settore, blocchi, onBlocchi, contenuti }: Props) {
   const libere = useMemo(() => leggiPagineLibere(pagine, { ancheVuote: true }), [pagine]);
   const elenco = useMemo(() => ordineEffettivo(leggiOrdine(ordine), libere), [ordine, libere]);
   const [aperta, setAperta] = useState<string | null>(null);
@@ -94,7 +103,9 @@ export function OrdineCapitoli({ ordine, pagine, onOrdine, onPagine, campoFoto, 
           const nascondibile = descritto ? descritto.nascondibile : true;
           const titolo = pagina ? senzaAsterischi(pagina.titolo) || "Pagina senza titolo" : descritto?.etichetta ?? v.chiave;
           const blocco = BLOCCO.get(v.chiave);
-          const modificabile = Boolean(blocco && settore && onBlocchi);
+          // Recensioni, domande, garanzie e lavori: la testata e il contenuto, qui.
+          const testata = onBlocchi && CON_TESTATA.has(v.chiave) ? (v.chiave as PaginaConTestata) : null;
+          const modificabile = Boolean((blocco && settore && onBlocchi) || testata);
           // La foto che riempie la pagina quando il capitolo finisce a metà foglio.
           const chiaveFoto = settore && onBlocchi ? (RIEMPIMENTI_EDILI as Record<string, ChiaveFotoPagina>)[v.chiave] : undefined;
           return (
@@ -151,6 +162,12 @@ export function OrdineCapitoli({ ordine, pagine, onOrdine, onPagine, campoFoto, 
                   <span className="w-7 text-center text-[10px] text-muted-foreground" title="Il prezzo non si nasconde">—</span>
                 )}
               </div>
+
+              {testata && onBlocchi && aperta === v.chiave ? (
+                <EditorTestata pagina={testata} motore="edili" salvati={blocchi} onSalvati={(nuovi) => onBlocchi(nuovi)}>
+                  {contenuti?.[testata]}
+                </EditorTestata>
+              ) : null}
 
               {modificabile && blocco && aperta === v.chiave ? (
                 <EditorBlocco
