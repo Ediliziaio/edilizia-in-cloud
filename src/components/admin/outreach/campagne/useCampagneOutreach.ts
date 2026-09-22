@@ -186,7 +186,7 @@ export interface StatisticheCampagna {
   totali: {
     iscritti: number; contattati: number; da_contattare: number; in_corso: number; completati: number;
     risposte: number; interessati: number; non_interessati: number; rimbalzati: number; disiscritti: number;
-    fermati: number; in_pausa: number;
+    fermati: number; in_pausa: number; opportunita_create: number; opportunita_vinte: number;
   };
   messaggi: {
     inviati: number; aperti: number; programmati: number;
