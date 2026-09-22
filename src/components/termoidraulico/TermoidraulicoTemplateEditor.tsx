@@ -920,7 +920,7 @@ export function TermoidraulicoTemplateEditor({ embedded = false }: Props) {
                     <Input
                       value={form.cover_subtitle ?? ""}
                       onChange={(e) => set("cover_subtitle", e.target.value)}
-                      placeholder="L'impianto termoidraulico, chiavi in mano"
+                      placeholder="L'impianto termoidraulico, voce per voce"
                     />
                     <PlaceholderChips value={form.cover_subtitle ?? ""} onChange={(v) => set("cover_subtitle", v)} />
                   </div>

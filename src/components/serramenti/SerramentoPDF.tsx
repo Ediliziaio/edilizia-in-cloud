@@ -2542,8 +2542,9 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                   </View>
                 ))}
                 <Text style={{ fontSize: 8.5, color: C.gray500, marginTop: 14, fontStyle: "italic" }}>
-                  Valori indicativi, da confermare con rilievo tecnico e schede prodotto definitive.
-                  Quando non personalizzati nel template, i dati rappresentano benchmark medi di settore.
+                  {confrontoRigheRaw.length > 0
+                    ? "Valori indicativi, da confermare con il rilievo tecnico e le schede dei prodotti scelti."
+                    : "Valori medi del settore, indicativi: si confermano con il rilievo tecnico e le schede dei prodotti scelti."}
                 </Text>
       </>
     ) : null,

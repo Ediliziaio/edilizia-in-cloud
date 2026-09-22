@@ -881,7 +881,7 @@ export function ClimatizzazioneTemplateEditor({ embedded = false }: Props) {
                   <Input
                     value={form.cover_subtitle ?? ""}
                     onChange={(e) => set("cover_subtitle", e.target.value)}
-                    placeholder="Il tuo impianto di climatizzazione, chiavi in mano"
+                    placeholder="Il tuo impianto di climatizzazione, voce per voce"
                   />
                   <PlaceholderChips value={form.cover_subtitle ?? ""} onChange={(v) => set("cover_subtitle", v)} />
                 </div>

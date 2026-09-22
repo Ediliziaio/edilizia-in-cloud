@@ -883,7 +883,7 @@ export function PiscineTemplateEditor({ embedded = false }: Props) {
                       ref={coverSubtitleRef}
                       value={form.cover_subtitle ?? ""}
                       onChange={(e) => set("cover_subtitle", e.target.value)}
-                      placeholder="La tua piscina, chiavi in mano"
+                      placeholder="La tua piscina, voce per voce"
                     />
                     <PlaceholderChips
                       value={form.cover_subtitle ?? ""}

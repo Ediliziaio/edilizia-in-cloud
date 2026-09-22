@@ -660,12 +660,12 @@ export const SR_GARANZIE_DEFAULT: SrGaranzia[] = [
   {
     icona: "clock",
     titolo: "Tempi condivisi e tracciabili",
-    descrizione: "Produzione, arrivo merce e posa vengono programmati in anticipo, con aggiornamenti se cambiano disponibilità o condizioni operative.",
+    descrizione: "Produzione, consegna e posa si fissano in anticipo; se qualcosa cambia, te lo diciamo subito.",
   },
   {
     icona: "drop",
     titolo: "Posa curata nei punti critici",
-    descrizione: "Sigillature, fissaggi e finiture vengono scelti in base al foro finestra e al tipo di intervento, non applicati in modo generico.",
+    descrizione: "Sigillature, fissaggi e finiture scelti per il tuo foro finestra, non uguali per tutti.",
   },
   {
     icona: "refresh",
@@ -686,16 +686,20 @@ export const SR_CONFRONTO_DEFAULT: SrConfrontoRiga[] = [
   { parametro: "Trasmittanza termica Uw", prima: "~3,5 W/m²K", dopo: "1,1 W/m²K", delta: "-68%" },
   { parametro: "Abbattimento acustico", prima: "~26 dB", dopo: "38 dB", delta: "+46%" },
   { parametro: "Tenuta aria", prima: "Classe 1", dopo: "Classe 4", delta: "4×" },
-  { parametro: "Bolletta gas stimata/anno", prima: "€1.450", dopo: "€1.310", delta: "-€140" },
+  // Tolta il 22/09/2026 la riga «Bolletta gas stimata/anno: € 1.450 → € 1.310»: esce
+  // nel PDF di chi non ha scritto le sue righe, con cifre fisse uguali per tutti i
+  // clienti, lette come la bolletta di casa propria.
 ];
 
-/** Default certificazioni serramentista standard. */
+/**
+ * Le certificazioni che «Ripristina» mette nel modello: solo quelle che valgono per
+ * ogni serramentista (la marcatura CE è del prodotto) o che dicono un metodo. Prima
+ * c'erano anche ISO 9001, «ENEA» (è l'ente delle pratiche, non una certificazione) e
+ * Confartigianato (un'associazione): nel PDF sembravano titoli dell'azienda.
+ */
 export const SR_CERTIFICAZIONI_DEFAULT: SrCertificazione[] = [
   { nome: "Marcatura CE", logo_url: null },
-  { nome: "UNI EN ISO 9001", logo_url: null },
-  { nome: "UNI 11673 (posa)", logo_url: null },
-  { nome: "ENEA", logo_url: null },
-  { nome: "Confartigianato", logo_url: null },
+  { nome: "Posa secondo UNI 11673", logo_url: null },
 ];
 
 /** Tre omaggi d'esempio, caricabili dall'editor del modello: nel PDF non escono da soli. */

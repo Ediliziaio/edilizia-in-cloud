@@ -976,7 +976,7 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
                     <Input
                       value={form.cover_subtitle ?? ""}
                       onChange={(e) => set("cover_subtitle", e.target.value)}
-                      placeholder="La tua casa, rinnovata chiavi in mano"
+                      placeholder="I lavori per la tua casa, voce per voce"
                     />
                     <PlaceholderChips
                       value={form.cover_subtitle ?? ""}

@@ -1104,7 +1104,7 @@ export function BagniTemplateEditor({ embedded = false }: Props) {
                     <Textarea
                       value={form.pdf_cover_hero ?? ""}
                       onChange={(e) => set("pdf_cover_hero", e.target.value || null)}
-                      placeholder="Il tuo bagno, rinnovato chiavi in mano."
+                      placeholder="I lavori per il tuo bagno nuovo, voce per voce"
                       rows={2}
                       className="text-sm"
                     />

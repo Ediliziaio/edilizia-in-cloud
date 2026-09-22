@@ -209,7 +209,7 @@ const COME_FUNZIONA: Record<SettoreBlocchi, Parziale> = {
   },
   piscine: {
     occhiello: "Come funziona",
-    titolo: "Acqua limpida, *senza pensieri*.",
+    titolo: "Acqua limpida, *grazie al circuito*.",
     intro: "Una piscina è una vasca e un circuito: l'acqua viene aspirata, filtrata, trattata e rimandata in vasca, di continuo.",
     voci: [
       v("La vasca", "Struttura, impermeabilizzazione e rivestimento: ogni strato fa la sua parte.", "strati"),

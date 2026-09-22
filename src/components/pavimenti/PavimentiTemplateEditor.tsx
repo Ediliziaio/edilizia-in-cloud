@@ -1056,7 +1056,7 @@ export function PavimentiTemplateEditor({ embedded = false }: Props) {
                           set("cover_subtitle", e.target.value);
                         }}
                         rows={2}
-                        placeholder="Pavimenti e rivestimenti, chiavi in mano"
+                        placeholder="Pavimenti e rivestimenti, voce per voce"
                       />
                       <PlaceholderChips
                         value={form.pdf_cover_subhero ?? ""}
