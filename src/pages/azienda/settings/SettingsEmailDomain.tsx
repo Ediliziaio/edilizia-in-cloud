@@ -87,22 +87,6 @@ interface DomainStatus {
   verified_at: string | null;
 }
 
-const PROVIDER_LABEL: Record<DnsRecord["provider"], string> = {
-  // White-label: i clienti non devono vedere i provider sottostanti
-  elastic_email: "Marketing",
-  sendgrid: "Transazionale",
-  resend: "Transazionale",
-};
-
-const PROVIDER_BADGE_VARIANT: Record<
-  DnsRecord["provider"],
-  "default" | "secondary" | "outline"
-> = {
-  elastic_email: "secondary", // marketing
-  sendgrid: "default",        // transactional legacy
-  resend: "default",          // transactional new
-};
-
 /** Il mittente vero di ogni canale, calcolato dal server con resolveSender (get_status). */
 type Mittenti = Partial<Record<CanaleEmail, MittenteDelCanale | null>>;
 
@@ -134,6 +118,25 @@ function avvisoCollegati(collegati: CanaleEmail[]): string {
   return collegati[0] === "marketing"
     ? "Da adesso le email di marketing escono dal tuo dominio."
     : "Da adesso le email transazionali escono dal tuo dominio.";
+}
+
+/**
+ * Il testo che il server scrive nel campo `purpose` è pensato per un log
+ * tecnico (SPF/DKIM/DMARC). Qui si traduce in una riga che un titolare
+ * capisce, tenendo la sigla solo come nota piccola: non cambia se il server
+ * riformula la frase, perché guarda solo le parole chiave. (21/09/2026: la
+ * pagina mostrava le sigle come titolo, e col tracking/DMARC/transazionali
+ * tutti sullo stesso piano sembrava — parole del titolare — "un casino".)
+ */
+function etichettaRecord(purpose: string): { titolo: string; dettaglio?: string; facoltativo: boolean } {
+  const p = purpose.toLowerCase();
+  if (p.includes("spf")) return { titolo: "Autorizzazione a spedire", dettaglio: "record SPF", facoltativo: false };
+  if (p.includes("dkim")) return { titolo: "Firma di sicurezza delle email", dettaglio: "record DKIM", facoltativo: false };
+  if (p.includes("dmarc")) return { titolo: "Protezione anti-spam in più", dettaglio: "record DMARC · consigliato", facoltativo: true };
+  if (p.includes("tracking")) return { titolo: "Conteggio di chi apre e clicca", dettaglio: "facoltativo", facoltativo: true };
+  if (p.includes("legacy")) return { titolo: "Verifica aggiuntiva", dettaglio: "non necessaria, si può saltare", facoltativo: true };
+  if (p.includes("transazional")) return { titolo: "Notifiche e documenti del gestionale", dettaglio: undefined, facoltativo: false };
+  return { titolo: purpose, dettaglio: undefined, facoltativo: false };
 }
 
 /**
@@ -176,6 +179,7 @@ function normalizeDomainResponse(resp: unknown): DomainResponse {
 // ─── DNS record row with copy-to-clipboard ────────────────────────────────
 function DnsRow({ record }: { record: DnsRecord }) {
   const [copied, setCopied] = useState<"host" | "value" | null>(null);
+  const { titolo, dettaglio } = etichettaRecord(record.purpose);
 
   async function copyText(text: string, which: "host" | "value") {
     try {
@@ -191,16 +195,11 @@ function DnsRow({ record }: { record: DnsRecord }) {
     <div className="rounded-lg border p-3 space-y-2 bg-muted/20">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-2">
-          <Badge variant="outline" className="font-mono text-xs">{record.type}</Badge>
-          <Badge variant={PROVIDER_BADGE_VARIANT[record.provider]} className="text-xs">
-            {PROVIDER_LABEL[record.provider]}
-          </Badge>
-          {typeof record.priority === "number" && (
-            <Badge variant="outline" className="text-xs">
-              Priorità {record.priority}
-            </Badge>
-          )}
-          <span className="text-xs text-muted-foreground">{record.purpose}</span>
+          <Badge variant="outline" className="font-mono text-xs shrink-0">{record.type}</Badge>
+          <div>
+            <p className="text-sm font-medium leading-tight">{titolo}</p>
+            {dettaglio && <p className="text-xs text-muted-foreground leading-tight">{dettaglio}</p>}
+          </div>
         </div>
         {record.verified ? (
           <span className="flex items-center gap-1 text-xs text-green-600">
@@ -228,6 +227,9 @@ function DnsRow({ record }: { record: DnsRecord }) {
           {copied === "value" ? <CheckCircle2 className="h-3 w-3 text-green-600" /> : <Copy className="h-3 w-3" />}
         </Button>
       </div>
+      {typeof record.priority === "number" && (
+        <p className="text-xs text-muted-foreground">Priorità {record.priority}</p>
+      )}
 
       {record.nota && !record.verified && (
         <p className="text-xs rounded border border-amber-200 bg-amber-50 text-amber-900 px-2 py-1.5">
@@ -254,6 +256,16 @@ export default function SettingsEmailDomain() {
   const [testDialogOpen, setTestDialogOpen] = useState(false);
   const [testEmailTo, setTestEmailTo] = useState("");
   const [testStream, setTestStream] = useState<"transactional" | "marketing">("transactional");
+  function apriTest() {
+    setTestEmailTo(user?.email ?? "");
+    setTestStream("transactional");
+    setTestDialogOpen(true);
+  }
+
+  // Record DNS: solo gli essenziali (SPF+DKIM) in vista, il resto a comparsa —
+  // 21/09/2026, "è un casino e non si capisce" con tutti i record sullo stesso piano.
+  const [mostraAltriRecord, setMostraAltriRecord] = useState(false);
+  const [mostraGuida, setMostraGuida] = useState(false);
 
   // Auto-polling toggle (default ON se dominio registrato ma non verificato)
   const [autoPoll, setAutoPoll] = useState(true);
@@ -503,11 +515,7 @@ export default function SettingsEmailDomain() {
                 variant="outline"
                 size="sm"
                 className="shrink-0 border-blue-300 text-blue-700 hover:bg-blue-100"
-                onClick={() => {
-                  setTestEmailTo(user?.email ?? "");
-                  setTestStream("transactional");
-                  setTestDialogOpen(true);
-                }}
+                onClick={apriTest}
               >
                 <Send className="h-3.5 w-3.5 mr-1.5" />
                 Prova ora
@@ -600,7 +608,7 @@ export default function SettingsEmailDomain() {
                 />
               </div>
               <div>
-                <Label>Pipeline</Label>
+                <Label>Tipo di email</Label>
                 <div className="grid grid-cols-2 gap-2 mt-1">
                   <button
                     type="button"
@@ -726,11 +734,7 @@ export default function SettingsEmailDomain() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => {
-                    setTestEmailTo(user?.email ?? "");
-                    setTestStream("transactional");
-                    setTestDialogOpen(true);
-                  }}
+                  onClick={apriTest}
                 >
                   <Send className="h-3.5 w-3.5 mr-1.5" />
                   Invia test
@@ -806,7 +810,25 @@ export default function SettingsEmailDomain() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          {records.map((r, idx) => <DnsRow key={idx} record={r} />)}
+          {records.filter((r) => !etichettaRecord(r.purpose).facoltativo).map((r, idx) => (
+            <DnsRow key={idx} record={r} />
+          ))}
+          {records.some((r) => etichettaRecord(r.purpose).facoltativo) && (
+            <>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground -ml-2"
+                onClick={() => setMostraAltriRecord((v) => !v)}
+              >
+                {mostraAltriRecord ? "Nascondi i record facoltativi" : "Mostra anche i record facoltativi"}
+              </Button>
+              {mostraAltriRecord && records.filter((r) => etichettaRecord(r.purpose).facoltativo).map((r, idx) => (
+                <DnsRow key={idx} record={r} />
+              ))}
+            </>
+          )}
           <Separator />
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <div className="flex flex-col gap-1">
@@ -847,15 +869,27 @@ export default function SettingsEmailDomain() {
 
       {!domain.is_verified && (
         <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Come inserire i record DNS</CardTitle>
-            <CardDescription>
-              Scegli il tuo registrar per vedere istruzioni passo-passo.
-            </CardDescription>
+          <CardHeader
+            className="cursor-pointer select-none"
+            onClick={() => setMostraGuida((v) => !v)}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <CardTitle className="text-base">Come inserire i record DNS</CardTitle>
+                <CardDescription>
+                  Scegli il tuo registrar per vedere istruzioni passo-passo.
+                </CardDescription>
+              </div>
+              <Button type="button" variant="ghost" size="sm">
+                {mostraGuida ? "Nascondi" : "Mostra la guida"}
+              </Button>
+            </div>
           </CardHeader>
-          <CardContent>
-            <ProviderGuideAccordion />
-          </CardContent>
+          {mostraGuida && (
+            <CardContent>
+              <ProviderGuideAccordion />
+            </CardContent>
+          )}
         </Card>
       )}
 
@@ -870,11 +904,7 @@ export default function SettingsEmailDomain() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => {
-                setTestEmailTo(user?.email ?? "");
-                setTestStream("transactional");
-                setTestDialogOpen(true);
-              }}
+              onClick={apriTest}
             >
               <Send className="h-3.5 w-3.5 mr-1.5" />
               Invia email di test
@@ -907,7 +937,7 @@ export default function SettingsEmailDomain() {
               />
             </div>
             <div>
-              <Label>Pipeline</Label>
+              <Label>Tipo di email</Label>
               <div className="grid grid-cols-2 gap-2 mt-1">
                 <button
                   type="button"
