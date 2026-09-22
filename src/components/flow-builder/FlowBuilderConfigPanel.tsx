@@ -647,6 +647,24 @@ function ConfigField({
     },
   });
 
+  // Passi dell'automazione scelta nello stesso nodo (flow_id), per «Da quale passo».
+  const flussoDeiPassi = field.type === "flow_node_select" ? nodeConfig?.flow_id : undefined;
+  const { data: passiFlusso = [] } = useQuery({
+    queryKey: ["flow-node-select", flussoDeiPassi],
+    enabled: typeof flussoDeiPassi === "string" && flussoDeiPassi !== "" && flussoDeiPassi !== "__tutte__",
+    staleTime: 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("automation_nodes")
+        .select("id, label, node_type, position_y")
+        .eq("flow_id", flussoDeiPassi as string)
+        .not("node_type", "in", "(trigger,note,end)")
+        .order("position_y");
+      if (error) throw error;
+      return (data ?? []) as { id: string; label: string | null; node_type: string }[];
+    },
+  });
+
   // ── Dati reali per i picker stile GHL ──
   // Pagine Meta collegate (servono anche al multi-select moduli per filtrare
   // i moduli della pagina scelta: meta_lead_forms.page_asset_id → meta_assets.id).
@@ -902,6 +920,20 @@ function ConfigField({
             {flussiPubblicati.length === 0 && (
               <SelectItem value="__nessuna__" disabled>Nessuna automazione pubblicata</SelectItem>
             )}
+          </SelectContent>
+        </Select>
+      )}
+
+      {field.type === "flow_node_select" && (
+        <Select value={value || "__inizio__"} onValueChange={(v) => onChange(v === "__inizio__" ? null : v)} disabled={!nodeConfig?.flow_id}>
+          <SelectTrigger className="h-9 text-sm">
+            <SelectValue placeholder="Dall'inizio" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__inizio__">Dall'inizio</SelectItem>
+            {passiFlusso.map((p) => (
+              <SelectItem key={p.id} value={p.id}>{p.label || p.node_type}</SelectItem>
+            ))}
           </SelectContent>
         </Select>
       )}

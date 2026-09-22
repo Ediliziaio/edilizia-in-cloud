@@ -379,6 +379,12 @@ async function handleTrigger(supabase: any, body: any) {
     if (typeof tcfg.calendario_id === "string" && tcfg.calendario_id !== "") {
       if (String(ep?.calendar_id ?? "") !== tcfg.calendario_id) continue;
     }
+    // Numero WhatsApp Locale (whatsapp_ricevuto): solo i messaggi arrivati a
+    // quel numero. Le risposte ai promemoria arrivano al numero degli
+    // appuntamenti, e lì un «non posso» va visto subito.
+    if (typeof tcfg.numero_whatsapp_id === "string" && tcfg.numero_whatsapp_id !== "") {
+      if (String((enrichedPayload as Record<string, unknown>)?.openwa_number_id ?? "") !== tcfg.numero_whatsapp_id) continue;
+    }
     // Pipeline (trigger delle opportunità): era solo nell'interfaccia.
     if (typeof tcfg.pipeline_id === "string" && tcfg.pipeline_id !== "" && ep?.pipeline_id !== undefined) {
       if (String(ep.pipeline_id ?? "") !== tcfg.pipeline_id) continue;
@@ -1534,6 +1540,14 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
       const triggerIds = new Set((tN.data ?? []).map((n: { id: string }) => n.id));
       const conns = (cN.data ?? []) as Array<{ from_node_id: string; to_node_id: string; label?: string }>;
       let partenze = conns.filter((c) => triggerIds.has(c.from_node_id)).map((c) => ({ nodo: c.to_node_id, branch: c.label }));
+      // Da un passo scelto (22/09/2026): chi arriva dal «Flusso Appuntamenti»
+      // entra nella sequenza R dopo gli inviti a prenotare, che ha già
+      // ricevuto. Un passo che non esiste più nel flusso: si parte dall'inizio.
+      const nodoScelto = typeof ncfg.nodo_partenza === "string" && UUID_RE.test(ncfg.nodo_partenza)
+        ? ((allN.data ?? []) as Array<{ id: string; node_type: string }>).find((n) => n.id === ncfg.nodo_partenza && n.node_type !== "trigger")
+        : undefined;
+      if (nodoScelto) partenze = [{ nodo: nodoScelto.id, branch: undefined }];
+      else if (ncfg.nodo_partenza) console.warn(`[process-automation] passo di partenza ${ncfg.nodo_partenza} non trovato in ${targetFlowId}: si parte dall'inizio`);
       if (partenze.length === 0) {
         const conIngresso = new Set(conns.map((c) => c.to_node_id));
         partenze = (allN.data ?? [])

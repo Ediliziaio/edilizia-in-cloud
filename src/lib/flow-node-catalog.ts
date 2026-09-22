@@ -31,6 +31,7 @@ export type ConfigFieldType =
   | 'calendar_select'        // calendario di prenotazione (marketing_calendars)
   | 'order_status_select'    // fase commessa dell'azienda (order_statuses)
   | 'whatsapp_locale_number_select' // numero WhatsApp Locale della piattaforma (openwa_numbers)
+  | 'flow_node_select'       // passo dell'automazione scelta in flow_id (automation_nodes)
   | 'tag_input'
   | 'json_editor'
   | 'richhtml' // editor email visuale (WYSIWYG) → HTML
@@ -990,7 +991,9 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
       { id: 'contatto.last_name', label: 'Cognome contatto', type: 'string' },
       { id: 'contatto.full_name', label: 'Nome completo', type: 'string', example: 'Mario Rossi' },
     ],
-    configSchema: [],
+    configSchema: [
+      { id: 'numero_whatsapp_id', label: 'Solo sul numero (opzionale)', type: 'whatsapp_locale_number_select', required: false, helpText: 'Solo i messaggi arrivati a questo numero WhatsApp Locale: per esempio le risposte ai promemoria degli appuntamenti.' },
+    ],
   },
   {
     id: 'email_ricevuta',
@@ -2178,6 +2181,7 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     categoria: 'generale',
     configSchema: [
       { id: 'flow_id', label: 'Automazione di destinazione', type: 'flow_select', required: true, helpText: 'Solo automazioni pubblicate. Se l\'entità è già dentro, non viene iscritta due volte.' },
+      { id: 'nodo_partenza', label: 'Da quale passo', type: 'flow_node_select', required: false, helpText: 'Di solito dall\'inizio. Scegli un passo per saltare quelli che il contatto ha già ricevuto altrove.' },
     ],
   },
   {
