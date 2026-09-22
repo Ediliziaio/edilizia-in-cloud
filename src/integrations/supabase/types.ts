@@ -19629,6 +19629,7 @@ export type Database = {
           pec: string | null
           phone: string | null
           playbook_auto_apply: boolean
+          recensioni_online: Json
           referred_by: string | null
           region: string | null
           render_monthly_override: number | null
@@ -19796,6 +19797,7 @@ export type Database = {
           pec?: string | null
           phone?: string | null
           playbook_auto_apply?: boolean
+          recensioni_online?: Json
           referred_by?: string | null
           region?: string | null
           render_monthly_override?: number | null
@@ -19963,6 +19965,7 @@ export type Database = {
           pec?: string | null
           phone?: string | null
           playbook_auto_apply?: boolean
+          recensioni_online?: Json
           referred_by?: string | null
           region?: string | null
           render_monthly_override?: number | null

@@ -15,6 +15,7 @@ import { condizioniStandard, type SettoreCondizioni } from "@/lib/condizioniStan
 import { tipografiaDaModello } from "./temaDocumento";
 import { leggiOrdine, leggiPagineLibere } from "./ordineCapitoli";
 import { testiPerPdf } from "../../../../supabase/functions/_shared/testoPerPdf";
+import { leggiVotiOnline } from "../../../../supabase/functions/_shared/recensioniOnline";
 import { IMMOBILI, interventoInParole, parolaDelCodice, unitaInParole } from "./paroleDeiCodici";
 import {
   BLOCCHI, eFotoDiSerie, leggiBlocco, leggiFotoPagina, RIEMPIMENTI_EDILI, settoreBlocchi, type ChiaveBlocco, type ChiaveFotoPagina,
@@ -81,6 +82,8 @@ export interface AziendaComune {
   /** Kit del marchio dell'azienda (Brand & Azienda). */
   colore_marca?: string | null;
   logo_chiaro_url?: string | null;
+  /** Il voto su Google, Trustpilot… (companies.recensioni_online), se chi chiama l'ha letto. */
+  recensioni_online?: unknown;
 }
 
 /** Il colore con cui nascono i modelli degli otto moduli: non è una scelta dell'azienda. */
@@ -202,7 +205,10 @@ export function leggiModello(
     garanzie: elenco<DocEdileVoceElenco>(t.garanzie).filter((x) => stringa(x?.titolo)),
     faq: elenco<DocEdileFaq>(t.faq).filter((x) => stringa(x?.domanda)),
     mostraGaranzie: t.show_garanzie !== false,
-    testimonianze: elenco<DocEdileTestimonianza>(t.testimonianze).filter((x) => stringa(x?.testo)),
+    testimonianze: elenco<DocEdileTestimonianza>(t.testimonianze)
+      .filter((x) => stringa(x?.testo))
+      // Le stelle solo se l'azienda le ha riportate, da 1 a 5: mai di serie.
+      .map((x) => ({ ...x, voto: typeof x.voto === "number" && x.voto >= 1 && x.voto <= 5 ? Math.round(x.voto) : null })),
     cronoprogramma: elenco<DocEdileFase>(t.cronoprogramma).filter((x) => stringa(x?.fase)),
     mostraCronoprogramma: t.show_cronoprogramma !== false,
     galleriaLavori: elenco<DocEdileFoto>(t.gallery_lavori).filter((x) => stringa(x?.url)),
@@ -383,6 +389,10 @@ export function costruisciDatiEdile(input: {
       sito: azienda?.website ?? null,
       logoUrl: stringa(t.logo_url) || azienda?.logo_url || null,
       logoChiaroUrl: azienda?.logo_chiaro_url ?? null,
+      // Il voto lo porta `immaginiDelModello` (pdf_voti_online), o chi chiama con l'azienda.
+      votiOnline: leggiVotiOnline(
+        Array.isArray(t.pdf_voti_online) && t.pdf_voti_online.length > 0 ? t.pdf_voti_online : azienda?.recensioni_online,
+      ),
     },
     modello,
     capitoli,

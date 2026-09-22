@@ -13,8 +13,8 @@
  */
 
 export type ChiaveCapitolo =
-  | "apertura" | "chiSiamo" | "progetto" | "percorso" | "lavori" | "foto"
-  | "piano" | "investimento" | "garanzie" | "tempi"
+  | "apertura" | "chiSiamo" | "progetto" | "percorso" | "lavori" | "recensioni" | "foto"
+  | "piano" | "investimento" | "garanzie" | "tempi" | "domande"
   // I blocchi della libreria (_shared/blocchiPreventivo.ts): testi e foto di serie per settore.
   | "comeFunziona" | "compreso" | "protezione" | "controlli" | "documenti" | "diario";
 
@@ -56,7 +56,7 @@ export interface CapitoloDescritto {
 /** I capitoli nell'ordine di serie: prima il valore, poi il prezzo. */
 export const CAPITOLI_EDILI: CapitoloDescritto[] = [
   { chiave: "apertura", etichetta: "Apertura", descrizione: "Lettera, l'intervento in breve, il piano in numeri, l'indice", spostabile: false, nascondibile: true, diSerie: true },
-  { chiave: "chiSiamo", etichetta: "Chi siamo", descrizione: "Presentazione, perché sceglierci, recensioni · esce se compilato", spostabile: true, nascondibile: true, diSerie: true },
+  { chiave: "chiSiamo", etichetta: "Chi siamo", descrizione: "Presentazione e perché sceglierci · esce se compilato", spostabile: true, nascondibile: true, diSerie: true },
   { chiave: "progetto", etichetta: "Il progetto", descrizione: "Da dove partiamo e la nostra risposta · esce se compilato", spostabile: true, nascondibile: true, diSerie: true },
   // «Come lavoriamo» subito dopo il progetto (dal 22/09/2026, prima era dopo «Come
   // funziona»): due capitoli corti stanno sulla stessa pagina. Fra due pagine di
@@ -67,14 +67,31 @@ export const CAPITOLI_EDILI: CapitoloDescritto[] = [
   { chiave: "controlli", etichetta: "Controlli di qualità", descrizione: "Cosa verificate prima della consegna", spostabile: true, nascondibile: true, diSerie: true, promessa: true },
   { chiave: "lavori", etichetta: "I nostri lavori", descrizione: "Galleria dei lavori consegnati · esce se ci sono foto", spostabile: true, nascondibile: true, diSerie: true },
   { chiave: "foto", etichetta: "Foto e render", descrizione: "Le foto e i render caricati nel preventivo · esce se ci sono", spostabile: true, nascondibile: true, diSerie: true },
+  // Dal 22/09/2026 una pagina sua: il voto su Google o Trustpilot (scritto nel
+  // Profilo azienda) e le parole dei clienti. Prima stavano in fondo alle garanzie,
+  // due righe in corsivo. Subito prima del piano, che le segue sulla stessa pagina:
+  // dopo i lavori e le foto (gallerie, pagina nuova ciascuna) restavano da sole.
+  { chiave: "recensioni", etichetta: "Dicono di noi", descrizione: "Il voto su Google o Trustpilot e le parole dei clienti · esce se compilato", spostabile: true, nascondibile: true, diSerie: true },
   { chiave: "piano", etichetta: "Il piano dei lavori", descrizione: "Il computo, voce per voce", spostabile: true, nascondibile: true, diSerie: true },
   { chiave: "compreso", etichetta: "Cosa è compreso", descrizione: "Cosa comprende il prezzo, e cosa resta fuori", spostabile: true, nascondibile: true, diSerie: true, promessa: true },
   { chiave: "investimento", etichetta: "Il tuo investimento", descrizione: "Il prezzo, lo sconto, l'IVA, la detrazione", spostabile: true, nascondibile: false, diSerie: true },
-  { chiave: "garanzie", etichetta: "Garanzie e domande", descrizione: "Le garanzie e le domande frequenti · esce se compilato", spostabile: true, nascondibile: true, diSerie: true },
+  // Senza più domande e recensioni le garanzie sono una fila di schede: seguono il
+  // prezzo sulla sua pagina, o salgono su quella del blocco dopo (DocumentoEdilePDF).
+  { chiave: "garanzie", etichetta: "Le garanzie", descrizione: "Le garanzie, col sigillo degli anni · esce se compilato", spostabile: true, nascondibile: true, diSerie: true },
   { chiave: "documenti", etichetta: "Documenti consegnati", descrizione: "Il fascicolo che il cliente riceve a fine lavori", spostabile: true, nascondibile: true, diSerie: true, promessa: true },
   { chiave: "diario", etichetta: "Diario fotografico", descrizione: "Le foto delle fasi, anche di quelle che poi restano nascoste", spostabile: true, nascondibile: true, diSerie: true, promessa: true },
   { chiave: "tempi", etichetta: "I tempi", descrizione: "Il cronoprogramma del cantiere · esce se compilato", spostabile: true, nascondibile: true, diSerie: true },
+  // Le domande frequenti in fondo, subito prima dei prossimi passi: le ultime
+  // risposte prima di decidere (dal 22/09/2026; prima stavano con le garanzie).
+  { chiave: "domande", etichetta: "Domande e risposte", descrizione: "Le domande frequenti, in fondo prima dei prossimi passi · esce se compilato", spostabile: true, nascondibile: true, diSerie: true },
 ];
+
+/**
+ * Un capitolo nato staccandosi da un altro ne eredita la visibilità, per chi aveva
+ * già scelto: le domande stavano nel capitolo delle garanzie, e chi l'aveva
+ * nascosto non deve ritrovarsele.
+ */
+const EREDITA_DA: Partial<Record<ChiaveCapitolo, ChiaveCapitolo>> = { domande: "garanzie" };
 
 const CHIAVI = new Set<string>(CAPITOLI_EDILI.map((c) => c.chiave));
 export const chiaveLibera = (id: string) => `libera:${id}`;
@@ -132,8 +149,11 @@ export function ordineEffettivo(salvato: VoceOrdine[], pagineLibere: PaginaLiber
     visti.add(c.chiave);
     const prima = CAPITOLI_EDILI.slice(0, i).map((x) => x.chiave).reverse().find((k) => out.some((v) => v.chiave === k));
     const dove = prima ? out.findIndex((v) => v.chiave === prima) + 1 : 0;
-    // Un capitolo nuovo per chi aveva già scelto l'ordine esce solo se è acceso di serie.
-    out.splice(dove, 0, { chiave: c.chiave, visibile: c.diSerie });
+    // Un capitolo nuovo per chi aveva già scelto l'ordine esce solo se è acceso di
+    // serie, o, se è nato da un altro capitolo, se quello era visibile.
+    const genitore = EREDITA_DA[c.chiave];
+    const salvatoGenitore = genitore ? salvato.find((v) => v.chiave === genitore) : undefined;
+    out.splice(dove, 0, { chiave: c.chiave, visibile: salvatoGenitore ? salvatoGenitore.visibile : c.diSerie });
   });
 
   // Le pagine libere nuove vanno prima dell'investimento: si leggono mentre si

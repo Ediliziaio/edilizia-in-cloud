@@ -10,6 +10,9 @@
 import { MODULO_RECESSO } from "./condizioniStandard.ts";
 import { eFotoDiSerie, leggiBlocco, leggiFotoPagina, PAGINE_BLOCCO, type PaginaBlocco } from "./blocchiPreventivo.ts";
 import { iconaSvg } from "./iconePreventivo.ts";
+import {
+  ORO_STELLE, PUNTI_STELLA, indirizzoDaLeggere, leggiVotiOnline, recensioniScritte, stellePiene, votoScritto, type VotoOnline,
+} from "./recensioniOnline.ts";
 import { normalizeFvPdfPagesOrder, type FvPdfPageOrderItem } from "./fvPagine.ts";
 export {
   FV_PDF_PAGES_DEFAULT, FV_PDF_PAGES_META, normalizeFvPdfPagesOrder,
@@ -100,7 +103,7 @@ export function fotoDeiBlocchiFv(template: FvPdfTemplateData["template"] | null 
 }
 
 /** Le pagine del documento che hanno una foto loro (di serie, cambiabile dall'azienda). */
-export const PAGINE_CON_FOTO_FV = ["garanzie", "bollette", "decisione", "componenti", "costi", "cassa", "piano", "faq", "risparmio", "produzione"] as const;
+export const PAGINE_CON_FOTO_FV = ["garanzie", "bollette", "decisione", "componenti", "costi", "cassa", "piano", "faq", "risparmio", "produzione", "recensioni"] as const;
 export type PaginaConFotoFv = (typeof PAGINE_CON_FOTO_FV)[number];
 
 /**
@@ -199,6 +202,8 @@ export interface FvPdfTemplateData {
   } | null;
   /** Foto cantieri installati (da cantieri_galleria del template) come data:image/...;base64 */
   cantieri_foto?: string[];
+  /** Il voto su Google, Trustpilot… del Profilo azienda (companies.recensioni_online), com'è salvato. */
+  voti_online?: unknown;
   /** Bundle/kit scelto — popolato quando kit_bundle_id è impostato sul progetto */
   bundle?: {
     nome: string;
@@ -608,6 +613,27 @@ table .saving-zero { color: #64748B; }
 .tl-item .tl-desc { font-size: 8.5pt; color: #64748B; }
 
 .qa-item { margin-bottom: 2.5mm; padding-bottom: 2.5mm; border-bottom: 1px dashed #E2E8F0; }
+/* «Dicono di noi»: il voto sulle piattaforme, le parole dei clienti, gli impianti. */
+.voti-row { display: grid; gap: 3.5mm; margin: 1mm 0 1.5mm; }
+.voto-card { background: #F8FAFC; border-top: 0.8mm solid #1E3A5F; border-radius: 0 0 8px 8px; padding: 3.5mm 4.5mm 4mm; }
+.voto-nome { font-size: 7.5pt; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: #1E3A5F; }
+.voto-numero { font-family: 'Outfit', sans-serif; font-size: 27pt; font-weight: 800; color: #0F172A; line-height: 1; margin-top: 2mm; }
+.voto-numero small { font-family: 'Inter Tight', sans-serif; font-size: 9pt; font-weight: 500; color: #64748B; margin-left: 1.5mm; }
+.stelle { display: flex; gap: 0.9mm; margin-top: 2.2mm; }
+.voto-conta { font-size: 8.5pt; font-weight: 600; color: #0F172A; margin-top: 2mm; }
+.voto-link { font-size: 7.5pt; color: #64748B; margin-top: 0.4mm; }
+.voti-nota { font-size: 7pt; color: #94A3B8; margin: 0 0 5mm; }
+.citazioni { display: grid; grid-template-columns: 1fr 1fr; gap: 5mm 7mm; }
+.citazione { border-left: 0.7mm solid #FED7AA; padding: 0.5mm 0 0.5mm 4mm; }
+.citazione.larga { grid-column: 1 / -1; }
+.citazione p { font-size: 10pt; font-style: italic; line-height: 1.5; color: #0F172A; margin: 0; }
+.citazione.larga p { font-size: 11.5pt; }
+.citazione .firma { font-size: 7pt; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #1E3A5F; margin-top: 2mm; }
+.impianti-titolo { font-size: 11pt; color: #1E3A5F; margin: 6mm 0 0; }
+/* Tre foto affiancate: possono crescere più di una fascia sola, ma non diventare strisce verticali. */
+.content > .foto-fascia.impianti-fascia { max-height: 100mm; }
+.foto-fascia .impianti { display: grid; gap: 2.5mm; height: calc(100% - 5mm); margin-top: 3mm; }
+.foto-fascia .impianti img { height: 100%; margin-top: 0; border-radius: 8px; }
 .qa-item:last-child { border-bottom: none; }
 .qa-q { font-weight: 700; color: #1E3A5F; font-size: 10pt; margin-bottom: 1mm; display: flex; gap: 2mm; align-items: flex-start; }
 .qa-q::before { content: "Q"; background: #F97316; color: white; width: 4.5mm; height: 4.5mm; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 8pt; flex-shrink: 0; margin-top: 1px; }
@@ -1793,9 +1819,10 @@ function pageGaranzie(d: FvPdfTemplateData, pageN: number, total: number): strin
   const chiSiamoTitolo = plainText(d.template?.chi_siamo_titolo) || "L'azienda dietro al tuo impianto";
   const presentazione = safeRichText(d.template?.presentazione_impresa_html);
   const teamImage = imageHref(d.template?.foto_team_url);
-  const recensioni = (d.template?.recensioni ?? [])
-    .filter((rec) => plainText(rec.quote).length > 0 && plainText(rec.autore).length > 0)
-    .slice(0, 2);
+  // Con la pagina «Dicono di noi» le recensioni e i cantieri stanno lì, non qui.
+  const provaAltrove = pagineDaDisegnare(d).some((pg) => pg.id === "recensioni");
+  const recensioni = provaAltrove ? [] : recensioniFv(d).slice(0, 2);
+  const cantieriQui = provaAltrove ? [] : (d.cantieri_foto ?? []);
   const certificazioni = (d.template?.certificazioni ?? [])
     .filter((cert) => plainText(cert.nome).length > 0)
     .slice(0, 4);
@@ -1864,9 +1891,9 @@ function pageGaranzie(d: FvPdfTemplateData, pageN: number, total: number): strin
             return `<div class="kpi-block">${fotoRec ? `<div style="height:26mm;border-radius:6px;overflow:hidden;border:1px solid #E2E8F0;margin-bottom:2mm;"><img src="${escHtml(fotoRec)}" alt="Impianto installato" style="width:100%;height:100%;object-fit:cover;"/></div>` : ""}<div class="kpi-label">${escHtml([plainText(rec.citta), plainText(rec.intervento)].filter(Boolean).join(" · ") || "Recensione")}</div><div class="kpi-sub" style="font-size:8pt;color:#475569;">"${escHtml(plainText(rec.quote))}"</div><div class="kpi-value" style="font-size:11pt;margin-top:2mm;">${escHtml(plainText(rec.autore))}</div></div>`;
           }).join("")}
         </div>` : ""}
-      ${(d.cantieri_foto ?? []).length > 0 ? `<h3 style="font-size:11pt;color:#1E3A5F;margin:3mm 0 2mm;">I nostri cantieri</h3>
-        <div style="display:grid;grid-template-columns:repeat(${Math.min((d.cantieri_foto ?? []).length, 3)},1fr);gap:2mm;">
-          ${(d.cantieri_foto ?? []).slice(0, 3).map((src) => `<div style="height:28mm;border-radius:6px;overflow:hidden;border:1px solid #E2E8F0;"><img src="${escHtml(src)}" alt="Cantiere installato" style="width:100%;height:100%;object-fit:cover;"/></div>`).join("")}
+      ${cantieriQui.length > 0 ? `<h3 style="font-size:11pt;color:#1E3A5F;margin:3mm 0 2mm;">I nostri cantieri</h3>
+        <div style="display:grid;grid-template-columns:repeat(${Math.min(cantieriQui.length, 3)},1fr);gap:2mm;">
+          ${cantieriQui.slice(0, 3).map((src) => `<div style="height:28mm;border-radius:6px;overflow:hidden;border:1px solid #E2E8F0;"><img src="${escHtml(src)}" alt="Cantiere installato" style="width:100%;height:100%;object-fit:cover;"/></div>`).join("")}
         </div>` : ""}
       ${fasciaFotoPagina(d, "garanzie", "center 60%", true)}
     </div>
@@ -1936,6 +1963,79 @@ function faqDellAzienda(d: FvPdfTemplateData): Array<{ q: string; a: string }> {
     .filter((f) => plainText(f.domanda).length > 0 && plainText(f.risposta).length > 0)
     .map((f) => ({ q: plainText(f.domanda), a: plainText(f.risposta) }))
     .slice(0, 8);
+}
+
+/** Le recensioni scritte nel modello: con le parole e con chi le ha dette. */
+function recensioniFv(d: FvPdfTemplateData) {
+  return (d.template?.recensioni ?? [])
+    .filter((rec) => plainText(rec.quote).length > 0 && plainText(rec.autore).length > 0);
+}
+
+function votiFv(d: FvPdfTemplateData): VotoOnline[] {
+  return leggiVotiOnline(d.voti_online);
+}
+
+/** «Dicono di noi» esce se c'è qualcosa da mostrare: un voto, una recensione, una foto di impianto. */
+function haPaginaRecensioni(d: FvPdfTemplateData): boolean {
+  return votiFv(d).length > 0 || recensioniFv(d).length > 0 || (d.cantieri_foto ?? []).length > 0;
+}
+
+let contatoreStelle = 0;
+/** Le cinque stelle in SVG, piene quanto il voto (l'ultima a metà, se serve). */
+function stelleSvg(voto: number, lato = 13): string {
+  return stellePiene(voto).map((pieno) => {
+    const id = `st${++contatoreStelle}`;
+    return `<svg width="${lato}" height="${lato}" viewBox="0 0 24 24" aria-hidden="true"><defs><linearGradient id="${id}"><stop offset="${pieno}" stop-color="${ORO_STELLE}"/><stop offset="${pieno}" stop-color="#D5D9DF"/></linearGradient></defs><polygon points="${PUNTI_STELLA}" fill="url(#${id})"/></svg>`;
+  }).join("");
+}
+
+const meseAnno = (iso: string | null): string | null => {
+  if (!iso) return null;
+  const data = new Date(iso);
+  return Number.isNaN(data.getTime()) ? null : data.toLocaleDateString("it-IT", { month: "long", year: "numeric" });
+};
+
+function pageRecensioni(d: FvPdfTemplateData, pageN: number, total: number): string {
+  const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
+  const voti = votiFv(d);
+  const recensioni = recensioniFv(d).slice(0, 4);
+  const impianti = (d.cantieri_foto ?? []).slice(0, 3);
+  const quando = meseAnno([...voti.map((v) => v.aggiornato).filter((x): x is string => Boolean(x))].sort()[0] ?? null);
+  const sottotitolo = voti.length > 0 && recensioni.length > 0
+    ? "Il nostro voto sulle piattaforme di recensioni e le parole di chi ha già scelto un nostro impianto."
+    : voti.length > 0
+      ? "Il nostro voto sulle piattaforme di recensioni: le recensioni si leggono tutte sulle nostre schede."
+      : recensioni.length > 0 ? "Le parole di chi ha già scelto un nostro impianto." : "Alcuni impianti che abbiamo già installato.";
+  // Con un numero dispari di recensioni la prima prende tutta la riga.
+  const larga = (i: number) => recensioni.length % 2 === 1 && i === 0;
+  return `<div class="page">
+    ${header(d.progetto.numero, cliente, d.azienda.name)}
+    <div class="content">
+      <div class="eyebrow">Dicono di noi</div>
+      <h1 class="page-title">La parola ai<br/>nostri clienti.</h1>
+      <p class="page-subtitle">${escHtml(sottotitolo)}</p>
+      ${voti.length > 0 ? `<div class="voti-row" style="grid-template-columns:repeat(${voti.length},1fr);">
+        ${voti.map((v) => {
+          const conta = recensioniScritte(v.numero);
+          const indirizzo = indirizzoDaLeggere(v.link, voti.length === 1 ? 60 : 30);
+          return `<div class="voto-card"><div class="voto-nome">${escHtml(v.nome)}</div><div class="voto-numero">${votoScritto(v.voto)}<small>su 5</small></div><div class="stelle">${stelleSvg(v.voto)}</div>${conta ? `<div class="voto-conta">${escHtml(conta)}</div>` : ""}${indirizzo ? `<div class="voto-link">${escHtml(indirizzo)}</div>` : ""}</div>`;
+        }).join("")}
+      </div>
+      <p class="voti-nota">Voti e numero di recensioni come compaiono sulle piattaforme${quando ? `, a ${escHtml(quando)}` : ""}.</p>` : ""}
+      ${recensioni.length > 0 ? `<div class="citazioni">
+        ${recensioni.map((rec, i) => `<div class="citazione${larga(i) ? " larga" : ""}"><p>«${escHtml(plainText(rec.quote).replace(/^[«"“]+|[»"”]+$/g, ""))}»</p><div class="firma">${escHtml([plainText(rec.autore), plainText(rec.citta), plainText(rec.intervento)].filter(Boolean).join("  ·  "))}</div></div>`).join("")}
+      </div>` : ""}
+      ${impianti.length > 0
+        // Gli impianti dell'azienda riempiono il fondo della pagina, come le fasce foto.
+        // Una foto di serie sotto «I nostri impianti» sembrerebbe un impianto loro.
+        ? `<h3 class="impianti-titolo">I nostri impianti</h3>
+        <div class="foto-fascia impianti-fascia"><div class="impianti" style="grid-template-columns:repeat(${impianti.length},1fr);">
+          ${impianti.map((src) => `<img src="${escHtml(src)}" alt="Impianto installato"/>`).join("")}
+        </div></div>`
+        : fasciaFotoPagina(d, "recensioni", "center 55%", true)}
+    </div>
+    ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
+  </div>`;
 }
 
 function pageFAQ(d: FvPdfTemplateData, pageN: number, total: number): string {
@@ -2292,6 +2392,8 @@ function pagineDaDisegnare(d: FvPdfTemplateData): FvPdfPageOrderItem[] {
     if (page.id === "cassa_25" && d.scenario.cassa_anno_per_anno.length === 0) return false;
     // Le domande frequenti sono quelle scritte dall'azienda.
     if (page.id === "faq" && faqDellAzienda(d).length === 0) return false;
+    // «Dicono di noi»: un voto, una recensione o una foto di impianto, altrimenti niente.
+    if (page.id === "recensioni" && !haPaginaRecensioni(d)) return false;
     // Un blocco senza voci né foto non esce.
     if (page.id in PAGINE_BLOCCO && !bloccoHaContenuto(d, page.id as PaginaBlocco)) return false;
     return true;
@@ -2409,6 +2511,9 @@ export function renderFvPdfHtml(d: FvPdfTemplateData): string {
         break;
       case "faq":
         pages.push(pageFAQ(d, ++pageN, TOTAL));
+        break;
+      case "recensioni":
+        pages.push(pageRecensioni(d, ++pageN, TOTAL));
         break;
       case "come_funziona":
       case "protezione":

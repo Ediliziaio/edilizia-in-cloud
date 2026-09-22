@@ -240,7 +240,7 @@ async function enrichForPdf(opts: BgnPdfPayload): Promise<BgnPdfEnriched> {
     toDataUrl(template.logo_url ?? company?.logo_url ?? null),
     toDataUrl(template.chi_siamo_foto_url ?? null),
     // Copertina (in tinta col colore dell'azienda), logo di copertina e galleria dei lavori.
-    immaginiDelModello("bagni", template as unknown as Record<string, unknown>, company?.logo_chiaro_url ?? null),
+    immaginiDelModello("bagni", template as unknown as Record<string, unknown>, company?.logo_chiaro_url ?? null, companyId),
   ]);
   const inlinedTemplate = {
     ...template,

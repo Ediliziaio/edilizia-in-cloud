@@ -72,6 +72,7 @@ import type {
   BgnProgetto, BgnComputoVoce,
 } from "@/types/bagni";
 import { GalleryLavoriEditor } from "@/components/shared/GalleryLavoriEditor";
+import { VotoOnlineDelProfilo } from "@/components/preventivi/VotoOnlineDelProfilo";
 import type { GalleryLavoroItem } from "@/types/gallery";
 import { useBeforeUnload } from "@/hooks/useBeforeUnload";
 import { FinanziamentoPromoField } from "@/components/preventivi/FinanziamentoPromoField";
@@ -1384,7 +1385,8 @@ export function BagniTemplateEditor({ embedded = false }: Props) {
 
           {/* Testimonianze */}
           {activeSection === "page_testimonianze" && (
-            <SectionCard icon={Quote} title="Testimonianze" description="Recensioni dei clienti mostrate nel PDF.">
+            <SectionCard icon={Quote} title="Testimonianze" description="Le parole dei clienti: nel PDF escono nella pagina «Dicono di noi».">
+              <VotoOnlineDelProfilo />
               <TestimonianzeEditor
                 items={form.testimonianze}
                 onChange={(items) => set("testimonianze", items)}

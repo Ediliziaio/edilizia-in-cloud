@@ -370,6 +370,36 @@ const PROTEZIONE: Partial<Record<SettoreBlocchi, Parziale>> = {
   },
   bagni: { foto: [...foto("bagni", "protezione"), ...foto("comune", "pulizia-consegna")] },
   ristrutturazione: { foto: foto("ristrutturazione", "protezione-scale", "cantiere-ordinato") },
+  // Il tetto e la piscina non sono un appartamento: fino al 22/09/2026 uscivano
+  // «pavimenti coperti» e «porte sigillate», con le foto di un soggiorno. Senza
+  // una foto giusta il blocco esce senza foto (quelle nuove sono chieste a Florin:
+  // tetti-protezione, piscine-protezione).
+  tetti: {
+    intro: "Rifare un tetto vuol dire lavorare sopra casa tua, spesso con la casa abitata. La proteggiamo dall'acqua e dalla polvere dal primo giorno all'ultimo.",
+    voci: [
+      v("Ponteggio e parapetti", "Ponteggio con parapetti e reti lungo la facciata: chi lavora è protetto, e sotto non cade nulla.", "tecnico"),
+      v("Falda aperta, sempre coperta", "A fine giornata la parte aperta resta coperta con teli impermeabili fissati.", "acqua"),
+      v("Sottotetto e soffitti", "Se sotto ci sono stanze abitate, le proteggiamo da polvere e detriti.", "casa"),
+      v("Giardino e facciata", "Teli e tavole dove passano materiali e macerie; grondaie e pluviali liberi.", "protezione"),
+      v("Macerie in ordine", "Coppi e materiali vecchi calati a terra ogni giorno, e portati via.", "smaltimento"),
+      v("Pulizia finale", "Cortile, grondaie e davanzali puliti prima di smontare il ponteggio.", "pulizia"),
+    ],
+    // Operai imbragati, linea vita e parapetto sul ponteggio: la sicurezza sul tetto,
+    // finché non arriva tetti-protezione. Senza foto la pagina restava per metà bianca.
+    foto: foto("fotovoltaico", "sicurezza-tetto"),
+  },
+  piscine: {
+    intro: "Costruire una piscina vuol dire lavorare nel tuo giardino, con mezzi e scavi. Lo proteggiamo prima di cominciare e te lo restituiamo in ordine.",
+    voci: [
+      v("Il percorso dei mezzi", "Tavole e pannelli sul prato dove passano l'escavatore e i materiali.", "trasporto"),
+      v("Scavo recintato", "Una recinzione attorno allo scavo per tutta la durata del cantiere.", "protezione"),
+      v("Piante e aiuole", "Coperte o spostate prima dello scavo, come concordato con te.", "casa"),
+      v("La terra in ordine", "La terra di scavo resta in un punto solo; quella che non serve la portiamo via.", "smaltimento"),
+      v("Ingresso e pavimentazioni", "Teli dove si lavora vicino alla casa; ingresso e vialetti liberi e puliti.", "porta"),
+      v("Pulizia finale", "Ti riconsegniamo il giardino in ordine, pronto per la prima estate.", "pulizia"),
+    ],
+    foto: [],
+  },
 };
 
 const CONTROLLI_BASE: Parziale = {
@@ -434,6 +464,14 @@ const CONTROLLI: Partial<Record<SettoreBlocchi, Parziale>> = {
   },
   tetti: { foto: foto("tetti", "controllo-termico") },
   climatizzazione: { foto: foto("climatizzazione", "controllo-collaudo") },
+  // La staggia sul massetto: è il controllo di chi posa un pavimento.
+  pavimenti: { foto: foto("ristrutturazione", "controllo-planarita") },
+  // La foto di serie (la livella laser su una parete) non è un controllo di questi
+  // mestieri: meglio senza, finché non arrivano le loro (chieste il 22/09/2026).
+  // Il quadro col tester è già la copertina di serie dell'elettrico.
+  elettrico: { foto: [] },
+  termoidraulico: { foto: [] },
+  piscine: { foto: [] },
 };
 
 const DOCUMENTI_BASE: Parziale = {
@@ -518,6 +556,10 @@ const DIARIO: Partial<Record<SettoreBlocchi, Parziale>> = {
   // Prima, durante e dopo in un'immagine sola, a tutta larghezza.
   ristrutturazione: { foto: foto("ristrutturazione", "storia-prima-durante-dopo") },
   piscine: { foto: foto("piscine", "storia-prima-durante-dopo") },
+  // La parete di un appartamento coi tubi non è il diario di un tetto o di un
+  // pavimento: senza foto finché non arrivano tetti-diario e pavimenti-diario.
+  tetti: { foto: [] },
+  pavimenti: { foto: [] },
 };
 
 const TABELLE: Record<ChiaveBlocco, { base: Parziale | null; perSettore: Partial<Record<SettoreBlocchi, Parziale>> }> = {
@@ -619,7 +661,7 @@ export type ChiaveFotoPagina =
   | "chiusura" | "percorso" | "confronto" | "cta"
   | "garanzie" | "bollette" | "decisione" | "componenti" | "costi" | "cassa" | "piano"
   // Edili: la foto che riempie la pagina quando il capitolo finisce a metà foglio.
-  | "chiSiamo" | "tempi" | "computo" | "investimento" | "compreso"
+  | "chiSiamo" | "tempi" | "computo" | "investimento" | "compreso" | "recensioni" | "domande"
   // Serramenti: la foto in fondo all'ultimo foglio della proposta, dell'allegato
   // tecnico e dei dettagli economici, quando la sezione finisce a metà foglio.
   | "proposta" | "allegato" | "dettagli"
@@ -643,6 +685,8 @@ export const FOTO_PAGINE_ETICHETTE: Record<ChiaveFotoPagina, string> = {
   computo: "Foto in fondo al computo",
   investimento: "Foto sotto il prezzo",
   compreso: "Foto di «Cosa è compreso»",
+  recensioni: "Foto di «Dicono di noi»",
+  domande: "Foto delle domande",
   proposta: "Foto in fondo alla proposta",
   allegato: "Foto in fondo all'allegato tecnico",
   dettagli: "Foto in fondo ai dettagli economici",
@@ -658,15 +702,27 @@ export const FOTO_PAGINE_ETICHETTE: Record<ChiaveFotoPagina, string> = {
 export const RIEMPIMENTI_EDILI = {
   chiSiamo: "chiSiamo", percorso: "percorso", garanzie: "garanzie", tempi: "tempi",
   piano: "computo", investimento: "investimento", compreso: "compreso",
+  recensioni: "recensioni", domande: "domande",
 } as const satisfies Record<string, ChiaveFotoPagina>;
 
-/** Le foto che riempiono le pagine dei preventivi edili, uguali per tutti i mestieri. */
+/**
+ * Le foto che riempiono le pagine dei preventivi edili, uguali per tutti i mestieri.
+ * Dal 22/09/2026 le chiavi consegnate stanno sotto le domande, l'ultima pagina
+ * prima dei prossimi passi (finché non arriva comune-domande, chiesta quel giorno).
+ * Le garanzie, senza più domande e recensioni, sono una fila di schede: seguono il
+ * prezzo o salgono sulla pagina del blocco dopo, e non hanno bisogno di una foto.
+ */
 const RIEMPIMENTI_DI_SERIE: Partial<Record<ChiaveFotoPagina, string>> = {
   chiSiamo: "ristrutturazione/cantiere",
   percorso: "comune/storia-assistenza",
-  garanzie: "ristrutturazione/storia-consegna-chiavi",
+  domande: "ristrutturazione/storia-consegna-chiavi",
   tempi: "ristrutturazione/storia-ciclo-lavori",
 };
+
+/** Le foto di serie tranne quelle che per un mestiere non vanno. */
+function riempimentiSenza(...chiavi: ChiaveFotoPagina[]): Partial<Record<ChiaveFotoPagina, string>> {
+  return Object.fromEntries(Object.entries(RIEMPIMENTI_DI_SERIE).filter(([k]) => !chiavi.includes(k as ChiaveFotoPagina)));
+}
 
 /** Le foto di serie: «cartella/file» in public/pdf-stock, o un percorso intero del sito. */
 const FOTO_PAGINE: Partial<Record<SettoreBlocchi, Partial<Record<ChiaveFotoPagina, string>>>> = {
@@ -691,23 +747,31 @@ const FOTO_PAGINE: Partial<Record<SettoreBlocchi, Partial<Record<ChiaveFotoPagin
     faq: "fotovoltaico/sopralluogo",
     risparmio: "fotovoltaico/tecnica-giorno-sera",
     produzione: "fotovoltaico/vista-drone",
+    recensioni: "fotovoltaico/villa-tetto-piano",
   },
   // Edili. Una foto per pagina, mai la stessa due volte nello stesso documento:
   // né quella di copertina, né quelle dei blocchi di serie (vedi il test). Le
   // pagine che si riempiono (chi siamo, come lavoriamo, garanzie, tempi) la
   // mostrano solo se il capitolo lascia mezza pagina bianca.
-  bagni: { ...RIEMPIMENTI_DI_SERIE, chiusura: "bagni/risultato-classico", computo: "bagni/installazione", investimento: "/cover-stock/bagni/1.jpg" },
+  // Le garanzie, quando il prezzo riempie la sua pagina, restano da sole su un foglio:
+  // lì un bagno finito (una copertina di serie che il documento non usa).
+  bagni: {
+    ...RIEMPIMENTI_DI_SERIE, chiusura: "bagni/risultato-classico", computo: "bagni/installazione",
+    investimento: "/cover-stock/bagni/1.jpg", garanzie: "/cover-stock/bagni/3.jpg",
+  },
   // La «ristrutturazione/storia-ciclo-lavori» qui è già in «Cosa è compreso».
   ristrutturazione: {
     ...RIEMPIMENTI_DI_SERIE, chiusura: "ristrutturazione/risultato", tempi: "comune/controllo-finale",
     computo: "ristrutturazione/tecnica-riscaldamento-pavimento", investimento: "/cover-stock/ristrutturazione/1.jpg",
   },
-  tetti: { ...RIEMPIMENTI_DI_SERIE, chiusura: "tetti/storia-prima-durante-dopo", computo: "tetti/storia-strati" },
-  climatizzazione: { ...RIEMPIMENTI_DI_SERIE, chiusura: "climatizzazione/storia-prima-durante-dopo" },
+  // Il cantiere in un appartamento (chi siamo) e il ciclo di una ristrutturazione
+  // (i tempi) non sono un tetto né una piscina: senza, finché non arrivano le loro.
+  tetti: { ...riempimentiSenza("chiSiamo", "tempi"), chiusura: "tetti/storia-prima-durante-dopo", computo: "tetti/storia-strati" },
+  climatizzazione: { ...riempimentiSenza("tempi"), chiusura: "climatizzazione/storia-prima-durante-dopo" },
   elettrico: { ...RIEMPIMENTI_DI_SERIE, chiusura: "ristrutturazione/risultato" },
   termoidraulico: { ...RIEMPIMENTI_DI_SERIE, chiusura: "ristrutturazione/risultato", computo: "bagni/tecnica-impianto-idraulico" },
   pavimenti: { ...RIEMPIMENTI_DI_SERIE, chiusura: "pavimenti/storia-prima-durante-dopo" },
-  piscine: { ...RIEMPIMENTI_DI_SERIE, chiusura: "piscine/installazione" },
+  piscine: { ...riempimentiSenza("chiSiamo", "tempi"), chiusura: "piscine/installazione" },
 };
 
 export const chiaveSalvataFotoPagina = (chiave: ChiaveFotoPagina): string => `pagina_${chiave}`;

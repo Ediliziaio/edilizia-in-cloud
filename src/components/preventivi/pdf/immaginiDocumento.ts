@@ -13,6 +13,7 @@ import { toDataUrl } from "@/lib/serramenti/pdfImageUtils";
 import { copertinaInTinta } from "./temaDocumento";
 import { leggiOrdine, leggiPagineLibere, ordineEffettivo } from "./ordineCapitoli";
 import { conOrigine, fotoDeiBlocchi } from "@/lib/pdf/fotoBlocchi";
+import { votiOnlineAzienda } from "@/lib/pdf/votiOnline";
 import { BLOCCHI, leggiFotoPagina, RIEMPIMENTI_EDILI, settoreBlocchi } from "../../../../supabase/functions/_shared/blocchiPreventivo";
 
 /**
@@ -45,8 +46,14 @@ async function aGruppi<T, R>(voci: T[], quanti: number, fn: (v: T) => Promise<R>
   return out;
 }
 
-/** I campi immagine del modello già convertiti: da fondere sopra il modello. */
-export async function immaginiDelModello(modulo: string, template: Grezzo, logoChiaroAzienda: string | null = null): Promise<Grezzo> {
+/**
+ * I campi immagine del modello già convertiti: da fondere sopra il modello. Porta
+ * anche il voto online dell'azienda: non è un'immagine, ma questo è l'unico passo
+ * che tutti gli otto moduli fanno sul modello prima del PDF.
+ */
+export async function immaginiDelModello(
+  modulo: string, template: Grezzo, logoChiaroAzienda: string | null = null, companyId: string | null = null,
+): Promise<Grezzo> {
   const mai = !stringa(template.id);
   const copertina = stringa(template.pdf_cover_image_url) ?? stringa(template.cover_image_url)
     ?? (mai ? COPERTINA_DI_SERIE[modulo] ?? null : null);
@@ -69,6 +76,7 @@ export async function immaginiDelModello(modulo: string, template: Grezzo, logoC
     .map(([, chiave]) => [chiave, leggiFotoPagina(chiave, settoreBlocchi(modulo), template.pdf_blocchi)] as const)
     .filter((x): x is readonly [typeof x[0], string] => Boolean(x[1]));
   const riempimentiInCorso = Promise.all(riempimenti.map(async ([k, url]) => [k, await toDataUrl(conOrigine(url))] as const));
+  const votiInCorso = votiOnlineAzienda(companyId ?? stringa(template.company_id));
   const [copertinaPronta, logoPronto, logoChiaroPronto, galleriaPronta, pagineLiberePronte, fotoBlocchi, chiusuraPronta] = await Promise.all([
     toDataUrl(copertina ? conOrigine(copertina) : null, { scalaDiGrigi: copertinaInTinta(velo) }),
     toDataUrl(logoCopertina),
@@ -81,6 +89,7 @@ export async function immaginiDelModello(modulo: string, template: Grezzo, logoC
     fotoChiusura ? toDataUrl(conOrigine(fotoChiusura)) : Promise.resolve(null),
   ]);
   const riempimentiPronti = await riempimentiInCorso;
+  const votiOnline = await votiInCorso;
 
   return {
     // Una foto che non si è caricata NON va al motore: meglio la copertina a tinta piena.
@@ -97,5 +106,7 @@ export async function immaginiDelModello(modulo: string, template: Grezzo, logoC
     // Non è un campo del modello: torna qui per comodità di chi chiama (il logo chiaro
     // del kit del marchio, per la copertina su fondo scuro).
     logo_chiaro_url: logoChiaroPronto,
+    // Non è un campo del modello: il voto su Google, Trustpilot… (lo legge l'adattatore).
+    pdf_voti_online: votiOnline,
   };
 }

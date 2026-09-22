@@ -12,6 +12,7 @@
  */
 
 export type FvPdfPageId =
+  | "recensioni"
   | "investimento"
   | "anteprima"
   | "componenti"
@@ -88,6 +89,10 @@ export const FV_PDF_PAGES_META: FvPdfPageMeta[] = [
   { id: "controlli", label: "Controlli di qualità", descrizione: "Cosa verificate prima di mettere in servizio l'impianto.", obbligatoria: false },
   { id: "documenti", label: "Documenti consegnati", descrizione: "Conformità, pratiche, garanzie e monitoraggio consegnati al cliente.", obbligatoria: false },
   { id: "diario", label: "Diario fotografico", descrizione: "Le foto dell'installazione, anche di quello che poi resta sotto i pannelli.", obbligatoria: false },
+  // Il voto su Google o Trustpilot (Profilo azienda), le parole dei clienti e le foto
+  // degli impianti fatti (dal 22/09/2026): prima erano due riquadri nella pagina delle
+  // garanzie, in testa al documento. Qui stanno con le domande, dove il cliente decide.
+  { id: "recensioni", label: "Dicono di noi", descrizione: "Il voto su Google o Trustpilot, le parole dei clienti e le foto dei vostri impianti. Esce se c'è almeno uno dei tre.", obbligatoria: false },
   // — Atto 5: Chiusura —
   { id: "faq", label: "FAQ", descrizione: "Domande e risposte scritte nel modello: senza, la pagina non esce.", obbligatoria: false },
   { id: "decisione", label: "CTA e firma", descrizione: "Riepilogo offerta e contatti; dopo, le condizioni, la pagina della firma e il modulo di recesso.", obbligatoria: true },
