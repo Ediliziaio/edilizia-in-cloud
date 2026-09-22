@@ -619,7 +619,10 @@ export type ChiaveFotoPagina =
   | "chiusura" | "percorso" | "confronto" | "cta"
   | "garanzie" | "bollette" | "decisione" | "componenti" | "costi" | "cassa" | "piano"
   // Edili: la foto che riempie la pagina quando il capitolo finisce a metà foglio.
-  | "chiSiamo" | "tempi" | "computo" | "investimento" | "compreso";
+  | "chiSiamo" | "tempi" | "computo" | "investimento" | "compreso"
+  // Serramenti: la foto in fondo all'ultimo foglio della proposta, dell'allegato
+  // tecnico e dei dettagli economici, quando la sezione finisce a metà foglio.
+  | "proposta" | "allegato" | "dettagli";
 
 export const FOTO_PAGINE_ETICHETTE: Record<ChiaveFotoPagina, string> = {
   chiusura: "Foto dei prossimi passi",
@@ -638,6 +641,9 @@ export const FOTO_PAGINE_ETICHETTE: Record<ChiaveFotoPagina, string> = {
   computo: "Foto in fondo al computo",
   investimento: "Foto sotto il prezzo",
   compreso: "Foto di «Cosa è compreso»",
+  proposta: "Foto in fondo alla proposta",
+  allegato: "Foto in fondo all'allegato tecnico",
+  dettagli: "Foto in fondo ai dettagli economici",
 };
 
 /**
@@ -663,6 +669,10 @@ const FOTO_PAGINE: Partial<Record<SettoreBlocchi, Partial<Record<ChiaveFotoPagin
     percorso: "serramenti/storia-prima-durante-dopo",
     confronto: "serramenti/storia-termocamera",
     cta: "serramenti/storia-famiglia-inverno",
+    // Escono solo se la sezione finisce a metà foglio. Nessuna è già nei blocchi di serie.
+    proposta: "comune/consegna-documenti",
+    allegato: "comune/controllo-finale",
+    dettagli: "serramenti/tecnica-prima-dopo",
   },
   fotovoltaico: {
     garanzie: "fotovoltaico/villa-tramonto",

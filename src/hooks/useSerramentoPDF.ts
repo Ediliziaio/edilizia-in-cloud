@@ -655,7 +655,7 @@ async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEn
     mostraScontiNelPdf(companyId),
     // Le foto dei blocchi accesi (come è fatto un serramento, protezione…).
     fotoDeiBlocchi("serramenti", template?.pdf_blocchi, blocchiAccesi(normalizePdfPagesOrder(template?.pdf_pages_order ?? null))),
-    fotoDellePagine("serramenti", template?.pdf_blocchi, ["percorso", "confronto", "cta"]),
+    fotoDellePagine("serramenti", template?.pdf_blocchi, ["percorso", "confronto", "cta", "proposta", "allegato", "dettagli"]),
   ]);
 
   // Applica i data URL pre-caricati ai rispettivi oggetti

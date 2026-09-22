@@ -34,7 +34,11 @@ import { EditorFotoPagina } from "@/components/preventivi/EditorFotoPagina";
 import { bloccoDellaPagina, descrizioneBlocco, type ChiaveFotoPagina } from "../../../supabase/functions/_shared/blocchiPreventivo";
 
 /** Le pagine con una foto loro, cambiabile qui: l'id della pagina e la chiave della foto. */
-const FOTO_DELLE_PAGINE: Record<string, ChiaveFotoPagina> = { percorso: "percorso", confronto: "confronto", cta: "cta" };
+const FOTO_DELLE_PAGINE: Record<string, ChiaveFotoPagina> = {
+  percorso: "percorso", confronto: "confronto", cta: "cta",
+  // La foto che riempie il fondo quando la sezione finisce a metà foglio.
+  proposta: "proposta", allegato_tecnico: "allegato", investimento: "dettagli",
+};
 
 interface Props {
   value: SrPdfPageOrderItem[] | null;

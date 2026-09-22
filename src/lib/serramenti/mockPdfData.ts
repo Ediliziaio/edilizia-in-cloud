@@ -384,7 +384,7 @@ export async function buildMockPdfData(opts: {
     toDataUrl((tpl as any)?.pdf_cover_image_url ?? null),
     toDataUrl(opts.companyLogoDarkUrl ?? null),
     fotoDeiBlocchi("serramenti", tpl?.pdf_blocchi, blocchiAccesi(normalizePdfPagesOrder(tpl?.pdf_pages_order ?? null))),
-    fotoDellePagine("serramenti", tpl?.pdf_blocchi, ["percorso", "confronto", "cta"]),
+    fotoDellePagine("serramenti", tpl?.pdf_blocchi, ["percorso", "confronto", "cta", "proposta", "allegato", "dettagli"]),
   ]);
   const inlinedTemplate = tpl ? {
     ...tpl,
