@@ -28,6 +28,7 @@ export type ConfigFieldType =
   | 'meta_form_multi_select' // moduli lead Meta (meta_lead_forms, filtrati per pagina)
   | 'pipeline_select'        // pipeline CRM (marketing_pipelines)
   | 'pipeline_stage_select'  // fase della pipeline scelta (marketing_pipeline_stages)
+  | 'calendar_select'        // calendario di prenotazione (marketing_calendars)
   | 'order_status_select'    // fase commessa dell'azienda (order_statuses)
   | 'whatsapp_locale_number_select' // numero WhatsApp Locale della piattaforma (openwa_numbers)
   | 'tag_input'
@@ -277,6 +278,8 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     ],
     configSchema: [
       { id: 'valore_minimo', label: 'Solo opportunità con valore superiore a (€)', type: 'number', required: false, placeholder: 'Es: 1000', helpText: 'Lascia vuoto per qualsiasi valore' },
+      { id: 'pipeline_id', label: 'Solo in questa pipeline (opzionale)', type: 'pipeline_select', required: false },
+      { id: 'fonte_filtro', label: 'Solo con questa fonte (opzionale)', type: 'text', required: false, placeholder: 'Es: outreach_email', helpText: 'La fonte contiene questo testo: outreach_email per le risposte alle email a freddo.' },
     ],
   },
   {
@@ -373,9 +376,10 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
       { id: 'appuntamento.formatted_address', label: 'Luogo', type: 'string' },
     ],
     configSchema: [
+      { id: 'calendario_id', label: 'Calendario (opzionale)', type: 'calendar_select', required: false, helpText: 'Solo gli appuntamenti di questo calendario: con più marchi, ognuno ha il suo.' },
       { id: 'tipo_filtro', label: 'Tipo appuntamento (opzionale)', type: 'select', required: false, options: [
         { value: '', label: 'Tutti i tipi' }, { value: 'sopralluogo', label: 'Sopralluogo' },
-        { value: 'video_call', label: 'Video call' }, { value: 'telefonata', label: 'Telefonata' }, { value: 'in_sede', label: 'In sede' },
+        { value: 'videocall', label: 'Video call' }, { value: 'telefonata', label: 'Telefonata' }, { value: 'in_sede', label: 'In sede' },
       ]},
     ],
   },
@@ -394,7 +398,9 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
       { id: 'appuntamento.appointment_time', label: 'Ora', type: 'string' },
       { id: 'appuntamento.contact_id', label: 'ID Contatto', type: 'uuid' },
     ],
-    configSchema: [],
+    configSchema: [
+      { id: 'calendario_id', label: 'Calendario (opzionale)', type: 'calendar_select', required: false, helpText: 'Solo gli appuntamenti di questo calendario: con più marchi, ognuno ha il suo.' },
+    ],
   },
   {
     id: 'appuntamento_completato',
@@ -410,7 +416,9 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
       { id: 'appuntamento.internal_notes', label: 'Note appuntamento', type: 'string' },
       { id: 'appuntamento.status', label: 'Stato', type: 'string' },
     ],
-    configSchema: [],
+    configSchema: [
+      { id: 'calendario_id', label: 'Calendario (opzionale)', type: 'calendar_select', required: false, helpText: 'Solo gli appuntamenti di questo calendario: con più marchi, ognuno ha il suo.' },
+    ],
   },
   {
     id: 'appuntamento_no_show',
@@ -425,7 +433,9 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
       { id: 'appuntamento.contact_id', label: 'ID Contatto', type: 'uuid' },
       { id: 'appuntamento.title', label: 'Titolo', type: 'string' },
     ],
-    configSchema: [],
+    configSchema: [
+      { id: 'calendario_id', label: 'Calendario (opzionale)', type: 'calendar_select', required: false, helpText: 'Solo gli appuntamenti di questo calendario: con più marchi, ognuno ha il suo.' },
+    ],
   },
   {
     id: 'appuntamento_annullato',
@@ -440,7 +450,9 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
       { id: 'appuntamento.contact_id', label: 'ID Contatto', type: 'uuid' },
       { id: 'appuntamento.title', label: 'Titolo', type: 'string' },
     ],
-    configSchema: [],
+    configSchema: [
+      { id: 'calendario_id', label: 'Calendario (opzionale)', type: 'calendar_select', required: false, helpText: 'Solo gli appuntamenti di questo calendario: con più marchi, ognuno ha il suo.' },
+    ],
   },
   {
     id: 'appuntamento_imminente',

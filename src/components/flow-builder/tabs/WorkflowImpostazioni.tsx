@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { indirizzoMittenteValido } from "../../../../supabase/functions/_shared/mittenteAutomazione";
+import { regolaGiorno, scriviRegolaGiorno, type RegolaGiorno } from "../../../../supabase/functions/_shared/finestraFlusso";
 
 interface Props {
   flowId?: string;
@@ -23,7 +24,7 @@ export function WorkflowImpostazioni({ flowId }: Props) {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("automation_flows")
-        .select("company_id, allow_reentry, allow_multiple_opportunities, stop_on_reply, stop_on_won_pipeline_id, timezone, time_window_active, time_window_from, time_window_to, sender_name, sender_email")
+        .select("company_id, allow_reentry, allow_multiple_opportunities, stop_on_reply, stop_on_won_pipeline_id, timezone, time_window_active, time_window_from, time_window_to, time_window_sabato, time_window_domenica, sender_name, sender_email")
         .eq("id", flowId!)
         .single();
       if (error) throw error;
@@ -201,6 +202,16 @@ export function WorkflowImpostazioni({ flowId }: Props) {
                     className="h-9"
                   />
                 </div>
+                <GiornoFinestra
+                  giorno="Sabato"
+                  valore={get("time_window_sabato", null)}
+                  onChange={(v) => handleChange("time_window_sabato", v)}
+                />
+                <GiornoFinestra
+                  giorno="Domenica"
+                  valore={get("time_window_domenica", null)}
+                  onChange={(v) => handleChange("time_window_domenica", v)}
+                />
               </div>
             )}
           </div>
@@ -238,6 +249,73 @@ export function WorkflowImpostazioni({ flowId }: Props) {
           </div>
         </div>
       </section>
+    </div>
+  );
+}
+
+/**
+ * Sabato o domenica: come gli altri giorni, chiuso, oppure un orario proprio
+ * (es. il sabato solo la mattina). Salvato come lo legge il motore.
+ */
+function GiornoFinestra({
+  giorno,
+  valore,
+  onChange,
+}: {
+  giorno: string;
+  valore: string | null;
+  onChange: (v: string | null) => void;
+}) {
+  const regola = regolaGiorno(valore);
+  const orario = (x: number) => `${String(Math.floor(x / 60)).padStart(2, "0")}:${String(x % 60).padStart(2, "0")}`;
+  const minuti = (hhmm: string) => {
+    const [o, m] = hhmm.split(":").map((n) => parseInt(n, 10));
+    return (o || 0) * 60 + (m || 0);
+  };
+  const cambiaFascia = (da: number, a: number) => {
+    // Un orario che finisce prima di iniziare non si salva: resterebbe «come gli altri giorni».
+    if (a > da) onChange(scriviRegolaGiorno({ tipo: "fascia", da, a }));
+  };
+  const scelta = (v: string) => {
+    const r: RegolaGiorno = v === "chiuso" ? { tipo: "chiuso" }
+      : v === "fascia" ? { tipo: "fascia", da: 9 * 60, a: 13 * 60 }
+        : { tipo: "uguale" };
+    onChange(scriviRegolaGiorno(r));
+  };
+  return (
+    <div className="col-span-2 grid grid-cols-[110px_1fr] items-center gap-3">
+      <Label className="text-[11px] text-muted-foreground">{giorno}</Label>
+      <div className="flex flex-wrap items-center gap-2">
+        <Select value={regola.tipo} onValueChange={scelta}>
+          <SelectTrigger className="h-9 w-56">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="uguale">Come gli altri giorni</SelectItem>
+            <SelectItem value="chiuso">Chiuso, nessun invio</SelectItem>
+            <SelectItem value="fascia">Orario diverso</SelectItem>
+          </SelectContent>
+        </Select>
+        {regola.tipo === "fascia" && (
+          <>
+            <Input
+              type="time"
+              aria-label={`${giorno}: dalle`}
+              value={orario(regola.da)}
+              onChange={(e) => cambiaFascia(minuti(e.target.value), regola.a)}
+              className="h-9 w-28"
+            />
+            <span className="text-xs text-muted-foreground">alle</span>
+            <Input
+              type="time"
+              aria-label={`${giorno}: alle`}
+              value={orario(regola.a)}
+              onChange={(e) => cambiaFascia(regola.da, minuti(e.target.value))}
+              className="h-9 w-28"
+            />
+          </>
+        )}
+      </div>
     </div>
   );
 }

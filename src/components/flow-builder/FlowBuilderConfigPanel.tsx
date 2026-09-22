@@ -729,6 +729,23 @@ function ConfigField({
     staleTime: 5 * 60 * 1000,
   });
 
+  // Calendari di prenotazione (trigger degli appuntamenti): con più marchi
+  // nella stessa azienda, ogni calendario è un marchio diverso.
+  const { data: calendariPrenotazione = [] } = useQuery({
+    queryKey: ["flow-calendars", companyId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("marketing_calendars")
+        .select("id, name")
+        .eq("company_id", companyId!)
+        .order("name");
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!companyId && field.type === "calendar_select",
+    staleTime: 5 * 60 * 1000,
+  });
+
   // Fasi commessa dell'azienda (trigger "Stato ordine cambiato"). Chiave
   // propria: altre schermate leggono order_statuses con select diversi.
   const { data: fasiCommessa = [] } = useQuery({
@@ -1068,6 +1085,29 @@ function ConfigField({
               ))}
           </SelectContent>
         </Select>
+      )}
+
+      {field.type === "calendar_select" && (
+        calendariPrenotazione.length > 0 ? (
+          <Select
+            value={value || "__tutti__"}
+            onValueChange={(v) => onChange(v === "__tutti__" ? null : v)}
+          >
+            <SelectTrigger className="h-9 text-sm">
+              <SelectValue placeholder="Tutti i calendari" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__tutti__">Tutti i calendari</SelectItem>
+              {calendariPrenotazione.map((c: { id: string; name: string }) => (
+                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <p className="rounded-lg border border-dashed px-3 py-2.5 text-xs text-muted-foreground">
+            Nessun calendario trovato. Creane uno in Impostazioni → Calendari.
+          </p>
+        )
       )}
 
       {field.type === "pipeline_select" && (

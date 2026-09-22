@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders, secureHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
+import { romaVersoUtc } from "../_shared/appuntamentiPubblici.ts";
 
 /**
  * 2026-05-27 SECURITY FIX: prima accettava QUALSIASI Bearer senza validare.
@@ -551,13 +552,9 @@ Deno.serve(async (req) => {
 
             for (const apt of flowApts || []) {
               if (!apt.contact_id) continue;
-              const aptDate = new Date(apt.appointment_date);
-              if (apt.appointment_time) {
-                const [hh, mm] = apt.appointment_time.split(":").map(Number);
-                aptDate.setHours(hh || 0, mm || 0, 0, 0);
-              } else {
-                aptDate.setHours(9, 0, 0, 0);
-              }
+              // Data e ora sono italiane: lette come UTC (setHours sul server)
+              // l'appuntamento risultava 1-2 ore più tardi del vero.
+              const aptDate = romaVersoUtc(String(apt.appointment_date), String(apt.appointment_time ?? "09:00").slice(0, 5));
               if (aptDate < now || aptDate > horizon) continue;
 
               const { data: existing } = await supabase

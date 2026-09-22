@@ -10031,6 +10031,7 @@ export type Database = {
           cancelled_by: string | null
           capi_schedule_sent_at: string | null
           company_id: string
+          conferma_inviata_at: string | null
           contact_id: string | null
           created_at: string
           created_by: string
@@ -10066,6 +10067,7 @@ export type Database = {
           place_id: string | null
           reminder_1h_at: string | null
           reminder_24h_at: string | null
+          reminder_5m_at: string | null
           reminder_minutes: number | null
           reminder_sent: boolean | null
           status: string
@@ -10091,6 +10093,7 @@ export type Database = {
           cancelled_by?: string | null
           capi_schedule_sent_at?: string | null
           company_id: string
+          conferma_inviata_at?: string | null
           contact_id?: string | null
           created_at?: string
           created_by: string
@@ -10126,6 +10129,7 @@ export type Database = {
           place_id?: string | null
           reminder_1h_at?: string | null
           reminder_24h_at?: string | null
+          reminder_5m_at?: string | null
           reminder_minutes?: number | null
           reminder_sent?: boolean | null
           status?: string
@@ -10151,6 +10155,7 @@ export type Database = {
           cancelled_by?: string | null
           capi_schedule_sent_at?: string | null
           company_id?: string
+          conferma_inviata_at?: string | null
           contact_id?: string | null
           created_at?: string
           created_by?: string
@@ -10186,6 +10191,7 @@ export type Database = {
           place_id?: string | null
           reminder_1h_at?: string | null
           reminder_24h_at?: string | null
+          reminder_5m_at?: string | null
           reminder_minutes?: number | null
           reminder_sent?: boolean | null
           status?: string
@@ -11983,7 +11989,9 @@ export type Database = {
           status: string
           stop_on_reply: boolean
           time_window_active: boolean | null
+          time_window_domenica: string | null
           time_window_from: string | null
+          time_window_sabato: string | null
           time_window_to: string | null
           timezone: string | null
           updated_at: string
@@ -12013,7 +12021,9 @@ export type Database = {
           status?: string
           stop_on_reply?: boolean
           time_window_active?: boolean | null
+          time_window_domenica?: string | null
           time_window_from?: string | null
+          time_window_sabato?: string | null
           time_window_to?: string | null
           timezone?: string | null
           updated_at?: string
@@ -12043,7 +12053,9 @@ export type Database = {
           status?: string
           stop_on_reply?: boolean
           time_window_active?: boolean | null
+          time_window_domenica?: string | null
           time_window_from?: string | null
+          time_window_sabato?: string | null
           time_window_to?: string | null
           timezone?: string | null
           updated_at?: string
@@ -49586,23 +49598,29 @@ export type Database = {
           calendar_type: string
           color: string | null
           company_id: string
+          cosa_preparare: string | null
           created_at: string
           created_by: string
           default_meeting_enabled: boolean
           default_meeting_provider: string
           description: string | null
           duration_minutes: number
+          firma_messaggi: string | null
           group_name: string | null
           id: string
           is_active: boolean
+          link_videochiamata: string | null
           max_daily_km: number | null
           max_per_day: number | null
+          messaggi_crm_dal: string | null
           min_notice_minutes: number
           name: string
           owner_id: string | null
+          promemoria_5min: boolean
           reminder_1h: boolean
           reminder_24h: boolean
           updated_at: string
+          whatsapp_numero_id: string | null
         }
         Insert: {
           base_address_city?: string | null
@@ -49620,23 +49638,29 @@ export type Database = {
           calendar_type?: string
           color?: string | null
           company_id: string
+          cosa_preparare?: string | null
           created_at?: string
           created_by: string
           default_meeting_enabled?: boolean
           default_meeting_provider?: string
           description?: string | null
           duration_minutes?: number
+          firma_messaggi?: string | null
           group_name?: string | null
           id?: string
           is_active?: boolean
+          link_videochiamata?: string | null
           max_daily_km?: number | null
           max_per_day?: number | null
+          messaggi_crm_dal?: string | null
           min_notice_minutes?: number
           name: string
           owner_id?: string | null
+          promemoria_5min?: boolean
           reminder_1h?: boolean
           reminder_24h?: boolean
           updated_at?: string
+          whatsapp_numero_id?: string | null
         }
         Update: {
           base_address_city?: string | null
@@ -49654,23 +49678,29 @@ export type Database = {
           calendar_type?: string
           color?: string | null
           company_id?: string
+          cosa_preparare?: string | null
           created_at?: string
           created_by?: string
           default_meeting_enabled?: boolean
           default_meeting_provider?: string
           description?: string | null
           duration_minutes?: number
+          firma_messaggi?: string | null
           group_name?: string | null
           id?: string
           is_active?: boolean
+          link_videochiamata?: string | null
           max_daily_km?: number | null
           max_per_day?: number | null
+          messaggi_crm_dal?: string | null
           min_notice_minutes?: number
           name?: string
           owner_id?: string | null
+          promemoria_5min?: boolean
           reminder_1h?: boolean
           reminder_24h?: boolean
           updated_at?: string
+          whatsapp_numero_id?: string | null
         }
         Relationships: [
           {
@@ -49707,6 +49737,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_insoluti"
             referencedColumns: ["azienda_id"]
+          },
+          {
+            foreignKeyName: "marketing_calendars_whatsapp_numero_id_fkey"
+            columns: ["whatsapp_numero_id"]
+            isOneToOne: false
+            referencedRelation: "openwa_numbers"
+            referencedColumns: ["id"]
           },
         ]
       }

@@ -10,6 +10,7 @@ import { decryptMaybeEncrypted, getEncryptionKey } from "../_shared/encryption.t
 import { resolveWhatsAppSender } from "../_shared/resolveWhatsAppSender.ts";
 import { romeMinuti, sendOpenWaMessage, OPENWA_PLATFORM_COMPANY_ID } from "../_shared/openwaSend.ts";
 import { leggiFasceOrarie, minutiAllaFascia } from "../_shared/openwaFinestraInvio.ts";
+import { minutiAllApertura } from "../_shared/finestraFlusso.ts";
 import { sendViaProviderWithFailover, loadProviderSettings, sanitizeFromName } from "../_shared/emailProvider.ts";
 import { addEmailCredits, deductEmailCredits } from "../_shared/emailCredits.ts";
 import { logEmailDelivery } from "../_shared/email-log.ts";
@@ -24,6 +25,7 @@ import { nomeOpportunitaPulito, personeDaAvvisare, tagsUniti, testoNotaAggiornam
 import { conLinkCliccabili, fusoDelFlusso, invioEmailDaRimandare, MINUTI_RINVIO_EMAIL, numeroWhatsApp, schedaAndataAvanti, senzaSpazioPrimaDellaVirgola } from "../_shared/sequenzaContatto.ts";
 import { mittenteDelPasso, dominiAmmessi, soloDominiDellAzienda } from "../_shared/mittenteAutomazione.ts";
 import { calendarioDelGiorno, giornoAmmesso, leggiSettimane } from "../_shared/attesaCalendario.ts";
+import { romaVersoUtc, urlGestione } from "../_shared/appuntamentiPubblici.ts";
 import { isInternalRequest, isSuperAdminEmailAllowed, requireAuth, requireCompanyAccess, requireInternalSecret, resolveUserEmail } from "../_shared/auth.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import {
@@ -369,6 +371,17 @@ async function handleTrigger(supabase: any, body: any) {
     // Tipo appuntamento (appuntamento_creato): richiede appointment_type nel payload.
     if (typeof tcfg.tipo_filtro === "string" && tcfg.tipo_filtro !== "" && ep?.appointment_type != null) {
       if (String(ep.appointment_type).toLowerCase() !== tcfg.tipo_filtro.toLowerCase()) continue;
+    }
+    // Calendario (trigger degli appuntamenti): la demo di un marchio non deve
+    // far partire il flusso della consulenza di un altro marchio della stessa
+    // azienda. calendar_id è nel payload dal 22/09/2026: un evento senza (più
+    // vecchio) non passa, perché non si può dire da che calendario arrivi.
+    if (typeof tcfg.calendario_id === "string" && tcfg.calendario_id !== "") {
+      if (String(ep?.calendar_id ?? "") !== tcfg.calendario_id) continue;
+    }
+    // Pipeline (trigger delle opportunità): era solo nell'interfaccia.
+    if (typeof tcfg.pipeline_id === "string" && tcfg.pipeline_id !== "" && ep?.pipeline_id !== undefined) {
+      if (String(ep.pipeline_id ?? "") !== tcfg.pipeline_id) continue;
     }
     // Fonte (contatto_creato → payload.source; candidato_creato → payload.fonte)
     if (typeof tcfg.fonte_filtro === "string" && tcfg.fonte_filtro !== "") {
@@ -933,7 +946,7 @@ async function executeDelay(
   if (cfg.delay_tipo === "prima_appuntamento" && supabase && entityId && companyId) {
     const ore = Math.max(0, parseFloat(cfg.delay_ore ?? cfg.ore ?? "24") || 24);
     try {
-      const oggi = new Date().toISOString().slice(0, 10);
+      const oggi = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Rome" });
       const { data: app } = await supabase
         .from("appointments")
         .select("appointment_date, appointment_time")
@@ -941,9 +954,12 @@ async function executeDelay(
         .gte("appointment_date", oggi)
         .not("status", "in", '("cancelled","canceled","annullato")')
         .order("appointment_date", { ascending: true })
+        .order("appointment_time", { ascending: true })
         .limit(1).maybeSingle();
       if (app?.appointment_date) {
-        const quando = new Date(`${app.appointment_date}T${String(app.appointment_time ?? "09:00").slice(0, 5)}:00`);
+        // Data e ora sono italiane (colonne senza fuso). Lette come UTC, d'estate
+        // il promemoria «1 ora prima» partiva un'ora DOPO l'inizio.
+        const quando = romaVersoUtc(String(app.appointment_date), String(app.appointment_time ?? "09:00").slice(0, 5));
         const bersaglio = quando.getTime() - ore * 3_600_000;
         const attesa = Math.max(0, bersaglio - Date.now());
         return {
@@ -1885,12 +1901,21 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
         .from("marketing_opportunities")
         .update({ stage_id: stageId, stage_changed_at: new Date().toISOString() })
         .eq("company_id", companyId);
-      // opportunita_id esplicito (uuid) → solo quella; altrimenti tutte le
-      // aperte del contatto (comportamento storico).
+      // opportunita_id esplicito (uuid) → solo quella; altrimenti le aperte del
+      // contatto NELLA PIPELINE DELLA FASE scelta, fuori dal cestino. Prima
+      // erano tutte le aperte, di qualsiasi pipeline: una demo di Edilizia in
+      // Cloud avrebbe spostato anche la scheda di Marketing Edile dello stesso
+      // contatto in una fase che non è della sua pipeline.
       if (ncfg.opportunita_id && UUID_RE.test(String(ncfg.opportunita_id))) {
         moveQ = moveQ.eq("id", ncfg.opportunita_id);
       } else {
-        moveQ = moveQ.eq("contact_id", entityId).eq("status", "open");
+        const { data: fase } = await supabase
+          .from("marketing_pipeline_stages").select("pipeline_id").eq("id", stageId).maybeSingle();
+        if (!fase?.pipeline_id) {
+          return { success: false, error: "La fase scelta non esiste più: riconfigura l'azione" };
+        }
+        moveQ = moveQ.eq("contact_id", entityId).eq("status", "open")
+          .eq("pipeline_id", fase.pipeline_id).is("deleted_at", null);
       }
       const { error: moveErr } = await moveQ;
       if (moveErr) return { success: false, error: moveErr.message };
@@ -3117,6 +3142,11 @@ Istruzione: ${aiPrompt}`;
  * Se l'orario calcolato cade prima dell'apertura, si sposta all'apertura dello
  * stesso giorno; se cade dopo la chiusura, all'apertura del giorno dopo. Non si
  * anticipa mai un invio: al massimo si ritarda.
+ *
+ * Dal 22/09/2026 sabato e domenica possono avere una regola propria
+ * (time_window_sabato / time_window_domenica: chiuso, o una fascia): il
+ * «Flusso Appuntamenti» manda di giorno, il sabato solo la mattina, mai la
+ * domenica. Senza regola valgono come gli altri giorni, come prima.
  */
 function minutiDelGiorno(at: Date, tz: string): number {
   try {
@@ -3127,6 +3157,17 @@ function minutiDelGiorno(at: Date, tz: string): number {
     return (g("hour") % 24) * 60 + g("minute");
   } catch {
     return at.getUTCHours() * 60 + at.getUTCMinutes();
+  }
+}
+
+/** 1 = lunedì … 7 = domenica, nel fuso del flusso. */
+function giornoDellaSettimana(at: Date, tz: string): number {
+  const ripiego = ((at.getUTCDay() + 6) % 7) + 1;
+  try {
+    const g = new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "short" }).format(at);
+    return ({ Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6, Sun: 7 } as Record<string, number>)[g] ?? ripiego;
+  } catch {
+    return ripiego;
   }
 }
 
@@ -3145,10 +3186,10 @@ function dentroLaFinestra(quando: Date, flusso: Record<string, any> | null): Dat
   // la sequenza per sempre.
   if (chiude <= apre) return quando;
 
-  const ora = minutiDelGiorno(quando, tz);
-  if (ora >= apre && ora < chiude) return quando;
-  const avanti = ora < apre ? apre - ora : (24 * 60 - ora) + apre;
-  return new Date(quando.getTime() + avanti * 60_000);
+  const avanti = minutiAllApertura(minutiDelGiorno(quando, tz), giornoDellaSettimana(quando, tz), {
+    apre, chiude, sabato: flusso.time_window_sabato, domenica: flusso.time_window_domenica,
+  });
+  return avanti > 0 ? new Date(quando.getTime() + avanti * 60_000) : quando;
 }
 
 async function queueNextNodes(supabase: any, queueItem: any, node: AutomationNode, result: any) {
@@ -3340,7 +3381,7 @@ async function queueNextNodes(supabase: any, queueItem: any, node: AutomationNod
   // per accodamento, non una per collegamento.
   const { data: flussoImp } = await supabase
     .from("automation_flows")
-    .select("time_window_active, time_window_from, time_window_to, timezone")
+    .select("time_window_active, time_window_from, time_window_to, time_window_sabato, time_window_domenica, timezone")
     .eq("id", queueItem.flow_id)
     .maybeSingle();
 
@@ -4356,6 +4397,9 @@ async function executeSendWhatsApp(supabase: any, cfg: Record<string, any>, enti
  *
  * Sconosciute o mancanti restano stringa vuota, mai il segnaposto grezzo.
  */
+/** Dove vive la pagina pubblica «sposta o disdici» (/appuntamento/:token). */
+const APP_ORIGINE_PUBBLICA = "https://app.ediliziaincloud.com";
+
 const MESI_IT = ["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno",
   "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre"];
 const GIORNI_IT = ["domenica", "lunedì", "martedì", "mercoledì", "giovedì", "venerdì", "sabato"];
@@ -4365,12 +4409,12 @@ async function variabiliAppuntamento(
   contactId: string,
   companyId: string,
 ): Promise<Record<string, string>> {
-  const vuoto = { giorno: "", data: "", ora: "", ora_fine: "", titolo: "", luogo: "", link_riprogramma: "" };
+  const vuoto = { giorno: "", data: "", ora: "", ora_fine: "", titolo: "", luogo: "", link_riprogramma: "", link_sposta: "", link_call: "" };
   if (!contactId) return vuoto;
 
-  const oggi = new Date().toISOString().slice(0, 10);
+  const oggi = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Rome" });
   const base = () => supabase.from("appointments")
-    .select("id, title, appointment_date, appointment_time, appointment_end_time, meeting_url, status")
+    .select("id, title, appointment_date, appointment_time, appointment_end_time, meeting_url, formatted_address, manage_token, status")
     .eq("contact_id", contactId).eq("company_id", companyId)
     .not("status", "in", '("cancelled","canceled","annullato")');
 
@@ -4392,8 +4436,12 @@ async function variabiliAppuntamento(
     ora,
     ora_fine: String(app.appointment_end_time ?? "").slice(0, 5),
     titolo: app.title ?? "",
-    luogo: app.meeting_url ?? "",
-    link_riprogramma: app.meeting_url ?? "",
+    luogo: app.meeting_url || app.formatted_address || "",
+    // La pagina «sposta o disdici» dell'appuntamento. Prima era il link della
+    // videochiamata: chi cliccava «sposta» entrava nella call.
+    link_riprogramma: app.manage_token ? urlGestione(APP_ORIGINE_PUBBLICA, app.manage_token) : "",
+    link_sposta: app.manage_token ? urlGestione(APP_ORIGINE_PUBBLICA, app.manage_token) : "",
+    link_call: app.meeting_url ?? "",
   };
 }
 
@@ -4456,7 +4504,7 @@ async function resolveContactText(
 
   // Appuntamento: si legge solo se il testo lo nomina davvero, per non fare
   // una query in più su ogni email che non ne ha bisogno.
-  if (/\{\{\s*(appuntamento\.|giorno|data|ora|ora_fine|titolo|luogo|link_riprogramma)/.test(out)) {
+  if (/\{\{\s*(appuntamento\.|giorno|data|ora|ora_fine|titolo|luogo|link_riprogramma|link_sposta|link_call)/.test(out)) {
     try {
       const app = await variabiliAppuntamento(supabase, contactId, companyId);
       for (const [k, v] of Object.entries(app)) {

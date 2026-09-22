@@ -1,5 +1,8 @@
 import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { PLATFORM_ADMIN_COMPANY_ID } from "@/lib/adminConstants";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -62,6 +65,64 @@ export interface CalendarFormData {
   external_connection_id: string | null;
   external_calendar_id: string | null;
   external_calendar_name: string | null;
+  /** Link fisso della videochiamata (Meet, Zoom…): va in conferma, promemoria ed evento. */
+  link_videochiamata: string;
+  /** Numero WhatsApp Locale da cui partono conferma e promemoria (solo piattaforma). */
+  whatsapp_numero_id: string | null;
+  /** Il WhatsApp «siamo già collegati» pochi minuti prima. */
+  promemoria_5min: boolean;
+  /** Da quando conferma e promemoria valgono anche per gli appuntamenti fissati a mano (null = no). */
+  messaggi_crm_dal: string | null;
+  firma_messaggi: string;
+  /** Righe «cosa preparare» della conferma, una per riga. */
+  cosa_preparare: string;
+}
+
+// Un solo modulo vuoto: prima il «nuovo calendario» ripartiva da un oggetto
+// senza margini, preavviso e promemoria, e il preavviso si salvava a 0.
+const FORM_VUOTO: CalendarFormData = {
+  name: "",
+  description: "",
+  color: "",
+  owner_id: "",
+  calendar_type: "personal",
+  booking_slug: "",
+  duration_minutes: 30,
+  buffer_before_min: 0,
+  buffer_after_min: 0,
+  min_notice_minutes: 120,
+  max_per_day: null,
+  reminder_24h: true,
+  reminder_1h: true,
+  external_provider: null,
+  external_connection_id: null,
+  external_calendar_id: null,
+  external_calendar_name: null,
+  max_daily_km: null,
+  base_address_line: "",
+  base_address_city: "",
+  base_address_postal_code: "",
+  base_address_province: "",
+  base_address_country: "IT",
+  base_formatted_address: "",
+  base_lat: null,
+  base_lng: null,
+  base_place_id: "",
+  default_meeting_provider: "none",
+  default_meeting_enabled: false,
+  link_videochiamata: "",
+  whatsapp_numero_id: null,
+  promemoria_5min: false,
+  messaggi_crm_dal: null,
+  firma_messaggi: "",
+  cosa_preparare: "",
+};
+
+/** «meet.google.com/abc» → «https://meet.google.com/abc». */
+function linkCompleto(link: string): string {
+  const l = link.trim();
+  if (!l) return "";
+  return /^https?:\/\//i.test(l) ? l : `https://${l}`;
 }
 
 interface CalendarDialogProps {
@@ -118,36 +179,25 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
   const [durationValue, setDurationValue] = useState(30);
   const [slugTouched, setSlugTouched] = useState(false);
 
-  const [form, setForm] = useState<CalendarFormData>({
-    name: "",
-    description: "",
-    color: "",
-    owner_id: "",
-    calendar_type: "personal",
-    booking_slug: "",
-    duration_minutes: 30,
-    buffer_before_min: 0,
-    buffer_after_min: 0,
-    min_notice_minutes: 120,
-    max_per_day: null,
-    reminder_24h: true,
-    reminder_1h: true,
-    external_provider: null,
-    external_connection_id: null,
-    external_calendar_id: null,
-    external_calendar_name: null,
-    max_daily_km: null,
-    base_address_line: "",
-    base_address_city: "",
-    base_address_postal_code: "",
-    base_address_province: "",
-    base_address_country: "IT",
-    base_formatted_address: "",
-    base_lat: null,
-    base_lng: null,
-    base_place_id: "",
-    default_meeting_provider: "none",
-    default_meeting_enabled: false,
+  const [form, setForm] = useState<CalendarFormData>(FORM_VUOTO);
+  // «Link fisso» è una modalità a sé: si sceglie e poi si scrive il link.
+  const [modoLink, setModoLink] = useState(false);
+  const dellaPiattaforma = effectiveCompany?.id === PLATFORM_ADMIN_COMPANY_ID;
+
+  // I numeri WhatsApp Locale: solo la piattaforma ne ha.
+  const { data: numeriWhatsapp = [] } = useQuery({
+    queryKey: ["calendario-numeri-whatsapp-locale"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("openwa_numbers")
+        .select("id, display_name, numero, stato")
+        .is("deleted_at", null)
+        .order("display_name");
+      if (error) throw error;
+      return (data ?? []) as { id: string; display_name: string | null; numero: string | null; stato: string }[];
+    },
+    enabled: open && dellaPiattaforma,
+    staleTime: 60 * 1000,
   });
 
   const addressValue: AddressData = {
@@ -228,13 +278,21 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
         base_place_id: initialData.base_place_id || "",
         default_meeting_provider: initialData.default_meeting_provider || "none",
         default_meeting_enabled: initialData.default_meeting_provider === "google_meet" || !!initialData.default_meeting_enabled,
+        link_videochiamata: initialData.link_videochiamata || "",
+        whatsapp_numero_id: initialData.whatsapp_numero_id ?? null,
+        promemoria_5min: !!initialData.promemoria_5min,
+        messaggi_crm_dal: initialData.messaggi_crm_dal ?? null,
+        firma_messaggi: initialData.firma_messaggi || "",
+        cosa_preparare: initialData.cosa_preparare || "",
       });
+      setModoLink(!!initialData.link_videochiamata);
       setShowDescription(!!(initialData.description));
       setDurationUnit(isHours ? "hours" : "minutes");
       setDurationValue(isHours ? mins / 60 : mins);
       setSlugTouched(!!initialData.booking_slug);
     } else {
-      setForm({ name: "", description: "", color: "", owner_id: "", calendar_type: "personal", booking_slug: "", duration_minutes: 30, max_daily_km: null, base_address_line: "", base_address_city: "", base_address_postal_code: "", base_address_province: "", base_address_country: "IT", base_formatted_address: "", base_lat: null, base_lng: null, base_place_id: "", default_meeting_provider: "none", default_meeting_enabled: false });
+      setForm(FORM_VUOTO);
+      setModoLink(false);
       setShowDescription(false);
       setDurationUnit("minutes");
       setDurationValue(30);
@@ -250,7 +308,16 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit(form);
+    // Link fisso e Meet automatico si escludono: vale la modalità scelta.
+    const link = modoLink ? linkCompleto(form.link_videochiamata) : "";
+    onSubmit({
+      ...form,
+      link_videochiamata: link,
+      default_meeting_provider: link ? "none" : form.default_meeting_provider,
+      default_meeting_enabled: link ? false : form.default_meeting_enabled,
+      // Senza link non c'è nulla a cui essere «già collegati».
+      promemoria_5min: !!link && !!form.whatsapp_numero_id && form.promemoria_5min,
+    });
   };
 
   return (
@@ -554,6 +621,60 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
                           onChange={(e) => setForm(f => ({ ...f, reminder_1h: e.target.checked }))} />
                         Promemoria un'ora prima
                       </label>
+                      <label className="flex items-center gap-2">
+                        <input type="checkbox" checked={!!form.messaggi_crm_dal}
+                          onChange={(e) => setForm(f => ({ ...f, messaggi_crm_dal: e.target.checked ? (f.messaggi_crm_dal ?? new Date().toISOString()) : null }))} />
+                        Conferma e promemoria anche per gli appuntamenti fissati a mano
+                        <InfoTooltip text="Chi viene fissato al telefono riceve gli stessi messaggi di chi prenota dal link. Vale per gli appuntamenti creati da adesso in poi." />
+                      </label>
+                    </div>
+                    {dellaPiattaforma && (
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">WhatsApp di conferma e promemoria</Label>
+                          <Select
+                            value={form.whatsapp_numero_id ?? "__solo_email__"}
+                            onValueChange={(v) => setForm(f => ({
+                              ...f,
+                              whatsapp_numero_id: v === "__solo_email__" ? null : v,
+                              promemoria_5min: v === "__solo_email__" ? false : f.promemoria_5min,
+                            }))}
+                          >
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="__solo_email__">Nessuno: solo email</SelectItem>
+                              {numeriWhatsapp.map((n) => (
+                                <SelectItem key={n.id} value={n.id}>
+                                  {[n.display_name, n.numero].filter(Boolean).join(" · ") || "Numero senza nome"}
+                                  {n.stato !== "connected" ? " (non collegato)" : ""}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <label className="flex items-center gap-2 self-end pb-2 text-sm">
+                          <input type="checkbox"
+                            disabled={!form.whatsapp_numero_id || !modoLink || !form.link_videochiamata.trim()}
+                            checked={form.promemoria_5min && !!form.whatsapp_numero_id && modoLink && !!form.link_videochiamata.trim()}
+                            onChange={(e) => setForm(f => ({ ...f, promemoria_5min: e.target.checked }))} />
+                          «Siamo già collegati» 5 minuti prima
+                          <InfoTooltip text="Un WhatsApp col link della videochiamata poco prima dell'inizio. Serve il link fisso del calendario." />
+                        </label>
+                      </div>
+                    )}
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">Firma dei messaggi</Label>
+                        <Input value={form.firma_messaggi} maxLength={120}
+                          placeholder={`Il team di ${effectiveCompany?.name || "…"}`}
+                          onChange={(e) => setForm(f => ({ ...f, firma_messaggi: e.target.value }))} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">Cosa preparare (nella conferma, uno per riga)</Label>
+                        <Textarea rows={3} value={form.cosa_preparare} maxLength={1000}
+                          placeholder={"come fate oggi i preventivi\ndove segnate ore e materiali"}
+                          onChange={(e) => setForm(f => ({ ...f, cosa_preparare: e.target.value }))} />
+                      </div>
                     </div>
                   </div>
                   </div>
@@ -579,16 +700,19 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">4</div>
                   <div>
                     <h3 className="text-sm font-semibold">Modalità incontro</h3>
-                    <p className="text-xs text-muted-foreground">Decidi se gli appuntamenti nascono in presenza o con link Google Meet automatico.</p>
+                    <p className="text-xs text-muted-foreground">In presenza, con un link fisso sempre uguale o con un Google Meet diverso per ogni appuntamento.</p>
                   </div>
                 </div>
 
-                <div className="grid gap-2 sm:grid-cols-2">
+                <div className="grid gap-2 sm:grid-cols-3">
                   <button
                     type="button"
-                    onClick={() => setForm(f => ({ ...f, default_meeting_provider: "none", default_meeting_enabled: false }))}
+                    onClick={() => {
+                      setModoLink(false);
+                      setForm(f => ({ ...f, default_meeting_provider: "none", default_meeting_enabled: false }));
+                    }}
                     className={`rounded-lg border p-3 text-left transition hover:border-primary/60 hover:bg-primary/5 ${
-                      form.default_meeting_provider === "none" ? "border-primary bg-primary/5 ring-1 ring-primary/20" : "bg-background"
+                      !modoLink && form.default_meeting_provider === "none" ? "border-primary bg-primary/5 ring-1 ring-primary/20" : "bg-background"
                     }`}
                   >
                     <div className="flex items-center gap-2 text-sm font-medium">
@@ -602,9 +726,31 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
 
                   <button
                     type="button"
-                    onClick={() => setForm(f => ({ ...f, default_meeting_provider: "google_meet", default_meeting_enabled: true }))}
+                    onClick={() => {
+                      setModoLink(true);
+                      setForm(f => ({ ...f, default_meeting_provider: "none", default_meeting_enabled: false }));
+                    }}
                     className={`rounded-lg border p-3 text-left transition hover:border-primary/60 hover:bg-primary/5 ${
-                      form.default_meeting_provider === "google_meet" ? "border-primary bg-primary/5 ring-1 ring-primary/20" : "bg-background"
+                      modoLink ? "border-primary bg-primary/5 ring-1 ring-primary/20" : "bg-background"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 text-sm font-medium">
+                      <Video className="h-4 w-4 text-primary" />
+                      Link fisso
+                    </div>
+                    <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                      Sempre lo stesso link (Meet, Zoom…): arriva al cliente in conferma, promemoria ed evento.
+                    </p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setModoLink(false);
+                      setForm(f => ({ ...f, default_meeting_provider: "google_meet", default_meeting_enabled: true }));
+                    }}
+                    className={`rounded-lg border p-3 text-left transition hover:border-primary/60 hover:bg-primary/5 ${
+                      !modoLink && form.default_meeting_provider === "google_meet" ? "border-primary bg-primary/5 ring-1 ring-primary/20" : "bg-background"
                     }`}
                   >
                     <div className="flex items-center gap-2 text-sm font-medium">
@@ -617,7 +763,16 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
                   </button>
                 </div>
 
-                {form.default_meeting_provider === "google_meet" && (
+                {modoLink && (
+                  <div className="mt-3 space-y-1">
+                    <Label htmlFor="cal-link-video" className="text-xs text-muted-foreground">Link della videochiamata</Label>
+                    <Input id="cal-link-video" value={form.link_videochiamata} maxLength={500}
+                      placeholder="https://meet.google.com/abc-defg-hij"
+                      onChange={(e) => setForm(f => ({ ...f, link_videochiamata: e.target.value }))} />
+                  </div>
+                )}
+
+                {!modoLink && form.default_meeting_provider === "google_meet" && (
                   <div className="mt-3 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-900">
                     Serve il collegamento Google Calendar del responsabile. Se manca, l'appuntamento resta in attesa e il link verrà creato al primo sync utile.
                   </div>
@@ -673,7 +828,11 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
                   </div>
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <Video className="h-3.5 w-3.5" />
-                    <span>{form.default_meeting_provider === "google_meet" ? "Google Meet automatico" : "Nessun link video automatico"}</span>
+                    <span className="truncate">
+                      {modoLink && form.link_videochiamata.trim()
+                        ? linkCompleto(form.link_videochiamata)
+                        : form.default_meeting_provider === "google_meet" ? "Google Meet automatico" : "Nessun link video automatico"}
+                    </span>
                   </div>
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <CalendarDays className="h-3.5 w-3.5 shrink-0" />

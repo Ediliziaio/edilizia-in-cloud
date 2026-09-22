@@ -16,6 +16,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { avvisaSuperAdmin } from "../_shared/avvisaSuperAdmin.ts";
+import { whatsappAppuntamento } from "../_shared/messaggiAppuntamento.ts";
+import { sendOpenWaMessage, OPENWA_PLATFORM_COMPANY_ID } from "../_shared/openwaSend.ts";
 import {
   minutiDa, orarioDa, dataEstesa, esc, creaIcs, allegatoIcs,
   urlGestione, blocchettoDettagli, bottoneGestione, sincronizzaCalendariEsterni,
@@ -40,7 +42,7 @@ Deno.serve(async (req) => {
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
     const { data: app, error: appErr } = await admin
       .from("appointments")
-      .select("id, calendar_id, company_id, appointment_date, appointment_time, appointment_end_time, status, title, booking_email, assigned_to")
+      .select("id, calendar_id, company_id, contact_id, appointment_date, appointment_time, appointment_end_time, status, title, booking_email, assigned_to, meeting_url")
       .eq("manage_token", token).maybeSingle();
     if (appErr) throw appErr;
     if (!app) return json({ error: "Appuntamento non trovato: il link potrebbe essere scaduto." }, 404);
@@ -53,7 +55,7 @@ Deno.serve(async (req) => {
 
     const { data: cal } = await admin
       .from("marketing_calendars")
-      .select("id, name, description, company_id, duration_minutes, owner_id, booking_slug, buffer_before_min, buffer_after_min, min_notice_minutes, max_per_day")
+      .select("id, name, description, company_id, duration_minutes, owner_id, booking_slug, buffer_before_min, buffer_after_min, min_notice_minutes, max_per_day, link_videochiamata, whatsapp_numero_id, firma_messaggi")
       .eq("id", app.calendar_id).maybeSingle();
     if (!cal) return json({ error: "Calendario non disponibile." }, 404);
 
@@ -177,6 +179,10 @@ Deno.serve(async (req) => {
       status: "confermato",
       reminder_24h_at: null,
       reminder_1h_at: null,
+      reminder_5m_at: null,
+      // Lo spostamento lo comunica già questa funzione (email e WhatsApp):
+      // col timbro il giro dei promemoria non rimanda anche la conferma.
+      conferma_inviata_at: new Date().toISOString(),
     }).eq("id", app.id);
     if (updErr) throw updErr;
     // Lo spostamento arriva anche sul calendario esterno (se l'evento non c'era
@@ -184,11 +190,12 @@ Deno.serve(async (req) => {
     await sincronizzaCalendariEsterni({ azione: "update-event", appointmentId: app.id, companyId: app.company_id, userId: app.assigned_to ?? cal.owner_id ?? null });
 
     const quandoNuovo = `${dataEstesa(data)} alle ${ora}`;
+    const linkCall = app.meeting_url || cal.link_videochiamata || null;
     if (emailCliente) {
       try {
         const ics = creaIcs({
           uid: `${app.id}@ediliziaincloud.com`, titolo: cal.name, descrizione: cal.description ?? null,
-          dataIso: data, ora, durataMin: durata, partecipante: emailCliente, sequenza: 1,
+          dataIso: data, ora, durataMin: durata, partecipante: emailCliente, sequenza: 1, luogo: linkCall,
         });
         await sendEmailUnified({
           companyId: cal.company_id, stream: "transactional", to: emailCliente,
@@ -197,15 +204,34 @@ Deno.serve(async (req) => {
               <p>L'appuntamento è stato spostato.</p>
               ${blocchettoDettagli(quandoNuovo, durata, cal.name)}
               <p style="color:#64748b">Era previsto per ${esc(quandoVecchio)}.</p>
+              ${linkCall ? `<p>Link della videochiamata: <a href="${esc(linkCall)}">${esc(linkCall)}</a></p>` : ""}
               ${bottoneGestione(link)}
             </div>`,
-          text: `L'appuntamento è stato spostato a ${quandoNuovo} (era ${quandoVecchio}).\n\nPer spostarlo ancora o disdirlo: ${link}`,
+          text: `L'appuntamento è stato spostato a ${quandoNuovo} (era ${quandoVecchio}).${linkCall ? `\n\nLink della videochiamata: ${linkCall}` : ""}\n\nPer spostarlo ancora o disdirlo: ${link}`,
           templateName: "public_booking_spostato",
           attachments: [allegatoIcs(ics)],
           adminClient: admin,
           metadata: { appointment_id: app.id },
         });
       } catch (e) { console.error("[gestisci] email spostamento:", e instanceof Error ? e.message : e); }
+    }
+    // WhatsApp dello spostamento, dal numero del calendario (solo piattaforma).
+    if (cal.whatsapp_numero_id && app.contact_id && cal.company_id === OPENWA_PLATFORM_COMPANY_ID) {
+      try {
+        const { data: contatto } = await admin.from("marketing_contacts")
+          .select("first_name, phone, optout_whatsapp, unsubscribed").eq("id", app.contact_id).maybeSingle();
+        if (contatto?.phone && !contatto.optout_whatsapp && !contatto.unsubscribed) {
+          const testo = whatsappAppuntamento("spostato", {
+            nome: contatto.first_name ?? "", calendario: cal.name, dataIso: data, ora, durataMin: durata,
+            linkCall, linkGestione: link, firma: cal.firma_messaggi,
+          });
+          const w = await sendOpenWaMessage(admin, {
+            to: contatto.phone, contactId: app.contact_id, text: testo,
+            numberId: cal.whatsapp_numero_id, bypassQuietHours: true, simulateTyping: false,
+          });
+          if (!w.ok) console.warn("[gestisci] WhatsApp spostamento non inviato:", w.error);
+        }
+      } catch (e) { console.error("[gestisci] WhatsApp spostamento:", e instanceof Error ? e.message : e); }
     }
     await avvisaTitolare(admin, cal, app, `${app.title} ha SPOSTATO l'appuntamento: da ${quandoVecchio} a ${quandoNuovo}.`);
     return json({ ok: true, stato: "spostato", date: data, time: ora });

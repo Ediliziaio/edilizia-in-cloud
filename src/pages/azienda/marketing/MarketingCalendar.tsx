@@ -192,7 +192,7 @@ export default function MarketingCalendar() {
       if (!companyId) return [];
       let q = supabase
         .from("marketing_calendars")
-        .select("id, name, owner_id, is_active, base_lat, base_lng, base_formatted_address, duration_minutes, default_meeting_provider, default_meeting_enabled, color")
+        .select("id, name, owner_id, is_active, base_lat, base_lng, base_formatted_address, duration_minutes, default_meeting_provider, default_meeting_enabled, color, link_videochiamata")
         .eq("company_id", companyId)
         .eq("is_active", true);
       // Ruolo ristretto (only_assigned): nel filtro vede solo i calendari di cui

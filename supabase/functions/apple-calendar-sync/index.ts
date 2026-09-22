@@ -95,7 +95,10 @@ function buildICalendar(apt: any): string {
     dtend,
     `SUMMARY:${(apt.title || "Appuntamento").replace(/\n/g, "\\n")}`,
     `DESCRIPTION:${description}`,
-    ...(apt.formatted_address ? [`LOCATION:${apt.formatted_address.replace(/\n/g, "\\n")}`] : []),
+    // Senza indirizzo, il luogo è il link della videochiamata (link fisso del calendario).
+    ...(apt.formatted_address || apt.meeting_url
+      ? [`LOCATION:${String(apt.formatted_address || apt.meeting_url).replace(/\n/g, "\\n")}`]
+      : []),
     "END:VEVENT",
     "END:VCALENDAR",
   ];

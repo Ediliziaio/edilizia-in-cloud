@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { indirizzoModuloPrenotazione } from "@/lib/calendar/indirizzoModuloPrenotazione";
 
 /**
  * Il calendario di prenotazione dentro una pagina del sito.
@@ -81,7 +82,7 @@ export function CalendarioInPagina({
         <iframe
           ref={riquadro}
           title="Fissa un appuntamento"
-          src={`/prenota/${slug}?embed=1`}
+          src={indirizzoModuloPrenotazione(slug, typeof window !== "undefined" ? window.location.search : "")}
           className="w-full border-0"
           style={{ height: altezza }}
           loading="lazy"

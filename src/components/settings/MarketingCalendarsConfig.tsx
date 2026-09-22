@@ -55,6 +55,12 @@ type MarketingCalendar = {
   external_connection_id?: string | null;
   external_calendar_id?: string | null;
   external_calendar_name?: string | null;
+  link_videochiamata?: string | null;
+  whatsapp_numero_id?: string | null;
+  promemoria_5min?: boolean | null;
+  messaggi_crm_dal?: string | null;
+  firma_messaggi?: string | null;
+  cosa_preparare?: string | null;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -390,6 +396,13 @@ export default function MarketingCalendarsConfig() {
         external_connection_id: data.external_connection_id ?? null,
         external_calendar_id: data.external_calendar_id ?? null,
         external_calendar_name: data.external_calendar_name ?? null,
+        // Link fisso, WhatsApp e testi dei messaggi al cliente (22/09/2026).
+        link_videochiamata: data.link_videochiamata.trim() || null,
+        whatsapp_numero_id: data.whatsapp_numero_id || null,
+        promemoria_5min: !!data.promemoria_5min,
+        messaggi_crm_dal: data.messaggi_crm_dal ?? null,
+        firma_messaggi: data.firma_messaggi.trim() || null,
+        cosa_preparare: data.cosa_preparare.trim() || null,
         max_daily_km: maxDailyKm,
         calendar_type: calendarType,
         default_meeting_provider: meetingProvider,
@@ -476,6 +489,13 @@ export default function MarketingCalendarsConfig() {
         external_connection_id: data.external_connection_id ?? null,
         external_calendar_id: data.external_calendar_id ?? null,
         external_calendar_name: data.external_calendar_name ?? null,
+        // Link fisso, WhatsApp e testi dei messaggi al cliente (22/09/2026).
+        link_videochiamata: data.link_videochiamata.trim() || null,
+        whatsapp_numero_id: data.whatsapp_numero_id || null,
+        promemoria_5min: !!data.promemoria_5min,
+        messaggi_crm_dal: data.messaggi_crm_dal ?? null,
+        firma_messaggi: data.firma_messaggi.trim() || null,
+        cosa_preparare: data.cosa_preparare.trim() || null,
         max_daily_km: maxDailyKm,
         base_address_line: data.base_address_line || null,
         base_address_city: data.base_address_city || null,

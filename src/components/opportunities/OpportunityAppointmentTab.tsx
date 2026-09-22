@@ -126,7 +126,7 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("marketing_calendars")
-        .select("id, name, duration_minutes, calendar_type, base_lat, base_lng, base_formatted_address, default_meeting_provider, default_meeting_enabled")
+        .select("id, name, duration_minutes, calendar_type, base_lat, base_lng, base_formatted_address, default_meeting_provider, default_meeting_enabled, link_videochiamata")
         .eq("company_id", companyId)
         .eq("is_active", true)
         .order("name");

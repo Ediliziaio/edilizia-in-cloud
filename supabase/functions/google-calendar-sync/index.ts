@@ -858,7 +858,7 @@ async function reconcileCalendario(
           appointment_end_time: fields.endTime,
           description: fields.description,
           formatted_address: fields.location,
-          appointment_type: fields.meetingProvider === "google_meet" ? "videocall" : "altro",
+          appointment_type: fields.meetingProvider !== "none" ? "videocall" : "altro",
           status: "confermato",
           is_completed: false,
           is_blocked_slot: false,
@@ -1408,8 +1408,14 @@ function buildGoogleEventUrl(calendarId: string, eventId?: string, withConferenc
 }
 
 function shouldUseGoogleMeet(apt: any): boolean {
+  // Il link fisso del calendario (22/09/2026) è già la videochiamata: chiedere
+  // un Meet a Google ne creerebbe un secondo, diverso da quello mandato al cliente.
+  if (apt?.meeting_provider === "manual") return false;
   return apt?.meeting_provider === "google_meet" || apt?.appointment_type === "videocall";
 }
+
+/** Riga della descrizione con cui il link fisso fa andata e ritorno da Google. */
+const RIGA_LINK_FISSO = /Link videochiamata:\s*(https?:\/\/[^\s]+)/i;
 
 function extractMeetUrl(gEvent: any): string | null {
   if (typeof gEvent?.hangoutLink === "string" && gEvent.hangoutLink) return gEvent.hangoutLink;
@@ -1492,7 +1498,9 @@ function buildGoogleEvent(apt: any, options: { createMeet?: boolean } = {}) {
   const description = [
     apt.description || "",
     shouldUseGoogleMeet(apt) ? "\nVideochiamata: Google Meet" : "",
-    apt.meeting_url ? `Link Meet: ${apt.meeting_url}` : "",
+    apt.meeting_url
+      ? apt.meeting_provider === "manual" ? `Link videochiamata: ${apt.meeting_url}` : `Link Meet: ${apt.meeting_url}`
+      : "",
     "",
     `crm_appointment_id=${apt.id}`,
     `crm_sync=true`,
@@ -1504,7 +1512,11 @@ function buildGoogleEvent(apt: any, options: { createMeet?: boolean } = {}) {
     description,
     start,
     end,
-    ...(apt.formatted_address ? { location: apt.formatted_address } : {}),
+    // Senza indirizzo, il luogo è il link della videochiamata: sul telefono si
+    // tocca e si entra.
+    ...(apt.formatted_address
+      ? { location: apt.formatted_address }
+      : apt.meeting_provider === "manual" && apt.meeting_url ? { location: apt.meeting_url } : {}),
   };
 
   if (options.createMeet) {
@@ -1544,15 +1556,20 @@ function parseGoogleEventToCrmFields(gEvent: any): {
   endTime: string | null;
   description: string | null;
   location: string | null;
-  meetingProvider: "none" | "google_meet";
+  meetingProvider: "none" | "google_meet" | "manual";
   meetingUrl: string | null;
   meetingStatus: "none" | "ready";
 } {
   const title = gEvent.summary || null;
-  const location = gEvent.location || null;
-  const meetingUrl = extractMeetUrl(gEvent);
-  const meetingProvider = meetingUrl ? "google_meet" : "none";
+  const meetUrl = extractMeetUrl(gEvent);
+  // Il link fisso torna dalla descrizione: prima un appuntamento spostato su
+  // Google rientrava nel CRM senza link, e i promemoria partivano senza.
+  const linkFisso = meetUrl ? null : (String(gEvent.description || "").match(RIGA_LINK_FISSO)?.[1] ?? null);
+  const meetingUrl = meetUrl || linkFisso;
+  const meetingProvider = meetUrl ? "google_meet" : linkFisso ? "manual" : "none";
   const meetingStatus = meetingUrl ? "ready" : "none";
+  // Il link messo come luogo non è un indirizzo.
+  const location = gEvent.location && gEvent.location !== linkFisso ? gEvent.location : null;
 
   // Strip CRM metadata from description
   let description = gEvent.description || "";
@@ -1562,6 +1579,7 @@ function parseGoogleEventToCrmFields(gEvent: any): {
     .replace(/crm_last_update=[^\n]*/gi, "")
     .replace(/Videochiamata:\s*Google Meet/gi, "")
     .replace(/Link Meet:\s*https?:\/\/[^\s]+/gi, "")
+    .replace(/Link videochiamata:\s*https?:\/\/[^\s]+/gi, "")
     .replace(/\n{2,}/g, "\n")
     .trim() || null;
 

@@ -22,6 +22,9 @@ import { getCorsHeaders } from "../_shared/headers.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { sincronizzaCalendariEsterni } from "../_shared/appuntamentiPubblici.ts";
 import { avvisaSuperAdmin } from "../_shared/avvisaSuperAdmin.ts";
+import { contattoDellaPrenotazione } from "../_shared/contattoPrenotazione.ts";
+import { emailAppuntamento, whatsappAppuntamento } from "../_shared/messaggiAppuntamento.ts";
+import { sendOpenWaMessage, OPENWA_PLATFORM_COMPANY_ID } from "../_shared/openwaSend.ts";
 import {
   minutiDa as minuti, orarioDa as orario, dataEstesa, dataBreve, esc, creaIcs, allegatoIcs,
   nuovoToken, urlGestione, blocchettoDettagli, blocchettoContatti, blocchettoNote,
@@ -46,15 +49,17 @@ Deno.serve(async (req) => {
     const ora = String(body?.time ?? "").trim().slice(0, 5); // HH:mm
     const nome = String(body?.first_name ?? "").trim().slice(0, 80);
     const cognome = String(body?.last_name ?? "").trim().slice(0, 80);
-    const email = String(body?.email ?? "").trim().toLowerCase().slice(0, 160);
-    const telefono = String(body?.phone ?? "").trim().slice(0, 40);
+    let email = String(body?.email ?? "").trim().toLowerCase().slice(0, 160);
+    let telefono = String(body?.phone ?? "").trim().slice(0, 40);
     const note = String(body?.notes ?? "").trim().slice(0, 1000);
+    // Il link personale dei messaggi (?c=…): lega la prenotazione a quel contatto.
+    const contattoDalLink = String(body?.contact ?? "").trim().slice(0, 36) || null;
 
     if (!slug || !/^\d{4}-\d{2}-\d{2}$/.test(data) || !/^\d{2}:\d{2}$/.test(ora)) {
       return json({ error: "Dati della richiesta incompleti." }, 400);
     }
     if (!nome) return json({ error: "Inserisci il nome." }, 400);
-    if (!email && !telefono) return json({ error: "Inserisci almeno email o telefono." }, 400);
+    if (!email && !telefono && !contattoDalLink) return json({ error: "Inserisci almeno email o telefono." }, 400);
     if (email && !EMAIL_RE.test(email)) return json({ error: "Indirizzo email non valido." }, 400);
 
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
@@ -62,10 +67,23 @@ Deno.serve(async (req) => {
     // 1. calendario pubblico e attivo
     const { data: cal, error: calErr } = await admin
       .from("marketing_calendars")
-      .select("id, name, description, company_id, duration_minutes, owner_id, default_meeting_provider, is_active, booking_slug, buffer_before_min, buffer_after_min, min_notice_minutes, max_per_day")
+      .select("id, name, description, company_id, duration_minutes, owner_id, default_meeting_provider, is_active, booking_slug, buffer_before_min, buffer_after_min, min_notice_minutes, max_per_day, link_videochiamata, whatsapp_numero_id, firma_messaggi, cosa_preparare")
       .eq("booking_slug", slug).eq("is_active", true).maybeSingle();
     if (calErr) throw calErr;
     if (!cal) return json({ error: "Calendario non trovato o non piu' attivo." }, 404);
+
+    // Dal link personale senza email né telefono scritti: si usano quelli della
+    // scheda, ma solo se il contatto è dell'azienda del calendario.
+    if (!email && !telefono && contattoDalLink) {
+      const { data: scheda } = await admin
+        .from("marketing_contacts").select("email, phone")
+        .eq("id", contattoDalLink).eq("company_id", cal.company_id).is("deleted_at", null)
+        .maybeSingle();
+      email = String(scheda?.email ?? "").trim().toLowerCase();
+      telefono = String(scheda?.phone ?? "").trim();
+      if (email && !EMAIL_RE.test(email)) email = "";
+      if (!email && !telefono) return json({ error: "Inserisci almeno email o telefono." }, 400);
+    }
 
     const durata = cal.duration_minutes || 30;
     const inizio = minuti(ora);
@@ -143,14 +161,29 @@ Deno.serve(async (req) => {
     }
 
     // 6. crea l'appuntamento
-    const conMeet = cal.default_meeting_provider === "google_meet";
+    // Il link fisso del calendario (Meet, Zoom…) diventa il luogo dell'appuntamento:
+    // va nella conferma, nei promemoria, nel file .ics e sull'evento Google. Vince
+    // sul Meet generato, come nel dialogo dell'appuntamento.
+    const linkFisso = cal.link_videochiamata ? String(cal.link_videochiamata).trim() : "";
+    const conMeet = !linkFisso && cal.default_meeting_provider === "google_meet";
     const token = nuovoToken();
     const origine = String(body?.origin ?? req.headers.get("origin") ?? "https://app.ediliziaincloud.com").replace(/\/+$/, "");
     const linkGestione = urlGestione(origine, token);
     const titolo = `${nome} ${cognome}`.trim() || "Prenotazione";
+    // Il contatto nel CRM dell'azienda del calendario: con contact_id il trigger
+    // del database avvisa le automazioni («appuntamento creato», col calendario).
+    const contactId = await contattoDellaPrenotazione(admin, {
+      companyId: cal.company_id,
+      contattoId: contattoDalLink,
+      email: email || null,
+      telefono: telefono || null,
+      nome, cognome,
+      slug,
+    });
     const { data: creato, error: insErr } = await admin.from("appointments").insert({
       calendar_id: cal.id,
       company_id: cal.company_id,
+      contact_id: contactId,
       appointment_date: data,
       appointment_time: `${ora}:00`,
       appointment_end_time: `${fineStr}:00`,
@@ -161,14 +194,17 @@ Deno.serve(async (req) => {
         note && `Note: ${note}`,
         `Prenotato da /prenota/${slug}`,
       ].filter(Boolean).join("\n"),
-      appointment_type: conMeet ? "videocall" : "appuntamento",
+      appointment_type: conMeet || linkFisso ? "videocall" : "appuntamento",
       status: "confermato",
       assigned_to: cal.owner_id || null,
       created_by: "00000000-0000-0000-0000-000000000000",
-      meeting_provider: conMeet ? "google_meet" : "none",
-      meeting_status: conMeet ? "pending" : "none",
+      meeting_provider: conMeet ? "google_meet" : linkFisso ? "manual" : "none",
+      meeting_status: conMeet ? "pending" : linkFisso ? "ready" : "none",
+      meeting_url: linkFisso || null,
       manage_token: token,
       booking_email: email || null,
+      // La conferma la manda questa funzione: il giro dei promemoria non la ripete.
+      conferma_inviata_at: new Date().toISOString(),
     }).select("id").single();
     if (insErr) throw insErr;
 
@@ -177,37 +213,43 @@ Deno.serve(async (req) => {
     if (creato?.id) {
       await sincronizzaCalendariEsterni({ azione: "push-event", appointmentId: creato.id, companyId: cal.company_id, userId: cal.owner_id ?? null });
     }
+    // Nel registro attività della scheda: chi apre il contatto vede la prenotazione.
+    if (creato?.id && contactId) {
+      const { error: attErr } = await admin.from("marketing_contact_activities").insert({
+        company_id: cal.company_id,
+        contact_id: contactId,
+        activity_type: "appuntamento_prenotato",
+        description: `Ha prenotato «${cal.name}» per ${dataEstesa(data)} alle ${ora}`,
+        metadata: { appointment_id: creato.id, calendar_id: cal.id, booking_slug: slug },
+      });
+      if (attErr) console.warn("[public-booking-crea] attività non registrata:", attErr.message);
+    }
 
     const quandoTesto = `${dataEstesa(data)} alle ${ora}`;
     const esito = { appointment_id: creato?.id ?? null, email_cliente: false, avviso_titolare: false };
 
     // 7. conferma al cliente (best-effort: l'appuntamento resta preso comunque)
+    const datiMessaggio = {
+      nome, calendario: cal.name, dataIso: data, ora, durataMin: durata,
+      linkCall: linkFisso || null, linkGestione, firma: cal.firma_messaggi, cosaPreparare: cal.cosa_preparare,
+    };
     if (email) {
       try {
-        const html = `
-          <div style="font-family:system-ui,-apple-system,Segoe UI,sans-serif;max-width:520px;color:#0f172a">
-            <p>Ciao ${esc(nome)},</p>
-            <p>l'appuntamento è confermato.</p>
-            ${blocchettoDettagli(quandoTesto, durata, cal.name)}
-            ${cal.description ? `<p style="color:#475569">${esc(cal.description)}</p>` : ""}
-            <p>In allegato trovi il file da aprire per aggiungerlo al tuo calendario.</p>
-            ${bottoneGestione(linkGestione)}
-            <p style="color:#64748b;font-size:13px">Se il pulsante non funziona, apri questo indirizzo:<br>${linkGestione}</p>
-          </div>`;
-        const testo = `Ciao ${nome},\n\nl'appuntamento è confermato.\n\nQuando: ${quandoTesto}\nDurata: ${durata} minuti\nArgomento: ${cal.name}\n\nPer spostarlo o disdirlo: ${linkGestione}\n\nA presto`;
+        const m = emailAppuntamento("conferma", datiMessaggio);
         const ics = creaIcs({
           uid: `${creato?.id ?? token}@ediliziaincloud.com`,
           titolo: cal.name,
           descrizione: cal.description ?? null,
           dataIso: data, ora, durataMin: durata,
           partecipante: email,
+          luogo: linkFisso || null,
         });
         const r = await sendEmailUnified({
           companyId: cal.company_id,
           stream: "transactional",
           to: email,
-          subject: `Appuntamento confermato — ${quandoTesto}`,
-          html, text: testo,
+          subject: m.oggetto,
+          html: m.html, text: m.testo,
           templateName: "public_booking_conferma",
           attachments: [allegatoIcs(ics)],
           adminClient: admin,
@@ -217,6 +259,29 @@ Deno.serve(async (req) => {
       } catch (e) {
         console.error("[public-booking-crea] conferma al cliente non inviata:", e instanceof Error ? e.message : e);
       }
+    }
+
+    // 7b. conferma su WhatsApp, dal numero del calendario (solo piattaforma).
+    // In background: la simulazione di scrittura prende qualche secondo e chi
+    // prenota non deve aspettarla per vedere «prenotato».
+    if (cal.whatsapp_numero_id && telefono && cal.company_id === OPENWA_PLATFORM_COMPANY_ID) {
+      const invio = (async () => {
+        try {
+          const { data: scheda } = contactId
+            ? await admin.from("marketing_contacts").select("optout_whatsapp, unsubscribed").eq("id", contactId).maybeSingle()
+            : { data: null };
+          if (scheda?.optout_whatsapp || scheda?.unsubscribed) return;
+          const w = await sendOpenWaMessage(admin, {
+            to: telefono, contactId, text: whatsappAppuntamento("conferma", datiMessaggio),
+            numberId: cal.whatsapp_numero_id, bypassQuietHours: true,
+          });
+          if (!w.ok) console.warn("[public-booking-crea] WhatsApp di conferma non inviato:", w.error);
+        } catch (e) {
+          console.error("[public-booking-crea] WhatsApp di conferma:", e instanceof Error ? e.message : e);
+        }
+      })();
+      const runtime = (globalThis as any).EdgeRuntime;
+      if (runtime?.waitUntil) runtime.waitUntil(invio); else await invio;
     }
 
     // 8. avviso al titolare

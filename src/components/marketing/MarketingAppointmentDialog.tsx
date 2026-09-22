@@ -42,6 +42,8 @@ interface CalendarOption {
   duration_minutes?: number | null;
   default_meeting_provider?: "none" | "google_meet" | null;
   default_meeting_enabled?: boolean | null;
+  /** Link fisso della videochiamata (Meet, Zoom…): chi fissa l'appuntamento lo ritrova già messo. */
+  link_videochiamata?: string | null;
 }
 
 interface UserOption {
@@ -145,7 +147,7 @@ export default function MarketingAppointmentDialog({
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [contactPickerOpen, setContactPickerOpen] = useState(false);
   const [addressData, setAddressData] = useState<AddressData>(emptyAddress);
-  const [meetingProvider, setMeetingProvider] = useState<"none" | "google_meet">("none");
+  const [meetingProvider, setMeetingProvider] = useState<"none" | "google_meet" | "manual">("none");
   const [meetingUrl, setMeetingUrl] = useState("");
   const [meetingStatus, setMeetingStatus] = useState<"none" | "pending" | "ready" | "error">("none");
   const [createFollowUp, setCreateFollowUp] = useState(false);
@@ -185,7 +187,11 @@ export default function MarketingAppointmentDialog({
       setStatus(appointment.status || "confermato");
       setInternalNotes(appointment.internal_notes || "");
       setShowInternalNotes(!!appointment.internal_notes);
-      setMeetingProvider(appointment.meeting_provider === "google_meet" || appointment.appointment_type === "videocall" ? "google_meet" : "none");
+      setMeetingProvider(
+        appointment.meeting_provider === "manual" ? "manual"
+          : appointment.meeting_provider === "google_meet" || appointment.appointment_type === "videocall" ? "google_meet"
+            : "none",
+      );
       setMeetingUrl(appointment.meeting_url || "");
       setMeetingStatus((appointment.meeting_status as "none" | "pending" | "ready" | "error") || (appointment.meeting_url ? "ready" : "none"));
       setCreateFollowUp(false);
@@ -231,6 +237,15 @@ export default function MarketingAppointmentDialog({
 
   useEffect(() => {
     if (!open || isEditing || activeTab === "blocked" || !selectedCalendar) return;
+    // Il link fisso del calendario vince sul Meet generato: è quello che il
+    // cliente riceve nella conferma e nei promemoria.
+    const linkFisso = selectedCalendar.link_videochiamata?.trim() || "";
+    if (linkFisso) {
+      setMeetingProvider("manual");
+      setMeetingStatus("ready");
+      setMeetingUrl(linkFisso);
+      return;
+    }
     const nextProvider = selectedCalendar.default_meeting_provider === "google_meet" ? "google_meet" : "none";
     setMeetingProvider(nextProvider);
     setMeetingStatus(nextProvider === "google_meet" ? "pending" : "none");
@@ -288,7 +303,13 @@ export default function MarketingAppointmentDialog({
 
   const selectedOpportunity = useMemo(() => contactOpportunities[0] || null, [contactOpportunities]);
   const selectedStatusMeta = useMemo(() => getMarketingAppointmentStatusMeta(status), [status]);
+  // Il link fisso da proporre: quello del calendario scelto, oppure quello già
+  // sull'appuntamento se il calendario nel frattempo l'ha cambiato o tolto.
+  const linkDelCalendario = selectedCalendar?.link_videochiamata?.trim()
+    || (appointment?.meeting_provider === "manual" ? appointment.meeting_url?.trim() || "" : "");
+
   const meetingStatusLabel = useMemo(() => {
+    if (meetingProvider === "manual") return meetingUrl ? "Link della videochiamata del calendario" : "Nessun link";
     if (meetingProvider !== "google_meet") return "Nessuna videocall";
     if (meetingUrl) return "Link Meet pronto";
     if (meetingStatus === "error") return "Meet da rigenerare";
@@ -299,7 +320,7 @@ export default function MarketingAppointmentDialog({
     if (!meetingUrl) return;
     try {
       await navigator.clipboard.writeText(meetingUrl);
-      toast({ title: "Link Meet copiato" });
+      toast({ title: "Link copiato" });
     } catch {
       toast({ title: "Copia non riuscita", description: "Apri il link e copialo manualmente.", variant: "destructive" });
     }
@@ -574,8 +595,11 @@ export default function MarketingAppointmentDialog({
       const successTitle = isEditing
         ? isBlocked ? "Tempo bloccato aggiornato" : "Appuntamento aggiornato"
         : isBlocked ? "Tempo bloccato creato" : "Appuntamento prenotato";
-      const effectiveMeetingProvider = !isBlocked && meetingProvider === "google_meet" ? "google_meet" : "none";
-      const effectiveMeetingUrl = effectiveMeetingProvider === "google_meet" ? meetingUrl.trim() || null : null;
+      // Il link fisso senza link non è una videochiamata: resta «in presenza / telefono».
+      const effectiveMeetingProvider = isBlocked ? "none"
+        : meetingProvider === "manual" ? (meetingUrl.trim() ? "manual" : "none")
+          : meetingProvider;
+      const effectiveMeetingUrl = effectiveMeetingProvider !== "none" ? meetingUrl.trim() || null : null;
 
       const payload: Record<string, unknown> = {
         company_id: companyId,
@@ -584,7 +608,7 @@ export default function MarketingAppointmentDialog({
         appointment_date: format(appointmentDate, "yyyy-MM-dd"),
         appointment_time: startTime + ":00",
         appointment_end_time: endTime + ":00",
-        appointment_type: isBlocked ? "blocked" : effectiveMeetingProvider === "google_meet" ? "videocall" : "generico",
+        appointment_type: isBlocked ? "blocked" : effectiveMeetingProvider !== "none" ? "videocall" : "generico",
         // Con «Solo i propri» l'appuntamento resta a chi lo fissa: senza
         // assegnatario il database non glielo farebbe più nemmeno rileggere.
         assigned_to: assignedTo && assignedTo !== "none" ? assignedTo : (onlyAssigned ? user.id : null),
@@ -607,7 +631,8 @@ export default function MarketingAppointmentDialog({
         place_id: addressData.place_id || null,
         meeting_provider: effectiveMeetingProvider,
         meeting_url: effectiveMeetingUrl,
-        meeting_status: effectiveMeetingProvider === "google_meet" ? (effectiveMeetingUrl ? "ready" : "pending") : "none",
+        meeting_status: effectiveMeetingProvider === "google_meet" ? (effectiveMeetingUrl ? "ready" : "pending")
+          : effectiveMeetingProvider === "manual" ? "ready" : "none",
         meeting_created_at: effectiveMeetingUrl && !appointment?.meeting_created_at ? new Date().toISOString() : appointment?.meeting_created_at || null,
       };
 
@@ -782,7 +807,27 @@ export default function MarketingAppointmentDialog({
                     )}
                   </div>
 
-                  <div className="grid gap-2 sm:grid-cols-2">
+                  <div className={cn("grid gap-2", linkDelCalendario ? "sm:grid-cols-3" : "sm:grid-cols-2")}>
+                    {linkDelCalendario && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMeetingProvider("manual");
+                          setMeetingStatus("ready");
+                          setMeetingUrl(linkDelCalendario);
+                        }}
+                        className={cn(
+                          "rounded-lg border bg-background p-3 text-left text-sm transition hover:border-primary/60 hover:bg-primary/5",
+                          meetingProvider === "manual" && "border-primary bg-primary/5 ring-1 ring-primary/20",
+                        )}
+                      >
+                        <span className="inline-flex items-center gap-1.5 font-medium">
+                          <Video className="h-4 w-4 text-primary" />
+                          Link del calendario
+                        </span>
+                        <span className="mt-1 block text-xs text-muted-foreground">Sempre lo stesso: arriva al cliente nella conferma e nei promemoria.</span>
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => {
@@ -801,8 +846,11 @@ export default function MarketingAppointmentDialog({
                     <button
                       type="button"
                       onClick={() => {
+                        // Dal link del calendario a Meet: il link fisso non è un Meet generato.
+                        const url = meetingProvider === "manual" ? "" : meetingUrl;
                         setMeetingProvider("google_meet");
-                        setMeetingStatus(meetingUrl ? "ready" : "pending");
+                        setMeetingUrl(url);
+                        setMeetingStatus(url ? "ready" : "pending");
                       }}
                       className={cn(
                         "rounded-lg border bg-background p-3 text-left text-sm transition hover:border-primary/60 hover:bg-primary/5",
@@ -817,7 +865,7 @@ export default function MarketingAppointmentDialog({
                     </button>
                   </div>
 
-                  {meetingProvider === "google_meet" && (
+                  {(meetingProvider === "google_meet" || (meetingProvider === "manual" && meetingUrl)) && (
                     <div className="rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-900">
                       {meetingUrl ? (
                         <div className="flex flex-wrap items-center gap-2">

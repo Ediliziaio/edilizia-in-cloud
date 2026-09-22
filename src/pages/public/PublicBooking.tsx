@@ -73,9 +73,13 @@ export default function PublicBooking() {
     phone: searchParams.get("phone") || "",
     notes: "",
   });
+  // Link personale dei messaggi automatici (?c=<id contatto>): la prenotazione
+  // si lega a quel contatto, ed email e telefono li prende il server dalla sua
+  // scheda — il lead non deve riscriverli.
+  const contattoDalLink = (searchParams.get("c") || "").trim();
   const emailValue = form.email.trim();
   const phoneValue = form.phone.trim();
-  const hasContactMethod = !!emailValue || !!phoneValue;
+  const hasContactMethod = !!emailValue || !!phoneValue || !!contattoDalLink;
   const emailIsValid = !emailValue || EMAIL_PATTERN.test(emailValue);
 
   // Fetch calendar by slug
@@ -346,6 +350,7 @@ export default function PublicBooking() {
           email: form.email.trim(),
           phone: form.phone.trim(),
           notes: form.notes.trim(),
+          contact: contattoDalLink || undefined,
         },
       });
       if (error) {
