@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { edgeErrorMessage } from "@/lib/edgeFunctionError";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -266,7 +267,9 @@ export default function SettingsUserDetail() {
             origin: window.location.origin,
           },
         });
-        if (fnErr) throw new Error(fnErr.message);
+        // Il motivo vero (email già usata, utente di un'altra azienda…) sta nel corpo
+        // della risposta: fnErr.message dice solo «non-2xx status code».
+        if (fnErr) throw new Error(await edgeErrorMessage(fnErr, "Cambio email non riuscito."));
         if (res?.error) throw new Error(String(res.error));
         // Nome/telefono sul profilo (l'email l'ha già scritta l'edge su auth+profilo).
         const { error } = await supabase
