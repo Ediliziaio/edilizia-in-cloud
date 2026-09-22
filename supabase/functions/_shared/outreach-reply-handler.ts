@@ -29,6 +29,7 @@ import { intentDaParoleChiave } from "./outreach-intent-parole.ts";
 import { avvisaSuperAdmin } from "./avvisaSuperAdmin.ts";
 import { testoSenzaCitazione } from "./avvisoEmail.ts";
 import { iscrizioniDaFermare } from "./outreachRispostaBrand.ts";
+import { shouldCreateOpportunity, triggerOpportunityFromSignal } from "./outreach-opportunity-trigger.ts";
 
 const PLATFORM_COMPANY = "00000000-0000-0000-0000-000000000001";
 
@@ -261,6 +262,20 @@ export async function handleInboundReply(admin: any, r: InboundReply): Promise<v
     } catch (e) {
       console.warn("[outreach-reply-handler] task chiamata non creato:", e instanceof Error ? e.message : e);
     }
+  }
+
+  // 4-bis-2. TRIGGER OPPORTUNITÀ: solo "interessato" crea l'opportunità in
+  // automatico — "domanda" resta un segnale troppo debole da solo (ha comunque
+  // il task di chiamata sopra). Best-effort: un errore qui non deve mai far
+  // fallire la gestione della risposta.
+  if (r.contactId && shouldCreateOpportunity("email", intent)) {
+    await triggerOpportunityFromSignal(admin, {
+      channel: "email",
+      contactId: r.contactId,
+      sourceRefTable: "outreach_replies",
+      sourceRefId: inserted!.id,
+      snippet,
+    });
   }
 
   // 4-ter. "Non interessato": il cooldown lo tiene il lock del BRAND qui sotto
