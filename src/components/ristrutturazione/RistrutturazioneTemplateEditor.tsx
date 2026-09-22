@@ -29,8 +29,8 @@ import { Link, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import {
   Save, Loader2, Upload, Image as ImageIcon, Plus, Trash2, GripVertical,
-  Palette, FileText, Sparkles, ListChecks, Quote, Clock, Building2,
-  Eye, EyeOff, BadgeEuro, AlertTriangle, FileSearch, Route, ShieldCheck, Percent,
+  Palette, FileText, Sparkles, ListChecks, Clock, Building2,
+  Eye, EyeOff, BadgeEuro, AlertTriangle, FileSearch, Route, Percent,
   Wand2, Check, ListOrdered,} from "lucide-react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
@@ -45,6 +45,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { CondizioniContratto } from "@/components/preventivi/CondizioniContratto";
 import { OrdineCapitoli } from "@/components/preventivi/OrdineCapitoli";
+import { SezionePaginaEdile } from "@/components/preventivi/SezionePaginaEdile";
+import { PAGINE_EDITOR_EDILI } from "@/components/preventivi/pagineEditor";
 import { tipografiaDaModello } from "@/components/preventivi/pdf/temaDocumento";
 
 /** Blocco della libreria Template offerte → testo semplice per la textarea. */
@@ -80,7 +82,6 @@ import {
   COVER_STOCK_CATEGORIE,
 } from "@/components/ristrutturazione/coverStockImages";
 import { GalleryLavoriEditor } from "@/components/shared/GalleryLavoriEditor";
-import { VotoOnlineDelProfilo } from "@/components/preventivi/VotoOnlineDelProfilo";
 import type { GalleryLavoroItem } from "@/types/gallery";
 import { useBeforeUnload } from "@/hooks/useBeforeUnload";
 import { FinanziamentoPromoField } from "@/components/preventivi/FinanziamentoPromoField";
@@ -523,6 +524,8 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
   type RstSection =
     | "brand"
     | "page_ordine" | "page_cover" | "page_chi_siamo" | "page_percorso" | "page_testimonianze" | "page_crono" | "page_condizioni"
+    // Le pagine nuove del documento, una sezione ciascuna (vedi pagineEditor.ts).
+    | "page_come_funziona" | "page_protezione" | "page_controlli" | "page_lavori" | "page_compreso" | "page_documenti" | "page_diario" | "page_domande" | "page_chiusura"
     | "garanzie" | "contenuti" | "opzioni";
   const RST_SECTION_GROUPS: Array<{
     label: string;
@@ -536,20 +539,13 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
     },
     {
       label: "PAGINE DEL PDF",
-      items: [
-        { id: "page_ordine",        label: "Ordine e pagine", emoji: "🔀", descr: "Capitoli, ordine e pagine vostre" },
-        { id: "page_cover",         label: "Copertina",     emoji: "🖼️", descr: "Prima pagina del preventivo" },
-        { id: "page_chi_siamo",     label: "Chi siamo",     emoji: "👋", descr: "Presentazione impresa" },
-        { id: "page_percorso",      label: "Come lavoriamo", emoji: "🗺️", descr: "Le fasi del cantiere" },
-        { id: "page_testimonianze", label: "Testimonianze", emoji: "⭐", descr: "Recensioni clienti" },
-        { id: "page_crono",         label: "Cronoprogramma", emoji: "📅", descr: "Fasi del cantiere" },
-        { id: "page_condizioni",    label: "Condizioni",    emoji: "📄", descr: "Pagamenti, validità, condizioni e firma" },
-      ],
+      // Una sezione per pagina, nell'ordine in cui escono nel documento: le pagine nuove
+      // stanno qui come le altre, non solo in «Ordine e pagine» (vedi pagineEditor.ts).
+      items: PAGINE_EDITOR_EDILI.map((p) => ({ id: p.id as RstSection, label: p.voce, emoji: p.emoji, descr: p.descrizione })),
     },
     {
       label: "DATI & CONTENUTI",
       items: [
-        { id: "garanzie",  label: "Garanzie & FAQ", emoji: "🛡️", descr: "Garanzie e domande frequenti" },
         { id: "contenuti", label: "Contenuti",   emoji: "📝", descr: "Esigenze, soluzione, USP" },
         { id: "opzioni",   label: "Opzioni PDF", emoji: "⚙️", descr: "Visibilità documento" },
       ],
@@ -579,8 +575,8 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
     );
   }
 
-  // Il contenuto delle pagine che raccontano l'azienda: si modifica nella sua
-  // sezione e sotto la matita della pagina, in «Ordine e pagine».
+  // Il contenuto delle pagine che raccontano l'azienda: la sezione della pagina lo
+  // mostra sotto occhiello, titolo e introduzione (vedi SezionePaginaEdile).
   const contenutiPagine = {
     recensioni: (
       <TestimonianzeEditor
@@ -900,7 +896,7 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
                 settore="ristrutturazione"
                 blocchi={form.pdf_blocchi}
                 onBlocchi={(v) => set("pdf_blocchi", v)}
-                contenuti={contenutiPagine}
+                apriSezione={(sezione) => setActiveSection(sezione as RstSection)}
                 campoFoto={(valore, onChange) => (
                   <ImageUploadField label="Foto della pagina" value={valore} companyId={companyId} onChange={onChange} aspect="aspect-[16/9]" />
                 )}
@@ -1303,43 +1299,6 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
             </SectionCard>
           )}
 
-          {/* Garanzie & FAQ */}
-          {activeSection === "garanzie" && (
-            <SectionCard
-              icon={ShieldCheck}
-              title="Garanzie & FAQ"
-              description="Garanzie e domande frequenti mostrate nel PDF."
-              toggle={{ value: form.show_garanzie, onChange: (v) => set("show_garanzie", v), label: "Mostra nel PDF" }}
-            >
-              <div className="space-y-5">
-                <div className="space-y-2">
-                  <Label className="text-xs font-medium">Garanzie</Label>
-                  {contenutiPagine.garanzie}
-                </div>
-                <div className="space-y-2 border-t pt-4">
-                  <Label className="text-xs font-medium">Domande frequenti</Label>
-                  {contenutiPagine.domande}
-                </div>
-              </div>
-            </SectionCard>
-          )}
-
-          {/* Testimonianze */}
-          {activeSection === "page_testimonianze" && (
-            <SectionCard icon={Quote} title="Testimonianze" description="Le parole dei clienti: nel PDF escono nella pagina «Dicono di noi». Titolo e introduzione della pagina si cambiano in «Ordine e pagine», con la matita.">
-              <VotoOnlineDelProfilo />
-              {contenutiPagine.recensioni}
-            </SectionCard>
-          )}
-
-          {activeSection === "page_testimonianze" && (
-            <SectionCard icon={ImageIcon} title="Gallery lavori" description="Foto di lavori realizzati, mostrate nel PDF.">
-              {/* Nello stesso bucket delle altre immagini del modello: il bucket
-                  "companies" non esiste e ogni foto finiva in errore. */}
-              {contenutiPagine.lavori}
-            </SectionCard>
-          )}
-
           {/* Cronoprogramma */}
           {activeSection === "page_crono" && (
             <SectionCard
@@ -1475,6 +1434,24 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
               </SectionCard>
             </>
           )}
+
+          {/* Le pagine del documento che non avevano una sezione (i blocchi, «Dicono di
+              noi», le garanzie, le domande…), e la foto di quelle che l'avevano già. */}
+          <SezionePaginaEdile
+            sezione={activeSection}
+            settore="ristrutturazione"
+            blocchi={form.pdf_blocchi}
+            onBlocchi={(v) => set("pdf_blocchi", v)}
+            ordine={form.pdf_ordine_capitoli}
+            pagine={form.pdf_pagine_libere}
+            onOrdine={(v) => set("pdf_ordine_capitoli", v)}
+            mostraGaranzie={form.show_garanzie !== false}
+            onMostraGaranzie={(v) => set("show_garanzie", v)}
+            contenuti={contenutiPagine}
+            campoFoto={(valore, onChange) => (
+              <ImageUploadField label="Foto della pagina" value={valore} companyId={companyId} onChange={onChange} aspect="aspect-[16/9]" />
+            )}
+          />
 
           {/* Barra salvataggio sticky */}
           <div className="sticky bottom-0 z-10 -mx-1 flex items-center justify-between gap-3 rounded-xl border bg-background/95 px-3 py-2.5 shadow-sm backdrop-blur">

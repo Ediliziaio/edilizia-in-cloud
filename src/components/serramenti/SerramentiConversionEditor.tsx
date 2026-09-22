@@ -36,11 +36,14 @@ interface Props {
   update: <K extends keyof SrTemplatePdfRow>(key: K, value: SrTemplatePdfRow[K]) => void;
   companyAnagrafica?: TemplateCompanyAnagrafica | null;
   /**
-   * Solo le garanzie o solo le domande: sotto la matita della loro pagina, in
-   * «Ordine pagine». Senza, tutto il playbook di conversione.
+   * Le sezioni da mostrare, di serie tutte. Garanzie, confronto e domande hanno
+   * anche una pagina loro nel menu dell'editor: lì si mostra solo la loro, e qui
+   * restano le altre (vedi pagineEditor.ts).
    */
-  solo?: "garanzie" | "faq";
+  sezioni?: SezioneConversione[];
 }
+
+export type SezioneConversione = "garanzie" | "urgenza" | "confronto" | "certificazioni" | "bonus" | "faq" | "firma";
 
 export type SharedLegalTemplateKind = "condizioni" | "legali";
 
@@ -76,8 +79,11 @@ function SerramentiConversionEditorImpl({
   form,
   update,
   companyAnagrafica,
-  solo,
+  sezioni,
 }: Props) {
+  const mostra = (sezione: SezioneConversione) => !sezioni || sezioni.includes(sezione);
+  // Da sola, una sezione non ha bisogno del numero che la mette in fila con le altre.
+  const titolo = (testo: string) => (sezioni ? testo.replace(/^\d+\.\s*/, "") : testo);
   // Garanzie
   const garanzie = (form.garanzie ?? []) as SrGaranzia[];
   const addGaranzia = () => update("garanzie", [...garanzie, { icona: "shield", titolo: "", descrizione: "" }]);
@@ -125,7 +131,7 @@ function SerramentiConversionEditorImpl({
 
   return (
     <div className="space-y-6">
-      {!solo && (<>
+      {!sezioni && (<>
       {/* Intro */}
       <div className="rounded-md border border-amber-200 bg-amber-50/40 px-3 py-2">
         <p className="text-xs text-amber-900">
@@ -138,9 +144,9 @@ function SerramentiConversionEditorImpl({
       </div>
       </>)}
 
-      {(!solo || solo === "garanzie") && (<>
+      {mostra("garanzie") && (<>
       {/* ═══ 1. GARANZIE ════════════════════════════════════════════════════ */}
-      <Section icon={<Shield />} title="1. Garanzie esplicite" tag="+15-25% conv">
+      <Section icon={<Shield />} title={titolo("1. Garanzie esplicite")} tag="+15-25% conv">
         <p className="text-[11px] text-muted-foreground mb-2">
           5 garanzie con badge visivi nel PDF. Riducono il rischio percepito.
         </p>
@@ -192,9 +198,9 @@ function SerramentiConversionEditorImpl({
       </Section>
       </>)}
 
-      {!solo && (<>
+      {mostra("urgenza") && (<>
       {/* ═══ 2. URGENZA / SCADENZA ════════════════════════════════════════ */}
-      <Section icon={<Tag />} title="2. Urgenza & scadenza prezzo" tag="+10-18% conv">
+      <Section icon={<Tag />} title={titolo("2. Urgenza & scadenza prezzo")} tag="+10-18% conv">
         <p className="text-[11px] text-muted-foreground mb-2">
           Box visivo "Offerta valida fino al…" + sconto early bird per chi firma
           rapidamente. Innesca scarsità.
@@ -271,9 +277,11 @@ function SerramentiConversionEditorImpl({
           </div>
         </div>
       </Section>
+      </>)}
 
+      {mostra("confronto") && (<>
       {/* ═══ 3. CONFRONTO PRIMA/DOPO ═════════════════════════════════════════ */}
-      <Section icon={<Sparkles />} title="3. Confronto Prima/Dopo numerico" tag="+12-20% conv">
+      <Section icon={<Sparkles />} title={titolo("3. Confronto Prima/Dopo numerico")} tag="+12-20% conv">
         <p className="text-[11px] text-muted-foreground mb-2">
           Tabella tecnica che mostra il delta misurabile: serramento attuale vs nuovo.
         </p>
@@ -345,9 +353,11 @@ function SerramentiConversionEditorImpl({
           </div>
         )}
       </Section>
+      </>)}
 
+      {mostra("certificazioni") && (<>
       {/* ═══ 4. CERTIFICAZIONI ════════════════════════════════════════════ */}
-      <Section icon={<Award />} title="4. Certificazioni & marchi qualità" tag="+5-8% conv">
+      <Section icon={<Award />} title={titolo("4. Certificazioni & marchi qualità")} tag="+5-8% conv">
         <p className="text-[11px] text-muted-foreground mb-2">
           Loghi delle certificazioni mostrate in chi siamo + footer.
         </p>
@@ -386,9 +396,11 @@ function SerramentiConversionEditorImpl({
           </div>
         </div>
       </Section>
+      </>)}
 
+      {mostra("bonus") && (<>
       {/* ═══ 5. BONUS AGGIUNTIVI ══════════════════════════════════════════ */}
-      <Section icon={<Gift />} title="5. Bonus aggiuntivi (regali)" tag="+5-10% conv">
+      <Section icon={<Gift />} title={titolo("5. Bonus aggiuntivi (regali)")} tag="+5-10% conv">
         <p className="text-[11px] text-muted-foreground mb-2">
           Regali tangibili con valore €. Il cliente percepisce valore extra non in offerta da concorrenza.
           Nel PDF escono solo gli omaggi scritti qui, sotto la proposta economica: se la lista è vuota,
@@ -440,9 +452,9 @@ function SerramentiConversionEditorImpl({
       </Section>
       </>)}
 
-      {(!solo || solo === "faq") && (<>
+      {mostra("faq") && (<>
       {/* ═══ 6. FAQ ═════════════════════════════════════════════════════════ */}
-      <Section icon={<HelpCircle />} title="6. FAQ — obiezioni anticipate" tag="+3-5% conv">
+      <Section icon={<HelpCircle />} title={titolo("6. FAQ — obiezioni anticipate")} tag="+3-5% conv">
         <p className="text-[11px] text-muted-foreground mb-2">
           6 domande comuni dei clienti con risposte chiare. Riduce friction nel
           decision making.
@@ -489,9 +501,9 @@ function SerramentiConversionEditorImpl({
       </Section>
       </>)}
 
-      {!solo && (<>
+      {mostra("firma") && (<>
       {/* ═══ 7. BRAND FOOTER ═══════════════════════════════════════════════ */}
-      <Section icon={<FileText />} title="7. Brand legitimacy footer" tag="trust">
+      <Section icon={<FileText />} title={titolo("7. Brand legitimacy footer")} tag="trust">
         <p className="text-[11px] text-muted-foreground mb-2">
           Dati legali in fondo all'ultima pagina (P.IVA, REA, assicurazione, ecc).
           Segnala professionalità e protegge da dispute.

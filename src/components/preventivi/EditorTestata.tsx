@@ -27,11 +27,13 @@ interface Props {
   onSalvati: (v: Record<string, unknown>) => void;
   /** Quello che la pagina mostra, modificabile sotto la testata. */
   children?: ReactNode;
+  /** Dentro una sezione dell'editor, che ha già la sua scheda: senza bordo né margine. */
+  incorniciato?: boolean;
 }
 
 type Campo = "occhiello" | "titolo" | "intro";
 
-export function EditorTestata({ pagina, motore, salvati, onSalvati, children }: Props) {
+export function EditorTestata({ pagina, motore, salvati, onSalvati, children, incorniciato = true }: Props) {
   const tutti = useMemo(() => (salvati && typeof salvati === "object" ? (salvati as Record<string, unknown>) : {}), [salvati]);
   const chiave = chiaveTestata(pagina);
   const proprio = (tutti[chiave] && typeof tutti[chiave] === "object" ? tutti[chiave] : {}) as Record<string, unknown>;
@@ -50,7 +52,7 @@ export function EditorTestata({ pagina, motore, salvati, onSalvati, children }: 
   };
 
   return (
-    <div className="mt-3 space-y-4 rounded-md border bg-background p-3">
+    <div className={incorniciato ? "mt-3 space-y-4 rounded-md border bg-background p-3" : "space-y-4"}>
       <div className="grid gap-3 md:grid-cols-[1fr_2fr]">
         <div className="space-y-1.5">
           <Label className="text-xs" htmlFor={`${chiave}-occhiello`}>Occhiello</Label>

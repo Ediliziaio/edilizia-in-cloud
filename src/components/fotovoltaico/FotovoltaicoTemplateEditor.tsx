@@ -34,9 +34,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { AiTemplateGenerator } from "@/components/preventivi/AiTemplateGenerator";
 import type { AiTemplateDraft } from "@/components/preventivi/AiTemplateReviewDialog";
 import { FvPagesOrderEditor } from "@/components/fotovoltaico/FvPagesOrderEditor";
+import { ContenutoPagina } from "@/components/preventivi/ContenutoPagina";
+import { conPaginaVisibile, paginaEditor, PAGINE_EDITOR_FOTOVOLTAICO } from "@/components/preventivi/pagineEditor";
 import { CampoFotoModello } from "@/components/preventivi/CampoFotoModello";
 import { MacroPagineDedicateManager } from "@/components/listino/MacroPagineDedicateManager";
-import type { FvPdfPageOrderItem } from "@/lib/fotovoltaico/pdfPages";
+import { normalizeFvPdfPagesOrder, type FvPdfPageOrderItem } from "@/lib/fotovoltaico/pdfPages";
 import {
   useListinoMacrocategorie,
   type ListinoMacrocategoria,
@@ -293,7 +295,9 @@ type FvEditorSection =
   | "page_render"
   | "page_cta"
   | "page_conversione"
-  | "page_ordine";
+  | "page_ordine"
+  // Le pagine nuove del documento, una sezione ciascuna (vedi pagineEditor.ts).
+  | "page_come_funziona" | "page_protezione" | "page_controlli" | "page_documenti" | "page_diario" | "page_faq";
 
 const FV_EDITOR_SECTIONS: Array<{
   id: FvEditorSection;
@@ -307,48 +311,9 @@ const FV_EDITOR_SECTIONS: Array<{
     icon: "Azienda",
     description: "Identita, contatti e colori.",
   },
-  {
-    id: "page_cover",
-    label: "Cover",
-    icon: "Cover",
-    description: "Prima pagina del preventivo.",
-  },
-  {
-    id: "page_chi_siamo",
-    label: "Chi siamo",
-    icon: "Chi",
-    description: "Presentazione azienda.",
-  },
-  {
-    id: "page_percorso",
-    label: "Il tuo percorso",
-    icon: "Flow",
-    description: "Iter cliente e pratiche.",
-  },
-  {
-    id: "page_consulente",
-    label: "Consulente",
-    icon: "Sales",
-    description: "Copy venditore e contatto.",
-  },
-  {
-    id: "page_recensioni",
-    label: "Recensioni",
-    icon: "Trust",
-    description: "Prova sociale e certificazioni.",
-  },
-  {
-    id: "page_render",
-    label: "Render AI",
-    icon: "Render",
-    description: "Nota anteprima impianto.",
-  },
-  {
-    id: "page_cta",
-    label: "CTA finale",
-    icon: "CTA",
-    description: "Titolo, testo e firma.",
-  },
+  // Le pagine del PDF, una sezione ciascuna nell'ordine in cui escono: le pagine nuove
+  // stanno qui come le altre, non solo in «Ordine pagine» (vedi pagineEditor.ts).
+  ...PAGINE_EDITOR_FOTOVOLTAICO.map((p) => ({ id: p.id as FvEditorSection, label: p.voce, icon: p.emoji, description: p.descrizione })),
   {
     id: "page_conversione",
     label: "Conversione",
@@ -401,16 +366,9 @@ const FV_EDITOR_SECTION_GROUPS: Array<{
   },
   {
     title: "Pagine del PDF",
-    sections: [
-      "page_cover",
-      "page_chi_siamo",
-      "page_percorso",
-      "page_consulente",
-      "page_recensioni",
-      "page_render",
-      "page_cta",
-      "page_conversione",
-    ],
+    // «Conversione» mostrava gli stessi campi di «Contenuti»: ora garanzie e domande
+    // hanno la loro pagina, e il resto sta in «Contenuti».
+    sections: PAGINE_EDITOR_FOTOVOLTAICO.map((p) => p.id as FvEditorSection),
   },
   {
     title: "Dati & contenuti",
@@ -1180,8 +1138,17 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
     );
   }
 
-  // Il contenuto delle pagine che raccontano l'azienda: si modifica nella sua
-  // sezione e sotto la matita della pagina, in «Ordine e visibilità delle pagine».
+  // Il contenuto delle pagine che raccontano l'azienda: la sezione della pagina lo
+  // mostra sotto occhiello, titolo e introduzione (vedi ContenutoPagina).
+  // La sezione aperta, se è una pagina del documento, e se la pagina esce.
+  const paginaFv = paginaEditor("fotovoltaico", activeSection);
+  const IconaPaginaFv = paginaFv?.icona ?? ImageIcon;
+  const ordinePagineFv = normalizeFvPdfPagesOrder(form.pdf_pages_order ?? null);
+  const paginaFvVisibile = paginaFv?.pagina ? ordinePagineFv.find((p) => p.id === paginaFv.pagina)?.visible ?? false : false;
+  const campoFotoFv = (valore: string | null, onChange: (url: string | null) => void) => (
+    <CampoFotoModello valore={valore} onChange={onChange} bucket="fv-progetti" cartella={companyId ? `${companyId}/template-blocchi` : null} />
+  );
+
   const contenutiPagine = {
     recensioni: (
       <>
@@ -1447,6 +1414,50 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
             <Plus className="h-4 w-4" /> Aggiungi punto di forza
           </Button>
         </div>
+
+        {/* Certificazioni */}
+        <FvSettingsCard
+          title="Certificazioni e qualifiche"
+          description="Escono nella pagina «Chi siamo e garanzie», sotto i punti di forza. Es. Certificazione installatore PV, UNI EN ISO 9001."
+          icon={<BadgeCheck className="h-4 w-4" />}
+        >
+          <div className="space-y-2">
+            {certificazioni.map((c, idx) => (
+              <div key={idx} className="grid grid-cols-12 gap-2 items-end border-l-4 border-sky-200 pl-3 py-1">
+                <div className="col-span-12 md:col-span-6">
+                  <Label className="text-xs">Nome certificazione</Label>
+                  <Input
+                    value={c.nome}
+                    onChange={(e) => updateCertificazione(idx, "nome", e.target.value)}
+                    placeholder="Es. Installatore PV qualificato"
+                    className="h-9 text-xs"
+                  />
+                </div>
+                <div className="col-span-10 md:col-span-5">
+                  <Label className="text-xs">Ente certificatore</Label>
+                  <Input
+                    value={c.ente ?? ""}
+                    onChange={(e) => updateCertificazione(idx, "ente", e.target.value)}
+                    placeholder="GSE / ENEA / Bureau Veritas"
+                    className="h-9 text-xs"
+                  />
+                </div>
+                <div className="col-span-2 md:col-span-1">
+                  <Button size="icon" variant="ghost" onClick={() => setDelCertIdx(idx)} className="h-9 w-9">
+                    <Trash2 className="h-3.5 w-3.5 text-rose-600" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+            <Button
+              onClick={addCertificazione}
+              variant="outline"
+              className="w-full border-dashed border-2 border-sky-300 hover:bg-sky-50 gap-1"
+            >
+              <Plus className="h-4 w-4" /> Aggiungi certificazione
+            </Button>
+          </div>
+        </FvSettingsCard>
       </>
     ),
     domande: (
@@ -2289,8 +2300,8 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
       {activeSection === "page_chi_siamo" && (
         <>
           <FvSectionHeader
-            title="Pagina Chi siamo"
-            description="Questi contenuti finiscono nella pagina garanzie/azienda del PDF FV, come nel template serramenti."
+            title="Chi siamo e garanzie"
+            description="La pagina dopo la copertina: chi siete, poi le garanzie, perché scegliervi e le certificazioni (più sotto)."
             number={2}
           />
           <FvSettingsCard
@@ -2569,10 +2580,8 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
               onChange={(next) => update("pdf_pages_order", next)}
               blocchi={form.pdf_blocchi}
               onBlocchi={(v) => update("pdf_blocchi", v)}
-              contenuti={contenutiPagine}
-              campoFoto={(valore, onChange) => (
-                <CampoFotoModello valore={valore} onChange={onChange} bucket="fv-progetti" cartella={companyId ? `${companyId}/template-blocchi` : null} />
-              )}
+              apriSezione={(sezione) => selectSection(sezione as FvEditorSection)}
+              campoFoto={campoFotoFv}
             />
           </FvSettingsCard>
         </>
@@ -2854,8 +2863,8 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
       </FvSettingsCard>
 
       <FvSettingsCard
-        title="Proposta commerciale, garanzie e FAQ"
-        description="Blocchi orientati alla conversione: spiegano valore, riducono obiezioni e preparano il cliente alla firma."
+        title="Proposta commerciale e condizioni"
+        description="La proposta di valore e le condizioni di vendita. Garanzie e domande frequenti hanno la loro pagina, in «Pagine del PDF»."
         icon={<ShieldCheck className="h-4 w-4" />}
       >
         <div className="space-y-5">
@@ -2873,10 +2882,6 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
               minHeight={120}
             />
           </div>
-
-          {contenutiPagine.garanzie}
-
-          {contenutiPagine.domande}
 
           <div className="grid grid-cols-12 gap-3 border-t border-slate-200 pt-4">
             <div className="col-span-12 rounded-md border border-slate-200 bg-slate-50/70 p-3">
@@ -3023,62 +3028,6 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
         </>
       )}
 
-      {/* Recensioni */}
-      {activeSection === "page_recensioni" && (
-        <>
-      <FvSectionHeader
-        title="Fiducia e prova sociale"
-        description="Recensioni e certificazioni sono separate dai contenuti commerciali, come nel modulo serramenti: il venditore capisce subito cosa manca per dare credibilità."
-        number={5}
-      />
-      {contenutiPagine.recensioni}
-
-      {/* Certificazioni */}
-      <FvSettingsCard
-        title="Certificazioni e qualifiche"
-        description="Compaiono nella sezione 'Affidabilità' del PDF. Es. Certificazione installatore PV, UNI EN ISO 9001, ecc."
-        icon={<BadgeCheck className="h-4 w-4" />}
-      >
-        <div className="space-y-2">
-          {certificazioni.map((c, idx) => (
-            <div key={idx} className="grid grid-cols-12 gap-2 items-end border-l-4 border-sky-200 pl-3 py-1">
-              <div className="col-span-12 md:col-span-6">
-                <Label className="text-xs">Nome certificazione</Label>
-                <Input
-                  value={c.nome}
-                  onChange={(e) => updateCertificazione(idx, "nome", e.target.value)}
-                  placeholder="Es. Installatore PV qualificato"
-                  className="h-9 text-xs"
-                />
-              </div>
-              <div className="col-span-10 md:col-span-5">
-                <Label className="text-xs">Ente certificatore</Label>
-                <Input
-                  value={c.ente ?? ""}
-                  onChange={(e) => updateCertificazione(idx, "ente", e.target.value)}
-                  placeholder="GSE / ENEA / Bureau Veritas"
-                  className="h-9 text-xs"
-                />
-              </div>
-              <div className="col-span-2 md:col-span-1">
-                <Button size="icon" variant="ghost" onClick={() => setDelCertIdx(idx)} className="h-9 w-9">
-                  <Trash2 className="h-3.5 w-3.5 text-rose-600" />
-                </Button>
-              </div>
-            </div>
-          ))}
-          <Button
-            onClick={addCertificazione}
-            variant="outline"
-            className="w-full border-dashed border-2 border-sky-300 hover:bg-sky-50 gap-1"
-          >
-            <Plus className="h-4 w-4" /> Aggiungi certificazione
-          </Button>
-        </div>
-      </FvSettingsCard>
-        </>
-      )}
-
       {/* Economia */}
       {activeSection === "default" && (
         <>
@@ -3124,6 +3073,46 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
       </FvSettingsCard>
         </>
       )}
+
+      {/* Le pagine nuove del documento, una sezione ciascuna (vedi pagineEditor.ts); per
+          «Chi siamo e garanzie» e la pagina finale, quello che alla loro sezione mancava. */}
+      {paginaFv && !paginaFv.esistente && (
+        <>
+          <FvSectionHeader title={paginaFv.voce} description={paginaFv.descrizione} />
+          <FvSettingsCard title={paginaFv.voce} icon={<IconaPaginaFv className="h-4 w-4" />}>
+            <ContenutoPagina
+              pagina={paginaFv}
+              motore="fotovoltaico"
+              settore="fotovoltaico"
+              blocchi={form.pdf_blocchi}
+              onBlocchi={(v) => update("pdf_blocchi", v)}
+              contenuto={paginaFv.testata ? contenutiPagine[paginaFv.testata as keyof typeof contenutiPagine] : undefined}
+              campoFoto={campoFotoFv}
+              visibile={paginaFv.pagina ? {
+                valore: paginaFvVisibile,
+                onChange: (v) => update("pdf_pages_order", conPaginaVisibile(ordinePagineFv, paginaFv.pagina as string, v)),
+              } : undefined}
+            />
+          </FvSettingsCard>
+        </>
+      )}
+      {paginaFv?.esistente && (paginaFv.testata || paginaFv.foto) ? (
+        <FvSettingsCard
+          title={paginaFv.testata ? "Garanzie, perché sceglierci e certificazioni" : "Foto della pagina"}
+          icon={<IconaPaginaFv className="h-4 w-4" />}
+        >
+          <ContenutoPagina
+            pagina={paginaFv}
+            motore="fotovoltaico"
+            settore="fotovoltaico"
+            blocchi={form.pdf_blocchi}
+            onBlocchi={(v) => update("pdf_blocchi", v)}
+            contenuto={paginaFv.testata ? contenutiPagine[paginaFv.testata as keyof typeof contenutiPagine] : undefined}
+            campoFoto={campoFotoFv}
+            soloFoto={!paginaFv.testata}
+          />
+        </FvSettingsCard>
+      ) : null}
 
         </div>
 

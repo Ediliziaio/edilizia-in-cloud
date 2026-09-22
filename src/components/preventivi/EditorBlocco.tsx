@@ -28,6 +28,8 @@ interface Props {
   onSalvati: (v: Record<string, unknown>) => void;
   /** Il campo per caricare una foto: quello dell'editor, col suo bucket. */
   campoFoto: (valore: string | null, onChange: (url: string | null) => void) => ReactNode;
+  /** Dentro una sezione dell'editor, che ha già la sua scheda: senza bordo né margine. */
+  incorniciato?: boolean;
 }
 
 const NOMI_ICONE = Object.keys(ICONE) as NomeIcona[];
@@ -87,7 +89,7 @@ function EditorVoci({ titolo, voci, onVoci, conTesto }: {
   );
 }
 
-export function EditorBlocco({ chiave, settore, salvati, onSalvati, campoFoto }: Props) {
+export function EditorBlocco({ chiave, settore, salvati, onSalvati, campoFoto, incorniciato = true }: Props) {
   const tutti = useMemo(() => (salvati && typeof salvati === "object" ? (salvati as Record<string, unknown>) : {}), [salvati]);
   const proprio = (tutti[chiave] && typeof tutti[chiave] === "object" ? tutti[chiave] : {}) as Record<string, unknown>;
   const effettivo = useMemo(() => leggiBlocco(chiave, settore, tutti), [chiave, settore, tutti]);
@@ -132,7 +134,7 @@ export function EditorBlocco({ chiave, settore, salvati, onSalvati, campoFoto }:
   };
 
   return (
-    <div className="mt-3 space-y-4 rounded-md border bg-background p-3">
+    <div className={incorniciato ? "mt-3 space-y-4 rounded-md border bg-background p-3" : "space-y-4"}>
       {descrizione.promessa ? (
         <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
           Questa pagina promette qualcosa al cliente ed è accesa di serie: adatta le voci a come lavorate, e spegnila se non lo fate.

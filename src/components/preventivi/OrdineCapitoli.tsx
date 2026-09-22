@@ -6,6 +6,10 @@
  * Stesso blocco negli otto editor dei moduli edili. L'ordine mostrato qui è
  * quello che il PDF usa davvero (`ordineEffettivo`), così l'anteprima a lato e
  * il documento consegnato dicono la stessa cosa.
+ *
+ * Testi, contenuto e foto di una pagina si scrivono nella sua sezione dell'editor
+ * (vedi pagineEditor.ts): da qui la matita ci porta. Qui restano le pagine vostre e
+ * le foto delle pagine che una sezione non ce l'hanno (il computo, il prezzo).
  */
 import { useMemo, useState, type ReactNode } from "react";
 import { ArrowDown, ArrowUp, Camera, Eye, EyeOff, FilePlus2, Pencil, RotateCcw, Trash2 } from "lucide-react";
@@ -18,11 +22,9 @@ import {
   CAPITOLI_EDILI, chiaveLibera, idLibera, leggiOrdine, leggiPagineLibere, ordineEffettivo, sposta,
   type PaginaLibera, type VoceOrdine,
 } from "@/components/preventivi/pdf/ordineCapitoli";
-import { EditorBlocco } from "@/components/preventivi/EditorBlocco";
 import { EditorFotoPagina } from "@/components/preventivi/EditorFotoPagina";
-import { EditorTestata } from "@/components/preventivi/EditorTestata";
-import { BLOCCHI, RIEMPIMENTI_EDILI, type ChiaveBlocco, type ChiaveFotoPagina, type SettoreBlocchi } from "../../../supabase/functions/_shared/blocchiPreventivo";
-import { pagineConTestata, type PaginaConTestata } from "../../../supabase/functions/_shared/testatePagine";
+import { sezioneDellaPagina } from "@/components/preventivi/pagineEditor";
+import { BLOCCHI, RIEMPIMENTI_EDILI, type ChiaveFotoPagina, type SettoreBlocchi } from "../../../supabase/functions/_shared/blocchiPreventivo";
 
 interface Props {
   /** Il valore salvato nel modello (`pdf_ordine_capitoli`): null = ordine di serie. */
@@ -35,24 +37,19 @@ interface Props {
   campoFoto: (valore: string | null, onChange: (url: string | null) => void) => ReactNode;
   /** Il settore del modulo: decide i testi e le foto di serie dei blocchi. */
   settore?: SettoreBlocchi;
-  /** Le scelte dell'azienda sui blocchi (`pdf_blocchi`): con `onBlocchi`, i blocchi si modificano qui. */
+  /** Le scelte dell'azienda su blocchi e foto (`pdf_blocchi`): con `onBlocchi`, le foto delle pagine senza sezione si cambiano qui. */
   blocchi?: unknown;
   onBlocchi?: (v: Record<string, unknown>) => void;
-  /**
-   * Quello che mostrano le pagine che raccontano l'azienda (le recensioni, le
-   * domande, le garanzie, le foto dei lavori): gli editor delle loro sezioni, che
-   * la matita della pagina apre qui sotto la testata.
-   */
-  contenuti?: Partial<Record<PaginaConTestata, ReactNode>>;
+  /** Apre la sezione dell'editor di una pagina (la matita accanto alla pagina). */
+  apriSezione?: (sezione: string) => void;
 }
 
 const BLOCCO = new Map(BLOCCHI.map((b) => [b.chiave as string, b]));
-const CON_TESTATA = new Set<string>(pagineConTestata("edili"));
 
 const DESCRITTI = new Map(CAPITOLI_EDILI.map((c) => [c.chiave as string, c]));
 const senzaAsterischi = (t: string) => t.replace(/\*/g, "");
 
-export function OrdineCapitoli({ ordine, pagine, onOrdine, onPagine, campoFoto, settore, blocchi, onBlocchi, contenuti }: Props) {
+export function OrdineCapitoli({ ordine, pagine, onOrdine, onPagine, campoFoto, settore, blocchi, onBlocchi, apriSezione }: Props) {
   const libere = useMemo(() => leggiPagineLibere(pagine, { ancheVuote: true }), [pagine]);
   const elenco = useMemo(() => ordineEffettivo(leggiOrdine(ordine), libere), [ordine, libere]);
   const [aperta, setAperta] = useState<string | null>(null);
@@ -103,11 +100,11 @@ export function OrdineCapitoli({ ordine, pagine, onOrdine, onPagine, campoFoto, 
           const nascondibile = descritto ? descritto.nascondibile : true;
           const titolo = pagina ? senzaAsterischi(pagina.titolo) || "Pagina senza titolo" : descritto?.etichetta ?? v.chiave;
           const blocco = BLOCCO.get(v.chiave);
-          // Recensioni, domande, garanzie e lavori: la testata e il contenuto, qui.
-          const testata = onBlocchi && CON_TESTATA.has(v.chiave) ? (v.chiave as PaginaConTestata) : null;
-          const modificabile = Boolean((blocco && settore && onBlocchi) || testata);
-          // La foto che riempie la pagina quando il capitolo finisce a metà foglio.
-          const chiaveFoto = settore && onBlocchi ? (RIEMPIMENTI_EDILI as Record<string, ChiaveFotoPagina>)[v.chiave] : undefined;
+          // La pagina ha una sezione sua nell'editor: la matita porta lì.
+          const sezione = apriSezione ? sezioneDellaPagina("edili", v.chiave) : null;
+          // La foto che riempie la pagina quando il capitolo finisce a metà foglio: qui
+          // solo per le pagine che una sezione non ce l'hanno (il computo, il prezzo).
+          const chiaveFoto = settore && onBlocchi && !sezione?.foto ? (RIEMPIMENTI_EDILI as Record<string, ChiaveFotoPagina>)[v.chiave] : undefined;
           return (
             <li key={v.chiave} className={cn("px-3 py-2", !v.visibile && "bg-muted/40")}>
               <div className="flex items-center gap-2">
@@ -134,8 +131,8 @@ export function OrdineCapitoli({ ordine, pagine, onOrdine, onPagine, campoFoto, 
                     </Button>
                   </>
                 ) : null}
-                {modificabile ? (
-                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setAperta(aperta === v.chiave ? null : v.chiave)} aria-label={`Modifica ${titolo}`}>
+                {sezione && apriSezione ? (
+                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => apriSezione(sezione.id)} aria-label={`Modifica ${titolo}`} title="Testi, contenuto e foto di questa pagina">
                     <Pencil className="h-3.5 w-3.5" />
                   </Button>
                 ) : null}
@@ -162,22 +159,6 @@ export function OrdineCapitoli({ ordine, pagine, onOrdine, onPagine, campoFoto, 
                   <span className="w-7 text-center text-[10px] text-muted-foreground" title="Il prezzo non si nasconde">—</span>
                 )}
               </div>
-
-              {testata && onBlocchi && aperta === v.chiave ? (
-                <EditorTestata pagina={testata} motore="edili" salvati={blocchi} onSalvati={(nuovi) => onBlocchi(nuovi)}>
-                  {contenuti?.[testata]}
-                </EditorTestata>
-              ) : null}
-
-              {modificabile && blocco && aperta === v.chiave ? (
-                <EditorBlocco
-                  chiave={blocco.chiave as ChiaveBlocco}
-                  settore={settore as SettoreBlocchi}
-                  salvati={blocchi}
-                  onSalvati={(nuovi) => onBlocchi?.(nuovi)}
-                  campoFoto={campoFoto}
-                />
-              ) : null}
 
               {chiaveFoto && settore && onBlocchi && aperta === `foto:${v.chiave}` ? (
                 <div>
@@ -231,11 +212,17 @@ export function OrdineCapitoli({ ordine, pagine, onOrdine, onPagine, campoFoto, 
                 <p className="truncate text-sm font-medium">I prossimi passi</p>
                 <p className="truncate text-[11px] text-muted-foreground">Sempre in fondo: la foto del lavoro finito, i passi, i contatti</p>
               </div>
-              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setAperta(aperta === "foto:chiusura" ? null : "foto:chiusura")} aria-label="Foto di I prossimi passi" title="La foto di questa pagina">
-                <Camera className="h-3.5 w-3.5" />
-              </Button>
+              {apriSezione ? (
+                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => apriSezione("page_chiusura")} aria-label="Modifica I prossimi passi" title="La foto di questa pagina">
+                  <Pencil className="h-3.5 w-3.5" />
+                </Button>
+              ) : (
+                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setAperta(aperta === "foto:chiusura" ? null : "foto:chiusura")} aria-label="Foto di I prossimi passi" title="La foto di questa pagina">
+                  <Camera className="h-3.5 w-3.5" />
+                </Button>
+              )}
             </div>
-            {aperta === "foto:chiusura" ? (
+            {!apriSezione && aperta === "foto:chiusura" ? (
               <EditorFotoPagina chiave="chiusura" settore={settore} salvati={blocchi} onSalvati={(nuovi) => onBlocchi(nuovi)} campoFoto={campoFoto} />
             ) : null}
           </li>
