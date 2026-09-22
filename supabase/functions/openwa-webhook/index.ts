@@ -14,6 +14,8 @@ import { romeToday, outsideQuietHours, sendOpenWaMessage } from "../_shared/open
 import { isLid, lidDaMessageId, risolviLid, registraLid, numeroDalPayload } from "../_shared/openwaLid.ts";
 import { applicaRegole, type MessaggioInArrivo } from "../_shared/openwa-regole-motore.ts";
 import { mappaStatoOpenWa, statoGrezzoDaPayload, riassuntoPayload } from "../_shared/openwaStato.ts";
+import { classificaUnaRisposta } from "../_shared/openwa-classifica-una-risposta.ts";
+import { shouldCreateOpportunity, triggerOpportunityFromSignal } from "../_shared/outreach-opportunity-trigger.ts";
 
 const PLATFORM_COMPANY_ID = "00000000-0000-0000-0000-000000000001";
 
@@ -448,6 +450,36 @@ Deno.serve(async (req) => {
         else await admin.rpc("openwa_campagna_segna_risposta", { p_contact_id: contactId });
       } catch (e) {
         console.error("[openwa-webhook] segna risposta campagne:", (e as Error)?.message);
+      }
+    }
+
+    // ── Classificazione automatica + trigger opportunità ──────────────────
+    // Appena un contatto risponde a una campagna, classifica con l'AI (stessa
+    // funzione del bottone manuale) e, su "appuntamento", crea l'opportunità.
+    // Un contatto può essere iscritto a più campagne insieme: si classificano
+    // tutti i destinatari appena diventati "risposto" senza esito.
+    if (contactId) {
+      try {
+        const { data: daClassificare } = await admin
+          .from("openwa_campagna_destinatari")
+          .select("id, contact_id, primo_inviato_at")
+          .eq("contact_id", contactId)
+          .eq("stato", "risposto")
+          .is("esito", null);
+        for (const d of (daClassificare ?? []) as Array<{ id: string; contact_id: string; primo_inviato_at: string | null }>) {
+          const esito = await classificaUnaRisposta(admin, d);
+          if (shouldCreateOpportunity("whatsapp", esito)) {
+            await triggerOpportunityFromSignal(admin, {
+              channel: "whatsapp",
+              contactId,
+              sourceRefTable: "openwa_campagna_destinatari",
+              sourceRefId: d.id,
+              snippet: text || null,
+            });
+          }
+        }
+      } catch (e) {
+        console.error("[openwa-webhook] classificazione automatica:", (e as Error)?.message);
       }
     }
 
