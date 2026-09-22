@@ -32,7 +32,8 @@ export function OutreachAnalytics({ companyId }: { companyId: string }) {
   const replies = useQuery({
     queryKey: ["oa", "replies", companyId], staleTime: 60_000, retry: false,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    queryFn: () => safeCount((supabase as any).from("outreach_replies").select("*", { count: "exact", head: true }).eq("company_id", companyId)),
+    // Le risposte automatiche (ferie, conferme di ricezione) non sono risposte ottenute.
+    queryFn: () => safeCount((supabase as any).from("outreach_replies").select("*", { count: "exact", head: true }).eq("company_id", companyId).or("intent.is.null,intent.neq.auto_reply")),
   });
 
   // Trend invii ultimi 7 giorni: righe grezze (created_at) raggruppate per

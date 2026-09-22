@@ -39,6 +39,24 @@ export function nextEmailStep(steps: SeqStep[], afterOrder: number | null): SeqS
   return es.find((s) => s.step_order > afterOrder) ?? null;
 }
 
+/**
+ * Il passo di un'email già spedita, per rimandarla a un indirizzo nuovo
+ * (22/09/2026: la casella del contatto era stata dismessa). Nei flussi a
+ * grafo lo dice il nodo della riga in coda; in quelli lineari la coda non lo
+ * registra (node_id vuoto), ma i passi email partono in ordine: la k-esima
+ * email spedita dell'iscrizione è il k-esimo passo email.
+ */
+export function passoDellInvio<T extends SeqStep & { id?: string | null }>(
+  passi: T[],
+  invio: { id: string; node_id?: string | null },
+  inviateInOrdine: Array<{ id: string }>,
+): T | null {
+  if (invio.node_id) return passi.find((p) => p.id === invio.node_id) ?? null;
+  const k = inviateInOrdine.findIndex((x) => x.id === invio.id);
+  if (k < 0) return null;
+  return (emailSteps(passi) as T[])[k] ?? null;
+}
+
 /** Numero di step non-email (saltati dalla cadenza, mostrati nella UI). */
 export function nonEmailStepCount(steps: SeqStep[]): number {
   return steps.filter((s) => s.channel !== "email").length;

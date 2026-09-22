@@ -20,6 +20,23 @@ export interface SentStep {
   /** Chi lo ha spedito, per la riga «X ha scritto:». */
   fromName?: string | null;
   fromEmail?: string | null;
+  /** A chi è stato spedito: il filo vale solo con lo stesso destinatario. */
+  toEmail?: string | null;
+}
+
+/**
+ * Fanno filo solo i passi spediti allo stesso destinatario (22/09/2026).
+ * Quando la casella del contatto cambia, l'email rimandata all'indirizzo
+ * nuovo non è un «Re:» con citazione di un messaggio che quella persona non
+ * ha mai ricevuto. I passi senza destinatario registrato restano.
+ */
+export function stessoDestinatario<T extends Pick<SentStep, "toEmail">>(
+  precedenti: T[],
+  destinatario: string | null | undefined,
+): T[] {
+  const chi = String(destinatario ?? "").trim().toLowerCase();
+  if (!chi) return precedenti;
+  return precedenti.filter((p) => !p.toEmail || String(p.toEmail).trim().toLowerCase() === chi);
 }
 
 /**

@@ -24,7 +24,10 @@ import {
   buildIntentUserPrompt,
 } from "./outreach-intent.ts";
 import { snippetFrom } from "./outreach-inbound-logic.ts";
-import { isAutoReply, type InboundHeaders } from "./outreach-autoreply.ts";
+import { isAutoReply, tipoAutorisposta, type InboundHeaders } from "./outreach-autoreply.ts";
+import { classifyEmail } from "./email-quality.ts";
+import { domainHasMx, domainOf, isPecEmail } from "./outreach-email-check.ts";
+import { passoDellInvio } from "./outreach-sequence.ts";
 import { intentDaParoleChiave } from "./outreach-intent-parole.ts";
 import { avvisaSuperAdmin } from "./avvisaSuperAdmin.ts";
 import { testoSenzaCitazione } from "./avvisoEmail.ts";
@@ -50,6 +53,8 @@ export interface InboundReply {
   senderAccountId?: string | null;
   /** «sì, scritta il 14/09/2026 da info@…» — la verifica dell'invito, già in italiano. */
   invito?: string | null;
+  /** L'email a cui risponde (riga di outreach_send_queue): si rimanda se l'indirizzo è cambiato. */
+  invioId?: string | null;
 }
 
 const INTENTO_IN_CHIARO: Record<string, string> = {
@@ -136,6 +141,206 @@ async function brandEFlusso(admin: any, r: InboundReply): Promise<{ brandId: str
   return { brandId, flusso };
 }
 
+const norm = (e: string | null | undefined) => String(e ?? "").trim().toLowerCase();
+
+/** L'indirizzo da «Nome <email>» o da «email». */
+function indirizzoDi(da: string | null | undefined): string {
+  const s = String(da ?? "");
+  return norm(s.match(/<([^>]+)>/)?.[1] ?? s);
+}
+
+/** Domini delle caselle del pool: un nostro indirizzo non è mai quello nuovo. */
+async function dominiDelleCaselle(admin: any): Promise<string[]> {
+  try {
+    const { data } = await admin.from("outreach_sender_accounts").select("email");
+    return [...new Set(((data ?? []) as Array<{ email: string | null }>)
+      .map((r) => domainOf(r.email ?? "")).filter(Boolean))];
+  } catch {
+    return [];
+  }
+}
+
+/** Cosa è successo dopo una risposta «scrivete a un altro indirizzo». */
+type EsitoNuovoIndirizzo =
+  | "reinviata" | "gia_reinviata" | "indirizzo_aggiornato"
+  | "senza_contatto" | "contatto_cancellato" | "indirizzo_non_valido" | "pec" | "soppresso"
+  | "cliente_eic" | "dominio_senza_posta" | "gia_in_rubrica" | "troppi_cambi" | "aggiornamento_fallito";
+
+/**
+ * Risposta automatica (22/09/2026, Florin: «la risposta automatica non deve
+ * contare come risposta ottenuta»): non ferma il flusso, non avvisa, non crea
+ * task né opportunità. Una cosa sola si fa: se dice che la casella non si usa
+ * più e indica quella nuova, l'indirizzo del contatto cambia e l'email a cui ha
+ * risposto si rimanda lì. L'esito resta scritto sulla risposta
+ * (raw.tipo_automatica, raw.nuovo_indirizzo, raw.esito_nuovo_indirizzo).
+ * Mai bloccante.
+ */
+async function gestisciAutorisposta(
+  admin: any, r: InboundReply, replyId: string | null, raw: Record<string, unknown>,
+  fromEmail: string, brandId: string | null,
+): Promise<void> {
+  let esito: Record<string, unknown> = { tipo_automatica: "attesa" };
+  try {
+    let emailContatto: string | null = null;
+    if (r.contactId) {
+      const { data: c } = await admin.from("marketing_contacts").select("email").eq("id", r.contactId).maybeSingle();
+      emailContatto = c?.email ?? null;
+    }
+    const { tipo, nuovoIndirizzo } = tipoAutorisposta({
+      subject: r.subject,
+      body: r.text,
+      vecchi: [indirizzoDi(fromEmail), emailContatto],
+      nostriDomini: await dominiDelleCaselle(admin),
+    });
+    if (tipo === "nuovo_indirizzo" && nuovoIndirizzo) {
+      const risultato = await cambiaIndirizzoERimanda(admin, {
+        contactId: r.contactId, enrollmentId: r.enrollmentId ?? null, invioId: r.invioId ?? null,
+        nuovo: nuovoIndirizzo, brandId,
+      });
+      esito = { tipo_automatica: "nuovo_indirizzo", nuovo_indirizzo: nuovoIndirizzo, esito_nuovo_indirizzo: risultato };
+    }
+  } catch (e) {
+    esito = { ...esito, errore_automatica: e instanceof Error ? e.message : String(e) };
+    console.warn("[outreach-reply-handler] autorisposta:", e instanceof Error ? e.message : e);
+  }
+  if (replyId) {
+    const { error } = await admin.from("outreach_replies").update({ raw: { ...raw, ...esito } }).eq("id", replyId);
+    if (error) console.warn("[outreach-reply-handler] esito autorisposta non salvato:", error.message);
+  }
+}
+
+/** Stessa regola dell'iscrizione (outreach-enroll): ai clienti EiC non si scrive a freddo. */
+async function eClienteEic(admin: any, email: string, dominio: string | null, gratuito: boolean): Promise<boolean> {
+  const { data: utenti } = await admin.from("profiles").select("email")
+    .not("company_id", "is", null).ilike("email", email).limit(5);
+  if (((utenti ?? []) as Array<{ email: string | null }>).some((u) => norm(u.email) === email)) return true;
+  if (dominio && !gratuito) {
+    const { data: aziende } = await admin.from("companies").select("id")
+      .is("deleted_at", null).ilike("email", `%@${dominio}`).limit(1);
+    if ((aziende ?? []).length) return true;
+  }
+  return false;
+}
+
+/**
+ * La casella del contatto è dismessa e l'autorisposta indica quella nuova.
+ * Il nuovo indirizzo passa gli stessi controlli di un'iscrizione (sintassi,
+ * usa-e-getta, PEC, soppressi, clienti EiC, dominio con posta); se è già di un
+ * altro contatto non si crea un doppione e non gli si scrive due volte. Poi
+ * l'indirizzo cambia sul contatto e sulle sue email in coda, e l'email a cui
+ * ha risposto si rimanda.
+ */
+async function cambiaIndirizzoERimanda(admin: any, a: {
+  contactId: string | null; enrollmentId: string | null; invioId: string | null;
+  nuovo: string; brandId: string | null;
+}): Promise<EsitoNuovoIndirizzo> {
+  if (!a.contactId) return "senza_contatto";
+  const { data: c } = await admin.from("marketing_contacts")
+    .select("id, email, notes, optout_email, opt_out, unsubscribed").eq("id", a.contactId).maybeSingle();
+  if (!c) return "senza_contatto";
+  if (c.optout_email || c.opt_out || c.unsubscribed) return "contatto_cancellato";
+
+  const nuovo = norm(a.nuovo);
+  const qualita = classifyEmail(nuovo);
+  if (!qualita.syntaxValid || qualita.isDisposable) return "indirizzo_non_valido";
+  if (isPecEmail(nuovo)) return "pec";
+  const { data: soppresso } = await admin.from("email_suppressions").select("id")
+    .eq("email_normalized", nuovo).limit(1).maybeSingle();
+  if (soppresso?.id) return "soppresso";
+  if (await eClienteEic(admin, nuovo, qualita.domain, qualita.isFree)) return "cliente_eic";
+  if (!(await domainHasMx(admin, domainOf(nuovo), new Map()))) return "dominio_senza_posta";
+
+  if (norm(c.email) !== nuovo) {
+    const { data: altri } = await admin.from("marketing_contacts").select("id, email")
+      .eq("company_id", PLATFORM_COMPANY).ilike("email", nuovo).neq("id", c.id).limit(10);
+    if (((altri ?? []) as Array<{ email: string | null }>).some((x) => norm(x.email) === nuovo)) return "gia_in_rubrica";
+    // Un indirizzo cambiato da poco non si cambia di nuovo: due risponditori che
+    // si rimandano a vicenda farebbero girare il contatto all'infinito.
+    const trentaGiorniFa = new Date(Date.now() - 30 * 86_400_000).toISOString();
+    const { data: cambi } = await admin.from("outreach_replies").select("id")
+      .eq("contact_id", c.id).gte("received_at", trentaGiorniFa)
+      .in("raw->>esito_nuovo_indirizzo", ["reinviata", "gia_reinviata", "indirizzo_aggiornato"]).limit(1);
+    if ((cambi ?? []).length) return "troppi_cambi";
+
+    const giorno = new Date().toLocaleDateString("it-IT", { timeZone: "Europe/Rome" });
+    const nota = `${giorno}: email cambiata da ${c.email} a ${nuovo} (risposta automatica: la casella vecchia non è più attiva).`;
+    const { error } = await admin.from("marketing_contacts")
+      .update({ email: nuovo, notes: c.notes ? `${c.notes}\n${nota}` : nota }).eq("id", c.id);
+    if (error) return "aggiornamento_fallito";
+    // Le email già in coda del contatto, anche degli altri brand, partono verso
+    // l'indirizzo nuovo: quello vecchio non lo legge più nessuno.
+    await admin.from("outreach_send_queue").update({ to_email: nuovo })
+      .eq("contact_id", c.id).eq("status", "queued").eq("channel", "email");
+  }
+  return await rimandaEmail(admin, { contactId: c.id, enrollmentId: a.enrollmentId, invioId: a.invioId, nuovo, brandId: a.brandId });
+}
+
+/**
+ * Rimanda all'indirizzo nuovo l'email a cui è arrivata l'autorisposta, e il
+ * flusso riparte da lì: l'iscrizione torna su quel passo e, spedito il
+ * reinvio, il motore accoda il successivo con la sua attesa normale. Un flusso
+ * chiuso (risposta, rimbalzo, cancellazione, fermato a mano) non riparte.
+ */
+async function rimandaEmail(admin: any, a: {
+  contactId: string; enrollmentId: string | null; invioId: string | null; nuovo: string; brandId: string | null;
+}): Promise<EsitoNuovoIndirizzo> {
+  if (!a.enrollmentId) return "indirizzo_aggiornato";
+  const { data: e } = await admin.from("outreach_enrollments")
+    .select("id, status, sequence_id, current_node_id").eq("id", a.enrollmentId).maybeSingle();
+  if (!e || !["active", "paused", "completed"].includes(e.status)) return "indirizzo_aggiornato";
+
+  const { data: inviate } = await admin.from("outreach_send_queue")
+    .select("id, node_id, brand_id, to_email, sent_at")
+    .eq("enrollment_id", e.id).eq("status", "sent").eq("channel", "email").eq("kind", "send")
+    .order("sent_at", { ascending: true });
+  const spedite = (inviate ?? []) as Array<{
+    id: string; node_id: string | null; brand_id: string | null; to_email: string | null; sent_at: string | null;
+  }>;
+  if (spedite.some((s) => norm(s.to_email) === a.nuovo)) return "gia_reinviata";
+  // L'email a cui ha risposto: quella trovata da chi legge la posta, o l'ultima partita.
+  const invio = spedite.find((s) => s.id === a.invioId) ?? spedite[spedite.length - 1];
+  if (!invio) return "indirizzo_aggiornato";
+  const { data: passi } = await admin.from("outreach_sequence_steps")
+    .select("id, step_order, channel, subject, body").eq("sequence_id", e.sequence_id);
+  const passo = passoDellInvio(
+    (passi ?? []) as Array<{ id: string; step_order: number; channel: string; subject: string | null; body: string | null }>,
+    invio,
+    spedite,
+  );
+  if (!passo) return "indirizzo_aggiornato";
+
+  const adesso = new Date().toISOString();
+  // Prima si accoda il reinvio, poi si annulla il resto: se l'inserimento non
+  // riesce, il flusso non resta senza niente in coda.
+  const { data: nuova, error } = await admin.from("outreach_send_queue").insert({
+    company_id: PLATFORM_COMPANY,
+    enrollment_id: e.id,
+    contact_id: a.contactId,
+    brand_id: invio.brand_id ?? a.brandId ?? null,
+    channel: "email",
+    kind: "send",
+    node_id: invio.node_id ?? null,
+    to_email: a.nuovo,
+    subject: passo.subject ?? "",
+    body: passo.body ?? "",
+    status: "queued",
+    scheduled_for: adesso,
+    primo_contatto: false,
+  }).select("id").single();
+  if (error || !nuova?.id) return "indirizzo_aggiornato";
+  // Il passo dopo, già in coda, riparte dopo il reinvio con la sua attesa.
+  await admin.from("outreach_send_queue")
+    .update({ status: "cancelled", last_error: "rimandata all'indirizzo nuovo" })
+    .eq("enrollment_id", e.id).eq("status", "queued").neq("id", nuova.id);
+  await admin.from("outreach_enrollments").update({
+    status: e.status === "paused" ? "paused" : "active",
+    current_step: passo.step_order,
+    current_node_id: invio.node_id ?? e.current_node_id ?? null,
+    next_action_at: adesso,
+  }).eq("id", e.id);
+  return "reinviata";
+}
+
 /**
  * Gestisce una risposta in arrivo: inbox + intent + stop sequenza + opt-out.
  * Idempotenza: NON deduplica per messageId (l'inbound non lo faceva); i
@@ -177,7 +382,9 @@ export async function handleInboundReply(admin: any, r: InboundReply): Promise<v
     from_email: fromEmail,
     subject: r.subject ?? null,
     snippet,
-    status: "unread",
+    // Un'autorisposta non è una risposta da leggere: entra già letta, e la
+    // Posta la tiene fra le «Automatiche».
+    status: autoReply ? "read" : "unread",
     intent: autoReply ? "auto_reply" : null,
     intent_confidence: autoReply ? 1 : null,
     received_at: nowIso,
@@ -200,9 +407,12 @@ export async function handleInboundReply(admin: any, r: InboundReply): Promise<v
   if (insErr) throw insErr;
 
   // Autorisposta: ci fermiamo qui. La sequenza prosegue (nessuno stop), nessuna
-  // classificazione AI, nessun opt-out. Idempotente: rieseguire reinserisce solo
-  // un'altra riga 'auto_reply' senza toccare iscrizioni/contatto.
-  if (autoReply) return;
+  // classificazione AI, nessun opt-out. Se però dice che la casella non si usa
+  // più e indica quella nuova, l'indirizzo si cambia e l'email si rimanda.
+  if (autoReply) {
+    await gestisciAutorisposta(admin, r, inserted?.id ?? null, riga.raw as Record<string, unknown>, fromEmail, brandId);
+    return;
+  }
 
   // 2. Classifica l'intento con l'AI (best-effort, non blocca)
   let intent: string | null = null;
@@ -216,6 +426,20 @@ export async function handleInboundReply(admin: any, r: InboundReply): Promise<v
     if (inserted?.id) {
       await admin.from("outreach_replies").update({ intent, intent_confidence: 0.6 }).eq("id", inserted.id);
     }
+  }
+
+  // 2-ter. L'AI l'ha riconosciuta automatica (fuori sede, conferma di
+  // ricezione) dove le regole non erano arrivate: vale lo stesso. Fino al
+  // 22/09/2026 la risposta passava da qui come una vera, e il flusso si
+  // fermava. «Fuori sede» dell'AI diventa auto_reply: out_of_office resta il
+  // «Dopo» che si segna a mano su una persona che dice «non ora».
+  if (intent === "auto_reply" || intent === "out_of_office") {
+    const raw = { ...(riga.raw as Record<string, unknown>), auto_reply: true, intento_ai: intent };
+    if (inserted?.id) {
+      await admin.from("outreach_replies").update({ intent: "auto_reply", status: "read", raw }).eq("id", inserted.id);
+    }
+    await gestisciAutorisposta(admin, r, inserted?.id ?? null, raw, fromEmail, brandId);
+    return;
   }
 
   // 2-bis. Avviso al titolare: chi ha risposto e cosa, anche su Gmail.

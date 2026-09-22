@@ -58,7 +58,7 @@ describe("Stile umano nel dispatcher", () => {
     expect(d).toContain("html += citazione.html;");
     expect(d).toContain("htmlToPlainText(corpo) + citazione.testo");
     // e per citarlo il testo spedito viene conservato nei precedenti
-    expect(d).toContain('.select("message_id,subject,provider_thread_id,sent_at,sender_account_id,body")');
+    expect(d).toContain('.select("message_id,subject,provider_thread_id,sent_at,sender_account_id,body,to_email")');
   });
 
   it("il Reply-To non compare quando è uguale al mittente (già così, e resta così)", () => {

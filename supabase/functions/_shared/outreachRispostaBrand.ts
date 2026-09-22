@@ -22,6 +22,8 @@
  */
 
 export interface InvioFatto {
+  /** La riga di outreach_send_queue: serve a rimandare proprio quell'email. */
+  id?: string | null;
   enrollment_id: string | null;
   brand_id: string | null;
   sender_account_id: string | null;

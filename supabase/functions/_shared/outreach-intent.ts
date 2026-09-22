@@ -44,7 +44,10 @@ export const INTENT_SYSTEM_PROMPT =
   `interested (vuole saperne di più / disponibile a sentirsi), ` +
   `not_interested (rifiuto / non ora), ` +
   `out_of_office (fuori sede / risponditore automatico di assenza), ` +
-  `auto_reply (autorisposta non-OOO, es. ticket aperto), ` +
+  // 22/09/2026: una conferma standard di un'azienda («vi ringraziamo per
+  // l'interesse, compilate il modulo sul sito») era passata per interessata.
+  `auto_reply (messaggio automatico o standard, non scritto da una persona per noi: conferma di ricezione, ticket, orari d'ufficio, ` +
+  `rimando generico a un modulo del sito o a un numero, casella dismessa o indirizzo cambiato), ` +
   `unsubscribe (chiede di non essere più contattato), ` +
   `question (fa una domanda specifica prima di decidere), ` +
   `other (tutto il resto). ` +

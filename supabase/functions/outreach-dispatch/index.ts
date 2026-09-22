@@ -40,7 +40,7 @@ import { sendOnChannel, type OutreachWhatsAppTemplate } from "../_shared/outreac
 import { appendTrackingSig, outreachOpenPixelUrl } from "../_shared/emailTrackingSignature.ts";
 import { lintEmail, puoPartire } from "../_shared/outreach-linter.ts";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
-import { buildFollowupHeaders, citazionePrecedente, type SentStep } from "../_shared/outreach-threading.ts";
+import { buildFollowupHeaders, citazionePrecedente, stessoDestinatario, type SentStep } from "../_shared/outreach-threading.ts";
 import { sendViaNativeSender, isNativeProvider, getOauthAccessToken, rifiutoPerSpam } from "../_shared/outreachMailboxSend.ts";
 import { alertOutreach, logRun } from "../_shared/outreachAlert.ts";
 
@@ -186,18 +186,22 @@ async function computeActivity(supabase: any, enrId: string): Promise<FlowActivi
   return { lastEmailOpened, hasReply };
 }
 
-/** Passi email gia' spediti di un'iscrizione, in ordine: servono al threading dei follow-up. */
-async function inviatiPrecedenti(supabase: any, enrId: string): Promise<SentStep[]> {
+/**
+ * Passi email gia' spediti di un'iscrizione allo STESSO destinatario, in
+ * ordine: servono al threading dei follow-up. Dopo un cambio d'indirizzo
+ * (autorisposta «scrivete a …») quelli spediti alla casella vecchia non contano.
+ */
+async function inviatiPrecedenti(supabase: any, enrId: string, destinatario?: string | null): Promise<SentStep[]> {
   try {
     const { data } = await supabase
       .from("outreach_send_queue")
-      .select("message_id,subject,provider_thread_id,sent_at,sender_account_id,body")
+      .select("message_id,subject,provider_thread_id,sent_at,sender_account_id,body,to_email")
       .eq("enrollment_id", enrId).eq("status", "sent").eq("channel", "email").eq("kind", "send")
       .order("sent_at", { ascending: true });
-    return ((data ?? []) as any[]).map((r) => ({
+    return stessoDestinatario(((data ?? []) as any[]).map((r) => ({
       messageId: r.message_id ?? null, subject: r.subject ?? null, threadId: r.provider_thread_id ?? null, senderId: r.sender_account_id ?? null,
-      body: r.body ?? null, sentAt: r.sent_at ?? null,
-    }));
+      body: r.body ?? null, sentAt: r.sent_at ?? null, toEmail: r.to_email ?? null,
+    })), destinatario);
   } catch { return []; }
 }
 
@@ -1328,7 +1332,7 @@ serveConMetricheRapida("outreach-dispatch", async (req) => {
         const testoDaControllare = htmlToPlainText(composto.htmlDaControllare);
 
         // ── THREADING: i follow-up restano nel thread del primo messaggio ──
-        const precedenti = enr ? await inviatiPrecedenti(supabase, enr.id) : [];
+        const precedenti = enr ? await inviatiPrecedenti(supabase, enr.id, item.to_email) : [];
         // Rete di sicurezza della regola «mai alla stessa ora»: l'assegnazione la
         // controlla sull'ultimo invio letto in blocco, qui si rilegge il thread vero.
         const ultimoDelThread = precedenti.length ? precedenti[precedenti.length - 1].sentAt : null;

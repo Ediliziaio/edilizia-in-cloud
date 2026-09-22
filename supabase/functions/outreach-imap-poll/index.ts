@@ -183,7 +183,7 @@ async function processa(admin: any, mb: Casella, msg: MsgIn, poolEmails?: Set<st
   // parte dagli invii veri a quell'indirizzo — header citato, poi questa
   // casella, poi il brand della casella.
   const { data: invii } = await admin.from("outreach_send_queue")
-    .select("enrollment_id, brand_id, sender_account_id, message_id, sent_at")
+    .select("id, enrollment_id, brand_id, sender_account_id, message_id, sent_at")
     .eq("company_id", PLATFORM_COMPANY).eq("contact_id", match.id).eq("status", "sent")
     .order("sent_at", { ascending: false }).limit(50);
   const scelta = scegliInvio((invii ?? []) as InvioFatto[], {
@@ -223,7 +223,7 @@ async function processa(admin: any, mb: Casella, msg: MsgIn, poolEmails?: Set<st
 
   await handleInboundReply(admin, {
     contactId: match.id, enrollmentId,
-    brandId, senderAccountId: mb.id, invito: testoInvito(scelta, mb.email),
+    brandId, senderAccountId: mb.id, invito: testoInvito(scelta, mb.email), invioId: scelta?.invio.id ?? null,
     from: msg.from, subject: msg.subject, text: msg.text, messageId: msg.messageId, headers: msg.headers,
     casella: mb.email,
   });

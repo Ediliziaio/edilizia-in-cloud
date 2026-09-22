@@ -81,6 +81,7 @@ Deno.serve(async (req) => {
     let brandId: string | null = null;
     let senderAccountId: string | null = null;
     let invito: string | null = null;
+    let invioId: string | null = null;
     if (contactId) {
       if (norm.toEmail) {
         const { data: mb } = await supabase.from("outreach_sender_accounts")
@@ -89,7 +90,7 @@ Deno.serve(async (req) => {
         brandId = mb?.brand_id ?? null;
       }
       const { data: invii } = await supabase.from("outreach_send_queue")
-        .select("enrollment_id, brand_id, sender_account_id, message_id, sent_at")
+        .select("id, enrollment_id, brand_id, sender_account_id, message_id, sent_at")
         .eq("company_id", PLATFORM_COMPANY).eq("contact_id", contactId).eq("status", "sent")
         .order("sent_at", { ascending: false }).limit(50);
       const scelta = scegliInvio((invii ?? []) as InvioFatto[], {
@@ -98,6 +99,7 @@ Deno.serve(async (req) => {
         citati: idsCitati(norm.inReplyTo, (norm.headers?.references ?? "").split(/\s+/)),
       });
       enrollmentId = scelta?.invio.enrollment_id ?? null;
+      invioId = scelta?.invio.id ?? null;
       if (!brandId) brandId = scelta?.invio.brand_id ?? null;
       invito = testoInvito(scelta, norm.toEmail);
       if (!enrollmentId) {
@@ -111,7 +113,7 @@ Deno.serve(async (req) => {
     // 7. Gestisci la risposta (inbox + intent + stop sequenza + opt-out).
     // Logica condivisa col poller IMAP (outreach-imap-poll): _shared/outreach-reply-handler.
     await handleInboundReply(supabase, {
-      contactId, enrollmentId, brandId, senderAccountId, invito,
+      contactId, enrollmentId, brandId, senderAccountId, invito, invioId,
       from: norm.fromEmail, subject: norm.subject ?? "", text: norm.snippet ?? "",
       messageId: norm.messageId,
       headers: norm.headers,

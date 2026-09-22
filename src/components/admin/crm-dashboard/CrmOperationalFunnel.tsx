@@ -105,7 +105,8 @@ export function CrmOperationalFunnel({ companyId }: { companyId: string }) {
         supabase.from("marketing_contacts").select("id", { count: "exact", head: true }).eq("company_id", companyId),
         sb.from("outreach_send_queue").select("id", { count: "exact", head: true }).eq("company_id", companyId).eq("status", "sent"),
         sb.from("outreach_send_queue").select("id", { count: "exact", head: true }).eq("company_id", companyId).not("opened_at", "is", null),
-        sb.from("outreach_replies").select("id", { count: "exact", head: true }).eq("company_id", companyId),
+        // Senza le risposte automatiche (ferie, conferme di ricezione): non sono risposte ottenute.
+        sb.from("outreach_replies").select("id", { count: "exact", head: true }).eq("company_id", companyId).or("intent.is.null,intent.neq.auto_reply"),
         supabase.from("marketing_opportunities").select("id", { count: "exact", head: true }).eq("company_id", companyId).neq("status", "won"),
         supabase.from("marketing_opportunities").select("value").eq("company_id", companyId).eq("status", "won").limit(5000),
       ]);
