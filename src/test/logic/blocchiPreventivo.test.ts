@@ -125,9 +125,13 @@ describe("blocchi del preventivo: dal modello al PDF degli edili", () => {
   it("i blocchi con le foto hanno una pagina loro, e le foto la riempiono senza flexGrow (22/09/2026)", () => {
     const edile = leggi("src/components/preventivi/pdf/DocumentoEdilePDF.tsx");
     expect(edile).toContain("const conPaginaPropria = (chiave: string) =>");
-    expect(edile).toContain("altezza={riempi ? altezzaFotoPiena(blocco) : undefined}");
+    expect(edile).toContain("altezza={riempi ? altezzaFoto ?? altezzaFotoPiena(tema, blocco) : undefined}");
     // Un elemento che si allarga dentro il foglio che scorre sovrapponeva i titoli al testo.
-    expect(edile).not.toMatch(/flexGrow:\s*1/);
+    // Si allarga solo la foto in fondo al foglio, fissa e disegnata a pagine fatte
+    // (FotoInFondo, come nei Serramenti): il contenitore, il riquadro e la foto.
+    expect(edile.match(/flexGrow:\s*1/g) ?? []).toHaveLength(3);
+    expect(edile).toMatch(/<View fixed style=\{\{ flexGrow: 1 \}\} render=/);
+    expect(edile).toContain("subPageNumber !== subPageTotalPages) return null;");
     const serramenti = leggi("src/components/serramenti/SerramentoPDF.tsx");
     expect(serramenti).toContain("height: altezzaFotoBlocco(blocco, foto.length)");
   });
@@ -162,7 +166,7 @@ describe("le pagine piene dei preventivi edili (22/09/2026)", () => {
   it("le pagine che si riempiono hanno la foto cambiabile dall'editor, capitolo per capitolo", () => {
     const editor = leggi("src/components/preventivi/OrdineCapitoli.tsx");
     expect(editor).toContain("(RIEMPIMENTI_EDILI as Record<string, ChiaveFotoPagina>)[v.chiave]");
-    expect(Object.keys(RIEMPIMENTI_EDILI).sort()).toEqual(["chiSiamo", "compreso", "garanzie", "investimento", "percorso", "piano", "tempi"]);
+    expect(Object.keys(RIEMPIMENTI_EDILI).sort()).toEqual(["chiSiamo", "compreso", "domande", "garanzie", "investimento", "percorso", "piano", "recensioni", "tempi"]);
     // Le foto di riempimento passano dalla stessa conversione della chiusura.
     expect(leggi("src/components/preventivi/pdf/immaginiDocumento.ts")).toContain("Object.entries(RIEMPIMENTI_EDILI)");
   });

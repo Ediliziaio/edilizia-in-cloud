@@ -12,6 +12,7 @@
 // coperti perché create-reseller concede loro un mca company_admin sui figli.
 // ============================================================================
 
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth } from "../_shared/auth.ts";
 import { buildStaffPermissionsRecord } from "../_shared/staffPermissionsDefaults.ts";
@@ -19,6 +20,21 @@ import { buildStaffPermissionsRecord } from "../_shared/staffPermissionsDefaults
 const ALLOWED_ROLES = new Set([
   "company_admin", "company_staff", "salesperson", "call_center", "employee", "subcontractor",
 ]);
+
+const EMAIL_RE = /^\S+@\S+\.\S+$/;
+const DEFAULT_SITE_URL = "https://app.ediliziaincloud.com";
+
+/** Escapa i metacaratteri LIKE (% e _) per un confronto letterale case-insensitive. */
+function likeEscape(s: string): string {
+  return s.replace(/[\\%_]/g, "\\$&");
+}
+
+/** Origin valido per il redirect del reset (whitelist di forma, no open-redirect). */
+function resolveRedirectOrigin(raw: unknown): string {
+  const o = String(raw ?? "").trim();
+  if (/^https?:\/\/[a-zA-Z0-9.\-:]+$/.test(o)) return o;
+  return Deno.env.get("SITE_URL") || DEFAULT_SITE_URL;
+}
 
 // deno-lint-ignore no-explicit-any
 type Admin = any;
@@ -247,6 +263,69 @@ Deno.serve(async (req) => {
       if (blocked) return blocked;
       await supabaseAdmin.from("multi_company_access").delete().eq("id", accessId);
       return jsonResponse({ success: true }, 200, corsH);
+    }
+
+    // ── CHANGE-EMAIL: cambia l'email di LOGIN (auth) + profilo + reset ────────
+    // Il chiamante è già company_admin dell'azienda (canManage). In più il
+    // target deve appartenere a QUESTA azienda: niente cambio email cross-tenant.
+    // Aggiorna prima auth (fonte del login), poi il profilo, poi invia il reset
+    // alla NUOVA email. Nasce perché l'edit lato azienda aggiornava solo il
+    // profilo → l'email di login restava vecchia e il reset non arrivava.
+    if (action === "change_email") {
+      const targetUserId = String(body?.user_id ?? "");
+      const newEmail = String(body?.new_email ?? "").trim().toLowerCase();
+      if (!targetUserId) return errorResponse("user_id mancante", 400, corsH);
+      if (!newEmail || !EMAIL_RE.test(newEmail)) return errorResponse("Nuova email non valida", 400, corsH);
+
+      const { data: target } = await supabaseAdmin
+        .from("profiles").select("id, email, company_id").eq("id", targetUserId).maybeSingle();
+      if (!target) return errorResponse("Utente non trovato", 404, corsH);
+
+      // Il target deve appartenere all'azienda gestita (primaria o accesso attivo).
+      let appartiene = (target as { company_id?: string }).company_id === companyId;
+      if (!appartiene) {
+        const { data: mca } = await supabaseAdmin
+          .from("multi_company_access")
+          .select("id").eq("user_id", targetUserId).eq("company_id", companyId)
+          .eq("status", "active").maybeSingle();
+        appartiene = !!mca;
+      }
+      if (!appartiene) return errorResponse("L'utente non appartiene a questa azienda", 403, corsH);
+
+      const emailAttuale = String((target as { email?: string }).email ?? "").toLowerCase();
+      if (newEmail === emailAttuale) return errorResponse("La nuova email coincide con quella attuale", 400, corsH);
+
+      // Anti-takeover: la nuova email non deve essere di un ALTRO utente.
+      const { data: clash } = await supabaseAdmin
+        .from("profiles").select("id").ilike("email", likeEscape(newEmail)).neq("id", targetUserId).limit(1).maybeSingle();
+      if (clash?.id) return errorResponse("Questa email è già usata da un altro account.", 409, corsH);
+
+      // 1) Auth = fonte del login (email_confirm: niente doppia conferma per l'admin).
+      const { error: uErr } = await supabaseAdmin.auth.admin.updateUserById(targetUserId, {
+        email: newEmail, email_confirm: true,
+      });
+      if (uErr) return errorResponse(`Cambio email fallito: ${uErr.message}`, 500, corsH);
+
+      // 2) Profilo (fonte di risoluzione lato app).
+      const { error: pErr } = await supabaseAdmin.from("profiles").update({ email: newEmail }).eq("id", targetUserId);
+      if (pErr) {
+        return errorResponse(`Email di login aggiornata, ma la sincronizzazione del profilo è fallita (${pErr.message}). Riprova.`, 500, corsH);
+      }
+
+      // 3) Reset password verso la NUOVA email (client anon = mailer pubblico).
+      let recoveryWarning: string | null = null;
+      try {
+        const origin = resolveRedirectOrigin(body?.origin);
+        const anon = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!);
+        const { error: rErr } = await anon.auth.resetPasswordForEmail(newEmail, {
+          redirectTo: `${origin}/reset-password`,
+        });
+        if (rErr) recoveryWarning = rErr.message;
+      } catch (e) {
+        recoveryWarning = e instanceof Error ? e.message : String(e);
+      }
+
+      return jsonResponse({ success: true, email: newEmail, recovery_warning: recoveryWarning }, 200, corsH);
     }
 
     return errorResponse("Azione non riconosciuta", 400, corsH);

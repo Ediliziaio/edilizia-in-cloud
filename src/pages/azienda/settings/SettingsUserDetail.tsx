@@ -9,6 +9,10 @@ import { ArrowLeft, User, Shield, Clock, Calendar, Bell, Wifi, FileText, Lock, H
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { UserProfileTab } from "@/components/users/UserProfileTab";
 import { UserRolesPermissionsTab } from "@/components/users/UserRolesPermissionsTab";
@@ -244,13 +248,52 @@ export default function SettingsUserDetail() {
   const saveProfileMutation = useMutation({
     mutationFn: async (data: { first_name: string; last_name: string; email: string; phone: string | null }) => {
       if (!userId) throw new Error("userId mancante");
+      const emailChanged =
+        data.email.trim().toLowerCase() !== (userData?.email ?? "").trim().toLowerCase();
+
+      if (emailChanged) {
+        // L'email di LOGIN si cambia via edge (auth + profilo + reset alla NUOVA
+        // email): aggiornare solo `profiles` desincronizzerebbe l'account (il
+        // login resterebbe sull'email vecchia e il reset non arriverebbe).
+        const companyId = userData?.access_company_id ?? userData?.company_id;
+        if (!companyId) throw new Error("company_id mancante nel profilo utente");
+        const { data: res, error: fnErr } = await supabase.functions.invoke("company-access-manage", {
+          body: {
+            action: "change_email",
+            company_id: companyId,
+            user_id: userId,
+            new_email: data.email.trim().toLowerCase(),
+            origin: window.location.origin,
+          },
+        });
+        if (fnErr) throw new Error(fnErr.message);
+        if (res?.error) throw new Error(String(res.error));
+        // Nome/telefono sul profilo (l'email l'ha già scritta l'edge su auth+profilo).
+        const { error } = await supabase
+          .from("profiles")
+          .update({ first_name: data.first_name, last_name: data.last_name, phone: data.phone })
+          .eq("id", userId);
+        if (error) throw error;
+        return { emailChanged: true, recoveryWarning: (res?.recovery_warning as string | null) ?? null };
+      }
+
       const { error } = await supabase.from("profiles").update(data).eq("id", userId);
       if (error) throw error;
+      return { emailChanged: false, recoveryWarning: null as string | null };
     },
-    onSuccess: () => {
+    onSuccess: (r) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.users.detail(userId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.users.companyUsers });
-      toast({ title: "Profilo aggiornato", description: "I dati dell'utente sono stati salvati." });
+      if (r?.emailChanged) {
+        toast({
+          title: "Email di login aggiornata",
+          description: r.recoveryWarning
+            ? `Email cambiata, ma l'invio del reset non è riuscito: ${r.recoveryWarning}`
+            : "Inviata un'email di reset password al nuovo indirizzo.",
+        });
+      } else {
+        toast({ title: "Profilo aggiornato", description: "I dati dell'utente sono stati salvati." });
+      }
     },
     onError: (e: Error) => {
       toast({
@@ -260,6 +303,19 @@ export default function SettingsUserDetail() {
       });
     },
   });
+
+  // Cambiare l'email di login è un'azione sensibile → conferma esplicita prima.
+  const [pendingProfile, setPendingProfile] = useState<
+    { first_name: string; last_name: string; email: string; phone: string | null } | null
+  >(null);
+  const handleProfileSave = (data: { first_name: string; last_name: string; email: string; phone: string | null }) => {
+    const emailChanged = data.email.trim().toLowerCase() !== (userData?.email ?? "").trim().toLowerCase();
+    if (emailChanged) {
+      setPendingProfile(data);
+    } else {
+      saveProfileMutation.mutate(data);
+    }
+  };
 
   const savePermissionsMutation = useMutation({
     mutationFn: async (permissions: StaffPermissions) => {
@@ -499,7 +555,7 @@ export default function SettingsUserDetail() {
               user={userData}
               role={userData.role}
               isBlocked={userData.is_blocked}
-              onSave={(data) => saveProfileMutation.mutate(data)}
+              onSave={handleProfileSave}
               isLoading={saveProfileMutation.isPending}
             />
           )}
@@ -554,6 +610,39 @@ export default function SettingsUserDetail() {
           {activeTab === "notifications" && <UserNotificationsTab />}
         </div>
       </div>
+
+      <AlertDialog open={!!pendingProfile} onOpenChange={(open) => !open && setPendingProfile(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cambiare l'email di login?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingProfile && (
+                <>
+                  L'indirizzo di accesso di{" "}
+                  <strong>{pendingProfile.first_name} {pendingProfile.last_name}</strong> diventerà{" "}
+                  <strong>{pendingProfile.email.trim().toLowerCase()}</strong>
+                  {userData?.email ? <> (da <em>{userData.email}</em>)</> : null}. Invieremo
+                  un'email di reset password al nuovo indirizzo: l'utente dovrà usarla per impostare
+                  la password e accedere.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (pendingProfile) {
+                  saveProfileMutation.mutate(pendingProfile);
+                  setPendingProfile(null);
+                }
+              }}
+            >
+              Cambia email e invia reset
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

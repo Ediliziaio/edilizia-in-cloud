@@ -240,7 +240,7 @@ async function enrichForPdf(opts: ClmPdfPayload): Promise<ClmPdfEnriched> {
     toDataUrl(template.logo_url ?? company?.logo_url ?? null),
     toDataUrl(template.chi_siamo_foto_url ?? null),
     // Copertina (in tinta col colore dell'azienda), logo di copertina e galleria dei lavori.
-    immaginiDelModello("climatizzazione", template as unknown as Record<string, unknown>, company?.logo_chiaro_url ?? null),
+    immaginiDelModello("climatizzazione", template as unknown as Record<string, unknown>, company?.logo_chiaro_url ?? null, companyId),
   ]);
   const inlinedTemplate = {
     ...template,

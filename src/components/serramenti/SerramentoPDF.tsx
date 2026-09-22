@@ -41,6 +41,9 @@ import { clausoleDaApprovare, condizioniStandard, MODULO_RECESSO, perArticoli, r
 import { testiPerPdf } from "../../../supabase/functions/_shared/testoPerPdf";
 import { leggiBlocco, PAGINE_BLOCCO, type ContenutoBlocco, type PaginaBlocco } from "../../../supabase/functions/_shared/blocchiPreventivo";
 import { IconaPdf } from "@/components/preventivi/pdf/IconaPdf";
+import { ParoleDeiClienti, VotiOnline } from "@/components/preventivi/pdf/provaSocialePdf";
+import { creaTema } from "@/components/preventivi/pdf/temaDocumento";
+import { leggiVotiOnline } from "../../../supabase/functions/_shared/recensioniOnline";
 import { spezzaAccento } from "@/components/preventivi/pdf/testoDocumento";
 import { fotoPaginaPerIlPdf, fotoPerIlPdf, type FotoBloccoPronta } from "@/lib/pdf/fotoBlocchi";
 import { proporzioniImmagine } from "@/lib/pdf/proporzioniImmagine";
@@ -1956,6 +1959,8 @@ export interface SerramentoPDFProps {
     /** Colore del marchio (Brand & Azienda): vale finché il modello resta al verde di fabbrica. */
     brand_primary_color?: string | null;
     website?: string | null;
+    /** Il voto su Google, Trustpilot… (companies.recensioni_online). */
+    recensioni_online?: unknown;
   } | null;
   consulente: SerramentoPdfConsulente | null;
   familiesById: Record<string, SerramentoPdfFamilyData>;
@@ -2357,6 +2362,18 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
   const testimonianze: SrTestimonianza[] = testimonianzeProgetto.length > 0
     ? testimonianzeProgetto
     : testimonianzeTemplate;
+  // «Dicono di noi» (dal 22/09/2026): il voto su Google o Trustpilot del Profilo
+  // azienda e le parole dei clienti, su una pagina loro, disegnate come nel Piano
+  // dei lavori e nel colore del documento. Se l'azienda la nasconde, le parole
+  // tornano nella pagina finale come prima.
+  const votiOnline = leggiVotiOnline(company?.recensioni_online);
+  const paroleClienti = recensioniAttivo
+    ? testimonianze.filter((t) => t.quote?.trim()).map((t) => ({ autore: t.autore, ruolo: [t.citta, t.intervento].filter(Boolean).join(" · ") || null, testo: t.quote }))
+    : [];
+  const paginaRecensioniAccesa = normalizePdfPagesOrder((tpl.pdf_pages_order ?? null) as SrPdfPageOrderItem[] | null)
+    .some((pg) => pg.id === "recensioni" && pg.visible);
+  const recensioniInPagina = paginaRecensioniAccesa && (votiOnline.length > 0 || paroleClienti.length > 0);
+  const temaProve = creaTema({ primario: primaryColor, tipografia: "lineare" });
   const milestones = (Array.isArray(p.pagamento_milestones) ? p.pagamento_milestones : []) as SrPagamentoMilestone[];
   const piani = (Array.isArray(p.fin_piani) ? p.fin_piani : []) as SrPianoFinanziamento[];
   const schemaPagamento = p.schema_pagamento ?? "tre_step";
@@ -2569,20 +2586,50 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
     ) : null,
     gallery_lavori: galleryLavori.length > 0 ? (
       <>
-<View minPresenceAhead={140}>
-                <Text style={styles.sectionTitle}>I nostri lavori</Text>
-                <Text style={{ fontSize: 8.5, color: "#6B7280", marginBottom: 10 }}>Alcuni esempi di interventi realizzati dalla nostra azienda.</Text>
-</View>
-                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
-                  {galleryLavori.map((item, i) => (
-                    <View key={i} style={{ width: "47%", marginBottom: 8 }} wrap={false}>
-                      <Image src={item.url} style={{ width: "100%", height: 110, borderRadius: 4 }} />
-                      {item.didascalia ? <Text style={{ fontSize: 8, marginTop: 3, color: "#374151" }}>{item.didascalia}</Text> : null}
-                      {item.luogo ? <Text style={{ fontSize: 7, color: "#9CA3AF" }}>{item.luogo}</Text> : null}
-                    </View>
-                  ))}
-                </View>
+                {/* La prima grande, le altre a coppie (come nel Piano dei lavori). Prima
+                    erano miniature da 110 punti, due per riga. Il titolo sta con la prima:
+                    da solo in fondo alla pagina, con le foto su quella dopo, non si legge. */}
+                {[galleryLavori.slice(0, 1), ...Array.from({ length: Math.ceil((galleryLavori.length - 1) / 2) }, (_, r) => galleryLavori.slice(1 + r * 2, 3 + r * 2))].map((riga, r) => (
+                  <View key={r} wrap={false}>
+                  {r === 0 ? (
+                    <>
+                      <Text style={styles.pageEyebrow}>I nostri lavori</Text>
+                      <Text style={styles.pageTitle}>Lavori finiti, non promesse.</Text>
+                      <Text style={styles.pageSubtitle}>Alcuni interventi che abbiamo già consegnato.</Text>
+                    </>
+                  ) : null}
+                  <View style={{ flexDirection: "row", marginBottom: 12 }}>
+                    {riga.map((item, i) => (
+                      <View key={i} style={{ width: riga.length === 1 ? UTILE_PAGINA : (UTILE_PAGINA - 12) / 2, marginLeft: i === 0 ? 0 : 12 }}>
+                        <Image src={item.url} style={{ width: "100%", height: riga.length === 1 ? 230 : 150, objectFit: "cover", borderRadius: 6 }} />
+                        {item.didascalia || item.luogo ? (
+                          <Text style={{ fontSize: 8.5, marginTop: 4, color: C.gray700 }}>
+                            {item.didascalia ?? ""}
+                            {item.luogo ? <Text style={{ color: C.gray500 }}>{`${item.didascalia ? "  ·  " : ""}${item.luogo}`}</Text> : null}
+                          </Text>
+                        ) : null}
+                      </View>
+                    ))}
+                  </View>
+                  </View>
+                ))}
       </>
+    ) : null,
+    // Il titolo e il voto stanno con la prima riga di recensioni (`testa`): da soli in
+    // fondo alla pagina, con le recensioni su quella dopo, non si leggevano.
+    recensioni: recensioniInPagina ? (
+      <ParoleDeiClienti tema={temaProve} voci={paroleClienti} larghezza={UTILE_PAGINA} testa={<>
+                <Text style={styles.pageEyebrow}>Dicono di noi</Text>
+                <Text style={styles.pageTitle}>La parola ai nostri clienti.</Text>
+                <Text style={styles.pageSubtitle}>
+                  {votiOnline.length > 0 && paroleClienti.length > 0
+                    ? "Il nostro voto sulle piattaforme di recensioni e le parole di chi ha già lavorato con noi."
+                    : votiOnline.length > 0
+                      ? "Il nostro voto sulle piattaforme di recensioni: le recensioni si leggono tutte sulle nostre schede."
+                      : "Le parole di chi ha già lavorato con noi."}
+                </Text>
+                <VotiOnline tema={temaProve} voti={votiOnline} larghezza={UTILE_PAGINA} />
+      </>} />
     ) : null,
   };
   // I blocchi: consecutivi fra loro o con garanzie e domande, scorrono insieme
@@ -2683,7 +2730,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
     passi: ctaSteps.slice(0, 5),
     firmaOnline: Boolean(publicUrl && tpl.pdf_mostra_firma_online === true),
     note: p.note_cliente && p.note_cliente.trim().length > 0 ? p.note_cliente : null,
-    recensioni: recensioniAttivo
+    recensioni: recensioniAttivo && !recensioniInPagina
       ? testimonianze.slice(0, 3).map((t) => ({ testo: t.quote, autore: [t.autore, t.citta, t.intervento].filter(Boolean).join(" · ") }))
       : [],
     piede: brandFooterAttivo && brandFooterTesto && !condizioniLegaliTesto ? brandFooterTesto : null,
@@ -4367,7 +4414,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                   sul type → nessuna recensione veniva mai mostrata. */}
               {/* Le recensioni una accanto all'altra, col titolo, tutte insieme: una
                   sotto l'altra la terza scivolava da sola su un foglio nuovo. */}
-              {recensioniAttivo && testimonianze.length > 0 && (
+              {recensioniAttivo && testimonianze.length > 0 && !recensioniInPagina && (
                 <View wrap={false}>
                   <Text style={styles.sectionTitle}>Cosa dicono i nostri clienti</Text>
                   <View style={{ flexDirection: "row", gap: 14 }}>
@@ -4599,6 +4646,18 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
             ) : null}
             </>
           ),
+          // ─── DICONO DI NOI (voto online + parole dei clienti) ──────────
+          recensioni: (
+            <>
+            {scorrevoli.recensioni ? (
+              <Page size="A4" style={styles.page}>
+                <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
+                {scorrevoli.recensioni}
+                <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
+              </Page>
+            ) : null}
+            </>
+          ),
         };
         // Le sezioni brevi consecutive (con qualcosa da dire) vanno in una pagina
         // che scorre; tutte le altre restano come sono, una o più pagine ciascuna.
@@ -4619,7 +4678,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                   mai una domanda spezzata a metà o un titolo solo in fondo. La
                   galleria può scorrere su più pagine, le altre stanno in una. */}
               {ids.map((id, i) => (
-                <View key={id} wrap={id === "gallery_lavori"} style={i > 0 ? { marginTop: 30 } : undefined}>{scorrevoli[id]}</View>
+                <View key={id} wrap={id === "gallery_lavori" || id === "recensioni"} style={i > 0 ? { marginTop: 30 } : undefined}>{scorrevoli[id]}</View>
               ))}
               <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
             </Page>

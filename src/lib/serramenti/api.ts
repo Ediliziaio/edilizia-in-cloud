@@ -632,7 +632,7 @@ export async function deleteAccessorio(id: string): Promise<void> {
 export async function getAziendaPerPdf(companyId: string) {
   const { data, error } = await supabase
     .from("companies")
-    .select("name, business_name, legal_address, legal_city, legal_postal_code, legal_province, phone, email, vat_number, logo_url, brand_logo_dark_url, brand_primary_color, website, pec")
+    .select("name, business_name, legal_address, legal_city, legal_postal_code, legal_province, phone, email, vat_number, logo_url, brand_logo_dark_url, brand_primary_color, website, pec, recensioni_online")
     .eq("id", companyId)
     .maybeSingle();
   if (error) throw new Error(error.message);
@@ -655,6 +655,8 @@ export async function getAziendaPerPdf(companyId: string) {
     // Sito e PEC compilati nell'anagrafica non arrivavano mai al piè di pagina del PDF.
     website: data.website,
     pec: data.pec,
+    // Il voto su Google, Trustpilot… del Profilo azienda: la pagina «Dicono di noi».
+    recensioni_online: (data as { recensioni_online?: unknown }).recensioni_online ?? [],
   };
 }
 

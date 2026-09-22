@@ -753,7 +753,8 @@ describe("fotovoltaico PDF — le pagine: un elenco solo, e i blocchi", () => {
     const ordine = ids(FV_PDF_PAGES_DEFAULT);
     expect(ordine[ordine.indexOf("anteprima") - 1]).toBe("come_funziona");
     // Rispondono ai dubbi quando il cliente decide, non in testa con la fiducia.
-    expect(ordine.slice(ordine.indexOf("bollette_240") + 1, ordine.indexOf("faq"))).toEqual(["protezione", "controlli", "documenti", "diario"]);
+    // Poi «Dicono di noi» (22/09/2026): il voto, le parole dei clienti, gli impianti fatti.
+    expect(ordine.slice(ordine.indexOf("bollette_240") + 1, ordine.indexOf("faq"))).toEqual(["protezione", "controlli", "documenti", "diario", "recensioni"]);
     for (const id of ["come_funziona", "protezione", "controlli", "documenti", "diario"]) expect(visibile(FV_PDF_PAGES_DEFAULT, id)).toBe(true);
   });
 
@@ -932,5 +933,47 @@ describe("fotovoltaico PDF — numeri che tornano fra le pagine", () => {
     const html = renderFvPdfHtml({ ...base, progetto: { ...base.progetto, fonte_dati_tetto: "pvgis", qualita_dati_tetto: null, imagery_date: null } });
     expect(html).toContain("irraggiamento medio della tua zona");
     expect(html).not.toContain("non indicata");
+  });
+});
+
+describe("fotovoltaico PDF — «Dicono di noi» (22/09/2026)", () => {
+  const recensioni = [
+    { quote: "Installazione in una giornata, tetto pulito.", autore: "Famiglia Colombo", citta: "Sesto San Giovanni", intervento: "5,4 kWp" },
+    { quote: "Le pratiche le hanno seguite loro.", autore: "Roberto M.", citta: "Cinisello Balsamo", intervento: null },
+  ];
+
+  it("il voto del Profilo azienda, le parole dei clienti e gli impianti hanno una pagina loro, prima delle domande", () => {
+    const d = basePdfData();
+    const html = renderFvPdfHtml({
+      ...d,
+      template: { ...d.template, recensioni },
+      voti_online: [{ piattaforma: "google", voto: 4.8, numero: 126, aggiornato: "2026-09-22" }],
+      cantieri_foto: ["data:image/png;base64,AAAA"],
+    });
+    expect(html).toContain("La parola ai<br/>nostri clienti.");
+    expect(html).toContain('<div class="voto-numero">4,8<small>su 5</small></div>');
+    expect(html).toContain("126 recensioni");
+    expect(html).toContain("a settembre 2026");
+    expect(html).toContain("I nostri impianti");
+    // Nella pagina delle garanzie non si ripetono.
+    expect(html).not.toContain("Cosa dicono i clienti");
+    expect(html).not.toContain("I nostri cantieri");
+  });
+
+  it("senza voto, recensioni né impianti la pagina non esce; nascosta, le recensioni tornano nelle garanzie", () => {
+    const d = basePdfData();
+    expect(renderFvPdfHtml({ ...d, template: { ...d.template, recensioni: [] }, voti_online: [] })).not.toContain("La parola ai<br/>nostri clienti.");
+    const nascosta = renderFvPdfHtml({
+      ...d,
+      template: { ...d.template, recensioni, pdf_pages_order: [{ id: "recensioni", visible: false }] },
+    });
+    expect(nascosta).not.toContain("La parola ai<br/>nostri clienti.");
+    expect(nascosta).toContain("Cosa dicono i clienti");
+  });
+
+  it("un voto fuori scala o senza piattaforma non esce", () => {
+    const d = basePdfData();
+    const html = renderFvPdfHtml({ ...d, voti_online: [{ piattaforma: "google", voto: 7 }, { voto: 4.5 }] });
+    expect(html).not.toContain('class="voto-card"');
   });
 });

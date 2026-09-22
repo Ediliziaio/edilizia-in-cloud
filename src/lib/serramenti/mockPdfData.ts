@@ -25,6 +25,7 @@ import type {
 import { toDataUrl } from "@/lib/serramenti/pdfImageUtils";
 import { CAMPI_IMMAGINE_SERRAMENTI, firmaImmagine, firmaImmaginiModello } from "@/lib/storage/immaginiModelloPdf";
 import { blocchiAccesi, fotoDeiBlocchi, fotoDellePagine } from "@/lib/pdf/fotoBlocchi";
+import { votiOnlineAzienda } from "@/lib/pdf/votiOnline";
 import { datiTecniciScheda } from "@/lib/listino/schedeLinea";
 
 const MOCK_FAMILY_ID = "demo-family-aluminio-2ante";
@@ -377,6 +378,7 @@ export async function buildMockPdfData(opts: {
     inlinedLogoDark,
     fotoBlocchi,
     fotoPagine,
+    votiOnline,
   ] = await Promise.all([
     toDataUrl(tpl?.logo_url ?? companyLogoUrl ?? null),
     toDataUrl(tpl?.chi_siamo_foto_url ?? null),
@@ -385,6 +387,8 @@ export async function buildMockPdfData(opts: {
     toDataUrl(opts.companyLogoDarkUrl ?? null),
     fotoDeiBlocchi("serramenti", tpl?.pdf_blocchi, blocchiAccesi(normalizePdfPagesOrder(tpl?.pdf_pages_order ?? null))),
     fotoDellePagine("serramenti", tpl?.pdf_blocchi, ["percorso", "confronto", "cta", "proposta", "allegato", "dettagli"]),
+    // Il voto vero dell'azienda anche nell'anteprima del modello: «Dicono di noi» com'è.
+    votiOnlineAzienda(tpl?.company_id ?? null),
   ]);
   const inlinedTemplate = tpl ? {
     ...tpl,
@@ -410,6 +414,7 @@ export async function buildMockPdfData(opts: {
       brand_logo_dark_url: inlinedLogoDark ?? opts.companyLogoDarkUrl ?? null,
       brand_primary_color: opts.companyBrandColor ?? null,
       website: "www.example.com",
+      recensioni_online: votiOnline,
     },
     consulente,
     familiesById,

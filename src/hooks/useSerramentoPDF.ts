@@ -108,6 +108,8 @@ export interface SerramentoPdfEnriched {
     brand_logo_dark_url?: string | null;
     brand_primary_color?: string | null;
     website?: string | null;
+    /** Il voto su Google, Trustpilot… (companies.recensioni_online). */
+    recensioni_online?: unknown;
     pec?: string | null;
   } | null;
   consulente: SerramentoPdfConsulente | null;

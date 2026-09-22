@@ -33,6 +33,8 @@ const ufy = (id: string) => ({
 });
 
 export const COVER_STOCK_IMAGES: CoverStockImage[] = [
+  // La copertina di serie, nostra (public/cover-stock/termoidraulico, 22/09/2026): la prima proposta.
+  { id: "idr-eic-1", url: "/cover-stock/termoidraulico/1.jpg", thumb: "/cover-stock/termoidraulico/1-thumb.jpg", label: "Casa calda d'inverno", categoria: "impianto" },
   // ─── Impianto (4) ────────────────────────────────────────────────────
   { id: "imp-1", ...ufy("1581094794329-c8112a89af12"), label: "Sala impianti",          categoria: "impianto" },
   { id: "imp-2", ...ufy("1558618666-fcd25c85cd64"),    label: "Pompa di calore",        categoria: "impianto" },

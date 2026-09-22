@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Building2, Users, Image as ImageIcon, Percent } from "lucide-react";
+import { Building2, Users, Image as ImageIcon, Percent, Star } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,6 +8,7 @@ import { LogoUploader } from "@/components/settings/LogoUploader";
 import { CompanyProfileForm } from "@/components/settings/CompanyProfileForm";
 import { CustomerPortalToggle } from "@/components/settings/CustomerPortalToggle";
 import { BonusFiscaliToggles } from "@/components/settings/BonusFiscaliToggles";
+import { RecensioniOnlineForm } from "@/components/settings/RecensioniOnlineForm";
 
 export default function SettingsProfile() {
   const { effectiveCompany, refreshAuth } = useAuth();
@@ -78,6 +79,23 @@ export default function SettingsProfile() {
         </CardHeader>
         <CardContent>
           <CompanyProfileForm canEdit={canEdit} />
+        </CardContent>
+      </Card>
+
+      {/* Il voto su Google, Trustpilot…: una volta qui, vale per tutti i preventivi. */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Star className="h-4 w-4 text-muted-foreground" />
+            Recensioni online
+          </CardTitle>
+          <CardDescription>
+            Il tuo voto su Google, Trustpilot o altre piattaforme: nei preventivi esce nella pagina
+            «Dicono di noi», accanto alle parole dei clienti scritte nei modelli.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <RecensioniOnlineForm canEdit={canEdit} />
         </CardContent>
       </Card>
 
