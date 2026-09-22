@@ -36,11 +36,15 @@ import {
   type FvPdfPageMeta,
   type FvPdfPageOrderItem,
 } from "@/lib/fotovoltaico/pdfPages";
-import { EditorBlocco } from "@/components/preventivi/EditorBlocco";
 import { EditorFotoPagina } from "@/components/preventivi/EditorFotoPagina";
+import { sezioneDellaPagina } from "@/components/preventivi/pagineEditor";
 import { bloccoDellaPagina, descrizioneBlocco, type ChiaveFotoPagina } from "../../../supabase/functions/_shared/blocchiPreventivo";
 
-/** Le pagine con una foto loro, cambiabile qui: l'id della pagina e la chiave della foto. */
+/**
+ * Le pagine con una foto loro: l'id della pagina e la chiave della foto. Qui si
+ * cambiano quelle delle pagine senza una sezione nell'editor (i numeri, i
+ * componenti, il piano); le altre stanno nella sezione della loro pagina.
+ */
 const FOTO_DELLE_PAGINE: Record<string, ChiaveFotoPagina> = { garanzie: "garanzie", bollette_240: "bollette", decisione: "decisione", componenti: "componenti", costi_futuri: "costi", cassa_25: "cassa", piano_pagamento: "piano", faq: "faq", risparmio: "risparmio", produzione: "produzione", recensioni: "recensioni" };
 
 interface Props {
@@ -51,9 +55,11 @@ interface Props {
   onBlocchi?: (v: Record<string, unknown>) => void;
   /** Il campo per caricare la foto di un blocco: quello dell'editor, col suo bucket. */
   campoFoto?: (valore: string | null, onChange: (url: string | null) => void) => ReactNode;
+  /** Apre la sezione dell'editor di una pagina: testi, contenuto e foto si scrivono lì. */
+  apriSezione?: (sezione: string) => void;
 }
 
-function FvPagesOrderEditorImpl({ value, onChange, blocchi, onBlocchi, campoFoto }: Props) {
+function FvPagesOrderEditorImpl({ value, onChange, blocchi, onBlocchi, campoFoto, apriSezione }: Props) {
   const items = normalizeFvPdfPagesOrder(value);
   const metaById = new Map(FV_PDF_PAGES_META.map((page) => [page.id, page]));
   const [recentlyMovedId, setRecentlyMovedId] = useState<string | null>(null);
@@ -165,8 +171,9 @@ function FvPagesOrderEditorImpl({ value, onChange, blocchi, onBlocchi, campoFoto
               const meta = metaById.get(item.id);
               if (!meta) return null;
               const blocco = bloccoDellaPagina(item.id);
-              const modificabile = Boolean(blocco && onBlocchi && campoFoto);
-              const fotoPagina = onBlocchi && campoFoto ? FOTO_DELLE_PAGINE[item.id] ?? null : null;
+              // La pagina ha una sezione sua nell'editor: la matita porta lì.
+              const sezione = apriSezione ? sezioneDellaPagina("fotovoltaico", item.id) : null;
+              const fotoPagina = onBlocchi && campoFoto && !sezione?.foto ? FOTO_DELLE_PAGINE[item.id] ?? null : null;
               return (
                 <SortableFvPageItem
                   key={item.id}
@@ -180,18 +187,9 @@ function FvPagesOrderEditorImpl({ value, onChange, blocchi, onBlocchi, campoFoto
                   onMoveDown={() => moveDown(index)}
                   onToggleVisible={() => toggleVisible(index)}
                   promessa={blocco ? descrizioneBlocco(blocco).promessa : false}
-                  onModifica={modificabile ? () => setAperta(aperta === item.id ? null : item.id) : undefined}
+                  onModifica={sezione && apriSezione ? () => apriSezione(sezione.id) : undefined}
                   onFoto={fotoPagina ? () => setAperta(aperta === `foto:${item.id}` ? null : `foto:${item.id}`) : undefined}
                 >
-                  {modificabile && blocco && aperta === item.id && campoFoto ? (
-                    <EditorBlocco
-                      chiave={blocco}
-                      settore="fotovoltaico"
-                      salvati={blocchi}
-                      onSalvati={(nuovi) => onBlocchi?.(nuovi)}
-                      campoFoto={campoFoto}
-                    />
-                  ) : null}
                   {fotoPagina && aperta === `foto:${item.id}` && campoFoto ? (
                     <EditorFotoPagina
                       chiave={fotoPagina}
@@ -242,7 +240,7 @@ function SortableFvPageItem({
   onToggleVisible: () => void;
   /** Un blocco che promette qualcosa al cliente: acceso, chiede di rileggerlo. */
   promessa?: boolean;
-  /** Apre l'editor del blocco sotto la riga. */
+  /** Apre la sezione della pagina nell'editor. */
   onModifica?: () => void;
   /** Apre la scelta della foto della pagina sotto la riga. */
   onFoto?: () => void;

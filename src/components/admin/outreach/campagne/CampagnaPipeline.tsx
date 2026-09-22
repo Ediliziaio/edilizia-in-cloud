@@ -10,6 +10,8 @@
  * (outreach_campagna_iscrizioni), quindi non possono non tornare.
  */
 import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { Link } from "react-router-dom";
 import {
   ChevronRight, Clock, Search, Loader2, Mail, MessageSquareReply, LogOut, Users, Send, ArrowUpRight,
@@ -509,6 +511,31 @@ function ElencoContatti({ companyId, sequenceId, fase, nPassi, adesso }: {
   const q = useCampagnaContatti(companyId, sequenceId, fase.chiave, cerca, pagina);
   const righe = q.data?.righe ?? [];
   const totale = q.data?.totale ?? 0;
+
+  // Solo per le fasi "risposta": chi ha già un'opportunità aperta mostra il
+  // chip "Opportunità creata" al posto del pulsante di creazione manuale.
+  const contactIds = useMemo(
+    () => (fase.gruppo === "risposta" ? (q.data?.righe ?? []).map((r) => r.contact_id).filter((id): id is string => !!id) : []),
+    [q.data, fase.gruppo],
+  );
+  const oppQ = useQuery({
+    queryKey: ["outreach-campagne", "opportunita-aperte", companyId, contactIds],
+    enabled: contactIds.length > 0,
+    staleTime: 30_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("marketing_opportunities")
+        .select("id, contact_id")
+        .eq("company_id", companyId)
+        .eq("status", "open")
+        .in("contact_id", contactIds);
+      if (error) throw error;
+      const m = new Map<string, string>();
+      for (const o of (data ?? []) as Array<{ id: string; contact_id: string }>) m.set(o.contact_id, o.id);
+      return m;
+    },
+  });
+  const opportunitaPerContatto = oppQ.data ?? new Map<string, string>();
   const da = totale === 0 ? 0 : pagina * CONTATTI_PER_PAGINA + 1;
   const a = Math.min(totale, (pagina + 1) * CONTATTI_PER_PAGINA);
   const passo = numeroPasso(fase.chiave);
@@ -555,7 +582,11 @@ function ElencoContatti({ companyId, sequenceId, fase, nPassi, adesso }: {
             </thead>
             <tbody>
               {righe.map((r) => (
-                <Riga key={r.enrollment_id} r={r} gruppo={fase.gruppo} nPassi={Math.max(nPassi, passo ?? 0)} companyId={companyId} adesso={adesso} />
+                <Riga
+                  key={r.enrollment_id} r={r} gruppo={fase.gruppo} nPassi={Math.max(nPassi, passo ?? 0)}
+                  companyId={companyId} adesso={adesso}
+                  opportunitaId={r.contact_id ? opportunitaPerContatto.get(r.contact_id) ?? null : null}
+                />
               ))}
             </tbody>
           </table>
@@ -579,7 +610,10 @@ function ElencoContatti({ companyId, sequenceId, fase, nPassi, adesso }: {
   );
 }
 
-function Riga({ r, gruppo, nPassi, companyId, adesso }: { r: ContattoCampagna; gruppo: FaseVista["gruppo"]; nPassi: number; companyId: string; adesso: number }) {
+function Riga({ r, gruppo, nPassi, companyId, adesso, opportunitaId }: {
+  r: ContattoCampagna; gruppo: FaseVista["gruppo"]; nPassi: number; companyId: string; adesso: number;
+  opportunitaId: string | null;
+}) {
   const titolo = r.azienda || r.nome || r.email || "Contatto";
   // Nelle liste importate il nome è spesso l'insegna: non ripeterlo sotto il titolo.
   const nomeDiverso = r.nome && r.azienda && r.nome.trim().toLowerCase() !== r.azienda.trim().toLowerCase() ? r.nome : null;
@@ -612,11 +646,20 @@ function Riga({ r, gruppo, nPassi, companyId, adesso }: { r: ContattoCampagna; g
           <td className="whitespace-nowrap px-3 py-2.5 text-right text-xs tabular-nums text-muted-foreground">{ricevute}</td>
           <td className="whitespace-nowrap px-4 py-2.5 text-right">
             {interessante && r.contact_id && (
-              <OutreachConvertContactDialog
-                companyId={companyId}
-                initialContactId={r.contact_id}
-                trigger={<Button size="sm" variant="outline" className="h-7 px-2 text-xs">Crea opportunità</Button>}
-              />
+              opportunitaId ? (
+                <Link
+                  to={`/admin/marketing/opportunita?apri=${opportunitaId}`}
+                  className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 hover:underline dark:text-emerald-400"
+                >
+                  <Sparkles className="h-3 w-3" /> Opportunità creata
+                </Link>
+              ) : (
+                <OutreachConvertContactDialog
+                  companyId={companyId}
+                  initialContactId={r.contact_id}
+                  trigger={<Button size="sm" variant="outline" className="h-7 px-2 text-xs">Crea opportunità</Button>}
+                />
+              )
             )}
           </td>
         </>

@@ -311,7 +311,7 @@ export function ListinoPickerDialog({
 
     // 2. Maggiorazioni assi (Variabili Prodotto) applicate SOPRA il prezzo base.
     const prezzoProdotto = familyWithAxes
-      ? applyMaggiorazioniAssi(calc.prezzo, axisSelection, familyWithAxes.axes, l, h, q)
+      ? applyMaggiorazioniAssi(calc.prezzo, axisSelection, familyWithAxes.axes, l, h, q, selectedFamily.modalita_prezzo_base)
       : calc.prezzo;
     const extraAssi = prezzoProdotto - calc.prezzo;
 

@@ -27,13 +27,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CopertinaAnteprima } from "@/components/preventivi/CopertinaAnteprima";
 import { CondizioniContratto } from "@/components/preventivi/CondizioniContratto";
 import { OrdineCapitoli } from "@/components/preventivi/OrdineCapitoli";
+import { SezionePaginaEdile } from "@/components/preventivi/SezionePaginaEdile";
+import { PAGINE_EDITOR_EDILI } from "@/components/preventivi/pagineEditor";
 import { tipografiaDaModello } from "@/components/preventivi/pdf/temaDocumento";
 import { Link, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import {
   Save, Loader2, Upload, Image as ImageIcon, Plus, Trash2, GripVertical,
-  Palette, FileText, Sparkles, ListChecks, Quote, Clock, Building2,
-  Eye, EyeOff, BadgeEuro, AlertTriangle, FileSearch, Route, ShieldCheck, Percent,
+  Palette, FileText, Sparkles, ListChecks, Clock, Building2,
+  Eye, EyeOff, BadgeEuro, AlertTriangle, FileSearch, Route, Percent,
   Wand2, ListOrdered,} from "lucide-react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
@@ -69,7 +71,6 @@ import type {
   PisProgetto, PisComputoVoce,
 } from "@/types/piscine";
 import { GalleryLavoriEditor } from "@/components/shared/GalleryLavoriEditor";
-import { VotoOnlineDelProfilo } from "@/components/preventivi/VotoOnlineDelProfilo";
 import type { GalleryLavoroItem } from "@/types/gallery";
 import { COVER_PRESETS, detectActiveCoverPreset } from "@/components/piscine/coverPresets";
 import { COVER_STOCK_IMAGES, COVER_STOCK_CATEGORIE, type CoverStockImage } from "@/components/piscine/coverStockImages";
@@ -504,6 +505,8 @@ export function PiscineTemplateEditor({ embedded = false }: Props) {
   type PisSection =
     | "brand"
     | "page_ordine" | "page_cover" | "page_chi_siamo" | "page_percorso" | "page_testimonianze" | "page_crono" | "page_condizioni"
+    // Le pagine nuove del documento, una sezione ciascuna (vedi pagineEditor.ts).
+    | "page_come_funziona" | "page_protezione" | "page_controlli" | "page_lavori" | "page_compreso" | "page_documenti" | "page_diario" | "page_domande" | "page_chiusura"
     | "garanzie" | "contenuti" | "opzioni";
   const PIS_SECTION_GROUPS: Array<{
     label: string;
@@ -517,20 +520,13 @@ export function PiscineTemplateEditor({ embedded = false }: Props) {
     },
     {
       label: "PAGINE DEL PDF",
-      items: [
-        { id: "page_ordine",        label: "Ordine e pagine", emoji: "🔀", descr: "Capitoli, ordine e pagine vostre" },
-        { id: "page_cover",         label: "Copertina",     emoji: "🖼️", descr: "Prima pagina del preventivo" },
-        { id: "page_chi_siamo",     label: "Chi siamo",     emoji: "👋", descr: "Presentazione impresa" },
-        { id: "page_percorso",      label: "Come lavoriamo", emoji: "🗺️", descr: "Le fasi del cantiere" },
-        { id: "page_testimonianze", label: "Testimonianze", emoji: "⭐", descr: "Recensioni clienti" },
-        { id: "page_crono",         label: "Cronoprogramma", emoji: "📅", descr: "Fasi del cantiere" },
-        { id: "page_condizioni",    label: "Condizioni",    emoji: "📄", descr: "Pagamenti, validità, condizioni e firma" },
-      ],
+      // Una sezione per pagina, nell'ordine in cui escono nel documento: le pagine nuove
+      // stanno qui come le altre, non solo in «Ordine e pagine» (vedi pagineEditor.ts).
+      items: PAGINE_EDITOR_EDILI.map((p) => ({ id: p.id as PisSection, label: p.voce, emoji: p.emoji, descr: p.descrizione })),
     },
     {
       label: "DATI & CONTENUTI",
       items: [
-        { id: "garanzie",  label: "Garanzie & FAQ", emoji: "🛡️", descr: "Garanzie e domande frequenti" },
         { id: "contenuti", label: "Contenuti",   emoji: "📝", descr: "Esigenze, soluzione, USP" },
         { id: "opzioni",   label: "Opzioni PDF", emoji: "⚙️", descr: "Visibilità documento" },
       ],
@@ -559,6 +555,37 @@ export function PiscineTemplateEditor({ embedded = false }: Props) {
       </div>
     );
   }
+
+  // Il contenuto delle pagine che raccontano l'azienda: la sezione della pagina lo
+  // mostra sotto occhiello, titolo e introduzione (vedi SezionePaginaEdile).
+  const contenutiPagine = {
+    recensioni: (
+      <TestimonianzeEditor
+        items={form.testimonianze}
+        onChange={(items) => set("testimonianze", items)}
+      />
+    ),
+    domande: (
+      <FaqEditor items={form.faq} onChange={(items) => set("faq", items)} />
+    ),
+    garanzie: (
+      <ListItemsEditor
+        items={form.garanzie}
+        onChange={(items) => set("garanzie", items)}
+        addLabel="Aggiungi garanzia"
+        titlePlaceholder="Es. Garanzia 10 anni sulle opere"
+        descPlaceholder="Dettaglio (opzionale)"
+      />
+    ),
+    lavori: (
+      <GalleryLavoriEditor
+        items={(form.gallery_lavori ?? []) as GalleryLavoroItem[]}
+        onChange={(items) => set("gallery_lavori", items)}
+        bucket={BUCKET}
+        uploadPath={`${companyId}/piscine/gallery`}
+      />
+    ),
+  };
 
   return (
     <div className={cn("space-y-4", embedded ? "" : "mx-auto max-w-4xl p-4")}>
@@ -850,6 +877,7 @@ export function PiscineTemplateEditor({ embedded = false }: Props) {
                 settore="piscine"
                 blocchi={form.pdf_blocchi}
                 onBlocchi={(v) => set("pdf_blocchi", v)}
+                apriSezione={(sezione) => setActiveSection(sezione as PisSection)}
                 campoFoto={(valore, onChange) => (
                   <ImageUploadField label="Foto della pagina" value={valore} companyId={companyId} onChange={onChange} aspect="aspect-[16/9]" />
                 )}
@@ -1395,57 +1423,6 @@ export function PiscineTemplateEditor({ embedded = false }: Props) {
             </SectionCard>
           )}
 
-          {/* Garanzie & FAQ */}
-          {activeSection === "garanzie" && (
-            <SectionCard
-              icon={ShieldCheck}
-              title="Garanzie & FAQ"
-              description="Garanzie e domande frequenti mostrate nel PDF."
-              toggle={{ value: form.show_garanzie, onChange: (v) => set("show_garanzie", v), label: "Mostra nel PDF" }}
-            >
-              <div className="space-y-5">
-                <div className="space-y-2">
-                  <Label className="text-xs font-medium">Garanzie</Label>
-                  <ListItemsEditor
-                    items={form.garanzie}
-                    onChange={(items) => set("garanzie", items)}
-                    addLabel="Aggiungi garanzia"
-                    titlePlaceholder="Es. Garanzia 10 anni sulle opere"
-                    descPlaceholder="Dettaglio (opzionale)"
-                  />
-                </div>
-                <div className="space-y-2 border-t pt-4">
-                  <Label className="text-xs font-medium">Domande frequenti</Label>
-                  <FaqEditor items={form.faq} onChange={(items) => set("faq", items)} />
-                </div>
-              </div>
-            </SectionCard>
-          )}
-
-          {/* Testimonianze */}
-          {activeSection === "page_testimonianze" && (
-            <SectionCard icon={Quote} title="Testimonianze" description="Le parole dei clienti: nel PDF escono nella pagina «Dicono di noi».">
-              <VotoOnlineDelProfilo />
-              <TestimonianzeEditor
-                items={form.testimonianze}
-                onChange={(items) => set("testimonianze", items)}
-              />
-            </SectionCard>
-          )}
-
-          {activeSection === "page_testimonianze" && (
-            <SectionCard icon={ImageIcon} title="Gallery lavori" description="Foto di lavori realizzati, mostrate nel PDF.">
-              {/* Nello stesso bucket delle altre immagini del modello: il bucket
-                  "companies" non esiste e ogni foto finiva in errore. */}
-              <GalleryLavoriEditor
-                items={(form.gallery_lavori ?? []) as GalleryLavoroItem[]}
-                onChange={(items) => set("gallery_lavori", items)}
-                bucket={BUCKET}
-                uploadPath={`${companyId}/piscine/gallery`}
-              />
-            </SectionCard>
-          )}
-
           {/* Cronoprogramma */}
           {activeSection === "page_crono" && (
             <SectionCard
@@ -1582,6 +1559,24 @@ export function PiscineTemplateEditor({ embedded = false }: Props) {
               </SectionCard>
             </>
           )}
+
+          {/* Le pagine del documento che non avevano una sezione (i blocchi, «Dicono di
+              noi», le garanzie, le domande…), e la foto di quelle che l'avevano già. */}
+          <SezionePaginaEdile
+            sezione={activeSection}
+            settore="piscine"
+            blocchi={form.pdf_blocchi}
+            onBlocchi={(v) => set("pdf_blocchi", v)}
+            ordine={form.pdf_ordine_capitoli}
+            pagine={form.pdf_pagine_libere}
+            onOrdine={(v) => set("pdf_ordine_capitoli", v)}
+            mostraGaranzie={form.show_garanzie !== false}
+            onMostraGaranzie={(v) => set("show_garanzie", v)}
+            contenuti={contenutiPagine}
+            campoFoto={(valore, onChange) => (
+              <ImageUploadField label="Foto della pagina" value={valore} companyId={companyId} onChange={onChange} aspect="aspect-[16/9]" />
+            )}
+          />
 
           {/* Barra salvataggio sticky */}
           <div className="sticky bottom-0 z-10 -mx-1 flex items-center justify-between gap-3 rounded-xl border bg-background/95 px-3 py-2.5 shadow-sm backdrop-blur">

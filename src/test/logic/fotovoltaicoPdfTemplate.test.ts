@@ -772,11 +772,11 @@ describe("fotovoltaico PDF — le pagine: un elenco solo, e i blocchi", () => {
   it("le foto dei blocchi accesi: al massimo due, dal sito nelle anteprime", () => {
     const template = { pdf_pages_order: tutteAccese(), pdf_blocchi: { diario: { senzaFoto: true } } };
     const foto = fotoDeiBlocchiFv(template);
-    // «Come funziona» ha una foto sola, larga: la casa in sezione col percorso dell'energia.
-    expect(foto.comeFunziona).toEqual(["/pdf-stock/fotovoltaico/storia-flusso-energia.jpg"]);
+    // «Come funziona» ha una tavola sola, verticale (22/09/2026): produzione, casa, batteria, sera.
+    expect(foto.comeFunziona).toEqual(["/pdf-stock/fotovoltaico/tavola-giorno-e-sera.jpg"]);
     expect(foto.diario).toEqual([]);
     expect(fotoBlocchiDalSito("https://app.example.it/", template).comeFunziona[0]).toEqual({
-      src: "https://app.example.it/pdf-stock/fotovoltaico/storia-flusso-energia.jpg", diSerie: true,
+      src: "https://app.example.it/pdf-stock/fotovoltaico/tavola-giorno-e-sera.jpg", diSerie: true,
     });
     // di serie accese tutte: le foto di tutti i blocchi
     expect(Object.keys(fotoDeiBlocchiFv({})).sort()).toEqual(["comeFunziona", "controlli", "diario", "documenti", "protezione"]);
@@ -969,6 +969,29 @@ describe("fotovoltaico PDF — «Dicono di noi» (22/09/2026)", () => {
     });
     expect(nascosta).not.toContain("La parola ai<br/>nostri clienti.");
     expect(nascosta).toContain("Cosa dicono i clienti");
+  });
+
+  it("la testata delle pagine si riscrive dall'editor: titolo a capo, testo sicuro per l'HTML", () => {
+    const d = basePdfData();
+    const html = renderFvPdfHtml({
+      ...d,
+      template: {
+        ...d.template,
+        recensioni,
+        faq_items: [{ domanda: "Serve l'accumulo?", risposta: "Dipende da quanta energia usate la sera." }],
+        pdf_blocchi: {
+          testata_recensioni: { occhiello: "Parlano loro", titolo: "Cento famiglie\ncol sole in casa.", intro: "Recensioni <vere>." },
+          testata_domande: { titolo: "Prima di firmare" },
+          testata_garanzie: { titolo: "Dieci anni\nsenza pensieri." },
+        },
+      },
+    });
+    expect(html).toContain('<div class="eyebrow">Parlano loro</div>');
+    expect(html).toContain('<h1 class="page-title">Cento famiglie<br/>col sole in casa.</h1>');
+    expect(html).toContain("Recensioni &lt;vere&gt;.");
+    expect(html).toContain('<h1 class="page-title">Prima di firmare</h1>');
+    expect(html).toContain('<h1 class="page-title">Dieci anni<br/>senza pensieri.</h1>');
+    expect(html).not.toContain("anni di<br/>tranquillità.");
   });
 
   it("un voto fuori scala o senza piattaforma non esce", () => {

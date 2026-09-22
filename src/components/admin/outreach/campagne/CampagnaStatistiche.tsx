@@ -60,6 +60,8 @@ const ESITO: Record<string, { etichetta: string; nota: string }> = {
   disiscrizione: { etichetta: "Disiscrizioni", nota: "chiedono di non ricevere più" },
   altro: { etichetta: "Altro", nota: "da leggere" },
   da_classificare: { etichetta: "Da classificare", nota: "l'AI non le ha ancora lette" },
+  opportunita_creata: { etichetta: "Diventate opportunità", nota: "collegate al CRM in automatico" },
+  vinta: { etichetta: "Vinte", nota: "contratto chiuso" },
 };
 
 export function CampagnaStatistiche({ companyId, campagna, campagne, stime, onScegli }: {
@@ -413,6 +415,16 @@ function RendimentoPassi({ s, ramificata }: { s: StatisticheCampagna; ramificata
 function Esiti({ s }: { s: StatisticheCampagna }) {
   const totale = s.esiti.reduce((a, e) => a + e.contatti, 0);
   const max = Math.max(1, ...s.esiti.map((e) => e.contatti));
+  // Le opportunità non sono un "esito" della risposta (un interessato può
+  // ancora non essere diventato opportunità): righe sintetiche in coda alla
+  // stessa lista, stesso rendering, percentuale calcolata sullo stesso
+  // `totale` (risposte) — "opportunità create: 5 · 25%" si legge "25% delle
+  // risposte totali", un numero corretto perché sono un sotto-insieme.
+  const righe = [
+    ...s.esiti,
+    ...(s.totali.opportunita_create > 0 ? [{ esito: "opportunita_creata", contatti: s.totali.opportunita_create }] : []),
+    ...(s.totali.opportunita_vinte > 0 ? [{ esito: "vinta", contatti: s.totali.opportunita_vinte }] : []),
+  ];
   return (
     <Riquadro icona={MessageSquareReply} titolo="Com'è andata con chi ha risposto"
       nota={totale ? `${it(totale)} ${totale === 1 ? "persona ha" : "persone hanno"} risposto; l'AI legge ogni risposta e la classifica.` : undefined}>
@@ -422,7 +434,7 @@ function Esiti({ s }: { s: StatisticheCampagna }) {
         </p>
       ) : (
         <ul className="space-y-2.5">
-          {s.esiti.map((e) => {
+          {righe.map((e) => {
             const info = ESITO[e.esito] ?? { etichetta: e.esito, nota: "" };
             return (
               <li key={e.esito}>

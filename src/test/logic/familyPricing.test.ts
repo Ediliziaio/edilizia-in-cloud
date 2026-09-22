@@ -702,3 +702,136 @@ describe("calcolaPrezzoFamiglia — mode=acquisto_markup cascata", () => {
   });
 });
 
+describe("calcolaPrezzoFamiglia — prezzo assoluto per-valore (Linea)", () => {
+  // Regressione bug Renova Solution (22/09/2026): Aluplast e Salamander sullo
+  // stesso asse "Linea", entrambe fascia "medium" (maggiorazione 0%/"none").
+  // Prima del fix condividevano lo stesso prezzo_base_vendita → stesso prezzo
+  // mostrato per costruzione; cambiare il prezzo base della tipologia
+  // "cambiava automaticamente" anche l'altra marca. Ora ogni valore col
+  // proprio prezzo_vendita è indipendente.
+  it("pz: valore con prezzo_vendita proprio sostituisce il base, un altro valore non collegato resta al suo", () => {
+    const aluplast = makeValue({
+      id: "val-aluplast",
+      valore: "aluplast_ideal_5000",
+      maggiorazione_tipo: "none",
+      maggiorazione_valore: 0,
+      prezzo_vendita: 720,
+    });
+    const salamander = makeValue({
+      id: "val-salamander",
+      valore: "salamander_76",
+      maggiorazione_tipo: "none",
+      maggiorazione_valore: 0,
+      prezzo_vendita: 850, // marca modificata indipendentemente
+    });
+    const linea = makeAxis({ codice: "linea", values: [aluplast, salamander] });
+    const family = makeFamily({
+      modalita_prezzo_base: "pz",
+      prezzo_base_vendita: 720,
+      axes: [linea],
+    });
+    const rAluplast = calcolaPrezzoFamiglia({
+      family,
+      selections: { linea: "val-aluplast" },
+      quantita: 1,
+    });
+    const rSalamander = calcolaPrezzoFamiglia({
+      family,
+      selections: { linea: "val-salamander" },
+      quantita: 1,
+    });
+    expect(rAluplast.unit_price_vendita).toBe(720);
+    expect(rSalamander.unit_price_vendita).toBe(850);
+    expect(rSalamander.maggiorazioni_applicate[0].tipo).toBe("prezzo_assoluto");
+  });
+
+  it("mq: prezzo_vendita del valore è un €/mq indipendente, moltiplicato per i mq come il base", () => {
+    const premium = makeValue({
+      id: "val-premium",
+      maggiorazione_tipo: "percentuale",
+      maggiorazione_valore: 999, // deve essere ignorata: prevale il prezzo proprio
+      prezzo_vendita: 300, // €/mq indipendente
+    });
+    const axis = makeAxis({ codice: "linea", values: [premium] });
+    const family = makeFamily({
+      modalita_prezzo_base: "mq",
+      prezzo_base_vendita: 200,
+      axes: [axis],
+    });
+    const r = calcolaPrezzoFamiglia({
+      family,
+      selections: { linea: "val-premium" },
+      larghezza_mm: 1000,
+      altezza_mm: 1000,
+      quantita: 1,
+    });
+    // mq = 1 → 300 €/mq × 1 mq = 300, non 200×(1+999%)
+    expect(r.unit_price_vendita).toBe(300);
+  });
+
+  it("griglia: il prezzo_vendita del valore viene ignorato, resta la maggiorazione", () => {
+    const valColor = makeValue({
+      id: "val-rosso",
+      maggiorazione_tipo: "percentuale",
+      maggiorazione_valore: 10,
+      prezzo_vendita: 999999, // non deve avere alcun effetto in modalità griglia
+    });
+    const axis = makeAxis({ codice: "colore", values: [valColor] });
+    const family = makeFamily({
+      modalita_prezzo_base: "griglia",
+      axes: [axis],
+    });
+    const griglia: GridPoint[] = [
+      { valore_x: 1000, valore_y: 1000, prezzo_vendita: 420, prezzo_acquisto_netto: 0 },
+    ];
+    const r = calcolaPrezzoFamiglia(
+      {
+        family,
+        selections: { colore: "val-rosso" },
+        larghezza_mm: 1000,
+        altezza_mm: 1000,
+        quantita: 1,
+      },
+      griglia,
+    );
+    // 420 × 1.10 = 462, non 999999
+    expect(r.unit_price_vendita).toBe(462);
+  });
+
+  it("prezzo_acquisto proprio sostituisce l'acquisto; se assente resta quello calcolato dal base", () => {
+    const conAcquisto = makeValue({
+      id: "val-con-acquisto",
+      maggiorazione_tipo: "none",
+      maggiorazione_valore: 0,
+      prezzo_vendita: 500,
+      prezzo_acquisto: 250,
+    });
+    const senzaAcquisto = makeValue({
+      id: "val-senza-acquisto",
+      maggiorazione_tipo: "none",
+      maggiorazione_valore: 0,
+      prezzo_vendita: 500,
+      prezzo_acquisto: null,
+    });
+    const axis = makeAxis({ codice: "linea", values: [conAcquisto, senzaAcquisto] });
+    const family = makeFamily({
+      modalita_prezzo_base: "pz",
+      prezzo_base_vendita: 720,
+      prezzo_base_acquisto: 400,
+      axes: [axis],
+    });
+    const rCon = calcolaPrezzoFamiglia({
+      family,
+      selections: { linea: "val-con-acquisto" },
+      quantita: 1,
+    });
+    const rSenza = calcolaPrezzoFamiglia({
+      family,
+      selections: { linea: "val-senza-acquisto" },
+      quantita: 1,
+    });
+    expect(rCon.unit_price_acquisto).toBe(250);
+    expect(rSenza.unit_price_acquisto).toBe(400);
+  });
+});
+

@@ -48,6 +48,7 @@ const STATIC_ROUTES = [
   "/autore/florin-andriciuc",
   "/avviso-legale",
   "/blog",
+  "/calendario-demo",
   "/casi-studio",
   "/chi-siamo",
   "/condizioni-utilizzo",

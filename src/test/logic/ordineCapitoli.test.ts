@@ -99,11 +99,14 @@ describe("il documento segue l'ordine scelto", () => {
     expect(leggi("src/components/preventivi/pdf/immaginiDocumento.ts")).toContain("pdf_pagine_libere: pagineLiberePronte");
   });
 
-  it("gli otto editor hanno la voce «Ordine e pagine»", () => {
+  it("gli otto editor hanno la voce «Ordine e pagine» e una sezione per ogni pagina (22/09/2026)", () => {
+    expect(leggi("src/components/preventivi/pagineEditor.ts")).toContain('{ id: "page_ordine", voce: "Ordine e pagine"');
     for (const m of ["bagni/Bagni", "tetti/Tetti", "climatizzazione/Climatizzazione", "elettrico/Elettrico", "termoidraulico/Termoidraulico", "pavimenti/Pavimenti", "piscine/Piscine", "ristrutturazione/Ristrutturazione"]) {
       const src = leggi(`src/components/${m}TemplateEditor.tsx`);
-      expect(src).toContain('{ id: "page_ordine",');
+      expect(src).toContain("items: PAGINE_EDITOR_EDILI.map(");
       expect(src).toContain("<OrdineCapitoli");
+      expect(src).toContain("<SezionePaginaEdile");
+      expect(src).toContain("apriSezione={(sezione) => setActiveSection(");
     }
   });
 });

@@ -28,12 +28,14 @@ import { fraseValiditaChiusura } from "@/lib/preventivi/validitaOfferta";
 import { creaTema, coloriCopertina, copertinaInTinta, type TemaDocumento } from "./temaDocumento";
 import { chiaveLibera, ordineEffettivo } from "./ordineCapitoli";
 import { IconaPdf } from "./IconaPdf";
+import { eTavola } from "@/lib/pdf/proporzioniImmagine";
 import {
   Domande, ParoleDeiClienti, SchedeGaranzie, VotiOnline,
   altezzeDomande, stimaParoleDeiClienti, stimaSchedeGaranzie, stimaVotiOnline,
 } from "./provaSocialePdf";
 import { BLOCCHI, type ChiaveBlocco } from "../../../../supabase/functions/_shared/blocchiPreventivo";
 import { MODULO_RECESSO } from "../../../../supabase/functions/_shared/condizioniStandard";
+import type { PaginaConTestata } from "../../../../supabase/functions/_shared/testatePagine";
 import { giorniDellaDurata, senzaNumeroDavanti, spezzaAccento } from "./testoDocumento";
 import { altezzaTesto, righeDiTesto, testoDaHtml, type FamigliaPdf } from "./misuraTesto";
 import type {
@@ -853,17 +855,21 @@ function altezzaTestoBlocco(tema: TemaDocumento, blocco: DocEdileBlocco, conEscl
 }
 
 /** Le voci di un blocco: icona in un cerchio di tinta, titolo, spiegazione. */
-function VociBlocco({ tema, voci, attenuate = false }: { tema: TemaDocumento; voci: DocEdileBlocco["voci"]; attenuate?: boolean }) {
+function VociBlocco({ tema, voci, attenuate = false, colonne: scelte, larghezzaTotale = UTILE }: {
+  tema: TemaDocumento; voci: DocEdileBlocco["voci"]; attenuate?: boolean;
+  /** Accanto a una tavola le voci stanno in una colonna sola, larga `larghezzaTotale`. */
+  colonne?: 1 | 2 | 3; larghezzaTotale?: number;
+}) {
   // Con una spiegazione le voci stanno su due colonne; solo titoli, su tre.
-  const colonne = voci.some((x) => x.testo) ? 2 : 3;
+  const colonne = scelte ?? (voci.some((x) => x.testo) ? 2 : 3);
   const righe: DocEdileBlocco["voci"][] = [];
   for (let i = 0; i < voci.length; i += colonne) righe.push(voci.slice(i, i + colonne));
   const spazio = 14;
-  const larghezza = (UTILE - spazio * (colonne - 1)) / colonne;
+  const larghezza = (larghezzaTotale - spazio * (colonne - 1)) / colonne;
   return (
     <View>
       {righe.map((riga, r) => (
-        <View key={r} wrap={false} style={{ flexDirection: "row", marginBottom: colonne === 2 ? 12 : 9 }}>
+        <View key={r} wrap={false} style={{ flexDirection: "row", marginBottom: colonne === 3 ? 9 : 12 }}>
           {riga.map((x, i) => (
             <View key={i} style={{ width: larghezza, marginLeft: i === 0 ? 0 : spazio, flexDirection: "row" }}>
               <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: attenuate ? tema.cartaCalda : tema.tinta, alignItems: "center", justifyContent: "center", marginRight: 8 }}>
@@ -877,6 +883,78 @@ function VociBlocco({ tema, voci, attenuate = false }: { tema: TemaDocumento; vo
           ))}
         </View>
       ))}
+    </View>
+  );
+}
+
+// ─── La tavola: una foto sola e verticale, intera, con le voci accanto ───────
+// Le tavole del pacchetto bento (22/09/2026) hanno le scritte dentro: ritagliate
+// per stare nella fascia delle foto perdevano i titoli. Si mostrano intere, grandi
+// quanto la pagina permette, con le voci del blocco in una colonna al loro fianco.
+const STACCO_TAVOLA = 16;
+const COLONNA_VOCI_MINIMA = 100;
+
+/** La tavola del blocco, se il blocco ha una foto sola e verticale (la proporzione, larghezza/altezza). */
+function tavolaDelBlocco(blocco: DocEdileBlocco): number | null {
+  return blocco.foto.length === 1 ? eTavola(blocco.foto[0].src) : null;
+}
+
+/** Quanto sono alte le voci nella colonna accanto alla tavola (ricalca VociColonna). */
+function altezzaVociInColonna(tema: TemaDocumento, voci: DocEdileBlocco["voci"], larga: number): number {
+  return voci.reduce((t, v) => t + 12
+    + Math.max(16, altezzaTesto(v.titolo, larga - 22, fam(tema.caratteri.forte), 9.5, 1.3))
+    + (v.testo ? 3 + altezzaTesto(v.testo, larga, fam(tema.caratteri.testo), 8.5, 1.45) : 0), 0);
+}
+
+/**
+ * La tavola più larga che sta nella pagina sotto il titolo: la riga (la tavola e la
+ * colonna delle voci accanto, la più alta delle due) non deve superare lo spazio
+ * che resta. Con poche voci la tavola prende quasi tutta la larghezza; con tante si
+ * stringe, e la colonna si allarga.
+ */
+function misuraTavola(tema: TemaDocumento, blocco: DocEdileBlocco, proporzione: number) {
+  const nota = blocco.nota && blocco.foto.some((f) => f.diSerie) ? 5 + 7 * 1.2 : 0;
+  const disponibile = ALTEZZA_UTILE - stimaTesta(tema, blocco.titolo, blocco.intro) - nota - SICUREZZA_RIEMPIMENTO;
+  const massima = Math.floor(Math.min(disponibile * proporzione, UTILE - STACCO_TAVOLA - COLONNA_VOCI_MINIMA));
+  let larghezza = massima;
+  while (larghezza > 220 && Math.max(larghezza / proporzione, altezzaVociInColonna(tema, blocco.voci, UTILE - STACCO_TAVOLA - larghezza)) > disponibile) {
+    larghezza -= 5;
+  }
+  return { larghezza, altezza: Math.floor(larghezza / proporzione), colonna: UTILE - STACCO_TAVOLA - larghezza };
+}
+
+/** Le voci accanto alla tavola: l'icona piccola accanto al titolo, la spiegazione sotto, a tutta colonna. */
+function VociColonna({ tema, voci }: { tema: TemaDocumento; voci: DocEdileBlocco["voci"] }) {
+  return (
+    <View>
+      {voci.map((x, i) => (
+        <View key={i} wrap={false} style={{ marginBottom: 12 }}>
+          <View style={{ flexDirection: "row", alignItems: "flex-start" }}>
+            <View style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: tema.tinta, alignItems: "center", justifyContent: "center", marginRight: 6 }}>
+              {x.icona ? <IconaPdf nome={x.icona} colore={tema.inchiostroMarca} lato={9} /> : null}
+            </View>
+            <Text style={{ flex: 1, fontFamily: tema.caratteri.forte, fontSize: 9.5, color: tema.inchiostro, lineHeight: 1.3, paddingTop: 1.5 }}>{x.titolo}</Text>
+          </View>
+          {x.testo ? <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 8.5, color: tema.grigio, marginTop: 3, lineHeight: 1.45 }}>{x.testo}</Text> : null}
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function TavolaBlocco({ tema, blocco, proporzione }: { tema: TemaDocumento; blocco: DocEdileBlocco; proporzione: number }) {
+  const { larghezza, altezza, colonna } = misuraTavola(tema, blocco, proporzione);
+  return (
+    <View wrap={false} style={{ flexDirection: "row", alignItems: "flex-start" }}>
+      <View style={{ width: larghezza }}>
+        <Image src={blocco.foto[0].src} style={{ width: larghezza, height: altezza, objectFit: "contain" }} />
+        {blocco.nota && blocco.foto[0].diSerie ? (
+          <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 7, color: tema.grigioChiaro, marginTop: 5 }}>{blocco.nota}</Text>
+        ) : null}
+      </View>
+      <View style={{ width: colonna, marginLeft: STACCO_TAVOLA, paddingTop: 2 }}>
+        <VociColonna tema={tema} voci={blocco.voci} />
+      </View>
     </View>
   );
 }
@@ -907,11 +985,16 @@ function CapitoloBlocco({ tema, numero, chiave, blocco, riempi = false, altezzaF
       </View>
     );
   }
+  const tavola = riempi ? tavolaDelBlocco(blocco) : null;
   return (
     <View>
       <Capitolo tema={tema} numero={numero} occhiello={blocco.occhiello} titolo={blocco.titolo} sommario={blocco.intro} />
-      <FotoBlocco tema={tema} foto={blocco.foto} nota={blocco.nota} altezza={riempi ? altezzaFoto ?? altezzaFotoPiena(tema, blocco) : undefined} />
-      <VociBlocco tema={tema} voci={blocco.voci} />
+      {tavola != null ? <TavolaBlocco tema={tema} blocco={blocco} proporzione={tavola} /> : (
+        <>
+          <FotoBlocco tema={tema} foto={blocco.foto} nota={blocco.nota} altezza={riempi ? altezzaFoto ?? altezzaFotoPiena(tema, blocco) : undefined} />
+          <VociBlocco tema={tema} voci={blocco.voci} />
+        </>
+      )}
     </View>
   );
 }
@@ -943,11 +1026,15 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
   // subito prima dei prossimi passi. L'interruttore del modello vale per entrambi.
   const haGaranzie = modello.mostraGaranzie && modello.garanzie.length > 0;
   const haDomande = modello.mostraGaranzie && modello.faq.length > 0;
-  const sommarioRecensioni = votiOnline.length > 0 && modello.testimonianze.length > 0
+  // Occhiello, titolo e introduzione delle pagine che raccontano l'azienda: di serie,
+  // o riscritti dall'azienda nell'editor (vedi _shared/testatePagine.ts).
+  const testata = (pagina: PaginaConTestata) => ({ ...modello.testate[pagina], titolo: modello.testate[pagina].titolo ?? "" });
+  const [tLavori, tRecensioni, tGaranzie, tDomande] = [testata("lavori"), testata("recensioni"), testata("garanzie"), testata("domande")];
+  const sommarioRecensioni = tRecensioni.intro ?? (votiOnline.length > 0 && modello.testimonianze.length > 0
     ? "Il nostro voto sulle piattaforme di recensioni e le parole di chi ha già lavorato con noi."
     : votiOnline.length > 0
       ? "Il nostro voto sulle piattaforme di recensioni: le recensioni si leggono tutte sulle nostre schede."
-      : "Le parole di chi ha già lavorato con noi.";
+      : "Le parole di chi ha già lavorato con noi.");
   const colonneUsp: 2 | 3 = modello.usp.length % 3 === 0 || modello.usp.length > 4 ? 3 : 2;
   const colonneGaranzie: 2 | 3 = modello.garanzie.length === 2 || modello.garanzie.length === 4 ? 2 : 3;
 
@@ -975,9 +1062,9 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
   const numeroDi = new Map(sequenza.map((v, i) => [v.chiave, i + 1]));
   const numeroPassi = sequenza.length + 1;
   const TITOLI: Record<string, string> = {
-    chiSiamo: "Chi siamo", progetto: "Il progetto", percorso: "Come lavoriamo", lavori: "I nostri lavori",
+    chiSiamo: "Chi siamo", progetto: "Il progetto", percorso: "Come lavoriamo", lavori: tLavori.occhiello,
     foto: "Foto e render", piano: modulo.titoloComputo.replace(/\*/g, ""), investimento: "Il tuo investimento",
-    garanzie: "Le garanzie", tempi: "I tempi", recensioni: "Dicono di noi", domande: "Domande e risposte",
+    garanzie: tGaranzie.occhiello, tempi: "I tempi", recensioni: tRecensioni.occhiello, domande: tDomande.occhiello,
     ...Object.fromEntries(BLOCCHI.map((b) => [b.chiave, b.etichetta])),
   };
   const sommario: Array<{ numero: number; titolo: string }> = [
@@ -1145,13 +1232,13 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
         break;
       }
       case "percorso": h = stimaTesta(tema, "Dal primo incontro alla consegna.") + stimaPassi(tema, modello.percorso); break;
-      case "lavori": h = stimaTesta(tema, "Lavori finiti, non promesse.", "Alcuni interventi che abbiamo già consegnato.") + stimaGalleria(modello.galleriaLavori); break;
+      case "lavori": h = stimaTesta(tema, tLavori.titolo, tLavori.intro) + stimaGalleria(modello.galleriaLavori); break;
       case "recensioni":
-        h = stimaTesta(tema, "La parola ai nostri clienti.", sommarioRecensioni)
+        h = stimaTesta(tema, tRecensioni.titolo, sommarioRecensioni)
           + stimaVotiOnline(votiOnline) + stimaParoleDeiClienti(tema, modello.testimonianze, UTILE);
         break;
       case "foto": h = stimaTesta(tema, "Il tuo progetto, da vedere.", "Lo stato di oggi e come diventerà.") + stimaGalleria(fotoCapitolo); break;
-      case "garanzie": h = stimaTesta(tema, "Più certezze, meno dubbi.") + stimaSchedeGaranzie(tema, modello.garanzie, colonneGaranzie, UTILE); break;
+      case "garanzie": h = stimaTesta(tema, tGaranzie.titolo, tGaranzie.intro) + stimaSchedeGaranzie(tema, modello.garanzie, colonneGaranzie, UTILE); break;
       case "tempi": h = modello.cronoprogramma.length > 8 ? null : stimaTesta(tema, "Quanto dura il cantiere.") + stimaTempi(tema, modello.cronoprogramma) + 30; break;
       case "investimento": {
         const tabella = oc.livello !== "corpo" && capitoli.length > 1 && !prezzoManuale
@@ -1209,7 +1296,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
 
   // Le domande si spezzano una per volta, come le righe del piano; il titolo resta
   // con la prima.
-  const testaDomande = stimaTesta(tema, "Le domande che ci fanno più spesso.");
+  const testaDomande = stimaTesta(tema, tDomande.titolo, tDomande.intro);
   const codaDelleDomande = (inizio: number): { coda: number; aCapo: boolean } => {
     const alte = altezzeDomande(tema, modello.faq, UTILE);
     let usato = inizio;
@@ -1349,7 +1436,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
     const corti = flusso.chiavi.slice(pagina.da);
     if (!corti.length || corti.some((k) => codaSpezzata[k] || stimaCapitolo(k) == null)) continue;
     const b = BLOCCHI.find((x) => x.chiave === blocco.chiavi[0]);
-    if (!b) continue;
+    if (!b || (b.chiave !== "compreso" && tavolaDelBlocco(modello.blocchi[b.chiave]) != null)) continue;
     const foto = ALTEZZA_UTILE - usatoPagina - STACCO - altezzaTestoBlocco(tema, modello.blocchi[b.chiave], b.chiave === "compreso") - 16 - 16 - SICUREZZA_RIEMPIMENTO;
     if (foto < FOTO_BLOCCO_DIVISA) continue;
     // La foto di riempimento che l'ultimo capitolo aveva preso non serve più: c'è quella del blocco.
@@ -1443,12 +1530,12 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
               <Passi tema={tema} voci={modello.percorso} />
             </View>);
       case "lavori": return (<>
-          <Capitolo tema={tema} numero={numero} occhiello="I nostri lavori" titolo="Lavori *finiti*, non promesse." sommario="Alcuni interventi che abbiamo già consegnato." />
+          <Capitolo tema={tema} numero={numero} occhiello={tLavori.occhiello} titolo={tLavori.titolo} sommario={tLavori.intro} />
           <Galleria tema={tema} foto={modello.galleriaLavori} />
 </>);
       case "recensioni": return (
           <ParoleDeiClienti tema={tema} voci={modello.testimonianze} larghezza={UTILE} testa={<>
-            <Capitolo tema={tema} numero={numero} occhiello="Dicono di noi" titolo="La parola ai *nostri clienti*." sommario={sommarioRecensioni} />
+            <Capitolo tema={tema} numero={numero} occhiello={tRecensioni.occhiello} titolo={tRecensioni.titolo} sommario={sommarioRecensioni} />
             <VotiOnline tema={tema} voti={votiOnline} larghezza={UTILE} />
           </>} />
       );
@@ -1584,11 +1671,11 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
 
 </>);
       case "garanzie": return (<>
-          <Capitolo tema={tema} numero={numero} occhiello="Le nostre garanzie" titolo="Più *certezze*, meno dubbi." />
+          <Capitolo tema={tema} numero={numero} occhiello={tGaranzie.occhiello} titolo={tGaranzie.titolo} sommario={tGaranzie.intro} />
           <SchedeGaranzie tema={tema} voci={modello.garanzie} colonne={colonneGaranzie} larghezza={UTILE} />
 </>);
       case "domande": return (<>
-          <Capitolo tema={tema} numero={numero} occhiello="Domande e risposte" titolo="Le domande che ci fanno *più spesso*." />
+          <Capitolo tema={tema} numero={numero} occhiello={tDomande.occhiello} titolo={tDomande.titolo} sommario={tDomande.intro} />
           <Domande tema={tema} voci={modello.faq} />
 </>);
       case "tempi": return (

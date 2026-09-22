@@ -11,7 +11,7 @@
  *  - Recensioni clienti (compaiono nel PDF pagina 2)
  *  - Default cronoprogramma + anticipo + IVA + validità
  */
-import { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -61,7 +61,7 @@ import { SrCard, SrCallout } from "@/lib/serramenti/wizardUI";
 import { MacroPagineDedicateManager } from "@/components/listino/MacroPagineDedicateManager";
 import { FileText } from "lucide-react";
 import type { SrTemplatePdfRow, SrEsigenza, SrSoluzioneItem, SrTestimonianza, SrPercorsoCliente, SrPercorsoFase, SrGaranzia } from "@/types/serramenti";
-import { SR_PERCORSO_DEFAULT, SR_GARANZIE_DEFAULT, SR_FAQ_DEFAULT, SR_PERCHE_NOI_METRICHE_DEFAULT, type SrPercheNoiMetrica } from "@/types/serramenti";
+import { SR_PERCORSO_DEFAULT, SR_GARANZIE_DEFAULT, SR_FAQ_DEFAULT, SR_PERCHE_NOI_METRICHE_DEFAULT, normalizePdfPagesOrder, type SrPercheNoiMetrica } from "@/types/serramenti";
 import { blankTemplateForKind } from "@/types/quoteTemplate";
 import type { QuoteTemplate } from "@/types/quoteTemplate";
 import type { SharedLegalTemplateKind, SharedLegalTemplateOption } from "@/components/serramenti/SerramentiConversionEditor";
@@ -88,6 +88,8 @@ import { COVER_STOCK_IMAGES, COVER_STOCK_CATEGORIE, type CoverStockImage } from 
 // M20 · Palette colore intelligente (brand variations + curate)
 import { generateBrandPalette, CURATED_PALETTES } from "@/lib/utils/colorPalette";
 import { GalleryLavoriEditor } from "@/components/shared/GalleryLavoriEditor";
+import { ContenutoPagina } from "@/components/preventivi/ContenutoPagina";
+import { conPaginaVisibile, paginaEditor, PAGINE_EDITOR_SERRAMENTI } from "@/components/preventivi/pagineEditor";
 import { ImgRiservata } from "@/components/common/ImgRiservata";
 import { riferimentoImmagine } from "@/lib/storage/immaginiModelloPdf";
 import type { GalleryLavoroItem } from "@/types/gallery";
@@ -315,7 +317,7 @@ function buildTemplateQualityItems(form: Partial<SrTemplatePdfRow>): TemplateQua
       level: "warning",
       title: "Recensioni assenti",
       detail: "Va bene così se non hai testimonianze reali. Evita recensioni inventate: puoi nascondere la pagina.",
-      section: "Recensioni",
+      section: "Dicono di noi",
     });
   }
   if (recensioni.length > 0 && recensioni.some((r) => !hasReadableText(r.quote, 35) || !hasReadableText(r.autore, 2) || isReviewDraft(r))) {
@@ -323,7 +325,7 @@ function buildTemplateQualityItems(form: Partial<SrTemplatePdfRow>): TemplateQua
       level: "critical",
       title: "Recensioni da verificare",
       detail: "Una o più recensioni sembrano bozze o mancano di autore/testo reale. Sistemarle prima di inviare il PDF.",
-      section: "Recensioni",
+      section: "Dicono di noi",
     });
   }
   if (!percorso?.attivo || !hasReadableText(percorso?.titolo, 8) || (percorso?.fasi ?? []).filter((f) => hasReadableText(f.nome, 3) && f.step.some((s) => hasReadableText(s, 8))).length < 4) {
@@ -339,7 +341,7 @@ function buildTemplateQualityItems(form: Partial<SrTemplatePdfRow>): TemplateQua
       level: "warning",
       title: "Garanzie troppo deboli",
       detail: "Servono almeno 4 garanzie concrete: prodotto, rilievo, posa, assistenza o documenti finali.",
-      section: "Garanzie",
+      section: "Le nostre garanzie",
     });
   }
   if (faq.filter((f) => hasReadableText(f.domanda, 10) && hasReadableText(f.risposta, 35)).length < 4) {
@@ -347,7 +349,7 @@ function buildTemplateQualityItems(form: Partial<SrTemplatePdfRow>): TemplateQua
       level: "warning",
       title: "FAQ poco utili",
       detail: "Aggiungi almeno 4 obiezioni reali: prezzo, tempi, misure, posa, render, pagamento.",
-      section: "FAQ",
+      section: "Domande frequenti",
     });
   }
   if (!hasReadableText(form.render_disclaimer, 60)) {
@@ -658,6 +660,9 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
     | "page_cta"
     | "page_conversione"
     | "page_ordine"
+    // Le pagine nuove del documento, una sezione ciascuna (vedi pagineEditor.ts).
+    | "page_come_funziona" | "page_protezione" | "page_controlli" | "page_documenti" | "page_diario"
+    | "page_garanzie" | "page_confronto" | "page_lavori" | "page_faq"
     | "contenuti" | "macro" | "garanzie" | "default" | "condizioni";
 
   // Sezioni raggruppate per UX: la sidebar mostra 3 gruppi con header,
@@ -674,17 +679,9 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
     },
     {
       label: "Pagine del PDF",
-      items: [
-        { id: "page_cover",       label: "Cover",           emoji: "🖼️", descr: "Prima pagina del preventivo" },
-        { id: "page_chi_siamo",   label: "Chi siamo",       emoji: "👋", descr: "Presentazione azienda" },
-        { id: "page_percorso",    label: "Il tuo percorso", emoji: "🗺️", descr: "Fasi e step cliente" },
-        { id: "page_consulente",  label: "Consulente",      emoji: "👤", descr: "Dati commerciale" },
-        { id: "page_recensioni",  label: "Recensioni",      emoji: "⭐", descr: "Testimonianze cliente" },
-        { id: "page_render",      label: "Render AI",       emoji: "🪄", descr: "Prima/dopo + disclaimer" },
-        { id: "page_cta",         label: "CTA finale",      emoji: "✅", descr: "Prossimi passi" },
-        { id: "page_conversione", label: "Conversione",     emoji: "⚡", descr: "Urgenza, garanzie, bonus" },
-        { id: "page_ordine",      label: "Ordine pagine",   emoji: "📋", descr: "Drag-drop riordino" },
-      ],
+      // Una sezione per pagina, nell'ordine in cui escono nel documento: le pagine nuove
+      // stanno qui come le altre, non solo in «Ordine pagine» (vedi pagineEditor.ts).
+      items: PAGINE_EDITOR_SERRAMENTI.map((p) => ({ id: p.id as EditorSection, label: p.voce, emoji: p.emoji, descr: p.descrizione })),
     },
     {
       label: "Dati & contenuti",
@@ -704,7 +701,9 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
     if (!s.startsWith("page_")) return null;
     return s.replace(/^page_/, "").replace("chi_siamo", "chi-siamo").replace("ordine", "ordine-pagine");
   };
-  const isPageSection = (s: EditorSection) => s.startsWith("page_");
+  // Le sezioni che c'erano già stanno nella scheda con le linguette; le pagine nuove
+  // hanno la loro, più sotto.
+  const isPageSection = (s: EditorSection) => s.startsWith("page_") && (paginaEditor("serramenti", s)?.esistente ?? false);
   const [searchParams, setSearchParams] = useSearchParams();
   const sectionFromUrl = (searchParams.get("section") ?? "brand") as EditorSection;
   const activeSection: EditorSection = SECTIONS.some((s) => s.id === sectionFromUrl)
@@ -1077,6 +1076,141 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
       </div>
     );
   };
+
+  // Il contenuto delle pagine nuove, per sezione: la sezione lo mostra sotto
+  // occhiello, titolo e introduzione della pagina (vedi ContenutoPagina).
+  const contenutiPagine: Partial<Record<EditorSection, ReactNode>> = {
+    page_recensioni: (
+      <div className="space-y-3">
+      <label className="flex items-center gap-1.5 cursor-pointer text-xs">
+        <input
+          type="checkbox"
+          checked={form.recensioni_attivo !== false}
+          onChange={(e) => update("recensioni_attivo", e.target.checked)}
+          className="h-3.5 w-3.5"
+        />
+        Mostra le parole dei clienti (spento, la pagina mostra solo il voto)
+      </label>
+      <SrCard
+        title="Recensioni e testimonianze"
+        description="Escono nella pagina «Dicono di noi» del PDF, sotto il voto su Google o Trustpilot."
+        icon={<Quote className="h-4 w-4" />}
+        variant="highlight"
+      >
+        <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          Usa questa pagina solo con testimonianze reali. Se non hai recensioni verificabili,
+          lasciala vuota o nascondila: è più professionale di una recensione generica.
+        </div>
+        <div className="space-y-3">
+          {testimonianze.length === 0 && (
+            <SrCallout variant="info">
+              Nessuna recensione caricata. Va bene lasciare la pagina vuota finché non hai testimonianze reali: meglio nessuna recensione che una recensione inventata.
+            </SrCallout>
+          )}
+          {testimonianze.map((t, idx) => (
+            <Card key={idx} className="bg-orange-50/30 border-orange-200">
+              <CardHeader className="p-3 pb-2 flex flex-row items-center justify-between">
+                <CardTitle className="text-xs uppercase tracking-wide text-orange-600">
+                  Recensione {idx + 1}
+                </CardTitle>
+                <Button size="sm" variant="ghost" onClick={() => setDelTestIdx(idx)} className="h-7 px-2 text-xs text-rose-600">
+                  <Trash2 className="h-3.5 w-3.5 mr-1" /> Rimuovi
+                </Button>
+              </CardHeader>
+              <CardContent className="p-3 pt-0 grid grid-cols-12 gap-2">
+                <div className="col-span-12">
+                  <Label className="text-xs">Citazione</Label>
+                  <Textarea
+                    value={t.quote ?? ""}
+                    onChange={(e) => updateTestimonianza(idx, "quote", e.target.value)}
+                    placeholder={'"Ci hanno spiegato bene materiali, tempi e posa prima della firma..."'}
+                    rows={3}
+                  />
+                </div>
+                <div className="col-span-12 md:col-span-4">
+                  <Label className="text-xs">Autore</Label>
+                  <Input
+                    value={t.autore ?? ""}
+                    onChange={(e) => updateTestimonianza(idx, "autore", e.target.value)}
+                    placeholder="Nome cliente o iniziali reali"
+                    className="h-9 text-xs"
+                  />
+                </div>
+                <div className="col-span-6 md:col-span-3">
+                  <Label className="text-xs">Città</Label>
+                  <Input
+                    value={t.citta ?? ""}
+                    onChange={(e) => updateTestimonianza(idx, "citta", e.target.value)}
+                    placeholder="Città"
+                    className="h-9 text-xs"
+                  />
+                </div>
+                <div className="col-span-6 md:col-span-5">
+                  <Label className="text-xs">Tipo intervento</Label>
+                  <Input
+                    value={t.intervento ?? ""}
+                    onChange={(e) => updateTestimonianza(idx, "intervento", e.target.value)}
+                    placeholder="Tipo intervento"
+                    className="h-9 text-xs"
+                  />
+                </div>
+                <div className="col-span-12 flex items-center gap-2">
+                  {t.foto_url ? (
+                    <ImgRiservata src={t.foto_url} alt="" className="h-10 w-10 rounded-full object-cover border" />
+                  ) : (
+                    <span className="h-10 w-10 rounded-full bg-muted flex items-center justify-center text-muted-foreground">
+                      <ImageIcon className="h-4 w-4" />
+                    </span>
+                  )}
+                  <label className="text-xs">
+                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded border cursor-pointer hover:bg-muted">
+                      {uploadingTestFoto === idx ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+                      {t.foto_url ? "Cambia foto" : "Foto cliente (opzionale)"}
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => { const f = e.target.files?.[0]; if (f) handleTestimonianzaFotoUpload(idx, f); e.target.value = ""; }}
+                    />
+                  </label>
+                  {t.foto_url && (
+                    <button type="button" onClick={() => updateTestimonianza(idx, "foto_url", "")} className="text-xs text-rose-600 hover:underline">
+                      Rimuovi
+                    </button>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+          <Button
+            onClick={addTestimonianza}
+            variant="outline"
+            className="w-full border-dashed border-2 border-orange-300 hover:bg-orange-50 gap-1"
+          >
+            <Plus className="h-4 w-4" /> Aggiungi recensione
+          </Button>
+        </div>
+      </SrCard>
+      </div>
+    ),
+    page_lavori: (
+      <GalleryLavoriEditor
+        items={(form.gallery_lavori ?? []) as GalleryLavoroItem[]}
+        onChange={(items) => update("gallery_lavori", items)}
+        bucket="sr-progetti"
+        uploadPath={`${companyId}/gallery-lavori`}
+      />
+    ),
+    page_garanzie: <SerramentiConversionEditor form={form} update={update} companyAnagrafica={companyAnagrafica} sezioni={["garanzie"]} />,
+    page_confronto: <SerramentiConversionEditor form={form} update={update} companyAnagrafica={companyAnagrafica} sezioni={["confronto"]} />,
+    page_faq: <SerramentiConversionEditor form={form} update={update} companyAnagrafica={companyAnagrafica} sezioni={["faq"]} />,
+  };
+  // La sezione aperta, se è una pagina del documento, e se la pagina esce.
+  const paginaSr = paginaEditor("serramenti", activeSection);
+  const IconaPaginaSr = paginaSr?.icona ?? ImageIcon;
+  const ordinePagineSr = normalizePdfPagesOrder(form.pdf_pages_order ?? null);
+  const paginaSrVisibile = paginaSr?.pagina ? ordinePagineSr.find((p) => p.id === paginaSr.pagina)?.visible ?? false : false;
 
   return (
     <div className="space-y-4">
@@ -1648,7 +1782,6 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
             <TabsTrigger value="chi-siamo">Chi siamo</TabsTrigger>
             <TabsTrigger value="percorso">Il tuo percorso</TabsTrigger>
             <TabsTrigger value="consulente">Consulente</TabsTrigger>
-            <TabsTrigger value="recensioni">Recensioni</TabsTrigger>
             <TabsTrigger value="render">Render AI</TabsTrigger>
             <TabsTrigger value="cta">CTA finale</TabsTrigger>
             <TabsTrigger value="conversione">⚡ Conversione</TabsTrigger>
@@ -2946,143 +3079,6 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
           </TabsContent>
 
           {/* ═══ RECENSIONI ══════════════════════════════════════════════════ */}
-          <TabsContent value="recensioni" className="mt-4 space-y-1">
-            <div className="flex items-center justify-between">
-              <div className="text-xs font-semibold uppercase tracking-wide text-orange-600">
-                Recensioni nel PDF
-              </div>
-              <label className="flex items-center gap-1.5 cursor-pointer text-xs">
-                <input
-                  type="checkbox"
-                  checked={form.recensioni_attivo !== false}
-                  onChange={(e) => update("recensioni_attivo", e.target.checked)}
-                  className="h-3.5 w-3.5"
-                />
-                Mostra recensioni
-              </label>
-            </div>
-            <p className="text-[10px] text-muted-foreground">
-              Le recensioni qui sotto vengono incluse nella pagina finale del PDF solo se
-              "Mostra recensioni" è attivo.
-            </p>
-
-            {/* Testimonianze */}
-            <SrCard
-              title="Recensioni e testimonianze"
-              description="Pagina 2 del PDF — sezione 'Cosa dicono i nostri clienti'."
-              icon={<Quote className="h-4 w-4" />}
-              variant="highlight"
-            >
-              <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-                Usa questa pagina solo con testimonianze reali. Se non hai recensioni verificabili,
-                lasciala vuota o nascondila: è più professionale di una recensione generica.
-              </div>
-              <div className="space-y-3">
-                {testimonianze.length === 0 && (
-                  <SrCallout variant="info">
-                    Nessuna recensione caricata. Va bene lasciare la pagina vuota finché non hai testimonianze reali: meglio nessuna recensione che una recensione inventata.
-                  </SrCallout>
-                )}
-                {testimonianze.map((t, idx) => (
-                  <Card key={idx} className="bg-orange-50/30 border-orange-200">
-                    <CardHeader className="p-3 pb-2 flex flex-row items-center justify-between">
-                      <CardTitle className="text-xs uppercase tracking-wide text-orange-600">
-                        Recensione {idx + 1}
-                      </CardTitle>
-                      <Button size="sm" variant="ghost" onClick={() => setDelTestIdx(idx)} className="h-7 px-2 text-xs text-rose-600">
-                        <Trash2 className="h-3.5 w-3.5 mr-1" /> Rimuovi
-                      </Button>
-                    </CardHeader>
-                    <CardContent className="p-3 pt-0 grid grid-cols-12 gap-2">
-                      <div className="col-span-12">
-                        <Label className="text-xs">Citazione</Label>
-                        <Textarea
-                          value={t.quote ?? ""}
-                          onChange={(e) => updateTestimonianza(idx, "quote", e.target.value)}
-                          placeholder={'"Ci hanno spiegato bene materiali, tempi e posa prima della firma..."'}
-                          rows={3}
-                        />
-                      </div>
-                      <div className="col-span-12 md:col-span-4">
-                        <Label className="text-xs">Autore</Label>
-                        <Input
-                          value={t.autore ?? ""}
-                          onChange={(e) => updateTestimonianza(idx, "autore", e.target.value)}
-                          placeholder="Nome cliente o iniziali reali"
-                          className="h-9 text-xs"
-                        />
-                      </div>
-                      <div className="col-span-6 md:col-span-3">
-                        <Label className="text-xs">Città</Label>
-                        <Input
-                          value={t.citta ?? ""}
-                          onChange={(e) => updateTestimonianza(idx, "citta", e.target.value)}
-                          placeholder="Città"
-                          className="h-9 text-xs"
-                        />
-                      </div>
-                      <div className="col-span-6 md:col-span-5">
-                        <Label className="text-xs">Tipo intervento</Label>
-                        <Input
-                          value={t.intervento ?? ""}
-                          onChange={(e) => updateTestimonianza(idx, "intervento", e.target.value)}
-                          placeholder="Tipo intervento"
-                          className="h-9 text-xs"
-                        />
-                      </div>
-                      <div className="col-span-12 flex items-center gap-2">
-                        {t.foto_url ? (
-                          <ImgRiservata src={t.foto_url} alt="" className="h-10 w-10 rounded-full object-cover border" />
-                        ) : (
-                          <span className="h-10 w-10 rounded-full bg-muted flex items-center justify-center text-muted-foreground">
-                            <ImageIcon className="h-4 w-4" />
-                          </span>
-                        )}
-                        <label className="text-xs">
-                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded border cursor-pointer hover:bg-muted">
-                            {uploadingTestFoto === idx ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-                            {t.foto_url ? "Cambia foto" : "Foto cliente (opzionale)"}
-                          </span>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            onChange={(e) => { const f = e.target.files?.[0]; if (f) handleTestimonianzaFotoUpload(idx, f); e.target.value = ""; }}
-                          />
-                        </label>
-                        {t.foto_url && (
-                          <button type="button" onClick={() => updateTestimonianza(idx, "foto_url", "")} className="text-xs text-rose-600 hover:underline">
-                            Rimuovi
-                          </button>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-                <Button
-                  onClick={addTestimonianza}
-                  variant="outline"
-                  className="w-full border-dashed border-2 border-orange-300 hover:bg-orange-50 gap-1"
-                >
-                  <Plus className="h-4 w-4" /> Aggiungi recensione
-                </Button>
-              </div>
-            </SrCard>
-
-            <SrCard
-              title="Gallery lavori"
-              description="Foto di lavori realizzati, mostrate nel PDF."
-              icon={<ImageIcon className="h-4 w-4" />}
-            >
-              <GalleryLavoriEditor
-                items={(form.gallery_lavori ?? []) as GalleryLavoroItem[]}
-                onChange={(items) => update("gallery_lavori", items)}
-                bucket="sr-progetti"
-                uploadPath={`${companyId}/gallery-lavori`}
-              />
-            </SrCard>
-          </TabsContent>
-
           {/* ═══ RENDER AI ═══════════════════════════════════════════════════ */}
           <TabsContent value="render" className="mt-4 space-y-3">
             <SrCard
@@ -3334,6 +3330,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                 form={form}
                 update={update}
                 companyAnagrafica={companyAnagrafica}
+                sezioni={["urgenza", "certificazioni", "bonus", "firma"]}
               />
             </Suspense>
           </TabsContent>
@@ -3357,6 +3354,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                   blocchi={form.pdf_blocchi}
                   onBlocchi={aggiornaBlocchi}
                   campoFoto={campoFotoBlocco}
+                  apriSezione={(sezione) => setActiveSection(sezione as EditorSection)}
                 />
               </Suspense>
             </div>
@@ -3364,6 +3362,34 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
         </Tabs>
       </SrCard>
       </>)}{/* === END SEZIONE PAGINE PDF === */}
+
+      {/* === SEZIONE: LE PAGINE NUOVE ===
+          Una sezione per pagina, come le altre (vedi pagineEditor.ts): i blocchi, le
+          garanzie, il confronto, i lavori, «Dicono di noi», le domande. Per le pagine
+          che una sezione ce l'avevano già (percorso, pagina finale), la loro foto. */}
+      {paginaSr && !paginaSr.esistente && (<>
+      <SectionHeader title={`${paginaSr.emoji} ${paginaSr.voce}`} description={paginaSr.descrizione} number={4} />
+      <SrCard title={paginaSr.voce} icon={<IconaPaginaSr className="h-4 w-4" />}>
+        <ContenutoPagina
+          pagina={paginaSr}
+          motore="serramenti"
+          settore="serramenti"
+          blocchi={form.pdf_blocchi}
+          onBlocchi={aggiornaBlocchi}
+          contenuto={contenutiPagine[paginaSr.id as EditorSection]}
+          campoFoto={campoFotoBlocco}
+          visibile={paginaSr.pagina ? {
+            valore: paginaSrVisibile,
+            onChange: (v) => update("pdf_pages_order", conPaginaVisibile(ordinePagineSr, paginaSr.pagina as string, v)),
+          } : undefined}
+        />
+      </SrCard>
+      </>)}
+      {paginaSr?.esistente && paginaSr.foto ? (
+        <SrCard title="Foto della pagina" icon={<ImageIcon className="h-4 w-4" />}>
+          <ContenutoPagina pagina={paginaSr} motore="serramenti" settore="serramenti" blocchi={form.pdf_blocchi} onBlocchi={aggiornaBlocchi} campoFoto={campoFotoBlocco} soloFoto />
+        </SrCard>
+      ) : null}
 
       {/* === SEZIONE: METRICHE & PERCHÉ NOI === */}
       {activeSection === "garanzie" && (<>

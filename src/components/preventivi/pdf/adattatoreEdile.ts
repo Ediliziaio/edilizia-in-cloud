@@ -16,6 +16,7 @@ import { tipografiaDaModello } from "./temaDocumento";
 import { leggiOrdine, leggiPagineLibere } from "./ordineCapitoli";
 import { testiPerPdf } from "../../../../supabase/functions/_shared/testoPerPdf";
 import { leggiVotiOnline } from "../../../../supabase/functions/_shared/recensioniOnline";
+import { leggiTestata, pagineConTestata, type PaginaConTestata, type TestataPagina } from "../../../../supabase/functions/_shared/testatePagine";
 import { IMMOBILI, interventoInParole, parolaDelCodice, unitaInParole } from "./paroleDeiCodici";
 import {
   BLOCCHI, eFotoDiSerie, leggiBlocco, leggiFotoPagina, RIEMPIMENTI_EDILI, settoreBlocchi, type ChiaveBlocco, type ChiaveFotoPagina,
@@ -212,6 +213,15 @@ export function leggiModello(
     cronoprogramma: elenco<DocEdileFase>(t.cronoprogramma).filter((x) => stringa(x?.fase)),
     mostraCronoprogramma: t.show_cronoprogramma !== false,
     galleriaLavori: elenco<DocEdileFoto>(t.gallery_lavori).filter((x) => stringa(x?.url)),
+    // Come nelle pagine libere, i segnaposto ({cliente_nome}, {citta}…) si espandono.
+    testate: Object.fromEntries(pagineConTestata("edili").map((pagina) => {
+      const testata = leggiTestata(pagina, "edili", t.pdf_blocchi);
+      return [pagina, {
+        occhiello: espandi(testata.occhiello) ?? testata.occhiello,
+        titolo: testata.titolo ? espandi(testata.titolo) ?? testata.titolo : null,
+        intro: testata.intro ? espandi(testata.intro) ?? testata.intro : null,
+      }];
+    })) as Record<PaginaConTestata, TestataPagina>,
     pagamentoHtml: stringa(t.payment_terms_text),
     testoValidita: stringa(t.validity_text),
     giorniValidita: numero(t.default_validita_giorni),

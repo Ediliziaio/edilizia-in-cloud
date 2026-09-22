@@ -210,6 +210,7 @@ export function prezzoIndicativo(riga: RigaListino): { prezzo: number; alMetroQu
     misura,
     misura,
     1,
+    modalita,
   );
   return prezzo > 0 ? { prezzo, alMetroQuadro } : null;
 }

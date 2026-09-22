@@ -281,10 +281,19 @@ Deno.serve(async (req: Request) => {
       (template as Record<string, unknown>).cantieri_galleria as
         | Array<{ foto_url?: string; citta?: string; descrizione?: string }> | null
     ) ?? [];
+    // Le foto degli impianti: prima quelle della «Gallery lavori» dell'editor
+    // (gallery_lavori, che fino al 22/09/2026 il PDF non leggeva: l'azienda le
+    // caricava e non uscivano), poi cantieri_galleria, scritta senza editor.
+    const galleriaLavori = (
+      (template as Record<string, unknown>).gallery_lavori as Array<{ url?: string }> | null
+    ) ?? [];
     // Fino a sei: la pagina «Dicono di noi» ne mostra tre o sei, quella delle garanzie tre.
-    const cantieriFotoUrls = cantieriGalleria
-      .map((c) => c.foto_url)
-      .filter((u): u is string => Boolean(u))
+    const cantieriFotoUrls = [
+      ...(Array.isArray(galleriaLavori) ? galleriaLavori : []).map((g) => g?.url),
+      ...(Array.isArray(cantieriGalleria) ? cantieriGalleria : []).map((c) => c?.foto_url),
+    ]
+      .filter((u): u is string => typeof u === "string" && u.length > 0)
+      .filter((u, i, tutte) => tutte.indexOf(u) === i)
       .slice(0, 6);
 
     type BundleRow = { nome: string; descrizione: string | null; fv_kwp: number | null; fv_accumulo_kwh: number | null; cover_image_url: string | null };

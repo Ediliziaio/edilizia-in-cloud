@@ -184,3 +184,18 @@ export function sposta(ordine: VoceOrdine[], chiave: string, verso: -1 | 1): Voc
   [out[i], out[j]] = [out[j], out[i]];
   return out;
 }
+
+/**
+ * Se un capitolo esce, per l'ordine salvato nel modello: l'interruttore «Mostra nel
+ * PDF» della sua sezione nell'editor dice la stessa cosa dell'occhio in «Ordine e pagine».
+ */
+export function capitoloVisibile(ordine: unknown, pagine: unknown, chiave: string): boolean {
+  const elenco = ordineEffettivo(leggiOrdine(ordine), leggiPagineLibere(pagine, { ancheVuote: true }));
+  return elenco.find((v) => v.chiave === chiave)?.visibile ?? false;
+}
+
+/** L'ordine da salvare con un capitolo acceso o spento: il resto com'era. */
+export function conCapitoloVisibile(ordine: unknown, pagine: unknown, chiave: string, visibile: boolean): VoceOrdine[] {
+  const elenco = ordineEffettivo(leggiOrdine(ordine), leggiPagineLibere(pagine, { ancheVuote: true }));
+  return elenco.map((v) => (v.chiave === chiave ? { ...v, visibile } : v));
+}

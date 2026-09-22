@@ -11,6 +11,7 @@ import {
   chiaveSalvataFotoPagina, eFotoDiSerie, FOTO_PAGINE_ETICHETTE, fotoDellaLibreria, fotoPaginaDiSerie, leggiFotoPagina,
   type ChiaveFotoPagina, type SettoreBlocchi,
 } from "../../../supabase/functions/_shared/blocchiPreventivo";
+import { eTavola } from "../../../supabase/functions/_shared/proporzioniImmagine";
 
 interface Props {
   chiave: ChiaveFotoPagina;
@@ -20,15 +21,21 @@ interface Props {
   onSalvati: (v: Record<string, unknown>) => void;
   /** Il campo per caricare una foto: quello dell'editor, col suo bucket. */
   campoFoto: (valore: string | null, onChange: (url: string | null) => void) => ReactNode;
+  /** Dentro una sezione dell'editor, che ha già la sua scheda: senza bordo né margine. */
+  incorniciato?: boolean;
+  /** Quando esce la foto (sempre, o solo se la pagina finisce a metà foglio). */
+  nota?: string;
 }
 
-export function EditorFotoPagina({ chiave, settore, salvati, onSalvati, campoFoto }: Props) {
+export function EditorFotoPagina({ chiave, settore, salvati, onSalvati, campoFoto, incorniciato = true, nota }: Props) {
   const tutti = useMemo(() => (salvati && typeof salvati === "object" ? (salvati as Record<string, unknown>) : {}), [salvati]);
   const chiaveSalvata = chiaveSalvataFotoPagina(chiave);
   const attuale = leggiFotoPagina(chiave, settore, tutti);
   const diSerie = fotoPaginaDiSerie(chiave, settore);
   const [libreriaAperta, setLibreriaAperta] = useState(false);
-  const libreria = useMemo(() => fotoDellaLibreria(settore), [settore]);
+  // Senza le tavole: qui la foto riempie una fascia e si ritaglia, e una tavola
+  // perderebbe le sue scritte.
+  const libreria = useMemo(() => fotoDellaLibreria(settore).filter((f) => eTavola(f.url) == null), [settore]);
 
   const salva = (valore: Record<string, unknown> | null) => {
     const { [chiaveSalvata]: _via, ...resto } = tutti;
@@ -37,8 +44,11 @@ export function EditorFotoPagina({ chiave, settore, salvati, onSalvati, campoFot
   const scegli = (url: string | null) => salva(url ? { foto: [url], senzaFoto: false } : { foto: [], senzaFoto: true });
 
   return (
-    <div className="mt-3 space-y-3 rounded-md border bg-background p-3">
-      <p className="text-xs font-medium">{FOTO_PAGINE_ETICHETTE[chiave]}</p>
+    <div className={incorniciato ? "mt-3 space-y-3 rounded-md border bg-background p-3" : "space-y-3"}>
+      <div className="space-y-0.5">
+        <p className="text-xs font-medium">{FOTO_PAGINE_ETICHETTE[chiave]}</p>
+        {nota ? <p className="text-[11px] text-muted-foreground">{nota}</p> : null}
+      </div>
       <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
         {attuale && eFotoDiSerie(attuale) ? (
           <div className="relative overflow-hidden rounded-md border">

@@ -18,13 +18,13 @@ import { AUTO_STATUS_OPTIONS } from "@/types/opportunities";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type PipelineRow = {
   id: string;
   name: string;
   updated_at: string;
-  marketing_pipeline_stages?: { id: string; name: string; position: number }[] | null;
+  marketing_pipeline_stages?: { id: string; name: string; position: number; auto_status: string | null }[] | null;
 };
 
 interface CreateStage {
@@ -40,6 +40,11 @@ type PipelineTemplate = {
   defaultName: string;
   stages: { name: string; auto_status: string | null }[];
 };
+
+// Prefisso del value quando si sceglie "copia da una sequenza esistente"
+// invece di uno dei modelli fissi qui sotto: nel Select condividono lo stesso
+// campo, e questo distingue le due provenienze senza una select separata.
+const PREFISSO_SEQUENZA_ESISTENTE = "esistente:";
 
 // Modelli di partenza per la creazione di una sequenza. Il primo e' quello
 // applicato all'apertura del dialog, quindi resta il comportamento storico.
@@ -109,6 +114,20 @@ function buildStagesFromTemplate(template: PipelineTemplate): CreateStage[] {
   }));
 }
 
+// Stessa forma di buildStagesFromTemplate, ma le fasi vengono da una sequenza
+// già esistente dell'azienda invece che da un modello fisso: sono ID e nomi
+// NUOVI (la sequenza copiata resta intatta, qui si copiano solo nome e
+// auto_status di ogni fase, nell'ordine in cui stanno già).
+function buildStagesFromExistingPipeline(pipeline: PipelineRow): CreateStage[] {
+  const stamp = Date.now();
+  const fasi = [...(pipeline.marketing_pipeline_stages ?? [])].sort((a, b) => a.position - b.position);
+  return fasi.map((stage, idx) => ({
+    id: `s-${idx}-${stamp}`,
+    name: stage.name,
+    auto_status: stage.auto_status,
+  }));
+}
+
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Operazione non riuscita";
 }
@@ -157,6 +176,10 @@ export function PipelinesConfig() {
   const [newName, setNewName] = useState("");
   const [createStages, setCreateStages] = useState<CreateStage[]>([]);
   const [templateId, setTemplateId] = useState(PIPELINE_TEMPLATES[0].id);
+  // L'ultimo nome proposto in automatico (da un modello o da una sequenza da
+  // copiare): applyTemplate lo sovrascrive solo se l'utente non ha ancora
+  // scritto un nome suo, o non ha toccato l'ultimo suggerito.
+  const [lastSuggestedName, setLastSuggestedName] = useState(PIPELINE_TEMPLATES[0].defaultName);
   const [editName, setEditName] = useState("");
   const [editId, setEditId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -171,7 +194,7 @@ export function PipelinesConfig() {
       if (!companyId) return [];
       const { data, error } = await supabase
         .from("marketing_pipelines")
-        .select("*, marketing_pipeline_stages(id, name, position)")
+        .select("*, marketing_pipeline_stages(id, name, position, auto_status)")
         .eq("company_id", companyId)
         .order("position");
       if (error) throw error;
@@ -180,25 +203,48 @@ export function PipelinesConfig() {
     enabled: !!companyId,
   });
 
+  const copyingFromPipelineId = templateId.startsWith(PREFISSO_SEQUENZA_ESISTENTE)
+    ? templateId.slice(PREFISSO_SEQUENZA_ESISTENTE.length)
+    : null;
+  const copyingFromPipeline = copyingFromPipelineId ? pipelines.find((p) => p.id === copyingFromPipelineId) : undefined;
+  // Le altre sequenze dell'azienda, da proporre come punto di partenza: solo
+  // quelle con almeno una fase (una sequenza vuota non copierebbe niente).
+  const pipelineCopiabili = pipelines.filter((p) => (p.marketing_pipeline_stages?.length ?? 0) > 0);
+
   function openCreateDialog() {
     setTemplateId(PIPELINE_TEMPLATES[0].id);
     setNewName("");
+    setLastSuggestedName(PIPELINE_TEMPLATES[0].defaultName);
     setCreateStages(buildStagesFromTemplate(PIPELINE_TEMPLATES[0]));
     setCreateOpen(true);
   }
 
-  function applyTemplate(id: string) {
-    const template = PIPELINE_TEMPLATES.find((t) => t.id === id);
-    if (!template) return;
-    setTemplateId(id);
-    setCreateStages(buildStagesFromTemplate(template));
-    // Il nome digitato dall'utente non va perso: lo sovrascrivo solo se e'
-    // vuoto o se e' ancora quello suggerito da un altro modello.
+  // Il nome digitato dall'utente non va mai perso: lo sostituisco solo se il
+  // campo è vuoto o è rimasto uguale all'ULTIMO suggerimento automatico (da un
+  // modello o da una sequenza copiata) — se l'ha corretto, resta il suo.
+  function suggerisciNome(suggerito: string) {
     setNewName((prev) => {
       const current = normalizeName(prev);
-      const isUntouched = !current || PIPELINE_TEMPLATES.some((t) => t.defaultName === current);
-      return isUntouched ? template.defaultName : prev;
+      const isUntouched = !current || current === normalizeName(lastSuggestedName);
+      return isUntouched ? suggerito : prev;
     });
+    setLastSuggestedName(suggerito);
+  }
+
+  function applyTemplate(id: string) {
+    setTemplateId(id);
+    if (id.startsWith(PREFISSO_SEQUENZA_ESISTENTE)) {
+      const pipelineId = id.slice(PREFISSO_SEQUENZA_ESISTENTE.length);
+      const pipeline = pipelines.find((p) => p.id === pipelineId);
+      if (!pipeline) return;
+      setCreateStages(buildStagesFromExistingPipeline(pipeline));
+      suggerisciNome(`${pipeline.name} (copia)`);
+      return;
+    }
+    const template = PIPELINE_TEMPLATES.find((t) => t.id === id);
+    if (!template) return;
+    setCreateStages(buildStagesFromTemplate(template));
+    suggerisciNome(template.defaultName);
   }
 
   function handleAddCreateStage() {
@@ -418,13 +464,32 @@ export function PipelinesConfig() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {PIPELINE_TEMPLATES.map((t) => (
-                    <SelectItem key={t.id} value={t.id}>{t.label}</SelectItem>
-                  ))}
+                  <SelectGroup>
+                    <SelectLabel>Modelli pronti</SelectLabel>
+                    {PIPELINE_TEMPLATES.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>{t.label}</SelectItem>
+                    ))}
+                  </SelectGroup>
+                  {pipelineCopiabili.length > 0 && (
+                    <>
+                      <SelectSeparator />
+                      <SelectGroup>
+                        <SelectLabel>Copia una sequenza esistente</SelectLabel>
+                        {pipelineCopiabili.map((p) => (
+                          <SelectItem key={p.id} value={`${PREFISSO_SEQUENZA_ESISTENTE}${p.id}`}>
+                            {p.name} ({p.marketing_pipeline_stages?.length ?? 0} fasi)
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </>
+                  )}
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground mt-1">
-                {activeTemplate?.description} Puoi modificare, aggiungere o eliminare le fasi qui sotto.
+                {copyingFromPipeline
+                  ? `Fasi copiate da «${copyingFromPipeline.name}»: stessi nomi e stesso esito (vinta/persa/archiviata), una sequenza nuova e indipendente.`
+                  : activeTemplate?.description}{" "}
+                Puoi modificare, aggiungere o eliminare le fasi qui sotto.
               </p>
             </div>
             <div>

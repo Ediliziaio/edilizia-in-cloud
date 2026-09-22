@@ -34,9 +34,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { AiTemplateGenerator } from "@/components/preventivi/AiTemplateGenerator";
 import type { AiTemplateDraft } from "@/components/preventivi/AiTemplateReviewDialog";
 import { FvPagesOrderEditor } from "@/components/fotovoltaico/FvPagesOrderEditor";
+import { ContenutoPagina } from "@/components/preventivi/ContenutoPagina";
+import { conPaginaVisibile, paginaEditor, PAGINE_EDITOR_FOTOVOLTAICO } from "@/components/preventivi/pagineEditor";
 import { CampoFotoModello } from "@/components/preventivi/CampoFotoModello";
 import { MacroPagineDedicateManager } from "@/components/listino/MacroPagineDedicateManager";
-import type { FvPdfPageOrderItem } from "@/lib/fotovoltaico/pdfPages";
+import { normalizeFvPdfPagesOrder, type FvPdfPageOrderItem } from "@/lib/fotovoltaico/pdfPages";
 import {
   useListinoMacrocategorie,
   type ListinoMacrocategoria,
@@ -293,7 +295,9 @@ type FvEditorSection =
   | "page_render"
   | "page_cta"
   | "page_conversione"
-  | "page_ordine";
+  | "page_ordine"
+  // Le pagine nuove del documento, una sezione ciascuna (vedi pagineEditor.ts).
+  | "page_come_funziona" | "page_protezione" | "page_controlli" | "page_documenti" | "page_diario" | "page_faq";
 
 const FV_EDITOR_SECTIONS: Array<{
   id: FvEditorSection;
@@ -307,48 +311,9 @@ const FV_EDITOR_SECTIONS: Array<{
     icon: "Azienda",
     description: "Identita, contatti e colori.",
   },
-  {
-    id: "page_cover",
-    label: "Cover",
-    icon: "Cover",
-    description: "Prima pagina del preventivo.",
-  },
-  {
-    id: "page_chi_siamo",
-    label: "Chi siamo",
-    icon: "Chi",
-    description: "Presentazione azienda.",
-  },
-  {
-    id: "page_percorso",
-    label: "Il tuo percorso",
-    icon: "Flow",
-    description: "Iter cliente e pratiche.",
-  },
-  {
-    id: "page_consulente",
-    label: "Consulente",
-    icon: "Sales",
-    description: "Copy venditore e contatto.",
-  },
-  {
-    id: "page_recensioni",
-    label: "Recensioni",
-    icon: "Trust",
-    description: "Prova sociale e certificazioni.",
-  },
-  {
-    id: "page_render",
-    label: "Render AI",
-    icon: "Render",
-    description: "Nota anteprima impianto.",
-  },
-  {
-    id: "page_cta",
-    label: "CTA finale",
-    icon: "CTA",
-    description: "Titolo, testo e firma.",
-  },
+  // Le pagine del PDF, una sezione ciascuna nell'ordine in cui escono: le pagine nuove
+  // stanno qui come le altre, non solo in «Ordine pagine» (vedi pagineEditor.ts).
+  ...PAGINE_EDITOR_FOTOVOLTAICO.map((p) => ({ id: p.id as FvEditorSection, label: p.voce, icon: p.emoji, description: p.descrizione })),
   {
     id: "page_conversione",
     label: "Conversione",
@@ -401,16 +366,9 @@ const FV_EDITOR_SECTION_GROUPS: Array<{
   },
   {
     title: "Pagine del PDF",
-    sections: [
-      "page_cover",
-      "page_chi_siamo",
-      "page_percorso",
-      "page_consulente",
-      "page_recensioni",
-      "page_render",
-      "page_cta",
-      "page_conversione",
-    ],
+    // «Conversione» mostrava gli stessi campi di «Contenuti»: ora garanzie e domande
+    // hanno la loro pagina, e il resto sta in «Contenuti».
+    sections: PAGINE_EDITOR_FOTOVOLTAICO.map((p) => p.id as FvEditorSection),
   },
   {
     title: "Dati & contenuti",
@@ -1179,6 +1137,387 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
       </div>
     );
   }
+
+  // Il contenuto delle pagine che raccontano l'azienda: la sezione della pagina lo
+  // mostra sotto occhiello, titolo e introduzione (vedi ContenutoPagina).
+  // La sezione aperta, se è una pagina del documento, e se la pagina esce.
+  const paginaFv = paginaEditor("fotovoltaico", activeSection);
+  const IconaPaginaFv = paginaFv?.icona ?? ImageIcon;
+  const ordinePagineFv = normalizeFvPdfPagesOrder(form.pdf_pages_order ?? null);
+  const paginaFvVisibile = paginaFv?.pagina ? ordinePagineFv.find((p) => p.id === paginaFv.pagina)?.visible ?? false : false;
+  const campoFotoFv = (valore: string | null, onChange: (url: string | null) => void) => (
+    <CampoFotoModello valore={valore} onChange={onChange} bucket="fv-progetti" cartella={companyId ? `${companyId}/template-blocchi` : null} />
+  );
+
+  const contenutiPagine = {
+    recensioni: (
+      <>
+        <FvSettingsCard
+          title="Recensioni e testimonianze clienti"
+          description="Escono nella pagina «Dicono di noi» del PDF, sotto il voto su Google o Trustpilot."
+          icon={<Quote className="h-4 w-4" />}
+        >
+          <div className="space-y-3">
+            {recensioni.length === 0 && (
+              <div className="rounded-md border border-sky-200 bg-sky-50 p-3 text-xs text-sky-900">
+                Nessuna recensione caricata. Aggiungile per mostrare prova sociale ai nuovi clienti.
+              </div>
+            )}
+            {recensioni.map((r, idx) => (
+              <Card key={idx} className="bg-sky-50/30 border-sky-200">
+                <CardHeader className="p-3 pb-2 flex flex-row items-center justify-between">
+                  <CardTitle className="text-xs uppercase tracking-wide text-sky-700">
+                    Recensione {idx + 1}
+                  </CardTitle>
+                  <Button size="sm" variant="ghost" onClick={() => setDelRecIdx(idx)} className="h-7 px-2 text-xs text-rose-600">
+                    <Trash2 className="h-3.5 w-3.5 mr-1" /> Rimuovi
+                  </Button>
+                </CardHeader>
+                <CardContent className="p-3 pt-0 grid grid-cols-12 gap-2">
+                  <div className="col-span-12">
+                    <Label className="text-xs">Citazione</Label>
+                    <Textarea
+                      value={r.quote}
+                      onChange={(e) => updateRecensione(idx, "quote", e.target.value)}
+                      placeholder='"Il nostro impianto produce esattamente come avevano stimato..."'
+                      rows={3}
+                    />
+                  </div>
+                  <div className="col-span-12 md:col-span-4">
+                    <Label className="text-xs">Autore</Label>
+                    <Input
+                      value={r.autore}
+                      onChange={(e) => updateRecensione(idx, "autore", e.target.value)}
+                      placeholder="Mario R."
+                      className="h-9 text-xs"
+                    />
+                  </div>
+                  <div className="col-span-6 md:col-span-3">
+                    <Label className="text-xs">Città</Label>
+                    <Input
+                      value={r.citta ?? ""}
+                      onChange={(e) => updateRecensione(idx, "citta", e.target.value)}
+                      placeholder="Milano"
+                      className="h-9 text-xs"
+                    />
+                  </div>
+                  <div className="col-span-6 md:col-span-5">
+                    <Label className="text-xs">Tipo impianto</Label>
+                    <Input
+                      value={r.intervento ?? ""}
+                      onChange={(e) => updateRecensione(idx, "intervento", e.target.value)}
+                      placeholder="6 kWp + accumulo 10 kWh"
+                      className="h-9 text-xs"
+                    />
+                  </div>
+                  <div className="col-span-12">
+                    <Label className="text-xs">Foto impianto installato (opzionale)</Label>
+                    <div className="flex items-center gap-3 mt-1">
+                      {r.foto_url ? (
+                        <ImgRiservata
+                          src={r.foto_url}
+                          alt="Impianto installato"
+                          className="h-12 w-16 rounded object-cover border border-slate-200"
+                        />
+                      ) : (
+                        <div className="h-12 w-16 rounded border border-dashed border-slate-300 bg-slate-50" />
+                      )}
+                      <label
+                        className={`inline-flex items-center h-8 px-3 text-xs font-medium rounded-md border border-slate-200 cursor-pointer hover:bg-slate-50 ${
+                          uploadingRecIdx === idx ? "opacity-60 pointer-events-none" : ""
+                        }`}
+                      >
+                        {uploadingRecIdx === idx
+                          ? "Caricamento…"
+                          : r.foto_url
+                            ? "Cambia foto"
+                            : "Carica foto impianto"}
+                        <input
+                          type="file"
+                          accept="image/png,image/jpeg,image/webp"
+                          className="hidden"
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            if (f) handleRecensioneFotoUpload(idx, f);
+                            e.target.value = "";
+                          }}
+                        />
+                      </label>
+                      {r.foto_url && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="text-red-500 hover:text-red-600"
+                          onClick={() => updateRecensione(idx, "foto_url", "")}
+                        >
+                          Rimuovi
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+            <Button
+              onClick={addRecensione}
+              variant="outline"
+              className="w-full border-dashed border-2 border-sky-300 hover:bg-sky-50 gap-1"
+            >
+              <Plus className="h-4 w-4" /> Aggiungi recensione
+            </Button>
+          </div>
+        </FvSettingsCard>
+
+        <FvSettingsCard
+          title="Foto dei vostri impianti"
+          description="Le prime tre escono nella pagina «Dicono di noi», sotto le recensioni."
+          icon={<ImageIcon className="h-4 w-4" />}
+        >
+          <GalleryLavoriEditor
+            items={(form.gallery_lavori ?? []) as GalleryLavoroItem[]}
+            onChange={(items) => update("gallery_lavori", items)}
+            bucket="fv-progetti"
+            uploadPath={`${companyId}/fotovoltaico/gallery`}
+          />
+        </FvSettingsCard>
+      </>
+    ),
+    garanzie: (
+      <>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <Label className="text-xs">Garanzie commerciali e operative</Label>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => update("garanzie_conversione", DEFAULT_FV_GARANZIE)}
+              className="h-7 text-[11px]"
+            >
+              Ripristina default
+            </Button>
+          </div>
+          {garanzie.map((garanzia, idx) => (
+            <div key={idx} className="grid grid-cols-12 gap-2 rounded-md border border-slate-200 bg-slate-50/60 p-3">
+              <div className="col-span-12 md:col-span-2">
+                <Label className="text-xs">Icona</Label>
+                <select
+                  value={garanzia.icona ?? "shield"}
+                  onChange={(e) =>
+                    updateGaranzia(idx, "icona", e.target.value as FvGaranziaConversione["icona"])
+                  }
+                  className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-xs"
+                >
+                  <option value="shield">Shield</option>
+                  <option value="award">Award</option>
+                  <option value="clock">Clock</option>
+                  <option value="tools">Tools</option>
+                  <option value="battery">Battery</option>
+                  <option value="sun">Sun</option>
+                  <option value="custom">Custom</option>
+                </select>
+              </div>
+              <div className="col-span-12 md:col-span-4">
+                <Label className="text-xs">Titolo</Label>
+                <Input
+                  value={garanzia.titolo}
+                  onChange={(e) => updateGaranzia(idx, "titolo", e.target.value)}
+                  placeholder="Sopralluogo tecnico incluso"
+                  className="h-9 text-xs"
+                />
+              </div>
+              <div className="col-span-10 md:col-span-5">
+                <Label className="text-xs">Descrizione</Label>
+                <Input
+                  value={garanzia.descrizione}
+                  onChange={(e) => updateGaranzia(idx, "descrizione", e.target.value)}
+                  placeholder="Cosa viene verificato prima della conferma ordine"
+                  className="h-9 text-xs"
+                />
+              </div>
+              <div className="col-span-2 md:col-span-1 flex items-end">
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => removeGaranzia(idx)}
+                  className="h-9 w-9 text-rose-600"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+          ))}
+          <Button
+            type="button"
+            onClick={addGaranzia}
+            variant="outline"
+            className="w-full border-dashed border-2 border-sky-300 hover:bg-sky-50 gap-1"
+          >
+            <Plus className="h-4 w-4" /> Aggiungi garanzia
+          </Button>
+        </div>
+
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <Label className="text-xs">USP — Perché scegliere noi (pagina garanzie)</Label>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => update("usp", DEFAULT_FV_USP)}
+              className="h-7 text-[11px]"
+            >
+              Ripristina default
+            </Button>
+          </div>
+          {uspItems.map((usp, idx) => (
+            <div key={idx} className="grid grid-cols-12 gap-2 rounded-md border border-slate-200 bg-slate-50/60 p-3">
+              <div className="col-span-12 md:col-span-4">
+                <Label className="text-xs">Punto di forza</Label>
+                <Input
+                  value={usp.titolo}
+                  onChange={(e) => updateUsp(idx, "titolo", e.target.value)}
+                  placeholder="Squadra interna certificata FER"
+                  className="h-9 text-xs"
+                />
+              </div>
+              <div className="col-span-10 md:col-span-7">
+                <Label className="text-xs">Descrizione</Label>
+                <Input
+                  value={usp.descrizione}
+                  onChange={(e) => updateUsp(idx, "descrizione", e.target.value)}
+                  placeholder="Perché fa la differenza per il cliente"
+                  className="h-9 text-xs"
+                />
+              </div>
+              <div className="col-span-2 md:col-span-1 flex items-end">
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => removeUsp(idx)}
+                  className="h-9 w-9 text-rose-600"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+          ))}
+          <Button
+            type="button"
+            onClick={addUsp}
+            variant="outline"
+            className="w-full border-dashed border-2 border-sky-300 hover:bg-sky-50 gap-1"
+          >
+            <Plus className="h-4 w-4" /> Aggiungi punto di forza
+          </Button>
+        </div>
+
+        {/* Certificazioni */}
+        <FvSettingsCard
+          title="Certificazioni e qualifiche"
+          description="Escono nella pagina «Chi siamo e garanzie», sotto i punti di forza. Es. Certificazione installatore PV, UNI EN ISO 9001."
+          icon={<BadgeCheck className="h-4 w-4" />}
+        >
+          <div className="space-y-2">
+            {certificazioni.map((c, idx) => (
+              <div key={idx} className="grid grid-cols-12 gap-2 items-end border-l-4 border-sky-200 pl-3 py-1">
+                <div className="col-span-12 md:col-span-6">
+                  <Label className="text-xs">Nome certificazione</Label>
+                  <Input
+                    value={c.nome}
+                    onChange={(e) => updateCertificazione(idx, "nome", e.target.value)}
+                    placeholder="Es. Installatore PV qualificato"
+                    className="h-9 text-xs"
+                  />
+                </div>
+                <div className="col-span-10 md:col-span-5">
+                  <Label className="text-xs">Ente certificatore</Label>
+                  <Input
+                    value={c.ente ?? ""}
+                    onChange={(e) => updateCertificazione(idx, "ente", e.target.value)}
+                    placeholder="GSE / ENEA / Bureau Veritas"
+                    className="h-9 text-xs"
+                  />
+                </div>
+                <div className="col-span-2 md:col-span-1">
+                  <Button size="icon" variant="ghost" onClick={() => setDelCertIdx(idx)} className="h-9 w-9">
+                    <Trash2 className="h-3.5 w-3.5 text-rose-600" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+            <Button
+              onClick={addCertificazione}
+              variant="outline"
+              className="w-full border-dashed border-2 border-sky-300 hover:bg-sky-50 gap-1"
+            >
+              <Plus className="h-4 w-4" /> Aggiungi certificazione
+            </Button>
+          </div>
+        </FvSettingsCard>
+      </>
+    ),
+    domande: (
+      <div className="space-y-3">
+        <div className="flex items-center justify-between gap-2">
+          <Label className="text-xs">FAQ e obiezioni frequenti</Label>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => update("faq_items", DEFAULT_FV_FAQ)}
+            className="h-7 text-[11px]"
+          >
+            Ripristina default
+          </Button>
+        </div>
+        {faqItems.map((faq, idx) => (
+          <div key={idx} className="grid grid-cols-12 gap-2 rounded-md border border-slate-200 bg-white p-3">
+            <div className="col-span-12 md:col-span-4">
+              <Label className="text-xs">Domanda</Label>
+              <Input
+                value={faq.domanda}
+                onChange={(e) => updateFaq(idx, "domanda", e.target.value)}
+                placeholder="Conviene sempre l'accumulo?"
+                className="h-9 text-xs"
+              />
+            </div>
+            <div className="col-span-10 md:col-span-7">
+              <Label className="text-xs">Risposta</Label>
+              <Input
+                value={faq.risposta}
+                onChange={(e) => updateFaq(idx, "risposta", e.target.value)}
+                placeholder="Dipende da profilo, consumi serali e budget."
+                className="h-9 text-xs"
+              />
+            </div>
+            <div className="col-span-2 md:col-span-1 flex items-end">
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                onClick={() => removeFaq(idx)}
+                className="h-9 w-9 text-rose-600"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          </div>
+        ))}
+        <Button
+          type="button"
+          onClick={addFaq}
+          variant="outline"
+          className="w-full border-dashed border-2 border-sky-300 hover:bg-sky-50 gap-1"
+        >
+          <Plus className="h-4 w-4" /> Aggiungi FAQ
+        </Button>
+      </div>
+    ),
+  };
 
   return (
     <div className="space-y-4">
@@ -1961,8 +2300,8 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
       {activeSection === "page_chi_siamo" && (
         <>
           <FvSectionHeader
-            title="Pagina Chi siamo"
-            description="Questi contenuti finiscono nella pagina garanzie/azienda del PDF FV, come nel template serramenti."
+            title="Chi siamo e garanzie"
+            description="La pagina dopo la copertina: chi siete, poi le garanzie, perché scegliervi e le certificazioni (più sotto)."
             number={2}
           />
           <FvSettingsCard
@@ -2241,9 +2580,8 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
               onChange={(next) => update("pdf_pages_order", next)}
               blocchi={form.pdf_blocchi}
               onBlocchi={(v) => update("pdf_blocchi", v)}
-              campoFoto={(valore, onChange) => (
-                <CampoFotoModello valore={valore} onChange={onChange} bucket="fv-progetti" cartella={companyId ? `${companyId}/template-blocchi` : null} />
-              )}
+              apriSezione={(sezione) => selectSection(sezione as FvEditorSection)}
+              campoFoto={campoFotoFv}
             />
           </FvSettingsCard>
         </>
@@ -2525,8 +2863,8 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
       </FvSettingsCard>
 
       <FvSettingsCard
-        title="Proposta commerciale, garanzie e FAQ"
-        description="Blocchi orientati alla conversione: spiegano valore, riducono obiezioni e preparano il cliente alla firma."
+        title="Proposta commerciale e condizioni"
+        description="La proposta di valore e le condizioni di vendita. Garanzie e domande frequenti hanno la loro pagina, in «Pagine del PDF»."
         icon={<ShieldCheck className="h-4 w-4" />}
       >
         <div className="space-y-5">
@@ -2543,192 +2881,6 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
               placeholder="Analizziamo consumi, tetto, incentivi, accumulo e ritorno economico prima di proporre l'impianto."
               minHeight={120}
             />
-          </div>
-
-          <div className="space-y-3">
-            <div className="flex items-center justify-between gap-2">
-              <Label className="text-xs">Garanzie commerciali e operative</Label>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => update("garanzie_conversione", DEFAULT_FV_GARANZIE)}
-                className="h-7 text-[11px]"
-              >
-                Ripristina default
-              </Button>
-            </div>
-            {garanzie.map((garanzia, idx) => (
-              <div key={idx} className="grid grid-cols-12 gap-2 rounded-md border border-slate-200 bg-slate-50/60 p-3">
-                <div className="col-span-12 md:col-span-2">
-                  <Label className="text-xs">Icona</Label>
-                  <select
-                    value={garanzia.icona ?? "shield"}
-                    onChange={(e) =>
-                      updateGaranzia(idx, "icona", e.target.value as FvGaranziaConversione["icona"])
-                    }
-                    className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-xs"
-                  >
-                    <option value="shield">Shield</option>
-                    <option value="award">Award</option>
-                    <option value="clock">Clock</option>
-                    <option value="tools">Tools</option>
-                    <option value="battery">Battery</option>
-                    <option value="sun">Sun</option>
-                    <option value="custom">Custom</option>
-                  </select>
-                </div>
-                <div className="col-span-12 md:col-span-4">
-                  <Label className="text-xs">Titolo</Label>
-                  <Input
-                    value={garanzia.titolo}
-                    onChange={(e) => updateGaranzia(idx, "titolo", e.target.value)}
-                    placeholder="Sopralluogo tecnico incluso"
-                    className="h-9 text-xs"
-                  />
-                </div>
-                <div className="col-span-10 md:col-span-5">
-                  <Label className="text-xs">Descrizione</Label>
-                  <Input
-                    value={garanzia.descrizione}
-                    onChange={(e) => updateGaranzia(idx, "descrizione", e.target.value)}
-                    placeholder="Cosa viene verificato prima della conferma ordine"
-                    className="h-9 text-xs"
-                  />
-                </div>
-                <div className="col-span-2 md:col-span-1 flex items-end">
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => removeGaranzia(idx)}
-                    className="h-9 w-9 text-rose-600"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              </div>
-            ))}
-            <Button
-              type="button"
-              onClick={addGaranzia}
-              variant="outline"
-              className="w-full border-dashed border-2 border-sky-300 hover:bg-sky-50 gap-1"
-            >
-              <Plus className="h-4 w-4" /> Aggiungi garanzia
-            </Button>
-          </div>
-
-          <div className="space-y-3">
-            <div className="flex items-center justify-between gap-2">
-              <Label className="text-xs">USP — Perché scegliere noi (pagina garanzie)</Label>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => update("usp", DEFAULT_FV_USP)}
-                className="h-7 text-[11px]"
-              >
-                Ripristina default
-              </Button>
-            </div>
-            {uspItems.map((usp, idx) => (
-              <div key={idx} className="grid grid-cols-12 gap-2 rounded-md border border-slate-200 bg-slate-50/60 p-3">
-                <div className="col-span-12 md:col-span-4">
-                  <Label className="text-xs">Punto di forza</Label>
-                  <Input
-                    value={usp.titolo}
-                    onChange={(e) => updateUsp(idx, "titolo", e.target.value)}
-                    placeholder="Squadra interna certificata FER"
-                    className="h-9 text-xs"
-                  />
-                </div>
-                <div className="col-span-10 md:col-span-7">
-                  <Label className="text-xs">Descrizione</Label>
-                  <Input
-                    value={usp.descrizione}
-                    onChange={(e) => updateUsp(idx, "descrizione", e.target.value)}
-                    placeholder="Perché fa la differenza per il cliente"
-                    className="h-9 text-xs"
-                  />
-                </div>
-                <div className="col-span-2 md:col-span-1 flex items-end">
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => removeUsp(idx)}
-                    className="h-9 w-9 text-rose-600"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              </div>
-            ))}
-            <Button
-              type="button"
-              onClick={addUsp}
-              variant="outline"
-              className="w-full border-dashed border-2 border-sky-300 hover:bg-sky-50 gap-1"
-            >
-              <Plus className="h-4 w-4" /> Aggiungi punto di forza
-            </Button>
-          </div>
-
-          <div className="space-y-3">
-            <div className="flex items-center justify-between gap-2">
-              <Label className="text-xs">FAQ e obiezioni frequenti</Label>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => update("faq_items", DEFAULT_FV_FAQ)}
-                className="h-7 text-[11px]"
-              >
-                Ripristina default
-              </Button>
-            </div>
-            {faqItems.map((faq, idx) => (
-              <div key={idx} className="grid grid-cols-12 gap-2 rounded-md border border-slate-200 bg-white p-3">
-                <div className="col-span-12 md:col-span-4">
-                  <Label className="text-xs">Domanda</Label>
-                  <Input
-                    value={faq.domanda}
-                    onChange={(e) => updateFaq(idx, "domanda", e.target.value)}
-                    placeholder="Conviene sempre l'accumulo?"
-                    className="h-9 text-xs"
-                  />
-                </div>
-                <div className="col-span-10 md:col-span-7">
-                  <Label className="text-xs">Risposta</Label>
-                  <Input
-                    value={faq.risposta}
-                    onChange={(e) => updateFaq(idx, "risposta", e.target.value)}
-                    placeholder="Dipende da profilo, consumi serali e budget."
-                    className="h-9 text-xs"
-                  />
-                </div>
-                <div className="col-span-2 md:col-span-1 flex items-end">
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => removeFaq(idx)}
-                    className="h-9 w-9 text-rose-600"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              </div>
-            ))}
-            <Button
-              type="button"
-              onClick={addFaq}
-              variant="outline"
-              className="w-full border-dashed border-2 border-sky-300 hover:bg-sky-50 gap-1"
-            >
-              <Plus className="h-4 w-4" /> Aggiungi FAQ
-            </Button>
           </div>
 
           <div className="grid grid-cols-12 gap-3 border-t border-slate-200 pt-4">
@@ -2876,190 +3028,6 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
         </>
       )}
 
-      {/* Recensioni */}
-      {activeSection === "page_recensioni" && (
-        <>
-      <FvSectionHeader
-        title="Fiducia e prova sociale"
-        description="Recensioni e certificazioni sono separate dai contenuti commerciali, come nel modulo serramenti: il venditore capisce subito cosa manca per dare credibilità."
-        number={5}
-      />
-      <FvSettingsCard
-        title="Recensioni e testimonianze clienti"
-        description="Compaiono nella sezione 'Cosa dicono i nostri clienti' del PDF Fotovoltaico."
-        icon={<Quote className="h-4 w-4" />}
-      >
-        <div className="space-y-3">
-          {recensioni.length === 0 && (
-            <div className="rounded-md border border-sky-200 bg-sky-50 p-3 text-xs text-sky-900">
-              Nessuna recensione caricata. Aggiungile per mostrare prova sociale ai nuovi clienti.
-            </div>
-          )}
-          {recensioni.map((r, idx) => (
-            <Card key={idx} className="bg-sky-50/30 border-sky-200">
-              <CardHeader className="p-3 pb-2 flex flex-row items-center justify-between">
-                <CardTitle className="text-xs uppercase tracking-wide text-sky-700">
-                  Recensione {idx + 1}
-                </CardTitle>
-                <Button size="sm" variant="ghost" onClick={() => setDelRecIdx(idx)} className="h-7 px-2 text-xs text-rose-600">
-                  <Trash2 className="h-3.5 w-3.5 mr-1" /> Rimuovi
-                </Button>
-              </CardHeader>
-              <CardContent className="p-3 pt-0 grid grid-cols-12 gap-2">
-                <div className="col-span-12">
-                  <Label className="text-xs">Citazione</Label>
-                  <Textarea
-                    value={r.quote}
-                    onChange={(e) => updateRecensione(idx, "quote", e.target.value)}
-                    placeholder='"Il nostro impianto produce esattamente come avevano stimato..."'
-                    rows={3}
-                  />
-                </div>
-                <div className="col-span-12 md:col-span-4">
-                  <Label className="text-xs">Autore</Label>
-                  <Input
-                    value={r.autore}
-                    onChange={(e) => updateRecensione(idx, "autore", e.target.value)}
-                    placeholder="Mario R."
-                    className="h-9 text-xs"
-                  />
-                </div>
-                <div className="col-span-6 md:col-span-3">
-                  <Label className="text-xs">Città</Label>
-                  <Input
-                    value={r.citta ?? ""}
-                    onChange={(e) => updateRecensione(idx, "citta", e.target.value)}
-                    placeholder="Milano"
-                    className="h-9 text-xs"
-                  />
-                </div>
-                <div className="col-span-6 md:col-span-5">
-                  <Label className="text-xs">Tipo impianto</Label>
-                  <Input
-                    value={r.intervento ?? ""}
-                    onChange={(e) => updateRecensione(idx, "intervento", e.target.value)}
-                    placeholder="6 kWp + accumulo 10 kWh"
-                    className="h-9 text-xs"
-                  />
-                </div>
-                <div className="col-span-12">
-                  <Label className="text-xs">Foto impianto installato (opzionale)</Label>
-                  <div className="flex items-center gap-3 mt-1">
-                    {r.foto_url ? (
-                      <ImgRiservata
-                        src={r.foto_url}
-                        alt="Impianto installato"
-                        className="h-12 w-16 rounded object-cover border border-slate-200"
-                      />
-                    ) : (
-                      <div className="h-12 w-16 rounded border border-dashed border-slate-300 bg-slate-50" />
-                    )}
-                    <label
-                      className={`inline-flex items-center h-8 px-3 text-xs font-medium rounded-md border border-slate-200 cursor-pointer hover:bg-slate-50 ${
-                        uploadingRecIdx === idx ? "opacity-60 pointer-events-none" : ""
-                      }`}
-                    >
-                      {uploadingRecIdx === idx
-                        ? "Caricamento…"
-                        : r.foto_url
-                          ? "Cambia foto"
-                          : "Carica foto impianto"}
-                      <input
-                        type="file"
-                        accept="image/png,image/jpeg,image/webp"
-                        className="hidden"
-                        onChange={(e) => {
-                          const f = e.target.files?.[0];
-                          if (f) handleRecensioneFotoUpload(idx, f);
-                          e.target.value = "";
-                        }}
-                      />
-                    </label>
-                    {r.foto_url && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="text-red-500 hover:text-red-600"
-                        onClick={() => updateRecensione(idx, "foto_url", "")}
-                      >
-                        Rimuovi
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-          <Button
-            onClick={addRecensione}
-            variant="outline"
-            className="w-full border-dashed border-2 border-sky-300 hover:bg-sky-50 gap-1"
-          >
-            <Plus className="h-4 w-4" /> Aggiungi recensione
-          </Button>
-        </div>
-      </FvSettingsCard>
-
-      <FvSettingsCard
-        title="Gallery lavori"
-        description="Foto di lavori realizzati, mostrate nel PDF."
-        icon={<ImageIcon className="h-4 w-4" />}
-      >
-        <GalleryLavoriEditor
-          items={(form.gallery_lavori ?? []) as GalleryLavoroItem[]}
-          onChange={(items) => update("gallery_lavori", items)}
-          bucket="fv-progetti"
-          uploadPath={`${companyId}/fotovoltaico/gallery`}
-        />
-      </FvSettingsCard>
-
-      {/* Certificazioni */}
-      <FvSettingsCard
-        title="Certificazioni e qualifiche"
-        description="Compaiono nella sezione 'Affidabilità' del PDF. Es. Certificazione installatore PV, UNI EN ISO 9001, ecc."
-        icon={<BadgeCheck className="h-4 w-4" />}
-      >
-        <div className="space-y-2">
-          {certificazioni.map((c, idx) => (
-            <div key={idx} className="grid grid-cols-12 gap-2 items-end border-l-4 border-sky-200 pl-3 py-1">
-              <div className="col-span-12 md:col-span-6">
-                <Label className="text-xs">Nome certificazione</Label>
-                <Input
-                  value={c.nome}
-                  onChange={(e) => updateCertificazione(idx, "nome", e.target.value)}
-                  placeholder="Es. Installatore PV qualificato"
-                  className="h-9 text-xs"
-                />
-              </div>
-              <div className="col-span-10 md:col-span-5">
-                <Label className="text-xs">Ente certificatore</Label>
-                <Input
-                  value={c.ente ?? ""}
-                  onChange={(e) => updateCertificazione(idx, "ente", e.target.value)}
-                  placeholder="GSE / ENEA / Bureau Veritas"
-                  className="h-9 text-xs"
-                />
-              </div>
-              <div className="col-span-2 md:col-span-1">
-                <Button size="icon" variant="ghost" onClick={() => setDelCertIdx(idx)} className="h-9 w-9">
-                  <Trash2 className="h-3.5 w-3.5 text-rose-600" />
-                </Button>
-              </div>
-            </div>
-          ))}
-          <Button
-            onClick={addCertificazione}
-            variant="outline"
-            className="w-full border-dashed border-2 border-sky-300 hover:bg-sky-50 gap-1"
-          >
-            <Plus className="h-4 w-4" /> Aggiungi certificazione
-          </Button>
-        </div>
-      </FvSettingsCard>
-        </>
-      )}
-
       {/* Economia */}
       {activeSection === "default" && (
         <>
@@ -3105,6 +3073,46 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
       </FvSettingsCard>
         </>
       )}
+
+      {/* Le pagine nuove del documento, una sezione ciascuna (vedi pagineEditor.ts); per
+          «Chi siamo e garanzie» e la pagina finale, quello che alla loro sezione mancava. */}
+      {paginaFv && !paginaFv.esistente && (
+        <>
+          <FvSectionHeader title={paginaFv.voce} description={paginaFv.descrizione} />
+          <FvSettingsCard title={paginaFv.voce} icon={<IconaPaginaFv className="h-4 w-4" />}>
+            <ContenutoPagina
+              pagina={paginaFv}
+              motore="fotovoltaico"
+              settore="fotovoltaico"
+              blocchi={form.pdf_blocchi}
+              onBlocchi={(v) => update("pdf_blocchi", v)}
+              contenuto={paginaFv.testata ? contenutiPagine[paginaFv.testata as keyof typeof contenutiPagine] : undefined}
+              campoFoto={campoFotoFv}
+              visibile={paginaFv.pagina ? {
+                valore: paginaFvVisibile,
+                onChange: (v) => update("pdf_pages_order", conPaginaVisibile(ordinePagineFv, paginaFv.pagina as string, v)),
+              } : undefined}
+            />
+          </FvSettingsCard>
+        </>
+      )}
+      {paginaFv?.esistente && (paginaFv.testata || paginaFv.foto) ? (
+        <FvSettingsCard
+          title={paginaFv.testata ? "Garanzie, perché sceglierci e certificazioni" : "Foto della pagina"}
+          icon={<IconaPaginaFv className="h-4 w-4" />}
+        >
+          <ContenutoPagina
+            pagina={paginaFv}
+            motore="fotovoltaico"
+            settore="fotovoltaico"
+            blocchi={form.pdf_blocchi}
+            onBlocchi={(v) => update("pdf_blocchi", v)}
+            contenuto={paginaFv.testata ? contenutiPagine[paginaFv.testata as keyof typeof contenutiPagine] : undefined}
+            campoFoto={campoFotoFv}
+            soloFoto={!paginaFv.testata}
+          />
+        </FvSettingsCard>
+      ) : null}
 
         </div>
 

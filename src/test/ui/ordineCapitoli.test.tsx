@@ -13,7 +13,7 @@ import { OrdineCapitoli } from "@/components/preventivi/OrdineCapitoli";
 /** «Ordine e pagine» nell'editor, usato come lo usa un'azienda. */
 afterEach(cleanup);
 
-function Editor() {
+function Editor({ apriSezione }: { apriSezione?: (sezione: string) => void }) {
   const [ordine, setOrdine] = useState<unknown>(null);
   const [pagine, setPagine] = useState<unknown>([]);
   const [blocchi, setBlocchi] = useState<Record<string, unknown>>({});
@@ -21,7 +21,7 @@ function Editor() {
     <>
       <OrdineCapitoli
         ordine={ordine} pagine={pagine} onOrdine={setOrdine} onPagine={(v) => setPagine(v)} campoFoto={() => <div>foto</div>}
-        settore="bagni" blocchi={blocchi} onBlocchi={setBlocchi}
+        settore="bagni" blocchi={blocchi} onBlocchi={setBlocchi} apriSezione={apriSezione}
       />
       <output data-testid="salvato">{JSON.stringify({ ordine, pagine, blocchi })}</output>
     </>
@@ -71,26 +71,33 @@ describe("editor: ordine e pagine", () => {
     expect(salvato().ordine).toBeNull();
   });
 
-  // 22/09/2026 — I blocchi della libreria si modificano da qui.
-  it("le pagine-promessa sono accese e chiedono di rileggerle; la matita apre l'editor del blocco", () => {
-    render(<Editor />);
+  // 22/09/2026 — Ogni pagina si scrive nella sua sezione dell'editor, nel menu «Pagine
+  // del PDF»: da qui la matita ci porta (il testo e le foto: vedi sezioniPagine.test.tsx).
+  it("le pagine-promessa sono accese e chiedono di rileggerle; la matita apre la sezione della pagina", () => {
+    const apri = vi.fn();
+    render(<Editor apriSezione={apri} />);
     expect(screen.getAllByText(/Promette qualcosa al cliente: rileggila/).length).toBe(5);
-    fireEvent.click(screen.getByRole("button", { name: "Modifica Protezione della casa" }));
-    const titolo = screen.getByDisplayValue("Trattiamo la tua casa *come se fosse la nostra*.");
-    fireEvent.change(titolo, { target: { value: "La tua casa, *protetta*." } });
-    expect(salvato().blocchi).toEqual({ protezione: { titolo: "La tua casa, *protetta*." } });
-    // Svuotare il campo per riscriverlo non fa ricomparire il testo di serie.
-    fireEvent.change(screen.getByDisplayValue("La tua casa, *protetta*."), { target: { value: "" } });
-    expect((screen.getAllByRole("textbox").find((t) => (t as HTMLInputElement).value === "" ) as HTMLInputElement | undefined)).toBeDefined();
+    for (const nome of ["Protezione della casa", "Dicono di noi", "Le garanzie", "Domande e risposte", "Chi siamo", "I prossimi passi"]) {
+      fireEvent.click(screen.getByRole("button", { name: `Modifica ${nome}` }));
+    }
+    expect(apri.mock.calls.map((c) => c[0])).toEqual(["page_protezione", "page_testimonianze", "garanzie", "page_domande", "page_chi_siamo", "page_chiusura"]);
+    // Qui sotto non si apre più niente: la pagina si scrive nella sua sezione.
+    expect(screen.queryByLabelText("Titolo")).toBeNull();
+    expect(salvato().blocchi).toEqual({});
   });
 
-  it("«Torna ai testi di serie» cancella le scelte di quel blocco", () => {
-    vi.spyOn(window, "confirm").mockReturnValue(true);
+  it("qui restano solo le foto delle pagine senza una sezione: il computo e il prezzo", () => {
+    render(<Editor apriSezione={vi.fn()} />);
+    const foto = screen.getAllByRole("button", { name: /^Foto di / }).map((b) => b.getAttribute("aria-label"));
+    expect(foto).toEqual(["Foto di Il piano dei lavori", "Foto di Il tuo investimento"]);
+    fireEvent.click(screen.getByRole("button", { name: "Foto di Il tuo investimento" }));
+    expect(screen.getByText("Foto sotto il prezzo")).toBeInTheDocument();
+  });
+
+  it("senza chi apre le sezioni, niente matita sulle pagine: restano le pagine vostre", () => {
     render(<Editor />);
-    fireEvent.click(screen.getByRole("button", { name: "Modifica Come funziona" }));
-    fireEvent.change(screen.getByDisplayValue("Quello che non vedrai, *fatto bene*."), { target: { value: "Sotto le piastrelle." } });
-    expect(Object.keys(salvato().blocchi)).toEqual(["comeFunziona"]);
-    fireEvent.click(screen.getByRole("button", { name: /Torna ai testi di serie/ }));
-    expect(salvato().blocchi).toEqual({});
+    expect(screen.queryByRole("button", { name: "Modifica Protezione della casa" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Aggiungi una pagina vostra/ }));
+    expect(screen.getByPlaceholderText("Le nostre *certificazioni*.")).toBeInTheDocument();
   });
 });
