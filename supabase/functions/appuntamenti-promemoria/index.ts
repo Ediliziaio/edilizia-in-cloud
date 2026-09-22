@@ -32,6 +32,7 @@ import { romaVersoUtc, creaIcs, allegatoIcs, urlGestione } from "../_shared/appu
 import { emailAppuntamento, momentiDaMandare, whatsappAppuntamento, type DatiMessaggio, type MomentoPromemoria } from "../_shared/messaggiAppuntamento.ts";
 import { sendOpenWaMessage, OPENWA_PLATFORM_COMPANY_ID } from "../_shared/openwaSend.ts";
 import { serveConMetricheRapida } from "../_shared/withMetricsRapida.ts";
+import { opzioniMittenteCalendario } from "../_shared/mittenteCalendario.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -87,7 +88,7 @@ serveConMetricheRapida("appuntamenti-promemoria", async (req) => {
         if (!calendari.has(a.calendar_id)) {
           const { data: c } = await admin
             .from("marketing_calendars")
-            .select("id, company_id, name, description, duration_minutes, reminder_24h, reminder_1h, link_videochiamata, whatsapp_numero_id, promemoria_5min, messaggi_crm_dal, firma_messaggi, cosa_preparare")
+            .select("id, company_id, name, description, duration_minutes, reminder_24h, reminder_1h, link_videochiamata, whatsapp_numero_id, promemoria_5min, messaggi_crm_dal, firma_messaggi, cosa_preparare, mittente_nome, mittente_email")
             .eq("id", a.calendar_id).maybeSingle();
           calendari.set(a.calendar_id, c ?? null);
         }
@@ -161,6 +162,7 @@ serveConMetricheRapida("appuntamenti-promemoria", async (req) => {
                 : undefined,
               adminClient: admin,
               metadata: { appointment_id: a.id, calendar_id: cal.id },
+              ...(await opzioniMittenteCalendario(admin, cal, a.contact_id)),
             });
             if (r && r.ok === false) {
               emailFallita = true;

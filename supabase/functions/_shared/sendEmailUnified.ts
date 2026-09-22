@@ -70,6 +70,15 @@ export interface UnifiedEmailArgs {
    * se stesso. Bug reale visto in produzione il 27/07/2026.
    */
   platformSender?: boolean;
+  /**
+   * Email di servizio (stream transazionale: regole di soppressione e conteggi
+   * restano quelli) spedita però dal provider del marketing, con la classe
+   * transazionale di Elastic Email. Serve quando il mittente scelto sta su un
+   * dominio verificato solo sul provider del marketing: le email degli
+   * appuntamenti di Edilizia in Cloud da mkt.ediliziaincloud.com (22/09/2026).
+   * Niente tracciamento dei link: il link della videochiamata resta quello vero.
+   */
+  viaMarketingProvider?: boolean;
 }
 
 export interface UnifiedEmailResult extends EmailSendResult {
@@ -118,7 +127,8 @@ export async function sendEmailUnified(args: UnifiedEmailArgs): Promise<UnifiedE
   // ── 1. Provider settings ─────────────────────────────────────────────────
   // Per mailboxOverride (casella SMTP propria) l'apiKey EE non serve: l'invio
   // non passa dal provider-with-failover. In quel caso non blocchiamo qui.
-  const settings = await loadProviderSettings(args.stream);
+  const streamProvider = args.viaMarketingProvider ? "marketing" : args.stream;
+  const settings = await loadProviderSettings(streamProvider);
   if (!settings.apiKey && !args.mailboxOverride) {
     return {
       ok: false,
@@ -370,7 +380,7 @@ export async function sendEmailUnified(args: UnifiedEmailArgs): Promise<UnifiedE
         replyTo: effectiveReplyTo, attachments: args.attachments, headers: providerHeaders,
       }, { smtp: args.mailboxOverride, stream: args.stream });
     } else {
-      result = await sendViaProviderWithFailover(args.stream, settings, {
+      result = await sendViaProviderWithFailover(streamProvider, settings, {
         from:    fromAddress,
         to:      recipients,
         subject: args.subject,
@@ -381,8 +391,9 @@ export async function sendEmailUnified(args: UnifiedEmailArgs): Promise<UnifiedE
         headers: providerHeaders,
       }, {
         domain: providerDomain ?? customDomain ?? settings.domain ?? undefined,
-        stream: args.stream,
-        disableNativeTracking: args.stream === "marketing",
+        stream: streamProvider,
+        disableNativeTracking: args.stream === "marketing" || args.viaMarketingProvider === true,
+        elasticTransactionalClass: args.viaMarketingProvider === true ? true : undefined,
       });
     }
   } catch (e) {

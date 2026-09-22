@@ -25,6 +25,7 @@ import { avvisaSuperAdmin } from "../_shared/avvisaSuperAdmin.ts";
 import { contattoDellaPrenotazione } from "../_shared/contattoPrenotazione.ts";
 import { emailAppuntamento, whatsappAppuntamento } from "../_shared/messaggiAppuntamento.ts";
 import { sendOpenWaMessage, OPENWA_PLATFORM_COMPANY_ID } from "../_shared/openwaSend.ts";
+import { opzioniMittenteCalendario } from "../_shared/mittenteCalendario.ts";
 import {
   minutiDa as minuti, orarioDa as orario, dataEstesa, dataBreve, esc, creaIcs, allegatoIcs,
   nuovoToken, urlGestione, blocchettoDettagli, blocchettoContatti, blocchettoNote,
@@ -67,7 +68,7 @@ Deno.serve(async (req) => {
     // 1. calendario pubblico e attivo
     const { data: cal, error: calErr } = await admin
       .from("marketing_calendars")
-      .select("id, name, description, company_id, duration_minutes, owner_id, default_meeting_provider, is_active, booking_slug, buffer_before_min, buffer_after_min, min_notice_minutes, max_per_day, link_videochiamata, whatsapp_numero_id, firma_messaggi, cosa_preparare")
+      .select("id, name, description, company_id, duration_minutes, owner_id, default_meeting_provider, is_active, booking_slug, buffer_before_min, buffer_after_min, min_notice_minutes, max_per_day, link_videochiamata, whatsapp_numero_id, firma_messaggi, cosa_preparare, mittente_nome, mittente_email")
       .eq("booking_slug", slug).eq("is_active", true).maybeSingle();
     if (calErr) throw calErr;
     if (!cal) return json({ error: "Calendario non trovato o non piu' attivo." }, 404);
@@ -253,6 +254,7 @@ Deno.serve(async (req) => {
           templateName: "public_booking_conferma",
           attachments: [allegatoIcs(ics)],
           adminClient: admin,
+          ...(await opzioniMittenteCalendario(admin, cal, contactId)),
           metadata: { appointment_id: creato?.id, calendar_id: cal.id, booking_slug: slug },
         });
         esito.email_cliente = !(r && r.ok === false);
@@ -358,6 +360,7 @@ Deno.serve(async (req) => {
             replyTo: email || undefined,
             attachments: allegati,
             adminClient: admin,
+            ...(await opzioniMittenteCalendario(admin, cal, null, false)),
             metadata: { appointment_id: creato?.id, calendar_id: cal.id },
           });
           esito.avviso_titolare = true;

@@ -49614,6 +49614,8 @@ export type Database = {
           max_per_day: number | null
           messaggi_crm_dal: string | null
           min_notice_minutes: number
+          mittente_email: string | null
+          mittente_nome: string | null
           name: string
           owner_id: string | null
           promemoria_5min: boolean
@@ -49654,6 +49656,8 @@ export type Database = {
           max_per_day?: number | null
           messaggi_crm_dal?: string | null
           min_notice_minutes?: number
+          mittente_email?: string | null
+          mittente_nome?: string | null
           name: string
           owner_id?: string | null
           promemoria_5min?: boolean
@@ -49694,6 +49698,8 @@ export type Database = {
           max_per_day?: number | null
           messaggi_crm_dal?: string | null
           min_notice_minutes?: number
+          mittente_email?: string | null
+          mittente_nome?: string | null
           name?: string
           owner_id?: string | null
           promemoria_5min?: boolean

@@ -18,6 +18,7 @@ import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { avvisaSuperAdmin } from "../_shared/avvisaSuperAdmin.ts";
 import { whatsappAppuntamento } from "../_shared/messaggiAppuntamento.ts";
 import { sendOpenWaMessage, OPENWA_PLATFORM_COMPANY_ID } from "../_shared/openwaSend.ts";
+import { opzioniMittenteCalendario } from "../_shared/mittenteCalendario.ts";
 import {
   minutiDa, orarioDa, dataEstesa, esc, creaIcs, allegatoIcs,
   urlGestione, blocchettoDettagli, bottoneGestione, sincronizzaCalendariEsterni,
@@ -55,7 +56,7 @@ Deno.serve(async (req) => {
 
     const { data: cal } = await admin
       .from("marketing_calendars")
-      .select("id, name, description, company_id, duration_minutes, owner_id, booking_slug, buffer_before_min, buffer_after_min, min_notice_minutes, max_per_day, link_videochiamata, whatsapp_numero_id, firma_messaggi")
+      .select("id, name, description, company_id, duration_minutes, owner_id, booking_slug, buffer_before_min, buffer_after_min, min_notice_minutes, max_per_day, link_videochiamata, whatsapp_numero_id, firma_messaggi, mittente_nome, mittente_email")
       .eq("id", app.calendar_id).maybeSingle();
     if (!cal) return json({ error: "Calendario non disponibile." }, 404);
 
@@ -104,6 +105,7 @@ Deno.serve(async (req) => {
             templateName: "public_booking_disdetta",
             attachments: [allegatoIcs(ics)],
             adminClient: admin,
+            ...(await opzioniMittenteCalendario(admin, cal, app.contact_id)),
             metadata: { appointment_id: app.id },
           });
         } catch (e) { console.error("[gestisci] email disdetta:", e instanceof Error ? e.message : e); }
@@ -211,6 +213,7 @@ Deno.serve(async (req) => {
           templateName: "public_booking_spostato",
           attachments: [allegatoIcs(ics)],
           adminClient: admin,
+          ...(await opzioniMittenteCalendario(admin, cal, app.contact_id)),
           metadata: { appointment_id: app.id },
         });
       } catch (e) { console.error("[gestisci] email spostamento:", e instanceof Error ? e.message : e); }
@@ -263,6 +266,7 @@ async function avvisaTitolare(admin: any, cal: any, app: any, testo: string): Pr
           text: testo,
           templateName: "public_booking_avviso_modifica",
           adminClient: admin,
+          ...(await opzioniMittenteCalendario(admin, cal, null, false)),
           metadata: { appointment_id: app.id },
         });
       }

@@ -76,6 +76,9 @@ export interface CalendarFormData {
   firma_messaggi: string;
   /** Righe «cosa preparare» della conferma, una per riga. */
   cosa_preparare: string;
+  /** Mittente delle email dell'appuntamento: vale solo su un dominio verificato. */
+  mittente_nome: string;
+  mittente_email: string;
 }
 
 // Un solo modulo vuoto: prima il «nuovo calendario» ripartiva da un oggetto
@@ -116,6 +119,8 @@ const FORM_VUOTO: CalendarFormData = {
   messaggi_crm_dal: null,
   firma_messaggi: "",
   cosa_preparare: "",
+  mittente_nome: "",
+  mittente_email: "",
 };
 
 /** «meet.google.com/abc» → «https://meet.google.com/abc». */
@@ -284,6 +289,8 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
         messaggi_crm_dal: initialData.messaggi_crm_dal ?? null,
         firma_messaggi: initialData.firma_messaggi || "",
         cosa_preparare: initialData.cosa_preparare || "",
+        mittente_nome: initialData.mittente_nome || "",
+        mittente_email: initialData.mittente_email || "",
       });
       setModoLink(!!initialData.link_videochiamata);
       setShowDescription(!!(initialData.description));
@@ -674,6 +681,23 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
                         <Textarea rows={3} value={form.cosa_preparare} maxLength={1000}
                           placeholder={"come fate oggi i preventivi\ndove segnate ore e materiali"}
                           onChange={(e) => setForm(f => ({ ...f, cosa_preparare: e.target.value }))} />
+                      </div>
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">Nome del mittente</Label>
+                        <Input value={form.mittente_nome} maxLength={80}
+                          placeholder={effectiveCompany?.name || "Nome che legge il cliente"}
+                          onChange={(e) => setForm(f => ({ ...f, mittente_nome: e.target.value }))} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="flex items-center text-xs text-muted-foreground">
+                          Indirizzo del mittente
+                          <InfoTooltip text="Solo su un dominio verificato (Impostazioni → Dominio email). Vuoto, o su un dominio non verificato: le email partono dal mittente della piattaforma." />
+                        </Label>
+                        <Input type="email" value={form.mittente_email} maxLength={160}
+                          placeholder="nome@tuodominio.it"
+                          onChange={(e) => setForm(f => ({ ...f, mittente_email: e.target.value }))} />
                       </div>
                     </div>
                   </div>
