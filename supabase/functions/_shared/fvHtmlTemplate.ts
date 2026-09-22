@@ -1998,7 +1998,12 @@ const meseAnno = (iso: string | null): string | null => {
 function pageRecensioni(d: FvPdfTemplateData, pageN: number, total: number): string {
   const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
   const voti = votiFv(d);
-  const recensioni = recensioniFv(d).slice(0, 4);
+  // La pagina ha altezza fissa (quello che sborda si taglia): le recensioni in ordine
+  // finché stanno in circa 900 caratteri, almeno una, al massimo quattro.
+  const recensioni = recensioniFv(d).slice(0, 4).reduce<ReturnType<typeof recensioniFv>>((prese, rec) => {
+    const usati = prese.reduce((t, r) => t + plainText(r.quote).length, 0);
+    return prese.length === 0 || usati + plainText(rec.quote).length <= 900 ? [...prese, rec] : prese;
+  }, []);
   const impianti = (d.cantieri_foto ?? []).slice(0, 3);
   const quando = meseAnno([...voti.map((v) => v.aggiornato).filter((x): x is string => Boolean(x))].sort()[0] ?? null);
   const sottotitolo = voti.length > 0 && recensioni.length > 0

@@ -24,15 +24,14 @@ import { BLOCCHI, leggiFotoPagina, RIEMPIMENTI_EDILI, settoreBlocchi } from "../
 export const COPERTINA_DI_SERIE: Record<string, string | undefined> = {
   ristrutturazione: "/cover-stock/ristrutturazione/2.jpg",
   bagni: "/cover-stock/bagni/2.jpg",
-  // Il cantiere della vasca è la foto dei prossimi passi: in copertina il risultato.
-  piscine: "/cover-stock/ristrutturazione/3.jpg",
-  // Dal 22/09/2026 una copertina anche per gli altri cinque: prima uscivano a tinta piena.
-  tetti: "/pdf-stock/tetti/installazione.jpg",
-  climatizzazione: "/pdf-stock/climatizzazione/installazione.jpg",
-  elettrico: "/pdf-stock/ristrutturazione/controllo-elettrico.jpg",
-  // Il riscaldamento a pavimento è già in «Come funziona»: in copertina la casa in sezione, con le tubazioni.
-  termoidraulico: "/pdf-stock/ristrutturazione/tecnica-casa-sezionata.jpg",
-  pavimenti: "/pdf-stock/pavimenti/installazione.jpg",
+  // Dal 22/09/2026 ogni mestiere ha la sua copertina verticale: prima questi sei
+  // prendevano in prestito una foto orizzontale (tagliata) o quella di un altro settore.
+  piscine: "/cover-stock/piscine/1.jpg",
+  tetti: "/cover-stock/tetti/1.jpg",
+  climatizzazione: "/cover-stock/climatizzazione/1.jpg",
+  elettrico: "/cover-stock/elettrico/1.jpg",
+  termoidraulico: "/cover-stock/termoidraulico/1.jpg",
+  pavimenti: "/cover-stock/pavimenti/1.jpg",
 };
 
 type Grezzo = Record<string, unknown>;

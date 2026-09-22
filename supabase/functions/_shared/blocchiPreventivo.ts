@@ -157,7 +157,9 @@ const COME_FUNZIONA: Record<SettoreBlocchi, Parziale> = {
       v("Ventilazione", "L'aria entra dalla gronda ed esce dal colmo: porta via il caldo e l'umidità.", "ventilazione"),
       v("Manto e raccolta delle acque", "Tegole, lattonerie e grondaie guidano l'acqua lontano dalla casa.", "acqua"),
     ],
-    foto: foto("tetti", "tecnica-tetto-ventilato", "tecnica-dispersione"),
+    // Lo spaccato del tetto ventilato e la posa vera dell'isolante (dal 22/09/2026:
+    // prima un disegno col tetto innevato e le frecce rosse).
+    foto: foto("tetti", "tecnica-tetto-ventilato", "isolamento"),
   },
   climatizzazione: {
     occhiello: "Come funziona",
@@ -181,7 +183,8 @@ const COME_FUNZIONA: Record<SettoreBlocchi, Parziale> = {
       v("Le linee", "Cavi della sezione giusta per ogni utenza, nelle loro canalizzazioni.", "strati"),
       v("La conformità", "A fine lavori la dichiarazione di conformità, come chiede la legge.", "conformita"),
     ],
-    foto: foto("ristrutturazione", "tecnica-casa-sezionata"),
+    // Il quadro nuovo, cablato in ordine (prima: una casa in sezione con i tubi dell'acqua).
+    foto: foto("elettrico", "quadro"),
   },
   termoidraulico: {
     occhiello: "Come funziona",
@@ -371,9 +374,7 @@ const PROTEZIONE: Partial<Record<SettoreBlocchi, Parziale>> = {
   bagni: { foto: [...foto("bagni", "protezione"), ...foto("comune", "pulizia-consegna")] },
   ristrutturazione: { foto: foto("ristrutturazione", "protezione-scale", "cantiere-ordinato") },
   // Il tetto e la piscina non sono un appartamento: fino al 22/09/2026 uscivano
-  // «pavimenti coperti» e «porte sigillate», con le foto di un soggiorno. Senza
-  // una foto giusta il blocco esce senza foto (quelle nuove sono chieste a Florin:
-  // tetti-protezione, piscine-protezione).
+  // «pavimenti coperti» e «porte sigillate», con le foto di un soggiorno.
   tetti: {
     intro: "Rifare un tetto vuol dire lavorare sopra casa tua, spesso con la casa abitata. La proteggiamo dall'acqua e dalla polvere dal primo giorno all'ultimo.",
     voci: [
@@ -384,9 +385,8 @@ const PROTEZIONE: Partial<Record<SettoreBlocchi, Parziale>> = {
       v("Macerie in ordine", "Coppi e materiali vecchi calati a terra ogni giorno, e portati via.", "smaltimento"),
       v("Pulizia finale", "Cortile, grondaie e davanzali puliti prima di smontare il ponteggio.", "pulizia"),
     ],
-    // Operai imbragati, linea vita e parapetto sul ponteggio: la sicurezza sul tetto,
-    // finché non arriva tetti-protezione. Senza foto la pagina restava per metà bianca.
-    foto: foto("fotovoltaico", "sicurezza-tetto"),
+    // Il ponteggio, la falda coperta dal telo, il giardino protetto (22/09/2026).
+    foto: foto("tetti", "protezione"),
   },
   piscine: {
     intro: "Costruire una piscina vuol dire lavorare nel tuo giardino, con mezzi e scavi. Lo proteggiamo prima di cominciare e te lo restituiamo in ordine.",
@@ -398,7 +398,8 @@ const PROTEZIONE: Partial<Record<SettoreBlocchi, Parziale>> = {
       v("Ingresso e pavimentazioni", "Teli dove si lavora vicino alla casa; ingresso e vialetti liberi e puliti.", "porta"),
       v("Pulizia finale", "Ti riconsegniamo il giardino in ordine, pronto per la prima estate.", "pulizia"),
     ],
-    foto: [],
+    // Le tavole per l'escavatore, la recinzione, le aiuole coperte (22/09/2026).
+    foto: foto("piscine", "protezione"),
   },
 };
 
@@ -466,12 +467,12 @@ const CONTROLLI: Partial<Record<SettoreBlocchi, Parziale>> = {
   climatizzazione: { foto: foto("climatizzazione", "controllo-collaudo") },
   // La staggia sul massetto: è il controllo di chi posa un pavimento.
   pavimenti: { foto: foto("ristrutturazione", "controllo-planarita") },
-  // La foto di serie (la livella laser su una parete) non è un controllo di questi
-  // mestieri: meglio senza, finché non arrivano le loro (chieste il 22/09/2026).
-  // Il quadro col tester è già la copertina di serie dell'elettrico.
-  elettrico: { foto: [] },
-  termoidraulico: { foto: [] },
-  piscine: { foto: [] },
+  // La livella laser su una parete (la foto di serie) non è un controllo di questi
+  // mestieri: il quadro provato col tester, la prova di tenuta del collettore,
+  // l'analisi dell'acqua della vasca (22/09/2026).
+  elettrico: { foto: foto("ristrutturazione", "controllo-elettrico") },
+  termoidraulico: { foto: foto("termoidraulico", "collaudo") },
+  piscine: { foto: foto("piscine", "collaudo") },
 };
 
 const DOCUMENTI_BASE: Parziale = {
@@ -557,9 +558,10 @@ const DIARIO: Partial<Record<SettoreBlocchi, Parziale>> = {
   ristrutturazione: { foto: foto("ristrutturazione", "storia-prima-durante-dopo") },
   piscine: { foto: foto("piscine", "storia-prima-durante-dopo") },
   // La parete di un appartamento coi tubi non è il diario di un tetto o di un
-  // pavimento: senza foto finché non arrivano tetti-diario e pavimenti-diario.
-  tetti: { foto: [] },
-  pavimenti: { foto: [] },
+  // pavimento: gli strati del tetto fotografati prima di chiuderli, i tubi del
+  // riscaldamento a pavimento prima del massetto (22/09/2026).
+  tetti: { foto: foto("tetti", "diario") },
+  pavimenti: { foto: foto("pavimenti", "diario") },
 };
 
 const TABELLE: Record<ChiaveBlocco, { base: Parziale | null; perSettore: Partial<Record<SettoreBlocchi, Parziale>> }> = {
@@ -588,15 +590,17 @@ export function bloccoDiSerie(chiave: ChiaveBlocco, settore: SettoreBlocchi): Co
 /** Le foto di serie per cartella: quelle del settore e quelle comuni a tutti. */
 export const FOTO_LIBRERIA: Record<string, string[]> = {
   bagni: ["controllo-impermeabilizzazione", "demolizione", "installazione", "protezione", "risultato-classico", "risultato-moderno", "storia-impermeabilizzazione", "storia-prima-durante-dopo", "tecnica-doccia", "tecnica-doccia-spaccato", "tecnica-impianto-idraulico"],
-  climatizzazione: ["controllo-collaudo", "installazione", "storia-prima-durante-dopo", "tecnica-estate-inverno", "tecnica-multisplit"],
-  comune: ["consegna-documenti", "controllo-finale", "lavorazioni-nascoste", "protezione-ambienti", "pulizia-consegna", "storia-assistenza"],
+  climatizzazione: ["controllo-collaudo", "estate", "installazione", "storia-prima-durante-dopo", "tecnica-estate-inverno", "tecnica-multisplit", "unita-esterna"],
+  comune: ["consegna-documenti", "controllo-finale", "domande", "giro-consegna", "lavorazioni-nascoste", "protezione-ambienti", "pulizia-consegna", "storia-assistenza"],
+  elettrico: ["quadro", "risultato", "sera", "tracce"],
   fotovoltaico: ["auto-elettrica-wallbox", "azienda-agricola", "batteria-modulare", "capannone", "co2-alberi", "co2-auto", "co2-bosco", "co2-voli", "componenti-elettrici", "consegna-app", "controllo-termografico", "dettaglio-celle", "fasi-installatori", "installazione", "inverter-batteria-garage", "inverter-monofase", "inverter-trifase", "investimento-impianto", "kit-fissaggio", "monitoraggio-app", "pannelli-neve", "pannelli-nuvoloso", "pannelli-pioggia", "pannello-bifacciale", "pannello-standard", "pannello-total-black", "quadro-elettrico", "sicurezza-tetto", "sopralluogo", "storia-bolletta-beneficio", "storia-bolletta-serena", "storia-drone-termografia", "storia-energia-serale", "storia-flusso-energia", "tecnica-giorno-sera", "tecnica-percorso-energia", "villa-tetto-coppi", "villa-tetto-piano", "villa-tramonto", "vista-drone", "wallbox"],
-  pavimenti: ["installazione", "storia-prima-durante-dopo", "tecnica-giunto", "tecnica-stratigrafia"],
+  pavimenti: ["diario", "installazione", "materiali", "storia-prima-durante-dopo", "tecnica-giunto", "tecnica-stratigrafia", "vita"],
   pergole: ["installazione", "storia-prima-dopo", "tecnica-acqua", "tecnica-lamelle"],
-  piscine: ["installazione", "storia-prima-durante-dopo", "tecnica-filtrazione", "tecnica-vasca"],
+  piscine: ["collaudo", "famiglia", "installazione", "locale-tecnico", "protezione", "risultato", "storia-prima-durante-dopo", "tecnica-filtrazione", "tecnica-vasca"],
   ristrutturazione: ["cantiere", "cantiere-ordinato", "controllo-elettrico", "controllo-planarita", "protezione-scale", "risultato", "storia-ciclo-lavori", "storia-consegna-chiavi", "storia-prima-durante-dopo", "tecnica-casa-sezionata", "tecnica-riscaldamento-pavimento"],
-  serramenti: ["controllo-squadro", "controllo-tenuta-acqua", "installazione", "protezione", "rilievo", "risultato", "storia-consegna-collaudo", "storia-famiglia-inverno", "storia-freddo-caldo", "storia-portafinestra", "storia-prima-durante-dopo", "storia-pulizia", "storia-sopralluogo-posa", "storia-termocamera", "tecnica-canalina", "tecnica-posa", "tecnica-prima-dopo"],
-  tetti: ["controllo-termico", "installazione", "storia-prima-durante-dopo", "storia-strati", "tecnica-dispersione", "tecnica-tetto-ventilato"],
+  serramenti: ["controllo-squadro", "controllo-tenuta-acqua", "dettaglio", "installazione", "protezione", "rilievo", "risultato", "storia-consegna-collaudo", "storia-famiglia-inverno", "storia-freddo-caldo", "storia-portafinestra", "storia-prima-durante-dopo", "storia-pulizia", "storia-sopralluogo-posa", "storia-termocamera", "tecnica-canalina", "tecnica-posa", "tecnica-prima-dopo"],
+  termoidraulico: ["collaudo", "pompa-di-calore", "risultato"],
+  tetti: ["controllo-termico", "diario", "installazione", "isolamento", "protezione", "sottotetto", "squadra", "storia-prima-durante-dopo", "storia-strati", "tecnica-dispersione", "tecnica-tetto-ventilato"],
 };
 
 /** Le foto che l'editor propone per un settore: le sue, poi le comuni. */
@@ -707,15 +711,17 @@ export const RIEMPIMENTI_EDILI = {
 
 /**
  * Le foto che riempiono le pagine dei preventivi edili, uguali per tutti i mestieri.
- * Dal 22/09/2026 le chiavi consegnate stanno sotto le domande, l'ultima pagina
- * prima dei prossimi passi (finché non arriva comune-domande, chiesta quel giorno).
- * Le garanzie, senza più domande e recensioni, sono una fila di schede: seguono il
- * prezzo o salgono sulla pagina del blocco dopo, e non hanno bisogno di una foto.
+ * Le chiavi consegnate stanno con «Dicono di noi», la coppia al tavolo col
+ * preventivo sotto le domande, il giro della casa finita sotto «Cosa è compreso»
+ * (22/09/2026). Le garanzie, una fila di schede, seguono il prezzo o salgono sulla
+ * pagina del blocco dopo, e non hanno bisogno di una foto.
  */
 const RIEMPIMENTI_DI_SERIE: Partial<Record<ChiaveFotoPagina, string>> = {
   chiSiamo: "ristrutturazione/cantiere",
   percorso: "comune/storia-assistenza",
-  domande: "ristrutturazione/storia-consegna-chiavi",
+  recensioni: "ristrutturazione/storia-consegna-chiavi",
+  domande: "comune/domande",
+  compreso: "comune/giro-consegna",
   tempi: "ristrutturazione/storia-ciclo-lavori",
 };
 
@@ -732,7 +738,8 @@ const FOTO_PAGINE: Partial<Record<SettoreBlocchi, Partial<Record<ChiaveFotoPagin
     cta: "serramenti/storia-famiglia-inverno",
     // Escono solo se la sezione finisce a metà foglio. Nessuna è già nei blocchi di serie.
     proposta: "comune/consegna-documenti",
-    allegato: "comune/controllo-finale",
+    // Il dettaglio di una finestra nuova (22/09/2026; prima una livella laser su un muro).
+    allegato: "serramenti/dettaglio",
     dettagli: "serramenti/tecnica-prima-dopo",
   },
   fotovoltaico: {
@@ -764,14 +771,30 @@ const FOTO_PAGINE: Partial<Record<SettoreBlocchi, Partial<Record<ChiaveFotoPagin
     ...RIEMPIMENTI_DI_SERIE, chiusura: "ristrutturazione/risultato", tempi: "comune/controllo-finale",
     computo: "ristrutturazione/tecnica-riscaldamento-pavimento", investimento: "/cover-stock/ristrutturazione/1.jpg",
   },
-  // Il cantiere in un appartamento (chi siamo) e il ciclo di una ristrutturazione
-  // (i tempi) non sono un tetto né una piscina: senza, finché non arrivano le loro.
-  tetti: { ...riempimentiSenza("chiSiamo", "tempi"), chiusura: "tetti/storia-prima-durante-dopo", computo: "tetti/storia-strati" },
-  climatizzazione: { ...riempimentiSenza("tempi"), chiusura: "climatizzazione/storia-prima-durante-dopo" },
-  elettrico: { ...RIEMPIMENTI_DI_SERIE, chiusura: "ristrutturazione/risultato" },
-  termoidraulico: { ...RIEMPIMENTI_DI_SERIE, chiusura: "ristrutturazione/risultato", computo: "bagni/tecnica-impianto-idraulico" },
-  pavimenti: { ...RIEMPIMENTI_DI_SERIE, chiusura: "pavimenti/storia-prima-durante-dopo" },
-  piscine: { ...riempimentiSenza("chiSiamo", "tempi"), chiusura: "piscine/installazione" },
+  // Le foto del mestiere (22/09/2026): la squadra sul tetto, il sottotetto finito, la
+  // posa come foto dei tempi (la copertina ora è sua). Il cantiere in un appartamento
+  // e il ciclo di una ristrutturazione non sono un tetto né una piscina.
+  tetti: {
+    ...riempimentiSenza("tempi"), chiSiamo: "tetti/squadra", tempi: "tetti/installazione",
+    chiusura: "tetti/storia-prima-durante-dopo", computo: "tetti/storia-strati", investimento: "tetti/sottotetto",
+  },
+  climatizzazione: {
+    ...riempimentiSenza("tempi"), tempi: "climatizzazione/installazione", chiusura: "climatizzazione/storia-prima-durante-dopo",
+    computo: "climatizzazione/unita-esterna", investimento: "climatizzazione/estate",
+  },
+  elettrico: { ...RIEMPIMENTI_DI_SERIE, chiusura: "elettrico/risultato", computo: "elettrico/tracce", investimento: "elettrico/sera" },
+  termoidraulico: {
+    ...RIEMPIMENTI_DI_SERIE, chiusura: "termoidraulico/risultato", computo: "bagni/tecnica-impianto-idraulico",
+    investimento: "termoidraulico/pompa-di-calore",
+  },
+  pavimenti: {
+    ...RIEMPIMENTI_DI_SERIE, tempi: "pavimenti/installazione", chiusura: "pavimenti/storia-prima-durante-dopo",
+    computo: "pavimenti/materiali", investimento: "pavimenti/vita",
+  },
+  piscine: {
+    ...riempimentiSenza("chiSiamo", "tempi"), chiSiamo: "piscine/installazione", chiusura: "piscine/risultato",
+    computo: "piscine/locale-tecnico", investimento: "piscine/famiglia",
+  },
 };
 
 export const chiaveSalvataFotoPagina = (chiave: ChiaveFotoPagina): string => `pagina_${chiave}`;

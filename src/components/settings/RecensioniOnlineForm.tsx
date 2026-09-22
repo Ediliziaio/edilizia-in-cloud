@@ -120,11 +120,14 @@ function ModuloVoti({ canEdit, salvati }: { canEdit: boolean; salvati: unknown[]
           aggiornato: uguale && prima?.aggiornato ? prima.aggiornato : oggi(),
         };
       });
-      const { error } = await supabase
+      // Con i permessi che non bastano l'aggiornamento non dà errore: non tocca righe.
+      const { data, error } = await supabase
         .from("companies")
         .update({ recensioni_online: valore } as never)
-        .eq("id", companyId);
+        .eq("id", companyId)
+        .select("id");
       if (error) throw error;
+      if (!data?.length) throw new Error("Il tuo utente non può modificare il profilo dell'azienda: chiedi a un amministratore.");
       toast({ title: valore.length ? "Voto salvato: esce nei preventivi" : "Voto tolto dai preventivi" });
       // Rilette dal database, le righe ripartono da lì (il modulo ha per chiave i dati salvati).
       await aggiorna();
