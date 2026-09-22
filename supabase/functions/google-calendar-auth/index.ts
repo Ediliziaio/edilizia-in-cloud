@@ -220,13 +220,22 @@ async function handleCallback(req: Request): Promise<Response> {
       roleNames.has("company_staff");
 
     if (isSalespersonOrAdmin) {
-      // Cerca calendar esistente — sia attivo che disattivato (post-disconnect)
+      // Cerca calendar esistente — sia attivo che disattivato (post-disconnect).
+      // BUG (Il Bagno Group, 21/09/2026): il filtro cercava solo
+      // calendar_type='personal'. Chi aveva già un calendario ma di un altro
+      // tipo (es. importato come "event") non veniva trovato: si creava un
+      // SECONDO calendario per la stessa persona, con lo stesso Google
+      // collegato. Successo per Christian/Katia/William/Giusy — tutti e
+      // quattro avevano il calendario originale con calendar_type='event'.
+      // "Esistente" ora significa: questa persona ha già un calendario in
+      // quest'azienda, qualunque sia il tipo — is_active prima, poi il più
+      // recente.
       const { data: existingCal } = await admin
         .from("marketing_calendars")
         .select("id, is_active")
         .eq("company_id", state.companyId)
         .eq("owner_id", state.userId)
-        .eq("calendar_type", "personal")
+        .order("is_active", { ascending: false })
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -412,19 +421,22 @@ async function handleDisconnect(req: Request, userId: string, companyId: string)
   await admin.from("google_calendar_settings").delete().eq("company_id", companyId).eq("user_id", userId);
   await admin.from("google_calendar_connections").delete().eq("company_id", companyId).eq("user_id", userId);
 
-  // 2026-05-27 (audit fix): marketing_calendars di tipo "personal" creati
-  // automaticamente al collegamento Google devono essere disattivati al
-  // disconnect, altrimenti altri utenti aziendali vedono un calendario
-  // "Calendario Mario" che non sincronizza più nulla → confusione.
-  // Soft-delete (is_active=false) invece di DELETE per preservare lo
-  // storico degli appointment già fissati su quel calendar.
-  // Al re-OAuth la logica auto-create riattiva is_active=true.
+  // 2026-05-27 (audit fix): il calendario auto-collegato al Google di questa
+  // persona va disattivato al disconnect, altrimenti altri utenti aziendali
+  // vedono un calendario "Calendario Mario" che non sincronizza più nulla →
+  // confusione. Soft-delete (is_active=false) invece di DELETE per preservare
+  // lo storico degli appointment già fissati su quel calendar. Al re-OAuth la
+  // logica di sopra lo ritrova e lo riattiva.
+  //
+  // Fino al 21/09/2026 il filtro era ristretto a calendar_type='personal':
+  // stesso presupposto sbagliato del blocco di collegamento qui sopra (un
+  // calendario importato con un altro tipo restava "attivo" ma silenziosamente
+  // scollegato). Ora si guarda solo il proprietario, come al collegamento.
   await admin
     .from("marketing_calendars")
     .update({ is_active: false, updated_at: new Date().toISOString() })
     .eq("company_id", companyId)
-    .eq("owner_id", userId)
-    .eq("calendar_type", "personal");
+    .eq("owner_id", userId);
 
   return new Response(JSON.stringify({ success: true }), {
     headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },

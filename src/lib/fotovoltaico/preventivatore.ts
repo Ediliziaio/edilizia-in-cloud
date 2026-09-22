@@ -64,97 +64,103 @@ export interface FvTemplateQualityInput {
   listino_macrocategorie_fv?: FvListinoMacrocategoriaMedia[] | null;
 }
 
+// I testi di serie del modello Fotovoltaico: li legge il cliente finché l'azienda non
+// li cambia. Riscritti il 22/09/2026 in parole semplici e senza promesse che l'azienda
+// potrebbe non mantenere: prima c'erano «Reperibilità 7 giorni su 7, linea diretta con
+// il titolare per tutta la vita dell'impianto», un «Albo installatori GSE», «KYC online
+// 5 minuti», sigle (CILA, TICA, RID, payback) e, fra le domande, una nota per l'azienda
+// («Il PDF deve indicare quali pratiche sono incluse…») stampata al cliente.
 export const DEFAULT_FV_GARANZIE: FvGaranziaConversione[] = [
   {
     icona: "sun",
-    titolo: "Produzione stimata con fonte dichiarata",
-    descrizione: "Ogni preventivo indica se i dati arrivano da Solar API, PVGIS o inserimento manuale.",
+    titolo: "Produzione stimata su dati dichiarati",
+    descrizione: "La calcoliamo sull'irraggiamento della tua zona e sul tuo tetto, e nel preventivo scriviamo da dove arrivano i numeri.",
   },
   {
     icona: "tools",
-    titolo: "Sopralluogo tecnico prima della conferma",
-    descrizione: "Potenza, fissaggi, passaggi cavi e quadri vengono validati prima dell'ordine.",
+    titolo: "Sopralluogo tecnico prima dell'ordine",
+    descrizione: "Misure, fissaggi, passaggio dei cavi e quadro elettrico si verificano sul posto, prima di ordinare i componenti.",
   },
   {
     icona: "battery",
-    titolo: "Accumulo dimensionato sui consumi",
-    descrizione: "La batteria viene proposta solo se migliora autoconsumo, rata o resilienza energetica.",
+    titolo: "Batteria dimensionata sui tuoi consumi",
+    descrizione: "La proponiamo quando i consumi della sera la ripagano. Se non conviene, te lo diciamo.",
   },
   {
     icona: "shield",
-    titolo: "Pratiche incluse e tracciate",
-    descrizione: "GSE, distributore, dichiarazioni e documenti finali sono esplicitati nel percorso.",
+    titolo: "Pratiche e documenti tracciati",
+    descrizione: "Sai sempre a che punto è ogni pratica, e alla fine ricevi tutti i documenti dell'impianto.",
   },
 ];
 
 export const DEFAULT_FV_FAQ: FvFaqItem[] = [
   {
-    domanda: "Il risparmio indicato e' garantito?",
-    risposta: "No: e' una simulazione basata su consumi, irraggiamento e ipotesi dichiarate. Il sopralluogo conferma i dati tecnici.",
+    domanda: "Il risparmio indicato è garantito?",
+    risposta: "No: è una stima calcolata sui tuoi consumi, sull'irraggiamento della zona e sulle ipotesi scritte nel preventivo. Il sopralluogo conferma i dati tecnici.",
   },
   {
-    domanda: "Conviene sempre aggiungere l'accumulo?",
-    risposta: "No. Lo consigliamo quando profilo serale, consumi e budget rendono il payback coerente.",
+    domanda: "Conviene sempre aggiungere la batteria?",
+    risposta: "No. La consigliamo quando si consuma molto la sera e il risparmio in più ripaga la spesa in tempi ragionevoli.",
   },
   {
-    domanda: "Cosa succede se il tetto non e' idoneo?",
-    risposta: "Il preventivo resta in verifica tecnica e non viene trasformato in ordine finche' i vincoli non sono risolti.",
+    domanda: "E se il tetto non è adatto?",
+    risposta: "Il preventivo resta in attesa della verifica tecnica: non ordiniamo nulla finché i dubbi sul tetto non sono risolti.",
   },
   {
     domanda: "Le pratiche sono comprese?",
-    risposta: "Il PDF deve indicare quali pratiche sono incluse, quali sono escluse e quali richiedono conferma del tecnico.",
+    risposta: "Nel preventivo trovi le pratiche comprese nel prezzo. Se per il tuo impianto ne serve un'altra, te lo scriviamo prima della firma.",
   },
 ];
 
 export const DEFAULT_FV_USP: FvUspItem[] = [
   {
-    titolo: "Squadra interna certificata FER",
-    descrizione: "Nessun subappalto: chi firma il preventivo è chi installa l'impianto.",
+    titolo: "Un referente dall'inizio alla fine",
+    descrizione: "La stessa persona ti segue dal sopralluogo all'allaccio, e resta il tuo contatto anche dopo.",
   },
   {
-    titolo: "Albo installatori GSE",
-    descrizione: "Partner Premium dei produttori top tier con garanzie dirette.",
+    titolo: "Le pratiche le seguiamo noi",
+    descrizione: "Comune, distributore di rete e GSE: prepariamo e inviamo i documenti, tu firmi solo quello che serve.",
   },
   {
-    titolo: "Reperibilità 7 giorni su 7",
-    descrizione: "Linea diretta con il titolare per tutta la vita dell'impianto.",
+    titolo: "Installatori abilitati",
+    descrizione: "L'impianto lo montano tecnici abilitati agli impianti elettrici, con la qualifica per le fonti rinnovabili.",
   },
   {
-    titolo: "Iter burocratico incluso",
-    descrizione: "CILA, TICA, GSE ed ENEA: gestiamo noi tutte le pratiche per delega.",
+    titolo: "Assistenza dopo l'installazione",
+    descrizione: "Se l'impianto produce meno del previsto o l'app segnala un errore, ci chiami e interveniamo.",
   },
 ];
 
 export const DEFAULT_FV_CRONOPROGRAMMA: FvCronoprogrammaFase[] = [
   {
-    fase: "Firma contratto + apertura pratica finanziamento",
+    fase: "Firma e avvio delle pratiche",
     durata: "Settimana 1",
-    descrizione: "Firma digitale via email. KYC online 5 minuti. Rata parte solo dopo allaccio.",
+    descrizione: "Prepariamo e inviamo le pratiche per il Comune e la richiesta di allaccio al distributore di rete.",
   },
   {
-    fase: "CILA Comune + TICA e-Distribuzione",
+    fase: "Sopralluogo e progetto definitivo",
     durata: "Settimana 1-2",
-    descrizione: "Comunicazione Inizio Lavori Asseverata + richiesta connessione, gestite per delega.",
+    descrizione: "Verifichiamo tetto, fissaggi e quadro elettrico e confermiamo il progetto dell'impianto.",
   },
   {
-    fase: "Ordine pannelli + inverter + accumulo",
+    fase: "Ordine dei componenti",
     durata: "Settimana 3-4",
-    descrizione: "Lead time 10 giorni. Tutto consegnato al nostro magazzino per controllo qualità.",
+    descrizione: "Ordiniamo pannelli, inverter ed eventuale batteria e li controlliamo prima della posa.",
   },
   {
-    fase: "Installazione a casa tua",
+    fase: "Installazione",
     durata: "Settimana 5",
-    descrizione: "Giorno 1 struttura · giorno 2 pannelli + cablaggio · giorno 3 inverter + test.",
+    descrizione: "Pannelli sul tetto, inverter, batteria e quadro: di solito bastano uno o due giorni di lavoro.",
   },
   {
-    fase: "Allaccio rete + collaudo + RID GSE",
-    durata: "Settimana 6",
-    descrizione: "e-Distribuzione fa l'allaccio, apriamo la pratica GSE. Da qui l'impianto è attivo.",
+    fase: "Allaccio e collaudo",
+    durata: "Settimana 6-8",
+    descrizione: "Il distributore collega l'impianto alla rete; noi lo collaudiamo e attiviamo la convenzione con il GSE per l'energia che immetti in rete.",
   },
   {
-    fase: "Documentazione + dossier IRPEF + saldo",
-    durata: "Settimana 7",
-    descrizione: "Libretto, manuale e dossier detrazione già pronti per il commercialista.",
+    fase: "Consegna dei documenti",
+    durata: "Alla fine dei lavori",
+    descrizione: "Ti consegniamo i documenti per la detrazione, le garanzie e il manuale, e ti mostriamo l'app di monitoraggio.",
   },
 ];
 

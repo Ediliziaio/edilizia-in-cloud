@@ -45,9 +45,13 @@ Deno.serve(async (req: Request) => {
     const { company_id, numero_e164 } = await req.json() as RequestBody;
     if (!company_id || !numero_e164) return json({ error: "Parametri obbligatori mancanti" }, 400);
 
-    // SEC (P0): l'utente deve appartenere alla company (acquisto numero = soldi reali)
+    // SEC (P0): l'utente deve appartenere alla company (acquisto numero = soldi reali).
+    // 21/09/2026 — non bastava: mancava anche il ruolo. Solo l'amministratore
+    // può acquistare, come per i numeri voce (telnyx-proxy, stesso giorno).
     try {
-      await requireCompanyAccess(adminClient, user.id, company_id, corsHeaders);
+      await requireCompanyAccess(adminClient, user.id, company_id, corsHeaders, {
+        allowedRoles: ["company_admin"],
+      });
     } catch (e) {
       if (e instanceof Response) return e;
       throw e;

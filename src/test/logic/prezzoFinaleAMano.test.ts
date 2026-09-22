@@ -10,6 +10,7 @@ import { calcTotaliComputo as calcTermoidraulico } from "@/lib/termoidraulico/ca
 import { calcTotaliComputo as calcPavimenti } from "@/lib/pavimenti/calcoli";
 import { calcTotaliComputo as calcPiscine } from "@/lib/piscine/calcoli";
 import { prezzoDaTesto } from "@/lib/preventivi/prezzoAMano";
+import { calcolaTotaliPreventivo } from "@/hooks/usePreventivoCosti";
 import type { SrAccessorioRow, SrSerramentoRow, SrServizioRow } from "@/types/serramenti";
 
 /**
@@ -169,6 +170,49 @@ describe.each(MODULI_EDILI)("Il prezzo scritto a mano nei moduli edili (%s)", (_
       expect(t.imponibileLordo).toBeCloseTo(245, 6); // 200 + 45
       expect(t.totale).toBeCloseTo(prima.totale, 6);
     }
+  });
+});
+
+describe("Il prezzo scritto a mano nel preventivo generico (QuoteBuilder)", () => {
+  // Qui l'IVA è per riga (aliquote miste), non un'unica percentuale come nei
+  // moduli: col prezzo scritto a mano serve un'aliquota esplicita a parte.
+  const riga = (vat_rate: number, extra: Partial<{ quantity: number; unit_price: number; discount_percent: number; prezzo_acquisto: number; is_optional: boolean }> = {}) => ({
+    quantity: 1, unit_price: 0, discount_percent: 0, vat_rate, prezzo_acquisto: 0, is_optional: false, ...extra,
+  });
+
+  it("prende il posto della somma delle righe; sconto globale e un'unica aliquota esplicita si calcolano sopra", () => {
+    // Righe a 0 € con aliquote miste (22% e 10%): niente da ripartire, serve l'aliquota esplicita.
+    // 12.000 − 5% = 11.400; + 10% = 12.540
+    const t = calcolaTotaliPreventivo([riga(22), riga(10)], 0, 5, 12000, 10);
+    expect(t.somma_voci).toBe(0);
+    expect(t.prezzo_manuale).toBe(true);
+    expect(t.subtotale).toBe(12000);
+    expect(t.subtotale_netto).toBeCloseTo(11400, 6);
+    expect(t.iva_breakdown).toEqual({ "10": 1140 });
+    expect(t.totale).toBeCloseTo(12540, 6);
+  });
+
+  it("il margine è il prezzo scritto meno i costi reali di tutte le righe, anche quelle a 0 €", () => {
+    const t = calcolaTotaliPreventivo([riga(22, { quantity: 2, prezzo_acquisto: 750 })], 0, 0, 5000, 22);
+    expect(t.costo_totale).toBe(1500);
+    expect(t.margine_totale_pct).toBeCloseTo(70, 6); // (5000-1500)/5000
+  });
+
+  it("vuoto, zero o non valido: si torna alla somma delle righe con l'IVA per aliquota, come prima", () => {
+    const righe = [riga(22, { quantity: 2, unit_price: 100 }), riga(10, { unit_price: 50, discount_percent: 10 })];
+    const prima = calcolaTotaliPreventivo(righe, 0, 10);
+    for (const prezzo of [null, undefined, 0, -5, Number.NaN]) {
+      const t = calcolaTotaliPreventivo(righe, 0, 10, prezzo, 22);
+      expect(t.prezzo_manuale).toBe(false);
+      expect(t.subtotale).toBeCloseTo(245, 6); // 200 + 45
+      expect(t.totale).toBeCloseTo(prima.totale, 6);
+    }
+  });
+
+  it("un'aliquota mancante o non valida vale 0%: niente IVA finché non viene scelta", () => {
+    const t = calcolaTotaliPreventivo([riga(22)], 0, 0, 12000, undefined);
+    expect(t.iva_breakdown).toEqual({ "0": 0 });
+    expect(t.totale).toBe(12000);
   });
 });
 

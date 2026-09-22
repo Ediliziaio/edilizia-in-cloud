@@ -2,7 +2,7 @@ import {
   User, Users, Server, Mail, Bell,
   ScrollText, Globe, Zap, Plug, Landmark, Filter,
   Webhook, Activity, CalendarDays, Wrench, Variable, Package,
-  MessageCircle,
+  MessageCircle, AtSign,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -122,6 +122,13 @@ export const ADMIN_SETTINGS_NAV: AdminSettingsGroup[] = [
         description: "Provider, template e statistiche invii",
         icon: Mail,
         url: "/admin/impostazioni/email",
+      },
+      {
+        id: "dominio-email",
+        label: "Dominio email",
+        description: "Collega il dominio da cui partono le email di EdiliziaInCloud",
+        icon: AtSign,
+        url: "/admin/impostazioni/dominio-email",
       },
       {
         id: "notifiche",

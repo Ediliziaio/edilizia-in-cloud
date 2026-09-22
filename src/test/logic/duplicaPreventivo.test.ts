@@ -31,6 +31,11 @@ const originale = {
   created_at: "2026-07-30T10:00:00Z",
   template_id: "tpl-5",
   validity_days: 30,
+  // Prezzo scritto a mano (21/09/2026): non è nella denylist di
+  // CAMPI_DA_AZZERARE, quindi sopravvive allo spread come ogni altro campo
+  // commerciale — qui lo si verifica invece di darlo per buono.
+  prezzo_manuale: 9500,
+  prezzo_manuale_iva_pct: 22,
 };
 
 describe("costruisciCopiaQuote — copia libera", () => {
@@ -63,6 +68,11 @@ describe("costruisciCopiaQuote — copia libera", () => {
   it("titolo vuoto → titolo di ripiego", () => {
     const c = costruisciCopiaQuote({ ...originale, title: "  " }, { comeRevisione: false });
     expect(c.title).toBe("Preventivo (copia)");
+  });
+
+  it("porta con sé il prezzo scritto a mano e la sua aliquota", () => {
+    expect(copia.prezzo_manuale).toBe(9500);
+    expect(copia.prezzo_manuale_iva_pct).toBe(22);
   });
 });
 

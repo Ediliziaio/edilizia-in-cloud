@@ -171,7 +171,7 @@ type FormState = Required<Pick<RstTemplatePdf,
   | "cover_title_size" | "cover_text_align"
   | "default_iva_pct" | "default_detrazione_pct" | "default_validita_giorni"
   | "gallery_lavori"
-  | "condizioni_legali_attivo" | "condizioni_legali_testo" | "modulo_recesso_attivo"
+  | "condizioni_legali_attivo" | "condizioni_legali_testo" | "modulo_recesso_attivo" | "pdf_blocchi"
 >> & RstCoverPatch & {
   /** Eyebrow + titolo/sottotitolo cover usati dal layout preset (pdf_cover_*). */
   pdf_cover_eyebrow: string | null;
@@ -238,6 +238,7 @@ function templateToForm(t: RstTemplatePdf): FormState {
     footer_text: t.footer_text ?? "",
     condizioni_legali_attivo: (t as { condizioni_legali_attivo?: boolean | null }).condizioni_legali_attivo ?? true,
     modulo_recesso_attivo: (t as { modulo_recesso_attivo?: boolean | null }).modulo_recesso_attivo === true,
+    pdf_blocchi: (t as { pdf_blocchi?: Record<string, unknown> | null }).pdf_blocchi ?? {},
     condizioni_legali_testo: (t as { condizioni_legali_testo?: string | null }).condizioni_legali_testo ?? "",
     show_chi_siamo: t.show_chi_siamo ?? true,
     show_cronoprogramma: t.show_cronoprogramma ?? true,
@@ -304,6 +305,7 @@ interface GeneratedTemplateTexts {
   condizioni_legali_attivo?: boolean | null;
   condizioni_legali_testo?: string | null;
   modulo_recesso_attivo?: boolean | null;
+  pdf_blocchi?: Record<string, unknown> | null;
 }
 
 interface Props {
@@ -863,6 +865,9 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
                 pagine={form.pdf_pagine_libere}
                 onOrdine={(v) => set("pdf_ordine_capitoli", v)}
                 onPagine={(v) => set("pdf_pagine_libere", v)}
+                settore="ristrutturazione"
+                blocchi={form.pdf_blocchi}
+                onBlocchi={(v) => set("pdf_blocchi", v)}
                 campoFoto={(valore, onChange) => (
                   <ImageUploadField label="Foto della pagina" value={valore} companyId={companyId} onChange={onChange} aspect="aspect-[16/9]" />
                 )}
@@ -971,7 +976,7 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
                     <Input
                       value={form.cover_subtitle ?? ""}
                       onChange={(e) => set("cover_subtitle", e.target.value)}
-                      placeholder="La tua casa, rinnovata chiavi in mano"
+                      placeholder="I lavori per la tua casa, voce per voce"
                     />
                     <PlaceholderChips
                       value={form.cover_subtitle ?? ""}

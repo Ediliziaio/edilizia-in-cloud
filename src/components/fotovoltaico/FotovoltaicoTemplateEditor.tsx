@@ -34,6 +34,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { AiTemplateGenerator } from "@/components/preventivi/AiTemplateGenerator";
 import type { AiTemplateDraft } from "@/components/preventivi/AiTemplateReviewDialog";
 import { FvPagesOrderEditor } from "@/components/fotovoltaico/FvPagesOrderEditor";
+import { CampoFotoModello } from "@/components/preventivi/CampoFotoModello";
 import { MacroPagineDedicateManager } from "@/components/listino/MacroPagineDedicateManager";
 import type { FvPdfPageOrderItem } from "@/lib/fotovoltaico/pdfPages";
 import {
@@ -123,6 +124,8 @@ interface FvTemplate {
   pdf_cover_subtitle_size?: number | null;
   pdf_cover_eyebrow_size?: number | null;
   pdf_pages_order?: FvPdfPageOrderItem[] | null;
+  /** I blocchi del preventivo: solo i campi cambiati (_shared/blocchiPreventivo.ts). */
+  pdf_blocchi?: Record<string, unknown> | null;
   presentazione_impresa_html?: string | null;
   foto_team_url?: string | null;
   chi_siamo_titolo?: string | null;
@@ -2236,6 +2239,11 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
             <FvPagesOrderEditor
               value={form.pdf_pages_order ?? null}
               onChange={(next) => update("pdf_pages_order", next)}
+              blocchi={form.pdf_blocchi}
+              onBlocchi={(v) => update("pdf_blocchi", v)}
+              campoFoto={(valore, onChange) => (
+                <CampoFotoModello valore={valore} onChange={onChange} bucket="fv-progetti" cartella={companyId ? `${companyId}/template-blocchi` : null} />
+              )}
             />
           </FvSettingsCard>
         </>

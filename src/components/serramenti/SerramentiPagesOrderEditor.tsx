@@ -12,8 +12,8 @@
  *
  * State è esterno: il chiamante (SerramentiTemplateEditor) gestisce salvataggio.
  */
-import { memo, useState } from "react";
-import { GripVertical, ChevronUp, ChevronDown, Eye, EyeOff, RotateCcw, Image as ImageIcon } from "lucide-react";
+import { memo, useState, type ReactNode } from "react";
+import { GripVertical, ChevronUp, ChevronDown, Eye, EyeOff, RotateCcw, Image as ImageIcon, Pencil, Camera } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -29,13 +29,28 @@ import {
   SR_PDF_PAGES_DEFAULT, SR_PDF_PAGES_META, normalizePdfPagesOrder,
   type SrPdfPageOrderItem, type SrPdfPageMeta,
 } from "@/types/serramenti";
+import { EditorBlocco } from "@/components/preventivi/EditorBlocco";
+import { EditorFotoPagina } from "@/components/preventivi/EditorFotoPagina";
+import { bloccoDellaPagina, descrizioneBlocco, type ChiaveFotoPagina } from "../../../supabase/functions/_shared/blocchiPreventivo";
+
+/** Le pagine con una foto loro, cambiabile qui: l'id della pagina e la chiave della foto. */
+const FOTO_DELLE_PAGINE: Record<string, ChiaveFotoPagina> = {
+  percorso: "percorso", confronto: "confronto", cta: "cta",
+  // La foto che riempie il fondo quando la sezione finisce a metà foglio.
+  proposta: "proposta", allegato_tecnico: "allegato", investimento: "dettagli",
+};
 
 interface Props {
   value: SrPdfPageOrderItem[] | null;
   onChange: (next: SrPdfPageOrderItem[]) => void;
+  /** Le scelte dell'azienda sui blocchi (`pdf_blocchi`): con `onBlocchi`, i blocchi si modificano qui. */
+  blocchi?: unknown;
+  onBlocchi?: (v: Record<string, unknown>) => void;
+  /** Il campo per caricare la foto di un blocco: quello dell'editor, col suo bucket. */
+  campoFoto?: (valore: string | null, onChange: (url: string | null) => void) => ReactNode;
 }
 
-function SerramentiPagesOrderEditorImpl({ value, onChange }: Props) {
+function SerramentiPagesOrderEditorImpl({ value, onChange, blocchi, onBlocchi, campoFoto }: Props) {
   // Normalizziamo sempre: garantisce che tutte le pagine canoniche siano
   // presenti e che le obbligatorie abbiano visible=true.
   const items = normalizePdfPagesOrder(value);
@@ -44,6 +59,7 @@ function SerramentiPagesOrderEditorImpl({ value, onChange }: Props) {
   // Highlight ephemero dell'item appena mosso: serve come conferma visiva
   // (oltre al toast). Si auto-resetta dopo 800ms.
   const [recentlyMovedId, setRecentlyMovedId] = useState<string | null>(null);
+  const [aperta, setAperta] = useState<string | null>(null);
   const flash = (id: string) => {
     setRecentlyMovedId(id);
     setTimeout(() => setRecentlyMovedId((curr) => (curr === id ? null : curr)), 800);
@@ -178,6 +194,9 @@ function SerramentiPagesOrderEditorImpl({ value, onChange }: Props) {
             {items.map((it, idx) => {
               const meta = metaById.get(it.id);
               if (!meta) return null;
+              const blocco = bloccoDellaPagina(it.id);
+              const modificabile = Boolean(blocco && onBlocchi && campoFoto);
+              const fotoPagina = onBlocchi && campoFoto ? FOTO_DELLE_PAGINE[it.id] ?? null : null;
               return (
                 <SortablePageItem
                   key={it.id}
@@ -190,7 +209,29 @@ function SerramentiPagesOrderEditorImpl({ value, onChange }: Props) {
                   onMoveUp={() => moveUp(idx)}
                   onMoveDown={() => moveDown(idx)}
                   onToggleVisible={() => toggleVisible(idx)}
-                />
+                  promessa={blocco ? descrizioneBlocco(blocco).promessa : false}
+                  onModifica={modificabile ? () => setAperta(aperta === it.id ? null : it.id) : undefined}
+                  onFoto={fotoPagina ? () => setAperta(aperta === `foto:${it.id}` ? null : `foto:${it.id}`) : undefined}
+                >
+                  {modificabile && blocco && aperta === it.id && campoFoto ? (
+                    <EditorBlocco
+                      chiave={blocco}
+                      settore="serramenti"
+                      salvati={blocchi}
+                      onSalvati={(nuovi) => onBlocchi?.(nuovi)}
+                      campoFoto={campoFoto}
+                    />
+                  ) : null}
+                  {fotoPagina && aperta === `foto:${it.id}` && campoFoto ? (
+                    <EditorFotoPagina
+                      chiave={fotoPagina}
+                      settore="serramenti"
+                      salvati={blocchi}
+                      onSalvati={(nuovi) => onBlocchi?.(nuovi)}
+                      campoFoto={campoFoto}
+                    />
+                  ) : null}
+                </SortablePageItem>
               );
             })}
           </div>
@@ -215,7 +256,7 @@ function SerramentiPagesOrderEditorImpl({ value, onChange }: Props) {
 
 function SortablePageItem({
   item, meta, position, isFirst, isLast, flashing,
-  onMoveUp, onMoveDown, onToggleVisible,
+  onMoveUp, onMoveDown, onToggleVisible, promessa = false, onModifica, onFoto, children,
 }: {
   item: SrPdfPageOrderItem;
   meta: SrPdfPageMeta;
@@ -226,6 +267,13 @@ function SortablePageItem({
   onMoveUp: () => void;
   onMoveDown: () => void;
   onToggleVisible: () => void;
+  /** Un blocco che promette qualcosa al cliente: acceso, chiede di rileggerlo. */
+  promessa?: boolean;
+  /** Apre l'editor del blocco sotto la riga. */
+  onModifica?: () => void;
+  /** Apre la scelta della foto della pagina sotto la riga. */
+  onFoto?: () => void;
+  children?: ReactNode;
 }) {
   const {
     attributes, listeners, setNodeRef, transform, transition, isDragging,
@@ -242,12 +290,13 @@ function SortablePageItem({
       ref={setNodeRef}
       style={style}
       className={
-        "rounded-lg border p-2.5 flex items-center gap-2 transition-all duration-300 " +
+        "rounded-lg border p-2.5 transition-all duration-300 " +
         (flashing ? "ring-2 ring-emerald-400 bg-emerald-50 border-emerald-300" : "bg-card") +
         " " +
-        (item.visible ? "" : "opacity-60 bg-muted/30")
+        (item.visible ? "" : "bg-muted/30")
       }
     >
+    <div className={"flex items-center gap-2 " + (item.visible ? "" : "opacity-60")}>
       {/* Drag handle */}
       <button
         type="button"
@@ -286,6 +335,11 @@ function SortablePageItem({
         <div className="text-[10px] text-muted-foreground mt-0.5 line-clamp-1">
           {meta.descrizione}
         </div>
+        {promessa && item.visible ? (
+          <div className="text-[10px] text-amber-700 mt-0.5">
+            Promette qualcosa al cliente: rileggila, e spegnila se non lo fate.
+          </div>
+        ) : null}
       </div>
 
       {/* Up/Down + Visibility */}
@@ -330,7 +384,33 @@ function SortablePageItem({
         >
           {item.visible ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
         </Button>
+        {onModifica ? (
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={onModifica}
+            className="h-7 w-7"
+            aria-label={`Modifica ${meta.label}`}
+            title="Testi, voci e foto di questa pagina"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </Button>
+        ) : null}
+        {onFoto ? (
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={onFoto}
+            className="h-7 w-7"
+            aria-label={`Foto di ${meta.label}`}
+            title="La foto di questa pagina"
+          >
+            <Camera className="h-3.5 w-3.5" />
+          </Button>
+        ) : null}
       </div>
+    </div>
+    {children}
     </div>
   );
 }

@@ -387,8 +387,8 @@ export function svgCassaCumulata(
     ${breakX != null ? `<line x1="${breakX.toFixed(1)}" x2="${breakX.toFixed(1)}" y1="${padT}" y2="${(H - padB).toFixed(1)}" stroke="${C.orange}" stroke-width="2" stroke-dasharray="5,3"/>
     <circle cx="${breakX.toFixed(1)}" cy="${yZero.toFixed(1)}" r="6" fill="${C.orange}" stroke="white" stroke-width="3"/>
     <g transform="translate(${(breakX + 6).toFixed(1)}, ${(padT + 5).toFixed(1)})"><rect width="100" height="32" rx="6" fill="${C.orange}"/>
-    <text x="10" y="14" font-size="9" fill="white" font-weight="700">BREAKEVEN</text>
-    <text x="10" y="26" font-size="9" fill="white">Anno ${paybackAnni!.toFixed(0)} · 0 €</text></g>` : ""}
+    <text x="10" y="14" font-size="9" fill="white" font-weight="700">SPESA RIPAGATA</text>
+    <text x="10" y="26" font-size="9" fill="white">Anno ${paybackAnni!.toFixed(0)}</text></g>` : ""}
     <circle cx="${finalX.toFixed(1)}" cy="${finalY.toFixed(1)}" r="6" fill="${C.green}" stroke="white" stroke-width="3"/>
     <g transform="translate(${(finalX - 80).toFixed(1)}, ${(finalY - 30).toFixed(1)})"><rect width="80" height="22" rx="4" fill="${C.green}"/>
     <text x="40" y="15" font-size="10" fill="white" font-weight="700" text-anchor="middle">+${fmt(finalEur)} €</text></g>

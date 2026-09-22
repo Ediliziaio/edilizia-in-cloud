@@ -15,6 +15,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  badgeGaranzieDalSito,
+  fotoBlocchiDalSito,
+  fotoDiSerieDalSito,
+  fotoPagineDalSito,
   renderFvPdfHtml,
   type FvPdfTemplateData,
 } from "../../../supabase/functions/_shared/fvHtmlTemplate";
@@ -107,6 +111,8 @@ function demoBase(): FvPdfTemplateData {
       consumo_da_rete_pct: 0.49,
       consumo_da_fv_pct: 0.51,
     },
+    // Le foto di serie del documento, dal sito stesso: come le vedrà il cliente.
+    foto_di_serie: typeof window !== "undefined" ? fotoDiSerieDalSito(window.location.origin) : null,
     componenti: [
       {
         categoria: "pannello",
@@ -179,6 +185,10 @@ export default function FvTemplatePreviewDialog({
         ...(f as FvPdfTemplateData["template"]),
         logo_url: (str("logo_url") ?? logoUrl ?? null) as string | null,
       },
+      // Le foto dei blocchi accesi, dal sito o già firmate: come le vedrà il cliente.
+      blocchi_foto: typeof window !== "undefined" ? fotoBlocchiDalSito(window.location.origin, f as FvPdfTemplateData["template"]) : null,
+      badge_garanzie: typeof window !== "undefined" ? badgeGaranzieDalSito(window.location.origin) : null,
+      foto_pagine: typeof window !== "undefined" ? fotoPagineDalSito(window.location.origin, f as FvPdfTemplateData["template"]) : null,
     };
     try {
       return renderFvPdfHtml(data);

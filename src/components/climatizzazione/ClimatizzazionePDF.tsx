@@ -12,6 +12,7 @@ import type { ClmPdfEnriched } from "@/hooks/useClimatizzazionePDF";
 import { DocumentoEdilePDF } from "@/components/preventivi/pdf/DocumentoEdilePDF";
 import { costruisciDatiEdile } from "@/components/preventivi/pdf/adattatoreEdile";
 import { MODULI_EDILI } from "@/components/preventivi/pdf/moduliEdili";
+import { TIPOLOGIE_CLIMA, parolaDelCodice } from "@/components/preventivi/pdf/paroleDeiCodici";
 
 const MODULO = MODULI_EDILI.climatizzazione;
 
@@ -27,7 +28,7 @@ export function ClimatizzazionePDF(props: ClmPdfEnriched) {
     media,
     opzioniComputo: computoOptions,
     schedaModulo: [
-      { etichetta: "Tipologia di impianto", valore: p.tipologia_impianto },
+      { etichetta: "Tipologia di impianto", valore: parolaDelCodice(p.tipologia_impianto, TIPOLOGIE_CLIMA) },
       { etichetta: "Unità interne", valore: p.numero_unita_interne ? String(p.numero_unita_interne) : null },
     ],
   });

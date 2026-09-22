@@ -8,7 +8,8 @@
 //                     per-record status + resend_status enum.
 //   - remove_domain → deletes the domain on all 3 providers and drops the row.
 //   - get_status    → current row for the given company (all DNS records +
-//                     per-provider status + last_verified_at + attempt counters).
+//                     per-provider status + last_verified_at + attempt counters),
+//                     più il mittente vero di ogni canale (resolveSender).
 //
 // Rate limiting via check_email_domain_rate_limit RPC:
 //   - action='add' → max 3/h
@@ -19,14 +20,20 @@ import { getCorsHeaders } from "../_shared/headers.ts";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 
 import { serveConMetriche } from "../_shared/withMetrics.ts";
+import { resolveSender } from "../_shared/resolveSender.ts";
 import {
+  canaliDaCollegare,
+  type CanaleEmail,
   chiaviTransazionali,
+  COLONNA_MITTENTE,
   DMARC_CONSIGLIATO,
   dominioPrincipale,
   dominioSconosciutoAlProvider,
   haDmarc,
+  type MittenteDelCanale,
   notaSpf,
   SPF_MARKETING_NUOVO,
+  type StatoDominioEmail,
   type StatoSpf,
   trovaSpf,
   unisciSpf,
@@ -68,9 +75,13 @@ async function buildUserClient(authHeader: string): Promise<SupabaseClient> {
 }
 
 /**
- * Authorize caller: either super_admin OR company member with company_admin role.
- * (Legacy pattern consistent with existing Sprint 7 function — we intentionally
- * do not tighten beyond it here to avoid breaking the SettingsEmailDomain UI.)
+ * Autorizza chi chiama: super_admin, amministratore dell'azienda, oppure —
+ * dal 21/09/2026 — chi ha il permesso «Modelli & Email» (can_view_marketing_email)
+ * e non è in sola lettura. Stessa regola «la modifica segue il permesso»
+ * decisa per WhatsApp Bot/email/scontistica lo stesso giorno (migration
+ * 20280922110000): prima solo l'amministratore poteva usare questa funzione,
+ * ma la pagina si apre a chiunque abbia quel permesso — bottone finto per
+ * 6 persone.
  */
 async function authorize(
   userClient: SupabaseClient,
@@ -107,9 +118,26 @@ async function authorize(
   const isCompanyAdmin = (roles ?? []).some((r: { role: string }) =>
     r.role === "company_admin"
   );
-  if (!isCompanyAdmin) throw new Error("Non autorizzato");
+  if (isCompanyAdmin) return { userId: user.id, isSuperAdmin: false };
 
-  return { userId: user.id, isSuperAdmin: false };
+  // Non amministratore: basta il permesso di vista, se non è in sola lettura.
+  const { data: haPermesso } = await admin.rpc("has_permission_for_company" as never, {
+    _user_id: user.id,
+    _permission: "can_view_marketing_email",
+    _company_id: companyId,
+  } as never);
+  if (haPermesso === true) {
+    const { data: sp } = await admin
+      .from("staff_permissions")
+      .select("sola_lettura")
+      .eq("user_id", user.id)
+      .eq("company_id", companyId)
+      .maybeSingle();
+    if (!(sp as { sola_lettura?: boolean } | null)?.sola_lettura) {
+      return { userId: user.id, isSuperAdmin: false };
+    }
+  }
+  throw new Error("Non autorizzato");
 }
 
 /**
@@ -718,6 +746,7 @@ async function actionVerifyDomain(
   const marketingVerified = Boolean(
     updated.ee_spf_verified && updated.ee_dkim_verified,
   );
+  let finale = updated;
   if ((updated.is_verified || marketingVerified) && !updated.is_active) {
     const { data: activated } = await admin
       .from("company_email_domains")
@@ -725,45 +754,98 @@ async function actionVerifyDomain(
       .eq("id", row.id)
       .select()
       .single();
-
-    // Auto-collega il dominio appena attivato alle preferenze mittente
-    // marketing se l'azienda non ne ha già scelto uno: senza questo pointer
-    // resolveSender continuerebbe a usare il fallback condiviso EiC.
-    const { data: prefs } = await admin
-      .from("company_email_preferences")
-      .select("company_id, marketing_domain_id")
-      .eq("company_id", companyId)
-      .maybeSingle();
-    if (!prefs) {
-      // reply_to_email è NOT NULL: default best-guess sul dominio appena
-      // verificato, modificabile in Impostazioni → Preferenze Email.
-      await admin
-        .from("company_email_preferences")
-        .insert({
-          company_id: companyId,
-          marketing_domain_id: row.id,
-          reply_to_email: `info@${row.domain}`,
-        });
-    } else if (!prefs.marketing_domain_id) {
-      await admin
-        .from("company_email_preferences")
-        .update({ marketing_domain_id: row.id })
-        .eq("company_id", companyId);
-    }
-
-    return {
-      domain_row: activated ?? updated,
-      dns_records: buildDnsRecords(activated ?? updated, await spfDaMostrare(row.domain)),
-      provider_errors: providerErrors,
-    };
+    if (activated) finale = activated;
   }
 
+  // Il dominio diventa il mittente dei canali per cui è diventato
+  // utilizzabile adesso, se l'azienda non ne ha già scelto uno. Senza il
+  // collegamento resolveSender resta sul sottodominio condiviso EiC. Fino al
+  // 21/09/2026 si collegava solo il marketing, e solo all'attivazione.
+  const collegati = await collegaComeMittente(admin, companyId, row, finale);
+
   return {
-    domain_row: updated,
+    domain_row: finale,
     // L'SPF mostrato è quello del dominio con dentro la nostra autorizzazione.
-    dns_records: buildDnsRecords(updated, await spfDaMostrare(row.domain)),
+    dns_records: buildDnsRecords(finale, await spfDaMostrare(row.domain)),
     provider_errors: providerErrors,
+    collegati,
   };
+}
+
+/**
+ * Collega il dominio alle preferenze mittente dei canali che gli spettano
+ * (canaliDaCollegare, in _shared/dominioEmailAzienda.ts). Restituisce quelli
+ * collegati davvero: se nel frattempo l'azienda ne ha scelto uno in
+ * Preferenze email, resta il suo.
+ */
+async function collegaComeMittente(
+  admin: SupabaseClient,
+  companyId: string,
+  prima: StatoDominioEmail,
+  dopo: StatoDominioEmail & { id: string; domain: string },
+): Promise<CanaleEmail[]> {
+  const { data: prefs } = await admin
+    .from("company_email_preferences")
+    .select("company_id, marketing_domain_id, transactional_domain_id")
+    .eq("company_id", companyId)
+    .maybeSingle();
+
+  const canali = canaliDaCollegare(prima, dopo, prefs);
+  if (canali.length === 0) return [];
+
+  if (!prefs) {
+    // reply_to_email è NOT NULL: default best-guess sul dominio appena
+    // verificato, modificabile in Impostazioni → Preferenze Email.
+    const riga: Record<string, unknown> = { company_id: companyId, reply_to_email: `info@${dopo.domain}` };
+    for (const canale of canali) riga[COLONNA_MITTENTE[canale]] = dopo.id;
+    const { error } = await admin.from("company_email_preferences").insert(riga);
+    if (error) {
+      console.error("manage-email-domain: preferenze mittente non create:", error.message);
+      return [];
+    }
+    return canali;
+  }
+
+  const collegati: CanaleEmail[] = [];
+  for (const canale of canali) {
+    const colonna = COLONNA_MITTENTE[canale];
+    // Solo se è ancora vuota: una scelta arrivata nel frattempo resta.
+    const { data, error } = await admin
+      .from("company_email_preferences")
+      .update({ [colonna]: dopo.id })
+      .eq("company_id", companyId)
+      .is(colonna, null)
+      .select("company_id");
+    if (error) console.error(`manage-email-domain: mittente ${canale} non collegato:`, error.message);
+    else if ((data ?? []).length > 0) collegati.push(canale);
+  }
+  return collegati;
+}
+
+/**
+ * Il mittente vero di un canale, calcolato da resolveSender come per le email
+ * vere. La pagina lo mostra invece di ricostruirlo: fino al 21/09/2026 diceva
+ * «marketing e transazionali» dal dominio anche col transazionale sulla
+ * piattaforma, e un indirizzo (`from_email`) che nessuno usa.
+ */
+async function mittenteVero(
+  admin: SupabaseClient,
+  companyId: string,
+  canale: CanaleEmail,
+): Promise<MittenteDelCanale | null> {
+  try {
+    const m = await resolveSender(companyId, canale, admin);
+    return {
+      from: m.from,
+      fromEmail: m.fromEmail,
+      usingCustomDomain: m.usingCustomDomain,
+      customDomainId: m.customDomainId ?? null,
+      domain: m.domain,
+    };
+  } catch (e) {
+    console.warn(`manage-email-domain: mittente ${canale} non calcolato:`, e instanceof Error ? e.message : String(e));
+    return null;
+  }
 }
 
 async function actionRemoveDomain(
@@ -805,11 +887,15 @@ async function actionGetStatus(admin: SupabaseClient, companyId: string) {
 
   // Il record SPF mostrato parte da quello che il dominio ha già (ne può avere
   // uno solo); il DMARC compare solo se al dominio manca.
-  const domains = await Promise.all((rows ?? []).map(async (r: Record<string, unknown>) => ({
-    ...r,
-    dns_records: buildDnsRecords(r, await spfDaMostrare(String(r.domain ?? ""))),
-  })));
-  return { domains };
+  const [domains, marketing, transactional] = await Promise.all([
+    Promise.all((rows ?? []).map(async (r: Record<string, unknown>) => ({
+      ...r,
+      dns_records: buildDnsRecords(r, await spfDaMostrare(String(r.domain ?? ""))),
+    }))),
+    mittenteVero(admin, companyId, "marketing"),
+    mittenteVero(admin, companyId, "transactional"),
+  ]);
+  return { domains, mittenti: { marketing, transactional } };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

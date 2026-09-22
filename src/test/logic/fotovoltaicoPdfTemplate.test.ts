@@ -1,13 +1,24 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
+  BADGE_GARANZIE_FV,
+  badgeGaranzieDalSito,
+  FOTO_DI_SERIE_FV,
+  FV_PDF_PAGES_DEFAULT,
+  FV_PDF_PAGES_META,
+  fotoBlocchiDalSito,
+  fotoDeiBlocchiFv,
+  fotoDiSerieDalSito,
   getFvPdfRenderedPagesCount,
   normalizeFvPdfPagesOrder,
   renderFvPdfHtml,
   type FvPdfTemplateData,
 } from "../../../supabase/functions/_shared/fvHtmlTemplate.ts";
+import { FV_PDF_PAGES_META as PAGINE_DELL_EDITOR, normalizeFvPdfPagesOrder as ordineDellEditor } from "@/lib/fotovoltaico/pdfPages";
 import { condizioniStandard } from "../../../supabase/functions/_shared/condizioniStandard.ts";
+import { calcolaBollettaPrimaDopo, calcolaEnergyFlows, quotaAutoconsumo } from "../../../supabase/functions/_shared/fvCalcoli.ts";
+import { indirizzoCompleto } from "../../../supabase/functions/_shared/fvHtmlTemplate.ts";
 
 function basePdfData(): FvPdfTemplateData {
   return {
@@ -391,6 +402,11 @@ describe("fotovoltaico PDF template", () => {
           { id: "co2", visible: false },
           { id: "garanzie", visible: false },
           { id: "iter", visible: false },
+          { id: "come_funziona", visible: false },
+          { id: "protezione", visible: false },
+          { id: "controlli", visible: false },
+          { id: "documenti", visible: false },
+          { id: "diario", visible: false },
           { id: "faq", visible: false },
           { id: "decisione", visible: true },
         ],
@@ -647,8 +663,274 @@ describe("fotovoltaico PDF — l'accumulo con numeri calcolati", () => {
 
   it("il generatore calcola i flussi senza batteria con gli stessi dati", () => {
     const src = readFileSync(resolve(process.cwd(), "supabase/functions/fv-genera-pdf/index.ts"), "utf8");
-    expect(src).toContain("calcolaEnergyFlows({ ...ingressiFlussi, has_accumulo: false, capacita_accumulo_kwh: 0 })");
+    expect(src).toContain("calcolaEnergyFlows({ ...ingressiFlussi, has_accumulo: false, capacita_accumulo_kwh: 0, autoconsumo_pct: quotaAutoconsumo(profilo, 0) })");
     expect(src).toContain("flows_senza_accumulo: flowsSenzaAccumulo,");
   });
 });
 
+// 21/09/2026 — Le foto di serie del documento (fatte da Florin): la CO₂ con il bosco
+// e tre riquadri, gli installatori nelle fasi, l'impianto nell'investimento.
+describe("fotovoltaico PDF — le foto di serie", () => {
+  const conFoto = (): FvPdfTemplateData => ({ ...basePdfData(), foto_di_serie: fotoDiSerieDalSito("https://app.esempio.test") });
+  const pagina = (html: string, occhiello: string) => {
+    const i = html.indexOf(`<div class="eyebrow">${occhiello}</div>`);
+    return html.slice(i, html.indexOf('<div class="page">', i));
+  };
+
+  it("i file stanno nel sito, uno per ogni foto", () => {
+    for (const file of Object.values(FOTO_DI_SERIE_FV)) {
+      expect(existsSync(resolve(process.cwd(), "public/pdf-stock/fotovoltaico", file))).toBe(true);
+    }
+  });
+
+  it("con le foto: la CO₂ ha il bosco e tre riquadri, fasi e investimento la loro fascia", () => {
+    const html = renderFvPdfHtml(conFoto());
+    const co2 = pagina(html, "L'impatto sul pianeta");
+    expect(co2).toContain('class="co2-foto"');
+    expect(co2).toContain("co2-bosco.jpg");
+    expect(co2.match(/class="co2-carta"/g)?.length).toBe(3);
+    expect(co2).not.toContain('class="eq-row"');
+    expect(pagina(html, "Iter pratiche")).toContain("fasi-installatori.jpg");
+    expect(pagina(html, "L'investimento")).toContain("investimento-impianto.jpg");
+  });
+
+  it("senza foto (o con una che manca) le pagine restano quelle di prima", () => {
+    const d = conFoto();
+    d.foto_di_serie = { ...d.foto_di_serie, voli: null };
+    const co2 = pagina(renderFvPdfHtml(d), "L'impatto sul pianeta");
+    expect(co2).toContain('class="eq-row"');
+    expect(co2).not.toContain('class="co2-carta"');
+    const nessuna = renderFvPdfHtml(basePdfData());
+    expect(nessuna).not.toContain('class="foto-fascia"');
+  });
+
+  it("i chilometri in auto hanno un paragone calcolato, non «quasi un giro del mondo» per tutti", () => {
+    const html = renderFvPdfHtml(conFoto());
+    expect(html).not.toContain("giro del mondo");
+    expect(html).toMatch(/Come [\d.]+ viaggi Milano–Roma\./);
+  });
+
+  it("con più di sei fasi i servizi non si ripetono nella pagina delle fasi (restano nell'investimento)", () => {
+    const d = conFoto();
+    d.servizi = [{ descrizione: "Pratiche GSE e Comune", quantita: 1 }];
+    d.template = { ...d.template, cronoprogramma: Array.from({ length: 7 }, (_, i) => ({ fase: `Fase ${i + 1}`, durata: "1 settimana", descrizione: "" })) };
+    const html = renderFvPdfHtml(d);
+    expect(pagina(html, "Iter pratiche")).not.toContain("Servizi inclusi nella proposta");
+    expect(pagina(html, "L'investimento")).toContain("Pratiche GSE e Comune");
+  });
+
+  it("il generatore incorpora solo risposte che sono immagini", () => {
+    const src = readFileSync(resolve(process.cwd(), "supabase/functions/fv-genera-pdf/index.ts"), "utf8");
+    expect(src).toContain('if (dati?.startsWith("data:image/")) return dati;');
+    // Prima il dominio che serve di sicuro le foto, poi APP_URL come riserva.
+    expect(src).toContain('["https://app.ediliziaincloud.com", Deno.env.get("APP_URL")]');
+    expect(src).toContain("fotoDiSerie(FOTO_DI_SERIE_FV.alberi)");
+    expect(src).toContain("foto_di_serie: {");
+  });
+});
+
+
+describe("fotovoltaico PDF — le pagine: un elenco solo, e i blocchi", () => {
+  const ids = (pagine: Array<{ id: string }>) => pagine.map((p) => p.id);
+  const visibile = (pagine: Array<{ id: string; visible: boolean }>, id: string) => pagine.find((p) => p.id === id)?.visible;
+  const tutteAccese = () => FV_PDF_PAGES_META.map((p) => ({ id: p.id, visible: true }));
+  const pagina = (html: string, occhiello: string) => {
+    const i = html.indexOf(`<div class="eyebrow">${occhiello}</div>`);
+    return i < 0 ? "" : html.slice(i, html.indexOf('<div class="page">', i));
+  };
+
+  it("l'editor mostra le pagine del PDF, nello stesso ordine: prima la fiducia, il prezzo dopo il valore", () => {
+    // Fino al 22/09/2026 l'editor aveva una sua copia, col prezzo in testa.
+    expect(PAGINE_DELL_EDITOR).toBe(FV_PDF_PAGES_META);
+    expect(ordineDellEditor).toBe(normalizeFvPdfPagesOrder);
+    const ordine = ids(FV_PDF_PAGES_DEFAULT);
+    expect(ordine.slice(0, 2)).toEqual(["garanzie", "iter"]);
+    expect(ordine.indexOf("investimento")).toBeGreaterThan(ordine.indexOf("cassa_25"));
+    expect(ordine[ordine.length - 1]).toBe("decisione");
+  });
+
+  it("«Come funziona» accesa prima dell'anteprima; le pagine che promettono, accese prima di domande e firma", () => {
+    const ordine = ids(FV_PDF_PAGES_DEFAULT);
+    expect(ordine[ordine.indexOf("anteprima") - 1]).toBe("come_funziona");
+    // Rispondono ai dubbi quando il cliente decide, non in testa con la fiducia.
+    expect(ordine.slice(ordine.indexOf("bollette_240") + 1, ordine.indexOf("faq"))).toEqual(["protezione", "controlli", "documenti", "diario"]);
+    for (const id of ["come_funziona", "protezione", "controlli", "documenti", "diario"]) expect(visibile(FV_PDF_PAGES_DEFAULT, id)).toBe(true);
+  });
+
+  it("un ordine salvato prima dei blocchi li riceve al loro posto, non in fondo dopo la firma", () => {
+    const salvato = ["garanzie", "iter", "anteprima", "componenti", "investimento", "decisione"].map((id) => ({ id, visible: true }));
+    const pagine = normalizeFvPdfPagesOrder(salvato);
+    expect(ids(pagine)[ids(pagine).length - 1]).toBe("decisione");
+    expect(ids(pagine).indexOf("come_funziona")).toBeLessThan(ids(pagine).indexOf("anteprima"));
+    expect(ids(pagine).indexOf("diario")).toBeLessThan(ids(pagine).indexOf("decisione"));
+    expect(visibile(pagine, "protezione")).toBe(true);
+    // spenta dall'azienda, resta spenta
+    expect(visibile(normalizeFvPdfPagesOrder([{ id: "protezione", visible: false }]), "protezione")).toBe(false);
+  });
+
+  it("le foto dei blocchi accesi: al massimo due, dal sito nelle anteprime", () => {
+    const template = { pdf_pages_order: tutteAccese(), pdf_blocchi: { diario: { senzaFoto: true } } };
+    const foto = fotoDeiBlocchiFv(template);
+    // «Come funziona» ha una foto sola, larga: la casa in sezione col percorso dell'energia.
+    expect(foto.comeFunziona).toEqual(["/pdf-stock/fotovoltaico/storia-flusso-energia.jpg"]);
+    expect(foto.diario).toEqual([]);
+    expect(fotoBlocchiDalSito("https://app.example.it/", template).comeFunziona[0]).toEqual({
+      src: "https://app.example.it/pdf-stock/fotovoltaico/storia-flusso-energia.jpg", diSerie: true,
+    });
+    // di serie accese tutte: le foto di tutti i blocchi
+    expect(Object.keys(fotoDeiBlocchiFv({})).sort()).toEqual(["comeFunziona", "controlli", "diario", "documenti", "protezione"]);
+    for (const file of Object.values(fotoDeiBlocchiFv({ pdf_pages_order: tutteAccese() })).flat()) {
+      expect(existsSync(resolve(process.cwd(), `public${file}`))).toBe(true);
+    }
+  });
+
+  it("le pagine dei blocchi escono coi testi di serie, l'accento, le icone e la nota sulle foto", () => {
+    const d = basePdfData();
+    d.template = { ...d.template, pdf_pages_order: tutteAccese() };
+    d.blocchi_foto = { comeFunziona: [{ src: "data:image/jpeg;base64,AAAA", diSerie: true }] };
+    const html = renderFvPdfHtml(d);
+    const come = pagina(html, "Come funziona");
+    expect(come).toContain('Dal tuo tetto <span class="accento">alla tua presa</span>.');
+    expect(come).toContain('<img src="data:image/jpeg;base64,AAAA"');
+    expect(come).toContain("Immagini indicative");
+    expect(come).toContain("<svg");
+    // senza foto il blocco esce coi soli testi, e senza la nota
+    const sicurezza = pagina(html, "In sicurezza");
+    expect(sicurezza).toContain("Lavoriamo sul tuo tetto");
+    expect(sicurezza).not.toContain("<img");
+    expect(sicurezza).not.toContain("Immagini indicative");
+    // il conteggio delle pagine resta quello disegnato
+    expect(html.split('<div class="page">').length - 1).toBe(getFvPdfRenderedPagesCount(d));
+  });
+
+  it("voci svuotate tornano di serie; spento, il blocco non esce", () => {
+    const d = basePdfData();
+    const vuoto = { voci: [{ titolo: "" }], senzaFoto: true };
+    d.template = { ...d.template, pdf_blocchi: { comeFunziona: vuoto } };
+    // voci vuote tornano di serie: il blocco esce comunque
+    expect(pagina(renderFvPdfHtml(d), "Come funziona")).toContain("Produce");
+    const senza = getFvPdfRenderedPagesCount({ ...d, template: { ...d.template, pdf_pages_order: normalizeFvPdfPagesOrder(null).map((p) => (p.id === "come_funziona" ? { ...p, visible: false } : p)) } });
+    expect(senza).toBe(getFvPdfRenderedPagesCount(d) - 1);
+  });
+
+  it("il generatore incorpora le foto dei blocchi e passa i testi dell'azienda", () => {
+    const src = readFileSync(resolve(process.cwd(), "supabase/functions/fv-genera-pdf/index.ts"), "utf8");
+    expect(src).toContain("fotoDeiBlocchiFv(template as FvPdfTemplateData[\"template\"])");
+    expect(src).toContain("blocchi_foto: blocchiFoto,");
+    expect(src).toContain("pdf_blocchi: template.pdf_blocchi && typeof template.pdf_blocchi === \"object\" ? template.pdf_blocchi : null,");
+    for (const anteprima of ["src/components/fotovoltaico/FvLivePreviewPanel.tsx", "src/components/fotovoltaico/FvTemplatePreviewDialog.tsx"]) {
+      expect(readFileSync(resolve(process.cwd(), anteprima), "utf8")).toContain("blocchi_foto: typeof window !== \"undefined\" ? fotoBlocchiDalSito(window.location.origin");
+    }
+  });
+});
+
+describe("fotovoltaico PDF — i badge delle garanzie", () => {
+  const garanzie = (html: string) => {
+    const i = html.indexOf('<div class="guarantee-grid">');
+    return html.slice(i, html.indexOf("</div>\n      <h3", i));
+  };
+
+  it("un badge per ogni icona, nel sito e piccolo", () => {
+    for (const file of Object.values(BADGE_GARANZIE_FV)) {
+      const percorso = resolve(process.cwd(), `public/pdf-stock/badge/${file}`);
+      expect(existsSync(percorso)).toBe(true);
+      expect(readFileSync(percorso).length).toBeLessThan(40_000);
+    }
+    expect(badgeGaranzieDalSito("https://app.example.it/").sun).toBe("https://app.example.it/pdf-stock/badge/energia-solare.png");
+  });
+
+  it("con i badge la scheda li mostra al posto della sigla; senza, resta la sigla", () => {
+    const d = basePdfData();
+    d.badge_garanzie = { sun: "data:image/png;base64,SOLE", shield: "data:image/png;base64,SCUDO" };
+    const con = garanzie(renderFvPdfHtml(d));
+    expect(con).toContain('<img class="g-badge" src="data:image/png;base64,SOLE"');
+    // un'icona senza badge suo usa quello dello scudo
+    expect(con).toContain('<img class="g-badge" src="data:image/png;base64,SCUDO"');
+    expect(con).not.toContain('class="g-num"');
+    const senza = garanzie(renderFvPdfHtml(basePdfData()));
+    expect(senza).toContain('class="g-num"');
+    expect(senza).not.toContain("g-badge");
+  });
+
+  it("il generatore incorpora i badge, le anteprime li prendono dal sito", () => {
+    const src = readFileSync(resolve(process.cwd(), "supabase/functions/fv-genera-pdf/index.ts"), "utf8");
+    expect(src).toContain("fotoDelBlocco(`/pdf-stock/badge/${file}`)");
+    expect(src).toContain("badge_garanzie: badgeGaranzie,");
+    for (const anteprima of ["src/components/fotovoltaico/FvLivePreviewPanel.tsx", "src/components/fotovoltaico/FvTemplatePreviewDialog.tsx"]) {
+      expect(readFileSync(resolve(process.cwd(), anteprima), "utf8")).toContain("badge_garanzie: typeof window !== \"undefined\" ? badgeGaranzieDalSito(window.location.origin) : null,");
+    }
+  });
+});
+
+// 22/09/2026 — Il preventivo di prova di Demo Azienda 2 (FV-2026-0008, Vimercate,
+// 6,02 kWp con 5 kWh) generato con le funzioni vere: i numeri di una pagina non
+// tornavano con quelli dell'altra, e il contratto usciva senza cliente né importo.
+describe("fotovoltaico PDF — numeri che tornano fra le pagine", () => {
+  const profiloSera = { codice: "sera", autoconsumo_no_accumulo: 0.25, autoconsumo_accumulo_5kwh: 0.55, autoconsumo_accumulo_10kwh: 0.75, autoconsumo_accumulo_15kwh: 0.85 };
+
+  it("autoconsumo con le fasce del calcolo finanziario, per il PDF e per il calcolo", () => {
+    expect(quotaAutoconsumo(profiloSera, 0)).toBe(0.25);
+    expect(quotaAutoconsumo(profiloSera, 5)).toBe(0.55);
+    expect(quotaAutoconsumo(profiloSera, 8)).toBe(0.75);
+    expect(quotaAutoconsumo(profiloSera, 15)).toBe(0.85);
+    expect(quotaAutoconsumo(null, 5)).toBeNull();
+    const calcolo = readFileSync(resolve(process.cwd(), "supabase/functions/fv-calcolo-finanziario/index.ts"), "utf8");
+    expect(calcolo).toContain("quotaAutoconsumo(prof, prog.con_accumulo === false ? 0 : prog.capacita_accumulo_kwh ?? 0)");
+  });
+
+  it("i flussi usano la produzione e la quota del calcolo: 3.633 kWh in casa, come il risparmio", () => {
+    const flussi = calcolaEnergyFlows({
+      potenza_kwp: 6.02, has_accumulo: true, capacita_accumulo_kwh: 5, consumo_annuo_kwh: 4800, ore_sole_annue: 1480,
+      profilo_consumo: "sera", produzione_kwh: 6605.31, autoconsumo_pct: quotaAutoconsumo(profiloSera, 5),
+    });
+    expect(flussi.produzione_kwh).toBe(6605);
+    expect(flussi.autoconsumo_kwh).toBe(3633);
+    expect(Math.round(flussi.autosufficienza_pct * 100)).toBe(76);
+  });
+
+  it("la bolletta prima e dopo somma giusto e torna col risparmio del titolo", () => {
+    const righe = calcolaBollettaPrimaDopo({ consumo_annuo_kwh: 4800, prelievo_rete_kwh: 1167.08, prezzo_kwh: 0.3, ricavi_rid_eur: 297.24 });
+    const voci = righe.filter((r) => !r.is_kwh_row && !r.is_total && r.oggi_eur > 0);
+    const bolletta = righe.find((r) => r.voce === "Totale bolletta")!;
+    expect(voci.reduce((s, r) => s + r.con_fv_eur, 0)).toBe(bolletta.con_fv_eur);
+    expect(voci.reduce((s, r) => s + r.oggi_eur, 0)).toBe(bolletta.oggi_eur);
+    // 1.089,88 € di bolletta (3.632,92 kWh × 0,30) più 297 € dal GSE: 1.387 €, il titolo della pagina.
+    expect(bolletta.risparmio_eur).toBe(-1090);
+    expect(righe[righe.length - 1]).toMatchObject({ voce: "Spesa netta per l'elettricità", risparmio_eur: -1387 });
+    // Oneri e trasporto scendono coi kWh presi dalla rete: prima restavano fissi.
+    expect(righe.find((r) => r.voce === "Oneri di sistema")!.con_fv_eur).toBeLessThan(righe.find((r) => r.voce === "Oneri di sistema")!.oggi_eur);
+  });
+
+  it("il contratto ha il nome del cliente e il prezzo, non il costo né il vuoto", () => {
+    const src = readFileSync(resolve(process.cwd(), "supabase/functions/fv-genera-pdf/index.ts"), "utf8");
+    expect(src).toContain("total: Number(prog.prezzo_vendita_iva_inclusa) || null,");
+    expect(src).not.toContain("total: prog.costo_totale_netto");
+    // Le colonne che il contratto usa ora si leggono.
+    expect(src).toMatch(/\.select\(\s*"id, company_id, numero,[^"]*cliente_nome, cliente_cognome, cliente_email, cliente_telefono/);
+  });
+
+  it("l'indirizzo non si ripete, e la batteria si dice in copertina", () => {
+    const cliente = { nome: "Chiara", cognome: "Brambilla", indirizzo: "Via Garibaldi, 42, 20871 Vimercate MB, Italia", comune: "Vimercate", cap: "20871", provincia: "MB" };
+    expect(indirizzoCompleto(cliente)).toBe("Via Garibaldi, 42, 20871 Vimercate MB");
+    expect(indirizzoCompleto({ ...cliente, indirizzo: "Via Garibaldi 42" })).toBe("Via Garibaldi 42, 20871 Vimercate (MB)");
+    const base = basePdfData();
+    const html = renderFvPdfHtml({ ...base, template: { ...base.template, pdf_cover_subhero_template: "Impianto fotovoltaico {potenza_kwp} {accumulo_kwh} per {indirizzo}." } });
+    expect(html).toMatch(/kWp con accumulo da [\d,]+ kWh per Via Roma 1/);
+  });
+
+  it("niente promesse né previsioni senza fonte", () => {
+    const html = renderFvPdfHtml(basePdfData());
+    for (const frase of ["per sempre.", "puro profitto", "Breakeven", "Solo materiali", "durare 25+ anni", "in crescita del 15-25%", "L'investimento di", "Inflazione attesa: 3%"]) {
+      expect(html).not.toContain(frase);
+    }
+    // «Perché farlo ora» (bollette +240% dal 2012) è spenta di serie.
+    expect(FV_PDF_PAGES_DEFAULT.find((p) => p.id === "bollette_240")?.visible).toBe(false);
+  });
+
+  it("con PVGIS la fonte dei dati non dice due volte «non indicata»", () => {
+    const base = basePdfData();
+    const html = renderFvPdfHtml({ ...base, progetto: { ...base.progetto, fonte_dati_tetto: "pvgis", qualita_dati_tetto: null, imagery_date: null } });
+    expect(html).toContain("irraggiamento medio della tua zona");
+    expect(html).not.toContain("non indicata");
+  });
+});

@@ -1,4 +1,4 @@
-import { memo, useState } from "react";
+import { memo, useState, type ReactNode } from "react";
 import {
   ChevronDown,
   ChevronUp,
@@ -6,6 +6,8 @@ import {
   EyeOff,
   GripVertical,
   Image as ImageIcon,
+  Pencil,
+  Camera,
   RotateCcw,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -34,16 +36,28 @@ import {
   type FvPdfPageMeta,
   type FvPdfPageOrderItem,
 } from "@/lib/fotovoltaico/pdfPages";
+import { EditorBlocco } from "@/components/preventivi/EditorBlocco";
+import { EditorFotoPagina } from "@/components/preventivi/EditorFotoPagina";
+import { bloccoDellaPagina, descrizioneBlocco, type ChiaveFotoPagina } from "../../../supabase/functions/_shared/blocchiPreventivo";
+
+/** Le pagine con una foto loro, cambiabile qui: l'id della pagina e la chiave della foto. */
+const FOTO_DELLE_PAGINE: Record<string, ChiaveFotoPagina> = { garanzie: "garanzie", bollette_240: "bollette", decisione: "decisione", componenti: "componenti", costi_futuri: "costi", cassa_25: "cassa", piano_pagamento: "piano", faq: "faq", risparmio: "risparmio", produzione: "produzione" };
 
 interface Props {
   value: FvPdfPageOrderItem[] | null | undefined;
   onChange: (next: FvPdfPageOrderItem[]) => void;
+  /** Le scelte dell'azienda sui blocchi (`pdf_blocchi`): con `onBlocchi`, i blocchi si modificano qui. */
+  blocchi?: unknown;
+  onBlocchi?: (v: Record<string, unknown>) => void;
+  /** Il campo per caricare la foto di un blocco: quello dell'editor, col suo bucket. */
+  campoFoto?: (valore: string | null, onChange: (url: string | null) => void) => ReactNode;
 }
 
-function FvPagesOrderEditorImpl({ value, onChange }: Props) {
+function FvPagesOrderEditorImpl({ value, onChange, blocchi, onBlocchi, campoFoto }: Props) {
   const items = normalizeFvPdfPagesOrder(value);
   const metaById = new Map(FV_PDF_PAGES_META.map((page) => [page.id, page]));
   const [recentlyMovedId, setRecentlyMovedId] = useState<string | null>(null);
+  const [aperta, setAperta] = useState<string | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -150,6 +164,9 @@ function FvPagesOrderEditorImpl({ value, onChange }: Props) {
             {items.map((item, index) => {
               const meta = metaById.get(item.id);
               if (!meta) return null;
+              const blocco = bloccoDellaPagina(item.id);
+              const modificabile = Boolean(blocco && onBlocchi && campoFoto);
+              const fotoPagina = onBlocchi && campoFoto ? FOTO_DELLE_PAGINE[item.id] ?? null : null;
               return (
                 <SortableFvPageItem
                   key={item.id}
@@ -162,7 +179,29 @@ function FvPagesOrderEditorImpl({ value, onChange }: Props) {
                   onMoveUp={() => moveUp(index)}
                   onMoveDown={() => moveDown(index)}
                   onToggleVisible={() => toggleVisible(index)}
-                />
+                  promessa={blocco ? descrizioneBlocco(blocco).promessa : false}
+                  onModifica={modificabile ? () => setAperta(aperta === item.id ? null : item.id) : undefined}
+                  onFoto={fotoPagina ? () => setAperta(aperta === `foto:${item.id}` ? null : `foto:${item.id}`) : undefined}
+                >
+                  {modificabile && blocco && aperta === item.id && campoFoto ? (
+                    <EditorBlocco
+                      chiave={blocco}
+                      settore="fotovoltaico"
+                      salvati={blocchi}
+                      onSalvati={(nuovi) => onBlocchi?.(nuovi)}
+                      campoFoto={campoFoto}
+                    />
+                  ) : null}
+                  {fotoPagina && aperta === `foto:${item.id}` && campoFoto ? (
+                    <EditorFotoPagina
+                      chiave={fotoPagina}
+                      settore="fotovoltaico"
+                      salvati={blocchi}
+                      onSalvati={(nuovi) => onBlocchi?.(nuovi)}
+                      campoFoto={campoFoto}
+                    />
+                  ) : null}
+                </SortableFvPageItem>
               );
             })}
           </div>
@@ -187,6 +226,10 @@ function SortableFvPageItem({
   onMoveUp,
   onMoveDown,
   onToggleVisible,
+  promessa = false,
+  onModifica,
+  onFoto,
+  children,
 }: {
   item: FvPdfPageOrderItem;
   meta: FvPdfPageMeta;
@@ -197,6 +240,13 @@ function SortableFvPageItem({
   onMoveUp: () => void;
   onMoveDown: () => void;
   onToggleVisible: () => void;
+  /** Un blocco che promette qualcosa al cliente: acceso, chiede di rileggerlo. */
+  promessa?: boolean;
+  /** Apre l'editor del blocco sotto la riga. */
+  onModifica?: () => void;
+  /** Apre la scelta della foto della pagina sotto la riga. */
+  onFoto?: () => void;
+  children?: ReactNode;
 }) {
   const {
     attributes,
@@ -218,11 +268,11 @@ function SortableFvPageItem({
       ref={setNodeRef}
       style={style}
       className={
-        "flex items-center gap-2 rounded-lg border p-2.5 transition-all duration-300 " +
-        (flashing ? "border-emerald-300 bg-emerald-50 ring-2 ring-emerald-300" : "bg-card") +
-        (item.visible ? "" : " opacity-60")
+        "rounded-lg border p-2.5 transition-all duration-300 " +
+        (flashing ? "border-emerald-300 bg-emerald-50 ring-2 ring-emerald-300" : "bg-card")
       }
     >
+    <div className={"flex items-center gap-2" + (item.visible ? "" : " opacity-60")}>
       <button
         type="button"
         {...attributes}
@@ -257,6 +307,11 @@ function SortableFvPageItem({
         <div className="mt-0.5 truncate text-[10px] text-muted-foreground">
           {meta.descrizione}
         </div>
+        {promessa && item.visible ? (
+          <div className="mt-0.5 text-[10px] text-amber-700">
+            Promette qualcosa al cliente: rileggila, e spegnila se non lo fate.
+          </div>
+        ) : null}
       </div>
 
       <div className="flex shrink-0 items-center gap-0.5">
@@ -275,7 +330,33 @@ function SortableFvPageItem({
         >
           {item.visible ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
         </Button>
+        {onModifica ? (
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={onModifica}
+            className="h-7 w-7"
+            aria-label={`Modifica ${meta.label}`}
+            title="Testi, voci e foto di questa pagina"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </Button>
+        ) : null}
+        {onFoto ? (
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={onFoto}
+            className="h-7 w-7"
+            aria-label={`Foto di ${meta.label}`}
+            title="La foto di questa pagina"
+          >
+            <Camera className="h-3.5 w-3.5" />
+          </Button>
+        ) : null}
       </div>
+    </div>
+    {children}
     </div>
   );
 }

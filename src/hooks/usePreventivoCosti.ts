@@ -106,7 +106,18 @@ export function calcolaTotaliPreventivo(
   }>,
   overhead_pct: number,
   /** Sconto globale sul preventivo (%) — usato per calcolare il margine reale */
-  discount_global_pct = 0
+  discount_global_pct = 0,
+  /**
+   * Prezzo pieno scritto a mano, IVA esclusa: prende il posto della somma
+   * delle righe (chi usa il builder per il documento ma non carica i prezzi).
+   * Sconto globale e IVA lavorano sopra come sempre. Null/0 = somma righe.
+   */
+  prezzo_manuale?: number | null,
+  /**
+   * Aliquota IVA usata SOLO col prezzo scritto a mano: qui l'IVA è per riga
+   * (aliquote miste), e con le righe a 0€ non c'è niente da ripartire.
+   */
+  prezzo_manuale_iva_pct?: number | null
 ): {
   subtotale: number;
   subtotale_netto: number;
@@ -115,18 +126,22 @@ export function calcolaTotaliPreventivo(
   costo_totale: number;
   overhead_totale: number;
   margine_totale_pct: number;
+  /** Somma delle righe, sempre calcolata (anche col prezzo scritto a mano attivo). */
+  somma_voci: number;
+  /** true se il prezzo scritto a mano è attivo e ha preso il posto della somma delle righe. */
+  prezzo_manuale: boolean;
 } {
   // Skip optional items from totals
   const activeItems = items.filter((i) => !i.is_optional);
 
-  let subtotale = 0;
+  let sommaVociRaw = 0;
   let costo_totale = 0;
   const iva_breakdown: Record<string, number> = {};
 
   for (const it of activeItems) {
     const imponibile =
       it.quantity * it.unit_price * (1 - (it.discount_percent || 0) / 100);
-    subtotale += imponibile;
+    sommaVociRaw += imponibile;
 
     const vatKey = String(it.vat_rate ?? 22);
     iva_breakdown[vatKey] = (iva_breakdown[vatKey] || 0) + imponibile * ((it.vat_rate ?? 22) / 100);
@@ -135,26 +150,41 @@ export function calcolaTotaliPreventivo(
     costo_totale += pa;
   }
 
+  const somma_voci = round2(sommaVociRaw);
+  const manuale = Number(prezzo_manuale ?? 0);
+  const prezzoManualeAttivo = Number.isFinite(manuale) && manuale > 0;
+  const subtotale = prezzoManualeAttivo ? manuale : sommaVociRaw;
+
   // subtotale_netto = ricavo reale dopo sconto globale preventivo
   const subtotale_netto = round2(subtotale * (1 - discount_global_pct / 100));
 
   const overhead_totale = round2(costo_totale * (overhead_pct / 100));
   const vatFactor = 1 - discount_global_pct / 100;
-  // IVA PER ALIQUOTA arrotondata al centesimo, POI sommata (standard fiscale
-  // italiano: l'imposta si calcola e arrotonda per singola aliquota). Il
-  // totale IVA è così ESATTO e coincide con la somma delle righe mostrate nel
-  // PDF/UI. Il vecchio round-of-sum (Σ raw, poi un solo arrotondamento)
-  // divergeva di ±1 cent sui preventivi multi-aliquota → footing rotto.
-  const iva_breakdown_netto: Record<string, number> = {};
-  for (const [k, v] of Object.entries(iva_breakdown)) {
-    iva_breakdown_netto[k] = round2(v * vatFactor);
+  let iva_breakdown_netto: Record<string, number>;
+  if (prezzoManualeAttivo) {
+    // Un'unica aliquota esplicita sul netto: con le righe a 0€ non c'è niente
+    // da ripartire per aliquota come nel ramo sotto.
+    const ivaPct = Number(prezzo_manuale_iva_pct ?? 0);
+    iva_breakdown_netto = { [String(ivaPct)]: round2(subtotale_netto * (Number.isFinite(ivaPct) ? ivaPct : 0) / 100) };
+  } else {
+    // IVA PER ALIQUOTA arrotondata al centesimo, POI sommata (standard fiscale
+    // italiano: l'imposta si calcola e arrotonda per singola aliquota). Il
+    // totale IVA è così ESATTO e coincide con la somma delle righe mostrate nel
+    // PDF/UI. Il vecchio round-of-sum (Σ raw, poi un solo arrotondamento)
+    // divergeva di ±1 cent sui preventivi multi-aliquota → footing rotto.
+    iva_breakdown_netto = {};
+    for (const [k, v] of Object.entries(iva_breakdown)) {
+      iva_breakdown_netto[k] = round2(v * vatFactor);
+    }
   }
   const vatAmount = round2(
     Object.values(iva_breakdown_netto).reduce((s, v) => s + v, 0)
   );
   const totale = round2(subtotale_netto + vatAmount);
 
-  // Il margine è calcolato sul ricavo netto effettivo (post-sconto globale)
+  // Il margine è calcolato sul ricavo netto effettivo (post-sconto globale);
+  // i costi sono sempre quelli reali delle righe, anche a prezzo scritto a
+  // mano — così il margine resta un numero vero e non "100% perché è gratis".
   const margine_totale_pct =
     subtotale_netto > 0
       ? round2(((subtotale_netto - costo_totale - overhead_totale) / subtotale_netto) * 100)
@@ -168,6 +198,8 @@ export function calcolaTotaliPreventivo(
     costo_totale: round2(costo_totale),
     overhead_totale,
     margine_totale_pct,
+    somma_voci,
+    prezzo_manuale: prezzoManualeAttivo,
   };
 }
 

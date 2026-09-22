@@ -39,6 +39,16 @@ import { inchiostroSuBianco, testoSopra } from "@/lib/pdf/contrastoColori";
 import { coloreDelDocumento, fondoPerTestoBianco, scurisci, testoSuChiaro, testoSuScuro } from "../../../supabase/functions/_shared/temaColori";
 import { clausoleDaApprovare, condizioniStandard, MODULO_RECESSO, perArticoli, righeDaStampare, righeDelleCondizioni } from "../../../supabase/functions/_shared/condizioniStandard";
 import { testiPerPdf } from "../../../supabase/functions/_shared/testoPerPdf";
+import { leggiBlocco, PAGINE_BLOCCO, type ContenutoBlocco, type PaginaBlocco } from "../../../supabase/functions/_shared/blocchiPreventivo";
+import { IconaPdf } from "@/components/preventivi/pdf/IconaPdf";
+import { spezzaAccento } from "@/components/preventivi/pdf/testoDocumento";
+import { fotoPaginaPerIlPdf, fotoPerIlPdf, type FotoBloccoPronta } from "@/lib/pdf/fotoBlocchi";
+import { proporzioniImmagine } from "@/lib/pdf/proporzioniImmagine";
+import { altezzaTesto, larghezzaTesto, testoDaHtml } from "@/components/preventivi/pdf/misuraTesto";
+import {
+  ALTEZZA_UTILE, FOTO_IN_FONDO_MINIMA, UTILE_PAGINA, altezzaGrafico, pezziAllegato, pezziCta, pezziDettagli, pezziProposta,
+  spazioInFondo, type DatiDettagli, type RigaAllegato,
+} from "@/components/serramenti/impaginaSerramento";
 import type {
   SerramentoPdfConsulente, SerramentoPdfFamilyData,
   SerramentoPdfMacroField, SerramentoPdfMacroPagina,
@@ -403,26 +413,7 @@ function makeStyles(C: ReturnType<typeof makePalette>) {
     priceExtraValue: { fontSize: 14, color: C.ink, fontWeight: 800 },
     priceExtraSub: { fontSize: 7.5, color: C.ink, marginTop: 1 },
 
-    // Milestone 8: mini-tabella ecobonus 10 anni
-    // Layout: 5 colonne × 2 righe. Ogni cella ha "Anno N" + quota + cumulato.
-    ecobonusTable: {
-      flexDirection: "row",
-      flexWrap: "wrap" as const,
-      marginTop: 8,
-      gap: 4,
-    },
-    ecobonusCell: {
-      width: "19%" as const,    // 5 colonne → 100/5 - gap visual ~ 19%
-      backgroundColor: C.white,
-      borderRadius: 4,
-      paddingVertical: 6,
-      paddingHorizontal: 4,
-      alignItems: "center",
-      borderLeft: `2pt solid ${C.successText}`,
-    },
-    ecobonusCellYear: { fontSize: 7, color: C.gray500, fontWeight: 700, textTransform: "uppercase" as const },
-    ecobonusCellAmount: { fontSize: 9, color: C.successText, fontWeight: 700, marginTop: 1 },
-    ecobonusCellCum: { fontSize: 6.5, color: C.gray500, marginTop: 1 },
+    // Milestone 8: la tabella ecobonus 10 anni è una TabellaAnni (anni in colonna).
     ecobonusFootnote: { fontSize: 7.5, color: C.gray500, marginTop: 8, fontStyle: "italic" as const },
 
     // Pay schema tag
@@ -749,7 +740,7 @@ function makeStyles(C: ReturnType<typeof makePalette>) {
 
     // Percorso cliente — step cards
     percorsoBigNumber: {
-      fontSize: 86, fontWeight: 800, color: C.ink,
+      fontSize: 72, fontWeight: 800, color: C.ink,
       textAlign: "center" as const, lineHeight: 1.0,
     },
     percorsoBadge: {
@@ -1402,16 +1393,21 @@ function GaranziaIconSvg({ kind, color }: { kind: string; color: string }) {
 
 // ─── SVG: Cashflow 10 anni ─────────────────────────────────────────────────
 
-function CashflowSvg({ years, primary, breakEvenColor = "#15803D" }: {
+function CashflowSvg({ years, primary, breakEvenColor = "#15803D", altezza = 180, colonnaEtichette }: {
   years: Array<{ year: number; cumulato: number }>;
   primary: string;
   breakEvenColor?: string;
+  altezza?: number;
+  /** Con la tabella degli anni sotto (TabellaAnni): ogni punto cade al centro della colonna del suo anno. */
+  colonnaEtichette?: number;
 }) {
   if (years.length === 0) return null;
   const W = 520;
-  const H = 180;
-  const padL = 50;   // più spazio a sx per label Y
-  const padR = 16;
+  const H = altezza;
+  // Il disegno è largo quanto la pagina utile: un'unità del disegno vale UTILE_PAGINA / W punti.
+  const colonna = colonnaEtichette != null ? (UTILE_PAGINA - colonnaEtichette) / years.length : null;
+  const padL = colonna != null ? ((colonnaEtichette ?? 0) + colonna / 2) * (W / UTILE_PAGINA) : 50;   // più spazio a sx per label Y
+  const padR = colonna != null ? (colonna / 2) * (W / UTILE_PAGINA) : 16;
   const padT = 18;
   const padB = 28;   // spazio per label X (A1..A10)
   const chartW = W - padL - padR;
@@ -1527,6 +1523,64 @@ function CashflowSvg({ years, primary, breakEvenColor = "#15803D" }: {
   );
 }
 
+/**
+ * Una foto che riempie il fondo dell'ultima pagina di una sezione, qualunque sia
+ * lo spazio rimasto. react-pdf chiama `render` due volte: mentre decide dove
+ * vanno a capo le pagine (senza sottopagina: qui la foto non c'è, non occupa
+ * posto e non sposta niente) e a pagine già fatte, una volta per foglio. In
+ * quel secondo giro esce solo sull'ultimo foglio della sezione e si allarga
+ * (flexGrow) fino al piè: l'impaginazione è già decisa, niente può più andare a
+ * capo. `fixed` perché react-pdf non apra un foglio nuovo solo per lei.
+ * `mostra` riceve quanti fogli ha davvero la sezione e decide se la foto serve.
+ */
+function FotoInFondo({ src, mostra }: { src: string; mostra: (fogli: number) => boolean }) {
+  return (
+    <View
+      fixed
+      style={{ flexGrow: 1 }}
+      render={(fogli) => {
+        // react-pdf passa anche subPageTotalPages (layout, resolvePageIndices), ma i suoi tipi non lo dicono.
+        const { subPageNumber, subPageTotalPages } = fogli as { subPageNumber?: number; subPageTotalPages?: number };
+        return subPageNumber != null && subPageTotalPages != null && subPageNumber === subPageTotalPages && mostra(subPageTotalPages)
+          ? <Image src={src} style={{ flexGrow: 1, flexBasis: 0, marginTop: 18, width: "100%", objectFit: "cover", borderRadius: 6 }} />
+          : null;
+      }}
+    />
+  );
+}
+
+/** La colonna dei nomi nelle tabelle con gli anni in colonna (TabellaAnni, CashflowSvg). */
+const ETICHETTE_ANNI = 64;
+
+/**
+ * Una tabella con gli anni in colonna: tre righe basse invece di dieci righe
+ * alte, e sotto il grafico ogni valore sta sotto il suo punto. Le celle sono
+ * larghe (UTILE_PAGINA - ETICHETTE_ANNI) / anni: «-€ 12.345» a 7,8 punti ci sta.
+ */
+function TabellaAnni({ righe, C, corpo = 7.8 }: {
+  righe: Array<{ nome: string; celle: Array<{ testo: string; forte?: boolean; colore?: string; sfondo?: string }> }>;
+  C: ReturnType<typeof makePalette>;
+  /** Il corpo dei valori: più piccolo quando un importo supera le nove cifre e segni. */
+  corpo?: number;
+}) {
+  return (
+    <View>
+      {righe.map((r, ri) => (
+        <View key={ri} style={{ flexDirection: "row", borderBottom: `0.5pt solid ${C.gray100}` }} wrap={false}>
+          <View style={{ width: ETICHETTE_ANNI, paddingVertical: 4 }}>
+            <Text style={{ fontSize: 7, color: C.gray500, fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: 0.4 }}>{r.nome}</Text>
+          </View>
+          {r.celle.map((c, ci) => (
+            <View key={ci} style={{ flex: 1, alignItems: "center", paddingVertical: 4, backgroundColor: c.sfondo ?? "transparent" }}>
+              <Text style={{ fontSize: corpo, fontWeight: c.forte ? 700 : 400, color: c.colore ?? C.gray700 }}>{c.testo}</Text>
+            </View>
+          ))}
+        </View>
+      ))}
+    </View>
+  );
+}
+
 // ─── Subcomponenti ─────────────────────────────────────────────────────────
 
 function PageHeader({ code, clienteNome, companyName, logoUrl, primaryColor, styles }: {
@@ -1556,6 +1610,146 @@ function PageHeader({ code, clienteNome, companyName, logoUrl, primaryColor, sty
         <Text style={styles.headerStimaCode}>{code}</Text>
       </View>
     </View>
+  );
+}
+
+// ─── I blocchi della libreria: come è fatto un serramento, protezione… ───────
+// Testi e foto di serie per i serramenti (_shared/blocchiPreventivo.ts), con
+// sopra quello che l'azienda ha cambiato. Stesso disegno del documento edile:
+// una o due foto, poi le voci con l'icona in un cerchio del colore dell'azienda.
+
+
+/** Quante righe di badge (certificazioni) in una riga larga `larghezza`, a capo come flexWrap. */
+function righeDiBadge(nomi: string[], larghezza: number, corpo: number, gap: number, cornice: number): number {
+  let righe = nomi.length > 0 ? 1 : 0;
+  let x = 0;
+  for (const nome of nomi) {
+    const w = larghezzaTesto(nome, "Helvetica-Bold", corpo) + cornice;
+    if (x > 0 && x + gap + w > larghezza) { righe += 1; x = w; } else x += (x > 0 ? gap : 0) + w;
+  }
+  return righe;
+}
+
+/**
+ * La foto di «Chi siamo». Era alta 240 punti fissi e «contenuta» in un riquadro
+ * grigio: una foto orizzontale usciva con due bande grigie ai lati, e con un
+ * testo breve sotto restavano 8 cm bianchi. Ora una foto orizzontale riempie la
+ * larghezza e scende quanto serve a riempire la pagina (ritaglia un po' i lati);
+ * una verticale si vede intera come prima, un banner largo intero e senza bande.
+ * Testo misurato coi caratteri veri (misuraTesto), con un margine di sicurezza:
+ * se la stima sbaglia, la pagina resta un po' bianca, non va a capo.
+ */
+function fotoChiSiamo(src: string, titolo: string, testo: string | null, certificazioni: string[]): { altezza: number; ritaglia: boolean } {
+  const proporzione = proporzioniImmagine(src) ?? 1.5;
+  if (proporzione < 1.1) return { altezza: 240, ritaglia: false };
+  if (proporzione > 2.3) return { altezza: Math.round(UTILE_PAGINA / proporzione), ritaglia: false };
+  const occhiello = 9 * 1.2 + 6;
+  const intestazione = altezzaTesto(titolo, UTILE_PAGINA, "Helvetica-Bold", 22, 1.05) + 12;
+  let corpo = 0;
+  if (testo) {
+    if (isLikelyHtml(testo)) {
+      for (const paragrafo of testoDaHtml(testo).split("\n").filter((t) => t.trim())) {
+        corpo += altezzaTesto(paragrafo, UTILE_PAGINA - 10, "Helvetica", 10, 1.5) + 6;
+      }
+    } else {
+      for (const paragrafo of testo.split(/\n\n+/)) {
+        const righe = paragrafo.split("\n").map((l) => l.trim()).filter(Boolean);
+        if (righe.length > 0 && righe.every((l) => l.startsWith("- ") || l.startsWith("• "))) {
+          corpo += 8 + righe.reduce((acc, l) => acc + altezzaTesto(l, UTILE_PAGINA - 14, "Helvetica", 10, 1.55) + 10, 0);
+        } else {
+          corpo += altezzaTesto(paragrafo, UTILE_PAGINA, "Helvetica", 10, 1.5) + 8;
+        }
+      }
+    }
+  }
+  const nomi = certificazioni.slice(0, 6);
+  const righeCert = righeDiBadge(nomi, UTILE_PAGINA, 8.5, 8, 17);
+  const cert = righeCert > 0 ? 24.5 + righeCert * (8.5 * 1.2 + 9) + (righeCert - 1) * 8 : 0;
+  const libera = ALTEZZA_UTILE - occhiello - intestazione - 14 - corpo - cert - 16;
+  return { altezza: Math.max(240, Math.min(420, Math.floor(libera))), ritaglia: true };
+}
+
+/**
+ * L'altezza delle foto di un blocco perché il blocco riempia la sua pagina: due
+ * blocchi con le foto non stanno mai in una pagina, e ognuno lasciava 4-8 cm
+ * bianchi. La pagina utile (~655 punti tra intestazione e piè) meno occhiello,
+ * titolo, introduzione, voci e nota, stimati per eccesso dal numero di caratteri.
+ * Niente flexGrow: accanto a un elemento che si allarga il motore misura male i
+ * titoli su più righe. Due foto affiancate restano più basse (sennò sarebbero strette e alte).
+ */
+function altezzaFotoBlocco(blocco: ContenutoBlocco, quanteFoto: number): number {
+  const righe = (testo: string, perRiga: number) => Math.max(1, Math.ceil(testo.length / perRiga));
+  const titolo = righe(blocco.titolo.replace(/\*/g, ""), 32) * 26 * 1.05 + 6;
+  const intro = blocco.intro ? righe(blocco.intro, 84) * 10.5 * 1.45 + 14 : 0;
+  const colonne = blocco.voci.some((v) => v.testo) ? 2 : 3;
+  let voci = 0;
+  for (let i = 0; i < blocco.voci.length; i += colonne) {
+    const riga = blocco.voci.slice(i, i + colonne);
+    const alta = Math.max(26, ...riga.map((v) => colonne === 2
+      ? 1 + righe(v.titolo, 33) * 10.5 * 1.3 + (v.testo ? 2 + righe(v.testo, 41) * 9.2 * 1.45 : 0)
+      : 7 + righe(v.titolo, 19) * 10.5 * 1.3));
+    voci += alta + (colonne === 2 ? 16 : 11);
+  }
+  const altezza = 655 - 15 - titolo - intro - voci - (blocco.nota ? 12 : 0) - 16 - 16;
+  return Math.max(150, Math.min(quanteFoto > 1 ? 300 : 380, Math.floor(altezza)));
+}
+
+function SezioneBlocco({ blocco, foto, C, styles }: {
+  blocco: ContenutoBlocco;
+  foto: FotoBloccoPronta[];
+  C: ReturnType<typeof makePalette>;
+  styles: ReturnType<typeof makeStyles>;
+}) {
+  const due = foto.length > 1;
+  const mezza = (UTILE_PAGINA - 10) / 2;
+  // Con una spiegazione le voci stanno su due colonne; solo titoli, su tre.
+  const colonne = blocco.voci.some((x) => x.testo) ? 2 : 3;
+  const spazio = 14;
+  const larghezza = (UTILE_PAGINA - spazio * (colonne - 1)) / colonne;
+  const righe: ContenutoBlocco["voci"][] = [];
+  for (let i = 0; i < blocco.voci.length; i += colonne) righe.push(blocco.voci.slice(i, i + colonne));
+  return (
+    <>
+      <View minPresenceAhead={140}>
+        <Text style={styles.pageEyebrow}>{blocco.occhiello}</Text>
+        <Text style={[styles.pageTitle, { fontSize: 26, marginBottom: 6 }]}>
+          {spezzaAccento(blocco.titolo).map((pezzo, i) => (
+            pezzo.accento
+              ? <Text key={i} style={{ color: C.ink, fontStyle: "italic" as const }}>{pezzo.testo}</Text>
+              : <Text key={i}>{pezzo.testo}</Text>
+          ))}
+        </Text>
+        {blocco.intro ? <Text style={[styles.pageSubtitle, { fontSize: 10.5, marginBottom: 14 }]}>{blocco.intro}</Text> : null}
+      </View>
+      {foto.length > 0 ? (
+        <View wrap={false} style={{ marginBottom: 16 }}>
+          <View style={{ flexDirection: "row" }}>
+            {foto.slice(0, 2).map((f, i) => (
+              // In Serramenti un blocco ha di solito la pagina per sé: foto grandi, niente mezza pagina bianca.
+              <Image key={i} src={f.src} style={{ width: due ? mezza : UTILE_PAGINA, height: altezzaFotoBlocco(blocco, foto.length), objectFit: "cover", borderRadius: 6, marginLeft: i === 0 ? 0 : 10 }} />
+            ))}
+          </View>
+          {blocco.nota && foto.some((f) => f.diSerie) ? (
+            <Text style={{ fontSize: 7, color: C.gray500, marginTop: 5 }}>{blocco.nota}</Text>
+          ) : null}
+        </View>
+      ) : null}
+      {righe.map((riga, r) => (
+        <View key={r} wrap={false} style={{ flexDirection: "row", marginBottom: colonne === 2 ? 16 : 11 }}>
+          {riga.map((x, i) => (
+            <View key={i} style={{ width: larghezza, marginLeft: i === 0 ? 0 : spazio, flexDirection: "row" }}>
+              <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: C.primaryLight, alignItems: "center", justifyContent: "center", marginRight: 9 }}>
+                {x.icona ? <IconaPdf nome={x.icona} colore={C.ink} lato={13} /> : null}
+              </View>
+              <View style={{ flex: 1, paddingTop: x.testo ? 1 : 7 }}>
+                <Text style={{ fontSize: 10.5, fontWeight: 700, color: C.gray900, lineHeight: 1.3 }}>{x.titolo}</Text>
+                {x.testo ? <Text style={{ fontSize: 9.2, color: C.gray700, marginTop: 2, lineHeight: 1.45 }}>{x.testo}</Text> : null}
+              </View>
+            </View>
+          ))}
+        </View>
+      ))}
+    </>
   );
 }
 
@@ -2268,6 +2462,14 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
   // normalizePdfPagesOrder garantisce robustezza: aggiunge pagine nuove
   // mancanti, rimuove ID legacy, forza visible=true sulle obbligatorie.
 
+  // ─── Le foto delle pagine: percorso, confronto, pagina finale ───────────────
+  // Di serie per i serramenti (storie di famiglia, termocamera), l'azienda le
+  // cambia o le toglie dall'ordine delle pagine. Riempiono lo spazio che quelle
+  // pagine lasciavano bianco.
+  const fotoPercorso = fotoPaginaPerIlPdf(tpl.pdf_pagine_foto, "percorso", "serramenti", tpl.pdf_blocchi);
+  const fotoConfronto = fotoPaginaPerIlPdf(tpl.pdf_pagine_foto, "confronto", "serramenti", tpl.pdf_blocchi);
+  const fotoCta = fotoPaginaPerIlPdf(tpl.pdf_pagine_foto, "cta", "serramenti", tpl.pdf_blocchi);
+
   // ─── Le sezioni brevi: quando stanno una dopo l'altra condividono le pagine ──
   // Garanzie, confronto, domande e i nostri lavori aprivano ciascuna un foglio:
   // con poche garanzie o poche domande restava mezza pagina bianca. Consecutive
@@ -2304,6 +2506,9 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                   Un confronto semplice tra la situazione attuale e la soluzione proposta.
                 </Text>
 </View>
+                {fotoConfronto ? (
+                  <Image src={fotoConfronto} style={{ width: "100%", height: 190, objectFit: "cover", borderRadius: 6, marginBottom: 4 }} />
+                ) : null}
                 {/* Header tabella */}
                 <View style={{ flexDirection: "row", paddingVertical: 8, borderBottom: `1pt solid ${C.gray300}`, marginTop: 16 }}>
                   <View style={{ flex: 2 }}>
@@ -2337,8 +2542,9 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                   </View>
                 ))}
                 <Text style={{ fontSize: 8.5, color: C.gray500, marginTop: 14, fontStyle: "italic" }}>
-                  Valori indicativi, da confermare con rilievo tecnico e schede prodotto definitive.
-                  Quando non personalizzati nel template, i dati rappresentano benchmark medi di settore.
+                  {confrontoRigheRaw.length > 0
+                    ? "Valori indicativi, da confermare con il rilievo tecnico e le schede dei prodotti scelti."
+                    : "Valori medi del settore, indicativi: si confermano con il rilievo tecnico e le schede dei prodotti scelti."}
                 </Text>
       </>
     ) : null,
@@ -2379,11 +2585,113 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
       </>
     ) : null,
   };
+  // I blocchi: consecutivi fra loro o con garanzie e domande, scorrono insieme
+  // come le altre sezioni brevi. Un blocco senza voci né foto non esce.
+  const PAGINE_DEI_BLOCCHI = Object.keys(PAGINE_BLOCCO) as PaginaBlocco[];
+  for (const id of PAGINE_DEI_BLOCCHI) {
+    const chiave = PAGINE_BLOCCO[id];
+    const blocco = leggiBlocco(chiave, "serramenti", tpl.pdf_blocchi);
+    const foto = fotoPerIlPdf(tpl.pdf_blocchi_foto, chiave, blocco.foto);
+    scorrevoli[id] = blocco.voci.length > 0 || foto.length > 0
+      ? <SezioneBlocco blocco={blocco} foto={foto} C={C} styles={styles} />
+      : null;
+  }
   const SCORREVOLI = new Set(Object.keys(scorrevoli));
 
   const pdfPagesOrder = normalizePdfPagesOrder(
     (tpl.pdf_pages_order ?? null) as SrPdfPageOrderItem[] | null,
   );
+
+  // Le foto che riempiono il fondo di proposta, allegato e dettagli economici:
+  // mai una già usata nel documento (copertina, chi siamo, blocchi, pagine).
+  const fotoUsate = new Set<string>([coverImageUrl, chiSiamoFotoUrl, fotoPercorso, fotoConfronto, fotoCta].filter((f): f is string => Boolean(f)));
+  for (const pg of pdfPagesOrder) {
+    const chiave = pg.visible ? PAGINE_BLOCCO[pg.id as PaginaBlocco] : undefined;
+    if (!chiave) continue;
+    for (const f of fotoPerIlPdf(tpl.pdf_blocchi_foto, chiave, leggiBlocco(chiave, "serramenti", tpl.pdf_blocchi).foto)) fotoUsate.add(f.src);
+  }
+  const fotoLibera = (chiave: "proposta" | "allegato" | "dettagli"): string | null => {
+    const src = fotoPaginaPerIlPdf(tpl.pdf_pagine_foto, chiave, "serramenti", tpl.pdf_blocchi);
+    if (!src || fotoUsate.has(src)) return null;
+    fotoUsate.add(src);
+    return src;
+  };
+  const fotoProposta = fotoLibera("proposta");
+  const fotoAllegato = fotoLibera("allegato");
+  const fotoDettagli = fotoLibera("dettagli");
+
+  // Quanto occupano le sezioni che possono finire a metà foglio (vedi impaginaSerramento).
+  const pezziDellaProposta = pezziProposta({
+    titolo: `Per ${p.cliente_nome ?? clienteNome}`,
+    sottotitolo: [p.cantiere_citta || p.cliente_citta, `${numSerr} serramenti`, p.tipo_intervento].filter(Boolean).join(" · "),
+    righeAnagrafica: [
+      clienteNome,
+      p.cliente_indirizzo,
+      [p.cliente_cap, p.cliente_citta, p.cliente_provincia ? `(${p.cliente_provincia})` : null].filter(Boolean).join(" ") || null,
+      p.cliente_telefono,
+      p.cliente_email,
+      p.cantiere_indirizzo && p.cantiere_indirizzo !== p.cliente_indirizzo ? rigaCantiere(p) : null,
+    ].filter((r): r is string => Boolean(r)),
+    sintesi,
+    esigenze: esigenze.slice(0, 3),
+    soluzione: soluzione.slice(0, 4),
+    percheTitolo: percheNoi.length > 0 || percheNoiMetriche.length > 0 ? `Perché ${companyName}` : null,
+    metriche: percheNoiMetriche.map((m) => ({ label: String(m.label ?? "") })),
+    perche: percheNoi.slice(0, 5).map((it) => (typeof it === "string" ? { titolo: it } : it)),
+    consulente: {
+      descrizione: consulenteDescrizione || null,
+      contatti: [consulente?.telefono, consulente?.email].filter(Boolean).join(" · "),
+      appuntamento: Boolean(p.consulenza_at),
+    },
+  });
+  // Titolo e sottotitolo dei dettagli economici dicono solo quello che la pagina
+  // contiene: con la sola detrazione promettevano «inclusioni» e «ciò che è compreso».
+  const vociDettagli = [
+    hasTaxDeduction ? "la detrazione fiscale" : null,
+    cashflowYears.length > 0 ? "il recupero negli anni" : null,
+    hasMonthlyRateBalance ? "la rata del finanziamento" : null,
+    incluso.length > 0 ? "cosa è compreso" : null,
+    bonus.length > 0 ? "gli omaggi" : null,
+  ].filter(Boolean) as string[];
+  const elencoDettagli = vociDettagli.length > 1 ? `${vociDettagli.slice(0, -1).join(", ")} e ${vociDettagli[vociDettagli.length - 1]}` : vociDettagli[0] ?? "";
+  const haRecuperi = hasTaxDeduction || cashflowYears.length > 0 || hasMonthlyRateBalance;
+  const haInclusioni = incluso.length > 0 || bonus.length > 0;
+  const datiDettagli: DatiDettagli = {
+    titolo: haRecuperi && haInclusioni ? "Valore, recuperi e inclusioni." : haRecuperi ? "Valore e recuperi." : "Valore e inclusioni.",
+    sottotitolo: `Un riepilogo ordinato per leggere con chiarezza ${elencoDettagli}.`,
+    detrazione: hasTaxDeduction ? { tabella: mostraTabellaEcobonus && Number(p.detrazione_eur_anno ?? 0) > 0 } : null,
+    // Risparmio e detrazione sono uguali ogni anno: si dicono una volta qui, e la
+    // tabella sotto il grafico tiene solo quello che cambia.
+    recupero: cashflowYears.length > 0
+      ? {
+        didascalia: (haRisparmioBolletta
+          ? `Ogni anno € ${fmtEuro(Number(p.risparmio_eur_anno ?? 0))} di risparmio in bolletta e € ${fmtEuro(Number(p.detrazione_eur_anno ?? 0))} di detrazione: il saldo parte dalla spesa iniziale e risale anno dopo anno.`
+          : `Ogni anno € ${fmtEuro(Number(p.detrazione_eur_anno ?? 0))} di detrazione: il saldo parte dalla spesa iniziale e risale anno dopo anno.`)
+          + (annoPareggio !== null ? " La linea tratteggiata segna l'anno in cui la spesa è ripagata." : ""),
+        pareggio: annoPareggio !== null,
+      }
+      : null,
+    rate: hasMonthlyRateBalance,
+    incluso: incluso.slice(0, 6).map((it) => (typeof it === "string" ? { titolo: it } : it)),
+    regali: bonus.map((b) => ({ titolo: b.titolo, valore: Number(b.valore_eur) > 0 })),
+    totaleRegali: bonus.filter((b) => Number(b.valore_eur) > 0).length >= 2,
+  };
+  const graficoRecupero = altezzaGrafico(datiDettagli);
+  const pezziDeiDettagli = pezziDettagli(datiDettagli, graficoRecupero);
+  const pezziDellaCta = pezziCta({
+    titoloRiquadro: ctaTitle,
+    passi: ctaSteps.slice(0, 5),
+    firmaOnline: Boolean(publicUrl && tpl.pdf_mostra_firma_online === true),
+    note: p.note_cliente && p.note_cliente.trim().length > 0 ? p.note_cliente : null,
+    recensioni: recensioniAttivo
+      ? testimonianze.slice(0, 3).map((t) => ({ testo: t.quote, autore: [t.autore, t.citta, t.intervento].filter(Boolean).join(" · ") }))
+      : [],
+    piede: brandFooterAttivo && brandFooterTesto && !condizioniLegaliTesto ? brandFooterTesto : null,
+  });
+  // Le righe dell'allegato si misurano mentre si disegnano (i dati di ogni riga
+  // si calcolano lì): la foto in fondo le legge a pagine fatte, quando sono tutte.
+  const righeAllegato: RigaAllegato[] = [];
+  const accessoriAllegato: Array<{ descrizione: string; scelte: string | null }> = [];
 
   return (
     <Document
@@ -2582,15 +2890,17 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                     spesso ha titoli lunghi tipo "Da oltre 20 Anni al fianco delle
                     Famiglie Italiane", a 28pt occuperebbero 3 righe. */}
                 <Text style={[styles.pageTitle, { fontSize: 22, marginBottom: 12 }]}>{chiSiamoTitolo}</Text>
-                {chiSiamoFotoUrl ? (
-                  <View style={styles.chiSiamoHeroWrap}>
-                    <Image
-                      src={chiSiamoFotoUrl}
-                      style={styles.chiSiamoHero}
-                     
-                    />
-                  </View>
-                ) : null}
+                {chiSiamoFotoUrl ? (() => {
+                  const foto = fotoChiSiamo(chiSiamoFotoUrl, chiSiamoTitolo, chiSiamoTesto, certificazioni.map((c) => c.nome));
+                  return (
+                    <View style={[styles.chiSiamoHeroWrap, { height: foto.altezza }]}>
+                      <Image
+                        src={chiSiamoFotoUrl}
+                        style={[styles.chiSiamoHero, { height: foto.altezza }, foto.ritaglia ? { objectFit: "cover" as const } : {}]}
+                      />
+                    </View>
+                  );
+                })() : null}
                 {chiSiamoTesto && (
                   <View>
                     {isLikelyHtml(chiSiamoTesto)
@@ -2784,6 +3094,8 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
               </View>
               </View>
 
+              {fotoProposta ? <FotoInFondo src={fotoProposta} mostra={(fogli) => spazioInFondo(pezziDellaProposta, fogli) >= FOTO_IN_FONDO_MINIMA} /> : null}
+
               <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
             </Page>
             </>
@@ -2880,6 +3192,21 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                   // prodotti — feedback utente esplicito). Se famiglia non
                   // ha foto → placeholder SVG.
                   const prodottoImageUrl = family?.immagine_url || null;
+                  righeAllegato.push({
+                    macro: macroNomeRow,
+                    titolo: [titoloConLinea(titolo, scheda.linea), g.ambiente ? ` · ${g.ambiente}` : "", g.is_omaggio ? "  IN OMAGGIO " : "", g.posa_esclusa ? "  SOLO FORNITURA " : ""].join(""),
+                    datiPrincipali: [dimensioni, materialeFromFamily(family) ?? (g.materiale !== "—" ? g.materiale : null), g.serie].filter(Boolean).join(" · "),
+                    fornitore: supplierLabel ? `Linea fornitore: ${supplierLabel}` : null,
+                    colori: scheda.coloreInterno || scheda.coloreEsterno
+                      ? [scheda.coloreInterno ? `Colore interno: ${scheda.coloreInterno}` : null, scheda.coloreEsterno ? `Colore esterno: ${scheda.coloreEsterno}` : null].filter(Boolean).join("  ·  ")
+                      : null,
+                    tecnica: rigaTecnica || null,
+                    descrizioneTecnica: techDesc,
+                    soloFornitura: Boolean(g.posa_esclusa),
+                    schede: specs.slice(0, 8).map((sp) => `${sp.label}: ${sp.value}${sp.unit ? ` ${sp.unit}` : ""}`),
+                    scelte: assi.map((a) => `${a.label}: ${a.value}`),
+                    note: noteCleaned,
+                  });
                   return (
                     <View key={g.key} style={styles.tableRow} wrap={false}>
                       {/* Numero progressivo */}
@@ -3064,6 +3391,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                             return l ? [`${l.axisLabel}: ${testoScelta(l.valueLabel, (a.scelte_assi ?? {})[codice])}`] : [];
                           })
                         : [];
+                      accessoriAllegato.push({ descrizione: String(a.descrizione || a.tipo || ""), scelte: scelte.length > 0 ? scelte.join(" · ") : null });
                       return (
                         <View key={i} style={styles.tableRow} wrap={false}>
                           <View style={{ flex: 1, paddingRight: 6 }}>
@@ -3086,6 +3414,10 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
               )}
 
               {/* Cronoprogramma rimosso — sostituito dalla pagina dedicata "Il tuo percorso" */}
+
+              {fotoAllegato ? (
+                <FotoInFondo src={fotoAllegato} mostra={(fogli) => spazioInFondo(pezziAllegato(righeAllegato, accessoriAllegato), fogli) >= FOTO_IN_FONDO_MINIMA} />
+              ) : null}
 
               <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
             </Page>
@@ -3470,29 +3802,8 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                 <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
 
                 <Text style={styles.pageEyebrow}>Dettagli economici</Text>
-                {(() => {
-                  // Titolo e sottotitolo dicono solo quello che la pagina contiene: con la
-                  // sola detrazione promettevano «inclusioni» e «ciò che è compreso».
-                  const voci = [
-                    hasTaxDeduction ? "la detrazione fiscale" : null,
-                    cashflowYears.length > 0 ? "il recupero negli anni" : null,
-                    hasMonthlyRateBalance ? "la rata del finanziamento" : null,
-                    incluso.length > 0 ? "cosa è compreso" : null,
-                    bonus.length > 0 ? "gli omaggi" : null,
-                  ].filter(Boolean) as string[];
-                  const elenco = voci.length > 1 ? `${voci.slice(0, -1).join(", ")} e ${voci[voci.length - 1]}` : voci[0] ?? "";
-                  const haRecuperi = hasTaxDeduction || cashflowYears.length > 0 || hasMonthlyRateBalance;
-                  const haInclusioni = incluso.length > 0 || bonus.length > 0;
-                  const titolo = haRecuperi && haInclusioni ? "Valore, recuperi e inclusioni." : haRecuperi ? "Valore e recuperi." : "Valore e inclusioni.";
-                  return (
-                    <>
-                      <Text style={[styles.pageTitle, { fontSize: 24, marginBottom: 6 }]}>{titolo}</Text>
-                      <Text style={[styles.pageSubtitle, { fontSize: 10, marginBottom: 12 }]}>
-                        {`Un riepilogo ordinato per leggere con chiarezza ${elenco}.`}
-                      </Text>
-                    </>
-                  );
-                })()}
+                <Text style={[styles.pageTitle, { fontSize: 24, marginBottom: 6 }]}>{datiDettagli.titolo}</Text>
+                <Text style={[styles.pageSubtitle, { fontSize: 10, marginBottom: 12 }]}>{datiDettagli.sottotitolo}</Text>
 
                 {hasTaxDeduction && (
                   <View style={styles.investmentBlock} wrap={false}>
@@ -3514,21 +3825,20 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
 
                       {mostraTabellaEcobonus && Number(p.detrazione_eur_anno ?? 0) > 0 && (
                         <>
-                          <View style={styles.ecobonusTable}>
-                            {Array.from({ length: 10 }, (_, i) => {
-                              const annoIdx = i + 1;
-                              const quota = Number(p.detrazione_eur_anno ?? 0);
-                              const cumulato = annoIdx === 10
-                                ? Number(p.detrazione_eur_totale ?? quota * 10)
-                                : quota * annoIdx;
-                              return (
-                                <View key={annoIdx} style={styles.ecobonusCell}>
-                                  <Text style={styles.ecobonusCellYear}>Anno {annoIdx}</Text>
-                                  <Text style={styles.ecobonusCellAmount}>€ {fmtEuro(quota)}</Text>
-                                  <Text style={styles.ecobonusCellCum}>cum. € {fmtEuro(cumulato)}</Text>
-                                </View>
-                              );
-                            })}
+                          {/* Gli anni in colonna, come sotto il grafico: la quota è sempre
+                              la stessa (è scritta sopra), la riga dice quanto è tornato. */}
+                          <View style={{ marginTop: 8 }}>
+                            <TabellaAnni C={C} righe={[
+                              { nome: "Anno", celle: Array.from({ length: 10 }, (_, i) => ({ testo: `${i + 1}`, forte: true, colore: C.gray500 })) },
+                              {
+                                nome: "Recuperata",
+                                celle: Array.from({ length: 10 }, (_, i) => {
+                                  const quota = Number(p.detrazione_eur_anno ?? 0);
+                                  const cumulato = i === 9 ? Number(p.detrazione_eur_totale ?? quota * 10) : quota * (i + 1);
+                                  return { testo: `€ ${fmtEuro(cumulato)}`, forte: true, colore: C.successText };
+                                }),
+                              },
+                            ]} />
                           </View>
                           <Text style={styles.ecobonusFootnote}>
                             La detrazione viene recuperata in 10 quote annuali di pari importo,
@@ -3541,81 +3851,53 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                   </View>
                 )}
 
-                {cashflowYears.length > 0 && (
-                  <View wrap={false}>
-                    <Text style={styles.investmentSectionTitle}>Recupero economico · 10 anni</Text>
-                    <CashflowSvg years={cashflowYears} primary={primaryColor} />
-                    <Text style={{ fontSize: 8.2, color: C.gray500, marginTop: 4, lineHeight: 1.35 }}>
-                      {haRisparmioBolletta
-                        ? "Risparmio in bolletta e detrazione fiscale, cumulati anno dopo anno, meno la spesa iniziale."
-                        : "Detrazione fiscale cumulata anno dopo anno, meno la spesa iniziale."}
-                      {annoPareggio !== null ? " La linea tratteggiata segna l'anno in cui la spesa iniziale è ripagata." : ""}
-                    </Text>
-
-                    <View style={{ marginTop: 9 }}>
-                      <View style={styles.tableHeader}>
-                        <View style={{ width: 38 }}><Text style={styles.tableHeaderText}>Anno</Text></View>
-                        {haRisparmioBolletta && (
-                          <View style={{ flex: 1, alignItems: "flex-end" }}><Text style={styles.tableHeaderText}>Risparmio</Text></View>
-                        )}
-                        <View style={{ flex: 1, alignItems: "flex-end" }}><Text style={styles.tableHeaderText}>Detrazione</Text></View>
-                        <View style={{ flex: 1, alignItems: "flex-end" }}><Text style={styles.tableHeaderText}>Cumulato</Text></View>
-                        <View style={{ width: 80, alignItems: "flex-end" }}><Text style={styles.tableHeaderText}>Recupero</Text></View>
-                      </View>
-                      {cashflowYears.map((y, i) => {
-                        const risp = Number(p.risparmio_eur_anno ?? 0);
-                        const det = Number(p.detrazione_eur_anno ?? 0);
-                        const cumulato = y.cumulato;
-                        const recupero = totaleMedia > 0
-                          ? Math.min(100, Math.max(0, ((cumulato + totaleMedia) / totaleMedia) * 100))
-                          : 0;
-                        const isBreakEven = cumulato >= 0 && (i === 0 || cashflowYears[i - 1].cumulato < 0);
-                        return (
-                          <View
-                            key={i}
-                            style={{
-                              flexDirection: "row",
-                              paddingVertical: 4,
-                              borderBottom: `0.5pt solid ${C.gray100}`,
-                              backgroundColor: isBreakEven ? C.successBg : "transparent",
-                            }}
-                            wrap={false}
-                          >
-                            <View style={{ width: 38 }}>
-                              <Text style={{ fontSize: 8.6, fontWeight: 700, color: C.gray900 }}>
-                                A{y.year}{isBreakEven ? " *" : ""}
-                              </Text>
-                            </View>
-                            {haRisparmioBolletta && (
-                              <View style={{ flex: 1, alignItems: "flex-end" }}>
-                                <Text style={{ fontSize: 8.6, color: C.gray700 }}>€ {fmtEuro(risp)}</Text>
-                              </View>
-                            )}
-                            <View style={{ flex: 1, alignItems: "flex-end" }}>
-                              <Text style={{ fontSize: 8.6, color: C.gray700 }}>€ {fmtEuro(det)}</Text>
-                            </View>
-                            <View style={{ flex: 1, alignItems: "flex-end" }}>
-                              <Text style={{ fontSize: 8.6, fontWeight: cumulato >= 0 ? 700 : 400, color: cumulato >= 0 ? C.successText : C.gray500 }}>
-                                {/* Il meno serve: senza, «€ 8.264» ancora da recuperare sembrava un guadagno. */}
-                                {cumulato >= 0 ? "+" : "-"}€ {fmtEuro(Math.abs(cumulato))}
-                              </Text>
-                            </View>
-                            <View style={{ width: 80, alignItems: "flex-end" }}>
-                              <Text style={{ fontSize: 7.8, color: C.gray500 }}>{recupero.toFixed(0)}%</Text>
-                            </View>
-                          </View>
-                        );
-                      })}
-                    </View>
-                    {annoPareggio !== null && (
-                      <Text style={{ fontSize: 7.7, color: C.gray500, marginTop: 5, fontStyle: "italic" }}>
-                        {haRisparmioBolletta
-                          ? "* Anno di pareggio: la spesa iniziale è ripagata da risparmio e detrazione."
-                          : "* Anno di pareggio: la spesa iniziale è ripagata dalla detrazione."}
+                {cashflowYears.length > 0 && (() => {
+                  // Risparmio e detrazione sono uguali ogni anno: si dicono una volta
+                  // nella didascalia, e la tabella tiene solo quello che cambia. Dieci
+                  // righe alte (con due colonne di numeri tutti uguali) spingevano i
+                  // regali su un foglio da soli.
+                  const saldi = cashflowYears.map((y) => `${y.cumulato >= 0 ? "+" : "-"}€ ${fmtEuro(Math.abs(y.cumulato))}`);
+                  const corpoSaldi = Math.max(...saldi.map((t) => t.length)) > 9 ? 6.8 : 7.8;
+                  return (
+                    <View wrap={false}>
+                      <Text style={styles.investmentSectionTitle}>Recupero economico · 10 anni</Text>
+                      <Text style={{ fontSize: 8.2, color: C.gray500, marginBottom: 2, lineHeight: 1.35 }}>
+                        {datiDettagli.recupero?.didascalia}
                       </Text>
-                    )}
-                  </View>
-                )}
+                      <CashflowSvg years={cashflowYears} primary={primaryColor} altezza={graficoRecupero} colonnaEtichette={ETICHETTE_ANNI} />
+                      <TabellaAnni C={C} righe={[
+                        {
+                          nome: "Saldo",
+                          celle: cashflowYears.map((y, i) => {
+                            const pareggio = i === iPareggio;
+                            return {
+                              // Il meno serve: senza, «€ 8.264» ancora da recuperare sembrava un guadagno.
+                              testo: saldi[i],
+                              forte: y.cumulato >= 0,
+                              colore: y.cumulato >= 0 ? C.successText : C.gray700,
+                              sfondo: pareggio ? C.successBg : undefined,
+                            };
+                          }),
+                        },
+                        {
+                          nome: "Recuperato",
+                          celle: cashflowYears.map((y, i) => ({
+                            testo: `${Math.round(totaleMedia > 0 ? Math.min(100, Math.max(0, ((y.cumulato + totaleMedia) / totaleMedia) * 100)) : 0)}%`,
+                            colore: C.gray500,
+                            sfondo: i === iPareggio ? C.successBg : undefined,
+                          })),
+                        },
+                      ]} corpo={corpoSaldi} />
+                      {annoPareggio !== null && (
+                        <Text style={{ fontSize: 7.7, color: C.gray500, marginTop: 5, fontStyle: "italic" }}>
+                          {haRisparmioBolletta
+                            ? `In verde l'anno ${annoPareggio}: la spesa iniziale è ripagata da risparmio e detrazione.`
+                            : `In verde l'anno ${annoPareggio}: la spesa iniziale è ripagata dalla detrazione.`}
+                        </Text>
+                      )}
+                    </View>
+                  );
+                })()}
 
                 {hasMonthlyRateBalance && (
                   <View style={styles.investmentBlock} wrap={false}>
@@ -3667,52 +3949,64 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                   </View>
                 )}
 
-                {incluso.length > 0 && (
-                  <View style={styles.investmentBlock}>
-                    <Text style={styles.investmentSectionTitle}>Cosa è incluso</Text>
-                    {incluso.slice(0, 6).map((it, i) => {
-                      const titolo = typeof it === "string" ? it : it.titolo;
-                      const descrizione = typeof it === "string" ? null : it.descrizione;
-                      return (
-                        <View key={i} style={[styles.bulletItem, { marginBottom: 6 }]} wrap={false}>
-                          <View style={styles.bulletDot} />
-                          <View style={styles.bulletContent}>
-                            <Text style={[styles.bulletTitle, { fontSize: 10.2 }]}>{titolo}</Text>
-                            {descrizione && <Text style={[styles.bulletText, { fontSize: 9.2, lineHeight: 1.4 }]}>{descrizione}</Text>}
+                {(incluso.length > 0 || bonus.length > 0) && (() => {
+                  const elencoIncluso = incluso.length > 0 ? (
+                    <>
+                      <Text style={styles.investmentSectionTitle}>Cosa è incluso</Text>
+                      {incluso.slice(0, 6).map((it, i) => {
+                        const titolo = typeof it === "string" ? it : it.titolo;
+                        const descrizione = typeof it === "string" ? null : it.descrizione;
+                        return (
+                          <View key={i} style={[styles.bulletItem, { marginBottom: 6 }]} wrap={false}>
+                            <View style={styles.bulletDot} />
+                            <View style={styles.bulletContent}>
+                              <Text style={[styles.bulletTitle, { fontSize: 10.2 }]}>{titolo}</Text>
+                              {descrizione && <Text style={[styles.bulletText, { fontSize: 9.2, lineHeight: 1.4 }]}>{descrizione}</Text>}
+                            </View>
                           </View>
+                        );
+                      })}
+                    </>
+                  ) : null;
+                  const valoreTotale = bonus.reduce((acc, b) => acc + (Number(b.valore_eur) || 0), 0);
+                  const elencoRegali = bonus.length > 0 ? (
+                    <>
+                      <Text style={[styles.investmentSectionTitle, { color: C.successText }]}>
+                        In più, in regalo
+                      </Text>
+                      {bonus.map((b, i) => (
+                        <View key={i} style={[styles.bonusBox, { padding: 8, marginBottom: 5 }]} wrap={false}>
+                          <Text style={[styles.bonusTitolo, { fontSize: 10 }]}>{b.titolo}</Text>
+                          {Number(b.valore_eur) > 0 && (
+                            <Text style={[styles.bonusValore, { fontSize: 10, marginLeft: 8 }]}>
+                              valore € {fmtEuro(Number(b.valore_eur))}
+                            </Text>
+                          )}
                         </View>
-                      );
-                    })}
-                  </View>
-                )}
-
-                {bonus.length > 0 && (
-                  <View style={styles.investmentBlock}>
-                    <Text style={[styles.investmentSectionTitle, { color: C.successText }]}>
-                      In più, in regalo
-                    </Text>
-                    {bonus.map((b, i) => (
-                      <View key={i} style={[styles.bonusBox, { padding: 8, marginBottom: 5 }]} wrap={false}>
-                        <Text style={[styles.bonusTitolo, { fontSize: 10 }]}>{b.titolo}</Text>
-                        {Number(b.valore_eur) > 0 && (
-                          <Text style={[styles.bonusValore, { fontSize: 10 }]}>
-                            valore € {fmtEuro(Number(b.valore_eur))}
-                          </Text>
-                        )}
-                      </View>
-                    ))}
-                    {(() => {
-                      const valoreTotale = bonus.reduce((acc, b) => acc + (Number(b.valore_eur) || 0), 0);
-                      // Il totale serve solo con almeno due omaggi che hanno un valore.
-                      if (bonus.filter((b) => Number(b.valore_eur) > 0).length < 2) return null;
-                      return (
+                      ))}
+                      {/* Il totale serve solo con almeno due omaggi che hanno un valore. */}
+                      {bonus.filter((b) => Number(b.valore_eur) > 0).length >= 2 ? (
                         <Text style={{ fontSize: 8.5, color: C.successText, fontWeight: 700, marginTop: 3, textAlign: "right" as const }}>
                           Valore omaggi totale: € {fmtEuro(valoreTotale)}
                         </Text>
-                      );
-                    })()}
-                  </View>
-                )}
+                      ) : null}
+                    </>
+                  ) : null;
+                  // Cosa è compreso e i regali stanno uno accanto all'altro: uno sotto
+                  // l'altro, il titolo dei regali restava in fondo alla pagina e i regali
+                  // finivano da soli su un foglio nuovo. Ognuno resta intero col suo titolo.
+                  if (elencoIncluso && elencoRegali) {
+                    return (
+                      <View style={[styles.investmentBlock, { flexDirection: "row", gap: 18 }]} wrap={false}>
+                        <View style={{ flex: 1.25 }}>{elencoIncluso}</View>
+                        <View style={{ flex: 1 }}>{elencoRegali}</View>
+                      </View>
+                    );
+                  }
+                  return <View style={styles.investmentBlock} wrap={false}>{elencoIncluso ?? elencoRegali}</View>;
+                })()}
+
+                {fotoDettagli ? <FotoInFondo src={fotoDettagli} mostra={(fogli) => spazioInFondo(pezziDeiDettagli, fogli) >= FOTO_IN_FONDO_MINIMA} /> : null}
 
                 <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
               </Page>
@@ -3736,6 +4030,10 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                     <Text style={styles.percorsoBadgeText}>Il tuo percorso</Text>
                   </View>
                   <Text style={styles.percorsoBigNumber}>{percorsoTotaleStep}</Text>
+                  {/* Il numero da solo («13» enorme) non diceva di cosa: ora è un dato con la sua unità. */}
+                  <Text style={{ fontSize: 8.5, fontWeight: 700, color: C.gray500, letterSpacing: 1.4, textTransform: "uppercase" as const, marginTop: 4, marginBottom: 6 }}>
+                    {`${percorsoTotaleStep === 1 ? "passaggio" : "passaggi"} in ${percorso.fasi.length} ${percorso.fasi.length === 1 ? "fase" : "fasi"}`}
+                  </Text>
                   <Text style={{
                     fontSize: 18, fontWeight: 700, color: C.gray900,
                     textAlign: "center" as const, marginTop: 4, letterSpacing: -0.3,
@@ -3805,6 +4103,18 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                 </View>
                   );
                 })()}
+
+                {/* La foto sotto le fasi, solo se la pagina ha posto: con tante fasi
+                    o tanti passaggi resta senza, invece di finire da sola su un foglio. */}
+                {fotoPercorso && (() => {
+                  const perRiga = percorso.fasi.length <= 4 ? percorso.fasi.length : 2;
+                  const righe = Math.ceil(percorso.fasi.length / perRiga);
+                  const passiMax = Math.max(...percorso.fasi.map((f) => f.step.length));
+                  const occupato = 170 + righe * (58 + passiMax * 17);
+                  return occupato + 230 <= 700;
+                })() ? (
+                  <Image src={fotoPercorso} style={{ width: "100%", height: 220, objectFit: "cover", borderRadius: 6, marginTop: 18 }} />
+                ) : null}
 
                 <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
               </Page>
@@ -4010,6 +4320,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                 ))}
               </View>
 
+
               {publicUrl && tpl.pdf_mostra_firma_online === true && (
                 <View style={styles.signatureBox} wrap={false}>
                   <View style={{ flex: 1 }}>
@@ -4037,7 +4348,9 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                     borderRadius: 6,
                     backgroundColor: C.gray50,
                   }}
-                  wrap
+                  // Note corte tutte intere: il titolo non resta da solo in fondo alla pagina.
+                  wrap={p.note_cliente.length > 600}
+                  minPresenceAhead={60}
                 >
                   <Text style={[styles.sectionTitle, { marginBottom: 6 }]}>Note del consulente</Text>
                   {p.note_cliente.split(/\n\n+/).map((para, i) => (
@@ -4052,26 +4365,31 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                   Field map: SrTestimonianza = { quote, autore, citta?, intervento? }.
                   Prima il codice usava `testo/cliente_nome/dettaglio` che non esistono
                   sul type → nessuna recensione veniva mai mostrata. */}
+              {/* Le recensioni una accanto all'altra, col titolo, tutte insieme: una
+                  sotto l'altra la terza scivolava da sola su un foglio nuovo. */}
               {recensioniAttivo && testimonianze.length > 0 && (
-                <>
+                <View wrap={false}>
                   <Text style={styles.sectionTitle}>Cosa dicono i nostri clienti</Text>
-                  {testimonianze.slice(0, 3).map((t, i) => {
-                    const sub = [t.citta, t.intervento].filter(Boolean).join(" · ");
-                    return (
-                      <View key={i} style={styles.testimonialBox} wrap={false}>
-                        <Text style={styles.testimonialQuote}>&ldquo;{t.quote}&rdquo;</Text>
-                        <View style={{ flexDirection: "row", alignItems: "center", marginTop: 3 }}>
-                          {t.foto_url ? (
-                            <Image src={t.foto_url} style={{ width: 22, height: 22, borderRadius: 11, marginRight: 6, objectFit: "cover" }} />
-                          ) : null}
-                          <Text style={styles.testimonialAuthor}>
-                            — {t.autore}{sub ? ` · ${sub}` : ""}
-                          </Text>
+                  <View style={{ flexDirection: "row", gap: 14 }}>
+                    {testimonianze.slice(0, 3).map((t, i) => {
+                      const sub = [t.citta, t.intervento].filter(Boolean).join(" · ");
+                      const affiancate = Math.min(3, testimonianze.length) > 1;
+                      return (
+                        <View key={i} style={[styles.testimonialBox, { flex: 1, marginBottom: 0 }]}>
+                          <Text style={[styles.testimonialQuote, affiancate ? { fontSize: 9.2, lineHeight: 1.5 } : {}]}>&ldquo;{t.quote}&rdquo;</Text>
+                          <View style={{ flexDirection: "row", alignItems: "center", marginTop: 4 }}>
+                            {t.foto_url ? (
+                              <Image src={t.foto_url} style={{ width: 22, height: 22, borderRadius: 11, marginRight: 6, objectFit: "cover" }} />
+                            ) : null}
+                            <Text style={[styles.testimonialAuthor, { flex: 1 }]}>
+                              — {t.autore}{sub ? ` · ${sub}` : ""}
+                            </Text>
+                          </View>
                         </View>
-                      </View>
-                    );
-                  })}
-                </>
+                      );
+                    })}
+                  </View>
+                </View>
               )}
 
               {/* Brand legitimacy footer in CTA: dati legali in piccolo,
@@ -4079,6 +4397,11 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
               {brandFooterAttivo && brandFooterTesto && !condizioniLegaliTesto && (
                 <Text style={styles.brandFooter}>{brandFooterTesto}</Text>
               )}
+
+              {/* La foto finale riempie il fondo della pagina, alta quanto il posto
+                  che lasciano note e recensioni. Prima era alta 150 o 210 punti fissi,
+                  e con le note o più di una recensione non usciva. */}
+              {fotoCta ? <FotoInFondo src={fotoCta} mostra={(fogli) => spazioInFondo(pezziDellaCta, fogli) >= FOTO_IN_FONDO_MINIMA} /> : null}
 
               <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
             </Page>
@@ -4252,6 +4575,18 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
             )}
             </>
           ),
+          // ─── I BLOCCHI, quando stanno da soli: una pagina ciascuno ─────
+          ...(Object.fromEntries(PAGINE_DEI_BLOCCHI.map((id) => [id, (
+            <>
+            {scorrevoli[id] ? (
+              <Page size="A4" style={styles.page}>
+                <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
+                {scorrevoli[id]}
+                <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
+              </Page>
+            ) : null}
+            </>
+          )])) as Record<PaginaBlocco, React.ReactElement>),
           // ─── PAGINA I NOSTRI LAVORI (gallery foto realizzazioni) ───────
           gallery_lavori: (
             <>

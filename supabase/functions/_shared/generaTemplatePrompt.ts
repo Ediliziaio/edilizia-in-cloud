@@ -108,9 +108,14 @@ qualitativa onesta senza numeri (es. "squadra interna" invece di "15 operai spec
 MAI promesse tipo "soddisfatti o rimborsati", "garanzia a vita", "prezzo piu' basso garantito"
 se non sono scritte nei dati. Nel dubbio tra scrivere meno e rischiare un'affermazione non
 verificabile -> scrivi meno.
+MAI cifre fiscali se non sono nei dati: aliquote di detrazione ("bonus 50%", "ecobonus 65%"),
+IVA agevolata, nomi di bonus con percentuali, scadenze di incentivi. Cambiano ogni anno, e il
+preventivo le calcola da se' dai dati del lavoro: scritte nei testi fissi, diventano false.
 
 # VOCE E STILE (default; sovrascritto da VOCE se fornita)
 - Diretto e caldo. Dai del "tu" al privato; registro un filo piu' formale per condominio/azienda.
+- L'impresa parla SEMPRE al plurale: "noi", "facciamo", "ti seguiamo". MAI "io", "faccio", "il mio".
+- Nei testi usa sempre le lettere accentate (è, à, ù, perché, più, già): MAI "e'", "perche'", "piu'".
 - Frasi corte (max ~14 parole). Parole del cantiere e del lavoro reale, non del marketing.
 - Niente burocratese, niente passivo ("verra' effettuato" -> "facciamo").
 - Ogni affermazione forte ha SEMPRE una ragione concreta accanto. Zero superlativi vuoti.

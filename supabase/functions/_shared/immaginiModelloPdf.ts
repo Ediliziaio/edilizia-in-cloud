@@ -1,6 +1,6 @@
 /**
  * Immagini dei modelli PDF di Serramenti e Fotovoltaico: logo, copertina, foto
- * «Chi siamo», foto delle recensioni, galleria lavori.
+ * «Chi siamo», foto delle recensioni, galleria lavori, foto dei blocchi.
  *
  * Gli editor caricano questi file nei bucket privati `sr-progetti` e
  * `fv-progetti`. Fino al 17/09/2026 nel modello finiva un link firmato valido un
@@ -36,18 +36,25 @@ export interface CampiImmagine {
   singoli: readonly string[];
   /** Colonne con una lista di oggetti: [colonna, campo dell'immagine in ogni oggetto]. */
   liste: readonly (readonly [string, string])[];
+  /**
+   * Colonne come `pdf_blocchi`: un oggetto { [blocco]: { foto: [indirizzi] } }
+   * (vedi _shared/blocchiPreventivo.ts).
+   */
+  blocchi?: readonly string[];
 }
 
 /** sr_template_pdf */
 export const CAMPI_IMMAGINE_SERRAMENTI: CampiImmagine = {
   singoli: ["logo_url", "chi_siamo_foto_url", "pdf_cover_image_url", "pdf_cover_logo_url"],
   liste: [["testimonianze_default", "foto_url"], ["gallery_lavori", "url"]],
+  blocchi: ["pdf_blocchi"],
 };
 
 /** fv_template_pdf */
 export const CAMPI_IMMAGINE_FOTOVOLTAICO: CampiImmagine = {
   singoli: ["logo_url", "pdf_cover_image_url", "pdf_cover_logo_url", "foto_team_url"],
   liste: [["recensioni", "foto_url"], ["gallery_lavori", "url"], ["cantieri_galleria", "foto_url"]],
+  blocchi: ["pdf_blocchi"],
 };
 
 export interface FileModello {
@@ -113,8 +120,17 @@ export function immaginiDelModello(modello: unknown, campi: CampiImmagine): stri
       if (voce && typeof voce === "object") aggiungi((voce as Record<string, unknown>)[campo]);
     }
   }
+  for (const colonna of campi.blocchi ?? []) {
+    for (const blocco of Object.values(oggetto(riga[colonna]))) {
+      const foto = oggetto(blocco).foto;
+      if (Array.isArray(foto)) foto.forEach(aggiungi);
+    }
+  }
   return [...valori];
 }
+
+const oggetto = (v: unknown): Record<string, unknown> =>
+  v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
 
 /**
  * Copia del modello con ogni immagine passata da `trasforma`. Se niente cambia
@@ -154,6 +170,34 @@ export function sostituisciImmagini<T>(
     });
     if (listaCambiata) {
       cambi[lista] = nuove;
+      cambiato = true;
+    }
+  }
+
+  for (const colonna of campi.blocchi ?? []) {
+    const blocchi = oggetto(riga[colonna]);
+    let colonnaCambiata = false;
+    const nuovi: Record<string, unknown> = {};
+    for (const [chiave, blocco] of Object.entries(blocchi)) {
+      const foto = oggetto(blocco).foto;
+      if (!Array.isArray(foto)) {
+        nuovi[chiave] = blocco;
+        continue;
+      }
+      let fotoCambiate = false;
+      const nuove = foto.map((f) => {
+        if (typeof f !== "string" || !f.trim()) return f;
+        const nuovo = trasforma(f.trim());
+        if (nuovo === f) return f;
+        fotoCambiate = true;
+        return nuovo;
+      });
+      // Una foto che non si è potuta firmare esce dall'elenco: il blocco resta con le altre.
+      nuovi[chiave] = fotoCambiate ? { ...oggetto(blocco), foto: nuove.filter((f) => f !== null) } : blocco;
+      colonnaCambiata ||= fotoCambiate;
+    }
+    if (colonnaCambiata) {
+      cambi[colonna] = nuovi;
       cambiato = true;
     }
   }

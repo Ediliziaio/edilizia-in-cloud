@@ -143,6 +143,13 @@ export interface MargineBreakdown {
    * - `stimato`   → nessuna assegnazione, costo_default ovunque
    */
   stato_completezza: "completo" | "parziale" | "stimato";
+  /**
+   * true se il preventivo ha il prezzo scritto a mano attivo (quotes.prezzo_manuale > 0).
+   * In questo caso totale_vendita/margine_totale_euro/margine_totale_pct usano il
+   * ricavo autoritativo (quotes.subtotal - discount_amount) invece della somma
+   * delle righe, che restano legittimamente a 0€ in `righe[].totale_vendita`.
+   */
+  prezzo_manuale_attivo: boolean;
 }
 
 /** Replica client-side della function `has_cost_permission`. */

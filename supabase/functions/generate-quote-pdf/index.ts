@@ -424,6 +424,12 @@ Deno.serve(async (req) => {
       return img;
     }
 
+    // Prezzo scritto a mano (21/09/2026): sostituisce la somma delle righe.
+    // Con le righe a 0€ mostrare PREZZO/IVA/TOTALE per riga (e il subtotale
+    // per categoria) non direbbe niente di vero — si nascondono, come nel
+    // documento condiviso degli 8 moduli edili (DocumentoEdilePDF).
+    const prezzoManualeAttivo = Number((quote as any)?.prezzo_manuale ?? 0) > 0;
+
     // ─── Build PDF ───
     const pdfDoc = await PDFDocument.create();
     // Difesa strutturale WinAnsi: ogni pagina creata (incluse quelle dei salti
@@ -1242,9 +1248,11 @@ Deno.serve(async (req) => {
           page.drawText("DESCRIZIONE", { x: descX, y, size: 6.5, font: fontBold, color: eC });
           drawRight(page, "Q.TÀ", qtyRight, y, 6.5, fontBold, eC);
           page.drawText("U.M.", { x: umX, y, size: 6.5, font: fontBold, color: eC });
-          drawRight(page, "PREZZO", priceRight, y, 6.5, fontBold, eC);
-          drawRight(page, "IVA", ivaRight, y, 6.5, fontBold, eC);
-          drawRight(page, "IMPORTO", totRight, y, 6.5, fontBold, eC);
+          if (!prezzoManualeAttivo) {
+            drawRight(page, "PREZZO", priceRight, y, 6.5, fontBold, eC);
+            drawRight(page, "IVA", ivaRight, y, 6.5, fontBold, eC);
+            drawRight(page, "IMPORTO", totRight, y, 6.5, fontBold, eC);
+          }
           page.drawRectangle({ x: itemLeftX, y: y - 6, width: itemWidth, height: 1, color: inchiostroC });
           y -= 22;
           return;
@@ -1254,20 +1262,24 @@ Deno.serve(async (req) => {
         page.drawText("DESCRIZIONE", { x: descX, y, size: 8, font: fontBold, color: headerTextC });
         drawRight(page, "Q.TÀ", qtyRight, y, 8, fontBold, headerTextC);
         page.drawText("U.M.", { x: umX, y, size: 8, font: fontBold, color: headerTextC });
-        drawRight(page, "PREZZO UNIT.", priceRight, y, 8, fontBold, headerTextC);
-        drawRight(page, "IVA", ivaRight, y, 8, fontBold, headerTextC);
-        drawRight(page, "TOTALE", totRight, y, 8, fontBold, headerTextC);
+        if (!prezzoManualeAttivo) {
+          drawRight(page, "PREZZO UNIT.", priceRight, y, 8, fontBold, headerTextC);
+          drawRight(page, "IVA", ivaRight, y, 8, fontBold, headerTextC);
+          drawRight(page, "TOTALE", totRight, y, 8, fontBold, headerTextC);
+        }
         y -= 24;
       };
-      // Header solo se ci sono righe da mostrare (con 0 righe si va dritti ai totali).
-      if (items.length > 0) drawTableHeader();
-      let rowNumber = 0;
 
       // If pdf_mostra_solo_totale: skip item rows, only draw totals
       // Vale la scelta del preventivo, che nasce dal predefinito dell'azienda: il
       // predefinito serve solo ai preventivi che non l'hanno salvata. Prima
       // l'azienda scavalcava il singolo preventivo.
       const soloTotale = opzione("pdf_mostra_solo_totale", pdfImp.pdf_mostra_solo_totale === true);
+
+      // Header solo se ci sono righe da mostrare (con 0 righe si va dritti ai totali)
+      // e solo se non è attivo "solo totale", altrimenti resterebbe orfana senza righe sotto.
+      if (items.length > 0 && !soloTotale) drawTableHeader();
+      let rowNumber = 0;
 
       if (!soloTotale) {
         for (let idx = 0; idx < items.length; idx++) {
@@ -1298,6 +1310,9 @@ Deno.serve(async (req) => {
 
           // Subtotale row: line + bold text
           if (isSubtotale) {
+            // Righe a 0€ col prezzo scritto a mano: un subtotale di zeri non
+            // direbbe niente di vero, si salta senza occupare spazio.
+            if (prezzoManualeAttivo) continue;
             page.drawLine({ start: { x: itemLeftX, y: y + 5 }, end: { x: itemLeftX + itemWidth, y: y + 5 }, thickness: 0.5, color: lightGrayC });
             const subVal = items.slice(0, idx).reduce((s: number, i: any) => {
               if ((i as any).is_optional) return s;
@@ -1406,14 +1421,19 @@ Deno.serve(async (req) => {
 
           page.drawText(String(rowNumber), { x: nX, y, size: sz(8.5), font, color: grayC });
           page.drawText(nameText, { x: descX, y, size: sz(8.5), font, color: rowColor });
-          const showPrezziRiga = (quote as any).pdf_mostra_prezzi_per_riga !== false;
+          // Col prezzo scritto a mano le righe sono a 0€: prezzo/IVA/totale di
+          // riga non si mostrano mai, a prescindere dall'impostazione del
+          // preventivo (che qui non avrebbe niente di vero da mostrare).
+          const showPrezziRiga = !prezzoManualeAttivo && (quote as any).pdf_mostra_prezzi_per_riga !== false;
           drawRight(page, qtyText, qtyRight, y, sz(8.5), font, rowColor);
           page.drawText(umText, { x: umX, y, size: sz(8.5), font, color: rowColor });
           if (showPrezziRiga) {
             drawRight(page, priceText, priceRight, y, sz(8.5), font, rowColor);
             drawRight(page, vatText, ivaRight, y, sz(8.5), font, rowColor);
           }
-          drawRight(page, fmtEur(lineTotal), totRight, y, sz(8.5), fontBold, isOptional ? grayC : textC);
+          if (!prezzoManualeAttivo) {
+            drawRight(page, fmtEur(lineTotal), totRight, y, sz(8.5), fontBold, isOptional ? grayC : textC);
+          }
           y -= 12;
 
           if (hasDesc) {
@@ -1516,39 +1536,48 @@ Deno.serve(async (req) => {
         drawTotal(`Sconto ${quote.discount_percent}%`, `- ${fmtEur(scontoShown)}`);
       }
 
-      const ivaBreakdown: Record<number, number> = {};
-      const discFactor = 1 - Number(quote.discount_percent || 0) / 100;
-      for (const item of items.filter((i: any) => !i.is_optional)) {
-        const rate = Number(item.vat_rate ?? 22);
-        const lt = (item as any).line_total;
-        const lineAmt = lt != null && lt !== ""
-          ? Number(lt)
-          : Number(item.quantity) * Number(item.unit_price) * (1 - Number(item.discount_percent || 0) / 100);
-        ivaBreakdown[rate] = (ivaBreakdown[rate] || 0) + lineAmt * (rate / 100);
-      }
-      const ivaRates = Object.keys(ivaBreakdown).map(Number).sort((a, b) => a - b);
-      // Aliquote che contribuiscono davvero (≥ 0,01 € dopo sconto globale).
-      const positiveRates = ivaRates.filter((r) => ivaBreakdown[r] * discFactor >= 0.005);
-
-      if (positiveRates.length > 1) {
-        // Più aliquote: ciascuna arrotondata, poi il residuo di arrotondamento
-        // viene assorbito dalla riga di VALORE MASSIMO (mai negativa: dominare
-        // il residuo di ±0.01 è garantito). Così Σrighe = ESATTAMENTE ivaToShow.
-        const rows = positiveRates.map((rate) => ({ rate, value: round2q(ivaBreakdown[rate] * discFactor) }));
-        const sumRows = round2q(rows.reduce((s, r) => s + r.value, 0));
-        const residual = round2q(ivaToShow - sumRows);
-        if (residual !== 0) {
-          let maxI = 0;
-          for (let i = 1; i < rows.length; i++) if (rows[i].value > rows[maxI].value) maxI = i;
-          rows[maxI].value = round2q(rows[maxI].value + residual);
-        }
-        for (const r of rows) drawTotal(`IVA ${r.rate}%`, `${fmtEur(r.value)}`);
+      if (prezzoManualeAttivo) {
+        // Col prezzo scritto a mano le righe sono a 0€: non c'è niente da
+        // ripartire per aliquota (il ramo sotto darebbe un'aliquota a caso o
+        // nessuna). L'aliquota è quella esplicita scelta insieme al prezzo;
+        // l'importo (ivaToShow) è comunque quello autoritativo dai totali salvati.
+        const ivaPctManuale = Number((quote as any).prezzo_manuale_iva_pct ?? 0);
+        drawTotal(`IVA ${ivaPctManuale}%`, `${fmtEur(ivaToShow)}`);
       } else {
-        // Aliquota unica (o tutte a 0): una sola riga IVA = ivaToShow.
-        const soleRate = positiveRates.length === 1
-          ? positiveRates[0]
-          : (ivaRates.length === 1 ? ivaRates[0] : null);
-        drawTotal(`IVA${soleRate != null ? ` ${soleRate}%` : ""}`, `${fmtEur(ivaToShow)}`);
+        const ivaBreakdown: Record<number, number> = {};
+        const discFactor = 1 - Number(quote.discount_percent || 0) / 100;
+        for (const item of items.filter((i: any) => !i.is_optional)) {
+          const rate = Number(item.vat_rate ?? 22);
+          const lt = (item as any).line_total;
+          const lineAmt = lt != null && lt !== ""
+            ? Number(lt)
+            : Number(item.quantity) * Number(item.unit_price) * (1 - Number(item.discount_percent || 0) / 100);
+          ivaBreakdown[rate] = (ivaBreakdown[rate] || 0) + lineAmt * (rate / 100);
+        }
+        const ivaRates = Object.keys(ivaBreakdown).map(Number).sort((a, b) => a - b);
+        // Aliquote che contribuiscono davvero (≥ 0,01 € dopo sconto globale).
+        const positiveRates = ivaRates.filter((r) => ivaBreakdown[r] * discFactor >= 0.005);
+
+        if (positiveRates.length > 1) {
+          // Più aliquote: ciascuna arrotondata, poi il residuo di arrotondamento
+          // viene assorbito dalla riga di VALORE MASSIMO (mai negativa: dominare
+          // il residuo di ±0.01 è garantito). Così Σrighe = ESATTAMENTE ivaToShow.
+          const rows = positiveRates.map((rate) => ({ rate, value: round2q(ivaBreakdown[rate] * discFactor) }));
+          const sumRows = round2q(rows.reduce((s, r) => s + r.value, 0));
+          const residual = round2q(ivaToShow - sumRows);
+          if (residual !== 0) {
+            let maxI = 0;
+            for (let i = 1; i < rows.length; i++) if (rows[i].value > rows[maxI].value) maxI = i;
+            rows[maxI].value = round2q(rows[maxI].value + residual);
+          }
+          for (const r of rows) drawTotal(`IVA ${r.rate}%`, `${fmtEur(r.value)}`);
+        } else {
+          // Aliquota unica (o tutte a 0): una sola riga IVA = ivaToShow.
+          const soleRate = positiveRates.length === 1
+            ? positiveRates[0]
+            : (ivaRates.length === 1 ? ivaRates[0] : null);
+          drawTotal(`IVA${soleRate != null ? ` ${soleRate}%` : ""}`, `${fmtEur(ivaToShow)}`);
+        }
       }
 
       drawTotal("TOTALE", `${fmtEur(totShown)}`, true);

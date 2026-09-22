@@ -20,7 +20,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
-  ArrowLeft, TrendingUp, AlertTriangle, CheckCircle2, MinusCircle, HelpCircle,
+  ArrowLeft, TrendingUp, AlertTriangle, CheckCircle2, MinusCircle, HelpCircle, Info,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -386,6 +386,14 @@ export default function QuoteMargini() {
                   </TableBody>
                 </Table>
               </div>
+              {breakdown.prezzo_manuale_attivo && (
+                <p className="mt-3 flex items-center gap-2 rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                  <Info className="h-3.5 w-3.5 shrink-0" />
+                  Il prezzo di questo preventivo è scritto a mano: le righe sotto restano a 0€
+                  di vendita (non caricano un prezzo dal listino). Ricavo, costo e margine qui
+                  sopra usano il prezzo reale del preventivo, non la somma delle righe.
+                </p>
+              )}
               {breakdown.stato_completezza === "stimato" && righeAssegnabili.length > 0 && (
                 <p className="mt-3 text-xs text-amber-600">
                   ⚠ Nessuna variante configurata per le tariffe usate. <Link to="/azienda/impostazioni/tariffe" className="underline">Configura varianti</Link> per calcoli più accurati.

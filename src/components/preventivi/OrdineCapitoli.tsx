@@ -8,7 +8,7 @@
  * il documento consegnato dicono la stessa cosa.
  */
 import { useMemo, useState, type ReactNode } from "react";
-import { ArrowDown, ArrowUp, Eye, EyeOff, FilePlus2, Pencil, RotateCcw, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Camera, Eye, EyeOff, FilePlus2, Pencil, RotateCcw, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,6 +18,9 @@ import {
   CAPITOLI_EDILI, chiaveLibera, idLibera, leggiOrdine, leggiPagineLibere, ordineEffettivo, sposta,
   type PaginaLibera, type VoceOrdine,
 } from "@/components/preventivi/pdf/ordineCapitoli";
+import { EditorBlocco } from "@/components/preventivi/EditorBlocco";
+import { EditorFotoPagina } from "@/components/preventivi/EditorFotoPagina";
+import { BLOCCHI, RIEMPIMENTI_EDILI, type ChiaveBlocco, type ChiaveFotoPagina, type SettoreBlocchi } from "../../../supabase/functions/_shared/blocchiPreventivo";
 
 interface Props {
   /** Il valore salvato nel modello (`pdf_ordine_capitoli`): null = ordine di serie. */
@@ -28,12 +31,19 @@ interface Props {
   onPagine: (v: PaginaLibera[]) => void;
   /** Il campo per caricare la foto di una pagina: quello dell'editor, col suo bucket. */
   campoFoto: (valore: string | null, onChange: (url: string | null) => void) => ReactNode;
+  /** Il settore del modulo: decide i testi e le foto di serie dei blocchi. */
+  settore?: SettoreBlocchi;
+  /** Le scelte dell'azienda sui blocchi (`pdf_blocchi`): con `onBlocchi`, i blocchi si modificano qui. */
+  blocchi?: unknown;
+  onBlocchi?: (v: Record<string, unknown>) => void;
 }
+
+const BLOCCO = new Map(BLOCCHI.map((b) => [b.chiave as string, b]));
 
 const DESCRITTI = new Map(CAPITOLI_EDILI.map((c) => [c.chiave as string, c]));
 const senzaAsterischi = (t: string) => t.replace(/\*/g, "");
 
-export function OrdineCapitoli({ ordine, pagine, onOrdine, onPagine, campoFoto }: Props) {
+export function OrdineCapitoli({ ordine, pagine, onOrdine, onPagine, campoFoto, settore, blocchi, onBlocchi }: Props) {
   const libere = useMemo(() => leggiPagineLibere(pagine, { ancheVuote: true }), [pagine]);
   const elenco = useMemo(() => ordineEffettivo(leggiOrdine(ordine), libere), [ordine, libere]);
   const [aperta, setAperta] = useState<string | null>(null);
@@ -83,6 +93,10 @@ export function OrdineCapitoli({ ordine, pagine, onOrdine, onPagine, campoFoto }
           const spostabile = descritto ? descritto.spostabile : true;
           const nascondibile = descritto ? descritto.nascondibile : true;
           const titolo = pagina ? senzaAsterischi(pagina.titolo) || "Pagina senza titolo" : descritto?.etichetta ?? v.chiave;
+          const blocco = BLOCCO.get(v.chiave);
+          const modificabile = Boolean(blocco && settore && onBlocchi);
+          // La foto che riempie la pagina quando il capitolo finisce a metà foglio.
+          const chiaveFoto = settore && onBlocchi ? (RIEMPIMENTI_EDILI as Record<string, ChiaveFotoPagina>)[v.chiave] : undefined;
           return (
             <li key={v.chiave} className={cn("px-3 py-2", !v.visibile && "bg-muted/40")}>
               <div className="flex items-center gap-2">
@@ -95,6 +109,9 @@ export function OrdineCapitoli({ ordine, pagine, onOrdine, onPagine, campoFoto }
                   <p className="truncate text-[11px] text-muted-foreground">
                     {pagina ? (pagina.testoHtml || pagina.fotoUrl ? "Testo e foto scritti da voi" : "Ancora da scrivere: non esce finché è vuota") : descritto?.descrizione}
                   </p>
+                  {blocco?.promessa && v.visibile ? (
+                    <p className="text-[11px] text-amber-700">Promette qualcosa al cliente: rileggila, e spegnila se non lo fate.</p>
+                  ) : null}
                 </div>
                 {spostabile ? (
                   <>
@@ -105,6 +122,16 @@ export function OrdineCapitoli({ ordine, pagine, onOrdine, onPagine, campoFoto }
                       <ArrowDown className="h-3.5 w-3.5" />
                     </Button>
                   </>
+                ) : null}
+                {modificabile ? (
+                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setAperta(aperta === v.chiave ? null : v.chiave)} aria-label={`Modifica ${titolo}`}>
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                ) : null}
+                {chiaveFoto ? (
+                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setAperta(aperta === `foto:${v.chiave}` ? null : `foto:${v.chiave}`)} aria-label={`Foto di ${titolo}`} title="La foto che riempie la pagina quando il capitolo finisce a metà">
+                    <Camera className="h-3.5 w-3.5" />
+                  </Button>
                 ) : null}
                 {pagina ? (
                   <>
@@ -124,6 +151,25 @@ export function OrdineCapitoli({ ordine, pagine, onOrdine, onPagine, campoFoto }
                   <span className="w-7 text-center text-[10px] text-muted-foreground" title="Il prezzo non si nasconde">—</span>
                 )}
               </div>
+
+              {modificabile && blocco && aperta === v.chiave ? (
+                <EditorBlocco
+                  chiave={blocco.chiave as ChiaveBlocco}
+                  settore={settore as SettoreBlocchi}
+                  salvati={blocchi}
+                  onSalvati={(nuovi) => onBlocchi?.(nuovi)}
+                  campoFoto={campoFoto}
+                />
+              ) : null}
+
+              {chiaveFoto && settore && onBlocchi && aperta === `foto:${v.chiave}` ? (
+                <div>
+                  <p className="mt-2 text-[11px] text-muted-foreground">
+                    Esce solo quando il capitolo finisce a metà pagina, e riempie lo spazio che resterebbe bianco. Una foto già usata altrove nel documento non si ripete.
+                  </p>
+                  <EditorFotoPagina chiave={chiaveFoto} settore={settore} salvati={blocchi} onSalvati={(nuovi) => onBlocchi(nuovi)} campoFoto={campoFoto} />
+                </div>
+              ) : null}
 
               {pagina && aperta === pagina.id ? (
                 <div className="mt-3 space-y-3 rounded-md border bg-background p-3">
@@ -159,6 +205,24 @@ export function OrdineCapitoli({ ordine, pagine, onOrdine, onPagine, campoFoto }
             </li>
           );
         })}
+        {/* «I prossimi passi» sta sempre in fondo: non si sposta, ma la sua foto si cambia. */}
+        {settore && onBlocchi ? (
+          <li className="px-3 py-2">
+            <div className="flex items-center gap-2">
+              <span className="w-5 shrink-0" />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium">I prossimi passi</p>
+                <p className="truncate text-[11px] text-muted-foreground">Sempre in fondo: la foto del lavoro finito, i passi, i contatti</p>
+              </div>
+              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setAperta(aperta === "foto:chiusura" ? null : "foto:chiusura")} aria-label="Foto di I prossimi passi" title="La foto di questa pagina">
+                <Camera className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+            {aperta === "foto:chiusura" ? (
+              <EditorFotoPagina chiave="chiusura" settore={settore} salvati={blocchi} onSalvati={(nuovi) => onBlocchi(nuovi)} campoFoto={campoFoto} />
+            ) : null}
+          </li>
+        ) : null}
       </ol>
 
       <Button size="sm" variant="outline" onClick={aggiungiPagina}>

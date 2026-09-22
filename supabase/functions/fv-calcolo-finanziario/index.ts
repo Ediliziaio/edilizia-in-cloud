@@ -18,6 +18,7 @@
 
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
+import { quotaAutoconsumo, type FvProfiloAutoconsumo } from "../_shared/fvCalcoli.ts";
 
 interface Payload {
   progetto_id: string;
@@ -213,17 +214,13 @@ Deno.serve(async (req: Request) => {
       prog.potenza_kwp * prog.ore_sole_annue * PR * eff_netta * (1 - perdita_ombra);
 
     // ── 4. Autoconsumo % dal profilo ───────────────────────────────────────
+    // Le fasce per batteria sono in quotaAutoconsumo, la stessa che usa il PDF.
     let autoconsumo_pct = prog.autoconsumo_pct ?? 0.35;
     if (prog.profilo_consumo) {
-      const prof = profili.find((x: { codice: string }) => x.codice === prog.profilo_consumo);
-      if (prof) {
-        const cap = prog.capacita_accumulo_kwh ?? 0;
-        autoconsumo_pct =
-          cap <= 0 ? prof.autoconsumo_no_accumulo :
-          cap <= 5 ? prof.autoconsumo_accumulo_5kwh :
-          cap <= 10 ? prof.autoconsumo_accumulo_10kwh :
-          prof.autoconsumo_accumulo_15kwh;
-      }
+      const prof = (profili as FvProfiloAutoconsumo[]).find((x) => x.codice === prog.profilo_consumo);
+      // Senza batteria (con_accumulo spento) una capacità rimasta salvata non conta.
+      const quota = quotaAutoconsumo(prof, prog.con_accumulo === false ? 0 : prog.capacita_accumulo_kwh ?? 0);
+      if (quota != null) autoconsumo_pct = quota;
     }
 
     // Vincolo: produzione > consumo cap autoconsumo a consumo

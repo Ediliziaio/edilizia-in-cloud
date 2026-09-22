@@ -44,6 +44,7 @@ import { type QuotePaymentPhase, recalcPhaseAmounts } from "@/lib/preventivi/pay
 // Refactor 2026-05-10: ProductSearchDialog estratto in file separato (-316 righe)
 import { ProductSearchDialog } from "@/components/marketing/preventivi/ProductSearchDialog";
 import { QuoteDiscountControl } from "@/components/preventivi/QuoteDiscountControl";
+import { PrezzoPreventivoAMano } from "@/components/preventivi/PrezzoPreventivoAMano";
 import { SceltaRenderDialog, type RenderScelto } from "@/components/preventivi/SceltaRenderDialog";
 // mp-preventivi-v2: slider sconto limitato integrato nello step 1 per preventivi esistenti
 import { isPreventivatoreUnifiedOn } from "@/lib/featureFlags";
@@ -395,6 +396,11 @@ export default function QuoteBuilder() {
   // Step 1: Items
   const [items, setItems] = useState<QuoteItemPro[]>([]);
   const [discountPercent, setDiscountPercent] = useState(0);
+  // Prezzo scritto a mano (21/09/2026): sostituisce la somma delle righe per
+  // chi usa il builder per il documento ma non carica il listino. L'IVA qui è
+  // per riga (aliquote miste): serve un'aliquota esplicita solo per questo caso.
+  const [prezzoManuale, setPrezzoManuale] = useState<number | null>(null);
+  const [prezzoManualeIvaPct, setPrezzoManualeIvaPct] = useState<number | null>(null);
   // FASE 11 Serramentisti — Margine Lordo Atteso:
   // provvigione commerciale (%) da sottrarre al margine in preview.
   // Sessione-only, non persistita in DB (preview calcolo per il venditore).
@@ -681,6 +687,8 @@ export default function QuoteBuilder() {
     setNotes,
     setInternalNotes,
     setDiscountPercent,
+    setPrezzoManuale,
+    setPrezzoManualeIvaPct,
     setSelectedTemplateId,
     setTipoLavoro,
     setIndirizzoLavori,
@@ -1484,7 +1492,7 @@ export default function QuoteBuilder() {
     const itemsSignature = items
       .map((i) => `${i.name}|${i.quantity}|${i.unit_price}|${i.discount_percent}|${i.item_category}`)
       .join("·");
-    const hash = JSON.stringify({ clientName, itemsSignature, discountPercent });
+    const hash = JSON.stringify({ clientName, itemsSignature, discountPercent, prezzoManuale, prezzoManualeIvaPct });
     if (hash === lastSavedHashRef.current) return;
     try {
       // ORDINE (fix 2026-08-21): righe PRIMA della testata, come in
@@ -1534,6 +1542,8 @@ export default function QuoteBuilder() {
       await supabase.from("quotes").update({
         client_name: clientName,
         discount_percent: discountPercent,
+        prezzo_manuale: prezzoManuale,
+        prezzo_manuale_iva_pct: prezzoManualeIvaPct,
         updated_at: new Date().toISOString(),
       }).eq("id", id!).eq("company_id", companyId);
       lastSavedHashRef.current = hash;
@@ -1546,7 +1556,7 @@ export default function QuoteBuilder() {
     // utente (clientName/items/discount), non sul carico di existingQuote. Leggere status
     // dentro la funzione è sufficiente (closure chiama la query refetch se ID cambia).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clientName, items, discountPercent, companyId, user, saving, isEdit, id, rileggiVersione]);
+  }, [clientName, items, discountPercent, prezzoManuale, prezzoManualeIvaPct, companyId, user, saving, isEdit, id, rileggiVersione]);
 
   useEffect(() => {
     if (!isEdit) return;
@@ -1596,7 +1606,7 @@ export default function QuoteBuilder() {
           clientAddress, clientFiscalCode, clientVatNumber,
           title, description, validityDays, notes, internalNotes,
           tipoLavoro, indirizzoLavori, pianoInstallazione, kmCantiere,
-          salespersonId, sedeId, discountPercent, provvigionePct, items,
+          salespersonId, sedeId, discountPercent, prezzoManuale, prezzoManualeIvaPct, provvigionePct, items,
         }));
       } catch { /* localStorage pieno/non disponibile */ }
     }, 1000);
@@ -1604,7 +1614,7 @@ export default function QuoteBuilder() {
   }, [isEdit, quoteDraftKey, saving, contactId, clientName, clientEmail, clientPhone,
       clientCompany, clientAddress, clientFiscalCode, clientVatNumber, title, description,
       validityDays, notes, internalNotes, tipoLavoro, indirizzoLavori, pianoInstallazione,
-      kmCantiere, salespersonId, sedeId, discountPercent, provvigionePct, items]);
+      kmCantiere, salespersonId, sedeId, discountPercent, prezzoManuale, prezzoManualeIvaPct, provvigionePct, items]);
 
   const clearQuoteDraft = useCallback(() => {
     if (!quoteDraftKey) return;
@@ -1634,6 +1644,8 @@ export default function QuoteBuilder() {
     setSalespersonId(d.salespersonId ?? null);
     setSedeId(d.sedeId ?? null);
     setDiscountPercent(d.discountPercent ?? 0);
+    setPrezzoManuale(d.prezzoManuale ?? null);
+    setPrezzoManualeIvaPct(d.prezzoManualeIvaPct ?? null);
     setProvvigionePct(d.provvigionePct ?? 0);
     if (Array.isArray(d.items)) setItems(d.items);
     setRecoverableDraft(null);
@@ -1679,7 +1691,9 @@ export default function QuoteBuilder() {
   const totaliPro = calcolaTotaliPreventivo(
     items,
     impostazioni.overhead_percentuale ?? 0,
-    discountPercent
+    discountPercent,
+    prezzoManuale,
+    prezzoManualeIvaPct
   );
   const subtotal = totaliPro.subtotale;
   const discountAmt = subtotal * (discountPercent / 100);
@@ -1746,6 +1760,8 @@ export default function QuoteBuilder() {
         bonus_lines: bonusLines.length ? serializeBonusLines(bonusLines) : null,
         validity_days: validityDays,
         discount_percent: discountPercent,
+        prezzo_manuale: prezzoManuale,
+        prezzo_manuale_iva_pct: prezzoManualeIvaPct,
         // L'autore resta chi l'ha creato: le notifiche di firma e scadenza vanno a lui.
         ...(isEdit ? {} : { created_by: user.id }),
         template_id: selectedTemplateId || null,
@@ -2920,6 +2936,42 @@ export default function QuoteBuilder() {
                 {/* Totals in step 1 */}
                 {items.length > 0 && (
                   <div className="mt-6 space-y-4">
+                    <PrezzoPreventivoAMano
+                      id="quote-prezzo-manuale"
+                      companyId={companyId}
+                      value={prezzoManuale}
+                      sommaVoci={totaliPro.somma_voci}
+                      onCommit={(v) => {
+                        setPrezzoManuale(v);
+                        // Prima volta che si scrive un prezzo: un'aliquota di partenza
+                        // (quella più usata nelle righe, come le righe nuove) — restano
+                        // a 0€ senza aliquote miste da cui ripartire l'IVA. Tolto il
+                        // prezzo, l'aliquota non serve più.
+                        if (v && prezzoManualeIvaPct == null) setPrezzoManualeIvaPct(ivaPredefinita());
+                        if (!v) setPrezzoManualeIvaPct(null);
+                      }}
+                    />
+                    {Number(prezzoManuale ?? 0) > 0 && (
+                      <div className="flex justify-between items-center gap-2 py-1 rounded-md bg-orange-50/50 border border-orange-200 px-2.5">
+                        <span className="text-orange-900 text-xs">
+                          Aliquota IVA del prezzo scritto a mano — qui le righe hanno aliquote
+                          miste, quindi con le righe a 0€ non c'è nulla da ripartire.
+                        </span>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <Input
+                            id="quote-prezzo-manuale-iva"
+                            type="number"
+                            min={0}
+                            max={100}
+                            step={0.5}
+                            className="w-16 h-7 text-right text-xs bg-white"
+                            value={prezzoManualeIvaPct ?? 0}
+                            onChange={(e) => setPrezzoManualeIvaPct(parseFloat(e.target.value) || 0)}
+                          />
+                          <span className="text-xs text-orange-900">%</span>
+                        </div>
+                      </div>
+                    )}
                     {isEdit && id && (
                       <QuoteDiscountControl
                         quoteId={id}
@@ -2932,7 +2984,7 @@ export default function QuoteBuilder() {
                       <div className="w-full max-w-sm rounded-lg border bg-gradient-to-br from-muted/30 to-muted/10 p-4 space-y-2.5 text-sm">
                         <div className="flex justify-between items-center">
                           <span className="text-muted-foreground text-xs uppercase tracking-wide">
-                            Subtotale
+                            {totaliPro.prezzo_manuale ? "Prezzo del preventivo" : "Subtotale"}
                           </span>
                           <span className="tabular-nums font-medium">
                             {formatCurrency(subtotal)}
@@ -3491,7 +3543,9 @@ export default function QuoteBuilder() {
             <div className="flex justify-end">
               <div className="w-full max-w-sm rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4 space-y-1.5 text-sm shadow-sm">
                 <div className="flex justify-between">
-                  <span className="text-slate-500">Subtotale</span>
+                  <span className="text-slate-500">
+                    {totaliPro.prezzo_manuale ? "Prezzo del preventivo" : "Subtotale"}
+                  </span>
                   <span className="font-medium tabular-nums">{formatCurrency(subtotal)}</span>
                 </div>
                 {discountPercent > 0 && (

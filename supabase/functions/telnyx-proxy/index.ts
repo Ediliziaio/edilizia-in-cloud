@@ -17,6 +17,18 @@ function timingSafeEqual(a: string, b: string): boolean {
   return diff === 0;
 }
 
+/**
+ * L'utente è amministratore della sua azienda? (21/09/2026 — «Numeri di
+ * telefono»: comprare o rilasciare un numero costa un canone mensile vero;
+ * prima nessuna funzione lo controllava, e chiunque aprisse la pagina delle
+ * impostazioni poteva farlo. Florin: «solo chi è amministratore può farlo».)
+ */
+// deno-lint-ignore no-explicit-any
+async function isCompanyAdmin(admin: any, userId: string): Promise<boolean> {
+  const { data: roles } = await admin.from("user_roles").select("role").eq("user_id", userId);
+  return (roles ?? []).some((r: { role: string }) => r.role === "company_admin");
+}
+
 serveConMetriche("telnyx-proxy", async (req) => {
   const corsHeaders = getCorsHeaders(req);
   if (req.method === "OPTIONS") {
@@ -36,6 +48,7 @@ serveConMetriche("telnyx-proxy", async (req) => {
 
     let isServiceCall = false;
     let companyId: string | null = null;
+    let userId: string | null = null;
 
     // SEC-015: verifica autenticazione in ordine di preferenza
     const cronSecret = Deno.env.get("INTERNAL_CRON_SECRET");
@@ -66,6 +79,7 @@ serveConMetriche("telnyx-proxy", async (req) => {
         });
         const { data: { user }, error: userErr } = await userClient.auth.getUser();
         if (userErr || !user) return json({ error: "Unauthorized" }, 401);
+        userId = user.id;
 
         const { data: profile } = await adminClient
           .from("profiles")
@@ -191,6 +205,15 @@ serveConMetriche("telnyx-proxy", async (req) => {
       case "buy_number": {
         if (!payload?.phone_number) throw new Error("phone_number richiesto");
 
+        // ── SOLO L'AMMINISTRATORE (21/09/2026) ──
+        // Comprare un numero apre un canone mensile vero. Prima bastava
+        // aprire la pagina Telefonia (nessun controllo qui né nella riga
+        // che scriveva su virtual_phone_numbers): ristretto all'amministratore,
+        // come chiesto da Florin. Le service-call interne restano consentite.
+        if (!isServiceCall && userId && !(await isCompanyAdmin(adminClient, userId))) {
+          return json({ error: "Solo un amministratore dell'azienda può acquistare un numero." }, 403);
+        }
+
         // ── GATE NORMATIVO (server-side, non aggirabile dalla UI) ──
         // Un'azienda può acquistare un numero SOLO se i suoi dati normativi sono
         // APPROVATI: così la titolarità/responsabilità è sua. Le service-call
@@ -247,6 +270,12 @@ serveConMetriche("telnyx-proxy", async (req) => {
 
       case "release_number": {
         if (!payload?.phone_number_id) throw new Error("phone_number_id richiesto");
+
+        // Solo l'amministratore, stessa regola dell'acquisto.
+        if (!isServiceCall && userId && !(await isCompanyAdmin(adminClient, userId))) {
+          return json({ error: "Solo un amministratore dell'azienda può rilasciare un numero." }, 403);
+        }
+
         await telnyxFetch(`/phone_numbers/${payload.phone_number_id}`, "DELETE", apiKey);
 
         // Remove from local DB

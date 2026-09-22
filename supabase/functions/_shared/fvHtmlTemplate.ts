@@ -8,6 +8,13 @@
  */
 
 import { MODULO_RECESSO } from "./condizioniStandard.ts";
+import { eFotoDiSerie, leggiBlocco, leggiFotoPagina, PAGINE_BLOCCO, type PaginaBlocco } from "./blocchiPreventivo.ts";
+import { iconaSvg } from "./iconePreventivo.ts";
+import { normalizeFvPdfPagesOrder, type FvPdfPageOrderItem } from "./fvPagine.ts";
+export {
+  FV_PDF_PAGES_DEFAULT, FV_PDF_PAGES_META, normalizeFvPdfPagesOrder,
+  type FvPdfPageId, type FvPdfPageMeta, type FvPdfPageOrderItem,
+} from "./fvPagine.ts";
 import {
   fmtEur,
   fmtNum,
@@ -35,6 +42,101 @@ import {
 } from "./fvSvgCharts.ts";
 
 // ─── Tipi del data context ────────────────────────────────────────────────
+
+/** Le foto di serie del documento: file in public/pdf-stock/fotovoltaico del sito. */
+export const FOTO_DI_SERIE_FV = {
+  alberi: "co2-alberi.jpg",
+  voli: "co2-voli.jpg",
+  auto: "co2-auto.jpg",
+  bosco: "co2-bosco.jpg",
+  installatori: "fasi-installatori.jpg",
+  impianto: "investimento-impianto.jpg",
+} as const;
+
+/**
+ * I badge delle garanzie, uno per l'icona scelta nel modello: file in
+ * public/pdf-stock/badge del sito. Prendono il posto delle sigle di testo
+ * («PV», «kWh», «FER», «★») che facevano da icona.
+ */
+export const BADGE_GARANZIE_FV = {
+  sun: "energia-solare.png",
+  award: "durata-nel-tempo.png",
+  clock: "tempi-rapidi.png",
+  tools: "installatori-qualificati.png",
+  battery: "energia-elettrica.png",
+  shield: "qualita-verificata.png",
+} as const;
+
+/** Gli indirizzi dei badge a partire dall'origine del sito (anteprime dell'editor). */
+export function badgeGaranzieDalSito(origine: string): Record<keyof typeof BADGE_GARANZIE_FV, string> {
+  const base = `${origine.replace(/\/+$/, "")}/pdf-stock/badge`;
+  return Object.fromEntries(
+    Object.entries(BADGE_GARANZIE_FV).map(([icona, file]) => [icona, `${base}/${file}`]),
+  ) as Record<keyof typeof BADGE_GARANZIE_FV, string>;
+}
+
+/** Gli indirizzi delle foto di serie a partire dall'origine del sito (anteprime dell'editor). */
+export function fotoDiSerieDalSito(origine: string): Record<keyof typeof FOTO_DI_SERIE_FV, string> {
+  const base = `${origine.replace(/\/+$/, "")}/pdf-stock/fotovoltaico`;
+  return Object.fromEntries(
+    Object.entries(FOTO_DI_SERIE_FV).map(([chiave, file]) => [chiave, `${base}/${file}`]),
+  ) as Record<keyof typeof FOTO_DI_SERIE_FV, string>;
+}
+
+/**
+ * Le foto dei blocchi accesi nell'ordine delle pagine, così come stanno nel
+ * modello (foto di serie «/pdf-stock/…» o foto dell'azienda già firmate):
+ * al massimo due per blocco. Il generatore le incorpora, le anteprime le
+ * completano con l'origine del sito.
+ */
+export function fotoDeiBlocchiFv(template: FvPdfTemplateData["template"] | null | undefined): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  for (const page of normalizeFvPdfPagesOrder(template?.pdf_pages_order)) {
+    if (!page.visible || !(page.id in PAGINE_BLOCCO)) continue;
+    const chiave = PAGINE_BLOCCO[page.id as PaginaBlocco];
+    out[chiave] = leggiBlocco(chiave, "fotovoltaico", template?.pdf_blocchi).foto.slice(0, 2);
+  }
+  return out;
+}
+
+/** Le pagine del documento che hanno una foto loro (di serie, cambiabile dall'azienda). */
+export const PAGINE_CON_FOTO_FV = ["garanzie", "bollette", "decisione", "componenti", "costi", "cassa", "piano", "faq", "risparmio", "produzione"] as const;
+export type PaginaConFotoFv = (typeof PAGINE_CON_FOTO_FV)[number];
+
+/**
+ * La foto di ogni pagina così come sta nel modello (foto di serie «/pdf-stock/…» o
+ * foto dell'azienda già firmata), o null se l'azienda l'ha tolta.
+ */
+export function fotoDellePagineFv(template: FvPdfTemplateData["template"] | null | undefined): Record<PaginaConFotoFv, string | null> {
+  return Object.fromEntries(
+    PAGINE_CON_FOTO_FV.map((pagina) => [pagina, leggiFotoPagina(pagina, "fotovoltaico", template?.pdf_blocchi)]),
+  ) as Record<PaginaConFotoFv, string | null>;
+}
+
+/** Le foto delle pagine con l'indirizzo completo del sito (anteprime dell'editor). */
+export function fotoPagineDalSito(
+  origine: string,
+  template: FvPdfTemplateData["template"] | null | undefined,
+): NonNullable<FvPdfTemplateData["foto_pagine"]> {
+  const base = origine.replace(/\/+$/, "");
+  return Object.fromEntries(
+    Object.entries(fotoDellePagineFv(template)).map(([pagina, u]) => [pagina, u && u.startsWith("/") ? `${base}${u}` : u]),
+  );
+}
+
+/** Le foto dei blocchi con l'indirizzo completo del sito (anteprime dell'editor). */
+export function fotoBlocchiDalSito(
+  origine: string,
+  template: FvPdfTemplateData["template"] | null | undefined,
+): NonNullable<FvPdfTemplateData["blocchi_foto"]> {
+  const base = origine.replace(/\/+$/, "");
+  return Object.fromEntries(
+    Object.entries(fotoDeiBlocchiFv(template)).map(([chiave, foto]) => [
+      chiave,
+      foto.map((u) => ({ src: u.startsWith("/") ? `${base}${u}` : u, diSerie: eFotoDiSerie(u) })),
+    ]),
+  );
+}
 
 export interface FvPdfTemplateData {
   azienda: {
@@ -141,12 +243,36 @@ export interface FvPdfTemplateData {
     payback_anni: number | null;
     npv_25_anni: number;
     cassa_anno_per_anno: Array<{ anno: number; cumulato: number }>;
+    /** Quello che il GSE paga per l'energia immessa, primo anno (fv_calcolo_finanziario.ricavi_rid_eur). */
+    ricavi_rid_anno1_eur?: number | null;
+    /** Inflazione annua dell'energia del calcolo, come frazione (0,025 = 2,5%). */
+    inflazione_energia_pct?: number | null;
   };
   flows: FvFlows;
   /** Gli stessi flussi senza batteria, calcolati con lo stesso modello e gli stessi
    *  dati: servono a dire quanto cambia l'accumulo con numeri veri. Assenti nelle
    *  anteprime con dati finti: allora la frase non ne stampa. */
   flows_senza_accumulo?: FvFlows | null;
+  /** Le foto delle pagine (garanzie, perché farlo ora, pagina finale): data URI nel
+   *  generatore, indirizzi del sito nelle anteprime. Null o assente: la pagina è senza. */
+  foto_pagine?: Partial<Record<PaginaConFotoFv, string | null>> | null;
+  /** I badge delle garanzie per icona (BADGE_GARANZIE_FV): data URI nel generatore,
+   *  indirizzi del sito nelle anteprime. Senza, la scheda usa la sigla di testo. */
+  badge_garanzie?: Partial<Record<keyof typeof BADGE_GARANZIE_FV, string | null>> | null;
+  /** Le foto dei blocchi accesi (come funziona, sicurezza sul tetto…), già pronte:
+   *  data URI nel generatore, indirizzi del sito nelle anteprime. Una foto che non
+   *  è arrivata non c'è, e il blocco esce senza. */
+  blocchi_foto?: Record<string, Array<{ src: string; diSerie: boolean }>> | null;
+  /** Le foto di serie del documento (public/pdf-stock/fotovoltaico), già incorporate
+   *  dal generatore come data URI. Una che manca: quella pagina usa il disegno di prima. */
+  foto_di_serie?: {
+    alberi?: string | null;
+    voli?: string | null;
+    auto?: string | null;
+    bosco?: string | null;
+    installatori?: string | null;
+    impianto?: string | null;
+  } | null;
   componenti: Array<{
     articolo_id?: string | null;
     categoria: string;
@@ -215,6 +341,8 @@ export interface FvPdfTemplateData {
       id?: string | null;
       visible?: boolean | null;
     }> | null;
+    /** I blocchi del preventivo: solo i campi che l'azienda ha cambiato (_shared/blocchiPreventivo.ts). */
+    pdf_blocchi?: Record<string, unknown> | null;
     valore_proposta_html?: string | null;
     garanzie_conversione?: Array<{
       titolo?: string | null;
@@ -401,6 +529,23 @@ p { margin-bottom: 2mm; }
 .kpi-big.orange .kbig-sub { color: #7C2D12; }
 .kpi-big.red .kbig-sub { color: #7F1D1D; }
 
+/* I blocchi della libreria: una o due foto, poi le voci con l'icona in un cerchio dell'accento.
+   La fascia delle foto prende lo spazio che resta nella pagina: una foto a tutta
+   larghezza fino a 150 mm, due affiancate fino a 110. Meglio una foto un po'
+   tagliata che mezza pagina bianca (22/09/2026); la pagina non sborda mai. */
+.blocco-titolo .accento { color: #C2410C; }
+.content > .blocco-foto { flex: 1 1 0; min-height: 50mm; max-height: 150mm; display: flex; gap: 4mm; margin: 1mm 0 1.5mm; }
+.content > .blocco-foto.due { max-height: 110mm; }
+.blocco-foto img { flex: 1 1 0; min-width: 0; height: 100%; object-fit: cover; border-radius: 10px; display: block; }
+.blocco-nota { font-size: 6.5pt; color: #94A3B8; margin-bottom: 4mm; }
+.blocco-voci { display: grid; grid-template-columns: repeat(2, 1fr); gap: 3mm; margin-top: 2mm; }
+.blocco-voci.tre { grid-template-columns: repeat(3, 1fr); }
+.blocco-voce { display: flex; gap: 3mm; align-items: flex-start; break-inside: avoid; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 3mm 3.5mm; }
+.blocco-icona { width: 8.5mm; height: 8.5mm; border-radius: 50%; background: #FFEDD5; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.blocco-voce-titolo { font-family: 'Outfit', sans-serif; font-size: 10.5pt; font-weight: 700; color: #1E3A5F; line-height: 1.25; padding-top: 0.6mm; }
+.blocco-voci.tre .blocco-voce-titolo { font-size: 9.5pt; padding-top: 1.8mm; }
+.blocco-voce-testo { font-size: 8.8pt; color: #475569; line-height: 1.45; margin-top: 0.8mm; }
+
 .callout { border-radius: 8px; padding: 3.5mm 4.5mm; margin: 4mm 0; font-size: 9.5pt; display: flex; gap: 2.5mm; align-items: flex-start; }
 .callout-icon { font-size: 12pt; line-height: 1; flex-shrink: 0; }
 .callout-success { background: #DCFCE7; border-left: 3px solid #16A34A; color: #166534; }
@@ -530,6 +675,30 @@ table .saving-zero { color: #64748B; }
 .macro-pill-row { display: flex; gap: 2mm; flex-wrap: wrap; margin-top: 4mm; }
 .macro-pill { border-radius: 999px; background: #FFEDD5; color: #C2410C; font-size: 7.5pt; font-weight: 700; padding: 1.2mm 2.6mm; }
 
+/* La CO₂ con le foto: la fascia del bosco con le tonnellate, poi tre riquadri. */
+.co2-foto { position: relative; border-radius: 12px; overflow: hidden; height: 60mm; margin: 4mm 0 3mm; }
+.co2-foto img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.co2-foto::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(8,28,18,0.78) 0%, rgba(8,28,18,0.42) 55%, rgba(8,28,18,0.08) 100%); }
+.co2-foto-testo { position: relative; z-index: 1; height: 100%; display: flex; flex-direction: column; justify-content: center; padding: 0 9mm; color: #FFFFFF; }
+.co2-foto-testo .etichetta { font-size: 7.5pt; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; opacity: 0.92; }
+.co2-foto-testo .valore { font-family: 'Outfit', sans-serif; font-size: 40pt; font-weight: 800; line-height: 1; letter-spacing: -0.02em; margin: 2mm 0 2.5mm; }
+.co2-foto-testo .sub { font-size: 9pt; opacity: 0.92; max-width: 100mm; line-height: 1.45; }
+.co2-carte { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4mm; }
+.co2-carta { border: 1px solid #E2E8F0; border-radius: 10px; overflow: hidden; background: #FFFFFF; }
+.co2-carta img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; }
+.co2-carta .corpo { padding: 3mm 3.5mm 3.5mm; }
+.co2-carta .num { font-family: 'Outfit', sans-serif; font-size: 20pt; font-weight: 800; color: #16A34A; line-height: 1; }
+.co2-carta .cosa { font-size: 7.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #64748B; margin-top: 1mm; }
+.co2-carta .desc { font-size: 8pt; color: #475569; margin-top: 1.2mm; line-height: 1.4; }
+/* La fascia foto delle pagine con i contenuti variabili (fasi, investimento):
+   prende solo lo spazio che resta, fino a 64 mm; sotto i 34 mm la foto non esce.
+   Così una pagina piena non sborda mai per colpa di una foto. */
+/* Lo stacco sopra la foto sta dentro la fascia: a zero, la fascia non occupa niente. */
+.content > .foto-fascia { flex: 1 1 0; min-height: 0; max-height: 69mm; container-type: size; }
+.foto-fascia img { display: block; width: 100%; height: calc(100% - 5mm); margin-top: 4mm; object-fit: cover; border-radius: 12px; }
+@container (max-height: 39mm) { .foto-fascia img { display: none; } }
+/* La foto di una pagina che ha poco altro (le garanzie): può crescere di più. */
+.content > .foto-fascia.alta { max-height: 125mm; }
 .eq-row { display: grid; grid-template-columns: 26mm 1fr; gap: 4mm; align-items: center; padding: 3mm 4mm; background: white; border: 1px solid #E2E8F0; border-radius: 8px; margin-bottom: 2.2mm; }
 .eq-row .eq-num { font-family: 'Outfit', sans-serif; font-size: 20pt; font-weight: 800; color: #16A34A; line-height: 1; text-align: center; }
 .eq-row .eq-num small { display: block; font-size: 7.5pt; color: #64748B; font-weight: 600; margin-top: 0.5mm; text-transform: uppercase; letter-spacing: 0.05em; }
@@ -541,6 +710,8 @@ table .saving-zero { color: #64748B; }
 .guarantee-card .g-num { font-family: 'Outfit', sans-serif; font-size: 18pt; font-weight: 800; color: #16A34A; line-height: 1; margin-bottom: 1.5mm; }
 .guarantee-card .g-title { font-size: 10pt; font-weight: 700; color: #1E3A5F; margin-bottom: 1.5mm; }
 .guarantee-card .g-desc { font-size: 8pt; color: #475569; line-height: 1.4; }
+.guarantee-card.con-badge { display: grid; grid-template-columns: 13mm 1fr; column-gap: 3.5mm; align-items: start; }
+.guarantee-card .g-badge { width: 13mm; height: 13mm; object-fit: contain; display: block; }
 `;
 
 // ─── Page header/footer comuni ────────────────────────────────────────────
@@ -694,7 +865,14 @@ function hasEstimatedRoofData(d: FvPdfTemplateData): boolean {
 function renderRoofSourcePanel(d: FvPdfTemplateData): string {
   const source = roofSourceLabel(d.progetto.fonte_dati_tetto);
   const quality = roofQualityLabel(d.progetto.qualita_dati_tetto);
-  const imageryDate = d.progetto.imagery_date ? fmtData(d.progetto.imagery_date) : "non indicata";
+  // Con PVGIS non c'è un'immagine del tetto né una qualità del rilievo: prima le due
+  // caselle dicevano «non indicata», in 14 preventivi su 38. Si scrive cosa c'è.
+  const pvgis = d.progetto.fonte_dati_tetto === "pvgis";
+  const celle: Array<[string, string]> = [["Fonte dati tetto", source]];
+  if (pvgis) celle.push(["Dati usati", "irraggiamento medio della tua zona"]);
+  else if (quality !== "non indicata") celle.push(["Qualità dati", quality]);
+  if (d.progetto.imagery_date) celle.push(["Immagine satellitare", fmtData(d.progetto.imagery_date)]);
+  else if (d.progetto.inclinazione_tetto) celle.push(["Inclinazione del tetto", `${fmtNum(d.progetto.inclinazione_tetto)}°`]);
   const warning = hasEstimatedRoofData(d)
     ? `<div class="callout callout-tip">
         <span class="callout-icon">!</span>
@@ -702,9 +880,7 @@ function renderRoofSourcePanel(d: FvPdfTemplateData): string {
       </div>`
     : "";
   return `<div class="source-grid">
-    <div class="source-cell"><div class="source-label">Fonte dati tetto</div><div class="source-value">${escHtml(source)}</div></div>
-    <div class="source-cell"><div class="source-label">Qualità dati</div><div class="source-value">${escHtml(quality)}</div></div>
-    <div class="source-cell"><div class="source-label">Immagine satellitare</div><div class="source-value">${escHtml(imageryDate)}</div></div>
+    ${celle.map(([etichetta, valore]) => `<div class="source-cell"><div class="source-label">${escHtml(etichetta)}</div><div class="source-value">${escHtml(valore)}</div></div>`).join("")}
   </div>${warning}`;
 }
 
@@ -798,99 +974,6 @@ function dedicatedMacroPages(d: FvPdfTemplateData): Array<FvListinoMacroPdf & { 
     );
 }
 
-export type FvPdfPageId =
-  | "investimento"
-  | "anteprima"
-  | "componenti"
-  | "macro_categorie"
-  | "produzione"
-  | "flussi"
-  | "risparmio"
-  | "costi_futuri"
-  | "piano_pagamento"
-  | "bollette_240"
-  | "cassa_25"
-  | "co2"
-  | "garanzie"
-  | "iter"
-  | "faq"
-  | "decisione";
-
-export interface FvPdfPageOrderItem {
-  id: FvPdfPageId;
-  visible: boolean;
-}
-
-export interface FvPdfPageMeta {
-  id: FvPdfPageId;
-  label: string;
-  descrizione: string;
-  obbligatoria: boolean;
-}
-
-export const FV_PDF_PAGES_META: FvPdfPageMeta[] = [
-  // Ordine di default in stile vendita (la "linea retta" di Belfort): prima la
-  // FIDUCIA (chi siamo + garanzie) e il percorso, poi il DESIDERIO (prodotto e
-  // prova), poi il VALORE (risparmio, cassa 25 anni), e SOLO dopo il PREZZO
-  // (investimento + rata) e l'URGENZA. Il prezzo non si mostra mai prima del
-  // valore. Questo e' lo standard; l'utente puo' sempre ri-trascinare.
-  // — Atto 1: Fiducia —
-  { id: "garanzie", label: "Chi siamo e garanzie", descrizione: "Azienda, prova sociale, certificazioni e garanzie.", obbligatoria: false },
-  { id: "iter", label: "Percorso cliente", descrizione: "Iter pratiche, installazione, allaccio e servizi inclusi.", obbligatoria: false },
-  // — Atto 2: Desiderio (prodotto e prova) —
-  { id: "anteprima", label: "Anteprima impianto", descrizione: "Vista tetto, layout pannelli e fonte dati.", obbligatoria: false },
-  { id: "componenti", label: "Componenti scelti", descrizione: "Prodotti reali scelti nel preventivo e arricchiti dal listino.", obbligatoria: true },
-  { id: "macro_categorie", label: "Pagine linee prodotto", descrizione: "Pagine dedicate lette dalle macro-categorie del listino.", obbligatoria: false },
-  { id: "produzione", label: "Produzione", descrizione: "Producibilita mensile, fonte dati e qualita tetto.", obbligatoria: false },
-  { id: "flussi", label: "Flussi energia", descrizione: "Autoconsumo, autosufficienza e energia ceduta.", obbligatoria: false },
-  // — Atto 3: Valore (quanto guadagna, prima del costo) —
-  { id: "risparmio", label: "Risparmio", descrizione: "Bolletta prima/dopo e risparmio mensile.", obbligatoria: false },
-  { id: "costi_futuri", label: "Costi futuri", descrizione: "Scenario costo energia nei prossimi anni.", obbligatoria: false },
-  { id: "cassa_25", label: "Cassa 25 anni", descrizione: "Cashflow, breakeven e valore cumulato.", obbligatoria: false },
-  { id: "co2", label: "Impatto CO2", descrizione: "Beneficio ambientale in equivalenze semplici.", obbligatoria: false },
-  // — Atto 4: Offerta (ora il prezzo, e sembra piccolo) —
-  { id: "investimento", label: "Investimento", descrizione: "Prezzo, proposta di valore, inclusi e detrazione.", obbligatoria: true },
-  { id: "piano_pagamento", label: "Piano economico", descrizione: "Rata, risparmio e costo netto mensile. Esce solo con un finanziamento.", obbligatoria: false },
-  { id: "bollette_240", label: "Perche farlo ora", descrizione: "Narrativa su aumento bollette e urgenza.", obbligatoria: false },
-  // — Atto 5: Chiusura —
-  { id: "faq", label: "FAQ", descrizione: "Domande e risposte scritte nel modello: senza, la pagina non esce.", obbligatoria: false },
-  { id: "decisione", label: "CTA e firma", descrizione: "Riepilogo offerta e contatti; dopo, le condizioni, la pagina della firma e il modulo di recesso.", obbligatoria: true },
-];
-
-export const FV_PDF_PAGES_DEFAULT: FvPdfPageOrderItem[] = FV_PDF_PAGES_META.map((page) => ({
-  id: page.id,
-  visible: true,
-}));
-
-export function normalizeFvPdfPagesOrder(
-  saved: NonNullable<NonNullable<FvPdfTemplateData["template"]>["pdf_pages_order"]> | null | undefined,
-): FvPdfPageOrderItem[] {
-  const validIds = new Set<FvPdfPageId>(FV_PDF_PAGES_META.map((page) => page.id));
-  const mandatoryIds = new Set<FvPdfPageId>(
-    FV_PDF_PAGES_META.filter((page) => page.obbligatoria).map((page) => page.id),
-  );
-  const out: FvPdfPageOrderItem[] = [];
-  const seen = new Set<FvPdfPageId>();
-
-  for (const item of saved ?? []) {
-    const id = item?.id as FvPdfPageId | undefined;
-    if (!id || !validIds.has(id) || seen.has(id)) continue;
-    seen.add(id);
-    out.push({
-      id,
-      visible: mandatoryIds.has(id) ? true : Boolean(item.visible),
-    });
-  }
-
-  for (const page of FV_PDF_PAGES_META) {
-    if (!seen.has(page.id)) {
-      out.push({ id: page.id, visible: true });
-    }
-  }
-
-  return out;
-}
-
 function cssColor(value: string | null | undefined, fallback: string): string {
   const raw = plainText(value);
   if (/^#[0-9a-f]{3,8}$/i.test(raw)) return raw;
@@ -913,6 +996,22 @@ function renderCoverLines(value: string): string {
   return escHtml(value).replace(/\n/g, "<br/>");
 }
 
+/**
+ * Indirizzo, CAP, comune e provincia, senza ripetere quello che l'indirizzo già
+ * contiene: dalla ricerca dell'indirizzo arriva «Via Roma, 12, 20121 Milano MI,
+ * Italia», e il PDF aggiungeva di nuovo «20121 Milano, (MI)».
+ */
+export function indirizzoCompleto(c: FvPdfTemplateData["cliente"]): string {
+  const via = plainText(c.indirizzo).replace(/,?\s*Italia\s*$/i, "").trim();
+  const comune = plainText(c.comune);
+  const giaDentro = Boolean(comune) && via.toLowerCase().includes(comune.toLowerCase());
+  return [
+    via || null,
+    giaDentro ? null : c.cap && comune ? `${c.cap} ${comune}` : comune || null,
+    giaDentro || !c.provincia ? null : `(${c.provincia})`,
+  ].filter(Boolean).join(", ").replace(/, \(/g, " (");
+}
+
 function renderCoverSubtitle(d: FvPdfTemplateData, fallback: string): string {
   const template = plainText(d.template?.pdf_cover_subhero_template);
   const staticText = plainText(d.template?.pdf_cover_subhero);
@@ -921,24 +1020,25 @@ function renderCoverSubtitle(d: FvPdfTemplateData, fallback: string): string {
     cliente_nome: `${d.cliente.nome} ${d.cliente.cognome}`.trim(),
     potenza_kwp: `${fmtNum(d.progetto.potenza_kwp, 1)} kWp`,
     accumulo_kwh: d.progetto.has_accumulo ? `${fmtNum(d.progetto.capacita_accumulo_kwh, 1)} kWh` : "senza accumulo",
-    indirizzo: d.cliente.indirizzo ?? "",
+    indirizzo: plainText(d.cliente.indirizzo).replace(/,?\s*Italia\s*$/i, "").trim(),
     comune: d.cliente.comune ?? "",
     numero_pannelli: String(d.progetto.numero_pannelli),
   };
-  return value.replace(/\{([a-z_]+)\}/gi, (_match, key: string) => replacements[key] ?? "");
+  // «{potenza_kwp} {accumulo_kwh}» (il testo di serie dell'editor) usciva «6,0 kWp 5,0 kWh»:
+  // la batteria si dice, a meno che il testo non la nomini già («accumulo da {accumulo_kwh}»).
+  return value.replace(/\{([a-z_]+)\}/gi, (_match, key: string, pos: number) => {
+    if (key === "accumulo_kwh" && d.progetto.has_accumulo && !/accumulo(\s+da)?\s*$/i.test(value.slice(0, pos))) {
+      return `con accumulo da ${replacements.accumulo_kwh}`;
+    }
+    return replacements[key] ?? "";
+  });
 }
 
 // ─── Pagine ────────────────────────────────────────────────────────────────
 
 function pageCover(d: FvPdfTemplateData): string {
   const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
-  const indirizzoCompleto = [
-    d.cliente.indirizzo,
-    d.cliente.cap && d.cliente.comune ? `${d.cliente.cap} ${d.cliente.comune}` : d.cliente.comune,
-    d.cliente.provincia ? `(${d.cliente.provincia})` : null,
-  ]
-    .filter(Boolean)
-    .join(", ");
+  const indirizzoCliente = indirizzoCompleto(d.cliente);
   const tipologia = d.cliente.tipologia_immobile ?? "Abitazione";
   const defaultSubtitle = `Impianto fotovoltaico ${fmtNum(d.progetto.potenza_kwp, 1)} kWp${d.progetto.has_accumulo ? ` con accumulo ${fmtNum(d.progetto.capacita_accumulo_kwh, 1)} kWh` : ""}${d.cliente.indirizzo ? `\nper ${d.cliente.indirizzo}.` : ""}`;
   const eyebrow = coverText(d.template?.pdf_cover_eyebrow, "La tua proposta personalizzata");
@@ -1002,7 +1102,7 @@ function pageCover(d: FvPdfTemplateData): string {
     ${showClientCard ? `<div class="cover-client">
       <div class="client-label">Preparato per</div>
       <div class="client-name">${escHtml(cliente)}</div>
-      <div class="client-meta">${escHtml(indirizzoCompleto)} · ${escHtml(tipologia)}</div>
+      <div class="client-meta">${escHtml(indirizzoCliente)} · ${escHtml(tipologia)}</div>
     </div>` : ""}
     <div class="cover-footer">
       <div class="doc-meta">Preventivo <strong>${escHtml(d.progetto.numero)}</strong><br/>${escHtml(fmtData(d.progetto.creato_il))} · valido ${d.progetto.valido_giorni} giorni</div>
@@ -1043,8 +1143,8 @@ function pageInvestimento(d: FvPdfTemplateData, pageN: number, total: number): s
     ${header(d.progetto.numero, cliente, d.azienda.name)}
     <div class="content">
       <div class="eyebrow">L'investimento</div>
-      <h1 class="page-title">L'investimento di<br/>una vita.</h1>
-      <p class="page-subtitle">Trasparente, completo, chiavi in mano. Senza sorprese.</p>
+      <h1 class="page-title">Il tuo impianto,<br/>tutto compreso.</h1>
+      <p class="page-subtitle">Il prezzo, cosa comprende e quanto recuperi con la detrazione.</p>
       ${valoreProposta ? `<div class="callout callout-info">
         <span class="callout-icon">i</span>
         <div><strong>Perché questa proposta è costruita su misura</strong><div class="rich-text">${valoreProposta}</div></div>
@@ -1059,6 +1159,7 @@ function pageInvestimento(d: FvPdfTemplateData, pageN: number, total: number): s
         ${inclusi.slice(0, 10).map((i) => `<li>${escHtml(i)}</li>`).join("")}
         ${altriInclusi > 0 ? `<li>e altre ${altriInclusi} voci del preventivo</li>` : ""}
       </ul>` : ""}
+      ${d.foto_di_serie?.impianto ? `<div class="foto-fascia"><img src="${d.foto_di_serie.impianto}" alt="" /></div>` : ""}
       ${d.costi.detrazione_eur > 0 ? `<div class="callout callout-success">
         <span class="callout-icon">✓</span>
         <div><strong>Detrazione fiscale ${d.costi.detrazione_perc}% — recuperi ${fmtEur(d.costi.detrazione_eur)} in 10 anni.</strong>
@@ -1239,9 +1340,10 @@ function pageComponenti(d: FvPdfTemplateData, pageN: number, total: number): str
     ${header(d.progetto.numero, cliente, d.azienda.name)}
     <div class="content">
       <div class="eyebrow">I componenti</div>
-      <h1 class="page-title">Solo materiali<br/>premium.</h1>
-      <p class="page-subtitle">Ogni componente è stato scelto per durare 25+ anni. Marche leader con assistenza Italia.</p>
+      <h1 class="page-title">I componenti,<br/>uno per uno.</h1>
+      <p class="page-subtitle">Marca, modello e garanzia di ogni componente che installiamo sul tuo tetto.</p>
       ${cards || "<p>Nessun componente configurato.</p>"}
+      ${fasciaFotoPagina(d, "componenti", "center 45%", true)}
     </div>
     ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
   </div>`;
@@ -1315,6 +1417,7 @@ function pageProduzione(d: FvPdfTemplateData, pageN: number, total: number): str
         <div class="kpi-block orange"><div class="kpi-label">Autoconsumato</div><div class="kpi-value">${fmtNum(d.flows.autoconsumo_kwh)} <span class="unit">kWh</span></div><div class="kpi-sub">Diretto + da accumulo</div></div>
         <div class="kpi-block"><div class="kpi-label">Ceduto in rete</div><div class="kpi-value">${fmtNum(d.flows.ceduto_rete_kwh)} <span class="unit">kWh</span></div><div class="kpi-sub">Energia non autoconsumata</div></div>
       </div>
+      ${fasciaFotoPagina(d, "produzione", "center 45%")}
       ${d.progetto.has_accumulo ? calloutAccumulo(d) : ""}
     </div>
     ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
@@ -1374,28 +1477,31 @@ function pageRisparmio(d: FvPdfTemplateData, pageN: number, total: number): stri
     consumo_annuo_kwh: d.progetto.consumo_annuo_kwh,
     prelievo_rete_kwh: d.flows.prelievo_rete_kwh,
     prezzo_kwh: d.progetto.costo_kwh_attuale,
+    ricavi_rid_eur: d.scenario.ricavi_rid_anno1_eur ?? null,
   });
+  const conRid = Number(d.scenario.ricavi_rid_anno1_eur) > 0;
   return `<div class="page">
     ${header(d.progetto.numero, cliente, d.azienda.name)}
     <div class="content">
       <div class="eyebrow">Il risparmio</div>
-      <h1 class="page-title">${fmtEur(d.scenario.risparmio_mensile_eur)} al mese,<br/>per sempre.</h1>
-      <p class="page-subtitle">Quello che eviti di pagare in bolletta dal primo giorno. Dato indicizzato all'inflazione.</p>
+      <h1 class="page-title">${fmtEur(d.scenario.risparmio_mensile_eur)} al mese<br/>che restano a te.</h1>
+      <p class="page-subtitle">${conRid ? "Quello che non paghi più in bolletta, più quello che il GSE ti paga per l'energia che immetti in rete." : "Quello che non paghi più in bolletta."} Stima del primo anno, con il prezzo che paghi oggi.</p>
       <div class="kpi-row cols-2">
-        <div class="kpi-big"><div class="kbig-label">Risparmio mensile</div><div class="kbig-value">${fmtEur(d.scenario.risparmio_mensile_eur)}</div><div class="kbig-sub">primo anno · cresce con l'inflazione</div></div>
-        <div class="kpi-big"><div class="kbig-label">Risparmio annuo</div><div class="kbig-value">${fmtEur(d.scenario.risparmio_anno1_eur)}</div><div class="kbig-sub">primo anno (al netto oneri rete)</div></div>
+        <div class="kpi-big"><div class="kbig-label">Al mese</div><div class="kbig-value">${fmtEur(d.scenario.risparmio_mensile_eur)}</div><div class="kbig-sub">in media, il primo anno</div></div>
+        <div class="kpi-big"><div class="kbig-label">All'anno</div><div class="kbig-value">${fmtEur(d.scenario.risparmio_anno1_eur)}</div><div class="kbig-sub">${conRid ? "bolletta più energia venduta, il primo anno" : "in bolletta, il primo anno"}</div></div>
       </div>
       <h3 style="font-size:11pt;color:#1E3A5F;margin:4mm 0 2mm;">La tua bolletta — prima e dopo</h3>
       <table>
         <thead><tr><th>Voce</th><th class="num-cell">Oggi (senza FV)</th><th class="num-cell">Con il fotovoltaico</th><th class="num-cell">Risparmio</th></tr></thead>
         <tbody>
-          ${bolletta.map((r) => `<tr${r.is_total ? ' class="row-total"' : ""}><td>${escHtml(r.voce)}</td><td class="num-cell">${r.is_kwh_row ? `${fmtNum(r.oggi_eur)} kWh` : fmtEur(r.oggi_eur)}</td><td class="num-cell">${r.is_kwh_row ? `~${fmtNum(r.con_fv_eur)} kWh` : fmtEur(r.con_fv_eur)}</td><td class="num-cell ${r.risparmio_eur === 0 ? "saving-zero" : "saving"}">${r.is_kwh_row ? `−${Math.abs(r.risparmio_eur)}%` : r.risparmio_eur === 0 ? "0 €" : fmtEur(r.risparmio_eur)}</td></tr>`).join("")}
+          ${bolletta.map((r) => `<tr${r.is_total ? ' class="row-total"' : ""}><td>${escHtml(r.voce)}</td><td class="num-cell">${r.is_kwh_row ? `${fmtNum(r.oggi_eur)} kWh` : r.oggi_eur === 0 && r.con_fv_eur < 0 ? "—" : fmtEur(r.oggi_eur)}</td><td class="num-cell">${r.is_kwh_row ? `${fmtNum(r.con_fv_eur)} kWh` : fmtEur(r.con_fv_eur)}</td><td class="num-cell ${r.risparmio_eur === 0 ? "saving-zero" : "saving"}">${r.is_kwh_row ? `−${Math.abs(r.risparmio_eur)}%` : r.risparmio_eur === 0 ? "0 €" : fmtEur(r.risparmio_eur)}</td></tr>`).join("")}
         </tbody>
       </table>
+      ${fasciaFotoPagina(d, "risparmio", "center 55%")}
       <div class="callout callout-success">
         <span class="callout-icon">★</span>
-        <div><strong>Bollette previste a ${escHtml(d.cliente.comune ?? "Milano")}: in crescita del 15-25% nei prossimi 5 anni.</strong>
-        Il tuo impianto produce un risparmio in <strong>kWh</strong>, non in euro. Più sale il prezzo dell'energia, più cresce il valore del risparmio.</div>
+        <div><strong>Il risparmio si misura in kWh, non in euro.</strong>
+        La stima usa il prezzo che paghi oggi, ${escHtml(fmtNum(d.progetto.costo_kwh_attuale, 2))} € per kWh: se l'energia rincara, ogni kWh prodotto in casa vale di più; se cala, vale un po' meno.</div>
       </div>
     </div>
     ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
@@ -1404,11 +1510,14 @@ function pageRisparmio(d: FvPdfTemplateData, pageN: number, total: number): stri
 
 function pageCostiFuturi(d: FvPdfTemplateData, pageN: number, total: number): string {
   const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
+  // L'inflazione dell'energia del calcolo finanziario (2,5% di serie): prima qui era 3%,
+  // e i 20 anni non tornavano con la cassa a 25 anni.
+  const inflazione = Number(d.scenario.inflazione_energia_pct) > 0 ? Number(d.scenario.inflazione_energia_pct) * 100 : 2.5;
   const costi = calcolaCosti20Anni({
     consumo_annuo_kwh: d.progetto.consumo_annuo_kwh,
     prelievo_rete_kwh: d.flows.prelievo_rete_kwh,
     prezzo_kwh_attuale: d.progetto.costo_kwh_attuale,
-    inflazione_perc: 3.0,
+    inflazione_perc: inflazione,
     orizzonte_anni: 20,
   });
   return `<div class="page">
@@ -1416,7 +1525,7 @@ function pageCostiFuturi(d: FvPdfTemplateData, pageN: number, total: number): st
     <div class="content">
       <div class="eyebrow">Costi energetici futuri</div>
       <h1 class="page-title">Quanto pagherai<br/>nei prossimi 20 anni.</h1>
-      <p class="page-subtitle">Confronto annuo bolletta senza fotovoltaico vs con il tuo impianto. Inflazione attesa: 3%/anno.</p>
+      <p class="page-subtitle">La bolletta di ogni anno, senza il fotovoltaico e con il tuo impianto. Ipotesi: prezzo dell'energia in crescita del ${escHtml(fmtNum(inflazione, 1))}% l'anno.</p>
       <div class="chart-card">
         <div class="chart-title">Spesa annuale per l'elettricità — anno per anno</div>
         <div class="chart-sub">Senza FV (arancione) vs con il tuo impianto (verde) · scala in € all'anno</div>
@@ -1424,8 +1533,9 @@ function pageCostiFuturi(d: FvPdfTemplateData, pageN: number, total: number): st
       </div>
       <div class="kpi-row cols-2">
         <div class="kpi-big red"><div class="kbig-label">Senza fotovoltaico</div><div class="kbig-value">~${fmtEur(costi.totale_senza_fv_eur)}</div><div class="kbig-sub">spesi in 20 anni di bollette</div></div>
-        <div class="kpi-big"><div class="kbig-label">Con fotovoltaico</div><div class="kbig-value">~${fmtEur(costi.totale_con_fv_eur)}</div><div class="kbig-sub">spesi in 20 anni · risparmi ${fmtEur(costi.totale_risparmio_eur)}</div></div>
+        <div class="kpi-big"><div class="kbig-label">Con fotovoltaico</div><div class="kbig-value">~${fmtEur(costi.totale_con_fv_eur)}</div><div class="kbig-sub">spesi in 20 anni · ${fmtEur(costi.totale_risparmio_eur)} in meno in bolletta</div></div>
       </div>
+      ${fasciaFotoPagina(d, "costi", "center 42%", true)}
     </div>
     ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
   </div>`;
@@ -1468,6 +1578,7 @@ function pagePiano(d: FvPdfTemplateData, fin: FvFinanziamentoPdf, pageN: number,
           <tr><td>TAN nominale</td><td class="num-cell">${fmtTasso(fin.tan_perc)}</td><td>TAEG (incluse spese)</td><td class="num-cell">${fmtTasso(fin.taeg_perc)}</td></tr>
         </tbody>
       </table>
+      ${fasciaFotoPagina(d, "piano", "center 45%", true)}
     </div>
     ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
   </div>`;
@@ -1497,10 +1608,11 @@ function pageBollette240(d: FvPdfTemplateData, pageN: number, total: number): st
         <div class="chart-sub">Indici 100 al 2012 — bollette luce vs reddito netto famiglie italiane</div>
         ${svgForbice()}
       </div>
+      ${fasciaFotoPagina(d, "bollette", "center 40%")}
       <div class="callout callout-tip">
         <span class="callout-icon">★</span>
         <div><strong>Senza FV, in 25 anni ${escHtml(d.cliente.nome)} pagherà ~${fmtEur(costo25senzaFV)} di bollette.</strong>
-        Con FV, una frazione. La differenza è il prezzo di restare ostaggio del mercato. <strong>Il sole non aumenta mai di prezzo.</strong></div>
+        Con il fotovoltaico, solo la parte che prendi ancora dalla rete. L'energia che produci sul tuo tetto non segue i rincari del mercato.</div>
       </div>
     </div>
     ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
@@ -1518,7 +1630,7 @@ function pageCassa25(d: FvPdfTemplateData, pageN: number, total: number): string
   const payback = d.scenario.payback_anni;
   const eventi = [
     { anno: 0, descr: "Installazione · investimento iniziale", cumulato: cassa[0]?.cumulato ?? -d.costi.prezzo_vendita_iva_inclusa },
-    ...(payback != null ? [{ anno: payback, descr: "★ Breakeven · da qui in poi è tutto profitto", cumulato: 0 }] : []),
+    ...(payback != null ? [{ anno: payback, descr: "★ La spesa è ripagata: da qui in poi è guadagno", cumulato: 0 }] : []),
     { anno: 12, descr: "Anno indicativo di sostituzione dell'inverter", cumulato: cassa.find((c) => c.anno === 12)?.cumulato },
     { anno: 25, descr: "Fine del periodo analizzato", cumulato: final },
   ]
@@ -1529,7 +1641,7 @@ function pageCassa25(d: FvPdfTemplateData, pageN: number, total: number): string
     <div class="content">
       <div class="eyebrow">La cassa nei 25 anni</div>
       <h1 class="page-title">${final > 0 ? "+" : ""}${fmtEur(final)}<br/>nelle tue tasche.</h1>
-      <p class="page-subtitle">Profitto netto cumulato dopo 25 anni${payback != null ? ` · breakeven al ${payback}° anno · poi puro profitto` : ""}.</p>
+      <p class="page-subtitle">Quello che ti resta dopo 25 anni, tolta la spesa${payback != null ? `: la ripaghi in circa ${escHtml(fmtNum(Math.round(payback)))} anni` : ""}. Stima con le ipotesi del preventivo.</p>
       <div class="chart-card">
         <div class="chart-title">Cassa cumulata anno per anno</div>
         <div class="chart-sub">Investimento iniziale, risparmio in bolletta, energia ceduta alla rete${d.costi.detrazione_eur > 0 ? " e detrazione fiscale" : ""}</div>
@@ -1538,9 +1650,10 @@ function pageCassa25(d: FvPdfTemplateData, pageN: number, total: number): string
       <table>
         <thead><tr><th>Anno</th><th>Cosa succede</th><th class="num-cell">Cassa cumulata</th></tr></thead>
         <tbody>
-          ${eventi.map((e) => `<tr${e.anno === payback ? ' class="row-total"' : ""}><td><strong>${e.anno}</strong></td><td>${escHtml(e.descr)}</td><td class="num-cell" style="color:${(e.cumulato ?? 0) >= 0 ? "#16A34A" : "#DC2626"};">${fmtEur(e.cumulato ?? 0)}</td></tr>`).join("")}
+          ${eventi.map((e) => `<tr${e.anno === payback ? ' class="row-total"' : ""}><td><strong>${escHtml(Number.isInteger(e.anno) ? String(e.anno) : fmtNum(e.anno, 1))}</strong></td><td>${escHtml(e.descr)}</td><td class="num-cell" style="color:${(e.cumulato ?? 0) >= 0 ? "#16A34A" : "#DC2626"};">${fmtEur(e.cumulato ?? 0)}</td></tr>`).join("")}
         </tbody>
       </table>
+      ${fasciaFotoPagina(d, "cassa", "center 55%", true)}
     </div>
     ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
   </div>`;
@@ -1575,13 +1688,32 @@ function pageCO2(d: FvPdfTemplateData, pageN: number, total: number): string {
   const treesIcons = filaDiPittogrammi("albero", Math.min(20, Math.round(co2.alberi_anno / 8)));
   const flightsIcons = filaDiPittogrammi("volo", Math.min(20, co2.voli_anno));
   const carsIcons = filaDiPittogrammi("auto", Math.min(10, Math.round(co2.km_auto_anno / 2500)));
+  // Un paragone calcolato sul numero vero: prima c'era scritto a tutti «quasi un
+  // giro del mondo all'anno», anche con 19.700 km (mezzo giro).
+  const viaggiMilanoRoma = Math.round(co2.km_auto_anno / 575);
+  const paragoneKm = viaggiMilanoRoma >= 1 ? ` Come ${fmtNum(viaggiMilanoRoma)} ${viaggiMilanoRoma === 1 ? "viaggio" : "viaggi"} Milano–Roma.` : "";
+  const foto = d.foto_di_serie;
+  const conFoto = Boolean(foto?.alberi && foto?.voli && foto?.auto && foto?.bosco);
   return `<div class="page">
     ${header(d.progetto.numero, cliente, d.azienda.name)}
     <div class="content">
       <div class="eyebrow">L'impatto sul pianeta</div>
       <h1 class="page-title">${fmtNum(co2.ton_co2_anno, 2)} t di CO<sub>2</sub><br/>in meno ogni anno.</h1>
       <p class="page-subtitle">Il tuo impianto è un bosco a casa tua. Ecco cosa significa, in modo concreto.</p>
-      <div class="kpi-big" style="text-align:center;padding:8mm;margin:4mm 0;">
+      ${conFoto ? `<div class="co2-foto">
+        <img src="${foto!.bosco}" alt="" />
+        <div class="co2-foto-testo">
+          <div class="etichetta">CO₂ evitata in 25 anni</div>
+          <div class="valore">${fmtNum(co2.ton_co2_totale, 1)} tonnellate</div>
+          <div class="sub">${fmtNum(co2.kg_co2_anno)} kg ogni anno: come una piccola foresta nel tuo cortile.</div>
+        </div>
+      </div>
+      <h3 style="font-size:11pt;color:#1E3A5F;margin:3mm 0 2mm;">Ciò corrisponde, ogni anno, a:</h3>
+      <div class="co2-carte">
+        <div class="co2-carta"><img src="${foto!.alberi}" alt="" /><div class="corpo"><div class="num">${fmtNum(co2.alberi_anno)}</div><div class="cosa">Alberi</div><div class="desc">che assorbono la stessa CO₂: un albero medio ne assorbe circa 25 kg l'anno.</div></div></div>
+        <div class="co2-carta"><img src="${foto!.voli}" alt="" /><div class="corpo"><div class="num">${fmtNum(co2.voli_anno)}</div><div class="cosa">Voli evitati</div><div class="desc">Milano–Maiorca, in CO₂: un volo breve in Europa ne emette circa 200 kg.</div></div></div>
+        <div class="co2-carta"><img src="${foto!.auto}" alt="" /><div class="corpo"><div class="num">${fmtNum(co2.km_auto_anno)}</div><div class="cosa">Km in auto</div><div class="desc">non percorsi con un'auto a benzina (circa 150 g di CO₂ al km).${paragoneKm}</div></div></div>
+      </div>` : `<div class="kpi-big" style="text-align:center;padding:8mm;margin:4mm 0;">
         <div class="kbig-label" style="margin-bottom:2mm;">CO₂ evitata in 25 anni</div>
         <div class="kbig-value" style="font-size:42pt;">${fmtNum(co2.ton_co2_totale, 1)} tonnellate</div>
         <div class="kbig-sub" style="font-size:9pt;margin-top:2mm;">${fmtNum(co2.kg_co2_anno)} kg/anno · pari a una piccola foresta nel tuo cortile</div>
@@ -1589,11 +1721,67 @@ function pageCO2(d: FvPdfTemplateData, pageN: number, total: number): string {
       <h3 style="font-size:11pt;color:#1E3A5F;margin:4mm 0 2mm;">Ciò corrisponde a (ogni anno):</h3>
       <div class="eq-row"><div class="eq-num">${fmtNum(co2.alberi_anno)}<small>Alberi</small></div><div><div class="eq-icons">${treesIcons}</div><div class="eq-desc">Una piccola foresta che assorbe la stessa CO₂. Ogni albero medio assorbe ~25 kg di CO₂ all'anno.</div></div></div>
       <div class="eq-row"><div class="eq-num">${fmtNum(co2.voli_anno)}<small>Voli</small></div><div><div class="eq-icons">${flightsIcons}</div><div class="eq-desc">Voli evitati Milano → Maiorca, in equivalenza CO₂. Un volo medio EU breve emette ~200 kg di CO₂.</div></div></div>
-      <div class="eq-row"><div class="eq-num">${fmtNum(co2.km_auto_anno)}<small>Km auto</small></div><div><div class="eq-icons">${carsIcons}</div><div class="eq-desc">Chilometri non percorsi con un'auto a benzina (~150 g CO₂/km). Quasi un giro del mondo all'anno.</div></div></div>
+      <div class="eq-row"><div class="eq-num">${fmtNum(co2.km_auto_anno)}<small>Km auto</small></div><div><div class="eq-icons">${carsIcons}</div><div class="eq-desc">Chilometri non percorsi con un'auto a benzina (~150 g CO₂/km).${paragoneKm}</div></div></div>`}
       <div class="callout callout-success">
         <span class="callout-icon">✓</span>
         <div><strong>Energia pulita, prodotta sul tuo tetto.</strong>
         Ogni kWh che autoconsumi è energia che non prelevi dalla rete.</div>
+      </div>
+    </div>
+    ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
+  </div>`;
+}
+
+// ─── I blocchi della libreria: come funziona, sicurezza sul tetto… ──────────
+// Testi e foto di serie per il fotovoltaico (_shared/blocchiPreventivo.ts), con
+// sopra quello che l'azienda ha cambiato. Le foto arrivano già pronte in
+// `blocchi_foto`; senza, il blocco esce con i soli testi.
+
+function bloccoFv(d: FvPdfTemplateData, id: PaginaBlocco) {
+  const chiave = PAGINE_BLOCCO[id];
+  const blocco = leggiBlocco(chiave, "fotovoltaico", d.template?.pdf_blocchi);
+  const foto = (d.blocchi_foto?.[chiave] ?? []).filter((f) => imageHref(f.src)).slice(0, 2);
+  return { blocco, foto };
+}
+
+/** Un blocco esce solo se ha qualcosa da mostrare. */
+function bloccoHaContenuto(d: FvPdfTemplateData, id: PaginaBlocco): boolean {
+  const { blocco, foto } = bloccoFv(d, id);
+  return blocco.voci.length > 0 || foto.length > 0;
+}
+
+/**
+ * La foto di una pagina, nella fascia che prende solo lo spazio libero (.foto-fascia):
+ * con la pagina piena si restringe o sparisce, mai una pagina che sborda.
+ */
+function fasciaFotoPagina(d: FvPdfTemplateData, pagina: PaginaConFotoFv, posizione = "center", alta = false): string {
+  const src = imageHref(d.foto_pagine?.[pagina] ?? null);
+  return src ? `<div class="foto-fascia${alta ? " alta" : ""}"><img src="${escHtml(src)}" alt="" style="object-position:${posizione};" /></div>` : "";
+}
+
+/** «Dal tuo tetto *alla tua presa*.»: la parola fra asterischi nel colore dell'accento. */
+function titoloConAccento(titolo: string): string {
+  return escHtml(titolo).replace(/\*([^*]+)\*/g, '<span class="accento">$1</span>');
+}
+
+function pageBlocco(d: FvPdfTemplateData, id: PaginaBlocco, pageN: number, total: number): string {
+  const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
+  const { blocco, foto } = bloccoFv(d, id);
+  // Con una spiegazione le voci stanno su due colonne; solo titoli, su tre.
+  const tre = !blocco.voci.some((v) => v.testo);
+  return `<div class="page">
+    ${header(d.progetto.numero, cliente, d.azienda.name)}
+    <div class="content">
+      <div class="eyebrow">${escHtml(blocco.occhiello)}</div>
+      <h1 class="page-title blocco-titolo">${titoloConAccento(blocco.titolo)}</h1>
+      ${blocco.intro ? `<p class="page-subtitle">${escHtml(blocco.intro)}</p>` : ""}
+      ${foto.length > 0 ? `<div class="blocco-foto${foto.length > 1 ? " due" : ""}">${foto.map((f) => `<img src="${escHtml(imageHref(f.src) ?? "")}" alt="" />`).join("")}</div>
+      ${blocco.nota && foto.some((f) => f.diSerie) ? `<div class="blocco-nota">${escHtml(blocco.nota)}</div>` : ""}` : ""}
+      <div class="blocco-voci${tre ? " tre" : ""}">
+        ${blocco.voci.map((v) => `<div class="blocco-voce">
+          <span class="blocco-icona">${v.icona ? iconaSvg(v.icona, "#C2410C", 15) : ""}</span>
+          <div><div class="blocco-voce-titolo">${escHtml(v.titolo)}</div>${v.testo ? `<div class="blocco-voce-testo">${escHtml(v.testo)}</div>` : ""}</div>
+        </div>`).join("")}
       </div>
     </div>
     ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
@@ -1655,14 +1843,18 @@ function pageGaranzie(d: FvPdfTemplateData, pageN: number, total: number): strin
         </div>
       </div>` : ""}
       <div class="guarantee-grid">
-        ${garanzie.map((g) => `<div class="guarantee-card"><div class="g-num">${escHtml(guaranteeIconLabel(g.icona))}</div><div class="g-title">${escHtml(g.titolo)}</div><div class="g-desc">${escHtml(g.descrizione)}</div></div>`).join("")}
+        ${garanzie.map((g) => {
+          const badge = imageHref(d.badge_garanzie?.[g.icona as keyof typeof BADGE_GARANZIE_FV] ?? d.badge_garanzie?.shield);
+          return badge
+            ? `<div class="guarantee-card con-badge"><img class="g-badge" src="${escHtml(badge)}" alt="" /><div><div class="g-title">${escHtml(g.titolo)}</div><div class="g-desc">${escHtml(g.descrizione)}</div></div></div>`
+            : `<div class="guarantee-card"><div class="g-num">${escHtml(guaranteeIconLabel(g.icona))}</div><div class="g-title">${escHtml(g.titolo)}</div><div class="g-desc">${escHtml(g.descrizione)}</div></div>`;
+        }).join("")}
       </div>
       <h3 style="font-size:11pt;color:#1E3A5F;margin:4mm 0 2mm;">${customUsp.length > 0 ? "Perché scegliere noi" : "L'azienda"}</h3>
       <ul class="bullets">
         ${customUsp.length > 0
           ? customUsp.map((u) => `<li><strong>${escHtml(u.titolo)}</strong>${u.descrizione ? ` — ${escHtml(u.descrizione)}` : ""}</li>`).join("")
-          : `<li><strong>${escHtml(d.azienda.name)}</strong></li>${d.azienda.website ? `<li>${escHtml(d.azienda.website)}</li>` : ""}`}
-        ${d.azienda.vat_number ? `<li>P.IVA ${escHtml(d.azienda.vat_number)}</li>` : ""}
+          : `<li><strong>${escHtml(d.azienda.name)}</strong></li>${d.azienda.website ? `<li>${escHtml(d.azienda.website)}</li>` : ""}${d.azienda.vat_number ? `<li>P.IVA ${escHtml(d.azienda.vat_number)}</li>` : ""}`}
         ${certificazioni.map((cert) => `<li>${escHtml(plainText(cert.nome))}${plainText(cert.ente) ? ` · ${escHtml(plainText(cert.ente))}` : ""}</li>`).join("")}
       </ul>
       ${recensioni.length > 0 ? `<h3 style="font-size:11pt;color:#1E3A5F;margin:3mm 0 2mm;">Cosa dicono i clienti</h3>
@@ -1676,6 +1868,7 @@ function pageGaranzie(d: FvPdfTemplateData, pageN: number, total: number): strin
         <div style="display:grid;grid-template-columns:repeat(${Math.min((d.cantieri_foto ?? []).length, 3)},1fr);gap:2mm;">
           ${(d.cantieri_foto ?? []).slice(0, 3).map((src) => `<div style="height:28mm;border-radius:6px;overflow:hidden;border:1px solid #E2E8F0;"><img src="${escHtml(src)}" alt="Cantiere installato" style="width:100%;height:100%;object-fit:cover;"/></div>`).join("")}
         </div>` : ""}
+      ${fasciaFotoPagina(d, "garanzie", "center 60%", true)}
     </div>
     ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
   </div>`;
@@ -1710,6 +1903,9 @@ function pageIter(d: FvPdfTemplateData, pageN: number, total: number): string {
   const customTimeline = customCrono
     .map((c) => `<div class="tl-item"><div class="tl-day">${escHtml(c.durata || "—")}</div><div class="tl-title">${escHtml(c.fase)}</div>${c.descrizione ? `<div class="tl-desc">${escHtml(c.descrizione)}</div>` : ""}</div>`)
     .join("");
+  // Con più di sei fasi i servizi non stanno anche qui: la pagina sbordava e il
+  // fondo si tagliava. Restano elencati nella pagina dell'investimento («Cosa è incluso»).
+  const quanteFasi = customCrono.length > 0 ? customCrono.length : fasiStandard.length;
   return `<div class="page">
     ${header(d.progetto.numero, cliente, d.azienda.name)}
     <div class="content">
@@ -1720,7 +1916,8 @@ function pageIter(d: FvPdfTemplateData, pageN: number, total: number): string {
       <div class="tl">
         ${customCrono.length > 0 ? customTimeline : defaultTimeline}
       </div>
-      ${renderServiziInclusi(d)}
+      ${quanteFasi <= 6 ? renderServiziInclusi(d) : ""}
+      ${d.foto_di_serie?.installatori ? `<div class="foto-fascia"><img src="${d.foto_di_serie.installatori}" alt="" style="object-position:center 55%;" /></div>` : ""}
       <div class="callout callout-success">
         <span class="callout-icon">✓</span>
         <div><strong>Tu firmi una volta sola.</strong>
@@ -1752,6 +1949,7 @@ function pageFAQ(d: FvPdfTemplateData, pageN: number, total: number): string {
       <div style="margin-top:4mm;">
         ${faqs.map((f) => `<div class="qa-item"><div class="qa-q">${escHtml(f.q)}</div><div class="qa-a">${escHtml(f.a)}</div></div>`).join("")}
       </div>
+      ${fasciaFotoPagina(d, "faq", "center 40%", true)}
     </div>
     ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
   </div>`;
@@ -1765,7 +1963,7 @@ function numeriDellImpianto(d: FvPdfTemplateData): Array<{ etichetta: string; va
   const out: Array<{ etichetta: string; valore: string; unita?: string; nota: string; tono?: "green" | "orange" }> = [];
   if (d.flows.produzione_kwh > 0) out.push({ etichetta: "Energia prodotta", valore: fmtNum(d.flows.produzione_kwh), unita: "kWh", nota: "ogni anno, dal primo", tono: "green" });
   if (d.flows.autosufficienza_pct > 0) out.push({ etichetta: "Autosufficienza", valore: fmtPct(d.flows.autosufficienza_pct, 0), nota: "del consumo di casa dal tuo sole" });
-  if (d.scenario.risparmio_anno1_eur > 0) out.push({ etichetta: "Risparmio", valore: fmtEur(d.scenario.risparmio_anno1_eur), nota: "in bolletta, il primo anno", tono: "orange" });
+  if (d.scenario.risparmio_anno1_eur > 0) out.push({ etichetta: "Risparmio", valore: fmtEur(d.scenario.risparmio_anno1_eur), nota: Number(d.scenario.ricavi_rid_anno1_eur) > 0 ? "bolletta ed energia venduta, il primo anno" : "in bolletta, il primo anno", tono: "orange" });
   const rientro = d.scenario.payback_anni;
   if (rientro != null && rientro > 0 && rientro <= 25) {
     out.push({ etichetta: "Rientro", valore: Number.isInteger(rientro) ? fmtNum(rientro) : fmtNum(rientro, 1), unita: "anni", nota: "per ripagare l'impianto" });
@@ -1862,6 +2060,7 @@ function pageDecisione(d: FvPdfTemplateData, pageN: number, total: number): stri
         </div>
       </div>
       ${!haPaginaCondizioni(d) && condizioni ? `<div class="legal-box"><strong>Condizioni commerciali:</strong><div class="rich-text">${condizioni}</div></div>` : ""}
+      ${fasciaFotoPagina(d, "decisione", "center 55%")}
       <div class="callout callout-info">
         <span class="callout-icon">i</span>
         <div><strong>Come si firma</strong>Online, con il link ricevuto via email. Oppure su carta, nella pagina «Firma del contratto»${haPaginaCondizioni(d) ? ", dopo le condizioni generali" : " che segue"}: c'è il riepilogo di quello che si firma, e lo spazio per le firme.</div>
@@ -1883,11 +2082,7 @@ function pageFirmaContratto(d: FvPdfTemplateData, pageN: number, total: number):
   const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
   const fin = d.finanziamento;
   const docMeta = `${d.azienda.name}${d.azienda.vat_number ? ` · P.IVA ${d.azienda.vat_number}` : ""} · Doc ${d.progetto.numero} · ${fmtData(d.progetto.creato_il)}`;
-  const luogo = [
-    d.cliente.indirizzo,
-    d.cliente.cap && d.cliente.comune ? `${d.cliente.cap} ${d.cliente.comune}` : d.cliente.comune,
-    d.cliente.provincia ? `(${d.cliente.provincia})` : null,
-  ].filter(Boolean).join(", ");
+  const luogo = indirizzoCompleto(d.cliente);
   const conCondizioni = haPaginaCondizioni(d);
   const clausole = conCondizioni ? condizioniInBlocchi(String(d.template?.condizioni_legali_testo ?? "")).clausole : [];
   const righe: Array<[string, string]> = [
@@ -2097,6 +2292,8 @@ function pagineDaDisegnare(d: FvPdfTemplateData): FvPdfPageOrderItem[] {
     if (page.id === "cassa_25" && d.scenario.cassa_anno_per_anno.length === 0) return false;
     // Le domande frequenti sono quelle scritte dall'azienda.
     if (page.id === "faq" && faqDellAzienda(d).length === 0) return false;
+    // Un blocco senza voci né foto non esce.
+    if (page.id in PAGINE_BLOCCO && !bloccoHaContenuto(d, page.id as PaginaBlocco)) return false;
     return true;
   });
 }
@@ -2212,6 +2409,13 @@ export function renderFvPdfHtml(d: FvPdfTemplateData): string {
         break;
       case "faq":
         pages.push(pageFAQ(d, ++pageN, TOTAL));
+        break;
+      case "come_funziona":
+      case "protezione":
+      case "controlli":
+      case "documenti":
+      case "diario":
+        pages.push(pageBlocco(d, page.id, ++pageN, TOTAL));
         break;
       case "decisione":
         pages.push(pageDecisione(d, ++pageN, TOTAL));

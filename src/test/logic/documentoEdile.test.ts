@@ -4,7 +4,7 @@
  * che cambiano da modulo a modulo, il titolo con la parola in corsivo, i numeri
  * doppi, le durate, la tinta della copertina, la foto di serie.
  */
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { giorniDellaDurata, senzaNumeroDavanti, spezzaAccento } from "@/components/preventivi/pdf/testoDocumento";
@@ -213,10 +213,14 @@ describe("il colore dell'azienda in copertina", () => {
     expect(pixel[7]).toBe(255);
   });
 
-  it("le foto di serie sono file dell'app, non di siti terzi", () => {
+  it("le foto di serie sono file dell'app, non di siti terzi, e dal 22/09/2026 ce n'è una per ogni settore", () => {
     for (const url of Object.values(COPERTINA_DI_SERIE)) {
-      expect(url).toMatch(/^\/cover-stock\/[a-z]+\/\d+\.jpg$/);
+      expect(url).toMatch(/^\/(cover|pdf)-stock\/[a-z]+\/[a-z0-9-]+\.jpg$/);
+      expect(existsSync(resolve(process.cwd(), `public${url}`)), url).toBe(true);
     }
+    expect(Object.keys(COPERTINA_DI_SERIE).sort()).toEqual(
+      ["bagni", "climatizzazione", "elettrico", "pavimenti", "piscine", "ristrutturazione", "termoidraulico", "tetti"],
+    );
   });
 });
 

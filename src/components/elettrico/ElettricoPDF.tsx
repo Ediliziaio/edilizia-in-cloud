@@ -12,6 +12,7 @@ import type { ElePdfEnriched } from "@/hooks/useElettricoPDF";
 import { DocumentoEdilePDF } from "@/components/preventivi/pdf/DocumentoEdilePDF";
 import { costruisciDatiEdile } from "@/components/preventivi/pdf/adattatoreEdile";
 import { MODULI_EDILI } from "@/components/preventivi/pdf/moduliEdili";
+import { LIVELLI_IMPIANTO_ELETTRICO, parolaDelCodice } from "@/components/preventivi/pdf/paroleDeiCodici";
 
 const MODULO = MODULI_EDILI.elettrico;
 
@@ -28,7 +29,7 @@ export function ElettricoPDF(props: ElePdfEnriched) {
     opzioniComputo: computoOptions,
     sostituzioniExtra: { superficie_mq: p.immobile_superficie_mq != null ? String(p.immobile_superficie_mq) : "—" },
     schedaModulo: [
-      { etichetta: "Livello dell'impianto", valore: p.livello_impianto },
+      { etichetta: "Livello dell'impianto", valore: parolaDelCodice(p.livello_impianto, LIVELLI_IMPIANTO_ELETTRICO) },
       { etichetta: "Punti", valore: p.numero_punti ? String(p.numero_punti) : null },
     ],
   });

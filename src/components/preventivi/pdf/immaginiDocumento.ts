@@ -11,6 +11,9 @@
  */
 import { toDataUrl } from "@/lib/serramenti/pdfImageUtils";
 import { copertinaInTinta } from "./temaDocumento";
+import { leggiOrdine, leggiPagineLibere, ordineEffettivo } from "./ordineCapitoli";
+import { conOrigine, fotoDeiBlocchi } from "@/lib/pdf/fotoBlocchi";
+import { BLOCCHI, leggiFotoPagina, RIEMPIMENTI_EDILI, settoreBlocchi } from "../../../../supabase/functions/_shared/blocchiPreventivo";
 
 /**
  * La copertina di chi non ha ancora toccato il modello: una foto del mestiere,
@@ -20,7 +23,15 @@ import { copertinaInTinta } from "./temaDocumento";
 export const COPERTINA_DI_SERIE: Record<string, string | undefined> = {
   ristrutturazione: "/cover-stock/ristrutturazione/2.jpg",
   bagni: "/cover-stock/bagni/2.jpg",
+  // Il cantiere della vasca è la foto dei prossimi passi: in copertina il risultato.
   piscine: "/cover-stock/ristrutturazione/3.jpg",
+  // Dal 22/09/2026 una copertina anche per gli altri cinque: prima uscivano a tinta piena.
+  tetti: "/pdf-stock/tetti/installazione.jpg",
+  climatizzazione: "/pdf-stock/climatizzazione/installazione.jpg",
+  elettrico: "/pdf-stock/ristrutturazione/controllo-elettrico.jpg",
+  // Il riscaldamento a pavimento è già in «Come funziona»: in copertina la casa in sezione, con le tubazioni.
+  termoidraulico: "/pdf-stock/ristrutturazione/tecnica-casa-sezionata.jpg",
+  pavimenti: "/pdf-stock/pavimenti/installazione.jpg",
 };
 
 type Grezzo = Record<string, unknown>;
@@ -46,17 +57,30 @@ export async function immaginiDelModello(modulo: string, template: Grezzo, logoC
   })();
   const logoCopertina = stringa(template.pdf_cover_logo_url) ?? stringa(template.cover_logo_url);
   const galleria = Array.isArray(template.gallery_lavori) ? (template.gallery_lavori as Grezzo[]) : [];
+  // Le foto dei blocchi si caricano solo per quelli che escono: al massimo due per pagina.
+  const ordine = ordineEffettivo(leggiOrdine(template.pdf_ordine_capitoli), leggiPagineLibere(template.pdf_pagine_libere));
+  const blocchiAccesi = BLOCCHI.filter((b) => ordine.some((v) => v.chiave === b.chiave && v.visibile));
   const pagineLibere = Array.isArray(template.pdf_pagine_libere) ? (template.pdf_pagine_libere as Grezzo[]) : [];
 
-  const [copertinaPronta, logoPronto, logoChiaroPronto, galleriaPronta, pagineLiberePronte] = await Promise.all([
-    toDataUrl(copertina, { scalaDiGrigi: copertinaInTinta(velo) }),
+  const fotoChiusura = leggiFotoPagina("chiusura", settoreBlocchi(modulo), template.pdf_blocchi);
+  // Le foto che riempiono le pagine: solo per i capitoli che escono (vedi DocumentoEdilePDF).
+  const riempimenti = Object.entries(RIEMPIMENTI_EDILI)
+    .filter(([capitolo]) => ordine.some((v) => v.chiave === capitolo && v.visibile))
+    .map(([, chiave]) => [chiave, leggiFotoPagina(chiave, settoreBlocchi(modulo), template.pdf_blocchi)] as const)
+    .filter((x): x is readonly [typeof x[0], string] => Boolean(x[1]));
+  const riempimentiInCorso = Promise.all(riempimenti.map(async ([k, url]) => [k, await toDataUrl(conOrigine(url))] as const));
+  const [copertinaPronta, logoPronto, logoChiaroPronto, galleriaPronta, pagineLiberePronte, fotoBlocchi, chiusuraPronta] = await Promise.all([
+    toDataUrl(copertina ? conOrigine(copertina) : null, { scalaDiGrigi: copertinaInTinta(velo) }),
     toDataUrl(logoCopertina),
     toDataUrl(logoChiaroAzienda),
     aGruppi(galleria, 4, async (g) => ({ ...g, url: await toDataUrl(stringa(g.url)) })),
     // Le foto delle pagine libere: una che non si carica lascia la pagina senza
     // foto, non il documento senza pagina.
     aGruppi(pagineLibere, 4, async (p) => ({ ...p, fotoUrl: await toDataUrl(stringa(p.fotoUrl ?? p.foto_url)) })),
+    fotoDeiBlocchi(settoreBlocchi(modulo), template.pdf_blocchi, blocchiAccesi.map((b) => b.chiave)),
+    fotoChiusura ? toDataUrl(conOrigine(fotoChiusura)) : Promise.resolve(null),
   ]);
+  const riempimentiPronti = await riempimentiInCorso;
 
   return {
     // Una foto che non si è caricata NON va al motore: meglio la copertina a tinta piena.
@@ -66,6 +90,10 @@ export async function immaginiDelModello(modulo: string, template: Grezzo, logoC
     cover_logo_url: logoPronto,
     gallery_lavori: galleriaPronta.filter((g) => Boolean(g.url)),
     pdf_pagine_libere: pagineLiberePronte,
+    // Non è un campo del modello: le foto dei blocchi accesi, già convertite (le legge l'adattatore).
+    pdf_blocchi_foto: fotoBlocchi,
+    // Non è un campo del modello: le foto delle pagine già convertite (la chiusura e quelle che riempiono).
+    pdf_pagine_foto: { chiusura: chiusuraPronta, ...Object.fromEntries(riempimentiPronti) },
     // Non è un campo del modello: torna qui per comodità di chi chiama (il logo chiaro
     // del kit del marchio, per la copertina su fondo scuro).
     logo_chiaro_url: logoChiaroPronto,

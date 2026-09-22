@@ -27,10 +27,13 @@ import { parseFinanziamentoPromo, calcolaRataMensile } from "@/lib/preventivi/fi
 import { fraseValiditaChiusura } from "@/lib/preventivi/validitaOfferta";
 import { creaTema, coloriCopertina, copertinaInTinta, type TemaDocumento } from "./temaDocumento";
 import { chiaveLibera, ordineEffettivo } from "./ordineCapitoli";
+import { IconaPdf } from "./IconaPdf";
+import { BLOCCHI, type ChiaveBlocco } from "../../../../supabase/functions/_shared/blocchiPreventivo";
 import { MODULO_RECESSO } from "../../../../supabase/functions/_shared/condizioniStandard";
 import { giorniDellaDurata, senzaNumeroDavanti, spezzaAccento } from "./testoDocumento";
+import { altezzaTesto, righeDiTesto, testoDaHtml, type FamigliaPdf } from "./misuraTesto";
 import type {
-  DocEdileCapitolo, DocEdileDati, DocEdileFase, DocEdileFoto, DocEdileVoceElenco,
+  DocEdileBlocco, DocEdileCapitolo, DocEdileDati, DocEdileFase, DocEdileFoto, DocEdileFotoBlocco, DocEdileVoceElenco,
 } from "./documentoEdileTipi";
 
 // Le parole italiane spezzate dal sillabatore inglese erano brutte: mai a capo dentro la parola.
@@ -54,6 +57,126 @@ const percento = (v: number): string => {
   const n = Number(v) || 0;
   return `${Number.isInteger(n) ? n : n.toFixed(1)}%`;
 };
+
+// ─── Quanto occupa un capitolo, prima di disegnarlo ──────────────────────────
+// react-pdf non dice dove finisce una pagina. Per riempire con una foto le pagine
+// che resterebbero mezze bianche, il documento stima l'altezza dei capitoli che
+// non si spezzano, con le larghezze vere dei caratteri (misuraTesto). Le stime
+// ricalcano gli stili dei componenti qui sotto: chi cambia un corpo o un margine
+// lì, lo cambia anche qui. Sbagliano per eccesso: meglio un filo di bianco che
+// una foto che non ci sta e finisce da sola sulla pagina dopo.
+
+/** L'altezza scrivibile di una pagina: 841 punti meno i margini di 96 sopra e sotto. */
+const ALTEZZA_UTILE = ALTEZZA - 96 * 2;
+/** Lo stacco fra due capitoli sulla stessa pagina. */
+const STACCO = 30;
+/**
+ * Un capitolo segue il precedente sulla stessa pagina solo se, a stima, ci sta con
+ * questo margine; altrimenti va a capo per scelta. Così la pagina che il documento
+ * prevede è quella che esce davvero: per pochi punti il motore decideva diverso, e
+ * la foto che doveva riempire la pagina finiva da sola su quella dopo.
+ */
+const MARGINE_PREVISIONE = 24;
+
+const fam = (nome: string): FamigliaPdf =>
+  (["Helvetica", "Helvetica-Bold", "Times-Roman", "Times-Bold", "Times-Italic"] as const).find((f) => f === nome) ?? "Helvetica";
+const senzaAsterischi = (t: string) => t.replace(/\*/g, "");
+
+function stimaTesta(tema: TemaDocumento, titolo: string, sommario?: string | null): number {
+  const larga = UTILE - 64;
+  const titoloH = righeDiTesto(senzaAsterischi(titolo), larga, fam(tema.caratteri.titolo), 23) * 23 * 1.2;
+  const sommarioH = sommario ? 6 + altezzaTesto(sommario, Math.min(400, larga), fam(tema.caratteri.testo), 10, 1.45) : 0;
+  return Math.max(46, 3 + 7 * 1.2 + 5 + titoloH + sommarioH) + 18;
+}
+
+const STIMA_TITOLINO = 7 * 1.2 + 5 + 1 + 8;
+
+function stimaSchede(tema: TemaDocumento, voci: DocEdileVoceElenco[], colonne: 2 | 3): number {
+  let totale = 0;
+  for (let i = 0; i < voci.length; i += colonne) {
+    const riga = voci.slice(i, i + colonne);
+    const interna = (UTILE - 10 * (riga.length - 1)) / riga.length - 24;
+    const alte = riga.map((v) => 10 + 18 * 1.2 + 4
+      + altezzaTesto(senzaNumeroDavanti(v.titolo), interna, fam(tema.caratteri.forte), 9.5, 1.3)
+      + (v.descrizione ? 3 + altezzaTesto(v.descrizione, interna, fam(tema.caratteri.testo), 8.5, 1.45) : 0) + 12);
+    totale += Math.max(...alte) + 10;
+  }
+  return totale;
+}
+
+function stimaRecensioni(tema: TemaDocumento, voci: Array<{ testo: string }>): number {
+  if (!voci.length) return 0;
+  const accento = fam(tema.caratteri.accento);
+  const firma = 6 + 7 * 1.2;
+  if (voci.length === 1) {
+    return 10 + STIMA_TITOLINO + 16 + Math.max(44 * 0.9, altezzaTesto(voci[0].testo, UTILE - 34, accento, 12.5, 1.45) + firma);
+  }
+  let totale = 10 + STIMA_TITOLINO;
+  const larga = (UTILE - 18) / 2 - 26;
+  for (let i = 0; i < voci.length; i += 2) {
+    totale += 16.6 + Math.max(...voci.slice(i, i + 2).map((r) => Math.max(34 * 0.9, altezzaTesto(r.testo, larga, accento, 11, 1.45) + firma)));
+  }
+  return totale;
+}
+
+function stimaPassi(tema: TemaDocumento, voci: DocEdileVoceElenco[]): number {
+  const perRiga = voci.length <= 5 ? voci.length : Math.ceil(voci.length / 2);
+  let totale = 0;
+  for (let i = 0; i < voci.length; i += perRiga) {
+    const riga = voci.slice(i, i + perRiga);
+    const colonna = UTILE / perRiga;
+    const alte = riga.map((v, j) => {
+      const larga = colonna - (j === riga.length - 1 ? 0 : 10);
+      return 24 + 8 + altezzaTesto(senzaNumeroDavanti(v.titolo), larga, fam(tema.caratteri.forte), 9.5, 1.25)
+        + (v.descrizione ? 3 + altezzaTesto(v.descrizione, larga, fam(tema.caratteri.testo), 8, 1.45) : 0);
+    });
+    totale += Math.max(...alte) + 14;
+  }
+  return totale;
+}
+
+function stimaTempi(tema: TemaDocumento, fasi: DocEdileFase[]): number {
+  const larga = UTILE - 24 - 12 - 250;
+  let totale = 0;
+  for (const f of fasi) {
+    const sinistra = altezzaTesto(senzaNumeroDavanti(f.fase), larga, fam(tema.caratteri.forte), 9.5, 1.2)
+      + (f.descrizione ? 2 + altezzaTesto(f.descrizione, larga, fam(tema.caratteri.testo), 8, 1.4) : 0);
+    totale += 16.6 + Math.max(sinistra, 9 + (f.durata ? 3 + 7.5 * 1.2 : 0));
+  }
+  const giorni = fasi.map((f) => giorniDellaDurata(f.durata));
+  const nota = giorni.every((g) => g != null) && (giorni as number[]).reduce((a, b) => a + b, 0) >= 7 ? 9 + 8.5 * 1.3 : 0;
+  return totale + nota;
+}
+
+function stimaTestoRicco(tema: TemaDocumento, html: string | null | undefined, larghezza: number, corpo: number, interlinea: number): number {
+  const blocchi = testoDaHtml(html).split("\n").filter((b) => b.trim());
+  return blocchi.reduce((t, b) => t + altezzaTesto(b, larghezza, fam(tema.caratteri.testo), corpo, interlinea) + 6, 0);
+}
+
+function stimaFaq(tema: TemaDocumento, faq: Array<{ domanda: string; risposta?: string | null }>): number {
+  return faq.reduce((t, q) => t + 16.6
+    + altezzaTesto(q.domanda, UTILE, fam(tema.caratteri.forte), 9.5, 1.3)
+    + (q.risposta ? 3 + altezzaTesto(q.risposta, UTILE, fam(tema.caratteri.testo), 9, 1.5) : 0), 0);
+}
+
+/** La foto che riempie la fine di una pagina: stacco, foto e la riga «immagine indicativa». */
+const CORNICE_RIEMPIMENTO = 14 + 15;
+/** Il margine di sicurezza sulle stime (che già sbagliano per eccesso di 20-30 punti). */
+const SICUREZZA_RIEMPIMENTO = 16;
+/** Sotto questa altezza una foto sembra un ritaglio: meglio il bianco. */
+const RIEMPIMENTO_MINIMO = 120;
+
+// ─── La foto che riempie la fine di una pagina ────────────────────────────────
+function FotoRiempimento({ tema, foto, altezza }: { tema: TemaDocumento; foto: DocEdileFotoBlocco; altezza: number }) {
+  return (
+    <View wrap={false} style={{ marginTop: 14 }}>
+      <Image src={foto.src} style={{ width: UTILE, height: altezza, objectFit: "cover" }} />
+      {foto.diSerie ? (
+        <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 7, color: tema.grigioChiaro, marginTop: 5 }}>Immagine indicativa.</Text>
+      ) : null}
+    </View>
+  );
+}
 
 // ─── Titolo con la parola in corsivo ─────────────────────────────────────────
 function TitoloAccento({ tema, testo, corpo, colore, coloreAccento, allineamento = "left", interlinea = 1.2 }: {
@@ -689,6 +812,126 @@ function Copertina({ tema, dati }: { tema: TemaDocumento; dati: DocEdileDati }) 
 }
 
 // ─── Il documento ────────────────────────────────────────────────────────────
+/**
+ * Una o due foto del blocco; sotto, la nota quando sono foto di serie. Con
+ * `altezza` (il blocco ha una pagina sua) le foto sono alte quanto serve a
+ * riempire la pagina. Non con flexGrow: accanto a un elemento che si allarga il
+ * motore misura il titolo su una riga sola, e il sommario ci finisce sopra.
+ */
+function FotoBlocco({ tema, foto, nota, altezza }: { tema: TemaDocumento; foto: DocEdileFotoBlocco[]; nota: string | null; altezza?: number }) {
+  if (!foto.length) return null;
+  const due = foto.length > 1;
+  const larga = (UTILE - 10) / 2;
+  return (
+    <View wrap={false} style={{ marginBottom: 16 }}>
+      <View style={{ flexDirection: "row" }}>
+        {foto.slice(0, 2).map((f, i) => (
+          <Image key={i} src={f.src} style={{ width: due ? larga : UTILE, height: altezza ?? (due ? 156 : 236), objectFit: "cover", marginLeft: i === 0 ? 0 : 10 }} />
+        ))}
+      </View>
+      {nota && foto.some((f) => f.diSerie) ? (
+        <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 7, color: tema.grigioChiaro, marginTop: 5 }}>{nota}</Text>
+      ) : null}
+    </View>
+  );
+}
+
+/**
+ * L'altezza delle foto di un blocco che ha una pagina sua: la pagina utile (649
+ * punti) meno titolo, sommario, voci e nota, stimati per eccesso dal numero di
+ * caratteri, con un margine di sicurezza. Meglio 1-2 cm bianchi che una foto
+ * troppo alta, che spingerebbe le voci su un'altra pagina.
+ */
+function altezzaFotoPiena(blocco: DocEdileBlocco, conEscluse = false): number {
+  const altezza = 649 - altezzaTestoBlocco(blocco, conEscluse) - 16 - 16;
+  return Math.max(150, Math.min(430, Math.floor(altezza)));
+}
+
+/** Titolo, sommario, voci e nota di un blocco, senza la foto. */
+function altezzaTestoBlocco(blocco: DocEdileBlocco, conEscluse = false): number {
+  const righe = (testo: string, perRiga: number) => Math.max(1, Math.ceil(testo.length / perRiga));
+  const titolo = righe(blocco.titolo.replace(/\*/g, ""), 32) * 23 * 1.2;
+  const sommario = blocco.intro ? 6 + righe(blocco.intro, 72) * 10 * 1.45 : 0;
+  const capitolo = 3 + 12 + titolo + sommario + 18;
+  const altezzaVoci = (elenco: DocEdileBlocco["voci"]) => {
+    const colonne = elenco.some((v) => v.testo) ? 2 : 3;
+    let totale = 0;
+    for (let i = 0; i < elenco.length; i += colonne) {
+      const riga = elenco.slice(i, i + colonne);
+      const alta = Math.max(22, ...riga.map((v) => colonne === 2
+        ? 1 + righe(v.titolo, 36) * 9.5 * 1.3 + (v.testo ? 2 + righe(v.testo, 45) * 8.5 * 1.45 : 0)
+        : 5 + righe(v.titolo, 21) * 9.5 * 1.3));
+      totale += alta + (colonne === 2 ? 12 : 9);
+    }
+    return totale;
+  };
+  // «Cosa è compreso»: due titolini (compreso, non compreso) e le escluse.
+  const voci = altezzaVoci(blocco.voci)
+    + (conEscluse ? 22 + (blocco.escluse.length > 0 ? 10 + 22 + altezzaVoci(blocco.escluse) : 0) : 0);
+  const nota = blocco.nota ? 14 : 0;
+  return capitolo + voci + nota;
+}
+
+/** Le voci di un blocco: icona in un cerchio di tinta, titolo, spiegazione. */
+function VociBlocco({ tema, voci, attenuate = false }: { tema: TemaDocumento; voci: DocEdileBlocco["voci"]; attenuate?: boolean }) {
+  // Con una spiegazione le voci stanno su due colonne; solo titoli, su tre.
+  const colonne = voci.some((x) => x.testo) ? 2 : 3;
+  const righe: DocEdileBlocco["voci"][] = [];
+  for (let i = 0; i < voci.length; i += colonne) righe.push(voci.slice(i, i + colonne));
+  const spazio = 14;
+  const larghezza = (UTILE - spazio * (colonne - 1)) / colonne;
+  return (
+    <View>
+      {righe.map((riga, r) => (
+        <View key={r} wrap={false} style={{ flexDirection: "row", marginBottom: colonne === 2 ? 12 : 9 }}>
+          {riga.map((x, i) => (
+            <View key={i} style={{ width: larghezza, marginLeft: i === 0 ? 0 : spazio, flexDirection: "row" }}>
+              <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: attenuate ? tema.cartaCalda : tema.tinta, alignItems: "center", justifyContent: "center", marginRight: 8 }}>
+                {x.icona ? <IconaPdf nome={x.icona} colore={attenuate ? tema.grigio : tema.inchiostroMarca} lato={11} /> : null}
+              </View>
+              <View style={{ flex: 1, paddingTop: x.testo ? 1 : 5 }}>
+                <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 9.5, color: attenuate ? tema.grigio : tema.inchiostro, lineHeight: 1.3 }}>{x.titolo}</Text>
+                {x.testo ? <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 8.5, color: tema.grigio, marginTop: 2, lineHeight: 1.45 }}>{x.testo}</Text> : null}
+              </View>
+            </View>
+          ))}
+        </View>
+      ))}
+    </View>
+  );
+}
+
+/** Un blocco della libreria come capitolo del documento (con `riempi`, su una pagina sua). */
+function CapitoloBlocco({ tema, numero, chiave, blocco, riempi = false }: { tema: TemaDocumento; numero: number; chiave: ChiaveBlocco; blocco: DocEdileBlocco; riempi?: boolean }) {
+  if (chiave === "compreso") {
+    // Tutto insieme: segue il capitolo prima se ci sta, altrimenti va intero alla
+    // pagina dopo. Diviso, il titolo restava da solo in fondo alla pagina del computo.
+    // Con una foto (dal 22/09/2026 di serie per bagni e ristrutturazione) ha una
+    // pagina sua, e la foto la riempie.
+    return (
+      <View wrap={false}>
+        <Capitolo tema={tema} numero={numero} occhiello={blocco.occhiello} titolo={blocco.titolo} sommario={blocco.intro} />
+        {riempi ? <FotoBlocco tema={tema} foto={blocco.foto} nota={blocco.nota} altezza={altezzaFotoPiena(blocco, true)} /> : null}
+        <TitolinoSezione tema={tema} testo="Compreso nel prezzo" />
+        <VociBlocco tema={tema} voci={blocco.voci} />
+        {blocco.escluse.length > 0 ? (
+          <View style={{ marginTop: 10 }}>
+            <TitolinoSezione tema={tema} testo="Non compreso" />
+            <VociBlocco tema={tema} voci={blocco.escluse} attenuate />
+          </View>
+        ) : null}
+      </View>
+    );
+  }
+  return (
+    <View>
+      <Capitolo tema={tema} numero={numero} occhiello={blocco.occhiello} titolo={blocco.titolo} sommario={blocco.intro} />
+      <FotoBlocco tema={tema} foto={blocco.foto} nota={blocco.nota} altezza={riempi ? altezzaFotoPiena(blocco) : undefined} />
+      <VociBlocco tema={tema} voci={blocco.voci} />
+    </View>
+  );
+}
+
 export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
   const { modello, modulo, totali, capitoli, opzioniComputo: oc } = dati;
   const tema = creaTema({
@@ -704,9 +947,6 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
   const haUsp = modello.usp.length > 0;
   const haRecensioni = modello.testimonianze.length > 0;
   const haLavori = modello.galleriaLavori.length > 0 && visibile("lavori");
-  // Le recensioni stanno accanto ai lavori finiti (la prova tutta insieme); senza
-  // galleria, o con la galleria nascosta, restano in «Chi siamo».
-  const recensioniCoiLavori = haRecensioni && haLavori;
   const haProgetto = (modello.esigenze.length > 0 || modello.soluzione.length > 0) && visibile("progetto");
   const haPercorso = modello.mostraPercorso && modello.percorso.length > 0;
   // La prima foto del progetto apre il capitolo «Il progetto»; le altre hanno il loro capitolo.
@@ -715,10 +955,20 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
   const haFoto = fotoCapitolo.length > 0;
   const haTempi = modello.mostraCronoprogramma && modello.cronoprogramma.length > 0;
   const haGaranzie = modello.mostraGaranzie && (modello.garanzie.length > 0 || modello.faq.length > 0);
+  // Le recensioni stanno con le garanzie e le domande: la prova accanto alle
+  // certezze, proprio dove il cliente decide. Senza quel capitolo, accanto ai
+  // lavori finiti; senza nemmeno quelli, in «Chi siamo». Fino al 22/09/2026
+  // stavano in «Chi siamo» o coi lavori, e a pagina piena finivano da sole su un
+  // foglio bianco.
+  const recensioniDove: "garanzie" | "lavori" | "chiSiamo" | null = !haRecensioni ? null
+    : haGaranzie && visibile("garanzie") ? "garanzie"
+      : haLavori ? "lavori" : "chiSiamo";
+  const colonneUsp: 2 | 3 = modello.usp.length % 3 === 0 || modello.usp.length > 4 ? 3 : 2;
+  const colonneGaranzie: 2 | 3 = modello.garanzie.length === 2 || modello.garanzie.length === 4 ? 2 : 3;
 
   // Un capitolo esce se ha qualcosa da dire e se l'azienda non l'ha nascosto.
   const presente: Record<string, boolean> = {
-    chiSiamo: haChiSiamo || haUsp || (haRecensioni && !recensioniCoiLavori),
+    chiSiamo: haChiSiamo || haUsp || recensioniDove === "chiSiamo",
     progetto: haProgetto,
     percorso: haPercorso,
     lavori: haLavori,
@@ -729,6 +979,8 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
     investimento: true,
     garanzie: haGaranzie,
     tempi: haTempi,
+    // I blocchi escono se hanno qualcosa: le voci (o le foto) del settore o dell'azienda.
+    ...Object.fromEntries(BLOCCHI.map(({ chiave }) => [chiave, modello.blocchi[chiave].voci.length > 0 || modello.blocchi[chiave].foto.length > 0])),
   };
   const libere = new Map(modello.pagineLibere.map((pl) => [chiaveLibera(pl.id), pl]));
   const sequenza = ordine.filter((v) => v.chiave !== "apertura" && v.visibile && (libere.has(v.chiave) || presente[v.chiave]));
@@ -739,6 +991,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
     chiSiamo: "Chi siamo", progetto: "Il progetto", percorso: "Come lavoriamo", lavori: "I nostri lavori",
     foto: "Foto e render", piano: modulo.titoloComputo.replace(/\*/g, ""), investimento: "Il tuo investimento",
     garanzie: "Garanzie e domande", tempi: "I tempi",
+    ...Object.fromEntries(BLOCCHI.map((b) => [b.chiave, b.etichetta])),
   };
   const sommario: Array<{ numero: number; titolo: string }> = [
     ...sequenza.map((v) => ({
@@ -747,8 +1000,94 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
     })),
     { numero: numeroPassi, titolo: "I prossimi passi" },
   ];
-  // Questi capitoli sono brevi: seguono il precedente sulla stessa pagina, se c'è posto.
-  const BREVI = new Set(["percorso", "tempi"]);
+  // I capitoli che seguono il precedente sulla stessa pagina, interi, se c'è posto:
+  // hanno un'altezza limitata (i blocchi, i passi, un cronoprogramma corto). Gli
+  // altri (computo, progetto, gallerie, prezzo…) cominciano un foglio nuovo.
+  const scorreIntero = (chiave: string): boolean =>
+    ["comeFunziona", "percorso", "protezione", "controlli", "compreso", "documenti", "diario"].includes(chiave)
+    || (chiave === "tempi" && modello.cronoprogramma.length <= 8)
+    // «Il progetto» senza foto sono due elenchi: segue il capitolo prima, se ci sta
+    // intero. Da solo lasciava mezza pagina bianca.
+    || (chiave === "progetto" && !fotoApertura && (stimaCapitolo("progetto") ?? ALTEZZA_UTILE) <= ALTEZZA_UTILE - 40);
+
+  // Una foto non si ripete: quelle di riempimento e quella dei prossimi passi
+  // escono solo se non sono già nel documento (foto del progetto, lavori, chi
+  // siamo, blocchi). Le foto arrivano già convertite: la stessa immagine ha lo
+  // stesso indirizzo. Prima, con le foto di serie, la stessa immagine poteva
+  // uscire tre volte (il progetto, il diario, i prossimi passi).
+  const fotoUsate = new Set<string>([
+    ...dati.fotoProgetto.map((f) => f.url),
+    ...(haLavori ? modello.galleriaLavori.map((f) => f.url) : []),
+    ...(haChiSiamo && modello.chiSiamoFotoUrl ? [modello.chiSiamoFotoUrl] : []),
+    ...sequenza.flatMap((v) => {
+      const b = BLOCCHI.find((x) => x.chiave === v.chiave);
+      return b ? modello.blocchi[b.chiave].foto.map((f) => f.src) : [];
+    }),
+  ]);
+  const fotoChiusura = modello.fotoChiusura && !fotoUsate.has(modello.fotoChiusura.src) ? modello.fotoChiusura : null;
+  if (fotoChiusura) fotoUsate.add(fotoChiusura.src);
+
+  // I segmenti: un blocco con le foto ha una pagina sua, il resto scorre.
+  const conPaginaPropria = (chiave: string) => {
+    const b = BLOCCHI.find((x) => x.chiave === chiave);
+    return Boolean(b && modello.blocchi[b.chiave].foto.length > 0);
+  };
+  const segmenti: Array<{ propria: boolean; chiavi: string[] }> = [];
+  for (const v of sequenza) {
+    const ultimo = segmenti[segmenti.length - 1];
+    if (conPaginaPropria(v.chiave)) segmenti.push({ propria: true, chiavi: [v.chiave] });
+    else if (ultimo && !ultimo.propria) ultimo.chiavi.push(v.chiave);
+    else segmenti.push({ propria: false, chiavi: [v.chiave] });
+  }
+
+
+  // I prossimi passi: la foto del lavoro finito, i passi, i contatti (o la firma).
+  const chiusura = (
+    <View wrap={false}>
+      <Capitolo tema={tema} numero={numeroPassi} occhiello="I prossimi passi" titolo="Pronti a *partire*?" sommario={fraseValiditaChiusura(modello.testoValidita, modello.giorniValidita)} />
+      {fotoChiusura ? (
+        <Image src={fotoChiusura.src} style={{ width: UTILE, height: 330, objectFit: "cover", marginBottom: 18 }} />
+      ) : null}
+      <Passi
+        tema={tema}
+        voci={[
+          { titolo: "Conferma", descrizione: "Firma questo documento, o rispondici anche solo con un messaggio." },
+          { titolo: "Partenza lavori", descrizione: "Concordiamo insieme la data di inizio e il calendario definitivo." },
+        ]}
+      />
+      <View wrap={false} style={{ flexDirection: "row", marginTop: 10 }}>
+        <View style={{ flex: 1, backgroundColor: tema.cartaCalda, padding: 14, marginRight: 12 }}>
+          <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 7, color: tema.inchiostroMarca, letterSpacing: 1.4, marginBottom: 7 }}>I NOSTRI CONTATTI</Text>
+          <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 10.5, color: tema.inchiostro, marginBottom: 4 }}>{dati.azienda.nome}</Text>
+          {[dati.azienda.telefono, emailACapo(dati.azienda.email), dati.azienda.indirizzo].filter(Boolean).map((r, i) => (
+            <Text key={i} style={{ fontFamily: tema.caratteri.testo, fontSize: 9, color: tema.grigio, lineHeight: 1.5 }}>{r}</Text>
+          ))}
+        </View>
+        {/* Senza condizioni non c'è la pagina della firma: allora si firma qui.
+            Con le condizioni, la firma sta lì e due riquadri sarebbero uno di troppo. */}
+        {modello.condizioniLegali.length > 0 ? (
+          <View style={{ flex: 1.25, backgroundColor: tema.cartaCalda, padding: 14, justifyContent: "center" }}>
+            <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 7, color: tema.inchiostroMarca, letterSpacing: 1.4, marginBottom: 6 }}>LA FIRMA</Text>
+            <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 9, color: tema.grigio, lineHeight: 1.5 }}>
+              Le condizioni generali e la pagina da firmare sono in fondo a questo documento.
+            </Text>
+          </View>
+        ) : (
+        <View style={{ flex: 1.25, borderWidth: 0.8, borderColor: tema.inchiostro, padding: 14 }}>
+          <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 7, color: tema.inchiostro, letterSpacing: 1.4 }}>PER ACCETTAZIONE</Text>
+          <View style={{ flexDirection: "row", marginTop: 44 }}>
+            <View style={{ width: 86, borderTopWidth: 0.6, borderTopColor: tema.grigioChiaro, paddingTop: 4, marginRight: 14 }}>
+              <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 7, color: tema.grigioChiaro, letterSpacing: 0.8 }}>DATA</Text>
+            </View>
+            <View style={{ flex: 1, borderTopWidth: 0.6, borderTopColor: tema.grigioChiaro, paddingTop: 4 }}>
+              <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 7, color: tema.grigioChiaro, letterSpacing: 0.8 }}>FIRMA DEL CLIENTE</Text>
+            </View>
+          </View>
+        </View>
+        )}
+      </View>
+    </View>
+  );
 
   // Il piano in numeri: fatti contabili del documento, niente che suoni da promessa.
   const giorniFasi = modello.cronoprogramma.map((f) => giorniDellaDurata(f.durata));
@@ -775,8 +1114,180 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
   const pagina = { paddingTop: 96, paddingBottom: 96, paddingHorizontal: MARGINE, fontFamily: tema.caratteri.testo, backgroundColor: tema.carta } as const;
   const cornice = (<><Intestazione tema={tema} dati={dati} /><PieDiPagina tema={tema} dati={dati} /></>);
 
+  // Dopo il capitolo precedente, sulla stessa pagina: quelli di altezza limitata
+  // (se ci stanno interi) e il piano dei lavori, che si spezza da sé. Il computo
+  // cominciava sempre su un foglio nuovo, e sotto le foto del progetto restava
+  // mezza pagina bianca.
+  const seguePrecedente = (chiave: string) => scorreIntero(chiave) || chiave === "piano";
+
+  // Quanto occupa un capitolo che non si spezza (null: non si sa, o si spezza).
+  const stimaGalleria = (foto: DocEdileFoto[]) => {
+    if (!foto.length) return 0;
+    const didascalia = (f: DocEdileFoto) => (f.didascalia || f.luogo ? 5 + 8.5 * 1.2 : 0);
+    let h = 246 + didascalia(foto[0]) + 14;
+    for (let i = 1; i < foto.length; i += 2) h += 150 + Math.max(...foto.slice(i, i + 2).map(didascalia)) + 14;
+    return h;
+  };
+  const stimaCapitolo = (chiave: string): number | null => {
+    const recensioni = (dove: typeof recensioniDove) => (recensioniDove === dove ? stimaRecensioni(tema, modello.testimonianze) : 0);
+    let h: number | null = null;
+    switch (chiave) {
+      case "chiSiamo": {
+        const conFoto = Boolean(modello.chiSiamoFotoUrl);
+        const testo = haChiSiamo
+          ? Math.max(stimaTestoRicco(tema, modello.chiSiamoHtml, UTILE - (conFoto ? 210 + 18 : 60), 10, 1.55), conFoto ? 236 : 0) + 22
+          : 0;
+        const usp = haUsp ? STIMA_TITOLINO + stimaSchede(tema, modello.usp, colonneUsp) + 12 : 0;
+        h = stimaTesta(tema, "Chi c'è dietro questo progetto.") + testo + usp + recensioni("chiSiamo");
+        break;
+      }
+      case "progetto": {
+        const due = modello.esigenze.length > 0 && modello.soluzione.length > 0;
+        const larga = (due ? (UTILE - 24) / 2 : UTILE) - 26;
+        const colonna = (voci: DocEdileVoceElenco[]) => (voci.length ? STIMA_TITOLINO + voci.reduce((t, v) => t + 14.6
+          + altezzaTesto(senzaNumeroDavanti(v.titolo), larga, fam(tema.caratteri.forte), 9.5, 1.3)
+          + (v.descrizione ? 2 + altezzaTesto(v.descrizione, larga, fam(tema.caratteri.testo), 8.5, 1.45) : 0), 0) : 0);
+        h = stimaTesta(tema, "Le tue richieste, in ordine.")
+          + (fotoApertura ? 230 + 18 + (fotoApertura.didascalia ? 5 + 8 * 1.2 : 0) : 0)
+          + Math.max(colonna(modello.esigenze), colonna(modello.soluzione)) + 26;
+        break;
+      }
+      case "percorso": h = stimaTesta(tema, "Dal primo incontro alla consegna.") + stimaPassi(tema, modello.percorso); break;
+      case "lavori": h = stimaTesta(tema, "Lavori finiti, non promesse.", "Alcuni interventi che abbiamo già consegnato.") + stimaGalleria(modello.galleriaLavori) + recensioni("lavori"); break;
+      case "foto": h = stimaTesta(tema, "Il tuo progetto, da vedere.", "Lo stato di oggi e come diventerà.") + stimaGalleria(fotoCapitolo); break;
+      case "garanzie":
+        h = stimaTesta(tema, "Più certezze, meno dubbi.")
+          + (modello.garanzie.length > 0 ? STIMA_TITOLINO + stimaSchede(tema, modello.garanzie, colonneGaranzie) + 14 : 0)
+          + (modello.faq.length > 0 ? STIMA_TITOLINO + stimaFaq(tema, modello.faq) : 0)
+          + recensioni("garanzie") + 28;
+        break;
+      case "tempi": h = modello.cronoprogramma.length > 8 ? null : stimaTesta(tema, "Quanto dura il cantiere.") + stimaTempi(tema, modello.cronoprogramma) + 30; break;
+      case "investimento": {
+        const tabella = oc.livello !== "corpo" && capitoli.length > 1 && !prezzoManuale
+          ? 12 + 6.5 * 1.2 + capitoli.length * ((capitoli.length > 6 ? 10 : 16) + 9.5 * 1.2) + 14
+          : 0;
+        const totaliH = (totali.scontoPct > 0 ? 4 : 2) * (10 + 9.5 * 1.2 + 0.6);
+        const pagamentoH = modello.pagamentoHtml ? STIMA_TITOLINO + stimaTestoRicco(tema, modello.pagamentoHtml, UTILE - 250 - 28 - 12, 9, 1.45) : 0;
+        const banda = 16 + 44 + 32 * 1.2;
+        const finanziamento = promo && rata > 0 ? 14 + 22 + 10 * 1.2 + 2 + altezzaTesto("Simulazione indicativa in 120 rate mensili (TAN 9,9%), soggetta ad approvazione della finanziaria.", UTILE - 28 - 130, "Helvetica", 8, 1.4) : 0;
+        const detrazione = totali.detrazionePct > 0 ? 14 + 22 + Math.max(7 * 1.2 + 4 + 17 * 1.2 + 1 + 7.5 * 1.2, altezzaTesto("Importo indicativo, calcolato sull'imponibile e ripartito come prevede la normativa. L'effettiva detraibilità dipende dai requisiti del tuo intervento e va verificata con il tuo consulente fiscale.", UTILE - 28 - 150, "Helvetica", 8, 1.45)) : 0;
+        const margine = modello.mostraMargine ? 14 + 20 + 7.5 * 1.2 + 4 + 9 * 1.2 : 0;
+        h = stimaTesta(tema, "Il tuo investimento.", "Un prezzo chiaro: quanto costa e che cosa comprende, senza giri di parole.")
+          + tabella + Math.max(totaliH, pagamentoH) + banda + finanziamento + detrazione + margine;
+        break;
+      }
+      default: {
+        // Un blocco della libreria senza foto (con le foto ha una pagina sua).
+        const b = BLOCCHI.find((x) => x.chiave === chiave);
+        h = b && modello.blocchi[b.chiave].foto.length === 0 ? altezzaTestoBlocco(modello.blocchi[b.chiave], b.chiave === "compreso") : null;
+      }
+    }
+    // Più alto di una pagina: si spezza, e dopo non si sa più dove si è.
+    return h != null && h <= ALTEZZA_UTILE ? h : null;
+  };
+
+  // Il piano dei lavori si spezza da sé: per sapere dove finisce se ne rifà
+  // l'impaginazione riga per riga, come il motore. Le righe non si spezzano, il
+  // titolo di ogni capitolo vuole sotto almeno 50 punti, quello del piano 130.
+  // Restituisce quanto è pieno l'ultimo foglio, e se il titolo è passato a un foglio nuovo.
+  const testaPiano = stimaTesta(tema, "Che cosa faremo, voce per voce.", "Le lavorazioni previste, raccolte per capitolo.");
+  const codaDelPiano = (inizio: number): { coda: number; aCapo: boolean } => {
+    let usato = inizio;
+    let aCapo = false;
+    const metti = (h: number, sotto = 0) => {
+      if (usato > 0 && usato + h + sotto > ALTEZZA_UTILE) usato = 0;
+      usato += h;
+    };
+    if (inizio > 0 && inizio + testaPiano + 130 > ALTEZZA_UTILE) { usato = 0; aCapo = true; }
+    usato += testaPiano;
+    if (oc.livello === "corpo") metti(6 + 11.5 * 1.2 + 1.2);
+    else if (oc.livello === "sintetico") capitoli.forEach(() => metti(18 + 17 + 0.6));
+    else {
+      const larga = UTILE - 28 - 8 - (oc.mostraQta ? 84 : 0) - (oc.mostraPrezzi && !prezzoManuale ? 66 : 0) - (!prezzoManuale ? 74 : 0) - (modello.mostraMargine ? 58 : 0);
+      for (const cap of capitoli) {
+        metti(6 + 17 + 1.2 + 6 + 6.5 * 1.2 + 4, 50);
+        for (const v of cap.voci) {
+          metti(12.6 + Math.max(9 * 1.2, altezzaTesto(v.descrizione, larga - 3, fam(tema.caratteri.testo), 9, 1.35) + (v.fonte ? 1.5 + 7 * 1.2 : 0)));
+        }
+        usato = Math.min(ALTEZZA_UTILE, usato + 16);
+      }
+    }
+    metti(6 + 10 + 14 * 1.2);
+    return { coda: usato, aCapo };
+  };
+
+  // Le pagine che resterebbero mezze bianche: in fondo, una foto che le riempie.
+  // Si ripercorre ogni foglio che scorre come lo impagina il motore (un capitolo
+  // che segue il precedente sta sulla stessa pagina se ci sta intero, gli altri
+  // cominciano una pagina nuova) e, dove l'ultimo capitolo di una pagina lascia
+  // almeno una foto di bianco, la foto di quel capitolo la riempie. Chi viene dopo
+  // comincia comunque una pagina nuova.
+  const riempimento = new Map<string, number>();
+  // I capitoli che cominciano una pagina nuova per scelta (vedi MARGINE_PREVISIONE).
+  const aCapo = new Set<string>();
+  for (const [s, segmento] of segmenti.entries()) {
+    if (segmento.propria) continue;
+    let usato: number | null = null;
+    let ultimo: string | null = null;
+    const chiudi = () => {
+      const foto = ultimo ? modello.fotoRiempimento[ultimo] : null;
+      if (usato == null || !ultimo || !foto || fotoUsate.has(foto.src)) return;
+      const altezza = Math.min(380, Math.floor(ALTEZZA_UTILE - usato - CORNICE_RIEMPIMENTO - SICUREZZA_RIEMPIMENTO));
+      if (altezza >= RIEMPIMENTO_MINIMO) {
+        riempimento.set(ultimo, altezza);
+        fotoUsate.add(foto.src);
+      }
+    };
+    segmento.chiavi.forEach((chiave, i) => {
+      if (chiave === "piano") {
+        // Comincia sotto il capitolo prima se il titolo ci sta con margine, altrimenti su un foglio nuovo.
+        const sotto = i > 0 && usato != null && (usato as number) + STACCO + MARGINE_PREVISIONE < ALTEZZA_UTILE;
+        const { coda, aCapo: titoloACapo } = codaDelPiano(sotto ? (usato as number) + STACCO + MARGINE_PREVISIONE : 0);
+        if (i > 0 && (!sotto || titoloACapo)) {
+          chiudi();
+          aCapo.add(chiave);
+        }
+        usato = coda;
+        ultimo = chiave;
+        return;
+      }
+      const h = stimaCapitolo(chiave);
+      if (i > 0 && seguePrecedente(chiave) && usato != null && h != null) {
+        const dopo = usato + STACCO + h;
+        // Ci sta con margine: stessa pagina.
+        if (dopo <= ALTEZZA_UTILE - MARGINE_PREVISIONE) {
+          usato = dopo;
+          ultimo = chiave;
+          return;
+        }
+        // In bilico: se la pagina prima non prende la foto, decide il motore, e da
+        // qui in poi non si sa più dove si è (nessuna foto fino alla prossima pagina nuova).
+        if (dopo <= ALTEZZA_UTILE + 60) {
+          chiudi();
+          if (!riempimento.has(ultimo as string)) {
+            usato = null;
+            ultimo = chiave;
+            return;
+          }
+          aCapo.add(chiave);
+          usato = h;
+          ultimo = chiave;
+          return;
+        }
+      }
+      if (i > 0) {
+        chiudi();
+        aCapo.add(chiave);
+      }
+      usato = h;
+      ultimo = chiave;
+    });
+    // In fondo all'ultimo foglio seguono i prossimi passi (senza foto): lì non si riempie.
+    if (!(s === segmenti.length - 1 && !fotoChiusura)) chiudi();
+  }
+
   // Il contenuto di ogni capitolo, con il suo numero nella sequenza scelta.
-  const contenutoCapitolo = (chiave: string, numero: number): React.ReactNode => {
+  const contenutoCapitolo = (chiave: string, numero: number, riempi = false): React.ReactNode => {
     const libera = libere.get(chiave);
     if (libera) {
       return (
@@ -792,6 +1303,8 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
         </>
       );
     }
+    const blocco = BLOCCHI.find((b) => b.chiave === chiave);
+    if (blocco) return <CapitoloBlocco tema={tema} numero={numero} chiave={blocco.chiave} blocco={modello.blocchi[blocco.chiave]} riempi={riempi} />;
     switch (chiave) {
       case "chiSiamo": return (<>
           <Capitolo tema={tema} numero={numero} occhiello="Chi siamo" titolo={`Chi c'è *dietro* questo progetto.`} />
@@ -808,10 +1321,10 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
           {haUsp ? (
             <View style={{ marginBottom: 12 }}>
               <TitolinoSezione tema={tema} testo="Perché sceglierci" />
-              <Schede tema={tema} voci={modello.usp} colonne={modello.usp.length % 3 === 0 || modello.usp.length > 4 ? 3 : 2} />
+              <Schede tema={tema} voci={modello.usp} colonne={colonneUsp} />
             </View>
           ) : null}
-          {haRecensioni && !recensioniCoiLavori ? <Recensioni tema={tema} voci={modello.testimonianze} /> : null}
+          {recensioniDove === "chiSiamo" ? <Recensioni tema={tema} voci={modello.testimonianze} /> : null}
 </>);
       case "progetto": return (            <View style={{ marginBottom: 26 }}>
               <Capitolo tema={tema} numero={numero} occhiello="Il progetto" titolo="Le tue *richieste*, in ordine." />
@@ -843,7 +1356,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
       case "lavori": return (<>
           <Capitolo tema={tema} numero={numero} occhiello="I nostri lavori" titolo="Lavori *finiti*, non promesse." sommario="Alcuni interventi che abbiamo già consegnato." />
           <Galleria tema={tema} foto={modello.galleriaLavori} />
-          {recensioniCoiLavori ? <Recensioni tema={tema} voci={modello.testimonianze} /> : null}
+          {recensioniDove === "lavori" ? <Recensioni tema={tema} voci={modello.testimonianze} /> : null}
 </>);
       case "foto": return (<>
           <Capitolo tema={tema} numero={numero} occhiello="Foto e render" titolo="Il tuo progetto, *da vedere*." sommario="Lo stato di oggi e come diventerà." />
@@ -891,7 +1404,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
               <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 6.5, color: tema.bianco, letterSpacing: 1.2 }}>IMPONIBILE</Text>
             </View>
             {capitoli.map((cap, i) => (
-              <View key={cap.nome} wrap={false} style={{ flexDirection: "row", paddingVertical: 8, paddingHorizontal: 10, backgroundColor: i % 2 === 0 ? tema.tinta : tema.carta }}>
+              <View key={cap.nome} wrap={false} style={{ flexDirection: "row", paddingVertical: capitoli.length > 6 ? 5 : 8, paddingHorizontal: 10, backgroundColor: i % 2 === 0 ? tema.tinta : tema.carta }}>
                 <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 9.5, color: tema.inchiostroMarca, width: 30 }}>{dueCifre(i + 1)}</Text>
                 <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 9.5, color: tema.inchiostro, flex: 1 }}>{cap.nome}</Text>
                 <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 9.5, color: tema.inchiostro }}>{formatCurrency(cap.subtotale)}</Text>
@@ -901,7 +1414,18 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
         ) : null}
 
         <View wrap={false}>
-          <View style={{ alignSelf: "flex-end", width: 250 }}>
+          <View style={{ flexDirection: "row", alignItems: "flex-start" }}>
+          {/* Le modalità di pagamento accanto ai totali: prima stavano sotto, dopo la
+              detrazione, e con un computo lungo finivano da sole su un foglio nuovo. */}
+          <View style={{ flex: 1, paddingRight: 28 }}>
+            {modello.pagamentoHtml ? (
+              <>
+                <TitolinoSezione tema={tema} testo="Modalità di pagamento" />
+                <TestoRicco tema={tema} html={modello.pagamentoHtml} stile={{ fontFamily: tema.caratteri.testo, fontSize: 9, color: tema.inchiostro, lineHeight: 1.45 }} />
+              </>
+            ) : null}
+          </View>
+          <View style={{ width: 250 }}>
             {[
               { e: "Imponibile lavori", v: formatCurrency(totali.imponibileLordo) },
               ...(totali.scontoPct > 0 ? [
@@ -915,6 +1439,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
                 <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 9.5, color: tema.inchiostro, paddingRight: 2.5 }}>{r.v}</Text>
               </View>
             ))}
+          </View>
           </View>
 
           {/* La banda a tutta pagina: il numero che il cliente cerca, nel colore dell'azienda. */}
@@ -963,25 +1488,13 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
           </View>
         ) : null}
 
-        {/* La validità sta nella fascia del prezzo, nei prossimi passi e nella pagina
-            della firma. Qui, in una colonna sua, con un computo lungo il titolo
-            restava in fondo alla pagina e la sua frase finiva da sola su un foglio
-            bianco. Le modalità di pagamento non si staccano dal loro titolo. */}
-        {modello.pagamentoHtml ? (
-          <View style={{ marginTop: 24 }}>
-            <View minPresenceAhead={48}>
-              <TitolinoSezione tema={tema} testo="Modalità di pagamento" />
-            </View>
-            <TestoRicco tema={tema} html={modello.pagamentoHtml} stile={{ fontFamily: tema.caratteri.testo, fontSize: 9.5, color: tema.inchiostro, lineHeight: 1.5 }} />
-          </View>
-        ) : null}
 </>);
       case "garanzie": return (          <View style={{ marginBottom: 28 }}>
             <Capitolo tema={tema} numero={numero} occhiello="Garanzie e domande" titolo="Più *certezze*, meno dubbi." />
             {modello.garanzie.length > 0 ? (
               <View style={{ marginBottom: 14 }}>
                 <TitolinoSezione tema={tema} testo="Le nostre garanzie" />
-                <Schede tema={tema} voci={modello.garanzie} colonne={modello.garanzie.length === 2 || modello.garanzie.length === 4 ? 2 : 3} />
+                <Schede tema={tema} voci={modello.garanzie} colonne={colonneGaranzie} />
               </View>
             ) : null}
             {modello.faq.length > 0 ? (
@@ -995,6 +1508,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
                 ))}
               </View>
             ) : null}
+            {recensioniDove === "garanzie" ? <Recensioni tema={tema} voci={modello.testimonianze} /> : null}
           </View>);
       case "tempi": return (
           // Un cronoprogramma spezzato fra due pagine non si legge: fino a otto fasi resta intero.
@@ -1026,11 +1540,11 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
         </Text>
 
         {dati.scheda.length > 0 ? (
-          <View style={{ marginTop: 30 }}>
+          <View style={{ marginTop: 26 }}>
             <TitolinoSezione tema={tema} testo="L'intervento in breve" />
             <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
               {dati.scheda.map((s, i) => (
-                <View key={i} style={{ width: "50%", paddingVertical: 8, paddingRight: 16, borderBottomWidth: 0.6, borderBottomColor: tema.filetto }}>
+                <View key={i} style={{ width: "50%", paddingVertical: 6, paddingRight: 16, borderBottomWidth: 0.6, borderBottomColor: tema.filetto }}>
                   <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 7.5, color: tema.grigioChiaro, marginBottom: 2 }}>{s.etichetta}</Text>
                   <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 10.5, color: tema.inchiostro }}>{s.valore}</Text>
                 </View>
@@ -1040,7 +1554,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
         ) : null}
 
         {inNumeri.length >= 2 ? (
-          <View style={{ marginTop: 30 }} wrap={false}>
+          <View style={{ marginTop: 26 }} wrap={false}>
             <TitolinoSezione tema={tema} testo="Il piano in numeri" />
             <View style={{ flexDirection: "row" }}>
               {inNumeri.map((v, i) => (
@@ -1053,13 +1567,16 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
           </View>
         ) : null}
 
-        <View style={{ marginTop: 30 }} wrap={false}>
+        {/* L'indice sta sotto la lettera: con più di dieci capitoli va su tre colonne.
+            Fino al 22/09/2026 su due colonne larghe non ci stava, e si prendeva un
+            foglio intero con un terzo di pagina scritta. */}
+        <View style={{ marginTop: 24 }} wrap={false}>
           <TitolinoSezione tema={tema} testo="In questo documento" />
           <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
             {sommario.map((v) => (
-              <View key={v.numero} style={{ width: "50%", flexDirection: "row", alignItems: "flex-end", paddingVertical: 7, paddingRight: 16, borderBottomWidth: 0.6, borderBottomColor: tema.filetto }}>
-                <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 16, color: tema.inchiostroMarca, width: 30, lineHeight: 1 }}>{dueCifre(v.numero)}</Text>
-                <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 10, color: tema.inchiostro }}>{v.titolo}</Text>
+              <View key={v.numero} style={{ width: sommario.length > 10 ? "33.33%" : "50%", flexDirection: "row", alignItems: "flex-end", paddingVertical: 5, paddingRight: 12, borderBottomWidth: 0.6, borderBottomColor: tema.filetto }}>
+                <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 12, color: tema.inchiostroMarca, width: 24, lineHeight: 1 }}>{dueCifre(v.numero)}</Text>
+                <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 9.5, color: tema.inchiostro, flex: 1 }}>{v.titolo}</Text>
               </View>
             ))}
           </View>
@@ -1068,70 +1585,66 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
       ) : null}
 
       {/* ─── I capitoli, nell'ordine scelto dall'azienda ────────────────────
-          Un solo foglio che scorre: ogni capitolo comincia una pagina nuova,
-          tranne quelli brevi, che seguono il precedente se c'è posto. */}
-      <Page size="A4" style={pagina}>
-        {cornice}
-        {/* Lo stacco sta in fondo al capitolo, e solo se quello dopo continua sulla
-            stessa pagina (uno breve, o i prossimi passi). In cima a una pagina nuova
-            un margine spingeva il titolo più in basso degli altri; in fondo a un
-            capitolo che riempie la pagina, sbordava da solo su un foglio bianco. */}
-        {sequenza.map((v, i) => {
-          const breve = BREVI.has(v.chiave) && i > 0;
-          const prossimo = sequenza[i + 1];
-          const continua = !prossimo || BREVI.has(prossimo.chiave);
-          return (
-            <View key={v.chiave} break={i > 0 && !breve} style={continua ? { marginBottom: 28 } : undefined}>
-              {contenutoCapitolo(v.chiave, numeroDi.get(v.chiave) ?? i + 1)}
-            </View>
-          );
-        })}
+          A segmenti. Un blocco con le foto (come funziona, protezione, controlli,
+          documenti, diario) ha una pagina sua, e le foto la riempiono fino in fondo.
+          Gli altri capitoli stanno in fogli che scorrono: i capitoli di altezza
+          limitata (come lavoriamo, cosa è compreso, i tempi brevi) seguono il
+          precedente se ci stanno interi, gli altri cominciano un foglio nuovo.
+          Fino al 22/09/2026 ogni capitolo cominciava un foglio nuovo, e quasi ogni
+          pagina finiva con 7-12 cm bianchi. Una foto che si allarga (flexGrow)
+          dentro un foglio che scorre sposta i calcoli di tutto il foglio, e il testo
+          si sovrappone: per questo i blocchi con le foto stanno su pagine proprie. */}
+      {segmenti.map((segmento, s) => segmento.propria ? (
+        <Page key={`blocco-${segmento.chiavi[0]}`} size="A4" style={pagina}>
+          {cornice}
+          {contenutoCapitolo(segmento.chiavi[0], numeroDi.get(segmento.chiavi[0]) ?? 0, true)}
+        </Page>
+      ) : (
+        <Page key={`flusso-${s}`} size="A4" style={pagina}>
+          {cornice}
+          {/* Lo stacco sta in fondo al capitolo, e solo se quello dopo può continuare
+              sulla stessa pagina (uno che scorre, o i prossimi passi senza foto). In
+              cima a una pagina nuova un margine spingeva il titolo più in basso degli
+              altri; in fondo a un capitolo che riempie la pagina, sbordava da solo su
+              un foglio bianco. */}
+          {segmento.chiavi.map((chiave, i) => {
+            const scorre = i > 0 && scorreIntero(chiave);
+            const segue = i > 0 && seguePrecedente(chiave) && !aCapo.has(chiave);
+            const prossimo = segmento.chiavi[i + 1];
+            const chiudeQui = !prossimo && s === segmenti.length - 1 && !fotoChiusura;
+            const foto = riempimento.get(chiave);
+            const fotoRiempimento = modello.fotoRiempimento[chiave];
+            const continua = !foto && (prossimo ? seguePrecedente(prossimo) && !aCapo.has(prossimo) : chiudeQui);
+            return (
+              <React.Fragment key={chiave}>
+                {/* `wrap` si passa solo quando è false: react-pdf guarda se la chiave c'è
+                    («'wrap' in props»), e `wrap={undefined}` vale «non spezzare». Così fino al
+                    22/09/2026 un computo più lungo di un foglio finiva schiacciato in uno solo,
+                    con le righe una sopra l'altra. */}
+                <View break={i > 0 && !segue} {...(scorre ? { wrap: false } : {})} style={continua ? { marginBottom: 30 } : undefined}>
+                  {contenutoCapitolo(chiave, numeroDi.get(chiave) ?? i + 1)}
+                </View>
+                {/* Fuori dal capitolo: se la stima sbagliasse, la foto passerebbe alla pagina
+                    dopo senza trascinarsi dietro (e schiacciare) il capitolo. */}
+                {foto && fotoRiempimento ? <FotoRiempimento tema={tema} foto={fotoRiempimento} altezza={foto} /> : null}
+              </React.Fragment>
+            );
+          })}
+          {/* Senza foto, i prossimi passi seguono l'ultimo capitolo. */}
+          {s === segmenti.length - 1 && !fotoChiusura ? chiusura : null}
+        </Page>
+      ))}
 
-        {/* ─── I prossimi passi: sempre in fondo, prima delle condizioni ───── */}
-        <View>
-        <View wrap={false}>
-          <Capitolo tema={tema} numero={numeroPassi} occhiello="I prossimi passi" titolo="Pronti a *partire*?" sommario={fraseValiditaChiusura(modello.testoValidita, modello.giorniValidita)} />
-          <Passi
-            tema={tema}
-            voci={[
-              { titolo: "Conferma", descrizione: "Firma questo documento, o rispondici anche solo con un messaggio." },
-              { titolo: "Partenza lavori", descrizione: "Concordiamo insieme la data di inizio e il calendario definitivo." },
-            ]}
-          />
-          <View wrap={false} style={{ flexDirection: "row", marginTop: 10 }}>
-            <View style={{ flex: 1, backgroundColor: tema.cartaCalda, padding: 14, marginRight: 12 }}>
-              <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 7, color: tema.inchiostroMarca, letterSpacing: 1.4, marginBottom: 7 }}>I NOSTRI CONTATTI</Text>
-              <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 10.5, color: tema.inchiostro, marginBottom: 4 }}>{dati.azienda.nome}</Text>
-              {[dati.azienda.telefono, emailACapo(dati.azienda.email), dati.azienda.indirizzo].filter(Boolean).map((r, i) => (
-                <Text key={i} style={{ fontFamily: tema.caratteri.testo, fontSize: 9, color: tema.grigio, lineHeight: 1.5 }}>{r}</Text>
-              ))}
-            </View>
-            {/* Senza condizioni non c'è la pagina della firma: allora si firma qui.
-                Con le condizioni, la firma sta lì e due riquadri sarebbero uno di troppo. */}
-            {modello.condizioniLegali.length > 0 ? (
-              <View style={{ flex: 1.25, backgroundColor: tema.cartaCalda, padding: 14, justifyContent: "center" }}>
-                <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 7, color: tema.inchiostroMarca, letterSpacing: 1.4, marginBottom: 6 }}>LA FIRMA</Text>
-                <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 9, color: tema.grigio, lineHeight: 1.5 }}>
-                  Le condizioni generali e la pagina da firmare sono in fondo a questo documento.
-                </Text>
-              </View>
-            ) : (
-            <View style={{ flex: 1.25, borderWidth: 0.8, borderColor: tema.inchiostro, padding: 14 }}>
-              <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 7, color: tema.inchiostro, letterSpacing: 1.4 }}>PER ACCETTAZIONE</Text>
-              <View style={{ flexDirection: "row", marginTop: 44 }}>
-                <View style={{ width: 86, borderTopWidth: 0.6, borderTopColor: tema.grigioChiaro, paddingTop: 4, marginRight: 14 }}>
-                  <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 7, color: tema.grigioChiaro, letterSpacing: 0.8 }}>DATA</Text>
-                </View>
-                <View style={{ flex: 1, borderTopWidth: 0.6, borderTopColor: tema.grigioChiaro, paddingTop: 4 }}>
-                  <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 7, color: tema.grigioChiaro, letterSpacing: 0.8 }}>FIRMA DEL CLIENTE</Text>
-                </View>
-              </View>
-            </View>
-            )}
-          </View>
-        </View>
-        </View>
-      </Page>
+      {/* ─── I prossimi passi: con la foto del lavoro finito, una pagina sua ───
+          La foto è alta quanto lasciano titolo, passi e contatti (649 punti utili,
+          ~270 per il resto, con margine per un indirizzo lungo). Senza foto la
+          chiusura segue l'ultimo capitolo; dopo un blocco con pagina sua, ha la sua. */}
+      {fotoChiusura || segmenti.length === 0 || segmenti[segmenti.length - 1].propria ? (
+        <Page size="A4" style={pagina}>
+          {cornice}
+          {chiusura}
+        </Page>
+      ) : null}
 
       {/* ─── Condizioni contrattuali e termini legali ─────────────────────── */}
       {modello.condizioniLegali.length > 0 ? (

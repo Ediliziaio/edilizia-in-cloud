@@ -285,6 +285,44 @@ describe("regole del percorso", () => {
     expect(modello.logo_url).toBe(`fv-progetti/${AZIENDA}/template-logos/a.png`);
   });
 
+  it("le foto dei blocchi (pdf_blocchi) si firmano come le altre; quelle di serie restano come sono", async () => {
+    const firma: Firmatario = async (bucket, percorsi) =>
+      percorsi.map((p) => (p.includes("mancante") ? null : `https://firmato/${bucket}/${p}?token=nuovo`));
+    const modello = {
+      pdf_blocchi: {
+        comeFunziona: { titolo: "Come è fatto", foto: [`sr-progetti/${AZIENDA}/template-blocchi/a.jpg`, "/pdf-stock/serramenti/tecnica-canalina.jpg"] },
+        // un file di un'altra azienda e uno che non si firma escono dall'elenco
+        controlli: { foto: [`sr-progetti/${ALTRA}/template-blocchi/b.jpg`, `sr-progetti/${AZIENDA}/template-blocchi/mancante.jpg`] },
+        diario: { senzaFoto: true },
+      },
+    };
+    const firmato = await firmaImmaginiModello(modello, CAMPI_IMMAGINE_SERRAMENTI, firma, AZIENDA);
+    expect(firmato.pdf_blocchi.comeFunziona).toEqual({
+      titolo: "Come è fatto",
+      foto: [`https://firmato/sr-progetti/${AZIENDA}/template-blocchi/a.jpg?token=nuovo`, "/pdf-stock/serramenti/tecnica-canalina.jpg"],
+    });
+    expect(firmato.pdf_blocchi.controlli.foto).toEqual([]);
+    expect(firmato.pdf_blocchi.diario).toBe(modello.pdf_blocchi.diario);
+    expect(modello.pdf_blocchi.comeFunziona.foto[0]).toBe(`sr-progetti/${AZIENDA}/template-blocchi/a.jpg`);
+    expect(CAMPI_IMMAGINE_FOTOVOLTAICO.blocchi).toEqual(["pdf_blocchi"]);
+  });
+
+  it("al salvataggio le foto dei blocchi tornano percorso", () => {
+    const modello = {
+      pdf_blocchi: { protezione: { foto: [linkFirmato("sr-progetti", `${AZIENDA}/template-blocchi/a.jpg`), "/pdf-stock/comune/protezione-ambienti.jpg"] } },
+    };
+    const salvato = normalizzaImmaginiModello(modello, CAMPI_IMMAGINE_SERRAMENTI, AZIENDA);
+    expect(salvato.pdf_blocchi.protezione.foto).toEqual([`sr-progetti/${AZIENDA}/template-blocchi/a.jpg`, "/pdf-stock/comune/protezione-ambienti.jpg"]);
+  });
+
+  it("il campo foto dei blocchi carica nel bucket riservato e salva il percorso", () => {
+    const campo = leggi("src/components/preventivi/CampoFotoModello.tsx");
+    expect(campo).toContain("riferimentoImmagine(bucket, percorso)");
+    expect(campo).toContain("<ImgRiservata");
+    expect(campo).not.toMatch(/createSignedUrls?\(/);
+    expect(editorSerramenti).toContain('bucket="sr-progetti" cartella={companyId ? `${companyId}/template-blocchi` : null}');
+  });
+
   it("senza immagini riservate non chiama lo storage e restituisce lo stesso modello", async () => {
     let chiamato = false;
     const firma: Firmatario = async (_bucket, percorsi) => {
