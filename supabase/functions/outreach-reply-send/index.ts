@@ -68,14 +68,22 @@ Deno.serve(async (req) => {
 
     // 2. casella mittente: esplicita → ultima che ha spedito a quell'indirizzo
     //    (per contact_id o, in mancanza, per to_email) → fallback pool.
-    let lastSentQ = admin
-      .from("outreach_send_queue")
-      .select("sender_account_id,subject")
-      .eq("status", "sent")
-      .order("sent_at", { ascending: false })
-      .limit(1);
-    lastSentQ = contactId ? lastSentQ.eq("contact_id", contactId) : lastSentQ.eq("to_email", to);
-    const { data: lastSent } = await lastSentQ.maybeSingle();
+    //    Con la casella esplicita l'oggetto «Re: …» viene dall'ultima email di
+    //    QUELLA casella: la Posta ha una conversazione per brand (22/09/2026),
+    //    e l'ultima email al contatto può essere di un altro brand.
+    const ultimaInviata = (soloCasella: string | null) => {
+      let q = admin
+        .from("outreach_send_queue")
+        .select("sender_account_id,subject")
+        .eq("status", "sent")
+        .order("sent_at", { ascending: false })
+        .limit(1);
+      q = contactId ? q.eq("contact_id", contactId) : q.eq("to_email", to);
+      if (soloCasella) q = q.eq("sender_account_id", soloCasella);
+      return q.maybeSingle();
+    };
+    let { data: lastSent } = await ultimaInviata(explicitSenderId || null);
+    if (!lastSent && explicitSenderId) ({ data: lastSent } = await ultimaInviata(null));
 
     let senderId = explicitSenderId || lastSent?.sender_account_id || null;
     const lastSubject = lastSent?.subject ?? null;
@@ -121,6 +129,8 @@ Deno.serve(async (req) => {
     // 7. threading best-effort: message_id dall'ultima risposta del prospect
     // (per contact_id se collegato, altrimenti per from_email = indirizzo prospect).
     // Il reply-handler salva raw.message_id (snake_case); proviamo anche messageId.
+    // Con la casella esplicita, solo le risposte al brand di quella casella:
+    // agganciarsi alla risposta a un altro brand mescolerebbe i due thread.
     const inReplyToHeaders: Record<string, string> = {};
     let lastReplyQ = admin
       .from("outreach_replies")
@@ -128,6 +138,7 @@ Deno.serve(async (req) => {
       .order("received_at", { ascending: false })
       .limit(1);
     lastReplyQ = contactId ? lastReplyQ.eq("contact_id", contactId) : lastReplyQ.eq("from_email", to);
+    if (explicitSenderId && sender.brand_id) lastReplyQ = lastReplyQ.eq("brand_id", sender.brand_id);
     const { data: lastReply } = await lastReplyQ.maybeSingle();
     const rawObj = (lastReply?.raw ?? {}) as Record<string, unknown>;
     const priorMsgId =

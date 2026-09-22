@@ -7,6 +7,10 @@ import { it } from "date-fns/locale";
 import { isMissingTableError, isMissingColumnError } from "./_shared";
 import { renderTemplate, contactToVars, hashSeed } from "../../../../supabase/functions/_shared/outreach-template";
 import { parseVariants, pickVariant } from "../../../../supabase/functions/_shared/outreach-abz";
+import {
+  abbiamoRisposto, chiaveConversazione, daRispondere, eAutomatica, tipoConversazione,
+  type TipoConversazione,
+} from "./postaViste";
 
 /**
  * useOutreachConversations — logica condivisa dell'inbox cold.
@@ -93,6 +97,16 @@ interface SentRow {
   opened_at: string | null;
   /** Numero di aperture tracciate. 0 se mai aperta o tracking off. Colonna 20270821000000. */
   open_count: number | null;
+  /** Brand del flusso che ha spedito (la Posta separa le conversazioni per brand). */
+  brand_id: string | null;
+}
+
+/** Un brand del freddo (linguette della Posta, firma nelle risposte). */
+export interface BrandRow {
+  id: string;
+  name: string;
+  status: string;
+  signature: string | null;
 }
 
 /**
@@ -122,7 +136,15 @@ interface ReplyRow {
   received_at: string | null;
   status: string;
   intent: string | null;
+  /** Brand a cui ha risposto (migrazione 20280918240000). */
+  brand_id: string | null;
+  /** Casella che l'ha ricevuta. */
+  sender_account_id: string | null;
+  enrollment_id: string | null;
 }
+
+/** Colonne lette dalle risposte: `raw` (l'email intera) non serve alla lista. */
+const REPLY_COLS = "id,contact_id,from_email,subject,snippet,received_at,status,intent,brand_id,sender_account_id,enrollment_id";
 
 export interface ContactRow {
   id: string;
@@ -170,6 +192,8 @@ export interface ThreadMsg {
   intent: string | null;
   /** Stato di consegna (solo per le inviate, direction='out'). */
   delivery?: MsgDelivery;
+  /** Casella che ha spedito (inviate) o ricevuto (risposte), se nota. */
+  senderAccountId?: string | null;
 }
 
 /** Riepilogo AI di una conversazione (edge outreach-ai-summary). */
@@ -210,9 +234,25 @@ export interface Conversation {
   sequenceNames: string[];
   /** Posticipata fino a (ISO) se snoozed_until > now, altrimenti null. Solo per i contatti collegati. */
   snoozedUntil: string | null;
+  /** Brand della conversazione: una conversazione per brand e per persona. */
+  brandId: string | null;
+  /** Risposta vera, solo automatiche, o solo inviate (postaViste.ts). */
+  tipo: TipoConversazione;
+  /** La persona ha scritto e non le abbiamo ancora risposto. */
+  daRispondere: boolean;
+  /** Dopo la sua ultima risposta c'è una nostra email. */
+  abbiamoRisposto: boolean;
+  /** Id delle risposte arrivate, di quelle da leggere e di quelle lette (per le azioni). */
+  replyIds: string[];
+  unreadReplyIds: string[];
+  readReplyIds: string[];
+  /** La risposta più recente: quella a cui si cambia l'intento. */
+  lastReplyId: string | null;
+  /** L'ultima cosa che ha scritto la persona (se non c'è, l'ultima automatica). */
+  ultimaRisposta: { testo: string; at: string | null; intent: string | null; automatica: boolean } | null;
+  /** Nome, email e azienda in minuscolo, per la ricerca. */
+  testoRicerca: string;
 }
-
-export type StatusFilter = "all" | "interested" | "unread" | "snoozed" | "archived";
 
 /** Finestra rapida sull'ultima attività della conversazione (lastAt). */
 export type DateFilter = "all" | "today" | "7d" | "30d";
@@ -221,6 +261,8 @@ export type DateFilter = "all" | "today" | "7d" | "30d";
 export interface SequenceOption {
   id: string;
   name: string;
+  /** Brand del flusso: il filtro mostra solo quelli del brand scelto. */
+  brandId: string | null;
 }
 
 const UNREAD = "unread";
@@ -351,36 +393,41 @@ export function useOutreachConversations(companyId: string) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any;
 
-  // Colonne base sempre presenti (migrazione core 20270815000000) + le due
-  // dell'open-tracking (20270821000000) che potrebbero non essere ancora applicate.
-  const SENT_BASE_COLS = "id,contact_id,to_email,subject,body,sent_at,sender_account_id,status,last_error,attempts";
+  // Colonne base sempre presenti (migrazione core 20270815000000, brand_id dal
+  // 16/09/2026) + le due dell'open-tracking (20270821000000) che potrebbero non
+  // essere ancora applicate.
+  const SENT_BASE_COLS = "id,contact_id,to_email,subject,body,sent_at,sender_account_id,status,last_error,attempts,brand_id";
   const SENT_OPEN_COLS = "opened_at,open_count";
 
+  /**
+   * Inviate con le colonne open-tracking; se la migrazione 20270821000000 non è
+   * applicata il select fallisce (colonna inesistente) → ricade sulle colonne
+   * base senza rompere l'inbox (open_count/opened_at sintetizzati a 0/null).
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const leggiInviate = async (filtra: (q: any) => any): Promise<SentRow[]> => {
+    const run = (cols: string) =>
+      filtra(db.from(T_SENT).select(cols).eq("company_id", companyId).eq("status", "sent"));
+    let { data, error } = await run(`${SENT_BASE_COLS},${SENT_OPEN_COLS}`);
+    if (error && isMissingColumnError(error)) {
+      ({ data, error } = await run(SENT_BASE_COLS));
+    }
+    if (error) throw error;
+    return (data ?? []).map((r: Record<string, unknown>) => ({
+      ...r,
+      opened_at: (r.opened_at as string | null) ?? null,
+      open_count: (r.open_count as number | null) ?? null,
+      brand_id: (r.brand_id as string | null) ?? null,
+    })) as SentRow[];
+  };
+
+  // Le ultime 500 inviate: la vista «Inviate» della Posta. Con più di mille
+  // invii al giorno coprono qualche ora; i thread di chi ha risposto si
+  // completano con la query sotto.
   const sentQ = useQuery({
     queryKey: ["outreach-inbox-sent", companyId],
     retry: false,
-    queryFn: async () => {
-      // Prova con le colonne open-tracking; se la migrazione 20270821000000 non è
-      // applicata il select fallisce (colonna inesistente) → ricade sulle colonne
-      // base senza rompere l'inbox (open_count/opened_at sintetizzati a 0/null).
-      const run = (cols: string) =>
-        db.from(T_SENT)
-          .select(cols)
-          .eq("company_id", companyId)
-          .eq("status", "sent")
-          .order("sent_at", { ascending: false })
-          .limit(500);
-      let { data, error } = await run(`${SENT_BASE_COLS},${SENT_OPEN_COLS}`);
-      if (error && isMissingColumnError(error)) {
-        ({ data, error } = await run(SENT_BASE_COLS));
-      }
-      if (error) throw error;
-      return (data ?? []).map((r: Record<string, unknown>) => ({
-        ...r,
-        opened_at: (r.opened_at as string | null) ?? null,
-        open_count: (r.open_count as number | null) ?? null,
-      })) as SentRow[];
-    },
+    queryFn: () => leggiInviate((q) => q.order("sent_at", { ascending: false }).limit(500)),
   });
 
   const repliesQ = useQuery({
@@ -389,12 +436,35 @@ export function useOutreachConversations(companyId: string) {
     queryFn: async () => {
       const { data, error } = await db
         .from(T_REPLIES)
-        .select("*")
+        .select(REPLY_COLS)
         .eq("company_id", companyId)
         .order("received_at", { ascending: false })
         .limit(500);
       if (error) throw error;
       return (data ?? []) as ReplyRow[];
+    },
+  });
+
+  // Tutte le email mandate a chi ha risposto. Senza, il thread di una risposta
+  // arrivata ieri mostrava solo la risposta: la nostra email era già uscita
+  // dalle ultime 500 inviate.
+  const repliedContactIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const r of repliesQ.data ?? []) if (r.contact_id) ids.add(r.contact_id);
+    return [...ids].sort();
+  }, [repliesQ.data]);
+
+  const threadSentQ = useQuery({
+    queryKey: ["outreach-inbox-thread-sent", companyId, repliedContactIds.length, hashSeed(repliedContactIds.join("|"))],
+    retry: false,
+    enabled: repliedContactIds.length > 0,
+    queryFn: async () => {
+      const chunks: string[][] = [];
+      for (let i = 0; i < repliedContactIds.length; i += 100) chunks.push(repliedContactIds.slice(i, i + 100));
+      const parti = await Promise.all(chunks.map((ids) =>
+        leggiInviate((q) => q.in("contact_id", ids).order("sent_at", { ascending: false }).limit(1000)),
+      ));
+      return parti.flat();
     },
   });
 
@@ -450,19 +520,19 @@ export function useOutreachConversations(companyId: string) {
     },
   });
 
-  // Firme dei brand (per l'inserimento rapido nelle risposte). Best-effort:
-  // colonna `signature` aggiunta da 20270819000000; se assente o vuota → niente
-  // voce "Firma" nel menu snippet. Una sola query, mappata brand_id → firma.
-  const brandSigsQ = useQuery({
-    queryKey: ["outreach-inbox-brand-signatures", companyId],
+  // Brand del freddo: le linguette della Posta e la firma da inserire nelle
+  // risposte (colonna `signature` da 20270819000000; vuota → niente «Firma»).
+  const brandsQ = useQuery({
+    queryKey: ["outreach-inbox-brands", companyId],
     retry: false,
     queryFn: async () => {
       const { data, error } = await db
         .from("outreach_brands")
-        .select("id,signature")
-        .eq("company_id", companyId);
+        .select("id,name,status,signature")
+        .eq("company_id", companyId)
+        .order("name");
       if (error) throw error;
-      return (data ?? []) as Array<{ id: string; signature: string | null }>;
+      return (data ?? []) as BrandRow[];
     },
   });
 
@@ -494,11 +564,11 @@ export function useOutreachConversations(companyId: string) {
     queryFn: async () => {
       const { data, error } = await db
         .from(T_SEQUENCES)
-        .select("id,name,status")
+        .select("id,name,status,brand_id")
         .eq("company_id", companyId)
         .order("name");
       if (error) throw error;
-      return (data ?? []) as Array<{ id: string; name: string; status: string }>;
+      return (data ?? []) as Array<{ id: string; name: string; status: string; brand_id: string | null }>;
     },
   });
 
@@ -521,77 +591,72 @@ export function useOutreachConversations(companyId: string) {
     },
   });
 
-  const markRead = useMutation({
-    mutationFn: async (contactId: string) => {
+  /**
+   * Cambia lo stato di un elenco di risposte (per id, a blocchi: gli URL di
+   * PostgREST hanno un limite). Le azioni della Posta lavorano sulle risposte
+   * della conversazione aperta o di quelle filtrate: prima «segna lette»
+   * agiva sul contatto, quindi anche sulle risposte agli altri brand.
+   */
+  const cambiaStato = async (replyIds: string[], da: string, a: string) => {
+    for (let i = 0; i < replyIds.length; i += 150) {
       const { error } = await db
         .from(T_REPLIES)
-        .update({ status: READ })
+        .update({ status: a })
         .eq("company_id", companyId)
-        .eq("contact_id", contactId)
-        .eq("status", UNREAD);
+        .eq("status", da)
+        .in("id", replyIds.slice(i, i + 150));
       if (error) throw error;
+    }
+  };
+
+  const markRead = useMutation({
+    mutationFn: async ({ replyIds }: { replyIds: string[] }) => {
+      if (replyIds.length > 0) await cambiaStato(replyIds, UNREAD, READ);
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["outreach-inbox-replies", companyId] }),
     onError: (e) => toast.error(e instanceof Error ? e.message : "Errore"),
   });
 
-  // Bulk: segna lette le risposte non lette. Senza argomenti agisce su TUTTA
-  // l'azienda (comportamento storico); con un elenco di contactId agisce SOLO
-  // sulle conversazioni selezionate (selezione multipla del client). Le
-  // conversazioni senza contatto collegato non hanno risposte etichettabili per
-  // contatto, quindi vengono semplicemente ignorate dal filtro `.in()`.
+  // Bulk: segna lette le risposte non lette delle conversazioni indicate (quelle
+  // selezionate o quelle mostrate dalla lista, secondo il pulsante).
   const markAllRead = useMutation({
-    mutationFn: async (contactIds?: string[]) => {
-      let q = db.from(T_REPLIES).update({ status: READ })
-        .eq("company_id", companyId)
-        .eq("status", UNREAD);
-      if (contactIds && contactIds.length > 0) q = q.in("contact_id", contactIds);
-      const { error } = await q;
-      if (error) throw error;
+    mutationFn: async (replyIds: string[]) => {
+      if (replyIds.length > 0) await cambiaStato(replyIds, UNREAD, READ);
     },
-    onSuccess: (_res, contactIds) => {
-      toast.success(contactIds && contactIds.length > 0
-        ? "Conversazioni selezionate segnate come lette"
-        : "Tutte le risposte segnate come lette");
+    onSuccess: (_res, replyIds) => {
+      toast.success(replyIds.length === 1 ? "1 risposta segnata come letta" : `${replyIds.length} risposte segnate come lette`);
       qc.invalidateQueries({ queryKey: ["outreach-inbox-replies", companyId] });
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Errore"),
   });
 
-  // Bulk: archivia le risposte lette → escono dalla lista di default. Senza
-  // argomenti agisce su tutta l'azienda; con un elenco di contactId agisce solo
-  // sulle conversazioni selezionate. Allineato a markAllRead.
+  // Bulk: archivia le risposte già lette delle conversazioni indicate → escono
+  // dalla lista e restano sotto «Archiviate».
   const archiveRead = useMutation({
-    mutationFn: async (contactIds?: string[]) => {
-      let q = db.from(T_REPLIES).update({ status: ARCHIVED })
-        .eq("company_id", companyId)
-        .eq("status", READ);
-      if (contactIds && contactIds.length > 0) q = q.in("contact_id", contactIds);
-      const { error } = await q;
-      if (error) throw error;
+    mutationFn: async (replyIds: string[]) => {
+      if (replyIds.length > 0) await cambiaStato(replyIds, READ, ARCHIVED);
     },
-    onSuccess: (_res, contactIds) => {
-      toast.success(contactIds && contactIds.length > 0
-        ? "Conversazioni selezionate archiviate"
-        : "Conversazioni lette archiviate");
+    onSuccess: (_res, replyIds) => {
+      toast.success(replyIds.length === 1 ? "1 risposta archiviata" : `${replyIds.length} risposte archiviate`);
       qc.invalidateQueries({ queryKey: ["outreach-inbox-replies", companyId] });
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Errore"),
   });
 
-  // Intent 1-click: aggiorna l'intent dell'ULTIMA risposta in arrivo del contatto.
-  // L'intent vive per-risposta (outreach_replies.intent); la conversazione mostra
-  // quello della risposta più recente, quindi è quella che aggiorniamo.
+  // Intent 1-click: aggiorna l'intent della risposta più recente della
+  // conversazione (`replyId`), o in mancanza dell'ultima del contatto. L'intent
+  // vive per-risposta (outreach_replies.intent); la conversazione mostra quello
+  // della risposta più recente, quindi è quella che aggiorniamo.
   const setIntent = useMutation({
-    mutationFn: async ({ contactId, intent }: { contactId: string; intent: string }): Promise<{ brand: string | null }> => {
-      const { data: last, error: selErr } = await db
+    mutationFn: async ({ contactId, intent, replyId }: { contactId: string; intent: string; replyId?: string | null }): Promise<{ brand: string | null }> => {
+      let sel = db
         .from(T_REPLIES)
-        .select("id, enrollment_id")
-        .eq("company_id", companyId)
-        .eq("contact_id", contactId)
-        .order("received_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .select("id, enrollment_id, brand_id")
+        .eq("company_id", companyId);
+      sel = replyId
+        ? sel.eq("id", replyId)
+        : sel.eq("contact_id", contactId).order("received_at", { ascending: false }).limit(1);
+      const { data: last, error: selErr } = await sel.maybeSingle();
       if (selErr) throw selErr;
       if (!last?.id) throw new Error("Nessuna risposta da etichettare per questo contatto");
       const { error } = await db
@@ -605,14 +670,18 @@ export function useOutreachConversations(companyId: string) {
       // tutti (decisione del titolare, 18/09/2026: i tre servizi sono distinti
       // e partono da indirizzi diversi). Prima qui si scriveva
       // `ricontatta_dopo` sul contatto: sei mesi di silenzio anche dai brand
-      // che a quella persona non avevano mai scritto.
-      const enrollmentId = (last.enrollment_id as string | null) ?? null;
-      if (!enrollmentId) return { brand: null };
-      const { data: enr } = await db.from(T_ENROLLMENTS).select("sequence_id").eq("id", enrollmentId).maybeSingle();
-      const sequenceId = (enr?.sequence_id as string | null) ?? null;
-      if (!sequenceId) return { brand: null };
-      const { data: seq } = await db.from(T_SEQUENCES).select("brand_id").eq("id", sequenceId).maybeSingle();
-      const brandId = (seq?.brand_id as string | null) ?? null;
+      // che a quella persona non avevano mai scritto. Il brand è quello della
+      // risposta; per le risposte vecchie senza brand si risale dal flusso.
+      let brandId = (last.brand_id as string | null) ?? null;
+      if (!brandId) {
+        const enrollmentId = (last.enrollment_id as string | null) ?? null;
+        if (!enrollmentId) return { brand: null };
+        const { data: enr } = await db.from(T_ENROLLMENTS).select("sequence_id").eq("id", enrollmentId).maybeSingle();
+        const sequenceId = (enr?.sequence_id as string | null) ?? null;
+        if (!sequenceId) return { brand: null };
+        const { data: seq } = await db.from(T_SEQUENCES).select("brand_id").eq("id", sequenceId).maybeSingle();
+        brandId = (seq?.brand_id as string | null) ?? null;
+      }
       if (!brandId) return { brand: null };
 
       // Le iscrizioni ancora vive di QUEL brand si chiudono qui; quelle degli
@@ -700,12 +769,12 @@ export function useOutreachConversations(companyId: string) {
   // brand_id → firma (non vuota). Per l'inserimento rapido della firma in risposta.
   const brandSignatureById = useMemo(() => {
     const m = new Map<string, string>();
-    for (const b of brandSigsQ.data ?? []) {
+    for (const b of brandsQ.data ?? []) {
       const sig = (b.signature ?? "").trim();
       if (sig) m.set(b.id, sig);
     }
     return m;
-  }, [brandSigsQ.data]);
+  }, [brandsQ.data]);
 
   /** Firma del brand della casella che ha inviato la conversazione (o null). */
   const signatureForSender = (senderId: string | null | undefined): string | null => {
@@ -715,14 +784,22 @@ export function useOutreachConversations(companyId: string) {
   };
 
   const conversations = useMemo<Conversation[]>(() => {
-    const sent = sentQ.data ?? [];
+    // Le ultime inviate più quelle mandate a chi ha risposto, senza doppioni.
+    const sentById = new Map<string, SentRow>();
+    for (const s of threadSentQ.data ?? []) sentById.set(s.id, s);
+    for (const s of sentQ.data ?? []) sentById.set(s.id, s);
+    const sent = [...sentById.values()];
     const replies = repliesQ.data ?? [];
     const contacts = contactsQ.data ?? [];
     const byId = new Map(contacts.map((c) => [c.id, c]));
+    const brandDellaCasella = (id: string | null | undefined) =>
+      (id ? sendersById.get(id)?.brand_id ?? null : null);
 
+    // Una conversazione per brand e per persona: le liste dei brand si
+    // incrociano per scelta, e una stessa azienda riceve email da più brand.
     const groups = new Map<string, Conversation>();
-    const ensure = (contactId: string | null, email: string | null): Conversation => {
-      const key = contactId ?? (email ? `email:${email.toLowerCase()}` : "unknown");
+    const ensure = (brandId: string | null, contactId: string | null, email: string | null): Conversation => {
+      const key = chiaveConversazione(brandId, contactId, email);
       let conv = groups.get(key);
       if (!conv) {
         conv = {
@@ -743,6 +820,16 @@ export function useOutreachConversations(companyId: string) {
           sequenceIds: [],
           sequenceNames: [],
           snoozedUntil: null,
+          brandId,
+          tipo: "inviata",
+          daRispondere: false,
+          abbiamoRisposto: false,
+          replyIds: [],
+          unreadReplyIds: [],
+          readReplyIds: [],
+          lastReplyId: null,
+          ultimaRisposta: null,
+          testoRicerca: "",
         };
         groups.set(key, conv);
       } else if (!conv.email && email) {
@@ -754,12 +841,22 @@ export function useOutreachConversations(companyId: string) {
     // Tiene traccia della casella più recente che ha inviato in ogni conversazione.
     const latestSenderAt = new Map<string, number>();
     const senderSeen = new Map<string, Set<string>>();
+    // Per persona, il brand dell'ultimo invio: serve alle risposte senza brand.
+    const ultimoBrandInviato = new Map<string, { brandId: string | null; t: number }>();
+    const chiPersona = (contactId: string | null, email: string | null) =>
+      contactId ?? (email ? `email:${email.toLowerCase()}` : "sconosciuto");
 
     for (const s of sent) {
       // Senza contact_id raggruppiamo per email destinataria, così la conversazione resta tracciabile.
       if (!s.contact_id && !s.to_email) continue;
-      const conv = ensure(s.contact_id, s.to_email);
+      const brandId = s.brand_id ?? brandDellaCasella(s.sender_account_id);
+      const conv = ensure(brandId, s.contact_id, s.to_email);
       conv.sentCount++;
+      const tInvio = new Date(s.sent_at ?? 0).getTime();
+      const persona = chiPersona(s.contact_id, s.to_email);
+      if (tInvio >= (ultimoBrandInviato.get(persona)?.t ?? -Infinity)) {
+        ultimoBrandInviato.set(persona, { brandId, t: tInvio });
+      }
       // La coda conserva il TEMPLATE (variabili {{ }}, spintax { | }, varianti
       // "===" nell'oggetto): il rendering vero avviene nel dispatcher al send.
       // Qui renderizziamo con le STESSE variabili e lo STESSO seed
@@ -793,6 +890,7 @@ export function useOutreachConversations(companyId: string) {
           openedAt: s.opened_at,
           openCount: s.open_count ?? 0,
         },
+        senderAccountId: s.sender_account_id,
       });
       if (s.sender_account_id) {
         let seen = senderSeen.get(conv.key);
@@ -816,7 +914,13 @@ export function useOutreachConversations(companyId: string) {
     const archivedCount = new Map<string, number>();
     for (const r of replies) {
       if (!r.contact_id && !r.from_email) continue;
-      const conv = ensure(r.contact_id, r.from_email);
+      // Il brand a cui ha risposto; per le risposte senza brand, quello
+      // dell'ultima email che gli abbiamo mandato.
+      const brandId = r.brand_id
+        ?? brandDellaCasella(r.sender_account_id)
+        ?? ultimoBrandInviato.get(chiPersona(r.contact_id, r.from_email))?.brandId
+        ?? null;
+      const conv = ensure(brandId, r.contact_id, r.from_email);
       conv.replyCount++;
       conv.messages.push({
         id: `r:${r.id}`,
@@ -825,9 +929,16 @@ export function useOutreachConversations(companyId: string) {
         body: r.snippet,
         at: r.received_at,
         intent: r.intent,
+        senderAccountId: r.sender_account_id,
       });
-      if (r.status === UNREAD) conv.unread = true;
-      if (r.status === READ) conv.hasRead = true;
+      conv.replyIds.push(r.id);
+      if (r.status === UNREAD) { conv.unread = true; conv.unreadReplyIds.push(r.id); }
+      if (r.status === READ) { conv.hasRead = true; conv.readReplyIds.push(r.id); }
+      // La casella che ha ricevuto la risposta vale come casella della conversazione.
+      if (r.sender_account_id && !conv.senderAccountIds.includes(r.sender_account_id)) {
+        conv.senderAccountIds.push(r.sender_account_id);
+        if (!conv.primarySenderId) conv.primarySenderId = r.sender_account_id;
+      }
       inCount.set(conv.key, (inCount.get(conv.key) ?? 0) + 1);
       if (r.status === ARCHIVED) archivedCount.set(conv.key, (archivedCount.get(conv.key) ?? 0) + 1);
     }
@@ -835,6 +946,7 @@ export function useOutreachConversations(companyId: string) {
     // Sequenze per contatto (per il filtro campagna + etichette). Le iscrizioni
     // sono per contact_id; le conversazioni senza contatto restano senza sequenza.
     const seqNameById = new Map((sequencesQ.data ?? []).map((s) => [s.id, s.name]));
+    const seqBrandById = new Map((sequencesQ.data ?? []).map((s) => [s.id, s.brand_id ?? null]));
     const seqIdsByContact = new Map<string, Set<string>>();
     for (const e of enrollmentsAllQ.data ?? []) {
       if (!e.contact_id || !e.sequence_id) continue;
@@ -861,41 +973,67 @@ export function useOutreachConversations(companyId: string) {
       conv.lastSnippet = last
         ? (last.direction === "out" ? "Tu: " : "") + (last.body ? stripHtml(last.body).slice(0, 140) : "—")
         : "—";
-      // Intent dell'ultima risposta in arrivo (non delle inviate).
-      const lastIn = [...conv.messages].reverse().find((m) => m.direction === "in" && m.intent);
-      conv.lastIntent = lastIn?.intent ?? null;
-      // Sequenze del contatto collegato (vuote per le email sciolte).
+      // L'ultima risposta scritta da una persona; se ci sono solo risposte
+      // automatiche, l'ultima di quelle. L'intento della conversazione è il suo:
+      // un'auto-risposta arrivata dopo non copre un «sì, mi interessa».
+      const arrivati = conv.messages.filter((m) => m.direction === "in");
+      const vere = arrivati.filter((m) => !eAutomatica(m));
+      const ultima = (vere.length > 0 ? vere : arrivati).at(-1) ?? null;
+      conv.lastIntent = ultima?.intent
+        ?? [...(vere.length > 0 ? vere : arrivati)].reverse().find((m) => m.intent)?.intent
+        ?? null;
+      conv.lastReplyId = ultima ? ultima.id.replace(/^r:/, "") : null;
+      conv.ultimaRisposta = ultima
+        ? {
+          testo: ultima.body ? stripHtml(ultima.body).slice(0, 200) : "",
+          at: ultima.at,
+          intent: ultima.intent,
+          automatica: eAutomatica(ultima),
+        }
+        : null;
+      conv.tipo = tipoConversazione(conv.messages);
+      conv.daRispondere = daRispondere(conv.messages);
+      conv.abbiamoRisposto = abbiamoRisposto(conv.messages);
+      // Sequenze del contatto collegato (vuote per le email sciolte), solo
+      // quelle del brand della conversazione.
       const cid = conv.contact?.id ?? null;
       const seqSet = cid ? seqIdsByContact.get(cid) : undefined;
       if (seqSet && seqSet.size > 0) {
-        conv.sequenceIds = [...seqSet];
+        conv.sequenceIds = [...seqSet].filter((id) => !conv.brandId || (seqBrandById.get(id) ?? conv.brandId) === conv.brandId);
         conv.sequenceNames = conv.sequenceIds.map((id) => seqNameById.get(id) ?? "Sequenza");
       }
       // Posticipata: solo le conversazioni con contatto collegato hanno uno stato snooze.
       conv.snoozedUntil = cid ? snoozeByContact.get(cid) ?? null : null;
+      conv.testoRicerca = [
+        contactName(conv.contact, conv.email),
+        conv.contact?.email ?? conv.email ?? "",
+        conv.contact?.company_name ?? "",
+      ].join(" ").toLowerCase();
     }
     // Conversazioni ordinate per ultima attività desc.
     list.sort((a, b) => new Date(b.lastAt ?? 0).getTime() - new Date(a.lastAt ?? 0).getTime());
     return list;
-  }, [sentQ.data, repliesQ.data, contactsQ.data, enrollmentsAllQ.data, sequencesQ.data, snoozeStateQ.data]);
+  }, [sentQ.data, threadSentQ.data, repliesQ.data, contactsQ.data, enrollmentsAllQ.data, sequencesQ.data, snoozeStateQ.data, sendersById]);
 
-  const counts = useMemo(() => ({
-    // Solo conversazioni attive (non interamente archiviate, non posticipate) per i
-    // contatori di testata: le posticipate sono nascoste dalle viste normali e
-    // hanno un proprio contatore dedicato.
-    interested: conversations.filter((c) => !c.archived && !c.snoozedUntil && c.lastIntent === "interested").length,
-    unread: conversations.filter((c) => !c.archived && !c.snoozedUntil && c.unread).length,
-    read: conversations.filter((c) => !c.archived && !c.snoozedUntil && c.hasRead).length,
-    snoozed: conversations.filter((c) => !c.archived && !!c.snoozedUntil).length,
-    archived: conversations.filter((c) => c.archived).length,
-  }), [conversations]);
+  const counts = useMemo(() => {
+    // Solo le risposte scritte da una persona, attive (non archiviate, non
+    // posticipate): le automatiche hanno la loro vista e non sono «da leggere».
+    const vive = conversations.filter((c) => !c.archived && !c.snoozedUntil && c.tipo === "risposta");
+    return {
+      interested: vive.filter((c) => c.lastIntent === "interested").length,
+      unread: vive.filter((c) => c.unread).length,
+      read: vive.filter((c) => c.hasRead).length,
+      snoozed: conversations.filter((c) => !c.archived && !!c.snoozedUntil).length,
+      archived: conversations.filter((c) => c.archived).length,
+    };
+  }, [conversations]);
 
-  // Conversazioni NON LETTE per casella (badge nel pannello sinistro del client).
+  // Risposte vere da leggere per casella (filtro «Casella» della Posta).
   // Le posticipate non contano: sono fuori dalle viste normali finché scadono.
   const unreadBySender = useMemo(() => {
     const m = new Map<string, number>();
     for (const conv of conversations) {
-      if (conv.archived || conv.snoozedUntil || !conv.unread) continue;
+      if (conv.archived || conv.snoozedUntil || !conv.unread || conv.tipo !== "risposta") continue;
       for (const id of conv.senderAccountIds) m.set(id, (m.get(id) ?? 0) + 1);
     }
     return m;
@@ -909,63 +1047,20 @@ export function useOutreachConversations(companyId: string) {
     const seqs = sequencesQ.data ?? [];
     const withConv = new Set<string>();
     for (const conv of conversations) for (const id of conv.sequenceIds) withConv.add(id);
-    const out = new Map<string, string>();
+    const out = new Map<string, SequenceOption>();
     for (const s of seqs) {
-      if (s.status === "active" || withConv.has(s.id)) out.set(s.id, s.name);
+      if (s.status === "active" || withConv.has(s.id)) out.set(s.id, { id: s.id, name: s.name, brandId: s.brand_id ?? null });
     }
-    return [...out.entries()]
-      .map(([id, name]) => ({ id, name }))
-      .sort((a, b) => a.name.localeCompare(b.name, "it"));
+    return [...out.values()].sort((a, b) => a.name.localeCompare(b.name, "it"));
   }, [sequencesQ.data, conversations]);
 
-  const isLoading = sentQ.isLoading || repliesQ.isLoading || contactsQ.isLoading;
+  // Anche le email mandate a chi ha risposto: senza, i thread comparirebbero
+  // un attimo monchi.
+  const isLoading = sentQ.isLoading || repliesQ.isLoading || contactsQ.isLoading || threadSentQ.isLoading;
   const errored = sentQ.error || repliesQ.error;
   const tableMissing =
     (sentQ.error && isMissingTableError(sentQ.error)) ||
     (repliesQ.error && isMissingTableError(repliesQ.error));
-
-  /**
-   * Filtro stato + ricerca + casella + sequenza + data, riusabile da entrambi i
-   * componenti. `sequenceId`/`dateFilter` sono opzionali (back-compat con l'inbox
-   * compatta che passa solo i primi argomenti).
-   */
-  const filterConversations = (
-    convs: Conversation[],
-    filter: StatusFilter,
-    search: string,
-    senderId?: string | null,
-    sequenceId?: string | null,
-    dateFilter: DateFilter = "all",
-  ): Conversation[] => {
-    const q = search.trim().toLowerCase();
-    const floor = dateFilterFloor(dateFilter);
-    return convs.filter((conv) => {
-      // Le conversazioni interamente archiviate appaiono solo sotto il filtro "Archiviate".
-      if (filter === "archived") { if (!conv.archived) return false; }
-      else if (conv.archived) return false;
-      // Le posticipate (snoozed_until > now) appaiono SOLO sotto "Posticipate" e
-      // sono nascoste da tutte le altre viste finché l'ora non passa.
-      if (filter === "snoozed") { if (!conv.snoozedUntil) return false; }
-      else if (filter !== "archived" && conv.snoozedUntil) return false;
-      if (filter === "interested" && conv.lastIntent !== "interested") return false;
-      if (filter === "unread" && !conv.unread) return false;
-      // Filtro casella: la conversazione deve aver usato la casella selezionata.
-      if (senderId && !conv.senderAccountIds.includes(senderId)) return false;
-      // Filtro sequenza/campagna: il contatto deve essere iscritto a quella sequenza.
-      if (sequenceId && !conv.sequenceIds.includes(sequenceId)) return false;
-      // Filtro data: l'ultima attività deve cadere dentro la finestra scelta.
-      if (floor != null) {
-        const t = conv.lastAt ? new Date(conv.lastAt).getTime() : 0;
-        if (!(t >= floor)) return false;
-      }
-      if (q) {
-        const name = contactName(conv.contact, conv.email).toLowerCase();
-        const email = (conv.contact?.email || conv.email || "").toLowerCase();
-        if (!name.includes(q) && !email.includes(q)) return false;
-      }
-      return true;
-    });
-  };
 
   return {
     // dati
@@ -973,6 +1068,7 @@ export function useOutreachConversations(companyId: string) {
     counts,
     sendersById,
     senders: sendersQ.data ?? [],
+    brands: brandsQ.data ?? [],
     unreadBySender,
     sequenceOptions,
     // stato query
@@ -987,7 +1083,6 @@ export function useOutreachConversations(companyId: string) {
     snoozeConversation,
     unsnooze,
     // helper
-    filterConversations,
     signatureForSender,
     queryClient: qc,
   };
@@ -1263,10 +1358,11 @@ export function useReplyComposer(companyId: string) {
 
   // Invia la risposta DALLA stessa casella che ha contattato il prospect
   // (edge outreach-reply-send). Funziona in due modalità:
-  //  - con contatto collegato → { contactId }
+  //  - con contatto collegato → { contactId, senderId? }
   //  - senza contatto (conversazione sciolta) → { toEmail, senderId? }
-  // L'edge risolve la casella dall'ultima inviata a quell'indirizzo (o dal pool)
-  // e mantiene il threading In-Reply-To col message-id dell'ultima risposta.
+  // La Posta passa sempre la casella della conversazione (è del suo brand);
+  // senza, l'edge usa l'ultima che ha scritto a quell'indirizzo (o il pool).
+  // Mantiene il threading In-Reply-To col message-id dell'ultima risposta.
   const sendReply = async (
     target: string | { contactId?: string | null; toEmail?: string | null; senderId?: string | null },
   ) => {
@@ -1292,6 +1388,7 @@ export function useReplyComposer(companyId: string) {
       toast.success("Risposta inviata");
       setReplyText("");
       qc.invalidateQueries({ queryKey: ["outreach-inbox-sent", companyId] });
+      qc.invalidateQueries({ queryKey: ["outreach-inbox-thread-sent", companyId] });
       qc.invalidateQueries({ queryKey: ["outreach-inbox-replies", companyId] });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Invio non riuscito");

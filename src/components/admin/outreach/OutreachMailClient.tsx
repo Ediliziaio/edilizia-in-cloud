@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,13 +9,14 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
 import {
   Inbox, Mailbox, Mail, Search, ChevronLeft, MessageSquare, AlertTriangle, Building2,
-  Send, Loader2, Wand2, CheckCheck, Archive, Layers, PanelRightOpen, PanelRightClose,
+  Send, Loader2, Wand2, CheckCheck, Archive, Layers,
   User, Phone, Tag, ShieldBan, Pause, Play, ThumbsUp, ThumbsDown, Clock, Briefcase,
   Activity, ShieldCheck, Check, XCircle, Ban, MessageSquareReply, X, CalendarClock, GitBranch, Sparkles,
-  AlarmClock, AlarmClockOff, Eye, PenSquare, ChevronDown, ChevronRight, Gauge, Globe, Flame,
+  AlarmClock, AlarmClockOff, Eye, PenSquare, SlidersHorizontal, MoreHorizontal, CornerUpLeft, PanelRightClose,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -28,328 +30,258 @@ import { OutreachConvertContactDialog } from "./OutreachConvertContactDialog";
 import { OutreachBookDemoAction } from "./OutreachBookDemoAction";
 import { OutreachNewMailDialog } from "./OutreachNewMailDialog";
 import {
-  INTENT_META, ENROLLMENT_STATUS_META, type Conversation, type StatusFilter, type DateFilter,
+  INTENT_META, ENROLLMENT_STATUS_META, type Conversation, type DateFilter,
   type SequenceOption, type LeadContext, type LeadSequence, type MsgDelivery, type AiSummary,
-  type SnoozePreset, type SenderRow, type ThreadMsg, contactName, iniziali, relativeTime, fullTime,
-  providerLabel, senderStatusColor, stripHtml, snoozeUntil,
+  type SnoozePreset, type SenderRow, type ThreadMsg, type BrandRow, contactName, iniziali, relativeTime, fullTime,
+  providerLabel, senderStatusColor, stripHtml, snoozeUntil, dateFilterFloor,
   useOutreachConversations, useReplyComposer, useLeadContext, useLeadActions, isEnrollmentLive,
 } from "./useOutreachConversations";
+import {
+  SENZA_BRAND, contaPerBrand, contaPosta, eAutomatica, filtraPosta, tintaBrand,
+  type ContatoriPosta, type FiltroRisposte, type TintaBrand, type VistaPosta,
+} from "./postaViste";
 import { useReplySnippets, type ReplySnippet } from "./useReplySnippets";
 import { avatarTint } from "./outreachAvatar";
 import { useQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { supabase } from "@/integrations/supabase/client";
-import { isMissingColumnError } from "./_shared";
 
 /**
- * OutreachMailClient — client email a 3 pannelli dedicato al COLD outreach.
- * Modellato su /admin/email (EmailLayout): pannello caselle, lista conversazioni,
- * thread + risposta, con il terzo pannello delle CASELLE del pool per filtrare
- * per casella di invio.
+ * OutreachMailClient — la Posta del cold outreach (tab «Posta» dell'Outreach Engine).
  *
- * Riusa tutta la logica via useOutreachConversations / useReplyComposer (DRY):
- * stesse query, stesso raggruppamento, stesse mutazioni (segna-letto/bulk) e
- * stesse azioni Bozza AI / Invia risposta dell'inbox.
+ * Ridisegnata il 22/09/2026 su richiesta di Florin: «non riesco a dividere le
+ * email dei brand, capire le risposte, e se clicco su una mail poi non riesco
+ * a tornare indietro».
  *
- *   ┌──────────────┬──────────────────┬───────────────────────────┐
- *   │ Caselle      │ Conversazioni    │ Thread + risposta         │
- *   │ + filtri     │ (per contatto)   │ Bozza AI · Invia          │
- *   └──────────────┴──────────────────┴───────────────────────────┘
- * Mobile: 2 livelli (lista → dettaglio); il pannello caselle diventa un
- * selettore in cima alla lista.
+ *   ┌─────────────────────────────────────────────────────────────────┐
+ *   │ Tutti · ● Brand A 14 · ● Brand B 6 …        Cerca  Filtri  Nuova │
+ *   ├──────────────────────┬──────────────────────────────────────────┤
+ *   │ Risposte|Automatiche │ ← Indietro   Persona   ● Brand  casella  │
+ *   │ Inviate|Archivio     │                                          │
+ *   │ Da leggere · …       │  Tu …                  Ha risposto …     │
+ *   │ elenco               │  risposta + Bozza AI + Invia             │
+ *   └──────────────────────┴──────────────────────────────────────────┘
+ *
+ * - I brand stanno in alto, al posto della colonna delle caselle (90 caselle
+ *   su 30 domini non dicevano di quale brand fosse una risposta). La casella
+ *   resta un filtro, in «Filtri».
+ * - La vista di partenza sono le risposte scritte da una persona; le
+ *   automatiche e le sole inviate hanno la loro vista (postaViste.ts).
+ * - Aprire una conversazione non cambia più la pagina intorno: prima il
+ *   pannello del lead si apriva e la colonna delle caselle spariva, senza un
+ *   tasto per tornare. Ora c'è «Indietro», c'è Esc, e anche il tasto indietro
+ *   del browser chiude la conversazione (è nella cronologia, senza dati
+ *   personali nell'indirizzo).
  */
+
 /**
  * Altezza del client: riempie il viewport disponibile come un vero mail client
- * (header pagina + tab + padding ≈ 15rem di offset), con un pavimento usabile su
- * viewport corti. Le colonne (lista, thread, contesto) scrollano internamente; il
- * box risposta resta ancorato in fondo. Usata sia in loading sia a regime.
+ * (header pagina + tab + padding ≈ 13rem di offset), con un pavimento usabile su
+ * viewport corti. Le colonne scrollano internamente; il box risposta resta
+ * ancorato in fondo. Usata sia in loading sia a regime.
  */
 const MAIL_CLIENT_HEIGHT = "h-[calc(100vh-13rem)] min-h-[560px]";
 
-/* ──────────────────────────────────────────────────────────────────────────
-   Pannello Caselle A SCALA — helper di presentazione (puri) + capacità pool.
-   Pensato per 100+ caselle su più domini: raggruppamento per dominio,
-   ricerca, riepilogo pool con capacità giornaliera stimata ONESTA.
-   ────────────────────────────────────────────────────────────────────────── */
+/** Colori del brand (classi scritte per intero: Tailwind le deve trovare nel sorgente). */
+const TINTA_CLASSI: Record<TintaBrand, { punto: string; chip: string }> = {
+  violet: { punto: "bg-violet-500", chip: "border-violet-200 bg-violet-50 text-violet-700" },
+  rose: { punto: "bg-rose-500", chip: "border-rose-200 bg-rose-50 text-rose-700" },
+  sky: { punto: "bg-sky-500", chip: "border-sky-200 bg-sky-50 text-sky-700" },
+  emerald: { punto: "bg-emerald-500", chip: "border-emerald-200 bg-emerald-50 text-emerald-700" },
+  amber: { punto: "bg-amber-500", chip: "border-amber-200 bg-amber-50 text-amber-700" },
+  teal: { punto: "bg-teal-500", chip: "border-teal-200 bg-teal-50 text-teal-700" },
+  fuchsia: { punto: "bg-fuchsia-500", chip: "border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700" },
+};
 
-/** Dominio di una casella (parte dopo la @, minuscola). "—" se non parsabile. */
-function senderDomain(email: string): string {
-  const at = email.lastIndexOf("@");
-  return at >= 0 ? email.slice(at + 1).toLowerCase() : "—";
-}
-
-/** Un dominio con le sue caselle, per il raggruppamento collassabile. */
-interface DomainGroup {
-  domain: string;
-  senders: SenderRow[];
-  /** Caselle non lette (somma) del gruppo, per il badge sull'header dominio. */
-  unread: number;
-}
-
-/**
- * Raggruppa le caselle per dominio (dopo il filtro di ricerca). Ordina i domini
- * per nome; dentro ogni dominio le caselle restano nell'ordine sorgente (email).
- * Logica pura → testabile e niente lavoro in render oltre il memo del chiamante.
- */
-function groupSendersByDomain(
-  senders: SenderRow[],
-  unreadBySender: Map<string, number>,
-): DomainGroup[] {
-  const map = new Map<string, DomainGroup>();
-  for (const s of senders) {
-    const domain = senderDomain(s.email);
-    let g = map.get(domain);
-    if (!g) { g = { domain, senders: [], unread: 0 }; map.set(domain, g); }
-    g.senders.push(s);
-    g.unread += unreadBySender.get(s.id) ?? 0;
-  }
-  return [...map.values()].sort((a, b) => a.domain.localeCompare(b.domain, "it"));
-}
-
-/** Etichetta di stato casella per il riepilogo (attiva/warming/in pausa/spenta). */
-const SENDER_STATE_BUCKET = (status: string): "active" | "warming" | "other" =>
-  status === "active" ? "active" : status === "warming" ? "warming" : "other";
-
-/** Capacità giornaliera (warmup-aware) di una casella, identica al Pool mittenti. */
-const CAP_BASE = 5;
-const CAP_STEP = 5;
-function senderDailyCap(row: { daily_cap_target: number | null; warmup_day: number | null }): number {
-  const target = row.daily_cap_target ?? 0;
-  const warm = CAP_BASE + (row.warmup_day ?? 0) * CAP_STEP;
-  return Math.max(0, Math.min(target || warm, warm));
-}
-
-interface SenderCapacityRow {
+/** Il brand come lo mostra la Posta: nome e colore. */
+interface BrandVista {
   id: string;
-  daily_cap_target: number | null;
-  warmup_day: number | null;
-  daily_sent: number | null;
+  nome: string;
+  tinta: TintaBrand;
 }
 
-export interface PoolCapacity {
-  /** Capacità giornaliera stimata = somma dei cap warmup-aware delle caselle attive/warming. */
-  dailyCap: number;
-  /** Email già spedite oggi (somma daily_sent), per il residuo. */
-  sentToday: number;
-  /** Capacità residua oggi = max(0, dailyCap - sentToday). */
-  remaining: number;
-  /** True finché i dati cap non sono disponibili (loading o colonne assenti). */
-  unavailable: boolean;
+/** Il pannello del lead si apre da solo solo sugli schermi larghi. */
+function useLarghezzaMinima(px: number): boolean {
+  const query = `(min-width: ${px}px)`;
+  const iscrivi = useCallback((avvisa: () => void) => {
+    const mql = window.matchMedia(query);
+    mql.addEventListener("change", avvisa);
+    return () => mql.removeEventListener("change", avvisa);
+  }, [query]);
+  return useSyncExternalStore(iscrivi, () => window.matchMedia(query).matches, () => false);
 }
 
-/**
- * useSenderCapacity — capacità giornaliera ONESTA del pool, in una query mirata
- * e SELF-CONTAINED (non tocca useOutreachConversations): legge solo i campi cap
- * di outreach_sender_accounts e somma il cap warmup-aware delle caselle che
- * spediscono (active/warming). Best-effort: se le colonne non esistono (migrazione
- * pool non applicata) torna `unavailable` e il riepilogo mostra solo i conteggi.
- */
-function useSenderCapacity(companyId: string): PoolCapacity {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = supabase as any;
-  const q = useQuery({
-    queryKey: ["outreach-inbox-sender-capacity", companyId],
-    retry: false,
-    queryFn: async () => {
-      const { data, error } = await db
-        .from("outreach_sender_accounts")
-        .select("id,status,daily_cap_target,warmup_day,daily_sent")
-        .eq("company_id", companyId);
-      if (error) {
-        if (isMissingColumnError(error)) return null; // colonne cap assenti → degrado soft
-        throw error;
-      }
-      return (data ?? []) as Array<SenderCapacityRow & { status: string }>;
-    },
-  });
-
-  return useMemo<PoolCapacity>(() => {
-    const rows = q.data;
-    if (!rows) return { dailyCap: 0, sentToday: 0, remaining: 0, unavailable: true };
-    let dailyCap = 0;
-    let sentToday = 0;
-    for (const r of rows) {
-      // Solo le caselle che spediscono concorrono alla capacità (le spente no).
-      if (r.status === "active" || r.status === "warming") dailyCap += senderDailyCap(r);
-      sentToday += r.daily_sent ?? 0;
-    }
-    return { dailyCap, sentToday, remaining: Math.max(0, dailyCap - sentToday), unavailable: false };
-  }, [q.data]);
+/** Quale conversazione è aperta: sta nello stato della cronologia, non nell'indirizzo. */
+interface StatoStoriaPosta {
+  postaConv?: string;
+  /** L'abbiamo aperta noi dall'elenco: chiudere = tornare indietro di un passo. */
+  postaDaLista?: boolean;
 }
 
 export function OutreachMailClient({ companyId }: { companyId: string }) {
   const {
-    conversations, counts, sendersById, senders, unreadBySender, sequenceOptions,
+    conversations, sendersById, senders, brands, unreadBySender, sequenceOptions,
     isLoading, errored, tableMissing,
     markRead, markAllRead, archiveRead, setIntent, snoozeConversation, unsnooze,
-    filterConversations, signatureForSender,
+    signatureForSender,
   } = useOutreachConversations(companyId);
   const { replyText, setReplyText, sending, aiDrafting, sendReply, draftWithAi, summarizing, summarizeWithAi } = useReplyComposer(companyId);
   const snippets = useReplySnippets();
 
-  const [filter, setFilter] = useState<StatusFilter>("all");
+  const [brand, setBrand] = useState<string | null>(null); // null = tutti i brand
+  const [vista, setVista] = useState<VistaPosta>("risposte");
+  const [filtro, setFiltro] = useState<FiltroRisposte>("tutte");
   const [search, setSearch] = useState("");
-  const [mailboxSearch, setMailboxSearch] = useState(""); // filtro caselle per email/dominio
   const [senderId, setSenderId] = useState<string | null>(null); // null = tutte le caselle
   const [sequenceId, setSequenceId] = useState<string | null>(null); // null = tutte le sequenze
   const [dateFilter, setDateFilter] = useState<DateFilter>("all"); // finestra ultima attività
-  const [selectedKey, setSelectedKey] = useState<string | null>(null);
-  // Selezione multipla per le azioni bulk mirate. Resettata al cambio di QUALSIASI
-  // filtro/casella negli handler (niente setState-in-effect): le righe selezionate
-  // potrebbero uscire dalla lista filtrata, evitiamo di operare su conversazioni nascoste.
+  // Selezione multipla per le azioni bulk mirate. Si svuota a ogni cambio di
+  // filtro negli handler (niente setState-in-effect): le righe selezionate
+  // potrebbero uscire dalla lista filtrata.
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
-  const [showListMobile, setShowListMobile] = useState(false); // overlay caselle su mobile
-  // Override esplicito del pannello contesto lead: null = segue il default (aperto
-  // se la conversazione ha un contatto collegato, chiuso se è solo un'email sciolta).
-  // Si azzera al cambio conversazione negli handler (niente setState-in-effect).
+  // Override esplicito del pannello contesto lead: null = segue il default
+  // (aperto se c'è un contatto e lo schermo è largo). Si azzera al cambio
+  // conversazione negli handler.
   const [contextOverride, setContextOverride] = useState<boolean | null>(null);
 
+  // ── La conversazione aperta vive nella cronologia del browser ──
+  const location = useLocation();
+  const navigate = useNavigate();
+  const stato = (location.state ?? {}) as StatoStoriaPosta & Record<string, unknown>;
+  const selectedKey = typeof stato.postaConv === "string" ? stato.postaConv : null;
+  const qui = { pathname: location.pathname, search: location.search, hash: location.hash };
+  const statoSenzaPosta = (): Record<string, unknown> => {
+    const resto: Record<string, unknown> = { ...stato };
+    delete resto.postaConv;
+    delete resto.postaDaLista;
+    return resto;
+  };
+
   const filtered = useMemo(
-    () => filterConversations(conversations, filter, search, senderId, sequenceId, dateFilter),
-    [conversations, filter, search, senderId, sequenceId, dateFilter, filterConversations],
+    () => filtraPosta(conversations, {
+      vista, filtro, brand, casellaId: senderId, sequenzaId: sequenceId,
+      daQuando: dateFilterFloor(dateFilter), ricerca: search,
+    }),
+    [conversations, vista, filtro, brand, senderId, sequenceId, dateFilter, search],
   );
+  const contatori = useMemo(() => contaPosta(conversations, brand), [conversations, brand]);
+  const perBrand = useMemo(() => contaPerBrand(conversations), [conversations]);
 
   const selected = useMemo(
     () => conversations.find((c) => c.key === selectedKey) ?? null,
     [conversations, selectedKey],
   );
 
-  // ── Virtualizzazione lista conversazioni (a scala: migliaia di thread) ──
-  // Solo le righe visibili sono montate. Altezza variabile (riga con/senza azienda,
-  // casella, badge) → measureElement; stima 84px ≈ riga media. Lo scaffold sotto
-  // (J/K, selezione, checkbox bulk, filtri) resta invariato: opera su `filtered`.
+  // ── Brand: linguette in alto e colore di ogni conversazione ──
+  const brandVista = useMemo(() => {
+    const m = new Map<string, BrandVista>();
+    for (const b of brands) m.set(b.id, { id: b.id, nome: b.name, tinta: tintaBrand(b.name) });
+    m.set(SENZA_BRAND, { id: SENZA_BRAND, nome: "Senza brand", tinta: tintaBrand("") });
+    return m;
+  }, [brands]);
+  const brandDi = (c: { brandId: string | null }) => brandVista.get(c.brandId ?? SENZA_BRAND) ?? null;
+  // I brand attivi e quelli che hanno posta; i brand in pausa senza posta restano fuori.
+  const linguette = useMemo(() => {
+    const conPosta = new Set(conversations.map((c) => c.brandId ?? SENZA_BRAND));
+    const scelti = brands
+      .filter((b: BrandRow) => b.status === "active" || conPosta.has(b.id))
+      .map((b) => b.id);
+    if (conPosta.has(SENZA_BRAND)) scelti.push(SENZA_BRAND);
+    return scelti.map((id) => ({
+      ...(brandVista.get(id) as BrandVista),
+      ...(perBrand.get(id) ?? { daLeggere: 0, risposte: 0 }),
+    }));
+  }, [brands, conversations, perBrand, brandVista]);
+  const totaleDaLeggere = useMemo(
+    () => [...perBrand.values()].reduce((s, v) => s + v.daLeggere, 0),
+    [perBrand],
+  );
+
+  // ── Virtualizzazione lista conversazioni (a scala: centinaia di thread) ──
+  // Solo le righe visibili sono montate. Altezza variabile → measureElement.
   const convScrollRef = useRef<HTMLDivElement>(null);
   const rowVirtualizer = useVirtualizer({
     count: filtered.length,
     getScrollElement: () => convScrollRef.current,
-    estimateSize: () => 84,
+    estimateSize: () => 96,
     overscan: 10,
     getItemKey: (index) => filtered[index]?.key ?? index,
   });
-  // Ref sempre aggiornato al virtualizer corrente: permette a handler con dipendenze
-  // stabili (J/K) di chiamare scrollToIndex senza ri-registrarsi a ogni render.
+  // Ref sempre aggiornato al virtualizer corrente, per J/K.
   const rowVirtualizerRef = useRef(rowVirtualizer);
   rowVirtualizerRef.current = rowVirtualizer;
 
-  // Contesto aperto di default solo quando c'è un lead vero collegato: per le email
-  // verso indirizzi non in rubrica il pannello resterebbe vuoto ("Nessun contatto")
-  // e schiaccerebbe il thread, quindi parte chiuso. Il toggle resta sempre disponibile.
-  const showContext = contextOverride ?? Boolean(selected?.contact);
-  // Con il contesto aperto su desktop la colonna "Caselle" collassa nel selettore
-  // compatto (come sotto lg), restituendo larghezza al thread di lettura.
-  // Con UNA sola casella non c'è nulla da filtrare: la colonna sparisce sempre
-  // (un terzo di schermo per un elenco di 1 era solo rumore visivo).
-  const mailboxColumnVisible = !showContext && senders.length > 1;
+  // Il contesto del lead si apre da solo quando c'è un contatto e lo schermo è
+  // largo: su uno schermo stretto schiaccerebbe il thread. Il bottone
+  // «Dettagli» lo apre e lo chiude sempre.
+  const ampio = useLarghezzaMinima(1440);
+  const showContext = contextOverride ?? (Boolean(selected?.contact) && ampio);
 
   // Contesto + azioni del lead selezionato (DRY: dal hook condiviso).
   const { context: leadContext, isLoading: leadLoading, liveSequence } =
     useLeadContext(companyId, selected?.contact ?? null, selected);
   const leadActions = useLeadActions(companyId);
 
-  // Numero di conversazioni attive per casella (badge nel pannello sinistro).
-  const convCountBySender = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const conv of conversations) {
-      if (conv.archived) continue;
-      for (const id of conv.senderAccountIds) m.set(id, (m.get(id) ?? 0) + 1);
-    }
-    return m;
-  }, [conversations]);
-
-  // ── Caselle a scala: capacità pool + ricerca + raggruppamento per dominio ──
-  // Capacità giornaliera stimata (query mirata, non tocca il hook conversazioni).
-  const capacity = useSenderCapacity(companyId);
-  // Filtro caselle per email/dominio (case-insensitive), poi raggruppo per dominio.
-  const mailboxQuery = mailboxSearch.trim().toLowerCase();
-  const filteredSenders = useMemo(
-    () => (mailboxQuery
-      ? senders.filter((s) => s.email.toLowerCase().includes(mailboxQuery))
-      : senders),
-    [senders, mailboxQuery],
-  );
-  const domainGroups = useMemo(
-    () => groupSendersByDomain(filteredSenders, unreadBySender),
-    [filteredSenders, unreadBySender],
-  );
-  // Riepilogo conteggi pool (sul totale caselle, non filtrato): attive/warming/totale.
-  const poolSummary = useMemo(() => {
-    let active = 0, warming = 0;
-    for (const s of senders) {
-      const b = SENDER_STATE_BUCKET(s.status);
-      if (b === "active") active++;
-      else if (b === "warming") warming++;
-    }
-    return { total: senders.length, active, warming, domains: new Set(senders.map((s) => senderDomain(s.email))).size };
-  }, [senders]);
-
   // ── Selezione multipla (derivata sulla lista FILTRATA corrente) ──
-  // Conta solo le righe selezionate ancora presenti nel filtro, così la barra
-  // azioni non mente se un filtro ne ha nascoste alcune nel frattempo.
-  const filteredSelectedKeys = useMemo(
-    () => filtered.filter((c) => selectedKeys.has(c.key)).map((c) => c.key),
-    [filtered, selectedKeys],
-  );
-  const selectedCount = filteredSelectedKeys.length;
+  const selezionate = useMemo(() => filtered.filter((c) => selectedKeys.has(c.key)), [filtered, selectedKeys]);
+  const selectedCount = selezionate.length;
   const allFilteredSelected = filtered.length > 0 && selectedCount === filtered.length;
-
-  // contactId delle conversazioni selezionate (solo quelle con contatto: le azioni
-  // bulk agiscono per contact_id sulle risposte). Dedup difensivo.
-  const selectedContactIds = useMemo(() => {
-    const ids = new Set<string>();
-    for (const conv of filtered) {
-      if (selectedKeys.has(conv.key) && conv.contact?.id) ids.add(conv.contact.id);
-    }
-    return [...ids];
-  }, [filtered, selectedKeys]);
-
+  const azzeraSelezione = () => setSelectedKeys(new Set());
   const toggleSelected = (key: string) =>
     setSelectedKeys((prev) => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key); else next.add(key);
       return next;
     });
-
   const toggleSelectAll = () =>
     setSelectedKeys((prev) => {
-      // Se sono già tutte selezionate (rispetto al filtro) → deseleziona tutto.
       const allKeys = filtered.map((c) => c.key);
       const everySelected = allKeys.length > 0 && allKeys.every((k) => prev.has(k));
       return everySelected ? new Set() : new Set(allKeys);
     });
+  // Le azioni lavorano sulle risposte delle conversazioni (non sul contatto
+  // intero: le sue risposte agli altri brand restano come sono).
+  const daLeggereDi = (convs: Conversation[]) => convs.flatMap((c) => c.unreadReplyIds);
+  const lettiDi = (convs: Conversation[]) => convs.flatMap((c) => c.readReplyIds);
 
-  const clearSelection = () => setSelectedKeys(new Set());
-
-  // Azioni bulk MIRATE: riusano le mutazioni del hook passando i contactId
-  // selezionati (le stesse usate per "tutte", estese per accettare un sottoinsieme).
-  const bulkMarkRead = () => {
-    if (selectedContactIds.length === 0) return;
-    markAllRead.mutate(selectedContactIds, { onSuccess: () => clearSelection() });
-  };
-  const bulkArchive = () => {
-    if (selectedContactIds.length === 0) return;
-    archiveRead.mutate(selectedContactIds, { onSuccess: () => clearSelection() });
-  };
-
-  // Apre la conversazione e segna lette le risposte non lette (handler onClick:
-  // niente setState-in-effect). Svuota la bozza al cambio conversazione.
-  const handleSelect = (conv: Conversation) => {
-    setSelectedKey(conv.key);
+  // ── Aprire e chiudere una conversazione ──
+  // Dall'elenco si aggiunge un passo alla cronologia; passando da una
+  // conversazione all'altra (clic o J/K) lo si sostituisce: «indietro» torna
+  // sempre all'elenco.
+  const apri = (conv: Conversation) => {
+    const giaAperta = selectedKey != null;
+    navigate(qui, {
+      replace: giaAperta,
+      state: {
+        ...statoSenzaPosta(),
+        postaConv: conv.key,
+        postaDaLista: giaAperta ? stato.postaDaLista === true : true,
+      },
+    });
     setReplyText("");
-    setShowListMobile(false);
-    setContextOverride(null); // nuova conversazione → torna al default (contatto sì/no)
-    if (conv.unread && conv.contact?.id) markRead.mutate(conv.contact.id);
+    setContextOverride(null);
+    if (conv.unreadReplyIds.length > 0) markRead.mutate({ replyIds: conv.unreadReplyIds });
+  };
+  const chiudi = () => {
+    if (stato.postaDaLista === true) navigate(-1);
+    else navigate(qui, { replace: true, state: statoSenzaPosta() });
   };
 
-  // Scorciatoie J/K: sposta la selezione nella lista filtrata. Ignorate mentre si
-  // scrive in un input/textarea (così non rubano i tasti alla composizione). Il
-  // listener si ri-registra quando cambia la lista filtrata o la selezione: la
-  // closure cattura i valori correnti, niente ref scritti in render.
+  // Scorciatoie: J/K spostano la selezione nella lista filtrata, Esc chiude la
+  // conversazione. Ignorate mentre si scrive (non rubano i tasti alla
+  // risposta) e con un menu o una finestra aperti (Esc chiude quelli). Il
+  // listener si registra a ogni render: legge sempre lo stato corrente.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       const el = e.target as HTMLElement | null;
       const tag = el?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || el?.isContentEditable) return;
+      if (e.key === "Escape") {
+        if (document.querySelector("[role='dialog'][data-state='open'], [role='menu'][data-state='open'], [data-radix-popper-content-wrapper]")) return;
+        if (selectedKey) { e.preventDefault(); chiudi(); }
+        return;
+      }
       const k = e.key.toLowerCase();
       if (k !== "j" && k !== "k") return;
       if (filtered.length === 0) return;
@@ -359,40 +291,31 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
         ? (idx < 0 ? 0 : Math.min(idx + 1, filtered.length - 1))
         : (idx < 0 ? 0 : Math.max(idx - 1, 0));
       const next = filtered[nextIdx];
-      if (next && next.key !== selectedKey) {
-        setSelectedKey(next.key);
-        setReplyText("");
-        setContextOverride(null); // cambio conversazione → default contesto
-        if (next.unread && next.contact?.id) markRead.mutate(next.contact.id);
-      }
-      // La lista è virtualizzata: porta la riga selezionata in viewport (potrebbe non
-      // essere montata). 'auto' = scrolla solo se fuori vista, niente salti inutili.
+      if (next && next.key !== selectedKey) apri(next);
+      // La lista è virtualizzata: porta la riga selezionata in viewport.
       rowVirtualizerRef.current.scrollToIndex(nextIdx, { align: "auto" });
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [filtered, selectedKey, markRead, setReplyText]);
+  });
 
-  const selectSender = (id: string | null) => {
-    setSenderId(id);
-    setSelectedKey(null);
-    setSelectedKeys(new Set()); // cambio casella → svuota la selezione multipla
-    setShowListMobile(false);
-  };
-
-  // Handler dei filtri che, oltre a impostare lo stato, AZZERANO la selezione
-  // multipla (le righe selezionate potrebbero uscire dalla lista filtrata).
-  const changeFilter = (f: StatusFilter) => { setFilter(f); setSelectedKeys(new Set()); };
-  const changeSequence = (id: string | null) => { setSequenceId(id); setSelectedKeys(new Set()); };
-  const changeDate = (d: DateFilter) => { setDateFilter(d); setSelectedKeys(new Set()); };
+  // Cambi di filtro: svuotano la selezione multipla. Cambiando brand si
+  // tolgono anche casella e sequenza, che appartengono a un brand.
+  const cambiaBrand = (b: string | null) => { setBrand(b); setSenderId(null); setSequenceId(null); azzeraSelezione(); };
+  const cambiaVista = (v: VistaPosta) => { setVista(v); setFiltro("tutte"); azzeraSelezione(); };
+  const cambiaFiltro = (f: FiltroRisposte) => { setFiltro((prev) => (prev === f ? "tutte" : f)); azzeraSelezione(); };
+  const cambiaCasella = (id: string | null) => { setSenderId(id); azzeraSelezione(); };
+  const cambiaSequenza = (id: string | null) => { setSequenceId(id); azzeraSelezione(); };
+  const cambiaData = (d: DateFilter) => { setDateFilter(d); azzeraSelezione(); };
+  const azzeraFiltri = () => { setSenderId(null); setSequenceId(null); setDateFilter("all"); azzeraSelezione(); };
 
   if (tableMissing) {
     return (
       <MigrationGate
-        title="Posta cold — client a 3 pannelli pronto"
+        title="Posta cold — client pronto"
         unlocks={[
           "Tutte le email cold (inviate + risposte) in un unico client, conversazione per conversazione.",
-          "Pannello caselle: filtra le conversazioni per la casella che le ha inviate.",
+          "Le risposte divise per brand, le automatiche a parte.",
           "Rispondi dalla stessa casella, con bozza AI — come un vero client email, ma per il freddo.",
         ]}
       />
@@ -401,22 +324,23 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
 
   if (isLoading) {
     return (
-      <div className={cn(MAIL_CLIENT_HEIGHT, "flex overflow-hidden rounded-xl border border-border bg-muted/30 shadow-sm")}>
-        <div className="hidden w-[268px] shrink-0 space-y-2 border-r border-border bg-background p-3 lg:block">
-          <Skeleton className="h-4 w-24 rounded" />
-          <Skeleton className="h-8 w-full rounded-lg" />
-          {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-10 w-full rounded-lg" />)}
+      <div className={cn(MAIL_CLIENT_HEIGHT, "flex flex-col overflow-hidden rounded-xl border border-border bg-background shadow-sm")}>
+        <div className="flex items-center gap-2 border-b border-border px-3 py-2">
+          {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-7 w-28 rounded-lg" />)}
         </div>
-        <div className="w-full space-y-1 border-r border-border bg-background p-3 md:w-[360px]">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="flex items-center gap-3 rounded-lg p-2.5">
-              <Skeleton className="h-10 w-10 rounded-full" />
-              <div className="flex-1 space-y-2"><Skeleton className="h-3 w-2/3 rounded" /><Skeleton className="h-3 w-1/2 rounded" /></div>
-            </div>
-          ))}
-        </div>
-        <div className="hidden flex-1 items-center justify-center bg-muted/30 md:flex">
-          <Skeleton className="h-44 w-2/3 rounded-2xl" />
+        <div className="flex min-h-0 flex-1">
+          <div className="w-full space-y-1 border-r border-border p-3 md:w-[380px]">
+            <Skeleton className="mb-2 h-7 w-full rounded-lg" />
+            {Array.from({ length: 7 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-3 rounded-lg p-2.5">
+                <Skeleton className="h-10 w-10 rounded-full" />
+                <div className="flex-1 space-y-2"><Skeleton className="h-3 w-2/3 rounded" /><Skeleton className="h-3 w-1/2 rounded" /></div>
+              </div>
+            ))}
+          </div>
+          <div className="hidden flex-1 items-center justify-center bg-muted/30 md:flex">
+            <Skeleton className="h-44 w-2/3 rounded-2xl" />
+          </div>
         </div>
       </div>
     );
@@ -431,443 +355,308 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
     );
   }
 
-  const activeSender = senderId ? sendersById.get(senderId) ?? null : null;
+  const casellaAttiva = senderId ? sendersById.get(senderId) ?? null : null;
+  const sequenzaAttiva = sequenceId ? sequenceOptions.find((s) => s.id === sequenceId) ?? null : null;
+  const filtriAttivi = (senderId ? 1 : 0) + (sequenceId ? 1 : 0) + (dateFilter !== "all" ? 1 : 0);
+  const daLeggereMostrate = daLeggereDi(filtered);
+  const lettiMostrati = lettiDi(filtered);
 
   return (
-    // overflow-x-auto: se a viewport stretti i floor delle colonne (conversazioni +
-    // thread + contesto) non entrano, scorre in orizzontale invece di schiacciare il
-    // thread. Verticale resta clippato per mantenere il bordo arrotondato.
-    <div className={cn(MAIL_CLIENT_HEIGHT, "flex overflow-x-auto overflow-y-hidden rounded-xl border border-border bg-muted/30 shadow-sm")}>
-      {/* ═══ Pannello caselle & filtri (sinistra) ═══ */}
-      {/* A ≥lg si mostra solo quando il contesto lead è chiuso: con il contesto aperto
-          collassa nel selettore compatto in cima alla lista, lasciando spazio al thread. */}
-      <aside className={cn(
-        "hidden w-[268px] shrink-0 flex-col border-r border-border bg-background",
-        mailboxColumnVisible && "lg:flex",
-      )}>
-        <div className="flex items-center gap-2 px-3 py-3">
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <Mailbox className="h-4 w-4" />
-          </span>
-          <div className="min-w-0 flex-1">
-            <h2 className="text-sm font-semibold leading-tight">Caselle</h2>
-            <p className="truncate text-[11px] text-muted-foreground">
-              {poolSummary.total > 0
-                ? `${poolSummary.total} ${poolSummary.total === 1 ? "casella" : "caselle"} · ${poolSummary.domains} domin${poolSummary.domains === 1 ? "io" : "i"}`
-                : "Filtra per mittente"}
-            </p>
-          </div>
-        </div>
-
-        {/* Ricerca caselle (email/dominio) — pensata per liste lunghe (100+). */}
-        {senders.length > 0 && (
-          <div className="px-3 pb-2">
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={mailboxSearch}
-                onChange={(e) => setMailboxSearch(e.target.value)}
-                placeholder="Cerca casella o dominio…"
-                aria-label="Cerca casella"
-                className="h-8 rounded-lg border-border bg-muted/40 pl-8 pr-7 text-[12px] shadow-none focus-visible:bg-background"
-              />
-              {mailboxSearch && (
-                <button
-                  type="button"
-                  onClick={() => setMailboxSearch("")}
-                  className="absolute right-1.5 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
-                  aria-label="Pulisci ricerca caselle"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              )}
-            </div>
-          </div>
-        )}
-
-        <ScrollArea className="flex-1">
-          <div className="space-y-0.5 px-2 pb-2">
-            {/* "Tutte le caselle" resta in cima come selezione globale. */}
-            <MailboxButton
-              active={senderId === null}
-              onClick={() => selectSender(null)}
-              icon={<Layers className="h-4 w-4" />}
-              title="Tutte le caselle"
-              count={counts.unread || undefined}
-              countTone="primary"
-            />
-            {senders.length === 0 ? (
-              <div className="flex flex-col items-center px-4 py-10 text-center">
-                <span className="mb-2.5 flex h-9 w-9 items-center justify-center rounded-full bg-muted text-muted-foreground">
-                  <Mailbox className="h-4 w-4" />
-                </span>
-                <p className="text-[11px] leading-relaxed text-muted-foreground">
-                  Nessuna casella configurata. Aggiungile in <span className="font-medium text-foreground">Deliverability → Pool mittenti</span>.
-                </p>
-              </div>
-            ) : domainGroups.length === 0 ? (
-              <p className="px-2.5 py-6 text-center text-[11px] text-muted-foreground">
-                Nessuna casella corrisponde a “{mailboxSearch}”.
-              </p>
-            ) : (
-              <div className="mt-1 space-y-0.5">
-                {domainGroups.map((g) => (
-                  <DomainGroupBlock
-                    key={g.domain}
-                    group={g}
-                    activeSenderId={senderId}
-                    convCountBySender={convCountBySender}
-                    unreadBySender={unreadBySender}
-                    onSelect={selectSender}
-                    /* Con una ricerca attiva tutti i gruppi partono espansi (l'utente
-                       sta filtrando, vuole vedere i match). */
-                    defaultOpen={!!mailboxQuery || domainGroups.length <= 4}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-        </ScrollArea>
-
-        {/* Riepilogo pool: riempie utilmente il fondo colonna anche con poche caselle. */}
-        {senders.length > 0 && (
-          <PoolSummaryCard summary={poolSummary} capacity={capacity} unreadTotal={counts.unread} />
-        )}
-
-        <div className="space-y-2.5 border-t border-border bg-muted/30 p-3">
-          <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Filtri</div>
-          <FilterPills filter={filter} counts={counts} onChange={changeFilter} />
-          <ConversationFacets
-            sequenceOptions={sequenceOptions}
-            sequenceId={sequenceId}
-            onSequence={changeSequence}
-            dateFilter={dateFilter}
-            onDate={changeDate}
-          />
-        </div>
-      </aside>
-
-      {/* ═══ Lista conversazioni (centro) ═══ */}
-      <aside className={cn(
-        "flex w-full flex-col border-r border-border bg-background md:w-[360px] md:min-w-[320px]",
-        selected ? "hidden md:flex" : "flex",
-      )}>
-        <div className="space-y-2.5 border-b border-border px-3 py-3">
-          <div className="flex items-center gap-2">
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <Inbox className="h-4 w-4" />
-            </span>
-            <h2 className="text-sm font-semibold leading-tight">Conversazioni</h2>
-            {counts.unread > 0 && (
-              <span className="rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-primary-foreground">
-                {counts.unread}
-              </span>
-            )}
-            {/* Hint scorciatoie tastiera (solo desktop). */}
-            <span
-              className="ml-auto hidden cursor-help select-none rounded-md border border-border px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground lg:inline"
-              title="Scorciatoie · J/K: conversazione successiva/precedente · ⌘/Ctrl+Invio: invia la risposta"
-            >J / K</span>
-            {/* Compositore "Nuova email" a freddo (manuale). ml-auto se l'hint J/K è nascosto. */}
-            <OutreachNewMailDialog
-              companyId={companyId}
-              trigger={
-                <Button size="sm" className="ml-auto h-7 gap-1.5 rounded-lg text-[11px] lg:ml-1.5">
-                  <PenSquare className="h-3.5 w-3.5" /> Nuova email
-                </Button>
-              }
-            />
-          </div>
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+    <div className={cn(MAIL_CLIENT_HEIGHT, "flex flex-col overflow-hidden rounded-xl border border-border bg-background shadow-sm")}>
+      {/* ═══ Barra: brand + ricerca + filtri + nuova email ═══ */}
+      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border px-3 py-2">
+        <BrandTabs
+          linguette={linguette}
+          attivo={brand}
+          totaleDaLeggere={totaleDaLeggere}
+          onChange={cambiaBrand}
+        />
+        {/* Sul telefono va a capo e prende tutta la riga: la ricerca si allarga. */}
+        <div className="ml-auto flex w-full items-center gap-1.5 sm:w-auto">
+          <div className="relative min-w-0 flex-1 sm:flex-none">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Cerca nome o email…"
+              onChange={(e) => { setSearch(e.target.value); azzeraSelezione(); }}
+              placeholder="Cerca nome, email, azienda…"
               aria-label="Cerca conversazione"
-              className="h-9 rounded-lg border-border bg-muted/40 pl-9 text-sm shadow-none focus-visible:bg-background"
+              className="h-8 w-full rounded-lg border-border bg-muted/40 pl-8 text-[12px] shadow-none focus-visible:bg-background sm:w-48 lg:w-60"
             />
           </div>
+          <FiltriPopover
+            senders={senders}
+            brandVista={brandVista}
+            brandAttivo={brand}
+            unreadBySender={unreadBySender}
+            senderId={senderId}
+            onSender={cambiaCasella}
+            sequenceOptions={sequenceOptions}
+            sequenceId={sequenceId}
+            onSequence={cambiaSequenza}
+            dateFilter={dateFilter}
+            onDate={cambiaData}
+            attivi={filtriAttivi}
+            onAzzera={azzeraFiltri}
+          />
+          {/* Compositore "Nuova email" a freddo (manuale). */}
+          <OutreachNewMailDialog
+            companyId={companyId}
+            trigger={
+              <Button size="sm" className="h-8 shrink-0 gap-1.5 rounded-lg text-[12px]" aria-label="Nuova email">
+                <PenSquare className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Nuova email</span>
+              </Button>
+            }
+          />
+        </div>
+      </div>
 
-          {/* Filtri stato — visibili quando il pannello caselle è nascosto (mobile/tablet,
-              o desktop col contesto lead aperto che ne collassa la colonna). */}
-          <div className={cn("space-y-2", mailboxColumnVisible && "lg:hidden")}>
-            <FilterPills filter={filter} counts={counts} onChange={changeFilter} />
-            <ConversationFacets
-              sequenceOptions={sequenceOptions}
-              sequenceId={sequenceId}
-              onSequence={changeSequence}
-              dateFilter={dateFilter}
-              onDate={changeDate}
-            />
-          </div>
-
-          {/* Selettore casella compatto: idem, sostituisce la colonna caselle quando nascosta. */}
-          <div className={cn(mailboxColumnVisible && "lg:hidden")}>
-            <button
-              type="button"
-              onClick={() => setShowListMobile((v) => !v)}
-              className="flex w-full items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-left text-[11px] transition-colors hover:bg-muted/70"
-            >
-              <Mailbox className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-              <span className="flex-1 truncate font-medium">{activeSender ? activeSender.email : "Tutte le caselle"}</span>
-              <span className="text-muted-foreground">cambia</span>
-            </button>
-            {showListMobile && (
-              <div className="mt-1 rounded-lg border border-border bg-background p-1.5 shadow-sm">
-                {senders.length > 5 && (
-                  <div className="relative px-0.5 pb-1.5">
-                    <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                      value={mailboxSearch}
-                      onChange={(e) => setMailboxSearch(e.target.value)}
-                      placeholder="Cerca casella o dominio…"
-                      aria-label="Cerca casella"
-                      className="h-8 rounded-md border-border bg-muted/40 pl-8 text-[12px] shadow-none"
-                    />
-                  </div>
+      <div className="flex min-h-0 flex-1 overflow-x-auto">
+        {/* ═══ Elenco (sinistra) ═══ */}
+        <aside className={cn(
+          "flex w-full shrink-0 flex-col border-r border-border bg-background md:w-[380px]",
+          selected ? "hidden md:flex" : "flex",
+        )}>
+          <div className="space-y-2 border-b border-border px-3 py-2.5">
+            <VistaSwitch vista={vista} contatori={contatori} onChange={cambiaVista} />
+            {vista === "risposte" && (
+              <FiltroChips filtro={filtro} contatori={contatori} onChange={cambiaFiltro} />
+            )}
+            {filtriAttivi > 0 && (
+              <div className="flex flex-wrap items-center gap-1">
+                {casellaAttiva && (
+                  <FiltroAttivo onRemove={() => cambiaCasella(null)} icon={<Mailbox className="h-3 w-3" />}>{casellaAttiva.email}</FiltroAttivo>
                 )}
-                <div className="max-h-64 space-y-0.5 overflow-y-auto">
-                  <MailboxButton active={senderId === null} onClick={() => selectSender(null)} icon={<Layers className="h-4 w-4" />} title="Tutte le caselle" count={counts.unread || undefined} countTone="primary" />
-                  {domainGroups.map((g) => (
-                    <DomainGroupBlock
-                      key={g.domain}
-                      group={g}
-                      activeSenderId={senderId}
-                      convCountBySender={convCountBySender}
-                      unreadBySender={unreadBySender}
-                      onSelect={selectSender}
-                      defaultOpen
-                    />
-                  ))}
-                  {domainGroups.length === 0 && (
-                    <p className="px-2 py-3 text-center text-[11px] text-muted-foreground">Nessuna casella trovata.</p>
-                  )}
-                </div>
+                {sequenzaAttiva && (
+                  <FiltroAttivo onRemove={() => cambiaSequenza(null)} icon={<GitBranch className="h-3 w-3" />}>{sequenzaAttiva.name}</FiltroAttivo>
+                )}
+                {dateFilter !== "all" && (
+                  <FiltroAttivo onRemove={() => cambiaData("all")} icon={<CalendarClock className="h-3 w-3" />}>
+                    {DATE_FILTER_OPTIONS.find((o) => o.value === dateFilter)?.label}
+                  </FiltroAttivo>
+                )}
+              </div>
+            )}
+
+            {/* Selezione multipla e azioni sulla lista mostrata. */}
+            {filtered.length > 0 && (
+              <div className="flex min-h-7 items-center gap-2 text-[11px] text-muted-foreground">
+                <Checkbox
+                  checked={allFilteredSelected ? true : selectedCount > 0 ? "indeterminate" : false}
+                  onCheckedChange={toggleSelectAll}
+                  aria-label="Seleziona tutte le conversazioni mostrate"
+                />
+                {selectedCount > 0 ? (
+                  <>
+                    <span className="font-semibold text-primary">{selectedCount} selezionate</span>
+                    {daLeggereDi(selezionate).length > 0 && (
+                      <Button
+                        size="sm" variant="ghost" className="h-7 gap-1 px-2 text-[11px]"
+                        disabled={markAllRead.isPending}
+                        onClick={() => markAllRead.mutate(daLeggereDi(selezionate), { onSuccess: azzeraSelezione })}
+                      >
+                        {markAllRead.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCheck className="h-3 w-3" />}
+                        Segna lette
+                      </Button>
+                    )}
+                    {lettiDi(selezionate).length > 0 && (
+                      <Button
+                        size="sm" variant="ghost" className="h-7 gap-1 px-2 text-[11px]"
+                        disabled={archiveRead.isPending}
+                        onClick={() => archiveRead.mutate(lettiDi(selezionate), { onSuccess: azzeraSelezione })}
+                        title="Archivia le risposte già lette delle conversazioni selezionate"
+                      >
+                        {archiveRead.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Archive className="h-3 w-3" />}
+                        Archivia
+                      </Button>
+                    )}
+                    <Button
+                      size="icon" variant="ghost" className="ml-auto h-7 w-7"
+                      onClick={azzeraSelezione} aria-label="Annulla la selezione"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <span>{filtered.length} {filtered.length === 1 ? "conversazione" : "conversazioni"}</span>
+                    {(daLeggereMostrate.length > 0 || lettiMostrati.length > 0) && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button size="icon" variant="ghost" className="ml-auto h-7 w-7" aria-label="Azioni sulla lista">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-60">
+                          <DropdownMenuLabel className="text-[11px]">Su quelle mostrate</DropdownMenuLabel>
+                          {daLeggereMostrate.length > 0 && (
+                            <DropdownMenuItem className="text-xs" onSelect={() => markAllRead.mutate(daLeggereMostrate)}>
+                              <CheckCheck className="mr-2 h-3.5 w-3.5" /> Segna lette ({daLeggereMostrate.length})
+                            </DropdownMenuItem>
+                          )}
+                          {lettiMostrati.length > 0 && (
+                            <DropdownMenuItem className="text-xs" onSelect={() => archiveRead.mutate(lettiMostrati)}>
+                              <Archive className="mr-2 h-3.5 w-3.5" /> Archivia le lette ({lettiMostrati.length})
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
+                  </>
+                )}
               </div>
             )}
           </div>
 
-          {/* Azioni "su tutte" — nascoste quando c'è una selezione multipla attiva
-              (in quel caso comanda la barra azioni mirata sotto). */}
-          {selectedCount === 0 && (counts.unread > 0 || counts.read > 0) && (
-            <div className="flex flex-wrap items-center gap-1.5">
-              {counts.unread > 0 && (
-                <Button
-                  size="sm" variant="outline" className="h-7 gap-1.5 rounded-lg border-border text-[11px] shadow-none"
-                  disabled={markAllRead.isPending}
-                  onClick={() => markAllRead.mutate(undefined)}
-                  title="Segna come lette tutte le risposte non lette"
-                >
-                  {markAllRead.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCheck className="h-3 w-3" />}
-                  Segna tutte lette
-                </Button>
-              )}
-              {counts.read > 0 && (
-                <Button
-                  size="sm" variant="outline" className="h-7 gap-1.5 rounded-lg border-border text-[11px] shadow-none"
-                  disabled={archiveRead.isPending}
-                  onClick={() => archiveRead.mutate(undefined)}
-                  title="Archivia le conversazioni le cui risposte sono già state lette"
-                >
-                  {archiveRead.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Archive className="h-3 w-3" />}
-                  Archivia lette
-                </Button>
-              )}
-            </div>
-          )}
-
-          {/* Seleziona tutte (filtrate) + barra azioni mirata sulla selezione. */}
-          {filtered.length > 0 && selectedCount === 0 && (
-            <label className="flex cursor-pointer select-none items-center gap-2 text-[11px] font-medium text-muted-foreground">
-              <Checkbox
-                checked={false}
-                onCheckedChange={toggleSelectAll}
-                aria-label="Seleziona tutte le conversazioni filtrate"
-              />
-              Seleziona tutte
-            </label>
-          )}
-
-          {selectedCount > 0 && (
-            <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/[0.06] p-1.5">
-              <label className="flex cursor-pointer select-none items-center gap-1.5 pl-1 pr-1 text-[11px] font-semibold text-primary">
-                <Checkbox
-                  checked={allFilteredSelected ? true : "indeterminate"}
-                  onCheckedChange={toggleSelectAll}
-                  aria-label="Seleziona tutte le conversazioni filtrate"
-                />
-                {selectedCount} sel.
-              </label>
-              <span className="h-4 w-px bg-primary/20" aria-hidden />
-              <Button
-                size="sm" variant="ghost" className="h-7 gap-1 px-2 text-[11px] hover:bg-primary/10"
-                disabled={markAllRead.isPending || selectedContactIds.length === 0}
-                onClick={bulkMarkRead}
-                title={selectedContactIds.length === 0
-                  ? "Le conversazioni selezionate non hanno un contatto collegato"
-                  : "Segna lette le risposte delle conversazioni selezionate"}
-              >
-                {markAllRead.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCheck className="h-3 w-3" />}
-                Segna lette
-              </Button>
-              <Button
-                size="sm" variant="ghost" className="h-7 gap-1 px-2 text-[11px] hover:bg-primary/10"
-                disabled={archiveRead.isPending || selectedContactIds.length === 0}
-                onClick={bulkArchive}
-                title={selectedContactIds.length === 0
-                  ? "Le conversazioni selezionate non hanno un contatto collegato"
-                  : "Archivia le risposte lette delle conversazioni selezionate"}
-              >
-                {archiveRead.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Archive className="h-3 w-3" />}
-                Archivia
-              </Button>
-              <Button
-                size="sm" variant="ghost" className="ml-auto h-7 gap-1 px-2 text-[11px] text-muted-foreground hover:bg-primary/10"
-                onClick={clearSelection}
-                title="Annulla la selezione"
-              >
-                <X className="h-3 w-3" />
-              </Button>
-            </div>
-          )}
-        </div>
-
-        {filtered.length === 0 ? (
-          // Empty-state centrato verticalmente (riempie la colonna, niente metà bianca).
-          <div className="flex flex-1 flex-col items-center justify-center px-8 py-12 text-center">
-            <span className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
-              <Inbox className="h-5 w-5" />
-            </span>
-            <p className="max-w-[230px] text-sm text-muted-foreground">
-              {conversations.length === 0
-                ? "Nessuna conversazione ancora. Le email inviate e le risposte compaiono qui."
-                : activeSender
-                  ? "Nessuna conversazione per questa casella e questo filtro."
-                  : "Nessuna conversazione per questo filtro."}
-            </p>
-            {conversations.length > 0 && (filter !== "all" || !!search || !!senderId) && (
-              <Button
-                variant="ghost" size="sm"
-                className="mt-3 h-7 gap-1.5 text-[11px] text-muted-foreground"
-                onClick={() => { changeFilter("all"); setSearch(""); selectSender(null); }}
-              >
-                <X className="h-3 w-3" /> Azzera filtri
-              </Button>
-            )}
-          </div>
-        ) : (
-          // Lista virtualizzata: scroll parent nativo + righe assolute misurate.
-          <div ref={convScrollRef} className="flex-1 overflow-y-auto p-2">
-            <ul
-              className="relative"
-              style={{ height: `${rowVirtualizer.getTotalSize()}px` }}
-            >
-              {rowVirtualizer.getVirtualItems().map((vRow) => {
-                const conv = filtered[vRow.index];
-                return (
-                  <ConversationRow
-                    key={vRow.key}
-                    conv={conv}
-                    active={conv.key === selectedKey}
-                    checked={selectedKeys.has(conv.key)}
-                    mailbox={conv.primarySenderId ? sendersById.get(conv.primarySenderId) ?? null : null}
-                    onSelect={() => handleSelect(conv)}
-                    onToggle={() => toggleSelected(conv.key)}
-                    dataIndex={vRow.index}
-                    measureRef={rowVirtualizer.measureElement}
-                    offsetTop={vRow.start}
-                  />
-                );
-              })}
-            </ul>
-          </div>
-        )}
-      </aside>
-
-      {/* ═══ Thread + risposta (destra) ═══ */}
-      <section
-        key={selectedKey ?? "vuota"}
-        className={cn(
-          "flex min-w-0 flex-1 flex-col bg-muted/30",
-          selected ? "flex max-md:animate-in max-md:slide-in-from-right-4 max-md:fade-in-0 max-md:duration-200" : "hidden md:flex",
-        )}
-      >
-        {!selected ? (
-          <div className="flex flex-1 items-center justify-center p-8 text-center">
-            <div className="max-w-xs">
-              <span className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-background text-muted-foreground shadow-sm ring-1 ring-border">
-                <MessageSquare className="h-6 w-6" />
+          {filtered.length === 0 ? (
+            <div className="flex flex-1 flex-col items-center justify-center px-8 py-12 text-center">
+              <span className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                <Inbox className="h-5 w-5" />
               </span>
-              <p className="text-sm font-medium text-foreground">Seleziona una conversazione</p>
-              <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
-                Le email inviate appaiono a destra, le risposte a sinistra. Usa <kbd className="rounded border border-border bg-background px-1 text-[10px] font-medium shadow-sm">J</kbd> / <kbd className="rounded border border-border bg-background px-1 text-[10px] font-medium shadow-sm">K</kbd> per spostarti tra le conversazioni.
-              </p>
+              <p className="max-w-[250px] text-sm text-muted-foreground">{testoVuoto(vista, filtro, conversations.length === 0)}</p>
+              {(filtriAttivi > 0 || !!search || filtro !== "tutte") && (
+                <Button
+                  variant="ghost" size="sm"
+                  className="mt-3 h-7 gap-1.5 text-[11px] text-muted-foreground"
+                  onClick={() => { azzeraFiltri(); setSearch(""); setFiltro("tutte"); }}
+                >
+                  <X className="h-3 w-3" /> Azzera filtri
+                </Button>
+              )}
             </div>
-          </div>
-        ) : (
-          <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-            {/* Floor di larghezza del thread su desktop: col contesto lead aperto non
-                deve mai comprimersi fino a "una parola per riga". min-w-0 resta per lo
-                stack mobile (ellissi); a ≥lg vince il floor e, se lo spazio non basta,
-                è il contenitore dei pannelli a scorrere in orizzontale. */}
-            <div className="flex min-w-0 flex-1 flex-col lg:min-w-[380px]">
-              <ThreadPane
-                selected={selected}
-                mailbox={selected.primarySenderId ? sendersById.get(selected.primarySenderId) ?? null : null}
-                signature={signatureForSender(selected.primarySenderId)}
-                snippets={snippets}
-                replyText={replyText}
-                setReplyText={setReplyText}
-                sending={sending}
-                aiDrafting={aiDrafting}
-                onSend={() => sendReply(
-                  selected.contact?.id
-                    ? { contactId: selected.contact.id }
-                    : { toEmail: selected.email, senderId: selected.primarySenderId },
-                )}
-                onDraft={() => draftWithAi(
-                  selected.contact?.id
-                    ? { contactId: selected.contact.id }
-                    : { messages: selected.messages },
-                )}
-                onBack={() => setSelectedKey(null)}
-                showContext={showContext}
-                onToggleContext={() => setContextOverride(!showContext)}
-              />
+          ) : (
+            // Lista virtualizzata: scroll parent nativo + righe assolute misurate.
+            <div ref={convScrollRef} className="flex-1 overflow-y-auto">
+              <ul className="relative" style={{ height: `${rowVirtualizer.getTotalSize()}px` }}>
+                {rowVirtualizer.getVirtualItems().map((vRow) => {
+                  const conv = filtered[vRow.index];
+                  return (
+                    <ConversationRow
+                      key={vRow.key}
+                      conv={conv}
+                      vista={vista}
+                      brand={brand == null ? brandDi(conv) : null}
+                      active={conv.key === selectedKey}
+                      checked={selectedKeys.has(conv.key)}
+                      mailbox={conv.primarySenderId ? sendersById.get(conv.primarySenderId) ?? null : null}
+                      onSelect={() => apri(conv)}
+                      onToggle={() => toggleSelected(conv.key)}
+                      dataIndex={vRow.index}
+                      measureRef={rowVirtualizer.measureElement}
+                      offsetTop={vRow.start}
+                    />
+                  );
+                })}
+              </ul>
             </div>
-            {showContext && (
-              <LeadContextPanel
-                companyId={companyId}
-                conversation={selected}
-                context={leadContext}
-                loading={leadLoading}
-                liveSequence={liveSequence}
-                actions={leadActions}
-                onSetIntent={(intent) => selected.contact?.id && setIntent.mutate({ contactId: selected.contact.id, intent })}
-                intentPending={setIntent.isPending}
-                onClose={() => setContextOverride(false)}
-                summarizing={summarizing}
-                onSummarize={() => summarizeWithAi(selected.messages)}
-                onUseDraft={(text) => setReplyText(text)}
-                onSnooze={(until) => selected.contact?.id && snoozeConversation.mutate({ contactId: selected.contact.id, until })}
-                onUnsnooze={() => selected.contact?.id && unsnooze.mutate({ contactId: selected.contact.id })}
-                snoozePending={snoozeConversation.isPending || unsnooze.isPending}
-              />
-            )}
-          </div>
-        )}
-      </section>
+          )}
+        </aside>
+
+        {/* ═══ Conversazione aperta (destra) ═══ */}
+        <section
+          key={selectedKey ?? "vuota"}
+          className={cn(
+            "flex min-w-0 flex-1 flex-col bg-muted/30",
+            selected ? "flex max-md:animate-in max-md:slide-in-from-right-4 max-md:fade-in-0 max-md:duration-200" : "hidden md:flex",
+          )}
+        >
+          {!selected ? (
+            <div className="flex flex-1 items-center justify-center p-8 text-center">
+              <div className="max-w-xs">
+                <span className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-background text-muted-foreground shadow-sm ring-1 ring-border">
+                  <MessageSquare className="h-6 w-6" />
+                </span>
+                <p className="text-sm font-medium text-foreground">
+                  {vista === "inviate" ? "Scegli un'email dall'elenco" : "Scegli una risposta dall'elenco"}
+                </p>
+                <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+                  Si apre qui accanto. Torni all'elenco con «Indietro» o con <Kbd>Esc</Kbd>; <Kbd>J</Kbd> e <Kbd>K</Kbd> passano alla successiva e alla precedente.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+              {/* Floor di larghezza del thread su desktop: col contesto lead aperto non
+                  deve mai comprimersi fino a "una parola per riga". */}
+              <div className="flex min-w-0 flex-1 flex-col lg:min-w-[380px]">
+                <ThreadPane
+                  selected={selected}
+                  brand={brandDi(selected)}
+                  sendersById={sendersById}
+                  mailbox={selected.primarySenderId ? sendersById.get(selected.primarySenderId) ?? null : null}
+                  signature={signatureForSender(selected.primarySenderId)}
+                  snippets={snippets}
+                  replyText={replyText}
+                  setReplyText={setReplyText}
+                  sending={sending}
+                  aiDrafting={aiDrafting}
+                  // Sempre con la casella della conversazione: è del suo brand.
+                  // Senza, la funzione usava l'ultima casella che aveva scritto
+                  // al contatto, magari di un altro brand.
+                  onSend={() => sendReply(
+                    selected.contact?.id
+                      ? { contactId: selected.contact.id, senderId: selected.primarySenderId }
+                      : { toEmail: selected.email, senderId: selected.primarySenderId },
+                  )}
+                  onDraft={() => draftWithAi(
+                    selected.contact?.id
+                      ? { contactId: selected.contact.id }
+                      : { messages: selected.messages },
+                  )}
+                  onBack={chiudi}
+                  showContext={showContext}
+                  onToggleContext={() => setContextOverride(!showContext)}
+                />
+              </div>
+              {showContext && (
+                <LeadContextPanel
+                  companyId={companyId}
+                  conversation={selected}
+                  context={leadContext}
+                  loading={leadLoading}
+                  liveSequence={liveSequence}
+                  actions={leadActions}
+                  onSetIntent={(intent) => selected.contact?.id && setIntent.mutate({
+                    contactId: selected.contact.id, intent, replyId: selected.lastReplyId,
+                  })}
+                  intentPending={setIntent.isPending}
+                  onClose={() => setContextOverride(false)}
+                  summarizing={summarizing}
+                  onSummarize={() => summarizeWithAi(selected.messages)}
+                  onUseDraft={(text) => setReplyText(text)}
+                  onSnooze={(until) => selected.contact?.id && snoozeConversation.mutate({ contactId: selected.contact.id, until })}
+                  onUnsnooze={() => selected.contact?.id && unsnooze.mutate({ contactId: selected.contact.id })}
+                  snoozePending={snoozeConversation.isPending || unsnooze.isPending}
+                />
+              )}
+            </div>
+          )}
+        </section>
+      </div>
     </div>
   );
 }
 
+/** Cosa dire quando la lista è vuota, secondo la vista. */
+function testoVuoto(vista: VistaPosta, filtro: FiltroRisposte, nessunaPosta: boolean): string {
+  if (nessunaPosta) return "Nessuna conversazione ancora. Le email inviate e le risposte compaiono qui.";
+  if (vista === "risposte") {
+    if (filtro === "da_leggere") return "Nessuna risposta da leggere.";
+    if (filtro === "da_rispondere") return "Hai risposto a tutti.";
+    if (filtro === "interessati") return "Nessun interessato con questi filtri.";
+    if (filtro === "posticipate") return "Nessuna conversazione posticipata.";
+    return "Nessuna risposta con questi filtri.";
+  }
+  if (vista === "automatiche") return "Nessuna risposta automatica con questi filtri.";
+  if (vista === "archiviate") return "Nessuna conversazione archiviata con questi filtri.";
+  return "Nessuna email inviata con questi filtri.";
+}
+
 /**
- * PostaUnreadBadge — pillola arancione col numero di risposte non lette, accanto
- * al TabsTrigger "Posta". Vive nella tab bar ed è montato SU OGNI TAB, quindi usa
- * una singola query di conteggio (`count exact, head`) invece del hook completo:
- * prima montava le 7 query dell'inbox (500 email + 500 risposte + 1000 contatti +
- * 5000 enrollment + …) solo per mostrare un numero, a ogni render della dashboard.
+ * PostaUnreadBadge — pillola arancione col numero di risposte da leggere,
+ * accanto al TabsTrigger "Posta". Vive nella tab bar ed è montato SU OGNI TAB,
+ * quindi usa una singola query di conteggio (`count exact, head`) invece del
+ * hook completo. Dal 22/09/2026 non conta le risposte automatiche, come il
+ * filtro «Da leggere» della Posta.
  */
 export function PostaUnreadBadge({ companyId }: { companyId: string }) {
   const q = useQuery({
@@ -881,7 +670,8 @@ export function PostaUnreadBadge({ companyId }: { companyId: string }) {
         .from("outreach_replies")
         .select("id", { count: "exact", head: true })
         .eq("company_id", companyId)
-        .eq("status", "unread");
+        .eq("status", "unread")
+        .or("intent.is.null,intent.neq.auto_reply");
       if (error) return null; // tabella assente o RLS → nessun badge (non rompe la tab bar)
       return count ?? 0;
     },
@@ -899,228 +689,152 @@ export function PostaUnreadBadge({ companyId }: { companyId: string }) {
    Sotto-componenti presentazionali
    ────────────────────────────────────────────────────────────────────────── */
 
-function MailboxButton({
-  active, onClick, icon, title, badge, count, unread, countTone = "muted",
-}: {
-  active: boolean;
-  onClick: () => void;
-  icon: React.ReactNode;
-  title: string;
-  badge?: string;
-  count?: number;
-  /** Conversazioni non lette della casella → pillola accent prioritaria. */
-  unread?: number;
-  countTone?: "muted" | "primary";
-}) {
+function Kbd({ children }: { children: React.ReactNode }) {
+  return <kbd className="rounded border border-border bg-background px-1 text-[10px] font-medium shadow-sm">{children}</kbd>;
+}
+
+/** Pallino + nome del brand. */
+function BrandLabel({ brand, className }: { brand: BrandVista; className?: string }) {
   return (
+    <span className={cn("inline-flex min-w-0 items-center gap-1 text-[11px] text-muted-foreground", className)}>
+      <span className={cn("h-2 w-2 shrink-0 rounded-full", TINTA_CLASSI[brand.tinta].punto)} aria-hidden />
+      <span className="truncate">{brand.nome}</span>
+    </span>
+  );
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   BrandTabs — le linguette dei brand in cima alla Posta. Il numero è quello
+   delle risposte vere da leggere (in evidenza), altrimenti quante risposte ci
+   sono in tutto (in grigio).
+   ────────────────────────────────────────────────────────────────────────── */
+function BrandTabs({
+  linguette, attivo, totaleDaLeggere, onChange,
+}: {
+  linguette: Array<BrandVista & { daLeggere: number; risposte: number }>;
+  attivo: string | null;
+  totaleDaLeggere: number;
+  onChange: (id: string | null) => void;
+}) {
+  const voce = (
+    key: string, selezionata: boolean, onClick: () => void,
+    contenuto: React.ReactNode, daLeggere: number, risposte: number,
+  ) => (
     <button
+      key={key}
       type="button"
+      role="tab"
+      aria-selected={selezionata}
       onClick={onClick}
-      title={title}
       className={cn(
-        "group flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] transition-colors",
-        active ? "bg-primary/10 font-medium text-primary" : "text-foreground hover:bg-muted/70",
+        "inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[12px] font-medium transition-colors",
+        selezionata
+          ? "border-foreground/20 bg-muted text-foreground"
+          : "border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground",
       )}
     >
-      <span className="flex h-4 w-4 shrink-0 items-center justify-center text-muted-foreground group-hover:text-foreground">{icon}</span>
-      <span className="min-w-0 flex-1 truncate">{title}</span>
-      {badge && (
-        <span className="shrink-0 rounded bg-muted px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">{badge}</span>
-      )}
-      {unread != null && unread > 0 ? (
-        <span className="shrink-0 rounded-full bg-primary px-1.5 text-[10px] font-semibold tabular-nums text-primary-foreground" title={`${unread} non lette`}>{unread}</span>
-      ) : count != null && count > 0 ? (
-        <span className={cn(
-          "shrink-0 rounded-full px-1.5 text-[10px] font-medium tabular-nums",
-          countTone === "primary" ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground",
-        )}>{count}</span>
+      {contenuto}
+      {daLeggere > 0 ? (
+        <span className="rounded-full bg-primary px-1.5 text-[10px] font-semibold tabular-nums text-primary-foreground" title={`${daLeggere} da leggere`}>{daLeggere}</span>
+      ) : risposte > 0 ? (
+        <span className="text-[10px] tabular-nums text-muted-foreground" title={`${risposte} risposte`}>{risposte}</span>
       ) : null}
     </button>
   );
-}
-
-/* ──────────────────────────────────────────────────────────────────────────
-   DomainGroupBlock — header di dominio collassabile + caselle indentate.
-   Scala a molti domini/caselle: l'header mostra dominio, n° caselle e un badge
-   non-lette aggregato; cliccando si espande/collassa. Ogni casella è una riga
-   compatta con dot stato + provider + non-lette (riusa MailboxButton, indentato).
-   Stato open LOCALE (niente setState-in-effect): defaultOpen lo decide il parent.
-   ────────────────────────────────────────────────────────────────────────── */
-function DomainGroupBlock({
-  group, activeSenderId, convCountBySender, unreadBySender, onSelect, defaultOpen,
-}: {
-  group: DomainGroup;
-  activeSenderId: string | null;
-  convCountBySender: Map<string, number>;
-  unreadBySender: Map<string, number>;
-  onSelect: (id: string | null) => void;
-  defaultOpen: boolean;
-}) {
-  const [open, setOpen] = useState(defaultOpen);
-  // La casella selezionata è in questo dominio → evidenzia l'header anche da chiuso.
-  const hasActive = group.senders.some((s) => s.id === activeSenderId);
+  const totaleRisposte = linguette.reduce((s, l) => s + l.risposte, 0);
   return (
-    <div>
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className={cn(
-          "group/dom flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-muted/60",
-          hasActive && !open && "bg-primary/[0.06]",
-        )}
-        aria-expanded={open}
-        title={`${group.domain} · ${group.senders.length} ${group.senders.length === 1 ? "casella" : "caselle"}`}
-      >
-        <span className="flex h-4 w-4 shrink-0 items-center justify-center text-muted-foreground">
-          {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-        </span>
-        <Globe className="h-3 w-3 shrink-0 text-muted-foreground/70" />
-        <span className="min-w-0 flex-1 truncate text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-          {group.domain}
-        </span>
-        <span className="shrink-0 rounded-full bg-muted px-1.5 text-[10px] font-medium tabular-nums text-muted-foreground">
-          {group.senders.length}
-        </span>
-        {group.unread > 0 && (
-          <span
-            className="shrink-0 rounded-full bg-primary px-1.5 text-[10px] font-semibold tabular-nums text-primary-foreground"
-            title={`${group.unread} non lette in questo dominio`}
-          >
-            {group.unread}
-          </span>
-        )}
-      </button>
-      {open && (
-        <div className="space-y-0.5 pl-3">
-          {group.senders.map((s) => (
-            <MailboxButton
-              key={s.id}
-              active={activeSenderId === s.id}
-              onClick={() => onSelect(s.id)}
-              icon={<span className={cn("h-2 w-2 rounded-full", senderStatusColor(s.status))} title={s.status} />}
-              title={s.email}
-              badge={providerLabel(s.provider)}
-              count={convCountBySender.get(s.id) || undefined}
-              unread={unreadBySender.get(s.id) || undefined}
-            />
-          ))}
-        </div>
-      )}
+    <div role="tablist" aria-label="Brand" className="scrollbar-none -mx-1 flex min-w-0 max-w-full items-center gap-1 overflow-x-auto px-1">
+      {voce("tutti", attivo == null, () => onChange(null), <span>Tutti i brand</span>, totaleDaLeggere, totaleRisposte)}
+      {linguette.map((l) => voce(
+        l.id,
+        attivo === l.id,
+        () => onChange(l.id),
+        <>
+          <span className={cn("h-2 w-2 shrink-0 rounded-full", TINTA_CLASSI[l.tinta].punto)} aria-hidden />
+          <span className="whitespace-nowrap">{l.nome}</span>
+        </>,
+        l.daLeggere,
+        l.risposte,
+      ))}
     </div>
   );
 }
 
-/* ──────────────────────────────────────────────────────────────────────────
-   PoolSummaryCard — riepilogo compatto del pool in fondo alla colonna Caselle.
-   Riempie utilmente lo spazio anche con poche caselle: capacità giornaliera
-   stimata (warmup-aware, ONESTA), caselle attive/in warming, non-lette totali.
-   La capacità degrada con grazia se le colonne cap non sono disponibili.
-   ────────────────────────────────────────────────────────────────────────── */
-function PoolSummaryCard({
-  summary, capacity, unreadTotal,
+/** Le quattro viste della lista: risposte vere, automatiche, inviate, archivio. */
+function VistaSwitch({
+  vista, contatori, onChange,
 }: {
-  summary: { total: number; active: number; warming: number; domains: number };
-  capacity: PoolCapacity;
-  unreadTotal: number;
+  vista: VistaPosta;
+  contatori: ContatoriPosta;
+  onChange: (v: VistaPosta) => void;
 }) {
-  const capPct = capacity.dailyCap > 0
-    ? Math.min(100, Math.round((capacity.sentToday / capacity.dailyCap) * 100))
-    : 0;
+  const voci: { k: VistaPosta; label: string; n: number; titolo: string }[] = [
+    { k: "risposte", label: "Risposte", n: contatori.risposte, titolo: "Le risposte scritte da una persona" },
+    { k: "automatiche", label: "Automatiche", n: contatori.automatiche, titolo: "Risponditori automatici: «abbiamo ricevuto la tua richiesta», ferie…" },
+    { k: "inviate", label: "Inviate", n: contatori.inviate, titolo: "Le ultime email partite, senza risposta" },
+    { k: "archiviate", label: "Archivio", n: contatori.archiviate, titolo: "Le conversazioni archiviate" },
+  ];
   return (
-    <div className="space-y-2 border-t border-border bg-background px-3 py-2.5">
-      <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-        <Gauge className="h-3.5 w-3.5" /> Pool
-      </div>
-      {/* Stato caselle: attive · warming · non-lette. */}
-      <div className="grid grid-cols-3 gap-1.5">
-        <PoolStat icon={<ShieldCheck className="h-3 w-3 text-emerald-600" />} value={summary.active} label="Attive" />
-        <PoolStat icon={<Flame className="h-3 w-3 text-amber-600" />} value={summary.warming} label="Warming" />
-        <PoolStat icon={<Mail className="h-3 w-3 text-primary" />} value={unreadTotal} label="Da leggere" tone={unreadTotal > 0 ? "primary" : "muted"} />
-      </div>
-      {/* Capacità giornaliera stimata (somma cap warmup-aware) + uso odierno. */}
-      {!capacity.unavailable && capacity.dailyCap > 0 ? (
-        <div className="rounded-lg border border-border bg-muted/30 px-2.5 py-2">
-          <div className="flex items-baseline justify-between gap-2">
-            <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Capacità/giorno</span>
-            <span className="text-[11px] font-semibold tabular-nums text-foreground">
-              {capacity.remaining}<span className="font-normal text-muted-foreground">/{capacity.dailyCap}</span>
-            </span>
-          </div>
-          <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted">
-            <div
-              className={cn("h-full rounded-full transition-all", capPct >= 100 ? "bg-amber-500" : "bg-primary")}
-              style={{ width: `${capPct}%` }}
-            />
-          </div>
-          <p className="mt-1 text-[10px] text-muted-foreground">
-            {capacity.sentToday > 0 ? `${capacity.sentToday} inviate oggi · ` : ""}
-            {capacity.remaining} email residue
-          </p>
-        </div>
-      ) : (
-        <p className="text-[10px] leading-relaxed text-muted-foreground">
-          {summary.total} {summary.total === 1 ? "casella" : "caselle"} su {summary.domains} domin{summary.domains === 1 ? "io" : "i"}.
-        </p>
-      )}
+    // Colonne larghe quanto il testo: a colonne uguali «Automatiche» veniva tagliata.
+    <div role="tablist" aria-label="Tipo di posta" className="flex gap-0.5 rounded-lg bg-muted p-0.5">
+      {voci.map((v) => (
+        <button
+          key={v.k}
+          type="button"
+          role="tab"
+          aria-selected={vista === v.k}
+          title={v.titolo}
+          onClick={() => onChange(v.k)}
+          className={cn(
+            "flex min-w-0 flex-auto items-center justify-center gap-1 whitespace-nowrap rounded-md px-1.5 py-1 text-[11px] font-medium transition-colors",
+            vista === v.k ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          <span className="truncate">{v.label}</span>
+          {v.n > 0 && <span className="shrink-0 tabular-nums text-muted-foreground">{v.n}</span>}
+        </button>
+      ))}
     </div>
   );
 }
 
-/** Mini-stat del riepilogo pool (icona + numero + etichetta). */
-function PoolStat({
-  icon, value, label, tone = "muted",
+/** Filtri dentro le risposte: da leggere, da rispondere, interessati, posticipate. */
+function FiltroChips({
+  filtro, contatori, onChange,
 }: {
-  icon: React.ReactNode;
-  value: number;
-  label: string;
-  tone?: "muted" | "primary";
+  filtro: FiltroRisposte;
+  contatori: ContatoriPosta;
+  onChange: (f: FiltroRisposte) => void;
 }) {
+  const voci: { k: FiltroRisposte; label: string; n?: number }[] = [
+    { k: "tutte", label: "Tutte" },
+    { k: "da_leggere", label: "Da leggere", n: contatori.daLeggere },
+    { k: "da_rispondere", label: "Da rispondere", n: contatori.daRispondere },
+    { k: "interessati", label: "Interessati", n: contatori.interessati },
+  ];
+  if (contatori.posticipate > 0 || filtro === "posticipate") {
+    voci.push({ k: "posticipate", label: "Posticipate", n: contatori.posticipate });
+  }
   return (
-    <div className="rounded-lg border border-border bg-muted/30 px-1 py-1.5 text-center">
-      <div className="flex items-center justify-center gap-1">
-        {icon}
-        <span className={cn("text-sm font-semibold tabular-nums", tone === "primary" ? "text-primary" : "text-foreground")}>{value}</span>
-      </div>
-      <div className="mt-0.5 text-[9px] uppercase tracking-wide text-muted-foreground">{label}</div>
-    </div>
-  );
-}
-
-function FilterPills({
-  filter, counts, onChange,
-}: {
-  filter: StatusFilter;
-  counts: { interested: number; unread: number; snoozed: number; archived: number };
-  onChange: (f: StatusFilter) => void;
-}) {
-  return (
-    <div className="flex flex-wrap items-center gap-1.5">
-      {([
-        { k: "all", label: "Tutte" },
-        { k: "interested", label: "Interessati", count: counts.interested },
-        { k: "unread", label: "Non lette", count: counts.unread },
-        { k: "snoozed", label: "Posticipate", count: counts.snoozed },
-        { k: "archived", label: "Archiviate", count: counts.archived },
-      ] as const).map((f) => {
-        const active = filter === f.k;
+    <div className="flex flex-wrap items-center gap-1">
+      {voci.map((f) => {
+        const active = filtro === f.k;
         return (
           <button
             key={f.k}
             type="button"
             onClick={() => onChange(f.k)}
+            aria-pressed={active}
             className={cn(
-              "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors",
+              "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors",
               active
-                ? "border-primary bg-primary text-primary-foreground shadow-sm"
+                ? "border-primary bg-primary text-primary-foreground"
                 : "border-border bg-background text-muted-foreground hover:border-foreground/20 hover:text-foreground",
             )}
           >
             {f.label}
-            {"count" in f && f.count > 0 && (
-              <span className={cn(
-                "rounded-full px-1 text-[10px] tabular-nums",
-                active ? "bg-primary-foreground/20" : "bg-muted text-muted-foreground",
-              )}>{f.count}</span>
+            {f.n != null && f.n > 0 && (
+              <span className={cn("tabular-nums", active ? "text-primary-foreground/80" : "text-muted-foreground")}>{f.n}</span>
             )}
           </button>
         );
@@ -1129,17 +843,163 @@ function FilterPills({
   );
 }
 
+/** Un filtro attivo, con la × per toglierlo (così una lista vuota si spiega da sola). */
+function FiltroAttivo({ children, icon, onRemove }: { children: React.ReactNode; icon: React.ReactNode; onRemove: () => void }) {
+  return (
+    <span className="inline-flex max-w-full items-center gap-1 rounded-md border border-border bg-muted/40 py-0.5 pl-1.5 pr-0.5 text-[11px] text-foreground">
+      <span className="shrink-0 text-muted-foreground">{icon}</span>
+      <span className="truncate">{children}</span>
+      <button
+        type="button"
+        onClick={onRemove}
+        className="flex h-4 w-4 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
+        aria-label="Togli il filtro"
+      >
+        <X className="h-3 w-3" />
+      </button>
+    </span>
+  );
+}
+
 /* ──────────────────────────────────────────────────────────────────────────
-   ConversationRow — riga premium della lista (stile Unibox Instantly/Smartlead).
-   Avatar a tinta deterministica + dot non-letto, nome in evidenza, snippet a 1
-   riga, ora relativa discreta, badge intent/posticipata e badge casella. Riga
-   selezionata: barra accent a sinistra + leggera tinta. Checkbox fuori dal
-   <button> (HTML valido) e visibile su hover/selezione per non sporcare la riga.
+   Filtri secondari: casella (cercabile, divisa per brand), sequenza, periodo.
+   La casella prima era una colonna intera (90 caselle su 30 domini): ora è un
+   filtro, perché a dividere la posta sono i brand.
+   ────────────────────────────────────────────────────────────────────────── */
+const ALL_SEQUENCES = "__all__";
+
+const DATE_FILTER_OPTIONS: { value: DateFilter; label: string }[] = [
+  { value: "all", label: "Sempre" },
+  { value: "today", label: "Ultime 24 ore" },
+  { value: "7d", label: "Ultimi 7 giorni" },
+  { value: "30d", label: "Ultimi 30 giorni" },
+];
+
+function FiltriPopover({
+  senders, brandVista, brandAttivo, unreadBySender, senderId, onSender,
+  sequenceOptions, sequenceId, onSequence, dateFilter, onDate, attivi, onAzzera,
+}: {
+  senders: SenderRow[];
+  brandVista: Map<string, BrandVista>;
+  brandAttivo: string | null;
+  unreadBySender: Map<string, number>;
+  senderId: string | null;
+  onSender: (id: string | null) => void;
+  sequenceOptions: SequenceOption[];
+  sequenceId: string | null;
+  onSequence: (id: string | null) => void;
+  dateFilter: DateFilter;
+  onDate: (d: DateFilter) => void;
+  attivi: number;
+  onAzzera: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  // Caselle del brand scelto, raggruppate per brand (nell'ordine dei nomi).
+  const gruppi = useMemo(() => {
+    const m = new Map<string, { nome: string; caselle: SenderRow[] }>();
+    for (const s of senders) {
+      const k = s.brand_id ?? SENZA_BRAND;
+      if (brandAttivo != null && k !== brandAttivo) continue;
+      const g = m.get(k) ?? { nome: brandVista.get(k)?.nome ?? "Senza brand", caselle: [] };
+      g.caselle.push(s);
+      m.set(k, g);
+    }
+    return [...m.values()].sort((a, b) => a.nome.localeCompare(b.nome, "it"));
+  }, [senders, brandVista, brandAttivo]);
+  const sequenze = sequenceOptions.filter((s) => brandAttivo == null || (s.brandId ?? SENZA_BRAND) === brandAttivo);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button variant="outline" size="sm" className="h-8 shrink-0 gap-1.5 rounded-lg border-border text-[12px] shadow-none">
+          <SlidersHorizontal className="h-3.5 w-3.5" /> Filtri
+          {attivi > 0 && (
+            <span className="rounded-full bg-primary px-1.5 text-[10px] font-semibold tabular-nums text-primary-foreground">{attivi}</span>
+          )}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-80 space-y-3 p-3">
+        <div>
+          <div className="mb-1 text-[11px] font-medium text-muted-foreground">Casella</div>
+          <Command className="rounded-lg border border-border">
+            <CommandInput placeholder="Cerca casella o dominio…" className="h-8 text-xs" />
+            <CommandList className="max-h-56">
+              <CommandEmpty className="py-4 text-center text-xs text-muted-foreground">Nessuna casella trovata.</CommandEmpty>
+              <CommandGroup>
+                <CommandItem value="tutte le caselle" onSelect={() => { onSender(null); setOpen(false); }} className="text-xs">
+                  <Layers className="mr-2 h-3.5 w-3.5 text-muted-foreground" /> Tutte le caselle
+                  {senderId == null && <Check className="ml-auto h-3.5 w-3.5 text-primary" />}
+                </CommandItem>
+              </CommandGroup>
+              {gruppi.map((g) => (
+                <CommandGroup key={g.nome} heading={g.nome}>
+                  {g.caselle.map((s) => (
+                    <CommandItem key={s.id} value={s.email} onSelect={() => { onSender(s.id); setOpen(false); }} className="text-xs">
+                      <span className={cn("mr-2 h-2 w-2 shrink-0 rounded-full", senderStatusColor(s.status))} title={s.status} />
+                      <span className="min-w-0 flex-1 truncate">{s.email}</span>
+                      <span className="ml-1 shrink-0 rounded bg-muted px-1 text-[9px] font-semibold uppercase text-muted-foreground">{providerLabel(s.provider)}</span>
+                      {(unreadBySender.get(s.id) ?? 0) > 0 && (
+                        <span className="ml-1 shrink-0 rounded-full bg-primary px-1.5 text-[10px] font-semibold tabular-nums text-primary-foreground">{unreadBySender.get(s.id)}</span>
+                      )}
+                      {senderId === s.id && <Check className="ml-1 h-3.5 w-3.5 shrink-0 text-primary" />}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              ))}
+            </CommandList>
+          </Command>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <div className="mb-1 text-[11px] font-medium text-muted-foreground">Sequenza</div>
+            <Select value={sequenceId ?? ALL_SEQUENCES} onValueChange={(v) => onSequence(v === ALL_SEQUENCES ? null : v)}>
+              <SelectTrigger className="h-8 w-full gap-1.5 rounded-lg px-2 text-[11px] shadow-none" aria-label="Filtra per sequenza">
+                <SelectValue placeholder="Sequenza" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_SEQUENCES} className="text-xs">Tutte</SelectItem>
+                {sequenze.map((s) => (
+                  <SelectItem key={s.id} value={s.id} className="text-xs">{s.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <div className="mb-1 text-[11px] font-medium text-muted-foreground">Periodo</div>
+            <Select value={dateFilter} onValueChange={(v) => onDate(v as DateFilter)}>
+              <SelectTrigger className="h-8 w-full gap-1.5 rounded-lg px-2 text-[11px] shadow-none" aria-label="Filtra per periodo">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {DATE_FILTER_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        {attivi > 0 && (
+          <Button variant="ghost" size="sm" className="h-7 w-full gap-1.5 text-[11px] text-muted-foreground" onClick={onAzzera}>
+            <X className="h-3 w-3" /> Azzera filtri
+          </Button>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   ConversationRow — riga dell'elenco. Per le risposte mostra le parole della
+   persona (non la nostra ultima email), il brand, l'esito e se aspetta una
+   nostra risposta. Righe separate da una linea, non card arrotondate.
    ────────────────────────────────────────────────────────────────────────── */
 function ConversationRow({
-  conv, active, checked, mailbox, onSelect, onToggle, dataIndex, measureRef, offsetTop,
+  conv, vista, brand, active, checked, mailbox, onSelect, onToggle, dataIndex, measureRef, offsetTop,
 }: {
   conv: Conversation;
+  vista: VistaPosta;
+  /** Il brand, quando la lista li mostra tutti (con un brand scelto è sottinteso). */
+  brand: BrandVista | null;
   active: boolean;
   checked: boolean;
   mailbox: SenderRow | null;
@@ -1151,146 +1011,101 @@ function ConversationRow({
   offsetTop?: number;
 }) {
   const name = contactName(conv.contact, conv.email);
-  const company = conv.contact?.company_name;
+  const company = conv.contact?.company_name && conv.contact.company_name !== name ? conv.contact.company_name : null;
   const intentMeta = conv.lastIntent ? INTENT_META[conv.lastIntent] : null;
+  const risposta = conv.ultimaRisposta;
+  const mostraRisposta = vista !== "inviate" && !!risposta;
+  const testo = mostraRisposta ? `«${risposta?.testo || "—"}»` : conv.lastSnippet;
+  const quando = mostraRisposta ? risposta?.at ?? conv.lastAt : conv.lastAt;
   const virtualized = measureRef != null;
   return (
     <li
       ref={measureRef}
       data-index={dataIndex}
-      // Wrapper "nudo": quando virtualizzato è il blocco assoluto misurato dal
-      // virtualizer; pb-0.5 ricrea lo spazio tra righe (prima: space-y-0.5 sul <ul>).
-      // Lo styling della card sta sull'inner <div> così il gap resta trasparente.
-      style={virtualized ? { position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${offsetTop}px)`, paddingBottom: 2 } : undefined}
-      className={virtualized ? undefined : "pb-0.5"}
+      style={virtualized ? { position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${offsetTop}px)` } : undefined}
     >
       <div
         className={cn(
-          "group relative flex items-stretch overflow-hidden rounded-lg transition-colors",
-          active ? "bg-primary/[0.07]" : "hover:bg-muted/60",
-          checked && !active && "bg-primary/[0.05]",
+          "group relative flex items-stretch border-b border-border/70 transition-colors",
+          active ? "bg-primary/[0.07]" : "hover:bg-muted/50",
+          checked && !active && "bg-primary/[0.04]",
         )}
       >
-      {/* Barra accent della riga selezionata. */}
-      {active && <span className="absolute inset-y-1.5 left-0 w-1 rounded-r-full bg-primary" aria-hidden />}
-      {/* Checkbox di selezione multipla — fuori dal <button> (HTML valido). */}
-      <div className={cn(
-        "flex shrink-0 items-center pl-2.5 transition-opacity",
-        checked ? "opacity-100" : "opacity-0 focus-within:opacity-100 group-hover:opacity-100",
-      )}>
-        <Checkbox
-          checked={checked}
-          onCheckedChange={onToggle}
-          aria-label={`Seleziona conversazione con ${name}`}
-        />
-      </div>
-      <button
-        onClick={onSelect}
-        className="flex min-w-0 flex-1 gap-3 py-2.5 pl-2 pr-3 text-left"
-      >
-        <div className="relative shrink-0">
-          <Avatar className="h-10 w-10">
-            <AvatarFallback className={cn("text-xs font-semibold", avatarTint(name))}>{iniziali(name)}</AvatarFallback>
-          </Avatar>
-          {conv.unread && (
-            <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full bg-primary ring-2 ring-background" />
-          )}
+        {/* Barra accent della riga aperta. */}
+        {active && <span className="absolute inset-y-0 left-0 w-1 bg-primary" aria-hidden />}
+        {/* Checkbox di selezione multipla — fuori dal <button> (HTML valido). */}
+        <div className={cn(
+          "flex shrink-0 items-start pl-3 pt-3.5 transition-opacity",
+          checked ? "opacity-100" : "opacity-0 focus-within:opacity-100 group-hover:opacity-100",
+        )}>
+          <Checkbox checked={checked} onCheckedChange={onToggle} aria-label={`Seleziona conversazione con ${name}`} />
         </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-baseline justify-between gap-2">
-            <span className={cn("truncate text-sm", conv.unread ? "font-semibold text-foreground" : "font-medium text-foreground/90")}>{name}</span>
-            <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">{relativeTime(conv.lastAt)}</span>
-          </div>
-          {company && (
-            <div className="flex items-center gap-1 truncate text-[11px] text-muted-foreground">
-              <Building2 className="h-3 w-3 shrink-0" /><span className="truncate">{company}</span>
-            </div>
-          )}
-          <div className="mt-0.5 flex items-center justify-between gap-2">
-            <span className={cn("truncate text-xs", conv.unread ? "text-foreground/70" : "text-muted-foreground")}>{conv.lastSnippet}</span>
-            {conv.snoozedUntil ? (
-              <Badge variant="outline" className="shrink-0 gap-1 border-amber-200 bg-amber-50 text-[10px] font-medium text-amber-700">
-                <AlarmClock className="h-2.5 w-2.5" />{relativeTime(conv.snoozedUntil)}
-              </Badge>
-            ) : intentMeta && (
-              <Badge variant="outline" className={cn("shrink-0 text-[10px] font-medium", intentMeta.cls)}>{intentMeta.label}</Badge>
+        <button onClick={onSelect} className="flex min-w-0 flex-1 gap-3 py-2.5 pl-2 pr-3 text-left">
+          <div className="relative shrink-0">
+            <Avatar className="h-9 w-9">
+              <AvatarFallback className={cn("text-xs font-semibold", avatarTint(name))}>{iniziali(name)}</AvatarFallback>
+            </Avatar>
+            {conv.unread && (
+              <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full bg-primary ring-2 ring-background" aria-label="Da leggere" />
             )}
           </div>
-          {mailbox && (
-            <div className="mt-1.5 flex items-center gap-1 truncate">
-              <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", senderStatusColor(mailbox.status))} />
-              <span className="truncate text-[10px] text-muted-foreground/80">{mailbox.email}</span>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className={cn("truncate text-sm", conv.unread ? "font-semibold text-foreground" : "font-medium text-foreground/90")}>{name}</span>
+              <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">{relativeTime(quando)}</span>
             </div>
-          )}
-        </div>
-      </button>
+            {company && (
+              <div className="flex items-center gap-1 truncate text-[11px] text-muted-foreground">
+                <Building2 className="h-3 w-3 shrink-0" /><span className="truncate">{company}</span>
+              </div>
+            )}
+            {(brand || conv.snoozedUntil || conv.tipo !== "inviata") && (
+              <div className="mt-1 flex min-w-0 items-center gap-1.5">
+                {brand && <BrandLabel brand={brand} />}
+                {conv.snoozedUntil ? (
+                  <Badge variant="outline" className="shrink-0 gap-1 border-amber-200 bg-amber-50 px-1.5 py-0 text-[10px] font-medium text-amber-700">
+                    <AlarmClock className="h-2.5 w-2.5" />{relativeTime(conv.snoozedUntil)}
+                  </Badge>
+                ) : conv.tipo === "automatica" ? (
+                  <Badge variant="outline" className="shrink-0 px-1.5 py-0 text-[10px] font-medium text-muted-foreground">Risposta automatica</Badge>
+                ) : conv.tipo === "risposta" && intentMeta ? (
+                  <Badge variant="outline" className={cn("shrink-0 px-1.5 py-0 text-[10px] font-medium", intentMeta.cls)}>{intentMeta.label}</Badge>
+                ) : null}
+              </div>
+            )}
+            <p className={cn(
+              "mt-0.5 line-clamp-2 break-words text-xs",
+              conv.unread ? "text-foreground/80" : "text-muted-foreground",
+            )}>{testo}</p>
+            {conv.tipo === "risposta" && conv.daRispondere ? (
+              <div className="mt-1 inline-flex items-center gap-1 text-[10px] font-medium text-amber-700">
+                <CornerUpLeft className="h-3 w-3" /> Da rispondere
+              </div>
+            ) : conv.tipo === "risposta" && conv.abbiamoRisposto ? (
+              <div className="mt-1 inline-flex items-center gap-1 text-[10px] font-medium text-emerald-700">
+                <Check className="h-3 w-3" /> Hai risposto
+              </div>
+            ) : vista === "inviate" && mailbox ? (
+              <div className="mt-1 flex items-center gap-1 truncate">
+                <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", senderStatusColor(mailbox.status))} />
+                <span className="truncate text-[10px] text-muted-foreground/80">{mailbox.email}</span>
+              </div>
+            ) : null}
+          </div>
+        </button>
       </div>
     </li>
   );
 }
 
-/* ──────────────────────────────────────────────────────────────────────────
-   Faccette filtro: sequenza/campagna + finestra data sull'ultima attività.
-   Due Select compatti shadcn. Il filtro sequenza scompare se non ci sono
-   campagne filtrabili (nessuna sequenza attiva né con conversazioni).
-   ────────────────────────────────────────────────────────────────────────── */
-const ALL_SEQUENCES = "__all__";
-
-const DATE_FILTER_OPTIONS: { value: DateFilter; label: string }[] = [
-  { value: "all", label: "Sempre" },
-  { value: "today", label: "Oggi" },
-  { value: "7d", label: "Ultimi 7 giorni" },
-  { value: "30d", label: "Ultimi 30 giorni" },
-];
-
-function ConversationFacets({
-  sequenceOptions, sequenceId, onSequence, dateFilter, onDate,
-}: {
-  sequenceOptions: SequenceOption[];
-  sequenceId: string | null;
-  onSequence: (id: string | null) => void;
-  dateFilter: DateFilter;
-  onDate: (d: DateFilter) => void;
-}) {
-  return (
-    <div className="flex flex-wrap items-center gap-1.5">
-      {sequenceOptions.length > 0 && (
-        <Select
-          value={sequenceId ?? ALL_SEQUENCES}
-          onValueChange={(v) => onSequence(v === ALL_SEQUENCES ? null : v)}
-        >
-          <SelectTrigger className="h-7 w-auto min-w-[7.5rem] max-w-[12rem] gap-1.5 rounded-lg border-border bg-background px-2.5 text-[11px] shadow-none" aria-label="Filtra per sequenza">
-            <GitBranch className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-            <SelectValue placeholder="Sequenza" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL_SEQUENCES} className="text-xs">Tutte le sequenze</SelectItem>
-            {sequenceOptions.map((s) => (
-              <SelectItem key={s.id} value={s.id} className="text-xs">{s.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      )}
-      <Select value={dateFilter} onValueChange={(v) => onDate(v as DateFilter)}>
-        <SelectTrigger className="h-7 w-auto min-w-[6.5rem] gap-1.5 rounded-lg border-border bg-background px-2.5 text-[11px] shadow-none" aria-label="Filtra per data">
-          <CalendarClock className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {DATE_FILTER_OPTIONS.map((o) => (
-            <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
-  );
-}
-
 function ThreadPane({
-  selected, mailbox, signature, snippets, replyText, setReplyText, sending, aiDrafting, onSend, onDraft, onBack,
+  selected, brand, sendersById, mailbox, signature, snippets, replyText, setReplyText, sending, aiDrafting, onSend, onDraft, onBack,
   showContext, onToggleContext,
 }: {
   selected: Conversation;
+  brand: BrandVista | null;
+  /** Per dire da quale casella è partita ogni nostra email. */
+  sendersById: Map<string, SenderRow>;
   mailbox: { email: string; provider: string } | null;
   /** Firma del brand della casella (per l'inserimento rapido), o null. */
   signature: string | null;
@@ -1337,10 +1152,16 @@ function ThreadPane({
 
   return (
     <>
-      <header className="flex shrink-0 flex-col gap-2 border-b border-border bg-background px-3 py-3 sm:px-4">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" className="-ml-1 shrink-0 md:hidden" aria-label="Torna alla lista" onClick={onBack}>
-            <ChevronLeft className="h-5 w-5" />
+      <header className="flex shrink-0 flex-col gap-1.5 border-b border-border bg-background px-3 py-2.5 sm:px-4">
+        <div className="flex items-center gap-2.5">
+          {/* Sempre visibile: prima su desktop non c'era modo di tornare all'elenco. */}
+          <Button
+            variant="ghost" size="sm"
+            className="-ml-1.5 h-8 shrink-0 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
+            onClick={onBack}
+            title="Torna all'elenco (Esc)"
+          >
+            <ChevronLeft className="h-4 w-4" /> Indietro
           </Button>
           <Avatar className="h-9 w-9 shrink-0">
             <AvatarFallback className={cn("text-xs font-semibold", avatarTint(name))}>{iniziali(name)}</AvatarFallback>
@@ -1351,46 +1172,42 @@ function ThreadPane({
               {counterpart && (
                 <span className="inline-flex min-w-0 items-center gap-1"><Mail className="h-3 w-3 shrink-0" /><span className="truncate">{counterpart}</span></span>
               )}
-              {selected.contact?.company_name && (
-                <span className="inline-flex min-w-0 items-center gap-1"><Building2 className="h-3 w-3 shrink-0" /><span className="truncate">{selected.contact.company_name}</span></span>
+              {selected.contact?.company_name && selected.contact.company_name !== name && (
+                <span className="hidden min-w-0 items-center gap-1 sm:inline-flex"><Building2 className="h-3 w-3 shrink-0" /><span className="truncate">{selected.contact.company_name}</span></span>
               )}
             </div>
           </div>
-          {/* Casella di riferimento — badge curato (da/verso quale casella). */}
-          {mailbox ? (
-            <Badge
-              variant="outline"
-              className="hidden max-w-[200px] shrink-0 items-center gap-1.5 rounded-lg border-border bg-muted/40 py-1 pl-2 pr-1.5 font-normal sm:inline-flex"
-              title={`Casella: ${mailbox.email}`}
-            >
-              <Mailbox className="h-3 w-3 shrink-0 text-primary" />
-              <span className="truncate text-[11px] text-foreground">{mailbox.email}</span>
-              <span className="shrink-0 rounded bg-background px-1 text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">{providerLabel(mailbox.provider)}</span>
-            </Badge>
-          ) : (
-            <Badge variant="outline" className="hidden shrink-0 gap-1 rounded-lg border-border bg-muted/40 font-normal text-[10px] text-muted-foreground sm:inline-flex">
-              <Mailbox className="h-3 w-3" /> Casella non tracciata
-            </Badge>
+          {brand && (
+            <span className={cn(
+              "hidden shrink-0 items-center gap-1.5 rounded-lg border px-2 py-1 text-[11px] font-medium sm:inline-flex",
+              TINTA_CLASSI[brand.tinta].chip,
+            )}>
+              <span className={cn("h-2 w-2 rounded-full", TINTA_CLASSI[brand.tinta].punto)} aria-hidden />
+              {brand.nome}
+            </span>
           )}
-          {/* Toggle pannello contesto lead (nascosto su mobile: là è in fondo al thread). */}
           <Button
-            variant="ghost" size="icon"
-            className="hidden shrink-0 lg:inline-flex"
-            aria-label={showContext ? "Nascondi contesto lead" : "Mostra contesto lead"}
-            title={showContext ? "Nascondi contesto lead" : "Mostra contesto lead"}
+            variant={showContext ? "secondary" : "ghost"} size="sm"
+            className="hidden h-8 shrink-0 gap-1.5 px-2 text-xs lg:inline-flex"
+            aria-pressed={showContext}
             onClick={onToggleContext}
+            title={showContext ? "Nascondi i dettagli del lead" : "Mostra i dettagli del lead: sequenza, esito, opportunità"}
           >
-            {showContext ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
+            <User className="h-3.5 w-3.5" /> Dettagli
           </Button>
         </div>
-        {/* Casella di riferimento compatta su mobile (sotto i floor del badge sopra). */}
-        <div className="flex items-center gap-1.5 pl-12 text-[11px] text-muted-foreground sm:hidden">
+        {/* Casella della conversazione: da qui parte anche la risposta. */}
+        <div className="flex items-center gap-1.5 pl-1 text-[11px] text-muted-foreground">
           <Mailbox className="h-3 w-3 shrink-0 text-primary" />
           {mailbox ? (
-            <span className="truncate">Casella: <span className="font-medium text-foreground">{mailbox.email}</span></span>
+            <span className="truncate">
+              Casella <span className="font-medium text-foreground">{mailbox.email}</span>
+              <span className="ml-1.5 rounded bg-muted px-1 text-[9px] font-semibold uppercase tracking-wide">{providerLabel(mailbox.provider)}</span>
+            </span>
           ) : (
-            <span>Casella non determinata</span>
+            <span>Casella non tracciata</span>
           )}
+          {brand && <BrandLabel brand={brand} className="ml-2 sm:hidden" />}
         </div>
       </header>
 
@@ -1402,10 +1219,11 @@ function ThreadPane({
             const showSubject = !!m.subject && m.subject !== prev?.subject;
             // Separatore data: prima riga o quando cambia il giorno rispetto al precedente.
             const showDay = i === 0 || !sameDay(m.at, prev?.at ?? null);
+            const casella = m.senderAccountId ? sendersById.get(m.senderAccountId)?.email ?? null : null;
             return (
               <div key={m.id}>
                 {showDay && <ThreadDayDivider iso={m.at} />}
-                <ThreadBubble msg={m} showSubject={showSubject} />
+                <ThreadBubble msg={m} showSubject={showSubject} casella={casella} />
               </div>
             );
           })}
@@ -1448,8 +1266,8 @@ function ThreadPane({
               value={replyText}
               onChange={(e) => setReplyText(e.target.value)}
               placeholder={mailbox
-                ? `Scrivi una risposta… verrà inviata da ${mailbox.email}.`
-                : "Scrivi una risposta… verrà inviata dalla stessa casella che ha contattato il prospect."}
+                ? `Scrivi una risposta… partirà da ${mailbox.email}.`
+                : "Scrivi una risposta… partirà dalla stessa casella che ha contattato il prospect."}
               aria-label="Testo della risposta"
               rows={3}
               className="resize-none border-0 bg-transparent text-sm shadow-none focus-visible:ring-0"
@@ -1504,33 +1322,38 @@ function ThreadPane({
 }
 
 /* ──────────────────────────────────────────────────────────────────────────
-   ThreadBubble — bolla del thread (stile Unibox). Inviate a destra con tinta
-   accent leggera, risposte a sinistra neutre su sfondo bianco. Header con
-   etichetta direzione, badge consegna/aperta/auto-reply e oggetto (se cambia).
+   ThreadBubble — un messaggio del thread. Nostre a destra («Tu», con la
+   casella che l'ha spedita), risposte a sinistra: «Ha risposto» se l'ha
+   scritta una persona, «Risposta automatica» (tratteggiata, in grigio) se è
+   un risponditore. Prima erano tutte «Risposta», e un «abbiamo ricevuto la tua
+   richiesta» sembrava una risposta vera.
    ────────────────────────────────────────────────────────────────────────── */
-function ThreadBubble({ msg, showSubject }: { msg: ThreadMsg; showSubject: boolean }) {
+function ThreadBubble({ msg, showSubject, casella }: { msg: ThreadMsg; showSubject: boolean; casella: string | null }) {
   const out = msg.direction === "out";
-  const intentMeta = msg.intent ? INTENT_META[msg.intent] : null;
+  const automatica = eAutomatica(msg);
+  const intentMeta = !out && !automatica && msg.intent ? INTENT_META[msg.intent] : null;
   return (
     <div className={cn("flex", out ? "justify-end" : "justify-start")}>
       <div className={cn(
-        "max-w-[85%] rounded-2xl border px-3.5 py-2.5 shadow-sm",
+        "max-w-[85%] rounded-2xl border px-3.5 py-2.5",
         out
-          ? "rounded-br-md border-primary/20 bg-primary/[0.07]"
-          : "rounded-bl-md border-border bg-background",
+          ? "rounded-br-md border-primary/20 bg-primary/[0.07] shadow-sm"
+          : automatica
+            ? "rounded-bl-md border-dashed border-border bg-muted/40"
+            : "rounded-bl-md border-emerald-200 bg-background shadow-sm",
       )}>
-        <div className="mb-1.5 flex flex-wrap items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+        <div className="mb-1.5 flex flex-wrap items-center gap-1.5 text-[11px]">
           <span className={cn(
-            "inline-flex items-center gap-1 rounded px-1.5 py-px",
-            out ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground",
+            "font-semibold",
+            out ? "text-primary" : automatica ? "text-muted-foreground" : "text-emerald-700",
           )}>
-            <Mail className="h-2.5 w-2.5" />
-            {out ? "Inviata" : "Risposta"}
+            {out ? "Tu" : automatica ? "Risposta automatica" : "Ha risposto"}
           </span>
+          {out && casella && <span className="truncate text-muted-foreground">da {casella}</span>}
           {/* Stato di consegna (solo inviate): dati reali da outreach_send_queue. */}
           {out && msg.delivery && <DeliveryBadge delivery={msg.delivery} />}
           {intentMeta && (
-            <Badge variant="outline" className={cn("px-1.5 py-0 text-[9px] font-medium normal-case", intentMeta.cls)}>{intentMeta.label}</Badge>
+            <Badge variant="outline" className={cn("px-1.5 py-0 text-[10px] font-medium", intentMeta.cls)}>{intentMeta.label}</Badge>
           )}
         </div>
         {showSubject && <div className="mb-1 text-sm font-semibold text-foreground">{msg.subject}</div>}
@@ -1542,7 +1365,7 @@ function ThreadBubble({ msg, showSubject }: { msg: ThreadMsg; showSubject: boole
           />
         ) : (
           // Risposte: testo/snippet grezzo → niente HTML non fidato.
-          <p className="whitespace-pre-wrap break-words text-sm text-foreground">{msg.body || "—"}</p>
+          <p className={cn("whitespace-pre-wrap break-words text-sm", automatica ? "text-muted-foreground" : "text-foreground")}>{msg.body || "—"}</p>
         )}
         <div className="mt-1.5 text-right text-[10px] tabular-nums text-muted-foreground">{fullTime(msg.at)}</div>
       </div>

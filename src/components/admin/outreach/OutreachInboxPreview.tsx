@@ -31,8 +31,10 @@ export function OutreachInboxPreview({
   const { conversations, counts, sendersById, isLoading, errored, tableMissing } =
     useOutreachConversations(companyId);
 
+  // Solo le risposte scritte da una persona, come «Da leggere» nella Posta:
+  // le automatiche («abbiamo ricevuto la tua richiesta») non sono da leggere.
   const unread = useMemo(
-    () => conversations.filter((c) => !c.archived && c.unread).slice(0, MAX),
+    () => conversations.filter((c) => !c.archived && !c.snoozedUntil && c.unread && c.tipo === "risposta").slice(0, MAX),
     [conversations],
   );
 
