@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { queryKeys } from "@/lib/queryKeys";
+import { emailSenzaOggettoOTesto } from "@/lib/flow-node-catalog";
 import type { AutomationFlow, AutomationNode, AutomationConnection } from "@/types/automationBuilder";
 
 interface BuilderState {
@@ -260,11 +261,7 @@ export function useAutomationBuilder(flowId: string | undefined) {
       if (n.node_type !== "action") continue;
       const config = getNodeConfig(n);
       const actionId = String(config.action_type ?? config.itemId ?? config.item_id ?? "");
-      if (actionId.includes("email")) {
-        const hasSubject = hasText(config.oggetto) || hasText(config.email_subject) || hasText(config.subject);
-        const hasBody = hasText(config.corpo) || hasText(config.email_body) || hasText(config.body) || hasText(config.html);
-        if (!hasSubject || !hasBody) emailIncompleta = true;
-      }
+      if (emailSenzaOggettoOTesto(actionId, config)) emailIncompleta = true;
       if (actionId.includes("sms")) {
         const hasMessage = hasText(config.testo) || hasText(config.sms_body) || hasText(config.message);
         if (!hasMessage) smsIncompleto = true;

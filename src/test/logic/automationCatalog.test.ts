@@ -11,7 +11,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { TRIGGER_CATALOG, ACTION_CATALOG, CONDITION_CATALOG, campiObbligatoriMancanti } from "@/lib/flow-node-catalog";
+import { TRIGGER_CATALOG, ACTION_CATALOG, CONDITION_CATALOG, campiObbligatoriMancanti, emailSenzaOggettoOTesto } from "@/lib/flow-node-catalog";
 import { FLOW_TEMPLATES } from "@/lib/flow-templates";
 
 const ROOT = join(__dirname, "../../..");
@@ -206,6 +206,35 @@ describe("coerenza catalogo ↔ executor ↔ emettitori", () => {
     // L'eccezione vale solo per l'email: le altre azioni restano severe.
     expect(campiObbligatoriMancanti("invia_whatsapp", { modello_id: "x" }).map((f) => f.id))
       .toEqual(["numero", "messaggio"]);
+  });
+
+  it("«Pubblica» accetta l'email con modello salvato, come la checklist", () => {
+    // Prima l'ultimo controllo di «Pubblica» chiedeva oggetto e corpo nel nodo:
+    // i flussi fatti coi modelli (nurturing, appuntamenti) non si potevano più
+    // ripubblicare dall'editor una volta rimessi in bozza.
+    expect(emailSenzaOggettoOTesto("invia_email", { oggetto: "Ciao", modello_id: "11111111-1111-1111-1111-111111111111" })).toBe(false);
+    expect(emailSenzaOggettoOTesto("invia_email", { modello_id: "11111111-1111-1111-1111-111111111111" })).toBe(false);
+    expect(emailSenzaOggettoOTesto("invia_email", { oggetto: "Ciao" })).toBe(true);
+    expect(emailSenzaOggettoOTesto("invia_email", { oggetto: "Ciao", corpo: "<p>Testo</p>" })).toBe(false);
+    // Nodi vecchi con i nomi inglesi: il motore li normalizza, restano validi.
+    expect(emailSenzaOggettoOTesto("invia_email", { email_subject: "Ciao", email_body: "Testo" })).toBe(false);
+    // Il modello salvato vale solo per invia_email; le azioni non email non c'entrano.
+    expect(emailSenzaOggettoOTesto("invia_email_admin_azienda", { modello_id: "x" })).toBe(true);
+    expect(emailSenzaOggettoOTesto("invia_whatsapp", {})).toBe(false);
+    // Stessa regola della checklist: dove una dice «completo», anche l'altra.
+    const conModello = { destinatario: "{{contatto.email}}", modello_id: "11111111-1111-1111-1111-111111111111" };
+    expect(campiObbligatoriMancanti("invia_email", conModello)).toEqual([]);
+    expect(emailSenzaOggettoOTesto("invia_email", conModello)).toBe(false);
+  });
+
+  it("le condizioni sull'opportunità non vedono le schede nel cestino", () => {
+    // «Ha già la scheda?» deve rispondere come «Sposta», che lavora solo fuori
+    // dal cestino: una scheda cestinata diceva sì, lo spostamento non trovava
+    // niente e chi prenotava restava senza scheda in «Demo Fissata».
+    const inizio = EXECUTOR.indexOf('prefix === "opportunita"');
+    const risolutore = EXECUTOR.slice(inizio, EXECUTOR.indexOf('prefix === "appuntamento"', inizio));
+    expect(inizio).toBeGreaterThan(-1);
+    expect(risolutore).toContain('.is("deleted_at", null)');
   });
 
   it("il modello salvato dell'email arriva fino al motore", () => {

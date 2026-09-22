@@ -1097,7 +1097,10 @@ async function executeCondition(supabase: any, cfg: Record<string, any>, entityI
       if (prefix === "contatto") {
         row = (await supabase.from("marketing_contacts").select("*").eq("id", entityId).eq("company_id", companyId).maybeSingle()).data;
       } else if (prefix === "opportunita") {
-        row = (await supabase.from("marketing_opportunities").select("*").eq("contact_id", entityId).eq("company_id", companyId).order("updated_at", { ascending: false }).limit(1).maybeSingle()).data;
+        // Fuori dal cestino, come per «Sposta» e «Crea o aggiorna». Il 22/09
+        // una scheda nel cestino rispondeva sì a «Ha già la scheda?»: lo
+        // spostamento non trovava niente e la prenotazione restava senza scheda.
+        row = (await supabase.from("marketing_opportunities").select("*").eq("contact_id", entityId).eq("company_id", companyId).is("deleted_at", null).order("updated_at", { ascending: false }).limit(1).maybeSingle()).data;
       } else if (prefix === "appuntamento") {
         row = (await supabase.from("appointments").select("*").eq("contact_id", entityId).eq("company_id", companyId).order("created_at", { ascending: false }).limit(1).maybeSingle()).data;
       } else if (prefix === "ordine") {

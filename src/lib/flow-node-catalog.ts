@@ -2444,6 +2444,22 @@ export function campiObbligatoriMancanti(
     .filter((f) => vuotoCampo(data?.[f.id]));
 }
 
+/**
+ * L'ultimo controllo di «Pubblica» (useAutomationBuilder): un'email senza
+ * oggetto o senza testo fallirebbe in esecuzione. Stessa eccezione di
+ * campiObbligatoriMancanti per il modello salvato: prima qui mancava, e un
+ * flusso che la checklist dava pronto veniva bocciato al clic su «Pubblica».
+ * Accetta anche gli alias inglesi dei nodi vecchi, che il motore normalizza.
+ */
+export function emailSenzaOggettoOTesto(itemId: string, data: Record<string, unknown> | undefined): boolean {
+  if (!itemId.includes("email")) return false;
+  if (itemId === "invia_email" && !vuotoCampo(data?.modello_id)) return false;
+  const pieno = (v: unknown) => !vuotoCampo(v);
+  const oggetto = pieno(data?.oggetto) || pieno(data?.email_subject) || pieno(data?.subject);
+  const testo = pieno(data?.corpo) || pieno(data?.email_body) || pieno(data?.body) || pieno(data?.html);
+  return !oggetto || !testo;
+}
+
 function vuotoCampo(v: unknown): boolean {
   if (Array.isArray(v)) return v.length === 0;
   return v == null || (typeof v === "string" && v.trim() === "");
