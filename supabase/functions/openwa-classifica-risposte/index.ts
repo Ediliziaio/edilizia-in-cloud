@@ -14,12 +14,9 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { requireAuth, requireRole } from "../_shared/auth.ts";
-import { aiRouterPrompt } from "../_shared/aiRouter.ts";
+import { classificaUnaRisposta } from "../_shared/openwa-classifica-una-risposta.ts";
 
-const PLATFORM_COMPANY_ID = "00000000-0000-0000-0000-000000000001";
 const PER_CHIAMATA = 25; // tetto per invocazione: l'utente ripreme se ce ne sono altre
-
-const ESITI_AI = new Set(["appuntamento", "da_ricontattare", "non_interessato"]);
 
 Deno.serve(async (req) => {
   const corsH = getCorsHeaders(req);
@@ -48,51 +45,13 @@ Deno.serve(async (req) => {
       .is("esito", null)
       .limit(PER_CHIAMATA);
 
-    const esito = { classificati: 0, senza_testo: 0, incerti: 0, restanti: 0 };
+    const risultato = { classificati: 0, senza_testo: 0, incerti: 0, restanti: 0 };
 
     for (const d of daFare ?? []) {
-      // Fino a 3 messaggi della persona: il primo "Ciao?" da solo dice poco.
-      const { data: msgs } = await admin
-        .from("openwa_messages")
-        .select("body")
-        .eq("contact_id", d.contact_id)
-        .eq("direction", "inbound")
-        .gte("created_at", d.primo_inviato_at ?? "1970-01-01")
-        .order("created_at", { ascending: true })
-        .limit(3);
-      const testi = (msgs ?? []).map((m: { body: string | null }) => m.body).filter(Boolean);
-      if (!testi.length) { esito.senza_testo++; continue; }
-
-      try {
-        const r = await aiRouterPrompt({
-          supabase: admin,
-          taskKey: "openwa_classifica_risposta",
-          companyId: PLATFORM_COMPANY_ID,
-          systemPrompt: [
-            "Classifichi la risposta di un'azienda a un primo contatto WhatsApp B2B.",
-            "Rispondi SOLO con una di queste parole:",
-            "- appuntamento: vuole parlare, chiede una chiamata/incontro, chiede quando",
-            "- da_ricontattare: interessato ma non ora, chiede materiale, risposta interlocutoria",
-            "- non_interessato: rifiuta, dice di no, chiede di non essere contattato",
-            "- incerto: non si capisce (un solo 'Ciao?', emoji, fuori tema)",
-            "Nessun'altra parola, nessuna spiegazione.",
-          ].join("\n"),
-          userPrompt: `Risposta del contatto:\n${testi.join("\n---\n")}`,
-        });
-        const parola = (r.content ?? "").trim().toLowerCase().replace(/[^a-z_]/g, "");
-        if (ESITI_AI.has(parola)) {
-          await admin.from("openwa_campagna_destinatari")
-            .update({ esito: parola, esito_at: new Date().toISOString() })
-            .eq("id", d.id)
-            .is("esito", null); // non sovrascrive una scelta umana nel frattempo
-          esito.classificati++;
-        } else {
-          esito.incerti++;
-        }
-      } catch (e) {
-        console.warn("[openwa-classifica] AI:", (e as Error)?.message);
-        esito.incerti++;
-      }
+      const esito = await classificaUnaRisposta(admin, d);
+      if (esito === "senza_testo") { risultato.senza_testo++; continue; }
+      if (esito === "incerto") { risultato.incerti++; continue; }
+      risultato.classificati++;
     }
 
     const { count } = await admin
@@ -101,9 +60,9 @@ Deno.serve(async (req) => {
       .eq("campagna_id", campagnaId)
       .eq("stato", "risposto")
       .is("esito", null);
-    esito.restanti = count ?? 0;
+    risultato.restanti = count ?? 0;
 
-    return new Response(JSON.stringify({ ok: true, ...esito }), { headers: jsonH });
+    return new Response(JSON.stringify({ ok: true, ...risultato }), { headers: jsonH });
   } catch (e) {
     if (e instanceof Response) return e;
     console.error("[openwa-classifica-risposte]", e);
