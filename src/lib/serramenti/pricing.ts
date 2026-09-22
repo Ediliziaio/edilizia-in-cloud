@@ -316,11 +316,13 @@ export function applyMaggiorazioniAssi(
       id: string;
       maggiorazione_tipo: "none" | "percentuale" | "fisso_pz" | "fisso_mq" | "fisso_ml" | "fisso_mc";
       maggiorazione_valore: number;
+      prezzo_vendita?: number | null;
     }>;
   }>,
   L: number | null,
   H: number | null,
   quantita: number,
+  modalitaPrezzoBase?: string | null,
 ): number {
   let pv = prezzoBaseTotale;
   const mq = L != null && H != null ? (L / 1000) * (H / 1000) * quantita : null;
@@ -329,12 +331,29 @@ export function applyMaggiorazioniAssi(
   // fisso_ml configurate sul listino vengano ignorate silenziosamente.
   const ml = L != null ? (L / 1000) * quantita : null;
 
+  // 0. Prezzo assoluto per-valore (Variabili Prodotto): un valore d'asse col
+  // proprio prezzo_vendita SOSTITUISCE il prezzo base invece di applicarci
+  // sopra una maggiorazione — stesso "prezzo proprio" di ordini/commesse
+  // (ArticleCombobox.variantPrice), qui attivo anche nel preventivatore. Non
+  // si applica in modalità "griglia" (il prezzo dipende dalla cella L×H).
+  const assiPrezzoAssoluto = new Set<string>();
+  if (modalitaPrezzoBase !== "griglia") {
+    for (const axis of axes) {
+      const valueId = selections[axis.codice];
+      if (!valueId) continue;
+      const val = axis.values.find((v) => v.id === valueId);
+      if (!val || val.prezzo_vendita == null || !(val.prezzo_vendita > 0)) continue;
+      pv = modalitaPrezzoBase === "mq" && mq != null ? val.prezzo_vendita * mq : val.prezzo_vendita * quantita;
+      assiPrezzoAssoluto.add(axis.codice);
+    }
+  }
+
   // 1. Prima le percentuali (si applicano in cascata sul prezzo corrente).
   for (const axis of axes) {
     const valueId = selections[axis.codice];
     if (!valueId) continue;
     const val = axis.values.find((v) => v.id === valueId);
-    if (!val || val.maggiorazione_tipo !== "percentuale") continue;
+    if (!val || assiPrezzoAssoluto.has(axis.codice) || val.maggiorazione_tipo !== "percentuale") continue;
     pv = pv * (1 + Number(val.maggiorazione_valore) / 100);
   }
 
@@ -343,7 +362,7 @@ export function applyMaggiorazioniAssi(
     const valueId = selections[axis.codice];
     if (!valueId) continue;
     const val = axis.values.find((v) => v.id === valueId);
-    if (!val || val.maggiorazione_tipo === "none" || val.maggiorazione_tipo === "percentuale") continue;
+    if (!val || assiPrezzoAssoluto.has(axis.codice) || val.maggiorazione_tipo === "none" || val.maggiorazione_tipo === "percentuale") continue;
     const valoreNum = Number(val.maggiorazione_valore);
     switch (val.maggiorazione_tipo) {
       case "fisso_pz":

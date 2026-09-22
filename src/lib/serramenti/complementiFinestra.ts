@@ -296,7 +296,7 @@ export function prezzoComplemento(opts: {
   if (calcolo.requiresSupplierLine || calcolo.missingSupplierLinePricing) {
     return { errore: `${famiglia.nome}: ${calcolo.note ?? "scegli la linea del fornitore"}`, motivo: "linea_fornitore" };
   }
-  const prodotto = applyMaggiorazioniAssi(calcolo.prezzo, opts.valori, opts.famiglia.axes, L, H, q);
+  const prodotto = applyMaggiorazioniAssi(calcolo.prezzo, opts.valori, opts.famiglia.axes, L, H, q, modalita);
   const posa = opts.posaEsclusa ? 0 : calcolaPosaInclusa(famiglia, q, opts.tariffePrezzi);
   return {
     unitario: Number(((prodotto + posa) / q).toFixed(2)),

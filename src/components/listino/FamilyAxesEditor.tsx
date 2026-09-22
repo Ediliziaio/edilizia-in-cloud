@@ -1847,8 +1847,9 @@ function ValueFormDialog({
               </div>
             </div>
             <p className="text-[11px] text-muted-foreground">
-              Il <strong>prezzo proprio</strong> lo usano ordini e commesse, quando la variante è un prodotto a sé.
-              Nei preventivi, serramenti compresi, conta la maggiorazione qui sotto.
+              Il <strong>prezzo proprio</strong> vale ovunque — ordini, commesse e preventivi (serramenti
+              compresi) — quando la variante è un prodotto a sé: sostituisce il prezzo base, non lo modifica.
+              Cambiarlo per questa variante non tocca le altre. Lasciato vuoto, conta la maggiorazione qui sotto.
             </p>
           </div>
 

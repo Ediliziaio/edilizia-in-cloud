@@ -203,6 +203,40 @@ export function calcolaPrezzoFamiglia(
     (a, b) => a.sort_order - b.sort_order,
   );
 
+  // 1.6. Prezzo assoluto per-valore (Variabili Prodotto): un valore d'asse col
+  // proprio prezzo_vendita/prezzo_acquisto SOSTITUISCE il prezzo base della
+  // famiglia invece di applicarci sopra una maggiorazione — lo stesso "prezzo
+  // proprio" già usato da ordini/commesse (ArticleCombobox.variantPrice), qui
+  // attivato anche per i preventivi: editare il prezzo di una variante (es.
+  // una marca/serie serramenti) non tocca più le altre. Non si applica in
+  // modalità "griglia": il prezzo dipende dalla cella L×H, un numero fisso
+  // per variante non la rappresenterebbe.
+  const assiPrezzoAssoluto = new Set<string>();
+  if (family.modalita_prezzo_base !== "griglia") {
+    for (const axis of axesSorted) {
+      const selectedValueId = selections[axis.codice];
+      if (!selectedValueId) continue;
+      const val = axis.values.find((v) => v.id === selectedValueId);
+      if (!val || val.prezzo_vendita == null || !(val.prezzo_vendita > 0)) continue;
+      const prev_pv = pv;
+      const prev_pa = pa;
+      const perMq = family.modalita_prezzo_base === "mq" && mq != null;
+      pv = perMq ? val.prezzo_vendita * mq : val.prezzo_vendita;
+      if (val.prezzo_acquisto != null && val.prezzo_acquisto > 0) {
+        pa = perMq ? val.prezzo_acquisto * mq : val.prezzo_acquisto;
+      }
+      assiPrezzoAssoluto.add(axis.codice);
+      maggiorazioni_applicate.push({
+        axis_codice: axis.codice,
+        value_valore: val.valore,
+        tipo: "prezzo_assoluto",
+        valore: val.prezzo_vendita,
+        delta_vendita: round2(pv - prev_pv),
+        delta_acquisto: round2(pa - prev_pa),
+      });
+    }
+  }
+
   // Prima tutte le percentuali
   for (const axis of axesSorted) {
     const selectedValueId = selections[axis.codice];
@@ -217,6 +251,7 @@ export function calcolaPrezzoFamiglia(
       warnings.push(`Valore non trovato per asse ${axis.nome}`);
       continue;
     }
+    if (assiPrezzoAssoluto.has(axis.codice)) continue;
     if (val.maggiorazione_tipo !== "percentuale") continue;
     const prev_pv = pv;
     const prev_pa = pa;
@@ -244,6 +279,7 @@ export function calcolaPrezzoFamiglia(
     ) {
       continue;
     }
+    if (assiPrezzoAssoluto.has(axis.codice)) continue;
     let dpv = 0;
     let dpa = 0;
     switch (val.maggiorazione_tipo) {

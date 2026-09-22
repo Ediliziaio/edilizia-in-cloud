@@ -1061,7 +1061,7 @@ export function SerramentoRow({
     // 2. Maggiorazioni assi (Variabili Prodotto) applicate sopra il prezzo
     //    base. Senza varianti caricate si arriva qui solo se la riga non ha scelte.
     const prezzoProdotto = familyWithAxes
-      ? applyMaggiorazioniAssi(result.prezzo, sels, familyWithAxes.axes, L, H, Qsafe)
+      ? applyMaggiorazioniAssi(result.prezzo, sels, familyWithAxes.axes, L, H, Qsafe, family.modalita_prezzo_base)
       : result.prezzo;
 
     // 3. Posa indipendente (tariffa cantiere, non scala con maggiorazioni).
