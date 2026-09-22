@@ -44,13 +44,13 @@ Deno.serve(async (req) => {
 
     const { data: interessate } = await admin
       .from("outreach_replies")
-      .select("id, contact_id, snippet")
+      .select("id, contact_id, snippet, brand_id")
       .eq("company_id", PLATFORM_COMPANY)
       .eq("intent", "interested")
       .not("contact_id", "is", null);
-    for (const r of (interessate ?? []) as Array<{ id: string; contact_id: string; snippet: string | null }>) {
+    for (const r of (interessate ?? []) as Array<{ id: string; contact_id: string; snippet: string | null; brand_id: string | null }>) {
       const id = await triggerOpportunityFromSignal(admin, {
-        channel: "email", contactId: r.contact_id, sourceRefTable: "outreach_replies", sourceRefId: r.id, snippet: r.snippet,
+        channel: "email", contactId: r.contact_id, sourceRefTable: "outreach_replies", sourceRefId: r.id, snippet: r.snippet, brandId: r.brand_id,
       });
       if (id) riepilogo.email_opportunita_create++; else riepilogo.email_gia_avevano++;
     }

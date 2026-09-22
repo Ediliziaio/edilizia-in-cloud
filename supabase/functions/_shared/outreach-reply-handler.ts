@@ -275,6 +275,7 @@ export async function handleInboundReply(admin: any, r: InboundReply): Promise<v
       sourceRefTable: "outreach_replies",
       sourceRefId: inserted!.id,
       snippet,
+      brandId, // pipeline OMONIMA del brand a cui ha risposto
     });
   }
 

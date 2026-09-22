@@ -40,6 +40,66 @@ export interface SegnaleOpportunita {
   sourceRefId: string;
   /** frammento del messaggio, per la nota dell'opportunità. */
   snippet?: string | null;
+  /**
+   * Il brand outreach a cui ha risposto (solo email): l'opportunità entra
+   * nella pipeline OMONIMA del brand (es. "Marketing Edile" → pipeline
+   * "Marketing Edile"). Senza brand, o se nessuna pipeline ha quel nome
+   * (es. WhatsApp Locale, o i brand senza pipeline dedicata), si ripiega
+   * sulla pipeline con `position` più basso.
+   */
+  brandId?: string | null;
+}
+
+/**
+ * Sceglie pipeline+stage per l'opportunità: la pipeline OMONIMA del brand se
+ * c'è (confronto sul nome, case-insensitive), altrimenti quella con `position`
+ * più basso. Lo stage è sempre quello con `position` più basso (l'ingresso).
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function risolviPipeline(admin: any, brandId: string | null | undefined): Promise<{ pipelineId: string; stageId: string } | null> {
+  let pipelineId: string | null = null;
+
+  if (brandId) {
+    const { data: brand } = await admin.from("outreach_brands").select("name").eq("id", brandId).maybeSingle();
+    if (brand?.name) {
+      const { data: p } = await admin
+        .from("marketing_pipelines")
+        .select("id")
+        .eq("company_id", PLATFORM_COMPANY)
+        .ilike("name", brand.name) // senza wildcard = uguaglianza case-insensitive
+        .limit(1)
+        .maybeSingle();
+      pipelineId = p?.id ?? null;
+    }
+  }
+
+  if (!pipelineId) {
+    const { data: p } = await admin
+      .from("marketing_pipelines")
+      .select("id")
+      .eq("company_id", PLATFORM_COMPANY)
+      .order("position", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    pipelineId = p?.id ?? null;
+  }
+  if (!pipelineId) {
+    console.warn("[outreach-opportunity-trigger] nessuna pipeline configurata per la piattaforma");
+    return null;
+  }
+
+  const { data: stage } = await admin
+    .from("marketing_pipeline_stages")
+    .select("id")
+    .eq("pipeline_id", pipelineId)
+    .order("position", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (!stage?.id) {
+    console.warn("[outreach-opportunity-trigger] la pipeline non ha stage");
+    return null;
+  }
+  return { pipelineId, stageId: stage.id };
 }
 
 /**
@@ -62,29 +122,8 @@ export async function triggerOpportunityFromSignal(admin: any, segnale: SegnaleO
       .maybeSingle();
     if (apertaGia?.id) return null;
 
-    const { data: pipeline } = await admin
-      .from("marketing_pipelines")
-      .select("id")
-      .eq("company_id", PLATFORM_COMPANY)
-      .order("position", { ascending: true })
-      .limit(1)
-      .maybeSingle();
-    if (!pipeline?.id) {
-      console.warn("[outreach-opportunity-trigger] nessuna pipeline configurata per la piattaforma");
-      return null;
-    }
-
-    const { data: stage } = await admin
-      .from("marketing_pipeline_stages")
-      .select("id")
-      .eq("pipeline_id", pipeline.id)
-      .order("position", { ascending: true })
-      .limit(1)
-      .maybeSingle();
-    if (!stage?.id) {
-      console.warn("[outreach-opportunity-trigger] la pipeline non ha stage");
-      return null;
-    }
+    const dest = await risolviPipeline(admin, segnale.brandId);
+    if (!dest) return null;
 
     const { data: contatto } = await admin
       .from("marketing_contacts")
@@ -99,8 +138,8 @@ export async function triggerOpportunityFromSignal(admin: any, segnale: SegnaleO
       .insert({
         company_id: PLATFORM_COMPANY,
         contact_id: segnale.contactId,
-        pipeline_id: pipeline.id,
-        stage_id: stage.id,
+        pipeline_id: dest.pipelineId,
+        stage_id: dest.stageId,
         name: `${nome} · risposta calda`,
         source: fonte,
         source_ref_table: segnale.sourceRefTable,
