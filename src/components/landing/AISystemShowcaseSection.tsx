@@ -281,7 +281,7 @@ function AiBrainMap() {
   return (
     <div
       onPointerMove={handlePointerMove}
-      className="group/brain relative h-[560px] overflow-hidden rounded-[28px] border border-white/10 bg-[#0a1222] shadow-2xl sm:h-[600px] lg:h-[640px] [--orbit-r:118px] sm:[--orbit-r:168px] lg:[--orbit-r:200px] [--silvio-size:88px] sm:[--silvio-size:104px] lg:[--silvio-size:116px]"
+      className="group/brain relative h-[560px] overflow-hidden rounded-[28px] border border-white/10 bg-[#0a1222] shadow-2xl sm:h-[600px] lg:h-[640px] [--orbit-r:118px] sm:[--orbit-r:168px] lg:[--orbit-r:200px] [--silvio-size:88px] sm:[--silvio-size:104px] lg:[--silvio-size:116px] [--silvio-etichetta:-9px] sm:[--silvio-etichetta:10px]"
       style={{
         ["--spot-x" as string]: "50%",
         ["--spot-y" as string]: "50%",
@@ -470,11 +470,14 @@ function AiBrainMap() {
             className="absolute left-0 top-0 max-w-none -translate-x-1/2 -translate-y-1/2 rounded-full ring-2 ring-orange-200/70 shadow-[0_0_60px_rgba(249,116,21,0.55)]"
             style={{ width: "var(--silvio-size)", height: "var(--silvio-size)" }}
           />
+          {/* Su telefono l'orbita è stretta (raggio 118 px) e i reparti, girando,
+              passavano sopra l'etichetta: lì è corta e appoggiata sul bordo
+              dell'avatar, dentro l'anello dove i reparti non arrivano. */}
           <div
-            className="absolute left-0 top-0 -translate-x-1/2 whitespace-nowrap rounded-full border border-orange-300/40 bg-[#0a1222]/90 px-3 py-1 backdrop-blur"
-            style={{ marginTop: "calc(var(--silvio-size) / 2 + 10px)" }}
+            className="absolute left-0 top-0 -translate-x-1/2 whitespace-nowrap rounded-full border border-orange-300/40 bg-[#0a1222]/90 px-2 py-0.5 backdrop-blur sm:px-3 sm:py-1"
+            style={{ marginTop: "calc(var(--silvio-size) / 2 + var(--silvio-etichetta))" }}
           >
-            <span className="text-[9px] font-black uppercase tracking-[0.18em] text-orange-200 sm:text-[10px]">Silvio · Regia AI</span>
+            <span className="text-[9px] font-black uppercase tracking-[0.14em] text-orange-200 sm:text-[10px] sm:tracking-[0.18em]"><span className="hidden sm:inline">Silvio · </span>Regia AI</span>
           </div>
         </div>
       </div>
@@ -570,7 +573,7 @@ function FieldIntelligenceVisual() {
                 { icon: FileText, title: "3. Genera rapportino e diario", text: "Crea il rapportino lavori, aggiorna il diario e archivia foto/documenti." },
                 { icon: MessageSquare, title: "4. Avvisa chi deve fare", text: "Promemoria a ufficio, collaboratori o squadra: materiale mancante, attività e prossima azione." },
               ].map((step, index) => (
-                <div key={step.title} className="group rounded-2xl border border-white/10 bg-white/[0.07] p-3 backdrop-blur transition hover:border-orange-300/35 hover:bg-white/[0.1]">
+                <div key={step.title} className="group relative rounded-2xl border border-white/10 bg-white/[0.07] p-3 backdrop-blur transition hover:border-orange-300/35 hover:bg-white/[0.1]">
                   <div className="flex gap-3">
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-orange-400/15 text-orange-300">
                       <step.icon className="h-5 w-5" />
@@ -580,7 +583,10 @@ function FieldIntelligenceVisual() {
                       <p className="mt-1 text-xs leading-5 text-white/62">{step.text}</p>
                     </div>
                   </div>
-                  {index < 3 && <div className="ml-5 mt-2 h-5 w-px bg-gradient-to-b from-orange-300/60 to-transparent" />}
+                  {/* Il filo che unisce i passaggi sta nello spazio FRA le schede,
+                      sotto il centro dell'icona: dentro la scheda sembrava un
+                      trattino dimenticato. */}
+                  {index < 3 && <div aria-hidden="true" className="pointer-events-none absolute left-[32px] top-full h-3 w-px bg-orange-300/50" />}
                 </div>
               ))}
             </div>
@@ -590,7 +596,7 @@ function FieldIntelligenceVisual() {
         <div className="flex flex-col justify-between rounded-[22px] border border-white/10 bg-white/[0.06] p-5 backdrop-blur md:rounded-[26px] md:p-6">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.18em] text-orange-300 md:text-sm md:tracking-[0.2em]">Dalla foto alla decisione</p>
-            <h3 className="mt-3 text-[2rem] font-black leading-[1.05] tracking-tight md:text-4xl">
+            <h3 className="mt-3 text-[2rem] font-black leading-[1.05] tracking-normal md:tracking-tight md:text-4xl">
               Ogni segnale del cantiere entra nella memoria operativa.
             </h3>
             <p className="mt-4 text-sm leading-7 text-white/70 md:text-base md:leading-8">
@@ -644,7 +650,7 @@ export default function AISystemShowcaseSection() {
             <Sparkles className="h-3.5 w-3.5" />
             Il sistema operativo AI dell'impresa edile
           </div>
-          <h2 className="mt-4 text-[1.9rem] font-black leading-[1.08] tracking-tight text-[#111111] sm:text-4xl md:text-5xl">
+          <h2 className="mt-4 text-[1.9rem] font-black leading-[1.08] tracking-normal md:tracking-tight text-[#111111] sm:text-4xl md:text-5xl">
             Non solo moduli. Una regia centrale che legge l'azienda e fa partire il lavoro.
           </h2>
           <p className="mt-5 hidden text-lg leading-8 text-gray-600 lg:block">
@@ -703,7 +709,7 @@ export default function AISystemShowcaseSection() {
           <div className="grid gap-8 lg:grid-cols-[0.82fr_1.18fr] lg:items-center">
             <div>
               <p className="text-xs font-black uppercase tracking-[0.18em] text-[#D95E0B] md:text-sm md:tracking-[0.2em]">AI che produce lavoro</p>
-              <h2 className="mt-3 text-[2rem] font-black leading-[1.05] tracking-tight text-[#111111] md:text-4xl">
+              <h2 className="mt-3 text-[2rem] font-black leading-[1.05] tracking-normal md:tracking-tight text-[#111111] md:text-4xl">
                 Dal computo metrico al preventivo, dal cantiere al rapportino.
               </h2>
               <p className="mt-4 text-sm leading-7 text-gray-600 md:text-base md:leading-8">
@@ -756,7 +762,7 @@ export default function AISystemShowcaseSection() {
         <div data-ai-reveal className="mt-12 md:mt-16">
           <div className="mx-auto max-w-3xl text-center">
             <p className="text-xs font-black uppercase tracking-[0.18em] text-[#D95E0B] md:text-sm md:tracking-[0.2em]">Per problemi reali, non per menu software</p>
-            <h2 className="mt-3 text-[2rem] font-black leading-[1.05] tracking-tight text-[#111111] md:text-4xl">
+            <h2 className="mt-3 text-[2rem] font-black leading-[1.05] tracking-normal md:tracking-tight text-[#111111] md:text-4xl">
               L'imprenditore non cerca moduli. Cerca risposte.
             </h2>
           </div>

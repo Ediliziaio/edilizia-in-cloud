@@ -103,7 +103,7 @@ function ModuleCard({ mod, delay, visible }: { mod: Module; delay: number; visib
   const color = CATEGORY_COLORS[mod.category] ?? "#F97415";
   return (
     <div
-      className={`group p-6 rounded-2xl bg-white border border-gray-100 shadow-sm hover:shadow-xl hover:-translate-y-1.5 transition-all duration-500 flex flex-col`}
+      className={`group flex gap-3.5 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm transition-all duration-500 hover:-translate-y-1.5 hover:shadow-xl sm:flex-col sm:gap-0 sm:p-6`}
       style={{
         borderTop: `4px solid ${color}`,
         opacity: visible ? 1 : 0,
@@ -112,14 +112,18 @@ function ModuleCard({ mod, delay, visible }: { mod: Module; delay: number; visib
       }}
     >
       <div
-        className="w-11 h-11 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300"
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-transform duration-300 group-hover:scale-110 sm:mb-4 sm:h-11 sm:w-11"
         style={{ backgroundColor: `${color}18` }}
       >
         <mod.icon size={22} style={{ color }} />
       </div>
-      <h3 className="text-[#111111] font-bold text-base mb-1.5">{mod.name}</h3>
-      <p className="text-gray-500 text-sm leading-relaxed flex-1 mb-3">{mod.desc}</p>
-      <p className="text-xs font-semibold mt-auto" style={{ color }}>{mod.saving}</p>
+      {/* Su telefono la scheda è una riga (icona a sinistra): alta la metà, e
+          i nove moduli iniziali non occupano più tre schermate. */}
+      <div className="flex min-w-0 flex-1 flex-col">
+        <h3 className="text-[#111111] font-bold text-base mb-1 sm:mb-1.5">{mod.name}</h3>
+        <p className="text-gray-500 text-sm leading-relaxed flex-1 mb-2 sm:mb-3">{mod.desc}</p>
+        <p className="text-xs font-semibold mt-auto" style={{ color }}>{mod.saving}</p>
+      </div>
     </div>
   );
 }
@@ -186,16 +190,18 @@ export default function ModulesSection() {
               key={area.name}
               type="button"
               onClick={() => setActiveTab(area.name === "Margini e cassa" ? "Finanziario" : area.name === "Vendite e clienti" ? "Marketing" : area.name === "Persone" ? "HR" : area.name === "Silvio AI" ? "AI" : area.name)}
-              className="group rounded-2xl border border-gray-100 bg-white p-4 text-left shadow-sm transition hover:-translate-y-1 hover:shadow-lg"
+              className="group flex items-start gap-3 rounded-2xl border border-gray-100 bg-white p-3.5 text-left shadow-sm transition hover:-translate-y-1 hover:shadow-lg sm:block sm:p-4"
             >
               <div
-                className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl transition group-hover:scale-105"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition group-hover:scale-105 sm:mb-3"
                 style={{ backgroundColor: `${area.color}18`, color: area.color }}
               >
                 <area.icon size={20} />
               </div>
-              <p className="font-extrabold text-[#111111]">{area.name}</p>
-              <p className="mt-1 text-xs leading-5 text-gray-500">{area.promise}</p>
+              <span className="block min-w-0">
+                <span className="block font-extrabold text-[#111111]">{area.name}</span>
+                <span className="mt-0.5 block text-xs leading-5 text-gray-500 sm:mt-1">{area.promise}</span>
+              </span>
             </button>
           ))}
         </div>
@@ -245,7 +251,7 @@ export default function ModulesSection() {
         </div>
 
         {/* Grid */}
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid gap-3 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3">
           {displayed.map((mod, i) => (
             <ModuleCard
               key={`${mod.category}-${mod.name}`}

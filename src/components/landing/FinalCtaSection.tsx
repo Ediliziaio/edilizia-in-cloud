@@ -136,7 +136,7 @@ export default function FinalCtaSection() {
               className="inline-flex items-center justify-center gap-2 px-6 md:px-8 py-3 md:py-4 rounded-xl border border-white/20 text-white font-bold text-base md:text-lg hover:border-white/40 hover:bg-white/5 hover:scale-105 transition-all duration-300"
             >
               <Phone className="w-5 h-5 text-[#F97415]" />
-              Oppure chiama: 350 178 0908
+              Oppure chiama: <span className="whitespace-nowrap">350 178 0908</span>
             </a>
           </div>
 

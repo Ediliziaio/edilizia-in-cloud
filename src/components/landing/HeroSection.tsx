@@ -286,7 +286,9 @@ export default function HeroSection() {
       </div>
 
       {/* Bottom gradient fade */}
-      <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-white to-transparent md:h-24" />
+      {/* Sfuma verso la sezione dei numeri che segue (#111111): verso il bianco
+          lasciava una fascia grigia fra due sezioni scure. */}
+      <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-[#111111] to-transparent md:h-24" />
     </section>
   );
 }

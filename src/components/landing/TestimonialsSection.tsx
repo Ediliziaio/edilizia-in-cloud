@@ -138,7 +138,7 @@ export default function TestimonialsSection() {
                 {badge.initials}
               </div>
               <div className="min-w-0">
-                <p className="text-white/90 font-semibold text-xs truncate">{badge.name}</p>
+                <p className="text-white/90 font-semibold text-xs leading-tight line-clamp-2">{badge.name}</p>
                 <p className="text-white/40 text-[10px]">{badge.city} · Cliente da {badge.months} mesi</p>
               </div>
             </div>
@@ -229,18 +229,26 @@ export default function TestimonialsSection() {
           </div>
 
           {/* Dot indicators */}
-          <div className="flex justify-center gap-2 mt-6">
+          {/* Il bottone è l'area da toccare (sul telefono la regola globale lo porta
+              a 44×44), il pallino è lo span dentro: prima il bottone stesso era il
+              pallino e su telefono diventava un disco arancione da 44 px. */}
+          <div className="flex justify-center gap-1 mt-6">
             {testimonials.map((_, i) => (
               <button
                 key={i}
                 onClick={() => scrollTo(i)}
-                className={`rounded-full transition-all duration-300 ${
-                  i === activeIndex
-                    ? "w-6 h-2 bg-[#F97415]"
-                    : "w-2 h-2 bg-white/20 hover:bg-white/40"
-                }`}
+                className="group flex h-8 min-w-8 items-center justify-center"
                 aria-label={`Vai alla testimonianza ${i + 1}`}
-              />
+                aria-current={i === activeIndex ? "true" : undefined}
+              >
+                <span
+                  className={`block rounded-full transition-all duration-300 ${
+                    i === activeIndex
+                      ? "w-6 h-2 bg-[#F97415]"
+                      : "w-2 h-2 bg-white/20 group-hover:bg-white/40"
+                  }`}
+                />
+              </button>
             ))}
           </div>
         </div>

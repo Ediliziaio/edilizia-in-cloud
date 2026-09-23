@@ -106,6 +106,14 @@ export default function PlatformMockup() {
       {/* Alone dietro alla finestra, come prima */}
       <div className="pointer-events-none absolute -inset-8 rounded-full bg-[#F97415]/15 blur-[80px] animate-pulse-glow" />
 
+      {/* Su telefono (sotto md) la finestra non si riflette più a 330 px — codici
+          spezzati su tre righe, margine tagliato, grafici alti mezzo schermo — ma
+          si disegna larga 620 px e si rimpicciolisce: una miniatura con le
+          proporzioni vere, tagliata in alto, con davanti il telefono. Da md in su
+          torna al suo posto, a grandezza piena. */}
+      <div className="relative h-[372px] md:h-auto">
+      <div className="absolute inset-x-0 top-0 h-[300px] overflow-hidden rounded-2xl md:static md:h-auto md:overflow-visible md:rounded-none">
+      <div className="w-[620px] origin-top-left scale-[0.53] md:w-auto md:scale-100">
       <div
         role="img"
         aria-label="La pagina Commesse di Edilizia in Cloud: ogni cantiere con stato, venduto, incassato e margine, e sotto i grafici di venduto, incassato e cassa prevista"
@@ -204,10 +212,10 @@ export default function PlatformMockup() {
                     <tr className="text-left text-[8.5px] uppercase tracking-wide" style={{ color: GRIGIO, background: "#FAFBFC" }}>
                       <th className="px-2.5 py-1.5 font-semibold">Codice</th>
                       <th className="px-2 py-1.5 font-semibold">Cliente</th>
-                      <th className="hidden px-2 py-1.5 font-semibold md:table-cell">Descrizione</th>
+                      <th className="hidden px-2 py-1.5 font-semibold lg:table-cell">Descrizione</th>
                       <th className="px-2 py-1.5 font-semibold">Stato</th>
                       <th className="px-2 py-1.5 text-right font-semibold">Imponibile</th>
-                      <th className="hidden px-2 py-1.5 text-right font-semibold md:table-cell">Incassato</th>
+                      <th className="hidden px-2 py-1.5 text-right font-semibold lg:table-cell">Incassato</th>
                       <th className="px-2.5 py-1.5 font-semibold">Margine</th>
                     </tr>
                   </thead>
@@ -216,12 +224,12 @@ export default function PlatformMockup() {
                       const basso = c.margine < 20;
                       return (
                         <tr key={c.codice} className="border-t" style={{ borderColor: BORDO, background: basso ? "#FFFBEB" : undefined }}>
-                          <td className="px-2.5 py-[6px] font-mono text-[9.5px] font-semibold" style={{ color: BLU }}>{c.codice}</td>
+                          <td className="whitespace-nowrap px-2.5 py-[6px] font-mono text-[9.5px] font-semibold" style={{ color: BLU }}>{c.codice}</td>
                           <td className="px-2 py-[6px] font-medium">{c.cliente}</td>
-                          <td className="hidden max-w-[150px] truncate px-2 py-[6px] md:table-cell" style={{ color: GRIGIO }}>{c.descrizione}</td>
+                          <td className="hidden max-w-[150px] truncate px-2 py-[6px] lg:table-cell" style={{ color: GRIGIO }}>{c.descrizione}</td>
                           <td className="px-2 py-[6px]">
                             <span
-                              className="inline-flex items-center gap-1 rounded-full border px-1.5 py-[1px] text-[8.5px] font-semibold"
+                              className="inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-1.5 py-[1px] text-[8.5px] font-semibold"
                               style={{ borderColor: c.colore, color: c.colore }}
                             >
                               {c.inCorso && <span className="eic-mock-pulse h-1.5 w-1.5 rounded-full" style={{ background: c.colore }} />}
@@ -229,7 +237,7 @@ export default function PlatformMockup() {
                             </span>
                           </td>
                           <td className="px-2 py-[6px] text-right tabular-nums">€ {c.imponibile}</td>
-                          <td className="hidden px-2 py-[6px] text-right tabular-nums md:table-cell" style={{ color: c.incassato === "—" ? GRIGIO : undefined }}>{c.incassato === "—" ? "—" : `€ ${c.incassato}`}</td>
+                          <td className="hidden px-2 py-[6px] text-right tabular-nums lg:table-cell" style={{ color: c.incassato === "—" ? GRIGIO : undefined }}>{c.incassato === "—" ? "—" : `€ ${c.incassato}`}</td>
                           <td className="px-2.5 py-[6px]">
                             <div className="flex items-center gap-1.5">
                               <span className="w-7 text-right font-semibold tabular-nums" style={{ color: basso ? "#B45309" : "#0F7A4D" }}>{c.margine}%</span>
@@ -318,6 +326,11 @@ export default function PlatformMockup() {
         </div>
       </div>
 
+      </div>
+      </div>
+      {/* Sfumatura sul taglio della miniatura, solo su telefono */}
+      <div className="pointer-events-none absolute inset-x-0 top-[240px] h-[60px] rounded-b-2xl bg-gradient-to-b from-transparent to-[#0B0F17]/70 md:hidden" />
+
       {/* ── Telefono: l'azienda in tasca. Non la home dell'operaio ma i numeri
           del titolare (dashboard mobile): cassa di oggi, da incassare, commesse
           attive, margine medio, le commesse in corso e l'avviso sul margine —
@@ -325,7 +338,7 @@ export default function PlatformMockup() {
           parte vuota della barra laterale, per non coprire tabella e grafici. ── */}
       <div
         aria-hidden="true"
-        className="absolute -bottom-12 -left-14 hidden w-[156px] -rotate-[6deg] overflow-hidden rounded-[22px] border-[5px] border-[#1F2A3D] bg-white shadow-2xl shadow-black/50 lg:block"
+        className="absolute right-1 top-[26px] w-[156px] origin-top-right rotate-[4deg] scale-[1.14] overflow-hidden rounded-[22px] border-[5px] border-[#1F2A3D] bg-white shadow-2xl shadow-black/50 md:-bottom-10 md:-left-6 md:right-auto md:top-auto md:origin-center md:-rotate-[6deg] md:scale-100 lg:-bottom-12 lg:-left-14"
         style={{ fontSize: 9.5, color: INCHIOSTRO }}
       >
         <div className="px-2.5 pb-3 pt-3.5" style={{ background: FONDO }}>
@@ -346,7 +359,7 @@ export default function PlatformMockup() {
             ].map((k) => (
               <div key={k.l} className="rounded-lg border bg-white px-1.5 py-1" style={{ borderColor: BORDO }}>
                 <p className="text-[7px] leading-tight" style={{ color: GRIGIO }}>{k.l}</p>
-                <p className="text-[10px] font-bold leading-tight tabular-nums" style={{ color: k.c }}>{k.v}</p>
+                <p className="whitespace-nowrap text-[10px] font-bold leading-tight tabular-nums" style={{ color: k.c }}>{k.v}</p>
               </div>
             ))}
           </div>
@@ -370,6 +383,7 @@ export default function PlatformMockup() {
             <AlertCircle size={9} className="shrink-0" /> Cappotto Ferrari sotto il margine minimo
           </div>
         </div>
+      </div>
       </div>
     </div>
   );

@@ -385,7 +385,7 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
                   {badge.initials}
                 </div>
                 <div className="min-w-0">
-                  <p className="text-[#111111] font-semibold text-xs truncate">{badge.name}</p>
+                  <p className="text-[#111111] font-semibold text-xs leading-tight line-clamp-2">{badge.name}</p>
                   <p className="text-gray-400 text-[10px]">{badge.city} · {badge.months} mesi</p>
                 </div>
               </div>

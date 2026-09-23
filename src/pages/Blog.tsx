@@ -61,11 +61,11 @@ function PostCard({ post, featured = false }: PostCardProps) {
             loading="eager"
             {...prioritaCaricamento("high")}
             sizes="(max-width: 768px) 100vw, 600px"
-            className="w-full h-72 md:h-full object-cover group-hover:scale-105 transition-transform duration-500"
+            className="w-full aspect-video md:aspect-auto md:h-full object-cover md:object-left group-hover:scale-105 transition-transform duration-500"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
         </div>
-        <div className="p-8 md:p-10 flex flex-col justify-center">
+        <div className="p-6 md:p-10 flex flex-col justify-center">
           <div className="flex items-center gap-3 mb-4">
             <span
               className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${colorClass}`}
@@ -83,9 +83,11 @@ function PostCard({ post, featured = false }: PostCardProps) {
             {post.excerpt}
           </p>
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3 text-sm text-gray-400">
-              <span>{post.author.name}</span>
-              <span>·</span>
+            {/* Su telefono autore, data e minuti andavano a capo in tre colonne
+                sfasate: lì restano data e minuti, su una riga. */}
+            <div className="flex items-center gap-2 whitespace-nowrap text-sm text-gray-400 sm:gap-3">
+              <span className="hidden sm:inline">{post.author.name}</span>
+              <span className="hidden sm:inline">·</span>
               <span>{formatDate(post.publishedAt)}</span>
               <span>·</span>
               <span className="flex items-center gap-1">
@@ -114,7 +116,9 @@ function PostCard({ post, featured = false }: PostCardProps) {
           sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 380px"
           className="w-full aspect-video object-cover group-hover:scale-105 transition-transform duration-500"
         />
-        <div className="absolute top-3 left-3">
+        {/* In alto a destra: a sinistra ogni copertina ha il logo stampato, e
+            l'etichetta ci finiva sopra. */}
+        <div className="absolute top-3 right-3">
           <span
             className={`inline-block px-3 py-1 rounded-full text-xs font-semibold shadow-sm ${colorClass}`}
           >
@@ -146,6 +150,9 @@ function PostCard({ post, featured = false }: PostCardProps) {
     </Link>
   );
 }
+
+/** Su telefono, articoli mostrati prima del «Mostra altri» (oltre all'articolo in evidenza). */
+const ARTICOLI_SU_TELEFONO = 12;
 
 export default function Blog() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -193,6 +200,7 @@ export default function Blog() {
   }, [activeCategory, searchQuery]);
 
   const [featured, ...rest] = filteredPosts;
+  const [tuttiSuTelefono, setTuttiSuTelefono] = useState(false);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -336,14 +344,33 @@ export default function Blog() {
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          <>
+          {/* Su telefono l'elenco completo erano oltre cento schede con la foto,
+              43.000 px da scorrere: si vedono i primi 12 e gli altri a richiesta.
+              Restano nell'HTML (solo nascosti), così i link agli articoli ci
+              sono sempre per chi indicizza. Da tablet in su si vede tutto. */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
             {/* Featured post full-width */}
             {featured && <PostCard post={featured} featured />}
             {/* Rest of posts */}
-            {rest.map((post) => (
-              <PostCard key={post.id} post={post} />
+            {rest.map((post, i) => (
+              <div key={post.id} className={!tuttiSuTelefono && i >= ARTICOLI_SU_TELEFONO ? "max-md:hidden contents" : "contents"}>
+                <PostCard post={post} />
+              </div>
             ))}
           </div>
+          {!tuttiSuTelefono && rest.length > ARTICOLI_SU_TELEFONO && (
+            <div className="mt-8 text-center md:hidden">
+              <button
+                type="button"
+                onClick={() => setTuttiSuTelefono(true)}
+                className="rounded-full border border-[#F97415] px-6 py-3 text-sm font-semibold text-[#C2410C] hover:bg-orange-50"
+              >
+                Mostra altri {rest.length - ARTICOLI_SU_TELEFONO} articoli
+              </button>
+            </div>
+          )}
+          </>
         )}
       </main>
 
