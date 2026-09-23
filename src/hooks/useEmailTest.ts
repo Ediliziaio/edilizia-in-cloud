@@ -57,7 +57,7 @@ function buildTestHtml(payload: EmailTestPayload): string | undefined {
     );
   }
   return wrapper(
-    "Notifica dalla piattaforma 🔔",
+    "Notifica dalla piattaforma",
     `<p style="font-size:14px;line-height:1.6;">Questa è un'anteprima di una notifica di sistema (es. scadenza documento, nuovo messaggio, promemoria appuntamento).</p>`,
   );
 }

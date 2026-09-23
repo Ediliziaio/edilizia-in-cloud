@@ -463,8 +463,8 @@ Deno.serve(async (req) => {
       // così l'oggetto dice subito da dove arriva il lead.
       const sitePrefix = siteLabel ? `[${siteLabel}] ` : "";
       const subjectLine = totalRequests > 1
-        ? `🔔 ${sitePrefix}Lead ricorrente (${totalRequests}ª richiesta): ${nome}`
-        : `🔔 ${sitePrefix}Nuovo lead sito: ${nome}`;
+        ? `${sitePrefix}Lead ricorrente (${totalRequests}ª richiesta): ${nome}`
+        : `${sitePrefix}Nuovo lead sito: ${nome}`;
       const ctxLabelEsc = contextLabel ? escapeHtml(contextLabel) : "";
       const html = `
         <div style="font-family:system-ui,-apple-system,sans-serif;color:#0f172a;max-width:560px;margin:auto">

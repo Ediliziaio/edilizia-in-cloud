@@ -167,7 +167,7 @@ function buildAlertMessages(input: AlertRequest, companyName: string): {
       };
     case "approval_request":
       return {
-        subject: `🔔 Approvazione richiesta — ${campName}`,
+        subject: `Approvazione richiesta — ${campName}`,
         bodyText: `Un operatore ha creato una nuova campagna che richiede la tua approvazione (budget ${amountStr}/giorno).\n\nCampagna: ${campName}\n\nApri il modulo Pubblicità per approvare o rifiutare.`,
         bodyHtml: `<p>Un operatore ha creato una nuova campagna che richiede la tua approvazione.</p><p><strong>${campName}</strong> · Budget ${amountStr}/giorno</p><p><a href="https://app.ediliziaincloud.com/azienda/marketing/pubblicita">Vai al modulo Pubblicità</a></p>`,
         whatsappText: `🔔 ${companyName}: nuova campagna "${campName}" (${amountStr}/g) attende la tua approvazione.`,
