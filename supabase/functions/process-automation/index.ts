@@ -2141,12 +2141,23 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
         // (dominio custom se verificato, altrimenti fallback mkt.*) e
         // scalano i crediti email dell'azienda come ogni invio marketing.
         // Niente pixel/unsubscribe: i destinatari sono il team, non i lead.
+        // Eccezione per le automazioni NOSTRE (22/09/2026): gli avvisi della
+        // piattaforma escono dal canale transazionale. Il motivo di cui sopra
+        // — non pesare sul canale e sulla reputazione di EiC — vale per le
+        // aziende clienti; per noi il costo e il dominio sono comunque i
+        // nostri, e mkt.ediliziaincloud.com (no-reply, nessun MX, pochi invii
+        // al giorno da Elastic) finiva in spam su Gmail, mentre gli altri
+        // avvisi della piattaforma, da notifiche.ediliziaincloud.it, arrivano.
+        const avvisoDiPiattaforma = companyId === OPENWA_PLATFORM_COMPANY_ID;
+        const canaleAvviso: "marketing" | "transactional" = avvisoDiPiattaforma ? "transactional" : "marketing";
         try {
-          const provider = await loadProviderSettings("marketing");
+          const provider = await loadProviderSettings(canaleAvviso);
           if (!provider.apiKey) {
-            return { success: false, error: "Provider email marketing non configurato" };
+            return { success: false, error: `Provider email ${canaleAvviso === "transactional" ? "transazionale" : "marketing"} non configurato` };
           }
-          const notifSender = await resolveSender(companyId, "marketing", supabase).catch(() => null);
+          const notifSender = avvisoDiPiattaforma
+            ? null
+            : await resolveSender(companyId, "marketing", supabase).catch(() => null);
 
           let deductedNotifCost = 0;
           try {
@@ -2198,22 +2209,25 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
             return `"${nome} via Edilizia in Cloud" <${indirizzo}>`;
           };
 
-          let r = await sendViaProviderWithFailover("marketing", provider, {
-            from: notifSender?.from ?? conNomeAzienda(provider.fromDefault),
+          let r = await sendViaProviderWithFailover(canaleAvviso, provider, {
+            // «Azienda via Edilizia in Cloud» serve a chi riceve il lead di un
+            // cliente; per i nostri avvisi diventerebbe «Edilizia in Cloud via
+            // Edilizia in Cloud», quindi si usa il mittente di piattaforma.
+            from: notifSender?.from ?? (avvisoDiPiattaforma ? provider.fromDefault : conNomeAzienda(provider.fromDefault)),
             replyTo: notifSender?.replyTo,
             to: recipients,
             subject: oggetto,
             html,
           }, {
             domain: notifSender?.domain ?? provider.domain ?? undefined,
-            stream: "marketing",
+            stream: canaleAvviso,
             disableNativeTracking: true,
             // Notifica operativa interna: classe transactional su Elastic Email
             // (niente footer unsubscribe bulk, consegna in inbox migliore),
             // pur restando sul provider/crediti marketing dell'azienda.
             elasticTransactionalClass: true,
           });
-          let streamUsato: "marketing" | "transactional" = "marketing";
+          let streamUsato: "marketing" | "transactional" = canaleAvviso;
           let ripiego: string | null = null;
           // Perché il provider marketing ha rifiutato, con le sue parole. Finisce
           // nel registro degli invii: è da lì che il controllo salute capisce che
@@ -2249,7 +2263,7 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
           // 3. Anche il provider marketing e' giu' (piano scaduto, account
           //    sospeso): la notifica esce dal transazionale. Costa a noi, ma e'
           //    l'unico modo perche' il lead non resti muto.
-          if (!r.ok) {
+          if (!r.ok && canaleAvviso !== "transactional") {
             try {
               const providerTx = await loadProviderSettings("transactional");
               if (providerTx.apiKey) {

@@ -227,6 +227,17 @@ describe("coerenza catalogo ↔ executor ↔ emettitori", () => {
     expect(emailSenzaOggettoOTesto("invia_email", conModello)).toBe(false);
   });
 
+  it("gli avvisi interni della piattaforma escono dal canale transazionale", () => {
+    // 23/09/2026: i «Nuovo lead» partivano da no-reply@mkt.ediliziaincloud.com
+    // (Elastic, dominio senza MX e con pochi invii al giorno) e Gmail li
+    // metteva in spam. Gli altri avvisi della piattaforma, da
+    // notifiche.ediliziaincloud.it, arrivano: gli avvisi nostri vanno di là.
+    // Per le aziende clienti non cambia niente: restano sul loro canale.
+    expect(EXECUTOR).toContain("const avvisoDiPiattaforma = companyId === OPENWA_PLATFORM_COMPANY_ID");
+    expect(EXECUTOR).toContain('avvisoDiPiattaforma ? "transactional" : "marketing"');
+    expect(EXECUTOR).toContain("sendViaProviderWithFailover(canaleAvviso, provider");
+  });
+
   it("le condizioni sull'opportunità non vedono le schede nel cestino", () => {
     // «Ha già la scheda?» deve rispondere come «Sposta», che lavora solo fuori
     // dal cestino: una scheda cestinata diceva sì, lo spostamento non trovava
