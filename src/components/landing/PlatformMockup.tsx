@@ -71,7 +71,7 @@ const MENU: Array<{ area: string; voci: Array<{ label: string; Icon: typeof Mail
 /* Colori degli stati ordine di default dell'app (Posa #DB2777, Completato #16A34A…). */
 const COMMESSE = [
   { codice: "VR-2026-014", cliente: "Rossi Marco", descrizione: "Ristrutturazione villa — Bergamo", stato: "Posa", colore: "#DB2777", imponibile: "86.500", incassato: "52.000", margine: 24, inCorso: true },
-  { codice: "CP-2026-027", cliente: "Ferrari Giulia", descrizione: "Cappotto villetta — Curno", stato: "In lavorazione", colore: "#2563EB", imponibile: "38.600", incassato: "19.300", margine: 19 },
+  { codice: "RB-2026-027", cliente: "Ferrari Giulia", descrizione: "Ristrutturazione bagno — Curno", stato: "In lavorazione", colore: "#2563EB", imponibile: "38.600", incassato: "19.300", margine: 19 },
   { codice: "MZ-2026-009", cliente: "Famiglia Mazzoleni", descrizione: "Rifacimento tetto — Alzano", stato: "In lavorazione", colore: "#2563EB", imponibile: "41.700", incassato: "20.000", margine: 25 },
   { codice: "PR-2026-088", cliente: "Bianchi Laura", descrizione: "Bagno e impianti — Seriate", stato: "Confermato", colore: "#D97706", imponibile: "18.900", incassato: "5.600", margine: 31 },
   { codice: "BG-2026-052", cliente: "Famiglia Carrara", descrizione: "Bagno e cucina — Nembro", stato: "Completato", colore: "#16A34A", imponibile: "22.400", incassato: "22.400", margine: 28 },
@@ -368,19 +368,19 @@ export default function PlatformMockup() {
           <div className="space-y-1">
             {[
               { n: "Villa Rossi", s: "Posa", c: "#DB2777", m: 24 },
-              { n: "Cappotto Ferrari", s: "In lavorazione", c: "#2563EB", m: 19 },
+              { n: "Ristrutturazione Bagno Ferrari", s: "In lavorazione", c: "#2563EB", m: 19 },
               { n: "Tetto Mazzoleni", s: "In lavorazione", c: "#2563EB", m: 25 },
             ].map((r) => (
               <div key={r.n} className="flex items-center gap-1.5 rounded-lg border bg-white px-1.5 py-1" style={{ borderColor: BORDO }}>
                 <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: r.c }} />
-                <span className="min-w-0 flex-1 truncate text-[8.5px] font-medium">{r.n}</span>
+                <span className="min-w-0 flex-1 text-[8.5px] font-medium leading-tight">{r.n}</span>
                 <span className="text-[8.5px] font-semibold tabular-nums" style={{ color: r.m < 20 ? "#B45309" : "#0F7A4D" }}>{r.m}%</span>
               </div>
             ))}
           </div>
 
           <div className="mt-2 flex items-center gap-1 rounded-lg border px-1.5 py-1 text-[7.5px] font-medium" style={{ borderColor: "#FDE68A", background: "#FFFBEB", color: "#92400E" }}>
-            <AlertCircle size={9} className="shrink-0" /> Cappotto Ferrari sotto il margine minimo
+            <AlertCircle size={9} className="shrink-0" /> <span className="leading-snug">Ristrutturazione Bagno Ferrari sotto il margine minimo</span>
           </div>
         </div>
       </div>

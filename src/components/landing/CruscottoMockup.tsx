@@ -16,7 +16,7 @@
  * cantieri in ritardo — con il colore sull'icona e sul filo a sinistra, e
  * sotto l'elenco «Da guardare oggi» con la gravità nel bordo sinistro, in
  * ordine di quanto costa non farlo. Dati finti ma coerenti con la tabella
- * Commesse del hero: stessa Demo Azienda 2, CP-2026-027 sotto il margine
+ * Commesse del hero: stessa Demo Azienda 2, RB-2026-027 sotto il margine
  * minimo, MZ-2026-009 oltre la data di fine.
  *
  * Markup puro, senza stato: identico fra prerender e client. L'unica
@@ -82,7 +82,7 @@ const NUMERI: Array<{ Icon: typeof Mail; etichetta: string; valore: string; tono
 const ATTENZIONI: Array<{ gravita: "urgente" | "attenzione"; titolo: string; dettaglio: string }> = [
   { gravita: "urgente", titolo: "2 pagamenti scaduti", dettaglio: "€ 12.600 che i clienti dovevano già averti pagato." },
   { gravita: "urgente", titolo: "1 cantiere ha superato la data di fine", dettaglio: "MZ-2026-009 · Rifacimento tetto — Alzano" },
-  { gravita: "attenzione", titolo: "1 cantiere aperto è sotto il margine minimo (20%)", dettaglio: "CP-2026-027 al 19,0%" },
+  { gravita: "attenzione", titolo: "1 cantiere aperto è sotto il margine minimo (20%)", dettaglio: "RB-2026-027 al 19,0%" },
   { gravita: "attenzione", titolo: "Fornitori da pagare a breve", dettaglio: "€ 8.400 in scadenza su € 21.300 di debito totale." },
 ];
 
