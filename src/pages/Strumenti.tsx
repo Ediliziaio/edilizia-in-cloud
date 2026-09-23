@@ -50,7 +50,7 @@ const STRUMENTI = [
 ] as const;
 
 const DESCRIZIONE =
-  "Calcolatori gratuiti per imprese edili: congruità della manodopera secondo il DM 143/2021, costo orario reale di un operaio, margine di commessa e ritenuta di garanzia. Nessuna registrazione, calcolo nel browser.";
+  "Calcolatori gratuiti per imprese edili, senza registrazione: congruità della manodopera (DM 143/2021), costo orario dell'operaio, margine e ritenuta.";
 
 export default function Strumenti() {
   useSEO({

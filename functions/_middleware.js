@@ -395,7 +395,7 @@ const ROUTES = {
   "/funzionalita": {
     title: "Funzionalità Gestionale Edilizia | Edilizia in Cloud",
     description:
-      "Tutte le funzionalità di Edilizia in Cloud: gestione cantieri, preventivi, fatturazione elettronica SDI, subappalti, HR, margini, app mobile cantiere, agenti AI.",
+      "Tutte le funzionalità di Edilizia in Cloud: cantieri, preventivi, fatturazione elettronica SDI, subappalti, HR, margini, app di cantiere e agenti AI.",
     h1: "Funzionalità di Edilizia in Cloud: tutto quello che serve alla tua impresa edile",
     intro:
       "Edilizia in Cloud offre 8 moduli integrati per gestire ogni aspetto dell'impresa edile italiana: gestione cantieri in tempo reale con app mobile, preventivi professionali con prezziari regionali, fatturazione elettronica SDI (B2B e FatturaPA), controllo margini per commessa, gestione subappalti con tracciamento DURC, DDT e bolle di consegna, HR con presenze geolocalizzate in cantiere e prima nota contabile. Ogni modulo è progettato per il settore edile italiano e funziona anche offline da smartphone.",
@@ -1533,7 +1533,7 @@ const ROUTES = {
   "/blog": {
     title: "Blog Edilizia | Guide per Imprese Edili",
     description:
-      "Guide pratiche su gestione cantieri, preventivi, fatturazione elettronica, subappalti e digitalizzazione per imprese edili italiane. Scritte da imprenditori edili.",
+      "Guide pratiche per imprese edili: gestione cantieri, preventivi, fatturazione elettronica, subappalti e digitalizzazione. Scritte da imprenditori edili.",
     h1: "Blog Edilizia in Cloud: guide pratiche per imprese edili italiane",
     intro:
       "Il blog di Edilizia in Cloud pubblica guide pratiche scritte da imprenditori edili per imprenditori edili. Articoli su gestione cantieri, preventivi professionali, fatturazione elettronica SDI, HR edile, subappalti, DURC, normativa e digitalizzazione. Ogni guida è pensata per essere applicata subito nella tua impresa.",
@@ -1580,7 +1580,7 @@ const ROUTES = {
   "/integrazioni": {
     title: "Integrazioni Software Edilizia | Edilizia in Cloud",
     description:
-      "Edilizia in Cloud si collega a Fatture in Cloud, Aruba e Fattura24, invia le fatture allo SDI, usa i prezzari regionali e lavora con WhatsApp, Gmail e Google Calendar.",
+      "Edilizia in Cloud si collega a Fatture in Cloud, Aruba e Fattura24, invia le fatture allo SDI e lavora con WhatsApp, Gmail e Google Calendar.",
     h1: "Integrazioni del gestionale per l'edilizia",
     intro:
       "Edilizia in Cloud si collega ai programmi che un'impresa edile usa già: invio delle fatture elettroniche allo SDI, import delle fatture da Fatture in Cloud e dagli altri programmi di fatturazione, prezzari regionali, computi da Primus, moduli di Facebook e Instagram, WhatsApp Business, posta e calendari. Qui sotto c'è cosa funziona oggi.",
@@ -3286,8 +3286,15 @@ export async function onRequest({ request, next, env, waitUntil }) {
   const keepSynthetic = pathname === "/" || pathname === "/funzionalita";
   if (!keepSynthetic) {
     try {
-      const assetUrl = new URL(`${pathname}/index.html`, url.origin);
-      const assetResp = await env.ASSETS.fetch(new Request(assetUrl, { headers: { accept: "text/html" } }));
+      const leggiAsset = (percorso) =>
+        env.ASSETS.fetch(new Request(new URL(percorso, url.origin), { headers: { accept: "text/html" } }));
+      let assetResp = await leggiAsset(`${pathname}/index.html`);
+      // /blog/index.html e /confronto/index.html cadono nelle regole
+      // «/blog/:slug → /blog/:slug/» di _redirects (lo slug è "index.html") e
+      // tornano un 301: fino al 23/09/2026 Googlebot riceveva per /blog/ e
+      // /confronto/ la pagina sintetica da 15 KB invece di quella vera. La
+      // cartella con la barra finale è ciò che riceve il browser.
+      if (!assetResp || !assetResp.ok) assetResp = await leggiAsset(`${pathname}/`);
       if (assetResp && assetResp.ok) {
         const body = await assetResp.text();
         const isRealPrerender =

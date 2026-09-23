@@ -70,7 +70,7 @@ const CATEGORY_COLORS: Record<string, string> = {
 export default function Integrazioni() {
   useSEO({
     title: "Integrazioni Gestionale Edilizia",
-    description: "Edilizia in Cloud si collega a Fatture in Cloud, Aruba e Fattura24, invia le fatture allo SDI, usa i prezzari regionali e lavora con WhatsApp, Gmail e Google Calendar.",
+    description: "Edilizia in Cloud si collega a Fatture in Cloud, Aruba e Fattura24, invia le fatture allo SDI e lavora con WhatsApp, Gmail e Google Calendar.",
     canonical: "/integrazioni",
     keywords: "integrazioni gestionale edilizia, gestionale edilizia fatture in cloud, software edilizia fatturazione elettronica, prezzari regionali software, whatsapp impresa edile, gestionale edilizia google calendar, webhook gestionale edilizia",
   });

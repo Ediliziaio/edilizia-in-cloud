@@ -5,7 +5,7 @@ const config: PerTipoConfig = {
   // SEO
   seoTitle: "Software Edilizia per Commercialisti",
   seoDescription:
-    "Gestionale per commercialisti che seguono clienti edili: cassetto fiscale SDI multi-cliente, F24 cassa edile pre-compilato, DURC tracciati e dashboard white-label.",
+    "Per commercialisti con clienti edili: cassetto fiscale SDI multi-cliente, F24 Cassa Edile precompilato, DURC tracciati e cruscotto white-label.",
   seoKeywords:
     "software commercialista edilizia, gestionale studio commercialista cantieri, contabilità edili, cassa edile commercialista, software fiscale edilizia, white label commercialista, multi-cliente edilizia, F24 cassa edile, DURC commercialista",
   seoCanonical: "/per/commercialista-edilizia",

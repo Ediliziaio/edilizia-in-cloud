@@ -508,7 +508,7 @@ export const blogPosts: BlogPost[] = [
     ],
     title: "Software Gestionale vs Excel",
     excerpt:
-      "Excel sembra gratis, ma quanto costa davvero a un'impresa edile? Tempo, errori e rischi: il confronto riga per riga e il calcolo per capire quando conviene passare.",
+      "Excel sembra gratis, ma quanto costa a un'impresa edile? Tempo, errori e rischi: il confronto riga per riga e quando conviene passare.",
     category: "Digitalizzazione",
     tags: ["excel edilizia", "software gestionale", "costi nascosti", "digitalizzazione", "gestionale vs excel", "migrare da excel", "ROI gestionale edile"],
     publishedAt: "2025-09-29",
@@ -2900,7 +2900,7 @@ export const blogPosts: BlogPost[] = [
       { q: "Chi deve scegliere il gestionale in un'impresa edile?", a: "Chi lo sceglie deve essere chi ne ha bisogno — di norma il titolare o il responsabile tecnico — ma la scelta va fatta coinvolgendo chi dovrà usarlo tutti i giorni: capocantiere e amministrazione. Un software scelto solo dall'alto e imposto in basso viene aggirato entro due mesi, e non con il sabotaggio: semplicemente le persone continuano a usare WhatsApp e i fogli, perché nessuno ha chiesto loro se funzionava." },
     ],
     title: "Come Scegliere il Software Gestionale per l'Edilizia",
-    excerpt: "Molti progetti di digitalizzazione in edilizia si arenano nel primo anno. Come scegliere il gestionale giusto: funzionalità indispensabili, criteri, costo reale su 3 anni.",
+    excerpt: "Molti progetti di digitalizzazione in edilizia si arenano nel primo anno. Come scegliere il gestionale giusto: funzionalità, criteri e costo su 3 anni.",
     category: "Digitalizzazione",
     tags: ["come scegliere software gestionale edilizia", "software edilizia confronto", "gestionale impresa edile criteri", "ERP edilizia valutazione", "migliore software cantieri", "costo gestionale edilizia", "software verticale edilizia", "prova gratuita gestionale"],
     publishedAt: "2026-02-17",
@@ -5717,7 +5717,7 @@ export const blogPosts: BlogPost[] = [
     ],
     title: "Migliori Gestionali per Imprese Edili 2026: Classifica",
     excerpt:
-      "La classifica 2026 per tipo di impresa: cloud verticali, ERP, software tecnici e app di cantiere in una tabella, con criteri dichiarati e senza prezzi che scadono.",
+      "La classifica 2026 per tipo di impresa: cloud verticali, ERP, software tecnici e app di cantiere in una tabella, con i criteri dichiarati.",
     category: "Digitalizzazione",
     tags: ["gestionale edilizia", "migliori gestionali", "software edilizia", "confronto software", "digitalizzazione"],
     publishedAt: "2026-06-11",
@@ -5816,7 +5816,7 @@ export const blogPosts: BlogPost[] = [
     ],
     title: "Quanto Costa un Gestionale per Impresa Edile? Prezzi 2026",
     excerpt:
-      "Dagli ERP alle licenze desktop ai gestionali cloud verticali: i range di prezzo 2026, i costi nascosti, il nodo delle licenze per utente e come calcolare il ritorno reale.",
+      "Dagli ERP alle licenze desktop ai gestionali cloud: i prezzi 2026, i costi nascosti, le licenze per utente e come calcolare il ritorno reale.",
     category: "Finanza",
     tags: ["prezzi gestionale", "costi software edilizia", "ROI", "budget impresa edile", "quanto costa gestionale edile", "licenze per utente", "canone vs licenza"],
     publishedAt: "2026-06-11",

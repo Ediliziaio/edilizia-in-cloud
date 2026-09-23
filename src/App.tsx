@@ -497,7 +497,9 @@ function GARouteTracker() {
     }
 
     // ViewContent sulle pagine ad alto intento (anche al primo caricamento).
-    const vc = PIXEL_VIEW_CONTENT_PAGES[location.pathname];
+    // Senza la barra finale: gli indirizzi canonici ce l'hanno ("/prezzi/") e
+    // la mappa no, così l'evento non partiva quasi mai.
+    const vc = PIXEL_VIEW_CONTENT_PAGES[location.pathname.replace(/\/+$/, "") || "/"];
     if (vc) trackPixel("ViewContent", { content_name: vc.name, content_category: vc.category });
   }, [location]);
   return null;

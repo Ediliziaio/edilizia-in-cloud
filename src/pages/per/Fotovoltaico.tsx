@@ -6,7 +6,7 @@ import PerTipoPageTemplate, { PerTipoConfig } from "@/components/landing/PerTipo
 
 const config: PerTipoConfig = {
   seoTitle: "Software per Installatori Fotovoltaico | Più Margini",
-  seoDescription: "Il gestionale per installatori fotovoltaico che controlla i margini per kWp in real-time, gestisce la cassa a 90 giorni, coordina le squadre su più cantieri e automatizza le pratiche GSE.",
+  seoDescription: "Il gestionale per installatori fotovoltaico: margini per kWp in tempo reale, cassa a 90 giorni, squadre su più cantieri e pratiche GSE automatiche.",
   seoKeywords: "software gestionale fotovoltaico, gestionale installatori pannelli solari, software pratiche GSE, gestionale energie rinnovabili, software impianti fotovoltaici, gestionale SAL fotovoltaico, software incentivi fotovoltaico, CACER software, pratiche ARERA fotovoltaico, allaccio rete gestore",
   seoCanonical: "/per/fotovoltaico",
 

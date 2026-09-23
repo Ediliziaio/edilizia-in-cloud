@@ -7,7 +7,7 @@ import PerTipoPageTemplate, { PerTipoConfig } from "@/components/landing/PerTipo
 const config: PerTipoConfig = {
   // SEO
   seoTitle: "Software per Serramentisti | Più Margini, Zero Caos",
-  seoDescription: "Il gestionale completo per serramentisti e installatori di infissi: margine reale per commessa, cassa a 90 giorni, ordini e pose senza errori, squadre organizzate — e preventivi su misura in 60 secondi.",
+  seoDescription: "Il gestionale per serramentisti e installatori di infissi: preventivi su misura in 60 secondi, margine per commessa, ordini e pose senza errori.",
   seoKeywords: "software serramentisti, gestionale infissi, preventivo finestre, margini serramenti, controllo di gestione serramentista, cassa serramentista, software installatori infissi, gestione ordini serramenti, listino fornitori serramenti, configuratore preventivi infissi, posa in opera, software porte finestre",
   seoCanonical: "/per/serramentisti",
 

@@ -59,6 +59,12 @@ import {
   PanelsTopLeft,
   PencilRuler,
   FileSearch,
+  DraftingCompass,
+  BrickWall,
+  Drill,
+  PanelTop,
+  Tractor,
+  Anvil,
 } from "lucide-react";
 // Logo navbar: versione 360w (8.5KB) invece di 1871w (103KB).
 // PageSpeed flaggava 98.6KB di savings stimati sull'asset originale.
@@ -167,6 +173,12 @@ const perChiColumns: MenuColumn[] = [
       { to: "/per/ristrutturatori", label: "Ristrutturatori", desc: "Ristrutturazione residenziale", icon: Hammer },
       { to: "/per/fotovoltaico", label: "Fotovoltaico", desc: "Installatori e EPC", icon: SunMedium },
       { to: "/per/serramentisti", label: "Serramentisti", desc: "Infissi e facciate", icon: Frame },
+      { to: "/per/geometri", label: "Geometri", desc: "Computi, SAL e direzione lavori", icon: DraftingCompass },
+      { to: "/per/muratori", label: "Muratori", desc: "Preventivi, ore e fatture", icon: BrickWall },
+      { to: "/per/installatori", label: "Installatori", desc: "Rapportino e fattura sul posto", icon: Drill },
+      { to: "/per/cartongessisti", label: "Cartongessisti", desc: "Preventivi al mq e SAL", icon: PanelTop },
+      { to: "/per/movimento-terra", label: "Movimento Terra", desc: "Mezzi, gasolio e noli", icon: Tractor },
+      { to: "/per/carpenteria-metallica", label: "Carpenteria Metallica", desc: "Officina e cantiere", icon: Anvil },
     ],
   },
 ];
@@ -175,6 +187,7 @@ const perChiSidebar: MenuColumn = {
   heading: "PARTNERSHIP",
   items: [
     { to: "/diventa-partner", label: "Diventa Partner", desc: "Programma referral imprese edili", icon: Trophy },
+    { to: "/per/commercialista-edilizia", label: "Commercialisti", desc: "Studi con clienti edili", icon: Calculator },
     { to: "/casi-studio", label: "Casi Studio", desc: "Storie di clienti reali", icon: BookMarked },
   ],
 };
@@ -304,6 +317,13 @@ export default function LandingNavbar() {
       isWhiteBg ? "text-[#111111]/70 hover:text-[#111111]" : "text-white/80 hover:text-white"
     } ${activeDropdown === key ? "!text-[#F97415]" : ""}`;
 
+  // I pannelli restano sempre nella pagina, nascosti finché non si aprono.
+  // Montati solo all'apertura, i loro ~70 link non esistevano nell'HTML che
+  // leggono Google e i crawler delle AI: pagine come /per/geometri/ o
+  // /funzionalita/render-piscine/ ricevevano un solo link interno in tutto il sito.
+  const pannello = (key: Exclude<DropdownKey, null>) =>
+    activeDropdown === key ? "hidden lg:block" : "hidden";
+
   const linkClass = (active: boolean) =>
     `text-sm font-medium transition-colors ${
       isWhiteBg ? "text-[#111111]/70 hover:text-[#111111]" : "text-white/80 hover:text-white"
@@ -351,6 +371,7 @@ export default function LandingNavbar() {
               onClick={() => setActiveDropdown(activeDropdown === "piattaforma" ? null : "piattaforma")}
               aria-expanded={activeDropdown === "piattaforma"}
               aria-haspopup="menu"
+              aria-controls="menu-piattaforma"
               className={triggerClass("piattaforma")}
             >
               Piattaforma
@@ -369,6 +390,7 @@ export default function LandingNavbar() {
               onClick={() => setActiveDropdown(activeDropdown === "perChi" ? null : "perChi")}
               aria-expanded={activeDropdown === "perChi"}
               aria-haspopup="menu"
+              aria-controls="menu-perChi"
               className={triggerClass("perChi")}
             >
               Per chi
@@ -387,6 +409,7 @@ export default function LandingNavbar() {
               onClick={() => setActiveDropdown(activeDropdown === "risorse" ? null : "risorse")}
               aria-expanded={activeDropdown === "risorse"}
               aria-haspopup="menu"
+              aria-controls="menu-risorse"
               className={triggerClass("risorse")}
             >
               Risorse
@@ -405,6 +428,7 @@ export default function LandingNavbar() {
               onClick={() => setActiveDropdown(activeDropdown === "confronto" ? null : "confronto")}
               aria-expanded={activeDropdown === "confronto"}
               aria-haspopup="menu"
+              aria-controls="menu-confronto"
               className={triggerClass("confronto")}
             >
               Confronto
@@ -416,7 +440,7 @@ export default function LandingNavbar() {
             </button>
 
             {/* PREZZI (single link) */}
-            <Link to="/prezzi/" className={linkClass(location.pathname === "/prezzi")}>
+            <Link to="/prezzi/" className={linkClass(location.pathname.replace(/\/$/, "") === "/prezzi")}>
               Piani
             </Link>
           </div>
@@ -456,162 +480,130 @@ export default function LandingNavbar() {
 
         {/* ─────────────────── DESKTOP MEGA-MENU PANELS ─────────────────── */}
         {/* Piattaforma — 4 cols + Render AI sidebar */}
-        {activeDropdown === "piattaforma" && (
-          <div
-            onMouseEnter={cancelClose}
-            onMouseLeave={scheduleClose}
-            className="hidden lg:block absolute top-full left-0 right-0 bg-white border-t border-gray-100 shadow-2xl"
-            role="menu"
-          >
-            <div className="max-w-7xl mx-auto px-6 py-8">
-              <div className="grid grid-cols-12 gap-8">
-                {/* 4 main columns */}
-                {piattaformaColumns.map((col) => (
-                  <div key={col.heading} className="col-span-2">
-                    <p className="text-[10px] font-bold tracking-widest text-[#111111]/50 mb-4">
-                      {col.heading}
-                    </p>
-                    <ul className="space-y-1">
-                      {col.items.map((item) => (
-                        <li key={`${col.heading}-${item.label}`}>
-                          <Link
-                            to={item.to}
-                            className="group flex items-start gap-2.5 rounded-lg px-2 py-2 -mx-2 hover:bg-[#F97415]/5 transition-colors"
-                          >
-                            <span className="mt-0.5 flex h-7 w-7 items-center justify-center rounded-md bg-gray-50 text-[#111111] group-hover:bg-[#F97415]/10 group-hover:text-[#F97415] transition-colors">
-                              <item.icon className="h-3.5 w-3.5" />
-                            </span>
-                            <span className="flex-1 min-w-0">
-                              <span className="flex items-center gap-1.5">
-                                <span className="text-[13px] font-semibold text-[#111111] leading-tight">
-                                  {item.label}
-                                </span>
-                                {item.badge && (
-                                  <span className="text-[9px] font-bold bg-[#F97415] text-white px-1.5 py-0.5 rounded-full leading-none">
-                                    {item.badge}
-                                  </span>
-                                )}
+        <div
+          onMouseEnter={cancelClose}
+          onMouseLeave={scheduleClose}
+          id="menu-piattaforma"
+          className={`${pannello("piattaforma")} absolute top-full left-0 right-0 bg-white border-t border-gray-100 shadow-2xl`}
+          role="menu"
+        >
+          <div className="max-w-7xl mx-auto px-6 py-8">
+            <div className="grid grid-cols-12 gap-8">
+              {/* 4 main columns */}
+              {piattaformaColumns.map((col) => (
+                <div key={col.heading} className="col-span-2">
+                  <p className="text-[10px] font-bold tracking-widest text-[#111111]/50 mb-4">
+                    {col.heading}
+                  </p>
+                  <ul className="space-y-1">
+                    {col.items.map((item) => (
+                      <li key={`${col.heading}-${item.label}`}>
+                        <Link
+                          to={item.to}
+                          className="group flex items-start gap-2.5 rounded-lg px-2 py-2 -mx-2 hover:bg-[#F97415]/5 transition-colors"
+                        >
+                          <span className="mt-0.5 flex h-7 w-7 items-center justify-center rounded-md bg-gray-50 text-[#111111] group-hover:bg-[#F97415]/10 group-hover:text-[#F97415] transition-colors">
+                            <item.icon className="h-3.5 w-3.5" />
+                          </span>
+                          <span className="flex-1 min-w-0">
+                            <span className="flex items-center gap-1.5">
+                              <span className="text-[13px] font-semibold text-[#111111] leading-tight">
+                                {item.label}
                               </span>
-                              {item.desc && (
-                                <span className="block text-[11px] text-[#111111]/55 mt-0.5 leading-tight">
-                                  {item.desc}
+                              {item.badge && (
+                                <span className="text-[9px] font-bold bg-[#F97415] text-white px-1.5 py-0.5 rounded-full leading-none">
+                                  {item.badge}
                                 </span>
                               )}
                             </span>
-                          </Link>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ))}
-
-                {/* Render AI sidebar */}
-                <div className="col-span-4 bg-gradient-to-br from-[#F97415]/5 to-[#F97415]/10 rounded-2xl p-5 border border-[#F97415]/10">
-                  <p className="text-[10px] font-bold tracking-widest text-[#F97415] mb-4 flex items-center gap-1.5">
-                    <Sparkles className="h-3 w-3" />
-                    {piattaformaSidebar.heading}
-                  </p>
-                  <p className="text-[12px] text-[#111111]/70 mb-4 leading-snug">
-                    Trasforma la foto del cliente in un prima/dopo realistico. Vendi di più, anche a distanza.
-                  </p>
-                  <ul className="grid grid-cols-2 gap-1">
-                    {piattaformaSidebar.items.map((item) => (
-                      <li key={item.label}>
-                        <Link
-                          to={item.to}
-                          className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-white transition-colors"
-                        >
-                          <item.icon className="h-3.5 w-3.5 text-[#F97415] flex-shrink-0" />
-                          <span className="text-[12px] font-medium text-[#111111] truncate">
-                            {item.label}
+                            {item.desc && (
+                              <span className="block text-[11px] text-[#111111]/55 mt-0.5 leading-tight">
+                                {item.desc}
+                              </span>
+                            )}
                           </span>
                         </Link>
                       </li>
                     ))}
                   </ul>
                 </div>
-              </div>
+              ))}
 
-              {/* Bottom CTA strip */}
-              <div className="mt-7 pt-5 border-t border-gray-100 flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-semibold text-[#111111]">
-                    Tutto il software edilizia in un unico posto.
-                  </p>
-                  <p className="text-xs text-[#111111]/55">
-                    51 funzionalità integrate. Setup in 48 ore. Cancelli quando vuoi.
-                  </p>
-                </div>
-                <Link
-                  to="/funzionalita/"
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#111111] text-white text-sm font-semibold hover:bg-[#F97415] transition-colors"
-                >
-                  Tutte le funzionalità
-                  <ArrowRight className="h-3.5 w-3.5" />
-                </Link>
+              {/* Render AI sidebar */}
+              <div className="col-span-4 bg-gradient-to-br from-[#F97415]/5 to-[#F97415]/10 rounded-2xl p-5 border border-[#F97415]/10">
+                <p className="text-[10px] font-bold tracking-widest text-[#F97415] mb-4 flex items-center gap-1.5">
+                  <Sparkles className="h-3 w-3" />
+                  {piattaformaSidebar.heading}
+                </p>
+                <p className="text-[12px] text-[#111111]/70 mb-4 leading-snug">
+                  Trasforma la foto del cliente in un prima/dopo realistico. Vendi di più, anche a distanza.
+                </p>
+                <ul className="grid grid-cols-2 gap-1">
+                  {piattaformaSidebar.items.map((item) => (
+                    <li key={item.label}>
+                      <Link
+                        to={item.to}
+                        className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-white transition-colors"
+                      >
+                        <item.icon className="h-3.5 w-3.5 text-[#F97415] flex-shrink-0" />
+                        <span className="text-[12px] font-medium text-[#111111] truncate">
+                          {item.label}
+                        </span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
               </div>
             </div>
+
+            {/* Bottom CTA strip */}
+            <div className="mt-7 pt-5 border-t border-gray-100 flex items-center justify-between">
+              <div>
+                <p className="text-sm font-semibold text-[#111111]">
+                  Tutto il software edilizia in un unico posto.
+                </p>
+                <p className="text-xs text-[#111111]/55">
+                  51 funzionalità integrate. Setup in 48 ore. Cancelli quando vuoi.
+                </p>
+              </div>
+              <Link
+                to="/funzionalita/"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#111111] text-white text-sm font-semibold hover:bg-[#F97415] transition-colors"
+              >
+                Tutte le funzionalità
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            </div>
           </div>
-        )}
+        </div>
 
         {/* Per chi — 2 cols + partnership sidebar */}
-        {activeDropdown === "perChi" && (
-          <div
-            onMouseEnter={cancelClose}
-            onMouseLeave={scheduleClose}
-            className="hidden lg:block absolute top-full left-0 right-0 bg-white border-t border-gray-100 shadow-2xl"
-            role="menu"
-          >
-            <div className="max-w-7xl mx-auto px-6 py-8">
-              <div className="grid grid-cols-12 gap-8">
-                {perChiColumns.map((col, idx) => (
-                  <div key={col.heading} className={idx === 0 ? "col-span-3" : "col-span-5"}>
-                    <p className="text-[10px] font-bold tracking-widest text-[#111111]/50 mb-4">
-                      {col.heading}
-                    </p>
-                    <ul className="space-y-1">
-                      {col.items.map((item) => (
-                        <li key={`${col.heading}-${item.label}`}>
-                          <Link
-                            to={item.to}
-                            className="group flex items-start gap-2.5 rounded-lg px-2 py-2 -mx-2 hover:bg-[#F97415]/5 transition-colors"
-                          >
-                            <span className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-md bg-gray-50 text-[#111111] group-hover:bg-[#F97415]/10 group-hover:text-[#F97415] transition-colors">
-                              <item.icon className="h-4 w-4" />
-                            </span>
-                            <span className="flex-1 min-w-0">
-                              <span className="block text-sm font-semibold text-[#111111] leading-tight">
-                                {item.label}
-                              </span>
-                              {item.desc && (
-                                <span className="block text-[12px] text-[#111111]/55 mt-0.5 leading-tight">
-                                  {item.desc}
-                                </span>
-                              )}
-                            </span>
-                          </Link>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ))}
-
-                {/* Partnership sidebar */}
-                <div className="col-span-4 bg-gray-50 rounded-2xl p-5 border border-gray-100">
-                  <p className="text-[10px] font-bold tracking-widest text-[#111111]/60 mb-4">
-                    {perChiSidebar.heading}
+        <div
+          onMouseEnter={cancelClose}
+          onMouseLeave={scheduleClose}
+          id="menu-perChi"
+          className={`${pannello("perChi")} absolute top-full left-0 right-0 bg-white border-t border-gray-100 shadow-2xl`}
+          role="menu"
+        >
+          <div className="max-w-7xl mx-auto px-6 py-8">
+            <div className="grid grid-cols-12 gap-8">
+              {perChiColumns.map((col, idx) => (
+                <div key={col.heading} className={idx === 0 ? "col-span-3" : "col-span-5"}>
+                  <p className="text-[10px] font-bold tracking-widest text-[#111111]/50 mb-4">
+                    {col.heading}
                   </p>
-                  <ul className="space-y-2">
-                    {perChiSidebar.items.map((item) => (
-                      <li key={item.label}>
+                  {/* I settori sono undici: su due colonne il pannello resta basso. */}
+                  <ul className={idx === 0 ? "space-y-1" : "grid grid-cols-2 gap-x-4 gap-y-1"}>
+                    {col.items.map((item) => (
+                      <li key={`${col.heading}-${item.label}`}>
                         <Link
                           to={item.to}
-                          className="group flex items-start gap-2.5 rounded-lg p-2 hover:bg-white transition-colors"
+                          className="group flex items-start gap-2.5 rounded-lg px-2 py-2 -mx-2 hover:bg-[#F97415]/5 transition-colors"
                         >
-                          <span className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-md bg-white text-[#111111] group-hover:text-[#F97415]">
+                          <span className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-md bg-gray-50 text-[#111111] group-hover:bg-[#F97415]/10 group-hover:text-[#F97415] transition-colors">
                             <item.icon className="h-4 w-4" />
                           </span>
-                          <span className="flex-1">
+                          <span className="flex-1 min-w-0">
                             <span className="block text-sm font-semibold text-[#111111] leading-tight">
                               {item.label}
                             </span>
@@ -626,159 +618,188 @@ export default function LandingNavbar() {
                     ))}
                   </ul>
                 </div>
-              </div>
+              ))}
 
-              {/* Bottom CTA strip */}
-              <div className="mt-7 pt-5 border-t border-gray-100 flex items-center justify-between">
-                <p className="text-sm font-semibold text-[#111111]">
-                  Scelto da 150+ imprese edili italiane.
+              {/* Partnership sidebar */}
+              <div className="col-span-4 bg-gray-50 rounded-2xl p-5 border border-gray-100">
+                <p className="text-[10px] font-bold tracking-widest text-[#111111]/60 mb-4">
+                  {perChiSidebar.heading}
                 </p>
+                <ul className="space-y-2">
+                  {perChiSidebar.items.map((item) => (
+                    <li key={item.label}>
+                      <Link
+                        to={item.to}
+                        className="group flex items-start gap-2.5 rounded-lg p-2 hover:bg-white transition-colors"
+                      >
+                        <span className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-md bg-white text-[#111111] group-hover:text-[#F97415]">
+                          <item.icon className="h-4 w-4" />
+                        </span>
+                        <span className="flex-1">
+                          <span className="block text-sm font-semibold text-[#111111] leading-tight">
+                            {item.label}
+                          </span>
+                          {item.desc && (
+                            <span className="block text-[12px] text-[#111111]/55 mt-0.5 leading-tight">
+                              {item.desc}
+                            </span>
+                          )}
+                        </span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+
+            {/* Bottom CTA strip */}
+            <div className="mt-7 pt-5 border-t border-gray-100 flex items-center justify-between">
+              <p className="text-sm font-semibold text-[#111111]">
+                Scelto da 150+ imprese edili italiane.
+              </p>
+              <Link
+                to="/casi-studio/"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#111111] text-white text-sm font-semibold hover:bg-[#F97415] transition-colors"
+              >
+                Leggi le storie dei nostri clienti
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            </div>
+          </div>
+        </div>
+
+        {/* Risorse — 3 cols + newsletter sidebar */}
+        <div
+          onMouseEnter={cancelClose}
+          onMouseLeave={scheduleClose}
+          id="menu-risorse"
+          className={`${pannello("risorse")} absolute top-full left-0 right-0 bg-white border-t border-gray-100 shadow-2xl`}
+          role="menu"
+        >
+          <div className="max-w-7xl mx-auto px-6 py-8">
+            <div className="grid grid-cols-12 gap-8">
+              {risorseColumns.map((col) => (
+                <div key={col.heading} className="col-span-3">
+                  <p className="text-[10px] font-bold tracking-widest text-[#111111]/50 mb-4">
+                    {col.heading}
+                  </p>
+                  <ul className="space-y-1">
+                    {col.items.map((item) => (
+                      <li key={`${col.heading}-${item.label}`}>
+                        <Link
+                          to={item.to}
+                          className="group flex items-start gap-2.5 rounded-lg px-2 py-2 -mx-2 hover:bg-[#F97415]/5 transition-colors"
+                        >
+                          <span className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-md bg-gray-50 text-[#111111] group-hover:bg-[#F97415]/10 group-hover:text-[#F97415] transition-colors">
+                            <item.icon className="h-4 w-4" />
+                          </span>
+                          <span className="flex-1 min-w-0">
+                            <span className="block text-sm font-semibold text-[#111111] leading-tight">
+                              {item.label}
+                            </span>
+                            {item.desc && (
+                              <span className="block text-[12px] text-[#111111]/55 mt-0.5 leading-tight">
+                                {item.desc}
+                              </span>
+                            )}
+                          </span>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+
+              {/* Newsletter card */}
+              <div className="col-span-3 bg-[#FFF4EC] rounded-2xl p-5 border border-[#F97415]/15 flex flex-col">
+                <div className="flex-1">
+                  <div className="text-3xl font-black text-[#111111] leading-none mb-1">
+                    COSE
+                  </div>
+                  <div className="text-[10px] font-bold tracking-widest text-[#F97415] mb-4">
+                    DI EDILIZIA IN CLOUD
+                  </div>
+                  <p className="text-sm font-bold text-[#111111] mb-2 leading-snug">
+                    Cosa fanno le migliori imprese edili in Italia?
+                  </p>
+                  <p className="text-[12px] text-[#111111]/65 leading-snug mb-4">
+                    Ogni 2 settimane riceverai benchmark, casi reali e novità normative dal mondo edilizia.
+                  </p>
+                </div>
                 <Link
-                  to="/casi-studio/"
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#111111] text-white text-sm font-semibold hover:bg-[#F97415] transition-colors"
+                  to="/blog/"
+                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-full bg-white border border-[#111111]/10 text-sm font-semibold text-[#111111] hover:border-[#F97415] hover:text-[#F97415] transition-colors"
                 >
-                  Leggi le storie dei nostri clienti
+                  Iscriviti
                   <ArrowRight className="h-3.5 w-3.5" />
                 </Link>
               </div>
             </div>
           </div>
-        )}
-
-        {/* Risorse — 3 cols + newsletter sidebar */}
-        {activeDropdown === "risorse" && (
-          <div
-            onMouseEnter={cancelClose}
-            onMouseLeave={scheduleClose}
-            className="hidden lg:block absolute top-full left-0 right-0 bg-white border-t border-gray-100 shadow-2xl"
-            role="menu"
-          >
-            <div className="max-w-7xl mx-auto px-6 py-8">
-              <div className="grid grid-cols-12 gap-8">
-                {risorseColumns.map((col) => (
-                  <div key={col.heading} className="col-span-3">
-                    <p className="text-[10px] font-bold tracking-widest text-[#111111]/50 mb-4">
-                      {col.heading}
-                    </p>
-                    <ul className="space-y-1">
-                      {col.items.map((item) => (
-                        <li key={`${col.heading}-${item.label}`}>
-                          <Link
-                            to={item.to}
-                            className="group flex items-start gap-2.5 rounded-lg px-2 py-2 -mx-2 hover:bg-[#F97415]/5 transition-colors"
-                          >
-                            <span className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-md bg-gray-50 text-[#111111] group-hover:bg-[#F97415]/10 group-hover:text-[#F97415] transition-colors">
-                              <item.icon className="h-4 w-4" />
-                            </span>
-                            <span className="flex-1 min-w-0">
-                              <span className="block text-sm font-semibold text-[#111111] leading-tight">
-                                {item.label}
-                              </span>
-                              {item.desc && (
-                                <span className="block text-[12px] text-[#111111]/55 mt-0.5 leading-tight">
-                                  {item.desc}
-                                </span>
-                              )}
-                            </span>
-                          </Link>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ))}
-
-                {/* Newsletter card */}
-                <div className="col-span-3 bg-[#FFF4EC] rounded-2xl p-5 border border-[#F97415]/15 flex flex-col">
-                  <div className="flex-1">
-                    <div className="text-3xl font-black text-[#111111] leading-none mb-1">
-                      COSE
-                    </div>
-                    <div className="text-[10px] font-bold tracking-widest text-[#F97415] mb-4">
-                      DI EDILIZIA IN CLOUD
-                    </div>
-                    <p className="text-sm font-bold text-[#111111] mb-2 leading-snug">
-                      Cosa fanno le migliori imprese edili in Italia?
-                    </p>
-                    <p className="text-[12px] text-[#111111]/65 leading-snug mb-4">
-                      Ogni 2 settimane riceverai benchmark, casi reali e novità normative dal mondo edilizia.
-                    </p>
-                  </div>
-                  <Link
-                    to="/blog/"
-                    className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-full bg-white border border-[#111111]/10 text-sm font-semibold text-[#111111] hover:border-[#F97415] hover:text-[#F97415] transition-colors"
-                  >
-                    Iscriviti
-                    <ArrowRight className="h-3.5 w-3.5" />
-                  </Link>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+        </div>
 
         {/* Confronto — 1 column */}
-        {activeDropdown === "confronto" && (
-          <div
-            onMouseEnter={cancelClose}
-            onMouseLeave={scheduleClose}
-            className="hidden lg:block absolute top-full left-0 right-0 bg-white border-t border-gray-100 shadow-2xl"
-            role="menu"
-          >
-            <div className="max-w-7xl mx-auto px-6 py-8">
-              <div className="grid grid-cols-12 gap-8">
-                {confrontoColumns.map((col) => (
-                  <div key={col.heading} className="col-span-7">
-                    <p className="text-[10px] font-bold tracking-widest text-[#111111]/50 mb-4">
-                      {col.heading}
-                    </p>
-                    <ul className="grid grid-cols-2 gap-1">
-                      {col.items.map((item) => (
-                        <li key={`${col.heading}-${item.label}`}>
-                          <Link
-                            to={item.to}
-                            className="group flex items-start gap-2.5 rounded-lg px-2 py-2 -mx-2 hover:bg-[#F97415]/5 transition-colors"
-                          >
-                            <span className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-md bg-gray-50 text-[#111111] group-hover:bg-[#F97415]/10 group-hover:text-[#F97415] transition-colors">
-                              <item.icon className="h-4 w-4" />
+        <div
+          onMouseEnter={cancelClose}
+          onMouseLeave={scheduleClose}
+          id="menu-confronto"
+          className={`${pannello("confronto")} absolute top-full left-0 right-0 bg-white border-t border-gray-100 shadow-2xl`}
+          role="menu"
+        >
+          <div className="max-w-7xl mx-auto px-6 py-8">
+            <div className="grid grid-cols-12 gap-8">
+              {confrontoColumns.map((col) => (
+                <div key={col.heading} className="col-span-7">
+                  <p className="text-[10px] font-bold tracking-widest text-[#111111]/50 mb-4">
+                    {col.heading}
+                  </p>
+                  <ul className="grid grid-cols-2 gap-1">
+                    {col.items.map((item) => (
+                      <li key={`${col.heading}-${item.label}`}>
+                        <Link
+                          to={item.to}
+                          className="group flex items-start gap-2.5 rounded-lg px-2 py-2 -mx-2 hover:bg-[#F97415]/5 transition-colors"
+                        >
+                          <span className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-md bg-gray-50 text-[#111111] group-hover:bg-[#F97415]/10 group-hover:text-[#F97415] transition-colors">
+                            <item.icon className="h-4 w-4" />
+                          </span>
+                          <span className="flex-1 min-w-0">
+                            <span className="block text-sm font-semibold text-[#111111] leading-tight">
+                              {item.label}
                             </span>
-                            <span className="flex-1 min-w-0">
-                              <span className="block text-sm font-semibold text-[#111111] leading-tight">
-                                {item.label}
+                            {item.desc && (
+                              <span className="block text-[12px] text-[#111111]/55 mt-0.5 leading-tight">
+                                {item.desc}
                               </span>
-                              {item.desc && (
-                                <span className="block text-[12px] text-[#111111]/55 mt-0.5 leading-tight">
-                                  {item.desc}
-                                </span>
-                              )}
-                            </span>
-                          </Link>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ))}
-
-                <div className="col-span-5 bg-gray-50 rounded-2xl p-5 border border-gray-100 flex flex-col justify-between">
-                  <div>
-                    <p className="text-sm font-bold text-[#111111] mb-2 leading-snug">
-                      Pensi di passare da un altro software?
-                    </p>
-                    <p className="text-[12px] text-[#111111]/65 leading-snug mb-4">
-                      Migrazione gratuita assistita: importiamo cantieri, anagrafiche, fatture e archivio storico. Setup in 48 ore.
-                    </p>
-                  </div>
-                  <Link
-                    to="/pianifica-migrazione/"
-                    className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-full bg-[#F97415] text-white text-sm font-semibold hover:bg-[#C94F06] transition-colors"
-                  >
-                    Pianifica la migrazione
-                    <ArrowRight className="h-3.5 w-3.5" />
-                  </Link>
+                            )}
+                          </span>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
+              ))}
+
+              <div className="col-span-5 bg-gray-50 rounded-2xl p-5 border border-gray-100 flex flex-col justify-between">
+                <div>
+                  <p className="text-sm font-bold text-[#111111] mb-2 leading-snug">
+                    Pensi di passare da un altro software?
+                  </p>
+                  <p className="text-[12px] text-[#111111]/65 leading-snug mb-4">
+                    Migrazione gratuita assistita: importiamo cantieri, anagrafiche, fatture e archivio storico. Setup in 48 ore.
+                  </p>
+                </div>
+                <Link
+                  to="/pianifica-migrazione/"
+                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-full bg-[#F97415] text-white text-sm font-semibold hover:bg-[#C94F06] transition-colors"
+                >
+                  Pianifica la migrazione
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
               </div>
             </div>
           </div>
-        )}
+        </div>
       </nav>
 
       {/* Backdrop while a dropdown is open */}

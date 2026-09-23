@@ -32,7 +32,7 @@ export default function CalcoloCostoOrario() {
       slug="calcolo-costo-orario-operaio"
       title="Calcolo costo orario reale di un operaio edile"
       seoTitle="Calcolo Costo Orario Operaio Edile — Calcolatore Gratuito"
-      seoDescription="Calcola il costo orario aziendale reale di un operaio edile: retribuzione, contributi, Cassa Edile, TFR e ore realmente produttive. Il numero da usare nei preventivi, non la paga oraria."
+      seoDescription="Calcola il costo orario reale di un operaio edile: retribuzione, contributi, Cassa Edile, TFR e ore produttive. Il numero da usare nei preventivi."
       sottotitolo="Il costo vero di un'ora di lavoro non è la paga in busta: è il costo annuo pieno diviso le ore realmente produttive. Preventivare sul numero sbagliato è il modo più comune per firmare lavori in perdita."
       guida={{
         titolo: "Contabilità di cantiere: la guida completa",

@@ -418,6 +418,16 @@ async function main() {
         // pagina preparata è una <section aria-live> vuota, che durante l'avvio
         // si sommerebbe a quella vera di React (src/lib/paginaPreparata.ts).
         html = html.replace(/<section aria-label="Notifications[^"]*"[^>]*>[\s\S]*?<\/section>/, "");
+        // Cloudflare (Scrape Shield → Email Address Obfuscation) riscrive ogni
+        // email dell'HTML: i mailto diventano link a /cdn-cgi/l/email-protection
+        // — un 404 per Googlebot, su 246 pagine il 23/09/2026 — e il testo
+        // diventa «[email protected]», che è ciò che leggono i crawler delle AI
+        // (non eseguono lo script che lo decodifica). Gli indirizzi sono
+        // pubblici e React li mostra comunque: dentro questi due commenti
+        // Cloudflare li lascia come sono.
+        html = html
+          .replace(/(<body\b[^>]*>)/i, "$1<!--email_off-->")
+          .replace(/<\/body>/i, "<!--/email_off--></body>");
         html = html.replace(
           "</head>",
           `  <meta name="x-prerendered" content="${new Date().toISOString()}">\n  </head>`,
