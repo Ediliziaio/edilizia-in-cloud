@@ -217,9 +217,12 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
   const { motivi: motiviPerdita } = useLossReasons();
   // Il motivo che risulta scritto adesso: prima quello appena scelto, poi
   // quello salvato (lost_reason e la vecchia loss_reason delle importazioni).
+  // La scheda si monta anche senza opportunità (nessuna card aperta): il
+  // «return null» sta più sotto, quindi qui si legge col punto interrogativo.
+  // Senza, la pagina Opportunità andava in errore appena aperta (23/09/2026).
   const motivoPerditaScritto = [
-    etichettaMotivo(lostCategory || opportunity.lost_reason_category || "", motiviPerdita),
-    lostReason || opportunity.lost_reason || opportunity.loss_reason || "",
+    etichettaMotivo(lostCategory || opportunity?.lost_reason_category || "", motiviPerdita),
+    lostReason || opportunity?.lost_reason || opportunity?.loss_reason || "",
   ].filter(Boolean).join(" — ");
 
   // Change contact state
