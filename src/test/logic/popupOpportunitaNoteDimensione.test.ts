@@ -5,11 +5,13 @@
  * stato specchiato dentro la sezione Note, perché 11.330 opportunità importate
  * da GHL sembravano senza note. Restavano però due riquadri per la stessa cosa.
  *
- * 23/09/2026, il titolare: «avere due note non va bene per niente». Adesso la
- * nota è una: il registro con data e autore (marketing_contact_notes). Quello
- * che i flussi automatici scrivono nel campo della scheda — moduli, lead Meta,
- * import, risposte del freddo — ci finisce da solo, spostato dal trigger
- * nota_scheda_nel_registro, e il campo resta vuoto.
+ * 23/09/2026, il titolare: «avere due note non va bene per niente». Adesso il
+ * posto è uno: gli «Appunti», ognuno con data e autore
+ * (marketing_contact_notes). Quello che i flussi automatici scrivono nel campo
+ * della scheda — moduli, lead Meta, import, risposte del freddo — ci finisce da
+ * solo, spostato dal trigger nota_scheda_nel_registro, e il campo resta vuoto.
+ * Si chiamano «Appunti» e non «Registro note»: il «Registro attività» è la
+ * linguetta accanto, e due registri nella stessa scheda confondevano.
  */
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -29,12 +31,17 @@ describe("altezza del pop-up", () => {
   });
 });
 
-describe("una nota sola", () => {
-  it("nella sezione Note c'è solo il registro", () => {
-    expect(sezioneNote).toContain("Registro note");
+describe("un posto solo: gli Appunti", () => {
+  it("la sezione si chiama Appunti, e non ha più il riquadro della scheda", () => {
+    expect(sezioneNote).toContain('<span className="text-xs font-medium">Appunti</span>');
     expect(sezioneNote).toContain("handleAddNote");
     expect(sezioneNote).not.toContain("Nota dell'opportunità");
     expect(sezioneNote).not.toContain("oppNotes");
+  });
+
+  it("«Registro» resta al registro attività, non agli appunti", () => {
+    expect(sorgente).toContain('label: "Registro attività"');
+    expect(sorgente).not.toContain("Registro note");
   });
 
   it("nei Dettagli non si scrive più nel campo della scheda", () => {
@@ -45,25 +52,25 @@ describe("una nota sola", () => {
     expect(salvataggio).not.toMatch(/\bnotes:/);
   });
 
-  it("dai Dettagli si vede l'ultima nota del registro, e un clic porta a tutte", () => {
+  it("dai Dettagli si vede l'ultimo appunto, e un clic porta a tutti", () => {
     expect(sorgente).toContain('onClick={() => setTab("notes")}');
-    expect(sorgente).toContain("Registro note: {notes.length}");
-    expect(sorgente).toContain("Nessuna nota · <span className=\"text-primary\">scrivine una</span>");
+    expect(sorgente).toContain("Appunti: {notes.length}");
+    expect(sorgente).toContain("Nessun appunto · <span className=\"text-primary\">scrivine uno</span>");
   });
 
-  it("la voce laterale conta le note del registro", () => {
+  it("la voce laterale conta gli appunti", () => {
     expect(sorgente).toContain("const totaleNote = notes.length;");
-    expect(sorgente).toContain("label: totaleNote ? `Note (${totaleNote})` : \"Note\"");
+    expect(sorgente).toContain("label: totaleNote ? `Appunti (${totaleNote})` : \"Appunti\"");
   });
 });
 
-describe("il testo scritto nel campo della scheda finisce nel registro", () => {
+describe("il testo scritto nel campo della scheda diventa un appunto", () => {
   it("il trigger scatta su inserimento e modifica, solo quando c'è del testo", () => {
     expect(migrazione).toContain("after insert or update of notes on public.marketing_opportunities");
     expect(migrazione).toContain("when (coalesce(btrim(new.notes), '') <> '')");
   });
 
-  it("scrive la nota nel registro e svuota il campo", () => {
+  it("scrive l'appunto e svuota il campo", () => {
     expect(migrazione).toContain("insert into public.marketing_contact_notes");
     expect(migrazione).toContain("update public.marketing_opportunities set notes = null where id = new.id;");
   });

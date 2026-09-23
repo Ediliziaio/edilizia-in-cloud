@@ -584,7 +584,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
   const handleAddNote = () => {
     if (!newNote.trim()) return;
     if (!canEditOpportunity) {
-      toast.error("Non hai i permessi per aggiungere note");
+      toast.error("Non hai i permessi per aggiungere appunti");
       return;
     }
     addNote.mutate({ opportunityId: opportunity.id, contactId: opportunity.contact_id, content: newNote.trim() }, { onSuccess: () => setNewNote("") });
@@ -650,7 +650,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
     { key: "appointments", label: "Prenota/aggiorna appuntamento", mobileLabel: "Appuntamento", icon: <CalendarDays className="h-4 w-4" />, enabled: true },
     { key: "registro", label: "Registro attività", mobileLabel: "Registro", icon: <History className="h-4 w-4" />, enabled: true },
     { key: "activities", label: "Attività", icon: <Activity className="h-4 w-4" />, enabled: true },
-    { key: "notes", label: totaleNote ? `Note (${totaleNote})` : "Note", icon: <StickyNote className="h-4 w-4" />, enabled: true },
+    { key: "notes", label: totaleNote ? `Appunti (${totaleNote})` : "Appunti", icon: <StickyNote className="h-4 w-4" />, enabled: true },
     { key: "documents", label: "Documenti", icon: <Folder className="h-4 w-4" />, enabled: true },
     { key: "quotes", label: "Preventivi", icon: <FileText className="h-4 w-4" />, enabled: true },
   ];
@@ -695,7 +695,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                 })()}
               </div>
               <DialogDescription className="hidden sm:block text-xs text-muted-foreground mt-0.5">
-                Aggiorna dettagli, attività, note e appuntamenti dell'opportunità.
+                Aggiorna dettagli, attività, appunti e appuntamenti dell'opportunità.
               </DialogDescription>
             </div>
             {/* Trigger rapidi contatto: chiama (centralino) · email · whatsapp */}
@@ -1156,12 +1156,13 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                       </div>
 
                       <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">Note</Label>
-                        {/* Una nota sola (23/09/2026): il registro della sezione
-                            «Note». Qui se ne vede l'ultima e un clic porta a
-                            tutte. Anche quello che scrivono i flussi automatici
+                        <Label className="text-xs text-muted-foreground">Appunti</Label>
+                        {/* Un posto solo (23/09/2026): gli appunti della sezione
+                            «Appunti». Qui se ne vede l'ultimo e un clic porta a
+                            tutti. Anche quello che scrivono i flussi automatici
                             nel campo della scheda finisce lì, spostato dal
-                            trigger nota_scheda_nel_registro. */}
+                            trigger nota_scheda_nel_registro. «Registro» resta
+                            al registro attività, che è un'altra cosa. */}
                         {ultimaNotaRegistro ? (
                           <button
                             type="button"
@@ -1169,15 +1170,15 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                             className="block w-full text-left text-[11px] text-muted-foreground hover:text-primary transition-colors"
                           >
                             <span className="font-medium">
-                              Registro note: {notes.length} {notes.length === 1 ? "nota" : "note"}
+                              Appunti: {notes.length}
                             </span>
-                            {" · ultima del "}
+                            {" · l'ultimo del "}
                             {format(new Date(ultimaNotaRegistro.created_at), "d MMM yyyy", { locale: it })}
                             {": "}
                             <span className="italic">
                               «{String(ultimaNotaRegistro.content ?? "").slice(0, 90)}{String(ultimaNotaRegistro.content ?? "").length > 90 ? "…" : ""}»
                             </span>
-                            <span className="text-primary"> · vedi tutte</span>
+                            <span className="text-primary"> · vedi tutti</span>
                           </button>
                         ) : (
                           <button
@@ -1185,7 +1186,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                             onClick={() => setTab("notes")}
                             className="block w-full text-left text-[11px] text-muted-foreground hover:text-primary transition-colors"
                           >
-                            Nessuna nota · <span className="text-primary">scrivine una</span>
+                            Nessun appunto · <span className="text-primary">scrivine uno</span>
                           </button>
                         )}
                       </div>
@@ -1385,18 +1386,21 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
 
               {tab === "notes" && (
                 <div className="space-y-4">
-                  {/* Una nota sola (23/09/2026, il titolare: «avere due note non
-                      va bene per niente»). C'era anche il campo «Note» della
-                      scheda, riempito dai flussi automatici: adesso quel testo
-                      diventa una nota del registro (trigger
-                      nota_scheda_nel_registro), quindi qui c'è tutto. */}
+                  {/* Un posto solo (23/09/2026, il titolare: «avere due note
+                      non va bene per niente»). C'era anche il campo «Note»
+                      della scheda, riempito dai flussi automatici: adesso quel
+                      testo diventa un appunto (trigger
+                      nota_scheda_nel_registro), quindi qui c'è tutto. Si
+                      chiamano «Appunti» perché accanto c'è già il registro
+                      delle attività: due registri nella stessa scheda
+                      confondevano. */}
                   <div className="flex items-center gap-2 pt-1">
-                    <span className="text-xs font-medium">Registro note</span>
-                    <span className="text-[11px] text-muted-foreground">ogni nota con data e autore</span>
+                    <span className="text-xs font-medium">Appunti</span>
+                    <span className="text-[11px] text-muted-foreground">ognuno con data e autore</span>
                   </div>
                   <div className="flex gap-2">
                     <Textarea
-                      placeholder="Scrivi una nota..."
+                      placeholder="Scrivi un appunto..."
                       value={newNote}
                       onChange={(e) => setNewNote(e.target.value)}
                       rows={2}
@@ -1416,7 +1420,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                   </div>
                   <Separator />
                   {notes.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-6">Nessuna nota nel registro</p>
+                    <p className="text-sm text-muted-foreground text-center py-6">Nessun appunto</p>
                   ) : (
                     <div className="space-y-3">
                       {notes.map((note: any) => (

@@ -184,7 +184,7 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
       badge: tags.length > 0 ? tags.length : null,
       mobileVisible: false,
     },
-    { icon: StickyNote, tooltip: opportunity.notes_count > 0 ? `Note (${opportunity.notes_count})` : "Note", action: (e: React.MouseEvent) => { stopProp(e); onOpenTab?.("notes"); }, badge: opportunity.notes_count > 0 ? opportunity.notes_count : null, mobileVisible: true },
+    { icon: StickyNote, tooltip: opportunity.notes_count > 0 ? `Appunti (${opportunity.notes_count})` : "Appunti", action: (e: React.MouseEvent) => { stopProp(e); onOpenTab?.("notes"); }, badge: opportunity.notes_count > 0 ? opportunity.notes_count : null, mobileVisible: true },
     { icon: Calendar, tooltip: opportunity.next_appointment ? "Appuntamento programmato" : "Calendario", action: (e: React.MouseEvent) => { stopProp(e); onOpenTab?.("appointments"); }, badge: opportunity.next_appointment ? 1 : null, mobileVisible: true },
     { icon: Folder, tooltip: opportunity.documents_count > 0 ? `Documenti (${opportunity.documents_count})` : "Documenti", action: (e: React.MouseEvent) => { stopProp(e); onOpenTab?.("documents"); }, badge: opportunity.documents_count > 0 ? opportunity.documents_count : null, mobileVisible: false },
     canEdit ? { icon: Trash2, tooltip: "Elimina", action: handleDeleteClick, mobileVisible: false } : null,
