@@ -1319,6 +1319,23 @@ function queueSafeId(cfg: Record<string, any>, queueItem?: any): string {
 // ── Helpers per azioni di PIATTAFORMA ──
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/**
+ * A che cosa resta attaccata un'attività creata da un flusso: al contatto, o
+ * all'opportunità/commessa/ticket/costo che l'ha fatto partire.
+ */
+function collegamentiDelFlusso(entityType: string | null | undefined, entityId: unknown) {
+  const id = UUID_RE.test(String(entityId)) ? String(entityId) : null;
+  const tipo = entityType || "contact";
+  return {
+    contact_id: id && tipo === "contact" ? id : null,
+    opportunity_id: id && tipo === "opportunity" ? id : null,
+    order_id: id && tipo === "order" ? id : null,
+    ticket_id: id && tipo === "ticket" ? id : null,
+    cost_id: id && tipo === "cost" ? id : null,
+  };
+}
+
+
 /** Esegue una promise best-effort ingoiando qualsiasi errore (rollback/side-effects). */
 async function swallow(p: Promise<unknown>): Promise<void> {
   try { await p; } catch { /* ignore */ }
@@ -1958,12 +1975,13 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
         assigned_to: await resolveTaskAssignee(supabase, ncfg.task_assigned_to, entityId, companyId, queueItem?.flow_id),
         due_date: dueDate,
         status: "da_fare",
-        // Collega il task al contatto del flusso: prima il task nasceva
-        // "orfano" e non compariva nella timeline del contatto. Guard UUID:
-        // le entity dei trigger cron sono stringhe sintetiche ("cron:...").
-        contact_id: (!queueItem?.entity_type || queueItem?.entity_type === "contact") && UUID_RE.test(String(entityId))
-          ? entityId
-          : null,
+        // Collega il task a CIÒ CHE HA FATTO PARTIRE IL FLUSSO: prima il task
+        // nasceva "orfano" e non compariva da nessuna parte, e un flusso
+        // partito da un'opportunità o da una commessa non lasciava traccia
+        // nella scheda. Guard UUID: le entity dei trigger cron sono stringhe
+        // sintetiche ("cron:..."). Il contatto dell'opportunità lo aggiunge il
+        // database (trigger trg_attivita_contatto_dell_opportunita).
+        ...collegamentiDelFlusso(queueItem?.entity_type, entityId),
         created_by: "00000000-0000-0000-0000-000000000000",
       });
       if (error) return { success: false, error: error.message };

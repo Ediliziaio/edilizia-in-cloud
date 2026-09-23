@@ -373,7 +373,9 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
         .limit(100);
       return data || [];
     },
-    enabled: open && !!companyId && (category === "contatti" || category === "marketing" || !!contactId),
+    // Il collegamento si può mettere a QUALUNQUE attività: anche una nata
+    // dall'aggiunta rapida, che non ha categoria.
+    enabled: open && !!companyId,
   });
 
   const { data: opportunities = [] } = useQuery({
@@ -389,7 +391,7 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
         .limit(100);
       return data || [];
     },
-    enabled: open && !!companyId && (category === "opportunita" || category === "marketing" || !!opportunityId),
+    enabled: open && !!companyId,
   });
 
   const handleSave = async () => {
@@ -931,9 +933,8 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
             </div>
           )}
 
-          {(category === "contatti" || category === "marketing" || !!contactId) && (
-            <div className="space-y-2">
-              <Label>Contatto collegato</Label>
+          <div className="space-y-2">
+            <Label>Contatto collegato</Label>
               <Select value={contactId} onValueChange={setContactId}>
                 <SelectTrigger><SelectValue placeholder="Seleziona contatto" /></SelectTrigger>
                 <SelectContent>
@@ -946,11 +947,9 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
                 </SelectContent>
               </Select>
             </div>
-          )}
 
-          {(category === "opportunita" || category === "marketing" || !!opportunityId) && (
-            <div className="space-y-2">
-              <Label>Opportunità collegata</Label>
+          <div className="space-y-2">
+            <Label>Opportunità collegata</Label>
               <Select value={opportunityId} onValueChange={setOpportunityId}>
                 <SelectTrigger><SelectValue placeholder="Seleziona opportunità" /></SelectTrigger>
                 <SelectContent>
@@ -963,11 +962,10 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
                 </SelectContent>
               </Select>
             </div>
-          )}
 
               {category === "generale" && (
                 <p className="text-xs text-muted-foreground">
-                  Scegli una categoria specifica per collegare ordine, magazzino, costo, contatto o opportunità.
+                  Contatto e opportunità si collegano sempre; per ordine, magazzino e costo scegli la categoria corrispondente.
                 </p>
               )}
             </div>
