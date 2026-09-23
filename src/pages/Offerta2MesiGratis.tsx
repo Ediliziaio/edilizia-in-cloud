@@ -14,8 +14,9 @@ import { trackPixel } from "@/lib/meta/fbcTracker";
 import { DOMANDE_OFFERTA, POSTI_PROMO, SETTORI } from "@/data/offerta2MesiGratis";
 
 /**
- * /offerta-2-mesi-gratis — la pagina di vendita della promo «2 mesi gratis»
- * (19/09/2026, richiesta di Florin).
+ * /offerta-2-mesi-gratis — la pagina di vendita della promo «1 mese gratis»
+ * (19/09/2026, richiesta di Florin; il 23/09 Florin l'ha portata da due mesi a
+ * uno. L'indirizzo resta quello: i link già in giro devono continuare a valere).
  *
  * La promo vale solo per 8 aziende: l'avvio lo seguiamo noi, uno per uno. La
  * prima versione vendeva l'annuale del manuale della rete vendita («Vendita
@@ -130,7 +131,7 @@ function HeroOfferta() {
             La promo
           </p>
           <p className="mt-1.5 text-balance text-xl font-extrabold leading-snug text-white md:text-3xl">
-            2 mesi gratis, <span className="text-[#F97415]">solo per {POSTI_PROMO} aziende.</span>
+            1 mese gratis, <span className="text-[#F97415]">solo per {POSTI_PROMO} aziende.</span>
           </p>
           <p className="mt-2 text-balance text-sm leading-relaxed text-white/70 md:text-base">
             L&apos;avvio lo seguiamo noi, uno per uno: quando i posti sono presi, la promo si chiude.
@@ -314,9 +315,9 @@ function CostoSostituito() {
 function Promo() {
   const punti = [
     {
-      valore: "2 mesi",
+      valore: "1 mese",
       etichetta: "gratis",
-      testo: "I primi due mesi di Edilizia in Cloud non li paghi.",
+      testo: "Il primo mese di Edilizia in Cloud non lo paghi.",
     },
     {
       valore: String(POSTI_PROMO),
@@ -336,7 +337,7 @@ function Promo() {
         <div className="mx-auto max-w-3xl text-center">
           <p className="text-sm font-bold uppercase tracking-widest text-[#F97415]">La promo</p>
           <h2 className="mt-3 text-3xl font-extrabold leading-tight text-balance text-white md:text-5xl">
-            2 mesi gratis. Solo per {POSTI_PROMO} aziende.
+            1 mese gratis. Solo per {POSTI_PROMO} aziende.
           </h2>
           <p className="mt-5 text-lg leading-relaxed text-white/70">
             Non è uno sconto per tutti: i posti sono {POSTI_PROMO} perché l&apos;avvio lo facciamo noi, azienda
@@ -489,7 +490,7 @@ function Prenota({ onPrenotato }: { onPrenotato: (p: PrenotazioneFatta) => void 
           </h2>
           <p className="mt-5 text-lg leading-relaxed text-[#111111]/65">
             Trenta minuti, senza impegno. Alla fine sai se Edilizia in Cloud fa per te, e se partire
-            con i 2 mesi gratis.
+            con il mese gratis.
           </p>
         </div>
 
@@ -559,7 +560,7 @@ function Chiusura() {
           Il prossimo cantiere che chiudi, sai già quanto ci hai guadagnato.
         </h2>
         <p className="mt-5 text-lg text-white/70">
-          2 mesi gratis, solo per {POSTI_PROMO} aziende. Operativo in 30 giorni, garantito.
+          1 mese gratis, solo per {POSTI_PROMO} aziende. Operativo in 30 giorni, garantito.
         </p>
         <div className="mt-9">
           <PulsantePrenota>Prenota la demo gratuita</PulsantePrenota>
@@ -573,11 +574,11 @@ function Chiusura() {
 
 export default function Offerta2MesiGratis() {
   useSEO({
-    title: "Offerta 2 mesi gratis — Gestionale Edilizia in Cloud",
+    title: "Offerta 1 mese gratis — Gestionale Edilizia in Cloud",
     description:
-      "Per aziende edili, serramentisti e fotovoltaico: aumenta margini e guadagni di +50.000 € e dì addio a software sparsi ed Excel. 2 mesi gratis, solo per 8 aziende.",
+      "Per aziende edili, serramentisti e fotovoltaico: aumenta margini e guadagni di +50.000 € e dì addio a software sparsi ed Excel. 1 mese gratis, solo per 8 aziende.",
     canonical: "/offerta-2-mesi-gratis",
-    keywords: "offerta gestionale edilizia, gestionale edilizia 2 mesi gratis, gestionale serramentisti, gestionale fotovoltaico, demo gestionale imprese edili",
+    keywords: "offerta gestionale edilizia, gestionale edilizia 1 mese gratis, gestionale serramentisti, gestionale fotovoltaico, demo gestionale imprese edili",
   });
 
   // La barra «Prenota» in fondo (solo telefono) serve quando nessun altro
@@ -642,12 +643,12 @@ export default function Offerta2MesiGratis() {
   return (
     <div className="min-h-screen overflow-x-hidden bg-white text-[#111111]">
       <HubSeoSchema
-        pageName="Offerta 2 mesi gratis"
+        pageName="Offerta 1 mese gratis"
         pagePath="/offerta-2-mesi-gratis"
-        pageDescription="Edilizia in Cloud per aziende edili, serramentisti e fotovoltaico: 2 mesi gratis, solo per 8 aziende. Operativo in 30 giorni, garantito."
+        pageDescription="Edilizia in Cloud per aziende edili, serramentisti e fotovoltaico: 1 mese gratis, solo per 8 aziende. Operativo in 30 giorni, garantito."
         breadcrumbs={[
           { name: "Home", url: "/" },
-          { name: "Offerta 2 mesi gratis", url: "/offerta-2-mesi-gratis" },
+          { name: "Offerta 1 mese gratis", url: "/offerta-2-mesi-gratis" },
         ]}
       />
       <JsonLd
@@ -706,7 +707,7 @@ export default function Offerta2MesiGratis() {
           style={{ background: ARANCIO_CTA }}
         >
           <CalendarCheck className="h-5 w-5" />
-          Prenota la demo · 2 mesi gratis
+          Prenota la demo · 1 mese gratis
         </a>
       </div>
       <div className="h-20 md:hidden" aria-hidden />

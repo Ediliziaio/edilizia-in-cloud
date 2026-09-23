@@ -3,7 +3,7 @@
  *
  * Tiene fermo:
  *   · in cima per chi è (aziende edili, serramentisti, fotovoltaico…), poi la
- *     promessa, poi la promo: 2 mesi gratis, solo per 8 aziende;
+ *     promessa, poi la promo: 1 mese gratis, solo per 8 aziende (due fino al 23/09);
  *   · l'annuale non c'è più (tolto da Florin la sera stessa): né prezzi, né
  *     «12 mesi al prezzo di 10», né le due garanzie che ne parlavano;
  *   · ogni «Prenota» porta al calendario in fondo alla pagina, e il calendario
@@ -117,8 +117,8 @@ describe("la pagina", () => {
     expect(titolo).toHaveTextContent("Liberati dalla gestione. Delega con efficienza. Controlla i margini in tempo reale.");
     expect(screen.getByText(/^Dì addio a software sparsi, fogli Excel/)).toBeInTheDocument();
     expect(screen.getByText("solo per 8 aziende.")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 2, name: "2 mesi gratis. Solo per 8 aziende." })).toBeInTheDocument();
-    expect(document.title).toBe("Offerta 2 mesi gratis — Gestionale Edilizia in Cloud");
+    expect(screen.getByRole("heading", { level: 2, name: "1 mese gratis. Solo per 8 aziende." })).toBeInTheDocument();
+    expect(document.title).toBe("Offerta 1 mese gratis — Gestionale Edilizia in Cloud");
     expect(document.querySelector('link[rel="canonical"]')?.getAttribute("href")).toBe(
       "https://www.ediliziaincloud.com/offerta-2-mesi-gratis/",
     );
@@ -137,7 +137,8 @@ describe("la pagina", () => {
     const testo = container.textContent ?? "";
 
     expect(testo).not.toMatch(/annual/i);
-    expect(testo).not.toMatch(/12 mesi al prezzo di 10|60 giorni per ripensarci|prezzo bloccato|primi cento/i);
+    // Il mese è uno dal 23/09/2026: la pagina non deve tornare a prometterne due.
+    expect(testo).not.toMatch(/12 mesi al prezzo di 10|60 giorni per ripensarci|prezzo bloccato|primi cento|2 mesi gratis|primi due mesi/i);
     expect(testo).not.toMatch(/1\.270|2\.470|5\.470/);
     for (const { q, a } of DOMANDE_OFFERTA) expect(`${q} ${a}`).not.toMatch(/annual|prezzo bloccato/i);
   });
@@ -198,7 +199,7 @@ describe("la pagina", () => {
     expect([...osservati.keys()].sort()).toEqual(["prenota", "pulsanti-hero"]);
 
     // In cima: i pulsanti dell'hero sono lì, la barra aspetta.
-    const barra = screen.getByRole("link", { name: "Prenota la demo · 2 mesi gratis", hidden: true });
+    const barra = screen.getByRole("link", { name: "Prenota la demo · 1 mese gratis", hidden: true });
     const nascosta = () => {
       expect(barra.parentElement).toHaveClass("translate-y-full");
       expect(barra.parentElement).toHaveAttribute("aria-hidden", "true");

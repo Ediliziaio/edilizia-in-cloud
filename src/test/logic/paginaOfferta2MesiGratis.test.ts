@@ -79,16 +79,19 @@ describe("/offerta-2-mesi-gratis nel sito", () => {
     expect(risposta.status).toBe(200);
     expect(risposta.headers.get("x-robots-tag")).toBe("index, follow");
     const html = await risposta.text();
-    expect(html).toContain("<title>Offerta 2 mesi gratis — Gestionale Edilizia in Cloud</title>");
+    expect(html).toContain("<title>Offerta 1 mese gratis — Gestionale Edilizia in Cloud</title>");
     expect(html).toContain('rel="canonical" href="https://www.ediliziaincloud.com/offerta-2-mesi-gratis/"');
     expect(html).toContain(
       "<h1>Aumenta i tuoi margini e i tuoi guadagni di +50.000 €. Liberati dalla gestione. Delega con efficienza. Controlla i margini in tempo reale.</h1>",
     );
     expect(html).toContain("Per aziende edili, serramentisti, fotovoltaico");
-    expect(html).toContain("La promo: 2 mesi gratis, solo per 8 aziende");
+    expect(html).toContain("La promo: 1 mese gratis, solo per 8 aziende");
     expect(html).toContain("Operativo in 30 giorni, o il canone non parte");
     // L'annuale è stato tolto: nemmeno i motori devono vederlo.
-    expect(html).not.toMatch(/annual|12 mesi al prezzo di 10|prezzo bloccato/i);
+    // Il mese gratis è uno dal 23/09/2026. «Offerta 2 Mesi Gratis» resta solo nelle
+    // briciole di pane, che il middleware ricava dall'indirizzo: l'indirizzo non è
+    // cambiato apposta, perché i link già in giro continuino a funzionare.
+    expect(html).not.toMatch(/annual|12 mesi al prezzo di 10|prezzo bloccato|primi due mesi/i);
     expect(html).toContain("https://www.ediliziaincloud.com/og/eic-demo.png");
   });
 

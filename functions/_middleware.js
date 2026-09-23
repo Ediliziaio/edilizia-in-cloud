@@ -1916,15 +1916,15 @@ const ROUTES = {
   },
 
   "/offerta-2-mesi-gratis": {
-    title: "Offerta 2 mesi gratis — Gestionale Edilizia in Cloud",
+    title: "Offerta 1 mese gratis — Gestionale Edilizia in Cloud",
     description:
-      "Per aziende edili, serramentisti e fotovoltaico: aumenta margini e guadagni di +50.000 € e dì addio a software sparsi ed Excel. 2 mesi gratis, solo per 8 aziende.",
+      "Per aziende edili, serramentisti e fotovoltaico: aumenta margini e guadagni di +50.000 € e dì addio a software sparsi ed Excel. 1 mese gratis, solo per 8 aziende.",
     h1: "Aumenta i tuoi margini e i tuoi guadagni di +50.000 €. Liberati dalla gestione. Delega con efficienza. Controlla i margini in tempo reale.",
     intro:
       "Per aziende edili, serramentisti, fotovoltaico, impiantisti e ristrutturazioni. Dì addio a software sparsi, fogli Excel e carte da rincorrere: Edilizia in Cloud mette cantieri, preventivi, fatture e squadra in un posto solo, con il margine di ogni commessa sotto gli occhi.",
     extra: `
-    <h2>La promo: 2 mesi gratis, solo per 8 aziende</h2>
-    <p>I primi due mesi di Edilizia in Cloud non li paghi. I posti sono otto perché l'avvio lo seguiamo noi, azienda per azienda: carichiamo cantieri, anagrafiche e listini e formiamo la squadra. Quando i posti sono presi, la promo si chiude.</p>
+    <h2>La promo: 1 mese gratis, solo per 8 aziende</h2>
+    <p>Il primo mese di Edilizia in Cloud non lo paghi. I posti sono otto perché l'avvio lo seguiamo noi, azienda per azienda: carichiamo cantieri, anagrafiche e listini e formiamo la squadra. Quando i posti sono presi, la promo si chiude.</p>
 
     <h2>Le garanzie</h2>
     <ul>
