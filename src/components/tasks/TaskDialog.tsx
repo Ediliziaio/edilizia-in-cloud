@@ -27,6 +27,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { queryKeys } from "@/lib/queryKeys";
 import { EntityCustomFieldsSection } from "@/components/shared/EntityCustomFieldsSection";
 import { describeTaskChanges, logTaskActivity } from "@/lib/taskActivityLog";
+import { collegamentiAttivita } from "@/lib/attivita/collegamenti";
 import { useTaskStatuses } from "@/hooks/useTaskStatuses";
 import {
   buildTaskStatusUpdate,
@@ -372,7 +373,7 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
         .limit(100);
       return data || [];
     },
-    enabled: open && !!companyId && (category === "contatti" || category === "marketing"),
+    enabled: open && !!companyId && (category === "contatti" || category === "marketing" || !!contactId),
   });
 
   const { data: opportunities = [] } = useQuery({
@@ -381,14 +382,14 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
       if (!companyId) return [];
       const { data } = await supabase
         .from("marketing_opportunities")
-        .select("id, name, value")
+        .select("id, name, value, contact_id")
         .eq("company_id", companyId)
         .is("deleted_at", null)
         .order("created_at", { ascending: false })
         .limit(100);
       return data || [];
     },
-    enabled: open && !!companyId && (category === "opportunita" || category === "marketing"),
+    enabled: open && !!companyId && (category === "opportunita" || category === "marketing" || !!opportunityId),
   });
 
   const handleSave = async () => {
@@ -411,6 +412,22 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
 
     setSaving(true);
     try {
+      // Con un'opportunità e nessun contatto scelto, l'attività prende il
+      // contatto dell'opportunità: così si vede anche nella scheda del cliente.
+      // L'elenco carica le ultime 100: per una più vecchia si chiede al database.
+      let contattoDellOpportunita: string | null = null;
+      const oppScelta = opportunityId && opportunityId !== "none" ? opportunityId : null;
+      if (oppScelta && (!contactId || contactId === "none")) {
+        const inElenco = (opportunities as { id: string; contact_id?: string | null }[])
+          .find((o) => o.id === oppScelta);
+        contattoDellOpportunita = inElenco?.contact_id ?? null;
+        if (!contattoDellOpportunita) {
+          const { data } = await supabase
+            .from("marketing_opportunities").select("contact_id").eq("id", oppScelta).maybeSingle();
+          contattoDellOpportunita = (data as { contact_id?: string | null } | null)?.contact_id ?? null;
+        }
+      }
+
       const payload: Record<string, unknown> = {
         company_id: companyId,
         title: title.trim(),
@@ -419,12 +436,13 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
         priority,
         due_date: dueDate ? format(dueDate, "yyyy-MM-dd") : null,
         assigned_to: assignedTo && assignedTo !== "none" ? assignedTo : null,
-        order_id: (category === "ordini" || category === "pagamenti") && orderId && orderId !== "none" ? orderId : null,
-        stock_item_id: category === "magazzino" && stockItemId && stockItemId !== "none" ? stockItemId : null,
-        cost_id: category === "costi" && costId && costId !== "none" ? costId : null,
-        contact_id: (category === "contatti" || category === "marketing") && contactId && contactId !== "none" ? contactId : null,
-        opportunity_id: (category === "opportunita" || category === "marketing") && opportunityId && opportunityId !== "none" ? opportunityId : null,
-        ticket_id: category === "assistenza" && ticketId && ticketId !== "none" ? ticketId : (defaultTicketId || null),
+        // I collegamenti NON dipendono dalla categoria: l'attività resta
+        // attaccata a ciò da cui nasce, e con un'opportunità si porta dietro il
+        // suo contatto (vedi lib/attivita/collegamenti.ts).
+        ...collegamentiAttivita(
+          { contactId, opportunityId, orderId, stockItemId, costId, ticketId: ticketId || defaultTicketId },
+          contattoDellOpportunita,
+        ),
         category,
         estimated_hours: normalizedEstimatedHours,
         is_recurring: isRecurring && recurrenceRule !== "none",
@@ -913,7 +931,7 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
             </div>
           )}
 
-          {(category === "contatti" || category === "marketing") && (
+          {(category === "contatti" || category === "marketing" || !!contactId) && (
             <div className="space-y-2">
               <Label>Contatto collegato</Label>
               <Select value={contactId} onValueChange={setContactId}>
@@ -930,7 +948,7 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
             </div>
           )}
 
-          {(category === "opportunita" || category === "marketing") && (
+          {(category === "opportunita" || category === "marketing" || !!opportunityId) && (
             <div className="space-y-2">
               <Label>Opportunità collegata</Label>
               <Select value={opportunityId} onValueChange={setOpportunityId}>

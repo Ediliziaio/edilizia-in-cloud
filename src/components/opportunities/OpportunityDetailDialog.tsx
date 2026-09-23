@@ -44,6 +44,8 @@ import { useNavigate } from "react-router-dom";
 import { useMarketingRoutePrefix } from "@/hooks/useMarketingRoutePrefix";
 import { syncTagsToContact, removeTagFromContact } from "@/hooks/useTagSync";
 import { LinkedTasks } from "@/components/tasks/LinkedTasks";
+import { useLossReasons } from "@/hooks/useLossReasons";
+import { etichettaMotivo } from "@/lib/opportunita/motiviPerdita";
 import { LinkedRendersList } from "@/components/render/LinkedRendersList";
 import { MarketingDocumentsPanel } from "@/components/marketing/MarketingDocumentsPanel";
 import { OpportunityAppointmentTab } from "@/components/opportunities/OpportunityAppointmentTab";
@@ -212,6 +214,13 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
   const [lostCategory, setLostCategory] = useState("");
   const [competitorWon, setCompetitorWon] = useState("");
   const updateOpportunity = useUpdateOpportunityMutation();
+  const { motivi: motiviPerdita } = useLossReasons();
+  // Il motivo che risulta scritto adesso: prima quello appena scelto, poi
+  // quello salvato (lost_reason e la vecchia loss_reason delle importazioni).
+  const motivoPerditaScritto = [
+    etichettaMotivo(lostCategory || opportunity.lost_reason_category || "", motiviPerdita),
+    lostReason || opportunity.lost_reason || opportunity.loss_reason || "",
+  ].filter(Boolean).join(" — ");
 
   // Change contact state
   const [changingContact, setChangingContact] = useState(false);
@@ -538,13 +547,23 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
   };
 
   // Sales OS: intercetta status → lost/abandoned per mostrare dialog motivo
+  /**
+   * Finestra del motivo, già compilata con quello che c'è: prima si apriva
+   * vuota e, se l'opportunità aveva un motivo vecchio (importato o scritto in
+   * un'altra scheda), «Aggiorna» lo riscriveva tale e quale. Elena (Ener
+   * Italia) se lo ritrovava sempre uguale senza poterlo cambiare.
+   */
+  const apriMotivoPerdita = (statoPerdita: string) => {
+    setPendingLostStatus(statoPerdita);
+    setLostCategory(lostCategory || opportunity.lost_reason_category || "");
+    setLostReason(lostReason || opportunity.lost_reason || opportunity.loss_reason || "");
+    setCompetitorWon(competitorWon || opportunity.competitor_won || "");
+    setShowLostDialog(true);
+  };
+
   const handleStatusChange = (newStatus: string) => {
     if (newStatus === "lost" || newStatus === "abandoned") {
-      setPendingLostStatus(newStatus);
-      setLostReason("");
-      setLostCategory("");
-      setCompetitorWon("");
-      setShowLostDialog(true);
+      apriMotivoPerdita(newStatus);
     } else {
       setStatus(newStatus);
     }
@@ -1063,6 +1082,30 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                           <Input value={value} onChange={(e) => setValue(e.target.value)} type="number" inputMode="decimal" className="h-10 sm:h-8 text-sm" />
                         </div>
                       </div>
+
+                      {/* Persa: il motivo si legge e si cambia da qui. Prima esisteva
+                          solo dentro la finestra che si apriva cambiando lo stato: con
+                          l'opportunità già persa non si riapriva più. */}
+                      {(status === "lost" || status === "abandoned") && (
+                        <div className="flex items-center justify-between gap-3 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2">
+                          <div className="min-w-0">
+                            <p className="text-xs text-muted-foreground">Motivo della perdita</p>
+                            <p className="truncate text-sm font-medium">
+                              {motivoPerditaScritto || "Non indicato"}
+                            </p>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="shrink-0"
+                            disabled={!canEditOpportunity}
+                            onClick={() => apriMotivoPerdita(status === "abandoned" ? "abandoned" : "lost")}
+                          >
+                            {motivoPerditaScritto ? "Cambia" : "Indica il motivo"}
+                          </Button>
+                        </div>
+                      )}
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div className="space-y-1">

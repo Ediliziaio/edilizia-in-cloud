@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
@@ -191,7 +191,11 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
     setDialogOpen(true);
   };
 
-  const getDefaultTask = () => ({
+  // L'attività nuova è UN oggetto solo, non uno nuovo a ogni render: il dialog
+  // rilegge i campi quando cambia il `task` che riceve, e con un oggetto nuovo
+  // ogni volta si svuotava da solo mentre si scriveva (bastava un aggiornamento
+  // dell'elenco in sottofondo).
+  const attivitaNuova = useMemo(() => ({
     title: "",
     notes: "",
     status: "da_fare",
@@ -205,7 +209,7 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
     opportunity_id: opportunityId || null,
     ticket_id: ticketId || null,
     category,
-  });
+  }), [orderId, stockItemId, costId, contactId, opportunityId, ticketId, category]);
 
   const taskList = (
     tasks.length === 0 ? (
@@ -330,7 +334,7 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
       <TaskDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
-        task={editingTask || (dialogOpen ? getDefaultTask() : null)}
+        task={editingTask || (dialogOpen ? attivitaNuova : null)}
         onSaved={() => {
           queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
         }}

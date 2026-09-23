@@ -23,7 +23,7 @@ import {
   CheckCircle, Loader2, ExternalLink, Palmtree, Receipt,
   CloudSun, ChevronLeft, ChevronRight, CalendarDays, Droplets,
   MapPin, Plus, Pencil, Trash2, X, Filter,
-  ArrowUpCircle, Circle, AlertCircle, MoreHorizontal, Tag, Users,
+  ArrowUpCircle, Circle, AlertCircle, MoreHorizontal, Tag, Users, Target, User as UserIcon,
   CalendarClock, Sparkles, ListChecks,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -33,6 +33,8 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { queryKeys } from "@/lib/queryKeys";
+import { CollegaAttivitaPicker, etichettaCollegamento, type CollegamentoAttivita } from "@/components/tasks/CollegaAttivitaPicker";
+import { collegamentiAttivita } from "@/lib/attivita/collegamenti";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -1028,6 +1030,35 @@ function TimbraturaSede() {
 // ─────────────────────────────────────────────────────────────────────────────
 type GroupBy = "none" | "priority" | "category" | "date";
 
+/**
+ * Il campo «Collegata a» e le colonne della riga: un'opportunità porta con sé
+ * il suo contatto, così l'attività si vede anche nella scheda del cliente.
+ */
+function collegamentiDelModulo(c: CollegamentoAttivita | null | undefined) {
+  const { contact_id, opportunity_id } = collegamentiAttivita(
+    c?.tipo === "opportunita" ? { opportunityId: c.id } : { contactId: c?.id ?? null },
+    c?.tipo === "opportunita" ? c.contactId : null,
+  );
+  return { contact_id, opportunity_id };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function collegamentoDelTask(t: any): CollegamentoAttivita | null {
+  if (t?.opportunity_id) {
+    return {
+      tipo: "opportunita",
+      id: t.opportunity_id,
+      etichetta: t.opportunita?.name || "Opportunità",
+      contactId: t.contact_id ?? null,
+    };
+  }
+  if (t?.contact_id) {
+    const nome = [t.contatto?.first_name, t.contatto?.last_name].filter(Boolean).join(" ");
+    return { tipo: "contatto", id: t.contact_id, etichetta: nome || "Contatto" };
+  }
+  return null;
+}
+
 const GROUP_OPTIONS: { value: GroupBy; label: string }[] = [
   { value: "none", label: "Nessuno" },
   { value: "priority", label: "Priorità" },
@@ -1073,6 +1104,8 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
   const [formCategory, setFormCategory] = useState("altro");
   const [formStatus, setFormStatus] = useState("da_fare");
   const [formAssignedTo, setFormAssignedTo] = useState("");
+  // A chi è attaccata l'attività: cliente o opportunità (23/09/2026).
+  const [formCollegamento, setFormCollegamento] = useState<CollegamentoAttivita | null>(null);
 
   useEffect(() => {
     if (initialDueDate?.date) { setFormDueDate(initialDueDate.date); setDialogOpen(true); }
@@ -1087,8 +1120,11 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
       let q = supabase
         .from("tasks")
         .select(`id, title, notes, status, priority, due_date, category, assigned_to, created_by,
+          contact_id, opportunity_id,
           order:orders!tasks_order_id_fkey(order_code),
           stock_item:warehouse_stock!tasks_stock_item_id_fkey(name),
+          contatto:marketing_contacts!tasks_contact_id_fkey(id, first_name, last_name),
+          opportunita:marketing_opportunities!tasks_opportunity_id_fkey(id, name),
           assignee:profiles!tasks_assigned_to_fkey(first_name, last_name)`)
         .eq("company_id", companyId!)
         .order("created_at", { ascending: false })
@@ -1200,12 +1236,13 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
   };
 
   const createTask = useMutation({
-    mutationFn: async (task: { title: string; notes?: string; priority: string; due_date?: string; category: string; assigned_to?: string }) => {
+    mutationFn: async (task: { title: string; notes?: string; priority: string; due_date?: string; category: string; assigned_to?: string; collegamento?: CollegamentoAttivita | null }) => {
       const { error } = await supabase.from("tasks").insert({
         company_id: companyId!, assigned_to: task.assigned_to || user!.id, created_by: user!.id,
         title: task.title, notes: task.notes || null,
         priority: task.priority, due_date: task.due_date || null,
         category: task.category, status: "da_fare",
+        ...collegamentiDelModulo(task.collegamento),
       } as any);
       if (error) throw error;
     },
@@ -1293,6 +1330,7 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
     setFormTitle(""); setFormNotes(""); setFormPriority("normale");
     setFormDueDate(dueDate ?? ""); setFormCategory("altro"); setFormStatus("da_fare");
     setFormAssignedTo(user?.id ?? "");
+    setFormCollegamento(null);
     setDialogOpen(true);
   };
 
@@ -1303,18 +1341,19 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
     setFormDueDate(t.due_date ?? ""); setFormCategory(t.category ?? "altro");
     setFormStatus(t.status ?? "da_fare");
     setFormAssignedTo(t.assigned_to ?? user?.id ?? "");
+    setFormCollegamento(collegamentoDelTask(t));
     setDialogOpen(true);
   };
 
   const handleSave = () => {
     if (!formTitle.trim()) { toast.error("Inserisci un titolo"); return; }
     if (editingTask) {
-      const updates: any = { id: editingTask.id, title: formTitle.trim(), notes: formNotes.trim() || null, priority: formPriority, due_date: formDueDate || null, category: formCategory, status: formStatus };
+      const updates: any = { id: editingTask.id, title: formTitle.trim(), notes: formNotes.trim() || null, priority: formPriority, due_date: formDueDate || null, category: formCategory, status: formStatus, ...collegamentiDelModulo(formCollegamento) };
       if (isAdmin && formAssignedTo) updates.assigned_to = formAssignedTo;
       if (formStatus === "completata" && editingTask.status !== "completata") updates.completed_at = new Date().toISOString();
       updateTask.mutate(updates);
     } else {
-      createTask.mutate({ title: formTitle.trim(), notes: formNotes.trim(), priority: formPriority, due_date: formDueDate || undefined, category: formCategory, assigned_to: isAdmin ? formAssignedTo : undefined });
+      createTask.mutate({ title: formTitle.trim(), notes: formNotes.trim(), priority: formPriority, due_date: formDueDate || undefined, category: formCategory, assigned_to: isAdmin ? formAssignedTo : undefined, collegamento: formCollegamento });
     }
     setDialogOpen(false);
   };
@@ -1375,6 +1414,8 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
     const canManage = isAdmin || t.assigned_to === user?.id;
 
     const assigneeName = getAssigneeName(t);
+    // A chi è attaccata: si legge dalla riga, senza aprirla.
+    const collegata = etichettaCollegamento(t);
 
     if (compact) {
       // Vista compatta — riga singola
@@ -1488,6 +1529,12 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
             {catLabel && <span className="flex min-w-0 items-center gap-1"><Tag className="w-3 h-3 shrink-0" /><span className="truncate">{catLabel}</span></span>}
             {assigneeName && <span className="flex shrink-0 items-center gap-1 text-violet-600 dark:text-violet-400 font-medium"><Users className="w-3 h-3" />{assigneeName}</span>}
             {t.order?.order_code && <Link to="/azienda/ordini" onClick={(e) => e.stopPropagation()} className="flex shrink-0 items-center gap-1 hover:text-foreground transition-colors"><ExternalLink className="w-3 h-3" />{t.order.order_code}</Link>}
+            {collegata && (
+              <span className="flex min-w-0 items-center gap-1 text-foreground/70" title={collegata.icona === "opportunita" ? "Opportunità collegata" : "Cliente collegato"}>
+                {collegata.icona === "opportunita" ? <Target className="w-3 h-3 shrink-0" /> : <UserIcon className="w-3 h-3 shrink-0" />}
+                <span className="truncate">{collegata.testo}</span>
+              </span>
+            )}
           </div>
         </div>
 
@@ -1815,6 +1862,12 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
             <div className="space-y-1.5">
               <Label htmlFor="task-notes">Descrizione</Label>
               <Textarea id="task-notes" placeholder="Aggiungi dettagli, link, note..." value={formNotes} onChange={e => setFormNotes(e.target.value)} rows={2} className="resize-none" />
+            </div>
+            {/* Senza questo campo l'attività nasceva slegata: non si vedeva né
+                nella scheda del cliente né in quella dell'opportunità. */}
+            <div className="space-y-1.5">
+              <Label>Collegata a</Label>
+              <CollegaAttivitaPicker companyId={companyId} valore={formCollegamento} onChange={setFormCollegamento} />
             </div>
             {/* Assegna a (admin) + Priorità */}
             <div className={`grid gap-3 ${isAdmin ? "grid-cols-2" : "grid-cols-2"}`}>
