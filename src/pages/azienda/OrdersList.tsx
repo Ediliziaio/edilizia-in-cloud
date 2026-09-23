@@ -1695,27 +1695,31 @@ function OrdersListInner() {
   return (
     // pb-20 rimosso: la bottom nav mobile non è più overlay (è sotto il main) — erano 160px di vuoto
     <div className="flex flex-col gap-4 sm:gap-6">
-      {/* Header */}
-      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-3 sm:px-6 py-3 sm:py-5 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
-        <div className="flex items-start gap-2.5 sm:gap-3 min-w-0">
-          <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white flex items-center justify-center shrink-0 shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
-            <Package className="h-4 w-4 sm:h-5 sm:w-5" />
+      {/* Header — titolo a sinistra e comandi a destra sulla stessa riga, tutti
+          alti 32 px e col testo piccolo (23/09/2026, Florin: prima «Nuova
+          Commessa» andava a capo e la testata occupava due righe). Si va a capo
+          solo quando lo spazio non basta: conta la larghezza della pagina, non
+          dello schermo, perché la barra laterale aperta se ne prende un pezzo. */}
+      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-3 sm:px-4 py-2.5 sm:py-3 shadow-sm flex flex-wrap items-center justify-between gap-x-4 gap-y-2.5">
+        <div className="flex items-center gap-2.5 min-w-[8rem] flex-1">
+          <div className="h-8 w-8 sm:h-9 sm:w-9 rounded-lg bg-gradient-to-br from-orange-500 to-amber-400 text-white flex items-center justify-center shrink-0 shadow-[0_3px_10px_rgba(249,115,22,0.28)]">
+            <Package className="h-4 w-4" />
           </div>
           <div className="min-w-0">
-            <h1 className="text-lg sm:text-2xl font-bold text-slate-900 tracking-tight leading-tight">Commesse</h1>
-            <p className="hidden sm:block text-sm text-slate-500 mt-0.5">
+            <h1 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight leading-tight">Commesse</h1>
+            <p className="hidden sm:block text-xs text-slate-500 truncate">
               Cantieri, ODA, DDT, anomalie e marginalità in un'unica vista.
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+        <div className="flex items-center gap-1.5 flex-wrap justify-start sm:justify-end">
           {/* Selettore anno commesse — in alto, sempre visibile (filtra le commesse
               dell'anno scelto; "Tutti" per la vista completa). */}
           {/* Duplicato: l'anno è già nel pannello Filtri → su mobile toglilo
               dalla toolbar per non affollarla. */}
           <Select value={yearFilter} onValueChange={setYearFilter}>
-            <SelectTrigger className="hidden sm:flex h-9 w-auto min-w-[6.5rem] gap-1" aria-label="Filtra commesse per anno">
-              <CalendarDays className="h-4 w-4 text-muted-foreground shrink-0" />
+            <SelectTrigger className="hidden sm:flex h-8 w-auto min-w-[6.5rem] gap-1 px-2.5 text-xs" aria-label="Filtra commesse per anno">
+              <CalendarDays className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
               <SelectValue placeholder="Anno" />
             </SelectTrigger>
             <SelectContent>
@@ -1732,8 +1736,9 @@ function OrdersListInner() {
             size="sm"
             onClick={() => setSidebarOpen(true)}
             aria-label="Apri filtri avanzati"
+            className="h-8 px-2.5 text-xs"
           >
-            <SlidersHorizontal className="h-4 w-4 sm:mr-1" />
+            <SlidersHorizontal className="h-3.5 w-3.5 sm:mr-1" />
             <span className="hidden sm:inline">Filtri</span>
             {countActiveFilters(sidebarFilters) > 0 && (
               <span className="ml-1 bg-primary text-primary-foreground text-[10px] rounded-full w-4 h-4 flex items-center justify-center font-bold">
@@ -1748,19 +1753,19 @@ function OrdersListInner() {
             onValueChange={(value) => value && setViewMode(value as "table" | "pipeline")}
             className="hidden sm:flex border rounded-md"
           >
-            <ToggleGroupItem value="table" aria-label="Vista tabella" className="px-3">
-              <LayoutList className="h-4 w-4" />
+            <ToggleGroupItem value="table" aria-label="Vista tabella" className="h-8 px-2.5">
+              <LayoutList className="h-3.5 w-3.5" />
             </ToggleGroupItem>
-            <ToggleGroupItem value="pipeline" aria-label="Vista pipeline" className="px-3">
-              <Columns3 className="h-4 w-4" />
+            <ToggleGroupItem value="pipeline" aria-label="Vista pipeline" className="h-8 px-2.5">
+              <Columns3 className="h-3.5 w-3.5" />
             </ToggleGroupItem>
           </ToggleGroup>
           {/* Colonne visibili */}
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className="hidden sm:flex">
-                <Columns className="h-4 w-4 mr-1" />
-                Colonne
+              <Button variant="outline" size="sm" className="hidden sm:flex h-8 px-2.5 text-xs" title="Colonne visibili" aria-label="Colonne visibili">
+                <Columns className="h-3.5 w-3.5 xl:mr-1" />
+                <span className="hidden xl:inline">Colonne</span>
               </Button>
             </PopoverTrigger>
             <PopoverContent align="end" className="w-[280px] p-3">
@@ -1800,10 +1805,10 @@ function OrdersListInner() {
           {!isMobile && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm">
-                <Download className="h-4 w-4 mr-1.5" />
-                <span className="hidden sm:inline">Esporta</span>
-                <ChevronDown className="h-3.5 w-3.5 ml-1" />
+              <Button variant="outline" size="sm" className="h-8 px-2.5 text-xs" title="Esporta" aria-label="Esporta">
+                <Download className="h-3.5 w-3.5 xl:mr-1" />
+                <span className="hidden xl:inline">Esporta</span>
+                <ChevronDown className="h-3 w-3 ml-0.5" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-60">
@@ -1829,8 +1834,8 @@ function OrdersListInner() {
           {(!isCommercialistaMode || !isMobile) && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon" aria-label="Altre azioni">
-                <MoreVertical className="h-4 w-4" />
+              <Button variant="outline" size="icon" className="h-8 w-8" aria-label="Altre azioni">
+                <MoreVertical className="h-3.5 w-3.5" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-52">
@@ -1852,33 +1857,35 @@ function OrdersListInner() {
           </DropdownMenu>
           )}
           {isCommercialistaMode ? (
-            <Button variant="outline" disabled className="border-blue-200 bg-blue-50 text-blue-700 disabled:opacity-100">
-              <ShieldCheck className="h-4 w-4 mr-1" />
+            <Button variant="outline" size="sm" disabled className="h-8 px-2.5 text-xs border-blue-200 bg-blue-50 text-blue-700 disabled:opacity-100">
+              <ShieldCheck className="h-3.5 w-3.5 mr-1" />
               <span className="hidden sm:inline">Sola lettura</span>
               <span className="sm:hidden">Lettura</span>
             </Button>
           ) : !canCreateOrders ? (
-            <Button disabled title={createOrdersBlockedTitle} aria-label={`Nuova Commessa — ${createOrdersBlockedTitle}`}>
-              <Plus className="h-4 w-4 mr-1" />
+            <Button size="sm" disabled title={createOrdersBlockedTitle} aria-label={`Nuova Commessa — ${createOrdersBlockedTitle}`} className="h-8 px-3 text-xs font-semibold">
+              <Plus className="h-3.5 w-3.5 mr-1" />
               <span className="hidden sm:inline">Nuova Commessa</span>
               <span className="sm:hidden">Nuovo</span>
             </Button>
           ) : appaltatoreEnabled ? (
             <Button
               onClick={() => setShowOrderTypeDialog(true)}
-              className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-500/20 hover:from-orange-600 hover:to-amber-500 hover:shadow-md hover:shadow-orange-500/25"
+              size="sm"
+              className="h-8 px-3 text-xs font-semibold bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-500/20 hover:from-orange-600 hover:to-amber-500 hover:shadow-md hover:shadow-orange-500/25"
             >
-              <Plus className="h-4 w-4 mr-1" />
+              <Plus className="h-3.5 w-3.5 mr-1" />
               <span className="hidden sm:inline">Nuova Commessa</span>
               <span className="sm:hidden">Nuovo</span>
             </Button>
           ) : (
             <Button
               asChild
-              className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-500/20 hover:from-orange-600 hover:to-amber-500 hover:shadow-md hover:shadow-orange-500/25"
+              size="sm"
+              className="h-8 px-3 text-xs font-semibold bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-500/20 hover:from-orange-600 hover:to-amber-500 hover:shadow-md hover:shadow-orange-500/25"
             >
               <Link to="/azienda/ordini/nuovo">
-                <Plus className="h-4 w-4 mr-1" />
+                <Plus className="h-3.5 w-3.5 mr-1" />
                 <span className="hidden sm:inline">Nuova Commessa</span>
                 <span className="sm:hidden">Nuovo</span>
               </Link>
