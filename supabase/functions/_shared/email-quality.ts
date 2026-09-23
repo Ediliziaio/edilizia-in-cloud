@@ -10,6 +10,7 @@ export interface EmailQuality {
   domain: string | null;
   syntaxValid: boolean;
   isRole: boolean;       // info@, noreply@, … (non una persona)
+  codaAttaccata: boolean; // «…@studio.itpec»: la parola dopo l'indirizzo è rimasta incollata
   isDisposable: boolean; // dominio usa-e-getta
   isFree: boolean;       // provider gratuito (gmail, libero, …)
 }
@@ -34,6 +35,46 @@ const FREE_DOMAINS = new Set([
   "libero.it", "virgilio.it", "alice.it", "tin.it", "tiscali.it", "email.it", "fastwebnet.it",
 ]);
 
+/**
+ * Domini di primo livello che vediamo davvero, più quelli che iniziano come
+ * uno di essi (company, computer, network…): servono a NON scambiare per
+ * errore un indirizzo buono.
+ */
+const TLD_NOTI = new Set([
+  "it", "com", "net", "org", "eu", "info", "biz", "io", "co", "me", "pro", "tv", "cc",
+  "cloud", "online", "store", "site", "tech", "blog", "art", "space", "digital", "fun",
+  "shop", "agency", "company", "computer", "consulting", "construction", "contractors",
+  "coop", "community", "condos", "network", "works", "solutions", "services", "group",
+  "studio", "design", "email", "expert", "casa", "house", "immo", "build", "engineering",
+  "green", "energy", "organic", "network", "srl", "band", "life", "world", "click",
+  "de", "fr", "es", "ch", "at", "uk", "us", "nl", "be", "si", "hr", "mt", "sm", "va",
+  "ru", "pl", "pt", "gr", "se", "no", "dk", "fi", "ie", "lu", "cz", "sk", "hu", "ro", "bg", "tr",
+]);
+
+/** Prefissi da cui nascono gli indirizzi «incollati» che abbiamo visto. */
+const TLD_TRONCABILI = ["it", "com", "net", "org", "eu", "info", "biz"];
+
+/**
+ * «boggeri@boggeri.itpec», «…@studio.ittelefono», «…@x.comvoglio»: chi ha
+ * raccolto l'indirizzo si è portato dietro la parola successiva della pagina
+ * («PEC:», «Telefono:», «Voglio…»). Sintatticamente sono validi, quindi
+ * passavano i controlli e finivano nell'outreach: il server del destinatario
+ * li rifiuta (550) e ogni rifiuto pesa sulla reputazione di chi spedisce.
+ * Il 23/09/2026 erano 47 contatti, 23 rifiuti in sette giorni.
+ *
+ * Non si indovina l'indirizzo giusto: si riconosce che è rotto e non gli si
+ * scrive. Un dominio che è già un TLD vero (company, computer, network…) non
+ * viene toccato.
+ */
+export function codaAttaccataAlDominio(email: string): boolean {
+  const dominio = String(email ?? "").trim().toLowerCase().split("@")[1] ?? "";
+  const etichetta = dominio.split(".").pop() ?? "";
+  if (!etichetta || TLD_NOTI.has(etichetta)) return false;
+  return TLD_TRONCABILI.some((tld) =>
+    etichetta.startsWith(tld) && etichetta.length >= tld.length + 2 && !TLD_NOTI.has(etichetta.slice(tld.length))
+  );
+}
+
 export function classifyEmail(raw: string): EmailQuality {
   const email = String(raw ?? "").trim().toLowerCase();
   const syntaxValid = EMAIL_RE.test(email);
@@ -47,12 +88,13 @@ export function classifyEmail(raw: string): EmailQuality {
     domain,
     syntaxValid,
     isRole: syntaxValid && ROLE_LOCALS.has(localBase),
+    codaAttaccata: syntaxValid && codaAttaccataAlDominio(email),
     isDisposable: !!domain && DISPOSABLE_DOMAINS.has(domain),
     isFree: !!domain && FREE_DOMAINS.has(domain),
   };
 }
 
-/** Da scartare per il cold se si vuole alta qualità: sintassi errata, role o usa-e-getta. */
+/** Da scartare per il cold se si vuole alta qualità: sintassi errata, coda attaccata, role o usa-e-getta. */
 export function isLowQuality(q: EmailQuality): boolean {
-  return !q.syntaxValid || q.isRole || q.isDisposable;
+  return !q.syntaxValid || q.codaAttaccata || q.isRole || q.isDisposable;
 }

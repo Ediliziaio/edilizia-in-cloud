@@ -147,13 +147,35 @@ Deno.serve(async (req) => {
       { table: "email_credits", wallet: "email" },
       { table: "whatsapp_credits", wallet: "whatsapp" },
     ];
+    // Chi ha PROVATO a spedire e non ci è riuscito per i crediti. Il filtro
+    // «solo chi ha ricaricato almeno una volta» teneva fuori proprio il caso
+    // peggiore: Il Bagno Group, portafoglio a zero e mai ricaricato, dal
+    // 21/09/2026 al 23/09 ha perso 35 conferme di appuntamento ai suoi
+    // clienti senza che nessuno ricevesse un avviso.
+    const haProvatoSenzaCrediti = new Set<string>();
+    {
+      const da = new Date(Date.now() - 7 * 86_400_000).toISOString();
+      const { data: respinte } = await supabase
+        .from("email_delivery_log")
+        .select("company_id")
+        .eq("status", "failed")
+        .ilike("error_message", "%nsufficien%")
+        .gte("sent_at", da)
+        .limit(2000);
+      for (const r of (respinte ?? []) as Array<{ company_id: string | null }>) {
+        if (r.company_id) haProvatoSenzaCrediti.add(r.company_id);
+      }
+    }
+
     for (const { table, wallet } of eurWallets) {
       const { data } = await supabase
         .from(table)
         .select("company_id, balance_eur, total_recharged_eur");
       for (const row of (data ?? []) as any[]) {
-        // Solo chi il servizio lo usa: ha ricaricato almeno una volta.
-        if (Number(row.total_recharged_eur ?? 0) <= 0) continue;
+        // Solo chi il servizio lo usa: ha ricaricato almeno una volta, oppure
+        // sta provando a spedire e si vede rifiutare gli invii per i crediti.
+        const staProvando = wallet === "email" && haProvatoSenzaCrediti.has(row.company_id);
+        if (Number(row.total_recharged_eur ?? 0) <= 0 && !staProvando) continue;
         const cfg = cfgMap.get(cfgKey(row.company_id, wallet));
         if (cfg?.enabled) continue; // auto-ricarica attiva: ci pensa lei
         const threshold = cfg?.threshold ?? DEFAULT_THRESHOLD_EUR;

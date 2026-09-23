@@ -188,7 +188,7 @@ Deno.serve(async (req) => {
       tempo_scaduto: false,
       enrolled: 0,
       skipped_no_email: 0,
-      skipped_optout: 0, skipped_sintassi: 0, skipped_cliente: 0, skipped_stessa_azienda: 0,
+      skipped_optout: 0, skipped_sintassi: 0, skipped_email_storta: 0, skipped_cliente: 0, skipped_stessa_azienda: 0,
       skipped_suppressed: 0,
       skipped_already: 0,
       skipped_role: 0,
@@ -235,6 +235,9 @@ Deno.serve(async (req) => {
       if (c.optout_email || c.unsubscribed || c.opt_out) { stats.skipped_optout++; continue; }
       const qualita = classifyEmail(c.email);
       if (!qualita.syntaxValid || qualita.isDisposable) { stats.skipped_sintassi++; continue; }
+      // «…@ditta.itpec»: l'indirizzo si è portato dietro la parola dopo. Il
+      // server del destinatario lo rifiuta e il rifiuto pesa su di noi.
+      if (qualita.codaAttaccata) { stats.skipped_email_storta++; continue; }
       if (clientiEic.has(norm(c.email)) || (qualita.domain && dominiClientiEic.has(qualita.domain))) { stats.skipped_cliente++; continue; }
       if (c.ricontatta_dopo && Date.parse(c.ricontatta_dopo) > nowMs) { stats.skipped_cooldown++; continue; }
       if (!includiPec && isPecEmail(c.email)) { stats.skipped_pec++; continue; }
