@@ -340,8 +340,9 @@ export function BillingActivationGuard({ children }: { children: ReactNode }) {
           </div>
           <h1 className="text-xl font-semibold">Completa l'attivazione dell'azienda</h1>
           <p className="text-sm text-muted-foreground">
-            Per usare il gestionale servono i dati di fatturazione e un metodo di pagamento.
+            Per usare il gestionale serve un metodo di pagamento registrato.
             {" "}È richiesto anche con il piano gratuito; nessun addebito finché non usi servizi a consumo.
+            {" "}I dati di fatturazione servono per la fattura: puoi completarli anche dopo.
           </p>
         </div>
 
@@ -352,8 +353,8 @@ export function BillingActivationGuard({ children }: { children: ReactNode }) {
               <Lock className="h-8 w-8 text-amber-600" />
               <p className="font-semibold">Attivazione non ancora completata</p>
               <p className="text-sm text-muted-foreground">
-                L'amministratore della tua azienda deve inserire i dati di fatturazione e la
-                carta di pagamento per attivare il gestionale. Contattalo per procedere.
+                L'amministratore della tua azienda deve registrare il metodo di pagamento
+                per attivare il gestionale. Contattalo per procedere.
               </p>
               <Button variant="outline" size="sm" onClick={() => signOut()} className="mt-1">
                 <LogOut className="mr-2 h-4 w-4" /> Esci
@@ -370,6 +371,7 @@ export function BillingActivationGuard({ children }: { children: ReactNode }) {
                   <StepBadge done={billingDone} n={1} />
                   <Building2 className="h-4 w-4 text-muted-foreground" />
                   Dati di fatturazione
+                  <span className="text-xs font-normal text-muted-foreground">· anche dopo</span>
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -399,7 +401,7 @@ export function BillingActivationGuard({ children }: { children: ReactNode }) {
 
             <div className="flex items-center justify-between pt-1">
               <p className="text-xs text-muted-foreground">
-                Una volta completati entrambi i passaggi, il gestionale si sblocca automaticamente.
+                Appena registri il metodo di pagamento, il gestionale si sblocca automaticamente.
               </p>
               <Button variant="ghost" size="sm" onClick={() => signOut()}>
                 <LogOut className="mr-2 h-4 w-4" /> Esci

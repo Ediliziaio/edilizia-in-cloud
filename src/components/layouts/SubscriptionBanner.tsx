@@ -7,6 +7,7 @@
  *   - cancellation_pending (sub cancellata, attiva fino X) → CTA riattiva
  *   - suspended → CTA contatta supporto
  *   - expired → CTA rinnova
+ *   - dati di fatturazione mancanti → CTA compila l'anagrafica (23/09/2026)
  *
  * Tutte le CTA portano a destinazioni concrete (no bottoni morti).
  */
@@ -14,7 +15,8 @@ import { useNavigate } from "react-router-dom";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOpenBillingPortal } from "@/hooks/useBilling";
-import { AlertTriangle, Clock, XCircle, CreditCard, Loader2 } from "lucide-react";
+import { useBillingActivationGate } from "@/hooks/useBillingActivationGate";
+import { AlertTriangle, Clock, XCircle, CreditCard, Loader2, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 type BannerVariant = "info" | "warning" | "danger";
@@ -24,20 +26,37 @@ interface BannerConfig {
   icon: React.ReactNode;
   message: string;
   ctaLabel?: string;
-  ctaAction?: "upgrade" | "portal" | "support" | "renew";
+  ctaAction?: "upgrade" | "portal" | "support" | "renew" | "dati";
 }
+
+/**
+ * Anagrafica incompleta: la fattura dell'abbonamento non si può emettere. Prima
+ * questo mancante chiudeva fuori tutta l'azienda (vedi useBillingActivationGate);
+ * ora è un avviso, e lo vede solo chi può compilarla.
+ */
+const BANNER_DATI_FATTURAZIONE: BannerConfig = {
+  variant: "warning",
+  icon: <Building2 className="h-4 w-4 shrink-0" />,
+  message: "Mancano i dati di fatturazione dell'azienda (ragione sociale, P.IVA, sede legale): servono per la fattura.",
+  ctaLabel: "Completa",
+  ctaAction: "dati",
+};
 
 export function SubscriptionBanner() {
   const navigate = useNavigate();
   const { isImpersonating, effectiveCompany } = useAuth();
   const { companyStatus, trialDaysLeft, trialExpired } = useSubscriptionLimits({ includeUsageCounts: false });
+  const { needsBillingData, canManage } = useBillingActivationGate();
   const openPortal = useOpenBillingPortal();
 
   if (isImpersonating) return null;
   if (!effectiveCompany) return null;
-  if (companyStatus === "active" || companyStatus === "free") return null;
 
-  const config = resolveBannerConfig(companyStatus, trialDaysLeft, trialExpired);
+  // Lo stato dell'abbonamento viene prima: un pagamento fallito conta più
+  // dell'anagrafica da completare.
+  const config =
+    resolveBannerConfig(companyStatus, trialDaysLeft, trialExpired) ??
+    (needsBillingData && canManage ? BANNER_DATI_FATTURAZIONE : null);
   if (!config) return null;
 
   const handleCta = () => {
@@ -51,6 +70,9 @@ export function SubscriptionBanner() {
         break;
       case "support":
         navigate("/azienda/assistenza");
+        break;
+      case "dati":
+        navigate("/azienda/impostazioni/profilo");
         break;
     }
   };
