@@ -3286,31 +3286,35 @@ export async function onRequest({ request, next, env, waitUntil }) {
   const keepSynthetic = pathname === "/" || pathname === "/funzionalita";
   if (!keepSynthetic) {
     try {
-      const leggiAsset = (percorso) =>
-        env.ASSETS.fetch(new Request(new URL(percorso, url.origin), { headers: { accept: "text/html" } }));
-      let assetResp = await leggiAsset(`${pathname}/index.html`);
-      // /blog/index.html e /confronto/index.html cadono nelle regole
-      // «/blog/:slug → /blog/:slug/» di _redirects (lo slug è "index.html") e
-      // tornano un 301: fino al 23/09/2026 Googlebot riceveva per /blog/ e
-      // /confronto/ la pagina sintetica da 15 KB invece di quella vera. La
-      // cartella con la barra finale è ciò che riceve il browser.
-      if (!assetResp || !assetResp.ok) assetResp = await leggiAsset(`${pathname}/`);
-      if (assetResp && assetResp.ok) {
+      const leggiPrerender = async (percorso) => {
+        const assetResp = await env.ASSETS.fetch(
+          new Request(new URL(percorso, url.origin), { headers: { accept: "text/html" } }),
+        );
+        if (!assetResp || !assetResp.ok) return null;
         const body = await assetResp.text();
         const isRealPrerender =
           body.includes('name="x-prerendered"') ||
           (body.includes('rel="canonical"') && body.includes("<h2"));
-        if (isRealPrerender) {
-          return new Response(body, {
-            status: 200,
-            headers: {
-              "Content-Type": "text/html; charset=utf-8",
-              "Cache-Control": "public, max-age=3600, s-maxage=86400",
-              "X-Robots-Tag": "index, follow",
-              Vary: "User-Agent",
-            },
-          });
-        }
+        return isRealPrerender ? body : null;
+      };
+      // /blog/index.html e /confronto/index.html cadono nelle regole
+      // «/blog/:slug → /blog/:slug/» di _redirects (lo slug è "index.html"):
+      // il redirect finisce nel fallback SPA e torna la shell, con 200. Fino
+      // al 23/09/2026 Googlebot riceveva così la pagina sintetica da 15 KB
+      // invece di quella vera. La cartella con la barra finale è ciò che
+      // riceve il browser.
+      const body =
+        (await leggiPrerender(`${pathname}/index.html`)) ?? (await leggiPrerender(`${pathname}/`));
+      if (body) {
+        return new Response(body, {
+          status: 200,
+          headers: {
+            "Content-Type": "text/html; charset=utf-8",
+            "Cache-Control": "public, max-age=3600, s-maxage=86400",
+            "X-Robots-Tag": "index, follow",
+            Vary: "User-Agent",
+          },
+        });
       }
     } catch {
       // Asset binding non disponibile o errore: fallback al sintetico sotto.
