@@ -17,7 +17,7 @@ import { PercorsoOttimizzatoPanel } from "@/components/fleet/PercorsoOttimizzato
  * mostra stima tempi e link navigazione esterna.
  */
 export default function TecnicoPercorso() {
-  const { user } = useAuth();
+  const { user, effectiveCompany } = useAuth();
   const navigate = useNavigate();
 
   // Posizione attuale del tecnico
@@ -33,7 +33,7 @@ export default function TecnicoPercorso() {
 
   // ── Carica interventi di oggi ────────────────────────────────────────────
   const { data: interventi = [], isLoading, isError } = useQuery<InterventoConCoords[]>({
-    queryKey: ["tecnico-percorso-interventi", user?.id, today],
+    queryKey: ["tecnico-percorso-interventi", user?.id, today, effectiveCompany?.id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("tickets")
@@ -41,6 +41,8 @@ export default function TecnicoPercorso() {
           "id, subject, status, priority, tipo, indirizzo_intervento, data_intervento_prevista, lat_intervento, lng_intervento"
         )
         .eq("assigned_to", user!.id)
+        // Solo gli interventi di QUESTA azienda (chi lavora per più aziende li vedeva tutti).
+        .eq("company_id", effectiveCompany!.id)
         .in("tipo", ["intervento", "emergenza"])
         .neq("status", "risolto")
         .gte("data_intervento_prevista", `${today}T00:00:00.000Z`)
@@ -60,7 +62,7 @@ export default function TecnicoPercorso() {
         lng: t.lng_intervento as number | null,
       }));
     },
-    enabled: !!user,
+    enabled: !!user && !!effectiveCompany?.id,
   });
 
   // ── Richiedi posizione GPS ───────────────────────────────────────────────

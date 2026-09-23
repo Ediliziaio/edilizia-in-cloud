@@ -75,12 +75,14 @@ export default function CampoMagazzino() {
       const { data, error } = await supabase
         .from("warehouse_stock")
         .select("id, name, description, internal_code, quantity_available, quantity, min_stock_level")
+        // La chiave della query aveva già l'azienda, la query no.
+        .eq("company_id", companyId!)
         .order("name")
         .limit(500);
       if (error) throw error;
       return (data ?? []) as StockRow[];
     },
-    enabled: !!user?.id && activeTab === "magazzino",
+    enabled: !!user?.id && !!companyId && activeTab === "magazzino",
     staleTime: 60_000,
   });
 

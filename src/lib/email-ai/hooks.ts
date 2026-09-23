@@ -8,6 +8,7 @@
 
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { toast } from "sonner";
 import type { EmailCategoria, EntitaTipo } from "./types";
 
@@ -237,12 +238,16 @@ export interface EmailRegola {
 }
 
 export function useEmailRegole() {
+  const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: ["email-regole"],
+    queryKey: ["email-regole", companyId],
+    enabled: !!companyId,
     queryFn: async (): Promise<EmailRegola[]> => {
       const { data, error } = await (supabase as any)
         .from("email_regole")
         .select("*")
+        // Solo QUESTA azienda (il super admin e chi ha più aziende le vedevano tutte).
+        .eq("company_id", companyId)
         .order("priorita", { ascending: true });
       if (error) throw error;
       return (data ?? []) as EmailRegola[];
@@ -1136,11 +1141,14 @@ export interface SequenzaInvioAttesa {
 
 /** Elenco sequenze dell'azienda (RLS staff). */
 export function useSequenze() {
+  const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: ["email-sequenze"],
+    queryKey: ["email-sequenze", companyId],
+    enabled: !!companyId,
     queryFn: async (): Promise<Sequenza[]> => {
       const { data, error } = await sbAny
-        .from("sequenze").select("*").order("created_at", { ascending: false });
+        // Solo QUESTA azienda (il super admin e chi ha più aziende le vedevano tutte).
+        .from("sequenze").select("*").eq("company_id" as never, companyId as never).order("created_at", { ascending: false });
       if (error) throw error;
       return (data as unknown as Sequenza[]) || [];
     },
@@ -1228,12 +1236,16 @@ export function useEnrollSequenza() {
 
 /** Cruscotto: esecuzioni (filtra per stato lato chiamante). */
 export function useSequenzeEsecuzioni() {
+  const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: ["email-sequenze-esecuzioni"],
+    queryKey: ["email-sequenze-esecuzioni", companyId],
+    enabled: !!companyId,
     queryFn: async (): Promise<SequenzaEsecuzione[]> => {
       const { data, error } = await sbAny
         .from("sequenze_esecuzioni")
         .select("*, sequenza:sequenze(nome,tipo)")
+        // Solo QUESTA azienda (il super admin e chi ha più aziende le vedevano tutte).
+        .eq("company_id" as never, companyId as never)
         .order("updated_at", { ascending: false }).limit(200);
       if (error) throw error;
       return (data as unknown as SequenzaEsecuzione[]) || [];
@@ -1243,11 +1255,14 @@ export function useSequenzeEsecuzioni() {
 
 /** Invii pronti che attendono conferma umana (modalità 'conferma'). */
 export function useInviiInAttesa() {
+  const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: ["email-sequenze-invii-attesa"],
+    queryKey: ["email-sequenze-invii-attesa", companyId],
+    enabled: !!companyId,
     queryFn: async (): Promise<SequenzaInvioAttesa[]> => {
       const { data, error } = await sbAny
-        .from("sequenze_invii").select("*").eq("stato", "in_attesa_conferma")
+        // Solo QUESTA azienda (il super admin e chi ha più aziende le vedevano tutte).
+        .from("sequenze_invii").select("*").eq("stato", "in_attesa_conferma").eq("company_id" as never, companyId as never)
         .order("creato_at", { ascending: true }).limit(100);
       if (error) throw error;
       return (data as unknown as SequenzaInvioAttesa[]) || [];

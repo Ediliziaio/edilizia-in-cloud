@@ -1,6 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+
+// Tutte le letture qui sotto filtrano l'azienda: con la sola sicurezza del
+// database il super admin (e chi ha più aziende) vedeva i crediti e i consumi di
+// tutte, e maybeSingle() sul saldo andava in errore o prendeva quello sbagliato.
 
 export interface AgentCredits {
   id: string;
@@ -53,12 +58,15 @@ export interface CreditUsage {
 }
 
 export function useAgentCredits() {
+  const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: queryKeys.aiCredits.credits(),
+    queryKey: [...queryKeys.aiCredits.credits(), companyId],
+    enabled: !!companyId,
     queryFn: async (): Promise<AgentCredits | null> => {
       const { data, error } = await supabase
         .from("ai_credits" as never)
         .select("*")
+        .eq("company_id" as never, companyId as never)
         .maybeSingle();
       if (error) throw error;
       return data as unknown as AgentCredits | null;
@@ -68,12 +76,15 @@ export function useAgentCredits() {
 }
 
 export function useCreditTopups() {
+  const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: queryKeys.aiCredits.topups(),
+    queryKey: [...queryKeys.aiCredits.topups(), companyId],
+    enabled: !!companyId,
     queryFn: async (): Promise<CreditTopup[]> => {
       const { data, error } = await supabase
         .from("ai_credit_topups" as never)
         .select("*")
+        .eq("company_id" as never, companyId as never)
         .order("created_at", { ascending: false })
         .limit(50);
       if (error) throw error;
@@ -83,12 +94,15 @@ export function useCreditTopups() {
 }
 
 export function useCreditUsage(limit = 20) {
+  const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: queryKeys.aiCredits.usage(limit),
+    queryKey: [...queryKeys.aiCredits.usage(limit), companyId],
+    enabled: !!companyId,
     queryFn: async (): Promise<CreditUsage[]> => {
       const { data, error } = await supabase
         .from("ai_credit_usage" as never)
         .select("*")
+        .eq("company_id" as never, companyId as never)
         .order("created_at", { ascending: false })
         .limit(limit);
       if (error) throw error;
@@ -98,8 +112,10 @@ export function useCreditUsage(limit = 20) {
 }
 
 export function useUsageByAgent() {
+  const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: queryKeys.aiCredits.usageByAgent(),
+    queryKey: [...queryKeys.aiCredits.usageByAgent(), companyId],
+    enabled: !!companyId,
     queryFn: async () => {
       const startOfMonth = new Date();
       startOfMonth.setDate(1);
@@ -108,6 +124,7 @@ export function useUsageByAgent() {
       const { data: usage, error } = await supabase
         .from("ai_credit_usage" as never)
         .select("agent_id, duration_min, cost_billed_total, llm_model, tts_model")
+        .eq("company_id" as never, companyId as never)
         .gte("created_at", startOfMonth.toISOString())
         .order("created_at", { ascending: false })
         .limit(1000);
@@ -115,7 +132,8 @@ export function useUsageByAgent() {
 
       const { data: agents } = await supabase
         .from("ai_agents" as never)
-        .select("id, name");
+        .select("id, name")
+        .eq("company_id" as never, companyId as never);
 
       const agentMap = new Map(
         ((agents as { id: string; name: string }[]) ?? []).map((a) => [a.id, a.name])

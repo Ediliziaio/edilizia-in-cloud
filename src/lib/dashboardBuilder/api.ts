@@ -205,11 +205,13 @@ export async function cloneTemplateToCo(args: {
  *  "profiles_same_company_select" filtra automaticamente
  *  alla stessa azienda dell'utente autenticato.
  */
-export async function listCompanyMembers(): Promise<CompanyMember[]> {
-  // 1. Profili (stessa company via RLS)
+export async function listCompanyMembers(companyId: string): Promise<CompanyMember[]> {
+  // 1. Profili dell'azienda. Filtro esplicito: la sola RLS al super admin (e a
+  //    chi ha più aziende) restituiva le persone di tutte le aziende.
   const { data: profiles, error: pErr } = await supabase
     .from("profiles" as never)
     .select("id, first_name, last_name, email")
+    .eq("company_id" as never, companyId as never)
     .order("first_name");
   if (pErr) throw pErr;
   if (!profiles || (profiles as unknown[]).length === 0) return [];

@@ -23,12 +23,18 @@ import {
 } from "@/lib/controlloGestione/interpreter";
 
 function useRatingStorico(months = 12) {
+  const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: ["cg", "rating-storico", months] as const,
+    queryKey: ["cg", "rating-storico", months, companyId] as const,
+    enabled: !!companyId,
     queryFn: async (): Promise<RatingSnapshotRow[]> => {
       const { data, error } = await supabase
         .from("cg_rating_snapshot")
         .select("data_snapshot, classe_rating, scoring_totale")
+      // Solo QUESTA azienda: la sicurezza del database fa vedere al super admin
+      // (e a chi ha più aziende) le righe di tutte, e il Controllo di Gestione
+      // le sommava.
+        .eq("company_id", companyId!)
         .order("data_snapshot", { ascending: false })
         .limit(months);
       if (error) throw error;

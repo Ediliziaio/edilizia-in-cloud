@@ -356,6 +356,8 @@ export default function AIPersonasSessionsTab() {
       let q = supabase
         .from("ai_persona_sessions" as never)
         .select("persona_key, message_count, total_cost_billed_eur")
+        // Solo QUESTA azienda (il super admin le vedeva tutte).
+        .eq("company_id" as never, effectiveCompany?.id as never)
         .limit(500);
       if (filterPersona !== "all") q = q.eq("persona_key", filterPersona);
       if (!showArchived) q = q.eq("archived", false);
@@ -400,6 +402,8 @@ export default function AIPersonasSessionsTab() {
       let q = supabase
         .from("ai_persona_sessions" as never)
         .select("id, persona_key, title, message_count, total_cost_billed_eur, total_tokens_in, total_tokens_out, last_message_at, archived, created_at")
+        // Solo QUESTA azienda (il super admin le vedeva tutte).
+        .eq("company_id" as never, effectiveCompany?.id as never)
         .order("last_message_at", { ascending: false })
         .range(from, to);
 

@@ -7,6 +7,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { listMySurveys } from "@/lib/api/surveys";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -42,9 +43,11 @@ export default function SopralluoghiList() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
 
+  const companyId = useEffectiveCompanyId();
   const { data: surveys, isLoading, isError, refetch } = useQuery({
-    queryKey: ["sopralluoghi-list", statusFilter],
-    queryFn: () => listMySurveys({ status: statusFilter === "all" ? undefined : statusFilter, limit: 200 }),
+    queryKey: ["sopralluoghi-list", statusFilter, companyId],
+    enabled: !!companyId,
+    queryFn: () => listMySurveys({ status: statusFilter === "all" ? undefined : statusFilter, limit: 200, companyId }),
   });
 
   const filtered = (surveys ?? []).filter((s) => {

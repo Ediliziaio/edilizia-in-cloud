@@ -4,6 +4,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import type { Semaforo } from "./useMarginalitaCommesse";
 import { cgRpc } from "@/hooks/controlloGestione/cgRpc";
 
@@ -55,13 +56,19 @@ export interface BudgetRow {
 }
 
 export function useBudgetRows(anno: number) {
+  const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: ["cg", "budget-rows", anno] as const,
+    queryKey: ["cg", "budget-rows", anno, companyId] as const,
+    enabled: !!companyId,
     queryFn: async (): Promise<BudgetRow[]> => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
         .from("cg_budget")
         .select("*")
+      // Solo QUESTA azienda: la sicurezza del database fa vedere al super admin
+      // (e a chi ha più aziende) le righe di tutte, e il Controllo di Gestione
+      // le sommava.
+        .eq("company_id", companyId)
         .eq("anno", anno)
         .order("codice");
       if (error) throw error;

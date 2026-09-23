@@ -16,8 +16,10 @@ interface Props {
 }
 
 export const TabTeam = memo(function TabTeam({ data, isLoading }: Props) {
-  const { profile } = useAuth();
-  const companyId = profile?.company_id ?? null;
+  const { effectiveCompany } = useAuth();
+  // L'azienda che si sta guardando, non quella del proprio profilo: con «Stai
+  // visualizzando» o con più aziende il ricalcolo finiva sull'azienda sbagliata.
+  const companyId = effectiveCompany?.id ?? null;
   const recalcAll = useRecalculateAllLeadScores(companyId);
 
   const sales = data?.sales_performance || [];

@@ -20,13 +20,13 @@ const statusLabels: Record<string, string> = {
 };
 
 export default function TecnicoInterventi() {
-  const { user } = useAuth();
+  const { user, effectiveCompany } = useAuth();
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [filtroStato, setFiltroStato] = useState("attivi");
 
   const { data: interventi = [], isLoading } = useQuery({
-    queryKey: ["tecnico-tutti-interventi", user?.id, filtroStato],
+    queryKey: ["tecnico-tutti-interventi", user?.id, filtroStato, effectiveCompany?.id],
     queryFn: async () => {
       let query = supabase
         .from("tickets")
@@ -34,6 +34,8 @@ export default function TecnicoInterventi() {
           "id, subject, status, priority, tipo, indirizzo_intervento, data_intervento_prevista, customer:profiles!tickets_customer_id_fkey(first_name, last_name)",
         )
         .eq("assigned_to", user!.id)
+        // Solo gli interventi di QUESTA azienda (chi lavora per più aziende li vedeva tutti).
+        .eq("company_id", effectiveCompany!.id)
         .in("tipo", ["intervento", "emergenza"])
         .order("data_intervento_prevista", { ascending: false });
 
@@ -47,7 +49,7 @@ export default function TecnicoInterventi() {
       if (error) throw error;
       return data ?? [];
     },
-    enabled: !!user,
+    enabled: !!user && !!effectiveCompany?.id,
   });
 
   const filtered = (interventi as any[]).filter((i) =>

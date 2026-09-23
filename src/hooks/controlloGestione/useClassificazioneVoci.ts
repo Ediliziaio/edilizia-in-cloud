@@ -83,6 +83,10 @@ export function useClassificazioneVoci() {
       const { data, error } = await supabase
         .from("cg_classificazione_voci")
         .select("*")
+        // Solo QUESTA azienda: la sicurezza del database fa vedere al super admin
+        // (e a chi ha più aziende) le righe di tutte, e il Controllo di Gestione
+        // le sommava.
+        .eq("company_id", companyId!)
         .order("ordering", { ascending: true })
         .order("voce_chiave", { ascending: true });
       if (error) throw error;

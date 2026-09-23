@@ -10,6 +10,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { cgRpc } from "@/hooks/controlloGestione/cgRpc";
 
 export interface CashFlowEntrateBreakdown {
@@ -88,13 +89,17 @@ export interface CashFlowManuale {
 }
 
 export function useCashFlowManuali(anno: number) {
+  const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: ["cg", "cash-flow-manuali", anno] as const,
+    queryKey: ["cg", "cash-flow-manuali", anno, companyId] as const,
+    enabled: !!companyId,
     queryFn: async (): Promise<CashFlowManuale[]> => {
       const { data, error } = await supabase
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .from("cg_cash_flow_manuali" as any)
         .select("*")
+        // Solo QUESTA azienda (il super admin e chi ha più aziende le sommavano).
+        .eq("company_id", companyId!)
         .eq("anno", anno)
         .order("mese", { ascending: true });
       if (error) throw error;

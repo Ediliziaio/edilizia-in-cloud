@@ -212,12 +212,14 @@ export async function markSurveyConverted(id: string): Promise<void> {
   }
 }
 
-export async function listMySurveys(opts?: { status?: string; limit?: number }) {
+export async function listMySurveys(opts?: { status?: string; limit?: number; companyId?: string | null }) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let q = (supabase as any)
     .from("surveys")
     .select("id, code, status, scheduled_at, address, city, client_id, order_id, technician_id, template_id, created_at, updated_at")
     .order("created_at", { ascending: false });
+  // Solo QUESTA azienda: il super admin (e chi ha più aziende) le vedeva tutte.
+  if (opts?.companyId) q = q.eq("company_id", opts.companyId);
   if (opts?.status) q = q.eq("status", opts.status);
   if (opts?.limit) q = q.limit(opts.limit);
   const { data, error } = await q;

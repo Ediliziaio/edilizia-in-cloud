@@ -4,6 +4,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 
 export type NoteScope = "CE" | "SP" | "PFN" | "CASHFLOW" | "BUDGET" | "PIANO";
 
@@ -19,13 +20,19 @@ export interface NotaVoce {
 }
 
 export function useNoteVoci(anno: number, scope: NoteScope) {
+  const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: ["cg", "note-voci", anno, scope] as const,
+    queryKey: ["cg", "note-voci", anno, scope, companyId] as const,
+    enabled: !!companyId,
     queryFn: async (): Promise<NotaVoce[]> => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
         .from("cg_note_voci")
         .select("*")
+      // Solo QUESTA azienda: la sicurezza del database fa vedere al super admin
+      // (e a chi ha più aziende) le righe di tutte, e il Controllo di Gestione
+      // le sommava.
+        .eq("company_id", companyId)
         .eq("anno", anno)
         .eq("scope", scope);
       if (error) throw error;

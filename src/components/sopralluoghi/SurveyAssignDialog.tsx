@@ -12,6 +12,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { assignUser, unassignUser, listAssignees } from "@/lib/api/surveys";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
@@ -40,6 +41,7 @@ const ROLE_LABEL: Record<string, { label: string; color: string }> = {
 
 export function SurveyAssignDialog({ surveyId, open, onOpenChange }: SurveyAssignDialogProps) {
   const qc = useQueryClient();
+  const companyId = useEffectiveCompanyId();
   const [selectedUserId, setSelectedUserId] = useState<string>("");
   const [selectedRole, setSelectedRole] = useState<"technician" | "subcontractor" | "employee" | "observer">("technician");
 
@@ -50,13 +52,16 @@ export function SurveyAssignDialog({ surveyId, open, onOpenChange }: SurveyAssig
   });
 
   const { data: members = [] } = useQuery({
-    queryKey: ["company-assignable-members"],
-    enabled: open,
+    queryKey: ["company-assignable-members", companyId],
+    enabled: open && !!companyId,
     queryFn: async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data } = await (supabase as any)
         .from("profiles")
         .select("id, first_name, last_name, email")
+        // Le persone di QUESTA azienda: senza filtro il super admin vedeva gli
+        // utenti di tutta la piattaforma.
+        .eq("company_id", companyId)
         .order("first_name");
       return (data ?? []) as Array<{ id: string; first_name: string | null; last_name: string | null; email: string | null }>;
     },

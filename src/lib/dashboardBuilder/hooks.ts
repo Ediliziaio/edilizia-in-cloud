@@ -3,6 +3,7 @@
  */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import {
   cloneTemplateToCo,
   deleteDashboard,
@@ -242,9 +243,11 @@ const MEMBER_KEYS = {
 
 /** Lista i membri della company dell'utente corrente. */
 export function useCompanyMembers() {
+  const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: MEMBER_KEYS.members,
-    queryFn: listCompanyMembers,
+    queryKey: [...MEMBER_KEYS.members, companyId],
+    enabled: !!companyId,
+    queryFn: () => listCompanyMembers(companyId!),
     staleTime: 5 * 60 * 1000,
   });
 }

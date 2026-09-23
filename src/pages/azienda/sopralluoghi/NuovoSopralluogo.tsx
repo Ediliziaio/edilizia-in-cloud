@@ -66,12 +66,15 @@ export default function NuovoSopralluogo() {
   });
 
   const { data: members } = useQuery({
-    queryKey: ["company-members-for-surveys"],
+    queryKey: ["company-members-for-surveys", companyId],
+    enabled: !!companyId,
     queryFn: async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
         .from("profiles")
         .select("id, first_name, last_name, email")
+        // Solo QUESTA azienda (il super admin e chi ha più aziende vedevano tutti).
+        .eq("company_id", companyId)
         .order("first_name");
       if (error) {
         console.error("[NuovoSopralluogo] query membri fallita", error);
@@ -82,12 +85,14 @@ export default function NuovoSopralluogo() {
   });
 
   const { data: orders } = useQuery({
-    queryKey: ["company-orders-for-surveys"],
+    queryKey: ["company-orders-for-surveys", companyId],
+    enabled: !!companyId,
     queryFn: async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
         .from("orders")
         .select("id, order_code, customer_id, client_name, work_address, indirizzo_lavori, client_address")
+        .eq("company_id", companyId)
         .order("created_at", { ascending: false })
         .limit(50);
       if (error) {

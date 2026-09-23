@@ -93,11 +93,13 @@ export default function CampoAvanzamento() {
       const { data, error } = await supabase
         .from("order_work_phases")
         .select("id, order_id, name, position, status, percentuale, notes, foto_urls, completata_il")
+        // La chiave della query aveva già l'azienda, la query no.
+        .eq("company_id", companyId!)
         .order("position", { ascending: true });
       if (error) throw error;
       return (data ?? []) as unknown as Fase[];
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && !!companyId,
     staleTime: 30_000,
   });
 

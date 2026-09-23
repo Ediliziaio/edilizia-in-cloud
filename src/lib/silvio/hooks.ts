@@ -4,6 +4,7 @@
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { toast } from "sonner";
 import type { Autorizzazione } from "./permessi";
 
@@ -89,11 +90,15 @@ export interface SilvioPlaybookRow {
 const sbAnyS = supabase as unknown as { from: (t: string) => any };
 
 export function useSilvioCodaConferme() {
+  const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: ["silvio-coda"],
+    queryKey: ["silvio-coda", companyId],
+    enabled: !!companyId,
     queryFn: async (): Promise<SilvioCodaVoce[]> => {
       const { data, error } = await sbAnyS.from("silvio_coda_conferme")
         .select("id, azione_chiave, parametri, anteprima, stato, origine, created_at")
+        // Solo QUESTA azienda (il super admin e chi ha più aziende le vedevano tutte).
+        .eq("company_id", companyId)
         .eq("stato", "in_attesa").order("created_at", { ascending: true }).limit(100);
       if (error) throw error;
       return (data as SilvioCodaVoce[]) ?? [];
@@ -135,11 +140,15 @@ export function useRisolviConferma() {
 }
 
 export function useSilvioAudit(limit = 50) {
+  const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: ["silvio-audit", limit],
+    queryKey: ["silvio-audit", limit, companyId],
+    enabled: !!companyId,
     queryFn: async (): Promise<SilvioAuditVoce[]> => {
       const { data, error } = await sbAnyS.from("silvio_audit")
         .select("id, azione_chiave, oggetto_tipo, oggetto_id, esito, autonomia, motivo, origine, reversibile, ref_audit_id, created_at")
+        // Solo QUESTA azienda (il super admin e chi ha più aziende le vedevano tutte).
+        .eq("company_id", companyId)
         .order("created_at", { ascending: false }).limit(limit);
       if (error) throw error;
       return (data as SilvioAuditVoce[]) ?? [];
@@ -183,11 +192,15 @@ export function useSilvioUndo() {
 }
 
 export function useSilvioTaskAttivi() {
+  const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: ["silvio-task-attivi"],
+    queryKey: ["silvio-task-attivi", companyId],
+    enabled: !!companyId,
     queryFn: async (): Promise<SilvioTaskRow[]> => {
       const { data, error } = await sbAnyS.from("silvio_task")
         .select("id, titolo, origine, stato, passo_corrente, contesto, created_at")
+        // Solo QUESTA azienda (il super admin e chi ha più aziende le vedevano tutte).
+        .eq("company_id", companyId)
         .eq("archiviato", false).order("updated_at", { ascending: false }).limit(100);
       if (error) throw error;
       return (data as SilvioTaskRow[]) ?? [];

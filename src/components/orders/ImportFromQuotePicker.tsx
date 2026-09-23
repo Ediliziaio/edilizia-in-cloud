@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
@@ -35,15 +36,20 @@ interface ImportFromQuotePickerProps {
 
 export function ImportFromQuotePicker({ onSelect, disabled }: ImportFromQuotePickerProps) {
   const [open, setOpen] = useState(false);
+  const companyId = useEffectiveCompanyId();
 
   const { data: quotes, isLoading } = useQuery({
-    queryKey: ["importable-quotes"],
-    enabled: open, // fetch solo all'apertura
+    queryKey: ["importable-quotes", companyId],
+    enabled: open && !!companyId, // fetch solo all'apertura
     staleTime: 60_000,
     queryFn: async (): Promise<QuoteLite[]> => {
       const { data, error } = await supabase
         .from("quotes")
         .select("id, quote_number, title, client_name, status, total, created_at")
+        // Solo i preventivi di QUESTA azienda: senza, il super admin in «Stai
+        // visualizzando» (e chi ha più aziende) li vedeva tutti mescolati e
+        // poteva importare in una commessa il preventivo di un'altra azienda.
+        .eq("company_id", companyId!)
         .is("deleted_at", null)
         .order("created_at", { ascending: false })
         .limit(50);

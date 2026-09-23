@@ -4,6 +4,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { cgRpc } from "@/hooks/controlloGestione/cgRpc";
 
 export interface PFNComponenti {
@@ -52,13 +53,19 @@ export interface Loan {
 }
 
 export function useLoans() {
+  const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: ["cg", "loans"] as const,
+    queryKey: ["cg", "loans", companyId] as const,
+    enabled: !!companyId,
     queryFn: async (): Promise<Loan[]> => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
         .from("cg_loans")
         .select("*")
+      // Solo QUESTA azienda: la sicurezza del database fa vedere al super admin
+      // (e a chi ha più aziende) le righe di tutte, e il Controllo di Gestione
+      // le sommava.
+        .eq("company_id", companyId)
         .order("data_inizio", { ascending: false });
       if (error) throw error;
       return (data ?? []) as Loan[];

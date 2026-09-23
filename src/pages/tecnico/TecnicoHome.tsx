@@ -32,7 +32,7 @@ interface Intervento {
 }
 
 export default function TecnicoHome() {
-  const { user } = useAuth();
+  const { user, effectiveCompany } = useAuth();
   const navigate = useNavigate();
 
   const today = new Date();
@@ -40,7 +40,7 @@ export default function TecnicoHome() {
   const in2DaysStr = format(addDays(today, 3), "yyyy-MM-dd");
 
   const { data: lavori = [], isLoading, isError } = useQuery<Intervento[]>({
-    queryKey: ["tecnico-lavori", user?.id],
+    queryKey: ["tecnico-lavori", user?.id, effectiveCompany?.id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("tickets")
@@ -48,6 +48,8 @@ export default function TecnicoHome() {
           "id, subject, status, priority, tipo, indirizzo_intervento, data_intervento_prevista, customer:profiles!tickets_customer_id_fkey(first_name, last_name)",
         )
         .eq("assigned_to", user!.id)
+        // Solo gli interventi di QUESTA azienda (chi lavora per più aziende li vedeva tutti).
+        .eq("company_id", effectiveCompany!.id)
         .in("tipo", ["intervento", "emergenza"])
         .neq("status", "risolto")
         .gte("data_intervento_prevista", todayStr)
@@ -56,7 +58,7 @@ export default function TecnicoHome() {
       if (error) throw error;
       return (data ?? []) as unknown as Intervento[];
     },
-    enabled: !!user,
+    enabled: !!user && !!effectiveCompany?.id,
   });
 
   const lavoriOggi = lavori.filter(

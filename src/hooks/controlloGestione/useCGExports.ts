@@ -5,6 +5,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 
 export interface CGExportRow {
   id: string;
@@ -17,12 +18,18 @@ export interface CGExportRow {
 }
 
 export function useCGExports() {
+  const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: ["cg", "exports"] as const,
+    queryKey: ["cg", "exports", companyId] as const,
+    enabled: !!companyId,
     queryFn: async (): Promise<CGExportRow[]> => {
       const { data, error } = await supabase
         .from("cg_exports_log")
         .select("*")
+      // Solo QUESTA azienda: la sicurezza del database fa vedere al super admin
+      // (e a chi ha più aziende) le righe di tutte, e il Controllo di Gestione
+      // le sommava.
+        .eq("company_id", companyId!)
         .order("created_at", { ascending: false })
         .limit(20);
       if (error) throw error;

@@ -12,6 +12,7 @@
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import type { ClienteSnapshot } from "@/types/fatturazione";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -108,12 +109,17 @@ export function useCreateDdtFromUscita() {
 
 /** Elenco uscite (per la sezione "Uscite"). */
 export function useWarehouseUscite(warehouseFilter: string | null) {
+  const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: ["warehouse-uscite", warehouseFilter ?? "*"],
+    queryKey: ["warehouse-uscite", companyId, warehouseFilter ?? "*"],
+    enabled: !!companyId,
     queryFn: async () => {
       let q = sb
         .from("warehouse_uscite")
         .select("id,numero,data,destinatario_tipo,customer_id,order_id,destinatario_libero,cliente_snapshot,vettore,righe,stato,documento_id,note,warehouse_id,created_at")
+        // Solo QUESTA azienda: senza, il super admin (e chi ha più aziende)
+        // vedeva le uscite di tutte insieme.
+        .eq("company_id", companyId)
         .order("created_at", { ascending: false })
         .limit(200);
       if (warehouseFilter) q = q.eq("warehouse_id", warehouseFilter);

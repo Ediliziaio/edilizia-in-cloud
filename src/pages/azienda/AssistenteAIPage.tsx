@@ -17,6 +17,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -111,6 +112,7 @@ interface AssistenteAIPageProps {
 }
 
 export default function AssistenteAIPage({ embedded = false }: AssistenteAIPageProps = {}) {
+  const companyIdSessioni = useEffectiveCompanyId();
   const qc = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
@@ -145,11 +147,15 @@ export default function AssistenteAIPage({ embedded = false }: AssistenteAIPageP
 
   // ─── DATA: sessioni utente ─────────────────────────────────────────────
   const { data: sessions } = useQuery({
-    queryKey: ["my_persona_sessions"],
+    queryKey: ["my_persona_sessions", companyIdSessioni],
+    enabled: !!companyIdSessioni,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("ai_persona_sessions" as never)
         .select("id, persona_key, title, message_count, total_cost_billed_eur, last_message_at, archived")
+        // Le conversazioni in QUESTA azienda: chi lavora su più aziende (e il super
+        // admin in «Stai visualizzando») le vedeva tutte insieme.
+        .eq("company_id" as never, companyIdSessioni as never)
         .eq("archived", false)
         .order("last_message_at", { ascending: false })
         .limit(30);

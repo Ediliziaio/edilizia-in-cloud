@@ -64,13 +64,13 @@ export default function PiscineWizard() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const isNew = !id;
-  const { user } = useAuth();
+  const { user, effectiveCompany } = useAuth();
   const [resumeDismissed, setResumeDismissed] = useState(false);
   const [exitDialogOpen, setExitDialogOpen] = useState(false);
   // Riprendi bozza su "nuovo": ultima bozza propria (l'azienda la scopa la RLS)
   const { data: ultimaBozza } = useQuery({
-    queryKey: ["pis-ultima-bozza", user?.id],
-    enabled: isNew && !!user?.id,
+    queryKey: ["pis-ultima-bozza", user?.id, effectiveCompany?.id],
+    enabled: isNew && !!user?.id && !!effectiveCompany?.id,
     staleTime: 30_000,
     queryFn: async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -78,6 +78,9 @@ export default function PiscineWizard() {
         .from("pis_progetti")
         .select("id, code, cliente_nome, cliente_cognome, updated_at")
         .eq("created_by", user!.id)
+        // La bozza di QUESTA azienda: chi lavora su più aziende (e il super admin
+        // in «Stai visualizzando») si vedeva riproporre quella di un'altra.
+        .eq("company_id", effectiveCompany!.id)
         .eq("stato", "bozza")
         .is("deleted_at", null)
         .order("updated_at", { ascending: false, nullsFirst: false })

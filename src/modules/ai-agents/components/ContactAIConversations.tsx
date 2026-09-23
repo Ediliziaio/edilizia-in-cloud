@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Bot, ChevronDown, Clock } from "lucide-react";
@@ -36,6 +37,7 @@ const sentimentConfig: Record<string, { label: string; className: string }> = {
 };
 
 export function ContactAIConversations({ contactId }: ContactAIConversationsProps) {
+  const companyId = useEffectiveCompanyId();
   const [openId, setOpenId] = useState<string | null>(null);
 
   const { data: conversations = [], isLoading } = useQuery({
@@ -53,11 +55,14 @@ export function ContactAIConversations({ contactId }: ContactAIConversationsProp
   });
 
   const { data: agents } = useQuery({
-    queryKey: ["ai-agents-map"],
+    queryKey: ["ai-agents-map", companyId],
+    enabled: !!companyId,
     queryFn: async () => {
       const { data } = await supabase
         .from("ai_agents" as never)
-        .select("id, name");
+        .select("id, name")
+        // Gli agenti di QUESTA azienda (il super admin li vedeva tutti).
+        .eq("company_id" as never, companyId as never);
       return new Map(((data as { id: string; name: string }[]) ?? []).map(a => [a.id, a.name]));
     },
   });

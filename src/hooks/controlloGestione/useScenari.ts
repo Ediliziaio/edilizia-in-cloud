@@ -5,6 +5,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { queryKeys } from "@/lib/queryKeys";
 
 export interface ScenarioRow {
@@ -15,12 +16,18 @@ export interface ScenarioRow {
 }
 
 export function useScenari() {
+  const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: queryKeys.controlloGestione.classificazione("scenari"),
+    queryKey: [...queryKeys.controlloGestione.classificazione("scenari"), companyId],
+    enabled: !!companyId,
     queryFn: async (): Promise<ScenarioRow[]> => {
       const { data, error } = await supabase
         .from("piano_industriale_assumptions")
         .select("id, scenario, is_default, orizzonte_anni")
+      // Solo QUESTA azienda: la sicurezza del database fa vedere al super admin
+      // (e a chi ha più aziende) le righe di tutte, e il Controllo di Gestione
+      // le sommava.
+        .eq("company_id", companyId!)
         .order("is_default", { ascending: false })
         .order("scenario", { ascending: true });
       if (error) throw error;
