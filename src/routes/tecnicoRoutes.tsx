@@ -1,4 +1,6 @@
-import { lazy } from "react";
+// Le pagine si caricano col ritentativo: dopo un deploy i chunk vecchi non
+// esistono più e senza questo la pagina va in errore (vedi lazyWithRetry).
+import { lazyWithRetry as lazy } from "@/lib/lazyWithRetry";
 import { Routes, Route } from "react-router-dom";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import type { AppRole } from "@/types/auth";

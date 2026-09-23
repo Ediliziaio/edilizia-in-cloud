@@ -1,4 +1,7 @@
-import { lazy, type ReactNode } from "react";
+import { type ReactNode } from "react";
+// Le pagine si caricano col ritentativo: dopo un deploy i chunk vecchi non
+// esistono più e senza questo la pagina va in errore (vedi lazyWithRetry).
+import { lazyWithRetry as lazy } from "@/lib/lazyWithRetry";
 import { Route, Navigate, useLocation, useParams } from "react-router-dom";
 // Estratti in ./company/_shared (MP-CLN-001): importati QUI in testa e non a
 // meta' file, altrimenti la regola no-use-before-define (che tiene lontani i
