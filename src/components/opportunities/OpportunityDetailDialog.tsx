@@ -34,7 +34,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Loader2, Trash2, StickyNote, FileText, CalendarDays, Activity,
   Settings2, User, Mail, Phone, UserPlus, DatabaseZap, RefreshCw, Folder,
-  Target, AlertTriangle, Trophy, MessageCircle, ExternalLink, History, Pin,
+  Target, AlertTriangle, Trophy, MessageCircle, ExternalLink, History,
 } from "lucide-react";
 import { useUpdateOpportunityMutation } from "@/hooks/useSalesOS";
 import { format } from "date-fns";
@@ -200,7 +200,6 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
   const [followerId, setFollowerId] = useState("");
   const [callCenterId, setCallCenterId] = useState("");
   const [companyName, setCompanyName] = useState("");
-  const [oppNotes, setOppNotes] = useState("");
   const [oppTags, setOppTags] = useState<string[]>([]);
   const [oppCustomValues, setOppCustomValues] = useState<Record<string, string>>({});
 
@@ -329,7 +328,6 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
       setFollowerId(opportunity.follower_id || "");
       setCallCenterId(opportunity.call_center_id || "");
       setCompanyName(opportunity.company_name || "");
-      setOppNotes(opportunity.notes || "");
       setOppTags(opportunity.tags || []);
       setProductLineId(opportunity.product_line_id || null);
       setPackageId(opportunity.package_id || null);
@@ -521,7 +519,6 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
       follower_id: followerId || null,
       call_center_id: callCenterId || null,
       company_name: companyName || null,
-      notes: oppNotes || null,
       ...(status === "lost" ? { lost_reason_category: motivoCategoria, lost_reason: motivoDettaglio } : {}),
       tags: normalizeTagList(oppTags),
       contact_id: finalContactId,
@@ -638,15 +635,14 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
     );
   };
 
-  // La nota della scheda (marketing_opportunities.notes) e il registro delle
-  // note (marketing_contact_notes) sono due archivi: fino al 21/09/2026 la
-  // sezione «Note» mostrava solo il secondo, e 11.330 opportunità — quasi tutte
-  // con la storia commerciale importata da GHL — sembravano senza note. Ora la
-  // nota della scheda sta in cima alla sezione Note, modificabile da lì o dai
-  // Dettagli: è lo stesso campo, si salva con «Aggiorna».
-  const notaSchedaPresente = oppNotes.trim().length > 0;
-  const notaSchedaDaSalvare = !!opportunity && (oppNotes || "") !== (opportunity.notes || "");
-  const totaleNote = notes.length + (notaSchedaPresente ? 1 : 0);
+  // Una nota sola: il registro (marketing_contact_notes), con data e autore.
+  // Gli archivi erano due — c'era anche il campo della scheda
+  // (marketing_opportunities.notes), che riempiono i flussi automatici: moduli,
+  // lead Meta, import, risposte del freddo. Dal 23/09/2026 quel testo diventa
+  // una nota del registro (trigger nota_scheda_nel_registro) e il campo resta
+  // vuoto, così qui si conta e si legge un posto solo — comprese le 11.330
+  // opportunità importate da GHL, che sembravano senza note.
+  const totaleNote = notes.length;
   const ultimaNotaRegistro = (notes as any[])[0] ?? null;
 
   const sidebarTabs: { key: Tab; label: string; mobileLabel?: string; icon: React.ReactNode; enabled: boolean }[] = [
@@ -1161,10 +1157,12 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
 
                       <div className="space-y-1">
                         <Label className="text-xs text-muted-foreground">Note</Label>
-                        <Textarea value={oppNotes} onChange={(e) => setOppNotes(e.target.value)} rows={2} className="text-sm" />
-                        {/* Il registro delle note sta nella sezione «Note»: da qui
-                            se ne vede l'ultima, e un clic porta a tutte. */}
-                        {ultimaNotaRegistro && (
+                        {/* Una nota sola (23/09/2026): il registro della sezione
+                            «Note». Qui se ne vede l'ultima e un clic porta a
+                            tutte. Anche quello che scrivono i flussi automatici
+                            nel campo della scheda finisce lì, spostato dal
+                            trigger nota_scheda_nel_registro. */}
+                        {ultimaNotaRegistro ? (
                           <button
                             type="button"
                             onClick={() => setTab("notes")}
@@ -1180,6 +1178,14 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                               «{String(ultimaNotaRegistro.content ?? "").slice(0, 90)}{String(ultimaNotaRegistro.content ?? "").length > 90 ? "…" : ""}»
                             </span>
                             <span className="text-primary"> · vedi tutte</span>
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setTab("notes")}
+                            className="block w-full text-left text-[11px] text-muted-foreground hover:text-primary transition-colors"
+                          >
+                            Nessuna nota · <span className="text-primary">scrivine una</span>
                           </button>
                         )}
                       </div>
@@ -1379,33 +1385,11 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
 
               {tab === "notes" && (
                 <div className="space-y-4">
-                  {/* Nota della scheda: lo STESSO campo «Note» dei Dettagli (stato
-                      oppNotes), quindi quello che si scrive in un posto è già
-                      nell'altro. Si salva con «Aggiorna», come i Dettagli. */}
-                  <div className="rounded-lg border border-amber-200 bg-amber-50/50 dark:border-amber-900/50 dark:bg-amber-950/20 p-3 space-y-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-1.5 text-xs font-medium">
-                        <Pin className="h-3.5 w-3.5 text-amber-600" />
-                        Nota dell'opportunità
-                      </div>
-                      {notaSchedaDaSalvare && (
-                        <span className="text-[11px] font-medium text-amber-700 dark:text-amber-400">
-                          Modificata: premi «Aggiorna» per salvarla
-                        </span>
-                      )}
-                    </div>
-                    <Textarea
-                      value={oppNotes}
-                      onChange={(e) => setOppNotes(e.target.value)}
-                      rows={notaSchedaPresente ? Math.min(8, Math.max(3, oppNotes.split("\n").length + 1)) : 2}
-                      placeholder="Nessuna nota nella scheda."
-                      className="text-sm bg-background"
-                    />
-                    <p className="text-[11px] text-muted-foreground">
-                      È il campo «Note» dei Dettagli: si modifica da qui o da lì.
-                    </p>
-                  </div>
-
+                  {/* Una nota sola (23/09/2026, il titolare: «avere due note non
+                      va bene per niente»). C'era anche il campo «Note» della
+                      scheda, riempito dai flussi automatici: adesso quel testo
+                      diventa una nota del registro (trigger
+                      nota_scheda_nel_registro), quindi qui c'è tutto. */}
                   <div className="flex items-center gap-2 pt-1">
                     <span className="text-xs font-medium">Registro note</span>
                     <span className="text-[11px] text-muted-foreground">ogni nota con data e autore</span>

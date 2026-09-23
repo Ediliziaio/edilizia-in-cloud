@@ -267,10 +267,15 @@ const TOOLS: ToolDef[] = [
     handler: async (admin, ctx, args) => {
       const company = await resolveCompany(admin, ctx, args);
       let q = admin.from("marketing_opportunities")
-        .select("id, name, value, status, source, notes, expected_close_date, created_at, contact:marketing_contacts(first_name, last_name, email)")
+        // Le note non stanno più sull'opportunità: dal 23/09/2026 il campo
+        // viene svuotato e il testo finisce nel registro (marketing_contact_notes),
+        // da cui si prende l'ultima (ordine e tetto valgono sull'annidata).
+        .select("id, name, value, status, source, expected_close_date, created_at, contact:marketing_contacts(first_name, last_name, email), note:marketing_contact_notes(content, created_at)")
         .eq("company_id", company.id)
         .is("deleted_at", null)
         .order("created_at", { ascending: false })
+        .order("created_at", { referencedTable: "note", ascending: false })
+        .limit(1, { referencedTable: "note" })
         .limit(intLimit(args.limit, 20, 50));
       const status = str(args.status);
       if (status) q = q.eq("status", status);
@@ -278,7 +283,13 @@ const TOOLS: ToolDef[] = [
       if (query) q = q.ilike("name", `%${query}%`);
       const { data, error } = await q;
       if (error) throw error;
-      return { azienda: company.name, opportunita: data ?? [] };
+      // L'annidata torna comunque come elenco: qui è una nota sola.
+      const opportunita = (data ?? []).map((riga: Record<string, unknown>) => {
+        const { note, ...resto } = riga;
+        const ultima = Array.isArray(note) ? note[0] : null;
+        return { ...resto, ultima_nota: ultima?.content ?? null, ultima_nota_del: ultima?.created_at ?? null };
+      });
+      return { azienda: company.name, opportunita };
     },
   },
   {
@@ -375,6 +386,8 @@ const TOOLS: ToolDef[] = [
         patch.status = status;
       }
       if (num(args.value) !== null) patch.value = num(args.value);
+      // Il testo scritto qui diventa una nota datata del registro: lo sposta il
+      // trigger nota_scheda_nel_registro, il campo resta vuoto (23/09/2026).
       if (str(args.notes)) patch.notes = str(args.notes);
       if (Object.keys(patch).length === 0) throw new ToolError("Nessun campo da aggiornare (status/value/notes)");
       const { data, error } = await admin.from("marketing_opportunities")
