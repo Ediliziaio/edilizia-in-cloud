@@ -1,4 +1,4 @@
-import { createRoot, hydrateRoot } from "react-dom/client";
+import { createRoot } from "react-dom/client";
 import { installInvalidAuthSessionRecovery } from "./lib/authInvalidSessionRecovery";
 import App from "./App.tsx";
 import "./index.css";
@@ -7,6 +7,7 @@ import { initWebVitalsReporter } from "./lib/velocity/webVitalsReporter";
 // Meta Ads attribution: cattura fbclid → _fbc, bootstrap _fbp per CAPI.
 import { initFacebookClickTracker } from "./lib/meta/fbcTracker";
 import { isNative } from "./lib/mobile/platform";
+import { mettiDaParteLaPaginaPreparata } from "@/lib/paginaPreparata";
 
 // 🚨 ESPLICITO unregister di service worker stale.
 //
@@ -138,28 +139,19 @@ if (isNative && typeof window !== "undefined") {
 const rootEl = document.getElementById("root")!;
 
 // Le pagine del sito arrivano già prerenderizzate (scripts/prerender.mjs).
-// createRoot CANCELLAVA quel DOM e lo ricreava da zero: il titolo, già
-// dipinto, spariva per rinascere a fine montaggio, e l'LCP diventava
-// l'hydration (6,5 s su /prezzi/ in Lighthouse mobile). hydrateRoot riusa i
-// nodi esistenti: il primo paint del prerender È il contenuto finale.
-// Se il markup non combacia, React 18 lo segnala e rifà il render lato
-// client — niente si rompe, si perde solo il guadagno su quella pagina.
-// Il meta x-prerendered lo scrive solo il prerender: lo shell SPA (che ha
-// dentro lo spinner iniziale) continua a passare da createRoot.
+// Fino al 23/09/2026 qui c'era hydrateRoot, che però falliva SEMPRE (React
+// #418 e #423): il prerender è una fotografia del browser a pagina finita,
+// senza i marcatori dei Suspense e con lo stato dopo gli effetti. React
+// buttava via il DOM, ridisegnava da zero e intanto mostrava il velo
+// «Caricamento in corso…» sopra una pagina già letta. Ora la pagina
+// preparata resta sullo schermo e React disegna la sua, nascosta, finché non
+// è pronta (src/lib/paginaPreparata.ts). Il meta x-prerendered lo scrive
+// solo il prerender: lo shell SPA (con lo spinner iniziale) non lo ha.
 const prerenderizzata =
   rootEl.childElementCount > 0 && !!document.querySelector('meta[name="x-prerendered"]');
 
-if (prerenderizzata) {
-  hydrateRoot(rootEl, <App />, {
-    onRecoverableError: (err) => {
-      // Visibile in console e a Sentry: un mismatch ricorrente su una rotta
-      // va sistemato alla fonte, non ignorato.
-      console.warn("[hydration] markup prerender ≠ client:", err);
-    },
-  });
-} else {
-  createRoot(rootEl).render(<App />);
-}
+if (prerenderizzata) mettiDaParteLaPaginaPreparata(rootEl);
+createRoot(rootEl).render(<App />);
 
 // Velocity RUM — Web Vitals reporter (no-op in dev).
 // Avviato DOPO il mount in modo da non sottrarre millisecondi al first paint.

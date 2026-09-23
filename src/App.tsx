@@ -89,6 +89,9 @@ const PageLoader = () => {
       className="fixed inset-0 z-40 flex items-center justify-center bg-background px-6 text-center"
       role="status"
       aria-live="polite"
+      // Letto da src/lib/paginaPreparata.ts: finché c'è, la pagina di React
+      // non è pronta e quella preparata dal prerender resta al suo posto.
+      data-caricamento-pagina=""
     >
       <div className="max-w-sm rounded-xl border bg-card p-6 shadow-sm">
         <Loader2 className="mx-auto h-7 w-7 animate-spin text-primary" />

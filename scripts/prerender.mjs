@@ -414,6 +414,10 @@ async function main() {
 
         let html = await page.content();
         html = html.replace(' data-seo-applied="true"', "");
+        // Il contenitore delle notifiche (sonner) vive solo nel browser: nella
+        // pagina preparata è una <section aria-live> vuota, che durante l'avvio
+        // si sommerebbe a quella vera di React (src/lib/paginaPreparata.ts).
+        html = html.replace(/<section aria-label="Notifications[^"]*"[^>]*>[\s\S]*?<\/section>/, "");
         html = html.replace(
           "</head>",
           `  <meta name="x-prerendered" content="${new Date().toISOString()}">\n  </head>`,
@@ -475,17 +479,22 @@ async function main() {
             });
             head = head.replace(/<\/?noscript>/g, "");
             if (cssHrefs.length) {
-              const preload = cssHrefs
-                .map((h) => `<link rel="preload" as="style" crossorigin href="${h}" onload="this.onload=null,this.rel='stylesheet'">`)
-                .join("");
-              const fallback = `<noscript>${cssHrefs.map((h) => `<link rel="stylesheet" crossorigin href="${h}">`).join("")}</noscript>`;
+              // Fogli BLOCCANTI, non più preload+onload (23/09/2026). Col
+              // caricamento asincrono il browser dipingeva la pagina prima del
+              // CSS: su telefono, quasi mezzo secondo di testo nudo e menu
+              // sparso, poi tutto che saltava al suo posto. Lo stile inline
+              // non basta a coprire: Beasties gira sullo shell vuoto (in
+              // closeBundle), quindi nella pagina non c'è CSS critico delle
+              // utility. Meglio qualche centinaio di ms di attesa che una
+              // pagina rotta da vedere.
+              const fogli = cssHrefs.map((h) => `<link rel="stylesheet" crossorigin href="${h}">`).join("");
               // Subito dopo il <title>: lo scanner del browser li vede presto,
               // prima dei blocchi inline di GA/GTM che seguono nel <head>.
               const dopoTitle = head.indexOf("</title>");
               head = dopoTitle !== -1
-                ? head.slice(0, dopoTitle + 8) + preload + head.slice(dopoTitle + 8)
-                : head + preload;
-              html = head + fallback + html.slice(fine);
+                ? head.slice(0, dopoTitle + 8) + fogli + head.slice(dopoTitle + 8)
+                : head + fogli;
+              html = head + html.slice(fine);
             } else {
               html = head + html.slice(fine);
             }
