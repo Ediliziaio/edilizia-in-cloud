@@ -137,7 +137,7 @@ Deno.serve(async (req) => {
     let emailed = false;
     if (RESEND_API_KEY) {
       try {
-        const subject = `🚨 Errore EiC — ${companyLabel} — ${shortPath(body.url)}`;
+        const subject = `Errore EiC — ${companyLabel} — ${shortPath(body.url)}`;
         const html = buildEmailHtml({
           userLabel,
           userEmail,

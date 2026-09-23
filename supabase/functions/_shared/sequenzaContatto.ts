@@ -81,6 +81,40 @@ export function invioEmailDaRimandare(status: number, stream: string): boolean {
 }
 
 /**
+ * Il provider ha rifiutato il MITTENTE, non il messaggio: Elastic Email
+ * risponde «From email address: "flo@…" not allowed», Resend «The … domain is
+ * not verified». Non è un guasto passeggero ma una configurazione che manca,
+ * quindi ritentare lo stesso indirizzo non serve: il 22/09/2026 sono stati
+ * respinti 117 invii in un'ora e mezza e senza ripiego quei contatti sarebbero
+ * rimasti senza email. Chi invia riprova UNA volta col mittente di piattaforma.
+ */
+const SEGNALI_MITTENTE_RIFIUTATO = [
+  "from email address",
+  "is not verified",
+  "domain not verified",
+  "sender not allowed",
+  "unverified sender",
+];
+
+export function mittenteRifiutatoDalProvider(status: number, corpo: unknown): boolean {
+  if (![400, 401, 403, 422].includes(status)) return false;
+  const testo = (typeof corpo === "string" ? corpo : JSON.stringify(corpo ?? "")).toLowerCase();
+  return SEGNALI_MITTENTE_RIFIUTATO.some((s) => testo.includes(s));
+}
+
+/** L'indirizzo dentro un «Nome <indirizzo>», o la stringa stessa. */
+export function soloIndirizzo(mittente: string): string {
+  return (mittente.match(/<([^>]+)>/)?.[1] ?? mittente).trim().toLowerCase();
+}
+
+/** Mittente di riserva: il nome di chi scrive, l'indirizzo di piattaforma. */
+export function mittenteDiRiserva(nome: string | null | undefined, predefinito: string): string {
+  const indirizzo = (predefinito.match(/<([^>]+)>/)?.[1] ?? predefinito).trim();
+  const n = (nome ?? "").trim();
+  return n && indirizzo.includes("@") ? `${n} <${indirizzo}>` : predefinito;
+}
+
+/**
  * Il fuso con cui leggere la finestra oraria del flusso. «account» (il valore
  * predefinito delle impostazioni) e «contact» non sono fusi: passati a Intl
  * davano errore e la finestra «dalle 8 alle 20» si calcolava in UTC, due ore

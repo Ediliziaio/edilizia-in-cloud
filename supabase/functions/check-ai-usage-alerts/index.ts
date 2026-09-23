@@ -161,7 +161,7 @@ Deno.serve(async (req) => {
           companyId:    null,
           stream:       "transactional",
           to:           adminEmails,
-          subject:      `⚠️ ${alertsToInsert.length} alert AI usage — soglie superate`,
+          subject:      `${alertsToInsert.length} alert AI usage — soglie superate`,
           html: `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;">
             <h2 style="color:#dc2626;">Alert Utilizzo AI — Soglie Superate</h2>
             <p>Le seguenti aziende hanno superato la soglia AI configurata:</p>

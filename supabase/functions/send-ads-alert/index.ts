@@ -160,7 +160,7 @@ function buildAlertMessages(input: AlertRequest, companyName: string): {
   switch (input.alert_type) {
     case "autopause":
       return {
-        subject: `⚠️ Campagne pubblicitarie in pausa automatica — ${companyName}`,
+        subject: `Campagne pubblicitarie in pausa automatica — ${companyName}`,
         bodyText: `Lo Spend Guard ha messo in pausa le campagne attive di ${companyName}.\n\nMotivo: ${input.detail ?? "cap di spesa superato"}\n\nApri il modulo Pubblicità per verificare e riattivare manualmente.`,
         bodyHtml: `<p>Lo <strong>Spend Guard</strong> ha messo in pausa le campagne attive di <strong>${companyName}</strong>.</p><p>Motivo: ${input.detail ?? "cap di spesa superato"}</p><p><a href="https://app.ediliziaincloud.com/azienda/marketing/pubblicita">Apri il modulo Pubblicità</a> per verificare e riattivare manualmente.</p>`,
         whatsappText: `⚠️ ${companyName}: campagne pubblicitarie pausate automaticamente. Motivo: ${input.detail ?? "cap superato"}. Verifica nel modulo Pubblicità.`,
@@ -174,14 +174,14 @@ function buildAlertMessages(input: AlertRequest, companyName: string): {
       };
     case "spend_anomaly":
       return {
-        subject: `🚨 Anomalia spesa pubblicitaria — ${companyName}`,
+        subject: `Anomalia spesa pubblicitaria — ${companyName}`,
         bodyText: `Rilevata anomalia: spesa giornaliera ${amountStr} è 3x la media. ${input.detail ?? ""}`,
         bodyHtml: `<p>🚨 <strong>Anomalia spesa pubblicitaria</strong></p><p>Spesa giornaliera ${amountStr} è 3x la media. ${input.detail ?? ""}</p>`,
         whatsappText: `🚨 ${companyName}: anomalia spesa pubblicitaria ${amountStr}/giorno. Verifica subito.`,
       };
     case "campaign_disapproved":
       return {
-        subject: `❌ Campagna rifiutata da Meta — ${campName}`,
+        subject: `Campagna rifiutata da Meta — ${campName}`,
         bodyText: `Meta ha rifiutato la campagna "${campName}". Motivo: ${input.detail ?? "non specificato"}`,
         bodyHtml: `<p>❌ Meta ha rifiutato la campagna <strong>${campName}</strong>.</p><p>Motivo: ${input.detail ?? "non specificato"}</p>`,
         whatsappText: `❌ ${companyName}: campagna "${campName}" rifiutata da Meta. Motivo: ${input.detail ?? "non specificato"}`,

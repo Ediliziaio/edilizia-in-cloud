@@ -258,7 +258,7 @@ Deno.serve(async (req) => {
       const res = await sendViaProviderWithFailover("transactional", settings, {
         from: settings.fromDefault,
         to: [recipient],
-        subject: `⚠️ Crediti in esaurimento — ${lows.map((l) => l.label).join(", ")}`,
+        subject: `Crediti in esaurimento — ${lows.map((l) => l.label).join(", ")}`,
         html,
       });
 

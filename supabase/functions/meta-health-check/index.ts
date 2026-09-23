@@ -146,7 +146,7 @@ Deno.serve(async (req) => {
         const r = await sendViaProviderWithFailover("transactional", provider, {
           from: provider.fromDefault,
           to: [ALERT_EMAIL],
-          subject: `⚠️ EiC: ${criticals.length} integrazion${criticals.length === 1 ? "e" : "i"} Meta in errore`,
+          subject: `EiC: ${criticals.length} integrazion${criticals.length === 1 ? "e" : "i"} Meta in errore`,
           html,
         });
         if (!r.ok) console.error("meta-health-check: alert email fallita:", r.error ?? r.status);

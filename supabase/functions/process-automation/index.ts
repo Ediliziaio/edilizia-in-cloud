@@ -22,7 +22,7 @@ import { getCorsHeaders, secureHeaders } from "../_shared/headers.ts";
 import { appendTrackingSig } from "../_shared/emailTrackingSignature.ts";
 import { arcoDelRamo, inizioGiornoRoma, leggiPercentuali, letteraRamo, modalitaSplit, ramoEquilibrato, ramoPerNumero } from "../_shared/splitRami.ts";
 import { nomeOpportunitaPulito, personeDaAvvisare, tagsUniti, testoNotaAggiornamento } from "../_shared/creaAggiornaOpportunita.ts";
-import { conLinkCliccabili, fusoDelFlusso, invioEmailDaRimandare, MINUTI_RINVIO_EMAIL, numeroWhatsApp, schedaAndataAvanti, senzaSpazioPrimaDellaVirgola } from "../_shared/sequenzaContatto.ts";
+import { conLinkCliccabili, fusoDelFlusso, invioEmailDaRimandare, MINUTI_RINVIO_EMAIL, mittenteDiRiserva, mittenteRifiutatoDalProvider, numeroWhatsApp, schedaAndataAvanti, senzaSpazioPrimaDellaVirgola, soloIndirizzo } from "../_shared/sequenzaContatto.ts";
 import { mittenteDelPasso, dominiAmmessi, soloDominiDellAzienda } from "../_shared/mittenteAutomazione.ts";
 import { calendarioDelGiorno, giornoAmmesso, leggiSettimane } from "../_shared/attesaCalendario.ts";
 import { romaVersoUtc, urlGestione } from "../_shared/appuntamentiPubblici.ts";
@@ -2289,6 +2289,7 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
             status: r.ok ? "sent" : "failed",
             provider: r.providerUsed ?? provider.provider,
             stream: streamUsato,
+            from_email: soloIndirizzo(notifSender?.from ?? provider.fromDefault),
             provider_id: r.providerMessageId ?? null,
             error_message: r.ok ? undefined : JSON.stringify(r.body),
             cost_eur: 0,
@@ -3974,7 +3975,7 @@ async function executeSendEmail(supabase: any, cfg: Record<string, any>, entityI
 
     const allegatiProvider = fattura ? [await scaricaAllegatoBase64(supabase, fattura)] : undefined;
 
-    const result = await sendViaProviderWithFailover(stream, settings, {
+    const messaggio = {
       from: fromAddress,
       replyTo: routeReplyTo ?? resolvedSender?.replyTo,
       to: [toAddress],
@@ -3988,11 +3989,34 @@ async function executeSendEmail(supabase: any, cfg: Record<string, any>, entityI
             "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
           }
         : undefined,
-    }, {
+    };
+    let result = await sendViaProviderWithFailover(stream, settings, messaggio, {
       domain: providerDomain ?? undefined,
       stream,
       disableNativeTracking: stream === "marketing",
     });
+
+    // Mittente rifiutato dal provider (Elastic: «From email address: "…" not
+    // allowed»): l'indirizzo non è abilitato, ritentarlo non serve e il
+    // contatto resterebbe senza email. Si riprova UNA volta col mittente di
+    // piattaforma, tenendo il nome di chi scrive e l'indirizzo per le
+    // risposte, come fa da sempre l'avviso interno. Vedi
+    // mittenteRifiutatoDalProvider in _shared/sequenzaContatto.ts.
+    let mittenteDiRipiego: string | null = null;
+    if (!result.ok && mittenteRifiutatoDalProvider(result.status, result.body)
+        && soloIndirizzo(fromAddress) !== soloIndirizzo(settings.fromDefault)) {
+      const diRiserva = mittenteDiRiserva(safeFromName || resolvedSender?.fromName, settings.fromDefault);
+      console.warn(`[process-automation] mittente ${soloIndirizzo(fromAddress)} rifiutato dal provider (${result.status}): riprovo da ${soloIndirizzo(diRiserva)}`);
+      const secondoTentativo = await sendViaProviderWithFailover(stream, settings, { ...messaggio, from: diRiserva }, {
+        domain: settings.domain ?? undefined,
+        stream,
+        disableNativeTracking: stream === "marketing",
+      });
+      if (secondoTentativo.ok) {
+        mittenteDiRipiego = diRiserva;
+        result = secondoTentativo;
+      }
+    }
 
     if (!result.ok && deductedEmailCost > 0) {
       await addEmailCredits(companyId, deductedEmailCost, "refund", {
@@ -4019,8 +4043,13 @@ async function executeSendEmail(supabase: any, cfg: Record<string, any>, entityI
       charged_eur: 0,
       // La variante finisce nel registro: senza, un test A/B produce due
       // email diverse e nessun modo di sapere quale ha reso di piu'.
+      from_email: soloIndirizzo(mittenteDiRipiego ?? fromAddress),
       metadata: {
         contact_id: contact.id, automation: true,
+        // Da quale mittente è partita davvero: senza, capire perché un invio
+        // è stato rifiutato (o da dove è uscito) voleva dire indovinare.
+        from_address: mittenteDiRipiego ?? fromAddress,
+        ...(mittenteDiRipiego ? { ripiego_mittente: soloIndirizzo(fromAddress) } : {}),
         // Il modello usato: Conversazioni ci legge il testo dell'email
         // (il registro degli invii tiene solo l'oggetto).
         ...(cfg.template_id ? { template_id: String(cfg.template_id) } : {}),

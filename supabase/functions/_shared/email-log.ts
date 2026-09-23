@@ -7,6 +7,13 @@
  * to the canonical column and accepts all Sprint-1C fields:
  *   stream, campaign_id, provider_id, cost_eur, charged_eur, metadata.
  */
+/** «Nome <indirizzo>» → indirizzo. La colonna tiene solo l'indirizzo. */
+function indirizzoNudo(mittente?: string | null): string | null {
+  if (!mittente) return null;
+  const indirizzo = (mittente.match(/<([^>]+)>/)?.[1] ?? mittente).trim().toLowerCase();
+  return indirizzo.includes("@") ? indirizzo : null;
+}
+
 export async function logEmailDelivery(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabaseAdmin: any,
@@ -29,6 +36,8 @@ export async function logEmailDelivery(
     error_message?: string;
     cost_eur?: number;
     charged_eur?: number;
+    /** Indirizzo da cui è partita davvero (senza nome): la colonna del registro. */
+    from_email?: string | null;
     metadata?: Record<string, unknown> | null;
   }
 ): Promise<{ id?: string }> {
@@ -49,6 +58,7 @@ export async function logEmailDelivery(
         campaign_id:   params.campaign_id ?? null,
         cost_eur:      params.cost_eur ?? 0,
         charged_eur:   params.charged_eur ?? 0,
+        from_email:    indirizzoNudo(params.from_email),
         metadata:      params.metadata ?? null,
       })
       .select("id")

@@ -5,9 +5,12 @@ import {
   conLinkCliccabili,
   fusoDelFlusso,
   invioEmailDaRimandare,
+  mittenteDiRiserva,
+  mittenteRifiutatoDalProvider,
   numeroWhatsApp,
   schedaAndataAvanti,
   senzaSpazioPrimaDellaVirgola,
+  soloIndirizzo,
 } from "../../../supabase/functions/_shared/sequenzaContatto";
 
 // 19/09/2026 — flusso «Download Risorse — PDF Vendita»: 4 email e i WhatsApp
@@ -116,5 +119,38 @@ describe("il motore usa davvero questi pezzi", () => {
     expect(motore).toContain("conLinkCliccabili(escapeNotif(l))");
     expect(motore).toContain("telefono_whatsapp: numeroWhatsApp(contact?.phone)");
     expect(motore).toContain("html = senzaSpazioPrimaDellaVirgola(html)");
+  });
+});
+
+// 22/09/2026 — Elastic ha rifiutato «flo@mkt.ediliziaincloud.com» per un'ora e
+// mezza: 117 invii respinti su 39 contatti. Ritentare lo stesso indirizzo non
+// serve, quindi chi invia ripiega sul mittente di piattaforma.
+describe("mittente rifiutato dal provider", () => {
+  it("riconosce il rifiuto di Elastic e quello di Resend", () => {
+    expect(mittenteRifiutatoDalProvider(400, { Error: 'Error: From email address: "flo@mkt.ediliziaincloud.com" not allowed.' })).toBe(true);
+    expect(mittenteRifiutatoDalProvider(403, { message: "The mkt.ediliziaincloud.com domain is not verified" })).toBe(true);
+    expect(mittenteRifiutatoDalProvider(422, "Unverified sender address")).toBe(true);
+  });
+
+  it("un guasto passeggero o un altro errore non c'entrano: quelli si rimandano", () => {
+    expect(mittenteRifiutatoDalProvider(429, { Error: "Too many requests" })).toBe(false);
+    expect(mittenteRifiutatoDalProvider(500, "Internal error")).toBe(false);
+    expect(mittenteRifiutatoDalProvider(400, { Error: "Recipient address is invalid" })).toBe(false);
+    expect(mittenteRifiutatoDalProvider(400, null)).toBe(false);
+  });
+
+  it("il mittente di riserva tiene il nome e cambia solo l'indirizzo", () => {
+    expect(mittenteDiRiserva("Filippo di EdiliziaInCloud", "Edilizia in Cloud <noreply@notifiche.ediliziaincloud.it>"))
+      .toBe("Filippo di EdiliziaInCloud <noreply@notifiche.ediliziaincloud.it>");
+    expect(mittenteDiRiserva("", "noreply@notifiche.ediliziaincloud.it")).toBe("noreply@notifiche.ediliziaincloud.it");
+    expect(soloIndirizzo("Filippo di EdiliziaInCloud <Flo@MKT.EdiliziaInCloud.com>")).toBe("flo@mkt.ediliziaincloud.com");
+    expect(soloIndirizzo("flo@mkt.ediliziaincloud.com")).toBe("flo@mkt.ediliziaincloud.com");
+  });
+
+  it("il motore ripiega davvero, una volta sola, e lo scrive nel registro", () => {
+    const motore = readFileSync(join(__dirname, "../../../supabase/functions/process-automation/index.ts"), "utf8");
+    expect(motore).toContain("mittenteRifiutatoDalProvider(result.status, result.body)");
+    expect(motore).toContain("const secondoTentativo = await sendViaProviderWithFailover(stream, settings, { ...messaggio, from: diRiserva }");
+    expect(motore).toContain("ripiego_mittente: soloIndirizzo(fromAddress)");
   });
 });
