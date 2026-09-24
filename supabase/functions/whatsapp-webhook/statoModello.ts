@@ -8,8 +8,10 @@
  * finiva solo nel registro e il modello restava «in attesa» fino alla
  * sincronizzazione (ogni 6 ore).
  *
- * Nessun import: lo leggono sia Deno sia i test.
+ * Lo leggono sia Deno sia i test: l'unico import è un modulo senza import.
  */
+
+export { lingueDelModello } from "../_shared/modelloWhatsApp.ts";
 
 /** Lo stato da scrivere, o null se l'avviso non cambia lo stato. */
 export function statoDopoAvvisoMeta(evento: unknown): string | null {
@@ -21,12 +23,4 @@ export function statoDopoAvvisoMeta(evento: unknown): string | null {
   // (in quel caso arriva un avviso PAUSED).
   if (e === "FLAGGED") return null;
   return e;
-}
-
-/** «it_IT» e «it» sono la stessa lingua per l'elenco dei modelli. */
-export function lingueDelModello(lingua: unknown): string[] {
-  const l = typeof lingua === "string" ? lingua.trim() : "";
-  if (!l) return [];
-  const base = l.split("_")[0];
-  return base === l ? [l] : [l, base];
 }
