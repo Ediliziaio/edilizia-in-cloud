@@ -5,10 +5,13 @@
 -- fatturazione interna, non lo fa ancora: nella sua specifica l'opzione
 -- legal_storage è «NOT yet available». La strada più semplice è il servizio
 -- gratuito dell'Agenzia delle Entrate: conserva 15 anni tutto quello che passa
--- dallo SDI, ma l'adesione dura tre anni e si rinnova a mano.
+-- dallo SDI. La convenzione dura tre anni e si rinnova da sola, salvo revoca
+-- (FAQ n. 34 dell'Agenzia, aggiornata il 23/04/2021).
 --
 -- Qui si segna quando l'azienda ha aderito, perché Impostazioni → Fatturazione
--- dica quando rinnovare. Colonna nuova e vuota: nessuna riga da riscrivere.
+-- ricordi di controllare nel portale che ogni rinnovo risulti. Colonna nuova e
+-- vuota: nessuna riga da riscrivere. (Commento corretto il 24/09 sera: prima
+-- diceva «si rinnova a mano», come la prima versione della convenzione, 2018.)
 alter table public.anagrafica_azienda
   add column if not exists conservazione_ade_aderito_il date;
 
