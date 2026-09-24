@@ -1092,6 +1092,14 @@ verify_jwt = false
 [functions.openapi-fatture-ricevute]
 verify_jwt = false
 
+# «Attiva Fatturazione Elettronica» in Impostazioni → Fatturazione. Era l'unica
+# funzione della fatturazione rimasta dietro il verify_jwt del gateway, che
+# rifiuta i token ES256 degli utenti prima del codice: il pulsante rispondeva
+# 401 a chiunque (sdi_cedente_config vuota al 24/09/2026). Il controllo lo fa
+# lei: getUser + verifyCompanyAccess sul company_id del corpo.
+[functions.sdi-onboarding]
+verify_jwt = false
+
 # ── Le otto funzioni aperte SENZA alcun controllo (trovate il 20/09/2026) ─────
 # In produzione erano verify_jwt = false, aperte a mano, e nel codice non
 # guardavano chi chiama: bastava conoscere l'URL per farle lavorare con la
