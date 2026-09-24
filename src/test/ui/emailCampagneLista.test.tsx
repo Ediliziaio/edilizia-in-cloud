@@ -20,7 +20,7 @@ const stato: { righe: Riga[]; inserite: Riga[]; lette: string[] } = { righe: [],
 const navigate = vi.fn();
 
 // La campagna intera, come la rilegge «Duplica»: ha il pubblico e l'A/B.
-const INTERA = {
+const INTERA: Riga = {
   id: "c-inviata", name: "Newsletter settembre", type: "newsletter", subject: "Novità di settembre",
   html_content: "<p>ciao</p>", json_content: null, preview_text: null, sender_name: "Flo", sender_email: "flo@x.it",
   folder_id: null, segment_json: { tags: ["clienti"] }, ab_test_enabled: true, ab_subject_b: "Oggetto B",
