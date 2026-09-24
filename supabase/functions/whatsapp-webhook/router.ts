@@ -20,6 +20,7 @@ import { handleAssistenza } from "./handlers/assistenza.ts";
 import { handleLead } from "./handlers/lead.ts";
 import { handleMarketing } from "./handlers/marketing.ts";
 import { handleNotifiche } from "./handlers/notifiche.ts";
+import { lingueDelModello, statoDopoAvvisoMeta } from "./statoModello.ts";
 
 interface MetaStatus {
   id: string;
@@ -28,7 +29,8 @@ interface MetaStatus {
 }
 
 interface MetaTemplateStatusUpdate {
-  event?: "APPROVED" | "REJECTED" | "FLAGGED" | "PENDING_DELETION" | "PAUSED" | "DISABLED";
+  // APPROVED | REJECTED | FLAGGED | PENDING_DELETION | PAUSED | DISABLED | REINSTATED | IN_APPEAL…
+  event?: string;
   message_template_id?: string;
   message_template_name?: string;
   message_template_language?: string;
@@ -299,6 +301,64 @@ async function handleTemplateStatusUpdate(
         level: "warn",
         fn: "handleTemplateStatusUpdate",
         msg: "audit log insert failed",
+        error: err instanceof Error ? err.message : String(err),
+      }),
+    );
+  }
+
+  await aggiornaStatoModello(supabase, wabaId, value);
+}
+
+/**
+ * 24/09/2026 — Lo stato del modello si aggiorna da solo: approvato, rifiutato,
+ * in pausa, disattivato. Automazioni, broadcast e chat leggono
+ * wa_meta_templates, che prima restava «in attesa» fino alla sincronizzazione
+ * ogni 6 ore. Mai un errore verso Meta: si scrive nel log e si va avanti.
+ */
+async function aggiornaStatoModello(
+  supabase: SupabaseClient,
+  wabaId: string | undefined,
+  value: MetaTemplateStatusUpdate,
+): Promise<void> {
+  const stato = statoDopoAvvisoMeta(value.event);
+  const nome = value.message_template_name;
+  const lingue = lingueDelModello(value.message_template_language);
+  if (!wabaId || !stato || !nome) return;
+  try {
+    const { data: numeri } = await supabase
+      .from("ai_whatsapp_numbers")
+      .select("id")
+      .eq("waba_id", wabaId)
+      .is("deleted_at", null);
+    const idNumeri = (numeri ?? []).map((n: { id: string }) => n.id);
+    if (idNumeri.length === 0) return;
+
+    let aggiornamento = supabase
+      .from("wa_meta_templates")
+      .update({ status: stato, synced_at: new Date().toISOString() })
+      .in("wa_number_id", idNumeri)
+      .eq("template_name", nome);
+    if (lingue.length > 0) aggiornamento = aggiornamento.in("template_language", lingue);
+    const { data: righe, error } = await aggiornamento.select("id");
+
+    console.log(
+      JSON.stringify({
+        level: error ? "warn" : "info",
+        fn: "handleTemplateStatusUpdate",
+        msg: "stato modello aggiornato",
+        waba_id: wabaId,
+        template_name: nome,
+        stato,
+        righe: righe?.length ?? 0,
+        error: error?.message ?? null,
+      }),
+    );
+  } catch (err) {
+    console.warn(
+      JSON.stringify({
+        level: "warn",
+        fn: "handleTemplateStatusUpdate",
+        msg: "stato modello non aggiornato",
         error: err instanceof Error ? err.message : String(err),
       }),
     );
