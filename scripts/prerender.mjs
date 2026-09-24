@@ -30,11 +30,13 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import net from "node:net";
+import { preparaFoglio, valutaSelettori, cssCritico } from "./cssCritico.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
 const DIST = join(ROOT, "dist");
-const PORT = 4173;
+// PRERENDER_PORT: per provarlo in locale quando la 4173 è già occupata.
+const PORT = Number(process.env.PRERENDER_PORT) || 4173;
 const BASE_URL = `http://127.0.0.1:${PORT}`;
 
 // ── Lista rotte pubbliche ─────────────────────────────────────────────────────
@@ -248,6 +250,24 @@ function loadBlogCategorySlugs() {
   return [...cats];
 }
 
+// ── Fogli di build, letti una volta sola ────────────────────────────────────
+// Per il CSS critico di ogni pagina (scripts/cssCritico.mjs): l'albero del
+// foglio e i suoi selettori si preparano al primo uso e valgono per tutte le rotte.
+const fogliPreparati = new Map();
+function foglioPreparato(href) {
+  if (!fogliPreparati.has(href)) {
+    const file = join(DIST, href.replace(/^\//, ""));
+    let preparato = null;
+    try {
+      if (existsSync(file)) preparato = preparaFoglio(readFileSync(file, "utf-8"), href);
+    } catch (e) {
+      console.warn(`⚠ CSS in pagina: ${href} non leggibile (${e?.message ?? e}), fogli bloccanti`);
+    }
+    fogliPreparati.set(href, preparato);
+  }
+  return fogliPreparati.get(href);
+}
+
 // ── Server preview helpers ───────────────────────────────────────────────────
 
 function waitForPort(port, host = "127.0.0.1", timeoutMs = 30_000) {
@@ -413,6 +433,7 @@ async function main() {
         await page.waitForTimeout(150);
 
         let html = await page.content();
+        let cssInPagina = 0;
         html = html.replace(' data-seo-applied="true"', "");
         // Il contenitore delle notifiche (sonner) vive solo nel browser: nella
         // pagina preparata è una <section aria-live> vuota, che durante l'avvio
@@ -466,16 +487,24 @@ async function main() {
         // 2. Strip vendor-flow CSS (xyflow, 15KB, not used on marketing)
         html = html.replace(/<link\s+rel="stylesheet"[^>]*href="[^"]*vendor-flow[^"]*\.css"[^>]*>/g, "");
 
-        // ── 3. CSS non bloccante ────────────────────────────────────────────
+        // ── 3. CSS: dentro la pagina quello che serve, il resto dopo ─────────
         // page.content() fotografa il DOM a caricamento AVVENUTO: l'onload del
         // preload ha già trasformato rel="preload" in rel="stylesheet", i chunk
         // caricati a runtime hanno iniettato i loro <link rel="stylesheet">, e
-        // Beasties aveva già annidato due <noscript> uno dentro l'altro. Servito
-        // così, ogni pagina partiva con ~64 KB di CSS bloccante (Lighthouse
-        // mobile: 1,1 s su /prezzi/). Si lavora SOLO sul <head>: via ogni link ai
-        // fogli di build e ogni <noscript> (lì avvolgono solo quei fallback —
-        // l'iframe GTM sta nel <body>), poi un preload asincrono per foglio e UN
-        // fallback per chi ha JS spento.
+        // Beasties aveva già annidato due <noscript> uno dentro l'altro. Si
+        // lavora SOLO sul <head>: via ogni link ai fogli di build e ogni
+        // <noscript> (lì avvolgono solo quei fallback — l'iframe GTM sta nel
+        // <body>), poi si rimettono come serve.
+        //
+        // Il foglio di build è uno per sito e app (~500 KB): una pagina del sito
+        // ne usa il 3-9%. Dal 24/09/2026 le regole che servono alla pagina
+        // (cssCritico.mjs: 25-60 KB) stanno in un <style> dentro la pagina, e i
+        // fogli interi arrivano come preload, senza bloccare il primo disegno;
+        // la pagina di React aspetta di averli (src/lib/paginaPreparata.ts).
+        // Storia: col preload SENZA CSS critico il browser dipingeva la pagina
+        // nuda (menu sparso, testo senza stile); coi fogli bloccanti (23/09) la
+        // pagina restava bianca finché non arrivavano tutti e 500 i KB. Se il
+        // calcolo non riesce, si torna ai fogli bloccanti.
         {
           const fine = html.indexOf("</head>");
           if (fine !== -1) {
@@ -489,15 +518,32 @@ async function main() {
             });
             head = head.replace(/<\/?noscript>/g, "");
             if (cssHrefs.length) {
-              // Fogli BLOCCANTI, non più preload+onload (23/09/2026). Col
-              // caricamento asincrono il browser dipingeva la pagina prima del
-              // CSS: su telefono, quasi mezzo secondo di testo nudo e menu
-              // sparso, poi tutto che saltava al suo posto. Lo stile inline
-              // non basta a coprire: Beasties gira sullo shell vuoto (in
-              // closeBundle), quindi nella pagina non c'è CSS critico delle
-              // utility. Meglio qualche centinaio di ms di attesa che una
-              // pagina rotta da vedere.
-              const fogli = cssHrefs.map((h) => `<link rel="stylesheet" crossorigin href="${h}">`).join("");
+              let critico = "";
+              const preparati = cssHrefs.map(foglioPreparato);
+              // PRERENDER_CSS_BLOCCANTE=1 torna ai fogli bloccanti: per confrontare
+              // le due versioni, o come via d'uscita se il CSS critico desse problemi.
+              if (preparati.every(Boolean) && !process.env.PRERENDER_CSS_BLOCCANTE) {
+                // Sullo stesso DOM appena fotografato: la pagina è ancora aperta.
+                const tutti = [...new Set(preparati.flatMap((f) => f.selettori))];
+                const esiti = await page.evaluate(valutaSelettori, tutti).catch(() => null);
+                if (esiti) {
+                  const servono = new Set(tutti.filter((_, i) => esiti[i]));
+                  try {
+                    critico = preparati.map((f) => cssCritico(f, servono)).join("");
+                  } catch (e) {
+                    critico = "";
+                    console.warn(`⚠ CSS in pagina per ${route}: ${e?.message ?? e}, fogli bloccanti`);
+                  }
+                }
+              }
+              const fogli = critico
+                ? `<style data-css-critico>${critico.replace(/<\/style/gi, "<\\/style")}</style>` +
+                  cssHrefs
+                    .map((h) => `<link rel="preload" as="style" crossorigin href="${h}" onload="this.onload=null;this.rel='stylesheet'" data-css-completo>`)
+                    .join("") +
+                  `<noscript>${cssHrefs.map((h) => `<link rel="stylesheet" crossorigin href="${h}">`).join("")}</noscript>`
+                : cssHrefs.map((h) => `<link rel="stylesheet" crossorigin href="${h}">`).join("");
+              cssInPagina = critico.length;
               // Subito dopo il <title>: lo scanner del browser li vede presto,
               // prima dei blocchi inline di GA/GTM che seguono nel <head>.
               const dopoTitle = head.indexOf("</title>");
@@ -527,7 +573,7 @@ async function main() {
         writeFileSync(join(outDir, "index.html"), html, "utf-8");
 
         ok++;
-        process.stdout.write(`✓ ${route}\n`);
+        process.stdout.write(`✓ ${route}${cssInPagina ? `  (css in pagina ${Math.round(cssInPagina / 1024)} KB)` : "  (css bloccante)"}\n`);
       } catch (e) {
         fail++;
         failures.push({ route, error: String(e?.message ?? e) });

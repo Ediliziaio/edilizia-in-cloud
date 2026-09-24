@@ -85,6 +85,12 @@ describe("le regole nel database", () => {
     expect(migrazione).toContain("create trigger trg_ruolo_cliente_blocca_senza_portale");
     expect(migrazione).toContain("create trigger trg_portale_spento_blocca_clienti");
   });
+
+  it("anche il link con token vale solo col portale acceso e il cliente sbloccato", () => {
+    const token = leggi("supabase/migrations/20280924120000_token_portale_solo_con_portale_attivo.sql");
+    expect(token).toContain("AND coalesce(c.customer_portal_enabled, false)");
+    expect(token).toContain("AND NOT coalesce(p.is_blocked, false)");
+  });
 });
 
 describe("un cliente bloccato non entra", () => {
