@@ -739,7 +739,7 @@ export default function MarketingContacts() {
       const raccolti = new Set<string>();
       for (let da = 0; raccolti.size < LIMITE_SELEZIONE; da += PAGINA) {
         let query = sorgenteContatti("id")
-          .order(sortField, { ascending: sortDirection === "asc" })
+          .order(sortField, { ascending: sortDirection === "asc", nullsFirst: false })
           .range(da, da + PAGINA - 1);
         query = applicaFiltriCorrenti(query);
         const { data, error } = await query;
@@ -1012,7 +1012,9 @@ export default function MarketingContacts() {
         "id, first_name, last_name, email, phone, company_name, address, city, province, postal_code, country, website, date_of_birth, notes, contact_type, source, tags, assigned_to, company_id, created_at, updated_at, last_activity_at, call_center_id, attr_source, attr_campaign, lead_score, icp_score, score, ai_score, ai_score_tier, ai_score_reasoning, ai_next_action, preferred_channel, opt_out, optout_email, optout_sms, optout_whatsapp, optout_call, unsubscribed, unsubscribed_at",
         true,
       )
-        .order(sortField, { ascending: sortDirection === "asc" })
+        // Chi non ha il dato va in fondo: in discesa Postgres mette i vuoti in
+        // testa, e «Ultima attività ↓» apriva con i contatti mai lavorati.
+        .order(sortField, { ascending: sortDirection === "asc", nullsFirst: false })
         .range(from, to);
 
       query = applicaFiltriCorrenti(query);
@@ -1024,26 +1026,14 @@ export default function MarketingContacts() {
 
       // Fetch first opportunity per contact
       const oppMap: Record<string, { name: string; value: number; status: string; pipeline_name: string; stage_name: string }> = {};
-      // L'ultima attività vera delle righe a schermo. La colonna del contatto
-      // non la aggiorna nessuno (BeMade: 2 contatti su 21.160): le note, i
-      // cambi di fase e i messaggi stanno nel registro delle attività. È la
-      // stessa regola del filtro «Ultima attività».
-      const ultimaAttivita: Record<string, string | null> = {};
       if (contactIds.length > 0) {
-        const [{ data: opps }, { data: attivita }] = await Promise.all([
-          supabase
-            .from("marketing_opportunities")
-            .select("contact_id, name, value, status, marketing_pipelines(name), marketing_pipeline_stages(name)")
-            .in("contact_id", contactIds)
-            .eq("company_id", companyId)
-            .is("deleted_at", null)
-            .order("created_at", { ascending: false }),
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (supabase as any).rpc("marketing_ultima_attivita_contatti", { p_contatti: contactIds }),
-        ]);
-        for (const riga of (attivita ?? []) as { contact_id: string; ultima_attivita: string | null }[]) {
-          ultimaAttivita[riga.contact_id] = riga.ultima_attivita;
-        }
+        const { data: opps } = await supabase
+          .from("marketing_opportunities")
+          .select("contact_id, name, value, status, marketing_pipelines(name), marketing_pipeline_stages(name)")
+          .in("contact_id", contactIds)
+          .eq("company_id", companyId)
+          .is("deleted_at", null)
+          .order("created_at", { ascending: false });
 
         if (opps) {
           for (const opp of opps) {
@@ -1090,7 +1080,6 @@ export default function MarketingContacts() {
           opp_status: opp?.status || null,
           opp_pipeline: opp?.pipeline_name || null,
           opp_stage: opp?.stage_name || null,
-          last_activity_at: ultimaAttivita[c.id] ?? c.last_activity_at ?? null,
         };
       });
 

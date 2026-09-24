@@ -258,7 +258,10 @@ Deno.serve(async (req) => {
           contact_type: "lead",
           tags,
           notes: mergedNotes,
-          last_activity_at: now,
+          // Niente last_activity_at: è l'ultimo lavoro dell'azienda sul
+          // contatto, e compilare il modulo non lo è. La scrive il registro
+          // delle attività (20280925001500): segnarla qui toglieva la richiesta
+          // dagli avvisi «lead non contattati».
           // Il consenso va scritto SUL CONTATTO, non solo in demo_requests e
           // nelle note: e' il campo che il richiamo vocale legge per decidere
           // se puo' chiamare. Senza questa riga la spunta del form si perdeva e
@@ -289,7 +292,7 @@ Deno.serve(async (req) => {
           contact_type: "lead",
           tags,
           notes,
-          last_activity_at: now,
+          // Niente last_activity_at, come nel ramo di aggiornamento.
           // Vedi il commento nel ramo di aggiornamento: e' il campo che abilita
           // il richiamo vocale, e prima veniva dimenticato proprio qui.
           marketing_consent: marketingConsent,

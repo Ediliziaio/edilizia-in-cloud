@@ -322,8 +322,10 @@ Deno.serve(async (req) => {
 
       if (existing) {
         contactId = existing.id;
+        // Niente last_activity_at: è l'ultimo lavoro dell'azienda sul
+        // contatto, e un lead che compila di nuovo il modulo deve restare «da
+        // contattare». La scrive il registro delle attività (20280925001500).
         const contactUpdate: Record<string, unknown> = {
-          last_activity_at: new Date().toISOString(),
           ...(validEmail ? { email: validEmail } : {}),
           ...(phone ? { phone } : {}),
           // Città, azienda, indirizzo… (solo i valori compilati, non sovrascrive
