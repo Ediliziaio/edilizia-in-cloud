@@ -4,8 +4,9 @@
 
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import type { InboundContext } from "../types.ts";
-import { persistInboundMessage } from "./_shared.ts";
+import { messaggioGiaRicevuto, persistInboundMessage } from "./_shared.ts";
 import {
+  avvisaAutomazioni,
   isStopMessage,
   markOptOut,
   resolveOrCreateContact,
@@ -18,12 +19,18 @@ export async function handleAssistenza(
 ): Promise<void> {
   const { waNumber, extracted, senderPhone } = ctx;
 
+  if (await messaggioGiaRicevuto(supabase, ctx)) return;
+
   const contact = await resolveOrCreateContact(supabase, senderPhone, waNumber.company_id, {
     tipo: "cliente_prospect",
     stato: "nuovo",
     source: "whatsapp_assistenza",
     firstMessage: extracted.content,
+    profileName: ctx.senderName,
   });
+
+  // Il messaggio si salva anche senza contatto: prima andava perso.
+  const messageId = await persistInboundMessage(supabase, ctx, { contactId: contact?.id ?? null });
 
   if (!contact) {
     console.error(
@@ -36,8 +43,6 @@ export async function handleAssistenza(
     return;
   }
 
-  const messageId = await persistInboundMessage(supabase, ctx);
-
   if (isStopMessage(extracted.content)) {
     await markOptOut(supabase, contact.id);
     await sendPlainReply(
@@ -49,12 +54,15 @@ export async function handleAssistenza(
     return;
   }
 
-  if (contact.opt_out) {
+  // Ha riscritto dopo lo STOP: torna raggiungibile, come dice la risposta.
+  if (contact.opt_out || contact.optout_whatsapp) {
     await supabase
       .from("marketing_contacts")
-      .update({ opt_out: false })
+      .update({ opt_out: false, optout_whatsapp: false })
       .eq("id", contact.id);
   }
+
+  await avvisaAutomazioni(supabase, ctx, contact.id, messageId);
 
   const baseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;

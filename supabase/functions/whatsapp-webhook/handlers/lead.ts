@@ -3,8 +3,9 @@
 
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import type { InboundContext } from "../types.ts";
-import { persistInboundMessage } from "./_shared.ts";
+import { messaggioGiaRicevuto, persistInboundMessage } from "./_shared.ts";
 import {
+  avvisaAutomazioni,
   isStopMessage,
   resolveOrCreateContact,
   sendPlainReply,
@@ -16,22 +17,28 @@ export async function handleLead(
 ): Promise<void> {
   const { waNumber, extracted, senderPhone } = ctx;
 
+  if (await messaggioGiaRicevuto(supabase, ctx)) return;
+
   const contact = await resolveOrCreateContact(supabase, senderPhone, waNumber.company_id, {
     tipo: "lead",
     stato: "lead_nuovo",
     source: "whatsapp_lead",
     firstMessage: extracted.content,
+    profileName: ctx.senderName,
   });
 
-  if (!contact) return;
+  // Il messaggio si salva anche se il contatto non si è potuto trovare né
+  // creare: prima in quel caso andava perso.
+  const messageId = await persistInboundMessage(supabase, ctx, { contactId: contact?.id ?? null });
 
-  const messageId = await persistInboundMessage(supabase, ctx);
+  if (!contact) return;
 
   if (isStopMessage(extracted.content)) {
     await supabase
       .from("marketing_contacts")
       .update({
         opt_out: true,
+        optout_whatsapp: true,
         stato: "lead_scartato_opt_out",
         opt_out_at: new Date().toISOString(),
       })
@@ -44,6 +51,8 @@ export async function handleLead(
     );
     return;
   }
+
+  await avvisaAutomazioni(supabase, ctx, contact.id, messageId);
 
   // Lead già qualificato → handoff commerciale (skip AI)
   if (
