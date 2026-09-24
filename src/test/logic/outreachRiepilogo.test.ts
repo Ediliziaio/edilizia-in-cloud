@@ -96,7 +96,7 @@ describe("da chiamare oggi e urgenze", () => {
     giorno: "giovedì 24 settembre",
     brand: [conti({ brand: "ThermoDMR", inviate: 180, primoContatto: 180, risposte: 2, interessati: 2 })],
     chiHaRisposto: ["Rossi Serramenti — interessato"],
-    caselleFerme: [],
+    caselleFerme: [] as string[],
     caselleAttive: 9,
   };
 
