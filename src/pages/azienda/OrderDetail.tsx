@@ -5,6 +5,7 @@ import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { AlertTriangle, BellRing, AlertCircle, Package, Receipt, HardHat, Truck, FileText, FileWarning, Download, Sparkles, Wallet, ListChecks, Plus, LayoutDashboard, Paperclip, ArrowRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { OrderSurveysCard } from "@/components/orders/OrderSurveysCard";
+import { MezziCommessaCard } from "@/components/mezzi/MezziCommessaCard";
 import { OrderActivityFeed } from "@/components/orders/OrderActivityFeed";
 import { OrderOriginBadge } from "@/components/orders/OrderOriginBadge";
 import { OrderScheduleBadge } from "@/components/orders/OrderScheduleBadge";
@@ -1544,6 +1545,9 @@ function OrderDetailInner() {
                 orderDescription={order.description}
                 defaultAddress={order.work_address || order.customer?.address}
               />
+              <ErrorBoundary fallback={<></>}>
+                <MezziCommessaCard orderId={id!} />
+              </ErrorBoundary>
               {/* Documenti Commessa (allegati/file) */}
               <OrderAttachments orderId={id!} editable={true} />
             </TabsContent>
@@ -1958,6 +1962,11 @@ function OrderDetailInner() {
               <div className="lg:col-start-1 lg:row-start-3">
                 <ErrorBoundary fallback={<></>}>
                   <OrderSurveysCard orderId={id!} />
+                </ErrorBoundary>
+              </div>
+              <div className="empty:hidden lg:col-start-1 lg:row-start-4">
+                <ErrorBoundary fallback={<></>}>
+                  <MezziCommessaCard orderId={id!} />
                 </ErrorBoundary>
               </div>
             </div>

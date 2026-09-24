@@ -35,6 +35,8 @@ import {
   Sparkles,
   CalendarClock,
   AlertTriangle,
+  Truck,
+  Wrench,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
@@ -57,6 +59,8 @@ const typeConfig: Record<string, { icon: typeof Bell; bg: string; fg: string }> 
   quote_approval_rejected: { icon: Percent, bg: "bg-rose-50 ring-rose-200", fg: "text-rose-600" },
   quote_approval_counter_proposed: { icon: Percent, bg: "bg-blue-50 ring-blue-200", fg: "text-blue-600" },
   hr_scadenza: { icon: CalendarClock, bg: "bg-amber-50 ring-amber-200", fg: "text-amber-600" },
+  mezzo_scadenza: { icon: Truck, bg: "bg-amber-50 ring-amber-200", fg: "text-amber-600" },
+  mezzo_segnalazione: { icon: Wrench, bg: "bg-red-50 ring-red-200", fg: "text-red-600" },
   // Avvisi di vita azienda (cash flow, trial, inattività): erano un banner
   // fisso in cima a ogni pagina, ora vivono qui dentro.
   lifecycle: { icon: AlertTriangle, bg: "bg-amber-50 ring-amber-200", fg: "text-amber-600" },
@@ -73,6 +77,7 @@ const entityTypeLabels: Record<string, string> = {
   invoice: "Fattura",
   installment: "Rata",
   quote: "Preventivo",
+  mezzo: "Mezzo",
   integration: "Integrazione",
 };
 

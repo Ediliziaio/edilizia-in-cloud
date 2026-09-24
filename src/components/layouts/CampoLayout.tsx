@@ -26,10 +26,12 @@ import {
   ArrowLeft,
   ListChecks,
   Package,
+  Truck,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsCampo } from "@/hooks/useIsCampo";
+import { useMieiMezzi } from "@/hooks/useMezzi";
 import { useInternalChatUnreadTotal } from "@/hooks/useInternalChatUnreadTotal";
 import { usePreviewToken } from "@/hooks/usePreviewToken";
 import { PreviewSessionContext } from "@/contexts/PreviewSessionContext";
@@ -78,6 +80,7 @@ export default function CampoLayout() {
   }, []);
   const { profile, signOut, company, effectiveCompany } = useAuth();
   const { isOperaio } = useIsCampo();
+  const { data: mieiMezzi = [] } = useMieiMezzi(isOperaio);
   const activeCompany = effectiveCompany ?? company;
   const location = useLocation();
   const navigate = useNavigate();
@@ -113,6 +116,7 @@ export default function CampoLayout() {
     // Magazzino erano raggiungibili SOLO da mobile (o per niente).
     { title: "Timbratura", url: "/campo/timbratura", icon: Clock },
     { title: "Magazzino", url: "/campo/magazzino", icon: Package },
+    ...(mieiMezzi.length > 0 ? [{ title: mieiMezzi.length > 1 ? "I miei mezzi" : "Il mio mezzo", url: "/campo/mezzi", icon: Truck }] : []),
     { title: "Presenze", url: "/campo/presenze", icon: Clock },
     { title: "Ferie e Permessi", url: "/campo/ferie", icon: CalendarDays },
     { title: "Cedolini", url: "/campo/cedolini", icon: Receipt },

@@ -33,6 +33,7 @@ const CampoCedolini       = lazy(() => import("@/pages/campo/CampoCedolini"));
 const CampoAvanzamento    = lazy(() => import("@/pages/campo/CampoAvanzamento"));
 const CampoMenu           = lazy(() => import("@/pages/campo/CampoMenu"));
 const CampoAttivita       = lazy(() => import("@/pages/campo/CampoAttivita"));
+const CampoMezzi          = lazy(() => import("@/pages/campo/CampoMezzi"));
 
 /** v8.6.115 — Lazy container. */
 export default function CampoRoutesContainer() {
@@ -69,6 +70,7 @@ export default function CampoRoutesContainer() {
         <Route path="ferie" element={<CampoFerie />} />
         <Route path="cedolini" element={<CampoCedolini />} />
         <Route path="magazzino" element={<CampoMagazzino />} />
+        <Route path="mezzi" element={<CampoMezzi />} />
         <Route path="chat" element={<CampoChat />} />
         <Route path="chat/:channelId" element={<CampoChat />} />
         <Route path="documenti" element={<CampoDocumenti />} />
