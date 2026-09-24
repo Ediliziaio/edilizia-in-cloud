@@ -63849,6 +63849,13 @@ export type Database = {
       }
       pos_documents: {
         Row: {
+          approvato_da: string | null
+          approvato_da_nome: string | null
+          approvato_il: string | null
+          contenuto: Json | null
+          iter: Json
+          revisione: number
+          revisioni: Json
           ai_cost_billed_eur: number | null
           ai_persona_used: string | null
           company_id: string
@@ -63893,6 +63900,13 @@ export type Database = {
           version: number
         }
         Insert: {
+          approvato_da?: string | null
+          approvato_da_nome?: string | null
+          approvato_il?: string | null
+          contenuto?: Json | null
+          iter?: Json
+          revisione?: number
+          revisioni?: Json
           ai_cost_billed_eur?: number | null
           ai_persona_used?: string | null
           company_id: string
@@ -63937,6 +63951,13 @@ export type Database = {
           version?: number
         }
         Update: {
+          approvato_da?: string | null
+          approvato_da_nome?: string | null
+          approvato_il?: string | null
+          contenuto?: Json | null
+          iter?: Json
+          revisione?: number
+          revisioni?: Json
           ai_cost_billed_eur?: number | null
           ai_persona_used?: string | null
           company_id?: string
@@ -84536,6 +84557,78 @@ export type Database = {
             columns: ["superseded_by"]
             isOneToOne: false
             referencedRelation: "subappaltatori_documenti"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sicurezza_figure: {
+        Row: {
+          id: string
+          company_id: string
+          ruolo: string
+          nominativo: string
+          hr_profilo_id: string | null
+          esterno: boolean
+          telefono: string | null
+          email: string | null
+          mansioni_sicurezza: string | null
+          attestato: string | null
+          scadenza: string | null
+          note: string | null
+          attivo: boolean
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          ruolo: string
+          nominativo: string
+          hr_profilo_id?: string | null
+          esterno?: boolean
+          telefono?: string | null
+          email?: string | null
+          mansioni_sicurezza?: string | null
+          attestato?: string | null
+          scadenza?: string | null
+          note?: string | null
+          attivo?: boolean
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          company_id?: string
+          ruolo?: string
+          nominativo?: string
+          hr_profilo_id?: string | null
+          esterno?: boolean
+          telefono?: string | null
+          email?: string | null
+          mansioni_sicurezza?: string | null
+          attestato?: string | null
+          scadenza?: string | null
+          note?: string | null
+          attivo?: boolean
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sicurezza_figure_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sicurezza_figure_hr_profilo_id_fkey"
+            columns: ["hr_profilo_id"]
+            isOneToOne: false
+            referencedRelation: "hr_profili"
             referencedColumns: ["id"]
           },
         ]
