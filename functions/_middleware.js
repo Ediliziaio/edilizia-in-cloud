@@ -1916,15 +1916,15 @@ const ROUTES = {
   },
 
   "/offerta-2-mesi-gratis": {
-    title: "Offerta 1 mese gratis — Gestionale Edilizia in Cloud",
+    title: "Offerta 31 giorni gratis — Gestionale Edilizia in Cloud",
     description:
-      "Per aziende edili, serramentisti e fotovoltaico: aumenta margini e guadagni di +50.000 € e dì addio a software sparsi ed Excel. 1 mese gratis, solo per 8 aziende.",
+      "Aziende edili, serramentisti e fotovoltaico: aumenta margini e guadagni di +50.000 € e dì addio a software sparsi ed Excel. 31 giorni gratis per 8 aziende.",
     h1: "Aumenta i tuoi margini e i tuoi guadagni di +50.000 €. Liberati dalla gestione. Delega con efficienza. Controlla i margini in tempo reale.",
     intro:
       "Per aziende edili, serramentisti, fotovoltaico, impiantisti e ristrutturazioni. Dì addio a software sparsi, fogli Excel e carte da rincorrere: Edilizia in Cloud mette cantieri, preventivi, fatture e squadra in un posto solo, con il margine di ogni commessa sotto gli occhi.",
     extra: `
-    <h2>La promo: 1 mese gratis, solo per 8 aziende</h2>
-    <p>Il primo mese di Edilizia in Cloud non lo paghi. I posti sono otto perché l'avvio lo seguiamo noi, azienda per azienda: carichiamo cantieri, anagrafiche e listini e formiamo la squadra. Quando i posti sono presi, la promo si chiude.</p>
+    <h2>La promo: 31 giorni gratis, solo per 8 aziende</h2>
+    <p>I primi 31 giorni di Edilizia in Cloud non li paghi. I posti sono otto perché l'avvio lo seguiamo noi, azienda per azienda: carichiamo cantieri, anagrafiche e listini e formiamo la squadra. Quando i posti sono presi, la promo si chiude.</p>
 
     <h2>Le garanzie</h2>
     <ul>
@@ -2637,7 +2637,7 @@ function buildHtml({ title, description, canonical, h1, intro, links = [], jsonL
     .replace("https://www.ediliziaincloud.com", "")
     .split("/")
     .filter(Boolean)
-    .map((s) => s.replace(/-/g, " "))
+    .map((s) => ETICHETTE_BRICIOLE[s] ?? s.replace(/-/g, " "))
     .join(" › ");
 
   return `<!DOCTYPE html>
@@ -2707,13 +2707,23 @@ function buildHtml({ title, description, canonical, h1, intro, links = [], jsonL
 </html>`;
 }
 
+/**
+ * Le briciole di pane nascono dall'indirizzo («offerta-2-mesi-gratis» →
+ * «Offerta 2 Mesi Gratis»). Quando l'indirizzo è rimasto indietro rispetto al
+ * contenuto l'etichetta si scrive qui: la promo è di 31 giorni dal 24/09/2026,
+ * l'indirizzo no, perché i link già in giro devono continuare a valere.
+ */
+const ETICHETTE_BRICIOLE = {
+  "offerta-2-mesi-gratis": "Offerta 31 giorni gratis",
+};
+
 function buildBreadcrumbItems(canonical) {
   const parts = canonical.replace("https://www.ediliziaincloud.com", "").split("/").filter(Boolean);
   return parts
     .map((part, i) => {
       const pos = i + 2;
       const href = canonicalUrl("/" + parts.slice(0, i + 1).join("/"));
-      const name = part.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+      const name = ETICHETTE_BRICIOLE[part] ?? part.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
       return `{"@type":"ListItem","position":${pos},"name":"${name}","item":"${href}"}`;
     })
     .join(",");

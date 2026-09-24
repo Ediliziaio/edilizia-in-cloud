@@ -3,7 +3,8 @@
  *
  * Tiene fermo:
  *   · in cima per chi è (aziende edili, serramentisti, fotovoltaico…), poi la
- *     promessa, poi la promo: 1 mese gratis, solo per 8 aziende (due fino al 23/09);
+ *     promessa, poi la promo: 31 giorni gratis, solo per 8 aziende (due mesi fino al
+ *     23/09, uno fino al 24/09);
  *   · l'annuale non c'è più (tolto da Florin la sera stessa): né prezzi, né
  *     «12 mesi al prezzo di 10», né le due garanzie che ne parlavano;
  *   · ogni «Prenota» porta al calendario in fondo alla pagina, e il calendario
@@ -117,8 +118,8 @@ describe("la pagina", () => {
     expect(titolo).toHaveTextContent("Liberati dalla gestione. Delega con efficienza. Controlla i margini in tempo reale.");
     expect(screen.getByText(/^Dì addio a software sparsi, fogli Excel/)).toBeInTheDocument();
     expect(screen.getByText("solo per 8 aziende.")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 2, name: "1 mese gratis. Solo per 8 aziende." })).toBeInTheDocument();
-    expect(document.title).toBe("Offerta 1 mese gratis — Gestionale Edilizia in Cloud");
+    expect(screen.getByRole("heading", { level: 2, name: "31 giorni gratis. Solo per 8 aziende." })).toBeInTheDocument();
+    expect(document.title).toBe("Offerta 31 giorni gratis — Gestionale Edilizia in Cloud");
     expect(document.querySelector('link[rel="canonical"]')?.getAttribute("href")).toBe(
       "https://www.ediliziaincloud.com/offerta-2-mesi-gratis/",
     );
@@ -199,7 +200,7 @@ describe("la pagina", () => {
     expect([...osservati.keys()].sort()).toEqual(["prenota", "pulsanti-hero"]);
 
     // In cima: i pulsanti dell'hero sono lì, la barra aspetta.
-    const barra = screen.getByRole("link", { name: "Prenota la demo · 1 mese gratis", hidden: true });
+    const barra = screen.getByRole("link", { name: "Prenota la demo · 31 giorni gratis", hidden: true });
     const nascosta = () => {
       expect(barra.parentElement).toHaveClass("translate-y-full");
       expect(barra.parentElement).toHaveAttribute("aria-hidden", "true");

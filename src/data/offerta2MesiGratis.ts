@@ -6,7 +6,7 @@
  * la pagina non torni a promettere l'annuale.
  */
 
-/** La promo «1 mese gratis» vale solo per questo numero di aziende (Florin, 19/09). */
+/** La promo «31 giorni gratis» vale solo per questo numero di aziende (Florin, 19/09; 31 giorni dal 24/09). */
 export const POSTI_PROMO = 8;
 
 /** Per chi è, nella riga in cima all'hero. Su telefono si vedono i primi tre. */
@@ -14,8 +14,8 @@ export const SETTORI = ["aziende edili", "serramentisti", "fotovoltaico", "impia
 
 export const DOMANDE_OFFERTA = [
   {
-    q: "Cosa vuol dire «1 mese gratis»?",
-    a: `Che il primo mese di Edilizia in Cloud non lo paghi. La promo è riservata a ${POSTI_PROMO} aziende: quando i posti sono presi, si chiude.`,
+    q: "Cosa vuol dire «31 giorni gratis»?",
+    a: `Che i primi 31 giorni di Edilizia in Cloud non li paghi. La promo è riservata a ${POSTI_PROMO} aziende: quando i posti sono presi, si chiude.`,
   },
   {
     q: `Perché solo ${POSTI_PROMO} aziende?`,

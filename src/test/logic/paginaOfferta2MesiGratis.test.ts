@@ -79,19 +79,23 @@ describe("/offerta-2-mesi-gratis nel sito", () => {
     expect(risposta.status).toBe(200);
     expect(risposta.headers.get("x-robots-tag")).toBe("index, follow");
     const html = await risposta.text();
-    expect(html).toContain("<title>Offerta 1 mese gratis — Gestionale Edilizia in Cloud</title>");
+    expect(html).toContain("<title>Offerta 31 giorni gratis — Gestionale Edilizia in Cloud</title>");
     expect(html).toContain('rel="canonical" href="https://www.ediliziaincloud.com/offerta-2-mesi-gratis/"');
     expect(html).toContain(
       "<h1>Aumenta i tuoi margini e i tuoi guadagni di +50.000 €. Liberati dalla gestione. Delega con efficienza. Controlla i margini in tempo reale.</h1>",
     );
     expect(html).toContain("Per aziende edili, serramentisti, fotovoltaico");
-    expect(html).toContain("La promo: 1 mese gratis, solo per 8 aziende");
+    expect(html).toContain("La promo: 31 giorni gratis, solo per 8 aziende");
     expect(html).toContain("Operativo in 30 giorni, o il canone non parte");
     // L'annuale è stato tolto: nemmeno i motori devono vederlo.
-    // Il mese gratis è uno dal 23/09/2026. «Offerta 2 Mesi Gratis» resta solo nelle
-    // briciole di pane, che il middleware ricava dall'indirizzo: l'indirizzo non è
-    // cambiato apposta, perché i link già in giro continuino a funzionare.
-    expect(html).not.toMatch(/annual|12 mesi al prezzo di 10|prezzo bloccato|primi due mesi/i);
+    // Due mesi fino al 23/09/2026, uno fino al 24/09, poi «31 giorni» come le email
+    // e gli annunci. L'indirizzo non è cambiato apposta, perché i link già in giro
+    // continuino a funzionare: le briciole di pane, che il middleware ricava
+    // dall'indirizzo, hanno un'etichetta loro invece di «Offerta 2 Mesi Gratis».
+    expect(html).not.toMatch(/annual|12 mesi al prezzo di 10|prezzo bloccato|primi due mesi|1 mese gratis|primo mese/i);
+    expect(html).toContain('"name":"Offerta 31 giorni gratis"');
+    expect(html).toContain("Home › Offerta 31 giorni gratis");
+    expect(html).not.toMatch(/2 Mesi Gratis|2 mesi gratis/);
     expect(html).toContain("https://www.ediliziaincloud.com/og/eic-demo.png");
   });
 
