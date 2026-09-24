@@ -3043,9 +3043,18 @@ const PUBLIC_NOINDEX_PATTERNS = [
   /^\/(prenota|offerta|firma|firma-odv|firma-fea|preventivo|ref|feedback\/nps|widget|qr|stima)(\/|$)/,
 ];
 
+// Ogni sottodominio della piattaforma che non sia www è un'area dell'app: quelle
+// dell'elenco sopra, e i sottodomini white label delle aziende
+// (innovasol.ediliziaincloud.com, 24/09/2026). Prima un sottodominio fuori
+// elenco era trattato da sito pubblico: sulla radice si vedeva per un attimo la
+// home di EdiliziaInCloud, e ai motori andava il nostro sito sotto il loro nome.
+const PLATFORM_ROOTS = ["ediliziaincloud.com", "ediliziaincloud.it"];
+
 function isPrivateSubdomain(hostname) {
-  const sub = hostname.split(".")[0].toLowerCase();
-  return PRIVATE_SUBDOMAINS.includes(sub);
+  const host = hostname.toLowerCase();
+  const sub = host.split(".")[0];
+  if (PRIVATE_SUBDOMAINS.includes(sub)) return true;
+  return sub !== "www" && PLATFORM_ROOTS.some((root) => host.endsWith(`.${root}`));
 }
 
 function isPublicNoindexPath(pathname) {

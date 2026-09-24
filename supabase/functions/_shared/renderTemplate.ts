@@ -20,6 +20,7 @@ import { renderLayout } from "./email-templates/layout.ts";
 import { resolveTemplate } from "./email-templates/resolveTemplate.ts";
 import { applyPlaceholders, htmlToPlainText } from "./email-templates/applyPlaceholders.ts";
 import { SYSTEM_EMAIL_CONTENT } from "./email-templates/system-email-content.generated.ts";
+import { logoDiRiserva } from "./logoAzienda.ts";
 
 /** Mappa template-name → renderer. Aggiungere qui nuovi template. */
 const TEMPLATE_REGISTRY = {
@@ -133,20 +134,22 @@ export async function loadBranding(
       .maybeSingle(),
     adminClient
       .from("companies")
-      .select("name")
+      .select("name, logo_url")
       .eq("id", companyId)
       .maybeSingle(),
   ]);
 
   const prefs = prefsRes.data as Record<string, any> | null;
-  const company = companyRes.data as { name?: string } | null;
+  const company = companyRes.data as { name?: string; logo_url?: string | null } | null;
 
   return {
     companyName:
       (prefs?.sender_name as string | undefined) ||
       company?.name ||
       fallbackCompanyName,
-    logoUrl: (prefs?.logo_url as string | undefined) ?? null,
+    // Il logo delle preferenze email vince; vuoto (lo era per tutte le aziende
+    // al 24/09/2026) vale quello aziendale. Vedi _shared/logoAzienda.ts.
+    logoUrl: logoDiRiserva(prefs?.logo_url as string | undefined, company?.logo_url),
     primaryColor: (prefs?.primary_color as string | undefined) || "#1E3A5F",
     secondaryColor: (prefs?.secondary_color as string | undefined) || "#F97316",
     footerText:

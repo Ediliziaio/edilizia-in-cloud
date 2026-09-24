@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { AiTemplateGenerator } from "@/components/preventivi/AiTemplateGenerator";
 import type { AiTemplateDraft } from "@/components/preventivi/AiTemplateReviewDialog";
 import { FvPagesOrderEditor } from "@/components/fotovoltaico/FvPagesOrderEditor";
@@ -710,6 +711,10 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
   const [form, setForm] = useState<FvTemplate>({});
   // Dati ereditati dal Profilo azienda → placeholder anagrafica (UX allineata a Serramenti).
   const companyAnagrafica = useCompanyAnagraficaForTemplate();
+  // Il PDF, senza un logo nel modello, usa quello aziendale (fv-genera-pdf,
+  // _shared/logoAzienda.ts): l'anteprima fa lo stesso.
+  const { effectiveCompany } = useAuth();
+  const logoAnteprima = (form.logo_url as string | null) || effectiveCompany?.logo_url || null;
   const companyId = useEffectiveCompanyId();
   const [dirty, setDirty] = useState(false);
   // Chiudere/ricaricare la scheda con modifiche non salvate ora chiede conferma
@@ -3124,7 +3129,7 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
               <FvLivePreviewPanel
                 form={form as unknown as Record<string, unknown>}
                 companyName={(form.ragione_sociale as string | null) ?? null}
-                logoUrl={(form.logo_url as string | null) ?? null}
+                logoUrl={logoAnteprima}
                 activeSection={activeSection}
               />
             </Suspense>
@@ -3256,7 +3261,7 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
             open={previewOpen}
             onOpenChange={setPreviewOpen}
             form={form as unknown as Record<string, unknown>}
-            logoUrl={(form.logo_url as string | null) ?? null}
+            logoUrl={logoAnteprima}
           />
         </Suspense>
       )}

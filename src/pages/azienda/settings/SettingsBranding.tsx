@@ -500,7 +500,8 @@ export default function SettingsBranding() {
           </CardTitle>
           <CardDescription>
             Lo stesso logo viene mostrato in sidebar, navbar, email, preventivi PDF, portale
-            clienti e pagina di login. Modifica qui o in <a href="/azienda/impostazioni/profilo" className="underline">Profilo aziendale</a>.
+            clienti e pagina di login. Dove metti un logo diverso (un modello PDF, le preferenze
+            email) vale quello. Modifica qui o in <a href="/azienda/impostazioni/profilo" className="underline">Profilo aziendale</a>.
           </CardDescription>
         </CardHeader>
         <CardContent>

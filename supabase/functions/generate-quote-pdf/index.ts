@@ -8,6 +8,7 @@ import { fondoPerTestoBianco, scurisci, schiarisci, testoSuChiaro, testoSuScuro,
 import { loadTemplateWithBlocks, attachLinkedBlocks, applyMergeTagsToTemplate, buildMergeContext, substituteMergeTags, type ComposedTemplate } from "../_shared/quoteTemplateComposer.ts";
 import { condizioniStandard, MODULO_RECESSO } from "../_shared/condizioniStandard.ts";
 import { testoPerPdf } from "../_shared/testoPerPdf.ts";
+import { formatoImmagine, leggiLogo, logoDiRiserva } from "../_shared/logoAzienda.ts";
 
 // ─── Helpers ───
 function hexToRgb(hex: string) {
@@ -501,22 +502,22 @@ Deno.serve(async (req) => {
 
     // ─── Logo embed ───
     let logoEmbed: any = null;
-    const logoPath = t.logo_url ?? company?.logo_url;
+    const logoPath = logoDiRiserva(t.logo_url, company?.logo_url);
     if (t.show_logo && logoPath) {
       try {
-        // I due bucket possibili vengono interrogati in parallelo
-        const [tplRes, compRes] = await Promise.all([
-          supabaseAdmin.storage.from("quote-template-assets").download(logoPath).catch(() => ({ data: null })),
-          supabaseAdmin.storage.from("company-assets").download(logoPath).catch(() => ({ data: null })),
-        ]);
-        const fileData = tplRes?.data ?? compRes?.data ?? null;
-        if (fileData) {
-          const bytes = await fileData.arrayBuffer();
-          if (logoPath.endsWith(".png")) {
-            logoEmbed = await pdfDoc.embedPng(bytes);
-          } else if (logoPath.endsWith(".jpg") || logoPath.endsWith(".jpeg")) {
-            logoEmbed = await pdfDoc.embedJpg(bytes);
-          }
+        // Il logo del modello è un percorso nei due bucket dei modelli; quello
+        // aziendale è un indirizzo dello storage pubblico (?t=… in coda). Prima
+        // anche l'indirizzo si cercava come percorso: senza logo nel modello,
+        // il preventivo usciva senza logo.
+        const bytes = await leggiLogo(supabaseAdmin, logoPath, {
+          supabaseUrl: Deno.env.get("SUPABASE_URL") ?? "",
+          bucket: ["quote-template-assets", "company-assets"],
+        });
+        const formato = bytes ? formatoImmagine(bytes) : null;
+        if (bytes && formato === "png") {
+          logoEmbed = await pdfDoc.embedPng(bytes);
+        } else if (bytes && formato === "jpg") {
+          logoEmbed = await pdfDoc.embedJpg(bytes);
         }
       } catch (e) {
         console.warn("Logo not loaded:", e);

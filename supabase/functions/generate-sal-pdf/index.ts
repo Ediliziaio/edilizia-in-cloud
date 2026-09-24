@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { verifyCompanyAccess } from "../_shared/companyAuth.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { getBrandingForCompany } from "../_shared/getBranding.ts";
+import { logoDiRiserva } from "../_shared/logoAzienda.ts";
 
 function escHtml(s: string | null | undefined): string {
   if (!s) return "";
@@ -309,6 +310,14 @@ Deno.serve(async (req) => {
         headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
+
+    // Il logo dell'anagrafica vince; vuoto vale quello aziendale (_shared/logoAzienda.ts).
+    const { data: profiloAzienda } = await supabase
+      .from("companies")
+      .select("logo_url")
+      .eq("id", company_id)
+      .maybeSingle();
+    azienda.logo_url = logoDiRiserva(azienda.logo_url, profiloAzienda?.logo_url);
 
     const salWithVoci: SalRecord = {
       ...sal,

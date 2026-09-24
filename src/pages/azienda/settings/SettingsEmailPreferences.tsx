@@ -281,7 +281,7 @@ export default function SettingsEmailPreferences() {
               className={!logoUrlValid ? "border-destructive" : ""}
             />
             <p className="text-xs text-muted-foreground">
-              Massimo 200KB, preferibilmente PNG trasparente. Se vuoto, nelle email viene mostrato solo il nome azienda.
+              Massimo 200KB, preferibilmente PNG trasparente. Se vuoto, nelle email va il logo aziendale (Impostazioni → Branding).
             </p>
             {!logoUrlValid && (
               <p className="text-xs text-destructive">Il logo deve essere servito su HTTPS.</p>

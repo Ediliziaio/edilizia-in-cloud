@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { verifyCompanyAccess } from "../_shared/companyAuth.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { getBrandingForCompany } from "../_shared/getBranding.ts";
+import { logoDiRiserva } from "../_shared/logoAzienda.ts";
 
 function escHtml(s: string | null | undefined): string {
   if (!s) return "";
@@ -279,6 +280,14 @@ Deno.serve(async (req) => {
     if (!azienda) {
       return new Response(JSON.stringify({ error: "Anagrafica azienda non configurata" }), { status: 400, headers: getCorsHeaders(req) });
     }
+
+    // Il logo dell'anagrafica vince; vuoto vale quello aziendale (_shared/logoAzienda.ts).
+    const { data: profiloAzienda } = await supabase
+      .from("companies")
+      .select("logo_url")
+      .eq("id", doc.company_id)
+      .maybeSingle();
+    azienda.logo_url = logoDiRiserva(azienda.logo_url, profiloAzienda?.logo_url);
 
     // Branding dinamico
     const branding = await getBrandingForCompany(supabase, doc.company_id);

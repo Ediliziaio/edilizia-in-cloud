@@ -48,6 +48,7 @@ import { calcolaEnergyFlows, quotaAutoconsumo, type FvProfiloAutoconsumo } from 
 import { coloreDelDocumento } from "../_shared/temaColori.ts";
 import { condizioniStandard } from "../_shared/condizioniStandard.ts";
 import { CAMPI_IMMAGINE_FOTOVOLTAICO, firmaImmaginiModello, firmatarioStorage } from "../_shared/immaginiModelloPdf.ts";
+import { logoDiRiserva } from "../_shared/logoAzienda.ts";
 import {
   assertFvPdfQueryOk,
   mapFvManodoperaRowsToPdfServices,
@@ -160,7 +161,7 @@ Deno.serve(async (req: Request) => {
         .eq("progetto_id", p.progetto_id),
       supabaseAdmin
         .from("companies")
-        .select("name, vat_number, pec, phone, email, website, brand_primary_color, recensioni_online")
+        .select("name, vat_number, pec, phone, email, website, brand_primary_color, recensioni_online, logo_url")
         .eq("id", prog.company_id)
         .maybeSingle(),
       supabaseAdmin
@@ -806,7 +807,12 @@ Deno.serve(async (req: Request) => {
         })),
       ],
       template: {
-        logo_url: template.logo_url ?? null,
+        // Come il colore qui sotto: il modello mai aperto prende il logo aziendale
+        // (prima al suo posto usciva ☀). Vedi _shared/logoAzienda.ts.
+        logo_url: logoDiRiserva(
+          template.logo_url as string | null | undefined,
+          (company as { logo_url?: string | null }).logo_url,
+        ),
         pdf_cover_hero: template.pdf_cover_hero ?? null,
         pdf_cover_subhero: template.pdf_cover_subhero ?? null,
         pdf_cover_subhero_template: template.pdf_cover_subhero_template ?? null,
