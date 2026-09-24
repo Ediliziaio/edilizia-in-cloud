@@ -2,7 +2,7 @@ import { memo, useState, useMemo, forwardRef } from "react";
 import { differenceInDays } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { useSortable } from "@dnd-kit/sortable";
-import { Phone, Mail, Tag, StickyNote, Calendar, Folder, Trash2, UserCircle, Clock } from "lucide-react";
+import { Phone, Mail, Tag, StickyNote, Calendar, ListTodo, Folder, Trash2, UserCircle, Clock } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -10,6 +10,9 @@ import { formatCurrency } from "@/lib/formatters";
 import { DealHealthBadge } from "./DealHealthBadge";
 import { RichiestaRipetutaBadge } from "./RichiestaRipetutaBadge";
 import { AnteprimaAppunti } from "./AnteprimaAppunti";
+import { AnteprimaAppuntamenti } from "./AnteprimaAppuntamenti";
+import { AnteprimaAttivita } from "./AnteprimaAttivita";
+import { badgeAppuntamenti, badgeAttivita, leggiAgenda } from "@/lib/opportunitaAgenda";
 import { LeadTemperatureBadge } from "@/components/marketing/LeadTemperatureBadge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -84,6 +87,27 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
 
   // Tags
   const tags: string[] = opportunity.tags || [];
+
+  // Appuntamenti e attività sono due cose: due icone. Il calendario conta gli
+  // appuntamenti in programma (una scheda senza conteggio, aperta da link,
+  // tiene il vecchio segno); le attività quelle da fare, rosse se una è scaduta.
+  const agenda = leggiAgenda(opportunity.agenda);
+  const numeroAppuntamenti = badgeAppuntamenti(agenda) ?? (opportunity.next_appointment ? 1 : null);
+  const numeroAttivita = badgeAttivita(agenda);
+
+  // Il riquadro di Appunti, Appuntamenti e Attività si apre sopra la barra,
+  // largo quanto la scheda e allineato ai suoi bordi: non esce né a destra né
+  // a sinistra sopra le colonne accanto (Florin, 24/09/2026). Si misura quando
+  // il mouse arriva sull'icona, perché ogni icona è in un punto diverso.
+  const [riquadro, setRiquadro] = useState<{ spostamento: number; larghezza: number } | null>(null);
+  const misuraRiquadro = (bottone: HTMLElement) => {
+    const scheda = bottone.closest("[data-scheda-opportunita]");
+    if (!scheda) return;
+    const s = scheda.getBoundingClientRect();
+    const b = bottone.getBoundingClientRect();
+    // Con l'allineamento «end» uno spostamento negativo porta il riquadro a destra, fino al bordo della scheda.
+    setRiquadro({ spostamento: Math.round(b.right - s.right), larghezza: Math.round(s.width) });
+  };
 
   const handleCardClick = () => {
     if (isDragging) return;
@@ -185,16 +209,20 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
       badge: tags.length > 0 ? tags.length : null,
       mobileVisible: false,
     },
-    { icon: StickyNote, tooltip: opportunity.notes_count > 0 ? `Appunti (${opportunity.notes_count})` : "Appunti", anteprimaAppunti: opportunity.notes_count > 0, action: (e: React.MouseEvent) => { stopProp(e); onOpenTab?.("notes"); }, badge: opportunity.notes_count > 0 ? opportunity.notes_count : null, mobileVisible: true },
-    { icon: Calendar, tooltip: opportunity.next_appointment ? "Appuntamento programmato" : "Calendario", action: (e: React.MouseEvent) => { stopProp(e); onOpenTab?.("appointments"); }, badge: opportunity.next_appointment ? 1 : null, mobileVisible: true },
+    { icon: StickyNote, tooltip: opportunity.notes_count > 0 ? `Appunti (${opportunity.notes_count})` : "Appunti", anteprima: opportunity.notes_count > 0 ? "appunti" : undefined, action: (e: React.MouseEvent) => { stopProp(e); onOpenTab?.("notes"); }, badge: opportunity.notes_count > 0 ? opportunity.notes_count : null, mobileVisible: true },
+    { icon: Calendar, tooltip: "Appuntamenti", anteprima: numeroAppuntamenti ? "appuntamenti" : undefined, action: (e: React.MouseEvent) => { stopProp(e); onOpenTab?.("appointments"); }, badge: numeroAppuntamenti, mobileVisible: true },
+    { icon: ListTodo, tooltip: "Attività da fare", anteprima: numeroAttivita.numero ? "attivita" : undefined, action: (e: React.MouseEvent) => { stopProp(e); onOpenTab?.("activities"); }, badge: numeroAttivita.numero, badgeUrgente: numeroAttivita.urgente, mobileVisible: true },
     { icon: Folder, tooltip: opportunity.documents_count > 0 ? `Documenti (${opportunity.documents_count})` : "Documenti", action: (e: React.MouseEvent) => { stopProp(e); onOpenTab?.("documents"); }, badge: opportunity.documents_count > 0 ? opportunity.documents_count : null, mobileVisible: false },
     canEdit ? { icon: Trash2, tooltip: "Elimina", action: handleDeleteClick, mobileVisible: false } : null,
   ].filter(Boolean) as Array<{
     icon: typeof Phone;
     tooltip: string;
-    anteprimaAppunti?: boolean;
+    /** Riquadro al passaggio del mouse, caricato solo quando si apre. */
+    anteprima?: "appunti" | "appuntamenti" | "attivita";
     action: (e: React.MouseEvent) => void;
     badge?: number | null;
+    /** Numerino rosso: c'è qualcosa di scaduto. */
+    badgeUrgente?: boolean;
     mobileVisible: boolean;
   }>;
 
@@ -205,6 +233,7 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
         style={style}
         {...(isOverlay ? {} : { ...attributes, ...listeners })}
         onClick={handleCardClick}
+        data-scheda-opportunita=""
         className={cn(
           // Densità: padding e interlinea ridotti rispetto a p-3/space-y-2 per
           // far stare più schede nella stessa altezza di schermo.
@@ -307,11 +336,13 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
         {/* Action bar */}
         {!isOverlay && (
           <div className="flex items-center justify-between pt-0.5 border-t border-border/50">
-            {actionIcons.map(({ icon: Icon, tooltip, anteprimaAppunti, action, badge, mobileVisible }, i) => (
+            {actionIcons.map(({ icon: Icon, tooltip, anteprima, action, badge, badgeUrgente, mobileVisible }, i) => (
               <Tooltip key={i}>
                 <TooltipTrigger asChild>
                   <button
                     onClick={action}
+                    onPointerEnter={anteprima ? (e) => misuraRiquadro(e.currentTarget) : undefined}
+                    onFocus={anteprima ? (e) => misuraRiquadro(e.currentTarget) : undefined}
                     className={cn(
                       "relative p-1 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground",
                       !mobileVisible && "hidden md:block"
@@ -319,16 +350,31 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
                   >
                     <Icon className="h-3.5 w-3.5" />
                     {badge && (
-                      <span className="absolute -top-1.5 -right-1.5 h-3.5 min-w-[14px] rounded-full bg-primary text-primary-foreground text-[8px] font-bold flex items-center justify-center px-0.5">
+                      <span className={cn(
+                        "absolute -top-1.5 -right-1.5 h-3.5 min-w-[14px] rounded-full text-[8px] font-bold flex items-center justify-center px-0.5",
+                        badgeUrgente ? "bg-destructive text-destructive-foreground" : "bg-primary text-primary-foreground",
+                      )}>
                         {badge}
                       </span>
                     )}
                   </button>
                 </TooltipTrigger>
-                <TooltipContent side="bottom" className={anteprimaAppunti ? "text-xs max-w-[280px]" : "text-xs max-w-[200px]"}>
-                  {anteprimaAppunti
-                    ? <AnteprimaAppunti opportunityId={opportunity.id} totale={opportunity.notes_count} />
-                    : tooltip}
+                {/* Si apre sopra l'icona; i riquadri con l'anteprima sopra la scheda, larghi quanto lei. */}
+                <TooltipContent
+                  side="top"
+                  align={anteprima ? "end" : "center"}
+                  alignOffset={anteprima ? riquadro?.spostamento ?? 0 : 0}
+                  collisionPadding={8}
+                  style={anteprima && riquadro ? { width: riquadro.larghezza, maxWidth: riquadro.larghezza } : undefined}
+                  className={anteprima ? "text-xs max-w-[280px]" : "text-xs max-w-[200px]"}
+                >
+                  {anteprima === "appunti" ? (
+                    <AnteprimaAppunti opportunityId={opportunity.id} totale={opportunity.notes_count} />
+                  ) : anteprima === "appuntamenti" ? (
+                    <AnteprimaAppuntamenti opportunityId={opportunity.id} contactId={opportunity.contact_id ?? contact?.id ?? null} totale={numeroAppuntamenti ?? 0} />
+                  ) : anteprima === "attivita" ? (
+                    <AnteprimaAttivita opportunityId={opportunity.id} contactId={opportunity.contact_id ?? contact?.id ?? null} totale={agenda.attivita} />
+                  ) : tooltip}
                 </TooltipContent>
               </Tooltip>
             ))}
