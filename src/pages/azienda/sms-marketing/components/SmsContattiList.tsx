@@ -3,8 +3,12 @@
  */
 import { useState } from "react";
 import { Search, Plus, Download, UserX, UserCheck, Loader2, Trash2, Pencil } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { escapeCsvCell } from "@/lib/csvExport";
+import { messaggioEsportazioneNonRiuscita, registraEsportazioneCrm } from "@/lib/export/esportazioniCrm";
+import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -37,6 +41,10 @@ type OptOutFiltro = "tutti" | "attivi" | "opt_out";
 
 export function SmsContattiList() {
   const isMobile = useIsMobile();
+  const { effectiveCompany } = useAuth();
+  // Numeri e nomi dei contatti: si esportano solo con «Esporta Clienti».
+  const { canExportClients } = usePermissions();
+  const [esportando, setEsportando] = useState(false);
   const [search, setSearch] = useState("");
   const [optOutFiltro, setOptOutFiltro] = useState<OptOutFiltro>("tutti");
   const [editContatto, setEditContatto] = useState<SmsContatto | null>(null);
@@ -50,7 +58,25 @@ export function SmsContattiList() {
 
   const { contatti, isLoading, remove, isRemoving } = useSmsContatti(filtri);
 
-  const handleExportCsv = () => {
+  const handleExportCsv = async () => {
+    const companyId = effectiveCompany?.id;
+    if (!canExportClients || !companyId || esportando) return;
+    setEsportando(true);
+    try {
+      // Prima il registro, poi il file: senza registrazione non parte.
+      await registraEsportazioneCrm({
+        companyId,
+        oggetto: "contatti_sms",
+        formato: "csv",
+        righe: contatti.length,
+        filtri: { ricerca: search, stato: optOutFiltro === "tutti" ? null : optOutFiltro },
+      });
+    } catch (err) {
+      toast.error(messaggioEsportazioneNonRiuscita(err));
+      return;
+    } finally {
+      setEsportando(false);
+    }
     const header = "telefono,nome,cognome,consenso,opt_out,tags";
     const rows = contatti.map((c) =>
       [
@@ -94,10 +120,10 @@ export function SmsContattiList() {
             <SelectItem value="opt_out">Opt-out</SelectItem>
           </SelectContent>
         </Select>
-        {/* Niente export su telefono. */}
-        {!isMobile && (
-          <Button variant="outline" size="sm" onClick={handleExportCsv} disabled={contatti.length === 0}>
-            <Download className="h-4 w-4 mr-1" />
+        {/* Niente export su telefono, né senza «Esporta Clienti». */}
+        {!isMobile && canExportClients && (
+          <Button variant="outline" size="sm" onClick={handleExportCsv} disabled={contatti.length === 0 || esportando}>
+            {esportando ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Download className="h-4 w-4 mr-1" />}
             Esporta CSV
           </Button>
         )}

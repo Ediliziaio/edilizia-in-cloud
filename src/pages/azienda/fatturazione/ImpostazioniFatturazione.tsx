@@ -573,7 +573,7 @@ export default function ImpostazioniFatturazione() {
               )}
 
               <div className="flex items-center gap-2">
-                {current.sdi_configurato ? (
+                {(current.sdi_provider === "openapi" ? feConfig?.stato === "registrato" || feConfig?.stato === "attivo" : current.sdi_configurato) ? (
                   <Badge className="gap-1 bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300"><CheckCircle className="h-3 w-3" /> Connesso</Badge>
                 ) : (
                   <Badge variant="outline" className="gap-1 text-amber-600"><AlertTriangle className="h-3 w-3" /> Non configurato</Badge>
@@ -614,7 +614,8 @@ export default function ImpostazioniFatturazione() {
               delega === "attiva" ? <Badge className="gap-1 bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300"><CheckCircle className="h-3 w-3" />Delega attiva</Badge> :
               delega === "richiesta" ? <Badge variant="outline" className="gap-1 text-amber-600">Delega richiesta</Badge> :
               delega === "revocata" ? <Badge variant="destructive" className="gap-1">Delega revocata</Badge> :
-              <Badge variant="outline" className="gap-1 text-muted-foreground">Delega da completare</Badge>;
+              registrato ? <Badge className="gap-1 bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300"><CheckCircle className="h-3 w-3" />Pronta per l'invio</Badge> :
+              <Badge variant="outline" className="gap-1 text-muted-foreground">Da attivare</Badge>;
             return (
               <Card>
                 <CardHeader>
@@ -640,12 +641,16 @@ export default function ImpostazioniFatturazione() {
                     </div>
                   )}
 
+                  {/* Con openapi l'invio non chiede deleghe: registrata la P.IVA, le
+                      fatture partono. Il codice destinatario all'Agenzia delle Entrate
+                      riguarda solo quelle dei fornitori (24/09/2026: il riquadro diceva
+                      che senza delega non partiva niente). */}
                   {registrato && delega !== "attiva" && (
-                    <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 flex items-start gap-2">
-                      <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+                    <div className="bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-900 rounded-lg p-3 flex items-start gap-2">
+                      <Info className="h-4 w-4 text-sky-600 mt-0.5 shrink-0" />
                       <div className="text-sm">
-                        <p className="font-medium text-amber-800 dark:text-amber-300">Ultimo passo: delega SDI</p>
-                        <p className="text-amber-700 dark:text-amber-400 text-xs mt-0.5">La registrazione è completata. Per attivare invio e ricezione reali serve la <b>delega</b> al sistema di interscambio (codice destinatario / delega Agenzia delle Entrate). Ti guideremo a completarla.</p>
+                        <p className="font-medium text-foreground">Pronta: le fatture partono allo SDI</p>
+                        <p className="text-muted-foreground text-xs mt-0.5">Non serve nessuna delega per inviare. Le fatture dei fornitori continuano ad arrivare al codice destinatario che hai già registrato all'Agenzia delle Entrate: non cambiarlo. Ricordati la conservazione a norma delle fatture inviate (per esempio il servizio gratuito dell'Agenzia delle Entrate).</p>
                       </div>
                     </div>
                   )}

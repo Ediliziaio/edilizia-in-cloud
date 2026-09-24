@@ -26,6 +26,7 @@ import { useOpportunityCustomFields } from "@/hooks/useOpportunityDetailData";
 import { ImportWizard } from "@/components/shared/ImportWizard";
 import type { ImportField } from "@/components/shared/CSVImportDialog";
 import { exportToCSV } from "@/lib/csvExport";
+import { messaggioEsportazioneNonRiuscita, registraEsportazioneCrm } from "@/lib/export/esportazioniCrm";
 import {
   filterAndSortOpportunities,
   filtriPerServer,
@@ -101,6 +102,9 @@ function MarketingOpportunitiesContent() {
   const currentUserId = viewAsUserId ?? user?.id ?? null;
   const permissions = usePermissions();
   const canEditOpportunities = permissions.canEditMarketingOpportunities;
+  // «Esporta Clienti»: l'export porta con sé nome, email e telefono dei
+  // contatti. Gli amministratori ce l'hanno sempre; il database lo ricontrolla.
+  const canExportClients = permissions.canExportClients;
   const { data: pipelines = [], isLoading: loadingPipelines, error: pipelinesError, refetch: refetchPipelines } = usePipelines();
 
   const { params: urlFilters, setParam: setURLParam } = useURLFilters({
@@ -485,6 +489,7 @@ function MarketingOpportunitiesContent() {
   }, [companyId, selectedPipelineId, permissions.onlyAssigned, currentUserId, applyOpportunityFiltersAndSort]);
 
   const handleExportOpportunities = useCallback(async () => {
+    if (!canExportClients || !companyId) return;
     if (!selectedPipelineId) {
       toast.error("Seleziona una pipeline prima di esportare");
       return;
@@ -559,6 +564,20 @@ function MarketingOpportunitiesContent() {
       });
       const today = new Date().toISOString().slice(0, 10);
       const cfColumns = cfDefsArr.map((cf) => ({ key: `cf_${cf.id}`, label: cf.name }));
+      // Prima il registro, poi il file: senza registrazione non parte.
+      await registraEsportazioneCrm({
+        companyId,
+        oggetto: "opportunita",
+        formato: "csv",
+        righe: rows.length,
+        filtri: {
+          pipeline: selectedPipeline?.name ?? selectedPipelineId,
+          ricerca: safeSearchQuery,
+          filtri: filters,
+          solo_mie: onlyMine,
+          perimetro: permissions.onlyAssigned ? "solo i propri" : "tutta l'azienda",
+        },
+      });
       exportToCSV(rows, [
         { key: "name", label: "Nome Opportunità" },
         { key: "contact", label: "Contatto" },
@@ -578,12 +597,12 @@ function MarketingOpportunitiesContent() {
         ...cfColumns,
       ], `opportunita_${today}.csv`);
       toast.success(`${rows.length} opportunità esportate${permissions.onlyAssigned ? " tra quelle assegnate a te" : ""}`);
-    } catch {
-      toast.error("Errore durante l'esportazione");
+    } catch (err) {
+      toast.error(messaggioEsportazioneNonRiuscita(err));
     } finally {
       setIsExporting(false);
     }
-  }, [fetchAllOpportunitiesForExport, selectedPipelineId, stages, staff, permissions.onlyAssigned, companyId]);
+  }, [canExportClients, fetchAllOpportunitiesForExport, selectedPipelineId, selectedPipeline, safeSearchQuery, filters, onlyMine, stages, staff, permissions.onlyAssigned, companyId]);
 
   const activeFilterCount = countActiveFilters(filters);
 
@@ -807,9 +826,12 @@ function MarketingOpportunitiesContent() {
               <DropdownMenuItem className="md:hidden" onClick={() => setCardCustomizeOpen(true)}>
                 <Settings2 className="mr-2 h-4 w-4" /> Gestisci campi
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleExportOpportunities} disabled={isExporting}>
-                {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />} Esporta CSV
-              </DropdownMenuItem>
+              {/* Niente export su telefono, né senza «Esporta Clienti». */}
+              {!isMobile && canExportClients && (
+                <DropdownMenuItem onClick={handleExportOpportunities} disabled={isExporting}>
+                  {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />} Esporta CSV
+                </DropdownMenuItem>
+              )}
               {canEditOpportunities && (
                 <DropdownMenuItem onClick={() => setCestinoOpen(true)}>
                   <Trash2 className="mr-2 h-4 w-4" /> Cestino

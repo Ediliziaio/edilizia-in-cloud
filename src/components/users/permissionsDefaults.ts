@@ -179,7 +179,7 @@ export const CANTIERI_SECTIONS: PermissionSectionDef[] = [
   { label: "Mezzi e attrezzature",   viewKey: "can_view_mezzi",              editKey: null, description: "Furgoni, mezzi e attrezzi con scadenze, tagliandi e foto: chi li vede li gestisce, salvo «Sola lettura»" },
   { label: "Calendario",             viewKey: "can_view_calendar",           editKey: null, description: "Visualizza e gestisci il calendario" },
   { label: "Clienti",                viewKey: "can_view_customers",          editKey: null, description: "Anagrafica clienti: chi la vede crea e modifica, salvo «Sola lettura»" },
-  { label: "Esporta Clienti",        viewKey: "can_export_clients",          editKey: null, description: "Esporta l'anagrafica clienti in CSV" },
+  { label: "Esporta Clienti",        viewKey: "can_export_clients",          editKey: null, description: "Scarica in CSV/Excel clienti, contatti, opportunità e preventivi (anche l'archivio completo): ogni esportazione resta nel registro" },
   { label: "Ticket Assistenza",      viewKey: "can_view_tickets",            editKey: null, description: "Ticket di supporto: chi li vede li apre e li gestisce, salvo «Sola lettura»" },
   { label: "Interventi",             viewKey: "can_view_interventi",         editKey: null, description: "Gestisci interventi tecnici pianificati" },
   { label: "Manutenzione",           viewKey: "can_view_manutenzione",       editKey: null, description: "Gestisci piani di manutenzione programmata" },

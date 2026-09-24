@@ -57,6 +57,8 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { formatCurrencyCompact } from "@/lib/formatters";
 import { DealHealthOverview } from "@/components/opportunities/DealHealthOverview";
 import { exportToCSV } from "@/lib/csvExport";
+import { messaggioEsportazioneNonRiuscita, registraEsportazioneCrm } from "@/lib/export/esportazioniCrm";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { LeadScoringConfigForm } from "@/components/marketing/LeadScoringConfigForm";
 import { Settings2 } from "lucide-react";
@@ -833,9 +835,23 @@ function SalesForecastChart({ companyId, pipelineId }: { companyId: string; pipe
 function StalledOpportunitiesPanel({ companyId, pipelineId }: { companyId: string; pipelineId?: string }) {
   const { data: stalled, isLoading, isError, error } = useStalledOpportunities(companyId, pipelineId);
   const navigate = useNavigate();
+  // Opportunità con il nome del contatto: CSV solo con «Esporta Clienti».
+  const { canExportClients } = usePermissions();
 
-  const handleExport = () => {
-    if (!stalled?.length) return;
+  const handleExport = async () => {
+    if (!stalled?.length || !canExportClients) return;
+    try {
+      await registraEsportazioneCrm({
+        companyId,
+        oggetto: "opportunita_ferme",
+        formato: "csv",
+        righe: stalled.length,
+        filtri: { pipeline: pipelineId },
+      });
+    } catch (err) {
+      toast.error(messaggioEsportazioneNonRiuscita(err));
+      return;
+    }
     exportToCSV(
       stalled.map((s) => ({
         opportunita: s.opportunity_name,
@@ -878,9 +894,11 @@ function StalledOpportunitiesPanel({ companyId, pipelineId }: { companyId: strin
 
   return (
     <>
-    <div className="flex justify-end mb-2">
-      <ExportCsvButton onClick={handleExport} />
-    </div>
+    {canExportClients && (
+      <div className="flex justify-end mb-2">
+        <ExportCsvButton onClick={handleExport} />
+      </div>
+    )}
     <Table>
       <TableHeader>
         <TableRow>
@@ -1060,9 +1078,23 @@ function ConversionBySourceChart({ companyId, dateFrom, dateTo, pipelineId }: { 
 function TopLeadsTable({ companyId, limit = 10 }: { companyId: string; limit?: number }) {
   const navigate = useNavigate();
   const { data: leads, isLoading, isError, error } = useTopLeads(companyId, limit);
+  // Nomi dei lead: CSV solo con «Esporta Clienti».
+  const { canExportClients } = usePermissions();
 
-  const handleExport = () => {
-    if (!leads?.length) return;
+  const handleExport = async () => {
+    if (!leads?.length || !canExportClients) return;
+    try {
+      await registraEsportazioneCrm({
+        companyId,
+        oggetto: "lead_migliori",
+        formato: "csv",
+        righe: leads.length,
+        filtri: { primi: limit },
+      });
+    } catch (err) {
+      toast.error(messaggioEsportazioneNonRiuscita(err));
+      return;
+    }
     exportToCSV(
       leads.map((l) => ({
         nome: l.full_name,
@@ -1117,9 +1149,11 @@ function TopLeadsTable({ companyId, limit = 10 }: { companyId: string; limit?: n
 
   return (
     <>
-    <div className="flex justify-end mb-2">
-      <ExportCsvButton onClick={handleExport} />
-    </div>
+    {canExportClients && (
+      <div className="flex justify-end mb-2">
+        <ExportCsvButton onClick={handleExport} />
+      </div>
+    )}
     <Table>
       <TableHeader>
         <TableRow>
