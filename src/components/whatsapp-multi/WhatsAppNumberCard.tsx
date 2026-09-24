@@ -35,6 +35,7 @@ import {
   KeyRound,
   Loader2,
   Info,
+  UserCircle,
 } from "lucide-react";
 import {
   PURPOSE_AUTONOMY,
@@ -48,6 +49,8 @@ import {
   type WANumber,
   type WAPurpose,
 } from "@/hooks/whatsapp/useWhatsAppNumbers";
+import { usePermissions } from "@/hooks/usePermissions";
+import { WhatsAppProfiloDialog } from "./WhatsAppProfiloDialog";
 
 interface Props {
   number: WANumber;
@@ -70,6 +73,12 @@ export function WhatsAppNumberCard({ number, onOpenSettings }: Props) {
   const [newToken, setNewToken] = useState("");
 
   const canReconnect = Boolean(number.phone_number_id && number.waba_id);
+
+  // Profilo WhatsApp (foto, info, descrizione…): lo cambia solo chi amministra
+  // l'azienda, come i template. Serve un numero collegato a Meta.
+  const { isAdmin } = usePermissions();
+  const [profiloOpen, setProfiloOpen] = useState(false);
+  const canEditProfilo = isAdmin && Boolean(number.phone_number_id);
 
   const submitNewToken = () => {
     const token = newToken.trim();
@@ -178,6 +187,18 @@ export function WhatsAppNumberCard({ number, onOpenSettings }: Props) {
             </Button>
           )}
 
+          {canEditProfilo && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setProfiloOpen(true)}
+              aria-label={`Profilo WhatsApp ${number.display_name ?? number.numero}`}
+            >
+              <UserCircle className="mr-1 h-4 w-4" />
+              Profilo
+            </Button>
+          )}
+
           {canReconnect && (
             <Button
               variant="outline"
@@ -222,6 +243,10 @@ export function WhatsAppNumberCard({ number, onOpenSettings }: Props) {
           </AlertDialog>
         </div>
       </CardContent>
+
+      {canEditProfilo && (
+        <WhatsAppProfiloDialog number={number} open={profiloOpen} onOpenChange={setProfiloOpen} />
+      )}
 
       {/* Dialog aggiorna token — rinfresca un access token scaduto senza dover
           rimuovere e ricreare il numero. */}
