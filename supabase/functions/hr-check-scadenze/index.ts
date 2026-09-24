@@ -11,8 +11,8 @@
 // Mezzi (dal 24/09/2026) — assicurazione, bollo, revisione, contratti,
 // verifiche e prossimo tagliando dei mezzi aziendali, letti dalla vista
 // mezzi_scadenze (che decide cosa è scaduto o in scadenza, rinnovi compresi).
-// Avvisa gli admin e chi può modificare il Magazzino (stessi permessi dei
-// mezzi): campanella `mezzo_scadenza` + email. Sta qui e non in una funzione
+// Avvisa gli admin e chi gestisce i mezzi (permesso «Mezzi e attrezzature»):
+// campanella `mezzo_scadenza` + email. Sta qui e non in una funzione
 // nuova perché il progetto è vicino al tetto di 500 edge function.
 //
 // Anti-doppione: niente nuova notifica per lo stesso documento/utente se già
@@ -246,13 +246,13 @@ async function controllaMezzi(admin: SupabaseClient, provider: Provider): Promis
   const companyIds = [...new Set(scadenze.map((s) => s.company_id))];
 
   // Destinatari: admin dell'azienda (ruolo + profiles.company_id) e chi può
-  // modificare il Magazzino in quell'azienda (staff_permissions.can_edit_warehouse).
+  // gestire i mezzi in quell'azienda (staff_permissions.can_edit_mezzi).
   const { data: roleRows } = await admin.from("user_roles").select("user_id").in("role", ["company_admin", "super_admin"]);
   const adminUserIds = new Set<string>(((roleRows ?? []) as Array<{ user_id: string }>).map((r) => r.user_id));
   const { data: profs } = await admin.from("profiles").select("id, email, company_id").in("company_id", companyIds);
   const { data: staffRows } = await admin
     .from("staff_permissions").select("user_id, company_id")
-    .in("company_id", companyIds).eq("can_edit_warehouse", true);
+    .in("company_id", companyIds).eq("can_edit_mezzi", true);
 
   const profili = (profs ?? []) as Array<{ id: string; email: string | null; company_id: string }>;
   const emailDi = new Map<string, string | null>(profili.map((p) => [p.id, p.email]));

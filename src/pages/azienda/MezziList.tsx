@@ -33,7 +33,7 @@ const PALLINO: Record<string, string> = {
 export default function MezziList() {
   const navigate = useNavigate();
   const perms = usePermissions();
-  const puoModificare = (perms.canEditWarehouse || perms.isAdmin) && !perms.solaLettura;
+  const puoModificare = (perms.canEditMezzi || perms.isAdmin) && !perms.solaLettura;
 
   const { data: mezzi = [], isLoading, error, refetch } = useMezzi();
   const { data: scadenze = [] } = useMezziScadenze();

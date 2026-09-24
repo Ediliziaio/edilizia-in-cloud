@@ -37,7 +37,7 @@ export default function MezzoDetail() {
   const navigate = useNavigate();
   const companyId = useEffectiveCompanyId();
   const perms = usePermissions();
-  const puoModificare = (perms.canEditWarehouse || perms.isAdmin) && !perms.solaLettura;
+  const puoModificare = (perms.canEditMezzi || perms.isAdmin) && !perms.solaLettura;
 
   const { data: mezzo, isLoading, error, refetch } = useMezzo(id);
   const { data: tutti = [] } = useMezzi();

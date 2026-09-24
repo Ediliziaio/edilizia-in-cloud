@@ -83546,6 +83546,8 @@ export type Database = {
           can_edit_settings_suppliers: boolean
           can_edit_tickets: boolean | null
           can_edit_warehouse: boolean | null
+          can_edit_mezzi: boolean
+          can_view_mezzi: boolean
           can_export_clients: boolean
           can_manage_payments: boolean
           can_manage_portal: boolean
@@ -83647,6 +83649,8 @@ export type Database = {
           can_edit_settings_suppliers?: boolean
           can_edit_tickets?: boolean | null
           can_edit_warehouse?: boolean | null
+          can_edit_mezzi?: boolean
+          can_view_mezzi?: boolean
           can_export_clients?: boolean
           can_manage_payments?: boolean
           can_manage_portal?: boolean
@@ -83748,6 +83752,8 @@ export type Database = {
           can_edit_settings_suppliers?: boolean
           can_edit_tickets?: boolean | null
           can_edit_warehouse?: boolean | null
+          can_edit_mezzi?: boolean
+          can_view_mezzi?: boolean
           can_export_clients?: boolean
           can_manage_payments?: boolean
           can_manage_portal?: boolean

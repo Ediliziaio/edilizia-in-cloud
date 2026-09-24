@@ -3,7 +3,7 @@
  * sono stati e per quanti giorni, con una stima di quanto sono costati. La
  * stima è informativa: non entra nel margine della commessa.
  *
- * Si vede solo a chi vede il magazzino e solo se l'azienda ha almeno un mezzo:
+ * Si vede solo a chi ha il permesso dei mezzi e solo se l'azienda ne ha almeno uno:
  * a chi non gestisce un parco la commessa resta com'era.
  */
 import { useMemo, useState } from "react";
@@ -33,8 +33,8 @@ function descriviPeriodi(periodi: Array<{ dal: string; al: string | null }>): st
 
 export function MezziCommessaCard({ orderId }: Props) {
   const perms = usePermissions();
-  const puoVedere = perms.canViewWarehouse || perms.isAdmin;
-  const puoModificare = (perms.canEditWarehouse || perms.isAdmin) && !perms.solaLettura;
+  const puoVedere = perms.canViewMezzi || perms.isAdmin;
+  const puoModificare = (perms.canEditMezzi || perms.isAdmin) && !perms.solaLettura;
 
   const { data: mezzi = [] } = useMezzi();
   const { data: sulCantiere = [], isLoading, error, refetch } = useMezziDellaCommessa(puoVedere ? orderId : undefined);

@@ -12,11 +12,13 @@ import {
   XCircle,
   RefreshCw,
   CreditCard,
+  Truck,
 } from "lucide-react";
 
 export const ALL_MODULES = [
   { key: "orders", label: "Ordini", icon: ClipboardList, description: "Gestione ordini e preventivi" },
   { key: "warehouse", label: "Magazzino", icon: Warehouse, description: "Gestione materiali e scorte" },
+  { key: "mezzi", label: "Mezzi e attrezzature", icon: Truck, description: "Furgoni, mezzi e attrezzi con scadenze e tagliandi" },
   { key: "calendar", label: "Calendario", icon: CalendarDays, description: "Pianificazione lavori" },
   { key: "customers", label: "Clienti", icon: Users, description: "Anagrafica clienti" },
   { key: "employees", label: "Dipendenti", icon: HardHat, description: "Gestione personale" },
@@ -32,6 +34,8 @@ export const PERMISSION_LABELS: Record<string, string> = {
   can_edit_customers: "Modifica Clienti",
   can_view_warehouse: "Magazzino",
   can_edit_warehouse: "Modifica Magazzino",
+  can_view_mezzi: "Mezzi e attrezzature",
+  can_edit_mezzi: "Modifica Mezzi e attrezzature",
   can_view_calendar: "Calendario",
   can_view_employees: "Dipendenti",
   can_view_tickets: "Ticket",

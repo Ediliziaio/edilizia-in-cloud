@@ -607,8 +607,8 @@ export default function CompanyRoutesContainer() {
         <Route path="ordini/:id/modifica" element={withCompanyPermissionOrCommercialista("canEditOrders", <CommercialistaOrderEditGuard><EditOrder /></CommercialistaOrderEditGuard>)} />
         <Route path="magazzino" element={withCompanyPermissionOrCommercialista("canViewWarehouse", <ErrorBoundary title="Errore nel caricamento magazzino"><Warehouse /></ErrorBoundary>)} />
         <Route path="magazzino/gestione" element={withCompanyPermissionOrCommercialista("canEditWarehouse", <CommercialistaWriteGuard fallback="/azienda/magazzino"><WarehouseManager /></CommercialistaWriteGuard>)} />
-        <Route path="mezzi" element={withCompanyPermission("canViewWarehouse", <ErrorBoundary title="Errore nel caricamento dei mezzi"><MezziList /></ErrorBoundary>)} />
-        <Route path="mezzi/:id" element={withCompanyPermission("canViewWarehouse", <ErrorBoundary title="Errore nella scheda del mezzo"><MezzoDetail /></ErrorBoundary>)} />
+        <Route path="mezzi" element={withCompanyPermission("canViewMezzi", <ErrorBoundary title="Errore nel caricamento dei mezzi"><MezziList /></ErrorBoundary>)} />
+        <Route path="mezzi/:id" element={withCompanyPermission("canViewMezzi", <ErrorBoundary title="Errore nella scheda del mezzo"><MezzoDetail /></ErrorBoundary>)} />
         <Route path="calendario" element={withCompanyPermission("canViewCalendar", <ErrorBoundary title="Errore nel caricamento calendario"><Calendar /></ErrorBoundary>)} />
         <Route path="clienti" element={withCompanyPermission("canViewCustomers", <ErrorBoundary title="Errore nel caricamento clienti"><CustomersList /></ErrorBoundary>)} />
         <Route path="clienti/nuovo" element={withCompanyPermission("canEditCustomers", <CreateCustomer />)} />

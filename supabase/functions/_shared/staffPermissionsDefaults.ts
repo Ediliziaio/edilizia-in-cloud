@@ -19,6 +19,7 @@ export const STAFF_PERMISSION_DEFAULTS: Record<string, boolean | string[]> = {
   can_view_order_amounts: true,
   can_approve_orders: false, can_delete_orders: false,
   can_view_warehouse: false, can_edit_warehouse: false, can_manage_warehouse_items: false,
+  can_view_mezzi: false, can_edit_mezzi: false,
   can_view_calendar: false, can_view_all_team_calendar: false,
   can_view_team_tasks: false,
   can_view_customers: false, can_edit_customers: false, can_export_clients: false,

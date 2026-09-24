@@ -19,6 +19,7 @@ const BACKGROUND_PLAN_QUERY_META = { silent: true } as const;
 export type ModuleKey =
   | "orders"
   | "warehouse"
+  | "mezzi"
   | "calendar"
   | "customers"
   | "employees"

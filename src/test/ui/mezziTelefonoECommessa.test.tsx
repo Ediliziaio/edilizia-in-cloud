@@ -17,7 +17,7 @@ const stato = vi.hoisted(() => ({
   mezzi: [] as unknown[],
   sulCantiere: [] as unknown[],
   costi: { documenti: [] as unknown[], manutenzioni: [] as unknown[] },
-  permessi: { canViewWarehouse: true, canEditWarehouse: true, isAdmin: false, solaLettura: false },
+  permessi: { canViewMezzi: true, canEditMezzi: true, isAdmin: false, solaLettura: false },
 }));
 
 vi.mock("@/hooks/useMezzi", () => {
@@ -138,8 +138,8 @@ describe("Mezzi sul cantiere, nella commessa", () => {
     expect(screen.getByRole("button", { name: "Togli Ducato bianco dal cantiere" })).toBeTruthy();
   });
 
-  it("chi non modifica il magazzino vede ma non sposta", () => {
-    stato.permessi = { canViewWarehouse: true, canEditWarehouse: false, isAdmin: false, solaLettura: false };
+  it("chi non modifica i mezzi vede ma non sposta", () => {
+    stato.permessi = { canViewMezzi: true, canEditMezzi: false, isAdmin: false, solaLettura: false };
     conRouter(<MezziCommessaCard orderId="o1" />);
     expect(screen.getByText("Qui adesso")).toBeTruthy();
     expect(screen.queryByRole("button", { name: /Togli/ })).toBeNull();
