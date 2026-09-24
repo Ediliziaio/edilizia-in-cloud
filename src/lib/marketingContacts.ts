@@ -59,14 +59,6 @@ export function normalizeContactsUrlState(input: ContactsUrlStateInput): Contact
   };
 }
 
-export function sanitizeContactSearchTerm(value: unknown): string {
-  if (value == null) return "";
-  return String(value)
-    .replace(/[%(),]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
 export function toggleContactsPageSelection(
   selectedIds: Set<string>,
   visibleContactIds: string[],
@@ -84,68 +76,92 @@ export function toggleContactsPageSelection(
   return next;
 }
 
-export function buildContactDateRange(value: unknown): { start: string; endExclusive: string } | null {
-  if (typeof value !== "string") return null;
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim());
-  if (!match) return null;
+/**
+ * Gli operatori del pannello «Filtri». Il significato lo decide il database
+ * (`marketing_contatti_dei_gruppi`): qui servono il nome e cosa vuole come
+ * valore. «è»/«non è» su un testo libero cercano «contiene», come prima.
+ */
+export type OperatoreFiltro =
+  | "is"
+  | "is_not"
+  | "contains"
+  | "not_contains"
+  | "is_empty"
+  | "is_not_empty"
+  | "before"
+  | "after"
+  | "last_days"
+  | "older_than_days";
 
-  const year = Number(match[1]);
-  const monthIndex = Number(match[2]) - 1;
-  const day = Number(match[3]);
-  const start = new Date(Date.UTC(year, monthIndex, day));
-  if (
-    start.getUTCFullYear() !== year ||
-    start.getUTCMonth() !== monthIndex ||
-    start.getUTCDate() !== day
-  ) {
-    return null;
+/** Operatori che non vogliono un valore. */
+export const OPERATORI_SENZA_VALORE: ReadonlySet<string> = new Set(["is_empty", "is_not_empty"]);
+
+/** Operatori che vogliono un numero di giorni. */
+export const OPERATORI_A_GIORNI: ReadonlySet<string> = new Set(["last_days", "older_than_days"]);
+
+/** Campi data del contatto: «è», «prima del», «dopo il» vogliono un giorno. */
+const CAMPI_DATA = new Set(["created_at", "last_activity_at"]);
+
+/**
+ * Una regola si può applicare? Senza valore non filtra niente, e prima la
+ * pagina la contava lo stesso fra i filtri attivi: «1 filtro» su un elenco
+ * che non era filtrato.
+ */
+export function regolaCompleta(regola: { field: string; operator: string; value: string }): boolean {
+  if (OPERATORI_SENZA_VALORE.has(regola.operator)) return true;
+  const valore = (regola.value ?? "").trim();
+  if (OPERATORI_A_GIORNI.has(regola.operator)) {
+    if (!/^\d{1,4}$/.test(valore)) return false;
+    const giorni = Number(valore);
+    return giorni >= 1 && giorni <= 3650;
   }
+  if (CAMPI_DATA.has(regola.field)) return giornoValido(valore);
+  return valore.length > 0;
+}
 
-  const end = new Date(start.getTime());
-  end.setUTCDate(end.getUTCDate() + 1);
+function giornoValido(valore: string): boolean {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(valore);
+  if (!m) return false;
+  const data = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+  return data.getUTCFullYear() === Number(m[1]) && data.getUTCMonth() === Number(m[2]) - 1 && data.getUTCDate() === Number(m[3]);
+}
 
-  return {
-    start: start.toISOString(),
-    endExclusive: end.toISOString(),
-  };
+/**
+ * I gruppi con le sole regole applicabili, senza i gruppi rimasti vuoti: è
+ * quello che «Applica» salva, così il conteggio dei filtri dice il vero.
+ */
+export function soloRegoleComplete<R extends { field: string; operator: string; value: string }, G extends { rules: R[] }>(
+  gruppi: G[],
+): G[] {
+  return gruppi
+    .map((gruppo) => ({ ...gruppo, rules: gruppo.rules.filter(regolaCompleta) }))
+    .filter((gruppo) => gruppo.rules.length > 0);
 }
 
 /** Una regola dei filtri avanzati, nel formato che capisce il database. */
 export type RegolaPerIlDatabase = Record<string, string>;
 
 /**
- * Traduce i gruppi del pannello «Filtri avanzati» nel JSON che legge la
- * funzione `marketing_contatti_dei_gruppi`: regole in AND dentro il gruppo,
- * gruppi fra loro in OR.
+ * Traduce i gruppi del pannello «Filtri» nel JSON che legge la funzione
+ * `marketing_contatti_dei_gruppi`: regole in AND dentro il gruppo, gruppi fra
+ * loro in OR.
  *
- * Le regole senza valore si scartano (a parte «vuoto»/«non vuoto», che un
- * valore non ce l'hanno), e le date diventano un intervallo «da»/«a»: il
- * calendario lo sa fare il browser, il database riceve due istanti precisi.
- * Una data che non si capisce fa cadere la regola, com'era prima.
+ * Le regole incomplete si scartano. Le date partono così come sono
+ * (AAAA-MM-GG, o un numero di giorni): il giorno intero, sull'ora italiana, lo
+ * calcola il database. Prima lo calcolava il browser in UTC, e un giorno
+ * cominciava alle 02:00. I valori viaggiano nel corpo della richiesta, non
+ * nell'URL: non serve più togliere virgole e parentesi, che nei tag ci sono.
  */
 export function regoleGruppiPerIlDatabase(
   gruppi: Array<{ rules: Array<{ field: string; operator: string; value: string }> }>,
 ): Array<{ regole: RegolaPerIlDatabase[] }> | null {
-  const usabili = gruppi
-    .map((gruppo) => ({
-      regole: gruppo.rules
-        .map((regola): RegolaPerIlDatabase | null => {
-          const senzaValore = regola.operator === "is_empty" || regola.operator === "is_not_empty";
-          const valore = sanitizeContactSearchTerm(regola.value);
-          if (!senzaValore && valore.trim().length === 0) return null;
-
-          const uscita: RegolaPerIlDatabase = { campo: regola.field, operatore: regola.operator, valore };
-          if ((regola.field === "created_at" || regola.field === "last_activity_at") && !senzaValore) {
-            const intervallo = buildContactDateRange(valore);
-            if (!intervallo) return null;
-            uscita.da = intervallo.start;
-            uscita.a = intervallo.endExclusive;
-          }
-          return uscita;
-        })
-        .filter((regola): regola is RegolaPerIlDatabase => regola !== null),
-    }))
-    .filter((gruppo) => gruppo.regole.length > 0);
+  const usabili = soloRegoleComplete(gruppi).map((gruppo) => ({
+    regole: gruppo.rules.map((regola): RegolaPerIlDatabase => ({
+      campo: regola.field,
+      operatore: regola.operator,
+      valore: OPERATORI_SENZA_VALORE.has(regola.operator) ? "" : (regola.value ?? "").trim(),
+    })),
+  }));
 
   return usabili.length > 0 ? usabili : null;
 }

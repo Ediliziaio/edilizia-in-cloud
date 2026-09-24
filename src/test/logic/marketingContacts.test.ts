@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
-  buildContactDateRange,
+  regolaCompleta,
   regoleGruppiPerIlDatabase,
   normalizeContactsUrlState,
-  sanitizeContactSearchTerm,
+  soloRegoleComplete,
   toggleContactsPageSelection,
 } from "@/lib/marketingContacts";
 
@@ -56,11 +56,6 @@ describe("marketing contacts helpers", () => {
     ).toBe("all");
   });
 
-  it("sanitizes search text for PostgREST or() filters without erasing useful terms", () => {
-    expect(sanitizeContactSearchTerm("  Mario%, Rossi(foo)  ")).toBe("Mario Rossi foo");
-    expect(sanitizeContactSearchTerm(",,%%")).toBe("");
-  });
-
   it("toggles only the visible contact page and preserves selections from other pages", () => {
     const selected = new Set(["off-page-1", "off-page-2"]);
     const visibleIds = ["visible-1", "visible-2"];
@@ -75,14 +70,6 @@ describe("marketing contacts helpers", () => {
     expect([...toggleContactsPageSelection(new Set(["off-page-1", ...visibleIds]), visibleIds)]).toEqual([
       "off-page-1",
     ]);
-  });
-
-  it("builds an inclusive day range for timestamp date filters", () => {
-    expect(buildContactDateRange("2026-05-23")).toEqual({
-      start: "2026-05-23T00:00:00.000Z",
-      endExclusive: "2026-05-24T00:00:00.000Z",
-    });
-    expect(buildContactDateRange("not-a-date")).toBeNull();
   });
 });
 
@@ -102,23 +89,32 @@ describe("regoleGruppiPerIlDatabase", () => {
     ]);
   });
 
-  it("le date diventano un intervallo: il giorno intero, non l'istante", () => {
+  // Il giorno lo calcola il database sull'ora italiana. Prima il browser
+  // mandava l'intervallo in UTC, e «24 settembre» cominciava alle 02:00: chi
+  // era entrato fra mezzanotte e le due finiva nel giorno prima.
+  it("le date partono come data: il giorno intero lo calcola il database", () => {
     expect(regoleGruppiPerIlDatabase([{ rules: [{ field: "created_at", operator: "is", value: "2026-05-23" }] }])).toEqual([
-      {
-        regole: [{
-          campo: "created_at",
-          operatore: "is",
-          valore: "2026-05-23",
-          da: "2026-05-23T00:00:00.000Z",
-          a: "2026-05-24T00:00:00.000Z",
-        }],
-      },
+      { regole: [{ campo: "created_at", operatore: "is", valore: "2026-05-23" }] },
+    ]);
+    expect(regoleGruppiPerIlDatabase([{ rules: [{ field: "last_activity_at", operator: "older_than_days", value: " 30 " }] }])).toEqual([
+      { regole: [{ campo: "last_activity_at", operatore: "older_than_days", valore: "30" }] },
     ]);
   });
 
-  it("scarta le regole senza valore e le date che non si capiscono", () => {
-    expect(regoleGruppiPerIlDatabase([{ rules: [{ field: "city", operator: "is", value: "   " }] }])).toBeNull();
+  it("scarta le regole senza valore, le date che non si capiscono e i giorni fuori misura", () => {
+    expect(regoleGruppiPerIlDatabase([{ rules: [{ field: "city", operator: "contains", value: "   " }] }])).toBeNull();
     expect(regoleGruppiPerIlDatabase([{ rules: [{ field: "created_at", operator: "is", value: "il mese scorso" }] }])).toBeNull();
+    expect(regoleGruppiPerIlDatabase([{ rules: [{ field: "created_at", operator: "before", value: "2026-02-30" }] }])).toBeNull();
+    expect(regoleGruppiPerIlDatabase([{ rules: [{ field: "created_at", operator: "last_days", value: "0" }] }])).toBeNull();
+    expect(regoleGruppiPerIlDatabase([{ rules: [{ field: "created_at", operator: "last_days", value: "7,5" }] }])).toBeNull();
+  });
+
+  // I valori viaggiano nel corpo della richiesta: virgole e parentesi, che
+  // nei tag ci sono («Fiera (Milano)»), non vanno più tolte.
+  it("manda il valore com'è, tolti solo gli spazi ai bordi", () => {
+    expect(regoleGruppiPerIlDatabase([{ rules: [{ field: "tags", operator: "is", value: " Fiera (Milano), stand 4 " }] }])).toEqual([
+      { regole: [{ campo: "tags", operatore: "is", valore: "Fiera (Milano), stand 4" }] },
+    ]);
   });
 
   it("tiene «vuoto» e «non vuoto», che un valore non ce l'hanno", () => {
@@ -133,5 +129,33 @@ describe("regoleGruppiPerIlDatabase", () => {
   it("niente gruppi usabili = nessun filtro, non un filtro vuoto", () => {
     expect(regoleGruppiPerIlDatabase([])).toBeNull();
     expect(regoleGruppiPerIlDatabase([{ rules: [] }])).toBeNull();
+  });
+});
+
+// «Applica» salva solo le condizioni che filtrano: prima una regola lasciata
+// senza valore restava nei filtri e contava come «1 filtro» su un elenco che
+// filtrato non era.
+describe("regole complete", () => {
+  it("un operatore che vuole un valore, senza valore, non è completo", () => {
+    expect(regolaCompleta({ field: "city", operator: "contains", value: "" })).toBe(false);
+    expect(regolaCompleta({ field: "city", operator: "is_empty", value: "" })).toBe(true);
+    expect(regolaCompleta({ field: "created_at", operator: "after", value: "2026-09-24" })).toBe(true);
+    expect(regolaCompleta({ field: "created_at", operator: "after", value: "24/09/2026" })).toBe(false);
+    expect(regolaCompleta({ field: "last_activity_at", operator: "last_days", value: "3650" })).toBe(true);
+    expect(regolaCompleta({ field: "last_activity_at", operator: "last_days", value: "3651" })).toBe(false);
+    expect(regolaCompleta({ field: "cf_campo", operator: "is", value: "Sì" })).toBe(true);
+  });
+
+  it("toglie le regole incomplete e i riquadri rimasti vuoti", () => {
+    const gruppi = [
+      { id: "a", rules: [
+        { id: "1", field: "city", operator: "contains", value: "Milano" },
+        { id: "2", field: "tags", operator: "is", value: "" },
+      ] },
+      { id: "b", rules: [{ id: "3", field: "source", operator: "is", value: "" }] },
+    ];
+    expect(soloRegoleComplete(gruppi)).toEqual([
+      { id: "a", rules: [{ id: "1", field: "city", operator: "contains", value: "Milano" }] },
+    ]);
   });
 });

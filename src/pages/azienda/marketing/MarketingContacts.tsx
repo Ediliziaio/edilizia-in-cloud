@@ -694,8 +694,7 @@ export default function MarketingContacts() {
    * novantaseimila, senza dirlo a nessuno.
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sorgenteContatti = useCallback((colonne: string, conConteggio = false): any => {
-    const gruppi = regoleDeiGruppiAttivi();
+  const sorgenteContatti = useCallback((colonne: string, conConteggio = false, gruppi = regoleDeiGruppiAttivi()): any => {
     if (gruppi) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return (supabase as any)
@@ -711,6 +710,20 @@ export default function MarketingContacts() {
       .select(colonne, conConteggio ? { count: "exact" } : undefined)
       .eq("company_id", companyId!);
   }, [companyId, regoleDeiGruppiAttivi]);
+
+  /**
+   * Quanti contatti darebbero i filtri che si stanno scrivendo nel pannello,
+   * insieme a quelli già attivi nella pagina: il numero sul bottone
+   * «Mostra N contatti» è lo stesso che poi si vede in testa all'elenco.
+   */
+  const contaConFiltri = useCallback(async (bozza: ContactFilters): Promise<number> => {
+    if (!companyId) return 0;
+    let query = sorgenteContatti("id", true, regoleGruppiPerIlDatabase(bozza.groups)).range(0, 0);
+    query = applicaFiltriCorrenti(query);
+    const { count, error } = await query;
+    if (error) throw error;
+    return count ?? 0;
+  }, [companyId, sorgenteContatti, applicaFiltriCorrenti]);
 
   // ── Seleziona tutti i risultati, non solo la pagina ────────────────────
   // Serviva per agire su migliaia di contatti: prima la casella in testa alla
@@ -905,41 +918,35 @@ export default function MarketingContacts() {
     }
   }, [companyId, exporting, canExportClients, selectedIds, contactCustomFields, applicaFiltriCorrenti, sorgenteContatti, activeTab, search, qualityFilter, sourceFilter, meseFilter, stalePresetActive, stalePreset, filters.groups, permissions.onlyAssigned]);
 
-  // Consolidated filter data query (pipelines, tags, list count)
+  // Consolidated filter data query (pipelines, list count). I tag del pannello
+  // Filtri non vengono più da marketing_tags, dove quasi nessun tag in uso è
+  // registrato: li chiede il pannello al database, dai contatti stessi.
   const { data: filterData } = useQuery({
     queryKey: ["marketing-filter-data", companyId],
     staleTime: 10 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
     queryFn: async () => {
-      const [pipelinesRes, tagsRes, countRes] = await Promise.all([
+      const [pipelinesRes, countRes] = await Promise.all([
         supabase
           .from("marketing_pipelines")
           .select("id, name, marketing_pipeline_stages(id, name, position)")
           .eq("company_id", companyId!)
           .order("position"),
         supabase
-          .from("marketing_tags")
-          .select("name")
-          .eq("company_id", companyId!)
-          .order("name"),
-        supabase
           .from("marketing_contact_lists")
           .select("id", { count: "exact", head: true })
           .eq("company_id", companyId!),
       ]);
       if (pipelinesRes.error) throw pipelinesRes.error;
-      if (tagsRes.error) throw tagsRes.error;
       if (countRes.error) throw countRes.error;
       return {
         pipelines: (pipelinesRes.data || []) as PipelineWithStages[],
-        availableTags: normalizeTagList((tagsRes.data || []).map((t) => t.name)),
         listCount: countRes.count || 0,
       };
     },
     enabled: !!companyId,
   });
   const pipelines = filterData?.pipelines ?? [];
-  const availableTags = filterData?.availableTags ?? [];
   const listCount = filterData?.listCount ?? 0;
 
   // Contattabilità sull'INTERO database azienda: count esatti head-only in
@@ -1017,14 +1024,26 @@ export default function MarketingContacts() {
 
       // Fetch first opportunity per contact
       const oppMap: Record<string, { name: string; value: number; status: string; pipeline_name: string; stage_name: string }> = {};
+      // L'ultima attività vera delle righe a schermo. La colonna del contatto
+      // non la aggiorna nessuno (BeMade: 2 contatti su 21.160): le note, i
+      // cambi di fase e i messaggi stanno nel registro delle attività. È la
+      // stessa regola del filtro «Ultima attività».
+      const ultimaAttivita: Record<string, string | null> = {};
       if (contactIds.length > 0) {
-        const { data: opps } = await supabase
-          .from("marketing_opportunities")
-          .select("contact_id, name, value, status, marketing_pipelines(name), marketing_pipeline_stages(name)")
-          .in("contact_id", contactIds)
-          .eq("company_id", companyId)
-          .is("deleted_at", null)
-          .order("created_at", { ascending: false });
+        const [{ data: opps }, { data: attivita }] = await Promise.all([
+          supabase
+            .from("marketing_opportunities")
+            .select("contact_id, name, value, status, marketing_pipelines(name), marketing_pipeline_stages(name)")
+            .in("contact_id", contactIds)
+            .eq("company_id", companyId)
+            .is("deleted_at", null)
+            .order("created_at", { ascending: false }),
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (supabase as any).rpc("marketing_ultima_attivita_contatti", { p_contatti: contactIds }),
+        ]);
+        for (const riga of (attivita ?? []) as { contact_id: string; ultima_attivita: string | null }[]) {
+          ultimaAttivita[riga.contact_id] = riga.ultima_attivita;
+        }
 
         if (opps) {
           for (const opp of opps) {
@@ -1071,6 +1090,7 @@ export default function MarketingContacts() {
           opp_status: opp?.status || null,
           opp_pipeline: opp?.pipeline_name || null,
           opp_stage: opp?.stage_name || null,
+          last_activity_at: ultimaAttivita[c.id] ?? c.last_activity_at ?? null,
         };
       });
 
@@ -2125,9 +2145,10 @@ export default function MarketingContacts() {
         onOpenChange={setFiltersSheetOpen}
         filters={filters}
         onApply={handleApplyFilters}
-        availableTags={availableTags}
+        companyId={companyId}
         pipelines={pipelines}
         customFields={contactCustomFields}
+        contaContatti={contaConFiltri}
       />
 
       {/* Dialogs */}
