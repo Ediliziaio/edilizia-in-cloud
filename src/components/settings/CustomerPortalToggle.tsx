@@ -21,9 +21,15 @@ import { useConfirm } from "@/components/ui/confirm-dialog";
  * Il setting è persistito su `companies.customer_portal_enabled` ed è letto
  * anche lato server-side nell'edge function `create-customer` per forzare
  * il comportamento indipendentemente da cosa invia il client.
+ *
+ * 23/09/2026 — lo accende e lo spegne SOLO EdiliziaInCloud (super admin), su
+ * richiesta dell'azienda: l'azienda vede lo stato ma non può cambiarlo. Lo
+ * impone anche il database (trigger su companies), non solo questa pagina.
+ * Spento vuol dire nessun accesso per nessun cliente, anche per chi l'aveva.
  */
 export function CustomerPortalToggle() {
-  const { effectiveCompany, refreshAuth } = useAuth();
+  const { effectiveCompany, refreshAuth, userRoles } = useAuth();
+  const puoCambiare = userRoles.includes("super_admin");
   const { toast } = useToast();
   const confirm = useConfirm();
 
@@ -118,7 +124,8 @@ export function CustomerPortalToggle() {
             id="customer-portal-toggle"
             checked={enabled}
             onCheckedChange={handleToggle}
-            disabled={isSaving}
+            disabled={isSaving || !puoCambiare}
+            aria-label="Area privata clienti"
           />
         </div>
       </div>
@@ -138,9 +145,9 @@ export function CustomerPortalToggle() {
         <Alert variant="default" className="border-amber-300 bg-amber-50/50 dark:bg-amber-900/10">
           <ShieldOff className="h-4 w-4" />
           <AlertDescription className="text-xs">
-            L'area privata è <strong>disattivata</strong>. I nuovi clienti saranno creati
-            solo in anagrafica: niente account portale, niente email di benvenuto,
-            niente password da gestire. I clienti già esistenti continuano ad accedere.
+            L'area privata è <strong>disattivata</strong>. I clienti sono salvati solo in
+            anagrafica: nessun accesso al portale, nessuna email, nessuna password.
+            {!puoCambiare && " La attiva EdiliziaInCloud su richiesta: scrivi all'assistenza."}
           </AlertDescription>
         </Alert>
       )}

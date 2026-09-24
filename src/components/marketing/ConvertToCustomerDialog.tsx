@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { queryKeys } from "@/lib/queryKeys";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
@@ -52,6 +53,11 @@ export function ConvertToCustomerDialog({
 }: ConvertToCustomerDialogProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  // Portale clienti: se è spento il cliente nasce solo in anagrafica, senza
+  // accesso né email (lo decide anche il server: questo serve a dirlo bene).
+  const { effectiveCompany } = useAuth();
+  const portaleAttivo = (effectiveCompany as { customer_portal_enabled?: boolean } | null)
+    ?.customer_portal_enabled === true;
 
   // Pre-compila i campi dai dati del contatto marketing
   const [firstName, setFirstName] = useState(contact.first_name || "");
@@ -141,7 +147,7 @@ export function ConvertToCustomerDialog({
       queryClient.invalidateQueries({ queryKey: ["marketing_contact", contact.id] });
       queryClient.invalidateQueries({ queryKey: queryKeys.customersList.all });
 
-      setGeneratedPassword(data.password);
+      setGeneratedPassword(data.password ?? "");
       setCreatedCustomerId(data.customer_id);
       setStep("success");
       onSuccess(data.customer_id);
@@ -174,13 +180,16 @@ export function ConvertToCustomerDialog({
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <UserCheck className="h-5 w-5 text-emerald-600" />
-                Account cliente creato!
+                {generatedPassword ? "Account cliente creato!" : "Cliente creato"}
               </DialogTitle>
               <DialogDescription>
-                Comunica al cliente la password per accedere al portale.
+                {generatedPassword
+                  ? "Comunica al cliente la password per accedere al portale."
+                  : "Salvato in anagrafica. Il portale clienti non è attivo: il cliente non ha un accesso e non riceve email."}
               </DialogDescription>
             </DialogHeader>
 
+            {generatedPassword ? (
             <div className="space-y-4 py-2">
               <div className="space-y-1">
                 <Label>Email</Label>
@@ -201,6 +210,7 @@ export function ConvertToCustomerDialog({
                 </p>
               </div>
             </div>
+            ) : null}
 
             <DialogFooter>
               <Button onClick={handleGoToCustomer}>
@@ -218,7 +228,9 @@ export function ConvertToCustomerDialog({
               </DialogTitle>
               <DialogDescription>
                 Verifica i dati pre-compilati e clicca "Crea account cliente".
-                Verrà generata una password e inviata un'email di benvenuto.
+                {portaleAttivo
+                  ? " Il cliente riceverà un'email per scegliere la password del portale."
+                  : " Il portale clienti non è attivo: il cliente viene salvato solo in anagrafica, senza accesso e senza email."}
               </DialogDescription>
             </DialogHeader>
 

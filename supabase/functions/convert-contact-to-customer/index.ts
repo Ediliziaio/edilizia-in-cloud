@@ -1,7 +1,6 @@
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { getBrandingForCompany } from "../_shared/getBranding.ts";
-import { emailCredenziali } from "../_shared/emailCredenziali.ts";
-import { requireAuth, requireRole } from "../_shared/auth.ts";
+import { requireAuth, requireCompanyAccess, requireRole } from "../_shared/auth.ts";
 import { generateSecurePassword } from "../_shared/securePassword.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 
@@ -48,6 +47,22 @@ Deno.serve(async (req) => {
     if (!contact_id || !first_name || !last_name || !email || !company_id)
       return errorResponse("Campi obbligatori: contact_id, first_name, last_name, email, company_id");
 
+    // Chi converte deve lavorare in QUESTA azienda: prima bastava essere
+    // amministratore di un'azienda qualsiasi (23/09/2026).
+    await requireCompanyAccess(supabaseAdmin, userId, String(company_id), corsH);
+
+    // Portale clienti: lo accende solo EdiliziaInCloud (23/09/2026, Florin). Se è
+    // spento il cliente nasce SOLO in anagrafica: account bloccato con password
+    // casuale mai comunicata (serve alla struttura dei dati), nessuna email.
+    // Prima questa conversione creava un account attivo e mandava al cliente
+    // un'email con la password in chiaro, anche col portale spento.
+    const { data: aziendaPortale } = await supabaseAdmin
+      .from("companies")
+      .select("name, customer_portal_enabled")
+      .eq("id", company_id)
+      .maybeSingle();
+    const portaleAttivo = aziendaPortale?.customer_portal_enabled === true;
+
     const trimEmail = String(email).trim().toLowerCase();
     const trimFirst = String(first_name).trim();
     const trimLast = String(last_name).trim();
@@ -78,7 +93,7 @@ Deno.serve(async (req) => {
       return errorResponse(`Esiste già un cliente con email ${trimEmail}.`, 409);
 
     // Step A — Crea auth user
-    const password = generateSecurePassword(12);
+    const password = generateSecurePassword(portaleAttivo ? 12 : 32);
     const { data: authUser, error: authErr } = await supabaseAdmin
       .auth.admin.createUser({
         email: trimEmail,
@@ -128,6 +143,9 @@ Deno.serve(async (req) => {
         site_city: site_city || null,
         site_postal_code: site_postal_code || null,
         site_province: site_province ? String(site_province).toUpperCase().slice(0, 2) : null,
+        // Senza portale: solo anagrafica, nessun accesso.
+        portal_disabled: !portaleAttivo,
+        is_blocked: !portaleAttivo,
       });
 
     if (profileErr) {
@@ -160,46 +178,43 @@ Deno.serve(async (req) => {
       console.error("Avviso: update contatto fallito:", updateErr.message);
     }
 
-    // Step E — Email di benvenuto
-    try {
-      const { data: company } = await supabaseAdmin
-        .from("companies")
-        .select("name")
-        .eq("id", company_id)
-        .single();
-
-      const branding = await getBrandingForCompany(supabaseAdmin, company_id);
-      const { html, text } = emailCredenziali({
-        branding,
-        titolo: `Benvenuto su ${company?.name || "la piattaforma"}`,
-        saluto: trimFirst,
-        intro: "Il tuo account è stato attivato. Qui sotto trovi le credenziali per entrare.",
-        email: trimEmail,
-        password,
-        etichettaPassword: "Password",
-        avviso: "Cambia la password al primo accesso.",
-      });
-
-      await sendEmailUnified({
-        companyId:    company_id,
-        stream:       "transactional",
-        to:           [trimEmail],
-        subject:      `Benvenuto su ${company?.name || "la piattaforma"}`,
-        html,
-        text,
-        templateName: "contact_converted",
-        skipCredits:  false,
-        adminClient:  supabaseAdmin,
-        metadata:     { contact_id, customer_id: newUserId },
-      });
-    } catch (e) {
-      console.error("Email benvenuto fallita:", e);
+    // Step E — Email di benvenuto: solo col portale acceso, e mai con la password
+    // dentro (regola «credenziali: sempre il link»): il link apre il login con
+    // «Password dimenticata» già pronto, come in create-customer.
+    if (portaleAttivo) {
+      try {
+        const branding = await getBrandingForCompany(supabaseAdmin, company_id);
+        const nomeAzienda = aziendaPortale?.name || "la piattaforma";
+        const linkImpostaPassword = `${branding.siteUrl}/login?reset=1&email=${encodeURIComponent(trimEmail)}`;
+        await sendEmailUnified({
+          companyId:    company_id,
+          stream:       "transactional",
+          to:           [trimEmail],
+          subject:      `Benvenuto su ${nomeAzienda}`,
+          html: `<html><body>
+              <p>Ciao ${trimFirst},</p>
+              <p>Il tuo account è stato creato su <strong>${nomeAzienda}</strong>.</p>
+              <p>Il tuo nome utente è <strong>${trimEmail}</strong>.</p>
+              <p>Per scegliere la tua password apri questo link: riceverai subito un'email con il collegamento per impostarla.</p>
+              <p><a href="${linkImpostaPassword}">Imposta la password</a></p>
+              <p style="color:#6b7280;font-size:13px">Se il pulsante non funziona copia questo indirizzo nel browser:<br>${linkImpostaPassword}</p>
+            </body></html>`,
+          templateName: "contact_converted",
+          skipCredits:  false,
+          adminClient:  supabaseAdmin,
+          metadata:     { contact_id, customer_id: newUserId },
+        });
+      } catch (e) {
+        console.error("Email benvenuto fallita:", e);
+      }
     }
 
     return jsonResponse({
       success: true,
       customer_id: newUserId,
-      password,
+      // La password esce solo se il cliente ha davvero un accesso al portale.
+      password: portaleAttivo ? password : null,
+      portal_account_created: portaleAttivo,
       contact_updated: !updateErr,
     });
   } catch (err) {
