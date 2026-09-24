@@ -78766,6 +78766,8 @@ export type Database = {
           id: string
           key_points: Json
           model_used: string | null
+          nascosto_il: string | null
+          nascosto_motivo: string | null
           read_at: string | null
           severity: string
           tools_used: Json
@@ -78782,6 +78784,8 @@ export type Database = {
           id?: string
           key_points?: Json
           model_used?: string | null
+          nascosto_il?: string | null
+          nascosto_motivo?: string | null
           read_at?: string | null
           severity?: string
           tools_used?: Json
@@ -78798,6 +78802,8 @@ export type Database = {
           id?: string
           key_points?: Json
           model_used?: string | null
+          nascosto_il?: string | null
+          nascosto_motivo?: string | null
           read_at?: string | null
           severity?: string
           tools_used?: Json

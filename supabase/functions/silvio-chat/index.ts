@@ -54,6 +54,7 @@ import {
 // MP-09: auto-delegate al Council orchestrator quando la query è multi-area
 import { classifyQuery, type QueryClassification } from "../_shared/queryClassifier.ts";
 import { dominiPerAree, indiceAreeCaricabili } from "../_shared/silvioTools.ts";
+import { ruoloPrincipaleSilvio } from "../_shared/ruoloSilvio.ts";
 
 const SILVIO_SENDER_ID = "00000000-0000-0000-0000-000000000002";
 const PERSONA_KEY = "silvio";
@@ -545,11 +546,9 @@ serve(async (req: Request) => {
 
     // ── 4) Ruolo (dalla verifica accesso, gia' letta) ───────────────────
     const roleList: string[] = Array.isArray(accesso?.roles) ? accesso.roles : [];
-    // Allineato alla matrice del preambolo costituzionale v3. accountant era
-    // assente sia qui sia nella priorità → un commercialista cadeva nel
-    // fallback "Accesso limitato". Aggiunti anche i ruoli esterni per coerenza.
-    const rolePriority = ["super_admin", "company_admin", "accountant", "salesperson", "call_center", "company_staff", "employee", "subcontractor", "worker", "customer", "referrer", "produttore_admin"];
-    const primaryRole = rolePriority.find((p) => roleList.includes(p)) ?? roleList[0] ?? "company_staff";
+    // La scala dei ruoli sta in _shared/ruoloSilvio.ts: la stessa del brief
+    // del mattino, che non deve mostrare ciò che qui verrebbe negato.
+    const primaryRole = ruoloPrincipaleSilvio(roleList);
 
     // ── 4.bis) Tutto cio' che serve al prompt parte ADESSO, insieme ─────
     // Profilo, memoria, RAG (un embedding + due RPC), storico, classificazione
