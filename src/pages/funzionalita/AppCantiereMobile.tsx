@@ -414,7 +414,7 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "Quanto costa? Ci sono costi per utente o per cantiere?",
-      a: "L'App Cantiere Mobile è inclusa nei piani Professional e Business. Utenti illimitati, cantieri illimitati, sync illimitata, foto illimitate, archivio cloud incluso. Nessun costo per utente attivato, nessun vincolo pluriennale. Cancelli quando vuoi.",
+      a: "L'App Cantiere Mobile è inclusa nei piani Gestionale, Professionista e Impresa AI. Utenti illimitati, cantieri illimitati, sync illimitata, foto illimitate, archivio cloud incluso. Nessun costo per utente attivato, nessun vincolo pluriennale. Cancelli quando vuoi.",
     },
   ],
 
@@ -466,7 +466,7 @@ const config: FunzionalitaPageConfig = {
     {
       to: "/prezzi",
       title: "Prezzi e Piani",
-      text: "App Cantiere Mobile inclusa nei piani Professional e Business.",
+      text: "App Cantiere Mobile inclusa nei piani Gestionale, Professionista e Impresa AI.",
     },
   ],
 

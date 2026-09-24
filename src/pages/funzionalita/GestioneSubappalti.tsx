@@ -406,7 +406,7 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "Quanto costa? Ci sono vincoli contrattuali?",
-      a: "Il modulo Gestione Subappalti è incluso nei piani Professional e Business di Edilizia in Cloud. Nessun costo di attivazione, nessun vincolo di durata, cancelli quando vuoi. Onboarding 1-a-1, configurazione DURC e supporto italiano sempre inclusi.",
+      a: "Il modulo Gestione Subappalti è incluso nei piani Professionista e Impresa AI di Edilizia in Cloud. Nessun costo di attivazione, nessun vincolo di durata, cancelli quando vuoi. Onboarding 1-a-1, configurazione DURC e supporto italiano sempre inclusi.",
     },
   ],
 
@@ -458,7 +458,7 @@ const config: FunzionalitaPageConfig = {
     {
       to: "/prezzi",
       title: "Prezzi e Piani",
-      text: "Piani trasparenti da 49€/mese. Modulo Subappalti incluso nei piani Professional e Business.",
+      text: "Piano gratuito Scopri e 31 giorni di prova. Modulo Subappalti incluso nei piani Professionista e Impresa AI.",
     },
   ],
 

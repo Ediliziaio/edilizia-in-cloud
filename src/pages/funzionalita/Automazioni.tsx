@@ -418,7 +418,7 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "Quanti workflow posso creare?",
-      a: "Illimitati. Nei piani Professional e Business non ci sono limiti al numero di automazioni attive né al numero di esecuzioni. Le imprese più strutturate arrivano a 40-60 automazioni attive.",
+      a: "Illimitati. Nei piani Professionista e Impresa AI non ci sono limiti al numero di automazioni attive né al numero di esecuzioni. Le imprese più strutturate arrivano a 40-60 automazioni attive.",
     },
     {
       q: "C'è un onboarding per partire bene?",

@@ -410,11 +410,11 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "Il preventivo PDF ha il mio brand o è generico Edilizia in Cloud?",
-      a: "Tuo brand al 100%: logo, colori aziendali, dominio (es. preventivi.tuaimpresa.it), formato professionale customizzabile. Cliente percepisce un servizio della tua impresa, non di Edilizia in Cloud. Personalizzazione inclusa nei piani Professional e Business.",
+      a: "Tuo brand al 100%: logo, colori aziendali, dominio (es. preventivi.tuaimpresa.it), formato professionale customizzabile. Cliente percepisce un servizio della tua impresa, non di Edilizia in Cloud. Personalizzazione inclusa nei piani Professionista e Impresa AI.",
     },
     {
       q: "Quanto costa? Ci sono costi per preventivo generato o token AI?",
-      a: "Quote Builder AI è incluso nei piani Professional e Business. Numero di preventivi illimitato, AI illimitata, prezzari regionali aggiornati gratuitamente, riconoscimento foto illimitato. Nessun costo per token o preventivo. Cancelli quando vuoi senza vincoli pluriennali.",
+      a: "Quote Builder AI si aggiunge come modulo a parte ai piani Gestionale, Professionista e Impresa AI. Numero di preventivi illimitato, AI illimitata, prezzari regionali aggiornati gratuitamente, riconoscimento foto illimitato. Nessun costo per token o preventivo. Cancelli quando vuoi senza vincoli pluriennali.",
     },
   ],
 
@@ -466,7 +466,7 @@ const config: FunzionalitaPageConfig = {
     {
       to: "/prezzi",
       title: "Prezzi e Piani",
-      text: "Quote Builder AI incluso nei piani Professional e Business.",
+      text: "Quote Builder AI come modulo aggiuntivo sui piani Gestionale, Professionista e Impresa AI.",
     },
   ],
 

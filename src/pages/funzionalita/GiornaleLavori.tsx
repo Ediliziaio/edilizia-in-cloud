@@ -418,7 +418,7 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "Il modulo è incluso nei piani Edilizia in Cloud?",
-      a: "Il Giornale Lavori digitale è incluso nei piani Professional e Business. Numero cantieri illimitato, archivio decennale incluso, firme eIDAS incluse. Niente costi extra per cantiere o per giornata registrata.",
+      a: "Il Giornale Lavori digitale è incluso nei piani Professionista e Impresa AI. Numero cantieri illimitato, archivio decennale incluso, firme eIDAS incluse. Niente costi extra per cantiere o per giornata registrata.",
     },
   ],
 

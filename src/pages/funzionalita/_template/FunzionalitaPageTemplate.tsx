@@ -286,21 +286,10 @@ export default function FunzionalitaPageTemplate({
     image: config.seo.ogImage ?? `${SITE_URL}/og-default.jpg`,
     audience: { "@type": "Audience", audienceType: config.audience },
     featureList: config.featureRows.map((f) => f.label),
-    aggregateRating: {
-      "@type": "AggregateRating",
-      ratingValue: "4.9",
-      reviewCount: "127",
-      bestRating: "5",
-      worstRating: "1",
-    },
-    offers: {
-      "@type": "Offer",
-      price: "49",
-      priceCurrency: "EUR",
-      availability: "https://schema.org/InStock",
-      description:
-        "Modulo incluso nei piani Edilizia in Cloud. Cancelli quando vuoi, onboarding 1-a-1 incluso.",
-    },
+    // Niente `offers` né `aggregateRating`: il sito non pubblica prezzi (i
+    // piani a pagamento sono su misura) e non esiste una fonte di recensioni
+    // da cui prendere un voto. Qui c'erano un prezzo di 49 € e un 4,9 su 127
+    // recensioni fissi per tutte le pagine, che Google leggeva come veri.
     publisher: {
       "@type": "Organization",
       name: "Edilizia in Cloud",

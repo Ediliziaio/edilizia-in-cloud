@@ -351,11 +351,11 @@ const config: FunzionalitaPageConfig = {
   faqH2: "Quello che un titolare di impresa edile vuole sapere prima di decidere.",
   faqs: [
     { q: "Il cliente deve installare un'app?", a: "No. Il portale funziona da browser su telefono, tablet, desktop. Niente app da scaricare, niente formazione. Il cliente riceve un link via email/SMS, accede e usa il portale come una qualsiasi area cliente bancaria." },
-    { q: "Posso personalizzarlo con il mio brand?", a: "Sì. Logo, colori, dominio personalizzato (es. portale.tuaimpresa.it). Il cliente percepisce un servizio della tua impresa, non di Edilizia in Cloud. Personalizzazione inclusa nel piano Professional e Business." },
+    { q: "Posso personalizzarlo con il mio brand?", a: "Sì. Logo, colori, dominio personalizzato (es. portale.tuaimpresa.it). Il cliente percepisce un servizio della tua impresa, non di Edilizia in Cloud. La personalizzazione completa con il tuo marchio e il tuo dominio è nel piano Impresa AI." },
     { q: "Il cliente vede tutto o solo il suo cantiere?", a: "Solo il suo. Ogni cliente vede esclusivamente i propri cantieri, fatture, documenti. Sicurezza per cantiere, log di accesso tracciato, conformità GDPR. Niente accesso incrociato tra clienti diversi." },
     { q: "Il cliente può firmare i SAL legalmente sul portale?", a: "Sì. Firma elettronica avanzata conforme eIDAS, marca temporale, archivio cloud immutabile. In caso di contestazione, ha valore probatorio equivalente alla firma autografa." },
     { q: "Si integra con le mie fatture elettroniche?", a: "Sì. Le fatture emesse via SDI vengono automaticamente pubblicate nel portale del cliente con stato pagamento aggiornato (in scadenza/pagata/scaduta). Niente data entry duplicato." },
-    { q: "Quanto costa? Ci sono vincoli contrattuali?", a: "Il modulo Portale Clienti è incluso nei piani Professional e Business di Edilizia in Cloud. Numero di clienti illimitato, nessun costo per cliente attivo. Cancelli quando vuoi." },
+    { q: "Quanto costa? Ci sono vincoli contrattuali?", a: "Il modulo Portale Clienti è incluso nei piani Professionista e Impresa AI di Edilizia in Cloud. Numero di clienti illimitato, nessun costo per cliente attivo. Cancelli quando vuoi." },
   ],
 
   internalLinksKicker: "Esplora la piattaforma",
@@ -370,7 +370,7 @@ const config: FunzionalitaPageConfig = {
     { to: "/funzionalita/ticket-assistenza", title: "Ticket Assistenza", text: "Sistema ticket per richieste post-vendita dal portale cliente." },
     { to: "/funzionalita/whatsapp-marketing", title: "WhatsApp Marketing", text: "Notifiche cliente del portale via WhatsApp Business." },
     { to: "/per/imprese-edili", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
-    { to: "/prezzi", title: "Prezzi e Piani", text: "Portale Clienti incluso nei piani Professional e Business." },
+    { to: "/prezzi", title: "Prezzi e Piani", text: "Portale Clienti incluso nei piani Professionista e Impresa AI." },
   ],
 
   finalCtaH2: "Smetti di rispondere alle stesse domande 20 volte. Inizia a far vedere il cantiere al cliente.",

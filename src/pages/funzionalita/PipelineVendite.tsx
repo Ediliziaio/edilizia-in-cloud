@@ -402,7 +402,7 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "Si integra con il mio modulo preventivi?",
-      a: "Sì se è il modulo Preventivi Edilizia in Cloud. Preventivi generati confluiscono automaticamente in pipeline alla fase 'preventivo inviato'. Per gestionali esterni, API REST disponibili nel piano Business.",
+      a: "Sì se è il modulo Preventivi Edilizia in Cloud. Preventivi generati confluiscono automaticamente in pipeline alla fase 'preventivo inviato'. Per gestionali esterni, API REST disponibili nel piano Impresa AI.",
     },
     {
       q: "Posso vedere la pipeline da telefono?",
@@ -410,7 +410,7 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "Quanto costa? Ci sono limiti su agenti o preventivi?",
-      a: "Pipeline Vendite è inclusa nei piani Professional e Business di Edilizia in Cloud. Agenti illimitati nel piano Business (3 agenti nel Professional), preventivi illimitati, app mobile inclusa, forecast cassa e analytics inclusi.",
+      a: "Pipeline Vendite è inclusa nei piani Professionista e Impresa AI di Edilizia in Cloud. Agenti illimitati nel piano Impresa AI (3 agenti nel Professionista), preventivi illimitati, app mobile inclusa, forecast cassa e analytics inclusi.",
     },
   ],
 
@@ -427,7 +427,7 @@ const config: FunzionalitaPageConfig = {
     { to: "/funzionalita/cruscotto-aziendale", title: "Cruscotto Aziendale", text: "KPI commerciali nel dashboard direzionale: conversione, ticket, fonte." },
     { to: "/funzionalita/automazioni", title: "Automazioni", text: "Trigger automatici di follow-up per fase pipeline." },
     { to: "/per/imprese-edili", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
-    { to: "/prezzi", title: "Prezzi e Piani", text: "Pipeline Vendite inclusa nei piani Professional e Business." },
+    { to: "/prezzi", title: "Prezzi e Piani", text: "Pipeline Vendite inclusa nei piani Professionista e Impresa AI." },
   ],
 
   finalCtaH2: "Smetti di perdere preventivi nel limbo. Inizia a chiudere il 6% in più senza nuovi lead.",

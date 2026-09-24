@@ -408,7 +408,7 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "Quanto costa? È inclusa nel piano?",
-      a: "La firma elettronica avanzata + marca temporale è inclusa nei piani Professional e Business di Edilizia in Cloud, senza costo per firma. Numero firme illimitato. Piano Starter ha limite 50 firme/mese. Cancelli quando vuoi.",
+      a: "La firma elettronica avanzata + marca temporale è inclusa nei piani Professionista e Impresa AI di Edilizia in Cloud, senza costo per firma. Numero firme illimitato. Il piano Gestionale ha un limite di 50 firme al mese. Cancelli quando vuoi.",
     },
   ],
 
@@ -460,7 +460,7 @@ const config: FunzionalitaPageConfig = {
     {
       to: "/prezzi",
       title: "Prezzi e Piani",
-      text: "Firma elettronica inclusa nei piani Professional e Business.",
+      text: "Firma elettronica inclusa nei piani Professionista e Impresa AI.",
     },
   ],
 

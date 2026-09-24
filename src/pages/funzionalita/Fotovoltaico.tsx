@@ -414,7 +414,7 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "Quanto costa? È incluso nei piani standard o è add-on?",
-      a: "Il modulo Fotovoltaico è incluso nei piani Professional e Business di Edilizia in Cloud. Numero di impianti illimitato, integrazioni datalogger incluse, template GSE/TICA aggiornati gratuitamente quando GSE cambia normativa. Cancelli quando vuoi.",
+      a: "Il modulo Fotovoltaico è incluso nei piani Professionista e Impresa AI di Edilizia in Cloud. Numero di impianti illimitato, integrazioni datalogger incluse, template GSE/TICA aggiornati gratuitamente quando GSE cambia normativa. Cancelli quando vuoi.",
     },
   ],
 
@@ -466,7 +466,7 @@ const config: FunzionalitaPageConfig = {
     {
       to: "/prezzi",
       title: "Prezzi e Piani",
-      text: "Modulo Fotovoltaico incluso nei piani Professional e Business.",
+      text: "Modulo Fotovoltaico incluso nei piani Professionista e Impresa AI.",
     },
   ],
 

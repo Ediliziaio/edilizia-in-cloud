@@ -412,7 +412,7 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "Quanto costa il modulo? È compreso o è add-on?",
-      a: "Il modulo Ritenute di Garanzia è incluso nei piani Professional e Business. Cantieri pubblici illimitati, subappaltatori illimitati, controllo DURC mensile illimitato. Cancelli quando vuoi senza vincoli pluriennali. ROI tipicamente al primo svincolo recuperato.",
+      a: "Il modulo Ritenute di Garanzia è incluso nei piani Professionista e Impresa AI. Cantieri pubblici illimitati, subappaltatori illimitati, controllo DURC mensile illimitato. Cancelli quando vuoi senza vincoli pluriennali. ROI tipicamente al primo svincolo recuperato.",
     },
   ],
 
@@ -464,7 +464,7 @@ const config: FunzionalitaPageConfig = {
     {
       to: "/prezzi",
       title: "Prezzi e Piani",
-      text: "Modulo Ritenute incluso nei piani Professional e Business.",
+      text: "Modulo Ritenute incluso nei piani Professionista e Impresa AI.",
     },
   ],
 

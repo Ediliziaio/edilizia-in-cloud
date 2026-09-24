@@ -411,7 +411,7 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "Quanto costano gli invii?",
-      a: "Il costo è proporzionale al volume. I piani Professional e Business includono fino a 25.000 invii/mese senza costo aggiuntivo. Sopra quella soglia il costo aggiuntivo è di pochi euro per migliaio di invii. Per un'impresa edile media non si superano mai i piani inclusi.",
+      a: "Il costo è proporzionale al volume. Il piano Professionista include 5.000 invii al mese e il piano Impresa AI 20.000, senza costo aggiuntivo. Sopra quella soglia il costo aggiuntivo è di pochi euro per migliaio di invii. Per un'impresa edile media non si superano mai i piani inclusi.",
     },
     {
       q: "Posso fare A/B test sulle campagne?",
