@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useEmailTemplatesPaginated } from "@/hooks/useEmailCampaignsPaginated";
 import { useAuth } from "@/contexts/AuthContext";
@@ -13,7 +13,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Search, FolderPlus, FileText, MoreHorizontal, Pencil, Trash2, Copy, FolderInput, ChevronRight, ChevronLeft } from "lucide-react";
+import { Plus, Search, FolderPlus, Folder, FileText, MoreHorizontal, Pencil, Trash2, Copy, FolderInput, ChevronRight, ChevronLeft } from "lucide-react";
 import { TemplateDialog } from "./TemplateDialog";
 import { CreateFolderDialog } from "./CreateFolderDialog";
 import { toast } from "sonner";
@@ -40,8 +40,7 @@ export function EmailTemplatesTab() {
   const [moveTarget, setMoveTarget] = useState<string | null>(null);
   const [moveFolderId, setMoveFolderId] = useState<string | null>(null);
 
-  // Reset page on filter change
-  useEffect(() => { setPage(0); }, [search, currentFolderId]);
+  // La pagina torna alla prima dove cambiano ricerca e cartella, non in un effetto.
 
   const { data: templateData, isLoading } = useEmailTemplatesPaginated(
     company?.id,
@@ -154,53 +153,51 @@ export function EmailTemplatesTab() {
     setPage(0);
   };
 
+  const cercando = !!search.trim();
+  const dentroCartella = folderPath.length > 1;
+  const nuovoModello = () => { setEditTemplate(null); setDialogOpen(true); };
+
   return (
     <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-lg font-semibold text-foreground">Modelli di email</h3>
-          <p className="text-sm text-muted-foreground">Crea e gestisci i tuoi template email</p>
+      {/* Una riga sola, come in Campagne: la scheda dice già «Modelli». */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative min-w-[200px] max-w-sm flex-1">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input className="pl-9" placeholder="Cerca in tutte le cartelle…" value={searchInput} onChange={(e) => { setSearchInput(e.target.value); setPage(0); }} />
         </div>
-        <div className="flex gap-2">
+        <div className="ml-auto flex gap-2">
           <Button variant="outline" size="sm" onClick={() => setFolderDialogOpen(true)}>
-            <FolderPlus className="h-4 w-4 mr-1" /> Crea cartella
+            <FolderPlus className="mr-1 h-4 w-4" /> <span className="hidden sm:inline">Crea cartella</span>
           </Button>
-          <Button size="sm" onClick={() => { setEditTemplate(null); setDialogOpen(true); }}>
-            <Plus className="h-4 w-4 mr-1" /> Nuovo template
+          <Button size="sm" onClick={nuovoModello}>
+            <Plus className="mr-1 h-4 w-4" /> Nuovo modello
           </Button>
         </div>
       </div>
 
-      {/* Toolbar */}
-      <div className="flex items-center gap-3">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input className="pl-9" placeholder="Cerca modelli di email..." value={searchInput} onChange={(e) => setSearchInput(e.target.value)} />
+      {/* Il percorso serve solo dentro una cartella. */}
+      {dentroCartella && (
+        <div className="flex items-center gap-1 text-sm">
+          {folderPath.map((fp, i) => (
+            <div key={i} className="flex items-center gap-1">
+              {i > 0 && <ChevronRight className="h-3 w-3 text-muted-foreground" />}
+              <button
+                onClick={() => navigateToBreadcrumb(i)}
+                className={`hover:underline ${i === folderPath.length - 1 ? "font-medium text-foreground" : "text-muted-foreground"}`}
+              >
+                {fp.name}
+              </button>
+            </div>
+          ))}
         </div>
-      </div>
-
-      {/* Breadcrumb */}
-      <div className="flex items-center gap-1 text-sm">
-        {folderPath.map((fp, i) => (
-          <div key={i} className="flex items-center gap-1">
-            {i > 0 && <ChevronRight className="h-3 w-3 text-muted-foreground" />}
-            <button
-              onClick={() => navigateToBreadcrumb(i)}
-              className={`hover:underline ${i === folderPath.length - 1 ? "font-medium text-foreground" : "text-muted-foreground"}`}
-            >
-              {fp.name}
-            </button>
-          </div>
-        ))}
-      </div>
+      )}
 
       {/* Subfolders */}
-      {currentFolders.length > 0 && (
-        <div className="flex gap-2 flex-wrap">
+      {currentFolders.length > 0 && !cercando && (
+        <div className="flex flex-wrap gap-2">
           {currentFolders.map((f: any) => (
             <Button key={f.id} variant="outline" size="sm" onClick={() => navigateToFolder(f.id, f.name)}>
-              <FolderPlus className="h-4 w-4 mr-1" /> {f.name}
+              <Folder className="mr-1 h-4 w-4" /> {f.name}
             </Button>
           ))}
         </div>
@@ -208,15 +205,29 @@ export function EmailTemplatesTab() {
 
       {/* Table */}
       {isLoading ? (
-        <div className="text-center py-12 text-muted-foreground">Caricamento...</div>
+        <div className="py-12 text-center text-muted-foreground">Caricamento...</div>
       ) : templates.length === 0 ? (
         <Card>
-          <CardContent className="flex flex-col items-center justify-center py-16 gap-3">
-            <FileText className="h-10 w-10 text-muted-foreground" />
-            <p className="text-muted-foreground">Nessun template trovato</p>
-            <Button onClick={() => { setEditTemplate(null); setDialogOpen(true); }}>
-              <Plus className="h-4 w-4 mr-1" /> Crea il tuo primo template
-            </Button>
+          <CardContent className="flex flex-col items-center justify-center gap-3 py-14 text-center">
+            <FileText className="h-9 w-9 text-muted-foreground" />
+            {cercando ? (
+              <>
+                <p className="font-medium text-foreground">Nessun modello con questa ricerca</p>
+                <Button variant="outline" size="sm" onClick={() => { setSearchInput(""); setPage(0); }}>Mostra tutti</Button>
+              </>
+            ) : dentroCartella ? (
+              <p className="font-medium text-foreground">Questa cartella è vuota</p>
+            ) : (
+              <>
+                <p className="font-medium text-foreground">Ancora nessun modello</p>
+                <p className="max-w-md text-sm text-muted-foreground">
+                  Un modello è un'email pronta da riusare: la scrivi una volta e la usi per tutte le campagne.
+                </p>
+                <Button size="sm" onClick={nuovoModello}>
+                  <Plus className="mr-1 h-4 w-4" /> Crea il primo modello
+                </Button>
+              </>
+            )}
           </CardContent>
         </Card>
       ) : (
@@ -225,24 +236,26 @@ export function EmailTemplatesTab() {
             <TableHeader>
               <TableRow>
                 <TableHead>Titolo</TableHead>
-                <TableHead>Tipo</TableHead>
-                <TableHead>Aggiornato il</TableHead>
-                <TableHead>Cartella</TableHead>
+                <TableHead className="hidden md:table-cell">Oggetto</TableHead>
+                <TableHead className="hidden sm:table-cell">Aggiornato il</TableHead>
+                <TableHead className="hidden lg:table-cell">Cartella</TableHead>
                 <TableHead className="w-10" />
               </TableRow>
             </TableHeader>
             <TableBody>
               {templates.map((t: any) => (
-                <TableRow key={t.id}>
+                // Tutti i modelli hanno tipo «html»: la colonna diceva «html»
+                // su ogni riga. L'oggetto invece aiuta a riconoscerli.
+                <TableRow key={t.id} className="cursor-pointer" onClick={() => { setEditTemplate(t); setDialogOpen(true); }}>
                   <TableCell className="font-medium">{t.name}</TableCell>
-                  <TableCell className="text-muted-foreground">{t.type}</TableCell>
-                  <TableCell className="text-muted-foreground">
+                  <TableCell className="hidden max-w-xs truncate text-muted-foreground md:table-cell">{t.subject || "—"}</TableCell>
+                  <TableCell className="hidden text-muted-foreground sm:table-cell">
                     {format(new Date(t.updated_at), "dd MMM yyyy", { locale: it })}
                   </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {t.folder_id ? (folders.find((f: any) => f.id === t.folder_id)?.name || "—") : "Home"}
+                  <TableCell className="hidden text-muted-foreground lg:table-cell">
+                    {t.folder_id ? (folders.find((f: any) => f.id === t.folder_id)?.name || "—") : "—"}
                   </TableCell>
-                  <TableCell>
+                  <TableCell onClick={(e) => e.stopPropagation()}>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button size="icon" variant="ghost"><MoreHorizontal className="h-4 w-4" /></Button>
@@ -269,26 +282,28 @@ export function EmailTemplatesTab() {
             </TableBody>
           </Table>
 
-          {/* Pagination */}
-          <div className="flex items-center justify-between text-sm text-muted-foreground">
-            <span>{showing}</span>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(page - 1)}>
-                <ChevronLeft className="h-4 w-4" /> Precedente
-              </Button>
-              <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(page + 1)}>
-                Successivo <ChevronRight className="h-4 w-4" />
-              </Button>
-              <Select value={String(perPage)} onValueChange={(v) => { setPerPage(Number(v)); setPage(0); }}>
-                <SelectTrigger className="w-[100px] h-8"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="10">10 / pagina</SelectItem>
-                  <SelectItem value="25">25 / pagina</SelectItem>
-                  <SelectItem value="50">50 / pagina</SelectItem>
-                </SelectContent>
-              </Select>
+          {/* Pagination: con dieci modelli o meno è solo rumore. */}
+          {totalCount > 10 && (
+            <div className="flex items-center justify-between text-sm text-muted-foreground">
+              <span>{showing}</span>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(page - 1)}>
+                  <ChevronLeft className="h-4 w-4" /> Precedente
+                </Button>
+                <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(page + 1)}>
+                  Successivo <ChevronRight className="h-4 w-4" />
+                </Button>
+                <Select value={String(perPage)} onValueChange={(v) => { setPerPage(Number(v)); setPage(0); }}>
+                  <SelectTrigger className="h-8 w-[100px]"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10 / pagina</SelectItem>
+                    <SelectItem value="25">25 / pagina</SelectItem>
+                    <SelectItem value="50">50 / pagina</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-          </div>
+          )}
         </>
       )}
 

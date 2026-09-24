@@ -36,7 +36,7 @@ export function useEmailCampaignsPaginated(
       let query = supabase
         .from("email_campaigns")
         .select(
-          "id, name, status, type, subject, sender_name, sender_email, folder_id, json_content, html_content, preview_text, scheduled_at, created_at, updated_at",
+          "id, name, status, type, subject, sender_name, sender_email, folder_id, json_content, html_content, preview_text, scheduled_at, sent_at, created_at, updated_at, sent_count, failed_count, total_recipients",
           { count: "exact" }
         )
         .eq("company_id", companyId!);

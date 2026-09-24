@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/queryKeys";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,6 +32,10 @@ export function CampaignCreateDropdown({ variant = "default", size = "sm" }: Cam
   const { effectiveCompany, user } = useAuth();
   const navigate = useNavigate();
   const emailBase = useEmailMarketingBase();
+  const qc = useQueryClient();
+  // La lista resta in cache 2 minuti: senza questo, tornando indietro dopo
+  // aver creato una campagna si leggeva ancora «Nessuna campagna» (24/09/2026).
+  const aggiornaLista = () => qc.invalidateQueries({ queryKey: queryKeys.emailCampaigns.all });
   const [open, setOpen] = useState(false);
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
   const [templateSearch, setTemplateSearch] = useState("");
@@ -68,6 +73,7 @@ export function CampaignCreateDropdown({ variant = "default", size = "sm" }: Cam
       return { id: data.id, navigateTo: opts?.navigateTo || "editor" };
     },
     onSuccess: (data) => {
+      aggiornaLista();
       if (data.navigateTo === "builder") {
         navigate(`${emailBase}/campagna/${data.id}/builder`);
       } else {
@@ -98,6 +104,7 @@ export function CampaignCreateDropdown({ variant = "default", size = "sm" }: Cam
       return data;
     },
     onSuccess: (data) => {
+      aggiornaLista();
       setTemplateDialogOpen(false);
       navigate(`${emailBase}/campagna/${data.id}/editor`);
     },

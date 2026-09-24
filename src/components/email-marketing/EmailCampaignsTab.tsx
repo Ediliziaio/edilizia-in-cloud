@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Search, FolderPlus, Mail, Zap, Users, MoreHorizontal, Trash2, ChevronRight, ChevronLeft, Send, Copy, Pencil, FolderInput, BarChart3 } from "lucide-react";
+import { Search, FolderPlus, Folder, MoreHorizontal, Trash2, ChevronRight, ChevronLeft, Send, Copy, Pencil, FolderInput, BarChart3 } from "lucide-react";
 import { CampaignCreateDropdown } from "./CampaignCreateDropdown";
 import { CampaignDetailDialog } from "./CampaignDetailDialog";
 import { CreateFolderDialog } from "./CreateFolderDialog";
@@ -26,8 +26,10 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 
 const STATUS_BADGE: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline"; className?: string }> = {
-  draft: { label: "Bozza", variant: "secondary" },
-  scheduled: { label: "Pianificata", variant: "outline" },
+  // La bozza è la più quieta (prima era il badge più scuro della pagina); la
+  // pianificata in blu, perché è quella che partirà da sola.
+  draft: { label: "Bozza", variant: "outline", className: "text-muted-foreground" },
+  scheduled: { label: "Pianificata", variant: "outline", className: "border-blue-300 text-blue-700 dark:border-blue-800 dark:text-blue-300" },
   sending: { label: "In invio", variant: "default", className: "bg-amber-500 hover:bg-amber-600 text-white border-0 animate-pulse" },
   sent: { label: "Inviata", variant: "default", className: "bg-green-600 hover:bg-green-700 text-white border-0" },
   failed: { label: "Fallita", variant: "destructive" },
@@ -35,11 +37,28 @@ const STATUS_BADGE: Record<string, { label: string; variant: "default" | "second
   completed: { label: "Completata", variant: "default", className: "bg-green-600 hover:bg-green-700 text-white border-0" },
 };
 
-const CATEGORIES = [
-  { id: "all", label: "Campagne email", icon: Mail },
-  { id: "automation", label: "Campagne di flusso", icon: Zap },
-  { id: "bulk", label: "Campagne Azione in blocco", icon: Users },
-];
+/** Chip di stato: «Inviate» comprende anche le completate (per l'utente è lo stesso). */
+const FILTRI_STATO = [
+  ["all", "Tutte"], ["draft", "Bozze"], ["scheduled", "Pianificate"],
+  ["sending", "In invio"], ["sent", "Inviate"], ["failed", "Fallite"],
+] as const;
+
+/** Campagne già partite: aprendole si guardano i risultati, non l'editor. */
+const GIA_PARTITE = new Set(["sent", "sending", "completed"]);
+
+/** «120 inviate · 3 non partite» per chi è partita, «—» per il resto. */
+function esitoInvio(c: { status: string; sent_count?: number | null; failed_count?: number | null; total_recipients?: number | null }): string {
+  if (c.status === "sending") {
+    const tot = c.total_recipients ?? 0;
+    return tot > 0 ? `in corso · ${(c.sent_count ?? 0).toLocaleString("it-IT")} di ${tot.toLocaleString("it-IT")}` : "in corso";
+  }
+  if (!GIA_PARTITE.has(c.status) && c.status !== "failed") return "—";
+  const inviate = c.sent_count ?? 0;
+  const fallite = c.failed_count ?? 0;
+  const pezzi = [`${inviate.toLocaleString("it-IT")} inviate`];
+  if (fallite > 0) pezzi.push(`${fallite.toLocaleString("it-IT")} non partite`);
+  return pezzi.join(" · ");
+}
 
 export function EmailCampaignsTab() {
   const { effectiveCompany: company, user } = useAuth();
@@ -48,7 +67,6 @@ export function EmailCampaignsTab() {
   const qc = useQueryClient();
   const [searchInput, setSearchInput] = useState("");
   const search = useDebounce(searchInput, 350);
-  const [category, setCategory] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [folderPath, setFolderPath] = useState<Array<{ id: string | null; name: string }>>([
@@ -70,12 +88,15 @@ export function EmailCampaignsTab() {
   // Campaign results drill-down dialog
   const [detailTarget, setDetailTarget] = useState<{ id: string; name: string } | null>(null);
 
-  // Reset page when filters change
-  useEffect(() => { setPage(0); }, [search, category, currentFolderId, statusFilter]);
+  // La pagina torna alla prima dove cambiano i filtri (ricerca, stato,
+  // cartella), non in un effetto: così non si ridisegna due volte.
 
+  // Una sola lista. Le sezioni «Campagne di flusso» e «Azione in blocco»
+  // filtravano su tipi che nessuna schermata crea (24/09/2026): erano sempre
+  // vuote. I flussi stanno in Automazioni.
   const { data: campaignData, isLoading } = useEmailCampaignsPaginated(
     company?.id,
-    { search, category, folderId: currentFolderId, status: statusFilter },
+    { search, category: "all", folderId: currentFolderId, status: statusFilter },
     { page, perPage }
   );
 
@@ -136,8 +157,18 @@ export function EmailCampaignsTab() {
   });
 
   const duplicateMutation = useMutation({
-    mutationFn: async (campaign: any) => {
+    mutationFn: async (riga: { id: string }) => {
       if (!company?.id || !user?.id) throw new Error("Sessione non disponibile");
+      // La riga della lista non ha pubblico, A/B e tracciamento (la lista non
+      // li carica): copiandola da lì la copia perdeva a chi mandare. Si rilegge
+      // la campagna intera.
+      const { data: campaign, error: readError } = await supabase
+        .from("email_campaigns")
+        .select("*")
+        .eq("id", riga.id)
+        .eq("company_id", company.id)
+        .single();
+      if (readError) throw readError;
       const { error } = await supabase.from("email_campaigns").insert({
         company_id: company!.id,
         created_by: user!.id,
@@ -233,77 +264,43 @@ export function EmailCampaignsTab() {
     setPage(0);
   };
 
+  const filtriAttivi = !!search.trim() || statusFilter !== "all";
+  const dentroCartella = folderPath.length > 1;
+  const azzeraFiltri = () => { setSearchInput(""); setStatusFilter("all"); setPage(0); };
+
   return (
-    <div className="flex flex-col md:flex-row gap-0 min-h-[500px]">
-      {/* Mobile category selector */}
-      <div className="md:hidden mb-4">
-        <Select value={category} onValueChange={(v) => { setCategory(v); setPage(0); }}>
-          <SelectTrigger><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {CATEGORIES.map((cat) => (
-              <SelectItem key={cat.id} value={cat.id}>{cat.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+    <div className="space-y-4">
+      {/* Una riga sola: ricerca, stato, azioni. Pagina e scheda dicono già
+          «Email Marketing › Campagne»: un terzo titolo spingeva giù la tabella. */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative min-w-[200px] max-w-sm flex-1">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input className="pl-9" placeholder="Cerca in tutte le cartelle…" value={searchInput} onChange={(e) => { setSearchInput(e.target.value); setPage(0); }} />
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          {FILTRI_STATO.map(([v, lbl]) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => { setStatusFilter(v); setPage(0); }}
+              className={`rounded-full border px-3 py-1 text-xs transition-colors ${
+                statusFilter === v ? "border-primary bg-primary/10 font-medium text-primary" : "text-muted-foreground hover:bg-muted/50"
+              }`}
+            >
+              {lbl}
+            </button>
+          ))}
+        </div>
+        <div className="ml-auto flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => setFolderDialogOpen(true)}>
+            <FolderPlus className="mr-1 h-4 w-4" /> <span className="hidden sm:inline">Crea cartella</span>
+          </Button>
+          <CampaignCreateDropdown />
+        </div>
       </div>
 
-      {/* Desktop Sidebar */}
-      <div className="hidden md:block w-56 border-r pr-3 space-y-1 shrink-0">
-        {CATEGORIES.map((cat) => (
-          <button
-            key={cat.id}
-            onClick={() => { setCategory(cat.id); setPage(0); }}
-            className={`w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors ${
-              category === cat.id
-                ? "bg-primary/10 text-primary font-medium"
-                : "text-muted-foreground hover:bg-muted"
-            }`}
-          >
-            <cat.icon className="h-4 w-4" />
-            {cat.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Main content */}
-      <div className="flex-1 md:pl-6 space-y-4">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-lg font-semibold text-foreground">Campagne</h3>
-            <p className="text-sm text-muted-foreground">Gestisci e invia campagne email</p>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => setFolderDialogOpen(true)}>
-              <FolderPlus className="h-4 w-4 mr-1" /> <span className="hidden sm:inline">Crea cartella</span>
-            </Button>
-            <CampaignCreateDropdown />
-          </div>
-        </div>
-
-        {/* Toolbar */}
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="relative flex-1 max-w-sm min-w-[180px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input className="pl-9" placeholder="Cerca campagna (in tutte le cartelle)..." value={searchInput} onChange={(e) => { setSearchInput(e.target.value); setPage(0); }} />
-          </div>
-          <div className="flex items-center gap-1.5 flex-wrap">
-            {([["all", "Tutte"], ["draft", "Bozze"], ["scheduled", "Pianificate"], ["sending", "In invio"], ["sent", "Inviate"], ["failed", "Fallite"]] as const).map(([v, lbl]) => (
-              <button
-                key={v}
-                type="button"
-                onClick={() => setStatusFilter(v)}
-                className={`rounded-full border px-2.5 py-1 text-[11px] transition-colors ${
-                  statusFilter === v ? "border-primary bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-muted/50"
-                }`}
-              >
-                {lbl}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Breadcrumb */}
+      {/* Il percorso serve solo dentro una cartella: in Home diceva «Home» e basta. */}
+      {dentroCartella && (
         <div className="flex items-center gap-1 text-sm">
           {folderPath.map((fp, i) => (
             <div key={i} className="flex items-center gap-1">
@@ -317,76 +314,94 @@ export function EmailCampaignsTab() {
             </div>
           ))}
         </div>
+      )}
 
-        {/* Subfolders */}
-        {currentFolders.length > 0 && (
-          <div className="flex gap-2 flex-wrap">
-            {currentFolders.map((f: any) => (
-              <Button key={f.id} variant="outline" size="sm" onClick={() => navigateToFolder(f.id, f.name)}>
-                <FolderPlus className="h-4 w-4 mr-1" /> {f.name}
-              </Button>
-            ))}
-          </div>
-        )}
+      {/* Subfolders */}
+      {currentFolders.length > 0 && !search.trim() && (
+        <div className="flex flex-wrap gap-2">
+          {currentFolders.map((f: any) => (
+            <Button key={f.id} variant="outline" size="sm" onClick={() => navigateToFolder(f.id, f.name)}>
+              <Folder className="mr-1 h-4 w-4" /> {f.name}
+            </Button>
+          ))}
+        </div>
+      )}
 
-        {/* Table */}
-        {isLoading ? (
-          <div className="text-center py-12 text-muted-foreground">Caricamento...</div>
-        ) : campaigns.length === 0 ? (
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center py-16 gap-3">
-              <Send className="h-10 w-10 text-muted-foreground" />
-              <p className="text-muted-foreground">Nessuna campagna trovata</p>
-              <CampaignCreateDropdown />
-            </CardContent>
-          </Card>
-        ) : (
-          <>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Titolo</TableHead>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead className="hidden sm:table-cell">Ultimo aggiornamento</TableHead>
-                  <TableHead className="hidden sm:table-cell">Data di esecuzione</TableHead>
-                  <TableHead>Stato</TableHead>
-                  <TableHead className="w-10" />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {campaigns.map((c: any) => {
-                  const badge = STATUS_BADGE[c.status] || { label: c.status, variant: "secondary" as const, className: "" };
-                  const isIncomplete = !c.subject || !c.html_content;
-                  return (
-                    <TableRow
-                      key={c.id}
-                      className="cursor-pointer"
-                      onClick={() => navigate(`${emailBase}/campagna/${c.id}/${c.json_content ? 'builder' : 'editor'}`)}
-                    >
-                      <TableCell className="font-medium">
-                        <div className="flex flex-col gap-1">
-                          <span>{c.name}</span>
-                          {isIncomplete && (
-                            <span className="text-xs font-normal text-amber-600">Da completare prima dell'invio</span>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">
-                          {c.type === "broadcast" ? "Email" : c.type === "automation" ? "Flusso" : c.type === "bulk" ? "Blocco" : c.type}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground hidden sm:table-cell">
-                        {format(new Date(c.updated_at), "dd MMM yyyy", { locale: it })}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground hidden sm:table-cell">
-                        {c.scheduled_at
-                          ? format(new Date(c.scheduled_at), "dd MMM yyyy HH:mm", { locale: it })
-                          : "—"}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={badge.variant} className={badge.className}>{badge.label}</Badge>
-                      </TableCell>
+      {/* Table */}
+      {isLoading ? (
+        <div className="py-12 text-center text-muted-foreground">Caricamento...</div>
+      ) : campaigns.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center gap-3 py-14 text-center">
+            <Send className="h-9 w-9 text-muted-foreground" />
+            {filtriAttivi ? (
+              <>
+                <p className="font-medium text-foreground">Nessuna campagna con questi filtri</p>
+                <Button variant="outline" size="sm" onClick={azzeraFiltri}>Mostra tutte</Button>
+              </>
+            ) : dentroCartella ? (
+              <p className="font-medium text-foreground">Questa cartella è vuota</p>
+            ) : (
+              <>
+                <p className="font-medium text-foreground">Ancora nessuna campagna</p>
+                <p className="max-w-md text-sm text-muted-foreground">
+                  Scegli a chi scrivere, prepara il messaggio e mandalo subito o pianificalo: la trovi qui con i risultati.
+                </p>
+                <CampaignCreateDropdown />
+              </>
+            )}
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Titolo</TableHead>
+                <TableHead>Stato</TableHead>
+                <TableHead className="hidden md:table-cell">Invio</TableHead>
+                <TableHead className="hidden sm:table-cell">Data di invio</TableHead>
+                <TableHead className="hidden lg:table-cell">Ultima modifica</TableHead>
+                <TableHead className="w-10" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {campaigns.map((c: any) => {
+                const badge = STATUS_BADGE[c.status] || { label: c.status, variant: "secondary" as const, className: "" };
+                // Solo per le bozze: su una campagna già partita «da completare» non ha senso.
+                const isIncomplete = c.status === "draft" && (!c.subject || !c.html_content);
+                const partita = GIA_PARTITE.has(c.status);
+                // Quando è partita: data vera di invio; prima: quella pianificata.
+                const dataInvio = partita ? (c.sent_at ?? c.scheduled_at) : c.scheduled_at;
+                return (
+                  <TableRow
+                    key={c.id}
+                    className="cursor-pointer"
+                    onClick={() => partita
+                      ? setDetailTarget({ id: c.id, name: c.name })
+                      : navigate(`${emailBase}/campagna/${c.id}/${c.json_content ? "builder" : "editor"}`)}
+                  >
+                    <TableCell className="font-medium">
+                      <div className="flex flex-col gap-1">
+                        <span>{c.name}</span>
+                        {c.subject && <span className="text-xs font-normal text-muted-foreground line-clamp-1">{c.subject}</span>}
+                        {isIncomplete && (
+                          <span className="text-xs font-normal text-amber-600">Da completare prima dell'invio</span>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={badge.variant} className={badge.className}>{badge.label}</Badge>
+                    </TableCell>
+                    <TableCell className="hidden text-sm text-muted-foreground md:table-cell">
+                      {esitoInvio(c)}
+                    </TableCell>
+                    <TableCell className="hidden text-muted-foreground sm:table-cell">
+                      {dataInvio ? format(new Date(dataInvio), "dd MMM yyyy HH:mm", { locale: it }) : "—"}
+                    </TableCell>
+                    <TableCell className="hidden text-muted-foreground lg:table-cell">
+                      {format(new Date(c.updated_at), "dd MMM yyyy", { locale: it })}
+                    </TableCell>
                       <TableCell onClick={(e) => e.stopPropagation()}>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
@@ -427,7 +442,8 @@ export function EmailCampaignsTab() {
               </TableBody>
             </Table>
 
-            {/* Pagination */}
+            {/* Pagination: con dieci campagne o meno è solo rumore. */}
+            {totalCount > 10 && (
             <div className="flex items-center justify-between text-sm text-muted-foreground">
               <span>{showing}</span>
               <div className="flex items-center gap-2">
@@ -447,9 +463,9 @@ export function EmailCampaignsTab() {
                 </Select>
               </div>
             </div>
+            )}
           </>
         )}
-      </div>
 
       <CreateFolderDialog
         open={folderDialogOpen}
