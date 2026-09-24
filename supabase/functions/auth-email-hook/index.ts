@@ -23,6 +23,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { resolveSender } from "../_shared/resolveSender.ts";
+import { clienteSenzaAccesso } from "../_shared/clienteSenzaAccesso.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -46,7 +47,7 @@ type AzioneEmail =
   | "reauthentication";
 
 interface PayloadHook {
-  user: { email?: string; new_email?: string };
+  user: { id?: string; email?: string; new_email?: string };
   email_data: {
     token: string;
     token_hash: string;
@@ -218,6 +219,16 @@ Deno.serve(async (req) => {
     const { user, email_data } = JSON.parse(raw) as PayloadHook;
     const azione = email_data.email_action_type;
     const testi = TESTI[azione] ?? TESTI.recovery;
+
+    // Un cliente senza accesso al portale (portale spento o cliente bloccato)
+    // non riceve link che aprono un accesso: né reset, né link magico, né
+    // invito. Si risponde come se fosse partita: chi chiede non scopre niente e
+    // il cliente non riceve un link per un portale in cui non può entrare.
+    if ((azione === "recovery" || azione === "magiclink" || azione === "invite")
+        && await clienteSenzaAccesso(admin, user.id)) {
+      console.log(`[auth-email-hook] ${azione} non inviata: cliente senza accesso al portale`);
+      return new Response("{}", { status: 200, headers: { "Content-Type": "application/json" } });
+    }
 
     // Per il cambio indirizzo il messaggio va al NUOVO indirizzo, che e' quello
     // da confermare; per tutto il resto all'indirizzo dell'utente.
