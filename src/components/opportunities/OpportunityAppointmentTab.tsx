@@ -23,6 +23,7 @@ import CalendarSuggestions, { type CalendarSuggestion } from "@/components/marke
 import { useGoogleCalendarSync } from "@/hooks/useGoogleCalendarSync";
 import { useAppleCalendarSync } from "@/hooks/useAppleCalendarSync";
 import { usePermissions } from "@/hooks/usePermissions";
+import { aggiornaAgendaSchede } from "@/lib/opportunitaAgenda";
 
 interface Props {
   contactId: string;
@@ -426,6 +427,7 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
       toast.success("Appuntamento prenotato");
       queryClient.invalidateQueries({ queryKey: ["contact_future_appointment"] });
       queryClient.invalidateQueries({ queryKey: ["appointments_for_slot"] });
+      aggiornaAgendaSchede(queryClient);
       setSelectedSlot("");
       setTitle("");
       setDescription("");
@@ -452,6 +454,7 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
       toast.success("Appuntamento annullato");
       queryClient.invalidateQueries({ queryKey: ["contact_future_appointment"] });
       queryClient.invalidateQueries({ queryKey: ["appointments_for_slot"] });
+      aggiornaAgendaSchede(queryClient);
     },
   });
 
@@ -739,6 +742,7 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
         onSaved={() => {
           queryClient.invalidateQueries({ queryKey: ["contact_future_appointment"] });
           queryClient.invalidateQueries({ queryKey: ["appointments_for_slot"] });
+          aggiornaAgendaSchede(queryClient);
         }}
         calendars={calendars}
         users={teamUsers}

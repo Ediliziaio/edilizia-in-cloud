@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { TaskDialog } from "./TaskDialog";
+import { aggiornaAgendaSchede } from "@/lib/opportunitaAgenda";
 
 interface LinkedTasksProps {
   orderId?: string;
@@ -154,6 +155,8 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
+      // I numeri di appuntamenti e attività sulle schede delle opportunità.
+      if (opportunityId || contactId) aggiornaAgendaSchede(queryClient);
     },
   });
 
@@ -337,6 +340,8 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
         task={editingTask || (dialogOpen ? attivitaNuova : null)}
         onSaved={() => {
           queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
+          // I numeri di appuntamenti e attività sulle schede delle opportunità.
+          if (opportunityId || contactId) aggiornaAgendaSchede(queryClient);
         }}
         defaultCategory={category}
         defaultOrderId={orderId}
