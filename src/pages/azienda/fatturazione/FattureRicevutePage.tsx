@@ -67,6 +67,7 @@ import {
   type EsitoImport,
   type FileScartato,
 } from "@/lib/fatturazione/bulkXmlImport";
+import { bytesToBase64 } from "../../../../supabase/functions/_shared/base64";
 
 import { useIsMobile } from "@/hooks/use-mobile";
 // ─── Types ────────────────────────────────────────────────────
@@ -510,11 +511,14 @@ export default function FattureRicevutePage() {
       }
 
       const funzione = direzione === "attiva" ? "importa-fattura-attiva-xml" : "ricevi-sdi";
+      // Una fattura ricevuta firmata (.p7m) va al server col suo file: è
+      // l'originale da conservare, e l'XML il server lo ricava da lì.
+      const body = direzione === "passiva" && f.firmato
+        ? { originale_base64: bytesToBase64(f.firmato), company_id: companyId }
+        : { xml_content: f.contenuto, company_id: companyId };
 
       try {
-        const resp = await supabase.functions.invoke(funzione, {
-          body: { xml_content: f.contenuto, company_id: companyId },
-        });
+        const resp = await supabase.functions.invoke(funzione, { body });
         if (resp.error) {
           // Il corpo della risposta porta il motivo vero (numero gia' esistente,
           // cedente sbagliato); resp.error.message da solo direbbe solo "non-2xx".
@@ -595,7 +599,7 @@ export default function FattureRicevutePage() {
           <input
             ref={fileInputRef}
             type="file"
-            accept=".xml,.zip"
+            accept=".xml,.p7m,.zip"
             multiple
             className="hidden"
             onChange={handleFileUpload}
@@ -924,7 +928,7 @@ export default function FattureRicevutePage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          title="Scarica XML" aria-label="Scarica XML"
+                          title="Scarica il file originale" aria-label="Scarica il file originale"
                           onClick={async () => {
                             try {
                               const { data, error } = await supabase.storage

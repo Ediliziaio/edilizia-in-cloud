@@ -373,6 +373,14 @@ export interface AllegatoOpenapi {
 const FILE_DI_SERVIZIO = /_(RC|NS|MC|NE|MT|EC|SE|DT|AT)_[A-Za-z0-9]{3}\.xml$/i;
 
 /**
+ * Una notifica o il file metadati dello SDI (…_MT_001.xml, …_RC_001.xml),
+ * dal nome. Negli zip scaricati dal portale stanno accanto a ogni fattura.
+ */
+export function eFileDiServizioSdi(nome: string): boolean {
+  return FILE_DI_SERVIZIO.test(nome.trim());
+}
+
+/**
  * Tra gli allegati di una fattura openapi, quello che È la fattura: il nome
  * che lo SDI le ha dato (details.sdi_filename), altrimenti un .xml o .xml.p7m
  * che non sia un file di servizio, altrimenti il primo con un tipo XML o

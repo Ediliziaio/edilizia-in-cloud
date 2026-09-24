@@ -10,20 +10,27 @@
  * zip, contare gli esiti — cosi' e' verificabile senza rete ne' database.
  * L'interpretazione dell'XML resta dove gia' funziona: la edge ricevi-sdi.
  *
- * I file .p7m (XML con firma digitale CAdES) sono deliberatamente ESCLUSI:
- * sono contenitori binari e leggerli come testo produce spazzatura. Dai
- * portali si scarica sempre anche la versione non firmata, quindi invece di
- * fallire in modo oscuro diciamo all'utente cosa scaricare.
+ * Dal 24/09/2026 si leggono anche i .p7m (XML con firma digitale CAdES),
+ * sciolti o dentro uno zip, con lo stesso lettore delle fatture che arrivano
+ * da openapi (xmlDaFile): prima venivano scartati con «scarica la versione
+ * non firmata», che per le fatture ricevute non esiste — lo SDI consegna il
+ * file come l'ha firmato il fornitore. Il file firmato va al server così
+ * com'è: è l'originale da conservare, l'XML ne è solo il contenuto.
+ * I file di servizio dello SDI (…_MT_001.xml) si saltano in silenzio.
  */
 
 import { extractZipEntries } from "@/lib/sicurezza/bulkDocumenti";
+import { eFileDiServizioSdi, fileOriginale, xmlDaFile } from "../../../supabase/functions/_shared/ricevuteOpenapi";
 
 export type TipoFileFattura = "xml" | "zip" | "p7m" | "ignoto";
 
 export interface XmlDaImportare {
   /** Nome del file, usato nel resoconto per far ritrovare l'originale. */
   nome: string;
+  /** L'XML della fattura, in chiaro anche quando il file era firmato. */
   contenuto: string;
+  /** Il file .p7m così com'era: l'originale da conservare. Solo se firmato. */
+  firmato?: Uint8Array;
 }
 
 export interface FileScartato {
@@ -67,9 +74,9 @@ export function classificaFileFattura(nome: string): TipoFileFattura {
 export function motivoScarto(tipo: TipoFileFattura, nome: string): string {
   switch (tipo) {
     case "p7m":
-      return "File firmato digitalmente: scarica dal portale la versione XML non firmata.";
+      return "File firmato che non contiene una fattura elettronica leggibile: prova con la versione XML dal portale.";
     case "ignoto":
-      return `Formato non riconosciuto (${nome.split(".").pop() ?? "senza estensione"}): servono file .xml o uno .zip che li contenga.`;
+      return `Formato non riconosciuto (${nome.split(".").pop() ?? "senza estensione"}): servono file .xml o .p7m, o uno .zip che li contenga.`;
     default:
       return "File non utilizzabile.";
   }
@@ -85,10 +92,43 @@ export function sembraFatturaElettronica(contenuto: string): boolean {
   return /<(?:[A-Za-z0-9_-]+:)?FatturaElettronica[\s>]/.test(contenuto);
 }
 
+type Letto = { xml: XmlDaImportare } | { scarto: FileScartato } | { servizio: true };
+
 /**
- * Espande la selezione dell'utente in una lista piatta di XML pronti da
+ * Un file, sciolto o dentro uno zip, e la fattura che contiene. XML in chiaro
+ * (UTF-8 o ISO-8859-1, come ammette FatturaPA), busta firmata .p7m, l'uno o
+ * l'altra in base64: li apre xmlDaFile, lo stesso lettore delle fatture che
+ * arrivano da openapi.
+ */
+async function leggiFattura(nome: string, blob: Blob, dentroZip: boolean): Promise<Letto> {
+  let dati: Uint8Array;
+  try {
+    dati = new Uint8Array(await blob.arrayBuffer());
+  } catch {
+    return { scarto: { nome, motivo: dentroZip ? "File illeggibile dentro lo zip." : "File illeggibile." } };
+  }
+  const contenuto = xmlDaFile(dati);
+  if (!contenuto) {
+    // Notifiche e metadati dello SDI: accompagnano ogni fattura scaricata
+    // dal portale, e segnalarli come errori riempirebbe il resoconto.
+    if (eFileDiServizioSdi(nome)) return { servizio: true };
+    return {
+      scarto: {
+        nome,
+        motivo: classificaFileFattura(nome) === "p7m"
+          ? motivoScarto("p7m", nome)
+          : "Non e' una fattura elettronica: manca il tracciato FatturaElettronica.",
+      },
+    };
+  }
+  const originale = fileOriginale(dati);
+  return { xml: originale[0] === 0x30 ? { nome, contenuto, firmato: originale } : { nome, contenuto } };
+}
+
+/**
+ * Espande la selezione dell'utente in una lista piatta di fatture pronte da
  * mandare al server. Gli zip vengono scompattati (un livello, quello che
- * producono i portali) e al loro interno si tengono solo gli .xml.
+ * producono i portali) e al loro interno si tengono gli .xml e i .p7m.
  *
  * Non solleva mai: ogni file che non si riesce a leggere finisce tra gli
  * scartati con il suo motivo, cosi' un file rotto non blocca gli altri 300.
@@ -96,21 +136,16 @@ export function sembraFatturaElettronica(contenuto: string): boolean {
 export async function espandiXmlDaFiles(files: File[]): Promise<EspansioneResult> {
   const xml: XmlDaImportare[] = [];
   const scartati: FileScartato[] = [];
+  const raccogli = (r: Letto) => {
+    if ("xml" in r) xml.push(r.xml);
+    else if ("scarto" in r) scartati.push(r.scarto);
+  };
 
   for (const file of files) {
     const tipo = classificaFileFattura(file.name);
 
-    if (tipo === "xml") {
-      try {
-        const contenuto = await file.text();
-        if (!sembraFatturaElettronica(contenuto)) {
-          scartati.push({ nome: file.name, motivo: "Non e' una fattura elettronica: manca il tracciato FatturaElettronica." });
-        } else {
-          xml.push({ nome: file.name, contenuto });
-        }
-      } catch {
-        scartati.push({ nome: file.name, motivo: "File illeggibile." });
-      }
+    if (tipo === "xml" || tipo === "p7m") {
+      raccogli(await leggiFattura(file.name, file, false));
       continue;
     }
 
@@ -123,29 +158,20 @@ export async function espandiXmlDaFiles(files: File[]): Promise<EspansioneResult
         continue;
       }
 
-      const xmlNelloZip = entries.filter((e) => classificaFileFattura(e.name) === "xml");
-      if (xmlNelloZip.length === 0) {
-        const soloFirmati = entries.some((e) => classificaFileFattura(e.name) === "p7m");
-        scartati.push({
-          nome: file.name,
-          motivo: soloFirmati
-            ? "Lo zip contiene solo file firmati .p7m: riesporta gli XML non firmati."
-            : "Lo zip non contiene file .xml.",
-        });
+      const fattureNelloZip = entries.filter((e) => {
+        const t = classificaFileFattura(e.name);
+        return t === "xml" || t === "p7m";
+      });
+      if (fattureNelloZip.length === 0) {
+        scartati.push({ nome: file.name, motivo: "Lo zip non contiene file .xml o .p7m." });
         continue;
       }
 
-      for (const entry of xmlNelloZip) {
-        try {
-          const contenuto = await entry.blob.text();
-          if (!sembraFatturaElettronica(contenuto)) {
-            scartati.push({ nome: entry.name, motivo: "Non e' una fattura elettronica: manca il tracciato FatturaElettronica." });
-          } else {
-            xml.push({ nome: entry.name, contenuto });
-          }
-        } catch {
-          scartati.push({ nome: entry.name, motivo: "File illeggibile dentro lo zip." });
-        }
+      const prima = xml.length + scartati.length;
+      for (const entry of fattureNelloZip) raccogli(await leggiFattura(entry.name, entry.blob, true));
+      if (xml.length + scartati.length === prima) {
+        // Solo file di servizio: lo zip delle notifiche, non quello delle fatture.
+        scartati.push({ nome: file.name, motivo: "Lo zip contiene solo notifiche dello SDI, nessuna fattura." });
       }
       continue;
     }
@@ -160,16 +186,22 @@ export async function espandiXmlDaFiles(files: File[]): Promise<EspansioneResult
  * Toglie i doppioni DENTRO la selezione: capita di caricare due volte lo
  * stesso zip, o un file sia sciolto sia nell'archivio. Il confronto e' sul
  * contenuto, non sul nome, perche' lo stesso XML puo' arrivare con nomi
- * diversi. I duplicati verso il database restano compito del server.
+ * diversi. Fra la stessa fattura firmata e in chiaro si tiene la firmata:
+ * e' l'originale da conservare. I duplicati verso il database restano
+ * compito del server.
  */
 export function eliminaDoppioniInterni(xml: XmlDaImportare[]): XmlDaImportare[] {
-  const visti = new Set<string>();
+  const posizione = new Map<string, number>();
   const out: XmlDaImportare[] = [];
   for (const f of xml) {
     const chiave = f.contenuto.replace(/\s+/g, "");
-    if (visti.has(chiave)) continue;
-    visti.add(chiave);
-    out.push(f);
+    const gia = posizione.get(chiave);
+    if (gia === undefined) {
+      posizione.set(chiave, out.length);
+      out.push(f);
+    } else if (f.firmato && !out[gia].firmato) {
+      out[gia] = f;
+    }
   }
   return out;
 }

@@ -5,6 +5,11 @@
 // Dal 24/09/2026 lettura e salvataggio stanno in _shared (fatturaRicevutaXml.ts
 // e salvaFatturaRicevuta.ts): li usa anche openapi-fatture-ricevute, e le due
 // strade devono registrare la stessa fattura allo stesso modo.
+//
+// Dal 24/09/2026 il caricamento a mano accetta anche le fatture firmate
+// (.p7m): arriva il file intero in base64 (originale_base64) e l'XML lo si
+// ricava qui, così quello che si registra è il contenuto del file che si
+// conserva, non quello che dice il browser.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { DOMParser } from "https://deno.land/x/deno_dom@v0.1.45/deno-dom-wasm.ts";
@@ -13,6 +18,8 @@ import { verifyCompanyAccess } from "../_shared/companyAuth.ts";
 import type { LettoreXml } from "../_shared/fatturapaReader.ts";
 import { leggiFatturaRicevuta } from "../_shared/fatturaRicevutaXml.ts";
 import { avvisaFatturaRicevuta, salvaFatturaRicevuta } from "../_shared/salvaFatturaRicevuta.ts";
+import { base64ToBytes } from "../_shared/base64.ts";
+import { fileOriginale, xmlDaFile } from "../_shared/ricevuteOpenapi.ts";
 
 const lettore = () => new DOMParser() as unknown as LettoreXml;
 
@@ -149,10 +156,13 @@ Deno.serve(async (req) => {
         });
       }
 
-      const { xml_content, company_id } = await req.json();
-      if (!xml_content || !company_id) {
+      const corpo = (await req.json().catch(() => null)) as Record<string, unknown> | null;
+      const company_id = typeof corpo?.company_id === "string" ? corpo.company_id : "";
+      const originaleBase64 = typeof corpo?.originale_base64 === "string" ? corpo.originale_base64 : "";
+      let xml = typeof corpo?.xml_content === "string" ? corpo.xml_content : "";
+      if ((!xml && !originaleBase64) || !company_id) {
         return new Response(
-          JSON.stringify({ error: "xml_content e company_id obbligatori" }),
+          JSON.stringify({ error: "xml_content (o originale_base64) e company_id obbligatori" }),
           { status: 400, headers: corsHeaders }
         );
       }
@@ -168,7 +178,25 @@ Deno.serve(async (req) => {
         });
       }
 
-      const parsed = leggiFatturaRicevuta(String(xml_content), lettore());
+      // Il file firmato: si apre la busta qui, e si conserva così com'è.
+      let originale: Uint8Array | null = null;
+      if (originaleBase64) {
+        let dati: Uint8Array = new Uint8Array();
+        try {
+          dati = base64ToBytes(originaleBase64);
+        } catch { /* resta vuoto: sotto diventa un 422 */ }
+        const dentro = dati.length > 0 ? xmlDaFile(dati) : null;
+        if (!dentro) {
+          return new Response(
+            JSON.stringify({ error: "Il file firmato non contiene una fattura elettronica leggibile." }),
+            { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        xml = dentro;
+        originale = fileOriginale(dati);
+      }
+
+      const parsed = leggiFatturaRicevuta(xml, lettore());
       if (!parsed) {
         return new Response(
           JSON.stringify({ error: "Il file non è una fattura elettronica leggibile (mancano fornitore, numero o data)." }),
@@ -176,7 +204,9 @@ Deno.serve(async (req) => {
         );
       }
 
-      const esito = await salvaFatturaRicevuta(supabase, { companyId: company_id, xml: String(xml_content), letta: parsed });
+      // Senza nome del file: quello scelto dall'utente può ripetersi fra due
+      // fatture diverse, il percorso si fa da fornitore, numero e data.
+      const esito = await salvaFatturaRicevuta(supabase, { companyId: company_id, xml, letta: parsed, originale });
       if (esito.errore) throw new Error(esito.errore);
       if (esito.doppione) {
         return new Response(JSON.stringify({ success: true, duplicate: true, id: esito.id }), {

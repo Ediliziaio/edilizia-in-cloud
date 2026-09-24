@@ -6,6 +6,7 @@ import { describe, it, expect } from "vitest";
 import {
   allegatoFattura,
   contenutoP7m,
+  eFileDiServizioSdi,
   fatturaRicevutaPer,
   gettoneCallback,
   giroCompletoDovuto,
@@ -228,6 +229,16 @@ describe("xmlDaFile: dal file ricevuto all'XML della fattura", () => {
     const oidSbagliato = new Uint8Array([0x06, 0x03, 0x2a, 0x03, 0x04]);
     const rotta = bustaAPezzi(utf8(FATTURA), [700, 700], oidSbagliato);
     expect(xmlDaFile(rotta)).toBeNull();
+  });
+});
+
+describe("i file di servizio dello SDI", () => {
+  it("notifiche e metadati si riconoscono dal nome, la fattura no", () => {
+    expect(eFileDiServizioSdi("IT01234567890_1a2b3_MT_001.xml")).toBe(true);
+    expect(eFileDiServizioSdi("IT01234567890_1a2b3_RC_001.xml")).toBe(true);
+    expect(eFileDiServizioSdi("IT01234567890_1a2b3_ns_001.XML")).toBe(true);
+    expect(eFileDiServizioSdi("IT01234567890_1a2b3.xml")).toBe(false);
+    expect(eFileDiServizioSdi("IT01234567890_1a2b3.xml.p7m")).toBe(false);
   });
 });
 
