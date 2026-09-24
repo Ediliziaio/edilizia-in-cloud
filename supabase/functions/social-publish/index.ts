@@ -54,10 +54,25 @@ Deno.serve(async (req) => {
     if (postErr || !post) return errorResponse("Post non trovato", 404, cors);
 
     const row = post as SocialPostRow;
-    if (row.status === "published") return errorResponse("Il post è già pubblicato", 409, cors);
+    // «Riprova» su un post uscito solo in parte: si ripubblica dove è fallito,
+    // non dove è già uscito (niente doppioni su Facebook).
+    const riprova = body?.riprova === true;
+    const falliti = Object.entries(row.publish_result ?? {})
+      .filter(([chiave, esito]) => chiave !== "_error" && esito && esito.ok === false && !esito.pending)
+      .map(([chiave]) => chiave);
+    if (row.status === "published" && !(riprova && falliti.length > 0)) {
+      return errorResponse("Il post è già pubblicato", 409, cors);
+    }
     if (row.status === "processing") {
       // Già in mano al cron (o a un altro clic): non si pubblica due volte.
       return jsonResponse({ ok: false, pending: true, status: "processing", result: row.publish_result ?? {} }, 200, cors);
+    }
+    // Un post da approvare lo pubblica solo chi può approvarlo.
+    if (row.status === "review") {
+      const { data: puoApprovare } = await userClient.rpc("puo_approvare_post_social", { p_company_id: companyId });
+      if (puoApprovare !== true) {
+        return errorResponse("Il post è da approvare: lo pubblica il titolare o un amministratore.", 403, cors);
+      }
     }
 
     // Lucchetto: il cron non deve prendere lo stesso post mentre lo pubblichiamo qui.
@@ -77,7 +92,18 @@ Deno.serve(async (req) => {
     }
     // claimErr = migrazione 20280916910000 non ancora applicata: si pubblica senza lucchetto, come prima.
 
-    const outcome = await publishSocialPost(admin, row, { inlineWaitMs: 20_000 });
+    // Nel riprova il publisher vede solo le piattaforme già uscite come «fatte»
+    // (status processing = eredita gli esiti): le fallite ripartono da zero.
+    const daPubblicare: SocialPostRow = row.status === "published"
+      ? {
+        ...row,
+        status: "processing",
+        publish_result: Object.fromEntries(
+          Object.entries(row.publish_result ?? {}).filter(([chiave, esito]) => chiave !== "_error" && esito?.ok === true),
+        ),
+      }
+      : row;
+    const outcome = await publishSocialPost(admin, daPubblicare, { inlineWaitMs: 20_000 });
     return jsonResponse(outcome, 200, cors);
   } catch (e) {
     return errorResponse(e instanceof Error ? e.message : "Errore interno", 500);

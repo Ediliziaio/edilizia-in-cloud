@@ -19,6 +19,7 @@ import {
   Clock,
   Download,
   Edit3,
+  ExternalLink,
   Eye,
   Film,
   Hash,
@@ -50,6 +51,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -63,6 +65,30 @@ import { SocialMediaUploader } from "@/components/social/SocialMediaUploader";
 import { StatistichePagineSocial } from "@/components/social/StatistichePagineSocial";
 import { useSocialManagerData } from "@/hooks/useSocialManagerData";
 import { useStatoPubblicazioneSocial } from "@/hooks/useStatoPubblicazioneSocial";
+import { usePostFacebookEsterni, usePuoApprovareSocial } from "@/hooks/useCalendarioSocial";
+import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
+import { readInvokeError } from "@/lib/readInvokeError";
+import {
+  azioniPost,
+  chiaveGiorno,
+  contaPerGruppo,
+  dataPerNuovoPost,
+  destinazioniPronte,
+  elencoNomi,
+  fasceOrarie,
+  gruppoDi,
+  haData,
+  inizioSettimana,
+  nomePiattaforma,
+  piattaformeFallite,
+  postEsterniNuovi,
+  statoCalendario,
+  type AzionePost,
+  type GruppoStato,
+  type InfoStato,
+  type PostEsterno,
+  type StatoCalendario,
+} from "@/lib/social/calendario";
 import {
   describePublishResult,
   metaAccountsFor,
@@ -629,656 +655,888 @@ function PlatformStatusRibbon({
   );
 }
 
-// ─── Status config ─────────────────────────────────────────────────────────────
-
-const STATUS_CONFIG = {
-  draft:     { label: "Bozza",        dot: "bg-slate-400",   pill: "border-slate-200 bg-slate-50 text-slate-600",     calBg: "bg-slate-100 text-slate-600" },
-  review:    { label: "In revisione", dot: "bg-amber-400",   pill: "border-amber-200 bg-amber-50 text-amber-700",     calBg: "bg-amber-50 text-amber-700 border border-amber-200" },
-  scheduled: { label: "Programmato",  dot: "bg-blue-400",    pill: "border-blue-200 bg-blue-50 text-blue-700",        calBg: "bg-blue-50 text-blue-700 border border-blue-100" },
-  processing: { label: "In pubblicazione", dot: "bg-violet-400", pill: "border-violet-200 bg-violet-50 text-violet-700", calBg: "bg-violet-50 text-violet-700 border border-violet-100" },
-  published: { label: "Pubblicato",   dot: "bg-emerald-400", pill: "border-emerald-200 bg-emerald-50 text-emerald-700", calBg: "bg-emerald-50 text-emerald-700 border border-emerald-100" },
-  failed:    { label: "Fallito",      dot: "bg-red-400",     pill: "border-red-200 bg-red-50 text-red-700",            calBg: "bg-red-50 text-red-700 border border-red-100" },
-} satisfies Record<ScheduledPost["status"], { label: string; dot: string; pill: string; calBg: string }>;
-
 // ═══════════════════════════════════════════════════════════════════════════════
-// TAB: CALENDARIO — redesign completo
+// TAB: CALENDARIO — stati veri, azioni sul post, telefono (24/09/2026)
 // ═══════════════════════════════════════════════════════════════════════════════
+// Prima era una vetrina: nessuna azione sui post (tranne approva/rimanda, per
+// chiunque), la settimana nascondeva i post prima delle 8 e dopo le 21, un post
+// mai uscito restava «Programmato», uno uscito a metà era «Pubblicato», le
+// bozze stavano su domani, e sul telefono la pagina scorreva di lato.
+
+const STILE_STATO: Record<StatoCalendario, { pallino: string; voce: string; badge: string }> = {
+  bozza:            { pallino: "bg-slate-400",   voce: "border-slate-200 bg-slate-50 text-slate-700",        badge: "border-slate-200 bg-slate-50 text-slate-600" },
+  da_approvare:     { pallino: "bg-amber-400",   voce: "border-amber-200 bg-amber-50 text-amber-900",        badge: "border-amber-200 bg-amber-50 text-amber-700" },
+  programmato:      { pallino: "bg-blue-500",    voce: "border-blue-100 bg-blue-50 text-blue-900",           badge: "border-blue-200 bg-blue-50 text-blue-700" },
+  in_ritardo:       { pallino: "bg-orange-500",  voce: "border-orange-200 bg-orange-50 text-orange-900",     badge: "border-orange-200 bg-orange-50 text-orange-700" },
+  in_pubblicazione: { pallino: "bg-violet-500",  voce: "border-violet-100 bg-violet-50 text-violet-900",     badge: "border-violet-200 bg-violet-50 text-violet-700" },
+  pubblicato:       { pallino: "bg-emerald-500", voce: "border-emerald-100 bg-emerald-50 text-emerald-900",  badge: "border-emerald-200 bg-emerald-50 text-emerald-700" },
+  uscito_in_parte:  { pallino: "bg-orange-500",  voce: "border-orange-200 bg-orange-50 text-orange-900",     badge: "border-orange-200 bg-orange-50 text-orange-700" },
+  fallito:          { pallino: "bg-red-500",     voce: "border-red-200 bg-red-50 text-red-900",              badge: "border-red-200 bg-red-50 text-red-700" },
+};
+/** Post letti da Facebook, fatti fuori dall'app: bordo tratteggiato, non sono «nostri». */
+const STILE_ESTERNO = "border-dashed border-slate-300 bg-white text-slate-600";
+
+const GRUPPI: Array<{ id: GruppoStato; etichetta: string; pallino: string }> = [
+  { id: "programmati", etichetta: "Programmati", pallino: "bg-blue-500" },
+  { id: "da_approvare", etichetta: "Da approvare", pallino: "bg-amber-400" },
+  { id: "pubblicati", etichetta: "Pubblicati", pallino: "bg-emerald-500" },
+  { id: "da_sistemare", etichetta: "Da sistemare", pallino: "bg-red-500" },
+];
 
 const MONTH_NAMES = ["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"];
 const DAY_NAMES_SHORT = ["L","M","M","G","V","S","D"];
 const DAY_NAMES_FULL  = ["Lunedì","Martedì","Mercoledì","Giovedì","Venerdì","Sabato","Domenica"];
 
+/** Una voce del calendario: un post dell'app, o un post letto da una pagina Facebook. */
+type VoceCalendario =
+  | { tipo: "post"; id: string; quando: Date; post: ScheduledPost; info: InfoStato }
+  | { tipo: "esterno"; id: string; quando: Date; esterno: PostEsterno };
+
+interface DatiAzione {
+  quando?: string;
+  nota?: string;
+}
+
+/** Un post salvato nel database (id uuid), non rimasto nel browser. */
+const isUuidPost = (id: unknown): id is string => typeof id === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(id);
+
+const oraBreve = (d: Date) => d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+
+const testoVoce = (voce: VoceCalendario) =>
+  voce.tipo === "post" ? (voce.post.text.trim() || "Post senza testo") : (voce.esterno.testo.trim() || "Post su Facebook");
+
+const stileVoce = (voce: VoceCalendario) => (voce.tipo === "post" ? STILE_STATO[voce.info.stato].voce : STILE_ESTERNO);
+
+const etichettaVoce = (voce: VoceCalendario) => (voce.tipo === "post" ? voce.info.etichetta : "Su Facebook, fuori dall'app");
+
+function IconePiattaforme({ ids, max = 3, size = "sm" }: { ids: string[]; max?: number; size?: "xs" | "sm" }) {
+  return (
+    <span className="flex shrink-0 items-center gap-0.5">
+      {ids.slice(0, max).map((id) => {
+        const p = PLATFORMS.find((pl) => pl.id === id);
+        return (
+          <span key={id} title={p?.name ?? id}
+            className={cn(
+              "flex items-center justify-center rounded bg-gradient-to-br font-bold text-white",
+              size === "xs" ? "h-3.5 w-3.5 text-[7px]" : "h-4 w-4 text-[8px]",
+              p?.gradient ?? "from-slate-300 to-slate-400",
+            )}>
+            {p?.icon ?? "·"}
+          </span>
+        );
+      })}
+    </span>
+  );
+}
+
+/** Colore del numerino del giorno: il problema prima di tutto. */
+function coloreConteggio(voci: VoceCalendario[]): string {
+  const stati = voci.flatMap((v) => (v.tipo === "post" ? [v.info] : []));
+  if (stati.some((s) => s.problema)) return "bg-red-500";
+  if (stati.some((s) => s.stato === "da_approvare")) return "bg-amber-400";
+  if (stati.some((s) => s.stato === "programmato" || s.stato === "in_pubblicazione")) return "bg-blue-500";
+  if (stati.some((s) => s.stato === "pubblicato")) return "bg-emerald-500";
+  return "bg-slate-400";
+}
+
+/** La voce piccola della cella del mese e della settimana. */
+function VoceCompatta({ voce, onApri }: { voce: VoceCalendario; onApri: (voce: VoceCalendario) => void }) {
+  const piattaforme = voce.tipo === "post" ? voce.post.platforms : ["facebook"];
+  return (
+    <button
+      type="button"
+      onClick={(e) => { e.stopPropagation(); onApri(voce); }}
+      title={`${oraBreve(voce.quando)} · ${etichettaVoce(voce)} · ${testoVoce(voce)}`}
+      className={cn("flex w-full min-w-0 flex-col gap-0.5 rounded-md border px-1 py-0.5 text-left text-[10px] font-medium leading-tight transition hover:brightness-95", stileVoce(voce))}
+    >
+      {/* Due righe: piattaforme e ora sopra, il testo sotto, largo quanto la cella. */}
+      <span className="flex min-w-0 items-center gap-1">
+        <IconePiattaforme ids={piattaforme} max={3} size="xs" />
+        <span className="shrink-0 tabular-nums">{oraBreve(voce.quando)}</span>
+      </span>
+      <span className="block min-w-0 truncate">{testoVoce(voce)}</span>
+    </button>
+  );
+}
+
+/** La voce leggibile: elenchi a destra, giorno scelto, elenco per giorni del telefono. */
+function VoceEstesa({ voce, onApri, conData = false }: { voce: VoceCalendario; onApri: (voce: VoceCalendario) => void; conData?: boolean }) {
+  const piattaforme = voce.tipo === "post" ? voce.post.platforms : ["facebook"];
+  const badge = voce.tipo === "post" ? STILE_STATO[voce.info.stato].badge : STILE_ESTERNO;
+  return (
+    <button type="button" onClick={() => onApri(voce)}
+      className="flex w-full min-w-0 flex-col gap-1 rounded-xl border border-slate-100 bg-white p-2.5 text-left shadow-sm transition hover:border-orange-200 hover:bg-orange-50/40">
+      <span className="flex w-full min-w-0 items-center gap-1.5">
+        <IconePiattaforme ids={piattaforme} />
+        <span className="shrink-0 text-[11px] font-semibold tabular-nums text-slate-500">
+          {voce.tipo === "post" && !haData(voce.post)
+            ? "Senza data"
+            : conData
+              ? voce.quando.toLocaleString("it-IT", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
+              : oraBreve(voce.quando)}
+        </span>
+        <span className={cn("ml-auto shrink-0 rounded-full border px-1.5 py-0.5 text-[10px] font-semibold", badge)}>
+          {voce.tipo === "post" ? voce.info.etichetta : "Su Facebook"}
+        </span>
+      </span>
+      <span className="line-clamp-2 text-[12px] text-slate-700">{testoVoce(voce)}</span>
+    </button>
+  );
+}
+
 function CalendarioTab({
+  companyId,
   posts,
-  onNewPost,
-  onUpdatePost,
+  stato,
+  puoApprovare,
+  nomeUtente,
+  onApriVoce,
+  onNuovoPost,
+  onAzione,
 }: {
+  companyId: string;
   posts: ScheduledPost[];
-  onNewPost?: () => void;
-  onUpdatePost?: (id: string, changes: Partial<ScheduledPost>) => void;
+  stato: StatoPubblicazioneSocial | null;
+  puoApprovare: boolean;
+  nomeUtente: (id?: string) => string | null;
+  onApriVoce: (voce: VoceCalendario) => void;
+  onNuovoPost: (quando: { data: string; ora: string } | null) => void;
+  onAzione: (post: ScheduledPost, azione: AzionePost, dati?: DatiAzione) => Promise<boolean>;
 }) {
-  const today = new Date();
-  const [view, setView]               = useState<"month" | "week">("month");
-  const [currentMonth, setCurrentMonth] = useState(today.getMonth());
-  const [currentYear, setCurrentYear]   = useState(today.getFullYear());
-  const [weekStart, setWeekStart]       = useState<Date>(() => {
-    const d = new Date(today);
-    const day = d.getDay() === 0 ? 6 : d.getDay() - 1; // Mon=0
-    d.setDate(d.getDate() - day);
-    d.setHours(0, 0, 0, 0);
-    return d;
-  });
-  const [selectedDay, setSelectedDay]   = useState<string | null>(null); // "YYYY-MM-DD"
-  const [filterPlatform, setFilterPlatform] = useState<string | null>(null);
-  const [reviewExpanded, setReviewExpanded] = useState(true);
-  const [rejectingId, setRejectingId] = useState<string | null>(null);
-  const [rejectNote, setRejectNote] = useState("");
+  // L'ora che passa: «in ritardo» si aggiorna da solo, senza ricaricare.
+  const [adesso, setAdesso] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setAdesso(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const oggi = new Date(adesso);
 
-  // Filtered posts
-  const filteredPosts = filterPlatform
-    ? posts.filter((p) => p.platforms.includes(filterPlatform))
-    : posts;
+  const [vista, setVista] = useState<"month" | "week">("month");
+  const [mese, setMese] = useState(() => new Date().getMonth());
+  const [anno, setAnno] = useState(() => new Date().getFullYear());
+  const [inizioSett, setInizioSett] = useState<Date>(() => inizioSettimana(new Date()));
+  const [giornoScelto, setGiornoScelto] = useState<string | null>(null);
+  const [filtroGruppo, setFiltroGruppo] = useState<GruppoStato | "tutti">("tutti");
+  const [filtroPiattaforma, setFiltroPiattaforma] = useState<string | null>(null);
+  const [mostraEsterni, setMostraEsterni] = useState(true);
+  const [rimandaId, setRimandaId] = useState<string | null>(null);
+  const [notaRimanda, setNotaRimanda] = useState("");
+  const [tutteLeBozze, setTutteLeBozze] = useState(false);
 
-  // Chiave data LOCALE "YYYY-MM-DD" — coerente con la griglia mese che usa
-  // currentYear/currentMonth/day locali. Prima usava toISOString() (UTC), che
-  // spostava i post nel giorno sbagliato vicino a mezzanotte (es. UTC+2).
-  const toLocalDateKey = (d: Date) =>
-    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  // Il periodo mostrato: il mese, o i sette giorni da lunedì.
+  const inizio = vista === "month" ? new Date(anno, mese, 1) : inizioSett;
+  const fine = vista === "month"
+    ? new Date(anno, mese + 1, 1)
+    : new Date(inizioSett.getFullYear(), inizioSett.getMonth(), inizioSett.getDate() + 7);
+  const inPeriodo = (d: Date) => d >= inizio && d < fine;
 
-  // Group by date key "YYYY-MM-DD" (locale). Le date non valide/mancanti
-  // vengono saltate per non far crashare il reduce.
-  const postsByDate = filteredPosts.reduce<Record<string, ScheduledPost[]>>((acc, p) => {
-    const t = new Date(p.scheduled_at);
-    if (Number.isNaN(t.getTime())) return acc;
-    const key = toLocalDateKey(t);
-    if (!acc[key]) acc[key] = [];
-    acc[key].push(p);
-    return acc;
-  }, {});
+  // I post pubblicati su Facebook nel periodo, anche fuori dall'app.
+  const esterniQuery = usePostFacebookEsterni(companyId, stato, inizio, fine);
+  const esterniNuovi = useMemo(
+    () => postEsterniNuovi(esterniQuery.data?.posts ?? [], posts),
+    [esterniQuery.data, posts],
+  );
 
-  const selectedPosts = selectedDay ? (postsByDate[selectedDay] ?? []) : [];
+  const vociApp = useMemo<VoceCalendario[]>(() => posts
+    .filter((p) => p.status !== "draft" && haData(p))
+    .map((p) => ({ tipo: "post" as const, id: p.id, quando: new Date(p.scheduled_at), post: p, info: statoCalendario(p, adesso) })),
+  [posts, adesso]);
+  const vociEsterne = useMemo<VoceCalendario[]>(() => esterniNuovi
+    .map((e) => ({ tipo: "esterno" as const, id: `fb-${e.id}`, quando: new Date(e.quando), esterno: e }))
+    .filter((v) => Number.isFinite(v.quando.getTime())),
+  [esterniNuovi]);
 
-  // ── Month view helpers ─────────────────────────────────────────────────────
-  const daysInMonth  = new Date(currentYear, currentMonth + 1, 0).getDate();
-  const firstDayRaw  = new Date(currentYear, currentMonth, 1).getDay();
-  const dayOffset    = firstDayRaw === 0 ? 6 : firstDayRaw - 1;
-
-  const goMonthPrev = () => { if (currentMonth === 0) { setCurrentMonth(11); setCurrentYear((y) => y - 1); } else setCurrentMonth((m) => m - 1); };
-  const goMonthNext = () => { if (currentMonth === 11) { setCurrentMonth(0); setCurrentYear((y) => y + 1); } else setCurrentMonth((m) => m + 1); };
-
-  // ── Week view helpers ──────────────────────────────────────────────────────
-  const weekDays = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(weekStart);
-    d.setDate(weekStart.getDate() + i);
-    return d;
-  });
-  const TIME_SLOTS = ["08:00","09:00","10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00","18:00","19:00","20:00"];
-
-  function postsForDateAndHour(date: Date, hour: string): ScheduledPost[] {
-    const dateKey = toLocalDateKey(date);
-    return (postsByDate[dateKey] ?? []).filter((p) => {
-      const h = new Date(p.scheduled_at).toTimeString().slice(0, 5);
-      return h >= hour && h < `${String(parseInt(hour) + 1).padStart(2, "0")}:00`;
-    });
+  const passaFiltri = (voce: VoceCalendario) => {
+    if (voce.tipo === "esterno") {
+      return mostraEsterni && (filtroGruppo === "tutti" || filtroGruppo === "pubblicati")
+        && (!filtroPiattaforma || filtroPiattaforma === "facebook");
+    }
+    if (filtroPiattaforma && !voce.post.platforms.includes(filtroPiattaforma)) return false;
+    return filtroGruppo === "tutti" || gruppoDi(voce.info.stato) === filtroGruppo;
+  };
+  const vociVisibili = [...vociApp, ...vociEsterne].filter(passaFiltri);
+  const perGiorno = new Map<string, VoceCalendario[]>();
+  for (const voce of vociVisibili) {
+    const chiave = chiaveGiorno(voce.quando);
+    perGiorno.set(chiave, [...(perGiorno.get(chiave) ?? []), voce]);
   }
+  for (const voci of perGiorno.values()) voci.sort((a, b) => a.quando.getTime() - b.quando.getTime());
 
-  // ── Stats ──────────────────────────────────────────────────────────────────
-  const reviewCount = posts.filter((p) => p.status === "review").length;
-  const statsData = [
-    { label: "Programmati",        value: posts.filter((p) => p.status === "scheduled").length,  color: "text-blue-600",    bg: "bg-blue-50"    },
-    { label: "In revisione",       value: reviewCount,                                            color: "text-amber-600",   bg: "bg-amber-50"   },
-    { label: "Pubblicati",         value: posts.filter((p) => p.status === "published").length,  color: "text-emerald-600", bg: "bg-emerald-50" },
-    { label: "Bozze",              value: posts.filter((p) => p.status === "draft").length,       color: "text-slate-600",   bg: "bg-slate-50"   },
-    { label: "Falliti",            value: posts.filter((p) => p.status === "failed").length,     color: "text-red-600",     bg: "bg-red-50"     },
-  ];
+  // Contatori del periodo (i post dell'app; il filtro piattaforma vale anche qui).
+  const postDelPeriodo = posts.filter((p) => p.status !== "draft" && haData(p) && inPeriodo(new Date(p.scheduled_at))
+    && (!filtroPiattaforma || p.platforms.includes(filtroPiattaforma)));
+  const conti = contaPerGruppo(postDelPeriodo, adesso);
+  const esterniNelPeriodo = vociEsterne.filter((v) => inPeriodo(v.quando)).length;
+  const piattaformeUsate = Array.from(new Set([
+    ...posts.flatMap((p) => p.platforms),
+    ...(vociEsterne.length > 0 ? ["facebook"] : []),
+  ])).filter((id) => PLATFORMS.some((p) => p.id === id));
 
-  // ── Review posts (uses reviewCount already computed above in statsData) ───
-  const reviewPosts = posts.filter((p) => p.status === "review");
-
-  // ── Upcoming posts (next 14 days) ──────────────────────────────────────────
-  const upcomingPosts = [...posts]
-    .filter((p) => {
-      const d = new Date(p.scheduled_at);
-      const diff = (d.getTime() - Date.now()) / 86400000;
-      return diff > -1 && diff < 14 && p.status === "scheduled";
-    })
-    .sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime())
+  const daApprovare = posts
+    .filter((p) => p.status === "review")
+    .sort((a, b) => (Date.parse(a.scheduled_at) || 0) - (Date.parse(b.scheduled_at) || 0));
+  const vociDaSistemare = vociApp
+    .filter((v) => v.tipo === "post" && v.info.problema)
+    .sort((a, b) => b.quando.getTime() - a.quando.getTime());
+  const vociProssime = vociApp
+    .filter((v) => v.tipo === "post" && (v.info.stato === "programmato" || v.info.stato === "in_pubblicazione")
+      && v.quando.getTime() >= adesso - 60 * 60_000 && v.quando.getTime() < adesso + 14 * 86_400_000)
+    .sort((a, b) => a.quando.getTime() - b.quando.getTime())
     .slice(0, 8);
+  const bozze = posts
+    .filter((p) => p.status === "draft")
+    .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
+  const vociBozze: VoceCalendario[] = bozze.map((p) => ({
+    tipo: "post" as const, id: p.id, quando: new Date(haData(p) ? p.scheduled_at : p.created_at), post: p, info: statoCalendario(p, adesso),
+  }));
+
+  const vaiA = (direzione: -1 | 1) => {
+    setGiornoScelto(null);
+    if (vista === "month") {
+      const d = new Date(anno, mese + direzione, 1);
+      setMese(d.getMonth());
+      setAnno(d.getFullYear());
+    } else {
+      setInizioSett((d) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + 7 * direzione));
+    }
+  };
+  const vaiAOggi = () => {
+    const d = new Date(adesso);
+    setMese(d.getMonth());
+    setAnno(d.getFullYear());
+    setInizioSett(inizioSettimana(d));
+    setGiornoScelto(null);
+  };
+
+  // ── Mese ──
+  const giorniNelMese = new Date(anno, mese + 1, 0).getDate();
+  const primoGiorno = new Date(anno, mese, 1).getDay();
+  const spostamento = primoGiorno === 0 ? 6 : primoGiorno - 1;
+
+  // ── Settimana: ore allargate a quelle dei post ──
+  const giorniSettimana = Array.from({ length: 7 }, (_, i) =>
+    new Date(inizioSett.getFullYear(), inizioSett.getMonth(), inizioSett.getDate() + i));
+  const oreSettimana = fasceOrarie(
+    giorniSettimana.flatMap((g) => (perGiorno.get(chiaveGiorno(g)) ?? []).map((v) => v.quando.getHours())),
+  );
+
+  // ── Telefono: i giorni del periodo che hanno qualcosa ──
+  const giorniDelPeriodo: Date[] = [];
+  for (let d = new Date(inizio); d < fine; d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)) giorniDelPeriodo.push(d);
+  const agenda = giorniDelPeriodo
+    .map((giorno) => ({ giorno, voci: perGiorno.get(chiaveGiorno(giorno)) ?? [] }))
+    .filter((g) => g.voci.length > 0);
+
+  const vociGiornoScelto = giornoScelto ? perGiorno.get(giornoScelto) ?? [] : [];
+  const dataGiornoScelto = giornoScelto ? new Date(`${giornoScelto}T12:00:00`) : null;
+  const nuovoNelGiornoScelto = dataGiornoScelto ? dataPerNuovoPost(dataGiornoScelto, null, oggi) : null;
+
+  const titoloPeriodo = vista === "month"
+    ? `${MONTH_NAMES[mese]} ${anno}`
+    : `${giorniSettimana[0].toLocaleDateString("it-IT", { day: "numeric", month: "short" })} – ${giorniSettimana[6].toLocaleDateString("it-IT", { day: "numeric", month: "short", year: "numeric" })}`;
+  const nessunPost = posts.length === 0 && vociEsterne.length === 0;
 
   return (
     <div className="space-y-4">
 
-      {/* ── REVIEW QUEUE BANNER ────────────────────────────────────────── */}
-      {reviewPosts.length > 0 && (
-        <div className="overflow-hidden rounded-2xl border-2 border-amber-300 bg-amber-50 shadow-sm">
-          {/* Header */}
-          <button
-            type="button"
-            onClick={() => setReviewExpanded((v) => !v)}
-            className="flex w-full items-center justify-between px-4 py-3 text-left transition hover:bg-amber-100/60"
-          >
-            <div className="flex items-center gap-2.5">
-              <span className="text-lg">⏳</span>
-              <span className="font-bold text-amber-800">
-                {reviewPosts.length} post in attesa di revisione
-              </span>
-              <span className="rounded-full bg-amber-400 px-2 py-0.5 text-[10px] font-bold text-white">
-                {reviewPosts.length}
-              </span>
-            </div>
-            <ChevronDown className={cn("h-4 w-4 text-amber-600 transition-transform duration-200", reviewExpanded ? "rotate-180" : "")} />
-          </button>
-
-          {/* Expanded list */}
-          {reviewExpanded && (
-            <div className="divide-y divide-amber-200 border-t border-amber-200">
-              {reviewPosts.map((post) => {
-                const platformIcons = post.platforms
-                  .map((pid) => PLATFORMS.find((p) => p.id === pid)?.icon ?? "")
-                  .join(" ");
-                const scheduledLabel = new Date(post.scheduled_at).toLocaleString("it-IT", {
-                  day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
-                });
-                const isRejecting = rejectingId === post.id;
-
-                return (
-                  <div key={post.id} className="px-4 py-3">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      {/* Left: post info */}
-                      <div className="min-w-0 flex-1 space-y-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-sm">{platformIcons}</span>
-                          <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-500 ring-1 ring-slate-200">
-                            {scheduledLabel}
-                          </span>
-                        </div>
-                        <p className="line-clamp-2 text-sm text-slate-700">
-                          {post.text || "(nessun testo)"}
-                        </p>
-                        {post.hashtags.length > 0 && (
-                          <p className="truncate text-[11px] text-slate-400">
-                            {post.hashtags.slice(0, 5).join(" ")}
-                            {post.hashtags.length > 5 && ` +${post.hashtags.length - 5}`}
-                          </p>
-                        )}
-                        {post.reviewNote && (
-                          <p className="rounded-lg bg-red-50 px-2.5 py-1.5 text-[11px] text-red-700 ring-1 ring-red-100">
-                            💬 {post.reviewNote}
-                          </p>
-                        )}
+      {/* ── DA APPROVARE ─────────────────────────────────────────────── */}
+      {daApprovare.length > 0 && (puoApprovare ? (
+        <div className="overflow-hidden rounded-2xl border border-amber-300 bg-amber-50">
+          <p className="border-b border-amber-200 px-4 py-2.5 text-sm font-bold text-amber-900">
+            {daApprovare.length === 1 ? "1 post da approvare" : `${daApprovare.length} post da approvare`}
+          </p>
+          <div className="divide-y divide-amber-200">
+            {daApprovare.map((post) => {
+              const autore = nomeUtente(post.createdBy);
+              const passato = !haData(post) || Date.parse(post.scheduled_at) < adesso + 60_000;
+              const inRimanda = rimandaId === post.id;
+              return (
+                <div key={post.id} className="flex flex-wrap items-start gap-3 px-4 py-3">
+                  <button type="button" className="w-full min-w-0 space-y-1 text-left sm:w-auto sm:flex-1"
+                    onClick={() => onApriVoce({ tipo: "post", id: post.id, quando: new Date(post.scheduled_at || post.created_at), post, info: statoCalendario(post, adesso) })}>
+                    <span className="flex flex-wrap items-center gap-2 text-[11px] text-amber-800">
+                      <IconePiattaforme ids={post.platforms} />
+                      <span className="font-semibold">
+                        {haData(post)
+                          ? new Date(post.scheduled_at).toLocaleString("it-IT", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
+                          : "Senza data"}
+                      </span>
+                      {autore && <span>· di {autore}</span>}
+                      {passato && <span className="font-semibold text-orange-700">· l'orario è passato</span>}
+                    </span>
+                    <span className="line-clamp-2 block text-sm text-slate-800">{post.text || "Post senza testo"}</span>
+                  </button>
+                  {inRimanda ? (
+                    <div className="flex w-full flex-col gap-2 sm:w-72">
+                      <Textarea rows={2} value={notaRimanda} onChange={(e) => setNotaRimanda(e.target.value)}
+                        placeholder="Cosa va cambiato? Es.: metti la foto del cantiere"
+                        className="resize-none border-amber-200 bg-white text-xs" />
+                      <div className="flex gap-2">
+                        <Button size="sm" className="flex-1 bg-amber-600 text-white hover:bg-amber-700"
+                          onClick={() => void onAzione(post, "rimanda", { nota: notaRimanda }).then((ok) => { if (ok) { setRimandaId(null); setNotaRimanda(""); } })}>
+                          Rimanda in bozza
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => { setRimandaId(null); setNotaRimanda(""); }}>Annulla</Button>
                       </div>
-
-                      {/* Right: actions */}
-                      {!isRejecting ? (
-                        <div className="flex shrink-0 gap-2">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              onUpdatePost?.(post.id, { status: "scheduled", reviewNote: undefined });
-                              toast.success("✅ Post approvato", { description: "Verrà pubblicato all'orario programmato." });
-                            }}
-                            className="flex items-center gap-1.5 rounded-xl bg-emerald-500 px-3 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-600 active:scale-95"
-                          >
-                            <Check className="h-3.5 w-3.5" /> Approva
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => { setRejectingId(post.id); setRejectNote(""); }}
-                            className="flex items-center gap-1.5 rounded-xl border border-red-200 bg-white px-3 py-1.5 text-xs font-bold text-red-600 transition hover:bg-red-50 active:scale-95"
-                          >
-                            <X className="h-3.5 w-3.5" /> Rimanda
-                          </button>
-                        </div>
-                      ) : (
-                        /* Reject flow — add note */
-                        <div className="flex w-full flex-col gap-2 sm:w-64">
-                          <Textarea
-                            rows={2}
-                            placeholder="Note per il creatore (es. 'Aggiungi logo', 'Tono troppo formale'...)"
-                            value={rejectNote}
-                            onChange={(e) => setRejectNote(e.target.value)}
-                            className="resize-none rounded-xl border-red-200 text-xs focus:ring-red-300"
-                          />
-                          <div className="flex gap-2">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                onUpdatePost?.(post.id, {
-                                  status: "draft",
-                                  reviewNote: rejectNote.trim() || "Rimandato in bozza.",
-                                });
-                                setRejectingId(null);
-                                setRejectNote("");
-                                toast.info("↩️ Post rimandato in bozza", { description: rejectNote.trim() || undefined });
-                              }}
-                              className="flex-1 rounded-xl bg-red-500 py-1.5 text-xs font-bold text-white transition hover:bg-red-600"
-                            >
-                              Conferma rimanda
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => { setRejectingId(null); setRejectNote(""); }}
-                              className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs text-slate-500 transition hover:bg-slate-50"
-                            >
-                              Annulla
-                            </button>
-                          </div>
-                        </div>
-                      )}
                     </div>
-                  </div>
-                );
-              })}
-            </div>
+                  ) : (
+                    <div className="flex shrink-0 flex-wrap gap-2">
+                      <Button size="sm" className="gap-1.5 bg-emerald-600 text-white hover:bg-emerald-700"
+                        onClick={() => void onAzione(post, "approva")}>
+                        <Check className="h-3.5 w-3.5" /> {passato ? "Approva e pubblica adesso" : "Approva"}
+                      </Button>
+                      <Button size="sm" variant="outline" className="gap-1.5 border-amber-300 bg-white text-amber-800 hover:bg-amber-100"
+                        onClick={() => { setRimandaId(post.id); setNotaRimanda(""); }}>
+                        <X className="h-3.5 w-3.5" /> Rimanda
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : (
+        <p className="flex items-start gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs text-amber-800">
+          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          {daApprovare.length === 1 ? "1 post aspetta" : `${daApprovare.length} post aspettano`} l'approvazione del titolare o di un amministratore.
+        </p>
+      ))}
+
+      {/* ── NAVIGAZIONE E FILTRI ─────────────────────────────────────── */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-1">
+          <button type="button" aria-label="Periodo precedente" onClick={() => vaiA(-1)} className="rounded-xl p-2 hover:bg-slate-100"><ChevronLeft className="h-4 w-4" /></button>
+          <span className="min-w-[9.5rem] text-center text-sm font-bold text-slate-800">{titoloPeriodo}</span>
+          <button type="button" aria-label="Periodo successivo" onClick={() => vaiA(1)} className="rounded-xl p-2 hover:bg-slate-100"><ChevronRight className="h-4 w-4" /></button>
+          <button type="button" onClick={vaiAOggi}
+            className="ml-1 rounded-xl border border-slate-200 px-3 py-1.5 text-[11px] font-semibold text-slate-600 hover:bg-slate-50">
+            Oggi
+          </button>
+        </div>
+        <div className="flex overflow-hidden rounded-xl border border-slate-200 bg-white text-sm">
+          {(["month", "week"] as const).map((v) => (
+            <button key={v} type="button" onClick={() => { setVista(v); setGiornoScelto(null); }} aria-pressed={vista === v}
+              className={cn("px-3.5 py-1.5 font-semibold transition", vista === v ? "bg-orange-500 text-white" : "text-slate-500 hover:bg-slate-50")}>
+              {v === "month" ? "Mese" : "Settimana"}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {!nessunPost && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <button type="button" onClick={() => setFiltroGruppo("tutti")} aria-pressed={filtroGruppo === "tutti"}
+            className={cn("rounded-full border px-2.5 py-1 text-[11px] font-semibold transition",
+              filtroGruppo === "tutti" ? "border-orange-400 bg-orange-50 text-orange-700" : "border-slate-200 bg-white text-slate-600 hover:border-slate-300")}>
+            Tutti
+          </button>
+          {GRUPPI.map((g) => (
+            <button key={g.id} type="button" onClick={() => setFiltroGruppo(filtroGruppo === g.id ? "tutti" : g.id)} aria-pressed={filtroGruppo === g.id}
+              className={cn("flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition",
+                filtroGruppo === g.id ? "border-orange-400 bg-orange-50 text-orange-700" : "border-slate-200 bg-white text-slate-600 hover:border-slate-300")}>
+              <span className={cn("h-2 w-2 rounded-full", g.pallino)} />
+              {g.etichetta}
+              <span className="tabular-nums text-slate-400">{conti[g.id]}</span>
+            </button>
+          ))}
+          {vociEsterne.length > 0 && (
+            <button type="button" onClick={() => setMostraEsterni((v) => !v)} aria-pressed={mostraEsterni}
+              className={cn("flex items-center gap-1.5 rounded-full border border-dashed px-2.5 py-1 text-[11px] font-semibold transition",
+                mostraEsterni ? "border-slate-400 bg-white text-slate-700" : "border-slate-200 bg-white text-slate-400")}>
+              <ExternalLink className="h-3 w-3" />
+              Fatti su Facebook
+              <span className="tabular-nums text-slate-400">{esterniNelPeriodo}</span>
+            </button>
+          )}
+          {piattaformeUsate.length > 1 && (
+            <span className="flex flex-wrap items-center gap-1.5 sm:ml-auto">
+              {piattaformeUsate.map((id) => (
+                <button key={id} type="button" onClick={() => setFiltroPiattaforma(filtroPiattaforma === id ? null : id)} aria-pressed={filtroPiattaforma === id}
+                  className={cn("flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition",
+                    filtroPiattaforma === id ? "border-orange-400 bg-orange-50 text-orange-700" : "border-slate-200 bg-white text-slate-600 hover:border-slate-300")}>
+                  <IconePiattaforme ids={[id]} size="xs" />
+                  {nomePiattaforma(id)}
+                </button>
+              ))}
+            </span>
           )}
         </div>
       )}
 
-      {/* ── STATS BAR ──────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-        {statsData.map(({ label, value, color, bg }) => (
-          <div key={label} className={cn("flex items-center gap-3 rounded-2xl border border-slate-100 p-3", bg)}>
-            <p className={cn("text-2xl font-bold tabular-nums", color)}>{value}</p>
-            <p className="text-[11px] leading-tight text-slate-500">{label}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* ── TOOLBAR ────────────────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          {/* View toggle */}
-          <div className="flex overflow-hidden rounded-xl border border-slate-200 bg-white text-sm">
-            {(["month","week"] as const).map((v) => (
-              <button key={v} type="button" onClick={() => setView(v)}
-                className={cn("px-3.5 py-1.5 font-semibold transition",
-                  view === v ? "bg-orange-500 text-white" : "text-slate-500 hover:bg-slate-50")}>
-                {v === "month" ? "Mese" : "Settimana"}
-              </button>
-            ))}
-          </div>
-
-          {/* Platform filter */}
-          <div className="flex items-center gap-1.5">
-            <button type="button" onClick={() => setFilterPlatform(null)}
-              className={cn("rounded-full border px-2.5 py-1 text-[11px] font-semibold transition",
-                filterPlatform === null ? "border-orange-400 bg-orange-100 text-orange-700" : "border-slate-200 bg-white text-slate-500 hover:border-slate-300")}>
-              Tutti
-            </button>
-            {PLATFORMS.map((p) => (
-              <button key={p.id} type="button" onClick={() => setFilterPlatform(p.id === filterPlatform ? null : p.id)}
-                className={cn("flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition",
-                  filterPlatform === p.id
-                    ? `border-transparent text-white bg-gradient-to-r ${p.gradient}`
-                    : "border-slate-200 bg-white text-slate-500 hover:border-slate-300")}>
-                <span className={cn("text-[9px]")}>{p.icon}</span>
-                {p.shortName}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Navigation */}
-        <div className="flex items-center gap-1">
-          {view === "month" ? (
-            <>
-              <button type="button" onClick={goMonthPrev} className="rounded-xl p-2 hover:bg-slate-100"><ChevronLeft className="h-4 w-4" /></button>
-              <span className="min-w-[140px] text-center text-sm font-bold text-slate-800">{MONTH_NAMES[currentMonth]} {currentYear}</span>
-              <button type="button" onClick={goMonthNext} className="rounded-xl p-2 hover:bg-slate-100"><ChevronRight className="h-4 w-4" /></button>
-            </>
-          ) : (
-            <>
-              <button type="button" onClick={() => setWeekStart((d) => { const n = new Date(d); n.setDate(n.getDate() - 7); return n; })} className="rounded-xl p-2 hover:bg-slate-100"><ChevronLeft className="h-4 w-4" /></button>
-              <span className="min-w-[200px] text-center text-sm font-bold text-slate-800">
-                {weekDays[0].toLocaleDateString("it", { day:"2-digit", month:"short" })} — {weekDays[6].toLocaleDateString("it", { day:"2-digit", month:"short", year:"numeric" })}
-              </span>
-              <button type="button" onClick={() => setWeekStart((d) => { const n = new Date(d); n.setDate(n.getDate() + 7); return n; })} className="rounded-xl p-2 hover:bg-slate-100"><ChevronRight className="h-4 w-4" /></button>
-            </>
-          )}
-          <button type="button" onClick={() => {
-            const now = new Date();
-            setCurrentMonth(now.getMonth()); setCurrentYear(now.getFullYear());
-            const d = new Date(now); const day = d.getDay() === 0 ? 6 : d.getDay() - 1; d.setDate(d.getDate() - day); d.setHours(0,0,0,0);
-            setWeekStart(d);
-          }} className="ml-1 rounded-xl border border-slate-200 px-3 py-1.5 text-[11px] font-semibold text-slate-500 hover:bg-slate-50">
-            Oggi
-          </button>
-        </div>
-      </div>
-
-      {/* ── CALENDAR BODY ─────────────────────────────────────────────── */}
-      {/* MIGL: timezone badge — chiarisce in che fuso vengono mostrate le date */}
-      <div className="mb-2 flex items-center justify-end">
-        <span className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-500">
-          <Clock className="h-3 w-3" />
-          Orari in {Intl.DateTimeFormat().resolvedOptions().timeZone ?? "ora locale"}
-        </span>
-      </div>
+      {esterniQuery.data?.errori && esterniQuery.data.errori.length > 0 && (
+        <p className="text-[11px] text-slate-500">
+          Non riesco a leggere i post di {elencoNomi(esterniQuery.data.errori)} da Facebook: nel calendario ci sono solo quelli fatti da qui.
+        </p>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-[1fr_300px]">
-
-        {/* MONTH VIEW */}
-        {view === "month" && (
-          <Card className="overflow-hidden">
-            <div className="h-0.5 bg-gradient-to-r from-orange-400 via-amber-400 to-orange-300" />
-            <CardContent className="p-3">
-              {/* Day headers */}
-              <div className="mb-1 grid grid-cols-7 gap-1">
-                {DAY_NAMES_SHORT.map((d, i) => (
-                  <div key={i} className="py-1.5 text-center text-[11px] font-bold text-slate-400 uppercase tracking-wide">{d}</div>
-                ))}
-              </div>
-              {/* Day cells */}
-              <div className="grid grid-cols-7 gap-px bg-slate-100 rounded-xl overflow-hidden border border-slate-100">
-                {Array.from({ length: dayOffset }).map((_, i) => (
-                  <div key={`e-${i}`} className="min-h-[92px] bg-slate-50/60" />
-                ))}
-                {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((day) => {
-                  const dateKey = `${currentYear}-${String(currentMonth + 1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
-                  const dayPosts = postsByDate[dateKey] ?? [];
-                  const isToday = day === today.getDate() && currentMonth === today.getMonth() && currentYear === today.getFullYear();
-                  const isSelected = dateKey === selectedDay;
-                  const scheduledCount = dayPosts.filter(p => p.status === "scheduled").length;
-                  const publishedCount = dayPosts.filter(p => p.status === "published").length;
-                  // Heat intensity for days with many posts
-                  const heatClass = dayPosts.length >= 4 ? "bg-orange-50" : dayPosts.length >= 2 ? "bg-blue-50/60" : "bg-white";
-
-                  return (
-                    <button key={day} type="button"
-                      onClick={() => setSelectedDay(dateKey === selectedDay ? null : dateKey)}
-                      className={cn(
-                        "group relative flex min-h-[92px] flex-col p-1.5 text-left transition-colors",
-                        isSelected ? "bg-orange-100 ring-2 ring-inset ring-orange-400" : isToday ? "bg-blue-50" : heatClass,
-                        "hover:bg-orange-50/80",
-                      )}>
-                      {/* Day number */}
-                      <div className="mb-1.5 flex items-center justify-between">
-                        <span className={cn(
-                          "flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold",
-                          isToday ? "bg-blue-500 text-white shadow-sm" : isSelected ? "bg-orange-500 text-white" : "text-slate-600",
-                        )}>{day}</span>
-                        {/* Post count badge */}
-                        {dayPosts.length > 0 && (
-                          <span className={cn(
-                            "flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-bold",
-                            scheduledCount > 0 ? "bg-blue-500 text-white" : publishedCount > 0 ? "bg-emerald-500 text-white" : "bg-slate-300 text-white",
-                          )}>{dayPosts.length}</span>
-                        )}
-                      </div>
-
-                      {/* Post mini-cards */}
-                      <div className="flex flex-col gap-0.5 overflow-hidden w-full">
-                        {dayPosts.slice(0, 3).map((p, i) => {
-                          const pl = PLATFORMS.find((pl) => pl.id === p.platforms[0]);
-                          const sc = STATUS_CONFIG[p.status];
-                          return (
-                            <div key={i} className={cn("flex items-center gap-1 rounded-md px-1 py-0.5 text-[10px] font-medium leading-tight w-full", sc.calBg)}>
-                              <span className={cn("flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded text-[7px] font-bold text-white bg-gradient-to-br", pl?.gradient ?? "from-slate-300 to-slate-400")}>
-                                {pl?.icon ?? "·"}
-                              </span>
-                              <span className="truncate min-w-0">
-                                {new Date(p.scheduled_at).toLocaleTimeString("it", { hour:"2-digit", minute:"2-digit" })}
-                                {p.text ? ` ${p.text.slice(0, 10)}` : ""}
-                              </span>
-                            </div>
-                          );
-                        })}
-                        {dayPosts.length > 3 && (
-                          <div className="rounded px-1 py-0.5 text-[10px] font-semibold text-slate-400 bg-slate-100 text-center">
-                            +{dayPosts.length - 3}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Add button on hover */}
-                      <div className="absolute bottom-1 right-1 opacity-0 transition-opacity group-hover:opacity-100">
-                        <div className="flex h-5 w-5 items-center justify-center rounded-full bg-orange-500 text-white shadow-sm">
-                          <Plus className="h-3 w-3" />
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Legend */}
-              <div className="mt-3 flex flex-wrap items-center gap-3 border-t pt-3">
-                {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
-                  <div key={key} className="flex items-center gap-1.5">
-                    <span className={cn("h-2 w-2 rounded-full", cfg.dot)} />
-                    <span className="text-[10px] text-slate-500">{cfg.label}</span>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* WEEK VIEW */}
-        {view === "week" && (
-          <Card className="overflow-hidden">
-            <div className="h-0.5 bg-gradient-to-r from-orange-400 via-amber-400 to-orange-300" />
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <div className="min-w-[640px]">
-                  {/* Day headers */}
-                  <div className="grid border-b" style={{ gridTemplateColumns: "56px repeat(7,1fr)" }}>
-                    <div className="border-r" />
-                    {weekDays.map((d, i) => {
-                      const dateKey = toLocalDateKey(d);
-                      const dayPosts = postsByDate[dateKey] ?? [];
-                      const isToday = d.toDateString() === today.toDateString();
-                      return (
-                        <div key={i} className={cn("flex flex-col items-center border-r py-2 last:border-r-0", isToday ? "bg-blue-50" : "")}>
-                          <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{DAY_NAMES_FULL[i].slice(0,3)}</span>
-                          <span className={cn("mt-0.5 flex h-8 w-8 items-center justify-center rounded-full text-base font-bold",
-                            isToday ? "bg-blue-500 text-white" : "text-slate-700")}>
-                            {d.getDate()}
+        <div className="min-w-0">
+          {/* ── MESE (computer e tablet) ── */}
+          {vista === "month" && (
+            <Card className="hidden overflow-hidden sm:block">
+              <CardContent className="p-3">
+                <div className="mb-1 grid grid-cols-7 gap-1">
+                  {DAY_NAMES_SHORT.map((d, i) => (
+                    <div key={i} className="py-1 text-center text-[11px] font-bold uppercase tracking-wide text-slate-400">{d}</div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-7 gap-px overflow-hidden rounded-xl border border-slate-100 bg-slate-100">
+                  {Array.from({ length: spostamento }).map((_, i) => (
+                    <div key={`vuoto-${i}`} className="min-h-[104px] bg-slate-50/60" />
+                  ))}
+                  {Array.from({ length: giorniNelMese }, (_, i) => i + 1).map((numero) => {
+                    const giorno = new Date(anno, mese, numero);
+                    const chiave = chiaveGiorno(giorno);
+                    const voci = perGiorno.get(chiave) ?? [];
+                    const eOggi = chiave === chiaveGiorno(oggi);
+                    const passato = !eOggi && giorno.getTime() < oggi.getTime();
+                    const scelto = chiave === giornoScelto;
+                    const nuovo = dataPerNuovoPost(giorno, null, oggi);
+                    return (
+                      <div key={chiave} role="button" tabIndex={0}
+                        aria-label={`${numero} ${MONTH_NAMES[mese]}: ${voci.length === 1 ? "1 post" : `${voci.length} post`}`}
+                        onClick={() => setGiornoScelto(scelto ? null : chiave)}
+                        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setGiornoScelto(scelto ? null : chiave); } }}
+                        className={cn(
+                          "group relative flex min-h-[104px] min-w-0 cursor-pointer flex-col gap-1 p-1.5 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-orange-400",
+                          scelto ? "bg-orange-50 ring-2 ring-inset ring-orange-400" : passato ? "bg-slate-50/70 hover:bg-orange-50/40" : "bg-white hover:bg-orange-50/40",
+                        )}>
+                        <div className="flex items-center justify-between">
+                          <span className={cn("flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold",
+                            eOggi ? "bg-orange-500 text-white" : passato ? "text-slate-400" : "text-slate-700")}>
+                            {numero}
                           </span>
-                          {dayPosts.length > 0 && (
-                            <span className="mt-0.5 rounded-full bg-orange-100 px-1.5 text-[9px] font-bold text-orange-700">{dayPosts.length}</span>
-                          )}
+                          <span className="flex items-center gap-1">
+                            {voci.length > 0 && (
+                              <span className={cn("flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-bold text-white", coloreConteggio(voci))}>
+                                {voci.length}
+                              </span>
+                            )}
+                            {nuovo && (
+                              <button type="button" aria-label={`Nuovo post il ${numero} ${MONTH_NAMES[mese]}`}
+                                onClick={(e) => { e.stopPropagation(); onNuovoPost(nuovo); }}
+                                className="flex h-5 w-5 items-center justify-center rounded-full bg-orange-500 text-white opacity-0 shadow-sm transition-opacity focus:opacity-100 group-hover:opacity-100">
+                                <Plus className="h-3 w-3" />
+                              </button>
+                            )}
+                          </span>
                         </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* Time rows */}
-                  {TIME_SLOTS.map((hour) => (
-                    <div key={hour} className="grid border-b last:border-b-0" style={{ gridTemplateColumns: "56px repeat(7,1fr)" }}>
-                      <div className="flex items-start justify-center border-r pt-1.5">
-                        <span className="text-[9px] font-medium text-slate-300">{hour}</span>
+                        {voci.slice(0, 3).map((voce) => <VoceCompatta key={voce.id} voce={voce} onApri={onApriVoce} />)}
+                        {voci.length > 3 && (
+                          <span className="rounded bg-slate-100 px-1 py-0.5 text-center text-[10px] font-semibold text-slate-500">
+                            altri {voci.length - 3}
+                          </span>
+                        )}
                       </div>
-                      {weekDays.map((d, di) => {
-                        const slotPosts = postsForDateAndHour(d, hour);
-                        const isToday = d.toDateString() === today.toDateString();
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* ── SETTIMANA (computer e tablet) ── */}
+          {vista === "week" && (
+            <Card className="hidden overflow-hidden sm:block">
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <div className="min-w-[640px]">
+                    <div className="grid border-b" style={{ gridTemplateColumns: "52px repeat(7, minmax(0, 1fr))" }}>
+                      <div className="border-r" />
+                      {giorniSettimana.map((g, i) => {
+                        const voci = perGiorno.get(chiaveGiorno(g)) ?? [];
+                        const eOggi = chiaveGiorno(g) === chiaveGiorno(oggi);
                         return (
-                          <div key={di} className={cn("min-h-[56px] border-r p-0.5 last:border-r-0", isToday ? "bg-blue-50/40" : "")}>
-                            {slotPosts.map((p, pi) => {
-                              const pl = PLATFORMS.find((pl) => pl.id === p.platforms[0]);
-                              const sc = STATUS_CONFIG[p.status];
-                              return (
-                                <div key={pi} className={cn("mb-0.5 rounded-md px-1.5 py-1 text-[10px] font-medium leading-tight", sc.calBg)}>
-                                  <div className="flex items-center gap-1">
-                                    <span className={cn("flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded text-[8px] font-bold text-white bg-gradient-to-br", pl?.gradient)}>
-                                      {pl?.icon}
-                                    </span>
-                                    <span className="font-semibold">
-                                      {new Date(p.scheduled_at).toLocaleTimeString("it", { hour:"2-digit", minute:"2-digit" })}
-                                    </span>
-                                  </div>
-                                  <p className="mt-0.5 line-clamp-1 opacity-80">
-                                    {p.text || "Post senza testo"}
-                                  </p>
-                                </div>
-                              );
-                            })}
+                          <div key={i} className={cn("flex flex-col items-center border-r py-2 last:border-r-0", eOggi && "bg-orange-50/60")}>
+                            <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{DAY_NAMES_FULL[i].slice(0, 3)}</span>
+                            <span className={cn("mt-0.5 flex h-8 w-8 items-center justify-center rounded-full text-base font-bold", eOggi ? "bg-orange-500 text-white" : "text-slate-700")}>
+                              {g.getDate()}
+                            </span>
+                            {voci.length > 0 && (
+                              <span className={cn("mt-0.5 rounded-full px-1.5 text-[9px] font-bold text-white", coloreConteggio(voci))}>{voci.length}</span>
+                            )}
                           </div>
                         );
                       })}
                     </div>
-                  ))}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* RIGHT PANEL */}
-        <div className="space-y-3">
-          {selectedDay ? (
-            /* Selected day detail */
-            <>
-              <div className="flex items-center justify-between">
-                <p className="text-sm font-bold text-slate-800">
-                  {new Date(selectedDay + "T12:00:00").toLocaleDateString("it", { weekday:"long", day:"numeric", month:"long" })}
-                </p>
-                <button type="button" onClick={() => setSelectedDay(null)} className="rounded-lg p-1 text-slate-400 hover:bg-slate-100"><X className="h-3.5 w-3.5" /></button>
-              </div>
-              {selectedPosts.length === 0 ? (
-                <div className="rounded-2xl border-2 border-dashed border-slate-200 p-6 text-center">
-                  <Calendar className="mx-auto mb-2 h-6 w-6 text-slate-300" />
-                  <p className="text-sm font-medium text-slate-500">Nessun post programmato</p>
-                  <Button size="sm" variant="outline" className="mt-3 gap-1.5" onClick={onNewPost}>
-                    <Plus className="h-3.5 w-3.5" /> Crea post per questo giorno
-                  </Button>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {selectedPosts
-                    .sort((a,b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime())
-                    .map((p) => {
-                      const sc = STATUS_CONFIG[p.status];
-                      const ct = CONTENT_TYPE_CONFIG.find((c) => c.id === p.contentType);
-                      return (
-                        <Card key={p.id} className="overflow-hidden">
-                          <CardContent className="p-3">
-                            <div className="flex items-start justify-between gap-2 mb-2">
-                              <div className="flex items-center gap-1.5">
-                                {p.platforms.slice(0, 4).map((id) => {
-                                  const pl = PLATFORMS.find((pl) => pl.id === id);
-                                  if (!pl) return null;
-                                  return (
-                                    <span key={id} className={cn("flex h-5 w-5 items-center justify-center rounded text-[9px] font-bold text-white bg-gradient-to-br", pl.gradient)}>
-                                      {pl.icon}
-                                    </span>
-                                  );
-                                })}
-                                {ct && (
-                                  <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-semibold text-slate-500">
-                                    {ct.label}
-                                  </span>
-                                )}
-                              </div>
-                              <Badge variant="outline" className={cn("text-[9px] shrink-0 py-0", sc.pill)}>
-                                {sc.label}
-                              </Badge>
-                            </div>
-                            <p className="line-clamp-2 text-[12px] text-slate-700">
-                              {p.text || <span className="italic text-slate-400">Nessun testo</span>}
-                            </p>
-                            {p.hashtags.length > 0 && (
-                              <p className="mt-1 text-[10px] text-orange-500">
-                                {p.hashtags.slice(0, 5).join(" ")}{p.hashtags.length > 5 ? ` +${p.hashtags.length - 5}` : ""}
-                              </p>
-                            )}
-                            <p className="mt-1.5 text-[10px] font-semibold text-slate-400">
-                              <Clock className="mr-1 inline h-2.5 w-2.5" />
-                              {new Date(p.scheduled_at).toLocaleTimeString("it", { hour:"2-digit", minute:"2-digit" })}
-                            </p>
-                            {describePublishResult(p.publishResult).slice(0, 3).map((issue) => (
-                              <p
-                                key={issue.text}
-                                className={cn(
-                                  "mt-1 text-[10px] leading-snug",
-                                  issue.tone === "error" ? "text-red-600" : issue.tone === "warning" ? "text-amber-700" : "text-violet-700",
-                                )}
-                              >
-                                {issue.text}
-                              </p>
-                            ))}
-                          </CardContent>
-                        </Card>
-                      );
-                    })}
-                </div>
-              )}
-            </>
-          ) : (
-            /* Upcoming posts */
-            <>
-              <p className="text-sm font-bold text-slate-800">Prossimi 14 giorni</p>
-              {upcomingPosts.length === 0 ? (
-                <div className="rounded-2xl border-2 border-dashed border-slate-200 p-6 text-center">
-                  <Zap className="mx-auto mb-2 h-6 w-6 text-slate-300" />
-                  <p className="text-sm font-medium text-slate-500">Nessun post in programma</p>
-                  <p className="mt-1 text-xs text-slate-400">Inizia a pianificare i tuoi contenuti</p>
-                  <Button size="sm" className="mt-3 gap-1.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white" onClick={onNewPost}>
-                    <Plus className="h-3.5 w-3.5" /> Crea il primo post
-                  </Button>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {upcomingPosts.map((p) => {
-                    const sc = STATUS_CONFIG[p.status];
-                    const dateLabel = new Date(p.scheduled_at).toLocaleDateString("it", { weekday:"short", day:"numeric", month:"short" });
-                    const timeLabel = new Date(p.scheduled_at).toLocaleTimeString("it", { hour:"2-digit", minute:"2-digit" });
-                    return (
-                      <div key={p.id} className="flex items-start gap-3 rounded-xl border border-slate-100 bg-white p-2.5 shadow-sm">
-                        {/* Timeline dot */}
-                        <div className="flex flex-col items-center gap-0.5 pt-0.5">
-                          <span className={cn("h-2.5 w-2.5 rounded-full", sc.dot)} />
-                          <div className="h-full w-px bg-slate-100" />
+                    {oreSettimana.map((ora) => (
+                      <div key={ora} className="grid border-b last:border-b-0" style={{ gridTemplateColumns: "52px repeat(7, minmax(0, 1fr))" }}>
+                        <div className="flex items-start justify-center border-r pt-1.5">
+                          <span className="text-[10px] font-medium tabular-nums text-slate-400">{String(ora).padStart(2, "0")}:00</span>
                         </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-1.5 mb-1">
-                            {p.platforms.slice(0,3).map((id) => {
-                              const pl = PLATFORMS.find((pl) => pl.id === id);
-                              if (!pl) return null;
-                              return (
-                                <span key={id} className={cn("flex h-4 w-4 items-center justify-center rounded text-[8px] font-bold text-white bg-gradient-to-br", pl.gradient)}>
-                                  {pl.icon}
+                        {giorniSettimana.map((g, di) => {
+                          const voci = (perGiorno.get(chiaveGiorno(g)) ?? []).filter((v) => v.quando.getHours() === ora);
+                          const nuovo = voci.length === 0 ? dataPerNuovoPost(g, ora, oggi) : null;
+                          const eOggi = chiaveGiorno(g) === chiaveGiorno(oggi);
+                          return (
+                            <div key={di}
+                              {...(nuovo ? {
+                                role: "button",
+                                tabIndex: 0,
+                                "aria-label": `Nuovo post ${DAY_NAMES_FULL[di]} ${g.getDate()} alle ${String(ora).padStart(2, "0")}:00`,
+                                onClick: () => onNuovoPost(nuovo),
+                                onKeyDown: (e: React.KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onNuovoPost(nuovo); } },
+                              } : {})}
+                              className={cn("group min-h-[52px] space-y-0.5 border-r p-0.5 last:border-r-0", eOggi && "bg-orange-50/30",
+                                nuovo && "cursor-pointer hover:bg-orange-50/60")}>
+                              {voci.map((voce) => <VoceCompatta key={voce.id} voce={voce} onApri={onApriVoce} />)}
+                              {nuovo && (
+                                <span className="hidden h-full items-center justify-center text-[10px] font-semibold text-orange-600 group-hover:flex">
+                                  <Plus className="mr-0.5 h-3 w-3" /> Post
                                 </span>
-                              );
-                            })}
-                            <span className="text-[10px] text-slate-400">{dateLabel} · {timeLabel}</span>
-                          </div>
-                          <p className="line-clamp-1 text-[11px] font-medium text-slate-700">
-                            {p.text || <span className="italic text-slate-400">Post senza testo</span>}
-                          </p>
-                        </div>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
-                    );
-                  })}
-                  <Button size="sm" variant="outline" className="w-full gap-1.5 text-xs" onClick={onNewPost}>
-                    <Plus className="h-3.5 w-3.5" /> Aggiungi post
-                  </Button>
+                    ))}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* ── TELEFONO: elenco per giorni ── */}
+          <div className="space-y-3 sm:hidden">
+            {agenda.length === 0 ? (
+              <div className="rounded-2xl border-2 border-dashed border-slate-200 p-5 text-center">
+                <p className="text-sm font-medium text-slate-600">
+                  {vista === "month" ? "Nessun post in questo mese" : "Nessun post in questa settimana"}
+                </p>
+                <Button size="sm" className="mt-3 gap-1.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white" onClick={() => onNuovoPost(null)}>
+                  <Plus className="h-3.5 w-3.5" /> Crea post
+                </Button>
+              </div>
+            ) : agenda.map(({ giorno, voci }) => {
+              const nuovo = dataPerNuovoPost(giorno, null, oggi);
+              return (
+                <div key={chiaveGiorno(giorno)} className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <p className={cn("text-xs font-bold capitalize", chiaveGiorno(giorno) === chiaveGiorno(oggi) ? "text-orange-600" : "text-slate-700")}>
+                      {giorno.toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}
+                    </p>
+                    {nuovo && (
+                      <button type="button" onClick={() => onNuovoPost(nuovo)} className="flex items-center gap-0.5 text-[11px] font-semibold text-orange-600">
+                        <Plus className="h-3 w-3" /> Post
+                      </button>
+                    )}
+                  </div>
+                  {voci.map((voce) => <VoceEstesa key={voce.id} voce={voce} onApri={onApriVoce} />)}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* ── A DESTRA ─────────────────────────────────────────────────── */}
+        <div className="min-w-0 space-y-4">
+          {giornoScelto && dataGiornoScelto ? (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-bold capitalize text-slate-800">
+                  {dataGiornoScelto.toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}
+                </p>
+                <button type="button" aria-label="Chiudi il giorno" onClick={() => setGiornoScelto(null)} className="rounded-lg p-1 text-slate-400 hover:bg-slate-100">
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              {vociGiornoScelto.length === 0 && (
+                <p className="rounded-xl border border-dashed border-slate-200 p-4 text-center text-xs text-slate-500">Nessun post in questo giorno.</p>
+              )}
+              {vociGiornoScelto.map((voce) => <VoceEstesa key={voce.id} voce={voce} onApri={onApriVoce} />)}
+              {nuovoNelGiornoScelto && (
+                <Button size="sm" variant="outline" className="w-full gap-1.5" onClick={() => onNuovoPost(nuovoNelGiornoScelto)}>
+                  <Plus className="h-3.5 w-3.5" /> Nuovo post in questo giorno
+                </Button>
+              )}
+            </div>
+          ) : nessunPost ? (
+            <div className="rounded-2xl border-2 border-dashed border-slate-200 p-6 text-center">
+              <Calendar className="mx-auto mb-2 h-6 w-6 text-slate-300" />
+              <p className="text-sm font-medium text-slate-600">Nessun post ancora</p>
+              <p className="mt-1 text-xs text-slate-400">Clicca un giorno del calendario o crea il primo post.</p>
+              <Button size="sm" className="mt-3 gap-1.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white" onClick={() => onNuovoPost(null)}>
+                <Plus className="h-3.5 w-3.5" /> Crea post
+              </Button>
+            </div>
+          ) : (
+            <>
+              {vociDaSistemare.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-sm font-bold text-red-700">Da sistemare</p>
+                  {vociDaSistemare.slice(0, 5).map((voce) => <VoceEstesa key={voce.id} voce={voce} onApri={onApriVoce} conData />)}
+                  {vociDaSistemare.length > 5 && <p className="text-[11px] text-slate-500">e altri {vociDaSistemare.length - 5}: filtra «Da sistemare».</p>}
                 </div>
               )}
+              <div className="hidden space-y-2 sm:block">
+                <p className="text-sm font-bold text-slate-800">Prossimi 14 giorni</p>
+                {vociProssime.length === 0
+                  ? <p className="text-xs text-slate-500">Niente in programma.</p>
+                  : vociProssime.map((voce) => <VoceEstesa key={voce.id} voce={voce} onApri={onApriVoce} conData />)}
+              </div>
             </>
           )}
 
-          {/* Best times hint */}
-          <Card className="border-slate-100 bg-gradient-to-br from-slate-50 to-white">
-            <CardContent className="p-3">
-              <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-400">⏰ Orari migliori per piattaforma</p>
-              <div className="space-y-1.5">
-                {PLATFORMS.slice(0,4).map((p) => (
-                  <div key={p.id} className="flex items-center gap-2">
-                    <span className={cn("flex h-5 w-5 shrink-0 items-center justify-center rounded text-[8px] font-bold text-white bg-gradient-to-br", p.gradient)}>{p.icon}</span>
-                    <div className="flex flex-wrap gap-1">
-                      {p.bestTimes.map((t) => (
-                        <span key={t} className="rounded-full border border-slate-100 bg-white px-1.5 py-0.5 text-[9px] font-medium text-slate-600">{t}</span>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+          {bozze.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-sm font-bold text-slate-800">
+                Bozze <span className="font-normal text-slate-400">{bozze.length}</span>
+              </p>
+              {(tutteLeBozze ? vociBozze : vociBozze.slice(0, 5)).map((voce) => (
+                <div key={voce.id} className="space-y-1">
+                  <VoceEstesa voce={voce} onApri={onApriVoce} conData={voce.tipo === "post" && haData(voce.post)} />
+                  {voce.tipo === "post" && voce.post.reviewNote && (
+                    <p className="rounded-lg bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-800">Rimandato: {voce.post.reviewNote}</p>
+                  )}
+                </div>
+              ))}
+              {bozze.length > 5 && (
+                <button type="button" onClick={() => setTutteLeBozze((v) => !v)} className="text-[11px] font-semibold text-orange-600">
+                  {tutteLeBozze ? "Mostra meno" : `Mostra tutte (${bozze.length})`}
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
+  );
+}
+
+// ─── Il post aperto: dettagli e azioni ─────────────────────────────────────────
+
+const ETICHETTE_AZIONI: Record<AzionePost, string> = {
+  approva: "Approva",
+  rimanda: "Rimanda",
+  pubblica_ora: "Pubblica adesso",
+  riprova: "Riprova",
+  programma: "Programma",
+  sposta: "Sposta",
+  annulla_programmazione: "Togli dalla programmazione",
+  modifica: "Modifica",
+  duplica: "Duplica",
+  elimina: "Elimina",
+};
+
+function PostSocialDialog({
+  voce,
+  onClose,
+  puoApprovare,
+  nomeUtente,
+  onAzione,
+}: {
+  voce: VoceCalendario | null;
+  onClose: () => void;
+  puoApprovare: boolean;
+  nomeUtente: (id?: string) => string | null;
+  onAzione: (post: ScheduledPost, azione: AzionePost, dati?: DatiAzione) => Promise<boolean>;
+}) {
+  const [aperta, setAperta] = useState<"sposta" | "programma" | "rimanda" | "elimina" | null>(null);
+  const [data, setData] = useState("");
+  const [ora, setOra] = useState("09:00");
+  const [nota, setNota] = useState("");
+  const [inCorso, setInCorso] = useState(false);
+  const [adesso] = useState(() => Date.now());
+
+  const post = voce?.tipo === "post" ? voce.post : null;
+  const esterno = voce?.tipo === "esterno" ? voce.esterno : null;
+  const info = post ? statoCalendario(post, adesso) : null;
+  const azioni = post ? azioniPost(post, { puoApprovare, adesso }) : [];
+  const fallite = post ? piattaformeFallite(post) : [];
+  const passato = post ? !haData(post) || Date.parse(post.scheduled_at) < adesso + 60_000 : false;
+  const idFacebook = post?.publishResult?.facebook?.ok ? post.publishResult.facebook.id : undefined;
+
+  const apriModulo = (modulo: "sposta" | "programma" | "rimanda" | "elimina") => {
+    setAperta(modulo);
+    if (modulo === "sposta" || modulo === "programma") {
+      // Si parte dalla data del post se è nel futuro, altrimenti da domani alle 9.
+      const futuro = post !== null && haData(post) && Date.parse(post.scheduled_at) > adesso;
+      const base = futuro && post ? new Date(post.scheduled_at) : new Date(adesso + 86_400_000);
+      setData(chiaveGiorno(base));
+      setOra(futuro ? oraBreve(base) : "09:00");
+    }
+    if (modulo === "rimanda") setNota("");
+  };
+
+  const esegui = async (azione: AzionePost, dati?: DatiAzione) => {
+    if (!post) return;
+    setInCorso(true);
+    try {
+      const ok = await onAzione(post, azione, dati);
+      if (ok) {
+        setAperta(null);
+        onClose();
+      }
+    } finally {
+      setInCorso(false);
+    }
+  };
+
+  const confermaData = (azione: "sposta" | "programma") => {
+    const quando = new Date(`${data}T${ora}`);
+    if (!data || Number.isNaN(quando.getTime())) {
+      toast.error("Scegli giorno e ora");
+      return;
+    }
+    if (quando.getTime() < Date.now() + 60_000) {
+      toast.error("Scegli un momento almeno un minuto nel futuro");
+      return;
+    }
+    void esegui(azione, { quando: quando.toISOString() });
+  };
+
+  const etichettaAzione = (azione: AzionePost) => {
+    if (azione === "approva" && passato) return "Approva e pubblica adesso";
+    if (azione === "riprova" && info?.stato === "uscito_in_parte" && fallite.length > 0) {
+      return `Riprova su ${elencoNomi(fallite.map(nomePiattaforma))}`;
+    }
+    return ETICHETTE_AZIONI[azione];
+  };
+
+  const principale = azioni.find((a) => a !== "modifica" && a !== "duplica" && a !== "elimina" && a !== "annulla_programmazione");
+
+  return (
+    <Dialog open={voce !== null} onOpenChange={(open) => { if (!open) { setAperta(null); onClose(); } }}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+        {esterno && (
+          <>
+            <DialogHeader>
+              <DialogTitle>Post su Facebook</DialogTitle>
+              <DialogDescription>
+                {esterno.pagina} · {new Date(esterno.quando).toLocaleString("it-IT", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })}
+              </DialogDescription>
+            </DialogHeader>
+            {esterno.immagine && <img loading="lazy" src={esterno.immagine} alt="" className="max-h-64 w-full rounded-xl object-cover" />}
+            <p className="whitespace-pre-line text-sm text-slate-700">{esterno.testo || "Post senza testo"}</p>
+            <p className="text-xs text-slate-500">Pubblicato direttamente su Facebook, non da qui: si modifica solo da Facebook.</p>
+            {esterno.link && (
+              <Button asChild variant="outline" className="w-full gap-1.5">
+                <a href={esterno.link} target="_blank" rel="noopener noreferrer"><ExternalLink className="h-4 w-4" /> Apri su Facebook</a>
+              </Button>
+            )}
+          </>
+        )}
+
+        {post && info && (
+          <>
+            <DialogHeader>
+              <DialogTitle className="flex flex-wrap items-center gap-2">
+                <IconePiattaforme ids={post.platforms} max={5} />
+                <span className={cn("rounded-full border px-2 py-0.5 text-xs font-semibold", STILE_STATO[info.stato].badge)}>{info.etichetta}</span>
+              </DialogTitle>
+              <DialogDescription>
+                {haData(post)
+                  ? new Date(post.scheduled_at).toLocaleString("it-IT", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })
+                  : "Senza data"}
+                {" · "}{elencoNomi(post.platforms.map(nomePiattaforma))}
+              </DialogDescription>
+            </DialogHeader>
+
+            {(post.media?.[0]?.url ?? post.image_url) && (post.media?.[0]?.type ?? "image") === "image" && (
+              <img loading="lazy" src={post.media?.[0]?.url ?? post.image_url} alt="" className="max-h-56 w-full rounded-xl object-cover" />
+            )}
+            <p className="max-h-48 overflow-y-auto whitespace-pre-line text-sm text-slate-700">{post.text || "Post senza testo"}</p>
+            {post.hashtags.length > 0 && <p className="text-xs text-orange-600">{post.hashtags.join(" ")}</p>}
+
+            {describePublishResult(post.publishResult).map((riga) => (
+              <p key={riga.text} className={cn("rounded-lg px-2.5 py-1.5 text-xs",
+                riga.tone === "error" ? "bg-red-50 text-red-700" : riga.tone === "warning" ? "bg-amber-50 text-amber-800" : "bg-violet-50 text-violet-700")}>
+                {riga.text}
+              </p>
+            ))}
+            {info.stato === "in_ritardo" && (
+              <p className="rounded-lg bg-orange-50 px-2.5 py-1.5 text-xs text-orange-800">
+                Doveva uscire e non è uscito. Pubblicalo adesso, spostalo o toglilo dalla programmazione.
+              </p>
+            )}
+            {post.reviewNote && post.status === "draft" && (
+              <p className="rounded-lg bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800">Rimandato: {post.reviewNote}</p>
+            )}
+            <p className="text-[11px] text-slate-400">
+              {[
+                nomeUtente(post.createdBy) ? `Scritto da ${nomeUtente(post.createdBy)}` : null,
+                post.approvatoDa ? `approvato da ${nomeUtente(post.approvatoDa) ?? "un amministratore"}${post.approvatoIl ? ` il ${new Date(post.approvatoIl).toLocaleDateString("it-IT")}` : ""}` : null,
+              ].filter(Boolean).join(" · ")}
+            </p>
+            {idFacebook && (
+              <a href={`https://www.facebook.com/${idFacebook}`} target="_blank" rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-xs font-semibold text-blue-700 hover:underline">
+                <ExternalLink className="h-3 w-3" /> Vedi su Facebook
+              </a>
+            )}
+            {post.status === "review" && !puoApprovare && (
+              <p className="text-xs text-slate-500">Lo approva il titolare o un amministratore: intanto puoi modificarlo o spostarlo.</p>
+            )}
+
+            {/* Moduli dell'azione scelta */}
+            {(aperta === "sposta" || aperta === "programma") && (
+              <div className="space-y-2 rounded-xl border border-slate-200 p-3">
+                <div className="grid grid-cols-2 gap-2">
+                  <Field label="Giorno"><Input type="date" value={data} onChange={(e) => setData(e.target.value)} /></Field>
+                  <Field label="Ora"><Input type="time" value={ora} onChange={(e) => setOra(e.target.value)} /></Field>
+                </div>
+                <div className="flex gap-2">
+                  <Button size="sm" className="flex-1 bg-orange-500 text-white hover:bg-orange-600" disabled={inCorso} onClick={() => confermaData(aperta)}>
+                    {aperta === "sposta" ? "Sposta qui" : "Programma"}
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => setAperta(null)}>Annulla</Button>
+                </div>
+              </div>
+            )}
+            {aperta === "rimanda" && (
+              <div className="space-y-2 rounded-xl border border-amber-200 bg-amber-50/50 p-3">
+                <Textarea rows={2} value={nota} onChange={(e) => setNota(e.target.value)} className="resize-none bg-white text-sm"
+                  placeholder="Cosa va cambiato? Es.: metti la foto del cantiere" />
+                <div className="flex gap-2">
+                  <Button size="sm" className="flex-1 bg-amber-600 text-white hover:bg-amber-700" disabled={inCorso}
+                    onClick={() => void esegui("rimanda", { nota })}>
+                    Rimanda in bozza
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => setAperta(null)}>Annulla</Button>
+                </div>
+              </div>
+            )}
+            {aperta === "elimina" && (
+              <div className="space-y-2 rounded-xl border border-red-200 bg-red-50/60 p-3">
+                <p className="text-sm text-red-800">
+                  Eliminare il post?
+                  {(post.status === "published") && " Resta su Facebook e Instagram: da qui si toglie solo dal calendario."}
+                </p>
+                <div className="flex gap-2">
+                  <Button size="sm" className="flex-1 bg-red-600 text-white hover:bg-red-700" disabled={inCorso} onClick={() => void esegui("elimina")}>
+                    Sì, elimina
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => setAperta(null)}>Annulla</Button>
+                </div>
+              </div>
+            )}
+
+            {aperta === null && azioni.length > 0 && (
+              <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-3">
+                {azioni.map((azione) => {
+                  const modulo = azione === "sposta" || azione === "programma" || azione === "rimanda" || azione === "elimina";
+                  return (
+                    <Button key={azione} size="sm" disabled={inCorso}
+                      variant={azione === principale ? "default" : "outline"}
+                      onClick={() => (modulo ? apriModulo(azione) : void esegui(azione))}
+                      className={cn(
+                        azione === principale && (azione === "approva" || azione === "pubblica_ora"
+                          ? "bg-emerald-600 text-white hover:bg-emerald-700"
+                          : "bg-orange-500 text-white hover:bg-orange-600"),
+                        azione === "elimina" && "border-red-200 text-red-600 hover:bg-red-50",
+                      )}>
+                      {inCorso && azione === principale ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
+                      {etichettaAzione(azione)}
+                    </Button>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -1317,12 +1575,6 @@ function settoreSocial(settore: string | undefined): string {
   return settore && settore in SEGMENT_LABELS ? settore : "edilizia";
 }
 
-/** «Facebook», «Facebook e Instagram», «LinkedIn, YouTube e TikTok». */
-function elencoNomi(nomi: string[]): string {
-  if (nomi.length <= 1) return nomi.join("");
-  return `${nomi.slice(0, -1).join(", ")} e ${nomi[nomi.length - 1]}`;
-}
-
 function PassoComposer({
   numero,
   titolo,
@@ -1357,15 +1609,63 @@ function PassoComposer({
   );
 }
 
+/**
+ * Da dove parte il composer quando lo apre il calendario: un giorno e un'ora
+ * scelti («nuovo»), un post da modificare, o un post da copiare in uno nuovo.
+ */
+interface InizialeComposer {
+  modo: "nuovo" | "modifica" | "duplica";
+  data?: string;
+  ora?: string;
+  post?: ScheduledPost;
+}
+
+/**
+ * I valori con cui nasce il composer. Il composer si rimonta a ogni apertura
+ * dal calendario (key), così parte già pieno, senza effetti che lo riempiono.
+ */
+function valoriIniziali(iniziale: InizialeComposer | null | undefined) {
+  const post = iniziale?.post;
+  const modifica = iniziale?.modo === "modifica" && post ? post : null;
+  const conData = modifica && haData(modifica) ? new Date(modifica.scheduled_at) : null;
+  const tipo = post?.contentType && CONTENT_TYPE_CONFIG.some((c) => c.id === post.contentType) ? post.contentType : "post";
+  const media: SocialPostMedia[] = post
+    ? (post.media && post.media.length > 0 ? post.media : post.image_url ? [{ url: post.image_url, type: "image" }] : [])
+    : [];
+  // Una foto sola, pubblica, in un post normale: torna foto principale. Il resto
+  // (carosello, video, file del bucket privato) resta tra i file del post.
+  const fotoPrincipale = media.length > 0 && tipo !== "carosello" && tipo !== "reel" && tipo !== "video" && !media[0].path;
+  const perPiattaforma = post?.platformTexts && Object.keys(post.platformTexts).length > 0 ? post.platformTexts : null;
+  return {
+    inModifica: modifica,
+    contentTypeId: tipo,
+    piattaforme: post ? post.platforms : null,
+    testo: post ? post.text : null,
+    perPiattaforma,
+    hashtags: post?.hashtags ?? [],
+    primoCommento: post?.firstComment ?? "",
+    mediaUrl: fotoPrincipale ? media[0].url ?? null : null,
+    extraMedia: fotoPrincipale ? [] : media,
+    targetPageIds: post?.targetPageIds ?? {},
+    publishNow: !(iniziale?.data || conData),
+    data: iniziale?.data ?? (conData ? chiaveGiorno(conData) : ""),
+    ora: iniziale?.ora ?? (conData ? oraBreve(conData) : "09:00"),
+    opzioniAperte: Boolean(post && (tipo !== "post" || perPiattaforma || post.firstComment)),
+  };
+}
+
 function ContentStudioTab({
   companyId,
   nomeAzienda,
   settoreAzienda,
   stato,
   verificaNonRiuscita = false,
+  puoApprovare = false,
+  iniziale,
   selectedMedia,
   onSelectedMediaConsumed,
   onPostScheduled,
+  onFineModifica,
   onMediaStored,
   onGoToSettings,
 }: {
@@ -1374,25 +1674,32 @@ function ContentStudioTab({
   settoreAzienda?: string;
   stato: StatoPubblicazioneSocial | null;
   verificaNonRiuscita?: boolean;
+  puoApprovare?: boolean;
+  iniziale?: InizialeComposer | null;
   selectedMedia?: MediaItem | null;
   onSelectedMediaConsumed?: () => void;
-  /** true se il post è stato salvato: solo allora il composer si svuota. */
-  onPostScheduled: (post: ScheduledPost) => Promise<boolean>;
+  /** true se il post è stato salvato: solo allora il composer si svuota. Con modificaId aggiorna quel post. */
+  onPostScheduled: (post: ScheduledPost, modificaId?: string) => Promise<boolean>;
+  /** Fine del lavoro partito dal calendario: salvato, o annullato. */
+  onFineModifica?: (salvato: boolean) => void;
   onMediaStored?: (media: MediaItem) => MediaItem | void | Promise<MediaItem | void | unknown>;
   onGoToSettings: () => void;
 }) {
+  const [avvio] = useState(() => valoriIniziali(iniziale));
+  const [inModifica, setInModifica] = useState<ScheduledPost | null>(avvio.inModifica);
+
   // ── Opzioni avanzate: formato e argomento ──────────────────────────────────
-  const [opzioniAperte, setOpzioniAperte] = useState(false);
+  const [opzioniAperte, setOpzioniAperte] = useState(avvio.opzioniAperte);
   const [activePillarId, setActivePillarId] = useState<string | null>(null);
-  const [contentTypeId, setContentTypeId] = useState("post");
+  const [contentTypeId, setContentTypeId] = useState(avvio.contentTypeId);
   const contentType = CONTENT_TYPE_CONFIG.find((c) => c.id === contentTypeId) ?? CONTENT_TYPE_CONFIG[0];
   const availablePlatforms = PLATFORMS.filter((p) => contentType.supportedBy.includes(p.id));
 
   // ── 1 · Dove: si parte dalle piattaforme che possono pubblicare davvero ────
   const pronte = useMemo(() => paginePronte(stato), [stato]);
   const piattaformeOk = useMemo(() => piattaformePronte(stato), [stato]);
-  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
-  const selezioneToccata = useRef(false);
+  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(avvio.piattaforme ?? []);
+  const selezioneToccata = useRef(avvio.piattaforme !== null);
 
   useEffect(() => {
     if (selezioneToccata.current || !stato) return;
@@ -1424,6 +1731,7 @@ function ContentStudioTab({
   // la scheda si chiude a metà).
   const AUTOSAVE_KEY = "social-composer-autosave-v1";
   const [postText, setPostText] = useState(() => {
+    if (avvio.testo !== null) return avvio.testo;
     try {
       const raw = typeof window !== "undefined" ? window.localStorage.getItem(AUTOSAVE_KEY) : null;
       if (!raw) return "";
@@ -1438,9 +1746,9 @@ function ContentStudioTab({
     return "";
   });
   const [copyVariants, setCopyVariants] = useState<string[]>([]);
-  const [hashtags, setHashtags] = useState<string[]>([]);
+  const [hashtags, setHashtags] = useState<string[]>(avvio.hashtags);
   const [hashtagInput, setHashtagInput] = useState("");
-  const [firstComment, setFirstComment] = useState("");
+  const [firstComment, setFirstComment] = useState(avvio.primoCommento);
 
   // Autosave debouncato a 30s: scrive solo se c'è del testo, altrimenti pulisce.
   useEffect(() => {
@@ -1469,8 +1777,8 @@ function ContentStudioTab({
   }, []);
 
   // ── Testo diverso per piattaforma (opzioni avanzate) ─────────────────────
-  const [crossPlatformMode, setCrossPlatformMode] = useState(false);
-  const [platformTexts, setPlatformTexts] = useState<Record<string, string>>({});
+  const [crossPlatformMode, setCrossPlatformMode] = useState(avvio.perPiattaforma !== null);
+  const [platformTexts, setPlatformTexts] = useState<Record<string, string>>(avvio.perPiattaforma ?? {});
 
   const setPlatformText = (platformId: string, text: string) =>
     setPlatformTexts((prev) => ({ ...prev, [platformId]: text }));
@@ -1486,12 +1794,12 @@ function ContentStudioTab({
   };
 
   // ── Foto e video ─────────────────────────────────────────────────────────
-  const [mediaUrl, setMediaUrl] = useState<string | null>(null);
+  const [mediaUrl, setMediaUrl] = useState<string | null>(avvio.mediaUrl);
   const [selectedLibraryMedia, setSelectedLibraryMedia] = useState<MediaItem | null>(null);
   // File caricati nel bucket social-media: il video del Reel, le slide del carosello.
-  const [extraMedia, setExtraMedia] = useState<SocialPostMedia[]>([]);
+  const [extraMedia, setExtraMedia] = useState<SocialPostMedia[]>(avvio.extraMedia);
   // Pagina/account di destinazione per piattaforma, quando ce n'è più d'uno.
-  const [targetPageIds, setTargetPageIds] = useState<Record<string, string>>({});
+  const [targetPageIds, setTargetPageIds] = useState<Record<string, string>>(avvio.targetPageIds);
 
   // ── AI: un solo ingresso, testo e foto ───────────────────────────────────
   const [aiAperta, setAiAperta] = useState(false);
@@ -1499,9 +1807,9 @@ function ContentStudioTab({
   const [segment, setSegment] = useState(() => settoreSocial(settoreAzienda));
 
   // ── 3 · Quando ───────────────────────────────────────────────────────────
-  const [scheduledDate, setScheduledDate] = useState("");
-  const [scheduledTime, setScheduledTime] = useState("09:00");
-  const [publishNow, setPublishNow] = useState(true);
+  const [scheduledDate, setScheduledDate] = useState(avvio.data);
+  const [scheduledTime, setScheduledTime] = useState(avvio.ora);
+  const [publishNow, setPublishNow] = useState(avvio.publishNow);
   // Gli errori si mostrano dopo il primo tentativo, non mentre si scrive.
   const [tentato, setTentato] = useState(false);
 
@@ -1730,7 +2038,14 @@ function ContentStudioTab({
     setCrossPlatformMode(false);
     setActivePillarId(null);
     setTentato(false);
+    setInModifica(null);
     clearAutosave(); // evita che la bozza autosalvata risorga al mount successivo
+  };
+
+  // Aperto dal calendario (giorno, modifica, copia): finito il lavoro si torna lì.
+  const chiudiLavoro = (salvato: boolean) => {
+    resetComposer();
+    onFineModifica?.(salvato);
   };
 
   const salvaBozza = async (status: "draft" | "review") => {
@@ -1739,11 +2054,15 @@ function ContentStudioTab({
       toast.error(selectedPlatforms.length === 0 ? "Scegli almeno una piattaforma." : "Scrivi il testo del post.");
       return;
     }
+    // Chi approva deve sapere quando uscirebbe: in approvazione si manda con giorno e ora.
+    if (status === "review" && !scheduledDate) {
+      toast.error("Scegli giorno e ora: servono a chi deve approvare");
+      return;
+    }
     setIsSubmitting(true);
 
-    const scheduledAt = scheduledDate
-      ? new Date(`${scheduledDate}T${scheduledTime}`).toISOString()
-      : new Date(Date.now() + 86400000).toISOString();
+    // Una bozza senza data resta senza data: prima finiva su «domani».
+    const scheduledAt = scheduledDate ? new Date(`${scheduledDate}T${scheduledTime}`).toISOString() : "";
     const bozza: ScheduledPost = {
       id: `local-${crypto.randomUUID()}`,
       platforms: selectedPlatforms,
@@ -1762,13 +2081,13 @@ function ContentStudioTab({
     };
 
     try {
-      if (!(await onPostScheduled(bozza))) return;
-      toast.success(status === "review" ? "Post mandato in approvazione" : "Bozza salvata", {
+      if (!(await onPostScheduled(bozza, inModifica?.id))) return;
+      toast.success(status === "review" ? (inModifica ? "Modifiche salvate" : "Post mandato in approvazione") : "Bozza salvata", {
         description: status === "review"
-          ? "Lo trovi nel calendario, tra i post da approvare. Non esce finché qualcuno non lo approva."
-          : "La trovi nel calendario. Non viene pubblicata.",
+          ? "Aspetta l'approvazione del titolare o di un amministratore, che ricevono un avviso."
+          : "La trovi tra le bozze del calendario. Non viene pubblicata.",
       });
-      resetComposer();
+      chiudiLavoro(true);
     } finally {
       setIsSubmitting(false);
     }
@@ -1851,14 +2170,14 @@ function ContentStudioTab({
 
     try {
       // «Pubblica ora»: l'esito vero (uscito, in elaborazione, errore) lo dice chi pubblica.
-      if (!(await onPostScheduled(newPost))) return;
+      if (!(await onPostScheduled(newPost, inModifica?.id))) return;
       if (!publishNow) {
         const dove = elencoNomi(newPost.platforms.map((id) => PLATFORMS.find((p) => p.id === id)?.name ?? id));
-        toast.success("Post programmato", {
+        toast.success(inModifica ? "Post aggiornato" : "Post programmato", {
           description: `Esce ${new Date(scheduledAt).toLocaleString("it-IT", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })} su ${dove}.`,
         });
       }
-      resetComposer();
+      chiudiLavoro(true);
     } finally {
       setIsSubmitting(false);
     }
@@ -1910,6 +2229,9 @@ function ContentStudioTab({
   ].filter((voce): voce is string => Boolean(voce));
 
   const mostraErrori = tentato && draftValidation.errors.length > 0;
+  // Chi non approva, modificando un post da approvare, lo lascia da approvare:
+  // cambiarne lo stato lo bloccherebbe il database.
+  const soloRevisione = inModifica?.status === "review" && !puoApprovare;
   // Sul pulsante, dove uscirà davvero il post.
   const doveEsce = elencoNomi(
     draftValidation.connectedSelectedPlatforms.map((id) => PLATFORMS.find((p) => p.id === id)?.name ?? id),
@@ -1918,6 +2240,22 @@ function ContentStudioTab({
   return (
     <div className="grid gap-4 xl:grid-cols-[1fr_320px]">
       <div className="min-w-0 space-y-4">
+
+        {inModifica && (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-2.5 text-xs text-blue-900">
+            <span>
+              <strong className="font-semibold">Stai modificando un post</strong>
+              {haData(inModifica)
+                ? ` del ${new Date(inModifica.scheduled_at).toLocaleString("it-IT", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })}`
+                : ""}
+              : salvando si aggiorna quello, non se ne crea uno nuovo.
+            </span>
+            <Button size="sm" variant="outline" className="h-7 border-blue-200 bg-white text-xs text-blue-800 hover:bg-blue-100"
+              onClick={() => chiudiLavoro(false)}>
+              Annulla modifica
+            </Button>
+          </div>
+        )}
 
         {/* ── 1 · DOVE ─────────────────────────────────────────────────── */}
         <PassoComposer numero={1} titolo="Dove" descrizione="Scegli dove pubblicare">
@@ -2426,6 +2764,18 @@ function ContentStudioTab({
             </div>
           )}
 
+          {soloRevisione ? (
+            <div className="space-y-2">
+              <p className="text-[11px] text-amber-800">
+                Il post è da approvare: salvando le modifiche resta in attesa del titolare o di un amministratore.
+              </p>
+              <Button onClick={() => void salvaBozza("review")} disabled={isSubmitting}
+                className="w-full bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:from-orange-600 hover:to-amber-600">
+                {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Pencil className="mr-2 h-4 w-4" />}
+                Salva le modifiche
+              </Button>
+            </div>
+          ) : (<>
           <div className="flex flex-col gap-2 sm:flex-row">
             <Button onClick={() => void onSchedulePost()} disabled={isSubmitting || nessunaPronta || !SOCIAL_LIVE_PUBLISHING_ENABLED}
               className={cn("flex-1 text-white shadow-sm",
@@ -2456,6 +2806,7 @@ function ContentStudioTab({
               Manda in approvazione prima di pubblicare
             </button>
           )}
+          </>)}
         </PassoComposer>
       </div>
 
@@ -3706,6 +4057,7 @@ function GestioneSocial({
     mediaItems: storedMediaItems,
     addPost,
     updatePost,
+    deletePost,
     addMedia,
     error: erroreDati,
     riprova: riprovaDati,
@@ -3720,11 +4072,85 @@ function GestioneSocial({
   const setTab = useCallback((tab: string) => setSearchParams({ tab }, { replace: true }), [setSearchParams]);
   const goToIntegrations = useCallback(() => navigate("/azienda/impostazioni/integrazioni"), [navigate]);
 
-  /** true se il post è salvato: il composer si svuota solo allora. */
-  const handlePostScheduled = useCallback(async (post: ScheduledPost): Promise<boolean> => {
-    let saved: ScheduledPost | undefined;
+  const puoApprovare = usePuoApprovareSocial(companyId).data === true;
+  const { data: persone } = useCompanyStaffUsers(companyId);
+  const nomeUtente = useCallback((id?: string): string | null => {
+    if (!id) return null;
+    const persona = persone?.find((p) => p.id === id);
+    const nome = [persona?.first_name, persona?.last_name].filter(Boolean).join(" ").trim();
+    return nome || null;
+  }, [persone]);
+
+  // Il composer si rimonta a ogni apertura dal calendario (giorno, modifica, copia).
+  const [iniziale, setIniziale] = useState<InizialeComposer | null>(null);
+  const [versioneComposer, setVersioneComposer] = useState(0);
+  const apriComposer = useCallback((nuovoIniziale: InizialeComposer | null) => {
+    setIniziale(nuovoIniziale);
+    setVersioneComposer((v) => v + 1);
+    setTab("crea-post");
+  }, [setTab]);
+  const fineLavoroComposer = useCallback((salvato: boolean) => {
+    const dalCalendario = iniziale !== null;
+    setIniziale(null);
+    setVersioneComposer((v) => v + 1);
+    if (dalCalendario && salvato) setTab("calendario");
+  }, [iniziale, setTab]);
+
+  const [voceAperta, setVoceAperta] = useState<VoceCalendario | null>(null);
+
+  /** Pubblica adesso (social-publish) e dice com'è andata, piattaforma per piattaforma. */
+  const pubblicaSubito = useCallback(async (id: string, riprova = false) => {
+    const { data, error } = await supabase.functions.invoke("social-publish", {
+      body: { post_id: id, company_id: companyId, ...(riprova ? { riprova: true } : {}) },
+    });
+    if (error) {
+      toast.error("Pubblicazione non riuscita", { description: await readInvokeError(error) });
+    } else {
+      const payload = data as { pending?: boolean; result?: Record<string, SocialPublishResultEntry> } | null;
+      const res = payload?.result ?? {};
+      const okCh = Object.entries(res).filter(([k, v]) => k !== "_error" && v?.ok).map(([k]) => nomePiattaforma(k));
+      const pendingCh = Object.entries(res).filter(([, v]) => v?.pending).map(([k]) => nomePiattaforma(k));
+      const errCh = Object.entries(res).filter(([k, v]) => k !== "_error" && v && v.ok === false && !v.pending);
+      const warnings = Object.values(res).flatMap((v) => v?.warnings ?? []);
+      if (okCh.length) toast.success(`Pubblicato su ${elencoNomi(okCh)}`);
+      if (pendingCh.length) {
+        toast.info(`${elencoNomi(pendingCh)}: Meta sta ancora elaborando il file`, {
+          description: "Il post esce da solo appena è pronto: l'esito compare nel calendario.",
+        });
+      } else if (payload?.pending && !okCh.length && !errCh.length) {
+        toast.info("Pubblicazione già in corso", { description: "L'esito compare nel calendario tra poco." });
+      }
+      if (errCh.length) toast.error(`Non pubblicato su ${elencoNomi(errCh.map(([k]) => nomePiattaforma(k)))}`, { description: errCh[0]?.[1]?.error });
+      if (warnings.length) toast.warning("Pubblicato con un avviso", { description: warnings[0] });
+    }
+    queryClient.invalidateQueries({ queryKey: ["social-manager", "posts", companyId] });
+  }, [companyId, queryClient]);
+
+  /** true se il post è salvato: il composer si svuota solo allora. Con modificaId aggiorna quel post. */
+  const handlePostScheduled = useCallback(async (post: ScheduledPost, modificaId?: string): Promise<boolean> => {
+    let saved: ScheduledPost | null | undefined;
     try {
-      saved = await addPost(post);
+      if (modificaId) {
+        saved = await updatePost(modificaId, {
+          platforms: post.platforms,
+          contentType: post.contentType,
+          text: post.text,
+          platformTexts: post.platformTexts,
+          image_url: post.image_url,
+          media: post.media ?? [],
+          targetPageIds: post.targetPageIds ?? {},
+          hashtags: post.hashtags,
+          firstComment: post.firstComment,
+          scheduled_at: post.scheduled_at,
+          status: post.status,
+          // Una bozza rimandata e poi sistemata perde la nota del rimando.
+          reviewNote: post.reviewNote,
+          mediaItemId: post.mediaItemId,
+        });
+        saved = saved ?? { ...post, id: modificaId };
+      } else {
+        saved = await addPost(post);
+      }
     } catch {
       // errore di salvataggio già notificato dall'onError della mutation
       return false;
@@ -3734,38 +4160,118 @@ function GestioneSocial({
     // futuro restano 'scheduled' e li pubblica il cron `social-publish-scheduler`.
     const id = saved?.id;
     const dueNow = saved?.scheduled_at ? new Date(saved.scheduled_at).getTime() <= Date.now() + 60_000 : false;
-    const isDbPost = typeof id === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(id);
-    if (SOCIAL_LIVE_PUBLISHING_ENABLED && dueNow && isDbPost && saved?.status === "scheduled") {
-      const nomeCanale = (k: string) => PLATFORMS.find((p) => p.id === k)?.name ?? k;
-      const { data, error } = await supabase.functions.invoke("social-publish", { body: { post_id: id, company_id: companyId } });
-      if (error) {
-        toast.error("Pubblicazione non riuscita", { description: error.message });
-      } else {
-        const payload = data as { pending?: boolean; result?: Record<string, SocialPublishResultEntry> } | null;
-        const res = payload?.result ?? {};
-        const okCh = Object.entries(res).filter(([, v]) => v?.ok).map(([k]) => nomeCanale(k));
-        const pendingCh = Object.entries(res).filter(([, v]) => v?.pending).map(([k]) => nomeCanale(k));
-        const errCh = Object.entries(res).filter(([, v]) => v && v.ok === false && !v.pending);
-        const warnings = Object.values(res).flatMap((v) => v?.warnings ?? []);
-        if (okCh.length) toast.success(`Pubblicato su ${okCh.join(" e ")}`);
-        if (pendingCh.length) {
-          toast.info(`${pendingCh.join(" e ")}: Meta sta ancora elaborando il file`, {
-            description: "Il post esce da solo appena è pronto: l'esito compare nel calendario.",
-          });
-        } else if (payload?.pending && !okCh.length && !errCh.length) {
-          toast.info("Pubblicazione già in corso", { description: "L'esito compare nel calendario tra poco." });
-        }
-        if (errCh.length) toast.error(`Non pubblicato su ${errCh.map(([k]) => nomeCanale(k)).join(" e ")}`, { description: errCh[0]?.[1]?.error });
-        if (warnings.length) toast.warning("Pubblicato con un avviso", { description: warnings[0] });
-      }
-      queryClient.invalidateQueries({ queryKey: ["social-manager", "posts", companyId] });
+    if (SOCIAL_LIVE_PUBLISHING_ENABLED && dueNow && isUuidPost(id) && saved?.status === "scheduled") {
+      await pubblicaSubito(id);
     }
     return true;
-  }, [addPost, companyId, queryClient]);
+  }, [addPost, pubblicaSubito, updatePost]);
 
-  const handleUpdatePost = useCallback((id: string, changes: Partial<ScheduledPost>) => {
-    updatePost(id, changes).catch(() => {});
-  }, [updatePost]);
+  /** Le azioni sul post dal calendario, con i controlli che il post esca davvero. */
+  const eseguiAzione = useCallback(async (post: ScheduledPost, azione: AzionePost, dati?: DatiAzione): Promise<boolean> => {
+    const stato = statoPubblicazione.stato;
+    const quandoDi = (iso: string) => new Date(iso).toLocaleString("it-IT", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" });
+    const soloPronte = (soloPiattaforme?: string[]) => {
+      const dest = destinazioniPronte(post, stato, soloPiattaforme);
+      if ("errore" in dest) toast.error("Non può uscire adesso", { description: dest.errore });
+      return "errore" in dest ? null : dest;
+    };
+    const tolteDette = (tolte: string[]) =>
+      tolte.length > 0 ? ` ${elencoNomi(tolte.map(nomePiattaforma))}: tolto, non può pubblicare adesso.` : "";
+    try {
+      switch (azione) {
+        case "approva": {
+          const dest = soloPronte();
+          if (!dest) return false;
+          const passato = !haData(post) || Date.parse(post.scheduled_at) < Date.now() + 60_000;
+          await updatePost(post.id, {
+            status: "scheduled",
+            platforms: dest.platforms,
+            targetPageIds: dest.targetPageIds,
+            reviewNote: undefined,
+            ...(passato ? { scheduled_at: new Date().toISOString() } : {}),
+          });
+          if (passato) {
+            await pubblicaSubito(post.id);
+          } else {
+            toast.success("Approvato", {
+              description: `Esce ${quandoDi(post.scheduled_at)} su ${elencoNomi(dest.platforms.map(nomePiattaforma))}.${tolteDette(dest.tolte)}`,
+            });
+          }
+          return true;
+        }
+        case "rimanda": {
+          await updatePost(post.id, { status: "draft", reviewNote: dati?.nota?.trim() || "Rimandato in bozza." });
+          const autore = nomeUtente(post.createdBy);
+          toast.info("Rimandato in bozza", { description: autore ? `${autore} riceve la nota.` : undefined });
+          return true;
+        }
+        case "pubblica_ora": {
+          const dest = soloPronte();
+          if (!dest) return false;
+          await updatePost(post.id, {
+            platforms: dest.platforms,
+            targetPageIds: dest.targetPageIds,
+            scheduled_at: new Date().toISOString(),
+            // Da approvare: chi lo pubblica adesso lo approva (il database controlla chi è).
+            ...(post.status === "review" ? { status: "scheduled" as const } : {}),
+          });
+          await pubblicaSubito(post.id);
+          return true;
+        }
+        case "riprova": {
+          if (post.status === "published") {
+            const fallite = piattaformeFallite(post);
+            if (!soloPronte(fallite)) return false;
+            await pubblicaSubito(post.id, true);
+            return true;
+          }
+          const dest = soloPronte();
+          if (!dest) return false;
+          await updatePost(post.id, { platforms: dest.platforms, targetPageIds: dest.targetPageIds });
+          await pubblicaSubito(post.id);
+          return true;
+        }
+        case "programma": {
+          if (!dati?.quando) return false;
+          const dest = soloPronte();
+          if (!dest) return false;
+          await updatePost(post.id, { status: "scheduled", scheduled_at: dati.quando, platforms: dest.platforms, targetPageIds: dest.targetPageIds });
+          toast.success("Programmato", { description: `Esce ${quandoDi(dati.quando)} su ${elencoNomi(dest.platforms.map(nomePiattaforma))}.${tolteDette(dest.tolte)}` });
+          return true;
+        }
+        case "sposta": {
+          if (!dati?.quando) return false;
+          const daRiprogrammare = post.status === "failed" || statoCalendario(post).stato === "in_ritardo";
+          await updatePost(post.id, { scheduled_at: dati.quando, ...(daRiprogrammare ? { status: "scheduled" as const } : {}) });
+          toast.success("Spostato", { description: `Ora esce ${quandoDi(dati.quando)}.` });
+          return true;
+        }
+        case "annulla_programmazione": {
+          await updatePost(post.id, { status: "draft" });
+          toast.success("Tolto dalla programmazione", { description: "Lo trovi tra le bozze: non esce finché non lo riprogrammi." });
+          return true;
+        }
+        case "modifica":
+          apriComposer({ modo: "modifica", post });
+          return true;
+        case "duplica":
+          apriComposer({ modo: "duplica", post });
+          toast.info("Copia pronta", { description: "Cambia quello che serve e scegli quando pubblicarla." });
+          return true;
+        case "elimina":
+          await deletePost(post.id);
+          toast.success("Post eliminato", {
+            description: post.status === "published" ? "Resta su Facebook e Instagram: da qui si toglie solo dal calendario." : undefined,
+          });
+          return true;
+        default:
+          return false;
+      }
+    } catch {
+      // L'errore l'ha già detto la mutation (per esempio «Solo il titolare o un amministratore…»).
+      return false;
+    }
+  }, [apriComposer, deletePost, nomeUtente, pubblicaSubito, statoPubblicazione.stato, updatePost]);
 
   const handleUseInPost = useCallback((item: MediaItem) => {
     setSelectedMediaForComposer(item);
@@ -3830,6 +4336,18 @@ function GestioneSocial({
           </div>
         </div>
 
+        {/* ─── IL POST APERTO DAL CALENDARIO ─────────────────────────── */}
+        <PostSocialDialog
+          key={voceAperta?.id ?? "nessuno"}
+          voce={voceAperta && voceAperta.tipo === "post"
+            ? { ...voceAperta, post: posts.find((p) => p.id === voceAperta.id) ?? voceAperta.post }
+            : voceAperta}
+          onClose={() => setVoceAperta(null)}
+          puoApprovare={puoApprovare}
+          nomeUtente={nomeUtente}
+          onAzione={eseguiAzione}
+        />
+
         {/* ─── BULK SCHEDULE MODAL ─────────────────────────────────────── */}
         {bulkModalOpen && (
           <BulkScheduleModal
@@ -3882,20 +4400,33 @@ function GestioneSocial({
           <div className="p-3 sm:p-4 md:p-6">
             {activeTab === "crea-post" && (
               <ContentStudioTab
+                key={versioneComposer}
                 companyId={companyId}
                 nomeAzienda={nomeAzienda}
                 settoreAzienda={settoreAzienda}
                 stato={statoPubblicazione.stato}
                 verificaNonRiuscita={statoPubblicazione.verificaNonRiuscita}
+                puoApprovare={puoApprovare}
+                iniziale={iniziale}
                 selectedMedia={selectedMediaForComposer}
                 onSelectedMediaConsumed={() => setSelectedMediaForComposer(null)}
                 onPostScheduled={handlePostScheduled}
+                onFineModifica={fineLavoroComposer}
                 onMediaStored={addMedia}
                 onGoToSettings={goToIntegrations}
               />
             )}
             {activeTab === "calendario" && (
-              <CalendarioTab posts={posts} onNewPost={() => setTab("crea-post")} onUpdatePost={handleUpdatePost} />
+              <CalendarioTab
+                companyId={companyId}
+                posts={posts}
+                stato={statoPubblicazione.stato}
+                puoApprovare={puoApprovare}
+                nomeUtente={nomeUtente}
+                onApriVoce={setVoceAperta}
+                onNuovoPost={(quando) => apriComposer(quando ? { modo: "nuovo", data: quando.data, ora: quando.ora } : null)}
+                onAzione={eseguiAzione}
+              />
             )}
             {activeTab === "grid" && (
               <GridPlannerTab posts={posts} demoMode={isDemoCompany} />

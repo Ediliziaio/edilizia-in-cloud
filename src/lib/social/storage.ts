@@ -200,9 +200,14 @@ export function socialPostFromRow(row: Record<string, any>): SocialScheduledPost
     publishResult: publishResultFromRow(row.publish_result),
     hashtags: Array.isArray(row.hashtags) ? row.hashtags : [],
     firstComment: row.first_comment ?? undefined,
-    scheduled_at: row.scheduled_at ?? row.created_at ?? new Date().toISOString(),
+    // Una bozza senza data resta senza data: prima prendeva quella di creazione.
+    scheduled_at: row.scheduled_at
+      ?? (normalizeSocialPostStatus(row.status) === "draft" ? "" : row.created_at ?? new Date().toISOString()),
     status: normalizeSocialPostStatus(row.status),
     created_at: row.created_at ?? new Date().toISOString(),
+    createdBy: row.created_by ?? undefined,
+    approvatoDa: row.approvato_da ?? undefined,
+    approvatoIl: row.approvato_il ?? undefined,
     reviewNote: row.review_note ?? undefined,
     mediaItemId: row.media_item_id ?? undefined,
   };
@@ -222,7 +227,7 @@ export function socialPostToInsert(companyId: string, post: SocialScheduledPost)
     image_url: sanitizeSocialMediaUrl(post.image_url) ?? null,
     hashtags: post.hashtags,
     first_comment: post.firstComment ?? null,
-    scheduled_at: post.scheduled_at,
+    scheduled_at: post.scheduled_at || null,
     status: normalizeSocialPostStatus(post.status),
     review_note: post.reviewNote ?? null,
     media_item_id: isUuid(post.mediaItemId) ? post.mediaItemId : null,
@@ -238,7 +243,7 @@ export function socialPostChangesToPatch(changes: Partial<SocialScheduledPost>) 
   if ("image_url" in changes) patch.image_url = sanitizeSocialMediaUrl(changes.image_url) ?? null;
   if ("hashtags" in changes) patch.hashtags = changes.hashtags ?? [];
   if ("firstComment" in changes) patch.first_comment = changes.firstComment ?? null;
-  if ("scheduled_at" in changes) patch.scheduled_at = changes.scheduled_at;
+  if ("scheduled_at" in changes) patch.scheduled_at = changes.scheduled_at || null;
   if ("status" in changes) patch.status = normalizeSocialPostStatus(changes.status);
   if ("reviewNote" in changes) patch.review_note = changes.reviewNote ?? null;
   if ("mediaItemId" in changes) patch.media_item_id = isUuid(changes.mediaItemId) ? changes.mediaItemId : null;

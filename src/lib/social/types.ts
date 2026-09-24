@@ -37,9 +37,14 @@ export interface SocialScheduledPost {
   image_url?: string;
   hashtags: string[];
   firstComment?: string;
+  /** Vuoto = bozza senza data: non sta nel calendario, ma nell'elenco delle bozze. */
   scheduled_at: string;
   status: SocialPostStatus;
   created_at: string;
+  /** Chi l'ha scritto, chi l'ha approvato e quando (social_posts.created_by / approvato_da / approvato_il). */
+  createdBy?: string;
+  approvatoDa?: string;
+  approvatoIl?: string;
   reviewNote?: string;
   mediaItemId?: string;
   /** pagina di destinazione per piattaforma (page_id); vuoto = unica pagina collegata */

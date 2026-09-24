@@ -202,6 +202,29 @@ export function useSocialManagerData(companyId: string | undefined) {
     },
   });
 
+  const deletePostMutation = useMutation({
+    mutationFn: async (id: string) => {
+      if (!companyId) throw new Error("no_company_id");
+      // Un post rimasto nel browser (id non uuid) si toglie lì.
+      if (!isUuid(id)) {
+        setLocalPosts((prev) => {
+          const next = prev.filter((p) => p.id !== id);
+          saveSocialPostsLocal(companyId, next);
+          return next;
+        });
+        return;
+      }
+      const { error } = await fromTable("social_posts").delete().eq("id", id).eq("company_id", companyId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["social-manager", "posts", companyId] });
+    },
+    onError: (err) => {
+      toast.error("Post non eliminato", { description: String((err as Error).message ?? err) });
+    },
+  });
+
   const addMediaMutation = useMutation({
     mutationFn: async (item: SocialMediaItem) => {
       if (!companyId) throw new Error("no_company_id");
@@ -241,6 +264,11 @@ export function useSocialManagerData(companyId: string | undefined) {
     [addMediaMutation],
   );
 
+  const deletePost = useCallback(
+    (id: string) => deletePostMutation.mutateAsync(id),
+    [deletePostMutation],
+  );
+
   // Un errore vero (rete, permessi, database) si dice: prima finiva in un
   // console.warn e la pagina mostrava i dati rimasti nel browser, o niente,
   // come se l'azienda non avesse post.
@@ -265,6 +293,7 @@ export function useSocialManagerData(companyId: string | undefined) {
     mediaItems: mediaQuery.data === null ? localMedia : mediaQuery.data ?? [],
     addPost,
     updatePost,
+    deletePost,
     addMedia,
     isLoading: accountsQuery.isLoading || postsQuery.isLoading || mediaQuery.isLoading,
     error,
@@ -274,6 +303,7 @@ export function useSocialManagerData(companyId: string | undefined) {
     accountsQuery.isLoading,
     addMedia,
     addPost,
+    deletePost,
     error,
     localAccounts,
     localMedia,

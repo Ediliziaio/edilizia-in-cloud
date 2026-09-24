@@ -1306,8 +1306,19 @@ Deno.serve(async (req) => {
         const fields =
           "id,message,story,created_time,permalink_url,full_picture," +
           "reactions.summary(true).limit(0),comments.summary(true).limit(0),shares";
+        // Il calendario social chiede i post di un periodo (un mese, una
+        // settimana): since/until in secondi, al massimo 100 post.
+        const secondi = (valore: unknown): number | null => {
+          if (typeof valore !== "string" && typeof valore !== "number") return null;
+          const ms = typeof valore === "number" ? valore * 1000 : Date.parse(valore);
+          return Number.isFinite(ms) ? Math.floor(ms / 1000) : null;
+        };
+        const da = secondi(body.since);
+        const a = secondi(body.until);
+        const quanti = Math.min(Math.max(Number(body.limit) || 10, 1), 100);
+        const periodo = `${da != null ? `&since=${da}` : ""}${a != null ? `&until=${a}` : ""}`;
         const postsRes = await fetchWithRetry(
-          `https://graph.facebook.com/${apiVersion}/${pageId}/posts?fields=${encodeURIComponent(fields)}&limit=10&access_token=${pageAccessToken}`,
+          `https://graph.facebook.com/${apiVersion}/${pageId}/posts?fields=${encodeURIComponent(fields)}&limit=${quanti}${periodo}&access_token=${pageAccessToken}`,
         );
         const postsData = await postsRes.json();
         if (!postsRes.ok) {

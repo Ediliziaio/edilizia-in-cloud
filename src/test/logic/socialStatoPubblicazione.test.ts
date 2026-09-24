@@ -147,7 +147,9 @@ describe("la pagina Social", () => {
     expect(pagina).toContain("piattaformePronte(stato)");
     expect(pagina).toContain("connectedPlatformIds: piattaformeOk");
     expect(pagina).toContain("accounts: pronte");
-    expect(pagina).toContain("const [publishNow, setPublishNow] = useState(true);");
+    // «Pubblica ora» salvo un giorno scelto dal calendario o un post programmato da modificare.
+    expect(pagina).toContain("publishNow: !(iniziale?.data || conData),");
+    expect(pagina).toContain("const [publishNow, setPublishNow] = useState(avvio.publishNow);");
     expect(pagina).not.toContain('useState<string[]>(["facebook", "instagram"])');
   });
 
@@ -156,7 +158,8 @@ describe("la pagina Social", () => {
     expect(pagina).toContain('titolo="Cosa"');
     expect(pagina).toContain('titolo="Quando"');
     expect(pagina).toContain("Opzioni avanzate");
-    expect(pagina).toContain("const [opzioniAperte, setOpzioniAperte] = useState(false);");
+    expect(pagina).toContain("const [opzioniAperte, setOpzioniAperte] = useState(avvio.opzioniAperte);");
+    expect(pagina).toContain('opzioniAperte: Boolean(post && (tipo !== "post" || perPiattaforma || post.firstComment)),');
   });
 
   it("niente gergo né finzioni: anteprima col nome vero, niente hashtag «AI» finti", () => {
@@ -173,9 +176,9 @@ describe("la pagina Social", () => {
   });
 
   it("il composer si svuota solo se il post è salvato davvero", () => {
-    expect(pagina).toContain("onPostScheduled: (post: ScheduledPost) => Promise<boolean>;");
-    expect(pagina).toContain("if (!(await onPostScheduled(newPost))) return;");
-    expect(pagina).toContain("if (!(await onPostScheduled(bozza))) return;");
+    expect(pagina).toContain("onPostScheduled: (post: ScheduledPost, modificaId?: string) => Promise<boolean>;");
+    expect(pagina).toContain("if (!(await onPostScheduled(newPost, inModifica?.id))) return;");
+    expect(pagina).toContain("if (!(await onPostScheduled(bozza, inModifica?.id))) return;");
   });
 
   it("la pagina con più pagine collegate pubblica su quella pronta, detta esplicitamente", () => {
