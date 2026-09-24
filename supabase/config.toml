@@ -1085,6 +1085,13 @@ verify_jwt = false
 [functions.sdi-stato-tick]
 verify_jwt = false
 
+# Fatture dei fornitori da openapi: la chiamano pg_cron (x-cron-secret),
+# openapi quando arriva una fattura (x-callback-token, ricalcolato dalla chiave
+# di servizio) e l'app col JWT dell'utente («Controlla adesso»). Nessuno dei
+# primi due ha un JWT: il controllo è dentro la funzione.
+[functions.openapi-fatture-ricevute]
+verify_jwt = false
+
 # ── Le otto funzioni aperte SENZA alcun controllo (trovate il 20/09/2026) ─────
 # In produzione erano verify_jwt = false, aperte a mano, e nel codice non
 # guardavano chi chiama: bastava conoscere l'URL per farle lavorare con la

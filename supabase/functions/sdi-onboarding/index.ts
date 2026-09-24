@@ -6,11 +6,21 @@
 // stato 'registrato'). L'attivazione finale (delega SDI) resta un passo fiscale
 // che si completa nel pannello openapi / AdE.
 //
+// Dal 24/09/2026 la registrazione chiede anche la RICEZIONE (supplier_invoice)
+// e lascia a openapi l'indirizzo da chiamare quando arriva una fattura di un
+// fornitore (openapi-fatture-ricevute, con un gettone nell'intestazione).
+// Da sola non cambia niente: le fatture arrivano a openapi solo se l'azienda
+// registra all'Agenzia delle Entrate il codice destinatario PIC7CPS. Se openapi
+// rifiuta la parte nuova, si riprova senza: l'invio non deve mai restare
+// bloccato per la ricezione. Per un'azienda già registrata si aggiorna la
+// configurazione (PATCH), e un nuovo clic su «Ri-verifica» la rimette a posto.
+//
 // Auth: JWT utente con accesso all'azienda (verifyCompanyAccess). company_id nel body.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { verifyCompanyAccess } from "../_shared/companyAuth.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { leggiImpostazionePiattaforma } from "../_shared/getPlatformSetting.ts";
+import { gettoneCallback } from "../_shared/ricevuteOpenapi.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: getCorsHeaders(req) });
@@ -55,25 +65,66 @@ Deno.serve(async (req) => {
     const invBase = (env === "sandbox" || env === "test") ? "test.invoice.openapi.com" : "invoice.openapi.com";
     if (!token) return json({ error: "openapi_it_token non configurato (scope SDI Electronic Invoicing)." }, 400);
 
-    // Registrazione cedente (idempotente)
+    // Invio e ricezione, più la chiamata di openapi quando arriva una fattura.
+    const ricezione = {
+      customer_invoice: true,
+      supplier_invoice: true,
+      api_configurations: [{
+        event: "supplier-invoice",
+        callback: {
+          url: `${Deno.env.get("SUPABASE_URL")}/functions/v1/openapi-fatture-ricevute`,
+          method: "JSON",
+          field: "data",
+          retry: 3,
+          headers: { "x-callback-token": await gettoneCallback(Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!) },
+        },
+      }],
+    };
+    const senzaCallback = { customer_invoice: true, supplier_invoice: true };
+    const auth = { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" };
+    // deno-lint-ignore no-explicit-any
+    const chiama = async (metodo: string, url: string, corpo: unknown): Promise<{ ok: boolean; status: number; result: any }> => {
+      const resp = await fetch(url, { method: metodo, headers: auth, body: JSON.stringify(corpo) });
+      const result = await resp.json().catch((): null => null);
+      // Serve un corpo leggibile: un 200 vuoto non è una conferma.
+      return { ok: resp.ok && !!result && result.success !== false, status: resp.status, result };
+    };
+    const giaPresente = (result: { error?: unknown; message?: unknown } | null) =>
+      result?.error === 111 || /already exists/i.test(String(result?.message || ""));
+
+    // Registrazione cedente (idempotente). Tre corpi, dal più completo a quello
+    // di prima del 24/09: si scende solo se openapi rifiuta i dati (4xx), non se
+    // è giù (5xx o rete), che si ritenta col prossimo clic.
     let stato = "errore";
     let lastError: string | null = null;
     let providerConfigId: string | null = null;
+    let ricezioneStato: string | null = null;
     try {
-      const resp = await fetch(`https://${invBase}/IT-configurations`, {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ fiscal_id: fiscalId, name, email }),
-      });
-      const result = await resp.json().catch(() => null) as any;
-      if (resp.ok && result && result.success !== false) {
-        // Richiede un body parseabile (un 200 vuoto/non-JSON NON è una conferma).
-        stato = "registrato";
-        providerConfigId = result?.data?.id || result?.data?.uuid || null;
-      } else if (result?.error === 111 || /already exists/i.test(String(result?.message || ""))) {
-        stato = "registrato"; // già presente → ok
-      } else {
-        lastError = result?.message || `HTTP ${resp.status}`;
+      const corpi: Array<[string, Record<string, unknown>]> = [
+        ["con_callback", { fiscal_id: fiscalId, name, email, ...ricezione }],
+        ["senza_callback", { fiscal_id: fiscalId, name, email, ...senzaCallback }],
+        ["solo_invio", { fiscal_id: fiscalId, name, email }],
+      ];
+      for (const [tipo, corpo] of corpi) {
+        const r = await chiama("POST", `https://${invBase}/IT-configurations`, corpo);
+        if (r.ok) {
+          stato = "registrato";
+          providerConfigId = r.result?.data?.id || r.result?.data?.uuid || null;
+          ricezioneStato = tipo;
+          lastError = null;
+          break;
+        }
+        if (giaPresente(r.result)) {
+          stato = "registrato"; // già presente → ok, si aggiorna la configurazione
+          const url = `https://${invBase}/IT-configurations/${fiscalId}`;
+          const p1 = await chiama("PATCH", url, ricezione);
+          const p2 = p1.ok ? p1 : await chiama("PATCH", url, senzaCallback);
+          ricezioneStato = p1.ok ? "con_callback" : p2.ok ? "senza_callback" : "non_aggiornata";
+          if (!p2.ok) lastError = `Ricezione non attivata su openapi: ${p2.result?.message || `HTTP ${p2.status}`}`;
+          break;
+        }
+        lastError = r.result?.message || `HTTP ${r.status}`;
+        if (r.status >= 500) break;
       }
     } catch (e) {
       lastError = (e as Error).message;
@@ -85,6 +136,9 @@ Deno.serve(async (req) => {
       provider_config_id: providerConfigId, stato, last_error: lastError,
       registered_at: stato === "registrato" ? new Date().toISOString() : null,
       last_checked_at: new Date().toISOString(),
+      // Com'è stata configurata la ricezione: con la callback, solo col giro
+      // orario, o per niente (registrazione di prima del 24/09).
+      ricezione_openapi: ricezioneStato,
     }, { onConflict: "company_id" }).select("*").single();
     if (upErr) return json({ error: `Errore salvataggio stato: ${upErr.message}` }, 500);
 
@@ -96,7 +150,7 @@ Deno.serve(async (req) => {
       config: row,
       // promemoria: la registrazione non basta — serve la delega/attivazione SDI
       next_step: stato === "registrato"
-        ? "Cedente registrato. Completa la delega SDI (codice destinatario / delega AdE) per attivare invio e ricezione."
+        ? "Azienda registrata: le fatture partono allo SDI. Per ricevere qui quelle dei fornitori, registra all'Agenzia delle Entrate il codice destinatario PIC7CPS."
         : "Registrazione fallita: verifica i dati anagrafici e il token openapi.",
     }, stato === "registrato" ? 200 : 502);
   } catch (err) {

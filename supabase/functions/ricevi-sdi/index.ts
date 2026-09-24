@@ -1,183 +1,20 @@
 // supabase/functions/ricevi-sdi/index.ts
 // Edge Function per ricevere fatture passive dal SDI (via webhook Aruba o upload manuale)
-// Parsea XML FatturaPA, estrae i dati e salva in fatture_ricevute
+// Parsea XML FatturaPA, estrae i dati e salva in fatture_ricevute.
+//
+// Dal 24/09/2026 lettura e salvataggio stanno in _shared (fatturaRicevutaXml.ts
+// e salvaFatturaRicevuta.ts): li usa anche openapi-fatture-ricevute, e le due
+// strade devono registrare la stessa fattura allo stesso modo.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { DOMParser } from "https://deno.land/x/deno_dom@v0.1.45/deno-dom-wasm.ts";
 import { corsHeaders } from "../_shared/headers.ts";
 import { verifyCompanyAccess } from "../_shared/companyAuth.ts";
+import type { LettoreXml } from "../_shared/fatturapaReader.ts";
+import { leggiFatturaRicevuta } from "../_shared/fatturaRicevutaXml.ts";
+import { avvisaFatturaRicevuta, salvaFatturaRicevuta } from "../_shared/salvaFatturaRicevuta.ts";
 
-// ─── XML Parser Helpers (DOMParser via deno-dom WASM) ─────────────
-
-function getTagText(doc: Document, tag: string): string {
-  const el = doc.getElementsByTagName(tag)[0];
-  return el?.textContent?.trim() ?? "";
-}
-
-function getTagNum(doc: Document, tag: string): number {
-  const v = getTagText(doc, tag);
-  return v ? parseFloat(v) || 0 : 0;
-}
-
-interface ParsedFattura {
-  cedente_piva: string;
-  cedente_cf: string;
-  cedente_ragione_sociale: string;
-  cedente_paese: string;
-  cedente_indirizzo: string;
-  cedente_cap: string;
-  cedente_comune: string;
-  cedente_provincia: string;
-  tipo_documento: string;
-  numero_fattura: string;
-  data_fattura: string;
-  imponibile_totale: number;
-  iva_totale: number;
-  totale_documento: number;
-  righe: Array<Record<string, unknown>>;
-  riepilogo_iva: Array<Record<string, unknown>>;
-  sdi_id_trasmissione: string;
-  sdi_progressivo: string;
-}
-
-function parseFatturaPA(xmlString: string): ParsedFattura {
-  const doc = new DOMParser().parseFromString(xmlString, "text/xml");
-  if (!doc) {
-    throw new Error("XML FatturaPA non parsabile (body vuoto o non valido)");
-  }
-
-  // Trasmissione
-  const sdiId = getTagText(doc, "IdentificativoSdI");
-  const progressivo = getTagText(doc, "ProgressivoInvio");
-
-  // Cedente (fornitore)
-  const cedenti = doc.getElementsByTagName("CedentePrestatore");
-  const ced = cedenti[0];
-  let cedPiva = "";
-  let cedCf = "";
-  let cedRagSoc = "";
-  let cedPaese = "IT";
-  let cedIndirizzo = "";
-  let cedCap = "";
-  let cedComune = "";
-  let cedProvincia = "";
-
-  if (ced) {
-    const idFiscale = ced.getElementsByTagName("IdFiscaleIVA")[0];
-    if (idFiscale) {
-      cedPaese = idFiscale.getElementsByTagName("IdPaese")[0]?.textContent?.trim() ?? "IT";
-      cedPiva = idFiscale.getElementsByTagName("IdCodice")[0]?.textContent?.trim() ?? "";
-    }
-    cedCf = ced.getElementsByTagName("CodiceFiscale")[0]?.textContent?.trim() ?? "";
-    cedRagSoc = ced.getElementsByTagName("Denominazione")[0]?.textContent?.trim() ?? "";
-    if (!cedRagSoc) {
-      const nome = ced.getElementsByTagName("Nome")[0]?.textContent?.trim() ?? "";
-      const cognome = ced.getElementsByTagName("Cognome")[0]?.textContent?.trim() ?? "";
-      cedRagSoc = [nome, cognome].filter(Boolean).join(" ");
-    }
-    const sede = ced.getElementsByTagName("Sede")[0];
-    if (sede) {
-      cedIndirizzo = sede.getElementsByTagName("Indirizzo")[0]?.textContent?.trim() ?? "";
-      cedCap = sede.getElementsByTagName("CAP")[0]?.textContent?.trim() ?? "";
-      cedComune = sede.getElementsByTagName("Comune")[0]?.textContent?.trim() ?? "";
-      cedProvincia = sede.getElementsByTagName("Provincia")[0]?.textContent?.trim() ?? "";
-    }
-  }
-
-  // Dati generali documento
-  const tipoDoc = getTagText(doc, "TipoDocumento") || "TD01";
-  const numero = getTagText(doc, "Numero");
-  const data = getTagText(doc, "Data");
-  const totaleDocs = getTagNum(doc, "ImportoTotaleDocumento");
-
-  // Righe (DettaglioLinee)
-  const righeNodes = doc.getElementsByTagName("DettaglioLinee");
-  const righe: Array<Record<string, unknown>> = [];
-  let imponibileTot = 0;
-
-  for (let i = 0; i < righeNodes.length; i++) {
-    const r = righeNodes[i];
-    const descrizione = r.getElementsByTagName("Descrizione")[0]?.textContent?.trim() ?? "";
-    const quantita = parseFloat(r.getElementsByTagName("Quantita")[0]?.textContent ?? "1") || 1;
-    const prezzoUnitario = parseFloat(r.getElementsByTagName("PrezzoUnitario")[0]?.textContent ?? "0") || 0;
-    const prezzoTotale = parseFloat(r.getElementsByTagName("PrezzoTotale")[0]?.textContent ?? "0") || 0;
-    const aliquotaIva = parseFloat(r.getElementsByTagName("AliquotaIVA")[0]?.textContent ?? "0") || 0;
-    const natura = r.getElementsByTagName("Natura")[0]?.textContent?.trim() ?? null;
-
-    imponibileTot += prezzoTotale;
-    righe.push({
-      numero_linea: i + 1,
-      descrizione,
-      quantita,
-      prezzo_unitario: prezzoUnitario,
-      imponibile: prezzoTotale,
-      aliquota_iva: String(aliquotaIva),
-      natura_iva: natura,
-    });
-  }
-
-  // Riepilogo IVA (DatiRiepilogo)
-  const riepilogoNodes = doc.getElementsByTagName("DatiRiepilogo");
-  const riepilogoIva: Array<Record<string, unknown>> = [];
-  let ivaTot = 0;
-
-  for (let i = 0; i < riepilogoNodes.length; i++) {
-    const r = riepilogoNodes[i];
-    const aliquota = parseFloat(r.getElementsByTagName("AliquotaIVA")[0]?.textContent ?? "0") || 0;
-    const imponibile = parseFloat(r.getElementsByTagName("ImponibileImporto")[0]?.textContent ?? "0") || 0;
-    const imposta = parseFloat(r.getElementsByTagName("Imposta")[0]?.textContent ?? "0") || 0;
-    const natura = r.getElementsByTagName("Natura")[0]?.textContent?.trim() ?? null;
-
-    ivaTot += imposta;
-    riepilogoIva.push({ aliquota: String(aliquota), natura, imponibile, imposta });
-  }
-
-  return {
-    cedente_piva: cedPiva,
-    cedente_cf: cedCf,
-    cedente_ragione_sociale: cedRagSoc || "Fornitore sconosciuto",
-    cedente_paese: cedPaese,
-    cedente_indirizzo: cedIndirizzo,
-    cedente_cap: cedCap,
-    cedente_comune: cedComune,
-    cedente_provincia: cedProvincia,
-    tipo_documento: tipoDoc,
-    numero_fattura: numero,
-    data_fattura: data,
-    imponibile_totale: Math.round(imponibileTot * 100) / 100,
-    iva_totale: Math.round(ivaTot * 100) / 100,
-    totale_documento: totaleDocs || Math.round((imponibileTot + ivaTot) * 100) / 100,
-    righe,
-    riepilogo_iva: riepilogoIva,
-    sdi_id_trasmissione: sdiId,
-    sdi_progressivo: progressivo,
-  };
-}
-
-// Cerca una fattura passiva già esistente: prima per IdentificativoSdI (se
-// presente nell'XML), poi per chiave naturale (cedente P.IVA + numero + data).
-// L'IdentificativoSdI è assegnato da SDI e spesso NON è nell'XML del cedente,
-// quindi senza la chiave naturale ogni redelivery del webhook inserirebbe un dup.
-async function findExistingFattura(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  supabase: any, companyId: string, parsed: ParsedFattura,
-): Promise<string | null> {
-  if (parsed.sdi_id_trasmissione) {
-    const { data } = await supabase.from("fatture_ricevute").select("id")
-      .eq("sdi_id_trasmissione", parsed.sdi_id_trasmissione).limit(1).maybeSingle();
-    if (data?.id) return data.id;
-  }
-  if (parsed.cedente_piva && parsed.numero_fattura && parsed.data_fattura) {
-    const { data } = await supabase.from("fatture_ricevute").select("id")
-      .eq("company_id", companyId)
-      .eq("cedente_piva", parsed.cedente_piva)
-      .eq("numero_fattura", parsed.numero_fattura)
-      .eq("data_fattura", parsed.data_fattura)
-      .limit(1).maybeSingle();
-    if (data?.id) return data.id;
-  }
-  return null;
-}
+const lettore = () => new DOMParser() as unknown as LettoreXml;
 
 // ─── Main Handler ────────────────────────────────────────────────
 
@@ -224,11 +61,8 @@ Deno.serve(async (req) => {
         return new Response("Unauthorized: invalid signature", { status: 401 });
       }
 
-      const parsed = parseFatturaPA(xmlBody);
-
-      // Find company by P.IVA del cessionario (l'azienda che riceve la fattura)
-      const xmlDoc = new DOMParser().parseFromString(xmlBody, "text/xml");
-      if (!xmlDoc) {
+      const parsed = leggiFatturaRicevuta(xmlBody, lettore());
+      if (!parsed) {
         await supabase.from("sdi_log").insert({
           company_id: null as unknown as string,
           evento: "ricevi_sdi_parse_failed",
@@ -237,11 +71,10 @@ Deno.serve(async (req) => {
         }).then(() => {}, () => {});
         return new Response("Bad request: invalid XML", { status: 400 });
       }
-      const cessionario = xmlDoc.getElementsByTagName("CessionarioCommittente")[0];
-      const destPiva =
-        cessionario?.getElementsByTagName("IdCodice")[0]?.textContent?.trim() ?? "";
-      const destCf =
-        cessionario?.getElementsByTagName("CodiceFiscale")[0]?.textContent?.trim() ?? "";
+
+      // Find company by P.IVA del cessionario (l'azienda che riceve la fattura)
+      const destPiva = parsed.cessionario_piva;
+      const destCf = parsed.cessionario_cf;
 
       // Match per P.IVA del cessionario, con fallback al Codice Fiscale (cessionari
       // identificati solo da CF). maybeSingle + limit(1): niente 500 se due aziende
@@ -269,65 +102,21 @@ Deno.serve(async (req) => {
         return new Response("OK", { status: 200 });
       }
 
-      // Upload XML to storage
-      const xmlPath = `${azienda.company_id}/ricevute/IT${parsed.cedente_piva}_${parsed.numero_fattura.replace(/[^a-zA-Z0-9-]/g, "_")}.xml`;
-      await supabase.storage
-        .from("fatture-xml")
-        .upload(xmlPath, new Blob([xmlBody], { type: "application/xml" }), { upsert: true });
-
-      // Check duplicato (IdentificativoSdI o chiave naturale)
-      const existingId = await findExistingFattura(supabase, azienda.company_id, parsed);
-      if (existingId) {
-        return new Response(JSON.stringify({ success: true, duplicate: true, id: existingId }), {
+      // Doppione (id SDI o fornitore + numero + data), file, riga: una strada sola.
+      const esito = await salvaFatturaRicevuta(supabase, { companyId: azienda.company_id, xml: xmlBody, letta: parsed });
+      if (esito.errore) throw new Error(esito.errore);
+      if (esito.doppione) {
+        // Anche la corsa concorrente (23505) è un doppione: 200, così il
+        // provider non ritenta all'infinito.
+        return new Response(JSON.stringify({ success: true, duplicate: true, id: esito.id }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
-      // Insert
-      const { data: inserted, error: insertErr } = await supabase
-        .from("fatture_ricevute")
-        .insert({
-          company_id: azienda.company_id,
-          sdi_id_trasmissione: parsed.sdi_id_trasmissione || null,
-          sdi_progressivo: parsed.sdi_progressivo || null,
-          cedente_piva: parsed.cedente_piva,
-          cedente_cf: parsed.cedente_cf,
-          cedente_ragione_sociale: parsed.cedente_ragione_sociale,
-          cedente_paese: parsed.cedente_paese,
-          cedente_indirizzo: parsed.cedente_indirizzo,
-          cedente_cap: parsed.cedente_cap,
-          cedente_comune: parsed.cedente_comune,
-          cedente_provincia: parsed.cedente_provincia,
-          tipo_documento: parsed.tipo_documento,
-          numero_fattura: parsed.numero_fattura,
-          data_fattura: parsed.data_fattura,
-          imponibile_totale: parsed.imponibile_totale,
-          iva_totale: parsed.iva_totale,
-          totale_documento: parsed.totale_documento,
-          righe: parsed.righe,
-          riepilogo_iva: parsed.riepilogo_iva,
-          xml_raw: xmlBody,
-          xml_url: xmlPath,
-          stato: "non_letta",
-        })
-        .select("id")
-        .single();
-
-      if (insertErr) {
-        // 23505 = corsa concorrente sull'unique index naturale → è un duplicato:
-        // rispondi 200 così il provider non ritenta all'infinito.
-        if ((insertErr as { code?: string }).code === "23505") {
-          return new Response(JSON.stringify({ success: true, duplicate: true }), {
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
-        throw insertErr;
-      }
-
-      // Log
+      // Log. Niente documento_id: in sdi_log punta a documenti_fiscali (le
+      // emesse), e l'id di una ricevuta faceva fallire la riga in silenzio.
       await supabase.from("sdi_log").insert({
         company_id: azienda.company_id,
-        documento_id: inserted?.id,
         evento: "fattura_ricevuta",
         sdi_id: parsed.sdi_id_trasmissione,
         messaggio: `Fattura ricevuta da ${parsed.cedente_ragione_sociale} - ${parsed.numero_fattura}`,
@@ -335,36 +124,10 @@ Deno.serve(async (req) => {
       });
 
       // ── Notifica in-app agli admin dell'azienda ──
-      try {
-        const { data: adminRoles } = await supabase
-          .from("user_roles")
-          .select("user_id")
-          .eq("company_id", azienda.company_id)
-          .in("role", ["company_admin", "admin"]);
-
-        if (adminRoles && adminRoles.length > 0) {
-          await supabase.from("notifications").insert(
-            adminRoles.map((r: any) => ({
-              company_id: azienda.company_id,
-              user_id: r.user_id,
-              type: "fattura_ricevuta",
-              title: "Nuova fattura passiva ricevuta",
-              body: `Fattura ${parsed.numero_fattura} da ${parsed.cedente_ragione_sociale} — €${parsed.totale_documento.toFixed(2)}`,
-              entity_type: "fattura_ricevuta",
-              entity_id: inserted?.id,
-              // La rotta vera: "/azienda/fatturazione/ricevute" non esiste e
-              // finiva su InvoiceDetail con id="ricevute" (dettaglio vuoto).
-              action_url: "/azienda/documenti/fatture-ricevute",
-            }))
-          );
-        }
-      } catch (notifErr) {
-        // Notifica non critica — logga ma non bloccare
-        console.warn("Notifica fattura ricevuta fallita:", notifErr);
-      }
+      if (esito.id) await avvisaFatturaRicevuta(supabase, azienda.company_id, esito.id, parsed);
 
       return new Response(
-        JSON.stringify({ success: true, id: inserted?.id }),
+        JSON.stringify({ success: true, id: esito.id }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     } else {
@@ -405,64 +168,24 @@ Deno.serve(async (req) => {
         });
       }
 
-      const parsed = parseFatturaPA(xml_content);
+      const parsed = leggiFatturaRicevuta(String(xml_content), lettore());
+      if (!parsed) {
+        return new Response(
+          JSON.stringify({ error: "Il file non è una fattura elettronica leggibile (mancano fornitore, numero o data)." }),
+          { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
 
-      // Upload XML to storage
-      const xmlPath = `${company_id}/ricevute/IT${parsed.cedente_piva}_${parsed.numero_fattura.replace(/[^a-zA-Z0-9-]/g, "_")}.xml`;
-      await supabase.storage
-        .from("fatture-xml")
-        .upload(xmlPath, new Blob([xml_content], { type: "application/xml" }), { upsert: true });
-
-      // Check duplicate (IdentificativoSdI o chiave naturale)
-      const existingId = await findExistingFattura(supabase, company_id, parsed);
-      if (existingId) {
-        return new Response(JSON.stringify({ success: true, duplicate: true, id: existingId }), {
+      const esito = await salvaFatturaRicevuta(supabase, { companyId: company_id, xml: String(xml_content), letta: parsed });
+      if (esito.errore) throw new Error(esito.errore);
+      if (esito.doppione) {
+        return new Response(JSON.stringify({ success: true, duplicate: true, id: esito.id }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
-      const { data: inserted, error: insertErr } = await supabase
-        .from("fatture_ricevute")
-        .insert({
-          company_id,
-          sdi_id_trasmissione: parsed.sdi_id_trasmissione || null,
-          sdi_progressivo: parsed.sdi_progressivo || null,
-          cedente_piva: parsed.cedente_piva,
-          cedente_cf: parsed.cedente_cf,
-          cedente_ragione_sociale: parsed.cedente_ragione_sociale,
-          cedente_paese: parsed.cedente_paese,
-          cedente_indirizzo: parsed.cedente_indirizzo,
-          cedente_cap: parsed.cedente_cap,
-          cedente_comune: parsed.cedente_comune,
-          cedente_provincia: parsed.cedente_provincia,
-          tipo_documento: parsed.tipo_documento,
-          numero_fattura: parsed.numero_fattura,
-          data_fattura: parsed.data_fattura,
-          imponibile_totale: parsed.imponibile_totale,
-          iva_totale: parsed.iva_totale,
-          totale_documento: parsed.totale_documento,
-          righe: parsed.righe,
-          riepilogo_iva: parsed.riepilogo_iva,
-          xml_raw: xml_content,
-          xml_url: xmlPath,
-          stato: "non_letta",
-        })
-        .select("id")
-        .single();
-
-      if (insertErr) {
-        // 23505 = corsa concorrente sull'unique index naturale → è un duplicato:
-        // rispondi 200 così il provider non ritenta all'infinito.
-        if ((insertErr as { code?: string }).code === "23505") {
-          return new Response(JSON.stringify({ success: true, duplicate: true }), {
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
-        throw insertErr;
-      }
-
       return new Response(
-        JSON.stringify({ success: true, id: inserted?.id, parsed }),
+        JSON.stringify({ success: true, id: esito.id, parsed }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }

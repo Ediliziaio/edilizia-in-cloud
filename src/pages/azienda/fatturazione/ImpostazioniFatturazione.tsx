@@ -17,7 +17,7 @@ import { Separator } from "@/components/ui/separator";
 import {
   Loader2, Save, CheckCircle, AlertTriangle, Info, Upload, Trash2,
   Plus, Building2, Receipt, Palette, CreditCard, Percent,
-  Settings2, FileText, Globe, Download
+  Settings2, FileText, Globe, Download, RefreshCw
 } from "lucide-react";
 import { toast } from "sonner";
 import { REGIMI_FISCALI, METODI_PAGAMENTO_SDI } from "@/types/fatturazione";
@@ -116,15 +116,51 @@ export default function ImpostazioniFatturazione() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("sdi_cedente_config" as never)
-        .select("stato, delega_stato, fiscal_id, last_error, registered_at, codice_destinatario")
+        .select("stato, delega_stato, fiscal_id, last_error, registered_at, codice_destinatario, ricezione_openapi, ricevute_controllate_at, ricevute_ultimo_errore")
         .eq("company_id", companyId as string)
         .maybeSingle();
       if (error) throw error;
       return data as {
         stato?: string; delega_stato?: string; fiscal_id?: string;
         last_error?: string | null; registered_at?: string | null; codice_destinatario?: string | null;
+        ricezione_openapi?: string | null; ricevute_controllate_at?: string | null; ricevute_ultimo_errore?: string | null;
       } | null;
     },
+  });
+  // Fatture dei fornitori arrivate da openapi: le importa openapi-fatture-ricevute
+  // (ogni ora, e subito quando openapi avvisa). Qui solo il conteggio.
+  const feRegistrata = feConfig?.stato === "registrato" || feConfig?.stato === "attivo";
+  const { data: ricevuteOpenapi } = useQuery({
+    queryKey: ["fatture-ricevute-openapi", companyId],
+    enabled: !!companyId && feRegistrata,
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("fatture_ricevute" as never)
+        .select("id", { count: "exact", head: true })
+        .eq("company_id", companyId as string)
+        .not("openapi_id", "is", null);
+      if (error) throw error;
+      return count ?? 0;
+    },
+  });
+  const controllaRicevuteMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke("openapi-fatture-ricevute", { body: { company_id: companyId } });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data as { ok?: boolean; importate?: number; fallite?: number; appena_controllato?: boolean; motivo?: string; errore?: string };
+    },
+    onSuccess: (data) => {
+      if (data?.motivo === "token_mancante") toast.error("Il collegamento con openapi non è configurato: avvisa l'assistenza.");
+      else if (data?.appena_controllato) toast.info("Controllato meno di un minuto fa: riprova tra poco.");
+      else if (data?.fallite) toast.warning(`${data.importate ?? 0} fatture nuove, ${data.fallite} non importate: il motivo è qui sotto.`);
+      else if (data?.importate) toast.success(data.importate === 1 ? "1 fattura nuova in Fatture ricevute" : `${data.importate} fatture nuove in Fatture ricevute`);
+      else toast.success("Nessuna fattura nuova dai fornitori");
+      queryClient.invalidateQueries({ queryKey: ["sdi-cedente-config", companyId] });
+      queryClient.invalidateQueries({ queryKey: ["fatture-ricevute-openapi", companyId] });
+      queryClient.invalidateQueries({ queryKey: ["fatture-ricevute"] });
+    },
+    onError: (e: Error) => toast.error(e?.message || "Controllo non riuscito"),
   });
   const onboardMutation = useMutation({
     mutationFn: async () => {
@@ -650,7 +686,7 @@ export default function ImpostazioniFatturazione() {
                       <Info className="h-4 w-4 text-sky-600 mt-0.5 shrink-0" />
                       <div className="text-sm">
                         <p className="font-medium text-foreground">Pronta: le fatture partono allo SDI</p>
-                        <p className="text-muted-foreground text-xs mt-0.5">Non serve nessuna delega per inviare. Le fatture dei fornitori continuano ad arrivare al codice destinatario che hai già registrato all'Agenzia delle Entrate: non cambiarlo. Ricordati la conservazione a norma delle fatture inviate (per esempio il servizio gratuito dell'Agenzia delle Entrate).</p>
+                        <p className="text-muted-foreground text-xs mt-0.5">Non serve nessuna delega per inviare. Le fatture dei fornitori continuano ad arrivare al codice destinatario che hai registrato all'Agenzia delle Entrate, finché non decidi di riceverle qui (vedi «Fatture dei fornitori»). Ricordati la conservazione a norma delle fatture inviate (per esempio il servizio gratuito dell'Agenzia delle Entrate).</p>
                       </div>
                     </div>
                   )}
@@ -671,6 +707,54 @@ export default function ImpostazioniFatturazione() {
               </Card>
             );
           })()}
+
+          {/* ─── FATTURE DEI FORNITORI (ricezione da openapi, 24/09/2026) ─── */}
+          {current.sdi_provider === "openapi" && feRegistrata && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Fatture dei fornitori</CardTitle>
+                <CardDescription>Le fatture che ricevi arrivano da sole in <b>Fatture ricevute</b>, con il file originale (anche firmato .p7m).</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-900 rounded-lg p-3 flex items-start gap-2">
+                  <Info className="h-4 w-4 text-sky-600 mt-0.5 shrink-0" />
+                  <div className="text-sm space-y-1">
+                    <p className="font-medium text-foreground">Per riceverle qui: codice destinatario PIC7CPS</p>
+                    <p className="text-muted-foreground text-xs">
+                      Lo SDI consegna le fatture al codice che hai registrato all'Agenzia delle Entrate. Registra <b>PIC7CPS</b> nel
+                      portale Fatture e Corrispettivi (Servizi disponibili → Registrazione dell'indirizzo telematico). Da quel momento
+                      le fatture dei fornitori arrivano qui e <b>non più</b> al canale di oggi (per esempio Aruba): fallo quando sei pronto a passare.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 text-sm">
+                  {typeof ricevuteOpenapi === "number" && (
+                    <Badge variant="outline" className="gap-1">
+                      {ricevuteOpenapi === 1 ? "1 fattura arrivata" : `${ricevuteOpenapi} fatture arrivate`}
+                    </Badge>
+                  )}
+                  <span className="text-xs text-muted-foreground">
+                    {feConfig?.ricevute_controllate_at
+                      ? `Ultimo controllo ${new Date(feConfig.ricevute_controllate_at).toLocaleString("it-IT", { dateStyle: "short", timeStyle: "short" })} · si controlla ogni ora`
+                      : "Si controlla ogni ora"}
+                  </span>
+                </div>
+
+                {feConfig?.ricevute_ultimo_errore && (
+                  <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded-lg p-3 flex items-start gap-2 text-sm text-amber-800 dark:text-amber-300">
+                    <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                    <span>{feConfig.ricevute_ultimo_errore}</span>
+                  </div>
+                )}
+
+                <Button variant="outline" onClick={() => controllaRicevuteMutation.mutate()} disabled={controllaRicevuteMutation.isPending} className="gap-1.5">
+                  {controllaRicevuteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                  Controlla adesso
+                </Button>
+              </CardContent>
+            </Card>
+          )}
 
           <Card>
             <CardHeader>
