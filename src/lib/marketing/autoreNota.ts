@@ -40,3 +40,10 @@ export function dataOraNota(iso: string | null | undefined): string {
 export function firmaNota(iso: string | null | undefined, profilo: ProfiloAutore | ProfiloAutore[] | null | undefined): string {
   return [dataOraNota(iso), autoreNota(profilo)].filter(Boolean).join(" · ");
 }
+
+/** Le note rimaste fuori da un'anteprima: «+1 altra», «+4 altre», o niente. */
+export function altreNote(totale: number, mostrate: number): string {
+  const resto = totale - mostrate;
+  if (resto <= 0) return "";
+  return resto === 1 ? "+1 altra" : `+${resto} altre`;
+}

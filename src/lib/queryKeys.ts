@@ -44,6 +44,8 @@ export const queryKeys = {
     detail: (contactId: string | undefined) => ["marketing-contacts", "detail", contactId] as const,
     notes: (contactId: string | null | undefined, opportunityId?: string | null) =>
       ["marketing-contacts", "notes", contactId, opportunityId] as const,
+    notesPreview: (opportunityId: string | undefined) =>
+      ["marketing-contacts", "notes-preview", opportunityId] as const,
     activities: (contactId: string | undefined, companyId?: string | undefined) =>
       ["marketing-contacts", "activities", contactId, companyId] as const,
     documents: (contactId: string | undefined) =>

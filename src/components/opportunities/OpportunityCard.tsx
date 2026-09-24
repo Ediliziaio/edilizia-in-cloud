@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatters";
 import { DealHealthBadge } from "./DealHealthBadge";
 import { RichiestaRipetutaBadge } from "./RichiestaRipetutaBadge";
+import { AnteprimaAppunti } from "./AnteprimaAppunti";
 import { LeadTemperatureBadge } from "@/components/marketing/LeadTemperatureBadge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -184,13 +185,14 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
       badge: tags.length > 0 ? tags.length : null,
       mobileVisible: false,
     },
-    { icon: StickyNote, tooltip: opportunity.notes_count > 0 ? `Appunti (${opportunity.notes_count})` : "Appunti", action: (e: React.MouseEvent) => { stopProp(e); onOpenTab?.("notes"); }, badge: opportunity.notes_count > 0 ? opportunity.notes_count : null, mobileVisible: true },
+    { icon: StickyNote, tooltip: opportunity.notes_count > 0 ? `Appunti (${opportunity.notes_count})` : "Appunti", anteprimaAppunti: opportunity.notes_count > 0, action: (e: React.MouseEvent) => { stopProp(e); onOpenTab?.("notes"); }, badge: opportunity.notes_count > 0 ? opportunity.notes_count : null, mobileVisible: true },
     { icon: Calendar, tooltip: opportunity.next_appointment ? "Appuntamento programmato" : "Calendario", action: (e: React.MouseEvent) => { stopProp(e); onOpenTab?.("appointments"); }, badge: opportunity.next_appointment ? 1 : null, mobileVisible: true },
     { icon: Folder, tooltip: opportunity.documents_count > 0 ? `Documenti (${opportunity.documents_count})` : "Documenti", action: (e: React.MouseEvent) => { stopProp(e); onOpenTab?.("documents"); }, badge: opportunity.documents_count > 0 ? opportunity.documents_count : null, mobileVisible: false },
     canEdit ? { icon: Trash2, tooltip: "Elimina", action: handleDeleteClick, mobileVisible: false } : null,
   ].filter(Boolean) as Array<{
     icon: typeof Phone;
     tooltip: string;
+    anteprimaAppunti?: boolean;
     action: (e: React.MouseEvent) => void;
     badge?: number | null;
     mobileVisible: boolean;
@@ -305,7 +307,7 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
         {/* Action bar */}
         {!isOverlay && (
           <div className="flex items-center justify-between pt-0.5 border-t border-border/50">
-            {actionIcons.map(({ icon: Icon, tooltip, action, badge, mobileVisible }, i) => (
+            {actionIcons.map(({ icon: Icon, tooltip, anteprimaAppunti, action, badge, mobileVisible }, i) => (
               <Tooltip key={i}>
                 <TooltipTrigger asChild>
                   <button
@@ -323,7 +325,11 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
                     )}
                   </button>
                 </TooltipTrigger>
-                <TooltipContent side="bottom" className="text-xs max-w-[200px]">{tooltip}</TooltipContent>
+                <TooltipContent side="bottom" className={anteprimaAppunti ? "text-xs max-w-[280px]" : "text-xs max-w-[200px]"}>
+                  {anteprimaAppunti
+                    ? <AnteprimaAppunti opportunityId={opportunity.id} totale={opportunity.notes_count} />
+                    : tooltip}
+                </TooltipContent>
               </Tooltip>
             ))}
           </div>

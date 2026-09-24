@@ -2,7 +2,7 @@
  * Ogni nota dice chi l'ha scritta e quando, con data e ora.
  */
 import { describe, expect, it } from "vitest";
-import { autoreNota, dataOraNota, firmaNota } from "@/lib/marketing/autoreNota";
+import { altreNote, autoreNota, dataOraNota, firmaNota } from "@/lib/marketing/autoreNota";
 
 describe("autoreNota", () => {
   it("nome e cognome di chi l'ha scritta", () => {
@@ -45,5 +45,24 @@ describe("firmaNota", () => {
 
   it("anche la nota importata ha la sua riga", () => {
     expect(firmaNota("2026-09-14T12:00:00Z", null)).toMatch(/· Importata o automatica$/);
+  });
+});
+
+describe("altreNote", () => {
+  it("niente se l'anteprima le mostra tutte", () => {
+    expect(altreNote(3, 3)).toBe("");
+    expect(altreNote(1, 1)).toBe("");
+  });
+
+  it("singolare con una sola", () => {
+    expect(altreNote(4, 3)).toBe("+1 altra");
+  });
+
+  it("plurale con più di una", () => {
+    expect(altreNote(9, 3)).toBe("+6 altre");
+  });
+
+  it("un conteggio vecchio, più basso delle note caricate, non dà numeri negativi", () => {
+    expect(altreNote(2, 3)).toBe("");
   });
 });
