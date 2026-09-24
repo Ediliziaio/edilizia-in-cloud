@@ -1,6 +1,6 @@
 /**
- * «Esporta Clienti» comanda l'esportazione di Contatti e Opportunità
- * (24/09/2026).
+ * «Esporta Clienti» comanda l'esportazione di Contatti, Opportunità e
+ * Preventivi (24/09/2026).
  *
  * Il permesso c'era nella schermata dei permessi ma nessun bottone lo
  * guardava: a BeMade un operatore del call center senza «Esporta Clienti»
@@ -12,7 +12,8 @@
  *   · staff col permesso, e amministratore anche senza riga → «Esporta» c'è;
  *   · l'esportazione passa prima dal registro (registra_esportazione_crm con
  *     cosa, formato, righe e filtri) e solo dopo consegna il file;
- *   · se il database rifiuta, il file non parte.
+ *   · se il database rifiuta, il file non parte;
+ *   · da telefono non si esporta, neanche col permesso.
  */
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -29,6 +30,7 @@ interface Risposta {
 
 const stato = vi.hoisted(() => ({
   ruolo: "company_staff",
+  mobile: false,
   rigaPermessi: null as Record<string, unknown> | null,
   /** L'ordine in cui avvengono registro e consegna del file. */
   sequenza: [] as string[],
@@ -56,6 +58,12 @@ vi.mock("@/integrations/supabase/client", () => {
         stage_id: "fase-1", pipeline_id: "pipe-1", tags: [],
         created_at: "2026-09-20T10:00:00Z", updated_at: "2026-09-21T10:00:00Z",
         marketing_contacts: { id: "c1", first_name: "Elide", last_name: "Ruggiata", email: "elide@example.it", phone: "3331112222" },
+      },
+    ],
+    quotes: [
+      {
+        id: "q1", quote_number: "PRV-2026-001", client_name: "Elide Ruggiata", status: "sent", total: 12000,
+        salesperson_id: null, created_at: "2026-09-20T10:00:00Z", updated_at: "2026-09-21T10:00:00Z", revision_number: null,
       },
     ],
   };
@@ -113,7 +121,7 @@ vi.mock("@/contexts/AuthContext", () => ({
 }));
 
 vi.mock("sonner", () => ({ toast }));
-vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => false }));
+vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => stato.mobile }));
 // Il file: si guarda che parta (e quando), non si scarica niente.
 vi.mock("@/lib/csvExport", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/csvExport")>()),
@@ -192,8 +200,21 @@ vi.mock("@/components/opportunities/OpportunitaCestinoDialog", () => ({ Opportun
 vi.mock("@/components/opportunities/OpportunityStatsStrip", () => ({ OpportunityStatsStrip: finti.nulla }));
 vi.mock("@/components/marketing/CreateListDialog", () => ({ CreateListDialog: finti.nulla }));
 
+// Preventivi: nessun modulo di settore acceso, solo i preventivi classici.
+vi.mock("@/lib/moduli-vendita", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/moduli-vendita")>()),
+  useModuliVendita: () => ({ moduli: [] as unknown[] }),
+}));
+vi.mock("@/components/marketing/preventivi/UnifiedFiltersSheet", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/components/marketing/preventivi/UnifiedFiltersSheet")>()),
+  UnifiedFiltersSheet: finti.nulla,
+}));
+vi.mock("@/components/marketing/preventivi/UnifiedBulkToolbar", () => ({ UnifiedBulkToolbar: finti.nulla }));
+vi.mock("@/components/marketing/preventivi/PreventiviCestinoDialog", () => ({ PreventiviCestinoDialog: finti.nulla }));
+
 import MarketingContacts from "@/pages/azienda/marketing/MarketingContacts";
 import MarketingOpportunities from "@/pages/azienda/marketing/MarketingOpportunities";
+import { UnifiedPreventiviList } from "@/components/marketing/preventivi/UnifiedPreventiviList";
 
 /** La riga di staff_permissions di chi lavora sul CRM, con o senza «Esporta Clienti». */
 const staff = (esportaClienti: boolean) => ({
@@ -225,6 +246,7 @@ const abilitato = (el: HTMLElement) => expect((el as HTMLButtonElement).disabled
 
 beforeEach(() => {
   stato.ruolo = "company_staff";
+  stato.mobile = false;
   stato.rigaPermessi = null;
   stato.sequenza.length = 0;
   stato.registro.length = 0;
@@ -353,4 +375,78 @@ describe("Opportunità: «Esporta CSV» segue «Esporta Clienti»", () => {
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Non hai il permesso «Esporta Clienti»: chiedilo a un amministratore."));
     expect(file.csv).not.toHaveBeenCalled();
   });
+
+  it("da telefono la voce non c'è, anche col permesso", async () => {
+    stato.mobile = true;
+    stato.rigaPermessi = staff(true);
+    monta(<MarketingOpportunities />, "/azienda/marketing/opportunita");
+    await waitFor(() => abilitato(screen.getByRole("button", { name: "Aggiungi opportunità" })));
+    await apriAltreAzioni();
+    expect(screen.queryByRole("menuitem", { name: /Esporta/ })).toBeNull();
+  });
+});
+
+describe("Preventivi: «Excel» segue «Esporta Clienti»", () => {
+  // Il file lo consegna un link creato al volo: si guarda il suo clic.
+  let clic: { mockRestore: () => void };
+  beforeEach(() => {
+    URL.createObjectURL = vi.fn(() => "blob:finto");
+    URL.revokeObjectURL = vi.fn();
+    clic = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {
+      stato.sequenza.push("file");
+    });
+  });
+  afterEach(() => clic.mockRestore());
+
+  const conPreventivi = (esportaClienti: boolean) => ({ ...staff(esportaClienti), can_view_preventivi: true });
+  const caricato = () => screen.findAllByText(/Elide Ruggiata/);
+
+  it("staff senza il permesso: nessun bottone Excel", async () => {
+    stato.rigaPermessi = conPreventivi(false);
+    monta(<UnifiedPreventiviList />, "/azienda/marketing/preventivi");
+    await caricato();
+    await expect(screen.findByRole("button", { name: "Esporta Excel" }, { timeout: 300 })).rejects.toThrow();
+  });
+
+  it("staff col permesso: prima il registro, poi il file", async () => {
+    stato.rigaPermessi = conPreventivi(true);
+    monta(<UnifiedPreventiviList />, "/azienda/marketing/preventivi");
+    await caricato();
+    const excel = await screen.findByRole("button", { name: "Esporta Excel" });
+    await waitFor(() => abilitato(excel));
+    fireEvent.click(excel);
+
+    await waitFor(() => expect(stato.sequenza).toEqual(["registro", "file"]), { timeout: 15000 });
+    expect(stato.registro).toEqual([{
+      p_company_id: "azienda-1",
+      p_oggetto: "preventivi",
+      p_formato: "xlsx",
+      p_righe: 1,
+      p_filtri: { perimetro: "tutta l'azienda" },
+    }]);
+  }, 30000);
+
+  it("da telefono il bottone non c'è, anche col permesso", async () => {
+    stato.mobile = true;
+    stato.rigaPermessi = conPreventivi(true);
+    monta(<UnifiedPreventiviList />, "/azienda/marketing/preventivi");
+    await caricato();
+    await expect(screen.findByRole("button", { name: "Esporta Excel" }, { timeout: 300 })).rejects.toThrow();
+  });
+
+  it("se il database rifiuta, il file non parte", async () => {
+    stato.rigaPermessi = conPreventivi(true);
+    stato.rispostaRegistro = NEGATO;
+    monta(<UnifiedPreventiviList />, "/azienda/marketing/preventivi");
+    await caricato();
+    const excel = await screen.findByRole("button", { name: "Esporta Excel" });
+    await waitFor(() => abilitato(excel));
+    fireEvent.click(excel);
+
+    await waitFor(
+      () => expect(toast.error).toHaveBeenCalledWith("Non hai il permesso «Esporta Clienti»: chiedilo a un amministratore."),
+      { timeout: 15000 },
+    );
+    expect(stato.sequenza).toEqual(["registro"]);
+  }, 30000);
 });

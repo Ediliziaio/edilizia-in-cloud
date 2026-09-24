@@ -34,7 +34,8 @@ export type OggettoEsportazioneCrm =
   | "destinatari_campagna"
   | "opportunita_ferme"
   | "lead_migliori"
-  | "archivio_azienda";
+  | "archivio_azienda"
+  | "preventivi";
 
 export type FormatoEsportazioneCrm = "csv" | "xlsx" | "pdf" | "zip";
 
@@ -47,6 +48,7 @@ export const ETICHETTE_OGGETTO_ESPORTATO: Record<OggettoEsportazioneCrm, string>
   opportunita_ferme: "Opportunità ferme",
   lead_migliori: "Lead migliori",
   archivio_azienda: "Archivio completo dell'azienda",
+  preventivi: "Preventivi",
 };
 
 export interface EsportazioneCrm {

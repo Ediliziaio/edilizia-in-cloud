@@ -23,8 +23,10 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { neutralizeXlsxCell } from "@/lib/csvExport";
+import { messaggioEsportazioneNonRiuscita, registraEsportazioneCrm } from "@/lib/export/esportazioniCrm";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { usePermissions } from "@/hooks/usePermissions";
 import { useModuliVendita } from "@/lib/moduli-vendita";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
@@ -120,6 +122,9 @@ export function UnifiedPreventiviList() {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const companyId = useEffectiveCompanyId();
+  // Numero, cliente e totale dei preventivi: si esportano solo con «Esporta
+  // Clienti» (gli amministratori ce l'hanno sempre). Il database lo ricontrolla.
+  const { canExportClients, onlyAssigned } = usePermissions();
   const queryClient = useQueryClient();
   const sel = useTableSelection();
   const { moduli } = useModuliVendita();
@@ -832,6 +837,7 @@ export function UnifiedPreventiviList() {
 
   // ─── Export Excel (cross-modulo) ─────────────────────────────────────────
   const handleExportExcel = async () => {
+    if (!canExportClients || !companyId) return;
     if (filtered.length === 0) {
       toast.error("Nessun preventivo da esportare");
       return;
@@ -871,6 +877,25 @@ export function UnifiedPreventiviList() {
       });
 
       const buf = await wb.xlsx.writeBuffer();
+      // Prima il registro, poi il file: senza registrazione non parte.
+      await registraEsportazioneCrm({
+        companyId,
+        oggetto: "preventivi",
+        formato: "xlsx",
+        righe: filtered.length,
+        filtri: {
+          ricerca: search,
+          stato: statoTab === "all" ? null : statoTab,
+          tipi: filters.tipi,
+          stati: filters.stati,
+          commerciale: filters.commercialeId === "all" ? null : filters.commercialeId,
+          importo_min: filters.importoMin,
+          importo_max: filters.importoMax,
+          dal: filters.dateFrom,
+          al: filters.dateTo,
+          perimetro: onlyAssigned ? "solo i propri" : "tutta l'azienda",
+        },
+      });
       const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -881,7 +906,7 @@ export function UnifiedPreventiviList() {
       toast.success(`Esportati ${filtered.length} preventivi`);
     } catch (e) {
       console.error("[unified-prev] export failed", e);
-      toast.error(`Errore export: ${e instanceof Error ? e.message : "sconosciuto"}`);
+      toast.error(messaggioEsportazioneNonRiuscita(e));
     } finally {
       setExporting(false);
     }
@@ -1024,8 +1049,9 @@ export function UnifiedPreventiviList() {
               </Badge>
             )}
           </Button>
-          {/* Export Excel: nascosto su mobile (download poco pratico da telefono/app) */}
-          {!isMobile && (
+          {/* Export Excel: nascosto su mobile (download poco pratico da telefono/app)
+              e senza «Esporta Clienti». */}
+          {!isMobile && canExportClients && (
           <Button
             variant="outline" size="sm" className="h-9 gap-1.5 px-2.5 sm:px-3"
             onClick={handleExportExcel}

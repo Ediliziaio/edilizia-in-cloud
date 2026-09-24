@@ -26,6 +26,18 @@ const ROOT = process.cwd();
 const leggi = (percorso: string) => readFileSync(join(ROOT, percorso), "utf8");
 const MIGRAZIONE = leggi("supabase/migrations/20280924224500_esportazioni_crm_permesso_e_registro.sql");
 
+/** L'ultima migrazione che (ri)definisce registra_esportazione_crm: è quella in vigore. */
+function ultimaDefinizioneDelRegistro(): string {
+  const cartella = join(ROOT, "supabase/migrations");
+  const file = readdirSync(cartella).filter((nome) => nome.endsWith(".sql")).sort().reverse();
+  for (const nome of file) {
+    const sql = readFileSync(join(cartella, nome), "utf8");
+    if (sql.includes("create or replace function public.registra_esportazione_crm(")) return sql;
+  }
+  throw new Error("registra_esportazione_crm non è definita in nessuna migrazione");
+}
+const IN_VIGORE = ultimaDefinizioneDelRegistro();
+
 /** Dove vivono il CRM e l'anagrafica clienti. */
 const AREE_CRM = [
   "src/pages/azienda/marketing",
@@ -53,6 +65,8 @@ const CON_PERMESSO_E_REGISTRO: Record<string, string[]> = {
   "src/components/email-marketing/CampaignDetailDialog.tsx": ["destinatari_campagna"],
   "src/pages/azienda/marketing/SalesOSDashboard.tsx": ["opportunita_ferme", "lead_migliori"],
   "src/pages/azienda/settings/SettingsEsportaDati.tsx": ["archivio_azienda"],
+  // Numero, nome del cliente e totale: dentro anche loro (Florin, 24/09).
+  "src/components/marketing/preventivi/UnifiedPreventiviList.tsx": ["preventivi"],
 };
 
 /** Scaricano qualcosa, ma non righe di clienti: perché va bene così. */
@@ -60,8 +74,6 @@ const SENZA_RIGHE_DI_CLIENTI: Record<string, string> = {
   "src/pages/azienda/marketing/MarketingDashboard.tsx": "KPI aggregati (metrica e valore), nessuna persona",
   "src/pages/azienda/marketing/QuoteDetail.tsx": "il PDF di un preventivo, non un elenco",
   "src/components/marketing/simulatore/SimulazionePDF.tsx": "il PDF di una simulazione, non un elenco",
-  "src/components/marketing/preventivi/UnifiedPreventiviList.tsx":
-    "elenco dei preventivi: numero, nome del cliente e totale, senza recapiti (email, telefono, indirizzo)",
   "src/components/reporting/crm-sales/CrmSalesReportPanel.tsx": "totali per periodo e per fonte, nessuna persona",
   "src/components/reporting/facebook-ads/ExportDialog.tsx": "rendimento delle campagne pubblicitarie, nessuna persona",
   "src/components/reporting/shared/ReportExportMenu.tsx": "chi lo usa esporta una riga per operatore o venditore (vedi il test sotto)",
@@ -115,15 +127,15 @@ describe("esportazioni del CRM: «Esporta Clienti» e registro", () => {
 
   it("gli oggetti registrati sono quelli che il database accetta, e ognuno ha la sua esportazione", () => {
     const oggetti = Object.keys(ETICHETTE_OGGETTO_ESPORTATO).sort();
-    for (const oggetto of oggetti) expect(MIGRAZIONE).toContain(`'${oggetto}'`);
+    for (const oggetto of oggetti) expect(IN_VIGORE, oggetto).toContain(`'${oggetto}'`);
     expect(Object.values(CON_PERMESSO_E_REGISTRO).flat().sort()).toEqual(oggetti);
   });
 
   it("il database controlla il permesso sull'azienda, anon non entra, il registro non si falsifica", () => {
-    expect(MIGRAZIONE).toMatch(/security definer/);
-    expect(MIGRAZIONE).toContain("has_permission_for_company(_uid, 'can_export_clients', p_company_id)");
-    expect(MIGRAZIONE).toContain("'crm_exported'");
-    expect(MIGRAZIONE).toContain(
+    expect(IN_VIGORE).toMatch(/security definer/);
+    expect(IN_VIGORE).toContain("has_permission_for_company(_uid, 'can_export_clients', p_company_id)");
+    expect(IN_VIGORE).toContain("'crm_exported'");
+    expect(IN_VIGORE).toContain(
       "revoke all on function public.registra_esportazione_crm(uuid, text, text, integer, jsonb) from public, anon;",
     );
     expect(MIGRAZIONE).toMatch(/create policy user_audit_log_insert[\s\S]*?actor_id = \(select auth\.uid\(\)\)/);

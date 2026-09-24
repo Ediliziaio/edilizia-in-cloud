@@ -826,7 +826,8 @@ function MarketingOpportunitiesContent() {
               <DropdownMenuItem className="md:hidden" onClick={() => setCardCustomizeOpen(true)}>
                 <Settings2 className="mr-2 h-4 w-4" /> Gestisci campi
               </DropdownMenuItem>
-              {canExportClients && (
+              {/* Niente export su telefono, né senza «Esporta Clienti». */}
+              {!isMobile && canExportClients && (
                 <DropdownMenuItem onClick={handleExportOpportunities} disabled={isExporting}>
                   {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />} Esporta CSV
                 </DropdownMenuItem>
