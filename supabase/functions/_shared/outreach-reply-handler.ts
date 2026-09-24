@@ -28,7 +28,7 @@ import { isAutoReply, tipoAutorisposta, type InboundHeaders } from "./outreach-a
 import { classifyEmail } from "./email-quality.ts";
 import { domainHasMx, domainOf, isPecEmail } from "./outreach-email-check.ts";
 import { passoDellInvio } from "./outreach-sequence.ts";
-import { intentDaParoleChiave } from "./outreach-intent-parole.ts";
+import { intentDaParoleChiave, rispostaColSoloNumero } from "./outreach-intent-parole.ts";
 import { avvisaSuperAdmin } from "./avvisaSuperAdmin.ts";
 import { testoSenzaCitazione } from "./avvisoEmail.ts";
 import { iscrizioniDaFermare } from "./outreachRispostaBrand.ts";
@@ -425,6 +425,19 @@ export async function handleInboundReply(admin: any, r: InboundReply): Promise<v
     intent = daParole;
     if (inserted?.id) {
       await admin.from("outreach_replies").update({ intent, intent_confidence: 0.6 }).eq("id", inserted.id);
+    }
+  }
+
+  // 2-bis-0. La risposta è il solo numero di telefono («Ok 351 …», «338… /
+  // Giuseppe»): vuole essere chiamato. Vale anche se l'AI l'ha presa per
+  // un'autorisposta («rimando a un numero»): la regola è stretta e si ferma
+  // davanti a firme e messaggi automatici. Fino al 24/09/2026 finivano fra
+  // «altro»: nessun promemoria di chiamata, nessuna opportunità.
+  if ((intent === null || intent === "other" || intent === "auto_reply" || intent === "out_of_office")
+      && rispostaColSoloNumero(r.text ?? "")) {
+    intent = "interested";
+    if (inserted?.id) {
+      await admin.from("outreach_replies").update({ intent, intent_confidence: 0.8 }).eq("id", inserted.id);
     }
   }
 

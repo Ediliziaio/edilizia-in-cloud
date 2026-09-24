@@ -41,13 +41,14 @@ export function normalizeConfidence(raw: unknown): number {
 export const INTENT_SYSTEM_PROMPT =
   `Sei un classificatore di risposte a email cold B2B in italiano. ` +
   `Leggi oggetto + estratto della risposta e assegna UNA etichetta di intento tra: ` +
-  `interested (vuole saperne di più / disponibile a sentirsi), ` +
+  `interested (vuole saperne di più / disponibile a sentirsi; anche quando risponde solo col suo numero di telefono, ` +
+  `al più con un saluto o il nome: chiede di essere chiamato), ` +
   `not_interested (rifiuto / non ora), ` +
   `out_of_office (fuori sede / risponditore automatico di assenza), ` +
   // 22/09/2026: una conferma standard di un'azienda («vi ringraziamo per
   // l'interesse, compilate il modulo sul sito») era passata per interessata.
   `auto_reply (messaggio automatico o standard, non scritto da una persona per noi: conferma di ricezione, ticket, orari d'ufficio, ` +
-  `rimando generico a un modulo del sito o a un numero, casella dismessa o indirizzo cambiato), ` +
+  `rimando generico a un modulo del sito o al numero di un centralino, casella dismessa o indirizzo cambiato), ` +
   `unsubscribe (chiede di non essere più contattato), ` +
   `question (fa una domanda specifica prima di decidere), ` +
   `other (tutto il resto). ` +

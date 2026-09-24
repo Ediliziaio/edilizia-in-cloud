@@ -1,7 +1,10 @@
 // Fallback a parole chiave per le risposte del cold: quando l'AI è giù, o
 // non è sicura, un «no» o un «cancellatemi» devono comunque fermare tutto.
-// Vale solo per gli intenti che chiudono (opt-out / non interessato): il
-// resto lo decide l'AI, o resta «other».
+// Per gli intenti che chiudono (opt-out / non interessato), più un caso solo
+// che apre: la risposta fatta del solo numero di telefono (in fondo al file).
+// Il resto lo decide l'AI, o resta «other».
+
+import { senzaCitazione } from "./outreach-autoreply.ts";
 
 export type IntentParole = "unsubscribe" | "not_interested" | null;
 
@@ -40,4 +43,46 @@ export function intentDaParoleChiave(subject: string, text: string): IntentParol
   if (RE_UNSUBSCRIBE.some((re) => re.test(tutto))) return "unsubscribe";
   if (RE_NOT_INTERESTED.some((re) => re.test(corpo))) return "not_interested";
   return null;
+}
+
+// ── La risposta fatta del solo numero di telefono ──────────────────────────
+// «3385647736 / Giuseppe», «Ok 351 7881465»: il destinatario chiede di essere
+// chiamato. Fino al 24/09/2026 l'AI le metteva fra «altro» — nel suo prompt il
+// «rimando a un numero» era un segno di autorisposta — e tre persone di
+// ThermoDMR sono rimaste giorni senza chiamata e fuori dalle opportunità.
+
+/** Candidati: 6-14 cifre con spazi, punti, trattini o barre, non attaccate ad altre lettere o cifre. */
+const CANDIDATO_TELEFONO = /(?<![\p{L}\p{N}])(?:\+|00)?\d(?:[\s./-]?\d){5,13}(?![\p{L}\p{N}])/gu;
+
+/** Un numero italiano vero: cellulare (3…, 9-10 cifre) o fisso (0…, 6-11 cifre), anche con +39. Le date no. */
+function eUnTelefono(candidato: string): boolean {
+  let cifre = candidato.replace(/\D/g, "");
+  if (cifre.startsWith("0039")) cifre = cifre.slice(4);
+  else if (candidato.trim().startsWith("+39")) cifre = cifre.slice(2);
+  return /^(?:3\d{8,9}|0\d{5,10})$/.test(cifre);
+}
+
+/** Dove comincia la firma: da lì in giù non è più la risposta. */
+const INIZIO_FIRMA = /\b(?:cordiali\s+saluti|distinti\s+saluti|cordialmente|un\s+saluto|saluti|inviato\s+da|sent\s+from)\b|(?:^|\n)[ \t]*--[ \t]*(?:\n|$)/i;
+
+/** Segni di firma, di messaggio automatico o di rifiuto: con questi il numero non è un «chiamami». */
+const NON_E_UN_CHIAMAMI = /www\.|https?:|@|\bp\.?\s?iva\b|partita\s+iva|\bfax\b|\bvia\s+\p{L}|\bsede\b|urgenz|assen[tz]|ferie|rientr|\bchius[oae]\b|fuori\s+(?:sede|ufficio)|\b(?:chiamare|contattare|rivolgersi|telefonare)\b|\b(?:non|no|nessun\w*|stop|basta)\b|cancell|rimuov|disiscri/iu;
+
+/**
+ * Una risposta fatta del solo numero di telefono, al più con un «ok», un «sì,
+ * chiamami» o il nome: vale «interessato». Stretta di proposito — chi scrive di
+ * più lo legge l'AI — e ferma davanti a firme, messaggi automatici («per
+ * urgenze chiamare il…»), date e rifiuti.
+ */
+export function rispostaColSoloNumero(testo: string | null | undefined): boolean {
+  let t = senzaCitazione(String(testo ?? "").replace(/&nbsp;|\u00a0/gi, " "));
+  const firma = INIZIO_FIRMA.exec(t);
+  if (firma) t = t.slice(0, firma.index);
+  t = t.replace(/\s+/g, " ").trim();
+  if (!t || t.length > 90) return false;
+  const numeri = (t.match(CANDIDATO_TELEFONO) ?? []).filter(eUnTelefono);
+  if (numeri.length === 0) return false;
+  if (NON_E_UN_CHIAMAMI.test(t)) return false;
+  const resto = numeri.reduce((acc, n) => acc.replace(n, " "), t).replace(/[^\p{L}\s]/gu, " ").trim();
+  return resto.split(/\s+/).filter(Boolean).length <= 6;
 }
