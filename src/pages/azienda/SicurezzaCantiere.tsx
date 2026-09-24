@@ -427,7 +427,7 @@ export default function SicurezzaCantiere() {
       <div className="flex items-start gap-3 p-3 rounded-lg border bg-amber-50 border-amber-200 dark:bg-amber-950/20 dark:border-amber-700">
         <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
         <p className="text-xs sm:text-sm text-amber-700 dark:text-amber-400">
-          POS e DUVRI sono documenti obbligatori ai sensi del D.Lgs 81/08. Generati automaticamente dall'AI sulla base dei dati dell'ordine.
+          POS e DUVRI sono documenti obbligatori ai sensi del D.Lgs 81/08. Il POS segue il modello ministeriale e l'app lo compila con i dati della commessa; il DUVRI lo prepara l'AI.
         </p>
       </div>
 

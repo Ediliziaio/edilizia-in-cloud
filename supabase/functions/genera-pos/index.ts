@@ -19,6 +19,7 @@
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
+import { extractJsonFromLLM } from "../_shared/extractJson.ts";
 import { colonneRiassunto, preparaPosDaApp } from "../_shared/posDatiApp.ts";
 import { normalizzaLavorazione, normalizzaPos, vociMancanti, type Lavorazione } from "../_shared/posModello.ts";
 
@@ -68,18 +69,18 @@ Per ogni lavorazione compili i campi della tabella «Lavorazioni svolte in canti
 - macchine: macchine e attrezzature; usa quelle della commessa se pertinenti, altrimenti tipologie generiche; «Nessuna» se non servono
 - impianti: impianti di cantiere (elettrico, idrico, ecc.) o «Nessuno»
 - turni: turni di lavoro (es. «Turno unico diurno»)
-- rischi: rischi specifici della lavorazione, uno per riga
-- misure: misure preventive e protettive concrete per ciascun rischio, una per riga, con i riferimenti normativi SOLO se certi (es. D.Lgs 81/2008 Titolo IV Capo II per i lavori in quota, Allegato XVIII e PiMUS per i ponteggi, Titolo VIII per rumore e vibrazioni, Titolo IX per gli agenti chimici)
-- dpi: DPI necessari, uno per riga, con la norma EN solo se certa (es. elmetto EN 397, calzature di sicurezza EN ISO 20345, imbracatura anticaduta EN 361, otoprotettori EN 352, facciale filtrante EN 149)
+- rischi: ELENCO (array di stringhe) dei rischi specifici della lavorazione
+- misure: ELENCO (array di stringhe) delle misure preventive e protettive concrete per ciascun rischio, con i riferimenti normativi SOLO se certi (es. D.Lgs 81/2008 Titolo IV Capo II per i lavori in quota, Allegato XVIII e PiMUS per i ponteggi, Titolo VIII per rumore e vibrazioni, Titolo IX per gli agenti chimici)
+- dpi: ELENCO (array di stringhe) dei DPI necessari, con la norma EN solo se certa (es. elmetto EN 397, calzature di sicurezza EN ISO 20345, imbracatura anticaduta EN 361, otoprotettori EN 352, facciale filtrante EN 149)
 - durata_giorni: durata presunta in giorni, coerente con la durata totale del cantiere
 - svolgimento: "diretto", oppure "subappalto" SOLO se tra i subappaltatori della commessa ce n'è uno che fa quel lavoro
 - svolgimento_con: il nome di quel subappaltatore, altrimenti vuoto
 
 Regole:
-- 3-8 lavorazioni, nell'ordine in cui si svolgono, specifiche per QUESTO cantiere.
+- 3-6 lavorazioni, nell'ordine in cui si svolgono, specifiche per QUESTO cantiere. Frasi brevi.
 - MAI inventare nomi di persone, numeri di telefono, livelli di rumore in dB, marche, codici o date.
 - Scrivi in italiano tecnico, frasi brevi, senza markdown.
-- Rispondi SOLO con JSON: {"lavorazioni": [ {...}, ... ]}.`;
+- Rispondi SOLO con JSON valido, senza blocchi di codice e senza testo prima o dopo: {"lavorazioni": [ {...}, ... ]}. Niente a capo dentro le stringhe: gli elenchi sono array.`;
 
 async function proponiLavorazioni(db: Db, companyId: string, userId: string, pos: Record<string, unknown>, cors: Record<string, string>): Promise<Lavorazione[]> {
   const contenuto = normalizzaPos(pos.contenuto);
@@ -120,7 +121,8 @@ async function proponiLavorazioni(db: Db, companyId: string, userId: string, pos
 
   let parsed: unknown;
   try {
-    parsed = JSON.parse(risposta.content || "{}");
+    // Tollera blocchi ```json e testo attorno (i modelli via router non sempre rispettano il formato).
+    parsed = extractJsonFromLLM(risposta.content || "");
   } catch {
     throw errorResponse("L'AI ha risposto in un formato non leggibile: riprova", 502, cors);
   }
@@ -128,8 +130,14 @@ async function proponiLavorazioni(db: Db, companyId: string, userId: string, pos
     ? (parsed as { lavorazioni: unknown[] }).lavorazioni
     : [];
   const base = Date.now().toString(36);
+  // Rischi, misure e DPI arrivano come elenchi: nella scheda diventano righe.
+  const righe = (v: unknown) => (Array.isArray(v) ? v.filter((x) => typeof x === "string" && x.trim()).join("\n") : v);
   const lavorazioni = elenco
-    .map((l, i) => ({ ...normalizzaLavorazione(l, `ai-${base}-${i + 1}`), origine: "ai" as const, verificata: false }))
+    .map((l, i) => {
+      const o = l && typeof l === "object" ? (l as Record<string, unknown>) : {};
+      const conRighe = { ...o, rischi: righe(o.rischi), misure: righe(o.misure), dpi: righe(o.dpi), sostanze: righe(o.sostanze) };
+      return { ...normalizzaLavorazione(conRighe, `ai-${base}-${i + 1}`), origine: "ai" as const, verificata: false };
+    })
     .filter((l) => l.titolo.trim() || l.descrizione.trim());
   if (!lavorazioni.length) throw errorResponse("L'AI non ha proposto lavorazioni: riprova o scrivile a mano", 502, cors);
   return lavorazioni;

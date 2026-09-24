@@ -111,8 +111,10 @@ export default function PosEditor() {
     );
   }
 
-  // Si rimonta quando il POS cambia sul server (salvato, approvato, nuova revisione).
-  const versione = `${pos.id}:${pos.revisione}:${pos.status}:${pos.updated_at}`;
+  // Si rimonta quando cambiano stato o revisione (approvato, nuova revisione),
+  // NON a ogni salvataggio: un rimontaggio a metà di un'operazione (salva e poi
+  // chiedi le proposte all'AI, salva e poi approva) ne butterebbe via l'esito.
+  const versione = `${pos.id}:${pos.revisione}:${pos.status}`;
   return <EditorPos key={versione} pos={pos} datiApp={datiApp ?? null} puoScrivere={puoScrivere} />;
 }
 
