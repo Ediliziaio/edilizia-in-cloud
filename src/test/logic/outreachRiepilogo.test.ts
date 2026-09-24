@@ -9,6 +9,7 @@ import {
   rigaBrand,
   rigaDaChiamare,
   type ContiBrand,
+  type DatiRiepilogo,
 } from "../../../supabase/functions/_shared/outreachRiepilogo";
 
 const conti = (p: Partial<ContiBrand>): ContiBrand => ({
@@ -92,7 +93,7 @@ describe("riepilogo giornaliero outreach", () => {
 // finiscono qui, in cima al riepilogo, col numero da comporre; e sopra ancora
 // c'è quello che è fermo.
 describe("da chiamare oggi e urgenze", () => {
-  const base = {
+  const base: DatiRiepilogo = {
     giorno: "giovedì 24 settembre",
     brand: [conti({ brand: "ThermoDMR", inviate: 180, primoContatto: 180, risposte: 2, interessati: 2 })],
     chiHaRisposto: ["Rossi Serramenti — interessato"],
