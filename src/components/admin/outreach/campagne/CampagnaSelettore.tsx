@@ -4,10 +4,11 @@
  * andando (risposte). La scelta resta la stessa passando da una scheda
  * all'altra e alla riapertura della pagina.
  */
-import { Layers } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { AlertTriangle, Layers } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { CampagnaRiepilogo } from "./useCampagneOutreach";
-import { percentuale, STATO_CAMPAGNA } from "./campagneFasi";
+import { percentuale, rimbalziAlti, STATO_CAMPAGNA } from "./campagneFasi";
 
 export function CampagnaSelettore({ campagne, scelta, onCambia, conTutte = false }: {
   campagne: CampagnaRiepilogo[];
@@ -19,8 +20,33 @@ export function CampagnaSelettore({ campagne, scelta, onCambia, conTutte = false
   const totContattati = campagne.reduce((s, c) => s + c.contattati, 0);
   const totRisposte = campagne.reduce((s, c) => s + c.risposte, 0);
 
+  // Le schede scorrono di lato: con dieci campagne, dal 5ª in poi stanno fuori
+  // dallo schermo e niente lo diceva. La sfumatura a destra c'è finché ne
+  // restano da vedere, e la campagna scelta si porta dentro la vista.
+  const riga = useRef<HTMLDivElement>(null);
+  const [altreADestra, setAltreADestra] = useState(false);
+  useEffect(() => {
+    const el = riga.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const aggiorna = () => setAltreADestra(el.scrollLeft + el.clientWidth < el.scrollWidth - 8);
+    const osserva = new ResizeObserver(aggiorna);
+    osserva.observe(el);
+    el.addEventListener("scroll", aggiorna, { passive: true });
+    return () => {
+      osserva.disconnect();
+      el.removeEventListener("scroll", aggiorna);
+    };
+  }, [campagne.length]);
+  useEffect(() => {
+    riga.current?.querySelector('[aria-checked="true"]')?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+  }, [scelta]);
+
   return (
-    <div className="-mx-1 overflow-x-auto px-1 pb-1">
+    <div
+      ref={riga}
+      className="-mx-1 overflow-x-auto px-1 pb-1"
+      style={altreADestra ? { maskImage: "linear-gradient(to right, #000 calc(100% - 72px), transparent)", WebkitMaskImage: "linear-gradient(to right, #000 calc(100% - 72px), transparent)" } : undefined}
+    >
       <div className="flex gap-2.5" role="radiogroup" aria-label="Campagna">
         {conTutte && (
           <Scheda
@@ -31,6 +57,8 @@ export function CampagnaSelettore({ campagne, scelta, onCambia, conTutte = false
             iscritti={totIscritti}
             contattati={totContattati}
             risposte={totRisposte}
+            rimbalzi={campagne.reduce((s, c) => s + c.rimbalzati, 0)}
+            invii={campagne.reduce((s, c) => s + c.messaggi_inviati, 0)}
           />
         )}
         {campagne.map((c) => {
@@ -51,6 +79,8 @@ export function CampagnaSelettore({ campagne, scelta, onCambia, conTutte = false
               iscritti={c.iscritti}
               contattati={c.contattati}
               risposte={c.risposte}
+              rimbalzi={c.rimbalzati}
+              invii={c.messaggi_inviati}
             />
           );
         })}
@@ -59,7 +89,7 @@ export function CampagnaSelettore({ campagne, scelta, onCambia, conTutte = false
   );
 }
 
-function Scheda({ attiva, onClick, testa, titolo, iscritti, contattati, risposte }: {
+function Scheda({ attiva, onClick, testa, titolo, iscritti, contattati, risposte, rimbalzi, invii }: {
   attiva: boolean;
   onClick: () => void;
   testa: React.ReactNode;
@@ -67,8 +97,11 @@ function Scheda({ attiva, onClick, testa, titolo, iscritti, contattati, risposte
   iscritti: number;
   contattati: number;
   risposte: number;
+  rimbalzi: number;
+  invii: number;
 }) {
   const quota = iscritti > 0 ? Math.max(contattati > 0 ? 2 : 0, Math.round((contattati / iscritti) * 100)) : 0;
+  const allerta = rimbalziAlti(rimbalzi, invii);
   return (
     <button
       type="button"
@@ -81,15 +114,22 @@ function Scheda({ attiva, onClick, testa, titolo, iscritti, contattati, risposte
         attiva ? "border-primary ring-1 ring-primary" : "border-border hover:border-primary/40",
       )}
     >
-      <span className="text-[11px] font-medium text-muted-foreground">{testa}</span>
+      <span className="flex items-center justify-between gap-2 text-[11px] font-medium text-muted-foreground">
+        <span className="min-w-0 truncate">{testa}</span>
+        {allerta && (
+          <span className="inline-flex shrink-0 items-center gap-1 text-red-700 dark:text-red-400" title="Rimbalzi oltre il 3% degli invii: rischio spam">
+            <AlertTriangle className="h-3 w-3" /> rimbalzi {percentuale(rimbalzi, invii)}
+          </span>
+        )}
+      </span>
       <span className="line-clamp-2 min-h-[2.5rem] text-sm font-semibold leading-snug text-foreground" title={titolo}>{titolo}</span>
       <span className="h-1.5 w-full overflow-hidden rounded-full bg-muted" aria-hidden>
         <span className="block h-full rounded-full bg-primary" style={{ width: `${quota}%` }} />
       </span>
       <span className="text-[11px] text-muted-foreground">
         <span className="font-semibold text-foreground">{contattati.toLocaleString("it-IT")}</span> di {iscritti.toLocaleString("it-IT")} contattati
-        {" · "}{percentuale(contattati, iscritti)}
         {" · "}<span className="font-semibold text-foreground">{risposte.toLocaleString("it-IT")}</span> {risposte === 1 ? "risposta" : "risposte"}
+        {contattati > 0 && <> ({percentuale(risposte, contattati)})</>}
       </span>
     </button>
   );

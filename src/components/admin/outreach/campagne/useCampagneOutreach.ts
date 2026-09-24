@@ -187,6 +187,8 @@ export interface StatisticheCampagna {
     iscritti: number; contattati: number; da_contattare: number; in_corso: number; completati: number;
     risposte: number; interessati: number; non_interessati: number; rimbalzati: number; disiscritti: number;
     fermati: number; in_pausa: number; opportunita_create: number; opportunita_vinte: number;
+    /** chiusi per un rimbalzo senza email partite da questa campagna (manca prima del 24/09/2026) */
+    esclusi?: number;
   };
   messaggi: {
     inviati: number; aperti: number; programmati: number;
@@ -212,6 +214,35 @@ export function useCampagnaStatistiche(companyId: string, sequenceId: string | n
       });
       if (error) throw error;
       return (data ?? null) as StatisticheCampagna | null;
+    },
+  });
+}
+
+export interface FrenoRimbalzi {
+  fermato_at: string;
+  prime_email: number;
+  rimbalzi: number;
+}
+
+/**
+ * L'ultima volta che il freno dei rimbalzi ha messo in pausa la campagna
+ * (null = mai): chi la trova ferma deve sapere perché.
+ */
+export function useUltimoFreno(sequenceId: string | null, abilitato: boolean) {
+  return useQuery({
+    queryKey: ["outreach-campagne", "freno", sequenceId],
+    enabled: !!sequenceId && abilitato,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data, error } = await db
+        .from("outreach_freni_rimbalzi")
+        .select("fermato_at, prime_email, rimbalzi")
+        .eq("sequence_id", sequenceId)
+        .order("fermato_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      return (data ?? null) as FrenoRimbalzi | null;
     },
   });
 }

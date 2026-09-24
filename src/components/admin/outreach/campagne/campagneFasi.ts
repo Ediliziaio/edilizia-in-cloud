@@ -5,7 +5,7 @@
  *
  *   Nel flusso   Da contattare → Email 1 → … → Email N → Flusso finito
  *   Risposte     Interessati · Domande · Altre risposte · Non interessati
- *   Usciti       Rimbalzate · Disiscritti · Fermati
+ *   Usciti       Rimbalzate · Esclusi prima dell'invio · Disiscritti · Fermati
  *
  * «Email 3» conta chi ha ricevuto la terza email e aspetta la quarta: è dove
  * il contatto si trova ADESSO, non quante volte la terza email è partita (quello
@@ -67,6 +67,10 @@ const RISPOSTE: Array<{ chiave: string; titolo: string; sottotitolo: string; ton
 
 const USCITE: Array<{ chiave: string; titolo: string; sottotitolo: string; tono: TonoFase }> = [
   { chiave: "rimbalzato", titolo: "Rimbalzate", sottotitolo: "indirizzo inesistente o rifiutato", tono: "allerta" },
+  // Chiusi per un rimbalzo senza che da questo flusso sia partita un'email:
+  // l'indirizzo era già rimbalzato con un altro flusso, o il dominio non riceve
+  // posta. Non sono rimbalzi del flusso (24/09/2026: erano la metà dei 243).
+  { chiave: "escluso", titolo: "Esclusi prima dell'invio", sottotitolo: "già rimbalzati con un altro flusso o dominio senza posta: nessuna email partita", tono: "spento" },
   { chiave: "disiscritto", titolo: "Disiscritti", sottotitolo: "hanno chiesto di non ricevere più", tono: "spento" },
   { chiave: "fermato", titolo: "Fermati", sottotitolo: "a mano o per un errore d'invio", tono: "spento" },
 ];
@@ -134,6 +138,15 @@ export function faseIniziale(fasi: FaseVista[]): string {
   if (inCorso) return inCorso.chiave;
   const conQualcuno = fasi.find((f) => f.contatti > 0);
   return conQualcuno?.chiave ?? "da_contattare";
+}
+
+/**
+ * Rimbalzi oltre il 3% degli invii: sopra quella soglia i provider iniziano a
+ * mandare in spam anche le email buone. È la stessa soglia delle Statistiche;
+ * sotto i 20 invii un paio di rimbalzi non dice ancora niente.
+ */
+export function rimbalziAlti(rimbalzi: number, invii: number): boolean {
+  return invii >= 20 && rimbalzi / invii > 0.03;
 }
 
 /**
