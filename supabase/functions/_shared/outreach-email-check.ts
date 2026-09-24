@@ -24,9 +24,23 @@ export function domainOf(email: string): string {
 }
 
 /**
+ * «Nessun record»: il dominio non esiste, o non ha quel tipo di record. Deno
+ * lo segnala con NotFound («no record found for …»); un DNS che non risponde
+ * dà TimedOut o un errore generico. Fino al 24/09/2026 le due cose erano la
+ * stessa, e un dominio inesistente — «2x.webp» preso da un nome d'immagine,
+ * «www.keynesia» troncato — passava per «DNS lento, non si blocca»: gli
+ * indirizzi entravano nei flussi e il server di invio li rifiutava.
+ */
+export function nessunRecord(e: unknown): boolean {
+  const nome = String((e as { name?: unknown } | null)?.name ?? "");
+  const messaggio = String((e as { message?: unknown } | null)?.message ?? "");
+  return nome === "NotFound" || /no records? found/i.test(messaggio);
+}
+
+/**
  * Il dominio ha un MX (o almeno un A)? Cache in outreach_mx_map (30 giorni).
- * mx_host NULL con risolto_at recente = "senza MX". Best-effort: su errore DNS
- * si considera valido (mai bloccare l'arruolamento per un DNS lento).
+ * mx_host NULL con risolto_at recente = "senza MX". Best-effort: un DNS che
+ * non risponde non blocca l'arruolamento; un dominio che non esiste sì.
  */
 export async function domainHasMx(admin: any, domain: string, cache: Map<string, boolean>): Promise<boolean> {
   const d = domain.toLowerCase().trim();
@@ -42,16 +56,21 @@ export async function domainHasMx(admin: any, domain: string, cache: Map<string,
     }
   } catch { /* prosegue con il DNS */ }
   let host: string | null = null;
+  // `errore` = il DNS non ha risposto. «Nessun record» è una risposta, e vuol
+  // dire che lì la posta non arriva.
   let errore = false;
   try {
-    const rec = await Deno.resolveDns(d, "MX");
+    const rec = (await Deno.resolveDns(d, "MX")) as Array<{ preference: number; exchange: string }>;
     host = rec.sort((a, b) => a.preference - b.preference)[0]?.exchange ?? null;
-  } catch { errore = true; }
-  if (!host && errore) {
+  } catch (e) { errore = !nessunRecord(e); }
+  if (!host) {
     // niente MX: prova almeno un A (server che riceve direttamente)
-    try { const a = await Deno.resolveDns(d, "A"); if (a.length) host = d; errore = false; } catch { errore = true; }
+    try {
+      const a = (await Deno.resolveDns(d, "A")) as string[];
+      if (a.length) { host = d; errore = false; }
+    } catch (e) { errore = errore || !nessunRecord(e); }
   }
-  const ok = !!host || errore; // DNS in errore = non si blocca
+  const ok = !!host || errore; // DNS che non risponde = non si blocca
   cache.set(d, ok);
   if (!errore) {
     try {

@@ -12,6 +12,13 @@
 
 export interface RigaAvviso { etichetta: string; valore: string }
 
+/**
+ * L'obiettivo del titolare (24/09/2026): risposte positive dal 3% delle
+ * persone contattate. Si misura sulle persone, non sulle email: una persona
+ * ne riceve 7-9, e contando per email il flusso più lungo sembra il peggiore.
+ */
+export const OBIETTIVO_POSITIVE_PCT = 3;
+
 /** I numeri di un brand nella giornata. */
 export interface ContiBrand {
   brand: string;
@@ -29,6 +36,9 @@ export interface ContiBrand {
   /** Email pronte a partire oggi e totale ancora in coda. */
   inPartenza: number;
   inCoda: number;
+  /** Persone contattate via email negli ultimi 30 giorni, e quante hanno risposto interessate o con una domanda. */
+  persone30?: number;
+  positive30?: number;
 }
 
 export interface DatiRiepilogo {
@@ -76,6 +86,10 @@ export function rigaBrand(c: ContiBrand): RigaAvviso {
   if (dettaglio.length) pezzi.push(dettaglio.join(", "));
   if (c.rimbalzi > 0) pezzi.push(`${plurale(c.rimbalzi, "indirizzo inesistente", "indirizzi inesistenti")}`);
   pezzi.push(c.tracciaAperture ? `aperture ${percentuale(c.aperte, c.inviate)}` : "aperture non tracciate");
+  if (c.persone30) {
+    const pos = c.positive30 ?? 0;
+    pezzi.push(`30 giorni: ${plurale(pos, "positiva", "positive", "nessuna positiva")} su ${nf(c.persone30)} persone (${percentuale(pos, c.persone30)})`);
+  }
   pezzi.push(`oggi ${nf(c.inPartenza)} in partenza, ${nf(c.inCoda)} in coda`);
   return { etichetta: c.brand, valore: pezzi.join(" · ") };
 }
@@ -102,6 +116,15 @@ export function componiRiepilogo(d: DatiRiepilogo): { titolo: string; righe: Rig
       `${tot.rimbalzi ? ` · ${nf(tot.rimbalzi)} indirizzi inesistenti` : ""}` +
       `${tot.optout ? ` · ${nf(tot.optout)} cancellazioni` : ""}`,
   });
+  const persone30 = d.brand.reduce((a, c) => a + (c.persone30 ?? 0), 0);
+  const positive30 = d.brand.reduce((a, c) => a + (c.positive30 ?? 0), 0);
+  if (persone30 > 0) {
+    righe.push({
+      etichetta: "Ultimi 30 giorni",
+      valore: `${plurale(positive30, "risposta positiva", "risposte positive", "nessuna risposta positiva")} su ${nf(persone30)} persone contattate` +
+        ` (${percentuale(positive30, persone30)}) · obiettivo ${OBIETTIVO_POSITIVE_PCT}%`,
+    });
+  }
   for (const c of d.brand) righe.push(rigaBrand(c));
   righe.push({
     etichetta: "Oggi",

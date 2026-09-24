@@ -113,6 +113,17 @@ serveConMetriche("outreach-riepilogo", async (req) => {
       { id: null, nome: "Senza brand", attivo: false },
     ];
 
+    // Positive sulle persone contattate negli ultimi 30 giorni, per brand: la
+    // misura dell'obiettivo del 3% (24/09/2026). Se la funzione non risponde
+    // il riepilogo parte lo stesso, senza quella riga.
+    const trenta = new Map<string, { persone: number; positive: number }>();
+    const { data: t30, error: t30Err } = await admin.rpc("outreach_positive_30_giorni");
+    if (!t30Err) {
+      for (const x of (t30 ?? []) as Array<{ brand_id: string | null; persone: number; positive: number }>) {
+        trenta.set(x.brand_id ?? "", { persone: Number(x.persone) || 0, positive: Number(x.positive) || 0 });
+      }
+    }
+
     const conti: ContiBrand[] = [];
     for (const s of secchi) {
       const coda = () => {
@@ -157,6 +168,8 @@ serveConMetriche("outreach-riepilogo", async (req) => {
         tracciaAperture: sequenze.some((x) => (s.id ? x.brand_id === s.id : !x.brand_id) && x.track_opens === true),
         inPartenza,
         inCoda,
+        persone30: trenta.get(s.id ?? "")?.persone,
+        positive30: trenta.get(s.id ?? "")?.positive,
       };
       // Un brand in pausa (e il secchio «Senza brand») compare solo se ha
       // davvero qualcosa dentro: righe tutte a zero sono rumore.

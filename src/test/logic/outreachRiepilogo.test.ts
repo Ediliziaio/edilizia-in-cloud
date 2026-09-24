@@ -1,7 +1,10 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   componiRiepilogo,
   finestraGiorno,
+  OBIETTIVO_POSITIVE_PCT,
   percentuale,
   rigaBrand,
   type ContiBrand,
@@ -79,5 +82,37 @@ describe("riepilogo giornaliero outreach", () => {
     // Il giorno del ritorno all'ora solare dura 25 ore.
     const cambio = finestraGiorno(new Date("2026-10-26T05:30:00Z"));
     expect(new Date(cambio.a).getTime() - new Date(cambio.da).getTime()).toBe(25 * 3_600_000);
+  });
+});
+
+// 24/09/2026: l'obiettivo è il 3% di risposte positive sulle PERSONE
+// contattate, e il riepilogo del mattino lo mette sotto gli occhi ogni giorno.
+describe("positive sulle persone contattate, ultimi 30 giorni", () => {
+  it("la riga del brand dice positive e persone, con la percentuale", () => {
+    const r = rigaBrand(conti({ persone30: 510, positive30: 8 }));
+    expect(r.valore).toContain("30 giorni: 8 positive su 510 persone (1,6%)");
+    expect(rigaBrand(conti({ persone30: 1097, positive30: 0 })).valore).toContain("30 giorni: nessuna positiva su 1097 persone (0,0%)");
+  });
+
+  it("senza il dato dei 30 giorni la riga resta com'era", () => {
+    expect(rigaBrand(conti({})).valore).not.toContain("30 giorni");
+  });
+
+  it("il totale sta subito sotto «Ieri in tutto», con l'obiettivo accanto", () => {
+    const { righe } = componiRiepilogo({
+      giorno: "giovedì 24 settembre",
+      brand: [conti({ brand: "ThermoDMR", persone30: 510, positive30: 8 }), conti({ brand: "Marketing Edile", persone30: 1784, positive30: 9 })],
+      chiHaRisposto: [], caselleFerme: [], caselleAttive: 90,
+    });
+    expect(righe[1].etichetta).toBe("Ultimi 30 giorni");
+    expect(righe[1].valore).toBe(`17 risposte positive su 2294 persone contattate (0,7%) · obiettivo ${OBIETTIVO_POSITIVE_PCT}%`);
+  });
+
+  it("la funzione del riepilogo legge il conto dal database, chiusa ad anon", () => {
+    const funzione = readFileSync(resolve(process.cwd(), "supabase/functions/outreach-riepilogo/index.ts"), "utf8");
+    expect(funzione).toContain('admin.rpc("outreach_positive_30_giorni")');
+    const sql = readFileSync(resolve(process.cwd(), "supabase/migrations/20280924130000_outreach_positive_30_giorni.sql"), "utf8");
+    expect(sql).toContain("revoke all on function public.outreach_positive_30_giorni() from public, anon, authenticated;");
+    expect(sql).toContain("r.intent in ('interested', 'question')");
   });
 });
