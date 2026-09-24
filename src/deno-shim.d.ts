@@ -61,6 +61,6 @@ declare const Deno: {
   resolveDns(
     query: string,
     recordType: string,
-    options?: { nameServer?: { ipAddr: string; port?: number } },
+    options?: { nameServer?: { ipAddr: string; port?: number }; signal?: AbortSignal },
   ): Promise<unknown>;
 };

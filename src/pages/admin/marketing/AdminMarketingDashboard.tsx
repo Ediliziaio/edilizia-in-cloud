@@ -108,12 +108,12 @@ function OutreachCockpit() {
   return (
     <div className="min-h-full bg-muted/30">
       <div className="space-y-6 p-4 sm:p-6">
-        {/* Header pagina — hero brand (navy + arancione) */}
+        {/* Header pagina — hero brand (navy + arancione). Senza sottotitolo: è
+            una console di tutti i giorni, la testata stretta lascia spazio ai dati. */}
         <BrandPageHeader
           icon={Radar}
           eyebrow="Cold Outreach"
           title="Outreach Engine"
-          subtitle="La tua console quotidiana di cold outreach multi-canale. Email-first, poi WhatsApp e SMS."
           actions={<OutreachComposeDialog companyId={companyId} />}
         />
 

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   costruisciFasi, faseIniziale, percentuale, oggettoLeggibile, passoMigliore, numeroPasso,
-  tettoCasella, capacitaBrand, followupSchiacciati, stimaTempi, numero, giorniLeggibili,
+  tettoCasella, capacitaBrand, followupSchiacciati, stimaTempi, numero, giorniLeggibili, rimbalziAlti,
   type FaseRiga, type PassoDef, type RitmoBrand, type CasellaRitmo,
 } from "@/components/admin/outreach/campagne/campagneFasi";
 
@@ -36,7 +36,7 @@ describe("costruisciFasi", () => {
   it("risposte e uscite hanno sempre le loro colonne", () => {
     const f = costruisciFasi([], passi);
     expect(f.filter((x) => x.gruppo === "risposta")).toHaveLength(4);
-    expect(f.filter((x) => x.gruppo === "uscita").map((x) => x.chiave)).toEqual(["rimbalzato", "disiscritto", "fermato"]);
+    expect(f.filter((x) => x.gruppo === "uscita").map((x) => x.chiave)).toEqual(["rimbalzato", "escluso", "disiscritto", "fermato"]);
   });
 });
 
@@ -186,5 +186,20 @@ describe("stimaTempi", () => {
     expect(s.primi!.giorni).toBeGreaterThan(55);
     expect(s.primi!.giorni).toBeLessThan(62);
     expect(s.tutto!.giorni).toBeGreaterThan(400);
+  });
+});
+
+describe("rimbalziAlti", () => {
+  it("oltre il 3% degli invii è un allarme (i casi veri del 24/09/2026)", () => {
+    expect(rimbalziAlti(37, 621)).toBe(true); // ThermoDMR · Flusso C, 6%
+    expect(rimbalziAlti(56, 463)).toBe(true); // Edilizia in Cloud · Tutti gli altri, 12%
+    expect(rimbalziAlti(12, 730)).toBe(false); // Marketing Edile · Tetti, 1,6%
+  });
+
+  it("il 3% esatto non è ancora allarme, e sotto i 20 invii non si giudica", () => {
+    expect(rimbalziAlti(3, 100)).toBe(false);
+    expect(rimbalziAlti(4, 100)).toBe(true);
+    expect(rimbalziAlti(2, 15)).toBe(false);
+    expect(rimbalziAlti(0, 0)).toBe(false);
   });
 });

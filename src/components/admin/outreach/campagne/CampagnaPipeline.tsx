@@ -3,18 +3,18 @@
  *
  *   Nel flusso   Da contattare → Email 1 → … → Email N → Flusso finito
  *   Risposte     Interessati · Domande · Altre risposte · Non interessati
- *   Usciti       Rimbalzate · Disiscritti · Fermati
+ *   Usciti       Rimbalzate · Esclusi prima dell'invio · Disiscritti · Fermati
  *
  * Ogni colonna si apre sull'elenco dei suoi contatti (con ricerca e pagine):
  * numeri ed elenco vengono dalla stessa definizione di fase nel database
  * (outreach_campagna_iscrizioni), quindi non possono non tornare.
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Link } from "react-router-dom";
 import {
-  ChevronRight, Clock, Search, Loader2, Mail, MessageSquareReply, LogOut, Users, Send, ArrowUpRight,
+  ChevronRight, Clock, Search, Loader2, Mail, MessageSquareReply, ArrowUpRight,
   ChevronLeft, CalendarClock, Sparkles, AlertTriangle,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -25,12 +25,12 @@ import { cn } from "@/lib/utils";
 import { OutreachConvertContactDialog } from "../OutreachConvertContactDialog";
 import {
   costruisciFasi, faseIniziale, percentuale, numeroPasso, numero, followupSchiacciati,
-  giorniLeggibili, STATO_CAMPAGNA,
+  giorniLeggibili, rimbalziAlti, STATO_CAMPAGNA,
   type FaseVista, type TonoFase, type StimaTempi, type RitmoBrand,
 } from "./campagneFasi";
 import {
-  useCampagnaFasi, useCampagnaPassi, useCampagnaContatti, CONTATTI_PER_PAGINA,
-  type CampagnaRiepilogo, type ContattoCampagna,
+  useCampagnaFasi, useCampagnaPassi, useCampagnaContatti, useUltimoFreno, CONTATTI_PER_PAGINA,
+  type CampagnaRiepilogo, type ContattoCampagna, type FrenoRimbalzi,
 } from "./useCampagneOutreach";
 
 const TONO: Record<TonoFase, { barra: string; chip: string }> = {
@@ -52,6 +52,7 @@ const INTENTO: Record<string, string> = {
 
 const MOTIVO: Record<string, string> = {
   hard_bounce: "Rimbalzo definitivo: indirizzo inesistente",
+  "indirizzo impossibile": "Il dominio non riceve posta",
   send_failed: "Invio non riuscito",
   send_rejected: "Rifiutato dal server del destinatario",
   optout_email: "Ha chiesto di non ricevere email",
@@ -89,6 +90,7 @@ export function CampagnaPipeline({ companyId, campagna, stima }: {
 }) {
   const fasiQ = useCampagnaFasi(companyId, campagna.sequence_id);
   const passiQ = useCampagnaPassi(campagna.sequence_id);
+  const frenoQ = useUltimoFreno(campagna.sequence_id, campagna.stato === "paused");
   const fasi = useMemo(() => costruisciFasi(fasiQ.data ?? [], passiQ.data ?? []), [fasiQ.data, passiQ.data]);
   // Il genitore monta un componente per campagna (key): cambiando campagna la
   // colonna scelta riparte da capo da sola.
@@ -108,6 +110,16 @@ export function CampagnaPipeline({ companyId, campagna, stima }: {
   const caldi = risposte
     .filter((f) => f.chiave === "risposta_interessato" || f.chiave === "risposta_domanda")
     .reduce((s, f) => s + f.contatti, 0);
+
+  // «7 da richiamare» è la cosa da fare: apre l'elenco di chi richiamare e ci
+  // porta lì, invece di essere una scritta verde in mezzo a una frase.
+  const elenco = useRef<HTMLDivElement>(null);
+  const apriDaRichiamare = () => {
+    const chiave = ["risposta_interessato", "risposta_domanda"].find((k) => (fasi.find((f) => f.chiave === k)?.contatti ?? 0) > 0);
+    if (!chiave) return;
+    setScelta(chiave);
+    requestAnimationFrame(() => elenco.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }));
+  };
 
   if (fasiQ.error || passiQ.error) {
     return (
@@ -129,6 +141,8 @@ export function CampagnaPipeline({ companyId, campagna, stima }: {
         totRisposte={totRisposte}
         totUscite={totUscite}
         caldi={caldi}
+        onDaRichiamare={apriDaRichiamare}
+        freno={frenoQ.data ?? null}
         adesso={adesso}
       />
 
@@ -182,14 +196,15 @@ export function CampagnaPipeline({ companyId, campagna, stima }: {
       <Esiti
         risposte={risposte}
         uscite={uscite}
-        iscritti={iscritti}
+        contattati={campagna.contattati}
+        invii={campagna.messaggi_inviati}
         attiva={attiva}
         onScegli={setScelta}
         caricamento={!pronta}
-        adesso={adesso}
       />
 
       {faseAttiva && (
+        <div ref={elenco} className="scroll-mt-4">
         <ElencoContatti
           key={`${campagna.sequence_id}-${faseAttiva.chiave}`}
           companyId={companyId}
@@ -198,6 +213,7 @@ export function CampagnaPipeline({ companyId, campagna, stima }: {
           nPassi={passiQ.data?.length ?? 0}
           adesso={adesso}
         />
+        </div>
       )}
     </div>
   );
@@ -213,41 +229,55 @@ export function CampagnaPipeline({ companyId, campagna, stima }: {
  * di sabato non parte niente perché la finestra d'invio è lun–ven.
  */
 function Riepilogo({
-  campagna, stima, iscritti, contattati, daContattare, nelFlusso, totRisposte, totUscite, caldi, adesso,
+  campagna, stima, iscritti, daContattare, nelFlusso, totRisposte, totUscite, caldi, onDaRichiamare, freno, adesso,
 }: {
   campagna: CampagnaRiepilogo;
   stima: (StimaTempi & { brand: RitmoBrand }) | null;
   iscritti: number; contattati: number; daContattare: number; nelFlusso: number;
-  totRisposte: number; totUscite: number; caldi: number; adesso: number;
+  totRisposte: number; totUscite: number; caldi: number; onDaRichiamare: () => void;
+  /** ultima fermata del freno dei rimbalzi, se la campagna è in pausa */
+  freno: FrenoRimbalzi | null;
+  adesso: number;
 }) {
+  // «Contattati» = chi ha ricevuto almeno un'email: lo stesso numero della
+  // scheda della campagna e delle Statistiche. Prima qui si contava chiunque
+  // fosse uscito da «Da contattare», compresi gli indirizzi rimbalzati al primo
+  // invio: 417 qui, 390 nella scheda subito sopra.
+  const contattati = campagna.contattati;
   const ferma = campagna.stato !== "active";
   const fin = stima ? finestraAdesso(stima.brand.giorni_invio, stima.brand.ora_inizio, stima.brand.ora_fine, new Date(adesso)) : null;
 
+  // La parte fatta a sinistra, quella che resta a destra: prima «Da contattare»
+  // riempiva l'inizio della barra e l'avanzamento stava in fondo a destra.
   const segmenti = [
-    { chiave: "da_contattare", etichetta: "Da contattare", valore: daContattare, colore: "bg-muted-foreground/30" },
-    { chiave: "in_corso", etichetta: "Nel flusso", valore: Math.max(0, nelFlusso), colore: "bg-primary" },
     { chiave: "risposte", etichetta: "Hanno risposto", valore: totRisposte, colore: "bg-emerald-600" },
+    { chiave: "in_corso", etichetta: "Nel flusso", valore: Math.max(0, nelFlusso), colore: "bg-primary" },
     { chiave: "uscite", etichetta: "Usciti", valore: totUscite, colore: "bg-muted-foreground/50" },
+    { chiave: "da_contattare", etichetta: "Da contattare", valore: daContattare, colore: "bg-muted-foreground/20" },
   ].filter((x) => x.valore > 0);
 
   return (
     <div className="rounded-xl border border-border bg-card px-4 py-3.5 shadow-sm">
-      <p className="text-sm text-foreground">
-        <span className="text-lg font-semibold">{numero(contattati)}</span>
-        <span className="text-muted-foreground"> contattati su {numero(iscritti)}</span>
-        {totRisposte > 0 ? (
-          <>
-            <span className="text-muted-foreground"> · </span>
-            <span className="font-semibold">{numero(totRisposte)}</span>
-            <span className="text-muted-foreground"> hanno risposto</span>
-            {caldi > 0 && (
-              <span className="text-emerald-700 dark:text-emerald-400"> · {numero(caldi)} da richiamare</span>
-            )}
-          </>
-        ) : (
-          <span className="text-muted-foreground"> · nessuna risposta ancora</span>
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+        <p className="text-sm text-foreground">
+          <span className="text-lg font-semibold">{numero(contattati)}</span>
+          <span className="text-muted-foreground"> contattati su {numero(iscritti)}</span>
+          {totRisposte > 0 ? (
+            <>
+              <span className="text-muted-foreground"> · </span>
+              <span className="font-semibold">{numero(totRisposte)}</span>
+              <span className="text-muted-foreground"> hanno risposto{contattati > 0 && ` (${percentuale(totRisposte, contattati)})`}</span>
+            </>
+          ) : (
+            <span className="text-muted-foreground"> · nessuna risposta ancora</span>
+          )}
+        </p>
+        {caldi > 0 && (
+          <Button size="sm" onClick={onDaRichiamare} className="h-8 gap-1.5 bg-emerald-600 text-white hover:bg-emerald-700">
+            <MessageSquareReply className="h-3.5 w-3.5" /> {numero(caldi)} da richiamare <ChevronRight className="h-3.5 w-3.5" />
+          </Button>
         )}
-      </p>
+      </div>
 
       <div className="mt-2.5 flex h-2 w-full overflow-hidden rounded-full bg-muted" aria-hidden>
         {segmenti.map((sg) => (
@@ -266,7 +296,13 @@ function Riepilogo({
       <div className="mt-3 flex flex-wrap items-start gap-x-2 gap-y-1 border-t border-border pt-2.5 text-xs">
         <CalendarClock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
         <p className="min-w-0 flex-1 text-muted-foreground">
-          {ferma ? (
+          {ferma && freno ? (
+            <span className="text-foreground">
+              <strong className="font-semibold">Fermata dal freno dei rimbalzi</strong> {dataBreve(freno.fermato_at)}: {numero(freno.rimbalzi)} indirizzi
+              inesistenti sulle ultime {numero(freno.prime_email)} prime email. Prima di riattivarla da Sequenze conviene far verificare gli
+              indirizzi della lista; ripartendo, il conto ricomincia da zero.
+            </span>
+          ) : ferma ? (
             <span className="text-foreground">Campagna {(STATO_CAMPAGNA[campagna.stato]?.etichetta ?? campagna.stato).toLowerCase()}: non parte niente finché non la riattivi.</span>
           ) : fin && !fin.aperta ? (
             <>
@@ -374,72 +410,122 @@ function Tappa({ f, iscritti, attiva, onClick, caricamento, adesso }: {
 /**
  * Risposte e uscite. Quando sono tutte a zero diventano una riga di
  * pastiglie: restano raggiungibili, smettono di riempire la pagina di zeri.
+ *
+ * Con qualcuno dentro sono tessere basse su una riga, come le tappe del
+ * percorso (prima: schede alte 125 px su due righe). Le percentuali sono sui
+ * contattati, i rimbalzi sugli invii come nelle Statistiche: sugli iscritti
+ * (migliaia mai raggiunti) dicevano tutte «<1%», anche 37 rimbalzi su 621 invii.
  */
-function Esiti({ risposte, uscite, iscritti, attiva, onScegli, caricamento, adesso }: {
-  risposte: FaseVista[]; uscite: FaseVista[]; iscritti: number; attiva: string | null;
-  onScegli: (chiave: string) => void; caricamento: boolean; adesso: number;
+function Esiti({ risposte, uscite, contattati, invii, attiva, onScegli, caricamento }: {
+  risposte: FaseVista[]; uscite: FaseVista[]; contattati: number; invii: number; attiva: string | null;
+  onScegli: (chiave: string) => void; caricamento: boolean;
 }) {
   const tutte = [...risposte, ...uscite];
   const conQualcuno = tutte.filter((f) => f.contatti > 0);
-  const vuote = tutte.filter((f) => f.contatti === 0);
+  const rimbalzi = uscite.find((f) => f.chiave === "rimbalzato")?.contatti ?? 0;
+  const allerta = rimbalziAlti(rimbalzi, invii);
+
+  const pastiglia = (f: FaseVista) => (
+    <button
+      key={f.chiave}
+      type="button"
+      onClick={() => onScegli(f.chiave)}
+      aria-pressed={attiva === f.chiave}
+      title={f.sottotitolo}
+      className={cn(
+        "self-center rounded-full border px-2.5 py-1 text-[11px] text-muted-foreground transition-colors",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        attiva === f.chiave ? "border-primary text-foreground" : "border-border hover:border-primary/40",
+      )}
+    >
+      {f.titolo} <span className="tabular-nums">0</span>
+    </button>
+  );
 
   if (conQualcuno.length === 0) {
     return (
       <section aria-label="Risposte e uscite" className="space-y-2">
         <Intestazione icona={MessageSquareReply} titolo="Risposte e uscite" nota="nessuno è ancora uscito dal flusso" />
-        <div className="flex flex-wrap gap-1.5">
-          {tutte.map((f) => (
-            <button
-              key={f.chiave}
-              type="button"
-              onClick={() => onScegli(f.chiave)}
-              aria-pressed={attiva === f.chiave}
-              className={cn(
-                "rounded-full border px-2.5 py-1 text-[11px] text-muted-foreground transition-colors",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                attiva === f.chiave ? "border-primary text-foreground" : "border-border hover:border-primary/40",
-              )}
-            >
-              {f.titolo} <span className="tabular-nums">0</span>
-            </button>
-          ))}
-        </div>
+        <div className="flex flex-wrap gap-1.5">{tutte.map(pastiglia)}</div>
       </section>
     );
   }
+
+  // Prima le tessere con qualcuno dentro, in fondo al gruppo quelle a zero.
+  const tessere = (gruppo: FaseVista[]) =>
+    [...gruppo.filter((f) => f.contatti > 0), ...gruppo.filter((f) => f.contatti === 0)].map((f) => {
+      if (f.contatti === 0) return pastiglia(f);
+      const suInvii = f.chiave === "rimbalzato";
+      // Gli esclusi non hanno ricevuto niente da qui: una quota sui contattati
+      // o sugli invii non vorrebbe dire nulla.
+      const quota = f.chiave === "escluso"
+        ? "nessuna email partita"
+        : suInvii ? `${percentuale(f.contatti, invii)} degli invii` : `${percentuale(f.contatti, contattati)} dei contattati`;
+      return (
+        <Esito
+          key={f.chiave}
+          f={f}
+          quota={quota}
+          allerta={suInvii && allerta}
+          attiva={attiva === f.chiave}
+          onClick={() => onScegli(f.chiave)}
+          caricamento={caricamento}
+        />
+      );
+    });
 
   return (
     <section aria-label="Risposte e uscite" className="space-y-2">
       <Intestazione
         icona={MessageSquareReply}
         titolo="Risposte e uscite"
-        nota={`${numero(conQualcuno.reduce((s, f) => s + f.contatti, 0))} contatti hanno lasciato il flusso`}
+        nota={`${numero(conQualcuno.reduce((s, f) => s + f.contatti, 0))} contatti hanno lasciato il flusso · clicca per vedere chi`}
       />
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-        {conQualcuno.map((f) => (
-          <Tessera key={f.chiave} f={f} iscritti={iscritti} attiva={attiva === f.chiave} onClick={() => onScegli(f.chiave)} caricamento={caricamento} adesso={adesso} largo />
-        ))}
+      {/* Due gruppi che vanno a capo interi: risposte, poi uscite. */}
+      <div className="flex flex-wrap items-stretch gap-x-5 gap-y-1.5">
+        <div className="flex flex-wrap items-stretch gap-1.5">{tessere(risposte)}</div>
+        <div className="flex flex-wrap items-stretch gap-1.5">{tessere(uscite)}</div>
       </div>
-      {vuote.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 pt-0.5">
-          {vuote.map((f) => (
-            <button
-              key={f.chiave}
-              type="button"
-              onClick={() => onScegli(f.chiave)}
-              aria-pressed={attiva === f.chiave}
-              className={cn(
-                "rounded-full border px-2.5 py-1 text-[11px] text-muted-foreground transition-colors",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                attiva === f.chiave ? "border-primary text-foreground" : "border-border hover:border-primary/40",
-              )}
-            >
-              {f.titolo} <span className="tabular-nums">0</span>
-            </button>
-          ))}
+      {allerta && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg border border-red-200 bg-red-50/70 px-3 py-2 text-xs text-red-900 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200">
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+          <p className="min-w-0 flex-1">
+            <strong className="font-semibold">Rimbalzi al {percentuale(rimbalzi, invii)} degli invii</strong> (la soglia è il 3%): oltre, i provider
+            mandano in spam anche le email buone. Prima di arruolare altri contatti conviene verificare gli indirizzi della lista.
+          </p>
+          <Button size="sm" variant="outline" className="h-7 border-red-300 bg-white px-2 text-xs text-red-800 hover:bg-red-50 dark:bg-transparent" onClick={() => onScegli("rimbalzato")}>
+            Vedi chi
+          </Button>
         </div>
       )}
     </section>
+  );
+}
+
+/** Una risposta o un'uscita: tessera bassa come le tappe del percorso. */
+function Esito({ f, quota, allerta, attiva, onClick, caricamento }: {
+  f: FaseVista; quota: string; allerta: boolean; attiva: boolean; onClick: () => void; caricamento: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={attiva}
+      title={f.sottotitolo}
+      className={cn(
+        "flex min-w-[128px] flex-col rounded-lg border px-3 py-2 text-left transition-colors",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        allerta ? "border-red-300 bg-red-50/60 dark:border-red-900 dark:bg-red-950/30" : "bg-card",
+        attiva ? "border-primary ring-1 ring-primary" : !allerta && "border-border hover:border-primary/40",
+      )}
+    >
+      <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+        <span className={cn("h-1.5 w-1.5 rounded-full", TONO[f.tono].barra)} aria-hidden />
+        {f.titolo}
+      </span>
+      <span className="mt-0.5 text-xl font-semibold leading-none tabular-nums text-foreground">{caricamento ? "…" : numero(f.contatti)}</span>
+      <span className={cn("mt-1 text-[11px]", allerta ? "font-semibold text-red-700 dark:text-red-400" : "text-muted-foreground")}>{quota}</span>
+    </button>
   );
 }
 
@@ -451,49 +537,6 @@ function Intestazione({ icona: Icona, titolo, nota }: { icona: typeof Mail; tito
       </span>
       <span className="text-[11px] text-muted-foreground/80">{nota}</span>
     </div>
-  );
-}
-
-function Tessera({ f, iscritti, attiva, onClick, caricamento, adesso, tutti = null, largo = false }: {
-  f: FaseVista; iscritti: number; attiva: boolean; onClick: () => void; caricamento: boolean; adesso: number;
-  /** quando finiscono tutti (stima al ritmo delle caselle) */
-  tutti?: Date | null; largo?: boolean;
-}) {
-  const tono = TONO[f.tono];
-  const quota = iscritti > 0 && f.contatti > 0 ? Math.max(3, Math.round((f.contatti / iscritti) * 100)) : 0;
-  const vuota = f.contatti === 0;
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={attiva}
-      className={cn(
-        "flex flex-col rounded-xl border bg-card p-3 text-left transition-colors",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        largo ? "min-w-0" : "min-w-[132px] flex-1",
-        attiva ? "border-primary ring-1 ring-primary" : "border-border hover:border-primary/40",
-        vuota && !attiva && "bg-card/60",
-      )}
-    >
-      <span className="truncate text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{f.titolo}</span>
-      <span className={cn("mt-1 text-2xl font-semibold leading-none", vuota ? "text-muted-foreground/50" : "text-foreground")}>
-        {caricamento ? "…" : numero(f.contatti)}
-      </span>
-      <span className="mt-1 text-[11px] text-muted-foreground">{percentuale(f.contatti, iscritti)} degli iscritti</span>
-      <span className="mt-2 h-1 w-full overflow-hidden rounded-full bg-muted" aria-hidden>
-        <span className={cn("block h-full rounded-full", tono.barra)} style={{ width: `${quota}%` }} />
-      </span>
-      <span className="mt-2 line-clamp-2 text-[11px] leading-snug text-muted-foreground">{f.sottotitolo}</span>
-      {f.contatti > 0 && f.prossimoInvio && f.gruppo === "flusso" && (
-        <span className="mt-1.5 inline-flex items-start gap-1 text-[11px] leading-snug text-foreground/80">
-          <Clock className="mt-0.5 h-3 w-3 shrink-0" /> prossimo: {prossimo(f.prossimoInvio, adesso)}
-        </span>
-      )}
-      {f.chiave === "da_contattare" && f.contatti > 0 && tutti && (
-        <span className="mt-0.5 text-[11px] leading-snug text-muted-foreground">tutti verso {dataBreve(tutti.toISOString(), false)} (stima)</span>
-      )}
-      {f.inPausa > 0 && <Badge variant="outline" className="mt-1.5 w-fit text-[10px]">{f.inPausa} in pausa</Badge>}
-    </button>
   );
 }
 

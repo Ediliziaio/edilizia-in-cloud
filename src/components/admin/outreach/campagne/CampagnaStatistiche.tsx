@@ -111,7 +111,7 @@ function Contenuto({ s, campagna, campagne, stime, onScegli }: {
         <Tessera icona={Send} etichetta="Email inviate" valore={it(m.inviati)}
           nota={m.programmati ? `${it(m.programmati)} già in coda` : "nessuna in coda"} />
         <Tessera icona={AlertTriangle} etichetta="Rimbalzi" valore={it(t.rimbalzati)}
-          nota={`${percentuale(t.rimbalzati, m.inviati)} degli invii${t.disiscritti ? ` · ${it(t.disiscritti)} disiscritti` : ""}`}
+          nota={`${percentuale(t.rimbalzati, m.inviati)} degli invii${t.esclusi ? ` · altri ${it(t.esclusi)} esclusi prima dell'invio` : ""}${t.disiscritti ? ` · ${it(t.disiscritti)} disiscritti` : ""}`}
           allerta={tassoRimbalzo > 0.03} />
         <Tessera icona={Timer} etichetta="Tempo di risposta" valore={ore(m.ore_mediane_risposta)}
           nota="a metà di chi risponde, dalla prima email" />

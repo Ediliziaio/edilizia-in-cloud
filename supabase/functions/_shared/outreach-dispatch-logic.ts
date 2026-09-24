@@ -339,3 +339,54 @@ export function statoPerPrimiContatti(
   // toccare la rampa del warm-up.
   return { ...s, daily_cap_target: Math.min(s.daily_cap_target, speditiOggi + posti), daily_sent: speditiOggi, daily_sent_date: today };
 }
+
+// ── Indirizzi da non scrivere ────────────────────────────────────────────────
+
+/** Perché un'email in coda non deve partire. */
+export type Esclusione = "disiscritto" | "rimbalzato" | "dominio_senza_posta";
+
+/** Motivi della lista nera che vogliono dire «l'indirizzo non esiste». Gli altri (disiscrizione, spam, legale, a mano) vogliono dire «non scrivergli». */
+const MOTIVI_RIMBALZO = new Set(["hard_bounce", "invalid"]);
+
+/**
+ * Se un'email in coda non deve partire, e perché (24/09/2026).
+ *
+ * Il dispatcher guardava l'opt-out della SCHEDA, ma lo stesso indirizzo può
+ * stare su più schede (una per lista importata): quella che non aveva
+ * rimbalzato né chiesto di uscire avrebbe spedito lo stesso. La lista nera
+ * (email_suppressions) è per INDIRIZZO. Se un indirizzo ha sia un rimbalzo sia
+ * una disiscrizione conta la disiscrizione: è la volontà della persona.
+ *
+ * Il dominio senza posta (né MX né A) lo controlla l'iscrizione dal 24/09, ma
+ * decine di migliaia di indirizzi erano in coda da prima.
+ */
+export function esclusioneIndirizzo(
+  email: string,
+  motiviListaNera: ReadonlyMap<string, readonly string[]>,
+  dominiSenzaPosta: ReadonlySet<string>,
+): Esclusione | null {
+  const e = String(email ?? "").trim().toLowerCase();
+  const motivi = motiviListaNera.get(e) ?? [];
+  if (motivi.some((m) => !MOTIVI_RIMBALZO.has(m))) return "disiscritto";
+  if (motivi.length > 0) return "rimbalzato";
+  const dominio = e.split("@")[1] ?? "";
+  if (dominio && dominiSenzaPosta.has(dominio)) return "dominio_senza_posta";
+  return null;
+}
+
+/**
+ * Come si chiude l'iscrizione di un'email esclusa. Gli stessi stati del resto
+ * del motore: il rimbalzo e il dominio impossibile finiscono «bounced» (in
+ * Pipeline, senza email partite da quel flusso, stanno tra gli esclusi prima
+ * dell'invio), la disiscrizione «opted_out».
+ */
+export function chiusuraEsclusione(motivo: Esclusione): { status: string; stop_reason: string; last_error: string } {
+  switch (motivo) {
+    case "disiscritto":
+      return { status: "opted_out", stop_reason: "optout_email", last_error: "lista nera: disiscritto" };
+    case "rimbalzato":
+      return { status: "bounced", stop_reason: "hard_bounce", last_error: "lista nera: rimbalzato" };
+    case "dominio_senza_posta":
+      return { status: "bounced", stop_reason: "indirizzo impossibile", last_error: "indirizzo impossibile" };
+  }
+}
