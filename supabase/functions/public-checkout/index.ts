@@ -21,6 +21,7 @@ import { createOrGetStripeCustomer } from "../_shared/stripeHelpers.ts";
 import { renderEmailTemplate } from "../_shared/renderTemplate.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { conMetriche } from "../_shared/withMetrics.ts";
+import { creaFasiCommessa } from "../_shared/fasiCommessa.ts";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -30,14 +31,6 @@ const ALLOWED_OFFER_SLUGS = new Set(["offerta-clienti-marketing"]);
 const ALLOWED_SECTORS = new Set([
   "serramenti", "infissi", "bagni", "tetti", "fotovoltaico", "pittura", "ristrutturazioni", "altro",
 ]);
-
-// Fasi commessa di default (il cliente potrà personalizzarle dopo).
-const DEFAULT_ORDER_STATUSES = [
-  { name: "Contratto Firmato", icon: "FileText", color: "#2563EB", position: 0 },
-  { name: "In Lavorazione", icon: "Settings", color: "#CA8A04", position: 1 },
-  { name: "Completato", icon: "CheckCircle", color: "#16A34A", position: 2 },
-  { name: "Assistenza", icon: "LifeBuoy", color: "#F59E0B", position: 3, is_support_phase: true },
-];
 
 function json(req: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -153,6 +146,15 @@ Deno.serve(conMetriche("public-checkout", async (req) => {
     }
     const companyId = company.id as string;
 
+    // ── Fasi commessa del settore, come dal form admin ──
+    // Fino al 24/09 l'errore finiva nel log e l'azienda restava con la sola
+    // «Assistenza» (_shared/fasiCommessa.ts).
+    const fasi = await creaFasiCommessa(admin, companyId, sector);
+    if (fasi.errore) {
+      await admin.from("companies").delete().eq("id", companyId);
+      return json(req, { error: `Errore creazione azienda: ${fasi.errore}` }, 500);
+    }
+
     // ── Crea utente admin ──
     const { data: authData, error: authErr } = await admin.auth.admin.createUser({
       email,
@@ -168,7 +170,7 @@ Deno.serve(conMetriche("public-checkout", async (req) => {
     }
     const newUserId = authData.user.id;
 
-    // ── Profilo + ruolo + fasi (rollback in caso di errore) ──
+    // ── Profilo + ruolo (rollback in caso di errore) ──
     const { error: profileErr } = await admin.from("profiles").insert({
       id: newUserId,
       email,
@@ -192,18 +194,6 @@ Deno.serve(conMetriche("public-checkout", async (req) => {
       await admin.from("companies").delete().eq("id", companyId);
       return json(req, { error: `Errore ruolo: ${roleErr.message}` }, 500);
     }
-
-    await admin.from("order_statuses").insert(
-      DEFAULT_ORDER_STATUSES.map((s, i) => ({
-        company_id: companyId,
-        name: s.name,
-        icon: s.icon,
-        color: s.color,
-        position: s.position,
-        is_default: i === 0,
-        is_support_phase: s.is_support_phase === true,
-      })),
-    ).then(({ error }) => { if (error) console.error("[public-checkout] order_statuses:", error.message); });
 
     // Dati di fatturazione (letti dalla pagina Abbonamento → "Informazioni fiscali").
     await admin.from("company_billing_details").upsert({

@@ -1,86 +1,14 @@
-import type { CompanySector } from "@/types/auth";
-
 /**
- * Template degli stati ordine per settore.
+ * Fasi commessa predefinite per settore, per l'anteprima in /admin/aziende/nuova.
  *
- * IMPORTANTE: questo file deve restare in sync 1:1 con
- * `supabase/functions/create-company/index.ts > getOrderStatusTemplate`.
- * Il backend è la fonte di verità che effettivamente popola la tabella
- * `order_statuses`; il frontend usa questi dati solo per l'anteprima
- * mostrata in /admin/aziende/nuova.
+ * I modelli stanno in `supabase/functions/_shared/fasiCommessa.ts`, lo stesso
+ * file con cui create-company e public-checkout creano le fasi: l'anteprima
+ * mostra esattamente quello che l'azienda riceverà.
  */
-export interface OrderStatusTemplate {
-  name: string;
-  icon: string;
-  color: string;
-  position: number;
-  is_support_phase?: boolean;
-}
-
-const serramentiInfissiTemplate: OrderStatusTemplate[] = [
-  { name: "Contratto Firmato", icon: "FileText", color: "#2563EB", position: 0 },
-  { name: "Acconto Pagato", icon: "CheckCircle", color: "#16A34A", position: 1 },
-  { name: "Rilievo Tecnico", icon: "Ruler", color: "#CA8A04", position: 2 },
-  { name: "In Produzione", icon: "Factory", color: "#7C3AED", position: 3 },
-  { name: "Produzione Finita", icon: "Package", color: "#0891B2", position: 4 },
-  { name: "Merce in Magazzino", icon: "Package", color: "#EA580C", position: 5 },
-  { name: "Posa Programmata", icon: "Calendar", color: "#DB2777", position: 6 },
-  { name: "Posa Completata", icon: "Home", color: "#16A34A", position: 7 },
-  { name: "Assistenza", icon: "LifeBuoy", color: "#F59E0B", position: 8, is_support_phase: true },
-];
-
-const fotovoltaicoTemplate: OrderStatusTemplate[] = [
-  { name: "Contratto Firmato", icon: "FileText", color: "#2563EB", position: 0 },
-  { name: "Acconto Pagato", icon: "CheckCircle", color: "#16A34A", position: 1 },
-  { name: "Sopralluogo Tecnico", icon: "Clipboard", color: "#CA8A04", position: 2 },
-  { name: "Progettazione", icon: "Ruler", color: "#7C3AED", position: 3 },
-  { name: "Materiale Ordinato", icon: "Package", color: "#EA580C", position: 4 },
-  { name: "Installazione Programmata", icon: "Calendar", color: "#DB2777", position: 5 },
-  { name: "Installazione Completata", icon: "Wrench", color: "#2563EB", position: 6 },
-  { name: "Collaudo", icon: "Shield", color: "#CA8A04", position: 7 },
-  { name: "Pratica GSE", icon: "FileText", color: "#0891B2", position: 8 },
-  { name: "Allaccio Rete", icon: "Zap", color: "#16A34A", position: 9 },
-  { name: "Assistenza", icon: "LifeBuoy", color: "#F59E0B", position: 10, is_support_phase: true },
-];
-
-const bagniRistrutturazioniTemplate: OrderStatusTemplate[] = [
-  { name: "Contratto Firmato", icon: "FileText", color: "#2563EB", position: 0 },
-  { name: "Acconto Pagato", icon: "CheckCircle", color: "#16A34A", position: 1 },
-  { name: "Rilievo Tecnico", icon: "Ruler", color: "#CA8A04", position: 2 },
-  { name: "Progettazione", icon: "Clipboard", color: "#7C3AED", position: 3 },
-  { name: "Ordine Materiali", icon: "Package", color: "#0891B2", position: 4 },
-  { name: "Demolizioni", icon: "Hammer", color: "#DC2626", position: 5 },
-  { name: "Impianti", icon: "Wrench", color: "#EA580C", position: 6 },
-  { name: "Posa", icon: "Factory", color: "#DB2777", position: 7 },
-  { name: "Finiture", icon: "PaintBucket", color: "#7C3AED", position: 8 },
-  { name: "Consegna", icon: "Home", color: "#16A34A", position: 9 },
-  { name: "Assistenza", icon: "LifeBuoy", color: "#F59E0B", position: 10, is_support_phase: true },
-];
-
-const defaultTemplate: OrderStatusTemplate[] = [
-  { name: "Contratto Firmato", icon: "FileText", color: "#2563EB", position: 0 },
-  { name: "In Lavorazione", icon: "Settings", color: "#CA8A04", position: 1 },
-  { name: "Completato", icon: "CheckCircle", color: "#16A34A", position: 2 },
-  { name: "Assistenza", icon: "LifeBuoy", color: "#F59E0B", position: 3, is_support_phase: true },
-];
-
-export function getOrderStatusTemplate(sector: CompanySector): OrderStatusTemplate[] {
-  switch (sector) {
-    case "serramenti":
-    case "infissi":
-      return serramentiInfissiTemplate;
-    case "fotovoltaico":
-      return fotovoltaicoTemplate;
-    case "bagni":
-    case "ristrutturazioni":
-      return bagniRistrutturazioniTemplate;
-    case "tetti":
-    case "pittura":
-    case "altro":
-    default:
-      return defaultTemplate;
-  }
-}
+export {
+  getOrderStatusTemplate,
+  type OrderStatusTemplate,
+} from "../../supabase/functions/_shared/fasiCommessa";
 
 export const availableIcons = [
   "FileText",

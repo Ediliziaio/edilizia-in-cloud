@@ -5,91 +5,9 @@ import { renderEmailTemplate } from "../_shared/renderTemplate.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import { conMetriche } from "../_shared/withMetrics.ts";
-
-interface OrderStatusTemplate {
-  name: string;
-  icon: string;
-  color: string;
-  position: number;
-  is_support_phase?: boolean;
-}
-
-type CompanySector =
-  | "serramenti"
-  | "infissi"
-  | "bagni"
-  | "tetti"
-  | "fotovoltaico"
-  | "pittura"
-  | "ristrutturazioni"
-  | "altro";
+import { creaFasiCommessa, type CompanySector } from "../_shared/fasiCommessa.ts";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-function getOrderStatusTemplate(sector: CompanySector): OrderStatusTemplate[] {
-  const serramentiInfissiTemplate: OrderStatusTemplate[] = [
-    { name: "Contratto Firmato", icon: "FileText", color: "#2563EB", position: 0 },
-    { name: "Acconto Pagato", icon: "CheckCircle", color: "#16A34A", position: 1 },
-    { name: "Rilievo Tecnico", icon: "Ruler", color: "#CA8A04", position: 2 },
-    { name: "In Produzione", icon: "Factory", color: "#7C3AED", position: 3 },
-    { name: "Produzione Finita", icon: "Package", color: "#0891B2", position: 4 },
-    { name: "Merce in Magazzino", icon: "Package", color: "#EA580C", position: 5 },
-    { name: "Posa Programmata", icon: "Calendar", color: "#DB2777", position: 6 },
-    { name: "Posa Completata", icon: "Home", color: "#16A34A", position: 7 },
-    { name: "Assistenza", icon: "LifeBuoy", color: "#F59E0B", position: 8, is_support_phase: true },
-  ];
-
-  const fotovoltaicoTemplate: OrderStatusTemplate[] = [
-    { name: "Contratto Firmato", icon: "FileText", color: "#2563EB", position: 0 },
-    { name: "Acconto Pagato", icon: "CheckCircle", color: "#16A34A", position: 1 },
-    { name: "Sopralluogo Tecnico", icon: "Clipboard", color: "#CA8A04", position: 2 },
-    { name: "Progettazione", icon: "Ruler", color: "#7C3AED", position: 3 },
-    { name: "Materiale Ordinato", icon: "Package", color: "#EA580C", position: 4 },
-    { name: "Installazione Programmata", icon: "Calendar", color: "#DB2777", position: 5 },
-    { name: "Installazione Completata", icon: "Wrench", color: "#2563EB", position: 6 },
-    { name: "Collaudo", icon: "Shield", color: "#CA8A04", position: 7 },
-    { name: "Pratica GSE", icon: "FileText", color: "#0891B2", position: 8 },
-    { name: "Allaccio Rete", icon: "Zap", color: "#16A34A", position: 9 },
-    { name: "Assistenza", icon: "LifeBuoy", color: "#F59E0B", position: 10, is_support_phase: true },
-  ];
-
-  const bagniRistrutturazioniTemplate: OrderStatusTemplate[] = [
-    { name: "Contratto Firmato", icon: "FileText", color: "#2563EB", position: 0 },
-    { name: "Acconto Pagato", icon: "CheckCircle", color: "#16A34A", position: 1 },
-    { name: "Rilievo Tecnico", icon: "Ruler", color: "#CA8A04", position: 2 },
-    { name: "Progettazione", icon: "Clipboard", color: "#7C3AED", position: 3 },
-    { name: "Ordine Materiali", icon: "Package", color: "#0891B2", position: 4 },
-    { name: "Demolizioni", icon: "Hammer", color: "#DC2626", position: 5 },
-    { name: "Impianti", icon: "Wrench", color: "#EA580C", position: 6 },
-    { name: "Posa", icon: "Factory", color: "#DB2777", position: 7 },
-    { name: "Finiture", icon: "PaintBucket", color: "#7C3AED", position: 8 },
-    { name: "Consegna", icon: "Home", color: "#16A34A", position: 9 },
-    { name: "Assistenza", icon: "LifeBuoy", color: "#F59E0B", position: 10, is_support_phase: true },
-  ];
-
-  const defaultTemplate: OrderStatusTemplate[] = [
-    { name: "Contratto Firmato", icon: "FileText", color: "#2563EB", position: 0 },
-    { name: "In Lavorazione", icon: "Settings", color: "#CA8A04", position: 1 },
-    { name: "Completato", icon: "CheckCircle", color: "#16A34A", position: 2 },
-    { name: "Assistenza", icon: "LifeBuoy", color: "#F59E0B", position: 3, is_support_phase: true },
-  ];
-
-  switch (sector) {
-    case "serramenti":
-    case "infissi":
-      return serramentiInfissiTemplate;
-    case "fotovoltaico":
-      return fotovoltaicoTemplate;
-    case "bagni":
-    case "ristrutturazioni":
-      return bagniRistrutturazioniTemplate;
-    case "tetti":
-    case "pittura":
-    case "altro":
-    default:
-      return defaultTemplate;
-  }
-}
 
 Deno.serve(conMetriche("create-company", async (req) => {
   if (req.method === "OPTIONS") {
@@ -205,6 +123,15 @@ Deno.serve(conMetriche("create-company", async (req) => {
 
     const companyId = companyData.id;
 
+    // Fasi commessa del settore, prima dell'utente: se non si creano, l'azienda
+    // non nasce e il form mostra il motivo. Fino al 24/09 l'errore finiva solo
+    // nel log e l'azienda restava con la sola «Assistenza» (_shared/fasiCommessa.ts).
+    const fasi = await creaFasiCommessa(supabaseAdmin, companyId, sector);
+    if (fasi.errore) {
+      await supabaseAdmin.from("companies").delete().eq("id", companyId);
+      return errorResponse(`Fasi commessa non create: ${fasi.errore}`);
+    }
+
     // Create admin user in auth.users
     const { data: authData, error: authError } =
       await supabaseAdmin.auth.admin.createUser({
@@ -250,26 +177,6 @@ Deno.serve(conMetriche("create-company", async (req) => {
       await supabaseAdmin.auth.admin.deleteUser(newUserId);
       await supabaseAdmin.from("companies").delete().eq("id", companyId);
       return errorResponse(`Role error: ${roleError.message}`);
-    }
-
-    // Create order statuses from template
-    const statusTemplate = getOrderStatusTemplate(sector);
-    const statusesToInsert = statusTemplate.map((status, index) => ({
-      company_id: companyId,
-      name: status.name,
-      icon: status.icon,
-      color: status.color,
-      position: status.position,
-      is_default: index === 0,
-      is_support_phase: status.is_support_phase === true,
-    }));
-
-    const { error: statusError } = await supabaseAdmin
-      .from("order_statuses")
-      .insert(statusesToInsert);
-
-    if (statusError) {
-      console.error("Status error:", statusError);
     }
 
     // Trigger di PIATTAFORMA: notifica il motore automazioni admin (best-effort).
