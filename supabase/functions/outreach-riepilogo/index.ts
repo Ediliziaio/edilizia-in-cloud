@@ -23,7 +23,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { avvisaSuperAdmin } from "../_shared/avvisaSuperAdmin.ts";
 import { logRun } from "../_shared/outreachAlert.ts";
-import { componiRiepilogo, finestraGiorno, type ContiBrand } from "../_shared/outreachRiepilogo.ts";
+import { componiRiepilogo, finestraGiorno, type ContiBrand, type DaChiamare } from "../_shared/outreachRiepilogo.ts";
+import { testoSenzaCitazione } from "../_shared/avvisoEmail.ts";
 import { serveConMetriche } from "../_shared/withMetrics.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -40,6 +41,32 @@ const INTENTO_IN_CHIARO: Record<string, string> = {
   other: "da leggere",
   auto_reply: "risposta automatica",
 };
+
+/** Gli esiti WhatsApp che valgono una chiamata, come li scrive il classificatore. */
+const ESITO_WA_IN_CHIARO: Record<string, string> = {
+  appuntamento: "chiede un appuntamento",
+  da_ricontattare: "da ricontattare",
+};
+
+/**
+ * Chi ha risposto bene si richiama oggi, anche se ha risposto sabato: il
+ * riepilogo del lunedì deve contenere il fine settimana, altrimenti quelle
+ * risposte non le vede più nessuno (prima arrivavano per email, una a una).
+ */
+const GIORNI_DA_CHIAMARE = 3;
+
+/** «oggi», «ieri», «sabato»: come lo direbbe una persona. */
+function quando(iso: string | null | undefined, adesso: Date): string {
+  if (!iso) return "";
+  const giorno = (d: Date) =>
+    new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Rome", year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+  const q = new Date(iso);
+  if (Number.isNaN(q.getTime())) return "";
+  const suo = giorno(q);
+  if (suo === giorno(adesso)) return "oggi";
+  if (suo === giorno(new Date(adesso.getTime() - 86_400_000))) return "ieri";
+  return new Intl.DateTimeFormat("it-IT", { timeZone: "Europe/Rome", weekday: "long" }).format(q);
+}
 
 /** Il numero di righe che soddisfano la query, senza scaricarle. */
 async function conta(q: any): Promise<number> {
@@ -125,6 +152,7 @@ serveConMetriche("outreach-riepilogo", async (req) => {
     }
 
     const conti: ContiBrand[] = [];
+    const urgenze: string[] = [];
     for (const s of secchi) {
       const coda = () => {
         const q = admin.from("outreach_send_queue").select("id", { count: "exact", head: true })
@@ -171,6 +199,11 @@ serveConMetriche("outreach-riepilogo", async (req) => {
         persone30: trenta.get(s.id ?? "")?.persone,
         positive30: trenta.get(s.id ?? "")?.positive,
       };
+      // Un brand acceso con la coda piena che ieri non ha spedito niente è
+      // fermo: o le caselle non partono, o la coda non gira.
+      if (s.attivo && inCoda > 0 && inviate === 0) {
+        urgenze.push(`${s.nome}: ${inCoda.toLocaleString("it-IT")} in coda e ieri non è partita nessuna email`);
+      }
       // Un brand in pausa (e il secchio «Senza brand») compare solo se ha
       // davvero qualcosa dentro: righe tutte a zero sono rumore.
       if (s.attivo || inviate || fallite || mie.length || inCoda) conti.push(conti1);
@@ -182,12 +215,101 @@ serveConMetriche("outreach-riepilogo", async (req) => {
     const tutte = (caselle ?? []) as Array<{ email: string; status: string | null; connection_status: string | null }>;
     const ferme = tutte.filter((c) => !["active", "warming"].includes(String(c.status)) || (c.connection_status && c.connection_status !== "ok"));
 
+    if (ferme.length) {
+      const nomi = ferme.slice(0, 3).map((c) => c.email).join(", ");
+      urgenze.push(ferme.length === 1
+        ? `la casella ${nomi} non spedisce`
+        : `${ferme.length} caselle non spediscono: ${nomi}${ferme.length > 3 ? "…" : ""}`);
+    }
+
+    // Numeri WhatsApp staccati o bannati: le campagne e le risposte passano da lì.
+    const { data: numeriWa } = await admin.from("openwa_numbers")
+      .select("numero, display_name, stato, ban_rilevato_at, errori_consecutivi").is("deleted_at", null);
+    for (const n of (numeriWa ?? []) as Array<any>) {
+      const nome = [n.display_name, n.numero].filter(Boolean).join(" ") || "senza nome";
+      if (n.ban_rilevato_at) urgenze.push(`WhatsApp ${nome}: bannato`);
+      else if (String(n.stato) !== "connected") urgenze.push(`WhatsApp ${nome}: staccato`);
+      else if (Number(n.errori_consecutivi ?? 0) >= 3) urgenze.push(`WhatsApp ${nome}: ${n.errori_consecutivi} errori di fila`);
+    }
+
+    // ── Da chiamare oggi ──────────────────────────────────────────────────
+    // Le risposte buone non arrivano più per email una a una (24/09/2026):
+    // si raccolgono qui, email e WhatsApp insieme, col numero da comporre.
+    const daChiamareDa = new Date(new Date(da).getTime() - (GIORNI_DA_CHIAMARE - 1) * 86_400_000).toISOString();
+    const [{ data: posEmail }, { data: posWa }] = await Promise.all([
+      admin.from("outreach_replies")
+        .select("contact_id, from_email, from_phone, intent, snippet, received_at")
+        .eq("company_id", PLATFORM_COMPANY).in("intent", ["interested", "question"])
+        .gte("received_at", daChiamareDa).order("received_at", { ascending: false }).limit(50),
+      admin.from("openwa_campagna_destinatari")
+        .select("contact_id, esito, esito_at, risposto_at")
+        .in("esito", Object.keys(ESITO_WA_IN_CHIARO))
+        .gte("risposto_at", daChiamareDa).order("risposto_at", { ascending: false }).limit(50),
+    ]);
+
+    const idsChiamata = [...new Set([
+      ...((posEmail ?? []) as Array<any>).map((r) => r.contact_id),
+      ...((posWa ?? []) as Array<any>).map((r) => r.contact_id),
+    ].filter(Boolean))] as string[];
+    const rubrica = new Map<string, { chi: string; telefono: string | null }>();
+    if (idsChiamata.length) {
+      const { data: cs } = await admin.from("marketing_contacts")
+        .select("id, first_name, last_name, company_name, phone").in("id", idsChiamata);
+      for (const c of (cs ?? []) as Array<any>) {
+        rubrica.set(c.id, {
+          chi: c.company_name || [c.first_name, c.last_name].filter(Boolean).join(" ") || "",
+          telefono: c.phone ?? null,
+        });
+      }
+    }
+
+    // Una persona sola, anche se ha risposto su tutti e due i canali: si
+    // tiene la risposta più recente.
+    const candidati: Array<DaChiamare & { chiave: string; istante: number }> = [];
+    for (const r of (posEmail ?? []) as Array<any>) {
+      const inRubrica = r.contact_id ? rubrica.get(r.contact_id) : undefined;
+      candidati.push({
+        chiave: r.contact_id || String(r.from_email ?? "").toLowerCase() || `email-${candidati.length}`,
+        istante: Date.parse(r.received_at ?? "") || 0,
+        chi: inRubrica?.chi || r.from_email || "sconosciuto",
+        canale: "email",
+        motivo: INTENTO_IN_CHIARO[r.intent] ?? "da leggere",
+        quando: quando(r.received_at, avvio),
+        telefono: inRubrica?.telefono ?? r.from_phone ?? null,
+        // Senza la nostra email citata sotto: in due righe si capisce se è calda.
+        cosa: testoSenzaCitazione(r.snippet, 200) || null,
+      });
+    }
+    for (const r of (posWa ?? []) as Array<any>) {
+      const inRubrica = r.contact_id ? rubrica.get(r.contact_id) : undefined;
+      const istante = r.risposto_at ?? r.esito_at;
+      candidati.push({
+        chiave: r.contact_id || `wa-${candidati.length}`,
+        istante: Date.parse(istante ?? "") || 0,
+        chi: inRubrica?.chi || "un numero non in rubrica",
+        canale: "whatsapp",
+        motivo: ESITO_WA_IN_CHIARO[r.esito] ?? String(r.esito),
+        quando: quando(istante, avvio),
+        telefono: inRubrica?.telefono ?? null,
+      });
+    }
+    candidati.sort((x, y) => y.istante - x.istante);
+    const viste = new Set<string>();
+    const daChiamare: DaChiamare[] = [];
+    for (const c of candidati) {
+      if (viste.has(c.chiave)) continue;
+      viste.add(c.chiave);
+      daChiamare.push({ chi: c.chi, canale: c.canale, motivo: c.motivo, quando: c.quando, telefono: c.telefono, cosa: c.cosa });
+    }
+
     const { titolo, righe, testo } = componiRiepilogo({
       giorno: etichetta,
       brand: conti,
       chiHaRisposto,
       caselleFerme: ferme.slice(0, 6).map((c) => `${c.email} (${c.status === "paused" ? "in pausa" : c.connection_status ?? "?"})`),
       caselleAttive: tutte.length - ferme.length,
+      daChiamare,
+      urgenze,
     });
 
     // Niente vibrazione: è un rapporto da leggere, non un allarme.
@@ -201,7 +323,10 @@ serveConMetriche("outreach-riepilogo", async (req) => {
       email: { testo, righe },
     });
 
-    const risultato = { giorno: etichetta, da, a, brand: conti.length, risposte: vere.length, ...esito };
+    const risultato = {
+      giorno: etichetta, da, a, brand: conti.length, risposte: vere.length,
+      da_chiamare: daChiamare.length, urgenze: urgenze.length, ...esito,
+    };
     await logRun(admin, "outreach-riepilogo", avvio, risultato);
     return json(risultato, 200, cors);
   } catch (e) {

@@ -41,6 +41,25 @@ export interface ContiBrand {
   positive30?: number;
 }
 
+/**
+ * Una persona che ha risposto bene e va richiamata oggi (24/09/2026).
+ * Prima ogni risposta arrivava per email appena entrava: erano troppe, e
+ * quelle buone si perdevano in mezzo alle altre. Adesso arrivano qui, in cima
+ * al riepilogo, col numero da comporre.
+ */
+export interface DaChiamare {
+  /** L'azienda, o la persona se l'azienda non c'è. */
+  chi: string;
+  canale: "email" | "whatsapp";
+  /** «interessato», «fa una domanda», «chiede un appuntamento»… */
+  motivo: string;
+  /** «ieri», «sabato»: le risposte del fine settimana arrivano tutte al lunedì. */
+  quando: string;
+  telefono?: string | null;
+  /** Le prime parole della risposta: fanno capire se è davvero calda. */
+  cosa?: string | null;
+}
+
 export interface DatiRiepilogo {
   /** «mercoledì 17 settembre» */
   giorno: string;
@@ -50,6 +69,10 @@ export interface DatiRiepilogo {
   /** Caselle che non spediscono: in pausa o con la connessione rotta. */
   caselleFerme: string[];
   caselleAttive: number;
+  /** Chi ha risposto bene, email e WhatsApp insieme: la lista delle chiamate di oggi. */
+  daChiamare?: DaChiamare[];
+  /** Cosa è fermo e va sistemato adesso: numeri staccati, caselle rotte, code bloccate. */
+  urgenze?: string[];
 }
 
 const nf = (n: number) => Math.round(n).toLocaleString("it-IT");
@@ -94,8 +117,20 @@ export function rigaBrand(c: ContiBrand): RigaAvviso {
   return { etichetta: c.brand, valore: pezzi.join(" · ") };
 }
 
+/** Il numero come si compone, e il messaggio accorciato: «• Rossi Serramenti — interessato (email, ieri) · 348 123 4567 · «mi mandate un preventivo?»». */
+export function rigaDaChiamare(c: DaChiamare): string {
+  const pezzi = [`${c.chi} — ${c.motivo} (${c.canale === "whatsapp" ? "WhatsApp" : "email"}, ${c.quando})`];
+  const tel = String(c.telefono ?? "").trim();
+  pezzi.push(tel || "numero non in rubrica");
+  const cosa = String(c.cosa ?? "").replace(/\s+/g, " ").trim();
+  if (cosa) pezzi.push(`«${cosa.length > 120 ? `${cosa.slice(0, 119)}…` : cosa}»`);
+  return `• ${pezzi.join(" · ")}`;
+}
+
 /** Titolo, righe e corpo dell'email di riepilogo. */
 export function componiRiepilogo(d: DatiRiepilogo): { titolo: string; righe: RigaAvviso[]; testo: string } {
+  const daChiamare = d.daChiamare ?? [];
+  const urgenze = d.urgenze ?? [];
   const tot = d.brand.reduce((a, c) => ({
     inviate: a.inviate + c.inviate,
     primoContatto: a.primoContatto + c.primoContatto,
@@ -108,6 +143,16 @@ export function componiRiepilogo(d: DatiRiepilogo): { titolo: string; righe: Rig
   }), { inviate: 0, primoContatto: 0, fallite: 0, risposte: 0, rimbalzi: 0, optout: 0, inPartenza: 0, inCoda: 0 });
 
   const righe: RigaAvviso[] = [];
+  // In cima le due cose che fanno agire: cosa è fermo, e chi va richiamato.
+  if (urgenze.length) {
+    righe.push({ etichetta: "⚠ Urgenze", valore: urgenze.join(" · ") });
+  }
+  righe.push({
+    etichetta: "Da chiamare oggi",
+    valore: daChiamare.length
+      ? `${nf(daChiamare.length)} · ${daChiamare.map((c) => c.chi).join(", ")}`
+      : "nessuno",
+  });
   righe.push({
     etichetta: "Ieri in tutto",
     valore: `${nf(tot.inviate)} email inviate · ${plurale(tot.risposte, "risposta", "risposte", "nessuna risposta")}` +
@@ -137,11 +182,28 @@ export function componiRiepilogo(d: DatiRiepilogo): { titolo: string; righe: Rig
       : `${nf(d.caselleAttive)} spediscono, nessuna ferma`,
   });
 
-  const testo = d.chiHaRisposto.length
-    ? `Hanno risposto:\n${d.chiHaRisposto.map((x) => `• ${x}`).join("\n")}`
-    : "Nessuna risposta ieri.";
+  // Il corpo si legge dall'alto: prima cosa è fermo, poi le chiamate di oggi,
+  // e solo in fondo l'elenco di tutte le risposte.
+  const blocchi: string[] = [];
+  if (urgenze.length) {
+    blocchi.push(`URGENZE\n${urgenze.map((x) => `• ${x}`).join("\n")}`);
+  }
+  blocchi.push(
+    daChiamare.length
+      ? `DA CHIAMARE OGGI (${nf(daChiamare.length)})\n${daChiamare.map(rigaDaChiamare).join("\n")}`
+      : "DA CHIAMARE OGGI\nNessuno: nessuna risposta positiva da richiamare.",
+  );
+  blocchi.push(
+    d.chiHaRisposto.length
+      ? `Hanno risposto ieri:\n${d.chiHaRisposto.map((x) => `• ${x}`).join("\n")}`
+      : "Nessuna risposta ieri.",
+  );
+  const testo = blocchi.join("\n\n");
 
-  const titolo = `Outreach ${d.giorno}: ${nf(tot.inviate)} email, ${plurale(tot.risposte, "risposta", "risposte", "nessuna risposta")}`;
+  const coda = daChiamare.length
+    ? `${nf(daChiamare.length)} da chiamare`
+    : plurale(tot.risposte, "risposta", "risposte", "nessuna risposta");
+  const titolo = `${urgenze.length ? "⚠ " : ""}Outreach ${d.giorno}: ${nf(tot.inviate)} email, ${coda}`;
   return { titolo, righe, testo };
 }
 

@@ -3,18 +3,27 @@ import {
   vaPerEmail, destinatariDa, testoSenzaCitazione, htmlAvviso,
 } from "../../../supabase/functions/_shared/avvisoEmail";
 
-// 16/09/2026: il titolare vuole su Gmail ogni risposta (email e WhatsApp) e
-// gli avvisi di blocco. Qui la parte pura: cosa va per email e come appare.
+// 16/09/2026: il titolare vuole su Gmail gli avvisi di blocco. Dal 24/09/2026
+// le RISPOSTE non più: erano 8-9 al giorno, e le vuole tutte insieme nel
+// riepilogo del mattino. Qui la parte pura: cosa va per email e come appare.
 describe("avvisoEmail", () => {
-  it("vanno per email risposte e blocchi di outreach e WhatsApp, non gli altri avvisi", () => {
-    expect(vaPerEmail("outreach_risposta_email")).toBe(true);
+  it("vanno per email i blocchi di outreach e WhatsApp, non gli altri avvisi", () => {
     expect(vaPerEmail("outreach_casella_errore")).toBe(true);
-    expect(vaPerEmail("whatsapp_risposta")).toBe(true);
+    expect(vaPerEmail("outreach_poll_errore")).toBe(true);
     expect(vaPerEmail("whatsapp_numero_bannato")).toBe(true);
+    expect(vaPerEmail("whatsapp_numero_disconnesso")).toBe(true);
     // 17/09/2026: anche i lead delle aziende fermi (coda Facebook, collegamento scaduto).
     expect(vaPerEmail("lead_coda_ferma")).toBe(true);
     expect(vaPerEmail("lead_collegamento_scaduto")).toBe(true);
     expect(vaPerEmail("prenotazione_nuova")).toBe(false);
+  });
+
+  it("le risposte, una per una, NON vanno per email: restano campanella e push", () => {
+    expect(vaPerEmail("outreach_risposta_email")).toBe(false);
+    expect(vaPerEmail("whatsapp_risposta")).toBe(false);
+    expect(vaPerEmail("whatsapp_optout")).toBe(false);
+    // Il riepilogo del mattino invece è proprio un'email.
+    expect(vaPerEmail("outreach_riepilogo_giornaliero")).toBe(true);
   });
 
   it("i destinatari si leggono da lista JSON o da testo, senza doppioni né indirizzi rotti", () => {

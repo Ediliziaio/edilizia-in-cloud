@@ -24,12 +24,25 @@ export interface ContenutoAvviso {
 }
 
 /**
- * Vanno per email le risposte e i blocchi dell'outreach e di WhatsApp, e i
- * blocchi dei lead delle aziende (coda Facebook ferma, collegamento scaduto:
- * 17/09/2026). Gli altri avvisi della piattaforma (prenotazioni, ecc.) restano
- * su campanella e push.
+ * Le risposte, una per una, NON vanno più per email (24/09/2026): erano 8-9 al
+ * giorno fra outreach e WhatsApp, e il titolare le ha chieste tutte insieme
+ * nel riepilogo del mattino, con scritto chi richiamare. Restano la campanella
+ * e il push, che sono immediati e non intasano la posta.
+ */
+const SOLO_NEL_RIEPILOGO = new Set([
+  "outreach_risposta_email",
+  "whatsapp_risposta",
+  "whatsapp_optout",
+]);
+
+/**
+ * Vanno per email i blocchi dell'outreach e di WhatsApp, e i blocchi dei lead
+ * delle aziende (coda Facebook ferma, collegamento scaduto: 17/09/2026):
+ * fermano la macchina e sono meno di uno al giorno. Gli altri avvisi della
+ * piattaforma (prenotazioni, ecc.) restano su campanella e push.
  */
 export function vaPerEmail(tipo: string): boolean {
+  if (SOLO_NEL_RIEPILOGO.has(tipo)) return false;
   return /^(outreach_|whatsapp_|lead_)/.test(tipo);
 }
 
