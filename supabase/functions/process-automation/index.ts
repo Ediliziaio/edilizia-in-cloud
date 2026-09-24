@@ -7,7 +7,6 @@
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { decryptMaybeEncrypted, getEncryptionKey } from "../_shared/encryption.ts";
-import { resolveWhatsAppSender } from "../_shared/resolveWhatsAppSender.ts";
 import { romeMinuti, sendOpenWaMessage, OPENWA_PLATFORM_COMPANY_ID } from "../_shared/openwaSend.ts";
 import { leggiFasceOrarie, minutiAllaFascia } from "../_shared/openwaFinestraInvio.ts";
 import { minutiAllApertura } from "../_shared/finestraFlusso.ts";
@@ -22,6 +21,7 @@ import { getCorsHeaders, secureHeaders } from "../_shared/headers.ts";
 import { appendTrackingSig } from "../_shared/emailTrackingSignature.ts";
 import { arcoDelRamo, inizioGiornoRoma, leggiPercentuali, letteraRamo, modalitaSplit, ramoEquilibrato, ramoPerNumero } from "../_shared/splitRami.ts";
 import { nomeOpportunitaPulito, personeDaAvvisare, tagsUniti, testoNotaAggiornamento } from "../_shared/creaAggiornaOpportunita.ts";
+import { campiPersonalizzatiDelModello, valoriDelModello } from "../_shared/variabiliModelloWhatsApp.ts";
 import { conLinkCliccabili, fusoDelFlusso, invioEmailDaRimandare, MINUTI_RINVIO_EMAIL, mittenteDiRiserva, mittenteRifiutatoDalProvider, numeroWhatsApp, schedaAndataAvanti, senzaSpazioPrimaDellaVirgola, soloIndirizzo } from "../_shared/sequenzaContatto.ts";
 import { mittenteDelPasso, dominiAmmessi, soloDominiDellAzienda } from "../_shared/mittenteAutomazione.ts";
 import { calendarioDelGiorno, giornoAmmesso, leggiSettimane } from "../_shared/attesaCalendario.ts";
@@ -4346,107 +4346,146 @@ async function executeSendWhatsAppLocale(supabase: any, cfg: Record<string, any>
 }
 
 async function executeSendWhatsApp(supabase: any, cfg: Record<string, any>, entityId: string, companyId: string) {
-  // 1. Get WhatsApp config for the company (nuovo multi-numero, fallback legacy)
-  const sender = await resolveWhatsAppSender(supabase, companyId);
-  if (!sender) {
-    return { success: false, error: "WhatsApp non configurato o non attivo per questa azienda" };
-  }
-
-  // 2. Get contact phone + DND check
+  // Il passo «Invia WhatsApp» (24/09/2026). Prima: solo testo libero (il
+  // modello scelto non esisteva nel builder), chiamata diretta a Meta senza
+  // credito né finestra delle 24 ore, e il testo generato dal passo AI
+  // (whatsapp_body) ignorato. Ora l'invio passa da whatsapp-send, come da
+  // Conversazioni: credito, carta, add-on, finestra delle 24 ore per il testo
+  // libero, e il messaggio registrato sul contatto (Conversazioni, scheda).
   const { data: contact } = await supabase
     .from("marketing_contacts")
-    .select("id, phone, first_name, last_name, email, city, province, company_name, source, optout_whatsapp")
+    .select("id, phone, first_name, last_name, email, city, province, address, postal_code, company_name, source, optout_whatsapp, opt_out")
     .eq("id", entityId)
     .single();
 
   if (!contact?.phone) {
     return { success: false, error: "Contatto senza numero di telefono" };
   }
-  if (contact.optout_whatsapp) {
-    return { success: false, error: "Contact has opted out of WhatsApp" };
+  if (contact.optout_whatsapp || contact.opt_out) {
+    return { success: false, error: "Il contatto ha chiesto di non ricevere messaggi WhatsApp" };
+  }
+  const to = numeroWhatsApp(contact.phone);
+  if (!to) {
+    return { success: false, error: `Numero di telefono non valido per WhatsApp: ${contact.phone}` };
   }
 
-  // 3. Access token (già decifrato dall'helper)
-  const accessToken = sender.accessToken;
+  const nomeModello: string = String(cfg.modello_whatsapp || cfg.whatsapp_template || "").trim();
+  let richiesta: Record<string, unknown>;
+  let descrizione: string;
 
-  const cleanPhone = contact.phone.replace(/[^0-9]/g, "");
-
-  // 4. Build message payload
-  let messagePayload: Record<string, unknown>;
-
-  if (cfg.whatsapp_template) {
-    // Template message (Meta-approved)
-    const components: any[] = [];
-    if (cfg.whatsapp_text) {
-      const resolvedText = await resolveContactText(supabase, cfg.whatsapp_text, contact, companyId);
-      components.push({
-        type: "body",
-        parameters: [{ type: "text", text: resolvedText }],
-      });
+  if (nomeModello) {
+    // Modello approvato: si legge a ogni invio (numero, lingua, variabili),
+    // come il modello salvato delle email.
+    let q = supabase
+      .from("wa_meta_templates")
+      .select("template_name, template_language, status, wa_number_id, variable_mapping, variables_count")
+      .eq("company_id", companyId)
+      .eq("template_name", nomeModello);
+    if (cfg.modello_whatsapp_numero) q = q.eq("wa_number_id", cfg.modello_whatsapp_numero);
+    if (cfg.modello_whatsapp_lingua || cfg.whatsapp_language) q = q.eq("template_language", cfg.modello_whatsapp_lingua || cfg.whatsapp_language);
+    const { data: righe } = await q.limit(1);
+    const modello = righe?.[0];
+    if (!modello) {
+      return { success: false, error: `Il modello WhatsApp «${nomeModello}» non c'è più tra quelli del numero: scegline un altro nel passo.` };
     }
-    messagePayload = {
-      messaging_product: "whatsapp",
-      to: cleanPhone,
-      type: "template",
-      template: {
-        name: cfg.whatsapp_template,
-        language: { code: cfg.whatsapp_language || "it" },
-        components: components.length > 0 ? components : undefined,
-      },
+    if (String(modello.status).toUpperCase() !== "APPROVED") {
+      return { success: false, error: `Il modello WhatsApp «${nomeModello}» non è approvato da Meta (stato: ${modello.status}).` };
+    }
+
+    // Campi personalizzati usati dal modello, e testi fissi scritti nel passo
+    // (con le variabili del flusso risolte).
+    const idPersonalizzati = campiPersonalizzatiDelModello(modello.variable_mapping);
+    const personalizzati: Record<string, string> = {};
+    if (idPersonalizzati.length) {
+      const { data: valoriCf } = await supabase
+        .from("marketing_contact_field_values")
+        .select("field_id, value")
+        .eq("contact_id", contact.id)
+        .in("field_id", idPersonalizzati);
+      for (const v of valoriCf ?? []) personalizzati[v.field_id] = v.value ?? "";
+    }
+    const fissi: Record<string, string> = {};
+    for (const [n, t] of Object.entries((cfg.modello_whatsapp_valori ?? {}) as Record<string, unknown>)) {
+      if (typeof t === "string" && t.trim()) fissi[n] = await resolveContactText(supabase, t, contact, companyId);
+    }
+    const { valori, mancanti } = valoriDelModello(
+      modello.variables_count ?? 0, modello.variable_mapping, contact, personalizzati, fissi,
+    );
+    if (mancanti.length) {
+      const elenco = mancanti.map((m) => `{{${m.posizione}}} (${m.campo})`).join(", ");
+      return { success: false, error: `Il modello «${nomeModello}» non si può inviare: mancano ${elenco}. Meta rifiuta i modelli con una variabile vuota.` };
+    }
+
+    richiesta = {
+      company_id: companyId,
+      wa_number_id: modello.wa_number_id,
+      to,
+      contact_id: contact.id,
+      template: { name: modello.template_name, language: modello.template_language, variables: valori },
     };
+    descrizione = `Messaggio WhatsApp automatico: modello «${nomeModello}»`;
   } else {
-    // Free-text message (only for open 24h conversations)
-    const resolvedText = await resolveContactText(supabase, cfg.whatsapp_text || "", contact, companyId);
-    if (!resolvedText) {
+    // Testo libero: il testo del passo, o quello scritto dal passo AI.
+    const testo = await resolveContactText(supabase, cfg.whatsapp_body || cfg.whatsapp_text || "", contact, companyId);
+    if (!testo) {
       return { success: false, error: "Nessun testo configurato per il messaggio WhatsApp" };
     }
-    messagePayload = {
-      messaging_product: "whatsapp",
-      to: cleanPhone,
-      type: "text",
-      text: { body: resolvedText },
+    richiesta = {
+      company_id: companyId,
+      wa_number_id: cfg.modello_whatsapp_numero || (await numeroWhatsAppPredefinito(supabase, companyId)),
+      to,
+      contact_id: contact.id,
+      text: testo,
     };
+    descrizione = "Messaggio WhatsApp automatico inviato";
   }
 
-  // 5. Call Meta API
-  const res = await fetch(
-    `https://graph.facebook.com/v21.0/${sender.phoneNumberId}/messages`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(messagePayload),
-    }
-  );
-
-  const result = await res.json();
-
-  if (!res.ok) {
-    console.error("[send_whatsapp] Meta API error:", result);
-    return { success: false, error: result.error?.message || "Errore Meta API" };
-  }
-
-  // 6. Log in contact_messages
-  await supabase.from("contact_messages").insert({
-    contact_id: entityId,
-    company_id: companyId,
-    channel: "whatsapp",
-    content: cfg.whatsapp_text || cfg.whatsapp_template || "",
-    status: "sent",
+  const res = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/whatsapp-send`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}` },
+    body: JSON.stringify(richiesta),
   });
+  const esito = await res.json().catch(() => ({})) as { success?: boolean; meta_message_id?: string; error?: string; code?: string; message?: string };
+  if (!res.ok || !esito.success) {
+    return { success: false, error: erroreInvioWhatsApp(res.status, esito) };
+  }
 
-  // 7. Log activity
   await supabase.from("marketing_contact_activities").insert({
     contact_id: entityId,
     company_id: companyId,
     activity_type: "message_sent",
-    description: `Messaggio WhatsApp automatico inviato`,
-    metadata: { channel: "whatsapp", status: "sent", meta_message_id: result.messages?.[0]?.id },
+    description: descrizione,
+    metadata: { channel: "whatsapp", status: "sent", meta_message_id: esito.meta_message_id ?? null, modello: nomeModello || null },
   });
 
-  return { success: true, output: { whatsapp_message_id: result.messages?.[0]?.id } };
+  return { success: true, output: { whatsapp_message_id: esito.meta_message_id ?? null, modello: nomeModello || null } };
+}
+
+/** Il numero WhatsApp da cui scrive l'azienda quando il passo non lo dice. */
+async function numeroWhatsAppPredefinito(supabase: any, companyId: string): Promise<string | null> {
+  const { data } = await supabase
+    .from("ai_whatsapp_numbers")
+    .select("id")
+    .eq("company_id", companyId)
+    .eq("stato", "active")
+    .eq("webhook_verified", true)
+    .not("access_token_encrypted", "is", null)
+    .is("deleted_at", null)
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return data?.id ?? null;
+}
+
+/** Perché whatsapp-send non ha inviato, detto a chi legge il registro del flusso. */
+function erroreInvioWhatsApp(status: number, esito: { error?: string; code?: string; message?: string }): string {
+  if (esito.code === "window_closed") {
+    return "Il cliente non scrive da più di 24 ore: il testo libero non parte, serve un modello approvato da Meta.";
+  }
+  if (esito.code === "payment_method_required") return "Manca un metodo di pagamento valido per l'azienda.";
+  if (status === 402) return esito.message || "Credito WhatsApp esaurito.";
+  if (status === 403) return esito.message || esito.error || "WhatsApp non attivo per questa azienda.";
+  return esito.error || esito.message || `Invio WhatsApp non riuscito (${status}).`;
 }
 
 /**

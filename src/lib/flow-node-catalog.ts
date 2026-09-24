@@ -31,6 +31,7 @@ export type ConfigFieldType =
   | 'calendar_select'        // calendario di prenotazione (marketing_calendars)
   | 'order_status_select'    // fase commessa dell'azienda (order_statuses)
   | 'whatsapp_locale_number_select' // numero WhatsApp Locale della piattaforma (openwa_numbers)
+  | 'whatsapp_template_select' // modello WhatsApp approvato da Meta (wa_meta_templates)
   | 'flow_node_select'       // passo dell'automazione scelta in flow_id (automation_nodes)
   | 'tag_input'
   | 'json_editor'
@@ -1684,7 +1685,10 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     categoria: 'comunicazione',
     configSchema: [
       { id: 'numero', label: 'Numero di telefono', type: 'text', required: true, supportsVariables: true, placeholder: '{{contatto.phone}}' },
-      { id: 'messaggio', label: 'Testo messaggio', type: 'textarea', required: true, supportsVariables: true, placeholder: "Ciao {{contatto.first_name}}, ti confermiamo l'appuntamento di..." },
+      // Il modello (24/09/2026): senza, il testo libero arriva solo a chi ha
+      // scritto nelle ultime 24 ore. Il motore rilegge il modello a ogni invio.
+      { id: 'modello_whatsapp', label: 'Modello approvato da Meta', type: 'whatsapp_template_select', required: false },
+      { id: 'messaggio', label: 'Testo messaggio', type: 'textarea', required: true, supportsVariables: true, placeholder: "Ciao {{contatto.first_name}}, ti confermiamo l'appuntamento di...", helpText: 'Solo senza modello: parte se il cliente ha scritto nelle ultime 24 ore.' },
     ],
   },
   {
@@ -2428,9 +2432,10 @@ export function getCatalogItem(itemId: string): CatalogItem | undefined {
  * configurazione del nodo. Regola unica per il pannello (avviso mentre scrivi)
  * e per la checklist di «Pubblica»: due liste diverse sarebbero due verità.
  *
- * Oggi l'unica eccezione è l'email con un modello salvato: oggetto e corpo non
- * stanno nel nodo perché arrivano dal modello a ogni invio, e chiederli qui
- * bloccherebbe la pubblicazione di un nodo che è invece completo.
+ * Le eccezioni sono i modelli: l'email con un modello salvato (oggetto e corpo
+ * arrivano dal modello a ogni invio) e il WhatsApp con un modello approvato da
+ * Meta (il testo è quello del modello). Chiederli qui bloccherebbe la
+ * pubblicazione di un nodo che è invece completo.
  */
 export function campiObbligatoriMancanti(
   itemId: string,
@@ -2438,9 +2443,11 @@ export function campiObbligatoriMancanti(
 ): ConfigFieldSchema[] {
   const schema = getCatalogItem(itemId)?.configSchema ?? [];
   const daModello = itemId === "invia_email" && !vuotoCampo(data?.modello_id);
+  const daModelloWhatsApp = itemId === "invia_whatsapp" && !vuotoCampo(data?.modello_whatsapp);
   return schema
     .filter((f) => f.required)
     .filter((f) => !(daModello && (f.id === "oggetto" || f.id === "corpo")))
+    .filter((f) => !(daModelloWhatsApp && f.id === "messaggio"))
     .filter((f) => vuotoCampo(data?.[f.id]));
 }
 

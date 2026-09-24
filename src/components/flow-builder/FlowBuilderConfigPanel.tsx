@@ -36,6 +36,7 @@ import { DelayConfigPanel } from "./config-panels/DelayConfigPanel";
 import { ConditionConfigPanel } from "./config-panels/ConditionConfigPanel";
 import { TaskConfigPanel } from "./config-panels/TaskConfigPanel";
 import { EmailConfigPanel } from "./config-panels/EmailConfigPanel";
+import { ModelloWhatsAppPasso } from "./config-panels/ModelloWhatsAppPasso";
 import { EmailBodyEditor } from "./config-panels/EmailBodyEditor";
 import { EmailPreviewActions } from "./config-panels/EmailPreviewActions";
 import { TriggerConditionBuilder } from "@/components/marketing/automations/TriggerConditionBuilder";
@@ -1096,6 +1097,14 @@ function ConfigField({
           </div>
         );
       })()}
+
+      {field.type === "whatsapp_template_select" && (
+        <ModelloWhatsAppPasso
+          config={nodeConfig ?? {}}
+          onPatch={(p) => onPatch?.(p)}
+          companyId={companyId}
+        />
+      )}
 
       {field.type === "whatsapp_locale_number_select" && (
         <Select
