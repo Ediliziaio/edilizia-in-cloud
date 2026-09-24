@@ -161,7 +161,7 @@ export function costruisciHtmlPos(d: DatiStampaPos): string {
   const altriAllegati = p.allegati.filter((a) => a.tipo !== "scheda_sicurezza");
 
   const avvisoBozza = bozza
-    ? `<div class="bozza"><strong>BOZZA — non vale come POS approvato.</strong>${mancanti.length ? `<br>Mancano ancora ${mancanti.length} contenuti minimi dell'Allegato XV:<ul>${mancanti.map((m) => `<li>${esc(m.testo)} <span class="rif">(${esc(m.riferimento)})</span></li>`).join("")}</ul>` : "<br>Tutti i contenuti minimi sono presenti: manca l'approvazione del datore di lavoro."}</div>`
+    ? `<div class="bozza"><strong>BOZZA — non vale come POS approvato.</strong>${mancanti.length ? `<br>${mancanti.length === 1 ? "Manca ancora 1 contenuto minimo" : `Mancano ancora ${mancanti.length} contenuti minimi`} dell'Allegato XV:<ul>${mancanti.map((m) => `<li>${esc(m.testo)} <span class="rif">(${esc(m.riferimento)})</span></li>`).join("")}</ul>` : "<br>Tutti i contenuti minimi sono presenti: manca l'approvazione del datore di lavoro."}</div>`
     : "";
 
   return `<!DOCTYPE html>

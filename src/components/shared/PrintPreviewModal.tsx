@@ -6,7 +6,7 @@
  *   sincrono (es. dentro una Promise/async). L'iframe non è soggetto a questa
  *   limitazione, quindi funziona sia su desktop che su mobile.
  */
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Printer, Download, X } from "lucide-react";
@@ -28,7 +28,16 @@ export function PrintPreviewModal({
   onOpenChange,
   title = "Anteprima documento",
 }: Props) {
-  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  // L'iframe nasce dentro il portale del Dialog DOPO il primo effetto: col solo
+  // ref l'effetto trovava null, usciva e non ripartiva più (anteprima vuota e
+  // rotella infinita quando la modale si monta già aperta). Con l'elemento nello
+  // stato, l'effetto riparte quando l'iframe esiste.
+  const [iframeEl, setIframeEl] = useState<HTMLIFrameElement | null>(null);
+  const agganciaIframe = useCallback((el: HTMLIFrameElement | null) => {
+    iframeRef.current = el;
+    setIframeEl(el);
+  }, []);
   const [ready, setReady] = useState(false);
 
   // Inject HTML into iframe when content changes or dialog opens
@@ -37,7 +46,7 @@ export function PrintPreviewModal({
       setReady(false);
       return;
     }
-    const iframe = iframeRef.current;
+    const iframe = iframeEl;
     if (!iframe) return;
 
     setReady(false);
@@ -56,7 +65,7 @@ export function PrintPreviewModal({
       iframe.removeEventListener("load", handleLoad);
       clearTimeout(timeout);
     };
-  }, [open, htmlContent]);
+  }, [open, htmlContent, iframeEl]);
 
   const handlePrint = () => {
     const win = iframeRef.current?.contentWindow;
@@ -119,7 +128,7 @@ export function PrintPreviewModal({
             </div>
           )}
           <iframe
-            ref={iframeRef}
+            ref={agganciaIframe}
             title={title}
             className="w-full h-full border-0"
             sandbox="allow-same-origin allow-modals allow-scripts"
