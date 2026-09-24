@@ -11,6 +11,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { filtriRicercaContatti, filtriRicercaParole } from "@/lib/ricerca/ricercaContatti";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -64,13 +65,9 @@ export default function StepCliente({ form, onChange }: Props) {
         .from("marketing_contacts")
         .select("id, first_name, last_name, email, phone")
         .eq("company_id", companyId!)
+        .is("deleted_at", null)
         .limit(20);
-      const safe = contactSearch.replace(/[%,]/g, " ").trim();
-      if (safe) {
-        query = query.or(
-          `first_name.ilike.%${safe}%,last_name.ilike.%${safe}%,email.ilike.%${safe}%`,
-        );
-      }
+      for (const filtro of filtriRicercaContatti(contactSearch)) query = query.or(filtro);
       const { data, error } = await query.order("first_name");
       if (error) throw error;
       return (data ?? []) as ContactLite[];
@@ -87,8 +84,7 @@ export default function StepCliente({ form, onChange }: Props) {
         .eq("company_id", companyId!)
         .is("deleted_at", null)
         .limit(20);
-      const safe = oppSearch.replace(/[%,]/g, " ").trim();
-      if (safe) query = query.ilike("name", `%${safe}%`);
+      for (const filtro of filtriRicercaParole(oppSearch, ["name"])) query = query.or(filtro);
       const { data, error } = await query.order("created_at", { ascending: false });
       if (error) throw error;
       return (data ?? []) as OpportunityLite[];

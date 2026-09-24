@@ -232,6 +232,7 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
       assigned_to: appt.assigned_to || null,
       calendar_id: appt.calendar_id || null,
       contact_id: appt.contact_id || null,
+      opportunity_id: appt.opportunity_id || null,
       status: appt.status,
       is_completed: appt.is_completed || false,
       is_blocked_slot: appt.is_blocked_slot || false,
@@ -741,6 +742,7 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
         }}
         calendars={calendars}
         users={teamUsers}
+        contestoScheda="opportunita"
       />
     </div>
   );

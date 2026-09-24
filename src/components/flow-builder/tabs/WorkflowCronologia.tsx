@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { filtriRicercaContatti } from "@/lib/ricerca/ricercaContatti";
 import {
   RefreshCw, Users, Search, ChevronDown, ChevronRight,
   CheckCircle, XCircle, Clock, Play, User, Activity,
@@ -147,13 +148,10 @@ function EnrollContactDialog({
         .from("marketing_contacts")
         .select("id, first_name, last_name, email, phone")
         .eq("company_id", companyId!)
+        .is("deleted_at", null)
         .order("created_at", { ascending: false })
         .limit(10);
-      if (search.trim()) {
-        // Niente virgole/parentesi dentro .or(): sono la sua sintassi.
-        const s0 = search.replace(/[,()]/g, " ").trim();
-        q = q.or(`first_name.ilike.%${s0}%,last_name.ilike.%${s0}%,email.ilike.%${s0}%`);
-      }
+      for (const filtro of filtriRicercaContatti(search)) q = q.or(filtro);
       const { data } = await q;
       return data ?? [];
     },
@@ -344,15 +342,12 @@ export function WorkflowCronologia({ flowId }: Props) {
       if (search.trim()) {
         // entity_id è UUID: ilike su uuid = errore Postgres 42883 e tabella
         // vuota. La ricerca "per contatto" passa da nome/email → id.
-        // Niente virgole/parentesi dentro .or(): sono la sua sintassi, e
-        // cercare "Rossi, Mario" spaccava la query intera.
-        const s = search.trim().replace(/[,()]/g, " ").trim();
-        const { data: matches } = await (supabase as any)
+        let cercaContatti = (supabase as any)
           .from("marketing_contacts")
           .select("id")
-          .eq("company_id", companyId!)
-          .or(`first_name.ilike.%${s}%,last_name.ilike.%${s}%,email.ilike.%${s}%,phone.ilike.%${s}%`)
-          .limit(100);
+          .eq("company_id", companyId!);
+        for (const filtro of filtriRicercaContatti(search)) cercaContatti = cercaContatti.or(filtro);
+        const { data: matches } = await cercaContatti.limit(100);
         const ids = (matches ?? []).map((m: any) => m.id);
         if (ids.length === 0) return { rows: [], total: 0 };
         q = q.in("entity_id", ids);

@@ -20,6 +20,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
+import { useMarketingRoutePrefix } from "@/hooks/useMarketingRoutePrefix";
+import { linkContatto, linkOpportunita } from "@/lib/marketing/linkCrm";
+import { filtriRicercaContatti } from "@/lib/ricerca/ricercaContatti";
+import { useDebounce } from "@/hooks/useDebounce";
 import AddressAutocomplete, { type AddressData, emptyAddress } from "@/components/shared/AddressAutocomplete";
 import AddressMapPreview from "@/components/shared/AddressMapPreview";
 import CalendarSuggestions, { type CalendarSuggestion } from "./CalendarSuggestions";
@@ -63,6 +68,7 @@ export interface MarketingAppointmentData {
   assigned_to: string | null;
   calendar_id: string | null;
   contact_id: string | null;
+  opportunity_id?: string | null;
   status: string;
   is_completed: boolean;
   is_blocked_slot?: boolean;
@@ -100,6 +106,8 @@ interface Props {
    * "Demo EdiliziaInCloud — {contatto}" senza duplicare la dialog.
    */
   defaultTitle?: string;
+  /** La finestra è aperta dentro la scheda del contatto o dell'opportunità: niente pulsante per riaprire la stessa scheda. */
+  contestoScheda?: "contatto" | "opportunita";
 }
 
 import { addMinutesToTimeStr as addMinutesToTime, timeToMin } from "@/lib/marketingCalendarConstants";
@@ -118,15 +126,17 @@ export default function MarketingAppointmentDialog({
   defaultTime,
   defaultContactId,
   defaultTitle,
+  contestoScheda,
 }: Props) {
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
   const isEditing = !!appointment?.id;
   const googleSync = useGoogleCalendarSync();
   const appleSync = useAppleCalendarSync();
+  const routePrefix = useMarketingRoutePrefix();
   // In sola lettura niente prenotazioni né modifiche: la policy su appointments
   // le rifiuterebbe, meglio dirlo sul bottone.
-  const { solaLettura, onlyAssigned } = usePermissions();
+  const { solaLettura, onlyAssigned, canViewMarketingContacts, canViewMarketingOpportunities } = usePermissions();
   const bloccoTitle = solaLettura ? "Sei in sola lettura" : undefined;
   const queryClient = useQueryClient();
 
@@ -262,25 +272,41 @@ export default function MarketingAppointmentDialog({
     }
   }, [calendarId, calendars, isEditing, startTime]);
 
-  // Contacts search
-  const { data: contacts = [] } = useQuery({
-    queryKey: ["mkt-apt-contacts", companyId],
+  // Il contatto scelto si legge per id. Prima si caricava «tutto l'elenco», ma il
+  // database ne restituisce al massimo mille: oltre il millesimo cognome il
+  // contatto di un appuntamento non si trovava (Ener, 24/09).
+  const { data: selectedContact = null } = useQuery({
+    queryKey: ["mkt-apt-contact", companyId, contactId],
     queryFn: async () => {
-      if (!companyId) return [];
       const { data } = await supabase
         .from("marketing_contacts")
         .select("id, first_name, last_name, email, phone, source, attr_source, attr_medium, attr_campaign, ai_score, ai_score_tier, ai_predicted_value_eur, ai_next_action, lead_score, score, preferred_channel, stato, tags")
-        .eq("company_id", companyId)
-        .order("last_name")
-        .limit(10000);
-      return data || [];
+        .eq("company_id", companyId!)
+        .eq("id", contactId)
+        .maybeSingle();
+      return data;
     },
-    enabled: open && !!companyId,
+    enabled: open && !!companyId && !!contactId && contactId !== "none",
   });
 
-  const selectedContact = useMemo(() => {
-    return contacts.find((c) => c.id === contactId) || null;
-  }, [contacts, contactId]);
+  // Il selettore cerca nel database mentre si scrive; senza testo propone gli ultimi toccati.
+  const [cercaContatto, setCercaContatto] = useState("");
+  const cercaContattoRitardata = useDebounce(cercaContatto, 300);
+  const { data: contattiTrovati = [], isFetching: cercandoContatti } = useQuery({
+    queryKey: ["mkt-apt-contacts-search", companyId, cercaContattoRitardata],
+    queryFn: async () => {
+      let query = supabase
+        .from("marketing_contacts")
+        .select("id, first_name, last_name, email, phone, city")
+        .eq("company_id", companyId!)
+        .is("deleted_at", null);
+      for (const filtro of filtriRicercaContatti(cercaContattoRitardata)) query = query.or(filtro);
+      const { data } = await query.order("updated_at", { ascending: false }).limit(30);
+      return data || [];
+    },
+    enabled: open && contactPickerOpen && !!companyId,
+    staleTime: 30 * 1000,
+  });
 
   const { data: contactOpportunities = [] } = useQuery({
     queryKey: ["mkt-apt-contact-opportunities", companyId, contactId],
@@ -301,7 +327,29 @@ export default function MarketingAppointmentDialog({
     staleTime: 60 * 1000,
   });
 
-  const selectedOpportunity = useMemo(() => contactOpportunities[0] || null, [contactOpportunities]);
+  const opportunitaAppuntamentoId = appointment?.opportunity_id ?? null;
+  const { data: opportunitaAppuntamento = null } = useQuery({
+    queryKey: ["mkt-apt-opportunity", companyId, opportunitaAppuntamentoId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("marketing_opportunities")
+        .select("id, contact_id, name, status, value, probability, next_action, next_action_date, expected_close_date, source, updated_at")
+        .eq("company_id", companyId!)
+        .eq("id", opportunitaAppuntamentoId!)
+        .is("deleted_at", null)
+        .maybeSingle();
+      if (error) return null;
+      return data;
+    },
+    enabled: open && !!companyId && !!opportunitaAppuntamentoId,
+    staleTime: 60 * 1000,
+  });
+
+  // Quella collegata all'appuntamento, finché il contatto è il suo; altrimenti l'ultima del contatto.
+  const selectedOpportunity = useMemo(
+    () => (opportunitaAppuntamento && opportunitaAppuntamento.contact_id === contactId ? opportunitaAppuntamento : contactOpportunities[0] || null),
+    [opportunitaAppuntamento, contactId, contactOpportunities],
+  );
   const selectedStatusMeta = useMemo(() => getMarketingAppointmentStatusMeta(status), [status]);
   // Il link fisso da proporre: quello del calendario scelto, oppure quello già
   // sull'appuntamento se il calendario nel frattempo l'ha cambiato o tolto.
@@ -1029,7 +1077,13 @@ export default function MarketingAppointmentDialog({
                     <span className="text-[10px] text-muted-foreground font-normal">(contatto CRM)</span>
                   </Label>
                   <div>
-                    <Popover open={contactPickerOpen} onOpenChange={setContactPickerOpen}>
+                    <Popover
+                      open={contactPickerOpen}
+                      onOpenChange={(aperto) => {
+                        setContactPickerOpen(aperto);
+                        if (!aperto) setCercaContatto("");
+                      }}
+                    >
                       <PopoverTrigger asChild>
                         <Button
                           type="button"
@@ -1047,30 +1101,34 @@ export default function MarketingAppointmentDialog({
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-[min(420px,calc(100vw-2rem))] p-0" align="start">
-                        <Command>
-                          <CommandInput placeholder="Cerca per nome o email..." />
+                        <Command shouldFilter={false}>
+                          <CommandInput
+                            value={cercaContatto}
+                            onValueChange={setCercaContatto}
+                            placeholder="Cerca per nome, telefono, email, città..."
+                          />
                           <CommandList>
-                            <CommandEmpty>Nessun contatto trovato.</CommandEmpty>
+                            <CommandEmpty>{cercandoContatti ? "Cerco..." : "Nessun contatto trovato."}</CommandEmpty>
                             <CommandGroup>
-                              {contacts.map((c) => {
-                                const label = `${c.first_name} ${c.last_name || ""}${c.email ? ` ${c.email}` : ""}`.trim();
-                                return (
-                                  <CommandItem
-                                    key={c.id}
-                                    value={label}
-                                    onSelect={() => {
-                                      setContactId(c.id);
-                                      setContactPickerOpen(false);
-                                    }}
-                                  >
-                                    <Check className={cn("mr-2 h-4 w-4", contactId === c.id ? "opacity-100" : "opacity-0")} />
-                                    <span className="min-w-0 flex-1 truncate">
-                                      {c.first_name} {c.last_name || ""}
-                                      {c.email && <span className="ml-1 text-muted-foreground">({c.email})</span>}
-                                    </span>
-                                  </CommandItem>
-                                );
-                              })}
+                              {contattiTrovati.map((c) => (
+                                <CommandItem
+                                  key={c.id}
+                                  value={c.id}
+                                  onSelect={() => {
+                                    setContactId(c.id);
+                                    setContactPickerOpen(false);
+                                    setCercaContatto("");
+                                  }}
+                                >
+                                  <Check className={cn("mr-2 h-4 w-4", contactId === c.id ? "opacity-100" : "opacity-0")} />
+                                  <span className="min-w-0 flex-1 truncate">
+                                    {c.first_name} {c.last_name || ""}
+                                    {(c.phone || c.email || c.city) && (
+                                      <span className="ml-1 text-muted-foreground">({[c.phone, c.email, c.city].filter(Boolean).join(" · ")})</span>
+                                    )}
+                                  </span>
+                                </CommandItem>
+                              ))}
                             </CommandGroup>
                           </CommandList>
                         </Command>
@@ -1094,11 +1152,21 @@ export default function MarketingAppointmentDialog({
                           {selectedContact.phone || selectedContact.email || "Nessun recapito salvato"}
                         </p>
                       </div>
-                      {(selectedContact.ai_score ?? selectedContact.lead_score ?? selectedContact.score) != null && (
-                        <Badge variant="secondary" className="shrink-0">
-                          Score {selectedContact.ai_score ?? selectedContact.lead_score ?? selectedContact.score}
-                        </Badge>
-                      )}
+                      <div className="flex shrink-0 items-center gap-1.5">
+                        {(selectedContact.ai_score ?? selectedContact.lead_score ?? selectedContact.score) != null && (
+                          <Badge variant="secondary" className="shrink-0">
+                            Score {selectedContact.ai_score ?? selectedContact.lead_score ?? selectedContact.score}
+                          </Badge>
+                        )}
+                        {canViewMarketingContacts && contestoScheda !== "contatto" && (
+                          <Button type="button" variant="outline" size="sm" className="h-7 gap-1" asChild>
+                            <Link to={linkContatto(routePrefix, selectedContact.id)} onClick={() => onOpenChange(false)}>
+                              <ExternalLink className="h-3.5 w-3.5" />
+                              Apri contatto
+                            </Link>
+                          </Button>
+                        )}
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-2 text-xs">
@@ -1143,6 +1211,14 @@ export default function MarketingAppointmentDialog({
                         </p>
                         {selectedOpportunity.next_action && (
                           <p className="mt-1 text-muted-foreground">Next: {selectedOpportunity.next_action}</p>
+                        )}
+                        {canViewMarketingOpportunities && contestoScheda !== "opportunita" && (
+                          <Button type="button" variant="outline" size="sm" className="mt-2 h-7 gap-1" asChild>
+                            <Link to={linkOpportunita(routePrefix, selectedOpportunity.id)} onClick={() => onOpenChange(false)}>
+                              <ExternalLink className="h-3.5 w-3.5" />
+                              Apri opportunità
+                            </Link>
+                          </Button>
                         )}
                       </div>
                     )}

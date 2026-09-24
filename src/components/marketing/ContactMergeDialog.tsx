@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { filtriRicercaContatti } from "@/lib/ricerca/ricercaContatti";
 import { toast } from "sonner";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
@@ -31,14 +32,14 @@ export function ContactMergeDialog({ open, onOpenChange, sourceContact, companyI
     queryKey: ["merge-candidates", companyId, search],
     queryFn: async () => {
       if (!search.trim() || search.length < 2) return [];
-      const q = `%${search}%`;
-      const { data } = await supabase
+      let query = supabase
         .from("marketing_contacts")
         .select("id, first_name, last_name, email, phone")
         .eq("company_id", companyId)
-        .neq("id", sourceContact?.id || "")
-        .or(`first_name.ilike.${q},last_name.ilike.${q},email.ilike.${q},phone.ilike.${q}`)
-        .limit(10);
+        .is("deleted_at", null)
+        .neq("id", sourceContact?.id || "");
+      for (const filtro of filtriRicercaContatti(search)) query = query.or(filtro);
+      const { data } = await query.limit(10);
       return data || [];
     },
     enabled: open && !!companyId && !!sourceContact && search.length >= 2,

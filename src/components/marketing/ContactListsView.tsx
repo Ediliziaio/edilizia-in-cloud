@@ -5,7 +5,7 @@ import { it } from "date-fns/locale";
 import { Plus, MoreHorizontal, Pencil, Trash2, Users, List, ArrowLeft, Search, UserPlus, UserMinus, X, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
-import { sanitizeContactSearchTerm } from "@/lib/marketingContacts";
+import { filtriRicercaContatti } from "@/lib/ricerca/ricercaContatti";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -527,13 +527,8 @@ function ListDetailView({
         )
         .eq("list_id", listId);
 
-      const termine = sanitizeContactSearchTerm(ricerca);
-      if (termine) {
-        const s = `%${termine}%`;
-        query = query.or(
-          `first_name.ilike.${s},last_name.ilike.${s},email.ilike.${s},phone.ilike.${s},company_name.ilike.${s}`,
-          { referencedTable: "marketing_contacts" },
-        );
+      for (const filtro of filtriRicercaContatti(ricerca)) {
+        query = query.or(filtro, { referencedTable: "marketing_contacts" });
       }
 
       const da = pagina * MEMBRI_PER_PAGINA;
@@ -759,14 +754,10 @@ function AddContactsToListDialog({ open, onOpenChange, listId, companyId, onDone
         .from("marketing_contacts")
         .select("id, first_name, last_name, phone, email, company_name")
         .eq("company_id", companyId)
+        .is("deleted_at", null)
         .order("first_name")
         .limit(50);
-
-      const safeSearch = sanitizeContactSearchTerm(search);
-      if (safeSearch) {
-        const s = `%${safeSearch}%`;
-        query = query.or(`first_name.ilike.${s},last_name.ilike.${s},phone.ilike.${s},email.ilike.${s}`);
-      }
+      for (const filtro of filtriRicercaContatti(search)) query = query.or(filtro);
 
       const { data, error } = await query;
       if (error) throw error;

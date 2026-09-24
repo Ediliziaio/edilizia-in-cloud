@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
+import { linkContatto, linkOpportunita } from "@/lib/marketing/linkCrm";
 import { TASK_CATEGORY_LABELS as CATEGORY_LABELS } from "@/lib/taskCategories";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { TaskAllegati } from "@/components/attivita/TaskAllegati";
@@ -430,14 +431,14 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
           icon: Users,
           label: `${task.contact.first_name} ${task.contact.last_name}`,
           tipo: "Contatto",
-          to: `/azienda/marketing/contatti/${task.contact_id}`,
+          to: linkContatto("/azienda/marketing", task.contact_id),
           fkField: "contact_id",
         },
         task.opportunity && {
           icon: TrendingUp,
           label: task.opportunity.name,
           tipo: "Opportunità",
-          to: `/azienda/marketing/opportunita`,
+          to: linkOpportunita("/azienda/marketing", task.opportunity_id),
           fkField: "opportunity_id",
         },
         task.stock_item && {

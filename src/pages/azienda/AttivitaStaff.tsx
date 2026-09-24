@@ -31,6 +31,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { usePermissions } from "@/hooks/usePermissions";
+import { linkContatto, linkOpportunita } from "@/lib/marketing/linkCrm";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { queryKeys } from "@/lib/queryKeys";
 import { CollegaAttivitaPicker, etichettaCollegamento, type CollegamentoAttivita } from "@/components/tasks/CollegaAttivitaPicker";
@@ -1069,7 +1070,7 @@ const GROUP_OPTIONS: { value: GroupBy; label: string }[] = [
 function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { initialDueDate?: AddTaskRequest | null; calendarDate?: string | null; onCalendarDateClear?: () => void }) {
   const { user, effectiveCompany, role } = useAuth();
   const isAdmin = role === "company_admin";
-  const { canViewTeamTasks, solaLettura } = usePermissions();
+  const { canViewTeamTasks, solaLettura, canViewMarketingContacts, canViewMarketingOpportunities } = usePermissions();
   const creaTitle = solaLettura ? "Sei in sola lettura" : undefined;
   // "Attività del team": l'admin vede tutto; gli altri solo con il permesso
   // esplicito can_view_team_tasks. La scrittura resta comunque limitata alle
@@ -1414,8 +1415,11 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
     const canManage = isAdmin || t.assigned_to === user?.id;
 
     const assigneeName = getAssigneeName(t);
-    // A chi è attaccata: si legge dalla riga, senza aprirla.
+    // A chi è attaccata: si legge dalla riga, senza aprirla, e si apre con un clic se si può vedere quella pagina.
     const collegata = etichettaCollegamento(t);
+    const hrefCollegata = collegata?.icona === "opportunita"
+      ? (t.opportunity_id && canViewMarketingOpportunities ? linkOpportunita("/azienda/marketing", t.opportunity_id) : null)
+      : collegata && t.contact_id && canViewMarketingContacts ? linkContatto("/azienda/marketing", t.contact_id) : null;
 
     if (compact) {
       // Vista compatta — riga singola
@@ -1529,12 +1533,22 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
             {catLabel && <span className="flex min-w-0 items-center gap-1"><Tag className="w-3 h-3 shrink-0" /><span className="truncate">{catLabel}</span></span>}
             {assigneeName && <span className="flex shrink-0 items-center gap-1 text-violet-600 dark:text-violet-400 font-medium"><Users className="w-3 h-3" />{assigneeName}</span>}
             {t.order?.order_code && <Link to="/azienda/ordini" onClick={(e) => e.stopPropagation()} className="flex shrink-0 items-center gap-1 hover:text-foreground transition-colors"><ExternalLink className="w-3 h-3" />{t.order.order_code}</Link>}
-            {collegata && (
+            {collegata && (hrefCollegata ? (
+              <Link
+                to={hrefCollegata}
+                onClick={(e) => e.stopPropagation()}
+                className="flex min-w-0 items-center gap-1 text-foreground/70 hover:text-foreground hover:underline transition-colors"
+                title={collegata.icona === "opportunita" ? "Apri l'opportunità collegata" : "Apri il contatto collegato"}
+              >
+                {collegata.icona === "opportunita" ? <Target className="w-3 h-3 shrink-0" /> : <UserIcon className="w-3 h-3 shrink-0" />}
+                <span className="truncate">{collegata.testo}</span>
+              </Link>
+            ) : (
               <span className="flex min-w-0 items-center gap-1 text-foreground/70" title={collegata.icona === "opportunita" ? "Opportunità collegata" : "Cliente collegato"}>
                 {collegata.icona === "opportunita" ? <Target className="w-3 h-3 shrink-0" /> : <UserIcon className="w-3 h-3 shrink-0" />}
                 <span className="truncate">{collegata.testo}</span>
               </span>
-            )}
+            ))}
           </div>
         </div>
 
@@ -1868,6 +1882,18 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
             <div className="space-y-1.5">
               <Label>Collegata a</Label>
               <CollegaAttivitaPicker companyId={companyId} valore={formCollegamento} onChange={setFormCollegamento} />
+              {formCollegamento?.tipo === "opportunita" && canViewMarketingOpportunities && (
+                <Link to={linkOpportunita("/azienda/marketing", formCollegamento.id)} onClick={() => setDialogOpen(false)} className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
+                  <ExternalLink className="h-3 w-3" />
+                  Apri l'opportunità
+                </Link>
+              )}
+              {formCollegamento?.tipo === "contatto" && canViewMarketingContacts && (
+                <Link to={linkContatto("/azienda/marketing", formCollegamento.id)} onClick={() => setDialogOpen(false)} className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
+                  <ExternalLink className="h-3 w-3" />
+                  Apri il contatto
+                </Link>
+              )}
             </div>
             {/* Assegna a (admin) + Priorità */}
             <div className={`grid gap-3 ${isAdmin ? "grid-cols-2" : "grid-cols-2"}`}>

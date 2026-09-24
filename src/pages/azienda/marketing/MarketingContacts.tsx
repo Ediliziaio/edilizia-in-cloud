@@ -40,10 +40,10 @@ import { perOgniLotto, raccogliALotti, sommaALotti } from "@/lib/lottiDiId";
 import {
   regoleGruppiPerIlDatabase,
   normalizeContactsUrlState,
-  sanitizeContactSearchTerm,
   toggleContactsPageSelection,
   type ContactsTab,
 } from "@/lib/marketingContacts";
+import { filtriRicercaContatti } from "@/lib/ricerca/ricercaContatti";
 import { getAddedTags, getRemovedTags, normalizeTagList } from "@/lib/marketingTags";
 
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -670,11 +670,9 @@ export default function MarketingContacts() {
       }
     }
 
-    const ricerca = sanitizeContactSearchTerm(search);
-    if (ricerca) {
-      const s = `%${ricerca}%`;
-      query = query.or(`first_name.ilike.${s},last_name.ilike.${s},phone.ilike.${s},email.ilike.${s},company_name.ilike.${s}`);
-    }
+    // Una condizione per parola: «Elide Ruggiata» cercato come frase intera non
+    // stava né nel nome né nel cognome, e dava zero risultati (BeMade, 24/09).
+    for (const filtro of filtriRicercaContatti(search)) query = query.or(filtro);
     return query;
   }, [permissions.onlyAssigned, idAgente, meseRange, sourceFilter, qualityFilter, stalePresetActive, stalePreset, search]);
 

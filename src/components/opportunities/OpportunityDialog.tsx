@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useDebounce } from "@/hooks/useDebounce";
+import { filtriRicercaContatti } from "@/lib/ricerca/ricercaContatti";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCreateOpportunity, useCompanyStaff, useCompanySalespeople, useCompanyCallCenterUsers } from "@/hooks/useOpportunitiesData";
 import { useOpportunityCustomFields } from "@/hooks/useOpportunityDetailData";
@@ -52,10 +53,6 @@ type OpportunityCustomField = {
   field_type: string | null;
   options?: string[] | null;
 };
-
-function sanitizeSearchTerm(value: string) {
-  return value.replace(/[%,]/g, " ").trim();
-}
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_RE = /^\+?[0-9\s().-]{6,20}$/;
@@ -148,11 +145,9 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
         .from("marketing_contacts")
         .select("id, first_name, last_name, email, phone, city, company_name")
         .eq("company_id", companyId!)
+        .is("deleted_at", null)
         .limit(20);
-      const safeSearch = sanitizeSearchTerm(ricercaContatti);
-      if (safeSearch) {
-        query = query.or(`first_name.ilike.%${safeSearch}%,last_name.ilike.%${safeSearch}%,email.ilike.%${safeSearch}%`);
-      }
+      for (const filtro of filtriRicercaContatti(ricercaContatti)) query = query.or(filtro);
       const { data, error } = await query.order("first_name");
       if (error) throw error;
       return data as ContactSearchResult[];

@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { filtriRicercaContatti } from "@/lib/ricerca/ricercaContatti";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/formatters";
 import { esitoUpdateConGuardia, isConflittoModifica } from "@/lib/concorrenza";
@@ -243,15 +244,13 @@ function ContactCombobox({
     queryKey: ["marketing-contacts-cerca", companyId, ricercaDebounced],
     enabled: !!companyId && ricercaDebounced.length >= 2,
     queryFn: async () => {
-      const t = ricercaDebounced.replace(/[%,()]/g, " ").trim();
-      const { data, error } = await supabase
+      let query = supabase
         .from("marketing_contacts")
         .select(CONTACT_SELECT)
         .eq("company_id", companyId!)
-        .is("deleted_at", null)
-        .or(`first_name.ilike.%${t}%,last_name.ilike.%${t}%,company_name.ilike.%${t}%,email.ilike.%${t}%`)
-        .order("last_name")
-        .limit(30);
+        .is("deleted_at", null);
+      for (const filtro of filtriRicercaContatti(ricercaDebounced)) query = query.or(filtro);
+      const { data, error } = await query.order("last_name").limit(30);
       if (error) throw error;
       return (data ?? []) as ContactOption[];
     },

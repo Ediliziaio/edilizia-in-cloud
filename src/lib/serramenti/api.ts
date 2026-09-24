@@ -5,6 +5,7 @@
  * Tabelle sr_* (mirror in src/types/serramenti.ts).
  */
 import { supabase } from "@/integrations/supabase/client";
+import { filtriRicercaContatti } from "@/lib/ricerca/ricercaContatti";
 import { CAMPI_IMMAGINE_SERRAMENTI, normalizzaImmaginiModello } from "@/lib/storage/immaginiModelloPdf";
 import { termineDiRicerca } from "@/lib/ricercaPostgrest";
 import type {
@@ -1051,9 +1052,9 @@ export async function listCrmContacts(
     .order("created_at", { ascending: false })
     .limit(limit);
   if (companyId) q = q.eq("company_id", companyId);
+  q = q.is("deleted_at", null);
   if (searchQuery && searchQuery.trim().length >= 2) {
-    const t = `%${searchQuery.trim()}%`;
-    q = q.or(`first_name.ilike.${t},last_name.ilike.${t},email.ilike.${t},phone.ilike.${t},company_name.ilike.${t}`);
+    for (const filtro of filtriRicercaContatti(searchQuery)) q = q.or(filtro);
   }
   const { data, error } = await q;
   if (error) {

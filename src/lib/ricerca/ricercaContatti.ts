@@ -1,18 +1,20 @@
 /**
- * Filtri della ricerca contatti in alto a destra.
+ * Come si cerca un contatto, in tutta l'app: barra in alto, pagina Contatti,
+ * selettori nelle finestre.
  *
- * La ricerca cercava la frase intera in nome, cognome o email: «Lia Logar» non
- * trovava nessuno (il nome è «Lia», il cognome «Logar»), un contatto importato
- * come «RoccoPagnotta» nemmeno, e il telefono non si cercava affatto (BeMade,
- * 15/09). Ora ogni parola deve comparire in uno dei campi, e un numero si cerca
- * nel telefono senza badare a spazi e prefisso.
+ * Le ricerche cercavano la frase intera dentro un campo solo: «Lia Logar» non
+ * trovava nessuno (il nome è «Lia», il cognome «Logar»), come «Elide Ruggiata»
+ * sulla pagina Contatti di BeMade (24/09). Ora ogni parola deve comparire in uno
+ * dei campi, e un numero si cerca nel telefono comunque sia scritto e nella
+ * partita IVA.
  *
  * Restituisce le condizioni per `.or()` di PostgREST: più `.or()` in fila
  * valgono tutte insieme (una per parola).
  */
 
 const MAX_PAROLE = 5;
-const CAMPI = ["first_name", "last_name", "email", "phone"] as const;
+/** Chi è, come si raggiunge, dove sta, i suoi codici. */
+const CAMPI = ["first_name", "last_name", "email", "phone", "company_name", "city", "fiscal_code", "vat_number"] as const;
 
 /** Toglie i caratteri che rompono la sintassi di `.or()` e rende letterali i jolly. */
 function pulisci(parola: string): string {
@@ -30,7 +32,7 @@ export function paroleRicerca(testo: string): string[] {
 }
 
 /**
- * Le cifre da cercare se il testo è un numero di telefono: «+39 347 984 5700»,
+ * Le cifre da cercare se il testo è un numero: «+39 347 984 5700»,
  * «347-9845700», «00393479845700» → «3479845700». Null se non è un numero.
  */
 export function cifreTelefono(testo: string): string | null {
@@ -42,8 +44,18 @@ export function cifreTelefono(testo: string): string | null {
   return cifre;
 }
 
+/** Le cifre in fila anche se nel numero salvato ci sono spazi o trattini: «0546620120» trova «0546 620120». */
+export function espressioneCifre(cifre: string): string {
+  return cifre.split("").join("[^0-9]*");
+}
+
+/** Ogni parola in almeno uno dei campi dati. Per altre tabelle, coi loro campi. */
+export function filtriRicercaParole(testo: string, campi: readonly string[]): string[] {
+  return paroleRicerca(testo).map((parola) => campi.map((campo) => `${campo}.ilike.%${parola}%`).join(","));
+}
+
 export function filtriRicercaContatti(testo: string): string[] {
-  const telefono = cifreTelefono(testo);
-  if (telefono) return [`phone.ilike.%${telefono}%`];
-  return paroleRicerca(testo).map((parola) => CAMPI.map((campo) => `${campo}.ilike.%${parola}%`).join(","));
+  const numero = cifreTelefono(testo);
+  if (numero) return [`phone.imatch.${espressioneCifre(numero)},vat_number.ilike.%${numero}%`];
+  return filtriRicercaParole(testo, CAMPI);
 }

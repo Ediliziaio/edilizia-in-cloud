@@ -17,6 +17,7 @@ import { useResellerPlans } from "@/hooks/useResellerPlans";
 import { useSaveRoiSimulation } from "@/hooks/useRoiSimulations";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { filtriRicercaContatti } from "@/lib/ricerca/ricercaContatti";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -94,13 +95,9 @@ export default function RoiSimulatorPage() {
         .from("marketing_contacts")
         .select("id, first_name, last_name, email")
         .eq("company_id", companyId!)
+        .is("deleted_at", null)
         .limit(20);
-      const safe = search.replace(/[%,]/g, " ").trim();
-      if (safe) {
-        query = query.or(
-          `first_name.ilike.%${safe}%,last_name.ilike.%${safe}%,email.ilike.%${safe}%`,
-        );
-      }
+      for (const filtro of filtriRicercaContatti(search)) query = query.or(filtro);
       const { data, error } = await query.order("first_name");
       if (error) throw error;
       return (data ?? []) as ContactLite[];

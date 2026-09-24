@@ -821,6 +821,7 @@ export default function MarketingCalendar() {
       assigned_to: apt.assigned_to,
       calendar_id: apt.calendar_id,
       contact_id: apt.contact_id,
+      opportunity_id: apt.opportunity_id,
       status: apt.status,
       is_completed: apt.is_completed,
       is_blocked_slot: apt.is_blocked_slot,

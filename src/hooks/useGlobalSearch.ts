@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useDebounce } from "./useDebounce";
 import { queryKeys } from "@/lib/queryKeys";
-import { filtriRicercaContatti } from "@/lib/ricerca/ricercaContatti";
+import { filtriRicercaContatti, filtriRicercaParole } from "@/lib/ricerca/ricercaContatti";
 
 export interface SearchResult {
   id: string;
@@ -21,8 +21,10 @@ export function useGlobalSearch(query: string, companyId: string | undefined) {
     queryFn: async () => {
       if (!debouncedQuery || debouncedQuery.length < 2) return [];
 
-      // `%` e `_` sono jolly in un ilike: chi cerca "50%" cerca "50%".
-      const pattern = `%${debouncedQuery.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+      // `%` e `_` sono jolly in un ilike: chi cerca "50%" cerca "50%". Virgole e
+      // parentesi sono la sintassi di .or(): «Rossi, Mario» faceva fallire in
+      // silenzio ordini e preventivi.
+      const pattern = `%${debouncedQuery.replace(/[,()]/g, " ").trim().replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
 
       // Tutte in parallelo. Una che fallisce (permesso, tabella non leggibile)
       // non deve azzerare la ricerca: si mostra quello che si è trovato.
@@ -37,12 +39,14 @@ export function useGlobalSearch(query: string, companyId: string | undefined) {
         // faceva fallire la query con 400, quindi la ricerca globale non ha mai
         // trovato un cliente — e i clienti sono la cosa che si cerca di più.
         // Il ruolo si filtra dopo, su `user_roles`, come fa useCompanyCustomers.
-        (supabase
-          .from("profiles")
-          .select("id, first_name, last_name, business_name, email, phone")
-          .eq("company_id", companyId!) as any)
-          .or(`first_name.ilike.${pattern},last_name.ilike.${pattern},business_name.ilike.${pattern},email.ilike.${pattern},phone.ilike.${pattern}`)
-          .limit(15),
+        (() => {
+          let q = (supabase
+            .from("profiles")
+            .select("id, first_name, last_name, business_name, email, phone")
+            .eq("company_id", companyId!) as any);
+          for (const filtro of filtriRicercaParole(debouncedQuery, ["first_name", "last_name", "business_name", "email", "phone"])) q = q.or(filtro);
+          return q.limit(15);
+        })(),
         // Contatti: ogni parola in nome, cognome, email o telefono, e un numero
         // nel telefono. Prima «Lia Logar», «RoccoPagnotta» e i numeri non si
         // trovavano. Chi vede solo i suoi li trova tutti: titolare, call center
@@ -53,7 +57,8 @@ export function useGlobalSearch(query: string, companyId: string | undefined) {
           let q = (supabase
             .from("marketing_contacts")
             .select("id, first_name, last_name, email, phone")
-            .eq("company_id", companyId!) as any);
+            .eq("company_id", companyId!)
+            .is("deleted_at", null) as any);
           for (const filtro of filtri) q = q.or(filtro);
           return q.order("created_at", { ascending: false }).limit(8);
         })(),

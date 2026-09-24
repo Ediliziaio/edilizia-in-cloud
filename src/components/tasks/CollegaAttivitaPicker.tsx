@@ -15,6 +15,8 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandList, Command
 import { Button } from "@/components/ui/button";
 import { Check, ChevronsUpDown, Loader2, Target, User, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useDebounce } from "@/hooks/useDebounce";
+import { filtriRicercaContatti, filtriRicercaParole } from "@/lib/ricerca/ricercaContatti";
 
 export interface CollegamentoAttivita {
   tipo: "contatto" | "opportunita";
@@ -23,9 +25,6 @@ export interface CollegamentoAttivita {
   /** Contatto dell'opportunità: l'attività si vede anche nella sua scheda. */
   contactId?: string | null;
 }
-
-/** % e _ dentro una ricerca sono caratteri jolly di ilike: vanno protetti. */
-const perRicerca = (testo: string) => `%${testo.replace(/[\\%_,()]/g, " ").trim()}%`;
 
 export function CollegaAttivitaPicker({
   companyId,
@@ -40,14 +39,15 @@ export function CollegaAttivitaPicker({
 }) {
   const [aperto, setAperto] = useState(false);
   const [ricerca, setRicerca] = useState("");
+  // Una ricerca ogni 300 ms di pausa, non a ogni lettera.
+  const ricercaRitardata = useDebounce(ricerca.trim(), 300);
 
   const { data, isFetching } = useQuery({
-    queryKey: ["collegamento-attivita", companyId, ricerca.trim()],
+    queryKey: ["collegamento-attivita", companyId, ricercaRitardata],
     enabled: aperto && !!companyId,
     staleTime: 30_000,
     queryFn: async (): Promise<CollegamentoAttivita[]> => {
-      const q = ricerca.trim();
-      const like = perRicerca(q);
+      const q = ricercaRitardata;
 
       let opp = supabase
         .from("marketing_opportunities")
@@ -56,18 +56,19 @@ export function CollegaAttivitaPicker({
         .is("deleted_at", null)
         .order("created_at", { ascending: false })
         .limit(8);
-      if (q) opp = opp.ilike("name", like);
+      for (const filtro of filtriRicercaParole(q, ["name"])) opp = opp.or(filtro);
 
       // I contatti si cercano solo scrivendo: sono migliaia, un elenco a caso
       // non aiuta nessuno.
-      const contatti = q
+      let contatti = q
         ? supabase
             .from("marketing_contacts")
             .select("id, first_name, last_name, email")
             .eq("company_id", companyId!)
-            .or(`first_name.ilike.${like},last_name.ilike.${like},email.ilike.${like}`)
+            .is("deleted_at", null)
             .limit(8)
         : null;
+      if (contatti) for (const filtro of filtriRicercaContatti(q)) contatti = contatti.or(filtro);
 
       const [risOpp, risCont] = await Promise.all([opp, contatti]);
       const opportunita: CollegamentoAttivita[] = (risOpp.data ?? []).map((o) => ({

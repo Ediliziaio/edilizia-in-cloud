@@ -17,6 +17,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronsUpDown, Check, X, UserRound } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { filtriRicercaContatti } from "@/lib/ricerca/ricercaContatti";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { useDebounce } from "@/hooks/useDebounce";
 import { cn } from "@/lib/utils";
@@ -77,13 +78,9 @@ export function SimContactPicker({
         .from("marketing_contacts")
         .select("id, first_name, last_name, email")
         .eq("company_id", companyId!)
+        .is("deleted_at", null)
         .limit(20);
-      // Sanitizza i caratteri speciali del filtro PostgREST (.or) per evitare
-      // match troppo larghi o parsing errato del pattern ilike.
-      const safe = debounced.replace(/[%,()_\\]/g, " ").trim();
-      if (safe) {
-        q = q.or(`first_name.ilike.%${safe}%,last_name.ilike.%${safe}%,email.ilike.%${safe}%`);
-      }
+      for (const filtro of filtriRicercaContatti(debounced)) q = q.or(filtro);
       const { data, error } = await q.order("first_name", { nullsFirst: false });
       if (error) throw error;
       return (data ?? []) as SimContactLite[];

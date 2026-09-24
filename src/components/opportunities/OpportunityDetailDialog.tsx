@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useDebounce } from "@/hooks/useDebounce";
+import { filtriRicercaContatti } from "@/lib/ricerca/ricercaContatti";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUpdateOpportunity, useDeleteOpportunity, useCompanyStaff, useCompanySalespeople, useCompanyCallCenterUsers, useOpportunityNotes, useAddOpportunityNote, usePipelines } from "@/hooks/useOpportunitiesData";
 import {
@@ -72,10 +73,6 @@ interface Props {
 }
 
 type Tab = "details" | "notes" | "appointments" | "registro" | "activities" | "documents" | "quotes";
-
-function sanitizeSearchTerm(value: string) {
-  return value.replace(/[%,]/g, " ").trim();
-}
 
 // Stile condiviso dei select del form: stesso look degli input (bordo visibile +
 // sfondo bianco + hover), così il campo si legge chiaramente come selezionabile
@@ -295,11 +292,9 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
         .from("marketing_contacts")
         .select("id, first_name, last_name, email, phone, city, address, province, region")
         .eq("company_id", companyId!)
+        .is("deleted_at", null)
         .limit(20);
-      const safeSearch = sanitizeSearchTerm(ricercaContatti);
-      if (safeSearch) {
-        query = query.or(`first_name.ilike.%${safeSearch}%,last_name.ilike.%${safeSearch}%,email.ilike.%${safeSearch}%`);
-      }
+      for (const filtro of filtriRicercaContatti(ricercaContatti)) query = query.or(filtro);
       const { data, error } = await query.order("first_name");
       if (error) throw error;
       return data;

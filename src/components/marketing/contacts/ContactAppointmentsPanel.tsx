@@ -54,6 +54,7 @@ export function ContactAppointmentsPanel({ contactId, companyId, contactName, ca
       appointment_date: apt.appointment_date, appointment_time: apt.appointment_time,
       appointment_end_time: apt.appointment_end_time, appointment_type: apt.appointment_type,
       assigned_to: apt.assigned_to, calendar_id: apt.calendar_id, contact_id: apt.contact_id,
+      opportunity_id: apt.opportunity_id,
       status: apt.status, is_completed: apt.is_completed, is_blocked_slot: apt.is_blocked_slot,
       internal_notes: apt.internal_notes, address_line: apt.address_line, address_city: apt.address_city,
       address_postal_code: apt.address_postal_code, address_province: apt.address_province,
@@ -140,6 +141,7 @@ export function ContactAppointmentsPanel({ contactId, companyId, contactName, ca
         calendars={calendars}
         users={users}
         defaultContactId={contactId}
+        contestoScheda="contatto"
       />
     </div>
   );

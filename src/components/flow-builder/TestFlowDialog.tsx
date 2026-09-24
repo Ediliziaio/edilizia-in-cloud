@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { filtriRicercaContatti } from "@/lib/ricerca/ricercaContatti";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -67,13 +68,10 @@ export function TestFlowDialog({ open, onClose, flow, companyId, onEnrollmentCre
         .from("marketing_contacts")
         .select("id, first_name, last_name, email, phone, tags")
         .eq("company_id", companyId!)
+        .is("deleted_at", null)
         .order("created_at", { ascending: false })
         .limit(10);
-      if (search.trim()) {
-        q = q.or(
-          `first_name.ilike.%${search}%,last_name.ilike.%${search}%,email.ilike.%${search}%`
-        );
-      }
+      for (const filtro of filtriRicercaContatti(search)) q = q.or(filtro);
       const { data } = await q;
       return data ?? [];
     },
