@@ -20,8 +20,9 @@ import {
   Settings2, FileText, Globe, Download, RefreshCw
 } from "lucide-react";
 import { toast } from "sonner";
-import { REGIMI_FISCALI, METODI_PAGAMENTO_SDI } from "@/types/fatturazione";
+import { REGIMI_FISCALI, METODI_PAGAMENTO_SDI, CAUSALI_RITENUTA, TIPI_CASSA_PREVIDENZIALE } from "@/types/fatturazione";
 import { SDISetupWizard } from "@/components/sdi-wizard/SDISetupWizard";
+import { datiReaMancanti, eSocieta, eSocietaDiCapitali } from "../../../../supabase/functions/_shared/datiSocietari";
 
 import { useIsMobile } from "@/hooks/use-mobile";
 // ─── Aliquote IVA predefinite italiane ────────────────────────
@@ -403,6 +404,70 @@ export default function ImpostazioniFatturazione() {
             </CardContent>
           </Card>
 
+          {/* ─── Registro imprese (art. 2250 c.c., 24/09/2026) ─── */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Registro imprese</CardTitle>
+              <CardDescription>
+                Per le società questi dati vanno in ogni fattura (art. 2250 del codice civile). Li trovi nella visura camerale.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>Ufficio REA (provincia)</Label>
+                  <Input
+                    value={current.rea_ufficio ?? ""}
+                    onChange={(e) => updateField("rea_ufficio", e.target.value.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 2) || null)}
+                    placeholder={current.indirizzo_provincia || "PN"}
+                    className="font-mono uppercase"
+                    maxLength={2}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Numero REA</Label>
+                  <Input
+                    value={current.codice_rea ?? ""}
+                    onChange={(e) => updateField("codice_rea", e.target.value.trim() || null)}
+                    placeholder="123456"
+                    className="font-mono"
+                  />
+                </div>
+                {eSocietaDiCapitali(current.forma_giuridica) && (
+                  <div className="space-y-2">
+                    <Label>Capitale sociale versato (€)</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={current.capitale_sociale ?? ""}
+                      onChange={(e) => updateField("capitale_sociale", e.target.value === "" ? null : parseFloat(e.target.value))}
+                      placeholder="10000"
+                    />
+                  </div>
+                )}
+              </div>
+              {eSocieta(current.forma_giuridica) && (
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label>Società in liquidazione</Label>
+                    <p className="text-xs text-muted-foreground mt-0.5">In fattura esce «in liquidazione» (LS) invece di «non in liquidazione» (LN).</p>
+                  </div>
+                  <Switch
+                    checked={current.stato_liquidazione === "LS"}
+                    onCheckedChange={(v) => updateField("stato_liquidazione", v ? "LS" : "LN")}
+                  />
+                </div>
+              )}
+              {datiReaMancanti(current).length > 0 && (
+                <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 flex items-start gap-2 text-sm text-amber-800 dark:text-amber-300">
+                  <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                  <span>Senza questi dati le fatture della tua società non partono allo SDI: la legge li chiede su ogni fattura.</span>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Ritenuta d'Acconto</CardTitle>
@@ -441,20 +506,9 @@ export default function ImpostazioniFatturazione() {
                     <Select value={current.ritenuta_causale_default ?? "A"} onValueChange={(v) => updateField("ritenuta_causale_default", v)}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="A">A — Prestazioni di lavoro autonomo</SelectItem>
-                        <SelectItem value="B">B — Utili da contratti di associazione</SelectItem>
-                        <SelectItem value="C">C — Utili da contratti di cointeressenza</SelectItem>
-                        <SelectItem value="D">D — Utili spettanti ai soci promotori</SelectItem>
-                        <SelectItem value="E">E — Levata protesti cambiari</SelectItem>
-                        <SelectItem value="L">L — Redditi di lavoro dipendente</SelectItem>
-                        <SelectItem value="M">M — Redditi di lavoro autonomo non abituale</SelectItem>
-                        <SelectItem value="O">O — Indennità relative a prestazioni sportive</SelectItem>
-                        <SelectItem value="Q">Q — Provvigioni ad agente o rappresentante</SelectItem>
-                        <SelectItem value="R">R — Agenti con più mandanti</SelectItem>
-                        <SelectItem value="S">S — Agente monomandatario</SelectItem>
-                        <SelectItem value="V">V — Redditi non abituali diversi</SelectItem>
-                        <SelectItem value="Z">Z — Titoli obbligazionari</SelectItem>
-                        <SelectItem value="ZO">ZO — Altre tipologie di reddito</SelectItem>
+                        {Object.entries(CAUSALI_RITENUTA).map(([k, v]) => (
+                          <SelectItem key={k} value={k}>{k} — {v}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -483,28 +537,9 @@ export default function ImpostazioniFatturazione() {
                     <Select value={current.cassa_tipo_default ?? "TC01"} onValueChange={(v) => updateField("cassa_tipo_default", v)}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="TC01">TC01 — Cassa nazionale previdenza avvocati</SelectItem>
-                        <SelectItem value="TC02">TC02 — Cassa previdenza dottori commercialisti</SelectItem>
-                        <SelectItem value="TC03">TC03 — Cassa previdenza geometri</SelectItem>
-                        <SelectItem value="TC04">TC04 — Cassa naz. previdenza ingegneri e architetti</SelectItem>
-                        <SelectItem value="TC05">TC05 — Cassa naz. del notariato</SelectItem>
-                        <SelectItem value="TC06">TC06 — Cassa naz. previdenza ragionieri</SelectItem>
-                        <SelectItem value="TC07">TC07 — ENASARCO</SelectItem>
-                        <SelectItem value="TC08">TC08 — ENPACL</SelectItem>
-                        <SelectItem value="TC09">TC09 — ENPAM</SelectItem>
-                        <SelectItem value="TC10">TC10 — ENPAF</SelectItem>
-                        <SelectItem value="TC11">TC11 — ENPAV</SelectItem>
-                        <SelectItem value="TC12">TC12 — ENPAIA</SelectItem>
-                        <SelectItem value="TC13">TC13 — Fondo previdenza impiegati agricoli</SelectItem>
-                        <SelectItem value="TC14">TC14 — INPGI</SelectItem>
-                        <SelectItem value="TC15">TC15 — ONAOSI</SelectItem>
-                        <SelectItem value="TC16">TC16 — CASAGIT</SelectItem>
-                        <SelectItem value="TC17">TC17 — EPPI</SelectItem>
-                        <SelectItem value="TC18">TC18 — EPAP</SelectItem>
-                        <SelectItem value="TC19">TC19 — ENPAB</SelectItem>
-                        <SelectItem value="TC20">TC20 — ENPAPI</SelectItem>
-                        <SelectItem value="TC21">TC21 — ENPAP</SelectItem>
-                        <SelectItem value="TC22">TC22 — INPS (gestione separata)</SelectItem>
+                        {Object.entries(TIPI_CASSA_PREVIDENZIALE).map(([k, v]) => (
+                          <SelectItem key={k} value={k}>{k} — {v}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
