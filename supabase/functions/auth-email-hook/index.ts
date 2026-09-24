@@ -24,6 +24,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { resolveSender } from "../_shared/resolveSender.ts";
 import { clienteSenzaAccesso } from "../_shared/clienteSenzaAccesso.ts";
+import { avvisoPer, corpoAvviso } from "../_shared/avvisiSicurezza.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -44,7 +45,9 @@ type AzioneEmail =
   | "email_change"
   | "email_change_current"
   | "email_change_new"
-  | "reauthentication";
+  | "reauthentication"
+  // Avvisi di sicurezza (password cambiata, …): vedi _shared/avvisiSicurezza.ts
+  | `${string}_notification`;
 
 interface PayloadHook {
   user: { id?: string; email?: string; new_email?: string };
@@ -56,6 +59,7 @@ interface PayloadHook {
     redirect_to?: string;
     email_action_type: AzioneEmail;
     site_url?: string;
+    old_email?: string;
   };
 }
 
@@ -219,6 +223,8 @@ Deno.serve(async (req) => {
     const { user, email_data } = JSON.parse(raw) as PayloadHook;
     const azione = email_data.email_action_type;
     const testi = TESTI[azione] ?? TESTI.recovery;
+    // Un avviso di sicurezza non è un recupero password: niente link, niente codice.
+    const avviso = avvisoPer(azione);
 
     // Un cliente senza accesso al portale (portale spento o cliente bloccato)
     // non riceve link che aprono un accesso: né reset, né link magico, né
@@ -231,11 +237,15 @@ Deno.serve(async (req) => {
     }
 
     // Per il cambio indirizzo il messaggio va al NUOVO indirizzo, che e' quello
-    // da confermare; per tutto il resto all'indirizzo dell'utente.
+    // da confermare; l'avviso di indirizzo cambiato va al VECCHIO, perche' e' chi
+    // potrebbe aver perso l'account a doverlo sapere; per tutto il resto
+    // all'indirizzo dell'utente.
     const destinatario =
       azione === "email_change" || azione === "email_change_new"
         ? (user.new_email ?? user.email)
-        : user.email;
+        : azione === "email_changed_notification"
+          ? (email_data.old_email || user.email)
+          : user.email;
     if (!destinatario) {
       return new Response(JSON.stringify({ error: { http_code: 400, message: "Nessun destinatario" } }), {
         status: 400, headers: { "Content-Type": "application/json" },
@@ -256,8 +266,8 @@ Deno.serve(async (req) => {
       companyId: null,
       stream: "transactional",
       to: destinatario,
-      subject: `${testi.oggetto} — Edilizia in Cloud`,
-      html: corpoHtml(testi, link, email_data.token),
+      subject: `${(avviso ?? testi).oggetto} — Edilizia in Cloud`,
+      html: avviso ? corpoAvviso(avviso, SUPPORT_WHATSAPP) : corpoHtml(testi, link, email_data.token),
       templateName: `auth_${azione}`,
       // Un'email di accesso non si nega mai per credito esaurito: chi non
       // riesce a entrare non puo' nemmeno ricaricare.
