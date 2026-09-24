@@ -207,9 +207,12 @@
     </script>
 
     <!-- Inter font self-hosted: subset latin + latin-ext, weights 400/600/700/800.
-         Body weight 400 + heading 700 preloaded high priority. -->
-    <link rel="preload" as="font" type="font/woff2" href="/fonts/inter-latin-400-normal.woff2" crossorigin>
-    <link rel="preload" as="font" type="font/woff2" href="/fonts/inter-latin-700-normal.woff2" crossorigin>
+         ATTENZIONE (24/09/2026): Beasties in build (vite.config.ts, inlineFonts:
+         false + reduceInlineStyles) toglie le @font-face qui sotto, quindi Inter
+         oggi non si vede: il sito usa il font di sistema. Il preload di 400 e 700
+         scaricava 47 KB a ogni pagina, in alta priorità, senza che nessuno li
+         usasse: tolto. Se si decide di rimettere Inter, vanno sistemate insieme
+         le @font-face e il preload. -->
     <style>
       /* Inline @font-face per 4 weights (400/600/700/800) × 2 subset (latin/latin-ext).
          Unicode-range permette al browser di scaricare SOLO i file dei subset

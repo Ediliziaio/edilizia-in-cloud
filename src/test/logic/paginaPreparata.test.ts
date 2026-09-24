@@ -19,7 +19,15 @@ const subito = (fn: () => void) => fn();
 afterEach(() => {
   vi.useRealTimers();
   document.body.innerHTML = "";
+  document.head.innerHTML = "";
 });
+
+/** Il foglio completo come lo scrive il prerender: preload, attivato dopo. */
+function foglioCompleto() {
+  document.head.innerHTML =
+    '<link rel="preload" as="style" href="/assets-cb3/index-prova.css" data-css-completo>';
+  return document.head.querySelector("link")!;
+}
 
 describe("pagina preparata dal prerender", () => {
   it("resta visibile e #root lavora nascosto", () => {
@@ -86,6 +94,48 @@ describe("pagina preparata dal prerender", () => {
 
     root.innerHTML = "<aside>menu</aside><main>cruscotto</main>";
     await new Promise((r) => setTimeout(r, 0));
+    expect(document.getElementById("pagina-preparata")).toBeNull();
+  });
+
+  it("attiva subito il foglio completo", () => {
+    const foglio = foglioCompleto();
+    mettiDaParteLaPaginaPreparata(paginaDiProva(), { prossimoFrame: subito, cssPronto: () => false });
+    expect(foglio.rel).toBe("stylesheet");
+  });
+
+  it("con il footer pronto aspetta il foglio completo, e si scambia appena arriva", async () => {
+    const foglio = foglioCompleto();
+    let pronto = false;
+    const root = paginaDiProva();
+    mettiDaParteLaPaginaPreparata(root, { prossimoFrame: subito, cssPronto: () => pronto });
+
+    root.innerHTML = "<nav>menu</nav><main>contenuto</main><footer>fine</footer>";
+    await new Promise((r) => setTimeout(r, 0));
+    expect(document.getElementById("pagina-preparata")).not.toBeNull();
+
+    pronto = true;
+    foglio.dispatchEvent(new Event("load"));
+    expect(document.getElementById("pagina-preparata")).toBeNull();
+  });
+
+  it("allo scadere aspetta il foglio completo anche per le pagine senza footer", () => {
+    vi.useFakeTimers();
+    foglioCompleto();
+    let pronto = false;
+    const root = paginaDiProva();
+    mettiDaParteLaPaginaPreparata(root, {
+      attesaMassimaMs: 5000,
+      limiteAssolutoMs: 20000,
+      prossimoFrame: subito,
+      cssPronto: () => pronto,
+    });
+
+    root.innerHTML = "<main>pagina senza footer</main>";
+    vi.advanceTimersByTime(5000);
+    expect(document.getElementById("pagina-preparata")).not.toBeNull();
+
+    pronto = true;
+    vi.advanceTimersByTime(1000);
     expect(document.getElementById("pagina-preparata")).toBeNull();
   });
 

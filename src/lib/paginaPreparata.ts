@@ -20,6 +20,12 @@
  *   footer, come la 404).
  * Mai sul velo, se non oltre `limiteAssolutoMs`: meglio il velo che una pagina
  * ferma per sempre.
+ *
+ * Dal 24/09/2026 la pagina preparata porta dentro solo gli stili che le servono
+ * e il foglio completo arriva dopo, senza bloccare il primo disegno
+ * (scripts/cssCritico.mjs). Lo scambio aspetta anche quello: la pagina di React
+ * può avere elementi che nella fotografia non c'erano, e senza il foglio
+ * completo resterebbero senza stile.
  */
 export function mettiDaParteLaPaginaPreparata(
   root: HTMLElement,
@@ -28,6 +34,7 @@ export function mettiDaParteLaPaginaPreparata(
     limiteAssolutoMs?: number;
     prossimoFrame?: (fn: () => void) => void;
     percorso?: () => string;
+    cssPronto?: () => boolean;
   } = {},
 ): { preparata: HTMLElement; scambia: () => void } {
   const attesaMassimaMs = opzioni.attesaMassimaMs ?? 8000;
@@ -51,6 +58,12 @@ export function mettiDaParteLaPaginaPreparata(
   root.style.cssText =
     "position:absolute;top:0;left:0;right:0;visibility:hidden;opacity:0;pointer-events:none;";
 
+  // Il foglio completo arriva come preload: lo si attiva subito, senza aspettare
+  // l'onload scritto nella pagina (se è già scattato, non cambia niente).
+  const fogliCompleti = Array.from(document.querySelectorAll<HTMLLinkElement>("link[data-css-completo]"));
+  for (const foglio of fogliCompleti) if (foglio.rel !== "stylesheet") foglio.rel = "stylesheet";
+  const cssPronto = opzioni.cssPronto ?? (() => fogliCompleti.every((foglio) => foglio.sheet !== null));
+
   const sulVelo = () => !!root.querySelector("[data-caricamento-pagina]");
   const completa = () => !!root.querySelector("footer");
   const altrove = () => percorso() !== percorsoIniziale;
@@ -62,21 +75,24 @@ export function mettiDaParteLaPaginaPreparata(
     if (fatto) return;
     fatto = true;
     osservatore.disconnect();
+    for (const foglio of fogliCompleti) foglio.removeEventListener("load", prova);
     window.clearTimeout(timer);
     preparata.remove();
     if (stilePrecedente === null) root.removeAttribute("style");
     else root.setAttribute("style", stilePrecedente);
   }
 
-  const osservatore = new MutationObserver(() => {
-    if (fatto) return;
+  function prova() {
+    if (fatto || !cssPronto()) return;
     if (completa() || (altrove() && !sulVelo() && root.childElementCount > 0)) prossimoFrame(scambia);
-  });
+  }
+  const osservatore = new MutationObserver(prova);
+  for (const foglio of fogliCompleti) foglio.addEventListener("load", prova);
 
   function controllaAttesa() {
     if (fatto) return;
     const trascorso = Date.now() - inizio;
-    if (trascorso >= limiteAssolutoMs || (!sulVelo() && root.childElementCount > 0)) {
+    if (trascorso >= limiteAssolutoMs || (!sulVelo() && root.childElementCount > 0 && cssPronto())) {
       scambia();
       return;
     }
