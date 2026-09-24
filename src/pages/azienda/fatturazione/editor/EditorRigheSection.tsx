@@ -1,5 +1,5 @@
 import { useState, useCallback, memo } from "react";
-import { Plus, Trash2, PackageSearch, Copy, ChevronDown, GripVertical, AlertTriangle, Calculator } from "lucide-react";
+import { Plus, Trash2, PackageSearch, Copy, ChevronDown, GripVertical, AlertTriangle, Calculator, Scale } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,6 +10,7 @@ import { Collapsible } from "@/components/ui/collapsible";
 import { Textarea } from "@/components/ui/textarea";
 import { useArticoliNative } from "@/hooks/useArticoliNative";
 import { createEmptyRiga } from "./useEditorState";
+import { ripartoBeniSignificativi, righeBeniSignificativi } from "@/lib/fatturazione/beniSignificativi";
 import { formatCurrency } from "@/lib/formatters";
 import { parseDecimalIT } from "@/lib/parseDecimalIT";
 import { NATURE_IVA } from "@/types/fatturazione";
@@ -496,6 +497,16 @@ export function EditorRigheSection({ state, dispatch, disabled }: Props) {
   const [calcoloLordo, setCalcoloLordo] = useState("");
   const [calcoloAliquota, setCalcoloAliquota] = useState("22");
   const calcoloNetto = calcoloLordo ? calcoloInverso(parseFloat(calcoloLordo) || 0, calcoloAliquota) : null;
+  // Beni significativi (IVA 10% in manutenzione, DM 29/12/1999): vedi lib/fatturazione/beniSignificativi.ts
+  const [bsOpen, setBsOpen] = useState(false);
+  const [bsIntervento, setBsIntervento] = useState("");
+  const [bsBeni, setBsBeni] = useState("");
+  const [bsValoreBeni, setBsValoreBeni] = useState("");
+  const [bsValoreAltro, setBsValoreAltro] = useState("");
+  const bsBeniNum = parseDecimalIT(bsValoreBeni) || 0;
+  const bsAltroNum = parseDecimalIT(bsValoreAltro) || 0;
+  const bsRiparto = bsBeniNum > 0 ? ripartoBeniSignificativi({ valoreBeni: bsBeniNum, valoreAltro: bsAltroNum }) : null;
+  const bsCompleto = !!bsIntervento.trim() && !!bsBeni.trim() && bsBeniNum > 0;
   const [catalogSearch, setCatalogSearch] = useState("");
 
   const sensors = useSensors(
@@ -523,6 +534,20 @@ export function EditorRigheSection({ state, dispatch, disabled }: Props) {
       riga.natura_iva = "N6_3";
     }
     dispatch({ type: "ADD_RIGA", riga });
+  }
+
+  function addBeniSignificativi() {
+    if (!bsCompleto) return;
+    const nuove = righeBeniSignificativi(
+      { intervento: bsIntervento, beni: bsBeni, valoreBeni: bsBeniNum, valoreAltro: bsAltroNum },
+      righe.length + 1,
+    );
+    for (const riga of nuove) dispatch({ type: "ADD_RIGA", riga });
+    setBsOpen(false);
+    setBsIntervento("");
+    setBsBeni("");
+    setBsValoreBeni("");
+    setBsValoreAltro("");
   }
 
   function addFromCatalog(art: ArticoloNative) {
@@ -693,6 +718,51 @@ export function EditorRigheSection({ state, dispatch, disabled }: Props) {
               />
               <span className="text-xs text-muted-foreground">Prezzi lordi (IVA inclusa)</span>
             </label>
+            {/* Beni significativi: IVA 10% fino al valore del resto, 22% sull'eccedenza */}
+            <Popover open={bsOpen} onOpenChange={setBsOpen}>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="text-xs h-7 gap-1">
+                  <Scale className="h-3 w-3" />
+                  Beni significativi (IVA 10%)
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80 p-3" align="end">
+                <p className="text-xs font-medium">Manutenzione con beni significativi</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5 mb-2">
+                  Infissi, caldaie, condizionatori, sanitari, ascensori, videocitofoni, impianti di sicurezza: al 10% solo fino al
+                  valore del resto dell'intervento, l'eccedenza al 22% (DM 29/12/1999). La fattura deve indicarli con il loro valore.
+                </p>
+                <div className="space-y-2">
+                  <div>
+                    <label className="text-[10px] text-muted-foreground">Intervento</label>
+                    <Input value={bsIntervento} onChange={(e) => setBsIntervento(e.target.value)} placeholder="es. Sostituzione caldaia" className="h-7 text-xs mt-0.5" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-muted-foreground">Beni significativi forniti</label>
+                    <Input value={bsBeni} onChange={(e) => setBsBeni(e.target.value)} placeholder="es. Caldaia a condensazione 25 kW" className="h-7 text-xs mt-0.5" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[10px] text-muted-foreground">Valore dei beni (€)</label>
+                      <Input inputMode="decimal" value={bsValoreBeni} onChange={(e) => setBsValoreBeni(e.target.value)} placeholder="2.000,00" className="h-7 text-xs mt-0.5" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-muted-foreground">Manodopera e altro (€)</label>
+                      <Input inputMode="decimal" value={bsValoreAltro} onChange={(e) => setBsValoreAltro(e.target.value)} placeholder="800,00" className="h-7 text-xs mt-0.5" />
+                    </div>
+                  </div>
+                  {bsRiparto && (
+                    <div className="bg-muted/50 rounded p-2 text-[11px] tabular-nums space-y-0.5">
+                      <div className="flex justify-between"><span>Imponibile al 10%</span><span>{formatCurrency(bsRiparto.imponibile10)}</span></div>
+                      <div className="flex justify-between"><span>Imponibile al 22%</span><span>{formatCurrency(bsRiparto.imponibile22)}</span></div>
+                    </div>
+                  )}
+                  <Button size="sm" className="w-full h-7 text-xs" disabled={!bsCompleto} onClick={addBeniSignificativi}>
+                    Aggiungi le righe
+                  </Button>
+                </div>
+              </PopoverContent>
+            </Popover>
             {/* UX-03: Calcolo inverso */}
             <Popover open={calcoloInversoOpen} onOpenChange={setCalcoloInversoOpen}>
               <PopoverTrigger asChild>

@@ -374,6 +374,23 @@ export function validateDocumento(
     });
   }
 
+  // Fattura immediata: va trasmessa entro 12 giorni dall'operazione (art. 21
+  // c. 4 DPR 633/72). Una bozza con la data di settimane fa, emessa oggi, è in
+  // ritardo; spesso la data è solo quella di quando la bozza è nata. La
+  // differita (riepilogativa) ha il suo termine, il 15 del mese dopo.
+  if ((doc.stato ?? "bozza") === "bozza" && ["fattura", "fattura_pa", "nota_debito"].includes(tipo) && doc.data_emissione) {
+    const oggi = new Date();
+    const oggiIso = `${oggi.getFullYear()}-${String(oggi.getMonth() + 1).padStart(2, "0")}-${String(oggi.getDate()).padStart(2, "0")}`;
+    const giorni = Math.round((Date.parse(oggiIso) - Date.parse(doc.data_emissione)) / 86_400_000);
+    if (giorni > 12) {
+      errors.push({
+        field: "data_emissione",
+        message: `La data è di ${giorni} giorni fa: la fattura immediata va trasmessa entro 12 giorni dall'operazione (art. 21 c. 4 DPR 633/72). Se la emetti oggi, usa la data di oggi.`,
+        severity: "warning",
+      });
+    }
+  }
+
   // IVA per cassa: non si applica a chi non ha partita IVA (art. 32-bis c. 1
   // DL 83/2012: solo operazioni verso soggetti che agiscono nell'esercizio di
   // impresa, arte o professione).

@@ -105,3 +105,24 @@ describe("diciture nell'XML", () => {
     expect(c.filter((t) => /32-bis/.test(t))).toHaveLength(1);
   });
 });
+
+describe("termine di emissione (art. 21 c. 4 DPR 633/72)", () => {
+  const giorniFa = (n: number) => {
+    const d = new Date();
+    d.setDate(d.getDate() - n);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  };
+  const avviso = (data: string, tipo = "fattura", stato = "bozza") =>
+    validateDocumento({ tipo: tipo as never, stato: stato as never, data_emissione: data, righe: [riga(100, "22")] })
+      .some((a) => a.field === "data_emissione");
+
+  it("bozza con la data di 20 giorni fa: avviso", () => {
+    expect(avviso(giorniFa(20))).toBe(true);
+  });
+  it("entro 12 giorni, fattura differita o già emessa: niente avviso", () => {
+    expect(avviso(giorniFa(12))).toBe(false);
+    expect(avviso(giorniFa(20), "fattura_riepilogativa")).toBe(false);
+    expect(avviso(giorniFa(20), "fattura", "emessa")).toBe(false);
+  });
+});
+
