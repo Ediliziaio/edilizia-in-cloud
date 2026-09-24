@@ -5,10 +5,28 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import type { InboundContext } from "../types.ts";
 
+/**
+ * Meta ripete l'avviso se non riceve risposta in tempo: un messaggio già
+ * salvato non va rielaborato (niente seconda risposta al STOP, niente secondo
+ * giro dell'AI o delle automazioni).
+ */
+export async function messaggioGiaRicevuto(
+  supabase: SupabaseClient,
+  ctx: InboundContext,
+): Promise<boolean> {
+  if (!ctx.msg.id) return false;
+  const { data } = await supabase
+    .from("whatsapp_messages")
+    .select("id")
+    .eq("wa_message_id", ctx.msg.id)
+    .maybeSingle();
+  return !!data;
+}
+
 export async function persistInboundMessage(
   supabase: SupabaseClient,
   ctx: InboundContext,
-  opts: { processingStatus?: string } = {},
+  opts: { processingStatus?: string; contactId?: string | null } = {},
 ): Promise<string | null> {
   const { waNumber, phoneNumberId, msg, extracted, senderPhone } = ctx;
 
@@ -39,6 +57,9 @@ export async function persistInboundMessage(
       media_url: extracted.mediaId ? `wa-media://${extracted.mediaId}` : null,
       metadata: extracted.metadata,
       processing_status: opts.processingStatus ?? "processed",
+      // Senza contatto lo cerca il database dal numero
+      // (trg_whatsapp_messages_collega_contatto).
+      ...(opts.contactId ? { contact_id: opts.contactId } : {}),
     })
     .select("id")
     .single();

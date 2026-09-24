@@ -21,11 +21,14 @@ import { handleLead } from "./handlers/lead.ts";
 import { handleMarketing } from "./handlers/marketing.ts";
 import { handleNotifiche } from "./handlers/notifiche.ts";
 import { lingueDelModello, statoDopoAvvisoMeta } from "./statoModello.ts";
+import { filtroStatiSuperabili, motivoMancataConsegna, statiSuperabili } from "./esitoConsegna.ts";
 
 interface MetaStatus {
   id: string;
   status: string;
   timestamp: string;
+  // Solo con status "failed": perché Meta non l'ha consegnato.
+  errors?: Array<{ code?: number; title?: string; message?: string }>;
 }
 
 interface MetaTemplateStatusUpdate {
@@ -217,6 +220,44 @@ async function handleDeliveryStatus(
     .from("whatsapp_broadcast_recipients")
     .update(broadcastUpdate)
     .eq("meta_message_id", metaMessageId);
+
+  await aggiornaEsitoMessaggio(supabase, status, isoTs);
+}
+
+/**
+ * L'esito sui messaggi inviati da whatsapp-send (Conversazioni, scheda
+ * cliente, bot, promemoria, automazioni): si vede accanto al messaggio.
+ * Lo stato va solo avanti: un «consegnato» arrivato dopo il «letto» non lo
+ * riporta indietro.
+ */
+async function aggiornaEsitoMessaggio(
+  supabase: SupabaseClient,
+  status: MetaStatus,
+  isoTs: string,
+): Promise<void> {
+  const superabili = statiSuperabili(status.status);
+  if (superabili.length === 0) return;
+
+  const valori: Record<string, string> = { delivery_status: status.status };
+  if (status.status === "delivered") valori.delivered_at = isoTs;
+  if (status.status === "read") valori.read_at = isoTs;
+  if (status.status === "failed") valori.delivery_error = motivoMancataConsegna(status.errors);
+
+  const { error } = await supabase
+    .from("whatsapp_messages")
+    .update(valori)
+    .eq("wa_message_id", status.id)
+    .eq("direction", "outbound")
+    .or(filtroStatiSuperabili(superabili));
+  if (error) {
+    console.error(JSON.stringify({
+      level: "error",
+      fn: "aggiornaEsitoMessaggio",
+      wa_message_id: status.id,
+      status: status.status,
+      error: error.message,
+    }));
+  }
 }
 
 /**

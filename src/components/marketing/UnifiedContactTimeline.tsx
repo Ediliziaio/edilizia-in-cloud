@@ -149,24 +149,33 @@ export function UnifiedContactTimeline({
     ...queryOpts,
   });
 
-  // Risposte WhatsApp in ARRIVO dal cliente (tabella whatsapp_messages).
+  // WhatsApp (numeri collegati a Meta) nei due sensi, tabella whatsapp_messages.
+  // Dal 24/09/2026 ogni messaggio ha il suo contatto (contact_id); per quelli
+  // rimasti senza vale il numero, come prima. Prima qui c'erano solo le
+  // risposte del cliente: ciò che si inviava da Conversazioni non compariva.
   const phoneDigits = digits(contactPhone);
-  const { data: waInbound = [], isError: errWa } = useQuery({
-    queryKey: ["unified_wa_inbound", companyId, phoneDigits],
+  const { data: waMessaggi = [], isError: errWa } = useQuery({
+    queryKey: ["unified_wa", companyId, contactId, phoneDigits],
     queryFn: async () => {
       const last9 = phoneDigits.slice(-9);
+      const filtri = [`contact_id.eq.${contactId}`];
+      if (last9.length >= 8) {
+        filtri.push(
+          `and(contact_id.is.null,direction.eq.inbound,from_phone.ilike.%${last9}%)`,
+          `and(contact_id.is.null,direction.eq.outbound,to_phone.ilike.%${last9}%)`,
+        );
+      }
       const { data, error } = await supabase
         .from("whatsapp_messages")
-        .select("id, content_text, direction, from_phone, created_at, message_type, media_url")
+        .select("id, content_text, direction, created_at, message_type, media_url, delivery_status, delivery_error")
         .eq("company_id", companyId)
-        .eq("direction", "inbound")
-        .ilike("from_phone", `%${last9}%`)
+        .or(filtri.join(","))
         .order("created_at", { ascending: false })
-        .limit(100);
+        .limit(200);
       if (error) throw error;
       return data;
     },
-    enabled: !!companyId && phoneDigits.length >= 8,
+    enabled: !!companyId && !!contactId,
     refetchInterval: 30000,
     refetchIntervalInBackground: false,
   });
@@ -357,18 +366,24 @@ export function UnifiedContactTimeline({
       });
     }
 
-    // Inbound (risposte del cliente) → whatsapp_messages
-    for (const wa of waInbound) {
+    // WhatsApp nei due sensi → whatsapp_messages, con l'esito di Meta
+    for (const wa of waMessaggi) {
+      const inviato = wa.direction === "outbound";
+      const testo = wa.content_text || (wa.media_url ? "📎 Allegato" : "(messaggio)");
+      const nonConsegnato = inviato && wa.delivery_status === "failed";
       events.push({
         id: `wa-${wa.id}`,
         type: "message_whatsapp",
         category: "message",
-        direction: "inbound",
-        channelLabel: "WhatsApp",
+        direction: inviato ? "outbound" : "inbound",
+        channelLabel: inviato && wa.message_type === "template" ? "WhatsApp · modello" : "WhatsApp",
+        status: inviato ? wa.delivery_status ?? undefined : undefined,
         icon: <MessageSquare className="h-3 w-3" />,
         color: "",
         title: "WhatsApp",
-        description: wa.content_text || (wa.media_url ? "📎 Allegato" : "(messaggio)"),
+        description: nonConsegnato
+          ? `${testo}\n✗ Non consegnato${wa.delivery_error ? `: ${wa.delivery_error}` : ""}`
+          : testo,
         timestamp: wa.created_at,
       });
     }
@@ -489,7 +504,7 @@ export function UnifiedContactTimeline({
     // ASCENDENTE: i più vecchi sopra, i più recenti in fondo (stile chat).
     events.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
     return events;
-  }, [activities, messages, waInbound, emailInbox, emailOutbox, emailLogs, callLogs, appointments, notes, waLocale]);
+  }, [activities, messages, waMessaggi, emailInbox, emailOutbox, emailLogs, callLogs, appointments, notes, waLocale]);
 
   const filtered = filter === "all" ? allEvents : allEvents.filter((e) => e.category === filter);
 

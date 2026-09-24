@@ -391,6 +391,8 @@ export default function ConversazioneComposer({ entitaTipo, entitaId, email, tel
                     company_id: effectiveCompany.id,
                     to: cleanPhone,
                     wa_number_id: waNumberId,
+                    // Il messaggio resta su questo contatto anche se il numero è su più schede.
+                    ...(entitaTipo === "contatto" ? { contact_id: entitaId } : {}),
                   };
                   if (template) {
                     payload.template = { name: template.name, language: template.language, variables: template.variables };

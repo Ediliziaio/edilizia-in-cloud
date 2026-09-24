@@ -25,6 +25,8 @@ interface SendBody {
     variables?: Record<string, unknown>;
   };
   log_message?: boolean;
+  /** Il contatto a cui si scrive, se chi invia lo sa (Conversazioni, automazioni). */
+  contact_id?: string | null;
 }
 
 function extractJwtRole(authHeader: string): string | null {
@@ -372,6 +374,19 @@ serveConMetriche("whatsapp-send", async (req) => {
       `out_${Date.now()}_${crypto.randomUUID()}`;
 
     if (logMessage) {
+      // Il contatto indicato da chi invia vale solo se è di questa azienda;
+      // altrimenti lo trova il database dal numero
+      // (trg_whatsapp_messages_collega_contatto).
+      let contattoId: string | null = null;
+      if (body.contact_id) {
+        const { data: contatto } = await adminClient
+          .from("marketing_contacts")
+          .select("id")
+          .eq("id", body.contact_id)
+          .eq("company_id", companyId)
+          .maybeSingle();
+        contattoId = (contatto as { id?: string } | null)?.id ?? null;
+      }
       const { error: logErr } = await adminClient
         .from("whatsapp_messages")
         .insert({
@@ -385,6 +400,7 @@ serveConMetriche("whatsapp-send", async (req) => {
           content_text: logContent,
           processing_status: "processed",
           processed_at: new Date().toISOString(),
+          ...(contattoId ? { contact_id: contattoId } : {}),
         });
 
       if (logErr) {

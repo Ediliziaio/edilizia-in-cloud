@@ -403,7 +403,7 @@ export function QuickContactSendDialog({
                   if (!effectiveCompany?.id) { toast.error("Azienda non disponibile"); return; }
                   setWaSending(true);
                   try {
-                    const payload: Record<string, unknown> = { company_id: effectiveCompany.id, to: cleanPhone, wa_number_id: waNumberId };
+                    const payload: Record<string, unknown> = { company_id: effectiveCompany.id, to: cleanPhone, wa_number_id: waNumberId, ...(contactId ? { contact_id: contactId } : {}) };
                     if (template) payload.template = { name: template.name, language: template.language, variables: template.variables };
                     else payload.text = { body: content };
                     const { data, error } = await supabase.functions.invoke("whatsapp-send", { body: payload });
