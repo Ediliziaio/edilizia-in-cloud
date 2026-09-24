@@ -12,6 +12,8 @@
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { usePermissions } from "@/hooks/usePermissions";
+import { messaggioEsportazioneNonRiuscita, registraEsportazioneCrm } from "@/lib/export/esportazioniCrm";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -32,6 +34,9 @@ import {
 export default function SettingsEsportaDati() {
   const { effectiveCompany } = useAuth();
   const isMobile = useIsMobile();
+  // L'archivio contiene contatti e anagrafiche dei clienti: oltre alla voce
+  // Sicurezza (che apre la pagina) serve «Esporta Clienti».
+  const { canExportClients } = usePermissions();
   const [inCorso, setInCorso] = useState(false);
   const [fatte, setFatte] = useState(0);
   const [inLavorazione, setInLavorazione] = useState<string | null>(null);
@@ -52,6 +57,7 @@ export default function SettingsEsportaDati() {
 
   const esporta = async () => {
     const companyId = effectiveCompany?.id;
+    if (!canExportClients) return;
     if (!companyId) {
       toast.error("Azienda non disponibile");
       return;
@@ -88,6 +94,15 @@ export default function SettingsEsportaDati() {
 
       zip.file("LEGGIMI.txt", riepilogoTestuale(risultati, effectiveCompany?.name));
 
+      // Prima il registro, poi l'archivio: senza registrazione non si scarica.
+      await registraEsportazioneCrm({
+        companyId,
+        oggetto: "archivio_azienda",
+        formato: "zip",
+        righe: risultati.reduce((somma, r) => somma + r.righe, 0),
+        filtri: { elenchi: Object.fromEntries(risultati.map((r) => [r.tabella, r.errore ? "non esportato" : r.righe])) },
+      });
+
       const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -108,7 +123,7 @@ export default function SettingsEsportaDati() {
     } catch (err) {
       logger.error("Export dati azienda fallito:", err);
       toast.error("Esportazione non riuscita", {
-        description: err instanceof Error ? err.message : "Errore sconosciuto",
+        description: messaggioEsportazioneNonRiuscita(err),
       });
     } finally {
       setInCorso(false);
@@ -167,10 +182,17 @@ export default function SettingsEsportaDati() {
             </div>
           )}
 
-          <Button onClick={esporta} disabled={inCorso} className="gap-2">
-            {inCorso ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-            {inCorso ? "Esportazione in corso…" : "Esporta tutto"}
-          </Button>
+          {canExportClients ? (
+            <Button onClick={esporta} disabled={inCorso} className="gap-2">
+              {inCorso ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              {inCorso ? "Esportazione in corso…" : "Esporta tutto"}
+            </Button>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Per scaricare l'archivio serve anche il permesso «Esporta Clienti»:
+              chiedilo a un amministratore.
+            </p>
+          )}
         </CardContent>
       </Card>
 

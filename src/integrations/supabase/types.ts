@@ -103515,6 +103515,16 @@ export type Database = {
         }
         Returns: Json
       }
+      registra_esportazione_crm: {
+        Args: {
+          p_company_id: string
+          p_filtri?: Json
+          p_formato: string
+          p_oggetto: string
+          p_righe: number
+        }
+        Returns: string
+      }
       registra_incasso_atomico: {
         Args: {
           p_company_id: string

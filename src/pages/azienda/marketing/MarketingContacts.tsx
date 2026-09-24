@@ -31,6 +31,7 @@ import { ImportWizard } from "@/components/shared/ImportWizard";
 import type { ImportField } from "@/components/shared/CSVImportDialog";
 import { syncTagsToOpportunities, removeTagFromOpportunities } from "@/hooks/useTagSync";
 import { exportToCSV, exportToXLSX } from "@/lib/csvExport";
+import { messaggioEsportazioneNonRiuscita, registraEsportazioneCrm } from "@/lib/export/esportazioniCrm";
 import { useContactCustomFields } from "@/hooks/useOpportunityDetailData";
 import { ContactFieldsSheet } from "@/components/marketing/ContactFieldsSheet";
 import { ContactFiltersSheet, type ContactFilters, EMPTY_CONTACT_FILTERS, countActiveContactFilters, type PipelineWithStages } from "@/components/marketing/ContactFiltersSheet";
@@ -492,6 +493,9 @@ export default function MarketingContacts() {
   const companyId = effectiveCompany?.id;
   const permissions = usePermissions();
   const canEditContacts = permissions.canEditMarketingContacts;
+  // «Esporta Clienti»: senza, niente bottoni di esportazione (gli
+  // amministratori ce l'hanno sempre). Il database lo ricontrolla.
+  const canExportClients = permissions.canExportClients;
   const columnsStorageKey = useMemo(() => getStorageKey(user?.id, companyId), [user?.id, companyId]);
   const queryClient = useQueryClient();
   const { data: contactCustomFields = [] } = useContactCustomFields();
@@ -747,7 +751,7 @@ export default function MarketingContacts() {
   }, [companyId, selezionandoTutti, sorgenteContatti, applicaFiltriCorrenti, sortField, sortDirection]);
 
   const doExport = useCallback(async (format: "csv" | "xlsx") => {
-    if (!companyId || exporting) return;
+    if (!companyId || exporting || !canExportClients) return;
     setExporting(true);
     try {
       // C'è una selezione? Si esporta quella. Altrimenti tutto ciò che passa
@@ -868,18 +872,37 @@ export default function MarketingContacts() {
       const today = new Date().toISOString().slice(0, 10);
       const suffix = selectedIds.size > 0 ? `_selezionati_${selectedIds.size}` : "";
 
+      // Prima il registro, poi il file: se il database non la registra (o
+      // non riconosce il permesso) l'esportazione non parte.
+      await registraEsportazioneCrm({
+        companyId,
+        oggetto: "contatti",
+        formato: format,
+        righe: rows.length,
+        filtri: {
+          selezionati: selectedIds.size || null,
+          ricerca: search,
+          qualita: qualityFilter === "all" ? null : qualityFilter,
+          fonte: sourceFilter,
+          mese: meseFilter,
+          preset: stalePresetActive ? stalePreset : null,
+          gruppi: filters.groups,
+          perimetro: permissions.onlyAssigned ? "solo i propri" : "tutta l'azienda",
+        },
+      });
+
       if (format === "xlsx") {
-        exportToXLSX(rows, allColumns, `contatti${suffix}_${today}.xlsx`);
+        await exportToXLSX(rows, allColumns, `contatti${suffix}_${today}.xlsx`);
       } else {
         exportToCSV(rows, allColumns, `contatti${suffix}_${today}.csv`);
       }
       toast.success(`${rows.length} contatti esportati in ${format.toUpperCase()}`);
-    } catch {
-      toast.error("Errore durante l'esportazione");
+    } catch (err) {
+      toast.error(messaggioEsportazioneNonRiuscita(err));
     } finally {
       setExporting(false);
     }
-  }, [companyId, exporting, selectedIds, contactCustomFields, applicaFiltriCorrenti, sorgenteContatti, activeTab]);
+  }, [companyId, exporting, canExportClients, selectedIds, contactCustomFields, applicaFiltriCorrenti, sorgenteContatti, activeTab, search, qualityFilter, sourceFilter, meseFilter, stalePresetActive, stalePreset, filters.groups, permissions.onlyAssigned]);
 
   // Consolidated filter data query (pipelines, tags, list count)
   const { data: filterData } = useQuery({
@@ -1663,27 +1686,29 @@ export default function MarketingContacts() {
           </Tabs>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          {/* Desktop: Export + Import */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="hidden h-9 border-slate-200 bg-white hover:bg-slate-50 sm:flex" disabled={exporting || isLoading}>
-                <Download className="mr-2 h-4 w-4" />
-                {exporting ? "Esportando..." : selectedIds.size > 0 ? `Esporta (${selectedIds.size})` : "Esporta"}
-                <ChevronDown className="ml-1 h-3 w-3" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {/* Niente export su telefono. */}
-              {!isMobile && (
-                <DropdownMenuItem onClick={() => doExport("csv")}>
-                  <Download className="mr-2 h-4 w-4" /> Esporta CSV
+          {/* Desktop: Export + Import. Esporta solo con «Esporta Clienti». */}
+          {canExportClients && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="hidden h-9 border-slate-200 bg-white hover:bg-slate-50 sm:flex" disabled={exporting || isLoading}>
+                  <Download className="mr-2 h-4 w-4" />
+                  {exporting ? "Esportando..." : selectedIds.size > 0 ? `Esporta (${selectedIds.size})` : "Esporta"}
+                  <ChevronDown className="ml-1 h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {/* Niente export su telefono. */}
+                {!isMobile && (
+                  <DropdownMenuItem onClick={() => doExport("csv")}>
+                    <Download className="mr-2 h-4 w-4" /> Esporta CSV
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem onClick={() => doExport("xlsx")}>
+                  <Download className="mr-2 h-4 w-4" /> Esporta XLSX
                 </DropdownMenuItem>
-              )}
-              <DropdownMenuItem onClick={() => doExport("xlsx")}>
-                <Download className="mr-2 h-4 w-4" /> Esporta XLSX
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
           <Button variant="outline" size="sm" className="hidden h-9 border-slate-200 bg-white hover:bg-slate-50 sm:flex" onClick={() => setImportOpen(true)} disabled={!canEditContacts}>
             <Upload className="mr-2 h-4 w-4" /> Importa
           </Button>
@@ -1699,8 +1724,9 @@ export default function MarketingContacts() {
                 <Upload className="mr-2 h-4 w-4" /> Importa
               </DropdownMenuItem>
               {/* Niente export su telefono: vale per tutti i formati, non
-                  solo per il CSV che avevo protetto per primo. */}
-              {!isMobile && (
+                  solo per il CSV che avevo protetto per primo. E niente
+                  export senza «Esporta Clienti». */}
+              {!isMobile && canExportClients && (
                 <>
                   <DropdownMenuItem onClick={() => doExport("csv")} disabled={exporting}>
                     <Download className="mr-2 h-4 w-4" /> Esporta CSV

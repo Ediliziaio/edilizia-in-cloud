@@ -30,6 +30,8 @@ import {
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { toast } from "sonner";
+import { usePermissions } from "@/hooks/usePermissions";
+import { messaggioEsportazioneNonRiuscita, registraEsportazioneCrm } from "@/lib/export/esportazioniCrm";
 
 import { useIsMobile } from "@/hooks/use-mobile";
 interface RecipientRow {
@@ -72,6 +74,8 @@ export function CampaignDetailDialog({ campaignId, campaignName, onClose }: Camp
   const isMobile = useIsMobile();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
+  // Email e nomi dei destinatari: si esportano solo con «Esporta Clienti».
+  const { canExportClients } = usePermissions();
   const [statusFilter, setStatusFilter] = useState("all");
   const [searchInput, setSearchInput] = useState("");
   const search = useDebounce(searchInput, 350);
@@ -143,7 +147,7 @@ export function CampaignDetailDialog({ campaignId, campaignName, onClose }: Camp
     d ? format(new Date(d), "dd MMM yyyy HH:mm", { locale: it }) : "—";
 
   const handleExportCsv = async () => {
-    if (!companyId || !campaignId) return;
+    if (!companyId || !campaignId || !canExportClients) return;
     setExporting(true);
     try {
       const all: RecipientRow[] = [];
@@ -159,6 +163,18 @@ export function CampaignDetailDialog({ campaignId, campaignName, onClose }: Camp
         all.push(...chunk);
         if (chunk.length < 500) break;
       }
+      // Prima il registro, poi il file: senza registrazione non parte.
+      await registraEsportazioneCrm({
+        companyId,
+        oggetto: "destinatari_campagna",
+        formato: "csv",
+        righe: all.length,
+        filtri: {
+          campagna: campaignName ?? campaignId,
+          stato: statusFilter !== "all" ? statusFilter : null,
+          ricerca: search,
+        },
+      });
       const esc = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
       const header = "Email;Nome;Stato;Inviata;Consegnata;Aperta;Cliccata;Bounce;Tipo bounce;Disiscritto;Errore";
       const lines = all.map((r) =>
@@ -178,7 +194,7 @@ export function CampaignDetailDialog({ campaignId, campaignName, onClose }: Camp
       URL.revokeObjectURL(url);
       toast.success(`Esportati ${all.length.toLocaleString("it-IT")} destinatari`);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Export non riuscito");
+      toast.error(messaggioEsportazioneNonRiuscita(e));
     } finally {
       setExporting(false);
     }
@@ -234,8 +250,8 @@ export function CampaignDetailDialog({ campaignId, campaignName, onClose }: Camp
               <SelectItem value="failed">Fallite</SelectItem>
             </SelectContent>
           </Select>
-          {/* Niente export su telefono. */}
-          {!isMobile && (
+          {/* Niente export su telefono, né senza «Esporta Clienti». */}
+          {!isMobile && canExportClients && (
             <Button variant="outline" size="sm" className="gap-1.5" onClick={handleExportCsv} disabled={exporting || totalRows === 0}>
               {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
               Esporta CSV

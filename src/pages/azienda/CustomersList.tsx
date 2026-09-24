@@ -12,6 +12,7 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { getAvatarColor } from "@/lib/contactUtils";
 import { escapeCsvCell, neutralizeXlsxCell } from "@/lib/csvExport";
+import { messaggioEsportazioneNonRiuscita, registraEsportazioneCrm } from "@/lib/export/esportazioniCrm";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
@@ -125,6 +126,9 @@ function CustomersListInner() {
   // 403 al click. Adesso nascosti del tutto se non hai i permessi.
   const customerPermissions = usePermissions();
   const canEditCustomers = customerPermissions.isAdmin || customerPermissions.canEditCustomers;
+  // «Esporta Clienti»: senza, nessuna delle voci di esportazione (gli
+  // amministratori ce l'hanno sempre). Il database lo ricontrolla.
+  const canExportClients = customerPermissions.canExportClients;
 
   const portalEnabled = (effectiveCompany as { customer_portal_enabled?: boolean } | null)
     ?.customer_portal_enabled === true;
@@ -589,6 +593,8 @@ function CustomersListInner() {
   };
 
   const handleExport = async (format: "csv" | "xlsx" | "pdf", scope: "page" | "all" | "selected") => {
+    const companyId = effectiveCompany?.id;
+    if (!canExportClients || !companyId) return;
     try {
       let rows: CustomerWithOrders[] = [];
       if (scope === "page") rows = customers;
@@ -600,6 +606,27 @@ function CustomersListInner() {
         return;
       }
 
+      // Prima il registro, poi il file: senza registrazione non parte.
+      const acceso = (valore: string) => (valore === "all" ? null : valore);
+      await registraEsportazioneCrm({
+        companyId,
+        oggetto: "clienti",
+        formato: format,
+        righe: rows.length,
+        filtri: {
+          ambito: scope === "page" ? "pagina corrente" : scope === "selected" ? "selezionati" : "tutti i filtrati",
+          ricerca: searchQuery,
+          venditore: acceso(filterSalesperson),
+          commesse: acceso(filterOrders),
+          telefono: acceso(filterHasPhone),
+          codice_fiscale: acceso(filterHasFC),
+          cantiere: acceso(filterHasSite),
+          portale: acceso(filterPortal),
+          dal: filterDateFrom,
+          al: filterDateTo,
+        },
+      });
+
       const stamp = formatDate(new Date(), "yyyy-MM-dd");
       const base = `clienti-${scope}-${stamp}`;
       if (format === "csv") downloadCSV(rows, `${base}.csv`);
@@ -610,7 +637,7 @@ function CustomersListInner() {
     } catch (e) {
       toast({
         title: "Errore export",
-        description: e instanceof Error ? e.message : "Impossibile generare l'export",
+        description: messaggioEsportazioneNonRiuscita(e),
         variant: "destructive",
       });
     }
@@ -801,8 +828,9 @@ function CustomersListInner() {
           </div>
           <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
           {/* Niente export su telefono: sei voci di scarico in un
-              menu solo, e nessuna era protetta. */}
-          {!isMobile && (
+              menu solo, e nessuna era protetta. E niente export senza
+              «Esporta Clienti». */}
+          {!isMobile && canExportClients && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="sm" aria-label="Esporta clienti">
@@ -1256,8 +1284,8 @@ function CustomersListInner() {
                   Assegna venditore
                 </Button>
               )}
-              {/* Niente export su telefono. */}
-              {!isMobile && (
+              {/* Niente export su telefono, né senza «Esporta Clienti». */}
+              {!isMobile && canExportClients && (
                 <Button size="sm" variant="outline" onClick={() => handleExport("xlsx", "selected")}>
                   <Download className="h-4 w-4 mr-1.5" />
                   Esporta Excel

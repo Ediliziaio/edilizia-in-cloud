@@ -61,6 +61,7 @@ function ActionBadge({ action }: { action: string }) {
     permission_template_created: { label: "Template creato", variant: "secondary" },
     permission_template_applied: { label: "Template applicato", variant: "outline" },
     permissions_updated: { label: "Permessi aggiornati", variant: "outline" },
+    crm_exported: { label: "Esportazione dati clienti", variant: "secondary" },
   };
   const c = config[action] || { label: action, variant: "outline" as const };
   return <Badge variant={c.variant} className="text-[11px]">{c.label}</Badge>;

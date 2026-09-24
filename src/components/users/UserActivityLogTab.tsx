@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { escapeCsvCell } from "@/lib/csvExport";
+import { descriviEsportazioneCrm } from "@/lib/export/esportazioniCrm";
 import { queryKeys } from "@/lib/queryKeys";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -30,6 +31,7 @@ const ACTION_LABELS: Record<string, string> = {
   access_blocked: "Accesso bloccato",
   access_unblocked: "Accesso ripristinato",
   user_deleted: "Utente eliminato",
+  crm_exported: "Esportazione dati clienti",
 };
 
 const ACTION_COLORS: Record<string, string> = {
@@ -41,6 +43,7 @@ const ACTION_COLORS: Record<string, string> = {
   access_blocked: "bg-destructive/10 text-destructive border-destructive/20",
   access_unblocked: "bg-green-600/10 text-green-700 border-green-600/20",
   user_deleted: "bg-destructive/10 text-destructive border-destructive/20",
+  crm_exported: "bg-amber-600/10 text-amber-700 border-amber-600/20",
 };
 
 export function UserActivityLogTab({ userId }: UserActivityLogTabProps) {
@@ -117,6 +120,7 @@ export function UserActivityLogTab({ userId }: UserActivityLogTabProps) {
               <SelectItem value="account_unlocked">Account sbloccato</SelectItem>
               <SelectItem value="access_blocked">Accesso bloccato</SelectItem>
               <SelectItem value="access_unblocked">Accesso ripristinato</SelectItem>
+              <SelectItem value="crm_exported">Esportazioni dati clienti</SelectItem>
             </SelectContent>
           </Select>
           <Button variant="outline" size="sm" onClick={exportCsv} disabled={!logs?.length}>
@@ -150,10 +154,12 @@ export function UserActivityLogTab({ userId }: UserActivityLogTabProps) {
                   </div>
                   {log.details && typeof log.details === "object" && Object.keys(log.details).length > 0 && (
                     <p className="text-xs text-muted-foreground mt-1">
-                      {Object.entries(log.details as Record<string, unknown>)
-                        .filter(([_, v]) => v !== null && v !== undefined)
-                        .map(([k, v]) => `${k}: ${v}`)
-                        .join(" • ")}
+                      {log.action === "crm_exported"
+                        ? descriviEsportazioneCrm(log.details)
+                        : Object.entries(log.details as Record<string, unknown>)
+                          .filter(([_, v]) => v !== null && v !== undefined)
+                          .map(([k, v]) => `${k}: ${v}`)
+                          .join(" • ")}
                     </p>
                   )}
                 </div>
