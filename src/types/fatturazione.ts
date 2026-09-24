@@ -489,6 +489,14 @@ export interface AnagraficaAzienda {
   split_payment_pa: boolean;
   /** Società con unico socio (SU). Se false o assente → SM (più soci). Usato nel campo XML <SocioUnico> */
   socio_unico?: boolean;
+  /** Ufficio del registro imprese (provincia); vuoto = provincia della sede. */
+  rea_ufficio?: string | null;
+  /** LN non in liquidazione, LS in liquidazione. */
+  stato_liquidazione?: "LN" | "LS";
+  /** Regime IVA per cassa (art. 32-bis DL 83/2012). */
+  iva_per_cassa?: boolean;
+  /** Bollo virtuale messo da solo quando è dovuto (acceso di serie). */
+  bollo_virtuale_auto?: boolean;
   created_at: string;
   updated_at: string;
 }

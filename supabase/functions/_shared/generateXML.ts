@@ -408,6 +408,15 @@ export function generateXML(
   if (azienda.regime_fiscale === "RF19" && !scritte.some((c) => /190\/2014|forfettari/i.test(c))) {
     causali.push("Operazione effettuata ai sensi dell'art. 1, commi da 54 a 89, della legge 23 dicembre 2014, n. 190 - Regime forfettario");
   }
+  // Diciture che la legge chiede in fattura e che l'XML non dice da solo:
+  // l'IVA per cassa va annotata come tale (art. 32-bis DL 83/2012, DM
+  // 11/07/2013), la scissione dei pagamenti pure (art. 2 DM 23/01/2015).
+  if (riepilogo.some((r: Dati) => r.esigibilita === "D") && !scritte.some((c) => /32-bis|iva per cassa/i.test(c))) {
+    causali.push("Operazione con IVA per cassa ai sensi dell'art. 32-bis del decreto-legge 22 giugno 2012, n. 83");
+  }
+  if (riepilogo.some((r: Dati) => r.esigibilita === "S") && !scritte.some((c) => /scissione|17-ter/i.test(c))) {
+    causali.push("Scissione dei pagamenti ai sensi dell'art. 17-ter del DPR 633/72");
+  }
   for (const c of scritte) causali.push(c);
   const causaliXml = causali.flatMap((c) => aPezzi(c, 200)).map((c) => `<Causale>${escXml(c)}</Causale>`).join("\n        ");
 

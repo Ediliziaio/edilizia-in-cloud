@@ -32,13 +32,25 @@ export function EditorFatturazioneElettronicaSection({ state, dispatch, disabled
   // valore predefinito senza scriverlo nel documento, così l'XML dichiarava
   // EsigibilitaIVA=S mentre totale, scadenze e PDF contenevano ancora il 22%
   // che la PA non versa. Il valore predefinito ora si scrive davvero.
+  //
+  // IVA per cassa (art. 32-bis DL 83/2012): con l'interruttore acceso nelle
+  // Impostazioni l'esigibilità predefinita è differita (D), ma solo verso chi
+  // ha partita IVA: ai privati l'IVA è sempre immediata, e verso la PA vale lo
+  // split payment. Fino al 24/09/2026 l'interruttore non faceva niente.
+  const clienteConPartitaIva = !!String(snap?.partita_iva ?? "").trim();
   useEffect(() => {
     if (disabled) return;
     if (state.esigibilita_iva) return;
-    if (!isPA) return;
-    if (!azienda || azienda.split_payment_pa === false) return;
-    dispatch({ type: "SET_FIELD", field: "esigibilita_iva", value: "S" });
-  }, [disabled, isPA, azienda, state.esigibilita_iva, dispatch]);
+    if (!azienda) return;
+    if (isPA) {
+      if (azienda.split_payment_pa === false) return;
+      dispatch({ type: "SET_FIELD", field: "esigibilita_iva", value: "S" });
+      return;
+    }
+    if (azienda.iva_per_cassa && clienteConPartitaIva) {
+      dispatch({ type: "SET_FIELD", field: "esigibilita_iva", value: "D" });
+    }
+  }, [disabled, isPA, clienteConPartitaIva, azienda, state.esigibilita_iva, dispatch]);
 
   function updateSnapshotField(field: string, value: string) {
     if (!snap) return;

@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ChevronDown, Settings2, Stamp, Truck, Percent } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { shouldSuggestBollo } from "@/lib/fatturazione/calcoli";
+import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
 import type { EditorState } from "./useEditorState";
 
 interface Props {
@@ -20,7 +21,28 @@ export function EditorOpzioniAvanzateSection({ state, dispatch, disabled }: Prop
     dispatch({ type: "SET_FIELD", field, value });
   }
 
-  const suggestBollo = !state.bollo_virtuale && shouldSuggestBollo(state.righe ?? [], state.totale_documento ?? 0);
+  const { data: azienda } = useAnagraficaAzienda();
+  const bolloDovuto = shouldSuggestBollo(state.righe ?? [], state.totale_documento ?? 0);
+  const suggestBollo = !state.bollo_virtuale && bolloDovuto;
+
+  // «Bollo virtuale automatico» (Impostazioni, acceso di serie): il bollo si
+  // mette da solo quando è dovuto e si toglie se non lo è più, ma solo se l'ha
+  // messo questa pagina. Chi lo spegne a mano decide lui. Fino al 24/09/2026
+  // l'interruttore non faceva niente e il bollo restava un suggerimento.
+  const tipoConBollo = !["nota_credito", "preventivo", "proforma", "ddt"].includes(String(state.tipo ?? ""));
+  const bolloMessoDaNoi = useRef(false);
+  const bolloToltoAMano = useRef(false);
+  useEffect(() => {
+    if (disabled || !tipoConBollo || !azienda || azienda.bollo_virtuale_auto === false) return;
+    if (bolloToltoAMano.current) return;
+    if (bolloDovuto && !state.bollo_virtuale) {
+      bolloMessoDaNoi.current = true;
+      dispatch({ type: "SET_FIELD", field: "bollo_virtuale", value: true });
+    } else if (!bolloDovuto && state.bollo_virtuale && bolloMessoDaNoi.current) {
+      bolloMessoDaNoi.current = false;
+      dispatch({ type: "SET_FIELD", field: "bollo_virtuale", value: false });
+    }
+  }, [disabled, tipoConBollo, azienda, bolloDovuto, state.bollo_virtuale, dispatch]);
   const hasAdvancedActive = (state.bollo_virtuale ?? false)
     || (state.sconto_globale_percentuale && state.sconto_globale_percentuale > 0)
     || (state.arrotondamento && state.arrotondamento !== 0);
@@ -55,7 +77,11 @@ export function EditorOpzioniAvanzateSection({ state, dispatch, disabled }: Prop
                 </div>
                 <Switch
                   checked={state.bollo_virtuale ?? false}
-                  onCheckedChange={(v) => setField("bollo_virtuale", v)}
+                  onCheckedChange={(v) => {
+                    bolloToltoAMano.current = !v;
+                    bolloMessoDaNoi.current = false;
+                    setField("bollo_virtuale", v);
+                  }}
                   disabled={disabled}
                 />
               </div>

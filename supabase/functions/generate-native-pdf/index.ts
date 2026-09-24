@@ -3,6 +3,39 @@ import { verifyCompanyAccess } from "../_shared/companyAuth.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { getBrandingForCompany } from "../_shared/getBranding.ts";
 import { logoDiRiserva } from "../_shared/logoAzienda.ts";
+import { RIFERIMENTO_NORMATIVO, naturaToXml } from "../_shared/generateXML.ts";
+import { iscrizioneRea } from "../_shared/datiSocietari.ts";
+
+/** Documenti che vanno allo SDI: il PDF ne è solo la copia di cortesia. */
+const TIPI_FISCALI = ["fattura", "fattura_pa", "nota_credito", "nota_debito", "autofattura", "fattura_riepilogativa"];
+
+/**
+ * Le diciture fiscali della fattura, le stesse che l'XML porta in Causale e in
+ * RiferimentoNormativo (24/09/2026). Il PDF è l'unico documento che un privato
+ * legge: prima mostrava «0% (N6_3)» e nessuna norma.
+ */
+function noteFiscali(doc: Record<string, any>): string[] {
+  const note: string[] = [];
+  const riepilogo: Array<Record<string, any>> = doc.riepilogo_iva || [];
+  const viste = new Set<string>();
+  for (const r of riepilogo) {
+    if (!r.natura) continue;
+    const natura = naturaToXml(String(r.natura));
+    const norma = String(r.riferimento_normativo || RIFERIMENTO_NORMATIVO[natura] || "").trim();
+    const testo = `${natura}${norma ? ` — ${norma}` : ""}`;
+    if (!viste.has(testo)) {
+      viste.add(testo);
+      note.push(testo);
+    }
+  }
+  if (riepilogo.some((r) => r.esigibilita === "D") || doc.esigibilita_iva === "D") {
+    note.push("Operazione con IVA per cassa ai sensi dell'art. 32-bis del D.L. 22 giugno 2012, n. 83");
+  }
+  if (riepilogo.some((r) => r.esigibilita === "S") || doc.esigibilita_iva === "S") {
+    note.push("Scissione dei pagamenti ai sensi dell'art. 17-ter del DPR 633/72: l'IVA è versata dal cliente all'Erario");
+  }
+  return note;
+}
 
 function escHtml(s: string | null | undefined): string {
   if (!s) return "";
@@ -73,18 +106,28 @@ function buildNativeHtml(doc: Record<string, any>, azienda: Record<string, any>,
       <td style="padding:6px 8px;text-align:center;">${escHtml(r.unita_misura)}</td>
       <td style="padding:6px 8px;text-align:right;">${fmtEur(r.prezzo_unitario)}</td>
       ${hasSconto ? `<td style="padding:6px 8px;text-align:right;">${r.sconto_percentuale ? r.sconto_percentuale + '%' : ''}</td>` : ''}
-      <td style="padding:6px 8px;text-align:center;">${r.aliquota_iva}%${r.natura_iva ? ` (${escHtml(r.natura_iva)})` : ''}</td>
+      <td style="padding:6px 8px;text-align:center;">${r.aliquota_iva}%${r.natura_iva ? ` (${escHtml(naturaToXml(r.natura_iva))})` : ''}</td>
       <td style="padding:6px 8px;text-align:right;font-weight:600;">${fmtEur(r.totale_riga)}</td>
     </tr>
   `).join("");
 
   const riepilogoHtml = riepilogo.map(r => `
     <tr style="border-bottom:1px solid #f1f5f9;">
-      <td style="padding:4px 8px;">${r.aliquota}%${r.natura ? ` (${escHtml(r.natura)})` : ''}</td>
+      <td style="padding:4px 8px;">${r.aliquota}%${r.natura ? ` (${escHtml(naturaToXml(r.natura))})` : ''}</td>
       <td style="padding:4px 8px;text-align:right;">${fmtEur(r.imponibile)}</td>
       <td style="padding:4px 8px;text-align:right;">${fmtEur(r.imposta)}</td>
     </tr>
   `).join("");
+
+  // Registro imprese (art. 2250 c.c.): vale per atti e corrispondenza, quindi
+  // anche per la copia che riceve il cliente.
+  const rea = iscrizioneRea(azienda);
+  const reaHtml = rea
+    ? `<div>REA ${escHtml(rea.ufficio)}-${escHtml(rea.numero)}${rea.capitale !== null ? ` · Capitale sociale versato ${fmtEur(rea.capitale)}` : ""}${rea.socioUnico === "SU" ? " · Socio unico" : ""}${rea.stato === "LS" ? " · In liquidazione" : ""}</div>`
+    : "";
+  const fiscale = TIPI_FISCALI.includes(doc.tipo);
+  const note = fiscale ? noteFiscali(doc) : [];
+  const privato = !String(snap.partita_iva ?? "").trim();
 
   const scadenzeHtml = scadenze.map(sc => `
     <div>Rata ${sc.numero_rata}: ${fmtDate(sc.data_scadenza)} — ${fmtEur(sc.importo)}${sc.pagato ? ' ✓' : ''}</div>
@@ -113,6 +156,7 @@ function buildNativeHtml(doc: Record<string, any>, azienda: Record<string, any>,
       <div>${escHtml(azienda.indirizzo_cap)} ${escHtml(azienda.indirizzo_comune)} (${escHtml(azienda.indirizzo_provincia)})</div>
       <div style="font-family:monospace;">P.IVA: ${escHtml(azienda.partita_iva)}</div>
       ${azienda.codice_fiscale !== azienda.partita_iva ? `<div style="font-family:monospace;">C.F.: ${escHtml(azienda.codice_fiscale)}</div>` : ''}
+      ${reaHtml}
       ${azienda.pec ? `<div>PEC: ${escHtml(azienda.pec)}</div>` : ''}
       ${azienda.telefono ? `<div>Tel: ${escHtml(azienda.telefono)}</div>` : ''}
     </div>
@@ -217,6 +261,17 @@ ${doc.note_documento ? `
 ${azienda.regime_fiscale === 'RF19' ? `
 <div style="margin-top:12px;font-size:7pt;color:#94a3b8;font-style:italic;">
   Operazione effettuata ai sensi dell'art. 1, commi da 54 a 89, L. n. 190/2014. Non soggetta a ritenuta d'acconto ai sensi del comma 67, L. n. 190/2014.
+</div>` : ''}
+
+${note.length > 0 ? `
+<div style="margin-top:12px;font-size:7.5pt;color:#475569;">
+  <div style="font-weight:600;color:#1a1a1a;margin-bottom:2px;">Note fiscali</div>
+  ${note.map((n) => `<div>${escHtml(n)}</div>`).join("")}
+</div>` : ''}
+
+${fiscale ? `
+<div style="margin-top:12px;font-size:7pt;color:#94a3b8;">
+  Copia di cortesia. La fattura con valore fiscale è il file XML trasmesso al Sistema di Interscambio (SdI).${privato ? " L'originale è disponibile nella tua area riservata del sito dell'Agenzia delle Entrate (Fatture e Corrispettivi)." : ""}
 </div>` : ''}
 
 <div style="margin-top:40px;padding-top:12px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:7pt;color:#94a3b8;">

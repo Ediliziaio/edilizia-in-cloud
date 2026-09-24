@@ -1202,7 +1202,7 @@ export default function ImpostazioniFatturazione() {
               <div className="flex items-center justify-between">
                 <div>
                   <Label>Bollo virtuale automatico</Label>
-                  <p className="text-xs text-muted-foreground mt-0.5">Applica automaticamente € 2,00 per documenti esenti IVA sopra € 77,47</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Applica da solo il bollo di € 2,00 quando la parte della fattura senza IVA (esente, esclusa, non soggetta, forfettario, lettera d'intento) supera € 77,47</p>
                 </div>
                 <Switch checked={current.bollo_virtuale_auto ?? true} onCheckedChange={(v) => updateField("bollo_virtuale_auto", v)} />
               </div>
