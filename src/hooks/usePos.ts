@@ -7,7 +7,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
-import type { Json } from "@/integrations/supabase/types";
+import type { Json, TablesUpdate } from "@/integrations/supabase/types";
 import {
   normalizzaPos, type Lavorazione, type PosContenuto, type VoceMancante,
 } from "../../supabase/functions/_shared/posModello";
@@ -191,7 +191,7 @@ export function useSalvaPos(id: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (campi: { contenuto?: PosContenuto; iter?: IterPos }) => {
-      const riga: Record<string, unknown> = { updated_at: new Date().toISOString() };
+      const riga: TablesUpdate<"pos_documents"> = { updated_at: new Date().toISOString() };
       if (campi.contenuto) {
         const c = campi.contenuto;
         riga.contenuto = c as unknown as Json;
