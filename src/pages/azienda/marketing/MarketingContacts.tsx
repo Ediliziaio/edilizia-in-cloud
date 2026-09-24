@@ -3,7 +3,7 @@ import { filtroSoloMiei } from "@/hooks/useOpportunitiesData";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useURLFilters } from "@/hooks/useURLFilters";
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
-import { Search, Upload, Plus, Download, Filter, ArrowUpDown, Settings2, ChevronDown, MoreHorizontal, Loader2, ChevronLeft, ChevronRight, ContactRound, AlertTriangle, CheckCircle2, ShieldCheck, Sparkles, ExternalLink, Mail, Phone, Building2, CalendarClock, Copy, PanelRightOpen, Radar, BookmarkPlus } from "lucide-react";
+import { Search, Upload, Plus, Download, Filter, ArrowUpDown, Settings2, ChevronDown, MoreHorizontal, Loader2, ChevronLeft, ChevronRight, ContactRound, AlertTriangle, CheckCircle2, ShieldCheck, Sparkles, ExternalLink, Mail, Phone, Building2, CalendarClock, Copy, Radar, BookmarkPlus } from "lucide-react";
 import { PLATFORM_ADMIN_COMPANY_ID } from "@/lib/adminConstants";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -66,7 +66,6 @@ const CSV_FIELDS: ImportField[] = [
 const QUALITY_FILTERS = [
   { value: "all", label: "Tutti", description: "Vista completa" },
   { value: "issues", label: "Da sistemare", description: "Dati incompleti o rischi marketing" },
-  { value: "no_contact", label: "Non contattabili", description: "Né email né telefono" },
   { value: "missing_email", label: "Senza email", description: "Email mancante" },
   { value: "missing_phone", label: "Senza telefono", description: "Telefono mancante" },
   { value: "no_source", label: "Senza fonte", description: "Origine lead non tracciata" },
@@ -76,8 +75,10 @@ const QUALITY_FILTERS = [
 
 // Valori accettati da ?qualita= ma senza pillola dedicata:
 // - missing_contact: vecchi deep-link (email O telefono mancante)
-// - has_email / has_phone / contactable: attivati dalle chip "Contattabilità"
-const EXTRA_QUALITY_FILTERS = ["missing_contact", "has_email", "has_phone", "contactable"] as const;
+// - has_email / has_phone / contactable / no_contact: attivati dalla riga
+//   della contattabilità, che ha anche il numero. «Non contattabili» stava
+//   anche fra le viste: due volte lo stesso filtro (24/09/2026).
+const EXTRA_QUALITY_FILTERS = ["missing_contact", "has_email", "has_phone", "contactable", "no_contact"] as const;
 
 type ContactQualityFilter =
   | (typeof QUALITY_FILTERS)[number]["value"]
@@ -1807,34 +1808,49 @@ export default function MarketingContacts() {
               dei contatti» più la barra filtri; i quattro riquadri colorati
               contavano solo la pagina corrente e ripetevano le viste rapide. */}
           <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-            {reachStats && reachStats.total > 0 && (
-              <div className="hidden flex-wrap items-center gap-x-4 gap-y-2 border-b border-slate-100 px-3 py-2 sm:flex">
-                <div className="flex items-center gap-2.5" title={`${reachStats.reachable.toLocaleString("it-IT")} contattabili su ${reachStats.total.toLocaleString("it-IT")} contatti in tutto il database`}>
-                  <ShieldCheck className="h-4 w-4 text-emerald-600" />
-                  <span className="text-xs text-slate-600">
-                    <span className="font-semibold tabular-nums text-slate-900">{reachStats.reachable.toLocaleString("it-IT")}</span> contattabili su {reachStats.total.toLocaleString("it-IT")}
-                  </span>
-                  <div className="h-1.5 w-24 overflow-hidden rounded-full bg-red-100" aria-hidden>
-                    <div
-                      className="h-full rounded-full bg-emerald-500 transition-all"
-                      style={{ width: `${reachStats.total > 0 ? Math.round((reachStats.reachable / reachStats.total) * 100) : 0}%` }}
-                    />
-                  </div>
-                </div>
-                <div className="flex flex-wrap items-center gap-1.5">
+            {/* 24/09/2026, su indicazione di Florin: due righe invece di quattro.
+                Il numero dei contattabili stava due volte (titolo e primo
+                chip): ora il titolo stesso è il filtro. Le percentuali stanno
+                nel suggerimento; la nota «clic sulla riga…» e «Gestisci campi»
+                finivano da sole su una riga, spinte a destra. */}
+            {reachStats && reachStats.total > 0 && (() => {
+              const percento = (n: number) => (reachStats.total > 0 ? Math.round((n / reachStats.total) * 100) : 0);
+              const soloContattabili = qualityFilter === "contactable";
+              return (
+                <div className="hidden flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-slate-100 px-3 py-1.5 sm:flex">
+                  <button
+                    type="button"
+                    aria-pressed={soloContattabili}
+                    onClick={() => setQualityFilter(soloContattabili ? "all" : "contactable")}
+                    title={soloContattabili
+                      ? "Rimuovi filtro"
+                      : `Mostra solo i contattabili: ${percento(reachStats.reachable)}% di tutto il database`}
+                    className={`-ml-1.5 flex h-7 items-center gap-2 rounded-full px-1.5 transition-colors ${
+                      soloContattabili ? "bg-emerald-50 ring-1 ring-emerald-300" : "hover:bg-slate-50"
+                    }`}
+                  >
+                    <ShieldCheck className="h-4 w-4 text-emerald-600" />
+                    <span className="text-xs text-slate-600">
+                      <span className="font-semibold tabular-nums text-slate-900">{reachStats.reachable.toLocaleString("it-IT")}</span> contattabili su {reachStats.total.toLocaleString("it-IT")}
+                    </span>
+                    <span className="h-1.5 w-20 overflow-hidden rounded-full bg-red-100" aria-hidden>
+                      <span
+                        className="block h-full rounded-full bg-emerald-500 transition-all"
+                        style={{ width: `${percento(reachStats.reachable)}%` }}
+                      />
+                    </span>
+                  </button>
                   {([
-                    { key: "contactable", label: "Contattabili", value: reachStats.reachable, Icon: CheckCircle2, activeCls: "border-emerald-300 bg-emerald-50 text-emerald-700", dotCls: "text-emerald-600" },
                     { key: "has_email", label: "Con email", value: reachStats.withEmail, Icon: Mail, activeCls: "border-sky-300 bg-sky-50 text-sky-700", dotCls: "text-sky-600" },
                     { key: "has_phone", label: "Con telefono", value: reachStats.withPhone, Icon: Phone, activeCls: "border-sky-300 bg-sky-50 text-sky-700", dotCls: "text-sky-600" },
                     { key: "no_contact", label: "Non contattabili", value: reachStats.unreachable, Icon: AlertTriangle, activeCls: "border-red-300 bg-red-50 text-red-700", dotCls: "text-red-600" },
                   ] as const).map(({ key, label, value, Icon, activeCls, dotCls }) => {
-                    const pct = reachStats.total > 0 ? Math.round((value / reachStats.total) * 100) : 0;
                     const active = qualityFilter === key;
                     return (
                       <button
                         key={key}
                         type="button"
-                        title={active ? "Rimuovi filtro" : `Mostra solo: ${label.toLowerCase()}`}
+                        title={active ? "Rimuovi filtro" : `Mostra solo: ${label.toLowerCase()} (${percento(value)}%)`}
                         aria-pressed={active}
                         onClick={() => setQualityFilter(active ? "all" : key)}
                         className={`inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium transition-colors ${
@@ -1844,18 +1860,14 @@ export default function MarketingContacts() {
                         <Icon className={`h-3.5 w-3.5 ${dotCls}`} />
                         {label}
                         <span className="font-bold tabular-nums">{value.toLocaleString("it-IT")}</span>
-                        <span className={active ? "" : "text-slate-400"}>· {pct}%</span>
                       </button>
                     );
                   })}
                 </div>
-                <span className="ml-auto hidden items-center gap-1.5 text-[11px] text-slate-500 xl:inline-flex">
-                  <PanelRightOpen className="h-3.5 w-3.5" /> Clic sulla riga: anteprima · sul nome: scheda completa
-                </span>
-              </div>
-            )}
+              );
+            })()}
 
-            <div className="flex flex-col gap-2 p-3">
+            <div className="flex flex-col gap-2 px-3 py-2">
               {/* Mobile: full-width search */}
               <div className="relative sm:hidden">
                 <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -1870,15 +1882,17 @@ export default function MarketingContacts() {
                   stavano su una riga tutta loro, vuota per metà schermo, e la
                   tabella partiva più in basso. */}
               <div className="flex flex-wrap items-center gap-2">
-                {/* Desktop: la ricerca per prima, è il gesto più frequente. */}
-                <div className="relative hidden sm:block">
+                {/* Desktop: la ricerca per prima, è il gesto più frequente.
+                    Elastica: per andare a capo conta 180 px, poi si allarga
+                    fino a 280 se c'è spazio. A larghezza fissa era lei a
+                    spingere l'ultima vista da sola su una riga nuova. */}
+                <div className="relative hidden max-w-[280px] grow basis-[180px] sm:block">
                   <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                  <Input placeholder="Cerca per nome, email, telefono…" inputMode="search" enterKeyHint="search" className="h-8 w-[220px] pl-8 text-xs lg:w-[280px]" value={searchInput} onChange={(e) => { setSearchInput(e.target.value); setPage(1); }} />
+                  <Input placeholder="Nome, email, telefono…" inputMode="search" enterKeyHint="search" className="h-8 w-full pl-8 text-xs" value={searchInput} onChange={(e) => { setSearchInput(e.target.value); setPage(1); }} />
                 </div>
                 <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setFiltersSheetOpen(true)}>
                   <Filter className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">Filtri avanzati</span>
-                  <span className="sm:hidden">Filtri</span>
+                  Filtri
                   {activeFilterCount > 0 && (
                     <Badge className="flex h-4 w-4 items-center justify-center rounded-full p-0 text-[9px]">
                       {activeFilterCount}
@@ -1895,9 +1909,20 @@ export default function MarketingContacts() {
                   <ArrowUpDown className="h-3.5 w-3.5" />
                   Ordina
                 </Button>
+                {/* Icona sola accanto a «Ordina»: in fondo a destra finiva da
+                    sola su una riga nuova appena le viste la riempivano. */}
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="hidden h-8 w-8 sm:inline-flex"
+                  onClick={() => setFieldsSheetOpen(true)}
+                  title="Gestisci campi"
+                  aria-label="Gestisci campi"
+                >
+                  <Settings2 className="h-3.5 w-3.5" />
+                </Button>
 
                 {/* Viste rapide: filtrano l'intero database, non la pagina. */}
-                <span className="ml-1 hidden shrink-0 items-center text-[11px] font-medium uppercase tracking-wide text-slate-400 sm:inline-flex">Vista</span>
                 {QUALITY_FILTERS.map((filter) => (
                   <button
                     key={filter.value}
@@ -1919,10 +1944,6 @@ export default function MarketingContacts() {
                     <Copy className="h-3 w-3" /> {qualityStats.duplicates} possibili doppioni in questa pagina
                   </span>
                 )}
-
-                <Button variant="ghost" size="sm" className="ml-auto hidden h-8 gap-1.5 text-xs text-muted-foreground sm:flex" onClick={() => setFieldsSheetOpen(true)}>
-                  <Settings2 className="h-3.5 w-3.5" /> Gestisci campi
-                </Button>
               </div>
             </div>
           </div>
