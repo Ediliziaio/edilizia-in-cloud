@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ShieldAlert, Plus, AlertTriangle, CheckCircle, Download, Loader2, HardHat, Users, ClipboardList, Building2, CalendarClock, RotateCcw, Pencil, Trash2 } from "lucide-react";
+import { ShieldAlert, Plus, AlertTriangle, CheckCircle, Download, Loader2, HardHat, Users, ClipboardList, Building2, CalendarClock, RotateCcw, Pencil, Trash2, UserCheck } from "lucide-react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -32,8 +32,10 @@ import type {
   SubappaltatoreSicurezza, AdempimentoSicurezza, PrintableSafetyDoc,
 } from "./SicurezzaCantiere/types";
 import { STATUS_COLORS, STATUS_LABELS } from "./SicurezzaCantiere/constants";
+import { PosElencoTab } from "@/components/sicurezza/PosElencoTab";
+import { FigureSicurezzaTab } from "@/components/sicurezza/FigureSicurezzaTab";
 import {
-  getSupabaseErrorMessage, escapeHtml, readFunctionError, isPastDate, formatDpi,
+  getSupabaseErrorMessage, escapeHtml, readFunctionError, isPastDate,
 } from "./SicurezzaCantiere/helpers";
 
 export default function SicurezzaCantiere() {
@@ -42,12 +44,9 @@ export default function SicurezzaCantiere() {
   const queryClient = useQueryClient();
   const { isScopriPlan } = useSubscriptionLimits();
 
-  const [posDialogOpen, setPosDialogOpen] = useState(false);
   const [duvriDialogOpen, setDuvriDialogOpen] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState("");
-  const [responsabileSicurezza, setResponsabileSicurezza] = useState("");
   const [costiSicurezza, setCostiSicurezza] = useState("0");
-  const [expandedPos, setExpandedPos] = useState<string | null>(null);
   const [expandedDuvri, setExpandedDuvri] = useState<string | null>(null);
   const [printHtml, setPrintHtml] = useState<string | null>(null);
   const [printTitle, setPrintTitle] = useState("");
@@ -89,14 +88,16 @@ export default function SicurezzaCantiere() {
   });
 
   // Fetch POS documents
-  const { data: posDocs = [], isLoading: posLoading, isError: posError } = useQuery<PosDocument[]>({
+  const { data: posDocs = [] } = useQuery<Pick<PosDocument, "id" | "status" | "order_id" | "created_at">[]>({
     queryKey: ["pos-documents", companyId],
     queryFn: async () => {
       if (!companyId) return [];
       const { data, error } = await supabase
         .from("pos_documents")
-        .select("*, orders(description, order_code)")
+        .select("id, status, order_id, created_at")
         .eq("company_id", companyId)
+        .or("document_type.is.null,document_type.eq.pos")
+        .is("superseded_by", null)
         .order("created_at", { ascending: false });
       if (error) throw new Error(getSupabaseErrorMessage(error));
       return (data || []) as PosDocument[];
@@ -263,43 +264,6 @@ export default function SicurezzaCantiere() {
     enabled: !!companyId && !!selectedOrderId,
   });
 
-  // Generate POS
-  const generatePos = useMutation({
-    mutationFn: async () => {
-      if (!companyId) throw new Error("Nessuna azienda selezionata");
-      if (!selectedOrderId) throw new Error("Seleziona una commessa prima di generare il POS");
-      const session = await supabase.auth.getSession();
-      const token = session.data.session?.access_token;
-      if (!token) throw new Error("Sessione non valida. Accedi di nuovo e riprova.");
-      const res = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/genera-pos`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            order_id: selectedOrderId,
-            company_id: companyId,
-            responsabile_sicurezza: responsabileSicurezza || undefined,
-          }),
-        }
-      );
-      if (!res.ok) {
-        throw new Error(await readFunctionError(res, "Errore generazione POS"));
-      }
-      return res.json();
-    },
-    onSuccess: () => {
-      toast.success("POS generato con successo!");
-      queryClient.invalidateQueries({ queryKey: ["pos-documents", companyId] });
-      setPosDialogOpen(false);
-      setSelectedOrderId("");
-    },
-    onError: (err: Error) => toast.error(err.message),
-  });
-
   // Generate DUVRI
   const generateDuvri = useMutation({
     mutationFn: async () => {
@@ -342,10 +306,9 @@ export default function SicurezzaCantiere() {
   // Non è un'azione da fare per sbaglio (sono documenti di conformità), quindi
   // si conferma prima.
   const [daRiaprire, setDaRiaprire] = useState<
-    { tipo: "POS" | "DUVRI"; id: string } | null
+    { tipo: "DUVRI"; id: string } | null
   >(null);
 
-  // Update POS status
   /**
    * Aprire "Nuovo" azzera sempre il modulo e la modalità modifica: senza,
    * dopo aver corretto un record il pulsante Nuovo lo ripresenterebbe già
@@ -388,23 +351,6 @@ export default function SicurezzaCantiere() {
       };
       queryClient.invalidateQueries({ queryKey: [chiavi[tabella], companyId] });
       setDaCancellare(null);
-    },
-    onError: (err: Error) => toast.error(err.message),
-  });
-
-  const updatePosStatus = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      if (!companyId) throw new Error("Nessuna azienda selezionata");
-      const { error } = await supabase
-        .from("pos_documents")
-        .update({ status, updated_at: new Date().toISOString() })
-        .eq("id", id)
-        .eq("company_id", companyId);
-      if (error) throw new Error(getSupabaseErrorMessage(error));
-    },
-    onSuccess: () => {
-      toast.success("Stato aggiornato");
-      queryClient.invalidateQueries({ queryKey: ["pos-documents", companyId] });
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -504,6 +450,9 @@ export default function SicurezzaCantiere() {
           <TabsTrigger value="pos" className="shrink-0 gap-1.5">
             <HardHat className="h-4 w-4" /> POS
           </TabsTrigger>
+          <TabsTrigger value="figure" className="shrink-0 gap-1.5">
+            <UserCheck className="h-4 w-4" /> Figure
+          </TabsTrigger>
           <TabsTrigger value="duvri" className="shrink-0 gap-1.5">
             <Users className="h-4 w-4" /> DUVRI
           </TabsTrigger>
@@ -518,152 +467,14 @@ export default function SicurezzaCantiere() {
           </TabsTrigger>
         </TabsList>
 
-        {/* ───── POS TAB ───── */}
+        {/* ───── POS TAB: modello ufficiale (DI 9/9/2014) ───── */}
         <TabsContent value="pos" className="space-y-4 mt-4">
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">Piano Operativo di Sicurezza</p>
-            <Button size="sm" onClick={() => setPosDialogOpen(true)} className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
-              <Plus className="h-4 w-4 mr-1" /> Genera POS
-            </Button>
-          </div>
+          <PosElencoTab orders={orders} />
+        </TabsContent>
 
-          {posLoading ? (
-            <div className="space-y-3">
-              <Skeleton className="h-20 w-full" />
-              <Skeleton className="h-20 w-full" />
-            </div>
-          ) : posError || ordersError ? (
-            <Card>
-              <CardContent className="py-10 text-center space-y-2">
-                <AlertTriangle className="h-10 w-10 text-destructive/70 mx-auto" aria-hidden="true" />
-                <p className="font-medium">Documenti POS non disponibili</p>
-                <p className="text-sm text-muted-foreground">Riprova tra poco o aggiorna la pagina.</p>
-              </CardContent>
-            </Card>
-          ) : posDocs.length === 0 ? (
-            <Card>
-              <CardContent className="flex flex-col items-center justify-center py-12 text-center space-y-3">
-                <ShieldAlert className="h-12 w-12 text-muted-foreground/40" />
-                <div>
-                  <p className="font-medium">Nessun POS generato</p>
-                  <p className="text-sm text-muted-foreground">Seleziona un ordine e genera il tuo primo POS con AI</p>
-                </div>
-                <Button size="sm" onClick={() => setPosDialogOpen(true)} className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
-                  <Plus className="h-4 w-4 mr-1" /> Genera POS
-                </Button>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-3">
-              {posDocs.map((doc) => (
-                <Card key={doc.id} className="overflow-hidden">
-                  <CardHeader className="pb-2">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <CardTitle className="text-sm font-medium truncate">
-                          {doc.orders?.description || "Ordine"}
-                          {doc.orders?.order_code && <span className="ml-2 text-xs text-muted-foreground font-mono">#{doc.orders.order_code}</span>}
-                        </CardTitle>
-                        <CardDescription className="text-xs">
-                          v{doc.version} · {format(new Date(doc.created_at), "dd/MM/yyyy", { locale: it })}
-                          {doc.responsabile_sicurezza && ` · ${doc.responsabile_sicurezza}`}
-                        </CardDescription>
-                      </div>
-                      <Badge className={`${STATUS_COLORS[doc.status] || STATUS_COLORS.bozza} text-xs shrink-0`}>
-                        {STATUS_LABELS[doc.status] || doc.status}
-                      </Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="pt-0 space-y-2">
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
-                      <span>🏗️ {doc.tipo_lavori}</span>
-                      <span>·</span>
-                      <span>👷 {doc.numero_lavoratori} lavoratori</span>
-                      {doc.rischi_presenti?.length > 0 && (
-                        <><span>·</span><span>⚠️ {doc.rischi_presenti.length} rischi</span></>
-                      )}
-                    </div>
-
-                    {expandedPos === doc.id && (
-                      <div className="space-y-3 pt-2 border-t">
-                        {doc.rischi_presenti?.length > 0 && (
-                          <div>
-                            <p className="text-xs font-semibold mb-1">Rischi e misure preventive</p>
-                            <div className="space-y-1">
-                              {doc.rischi_presenti.map((r, i) => (
-                                <div key={i} className="text-xs p-2 rounded bg-muted/50">
-                                  <span className="font-medium text-destructive">⚠️ {r.rischio || "Rischio da verificare"}</span>
-                                  {r.livello && <span className="ml-1 text-muted-foreground">({r.livello})</span>}
-                                  <span className="text-muted-foreground"> → {r.misura_prevenzione || "Misura preventiva da completare"}</span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                        {doc.dpi_richiesti?.length > 0 && (
-                          <div>
-                            <p className="text-xs font-semibold mb-1">DPI richiesti</p>
-                            <div className="flex flex-wrap gap-1">
-                              {doc.dpi_richiesti.map((dpi, i) => (
-                                <Badge key={i} variant="outline" className="text-xs">{formatDpi(dpi)}</Badge>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                        {doc.procedure_operative && (
-                          <div>
-                            <p className="text-xs font-semibold mb-1">Procedure operative</p>
-                            <p className="text-xs text-muted-foreground whitespace-pre-wrap">{doc.procedure_operative}</p>
-                          </div>
-                        )}
-                        <EntityCustomFieldsSection entityType="pos_document" entityId={doc.id} />
-                      </div>
-                    )}
-
-                    <div className="flex items-center gap-2 pt-1 flex-wrap">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 text-xs"
-                        onClick={() => setExpandedPos(expandedPos === doc.id ? null : doc.id)}
-                      >
-                        {expandedPos === doc.id ? "Nascondi dettagli" : "Vedi dettagli"}
-                      </Button>
-                      {doc.status === "bozza" ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-7 text-xs"
-                          disabled={updatePosStatus.isPending}
-                          onClick={() => updatePosStatus.mutate({ id: doc.id, status: "approvato" })}
-                        >
-                          <CheckCircle className="h-3 w-3 mr-1" /> Approva
-                        </Button>
-                      ) : (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 text-xs"
-                          disabled={updatePosStatus.isPending}
-                          onClick={() => setDaRiaprire({ tipo: "POS", id: doc.id })}
-                        >
-                          <RotateCcw className="h-3 w-3 mr-1" /> Riporta in bozza
-                        </Button>
-                      )}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 text-xs"
-                        onClick={() => { setPrintTitle(`POS — ${doc.id}`); setPrintHtml(buildDocHtml(doc, "POS")); }}
-                      >
-                        <Download className="h-3 w-3 mr-1" /> PDF
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
+        {/* ───── FIGURE DELLA SICUREZZA ───── */}
+        <TabsContent value="figure" className="space-y-4 mt-4">
+          <FigureSicurezzaTab />
         </TabsContent>
 
         {/* ───── DUVRI TAB ───── */}
@@ -1055,64 +866,6 @@ export default function SicurezzaCantiere() {
       </Tabs>
 
       {/* ───── Dialog Genera POS ───── */}
-      <Dialog open={posDialogOpen} onOpenChange={setPosDialogOpen}>
-        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <HardHat className="h-5 w-5 text-primary" />
-              Genera POS con AI
-            </DialogTitle>
-            <DialogDescription>
-              Seleziona la commessa e genera il Piano Operativo di Sicurezza collegato.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Ordine / Cantiere</Label>
-              <Select value={selectedOrderId || undefined} onValueChange={setSelectedOrderId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleziona ordine" />
-                </SelectTrigger>
-                <SelectContent>
-                  {orders.map((o) => (
-                    <SelectItem key={o.id} value={o.id}>
-                      {o.order_code ? `#${o.order_code} — ` : ""}{o.description}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Responsabile Sicurezza (opzionale)</Label>
-              <Input
-                placeholder="Nome e cognome"
-                value={responsabileSicurezza}
-                onChange={(e) => setResponsabileSicurezza(e.target.value)}
-              />
-            </div>
-            <div className="flex items-start gap-2 p-3 rounded-lg bg-primary/5 border border-primary/20">
-              <ShieldAlert className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-              <p className="text-xs text-muted-foreground">
-                Il POS verrà generato automaticamente dall'AI analizzando i dati dell'ordine, i lavoratori assegnati e i fornitori.
-              </p>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setPosDialogOpen(false)}>Annulla</Button>
-            <Button
-              onClick={() => generatePos.mutate()}
-              disabled={!selectedOrderId || generatePos.isPending}
-            >
-              {generatePos.isPending ? (
-                <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Generazione in corso...</>
-              ) : (
-                <><ShieldAlert className="h-4 w-4 mr-2" /> Genera con AI</>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       {/* ───── Dialog Genera DUVRI ───── */}
       <Dialog open={duvriDialogOpen} onOpenChange={setDuvriDialogOpen}>
         <DialogContent className="sm:max-w-md">
@@ -1378,9 +1131,7 @@ export default function SicurezzaCantiere() {
           <AlertDialogHeader>
             <AlertDialogTitle>Riportare il documento in bozza?</AlertDialogTitle>
             <AlertDialogDescription>
-              {daRiaprire?.tipo === "POS"
-                ? "Il POS torna in bozza e potrà essere modificato e riapprovato. Finché è in bozza non vale come documento approvato: se ne hai già consegnato copia, avvisa chi l'ha ricevuta."
-                : "Il DUVRI torna in bozza e potrà essere modificato e rifirmato. Finché è in bozza non risulta firmato: se ne hai già consegnato copia, avvisa chi l'ha ricevuta."}
+              Il DUVRI torna in bozza e potrà essere modificato e rifirmato. Finché è in bozza non risulta firmato: se ne hai già consegnato copia, avvisa chi l'ha ricevuta.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1389,8 +1140,8 @@ export default function SicurezzaCantiere() {
               onClick={(e) => {
                 e.preventDefault();
                 if (!daRiaprire) return;
-                if (daRiaprire.tipo === "POS") updatePosStatus.mutate({ id: daRiaprire.id, status: "bozza" });
-                else updateDuvriStatus.mutate({ id: daRiaprire.id, status: "bozza" });
+                // I POS si riaprono con una nuova revisione, dalla loro pagina.
+                updateDuvriStatus.mutate({ id: daRiaprire.id, status: "bozza" });
                 setDaRiaprire(null);
               }}
             >

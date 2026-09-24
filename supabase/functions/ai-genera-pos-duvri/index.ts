@@ -1,127 +1,89 @@
 /**
- * MP-OPS-08 — AI Genera POS / DUVRI (on-demand)
+ * ai-genera-pos-duvri — ingresso dell'assistente per «preparami il POS».
  *
- * Body:
- *   { cantiere_id: uuid, company_id: uuid, document_type?: 'pos'|'duvri', force_regenerate?: boolean }
+ * Fino al 24/09/2026 rispondeva a chiunque avesse la chiave pubblica dell'app:
+ * con gli id di un'altra azienda creava POS nella sua cartella e poteva far
+ * risultare superato quello vero, e al posto dell'AI scriveva un testo fisso.
+ * Ora:
+ *   - serve un utente autenticato, dell'azienda, col permesso Sicurezza Cantiere
+ *     e non in sola lettura;
+ *   - il POS si crea come in pagina: bozza compilata dai dati dell'app sul
+ *     modello ufficiale, da completare e far approvare al datore di lavoro;
+ *   - il DUVRI si prepara dalla sua pagina (genera-duvri): qui non si inventa.
  *
- * Flow:
- *   1. Carica anagrafica cantiere + computo metrico + operai allocati
- *   2. Persona compliance compone le 8 sezioni POS (placeholder; in prod LLM)
- *   3. Salva in pos_documents via RPC
- *   4. Crea action_proposal RED per firma RSPP
- *
- * Defensive: assenza moduli computo → sezioni con placeholder.
+ * Body: { cantiere_id: uuid, company_id: uuid, document_type?: 'pos'|'duvri' }
  */
-import "https://deno.land/x/xhr@0.1.0/mod.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.43.4";
-import { gateAiPayment } from "../_shared/requirePaymentMethod.ts";
+import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
+import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
+import { colonneRiassunto, preparaPosDaApp } from "../_shared/posDatiApp.ts";
 
 Deno.serve(async (req) => {
-  if (req.method !== "POST") {
-    return new Response("Method not allowed", { status: 405 });
-  }
-
-  const supabase = createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-  );
-
-  let body: {
-    cantiere_id?: string;
-    company_id?: string;
-    document_type?: "pos" | "duvri";
-    force_regenerate?: boolean;
-  } = {};
+  if (req.method === "OPTIONS") return new Response(null, { headers: getCorsHeaders(req) });
+  const cors = getCorsHeaders(req);
 
   try {
-    body = await req.json();
-  } catch {
-    return jsonOk({ ok: false, error: "invalid_json" }, 400);
-  }
+    if (req.method !== "POST") return errorResponse("Metodo non consentito", 405, cors);
+    const { userId, supabaseAdmin: db } = await requireAuth(req, cors);
 
-  if (!body.cantiere_id || !body.company_id) {
-    return jsonOk({ ok: false, error: "missing_required_fields" }, 400);
-  }
+    const body = await req.json().catch(() => ({}));
+    const companyId = typeof body.company_id === "string" ? body.company_id : "";
+    const orderId = typeof body.cantiere_id === "string" ? body.cantiere_id : "";
+    if (!companyId || !orderId) return errorResponse("company_id e cantiere_id sono obbligatori", 400, cors);
 
-  // Gate carta (audit AI 2026-06): strumento a costo senza controllo pagamento.
-  const paymentBlock = await gateAiPayment(supabase, body.company_id, { "Content-Type": "application/json" });
-  if (paymentBlock) return paymentBlock;
+    await requireCompanyAccess(db, userId, companyId, cors);
+    const { data: permesso } = await db.rpc("has_permission_for_company", {
+      _user_id: userId, _permission: "can_view_sicurezza_cantiere", _company_id: companyId,
+    });
+    if (permesso !== true) return errorResponse("Non hai il permesso Sicurezza Cantiere in questa azienda", 403, cors);
+    const { data: sp } = await db.from("staff_permissions").select("sola_lettura")
+      .eq("user_id", userId).eq("company_id", companyId).maybeSingle();
+    if (sp?.sola_lettura === true) return errorResponse("Sei in sola lettura: non puoi creare un POS", 403, cors);
 
-  const docType = body.document_type ?? "pos";
-  const t0 = Date.now();
-
-  try {
-
-    const rpcName = docType === "pos" ? "silvio_tool_genera_pos_cantiere" : "silvio_tool_genera_duvri_cantiere";
-
-    const { data: rpcRes } = docType === "pos"
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      ? await (supabase as any).rpc(rpcName, {
-        p_company_id: body.company_id,
-        p_cantiere_id: body.cantiere_id,
-        p_force_regenerate: body.force_regenerate ?? false,
-      })
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      : await (supabase as any).rpc(rpcName, {
-        p_company_id: body.company_id,
-        p_cantiere_id: body.cantiere_id,
-      });
-
-    const docId = (rpcRes as { pos_id?: string; duvri_id?: string } | null)?.pos_id ??
-                  (rpcRes as { pos_id?: string; duvri_id?: string } | null)?.duvri_id;
-
-    if (!docId) {
-      return jsonOk({ ok: false, error: "rpc_returned_no_id", duration_ms: Date.now() - t0 }, 500);
+    if ((body.document_type ?? "pos") !== "pos") {
+      return errorResponse("Il DUVRI si prepara dalla pagina Sicurezza cantiere", 410, cors);
     }
 
-    // Skeleton sezioni AI (in produzione: LLM persona compliance)
-    const sezioni = {
-      identificazione_cantiere: { generated_by: "ai_skeleton" },
-      organizzazione_cantiere: { generated_by: "ai_skeleton" },
-      individuazione_rischi: { rischi: ["caduta_dall_alto", "investimento", "elettrico"] },
-      misure_prevenzione: { misure: ["ponteggi_a_norma", "DPI_obbligatori", "formazione_specifica"] },
-      dpi_required: ["casco", "scarpe_antinfortunistiche", "imbragatura_se_quota"],
-      formazioni_required: ["sicurezza_generale_4h", "sicurezza_specifica_12h"],
-      cronoprogramma: { fasi: [] },
-      riferimenti_normativi: ["D.Lgs 81/08", "Allegato XV"],
-    };
+    // Un POS della commessa ancora in bozza si riapre, non se ne crea un altro.
+    const { data: esistente } = await db.from("pos_documents").select("id, status")
+      .eq("company_id", companyId).eq("order_id", orderId).eq("document_type", "pos").is("superseded_by", null)
+      .order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (esistente && !body.force_regenerate) {
+      return jsonResponse({ ok: true, already_exists: true, pos_id: esistente.id, url: `/azienda/sicurezza-cantiere/pos/${esistente.id}` }, 200, cors);
+    }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (supabase as any)
-      .from("pos_documents")
-      .update({
-        identificazione_cantiere: sezioni.identificazione_cantiere,
-        organizzazione_cantiere: sezioni.organizzazione_cantiere,
-        individuazione_rischi: sezioni.individuazione_rischi,
-        misure_prevenzione: sezioni.misure_prevenzione,
-        dpi_required: sezioni.dpi_required,
-        formazioni_required: sezioni.formazioni_required,
-        cronoprogramma: sezioni.cronoprogramma,
-        riferimenti_normativi: sezioni.riferimenti_normativi,
-        ai_persona_used: "compliance",
-        ai_cost_billed_eur: docType === "pos" ? 0.08 : 0.05,
-      })
-      .eq("id", docId);
+    let preparato;
+    try {
+      preparato = await preparaPosDaApp(db, companyId, orderId);
+    } catch (e) {
+      return errorResponse(e instanceof Error ? e.message : "Commessa non trovata", 404, cors);
+    }
+    const oggi = new Date().toISOString().slice(0, 10);
+    const { data: doc, error } = await db.from("pos_documents").insert({
+      company_id: companyId,
+      order_id: orderId,
+      document_type: "pos",
+      status: "bozza",
+      version: 1,
+      revisione: 0,
+      revisioni: [{ rev: 0, data: oggi, descrizione: "Prima emissione" }],
+      contenuto: preparato.contenuto,
+      generated_by: "app",
+      created_by: userId,
+      valid_from: oggi,
+      ...colonneRiassunto(preparato.contenuto),
+    }).select("id").single();
+    if (error) return errorResponse(`POS non salvato: ${error.message}`, 500, cors);
 
-    return jsonOk({
+    return jsonResponse({
       ok: true,
-      document_id: docId,
-      document_type: docType,
-      sezioni_generate: 8,
-      next_step: "firma RSPP via action_proposal",
-      duration_ms: Date.now() - t0,
-    });
-  } catch (e) {
-    return jsonOk(
-      { ok: false, error: (e as Error).message, duration_ms: Date.now() - t0 },
-      500,
-    );
+      document_id: doc.id,
+      document_type: "pos",
+      url: `/azienda/sicurezza-cantiere/pos/${doc.id}`,
+      avvisi: preparato.contesto.avvisi,
+      next_step: "Apri il POS, completa le voci mancanti e fallo approvare al datore di lavoro",
+    }, 200, cors);
+  } catch (err) {
+    if (err instanceof Response) return err;
+    return errorResponse(`Errore interno: ${err instanceof Error ? err.message : String(err)}`, 500, cors);
   }
 });
-
-function jsonOk(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { "Content-Type": "application/json" },
-  });
-}

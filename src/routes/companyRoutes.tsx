@@ -371,6 +371,7 @@ const PurchaseOrderDetail = lazy(() => import("@/pages/azienda/PurchaseOrderDeta
 const SupplierRfqDetail = lazy(() => import("@/pages/azienda/SupplierRfqDetail"));
 const DDTRicezioneDetail = lazy(() => import("@/pages/azienda/DDTRicezioneDetail"));
 const SicurezzaCantiere = lazy(() => import("@/pages/azienda/SicurezzaCantiere"));
+const PosEditor = lazy(() => import("@/pages/azienda/sicurezza/PosEditor"));
 const GiornaleLavori = lazy(() => import("@/pages/azienda/GiornaleLavori"));
 const SubappaltatoriPage = lazy(() => import("@/pages/azienda/SubappaltatoriPage"));
 const SubappaltatoreDetail = lazy(() => import("@/pages/azienda/SubappaltatoreDetail"));
@@ -748,6 +749,7 @@ export default function CompanyRoutesContainer() {
         <Route path="ddt/:ddtId" element={withCompanyPermissionOrCommercialista("canViewOrders", <ErrorBoundary title="Errore nel dettaglio DDT"><DDTRicezioneDetail /></ErrorBoundary>)} />
         {/* Cantieri avanzati — gated: cantieri_avanzati (core, default su tutti i piani) */}
         <Route path="sicurezza-cantiere" element={withCompanyPermission("canViewSicurezzaCantiere", <FeatureRoute featureKey="cantieri_avanzati"><SicurezzaCantiere /></FeatureRoute>)} />
+        <Route path="sicurezza-cantiere/pos/:id" element={withCompanyPermission("canViewSicurezzaCantiere", <FeatureRoute featureKey="cantieri_avanzati"><ErrorBoundary title="Errore nel POS"><PosEditor /></ErrorBoundary></FeatureRoute>)} />
         <Route path="giornale-lavori" element={withCompanyPermission("canViewGiornaleLavori", <FeatureRoute featureKey="cantieri_avanzati"><GiornaleLavori /></FeatureRoute>)} />
         <Route path="subappaltatori" element={withCompanyPermission("canViewSubappaltatori", <FeatureRoute featureKey="cantieri_avanzati"><SubappaltatoriPage /></FeatureRoute>)} />
         <Route path="subappaltatori/:id" element={withCompanyPermission("canViewSubappaltatori", <FeatureRoute featureKey="cantieri_avanzati"><SubappaltatoreDetail /></FeatureRoute>)} />

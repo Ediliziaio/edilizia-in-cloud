@@ -16,6 +16,9 @@
 // configurazione (PATCH), e un nuovo clic su «Ri-verifica» la rimette a posto.
 //
 // Auth: JWT utente con accesso all'azienda (verifyCompanyAccess). company_id nel body.
+// Il controllo è qui dentro e basta: verify_jwt = false in config.toml, perché
+// il gateway rifiuta i token ES256 degli utenti prima del codice (fino al
+// 24/09/2026 il pulsante «Attiva Fatturazione Elettronica» rispondeva 401).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { verifyCompanyAccess } from "../_shared/companyAuth.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";

@@ -267,14 +267,15 @@ async function giroAzienda(acc: Accesso, cfg: Config, completo: boolean, budget:
   r.nuove = nuove.length;
 
   // Quelle che hanno già fallito tre volte restano nel registro per una persona.
-  let daFare = nuove;
-  if (nuove.length > 0) {
+  // A blocchi di cento: tremila id in un colpo solo non stanno in un indirizzo.
+  const conta = new Map<string, number>();
+  for (let i = 0; i < nuove.length; i += PER_PAGINA) {
     const { data: falliti } = await supabase.from("sdi_log").select("sdi_id")
-      .eq("company_id", cfg.company_id).eq("evento", "ricevuta_openapi_errore").in("sdi_id", nuove);
-    const conta = new Map<string, number>();
+      .eq("company_id", cfg.company_id).eq("evento", "ricevuta_openapi_errore")
+      .in("sdi_id", nuove.slice(i, i + PER_PAGINA));
     for (const f of (falliti ?? []) as Array<{ sdi_id: string }>) conta.set(f.sdi_id, (conta.get(f.sdi_id) ?? 0) + 1);
-    daFare = nuove.filter((id) => (conta.get(id) ?? 0) < TENTATIVI_MASSIMI);
   }
+  const daFare = nuove.filter((id) => (conta.get(id) ?? 0) < TENTATIVI_MASSIMI);
 
   for (const id of daFare) {
     if (budget.resto <= 0) {
@@ -290,9 +291,11 @@ async function giroAzienda(acc: Accesso, cfg: Config, completo: boolean, budget:
     }
     if (e.esito === "nuova") r.importate++;
     else if (e.esito === "doppione") r.doppioni++;
-    else if (e.esito === "errore") {
-      r.fallite++;
-      await registraErrore(cfg, id, e.motivo);
+    else {
+      // Anche una «saltata» si annota: resterebbe nuova per sempre, e ogni giro
+      // la richiederebbe a openapi. Dopo tre volte la si lascia stare.
+      if (e.esito === "errore") r.fallite++;
+      await registraErrore(cfg, id, e.esito === "saltata" ? `saltata: ${e.motivo}` : e.motivo);
       console.error(`[openapi-fatture-ricevute] ${cfg.company_id} ${id}: ${e.motivo}`);
     }
   }
