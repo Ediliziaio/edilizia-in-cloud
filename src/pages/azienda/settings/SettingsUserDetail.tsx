@@ -23,6 +23,7 @@ import { UserNotificationsTab } from "@/components/users/UserNotificationsTab";
 import { UserSessionsTab } from "@/components/users/UserSessionsTab";
 import { UserActivityLogTab } from "@/components/users/UserActivityLogTab";
 import { UserSecurityTab } from "@/components/users/UserSecurityTab";
+import { BloccoAccessoCard } from "@/components/users/BloccoAccessoCard";
 import { StaffPermissions } from "@/components/users/PermissionsDialog";
 import { salvaPermessiUtente } from "@/lib/permessi/salvaPermessiUtente";
 import { ruoloPrincipale, ruoliAggiuntivi, TESTI_RUOLO_AGGIUNTIVO, type RuoloAggiuntivo } from "@/lib/permessi/ruoliUtente";
@@ -563,6 +564,15 @@ export default function SettingsUserDetail() {
             />
           )}
           {activeTab === "permissions" && (
+            <div className="space-y-4">
+            {/* Chi toglie i permessi a chi se ne va cerca qui come chiuderle l'accesso. */}
+            <BloccoAccessoCard
+              userId={userId!}
+              isBlocked={userData.is_blocked}
+              blockedAt={userData.blocked_at}
+              blockReason={userData.block_reason}
+              puoBloccare={canManagePeople && userId !== currentUser?.id && userData.role !== "company_admin"}
+            />
             <UserRolesPermissionsTab
               key={`perms-${userData.id}-${userData.role}-${userData.additionalRoles.join(",")}`}
               user={{
@@ -586,6 +596,7 @@ export default function SettingsUserDetail() {
               }
               isCurrentUser={userId === currentUser?.id}
             />
+            </div>
           )}
           {activeTab === "sessions" && <UserSessionsTab userId={userId!} />}
           {activeTab === "activity" && <UserActivityLogTab userId={userId!} />}
