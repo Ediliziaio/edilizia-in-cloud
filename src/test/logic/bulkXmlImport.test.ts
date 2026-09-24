@@ -8,6 +8,9 @@ import {
   riepilogoEsiti,
   descriviRiepilogo,
 } from "@/lib/fatturazione/bulkXmlImport";
+import JSZip from "jszip";
+import { base64ToBytes, bytesToBase64 } from "../../../supabase/functions/_shared/base64";
+import { fileOriginale, xmlDaFile } from "../../../supabase/functions/_shared/ricevuteOpenapi";
 
 /** Tracciato minimo ma realistico: prefisso di namespace incluso, come lo emettono i portali. */
 const XML_VALIDO = `<?xml version="1.0" encoding="UTF-8"?>
@@ -18,8 +21,43 @@ const XML_VALIDO = `<?xml version="1.0" encoding="UTF-8"?>
 
 const XML_SENZA_PREFISSO = `<?xml version="1.0"?><FatturaElettronica versione="FPA12"><FatturaElettronicaBody/></FatturaElettronica>`;
 
-function file(nome: string, contenuto = XML_VALIDO): File {
-  return new File([contenuto], nome, { type: "text/xml" });
+function file(nome: string, contenuto: string | Uint8Array = XML_VALIDO): File {
+  return new File([contenuto as BlobPart], nome, { type: "text/xml" });
+}
+
+// ─── Una busta .p7m costruita a mano ─────────────────────────────────────
+// Stessa forma di quelle dello SDI (ContentInfo → SignedData → contenuto):
+// al lettore interessa il contenuto, la firma non si verifica.
+const unisci = (...parti: Uint8Array[]) => {
+  const out = new Uint8Array(parti.reduce((t, p) => t + p.length, 0));
+  let at = 0;
+  for (const p of parti) {
+    out.set(p, at);
+    at += p.length;
+  }
+  return out;
+};
+function der(tag: number, ...figli: Uint8Array[]): Uint8Array {
+  const c = unisci(...figli);
+  const n = c.length;
+  const lunghezza = n < 0x80 ? [n] : n < 0x100 ? [0x81, n] : [0x82, n >> 8, n & 0xff];
+  return unisci(new Uint8Array([tag, ...lunghezza]), c);
+}
+const OID_SIGNED = new Uint8Array([0x06, 0x09, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x07, 0x02]);
+const OID_DATA = new Uint8Array([0x06, 0x09, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x07, 0x01]);
+function bustaP7m(xml: string): Uint8Array {
+  return der(0x30, OID_SIGNED, der(0xa0, der(0x30,
+    der(0x02, new Uint8Array([1])),
+    der(0x31),
+    der(0x30, OID_DATA, der(0xa0, der(0x04, new TextEncoder().encode(xml)))),
+    der(0x31),
+  )));
+}
+
+async function zip(file: Record<string, string | Uint8Array>, nome = "export.zip"): Promise<File> {
+  const z = new JSZip();
+  for (const [n, c] of Object.entries(file)) z.file(n, c);
+  return new File([(await z.generateAsync({ type: "uint8array" })) as BlobPart], nome);
 }
 
 describe("classificaFileFattura", () => {
@@ -28,7 +66,7 @@ describe("classificaFileFattura", () => {
     expect(classificaFileFattura("export.zip")).toBe("zip");
   });
 
-  it("riconosce i firmati per poterli rifiutare con un messaggio utile", () => {
+  it("riconosce i firmati", () => {
     expect(classificaFileFattura("IT12345678901_00001.xml.p7m")).toBe("p7m");
   });
 
@@ -45,9 +83,10 @@ describe("classificaFileFattura", () => {
 });
 
 describe("motivoScarto", () => {
-  it("sul p7m dice cosa scaricare invece di limitarsi a dire di no", () => {
+  it("sul p7m illeggibile dice cosa provare invece di limitarsi a dire di no", () => {
     const m = motivoScarto("p7m", "x.xml.p7m");
-    expect(m).toMatch(/non firmata/i);
+    expect(m).toMatch(/firmato/i);
+    expect(m).toMatch(/versione XML/i);
   });
 
   it("sul formato ignoto nomina l'estensione trovata", () => {
@@ -77,12 +116,76 @@ describe("espandiXmlDaFiles", () => {
     expect(r.scartati).toHaveLength(0);
   });
 
-  it("scarta il p7m senza far fallire gli altri file del lotto", async () => {
+  it("apre il .p7m firmato e tiene il file originale da conservare", async () => {
+    const busta = bustaP7m(XML_VALIDO);
+    const r = await espandiXmlDaFiles([file("IT12345678901_00001.xml.p7m", busta)]);
+    expect(r.scartati).toHaveLength(0);
+    expect(r.xml).toHaveLength(1);
+    expect(r.xml[0].contenuto).toBe(XML_VALIDO);
+    expect(r.xml[0].firmato).toEqual(busta);
+  });
+
+  it("il .p7m scritto in base64 si conserva nei suoi byte veri", async () => {
+    const busta = bustaP7m(XML_VALIDO);
+    const r = await espandiXmlDaFiles([file("firmata.xml.p7m", bytesToBase64(busta))]);
+    expect(r.xml[0].contenuto).toBe(XML_VALIDO);
+    expect(r.xml[0].firmato).toEqual(busta);
+  });
+
+  it("un XML in chiaro non porta con se' nessun file firmato", async () => {
+    const r = await espandiXmlDaFiles([file("a.xml")]);
+    expect(r.xml[0].firmato).toBeUndefined();
+  });
+
+  it("scarta il p7m rotto senza far fallire gli altri file del lotto", async () => {
     const r = await espandiXmlDaFiles([file("buona.xml"), file("firmata.xml.p7m", "\x00\x01binario")]);
     expect(r.xml).toHaveLength(1);
     expect(r.xml[0].nome).toBe("buona.xml");
     expect(r.scartati).toHaveLength(1);
-    expect(r.scartati[0].motivo).toMatch(/non firmata/i);
+    expect(r.scartati[0].motivo).toMatch(/firmato/i);
+  });
+
+  it("ISO-8859-1 dichiarato: le lettere accentate arrivano intere", async () => {
+    const latino = XML_VALIDO.replace('encoding="UTF-8"', 'encoding="ISO-8859-1"').replace("<Numero>123</Numero>", "<Numero>123</Numero><Causale>Societa' e più</Causale>");
+    const r = await espandiXmlDaFiles([file("latina.xml", Uint8Array.from(latino, (c) => c.charCodeAt(0)))]);
+    expect(r.xml[0].contenuto).toContain("più");
+    expect(r.xml[0].contenuto).not.toContain("\uFFFD");
+  });
+
+  it("salta in silenzio i file di servizio dello SDI", async () => {
+    const metadati = `<?xml version="1.0"?><ns2:FileMetadati xmlns:ns2="http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture/messaggi/v1.0"><IdentificativoSdI>1</IdentificativoSdI></ns2:FileMetadati>`;
+    const r = await espandiXmlDaFiles([file("IT12345678901_00001_MT_001.xml", metadati), file("IT12345678901_00001.xml")]);
+    expect(r.xml.map((x) => x.nome)).toEqual(["IT12345678901_00001.xml"]);
+    expect(r.scartati).toHaveLength(0);
+  });
+
+  it("lo zip del portale: fatture firmate e in chiaro, metadati saltati", async () => {
+    const metadati = `<?xml version="1.0"?><FileMetadati><IdentificativoSdI>1</IdentificativoSdI></FileMetadati>`;
+    const r = await espandiXmlDaFiles([await zip({
+      "IT12345678901_00001.xml.p7m": bustaP7m(XML_VALIDO),
+      "IT12345678901_00001_MT_001.xml": metadati,
+      "IT98765432109_00002.xml": XML_VALIDO.replace("<Numero>123</Numero>", "<Numero>124</Numero>"),
+    })]);
+    expect(r.scartati).toHaveLength(0);
+    expect(r.xml.map((x) => [x.nome, !!x.firmato])).toEqual([
+      ["IT12345678901_00001.xml.p7m", true],
+      ["IT98765432109_00002.xml", false],
+    ]);
+  });
+
+  it("uno zip di sole notifiche lo dice, invece di non dire niente", async () => {
+    const r = await espandiXmlDaFiles([await zip({ "IT12345678901_00001_RC_001.xml": "<RicevutaConsegna/>" }, "notifiche.zip")]);
+    expect(r.xml).toHaveLength(0);
+    expect(r.scartati).toEqual([{ nome: "notifiche.zip", motivo: expect.stringMatching(/notifiche/) }]);
+  });
+
+  it("il file firmato arriva al server intero: base64 andata e ritorno", async () => {
+    const busta = bustaP7m(XML_VALIDO);
+    const r = await espandiXmlDaFiles([file("f.xml.p7m", busta)]);
+    // Quello che fa ricevi-sdi con originale_base64.
+    const arrivato = base64ToBytes(bytesToBase64(r.xml[0].firmato!));
+    expect(xmlDaFile(arrivato)).toBe(r.xml[0].contenuto);
+    expect(fileOriginale(arrivato)).toEqual(busta);
   });
 
   it("scarta un XML che non e' una fattura, dicendo perche'", async () => {
@@ -114,6 +217,16 @@ describe("eliminaDoppioniInterni", () => {
       { nome: "b.xml", contenuto: "<FatturaElettronica><Body/></FatturaElettronica>" },
     ]);
     expect(out).toHaveLength(1);
+  });
+
+  it("fra la stessa fattura in chiaro e firmata tiene la firmata", () => {
+    const firmato = new Uint8Array([0x30, 0x80]);
+    const out = eliminaDoppioniInterni([
+      { nome: "a.xml", contenuto: XML_VALIDO },
+      { nome: "a.xml.p7m", contenuto: XML_VALIDO, firmato },
+      { nome: "copia.xml", contenuto: XML_VALIDO },
+    ]);
+    expect(out).toEqual([{ nome: "a.xml.p7m", contenuto: XML_VALIDO, firmato }]);
   });
 
   it("tiene fatture diverse", () => {

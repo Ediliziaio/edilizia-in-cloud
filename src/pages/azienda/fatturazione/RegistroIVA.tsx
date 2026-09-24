@@ -56,14 +56,23 @@ function formatDataIT(dateStr: string): string {
 
 const num = (v: number) => (Number(v) || 0).toFixed(2).replace(".", ",");
 
+/** La consegna dello SDI è un istante: il giorno giusto è quello di Roma, non di Greenwich. */
+function formatRicevutaIT(istante: string | null | undefined): string {
+  if (!istante) return "";
+  const d = new Date(istante);
+  return Number.isNaN(d.getTime())
+    ? formatDataIT(istante)
+    : d.toLocaleDateString("it-IT", { timeZone: "Europe/Rome", day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
 function exportCSV(rows: any[], filename: string) {
-  const headers = ["Data", "Numero", "Controparte", "Imponibile", "IVA", "Totale", "Aliquota IVA", "Natura"];
+  const headers = ["Data", "Numero", "Controparte", "Imponibile", "IVA", "Totale", "Aliquota IVA", "Natura", "Ricevuta dallo SDI"];
   const lines = [
     headers.join(";"),
     ...rows.map((r) =>
       // Virgola decimale: col punto Excel in italiano legge 1234.56 come 123456
       [formatDataIT(r.data), r.numero, r.controparte, num(r.imponibile), num(r.iva),
-        num(r.totale), r.aliquota, r.natura || ""]
+        num(r.totale), r.aliquota, r.natura || "", formatRicevutaIT(r.ricevuta)]
         .map((v) => escapeCsvCell(v as string | number, ";")).join(";")
     ),
   ];
@@ -110,16 +119,20 @@ export default function RegistroIVA() {
     queryKey: ["registro-iva-acquisti", companyId, anno],
     enabled: !!companyId,
     queryFn: async () => {
-      // fatture_ricevute non ha ne' `anno` ne' `deleted_at`: l'anno si filtra
-      // sulla data documento, e l'unica esclusione e' lo stato 'rifiutata'.
+      // Gli acquisti stanno nel periodo in cui si DETRAE l'IVA (24/09/2026): il
+      // mese in cui la fattura è stata ricevuta dallo SDI, o quello della
+      // fattura se è arrivata entro il 15 del mese dopo nello stesso anno (art.
+      // 1 DPR 100/1998). La regola sta nel database (data_detrazione_iva), la
+      // stessa della liquidazione; senza data di ricezione vale la data della
+      // fattura, come prima. Esclusione: lo stato 'rifiutata'.
       const { data, error } = await supabase
-        .from("fatture_ricevute" as never)
-        .select("id, numero_fattura, data_fattura, tipo_documento, cedente_ragione_sociale, imponibile_totale, iva_totale, totale_documento, riepilogo_iva")
+        .from("fatture_ricevute_periodo_iva" as never)
+        .select("id, numero_fattura, data_fattura, data_ricezione_sdi, data_detrazione, tipo_documento, cedente_ragione_sociale, imponibile_totale, iva_totale, totale_documento, riepilogo_iva")
         .eq("company_id", companyId!)
-        .gte("data_fattura", `${anno}-01-01`)
-        .lte("data_fattura", `${anno}-12-31`)
+        .gte("data_detrazione", `${anno}-01-01`)
+        .lte("data_detrazione", `${anno}-12-31`)
         .in("stato", ["non_letta", "letta", "contabilizzata"])
-        .order("data_fattura", { ascending: true });
+        .order("data_detrazione", { ascending: true });
       if (error) throw error;
       return data as any[];
     },
@@ -181,7 +194,8 @@ export default function RegistroIVA() {
   const righeAcquisti = useMemo(() => {
     const rows: any[] = [];
     for (const doc of documentiAcquisti) {
-      if (!inPeriod(doc.data_fattura)) continue;
+      if (!inPeriod(doc.data_detrazione ?? doc.data_fattura)) continue;
+      const ricevuta = doc.data_ricezione_sdi ? String(doc.data_ricezione_sdi) : null;
       const nc = isNotaCreditoAcquisto(doc.tipo_documento);
       const riepilogo = doc.riepilogo_iva || [];
       if (riepilogo.length > 0) {
@@ -190,6 +204,7 @@ export default function RegistroIVA() {
           const iva = conSegno(parseFloat(r.imposta) || 0, nc);
           rows.push({
             data: doc.data_fattura,
+            ricevuta,
             numero: doc.numero_fattura,
             controparte: doc.cedente_ragione_sociale || "—",
             imponibile,
@@ -203,6 +218,7 @@ export default function RegistroIVA() {
       } else {
         rows.push({
           data: doc.data_fattura,
+          ricevuta,
           numero: doc.numero_fattura,
           controparte: doc.cedente_ragione_sociale || "—",
           imponibile: conSegno(doc.imponibile_totale || 0, nc),
@@ -427,6 +443,7 @@ export default function RegistroIVA() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Data</TableHead>
+                    <TableHead title="Quando lo SDI l'ha consegnata: decide il periodo di detrazione. Vuota = non nota, vale la data della fattura.">Ricevuta</TableHead>
                     <TableHead>Numero</TableHead>
                     <TableHead>Fornitore</TableHead>
                     <TableHead className="text-right">Imponibile</TableHead>
@@ -439,7 +456,7 @@ export default function RegistroIVA() {
                 <TableBody>
                   {righeAcquisti.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                         Nessuna fattura ricevuta nel periodo selezionato
                       </TableCell>
                     </TableRow>
@@ -448,6 +465,7 @@ export default function RegistroIVA() {
                       {righeAcquisti.map((r, i) => (
                         <TableRow key={i}>
                           <TableCell className="text-xs">{formatDataIT(r.data)}</TableCell>
+                          <TableCell className="text-xs text-muted-foreground">{formatRicevutaIT(r.ricevuta) || "—"}</TableCell>
                           <TableCell className="font-mono text-xs">
                             {r.numero}
                             {r.notaCredito && <Badge variant="outline" className="ml-1.5 text-[9px] px-1 py-0 align-middle">NC</Badge>}
@@ -461,7 +479,7 @@ export default function RegistroIVA() {
                         </TableRow>
                       ))}
                       <TableRow className="bg-muted/30 font-medium">
-                        <TableCell colSpan={3} className="text-xs font-bold">TOTALE</TableCell>
+                        <TableCell colSpan={4} className="text-xs font-bold">TOTALE</TableCell>
                         <TableCell className="text-right tabular-nums text-xs font-bold">{formatCurrency(totaleAcquisti.imponibile)}</TableCell>
                         <TableCell className="text-right tabular-nums text-xs font-bold text-orange-600 dark:text-orange-400">{formatCurrency(totaleAcquisti.iva)}</TableCell>
                         <TableCell className="text-right tabular-nums text-xs font-bold">{formatCurrency(totaleAcquisti.imponibile + totaleAcquisti.iva)}</TableCell>

@@ -3,6 +3,7 @@ import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryKeys";
+import { statoConservazione } from "@/lib/fatturazione/conservazioneAde";
 import { useAuth } from "@/contexts/AuthContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -722,7 +723,7 @@ export default function ImpostazioniFatturazione() {
                       <Info className="h-4 w-4 text-sky-600 mt-0.5 shrink-0" />
                       <div className="text-sm">
                         <p className="font-medium text-foreground">Pronta: le fatture partono allo SDI</p>
-                        <p className="text-muted-foreground text-xs mt-0.5">Non serve nessuna delega per inviare. Le fatture dei fornitori continuano ad arrivare al codice destinatario che hai registrato all'Agenzia delle Entrate, finché non decidi di riceverle qui (vedi «Fatture dei fornitori»). Ricordati la conservazione a norma delle fatture inviate (per esempio il servizio gratuito dell'Agenzia delle Entrate).</p>
+                        <p className="text-muted-foreground text-xs mt-0.5">Non serve nessuna delega per inviare. Le fatture dei fornitori continuano ad arrivare al codice destinatario che hai registrato all'Agenzia delle Entrate, finché non decidi di riceverle qui (vedi «Fatture dei fornitori»). Per conservarle a norma vedi «Conservazione a norma» qui sotto.</p>
                       </div>
                     </div>
                   )}
@@ -791,6 +792,77 @@ export default function ImpostazioniFatturazione() {
               </CardContent>
             </Card>
           )}
+
+          {/* ─── CONSERVAZIONE A NORMA (24/09/2026) ───
+              Openapi non conserva (legal_storage «non ancora disponibile»):
+              la strada è il servizio gratuito dell'Agenzia delle Entrate, che
+              però scade dopo tre anni. La data serve a dire quando rinnovare. */}
+          {(() => {
+            const oggi = new Date().toLocaleDateString("en-CA");
+            const c = statoConservazione(current.conservazione_ade_aderito_il, oggi);
+            const data = (iso: string) => new Date(`${iso}T12:00:00`).toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric" });
+            return (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Conservazione a norma</CardTitle>
+                  <CardDescription>
+                    Le fatture elettroniche, inviate e ricevute, vanno conservate in digitale con un servizio a norma: tenerle in una cartella o stamparle non basta.
+                    {current.sdi_provider === "openapi" && " Openapi, che le invia allo SDI, per ora non le conserva."}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-900 rounded-lg p-3 flex items-start gap-2">
+                    <Info className="h-4 w-4 text-sky-600 mt-0.5 shrink-0" />
+                    <div className="text-sm space-y-1">
+                      <p className="font-medium text-foreground">Il servizio gratuito dell'Agenzia delle Entrate</p>
+                      <p className="text-muted-foreground text-xs">
+                        Conserva per 15 anni tutte le fatture passate dallo SDI, inviate e ricevute, comprese quelle dal 1° gennaio del
+                        secondo anno prima dell'adesione. Nel portale Fatture e Corrispettivi: <b>Fatturazione elettronica e Conservazione →
+                        Accedi alla sezione conservazione</b>, poi accetta l'accordo di servizio. Può farlo il titolare o il commercialista
+                        con la delega. L'adesione dura 3 anni e va rinnovata.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:items-end">
+                    <div className="space-y-2">
+                      <Label htmlFor="conservazione-aderito-il">Data di adesione</Label>
+                      <Input
+                        id="conservazione-aderito-il"
+                        type="date"
+                        max={oggi}
+                        value={current.conservazione_ade_aderito_il ?? ""}
+                        onChange={(e) => updateField("conservazione_ade_aderito_il", e.target.value || null)}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground sm:pb-2.5">
+                      {c.stato === "da_segnare"
+                        ? "Quando hai aderito, segna qui la data: questa pagina ti dirà quando rinnovare."
+                        : c.stato === "attiva"
+                          ? `Adesione valida fino al ${data(c.scade)}.`
+                          : null}
+                    </p>
+                  </div>
+
+                  {c.stato === "in_scadenza" && (
+                    <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded-lg p-3 flex items-start gap-2 text-sm text-amber-800 dark:text-amber-300">
+                      <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                      <span>
+                        L'adesione scade il {data(c.scade)}{c.giorni === 0 ? ", oggi" : c.giorni === 1 ? ", domani" : `, tra ${c.giorni} giorni`}:
+                        rinnovala dallo stesso portale, poi aggiorna qui la data.
+                      </span>
+                    </div>
+                  )}
+                  {c.stato === "scaduta" && (
+                    <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 rounded-lg p-3 flex items-start gap-2 text-sm text-red-700 dark:text-red-300">
+                      <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                      <span>L'adesione è scaduta il {data(c.scade)}: le fatture non vengono più conservate. Rinnovala dal portale, poi aggiorna qui la data.</span>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })()}
 
           <Card>
             <CardHeader>
@@ -1182,6 +1254,19 @@ export default function ImpostazioniFatturazione() {
                 </div>
                 <Switch checked={current.iva_per_cassa ?? false} onCheckedChange={(v) => updateField("iva_per_cassa", v)} />
               </div>
+              {/* Le fatture escono giuste (esigibilità D e dicitura), ma registro e
+                  liquidazione non seguono incassi e pagamenti: meglio dirlo qui
+                  che far versare l'IVA nel mese sbagliato (24/09/2026). */}
+              {current.iva_per_cassa && (
+                <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded-lg p-3 flex items-start gap-2 text-xs text-amber-800 dark:text-amber-300">
+                  <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                  <span>
+                    Le fatture escono con l'esigibilità differita e la dicitura di legge. Il Registro IVA e la liquidazione di questa app
+                    però contano l'IVA delle vendite alla data della fattura e quella degli acquisti alla ricezione, non all'incasso e al
+                    pagamento: i versamenti falli calcolare al commercialista. Il regime è ammesso con un volume d'affari fino a 2 milioni di euro.
+                  </span>
+                </div>
+              )}
               <Separator />
               <div className="flex items-center justify-between">
                 <div>

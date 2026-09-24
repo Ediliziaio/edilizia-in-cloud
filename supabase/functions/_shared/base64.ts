@@ -41,3 +41,13 @@ export function base64ToUtf8(input: string): string {
   }
   return new TextDecoder().decode(bytes);
 }
+
+/** Da base64 ai byte: per i file binari (un .p7m firmato), non per il testo. */
+export function base64ToBytes(input: string): Uint8Array {
+  const binary = atob(input.replace(/\s+/g, ""));
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
