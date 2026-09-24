@@ -234,13 +234,14 @@ async function giroAzienda(acc: Accesso, cfg: Config, completo: boolean, budget:
     try {
       const risposta = await chiedi(url, { headers: conToken(acc) });
       if (!risposta.ok) {
-        r.errore = `elenco delle fatture: openapi ha risposto ${risposta.status}`;
+        r.errore = `Openapi non ha dato l'elenco delle fatture (risposta ${risposta.status}): si riprova al prossimo controllo.`;
         await risposta.body?.cancel();
         break;
       }
       pagina = await risposta.json();
     } catch (e) {
-      r.errore = `elenco delle fatture: ${String(e)}`;
+      console.error(`[openapi-fatture-ricevute] elenco ${cfg.company_id}: ${String(e)}`);
+      r.errore = "Openapi non ha risposto: si riprova al prossimo controllo.";
       break;
     }
     r.pagine++;
@@ -252,7 +253,7 @@ async function giroAzienda(acc: Accesso, cfg: Config, completo: boolean, budget:
       const { data: note, error } = await supabase.from("fatture_ricevute")
         .select("openapi_id").eq("company_id", cfg.company_id).in("openapi_id", ids);
       if (error) {
-        r.errore = error.message;
+        r.errore = `Errore interno nel confronto con le fatture già registrate: ${error.message}`;
         break;
       }
       const noti = new Set(((note ?? []) as Array<{ openapi_id: string }>).map((n) => n.openapi_id));
@@ -299,8 +300,13 @@ async function giroAzienda(acc: Accesso, cfg: Config, completo: boolean, budget:
   const adesso = new Date().toISOString();
   const patch: Record<string, unknown> = {
     ricevute_controllate_at: adesso,
+    // Il dettaglio per fattura è in sdi_log (ricevuta_openapi_errore); qui la
+    // frase per chi guarda Impostazioni → Fatturazione.
     ricevute_ultimo_errore: r.errore ??
-      (r.fallite > 0 ? `${r.fallite} fatture non importate: il motivo è nel registro SDI` : null),
+      (r.fallite > 0
+        ? `${r.fallite === 1 ? "1 fattura non è stata importata" : `${r.fallite} fatture non sono state importate`}: ` +
+          "si riprova al prossimo controllo, fino a tre volte. Se l'avviso resta, avvisa l'assistenza."
+        : null),
   };
   // Il giro completo vale solo se è arrivato in fondo e non ha lasciato indietro niente.
   if (completo && finito && !r.errore && r.rimandate === 0) patch.ricevute_giro_completo_at = adesso;

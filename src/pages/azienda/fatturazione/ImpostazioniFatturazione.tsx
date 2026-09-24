@@ -143,6 +143,7 @@ export default function ImpostazioniFatturazione() {
       return count ?? 0;
     },
   });
+  const quante = (n: number, uno: string, piu: string) => `${n} ${n === 1 ? uno : piu}`;
   const controllaRicevuteMutation = useMutation({
     mutationFn: async () => {
       const { data, error } = await supabase.functions.invoke("openapi-fatture-ricevute", { body: { company_id: companyId } });
@@ -153,8 +154,8 @@ export default function ImpostazioniFatturazione() {
     onSuccess: (data) => {
       if (data?.motivo === "token_mancante") toast.error("Il collegamento con openapi non è configurato: avvisa l'assistenza.");
       else if (data?.appena_controllato) toast.info("Controllato meno di un minuto fa: riprova tra poco.");
-      else if (data?.fallite) toast.warning(`${data.importate ?? 0} fatture nuove, ${data.fallite} non importate: il motivo è qui sotto.`);
-      else if (data?.importate) toast.success(data.importate === 1 ? "1 fattura nuova in Fatture ricevute" : `${data.importate} fatture nuove in Fatture ricevute`);
+      else if (data?.fallite) toast.warning(`${quante(data.importate ?? 0, "fattura nuova", "fatture nuove")}, ${quante(data.fallite, "non importata", "non importate")}: il dettaglio è qui sotto.`);
+      else if (data?.importate) toast.success(`${quante(data.importate, "fattura nuova", "fatture nuove")} in Fatture ricevute`);
       else toast.success("Nessuna fattura nuova dai fornitori");
       queryClient.invalidateQueries({ queryKey: ["sdi-cedente-config", companyId] });
       queryClient.invalidateQueries({ queryKey: ["fatture-ricevute-openapi", companyId] });
