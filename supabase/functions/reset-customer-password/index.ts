@@ -5,6 +5,7 @@ import { getCorsHeaders, secureHeaders, jsonResponse } from "../_shared/headers.
 import { conMetriche } from "../_shared/withMetrics.ts";
 import { getBrandingForCompany } from "../_shared/getBranding.ts";
 import { emailCredenziali } from "../_shared/emailCredenziali.ts";
+import { clienteSenzaAccesso, MESSAGGIO_CLIENTE_SENZA_ACCESSO } from "../_shared/clienteSenzaAccesso.ts";
 
 // Esegue un task in background DOPO la risposta: un invio email lento/bloccato non
 // deve far terminare la funzione per wall-clock prima del return (causa di
@@ -85,6 +86,12 @@ Deno.serve(conMetriche("reset-customer-password", async (req) => {
     if (targetRoleNames.includes("super_admin")) throw new Error("Cannot reset super admin password");
     if (callerRole.role === "company_admin" && targetRoleNames.includes("company_admin") && targetUserId !== caller.id) {
       throw new Error("Permission denied: Cannot reset another admin's password");
+    }
+
+    // Col portale clienti spento il cliente non ha un accesso: nessuna password
+    // nuova e nessuna email con le credenziali (24/09/2026).
+    if (await clienteSenzaAccesso(supabaseAdmin, targetUserId)) {
+      throw new Error(MESSAGGIO_CLIENTE_SENZA_ACCESSO);
     }
 
     // Use secure password generator instead of Math.random()

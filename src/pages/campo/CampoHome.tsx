@@ -28,6 +28,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PushConsentBanner } from "@/components/hr/PushConsentBanner";
+import { MioMezzoCampoCard } from "@/components/mezzi/MioMezzoCampoCard";
 import { isNative } from "@/lib/mobile";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -160,6 +161,7 @@ export default function CampoHome() {
           {/* 🆕 GAP 5b: prompt rapportini di OGGI non ancora compilati (priorità alta) */}
           {isOperaio && <RapportiniDaCompilareOggi />}
           {isOperaio && <CantieriAssegnati />}
+          {isOperaio && <MioMezzoCampoCard />}
           {isSubappaltatore && <CantieriSub />}
           {isOperaio && <RapportiniSospesi />}
         </div>

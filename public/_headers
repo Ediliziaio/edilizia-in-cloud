@@ -36,9 +36,11 @@
 # Cloudflare può fare Server Push via Link header al primo byte HTML,
 # permettendo al browser di iniziare il download asset critici PRIMA che
 # arrivi il body HTML. Riduce critical render path di ~50-100ms.
+# NB: la home la serve il middleware (functions/_middleware.js), e alle risposte
+# delle Functions queste intestazioni non si applicano: oggi il preload vero è il
+# <link> in index.html. Qui resta allineato allo stesso file (Inter variabile).
 /
-  Link: </fonts/inter-latin-400-normal.woff2>; rel=preload; as=font; type=font/woff2; crossorigin
-  Link: </fonts/inter-latin-700-normal.woff2>; rel=preload; as=font; type=font/woff2; crossorigin
+  Link: </fonts/inter-latin-wght-normal.woff2>; rel=preload; as=font; type=font/woff2; crossorigin
 # Preload hero RIMOSSO (perf 11/06): l'<img> sta nell'HTML prerenderato con
 # fetchpriority=high (discovery immediata) e il nuovo <picture> limita i
 # telefoni alla 768w — il Link header con imagesizes=100vw avrebbe

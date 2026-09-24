@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { getBrandingForCompany } from "../_shared/getBranding.ts";
+import { clienteSenzaAccesso } from "../_shared/clienteSenzaAccesso.ts";
 
 import { serveConMetriche } from "../_shared/withMetrics.ts";
 /**
@@ -71,6 +72,12 @@ serveConMetriche("reset-password-branded", async (req) => {
     if (linkError || !linkData?.properties?.action_link) {
       console.error("generateLink error:", linkError);
       // Return success anyway to avoid email enumeration
+      return jsonResponse({ success: true });
+    }
+
+    // Un cliente senza accesso al portale non riceve il link: non potrebbe
+    // entrare comunque. Si risponde «fatto», come per un indirizzo sconosciuto.
+    if (await clienteSenzaAccesso(supabaseAdmin, linkData.user?.id)) {
       return jsonResponse({ success: true });
     }
 

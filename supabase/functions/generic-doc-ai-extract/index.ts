@@ -15,6 +15,7 @@
  * Output:
  *   { success, doc_type, extracted: {...}, summary: "...", ai_meta: {...} }
  */
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
@@ -55,6 +56,33 @@ const SCHEMA_BY_TYPE: Record<string, string> = {
   "frazionamento": "annuale|semestrale|trimestrale|null",
   "rischi_coperti": ["lista"],
   "esclusioni_principali": ["lista"]
+}`,
+  // Mezzi e attrezzature (24/09/2026): i documenti del furgone, per compilare
+  // da soli scadenze e dati del mezzo.
+  polizza_veicolo: `{
+  "compagnia": "string",
+  "numero_polizza": "string",
+  "targa": "string senza spazi o null",
+  "veicolo": "marca e modello del veicolo assicurato o null",
+  "decorrenza": "YYYY-MM-DD",
+  "scadenza": "YYYY-MM-DD: fine della copertura (NON la data di emissione, NON la scadenza di una rata)",
+  "premio_annuo_eur": "numero: il premio TOTALE annuo lordo, o null",
+  "frazionamento": "annuale|semestrale|trimestrale|null",
+  "coperture": ["RCA, furto, incendio, kasko, cristalli, ... lista"],
+  "contraente": "string o null"
+}`,
+  libretto_circolazione: `{
+  "targa": "string senza spazi (campo A)",
+  "data_prima_immatricolazione": "YYYY-MM-DD (campo B) o null",
+  "marca": "string (campo D.1) o null",
+  "modello": "string: tipo e denominazione commerciale (campi D.2/D.3) o null",
+  "telaio": "numero di identificazione del veicolo (campo E) o null",
+  "intestatario": "string (campo C.2 / C.3) o null",
+  "alimentazione": "benzina|diesel|metano|gpl|elettrico|ibrido|null (campo P.3)",
+  "massa_complessiva_kg": "numero (campo F.2) o null",
+  "categoria": "N1|N2|N3|M1|... (campo J) o null",
+  "ultima_revisione": "YYYY-MM-DD: data dell'ultima revisione timbrata, o null",
+  "prossima_revisione": "YYYY-MM-DD se indicata, o null"
 }`,
   documento_pa: `{
   "tipo_documento": "SCIA|CILA|PdC|DURC|certificato urbanistico|autorizzazione paesaggistica|abitabilita|altro",
@@ -200,10 +228,27 @@ Deno.serve(async (req) => {
     const schema = SCHEMA_BY_TYPE[doc_type] ?? SCHEMA_BY_TYPE.documento_generico;
     const systemPrompt = PROMPT_TEMPLATE(doc_type, schema);
 
-    const { data: file, error: dlErr } = await supabaseAdmin.storage
+    // Fino al 24/09/2026 il file si scaricava sempre con la chiave di servizio,
+    // controllando solo che l'utente fosse dell'azienda indicata: bastava
+    // passare il percorso di un file di un'altra azienda per farselo leggere.
+    // Un file nella cartella dell'azienda ({company_id}/...) si scarica come
+    // prima; qualunque altro percorso con i permessi di chi chiama, così chi
+    // non potrebbe aprirlo non lo apre nemmeno passando da qui.
+    const nellaCartellaDellAzienda = storage_path.startsWith(`${company_id}/`) && !storage_path.includes("..");
+    const scaricatore = nellaCartellaDellAzienda
+      ? supabaseAdmin
+      : createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, {
+          global: { headers: { Authorization: req.headers.get("Authorization") ?? "" } },
+          auth: { persistSession: false },
+        });
+    const { data: file, error: dlErr } = await scaricatore.storage
       .from(storage_bucket)
       .download(storage_path);
-    if (dlErr || !file) return errorResponse(`Download fallito: ${dlErr?.message ?? "?"}`, 500, cors);
+    if (dlErr || !file) {
+      return nellaCartellaDellAzienda
+        ? errorResponse(`Download fallito: ${dlErr?.message ?? "?"}`, 500, cors)
+        : errorResponse("File non accessibile", 403, cors);
+    }
 
     const buffer = await (file as Blob).arrayBuffer();
     if (buffer.byteLength > 18 * 1024 * 1024) {
