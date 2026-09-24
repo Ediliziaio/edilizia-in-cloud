@@ -19,7 +19,6 @@ import {
   Clock,
   Download,
   Edit3,
-  ExternalLink,
   Eye,
   Film,
   Hash,
@@ -33,9 +32,9 @@ import {
   Pencil,
   Play,
   Plus,
+  RefreshCw,
   Send,
   Settings,
-  Share2,
   Smartphone,
   Sparkles,
   TrendingUp,
@@ -55,15 +54,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { DEMO_COMPANY_ID, isDemoCompanyId } from "@/lib/constants/demoCompany";
+import { isDemoCompanyId } from "@/lib/constants/demoCompany";
 import { cn } from "@/lib/utils";
 import { useAdsAi } from "@/hooks/useAdsAi";
-import { useAuthCompany } from "@/contexts/AuthContext";
+import { useAuthCompany, useAuthUser } from "@/contexts/AuthContext";
 import { AdMediaUploader } from "@/components/ads/AdMediaUploader";
 import { SocialMediaUploader } from "@/components/social/SocialMediaUploader";
 import { StatistichePagineSocial } from "@/components/social/StatistichePagineSocial";
 import { useSocialManagerData } from "@/hooks/useSocialManagerData";
+import { useStatoPubblicazioneSocial } from "@/hooks/useStatoPubblicazioneSocial";
 import {
   describePublishResult,
   metaAccountsFor,
@@ -75,8 +74,15 @@ import {
 } from "@/lib/social/publishing";
 import { ensureRemoteSocialMedia } from "@/lib/social/mediaUpload";
 import { getSocialMediaPreviewUrl } from "@/lib/social/storage";
+import {
+  motivoComune,
+  motivoPiattaforma,
+  paginePronte,
+  piattaformePronte,
+  spiegaMotivo,
+  type StatoPubblicazioneSocial,
+} from "@/lib/social/statoPubblicazione";
 import type {
-  SocialConnectedAccount,
   SocialMediaItem,
   SocialPostMedia,
   SocialPublishResultEntry,
@@ -248,19 +254,19 @@ const CONTENT_TYPE_CONFIG: ContentTypeConfig[] = [
     supportedBy: ["facebook", "instagram", "linkedin"],
     desc: "Post nel feed",
     hashtagsAllowed: true,
-    tips: "Il formato feed 4:5 è il più performante su Instagram — occupa più spazio e ha CTR maggiore.",
+    tips: "Il formato verticale 4:5 occupa più spazio nel feed di Instagram e si nota di più.",
   },
   {
     id: "story",
-    label: "Story",
+    label: "Storia",
     icon: Smartphone,
     aspectRatio: "9:16",
     previewH: 160,
     previewW: 90,
     supportedBy: ["facebook", "instagram"],
-    desc: "Scompare dopo 24h",
+    desc: "Resta 24 ore",
     hashtagsAllowed: false,
-    tips: "Le Stories hanno il 15-25% di engagement in più. Usa CTA diretti (\"Swipe up\", \"Rispondimi\"). Max 15 sec per slide.",
+    tips: "Le storie restano 24 ore: testo breve e un invito chiaro, come «Scrivici per un sopralluogo».",
   },
   {
     id: "reel",
@@ -270,10 +276,10 @@ const CONTENT_TYPE_CONFIG: ContentTypeConfig[] = [
     previewH: 160,
     previewW: 90,
     supportedBy: ["facebook", "instagram"],
-    desc: "Video breve · max 90s",
+    desc: "Video breve, fino a 90 secondi",
     hashtagsAllowed: true,
     maxDuration: "90s",
-    tips: "I Reel hanno reach organico 3x rispetto ai post foto. Inizia con hook nei primi 3 secondi.",
+    tips: "I Reel arrivano a più persone delle foto: mostra il risultato nei primi 3 secondi.",
   },
   {
     id: "carosello",
@@ -283,9 +289,9 @@ const CONTENT_TYPE_CONFIG: ContentTypeConfig[] = [
     previewH: 100,
     previewW: 100,
     supportedBy: ["facebook", "instagram", "linkedin"],
-    desc: "Fino a 10 slide · swipe",
+    desc: "Da 2 a 10 foto",
     hashtagsAllowed: true,
-    tips: "I caroselli generano il doppio dei salvataggi rispetto ai post singoli. Usa la prima slide come 'copertina hook'.",
+    tips: "Da 2 a 10 foto da sfogliare: perfetto per il prima e dopo. La prima deve incuriosire.",
   },
   {
     id: "video",
@@ -295,9 +301,9 @@ const CONTENT_TYPE_CONFIG: ContentTypeConfig[] = [
     previewH: 90,
     previewW: 160,
     supportedBy: ["facebook", "instagram", "linkedin", "youtube", "tiktok"],
-    desc: "Video lungo · tutti i canali",
+    desc: "Video orizzontale",
     hashtagsAllowed: true,
-    tips: "Per YouTube: titolo con keyword nei primi 40 caratteri. Per LinkedIn: i video nativi hanno 5x il reach rispetto ai link.",
+    tips: "Per YouTube metti all'inizio del titolo le parole che la gente cerca. Su LinkedIn un video caricato va meglio di un link.",
   },
 ];
 
@@ -327,7 +333,7 @@ const CONTENT_PILLARS: ContentPillar[] = [
     colorText: "text-sky-700",
     colorBorder: "border-sky-300",
     colorBg: "bg-sky-50",
-    description: "Lavori in corso, progress, before/after",
+    description: "Lavori in corso, avanzamento, prima e dopo",
     hashtags: ["#cantiere", "#lavoriincorso", "#costruzioni", "#impresaedile", "#realizzazioni"],
     promptHint: "Mostra i lavori in corso nel cantiere, racconta il progresso, prima e dopo i lavori.",
     suggestedContentType: "post",
@@ -335,14 +341,14 @@ const CONTENT_PILLARS: ContentPillar[] = [
   },
   {
     id: "team",
-    label: "Team",
+    label: "Squadra",
     emoji: "👷",
     color: "bg-amber-500",
     colorText: "text-amber-700",
     colorBorder: "border-amber-300",
     colorBg: "bg-amber-50",
-    description: "Il tuo team, storia, dietro le quinte",
-    hashtags: ["#teamwork", "#artigiani", "#impresaedile", "#squadra", "#lavorecedilepassione"],
+    description: "La tua squadra, la vostra storia, il dietro le quinte",
+    hashtags: ["#teamwork", "#artigiani", "#impresaedile", "#squadra", "#passioneedile"],
     promptHint: "Presenta il team di lavoro, racconta la storia e la passione dei tuoi collaboratori.",
     suggestedContentType: "reel",
     weeklyFreq: 1,
@@ -363,7 +369,7 @@ const CONTENT_PILLARS: ContentPillar[] = [
   },
   {
     id: "educational",
-    label: "Educational",
+    label: "Consigli",
     emoji: "📚",
     color: "bg-orange-500",
     colorText: "text-orange-700",
@@ -372,12 +378,12 @@ const CONTENT_PILLARS: ContentPillar[] = [
     description: "Consigli pratici, normative, FAQ",
     hashtags: ["#consigliutili", "#edilizia", "#sapevi", "#normative", "#guidapratica"],
     promptHint: "Condividi un consiglio pratico, spiega una normativa edilizia o rispondi a una domanda frequente dei clienti.",
-    suggestedContentType: "carousel",
+    suggestedContentType: "carosello",
     weeklyFreq: 2,
   },
   {
     id: "promo",
-    label: "Promo",
+    label: "Offerte",
     emoji: "🎯",
     color: "bg-red-500",
     colorText: "text-red-700",
@@ -391,23 +397,22 @@ const CONTENT_PILLARS: ContentPillar[] = [
   },
   {
     id: "portfolio",
-    label: "Portfolio",
+    label: "Lavori finiti",
     emoji: "✨",
     color: "bg-violet-500",
     colorText: "text-violet-700",
     colorBorder: "border-violet-300",
     colorBg: "bg-violet-50",
-    description: "Progetti completati, before & after",
+    description: "Lavori completati, prima e dopo",
     hashtags: ["#portfolio", "#progettorealizzato", "#ristrutturazione", "#risultati", "#primadopo"],
     promptHint: "Mostra un progetto completato con le foto del risultato finale, descrivi il lavoro svolto e il valore creato.",
-    suggestedContentType: "carousel",
+    suggestedContentType: "carosello",
     weeklyFreq: 2,
   },
 ];
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
-type ConnectedAccount = SocialConnectedAccount;
 type ScheduledPost = SocialScheduledPost;
 type MediaItem = SocialMediaItem;
 
@@ -487,141 +492,141 @@ function Field({ label, children, note }: { label: string; children: React.React
   );
 }
 
-function PlatformLogo({ platform, size = "sm" }: { platform: SocialPlatform; size?: "xs" | "sm" | "md" | "lg" }) {
-  const sizes = { xs: "h-5 w-5 text-[9px]", sm: "h-7 w-7 text-[11px]", md: "h-9 w-9 text-sm", lg: "h-12 w-12 text-base" };
-  return (
-    <div className={cn("flex shrink-0 items-center justify-center rounded-xl font-bold text-white shadow-sm", platform.color, sizes[size])}>
-      {platform.icon}
-    </div>
-  );
-}
+// ─── Stato delle pagine ────────────────────────────────────────────────────────
+// «Collegata» vuol dire «può pubblicare adesso»: lo dice il database
+// (stato_pubblicazione_social), pagina per pagina, con il motivo se no.
+// Prima bastava una riga in social_accounts: anche con l'accesso scaduto o
+// senza il permesso di Meta la pagina risultava «collegata».
 
-// ─── Platform Status Ribbon ────────────────────────────────────────────────────
-
-function PlatformStatusRibbon({ connectedAccounts, onGoToSettings }: {
-  connectedAccounts: ConnectedAccount[];
+function PlatformStatusRibbon({
+  stato,
+  isLoading,
+  error,
+  onRiprova,
+  staVerificando,
+  verificaNonRiuscita,
+  onGoToSettings,
+}: {
+  stato: StatoPubblicazioneSocial | null;
+  isLoading: boolean;
+  error: Error | null;
+  onRiprova: () => void;
+  staVerificando: boolean;
+  verificaNonRiuscita: boolean;
   onGoToSettings: () => void;
 }) {
-  const connectedIds = new Set(connectedAccounts.map((a) => a.platform_id));
-  const connectedCount = connectedIds.size;
+  if (isLoading) {
+    return <div className="h-11 animate-pulse rounded-2xl border border-slate-100 bg-white" aria-label="Carico lo stato delle pagine" />;
+  }
 
-  if (connectedCount === 0) {
+  if (error || !stato) {
+    return (
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-2.5">
+        <span className="flex items-start gap-2 text-xs font-medium text-red-800">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          Non riesco a sapere se le pagine possono pubblicare.{error?.message ? ` ${error.message}` : ""}
+        </span>
+        <Button size="sm" variant="outline" onClick={onRiprova}
+          className="h-7 shrink-0 gap-1.5 border-red-200 bg-white text-red-700 hover:bg-red-100">
+          <RefreshCw className="h-3 w-3" /> Riprova
+        </Button>
+      </div>
+    );
+  }
+
+  const pagine = stato.pagine;
+  if (pagine.length === 0) {
     return (
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50/40 px-4 py-3 shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5">
-            {PLATFORMS.map((p) => (
-              <div key={p.id} className="opacity-30 grayscale">
-                <PlatformLogo platform={p} size="xs" />
-              </div>
-            ))}
-          </div>
-          <span className="text-xs font-medium text-amber-800">
-            Nessuna piattaforma collegata. Collega le tue pagine per pubblicare.
-          </span>
-        </div>
+        <span className="text-xs font-medium text-amber-800">
+          Nessuna pagina collegata: collega Facebook e Instagram per pubblicare da qui.
+        </span>
         <Button size="sm" variant="outline" onClick={onGoToSettings}
           className="shrink-0 gap-1.5 border-amber-300 bg-white text-amber-800 hover:bg-amber-50">
-          <Settings className="h-3.5 w-3.5" /> Collega piattaforme
+          <Settings className="h-3.5 w-3.5" /> Collega Meta
           <ArrowRight className="h-3 w-3" />
         </Button>
       </div>
     );
   }
 
+  const pronte = pagine.filter((p) => p.puoPubblicare).length;
+  const tutteOk = pronte === pagine.length;
+  const comune = motivoComune(stato);
+  // Un motivo comune a tutte le pagine si dice una volta; altrimenti pagina per pagina.
+  const spiegazioni = comune
+    ? [{ ...spiegaMotivo(comune, { verificaNonRiuscita }), nome: undefined as string | undefined }]
+    : pagine
+      .filter((p) => !p.puoPubblicare)
+      .map((p) => ({ ...spiegaMotivo(p.motivo, { verificaNonRiuscita }), nome: p.nome as string | undefined }));
+  const serveRicollegare = spiegazioni.some((s) => s.azione === "ricollega");
+  const titolo = pronte === 0
+    ? "Nessuna pagina può pubblicare adesso"
+    : tutteOk
+      ? (pronte === 1 ? "1 pagina pronta a pubblicare" : `${pronte} pagine pronte a pubblicare`)
+      : `${pronte} ${pronte === 1 ? "pagina" : "pagine"} su ${pagine.length} ${pronte === 1 ? "pronta" : "pronte"} a pubblicare`;
+
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-emerald-100 bg-gradient-to-r from-emerald-50 to-white px-4 py-2.5 shadow-sm">
-      <div className="flex items-center gap-1.5">
-        <Check className="h-3.5 w-3.5 text-emerald-600" />
-        <span className="text-xs font-semibold text-emerald-700">{connectedCount} collegate</span>
+    <div className={cn(
+      "space-y-2 rounded-2xl border px-4 py-2.5 shadow-sm",
+      tutteOk ? "border-emerald-100 bg-gradient-to-r from-emerald-50 to-white" : "border-amber-200 bg-amber-50/70",
+    )}>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className={cn("flex items-center gap-1.5 text-xs font-semibold", tutteOk ? "text-emerald-700" : "text-amber-800")}>
+          {tutteOk ? <Check className="h-3.5 w-3.5" /> : <AlertTriangle className="h-3.5 w-3.5" />}
+          {titolo}
+        </span>
+        {pagine.map((pagina) => {
+          const piattaforma = PLATFORMS.find((p) => p.id === pagina.piattaforma);
+          const spiegazione = spiegaMotivo(pagina.motivo, { verificaNonRiuscita });
+          const inVerifica = staVerificando && pagina.motivo === "permessi_da_verificare";
+          return (
+            <span
+              key={pagina.id || `${pagina.piattaforma}-${pagina.pageId}`}
+              title={`${piattaforma?.name ?? pagina.piattaforma} · ${pagina.nome}: ${spiegazione.lungo}`}
+              className={cn(
+                "flex max-w-full items-center gap-1.5 rounded-full border bg-white px-2.5 py-1 text-[11px] font-medium",
+                pagina.puoPubblicare ? "border-slate-100 text-slate-700 shadow-sm" : "border-amber-200 text-slate-600",
+              )}
+            >
+              <span className={cn(
+                "flex h-4 w-4 shrink-0 items-center justify-center rounded bg-gradient-to-br text-[8px] font-bold text-white",
+                piattaforma?.gradient ?? "from-slate-300 to-slate-400",
+              )}>
+                {piattaforma?.icon ?? "?"}
+              </span>
+              <span className="truncate">{pagina.nome}</span>
+              {pagina.puoPubblicare
+                ? <Check className="h-2.5 w-2.5 shrink-0 text-emerald-500" />
+                : inVerifica
+                  ? <Loader2 className="h-2.5 w-2.5 shrink-0 animate-spin text-slate-400" />
+                  : <span className="shrink-0 text-[10px] text-amber-700">{spiegazione.breve}</span>}
+            </span>
+          );
+        })}
+        <button type="button" onClick={onGoToSettings} className="ml-auto flex items-center gap-1 text-[11px] text-slate-500 hover:text-slate-700">
+          <Settings className="h-3 w-3" /> Gestisci
+        </button>
       </div>
-      <span className="text-slate-200">|</span>
-      {PLATFORMS.map((p) => {
-        const account = connectedAccounts.find((a) => a.platform_id === p.id);
-        const isConnected = connectedIds.has(p.id);
-        return (
-          <TooltipProvider key={p.id}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className={cn(
-                  "flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition",
-                  isConnected ? "border-slate-100 bg-white shadow-sm text-slate-700" : "border-dashed border-slate-200 text-slate-400 opacity-50",
-                )}>
-                  <span className={cn("flex h-4 w-4 items-center justify-center rounded text-[8px] font-bold text-white bg-gradient-to-br", isConnected ? p.gradient : "from-slate-300 to-slate-400")}>{p.icon}</span>
-                  {isConnected ? account?.page_name ?? p.shortName : p.shortName}
-                  {isConnected && <Check className="h-2.5 w-2.5 text-emerald-500" />}
-                </span>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" className="text-[11px]">
-                {isConnected ? <>{account?.page_name}<br /><span className="text-slate-400">{p.apiNote}</span></> : `${p.name} — non collegato`}
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        );
-      })}
-      <button type="button" onClick={onGoToSettings} className="ml-auto flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-600">
-        <Settings className="h-3 w-3" /> Gestisci
-      </button>
+      {!tutteOk && spiegazioni.length > 0 && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          <div className="min-w-0 flex-1 space-y-0.5">
+            {spiegazioni.map((s) => (
+              <p key={`${s.nome ?? ""}-${s.lungo}`} className="text-[11px] text-amber-800">
+                {s.nome && <strong className="font-semibold">{s.nome}.</strong>} {s.lungo}
+              </p>
+            ))}
+          </div>
+          {serveRicollegare && (
+            <Button size="sm" variant="outline" onClick={onGoToSettings}
+              className="h-7 shrink-0 gap-1.5 border-amber-300 bg-white text-[11px] text-amber-800 hover:bg-amber-100">
+              <Settings className="h-3 w-3" /> Ricollega Meta
+            </Button>
+          )}
+        </div>
+      )}
     </div>
   );
-}
-
-// ─── API Hints ─────────────────────────────────────────────────────────────────
-
-function ApiPlatformHints({ selectedPlatforms, contentType, publishNow }: {
-  selectedPlatforms: string[];
-  contentType: string;
-  publishNow: boolean;
-}) {
-  const hints: React.ReactNode[] = [];
-  const hasYT = selectedPlatforms.includes("youtube");
-  const hasTK = selectedPlatforms.includes("tiktok");
-  const hasLI = selectedPlatforms.includes("linkedin");
-  const hasIG = selectedPlatforms.includes("instagram");
-
-  if (hasYT || hasTK) {
-    hints.push(
-      <Alert key="video-only" className="border-amber-200 bg-amber-50 py-2">
-        <Film className="h-4 w-4 text-amber-600" />
-        <AlertDescription className="text-xs text-amber-800">
-          <strong>{[hasYT && "YouTube", hasTK && "TikTok"].filter(Boolean).join(" e ")}</strong>{" "}
-          richiedono <strong>file video (MP4/MOV)</strong>. Carica il video nella sezione Media.
-        </AlertDescription>
-      </Alert>
-    );
-  }
-  if (hasTK) {
-    hints.push(
-      <Alert key="tiktok" className="border-rose-200 bg-rose-50 py-2">
-        <AlertTriangle className="h-4 w-4 text-rose-500" />
-        <AlertDescription className="text-xs text-rose-800">
-          <strong>TikTok</strong> richiede approvazione app prima della pubblicazione pubblica.
-        </AlertDescription>
-      </Alert>
-    );
-  }
-  if (hasLI && !publishNow) {
-    hints.push(
-      <Alert key="linkedin" className="border-blue-200 bg-blue-50 py-2">
-        <Info className="h-4 w-4 text-blue-500" />
-        <AlertDescription className="text-xs text-blue-800">
-          <strong>LinkedIn</strong>: nessun scheduling nativo — il post viene salvato come <strong>bozza</strong> e inviato all&apos;orario pianificato.
-        </AlertDescription>
-      </Alert>
-    );
-  }
-  if (hasIG && contentType === "story") {
-    hints.push(
-      <Alert key="ig-story" className="border-pink-200 bg-pink-50 py-2">
-        <Info className="h-4 w-4 text-pink-500" />
-        <AlertDescription className="text-xs text-pink-800">
-          <strong>Instagram Story</strong>: scompare dopo 24h · Solo JPEG/PNG o MP4 · Max 15s per clip · Nessun hashtag rilevante nelle Stories.
-        </AlertDescription>
-      </Alert>
-    );
-  }
-  if (hints.length === 0) return null;
-  return <div className="space-y-2">{hints}</div>;
 }
 
 // ─── Status config ─────────────────────────────────────────────────────────────
@@ -724,7 +729,7 @@ function CalendarioTab({
     { label: "In revisione",       value: reviewCount,                                            color: "text-amber-600",   bg: "bg-amber-50"   },
     { label: "Pubblicati",         value: posts.filter((p) => p.status === "published").length,  color: "text-emerald-600", bg: "bg-emerald-50" },
     { label: "Bozze",              value: posts.filter((p) => p.status === "draft").length,       color: "text-slate-600",   bg: "bg-slate-50"   },
-    { label: "Piattaforme",        value: new Set(posts.flatMap((p) => p.platforms)).size,       color: "text-orange-600",  bg: "bg-orange-50"  },
+    { label: "Falliti",            value: posts.filter((p) => p.status === "failed").length,     color: "text-red-600",     bg: "bg-red-50"     },
   ];
 
   // ── Review posts (uses reviewCount already computed above in statsData) ───
@@ -1278,49 +1283,145 @@ function CalendarioTab({
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// TAB: CONTENT STUDIO — redesign con Stories + multi-variant + content type cards
+// TAB: CREA POST — tre passi: dove, cosa, quando (24/09/2026)
 // ═══════════════════════════════════════════════════════════════════════════════
+// Prima era una colonna di otto schede (argomenti, formato, brief AI, testo,
+// hashtag, media, programmazione, limiti tecnici), con Facebook e Instagram
+// scelti in partenza anche quando non potevano pubblicare. Ora tre passi;
+// formato, argomento, testo per piattaforma e primo commento stanno in
+// «Opzioni avanzate», chiuse. Si parte dalle sole piattaforme che possono
+// pubblicare davvero (stato_pubblicazione_social) e da «Pubblica ora».
+
+/** Hashtag consigliati per settore: una lista fissa, e il pulsante lo dice. */
+const HASHTAG_PER_SETTORE: Record<string, string[]> = {
+  edilizia: ["#edilizia", "#impresaedile", "#cantiere", "#costruzioni", "#lavoriincorso", "#ristrutturazione"],
+  serramenti: ["#serramenti", "#finestre", "#infissi", "#risparmioenergetico", "#casa", "#ristrutturazione"],
+  ristrutturazioni: ["#ristrutturazione", "#ristrutturazionecasa", "#primaedopo", "#casa", "#interni", "#impresaedile"],
+  fotovoltaico: ["#fotovoltaico", "#energiasolare", "#pannellisolari", "#risparmioenergetico", "#energiarinnovabile", "#sostenibilita"],
+  tetti: ["#tetti", "#coperture", "#rifacimentotetto", "#impermeabilizzazione", "#cantiere", "#impresaedile"],
+  bagni: ["#bagno", "#arredobagno", "#ristrutturazionebagno", "#designbagno", "#casa", "#interni"],
+};
+
+const SEGMENT_LABELS: Record<string, string> = {
+  edilizia: "Edilizia",
+  serramenti: "Serramenti",
+  ristrutturazioni: "Ristrutturazioni",
+  fotovoltaico: "Fotovoltaico",
+  tetti: "Tetti",
+  bagni: "Bagni",
+};
+
+/** Il settore dell'azienda come settore per l'AI e gli hashtag; «Edilizia» se non c'è. */
+function settoreSocial(settore: string | undefined): string {
+  if (settore === "infissi") return "serramenti";
+  return settore && settore in SEGMENT_LABELS ? settore : "edilizia";
+}
+
+/** «Facebook», «Facebook e Instagram», «LinkedIn, YouTube e TikTok». */
+function elencoNomi(nomi: string[]): string {
+  if (nomi.length <= 1) return nomi.join("");
+  return `${nomi.slice(0, -1).join(", ")} e ${nomi[nomi.length - 1]}`;
+}
+
+function PassoComposer({
+  numero,
+  titolo,
+  descrizione,
+  azione,
+  children,
+}: {
+  numero: number;
+  titolo: string;
+  descrizione?: string;
+  azione?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <Card className="overflow-hidden">
+      <CardHeader className="pb-3">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-orange-500 text-xs font-bold text-white">
+              {numero}
+            </span>
+            <div>
+              <CardTitle className="text-base">{titolo}</CardTitle>
+              {descrizione && <CardDescription className="text-[11px]">{descrizione}</CardDescription>}
+            </div>
+          </div>
+          {azione}
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">{children}</CardContent>
+    </Card>
+  );
+}
 
 function ContentStudioTab({
   companyId,
-  connectedAccounts,
+  nomeAzienda,
+  settoreAzienda,
+  stato,
+  verificaNonRiuscita = false,
   selectedMedia,
   onSelectedMediaConsumed,
   onPostScheduled,
   onMediaStored,
+  onGoToSettings,
 }: {
   companyId?: string;
-  connectedAccounts: ConnectedAccount[];
+  nomeAzienda?: string;
+  settoreAzienda?: string;
+  stato: StatoPubblicazioneSocial | null;
+  verificaNonRiuscita?: boolean;
   selectedMedia?: MediaItem | null;
   onSelectedMediaConsumed?: () => void;
-  onPostScheduled: (post: ScheduledPost) => void | Promise<unknown>;
+  /** true se il post è stato salvato: solo allora il composer si svuota. */
+  onPostScheduled: (post: ScheduledPost) => Promise<boolean>;
   onMediaStored?: (media: MediaItem) => MediaItem | void | Promise<MediaItem | void | unknown>;
+  onGoToSettings: () => void;
 }) {
-  // ── Content Pillar ────────────────────────────────────────────────────────
+  // ── Opzioni avanzate: formato e argomento ──────────────────────────────────
+  const [opzioniAperte, setOpzioniAperte] = useState(false);
   const [activePillarId, setActivePillarId] = useState<string | null>(null);
-
-  // ── Content type selection ─────────────────────────────────────────────────
   const [contentTypeId, setContentTypeId] = useState("post");
   const contentType = CONTENT_TYPE_CONFIG.find((c) => c.id === contentTypeId) ?? CONTENT_TYPE_CONFIG[0];
-
-  // Filter platforms by content type
   const availablePlatforms = PLATFORMS.filter((p) => contentType.supportedBy.includes(p.id));
-  const connectedPlatformIds = useMemo(
-    () => connectedAccounts.map((account) => account.platform_id),
-    [connectedAccounts],
-  );
 
-  // ── Platforms ──────────────────────────────────────────────────────────────
-  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(["facebook", "instagram"]);
+  // ── 1 · Dove: si parte dalle piattaforme che possono pubblicare davvero ────
+  const pronte = useMemo(() => paginePronte(stato), [stato]);
+  const piattaformeOk = useMemo(() => piattaformePronte(stato), [stato]);
+  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
+  const selezioneToccata = useRef(false);
 
-  // Auto-adjust selected platforms when content type changes
+  useEffect(() => {
+    if (selezioneToccata.current || !stato) return;
+    setSelectedPlatforms(piattaformeOk.filter((id) => contentType.supportedBy.includes(id)));
+    // contentType segue contentTypeId
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stato, piattaformeOk, contentTypeId]);
+
+  // Un formato nuovo toglie le piattaforme che non lo supportano.
   useEffect(() => {
     setSelectedPlatforms((prev) => prev.filter((id) => contentType.supportedBy.includes(id)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contentTypeId]);
 
-  // ── Text / Copy ────────────────────────────────────────────────────────────
-  // MIGL: autosave su localStorage ogni 30s + restore al mount (offre recovery
-  // se l'utente chiude la tab a metà composizione).
+  const togglePlatform = (platformId: string) => {
+    selezioneToccata.current = true;
+    setSelectedPlatforms((prev) => prev.includes(platformId) ? prev.filter((x) => x !== platformId) : [...prev, platformId]);
+  };
+
+  /** Etichetta accanto al nome: niente se può pubblicare, altrimenti il perché in due parole. */
+  const etichettaPiattaforma = (platformId: string): string | null => {
+    if (!stato || piattaformeOk.includes(platformId)) return null;
+    const motivo = motivoPiattaforma(stato, platformId);
+    return motivo ? spiegaMotivo(motivo, { verificaNonRiuscita }).breve : "Non collegato";
+  };
+
+  // ── 2 · Cosa: testo ──────────────────────────────────────────────────────
+  // Autosave su localStorage ogni 30s + restore al mount (recupera il testo se
+  // la scheda si chiude a metà).
   const AUTOSAVE_KEY = "social-composer-autosave-v1";
   const [postText, setPostText] = useState(() => {
     try {
@@ -1340,7 +1441,6 @@ function ContentStudioTab({
   const [hashtags, setHashtags] = useState<string[]>([]);
   const [hashtagInput, setHashtagInput] = useState("");
   const [firstComment, setFirstComment] = useState("");
-  const [showFirstComment, setShowFirstComment] = useState(false);
 
   // Autosave debouncato a 30s: scrive solo se c'è del testo, altrimenti pulisce.
   useEffect(() => {
@@ -1368,29 +1468,24 @@ function ContentStudioTab({
     try { window.localStorage.removeItem(AUTOSAVE_KEY); } catch { /* noop */ }
   }, []);
 
-  // ── Cross-platform caption ──────────────────────────────────────────────────
+  // ── Testo diverso per piattaforma (opzioni avanzate) ─────────────────────
   const [crossPlatformMode, setCrossPlatformMode] = useState(false);
   const [platformTexts, setPlatformTexts] = useState<Record<string, string>>({});
 
   const setPlatformText = (platformId: string, text: string) =>
     setPlatformTexts((prev) => ({ ...prev, [platformId]: text }));
 
-  // Quando si disabilita cross-platform, svuota le override
+  // Spento, le versioni per piattaforma si svuotano; acceso, partono dal testo comune.
   const toggleCrossPlatform = (enabled: boolean) => {
     setCrossPlatformMode(enabled);
-    if (!enabled) setPlatformTexts({});
+    if (!enabled) {
+      setPlatformTexts({});
+    } else if (postText) {
+      setPlatformTexts(Object.fromEntries(selectedPlatforms.map((id) => [id, postText])));
+    }
   };
 
-  // Pre-popola ogni piattaforma col testo globale quando si attiva
-  useEffect(() => {
-    if (crossPlatformMode && Object.keys(platformTexts).length === 0 && postText) {
-      const initial: Record<string, string> = {};
-      selectedPlatforms.forEach(id => { initial[id] = postText; });
-      setPlatformTexts(initial);
-    }
-  }, [crossPlatformMode]);
-
-  // ── Media ──────────────────────────────────────────────────────────────────
+  // ── Foto e video ─────────────────────────────────────────────────────────
   const [mediaUrl, setMediaUrl] = useState<string | null>(null);
   const [selectedLibraryMedia, setSelectedLibraryMedia] = useState<MediaItem | null>(null);
   // File caricati nel bucket social-media: il video del Reel, le slide del carosello.
@@ -1398,32 +1493,23 @@ function ContentStudioTab({
   // Pagina/account di destinazione per piattaforma, quando ce n'è più d'uno.
   const [targetPageIds, setTargetPageIds] = useState<Record<string, string>>({});
 
-  // ── Brief ─────────────────────────────────────────────────────────────────
+  // ── AI: un solo ingresso, testo e foto ───────────────────────────────────
+  const [aiAperta, setAiAperta] = useState(false);
   const [brief, setBrief] = useState("");
-  const [segment, setSegment] = useState("edilizia");
-  const [isBriefOpen, setIsBriefOpen] = useState(false);
+  const [segment, setSegment] = useState(() => settoreSocial(settoreAzienda));
 
-  // ── Scheduling ─────────────────────────────────────────────────────────────
+  // ── 3 · Quando ───────────────────────────────────────────────────────────
   const [scheduledDate, setScheduledDate] = useState("");
   const [scheduledTime, setScheduledTime] = useState("09:00");
-  const [publishNow, setPublishNow] = useState(false);
+  const [publishNow, setPublishNow] = useState(true);
+  // Gli errori si mostrano dopo il primo tentativo, non mentre si scrive.
+  const [tentato, setTentato] = useState(false);
 
-  // ── Preview ────────────────────────────────────────────────────────────────
-  const [previewPlatform, setPreviewPlatform] = useState<string>("instagram");
+  // ── Anteprima ────────────────────────────────────────────────────────────
+  const [previewPlatform, setPreviewPlatform] = useState<string>("facebook");
 
-  // ── AI ─────────────────────────────────────────────────────────────────────
   const { generateCopy, generateImage, isGeneratingCopy, isGeneratingImage } = useAdsAi(companyId);
   const qc = useQueryClient();
-  const [isGeneratingHashtags, setIsGeneratingHashtags] = useState(false);
-
-  const SEGMENT_LABELS: Record<string, string> = {
-    edilizia: "Edilizia",
-    serramenti: "Serramenti",
-    ristrutturazioni: "Ristrutturazioni",
-    fotovoltaico: "Fotovoltaico",
-    tetti: "Tetti",
-    bagni: "Bagni",
-  };
 
   const storeMediaInComposer = useCallback((media: MediaItem, publicUrl?: string) => {
     setSelectedLibraryMedia(media);
@@ -1436,7 +1522,7 @@ function ContentStudioTab({
         }
       })
       .catch(() => {
-        // The storage hook already reports the error and keeps the local fallback.
+        // L'hook dei dati ha già mostrato l'errore di salvataggio.
       });
   }, [onMediaStored]);
 
@@ -1445,16 +1531,18 @@ function ContentStudioTab({
     setSelectedLibraryMedia(selectedMedia);
     const previewUrl = getSocialMediaPreviewUrl(selectedMedia);
     if (previewUrl) setMediaUrl(previewUrl);
+    // Il formato cambia con il file scelto: si apre la sezione, per vederlo.
     if (selectedMedia.type === "story") {
       setContentTypeId("story");
+      setOpzioniAperte(true);
     } else if (selectedMedia.type === "video") {
       setContentTypeId("video");
+      setOpzioniAperte(true);
     }
     onSelectedMediaConsumed?.();
   }, [onSelectedMediaConsumed, selectedMedia]);
 
-  // ── Content Pillar handler ─────────────────────────────────────────────────
-  // Declared after all state vars to avoid temporal dead zone issues
+  // Un argomento aggiunge hashtag e uno spunto per l'AI; il formato lo consiglia, non lo impone.
   const applyPillar = (pillar: ContentPillar) => {
     if (activePillarId === pillar.id) {
       setActivePillarId(null);
@@ -1468,34 +1556,20 @@ function ContentStudioTab({
       return merged.slice(0, 30);
     });
     setBrief((prev) => prev.trim() ? prev : pillar.promptHint);
-    const ctExists = CONTENT_TYPE_CONFIG.find((c) => c.id === pillar.suggestedContentType);
-    if (ctExists) setContentTypeId(pillar.suggestedContentType);
-    toast.success(`Pillar "${pillar.label}" applicato`, { description: "Hashtag e brief aggiornati." });
   };
 
   const onGeneratePost = async () => {
-    if (!brief.trim()) { toast.error("Scrivi prima il brief"); return; }
+    if (!brief.trim()) { toast.error("Scrivi prima di cosa parla il post"); return; }
     const result = await generateCopy({ brief, segment, zone: "", variants: 3 });
     if (result?.copy_variants && result.copy_variants.length > 0) {
       setCopyVariants(result.copy_variants);
       if (!postText) setPostText(result.copy_variants[0]);
-      toast.success(`${result.copy_variants.length} varianti generate — scegli quella che preferisci`);
+      toast.success(`${result.copy_variants.length} versioni pronte: scegli quella che preferisci`);
     }
   };
 
-  const onGenerateHashtags = async () => {
-    if (!postText.trim() && !brief.trim()) { toast.error("Scrivi prima testo o brief"); return; }
-    setIsGeneratingHashtags(true);
-    await new Promise((r) => setTimeout(r, 1200));
-    const maxH = Math.min(...selectedPlatforms.map((id) => PLATFORMS.find((p) => p.id === id)?.hashtagsMax ?? 30));
-    const pool = ["#edilizia","#ristrutturazione","#cantiere","#impresaedile","#serramenti","#preventivo","#imprenditore","#madeinitaly","#costruzioni","#casaitaliana","#ristrutturazionecasa","#lavori","#artigiani","#impresa"];
-    setHashtags(pool.slice(0, Math.min(8, maxH)));
-    setIsGeneratingHashtags(false);
-    toast.success("Hashtag generati");
-  };
-
   const onGenerateImage = async () => {
-    if (!brief.trim()) { toast.error("Inserisci il brief prima"); return; }
+    if (!brief.trim()) { toast.error("Scrivi prima di cosa parla il post"); return; }
     const result = await generateImage({
       prompt: brief,
       aspect_ratio: contentType.aspectRatio as "9:16" | "1:1" | "4:5" | "16:9",
@@ -1516,8 +1590,39 @@ function ContentStudioTab({
       });
       storeMediaInComposer(storedMedia, result.public_url);
       qc.invalidateQueries({ queryKey: ["ad-media-library", companyId] });
-      toast.success("Immagine generata");
+      toast.success("Foto pronta");
     }
+  };
+
+  const chiediASilvio = () => {
+    const platformsLabel = selectedPlatforms.length > 0
+      ? selectedPlatforms.map((id) => PLATFORMS.find((p) => p.id === id)?.name).filter(Boolean).join(", ")
+      : "Facebook e Instagram";
+    const draft =
+      `Scrivi il testo di un post per ${platformsLabel}.\n` +
+      `Formato: ${contentType.label}.\n` +
+      `Argomento: ${brief || postText || "un lavoro edile appena finito, tono caldo e professionale"}.\n\n` +
+      `Requisiti: la frase più importante nelle prime due righe, italiano semplice da imprenditore edile, ` +
+      `massimo 2200 caratteri, ` +
+      `${contentType.hashtagsAllowed ? "3-5 hashtag del settore in fondo" : "senza hashtag"}. ` +
+      `Scrivi 3 versioni diverse.`;
+    window.dispatchEvent(new CustomEvent("silvio:open-chat", { detail: { draft } }));
+  };
+
+  const maxHashtag = selectedPlatforms.length > 0
+    ? Math.min(...selectedPlatforms.map((id) => PLATFORMS.find((p) => p.id === id)?.hashtagsMax ?? 30))
+    : 30;
+
+  const suggerisciHashtag = () => {
+    const pillar = CONTENT_PILLARS.find((p) => p.id === activePillarId);
+    const consigliati = [...(pillar?.hashtags ?? []), ...(HASHTAG_PER_SETTORE[segment] ?? HASHTAG_PER_SETTORE.edilizia)];
+    const spazio = Math.max(0, Math.min(maxHashtag, 8) - hashtags.length);
+    const nuovi = Array.from(new Set(consigliati)).filter((h) => !hashtags.includes(h)).slice(0, spazio);
+    if (nuovi.length === 0) {
+      toast.info("Hai già abbastanza hashtag");
+      return;
+    }
+    setHashtags((prev) => [...prev, ...nuovi]);
   };
 
   const addHashtag = () => {
@@ -1545,14 +1650,15 @@ function ContentStudioTab({
     const all = [...main, ...extraMedia];
     return isCarouselType ? all : all.slice(0, 1);
   }, [activeMediaUrl, contentTypeId, extraMedia, isCarouselType]);
+  // Le pagine tra cui scegliere sono solo quelle che possono pubblicare.
   const metaAccounts = useMemo(() => ({
-    facebook: metaAccountsFor(connectedAccounts, "facebook"),
-    instagram: metaAccountsFor(connectedAccounts, "instagram"),
-  }), [connectedAccounts]);
+    facebook: metaAccountsFor(pronte, "facebook"),
+    instagram: metaAccountsFor(pronte, "instagram"),
+  }), [pronte]);
   const baseDraftValidation = validateSocialDraft(
     {
       selectedPlatforms,
-      connectedPlatformIds,
+      connectedPlatformIds: piattaformeOk,
       contentType: contentTypeId,
       fallbackText: postText,
       textByPlatform: crossPlatformMode ? platformTexts : {},
@@ -1569,7 +1675,7 @@ function ContentStudioTab({
   const metaTargetErrors = validateMetaPublishTargets({
     selectedPlatforms: baseDraftValidation.connectedSelectedPlatforms,
     contentType: contentTypeId,
-    accounts: connectedAccounts,
+    accounts: pronte,
     targetPageIds,
     media: postMedia,
   });
@@ -1580,6 +1686,31 @@ function ContentStudioTab({
       canPublishLive: false,
     }
     : baseDraftValidation;
+
+  // Nessuna delle piattaforme scelte può pubblicare: si dice perché, e resta la bozza.
+  const nessunaPronta = stato !== null && selectedPlatforms.length > 0 && draftValidation.connectedSelectedPlatforms.length === 0;
+  const motiviScelte = (() => {
+    const righe: { nome?: string; testo: string; ricollega: boolean }[] = [];
+    const nonCollegate: string[] = [];
+    for (const id of selectedPlatforms) {
+      if (piattaformeOk.includes(id)) continue;
+      const nome = PLATFORMS.find((p) => p.id === id)?.name ?? id;
+      const motivo = stato ? motivoPiattaforma(stato, id) : null;
+      if (!motivo) {
+        if (stato) nonCollegate.push(nome);
+        continue;
+      }
+      const spiegazione = spiegaMotivo(motivo, { verificaNonRiuscita });
+      righe.push({ nome, testo: spiegazione.lungo, ricollega: spiegazione.azione === "ricollega" });
+    }
+    if (nonCollegate.length > 0) {
+      righe.push({
+        testo: `${elencoNomi(nonCollegate)} ${nonCollegate.length === 1 ? "non è collegato" : "non sono collegati"}: da qui si pubblica su Facebook e Instagram.`,
+        ricollega: false,
+      });
+    }
+    return righe;
+  })();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -1592,20 +1723,20 @@ function ContentStudioTab({
     setTargetPageIds({});
     setScheduledDate("");
     setScheduledTime("09:00");
-    setPublishNow(false);
+    setPublishNow(true);
     setCopyVariants([]);
     setFirstComment("");
-    setShowFirstComment(false);
     setPlatformTexts({});
     setCrossPlatformMode(false);
     setActivePillarId(null);
+    setTentato(false);
     clearAutosave(); // evita che la bozza autosalvata risorga al mount successivo
   };
 
-  const saveLocalPost = async (status: ScheduledPost["status"]) => {
+  const salvaBozza = async (status: "draft" | "review") => {
     if (isSubmitting) return; // anti doppio-submit
     if (!draftValidation.canSaveDraft) {
-      toast.error(draftValidation.errors[0] ?? "Completa testo e piattaforme prima di salvare.");
+      toast.error(selectedPlatforms.length === 0 ? "Scegli almeno una piattaforma." : "Scrivi il testo del post.");
       return;
     }
     setIsSubmitting(true);
@@ -1613,7 +1744,7 @@ function ContentStudioTab({
     const scheduledAt = scheduledDate
       ? new Date(`${scheduledDate}T${scheduledTime}`).toISOString()
       : new Date(Date.now() + 86400000).toISOString();
-    const localPost: ScheduledPost = {
+    const bozza: ScheduledPost = {
       id: `local-${crypto.randomUUID()}`,
       platforms: selectedPlatforms,
       contentType: contentTypeId,
@@ -1627,14 +1758,15 @@ function ContentStudioTab({
       scheduled_at: scheduledAt,
       status,
       created_at: new Date().toISOString(),
-      reviewNote: status === "review" ? "Revisione locale: nessuna notifica inviata finché il publisher social non è collegato." : undefined,
       mediaItemId: selectedLibraryMedia?.id,
     };
 
     try {
-      await Promise.resolve(onPostScheduled(localPost));
-      toast.success(status === "review" ? "Post salvato in revisione locale" : "Bozza locale salvata", {
-        description: "Nessuna pubblicazione live è stata inviata alle piattaforme social.",
+      if (!(await onPostScheduled(bozza))) return;
+      toast.success(status === "review" ? "Post mandato in approvazione" : "Bozza salvata", {
+        description: status === "review"
+          ? "Lo trovi nel calendario, tra i post da approvare. Non esce finché qualcuno non lo approva."
+          : "La trovi nel calendario. Non viene pubblicata.",
       });
       resetComposer();
     } finally {
@@ -1644,17 +1776,12 @@ function ContentStudioTab({
 
   const onSchedulePost = async () => {
     if (isSubmitting) return; // anti doppio-submit
-    // In cross-platform mode, valid if at least one platform has text
-    const hasText = crossPlatformMode
-      ? selectedPlatforms.some(id => (platformTexts[id] ?? postText).trim())
-      : postText.trim();
-    if (!hasText) { toast.error("Scrivi il testo del post"); return; }
-    if (selectedPlatforms.length === 0) { toast.error("Seleziona almeno una piattaforma"); return; }
-    if (!publishNow && !scheduledDate) { toast.error("Seleziona la data di pubblicazione"); return; }
+    setTentato(true);
     // FIX P1: l'input date ha min=oggi ma l'input time è libero. Se l'utente
     // sceglie oggi + un orario passato (es. 14:00 quando sono le 15:00), il post
     // veniva accettato ma non si sarebbe mai pubblicato (lo scheduler lo ignora).
     if (!publishNow) {
+      if (!scheduledDate) { toast.error("Scegli il giorno di pubblicazione"); return; }
       const scheduledDt = new Date(`${scheduledDate}T${scheduledTime}`);
       if (Number.isNaN(scheduledDt.getTime())) {
         toast.error("Data o ora non valide");
@@ -1662,13 +1789,13 @@ function ContentStudioTab({
       }
       if (scheduledDt.getTime() <= Date.now() + 60_000) {
         toast.error("L'orario di pubblicazione deve essere almeno 1 minuto nel futuro", {
-          description: "Sposta l'orario più avanti oppure usa 'Pubblica ora'.",
+          description: "Sposta l'orario più avanti oppure scegli «Pubblica ora».",
         });
         return;
       }
     }
     if (!draftValidation.canPublishLive) {
-      toast.error(draftValidation.errors[0] ?? "Pubblicazione live non ancora attiva.");
+      toast.error(draftValidation.errors[0] ?? "Il post non si può ancora pubblicare.");
       return;
     }
 
@@ -1685,11 +1812,15 @@ function ContentStudioTab({
       setIsSubmitting(false);
       return;
     }
-    const chosenTargets = Object.fromEntries(
-      Object.entries(targetPageIds).filter(
-        ([platformId, pageId]) => pageId && draftValidation.connectedSelectedPlatforms.includes(platformId),
-      ),
-    );
+    // Pagina di destinazione sempre esplicita: la scelta, o l'unica pronta.
+    // Con due pagine collegate e una sola pronta, il publisher non indovina.
+    const chosenTargets: Record<string, string> = {};
+    for (const platformId of draftValidation.connectedSelectedPlatforms) {
+      const opzioni = metaAccountsFor(pronte, platformId);
+      const scelta = targetPageIds[platformId];
+      if (scelta && opzioni.some((o) => o.page_id === scelta)) chosenTargets[platformId] = scelta;
+      else if (opzioni.length === 1) chosenTargets[platformId] = opzioni[0].page_id;
+    }
     const scheduledAt = publishNow
       ? new Date().toISOString()
       : new Date(`${scheduledDate}T${scheduledTime}`).toISOString();
@@ -1698,7 +1829,7 @@ function ContentStudioTab({
       id: `post-${crypto.randomUUID()}`,
       platforms: draftValidation.connectedSelectedPlatforms,
       contentType: contentTypeId,
-      // In cross-platform mode, salva il testo della prima piattaforma come principale
+      // Con un testo per piattaforma, il principale è quello della prima.
       text: crossPlatformMode
         ? (platformTexts[selectedPlatforms[0]] ?? postText)
         : postText,
@@ -1719,983 +1850,707 @@ function ContentStudioTab({
     };
 
     try {
-      await Promise.resolve(onPostScheduled(newPost));
-      toast.success(publishNow ? "Pubblicazione in corso…" : "Post programmato", {
-        description: publishNow
-          ? "Invio a Facebook/Instagram in corso — l'esito appare tra pochi secondi."
-          : `Pubblicazione: ${new Date(scheduledAt).toLocaleString("it")}`,
-      });
+      // «Pubblica ora»: l'esito vero (uscito, in elaborazione, errore) lo dice chi pubblica.
+      if (!(await onPostScheduled(newPost))) return;
+      if (!publishNow) {
+        const dove = elencoNomi(newPost.platforms.map((id) => PLATFORMS.find((p) => p.id === id)?.name ?? id));
+        toast.success("Post programmato", {
+          description: `Esce ${new Date(scheduledAt).toLocaleString("it-IT", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })} su ${dove}.`,
+        });
+      }
       resetComposer();
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const currentPlatform = PLATFORMS.find((p) => p.id === previewPlatform) ?? PLATFORMS[0];
+  const piattaformaAnteprima = selectedPlatforms.includes(previewPlatform) ? previewPlatform : selectedPlatforms[0] ?? previewPlatform;
+  const currentPlatform = PLATFORMS.find((p) => p.id === piattaformaAnteprima) ?? PLATFORMS[0];
   const charCount = postText.length + (hashtags.length > 0 ? hashtags.join(" ").length + 1 : 0);
   const maxChars = selectedPlatforms.length > 0 ? Math.min(...selectedPlatforms.map((id) => PLATFORMS.find((p) => p.id === id)?.maxChars ?? 9999)) : 9999;
   const isStory = contentTypeId === "story";
   const isVideoType = contentTypeId === "reel" || contentTypeId === "video" || contentType.supportedBy.every((id) => PLATFORMS.find((p) => p.id === id)?.videoOnly);
 
-  // Suggest optimal time based on selected platforms
+  // Il nome in anteprima: la pagina che pubblicherà, non un nome inventato.
+  const nomeAnteprima = (() => {
+    const opzioni = metaAccountsFor(pronte, currentPlatform.id);
+    const scelta = opzioni.find((p) => p.page_id === targetPageIds[currentPlatform.id]) ?? opzioni[0];
+    if (scelta?.page_name) return scelta.page_name;
+    const collegata = stato?.pagine.find((p) => p.piattaforma === currentPlatform.id);
+    return collegata?.nome || nomeAzienda || "La tua azienda";
+  })();
+
+  // Formati foto che vanno bene per TUTTE le piattaforme scelte (non l'unione:
+  // una GIF va su Facebook ma non su Instagram).
+  const formatiFoto = (() => {
+    const perPiattaforma = selectedPlatforms
+      .map((id) => PLATFORMS.find((p) => p.id === id)?.mediaFormats.filter((f) => ["JPEG", "PNG", "GIF"].includes(f)) ?? [])
+      .filter((formati) => formati.length > 0);
+    if (perPiattaforma.length === 0) return ["JPEG", "PNG"];
+    return perPiattaforma.reduce((comuni, formati) => comuni.filter((f) => formati.includes(f)));
+  })();
+  // I formati li dice il riquadro di caricamento; qui resta la proporzione.
+  const testoFormati = isVideoType ? null : `Proporzione consigliata ${contentType.aspectRatio}.`;
+  const serveFile = selectedPlatforms.includes("instagram") || isVideoType || isCarouselType || isStory;
+
+  // Orario consigliato per la prima piattaforma scelta.
   const suggestedTime = (() => {
     if (selectedPlatforms.length === 0) return null;
     const best = PLATFORMS.find((p) => p.id === selectedPlatforms[0]);
     return best?.bestTimes[0] ?? null;
   })();
 
-  return (
-    <div className="space-y-4">
+  // Riepilogo delle opzioni avanzate cambiate, visibile a sezione chiusa.
+  const pillarAttivo = CONTENT_PILLARS.find((p) => p.id === activePillarId);
+  const riepilogoAvanzate = [
+    contentTypeId !== "post" ? contentType.label : null,
+    pillarAttivo ? pillarAttivo.label : null,
+    crossPlatformMode ? "Testo per piattaforma" : null,
+    firstComment.trim() ? "Primo commento" : null,
+  ].filter((voce): voce is string => Boolean(voce));
 
-      {/* ── CONTENT PILLARS ────────────────────────────────────────────── */}
-      <Card className="overflow-hidden border-slate-200">
-        <div className="h-0.5 bg-gradient-to-r from-orange-400 via-amber-300 to-orange-400" />
-        <CardContent className="pt-3 pb-3">
-          <div className="mb-2.5 flex items-center justify-between">
-            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
-              🎯 Pillar contenuto
-            </p>
-            {activePillarId && (
-              <button
-                type="button"
-                onClick={() => setActivePillarId(null)}
-                className="text-[10px] font-semibold text-slate-400 hover:text-slate-600 transition"
-              >
-                ✕ Deseleziona
-              </button>
-            )}
-          </div>
+  const mostraErrori = tentato && draftValidation.errors.length > 0;
+  // Sul pulsante, dove uscirà davvero il post.
+  const doveEsce = elencoNomi(
+    draftValidation.connectedSelectedPlatforms.map((id) => PLATFORMS.find((p) => p.id === id)?.name ?? id),
+  );
+
+  return (
+    <div className="grid gap-4 xl:grid-cols-[1fr_320px]">
+      <div className="min-w-0 space-y-4">
+
+        {/* ── 1 · DOVE ─────────────────────────────────────────────────── */}
+        <PassoComposer numero={1} titolo="Dove" descrizione="Scegli dove pubblicare">
           <div className="flex flex-wrap gap-2">
-            {CONTENT_PILLARS.map((pillar) => {
-              const isActive = activePillarId === pillar.id;
+            {availablePlatforms.map((p) => {
+              const isSelected = selectedPlatforms.includes(p.id);
+              const etichetta = etichettaPiattaforma(p.id);
               return (
                 <button
-                  key={pillar.id}
+                  key={p.id}
                   type="button"
-                  onClick={() => applyPillar(pillar)}
+                  aria-pressed={isSelected}
+                  onClick={() => togglePlatform(p.id)}
                   className={cn(
-                    "group flex items-center gap-2 rounded-2xl border-2 px-3.5 py-2 text-sm font-semibold transition-all",
-                    isActive
-                      ? `${pillar.colorBg} ${pillar.colorBorder} ${pillar.colorText} shadow-sm`
-                      : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
+                    "flex items-center gap-2 rounded-xl border-2 px-3 py-2 text-sm font-semibold transition",
+                    isSelected ? `border-transparent text-white bg-gradient-to-r ${p.gradient}` : "border-slate-200 bg-white text-slate-600 hover:border-slate-300",
                   )}
                 >
-                  <span className="text-base leading-none">{pillar.emoji}</span>
-                  <span className="text-xs">{pillar.label}</span>
-                  <span className={cn(
-                    "rounded-full px-1.5 py-0.5 text-[9px] font-bold transition",
-                    isActive ? `${pillar.colorBg} ${pillar.colorText}` : "bg-slate-100 text-slate-400"
-                  )}>
-                    {pillar.weeklyFreq}×/sett
-                  </span>
+                  <span className={cn("flex h-5 w-5 items-center justify-center rounded text-[9px] font-bold", isSelected ? "bg-white/20" : cn(p.color, "text-white"))}>{p.icon}</span>
+                  {p.name}
+                  {etichetta && (
+                    <span className={cn("rounded-full px-1.5 py-0.5 text-[9px] font-medium", isSelected ? "bg-white/20" : "bg-slate-100 text-slate-500")}>
+                      {etichetta}
+                    </span>
+                  )}
                 </button>
               );
             })}
           </div>
-          {/* Active pillar description + hashtag preview */}
-          {activePillarId && (() => {
-            const p = CONTENT_PILLARS.find((p) => p.id === activePillarId);
-            if (!p) return null;
+
+          {/* Con più pagine pronte per la stessa piattaforma si sceglie, mai a caso */}
+          {(["facebook", "instagram"] as const).map((platformId) => {
+            const options = metaAccounts[platformId];
+            if (!selectedPlatforms.includes(platformId) || options.length < 2) return null;
+            const isIg = platformId === "instagram";
             return (
-              <div className={cn("mt-2.5 flex flex-wrap items-start gap-3 rounded-xl border px-3 py-2.5", p.colorBg, p.colorBorder)}>
-                <div className="flex-1 min-w-0">
-                  <p className={cn("text-[11px] font-semibold", p.colorText)}>{p.description}</p>
-                  <div className="mt-1 flex flex-wrap gap-1">
-                    {p.hashtags.map((h) => (
-                      <span key={h} className={cn("rounded-full border px-2 py-0.5 text-[10px] font-medium", p.colorBg, p.colorBorder, p.colorText)}>
-                        {h}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-                <span className={cn("shrink-0 rounded-xl border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide", p.colorBg, p.colorBorder, p.colorText)}>
-                  {CONTENT_TYPE_CONFIG.find((c) => c.id === p.suggestedContentType)?.label ?? p.suggestedContentType}
-                </span>
-              </div>
-            );
-          })()}
-        </CardContent>
-      </Card>
-
-      {/* ── CONTENT TYPE SELECTOR ──────────────────────────────────────── */}
-      <Card className="overflow-hidden">
-        <div className="h-0.5 bg-gradient-to-r from-orange-400 via-amber-400 to-orange-400" />
-        <CardContent className="pt-4 pb-3">
-          <p className="mb-3 text-xs font-bold uppercase tracking-wide text-slate-500">Formato contenuto</p>
-          <div className="flex flex-wrap gap-2">
-            {CONTENT_TYPE_CONFIG.map((ct) => {
-              const Icon = ct.icon;
-              const isSelected = contentTypeId === ct.id;
-              return (
-                <TooltipProvider key={ct.id}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button type="button" onClick={() => setContentTypeId(ct.id)}
-                        className={cn(
-                          "flex flex-col items-center gap-1.5 rounded-2xl border-2 px-4 py-3 text-center transition-all",
-                          isSelected
-                            ? "border-orange-400 bg-gradient-to-br from-orange-50 to-pink-50 shadow-sm"
-                            : "border-slate-200 bg-white hover:border-orange-200 hover:bg-orange-50/30"
-                        )}>
-                        <div className={cn(
-                          "flex h-9 w-9 items-center justify-center rounded-xl",
-                          isSelected ? "bg-gradient-to-br from-orange-500 to-amber-500 text-white" : "bg-slate-100 text-slate-600"
-                        )}>
-                          <Icon className="h-4 w-4" />
-                        </div>
-                        <span className={cn("text-xs font-bold", isSelected ? "text-orange-700" : "text-slate-700")}>{ct.label}</span>
-                        <span className="text-[9px] text-slate-400">{ct.desc}</span>
-                        {/* Supported platforms */}
-                        <div className="flex items-center gap-0.5">
-                          {ct.supportedBy.map((id) => {
-                            const p = PLATFORMS.find((p) => p.id === id);
-                            if (!p) return null;
-                            return (
-                              <span key={id} className={cn("flex h-3.5 w-3.5 items-center justify-center rounded text-[7px] font-bold text-white bg-gradient-to-br", p.gradient)}>
-                                {p.icon}
-                              </span>
-                            );
-                          })}
-                        </div>
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent side="bottom" className="max-w-[220px] text-[11px]">
-                      <strong>{ct.label}</strong> — {ct.aspectRatio}
-                      <br />
-                      {ct.tips}
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              );
-            })}
-          </div>
-          {/* Tip for selected type */}
-          <div className="mt-3 flex items-start gap-2 rounded-xl border border-orange-100 bg-orange-50/60 px-3 py-2 text-[11px] text-orange-700">
-            <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-orange-500" />
-            <span>{contentType.tips}</span>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* ── BRIEF AI ────────────────────────────────────────────────────── */}
-      <div className={cn(
-        "overflow-hidden rounded-2xl border shadow-sm transition-all duration-300",
-        isBriefOpen ? "border-orange-200 bg-gradient-to-br from-orange-50 via-amber-50/40 to-white" : "border-orange-100 bg-gradient-to-r from-orange-50/70 to-white"
-      )}>
-        {!isBriefOpen ? (
-          <div className="flex items-center gap-3 px-4 py-2.5">
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-orange-100">
-              <Sparkles className="h-3.5 w-3.5 text-orange-600" />
-            </div>
-            {brief ? (
-              <>
-                <div className="relative flex h-2 w-2 shrink-0">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-orange-400 opacity-50" />
-                  <span className="relative inline-flex h-2 w-2 rounded-full bg-orange-500" />
-                </div>
-                <span className="shrink-0 rounded-full bg-orange-100 px-2 py-0.5 text-[11px] font-semibold text-orange-700">{SEGMENT_LABELS[segment] ?? segment}</span>
-                <p className="min-w-0 flex-1 truncate text-sm text-slate-600">{brief}</p>
-              </>
-            ) : (
-              <p className="flex-1 text-sm italic text-slate-400">Imposta il brief AI — genera testo e immagine in un click</p>
-            )}
-            <div className="flex shrink-0 items-center gap-2">
-              {brief && (
-                <button type="button" onClick={() => void onGeneratePost()} disabled={isGeneratingCopy}
-                  className="flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-orange-500 to-pink-500 px-3 py-1 text-[11px] font-semibold text-white shadow-sm transition hover:opacity-90 disabled:opacity-60">
-                  {isGeneratingCopy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
-                  Genera varianti
-                </button>
-              )}
-              <button type="button" onClick={() => setIsBriefOpen(true)}
-                className="flex items-center gap-1.5 rounded-lg bg-orange-100 px-2.5 py-1 text-[11px] font-semibold text-orange-700 transition hover:bg-orange-200">
-                <Pencil className="h-3 w-3" /> {brief ? "Modifica" : "Imposta brief"}
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-3 p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-orange-100">
-                  <Sparkles className="h-4 w-4 text-orange-600" />
-                </div>
-                <div>
-                  <p className="text-sm font-bold text-slate-900">Brief AI</p>
-                  <p className="text-[11px] text-slate-500">Genera 3 varianti di testo · hashtag · immagine</p>
-                </div>
-              </div>
-              <button type="button" onClick={() => setIsBriefOpen(false)} className="rounded-lg p-1.5 text-slate-400 hover:bg-orange-100 hover:text-orange-600">
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Settore">
-                <Select value={segment} onValueChange={setSegment}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+              <div key={platformId} className="flex flex-wrap items-center gap-2">
+                <Label className="text-xs font-semibold text-slate-600">
+                  {isIg ? "Account Instagram" : "Pagina Facebook"}
+                </Label>
+                <Select
+                  value={targetPageIds[platformId] ?? ""}
+                  onValueChange={(value) => setTargetPageIds((prev) => ({ ...prev, [platformId]: value }))}
+                >
+                  <SelectTrigger className="h-8 w-full text-xs sm:w-64">
+                    <SelectValue placeholder={isIg ? "Scegli l'account" : "Scegli la pagina"} />
+                  </SelectTrigger>
                   <SelectContent>
-                    {Object.entries(SEGMENT_LABELS).map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}
+                    {options.map((account) => (
+                      <SelectItem key={account.page_id} value={account.page_id} className="text-xs">
+                        {account.page_name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
-              </Field>
-              <Field label="Formato">
-                <div className="flex h-9 items-center rounded-lg border border-input bg-slate-50 px-3 text-sm font-medium text-slate-600">
-                  {contentType.label} · {contentType.aspectRatio}
-                </div>
-              </Field>
-            </div>
-            <Field label="Argomento del post">
-              <Textarea value={brief} onChange={(e) => setBrief(e.target.value)} className="min-h-16 resize-none"
-                placeholder="Es: Fornitura e posa finestre PVC — pronto in 30 giorni, sopralluogo gratuito, garanzia 10 anni..." />
-            </Field>
-            <div className="flex gap-2">
-              <Button onClick={() => { void onGeneratePost(); setIsBriefOpen(false); }}
-                disabled={!brief.trim() || isGeneratingCopy}
-                className="flex-1 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white">
-                {isGeneratingCopy ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Generazione...</> : <><Sparkles className="mr-2 h-4 w-4" />Genera 3 varianti</>}
-              </Button>
-              {contentType.hashtagsAllowed && (
-                <Button onClick={() => { void onGenerateHashtags(); setIsBriefOpen(false); }} disabled={!brief.trim() || isGeneratingHashtags} variant="outline">
-                  {isGeneratingHashtags ? <Loader2 className="h-4 w-4 animate-spin" /> : <Hash className="h-4 w-4" />}
+              </div>
+            );
+          })}
+
+          {selectedPlatforms.length === 0 && stato && (
+            <p className="text-[11px] text-slate-500">
+              {piattaformeOk.length > 0
+                ? "Scegli almeno una piattaforma."
+                : "Nessuna pagina può pubblicare adesso: scegli dove andrà il post e salvalo come bozza."}
+            </p>
+          )}
+
+          {motiviScelte.length > 0 && (
+            <div className="space-y-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2">
+              {motiviScelte.map((riga) => (
+                <p key={`${riga.nome ?? ""}-${riga.testo}`} className="flex items-start gap-2 text-[11px] text-amber-800">
+                  <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />
+                  <span>{riga.nome && <strong className="font-semibold">{riga.nome}.</strong>} {riga.testo}</span>
+                </p>
+              ))}
+              {motiviScelte.some((riga) => riga.ricollega) && (
+                <Button size="sm" variant="outline" onClick={onGoToSettings}
+                  className="h-7 gap-1.5 border-amber-300 bg-white text-[11px] text-amber-800 hover:bg-amber-100">
+                  <Settings className="h-3 w-3" /> Ricollega Meta
                 </Button>
               )}
-              <Button onClick={() => { void onGenerateImage(); setIsBriefOpen(false); }} disabled={!brief.trim() || isGeneratingImage} variant="outline">
-                {isGeneratingImage ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
-              </Button>
             </div>
+          )}
+        </PassoComposer>
+
+        {/* ── 2 · COSA ─────────────────────────────────────────────────── */}
+        <PassoComposer
+          numero={2}
+          titolo="Cosa"
+          descrizione={isVideoType ? "Titolo, descrizione e video" : isStory ? "Foto o video della storia" : "Testo e foto"}
+          azione={
+            <Button size="sm" variant="outline" onClick={() => setAiAperta((v) => !v)} aria-expanded={aiAperta}
+              className={cn("h-8 gap-1.5 border-orange-200 text-xs text-orange-700 hover:bg-orange-50", aiAperta && "bg-orange-50")}>
+              <Sparkles className="h-3.5 w-3.5" /> Scrivi con l'AI
+            </Button>
+          }
+        >
+          {aiAperta && (
+            <div className="space-y-3 rounded-xl border border-orange-200 bg-orange-50/50 p-3">
+              <Field label="Di cosa parla il post?">
+                <Textarea value={brief} onChange={(e) => setBrief(e.target.value)} className="min-h-16 resize-none bg-white"
+                  placeholder="Es.: finestre in PVC posate in 30 giorni, sopralluogo gratuito, garanzia 10 anni" />
+              </Field>
+              <div className="flex flex-wrap items-end gap-2">
+                <div className="w-full sm:w-44">
+                  <Field label="Settore">
+                    <Select value={segment} onValueChange={setSegment}>
+                      <SelectTrigger className="h-9 bg-white"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(SEGMENT_LABELS).map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                </div>
+                <Button size="sm" onClick={() => void onGeneratePost()} disabled={!brief.trim() || isGeneratingCopy}
+                  className="h-9 gap-1.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:from-orange-600 hover:to-amber-600">
+                  {isGeneratingCopy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                  Scrivi il testo
+                </Button>
+                {!isVideoType && (
+                  <Button size="sm" variant="outline" onClick={() => void onGenerateImage()} disabled={!brief.trim() || isGeneratingImage}
+                    className="h-9 gap-1.5 bg-white">
+                    {isGeneratingImage ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
+                    Crea la foto
+                  </Button>
+                )}
+              </div>
+              <p className="text-[10px] text-slate-500">
+                Il testo arriva in 3 versioni: scegli quella che preferisci e ritoccala.{" "}
+                <button type="button" onClick={chiediASilvio} className="font-semibold text-orange-700 underline-offset-2 hover:underline">
+                  Oppure chiedilo a Silvio
+                </button>
+              </p>
+            </div>
+          )}
+
+          {copyVariants.length > 1 && (
+            <div className="space-y-2">
+              <p className="text-[11px] font-semibold text-slate-600">Scegli la versione che preferisci</p>
+              {copyVariants.map((v, i) => (
+                <button key={i} type="button" onClick={() => { setPostText(v); setCopyVariants([]); }}
+                  className={cn(
+                    "w-full rounded-xl border-2 p-3 text-left text-sm text-slate-700 transition hover:border-orange-300 hover:bg-orange-50",
+                    postText === v ? "border-orange-400 bg-orange-50" : "border-slate-200 bg-white",
+                  )}>
+                  <span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-orange-400">Versione {i + 1}</span>
+                  {v.slice(0, 160)}{v.length > 160 ? "…" : ""}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {isGeneratingCopy ? (
+            <div className="space-y-2 rounded-xl border border-orange-100 bg-orange-50/40 p-3">
+              {[...Array(3)].map((_, i) => <div key={i} className={cn("h-4 animate-pulse rounded-lg bg-orange-100/70", i === 2 ? "w-2/3" : "w-full")} />)}
+            </div>
+          ) : crossPlatformMode ? (
+            <div className="space-y-3">
+              {selectedPlatforms.map((pid) => {
+                const pl = PLATFORMS.find((p) => p.id === pid);
+                if (!pl) return null;
+                const txt = platformTexts[pid] ?? postText;
+                const over = txt.length > pl.maxChars;
+                return (
+                  <div key={pid} className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
+                        <span className={cn("flex h-5 w-5 items-center justify-center rounded text-[9px] font-bold text-white bg-gradient-to-br", pl.gradient)}>{pl.icon}</span>
+                        {pl.name}
+                      </span>
+                      <span className={cn("text-[10px] tabular-nums", over ? "font-bold text-red-500" : "text-slate-400")}>
+                        {txt.length}/{pl.maxChars.toLocaleString("it-IT")}
+                      </span>
+                    </div>
+                    <Textarea
+                      value={txt}
+                      onChange={(e) => setPlatformText(pid, e.target.value)}
+                      className={cn("min-h-[80px] resize-none text-sm", over ? "border-red-300" : "")}
+                      placeholder={`Il testo per ${pl.name}…`}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="space-y-1">
+              <Textarea value={postText} onChange={(e) => setPostText(e.target.value)}
+                aria-label="Testo del post"
+                className={cn("min-h-28 resize-none font-[inherit] text-sm", charCount > maxChars ? "border-red-300 focus-visible:ring-red-400" : "")}
+                placeholder={isStory
+                  ? "Testo breve da mettere sulla storia (facoltativo)…"
+                  : isVideoType
+                    ? "Titolo del video: metti all'inizio le parole che la gente cerca…"
+                    : "Racconta un lavoro finito, mostra il cantiere, dai un consiglio…"} />
+              {charCount > 0 && selectedPlatforms.length > 0 && (
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px]">
+                  {selectedPlatforms.map((id) => {
+                    const platform = PLATFORMS.find((p) => p.id === id);
+                    if (!platform) return null;
+                    const over = charCount > platform.maxChars;
+                    const close = charCount > platform.maxChars * 0.9 && !over;
+                    return (
+                      <span key={id} className={cn("tabular-nums", over ? "font-semibold text-red-600" : close ? "font-semibold text-amber-600" : "text-slate-400")}>
+                        {platform.name} {charCount}/{platform.maxChars.toLocaleString("it-IT")}
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Hashtag (non nelle storie) */}
+          {contentType.hashtagsAllowed && (
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[11px] font-semibold text-slate-600">
+                  Hashtag
+                  {selectedPlatforms.length > 0 && <span className="ml-1 font-normal text-slate-400">(massimo {maxHashtag})</span>}
+                </p>
+                <button type="button" onClick={suggerisciHashtag}
+                  className="flex shrink-0 items-center gap-1 whitespace-nowrap text-[11px] font-semibold text-orange-600 hover:text-orange-800">
+                  <Hash className="h-3 w-3" /> Aggiungi consigliati
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {hashtags.map((tag) => (
+                  <span key={tag} className="flex items-center gap-1 rounded-full border border-orange-200 bg-orange-50 px-2 py-0.5 text-[11px] font-medium text-orange-700">
+                    {tag}
+                    <button type="button" aria-label={`Togli ${tag}`} onClick={() => setHashtags((h) => h.filter((t) => t !== tag))}>
+                      <X className="h-2.5 w-2.5 text-orange-400 hover:text-orange-700" />
+                    </button>
+                  </span>
+                ))}
+                <Input value={hashtagInput} onChange={(e) => setHashtagInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); addHashtag(); } }}
+                  onBlur={addHashtag}
+                  placeholder="+ hashtag" className="h-7 w-28 rounded-full border-dashed text-xs" />
+              </div>
+            </div>
+          )}
+
+          {/* Foto o video */}
+          <div className="space-y-2">
+            <p className="text-[11px] font-semibold text-slate-600">
+              {isVideoType ? "Video" : isCarouselType ? "Foto del carosello" : "Foto"}
+              <span className="ml-1 font-normal text-slate-400">
+                {serveFile ? (selectedPlatforms.includes("instagram") && !isVideoType && !isCarouselType ? "(Instagram la richiede)" : "(obbligatorio)") : "(facoltativa)"}
+              </span>
+            </p>
+            {activeMediaUrl || selectedLibraryMedia ? (
+              <div className="relative overflow-hidden rounded-xl border">
+                {activeMediaUrl ? (
+                  <img loading="lazy" src={activeMediaUrl} alt="Foto del post" className="max-h-64 w-full object-cover" />
+                ) : selectedLibraryMedia ? (
+                  <div className={cn("flex h-48 flex-col items-center justify-center bg-gradient-to-br px-4 text-center text-white", selectedLibraryMedia.gradient)}>
+                    {selectedLibraryMedia.type === "video" ? <Play className="mb-2 h-9 w-9 text-white/80" /> : <ImageIcon className="mb-2 h-9 w-9 text-white/80" />}
+                    <p className="text-sm font-bold drop-shadow">{selectedLibraryMedia.title}</p>
+                    <p className="mt-1 text-[11px] font-medium text-white/80">{selectedLibraryMedia.format} · dalla galleria</p>
+                  </div>
+                ) : null}
+                <button type="button" aria-label="Togli la foto" onClick={() => { setMediaUrl(null); setSelectedLibraryMedia(null); }}
+                  className="absolute right-2 top-2 rounded-full bg-black/60 p-1.5 text-white hover:bg-black/80">
+                  <X className="h-3.5 w-3.5" />
+                </button>
+                {selectedLibraryMedia && (
+                  <p className="bg-slate-50 px-3 py-2 text-[11px] text-slate-500">
+                    {selectedLibraryMedia.title} · {selectedLibraryMedia.format}
+                  </p>
+                )}
+              </div>
+            ) : isGeneratingImage ? (
+              <div className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-amber-200 bg-amber-50 p-8 text-sm text-amber-700">
+                <Loader2 className="h-5 w-5 animate-spin" /> Sto creando la foto…
+              </div>
+            ) : isVideoType ? (
+              extraMedia.length === 0 ? (
+                <SocialMediaUploader
+                  companyId={companyId}
+                  accept="video"
+                  label="Carica il video"
+                  hint="MP4 o MOV, fino a 200 MB · Instagram lo pubblica come Reel"
+                  onUploaded={(items) => setExtraMedia(items.slice(0, 1))}
+                />
+              ) : null
+            ) : (
+              <AdMediaUploader
+                companyId={companyId}
+                hint={`${elencoNomi(formatiFoto)}, fino a 10 MB`}
+                onUploaded={(media) => {
+                  if (media.public_url) {
+                    const storedMedia = createStoredMediaItem({
+                      id: media.id,
+                      title: `Foto social ${new Date().toLocaleDateString("it-IT")}`,
+                      publicUrl: media.public_url,
+                      format: contentType.aspectRatio,
+                      type: mediaTypeFromContent(contentTypeId),
+                      tags: ["upload", segment, contentTypeId],
+                      aiGenerated: false,
+                      fileSize: "upload",
+                      category: pillarToMediaCategory(activePillarId),
+                    });
+                    storeMediaInComposer(storedMedia, media.public_url);
+                  }
+                  toast.success("Foto caricata");
+                }}
+              />
+            )}
+            {/* File caricati nello Storage: video del Reel, slide del carosello */}
+            {extraMedia.length > 0 && (
+              <div className="grid grid-cols-3 gap-2">
+                {extraMedia.map((item, index) => (
+                  <div key={item.path ?? item.url ?? index} className="relative overflow-hidden rounded-lg border bg-slate-50">
+                    {item.type === "video"
+                      ? <video src={item.url} className="h-24 w-full object-cover" muted playsInline preload="metadata" />
+                      : <img loading="lazy" src={item.url} alt="" className="h-24 w-full object-cover" />}
+                    <button
+                      type="button"
+                      aria-label="Togli il file"
+                      onClick={() => setExtraMedia((prev) => prev.filter((_, i) => i !== index))}
+                      className="absolute right-1 top-1 rounded-full bg-black/60 p-1 text-white hover:bg-black/80"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {isCarouselType && (
+              <SocialMediaUploader
+                companyId={companyId}
+                accept={selectedPlatforms.includes("facebook") ? "image" : "any"}
+                multiple
+                maxFiles={Math.max(0, 10 - postMedia.length)}
+                label="Aggiungi foto al carosello"
+                hint={`${postMedia.length} di 10 · ne servono almeno 2${selectedPlatforms.includes("facebook") ? " · su Facebook solo foto" : ""}`}
+                onUploaded={(items) => setExtraMedia((prev) => [...prev, ...items])}
+              />
+            )}
+            {testoFormati && <p className="text-[10px] text-slate-400">{testoFormati}</p>}
           </div>
-        )}
+
+          {/* Opzioni avanzate, chiuse: formato, argomento, testo per piattaforma, primo commento */}
+          <div className="rounded-xl border border-slate-200">
+            <button type="button" onClick={() => setOpzioniAperte((v) => !v)} aria-expanded={opzioniAperte}
+              className="flex w-full flex-wrap items-center gap-2 px-3 py-2.5 text-left">
+              <ChevronDown className={cn("h-4 w-4 text-slate-400 transition-transform", opzioniAperte ? "rotate-180" : "")} />
+              <span className="text-xs font-semibold text-slate-700">Opzioni avanzate</span>
+              {!opzioniAperte && (
+                <span className="text-[11px] text-slate-400">
+                  {riepilogoAvanzate.length > 0 ? riepilogoAvanzate.join(" · ") : "Formato, argomento, testo per piattaforma, primo commento"}
+                </span>
+              )}
+            </button>
+            {opzioniAperte && (
+              <div className="space-y-4 border-t border-slate-100 px-3 py-3">
+                {/* Formato */}
+                <div className="space-y-2">
+                  <p className="text-[11px] font-semibold text-slate-600">Formato</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {CONTENT_TYPE_CONFIG.map((ct) => {
+                      const Icon = ct.icon;
+                      const isSelected = contentTypeId === ct.id;
+                      return (
+                        <button key={ct.id} type="button" onClick={() => setContentTypeId(ct.id)} aria-pressed={isSelected}
+                          className={cn(
+                            "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition",
+                            isSelected ? "border-orange-400 bg-orange-50 text-orange-700" : "border-slate-200 bg-white text-slate-600 hover:border-orange-200",
+                          )}>
+                          <Icon className="h-3.5 w-3.5" />
+                          {ct.label}
+                          <span className="hidden font-normal text-slate-400 sm:inline">{ct.desc}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="flex items-start gap-1.5 text-[11px] text-slate-500">
+                    <Info className="mt-0.5 h-3 w-3 shrink-0 text-slate-400" />
+                    {contentType.tips}
+                  </p>
+                </div>
+
+                {/* Argomento */}
+                <div className="space-y-2">
+                  <p className="text-[11px] font-semibold text-slate-600">Argomento</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {CONTENT_PILLARS.map((pillar) => {
+                      const isActive = activePillarId === pillar.id;
+                      return (
+                        <button key={pillar.id} type="button" onClick={() => applyPillar(pillar)} aria-pressed={isActive}
+                          className={cn(
+                            "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition",
+                            isActive ? `${pillar.colorBg} ${pillar.colorBorder} ${pillar.colorText}` : "border-slate-200 bg-white text-slate-600 hover:border-slate-300",
+                          )}>
+                          <span className="leading-none">{pillar.emoji}</span>
+                          {pillar.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {pillarAttivo && (
+                    <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
+                      <span>{pillarAttivo.description} · {pillarAttivo.weeklyFreq} a settimana.</span>
+                      {pillarAttivo.suggestedContentType !== contentTypeId && CONTENT_TYPE_CONFIG.some((c) => c.id === pillarAttivo.suggestedContentType) && (
+                        <button type="button" onClick={() => setContentTypeId(pillarAttivo.suggestedContentType)}
+                          className="rounded-full border border-orange-200 bg-orange-50 px-2 py-0.5 font-semibold text-orange-700 hover:bg-orange-100">
+                          Formato consigliato: {CONTENT_TYPE_CONFIG.find((c) => c.id === pillarAttivo.suggestedContentType)?.label}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Testo per piattaforma */}
+                {selectedPlatforms.length > 1 && (
+                  <label className="flex cursor-pointer items-start gap-2 text-[11px] text-slate-600">
+                    <input type="checkbox" className="mt-0.5 h-3.5 w-3.5 accent-orange-500" checked={crossPlatformMode}
+                      onChange={(e) => toggleCrossPlatform(e.target.checked)} />
+                    <span>
+                      <strong className="font-semibold text-slate-700">Testo diverso per ogni piattaforma</strong>
+                      <span className="block text-slate-400">Per esempio più breve su Instagram e più discorsivo su Facebook.</span>
+                    </span>
+                  </label>
+                )}
+
+                {/* Primo commento Instagram */}
+                {selectedPlatforms.includes("instagram") && contentType.hashtagsAllowed && (
+                  <Field label="Primo commento su Instagram" note="Esce subito dopo il post: utile per altri hashtag o un invito a scrivere.">
+                    <Textarea value={firstComment} onChange={(e) => setFirstComment(e.target.value)}
+                      className="min-h-[60px] resize-none text-sm" placeholder="Es.: Scrivici per un sopralluogo gratuito #serramenti #finestre" />
+                  </Field>
+                )}
+              </div>
+            )}
+          </div>
+        </PassoComposer>
+
+        {/* ── 3 · QUANDO ───────────────────────────────────────────────── */}
+        <PassoComposer numero={3} titolo="Quando">
+          <div className="grid grid-cols-2 gap-2">
+            <button type="button" onClick={() => setPublishNow(true)} aria-pressed={publishNow}
+              className={cn("flex items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border-2 px-2 py-2.5 text-[13px] font-semibold transition sm:gap-2 sm:px-3 sm:text-sm",
+                publishNow ? "border-emerald-400 bg-emerald-50 text-emerald-800" : "border-slate-200 bg-white text-slate-600 hover:border-slate-300")}>
+              <Send className="h-4 w-4" /> Pubblica ora
+            </button>
+            <button type="button" onClick={() => setPublishNow(false)} aria-pressed={!publishNow}
+              className={cn("flex items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border-2 px-2 py-2.5 text-[13px] font-semibold transition sm:gap-2 sm:px-3 sm:text-sm",
+                !publishNow ? "border-emerald-400 bg-emerald-50 text-emerald-800" : "border-slate-200 bg-white text-slate-600 hover:border-slate-300")}>
+              <Clock className="h-4 w-4" /> Programma
+            </button>
+          </div>
+
+          {!publishNow && (
+            <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Giorno">
+                  <Input type="date" value={scheduledDate} onChange={(e) => setScheduledDate(e.target.value)} min={new Date().toLocaleDateString("en-CA")} />
+                </Field>
+                <Field label="Ora">
+                  <div className="flex gap-1.5">
+                    <Input
+                      type="time"
+                      value={scheduledTime}
+                      onChange={(e) => setScheduledTime(e.target.value)}
+                      className="min-w-0 flex-1"
+                      {...(scheduledDate === new Date().toLocaleDateString("en-CA")
+                        ? { min: new Date(Date.now() + 60_000).toTimeString().slice(0, 5) }
+                        : {})}
+                    />
+                    {suggestedTime && scheduledTime !== suggestedTime && (
+                      <button type="button" onClick={() => setScheduledTime(suggestedTime)}
+                        title={`Orario consigliato per ${PLATFORMS.find((p) => p.id === selectedPlatforms[0])?.name}`}
+                        className="flex shrink-0 items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2 text-[10px] font-bold text-emerald-700 hover:bg-emerald-100">
+                        <Zap className="h-3 w-3" />{suggestedTime}
+                      </button>
+                    )}
+                  </div>
+                </Field>
+              </div>
+              {selectedPlatforms.length > 0 && (
+                <p className="text-[11px] text-slate-500">
+                  Di solito funzionano bene:{" "}
+                  {selectedPlatforms.map((id) => {
+                    const p = PLATFORMS.find((pl) => pl.id === id);
+                    return p ? `${p.name} ${p.bestTimes.join(", ")}` : null;
+                  }).filter(Boolean).join(" · ")}
+                </p>
+              )}
+            </div>
+          )}
+
+          {(mostraErrori || draftValidation.warnings.length > 0) && (
+            <div className="space-y-1.5">
+              {mostraErrori && draftValidation.errors.slice(0, 3).map((error) => (
+                <div key={error} className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[11px] text-red-700">
+                  <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
+                  <span>{error}</span>
+                </div>
+              ))}
+              {draftValidation.warnings.slice(0, 2).map((warning) => (
+                <div key={warning} className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-700">
+                  <Info className="mt-0.5 h-3 w-3 shrink-0" />
+                  <span>{warning}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Button onClick={() => void onSchedulePost()} disabled={isSubmitting || nessunaPronta || !SOCIAL_LIVE_PUBLISHING_ENABLED}
+              className={cn("flex-1 text-white shadow-sm",
+                publishNow ? "bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600"
+                  : "bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600")}>
+              {!SOCIAL_LIVE_PUBLISHING_ENABLED
+                ? <><Send className="mr-2 h-4 w-4" />Publisher live non attivo</>
+                : isSubmitting
+                  ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />{publishNow ? "Pubblicazione in corso…" : "Salvataggio…"}</>
+                  : publishNow
+                    ? <><Send className="mr-2 h-4 w-4" />{doveEsce ? `Pubblica su ${doveEsce}` : "Pubblica ora"}</>
+                    : <><Calendar className="mr-2 h-4 w-4" />{doveEsce ? `Programma su ${doveEsce}` : "Programma"}</>}
+            </Button>
+            <Button type="button" variant="outline" onClick={() => void salvaBozza("draft")} disabled={isSubmitting}
+              className="border-slate-200 text-slate-700 sm:w-auto">
+              <Pencil className="mr-2 h-4 w-4" />
+              Salva bozza
+            </Button>
+          </div>
+          {nessunaPronta && (
+            <p className="text-[11px] text-amber-700">
+              Per ora puoi solo salvare la bozza.
+            </p>
+          )}
+          {!publishNow && (
+            <button type="button" onClick={() => void salvaBozza("review")} disabled={isSubmitting}
+              className="w-full rounded-xl border border-dashed border-amber-300 py-2 text-xs font-semibold text-amber-700 transition hover:bg-amber-50 disabled:opacity-40">
+              Manda in approvazione prima di pubblicare
+            </button>
+          )}
+        </PassoComposer>
       </div>
 
-      {/* ── MAIN EDITOR + PREVIEW ─────────────────────────────────────── */}
-      <div className="grid gap-4 xl:grid-cols-[1fr_320px]">
-
-        {/* LEFT */}
-        <div className="space-y-4">
-          {/* Platform selector */}
-          <Card className="overflow-hidden">
-            <div className="h-0.5 bg-gradient-to-r from-slate-200 to-slate-100" />
-            <CardContent className="pt-3 pb-3">
-              <div className="flex flex-wrap gap-2">
-                {availablePlatforms.map((p) => {
-                  const isSelected = selectedPlatforms.includes(p.id);
-                  const isConnected = connectedAccounts.some((a) => a.platform_id === p.id);
+      {/* ── ANTEPRIMA ──────────────────────────────────────────────────── */}
+      <div className="min-w-0">
+        <Card className="overflow-hidden xl:sticky xl:top-4">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Eye className="h-4 w-4 text-slate-500" /> Anteprima
+              </CardTitle>
+              <div className="flex flex-wrap items-center gap-1">
+                {selectedPlatforms.map((id) => {
+                  const p = PLATFORMS.find((pl) => pl.id === id);
+                  if (!p) return null;
                   return (
-                    <button key={p.id} type="button"
-                      onClick={() => setSelectedPlatforms((prev) => prev.includes(p.id) ? prev.filter((x) => x !== p.id) : [...prev, p.id])}
-                      className={cn(
-                        "flex items-center gap-2 rounded-xl border-2 px-3 py-2 text-sm font-semibold transition",
-                        isSelected ? `border-transparent text-white bg-gradient-to-r ${p.gradient}` : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
-                      )}>
-                      <span className={cn("flex h-5 w-5 items-center justify-center rounded text-[9px] font-bold", isSelected ? "bg-white/20" : cn(p.color, "text-white"))}>{p.icon}</span>
+                    <button key={id} type="button" onClick={() => setPreviewPlatform(id)}
+                      className={cn("rounded-lg px-2 py-1 text-[10px] font-bold transition",
+                        piattaformaAnteprima === id ? `text-white bg-gradient-to-r ${p.gradient}` : "text-slate-500 hover:bg-slate-100")}>
                       {p.name}
-                      {!isConnected && <span className={cn("rounded-full px-1 text-[9px]", isSelected ? "bg-white/20" : "bg-slate-100 text-slate-400")}>demo</span>}
                     </button>
                   );
                 })}
               </div>
-              {availablePlatforms.length < PLATFORMS.length && (
-                <p className="mt-2 text-[10px] text-slate-400">
-                  Solo le piattaforme compatibili con <strong>{contentType.label}</strong> sono disponibili.
-                </p>
-              )}
-              {/* Destinazione: con più pagine/account collegati si sceglie, mai a caso */}
-              {(["facebook", "instagram"] as const).map((platformId) => {
-                const options = metaAccounts[platformId];
-                if (!selectedPlatforms.includes(platformId) || options.length < 2) return null;
-                const isIg = platformId === "instagram";
-                return (
-                  <div key={platformId} className="mt-3 flex flex-wrap items-center gap-2">
-                    <Label className="text-xs font-semibold text-slate-600">
-                      {isIg ? "Account Instagram" : "Pagina Facebook"}
-                    </Label>
-                    <Select
-                      value={targetPageIds[platformId] ?? ""}
-                      onValueChange={(value) => setTargetPageIds((prev) => ({ ...prev, [platformId]: value }))}
-                    >
-                      <SelectTrigger className="h-8 w-64 text-xs">
-                        <SelectValue placeholder={isIg ? "Scegli l'account" : "Scegli la pagina"} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {options.map((account) => (
-                          <SelectItem key={account.page_id} value={account.page_id} className="text-xs">
-                            {account.page_name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                );
-              })}
-            </CardContent>
-          </Card>
-
-          {/* API hints */}
-          <ApiPlatformHints selectedPlatforms={selectedPlatforms} contentType={contentTypeId} publishNow={publishNow} />
-          {!SOCIAL_LIVE_PUBLISHING_ENABLED && (
-            <Alert className="border-amber-200 bg-amber-50 py-2">
-              <AlertTriangle className="h-4 w-4 text-amber-600" />
-              <AlertDescription className="text-xs text-amber-800">
-                <strong>Modalità bozza locale.</strong> Puoi preparare contenuti e calendario, ma la pubblicazione live sarà disponibile solo quando il publisher social backend sarà collegato.
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {/* Copy variants */}
-          {copyVariants.length > 1 && (
-            <Card className="overflow-hidden border-orange-200">
-              <div className="h-0.5 bg-gradient-to-r from-orange-400 to-amber-400" />
-              <CardContent className="pt-3 pb-3">
-                <p className="mb-2 text-xs font-bold text-slate-700">
-                  <Sparkles className="mr-1.5 inline h-3.5 w-3.5 text-orange-500" />
-                  Scegli la variante che preferisci
-                </p>
-                <div className="space-y-2">
-                  {copyVariants.map((v, i) => (
-                    <button key={i} type="button" onClick={() => { setPostText(v); setCopyVariants([]); toast.success("Variante selezionata"); }}
-                      className={cn(
-                        "w-full rounded-xl border-2 p-3 text-left text-sm text-slate-700 transition hover:border-orange-300 hover:bg-orange-50",
-                        postText === v ? "border-orange-400 bg-orange-50" : "border-slate-200 bg-white"
-                      )}>
-                      <span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-orange-400">Variante {i + 1}</span>
-                      {v.slice(0, 120)}{v.length > 120 ? "…" : ""}
-                    </button>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Text editor */}
-          <Card className="overflow-hidden">
-            <div className="h-0.5 bg-gradient-to-r from-orange-400 to-amber-400" />
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-orange-100">
-                    <Edit3 className="h-4 w-4 text-orange-600" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-base">
-                      {isVideoType ? "Titolo / Descrizione" : isStory ? "Testo overlay (opzionale)" : "Testo post"}
-                    </CardTitle>
-                    <CardDescription className="text-[11px]">
-                      {charCount > 0 ? (
-                        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                          {selectedPlatforms.length === 0 ? (
-                            <span className="text-slate-400">{charCount} car.</span>
-                          ) : (
-                            selectedPlatforms.map((id) => {
-                              const platform = PLATFORMS.find((p) => p.id === id);
-                              if (!platform) return null;
-                              const over = charCount > platform.maxChars;
-                              const close = charCount > platform.maxChars * 0.9 && !over;
-                              return (
-                                <span
-                                  key={id}
-                                  className={cn(
-                                    "tabular-nums",
-                                    over ? "font-semibold text-red-600" : close ? "font-semibold text-amber-600" : "text-slate-400",
-                                  )}
-                                  title={`${platform.name}: ${charCount}/${platform.maxChars}`}
-                                >
-                                  {platform.name.slice(0, 2)} {charCount}/{platform.maxChars.toLocaleString("it")}
-                                </span>
-                              );
-                            })
-                          )}
-                        </div>
-                      ) : "Scrivi o genera con AI"}
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  {/* Cross-platform toggle — visibile con 2+ piattaforme */}
-                  {selectedPlatforms.length > 1 && (
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <button type="button" onClick={() => toggleCrossPlatform(!crossPlatformMode)}
-                            className={cn(
-                              "flex items-center gap-1 rounded-lg border px-2 py-1 text-[10px] font-bold transition",
-                              crossPlatformMode
-                                ? "border-orange-400 bg-orange-100 text-orange-700"
-                                : "border-slate-200 bg-white text-slate-500 hover:border-orange-200 hover:text-orange-600"
-                            )}>
-                            <Share2 className="h-3 w-3" />
-                            {crossPlatformMode ? "✓ Per piattaforma" : "Personalizza"}
-                          </button>
-                        </TooltipTrigger>
-                        <TooltipContent className="max-w-[200px] text-xs">
-                          Testo diverso per ogni piattaforma — Instagram breve, LinkedIn lungo, Facebook conversazionale
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  )}
-                  <Button size="sm" variant="ghost" onClick={() => void onGeneratePost()} disabled={isGeneratingCopy || !brief.trim()}
-                    className="h-7 gap-1.5 text-[11px] text-orange-600 hover:bg-orange-50">
-                    {isGeneratingCopy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} AI
-                  </Button>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {isGeneratingCopy ? (
-                <div className="space-y-2 rounded-xl border border-orange-100 bg-orange-50/40 p-3">
-                  {[...Array(3)].map((_, i) => <div key={i} className={cn("h-4 animate-pulse rounded-lg bg-orange-100/70", i === 2 ? "w-2/3" : "w-full")} />)}
-                </div>
-              ) : crossPlatformMode ? (
-                /* ── CROSS-PLATFORM MODE: textarea per piattaforma ── */
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2 rounded-xl border border-orange-100 bg-orange-50/60 px-3 py-2 text-[11px] text-orange-700">
-                    <Share2 className="h-3.5 w-3.5 shrink-0" />
-                    <span><strong>Modalità multi-piattaforma</strong> — ogni canale riceve il suo testo ottimizzato</span>
-                  </div>
-                  {selectedPlatforms.map((pid) => {
-                    const pl = PLATFORMS.find(p => p.id === pid);
-                    if (!pl) return null;
-                    const txt = platformTexts[pid] ?? postText;
-                    const over = txt.length > pl.maxChars;
-                    const HINTS: Record<string, string> = {
-                      instagram: "Breve + emoji · 3-5 hashtag nel testo · hook nei primi 125 car.",
-                      facebook:  "Conversazionale · racconta la storia · domanda finale per commenti",
-                      linkedin:  "Professionale · bullet point · inizia con insight · no hashtag in eccesso",
-                      youtube:   "Titolo: keyword nei primi 40 car. · Descrizione: 200+ parole",
-                      tiktok:    "Hook immediato · breve · trending hashtag",
-                    };
-                    return (
-                      <div key={pid} className="rounded-xl border border-slate-200 bg-white p-3 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <span className={cn("flex h-6 w-6 items-center justify-center rounded-lg text-[9px] font-bold text-white bg-gradient-to-br", pl.gradient)}>{pl.icon}</span>
-                            <div>
-                              <span className="text-xs font-bold text-slate-800">{pl.name}</span>
-                              <p className="text-[10px] text-slate-400">{HINTS[pid]}</p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className={cn("text-[10px] tabular-nums", over ? "font-bold text-red-500" : "text-slate-400")}>
-                              {txt.length}/{pl.maxChars.toLocaleString("it")}
-                            </span>
-                            <button type="button"
-                              onClick={() => {
-                                void (async () => {
-                                  const tips: Record<string, string> = {
-                                    instagram: "Ottimizza per Instagram: breve, visivo, emoji naturali, 3-5 hashtag nel testo",
-                                    facebook:  "Ottimizza per Facebook: conversazionale, termina con domanda aperta",
-                                    linkedin:  "Ottimizza per LinkedIn: professionale, usa bullet point, inizia con insight di settore",
-                                    youtube:   "Riscrivi come titolo YouTube SEO: keyword edilizia nei primi 40 caratteri",
-                                    tiktok:    "Ottimizza per TikTok: hook immediato, max 150 car, trending hashtag edilizia",
-                                  };
-                                  const base = txt || postText || brief;
-                                  if (!base.trim()) { toast.error("Scrivi prima del testo"); return; }
-                                  const result = await generateCopy({ brief: `${tips[pid] ?? "Ottimizza questo testo"}: "${base}"`, segment, zone: "", variants: 1 });
-                                  if (result?.copy_variants?.[0]) {
-                                    setPlatformText(pid, result.copy_variants[0]);
-                                    toast.success(`Testo ${pl.name} ottimizzato`);
-                                  }
-                                })();
-                              }}
-                              disabled={isGeneratingCopy}
-                              className="flex items-center gap-0.5 rounded-md bg-orange-100 px-2 py-0.5 text-[10px] font-bold text-orange-700 hover:bg-orange-200 disabled:opacity-50">
-                              <Sparkles className="h-2.5 w-2.5" /> AI
-                            </button>
-                          </div>
-                        </div>
-                        <Textarea
-                          value={txt}
-                          onChange={e => setPlatformText(pid, e.target.value)}
-                          className={cn("min-h-[80px] resize-none text-sm", over ? "border-red-300" : "")}
-                          placeholder={`Testo ottimizzato per ${pl.name}...`}
-                        />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="flex justify-center">
+              <div className={cn("relative max-w-full overflow-hidden rounded-2xl border shadow-sm", currentPlatform.borderColor)}
+                style={{ width: contentType.previewW * 2, height: contentType.previewH * 2 }}>
+                {(isStory || contentTypeId === "reel") ? (
+                  <>
+                    {activeMediaUrl ? (
+                      <img loading="lazy" src={activeMediaUrl} alt="Anteprima" className="h-full w-full object-cover" />
+                    ) : selectedLibraryMedia ? (
+                      <div className={cn("flex h-full w-full items-center justify-center bg-gradient-to-br", selectedLibraryMedia.gradient)}>
+                        <Smartphone className="h-10 w-10 text-white/70" />
                       </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <Textarea value={postText} onChange={(e) => setPostText(e.target.value)}
-                    className={cn("min-h-28 resize-none font-[inherit] text-sm", charCount > maxChars ? "border-red-300 focus-visible:ring-red-400" : "")}
-                    placeholder={isStory ? "Testo breve da sovrapporre alla Story (opzionale)..." : isVideoType ? "Titolo del video — sii specifico, usa keyword nei primi 40 caratteri..." : "Racconta la tua impresa, mostra un progetto completato, condividi un consiglio..."} />
-                  {/* MIGL: CTA "Chiedi a Silvio" — apre la chat con prompt strutturato */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const platformsLabel = selectedPlatforms.length > 0
-                        ? selectedPlatforms.map((id) => PLATFORMS.find((p) => p.id === id)?.name).filter(Boolean).join(", ")
-                        : "Instagram + Facebook";
-                      const draft =
-                        `Scrivi una caption per un post su ${platformsLabel}.\n` +
-                        `Tipo: ${contentType.name}.\n` +
-                        `Brief: ${brief || postText || "Mostra un progetto edile completato, tono caldo e professionale"}.\n\n` +
-                        `Requisiti: hook nei primi 125 caratteri, tono italiano colloquiale per imprenditore edile, ` +
-                        `${selectedPlatforms.includes("twitter") ? "max 280 caratteri (Twitter)" : "max 2200 caratteri"}, ` +
-                        `${contentType.hashtagsAllowed ? "3-5 hashtag rilevanti edilizia in fondo" : "senza hashtag"}. ` +
-                        `Restituisci 3 varianti distinte.`;
-                      window.dispatchEvent(new CustomEvent("silvio:open-chat", { detail: { draft } }));
-                    }}
-                    className="flex items-center gap-1.5 rounded-md border border-orange-200 bg-orange-50 px-2.5 py-1 text-[11px] font-semibold text-orange-700 hover:bg-orange-100"
-                  >
-                    <Sparkles className="h-3 w-3" />
-                    Chiedi a Silvio una caption
-                  </button>
-                </div>
-              )}
-
-              {/* Hashtags (hidden for Stories) */}
-              {contentType.hashtagsAllowed && (
-                <div>
-                  <div className="mb-2 flex items-center justify-between">
-                    <p className="text-[11px] font-semibold text-slate-600">
-                      Hashtag{selectedPlatforms.length > 0 && (
-                        <span className="ml-1 font-normal text-slate-400">
-                          (max {Math.min(...selectedPlatforms.map((id) => PLATFORMS.find((p) => p.id === id)?.hashtagsMax ?? 99))})
-                        </span>
-                      )}
-                    </p>
-                    <button type="button" onClick={() => void onGenerateHashtags()} disabled={isGeneratingHashtags || (!postText.trim() && !brief.trim())}
-                      className="flex items-center gap-1 text-[10px] font-semibold text-orange-600 hover:text-orange-800 disabled:opacity-40">
-                      {isGeneratingHashtags ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} AI
-                    </button>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {hashtags.map((tag) => (
-                      <span key={tag} className="flex items-center gap-1 rounded-full border border-orange-200 bg-orange-50 px-2 py-0.5 text-[11px] font-medium text-orange-700">
-                        {tag}
-                        <button type="button" onClick={() => setHashtags((h) => h.filter((t) => t !== tag))}><X className="h-2.5 w-2.5 text-orange-400 hover:text-orange-700" /></button>
-                      </span>
-                    ))}
-                    <div className="flex items-center">
-                      <Input value={hashtagInput} onChange={(e) => setHashtagInput(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); addHashtag(); } }}
-                        placeholder="+ hashtag" className="h-7 w-24 rounded-full border-dashed text-xs" />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Instagram first comment */}
-              {selectedPlatforms.includes("instagram") && contentType.hashtagsAllowed && (
-                <div>
-                  <button type="button" onClick={() => setShowFirstComment(!showFirstComment)}
-                    className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 hover:text-slate-700">
-                    <span className={cn("flex h-4 w-4 items-center justify-center rounded-full border-2 transition", showFirstComment ? "border-orange-400 bg-orange-400" : "border-slate-300")}>
-                      {showFirstComment && <Check className="h-2.5 w-2.5 text-white" />}
-                    </span>
-                    Primo commento Instagram (hashtag estratti dal caption)
-                  </button>
-                  {showFirstComment && (
-                    <Textarea value={firstComment} onChange={(e) => setFirstComment(e.target.value)}
-                      className="mt-2 min-h-[60px] resize-none text-sm" placeholder="Aggiungi hashtag extra o CTA nel primo commento per non appesantire il caption..." />
-                  )}
-                </div>
-              )}
-
-              {/* Story-specific note */}
-              {isStory && (
-                <div className="flex items-start gap-2 rounded-xl border border-pink-100 bg-pink-50/60 px-3 py-2 text-[11px] text-pink-700">
-                  <Smartphone className="mt-0.5 h-3.5 w-3.5 shrink-0 text-pink-500" />
-                  <span>Le Stories scompaiono dopo 24h · Usa testo breve e visual d&apos;impatto · Aggiungi un CTA chiaro (&quot;Scrivi per info&quot;, &quot;Link in bio&quot;)</span>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Media */}
-          <Card className="overflow-hidden">
-            <div className="h-0.5 bg-gradient-to-r from-amber-400 to-orange-400" />
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2.5">
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-amber-100">
-                    {isVideoType ? <Film className="h-4 w-4 text-amber-600" /> : isStory ? <Smartphone className="h-4 w-4 text-amber-600" /> : <ImageIcon className="h-4 w-4 text-amber-600" />}
-                  </div>
-                  <div>
-                    <CardTitle className="text-base">{isVideoType ? "Video" : `Immagine ${contentType.aspectRatio}`}</CardTitle>
-                    <CardDescription className="text-[11px]">
-                      {isStory ? "9:16 · Full screen · max 15s per clip" : isVideoType ? "MP4 / MOV richiesto" : `Proporzione consigliata: ${contentType.aspectRatio}`}
-                    </CardDescription>
-                  </div>
-                </div>
-                {!isVideoType && (
-                  <Button size="sm" variant="ghost" onClick={() => void onGenerateImage()} disabled={isGeneratingImage || !brief.trim()}
-                    className="h-7 gap-1.5 text-[11px] text-amber-600 hover:bg-amber-50">
-                    {isGeneratingImage ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wand2 className="h-3 w-3" />} AI
-                  </Button>
-                )}
-              </div>
-            </CardHeader>
-            <CardContent>
-              {activeMediaUrl || selectedLibraryMedia ? (
-                <div className="relative overflow-hidden rounded-xl border">
-                  {activeMediaUrl ? (
-                    <img loading="lazy" src={activeMediaUrl} alt="Media" className="max-h-64 w-full object-cover" />
-                  ) : selectedLibraryMedia ? (
-                    <div className={cn("flex h-48 flex-col items-center justify-center bg-gradient-to-br px-4 text-center text-white", selectedLibraryMedia.gradient)}>
-                      {selectedLibraryMedia.type === "video" ? <Play className="mb-2 h-9 w-9 text-white/80" /> : <ImageIcon className="mb-2 h-9 w-9 text-white/80" />}
-                      <p className="text-sm font-bold drop-shadow">{selectedLibraryMedia.title}</p>
-                      <p className="mt-1 text-[11px] font-medium text-white/80">{selectedLibraryMedia.format} · dalla galleria</p>
-                    </div>
-                  ) : null}
-                  <button type="button" onClick={() => { setMediaUrl(null); setSelectedLibraryMedia(null); }} className="absolute right-2 top-2 rounded-full bg-black/60 p-1.5 text-white hover:bg-black/80">
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                  <div className="bg-slate-50 px-3 py-2">
-                    <p className="text-[11px] text-slate-500">
-                      {selectedLibraryMedia ? `${selectedLibraryMedia.title} · ${selectedLibraryMedia.format}` : `${contentType.label} · ${contentType.aspectRatio}`}
-                    </p>
-                  </div>
-                </div>
-              ) : isGeneratingImage ? (
-                <div className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-amber-200 bg-amber-50 p-8 text-sm text-amber-700">
-                  <Loader2 className="h-5 w-5 animate-spin" /> Generazione in corso...
-                </div>
-              ) : isVideoType ? (
-                extraMedia.length === 0 ? (
-                  <SocialMediaUploader
-                    companyId={companyId}
-                    accept="video"
-                    label="Carica il video"
-                    hint="MP4 o MOV · max 200 MB · Instagram lo pubblica come Reel"
-                    onUploaded={(items) => setExtraMedia(items.slice(0, 1))}
-                  />
-                ) : null
-              ) : (
-                <AdMediaUploader
-                  companyId={companyId}
-                  onUploaded={(media) => {
-                    if (media.public_url) {
-                      const storedMedia = createStoredMediaItem({
-                        id: media.id,
-                        title: `Media social ${new Date().toLocaleDateString("it-IT")}`,
-                        publicUrl: media.public_url,
-                        format: contentType.aspectRatio,
-                        type: mediaTypeFromContent(contentTypeId),
-                        tags: ["upload", segment, contentTypeId],
-                        aiGenerated: false,
-                        fileSize: "upload",
-                        category: pillarToMediaCategory(activePillarId),
-                      });
-                      storeMediaInComposer(storedMedia, media.public_url);
-                    }
-                    toast.success("Media caricato");
-                  }}
-                />
-              )}
-              {/* Format hints */}
-              {!activeMediaUrl && !selectedLibraryMedia && (
-                <div className="mt-2 flex flex-wrap gap-1">
-                  {Array.from(new Set(selectedPlatforms.flatMap((id) => PLATFORMS.find((p) => p.id === id)?.mediaFormats ?? []))).map((fmt) => (
-                    <span key={fmt} className="rounded-full border border-slate-100 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-500">{fmt}</span>
-                  ))}
-                  {selectedPlatforms.length > 0 && <span className="text-[10px] text-slate-400">formati accettati</span>}
-                </div>
-              )}
-              {/* File caricati nello Storage: video del Reel, slide del carosello */}
-              {extraMedia.length > 0 && (
-                <div className="mt-3 grid grid-cols-3 gap-2">
-                  {extraMedia.map((item, index) => (
-                    <div key={item.path ?? item.url ?? index} className="relative overflow-hidden rounded-lg border bg-slate-50">
-                      {item.type === "video"
-                        ? <video src={item.url} className="h-24 w-full object-cover" muted playsInline preload="metadata" />
-                        : <img loading="lazy" src={item.url} alt="" className="h-24 w-full object-cover" />}
-                      <button
-                        type="button"
-                        aria-label="Rimuovi file"
-                        onClick={() => setExtraMedia((prev) => prev.filter((_, i) => i !== index))}
-                        className="absolute right-1 top-1 rounded-full bg-black/60 p-1 text-white hover:bg-black/80"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {isCarouselType && (
-                <SocialMediaUploader
-                  className="mt-3"
-                  companyId={companyId}
-                  accept={selectedPlatforms.includes("facebook") ? "image" : "any"}
-                  multiple
-                  maxFiles={Math.max(0, 10 - postMedia.length)}
-                  label="Aggiungi slide al carosello"
-                  hint={`${postMedia.length}/10 file · servono almeno 2 · su Facebook solo immagini`}
-                  onUploaded={(items) => setExtraMedia((prev) => [...prev, ...items])}
-                />
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Scheduling */}
-          <Card className="overflow-hidden">
-            <div className="h-0.5 bg-gradient-to-r from-emerald-400 to-teal-400" />
-            <CardHeader className="pb-3">
-              <div className="flex items-center gap-2.5">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-emerald-100">
-                  <Calendar className="h-4 w-4 text-emerald-600" />
-                </div>
-                <div>
-                  <CardTitle className="text-base">Programmazione</CardTitle>
-                  <CardDescription className="text-[11px]">Pubblica ora o pianifica per dopo</CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex gap-3">
-                <button type="button" onClick={() => setPublishNow(true)}
-                  className={cn("flex flex-1 flex-col items-center gap-1 rounded-xl border-2 px-3 py-3 text-center transition",
-                    publishNow ? "border-emerald-400 bg-emerald-50" : "border-slate-200 bg-slate-50 hover:border-slate-300")}>
-                  <Send className={cn("h-4 w-4", publishNow ? "text-emerald-600" : "text-slate-400")} />
-                  <p className={cn("text-[11px] font-semibold", publishNow ? "text-emerald-800" : "text-slate-600")}>Pubblica ora</p>
-                  <p className={cn("text-[10px]", publishNow ? "text-emerald-500" : "text-slate-400")}>Immediato</p>
-                </button>
-                <button type="button" onClick={() => setPublishNow(false)}
-                  className={cn("flex flex-1 flex-col items-center gap-1 rounded-xl border-2 px-3 py-3 text-center transition",
-                    !publishNow ? "border-emerald-400 bg-emerald-50" : "border-slate-200 bg-slate-50 hover:border-slate-300")}>
-                  <Clock className={cn("h-4 w-4", !publishNow ? "text-emerald-600" : "text-slate-400")} />
-                  <p className={cn("text-[11px] font-semibold", !publishNow ? "text-emerald-800" : "text-slate-600")}>Programma</p>
-                  <p className={cn("text-[10px]", !publishNow ? "text-emerald-500" : "text-slate-400")}>Scegli data/ora</p>
-                </button>
-              </div>
-
-              {!publishNow && (
-                <div className="space-y-2">
-                  <div className="grid grid-cols-2 gap-3">
-                    <Field label="Data">
-                      <Input type="date" value={scheduledDate} onChange={(e) => setScheduledDate(e.target.value)} min={new Date().toISOString().split("T")[0]} />
-                    </Field>
-                    <Field label="Ora">
-                      <div className="flex gap-1.5">
-                        <Input
-                          type="time"
-                          value={scheduledTime}
-                          onChange={(e) => setScheduledTime(e.target.value)}
-                          className="flex-1"
-                          {...(scheduledDate === new Date().toLocaleDateString("en-CA")
-                            ? { min: new Date(Date.now() + 60_000).toTimeString().slice(0, 5) }
-                            : {})}
-                        />
-                        {suggestedTime && (
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <button type="button" onClick={() => setScheduledTime(suggestedTime)}
-                                  className="flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2 text-[10px] font-bold text-emerald-700 hover:bg-emerald-100">
-                                  <Zap className="h-3 w-3" />{suggestedTime}
-                                </button>
-                              </TooltipTrigger>
-                              <TooltipContent className="text-xs">Orario ottimale per {PLATFORMS.find((p) => p.id === selectedPlatforms[0])?.name}</TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        )}
+                    ) : (
+                      <div className={cn("flex h-full w-full items-center justify-center bg-gradient-to-br", currentPlatform.gradient, "opacity-20")}>
+                        <Smartphone className="h-10 w-10 text-slate-400" />
                       </div>
-                    </Field>
-                  </div>
-                  {/* Best times */}
-                  <div className="rounded-lg border border-emerald-100 bg-emerald-50/60 px-3 py-2 text-[11px] text-emerald-700">
-                    <strong>Orari migliori:</strong>{" "}
-                    {selectedPlatforms.map((id) => {
-                      const p = PLATFORMS.find((pl) => pl.id === id);
-                      return p ? `${p.shortName}: ${p.bestTimes.join(", ")}` : null;
-                    }).filter(Boolean).join(" · ")}
-                  </div>
-                  {/* LinkedIn draft note */}
-                  {selectedPlatforms.includes("linkedin") && (
-                    <div className="flex items-start gap-2 rounded-lg border border-blue-100 bg-blue-50/80 px-3 py-2 text-[11px] text-blue-700">
-                      <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-blue-500" />
-                      <span>LinkedIn: nessuno scheduling nativo; salva una bozza e usa il reminder per pubblicare manualmente.</span>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {(draftValidation.errors.length > 0 || draftValidation.warnings.length > 0) && (
-                <div className="space-y-1.5">
-                  {draftValidation.errors.slice(0, 3).map((error) => (
-                    <div key={error} className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[11px] text-red-700">
-                      <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
-                      <span>{error}</span>
-                    </div>
-                  ))}
-                  {draftValidation.warnings.slice(0, 2).map((warning) => (
-                    <div key={warning} className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-700">
-                      <Info className="mt-0.5 h-3 w-3 shrink-0" />
-                      <span>{warning}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <Button onClick={onSchedulePost} disabled={!draftValidation.canPublishLive || (!publishNow && !scheduledDate) || isSubmitting}
-                className={cn("w-full text-white shadow-sm",
-                  publishNow ? "bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600"
-                             : "bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600")}>
-                {!SOCIAL_LIVE_PUBLISHING_ENABLED
-                  ? <><Send className="mr-2 h-4 w-4" />Publisher live non attivo</>
-                  : publishNow
-                    ? <><Send className="mr-2 h-4 w-4" />Pubblica ora su {draftValidation.connectedSelectedPlatforms.length} piattaform{draftValidation.connectedSelectedPlatforms.length === 1 ? "a" : "e"}</>
-                    : <><Calendar className="mr-2 h-4 w-4" />Programma pubblicazione</>}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => saveLocalPost("draft")}
-                disabled={!draftValidation.canSaveDraft || isSubmitting}
-                className="w-full border-slate-200 text-slate-700"
-              >
-                <Pencil className="mr-2 h-4 w-4" />
-                Salva bozza locale
-              </Button>
-              {/* Invia in revisione */}
-              {!publishNow && (
-                <button type="button"
-                  onClick={() => saveLocalPost("review")}
-                  disabled={!draftValidation.canSaveDraft || isSubmitting}
-                  className="w-full rounded-xl border-2 border-dashed border-amber-300 py-2 text-xs font-semibold text-amber-700 transition hover:bg-amber-50 disabled:opacity-40">
-                  ⏳ Salva in revisione locale
-                </button>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* RIGHT: Preview */}
-        <div className="space-y-4">
-          <Card className="overflow-hidden sticky top-4">
-            <div className="h-0.5 bg-gradient-to-r from-slate-300 to-slate-200" />
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Eye className="h-4 w-4 text-slate-500" /> Preview
-                </CardTitle>
-                <div className="flex items-center gap-1">
-                  {selectedPlatforms.map((id) => {
-                    const p = PLATFORMS.find((pl) => pl.id === id);
-                    if (!p) return null;
-                    return (
-                      <button key={id} type="button" onClick={() => setPreviewPlatform(id)}
-                        className={cn("rounded-lg px-2 py-1 text-[10px] font-bold transition",
-                          previewPlatform === id ? `text-white bg-gradient-to-r ${p.gradient}` : "text-slate-500 hover:bg-slate-100")}>
-                        {p.shortName}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {/* Preview frame — changes shape based on content type */}
-              <div className="flex justify-center">
-                <div className={cn("relative overflow-hidden rounded-2xl border shadow-sm", currentPlatform.borderColor)}
-                  style={{ width: contentType.previewW * 2, height: contentType.previewH * 2 }}>
-                  {/* Story/Reel — fullscreen style */}
-                  {(isStory || contentTypeId === "reel") ? (
-                    <>
-                      {activeMediaUrl ? (
-                        <img loading="lazy" src={activeMediaUrl} alt="Preview" className="h-full w-full object-cover" />
-                      ) : selectedLibraryMedia ? (
-                        <div className={cn("flex h-full w-full items-center justify-center bg-gradient-to-br", selectedLibraryMedia.gradient)}>
-                          <Smartphone className="h-10 w-10 text-white/70" />
-                        </div>
-                      ) : (
-                        <div className={cn("flex h-full w-full items-center justify-center bg-gradient-to-br", currentPlatform.gradient, "opacity-20")}>
-                          <Smartphone className="h-10 w-10 text-slate-400" />
-                        </div>
-                      )}
-                      {/* Story overlay */}
-                      <div className="absolute inset-0 flex flex-col justify-between p-3">
-                        {/* Top bar */}
-                        <div className="flex items-center gap-1.5">
-                          <div className={cn("h-1 flex-1 rounded-full opacity-60 bg-gradient-to-r", currentPlatform.gradient)} />
-                          <div className="h-1 flex-1 rounded-full bg-white/30" />
-                          <div className="h-1 flex-1 rounded-full bg-white/30" />
-                        </div>
-                        {/* Bottom text overlay */}
+                    )}
+                    <div className="absolute inset-0 flex flex-col justify-between p-3">
+                      <div className="flex items-center gap-1.5">
+                        <div className={cn("h-1 flex-1 rounded-full opacity-60 bg-gradient-to-r", currentPlatform.gradient)} />
+                        <div className="h-1 flex-1 rounded-full bg-white/30" />
+                        <div className="h-1 flex-1 rounded-full bg-white/30" />
+                      </div>
+                      <div className="space-y-1">
+                        <p className="truncate text-[10px] font-semibold text-white drop-shadow">{nomeAnteprima}</p>
                         {postText && (
                           <div className="rounded-xl bg-black/50 p-2">
                             <p className="text-[10px] font-semibold leading-tight text-white">{postText.slice(0, 80)}</p>
                           </div>
                         )}
                       </div>
-                    </>
-                  ) : (
-                    /* Feed / normal preview */
-                    <>
-                      {/* Header */}
-                      <div className={cn("flex items-center gap-2 p-2", currentPlatform.bgLight)}>
-                        <div className={cn("flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br text-[8px] font-bold text-white", currentPlatform.gradient)}>A</div>
-                        <div className="flex-1 min-w-0">
-                          <p className="truncate text-[10px] font-semibold text-slate-900">La Tua Impresa</p>
-                          <p className="text-[8px] text-slate-400">
-                            {publishNow ? "Ora" : scheduledDate ? new Date(`${scheduledDate}T${scheduledTime}`).toLocaleString("it", { day:"2-digit", month:"short", hour:"2-digit", minute:"2-digit" }) : "—"}
-                          </p>
-                        </div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className={cn("flex items-center gap-2 p-2", currentPlatform.bgLight)}>
+                      <div className={cn("flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br text-[9px] font-bold uppercase text-white", currentPlatform.gradient)}>
+                        {nomeAnteprima.trim().charAt(0) || "A"}
                       </div>
-                      {/* Media */}
-                      {activeMediaUrl ? (
-                        <img loading="lazy" src={activeMediaUrl} alt="Post media" className="w-full object-cover" style={{ height: contentType.previewH }} />
-                      ) : selectedLibraryMedia ? (
-                        <div className={cn("flex items-center justify-center bg-gradient-to-br", selectedLibraryMedia.gradient)} style={{ height: contentType.previewH }}>
-                          <ImageIcon className="h-6 w-6 text-white/70" />
-                        </div>
-                      ) : (
-                        <div className={cn("flex items-center justify-center border-y", currentPlatform.bgLight)} style={{ height: contentType.previewH }}>
-                          <ImageIcon className={cn("h-6 w-6 opacity-30", currentPlatform.textColor)} />
-                        </div>
-                      )}
-                      {/* Caption */}
-                      <div className="p-2">
-                        <p className="text-[10px] leading-relaxed text-slate-800">
-                          {postText ? postText.slice(0, 100) + (postText.length > 100 ? "…" : "") : <span className="italic text-slate-400">Testo qui…</span>}
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[10px] font-semibold text-slate-900">{nomeAnteprima}</p>
+                        <p className="text-[8px] text-slate-400">
+                          {publishNow ? "Adesso" : scheduledDate ? new Date(`${scheduledDate}T${scheduledTime}`).toLocaleString("it-IT", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "—"}
                         </p>
-                        {hashtags.length > 0 && <p className={cn("mt-1 text-[9px] font-medium", currentPlatform.textColor)}>{hashtags.slice(0,4).join(" ")}</p>}
                       </div>
-                    </>
-                  )}
-                </div>
+                    </div>
+                    {activeMediaUrl ? (
+                      <img loading="lazy" src={activeMediaUrl} alt="Foto del post" className="w-full object-cover" style={{ height: contentType.previewH }} />
+                    ) : selectedLibraryMedia ? (
+                      <div className={cn("flex items-center justify-center bg-gradient-to-br", selectedLibraryMedia.gradient)} style={{ height: contentType.previewH }}>
+                        <ImageIcon className="h-6 w-6 text-white/70" />
+                      </div>
+                    ) : (
+                      <div className={cn("flex items-center justify-center border-y", currentPlatform.bgLight)} style={{ height: contentType.previewH }}>
+                        <ImageIcon className={cn("h-6 w-6 opacity-30", currentPlatform.textColor)} />
+                      </div>
+                    )}
+                    <div className="p-2">
+                      <p className="text-[10px] leading-relaxed text-slate-800">
+                        {postText ? postText.slice(0, 100) + (postText.length > 100 ? "…" : "") : <span className="italic text-slate-400">Il testo del post…</span>}
+                      </p>
+                      {hashtags.length > 0 && <p className={cn("mt-1 text-[9px] font-medium", currentPlatform.textColor)}>{hashtags.slice(0, 4).join(" ")}</p>}
+                    </div>
+                  </>
+                )}
               </div>
-
-              {/* Char bars */}
-              {selectedPlatforms.length > 0 && !isStory && (
-                <div className="space-y-1">
-                  {selectedPlatforms.map((id) => {
-                    const p = PLATFORMS.find((pl) => pl.id === id);
-                    if (!p) return null;
-                    const pct = Math.min((charCount / p.maxChars) * 100, 100);
-                    return (
-                      <div key={id} className="flex items-center gap-2">
-                        <span className="w-6 text-center text-[9px] font-bold">{p.shortName}</span>
-                        <div className="flex-1 overflow-hidden rounded-full bg-slate-100 h-1.5">
-                          <div className={cn("h-full rounded-full transition-all", pct > 90 ? "bg-red-400" : pct > 70 ? "bg-amber-400" : "bg-emerald-400")} style={{ width: `${pct}%` }} />
-                        </div>
-                        <span className="text-[9px] text-slate-400 tabular-nums">{charCount}/{p.maxChars.toLocaleString("it")}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* API limits summary */}
-              {selectedPlatforms.length > 0 && (
-                <div className="rounded-xl border border-slate-100 bg-slate-50 p-2.5">
-                  <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-400">Vincoli API</p>
-                  <div className="space-y-1">
-                    {selectedPlatforms.map((id) => {
-                      const p = PLATFORMS.find((pl) => pl.id === id);
-                      if (!p) return null;
-                      return (
-                        <div key={id} className="flex items-start gap-1.5">
-                          <span className={cn("flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded text-[7px] font-bold text-white bg-gradient-to-br mt-0.5", p.gradient)}>{p.icon}</span>
-                          <span className="text-[10px] text-slate-500">{p.apiNote}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
@@ -2743,7 +2598,7 @@ function GalleriaTab({
         <Alert className="border-amber-200 bg-amber-50 py-2">
           <Info className="h-4 w-4 text-amber-600" />
           <AlertDescription className="text-xs text-amber-800">
-            Galleria demo/fallback: usa un media nel composer oppure carica/genera contenuti dalla sezione Crea Post. Se il database social non e' ancora migrato, resta attivo il fallback locale.
+            Galleria demo: sono contenuti di esempio della Demo Azienda. Usali in un post o carica i tuoi da «Crea post».
           </AlertDescription>
         </Alert>
       )}
@@ -3027,19 +2882,21 @@ function GridPlannerTab({ posts, demoMode = false }: { posts: ScheduledPost[]; d
 
   return (
     <div className="space-y-4">
-      <Alert className="border-amber-200 bg-amber-50 py-2">
-        <Info className="h-4 w-4 text-amber-600" />
-        <AlertDescription className="text-xs text-amber-800">
-          Grid planner dimostrativo: i post pubblicati sono esempi, mentre bozze e revisioni locali appaiono come contenuti in programma.
-        </AlertDescription>
-      </Alert>
+      {demoMode && (
+        <Alert className="border-amber-200 bg-amber-50 py-2">
+          <Info className="h-4 w-4 text-amber-600" />
+          <AlertDescription className="text-xs text-amber-800">
+            Griglia dimostrativa: i post pubblicati sono esempi della Demo Azienda; quelli programmati e da approvare sono i tuoi.
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-base font-bold text-slate-800">📸 Grid Planner Instagram</h2>
+          <h2 className="text-base font-bold text-slate-800">Griglia Instagram</h2>
           <p className="text-xs text-slate-500">
-            Visualizza come apparirà il tuo profilo — {publishedCount} pubblicati · {scheduledCount} in programma
+            Come apparirà il profilo: {publishedCount} pubblicati · {scheduledCount} in programma
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -3054,7 +2911,7 @@ function GridPlannerTab({ posts, demoMode = false }: { posts: ScheduledPost[]; d
 
       {/* Pillar filter */}
       <div className="flex flex-wrap items-center gap-1.5">
-        <span className="text-[11px] font-semibold text-slate-500">Evidenzia pillar:</span>
+        <span className="text-[11px] font-semibold text-slate-500">Evidenzia argomento:</span>
         <button type="button" onClick={() => setHighlightPillar(null)}
           className={cn("rounded-full border px-2.5 py-0.5 text-[10px] font-semibold transition",
             highlightPillar === null ? "border-orange-400 bg-orange-100 text-orange-700" : "border-slate-200 bg-white text-slate-400 hover:border-slate-300")}>
@@ -3291,7 +3148,7 @@ function InboxTab({ onUnreadChange, demoMode = false }: { onUnreadChange?: (n: n
   const sendReply = (id: string) => {
     if (!replyText.trim()) return;
     setItems((prev) => prev.map((i) => (i.id === id ? { ...i, status: "replied" } : i)));
-    toast.success("Risposta salvata", { description: "Salvata in locale — non ancora inviata alla piattaforma (publisher social non collegato)." });
+    toast.success("Risposta salvata", { description: "Solo qui: è la casella di prova, la risposta non arriva a nessuno." });
     setReplyText("");
     setSelectedId(null);
   };
@@ -3321,8 +3178,8 @@ function InboxTab({ onUnreadChange, demoMode = false }: { onUnreadChange?: (n: n
         <MessageSquare className="mb-3 h-10 w-10 text-slate-300" />
         <p className="text-sm font-medium text-slate-700">Nessun messaggio</p>
         <p className="mt-1 max-w-sm text-xs text-slate-400">
-          Commenti, DM e recensioni delle tue pagine social compariranno qui
-          quando la sincronizzazione conversazioni sarà attiva.
+          Commenti, messaggi e recensioni delle tue pagine compariranno qui
+          quando la lettura delle conversazioni sarà attiva.
         </p>
       </div>
     );
@@ -3334,7 +3191,7 @@ function InboxTab({ onUnreadChange, demoMode = false }: { onUnreadChange?: (n: n
         <Alert className="border-amber-200 bg-amber-50 py-2">
           <Info className="h-4 w-4 text-amber-600" />
           <AlertDescription className="text-xs text-amber-800">
-            Inbox demo locale: le risposte non vengono inviate alle piattaforme finché non è collegata l&apos;integrazione social live.
+            Messaggi di prova della Demo Azienda: le risposte restano qui e non arrivano a nessuno.
           </AlertDescription>
         </Alert>
       )}
@@ -3344,7 +3201,7 @@ function InboxTab({ onUnreadChange, demoMode = false }: { onUnreadChange?: (n: n
         {[
           { label: "Da leggere",  value: items.filter((i) => i.status === "unread").length,   color: "text-orange-600", bg: "bg-orange-50"  },
           { label: "Commenti",    value: items.filter((i) => i.type === "comment").length,     color: "text-blue-600",   bg: "bg-blue-50"    },
-          { label: "DM ricevuti", value: items.filter((i) => i.type === "dm").length,          color: "text-violet-600", bg: "bg-violet-50"  },
+          { label: "Messaggi",    value: items.filter((i) => i.type === "dm").length,          color: "text-violet-600", bg: "bg-violet-50"  },
           { label: "Recensioni",  value: items.filter((i) => i.type === "review").length,      color: "text-amber-600",  bg: "bg-amber-50"   },
         ].map(({ label, value, color, bg }) => (
           <div key={label} className={cn("flex items-center gap-3 rounded-2xl border border-slate-100 p-3", bg)}>
@@ -3640,7 +3497,7 @@ function BulkScheduleModal({
         {/* Header */}
         <div className="flex items-center justify-between border-b px-6 py-4">
           <div>
-            <h2 className="text-lg font-bold text-slate-900">📅 Import bulk post da CSV</h2>
+            <h2 className="text-lg font-bold text-slate-900">Importa post da CSV</h2>
             <p className="text-xs text-slate-500">Carica fino a 30 post programmati in una volta sola</p>
           </div>
           <button type="button" onClick={onClose} className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100">
@@ -3799,11 +3656,44 @@ function BulkScheduleModal({
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export default function SocialManagerBeta() {
+  const { effectiveCompany } = useAuthCompany();
+  const { isLoading: authInCaricamento } = useAuthUser();
+  const companyId = effectiveCompany?.id;
+
+  // Niente «Demo Azienda» mentre l'azienda si carica: prima la pagina partiva
+  // con i dati demo (media, messaggi, griglia finti) e poi li sostituiva.
+  if (!companyId) {
+    return (
+      <div className="flex min-h-[50vh] items-center justify-center gap-2 p-6 text-sm text-slate-500">
+        {authInCaricamento
+          ? <><Loader2 className="h-4 w-4 animate-spin" /> Carico i dati dell'azienda…</>
+          : "Nessuna azienda selezionata."}
+      </div>
+    );
+  }
+
+  return (
+    <GestioneSocial
+      key={companyId}
+      companyId={companyId}
+      nomeAzienda={effectiveCompany?.name}
+      settoreAzienda={effectiveCompany?.sector}
+    />
+  );
+}
+
+function GestioneSocial({
+  companyId,
+  nomeAzienda,
+  settoreAzienda,
+}: {
+  companyId: string;
+  nomeAzienda?: string;
+  settoreAzienda?: string;
+}) {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const activeTab = searchParams.get("tab") ?? "crea-post";
-  const { effectiveCompany } = useAuthCompany();
-  const companyId = effectiveCompany?.id ?? DEMO_COMPANY_ID;
   // I contenuti demo (media, inbox, celle grid) si mostrano SOLO alla Demo
   // Azienda: un'azienda reale deve vedere esclusivamente i propri dati, non
   // 12 media finti e 4 messaggi mai ricevuti.
@@ -3817,8 +3707,10 @@ export default function SocialManagerBeta() {
     addPost,
     updatePost,
     addMedia,
-    isDbBacked,
+    error: erroreDati,
+    riprova: riprovaDati,
   } = socialData;
+  const statoPubblicazione = useStatoPubblicazioneSocial(companyId);
   const mediaItems = useMemo(
     () => storedMediaItems.length > 0 ? storedMediaItems : (isDemoCompany ? DEMO_MEDIA_ITEMS : []),
     [storedMediaItems, isDemoCompany],
@@ -3828,42 +3720,47 @@ export default function SocialManagerBeta() {
   const setTab = useCallback((tab: string) => setSearchParams({ tab }, { replace: true }), [setSearchParams]);
   const goToIntegrations = useCallback(() => navigate("/azienda/impostazioni/integrazioni"), [navigate]);
 
-  const handlePostScheduled = useCallback(async (post: ScheduledPost) => {
+  /** true se il post è salvato: il composer si svuota solo allora. */
+  const handlePostScheduled = useCallback(async (post: ScheduledPost): Promise<boolean> => {
+    let saved: ScheduledPost | undefined;
     try {
-      const saved = await addPost(post);
-      // Pubblicazione reale "adesso": i post con scheduled_at <= ora vengono
-      // inviati subito via edge `social-publish` (FB/IG). I post programmati nel
-      // futuro restano 'scheduled' e li pubblica il cron `social-publish-scheduler`.
-      const id = saved?.id;
-      const dueNow = saved?.scheduled_at ? new Date(saved.scheduled_at).getTime() <= Date.now() + 60_000 : false;
-      const isDbPost = typeof id === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(id);
-      if (SOCIAL_LIVE_PUBLISHING_ENABLED && dueNow && isDbPost && saved?.status === "scheduled") {
-        const { data, error } = await supabase.functions.invoke("social-publish", { body: { post_id: id, company_id: companyId } });
-        if (error) {
-          toast.error("Pubblicazione non riuscita", { description: error.message });
-        } else {
-          const payload = data as { pending?: boolean; result?: Record<string, SocialPublishResultEntry> } | null;
-          const res = payload?.result ?? {};
-          const okCh = Object.entries(res).filter(([, v]) => v?.ok).map(([k]) => k);
-          const pendingCh = Object.entries(res).filter(([, v]) => v?.pending).map(([k]) => k);
-          const errCh = Object.entries(res).filter(([, v]) => v && v.ok === false && !v.pending);
-          const warnings = Object.values(res).flatMap((v) => v?.warnings ?? []);
-          if (okCh.length) toast.success(`Pubblicato su ${okCh.join(", ")}`);
-          if (pendingCh.length) {
-            toast.info(`${pendingCh.join(", ")}: Meta sta ancora elaborando il file`, {
-              description: "Il post esce da solo appena è pronto: l'esito compare nel calendario.",
-            });
-          } else if (payload?.pending && !okCh.length && !errCh.length) {
-            toast.info("Pubblicazione già in corso", { description: "L'esito compare nel calendario tra poco." });
-          }
-          if (errCh.length) toast.error(`Non pubblicato su ${errCh.map(([k]) => k).join(", ")}`, { description: errCh[0]?.[1]?.error });
-          if (warnings.length) toast.warning("Pubblicato con un avviso", { description: warnings[0] });
-        }
-        queryClient.invalidateQueries({ queryKey: ["social-manager", "posts", companyId] });
-      }
+      saved = await addPost(post);
     } catch {
       // errore di salvataggio già notificato dall'onError della mutation
+      return false;
     }
+    // Pubblicazione reale "adesso": i post con scheduled_at <= ora vengono
+    // inviati subito via edge `social-publish` (FB/IG). I post programmati nel
+    // futuro restano 'scheduled' e li pubblica il cron `social-publish-scheduler`.
+    const id = saved?.id;
+    const dueNow = saved?.scheduled_at ? new Date(saved.scheduled_at).getTime() <= Date.now() + 60_000 : false;
+    const isDbPost = typeof id === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(id);
+    if (SOCIAL_LIVE_PUBLISHING_ENABLED && dueNow && isDbPost && saved?.status === "scheduled") {
+      const nomeCanale = (k: string) => PLATFORMS.find((p) => p.id === k)?.name ?? k;
+      const { data, error } = await supabase.functions.invoke("social-publish", { body: { post_id: id, company_id: companyId } });
+      if (error) {
+        toast.error("Pubblicazione non riuscita", { description: error.message });
+      } else {
+        const payload = data as { pending?: boolean; result?: Record<string, SocialPublishResultEntry> } | null;
+        const res = payload?.result ?? {};
+        const okCh = Object.entries(res).filter(([, v]) => v?.ok).map(([k]) => nomeCanale(k));
+        const pendingCh = Object.entries(res).filter(([, v]) => v?.pending).map(([k]) => nomeCanale(k));
+        const errCh = Object.entries(res).filter(([, v]) => v && v.ok === false && !v.pending);
+        const warnings = Object.values(res).flatMap((v) => v?.warnings ?? []);
+        if (okCh.length) toast.success(`Pubblicato su ${okCh.join(" e ")}`);
+        if (pendingCh.length) {
+          toast.info(`${pendingCh.join(" e ")}: Meta sta ancora elaborando il file`, {
+            description: "Il post esce da solo appena è pronto: l'esito compare nel calendario.",
+          });
+        } else if (payload?.pending && !okCh.length && !errCh.length) {
+          toast.info("Pubblicazione già in corso", { description: "L'esito compare nel calendario tra poco." });
+        }
+        if (errCh.length) toast.error(`Non pubblicato su ${errCh.map(([k]) => nomeCanale(k)).join(" e ")}`, { description: errCh[0]?.[1]?.error });
+        if (warnings.length) toast.warning("Pubblicato con un avviso", { description: warnings[0] });
+      }
+      queryClient.invalidateQueries({ queryKey: ["social-manager", "posts", companyId] });
+    }
+    return true;
   }, [addPost, companyId, queryClient]);
 
   const handleUpdatePost = useCallback((id: string, changes: Partial<ScheduledPost>) => {
@@ -3873,17 +3770,17 @@ export default function SocialManagerBeta() {
   const handleUseInPost = useCallback((item: MediaItem) => {
     setSelectedMediaForComposer(item);
     setTab("crea-post");
-    toast.success(`"${item.title}" selezionato`, { description: "Il media e' gia' pronto nel composer." });
+    toast.success(`«${item.title}» è nel post`, { description: "Lo trovi nel passo 2, «Cosa»." });
   }, [setTab]);
 
   const handleUseInAds = useCallback((item: MediaItem) => {
     navigate("/azienda/marketing/pubblicita?tab=creativita");
-    toast.success(`"${item.title}" → Ads Manager`, { description: "Selezionalo come creativa nella campagna." });
+    toast.success(`«${item.title}» è pronto per la pubblicità`, { description: "Sceglilo come immagine nella campagna." });
   }, [navigate]);
 
   const handleUploadRequested = useCallback(() => {
     setTab("crea-post");
-    toast.info("Apri la sezione Media del composer per upload o generazione AI.");
+    toast.info("Carica la foto dal passo 2 di «Crea post».");
   }, [setTab]);
 
   const scheduledCount = posts.filter((p) => p.status === "scheduled").length;
@@ -3898,11 +3795,11 @@ export default function SocialManagerBeta() {
   const [bulkModalOpen, setBulkModalOpen] = useState(false);
 
   const tabs = [
-    { id: "crea-post",  label: "Crea Post",  icon: Edit3          },
-    { id: "calendario", label: "Calendario", icon: Calendar,       badge: reviewCount > 0 ? `${reviewCount} ⏳` : (scheduledCount > 0 ? scheduledCount : undefined) },
-    { id: "grid",       label: "Grid 📸",    icon: Smartphone      },
-    { id: "inbox",      label: "Inbox",      icon: MessageSquare,  badge: inboxUnread > 0 ? inboxUnread : undefined },
-    { id: "analitiche", label: "Analitiche", icon: TrendingUp      },
+    { id: "crea-post",  label: "Crea post",  icon: Edit3          },
+    { id: "calendario", label: "Calendario", icon: Calendar,       badge: reviewCount > 0 ? `${reviewCount} da approvare` : (scheduledCount > 0 ? scheduledCount : undefined) },
+    { id: "grid",       label: "Griglia",    icon: Smartphone      },
+    { id: "inbox",      label: "Messaggi",   icon: MessageSquare,  badge: inboxUnread > 0 ? inboxUnread : undefined },
+    { id: "analitiche", label: "Statistiche", icon: TrendingUp     },
     { id: "galleria",   label: "Galleria",   icon: Library,        badge: mediaCount },
   ];
 
@@ -3911,24 +3808,20 @@ export default function SocialManagerBeta() {
       <div className="mx-auto max-w-7xl space-y-5 p-4 md:p-6">
 
         {/* ─── PAGE HEADER ─────────────────────────────────────────────── */}
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <div className="mb-2 flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-2xl font-bold text-slate-900">Gestione social</h1>
               <Badge className="border-0 bg-gradient-to-r from-orange-500 to-amber-500 text-white">Beta</Badge>
-              <Badge variant="outline" className="border-slate-200 text-slate-500">
-                {isDbBacked ? "Dati azienda" : "Dati di esempio"}
-              </Badge>
             </div>
-            <h1 className="text-2xl font-bold text-slate-900">Gestione Social</h1>
-            <p className="mt-1 text-sm text-slate-500">Crea, programma e pubblica contenuti su tutte le tue pagine social.</p>
+            <p className="mt-1 text-sm text-slate-500">Scrivi, programma e pubblica i post delle tue pagine Facebook e Instagram.</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" onClick={goToIntegrations} className="gap-1.5">
-              <Settings className="h-3.5 w-3.5" /> Connessioni
-              <ExternalLink className="h-3 w-3 opacity-60" />
+              <Settings className="h-3.5 w-3.5" /> Collegamenti
             </Button>
             <Button variant="outline" size="sm" onClick={() => setBulkModalOpen(true)} className="gap-1.5">
-              <Upload className="h-3.5 w-3.5" /> Import CSV
+              <Upload className="h-3.5 w-3.5" /> Importa da CSV
             </Button>
             <Button size="sm" className="gap-1.5 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white shadow-sm"
               onClick={() => setTab("crea-post")}>
@@ -3945,15 +3838,37 @@ export default function SocialManagerBeta() {
           />
         )}
 
-        {/* ─── PLATFORM RIBBON ─────────────────────────────────────────── */}
-        <PlatformStatusRibbon connectedAccounts={connectedAccounts} onGoToSettings={goToIntegrations} />
+        {/* ─── STATO DELLE PAGINE ──────────────────────────────────────── */}
+        <PlatformStatusRibbon
+          stato={statoPubblicazione.stato}
+          isLoading={statoPubblicazione.isLoading}
+          error={statoPubblicazione.error}
+          onRiprova={() => void statoPubblicazione.riprova()}
+          staVerificando={statoPubblicazione.staVerificando}
+          verificaNonRiuscita={statoPubblicazione.verificaNonRiuscita}
+          onGoToSettings={goToIntegrations}
+        />
+
+        {/* Un errore vero si dice: prima la pagina mostrava i dati rimasti nel browser. */}
+        {erroreDati && (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-2.5">
+            <span className="flex items-start gap-2 text-xs font-medium text-red-800">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              Non riesco a caricare post e file social. {erroreDati.message}
+            </span>
+            <Button size="sm" variant="outline" onClick={riprovaDati}
+              className="h-7 shrink-0 gap-1.5 border-red-200 bg-white text-red-700 hover:bg-red-100">
+              <RefreshCw className="h-3 w-3" /> Riprova
+            </Button>
+          </div>
+        )}
 
         {/* ─── TABS ────────────────────────────────────────────────────── */}
         <div className="rounded-2xl border bg-white shadow-sm">
           <div className="flex overflow-x-auto border-b scrollbar-none">
             {tabs.map(({ id, label, icon: Icon, badge }) => (
               <button key={id} type="button" onClick={() => setTab(id)}
-                className={cn("flex shrink-0 items-center gap-2 border-b-2 px-5 py-4 text-sm font-semibold transition-colors",
+                className={cn("flex shrink-0 items-center gap-2 border-b-2 px-4 py-3.5 text-sm font-semibold transition-colors md:px-5 md:py-4",
                   activeTab === id ? "border-orange-500 text-orange-700" : "border-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-700")}>
                 <Icon className="h-4 w-4" />
                 {label}
@@ -3964,15 +3879,19 @@ export default function SocialManagerBeta() {
               </button>
             ))}
           </div>
-          <div className="p-4 md:p-6">
+          <div className="p-3 sm:p-4 md:p-6">
             {activeTab === "crea-post" && (
               <ContentStudioTab
                 companyId={companyId}
-                connectedAccounts={connectedAccounts}
+                nomeAzienda={nomeAzienda}
+                settoreAzienda={settoreAzienda}
+                stato={statoPubblicazione.stato}
+                verificaNonRiuscita={statoPubblicazione.verificaNonRiuscita}
                 selectedMedia={selectedMediaForComposer}
                 onSelectedMediaConsumed={() => setSelectedMediaForComposer(null)}
                 onPostScheduled={handlePostScheduled}
                 onMediaStored={addMedia}
+                onGoToSettings={goToIntegrations}
               />
             )}
             {activeTab === "calendario" && (

@@ -1206,6 +1206,14 @@ Deno.serve(async (req) => {
         }
         const granted = (permData.data || []).filter((p: any) => p.status === "granted").map((p: any) => p.permission);
         const declined = (permData.data || []).filter((p: any) => p.status === "declined").map((p: any) => p.permission);
+        // Salvati: la pagina Social li legge (stato_pubblicazione_social) per dire
+        // se una pagina può pubblicare. Chi si è collegato prima che il
+        // collegamento li salvasse aveva l'elenco vuoto.
+        const { error: erroreSalvataggio } = await adminClient
+          .from("integration_credentials")
+          .update({ granted_scopes: granted })
+          .eq("integration_id", integration_id);
+        if (erroreSalvataggio) console.warn("get-permissions: permessi non salvati:", erroreSalvataggio.message);
         // Nome/username dell'utente FB collegato (per sapere quale account
         // aggiungere come Tester nell'app Meta).
         let me: any = null;

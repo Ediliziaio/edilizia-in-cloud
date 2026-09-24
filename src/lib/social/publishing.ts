@@ -77,6 +77,12 @@ function ruleById(rules: SocialPlatformRule[]) {
   return new Map(rules.map((rule) => [rule.id, rule]));
 }
 
+/** «Facebook», «Facebook e Instagram», «LinkedIn, YouTube e TikTok». */
+function elenco(nomi: string[]): string {
+  if (nomi.length <= 1) return nomi.join("");
+  return `${nomi.slice(0, -1).join(", ")} e ${nomi[nomi.length - 1]}`;
+}
+
 function textForPlatform(input: SocialDraftValidationInput, platformId: string) {
   return (input.textByPlatform[platformId] ?? input.fallbackText).trim();
 }
@@ -92,12 +98,13 @@ export function validateSocialDraft(
   const now = input.now ?? new Date();
   const livePublishingEnabled = input.livePublishingEnabled ?? SOCIAL_LIVE_PUBLISHING_ENABLED;
 
-  const selectedRules = input.selectedPlatforms
-    .map((platformId) => rulesMap.get(platformId))
-    .filter((rule): rule is SocialPlatformRule => Boolean(rule));
-
   const connectedSelectedPlatforms = input.selectedPlatforms.filter((platformId) => connected.has(platformId));
   const demoSelectedPlatforms = input.selectedPlatforms.filter((platformId) => !connected.has(platformId));
+  // I limiti valgono per chi riceverà il post: una piattaforma che non può
+  // pubblicare non deve bloccare le altre. Senza nessuna pronta (bozza), per tutte.
+  const selectedRules = (connectedSelectedPlatforms.length > 0 ? connectedSelectedPlatforms : input.selectedPlatforms)
+    .map((platformId) => rulesMap.get(platformId))
+    .filter((rule): rule is SocialPlatformRule => Boolean(rule));
   const hasText = input.selectedPlatforms.some((platformId) => textForPlatform(input, platformId).length > 0);
 
   if (input.selectedPlatforms.length === 0) {
@@ -107,13 +114,18 @@ export function validateSocialDraft(
     errors.push("Scrivi il testo del post.");
   }
   if (livePublishingEnabled && input.selectedPlatforms.length > 0 && connectedSelectedPlatforms.length === 0) {
-    errors.push("Collega almeno una piattaforma reale prima di pubblicare o programmare.");
+    errors.push("Nessuna delle piattaforme scelte può pubblicare adesso: salva il post come bozza.");
   }
   if (!livePublishingEnabled) {
-    warnings.push("Pubblicazione live non ancora attiva: salva una bozza locale o collega il backend publisher.");
+    warnings.push("La pubblicazione da qui non è ancora attiva: salva il post come bozza.");
   }
-  if (demoSelectedPlatforms.length > 0) {
-    warnings.push("Le piattaforme demo non verranno pubblicate finché non sono collegate.");
+  if (demoSelectedPlatforms.length > 0 && connectedSelectedPlatforms.length > 0) {
+    const nome = (id: string) => rulesMap.get(id)?.name ?? id;
+    const bloccate = demoSelectedPlatforms.map(nome);
+    warnings.push(
+      `${elenco(bloccate)} ${bloccate.length === 1 ? "non può" : "non possono"} pubblicare adesso: ` +
+        `il post uscirà solo su ${elenco(connectedSelectedPlatforms.map(nome))}.`,
+    );
   }
 
   for (const rule of selectedRules) {
@@ -122,7 +134,7 @@ export function validateSocialDraft(
       errors.push(`${rule.name} non supporta il formato selezionato.`);
     }
     if (text.length > rule.maxChars) {
-      errors.push(`${rule.name} supera il limite testo di ${rule.maxChars} caratteri.`);
+      errors.push(`${rule.name}: il testo supera i ${rule.maxChars.toLocaleString("it-IT")} caratteri.`);
     }
     if (input.hashtags.length > rule.hashtagsMax) {
       errors.push(`${rule.name} permette al massimo ${rule.hashtagsMax} hashtag.`);
@@ -130,8 +142,8 @@ export function validateSocialDraft(
     if ((rule.videoOnly || input.contentType === "video" || input.contentType === "reel") && !input.mediaUrl) {
       errors.push(`${rule.name} richiede un file video prima della pubblicazione.`);
     }
-    if (!input.publishNow && rule.schedulingSupport === "draft_only") {
-      warnings.push(`${rule.name} non supporta scheduling nativo: salva come bozza e pubblica dal reminder.`);
+    if (!input.publishNow && rule.schedulingSupport === "draft_only" && connected.has(rule.id)) {
+      warnings.push(`${rule.name} non si programma da qui: salva il post come bozza e pubblicalo a mano.`);
     }
     if (!input.publishNow && input.scheduledAt) {
       const diffMinutes = (input.scheduledAt.getTime() - now.getTime()) / 60000;

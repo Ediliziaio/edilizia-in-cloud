@@ -46,7 +46,6 @@ export function useSocialManagerData(companyId: string | undefined) {
   const accountsQuery = useQuery({
     queryKey: ["social-manager", "accounts", companyId],
     enabled: !!companyId,
-    placeholderData: null,
     staleTime: 30_000,
     queryFn: async (): Promise<SocialConnectedAccount[] | null> => {
       if (!companyId) return null;
@@ -62,8 +61,8 @@ export function useSocialManagerData(companyId: string | undefined) {
         }
         return (data ?? []).map(socialAccountFromRow);
       } catch (err) {
-        if (!isSchemaUnavailable(err)) console.warn("[useSocialManagerData] accounts fallback", err);
-        return null;
+        if (isSchemaUnavailable(err)) return null;
+        throw err;
       }
     },
   });
@@ -71,7 +70,6 @@ export function useSocialManagerData(companyId: string | undefined) {
   const postsQuery = useQuery({
     queryKey: ["social-manager", "posts", companyId],
     enabled: !!companyId,
-    placeholderData: null,
     staleTime: 10_000,
     queryFn: async (): Promise<SocialScheduledPost[] | null> => {
       if (!companyId) return null;
@@ -87,8 +85,8 @@ export function useSocialManagerData(companyId: string | undefined) {
         }
         return (data ?? []).map(socialPostFromRow);
       } catch (err) {
-        if (!isSchemaUnavailable(err)) console.warn("[useSocialManagerData] posts fallback", err);
-        return null;
+        if (isSchemaUnavailable(err)) return null;
+        throw err;
       }
     },
   });
@@ -96,7 +94,6 @@ export function useSocialManagerData(companyId: string | undefined) {
   const mediaQuery = useQuery({
     queryKey: ["social-manager", "media", companyId],
     enabled: !!companyId,
-    placeholderData: null,
     staleTime: 30_000,
     queryFn: async (): Promise<SocialMediaItem[] | null> => {
       if (!companyId) return null;
@@ -111,8 +108,8 @@ export function useSocialManagerData(companyId: string | undefined) {
         }
         return (data ?? []).map(socialMediaFromRow);
       } catch (err) {
-        if (!isSchemaUnavailable(err)) console.warn("[useSocialManagerData] media fallback", err);
-        return null;
+        if (isSchemaUnavailable(err)) return null;
+        throw err;
       }
     },
   });
@@ -149,20 +146,17 @@ export function useSocialManagerData(companyId: string | undefined) {
   const addPostMutation = useMutation({
     mutationFn: async (post: SocialScheduledPost) => {
       if (!companyId) throw new Error("no_company_id");
-      persistLocalPost(post);
 
       try {
         const { data, error } = await fromTable("social_posts")
           .insert(socialPostToInsert(companyId, post))
           .select("*")
           .single();
-        if (error) {
-          if (isSchemaUnavailable(error)) return post;
-          throw error;
-        }
+        if (error) throw error;
         return socialPostFromRow(data);
       } catch (err) {
-        if (isSchemaUnavailable(err)) return post;
+        // Solo senza le tabelle social (ambiente non migrato) il post resta nel browser.
+        if (isSchemaUnavailable(err)) return persistLocalPost(post);
         throw err;
       }
     },
@@ -177,9 +171,12 @@ export function useSocialManagerData(companyId: string | undefined) {
   const updatePostMutation = useMutation({
     mutationFn: async ({ id, changes }: { id: string; changes: Partial<SocialScheduledPost> }) => {
       if (!companyId) throw new Error("no_company_id");
-      updateLocalPost(id, changes);
 
-      if (!isUuid(id)) return null;
+      // Un post rimasto nel browser (id non uuid) si aggiorna lì.
+      if (!isUuid(id)) {
+        updateLocalPost(id, changes);
+        return null;
+      }
       try {
         const { data, error } = await fromTable("social_posts")
           .update(socialPostChangesToPatch(changes))
@@ -187,13 +184,13 @@ export function useSocialManagerData(companyId: string | undefined) {
           .eq("company_id", companyId)
           .select("*")
           .single();
-        if (error) {
-          if (isSchemaUnavailable(error)) return null;
-          throw error;
-        }
+        if (error) throw error;
         return socialPostFromRow(data);
       } catch (err) {
-        if (isSchemaUnavailable(err)) return null;
+        if (isSchemaUnavailable(err)) {
+          updateLocalPost(id, changes);
+          return null;
+        }
         throw err;
       }
     },
@@ -208,20 +205,16 @@ export function useSocialManagerData(companyId: string | undefined) {
   const addMediaMutation = useMutation({
     mutationFn: async (item: SocialMediaItem) => {
       if (!companyId) throw new Error("no_company_id");
-      persistLocalMedia(item);
 
       try {
         const { data, error } = await fromTable("social_media_items")
           .insert(socialMediaToInsert(companyId, item))
           .select("*")
           .single();
-        if (error) {
-          if (isSchemaUnavailable(error)) return item;
-          throw error;
-        }
+        if (error) throw error;
         return socialMediaFromRow(data);
       } catch (err) {
-        if (isSchemaUnavailable(err)) return item;
+        if (isSchemaUnavailable(err)) return persistLocalMedia(item);
         throw err;
       }
     },
@@ -248,24 +241,40 @@ export function useSocialManagerData(companyId: string | undefined) {
     [addMediaMutation],
   );
 
+  // Un errore vero (rete, permessi, database) si dice: prima finiva in un
+  // console.warn e la pagina mostrava i dati rimasti nel browser, o niente,
+  // come se l'azienda non avesse post.
+  const error = (accountsQuery.error ?? postsQuery.error ?? mediaQuery.error ?? null) as Error | null;
+  const { refetch: rileggiAccounts } = accountsQuery;
+  const { refetch: rileggiPosts } = postsQuery;
+  const { refetch: rileggiMedia } = mediaQuery;
+  const riprova = useCallback(() => {
+    void rileggiAccounts();
+    void rileggiPosts();
+    void rileggiMedia();
+  }, [rileggiAccounts, rileggiMedia, rileggiPosts]);
+
   return useMemo(() => ({
-    connectedAccounts: accountsQuery.data ?? localAccounts,
-    // ?? e non length>0: la query ritorna null solo se lo schema manca
-    // (fallback beta su localStorage) e [] se il DB e' vuoto. Col vecchio
-    // check, un DB legittimamente vuoto faceva RISORGERE i post cancellati
-    // rimasti nel localStorage.
-    posts: postsQuery.data ?? localPosts,
-    mediaItems: mediaQuery.data ?? localMedia,
+    // Il ripiego sul browser vale solo se la query dice «tabelle assenti»
+    // (null). In caricamento o con un errore vero l'elenco è vuoto, e
+    // l'errore si mostra: niente dati vecchi del browser spacciati per veri.
+    // Non length>0: [] se il DB è vuoto. Col vecchio check, un DB
+    // legittimamente vuoto faceva RISORGERE i post cancellati rimasti nel localStorage.
+    connectedAccounts: accountsQuery.data === null ? localAccounts : accountsQuery.data ?? [],
+    posts: postsQuery.data === null ? localPosts : postsQuery.data ?? [],
+    mediaItems: mediaQuery.data === null ? localMedia : mediaQuery.data ?? [],
     addPost,
     updatePost,
     addMedia,
     isLoading: accountsQuery.isLoading || postsQuery.isLoading || mediaQuery.isLoading,
-    isDbBacked: accountsQuery.data != null || postsQuery.data != null || mediaQuery.data != null,
+    error,
+    riprova,
   }), [
     accountsQuery.data,
     accountsQuery.isLoading,
     addMedia,
     addPost,
+    error,
     localAccounts,
     localMedia,
     localPosts,
@@ -273,6 +282,7 @@ export function useSocialManagerData(companyId: string | undefined) {
     mediaQuery.isLoading,
     postsQuery.data,
     postsQuery.isLoading,
+    riprova,
     updatePost,
   ]);
 }

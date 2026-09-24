@@ -11,7 +11,10 @@ describe("social manager storage contract", () => {
 
     expect(source).toContain("useAuthCompany");
     expect(source).toContain("useSocialManagerData(companyId)");
-    expect(source).toContain("effectiveCompany?.id ?? DEMO_COMPANY_ID");
+    // Mai la Demo Azienda mentre l'azienda vera si carica (24/09/2026): prima
+    // la pagina partiva con media, messaggi e griglia finti e poi li cambiava.
+    expect(source).toContain("const companyId = effectiveCompany?.id;");
+    expect(source).not.toContain("?? DEMO_COMPANY_ID");
     expect(source).not.toContain("const companyId = DEMO_COMPANY_ID;");
     expect(source).not.toContain("const STORAGE_KEY = `eic_social_connections_${companyId}`;");
   });

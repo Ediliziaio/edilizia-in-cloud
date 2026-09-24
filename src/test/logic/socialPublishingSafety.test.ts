@@ -71,7 +71,7 @@ describe("social publishing safety", () => {
 
     expect(result.canPublishLive).toBe(false);
     expect(result.canSaveDraft).toBe(true);
-    expect(result.errors).toContain("Collega almeno una piattaforma reale prima di pubblicare o programmare.");
+    expect(result.errors).toContain("Nessuna delle piattaforme scelte può pubblicare adesso: salva il post come bozza.");
     expect(result.demoSelectedPlatforms).toEqual(["facebook", "instagram"]);
   });
 
@@ -96,12 +96,12 @@ describe("social publishing safety", () => {
     expect(result.canPublishLive).toBe(false);
     expect(result.errors).toEqual(
       expect.arrayContaining([
-        "LinkedIn supera il limite testo di 3000 caratteri.",
+        "LinkedIn: il testo supera i 3000 caratteri.",
         "LinkedIn permette al massimo 5 hashtag.",
         "YouTube richiede un file video prima della pubblicazione.",
       ]),
     );
-    expect(result.warnings).toContain("LinkedIn non supporta scheduling nativo: salva come bozza e pubblica dal reminder.");
+    expect(result.warnings).toContain("LinkedIn non si programma da qui: salva il post come bozza e pubblicalo a mano.");
   });
 
   it("marks invalid CSV dates as row errors instead of throwing", () => {
@@ -134,10 +134,12 @@ describe("social publishing safety", () => {
     );
 
     expect(source).toContain("Publisher live non attivo");
-    expect(source).toContain("Salva bozza locale");
+    // La bozza va nel database, non nel browser: «locale» era falso (24/09/2026).
+    expect(source).toContain("Salva bozza");
+    expect(source).not.toContain("Salva bozza locale");
     expect(source).toContain("Galleria demo");
-    expect(source).toContain("Inbox demo locale");
-    expect(source).toContain("Grid planner dimostrativo");
+    expect(source).toContain("Messaggi di prova della Demo Azienda");
+    expect(source).toContain("Griglia dimostrativa");
     expect(source).toContain("/azienda/marketing/pubblicita?tab=creativita");
     expect(source).not.toContain("Visibile sulle tue pagine.");
   });

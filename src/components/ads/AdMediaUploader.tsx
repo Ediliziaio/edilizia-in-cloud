@@ -22,12 +22,14 @@ const ACCEPTED_TYPES = ["image/png", "image/jpeg", "image/webp"];
 interface Props {
   companyId: string | undefined;
   onUploaded?: (media: { id: string; public_url: string }) => void;
+  /** Riga sotto il riquadro: chi pubblica sui social mostra i formati che vanno bene lì. */
+  hint?: string;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const fromTable = (n: string) => (supabase as any).from(n);
 
-export function AdMediaUploader({ companyId, onUploaded }: Props) {
+export function AdMediaUploader({ companyId, onUploaded, hint }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
@@ -236,7 +238,7 @@ export function AdMediaUploader({ companyId, onUploaded }: Props) {
                 Trascina un'immagine qui o clicca per scegliere
               </p>
               <p className="mt-1 text-xs text-slate-500">
-                PNG, JPG, WebP · max 10 MB · consigliato min 600px lato corto
+                {hint ?? "PNG, JPG, WebP · max 10 MB · consigliato min 600px lato corto"}
               </p>
             </>
           )}
