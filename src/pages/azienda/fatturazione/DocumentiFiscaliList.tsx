@@ -15,6 +15,8 @@ import { convertiProformaInFattura } from "@/lib/fatturazione/proforma";
 import { formatCurrency, formatDateShort } from "@/lib/formatters";
 import { MonthlyTimeline } from "@/components/fatturazione/MonthlyTimeline";
 import { StatoBadge } from "@/components/fatturazione/StatoBadge";
+import { FaseSdiBadge } from "@/components/fatturazione/FaseSdiBadge";
+import { faseSdi } from "@/lib/fatturazione/sdiCassetto";
 import { DocumentiFooter } from "@/components/fatturazione/DocumentiFooter";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
@@ -326,11 +328,16 @@ function DocumentiFiscaliListInner() {
   const statoFilterArr = useMemo(
     () => isTrash
       ? undefined // Cestino uses showDeleted flag instead
-      : statoFilter !== "all"
+      : statoFilter !== "all" && !statoFilter.startsWith("sdi:")
         ? ([statoFilter] as StatoDocumento[])
         : undefined,
     [isTrash, statoFilter]
   );
+  // «Da inviare SDI», «In elaborazione», «Scartate»: la fase verso lo SDI, che
+  // non sta nella colonna stato (lì c'è anche l'incasso).
+  const sdiFilter = !isTrash && statoFilter.startsWith("sdi:")
+    ? (statoFilter.slice(4) as "da_inviare" | "in_elaborazione" | "scartata")
+    : undefined;
 
   // Month → date range
   const dataDa = selectedMonth ? `${selectedMonth}-01` : undefined;
@@ -352,8 +359,9 @@ function DocumentiFiscaliListInner() {
       page,
       perPage: PER_PAGE,
       showDeleted: isTrash,
+      sdi: sdiFilter,
     }),
-    [tipoFilter, statoFilterArr, search, dataDa, dataA, page, isTrash]
+    [tipoFilter, statoFilterArr, search, dataDa, dataA, page, isTrash, sdiFilter]
   );
 
   const { data, isLoading, isError, isFetching, refetch } = useDocumentiFiscali(filters);
@@ -720,17 +728,19 @@ function DocumentiFiscaliListInner() {
       <div className="flex items-center gap-3 flex-wrap rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm">
         {!isTrash && (
           <Select value={statoFilter} onValueChange={(v) => { setStatoFilter(v); setPage(0); }}>
-            <SelectTrigger className="w-[140px] h-9 text-xs">
+            <SelectTrigger className="w-[160px] h-9 text-xs">
               <SelectValue placeholder="Stato" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Tutti gli stati</SelectItem>
               <SelectItem value="bozza">Bozza</SelectItem>
               <SelectItem value="emessa">Emessa</SelectItem>
-              <SelectItem value="inviata_sdi">Inviata SDI</SelectItem>
               <SelectItem value="pagata">Pagata</SelectItem>
               <SelectItem value="scaduta">Scaduta</SelectItem>
               <SelectItem value="parzialmente_pagata">Parz. pagata</SelectItem>
+              <SelectItem value="sdi:da_inviare">Da inviare SDI</SelectItem>
+              <SelectItem value="sdi:in_elaborazione">In elaborazione SDI</SelectItem>
+              <SelectItem value="sdi:scartata">Scartate dallo SDI</SelectItem>
             </SelectContent>
           </Select>
         )}
@@ -922,6 +932,15 @@ function DocumentiFiscaliListInner() {
                           <Badge className={cn("text-[10px]", ddtFatturato ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200" : "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200")}>
                             {ddtFatturato ? "✓ Fatturato" : "⏳ Da fatturare"}
                           </Badge>
+                        ) : faseSdi(doc) ? (
+                          // Fattura elettronica: la fase SDI, e accanto l'incasso
+                          // quando c'è (una fattura può essere pagata e mai inviata).
+                          <div className="flex flex-wrap items-center gap-1">
+                            {["pagata", "parzialmente_pagata", "scaduta", "stornata"].includes(doc.stato) && (
+                              <StatoBadge stato={doc.stato} />
+                            )}
+                            <FaseSdiBadge doc={doc} />
+                          </div>
                         ) : (
                           <StatoBadge stato={doc.stato} />
                         )}

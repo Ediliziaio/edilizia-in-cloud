@@ -24,17 +24,21 @@ export const STATI_INVIABILI = ["emessa", "rifiutata", "scartata"] as const;
  * Incassare non è trasmettere: si accettano anche questi stati, ma solo finché
  * allo SDI la fattura non è mai partita (sdi_stato e id trasmissione vuoti).
  */
-const STATI_PAGAMENTO = ["pagata", "parzialmente_pagata"];
+export const STATI_PAGAMENTO = ["pagata", "parzialmente_pagata"];
 
 /**
  * sdi_stato che indicano una fattura già accettata/consegnata/in carico allo
  * SDI: non va MAI ritrasmessa (genererebbe un doppione fiscale). Per correggere
  * una di queste si emette una nota di credito, non si reinvia.
- *   AT = attesa esito · RC = ricevuta consegna · DT = decorrenza termini ·
- *   EC = esito committente (EC01 accettata / EC02 rifiutata: in entrambi i casi
- *        la fattura è stata consegnata al destinatario).
+ *   AT = attesa esito · RC = ricevuta consegna · MC = mancata consegna (la
+ *   fattura è emessa, lo SDI la mette nel cassetto fiscale del cliente) ·
+ *   DT = decorrenza termini · EC01/EC02 = esito dell'ente, accettata o
+ *   rifiutata: in entrambi i casi la fattura è stata consegnata.
+ * Fino al 24/09/2026 qui c'erano solo «EC» e niente MC: il confronto è esatto,
+ * quindi EC01, EC02 e MC passavano e una fattura rifiutata dall'ente risultava
+ * reinviabile.
  */
-const SDI_STATO_GIA_TRASMESSA = ["AT", "RC", "DT", "EC"];
+const SDI_STATO_GIA_TRASMESSA = ["AT", "RC", "MC", "DT", "EC", "EC01", "EC02"];
 
 export interface DocPreInvio {
   stato: string | null;
@@ -75,9 +79,12 @@ export function valutaPreInvio(doc: DocPreInvio): PreInvioEsito {
   }
 
   const maiTrasmessa = !sdiStato && !doc.sdi_id_trasmissione;
+  // Scartata (NS): per l'Agenzia non è mai stata emessa, si corregge e si
+  // rimanda anche se nel frattempo è stata incassata.
+  const scartata = sdiStato === "NS";
   const inviabile =
     STATI_INVIABILI.includes(stato as (typeof STATI_INVIABILI)[number]) ||
-    (maiTrasmessa && STATI_PAGAMENTO.includes(stato));
+    ((maiTrasmessa || scartata) && STATI_PAGAMENTO.includes(stato));
 
   if (!inviabile) {
     const error =
@@ -89,6 +96,37 @@ export function valutaPreInvio(doc: DocPreInvio): PreInvioEsito {
   }
 
   return { ok: true };
+}
+
+// ─── Lo stato dopo l'invio e dopo un esito ───────────────────────────────────
+//
+// La colonna `stato` porta insieme il giro dello SDI e l'incasso. Fino al
+// 24/09/2026 un invio riuscito la metteva sempre a 'inviata_sdi' e ogni esito
+// la riscriveva: una fattura incassata in giornata e poi trasmessa tornava
+// «da incassare», e bastava registrare di nuovo l'incasso per contarlo due
+// volte. L'esito dello SDI resta in sdi_stato; lo stato dell'incasso non si
+// tocca.
+
+/** Stati che un esito SDI non deve toccare: incasso, storno, annullamento. */
+const STATI_NON_DA_ESITO = [...STATI_PAGAMENTO, "stornata", "annullata", STATO_IN_INVIO];
+
+/**
+ * Lo stato del documento dopo un esito dello SDI. null = non cambiarlo: la
+ * notifica si registra comunque in sdi_stato.
+ */
+export function statoDopoEsito(
+  statoAttuale: string | null | undefined,
+  statoDaEsito: string | null | undefined,
+): string | null {
+  if (!statoDaEsito) return null;
+  const s = statoAttuale ?? "";
+  if (STATI_NON_DA_ESITO.includes(s)) return null;
+  return statoDaEsito === s ? null : statoDaEsito;
+}
+
+/** Lo stato dopo un invio riuscito: se era già incassata resta incassata. */
+export function statoDopoInvio(statoPrima: string | null | undefined): string {
+  return statoPrima && STATI_PAGAMENTO.includes(statoPrima) ? statoPrima : "inviata_sdi";
 }
 
 // ─── Claim atomico (idempotenza, bug #1) ─────────────────────────────────────

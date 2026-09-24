@@ -20,15 +20,31 @@ const sql = (() => {
   return readFileSync(resolve(MIGRAZIONI, nome), "utf8");
 })();
 
+// L'elenco vale com'è nell'ULTIMA migrazione che lo ridefinisce: fino al
+// 24/09/2026 questa prova leggeva solo la prima, e un campo aggiunto dopo non
+// l'avrebbe vista nessuno.
+const sqlCampi = (() => {
+  const nome = readdirSync(MIGRAZIONI)
+    .filter((f) => f.endsWith(".sql"))
+    .sort()
+    .filter((f) => readFileSync(resolve(MIGRAZIONI, f), "utf8").includes("FUNCTION public.documento_fiscale_campi_modificabili()"))
+    .pop();
+  if (!nome) throw new Error("nessuna migrazione definisce documento_fiscale_campi_modificabili");
+  return readFileSync(resolve(MIGRAZIONI, nome), "utf8");
+})();
+
 // Ogni campo qui ha un padrone noto, elencato nella migrazione. Aggiungerne uno
 // senza un writer reale che lo richieda apre un buco fiscale: per questo il
 // confronto è esatto e non "contiene".
+//   sdi_identificativo: sdi-stato-tick lo scrive col primo esito, invia-sdi lo
+//   azzera quando rimanda una scartata (24/09/2026).
 const CAMPI_ANCORA_SCRIVIBILI = [
   "anagrafica_id", "ddt_fattura_id", "ddt_fatturato", "deleted_at",
   "documento_correlato_id", "importo_pagato", "note_interne", "ordine_id",
   "pagato_at", "pdf_url", "sdi_data_consegna", "sdi_errori", "sdi_file_p7m_url",
-  "sdi_file_xml_url", "sdi_firmato", "sdi_id_trasmissione", "sdi_notifica_tipo",
-  "sdi_ricevuta_url", "sdi_stato", "stato", "trasmissione", "updated_at",
+  "sdi_file_xml_url", "sdi_firmato", "sdi_id_trasmissione", "sdi_identificativo",
+  "sdi_notifica_tipo", "sdi_ricevuta_url", "sdi_stato", "stato", "trasmissione",
+  "updated_at",
 ].sort();
 
 const CAMPI_CHE_DEVONO_RESTARE_BLOCCATI = [
@@ -40,7 +56,7 @@ const CAMPI_CHE_DEVONO_RESTARE_BLOCCATI = [
 ];
 
 const elencoCampi = (): string[] => {
-  const corpo = sql
+  const corpo = sqlCampi
     .split("FUNCTION public.documento_fiscale_campi_modificabili()")[1]
     .split("$function$;")[0];
   return [...corpo.matchAll(/'([a-z0-9_]+)'/g)].map((m) => m[1]).sort();

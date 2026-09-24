@@ -8,6 +8,8 @@ import {
   STATI_INVIABILI,
   invioManuale,
   firmaPaACaricoNostro,
+  statoDopoEsito,
+  statoDopoInvio,
 } from "../../../supabase/functions/_shared/sdiInvioGuard";
 
 /**
@@ -285,5 +287,43 @@ describe("fattura incassata prima di essere trasmessa", () => {
   it("la bozza resta bloccata, col messaggio che dice cosa fare", () => {
     expect(valutaPreInvio({ stato: "bozza" }))
       .toMatchObject({ ok: false, error: expect.stringContaining("Emetti") });
+  });
+});
+
+describe("esiti che chiudono la trasmissione (24/09/2026)", () => {
+  it.each(["MC", "EC01", "EC02", "DT", "RC", "AT"])("con sdi_stato %s non si ritrasmette", (sdi) => {
+    expect(valutaPreInvio({ stato: "rifiutata", sdi_stato: sdi, sdi_id_trasmissione: "OA-1" }))
+      .toMatchObject({ ok: false, code: "gia_trasmessa" });
+  });
+  it("una fattura rifiutata dall'ente (EC02) non torna reinviabile per via dello stato 'rifiutata'", () => {
+    expect(valutaPreInvio({ stato: "rifiutata", sdi_stato: "EC02" }).ok).toBe(false);
+  });
+  it("una fattura incassata e poi scartata si rimanda", () => {
+    expect(valutaPreInvio({ stato: "pagata", sdi_stato: "NS", sdi_id_trasmissione: "OA-1" })).toEqual({ ok: true });
+    expect(valutaPreInvio({ stato: "parzialmente_pagata", sdi_stato: "NS", sdi_id_trasmissione: "OA-1" })).toEqual({ ok: true });
+  });
+});
+
+describe("lo stato dopo l'invio e dopo un esito: l'incasso non si perde", () => {
+  it("invio riuscito: 'inviata_sdi', ma una fattura già incassata resta incassata", () => {
+    expect(statoDopoInvio("emessa")).toBe("inviata_sdi");
+    expect(statoDopoInvio("rifiutata")).toBe("inviata_sdi");
+    expect(statoDopoInvio("pagata")).toBe("pagata");
+    expect(statoDopoInvio("parzialmente_pagata")).toBe("parzialmente_pagata");
+    expect(statoDopoInvio(null)).toBe("inviata_sdi");
+  });
+  it("la consegna porta a 'consegnata' una fattura non incassata", () => {
+    expect(statoDopoEsito("inviata_sdi", "consegnata")).toBe("consegnata");
+  });
+  it.each(["pagata", "parzialmente_pagata", "stornata", "annullata", "in_invio"])(
+    "su '%s' l'esito non cambia lo stato (resta in sdi_stato)",
+    (stato) => {
+      expect(statoDopoEsito(stato, "consegnata")).toBeNull();
+      expect(statoDopoEsito(stato, "rifiutata")).toBeNull();
+    },
+  );
+  it("nessuno stato dall'esito, o lo stesso di adesso: niente da scrivere", () => {
+    expect(statoDopoEsito("inviata_sdi", null)).toBeNull();
+    expect(statoDopoEsito("consegnata", "consegnata")).toBeNull();
   });
 });

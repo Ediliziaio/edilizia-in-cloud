@@ -1,4 +1,4 @@
-import { ArrowLeft, Check, Clock, Loader2, Send, Trash2, MoreHorizontal, Copy, Download, Eye, AlertCircle, Mail, Printer, FileText } from "lucide-react";
+import { ArrowLeft, Check, Clock, Loader2, Trash2, MoreHorizontal, Copy, Download, Eye, AlertCircle, Mail, Printer, FileText } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,9 @@ import type { TipoDocumento, StatoDocumento } from "@/types/fatturazione";
 import type { Company } from "@/types/auth";
 
 import { useIsMobile } from "@/hooks/use-mobile";
+import { SdiStatoBanner } from "@/components/fatturazione/SdiStatoBanner";
+import { FaseSdiBadge } from "@/components/fatturazione/FaseSdiBadge";
+import { faseSdi } from "@/lib/fatturazione/sdiCassetto";
 const TIPO_LABELS: Record<string, string> = {
   fattura: "Fattura",
   fattura_pa: "Fattura PA",
@@ -66,13 +69,6 @@ const STATO_CONFIG: Record<string, { label: string; variant: "default" | "second
   annullata: { label: "Annullata", variant: "secondary" },
 };
 
-// Tipi documento che possono essere inviati al SDI
-const TIPI_SDI = ["fattura", "fattura_pa", "nota_credito", "nota_debito", "autofattura",
-  "fattura_riepilogativa", "parcella", "fattura_accompagnatoria",
-  "integrazione_servizi_estero", "integrazione_beni_ue", "integrazione_beni_extra_ue",
-  "acconto_fattura", "acconto_parcella", "reverse_charge_interno",
-  "autofattura_splafonamento", "fattura_differita_b", "autoconsumo"];
-
 const TIPO_TO_TD: Record<string, string> = {
   fattura: "TD01", fattura_pa: "TD01", nota_credito: "TD04", nota_debito: "TD05",
   autofattura: "TD20", fattura_riepilogativa: "TD24", ddt: "TD24",
@@ -101,27 +97,32 @@ interface Props {
   onPreview?: () => void;
   onBack?: () => void;
   onInviaSDI?: () => void;
+  /** «Aggiorna stato»: chiede subito l'esito allo SDI. */
+  onAggiornaStatoSdi?: () => void;
   onDownloadPDF?: () => void;
+  onDownloadXML?: () => void;
   onSendEmail?: () => void;
   onDuplicate?: () => void;
   onConvertToFattura?: () => void;
   isInviaSDILoading?: boolean;
+  isAggiornaStatoLoading?: boolean;
   isConvertLoading?: boolean;
   isEmitting?: boolean;
 }
 
 export function EditorTopBar({
   state, isSaving, lastSaved, onEmetti, onDelete, validationErrorCount, validationErrors,
-  onPreview, onBack, onInviaSDI, onDownloadPDF, onSendEmail, onDuplicate, onConvertToFattura,
-  isInviaSDILoading, isConvertLoading, isEmitting,
+  onPreview, onBack, onInviaSDI, onAggiornaStatoSdi, onDownloadPDF, onDownloadXML, onSendEmail, onDuplicate,
+  onConvertToFattura, isInviaSDILoading, isAggiornaStatoLoading, isConvertLoading, isEmitting,
 }: Props) {
   const isMobile = useIsMobile();
   const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
   const tipo = state.tipo as TipoDocumento;
   const isBozza = state.stato === "bozza";
-  const isEmessa = state.stato === "emessa";
-  const canInviaSDI = isEmessa && TIPI_SDI.includes(state.tipo);
+  // La fase verso lo SDI (24/09/2026): prima il pulsante c'era solo con lo stato
+  // «emessa», e dopo l'invio la fascia diceva ancora «non inviata al SDI».
+  const fase = faseSdi(state);
   const statoConfig = STATO_CONFIG[(state.stato as StatoDocumento) ?? "bozza"] ?? STATO_CONFIG.bozza;
   const companyLogo = (effectiveCompany as Company | null)?.logo_url;
 
@@ -164,16 +165,20 @@ export function EditorTopBar({
             </span>
           )}
 
-          <Badge
-            variant={statoConfig.variant}
-            className={`text-[11px] font-medium ${
-              state.stato === "pagata"
-                ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200"
-                : ""
-            }`}
-          >
-            {statoConfig.label}
-          </Badge>
+          {/* Fattura elettronica: la fase SDI, e l'incasso accanto quando c'è. */}
+          {(!fase || ["pagata", "parzialmente_pagata", "scaduta", "stornata"].includes(state.stato)) && (
+            <Badge
+              variant={statoConfig.variant}
+              className={`text-[11px] font-medium ${
+                state.stato === "pagata"
+                  ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200"
+                  : ""
+              }`}
+            >
+              {statoConfig.label}
+            </Badge>
+          )}
+          {fase && <FaseSdiBadge doc={state} />}
         </div>
 
         {/* Center spacer + autosave indicator */}
@@ -295,9 +300,9 @@ export function EditorTopBar({
               {!isMobile && !isBozza && !["proforma", "preventivo", "ddt"].includes(state.tipo) && (
                 <>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem>
+                  <DropdownMenuItem onClick={onDownloadXML} disabled={!onDownloadXML}>
                     <FileText className="h-3.5 w-3.5 mr-2" />
-                    Esporta XML
+                    Scarica XML
                   </DropdownMenuItem>
                 </>
               )}
@@ -411,102 +416,20 @@ export function EditorTopBar({
             </AlertDialog>
           )}
 
-          {/* Bottone Invia a SDI — visibile solo quando emessa e tipo SDI */}
-          {canInviaSDI && onInviaSDI && (
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button
-                  size="sm"
-                  className="h-8 gap-1.5 shadow-sm bg-blue-600 hover:bg-blue-700 text-white"
-                  disabled={isInviaSDILoading}
-                >
-                  {isInviaSDILoading
-                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    : <Send className="h-3.5 w-3.5" />
-                  }
-                  <span className="hidden sm:inline">Invia a SDI</span>
-                  <span className="sm:hidden">SDI</span>
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Conferma invio al Sistema di Interscambio</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Stai per inviare {TIPO_LABELS[tipo] ?? tipo} N° {state.numero} al SDI.
-                    Una volta inviata, non potrà essere modificata. Confermi?
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Annulla</AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={onInviaSDI}
-                    className="bg-blue-600 hover:bg-blue-700"
-                  >
-                    Firma e invia
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          )}
         </div>
       </div>
 
-      {/* UX-01: Banner stato fattura elettronica post-emissione */}
-      {canInviaSDI && (
-        <div className="bg-amber-50 border-b border-amber-200 px-4 sm:px-6 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-amber-900">
-              Fattura elettronica: <strong>non firmata e non inviata al SDI</strong>
-            </p>
-            <p className="text-xs text-amber-700 mt-0.5">
-              Ti consigliamo di inviare il documento il prima possibile. Finché non viene inviata al SDI, non ha valore fiscale.
-            </p>
-          </div>
-          <div className="flex gap-2 flex-wrap shrink-0">
-            <Button variant="outline" size="sm" className="h-8 text-xs bg-white border-amber-300 hover:bg-amber-50" onClick={onPreview}>
-              <FileText className="h-3.5 w-3.5 mr-1" /> Visualizza XML
-            </Button>
-            {/* «Visualizza XML» qui sopra resta: leggere non è scaricare. */}
-            {!isMobile && onDownloadPDF && (
-              <Button variant="outline" size="sm" className="h-8 text-xs bg-white border-amber-300 hover:bg-amber-50" onClick={onDownloadPDF}>
-                <Download className="h-3.5 w-3.5 mr-1" /> Esporta XML
-              </Button>
-            )}
-            {onInviaSDI && (
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button
-                    size="sm"
-                    className="h-8 text-xs bg-green-600 hover:bg-green-700 text-white gap-1"
-                    disabled={isInviaSDILoading}
-                  >
-                    {isInviaSDILoading
-                      ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      : <Send className="h-3.5 w-3.5" />
-                    }
-                    Firma e invia
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Conferma invio al Sistema di Interscambio</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Stai per inviare {TIPO_LABELS[tipo] ?? tipo} N° {state.numero} al SDI.
-                      Una volta inviata, non potrà essere modificata. Confermi?
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Annulla</AlertDialogCancel>
-                    <AlertDialogAction onClick={onInviaSDI} className="bg-blue-600 hover:bg-blue-700">
-                      Firma e invia
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            )}
-          </div>
-        </div>
-      )}
+      {/* La fattura verso lo SDI: fase, cosa vuol dire, cosa fare. */}
+      <SdiStatoBanner
+        doc={state}
+        tipoLabel={TIPO_LABELS[tipo] ?? tipo}
+        onInvia={onInviaSDI}
+        isInvio={isInviaSDILoading}
+        onAggiorna={onAggiornaStatoSdi}
+        isAggiorna={isAggiornaStatoLoading}
+        onScaricaXml={isMobile ? undefined : onDownloadXML}
+        variante="barra"
+      />
     </>
   );
 }

@@ -28,9 +28,11 @@ interface Props {
   state: EditorState;
   dispatch: React.Dispatch<Action>;
   disabled?: boolean;
+  /** Fattura scartata dallo SDI: si rimanda con la stessa data (circ. 13/E/2018). */
+  dataBloccata?: boolean;
 }
 
-export function EditorDatiDocumento({ state, dispatch, disabled }: Props) {
+export function EditorDatiDocumento({ state, dispatch, disabled, dataBloccata }: Props) {
   function setField(field: string, value: unknown) {
     dispatch({ type: "SET_FIELD", field, value });
   }
@@ -54,7 +56,8 @@ export function EditorDatiDocumento({ state, dispatch, disabled }: Props) {
                   "h-7 w-full justify-start text-left text-xs font-normal",
                   !state.data_emissione && "text-muted-foreground"
                 )}
-                disabled={disabled}
+                disabled={disabled || dataBloccata}
+                title={dataBloccata ? "Una fattura scartata si rimanda con la stessa data" : undefined}
               >
                 <CalendarIcon className="mr-1 h-3 w-3" />
                 {state.data_emissione

@@ -6,30 +6,23 @@ import { PreviewFattura } from "@/components/fatturazione/PreviewFattura";
 import { creaNotaCredito } from "@/lib/fatturazione/noteCredito";
 import { convertiProformaInFattura } from "@/lib/fatturazione/proforma";
 import { downloadNativePDF } from "@/lib/fatturazione/generatePDF";
-import { generateFatturaPAXML } from "@/lib/fatturazione/generateXML";
+import { scaricaXmlFattura } from "@/lib/fatturazione/scaricaXml";
+import { faseSdi, motivoSdi } from "@/lib/fatturazione/sdiCassetto";
+import { useInvioSdi, useAggiornaStatoSdi } from "@/hooks/useInvioSdi";
+import { SdiStatoBanner } from "@/components/fatturazione/SdiStatoBanner";
+import { FaseSdiBadge } from "@/components/fatturazione/FaseSdiBadge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { ArrowLeft, Download, FileText, FileWarning, Loader2, CreditCard, AlertTriangle, CheckCircle, Send, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { AnagraficaAzienda } from "@/types/fatturazione";
-import { usePaymentGateStore } from "@/store/paymentGateStore";
-
-// Rende leggibili gli scarti SDI (array di stringhe o {message}) invece del JSON grezzo.
-function formatSdiErrors(errors: unknown): string {
-  if (Array.isArray(errors) && errors.length > 0) {
-    return errors
-      .map((e) => (typeof e === "string" ? e : (e as { message?: string })?.message ?? JSON.stringify(e)))
-      .join("; ");
-  }
-  return "Il SDI ha rifiutato la fattura. Controlla i dati e riprova.";
-}
 
 const NC_ALLOWED_STATES = ["emessa", "consegnata", "inviata_sdi", "accettata", "pagata", "parzialmente_pagata"];
 const TIPI_PAGABILI = ["fattura", "fattura_pa", "parcella", "fattura_accompagnatoria", "nota_debito"];
@@ -63,12 +56,24 @@ const TIPO_LABELS: Record<string, string> = {
 export default function DocumentoDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { data: doc, isLoading } = useDocumentoFiscale(id);
+  const { data: doc, isLoading, refetch } = useDocumentoFiscale(id);
   const { data: azienda } = useAnagraficaAzienda();
   const updateMutation = useUpdateDocumento();
   const [ncLoading, setNcLoading] = useState(false);
   const [convertLoading, setConvertLoading] = useState(false);
-  const [sdiLoading, setSdiLoading] = useState(false);
+  // Invio e esito, gli stessi dell'editor: dopo l'invio la pagina si rilegge da
+  // sola e passa a «In elaborazione» (24/09/2026).
+  const invioSdi = useInvioSdi();
+  const aggiornaStatoSdi = useAggiornaStatoSdi();
+  const fase = doc ? faseSdi(doc)?.fase : undefined;
+
+  // Mentre lo SDI la elabora, si rilegge ogni minuto: l'esito arriva col giro
+  // automatico (ogni quarto d'ora) o con «Aggiorna stato».
+  useEffect(() => {
+    if (fase !== "in_elaborazione" && fase !== "invio_in_corso") return;
+    const giro = window.setInterval(() => { void refetch(); }, 60_000);
+    return () => window.clearInterval(giro);
+  }, [fase, refetch]);
 
   if (isLoading || !doc) {
     return <div className="flex items-center justify-center h-96"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
@@ -97,49 +102,14 @@ export default function DocumentoDetail() {
     catch (err: unknown) { toast.error("Errore nel download PDF", { description: getErrorMessage(err) }); }
   };
 
-  const handleDownloadXML = () => {
+  const handleDownloadXML = async () => {
     try {
-      const xml = generateFatturaPAXML(doc, azienda as AnagraficaAzienda);
-      const blob = new Blob([xml], { type: "application/xml" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a"); a.href = url; a.download = `${doc.numero}.xml`; a.click();
-      URL.revokeObjectURL(url);
-      toast.success("XML scaricato");
-    } catch (err: unknown) { toast.error("Errore nella generazione XML", { description: getErrorMessage(err) }); }
+      await scaricaXmlFattura(doc, azienda as AnagraficaAzienda | undefined);
+    } catch (err: unknown) { toast.error("XML non scaricato", { description: getErrorMessage(err) }); }
   };
 
-  const TIPI_SDI = ["fattura", "fattura_pa", "nota_credito", "nota_debito", "autofattura",
-    "fattura_riepilogativa", "parcella", "fattura_accompagnatoria",
-    "integrazione_servizi_estero", "integrazione_beni_ue", "integrazione_beni_extra_ue"];
-  const canInviaSDI = doc.stato === "emessa" && TIPI_SDI.includes(doc.tipo);
-
-  const handleInviaSDI = async () => {
-    setSdiLoading(true);
-    try {
-      const { supabase: sb } = await import("@/integrations/supabase/client");
-      const resp = await sb.functions.invoke("invia-sdi", { body: { documento_id: doc.id } });
-      if (resp.error) {
-        // 402 = gate "carta obbligatoria": apri il dialog "Aggiungi carta"
-        // (coerente con CassettoSDI). invoke diretto → non passa dal MutationCache.
-        if ((resp.error as { context?: { status?: number } })?.context?.status === 402) {
-          usePaymentGateStore.getState().show();
-          return;
-        }
-        const detail = (resp.error as { context?: { json?: () => Promise<{ error?: string }> } }).context
-          ? await (resp.error as { context: { json?: () => Promise<{ error?: string }> } }).context.json?.().catch((): null => null)
-          : null;
-        throw new Error(detail?.error || resp.error.message);
-      }
-      const result = resp.data as { success: boolean; sdi_id?: string; errors?: unknown[]; manuale?: boolean; avviso?: string | null };
-      if (!result.success) {
-        toast.error("Errore invio SDI", { description: formatSdiErrors(result.errors) });
-        return;
-      }
-      // Modalità manuale: nessun invio allo SDI, solo l'XML da caricare a mano.
-      if (result.manuale) toast.success("XML della fattura pronto", { description: result.avviso ?? undefined, duration: 10000 });
-      else toast.success("Fattura inviata al SDI", { description: `ID: ${result.sdi_id}` });
-    } catch (err: unknown) { toast.error("Errore invio SDI", { description: getErrorMessage(err) }); }
-    finally { setSdiLoading(false); }
+  const handleInviaSDI = () => {
+    if (!invioSdi.isPending) invioSdi.mutate(doc.id);
   };
 
   const handleConvertToFattura = async () => {
@@ -172,58 +142,17 @@ export default function DocumentoDetail() {
         </div>
       )}
 
-      {/* UX-01: Banner stato SDI — mostrato quando emessa e non ancora inviata */}
-      {canInviaSDI && (
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-amber-900">
-                Stato fattura elettronica: <strong>Non firmata e non inviata</strong>
-              </p>
-              <p className="text-xs text-amber-700 mt-0.5">
-                La fattura deve essere inviata al Sistema di Interscambio (SDI) per avere valore fiscale.
-              </p>
-            </div>
-            <div className="flex gap-2 flex-wrap shrink-0">
-              <Button
-                variant="outline"
-                size="sm"
-                className="bg-white border-amber-300 hover:bg-amber-50"
-                onClick={handleDownloadXML}
-              >
-                <FileText className="h-4 w-4 mr-1" /> Visualizza XML
-              </Button>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button
-                    size="sm"
-                    className="bg-green-600 hover:bg-green-700 text-white"
-                    disabled={sdiLoading}
-                  >
-                    {sdiLoading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Send className="h-4 w-4 mr-1" />}
-                    Firma e invia al SDI
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Conferma invio al Sistema di Interscambio</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Stai per inviare {TIPO_LABELS[doc.tipo] ?? doc.tipo} N° {doc.numero} al SDI.
-                      Una volta inviata, non potrà essere modificata. Confermi?
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Annulla</AlertDialogCancel>
-                    <AlertDialogAction onClick={handleInviaSDI} className="bg-blue-600 hover:bg-blue-700">
-                      Firma e invia
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* La fattura verso lo SDI: fase, cosa vuol dire, cosa fare. */}
+      <SdiStatoBanner
+        doc={doc}
+        tipoLabel={tipoLabel}
+        onInvia={handleInviaSDI}
+        isInvio={invioSdi.isPending}
+        onAggiorna={() => aggiornaStatoSdi.mutate(doc.id)}
+        isAggiorna={aggiornaStatoSdi.isPending}
+        onScaricaXml={handleDownloadXML}
+        variante="riquadro"
+      />
 
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -234,7 +163,10 @@ export default function DocumentoDetail() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-semibold">{tipoLabel} N° {doc.numero}</h1>
-              <Badge variant={stato.variant}>{stato.label}</Badge>
+              {(!fase || ["pagata", "parzialmente_pagata", "scaduta", "stornata"].includes(doc.stato)) && (
+                <Badge variant={stato.variant}>{stato.label}</Badge>
+              )}
+              {fase && <FaseSdiBadge doc={doc} />}
             </div>
             <p className="text-sm text-muted-foreground">
               {doc.cliente_snapshot?.ragione_sociale} — {doc.data_emissione}
@@ -302,31 +234,11 @@ export default function DocumentoDetail() {
             </AlertDialog>
           )}
 
-          {/* Bottone Invia SDI nella barra azioni */}
-          {canInviaSDI && (
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white" disabled={sdiLoading}>
-                  {sdiLoading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Send className="h-4 w-4 mr-1" />}
-                  Invia a SDI
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Conferma invio al SDI</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Inviare {TIPO_LABELS[doc.tipo] ?? doc.tipo} N° {doc.numero} al Sistema di Interscambio?
-                    Una volta inviata non potrà essere modificata.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Annulla</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleInviaSDI} className="bg-blue-600 hover:bg-blue-700">
-                    Invia
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+          {/* Scartata dallo SDI: si corregge nell'editor e si rimanda. */}
+          {fase === "scartata" && (
+            <Button size="sm" asChild>
+              <Link to={`/azienda/documenti/${doc.id}`}>Correggi</Link>
+            </Button>
           )}
 
           {doc.stato === "bozza" && (
@@ -383,14 +295,23 @@ export default function DocumentoDetail() {
             </Card>
           )}
 
-          {/* SDI Status Card */}
+          {/* SDI Status Card: parole, non sigle («AT», «NS») come prima. */}
           {doc.sdi_id_trasmissione && (
             <Card>
               <CardHeader className="pb-3"><CardTitle className="text-sm">Stato SDI</CardTitle></CardHeader>
               <CardContent className="space-y-2 text-sm">
-                <div className="flex justify-between"><span className="text-muted-foreground">ID Trasmissione</span><span className="font-mono text-xs">{doc.sdi_id_trasmissione}</span></div>
-                {doc.sdi_stato && <div className="flex justify-between"><span className="text-muted-foreground">Stato</span><Badge variant="outline">{doc.sdi_stato}</Badge></div>}
-                {doc.sdi_data_consegna && <div className="flex justify-between"><span className="text-muted-foreground">Data consegna</span><span>{doc.sdi_data_consegna}</span></div>}
+                {fase && <div className="flex justify-between gap-2"><span className="text-muted-foreground">Fase</span><FaseSdiBadge doc={doc} /></div>}
+                {doc.sdi_identificativo && <div className="flex justify-between gap-2"><span className="text-muted-foreground">Identificativo SdI</span><span className="font-mono text-xs">{doc.sdi_identificativo}</span></div>}
+                <div className="flex justify-between gap-2"><span className="text-muted-foreground">Trasmissione</span><span className="font-mono text-xs truncate">{doc.sdi_id_trasmissione}</span></div>
+                {doc.sdi_data_consegna && (
+                  <div className="flex justify-between gap-2">
+                    <span className="text-muted-foreground">Esito arrivato il</span>
+                    <span>{new Date(doc.sdi_data_consegna).toLocaleString("it-IT", { dateStyle: "short", timeStyle: "short" })}</span>
+                  </div>
+                )}
+                {fase === "scartata" && motivoSdi(doc.sdi_errori) && (
+                  <p className="text-xs text-destructive">Motivo dello scarto: {motivoSdi(doc.sdi_errori)}</p>
+                )}
               </CardContent>
             </Card>
           )}
