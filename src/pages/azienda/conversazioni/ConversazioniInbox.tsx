@@ -119,6 +119,13 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
         { event: "INSERT", schema: "public", table: "messaging_messages" },
         invalidate,
       )
+      // WhatsApp dei numeri collegati a Meta: messaggi nuovi nei due sensi ed
+      // esito della consegna (whatsapp_messages è nel realtime dal 24/09/2026).
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "whatsapp_messages", filter: `company_id=eq.${companyId}` },
+        invalidate,
+      )
       .subscribe();
     return () => {
       supabase.removeChannel(channel);

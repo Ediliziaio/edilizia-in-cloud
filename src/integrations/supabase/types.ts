@@ -94466,8 +94466,12 @@ export type Database = {
           ai_intent: string | null
           cantiere_id: string | null
           company_id: string
+          contact_id: string | null
           content_text: string | null
           created_at: string | null
+          delivered_at: string | null
+          delivery_error: string | null
+          delivery_status: string | null
           direction: string
           from_phone: string
           id: string
@@ -94483,6 +94487,7 @@ export type Database = {
           processing_attempts: number
           processing_error: string | null
           processing_status: string | null
+          read_at: string | null
           session_id: string | null
           to_phone: string
           wa_message_id: string
@@ -94494,8 +94499,12 @@ export type Database = {
           ai_intent?: string | null
           cantiere_id?: string | null
           company_id: string
+          contact_id?: string | null
           content_text?: string | null
           created_at?: string | null
+          delivered_at?: string | null
+          delivery_error?: string | null
+          delivery_status?: string | null
           direction: string
           from_phone: string
           id?: string
@@ -94511,6 +94520,7 @@ export type Database = {
           processing_attempts?: number
           processing_error?: string | null
           processing_status?: string | null
+          read_at?: string | null
           session_id?: string | null
           to_phone: string
           wa_message_id: string
@@ -94522,8 +94532,12 @@ export type Database = {
           ai_intent?: string | null
           cantiere_id?: string | null
           company_id?: string
+          contact_id?: string | null
           content_text?: string | null
           created_at?: string | null
+          delivered_at?: string | null
+          delivery_error?: string | null
+          delivery_status?: string | null
           direction?: string
           from_phone?: string
           id?: string
@@ -94539,6 +94553,7 @@ export type Database = {
           processing_attempts?: number
           processing_error?: string | null
           processing_status?: string | null
+          read_at?: string | null
           session_id?: string | null
           to_phone?: string
           wa_message_id?: string
