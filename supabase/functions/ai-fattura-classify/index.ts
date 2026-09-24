@@ -17,6 +17,10 @@
  *
  * Output:
  *   { success, classified: [{fattura_id, categoria_ai, sottocategoria_ai, ...}], ai_meta }
+ *
+ * Chi chiama lo controlla requireAuth qui sotto, non il gateway: fino al
+ * 24/09/2026 era pubblicata con verify_jwt = true, e il gateway rifiuta i token
+ * ES256 degli utenti prima del codice — il pulsante rispondeva 401 a tutti.
  */
 
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";

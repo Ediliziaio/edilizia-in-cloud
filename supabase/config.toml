@@ -1100,6 +1100,13 @@ verify_jwt = false
 [functions.sdi-onboarding]
 verify_jwt = false
 
+# Classificazione AI delle fatture ricevute («Classifica» in Fatture ricevute).
+# Stesso guasto di sdi-onboarding: verify_jwt = true, e il gateway rifiutava i
+# token ES256 degli utenti prima del codice. La chiama solo l'app; il controllo
+# è dentro (requireAuth + requireCompanyAccess), più il blocco senza carta.
+[functions.ai-fattura-classify]
+verify_jwt = false
+
 # ── Le otto funzioni aperte SENZA alcun controllo (trovate il 20/09/2026) ─────
 # In produzione erano verify_jwt = false, aperte a mano, e nel codice non
 # guardavano chi chiama: bastava conoscere l'URL per farle lavorare con la
