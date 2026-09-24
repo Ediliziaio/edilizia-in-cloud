@@ -497,6 +497,8 @@ export interface AnagraficaAzienda {
   iva_per_cassa?: boolean;
   /** Bollo virtuale messo da solo quando è dovuto (acceso di serie). */
   bollo_virtuale_auto?: boolean;
+  /** Adesione al servizio di conservazione dell'Agenzia delle Entrate (AAAA-MM-GG): dura 3 anni. */
+  conservazione_ade_aderito_il?: string | null;
   created_at: string;
   updated_at: string;
 }
