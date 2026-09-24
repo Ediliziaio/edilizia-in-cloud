@@ -19,7 +19,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
-import { assignSenders, cadenzaCasella, dailyCapWithVariance, remainingToday, sentToday, type Assignment, type SenderState, statoPerPrimiContatti, unaAssegnazionePerCasella, unaEmailPerDestinatario } from "../_shared/outreach-dispatch-logic.ts";
+import { assignSenders, cadenzaCasella, chiusuraEsclusione, dailyCapWithVariance, esclusioneIndirizzo, remainingToday, sentToday, type Assignment, type SenderState, statoPerPrimiContatti, unaAssegnazionePerCasella, unaEmailPerDestinatario } from "../_shared/outreach-dispatch-logic.ts";
+import { risolviPosta } from "../_shared/outreach-email-check.ts";
 import { componiCorpo, haFraseUscita } from "../_shared/outreach-uscita.ts";
 import { renderTemplate, contactToVars, hashSeed, htmlToPlainText } from "../_shared/outreach-template.ts";
 import { DEFAULT_SEND_WINDOW, finestraDelBrand, fineDelGiorno, isWithinSendWindow, localParts, minutoDelGiorno, orarioFollowUp, orarioTroppoVicino, spostaNeiGiorniDellaFinestra, type SendWindow } from "../_shared/outreach-schedule.ts";
@@ -100,20 +101,109 @@ async function mxGroupDi(supabase: any, dominio: string): Promise<string> {
     if (data?.mx_group) return String(data.mx_group);
   } catch { /* prosegue con la risoluzione */ }
 
-  let host: string | null = null;
-  try {
-    const rec = await Deno.resolveDns(dominio, "MX");
-    host = rec.sort((a, b) => a.preference - b.preference)[0]?.exchange ?? null;
-  } catch { /* dominio senza MX o DNS irraggiungibile */ }
-
+  // Stessa risoluzione dell'iscrizione (MX, poi A). Un DNS che non risponde non
+  // si scrive in mappa: prima finiva come «senza MX» e per 30 giorni
+  // l'iscrizione scartava un dominio buono.
+  const { host, errore } = await risolviPosta(dominio);
   const { data: g } = await supabase.rpc("outreach_mx_group_of", { p_host: host });
   const gruppo = String(g ?? "altro");
-  try {
-    await supabase.from("outreach_mx_map")
-      .upsert({ email_domain: dominio, mx_host: host, mx_group: gruppo, risolto_at: new Date().toISOString() },
-              { onConflict: "email_domain" });
-  } catch { /* la cache e' un'ottimizzazione, non un requisito */ }
+  if (!errore) {
+    try {
+      await supabase.from("outreach_mx_map")
+        .upsert({ email_domain: dominio, mx_host: host, mx_group: gruppo, risolto_at: new Date().toISOString() },
+                { onConflict: "email_domain" });
+    } catch { /* la cache e' un'ottimizzazione, non un requisito */ }
+  }
   return gruppo;
+}
+
+/**
+ * Toglie dal giro, PRIMA di assegnare le caselle, le email che non devono
+ * partire, così non occupano il posto di un'email buona (24/09/2026):
+ *   • indirizzo in lista nera: rimbalzato o disiscritto, su qualunque scheda;
+ *   • dominio senza posta (né MX né A): la mappa dice chi ha un server; gli
+ *     altri domini si chiedono al DNS adesso, e solo «nessun record» esclude;
+ *   • iscrizione o flusso in pausa: la riga resta in coda e aspetta, senza
+ *     prendersi una casella.
+ * Le iscrizioni si chiudono come per il rimbalzo vero, senza che parta niente.
+ */
+async function escludiIndirizzi(
+  supabase: any,
+  queue: any[],
+  enrollmentById: Map<string, { id: string; status: string; sequence_id: string }>,
+  statoSequenza: Map<string, string>,
+  result: { skipped: number; deferred: number },
+): Promise<any[]> {
+  const indirizzo = (q: any) => String(q.to_email ?? "").trim().toLowerCase();
+  const indirizzi = [...new Set(queue.map(indirizzo).filter((e) => e.includes("@")))];
+
+  const motivi = new Map<string, string[]>();
+  const senzaPosta = new Set<string>();
+  // Filtri `in (…)` a pezzi: finiscono nell'URL, e un giro legge fino a 200 righe.
+  const aPezzi = <T,>(xs: T[]): T[][] => Array.from({ length: Math.ceil(xs.length / 80) }, (_, i) => xs.slice(i * 80, i * 80 + 80));
+  if (indirizzi.length) {
+    for (const pezzo of aPezzi(indirizzi)) {
+      const { data: sop, error: sopErr } = await supabase.from("email_suppressions")
+        .select("email_normalized,reason").eq("company_id", PLATFORM_COMPANY).in("email_normalized", pezzo);
+      if (sopErr) console.warn("[outreach-dispatch] lista nera non letta:", sopErr.message);
+      for (const r of (sop ?? []) as Array<{ email_normalized: string; reason: string }>) {
+        motivi.set(r.email_normalized, [...(motivi.get(r.email_normalized) ?? []), r.reason]);
+      }
+    }
+
+    const domini = [...new Set(indirizzi.map((e) => e.split("@")[1]).filter(Boolean))];
+    const conPosta = new Set<string>();
+    for (const pezzo of aPezzi(domini)) {
+      const { data: mappa } = await supabase.from("outreach_mx_map").select("email_domain,mx_host").in("email_domain", pezzo);
+      for (const r of (mappa ?? []) as Array<{ email_domain: string; mx_host: string | null }>) {
+        if (r.mx_host) conPosta.add(r.email_domain);
+      }
+    }
+    // Il DNS non deve mangiarsi il giro: oltre i 15 secondi i domini rimasti si
+    // guardano al giro dopo, e intanto le loro email partono come prima.
+    const scade = Date.now() + 15_000;
+    await inParallelo(domini.filter((d) => !conPosta.has(d)), 8, async (d) => {
+      if (Date.now() > scade) return;
+      const { host, errore } = await risolviPosta(d);
+      if (errore) return; // DNS muto: non si sa, l'email parte
+      if (!host) senzaPosta.add(d);
+      try {
+        const { data: g } = await supabase.rpc("outreach_mx_group_of", { p_host: host });
+        await supabase.from("outreach_mx_map").upsert(
+          { email_domain: d, mx_host: host, mx_group: String(g ?? "altro"), risolto_at: new Date().toISOString() },
+          { onConflict: "email_domain" });
+      } catch { /* la mappa è una cache */ }
+    });
+  }
+
+  const restano: any[] = [];
+  for (const q of queue) {
+    const enr = q.enrollment_id ? enrollmentById.get(q.enrollment_id) : undefined;
+    const st = enr ? statoSequenza.get(enr.sequence_id) : undefined;
+    if (enr?.status === "paused" || st === "paused" || st === "archived") { result.deferred++; continue; }
+    const motivo = esclusioneIndirizzo(indirizzo(q), motivi, senzaPosta);
+    if (!motivo) { restano.push(q); continue; }
+    const chiusura = chiusuraEsclusione(motivo);
+    await supabase.from("outreach_send_queue")
+      .update({ status: "cancelled", last_error: chiusura.last_error }).eq("id", q.id).eq("status", "queued");
+    // Anche questa scheda non riceve più email (campagne, automazioni), come
+    // quella che ha rimbalzato o si è disiscritta. Il dominio senza posta no:
+    // un DNS sistemato domani lo rimette in gioco.
+    if (q.contact_id && motivo !== "dominio_senza_posta") {
+      await supabase.from("marketing_contacts")
+        .update({ optout_email: true, optout_at: new Date().toISOString(), optout_reason: motivo === "disiscritto" ? "unsubscribe" : "hard_bounce" })
+        .eq("id", q.contact_id).not("optout_email", "is", true);
+    }
+    if (enr && !TERMINAL_ENROLLMENT.has(enr.status)) {
+      await supabase.from("outreach_enrollments")
+        .update({ status: chiusura.status, next_action_at: null, stop_reason: chiusura.stop_reason }).eq("id", enr.id);
+      await supabase.from("outreach_send_queue")
+        .update({ status: "cancelled", last_error: chiusura.last_error }).eq("enrollment_id", enr.id).eq("status", "queued");
+      enr.status = chiusura.status;
+    }
+    result.skipped++;
+  }
+  return restano;
 }
 // Batch per tick: tenuto basso perché il loop invii è sequenziale e ogni item
 // costa più roundtrip DB (+ handshake SMTP per le caselle proprie). Con 100 e il
@@ -793,6 +883,27 @@ serveConMetricheRapida("outreach-dispatch", async (req) => {
       console.warn("[outreach-dispatch] reaper skip:", reapErr instanceof Error ? reapErr.message : reapErr);
     }
 
+    // 0-freno. RIMBALZI (24/09/2026) — un flusso con più di 3 rimbalzi veri
+    // sulle ultime 100 prime email va in pausa PRIMA di spedire ancora, e al
+    // titolare arriva l'avviso. Il conto lo fa il database
+    // (outreach_freno_rimbalzi): solo email partite da quel flusso, e da capo
+    // ogni volta che il freno lo ferma.
+    try {
+      const { data: frenati, error: frenoErr } = await supabase.rpc("outreach_freno_rimbalzi");
+      if (frenoErr) throw new Error(frenoErr.message);
+      for (const f of (frenati ?? []) as Array<{ id_flusso: string; nome_flusso: string; prime: number; tornate: number }>) {
+        console.warn(`[outreach-dispatch] FRENO RIMBALZI — ${f.nome_flusso}: ${f.tornate} su ${f.prime} prime email, flusso in pausa`);
+        await alertOutreach(supabase, {
+          chiave: `freno:${f.id_flusso}`, tipo: "outreach_freno_rimbalzi", ogniOre: 0,
+          titolo: `Flusso in pausa per i rimbalzi: ${f.nome_flusso}`,
+          testo: `${f.tornate} indirizzi inesistenti sulle ultime ${f.prime} prime email: oltre 3 ogni 100 il flusso si ferma, perché troppi rimbalzi mandano in spam anche le email buone. Prima di ripartire conviene far verificare gli indirizzi della lista. Si riattiva da Marketing → Sequenze, e il conto riparte da zero.`,
+          url: "/admin/marketing?tab=sequenze",
+        });
+      }
+    } catch (frenoErr) {
+      console.warn("[outreach-dispatch] freno rimbalzi skip:", frenoErr instanceof Error ? frenoErr.message : frenoErr);
+    }
+
     // 0. PASS GRAFO — instradamenti differiti dovuti (righe 'advance', tipiche dei
     // nodi 'wait'): NON si spediscono, riprendono la traversata valutando le
     // condizioni con segnali aggiornati. Best-effort: se la colonna 'kind' non
@@ -852,6 +963,16 @@ serveConMetricheRapida("outreach-dispatch", async (req) => {
         return q.order("scheduled_for", { ascending: true }).limit(quante);
       };
       const leggi = async (primo: boolean, brandId: string | null | undefined, quante: number): Promise<any[]> => {
+        // Senza le righe dei flussi e delle iscrizioni in pausa: lette per
+        // scadenza come le altre, riempivano il giro del brand e prendevano il
+        // posto di una casella, e gli altri flussi del brand restavano fermi.
+        // Con il freno dei rimbalzi un flusso in pausa non è più un caso raro.
+        const viaRpc = await supabase.rpc("outreach_coda_da_spedire", {
+          p_primo: primo, p_limite: quante, p_brand: brandId ?? null,
+          p_modo: brandId === undefined ? "tutti" : brandId === null ? "senza_brand" : "brand",
+        });
+        if (!viaRpc.error) return viaRpc.data ?? [];
+        console.warn("[outreach-dispatch] lettura coda senza i flussi in pausa non riuscita, ripiego:", viaRpc.error.message);
         const r = await sel(primo, brandId, quante).eq("kind", "send");
         if (!r.error) return r.data ?? [];
         // 'kind' assente (pre-migrazione grafo): riprova senza il filtro.
@@ -999,6 +1120,14 @@ serveConMetricheRapida("outreach-dispatch", async (req) => {
         plainTextBySequence.set(s.id, s.plain_text_only === true);
         statoSequenza.set(s.id, String(s.status ?? "active"));
       }
+    }
+
+    // 2-bis. Fuori dal giro, prima dell'assegnazione: indirizzi in lista nera,
+    // domini senza posta, righe dei flussi in pausa (vedi escludiIndirizzi).
+    try {
+      queue = await escludiIndirizzi(supabase, queue, enrollmentById, statoSequenza, result);
+    } catch (escErr) {
+      console.warn("[outreach-dispatch] controllo indirizzi skip:", escErr instanceof Error ? escErr.message : escErr);
     }
 
     // 3. assegnazione round-robin PER BRAND: ogni item è spedito SOLO dalle
