@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { filtriRicercaContatti } from "@/lib/ricerca/ricercaContatti";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -87,10 +88,7 @@ function useAdminCRM(params: {
         query = query.eq("contact_type", params.contactType);
       }
 
-      if (params.search.trim()) {
-        const s = `%${params.search.trim()}%`;
-        query = query.or(`first_name.ilike.${s},last_name.ilike.${s},email.ilike.${s},phone.ilike.${s},company_name.ilike.${s}`);
-      }
+      for (const filtro of filtriRicercaContatti(params.search)) query = query.or(filtro);
 
       const { data, error, count } = await query;
       if (error) throw new Error(error.message);

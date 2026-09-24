@@ -15,6 +15,7 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { filtriRicercaContatti } from "@/lib/ricerca/ricercaContatti";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -123,18 +124,14 @@ export default function IdentitaThread({ chatId, phone, contactId, nomeVisualizz
     queryKey: ["openwa", "cerca-contatti", termine],
     enabled: cercaAperta && termine.trim().length >= 2,
     queryFn: async () => {
-      const t = termine.trim();
-      const soloCifre = t.replace(/\D/g, "");
-      const filtro = soloCifre.length >= 4
-        ? `phone.ilike.%${soloCifre}%`
-        : `first_name.ilike.%${t}%,last_name.ilike.%${t}%,company_name.ilike.%${t}%,email.ilike.%${t}%`;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase as any)
+      let query = (supabase as any)
         .from("marketing_contacts")
         .select("id, first_name, last_name, phone, email, company_name, tags, optout_whatsapp")
         .eq("company_id", PLATFORM_ADMIN_COMPANY_ID)
-        .or(filtro)
-        .limit(20);
+        .is("deleted_at", null);
+      for (const filtro of filtriRicercaContatti(termine)) query = query.or(filtro);
+      const { data, error } = await query.limit(20);
       if (error) throw error;
       return (data ?? []) as ContattoTrovato[];
     },

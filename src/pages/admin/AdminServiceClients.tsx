@@ -12,6 +12,7 @@ import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { filtriRicercaContatti, filtriRicercaParole } from "@/lib/ricerca/ricercaContatti";
 import { BrandPageHeader } from "@/components/admin/BrandPageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -181,11 +182,11 @@ export default function AdminServiceClients() {
     enabled: clientQuery.trim().length >= 2,
     queryKey: ["admin", "client-search", clientQuery],
     queryFn: async (): Promise<{ kind: "company" | "contact"; id: string; label: string }[]> => {
-      const q = `%${clientQuery.trim()}%`;
-      const [comp, cont] = await Promise.all([
-        sb().from("companies").select("id,name").ilike("name", q).limit(6),
-        sb().from("marketing_contacts").select("id,first_name,last_name,company_name").or(`first_name.ilike.${q},last_name.ilike.${q},company_name.ilike.${q}`).limit(6),
-      ]);
+      let aziende = sb().from("companies").select("id,name");
+      for (const filtro of filtriRicercaParole(clientQuery, ["name"])) aziende = aziende.or(filtro);
+      let contatti = sb().from("marketing_contacts").select("id,first_name,last_name,company_name").is("deleted_at", null);
+      for (const filtro of filtriRicercaContatti(clientQuery)) contatti = contatti.or(filtro);
+      const [comp, cont] = await Promise.all([aziende.limit(6), contatti.limit(6)]);
       const out: { kind: "company" | "contact"; id: string; label: string }[] = [];
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       for (const c of (comp.data ?? []) as any[]) out.push({ kind: "company", id: c.id, label: c.name });

@@ -3,6 +3,7 @@ import { navigateToSubdomain, type TargetSubdomain } from "@/utils/subdomainNav"
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { filtriRicercaParole } from "@/lib/ricerca/ricercaContatti";
 import { queryKeys } from "@/lib/queryKeys";
 import { UserCog, Search, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -227,16 +228,8 @@ export function QuickLoginPopover() {
 
       if (roleUserIds) profilesQuery = profilesQuery.in("id", roleUserIds);
 
-      if (debouncedSearch) {
-        // Sanitizza il termine: virgole e parentesi spezzano la grammatica
-        // dell'or= di PostgREST (una virgola = nuova condizione → 400 e lista
-        // vuota cercando ad es. "rossi, mario"); % e _ sono wildcard ilike.
-        const term = debouncedSearch.replace(/[,()%_]/g, " ").trim();
-        if (term) {
-          profilesQuery = profilesQuery.or(
-            `first_name.ilike.%${term}%,last_name.ilike.%${term}%,email.ilike.%${term}%`
-          );
-        }
+      for (const filtro of filtriRicercaParole(debouncedSearch, ["first_name", "last_name", "email"])) {
+        profilesQuery = profilesQuery.or(filtro);
       }
 
       const { data: profiles, error: profilesError } = await profilesQuery;

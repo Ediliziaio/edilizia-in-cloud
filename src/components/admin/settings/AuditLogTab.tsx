@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { filtriRicercaParole } from "@/lib/ricerca/ricercaContatti";
 import { escapeCsvCell } from "@/lib/csvExport";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -115,13 +116,11 @@ export default function AuditLogTab() {
       // If searching, first resolve matching user IDs from profiles
       let matchingUserIds: string[] | null = null;
       if (debouncedSearch.trim()) {
-        // Virgole e parentesi sono sintassi di .or() in PostgREST: cercare
-        // "Rossi, Mario" spaccava la query intera con un 400.
-        const q = `%${debouncedSearch.trim().replace(/[,()]/g, " ").trim()}%`;
-        const { data: profileMatches } = await supabase
-          .from("profiles")
-          .select("id")
-          .or(`first_name.ilike.${q},last_name.ilike.${q},email.ilike.${q}`);
+        let cercaUtenti = supabase.from("profiles").select("id");
+        for (const filtro of filtriRicercaParole(debouncedSearch, ["first_name", "last_name", "email"])) {
+          cercaUtenti = cercaUtenti.or(filtro);
+        }
+        const { data: profileMatches } = await cercaUtenti;
         matchingUserIds = (profileMatches || []).map((p) => p.id);
       }
 

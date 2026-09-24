@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { filtriRicercaContatti } from "@/lib/ricerca/ricercaContatti";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -53,12 +54,7 @@ export function OutreachListContactsDialog({
         .select("id,first_name,last_name,company_name,email,optout_email,source", { count: "exact" })
         .eq("company_id", companyId)
         .contains("tags", [tag]);
-      if (debounced) {
-        const esc = debounced.replace(/[%,]/g, " ");
-        query = query.or(
-          `first_name.ilike.%${esc}%,last_name.ilike.%${esc}%,company_name.ilike.%${esc}%,email.ilike.%${esc}%`,
-        );
-      }
+      for (const filtro of filtriRicercaContatti(debounced)) query = query.or(filtro);
       const { data, error, count } = await query
         .order("last_activity_at", { ascending: false, nullsFirst: false })
         .range(page * PAGE, page * PAGE + PAGE - 1);
