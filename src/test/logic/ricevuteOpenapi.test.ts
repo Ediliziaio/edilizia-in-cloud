@@ -13,6 +13,7 @@ import {
   identificativoSdi,
   nomeFileSdi,
   percorsoOriginale,
+  ricevutaIl,
   sembraFatturaPA,
   stessoGettone,
   vociElenco,
@@ -330,3 +331,13 @@ describe("il giro", () => {
       .toBe(`${c}/ricevute/IT01234567890_77_A_2026-09-20.xml.p7m`);
   });
 });
+
+describe("data di ricezione dallo SDI", () => {
+  it("dalla create_at della fattura openapi, in ISO; niente se manca o è storta", () => {
+    expect(ricevutaIl({ data: { create_at: "2026-09-24T10:15:00Z" } })).toBe("2026-09-24T10:15:00.000Z");
+    expect(ricevutaIl({ data: { create_at: 1790246100 } })).toBe(new Date(1790246100 * 1000).toISOString());
+    expect(ricevutaIl({ data: {} })).toBeNull();
+    expect(ricevutaIl({ data: { create_at: "ieri" } })).toBeNull();
+  });
+});
+

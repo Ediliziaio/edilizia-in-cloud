@@ -45,6 +45,7 @@ import {
   identificativoSdi,
   lunghezzaElenco,
   nomeFileSdi,
+  ricevutaIl,
   stessoGettone,
   testoFileDaJson,
   vociElenco,
@@ -194,6 +195,7 @@ async function importaUna(acc: Accesso, cfg: Config, id: string, giaLetta?: unkn
     nomeFileSdi: nomeFileSdi(fattura),
     openapiId: id,
     identificativoSdi: idSdi,
+    ricevutaIl: ricevutaIl(fattura),
   });
   if (salvata.errore) return { esito: "errore", motivo: salvata.errore };
   if (salvata.doppione) return { esito: "doppione", id: salvata.id };

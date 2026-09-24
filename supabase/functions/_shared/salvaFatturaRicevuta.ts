@@ -31,6 +31,13 @@ export interface FatturaDaSalvare {
   openapiId?: string | null;
   /** IdentificativoSdI della consegna (non è dentro l'XML). */
   identificativoSdi?: string | null;
+  /**
+   * Quando lo SDI l'ha consegnata al nostro canale. È la data che conta per
+   * detrarre l'IVA (art. 19 DPR 633/72 e art. 1 DPR 100/1998), non quella
+   * scritta dal fornitore. La sa solo chi riceve dallo SDI: openapi sì, il
+   * caricamento a mano di un XML no.
+   */
+  ricevutaIl?: string | null;
 }
 
 export interface EsitoSalvataggio {
@@ -126,6 +133,7 @@ export async function salvaFatturaRicevuta(supabase: Client, f: FatturaDaSalvare
       xml_raw: f.xml,
       xml_url: erroreFile ? null : percorso,
       openapi_id: f.openapiId ?? null,
+      data_ricezione_sdi: f.ricevutaIl ?? null,
       note: l.fatture_nel_file > 1
         ? `Il file contiene ${l.fatture_nel_file} fatture (un lotto): qui c'è la prima. Le altre vanno registrate a mano dal file originale.`
         : null,
@@ -150,11 +158,21 @@ export async function avvisaFatturaRicevuta(
   l: FatturaRicevutaLetta,
 ): Promise<void> {
   try {
+    // Gli amministratori dell'azienda: profilo dell'azienda + ruolo company_admin.
+    // user_roles non ha company_id: la versione di prima (ripresa da ricevi-sdi)
+    // filtrava su una colonna che non esiste, falliva e l'avviso non partiva mai.
+    const { data: profili } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("company_id", companyId)
+      .is("deleted_at", null);
+    const ids = ((profili ?? []) as Array<{ id: string }>).map((p) => p.id);
+    if (ids.length === 0) return;
     const { data: ruoli } = await supabase
       .from("user_roles")
       .select("user_id")
-      .eq("company_id", companyId)
-      .in("role", ["company_admin", "admin"]);
+      .in("user_id", ids)
+      .eq("role", "company_admin");
     const destinatari = [...new Set(((ruoli ?? []) as Array<{ user_id: string }>).map((r) => r.user_id))];
     if (destinatari.length === 0) return;
     await supabase.from("notifications").insert(destinatari.map((userId) => ({

@@ -407,6 +407,18 @@ export function nomeFileSdi(risposta: unknown): string | null {
   return /^[A-Za-z0-9._-]{5,120}$/.test(nome) ? nome : null;
 }
 
+/**
+ * Quando la fattura è arrivata a openapi dallo SDI (create_at della fattura
+ * ricevuta), in formato ISO. Null se manca o non è una data.
+ */
+export function ricevutaIl(risposta: unknown): string | null {
+  const f = laFattura(risposta);
+  const v = f?.create_at ?? f?.created_at;
+  if (typeof v !== "string" && typeof v !== "number") return null;
+  const t = typeof v === "number" ? v * (v < 1e12 ? 1000 : 1) : Date.parse(v);
+  return Number.isFinite(t) ? new Date(t).toISOString() : null;
+}
+
 /** L'identificativo SDI della consegna (details.sdi_id), se c'è. */
 export function identificativoSdi(risposta: unknown): string | null {
   const id = oggetto(laFattura(risposta)?.details)?.sdi_id;
