@@ -106,6 +106,13 @@ function pickTracked(state: EditorState): Record<string, unknown> {
   return out;
 }
 
+/** Il documento si sta scrivendo: bozza, o scartata dallo SDI da correggere. */
+function inCorrezione(state: EditorState): boolean {
+  if (state.stato === "bozza") return true;
+  return String(state.sdi_stato ?? "").toUpperCase() === "NS"
+    && !["annullata", "stornata", "in_invio"].includes(String(state.stato));
+}
+
 /** Payload completo per l'update: campi utente + totali derivati ricalcolati. */
 function buildSavePayload(state: EditorState) {
   return {
@@ -282,14 +289,16 @@ export function useEditorState(initialDoc: DocumentoFiscale | undefined) {
     }
   }, [initialDoc]);
 
-  // Autosave con debounce 2s (solo bozza).
+  // Autosave con debounce 2s: bozza, o fattura scartata dallo SDI che si sta
+  // correggendo (per l'Agenzia non è emessa; il database lascia fermi numero e
+  // data, 24/09/2026).
   //
   // Invariante: lastSavedRef riflette ciò che è stato DAVVERO inviato al
   // server, non ciò che è stato schedulato. Se il timer viene cancellato
   // da un re-run dell'effect, il confronto fallisce di nuovo e il
   // salvataggio viene ri-schedulato invece di andare perso.
   useEffect(() => {
-    if (!state._initialized || !state.id || state.stato !== "bozza") return;
+    if (!state._initialized || !state.id || !inCorrezione(state)) return;
 
     const serialized = JSON.stringify(pickTracked(state));
 
@@ -332,7 +341,7 @@ export function useEditorState(initialDoc: DocumentoFiscale | undefined) {
       clearTimeout(saveTimerRef.current);
     }
 
-    if (state._initialized && state.id && state.stato === "bozza") {
+    if (state._initialized && state.id && inCorrezione(state)) {
       const serialized = JSON.stringify(pickTracked(state));
       return new Promise((resolve, reject) => {
         updateMutationRef.current.mutate(buildSavePayload(state), {

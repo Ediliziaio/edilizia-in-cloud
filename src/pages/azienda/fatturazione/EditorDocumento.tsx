@@ -13,12 +13,17 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   useDocumentoFiscale,
+  rileggiDocumentoFiscale,
   useCreateDocumento,
   useEmittiDocumento,
   useDeleteDocumento,
 } from "@/hooks/useDocumentiFiscali";
 import { supabase } from "@/integrations/supabase/client";
 import { downloadNativePDF } from "@/lib/fatturazione/generatePDF";
+import { scaricaXmlFattura } from "@/lib/fatturazione/scaricaXml";
+import { faseSdi } from "@/lib/fatturazione/sdiCassetto";
+import { useInvioSdi, useAggiornaStatoSdi } from "@/hooks/useInvioSdi";
+import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
 import { convertiProformaInFattura } from "@/lib/fatturazione/proforma";
 import { toast } from "sonner";
 import { useEditorState } from "./editor/useEditorState";
@@ -131,13 +136,18 @@ export default function EditorDocumento() {
 
   const { state, dispatch, isSaving, lastSaved, isDirty, saveNow } = useEditorState(loadedDoc);
   const isBozza = state.stato === "bozza";
+  // La fattura verso lo SDI (24/09/2026). Una scartata per l'Agenzia non è
+  // emessa: si corregge qui (tranne numero e data) e si rimanda.
+  const fase = faseSdi(state)?.fase;
+  const scartata = fase === "scartata";
+  const modificabile = isBozza || scartata;
+  const { data: aziendaAnagrafica } = useAnagraficaAzienda();
 
   // 2026-05-27 (Form UX audit): warn su chiusura tab / Cmd+W / F5 quando ci
   // sono modifiche non salvate. Prima esisteva solo un dialog sulla freccia
   // back; tutti gli altri path (refresh, link sidebar, close tab) facevano
   // perdere le modifiche fatte negli ultimi 2s (autosave window).
-  useBeforeUnload(isDirty && isBozza);
-  const [isInviaSDILoading, setIsInviaSDILoading] = useState(false);
+  useBeforeUnload(isDirty && modificabile);
   const [isConvertLoading, setIsConvertLoading] = useState(false);
 
   // Convert proforma/preventivo to fattura
@@ -155,39 +165,48 @@ export default function EditorDocumento() {
     }
   }, [state.id, navigate]);
 
+  // Invio e esito: dopo l'invio si rilegge il documento, così la pagina passa
+  // subito a «In elaborazione» (prima restava «non inviata al SDI»).
+  const rimetti = useCallback((doc: DocumentoFiscale) => dispatch({ type: "INIT", payload: doc }), [dispatch]);
+  const invioSdi = useInvioSdi(rimetti);
+  const aggiornaStatoSdi = useAggiornaStatoSdi(rimetti);
+
   const handleInviaSDI = useCallback(async () => {
-    if (!state.id) return;
-    setIsInviaSDILoading(true);
+    if (!state.id || invioSdi.isPending) return;
+    // Una scartata appena corretta: prima si salvano le correzioni, poi parte.
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const resp = await supabase.functions.invoke("invia-sdi", {
-        body: { documento_id: state.id },
-        headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : undefined,
-      });
-      if (resp.error) {
-        // Il corpo delle risposte 4xx (es. «firma la fattura PA») sta nel context:
-        // senza leggerlo l'utente vedeva solo «non-2xx status code».
-        const ctx = (resp.error as { context?: { json?: () => Promise<{ error?: string }> } }).context;
-        const detail = ctx?.json ? await ctx.json().catch((): null => null) : null;
-        throw new Error(detail?.error || resp.error.message);
-      }
-      const result = resp.data as { success: boolean; sdi_id?: string; errors?: any[]; manuale?: boolean; avviso?: string | null };
-      if (!result.success) {
-        // Errori SDI leggibili invece del JSON grezzo degli scarti.
-        const descr = Array.isArray(result.errors) && result.errors.length
-          ? result.errors.map((e) => (typeof e === "string" ? e : e?.message ?? JSON.stringify(e))).join("; ")
-          : "Il SDI ha rifiutato la fattura. Controlla i dati e riprova.";
-        toast.error("Errore invio SDI", { description: descr });
-        return;
-      }
-      if (result.manuale) toast.success("XML della fattura pronto", { description: result.avviso ?? undefined, duration: 10000 });
-      else toast.success("Fattura inviata al SDI", { description: `ID trasmissione: ${result.sdi_id}` });
-    } catch (err: any) {
-      toast.error("Errore invio SDI", { description: err.message });
-    } finally {
-      setIsInviaSDILoading(false);
+      await saveNow();
+    } catch (err) {
+      toast.error("Correzioni non salvate: la fattura non è partita", { description: (err as Error).message });
+      return;
     }
-  }, [state.id]);
+    invioSdi.mutate(state.id);
+  }, [state.id, invioSdi, saveNow]);
+
+  // Mentre lo SDI la elabora, si rilegge ogni minuto: l'esito lo scrive il giro
+  // automatico (ogni quarto d'ora) o «Aggiorna stato», e la pagina lo mostra
+  // senza ricaricarla.
+  useEffect(() => {
+    if (!state.id || (fase !== "in_elaborazione" && fase !== "invio_in_corso")) return;
+    const id = state.id;
+    const prima = `${state.stato}|${state.sdi_stato ?? ""}`;
+    const giro = window.setInterval(async () => {
+      try {
+        const doc = await rileggiDocumentoFiscale(id);
+        if (`${doc.stato}|${doc.sdi_stato ?? ""}` !== prima) rimetti(doc);
+      } catch { /* si riprova al giro dopo */ }
+    }, 60_000);
+    return () => window.clearInterval(giro);
+  }, [state.id, fase, state.stato, state.sdi_stato, rimetti]);
+
+  const handleDownloadXML = useCallback(async () => {
+    if (!state.id) return;
+    try {
+      await scaricaXmlFattura(state as unknown as DocumentoFiscale, aziendaAnagrafica);
+    } catch (err) {
+      toast.error("XML non scaricato", { description: (err as Error).message });
+    }
+  }, [state, aziendaAnagrafica]);
 
   const handleDownloadPDF = useCallback(async () => {
     if (!state.id || !state.numero) return;
@@ -368,11 +387,14 @@ export default function EditorDocumento() {
         onPreview={() => setPreviewOpen(true)}
         onBack={handleBack}
         onInviaSDI={handleInviaSDI}
+        onAggiornaStatoSdi={state.id ? () => aggiornaStatoSdi.mutate(state.id!) : undefined}
         onDownloadPDF={handleDownloadPDF}
+        onDownloadXML={handleDownloadXML}
         onSendEmail={() => setEmailDialogOpen(true)}
         onDuplicate={handleDuplicate}
         onConvertToFattura={handleConvertToFattura}
-        isInviaSDILoading={isInviaSDILoading}
+        isInviaSDILoading={invioSdi.isPending}
+        isAggiornaStatoLoading={aggiornaStatoSdi.isPending}
         isConvertLoading={isConvertLoading}
       />
 
@@ -435,13 +457,13 @@ export default function EditorDocumento() {
               <EditorDDTModelloCard />
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                <EditorClienteSection state={state} dispatch={dispatch} disabled={!isBozza} />
-                <EditorDatiDocumento state={state} dispatch={dispatch} disabled={!isBozza} />
-                <EditorDDTOpzioniCard state={state} dispatch={dispatch} disabled={!isBozza} />
+                <EditorClienteSection state={state} dispatch={dispatch} disabled={!modificabile} />
+                <EditorDatiDocumento state={state} dispatch={dispatch} disabled={!modificabile} dataBloccata={scartata} />
+                <EditorDDTOpzioniCard state={state} dispatch={dispatch} disabled={!modificabile} />
               </div>
 
               {(state.ordine_id || searchParams.get("ordine_link")) && (
-                <EditorOrdineSection state={state} dispatch={dispatch} disabled={!isBozza} />
+                <EditorOrdineSection state={state} dispatch={dispatch} disabled={!modificabile} />
               )}
             </>
           ) : (
@@ -449,40 +471,40 @@ export default function EditorDocumento() {
               {/* ═══ TOP SECTION: 3-column layout (Cliente | Dati + FE + Contributi | Pagamento + Opzioni + Personalizzazione) ═══ */}
               <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_280px] gap-4">
                 {/* LEFT: Cliente */}
-                <EditorClienteSection state={state} dispatch={dispatch} disabled={!isBozza} />
+                <EditorClienteSection state={state} dispatch={dispatch} disabled={!modificabile} />
 
                 {/* CENTER: Dati documento + Fatturazione Elettronica + Contributi e Ritenute */}
                 <div className="space-y-4">
-                  <EditorDatiDocumento state={state} dispatch={dispatch} disabled={!isBozza} />
+                  <EditorDatiDocumento state={state} dispatch={dispatch} disabled={!modificabile} dataBloccata={scartata} />
                   {state.tipo !== "preventivo" && state.tipo !== "proforma" && (
-                    <EditorFatturazioneElettronicaSection state={state} dispatch={dispatch} disabled={!isBozza} />
+                    <EditorFatturazioneElettronicaSection state={state} dispatch={dispatch} disabled={!modificabile} />
                   )}
-                  <EditorContributiRitenuteSection state={state} dispatch={dispatch} disabled={!isBozza} />
+                  <EditorContributiRitenuteSection state={state} dispatch={dispatch} disabled={!modificabile} />
                 </div>
 
                 {/* RIGHT: Pagamento + Opzioni avanzate + Personalizzazione */}
                 <div className="space-y-4">
-                  <EditorPagamentoSection state={state} dispatch={dispatch} disabled={!isBozza} />
-                  <EditorOpzioniAvanzateSection state={state} dispatch={dispatch} disabled={!isBozza} />
-                  <EditorPersonalizzazioneSection state={state} dispatch={dispatch} disabled={!isBozza} />
+                  <EditorPagamentoSection state={state} dispatch={dispatch} disabled={!modificabile} />
+                  <EditorOpzioniAvanzateSection state={state} dispatch={dispatch} disabled={!modificabile} />
+                  <EditorPersonalizzazioneSection state={state} dispatch={dispatch} disabled={!modificabile} />
                 </div>
               </div>
 
               {/* Ordine collegato (solo se presente) */}
               {(state.ordine_id || searchParams.get("ordine_link")) && (
-                <EditorOrdineSection state={state} dispatch={dispatch} disabled={!isBozza} />
+                <EditorOrdineSection state={state} dispatch={dispatch} disabled={!modificabile} />
               )}
             </>
           )}
 
           {/* ═══ RIGHE + RIEPILOGO ═══ */}
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_200px] gap-4">
-            <EditorRigheSection state={state} dispatch={dispatch} disabled={!isBozza} />
-            <EditorTotaliSection state={state} dispatch={dispatch} disabled={!isBozza} />
+            <EditorRigheSection state={state} dispatch={dispatch} disabled={!modificabile} />
+            <EditorTotaliSection state={state} dispatch={dispatch} disabled={!modificabile} />
           </div>
 
           {/* ═══ NOTE ═══ */}
-          <EditorNoteSection state={state} dispatch={dispatch} disabled={!isBozza} />
+          <EditorNoteSection state={state} dispatch={dispatch} disabled={!modificabile} />
         </div>
       </div>
 

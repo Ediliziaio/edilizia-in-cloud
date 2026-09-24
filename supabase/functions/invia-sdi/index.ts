@@ -6,7 +6,7 @@ import { generateXML } from "../_shared/generateXML.ts";
 import { datiReaMancanti } from "../_shared/datiSocietari.ts";
 import { utf8ToBase64 } from "../_shared/base64.ts";
 import { checkPaymentMethod, PAYMENT_METHOD_REQUIRED_MESSAGE } from "../_shared/requirePaymentMethod.ts";
-import { valutaPreInvio, claimDocumentoPerInvio, rilasciaClaimInvio, invioManuale, firmaPaACaricoNostro } from "../_shared/sdiInvioGuard.ts";
+import { valutaPreInvio, claimDocumentoPerInvio, rilasciaClaimInvio, invioManuale, firmaPaACaricoNostro, statoDopoInvio } from "../_shared/sdiInvioGuard.ts";
 
 /** Validate Italian P.IVA (11 digits, with Luhn-like check) */
 function isValidPartitaIva(piva: string | null | undefined): boolean {
@@ -623,10 +623,17 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Success: update document
+    // Success: update document.
+    // Una fattura già incassata resta incassata (l'invio non è un incasso), e
+    // quella rimandata dopo uno scarto non si porta dietro errori, consegna e
+    // identificativo della trasmissione scartata.
     await supabase.from("documenti_fiscali")
       .update({
-        stato: "inviata_sdi",
+        stato: statoDopoInvio(claimPrevStato),
+        sdi_errori: null,
+        sdi_identificativo: null,
+        sdi_data_consegna: null,
+        sdi_notifica_tipo: null,
         sdi_id_trasmissione: sdiId,
         sdi_file_xml_url: xmlPath,
         sdi_firmato: firmatoP7m,

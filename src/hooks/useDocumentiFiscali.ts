@@ -5,6 +5,7 @@ import { queryKeys } from "@/lib/queryKeys";
 import { createTimeoutSignal, withClientTimeout } from "@/lib/query-timeout";
 import { toast } from "sonner";
 import type { DocumentoFiscale, TipoDocumento, StatoDocumento } from "@/types/fatturazione";
+import { TIPI_SDI } from "@/lib/fatturazione/sdiCassetto";
 
 const DOCUMENTI_QUERY_TIMEOUT_MS = 12_000;
 
@@ -21,6 +22,8 @@ export interface DocumentiFiscaliFilters {
   perPage?: number;
   /** When true, show soft-deleted docs (cestino) instead of active docs */
   showDeleted?: boolean;
+  /** Fase verso lo SDI: le fatture da inviare, quelle che aspettano l'esito, le scartate. */
+  sdi?: "da_inviare" | "in_elaborazione" | "scartata";
 }
 
 // ─── Row mapper ───────────────────────────────────────────────
@@ -41,6 +44,7 @@ function mapRow(row: Record<string, unknown>): DocumentoFiscale {
     cliente_snapshot: (row.cliente_snapshot ?? {}) as DocumentoFiscale["cliente_snapshot"],
     stato: row.stato as StatoDocumento,
     sdi_id_trasmissione: row.sdi_id_trasmissione as string | undefined,
+    sdi_identificativo: row.sdi_identificativo as string | undefined,
     sdi_stato: row.sdi_stato as string | undefined,
     sdi_errori: (row.sdi_errori ?? []) as unknown[],
     sdi_data_consegna: row.sdi_data_consegna as string | undefined,
@@ -170,6 +174,17 @@ export function useDocumentiFiscali(filters: DocumentiFiscaliFilters = {}) {
         if (filters.anagrafica_id) {
           query = query.eq("anagrafica_id", filters.anagrafica_id);
         }
+        // Le stesse regole di faseSdi (lib/fatturazione/sdiCassetto.ts).
+        if (filters.sdi === "da_inviare") {
+          query = query.in("tipo", TIPI_SDI).is("sdi_id_trasmissione", null)
+            .not("stato", "in", "(bozza,annullata,in_invio)");
+        } else if (filters.sdi === "in_elaborazione") {
+          // invia-sdi scrive AT a ogni invio riuscito (il manuale no): niente
+          // .or() qui, la ricerca ne usa già uno.
+          query = query.in("tipo", TIPI_SDI).eq("sdi_stato", "AT");
+        } else if (filters.sdi === "scartata") {
+          query = query.eq("sdi_stato", "NS").not("stato", "in", "(annullata,stornata)");
+        }
         if (filters.data_da) {
           query = query.gte("data_emissione", filters.data_da);
         }
@@ -204,6 +219,21 @@ export function useDocumentiFiscali(filters: DocumentiFiscaliFilters = {}) {
 }
 
 // ─── Detail hook ──────────────────────────────────────────────
+
+/**
+ * Il documento com'è adesso nel database. Serve dopo un invio allo SDI o un
+ * aggiornamento dell'esito: l'editor si inizializza una volta sola, e senza
+ * rileggere restava «da inviare» anche a invio fatto (24/09/2026).
+ */
+export async function rileggiDocumentoFiscale(id: string): Promise<DocumentoFiscale> {
+  const { data, error } = await supabase
+    .from("documenti_fiscali" as never)
+    .select("*")
+    .eq("id", id)
+    .single();
+  if (error) throw error;
+  return mapRow(data as Record<string, unknown>);
+}
 
 export function useDocumentoFiscale(id: string | undefined) {
   const companyId = useEffectiveCompanyId();

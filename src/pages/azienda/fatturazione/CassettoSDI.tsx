@@ -1,22 +1,22 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { usePaymentGateStore } from "@/store/paymentGateStore";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { formatCurrency, formatDateShort } from "@/lib/formatters";
 import { createTimeoutSignal, withClientTimeout } from "@/lib/query-timeout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Download, RefreshCw, ExternalLink, FileText, Search, Eye, CheckCircle2, AlertTriangle, Clock } from "lucide-react";
+import { Download, RefreshCw, ExternalLink, FileText, Search, Eye, CheckCircle2, AlertTriangle, Clock, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { OperationalKpiCard } from "@/components/orders/OperationalKpiCard";
-import { puoReinviare, isInvioInCorso } from "@/lib/fatturazione/sdiCassetto";
+import { puoReinviare, isInvioInCorso, faseSdi, type FaseSdi } from "@/lib/fatturazione/sdiCassetto";
+import { FaseSdiBadge } from "@/components/fatturazione/FaseSdiBadge";
 
 import { useIsMobile } from "@/hooks/use-mobile";
 const SDI_QUERY_TIMEOUT_MS = 12_000;
@@ -44,20 +44,15 @@ function formatXml(xml: string): string {
   }
 }
 
-const SDI_STATO_CONFIG: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-  AT: { label: "Trasmessa", variant: "default" },
-  RC: { label: "Consegnata", variant: "secondary" },
-  NS: { label: "Scartata", variant: "destructive" },
-  MC: { label: "Mancata consegna", variant: "outline" },
-  EC: { label: "Esito committente", variant: "default" },
-  DT: { label: "Decorrenza termini", variant: "secondary" },
+// I filtri seguono le fasi di faseSdi (lib/fatturazione/sdiCassetto.ts), le
+// stesse dell'elenco documenti e dell'editor (24/09/2026).
+const FILTRI_FASE: Record<string, FaseSdi[]> = {
+  in_elaborazione: ["in_elaborazione", "invio_in_corso"],
+  inviate: ["inviata", "accettata"],
+  scartate: ["scartata"],
+  rifiutate: ["rifiutata_ente"],
+  manuali: ["manuale"],
 };
-
-function SdiStatoBadge({ stato }: { stato: string | null }) {
-  if (!stato) return <Badge variant="outline">—</Badge>;
-  const config = SDI_STATO_CONFIG[stato] || { label: stato, variant: "outline" as const };
-  return <Badge variant={config.variant}>{config.label}</Badge>;
-}
 
 type CassettoSDIProps = {
   embedded?: boolean;
@@ -73,7 +68,7 @@ export default function CassettoSDI({ embedded = false }: CassettoSDIProps = {})
   const [statoFilter, setStatoFilter] = useState("all");
   const [xmlPreviewOpen, setXmlPreviewOpen] = useState(false);
   const [xmlPreviewContent, setXmlPreviewContent] = useState<{ numero: string; xml: string } | null>(null);
-  const [reinviandoId, setReinviandoId] = useState<string | null>(null);
+  const navigate = useNavigate();
 
   const { data: documenti = [], isLoading, isError, isFetching, refetch } = useQuery({
     queryKey: ["cassetto-sdi", companyId, anno],
@@ -85,7 +80,7 @@ export default function CassettoSDI({ embedded = false }: CassettoSDIProps = {})
       try {
         const query = supabase
           .from("documenti_fiscali" as never)
-          .select("id, numero, tipo, data_emissione, cliente_snapshot, totale_documento, totale_da_pagare, stato, sdi_id_trasmissione, sdi_stato, sdi_notifica_tipo, sdi_file_xml_url, sdi_ricevuta_url, sdi_data_consegna")
+          .select("id, numero, tipo, data_emissione, cliente_snapshot, totale_documento, totale_da_pagare, stato, trasmissione, sdi_id_trasmissione, sdi_stato, sdi_notifica_tipo, sdi_errori, sdi_file_xml_url, sdi_ricevuta_url, sdi_data_consegna")
           .eq("company_id", companyId!)
           .is("deleted_at", null)
           .or(`anno.eq.${anno},and(anno.is.null,data_emissione.gte.${anno}-01-01,data_emissione.lte.${anno}-12-31)`)
@@ -112,16 +107,21 @@ export default function CassettoSDI({ embedded = false }: CassettoSDIProps = {})
 
   const kpi = useMemo(() => {
     const trasmesse = documenti.length;
-    const consegnate = documenti.filter(d => d.sdi_stato === "RC" || d.stato === "consegnata").length;
-    const scartate = documenti.filter(d => d.sdi_stato === "NS" || d.stato === "rifiutata").length;
-    const inAttesa = documenti.filter(d => d.sdi_stato === "AT" || d.stato === "inviata_sdi" || d.stato === "in_invio").length;
+    const fasi = documenti.map((d) => faseSdi(d)?.fase);
+    const consegnate = fasi.filter((f) => f === "inviata" || f === "accettata").length;
+    const scartate = fasi.filter((f) => f === "scartata" || f === "rifiutata_ente").length;
+    const inAttesa = fasi.filter((f) => f === "in_elaborazione" || f === "invio_in_corso").length;
     return { trasmesse, consegnate, scartate, inAttesa };
   }, [documenti]);
 
   const filtered = useMemo(() => {
     let result = documenti;
     if (statoFilter !== "all") {
-      result = result.filter(d => d.sdi_stato === statoFilter);
+      const fasi = FILTRI_FASE[statoFilter] ?? [];
+      result = result.filter((d) => {
+        const f = faseSdi(d)?.fase;
+        return !!f && fasi.includes(f);
+      });
     }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
@@ -133,34 +133,6 @@ export default function CassettoSDI({ embedded = false }: CassettoSDIProps = {})
     }
     return result;
   }, [documenti, statoFilter, searchQuery]);
-
-  const handleReinvia = async (docId: string) => {
-    if (reinviandoId) return; // un reinvio SDI alla volta: evita il doppio invio
-    setReinviandoId(docId);
-    try {
-      const { data, error } = await supabase.functions.invoke("invia-sdi", {
-        body: { documento_id: docId },
-      });
-      if (error) {
-        // 402 = gate "carta obbligatoria": apri il dialog "Aggiungi carta".
-        // (invoke diretto → non passa dal MutationCache globale di App.tsx.)
-        if ((error as { context?: { status?: number } })?.context?.status === 402) {
-          usePaymentGateStore.getState().show();
-          return;
-        }
-        const detail = error.context ? await (error.context as any).json?.().catch((): null => null) : null;
-        throw new Error(detail?.error || error.message);
-      }
-      const esito = data as { manuale?: boolean; avviso?: string | null } | null;
-      if (esito?.manuale) toast.success("XML della fattura pronto", { description: esito.avviso ?? undefined, duration: 10000 });
-      else toast.success("Documento reinviato a SDI");
-      void refetch();
-    } catch (e: any) {
-      toast.error(e.message || "Errore nel reinvio");
-    } finally {
-      setReinviandoId(null);
-    }
-  };
 
   const handleDownloadXml = async (xmlUrl: string | null) => {
     if (!xmlUrl) return;
@@ -249,12 +221,11 @@ export default function CassettoSDI({ embedded = false }: CassettoSDIProps = {})
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Tutti gli stati</SelectItem>
-                <SelectItem value="AT">Trasmessa</SelectItem>
-                <SelectItem value="RC">Consegnata</SelectItem>
-                <SelectItem value="NS">Scartata</SelectItem>
-                <SelectItem value="MC">Mancata consegna</SelectItem>
-                <SelectItem value="EC">Esito committente</SelectItem>
-                <SelectItem value="DT">Decorrenza termini</SelectItem>
+                <SelectItem value="in_elaborazione">In elaborazione</SelectItem>
+                <SelectItem value="inviate">Inviate</SelectItem>
+                <SelectItem value="scartate">Scartate</SelectItem>
+                <SelectItem value="rifiutate">Rifiutate dall'ente</SelectItem>
+                <SelectItem value="manuali">XML da caricare</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -315,7 +286,7 @@ export default function CassettoSDI({ embedded = false }: CassettoSDIProps = {})
                       <TableCell>{doc.cliente_snapshot?.ragione_sociale || "—"}</TableCell>
                       <TableCell className="text-right tabular-nums">{formatCurrency(doc.totale_documento)}</TableCell>
                       <TableCell className="font-mono text-xs text-muted-foreground">{doc.sdi_id_trasmissione || "—"}</TableCell>
-                      <TableCell><SdiStatoBadge stato={doc.sdi_stato} /></TableCell>
+                      <TableCell><FaseSdiBadge doc={doc} /></TableCell>
                       <TableCell className="text-xs text-muted-foreground">{doc.sdi_notifica_tipo || "—"}</TableCell>
                       <TableCell>
                         <div className="flex items-center justify-end gap-1">
@@ -351,8 +322,10 @@ export default function CassettoSDI({ embedded = false }: CassettoSDIProps = {})
                               <RefreshCw className="h-3.5 w-3.5 animate-spin" />
                             </Button>
                           ) : puoReinviare(doc) ? (
-                            <Button variant="ghost" size="icon" className="h-9 w-9 md:h-7 md:w-7" title="Reinvia" aria-label="Reinvia" onClick={() => handleReinvia(doc.id)} disabled={reinviandoId === doc.id}>
-                              <RefreshCw className={`h-3.5 w-3.5 ${reinviandoId === doc.id ? "animate-spin" : ""}`} />
+                            // Rimandare lo stesso XML riporterebbe lo stesso scarto: si
+                            // corregge nell'editor, che poi la rimanda (24/09/2026).
+                            <Button variant="ghost" size="icon" className="h-9 w-9 md:h-7 md:w-7" title="Correggi e rimanda" aria-label="Correggi e rimanda" onClick={() => navigate(`/azienda/documenti/${doc.id}`)}>
+                              <Pencil className="h-3.5 w-3.5" />
                             </Button>
                           ) : null}
                         </div>

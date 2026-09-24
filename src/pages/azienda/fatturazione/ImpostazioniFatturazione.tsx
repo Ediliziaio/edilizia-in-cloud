@@ -3,7 +3,7 @@ import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryKeys";
-import { statoConservazione } from "@/lib/fatturazione/conservazioneAde";
+import { conservazioneRetroattivaDal, statoConservazione } from "@/lib/fatturazione/conservazioneAde";
 import { useAuth } from "@/contexts/AuthContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -795,12 +795,14 @@ export default function ImpostazioniFatturazione() {
 
           {/* ─── CONSERVAZIONE A NORMA (24/09/2026) ───
               Openapi non conserva (legal_storage «non ancora disponibile»):
-              la strada è il servizio gratuito dell'Agenzia delle Entrate, che
-              però scade dopo tre anni. La data serve a dire quando rinnovare. */}
+              la strada è il servizio gratuito dell'Agenzia delle Entrate. La
+              convenzione si rinnova da sola ogni tre anni (FAQ n. 34 AdE): la
+              data serve a ricordare di controllare che il rinnovo risulti. */}
           {(() => {
             const oggi = new Date().toLocaleDateString("en-CA");
             const c = statoConservazione(current.conservazione_ade_aderito_il, oggi);
             const data = (iso: string) => new Date(`${iso}T12:00:00`).toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric" });
+            const retroattivaDal = data(conservazioneRetroattivaDal(Number(oggi.slice(0, 4))));
             return (
               <Card>
                 <CardHeader>
@@ -816,10 +818,10 @@ export default function ImpostazioniFatturazione() {
                     <div className="text-sm space-y-1">
                       <p className="font-medium text-foreground">Il servizio gratuito dell'Agenzia delle Entrate</p>
                       <p className="text-muted-foreground text-xs">
-                        Conserva per 15 anni tutte le fatture passate dallo SDI, inviate e ricevute, comprese quelle dal 1° gennaio del
-                        secondo anno prima dell'adesione. Nel portale Fatture e Corrispettivi: <b>Fatturazione elettronica e Conservazione →
-                        Accedi alla sezione conservazione</b>, poi accetta l'accordo di servizio. Può farlo il titolare o il commercialista
-                        con la delega. L'adesione dura 3 anni e va rinnovata.
+                        Conserva per 15 anni tutte le fatture passate dallo SDI, inviate e ricevute. Nel portale Fatture e Corrispettivi:
+                        <b> Fatturazione elettronica e Conservazione → Accedi alla sezione conservazione</b>, poi accetta la convenzione.
+                        Può farlo il titolare o il commercialista con la delega. Aderendo oggi puoi portare in conservazione anche le
+                        fatture passate dallo SDI dal {retroattivaDal}. La convenzione dura 3 anni e si rinnova da sola, salvo revoca.
                       </p>
                     </div>
                   </div>
@@ -837,26 +839,21 @@ export default function ImpostazioniFatturazione() {
                     </div>
                     <p className="text-xs text-muted-foreground sm:pb-2.5">
                       {c.stato === "da_segnare"
-                        ? "Quando hai aderito, segna qui la data: questa pagina ti dirà quando rinnovare."
+                        ? "Quando hai aderito, segna qui la data: questa pagina ti ricorderà di controllare i rinnovi."
                         : c.stato === "attiva"
-                          ? `Adesione valida fino al ${data(c.scade)}.`
+                          ? `Si rinnova da sola: il prossimo rinnovo è il ${data(c.prossimoRinnovo)}.`
                           : null}
                     </p>
                   </div>
 
-                  {c.stato === "in_scadenza" && (
+                  {c.stato === "da_controllare" && (
                     <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded-lg p-3 flex items-start gap-2 text-sm text-amber-800 dark:text-amber-300">
                       <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
                       <span>
-                        L'adesione scade il {data(c.scade)}{c.giorni === 0 ? ", oggi" : c.giorni === 1 ? ", domani" : `, tra ${c.giorni} giorni`}:
-                        rinnovala dallo stesso portale, poi aggiorna qui la data.
+                        La convenzione si è rinnovata da sola il {data(c.rinnovataIl)}. Controlla nel portale Fatture e Corrispettivi che
+                        risulti attiva: ad alcuni contribuenti il rinnovo non è risultato. Se manca, aderisci di nuovo e porta in
+                        conservazione le fatture del periodo scoperto.
                       </span>
-                    </div>
-                  )}
-                  {c.stato === "scaduta" && (
-                    <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 rounded-lg p-3 flex items-start gap-2 text-sm text-red-700 dark:text-red-300">
-                      <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
-                      <span>L'adesione è scaduta il {data(c.scade)}: le fatture non vengono più conservate. Rinnovala dal portale, poi aggiorna qui la data.</span>
                     </div>
                   )}
                 </CardContent>

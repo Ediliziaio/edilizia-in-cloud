@@ -18,6 +18,10 @@
 // con la service-role key. verify_jwt = false in supabase/config.toml: pg_cron
 // non manda nessun JWT, il controllo lo fa la funzione qui sotto.
 //
+// Dal 24/09/2026 la chiama anche l'app, col pulsante «Aggiorna stato» della
+// fattura: un utente, col suo token, per UNA fattura della sua azienda
+// ({ documento_id }). Senza, dopo l'invio si aspettava il quarto d'ora.
+//
 // Risposta rapida (serveConMetricheRapida): quaranta documenti con 15 secondi
 // di attesa ciascuno possono durare minuti, e pg_net ha una coda sola per tutti
 // i cron — vedi «Cron e pg_net» in CLAUDE.md. A pg_net si risponde entro 5
@@ -27,7 +31,9 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { serveConMetricheRapida } from "../_shared/withMetricsRapida.ts";
 import { leggiImpostazionePiattaforma } from "../_shared/getPlatformSetting.ts";
-import { esitoDefinitivo, estraiIdentificativoSdi, leggiEsitoOpenapi } from "../_shared/sdiStatoOpenapi.ts";
+import { esitoDefinitivo, estraiIdentificativoSdi, leggiEsitoOpenapi, messaggioSdi } from "../_shared/sdiStatoOpenapi.ts";
+import { statoDopoEsito } from "../_shared/sdiInvioGuard.ts";
+import { verifyCompanyAccess } from "../_shared/companyAuth.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -60,20 +66,39 @@ serveConMetricheRapida("sdi-stato-tick", async (req) => {
       (cronHeader === Deno.env.get("PROACTIVE_CRON_SECRET") ||
         cronHeader === Deno.env.get("INTERNAL_CRON_SECRET"))) ||
     (!!token && token === Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"));
-  if (!autorizzato) return json({ error: "non autorizzato" }, 401);
+  // «Aggiorna stato» dall'app: un utente, una fattura della sua azienda.
+  let soloDocumento: string | null = null;
+  if (!autorizzato) {
+    const corpo = (await req.json().catch(() => null)) as { documento_id?: unknown } | null;
+    const id = typeof corpo?.documento_id === "string" ? corpo.documento_id : "";
+    if (!token || !/^[0-9a-f-]{36}$/i.test(id)) return json({ error: "non autorizzato" }, 401);
+    const { data: { user } } = await supabase.auth.getUser(token);
+    if (!user) return json({ error: "non autorizzato" }, 401);
+    const { data: doc } = await supabase.from("documenti_fiscali").select("company_id").eq("id", id).maybeSingle();
+    try {
+      if (!doc) throw new Error("documento");
+      await verifyCompanyAccess(supabase, user.id, doc.company_id);
+    } catch {
+      return json({ error: "Accesso negato a questa fattura" }, 403);
+    }
+    soloDocumento = id;
+  }
 
   try {
     // Documenti trasmessi davvero (non in modalità manuale) e senza esito finale:
     // la consegna chiude le fatture tra privati, non quelle verso la PA.
     const tutti = [...DEFINITIVI, ...DEFINITIVI_TRA_PRIVATI].join(",");
     const dal = new Date(Date.now() - GIORNI_MASSIMI * 86_400_000).toISOString().slice(0, 10);
-    const inviate = () => supabase
-      .from("documenti_fiscali")
-      .select("id, company_id, numero, sdi_id_trasmissione, sdi_stato, stato, trasmissione, tipo_cliente:cliente_snapshot->>tipo_cliente")
-      .not("sdi_id_trasmissione", "is", null)
-      .eq("trasmissione", "sdi")
-      .is("deleted_at", null)
-      .gte("data_emissione", dal);
+    const inviate = () => {
+      const q = supabase
+        .from("documenti_fiscali")
+        .select("id, company_id, numero, sdi_id_trasmissione, sdi_stato, stato, trasmissione, tipo_cliente:cliente_snapshot->>tipo_cliente")
+        .not("sdi_id_trasmissione", "is", null)
+        .eq("trasmissione", "sdi")
+        .is("deleted_at", null)
+        .gte("data_emissione", dal);
+      return soloDocumento ? q.eq("id", soloDocumento) : q;
+    };
     // Due letture semplici invece di un filtro combinato: senza esito finale, e
     // quelle verso la PA consegnate che aspettano ancora la risposta dell'ente.
     const [aperte, versoPa] = await Promise.all([
@@ -170,7 +195,16 @@ serveConMetricheRapida("sdi-stato-tick", async (req) => {
         sdi_stato: esito.sdi_stato,
         sdi_notifica_tipo: esito.sdi_stato,
       };
-      if (esito.stato) patch.stato = esito.stato;
+      // L'esito dice com'è andata la trasmissione, non se il cliente ha pagato:
+      // su una fattura già incassata cambia sdi_stato e lo stato resta.
+      const stato = statoDopoEsito(doc.stato, esito.stato);
+      if (stato) patch.stato = stato;
+      // Il motivo dello scarto va sulla fattura: è lì che lo si legge per
+      // correggerla (prima finiva solo nello storico degli eventi).
+      // Solo la frase dello SDI (details.sdi_message): la fattura dice già «scartata».
+      if (esito.sdi_stato === "NS") {
+        patch.sdi_errori = [{ tipo: "NS", messaggio: messaggioSdi(grezzo) ?? "lo SDI non ha indicato il motivo" }];
+      }
       if (esito.sdi_stato === "RC" || esito.sdi_stato === "EC01" || esito.sdi_stato === "DT") {
         patch.sdi_data_consegna = new Date().toISOString();
       }

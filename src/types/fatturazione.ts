@@ -253,6 +253,8 @@ export interface DocumentoFiscale {
 
   // SDI
   sdi_id_trasmissione?: string;
+  /** IdentificativoSdI: il numero che lo SDI dà al file quando lo riceve. */
+  sdi_identificativo?: string;
   sdi_stato?: string;
   sdi_data_consegna?: string;
   sdi_file_xml_url?: string;
