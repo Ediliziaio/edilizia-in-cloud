@@ -100,10 +100,14 @@ export function calcolaRiepilogoIVA(
       : impostaSuImponibile(discountedImponibile, aliquota);
 
     // Split payment: EsigibilitaIVA = "S" per righe con IVA effettiva (non esente/natura)
+    // IVA per cassa (D): vale solo per le righe con IVA; esenti, non imponibili
+    // e reverse charge restano a esigibilità immediata.
     const esigibilita: "I" | "D" | "S" =
       splitPayment && !r.natura && aliquota > 0
         ? "S"
-        : r.esigibilita;
+        : r.natura && r.esigibilita === "D"
+          ? "I"
+          : r.esigibilita;
 
     return {
       ...r,
@@ -370,6 +374,17 @@ export function validateDocumento(
     });
   }
 
+  // IVA per cassa: non si applica a chi non ha partita IVA (art. 32-bis c. 1
+  // DL 83/2012: solo operazioni verso soggetti che agiscono nell'esercizio di
+  // impresa, arte o professione).
+  if (doc.esigibilita_iva === "D" && snap && !String(snap.partita_iva ?? "").trim()) {
+    errors.push({
+      field: "esigibilita_iva",
+      message: "IVA per cassa: con un cliente privato l'IVA è a esigibilità immediata. Scegli «IVA ad esigibilità immediata».",
+      severity: "warning",
+    });
+  }
+
   // RF19 forfettario: all righe must have natura_iva and aliquota 0
   // (This is a soft warning — the XML generator enforces it via Causale)
   if (doc.regime_fiscale === "RF19" || (doc as any)._regimeFiscale === "RF19") {
@@ -436,12 +451,33 @@ export function validateDocumento(
 
 // ─── Bollo suggestion ────────────────────────────────────────
 
+/**
+ * Nature la cui parte di fattura paga il bollo da 2 euro (DPR 642/72: le
+ * fatture per operazioni NON soggette a IVA). Fuori: esportazioni e cessioni
+ * intracomunitarie (esenti da bollo, art. 15 tab. B e art. 66 DL 331/93), il
+ * regime del margine e il reverse charge, che sono operazioni soggette a IVA.
+ */
+export const NATURE_CON_BOLLO = ["N1", "N2_1", "N2_2", "N3_5", "N4"] as const;
+
+/** La parte della fattura senza IVA che conta per il bollo. */
+export function importoSoggettoABollo(righe: RigaDocumento[]): number {
+  return round2(
+    righe
+      .filter((r) => !!r.natura_iva && (NATURE_CON_BOLLO as readonly string[]).includes(r.natura_iva))
+      .reduce((s, r) => s + (Number(r.imponibile) || 0), 0),
+  );
+}
+
+/**
+ * Il bollo è dovuto quando la parte SENZA IVA supera 77,47 euro, anche in una
+ * fattura che ha altre righe con IVA. Fino al 24/09/2026 si guardava il totale
+ * e solo se TUTTE le righe erano senza IVA: una fattura mista (lavori al 22% e
+ * 500 euro esenti) usciva senza bollo, e le lettere d'intento (N3.5) non
+ * c'erano.
+ */
 export function shouldSuggestBollo(
   righe: RigaDocumento[],
-  totale: number
+  _totale?: number
 ): boolean {
-  if (totale <= 77.47) return false;
-  return righe.every(
-    (r) => !!r.natura_iva && ["N1", "N2_1", "N2_2", "N4"].includes(r.natura_iva)
-  );
+  return importoSoggettoABollo(righe) > 77.47;
 }

@@ -3,6 +3,7 @@ import { verifyCompanyAccess } from "../_shared/companyAuth.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { leggiImpostazionePiattaforma } from "../_shared/getPlatformSetting.ts";
 import { generateXML } from "../_shared/generateXML.ts";
+import { datiReaMancanti } from "../_shared/datiSocietari.ts";
 import { utf8ToBase64 } from "../_shared/base64.ts";
 import { checkPaymentMethod, PAYMENT_METHOD_REQUIRED_MESSAGE } from "../_shared/requirePaymentMethod.ts";
 import { valutaPreInvio, claimDocumentoPerInvio, rilasciaClaimInvio, invioManuale, firmaPaACaricoNostro } from "../_shared/sdiInvioGuard.ts";
@@ -144,6 +145,10 @@ Deno.serve(async (req) => {
     if (!azienda.indirizzo_via || !azienda.indirizzo_cap || !azienda.indirizzo_comune) {
       validationErrors.push("Indirizzo azienda incompleto (via, CAP, comune richiesti)");
     }
+    // Società: numero REA (e per S.r.l./S.p.A. il capitale versato) vanno in
+    // fattura, art. 2250 c.c. Lo SDI non lo controlla, la legge sì: fino al
+    // 24/09/2026 la pagina Impostazioni non aveva nemmeno i campi per scriverli.
+    validationErrors.push(...datiReaMancanti(azienda));
 
     const snap = doc.cliente_snapshot || {};
     const isPaCliente = snap.tipo_cliente === "PA";

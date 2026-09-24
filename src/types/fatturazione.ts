@@ -90,26 +90,61 @@ export const TIPI_DOCUMENTO_FATTURAPA = {
   TD27: 'Fattura per autoconsumo o cessioni gratuite',
 } as const;
 
+/**
+ * Causali del pagamento soggetto a ritenuta (<CausalePagamento>): i codici della
+ * Certificazione Unica. Fino al 24/09/2026 qui la «E» era descritta come
+ * «Provvigioni agenti» (E è la levata di protesti cambiari) e le Impostazioni
+ * avevano una seconda lista, diversa e con altri errori. Le provvigioni sono
+ * Q, R, S, T, U; W è l'appalto in condominio con la ritenuta del 4%.
+ */
 export const CAUSALI_RITENUTA = {
-  A: 'Lavoro autonomo – arte o professione',
-  B: 'Opere dell\'ingegno, brevetti, know-how',
-  C: 'Utili da contratti associazione in partecipazione',
-  E: 'Provvigioni agenti, mediatori, rappresentanti',
-  M: 'Lavoro autonomo non esercitato abitualmente',
+  A: 'Lavoro autonomo abituale (arte o professione)',
+  B: 'Diritti d\'autore e d\'inventore (opere dell\'ingegno, brevetti)',
+  C: 'Associazione in partecipazione o cointeressenza con apporto di solo lavoro',
+  D: 'Utili dei soci promotori e fondatori di società di capitali',
+  E: 'Levata di protesti cambiari (segretari comunali)',
+  M: 'Lavoro autonomo occasionale',
+  O: 'Lavoro autonomo occasionale senza obbligo di Gestione Separata INPS',
+  Q: 'Provvigioni ad agente o rappresentante monomandatario',
+  R: 'Provvigioni ad agente o rappresentante plurimandatario',
+  S: 'Provvigioni a commissionario',
+  T: 'Provvigioni a mediatore',
+  U: 'Provvigioni a procacciatore d\'affari',
+  V: 'Provvigioni per vendite a domicilio o porta a porta',
+  V1: 'Attività commerciali occasionali',
+  W: 'Appalto in condominio: ritenuta del 4% (art. 25-ter DPR 600/73)',
   ZO: 'Titolo diverso dai precedenti',
 } as const;
 
+/**
+ * Casse previdenziali (<TipoCassa>), come le elenca lo schema FatturaPA 1.2.2.
+ * Fino al 24/09/2026 qui i codici erano scambiati (TC01 «Geometri», che è la
+ * cassa avvocati; TC06 «INARCASSA», che è TC04; TC22 «Veterinari», che è
+ * l'INPS): un professionista scriveva in fattura la cassa di un altro.
+ */
 export const TIPI_CASSA_PREVIDENZIALE = {
-  TC01: 'Cassa Naz. Geometri',
-  TC02: 'EPAP',
-  TC03: 'Cassa Naz. Ragionieri',
-  TC04: 'Cassa Naz. Periti Ind.',
-  TC06: 'INARCASSA',
-  TC07: 'Cassa Naz. Biologici',
-  TC10: 'ENPAM',
-  TC12: 'ENPAVIT',
-  TC15: 'CNPR',
-  TC22: 'Cassa Naz. Veterinari',
+  TC01: 'Avvocati (Cassa Forense)',
+  TC02: 'Dottori commercialisti',
+  TC03: 'Geometri (CIPAG)',
+  TC04: 'Ingegneri e architetti (INARCASSA)',
+  TC05: 'Notariato',
+  TC06: 'Ragionieri e periti commerciali',
+  TC07: 'Agenti di commercio (ENASARCO)',
+  TC08: 'Consulenti del lavoro (ENPACL)',
+  TC09: 'Medici (ENPAM)',
+  TC10: 'Farmacisti (ENPAF)',
+  TC11: 'Veterinari (ENPAV)',
+  TC12: 'Impiegati dell\'agricoltura (ENPAIA)',
+  TC13: 'Imprese di spedizione e agenzie marittime',
+  TC14: 'Giornalisti (INPGI)',
+  TC15: 'Orfani sanitari (ONAOSI)',
+  TC16: 'Giornalisti, cassa integrativa (CASAGIT)',
+  TC17: 'Periti industriali (EPPI)',
+  TC18: 'Pluricategoriale (EPAP)',
+  TC19: 'Biologi (ENPAB)',
+  TC20: 'Infermieri (ENPAPI)',
+  TC21: 'Psicologi (ENPAP)',
+  TC22: 'INPS (Gestione Separata)',
 } as const;
 
 export const ESIGIBILITA_IVA = {
@@ -454,6 +489,14 @@ export interface AnagraficaAzienda {
   split_payment_pa: boolean;
   /** Società con unico socio (SU). Se false o assente → SM (più soci). Usato nel campo XML <SocioUnico> */
   socio_unico?: boolean;
+  /** Ufficio del registro imprese (provincia); vuoto = provincia della sede. */
+  rea_ufficio?: string | null;
+  /** LN non in liquidazione, LS in liquidazione. */
+  stato_liquidazione?: "LN" | "LS";
+  /** Regime IVA per cassa (art. 32-bis DL 83/2012). */
+  iva_per_cassa?: boolean;
+  /** Bollo virtuale messo da solo quando è dovuto (acceso di serie). */
+  bollo_virtuale_auto?: boolean;
   created_at: string;
   updated_at: string;
 }

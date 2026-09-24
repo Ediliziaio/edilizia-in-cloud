@@ -197,7 +197,15 @@ export function EditorContributiRitenuteSection({ state, dispatch, disabled }: P
                   </div>
                   <div>
                     <Label className="text-[10px] text-muted-foreground">Causale pagamento</Label>
-                    <Select value={state.ritenuta_causale ?? "A"} onValueChange={(v) => setField("ritenuta_causale", v)} disabled={disabled}>
+                    <Select
+                      value={state.ritenuta_causale ?? "A"}
+                      onValueChange={(v) => {
+                        setField("ritenuta_causale", v);
+                        // Condominio (art. 25-ter DPR 600/73): la ritenuta è del 4%.
+                        if (v === "W") setField("ritenuta_aliquota", 4);
+                      }}
+                      disabled={disabled}
+                    >
                       <SelectTrigger className="h-7 text-[10px]"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {Object.entries(CAUSALI_RITENUTA).map(([k, v]) => (

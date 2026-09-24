@@ -10,6 +10,8 @@
 // più di quello che spediva: l'anteprima mostrava una fattura diversa da quella
 // inviata. Le correzioni sono scritte vicino a ogni blocco.
 
+import { iscrizioneRea } from "./datiSocietari.ts";
+
 type Dati = Record<string, any>;
 
 export function escXml(s: string | null | undefined): string {
@@ -183,6 +185,22 @@ function scontoRiga(r: Dati): { percentuale?: number; importo?: number } {
 }
 
 /**
+ * <IscrizioneREA> del cedente (art. 2250 c.c.): ufficio e numero del registro
+ * imprese, per S.p.A. e S.r.l. anche capitale versato e unico socio, e lo stato
+ * di liquidazione. Prima l'ufficio era sempre la provincia della sede, lo
+ * stato sempre «non in liquidazione», e per le società di persone usciva un
+ * SocioUnico che le specifiche riservano a S.p.A. e S.r.l.
+ */
+function bloccoRea(azienda: Dati): string {
+  const rea = iscrizioneRea(azienda);
+  if (!rea) return "";
+  return `<IscrizioneREA><Ufficio>${rea.ufficio}</Ufficio><NumeroREA>${escXml(rea.numero)}</NumeroREA>` +
+    (rea.capitale !== null ? `<CapitaleSociale>${fmtNum(rea.capitale)}</CapitaleSociale>` : "") +
+    (rea.socioUnico ? `<SocioUnico>${rea.socioUnico}</SocioUnico>` : "") +
+    `<StatoLiquidazione>${rea.stato}</StatoLiquidazione></IscrizioneREA>`;
+}
+
+/**
  * Genera l'XML FatturaPA (FPR12/FPA12) a partire dal documento e dall'anagrafica azienda.
  * Il `progressivoInvio` è obbligatorio per l'invio reale; in anteprima si usa il numero documento.
  * `doc.fattura_collegata` ({ numero, data }), se c'è, è la fattura che una nota
@@ -302,7 +320,7 @@ export function generateXML(
         <RegimeFiscale>${escXml(azienda.regime_fiscale)}</RegimeFiscale>
       </DatiAnagrafici>
       ${sedeAzienda}
-      ${azienda.codice_rea ? `<IscrizioneREA><Ufficio>${escXml(String(azienda.indirizzo_provincia || "").toUpperCase())}</Ufficio><NumeroREA>${x(azienda.codice_rea, 20)}</NumeroREA>${azienda.capitale_sociale ? `<CapitaleSociale>${fmtNum(azienda.capitale_sociale)}</CapitaleSociale><SocioUnico>${azienda.socio_unico ? "SU" : "SM"}</SocioUnico>` : ""}<StatoLiquidazione>LN</StatoLiquidazione></IscrizioneREA>` : ""}
+      ${bloccoRea(azienda)}
     </CedentePrestatore>
     <CessionarioCommittente>
       <DatiAnagrafici>
@@ -389,6 +407,15 @@ export function generateXML(
   const scritte = ((doc.causale ?? []) as unknown[]).map((c) => String(c ?? "")).filter((c) => c.trim());
   if (azienda.regime_fiscale === "RF19" && !scritte.some((c) => /190\/2014|forfettari/i.test(c))) {
     causali.push("Operazione effettuata ai sensi dell'art. 1, commi da 54 a 89, della legge 23 dicembre 2014, n. 190 - Regime forfettario");
+  }
+  // Diciture che la legge chiede in fattura e che l'XML non dice da solo:
+  // l'IVA per cassa va annotata come tale (art. 32-bis DL 83/2012, DM
+  // 11/07/2013), la scissione dei pagamenti pure (art. 2 DM 23/01/2015).
+  if (riepilogo.some((r: Dati) => r.esigibilita === "D") && !scritte.some((c) => /32-bis|iva per cassa/i.test(c))) {
+    causali.push("Operazione con IVA per cassa ai sensi dell'art. 32-bis del decreto-legge 22 giugno 2012, n. 83");
+  }
+  if (riepilogo.some((r: Dati) => r.esigibilita === "S") && !scritte.some((c) => /scissione|17-ter/i.test(c))) {
+    causali.push("Scissione dei pagamenti ai sensi dell'art. 17-ter del DPR 633/72");
   }
   for (const c of scritte) causali.push(c);
   const causaliXml = causali.flatMap((c) => aPezzi(c, 200)).map((c) => `<Causale>${escXml(c)}</Causale>`).join("\n        ");
