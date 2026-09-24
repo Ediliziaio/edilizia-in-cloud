@@ -27,8 +27,13 @@ const chiavi = {
   inCarico: (userId: string | undefined) => ["mezzi", "in-carico", userId] as const,
 };
 
+// Il mezzo su cui viaggia si indica con la COLONNA (`mezzi!su_mezzo_id`), non
+// col nome del vincolo: su una tabella che punta a sé stessa PostgREST non trova
+// la relazione per nome («Could not find a relationship between 'mezzi' and
+// 'mezzi'», PGRST200) e rifiuta tutta la query — elenco e scheda vuoti per ogni
+// azienda (24/09/2026, provato anche dopo il reload della cache).
 const SELECT_CON_ASSEGNAZIONE =
-  "*, persona:hr_profili!mezzi_assegnato_hr_profilo_id_fkey(nome, cognome), commessa:orders!mezzi_assegnato_order_id_fkey(order_code, client_name, client_company), sopra:mezzi!mezzi_su_mezzo_id_fkey(nome)";
+  "*, persona:hr_profili!mezzi_assegnato_hr_profilo_id_fkey(nome, cognome), commessa:orders!mezzi_assegnato_order_id_fkey(order_code, client_name, client_company), sopra:mezzi!su_mezzo_id(nome)";
 
 type RigaConAssegnazione = Mezzo & {
   persona: { nome: string | null; cognome: string | null } | null;
