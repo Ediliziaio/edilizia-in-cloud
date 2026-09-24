@@ -45,7 +45,7 @@ const TIPO_LABELS: Record<string, string> = {
   integrazione_beni_extra_ue: "TD19",
   acconto_fattura: "Acconto Fattura (TD02)",
   acconto_parcella: "Acconto Parcella (TD03)",
-  reverse_charge_interno: "RC Interno (TD16)",
+  reverse_charge_interno: "Integrazione RC ricevuta (TD16)",
   autofattura_splafonamento: "Autofattura Splafonamento (TD21)",
   fattura_differita_b: "Fatt. Differita lett.b (TD25)",
   autoconsumo: "Autoconsumo (TD27)",

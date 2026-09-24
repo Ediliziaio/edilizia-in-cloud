@@ -156,14 +156,19 @@ export function EditorDatiDocumento({ state, dispatch, disabled }: Props) {
         </div>
       </div>
 
-      {/* Banner informativo TD16 Reverse Charge Interno */}
+      {/* TD16 è l'integrazione di una fattura in reverse charge RICEVUTA. Il
+          banner diceva di usarla per fatturare un subappalto con N6.3: chi lo
+          seguiva mandava allo SDI un'integrazione al posto della sua fattura
+          (24/09/2026). La fattura del subappaltatore è una TD01 con N6.3. */}
       {state.tipo === 'reverse_charge_interno' && (
         <Alert className="bg-blue-50 border-blue-200">
           <Info className="h-4 w-4 text-blue-600" />
           <AlertDescription className="text-blue-800">
-            <strong>Reverse Charge Interno (TD16)</strong> — Il committente è responsabile del versamento IVA.
-            Applicare Natura IVA <strong>N6.3</strong> per subappalti edili o <strong>N6.7</strong> per altri casi.
-            L&apos;importo IVA non viene addebitato al cliente.
+            <strong>Integrazione di una fattura in reverse charge ricevuta (TD16)</strong> — si usa quando un fornitore,
+            per esempio un subappaltatore, ti ha fatturato senza IVA (natura N6.3): qui aggiungi l&apos;IVA che versi tu.
+            Come «cliente» indica il <strong>fornitore</strong>; il documento torna a te e al cliente non arriva niente.
+            Per <strong>fatturare tu</strong> un subappalto in reverse charge usa una <strong>Fattura</strong> normale con
+            natura <strong>N6.3</strong> sulle righe.
           </AlertDescription>
         </Alert>
       )}

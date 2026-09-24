@@ -208,8 +208,19 @@ Deno.serve(async (req) => {
       }
     });
 
-    if (!snap.partita_iva && !snap.codice_fiscale) {
+    // Nelle integrazioni di acquisti dall'estero (TD17-19) il «cliente» del
+    // documento è il fornitore estero: può non avere partita IVA (l'XML usa il
+    // codice di riserva) e non ha un codice fiscale italiano.
+    const fornitoreEstero = ["integrazione_servizi_estero", "integrazione_beni_ue", "integrazione_beni_extra_ue"].includes(doc.tipo);
+    if (!snap.partita_iva && !snap.codice_fiscale && !fornitoreEstero) {
       validationErrors.push("Il cliente deve avere Partita IVA o Codice Fiscale");
+    }
+    // Indirizzo obbligatorio nello schema: senza, lo SDI scarta tutta la fattura.
+    if (!String(snap.indirizzo_via || "").trim() || !String(snap.indirizzo_comune || "").trim()) {
+      validationErrors.push("Indirizzo del cliente incompleto: servono via e comune");
+    }
+    if (String(snap.indirizzo_nazione || "IT").toUpperCase() === "IT" && !/^\d{5}$/.test(String(snap.indirizzo_cap || "").trim())) {
+      validationErrors.push("CAP del cliente mancante o non valido: servono 5 cifre");
     }
     if (snap.partita_iva && !isValidPartitaIva(snap.partita_iva) && (snap.indirizzo_nazione || "IT") === "IT") {
       validationErrors.push(`Partita IVA cliente non valida: ${snap.partita_iva}`);
@@ -264,8 +275,17 @@ Deno.serve(async (req) => {
     }
     const progressivoInvio = progressivoData as string;
 
+    // Nota di credito o di debito: la fattura che rettifica va nell'XML
+    // (DatiFattureCollegate, art. 26 DPR 633/72). Prima non c'era mai.
+    let docXml = doc;
+    if ((doc.tipo === "nota_credito" || doc.tipo === "nota_debito") && doc.documento_correlato_id) {
+      const { data: originale } = await supabase.from("documenti_fiscali")
+        .select("numero, data_emissione").eq("id", doc.documento_correlato_id).maybeSingle();
+      if (originale?.numero) docXml = { ...doc, fattura_collegata: { numero: originale.numero, data: originale.data_emissione } };
+    }
+
     // Generate XML
-    const xml = generateXML(doc, azienda, progressivoInvio);
+    const xml = generateXML(docXml, azienda, progressivoInvio);
 
     // Save XML to storage
     const xmlPath = `${doc.company_id}/IT${azienda.partita_iva}_${(doc.numero || "").replace(/[^a-zA-Z0-9-]/g, "_")}.xml`;
