@@ -113,6 +113,12 @@ export default defineConfig(() => ({
             // Solo le regole CRITICHE above-the-fold: niente media queries di
             // viewport non-mobile, niente :hover (utente che fa hover ha già
             // CSS caricato), niente animation più di base.
+            // Con inlineFonts false riduce anche gli <style> scritti a mano in
+            // index.html e toglie le @font-face: per questo quelle di Inter stanno
+            // in src/index.css (dal 24/09/2026; dal 22/05 Inter non si vedeva).
+            // Non spegnerlo: il blocco scritto a mano ha anche .hidden{display:none},
+            // che intero, nelle pagine prerenderizzate, viene DOPO il foglio e
+            // batte lg:flex (menu in alto sparito su computer).
             reduceInlineStyles: true,
             keyframes: "critical",
             allowRules: [
