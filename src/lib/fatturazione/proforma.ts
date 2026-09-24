@@ -33,15 +33,6 @@ export async function convertiProformaInFattura(proformaId: string): Promise<Doc
 
   const companyId = doc.company_id as string;
 
-  // Generate new number
-  const { data: numero, error: rpcErr } = await supabase.rpc(
-    "genera_numero_documento_native" as never,
-    { p_company_id: companyId, p_tipo: "fattura", p_anno: new Date().getFullYear() } as never
-  );
-  if (rpcErr) throw rpcErr;
-
-  const progressivo = parseInt((numero as string).split("-").pop() ?? "1", 10);
-
   // Ricalcola totali e riepilogo_iva dalle righe per garantire consistenza
   const righe = (doc.righe as RigaDocumento[]) || [];
   const totali = calcolaTotaliDocumento(righe, {
@@ -65,92 +56,98 @@ export async function convertiProformaInFattura(proformaId: string): Promise<Doc
     splitPayment: doc.esigibilita_iva === "S",
   });
 
-  // Create fattura
-  const { data: newDoc, error: createErr } = await supabase
-    .from("documenti_fiscali" as never)
-    .insert({
-      company_id: companyId,
-      tipo: "fattura",
-      numero: numero as string,
-      numero_progressivo: progressivo,
-      anno: new Date().getFullYear(),
-      // Data LOCALE, non UTC: con toISOString() tra mezzanotte e l'1/2 di
-      // notte italiane la data di emissione slittava al giorno precedente.
-      data_emissione: `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}-${String(new Date().getDate()).padStart(2, "0")}`,
-      anagrafica_id: doc.anagrafica_id,
-      cliente_snapshot: doc.cliente_snapshot,
-      stato: "bozza",
-      righe: doc.righe,
-      riepilogo_iva: totali.riepilogo_iva,
-      subtotale: totali.subtotale,
-      imponibile_totale: totali.imponibile_totale,
-      iva_totale: totali.iva_totale,
-      totale_documento: totali.totale_documento,
-      totale_da_pagare: totali.totale_da_pagare,
-      scadenze_pagamento: doc.scadenze_pagamento,
-      metodo_pagamento_codice: doc.metodo_pagamento_codice,
-      iban_pagamento: doc.iban_pagamento,
-      note_documento: doc.note_documento,
-      documento_correlato_id: proformaId,
-      bollo_virtuale: doc.bollo_virtuale,
-      ritenuta_acconto: doc.ritenuta_acconto,
-      ritenuta_tipo: doc.ritenuta_tipo,
-      ritenuta_aliquota: doc.ritenuta_aliquota,
-      ritenuta_importo: doc.ritenuta_importo,
-      cassa_previdenziale: doc.cassa_previdenziale,
-      cassa_tipo: doc.cassa_tipo,
-      cassa_aliquota: doc.cassa_aliquota,
-      cassa_importo: doc.cassa_importo,
-      cassa_imponibile: doc.cassa_imponibile,
-      cassa_aliquota_iva: doc.cassa_aliquota_iva,
-      cassa_ritenuta: doc.cassa_ritenuta,
-      // Sconto globale
-      sconto_globale_percentuale: doc.sconto_globale_percentuale,
-      sconto_globale_valore: totali.scontoGlobaleValore,
-      // Bollo
-      bollo_importo: doc.bollo_importo,
-      // Bank details
-      bic_pagamento: doc.bic_pagamento,
-      nome_banca: doc.nome_banca,
-      intestatario_conto: doc.intestatario_conto,
-      metodo_pagamento_nome: doc.metodo_pagamento_nome,
-      // Rivalsa INPS
-      rivalsa_inps: doc.rivalsa_inps,
-      rivalsa_tipo: doc.rivalsa_tipo,
-      rivalsa_aliquota: doc.rivalsa_aliquota,
-      rivalsa_importo: totali.rivalsa_importo,
-      // Altra ritenuta
-      altra_ritenuta: doc.altra_ritenuta,
-      altra_ritenuta_tipo: doc.altra_ritenuta_tipo,
-      altra_ritenuta_aliquota: doc.altra_ritenuta_aliquota,
-      altra_ritenuta_importo: totali.altra_ritenuta_importo,
-      altra_ritenuta_causale: doc.altra_ritenuta_causale,
-      // Ritenuta causale
-      ritenuta_causale: doc.ritenuta_causale,
-      // PA fields
-      cig: doc.cig,
-      cup: doc.cup,
-      codice_commessa_convenzione: doc.codice_commessa_convenzione,
-      // FE fields
-      esigibilita_iva: doc.esigibilita_iva,
-      arrotondamento: doc.arrotondamento,
-      // Causale & note
-      causale: doc.causale,
-      note_interne: doc.note_interne,
-      // Serie
-      serie: doc.serie,
-    } as never)
-    .select()
-    .single();
+  // Create fattura: da documento_crea come ogni altro documento (24/09/2026).
+  // Nasce in bozza e senza numero: il numero lo dà l'emissione. Prima qui si
+  // prendeva un numero di fattura subito, e una conversione abbandonata
+  // lasciava un buco nella serie.
+  const dati = {
+    tipo: "fattura",
+    // Data LOCALE, non UTC: con toISOString() tra mezzanotte e l'1/2 di
+    // notte italiane la data di emissione slittava al giorno precedente.
+    data_emissione: `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}-${String(new Date().getDate()).padStart(2, "0")}`,
+    anagrafica_id: doc.anagrafica_id,
+    cliente_snapshot: doc.cliente_snapshot,
+    stato: "bozza",
+    righe: doc.righe,
+    riepilogo_iva: totali.riepilogo_iva,
+    subtotale: totali.subtotale,
+    imponibile_totale: totali.imponibile_totale,
+    iva_totale: totali.iva_totale,
+    totale_documento: totali.totale_documento,
+    totale_da_pagare: totali.totale_da_pagare,
+    scadenze_pagamento: doc.scadenze_pagamento,
+    metodo_pagamento_codice: doc.metodo_pagamento_codice,
+    iban_pagamento: doc.iban_pagamento,
+    note_documento: doc.note_documento,
+    documento_correlato_id: proformaId,
+    bollo_virtuale: doc.bollo_virtuale,
+    ritenuta_acconto: doc.ritenuta_acconto,
+    ritenuta_tipo: doc.ritenuta_tipo,
+    ritenuta_aliquota: doc.ritenuta_aliquota,
+    ritenuta_importo: doc.ritenuta_importo,
+    cassa_previdenziale: doc.cassa_previdenziale,
+    cassa_tipo: doc.cassa_tipo,
+    cassa_aliquota: doc.cassa_aliquota,
+    cassa_importo: doc.cassa_importo,
+    cassa_imponibile: doc.cassa_imponibile,
+    cassa_aliquota_iva: doc.cassa_aliquota_iva,
+    cassa_ritenuta: doc.cassa_ritenuta,
+    // Sconto globale
+    sconto_globale_percentuale: doc.sconto_globale_percentuale,
+    sconto_globale_valore: totali.scontoGlobaleValore,
+    // Bollo
+    bollo_importo: doc.bollo_importo,
+    // Bank details
+    bic_pagamento: doc.bic_pagamento,
+    nome_banca: doc.nome_banca,
+    intestatario_conto: doc.intestatario_conto,
+    metodo_pagamento_nome: doc.metodo_pagamento_nome,
+    // Rivalsa INPS
+    rivalsa_inps: doc.rivalsa_inps,
+    rivalsa_tipo: doc.rivalsa_tipo,
+    rivalsa_aliquota: doc.rivalsa_aliquota,
+    rivalsa_importo: totali.rivalsa_importo,
+    // Altra ritenuta
+    altra_ritenuta: doc.altra_ritenuta,
+    altra_ritenuta_tipo: doc.altra_ritenuta_tipo,
+    altra_ritenuta_aliquota: doc.altra_ritenuta_aliquota,
+    altra_ritenuta_importo: totali.altra_ritenuta_importo,
+    altra_ritenuta_causale: doc.altra_ritenuta_causale,
+    // Ritenuta causale
+    ritenuta_causale: doc.ritenuta_causale,
+    // PA fields
+    cig: doc.cig,
+    cup: doc.cup,
+    codice_commessa_convenzione: doc.codice_commessa_convenzione,
+    // FE fields
+    esigibilita_iva: doc.esigibilita_iva,
+    arrotondamento: doc.arrotondamento,
+    // Causale & note
+    causale: doc.causale,
+    note_interne: doc.note_interne,
+    // Serie
+    serie: doc.serie,
+  };
+  const { data: creato, error: createErr } = await supabase.rpc("documento_crea" as never, {
+    p_company_id: companyId,
+    p_dati: dati,
+  } as never) as { data: { id?: string } | null; error: { message?: string } | null };
+  if (createErr) throw new Error(createErr.message ?? "Creazione della fattura non riuscita");
+  if (!creato?.id) throw new Error("La fattura non e' stata creata");
 
-  if (createErr) throw createErr;
+  const { data: newDoc, error: readErr } = await supabase
+    .from("documenti_fiscali" as never)
+    .select("*")
+    .eq("id", creato.id)
+    .single();
+  if (readErr) throw readErr;
 
   // Mark original as annullata
   const { error: updateErr } = await supabase
     .from("documenti_fiscali" as never)
     .update({
       stato: "annullata",
-      note_interne: `Convertito in fattura ${numero}`,
+      note_interne: "Convertito in fattura: la trovi tra le bozze, prende il numero quando la emetti",
       updated_at: new Date().toISOString(),
     } as never)
     .eq("id", proformaId);

@@ -146,7 +146,7 @@ export default function EditorDocumento() {
     setIsConvertLoading(true);
     try {
       const fattura = await convertiProformaInFattura(state.id);
-      toast.success(`Convertito in fattura ${fattura.numero}`);
+      toast.success("Convertito in fattura", { description: "È una bozza: prende il numero quando la emetti." });
       navigate(`/azienda/documenti/${fattura.id}`);
     } catch (err: any) {
       toast.error("Errore nella conversione", { description: err.message });

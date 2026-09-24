@@ -465,12 +465,29 @@ export function useEmittiDocumento() {
         throw new Error("Il cliente è obbligatorio per emettere il documento");
       }
 
+      // L'emissione la fa il database (documento_emetti, 24/09/2026): assegna
+      // il numero adesso e non alla creazione della bozza (niente buchi nella
+      // serie), rifiuta la data futura e la data fuori ordine rispetto alle
+      // fatture già emesse. Prima qui si cambiava solo lo stato.
+      const { error: rpcErr } = await supabase.rpc("documento_emetti" as never, { p_documento_id: id } as never);
+      if (rpcErr) {
+        // Finché la migrazione non è sul database la funzione non c'è: si
+        // emette come prima. Da togliere quando è arrivata.
+        const manca = rpcErr.code === "PGRST202" || /could not find the function/i.test(rpcErr.message ?? "");
+        if (!manca) throw new Error(rpcErr.message);
+        const { error } = await supabase
+          .from("documenti_fiscali" as never)
+          .update({ stato: "emessa", updated_at: new Date().toISOString() } as never)
+          .eq("id", id)
+          .eq("company_id", companyId);
+        if (error) throw error;
+      }
+
       const { data: updated, error } = await supabase
         .from("documenti_fiscali" as never)
-        .update({ stato: "emessa", updated_at: new Date().toISOString() } as never)
+        .select()
         .eq("id", id)
         .eq("company_id", companyId)
-        .select()
         .single();
 
       if (error) throw error;
